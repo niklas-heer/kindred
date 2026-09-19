@@ -109,3 +109,27 @@ The [historical guide](HISTORICAL_EXAMPLES.md) describes 45 people, 51 claims,
 Tests verify sources/links, long ancestry, shared ancestors, multiple partnerships,
 and the disputed-claim policy. Historical evidence may be revised; preserve
 uncertainty and recheck the relevant source before changing a claim.
+
+## 0007 — Stable generations and bounded cards for family exploration
+
+Date: 2026-09-19. Status: implemented under the owner's request to improve the
+graph layout and card presentation; visual design remains open to iteration.
+
+Replace the alphabetical overview grid with a top-down generation layout.
+Explicit partner groups share a row; parents with missing ancestry move down
+above their children. Order connected groups using neighboring branches and
+separate disconnected components. Keep shared ancestors as single nodes.
+Cyclic claims remain visible links but cannot all constrain a generation order.
+Path queries retain a horizontal connection layout, and evidence uses a separate
+row. A force layout remains an alternative if a future network exploration mode
+needs it; it is not required for these bounded family views.
+
+Keep SVG links and embedded assets. Render card contents in bounded HTML inside
+SVG so names wrap and dates truncate within the card. No runtime dependencies
+were added. Overview opens with connected branches and co-parents; Family starts
+with immediate relatives. Zoom and Fit expose larger selections deliberately.
+
+Native browser checks covered a historical family, four-generation ancestry,
+long names, branch expansion/collapse, and zoom. Deterministic layout checks
+covered shared ancestry, same-rank partners, cycle termination, and nonoverlapping
+cards. These checks do not establish readability for arbitrarily large archives.

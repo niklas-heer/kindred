@@ -49,8 +49,15 @@ telemetry, login, or external database service. Source URLs open only when you
 choose them. Treat an open local session as access to the complete archive.
 
 Search for a person, then choose a family, ancestor, descendant, or path view.
-Depth and claim filters control the selection. Overview limits detail and lets
-you reveal more of the family. Select a person or connection for its story,
+Depth and claim filters control the selection. Family opens with immediate
+relatives; switching from Family to Ancestors or Descendants starts at four
+generations. Parents appear above children, and explicit partners share a row.
+Overview starts with connected branches spanning three generations, including
+co-parents, and lets you expand or collapse a selected branch. Show all reveals
+the complete selection. Shared ancestors remain one person; cyclic claims are
+retained as links without forcing an impossible generation order. Use the zoom
+buttons, scroll, and drag to explore; Fit frames the entire selection.
+Select a person or connection for its story,
 metadata, events, claims, and evidence. The evidence toggle adds source/event
 nodes when useful. Attachments are available from their source or media record.
 

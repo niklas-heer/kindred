@@ -16,11 +16,12 @@
     request: 0,
     editorOriginal: "",
     overviewExpanded: new Set(),
+    overviewCollapsed: new Set(),
     overviewShowAll: false
   };
 
   const el = Object.fromEntries([
-    "search", "search-results", "generations", "relation-filter", "status-filter", "show-evidence", "overview-toggle", "fit-button",
+    "direction-label", "zoom-in", "zoom-out", "zoom-level", "search", "search-results", "generations", "relation-filter", "status-filter", "show-evidence", "overview-toggle", "fit-button",
     "diagnostics", "path-picker", "path-from", "path-to", "graph", "viewport",
     "edges", "nodes", "empty-state", "graph-status", "details", "editor",
     "editor-title", "editor-text", "editor-message", "save-button", "help-button", "shortcuts"
@@ -169,30 +170,64 @@
     if (state.mode === "overview" && !state.overviewShowAll) persons = collapsedOverview(persons);
     if (!el.show_evidence.checked) return persons;
     const personIds = new Set(persons.map((person) => person.id));
-    const sourceIds = new Set((state.data?.query.edges || []).flatMap((edge) => edge.sources || []));
+    const sourceIds = new Set((state.data?.query.edges || []).filter((edge) => personIds.has(edge.from) && personIds.has(edge.to)).flatMap((edge) => edge.sources || []));
     for (const person of persons) for (const source of linkedIds(person, "sources")) sourceIds.add(source);
     const evidence = state.data.records.filter((item) => sourceIds.has(item.id) || (item.kind === "event" && linkedIds(item, "people").some((id) => personIds.has(id))));
     return [...persons, ...evidence.filter((item, index, all) => all.findIndex((other) => other.id === item.id) === index)];
   }
 
   function collapsedOverview(persons) {
-    const personIds = new Set(persons.map((person) => person.id));
-    const claims = (state.data?.query.edges || []).filter((edge) => personIds.has(edge.from) && personIds.has(edge.to));
-    const children = new Set(claims.filter((edge) => edge.relation !== "partner").map((edge) => edge.to));
-    const roots = persons.filter((person) => !children.has(person.id));
-    const visible = new Set((roots.length ? roots : persons.slice(0, 1)).map((person) => person.id));
-    const queue = [...visible];
-    while (queue.length) {
-      const id = queue.shift();
-      if (!state.overviewExpanded.has(id)) continue;
-      for (const edge of claims) {
-        const next = edge.from === id ? edge.to : edge.to === id ? edge.from : "";
-        if (next && !visible.has(next)) {
-          visible.add(next);
-          queue.push(next);
+    const ids = new Set(persons.map((person) => person.id));
+    const claims = state.data.query.edges.filter((edge) => ids.has(edge.from) && ids.has(edge.to));
+    const neighbors = new Map(persons.map((person) => [person.id, []]));
+    for (const edge of claims) {
+      neighbors.get(edge.from).push(edge.to);
+      neighbors.get(edge.to).push(edge.from);
+    }
+    const visible = new Set();
+    const visited = new Set();
+    for (const person of persons) {
+      if (visited.has(person.id)) continue;
+      const component = [], queue = [person.id];
+      visited.add(person.id);
+      while (queue.length) {
+        const id = queue.shift();
+        component.push(id);
+        for (const next of neighbors.get(id)) if (!visited.has(next)) { visited.add(next); queue.push(next); }
+      }
+      const children = new Set(claims.filter((edge) => edge.relation !== "partner").map((edge) => edge.to));
+      const roots = component.filter((id) => !children.has(id));
+      // Start at a root with the largest descendant branch, not every spouse
+      // whose parents happen to be absent from this selective archive.
+      const reach = (root) => {
+        const found = new Set([root]), pending = [root];
+        while (pending.length) {
+          const id = pending.shift();
+          for (const edge of claims) if (edge.from === id && edge.relation !== "partner" && !found.has(edge.to)) {
+            found.add(edge.to); pending.push(edge.to);
+          }
+        }
+        return found.size;
+      };
+      const root = (roots.length ? roots : component).sort((a, b) => reach(b) - reach(a) || a.localeCompare(b))[0];
+      const pending = [[root, 0]], seen = new Set();
+      while (pending.length) {
+        const [id, depth] = pending.shift();
+        if (seen.has(id)) continue;
+        seen.add(id); visible.add(id);
+        for (const edge of claims) {
+          if (edge.relation === "partner" && (edge.from === id || edge.to === id)) {
+            pending.push([edge.from === id ? edge.to : edge.from, depth]);
+          } else if (edge.from === id && (!state.overviewCollapsed.has(id) && (depth < 2 || state.overviewExpanded.has(id)))) {
+            pending.push([edge.to, depth + 1]);
+          }
         }
       }
     }
+    // Show both sides of the visible parentage without inventing a partnership.
+    // Use a snapshot so including a parent does not recursively unfold ancestors.
+    const descendants = new Set(visible);
+    for (const edge of claims) if (edge.relation !== "partner" && descendants.has(edge.to)) visible.add(edge.from);
     return persons.filter((person) => visible.has(person.id));
   }
 
@@ -222,7 +257,9 @@
   }
 
   function renderGraph() {
+    el.direction_label.textContent = state.mode === "path" ? "Connection path" : "Parents above children";
     const nodes = graphNodes();
+    if (state.selected && record(state.selected)?.kind === "person" && !nodes.some((node) => node.id === state.selected)) state.selected = nodes[0]?.id || "";
     const edges = graphEdges(nodes);
     state.positions = layout(nodes, edges);
     state.orderedIds = nodes.map((node) => node.id);
@@ -231,6 +268,7 @@
 
     for (const edge of edges) renderEdge(edge);
     for (const node of nodes) renderNode(node);
+    renderGraphSelection();
 
     el.empty_state.hidden = nodes.length !== 0;
     const peopleCount = nodes.filter((node) => node.kind === "person").length;
@@ -242,89 +280,293 @@
       : `${peopleCount} ${peopleCount === 1 ? "person" : "people"}`;
     const evidenceText = evidenceCount ? ` · ${evidenceCount} evidence` : "";
     const claimsText = `${claimCount} ${claimCount === 1 ? "claim" : "claims"}`;
-    el.graph_status.textContent = `${peopleText}${evidenceText} · ${claimsText} · reloaded just now`;
+    el.graph_status.textContent = `${peopleText}${evidenceText} · ${claimsText}`;
     requestAnimationFrame(fitGraph);
   }
 
   function layout(nodes, edges) {
+    const CARD_WIDTH = 224;
+    const COLUMN_GAP = 36;
+    const ROW_GAP = 80;
+    const COMPONENT_GAP = 180;
+    const X_STEP = CARD_WIDTH + COLUMN_GAP;
+    const Y_STEP = 96 + ROW_GAP;
     const positions = new Map();
     if (!nodes.length) return positions;
-    if (state.mode === "overview") {
-      const columns = Math.max(1, Math.ceil(Math.sqrt(nodes.length * 1.6)));
-      [...nodes].sort((a, b) => label(a).localeCompare(label(b))).forEach((node, index) => {
-        const column = index % columns;
-        const row = Math.floor(index / columns);
-        positions.set(node.id, { x: column * 190, y: row * 105 + (column % 2) * 24 });
-      });
-      return positions;
-    }
+    const people = nodes
+      .filter((node) => node.kind === "person")
+      .sort((left, right) => left.id.localeCompare(right.id));
+    const evidence = nodes
+      .filter((node) => node.kind !== "person")
+      .sort((left, right) => left.id.localeCompare(right.id));
+    const personIds = new Set(people.map((person) => person.id));
+    const personEdges = edges.filter((edge) => personIds.has(edge.from) && personIds.has(edge.to));
 
-    const start = state.person || nodes[0].id;
-    const levels = new Map([[start, 0]]);
-    const queue = [start];
-    while (queue.length) {
-      const id = queue.shift();
-      const current = levels.get(id) || 0;
-      for (const edge of edges) {
-        let next = "";
-        if (edge.relation === "evidence" || edge.relation === "event") next = edge.from === id ? edge.to : edge.to === id ? edge.from : "";
-        else if (state.mode === "ancestors" && edge.to === id) next = edge.from;
-        else if (state.mode === "descendants" && edge.from === id) next = edge.to;
-        else if (state.mode === "path" || state.mode === "focus") next = edge.from === id ? edge.to : edge.to === id ? edge.from : "";
-        if (next && !levels.has(next)) {
-          levels.set(next, current + 1);
-          queue.push(next);
+    if (state.mode === "path") {
+      const adjacency = new Map(people.map((person) => [person.id, []]));
+      for (const edge of personEdges) {
+        adjacency.get(edge.from)?.push(edge.to);
+        adjacency.get(edge.to)?.push(edge.from);
+      }
+      for (const neighbors of adjacency.values()) neighbors.sort((left, right) => left.localeCompare(right));
+      const endpoint = people.find((person) => adjacency.get(person.id)?.length === 1)?.id;
+      let current = personIds.has(state.person) ? state.person : endpoint || people[0]?.id;
+      const ordered = [];
+      const visited = new Set();
+      while (current && !visited.has(current)) {
+        ordered.push(current);
+        visited.add(current);
+        current = adjacency.get(current)?.find((candidate) => !visited.has(candidate)) || "";
+      }
+      for (const person of people) if (!visited.has(person.id)) ordered.push(person.id);
+      ordered.forEach((id, index) => positions.set(id, { x: index * X_STEP, y: 0 }));
+      const evidenceStart = Math.max(0, (ordered.length - evidence.length) * X_STEP / 2);
+      evidence.forEach((node, index) => positions.set(node.id, { x: evidenceStart + index * X_STEP, y: Y_STEP }));
+    } else {
+      const representative = new Map(people.map((person) => [person.id, person.id]));
+      const find = (id) => {
+        let root = id;
+        while (representative.get(root) !== root) root = representative.get(root);
+        let cursor = id;
+        while (representative.get(cursor) !== root) {
+          const next = representative.get(cursor);
+          representative.set(cursor, root);
+          cursor = next;
+        }
+        return root;
+      };
+      const union = (left, right) => {
+        const leftRoot = find(left);
+        const rightRoot = find(right);
+        if (leftRoot === rightRoot) return;
+        const [first, second] = [leftRoot, rightRoot].sort((a, b) => a.localeCompare(b));
+        representative.set(second, first);
+      };
+      for (const edge of personEdges) if (edge.relation === "partner") union(edge.from, edge.to);
+
+      const groupsByRoot = new Map();
+      for (const person of people) {
+        const root = find(person.id);
+        if (!groupsByRoot.has(root)) groupsByRoot.set(root, []);
+        groupsByRoot.get(root).push(person);
+      }
+      const groups = [...groupsByRoot.entries()]
+        .map(([id, members]) => ({ id, members: members.sort((left, right) => left.id.localeCompare(right.id)) }))
+        .sort((left, right) => left.id.localeCompare(right.id));
+      const groupForPerson = new Map();
+      for (const group of groups) for (const member of group.members) groupForPerson.set(member.id, group.id);
+
+      const directedCandidates = [];
+      const candidateKeys = new Set();
+      for (const edge of personEdges) {
+        if (edge.relation === "partner") continue;
+        const from = groupForPerson.get(edge.from);
+        const to = groupForPerson.get(edge.to);
+        const key = `${from}\u0000${to}`;
+        if (from && to && from !== to && !candidateKeys.has(key)) {
+          candidateKeys.add(key);
+          directedCandidates.push({ from, to });
         }
       }
-    }
-    let orphanLevel = Math.max(0, ...levels.values()) + 1;
-    for (const node of nodes) {
-      if (!levels.has(node.id)) levels.set(node.id, orphanLevel++);
-    }
-    const buckets = new Map();
-    for (const node of nodes) {
-      const level = levels.get(node.id) || 0;
-      if (!buckets.has(level)) buckets.set(level, []);
-      buckets.get(level).push(node);
-    }
-    for (const [level, bucket] of buckets) {
-      bucket.sort((a, b) => label(a).localeCompare(label(b)));
-      bucket.forEach((node, index) => {
-        if (state.mode === "path") positions.set(node.id, { x: level * 220, y: 0 });
-        else {
-          const vertical = (index - (bucket.length - 1) / 2) * 112;
-          const horizontal = state.mode === "ancestors" ? -level * 220 : level * 220;
-          positions.set(node.id, { x: horizontal, y: vertical });
+      directedCandidates.sort((left, right) => left.from.localeCompare(right.from) || left.to.localeCompare(right.to));
+
+      const outgoing = new Map(groups.map((group) => [group.id, []]));
+      const incoming = new Map(groups.map((group) => [group.id, []]));
+      const reaches = (start, target) => {
+        const pending = [start];
+        const seen = new Set();
+        while (pending.length) {
+          const id = pending.pop();
+          if (id === target) return true;
+          if (seen.has(id)) continue;
+          seen.add(id);
+          pending.push(...(outgoing.get(id) || []));
         }
+        return false;
+      };
+      for (const edge of directedCandidates) {
+        if (reaches(edge.to, edge.from)) continue;
+        outgoing.get(edge.from).push(edge.to);
+        incoming.get(edge.to).push(edge.from);
+      }
+      for (const neighbors of [...outgoing.values(), ...incoming.values()]) neighbors.sort((left, right) => left.localeCompare(right));
+
+      const ranks = new Map(groups.map((group) => [group.id, 0]));
+      const indegree = new Map(groups.map((group) => [group.id, incoming.get(group.id).length]));
+      const ready = groups.filter((group) => indegree.get(group.id) === 0).map((group) => group.id).sort((left, right) => left.localeCompare(right));
+      const topological = [];
+      while (ready.length) {
+        const id = ready.shift();
+        topological.push(id);
+        for (const child of outgoing.get(id)) {
+          ranks.set(child, Math.max(ranks.get(child), ranks.get(id) + 1));
+          indegree.set(child, indegree.get(child) - 1);
+          if (indegree.get(child) === 0) {
+            ready.push(child);
+            ready.sort((left, right) => left.localeCompare(right));
+          }
+        }
+      }
+      for (const id of [...topological].reverse()) {
+        const children = outgoing.get(id);
+        if (children.length) {
+          const latestParentRank = Math.min(...children.map((child) => ranks.get(child) - 1));
+          ranks.set(id, Math.max(ranks.get(id), latestParentRank));
+        }
+      }
+
+      const weak = new Map(groups.map((group) => [group.id, new Set()]));
+      for (const edge of directedCandidates) {
+        weak.get(edge.from).add(edge.to);
+        weak.get(edge.to).add(edge.from);
+      }
+      const groupById = new Map(groups.map((group) => [group.id, group]));
+      const components = [];
+      const assigned = new Set();
+      for (const group of groups) {
+        if (assigned.has(group.id)) continue;
+        const ids = [];
+        const pending = [group.id];
+        assigned.add(group.id);
+        while (pending.length) {
+          const id = pending.shift();
+          ids.push(id);
+          for (const neighbor of [...weak.get(id)].sort((left, right) => left.localeCompare(right))) {
+            if (!assigned.has(neighbor)) {
+              assigned.add(neighbor);
+              pending.push(neighbor);
+            }
+          }
+        }
+        components.push(ids.sort((left, right) => left.localeCompare(right)));
+      }
+
+      const componentForGroup = new Map();
+      components.forEach((component, index) => component.forEach((id) => componentForGroup.set(id, index)));
+      const evidenceByComponent = components.map(() => []);
+      const unassignedEvidence = [];
+      for (const node of evidence) {
+        const link = edges.find((edge) => edge.from === node.id || edge.to === node.id);
+        const personId = link && personIds.has(link.from) ? link.from : link && personIds.has(link.to) ? link.to : "";
+        const component = componentForGroup.get(groupForPerson.get(personId));
+        if (component === undefined) unassignedEvidence.push(node);
+        else evidenceByComponent[component].push(node);
+      }
+
+      let componentOffset = 0;
+      components.forEach((component, componentIndex) => {
+        const minimumRank = Math.min(...component.map((id) => ranks.get(id)));
+        const buckets = new Map();
+        for (const id of component) {
+          const rank = ranks.get(id) - minimumRank;
+          if (!buckets.has(rank)) buckets.set(rank, []);
+          buckets.get(rank).push(groupById.get(id));
+        }
+        const rankNumbers = [...buckets.keys()].sort((left, right) => left - right);
+        const order = new Map();
+        const updateOrder = () => {
+          for (const rank of rankNumbers) buckets.get(rank).forEach((group, index) => order.set(group.id, index));
+        };
+        const reorder = (rank, neighbors) => {
+          buckets.get(rank).sort((left, right) => {
+            const score = (group) => {
+              const values = neighbors.get(group.id).filter((id) => order.has(id)).map((id) => order.get(id));
+              return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : order.get(group.id);
+            };
+            return score(left) - score(right) || left.id.localeCompare(right.id);
+          });
+          updateOrder();
+        };
+        updateOrder();
+        for (let pass = 0; pass < 4; pass += 1) {
+          for (const rank of rankNumbers.slice(1)) reorder(rank, incoming);
+          for (const rank of [...rankNumbers].reverse().slice(1)) reorder(rank, outgoing);
+        }
+
+        const widthOfGroup = (group) => CARD_WIDTH + (group.members.length - 1) * X_STEP;
+        const widthOfRank = (rank) => {
+          const row = buckets.get(rank);
+          return row.reduce((width, group) => width + widthOfGroup(group), 0) + Math.max(0, row.length - 1) * COLUMN_GAP;
+        };
+        const rail = evidenceByComponent[componentIndex];
+        rail.sort((left, right) => {
+          const anchor = (node) => {
+            const link = edges.find((edge) => edge.from === node.id || edge.to === node.id);
+            const personId = link && personIds.has(link.from) ? link.from : link?.to;
+            return groupForPerson.get(personId) || "";
+          };
+          return anchor(left).localeCompare(anchor(right)) || left.id.localeCompare(right.id);
+        });
+        const personWidth = Math.max(...rankNumbers.map(widthOfRank));
+        const evidenceWidth = rail.length ? CARD_WIDTH + (rail.length - 1) * X_STEP : 0;
+        const componentWidth = Math.max(CARD_WIDTH, personWidth, evidenceWidth);
+        const groupCenters = new Map();
+        for (const rank of [...rankNumbers].reverse()) {
+          const row = buckets.get(rank);
+          const childCenters = row.flatMap((group) => outgoing.get(group.id).map((child) => groupCenters.get(child)).filter((center) => center !== undefined));
+          const desiredCenter = childCenters.length
+            ? childCenters.reduce((sum, center) => sum + center, 0) / childCenters.length
+            : componentOffset + componentWidth / 2;
+          const rowWidth = widthOfRank(rank);
+          const minimumStart = componentOffset;
+          const maximumStart = componentOffset + componentWidth - rowWidth;
+          let cursor = Math.max(minimumStart, Math.min(maximumStart, desiredCenter - rowWidth / 2));
+          for (const group of row) {
+            const groupWidth = widthOfGroup(group);
+            group.members.forEach((member, index) => {
+              positions.set(member.id, { x: cursor + CARD_WIDTH / 2 + index * X_STEP, y: rank * Y_STEP });
+            });
+            groupCenters.set(group.id, cursor + groupWidth / 2);
+            cursor += groupWidth + COLUMN_GAP;
+          }
+        }
+        const evidenceY = (Math.max(...rankNumbers) + 1) * Y_STEP;
+        let evidenceX = componentOffset + (componentWidth - evidenceWidth) / 2 + CARD_WIDTH / 2;
+        for (const node of rail) {
+          positions.set(node.id, { x: evidenceX, y: evidenceY });
+          evidenceX += X_STEP;
+        }
+        componentOffset += componentWidth + COMPONENT_GAP;
       });
+
+      for (const node of unassignedEvidence) {
+        positions.set(node.id, { x: componentOffset + CARD_WIDTH / 2, y: 0 });
+        componentOffset += X_STEP;
+      }
+    }
+
+    if (positions.size) {
+      const values = [...positions.values()];
+      const centerX = (Math.min(...values.map((point) => point.x)) + Math.max(...values.map((point) => point.x))) / 2;
+      for (const point of values) point.x -= centerX;
     }
     return positions;
   }
 
   function renderEdge(edge) {
-    const from = state.positions.get(edge.from);
-    const to = state.positions.get(edge.to);
+    const from = state.positions.get(edge.from), to = state.positions.get(edge.to);
     if (!from || !to) return;
-    const x1 = from.x + 73;
-    const y1 = from.y;
-    const x2 = to.x - 73;
-    const y2 = to.y;
-    const bend = Math.max(35, Math.abs(x2 - x1) * .45);
-    const status = String(edge.status || "accepted").toLocaleLowerCase();
-    const path = svg("path", {
-      className: `edge ${status === "accepted" ? "" : status}`,
-      attrs: { d: `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`, "marker-end": "url(#arrow)" }
-    });
-    const title = svg("title", { text: `${shortRelation(edge.relation)} · ${status}` });
-    path.append(title);
-    el.edges.append(path);
-    if (state.mode !== "overview" && state.data.query.edges.length < 18) {
-      el.edges.append(svg("text", {
-        className: "edge-label",
-        text: shortRelation(edge.relation),
-        attrs: { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 - 7, "text-anchor": "middle" }
-      }));
+    const sideLink = state.mode === "path" || edge.relation === "partner" || edge.relation === "evidence" || edge.relation === "event";
+    let d;
+    if (sideLink) {
+      const direction = to.x >= from.x ? 1 : -1;
+      const x1 = from.x + direction * 112, x2 = to.x - direction * 112;
+      const bend = Math.max(24, Math.abs(x2 - x1) / 2);
+      d = `M ${x1} ${from.y} C ${x1 + direction * bend} ${from.y}, ${x2 - direction * bend} ${to.y}, ${x2} ${to.y}`;
+    } else {
+      const direction = to.y > from.y ? 1 : -1;
+      const y1 = from.y + direction * 48, y2 = to.y - direction * 48;
+      const middle = (y1 + y2) / 2;
+      d = `M ${from.x} ${y1} C ${from.x} ${middle}, ${to.x} ${middle}, ${to.x} ${y2}`;
     }
+    const status = String(edge.status || "accepted").toLocaleLowerCase();
+    const group = svg("g", { className: `connection ${edge.relation} ${status}`, attrs: { "data-from": edge.from, "data-to": edge.to } });
+    const path = svg("path", { className: "edge", attrs: { d } });
+    group.append(path, svg("title", { text: `${label(record(edge.from))} → ${label(record(edge.to))} · ${shortRelation(edge.relation)} · ${status}` }));
+    const hit = svg("path", { className: "edge-hit", attrs: { d } });
+    hit.addEventListener("click", () => { if (record(edge.id)) select(edge.id); });
+    group.append(hit);
+    el.edges.append(group);
   }
 
   function renderNode(node) {
@@ -332,20 +574,20 @@
     if (!position) return;
     const group = svg("g", {
       className: `node${node.kind === "person" ? "" : " evidence"}${state.selected === node.id ? " selected" : ""}`,
-      attrs: { transform: `translate(${position.x} ${position.y})`, tabindex: "0", role: "button", "aria-label": `${label(node)}. Open details.` }
+      attrs: { transform: `translate(${position.x} ${position.y})`, tabindex: "0", role: "button", "aria-label": `${label(node)}. Open details.`, "data-id": node.id }
     });
-    group.append(svg("rect", { className: "node-card", attrs: { x: -78, y: -32, width: 156, height: 64, rx: 12 } }));
-    group.append(svg("circle", { className: "node-avatar", attrs: { cx: -50, cy: 0, r: 20 } }));
-    group.append(svg("text", { className: "node-initials", text: initials(label(node)), attrs: { x: -50, y: 1 } }));
-    group.append(svg("text", { className: "node-name", text: truncate(label(node), 17), attrs: { x: -23, y: -3 } }));
-    group.append(svg("text", { className: "node-meta", text: node.kind === "person" ? lifeSpan(node) : shortRelation(node.kind), attrs: { x: -23, y: 14 } }));
-    group.append(svg("title", { text: label(node) }));
+    group.append(svg("rect", { className: "node-card", attrs: { x: -112, y: -48, width: 224, height: 96, rx: 14 } }));
+    const content = svg("foreignObject", { attrs: { x: -112, y: -48, width: 224, height: 96 } });
+    const card = html("div", { className: "person-card" });
+    card.append(html("span", { className: "person-avatar", text: node.kind === "person" ? initials(label(node)) : "↗", attrs: { "aria-hidden": "true" } }));
+    const copy = html("div", { className: "person-copy" });
+    copy.append(html("span", { className: "person-name", text: label(node) }));
+    copy.append(html("span", { className: "person-dates", text: node.kind === "person" ? lifeSpan(node) : shortRelation(node.kind) }));
+    card.append(copy); content.append(card); group.append(content);
+    group.append(svg("title", { text: `${label(node)} · ${lifeSpan(node)}` }));
     group.addEventListener("click", () => select(node.id));
     group.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        select(node.id, true);
-      }
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(node.id, true); }
     });
     el.nodes.append(group);
   }
@@ -359,7 +601,7 @@
     const born = item.metadata?.born || item.metadata?.birth || item.metadata?.birth_date || "";
     const died = item.metadata?.died || item.metadata?.death || item.metadata?.death_date || "";
     if (born || died) return `${plainValue(born) || "?"} – ${plainValue(died) || ""}`;
-    return item.id;
+    return "Dates not recorded";
   }
 
   function plainValue(value) {
@@ -384,6 +626,7 @@
     for (const node of el.nodes.querySelectorAll(".node")) node.classList.remove("selected");
     const index = state.orderedIds.indexOf(state.selected);
     if (index >= 0) el.nodes.children[index]?.classList.add("selected");
+    for (const edge of el.edges.children) edge.classList.toggle("highlight", edge.dataset.from === state.selected || edge.dataset.to === state.selected);
   }
 
   function renderDetails() {
@@ -393,20 +636,33 @@
     const header = html("header", { className: "detail-header" });
     header.append(html("span", { className: "eyebrow", text: item.kind || "Record" }));
     header.append(html("h1", { text: label(item) }));
+    if (item.kind === "person") header.append(html("p", { className: "detail-lifespan", text: lifeSpan(item) }));
     const aliases = item.metadata?.aliases;
     if (aliases) header.append(html("p", { className: "aliases", text: plainValue(aliases) }));
     const actions = html("div", { className: "detail-actions" });
     if (item.kind === "person") {
-      if (state.mode === "overview" && !state.overviewShowAll) {
-        const expanded = state.overviewExpanded.has(item.id);
+      if (state.mode === "overview" && !state.overviewShowAll && state.positions.has(item.id)) {
+        const visibleIds = new Set(graphNodes().map((node) => node.id));
+        const expanded = state.data.query.edges.some((edge) => edge.from === item.id && edge.relation !== "partner" && visibleIds.has(edge.to));
         const branch = html("button", { className: "primary-button", text: expanded ? "Collapse branch" : "Expand branch", attrs: { type: "button" } });
         branch.addEventListener("click", () => {
-          if (expanded) state.overviewExpanded.delete(item.id);
-          else state.overviewExpanded.add(item.id);
+          const partners = new Set([item.id]), pending = [item.id];
+          while (pending.length) {
+            const id = pending.shift();
+            for (const edge of state.data.query.edges) {
+              if (edge.relation !== "partner") continue;
+              const next = edge.from === id ? edge.to : edge.to === id ? edge.from : "";
+              if (next && !partners.has(next)) { partners.add(next); pending.push(next); }
+            }
+          }
+          for (const id of partners) {
+            if (expanded) { state.overviewExpanded.delete(id); state.overviewCollapsed.add(id); }
+            else { state.overviewExpanded.add(id); state.overviewCollapsed.delete(id); }
+          }
           renderGraph();
           renderDetails();
         });
-        actions.append(branch);
+        if (state.data.query.edges.some((edge) => edge.from === item.id && edge.relation !== "partner")) actions.append(branch);
       }
       const family = html("button", { className: "primary-button", text: "Open family", attrs: { type: "button" } });
       family.addEventListener("click", () => { state.person = item.id; setMode("focus"); });
@@ -437,7 +693,7 @@
   }
 
   function renderFacts(item) {
-    const omitted = new Set(["id", "type", "name", "aliases", "attachments", "media", "sources", "from", "to", "parent", "child"]);
+    const omitted = new Set(["version", "id", "type", "name", "aliases", "attachments", "media", "sources", "from", "to", "parent", "child"]);
     const facts = Object.entries(item.metadata || {}).filter(([key, value]) => !omitted.has(key) && plainValue(value));
     if (!facts.length) return;
     const list = html("dl", { className: "facts" });
@@ -514,6 +770,9 @@
   }
 
   function setMode(mode) {
+    // A family opens with immediate relatives; ancestry queries start deeper.
+    if (mode === "focus" && state.mode !== "focus") el.generations.value = "1";
+    if ((mode === "ancestors" || mode === "descendants") && state.mode === "focus") el.generations.value = "4";
     state.mode = mode;
     for (const button of document.querySelectorAll("[data-mode]")) button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
     el.path_picker.hidden = mode !== "path";
@@ -591,18 +850,19 @@
     const points = [...state.positions.values()];
     const xs = points.map((point) => point.x);
     const ys = points.map((point) => point.y);
-    const minX = Math.min(...xs) - 105;
-    const maxX = Math.max(...xs) + 105;
+    const minX = Math.min(...xs) - 148;
+    const maxX = Math.max(...xs) + 148;
     const minY = Math.min(...ys) - 70;
     const maxY = Math.max(...ys) + 70;
     const bounds = el.graph.getBoundingClientRect();
-    state.scale = Math.min(1.15, Math.max(.25, Math.min(bounds.width / Math.max(1, maxX - minX), bounds.height / Math.max(1, maxY - minY)) * .9));
+    state.scale = Math.min(1.15, Math.max(.08, Math.min(bounds.width / Math.max(1, maxX - minX), bounds.height / Math.max(1, maxY - minY)) * .9));
     state.tx = bounds.width / 2 - ((minX + maxX) / 2) * state.scale;
     state.ty = bounds.height / 2 - ((minY + maxY) / 2) * state.scale;
     applyTransform();
   }
 
   function applyTransform() {
+    el.zoom_level.textContent = `${Math.round(state.scale * 100)}%`;
     el.viewport.setAttribute("transform", `translate(${state.tx} ${state.ty}) scale(${state.scale})`);
   }
 
@@ -613,13 +873,23 @@
   el.show_evidence.addEventListener("change", renderGraph);
   el.overview_toggle.addEventListener("click", () => {
     state.overviewShowAll = !state.overviewShowAll;
-    if (!state.overviewShowAll) state.overviewExpanded.clear();
+    if (!state.overviewShowAll) { state.overviewExpanded.clear(); state.overviewCollapsed.clear(); }
     el.overview_toggle.textContent = state.overviewShowAll ? "Collapse all" : "Show all";
     renderGraph();
     renderDetails();
   });
   el.path_to.addEventListener("change", () => { state.to = el.path_to.value; if (state.to) loadGraph(); });
   el.fit_button.addEventListener("click", fitGraph);
+  function zoomBy(factor) {
+    const bounds = el.graph.getBoundingClientRect();
+    const previous = state.scale;
+    state.scale = Math.min(2.5, Math.max(.08, previous * factor));
+    state.tx = bounds.width / 2 - (bounds.width / 2 - state.tx) * state.scale / previous;
+    state.ty = bounds.height / 2 - (bounds.height / 2 - state.ty) * state.scale / previous;
+    applyTransform();
+  }
+  el.zoom_in.addEventListener("click", () => zoomBy(1.25));
+  el.zoom_out.addEventListener("click", () => zoomBy(.8));
   el.search.addEventListener("input", updateSearch);
   el.search.addEventListener("keydown", (event) => {
     if (event.key === "Escape") { el.search.value = ""; el.search_results.hidden = true; el.search.blur(); }
@@ -637,7 +907,7 @@
     const mouseX = event.clientX - bounds.left;
     const mouseY = event.clientY - bounds.top;
     const previous = state.scale;
-    state.scale = Math.min(2.5, Math.max(.2, state.scale * (event.deltaY > 0 ? .9 : 1.1)));
+    state.scale = Math.min(2.5, Math.max(.08, state.scale * (event.deltaY > 0 ? .9 : 1.1)));
     state.tx = mouseX - (mouseX - state.tx) * (state.scale / previous);
     state.ty = mouseY - (mouseY - state.ty) * (state.scale / previous);
     applyTransform();
@@ -654,6 +924,7 @@
     applyTransform();
   });
   el.graph.addEventListener("pointerup", () => { state.drag = null; });
+  el.graph.addEventListener("pointercancel", () => { state.drag = null; });
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "/" && !/input|textarea|select/i.test(document.activeElement?.tagName || "")) {
