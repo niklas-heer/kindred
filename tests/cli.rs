@@ -11,7 +11,8 @@ fn help_describes_current_capabilities() {
         assert!(output.stderr.is_empty());
         let stdout = String::from_utf8(output.stdout).expect("help should be UTF-8");
         assert!(stdout.contains("Usage: kindred"));
-        assert!(stdout.contains("not implemented"));
+        assert!(stdout.contains("ancestors"));
+        assert!(stdout.contains("export-gedcom"));
     }
 }
 

@@ -1,8 +1,11 @@
 /target/
 /scratch/
-/.kindred/
+.kindred/
 .env
 .env.*
 !.env.example
 .DS_Store
 /mise.local.toml
+
+# Local Obsidian workspace state is not fixture data.
+.obsidian/

@@ -20,7 +20,7 @@ local-artifacts-jobs = ["./check"]
 pr-run-mode = "plan"
 checksum = "sha256"
 # Keep the README's local documentation and logo available in downloaded archives.
-include = ["CONTRIBUTING.md", "docs"]
+include = ["CONTRIBUTING.md", "docs", "examples"]
 
 [dist.github-action-commits]
 "actions/checkout" = "3d3c42e5aac5ba805825da76410c181273ba90b1"

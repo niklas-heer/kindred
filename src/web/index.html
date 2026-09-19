@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kindred · Family archive</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <a class="skip-link" href="#graph">Skip to family graph</a>
+  <header class="masthead">
+    <a class="brand" href="/" aria-label="Kindred home">
+      <span class="brand-mark" aria-hidden="true">K</span>
+      <span><strong>Kindred</strong><small>Family archive</small></span>
+    </a>
+    <label class="search">
+      <span class="visually-hidden">Find a person</span>
+      <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"></circle><path d="m16 16 4 4"></path></svg>
+      <input id="search" type="search" placeholder="Find a person…" autocomplete="off" aria-controls="search-results">
+      <kbd>/</kbd>
+      <div id="search-results" class="search-results" hidden></div>
+    </label>
+    <button id="help-button" class="quiet-button" type="button" aria-expanded="false" aria-controls="shortcuts">Keyboard</button>
+  </header>
+
+  <main class="workspace">
+    <section class="explorer" aria-label="Graph explorer">
+      <div class="toolbar">
+        <div class="mode-tabs" role="group" aria-label="Graph view">
+          <button type="button" data-mode="overview" aria-pressed="true">Overview</button>
+          <button type="button" data-mode="focus" aria-pressed="false">Family</button>
+          <button type="button" data-mode="ancestors" aria-pressed="false">Ancestors</button>
+          <button type="button" data-mode="descendants" aria-pressed="false">Descendants</button>
+          <button type="button" data-mode="path" aria-pressed="false">Path</button>
+        </div>
+        <div class="query-options">
+          <label>Depth
+            <input id="generations" type="number" min="1" max="64" value="4" inputmode="numeric">
+          </label>
+          <label>Relation
+            <select id="relation-filter">
+              <option value="">All types</option>
+              <option value="biological_parent">Biological</option>
+              <option value="adoptive_parent">Adoptive</option>
+              <option value="foster_parent">Foster</option>
+              <option value="partner">Partners</option>
+            </select>
+          </label>
+          <label>Status
+            <select id="status-filter">
+              <option value="accepted">Accepted</option>
+              <option value="accepted,tentative,disputed">Include uncertain</option>
+              <option value="all">All claims</option>
+            </select>
+          </label>
+          <label class="evidence-toggle"><input id="show-evidence" type="checkbox"> Evidence</label>
+          <button id="overview-toggle" class="quiet-button" type="button">Show all</button>
+          <button id="fit-button" class="icon-button" type="button" title="Fit graph" aria-label="Fit graph">⌗</button>
+        </div>
+      </div>
+
+      <div id="diagnostics" class="diagnostics" hidden role="status"></div>
+      <div id="path-picker" class="path-picker" hidden>
+        <span>Path from <strong id="path-from">choose a person</strong></span>
+        <span aria-hidden="true">→</span>
+        <label>to <select id="path-to"><option value="">Choose a person…</option></select></label>
+      </div>
+
+      <div class="graph-shell">
+        <svg id="graph" role="group" aria-label="Family relationship graph" tabindex="0">
+          <defs>
+            <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+              <feDropShadow dx="0" dy="5" stdDeviation="7" flood-opacity=".13"/>
+            </filter>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z"></path>
+            </marker>
+          </defs>
+          <g id="viewport"><g id="edges"></g><g id="nodes"></g></g>
+        </svg>
+        <div id="empty-state" class="empty-state" hidden>
+          <span aria-hidden="true">⌁</span><strong>No connections in this view</strong>
+          <p>Try another person, add uncertain claims, or increase the depth.</p>
+        </div>
+        <div class="graph-key" aria-label="Graph legend">
+          <span><i class="person-dot"></i> Person</span>
+          <span><i class="uncertain-line"></i> Tentative or disputed</span>
+        </div>
+        <div id="graph-status" class="graph-status" role="status">Loading archive…</div>
+      </div>
+    </section>
+
+    <aside id="details" class="details" aria-label="Details">
+      <div class="details-empty">
+        <span class="details-monogram" aria-hidden="true">K</span>
+        <h1>Choose a person</h1>
+        <p>Select someone in the graph to read their story and inspect the evidence behind each connection.</p>
+      </div>
+    </aside>
+  </main>
+
+  <dialog id="editor">
+    <form method="dialog" class="editor-card">
+      <header><div><span class="eyebrow">Markdown note</span><h2 id="editor-title">Edit record</h2></div><button value="cancel" aria-label="Close editor">×</button></header>
+      <p class="editor-hint">Kindred preserves the complete note. Changes are refused if another editor saved first.</p>
+      <textarea id="editor-text" spellcheck="true" aria-label="Raw Markdown note"></textarea>
+      <div id="editor-message" class="editor-message" role="status"></div>
+      <footer><button value="cancel" class="quiet-button">Cancel</button><button id="save-button" value="default" type="button" class="primary-button">Save note</button></footer>
+    </form>
+  </dialog>
+
+  <div id="shortcuts" class="shortcuts" hidden>
+    <strong>Keyboard</strong>
+    <dl><dt><kbd>/</kbd></dt><dd>Find a person</dd><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Move between people</dd><dt><kbd>Enter</kbd></dt><dd>Open family</dd><dt><kbd>+</kbd> <kbd>−</kbd></dt><dd>Change depth</dd><dt><kbd>Esc</kbd></dt><dd>Close</dd></dl>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

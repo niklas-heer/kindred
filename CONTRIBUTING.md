@@ -1,8 +1,8 @@
 # Contributing
 
 Read [VISION.md](docs/VISION.md) and [ROADMAP.md](docs/ROADMAP.md) before starting
-a feature. The project is at the foundation stage: archive/schema and interface
-work should begin with the small end-to-end workflow described there.
+a feature. The core local archive workflow is implemented. Extend it through small,
+observable end-to-end behaviors and keep archive compatibility explicit.
 
 ## Setup and checks
 
@@ -54,14 +54,18 @@ copy with a deliberately failing check, without changing the working sources.
   Fix issues or document narrow allowances rather than weakening all checks.
 - Developer tools belong in mise, not application dependencies. Cargo's test
   runner is enough for the current suite; add nextest, Bacon, or benchmarks when
-  there is a concrete benefit. No web or database framework has been selected.
-- Preserve structured errors and useful CLI exit codes. Current usage errors
-  return 2; future validation/setup errors need a documented contract.
+  there is a concrete benefit. The browser uses embedded static assets and
+  tiny_http; indexing is an in-memory graph with a disposable JSON snapshot.
+  See the decision log.
+- Preserve structured errors and useful CLI exit codes. Usage errors return 2;
+  validation and operation failures return 1.
 
 ## Data and changes
 
-Use fictional family records in examples and tests. Preserve unknown metadata
-and user-authored prose when implementing editing. Do not treat ordinary links
+Use fictional family records for behavioral and failure tests. The sourced
+historical examples are a deliberate exception authorized by the project owner;
+keep them restricted to deceased people and cite the evidence. Preserve unknown
+metadata and user-authored prose when implementing editing. Do not treat ordinary links
 in prose as genealogical assertions. Validate typed records before indexing.
 
 Keep changes coherent, explain observable behavior, and include relevant test

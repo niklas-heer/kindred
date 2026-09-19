@@ -4,11 +4,11 @@ Kindred is a local family-history tool built around a simple promise: your
 research lives in readable files, and you can explore the relationships without
 losing the stories and evidence behind them.
 
-This document describes the intended product. The current implementation is a
-Rust CLI foundation; the archive model, queries, and graph UI still need to be
-built and tested. The project name, public repository, Rust foundation, and MIT
-license are established. Specific schemas, database engines, and UI frameworks
-remain proposals until validated.
+This document describes the product direction. The core local archive, queries,
+graph UI, safe editing, backups, and GEDCOM subset are now implemented. See
+[ROADMAP.md](ROADMAP.md) for verification scope and [SCHEMA.md](SCHEMA.md) for
+the implemented format; illustrative sections below preserve the design rationale.
+Optional later experiences remain outside the current product.
 
 ## The problem
 
@@ -72,7 +72,8 @@ The register names Anna, but the surname is difficult to read.
 Compare with another source before accepting this relationship.
 ```
 
-All people in examples are fictional. Stable IDs identify records; filenames
+Behavioral fixtures use fictional people. Sourced examples of deceased historical
+families are also included at the owner's request. Stable IDs identify records; filenames
 are actual link targets. IDs alone cannot repair broken links after arbitrary
 renames. Validation must detect missing targets, ambiguous links, and duplicate
 IDs. A casual mention in prose must never become a parentage assertion.
@@ -109,12 +110,12 @@ default person-to-person view.
 
 ### Query from the terminal or the graph
 
-Illustrative commands, not implemented commands:
+Implemented commands (archive path is explicit):
 
 ```sh
 kindred check ./family
-kindred ancestors p_002 --generations 4
-kindred path p_001 p_042
+kindred ancestors ./family p_002 --generations 4
+kindred path ./family p_001 p_042
 kindred serve ./family
 ```
 
@@ -141,12 +142,13 @@ justify it. The local server should listen on loopback by default.
 
 LadybugDB is a promising rebuildable graph index because it embeds in-process
 and supports Cypher. SQLite is a viable alternative for indexing and traversal.
-DuckDB is more attractive for bulk historical analysis. No engine is selected:
-compare query clarity, packaging, startup, data recovery, and representative
-workloads before adopting one. Avoid two independently authoritative stores.
+DuckDB is more attractive for bulk historical analysis. The first implementation uses an in-memory graph and a disposable JSON
+snapshot. See [INDEX_EVALUATION.md](INDEX_EVALUATION.md) for the bounded
+SQLite/LadybugDB comparison and the conditions for adopting a database. Avoid two independently authoritative stores.
 
-GEDCOM import/export is a planned interchange capability, not the internal
-authoring format. Document unsupported fields and export loss. An export or
+GEDCOM import/export is an implemented, explicitly limited interchange subset,
+not the internal authoring format. The [user guide](USER_GUIDE.md) documents
+unsupported fields and export loss. An export or
 backup must include attachments and interpretation metadata, not just an index.
 
 ## First milestone and boundaries

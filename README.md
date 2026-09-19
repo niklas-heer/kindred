@@ -12,83 +12,93 @@
 
 # A family archive you can explore
 
-A photograph, a handwritten name, a story passed down, a record that doesn't
-quite agree with another. Family history is full of connections—and questions.
+**Keep your family's stories in readable files, then follow the connections.**
+Kindred is a local Rust CLI and browser graph for a Markdown family-history
+archive. It needs no account, server subscription, or Obsidian installation.
 
-**Kindred is being built to help you keep those stories and explore how people
-belong together.** The idea is simple: an archive of readable notes and sources
-on your own computer, with a graph that helps you follow the relationships.
+Read biographies beside relationships and evidence. Explore ancestors,
+descendants, family neighborhoods, or a path between two people. Keep biological,
+adoptive, foster, and partner claims distinct, with tentative and disputed claims
+visible only when you choose them. Original date wording stays intact.
 
-> **Early development.** Kindred currently has a working command-line foundation
-> with help and version information. Saving family records, querying relationships,
-> and exploring the graph are still ahead. There isn't a usable genealogy app or
-> a published release to download yet.
+## Try it
 
-## What we're building
-
-- **Start with a person, then follow the connections.** Explore ancestors,
-  descendants, or the paths between two people. Expand a branch when you need
-  it, or step back to see the larger family.
-- **Keep the story beside the facts.** Give biographies, photographs, letters,
-  and research notes a home alongside names and dates.
-- **See where a claim comes from.** Follow a relationship back to its sources.
-  Keep uncertain dates and conflicting accounts visible while you investigate.
-- **Own an archive you can keep.** Store your work in Markdown notes, metadata,
-  and attachments that remain readable without Kindred. The planned app runs
-  locally, without an account or a hosted service.
-- **Work your way.** Use a local browser view or the command line. Open the same
-  notes in Obsidian or another editor; Obsidian is optional.
-
-These are the goals guiding development. The [vision](docs/VISION.md) describes
-the intended experience, and the [roadmap](docs/ROADMAP.md) breaks it into small,
-testable milestones.
-
-## More than a family tree
-
-Families include shared ancestors, adoption, multiple partnerships, and links
-that are still being researched. Kindred's planned graph makes room for those
-relationships while letting you focus on a manageable part of the story.
-
-You might ask: *Who were this person's ancestors? How are these two people
-connected? What evidence supports this relationship?* The aim is to move easily
-between a question, the relevant people, and the records behind the answer.
-
-## Follow along or help shape it
-
-The first milestone is a small fictional archive that Kindred can read and
-validate. Relationship queries and the local graph viewer follow from there.
-
-Have a family-history workflow you'd like to improve? [Open an
-issue](https://github.com/niklas-heer/kindred/issues) and tell us what you'd like
-to do. Use fictional examples or remove personal details before sharing records
-in this public repository.
-
-For development, start with [CONTRIBUTING.md](CONTRIBUTING.md). Architecture
-choices live in the [decision log](docs/DECISIONS.md), and the
-[release guide](docs/RELEASING.md) explains versioned builds.
-
-<details>
-<summary><strong>Build the current CLI foundation</strong></summary>
-
-Install [mise](https://mise.jdx.dev/getting-started.html) and the
-[native build prerequisites](CONTRIBUTING.md#setup-and-checks), then run:
+Install the [development prerequisites](CONTRIBUTING.md), then:
 
 ```sh
-git clone https://github.com/niklas-heer/kindred.git
-cd kindred
 mise trust
 mise install
-mise exec -- cargo run -- --help
+mise run build
+./target/release/kindred check examples/fictional
+./target/release/kindred serve examples/fictional
 ```
 
-The current CLI supports `--help` and `--version`. Run `mise run check` to check
-the source and tests. The project pins its development tools for reproducible
-setup.
+Open the localhost URL printed by the command. Search for a person, select an
+ancestor view, expand a branch, and inspect a relationship's evidence. You can
+edit the complete Markdown note in the details panel or with an ordinary editor.
+Kindred checks for external changes before saving.
 
-</details>
+For a deeper example, explore the **Carolingian and Plantagenet families**, with
+45 deceased people spanning roughly the sixth through sixteenth centuries:
+
+```sh
+./target/release/kindred serve examples/historical/european-dynasties
+./target/release/kindred ancestors examples/historical/european-dynasties \
+  p_edward_iv --generations 4 --relations biological_parent --json
+```
+
+The [historical examples guide](docs/HISTORICAL_EXAMPLES.md) explains the sources,
+selected branches, shared ancestors, and uncertainty. These are transparent
+software examples, not a complete or definitive royal genealogy.
+
+## Your files remain the archive
+
+People, relationships, sources, events, places, and media use
+[versioned flat YAML frontmatter](docs/SCHEMA.md) in ordinary Markdown notes.
+Attachments stay alongside them. Prose links never silently become parentage
+claims. Validation catches duplicate IDs, broken links, ambiguous filenames,
+malformed metadata, and missing evidence files.
+
+The index is disposable. Every command reads the authoritative files; rebuilding
+or deleting `.kindred/index.json` cannot erase research. Queries return record
+and claim IDs with source references, as a terminal list or JSON.
+
+```sh
+kindred init ./my-family
+kindred check ./my-family --json
+kindred reindex ./my-family
+kindred export ./my-family ../complete-backup --all
+kindred export ./my-family ../public-metadata --public
+```
+
+Complete exports include attachments and interpretation metadata. Public exports
+include only a narrow metadata projection of explicitly deceased, non-private
+people. GEDCOM import/export is a documented subset with explicit loss reports;
+use a complete archive export for backups.
+
+See the [user guide](docs/USER_GUIDE.md) for editing, recovery, export policy,
+GEDCOM mappings, keyboard controls, and the limits of local concurrency.
+
+## Status and development
+
+The core single-user workflow is implemented: validate, query, explore, edit,
+recover, rebuild, and exchange an archive. It is early software with bounded
+verification, not a claim of production maturity or exhaustive genealogy-format
+support. Desktop packaging, maps/timelines, hosted collaboration, online tree
+merging, DNA analysis, and AI-generated facts are outside this implementation.
+
+The [vision](docs/VISION.md) describes the product principles. The
+[roadmap](docs/ROADMAP.md) records implemented outcomes and verification scope;
+[decisions](docs/DECISIONS.md) explain the architecture. Run `mise run check` for
+the native quality gate or `mise run ci` for the containerized Linux checks.
+There is no published release merely because the release pipeline exists.
+
+For contributions, start with [CONTRIBUTING.md](CONTRIBUTING.md). Use fictional
+records for failure cases and personal scenarios; sourced historical examples
+must contain only deceased people. Never put private family data in an issue.
 
 ## License
 
-Kindred is open source under the [MIT license](LICENSE).
-Your family records remain yours; the software license does not change their
-ownership or licensing.
+Kindred is open source under the [MIT license](LICENSE). Your family records
+remain yours. Historical source pages retain their own licenses; examples use
+brief original prose and linked citations.

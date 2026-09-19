@@ -10,6 +10,12 @@ homepage = "https://github.com/niklas-heer/kindred"
 readme = "README.md"
 publish = false
 
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml_ng = "0.10"
+tiny_http = "0.12"
+
 [package.metadata.dist]
 dist = true
 

@@ -1,8 +1,8 @@
 # Releasing Kindred
 
-The initial repository has release automation but no published release. The
-current `0.1.0` package version is a starting version, not a promise that the
-genealogy features exist.
+The repository has release automation and a working core local archive, but no
+published release. The current `0.1.0` package version remains unpublished; read
+[the roadmap](ROADMAP.md) for the implemented scope and verification limits.
 
 ## What the pipeline does
 
@@ -13,7 +13,8 @@ when a matching version tag is pushed. A custom artifact-stage job invokes
 of the publishing job, so failed checks block publication.
 
 Targets: Linux x86-64 (GNU), macOS ARM64 and x86-64, and Windows x86-64 (MSVC).
-Archives include the binary, README, and MIT license. Releases include SHA-256
+Archives include the binary, README, MIT license, documentation, and example
+archives. Releases include SHA-256
 checksums and shell/PowerShell installers. The GitHub-provided token is sufficient
 for GitHub Releases; no personal token or registry secret is required.
 
@@ -34,8 +35,18 @@ mise run workflow:check
 
 `release:check` detects stale generated CI and prints the artifact plan.
 `release:build` creates host archives under `target/distrib/` without uploading.
+Build release artifacts from a clean isolated checkout. Cargo-dist copies
+included directories recursively, including ignored files: local `.kindred`
+indexes, recovery journals, `.obsidian` state, and other scratch data must not
+be present under `docs` or `examples`. Do not remove a pending edit journal just
+to package a release; use a fresh checkout instead. See cargo-dist's
+[include behavior](https://axodotdev.github.io/cargo-dist/book/reference/config.html#include).
+
 Inspect the archive, its license and checksum, extract it to a temporary
-directory, and run its `kindred --version` and `kindred --help`.
+directory, and run `kindred --version`, `kindred --help`, and `kindred check`
+on each bundled example. Confirm no generated caches or local configuration
+were included. Source archives use Git's committed tree, so uncommitted source
+changes are not a valid release candidate.
 
 ## Publish a version
 

@@ -11,6 +11,7 @@ type KindredCi {
     "!mise.toml",
     "!src",
     "!tests",
+    "!examples",
   ])
 
   """
