@@ -4,8 +4,11 @@ use std::{
     net::{Shutdown, TcpStream},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
+    sync::atomic::{AtomicUsize, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
+
+static NEXT_FIXTURE: AtomicUsize = AtomicUsize::new(0);
 
 struct RunningServer {
     child: Child,
@@ -17,12 +20,16 @@ struct RunningServer {
 #[allow(clippy::expect_used)]
 impl RunningServer {
     fn start() -> Self {
-        let unique = SystemTime::now()
+        let sequence = NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed);
+        let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("clock should follow the Unix epoch")
             .as_nanos();
-        let root =
-            std::env::temp_dir().join(format!("kindred-web-{}-{unique}", std::process::id()));
+        let root = std::env::temp_dir().join(format!(
+            "kindred-web-{}-{timestamp}-{sequence}",
+            std::process::id()
+        ));
+        fs::create_dir(&root).expect("fixture root should be exclusively created");
         create_archive(&root);
         let mut child = Command::new(env!("CARGO_BIN_EXE_kindred"))
             .args([

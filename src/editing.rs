@@ -130,7 +130,8 @@ fn sync_directory(path: &Path) -> Result<(), String> {
 }
 
 #[cfg(not(unix))]
-fn sync_directory(_path: &Path) -> Result<(), String> {
+#[allow(clippy::unnecessary_wraps)] // Keep the fallible Unix interface at shared call sites.
+const fn sync_directory(_path: &Path) -> Result<(), String> {
     Ok(())
 }
 
