@@ -1,0 +1,12 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # cargo-dist owns release.yml; update its pins in dist-workspace.toml
+    # and regenerate when reviewing a release-workflow update.

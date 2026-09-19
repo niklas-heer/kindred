@@ -1,0 +1,43 @@
+[tools]
+# Keep Rust aligned with rust-toolchain.toml; cargo-dist uses that toolchain too.
+rust = { version = "1.97.1", profile = "minimal", components = ["clippy", "rustfmt", "rust-analyzer", "rust-src"] }
+dagger = "0.21.9"
+cargo-dist = "0.32.0"
+actionlint = "1.7.12"
+
+[tasks.fmt]
+description = "Format Rust source"
+run = "cargo fmt --all"
+
+[tasks.check]
+description = "Check formatting, compilation, lints, and CLI behavior"
+run = [
+  "cargo fmt --all -- --check",
+  "cargo check --locked --all-targets --all-features",
+  "cargo clippy --locked --all-targets --all-features -- -D warnings",
+  "cargo test --locked --all-features",
+]
+
+[tasks.test]
+description = "Run tests through the real CLI"
+run = "cargo test --locked --all-features"
+
+[tasks.build]
+description = "Build the optimized binary"
+run = "cargo build --locked --release"
+
+[tasks.ci]
+description = "Run Linux checks in Dagger (requires a container engine)"
+run = "dagger call ci"
+
+[tasks."release:check"]
+description = "Verify generated release workflow and preview release artifacts"
+run = ["dist generate --check", "dist plan"]
+
+[tasks."workflow:check"]
+description = "Validate GitHub Actions syntax and expressions"
+run = "actionlint -shellcheck="
+
+[tasks."release:build"]
+description = "Build release archives for the current host without publishing"
+run = "dist build --artifacts=host"

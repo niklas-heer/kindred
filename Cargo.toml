@@ -1,0 +1,42 @@
+[package]
+name = "kindred"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+description = "A local family-history graph built from your notes"
+license = "MIT"
+repository = "https://github.com/niklas-heer/kindred"
+homepage = "https://github.com/niklas-heer/kindred"
+readme = "README.md"
+publish = false
+
+[package.metadata.dist]
+dist = true
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+arithmetic_side_effects = "deny"
+unreachable = "deny"
+unimplemented = "deny"
+unchecked_time_subtraction = "deny"
+todo = "deny"
+string_slice = "deny"
+panic_in_result_fn = "deny"
+panic = "deny"
+exit = "deny"
+as_conversions = "deny"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+
+[profile.dist]
+inherits = "release"

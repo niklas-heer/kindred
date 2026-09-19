@@ -1,0 +1,35 @@
+"""
+Reproducible Linux checks for Kindred.
+"""
+type KindredCi {
+  pub source: Directory! @defaultPath("/") @ignorePatterns([
+    "*",
+    "!Cargo.toml",
+    "!Cargo.lock",
+    "!rust-toolchain.toml",
+    "!clippy.toml",
+    "!mise.toml",
+    "!src",
+    "!tests",
+  ])
+
+  """
+  Run formatting, compilation, lints, CLI tests, and a release smoke test.
+  """
+  pub ci: String! {
+    container
+      .from("ghcr.io/jdx/mise:2026.9.5")
+      .withoutFile("/mise/config.toml")
+      .withWorkdir("/src")
+      .withEnvVariable("MISE_TRUSTED_CONFIG_PATHS", "/src")
+      .withFile("mise.toml", source.file("mise.toml"))
+      .withFile("rust-toolchain.toml", source.file("rust-toolchain.toml"))
+      .withExec(["mise", "install", "rust"])
+      .withDirectory("/src", source)
+      .withMountedCache("/src/target", cacheVolume("kindred-rust-1-97-1-target"), sharing: CacheSharingMode.LOCKED)
+      .withExec(["mise", "run", "check"])
+      .withExec(["mise", "run", "build"])
+      .withExec(["./target/release/kindred", "--help"])
+      .stdout
+  }
+}
