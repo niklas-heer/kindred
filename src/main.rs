@@ -1,6 +1,6 @@
 use kindred::{
     archive::Archive,
-    editing, exchange,
+    editing, exchange, quality,
     query::{self, QueryOptions, QueryResult},
     web,
 };
@@ -11,7 +11,7 @@ Usage: kindred <command> <archive> [arguments] [options]
 
 Commands:
   init <archive>                            Create an empty archive
-  check <archive> [--json]                   Validate records and links
+  check <archive> [--json]                   Validate records and flag research gaps
   reindex <archive>                          Rebuild the disposable index
   show <archive> <id> [--json]                Read a complete note
   ancestors|descendants|neighbors <archive> <id>
@@ -183,6 +183,36 @@ fn initialize(root: &Path) -> Result<(), String> {
         fs::write(stage.join("README.md"), "# Family archive\n\nWrite one Markdown note per person with version: 1, id, type: person, and name. Add mother/father/partners links, dates, places, sources, and stories in that note; Kindred builds the graph. The people folder is optional: organize notes in any folders, including family subfolders. Keep pictures and documents together in attachments (or another folder you choose). See https://github.com/niklas-heer/kindred/blob/main/docs/SCHEMA.md.\n").map_err(|e| e.to_string())
     })
 }
+fn check(root: &Path, structured: bool) -> Result<u8, String> {
+    let archive = Archive::load(root)?;
+    let warnings = quality::warnings(&archive);
+    if structured {
+        json(&serde_json::json!({
+            "records": archive.records.len(),
+            "diagnostics": archive.diagnostics,
+            "warnings": warnings,
+        }))?;
+    } else {
+        if archive.diagnostics.is_empty() {
+            println!("Valid archive: {} records", archive.records.len());
+        } else {
+            eprintln!("Errors:");
+            for diagnostic in &archive.diagnostics {
+                eprintln!(
+                    "  {}: {}: {}",
+                    diagnostic.path, diagnostic.code, diagnostic.message
+                );
+            }
+        }
+        if !warnings.is_empty() {
+            eprintln!("Research warnings:");
+            for warning in &warnings {
+                eprintln!("  {}: {}: {}", warning.path, warning.code, warning.message);
+            }
+        }
+    }
+    Ok(u8::from(!archive.diagnostics.is_empty()))
+}
 fn run(args: &Arguments) -> Result<u8, String> {
     let command = args.at(0)?;
     let root = Path::new(args.at(1)?);
@@ -194,22 +224,7 @@ fn run(args: &Arguments) -> Result<u8, String> {
         }
         "check" => {
             args.validate(2, &["--json"])?;
-            let archive = Archive::load(root)?;
-            if args.option("--json").is_some() {
-                json(
-                    &serde_json::json!({"records":archive.records.len(),"diagnostics":archive.diagnostics}),
-                )?;
-            } else if archive.diagnostics.is_empty() {
-                println!("Valid archive: {} records", archive.records.len());
-            } else {
-                for diagnostic in &archive.diagnostics {
-                    eprintln!(
-                        "{}: {}: {}",
-                        diagnostic.path, diagnostic.code, diagnostic.message
-                    );
-                }
-            }
-            return Ok(u8::from(!archive.diagnostics.is_empty()));
+            return check(root, args.option("--json").is_some());
         }
         "reindex" => {
             args.validate(2, &[])?;

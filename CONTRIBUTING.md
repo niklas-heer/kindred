@@ -19,8 +19,10 @@ mise run check
 mise run build
 ```
 
-`check` runs rustfmt, `cargo check`, Clippy with warnings denied, and tests using
-the committed lockfile. Rust 1.97.1 is the development/release toolchain; Rust
+`check` runs rustfmt, `cargo check`, Clippy with warnings denied, and Rust tests using
+the committed lockfile, plus the browser graph tests with pinned Node 26.5.0.
+Node is a development-only tool; the distributed app has no Node/npm runtime
+dependency. Run `mise run test:graph` for focused graph feedback. Rust 1.97.1 is the development/release toolchain; Rust
 1.97 is the declared minimum. Keep the toolchain, mise, Cargo metadata, and
 release configuration aligned when upgrading. Use Rust Analyzer in your editor.
 

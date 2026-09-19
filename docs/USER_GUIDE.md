@@ -65,6 +65,24 @@ selected branch to explore further. Show all reveals
 the complete archive selection. Shared ancestors remain one person; cyclic claims are
 retained as links without forcing an impossible generation order. Use the zoom
 buttons, scroll, and drag to explore; Fit frames the entire selection.
+**Arrange → Family sides** groups the chosen person's maternal ancestors on the
+left and paternal ancestors on the right. **Compact** uses the general family
+layout. Siblings use exact recorded birth years when available. Unknown parent
+roles are not guessed; shared ancestors remain single cards. Rounded parent
+paths share a trunk and sibling rail, with separate mother/father rails.
+
+Selecting a person highlights their maternal/paternal ancestors, shared ancestry,
+descendants, direct partners, and other relatives reachable through shared
+ancestors. The matching connection paths are highlighted too; unrelated branches
+fade. Color keys, counts, and accessible node labels explain the groups. This
+uses only people and claims in the current view and respects the active filters;
+increase depth or use Show all to expose more of the family. Path mode keeps the
+whole returned connection highlighted, including intermediate partnerships.
+
+Selection changes highlights without moving the cards. Use **Arrange family
+sides** in the person's details to reorder around the new selection; the graph
+caption identifies whose sides the layout represents.
+
 Select a person or connection for its story,
 metadata, events, claims, and evidence. The evidence toggle adds source/event
 nodes when useful. Attachments are available from person notes and their citations.
@@ -232,3 +250,27 @@ at commit `6c719eb` (this is not verification of nested property-editor support)
 This verifies that workflow and version, not every Obsidian plugin or arbitrary
 rename strategy. Links are filename-based: after external renames, validate the
 archive and repair unresolved links. Stable IDs do not guess new filenames.
+
+## Research-quality warnings
+
+`kindred check` reports structural errors separately from research-quality
+warnings. Errors mean Kindred cannot safely trust a note or relationship and
+make the command exit with status 1. Warnings identify useful follow-up work but
+leave the archive valid and the exit status at 0. In JSON, the two stable arrays
+are named `diagnostics` and `warnings`.
+
+Warnings currently cover a missing display name, a person with neither a birth
+nor death value, unrecorded parentage, absent citations, relationship claims
+without their own explicit sources, and clear chronology conflicts. Optional
+metadata remains optional: a warning does not assert a missing fact or invent a
+value. Add known or uncertain wording when useful, cite evidence at the claim it
+supports, or leave the warning visible as part of an incomplete research record.
+For a person whose parents are unknown or intentionally not recorded, add
+`parents: []` to mark that omission as reviewed and suppress its warning. Any
+valid parent claim counts as recorded parentage, regardless of claim status.
+
+Chronology comparisons are deliberately narrow. Kindred compares only plain
+four-digit years such as `1904`; wording such as `about 1904`, ranges, and
+alternatives is preserved and skipped. Parent chronology is checked only for
+accepted biological-parent claims. Disputed, rejected, adoptive, and foster
+claims are not treated as chronological mistakes.

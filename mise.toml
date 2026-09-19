@@ -4,6 +4,8 @@ rust = { version = "1.97.1", profile = "minimal", components = ["clippy", "rustf
 dagger = "0.21.9"
 cargo-dist = "0.32.0"
 actionlint = "1.7.12"
+# Built-in test runner for the browser graph algorithms; no npm dependencies.
+node = "26.5.0"
 
 [tasks.fmt]
 description = "Format Rust source"
@@ -16,6 +18,7 @@ run = [
   "cargo check --locked --all-targets --all-features",
   "cargo clippy --locked --all-targets --all-features -- -D warnings",
   "cargo test --locked --all-features",
+  "node --test tests/family.cjs tests/layout.cjs",
 ]
 
 [tasks.test]
@@ -41,3 +44,7 @@ run = "actionlint -shellcheck="
 [tasks."release:build"]
 description = "Build release archives for the current host without publishing"
 run = "dist build --artifacts=host"
+
+[tasks."test:graph"]
+description = "Test family highlighting and layout invariants"
+run = "node --test tests/family.cjs tests/layout.cjs"

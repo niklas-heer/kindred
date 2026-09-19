@@ -37,6 +37,9 @@
           <label id="branch-picker">Branch
             <select id="branch-root" aria-label="Overview branch"><option value="">All family roots</option></select>
           </label>
+          <label>Arrange
+            <select id="layout-order"><option value="sides">Family sides</option><option value="compact">Compact</option></select>
+          </label>
           <label>Depth
             <input id="generations" type="number" min="1" max="64" value="2" inputmode="numeric">
           </label>
@@ -69,7 +72,7 @@
       </div>
 
       <div class="graph-shell">
-        <div class="graph-heading"><strong>Your family, connected</strong><small>Follow a branch. Discover a story.</small></div>
+        <div class="graph-heading"><strong id="selection-summary">Your family, connected</strong><small id="arrangement-caption">Parents above children</small><div id="selection-key" class="selection-key" aria-label="Highlighted relatives"></div></div>
         <svg id="graph" role="group" aria-label="Family relationship graph" tabindex="0">
           <defs>
             <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
@@ -122,6 +125,8 @@
     <dl><dt><kbd>/</kbd></dt><dd>Find a person</dd><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Move between people</dd><dt><kbd>Enter</kbd></dt><dd>Open family</dd><dt><kbd>+</kbd> <kbd>−</kbd></dt><dd>Change depth</dd><dt><kbd>Esc</kbd></dt><dd>Close</dd></dl>
   </div>
 
+  <script src="/family.js"></script>
+  <script src="/layout.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

@@ -25,7 +25,7 @@ type KindredCi {
       .withEnvVariable("MISE_TRUSTED_CONFIG_PATHS", "/src")
       .withFile("mise.toml", source.file("mise.toml"))
       .withFile("rust-toolchain.toml", source.file("rust-toolchain.toml"))
-      .withExec(["mise", "install", "rust"])
+      .withExec(["mise", "install", "rust", "node"])
       .withDirectory("/src", source)
       .withMountedCache("/src/target", cacheVolume("kindred-rust-1-97-1-target"), sharing: CacheSharingMode.LOCKED)
       .withExec(["mise", "run", "check"])

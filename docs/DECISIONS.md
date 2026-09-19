@@ -136,6 +136,17 @@ covered shared ancestry, same-rank partners, cycle termination, and nonoverlappi
 cards. These checks do not establish readability for arbitrarily large archives.
 
 
+Update on 2026-09-19, under the owner's request for less tangled family sides and
+related-person highlighting: group maternal ancestry left and paternal ancestry
+right around an explicit focus, preserving unknown roles and shared ancestors.
+Selection highlights ancestors, descendants, direct partners, collateral relatives,
+and supporting paths within the filtered view. Rearranging around a new person
+is explicit, so selection itself does not move the cards. Parent paths share
+rounded sibling rails; large partner groups put the focus within the group.
+Pure browser algorithms use Node's built-in test runner in native and Dagger
+checks. Node is pinned as a development tool, with no npm/runtime dependency.
+
+
 ## 0008 — Author around people and derive the rest of the graph
 
 Date: 2026-09-19. Status: accepted by explicit owner instruction and implemented.
@@ -165,3 +176,21 @@ This extends 0006's historical example and 0007's presentation choices.
 The implementation and validation contract are documented in [SCHEMA.md](SCHEMA.md).
 Full exports preserve original person files and attachment bytes. Public and
 GEDCOM projections retain their deliberately narrower, reported scope.
+
+
+## 0009 — Research warnings remain separate from invalid archives
+
+Date: 2026-09-19. Status: accepted by explicit owner confirmation and implemented.
+
+The owner requested CLI checks for mistakes and forgotten metadata, then confirmed
+that incomplete optional details should produce warnings while broken links and
+invalid metadata remain errors. `kindred check` reports actionable research
+warnings separately from structural diagnostics, including in JSON. Warnings
+alone retain exit code 0; structural errors retain exit code 1.
+
+Check omitted names, life dates, parentage, and citations, plus clear chronology
+conflicts using only exact year values and accepted biological claims. Explicit
+`parents: []` records that no parentage is currently known. Do not invent dates,
+roles, sources, or certainty; uncertainty wording is preserved and not compared
+as an exact year. These checks flag research to revisit, not historical proof.
+See [the user guide](USER_GUIDE.md#research-quality-warnings) and CLI tests.

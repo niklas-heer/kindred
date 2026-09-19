@@ -228,3 +228,27 @@ dialog::backdrop { background: rgba(24,38,33,.42); backdrop-filter: blur(3px); }
 .portrait-figure img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .portrait-figure figcaption { margin-top: .5rem; font-size: .65rem; line-height: 1.5; color: var(--muted); }
 .portrait-credit { display: block; padding: .2rem 0; border: 0; background: transparent; color: var(--green); font-size: .66rem; text-decoration: underline; text-underline-offset: 3px; }
+
+/* Relationship colors accompany text labels in the selection key and node names. */
+[data-family="maternal"], .family-key.maternal { --family-stroke: #a56a36; --family-fill: #fbf0df; }
+[data-family="paternal"], .family-key.paternal { --family-stroke: #4d739d; --family-fill: #eaf2fb; }
+[data-family="both"], .family-key.both { --family-stroke: #8460a1; --family-fill: #f2eafa; }
+[data-family="ancestor"], .family-key.ancestor { --family-stroke: #7c727f; --family-fill: #f2eff2; }
+[data-family="descendant"], .family-key.descendant { --family-stroke: #408368; --family-fill: #eaf6ed; }
+[data-family="partner"], .family-key.partner { --family-stroke: #ae6176; --family-fill: #faecf0; }
+[data-family="relative"], .family-key.relative, [data-family="connection"], .family-key.connection { --family-stroke: #608387; --family-fill: #edf5f5; }
+.node[data-family]:not([data-family=""]):not(.selected) .node-card { stroke: var(--family-stroke, #365e4e); fill: var(--family-fill, #fffefa); stroke-width: 2.1; }
+.node.selected .node-card { stroke: #244e3e; stroke-width: 3.5; fill: #e1efe4; }
+.node.family-muted { opacity: .38; }
+.node.family-muted:hover, .node.family-muted:focus-visible { opacity: 1; }
+.connection.highlight .edge { stroke: var(--family-stroke, #365e4e); stroke-width: 2.7; opacity: 1; }
+.connection.family-muted { opacity: .22; }
+.connection.family-muted:hover { opacity: 1; }
+.connection:hover .edge { stroke-width: 4; }
+.selection-key { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .5rem; }
+.family-key { display: inline-flex; align-items: center; gap: .35rem; font-size: .67rem; padding: .2rem .4rem; border-radius: .35rem; color: #4c5c53; background: var(--family-fill, #fffefa); }
+.family-key::before { content: ""; width: .5rem; height: .5rem; border-radius: 50%; background: var(--family-stroke, #365e4e); }
+.graph-heading { max-width: calc(100% - 15rem); padding: .4rem .6rem; border-radius: .5rem; background: rgba(250,251,247,.94); top: .6rem; left: .7rem; }
+.graph-heading strong { font-size: .95rem; }
+@media (max-width: 900px) { .graph-heading { max-width: calc(100% - 1.4rem); } .graph-status { top: auto; bottom: 1rem; } }
+@media (prefers-reduced-motion: no-preference) { .node, .connection { transition: opacity .16s ease; } }
