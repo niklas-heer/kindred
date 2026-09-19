@@ -1,55 +1,94 @@
-# Kindred
+<p align="center">
+  <img src="docs/brand/kindred-logo.png" alt="Kindred — an interwoven mark of family connections" width="640">
+</p>
 
-A local family-history graph, built from your notes.
+<p align="center"><strong>Your family's stories, connected.</strong></p>
 
-Kindred aims to make family history an archive you own: Markdown biographies,
-structured relationships, sources, and photographs, explored through a CLI and
-an interactive local graph. Obsidian should be optional, and your files should
-remain useful without Kindred.
+<p align="center">
+  <a href="docs/VISION.md">The vision</a> ·
+  <a href="docs/ROADMAP.md">What's next</a> ·
+  <a href="https://github.com/niklas-heer/kindred/issues">Ideas & feedback</a>
+</p>
 
-**Status: project foundation.** The binary currently supports `--help` and
-`--version`. Archive editing, genealogy queries, and the web viewer are planned,
-not implemented. See [the vision](docs/VISION.md),
-[roadmap](docs/ROADMAP.md), and [decisions](docs/DECISIONS.md).
+# A family archive you can explore
 
-## Development
+A photograph, a handwritten name, a story passed down, a record that doesn't
+quite agree with another. Family history is full of connections—and questions.
 
-Install [mise](https://mise.jdx.dev/getting-started.html) and your platform's Rust
-linker prerequisites (Xcode Command Line Tools on macOS, a C compiler/linker on
-Linux, or Visual Studio C++ Build Tools on Windows). Then:
+**Kindred is being built to help you keep those stories and explore how people
+belong together.** The idea is simple: an archive of readable notes and sources
+on your own computer, with a graph that helps you follow the relationships.
+
+> **Early development.** Kindred currently has a working command-line foundation
+> with help and version information. Saving family records, querying relationships,
+> and exploring the graph are still ahead. There isn't a usable genealogy app or
+> a published release to download yet.
+
+## What we're building
+
+- **Start with a person, then follow the connections.** Explore ancestors,
+  descendants, or the paths between two people. Expand a branch when you need
+  it, or step back to see the larger family.
+- **Keep the story beside the facts.** Give biographies, photographs, letters,
+  and research notes a home alongside names and dates.
+- **See where a claim comes from.** Follow a relationship back to its sources.
+  Keep uncertain dates and conflicting accounts visible while you investigate.
+- **Own an archive you can keep.** Store your work in Markdown notes, metadata,
+  and attachments that remain readable without Kindred. The planned app runs
+  locally, without an account or a hosted service.
+- **Work your way.** Use a local browser view or the command line. Open the same
+  notes in Obsidian or another editor; Obsidian is optional.
+
+These are the goals guiding development. The [vision](docs/VISION.md) describes
+the intended experience, and the [roadmap](docs/ROADMAP.md) breaks it into small,
+testable milestones.
+
+## More than a family tree
+
+Families include shared ancestors, adoption, multiple partnerships, and links
+that are still being researched. Kindred's planned graph makes room for those
+relationships while letting you focus on a manageable part of the story.
+
+You might ask: *Who were this person's ancestors? How are these two people
+connected? What evidence supports this relationship?* The aim is to move easily
+between a question, the relevant people, and the records behind the answer.
+
+## Follow along or help shape it
+
+The first milestone is a small fictional archive that Kindred can read and
+validate. Relationship queries and the local graph viewer follow from there.
+
+Have a family-history workflow you'd like to improve? [Open an
+issue](https://github.com/niklas-heer/kindred/issues) and tell us what you'd like
+to do. Use fictional examples or remove personal details before sharing records
+in this public repository.
+
+For development, start with [CONTRIBUTING.md](CONTRIBUTING.md). Architecture
+choices live in the [decision log](docs/DECISIONS.md), and the
+[release guide](docs/RELEASING.md) explains versioned builds.
+
+<details>
+<summary><strong>Build the current CLI foundation</strong></summary>
+
+Install [mise](https://mise.jdx.dev/getting-started.html) and the
+[native build prerequisites](CONTRIBUTING.md#setup-and-checks), then run:
 
 ```sh
 git clone https://github.com/niklas-heer/kindred.git
 cd kindred
 mise trust
 mise install
-mise run check
 mise exec -- cargo run -- --help
 ```
 
-The project pins stable Rust, Dagger, cargo-dist, and actionlint. Rustfmt, Clippy, Rust
-Analyzer, and Rust source are included in the toolchain setup. All contributor
-instructions live in this repository; no personal skills or hub checkout are
-needed. See [CONTRIBUTING.md](CONTRIBUTING.md).
+The current CLI supports `--help` and `--version`. Run `mise run check` to check
+the source and tests. The project pins its development tools for reproducible
+setup.
 
-## Builds and releases
-
-```sh
-mise run build
-mise run release:check
-mise run release:build
-```
-
-The release pipeline packages Linux x86-64, macOS Apple Silicon and Intel, and
-Windows x86-64 binaries, with checksums and shell/PowerShell installers. It runs
-the checks before publishing a matching version tag as a GitHub Release.
-These are CLI archives, not signed desktop application bundles. The initial
-setup does not publish a release or a crates.io package.
-
-[Release procedure](docs/RELEASING.md) ·
-[GitHub releases](https://github.com/niklas-heer/kindred/releases)
+</details>
 
 ## License
 
-[MIT](LICENSE). The software license does not change ownership or licensing of
-family records that users store with it.
+Kindred is open source under the [MIT license](LICENSE).
+Your family records remain yours; the software license does not change their
+ownership or licensing.

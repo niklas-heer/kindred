@@ -6,8 +6,10 @@ work should begin with the small end-to-end workflow described there.
 
 ## Setup and checks
 
-Use mise 2026.9.5 or a compatible newer version; CI pins 2026.9.5. After installing
-the native Rust build prerequisites listed in the README, run:
+Install [mise](https://mise.jdx.dev/getting-started.html) 2026.9.5 or a compatible
+newer version; CI pins 2026.9.5. Install your platform's native Rust build tools:
+Xcode Command Line Tools on macOS, a C compiler/linker on Linux, or Visual Studio
+C++ Build Tools on Windows. From a checkout of this repository, run:
 
 ```sh
 mise trust
