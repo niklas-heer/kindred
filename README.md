@@ -103,7 +103,7 @@ merging, DNA analysis, and AI-generated facts are outside this implementation.
 
 The [vision](docs/VISION.md) describes the product principles. The
 [roadmap](docs/ROADMAP.md) records implemented outcomes and verification scope;
-[decisions](docs/DECISIONS.md) explain the architecture. Run `mise run check` for
+[decisions](docs/decisions/) explain the architecture. Run `mise run check` for
 the native quality gate or `mise run ci` for the containerized Linux checks.
 See the [changelog](CHANGELOG.md) for release notes generated from Conventional Commits.
 

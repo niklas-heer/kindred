@@ -2,7 +2,7 @@
 
 Kindred is an early Rust project for a local Markdown family-history archive
 with a CLI and graph viewer. Read [the vision](docs/VISION.md) for intended
-behavior and [the decision log](docs/DECISIONS.md) for adopted and open choices.
+behavior and [the decision records](docs/decisions/) for adopted and open choices.
 Do not describe planned commands as implemented.
 
 - Follow [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, and Rust conventions.
