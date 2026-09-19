@@ -23,8 +23,9 @@ Implementation and checks below refer to the changes prepared on 2026-09-19.
 `mise run ci` runs the same checks and release smoke test in Linux through Dagger.
 `mise run release:check` validates cargo-dist generation and artifact planning.
 Native GitHub CI remains configured for Linux, macOS, and Windows. Release
-archives include docs and examples; no public version has been released as part
-of implementing the workflow.
+archives include docs and examples. Version 0.1.0 is the first release;
+[GitHub Releases](https://github.com/niklas-heer/kindred/releases) lists published
+artifacts. Homebrew uses the `niklas-heer/tap/kindred` formula.
 
 Verification is bounded: automated tests cover deliberate failure states, not
 all editors, filesystem behavior, arbitrary historical disputes, or every

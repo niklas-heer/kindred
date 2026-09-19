@@ -26,6 +26,14 @@ Keep project guidance self-contained. Avoid optional tools and application
 dependencies until they solve a demonstrated problem. No release is published
 merely by setting up this pipeline.
 
+Update on 2026-09-19: the owner explicitly requested immediate publication of
+`0.1.0`, Conventional Commit release notes, and distribution through the existing
+`niklas-heer/homebrew-tap`. Pin git-cliff in mise and generate the changelog before
+tagging; cargo-dist uses that section for the release announcement. Update the
+tap from verified published archive checksums using existing maintainer Git
+access. This adds no cross-repository token to CI. Publication and Homebrew
+installation must each be verified separately; see the release procedure.
+
 ## 0003 — Markdown archive and rebuildable graph index
 
 Date: 2026-09-19. Status: proposed product architecture.

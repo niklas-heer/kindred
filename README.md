@@ -23,7 +23,18 @@ visible only when you choose them. Original date wording stays intact.
 
 ## Try it
 
-Install the [development prerequisites](CONTRIBUTING.md), then:
+Install with Homebrew:
+
+```sh
+brew install niklas-heer/tap/kindred
+kindred init ./my-family
+kindred serve ./my-family
+```
+
+Or download a binary for macOS, Linux, or Windows from
+[GitHub Releases](https://github.com/niklas-heer/kindred/releases).
+To build from source and explore the bundled examples, install the
+[development prerequisites](CONTRIBUTING.md), then:
 
 ```sh
 mise trust
@@ -94,7 +105,7 @@ The [vision](docs/VISION.md) describes the product principles. The
 [roadmap](docs/ROADMAP.md) records implemented outcomes and verification scope;
 [decisions](docs/DECISIONS.md) explain the architecture. Run `mise run check` for
 the native quality gate or `mise run ci` for the containerized Linux checks.
-There is no published release merely because the release pipeline exists.
+See the [changelog](CHANGELOG.md) for release notes generated from Conventional Commits.
 
 For contributions, start with [CONTRIBUTING.md](CONTRIBUTING.md). Use fictional
 records for failure cases and personal scenarios; sourced historical examples

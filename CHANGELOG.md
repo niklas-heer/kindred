@@ -1,22 +1,22 @@
 # Changelog
 
-User-visible changes are recorded here. Versions follow Semantic Versioning;
-archive-format versions are tracked separately (currently version 1).
+Generated from [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
+See [the release policy](docs/RELEASING.md) for versioning and compatibility.
 
-## Unreleased
+## [0.1.0](https://github.com/niklas-heer/kindred/releases/tag/v0.1.0) — 2026-09-19
 
-### Added
+### Documentation
 
-- Rust CLI foundation with help, version output, and usage-error handling.
-- Reproducible developer tooling, Dagger checks, and native platform checks.
-- Version-tag release packaging through cargo-dist.
-- Project vision, roadmap, contributor guide, and decision log.
-- Kindred logo and a README introducing the planned experience for family historians.
-- Linked documentation and branding included in release archives.
+- Add Kindred identity and introduce the user experience ([de55bd2](https://github.com/niklas-heer/kindred/commit/de55bd2f33fd39bb8c33181570a156c267e62616))
 
-- Version 1 Markdown/YAML archives, typed relationship validation, and disposable indexes.
-- Ancestor, descendant, neighborhood, overview, and shortest-path queries with claim filters.
-- Loopback browser graph with search, details, evidence, keyboard navigation, and editing.
-- Optimistic note editing with recovery journals and staged, explicitly scoped exports.
-- GEDCOM 5.5.1/7 UTF-8 import and GEDCOM 7 subset export with loss reports.
-- Fictional integrity fixtures and sourced Carolingian/Plantagenet historical families.
+### Features
+
+- Establish Kindred Rust project and release foundation ([9750771](https://github.com/niklas-heer/kindred/commit/97507718f55b6e705086f1ef79a47f8f2cc8545f))
+- Implement local family archive and evidence-aware exploration ([f2eff81](https://github.com/niklas-heer/kindred/commit/f2eff81c7e5c14343bc97e83bea29c4416e03331))
+- Present family relationships as a readable generation tree ([9f711cd](https://github.com/niklas-heer/kindred/commit/9f711cdf6bb35c5cf13516924be809699aa02f21))
+- Derive family graphs from rich person notes ([49de472](https://github.com/niklas-heer/kindred/commit/49de472ad261752a7bc37af790497a1cc81214e6))
+- Organize family branches and flag research gaps ([d441f29](https://github.com/niklas-heer/kindred/commit/d441f29b0bba04ec49400271b569d8401ab5d257))
+
+### Fixes
+
+- Support native Windows checks and isolate web fixtures ([6c719eb](https://github.com/niklas-heer/kindred/commit/6c719eb6b1ac940551a45376364b6bef810aa928))

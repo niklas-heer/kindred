@@ -4,6 +4,7 @@ rust = { version = "1.97.1", profile = "minimal", components = ["clippy", "rustf
 dagger = "0.21.9"
 cargo-dist = "0.32.0"
 actionlint = "1.7.12"
+git-cliff = "2.14.2"
 # Built-in test runner for the browser graph algorithms; no npm dependencies.
 node = "26.5.0"
 
@@ -48,3 +49,11 @@ run = "dist build --artifacts=host"
 [tasks."test:graph"]
 description = "Test family highlighting and layout invariants"
 run = "node --test tests/family.cjs tests/layout.cjs"
+
+[tasks.changelog]
+description = "Generate the changelog from Conventional Commits"
+run = "git-cliff --config cliff.toml --output CHANGELOG.md"
+
+[tasks."release:notes"]
+description = "Print notes for the current version tag"
+run = "git-cliff --config cliff.toml --current --strip header"
