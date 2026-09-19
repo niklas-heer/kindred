@@ -292,74 +292,85 @@ pub fn public_people(archive: &Archive) -> BTreeSet<String> {
 
 fn public_projection(archive: &Archive, stage: &Path, report: &mut Report) -> Result<(), String> {
     let people = public_people(archive);
-    let mut paths = BTreeMap::new();
-    for (index, id) in people.iter().enumerate() {
-        paths.insert(id.clone(), format!("people/person-{index}.md"));
+    let paths: BTreeMap<_, _> = people
+        .iter()
+        .enumerate()
+        .map(|(index, id)| (id.clone(), format!("people/person-{index}.md")))
+        .collect();
+    let mut notes = BTreeMap::<String, BTreeMap<String, Value>>::new();
+    for person in archive
+        .records
+        .iter()
+        .filter(|record| people.contains(&record.id))
+    {
+        let metadata = [
+            "version", "id", "type", "name", "born", "died", "birth", "death", "living",
+        ]
+        .into_iter()
+        .filter_map(|key| {
+            person
+                .metadata
+                .get(key)
+                .map(|value| (key.into(), value.clone()))
+        })
+        .collect();
+        notes.insert(person.id.clone(), metadata);
     }
-    for person in archive.records.iter().filter(|r| people.contains(&r.id)) {
-        let mut metadata = BTreeMap::new();
-        for key in ["version", "id", "type", "name", "birth", "death", "living"] {
-            if let Some(value) = person.metadata.get(key) {
-                metadata.insert(key.into(), value.clone());
-            }
-        }
-        let path = paths.get(&person.id).ok_or("missing public path")?;
-        write_note(stage, path, &metadata, "")?;
-        report.written = report.written.saturating_add(1);
-    }
-    for (index, edge) in archive
+    for edge in archive
         .edges()
         .iter()
-        .filter(|e| people.contains(&e.from) && people.contains(&e.to))
-        .enumerate()
+        .filter(|edge| people.contains(&edge.from) && people.contains(&edge.to))
     {
-        let Some(claim) = archive.record(&edge.id) else {
-            continue;
-        };
+        let claim = archive.record(&edge.id).ok_or("missing public claim")?;
         if claim.metadata.get("private") == Some(&Value::Bool(true)) {
             continue;
         }
-        let from = format!(
-            "[[{}]]",
-            paths
-                .get(&edge.from)
-                .ok_or("missing public parent")?
-                .trim_end_matches(".md")
-        );
-        let to = format!(
-            "[[{}]]",
-            paths
-                .get(&edge.to)
-                .ok_or("missing public child")?
-                .trim_end_matches(".md")
-        );
-        let mut metadata = BTreeMap::from([
-            ("version".into(), Value::from(1)),
+        let (owner, target, key) = if edge.relation == "partner" {
+            (&edge.from, &edge.to, "partners")
+        } else {
+            (&edge.to, &edge.from, "parents")
+        };
+        let target = paths
+            .get(target)
+            .ok_or("missing public target")?
+            .trim_end_matches(".md");
+        let mut metadata = serde_json::Map::from_iter([
             ("id".into(), Value::from(edge.id.clone())),
-            ("type".into(), Value::from("relationship")),
+            ("person".into(), Value::from(format!("[[{target}]]"))),
             ("relation".into(), Value::from(edge.relation.clone())),
             ("status".into(), Value::from(edge.status.clone())),
+            (
+                "note".into(),
+                Value::from(
+                    "Evidence withheld from this public metadata projection. Consult the archive owner.",
+                ),
+            ),
         ]);
-        if edge.relation == "partner" {
-            metadata.insert("partners".into(), serde_json::json!([from, to]));
-        } else {
-            metadata.insert("parent".into(), Value::from(from));
-            metadata.insert("child".into(), Value::from(to));
+        if let Some(role) = claim.metadata.get("parent_role") {
+            metadata.insert("role".into(), role.clone());
         }
+        let note = notes.get_mut(owner).ok_or("missing public owner")?;
+        note.entry(key.into())
+            .or_insert_with(|| Value::Array(Vec::new()))
+            .as_array_mut()
+            .ok_or("invalid public claim list")?
+            .push(Value::Object(metadata));
+    }
+    for (id, metadata) in notes {
         write_note(
             stage,
-            &format!("relationships/claim-{index}.md"),
+            paths.get(&id).ok_or("missing public path")?,
             &metadata,
-            "Evidence withheld from this public metadata projection. Consult the archive owner.\n",
+            "",
         )?;
         report.written = report.written.saturating_add(1);
     }
-    report.warnings.push("Public projection includes only explicitly non-living, non-private people and their non-private relationships. It omits prose, aliases, sources, events, places, media, attachments, unknown metadata, and people of unknown living status. Review names and dates before sharing.".into());
+    report.warnings.push("Public projection contains one note per explicitly non-living, non-private person with their selected non-private relationship claims, retaining explicit parent roles. It omits occupations, portraits, prose, aliases, sources, events, places, media, attachments, unknown metadata, and people of unknown living status. Birth/death date fields remain. Review names and dates before sharing.".into());
     fs::write(
         stage.join("EXPORT-REPORT.json"),
-        serde_json::to_vec_pretty(&report).map_err(|e| e.to_string())?,
+        serde_json::to_vec_pretty(&report).map_err(|error| error.to_string())?,
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|error| error.to_string())?;
     Ok(())
 }
 

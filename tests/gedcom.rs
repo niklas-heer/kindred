@@ -56,6 +56,7 @@ fn gedcom_cli_roundtrip_preserves_supported_claim_types_and_date_wording() {
     );
     let report = fs::read_to_string(exported.join("EXPORT-REPORT.json")).unwrap();
     assert!(report.contains("non-accepted"));
+    assert!(report.contains("Parent roles, occupations"));
     let imported = temp.0.join("imported");
     let input = exported.join("family.ged");
     let output = cli(&["import-gedcom", path(&input), path(&imported)]);
@@ -75,6 +76,9 @@ fn gedcom_cli_roundtrip_preserves_supported_claim_types_and_date_wording() {
             .count(),
         8
     );
+    assert_eq!(fs::read_dir(imported.join("people")).unwrap().count(), 8);
+    assert!(!imported.join("relationships").exists());
+    assert!(!imported.join("sources").exists());
     assert_eq!(
         archive.edges().len(),
         original
@@ -116,7 +120,7 @@ fn import_reports_unmapped_data_and_keeps_original() {
     let temp = Temp::new();
     let input = temp.0.join("family.ged");
     let output = temp.0.join("archive");
-    let text = "0 HEAD\n1 GEDC\n2 VERS 5.5.1\n1 CHAR UTF-8\n0 @I1@ INDI\n1 NAME Elin /Test/\n1 _CUSTOM Important detail\n0 @I2@ INDI\n1 NAME Robin /Test/\n1 FAMC @F1@\n2 PEDI ADOPTED\n0 @S1@ SOUR\n1 TITL Adoption register\n0 @F1@ FAM\n1 HUSB @I1@\n1 CHIL @I2@\n1 SOUR @S1@\n0 @N1@ NOTE Details outside the subset\n0 TRLR\n";
+    let text = "0 HEAD\n1 GEDC\n2 VERS 5.5.1\n1 CHAR UTF-8\n0 @I1@ INDI\n1 NAME Elin /Test/\n1 _CUSTOM Important detail\n0 @I2@ INDI\n1 NAME Robin /Test/\n1 FAMC @F1@\n2 PEDI ADOPTED\n0 @S1@ SOUR\n1 TITL Adoption register\n1 WWW https://example.test/register\n1 NOTE Transcribed from the bound volume\n0 @F1@ FAM\n1 HUSB @I1@\n1 CHIL @I2@\n1 SOUR @S1@\n0 @N1@ NOTE Details outside the subset\n0 TRLR\n";
     fs::write(&input, text).unwrap();
     let result = cli(&["import-gedcom", path(&input), path(&output)]);
     assert!(
@@ -127,7 +131,56 @@ fn import_reports_unmapped_data_and_keeps_original() {
     let archive = Archive::load(&output).unwrap();
     assert_eq!(archive.edges().len(), 1);
     assert_eq!(archive.edges()[0].relation, "adoptive_parent");
+    assert_eq!(archive.edges()[0].id, "g4-r0");
     assert_eq!(archive.edges()[0].sources.len(), 1);
+    let child = archive
+        .records
+        .iter()
+        .find(|record| record.kind == "person" && record.name == "Robin Test")
+        .unwrap();
+    let claim = child
+        .metadata
+        .get("parents")
+        .and_then(serde_json::Value::as_array)
+        .and_then(|claims| claims.first())
+        .and_then(serde_json::Value::as_object)
+        .unwrap();
+    assert_eq!(
+        claim.get("role").and_then(serde_json::Value::as_str),
+        Some("parent")
+    );
+    let citation = claim
+        .get("sources")
+        .and_then(serde_json::Value::as_array)
+        .and_then(|sources| sources.first())
+        .and_then(serde_json::Value::as_object)
+        .unwrap();
+    assert_eq!(
+        citation.get("id").and_then(serde_json::Value::as_str),
+        Some("g3")
+    );
+    assert_eq!(
+        citation.get("title").and_then(serde_json::Value::as_str),
+        Some("Adoption register")
+    );
+    assert_eq!(
+        citation.get("url").and_then(serde_json::Value::as_str),
+        Some("https://example.test/register")
+    );
+    assert_eq!(
+        citation.get("note").and_then(serde_json::Value::as_str),
+        Some("Transcribed from the bound volume")
+    );
+    assert_eq!(
+        citation
+            .get("attachments")
+            .and_then(serde_json::Value::as_array)
+            .and_then(|attachments| attachments.first())
+            .and_then(serde_json::Value::as_str),
+        Some("attachments/original.ged")
+    );
+    assert!(!output.join("relationships").exists());
+    assert!(!output.join("sources").exists());
     let report = fs::read_to_string(output.join("IMPORT-REPORT.json")).unwrap();
     assert!(report.contains("_CUSTOM"));
     assert!(report.contains("@N1@"));
@@ -283,20 +336,37 @@ fn alternative_names_dates_inline_citations_and_media_have_explicit_loss_reports
         .find(|r| r.name == "First Name")
         .unwrap();
     assert_eq!(person.text("birth"), Some("1800"));
-    for lost in [
-        "Alternative",
-        "1801",
-        "Around 1800",
-        "Oral recollection",
-        "never-download.jpg",
-    ] {
+    for lost in ["Alternative", "1801", "Around 1800", "never-download.jpg"] {
         assert!(report.contains(lost), "{lost}");
     }
+    assert!(report.contains("Registry 1820/1821"));
     assert!(
-        archive
+        !archive
             .records
             .iter()
             .any(|r| r.name == "Registry 1820/1821")
+    );
+    let child = archive
+        .records
+        .iter()
+        .find(|record| record.kind == "person" && record.name == "Child")
+        .unwrap();
+    let citation = child
+        .metadata
+        .get("parents")
+        .and_then(serde_json::Value::as_array)
+        .and_then(|claims| claims.first())
+        .and_then(|claim| claim.get("sources"))
+        .and_then(serde_json::Value::as_array)
+        .and_then(|sources| sources.first())
+        .unwrap();
+    assert_eq!(
+        citation.get("title").and_then(serde_json::Value::as_str),
+        Some("Oral recollection")
+    );
+    assert_eq!(
+        citation.get("note").and_then(serde_json::Value::as_str),
+        Some("Details")
     );
     assert_eq!(
         fs::read_dir(temp.0.join("archive/attachments"))

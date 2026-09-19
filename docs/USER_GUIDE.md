@@ -18,7 +18,11 @@ kindred neighbors ./family noa --statuses accepted,tentative,disputed
 kindred reindex ./family
 ```
 
-`init` creates empty record folders. Add Markdown notes using the
+`init` creates only `people/` and `attachments/`, plus an introductory README.
+Keep person notes in any folders, including family subfolders; Kindred scans them
+recursively. One person note can contain parents, partners, facts, events, places,
+citations, and photo credits. Other graph records are derived when loading, so
+you do not need separate folders or notes for them. Add Markdown notes using the
 [schema](SCHEMA.md) and examples as templates, then validate. The IDs in the
 commands above refer to the fictional example; they are not added by `init`.
 Copy `examples/fictional` or the [historical archive](HISTORICAL_EXAMPLES.md) to a
@@ -28,7 +32,9 @@ new working folder to start with a populated demo.
 JSON output includes `records` and `diagnostics`. Exit code 0 means success, 1
 means a validation or operation failure, and 2 means incorrect command usage.
 Queries refuse an invalid archive. `show` returns the exact original note;
-`show --json` includes parsed properties and raw text.
+`show --json` includes parsed properties and raw text. Derived claims, events,
+places, and citations return JSON with an `owner` person ID, since they have no
+separate file. In the viewer, Edit person note opens that owning note.
 
 Queries default to accepted claims and all relationship types. Ancestors and
 descendants follow parent edges; partner edges only contribute to neighborhoods
@@ -52,18 +58,44 @@ Search for a person, then choose a family, ancestor, descendant, or path view.
 Depth and claim filters control the selection. Family opens with immediate
 relatives; switching from Family to Ancestors or Descendants starts at four
 generations. Parents appear above children, and explicit partners share a row.
-Overview starts with connected branches spanning three generations, including
-co-parents, and lets you expand or collapse a selected branch. Show all reveals
-the complete selection. Shared ancestors remain one person; cyclic claims are
+Overview starts with the branch having the most recorded children. Its Branch
+selector can choose another person or all family roots. The initial depth shows
+two descendant generations plus their co-parents; increase Depth or expand a
+selected branch to explore further. Show all reveals
+the complete archive selection. Shared ancestors remain one person; cyclic claims are
 retained as links without forcing an impossible generation order. Use the zoom
 buttons, scroll, and drag to explore; Fit frames the entire selection.
 Select a person or connection for its story,
 metadata, events, claims, and evidence. The evidence toggle adds source/event
-nodes when useful. Attachments are available from their source or media record.
+nodes when useful. Attachments are available from person notes and their citations.
 
 The keyboard help lists navigation: `/` focuses search, arrow keys move between
 people, Enter opens a family view, `+` and `-` change depth, and Escape closes
 the current overlay. Controls also work through normal Tab navigation.
+
+Mother/father badges come from explicit `mother`/`father` fields, `role` on inline
+parent claims, or `parent_role` on legacy relationship notes, never from a person's name or an inferred gender. Unspecified roles stay
+Parent. The Parents panel identifies whose mother or father is shown and retains
+biological/adoptive/foster type and claim status. The icons have text labels.
+Birth, death, and occupation appear on cards and in details. Occupations can be
+strings or flat lists, and uncertain date wording remains unchanged.
+
+Write stories and research notes in the person's Markdown body, using headings
+such as `## Story` and `## Research notes`. The reader formats headings,
+paragraphs, and bullet lists; other Markdown and HTML remain literal text.
+**Add a research note** appends a new heading and note to the same file, preserving
+existing metadata and prose. It uses the same exact-content conflict check as
+the full editor and keeps your draft visible if saving fails. Use Edit note to
+change existing facts or prose. The [bundled Lucide icons](THIRD_PARTY_NOTICES.md)
+work offline and require no CDN or additional runtime package.
+
+For a picture, put an image inside the archive and set
+`portrait: attachments/portrait.jpg`. Add `portrait_caption`, `portrait_credit`,
+`portrait_license`, and `portrait_source` to keep provenance beside the person.
+JPEG, PNG, GIF, and WebP images appear in cards and the details panel. Images are
+served locally, and source links open only when selected. The historical example
+includes seven attributed public-domain portraits, with posthumous or uncertain
+likenesses identified in the notes.
 
 ## Edit and recover
 
@@ -146,12 +178,13 @@ kindred export-gedcom ./family ../public-gedcom --public
 
 Import accepts UTF-8/ASCII GEDCOM 5.5.1 or 7.0. It retains the exact input in
 `attachments/original.ged` and writes `IMPORT-REPORT.json`. Mapped records include
-people, names, birth/death wording, sex, source titles, and explicit supported
-family claims. Missing pedigree and `PEDI BIRTH` alone never establish biological
+person notes containing names, birth/death wording, sex, inline source titles,
+and explicit supported family claims; attachments use one folder. Missing pedigree and `PEDI BIRTH` alone never establish biological
 parentage. Unspecified claim status is tentative; `STAT PROVEN`, `CHALLENGED`,
 and `DISPROVEN` map to accepted, disputed, and rejected. `RESN` restrictions map
 to private records. The primary name and first date are retained with explicit
-reports for alternatives; inline citations remain in the original only.
+reports for alternatives. Supported referenced sources and inline source text
+become citations within the person note, with the original GEDCOM attached.
 Unsupported structures and uncertain mappings are reported;
 external media is not downloaded or copied implicitly. Review the report and
 the original before relying on an imported claim. Archives are created through
@@ -178,13 +211,16 @@ optional to other readers and does not make a partial export lossless.
 
 ## Optional Obsidian use
 
-Open the archive folder as a vault. No plugin is required. Flat properties,
-quoted wiki links, biographies, and source notes remain ordinary Obsidian data.
+Open the archive folder as a vault. No plugin is required. Simple properties,
+quoted wiki links, and biographies remain ordinary Obsidian data. Edit detailed
+nested parent/event/citation metadata in Markdown source mode.
 Kindred ignores `.obsidian` workspace files. Obsidian's native graph shows notes
-and links; Kindred interprets relationship notes as typed genealogy edges.
+and links; Kindred derives genealogy from explicit person metadata and also
+reads legacy relationship notes.
 
 A real round-trip was verified on macOS with **Obsidian 1.13.7**, on 2026-09-19,
-using a disposable copy of the fictional archive:
+using a disposable copy of the earlier 23-record, separate-note fictional archive
+at commit `6c719eb` (this is not verification of nested property-editor support):
 
 1. Opened the archive as a vault and read Mira's biography and flat properties.
 2. Edited the body and the unknown `research_colour` property in Obsidian.

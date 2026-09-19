@@ -43,7 +43,8 @@ small experiments and record the resulting decisions here.
 ## 0004 — Implement the local archive contract and defer a database
 
 Date: 2026-09-19. Status: accepted and implemented; supersedes the proposed
-implementation status in 0003.
+implementation status in 0003. The separate-note/flat-only authoring choice is
+superseded by 0008; its file-authority and index decisions remain in effect.
 
 The owner requested completing the documented core vision. Adopt version 1 flat
 YAML frontmatter in Markdown, stable IDs, filename-based wiki links, explicit
@@ -133,3 +134,34 @@ Native browser checks covered a historical family, four-generation ancestry,
 long names, branch expansion/collapse, and zoom. Deterministic layout checks
 covered shared ancestry, same-rank partners, cycle termination, and nonoverlapping
 cards. These checks do not establish readability for arbitrarily large archives.
+
+
+## 0008 — Author around people and derive the rest of the graph
+
+Date: 2026-09-19. Status: accepted by explicit owner instruction and implemented.
+
+The owner requested that people choose their folder organization and write one
+note per person containing known facts and metadata, with Kindred making the
+connections. This supersedes 0004's separate-note and flat-only authoring
+requirement. New archives start with `people/` and `attachments/`; any non-hidden
+folder arrangement works. Rich metadata may contain objects and lists.
+
+Parents, partners, events, places, and citations can be declared in a person
+note. Derived records have stable IDs and an owning person, but no independent
+file or editable copy. Reading, querying, and indexing rebuild them; editing a
+derived item leads back to its owning note. Existing separate typed notes remain
+supported. Explicit metadata creates connections; casual prose mentions do not.
+Simple mother/father links mean accepted biological assertions; detailed entries
+retain adoptive/foster types, roles, status, claim citations, and reasoning.
+Person-level source lists are not evidence for every claim automatically.
+
+Local portrait paths, provenance, occupations, stories, and notes remain beside
+the person. Images use the attachment boundary and are never fetched implicitly.
+The historical example expands to 88 deceased people across selected sixth–
+eighteenth-century families, including seven attributed public-domain portraits.
+Lucide SVG icons are bundled with their [license notices](THIRD_PARTY_NOTICES.md).
+This extends 0006's historical example and 0007's presentation choices.
+
+The implementation and validation contract are documented in [SCHEMA.md](SCHEMA.md).
+Full exports preserve original person files and attachment bytes. Public and
+GEDCOM projections retain their deliberately narrower, reported scope.

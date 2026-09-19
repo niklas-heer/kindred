@@ -1,148 +1,222 @@
 # Archive format, version 1
 
-An archive is an ordinary directory of Markdown notes and attachments. Kindred
-reads non-hidden `.md` files recursively. Hidden folders (including `.kindred`
-and `.obsidian`) and symbolic-link notes/directories are not followed. Notes
-without frontmatter or without a `type` property remain ordinary untyped notes.
-Malformed frontmatter is a validation error. Filenames and link targets are
-case-sensitive in Kindred's interpretation.
+The primary authoring model is **one Markdown note per person**. Put a person’s
+relationships, dates, places, citations, portraits, occupations, and research in
+that note. Choose folders and filenames yourself; no `people/`, `sources/`, or
+other fixed directory layout is required. Attachments remain ordinary local
+files. Earlier archives containing separate typed relationship, source, event,
+place, and media notes remain readable alongside person notes.
 
-## Records
+Kindred reads non-hidden `.md` files recursively. It skips hidden directories
+(including `.kindred` and `.obsidian`) and symbolic-link notes/directories. Notes
+without frontmatter or without `type` remain ordinary untyped notes. Malformed
+frontmatter is diagnosed. Wiki-link filenames are interpreted case-sensitively.
 
-Typed notes start with YAML frontmatter delimited by lines containing `---`.
-These properties are required:
+## A person note
 
 ```yaml
 version: 1
-id: person_anna
+id: elin_linden
 type: person
-name: Anna Linden
+name: Elin Linden
+born: "about 1900"
+birth_place: Lindenby
+occupation: [Weaver, Teacher]
+mother: "[[Family/Anna Linden]]"
+parents:
+  - id: robin_adopts_elin
+    person: "[[Research/Robin Sommer]]"
+    relation: adoptive_parent
+    role: father
+    status: disputed
+    sources: [{id: adoption_register}]
+    note: Two incompatible readings remain.
+sources:
+  - id: adoption_register
+    title: Fictional adoption register
+    attachments: [attachments/register.txt]
+    note: An invented document for this example.
+portrait: attachments/elin.jpg
+portrait_credit: Fictional artist
+living: false
 ```
 
-`id` is a nonempty string, unique across the archive. `type` is one of `person`,
-`relationship`, `source`, `event`, `place`, or `media`. `name` is optional and
-falls back to the ID. YAML duplicate keys are rejected. Metadata is flat: scalar
-properties and lists of scalars. Unknown properties are retained. The body and
-original note text, including line endings, are retained exactly when reading.
-Quoted date strings preserve uncertainty, for example `birth: "about 1820"` or
-`birth: "1818 or 1821"`. Kindred does not turn these into exact dates.
+The frontmatter is enclosed by lines containing `---`. `version: 1`, a nonempty
+unique string `id`, and `type: person` are required. `name` defaults to the ID.
+Other properties are optional. Duplicate YAML keys are rejected. Nested metadata
+is supported: inline relationship/citation/event objects and unknown properties
+are retained. The physical note’s metadata, Markdown body, comments, and original
+line endings are preserved exactly when reading and saving supplied note text.
 
-`aliases` is an optional list of strings. `living` and `private` must be booleans when present. `living: true` and `private: true` are
-available as explicit privacy metadata; consult export command documentation for
-filtering behavior. Omitting a privacy property is not proof a record is public.
+`born` and `died` contain original date wording; `birth` and `death` remain valid
+aliases for older archives. Conflicting values in two aliases for the same date
+are rejected. Preserve uncertainty in strings such as `"1818 or 1821"`, or record
+separate dated events with their explanations. Kindred does not turn uncertain
+wording into an exact date. `living` and `private`, when supplied, must be booleans.
+Missing living status does not establish that someone is deceased or public.
 
-## Links and claims
+`occupation` is conventionally a string or list of strings. Use `## Story` and
+`## Research notes` Markdown headings if helpful; these headings are optional,
+and the body remains ordinary authored prose. Cite facts and distinguish
+uncertainty from supported information. A mention in prose never creates a
+parent or partner assertion.
 
-Links in typed properties use quoted wiki links: `"[[people/anna|Anna Linden]]"`.
-Targets are filenames relative to the archive root; `.md` is optional. A basename
-without a slash is accepted only if it resolves to exactly one typed note.
-Display aliases after `|` do not affect resolution. IDs are not implicit filename
-aliases. Renaming a target externally requires updating its incoming links;
-validation reports broken links rather than guessing from an ID.
+## Explicit relationships
 
-A parent claim has one authoritative relationship note:
+`mother` and `father` are quoted person wiki links and create explicit biological
+parent claims with the indicated role and default `accepted` status. A claim is
+owned by the **child’s note**. Use `parents` objects whenever relation type,
+certainty, evidence, or reasoning needs more detail:
 
-```yaml
-version: 1
-id: claim_anna_emil
-type: relationship
-relation: biological_parent
-parent: "[[people/anna]]"
-child: "[[people/emil]]"
-status: tentative
-sources: ["[[sources/register]]"]
-```
+| Property | Meaning |
+| --- | --- |
+| `person` | Required wiki link to the parent’s physical note |
+| `id` | Optional explicit claim ID, preserved in queries and migration |
+| `relation` | `biological_parent` (default), `adoptive_parent`, or `foster_parent` |
+| `role` | `mother`, `father`, or `parent` (default); `parent_role` is an alias |
+| `status` | `accepted` (default), `tentative`, `disputed`, or `rejected` |
+| `sources` | Explicit supporting citation list |
+| `note` | Reasoning and uncertainty, shown with the derived claim |
+| `private` | Optional boolean restricting that claim |
 
-Parent relations are `biological_parent`, `adoptive_parent`, or `foster_parent`.
-A `partner` relation instead has exactly two `partners` links. Endpoints must be
-distinct people. Every claim needs an explicit status: `accepted`, `tentative`,
-`disputed`, or `rejected`. Prose carries reasoning and alternatives. Sources are
-optional lists of links to source records; one source can support many claims.
-Ordinary links in prose never create genealogy edges.
+`mother`/`father` also accept a rich parent object when needed; its role must agree
+with the property name. Conflicting `role`/`parent_role` values are rejected.
+Roles are explicit metadata, never inferred from someone’s name or sex.
 
-Event notes can use `people` (list of person links), `place` (a place link),
-`sources` (list of source links), and an opaque `date` string. Source records can
-carry `url`, `license`, citation metadata, and evidence prose. No online content
-is fetched implicitly.
+`partners` is a list of person wiki links or objects containing `person`, `id`,
+`status`, `sources`, `note`, and `private`. Partner objects cannot have a parent
+role. Put a partnership claim on one partner’s note; avoid independently editable
+mirrored copies. Claims never point from a person to themselves. Parentage
+sources are explicit on each claim: a person’s general source catalogue is not
+automatically treated as support for every relationship.
 
-Source `attachments` is a list of archive-relative file paths; a media note can
-use `file: attachments/register.txt`. These files must exist inside the archive.
-Traversal paths and symbolic links that lead outside the archive are rejected.
-An attachment can instead be represented by a wiki link to a media record.
+Links use actual archive-relative filenames, with optional `.md` and display
+aliases: `"[[Family/Anna Linden|Anna]]"`. A basename resolves only when it is unique.
+Stable IDs are not implicit filename aliases. Renames require updating incoming
+links; validation reports broken targets instead of guessing.
 
-## Validation and traversal
+## Inline citations, events, and places
 
-Duplicate IDs, missing/ambiguous links, invalid record types, invalid claim
-statuses, malformed endpoint properties, and inappropriate source/event target
-types are diagnostics. Queries refuse archives with validation errors.
+A citation is an HTTP(S) URL, an inline object, or a wiki link to a legacy source
+note. Citation objects can contain `id`, `title` (or `name`), `url`, `attachments`,
+`note`, `credit`, `license`, `accessed`, and additional provenance. A URL is not
+required: a local document or oral account can have a title, attachment, and
+explanation. No online content or linked media is fetched automatically.
 
-Queries default to accepted claims and all relation types. Explicit status and
-relation filters select alternatives without presenting them as accepted facts.
-Ancestor/descendant queries follow only parent edges in the indicated direction;
-partner edges are used in neighborhoods and connection paths. Depth zero selects
-only the focus person. Each additional generation permits one edge. Paths are
-shortest undirected connections bounded by the requested number of steps, and
-are not assigned a kinship label.
+Declare a person’s reusable citation objects in `sources`, then reference them
+in claim/event sources with `{id: citation_id}`. Definitions are collected before
+references resolve, so note names and list order do not affect forward references;
+undefined IDs are diagnosed. An explicit
+citation ID repeated across people coalesces when its content matches; conflicting
+contents are diagnosed rather than silently replacing evidence. A simple
+`portrait_source` URL reuses a matching citation already in the person’s catalogue.
 
-Each person is visited once at its shortest distance. Shared ancestors are not
-duplicated, and cycles terminate. Traversed edges retain their relationship IDs,
-status, type, and source IDs. Multiple independently sourced claims can remain
-visible rather than being collapsed into one unsupported fact.
+`birth_place` and `death_place` accept a place name, a place object such as
+`{id: lindenby, name: Lindenby, latitude: 54.5}`, or a legacy place wiki link.
+Birth/death date or place fields produce derived life events. Additional `events`
+are objects with optional `id`, `type`, `name`, `date`, `place`, `sources`, `people`,
+and `note` properties. `people` is an explicit list of person wiki links; the owner
+is included and repeated participants are deduplicated. Sources remain explicit.
+Use an event ID when its identity should survive later date or description edits.
 
-## Disposable index
+Local attachment properties point to files inside the archive. Missing files,
+traversal, and symbolic links leading outside the archive are rejected. Citation
+`attachments` is a list of local paths, allowing an inline citation to preserve
+an imported `attachments/original.ged` file without a separate source note.
 
-Reindexing writes `.kindred/index.json`, a JSON snapshot of the validated records
-and their original text. It is derived data and may contain private research just
-like the archive. It is never required or trusted to load an archive: commands
-reread Markdown files. Deleting or corrupting the snapshot does not lose research.
-Rebuilding incorporates external edits and refuses malformed records. The
-snapshot is written through a temporary file and atomic replacement.
+## Portraits
 
-## Editing and snapshot concurrency
+`portrait` is a local attachment path, for example `attachments/elin.jpg`.
+Optional `portrait_credit`, `portrait_license`, and `portrait_source` properties
+keep provenance beside the person; `portrait_source` accepts a URL/citation object.
+The legacy form `portrait: "[[media/elin]]"` also works when that media note has
+an existing local `file`. Remote portrait URLs and lists are rejected. Portraits
+are explicit authored choices; Kindred does not identify faces or infer likenesses.
 
-Saving a note compares its exact original text, validates the proposed note in
-its full archive context, stages a durable replacement, and rechecks the text
-before atomic replacement. An interrupted write leaves a journal for explicit
-recovery. Recovery never overwrites text that differs from both the original and
-the proposed replacement. Journals and indexes are created with owner-only file
-permissions on Unix; editing preserves the note's existing permissions.
+The viewer displays supported image formats and otherwise retains initials.
+Existence of an attachment does not prove it is an image or an accurate depiction.
+Full archive export retains notes, credits, and image files. Public projection
+excludes portraits, occupations, sources, attachments, and narrative prose by
+default, while retaining selected explicit parent roles. Its output also uses
+one physical note per included person. GEDCOM omits portraits and their credits;
+consult each export’s loss report.
 
-Full archive export compares the source file manifest before and after staging
-and verifies copied bytes against the source before publishing the destination.
-Detected external changes abort the export and remove its staging directory.
-These checks are optimistic: ordinary editors do not participate in Kindred's
-write lock, so a change after the final check is still possible. Pause ordinary
-editor writes while saving/recovering or making an archive backup when a stable
-snapshot is required. Multi-file exports are published together; edits currently
-replace one note at a time and do not promise multi-note transactions.
+## Derived records and ownership
+
+The graph index projects explicit person metadata into relationship, source,
+event, and place records without creating Markdown files for them. Public API
+records have `owner: null` for physical notes and an owning person ID for derived
+records. Derived `path` and `raw` are empty; they must not be presented as editable
+files. Edit the owner note, then rebuild the projection. A shared matching
+citation selects the lowest-ID person providing its full definition as owner.
+
+Explicit inline IDs are preserved. Generated claim IDs depend on owner/endpoints,
+relation, and role, not list positions or filenames. Generated URL citation IDs
+use their URL so a title correction does not change identity. Other generated
+citation/event identities use their semantic metadata; give distinct uncertain
+claims or evolving events explicit IDs. Different content under the same ID is
+a validation error. Derived nodes never take part in filename link resolution.
+
+Derived claim `parent`, `child`, `partners`, and `sources` properties refer to
+record IDs. Derived event `people`, `place`, and `sources` likewise contain IDs.
+These internal references are rebuilt from the unchanged person frontmatter.
+
+## Legacy typed notes and query semantics
+
+Separate notes with `type: relationship`, `source`, `event`, `place`, or `media`
+remain supported. Legacy parent claims use `parent`/`child` wiki links and a
+required explicit status; partners use exactly two `partners` links. Optional
+`parent_role` is limited to mother/father/parent on parent relationship notes.
+Legacy source/event/wiki-link and media-file validation still applies.
+
+Queries default to accepted claims. Explicit relationship-type/status filters
+select alternatives without presenting them as accepted facts. Ancestor and
+descendant queries follow parent edges in the stated direction; neighborhoods
+and connection paths also use partner edges. Depth zero includes only the focus.
+Each generation allows one more edge. Paths are shortest undirected connections
+within the requested limit, not automatic kinship labels. Shared ancestors are
+visited once, cycles terminate, and edges retain claim and source identifiers.
+
+## Editing, recovery, and disposable indexes
+
+Saving compares the exact original text, validates the replacement in its full
+archive context, stages a durable replacement, and rechecks before atomic
+replacement. This includes rebuilding all derived records from the proposed
+person metadata. Interrupted writes leave an explicit recovery journal. Recovery
+never overwrites text differing from both the original and proposed replacement.
+Journals/indexes have owner-only permissions on Unix; edits preserve note modes.
+
+Reindexing writes `.kindred/index.json`, including derived records and private
+research. The snapshot is never required or trusted to load an archive. Deleting
+or corrupting it does not lose research; every load rereads authoritative files.
+
+Full export compares file manifests and copied bytes before publishing a staged
+archive. Detected changes abort it. These checks are optimistic: ordinary editors
+do not participate in Kindred’s lock and could change a file after the final
+check. Pause external writes when a stable snapshot is required. Editing replaces
+one person note at a time; it does not promise multi-note transactions.
 
 ## GEDCOM explicit relation
 
-The declared `_KINDRED_RELATION` extension on an individual’s `FAMC` link carries
-`biological_parent`, `adoptive_parent`, or `foster_parent`. It accompanies standard
-`PEDI BIRTH`, `ADOPTED`, or `FOSTER`, respectively. An importer must not interpret
-`PEDI BIRTH` alone as proof of biological parentage: GEDCOM 7 describes a family
-structure at birth. Kindred leaves absent, ambiguous, or unsupported pedigrees in
-the original import attachment and reports that no parentage was inferred.
-Each exported parent claim uses a separate family so its relation is explicit.
+The declared `_KINDRED_RELATION` extension on a `FAMC` link carries
+`biological_parent`, `adoptive_parent`, or `foster_parent`, alongside the respective
+`PEDI BIRTH`, `ADOPTED`, or `FOSTER`. GEDCOM 7’s `BIRTH` means family structure at
+birth, so Kindred does not infer biological parentage from `BIRTH` alone or an
+absent pedigree. Unsupported/ambiguous information remains in the original input
+with an explicit report. Each exported parent claim uses a separate family.
 
 ## GEDCOM claim status
 
-The declared `_KINDRED_STATUS` extension on `FAMC` links and family records carries
-one of `accepted`, `tentative`, `disputed`, or `rejected`. Standard child-link
-`STAT PROVEN`, `CHALLENGED`, and `DISPROVEN` map to `accepted`, `disputed`, and
-`rejected`, respectively. Unspecified status imports as `tentative`; conflicting
-statuses are rejected. Importing an accepted claim does not independently verify
-it. Export includes accepted claims only and reports the omitted alternatives.
-Consumers that ignore the extensions lose exact biological and status semantics.
+The declared `_KINDRED_STATUS` extension carries accepted/tentative/disputed/
+rejected. Standard `STAT PROVEN`, `CHALLENGED`, and `DISPROVEN` map to accepted,
+disputed, and rejected. Unspecified imported status is tentative; conflicting
+statuses are rejected. Import does not independently verify a claim. Export
+includes accepted claims and reports omitted alternatives. Consumers ignoring
+extensions lose exact biological/status meaning. Parent roles, occupations,
+portraits, and prose require complete archive export.
 
-The importer retains the exact input as `attachments/original.ged`, explicitly
-reports unmapped fields and records, and never fetches linked media. It selects
-the primary name and first date wording, reporting alternatives rather than
-silently overwriting them. `RESN` is conservatively mapped to `private: true`,
-and private records export with `RESN PRIVACY`. `DEAT N` never makes a person
-explicitly deceased. Supported encodings are UTF-8/ASCII; declared schema versions
-are 5.5.1 and 7.0. This remains a documented subset, not general GEDCOM support.
-
-These policies follow the [GEDCOM 7 specification](https://gedcom.io/specifications/FamilySearchGEDCOMv7.html),
-consulted on 2026-09-19, particularly its pedigree and child-family status definitions.
+The GEDCOM subset retains the exact original attachment and explicitly reports
+unmapped content. `RESN` conservatively becomes private; `DEAT N` never establishes
+death. Supported input is UTF-8/ASCII GEDCOM 5.5.1 or 7.0. These policies follow the
+[GEDCOM 7 specification](https://gedcom.io/specifications/FamilySearchGEDCOMv7.html),
+consulted on 2026-09-19. This is a documented subset, not general GEDCOM support.

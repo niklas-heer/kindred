@@ -38,8 +38,8 @@ ancestor view, expand a branch, and inspect a relationship's evidence. You can
 edit the complete Markdown note in the details panel or with an ordinary editor.
 Kindred checks for external changes before saving.
 
-For a deeper example, explore the **Carolingian and Plantagenet families**, with
-45 deceased people spanning roughly the sixth through sixteenth centuries:
+For a deeper example, explore the **Carolingian, Plantagenet, Tudor, Stuart, and Hanover families**, with
+88 deceased people spanning roughly the sixth through eighteenth centuries:
 
 ```sh
 ./target/release/kindred serve examples/historical/european-dynasties
@@ -53,9 +53,12 @@ software examples, not a complete or definitive royal genealogy.
 
 ## Your files remain the archive
 
-People, relationships, sources, events, places, and media use
-[versioned flat YAML frontmatter](docs/SCHEMA.md) in ordinary Markdown notes.
-Attachments stay alongside them. Prose links never silently become parentage
+Write one Markdown note per person, with [YAML metadata](docs/SCHEMA.md) for
+parents, partners, dates, places, citations, occupations, and a local portrait.
+Kindred discovers the graph from those fields. Keep stories in the same note
+and files in an attachments folder. Organize person notes however you like;
+folder names do not determine their meaning. Existing separate typed notes
+remain readable. Prose links never silently become parentage
 claims. Validation catches duplicate IDs, broken links, ambiguous filenames,
 malformed metadata, and missing evidence files.
 

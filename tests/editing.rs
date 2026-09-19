@@ -211,3 +211,35 @@ fn symlink_journals_and_cache_directories_are_refused() {
     symlink(fixture.0.join("elsewhere"), fixture.0.join(".kindred")).unwrap();
     assert!(editing::replace(&fixture.0, "anna", ORIGINAL, ORIGINAL).is_err());
 }
+
+#[test]
+fn editing_a_person_rebuilds_projections_and_synthetic_records_cannot_be_written() {
+    let fixture = Fixture::new();
+    fs::write(
+        fixture.0.join("child.md"),
+        "---\nversion: 1\nid: child\ntype: person\n---\nOriginal child story.\n",
+    )
+    .unwrap();
+    let original = fs::read_to_string(fixture.0.join("child.md")).unwrap();
+    let replacement = original.replace("type: person", "type: person\nparents: [{id: claim, person: '[[anna]]', role: mother, status: tentative}]\ncustom: {nested: [keep, this]}");
+    editing::replace(&fixture.0, "child", &original, &replacement).unwrap();
+    let archive = Archive::load(&fixture.0).unwrap();
+    assert!(archive.diagnostics.is_empty());
+    assert_eq!(
+        archive.record("claim").unwrap().owner.as_deref(),
+        Some("child")
+    );
+    assert!(
+        editing::replace(&fixture.0, "claim", "", "anything")
+            .unwrap_err()
+            .contains("owning person: child")
+    );
+    let invalid = replacement.replace("[[anna]]", "[[missing]]");
+    assert!(editing::replace(&fixture.0, "child", &replacement, &invalid).is_err());
+    assert_eq!(
+        fs::read_to_string(fixture.0.join("child.md")).unwrap(),
+        replacement
+    );
+    editing::replace(&fixture.0, "child", &replacement, &original).unwrap();
+    assert!(Archive::load(&fixture.0).unwrap().record("claim").is_none());
+}

@@ -17,17 +17,95 @@
     editorOriginal: "",
     overviewExpanded: new Set(),
     overviewCollapsed: new Set(),
-    overviewShowAll: false
+    overviewShowAll: false,
+    overviewRoot: null
   };
 
   const el = Object.fromEntries([
-    "direction-label", "zoom-in", "zoom-out", "zoom-level", "search", "search-results", "generations", "relation-filter", "status-filter", "show-evidence", "overview-toggle", "fit-button",
+    "branch-picker", "branch-root", "direction-label", "zoom-in", "zoom-out", "zoom-level", "search", "search-results", "generations", "relation-filter", "status-filter", "show-evidence", "overview-toggle", "fit-button",
     "diagnostics", "path-picker", "path-from", "path-to", "graph", "viewport",
     "edges", "nodes", "empty-state", "graph-status", "details", "editor",
     "editor-title", "editor-text", "editor-message", "save-button", "help-button", "shortcuts"
   ].map((id) => [id.replaceAll("-", "_"), document.getElementById(id)]));
 
   const svgNs = "http://www.w3.org/2000/svg";
+  const CARD_WIDTH = 248;
+  const CARD_HEIGHT = 144;
+
+  function icon(name) {
+    const image = svg("svg", { className: "icon", attrs: { viewBox: "0 0 24 24", width: 18, height: 18, "aria-hidden": "true", focusable: "false" } });
+    image.append(svg("use", { attrs: { href: `/icons.svg#${name}` } }));
+    return image;
+  }
+
+  function parentRole(edge) {
+    const role = record(edge.id)?.metadata?.parent_role;
+    return ["mother", "father"].includes(role) ? role : "parent";
+  }
+
+  function roleIcon(role) { return role === "mother" ? "venus" : role === "father" ? "mars" : "users-round"; }
+
+  function roleBadge(role, status = "accepted") {
+    const badge = html("span", { className: `parent-role ${role} ${status}` });
+    badge.append(icon(roleIcon(role)), document.createTextNode(shortRelation(role)));
+    return badge;
+  }
+
+  function portraitFor(item) {
+    const direct = item.metadata?.portrait;
+    const mediaId = item.kind === "media" ? item.id : linkedIds(item, "portrait")[0];
+    const media = record(mediaId);
+    const attachment = state.data.attachments.find((candidate) =>
+      (media ? candidate.record === media.id : candidate.path === direct) && /\.(?:jpe?g|png|webp|gif)$/iu.test(candidate.path));
+    if (!attachment) return null;
+    return {
+      media,
+      url: `/api/attachment?path=${encodeURIComponent(attachment.path)}`,
+      caption: media?.metadata?.caption || item.metadata?.portrait_caption || `Portrait of ${label(item)}`,
+      credit: media
+        ? [media.metadata?.credit || media.metadata?.artist, media.metadata?.date, media.metadata?.license].filter(Boolean).map(plainValue).join(" · ")
+        : [item.metadata?.portrait_credit, item.metadata?.portrait_license].filter(Boolean).map(plainValue).join(" · "),
+      source: media?.metadata?.url || item.metadata?.portrait_source
+    };
+  }
+
+  function portraitFigure(item) {
+    const portrait = portraitFor(item);
+    if (!portrait) return null;
+    const figure = html("figure", { className: "portrait-figure" });
+    const imageLink = html("a", { attrs: { href: portrait.url, target: "_blank", rel: "noopener", "aria-label": `Open portrait of ${label(item)}` } });
+    const photo = html("img", { attrs: { src: portrait.url, alt: portrait.caption, decoding: "async" } });
+    photo.addEventListener("error", () => { figure.hidden = true; });
+    imageLink.append(photo);
+    const caption = html("figcaption", { text: portrait.credit || portrait.caption });
+    if (portrait.media) {
+      const details = html("button", { className: "portrait-credit", text: "Image source & credits", attrs: { type: "button" } });
+      details.addEventListener("click", () => select(portrait.media.id));
+      caption.append(details);
+    } else {
+      const source = typeof portrait.source === "string" ? portrait.source : portrait.source?.url;
+      if (typeof source === "string" && /^https?:\/\//iu.test(source)) caption.append(html("a", { className: "portrait-credit", text: "Image source & credits ↗", attrs: { href: source, target: "_blank", rel: "noopener noreferrer" } }));
+    }
+    figure.append(imageLink, caption);
+    return figure;
+  }
+
+  function dateValue(item, kind) {
+    return plainValue(kind === "born"
+      ? item.metadata?.born || item.metadata?.birth || item.metadata?.birth_date
+      : item.metadata?.died || item.metadata?.death || item.metadata?.death_date);
+  }
+
+  function dateFact(item, kind) {
+    const label = kind === "born" ? "Born" : "Died";
+    const value = dateValue(item, kind) || "Not recorded";
+    const fact = html("span", { className: "date-fact", attrs: { title: `${label}: ${value}` } });
+    fact.append(icon(kind === "born" ? "baby" : "flower-2"));
+    const copy = html("span");
+    copy.append(html("small", { text: label }), html("span", { text: value }));
+    fact.append(copy);
+    return fact;
+  }
 
   function html(tag, options = {}) {
     const node = document.createElement(tag);
@@ -67,11 +145,20 @@
     const values = Array.isArray(raw) ? raw : raw === undefined ? [] : [raw];
     const ids = [];
     for (const value of values) {
+      if (item.owner && typeof value === "string" && record(value)) { ids.push(value); continue; }
+      if (field === "sources" || field === "portrait_source") {
+        const id = typeof value === "object" && value ? value.id : null;
+        const url = typeof value === "string" ? value : value?.url;
+        const candidates = state.data.records.filter((candidate) => candidate.kind === "source" &&
+          (id ? candidate.id === id : url && candidate.metadata?.url === url));
+        if (candidates.length) { ids.push(...candidates.map((candidate) => candidate.id)); continue; }
+      }
       if (typeof value !== "string") continue;
       const match = /^\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]$/u.exec(value.trim());
       if (!match) continue;
       const target = match[1];
       const candidates = state.data.records.filter((candidate) => {
+        if (candidate.owner || !candidate.path) return false;
         const stem = candidate.path.replace(/\.md$/iu, "");
         return stem === target || (!target.includes("/") && stem.split("/").at(-1) === target);
       });
@@ -163,6 +250,17 @@
     }
     el.path_to.value = state.to || current;
     el.path_from.textContent = label(record(state.person)) || "choose a person";
+    if (state.mode === "overview") {
+      const childCount = (id) => new Set(state.data.query.edges.filter((edge) => edge.from === id && edge.relation !== "partner").map((edge) => edge.to)).size;
+      const branches = sorted.filter((person) => childCount(person.id) > 0).sort((a, b) => childCount(b.id) - childCount(a.id) || label(a).localeCompare(label(b)));
+      if (state.overviewRoot === null) state.overviewRoot = branches[0]?.id || "";
+      if (state.overviewRoot && !branches.some((person) => person.id === state.overviewRoot)) state.overviewRoot = "";
+      clear(el.branch_root);
+      el.branch_root.append(html("option", { text: "All family roots", attrs: { value: "" } }));
+      for (const person of branches) el.branch_root.append(html("option", { text: `${label(person)} · ${childCount(person.id)} children`, attrs: { value: person.id } }));
+      el.branch_root.value = state.overviewRoot;
+      if (!state.selected && state.overviewRoot) state.selected = state.overviewRoot;
+    }
   }
 
   function graphNodes() {
@@ -195,6 +293,7 @@
         component.push(id);
         for (const next of neighbors.get(id)) if (!visited.has(next)) { visited.add(next); queue.push(next); }
       }
+      if (state.overviewRoot && !component.includes(state.overviewRoot)) continue;
       const children = new Set(claims.filter((edge) => edge.relation !== "partner").map((edge) => edge.to));
       const roots = component.filter((id) => !children.has(id));
       // Start at a root with the largest descendant branch, not every spouse
@@ -209,7 +308,7 @@
         }
         return found.size;
       };
-      const root = (roots.length ? roots : component).sort((a, b) => reach(b) - reach(a) || a.localeCompare(b))[0];
+      const root = state.overviewRoot || (roots.length ? roots : component).sort((a, b) => reach(b) - reach(a) || a.localeCompare(b))[0];
       const pending = [[root, 0]], seen = new Set();
       while (pending.length) {
         const [id, depth] = pending.shift();
@@ -218,7 +317,7 @@
         for (const edge of claims) {
           if (edge.relation === "partner" && (edge.from === id || edge.to === id)) {
             pending.push([edge.from === id ? edge.to : edge.from, depth]);
-          } else if (edge.from === id && (!state.overviewCollapsed.has(id) && (depth < 2 || state.overviewExpanded.has(id)))) {
+          } else if (edge.from === id && (!state.overviewCollapsed.has(id) && (depth < (Number.parseInt(el.generations.value, 10) || 2) || state.overviewExpanded.has(id)))) {
             pending.push([edge.to, depth + 1]);
           }
         }
@@ -285,12 +384,11 @@
   }
 
   function layout(nodes, edges) {
-    const CARD_WIDTH = 224;
     const COLUMN_GAP = 36;
     const ROW_GAP = 80;
     const COMPONENT_GAP = 180;
     const X_STEP = CARD_WIDTH + COLUMN_GAP;
-    const Y_STEP = 96 + ROW_GAP;
+    const Y_STEP = CARD_HEIGHT + ROW_GAP;
     const positions = new Map();
     if (!nodes.length) return positions;
     const people = nodes
@@ -550,12 +648,12 @@
     let d;
     if (sideLink) {
       const direction = to.x >= from.x ? 1 : -1;
-      const x1 = from.x + direction * 112, x2 = to.x - direction * 112;
+      const x1 = from.x + direction * CARD_WIDTH / 2, x2 = to.x - direction * CARD_WIDTH / 2;
       const bend = Math.max(24, Math.abs(x2 - x1) / 2);
       d = `M ${x1} ${from.y} C ${x1 + direction * bend} ${from.y}, ${x2 - direction * bend} ${to.y}, ${x2} ${to.y}`;
     } else {
       const direction = to.y > from.y ? 1 : -1;
-      const y1 = from.y + direction * 48, y2 = to.y - direction * 48;
+      const y1 = from.y + direction * CARD_HEIGHT / 2, y2 = to.y - direction * CARD_HEIGHT / 2;
       const middle = (y1 + y2) / 2;
       d = `M ${from.x} ${y1} C ${from.x} ${middle}, ${to.x} ${middle}, ${to.x} ${y2}`;
     }
@@ -576,15 +674,38 @@
       className: `node${node.kind === "person" ? "" : " evidence"}${state.selected === node.id ? " selected" : ""}`,
       attrs: { transform: `translate(${position.x} ${position.y})`, tabindex: "0", role: "button", "aria-label": `${label(node)}. Open details.`, "data-id": node.id }
     });
-    group.append(svg("rect", { className: "node-card", attrs: { x: -112, y: -48, width: 224, height: 96, rx: 14 } }));
-    const content = svg("foreignObject", { attrs: { x: -112, y: -48, width: 224, height: 96 } });
+    const frame = { x: -CARD_WIDTH / 2, y: -CARD_HEIGHT / 2, width: CARD_WIDTH, height: CARD_HEIGHT };
+    group.append(svg("rect", { className: "node-card", attrs: { ...frame, rx: 14 } }));
+    const content = svg("foreignObject", { attrs: frame });
     const card = html("div", { className: "person-card" });
-    card.append(html("span", { className: "person-avatar", text: node.kind === "person" ? initials(label(node)) : "↗", attrs: { "aria-hidden": "true" } }));
+    const head = html("div", { className: "person-head" });
+    const roles = [...new Set(state.data.query.edges.filter((edge) => edge.from === node.id && edge.relation !== "partner").map(parentRole))];
+    const role = roles.length === 1 ? roles[0] : "parent";
+    const avatar = html("span", { className: "person-avatar", attrs: { "aria-hidden": "true" } });
+    avatar.textContent = node.kind === "person" ? initials(label(node)) : "";
+    if (node.kind !== "person") avatar.append(icon("book-open"));
+    const portrait = portraitFor(node);
+    if (portrait) {
+      const photo = html("img", { attrs: { src: portrait.url, alt: "", decoding: "async" } });
+      photo.addEventListener("error", () => { avatar.textContent = initials(label(node)); });
+      avatar.replaceChildren(photo);
+    }
     const copy = html("div", { className: "person-copy" });
     copy.append(html("span", { className: "person-name", text: label(node) }));
-    copy.append(html("span", { className: "person-dates", text: node.kind === "person" ? lifeSpan(node) : shortRelation(node.kind) }));
-    card.append(copy); content.append(card); group.append(content);
-    group.append(svg("title", { text: `${label(node)} · ${lifeSpan(node)}` }));
+    const description = html("span", { className: "person-description" });
+    if (node.kind === "person" && roles.length) description.append(roleBadge(role));
+    else description.append(html("span", { className: "record-kind", text: shortRelation(node.kind) }));
+    copy.append(description); head.append(avatar, copy); card.append(head);
+    const occupation = plainValue(node.metadata?.occupation);
+    const job = html("div", { className: "person-occupation", attrs: { title: occupation } });
+    if (occupation) job.append(icon("briefcase-business"), html("span", { text: occupation }));
+    else if (node.kind !== "person") job.textContent = "Evidence & research";
+    card.append(job);
+    const dates = html("div", { className: "person-dates" });
+    if (node.kind === "person") dates.append(dateFact(node, "born"), dateFact(node, "died"));
+    else dates.append(html("span", { text: "Open to read the source" }));
+    card.append(dates); content.append(card); group.append(content);
+    group.append(svg("title", { text: `${label(node)} · ${lifeSpan(node)}${occupation ? ` · ${occupation}` : ""}` }));
     group.addEventListener("click", () => select(node.id));
     group.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(node.id, true); }
@@ -636,7 +757,15 @@
     const header = html("header", { className: "detail-header" });
     header.append(html("span", { className: "eyebrow", text: item.kind || "Record" }));
     header.append(html("h1", { text: label(item) }));
-    if (item.kind === "person") header.append(html("p", { className: "detail-lifespan", text: lifeSpan(item) }));
+    const portrait = portraitFigure(item);
+    if (portrait) header.append(portrait);
+    if (item.kind === "person") {
+      const dates = html("div", { className: "detail-dates" });
+      dates.append(dateFact(item, "born"), dateFact(item, "died"));
+      header.append(dates);
+      const job = plainValue(item.metadata?.occupation);
+      if (job) { const occupation = html("p", { className: "detail-occupation" }); occupation.append(icon("briefcase-business"), document.createTextNode(job)); header.append(occupation); }
+    }
     const aliases = item.metadata?.aliases;
     if (aliases) header.append(html("p", { className: "aliases", text: plainValue(aliases) }));
     const actions = html("div", { className: "detail-actions" });
@@ -668,7 +797,7 @@
       family.addEventListener("click", () => { state.person = item.id; setMode("focus"); });
       actions.append(family);
     }
-    const edit = html("button", { className: "quiet-button", text: "Edit note", attrs: { type: "button" } });
+    const edit = html("button", { className: "quiet-button", text: item.owner ? "Edit person note" : "Edit note", attrs: { type: "button" } });
     edit.addEventListener("click", () => openEditor(item));
     actions.append(edit);
     const itemUrl = item.metadata?.url;
@@ -676,31 +805,102 @@
       actions.append(html("a", { className: "quiet-button", text: "Open source ↗", attrs: { href: itemUrl, target: "_blank", rel: "noopener noreferrer" } }));
     }
     header.append(actions);
+    if (item.owner) {
+      const owner = record(item.owner);
+      const origin = html("button", { className: "portrait-credit", text: `From ${label(owner)}’s note`, attrs: { type: "button" } });
+      origin.addEventListener("click", () => select(owner.id));
+      header.append(origin);
+    }
     el.details.append(header);
 
-    if (item.body) section("Story", html("div", { className: "prose", text: item.body.trim() }));
+    renderParents(item);
+    if (item.body) section("Stories & notes", renderProse(item.body), "book-open");
     renderFacts(item);
     renderRelations(item);
     renderEvents(item);
     renderEvidence(item);
     renderAttachments(item);
+    if (!item.owner) renderNoteComposer(item);
   }
 
-  function section(title, content) {
+  function section(title, content, iconName) {
     const wrapper = html("section", { className: "detail-section" });
-    wrapper.append(html("h2", { text: title }), content);
+    const heading = html("h2");
+    if (iconName) heading.append(icon(iconName));
+    heading.append(document.createTextNode(title));
+    wrapper.append(heading, content);
     el.details.append(wrapper);
   }
 
+  function renderParents(item) {
+    if (item.kind !== "person") return;
+    const parents = state.data.query.edges.filter((edge) => edge.to === item.id && edge.relation !== "partner");
+    if (!parents.length) return;
+    const list = html("div", { className: "parent-list" });
+    for (const edge of parents) {
+      const parent = record(edge.from), role = parentRole(edge);
+      const button = html("button", { className: `parent-summary ${role}`, attrs: { type: "button" } });
+      button.append(roleBadge(role, edge.status), html("strong", { text: label(parent) }));
+      button.append(html("small", { text: `${shortRelation(edge.relation.replace("_parent", ""))} · ${shortRelation(edge.status)}` }));
+      button.addEventListener("click", () => select(parent.id));
+      list.append(button);
+    }
+    section("Parents", list, "users-round");
+  }
+
+  function renderProse(body) {
+    const wrapper = html("div", { className: "prose" });
+    // Notes are data: construct text nodes, never interpret archive HTML.
+    let paragraph = [], list = null;
+    const flush = () => { if (paragraph.length) { wrapper.append(html("p", { text: paragraph.join(" ") })); paragraph = []; } };
+    for (const line of body.trim().split(/\r?\n/u)) {
+      const heading = /^#{1,6}\s+(.+)$/u.exec(line);
+      const bullet = /^[-*]\s+(.+)$/u.exec(line);
+      if (heading) { flush(); list = null; wrapper.append(html("h3", { text: heading[1] })); }
+      else if (bullet) { flush(); if (!list) { list = html("ul"); wrapper.append(list); } list.append(html("li", { text: bullet[1] })); }
+      else if (!line.trim()) { flush(); list = null; }
+      else { list = null; paragraph.push(line); }
+    }
+    flush();
+    return wrapper;
+  }
+
+  function renderNoteComposer(item) {
+    const form = html("form", { className: "note-composer" });
+    const field = html("textarea", { attrs: { rows: 3, placeholder: "A memory, a question, a detail to investigate…", "aria-label": "Research note", required: "" } });
+    const message = html("p", { className: "note-message", attrs: { role: "status" } });
+    const save = html("button", { className: "quiet-button", text: "Add note", attrs: { type: "submit" } });
+    form.append(field, save, message);
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const text = field.value.trim();
+      if (!text) return;
+      const newline = item.raw.includes("\r\n") ? "\r\n" : "\n";
+      const replacement = item.raw + `${newline}${newline}## Research note${newline}${newline}${text.replace(/\r?\n/gu, newline)}${newline}`;
+      save.disabled = true;
+      message.textContent = "Saving…";
+      try {
+        const response = await fetch("/api/edit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, expected: item.raw, replacement }) });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Could not save note");
+        await loadGraph();
+      } catch (error) {
+        message.textContent = error instanceof Error ? error.message : String(error);
+        save.disabled = false;
+      }
+    });
+    section("Add a research note", form, "notebook-pen");
+  }
+
   function renderFacts(item) {
-    const omitted = new Set(["version", "id", "type", "name", "aliases", "attachments", "media", "sources", "from", "to", "parent", "child"]);
+    const omitted = new Set(["version", "mother", "father", "parents", "partners", "events", "portrait", "portrait_credit", "portrait_caption", "portrait_source", "portrait_artist", "portrait_date", "portrait_license", "born", "birth", "birth_date", "died", "death", "death_date", "occupation", "id", "type", "name", "aliases", "attachments", "media", "sources", "from", "to", "parent", "child"]);
     const facts = Object.entries(item.metadata || {}).filter(([key, value]) => !omitted.has(key) && plainValue(value));
     if (!facts.length) return;
     const list = html("dl", { className: "facts" });
     for (const [key, value] of facts) {
-      list.append(html("dt", { text: shortRelation(key) }), html("dd", { text: plainValue(value) }));
+      list.append(html("dt", { text: shortRelation(key) }), html("dd", { text: linkedIds(item, key).map((id) => label(record(id))).join(", ") || plainValue(value) }));
     }
-    section("Facts", list);
+    section("More facts", list, "briefcase-business");
   }
 
   function renderRelations(item) {
@@ -713,7 +913,9 @@
       const button = html("button", { className: "relation-card", attrs: { type: "button" } });
       const row = html("span", { className: "card-row" });
       row.append(html("strong", { text: label(other) }), html("span", { className: `tag ${edge.status || ""}`, text: edge.status || "accepted" }));
-      button.append(row, html("small", { text: shortRelation(edge.relation) }));
+      const direction = edge.relation === "partner" ? "Partner" : edge.to === item.id ? shortRelation(parentRole(edge)) : "Child";
+      const relationType = edge.relation === "partner" ? "" : ` · ${shortRelation(edge.relation.replace("_parent", ""))}`;
+      button.append(row, html("small", { text: `${direction}${relationType}` }));
       button.addEventListener("click", () => select(otherId));
       list.append(button);
     }
@@ -770,13 +972,16 @@
   }
 
   function setMode(mode) {
-    // A family opens with immediate relatives; ancestry queries start deeper.
+    if (record(state.selected)?.kind === "person") state.person = state.selected;
+    // Each view starts at a readable depth; the control can then expand it.
+    if (mode === "overview" && state.mode !== "overview") el.generations.value = "2";
     if (mode === "focus" && state.mode !== "focus") el.generations.value = "1";
     if ((mode === "ancestors" || mode === "descendants") && state.mode === "focus") el.generations.value = "4";
     state.mode = mode;
     for (const button of document.querySelectorAll("[data-mode]")) button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
     el.path_picker.hidden = mode !== "path";
     el.overview_toggle.hidden = mode !== "overview";
+    el.branch_picker.hidden = mode !== "overview";
     if (mode === "path" && !state.to) {
       el.graph_status.textContent = "Choose the second person above";
       return;
@@ -785,6 +990,8 @@
   }
 
   function openEditor(item) {
+    if (item.owner) item = record(item.owner);
+    if (!item?.raw) return;
     state.editorOriginal = item.raw;
     el.editor_title.textContent = `Edit ${label(item)}`;
     el.editor_text.value = item.raw;
@@ -852,8 +1059,8 @@
     const ys = points.map((point) => point.y);
     const minX = Math.min(...xs) - 148;
     const maxX = Math.max(...xs) + 148;
-    const minY = Math.min(...ys) - 70;
-    const maxY = Math.max(...ys) + 70;
+    const minY = Math.min(...ys) - CARD_HEIGHT / 2 - 38;
+    const maxY = Math.max(...ys) + CARD_HEIGHT / 2 + 38;
     const bounds = el.graph.getBoundingClientRect();
     state.scale = Math.min(1.15, Math.max(.08, Math.min(bounds.width / Math.max(1, maxX - minX), bounds.height / Math.max(1, maxY - minY)) * .9));
     state.tx = bounds.width / 2 - ((minX + maxX) / 2) * state.scale;
@@ -875,8 +1082,15 @@
     state.overviewShowAll = !state.overviewShowAll;
     if (!state.overviewShowAll) { state.overviewExpanded.clear(); state.overviewCollapsed.clear(); }
     el.overview_toggle.textContent = state.overviewShowAll ? "Collapse all" : "Show all";
+    el.branch_root.disabled = state.overviewShowAll;
     renderGraph();
     renderDetails();
+  });
+  el.branch_root.addEventListener("change", () => {
+    state.overviewRoot = el.branch_root.value;
+    state.overviewExpanded.clear(); state.overviewCollapsed.clear();
+    state.selected = state.overviewRoot;
+    renderGraph(); renderDetails();
   });
   el.path_to.addEventListener("change", () => { state.to = el.path_to.value; if (state.to) loadGraph(); });
   el.fit_button.addEventListener("click", fitGraph);

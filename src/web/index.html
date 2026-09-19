@@ -34,8 +34,11 @@
           <button type="button" data-mode="path" aria-pressed="false">Path</button>
         </div>
         <div class="query-options">
+          <label id="branch-picker">Branch
+            <select id="branch-root" aria-label="Overview branch"><option value="">All family roots</option></select>
+          </label>
           <label>Depth
-            <input id="generations" type="number" min="1" max="64" value="4" inputmode="numeric">
+            <input id="generations" type="number" min="1" max="64" value="2" inputmode="numeric">
           </label>
           <label>Relation
             <select id="relation-filter">
@@ -80,14 +83,16 @@
           <p>Try another person, add uncertain claims, or increase the depth.</p>
         </div>
         <div class="graph-key" aria-label="Graph legend">
+          <span class="role-key"><svg class="icon" aria-hidden="true"><use href="/icons.svg#venus"/></svg> Mother</span>
+          <span class="role-key"><svg class="icon" aria-hidden="true"><use href="/icons.svg#mars"/></svg> Father</span>
           <span><i class="person-dot"></i> <span id="direction-label">Parents above children</span></span>
           <span><i class="uncertain-line"></i> Tentative or disputed</span>
         </div>
         <div class="graph-controls" role="group" aria-label="Graph zoom">
-          <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
+          <button id="zoom-out" type="button" aria-label="Zoom out"><svg class="icon" aria-hidden="true"><use href="/icons.svg#minus"/></svg></button>
           <span id="zoom-level">100%</span>
-          <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
-          <button id="fit-button" type="button" aria-label="Fit graph">Fit</button>
+          <button id="zoom-in" type="button" aria-label="Zoom in"><svg class="icon" aria-hidden="true"><use href="/icons.svg#plus"/></svg></button>
+          <button id="fit-button" type="button" aria-label="Fit graph"><svg class="icon" aria-hidden="true"><use href="/icons.svg#scan"/></svg> Fit</button>
         </div>
         <div id="graph-status" class="graph-status" role="status">Loading archive…</div>
       </div>

@@ -6,16 +6,16 @@ Implementation and checks below refer to the changes prepared on 2026-09-19.
 
 | User outcome | Implementation and evidence |
 | --- | --- |
-| Own readable research files | Version 1 flat YAML/Markdown people, relationships, sources, events, places, media; original text and unknown properties retained. `tests/archive.rs`. |
+| Own readable research files | One Markdown note per person in arbitrary folders, nested fact/claim/citation metadata, derived graph records, local portraits, and legacy typed-note compatibility; original text and unknown properties retained. `tests/archive.rs`. |
 | Detect broken research structure | Read-only `check`, structured diagnostics, duplicate/ambiguous/missing links, source types, unsafe/missing attachments, malformed privacy flags. |
 | Query relationships with evidence | Ancestors, descendants, neighborhoods, overview, bounded shortest paths; relation/status policies, cycles and shared ancestors; terminal/JSON output. Core and historical tests. |
 | Rebuild without losing data | Disposable JSON snapshot; deleting or corrupting it cannot affect commands. External changes reflected on reread. Index tests and [engine evaluation](INDEX_EVALUATION.md). |
-| Explore locally | Embedded browser graph, search, generation layout, progressive detail, relationship filters, details/evidence/events, keyboard navigation, safe attachment access; loopback HTTP API tests. |
+| Explore locally | Embedded browser graph, search, generation layout, branch selection, parent-role labels, local portrait thumbnails, occupations, stories, and note composition; relationship filters, details/evidence/events, keyboard navigation, safe attachment access. Native browser checks and loopback HTTP API tests. |
 | Edit without silent overwrites | Browser/CLI exact-content checks, complete-archive draft validation, unknown-data preservation, durable single-note journal, recovery. Crash-phase and conflict tests in `tests/editing.rs`. |
 | Back up and choose sharing scope | Complete exports include user files and attachments; restricted public projection excludes living/unknown/private people and unreviewed prose. Staged publication and source-change checks. `tests/exchange.rs`. |
 | Exchange genealogy data | Conservative GEDCOM 5.5.1/7 UTF-8 import, GEDCOM 7 export subset, original input retention and explicit loss reports. `tests/gedcom.rs`; not exhaustive GEDCOM conformance. |
-| Work in Obsidian or a text editor | Actual Obsidian 1.13.7 property/body edits, source-link navigation, Kindred validation/reindex, and Kindred-to-Obsidian external edit verified on a disposable archive. [Reproduction record](USER_GUIDE.md#optional-obsidian-use). |
-| Exercise representative families | Fictional adoption/conflict/cycle/failure fixtures; 45 sourced deceased people from Carolingian and Plantagenet families, shared ancestry and multiple partnerships. [Historical guide](HISTORICAL_EXAMPLES.md). |
+| Work in Obsidian or a text editor | Actual Obsidian 1.13.7 property/body edits, source-link navigation, Kindred validation/reindex, and Kindred-to-Obsidian external edit verified on the earlier separate-note format in a disposable archive; nested property-editor support is not claimed. [Reproduction record](USER_GUIDE.md#optional-obsidian-use). |
+| Exercise representative families | Fictional adoption/conflict/cycle/failure fixtures; 88 sourced deceased people across Carolingian, Plantagenet, Tudor, Stuart, and Hanover branches, shared ancestry and multiple partnerships. [Historical guide](HISTORICAL_EXAMPLES.md). |
 
 ## Quality and distribution
 

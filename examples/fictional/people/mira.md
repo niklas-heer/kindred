@@ -2,9 +2,10 @@
 version: 1
 id: mira
 type: person
-name: "Mira Linden"
-birth: "about 1820"
-aliases: ["M. Linden"]
+name: Mira Linden
+birth: about 1820
+aliases:
+- M. Linden
 research_colour: amber
 ---
 

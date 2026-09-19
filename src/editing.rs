@@ -147,6 +147,11 @@ pub fn replace(root: &Path, id: &str, expected: &str, replacement: &str) -> Resu
     let record = archive
         .record(id)
         .ok_or_else(|| format!("unknown record: {id}"))?;
+    if let Some(owner) = &record.owner {
+        return Err(format!(
+            "derived record is edited through its owning person: {owner}"
+        ));
+    }
     if record.raw != expected {
         return Err("conflict: note changed externally; reload before saving".into());
     }

@@ -47,30 +47,42 @@ and collaboration can follow after file integrity and portability are reliable.
 6. **Respect people's information.** The tool runs locally by default. Sharing or
    export needs explicit scope, especially for living people and private sources.
 
-## Proposed archive model
+## Person-centered archive model
 
-Use Markdown notes with flat YAML frontmatter. A person has a stable ID, a
-display name, aliases, and a prose biography. Relationships or claims can be
-separate notes, with typed links to people, sources, review status, and reasoning.
-Events, places, documents, and media can have their own identities where useful.
+Write one Markdown note per person, with a stable ID, display name, aliases,
+biography, and optional structured facts. Parents, partners, events, places,
+citations, and portrait credits belong in that person's metadata. Kindred builds
+the other graph nodes from those explicit declarations; they are not extra files
+to maintain. People choose their own folders. `people/` and `attachments/` are
+convenient starting points, not mandatory organization.
 
-An illustrative relationship note, not a finalized schema:
+A small person note:
 
 ```markdown
 ---
-id: r_001
-type: relationship
-relation: biological_parent
-parent: "[[people/p_001|Anna Müller]]"
-child: "[[people/p_002|Emil Müller]]"
-status: tentative
+version: 1
+id: emil
+type: person
+name: Emil Müller
+mother: "[[families/mueller/anna]]"
+born: "about 1850"
+birth_place: Lindenby
+occupation: Weaver
 sources:
-  - "[[sources/s_001|Birth register]]"
+  - title: Family register
+    attachments: [attachments/register.jpg]
 ---
 
-The register names Anna, but the surname is difficult to read.
-Compare with another source before accepting this relationship.
+## Story
+
+The family remembered Emil's weaving workshop.
 ```
+
+Simple mother/father links are accepted biological assertions. Use detailed
+`parents` entries to retain source evidence, adoptive/foster relationships,
+uncertainty, and reasoning. Person-level citations do not automatically prove
+every claim. See [SCHEMA.md](SCHEMA.md) for the full authoring contract.
+Legacy separate relationship/source/event/place/media notes remain readable.
 
 Behavioral fixtures use fictional people. Sourced examples of deceased historical
 families are also included at the owner's request. Stable IDs identify records; filenames
@@ -128,11 +140,11 @@ it. Queries need explicit policies for relationship types and disputed claims.
 
 An archive should open as a useful Obsidian vault without a required plugin.
 Obsidian's YAML properties and file links can support editing and inventories;
-its native graph displays notes and links. Kindred would interpret relationship
-notes as typed edges and provide genealogy-specific navigation. Test real
+its native graph displays notes and links. Kindred interprets explicit person metadata and legacy relationship
+notes as typed edges and provides genealogy-specific navigation. Test real
 round-trips before claiming interoperability. Keep the core independent of
-Obsidian-specific APIs and avoid nested metadata that its property editor cannot
-comfortably edit.
+Obsidian-specific APIs. Simple fields work in its property editor; richer nested
+metadata can be edited in Markdown source mode.
 
 ## Technical direction and open choices
 

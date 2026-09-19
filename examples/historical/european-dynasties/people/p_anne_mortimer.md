@@ -2,13 +2,24 @@
 version: 1
 id: p_anne_mortimer
 type: person
-name: "Anne de Mortimer"
-born: "1388"
-died: "1411"
-house: "Mortimer"
+name: Anne de Mortimer
+born: '1388'
+died: '1411'
+house: Mortimer
+occupation: English noblewoman
 living: false
 sources:
-  - "[[sources/s_wikipedia_plantagenet]]"
+- version: 1
+  id: s_wikipedia_plantagenet
+  type: source
+  name: House of Plantagenet — Wikipedia
+  title: House of Plantagenet — Wikipedia
+  url: https://en.wikipedia.org/wiki/House_of_Plantagenet
+  accessed: '2026-09-19'
+  license: CC BY-SA 4.0
+  note: Used for the selected Plantagenet genealogy, including the branches from Edward
+    III through John of Gaunt and Edmund of Langley. The archive includes only a small,
+    documented subset of this large family.
 ---
 
 Selected as Richard of York's mother.

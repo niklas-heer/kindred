@@ -200,6 +200,13 @@ fn serves_static_shell_and_reloads_the_archive_for_each_query() {
     assert!(shell.text().contains("Family relationship graph"));
     assert!(!shell.text().contains("Ada Linde"));
 
+    let icons = server.request("GET", "/icons.svg", &[], "");
+    assert_eq!(icons.status, 200);
+    assert!(icons.headers.contains("image/svg+xml"));
+    assert!(icons.text().contains("id=\"baby\""));
+    assert!(icons.text().contains("id=\"flower-2\""));
+    assert!(!icons.text().contains("<script"));
+
     let graph = server.request("GET", "/api/graph?mode=overview", &[], "");
     assert_eq!(graph.status, 200);
     let payload = graph.json();
@@ -313,4 +320,65 @@ fn invalid_query_parameters_receive_an_http_error() {
         HttpResponse::parse(&response)
     };
     assert_eq!(wrong_host.status, 403);
+}
+
+#[test]
+fn person_metadata_projects_into_http_graph_and_serves_local_portraits() {
+    let server = RunningServer::start();
+    // Bytes are deliberately opaque here: this verifies HTTP preservation and MIME.
+    let portrait = b"fictional portrait attachment bytes";
+    fs::write(server.root.join("attachments/portrait.jpg"), portrait).expect("write portrait");
+    let person = "---\nversion: 1\nid: bo\ntype: person\nname: Bo Linde\nmother: '[[people/ada]]'\nportrait: attachments/portrait.jpg\nborn: 'about 1901'\nbirth_place: Orchard village\nsources:\n  - id: inline_source\n    title: Family album\n    attachments: [attachments/portrait.jpg]\n---\nA fictional story.\n";
+    fs::write(server.root.join("people/bo.md"), person).expect("write person metadata");
+    let response = server.request("GET", "/api/graph?mode=focus&person=bo", &[], "");
+    assert_eq!(response.status, 200, "{}", response.text());
+    let payload = response.json();
+    let records = payload["records"].as_array().expect("graph records");
+    let birth = records
+        .iter()
+        .find(|record| record["id"] == "derived:bo:birth")
+        .expect("derived birth");
+    assert_eq!(birth["owner"], "bo");
+    assert_eq!(birth["raw"], "");
+    assert_eq!(birth["metadata"]["date"], "about 1901");
+    assert!(
+        records.iter().any(|record| record["type"] == "relationship"
+            && record["metadata"]["parent_role"] == "mother")
+    );
+    let attachments = payload["attachments"]
+        .as_array()
+        .expect("attachment manifest");
+    assert!(
+        attachments
+            .iter()
+            .any(|file| file["record"] == "bo" && file["path"] == "attachments/portrait.jpg")
+    );
+    let image = server.request(
+        "GET",
+        "/api/attachment?path=attachments%2Fportrait.jpg",
+        &[],
+        "",
+    );
+    assert_eq!(image.status, 200);
+    assert!(image.headers.contains("image/jpeg"));
+    assert_eq!(image.body, portrait);
+    let edit = serde_json::json!({"id": "derived:bo:birth", "expected": "", "replacement": person})
+        .to_string();
+    let origin = format!("http://127.0.0.1:{}", server.port);
+    let rejected = server.request(
+        "POST",
+        "/api/edit",
+        &[("Content-Type", "application/json"), ("Origin", &origin)],
+        &edit,
+    );
+    assert_ne!(rejected.status, 200);
+    assert!(
+        rejected.text().contains("owning person"),
+        "{}",
+        rejected.text()
+    );
+    assert_eq!(
+        fs::read_to_string(server.root.join("people/bo.md")).expect("read person"),
+        person
+    );
 }

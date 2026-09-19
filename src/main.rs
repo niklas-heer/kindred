@@ -177,18 +177,10 @@ fn print_query(result: &QueryResult, structured: bool) -> Result<(), String> {
 }
 fn initialize(root: &Path) -> Result<(), String> {
     exchange::staged_directory(root, |stage| {
-        for directory in [
-            "people",
-            "relationships",
-            "sources",
-            "events",
-            "places",
-            "media",
-            "attachments",
-        ] {
+        for directory in ["people", "attachments"] {
             fs::create_dir(stage.join(directory)).map_err(|e| e.to_string())?;
         }
-        fs::write(stage.join("README.md"), "# Family archive\n\nCreate version: 1 Markdown notes with id, type and name in flat YAML frontmatter. See https://github.com/niklas-heer/kindred/blob/main/docs/SCHEMA.md.\n").map_err(|e| e.to_string())
+        fs::write(stage.join("README.md"), "# Family archive\n\nWrite one Markdown note per person with version: 1, id, type: person, and name. Add mother/father/partners links, dates, places, sources, and stories in that note; Kindred builds the graph. The people folder is optional: organize notes in any folders, including family subfolders. Keep pictures and documents together in attachments (or another folder you choose). See https://github.com/niklas-heer/kindred/blob/main/docs/SCHEMA.md.\n").map_err(|e| e.to_string())
     })
 }
 fn run(args: &Arguments) -> Result<u8, String> {
@@ -227,7 +219,7 @@ fn run(args: &Arguments) -> Result<u8, String> {
             args.validate(3, &["--json"])?;
             let archive = load(root)?;
             let record = archive.record(args.at(2)?).ok_or("unknown record ID")?;
-            if args.option("--json").is_some() {
+            if args.option("--json").is_some() || record.raw.is_empty() {
                 json(record)?;
             } else {
                 print!("{}", record.raw);

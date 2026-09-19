@@ -27,7 +27,7 @@ impl Fixture {
         fs::write(path, text).unwrap();
     }
     fn person(&self, id: &str, properties: &str) {
-        self.write(&format!("people/{id}.md"),&format!("---\nversion: 1\nid: {id}\ntype: person\nname: {id}\n{properties}aliases: [SECRET_ALIAS]\nunknown: SECRET_UNKNOWN\n---\nSECRET_PROSE about living family.\n"));
+        self.write(&format!("people/{id}.md"),&format!("---\nversion: 1\nid: {id}\ntype: person\nname: {id}\n{properties}aliases: [SECRET_ALIAS]\noccupation: SECRET_OCCUPATION\nunknown: SECRET_UNKNOWN\n---\nSECRET_PROSE about living family.\n"));
     }
     fn edge(&self, id: &str, from: &str, to: &str, properties: &str) {
         self.write(&format!("relationships/{id}.md"),&format!("---\nversion: 1\nid: {id}\ntype: relationship\nrelation: biological_parent\nstatus: disputed\nparent: '[[people/{from}]]'\nchild: '[[people/{to}]]'\nsources: ['[[sources/private-source]]']\n{properties}---\nSECRET_CLAIM reasoning\n"));
@@ -80,7 +80,12 @@ fn public_projection_excludes_living_private_unknown_and_all_prose() {
     fixture.write("sources/private-source.md","---\nversion: 1\nid: SECRET_SOURCE\ntype: source\nprivate: true\nattachments: [attachments/secret.txt]\n---\nSECRET_SOURCE_PROSE\n");
     fixture.write("attachments/secret.txt", "SECRET_ATTACHMENT");
     fixture.write("ordinary.md", "SECRET_UNTYPED_PROSE");
-    fixture.edge("public-claim", "public-parent", "public-child", "");
+    fixture.edge(
+        "public-claim",
+        "public-parent",
+        "public-child",
+        "parent_role: mother\n",
+    );
     fixture.edge(
         "SECRET_PRIVATE_CLAIM",
         "public-parent",
@@ -93,7 +98,26 @@ fn public_projection_excludes_living_private_unknown_and_all_prose() {
     let archive = Archive::load(&destination).unwrap();
     assert!(archive.diagnostics.is_empty(), "{:?}", archive.diagnostics);
     assert_eq!(archive.records.len(), 3);
+    assert_eq!(
+        archive
+            .records
+            .iter()
+            .filter(|record| record.owner.is_none())
+            .count(),
+        2
+    );
+    assert!(!destination.join("relationships").exists());
     assert_eq!(archive.edges().first().unwrap().status, "disputed");
+    assert_eq!(
+        archive.record("public-claim").unwrap().text("parent_role"),
+        Some("mother")
+    );
+    assert!(
+        archive
+            .records
+            .iter()
+            .all(|record| !record.metadata.contains_key("occupation"))
+    );
     let mut published = fs::read_to_string(destination.join("EXPORT-REPORT.json")).unwrap();
     for record in archive.records {
         published.push_str(&record.raw);

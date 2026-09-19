@@ -1,4 +1,5 @@
 //! Reading and validating the versioned Markdown archive.
+mod person;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::Write as _;
@@ -19,6 +20,9 @@ pub struct Record {
     pub metadata: BTreeMap<String, Value>,
     pub body: String,
     pub raw: String,
+    /// The physical person note owning this derived record; absent for real notes.
+    #[serde(default)]
+    pub owner: Option<String>,
 }
 
 impl Record {
@@ -115,6 +119,7 @@ impl Archive {
                 Err(error) => archive.diagnostic("read_error", &relative, error.to_string()),
             }
         }
+        person::expand(&mut archive);
         archive.validate();
         Ok(archive)
     }
@@ -126,6 +131,7 @@ impl Archive {
     /// Reports unknown note paths or any resulting archive validation error.
     pub fn validate_replacement(&self, replacement: Record) -> Result<(), String> {
         let mut draft = self.clone();
+        draft.records.retain(|record| record.owner.is_none());
         let record = draft
             .records
             .iter_mut()
@@ -138,6 +144,7 @@ impl Archive {
                 "invalid_record" | "invalid_frontmatter" | "read_error"
             )
         });
+        person::expand(&mut draft);
         draft.validate();
         if draft.diagnostics.is_empty() {
             Ok(())
@@ -167,10 +174,14 @@ impl Archive {
     /// Rejects malformed, missing, unsafe, and ambiguous targets.
     pub fn resolve_link(&self, link: &str) -> Result<&Record, String> {
         let target = link_target(link)?;
-        let mut matches = self.records.iter().filter(|record| {
-            let stem = record.path.strip_suffix(".md").unwrap_or(&record.path);
-            stem == target || (!target.contains('/') && stem.rsplit('/').next() == Some(target))
-        });
+        let mut matches = self
+            .records
+            .iter()
+            .filter(|record| record.owner.is_none())
+            .filter(|record| {
+                let stem = record.path.strip_suffix(".md").unwrap_or(&record.path);
+                stem == target || (!target.contains('/') && stem.rsplit('/').next() == Some(target))
+            });
         let found = matches
             .next()
             .ok_or_else(|| format!("missing link target: {link}"))?;
@@ -234,19 +245,27 @@ impl Archive {
         let mut diagnostics = Vec::new();
         let mut ids = BTreeSet::new();
         for record in &self.records {
+            let diagnostic_path = record
+                .owner
+                .as_deref()
+                .and_then(|owner| self.record(owner))
+                .map_or_else(|| record.path.clone(), |owner| owner.path.clone());
             if !ids.insert(&record.id) {
                 diagnostics.push((
                     "duplicate_id",
-                    record.path.clone(),
+                    diagnostic_path.clone(),
                     format!("duplicate ID: {}", record.id),
                 ));
             }
             if record.kind == "relationship"
                 && let Err(error) = self.edge(record)
             {
-                diagnostics.push(("invalid_relationship", record.path.clone(), error));
+                diagnostics.push(("invalid_relationship", diagnostic_path.clone(), error));
             }
             for (key, value) in &record.metadata {
+                if projected_property(record, key) {
+                    continue;
+                }
                 let values: Vec<&Value> = value
                     .as_array()
                     .map_or_else(|| vec![value], |items| items.iter().collect());
@@ -259,39 +278,53 @@ impl Archive {
                         match self.resolve_link(link) {
                             Err(message) => diagnostics.push((
                                 "invalid_link",
-                                record.path.clone(),
+                                diagnostic_path.clone(),
                                 format!("{key}: {message}"),
                             )),
                             Ok(target) if key == "sources" && target.kind != "source" => {
                                 diagnostics.push((
                                     "invalid_source",
-                                    record.path.clone(),
+                                    diagnostic_path.clone(),
                                     format!("source link must target a source: {link}"),
                                 ));
                             }
                             Ok(target) if key == "people" && target.kind != "person" => {
                                 diagnostics.push((
                                     "invalid_link_type",
-                                    record.path.clone(),
+                                    diagnostic_path.clone(),
                                     format!("people must link to person records: {link}"),
                                 ));
                             }
                             Ok(target) if key == "place" && target.kind != "place" => {
                                 diagnostics.push((
                                     "invalid_link_type",
-                                    record.path.clone(),
+                                    diagnostic_path.clone(),
                                     format!("place must link to a place record: {link}"),
+                                ));
+                            }
+                            Ok(target)
+                                if key == "portrait"
+                                    && (target.kind != "media"
+                                        || target
+                                            .text("file")
+                                            .is_none_or(|file| self.attachment(file).is_err())) =>
+                            {
+                                diagnostics.push((
+                                    "invalid_portrait",
+                                    diagnostic_path.clone(),
+                                    format!("portrait must link to a media record with a local file: {link}"),
                                 ));
                             }
                             _ => {}
                         }
                     }
-                    if ["attachments", "file"].contains(&key.as_str())
+                    if (["attachments", "file"].contains(&key.as_str())
+                        || record.kind == "person" && key == "portrait")
                         && let Some(path) = value.as_str()
                         && !path.starts_with("[[")
                         && let Err(message) = self.attachment(path)
                     {
-                        diagnostics.push(("invalid_attachment", record.path.clone(), message));
+                        diagnostics.push(("invalid_attachment", diagnostic_path.clone(), message));
                     }
                 }
             }
@@ -329,6 +362,9 @@ impl Archive {
     }
 
     fn edge(&self, record: &Record) -> Result<Edge, String> {
+        if record.owner.is_some() {
+            return person::edge(self, record);
+        }
         let relation = record
             .text("relation")
             .ok_or("relationship requires relation")?;
@@ -374,6 +410,24 @@ impl Archive {
             sources,
         })
     }
+}
+
+fn projected_property(record: &Record, key: &str) -> bool {
+    record.owner.is_some()
+        && ["sources", "people", "parent", "child", "partners", "place"].contains(&key)
+        || record.kind == "person"
+            && [
+                "sources",
+                "mother",
+                "father",
+                "parents",
+                "partners",
+                "birth_place",
+                "death_place",
+                "events",
+                "portrait_source",
+            ]
+            .contains(&key)
 }
 
 fn collect_notes(directory: &Path, paths: &mut Vec<PathBuf>) -> Result<(), String> {
@@ -452,18 +506,10 @@ pub fn validate_text(path: &str, raw: &str) -> Result<Record, String> {
     {
         return Err(format!("unsupported record type: {kind}"));
     }
-    for (key, value) in &metadata {
-        if value.is_object()
-            || value
-                .as_array()
-                .is_some_and(|a| a.iter().any(|v| v.is_array() || v.is_object()))
-        {
-            return Err(format!(
-                "property {key} must be flat (scalar or list of scalars)"
-            ));
-        }
-    }
     for key in ["sources", "partners", "people", "aliases", "attachments"] {
+        if kind == "person" && ["sources", "partners"].contains(&key) {
+            continue;
+        }
         if let Some(value) = metadata.get(key)
             && !value
                 .as_array()
@@ -482,6 +528,8 @@ pub fn validate_text(path: &str, raw: &str) -> Result<Record, String> {
             return Err(format!("{key} must be a boolean"));
         }
     }
+    validate_parent_role(&metadata, &kind)?;
+    validate_portrait(&metadata, &kind)?;
     let name = metadata
         .get("name")
         .and_then(Value::as_str)
@@ -495,7 +543,50 @@ pub fn validate_text(path: &str, raw: &str) -> Result<Record, String> {
         metadata,
         body: body.into(),
         raw: raw.into(),
+        owner: None,
     })
+}
+
+fn validate_parent_role(metadata: &BTreeMap<String, Value>, kind: &str) -> Result<(), String> {
+    let Some(value) = metadata.get("parent_role") else {
+        return Ok(());
+    };
+    if kind != "relationship"
+        || !matches!(
+            metadata.get("relation").and_then(Value::as_str),
+            Some("biological_parent" | "adoptive_parent" | "foster_parent")
+        )
+    {
+        return Err("parent_role is only allowed on parent relationship claims".into());
+    }
+    if !matches!(value.as_str(), Some("mother" | "father" | "parent")) {
+        return Err("parent_role must be a string: mother, father, or parent".into());
+    }
+    Ok(())
+}
+
+fn validate_portrait(metadata: &BTreeMap<String, Value>, kind: &str) -> Result<(), String> {
+    let Some(value) = metadata.get("portrait") else {
+        return Ok(());
+    };
+    if kind != "person" {
+        return Err("portrait is only allowed on person records".into());
+    }
+    let link = value
+        .as_str()
+        .ok_or("portrait must be a single wiki-link string")?;
+    if link.starts_with("[[") {
+        link_target(link).map_err(|error| format!("portrait: {error}"))?;
+    } else if link.is_empty()
+        || link.contains("://")
+        || link.contains('\\')
+        || Path::new(link)
+            .components()
+            .any(|part| !matches!(part, std::path::Component::Normal(_)))
+    {
+        return Err("portrait must be a local attachment path or a media wiki link".into());
+    }
+    Ok(())
 }
 
 fn link_target(link: &str) -> Result<&str, String> {

@@ -25,14 +25,19 @@ fn archive_workflow_through_the_cli_preserves_research_and_rebuilds() {
         String::from_utf8_lossy(&initialized.stderr)
     );
     let root = temporary.join("family");
+    assert!(root.join("people").is_dir());
+    assert!(root.join("attachments").is_dir());
+    for obsolete in ["relationships", "sources", "events", "places", "media"] {
+        assert!(!root.join(obsolete).exists());
+    }
+    fs::create_dir_all(root.join("families/summer")).unwrap();
     let original = "---\nversion: 1\nid: a\ntype: person\nname: Élise Fiction\nliving: false\nresearch_colour: amber # retain this comment\n---\nOriginal biography with [[people/b]] as a casual mention.\n";
     fs::write(root.join("people/a.md"), original).unwrap();
     fs::write(
-        root.join("people/b.md"),
-        "---\nversion: 1\nid: b\ntype: person\nname: Bea Fiction\nliving: false\n---\n",
+        root.join("families/summer/b.md"),
+        "---\nversion: 1\nid: b\ntype: person\nname: Bea Fiction\nliving: false\nparents:\n  - id: ab\n    person: '[[people/a]]'\n    relation: adoptive_parent\n    role: mother\n    status: accepted\n    note: Adoption reasoning.\n---\n",
     )
     .unwrap();
-    fs::write(root.join("relationships/ab.md"),"---\nversion: 1\nid: ab\ntype: relationship\nrelation: adoptive_parent\nparent: \"[[people/a]]\"\nchild: \"[[people/b]]\"\nstatus: accepted\n---\nAdoption reasoning.\n").unwrap();
     fs::write(root.join("attachments/letter.txt"), "Fictional attachment").unwrap();
     assert!(
         cli(&temporary, &["check", "family", "--json"])

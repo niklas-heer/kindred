@@ -24,6 +24,11 @@ struct ChildLink {
     status: Option<String>,
 }
 
+struct ImportedRecords {
+    people: BTreeMap<String, BTreeMap<String, Value>>,
+    pedigrees: BTreeMap<(String, String), ChildLink>,
+}
+
 fn preserve(report: &mut Report, record: &Line, line: &Line) {
     report.warnings.push(format!(
         "{} {}: {} {} retained only in original GEDCOM",
@@ -115,6 +120,54 @@ fn link(id: &str, directory: &str) -> String {
     format!("[[{directory}/{id}]]")
 }
 
+fn import_records(
+    records: &[&[Line]],
+    ids: &BTreeMap<String, (String, String)>,
+    report: &mut Report,
+) -> Result<ImportedRecords, String> {
+    let mut citations = BTreeMap::new();
+    for record in records {
+        if record.first().is_some_and(|line| line.tag == "SOUR") {
+            let (pointer, citation) = import_source(record, ids, report)?;
+            citations.insert(pointer, citation);
+        }
+    }
+    let mut pedigrees = BTreeMap::new();
+    let mut people = BTreeMap::new();
+    for record in records {
+        if record.first().is_some_and(|line| line.tag == "INDI") {
+            let (pointer, person) = import_person(record, ids, &mut pedigrees, report)?;
+            people.insert(pointer, person);
+        }
+    }
+    let mut used_sources = BTreeSet::new();
+    for record in records {
+        if record.first().is_some_and(|line| line.tag == "FAM") {
+            import_family(
+                record,
+                ids,
+                &pedigrees,
+                &citations,
+                &mut used_sources,
+                &mut people,
+                report,
+            )?;
+        }
+    }
+    for (pointer, citation) in &citations {
+        if !used_sources.contains(pointer) {
+            let title = citation
+                .get("title")
+                .and_then(Value::as_str)
+                .unwrap_or("untitled source");
+            report.warnings.push(format!(
+                "{pointer} SOUR {title}: unreferenced source retained only in original GEDCOM"
+            ));
+        }
+    }
+    Ok(ImportedRecords { people, pedigrees })
+}
+
 /// Import a conservative subset into a new archive and retain the unmodified input.
 /// # Errors
 /// Rejects malformed input, dangling pointers, invalid records, and existing destinations.
@@ -167,14 +220,19 @@ pub fn import(input: &Path, destination: &Path) -> Result<Report, String> {
         }
         fs::create_dir(stage.join("attachments")).map_err(|e| e.to_string())?;
         fs::write(stage.join("attachments/original.ged"), &original).map_err(|e| e.to_string())?;
-        let mut pedigrees = BTreeMap::new();
-        for record in &records {
-            import_record(stage, record, &ids, &mut pedigrees, &mut report)?;
-        }
-        for record in &records {
-            if record.first().is_some_and(|l| l.tag == "FAM") {
-                import_family(stage, record, &ids, &pedigrees, &mut report)?;
-            }
+        let ImportedRecords { people, pedigrees } = import_records(&records, &ids, &mut report)?;
+        for metadata in people.into_values() {
+            let id = metadata
+                .get("id")
+                .and_then(Value::as_str)
+                .ok_or("imported person is missing an ID")?;
+            write_note(
+                stage,
+                &format!("people/{id}.md"),
+                &metadata,
+                "Imported from attachments/original.ged. Review the original for unmapped details.\n",
+            )?;
+            report.written = report.written.saturating_add(1);
         }
         for (child, family) in pedigrees.keys() {
             if !records.iter().any(|record| {
@@ -186,7 +244,7 @@ pub fn import(input: &Path, destination: &Path) -> Result<Report, String> {
                 report.warnings.push(format!("{child}: FAMC {family} has no reciprocal CHIL; membership retained only in original GEDCOM"));
             }
         }
-        report.warnings.push("Only UTF-8 primary names, first birth/death date text, sex, privacy restrictions, source titles, explicit pedigree types/status and family-level source pointers are mapped. Missing claim status becomes tentative; absent or ambiguous pedigree never becomes biological parentage. Additional names, dates, inline citations and unsupported structures remain in the original. Original GEDCOM is retained at attachments/original.ged; no external media is downloaded. Review all imported claims and privacy before sharing.".into());
+        report.warnings.push("Only UTF-8 primary names, first birth/death date text, sex, privacy restrictions, source titles/URLs/notes, explicit pedigree types/status and family-level citations are mapped. Missing claim status becomes tentative; absent or ambiguous pedigree never becomes biological parentage. Additional names, dates and unsupported structures remain in the original. Original GEDCOM is retained at attachments/original.ged and cited by imported claims; no external media is downloaded. Review all imported claims and privacy before sharing.".into());
         let archive = Archive::load(stage)?;
         if !archive.diagnostics.is_empty() {
             return Err(format!(
@@ -258,36 +316,68 @@ fn mapped<'a>(
     }
 }
 
-fn import_record(
-    stage: &Path,
+fn import_source(
+    record: &[Line],
+    ids: &BTreeMap<String, (String, String)>,
+    report: &mut Report,
+) -> Result<(String, Value), String> {
+    let header = record.first().ok_or("missing source header")?;
+    let id = mapped(ids, &header.xref, "SOUR")?;
+    let mut title = None;
+    let mut url = None;
+    let mut note = None;
+    for line in record.iter().skip(1) {
+        let slot = match (line.level, line.tag.as_str()) {
+            (1, "TITL") => &mut title,
+            (1, "WWW") => &mut url,
+            (1, "NOTE" | "TEXT") => &mut note,
+            _ => {
+                preserve(report, header, line);
+                continue;
+            }
+        };
+        if slot.is_some() {
+            preserve(report, header, line);
+        } else {
+            *slot = Some(line.value.clone());
+        }
+    }
+    let mut citation = serde_json::Map::new();
+    citation.insert("id".into(), Value::from(id));
+    citation.insert(
+        "title".into(),
+        Value::from(title.unwrap_or_else(|| id.to_owned())),
+    );
+    if let Some(url) = url {
+        citation.insert("url".into(), Value::from(url));
+    }
+    citation.insert(
+        "note".into(),
+        Value::from(note.unwrap_or_else(|| "Imported from the original GEDCOM.".into())),
+    );
+    citation.insert(
+        "attachments".into(),
+        serde_json::json!(["attachments/original.ged"]),
+    );
+    Ok((header.xref.clone(), Value::Object(citation)))
+}
+
+fn import_person(
     record: &[Line],
     ids: &BTreeMap<String, (String, String)>,
     pedigrees: &mut BTreeMap<(String, String), ChildLink>,
     report: &mut Report,
-) -> Result<(), String> {
-    let Some(header) = record.first() else {
-        return Ok(());
-    };
-    if !matches!(header.tag.as_str(), "INDI" | "SOUR") {
-        return Ok(());
-    }
-    let id = mapped(ids, &header.xref, &header.tag)?;
-    let person = header.tag == "INDI";
-    let name_tag = if person { "NAME" } else { "TITL" };
+) -> Result<(String, BTreeMap<String, Value>), String> {
+    let header = record.first().ok_or("missing person header")?;
+    let id = mapped(ids, &header.xref, "INDI")?;
     let name = record
         .iter()
-        .find(|line| line.level == 1 && line.tag == name_tag)
+        .find(|line| line.level == 1 && line.tag == "NAME")
         .map_or_else(
             || id.to_owned(),
-            |line| {
-                if person {
-                    line.value.replace('/', "").trim().to_owned()
-                } else {
-                    line.value.clone()
-                }
-            },
+            |line| line.value.replace('/', "").trim().to_owned(),
         );
-    let mut metadata = base(id, if person { "person" } else { "source" }, &name);
+    let mut metadata = base(id, "person", &name);
     let mut context = "";
     let mut subcontext = "";
     let mut family = "";
@@ -305,7 +395,7 @@ fn import_record(
             subcontext = &line.tag;
         }
         match (line.level, line.tag.as_str(), context) {
-            (1, tag, _) if tag == name_tag && !seen_name => {
+            (1, "NAME", _) if !seen_name => {
                 seen_name = true;
             }
             (1, "RESN", _) => {
@@ -315,17 +405,15 @@ fn import_record(
                     header.xref
                 ));
             }
-            (1, "SEX", _) if person && !metadata.contains_key("sex") => {
+            (1, "SEX", _) if !metadata.contains_key("sex") => {
                 metadata.insert("sex".into(), Value::from(line.value.clone()));
             }
-            (1, "DEAT", _)
-                if person && selected_event && matches!(line.value.as_str(), "" | "Y") =>
-            {
+            (1, "DEAT", _) if selected_event && matches!(line.value.as_str(), "" | "Y") => {
                 metadata.insert("living".into(), Value::Bool(false));
             }
-            (1, "BIRT", _) if person && selected_event && line.value.is_empty() => {}
+            (1, "BIRT", _) if selected_event && line.value.is_empty() => {}
             (2, "DATE", "BIRT" | "DEAT") | (3, "PHRASE", "BIRT" | "DEAT")
-                if person && selected_event && (line.tag == "DATE" || subcontext == "DATE") =>
+                if selected_event && (line.tag == "DATE" || subcontext == "DATE") =>
             {
                 let key = if context == "BIRT" { "birth" } else { "death" };
                 if line.value.is_empty() {
@@ -337,17 +425,17 @@ fn import_record(
                     metadata.insert(key.into(), Value::from(line.value.clone()));
                 }
             }
-            (1, "FAMC", _) if person => {
+            (1, "FAMC", _) => {
                 family = &line.value;
                 let _ = mapped(ids, family, "FAM")?;
                 pedigrees
                     .entry((header.xref.clone(), family.into()))
                     .or_default();
             }
-            (1, "FAMS", _) if person => {
+            (1, "FAMS", _) => {
                 let _ = mapped(ids, &line.value, "FAM")?;
             }
-            (2, "PEDI" | "STAT" | "_KINDRED_RELATION" | "_KINDRED_STATUS", "FAMC") if person => {
+            (2, "PEDI" | "STAT" | "_KINDRED_RELATION" | "_KINDRED_STATUS", "FAMC") => {
                 let child_link = pedigrees
                     .entry((header.xref.clone(), family.into()))
                     .or_default();
@@ -356,14 +444,7 @@ fn import_record(
             _ => preserve(report, header, line),
         }
     }
-    write_note(
-        stage,
-        &format!("{}/{id}.md", if person { "people" } else { "sources" }),
-        &metadata,
-        "Imported from attachments/original.ged. Review the original for unmapped details.\n",
-    )?;
-    report.written = report.written.saturating_add(1);
-    Ok(())
+    Ok((header.xref.clone(), metadata))
 }
 
 fn import_child_link(
@@ -403,10 +484,12 @@ fn import_child_link(
 }
 
 fn import_family(
-    stage: &Path,
     record: &[Line],
     ids: &BTreeMap<String, (String, String)>,
     pedigrees: &BTreeMap<(String, String), ChildLink>,
+    citations: &BTreeMap<String, Value>,
+    used_sources: &mut BTreeSet<String>,
+    people: &mut BTreeMap<String, BTreeMap<String, Value>>,
     report: &mut Report,
 ) -> Result<(), String> {
     let Some(header) = record.first() else {
@@ -426,7 +509,15 @@ fn import_family(
             header.xref
         ));
     }
-    let sources = family_sources(record, ids, report)?;
+    let mut family_source_pointers = BTreeSet::new();
+    let sources = family_sources(
+        record,
+        family_id,
+        ids,
+        citations,
+        &mut family_source_pointers,
+        report,
+    )?;
     let private = record
         .iter()
         .any(|line| line.level == 1 && line.tag == "RESN");
@@ -442,31 +533,19 @@ fn import_family(
         ));
     }
     let family_status = statuses.first().copied().unwrap_or("tentative");
+    validate_status(family_status)?;
     let mut count = 0usize;
-    let mut write_claim = |relation: &str,
-                           from: &str,
-                           to: &str,
-                           status: &str|
-     -> Result<(), String> {
+    if let [first, second] = parents.as_slice() {
         let id = format!("{family_id}-r{count}");
         count = count.saturating_add(1);
-        let metadata = claim_metadata(&id, relation, status, from, to, private, &sources)?;
-        write_note(
-            stage,
-            &format!("relationships/{id}.md"),
-            &metadata,
-            "Imported claim. Explicit source status is retained; unspecified status is tentative. Review the original GEDCOM before accepting.\n",
-        )?;
-        report.written = report.written.saturating_add(1);
-        Ok(())
-    };
-    if let [first, second] = parents.as_slice() {
-        write_claim(
-            "partner",
-            mapped(ids, &first.value, "INDI")?,
+        let claim = partner_claim(
+            &id,
             mapped(ids, &second.value, "INDI")?,
             family_status,
+            private,
+            &sources,
         )?;
+        append_claim(people, &first.value, "partners", claim)?;
     }
     for child in record.iter().filter(|l| l.level == 1 && l.tag == "CHIL") {
         let _ = mapped(ids, &child.value, "INDI")?;
@@ -485,46 +564,108 @@ fn import_family(
         let status = child_link
             .and_then(|link| link.status.as_deref())
             .unwrap_or("tentative");
+        validate_status(status)?;
         for parent in &parents {
-            write_claim(
+            let id = format!("{family_id}-r{count}");
+            count = count.saturating_add(1);
+            let claim = parent_claim(
+                &id,
                 relation,
                 mapped(ids, &parent.value, "INDI")?,
-                mapped(ids, &child.value, "INDI")?,
                 status,
+                private,
+                &sources,
             )?;
+            append_claim(people, &child.value, "parents", claim)?;
         }
     }
-    for line in record.iter().skip(1).filter(|l| {
-        l.level != 1
-            || !matches!(
-                l.tag.as_str(),
-                "HUSB" | "WIFE" | "CHIL" | "SOUR" | "_KINDRED_STATUS"
-            )
-    }) {
+    if count == 0 && !sources.is_empty() {
         report.warnings.push(format!(
-            "{}: {} {} retained only in original GEDCOM",
-            header.xref, line.tag, line.value
+            "{}: family citations retained only in original because no supported claim was imported",
+            header.xref
         ));
+    } else {
+        used_sources.extend(family_source_pointers);
     }
+    warn_unmapped_family(record, header, report);
     Ok(())
+}
+
+fn warn_unmapped_family(record: &[Line], header: &Line, report: &mut Report) {
+    let mut context = "";
+    for line in record.iter().skip(1) {
+        if line.level == 1 {
+            context = &line.tag;
+        }
+        let mapped = line.level == 1
+            && matches!(
+                line.tag.as_str(),
+                "HUSB" | "WIFE" | "CHIL" | "SOUR" | "RESN" | "_KINDRED_STATUS"
+            )
+            || line.level == 2
+                && context == "SOUR"
+                && matches!(line.tag.as_str(), "TEXT" | "NOTE" | "WWW");
+        if !mapped {
+            preserve(report, header, line);
+        }
+    }
 }
 
 fn family_sources(
     record: &[Line],
+    family_id: &str,
     ids: &BTreeMap<String, (String, String)>,
+    citations: &BTreeMap<String, Value>,
+    used_sources: &mut BTreeSet<String>,
     report: &mut Report,
 ) -> Result<Vec<Value>, String> {
     let header = record.first().ok_or("missing family header")?;
     let mut sources = Vec::new();
-    for line in record
-        .iter()
-        .filter(|line| line.level == 1 && line.tag == "SOUR")
-    {
+    for (index, line) in record.iter().enumerate() {
+        if line.level != 1 || line.tag != "SOUR" {
+            continue;
+        }
+        let details: Vec<_> = record
+            .iter()
+            .skip(index.saturating_add(1))
+            .take_while(|detail| detail.level > 1)
+            .collect();
+        let citation_id = format!("{family_id}-s{}", sources.len());
         if line.value.starts_with('@') && line.value.ends_with('@') && line.value != "@VOID@" {
-            sources.push(Value::from(link(
-                mapped(ids, &line.value, "SOUR")?,
-                "sources",
-            )));
+            let _ = mapped(ids, &line.value, "SOUR")?;
+            used_sources.insert(line.value.clone());
+            let mut citation = citations
+                .get(&line.value)
+                .cloned()
+                .ok_or_else(|| format!("missing imported source {}", line.value))?;
+            if !details.is_empty() {
+                let original_id = citation
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .ok_or("imported citation is missing an ID")?
+                    .to_owned();
+                let object = citation
+                    .as_object_mut()
+                    .ok_or("imported citation must be an object")?;
+                object.insert("id".into(), Value::from(citation_id.clone()));
+                object.insert("source_id".into(), Value::from(original_id));
+                apply_citation_details(object, &details, header, report);
+            }
+            sources.push(citation);
+        } else if !line.value.is_empty() && line.value != "@VOID@" {
+            let mut citation = serde_json::Map::new();
+            citation.insert("id".into(), Value::from(citation_id));
+            citation.insert("title".into(), Value::from(line.value.clone()));
+            citation.insert(
+                "note".into(),
+                Value::from("Imported from the original GEDCOM."),
+            );
+            citation.insert(
+                "attachments".into(),
+                serde_json::json!(["attachments/original.ged"]),
+            );
+            apply_citation_details(&mut citation, &details, header, report);
+            sources.push(Value::Object(citation));
         } else {
             preserve(report, header, line);
         }
@@ -532,35 +673,114 @@ fn family_sources(
     Ok(sources)
 }
 
-fn claim_metadata(
+fn apply_citation_details(
+    citation: &mut serde_json::Map<String, Value>,
+    details: &[&Line],
+    header: &Line,
+    report: &mut Report,
+) {
+    for line in details {
+        let key = match (line.level, line.tag.as_str()) {
+            (2, "TEXT" | "NOTE") => "note",
+            (2, "WWW") => "url",
+            _ => {
+                preserve(report, header, line);
+                continue;
+            }
+        };
+        if key == "note" {
+            let note = match citation.get(key).and_then(Value::as_str) {
+                None | Some("Imported from the original GEDCOM.") => line.value.clone(),
+                Some(existing) => format!("{existing}\n{}", line.value),
+            };
+            citation.insert(key.into(), Value::from(note));
+        } else if citation.contains_key(key) {
+            preserve(report, header, line);
+        } else {
+            citation.insert(key.into(), Value::from(line.value.clone()));
+        }
+    }
+}
+
+fn validate_status(status: &str) -> Result<(), String> {
+    if ["accepted", "tentative", "disputed", "rejected"].contains(&status) {
+        Ok(())
+    } else {
+        Err(format!("unsupported imported claim status: {status}"))
+    }
+}
+
+fn append_claim(
+    people: &mut BTreeMap<String, BTreeMap<String, Value>>,
+    owner: &str,
+    key: &str,
+    claim: Value,
+) -> Result<(), String> {
+    let metadata = people
+        .get_mut(owner)
+        .ok_or_else(|| format!("missing imported person {owner}"))?;
+    let claims = metadata
+        .entry(key.into())
+        .or_insert_with(|| Value::Array(Vec::new()))
+        .as_array_mut()
+        .ok_or_else(|| format!("{key} must be a list"))?;
+    claims.push(claim);
+    Ok(())
+}
+
+fn parent_claim(
     id: &str,
     relation: &str,
+    person: &str,
     status: &str,
-    from: &str,
-    to: &str,
     private: bool,
     sources: &[Value],
-) -> Result<BTreeMap<String, Value>, String> {
-    let mut metadata = base(id, "relationship", "Imported relationship");
-    metadata.insert("relation".into(), Value::from(relation));
-    if !["accepted", "tentative", "disputed", "rejected"].contains(&status) {
-        return Err(format!("unsupported imported claim status: {status}"));
-    }
-    metadata.insert("status".into(), Value::from(status));
+) -> Result<Value, String> {
+    validate_status(status)?;
+    let mut claim = serde_json::Map::from_iter([
+        ("id".into(), Value::from(id)),
+        ("person".into(), Value::from(link(person, "people"))),
+        ("relation".into(), Value::from(relation)),
+        ("role".into(), Value::from("parent")),
+        ("status".into(), Value::from(status)),
+        ("sources".into(), Value::Array(sources.to_vec())),
+        (
+            "note".into(),
+            Value::from(
+                "Imported GEDCOM parent claim. The neutral role does not infer a mother or father from HUSB/WIFE.",
+            ),
+        ),
+    ]);
     if private {
-        metadata.insert("private".into(), Value::Bool(true));
+        claim.insert("private".into(), Value::Bool(true));
     }
-    metadata.insert("sources".into(), Value::Array(sources.to_vec()));
-    if relation == "partner" {
-        metadata.insert(
-            "partners".into(),
-            serde_json::json!([link(from, "people"), link(to, "people")]),
-        );
-    } else {
-        metadata.insert("parent".into(), Value::from(link(from, "people")));
-        metadata.insert("child".into(), Value::from(link(to, "people")));
+    Ok(Value::Object(claim))
+}
+
+fn partner_claim(
+    id: &str,
+    person: &str,
+    status: &str,
+    private: bool,
+    sources: &[Value],
+) -> Result<Value, String> {
+    validate_status(status)?;
+    let mut claim = serde_json::Map::from_iter([
+        ("id".into(), Value::from(id)),
+        ("person".into(), Value::from(link(person, "people"))),
+        ("status".into(), Value::from(status)),
+        ("sources".into(), Value::Array(sources.to_vec())),
+        (
+            "note".into(),
+            Value::from(
+                "Imported GEDCOM partnership claim. Review the original GEDCOM before accepting.",
+            ),
+        ),
+    ]);
+    if private {
+        claim.insert("private".into(), Value::Bool(true));
     }
-    Ok(metadata)
+    Ok(Value::Object(claim))
 }
 
 fn ged_line(value: &str) -> String {
@@ -664,7 +884,7 @@ pub fn export(root: &Path, destination: &Path, all: bool) -> Result<Report, Stri
         report.written = report.written.saturating_add(1);
     }
     output.push_str("0 TRLR\n");
-    report.warnings.push("GEDCOM 7 projection: names, date phrases, explicit death and accepted biological/adoptive/foster/partner links. Role tags HUSB/WIFE do not infer sex. Family claims are separate FAM records to retain per-parent pedigree type. Sources, prose, aliases, unknown metadata, events, attachments, and non-accepted claims require full archive export. Public scope includes only explicitly deceased, non-private people. IDs change on reimport. Declared _KINDRED_RELATION and _KINDRED_STATUS extensions retain exact biological meaning and claim status; consumers ignoring them lose that precision (PEDI BIRTH alone does not establish biology).".into());
+    report.warnings.push("GEDCOM 7 projection: names, date phrases, explicit death and accepted biological/adoptive/foster/partner links. Role tags HUSB/WIFE do not infer sex. Family claims are separate FAM records to retain per-parent pedigree type. Parent roles, occupations, sources, prose, aliases, unknown metadata, events, attachments, and non-accepted claims require full archive export. Public scope includes only explicitly deceased, non-private people. IDs change on reimport. Declared _KINDRED_RELATION and _KINDRED_STATUS extensions retain exact biological meaning and claim status; consumers ignoring them lose that precision (PEDI BIRTH alone does not establish biology).".into());
     publish_export(destination, &output, &report)?;
     Ok(report)
 }

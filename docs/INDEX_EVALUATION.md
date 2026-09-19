@@ -1,5 +1,10 @@
 # Disposable index evaluation
 
+The measurements below use the original 110-record historical fixture, before
+the expansion in the current example. That baseline is available at commit
+`6c719eb`. Rerunning the script on the larger current fixture gives different
+record counts and should be recorded as a new measurement.
+
 Date: 2026-09-19. Status: evaluated for the first local-archive milestone.
 
 ## Recommendation
