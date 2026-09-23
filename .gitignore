@@ -9,3 +9,6 @@
 
 # Local Obsidian workspace state is not fixture data.
 .obsidian/
+
+# Nix build output
+/result

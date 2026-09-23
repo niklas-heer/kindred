@@ -31,6 +31,13 @@ kindred init ./my-family
 kindred serve ./my-family
 ```
 
+With [Nix](https://nixos.org) flakes on Linux or Apple Silicon macOS, build and
+install the latest `main` from source instead:
+
+```sh
+nix profile add github:niklas-heer/kindred
+```
+
 Or download a binary for macOS, Linux, or Windows from
 [GitHub Releases](https://github.com/niklas-heer/kindred/releases).
 To build from source and explore the bundled examples, install the
