@@ -9,6 +9,9 @@ Do not describe planned commands as implemented.
 - Use stable Rust and the pinned mise tools. Keep dependencies minimal.
 - Run `mise run check` for Rust changes and `mise run ci` for pipeline changes.
   Release configuration changes also require `mise run release:check`.
+- Debug builds with tests take several GB. When you are done building, run
+  `mise run clean-debug` to remove debug builds and test binaries;
+  `mise run clean` removes all build output.
 - Test observable behavior through the CLI; add focused tests where useful.
 - Keep user-authored prose and unknown metadata intact. The intended archive
   model makes files authoritative and indexes rebuildable.
