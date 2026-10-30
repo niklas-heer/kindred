@@ -585,7 +585,8 @@ fn unreadable_protected_birth_dates_stop_the_build() {
             "lena",
             "Lena Linde",
             &format!("born: \"{born}\"\n{extra}"),
-            "Born on 2017-09-26.",
+            // No date in the story: the field check alone must stop the build.
+            "Story.",
         );
         let output = fixture.build(&["--today", TODAY]);
         assert_eq!(output.status.code(), Some(1), "{born}");
