@@ -21,21 +21,23 @@
       <div id="search-results" class="search-results" hidden></div>
     </label>
     <div class="masthead-actions">
-      <div class="mode-tabs view-switch" role="group" data-i18n-attr="aria-label:view" aria-label="View">
+      <div id="view-switch" class="mode-tabs view-switch" role="group" data-i18n-attr="aria-label:view" aria-label="View">
         <button type="button" data-view="simple" aria-pressed="false" data-i18n="simple">Simple</button>
         <button type="button" data-view="research" aria-pressed="true" data-i18n="research">Research</button>
       </div>
-      <div class="mode-tabs lang-switch" role="group" data-i18n-attr="aria-label:language" aria-label="Language">
+      <div id="lang-switch" class="mode-tabs lang-switch" role="group" data-i18n-attr="aria-label:language" aria-label="Language">
         <button type="button" data-lang="en" lang="en" title="English" aria-pressed="true">EN</button>
         <button type="button" data-lang="de" lang="de" title="Deutsch" aria-pressed="false">DE</button>
       </div>
       <button id="help-button" class="quiet-button" type="button" aria-expanded="false" aria-controls="shortcuts" data-i18n="keyboard">Keyboard</button>
+      <button id="menu-button" class="quiet-button menu-button" type="button" aria-expanded="false" aria-controls="menu-panel" data-i18n="menu">Menu</button>
     </div>
+    <div id="menu-panel" class="menu-panel" role="region" data-i18n-attr="aria-label:menuPanel" aria-label="View and filters" hidden></div>
   </header>
 
-  <main class="workspace">
+  <main id="workspace" class="workspace" data-sheet="hidden">
     <section class="explorer" data-i18n-attr="aria-label:graphExplorer" aria-label="Graph explorer">
-      <div class="toolbar">
+      <div id="toolbar" class="toolbar">
         <div class="mode-tabs" role="group" data-i18n-attr="aria-label:graphView" aria-label="Graph view">
           <button type="button" data-mode="overview" aria-pressed="true" data-i18n="overview">Overview</button>
           <button type="button" data-mode="focus" aria-pressed="false" data-i18n="family">Family</button>
@@ -43,7 +45,7 @@
           <button type="button" data-mode="descendants" aria-pressed="false" data-i18n="descendants">Descendants</button>
           <button type="button" data-mode="path" aria-pressed="false" class="research-only" data-i18n="path">Path</button>
         </div>
-        <div class="query-options">
+        <div id="query-options" class="query-options">
           <label id="branch-picker"><span data-i18n="branch">Branch</span>
             <select id="branch-root" data-i18n-attr="aria-label:overviewBranch" aria-label="Overview branch"><option value="" data-i18n="allFamilyRoots">All family roots</option></select>
           </label>
@@ -112,11 +114,22 @@
     </section>
 
     <aside id="details" class="details" data-i18n-attr="aria-label:details" aria-label="Details">
-      <div class="details-empty">
-        <span class="details-monogram" aria-hidden="true">K</span>
-        <h1 data-i18n="chooseAPerson">Choose a person</h1>
-        <p data-i18n="detailsIntro">Select someone in the graph to read their story and inspect the evidence behind each connection.</p>
-        <button id="suggest-general" class="quiet-button suggest-general" type="button" hidden data-i18n="suggestButton">Something wrong or missing?</button>
+      <div class="sheet-bar">
+        <button id="sheet-handle" class="sheet-handle" type="button" aria-expanded="false" aria-controls="details-body" data-i18n-attr="aria-label:sheetHandle" aria-label="Person details. Tap or drag to resize."><span class="sheet-grip" aria-hidden="true"></span></button>
+        <button id="sheet-close" class="sheet-close" type="button" data-i18n-attr="aria-label:closeDetails" aria-label="Close details">×</button>
+      </div>
+      <div id="sheet-peek" class="sheet-peek">
+        <strong id="sheet-name"></strong>
+        <small id="sheet-years"></small>
+        <small id="sheet-occupation"></small>
+      </div>
+      <div id="details-body" class="details-body" tabindex="-1">
+        <div class="details-empty">
+          <span class="details-monogram" aria-hidden="true">K</span>
+          <h1 data-i18n="chooseAPerson">Choose a person</h1>
+          <p data-i18n="detailsIntro">Select someone in the graph to read their story and inspect the evidence behind each connection.</p>
+          <button id="suggest-general" class="quiet-button suggest-general" type="button" hidden data-i18n="suggestButton">Something wrong or missing?</button>
+        </div>
       </div>
     </aside>
   </main>

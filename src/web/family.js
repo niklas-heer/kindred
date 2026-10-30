@@ -126,14 +126,16 @@
       }
     }
 
+    // Partners of the selection and of its highlighted blood line are in-laws; partners of in-laws are not followed.
+    const bloodLine = new Set([...ancestorSides.keys(), ...descendants]);
+    const linked = (personId) => personId === selectedId || bloodLine.has(personId);
     const partners = new Set();
     for (const edge of partnerEdges) {
-      let partner;
-      if (edge.from === selectedId) partner = edge.to;
-      if (edge.to === selectedId) partner = edge.from;
-      if (partner === undefined || partner === selectedId) continue;
-      partners.add(partner);
+      if (!linked(edge.from) && !linked(edge.to)) continue;
       add(edgeTags, edge.id, "partner");
+      for (const personId of [edge.from, edge.to]) {
+        if (!linked(personId)) partners.add(personId);
+      }
     }
 
     const people = new Map([[selectedId, "selected"]]);

@@ -94,6 +94,31 @@ test("descendants and direct partners are highlighted without walking partner ch
   assert.equal(result.edges.has("partner-other"), false);
 });
 
+test("partners of highlighted descendants and ancestors are highlighted in-laws", () => {
+  const result = analyze(
+    "focus",
+    [
+      parent("focus-parent", "parent", "focus", "mother"),
+      parent("parent-sibling", "parent", "sibling"),
+      parent("focus-child", "focus", "child"),
+      partner("child-in-law", "child", "in-law"),
+      partner("parent-stepparent", "parent", "stepparent"),
+      partner("sibling-partner", "sibling", "sibling-partner"),
+      partner("in-law-other", "in-law", "in-law-other"),
+    ],
+    roleForEdge,
+  );
+
+  assert.equal(result.people.get("in-law"), "partner");
+  assert.equal(result.people.get("stepparent"), "partner");
+  assert.equal(result.edges.get("child-in-law"), "partner");
+  assert.equal(result.edges.get("parent-stepparent"), "partner");
+  // Relatives who are not blood-line descendants or ancestors keep their own in-laws unhighlighted.
+  assert.equal(result.people.has("sibling-partner"), false);
+  // In-laws do not pull in their own partners.
+  assert.equal(result.people.has("in-law-other"), false);
+});
+
 test("cycles terminate, keep closing edges, and never reclassify the selection", () => {
   const result = analyze(
     "focus",

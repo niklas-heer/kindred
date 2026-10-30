@@ -169,7 +169,17 @@
       suggestSending: "Sending…",
       suggestSent: "Thank you. Your note has been sent.",
       suggestFailed: "Your note could not be sent. Try again, or reload the page to sign in again.",
-      suggestEmpty: "Write a short note first."
+      suggestEmpty: "Write a short note first.",
+      menu: "Menu",
+      menuPanel: "View and filters",
+      closeDetails: "Close details",
+      sheetHandle: "Person details. Tap or drag to resize.",
+      "eventType.marriage": "Marriage",
+      "eventType.birth": "Birth",
+      "eventType.death": "Death",
+      "eventType.divorce": "Divorce",
+      "eventType.baptism": "Baptism",
+      "eventType.burial": "Burial"
     },
     de: {
       pageTitle: "Kindred · Familienarchiv",
@@ -337,7 +347,17 @@
       suggestSending: "Wird gesendet…",
       suggestSent: "Danke. Die Nachricht wurde gesendet.",
       suggestFailed: "Die Nachricht konnte nicht gesendet werden. Erneut versuchen oder die Seite neu laden, um sich erneut anzumelden.",
-      suggestEmpty: "Zuerst eine kurze Nachricht schreiben."
+      suggestEmpty: "Zuerst eine kurze Nachricht schreiben.",
+      menu: "Menü",
+      menuPanel: "Ansicht und Filter",
+      closeDetails: "Details schließen",
+      sheetHandle: "Personendetails. Antippen oder ziehen, um die Größe zu ändern.",
+      "eventType.marriage": "Heirat",
+      "eventType.birth": "Geburt",
+      "eventType.death": "Tod",
+      "eventType.divorce": "Scheidung",
+      "eventType.baptism": "Taufe",
+      "eventType.burial": "Beerdigung"
     }
   };
 

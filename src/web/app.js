@@ -24,6 +24,7 @@
     overviewRoot: null,
     layoutRoot: "",
     view: "research",
+    sheet: "hidden",
     loadError: ""
   };
 
@@ -32,12 +33,16 @@
     "diagnostics", "path-picker", "path-from", "path-to", "graph", "viewport",
     "edges", "nodes", "empty-state", "graph-status", "details", "editor",
     "editor-title", "editor-text", "editor-message", "save-button", "help-button", "shortcuts",
-    "suggest-general", "suggestion", "suggestion-form", "suggestion-about", "suggestion-text", "suggestion-message", "suggestion-send"
+    "suggest-general", "suggestion", "suggestion-form", "suggestion-about", "suggestion-text", "suggestion-message", "suggestion-send",
+    "workspace", "toolbar", "query-options", "view-switch", "lang-switch", "menu-button", "menu-panel", "details-body", "sheet-handle", "sheet-close", "sheet-peek", "sheet-name", "sheet-years", "sheet-occupation"
   ].map((id) => [id.replaceAll("-", "_"), document.getElementById(id)]));
 
   const svgNs = "http://www.w3.org/2000/svg";
   const CARD_WIDTH = 248;
   const CARD_HEIGHT = 144;
+  // Phones: the same breakpoint as the stylesheet. Below READABLE_SCALE a card name is too small to read.
+  const phoneQuery = window.matchMedia("(max-width: 560px)");
+  const READABLE_SCALE = .7;
 
   function icon(name) {
     const image = svg("svg", { className: "icon", attrs: { viewBox: "0 0 24 24", width: 18, height: 18, "aria-hidden": "true", focusable: "false" } });
@@ -186,7 +191,20 @@
   }
 
   function label(item) {
+    if (item?.kind === "event") {
+      // Derived events use their ID as name when unnamed, so an ID is never shown as a title.
+      const named = [item.name, item.metadata?.title].find((text) => text && text !== item.id);
+      return named || eventLabel(item);
+    }
     return item?.name || item?.metadata?.title || item?.id || t("unnamedRecord");
+  }
+
+  // The event type is event_type on derived events (their metadata type is the record kind) and type on notes.
+  function eventLabel(item) {
+    const type = String(item.metadata?.event_type || item.metadata?.type || "").trim();
+    if (!type || type === "event") return t("kind.event");
+    const key = `eventType.${type}`;
+    return KindredI18n.has(key) ? t(key) : type.replaceAll("_", " ").replace(/^\p{L}/u, (letter) => letter.toLocaleUpperCase());
   }
 
   function initials(name) {
@@ -443,7 +461,7 @@
     const nodes = graphNodes();
     if (state.selected && record(state.selected)?.kind === "person" && !nodes.some((node) => node.id === state.selected)) state.selected = nodes[0]?.id || "";
     const edges = graphEdges(nodes);
-    const layoutRoot = state.layoutRoot || (state.mode === "overview" ? state.overviewRoot : state.person) || state.selected;
+    const layoutRoot = layoutRootId();
     el.arrangement_caption.textContent = state.mode === "path" ? t("connectionPath") : el.layout_order.value === "sides"
       ? t("arrangedAround", { name: label(record(layoutRoot)) })
       : t("compactGroups");
@@ -468,7 +486,7 @@
     const evidenceText = evidenceCount ? ` · ${t("evidenceCount", { count: evidenceCount })}` : "";
     const claimsText = t("claims", { count: claimCount });
     el.graph_status.textContent = state.view === "simple" ? peopleText : `${peopleText}${evidenceText} · ${claimsText}`;
-    if (fit) requestAnimationFrame(fitGraph);
+    if (fit) requestAnimationFrame(startGraph);
   }
 
   function renderEdge(edge, edges, rails) {
@@ -579,6 +597,9 @@
     if (!state.person) state.person = id;
     renderGraphSelection();
     renderDetails();
+    if (state.sheet === "hidden") setSheet("peek", { focus: false });
+    else if (state.sheet === "expanded") el.details_body.scrollTop = 0;
+    revealSelected();
     if (record(id)?.kind === "person" && openFamily) {
       state.person = id;
       setMode("focus");
@@ -634,7 +655,8 @@
   function renderDetails() {
     const item = record(state.selected);
     if (!item) return;
-    clear(el.details);
+    renderPeek(item);
+    clear(el.details_body);
     if (state.view === "simple" && item.kind !== "person") return renderSimpleRecord(item);
     const simple = state.view === "simple";
     const header = html("header", { className: "detail-header" });
@@ -684,7 +706,7 @@
         if (state.data.query.edges.some((edge) => edge.from === item.id && edge.relation !== "partner")) actions.append(branch);
       }
       const family = html("button", { className: "primary-button", text: t("openFamily"), attrs: { type: "button" } });
-      family.addEventListener("click", () => { state.person = item.id; setMode("focus"); });
+      family.addEventListener("click", () => { state.person = item.id; setSheet("peek"); setMode("focus"); });
       actions.append(family);
       const arrange = html("button", { className: "quiet-button", text: t("arrangeFamilySides"), attrs: { type: "button" } });
       arrange.addEventListener("click", () => { state.layoutRoot = item.id; el.layout_order.value = "sides"; renderGraph(); });
@@ -709,7 +731,7 @@
       origin.addEventListener("click", () => select(owner.id));
       header.append(origin);
     }
-    el.details.append(header);
+    el.details_body.append(header);
 
     renderParents(item);
     if (item.body) section(t("sectionStories"), renderProse(item.body), "book-open");
@@ -732,7 +754,7 @@
     const title = item.kind === "relationship" ? people.map((person) => label(person)).join(t("and")) || t("familyLink") : label(item);
     header.append(html("span", { className: "eyebrow", text: item.kind === "event" ? t("kind.event") : item.kind === "relationship" ? t("familyLink") : t("familyRecord") }), html("h1", { text: title }));
     if (when) header.append(html("p", { className: "detail-occupation", text: when }));
-    el.details.append(header);
+    el.details_body.append(header);
     if (!people.length) return;
     const list = html("div");
     for (const person of people) {
@@ -758,7 +780,7 @@
     if (iconName) heading.append(icon(iconName));
     heading.append(document.createTextNode(title));
     wrapper.append(heading, content);
-    el.details.append(wrapper);
+    el.details_body.append(wrapper);
   }
 
   function renderParents(item) {
@@ -860,9 +882,11 @@
     const list = html("div");
     for (const event of events) {
       const card = html("button", { className: "event-card", attrs: { type: "button" } });
-      const when = formatDate(plainValue(event.metadata?.date || event.metadata?.when || event.id));
+      const when = formatDate(plainValue(event.metadata?.date || event.metadata?.when));
       const place = state.view === "simple" && record(event.metadata?.place);
-      card.append(html("strong", { text: label(event) }), html("small", { text: place ? `${when} · ${label(place)}` : when }));
+      const detail = place ? [when, label(place)].filter(Boolean).join(" · ") : when;
+      card.append(html("strong", { text: label(event) }));
+      if (detail) card.append(html("small", { text: detail }));
       card.addEventListener("click", () => select(event.id));
       list.append(card);
     }
@@ -1001,12 +1025,12 @@
     renderStrings();
     if (state.data) {
       // A note typed in the composer is not archive data, so it survives the re-render.
-      const draft = el.details.querySelector(".note-composer textarea")?.value;
+      const draft = el.details_body.querySelector(".note-composer textarea")?.value;
       populatePeople();
       renderDiagnostics();
       renderGraph({ fit: false });
       renderDetails();
-      const field = el.details.querySelector(".note-composer textarea");
+      const field = el.details_body.querySelector(".note-composer textarea");
       if (field && draft) field.value = draft;
     } else if (state.loadError) {
       el.graph_status.textContent = t("couldNotLoad");
@@ -1140,6 +1164,7 @@
         state.selected = person.id;
         el.search.value = "";
         el.search_results.hidden = true;
+        setSheet("peek", { focus: false });
         setMode("focus");
       });
       el.search_results.append(button);
@@ -1154,8 +1179,9 @@
   const pointers = new Map();
   let suppressClick = false;
 
-  function fitGraph() {
-    if (!state.positions.size) return;
+  // The scale and offset that fit every node in view. Desktop and the Fit button use it as it is.
+  function fitView() {
+    if (!state.positions.size) return null;
     const points = [...state.positions.values()];
     const xs = points.map((point) => point.x);
     const ys = points.map((point) => point.y);
@@ -1168,10 +1194,106 @@
     const top = heading.offsetHeight ? heading.offsetTop + heading.offsetHeight + 12 : 16;
     const bottom = bounds.width > 560 ? 90 : 58;
     const availableHeight = Math.max(80, bounds.height - top - bottom);
-    state.scale = Math.min(1.15, Math.max(MIN_SCALE, Math.min(bounds.width / Math.max(1, maxX - minX), availableHeight / Math.max(1, maxY - minY)) * .9));
-    state.tx = bounds.width / 2 - ((minX + maxX) / 2) * state.scale;
-    state.ty = top + availableHeight / 2 - ((minY + maxY) / 2) * state.scale;
+    const scale = Math.min(1.15, Math.max(MIN_SCALE, Math.min(bounds.width / Math.max(1, maxX - minX), availableHeight / Math.max(1, maxY - minY)) * .9));
+    return { scale, tx: bounds.width / 2 - ((minX + maxX) / 2) * scale, ty: top + availableHeight / 2 - ((minY + maxY) / 2) * scale };
+  }
+
+  function fitGraph() {
+    const view = fitView();
+    if (!view) return;
+    Object.assign(state, view);
     applyTransform();
+  }
+
+  // A phone that would have to fit everything below a readable scale centres the focus person instead; the Fit button still fits everything.
+  function startGraph() {
+    const view = fitView();
+    if (!view) return;
+    const focus = focusPoint();
+    if (phoneQuery.matches && view.scale < READABLE_SCALE && focus) {
+      centreOn(focus, READABLE_SCALE);
+      return;
+    }
+    Object.assign(state, view);
+    applyTransform();
+  }
+
+  function layoutRootId() {
+    return state.layoutRoot || (state.mode === "overview" ? state.overviewRoot : state.person) || state.selected;
+  }
+
+  function focusPoint() {
+    const id = state.positions.has(state.selected) ? state.selected : layoutRootId();
+    return state.positions.get(id) || null;
+  }
+
+  // Height of the graph covered from its bottom edge by the details sheet on a phone.
+  function sheetCover() {
+    return phoneQuery.matches && state.sheet !== "hidden" ? el.details.offsetHeight : 0;
+  }
+
+  function centreOn(point, scale) {
+    const bounds = el.graph.getBoundingClientRect();
+    state.scale = scale;
+    state.tx = bounds.width / 2 - point.x * scale;
+    state.ty = (bounds.height - sheetCover()) / 2 - point.y * scale;
+    applyTransform();
+  }
+
+  // A tapped card must not stay under the peek sheet: pan it to the middle of the part of the graph above the sheet.
+  function revealSelected() {
+    const point = state.positions.get(state.selected);
+    if (!point || !phoneQuery.matches || state.sheet !== "peek") return;
+    const visibleBottom = el.graph.getBoundingClientRect().height - sheetCover();
+    const top = state.ty + (point.y - CARD_HEIGHT / 2) * state.scale;
+    const bottom = top + CARD_HEIGHT * state.scale;
+    if (top >= 8 && bottom <= visibleBottom - 8) return;
+    state.ty += visibleBottom / 2 - (state.ty + point.y * state.scale);
+    applyTransform();
+  }
+
+  // Phones: hidden until a person is chosen, then peek (name, years, occupation), then expanded (the full details, scrolling).
+  // Desktop keeps the side panel; the states only change the attribute there, which the stylesheet reads on phones.
+  let sheetReturn = null;
+  function setSheet(next, { focus = true } = {}) {
+    const previous = state.sheet;
+    if (next === previous) return;
+    const hadFocus = el.details.contains(document.activeElement);
+    if (previous === "hidden" && !hadFocus) sheetReturn = document.activeElement !== document.body ? document.activeElement : el.graph;
+    state.sheet = next;
+    el.workspace.dataset.sheet = next;
+    el.sheet_handle.setAttribute("aria-expanded", String(next === "expanded"));
+    if (!focus || !phoneQuery.matches) return;
+    if (next === "expanded") el.details_body.focus({ preventScroll: true });
+    else if (next === "peek" && previous === "expanded" && hadFocus) el.sheet_handle.focus({ preventScroll: true });
+    else if (next === "hidden" && hadFocus) (sheetReturn?.isConnected ? sheetReturn : el.graph).focus({ preventScroll: true });
+  }
+
+  // The peek summary is always the selected person, so it can show before the full details are rendered.
+  function renderPeek(item) {
+    el.sheet_name.textContent = label(item);
+    el.sheet_years.textContent = item.kind === "person" ? lifeSpan(item) : known("kind", item.kind);
+    const occupation = plainValue(item.metadata?.occupation);
+    el.sheet_occupation.textContent = occupation;
+    el.sheet_occupation.hidden = !occupation;
+  }
+
+  // On a phone the switches and filters live in the menu panel; on desktop they go back to the masthead and toolbar.
+  function placeMenu() {
+    if (phoneQuery.matches) {
+      el.menu_panel.append(el.view_switch, el.lang_switch, el.query_options);
+    } else {
+      el.help_button.before(el.view_switch, el.lang_switch);
+      el.toolbar.append(el.query_options);
+      setMenu(false);
+    }
+  }
+
+  function setMenu(open, { focus = false } = {}) {
+    el.menu_panel.hidden = !open;
+    el.menu_button.setAttribute("aria-expanded", String(open));
+    if (!focus) return;
+    (open ? el.view_switch.querySelector("button") : el.menu_button)?.focus();
   }
 
   function applyTransform() {
@@ -1223,6 +1345,31 @@
     if (event.key === "Enter") el.search_results.querySelector("button")?.click();
   });
   el.save_button.addEventListener("click", saveEditor);
+  el.menu_button.addEventListener("click", () => setMenu(el.menu_panel.hidden, { focus: true }));
+  document.addEventListener("pointerdown", (event) => {
+    if (!el.menu_panel.hidden && !el.menu_panel.contains(event.target) && !el.menu_button.contains(event.target)) setMenu(false);
+  });
+  // The handle is the keyboard and assistive path to the sheet states; a drag past 24 px changes state as soon as it crosses.
+  let handleGesture = null;
+  el.sheet_handle.addEventListener("pointerdown", (event) => {
+    handleGesture = { y: event.clientY, acted: false };
+    el.sheet_handle.setPointerCapture(event.pointerId);
+  });
+  el.sheet_handle.addEventListener("pointermove", (event) => {
+    if (!handleGesture || handleGesture.acted || Math.abs(event.clientY - handleGesture.y) < 24) return;
+    handleGesture.acted = true;
+    if (event.clientY < handleGesture.y) {
+      if (state.sheet === "peek") setSheet("expanded");
+    } else if (state.sheet === "expanded") setSheet("peek");
+    else if (state.sheet === "peek") setSheet("hidden");
+  });
+  el.sheet_handle.addEventListener("click", () => {
+    const dragged = handleGesture?.acted;
+    handleGesture = null;
+    if (!dragged) setSheet(state.sheet === "expanded" ? "peek" : "expanded");
+  });
+  el.sheet_peek.addEventListener("click", () => { if (state.sheet === "peek") setSheet("expanded"); });
+  el.sheet_close.addEventListener("click", () => setSheet("hidden"));
   el.help_button.addEventListener("click", () => {
     el.shortcuts.hidden = !el.shortcuts.hidden;
     el.help_button.setAttribute("aria-expanded", String(!el.shortcuts.hidden));
@@ -1296,6 +1443,13 @@
     event.stopPropagation();
   }, true);
 
+  // Escape closes the innermost open thing first: the menu panel, then the details sheet.
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || el.editor.open || el.suggestion.open) return;
+    if (!el.menu_panel.hidden) setMenu(false, { focus: true });
+    else if (state.sheet !== "hidden") setSheet("hidden");
+  });
+
   document.addEventListener("keydown", (event) => {
     if (event.key === "/" && !/input|textarea|select/i.test(document.activeElement?.tagName || "")) {
       event.preventDefault(); el.search.focus();
@@ -1325,11 +1479,19 @@
     loadGraph();
   }
 
-  window.addEventListener("resize", fitGraph);
+  // Phones also get resize events when the browser toolbar shows or hides; only a width change refits them.
+  let viewportWidth = window.innerWidth;
+  window.addEventListener("resize", () => {
+    const widthChanged = window.innerWidth !== viewportWidth;
+    viewportWidth = window.innerWidth;
+    if (widthChanged || !phoneQuery.matches) startGraph();
+  });
   // A static page cannot edit, so its editor goes; suggestion controls appear only when the site names a URL.
   if (staticSite) el.editor.remove();
   el.suggest_general.hidden = !staticSite?.suggest;
   if (!staticSite?.suggest) el.suggestion.remove();
+  placeMenu();
+  phoneQuery.addEventListener("change", placeMenu);
   applyView(initialView());
   KindredI18n.setLang(initialLang());
   renderStrings();
