@@ -8,7 +8,7 @@ tags = ["site", "privacy", "web"]
 supersedes = []
 superseded_by = []
 depends_on = []
-related_to = []
+related_to = ["01M66MA189C974D62NW9WR62PE"]
 +++
 Status: implemented on 2026-10-30 as `kindred site`, which writes a static, self-contained viewer for a validated archive.
 
@@ -19,6 +19,8 @@ The site is for family hosting behind an authenticating proxy, so living people 
 - Before publication every text file is scanned for a protected person's full birth date in common forms. A match fails the build, naming the person and file but never the date. The check is fail-closed: a non-protected record that happens to contain the same full date also fails the build.
 - Only portrait images of included people are copied. Source attachments are never copied.
 - Publication is staged beside the target and renamed only after the checks pass.
+
+The same viewer runs in both places. With the `kindred-site` meta tag it loads `graph.json` once and answers every graph view in the browser through `src/web/query.js`, a port of the Rust queries kept honest by a parity test against the CLI on both example archives. It never calls the local API, offers no editing, and, when a suggestion URL is configured, posts relatives' corrections as JSON to that URL for the host to handle. Validation in the browser or in WebAssembly was not needed for a read-only site.
 
 Alternatives: a separate family-facing app would duplicate the graph and layout; redacting in the browser would leave raw data in the published files, so the viewer could not be trusted with it. Rewriting prose to remove dates was rejected because stories are authored text. Free-text redaction of names inside stories was not attempted; authors keep private information out of the story text.
 
