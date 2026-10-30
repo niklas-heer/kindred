@@ -260,11 +260,22 @@ fn protection(person: &Record, today: Date) -> Result<(bool, Option<Date>), Stri
             ));
         }
     };
-    let birth = BIRTH_KEYS
+    let texts: Vec<&str> = BIRTH_KEYS
         .iter()
-        .find_map(|key| person.text(key).and_then(parse_full));
+        .filter_map(|key| person.text(key))
+        .collect();
+    let birth = texts.iter().find_map(|text| parse_full(text));
     let living = person.metadata.get("living") != Some(&Value::Bool(false));
-    let minor = living && birth.is_some_and(|date| is_minor(date, today));
+    // An unreadable date with a day or month number may still be a minor's full date:
+    // protect it unless its year shows an adult.
+    let unreadable_could_be_minor = || {
+        texts.iter().any(|text| {
+            has_short_number(text)
+                && first_year(text).is_none_or(|year| today.year.saturating_sub(year) <= ADULT_AGE)
+        })
+    };
+    let minor =
+        living && birth.map_or_else(unreadable_could_be_minor, |date| is_minor(date, today));
     Ok((year_only || minor, birth))
 }
 
@@ -274,10 +285,38 @@ fn reduce_dates(metadata: &mut Value, keys: &[&str]) {
         return;
     };
     for key in keys {
-        if let Some(date) = map.get(*key).and_then(Value::as_str).and_then(parse_full) {
-            map.insert((*key).to_owned(), Value::from(date.year.to_string()));
+        let Some(text) = map.get(*key).and_then(Value::as_str) else {
+            continue;
+        };
+        match parse_full(text)
+            .map(|date| date.year)
+            .or_else(|| first_year(text))
+        {
+            Some(year) => {
+                map.insert((*key).to_owned(), Value::from(year.to_string()));
+            }
+            None => {
+                map.remove(*key);
+            }
         }
     }
+}
+
+fn number_runs(text: &str) -> impl Iterator<Item = &str> {
+    text.split(|character: char| !character.is_ascii_digit())
+        .filter(|run| !run.is_empty())
+}
+
+/// The first standalone four-digit number in a date phrase.
+fn first_year(text: &str) -> Option<i64> {
+    number_runs(text)
+        .find(|run| run.len() == 4)
+        .and_then(digits)
+}
+
+/// Whether a date phrase has a one- or two-digit number, such as a day or month.
+fn has_short_number(text: &str) -> bool {
+    number_runs(text).any(|run| run.len() <= 2)
 }
 
 /// Every textual form in which a full date is commonly written.
@@ -320,6 +359,11 @@ fn contains_form(text: &str, form: &str) -> bool {
     })
 }
 
+/// An inline declaration (claim, citation, event) marked private.
+fn is_private(value: &Value) -> bool {
+    value.get("private") == Some(&Value::Bool(true))
+}
+
 /// Privacy filter for values that may name omitted records.
 struct Pruner<'a> {
     archive: &'a Archive,
@@ -344,10 +388,13 @@ impl Pruner<'_> {
     /// whose `person` is omitted.
     fn dangling_item(&self, key: &str, item: &Value) -> bool {
         match item {
-            Value::Object(map) => map
-                .get("person")
-                .and_then(Value::as_str)
-                .is_some_and(|text| self.dangling_text("person", text)),
+            Value::Object(map) => {
+                is_private(item)
+                    || map
+                        .get("person")
+                        .and_then(Value::as_str)
+                        .is_some_and(|text| self.dangling_text("person", text))
+            }
             other => self.dangling_value(key, other),
         }
     }
@@ -361,7 +408,7 @@ impl Pruner<'_> {
                 }
             }
             Value::Object(map) => {
-                map.retain(|name, item| !self.dangling_value(name, item));
+                map.retain(|name, item| !self.dangling_value(name, item) && !is_private(item));
                 for (name, item) in map.iter_mut() {
                     self.prune(item, name);
                 }
@@ -656,10 +703,15 @@ fn verify(stage: &Path, protected: &[(String, Date)]) -> Result<(), String> {
             continue;
         }
         let name = entry.file_name().to_string_lossy().into_owned();
+        // Month names may be written in any case, so compare lowercased text.
         let text = fs::read_to_string(entry.path())
-            .map_err(|error| format!("cannot read {name}: {error}"))?;
+            .map_err(|error| format!("cannot read {name}: {error}"))?
+            .to_lowercase();
         for (id, date) in protected {
-            if forms(*date).iter().any(|form| contains_form(&text, form)) {
+            if forms(*date)
+                .iter()
+                .any(|form| contains_form(&text, &form.to_lowercase()))
+            {
                 return Err(format!(
                     "site build stopped: protected person {id} has a full birth date in {name}; keep only the year in visible text"
                 ));

@@ -551,3 +551,61 @@ fn graph_lists_every_claim_status_with_resolvable_references() {
     assert!(statuses.contains(&"disputed"));
     assert_references_resolve(&graph);
 }
+
+#[test]
+fn private_inline_claims_and_citations_are_not_published() {
+    let fixture = Fixture::new();
+    fixture.person("ada", "Ada Linde", "living: false\n", "Story.");
+    fixture.person(
+        "lena",
+        "Lena Linde",
+        "living: false\nparents:\n  - person: \"[[people/ada]]\"\n    role: mother\n    private: true\n    note: SECRET_CLAIM_NOTE\nsources:\n  - id: diary\n    title: Family diary\n    private: true\n    note: SECRET_SOURCE_NOTE\n",
+        "Story.",
+    );
+    let graph = fixture.graph();
+    let text = graph.to_string();
+    assert!(!text.contains("SECRET_CLAIM_NOTE"), "{text}");
+    assert!(!text.contains("SECRET_SOURCE_NOTE"), "{text}");
+    assert!(record(&graph, "lena").is_some());
+    assert_references_resolve(&graph);
+}
+
+#[test]
+fn unreadable_birth_dates_never_publish_a_day() {
+    let fixture = Fixture::new();
+    fixture.person("ada", "Ada Linde", "living: false\n", "Story.");
+    fixture.person("lena", "Lena Linde", "born: \"26/09/2017\"\n", "Story.");
+    fixture.person("mia", "Mia Linde", "born: \"26/09/17\"\n", "Story.");
+    fixture.person(
+        "olof",
+        "Olof Linde",
+        "born: \"26/09/1950\"\ndate_display: year\n",
+        "Story.",
+    );
+    let graph = fixture.graph();
+    let born =
+        |id: &str| record(&graph, id).and_then(|person| person["metadata"].get("born").cloned());
+    assert_eq!(born("lena"), Some(Value::from("2017")));
+    assert_eq!(born("mia"), None);
+    assert_eq!(born("olof"), Some(Value::from("1950")));
+    let text = graph.to_string();
+    for full in ["26/09/2017", "26/09/17", "26/09/1950"] {
+        assert!(!text.contains(full), "{full} was published");
+    }
+}
+
+#[test]
+fn full_minor_date_is_found_in_any_letter_case() {
+    let fixture = Fixture::new();
+    fixture.person("ada", "Ada Linde", "living: false\n", "Story.");
+    fixture.person(
+        "lena",
+        "Lena Linde",
+        "born: \"2017-09-26\"\n",
+        "Lena was born on 26 september 2017.",
+    );
+    let output = fixture.build(&["--today", TODAY]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("lena"));
+    assert!(!fixture.target().exists());
+}
