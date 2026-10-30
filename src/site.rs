@@ -276,6 +276,13 @@ fn protection(person: &Record, today: Date) -> Result<(bool, Option<Date>), Stri
     };
     let minor =
         living && birth.map_or_else(unreadable_could_be_minor, |date| is_minor(date, today));
+    // Without a readable full date the leak scan cannot look for it, so refuse to publish.
+    if (year_only || minor) && birth.is_none() && texts.iter().any(|text| has_short_number(text)) {
+        return Err(format!(
+            "person {} has a birth date the site cannot protect; write it as YYYY-MM-DD",
+            person.id
+        ));
+    }
     Ok((year_only || minor, birth))
 }
 
@@ -285,19 +292,8 @@ fn reduce_dates(metadata: &mut Value, keys: &[&str]) {
         return;
     };
     for key in keys {
-        let Some(text) = map.get(*key).and_then(Value::as_str) else {
-            continue;
-        };
-        match parse_full(text)
-            .map(|date| date.year)
-            .or_else(|| first_year(text))
-        {
-            Some(year) => {
-                map.insert((*key).to_owned(), Value::from(year.to_string()));
-            }
-            None => {
-                map.remove(*key);
-            }
+        if let Some(date) = map.get(*key).and_then(Value::as_str).and_then(parse_full) {
+            map.insert((*key).to_owned(), Value::from(date.year.to_string()));
         }
     }
 }
