@@ -103,3 +103,15 @@ test("parentAnchor is null without a partner link, for a single parent, or for p
   assert.equal(KindredLayout.parentAnchor(coupleEdges[0], [coupleEdges[0]], couple()), null);
   assert.equal(KindredLayout.parentAnchor(coupleEdges[0], coupleEdges, couple(224)), null);
 });
+test("couples whose child lines would overlap get separate rail heights between the same rows", () => {
+  // Couple A's child sits right of couple B's child start, so their horizontal lines would share a stretch.
+  const positions = new Map([["a1", { x: 0, y: 0 }], ["a2", { x: 284, y: 0 }], ["b1", { x: 568, y: 0 }], ["b2", { x: 852, y: 0 }], ["c1", { x: 1136, y: 0 }], ["c2", { x: 1420, y: 0 }],
+    ["achild", { x: 600, y: 224 }], ["bchild", { x: 300, y: 224 }], ["cchild", { x: 1278, y: 224 }]]);
+  const edges = [partner("a1", "a2"), partner("b1", "b2"), partner("c1", "c2"), ...["a", "b", "c"].flatMap((family) => [parent(`${family}1`, `${family}child`), parent(`${family}2`, `${family}child`)])];
+  const rails = KindredLayout.familyRails(edges, positions);
+  const rail = (family) => rails.get(`${family}1-${family}child`);
+  for (const family of ["a", "b", "c"]) assert.equal(rails.get(`${family}2-${family}child`), rail(family), "both parents share one line");
+  assert.notEqual(rail("a"), rail("b"));
+  for (const family of ["a", "b", "c"]) assert.ok(rail(family) > 72 && rail(family) < 224 - 72, "rails stay between the cards");
+  assert.equal(rails.size, 6);
+});

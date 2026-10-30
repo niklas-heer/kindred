@@ -388,7 +388,8 @@
     clear(el.nodes);
     clear(el.edges);
 
-    for (const edge of edges) renderEdge(edge, edges);
+    const rails = KindredLayout.familyRails(edges, state.positions, { cardWidth: CARD_WIDTH, cardHeight: CARD_HEIGHT });
+    for (const edge of edges) renderEdge(edge, edges, rails);
     for (const node of nodes) renderNode(node);
     renderGraphSelection();
 
@@ -406,7 +407,7 @@
     if (fit) requestAnimationFrame(fitGraph);
   }
 
-  function renderEdge(edge, edges) {
+  function renderEdge(edge, edges, rails) {
     const from = state.positions.get(edge.from), to = state.positions.get(edge.to);
     if (!from || !to) return;
     const sideLink = state.mode === "path" || edge.relation === "partner" || edge.relation === "evidence" || edge.relation === "event";
@@ -424,7 +425,7 @@
       const anchor = KindredLayout.parentAnchor(edge, edges, state.positions, { cardWidth: CARD_WIDTH, cardHeight: CARD_HEIGHT });
       const start = anchor || { x: from.x, y: from.y + direction * CARD_HEIGHT / 2 }, y2 = to.y - direction * CARD_HEIGHT / 2;
       const share = anchor ? .5 : parentRole(edge) === "mother" ? .36 : parentRole(edge) === "father" ? .64 : .5;
-      const middle = start.y + (y2 - start.y) * share;
+      const middle = anchor && rails.has(edge.id) ? rails.get(edge.id) : start.y + (y2 - start.y) * share;
       const dx = Math.sign(to.x - start.x), radius = Math.min(10, Math.abs(to.x - start.x) / 2, Math.abs(middle - start.y) / 2, Math.abs(y2 - middle) / 2);
       d = `M ${start.x} ${start.y} V ${middle - direction * radius} Q ${start.x} ${middle} ${start.x + dx * radius} ${middle} H ${to.x - dx * radius} Q ${to.x} ${middle} ${to.x} ${middle + direction * radius} V ${y2}`;
     }

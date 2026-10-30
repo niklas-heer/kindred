@@ -312,5 +312,43 @@
     return null;
   }
 
-  globalThis.KindredLayout = { layout, parentAnchor };
+  // Heights of the horizontal lines from couples to their children. Families whose lines would overlap between the
+  // same two rows get separate heights, so a child never seems to hang from another couple's line.
+  function familyRails(edges, positions, { cardWidth = 248, cardHeight = 144 } = {}) {
+    const families = new Map();
+    for (const edge of edges) {
+      const anchor = parentAnchor(edge, edges, positions, { cardWidth, cardHeight });
+      const parent = positions.get(edge.from), child = positions.get(edge.to);
+      if (!anchor || child.y <= anchor.y) continue;
+      const key = `${anchor.x}\u0000${anchor.y}\u0000${child.y}`;
+      if (!families.has(key)) families.set(key, { childY: child.y, floor: Math.max(parent.y + cardHeight / 2, anchor.y), xs: [anchor.x], edges: [] });
+      const family = families.get(key);
+      family.xs.push(child.x);
+      family.edges.push(edge.id);
+    }
+    const rows = new Map();
+    for (const family of families.values()) {
+      if (!rows.has(family.childY)) rows.set(family.childY, []);
+      rows.get(family.childY).push(family);
+    }
+    const rails = new Map();
+    for (const [childY, row] of rows) {
+      row.sort((left, right) => Math.min(...left.xs) - Math.min(...right.xs) || Math.max(...left.xs) - Math.max(...right.xs));
+      const ends = [];
+      for (const family of row) {
+        const start = Math.min(...family.xs);
+        family.level = ends.findIndex((end) => end < start - 16);
+        if (family.level < 0) family.level = ends.length;
+        ends[family.level] = Math.max(...family.xs);
+      }
+      const top = Math.max(...row.map((family) => family.floor)) + 12, bottom = childY - cardHeight / 2 - 12;
+      for (const family of row) {
+        const y = bottom > top ? top + (bottom - top) * (family.level + 1) / (ends.length + 1) : (top + bottom) / 2;
+        for (const id of family.edges) rails.set(id, y);
+      }
+    }
+    return rails;
+  }
+
+  globalThis.KindredLayout = { layout, parentAnchor, familyRails };
 })();
