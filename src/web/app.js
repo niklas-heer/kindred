@@ -848,6 +848,12 @@
     el.search_results.hidden = false;
   }
 
+  const MIN_SCALE = .05;
+  const MAX_SCALE = 4;
+  const PAN_THRESHOLD = 6;
+  const pointers = new Map();
+  let suppressClick = false;
+
   function fitGraph() {
     if (!state.positions.size) return;
     const points = [...state.positions.values()];
@@ -862,7 +868,7 @@
     const top = heading.offsetHeight ? heading.offsetTop + heading.offsetHeight + 12 : 16;
     const bottom = bounds.width > 560 ? 90 : 58;
     const availableHeight = Math.max(80, bounds.height - top - bottom);
-    state.scale = Math.min(1.15, Math.max(.08, Math.min(bounds.width / Math.max(1, maxX - minX), availableHeight / Math.max(1, maxY - minY)) * .9));
+    state.scale = Math.min(1.15, Math.max(MIN_SCALE, Math.min(bounds.width / Math.max(1, maxX - minX), availableHeight / Math.max(1, maxY - minY)) * .9));
     state.tx = bounds.width / 2 - ((minX + maxX) / 2) * state.scale;
     state.ty = top + availableHeight / 2 - ((minY + maxY) / 2) * state.scale;
     applyTransform();
@@ -896,13 +902,16 @@
   });
   el.path_to.addEventListener("change", () => { state.to = el.path_to.value; if (state.to) loadGraph(); });
   el.fit_button.addEventListener("click", fitGraph);
+  function zoomAt(x, y, factor) {
+    const previous = state.scale;
+    state.scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, previous * factor));
+    state.tx = x - (x - state.tx) * (state.scale / previous);
+    state.ty = y - (y - state.ty) * (state.scale / previous);
+    applyTransform();
+  }
   function zoomBy(factor) {
     const bounds = el.graph.getBoundingClientRect();
-    const previous = state.scale;
-    state.scale = Math.min(2.5, Math.max(.08, previous * factor));
-    state.tx = bounds.width / 2 - (bounds.width / 2 - state.tx) * state.scale / previous;
-    state.ty = bounds.height / 2 - (bounds.height / 2 - state.ty) * state.scale / previous;
-    applyTransform();
+    zoomAt(bounds.width / 2, bounds.height / 2, factor);
   }
   el.zoom_in.addEventListener("click", () => zoomBy(1.25));
   el.zoom_out.addEventListener("click", () => zoomBy(.8));
@@ -920,27 +929,70 @@
   el.graph.addEventListener("wheel", (event) => {
     event.preventDefault();
     const bounds = el.graph.getBoundingClientRect();
-    const mouseX = event.clientX - bounds.left;
-    const mouseY = event.clientY - bounds.top;
-    const previous = state.scale;
-    state.scale = Math.min(2.5, Math.max(.08, state.scale * (event.deltaY > 0 ? .9 : 1.1)));
-    state.tx = mouseX - (mouseX - state.tx) * (state.scale / previous);
-    state.ty = mouseY - (mouseY - state.ty) * (state.scale / previous);
-    applyTransform();
+    zoomAt(event.clientX - bounds.left, event.clientY - bounds.top, Math.exp(-event.deltaY * (event.ctrlKey ? .01 : .0015)));
   }, { passive: false });
+  function pointerMid() {
+    const [first, second] = pointers.values(), bounds = el.graph.getBoundingClientRect();
+    return { x: (first.x + second.x) / 2 - bounds.left, y: (first.y + second.y) / 2 - bounds.top };
+  }
+  function startPinch() {
+    const [first, second] = pointers.values();
+    state.drag = { pinch: true, dist: Math.max(1, Math.hypot(first.x - second.x, first.y - second.y)), mid: pointerMid(), scale: state.scale, tx: state.tx, ty: state.ty };
+    suppressClick = true;
+    el.graph.classList.add("panning");
+    for (const id of pointers.keys()) el.graph.setPointerCapture(id);
+  }
+  function pinchTo() {
+    const pinch = state.drag, [first, second] = pointers.values();
+    const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinch.scale * Math.hypot(first.x - second.x, first.y - second.y) / pinch.dist));
+    const ratio = scale / pinch.scale, mid = pointerMid();
+    state.scale = scale;
+    state.tx = mid.x - (pinch.mid.x - pinch.tx) * ratio;
+    state.ty = mid.y - (pinch.mid.y - pinch.ty) * ratio;
+    applyTransform();
+  }
+  function endPointer(event) {
+    if (!pointers.delete(event.pointerId)) return;
+    const [remaining] = pointers.values();
+    // Lifting one finger of a pinch keeps panning with the other from where it is.
+    if (remaining) state.drag = { x: remaining.x, y: remaining.y, tx: state.tx, ty: state.ty, panning: true };
+    else { state.drag = null; el.graph.classList.remove("panning"); }
+  }
   el.graph.addEventListener("pointerdown", (event) => {
-    if (event.target.closest?.(".node")) return;
-    state.drag = { x: event.clientX, y: event.clientY, tx: state.tx, ty: state.ty };
-    el.graph.setPointerCapture(event.pointerId);
+    if (event.button !== 0 || pointers.size >= 2) return;
+    if (!pointers.size) suppressClick = false;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size === 2) startPinch();
+    else state.drag = { x: event.clientX, y: event.clientY, tx: state.tx, ty: state.ty, panning: false };
   });
   el.graph.addEventListener("pointermove", (event) => {
-    if (!state.drag) return;
-    state.tx = state.drag.tx + event.clientX - state.drag.x;
-    state.ty = state.drag.ty + event.clientY - state.drag.y;
+    const pointer = pointers.get(event.pointerId);
+    if (!pointer) return;
+    pointer.x = event.clientX; pointer.y = event.clientY;
+    if (state.drag.pinch) return pinchTo();
+    const drag = state.drag;
+    if (!drag.panning) {
+      // Below the threshold this is still a tap, so the card's click passes through.
+      if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < PAN_THRESHOLD) return;
+      drag.panning = true; suppressClick = true;
+      el.graph.setPointerCapture(event.pointerId);
+      el.graph.classList.add("panning");
+    }
+    state.tx = drag.tx + event.clientX - drag.x;
+    state.ty = drag.ty + event.clientY - drag.y;
     applyTransform();
   });
-  el.graph.addEventListener("pointerup", () => { state.drag = null; });
-  el.graph.addEventListener("pointercancel", () => { state.drag = null; });
+  // Window-level so a release over the graph's overlay controls still ends the pointer.
+  window.addEventListener("pointerup", endPointer);
+  window.addEventListener("pointercancel", endPointer);
+  // Moving capture from a card to the graph fires lostpointercapture on the card, which must not end the gesture.
+  el.graph.addEventListener("lostpointercapture", (event) => { if (event.target === el.graph) endPointer(event); });
+  // Capture phase so the click the browser fires after a pan or pinch never reaches a card.
+  el.graph.addEventListener("click", (event) => {
+    if (!suppressClick) return;
+    suppressClick = false;
+    event.stopPropagation();
+  }, true);
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "/" && !/input|textarea|select/i.test(document.activeElement?.tagName || "")) {

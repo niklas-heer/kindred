@@ -61,7 +61,9 @@ select, .query-options input[type="number"] { border: 1px solid var(--line); bor
 .diagnostics { padding: .65rem 1.1rem; border-bottom: 1px solid #e6cda8; color: #704b1e; background: #fff3df; font-size: .82rem; }
 .path-picker { display: flex; align-items: center; justify-content: center; gap: .8rem; padding: .55rem; border-bottom: 1px solid var(--line); background: #f1f4ef; font-size: .82rem; }
 .graph-shell { position: relative; flex: 1; min-height: 320px; overflow: hidden; background-image: radial-gradient(#dce2d8 .8px, transparent .8px); background-size: 20px 20px; }
-#graph { cursor: grab; touch-action: none; display: block; width: 100%; height: 100%; min-height: 320px; }
+#graph { cursor: grab; touch-action: none; user-select: none; display: block; width: 100%; height: 100%; min-height: 320px; }
+#graph.panning, #graph.panning * { cursor: grabbing; }
+#graph img { pointer-events: none; }
 .edge { fill: none; stroke: #98aaa3; stroke-width: 1.65; stroke-linecap: round; }
 .connection.partner .edge { stroke: #b5a58b; stroke-width: 2; }
 .connection.evidence .edge, .connection.event .edge { stroke: #b9ac91; stroke-dasharray: 3 6; opacity: .6; }
