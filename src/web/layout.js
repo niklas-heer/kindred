@@ -210,9 +210,11 @@
         const groupBirth = (group) => Math.min(...group.members.map(birth));
         const reorder = (rank, neighbors) => {
           buckets.get(rank).sort((left, right) => {
+            // Compare relative positions: rows differ in length, so raw indices would pull a group towards a short row's start.
+            const relative = (id) => (order.get(id) + .5) / buckets.get(ranks.get(id) - minimumRank).length;
             const score = (group) => {
-              const values = neighbors.get(group.id).filter((id) => order.has(id)).map((id) => order.get(id));
-              return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : order.get(group.id);
+              const values = neighbors.get(group.id).filter((id) => order.has(id)).map(relative);
+              return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : relative(group.id);
             };
             return groupSide(left) - groupSide(right) || score(left) - score(right) || groupBirth(left) - groupBirth(right) || left.id.localeCompare(right.id);
           });
@@ -224,6 +226,8 @@
           for (const rank of rankNumbers.slice(1)) reorder(rank, incoming);
           for (const rank of [...rankNumbers].reverse().slice(1)) reorder(rank, outgoing);
         }
+        // Finish top-down so each family's children follow their parents' order.
+        for (const rank of rankNumbers.slice(1)) reorder(rank, incoming);
 
         const widthOfGroup = (group) => CARD_WIDTH + (group.members.length - 1) * X_STEP;
         const widthOfRank = (rank) => {

@@ -54,6 +54,21 @@ test("siblings order by ISO birth dates regardless of IDs", () => {
   assert.ok(positions.get("z-older").x < positions.get("a-younger").x);
   separated(positions);
 });
+test("half-siblings stay grouped by couple when one branch has a shorter row below it", () => {
+  // Two partnerships of one root; four child couples; only "c" has grandchildren, two of them.
+  const ids = ["root", "first", "second", "a", "a-sp", "b", "b-sp", "c", "c-sp", "d", "d-sp", "ga", "gb", "gc", "gc-sp", "gd", "ggc1", "ggc2"];
+  const edges = [partner("root", "first"), partner("root", "second"),
+    ...["a", "b"].flatMap((child) => [parent("first", child, "mother"), parent("root", child, "father")]),
+    ...["c", "d"].flatMap((child) => [parent("second", child, "mother"), parent("root", child, "father")]),
+    ...["a", "b", "c", "d"].flatMap((child) => [partner(child, `${child}-sp`), parent(child, `g${child}`), parent(`${child}-sp`, `g${child}`)]),
+    partner("gc", "gc-sp"), parent("gc", "ggc1"), parent("gc-sp", "ggc1"), parent("gc", "ggc2"), parent("gc-sp", "ggc2")];
+  const positions = arrange(ids.map((id) => person(id)), edges, "root");
+  const x = (id) => positions.get(id).x;
+  const [firstLeft, firstRight] = [Math.min(x("a"), x("b")), Math.max(x("a"), x("b"))], [secondLeft, secondRight] = [Math.min(x("c"), x("d")), Math.max(x("c"), x("d"))];
+  assert.ok(firstRight < secondLeft || secondRight < firstLeft, "children of one partnership must not be split by the other's");
+  for (const [left, right] of [["a", "b"], ["a", "c"], ["b", "d"], ["c", "d"]]) assert.equal(x(left) < x(right), x(`g${left}`) < x(`g${right}`), `g${left} and g${right} follow their parents`);
+  separated(positions);
+});
 test("cycles, isolated people and evidence stay finite and disjoint", () => {
   const nodes = ["a", "b", "c", "isolated"].map((id) => person(id));
   nodes.push({id: "source", kind: "source"});
