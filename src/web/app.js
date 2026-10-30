@@ -370,7 +370,7 @@
     clear(el.nodes);
     clear(el.edges);
 
-    for (const edge of edges) renderEdge(edge);
+    for (const edge of edges) renderEdge(edge, edges);
     for (const node of nodes) renderNode(node);
     renderGraphSelection();
 
@@ -388,7 +388,7 @@
     requestAnimationFrame(fitGraph);
   }
 
-  function renderEdge(edge) {
+  function renderEdge(edge, edges) {
     const from = state.positions.get(edge.from), to = state.positions.get(edge.to);
     if (!from || !to) return;
     const sideLink = state.mode === "path" || edge.relation === "partner" || edge.relation === "evidence" || edge.relation === "event";
@@ -403,10 +403,12 @@
       d = `M ${x1} ${from.y} C ${x1 + direction * bend} ${from.y}, ${x2 - direction * bend} ${to.y}, ${x2} ${to.y}`;
     } else {
       const direction = to.y > from.y ? 1 : -1;
-      const y1 = from.y + direction * CARD_HEIGHT / 2, y2 = to.y - direction * CARD_HEIGHT / 2;
-      const middle = y1 + (y2 - y1) * (parentRole(edge) === "mother" ? .36 : parentRole(edge) === "father" ? .64 : .5);
-      const dx = Math.sign(to.x - from.x), radius = Math.min(10, Math.abs(to.x - from.x) / 2, Math.abs(middle - y1) / 2, Math.abs(y2 - middle) / 2);
-      d = `M ${from.x} ${y1} V ${middle - direction * radius} Q ${from.x} ${middle} ${from.x + dx * radius} ${middle} H ${to.x - dx * radius} Q ${to.x} ${middle} ${to.x} ${middle + direction * radius} V ${y2}`;
+      const anchor = KindredLayout.parentAnchor(edge, edges, state.positions, { cardWidth: CARD_WIDTH, cardHeight: CARD_HEIGHT });
+      const start = anchor || { x: from.x, y: from.y + direction * CARD_HEIGHT / 2 }, y2 = to.y - direction * CARD_HEIGHT / 2;
+      const share = anchor ? .5 : parentRole(edge) === "mother" ? .36 : parentRole(edge) === "father" ? .64 : .5;
+      const middle = start.y + (y2 - start.y) * share;
+      const dx = Math.sign(to.x - start.x), radius = Math.min(10, Math.abs(to.x - start.x) / 2, Math.abs(middle - start.y) / 2, Math.abs(y2 - middle) / 2);
+      d = `M ${start.x} ${start.y} V ${middle - direction * radius} Q ${start.x} ${middle} ${start.x + dx * radius} ${middle} H ${to.x - dx * radius} Q ${to.x} ${middle} ${to.x} ${middle + direction * radius} V ${y2}`;
     }
     const status = String(edge.status || "accepted").toLocaleLowerCase();
     const group = svg("g", { className: `connection ${edge.relation} ${status}`, attrs: { "data-id": edge.id, "data-from": edge.from, "data-to": edge.to } });

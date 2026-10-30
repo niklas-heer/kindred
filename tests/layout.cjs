@@ -68,3 +68,23 @@ test("path layout follows the selected endpoint, including reversed supplied edg
   assert.ok(positions.get("a").x < positions.get("b").x && positions.get("b").x < positions.get("c").x);
   separated(positions);
 });
+// Mother at x=-gap/2 on row 0, father at x=gap/2 on row fatherY, child two rows down.
+const couple = (fatherY = 0, gap = 284) => new Map([["mother", { x: -gap / 2, y: 0 }], ["father", { x: gap / 2, y: fatherY }], ["child", { x: 0, y: 224 }]]);
+const coupleEdges = [parent("mother", "child", "mother"), parent("father", "child", "father"), partner("father", "mother")];
+test("adjacent partners give both child edges the same anchor at the midpoint and centre height", () => {
+  const positions = couple();
+  const mother = KindredLayout.parentAnchor(coupleEdges[0], coupleEdges, positions), father = KindredLayout.parentAnchor(coupleEdges[1], coupleEdges, positions);
+  assert.deepEqual(mother, { x: 0, y: 0 });
+  assert.deepEqual(father, mother);
+});
+test("distant partners give both child edges the same anchor under the cards", () => {
+  const positions = couple(0, 800);
+  const mother = KindredLayout.parentAnchor(coupleEdges[0], coupleEdges, positions), father = KindredLayout.parentAnchor(coupleEdges[1], coupleEdges, positions);
+  assert.deepEqual(mother, { x: 0, y: 72 + 20 });
+  assert.deepEqual(father, mother);
+});
+test("parentAnchor is null without a partner link, for a single parent, or for parents on different rows", () => {
+  assert.equal(KindredLayout.parentAnchor(coupleEdges[0], [coupleEdges[0], coupleEdges[1]], couple()), null);
+  assert.equal(KindredLayout.parentAnchor(coupleEdges[0], [coupleEdges[0]], couple()), null);
+  assert.equal(KindredLayout.parentAnchor(coupleEdges[0], coupleEdges, couple(224)), null);
+});

@@ -292,5 +292,21 @@
     return positions;
   }
 
-  globalThis.KindredLayout = { layout };
+  // Where a child's line leaves a couple: the partner link's midpoint, at the partners' height when they are adjacent and under the cards otherwise.
+  function parentAnchor(edge, edges, positions, { cardWidth = 248, cardHeight = 144 } = {}) {
+    const isParent = (candidate) => !["partner", "evidence", "event"].includes(candidate.relation);
+    const from = positions.get(edge.from);
+    if (!isParent(edge) || !from || !positions.get(edge.to)) return null;
+    for (const other of edges) {
+      const to = positions.get(other.from);
+      if (other === edge || other.to !== edge.to || other.from === edge.from || !isParent(other) || !to || to.y !== from.y) continue;
+      const partnered = edges.some((link) => link.relation === "partner" && ((link.from === edge.from && link.to === other.from) || (link.from === other.from && link.to === edge.from)));
+      if (!partnered) continue;
+      const adjacent = Math.abs(to.x - from.x) <= cardWidth + 40;
+      return { x: (from.x + to.x) / 2, y: adjacent ? from.y : from.y + cardHeight / 2 + 20 };
+    }
+    return null;
+  }
+
+  globalThis.KindredLayout = { layout, parentAnchor };
 })();
