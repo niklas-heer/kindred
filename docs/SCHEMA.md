@@ -55,6 +55,13 @@ separate dated events with their explanations. Kindred does not turn uncertain
 wording into an exact date. `living` and `private`, when supplied, must be booleans.
 Missing living status does not establish that someone is deceased or public.
 
+`date_display: year` asks published sites to show only the person's birth year.
+Its only accepted value is `year`; other values fail `kindred site`. The flag is
+for an adult whose full birth date should stay private. A site also reduces the
+birth date of anyone who is under 18 on the reference date and whose `living` is
+not `false`. The reduction applies to `born`, `birth`, `birth_date`, and the derived
+birth event. Other dates stay as written.
+
 `occupation` is conventionally a string or list of strings. Use `## Story` and
 `## Research notes` Markdown headings if helpful; these headings are optional,
 and the body remains ordinary authored prose. Cite facts and distinguish

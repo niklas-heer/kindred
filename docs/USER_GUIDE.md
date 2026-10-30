@@ -241,6 +241,55 @@ semantics/status (`_KINDRED_RELATION` and `_KINDRED_STATUS`) where the standard
 pedigree field is insufficient. This extension is
 optional to other readers and does not make a partial export lossless.
 
+## Publish a static family site
+
+```sh
+kindred site ./family ../family-site --view simple --suggest-url /help
+```
+
+`site` writes a new directory: `index.html` and the viewer's scripts and styles,
+`graph.json` with the records, claims, and portrait references, and an
+`attachments/` folder holding portrait images. It needs no server-side Kindred and
+no network access; any static host can serve it. The destination must not exist.
+Kindred builds in a staging directory beside it, checks the result, and renames it
+into place only when every check passes. A failed build leaves nothing behind.
+
+**Living people are included.** A site is not public by default. Host it behind
+authentication, such as a proxy that requires a family login. Do not publish it at
+an open URL.
+
+What is included: people and their stories (the Markdown after the frontmatter),
+dates and places as written, occupations, claims with every status, and sources and
+events that are not private. Each included person's portrait image is copied.
+
+What is left out:
+
+- notes with `private: true`, and everything a private note owns (its derived
+  events, claims, and citations);
+- claims touching a private person, claims marked `private: true`, and every
+  reference to an omitted record, so no edge or event points at something missing;
+- the raw note text, including frontmatter. The viewer cannot edit, so only the
+  story body is kept;
+- attachments other than portrait images, including source scans.
+
+Birth dates are reduced to the year for two groups. A person whose note sets
+`date_display: year` is one. A person who is under 18 on the reference date, and
+whose `living` is not `false`, is the other. Their full birth date in `born`,
+`birth`, or `birth_date` (and in the derived birth event) becomes the year. Other
+people keep their dates as written. `--today YYYY-MM-DD` sets the reference date;
+it defaults to today's UTC date.
+
+Before publication, Kindred scans every text file for a protected person's full
+birth date, in ISO form (`2017-09-26`), dotted form (`26.09.2017`), or written out
+in English or German (`26 September 2017`, `26. März 2017`). A match fails the build
+with exit code 1, naming the person ID and the file but never the date. Remove the
+full date from that person's story, a source note, or any other visible text, then
+build again.
+
+Options: `--view simple|research` chooses the view the page opens in (default
+`research`). `--suggest-url` adds a suggestion link. It must be a path starting
+with `/` but not `//`, or an `https://` URL. Invalid options exit with code 2.
+
 ## Optional Obsidian use
 
 Open the archive folder as a vault. No plugin is required. Simple properties,

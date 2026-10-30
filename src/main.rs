@@ -2,7 +2,7 @@ use kindred::{
     archive::Archive,
     editing, exchange, quality,
     query::{self, QueryOptions, QueryResult},
-    web,
+    site, web,
 };
 use std::{env, fs, path::Path, process::ExitCode};
 
@@ -24,6 +24,7 @@ Commands:
   export <archive> <new-directory> --all|--public
   export-gedcom <archive> <new-directory> --all|--public
   import-gedcom <file.ged> <new-archive>      Import with a mapping/loss report
+  site <archive> <new-directory> [options]   Publish a static family viewer
 
 Query options:
   --generations N       Maximum generations/hops (default 4)
@@ -32,9 +33,15 @@ Query options:
   --statuses LIST       accepted,tentative,disputed,rejected (default accepted)
   --json                Structured results with claims and evidence references
 
+Site options:
+  --view simple|research  Viewer opened first (default research)
+  --suggest-url URL       Same-origin path starting with / (not //), or https://
+  --today YYYY-MM-DD      Reference date for minors (default: today, UTC)
+
 Export scope is required. --all includes private/living records and attachments;
 --public emits a minimal projection of explicitly deceased, non-private people.
 GEDCOM is a lossy interchange subset; use export --all for complete backups.
+A site includes living people; host it behind authentication.
 Exit codes: 0 success, 1 validation/operation failure, 2 usage error.
   -h, --help            Show this help
   -V, --version         Show the version";
@@ -64,6 +71,9 @@ impl Arguments {
                         | "--expected"
                         | "--from"
                         | "--body"
+                        | "--view"
+                        | "--suggest-url"
+                        | "--today"
                 ) {
                     return Err(format!("usage: unknown option {value}; try --help"));
                 }
@@ -293,6 +303,15 @@ fn run(args: &Arguments) -> Result<u8, String> {
         "import-gedcom" => {
             args.validate(3, &[])?;
             json(&exchange::gedcom::import(root, Path::new(args.at(2)?))?)?;
+        }
+        "site" => {
+            args.validate(3, &["--view", "--suggest-url", "--today"])?;
+            let options = site::Options::new(
+                args.option("--view"),
+                args.option("--suggest-url"),
+                args.option("--today"),
+            )?;
+            json(&site::build(root, Path::new(args.at(2)?), &options)?)?;
         }
         _ => return Err("usage: unrecognized command; try --help".into()),
     }

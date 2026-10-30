@@ -15,14 +15,17 @@ use crate::{
     query::{self, QueryOptions, QueryResult},
 };
 
-const INDEX: &str = include_str!("web/index.html");
-const STYLES: &str = include_str!("web/app.css");
-const FAMILY: &str = include_str!("web/family.js");
-const LAYOUT: &str = include_str!("web/layout.js");
-const I18N: &str = include_str!("web/i18n.js");
-const QUERY: &str = include_str!("web/query.js");
-const SCRIPT: &str = include_str!("web/app.js");
-const ICONS: &str = include_str!("web/icons.svg");
+pub(crate) const INDEX: &str = include_str!("web/index.html");
+pub(crate) const STYLES: &str = include_str!("web/app.css");
+pub(crate) const FAMILY: &str = include_str!("web/family.js");
+pub(crate) const LAYOUT: &str = include_str!("web/layout.js");
+pub(crate) const I18N: &str = include_str!("web/i18n.js");
+pub(crate) const QUERY: &str = include_str!("web/query.js");
+pub(crate) const SCRIPT: &str = include_str!("web/app.js");
+pub(crate) const ICONS: &str = include_str!("web/icons.svg");
+/// Content-Security-Policy for viewer pages. The server adds `frame-ancestors`, which a
+/// `<meta>` element cannot carry.
+pub(crate) const PAGE_POLICY: &str = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'";
 const MAX_EDIT_BYTES: u64 = 4 * 1024 * 1024;
 
 /// Serves the archive on IPv4 loopback until the process is stopped.
@@ -345,13 +348,13 @@ fn attachment_response(request: Request, root: &Path, query_string: &str) -> Res
 }
 
 #[derive(serde::Serialize)]
-struct Attachment {
-    record: String,
-    path: String,
-    label: String,
+pub(crate) struct Attachment {
+    pub(crate) record: String,
+    pub(crate) path: String,
+    pub(crate) label: String,
 }
 
-fn attachment_manifest(archive: &Archive) -> Vec<Attachment> {
+pub(crate) fn attachment_manifest(archive: &Archive) -> Vec<Attachment> {
     let mut attachments = Vec::new();
     for record in &archive.records {
         for field in ["attachments", "media", "file", "portrait"] {
@@ -436,7 +439,7 @@ fn label_for_attachment(record: &crate::archive::Record, path: &str) -> String {
     }
 }
 
-fn attachment_content_type(path: &Path) -> &'static str {
+pub(crate) fn attachment_content_type(path: &Path) -> &'static str {
     match path
         .extension()
         .and_then(std::ffi::OsStr::to_str)
@@ -462,7 +465,7 @@ fn respond_static(request: Request, body: &str, content_type: &str) -> Result<()
     add_header(
         &mut response,
         "Content-Security-Policy",
-        "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+        &format!("{PAGE_POLICY}; frame-ancestors 'none'"),
     )?;
     request
         .respond(response)
