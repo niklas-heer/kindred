@@ -873,7 +873,9 @@
       const stored = localStorage.getItem("kindred.lang");
       if (stored === "en" || stored === "de") return stored;
     } catch { /* Private browsing can refuse storage. */ }
-    return (navigator.languages || []).some((tag) => String(tag).split("-")[0].toLocaleLowerCase() === "de") ? "de" : "en";
+    // The browser's first supported language wins, so "en-US, de" stays English.
+    const supported = (navigator.languages || [navigator.language]).map((tag) => String(tag).split("-")[0].toLocaleLowerCase()).find((tag) => tag === "en" || tag === "de");
+    return supported || "en";
   }
 
   // Rewrites only the named parameters, so ?view= and ?lang= keep each other.
