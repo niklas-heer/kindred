@@ -3,83 +3,87 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Kindred · Family archive</title>
+  <title data-i18n="pageTitle">Kindred · Family archive</title>
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
-  <a class="skip-link" href="#graph">Skip to family graph</a>
+  <a class="skip-link" href="#graph" data-i18n="skipToGraph">Skip to family graph</a>
   <header class="masthead">
-    <a class="brand" href="/" aria-label="Kindred home">
+    <a class="brand" href="/" data-i18n-attr="aria-label:brandHome" aria-label="Kindred home">
       <span class="brand-mark" aria-hidden="true">K</span>
-      <span><strong>Kindred</strong><small>Family archive</small></span>
+      <span><strong>Kindred</strong><small data-i18n="familyArchive">Family archive</small></span>
     </a>
     <label class="search">
-      <span class="visually-hidden">Find a person</span>
+      <span class="visually-hidden" data-i18n="findPerson">Find a person</span>
       <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"></circle><path d="m16 16 4 4"></path></svg>
-      <input id="search" type="search" placeholder="Find a person…" autocomplete="off" aria-controls="search-results">
+      <input id="search" type="search" placeholder="Find a person…" data-i18n-attr="placeholder:findPersonPlaceholder" autocomplete="off" aria-controls="search-results">
       <kbd>/</kbd>
       <div id="search-results" class="search-results" hidden></div>
     </label>
     <div class="masthead-actions">
-      <div class="mode-tabs view-switch" role="group" aria-label="View">
-        <button type="button" data-view="simple" aria-pressed="false">Simple</button>
-        <button type="button" data-view="research" aria-pressed="true">Research</button>
+      <div class="mode-tabs view-switch" role="group" data-i18n-attr="aria-label:view" aria-label="View">
+        <button type="button" data-view="simple" aria-pressed="false" data-i18n="simple">Simple</button>
+        <button type="button" data-view="research" aria-pressed="true" data-i18n="research">Research</button>
       </div>
-      <button id="help-button" class="quiet-button" type="button" aria-expanded="false" aria-controls="shortcuts">Keyboard</button>
+      <div class="mode-tabs lang-switch" role="group" data-i18n-attr="aria-label:language" aria-label="Language">
+        <button type="button" data-lang="en" lang="en" title="English" aria-pressed="true">EN</button>
+        <button type="button" data-lang="de" lang="de" title="Deutsch" aria-pressed="false">DE</button>
+      </div>
+      <button id="help-button" class="quiet-button" type="button" aria-expanded="false" aria-controls="shortcuts" data-i18n="keyboard">Keyboard</button>
     </div>
   </header>
 
   <main class="workspace">
-    <section class="explorer" aria-label="Graph explorer">
+    <section class="explorer" data-i18n-attr="aria-label:graphExplorer" aria-label="Graph explorer">
       <div class="toolbar">
-        <div class="mode-tabs" role="group" aria-label="Graph view">
-          <button type="button" data-mode="overview" aria-pressed="true">Overview</button>
-          <button type="button" data-mode="focus" aria-pressed="false">Family</button>
-          <button type="button" data-mode="ancestors" aria-pressed="false">Ancestors</button>
-          <button type="button" data-mode="descendants" aria-pressed="false">Descendants</button>
-          <button type="button" data-mode="path" aria-pressed="false" class="research-only">Path</button>
+        <div class="mode-tabs" role="group" data-i18n-attr="aria-label:graphView" aria-label="Graph view">
+          <button type="button" data-mode="overview" aria-pressed="true" data-i18n="overview">Overview</button>
+          <button type="button" data-mode="focus" aria-pressed="false" data-i18n="family">Family</button>
+          <button type="button" data-mode="ancestors" aria-pressed="false" data-i18n="ancestors">Ancestors</button>
+          <button type="button" data-mode="descendants" aria-pressed="false" data-i18n="descendants">Descendants</button>
+          <button type="button" data-mode="path" aria-pressed="false" class="research-only" data-i18n="path">Path</button>
         </div>
         <div class="query-options">
-          <label id="branch-picker">Branch
-            <select id="branch-root" aria-label="Overview branch"><option value="">All family roots</option></select>
+          <label id="branch-picker"><span data-i18n="branch">Branch</span>
+            <select id="branch-root" data-i18n-attr="aria-label:overviewBranch" aria-label="Overview branch"><option value="" data-i18n="allFamilyRoots">All family roots</option></select>
           </label>
-          <label>Arrange
-            <select id="layout-order"><option value="sides">Family sides</option><option value="compact">Compact</option></select>
+          <label><span data-i18n="arrange">Arrange</span>
+            <select id="layout-order"><option value="sides" data-i18n="familySides">Family sides</option><option value="compact" data-i18n="compact">Compact</option></select>
           </label>
-          <label>Depth
+          <label><span data-i18n="depth">Depth</span>
             <input id="generations" type="number" min="1" max="64" value="2" inputmode="numeric">
           </label>
-          <label class="research-only">Relation
+          <label class="research-only"><span data-i18n="relation">Relation</span>
             <select id="relation-filter">
-              <option value="">All types</option>
-              <option value="biological_parent">Biological</option>
-              <option value="adoptive_parent">Adoptive</option>
-              <option value="foster_parent">Foster</option>
-              <option value="partner">Partners</option>
+              <option value="" data-i18n="allTypes">All types</option>
+              <option value="biological_parent" data-i18n="relation.biological">Biological</option>
+              <option value="adoptive_parent" data-i18n="relation.adoptive">Adoptive</option>
+              <option value="foster_parent" data-i18n="relation.foster">Foster</option>
+              <option value="partner" data-i18n="relationFilterPartners">Partners</option>
             </select>
           </label>
-          <label class="research-only">Status
+          <label class="research-only"><span data-i18n="status">Status</span>
             <select id="status-filter">
-              <option value="accepted">Accepted</option>
-              <option value="accepted,tentative,disputed">Include uncertain</option>
-              <option value="all">All claims</option>
+              <option value="accepted" data-i18n="status.accepted">Accepted</option>
+              <option value="accepted,tentative,disputed" data-i18n="includeUncertain">Include uncertain</option>
+              <option value="all" data-i18n="allClaims">All claims</option>
             </select>
           </label>
-          <label class="evidence-toggle research-only"><input id="show-evidence" type="checkbox"> Evidence</label>
-          <button id="overview-toggle" class="quiet-button" type="button">Show all</button>
+          <label class="evidence-toggle research-only"><input id="show-evidence" type="checkbox"> <span data-i18n="evidence">Evidence</span></label>
+          <button id="overview-toggle" class="quiet-button" type="button" data-i18n="showAll">Show all</button>
         </div>
       </div>
 
       <div id="diagnostics" class="diagnostics research-only" hidden role="status"></div>
       <div id="path-picker" class="path-picker" hidden>
-        <span>Path from <strong id="path-from">choose a person</strong></span>
+        <span><span data-i18n="pathFrom">Path from</span> <strong id="path-from" data-i18n="choosePersonLower">choose a person</strong></span>
         <span aria-hidden="true">→</span>
-        <label>to <select id="path-to"><option value="">Choose a person…</option></select></label>
+        <label><span data-i18n="to">to</span> <select id="path-to"><option value="" data-i18n="choosePerson">Choose a person…</option></select></label>
       </div>
 
       <div class="graph-shell">
-        <div class="graph-heading"><strong id="selection-summary">Your family, connected</strong><small id="arrangement-caption">Parents above children</small><div id="selection-key" class="selection-key" aria-label="Highlighted relatives"></div></div>
-        <svg id="graph" role="group" aria-label="Family relationship graph" tabindex="0">
+        <div class="graph-heading"><strong id="selection-summary" data-i18n="yourFamily">Your family, connected</strong><small id="arrangement-caption" data-i18n="parentsAboveChildren">Parents above children</small><div id="selection-key" class="selection-key" data-i18n-attr="aria-label:highlightedRelatives" aria-label="Highlighted relatives"></div></div>
+        <svg id="graph" role="group" data-i18n-attr="aria-label:graphLabel" aria-label="Family relationship graph" tabindex="0">
           <defs>
             <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
               <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#293c30" flood-opacity=".06"/>
@@ -88,51 +92,52 @@
           <g id="viewport"><g id="edges"></g><g id="nodes"></g></g>
         </svg>
         <div id="empty-state" class="empty-state" hidden>
-          <span aria-hidden="true">⌁</span><strong>No connections in this view</strong>
-          <p>Try another person, add uncertain claims, or increase the depth.</p>
+          <span aria-hidden="true">⌁</span><strong data-i18n="noConnections">No connections in this view</strong>
+          <p data-i18n="noConnectionsHint">Try another person, add uncertain claims, or increase the depth.</p>
         </div>
-        <div class="graph-key" aria-label="Graph legend">
-          <span class="role-key"><svg class="icon" aria-hidden="true"><use href="/icons.svg#venus"/></svg> Mother</span>
-          <span class="role-key"><svg class="icon" aria-hidden="true"><use href="/icons.svg#mars"/></svg> Father</span>
-          <span><i class="person-dot"></i> <span id="direction-label">Parents above children</span></span>
-          <span class="research-only"><i class="uncertain-line"></i> Tentative or disputed</span>
+        <div class="graph-key" data-i18n-attr="aria-label:graphLegend" aria-label="Graph legend">
+          <span class="role-key"><svg class="icon" aria-hidden="true"><use href="/icons.svg#venus"/></svg> <span data-i18n="role.mother">Mother</span></span>
+          <span class="role-key"><svg class="icon" aria-hidden="true"><use href="/icons.svg#mars"/></svg> <span data-i18n="role.father">Father</span></span>
+          <span><i class="person-dot"></i> <span id="direction-label" data-i18n="parentsAboveChildren">Parents above children</span></span>
+          <span class="research-only"><i class="uncertain-line"></i> <span data-i18n="legendUncertain">Tentative or disputed</span></span>
         </div>
-        <div class="graph-controls" role="group" aria-label="Graph zoom">
-          <button id="zoom-out" type="button" aria-label="Zoom out"><svg class="icon" aria-hidden="true"><use href="/icons.svg#minus"/></svg></button>
+        <div class="graph-controls" role="group" data-i18n-attr="aria-label:graphZoom" aria-label="Graph zoom">
+          <button id="zoom-out" type="button" data-i18n-attr="aria-label:zoomOut" aria-label="Zoom out"><svg class="icon" aria-hidden="true"><use href="/icons.svg#minus"/></svg></button>
           <span id="zoom-level">100%</span>
-          <button id="zoom-in" type="button" aria-label="Zoom in"><svg class="icon" aria-hidden="true"><use href="/icons.svg#plus"/></svg></button>
-          <button id="fit-button" type="button" aria-label="Fit graph"><svg class="icon" aria-hidden="true"><use href="/icons.svg#scan"/></svg> Fit</button>
+          <button id="zoom-in" type="button" data-i18n-attr="aria-label:zoomIn" aria-label="Zoom in"><svg class="icon" aria-hidden="true"><use href="/icons.svg#plus"/></svg></button>
+          <button id="fit-button" type="button" data-i18n-attr="aria-label:fitGraph" aria-label="Fit graph"><svg class="icon" aria-hidden="true"><use href="/icons.svg#scan"/></svg> <span data-i18n="fit">Fit</span></button>
         </div>
-        <div id="graph-status" class="graph-status" role="status">Loading archive…</div>
+        <div id="graph-status" class="graph-status" role="status" data-i18n="loadingArchive">Loading archive…</div>
       </div>
     </section>
 
-    <aside id="details" class="details" aria-label="Details">
+    <aside id="details" class="details" data-i18n-attr="aria-label:details" aria-label="Details">
       <div class="details-empty">
         <span class="details-monogram" aria-hidden="true">K</span>
-        <h1>Choose a person</h1>
-        <p>Select someone in the graph to read their story and inspect the evidence behind each connection.</p>
+        <h1 data-i18n="chooseAPerson">Choose a person</h1>
+        <p data-i18n="detailsIntro">Select someone in the graph to read their story and inspect the evidence behind each connection.</p>
       </div>
     </aside>
   </main>
 
   <dialog id="editor">
     <form method="dialog" class="editor-card">
-      <header><div><span class="eyebrow">Markdown note</span><h2 id="editor-title">Edit record</h2></div><button value="cancel" aria-label="Close editor">×</button></header>
-      <p class="editor-hint">Kindred preserves the complete note. Changes are refused if another editor saved first.</p>
-      <textarea id="editor-text" spellcheck="true" aria-label="Raw Markdown note"></textarea>
+      <header><div><span class="eyebrow" data-i18n="markdownNote">Markdown note</span><h2 id="editor-title" data-i18n="editRecord">Edit record</h2></div><button value="cancel" data-i18n-attr="aria-label:closeEditor" aria-label="Close editor">×</button></header>
+      <p class="editor-hint" data-i18n="editorHint">Kindred preserves the complete note. Changes are refused if another editor saved first.</p>
+      <textarea id="editor-text" spellcheck="true" data-i18n-attr="aria-label:rawNote" aria-label="Raw Markdown note"></textarea>
       <div id="editor-message" class="editor-message" role="status"></div>
-      <footer><button value="cancel" class="quiet-button">Cancel</button><button id="save-button" value="default" type="button" class="primary-button">Save note</button></footer>
+      <footer><button value="cancel" class="quiet-button" data-i18n="cancel">Cancel</button><button id="save-button" value="default" type="button" class="primary-button" data-i18n="saveNote">Save note</button></footer>
     </form>
   </dialog>
 
   <div id="shortcuts" class="shortcuts" hidden>
-    <strong>Keyboard</strong>
-    <dl><dt><kbd>/</kbd></dt><dd>Find a person</dd><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Move between people</dd><dt><kbd>Enter</kbd></dt><dd>Open family</dd><dt><kbd>+</kbd> <kbd>−</kbd></dt><dd>Change depth</dd><dt><kbd>Esc</kbd></dt><dd>Close</dd></dl>
+    <strong data-i18n="keyboard">Keyboard</strong>
+    <dl><dt><kbd>/</kbd></dt><dd data-i18n="findPerson">Find a person</dd><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd data-i18n="keyboardMove">Move between people</dd><dt><kbd>Enter</kbd></dt><dd data-i18n="openFamily">Open family</dd><dt><kbd>+</kbd> <kbd>−</kbd></dt><dd data-i18n="keyboardDepth">Change depth</dd><dt><kbd>Esc</kbd></dt><dd data-i18n="close">Close</dd></dl>
   </div>
 
   <script src="/family.js"></script>
   <script src="/layout.js"></script>
+  <script src="/i18n.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

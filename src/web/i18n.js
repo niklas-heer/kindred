@@ -1,0 +1,402 @@
+(function installKindredI18n(global) {
+  "use strict";
+
+  // Interface strings only. Archive content (names, occupations, notes, places, original date wording) is never translated.
+  const dictionaries = {
+    en: {
+      pageTitle: "Kindred · Family archive",
+      familyArchive: "Family archive",
+      brandHome: "Kindred home",
+      language: "Language",
+      skipToGraph: "Skip to family graph",
+      findPerson: "Find a person",
+      findPersonPlaceholder: "Find a person…",
+      view: "View",
+      simple: "Simple",
+      research: "Research",
+      keyboard: "Keyboard",
+      graphExplorer: "Graph explorer",
+      graphView: "Graph view",
+      graphLabel: "Family relationship graph",
+      highlightedRelatives: "Highlighted relatives",
+      overview: "Overview",
+      family: "Family",
+      ancestors: "Ancestors",
+      descendants: "Descendants",
+      path: "Path",
+      branch: "Branch",
+      overviewBranch: "Overview branch",
+      allFamilyRoots: "All family roots",
+      arrange: "Arrange",
+      familySides: "Family sides",
+      compact: "Compact",
+      depth: "Depth",
+      relation: "Relation",
+      allTypes: "All types",
+      relationFilterPartners: "Partners",
+      status: "Status",
+      includeUncertain: "Include uncertain",
+      allClaims: "All claims",
+      evidence: "Evidence",
+      showAll: "Show all",
+      collapseAll: "Collapse all",
+      pathFrom: "Path from",
+      to: "to",
+      choosePerson: "Choose a person…",
+      choosePersonLower: "choose a person",
+      chooseSecondPerson: "Choose the second person above",
+      archiveNeedsAttention: "Archive needs attention.",
+      archiveDiagnostics: { one: "{count} archive diagnostic", other: "{count} archive diagnostics" },
+      yourFamily: "Your family, connected",
+      parentsAboveChildren: "Parents above children",
+      connectionPath: "Connection path",
+      compactGroups: "Compact family groups · Parents above children",
+      arrangedAround: "Arranged around {name} · Mother’s side left · Father’s side right",
+      selectPersonToTrace: "Select a person to trace their family",
+      connectionsOf: "Connections of {name} · in this view",
+      legendUncertain: "Tentative or disputed",
+      graphLegend: "Graph legend",
+      graphZoom: "Graph zoom",
+      zoomOut: "Zoom out",
+      zoomIn: "Zoom in",
+      fitGraph: "Fit graph",
+      fit: "Fit",
+      loadingArchive: "Loading archive…",
+      readingArchive: "Reading archive…",
+      couldNotLoad: "Could not load archive",
+      requestFailed: "Request failed ({status})",
+      noConnections: "No connections in this view",
+      noConnectionsHint: "Try another person, add uncertain claims, or increase the depth.",
+      peopleShown: { one: "{shown} shown of {count} person", other: "{shown} shown of {count} people" },
+      people: { one: "{count} person", other: "{count} people" },
+      evidenceCount: { one: "{count} evidence", other: "{count} evidence" },
+      claims: { one: "{count} claim", other: "{count} claims" },
+      childCount: { one: "{count} child", other: "{count} children" },
+      noMatchingPeople: "No matching people",
+      chooseAPerson: "Choose a person",
+      detailsIntro: "Select someone in the graph to read their story and inspect the evidence behind each connection.",
+      keyboardMove: "Move between people",
+      keyboardDepth: "Change depth",
+      close: "Close",
+      details: "Details",
+      "role.mother": "Mother",
+      "role.father": "Father",
+      "role.parent": "Parent",
+      "status.accepted": "Accepted",
+      "status.tentative": "Tentative",
+      "status.disputed": "Disputed",
+      "status.rejected": "Rejected",
+      "kind.person": "Person",
+      "kind.source": "Source",
+      "kind.event": "Event",
+      "kind.relationship": "Relationship",
+      "kind.place": "Place",
+      "kind.media": "Media",
+      "relation.biological": "Biological",
+      "relation.adoptive": "Adoptive",
+      "relation.foster": "Foster",
+      "relation.partner": "Partner",
+      "relation.evidence": "Evidence",
+      "relation.event": "Event",
+      "direction.child": "Child",
+      "family.selected": "Selected person",
+      "family.maternal": "Mother’s side",
+      "family.paternal": "Father’s side",
+      "family.both": "Both sides",
+      "family.ancestor": "Ancestor · role unspecified",
+      "family.descendant": "Descendant",
+      "family.partner": "Partner",
+      "family.relative": "Other relative",
+      "family.connection": "Connection path",
+      nodeLabel: "{name}. Open details.",
+      nodeLabelRole: "{name} · {role}. Open details.",
+      evidenceAndResearch: "Evidence & research",
+      openToReadSource: "Open to read the source",
+      datesNotRecorded: "Dates not recorded",
+      notRecorded: "Not recorded",
+      born: "Born",
+      died: "Died",
+      bornIn: "Born in {place}",
+      diedIn: "Died in {place}",
+      unnamedRecord: "Unnamed record",
+      recordEyebrow: "Record",
+      familyRecord: "Family record",
+      familyLink: "Family link",
+      and: " and ",
+      portraitOpen: "Open portrait of {name}",
+      portraitOf: "Portrait of {name}",
+      imageSource: "Image source & credits",
+      fromNote: "From {name}’s note",
+      openSource: "Open source ↗",
+      sourceUrl: "Source URL: {url}",
+      openFamily: "Open family",
+      expandBranch: "Expand branch",
+      collapseBranch: "Collapse branch",
+      arrangeFamilySides: "Arrange family sides",
+      editNote: "Edit note",
+      editPersonNote: "Edit person note",
+      sectionStories: "Stories & notes",
+      sectionParents: "Parents",
+      sectionRelationships: "Relationships",
+      sectionEvents: "Events",
+      sectionAttachments: "Attachments",
+      sectionFacts: "More facts",
+      sectionPeople: "People",
+      sectionResearchNote: "Add a research note",
+      composerPlaceholder: "A memory, a question, a detail to investigate…",
+      researchNote: "Research note",
+      addNote: "Add note",
+      saving: "Saving…",
+      couldNotSaveNote: "Could not save note",
+      saveFailed: "Save failed ({status})",
+      editTitle: "Edit {name}",
+      editRecord: "Edit record",
+      markdownNote: "Markdown note",
+      editorHint: "Kindred preserves the complete note. Changes are refused if another editor saved first.",
+      closeEditor: "Close editor",
+      rawNote: "Raw Markdown note",
+      cancel: "Cancel",
+      saveNote: "Save note"
+    },
+    de: {
+      pageTitle: "Kindred · Familienarchiv",
+      familyArchive: "Familienarchiv",
+      brandHome: "Kindred Startseite",
+      language: "Sprache",
+      skipToGraph: "Zum Familiendiagramm springen",
+      findPerson: "Person suchen",
+      findPersonPlaceholder: "Person suchen…",
+      view: "Ansicht",
+      simple: "Einfach",
+      research: "Forschung",
+      keyboard: "Tastatur",
+      graphExplorer: "Diagramm erkunden",
+      graphView: "Diagrammansicht",
+      graphLabel: "Diagramm der Familienbeziehungen",
+      highlightedRelatives: "Hervorgehobene Verwandte",
+      overview: "Übersicht",
+      family: "Familie",
+      ancestors: "Vorfahren",
+      descendants: "Nachkommen",
+      path: "Verbindung",
+      branch: "Zweig",
+      overviewBranch: "Zweig der Übersicht",
+      allFamilyRoots: "Alle Familienwurzeln",
+      arrange: "Anordnung",
+      familySides: "Familienseiten",
+      compact: "Kompakt",
+      depth: "Generationen",
+      relation: "Beziehung",
+      allTypes: "Alle Arten",
+      relationFilterPartners: "Partnerschaften",
+      status: "Status",
+      includeUncertain: "Unsichere einbeziehen",
+      allClaims: "Alle Angaben",
+      evidence: "Belege",
+      showAll: "Alle anzeigen",
+      collapseAll: "Alle einklappen",
+      pathFrom: "Verbindung von",
+      to: "bis",
+      choosePerson: "Person auswählen…",
+      choosePersonLower: "Person auswählen",
+      chooseSecondPerson: "Oben die zweite Person auswählen",
+      archiveNeedsAttention: "Archiv braucht Aufmerksamkeit.",
+      archiveDiagnostics: { one: "{count} Archivhinweis", other: "{count} Archivhinweise" },
+      yourFamily: "Familie, miteinander verbunden",
+      parentsAboveChildren: "Eltern oben, Kinder unten",
+      connectionPath: "Verbindungsweg",
+      compactGroups: "Kompakte Familiengruppen · Eltern oben, Kinder unten",
+      arrangedAround: "Angeordnet um {name} · Mütterliche Seite links · Väterliche Seite rechts",
+      selectPersonToTrace: "Person auswählen, um ihre Familie zu zeigen",
+      connectionsOf: "Verbindungen von {name} · in dieser Ansicht",
+      legendUncertain: "Unsicher oder umstritten",
+      graphLegend: "Diagrammlegende",
+      graphZoom: "Diagrammzoom",
+      zoomOut: "Verkleinern",
+      zoomIn: "Vergrößern",
+      fitGraph: "Diagramm einpassen",
+      fit: "Einpassen",
+      loadingArchive: "Archiv wird geladen…",
+      readingArchive: "Archiv wird gelesen…",
+      couldNotLoad: "Archiv konnte nicht geladen werden",
+      requestFailed: "Anfrage fehlgeschlagen ({status})",
+      noConnections: "Keine Verbindungen in dieser Ansicht",
+      noConnectionsHint: "Eine andere Person wählen, unsichere Angaben einbeziehen oder die Generationen erhöhen.",
+      peopleShown: { one: "{shown} von {count} Person angezeigt", other: "{shown} von {count} Personen angezeigt" },
+      people: { one: "{count} Person", other: "{count} Personen" },
+      evidenceCount: { one: "{count} Beleg", other: "{count} Belege" },
+      claims: { one: "{count} Angabe", other: "{count} Angaben" },
+      childCount: { one: "{count} Kind", other: "{count} Kinder" },
+      noMatchingPeople: "Keine passenden Personen",
+      chooseAPerson: "Person auswählen",
+      detailsIntro: "Eine Person im Diagramm auswählen, um ihre Geschichte zu lesen und die Belege zu jeder Verbindung zu prüfen.",
+      keyboardMove: "Zwischen Personen wechseln",
+      keyboardDepth: "Generationen anpassen",
+      close: "Schließen",
+      details: "Details",
+      "role.mother": "Mutter",
+      "role.father": "Vater",
+      "role.parent": "Elternteil",
+      "status.accepted": "Bestätigt",
+      "status.tentative": "Unsicher",
+      "status.disputed": "Umstritten",
+      "status.rejected": "Verworfen",
+      "kind.person": "Person",
+      "kind.source": "Quelle",
+      "kind.event": "Ereignis",
+      "kind.relationship": "Beziehung",
+      "kind.place": "Ort",
+      "kind.media": "Medium",
+      "relation.biological": "Leiblich",
+      "relation.adoptive": "Adoptiv",
+      "relation.foster": "Pflege",
+      "relation.partner": "Partner",
+      "relation.evidence": "Beleg",
+      "relation.event": "Ereignis",
+      "direction.child": "Kind",
+      "family.selected": "Ausgewählte Person",
+      "family.maternal": "Mütterliche Seite",
+      "family.paternal": "Väterliche Seite",
+      "family.both": "Beide Seiten",
+      "family.ancestor": "Vorfahr · Rolle offen",
+      "family.descendant": "Nachkomme",
+      "family.partner": "Partner",
+      "family.relative": "Weitere Verwandte",
+      "family.connection": "Verbindungsweg",
+      nodeLabel: "{name}. Details öffnen.",
+      nodeLabelRole: "{name} · {role}. Details öffnen.",
+      evidenceAndResearch: "Belege & Forschung",
+      openToReadSource: "Öffnen, um die Quelle zu lesen",
+      datesNotRecorded: "Daten nicht erfasst",
+      notRecorded: "Nicht erfasst",
+      born: "Geboren",
+      died: "Gestorben",
+      bornIn: "Geboren in {place}",
+      diedIn: "Gestorben in {place}",
+      unnamedRecord: "Unbenannter Eintrag",
+      recordEyebrow: "Eintrag",
+      familyRecord: "Familieneintrag",
+      familyLink: "Familienverbindung",
+      and: " und ",
+      portraitOpen: "Porträt von {name} öffnen",
+      portraitOf: "Porträt von {name}",
+      imageSource: "Bildquelle & Nachweise",
+      fromNote: "Aus der Notiz zu {name}",
+      openSource: "Quelle öffnen ↗",
+      sourceUrl: "Quellen-URL: {url}",
+      openFamily: "Familie öffnen",
+      expandBranch: "Zweig aufklappen",
+      collapseBranch: "Zweig zuklappen",
+      arrangeFamilySides: "Familienseiten anordnen",
+      editNote: "Notiz bearbeiten",
+      editPersonNote: "Personennotiz bearbeiten",
+      sectionStories: "Geschichten & Notizen",
+      sectionParents: "Eltern",
+      sectionRelationships: "Beziehungen",
+      sectionEvents: "Ereignisse",
+      sectionAttachments: "Anhänge",
+      sectionFacts: "Weitere Angaben",
+      sectionPeople: "Personen",
+      sectionResearchNote: "Forschungsnotiz hinzufügen",
+      composerPlaceholder: "Eine Erinnerung, eine Frage, ein Detail zum Prüfen…",
+      researchNote: "Forschungsnotiz",
+      addNote: "Notiz hinzufügen",
+      saving: "Wird gespeichert…",
+      couldNotSaveNote: "Notiz konnte nicht gespeichert werden",
+      saveFailed: "Speichern fehlgeschlagen ({status})",
+      editTitle: "{name} bearbeiten",
+      editRecord: "Eintrag bearbeiten",
+      markdownNote: "Markdown-Notiz",
+      editorHint: "Kindred bewahrt die vollständige Notiz. Änderungen werden abgelehnt, wenn inzwischen eine andere Bearbeitung gespeichert wurde.",
+      closeEditor: "Editor schließen",
+      rawNote: "Markdown-Quelltext der Notiz",
+      cancel: "Abbrechen",
+      saveNote: "Notiz speichern"
+    }
+  };
+
+  const locales = { en: "en-GB", de: "de-DE" };
+  const plurals = { en: new Intl.PluralRules(locales.en), de: new Intl.PluralRules(locales.de) };
+  const formatters = new Map();
+  const DAY = /^(\d{4})-(\d{2})-(\d{2})$/u;
+  const MONTH = /^(\d{4})-(\d{2})$/u;
+  let current = "en";
+
+  function entry(lang, key) {
+    const table = dictionaries[lang];
+    return table && Object.hasOwn(table, key) ? table[key] : undefined;
+  }
+
+  // Missing German text falls back to English, then to the key itself, so a gap shows readable text.
+  function t(key, params = {}) {
+    let message = entry(current, key) ?? entry("en", key);
+    if (message === undefined) return key;
+    if (typeof message === "object") {
+      message = message[plurals[current].select(Number(params.count ?? 0))] ?? message.other;
+    }
+    return message.replace(/\{(\w+)\}/gu, (match, name) => (params[name] === undefined ? match : String(params[name])));
+  }
+
+  function has(key) {
+    return entry(current, key) !== undefined || entry("en", key) !== undefined;
+  }
+
+  function lang() {
+    return current;
+  }
+
+  function setLang(next) {
+    if (!Object.hasOwn(dictionaries, next)) return current;
+    current = next;
+    if (global.document) document.documentElement.lang = next;
+    return current;
+  }
+
+  // Fills data-i18n (text) and data-i18n-attr="attribute:key;attribute:key" (attributes) under root.
+  function apply(root = document) {
+    for (const node of root.querySelectorAll("[data-i18n]")) node.textContent = t(node.dataset.i18n);
+    for (const node of root.querySelectorAll("[data-i18n-attr]")) {
+      for (const pair of node.dataset.i18nAttr.split(";")) {
+        const [attribute, key] = pair.split(":").map((part) => part.trim());
+        if (attribute && key) node.setAttribute(attribute, t(key));
+      }
+    }
+  }
+
+  function utcDate(year, monthIndex, day = 1) {
+    const date = new Date(0);
+    date.setUTCFullYear(year, monthIndex, day);
+    return date.getUTCFullYear() === year && date.getUTCMonth() === monthIndex && date.getUTCDate() === day ? date : null;
+  }
+
+  function formatter(options) {
+    const id = `${current}|${JSON.stringify(options)}`;
+    if (!formatters.has(id)) formatters.set(id, new Intl.DateTimeFormat(locales[current], { timeZone: "UTC", ...options }));
+    return formatters.get(id);
+  }
+
+  // A full ISO date becomes a long localized date and YYYY-MM becomes month and year; anything else is returned as written.
+  function formatDate(value) {
+    const text = value === undefined || value === null ? "" : String(value);
+    const day = DAY.exec(text);
+    if (day) {
+      const date = utcDate(Number(day[1]), Number(day[2]) - 1, Number(day[3]));
+      return date ? formatter({ day: "numeric", month: "long", year: "numeric" }).format(date) : text;
+    }
+    const month = MONTH.exec(text);
+    if (month) {
+      const date = utcDate(Number(month[1]), Number(month[2]) - 1);
+      return date ? formatter({ month: "long", year: "numeric" }).format(date) : text;
+    }
+    return text;
+  }
+
+  // The first standalone four-digit year, so cards can stay short; the value as written when there is none.
+  function year(value) {
+    const text = value === undefined || value === null ? "" : String(value);
+    const match = /\b\d{4}\b/u.exec(text);
+    return match ? match[0] : text;
+  }
+
+  global.KindredI18n = Object.freeze({ t, has, lang, setLang, apply, formatDate, year, dictionaries });
+})(globalThis);

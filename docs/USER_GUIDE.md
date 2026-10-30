@@ -94,6 +94,13 @@ only; uncertain relationships keep their status label. **Research**, the default
 shows everything. Use `?view=simple` or `?view=research` to choose on load; the
 choice is remembered in this browser.
 
+The **EN** and **DE** buttons beside the view switch change the interface language
+at any time, without reloading; the graph and details keep their selection and zoom.
+Use `?lang=de` or `?lang=en` to choose on load; the choice is remembered in this
+browser. Without a choice, German is used when the browser prefers German and
+English otherwise. Names, notes, places, and original date wording are never
+translated. Person cards show only years; hover a date to read it in full.
+
 The keyboard help lists navigation: `/` focuses search, arrow keys move between
 people, Enter opens a family view, `+` and `-` change depth, and Escape closes
 the current overlay. Controls also work through normal Tab navigation.

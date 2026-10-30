@@ -179,6 +179,11 @@ dialog::backdrop { background: rgba(24,38,33,.42); backdrop-filter: blur(3px); }
   .explorer { height: 70vh; min-height: 520px; }
   .query-options label:nth-child(3), .query-options .evidence-toggle { display: none; }
   .graph-key { display: none; }
+  /* Two switches (view and language) share the first row, so their buttons are tighter; German labels are longer. */
+  .masthead-actions { gap: .35rem; }
+  .masthead-actions .mode-tabs button { padding: .42rem .5rem; }
+  /* The status line moves above the zoom controls, which are wider in German. */
+  .graph-shell .graph-status { bottom: 4.1rem; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
 
