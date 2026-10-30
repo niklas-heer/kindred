@@ -276,10 +276,14 @@ fn protection(person: &Record, today: Date) -> Result<(bool, Option<Date>), Stri
     };
     let minor =
         living && birth.map_or_else(unreadable_could_be_minor, |date| is_minor(date, today));
-    // Without a readable full date the leak scan cannot look for it, so refuse to publish.
-    if (year_only || minor) && birth.is_none() && texts.iter().any(|text| has_short_number(text)) {
+    // The leak scan looks for one full date, so every birth field of a protected person must be
+    // that date, or carry no day or month at all.
+    let unprotectable = texts.iter().any(|text| {
+        parse_full(text).map_or_else(|| has_short_number(text), |date| Some(date) != birth)
+    });
+    if (year_only || minor) && unprotectable {
         return Err(format!(
-            "person {} has a birth date the site cannot protect; write it as YYYY-MM-DD",
+            "person {} has a birth date the site cannot protect; write it once as YYYY-MM-DD",
             person.id
         ));
     }

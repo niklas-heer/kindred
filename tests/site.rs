@@ -576,6 +576,8 @@ fn unreadable_protected_birth_dates_stop_the_build() {
         ("26/09/2017", ""),
         ("26/09/17", ""),
         ("26/09/1950", "date_display: year\n"),
+        ("2017-09-26", "birth_date: \"26/09/2017\"\n"),
+        ("2017-09-26", "birth_date: \"2017-09-27\"\n"),
     ] {
         let fixture = Fixture::new();
         fixture.person("ada", "Ada Linde", "living: false\n", "Story.");
