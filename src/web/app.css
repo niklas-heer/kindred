@@ -40,7 +40,8 @@ kbd { min-width: 1.4rem; padding: .1rem .32rem; border: 1px solid #ccd1cb; borde
 .search-results button { display: grid; width: 100%; gap: .15rem; padding: .65rem .7rem; border: 0; border-radius: .45rem; background: none; text-align: left; }
 .search-results button:hover, .search-results button[aria-selected="true"] { background: var(--green-soft); }
 .search-results small { color: var(--muted); }
-.masthead > .quiet-button { justify-self: end; }
+.masthead-actions { justify-self: end; display: flex; align-items: center; gap: .5rem; }
+.simple-view .research-only { display: none; }
 .quiet-button, .icon-button { border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding: .48rem .7rem; }
 .quiet-button { text-decoration: none; }
 .quiet-button:hover, .icon-button:hover { background: #f0f2ed; }
@@ -154,8 +155,8 @@ dialog::backdrop { background: rgba(24,38,33,.42); backdrop-filter: blur(3px); }
 .shortcuts dt, .shortcuts dd { margin: 0; }
 
 @media (max-width: 900px) {
-  .masthead { grid-template-columns: auto 1fr; }
-  .masthead > .quiet-button { display: none; }
+  .masthead { grid-template-columns: auto minmax(0, 1fr) auto; }
+  #help-button { display: none; }
   .workspace { grid-template-columns: 1fr; height: auto; }
   .explorer { height: calc(70vh - 68px); min-height: 460px; }
   .details { min-height: 30vh; border-left: 0; border-top: 1px solid var(--line); }
@@ -164,7 +165,11 @@ dialog::backdrop { background: rgba(24,38,33,.42); backdrop-filter: blur(3px); }
   .query-options { width: 100%; }
 }
 @media (max-width: 560px) {
-  .masthead { height: 60px; padding: 0 .7rem; gap: .7rem; }
+  /* Phones: brand and view switch share the first row; the search takes the second. */
+  .masthead { height: auto; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "brand actions" "search search"; padding: .6rem .7rem; gap: .6rem; }
+  .brand { grid-area: brand; }
+  .search { grid-area: search; }
+  .masthead-actions { grid-area: actions; }
   .brand small { display: none; }
   .brand strong { font-size: 1rem; }
   .brand-mark { width: 32px; height: 32px; }
@@ -199,6 +204,7 @@ dialog::backdrop { background: rgba(24,38,33,.42); backdrop-filter: blur(3px); }
 .icon { display: inline-block; width: 18px; height: 18px; flex: 0 0 auto; vertical-align: middle; }
 #branch-root { max-width: 190px; }
 .detail-dates { display: flex; flex-wrap: wrap; gap: 1.8rem; margin: 1rem 0; }
+.detail-places { margin: -.4rem 0 .9rem; color: var(--muted); font-size: .8rem; }
 .detail-dates .date-fact > span > span { font-size: 12px; white-space: normal; }
 .detail-dates .date-fact small { font-size: 9px; }
 .detail-occupation { display: flex; align-items: center; gap: .5rem; font-size: .8rem; line-height: 1.5; color: var(--muted); }

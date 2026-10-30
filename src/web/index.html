@@ -20,7 +20,13 @@
       <kbd>/</kbd>
       <div id="search-results" class="search-results" hidden></div>
     </label>
-    <button id="help-button" class="quiet-button" type="button" aria-expanded="false" aria-controls="shortcuts">Keyboard</button>
+    <div class="masthead-actions">
+      <div class="mode-tabs view-switch" role="group" aria-label="View">
+        <button type="button" data-view="simple" aria-pressed="false">Simple</button>
+        <button type="button" data-view="research" aria-pressed="true">Research</button>
+      </div>
+      <button id="help-button" class="quiet-button" type="button" aria-expanded="false" aria-controls="shortcuts">Keyboard</button>
+    </div>
   </header>
 
   <main class="workspace">
@@ -31,7 +37,7 @@
           <button type="button" data-mode="focus" aria-pressed="false">Family</button>
           <button type="button" data-mode="ancestors" aria-pressed="false">Ancestors</button>
           <button type="button" data-mode="descendants" aria-pressed="false">Descendants</button>
-          <button type="button" data-mode="path" aria-pressed="false">Path</button>
+          <button type="button" data-mode="path" aria-pressed="false" class="research-only">Path</button>
         </div>
         <div class="query-options">
           <label id="branch-picker">Branch
@@ -43,7 +49,7 @@
           <label>Depth
             <input id="generations" type="number" min="1" max="64" value="2" inputmode="numeric">
           </label>
-          <label>Relation
+          <label class="research-only">Relation
             <select id="relation-filter">
               <option value="">All types</option>
               <option value="biological_parent">Biological</option>
@@ -52,19 +58,19 @@
               <option value="partner">Partners</option>
             </select>
           </label>
-          <label>Status
+          <label class="research-only">Status
             <select id="status-filter">
               <option value="accepted">Accepted</option>
               <option value="accepted,tentative,disputed">Include uncertain</option>
               <option value="all">All claims</option>
             </select>
           </label>
-          <label class="evidence-toggle"><input id="show-evidence" type="checkbox"> Evidence</label>
+          <label class="evidence-toggle research-only"><input id="show-evidence" type="checkbox"> Evidence</label>
           <button id="overview-toggle" class="quiet-button" type="button">Show all</button>
         </div>
       </div>
 
-      <div id="diagnostics" class="diagnostics" hidden role="status"></div>
+      <div id="diagnostics" class="diagnostics research-only" hidden role="status"></div>
       <div id="path-picker" class="path-picker" hidden>
         <span>Path from <strong id="path-from">choose a person</strong></span>
         <span aria-hidden="true">→</span>
@@ -89,7 +95,7 @@
           <span class="role-key"><svg class="icon" aria-hidden="true"><use href="/icons.svg#venus"/></svg> Mother</span>
           <span class="role-key"><svg class="icon" aria-hidden="true"><use href="/icons.svg#mars"/></svg> Father</span>
           <span><i class="person-dot"></i> <span id="direction-label">Parents above children</span></span>
-          <span><i class="uncertain-line"></i> Tentative or disputed</span>
+          <span class="research-only"><i class="uncertain-line"></i> Tentative or disputed</span>
         </div>
         <div class="graph-controls" role="group" aria-label="Graph zoom">
           <button id="zoom-out" type="button" aria-label="Zoom out"><svg class="icon" aria-hidden="true"><use href="/icons.svg#minus"/></svg></button>

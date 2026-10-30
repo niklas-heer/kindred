@@ -19,7 +19,8 @@
     overviewCollapsed: new Set(),
     overviewShowAll: false,
     overviewRoot: null,
-    layoutRoot: ""
+    layoutRoot: "",
+    view: "research"
   };
 
   const el = Object.fromEntries([
@@ -166,6 +167,11 @@
       if (candidates.length === 1) ids.push(candidates[0].id);
     }
     return ids;
+  }
+
+  // Birth and death events derive from the person's note; their kind lives in the id, not in metadata.type.
+  function lifeEventId(item, kind) {
+    return `derived:${item.id}:${kind}`;
   }
 
   function eventsForPerson(id) {
@@ -384,7 +390,7 @@
       : `${peopleCount} ${peopleCount === 1 ? "person" : "people"}`;
     const evidenceText = evidenceCount ? ` · ${evidenceCount} evidence` : "";
     const claimsText = `${claimCount} ${claimCount === 1 ? "claim" : "claims"}`;
-    el.graph_status.textContent = `${peopleText}${evidenceText} · ${claimsText}`;
+    el.graph_status.textContent = state.view === "simple" ? peopleText : `${peopleText}${evidenceText} · ${claimsText}`;
     requestAnimationFrame(fitGraph);
   }
 
@@ -546,6 +552,8 @@
     const item = record(state.selected);
     if (!item) return;
     clear(el.details);
+    if (state.view === "simple" && item.kind !== "person") return renderSimpleRecord(item);
+    const simple = state.view === "simple";
     const header = html("header", { className: "detail-header" });
     header.append(html("span", { className: "eyebrow", text: item.kind || "Record" }));
     header.append(html("h1", { text: label(item) }));
@@ -555,6 +563,13 @@
       const dates = html("div", { className: "detail-dates" });
       dates.append(dateFact(item, "born"), dateFact(item, "died"));
       header.append(dates);
+      if (simple) {
+        const places = ["birth", "death"].flatMap((kind) => {
+          const place = record(record(lifeEventId(item, kind))?.metadata?.place);
+          return place ? [`${kind === "birth" ? "Born" : "Died"} in ${label(place)}`] : [];
+        });
+        if (places.length) header.append(html("p", { className: "detail-places", text: places.join(" · ") }));
+      }
       const job = plainValue(item.metadata?.occupation);
       if (job) { const occupation = html("p", { className: "detail-occupation" }); occupation.append(icon("briefcase-business"), document.createTextNode(job)); header.append(occupation); }
     }
@@ -594,7 +609,7 @@
     }
     const edit = html("button", { className: "quiet-button", text: item.owner ? "Edit person note" : "Edit note", attrs: { type: "button" } });
     edit.addEventListener("click", () => openEditor(item));
-    actions.append(edit);
+    if (!simple) actions.append(edit);
     const itemUrl = item.metadata?.url;
     if (item.kind === "source" && typeof itemUrl === "string" && /^https?:\/\//iu.test(itemUrl)) {
       actions.append(html("a", { className: "quiet-button", text: "Open source ↗", attrs: { href: itemUrl, target: "_blank", rel: "noopener noreferrer" } }));
@@ -610,12 +625,43 @@
 
     renderParents(item);
     if (item.body) section("Stories & notes", renderProse(item.body), "book-open");
-    renderFacts(item);
+    if (!simple) renderFacts(item);
     renderRelations(item);
     renderEvents(item);
+    if (simple) return;
     renderEvidence(item);
     renderAttachments(item);
     if (!item.owner) renderNoteComposer(item);
+  }
+
+  // Simple view shows a non-person record as its title, date and place, with links to the people it concerns.
+  function renderSimpleRecord(item) {
+    const people = relatedPeople(item);
+    const header = html("header", { className: "detail-header" });
+    const place = record(item.metadata?.place);
+    const when = [plainValue(item.metadata?.date || item.metadata?.when), place ? label(place) : ""].filter(Boolean).join(" · ");
+    // Relationship records have no name of their own; their title is the two people they join.
+    const title = item.kind === "relationship" ? people.map((person) => label(person)).join(" and ") || "Family link" : label(item);
+    header.append(html("span", { className: "eyebrow", text: item.kind === "event" ? "Event" : item.kind === "relationship" ? "Family link" : "Family record" }), html("h1", { text: title }));
+    if (when) header.append(html("p", { className: "detail-occupation", text: when }));
+    el.details.append(header);
+    if (!people.length) return;
+    const list = html("div");
+    for (const person of people) {
+      const button = html("button", { className: "relation-card", text: label(person), attrs: { type: "button" } });
+      button.addEventListener("click", () => select(person.id));
+      list.append(button);
+    }
+    section("People", list, "users-round");
+  }
+
+  function relatedPeople(item) {
+    const ids = new Set(linkedIds(item, "people"));
+    for (const edge of state.data.query.edges) {
+      if (edge.id === item.id || edge.sources?.includes(item.id)) { ids.add(edge.from); ids.add(edge.to); }
+    }
+    for (const person of people()) if (linkedIds(person, "sources").includes(item.id)) ids.add(person.id);
+    return [...ids].map((id) => record(id)).filter((person) => person?.kind === "person");
   }
 
   function section(title, content, iconName) {
@@ -636,7 +682,8 @@
       const parent = record(edge.from), role = parentRole(edge);
       const button = html("button", { className: `parent-summary ${role}`, attrs: { type: "button" } });
       button.append(roleBadge(role, edge.status), html("strong", { text: label(parent) }));
-      button.append(html("small", { text: `${shortRelation(edge.relation.replace("_parent", ""))} · ${shortRelation(edge.status)}` }));
+      const status = state.view === "simple" && edge.status === "accepted" ? "" : ` · ${shortRelation(edge.status)}`;
+      button.append(html("small", { text: `${shortRelation(edge.relation.replace("_parent", ""))}${status}` }));
       button.addEventListener("click", () => select(parent.id));
       list.append(button);
     }
@@ -707,7 +754,8 @@
       const other = record(otherId);
       const button = html("button", { className: "relation-card", attrs: { type: "button" } });
       const row = html("span", { className: "card-row" });
-      row.append(html("strong", { text: label(other) }), html("span", { className: `tag ${edge.status || ""}`, text: edge.status || "accepted" }));
+      row.append(html("strong", { text: label(other) }));
+      if (state.view !== "simple" || (edge.status || "accepted") !== "accepted") row.append(html("span", { className: `tag ${edge.status || ""}`, text: edge.status || "accepted" }));
       const direction = edge.relation === "partner" ? "Partner" : edge.to === item.id ? shortRelation(parentRole(edge)) : "Child";
       const relationType = edge.relation === "partner" ? "" : ` · ${shortRelation(edge.relation.replace("_parent", ""))}`;
       button.append(row, html("small", { text: `${direction}${relationType}` }));
@@ -718,12 +766,15 @@
   }
 
   function renderEvents(item) {
-    const events = eventsForPerson(item.id);
+    // Simple view shows birth and death through the life dates and places in the header instead.
+    const events = eventsForPerson(item.id).filter((event) => state.view !== "simple" || !["birth", "death"].some((kind) => event.id === lifeEventId(item, kind)));
     if (!events.length) return;
     const list = html("div");
     for (const event of events) {
       const card = html("button", { className: "event-card", attrs: { type: "button" } });
-      card.append(html("strong", { text: label(event) }), html("small", { text: plainValue(event.metadata?.date || event.metadata?.when || event.id) }));
+      const when = plainValue(event.metadata?.date || event.metadata?.when || event.id);
+      const place = state.view === "simple" && record(event.metadata?.place);
+      card.append(html("strong", { text: label(event) }), html("small", { text: place ? `${when} · ${label(place)}` : when }));
       card.addEventListener("click", () => select(event.id));
       list.append(card);
     }
@@ -783,6 +834,39 @@
       return;
     }
     loadGraph();
+  }
+
+  // ?view= wins and is remembered; otherwise the last choice; otherwise Research.
+  function initialView() {
+    const requested = new URLSearchParams(location.search).get("view");
+    if (requested === "simple" || requested === "research") {
+      try { localStorage.setItem("kindred.view", requested); } catch { /* Private browsing can refuse storage. */ }
+      return requested;
+    }
+    try { return localStorage.getItem("kindred.view") === "simple" ? "simple" : "research"; } catch { return "research"; }
+  }
+
+  function filterKey() {
+    return [el.status_filter.value, el.relation_filter.value, el.show_evidence.checked].join("|");
+  }
+
+  function applyView(view) {
+    state.view = view;
+    document.body.classList.toggle("simple-view", view === "simple");
+    for (const button of document.querySelectorAll("[data-view]")) button.setAttribute("aria-pressed", String(button.dataset.view === view));
+    // Hidden research filters must not silently shape the Simple graph, so they match what Simple shows.
+    if (view === "simple") { el.status_filter.value = "accepted"; el.relation_filter.value = ""; el.show_evidence.checked = false; }
+  }
+
+  function switchView(view) {
+    const before = filterKey();
+    applyView(view);
+    try { localStorage.setItem("kindred.view", view); } catch { /* Private browsing can refuse storage. */ }
+    // Keep the URL in step so a ?view= link does not override the choice on reload.
+    history.replaceState(null, "", `?view=${view}`);
+    if (view === "simple" && state.mode === "path") setMode("overview");
+    else if (!state.data || filterKey() !== before) loadGraph();
+    else { renderDiagnostics(); renderGraph(); renderDetails(); }
   }
 
   function openEditor(item) {
@@ -880,6 +964,7 @@
   }
 
   document.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => setMode(button.dataset.mode)));
+  document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.view)));
   el.layout_order.addEventListener("change", () => { state.layoutRoot = record(state.selected)?.kind === "person" ? state.selected : state.person; renderGraph(); });
   el.generations.addEventListener("change", () => loadGraph());
   el.relation_filter.addEventListener("change", () => loadGraph());
@@ -1024,5 +1109,6 @@
   }
 
   window.addEventListener("resize", fitGraph);
+  applyView(initialView());
   loadGraph({ keepSelection: false });
 })();

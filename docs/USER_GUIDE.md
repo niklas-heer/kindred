@@ -87,6 +87,13 @@ Select a person or connection for its story,
 metadata, events, claims, and evidence. The evidence toggle adds source/event
 nodes when useful. Attachments are available from person notes and their citations.
 
+The masthead's **Simple** view is for relatives who only want to read about the
+family. It hides Path, the Relation, Status, and Evidence controls, archive
+diagnostics, research notes, sources, and attachments, and shows accepted claims
+only; uncertain relationships keep their status label. **Research**, the default,
+shows everything. Use `?view=simple` or `?view=research` to choose on load; the
+choice is remembered in this browser.
+
 The keyboard help lists navigation: `/` focuses search, arrow keys move between
 people, Enter opens a family view, `+` and `-` change depth, and Escape closes
 the current overlay. Controls also work through normal Tab navigation.
