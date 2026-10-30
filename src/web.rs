@@ -20,6 +20,7 @@ const STYLES: &str = include_str!("web/app.css");
 const FAMILY: &str = include_str!("web/family.js");
 const LAYOUT: &str = include_str!("web/layout.js");
 const I18N: &str = include_str!("web/i18n.js");
+const QUERY: &str = include_str!("web/query.js");
 const SCRIPT: &str = include_str!("web/app.js");
 const ICONS: &str = include_str!("web/icons.svg");
 const MAX_EDIT_BYTES: u64 = 4 * 1024 * 1024;
@@ -101,6 +102,9 @@ fn handle_request(request: Request, root: &Path, port: u16) -> Result<(), String
         }
         (&Method::Get, "/i18n.js") => {
             respond_static(request, I18N, "text/javascript; charset=utf-8")
+        }
+        (&Method::Get, "/query.js") => {
+            respond_static(request, QUERY, "text/javascript; charset=utf-8")
         }
         (&Method::Get, "/icons.svg") => respond_static(request, ICONS, "image/svg+xml"),
         (&Method::Get, "/api/graph") => graph_response(request, root, &query_string),

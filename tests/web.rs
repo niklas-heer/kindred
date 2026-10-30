@@ -200,7 +200,7 @@ fn serves_static_shell_and_reloads_the_archive_for_each_query() {
     assert!(shell.text().contains("Family relationship graph"));
     assert!(!shell.text().contains("Ada Linde"));
 
-    for asset in ["/family.js", "/layout.js", "/i18n.js"] {
+    for asset in ["/family.js", "/layout.js", "/i18n.js", "/query.js"] {
         let response = server.request("GET", asset, &[], "");
         assert_eq!(response.status, 200);
         assert!(response.headers.contains("text/javascript"));
