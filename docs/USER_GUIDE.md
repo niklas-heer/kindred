@@ -290,6 +290,8 @@ Options: `--view simple|research` chooses the view the page opens in (default
 `research`). `--suggest-url` adds a suggestion link. It must be a path starting
 with `/` but not `//`, or an `https://` URL. Invalid options exit with code 2.
 
+With a suggestion URL, the page offers "Something wrong or missing?" on each person and on the start panel. Sending makes a `POST` to that URL with `Content-Type: application/json` and the body `{"text", "person", "personName", "lang"}`, where `person` and `personName` are `null` for a general note. Your endpoint must answer `201` to confirm receipt; any other status shows that the note was not sent and keeps the text in the browser. Kindred does not store or forward notes itself, so the endpoint belongs behind the same login as the site.
+
 ## Optional Obsidian use
 
 Open the archive folder as a vault. No plugin is required. Simple properties,

@@ -150,6 +150,13 @@ dialog::backdrop { background: rgba(24,38,33,.42); backdrop-filter: blur(3px); }
 #editor-text { flex: 1; resize: none; margin: .8rem 1.2rem; padding: 1rem; border: 1px solid var(--line); border-radius: .5rem; background: #f9faf7; font: .82rem/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; tab-size: 2; }
 .editor-card footer { border-top: 1px solid var(--line); justify-content: flex-end; }
 .editor-message { min-height: 1.2rem; padding: 0 1.2rem; color: var(--rose); font-size: .78rem; }
+.suggestion-dialog { height: auto; }
+.suggestion-dialog button:disabled { opacity: .6; }
+.suggestion-about { margin: .8rem 1.2rem 0; font-weight: 650; }
+.suggestion-field { display: grid; gap: .4rem; margin: .8rem 1.2rem 0; color: var(--muted); font-size: .78rem; }
+.suggestion-field textarea { width: 100%; resize: vertical; padding: .7rem; border: 1px solid var(--line); border-radius: .5rem; background: #fff; color: var(--ink); font: inherit; font-size: .88rem; line-height: 1.5; }
+.editor-message.sent { color: var(--green); }
+.suggest-general { margin-top: 1rem; font-size: .8rem; }
 .shortcuts { position: fixed; z-index: 30; right: 1rem; top: 60px; width: 250px; padding: 1rem; border: 1px solid var(--line); border-radius: .65rem; background: var(--panel); box-shadow: 0 15px 45px rgba(30,50,42,.16); }
 .shortcuts dl { display: grid; grid-template-columns: 4.5rem 1fr; gap: .6rem; margin: .8rem 0 0; font-size: .76rem; }
 .shortcuts dt, .shortcuts dd { margin: 0; }

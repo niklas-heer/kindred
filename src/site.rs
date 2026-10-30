@@ -509,8 +509,32 @@ fn index_html(options: &Options) -> Result<String, String> {
         .ok_or("viewer shell has no head")?;
     Ok(format!(
         "{head}  <meta name=\"kindred-site\" content=\"{content}\">\n  <meta http-equiv=\"Content-Security-Policy\" content=\"{policy}\">\n</head>{body}",
-        policy = web::PAGE_POLICY
+        policy = page_policy(options.suggest.as_deref())
     ))
+}
+
+/// The page policy, with an `https://` suggestion host allowed as a connection target. The host is
+/// restricted to plain characters, so a suggestion URL cannot add directives to the policy.
+fn page_policy(suggest: Option<&str>) -> String {
+    let host = suggest
+        .and_then(|url| url.strip_prefix("https://"))
+        .and_then(|rest| rest.split(['/', '?', '#']).next())
+        .filter(|host| {
+            !host.is_empty()
+                && host.chars().all(|character| {
+                    character.is_ascii_alphanumeric() || ".-:[]".contains(character)
+                })
+        });
+    host.map_or_else(
+        || web::PAGE_POLICY.to_owned(),
+        |host| {
+            web::PAGE_POLICY.replacen(
+                "connect-src 'self'",
+                &format!("connect-src 'self' https://{host}"),
+                1,
+            )
+        },
+    )
 }
 
 /// The published graph, in the documented field order.

@@ -179,6 +179,52 @@ fn writes_viewer_assets_and_escaped_settings() {
 }
 
 #[test]
+fn static_viewer_reads_graph_json_only_through_its_meta_tag() {
+    let fixture = Fixture::new();
+    fixture.person("ada", "Ada Linde", "living: false\n", "Story.");
+    assert_success(&fixture.build(&[
+        "--suggest-url",
+        "https://suggest.example.test/api/suggest",
+        "--today",
+        TODAY,
+    ]));
+    let app =
+        fs::read_to_string(fixture.target().join("app.js")).expect("app.js should be written");
+    let index = fs::read_to_string(fixture.target().join("index.html"))
+        .expect("index.html should be written");
+    // The meta tag only exists in the static page; the viewer picks graph.json or the API from it.
+    assert!(index.contains("<meta name=\"kindred-site\""));
+    assert!(app.contains("meta[name=\"kindred-site\"]"));
+    assert_eq!(
+        app.matches("\"graph.json\"").count(),
+        1,
+        "graph.json is read in one place"
+    );
+    assert!(
+        app.contains("/api/graph?"),
+        "the local server keeps its API"
+    );
+    // The query library must load before the viewer script that calls it.
+    assert!(index.find("src=\"/query.js\"") < index.find("src=\"/app.js\""));
+    // Only the suggestion origin joins the connection policy.
+    assert!(index.contains("connect-src 'self' https://suggest.example.test;"));
+
+    let injected = Fixture::new();
+    injected.person("ada", "Ada Linde", "living: false\n", "Story.");
+    assert_success(&injected.build(&[
+        "--suggest-url",
+        "https://evil;script-src.example/help",
+        "--today",
+        TODAY,
+    ]));
+    let index = fs::read_to_string(injected.target().join("index.html"))
+        .expect("index.html should be written");
+    // The URL still appears in the settings attribute, but never as a connection source.
+    assert!(index.contains("connect-src 'self'; base-uri"));
+    assert!(!index.contains("connect-src 'self' https://"));
+}
+
+#[test]
 fn refuses_existing_target_without_touching_it() {
     let fixture = Fixture::new();
     fixture.person("ada", "Ada Linde", "living: false\n", "Story.");

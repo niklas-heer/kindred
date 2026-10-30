@@ -156,7 +156,20 @@
       closeEditor: "Close editor",
       rawNote: "Raw Markdown note",
       cancel: "Cancel",
-      saveNote: "Save note"
+      saveNote: "Save note",
+      generationsInvalid: "Depth must be a whole number.",
+      unknownMode: "Unknown graph view: {mode}",
+      suggestButton: "Something wrong or missing?",
+      suggestEyebrow: "Suggestion",
+      suggestIntro: "Describe what is wrong or missing. The note goes to the archive keeper; the archive itself does not change here.",
+      suggestAbout: "About {name}",
+      suggestLabel: "What is wrong or missing?",
+      suggestPlaceholder: "A misspelled name, a missing date, a detail to check…",
+      suggestSend: "Send",
+      suggestSending: "Sending…",
+      suggestSent: "Thank you. Your note has been sent.",
+      suggestFailed: "Your note could not be sent. Try again, or reload the page to sign in again.",
+      suggestEmpty: "Write a short note first."
     },
     de: {
       pageTitle: "Kindred · Familienarchiv",
@@ -311,7 +324,20 @@
       closeEditor: "Editor schließen",
       rawNote: "Markdown-Quelltext der Notiz",
       cancel: "Abbrechen",
-      saveNote: "Notiz speichern"
+      saveNote: "Notiz speichern",
+      generationsInvalid: "Generationen müssen eine ganze Zahl sein.",
+      unknownMode: "Unbekannte Diagrammansicht: {mode}",
+      suggestButton: "Etwas falsch oder fehlt etwas?",
+      suggestEyebrow: "Hinweis",
+      suggestIntro: "Kurz beschreiben, was falsch oder unvollständig ist. Die Nachricht geht an die Archivverwaltung; das Archiv selbst wird hier nicht geändert.",
+      suggestAbout: "Zu {name}",
+      suggestLabel: "Was ist falsch oder fehlt?",
+      suggestPlaceholder: "Ein falsch geschriebener Name, ein fehlendes Datum, ein Detail zum Prüfen…",
+      suggestSend: "Senden",
+      suggestSending: "Wird gesendet…",
+      suggestSent: "Danke. Die Nachricht wurde gesendet.",
+      suggestFailed: "Die Nachricht konnte nicht gesendet werden. Erneut versuchen oder die Seite neu laden, um sich erneut anzumelden.",
+      suggestEmpty: "Zuerst eine kurze Nachricht schreiben."
     }
   };
 

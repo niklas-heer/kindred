@@ -1,6 +1,8 @@
 (() => {
   "use strict";
   const { t, formatDate, year } = KindredI18n;
+  // Null on the local server. A static site declares its default view and suggestion target in a meta tag.
+  const staticSite = readSiteSettings();
 
   const state = {
     mode: "overview",
@@ -29,7 +31,8 @@
     "arrangement-caption", "layout-order", "selection-summary", "selection-key", "branch-picker", "branch-root", "direction-label", "zoom-in", "zoom-out", "zoom-level", "search", "search-results", "generations", "relation-filter", "status-filter", "show-evidence", "overview-toggle", "fit-button",
     "diagnostics", "path-picker", "path-from", "path-to", "graph", "viewport",
     "edges", "nodes", "empty-state", "graph-status", "details", "editor",
-    "editor-title", "editor-text", "editor-message", "save-button", "help-button", "shortcuts"
+    "editor-title", "editor-text", "editor-message", "save-button", "help-button", "shortcuts",
+    "suggest-general", "suggestion", "suggestion-form", "suggestion-about", "suggestion-text", "suggestion-message", "suggestion-send"
   ].map((id) => [id.replaceAll("-", "_"), document.getElementById(id)]));
 
   const svgNs = "http://www.w3.org/2000/svg";
@@ -64,7 +67,7 @@
     if (!attachment) return null;
     return {
       media,
-      url: `/api/attachment?path=${encodeURIComponent(attachment.path)}`,
+      url: attachmentUrl(attachment.path),
       caption: media?.metadata?.caption || item.metadata?.portrait_caption || t("portraitOf", { name: label(item) }),
       credit: media
         ? [media.metadata?.credit || media.metadata?.artist, media.metadata?.date, media.metadata?.license].filter(Boolean).map(plainValue).join(" · ")
@@ -213,10 +216,8 @@
     if (state.mode === "path") parameters.set("to", state.to);
 
     try {
-      const response = await fetch(`/api/graph?${parameters}`, { headers: { Accept: "application/json" } });
-      const payload = await response.json();
+      const payload = staticSite ? await staticPayload(parameters) : await fetchPayload(parameters);
       if (request !== state.request) return;
-      if (!response.ok) throw new Error(payload.details ? `${payload.error}: ${payload.details}` : payload.error || t("requestFailed", { status: response.status }));
       for (const item of [...payload.records, ...payload.query.nodes]) item.kind = item.kind || item.type;
       const previous = keepSelection ? state.selected : "";
       state.data = payload;
@@ -236,6 +237,69 @@
       clear(el.edges);
       showError(state.loadError);
     }
+  }
+
+  async function fetchPayload(parameters) {
+    const response = await fetch(`/api/graph?${parameters}`, { headers: { Accept: "application/json" } });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.details ? `${payload.error}: ${payload.details}` : payload.error || t("requestFailed", { status: response.status }));
+    return payload;
+  }
+
+  // Static sites read graph.json once; every view is then answered in the browser with the payload /api/graph returns.
+  let staticGraph = null;
+  function readStaticGraph() {
+    staticGraph ??= fetch("graph.json", { headers: { Accept: "application/json" } }).then((response) => {
+      if (!response.ok) throw new Error(t("requestFailed", { status: response.status }));
+      return response.json();
+    }).catch((error) => { staticGraph = null; throw error; });
+    return staticGraph;
+  }
+
+  // Mirrors query_options and select_graph in src/web.rs, so both kinds of site answer the same questions.
+  const ALL_STATUSES = ["accepted", "tentative", "disputed", "rejected"];
+  const listParameter = (value) => (value ?? "").split(",").map((item) => item.trim()).filter(Boolean);
+  async function staticPayload(parameters) {
+    const graph = await readStaticGraph();
+    const generations = Number.parseInt(parameters.get("generations") ?? "4", 10);
+    if (!Number.isInteger(generations) || generations < 0) throw new Error(t("generationsInvalid"));
+    const statuses = parameters.has("statuses") ? (parameters.get("statuses") === "all" ? ALL_STATUSES : listParameter(parameters.get("statuses"))) : undefined;
+    const options = { generations: Math.min(64, generations), relations: listParameter(parameters.get("relations")), statuses };
+    const need = (name, message) => {
+      if (!parameters.get(name)) throw new Error(message);
+      return parameters.get(name);
+    };
+    const queries = {
+      overview: () => KindredQuery.overview(graph, options),
+      focus: () => KindredQuery.neighborhood(graph, need("person", t("chooseAPerson")), options),
+      ancestors: () => KindredQuery.ancestors(graph, need("person", t("chooseAPerson")), options),
+      descendants: () => KindredQuery.descendants(graph, need("person", t("chooseAPerson")), options),
+      path: () => KindredQuery.path(graph, need("person", t("chooseAPerson")), need("to", t("chooseSecondPerson")), options)
+    };
+    const mode = parameters.get("mode") || "overview";
+    if (!Object.hasOwn(queries, mode)) throw new Error(t("unknownMode", { mode }));
+    return { query: queries[mode](), records: graph.records, diagnostics: graph.diagnostics ?? [], attachments: graph.attachments ?? [], mode };
+  }
+
+  // Static sites serve portrait copies under attachments/, beside the page; the local server answers /api/attachment.
+  function attachmentUrl(path) {
+    return staticSite ? `attachments/${path.split("/").map(encodeURIComponent).join("/")}` : `/api/attachment?path=${encodeURIComponent(path)}`;
+  }
+
+  // Parsed defensively: a broken settings value still leaves a static page, with the defaults.
+  function readSiteSettings() {
+    const meta = document.querySelector('meta[name="kindred-site"]');
+    if (!meta) return null;
+    let settings = null;
+    try { settings = JSON.parse(meta.getAttribute("content") || "null"); } catch { settings = null; }
+    const view = settings?.view === "simple" || settings?.view === "research" ? settings.view : "";
+    const suggest = typeof settings?.suggest === "string" && safeSuggestUrl(settings.suggest) ? settings.suggest : "";
+    return { view, suggest };
+  }
+
+  // The same rule the site builder enforces: a path on this origin (not //), or an https:// URL, with no spaces or backslashes.
+  function safeSuggestUrl(value) {
+    return !/[\s\\]/u.test(value) && (/^\/(?!\/)/u.test(value) || /^https:\/\/\S/u.test(value));
   }
 
   function showError(message) {
@@ -505,7 +569,9 @@
     if (value === undefined || value === null) return "";
     if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
     if (Array.isArray(value)) return value.map(plainValue).join(", ");
-    return JSON.stringify(value);
+    // Named objects, such as places, read as their name; other objects stay as JSON.
+    const named = [value.name, value.title].find((candidate) => typeof candidate === "string" && candidate);
+    return named || JSON.stringify(value);
   }
 
   function select(id, openFamily = false) {
@@ -626,10 +692,15 @@
     }
     const edit = html("button", { className: "quiet-button", text: item.owner ? t("editPersonNote") : t("editNote"), attrs: { type: "button" } });
     edit.addEventListener("click", () => openEditor(item));
-    if (!simple) actions.append(edit);
+    if (!simple && !staticSite) actions.append(edit);
     const itemUrl = item.metadata?.url;
     if (item.kind === "source" && typeof itemUrl === "string" && /^https?:\/\//iu.test(itemUrl)) {
       actions.append(html("a", { className: "quiet-button", text: t("openSource"), attrs: { href: itemUrl, target: "_blank", rel: "noopener noreferrer" } }));
+    }
+    if (staticSite?.suggest && item.kind === "person") {
+      const suggest = html("button", { className: "quiet-button", text: t("suggestButton"), attrs: { type: "button" } });
+      suggest.addEventListener("click", () => openSuggestion(item));
+      actions.append(suggest);
     }
     header.append(actions);
     if (item.owner) {
@@ -648,7 +719,7 @@
     if (simple) return;
     renderEvidence(item);
     renderAttachments(item);
-    if (!item.owner) renderNoteComposer(item);
+    if (!item.owner && !staticSite) renderNoteComposer(item);
   }
 
   // Simple view shows a non-person record as its title, date and place, with links to the people it concerns.
@@ -828,7 +899,7 @@
     if (!attachments.length) return;
     const list = html("div");
     for (const attachment of attachments) {
-      const link = html("a", { className: "attachment-link", text: `↗ ${attachment.label || attachment.path}`, attrs: { href: `/api/attachment?path=${encodeURIComponent(attachment.path)}`, target: "_blank", rel: "noopener" } });
+      const link = html("a", { className: "attachment-link", text: `↗ ${attachment.label || attachment.path}`, attrs: { href: attachmentUrl(attachment.path), target: "_blank", rel: "noopener" } });
       list.append(link);
     }
     section(t("sectionAttachments"), list);
@@ -853,14 +924,17 @@
     loadGraph();
   }
 
-  // ?view= wins and is remembered; otherwise the last choice; otherwise Research.
+  // ?view= wins and is remembered; otherwise the last choice; otherwise the site's default view; otherwise Research.
   function initialView() {
     const requested = new URLSearchParams(location.search).get("view");
     if (requested === "simple" || requested === "research") {
       try { localStorage.setItem("kindred.view", requested); } catch { /* Private browsing can refuse storage. */ }
       return requested;
     }
-    try { return localStorage.getItem("kindred.view") === "simple" ? "simple" : "research"; } catch { return "research"; }
+    let stored = "";
+    try { stored = localStorage.getItem("kindred.view") || ""; } catch { /* Private browsing can refuse storage. */ }
+    if (stored === "simple" || stored === "research") return stored;
+    return staticSite?.view || "research";
   }
 
   // ?lang= wins and is remembered; otherwise the last choice; otherwise German when a German language is preferred, else English.
@@ -979,6 +1053,76 @@
       el.save_button.disabled = false;
     }
   }
+
+  // Suggestions go to the static site's suggestion URL. The dialog keeps an unsent draft, so a login redirect or reload does not lose it.
+  const DRAFT_KEY = "kindred.suggestion.draft";
+  let suggestion = { person: null, name: "" };
+
+  function readDraft() {
+    try {
+      const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null");
+      return draft && typeof draft.text === "string" ? draft : null;
+    } catch { return null; }
+  }
+
+  function writeDraft(draft) {
+    try {
+      if (draft) localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      else localStorage.removeItem(DRAFT_KEY);
+    } catch { /* Private browsing can refuse storage. */ }
+  }
+
+  // A person's draft is restored when the same person is opened again; a general note starts empty unless it is the draft.
+  function openSuggestion(item = null) {
+    suggestion = { person: item ? item.id : null, name: item ? label(item) : "" };
+    const draft = readDraft();
+    el.suggestion_text.value = draft && draft.person === suggestion.person ? draft.text : "";
+    el.suggestion_about.hidden = !item;
+    el.suggestion_about.textContent = item ? t("suggestAbout", { name: label(item) }) : "";
+    el.suggestion_message.textContent = "";
+    el.suggestion_message.classList.remove("sent");
+    el.suggestion_send.disabled = false;
+    el.suggestion.showModal();
+    el.suggestion_text.focus();
+  }
+
+  async function sendSuggestion(event) {
+    // Cancel closes the dialog through the form's dialog method; only Send posts.
+    if (event.submitter?.value === "cancel") return;
+    event.preventDefault();
+    const text = el.suggestion_text.value.trim();
+    if (!text) {
+      el.suggestion_message.textContent = t("suggestEmpty");
+      return;
+    }
+    el.suggestion_send.disabled = true;
+    el.suggestion_message.classList.remove("sent");
+    el.suggestion_message.textContent = t("suggestSending");
+    try {
+      const response = await fetch(staticSite.suggest, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, person: suggestion.person, personName: suggestion.name || null, lang: KindredI18n.lang() })
+      });
+      if (response.status !== 201) throw new Error(`suggestion failed with ${response.status}`);
+      writeDraft(null);
+      el.suggestion_message.classList.add("sent");
+      el.suggestion_message.textContent = t("suggestSent");
+      setTimeout(() => el.suggestion.close(), 1600);
+    } catch {
+      // The text stays in the dialog and in the draft, so the reader can try again.
+      el.suggestion_send.disabled = false;
+      el.suggestion_message.textContent = t("suggestFailed");
+    }
+  }
+
+  el.suggest_general.addEventListener("click", () => openSuggestion());
+  el.suggestion_text.addEventListener("input", () => {
+    const text = el.suggestion_text.value;
+    writeDraft(text ? { person: suggestion.person, text } : null);
+  });
+  el.suggestion_form.addEventListener("submit", sendSuggestion);
 
   function updateSearch() {
     const term = el.search.value.trim().toLocaleLowerCase();
@@ -1182,6 +1326,10 @@
   }
 
   window.addEventListener("resize", fitGraph);
+  // A static page cannot edit, so its editor goes; suggestion controls appear only when the site names a URL.
+  if (staticSite) el.editor.remove();
+  el.suggest_general.hidden = !staticSite?.suggest;
+  if (!staticSite?.suggest) el.suggestion.remove();
   applyView(initialView());
   KindredI18n.setLang(initialLang());
   renderStrings();

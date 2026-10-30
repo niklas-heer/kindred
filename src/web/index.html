@@ -116,6 +116,7 @@
         <span class="details-monogram" aria-hidden="true">K</span>
         <h1 data-i18n="chooseAPerson">Choose a person</h1>
         <p data-i18n="detailsIntro">Select someone in the graph to read their story and inspect the evidence behind each connection.</p>
+        <button id="suggest-general" class="quiet-button suggest-general" type="button" hidden data-i18n="suggestButton">Something wrong or missing?</button>
       </div>
     </aside>
   </main>
@@ -127,6 +128,17 @@
       <textarea id="editor-text" spellcheck="true" data-i18n-attr="aria-label:rawNote" aria-label="Raw Markdown note"></textarea>
       <div id="editor-message" class="editor-message" role="status"></div>
       <footer><button value="cancel" class="quiet-button" data-i18n="cancel">Cancel</button><button id="save-button" value="default" type="button" class="primary-button" data-i18n="saveNote">Save note</button></footer>
+    </form>
+  </dialog>
+
+  <dialog id="suggestion" class="suggestion-dialog">
+    <form method="dialog" id="suggestion-form" class="editor-card">
+      <header><div><span class="eyebrow" data-i18n="suggestEyebrow">Suggestion</span><h2 data-i18n="suggestButton">Something wrong or missing?</h2></div><button value="cancel" formnovalidate data-i18n-attr="aria-label:close" aria-label="Close">×</button></header>
+      <p class="editor-hint" data-i18n="suggestIntro">Describe what is wrong or missing. The note goes to the archive keeper; the archive itself does not change here.</p>
+      <p id="suggestion-about" class="suggestion-about" hidden></p>
+      <label class="suggestion-field"><span data-i18n="suggestLabel">What is wrong or missing?</span><textarea id="suggestion-text" rows="7" maxlength="2000" required data-i18n-attr="placeholder:suggestPlaceholder" placeholder="A misspelled name, a missing date, a detail to check…"></textarea></label>
+      <div id="suggestion-message" class="editor-message" role="status"></div>
+      <footer><button value="cancel" formnovalidate class="quiet-button" data-i18n="cancel">Cancel</button><button id="suggestion-send" value="send" class="primary-button" data-i18n="suggestSend">Send</button></footer>
     </form>
   </dialog>
 
