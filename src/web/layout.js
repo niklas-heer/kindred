@@ -20,7 +20,8 @@
     const side = (id) => sideOrdering ? ({ maternal: -1, paternal: 1 }[family.people.get(id)] || 0) : 0;
     const birth = (person) => {
       const value = person.metadata?.born ?? person.metadata?.birth;
-      return /^\d{4}$/u.test(String(value)) ? Number(value) : Infinity;
+      const year = /\b\d{4}\b/u.exec(String(value));
+      return year ? Number(year[0]) : Infinity;
     };
     const chronological = (left, right) => birth(left) - birth(right) || left.id.localeCompare(right.id);
     const personEdges = edges.filter((edge) => personIds.has(edge.from) && personIds.has(edge.to));

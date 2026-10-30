@@ -48,6 +48,12 @@ test("siblings use exact recorded birth years instead of alphabetical IDs", () =
   assert.ok(positions.get("z-older").x < positions.get("a-younger").x);
   separated(positions);
 });
+test("siblings order by ISO birth dates regardless of IDs", () => {
+  const nodes = [person("parent"), person("a-younger", "1953-08-08"), person("z-older", "1948-02-14")];
+  const positions = arrange(nodes, [parent("parent", "a-younger"), parent("parent", "z-older")], "parent");
+  assert.ok(positions.get("z-older").x < positions.get("a-younger").x);
+  separated(positions);
+});
 test("cycles, isolated people and evidence stay finite and disjoint", () => {
   const nodes = ["a", "b", "c", "isolated"].map((id) => person(id));
   nodes.push({id: "source", kind: "source"});
