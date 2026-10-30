@@ -1212,6 +1212,13 @@
     const focus = focusPoint();
     if (phoneQuery.matches && view.scale < READABLE_SCALE && focus) {
       centreOn(focus, READABLE_SCALE);
+      // Centring a person in the top generation would leave the upper half empty: lift the tree's top edge to the top.
+      const treeTop = Math.min(...[...state.positions.values()].map((point) => point.y)) - CARD_HEIGHT / 2;
+      const headroom = 56;
+      if (state.ty + treeTop * state.scale > headroom) {
+        state.ty = headroom - treeTop * state.scale;
+        applyTransform();
+      }
       return;
     }
     Object.assign(state, view);
