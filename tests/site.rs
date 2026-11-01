@@ -412,6 +412,9 @@ fn minors_show_only_a_year_and_adults_keep_their_dates() {
     );
     let lena = record(&graph, "lena").expect("lena");
     assert_eq!(lena["metadata"]["born"], "2017");
+    // The viewer reads the marker so it does not ask relatives for a date the site withholds.
+    assert_eq!(lena["metadata"]["date_display"], "year");
+    assert!(record(&graph, "ada").expect("ada")["metadata"]["date_display"].is_null());
     let tomas = record(&graph, "tomas").expect("tomas");
     assert_eq!(tomas["metadata"]["birth"], "2017");
     for id in ["lena", "tomas"] {

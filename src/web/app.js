@@ -25,6 +25,7 @@
     layoutRoot: "",
     view: "research",
     sheet: "hidden",
+    questions: false,
     loadError: ""
   };
 
@@ -34,12 +35,12 @@
     "edges", "nodes", "empty-state", "graph-status", "details", "editor",
     "editor-title", "editor-text", "editor-message", "save-button", "help-button", "shortcuts",
     "suggest-general", "suggestion", "suggestion-form", "suggestion-about", "suggestion-text", "suggestion-message", "suggestion-send",
-    "workspace", "toolbar", "query-options", "view-switch", "lang-switch", "menu-button", "menu-panel", "details-body", "sheet-handle", "sheet-close", "sheet-peek", "sheet-name", "sheet-years", "sheet-occupation"
+    "workspace", "toolbar", "query-options", "view-switch", "lang-switch", "menu-button", "menu-panel", "details-body", "sheet-handle", "sheet-close", "sheet-peek", "sheet-name", "sheet-years", "sheet-occupation", "questions-toggle", "theme-toggle"
   ].map((id) => [id.replaceAll("-", "_"), document.getElementById(id)]));
 
   const svgNs = "http://www.w3.org/2000/svg";
-  const CARD_WIDTH = 248;
-  const CARD_HEIGHT = 144;
+  const CARD_WIDTH = 224;
+  const CARD_HEIGHT = 112;
   // Phones: the same breakpoint as the stylesheet. Below READABLE_SCALE a card name is too small to read.
   const phoneQuery = window.matchMedia("(max-width: 560px)");
   const READABLE_SCALE = .7;
@@ -108,17 +109,18 @@
       : item.metadata?.died || item.metadata?.death || item.metadata?.death_date);
   }
 
-  // Cards pass compact: they show only the year, and the title carries the full localized date.
-  function dateFact(item, kind, compact = false) {
-    const name = t(kind === "born" ? "born" : "died");
+  function dateFact(item, kind) {
     const raw = dateValue(item, kind);
-    const full = raw ? formatDate(raw) : t("notRecorded");
-    const fact = html("span", { className: "date-fact", attrs: { title: `${name}: ${full}` } });
-    fact.append(icon(kind === "born" ? "baby" : "flower-2"));
+    return fact(t(kind === "born" ? "born" : "died"), raw ? formatDate(raw) : t("notRecorded"), kind === "born" ? "baby" : "flower-2");
+  }
+
+  function fact(name, value, iconName) {
+    const node = html("span", { className: "date-fact", attrs: { title: `${name}: ${value}` } });
+    if (iconName) node.append(icon(iconName));
     const copy = html("span");
-    copy.append(html("small", { text: name }), html("span", { text: compact && raw ? year(raw) : full }));
-    fact.append(copy);
-    return fact;
+    copy.append(html("small", { text: name }), html("span", { text: value }));
+    node.append(copy);
+    return node;
   }
 
   function html(tag, options = {}) {
@@ -485,7 +487,9 @@
       : t("people", { count: peopleCount });
     const evidenceText = evidenceCount ? ` · ${t("evidenceCount", { count: evidenceCount })}` : "";
     const claimsText = t("claims", { count: claimCount });
-    el.graph_status.textContent = state.view === "simple" ? peopleText : `${peopleText}${evidenceText} · ${claimsText}`;
+    const open = state.questions ? nodes.filter((node) => node.kind === "person").reduce((sum, node) => sum + openQuestions(node).length, 0) : 0;
+    const questionsText = state.questions ? ` · ${t("missingCount", { count: open })}` : "";
+    el.graph_status.textContent = state.view === "simple" ? `${peopleText}${questionsText}` : `${peopleText}${evidenceText} · ${claimsText}${questionsText}`;
     if (fit) requestAnimationFrame(startGraph);
   }
 
@@ -546,20 +550,23 @@
     }
     const copy = html("div", { className: "person-copy" });
     copy.append(html("span", { className: "person-name", text: label(node) }));
-    const description = html("span", { className: "person-description" });
-    if (node.kind === "person" && roles.length) description.append(roleBadge(role));
-    else description.append(html("span", { className: "record-kind", text: known("kind", node.kind) }));
-    copy.append(description); head.append(avatar, copy); card.append(head);
+    // Simple view leaves out the parent role: the lines already show who is whose parent.
+    if (node.kind !== "person") copy.append(html("span", { className: "record-kind", text: known("kind", node.kind) }));
+    else if (roles.length && state.view !== "simple") { const description = html("span", { className: "person-description" }); description.append(roleBadge(role)); copy.append(description); }
+    head.append(avatar, copy); card.append(head);
     const occupation = plainValue(node.metadata?.occupation);
-    const job = html("div", { className: "person-occupation", attrs: { title: occupation } });
-    if (occupation) job.append(icon("briefcase-business"), html("span", { text: occupation }));
-    else if (node.kind !== "person") job.textContent = t("evidenceAndResearch");
-    card.append(job);
-    const dates = html("div", { className: "person-dates" });
-    if (node.kind === "person") dates.append(dateFact(node, "born", true), dateFact(node, "died", true));
-    else dates.append(html("span", { text: t("openToReadSource") }));
-    card.append(dates); content.append(card); group.append(content);
-    group.append(svg("title", { text: `${label(node)} · ${lifeSpan(node)}${occupation ? ` · ${occupation}` : ""}` }));
+    if (node.kind === "person") {
+      card.append(html("div", { className: "person-life", text: lifeSummary(node) }));
+      const job = html("div", { className: "person-occupation", attrs: { title: occupation } });
+      if (occupation) job.append(icon("briefcase-business"), html("span", { text: occupation }));
+      card.append(job);
+      const open = state.questions ? openQuestions(node).length : 0;
+      if (open) card.append(html("span", { className: "question-badge", text: open, attrs: { title: t("missingCount", { count: open }) } }));
+    } else {
+      card.append(html("div", { className: "person-occupation", text: t("evidenceAndResearch") }), html("div", { className: "person-life", text: t("openToReadSource") }));
+    }
+    content.append(card); group.append(content);
+    group.append(svg("title", { text: `${label(node)} · ${lifeSummary(node, { full: true })}${occupation ? ` · ${occupation}` : ""}` }));
     group.addEventListener("click", () => select(node.id));
     group.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(node.id, true); }
@@ -576,11 +583,30 @@
     return characters.length > length ? `${characters.slice(0, length - 1).join("")}…` : value;
   }
 
-  function lifeSpan(item) {
-    const born = item.metadata?.born || item.metadata?.birth || item.metadata?.birth_date || "";
-    const died = item.metadata?.died || item.metadata?.death || item.metadata?.death_date || "";
-    if (born || died) return `${formatDate(plainValue(born)) || "?"} – ${formatDate(plainValue(died))}`;
-    return t("datesNotRecorded");
+  // "* 1954 · 72 years" or "1928 – 2005 · 76 years"; full: true writes the dates out. Without a recorded death a person
+  // counts as living; past KindredLife.OLD_AGE the age is left out, since the death is more likely just unrecorded.
+  function lifeSummary(item, { full = false } = {}) {
+    if (item.kind !== "person") return known("kind", item.kind);
+    const born = dateValue(item, "born"), died = dateValue(item, "died");
+    const show = full ? formatDate : year;
+    const span = KindredLife.deceased(item)
+      ? `${born ? show(born) : "?"} – ${died ? show(died) : "?"}`
+      : born ? t("bornShort", { date: show(born) }) : "";
+    return [span, ageText(item)].filter(Boolean).join(" · ") || t("datesNotRecorded");
+  }
+
+  function ageText(item) {
+    const age = KindredLife.age(item);
+    if (!age || (!age.deceased && age.years >= KindredLife.OLD_AGE)) return "";
+    return t(age.exact ? "ageYears" : "ageAbout", { count: age.years });
+  }
+
+  // What is still missing about a person. Parent links come from the claims and from the note itself.
+  function openQuestions(item) {
+    const metadata = item.metadata || {};
+    const linked = new Set((state.data?.query.edges || []).filter((edge) => edge.to === item.id && edge.relation !== "partner").map((edge) => edge.from)).size;
+    const noted = (Array.isArray(metadata.parents) ? metadata.parents.length : 0) + (metadata.mother ? 1 : 0) + (metadata.father ? 1 : 0);
+    return KindredLife.questions(item, { parents: Math.max(linked, noted), portrait: Boolean(portraitFor(item)) });
   }
 
   function plainValue(value) {
@@ -666,7 +692,10 @@
     if (portrait) header.append(portrait);
     if (item.kind === "person") {
       const dates = html("div", { className: "detail-dates" });
-      dates.append(dateFact(item, "born"), dateFact(item, "died"));
+      const deceased = KindredLife.deceased(item), age = ageText(item);
+      dates.append(dateFact(item, "born"));
+      if (deceased) dates.append(dateFact(item, "died"));
+      if (age) dates.append(fact(t(deceased ? "ageAtDeath" : "age"), age));
       header.append(dates);
       if (simple) {
         const places = ["birth", "death"].flatMap((kind) => {
@@ -733,6 +762,7 @@
     }
     el.details_body.append(header);
 
+    if (state.questions && item.kind === "person") renderQuestions(item);
     renderParents(item);
     if (item.body) section(t("sectionStories"), renderProse(item.body), "book-open");
     if (!simple) renderFacts(item);
@@ -781,6 +811,24 @@
     heading.append(document.createTextNode(title));
     wrapper.append(heading, content);
     el.details_body.append(wrapper);
+  }
+
+  // Each gap can be answered through the suggestion form, which starts with the gap's name.
+  function renderQuestions(item) {
+    const open = openQuestions(item);
+    if (!open.length) return section(t("stillMissing"), html("p", { className: "questions-done", text: t("nothingMissing") }), "circle-question-mark");
+    const list = html("ul", { className: "question-list" });
+    for (const key of open) {
+      const entry = html("li");
+      entry.append(html("span", { text: t(`question.${key}`) }));
+      if (staticSite?.suggest) {
+        const answer = html("button", { className: "quiet-button", text: t(key === "portrait" ? "iHaveOne" : "iKnow"), attrs: { type: "button" } });
+        answer.addEventListener("click", () => openSuggestion(item, `${t(`question.${key}`)}: `));
+        entry.append(answer);
+      }
+      list.append(entry);
+    }
+    section(t("stillMissing"), list, "circle-question-mark");
   }
 
   function renderParents(item) {
@@ -977,6 +1025,49 @@
     return supported || "en";
   }
 
+  // The open-questions mode is off unless ?questions=1 asks for it or it was left on.
+  function initialQuestions() {
+    const requested = new URLSearchParams(location.search).get("questions");
+    if (requested === "1" || requested === "0") return requested === "1";
+    try { return localStorage.getItem("kindred.questions") === "on"; } catch { return false; }
+  }
+
+  function setQuestions(on) {
+    state.questions = on;
+    el.questions_toggle.setAttribute("aria-pressed", String(on));
+    document.body.classList.toggle("questions-mode", on);
+  }
+
+  function toggleQuestions() {
+    setQuestions(!state.questions);
+    try { localStorage.setItem("kindred.questions", state.questions ? "on" : "off"); } catch { /* Private browsing can refuse storage. */ }
+    syncUrl({ questions: state.questions ? "1" : "0" });
+    if (state.data) { renderGraph({ fit: false }); renderDetails(); }
+  }
+
+  // The theme follows the system until the reader picks one; the choice is remembered.
+  const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  function storedTheme() {
+    try { const theme = localStorage.getItem("kindred.theme"); return theme === "dark" || theme === "light" ? theme : ""; } catch { return ""; }
+  }
+  function isDark() {
+    return (storedTheme() || (darkQuery.matches ? "dark" : "light")) === "dark";
+  }
+  function renderTheme() {
+    const theme = storedTheme();
+    if (theme) document.documentElement.dataset.theme = theme;
+    else delete document.documentElement.dataset.theme;
+    const dark = isDark();
+    el.theme_toggle.setAttribute("aria-pressed", String(dark));
+    el.theme_toggle.setAttribute("aria-label", t(dark ? "lightMode" : "darkMode"));
+    el.theme_toggle.title = t(dark ? "lightMode" : "darkMode");
+    el.theme_toggle.replaceChildren(icon(dark ? "sun" : "moon"));
+  }
+  function toggleTheme() {
+    try { localStorage.setItem("kindred.theme", isDark() ? "light" : "dark"); } catch { /* Private browsing can refuse storage. */ }
+    renderTheme();
+  }
+
   // Rewrites only the named parameters, so ?view= and ?lang= keep each other.
   function syncUrl(parameters) {
     const query = new URLSearchParams(location.search);
@@ -1012,6 +1103,7 @@
     KindredI18n.apply();
     el.overview_toggle.textContent = state.overviewShowAll ? t("collapseAll") : t("showAll");
     for (const button of document.querySelectorAll("[data-lang]")) button.setAttribute("aria-pressed", String(button.dataset.lang === KindredI18n.lang()));
+    renderTheme();
   }
 
   // Re-renders in place: the graph keeps its zoom and filters, and the details keep the selected person.
@@ -1097,10 +1189,11 @@
   }
 
   // A person's draft is restored when the same person is opened again; a general note starts empty unless it is the draft.
-  function openSuggestion(item = null) {
+  function openSuggestion(item = null, prompt = "") {
     suggestion = { person: item ? item.id : null, name: item ? label(item) : "" };
     const draft = readDraft();
-    el.suggestion_text.value = draft && draft.person === suggestion.person ? draft.text : "";
+    const kept = draft && draft.person === suggestion.person ? draft.text : "";
+    el.suggestion_text.value = kept && prompt ? `${kept.trimEnd()}\n${prompt}` : kept || prompt;
     el.suggestion_about.hidden = !item;
     el.suggestion_about.textContent = item ? t("suggestAbout", { name: label(item) }) : "";
     el.suggestion_message.textContent = "";
@@ -1108,6 +1201,7 @@
     el.suggestion_send.disabled = false;
     el.suggestion.showModal();
     el.suggestion_text.focus();
+    el.suggestion_text.setSelectionRange(el.suggestion_text.value.length, el.suggestion_text.value.length);
   }
 
   async function sendSuggestion(event) {
@@ -1158,7 +1252,7 @@
     const matches = people().filter((person) => `${label(person)} ${plainValue(person.metadata?.aliases)} ${person.id}`.toLocaleLowerCase().includes(term)).slice(0, 12);
     for (const person of matches) {
       const button = html("button", { attrs: { type: "button" } });
-      button.append(html("strong", { text: label(person) }), html("small", { text: lifeSpan(person) }));
+      button.append(html("strong", { text: label(person) }), html("small", { text: lifeSummary(person, { full: true }) }));
       button.addEventListener("click", () => {
         state.person = person.id;
         state.selected = person.id;
@@ -1185,8 +1279,8 @@
     const points = [...state.positions.values()];
     const xs = points.map((point) => point.x);
     const ys = points.map((point) => point.y);
-    const minX = Math.min(...xs) - 148;
-    const maxX = Math.max(...xs) + 148;
+    const minX = Math.min(...xs) - CARD_WIDTH / 2 - 24;
+    const maxX = Math.max(...xs) + CARD_WIDTH / 2 + 24;
     const minY = Math.min(...ys) - CARD_HEIGHT / 2 - 38;
     const maxY = Math.max(...ys) + CARD_HEIGHT / 2 + 38;
     const bounds = el.graph.getBoundingClientRect();
@@ -1279,7 +1373,7 @@
   // The peek summary is always the selected person, so it can show before the full details are rendered.
   function renderPeek(item) {
     el.sheet_name.textContent = label(item);
-    el.sheet_years.textContent = item.kind === "person" ? lifeSpan(item) : known("kind", item.kind);
+    el.sheet_years.textContent = lifeSummary(item, { full: true });
     const occupation = plainValue(item.metadata?.occupation);
     el.sheet_occupation.textContent = occupation;
     el.sheet_occupation.hidden = !occupation;
@@ -1288,9 +1382,9 @@
   // On a phone the switches and filters live in the menu panel; on desktop they go back to the masthead and toolbar.
   function placeMenu() {
     if (phoneQuery.matches) {
-      el.menu_panel.append(el.view_switch, el.lang_switch, el.query_options);
+      el.menu_panel.append(el.view_switch, el.lang_switch, el.questions_toggle, el.theme_toggle, el.query_options);
     } else {
-      el.help_button.before(el.view_switch, el.lang_switch);
+      el.help_button.before(el.view_switch, el.lang_switch, el.questions_toggle, el.theme_toggle);
       el.toolbar.append(el.query_options);
       setMenu(false);
     }
@@ -1311,6 +1405,9 @@
   document.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => setMode(button.dataset.mode)));
   document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.view)));
   document.querySelectorAll("[data-lang]").forEach((button) => button.addEventListener("click", () => switchLang(button.dataset.lang)));
+  el.questions_toggle.addEventListener("click", toggleQuestions);
+  el.theme_toggle.addEventListener("click", toggleTheme);
+  darkQuery.addEventListener("change", renderTheme);
   el.layout_order.addEventListener("change", () => { state.layoutRoot = record(state.selected)?.kind === "person" ? state.selected : state.person; renderGraph(); });
   el.generations.addEventListener("change", () => loadGraph());
   el.relation_filter.addEventListener("change", () => loadGraph());
@@ -1500,6 +1597,7 @@
   placeMenu();
   phoneQuery.addEventListener("change", placeMenu);
   applyView(initialView());
+  setQuestions(initialQuestions());
   KindredI18n.setLang(initialLang());
   renderStrings();
   loadGraph({ keepSelection: false });

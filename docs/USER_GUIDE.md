@@ -101,6 +101,24 @@ browser. Without a choice, German is used when the browser prefers German and
 English otherwise. Names, notes, places, and original date wording are never
 translated. Person cards show only years; hover a date to read it in full.
 
+Cards and details show each person's age: completed years today, or the age at
+death. With a year-only date the age is marked as approximate ("about 9 years").
+A person without a recorded death, and without `living: false`, counts as living.
+From 100 years on the age is left out, because the death is then more likely
+unrecorded than the person alive.
+
+**What's missing?** in the masthead (in the menu on phones) shows, for each person,
+which details are still unrecorded: birth date or its exact day, place of birth,
+occupation (adults only), parents, the date and place of death for the deceased,
+whether someone over 100 is still alive, and a photo. Cards get a count, and the
+details panel lists the gaps. On a static site with suggestions, each gap opens the
+suggestion form with its name filled in. A deliberate `parents: []` or a year-only
+date the site withholds is not counted. Use `?questions=1` or `?questions=0` on
+load; the choice is remembered in this browser.
+
+The sun and moon button switches between the light and dark designs. Until it is
+used, the page follows the system setting.
+
 The keyboard help lists navigation: `/` focuses search, arrow keys move between
 people, Enter opens a family view, `+` and `-` change depth, and Escape closes
 the current overlay. Controls also work through normal Tab navigation.
@@ -109,7 +127,7 @@ Mother/father badges come from explicit `mother`/`father` fields, `role` on inli
 parent claims, or `parent_role` on legacy relationship notes, never from a person's name or an inferred gender. Unspecified roles stay
 Parent. The Parents panel identifies whose mother or father is shown and retains
 biological/adoptive/foster type and claim status. The icons have text labels.
-Birth, death, and occupation appear on cards and in details. Occupations can be
+Birth and death years with the age, and the occupation, appear on cards; the full dates appear in details. Occupations can be
 strings or flat lists, and uncertain date wording remains unchanged.
 
 Write stories and research notes in the person's Markdown body, using headings
@@ -276,8 +294,9 @@ Birth dates are reduced to the year for two groups. A person whose note sets
 `date_display: year` is one. A person who is under 18 on the reference date, and
 whose `living` is not `false`, is the other. Their full birth date in `born`,
 `birth`, or `birth_date` (and in the derived birth event) becomes the year. Other
-people keep their dates as written. `--today YYYY-MM-DD` sets the reference date;
-it defaults to today's UTC date.
+people keep their dates as written. Both groups get `date_display: year` in
+`graph.json`, so the viewer does not list the withheld day as missing.
+`--today YYYY-MM-DD` sets the reference date; it defaults to today's UTC date.
 
 Before publication, Kindred scans every text file for a protected person's full
 birth date, in ISO form (`2017-09-26`), dotted form (`26.09.2017`), or written out

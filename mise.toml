@@ -19,7 +19,7 @@ run = [
   "cargo check --locked --all-targets --all-features",
   "cargo clippy --locked --all-targets --all-features -- -D warnings",
   "cargo test --locked --all-features",
-  "node --test tests/family.cjs tests/layout.cjs tests/i18n.cjs tests/query.cjs",
+  "node --test tests/family.cjs tests/layout.cjs tests/i18n.cjs tests/query.cjs tests/life.cjs",
 ]
 
 [tasks.test]
@@ -56,7 +56,7 @@ run = "dist build --artifacts=host"
 
 [tasks."test:graph"]
 description = "Test family highlighting and layout invariants"
-run = "node --test tests/family.cjs tests/layout.cjs tests/i18n.cjs tests/query.cjs"
+run = "node --test tests/family.cjs tests/layout.cjs tests/i18n.cjs tests/query.cjs tests/life.cjs"
 
 [tasks.changelog]
 description = "Generate the changelog from Conventional Commits"

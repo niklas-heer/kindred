@@ -29,6 +29,8 @@
         <button type="button" data-lang="en" lang="en" title="English" aria-pressed="true">EN</button>
         <button type="button" data-lang="de" lang="de" title="Deutsch" aria-pressed="false">DE</button>
       </div>
+      <button id="questions-toggle" class="quiet-button questions-toggle" type="button" aria-pressed="false" data-i18n-attr="title:whatsMissingHint" title="Show what is still missing about each person"><svg class="icon" aria-hidden="true"><use href="/icons.svg#circle-question-mark"/></svg> <span data-i18n="whatsMissing">What's missing?</span></button>
+      <button id="theme-toggle" class="quiet-button theme-toggle" type="button" aria-pressed="false" aria-label="Dark mode"></button>
       <button id="help-button" class="quiet-button" type="button" aria-expanded="false" aria-controls="shortcuts" data-i18n="keyboard">Keyboard</button>
       <button id="menu-button" class="quiet-button menu-button" type="button" aria-expanded="false" aria-controls="menu-panel" data-i18n="menu">Menu</button>
     </div>
@@ -164,6 +166,7 @@
   <script src="/layout.js"></script>
   <script src="/i18n.js"></script>
   <script src="/query.js"></script>
+  <script src="/life.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

@@ -22,12 +22,13 @@ const ID_KEYS: [&str; 6] = ["sources", "people", "place", "parent", "child", "pa
 /// Original birth-date wording. `born` and `birth` are aliases; the viewer also reads `birth_date`.
 const BIRTH_KEYS: [&str; 3] = ["born", "birth", "birth_date"];
 /// Viewer files, from the same constants the local server embeds.
-const ASSETS: [(&str, &str); 7] = [
+const ASSETS: [(&str, &str); 8] = [
     ("app.css", web::STYLES),
     ("family.js", web::FAMILY),
     ("layout.js", web::LAYOUT),
     ("i18n.js", web::I18N),
     ("query.js", web::QUERY),
+    ("life.js", web::LIFE),
     ("app.js", web::SCRIPT),
     ("icons.svg", web::ICONS),
 ];
@@ -458,6 +459,10 @@ fn record_json(
     pruner.prune(&mut metadata, "");
     if record.kind == "person" && protected.contains_key(&record.id) {
         reduce_dates(&mut metadata, &BIRTH_KEYS);
+        // Tells the viewer the year is deliberate, so it does not ask relatives for the full date.
+        if let Some(fields) = metadata.as_object_mut() {
+            fields.insert("date_display".into(), Value::from("year"));
+        }
     }
     // The derived birth event is an `event` record whose ID is `derived:<owner>:birth`.
     let birth_event = record.owner.as_ref().is_some_and(|owner| {

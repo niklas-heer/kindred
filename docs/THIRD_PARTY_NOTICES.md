@@ -7,7 +7,7 @@ from [Lucide 1.47.0](https://github.com/lucide-icons/lucide/tree/1.47.0/icons)
 on 2026-09-19. SVG children are combined into symbols; stroke width is adjusted
 to match Kindred. Icons remain bundled locally.
 
-Included icons: baby, flower-2, briefcase-business, book-open, notebook-pen, venus, mars, users-round, plus, minus, scan, search, external-link.
+Included icons: baby, flower-2, briefcase-business, book-open, notebook-pen, venus, mars, users-round, plus, minus, scan, search, external-link, moon, sun, circle-question-mark.
 
 ISC License
 

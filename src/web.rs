@@ -21,6 +21,7 @@ pub(crate) const FAMILY: &str = include_str!("web/family.js");
 pub(crate) const LAYOUT: &str = include_str!("web/layout.js");
 pub(crate) const I18N: &str = include_str!("web/i18n.js");
 pub(crate) const QUERY: &str = include_str!("web/query.js");
+pub(crate) const LIFE: &str = include_str!("web/life.js");
 pub(crate) const SCRIPT: &str = include_str!("web/app.js");
 pub(crate) const ICONS: &str = include_str!("web/icons.svg");
 /// Content-Security-Policy for viewer pages. The server adds `frame-ancestors`, which a
@@ -108,6 +109,9 @@ fn handle_request(request: Request, root: &Path, port: u16) -> Result<(), String
         }
         (&Method::Get, "/query.js") => {
             respond_static(request, QUERY, "text/javascript; charset=utf-8")
+        }
+        (&Method::Get, "/life.js") => {
+            respond_static(request, LIFE, "text/javascript; charset=utf-8")
         }
         (&Method::Get, "/icons.svg") => respond_static(request, ICONS, "image/svg+xml"),
         (&Method::Get, "/api/graph") => graph_response(request, root, &query_string),
