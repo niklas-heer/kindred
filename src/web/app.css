@@ -100,9 +100,14 @@ select, .query-options input[type="number"] { border: 1px solid var(--line); bor
 .person-role { color: var(--muted); font-size: 11px; font-weight: 600; }
 .person-role:empty { display: none; }
 .person-meta { overflow: hidden; margin-top: auto; color: light-dark(#6c7871, #a3afa9); font-size: 11px; line-height: 1.3; white-space: nowrap; text-overflow: ellipsis; }
-.person-meta.missing { color: light-dark(#8a5a17, #e9c48c); font-weight: 600; }
-/* Lineage: blood relatives of the selected person carry a bar; partners and in-laws do not. */
-.node[data-family]:not([data-family=""]):not([data-family="partner"]) .person-card { box-shadow: inset 4px 0 0 var(--family-stroke, light-dark(#2d6654, #8cc9b1)); }
+.person-meta.missing { display: flex; gap: .3em; color: light-dark(#8a5a17, #e9c48c); font-weight: 600; }
+.missing-names { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.missing-more { flex: 0 0 auto; }
+.missing-flag { display: none; position: absolute; top: 8px; right: 8px; padding: 1px 6px; border-radius: 999px; color: light-dark(#724a15, #f1d3a6); background: light-dark(#f5e4c6, #4a3a22); font: 700 14px/1.2 ui-sans-serif, system-ui, sans-serif; }
+#graph[data-zoom="far"] .missing-flag { display: block; }
+#graph[data-zoom="far"] .person-card.flagged .person-head { padding-right: 44px; }
+/* Lineage: blood relatives (biological links only) of the selected person carry a bar coloured by side. */
+.node.blood .person-card { box-shadow: inset 4px 0 0 var(--family-stroke, light-dark(#2d6654, #8cc9b1)); }
 /* Semantic zoom: far away only the name and life line remain, in larger type. */
 #graph[data-zoom="far"] .person-avatar, #graph[data-zoom="far"] .person-meta, #graph[data-zoom="far"] .person-role { display: none; }
 #graph[data-zoom="far"] .person-name { font-size: 24px; line-height: 1.1; }

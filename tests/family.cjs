@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 
 require("../src/web/family.js");
 
-const { analyze } = globalThis.KindredFamily;
+const { analyze, bloodRelatives } = globalThis.KindredFamily;
 const parent = (id, from, to, role = "parent") => ({
   id,
   from,
@@ -153,4 +153,13 @@ test("analysis never reaches relationships omitted by the supplied filter", () =
     selected: 1,
     maternal: 1,
   });
+});
+
+test("blood relatives follow biological parent links only", () => {
+  const edge = (from, to, relation = "biological_parent") => ({ id: `${from}-${to}`, from, to, relation });
+  const edges = [edge("grandma", "mum"), edge("grandma", "aunt"), edge("aunt", "cousin"), edge("mum", "me"),
+    edge("tove", "me", "adoptive_parent"), edge("tove", "tove-child"), edge("foster", "me", "foster_parent"),
+    { id: "p", from: "mum", to: "stepdad", relation: "partner" }, edge("stepdad", "half", "adoptive_parent")];
+  assert.deepEqual([...bloodRelatives("me", edges)].sort(), ["aunt", "cousin", "grandma", "me", "mum"]);
+  assert.deepEqual([...bloodRelatives("", edges)], []);
 });

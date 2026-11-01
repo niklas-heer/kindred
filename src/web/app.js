@@ -47,6 +47,7 @@
   const READABLE_SCALE = .7;
   // Below this scale cards switch to large type with only the name and life line (semantic zoom).
   const FAR_SCALE = .6;
+  const START_SCALE = .85;
 
   function icon(name) {
     const image = svg("svg", { className: "icon", attrs: { viewBox: "0 0 24 24", width: 18, height: 18, "aria-hidden": "true", focusable: "false" } });
@@ -590,12 +591,15 @@
       card.append(html("div", { className: "person-role", text: roles.length ? known("role", roles.length === 1 ? roles[0] : "parent") : "" }));
     }
     const occupation = plainValue(node.metadata?.occupation);
-    const birthPlace = plainValue(node.metadata?.birth_place);
+    const birthPlaceRecord = record(record(lifeEventId(node, "birth"))?.metadata?.place);
+    const birthPlace = birthPlaceRecord ? label(birthPlaceRecord) : /^\[\[/u.test(plainValue(node.metadata?.birth_place)) ? "" : plainValue(node.metadata?.birth_place);
     const meta = person ? [occupation, birthPlace].filter(Boolean).join(" · ") : t("openToReadSource");
     if (missing.length) {
-      const names = missing.slice(0, 2).map((key) => t(`question.${key}`));
-      const more = missing.length > 2 ? ` +${missing.length - 2}` : "";
-      card.append(html("div", { className: "person-meta missing", text: `${t("missingShort")} ${names.join(", ")}${more}` }));
+      const row = html("div", { className: "person-meta missing" });
+      row.append(html("span", { className: "missing-names", text: `${t("missingShort")} ${missing.slice(0, 2).map((key) => t(`question.${key}`)).join(", ")}` }));
+      if (missing.length > 2) row.append(html("span", { className: "missing-more", text: `+${missing.length - 2}` }));
+      card.append(row, html("span", { className: "missing-flag", text: `? ${missing.length}`, attrs: { "aria-hidden": "true" } }));
+      card.classList.add("flagged");
     } else if (meta) {
       card.append(html("div", { className: "person-meta", text: meta }));
     }
@@ -680,10 +684,12 @@
       for (const edge of visibleEdges) if (!["evidence", "event"].includes(edge.relation) && !family.edges.has(edge.id)) family.edges.set(edge.id, "connection");
     }
     const active = Boolean(focus && family.people.size);
+    const blood = KindredFamily.bloodRelatives(focus, visibleEdges);
     for (const node of el.nodes.children) {
       const id = node.dataset.id;
       const category = family.people.get(id);
       node.classList.toggle("selected", id === state.selected);
+      node.classList.toggle("blood", active && blood.has(id));
       node.classList.toggle("family-muted", active && !category && record(id)?.kind === "person");
       node.dataset.family = category || "";
       node.setAttribute("aria-label", nodeAriaLabel(label(record(id)), category));
@@ -1340,15 +1346,18 @@
   }
 
   // A phone that would have to fit everything below a readable scale centres the focus person instead; the Fit button still fits everything.
+  // Desktops do the same once fitting would need the far zoom: they start at START_SCALE.
   function startGraph() {
     const view = fitView();
     if (!view) return;
     const focus = focusPoint();
-    if (phoneQuery.matches && view.scale < READABLE_SCALE && focus) {
-      centreOn(focus, READABLE_SCALE);
+    const phone = phoneQuery.matches;
+    if (focus && view.scale < (phone ? READABLE_SCALE : FAR_SCALE)) {
+      centreOn(focus, phone ? READABLE_SCALE : START_SCALE);
       // Centring a person in the top generation would leave the upper half empty: lift the tree's top edge to the top.
       const treeTop = Math.min(...[...state.positions.values()].map((point) => point.y)) - CARD_HEIGHT / 2;
-      const headroom = 56;
+      const heading = el.selection_summary.parentElement;
+      const headroom = phone || !heading.offsetHeight ? 56 : heading.offsetTop + heading.offsetHeight + 16;
       if (state.ty + treeTop * state.scale > headroom) {
         state.ty = headroom - treeTop * state.scale;
         applyTransform();

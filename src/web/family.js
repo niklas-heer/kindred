@@ -163,5 +163,23 @@
     return { people, edges: categorizedEdges, counts };
   }
 
-  global.KindredFamily = Object.freeze({ analyze });
+  // Blood relatives share a biological ancestor with the selected person: everyone up its biological parent
+  // links, and everyone down from those. Adoptive and foster links and partners never make a blood relative.
+  function bloodRelatives(selectedId, edges) {
+    const parents = new Map(), children = new Map();
+    for (const edge of edges) {
+      if (edge.relation !== "biological_parent") continue;
+      add(parents, edge.to, edge.from);
+      add(children, edge.from, edge.to);
+    }
+    const ancestors = new Set([selectedId]);
+    const up = [selectedId];
+    while (up.length) for (const parent of parents.get(up.pop()) || []) if (!ancestors.has(parent)) { ancestors.add(parent); up.push(parent); }
+    const blood = new Set(ancestors);
+    const down = [...ancestors];
+    while (down.length) for (const child of children.get(down.pop()) || []) if (!blood.has(child)) { blood.add(child); down.push(child); }
+    return selectedId ? blood : new Set();
+  }
+
+  global.KindredFamily = Object.freeze({ analyze, bloodRelatives });
 })(globalThis);
