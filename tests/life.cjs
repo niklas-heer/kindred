@@ -56,3 +56,8 @@ test("upcoming lists birthdays, memorials and weddings with full dates only, nea
     ["wedding", "p+b", 1, 46], ["memorial", "late", 2, 21], ["birthday", "p", 4, 72], ["birthday", "b", 19, 76]
   ]);
 });
+
+test("a 29 February birthday falls on 28 February in other years", () => {
+  const list = upcoming([{ id: "leap", kind: "person", metadata: { born: "1980-02-29" } }], [], { today: new Date(2027, 1, 1), days: 60 });
+  assert.deepEqual(list.map((item) => [item.date.getMonth(), item.date.getDate(), item.years]), [[1, 28, 47]]);
+});

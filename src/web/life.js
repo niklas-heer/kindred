@@ -79,8 +79,10 @@
     const occasions = [];
     const add = (type, ids, parsed) => {
       if (!parsed || !parsed.day || parsed.approximate) return;
-      let date = new Date(start.getFullYear(), parsed.month - 1, parsed.day);
-      if (date < start) date = new Date(start.getFullYear() + 1, parsed.month - 1, parsed.day);
+      // A 29 February falls on 28 February in other years, as the site's reminders have it.
+      const on = (year) => new Date(year, parsed.month - 1, parsed.month === 2 && parsed.day === 29 && new Date(year, 1, 29).getMonth() !== 1 ? 28 : parsed.day);
+      let date = on(start.getFullYear());
+      if (date < start) date = on(start.getFullYear() + 1);
       const inDays = Math.round((date - start) / 864e5);
       const years = date.getFullYear() - parsed.year;
       if (inDays <= days && years > 0) occasions.push({ type, ids, date, inDays, years });
