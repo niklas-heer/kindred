@@ -51,12 +51,6 @@
           <label id="branch-picker"><span data-i18n="branch">Branch</span>
             <select id="branch-root" data-i18n-attr="aria-label:overviewBranch" aria-label="Overview branch"><option value="" data-i18n="allFamilyRoots">All family roots</option></select>
           </label>
-          <label><span data-i18n="arrange">Arrange</span>
-            <select id="layout-order"><option value="sides" data-i18n="familySides">Family sides</option><option value="compact" data-i18n="compact">Compact</option></select>
-          </label>
-          <label><span data-i18n="depth">Depth</span>
-            <input id="generations" type="number" min="1" max="64" value="2" inputmode="numeric">
-          </label>
           <label class="research-only"><span data-i18n="relation">Relation</span>
             <select id="relation-filter">
               <option value="" data-i18n="allTypes">All types</option>
@@ -74,7 +68,18 @@
             </select>
           </label>
           <label class="evidence-toggle research-only"><input id="show-evidence" type="checkbox"> <span data-i18n="evidence">Evidence</span></label>
-          <button id="overview-toggle" class="quiet-button" type="button" data-i18n="showAll">Show all</button>
+          <details id="more-options" class="more-options">
+            <summary class="quiet-button"><span data-i18n="options">Options</span></summary>
+            <div class="more-options-body">
+              <label><span data-i18n="arrange">Arrange</span>
+                <select id="layout-order"><option value="sides" data-i18n="familySides">Family sides</option><option value="compact" data-i18n="compact">Compact</option></select>
+              </label>
+              <label><span data-i18n="depth">Depth</span>
+                <input id="generations" type="number" min="1" max="64" value="2" inputmode="numeric">
+              </label>
+              <button id="overview-toggle" class="quiet-button" type="button" data-i18n="showAll">Show all</button>
+            </div>
+          </details>
         </div>
       </div>
 
@@ -98,7 +103,9 @@
         <div id="empty-state" class="empty-state" hidden>
           <span aria-hidden="true">⌁</span><strong data-i18n="noConnections">No connections in this view</strong>
           <p data-i18n="noConnectionsHint">Try another person, add uncertain claims, or increase the depth.</p>
+          <div class="empty-actions"><button id="empty-reset" class="quiet-button" type="button" data-i18n="resetFilters">Reset filters</button><button id="empty-search" class="primary-button" type="button" data-i18n="choosePerson">Choose a person…</button></div>
         </div>
+        <div id="first-hint" class="first-hint" role="note" hidden><span data-i18n="firstHintPointer">Drag to explore. Click a person for their story.</span><button id="first-hint-close" type="button" data-i18n-attr="aria-label:close" aria-label="Close">×</button></div>
         <div class="graph-key" data-i18n-attr="aria-label:graphLegend" aria-label="Graph legend">
           <span><i class="key-blood"></i> <span data-i18n="legendBlood">Related by blood</span></span>
           <span><i class="key-in-law"></i> <span data-i18n="legendInLaw">Partner or in-law</span></span>
@@ -110,6 +117,7 @@
           <button id="zoom-out" type="button" data-i18n-attr="aria-label:zoomOut" aria-label="Zoom out"><svg class="icon" aria-hidden="true"><use href="/icons.svg#minus"/></svg></button>
           <span id="zoom-level">100%</span>
           <button id="zoom-in" type="button" data-i18n-attr="aria-label:zoomIn" aria-label="Zoom in"><svg class="icon" aria-hidden="true"><use href="/icons.svg#plus"/></svg></button>
+          <button id="centre-button" type="button" data-i18n-attr="aria-label:centrePerson;title:centrePerson" aria-label="Centre the selected person" title="Centre the selected person"><svg class="icon" aria-hidden="true"><use href="/icons.svg#locate-fixed"/></svg></button>
           <button id="fit-button" type="button" data-i18n-attr="aria-label:fitGraph" aria-label="Fit graph"><svg class="icon" aria-hidden="true"><use href="/icons.svg#scan"/></svg> <span data-i18n="fit">Fit</span></button>
         </div>
         <div id="graph-status" class="graph-status" role="status" data-i18n="loadingArchive">Loading archive…</div>

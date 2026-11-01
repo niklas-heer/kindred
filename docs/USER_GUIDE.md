@@ -119,6 +119,13 @@ load; the choice is remembered in this browser.
 The sun and moon button switches between the light and dark designs. Until it is
 used, the page follows the system setting.
 
+The browser's back and forward buttons step through the people and views you
+chose; panning and zooming add no steps, and going back returns to the same place.
+The target button next to **Fit** brings the selected person back to the middle.
+**Options** in the toolbar holds the arrangement, the depth, and **Show all**; on
+phones they are in the menu. A short hint on how to explore shows on the first
+visit until it is closed or you start exploring.
+
 The keyboard help lists navigation: `/` focuses search, arrow keys move between
 people, Enter opens a family view, `+` and `-` change depth, and Escape closes
 the current overlay. Controls also work through normal Tab navigation.
@@ -129,12 +136,12 @@ Parent. The Parents panel identifies whose mother or father is shown and retains
 biological/adoptive/foster type and claim status. Roles are shown as words, never
 as gender symbols.
 
-A card shows the name, the life line (`1928–2005 · 76 Jahre`, or `* 1954 · 72 Jahre`
-for the living) and the occupation and place of birth; Research
+A card shows the name, the life line (a birth mark, then `1928–2005 · 76 Jahre`, or
+`1954 · 72 Jahre` for the living) and the occupation and place of birth; Research
 cards add the parent role. Cards stay neutral; after you select someone, a bar on
 the left marks their blood relatives. Only biological parent
-links count, so partners, in-laws, and adoptive or foster relatives have none. A recorded marriage event between two partners shows as rings and its
-year below the couple, and on the partner row in details. Below 80% zoom, cards drop the picture and details
+links count, so partners, in-laws, and adoptive or foster relatives have none. A recorded marriage event between two partners shows as a small badge
+with rings and its year below the couple, and on the partner row in details. Below 80% zoom, cards drop the picture and details
 and show the name and life line in larger type. When fitting everything would need
 that far zoom, the graph starts centred on the selected person at a readable size
 instead; **Fit** still shows everyone. The full dates appear in details. Occupations can be

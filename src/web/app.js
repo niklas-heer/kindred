@@ -26,6 +26,7 @@
     view: "research",
     sheet: "hidden",
     questions: false,
+    pendingCamera: null,
     loadError: ""
   };
 
@@ -35,7 +36,7 @@
     "edges", "nodes", "empty-state", "graph-status", "details", "editor",
     "editor-title", "editor-text", "editor-message", "save-button", "help-button", "shortcuts",
     "suggest-general", "suggestion", "suggestion-form", "suggestion-about", "suggestion-text", "suggestion-message", "suggestion-send",
-    "workspace", "toolbar", "query-options", "view-switch", "lang-switch", "menu-button", "menu-panel", "details-body", "sheet-handle", "sheet-close", "sheet-peek", "sheet-name", "sheet-years", "sheet-occupation", "questions-toggle", "theme-toggle"
+    "workspace", "toolbar", "query-options", "view-switch", "lang-switch", "menu-button", "menu-panel", "details-body", "sheet-handle", "sheet-close", "sheet-peek", "sheet-name", "sheet-years", "sheet-occupation", "questions-toggle", "theme-toggle", "more-options", "centre-button", "first-hint", "first-hint-close", "empty-reset", "empty-search"
   ].map((id) => [id.replaceAll("-", "_"), document.getElementById(id)]));
 
   const svgNs = "http://www.w3.org/2000/svg";
@@ -112,7 +113,7 @@
 
   function dateFact(item, kind) {
     const raw = dateValue(item, kind);
-    return fact(t(kind === "born" ? "born" : "died"), raw ? formatDate(raw) : t("notRecorded"), kind === "born" ? "baby" : "flower-2");
+    return fact(t(kind === "born" ? "born" : "died"), raw ? formatDate(raw) : t("notRecorded"), kind === "born" ? "birth-mark" : "flower-2");
   }
 
   function fact(name, value, iconName) {
@@ -243,6 +244,7 @@
       const previous = keepSelection ? state.selected : "";
       state.data = payload;
       state.loadError = "";
+      el.empty_state.classList.remove("failed");
       el.empty_state.querySelector("strong").dataset.i18n = "noConnections";
       el.empty_state.querySelector("p").dataset.i18n = "noConnectionsHint";
       KindredI18n.apply(el.empty_state);
@@ -252,11 +254,13 @@
       renderDiagnostics();
       renderGraph();
       renderDetails();
+      if (!history.state?.kindred) history.replaceState(snapshot(), "");
     } catch (error) {
       if (request !== state.request) return;
       state.loadError = error instanceof Error ? error.message : String(error);
       el.graph_status.textContent = t("couldNotLoad");
       // Relatives get a way forward; the technical message stays in the Research diagnostics.
+      el.empty_state.classList.add("failed");
       el.empty_state.querySelector("strong").dataset.i18n = "couldNotLoad";
       el.empty_state.querySelector("p").dataset.i18n = "reloadHint";
       KindredI18n.apply(el.empty_state);
@@ -498,7 +502,7 @@
     const claimsText = t("claims", { count: claimCount });
     const open = state.questions ? nodes.filter((node) => node.kind === "person").reduce((sum, node) => sum + openQuestions(node).length, 0) : 0;
     const questionsText = state.questions ? ` · ${t("missingCount", { count: open })}` : "";
-    el.graph_status.textContent = state.view === "simple" ? `${peopleText}${questionsText}` : `${peopleText}${evidenceText} · ${claimsText}${questionsText}`;
+    el.graph_status.textContent = phoneQuery.matches ? peopleText : state.view === "simple" ? `${peopleText}${questionsText}` : `${peopleText}${evidenceText} · ${claimsText}${questionsText}`;
     if (fit) requestAnimationFrame(startGraph);
   }
 
@@ -555,6 +559,8 @@
     return marriages.byPair.get([first, second].sort().join("\u0000")) || null;
   }
 
+  // A recorded marriage is an event lozenge (rings and year) where the couple's line meets the children's line;
+  // the lozenge is opaque, so the child trunk passes behind it. Distant couples get it on their routed partner line.
   function renderMarriage(edge) {
     if (edge.relation !== "partner" || state.mode === "path") return;
     const from = state.positions.get(edge.from), to = state.positions.get(edge.to);
@@ -563,18 +569,20 @@
     if (!marriage) return;
     const date = plainValue(marriage.metadata?.date);
     const place = record(marriage.metadata?.place);
-    const adjacent = Math.abs(to.x - from.x) <= CARD_WIDTH + 40;
-    const x = (from.x + to.x) / 2, y = from.y + CARD_HEIGHT / 2 + (adjacent ? 13 : 20);
-    const width = date ? 54 : 24;
-    const group = svg("g", { className: "marriage-mark", attrs: { transform: `translate(${x} ${y})`, "data-from": edge.from, "data-to": edge.to } });
+    // A year taken from wording such as "about 1950" keeps its uncertainty.
+    const shown = date ? `${/^\d{4}(?:-\d{2}){0,2}$/u.test(date) ? "" : "~"}${year(date)}` : "";
+    const width = shown ? 44 + shown.length * 7 : 30;
+    const x = (from.x + to.x) / 2, y = from.y + CARD_HEIGHT / 2 + 20;
+    const description = [date ? t("marriedOn", { date: formatDate(date) }) : t("marriedUndated"), place ? label(place) : ""].filter(Boolean).join(" · ");
+    const group = svg("g", { className: "marriage-mark", attrs: { transform: `translate(${x} ${y})`, role: "img", "aria-label": description, "data-from": edge.from, "data-to": edge.to } });
     const body = svg("g", { className: "marriage-body" });
-    body.append(svg("rect", { attrs: { x: -width / 2, y: -9, width, height: 18, rx: 9 } }));
-    body.append(svg("use", { attrs: { href: "/icons.svg#rings", x: date ? -width / 2 + 4 : -7, y: -7, width: 14, height: 14 } }));
-    if (date) body.append(svg("text", { text: year(date), attrs: { x: -width / 2 + 20, y: 4 } }));
-    group.append(body);
-    group.append(svg("title", { text: [date ? t("marriedOn", { date: formatDate(date) }) : t("married"), place ? label(place) : ""].filter(Boolean).join(" · ") }));
+    body.append(svg("rect", { attrs: { x: -width / 2, y: -12, width, height: 24, rx: 8 } }));
+    body.append(svg("use", { attrs: { href: "/icons.svg#rings", x: shown ? -width / 2 + 8 : -9, y: -9, width: 18, height: 18 } }));
+    if (shown) body.append(svg("text", { text: shown, attrs: { x: -width / 2 + 30, y: 0, "dominant-baseline": "central" } }));
+    group.append(body, svg("title", { text: description }));
     el.edges.append(group);
   }
+
 
   function renderNode(node) {
     const position = state.positions.get(node.id);
@@ -583,7 +591,7 @@
     const deceased = person && KindredLife.deceased(node);
     const group = svg("g", {
       className: `node${person ? "" : " evidence"}${deceased ? " deceased" : ""}${state.selected === node.id ? " selected" : ""}`,
-      attrs: { transform: `translate(${position.x} ${position.y})`, tabindex: "0", role: "button", "aria-label": nodeAriaLabel(label(node)), "data-id": node.id }
+      attrs: { transform: `translate(${position.x} ${position.y})`, tabindex: "0", role: "button", "aria-label": nodeAriaLabel(node), "data-id": node.id }
     });
     const frame = { x: -CARD_WIDTH / 2, y: -CARD_HEIGHT / 2, width: CARD_WIDTH, height: CARD_HEIGHT };
     group.append(svg("rect", { className: "node-halo", attrs: { x: frame.x - 5, y: frame.y - 5, width: frame.width + 10, height: frame.height + 10, rx: 16 } }));
@@ -604,12 +612,15 @@
     const copy = html("div", { className: "person-copy" });
     copy.append(html("span", { className: "person-name", text: label(node) }));
     head.append(avatar, copy);
-    // The age sits in its own span, so compact cards can drop it for the deceased, whose two years already imply it.
+    // Birth mark, years, then the age in its own span, so compact cards can drop it for the deceased.
     const life = html("div", { className: "person-life" });
-    const age = person && KindredLife.deceased(node) ? ageText(node) : "";
-    const summary = person ? lifeSummary(node) : known("kind", node.kind);
-    if (age && summary.endsWith(` · ${age}`)) life.append(html("span", { text: summary.slice(0, -age.length - 3) }), html("span", { className: "life-age", text: ` · ${age}` }));
-    else life.textContent = summary;
+    if (person) {
+      const parts = lifeParts(node);
+      if (parts.born) { const mark = icon("birth-mark"); mark.classList.add("life-symbol"); life.append(mark); }
+      if (parts.years) life.append(html("span", { className: "life-years", text: parts.years }));
+      if (parts.age) life.append(html("span", { className: "life-age", text: parts.years ? ` · ${parts.age}` : parts.age }));
+      if (!parts.years && !parts.age) life.append(html("span", { className: "life-years", text: t("datesNotRecorded") }));
+    } else life.textContent = known("kind", node.kind);
     card.append(head, life);
     // Research names the parent role in words; Simple leaves it to the lines.
     if (person && state.view !== "simple") {
@@ -639,8 +650,11 @@
     el.nodes.append(group);
   }
 
-  function nodeAriaLabel(name, category) {
-    return category ? t("nodeLabelRole", { name, role: t(familyLabels[category]) }) : t("nodeLabel", { name });
+  function nodeAriaLabel(item, category) {
+    const name = label(item);
+    const base = category ? t("nodeLabelRole", { name, role: t(familyLabels[category]) }) : t("nodeLabel", { name });
+    const life = item?.kind === "person" ? lifeDescription(item) : "";
+    return life ? `${base}. ${life}` : base;
   }
 
   function truncate(value, length) {
@@ -652,13 +666,24 @@
   // counts as living; past KindredLife.OLD_AGE the age is left out, since the death is more likely just unrecorded.
   function lifeSummary(item, { full = false } = {}) {
     if (item.kind !== "person") return known("kind", item.kind);
+    const parts = lifeParts(item, { full });
+    const span = parts.years && !parts.deceased ? t("bornShort", { date: parts.years }) : parts.years;
+    return [span, parts.age].filter(Boolean).join(" · ") || t("datesNotRecorded");
+  }
+
+  // The pieces of a life line: the years (or full dates), whether a birth is known, and the age.
+  function lifeParts(item, { full = false } = {}) {
     const born = dateValue(item, "born"), died = dateValue(item, "died");
     const show = full ? formatDate : year;
-    if (!born && !died) return ageText(item) || t("datesNotRecorded");
-    const span = KindredLife.deceased(item)
-      ? t("lifeSpan", { born: born ? show(born) : "?", died: died ? show(died) : "?" })
-      : born ? t("bornShort", { date: show(born) }) : "";
-    return [span, ageText(item)].filter(Boolean).join(" · ") || t("datesNotRecorded");
+    const deceased = KindredLife.deceased(item);
+    const years = deceased && (born || died) ? t("lifeSpan", { born: born ? show(born) : "?", died: died ? show(died) : "?" }) : born ? show(born) : "";
+    return { years, born: Boolean(born), deceased, age: ageText(item) };
+  }
+
+  // Spoken form for assistive technology: "Born 1928, died 2005, 76 years".
+  function lifeDescription(item) {
+    const born = dateValue(item, "born"), died = dateValue(item, "died");
+    return [born ? `${t("born")} ${formatDate(born)}` : "", died ? `${t("died")} ${formatDate(died)}` : "", ageText(item)].filter(Boolean).join(", ");
   }
 
   function ageText(item) {
@@ -684,7 +709,60 @@
     return named || JSON.stringify(value);
   }
 
+  // A one-time hint on how to explore; it goes for good once closed, or once the reader pans or picks someone.
+  function dismissHint() {
+    if (el.first_hint.hidden) return;
+    el.first_hint.hidden = true;
+    try { localStorage.setItem("kindred.hint", "done"); } catch { /* Private browsing can refuse storage. */ }
+  }
+  function showHint() {
+    let done = false;
+    try { done = localStorage.getItem("kindred.hint") === "done"; } catch { done = false; }
+    el.first_hint.querySelector("span").dataset.i18n = window.matchMedia("(pointer: coarse)").matches ? "firstHintTouch" : "firstHintPointer";
+    KindredI18n.apply(el.first_hint);
+    el.first_hint.hidden = done;
+  }
+
+  function showMode(mode) {
+    for (const button of document.querySelectorAll("[data-mode]")) button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
+    el.path_picker.hidden = mode !== "path";
+    el.overview_toggle.hidden = mode !== "overview";
+    el.branch_picker.hidden = mode !== "overview";
+  }
+
+  // Back and forward walk through the people and views a reader chose. Panning and zooming add no steps; the step
+  // being left keeps its camera, so going back returns to the same place.
+  const STEP_KEYS = ["selected", "person", "to", "mode", "overviewRoot", "generations"];
+  let restoring = false;
+  function snapshot() {
+    return { kindred: 1, selected: state.selected, person: state.person, to: state.to, mode: state.mode, overviewRoot: state.overviewRoot, generations: el.generations.value };
+  }
+  function leaveStep() {
+    if (restoring || !history.state?.kindred) return;
+    history.replaceState({ ...history.state, camera: { scale: state.scale, tx: state.tx, ty: state.ty } }, "");
+  }
+  function enterStep() {
+    if (restoring || !state.data) return;
+    const next = snapshot();
+    if (history.state?.kindred && STEP_KEYS.every((key) => history.state[key] === next[key])) return;
+    history.pushState(next, "");
+  }
+  window.addEventListener("popstate", (event) => {
+    const step = event.state;
+    if (!step?.kindred || !state.data) return;
+    restoring = true;
+    const reload = step.mode !== state.mode || step.person !== state.person || step.to !== state.to || step.generations !== el.generations.value;
+    Object.assign(state, { selected: step.selected, person: step.person, to: step.to, overviewRoot: step.overviewRoot, mode: step.mode, layoutRoot: "", pendingCamera: step.camera || null });
+    el.generations.value = step.generations;
+    showMode(step.mode);
+    if (reload) loadGraph();
+    else { populatePeople(); renderGraph(); renderDetails(); }
+    restoring = false;
+  });
+
   function select(id, openFamily = false) {
+    leaveStep();
+    dismissHint();
     state.selected = id;
     if (!state.person) state.person = id;
     renderGraphSelection();
@@ -696,6 +774,7 @@
       state.person = id;
       setMode("focus");
     }
+    enterStep();
   }
 
   const familyLabels = { selected: "family.selected", maternal: "family.maternal", paternal: "family.paternal", both: "family.both", ancestor: "family.ancestor", descendant: "family.descendant", partner: "family.partner", relative: "family.relative", connection: "family.connection" };
@@ -719,7 +798,7 @@
       node.classList.toggle("blood", active && blood.has(id));
       node.classList.toggle("family-muted", active && !category && record(id)?.kind === "person");
       node.dataset.family = category || "";
-      node.setAttribute("aria-label", nodeAriaLabel(label(record(id)), category));
+      node.setAttribute("aria-label", nodeAriaLabel(record(id), category));
       node.setAttribute("aria-pressed", String(id === state.selected));
     }
     for (const edge of el.edges.children) {
@@ -786,7 +865,7 @@
       if (state.mode === "overview" && !state.overviewShowAll && state.positions.has(item.id)) {
         const visibleIds = new Set(graphNodes().map((node) => node.id));
         const expanded = state.data.query.edges.some((edge) => edge.from === item.id && edge.relation !== "partner" && visibleIds.has(edge.to));
-        const branch = html("button", { className: "primary-button", text: expanded ? t("collapseBranch") : t("expandBranch"), attrs: { type: "button" } });
+        const branch = html("button", { className: "quiet-button", text: expanded ? t("collapseBranch") : t("expandBranch"), attrs: { type: "button" } });
         branch.addEventListener("click", () => {
           const partners = new Set([item.id]), pending = [item.id];
           while (pending.length) {
@@ -806,12 +885,15 @@
         });
         if (state.data.query.edges.some((edge) => edge.from === item.id && edge.relation !== "partner")) actions.append(branch);
       }
+      // One filled action: opening the family. Branch folding is secondary; arranging around a person is a research tool.
       const family = html("button", { className: "primary-button", text: t("openFamily"), attrs: { type: "button" } });
       family.addEventListener("click", () => { state.person = item.id; setSheet("peek"); setMode("focus"); });
-      actions.append(family);
-      const arrange = html("button", { className: "quiet-button", text: t("arrangeFamilySides"), attrs: { type: "button" } });
-      arrange.addEventListener("click", () => { state.layoutRoot = item.id; el.layout_order.value = "sides"; renderGraph(); });
-      actions.append(arrange);
+      actions.prepend(family);
+      if (!simple) {
+        const arrange = html("button", { className: "quiet-button", text: t("arrangeFamilySides"), attrs: { type: "button" } });
+        arrange.addEventListener("click", () => { state.layoutRoot = item.id; el.layout_order.value = "sides"; renderGraph(); });
+        actions.append(arrange);
+      }
     }
     const edit = html("button", { className: "quiet-button", text: item.owner ? t("editPersonNote") : t("editNote"), attrs: { type: "button" } });
     edit.addEventListener("click", () => openEditor(item));
@@ -819,11 +901,6 @@
     const itemUrl = item.metadata?.url;
     if (item.kind === "source" && typeof itemUrl === "string" && /^https?:\/\//iu.test(itemUrl)) {
       actions.append(html("a", { className: "quiet-button", text: t("openSource"), attrs: { href: itemUrl, target: "_blank", rel: "noopener noreferrer" } }));
-    }
-    if (staticSite?.suggest && item.kind === "person") {
-      const suggest = html("button", { className: "quiet-button", text: t("suggestButton"), attrs: { type: "button" } });
-      suggest.addEventListener("click", () => openSuggestion(item));
-      actions.append(suggest);
     }
     header.append(actions);
     if (item.owner) {
@@ -840,10 +917,19 @@
     if (!simple) renderFacts(item);
     renderRelations(item);
     renderEvents(item);
-    if (simple) return;
-    renderEvidence(item);
-    renderAttachments(item);
-    if (!item.owner && !staticSite) renderNoteComposer(item);
+    if (!simple) {
+      renderEvidence(item);
+      renderAttachments(item);
+      if (!item.owner && !staticSite) renderNoteComposer(item);
+    }
+    // Suggestions come after the person's own content.
+    if (staticSite?.suggest && item.kind === "person") {
+      const footer = html("div", { className: "detail-footer" });
+      const suggest = html("button", { className: "quiet-button", text: t("suggestButton"), attrs: { type: "button" } });
+      suggest.addEventListener("click", () => openSuggestion(item));
+      footer.append(suggest);
+      el.details_body.append(footer);
+    }
   }
 
   // Simple view shows a non-person record as its title, date and place, with links to the people it concerns.
@@ -1053,6 +1139,7 @@
   }
 
   function setMode(mode) {
+    leaveStep();
     state.layoutRoot = "";
     if (record(state.selected)?.kind === "person") state.person = state.selected;
     // Each view starts at a readable depth; the control can then expand it.
@@ -1060,10 +1147,8 @@
     if (mode === "focus" && state.mode !== "focus") el.generations.value = "1";
     if ((mode === "ancestors" || mode === "descendants") && state.mode === "focus") el.generations.value = "4";
     state.mode = mode;
-    for (const button of document.querySelectorAll("[data-mode]")) button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
-    el.path_picker.hidden = mode !== "path";
-    el.overview_toggle.hidden = mode !== "overview";
-    el.branch_picker.hidden = mode !== "overview";
+    showMode(mode);
+    enterStep();
     if (mode === "path" && !state.to) {
       el.graph_status.textContent = t("chooseSecondPerson");
       return;
@@ -1147,7 +1232,7 @@
   function syncUrl(parameters) {
     const query = new URLSearchParams(location.search);
     for (const [name, value] of Object.entries(parameters)) query.set(name, value);
-    history.replaceState(null, "", `?${query}`);
+    history.replaceState(history.state, "", `?${query}`);
   }
 
   function filterKey() {
@@ -1378,6 +1463,11 @@
   // A phone that would have to fit everything below a readable scale centres the focus person instead; the Fit button still fits everything.
   // Desktops do the same once fitting would need the far zoom: they start at START_SCALE.
   function startGraph() {
+    if (state.pendingCamera) {
+      Object.assign(state, state.pendingCamera);
+      state.pendingCamera = null;
+      return applyTransform();
+    }
     const view = fitView();
     if (!view) return;
     const focus = focusPoint();
@@ -1462,7 +1552,10 @@
   function placeMenu() {
     if (phoneQuery.matches) {
       el.menu_panel.append(el.view_switch, el.lang_switch, el.questions_toggle, el.theme_toggle, el.query_options);
+      // The menu panel is already a disclosure, so its options are always open there.
+      el.more_options.open = true;
     } else {
+      el.more_options.open = false;
       el.help_button.before(el.view_switch, el.lang_switch, el.questions_toggle, el.theme_toggle);
       el.toolbar.append(el.query_options);
       setMenu(false);
@@ -1486,6 +1579,14 @@
   document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.view)));
   document.querySelectorAll("[data-lang]").forEach((button) => button.addEventListener("click", () => switchLang(button.dataset.lang)));
   el.questions_toggle.addEventListener("click", toggleQuestions);
+  el.first_hint_close.addEventListener("click", dismissHint);
+  // An empty view offers a way out: back to the defaults, or straight to the search.
+  el.empty_reset.addEventListener("click", () => {
+    el.status_filter.value = "accepted"; el.relation_filter.value = ""; el.show_evidence.checked = false;
+    if (state.mode === "path") { setMode("overview"); return; }
+    loadGraph();
+  });
+  el.empty_search.addEventListener("click", () => { setMenu(false); el.search.focus(); });
   el.theme_toggle.addEventListener("click", toggleTheme);
   darkQuery.addEventListener("change", renderTheme);
   el.layout_order.addEventListener("change", () => { state.layoutRoot = record(state.selected)?.kind === "person" ? state.selected : state.person; renderGraph(); });
@@ -1502,14 +1603,22 @@
     renderDetails();
   });
   el.branch_root.addEventListener("change", () => {
+    leaveStep();
     state.overviewRoot = el.branch_root.value;
     state.layoutRoot = "";
     state.overviewExpanded.clear(); state.overviewCollapsed.clear();
     state.selected = state.overviewRoot;
+    enterStep();
     renderGraph(); renderDetails();
   });
   el.path_to.addEventListener("change", () => { state.to = el.path_to.value; if (state.to) loadGraph(); });
   el.fit_button.addEventListener("click", fitGraph);
+  // Back to the selected person after panning: keep the zoom when it is readable, otherwise use the start zoom.
+  el.centre_button.addEventListener("click", () => {
+    const focus = focusPoint();
+    const readable = phoneQuery.matches ? READABLE_SCALE : START_SCALE;
+    if (focus) centreOn(focus, state.scale >= readable ? state.scale : readable);
+  });
   function zoomAt(x, y, factor) {
     const previous = state.scale;
     state.scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, previous * factor));
@@ -1532,6 +1641,7 @@
   el.menu_button.addEventListener("click", () => setMenu(el.menu_panel.hidden, { focus: true }));
   document.addEventListener("pointerdown", (event) => {
     if (!el.menu_panel.hidden && !el.menu_panel.contains(event.target) && !el.menu_button.contains(event.target)) setMenu(false);
+    if (!phoneQuery.matches && el.more_options.open && !el.more_options.contains(event.target)) el.more_options.open = false;
   });
   // The handle is the keyboard and assistive path to the sheet states; a drag past 24 px changes state as soon as it crosses.
   let handleGesture = null;
@@ -1608,6 +1718,7 @@
       // Below the threshold this is still a tap, so the card's click passes through.
       if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < PAN_THRESHOLD) return;
       drag.panning = true; suppressClick = true;
+      dismissHint();
       el.graph.setPointerCapture(event.pointerId);
       el.graph.classList.add("panning");
     }
@@ -1680,5 +1791,6 @@
   setQuestions(initialQuestions());
   KindredI18n.setLang(initialLang());
   renderStrings();
+  showHint();
   loadGraph({ keepSelection: false });
 })();
