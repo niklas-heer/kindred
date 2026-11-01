@@ -103,12 +103,12 @@ select, .query-options input[type="number"] { border: 1px solid var(--line); bor
 .parent-role.father { color: light-dark(#506f87, #a3b4c1); }
 .parent-role.tentative, .parent-role.disputed { text-decoration: underline dotted; text-underline-offset: 3px; }
 .record-kind { color: var(--muted); font-size: 10px; }
-.person-life { display: flex; align-items: center; gap: 0; min-width: 0; overflow: hidden; color: light-dark(#3f4e48, #c4d0ca); font: 600 13px/1.3 ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.person-life { display: flex; flex-wrap: wrap; align-items: center; gap: 0; min-width: 0; height: 1.3em; overflow: hidden; color: light-dark(#3f4e48, #c4d0ca); font: 600 13px/1.3 ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .icon.life-symbol { flex: none; width: .82em; height: .82em; margin-right: .28em; color: var(--green); }
 .key-born { color: var(--green); }
-/* The years always show in full; a long age gives way first. */
+/* The years always show in full; an age that does not fit wraps onto a hidden second line instead of being cut. */
 .life-years { flex: none; }
-.life-age { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
+.life-age { flex: none; white-space: pre; }
 .sheet-peek .icon.life-symbol { display: inline-block; vertical-align: -.08em; }
 .person-role { color: var(--muted); font-size: 11px; font-weight: 600; }
 .person-role:empty { display: none; }

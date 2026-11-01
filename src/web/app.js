@@ -761,7 +761,9 @@
     Object.assign(state, { selected: step.selected, person: step.person, to: step.to, overviewRoot: step.overviewRoot, mode: step.mode, layoutRoot: "", pendingCamera: step.camera || null });
     el.generations.value = step.generations;
     showMode(step.mode);
-    if (reload) loadGraph();
+    // A path step from before its second person was chosen waits for that choice again.
+    if (step.mode === "path" && !step.to) { el.path_to.value = ""; el.graph_status.textContent = t("chooseSecondPerson"); }
+    else if (reload) loadGraph();
     else { populatePeople(); renderGraph(); renderDetails(); }
     restoring = false;
   });
@@ -1591,7 +1593,12 @@
     (open ? el.view_switch.querySelector("button") : el.menu_button)?.focus();
   }
 
+  let cameraTimer = 0;
   function applyTransform() {
+    clearTimeout(cameraTimer);
+    cameraTimer = setTimeout(() => {
+      if (!restoring && history.state?.kindred) history.replaceState({ ...history.state, camera: { scale: state.scale, tx: state.tx, ty: state.ty } }, "");
+    }, 250);
     el.zoom_level.textContent = `${Math.round(state.scale * 100)}%`;
     el.graph.dataset.zoom = state.scale < FAR_SCALE ? "far" : "near";
     el.viewport.setAttribute("transform", `translate(${state.tx} ${state.ty}) scale(${state.scale})`);
@@ -1633,7 +1640,12 @@
     enterStep();
     renderGraph(); renderDetails();
   });
-  el.path_to.addEventListener("change", () => { state.to = el.path_to.value; if (state.to) loadGraph(); });
+  el.path_to.addEventListener("change", () => {
+    leaveStep();
+    state.to = el.path_to.value;
+    enterStep();
+    if (state.to) loadGraph();
+  });
   el.fit_button.addEventListener("click", fitGraph);
   // Back to the selected person after panning: keep the zoom when it is readable, otherwise use the start zoom.
   el.centre_button.addEventListener("click", () => {
