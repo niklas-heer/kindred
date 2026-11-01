@@ -192,6 +192,68 @@
         else evidenceByComponent[component].push(node);
       }
 
+      // Keeps every row's order but moves its couples so each child sits under its parents and each couple over its
+      // children. Each row is solved exactly (least squares under the order and spacing), sweeping down and up until
+      // the rows settle. Returns the component's left edge.
+      const parentLinks = new Map();
+      for (const edge of personEdges) {
+        const from = groupForPerson.get(edge.from), to = groupForPerson.get(edge.to);
+        if (edge.relation === "partner" || from === to || ranks.get(from) >= ranks.get(to)) continue;
+        if (!parentLinks.has(edge.to)) parentLinks.set(edge.to, []);
+        parentLinks.get(edge.to).push(edge.from);
+      }
+      function centreFamilies(componentGroups, buckets, rankNumbers) {
+        const offset = new Map(), left = new Map(), width = new Map();
+        for (const group of componentGroups) {
+          group.members.forEach((member, index) => offset.set(member.id, CARD_WIDTH / 2 + index * X_STEP));
+          left.set(group.id, positions.get(group.members[0].id).x - CARD_WIDTH / 2);
+          width.set(group.id, CARD_WIDTH + (group.members.length - 1) * X_STEP);
+        }
+        const x = (id) => left.get(groupForPerson.get(id)) + offset.get(id);
+        const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
+        // Where each link would put the group's left edge: under a member's parents, or over a child of its members.
+        const targets = new Map(componentGroups.map((group) => [group.id, []]));
+        const links = [];
+        for (const [child, parents] of parentLinks) {
+          if (!offset.has(child)) continue;
+          links.push({ group: groupForPerson.get(child), at: () => mean(parents.map(x)) - offset.get(child) });
+          const byGroup = new Map();
+          for (const parent of parents) byGroup.set(groupForPerson.get(parent), [...(byGroup.get(groupForPerson.get(parent)) || []), parent]);
+          for (const [group, own] of byGroup) links.push({ group, at: () => x(child) - mean(own.map((id) => offset.get(id))) });
+        }
+        for (const link of links) targets.get(link.group)?.push(link.at);
+        const solve = (row) => {
+          // Pool-adjacent-violators on left edges shifted by the space the earlier groups need.
+          const blocks = [];
+          let shift = 0;
+          for (const group of row) {
+            const wanted = targets.get(group.id).map((at) => at());
+            const value = (wanted.length ? mean(wanted) : left.get(group.id)) - shift;
+            blocks.push({ value, weight: wanted.length || .25, count: 1 });
+            while (blocks.length > 1 && blocks.at(-2).value > blocks.at(-1).value) {
+              const last = blocks.pop(), previous = blocks.pop(), weight = previous.weight + last.weight;
+              blocks.push({ value: (previous.value * previous.weight + last.value * last.weight) / weight, weight, count: previous.count + last.count });
+            }
+            shift += width.get(group.id) + COLUMN_GAP;
+          }
+          let index = 0;
+          shift = 0;
+          for (const block of blocks) {
+            for (let step = 0; step < block.count; step += 1) {
+              const group = row[index++];
+              left.set(group.id, block.value + shift);
+              shift += width.get(group.id) + COLUMN_GAP;
+            }
+          }
+        };
+        for (let pass = 0; pass < 12; pass += 1) {
+          for (const rank of rankNumbers) solve(buckets.get(rank));
+          for (const rank of [...rankNumbers].reverse()) solve(buckets.get(rank));
+        }
+        for (const group of componentGroups) group.members.forEach((member) => { positions.get(member.id).x = x(member.id); });
+        return Math.min(...componentGroups.map((group) => left.get(group.id)));
+      }
+
       let componentOffset = 0;
       components.forEach((component, componentIndex) => {
         const minimumRank = Math.min(...component.map((id) => ranks.get(id)));
@@ -245,17 +307,17 @@
         });
         const personWidth = Math.max(...rankNumbers.map(widthOfRank));
         const evidenceWidth = rail.length ? CARD_WIDTH + (rail.length - 1) * X_STEP : 0;
-        const componentWidth = Math.max(CARD_WIDTH, personWidth, evidenceWidth);
+        const packedWidth = Math.max(CARD_WIDTH, personWidth, evidenceWidth);
         const groupCenters = new Map();
         for (const rank of [...rankNumbers].reverse()) {
           const row = buckets.get(rank);
           const childCenters = row.flatMap((group) => outgoing.get(group.id).map((child) => groupCenters.get(child)).filter((center) => center !== undefined));
           const desiredCenter = childCenters.length
             ? childCenters.reduce((sum, center) => sum + center, 0) / childCenters.length
-            : componentOffset + componentWidth / 2;
+            : componentOffset + packedWidth / 2;
           const rowWidth = widthOfRank(rank);
           const minimumStart = componentOffset;
-          const maximumStart = componentOffset + componentWidth - rowWidth;
+          const maximumStart = componentOffset + packedWidth - rowWidth;
           let cursor = Math.max(minimumStart, Math.min(maximumStart, desiredCenter - rowWidth / 2));
           let remainingWidth = rowWidth;
           for (const group of row) {
@@ -263,7 +325,7 @@
             const anchors = outgoing.get(group.id).map((child) => groupCenters.get(child)).filter((center) => center !== undefined);
             if (anchors.length) {
               const desired = anchors.reduce((sum, center) => sum + center, 0) / anchors.length - groupWidth / 2;
-              cursor = Math.max(cursor, Math.min(componentOffset + componentWidth - remainingWidth, desired));
+              cursor = Math.max(cursor, Math.min(componentOffset + packedWidth - remainingWidth, desired));
             }
             group.members.forEach((member, index) => {
               positions.set(member.id, { x: cursor + CARD_WIDTH / 2 + index * X_STEP, y: rank * Y_STEP });
@@ -273,6 +335,10 @@
             remainingWidth -= groupWidth + COLUMN_GAP;
           }
         }
+        const left = centreFamilies(component.map((id) => groupById.get(id)), buckets, rankNumbers);
+        const right = Math.max(...component.flatMap((id) => groupById.get(id).members.map((member) => positions.get(member.id).x + CARD_WIDTH / 2)));
+        for (const id of component) for (const member of groupById.get(id).members) positions.get(member.id).x += componentOffset - left;
+        const componentWidth = Math.max(CARD_WIDTH, right - left, evidenceWidth);
         const evidenceY = (Math.max(...rankNumbers) + 1) * Y_STEP;
         let evidenceX = componentOffset + (componentWidth - evidenceWidth) / 2 + CARD_WIDTH / 2;
         for (const node of rail) {

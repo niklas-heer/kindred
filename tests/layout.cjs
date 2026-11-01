@@ -69,6 +69,18 @@ test("half-siblings stay grouped by couple when one branch has a shorter row bel
   for (const [left, right] of [["a", "b"], ["a", "c"], ["b", "d"], ["c", "d"]]) assert.equal(x(left) < x(right), x(`g${left}`) < x(`g${right}`), `g${left} and g${right} follow their parents`);
   separated(positions);
 });
+test("a family's children sit under their parents, not where the row happens to start", () => {
+  // Four child couples of one root; only the last has a child, so the bottom row has room to move.
+  const children = ["c1", "c2", "c3", "c4"];
+  const ids = ["root", "root-sp", ...children.flatMap((child) => [child, `${child}-sp`]), "g"];
+  const edges = [partner("root", "root-sp"), ...children.flatMap((child, index) => [parent("root", child), parent("root-sp", child), partner(child, `${child}-sp`)]),
+    parent("c4", "g"), parent("c4-sp", "g")];
+  const positions = arrange(ids.map((id, index) => person(id, String(1900 + index))), edges, "root");
+  const x = (id) => positions.get(id).x;
+  assert.ok(Math.abs(x("g") - (x("c4") + x("c4-sp")) / 2) < 1, "the grandchild is centred under its parents");
+  assert.ok(Math.abs((x("root") + x("root-sp")) / 2 - children.map(x).reduce((sum, value) => sum + value, 0) / children.length) < 1, "the root couple stays centred over its children");
+  separated(positions);
+});
 test("cycles, isolated people and evidence stay finite and disjoint", () => {
   const nodes = ["a", "b", "c", "isolated"].map((id) => person(id));
   nodes.push({id: "source", kind: "source"});
