@@ -92,15 +92,11 @@
 
       <div class="graph-shell">
         <div class="graph-heading"><strong id="selection-summary" data-i18n="yourFamily">Your family, connected</strong><small id="arrangement-caption" data-i18n="parentsAboveChildren">Parents above children</small><div id="selection-key" class="selection-key" data-i18n-attr="aria-label:highlightedRelatives" aria-label="Highlighted relatives"></div></div>
-        <svg id="graph" role="group" data-i18n-attr="aria-label:graphLabel" aria-label="Family relationship graph" tabindex="0">
-          <defs>
-            <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
-              <feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#293c30" flood-opacity=".06"/>
-              <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#293c30" flood-opacity=".07"/>
-            </filter>
-          </defs>
-          <g id="viewport"><g id="edges"></g><g id="nodes"></g></g>
-        </svg>
+        <!-- Lines are SVG; cards are an HTML layer moved with the same transform, because WebKit misplaces HTML inside SVG. -->
+        <div id="graph" class="graph" role="group" data-i18n-attr="aria-label:graphLabel" aria-label="Family relationship graph" tabindex="0">
+          <svg class="graph-lines" aria-hidden="true" focusable="false"><g id="viewport"><g id="edges"></g></g></svg>
+          <div id="nodes" class="node-layer"></div>
+        </div>
         <div id="empty-state" class="empty-state" hidden>
           <span aria-hidden="true">⌁</span><strong data-i18n="noConnections">No connections in this view</strong>
           <p data-i18n="noConnectionsHint">Try another person, add uncertain claims, or increase the depth.</p>

@@ -73,7 +73,9 @@ select, .query-options input[type="number"] { border: 1px solid var(--line); bor
 .diagnostics { padding: .65rem 1.1rem; border-bottom: 1px solid light-dark(#e6cda8, #534b3f); color: light-dark(#704b1e, #dfc9ad); background: light-dark(#fff3df, #2f2b24); font-size: .82rem; }
 .path-picker { display: flex; align-items: center; justify-content: center; gap: .8rem; padding: .55rem; border-bottom: 1px solid var(--line); background: light-dark(#f1f4ef, #262c22); font-size: .82rem; }
 .graph-shell { position: relative; flex: 1; min-height: 320px; overflow: hidden; background-image: radial-gradient(light-dark(#e6eae3, #28332d) .8px, transparent .8px); background-size: 24px 24px; }
-#graph { cursor: grab; touch-action: none; user-select: none; display: block; width: 100%; height: 100%; min-height: 320px; }
+#graph { position: relative; overflow: hidden; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; display: block; width: 100%; height: 100%; min-height: 320px; }
+.graph-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.node-layer { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
 #graph.panning, #graph.panning * { cursor: grabbing; }
 #graph img { pointer-events: none; }
 .edge { fill: none; stroke: light-dark(#98aaa3, #6c7773); stroke-width: 1.65; stroke-linecap: round; }
@@ -84,13 +86,10 @@ select, .query-options input[type="number"] { border: 1px solid var(--line); bor
 .connection.rejected .edge { stroke: light-dark(#7c7770, #aeadaa); stroke-dasharray: 2 6; opacity: .65; }
 .edge-hit { fill: none; stroke: transparent; stroke-width: 14; cursor: pointer; }
 .connection:hover .edge, .connection.highlight .edge { stroke: var(--green); stroke-width: 2.7; opacity: 1; }
-.node { cursor: pointer; outline: none; }
-.node-card { fill: light-dark(#fffefa, #1a221e); stroke: light-dark(#d3dbd3, #34413b); stroke-width: 1; filter: url(#shadow); }
-.node-halo { fill: none; stroke: transparent; stroke-width: 6; }
-.node.selected .node-halo { stroke: light-dark(rgba(45,102,84,.16), rgba(140,201,177,.2)); }
-.node:hover .node-card, .node:focus-visible .node-card { stroke: light-dark(#609180, #a2b3ad); stroke-width: 2; }
-.node.selected .node-card { fill: light-dark(#f3f8f4, #1e2a24); stroke: light-dark(#2d6654, #8cc9b1); stroke-width: 2.5; }
-.node.evidence .node-card { fill: light-dark(#fffcf2, #24221c); stroke: light-dark(#d5c9ae, #585142); }
+.node { position: absolute; box-sizing: border-box; cursor: pointer; outline: none; border: 1px solid light-dark(#d3dbd3, #34413b); border-radius: 14px; background: light-dark(#fffefa, #1a221e); box-shadow: 0 1px 2px rgba(41,60,48,.06), 0 4px 12px rgba(41,60,48,.07); -webkit-tap-highlight-color: transparent; }
+.node:hover, .node:focus-visible { border-color: light-dark(#609180, #a2b3ad); box-shadow: 0 0 0 1px light-dark(#609180, #a2b3ad), 0 4px 12px rgba(41,60,48,.08); }
+.node.selected { border: 2.5px solid light-dark(#2d6654, #8cc9b1); background: light-dark(#f3f8f4, #1e2a24); box-shadow: 0 0 0 5px light-dark(rgba(45,102,84,.16), rgba(140,201,177,.2)), 0 4px 12px rgba(41,60,48,.08); }
+.node.evidence { border-color: light-dark(#d5c9ae, #585142); background: light-dark(#fffcf2, #24221c); }
 .person-card { position: relative; display: flex; flex-direction: column; gap: 4px; width: 100%; height: 100%; padding: 9px 12px 8px 14px; overflow: hidden; border-radius: 12px; pointer-events: none; }
 .person-head { display: flex; align-items: center; gap: 10px; min-height: 40px; }
 .person-avatar { display: grid; place-items: center; flex: 0 0 40px; height: 40px; overflow: hidden; border: 1px solid light-dark(#d7e5dc, #2f3e34); border-radius: 50%; background: light-dark(#edf3ed, #22302a); color: light-dark(#52705e, #b2c9bc); font: 15px Georgia, serif; }
@@ -122,7 +121,7 @@ select, .query-options input[type="number"] { border: 1px solid var(--line); bor
 #graph[data-zoom="far"] .missing-flag { top: auto; bottom: 8px; }
 #graph[data-zoom="far"] .person-card.flagged .person-life { padding-right: 44px; }
 /* Lineage: blood relatives (biological links only) of the selected person carry one green bar; the side stays on lines and chips. */
-.node.blood .person-card { box-shadow: inset 4px 0 0 light-dark(#2d6654, #8cc9b1); }
+.node.blood:not(.selected) .person-card { box-shadow: inset 4px 0 0 light-dark(#2d6654, #8cc9b1); }
 /* Semantic zoom: far away only the name and life line remain, in larger type. */
 #graph[data-zoom="far"] .person-avatar, #graph[data-zoom="far"] .person-meta, #graph[data-zoom="far"] .person-role { display: none; }
 #graph[data-zoom="far"] .person-name { font-size: 20px; line-height: 1.15; }

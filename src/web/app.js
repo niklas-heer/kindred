@@ -595,14 +595,12 @@
     if (!position) return;
     const person = node.kind === "person";
     const deceased = person && KindredLife.deceased(node);
-    const group = svg("g", {
+    const group = html("div", {
       className: `node${person ? "" : " evidence"}${deceased ? " deceased" : ""}${state.selected === node.id ? " selected" : ""}`,
-      attrs: { transform: `translate(${position.x} ${position.y})`, tabindex: "0", role: "button", "aria-label": nodeAriaLabel(node), "data-id": node.id }
+      attrs: { tabindex: "0", role: "button", "aria-label": nodeAriaLabel(node), "data-id": node.id }
     });
-    const frame = { x: -CARD_WIDTH / 2, y: -CARD_HEIGHT / 2, width: CARD_WIDTH, height: CARD_HEIGHT };
-    group.append(svg("rect", { className: "node-halo", attrs: { x: frame.x - 5, y: frame.y - 5, width: frame.width + 10, height: frame.height + 10, rx: 18 } }));
-    group.append(svg("rect", { className: "node-card", attrs: { ...frame, rx: 14 } }));
-    const content = svg("foreignObject", { attrs: frame });
+    // Positioned through the CSSOM, which the page's style-src policy allows (unlike inline style attributes).
+    Object.assign(group.style, { left: `${position.x - CARD_WIDTH / 2}px`, top: `${position.y - CARD_HEIGHT / 2}px`, width: `${CARD_WIDTH}px`, height: `${CARD_HEIGHT}px` });
     const card = html("div", { className: "person-card" });
     const head = html("div", { className: "person-head" });
     const portrait = portraitFor(node);
@@ -646,9 +644,9 @@
     } else if (meta) {
       card.append(html("div", { className: "person-meta", text: meta }));
     }
-    content.append(card); group.append(content);
+    group.append(card);
     const missingText = missing.length ? ` · ${t("missingCount", { count: missing.length })}` : "";
-    group.append(svg("title", { text: `${label(node)} · ${lifeSummary(node, { full: true })}${meta && person ? ` · ${meta}` : ""}${missingText}` }));
+    group.title = `${label(node)} · ${lifeSummary(node, { full: true })}${meta && person ? ` · ${meta}` : ""}${missingText}`;
     group.addEventListener("click", () => select(node.id));
     group.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(node.id, true); }
@@ -1602,6 +1600,7 @@
     el.zoom_level.textContent = `${Math.round(state.scale * 100)}%`;
     el.graph.dataset.zoom = state.scale < FAR_SCALE ? "far" : "near";
     el.viewport.setAttribute("transform", `translate(${state.tx} ${state.ty}) scale(${state.scale})`);
+    el.nodes.style.transform = `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})`;
   }
 
   document.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => setMode(button.dataset.mode)));
