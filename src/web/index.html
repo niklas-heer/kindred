@@ -95,7 +95,8 @@
         <svg id="graph" role="group" data-i18n-attr="aria-label:graphLabel" aria-label="Family relationship graph" tabindex="0">
           <defs>
             <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
-              <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#293c30" flood-opacity=".06"/>
+              <feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#293c30" flood-opacity=".06"/>
+              <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#293c30" flood-opacity=".07"/>
             </filter>
           </defs>
           <g id="viewport"><g id="edges"></g><g id="nodes"></g></g>
@@ -109,6 +110,7 @@
         <div class="graph-key" data-i18n-attr="aria-label:graphLegend" aria-label="Graph legend">
           <span><i class="key-blood"></i> <span data-i18n="legendBlood">Related by blood</span></span>
           <span><i class="key-in-law"></i> <span data-i18n="legendInLaw">Partner or in-law</span></span>
+          <span><svg class="icon key-born" aria-hidden="true"><use href="/icons.svg#birth-mark"/></svg> <span data-i18n="legendBorn">Born</span></span>
           <span><svg class="icon" aria-hidden="true"><use href="/icons.svg#rings"/></svg> <span data-i18n="legendMarriage">Marriage</span></span>
           <span><i class="person-dot"></i> <span id="direction-label" data-i18n="parentsAboveChildren">Parents above children</span></span>
           <span class="research-only"><i class="uncertain-line"></i> <span data-i18n="legendUncertain">Tentative or disputed</span></span>

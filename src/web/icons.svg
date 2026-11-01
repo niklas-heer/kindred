@@ -56,7 +56,7 @@
   <line x1="12" x2="12" y1="19" y2="22" />
   <circle cx="12" cy="12" r="7" />
   <circle cx="12" cy="12" r="3" />
-</symbol><!-- rings and birth-mark: Kindred's own glyphs on the Lucide grid, same licence as Kindred. --><symbol id="rings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="13" r="5" />
-  <circle cx="15" cy="13" r="5" />
-</symbol><symbol id="birth-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4v16M5.1 8l13.8 8M5.1 16l13.8-8" />
+</symbol><!-- rings and birth-mark: Kindred's own glyphs on the Lucide grid, same licence as Kindred. --><symbol id="rings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M13.39 8.69A5.5 5.5 0 1 1 10.24 6.64" />
+  <path d="M10.61 15.31A5.5 5.5 0 1 1 13.76 17.36" />
+</symbol><symbol id="birth-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 4v16M5.1 8l13.8 8M5.1 16l13.8-8" />
 </symbol></svg>

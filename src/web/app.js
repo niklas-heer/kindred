@@ -255,6 +255,7 @@
       renderGraph();
       renderDetails();
       if (!history.state?.kindred) history.replaceState(snapshot(), "");
+      if (!keepSelection && phoneQuery.matches && record(state.selected)?.kind === "person") setSheet("peek", { focus: false });
     } catch (error) {
       if (request !== state.request) return;
       state.loadError = error instanceof Error ? error.message : String(error);
@@ -486,7 +487,7 @@
 
     const rails = KindredLayout.familyRails(edges, state.positions, { cardWidth: CARD_WIDTH, cardHeight: CARD_HEIGHT });
     for (const edge of edges) renderEdge(edge, edges, rails);
-    for (const edge of edges) renderMarriage(edge);
+    for (const edge of edges) renderMarriage(edge, edges);
     for (const node of nodes) renderNode(node);
     renderGraphSelection();
 
@@ -559,9 +560,9 @@
     return marriages.byPair.get([first, second].sort().join("\u0000")) || null;
   }
 
-  // A recorded marriage is an event lozenge (rings and year) where the couple's line meets the children's line;
-  // the lozenge is opaque, so the child trunk passes behind it. Distant couples get it on their routed partner line.
-  function renderMarriage(edge) {
+  // A recorded marriage is a knot on the couple's descent line: a small disc with interlocking rings, centred on the
+  // line to the children, with the year beside it. A couple without a shared child gets a short stub so it does not float.
+  function renderMarriage(edge, edges) {
     if (edge.relation !== "partner" || state.mode === "path") return;
     const from = state.positions.get(edge.from), to = state.positions.get(edge.to);
     if (!from || !to || from.y !== to.y) return;
@@ -571,17 +572,22 @@
     const place = record(marriage.metadata?.place);
     // A year taken from wording such as "about 1950" keeps its uncertainty.
     const shown = date ? `${/^\d{4}(?:-\d{2}){0,2}$/u.test(date) ? "" : "~"}${year(date)}` : "";
-    const width = shown ? 44 + shown.length * 7 : 30;
-    const x = (from.x + to.x) / 2, y = from.y + CARD_HEIGHT / 2 + 20;
+    const adjacent = Math.abs(to.x - from.x) <= CARD_WIDTH + 40;
+    const drop = CARD_HEIGHT / 2 + (adjacent ? 16 : 20);
+    const isParent = (link) => !["partner", "evidence", "event"].includes(link.relation);
+    const sharedChild = edges.some((first) => first.from === edge.from && isParent(first)
+      && edges.some((second) => second.from === edge.to && second.to === first.to && isParent(second)));
     const description = [date ? t("marriedOn", { date: formatDate(date) }) : t("marriedUndated"), place ? label(place) : ""].filter(Boolean).join(" · ");
-    const group = svg("g", { className: "marriage-mark", attrs: { transform: `translate(${x} ${y})`, role: "img", "aria-label": description, "data-from": edge.from, "data-to": edge.to } });
+    const group = svg("g", { className: "marriage-mark", attrs: { transform: `translate(${(from.x + to.x) / 2} ${from.y + drop})`, role: "img", "aria-label": description, "data-from": edge.from, "data-to": edge.to } });
+    if (adjacent && !sharedChild) group.append(svg("line", { className: "marriage-stub", attrs: { x1: 0, x2: 0, y1: -drop, y2: -10 } }));
     const body = svg("g", { className: "marriage-body" });
-    body.append(svg("rect", { attrs: { x: -width / 2, y: -12, width, height: 24, rx: 8 } }));
-    body.append(svg("use", { attrs: { href: "/icons.svg#rings", x: shown ? -width / 2 + 8 : -9, y: -9, width: 18, height: 18 } }));
-    if (shown) body.append(svg("text", { text: shown, attrs: { x: -width / 2 + 30, y: 0, "dominant-baseline": "central" } }));
+    body.append(svg("circle", { className: "marriage-disc", attrs: { r: 10 } }));
+    body.append(svg("use", { attrs: { href: "/icons.svg#rings", x: -7.5, y: -7.5, width: 15, height: 15 } }));
+    if (shown) body.append(svg("text", { text: shown, attrs: { x: 15, y: 0, "dominant-baseline": "central" } }));
     group.append(body, svg("title", { text: description }));
     el.edges.append(group);
   }
+
 
 
   function renderNode(node) {
@@ -594,8 +600,8 @@
       attrs: { transform: `translate(${position.x} ${position.y})`, tabindex: "0", role: "button", "aria-label": nodeAriaLabel(node), "data-id": node.id }
     });
     const frame = { x: -CARD_WIDTH / 2, y: -CARD_HEIGHT / 2, width: CARD_WIDTH, height: CARD_HEIGHT };
-    group.append(svg("rect", { className: "node-halo", attrs: { x: frame.x - 5, y: frame.y - 5, width: frame.width + 10, height: frame.height + 10, rx: 16 } }));
-    group.append(svg("rect", { className: "node-card", attrs: { ...frame, rx: 12 } }));
+    group.append(svg("rect", { className: "node-halo", attrs: { x: frame.x - 5, y: frame.y - 5, width: frame.width + 10, height: frame.height + 10, rx: 18 } }));
+    group.append(svg("rect", { className: "node-card", attrs: { ...frame, rx: 14 } }));
     const content = svg("foreignObject", { attrs: frame });
     const card = html("div", { className: "person-card" });
     const head = html("div", { className: "person-head" });
@@ -1455,9 +1461,24 @@
 
   function fitGraph() {
     const view = fitView();
-    if (!view) return;
-    Object.assign(state, view);
-    applyTransform();
+    if (view) glide(view);
+  }
+
+  // Deliberate camera moves (Fit, centring, revealing a card) glide for 260 ms; dragging and pinching never do,
+  // and reduced motion jumps straight there.
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let glideFrame = 0;
+  function glide(target) {
+    cancelAnimationFrame(glideFrame);
+    if (reducedMotion.matches) { Object.assign(state, target); return applyTransform(); }
+    const start = { scale: state.scale, tx: state.tx, ty: state.ty }, began = performance.now();
+    const step = (now) => {
+      const progress = Math.min(1, (now - began) / 260), eased = 1 - (1 - progress) ** 3;
+      for (const key of ["scale", "tx", "ty"]) state[key] = start[key] + (target[key] - start[key]) * eased;
+      applyTransform();
+      if (progress < 1) glideFrame = requestAnimationFrame(step);
+    };
+    glideFrame = requestAnimationFrame(step);
   }
 
   // A phone that would have to fit everything below a readable scale centres the focus person instead; the Fit button still fits everything.
@@ -1502,11 +1523,12 @@
     return phoneQuery.matches && state.sheet !== "hidden" ? el.details.offsetHeight : 0;
   }
 
-  function centreOn(point, scale) {
+  function centreOn(point, scale, { animate = false } = {}) {
     const bounds = el.graph.getBoundingClientRect();
-    state.scale = scale;
-    state.tx = bounds.width / 2 - point.x * scale;
-    state.ty = (bounds.height - sheetCover()) / 2 - point.y * scale;
+    const target = { scale, tx: bounds.width / 2 - point.x * scale, ty: (bounds.height - sheetCover()) / 2 - point.y * scale };
+    if (animate) return glide(target);
+    cancelAnimationFrame(glideFrame);
+    Object.assign(state, target);
     applyTransform();
   }
 
@@ -1518,8 +1540,7 @@
     const top = state.ty + (point.y - CARD_HEIGHT / 2) * state.scale;
     const bottom = top + CARD_HEIGHT * state.scale;
     if (top >= 8 && bottom <= visibleBottom - 8) return;
-    state.ty += visibleBottom / 2 - (state.ty + point.y * state.scale);
-    applyTransform();
+    glide({ scale: state.scale, tx: state.tx, ty: state.ty + visibleBottom / 2 - (state.ty + point.y * state.scale) });
   }
 
   // Phones: hidden until a person is chosen, then peek (name, years, occupation), then expanded (the full details, scrolling).
@@ -1543,6 +1564,7 @@
   function renderPeek(item) {
     el.sheet_name.textContent = label(item);
     el.sheet_years.textContent = lifeSummary(item, { full: true });
+    if (item.kind === "person" && dateValue(item, "born")) { const mark = icon("birth-mark"); mark.classList.add("life-symbol"); el.sheet_years.prepend(mark); }
     const occupation = plainValue(item.metadata?.occupation);
     el.sheet_occupation.textContent = occupation;
     el.sheet_occupation.hidden = !occupation;
@@ -1617,7 +1639,7 @@
   el.centre_button.addEventListener("click", () => {
     const focus = focusPoint();
     const readable = phoneQuery.matches ? READABLE_SCALE : START_SCALE;
-    if (focus) centreOn(focus, state.scale >= readable ? state.scale : readable);
+    if (focus) centreOn(focus, state.scale >= readable ? state.scale : readable, { animate: true });
   });
   function zoomAt(x, y, factor) {
     const previous = state.scale;
@@ -1703,6 +1725,7 @@
   }
   el.graph.addEventListener("pointerdown", (event) => {
     if (event.button !== 0 || pointers.size >= 2) return;
+    cancelAnimationFrame(glideFrame);
     if (!pointers.size) suppressClick = false;
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pointers.size === 2) startPinch();

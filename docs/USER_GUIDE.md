@@ -124,7 +124,9 @@ chose; panning and zooming add no steps, and going back returns to the same plac
 The target button next to **Fit** brings the selected person back to the middle.
 **Options** in the toolbar holds the arrangement, the depth, and **Show all**; on
 phones they are in the menu. A short hint on how to explore shows on the first
-visit until it is closed or you start exploring.
+visit until it is closed or you start exploring. On phones the starting person's
+summary opens in the bottom sheet. Fit, centring, and revealing a card glide unless
+the system asks for reduced motion.
 
 The keyboard help lists navigation: `/` focuses search, arrow keys move between
 people, Enter opens a family view, `+` and `-` change depth, and Escape closes
@@ -140,8 +142,9 @@ A card shows the name, the life line (a birth mark, then `1928–2005 · 76 Jahr
 `1954 · 72 Jahre` for the living) and the occupation and place of birth; Research
 cards add the parent role. Cards stay neutral; after you select someone, a bar on
 the left marks their blood relatives. Only biological parent
-links count, so partners, in-laws, and adoptive or foster relatives have none. A recorded marriage event between two partners shows as a small badge
-with rings and its year below the couple, and on the partner row in details. Below 80% zoom, cards drop the picture and details
+links count, so partners, in-laws, and adoptive or foster relatives have none. A recorded marriage event between two partners shows as a knot on the line to
+their children: a small disc with rings and the year beside it. It also appears on
+the partner row in details. Below 80% zoom, cards drop the picture and details
 and show the name and life line in larger type. When fitting everything would need
 that far zoom, the graph starts centred on the selected person at a readable size
 instead; **Fit** still shows everyone. The full dates appear in details. Occupations can be

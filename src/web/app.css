@@ -76,7 +76,7 @@ select, .query-options input[type="number"] { border: 1px solid var(--line); bor
 #graph.panning, #graph.panning * { cursor: grabbing; }
 #graph img { pointer-events: none; }
 .edge { fill: none; stroke: light-dark(#98aaa3, #6c7773); stroke-width: 1.65; stroke-linecap: round; }
-.connection.partner .edge { stroke: light-dark(#b5a58b, #7f7566); stroke-width: 2; }
+.connection.partner .edge, .marriage-stub { stroke: light-dark(#cfb78a, #6e5f45); stroke-width: 2; }
 .connection.evidence .edge, .connection.event .edge { stroke: light-dark(#b9ac91, #7d7564); stroke-dasharray: 3 6; opacity: .6; }
 .connection.tentative .edge { stroke: var(--gold); stroke-dasharray: 6 5; }
 .connection.disputed .edge { stroke: var(--rose); stroke-dasharray: 3 5; }
@@ -86,9 +86,9 @@ select, .query-options input[type="number"] { border: 1px solid var(--line); bor
 .node { cursor: pointer; outline: none; }
 .node-card { fill: light-dark(#fffefa, #1a221e); stroke: light-dark(#d3dbd3, #34413b); stroke-width: 1; filter: url(#shadow); }
 .node-halo { fill: none; stroke: transparent; stroke-width: 6; }
-.node.selected .node-halo { stroke: light-dark(rgba(45,102,84,.2), rgba(140,201,177,.22)); }
+.node.selected .node-halo { stroke: light-dark(rgba(45,102,84,.16), rgba(140,201,177,.2)); }
 .node:hover .node-card, .node:focus-visible .node-card { stroke: light-dark(#609180, #a2b3ad); stroke-width: 2; }
-.node.selected .node-card { fill: light-dark(#f3f8f4, #1e2a24); stroke: light-dark(#2d6654, #8cc9b1); stroke-width: 3; }
+.node.selected .node-card { fill: light-dark(#f3f8f4, #1e2a24); stroke: light-dark(#2d6654, #8cc9b1); stroke-width: 2.5; }
 .node.evidence .node-card { fill: light-dark(#fffcf2, #24221c); stroke: light-dark(#d5c9ae, #585142); }
 .person-card { position: relative; display: flex; flex-direction: column; gap: 4px; width: 100%; height: 100%; padding: 9px 12px 8px 14px; overflow: hidden; border-radius: 12px; pointer-events: none; }
 .person-head { display: flex; align-items: center; gap: 10px; min-height: 40px; }
@@ -104,11 +104,12 @@ select, .query-options input[type="number"] { border: 1px solid var(--line); bor
 .parent-role.tentative, .parent-role.disputed { text-decoration: underline dotted; text-underline-offset: 3px; }
 .record-kind { color: var(--muted); font-size: 10px; }
 .person-life { display: flex; align-items: center; gap: 0; min-width: 0; overflow: hidden; color: light-dark(#3f4e48, #c4d0ca); font: 600 13px/1.3 ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.life-symbol { flex: none; width: 14px; height: 14px; margin-right: 4px; color: light-dark(#5f7d6d, #9fc2b0); }
+.icon.life-symbol { flex: none; width: .82em; height: .82em; margin-right: .28em; color: var(--green); }
+.key-born { color: var(--green); }
 /* The years always show in full; a long age gives way first. */
 .life-years { flex: none; }
 .life-age { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
-#graph[data-zoom="far"] .life-symbol { width: 18px; height: 18px; }
+.sheet-peek .icon.life-symbol { display: inline-block; vertical-align: -.08em; }
 .person-role { color: var(--muted); font-size: 11px; font-weight: 600; }
 .person-role:empty { display: none; }
 .person-meta { overflow: hidden; margin-top: auto; color: light-dark(#6c7871, #a3afa9); font-size: 11px; line-height: 1.3; white-space: nowrap; text-overflow: ellipsis; }
@@ -125,11 +126,11 @@ select, .query-options input[type="number"] { border: 1px solid var(--line); bor
 #graph[data-zoom="far"] .person-avatar, #graph[data-zoom="far"] .person-meta, #graph[data-zoom="far"] .person-role { display: none; }
 #graph[data-zoom="far"] .person-name { font-size: 20px; line-height: 1.15; }
 #graph[data-zoom="far"] .person-life { font-size: 16px; }
-#graph[data-zoom="far"] .marriage-body { transform: scale(1.4); }
+#graph[data-zoom="far"] .marriage-body { transform: scale(1.6); }
 #graph[data-zoom="far"] .node.deceased .life-age { display: none; }
-.marriage-mark rect { fill: light-dark(#fff8eb, #30291f); stroke: light-dark(#b49a70, #927c59); stroke-width: 1; }
-.marriage-mark use { color: light-dark(#80602d, #e1c087); }
-.marriage-mark text { fill: light-dark(#654d29, #eddbb9); font: 600 12px ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.marriage-disc { fill: light-dark(#f5ecda, #2c281f); stroke: light-dark(#cfae73, #6e5f45); stroke-width: 1; }
+.marriage-mark use { color: light-dark(#8f6b2b, #dcc18f); }
+.marriage-mark text { fill: light-dark(#6b5d45, #d8ccb4); font: 650 11px ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--paper); stroke-width: 3px; stroke-linejoin: round; }
 .marriage-mark.family-muted { opacity: .3; }
 .date-fact { display: flex; align-items: center; gap: 6px; min-width: 0; color: light-dark(#64736b, #afb5b2); }
 .date-fact > span { min-width: 0; }
@@ -145,6 +146,7 @@ select, .query-options input[type="number"] { border: 1px solid var(--line); bor
 .first-hint { position: absolute; z-index: 6; left: 50%; bottom: 5.2rem; display: flex; align-items: center; gap: .6rem; width: max-content; max-width: min(30rem, calc(100% - 2rem)); padding: .55rem .5rem .55rem .9rem; border: 1px solid var(--line); border-radius: 16px; line-height: 1.4; background: var(--panel); box-shadow: 0 10px 30px light-dark(rgba(30,50,42,.14), rgba(0,0,0,.45)); color: var(--ink); font-size: .85rem; transform: translateX(-50%); }
 .first-hint button { display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 1.2rem; }
 .first-hint button:hover { background: var(--green-soft); }
+.simple-view #arrangement-caption { display: none; }
 .graph-key { position: absolute; left: 1rem; bottom: 3.8rem; display: flex; gap: 1rem; padding: .4rem .65rem; border: 1px solid light-dark(rgba(218,223,216,.8), rgba(55,60,53,0.8)); border-radius: .45rem; background: light-dark(rgba(255,254,250,.88), rgba(24,32,28,.88)); color: var(--muted); font-size: .68rem; }
 .graph-key span { display: flex; align-items: center; gap: .35rem; }
 .person-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--green); }
@@ -346,6 +348,8 @@ dialog::backdrop { background: light-dark(rgba(24,38,33,.42), rgba(0,0,0,0.70));
   .graph-shell { flex: 1 1 auto; min-height: 0; }
   #graph { min-height: 0; }
   .graph-key { display: none; }
+  .first-hint { bottom: 4.6rem; }
+  .workspace[data-sheet="peek"] .first-hint { bottom: calc(140px + 4.6rem); }
   .graph-status { top: .5rem; right: .6rem; bottom: auto; max-width: 60%; font-size: .66rem; }
   .workspace[data-sheet="peek"] .graph-controls { bottom: calc(140px + 1rem); }
   .workspace[data-sheet="expanded"] .graph-controls { bottom: calc(80vh + 1rem); bottom: calc(80dvh + 1rem); }
