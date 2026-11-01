@@ -1254,6 +1254,19 @@
     return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
   }
 
+  // A device with reminders re-registers whenever the site opens, signed in; the server pauses devices it has not
+  // seen for a while, so someone who lost access stops getting reminders.
+  async function refreshReminders() {
+    if (!staticSite?.push || !("PushManager" in window) || !("Notification" in window) || Notification.permission !== "granted") return;
+    const subscription = await (await navigator.serviceWorker.ready).pushManager.getSubscription();
+    if (!subscription) return;
+    const chosen = reminderChoices();
+    await fetch(staticSite.push.url, {
+      method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subscription: subscription.toJSON(), offsets: chosen.offsets, kinds: chosen.kinds, lang: KindredI18n.lang() })
+    }).catch(() => {});
+  }
+
   function reminderCard() {
     const card = html("section", { className: "reminder-card" });
     card.append(html("h3", { text: t("reminders.title") }));
@@ -1707,6 +1720,7 @@
     if (!changed) return;
     renderStrings();
     if (state.data) {
+      renderUpcomingPage();
       // A note typed in the composer is not archive data, so it survives the re-render.
       const draft = el.details_body.querySelector(".note-composer textarea")?.value;
       populatePeople();
@@ -2273,7 +2287,7 @@
     line.textContent = "Kindred";
   }
   // Published sites register the service worker that shows pushed reminders; it caches nothing.
-  if (staticSite && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+  if (staticSite && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").then(refreshReminders).catch(() => {});
   KindredI18n.setLang(initialLang());
   renderStrings();
   showHint();
