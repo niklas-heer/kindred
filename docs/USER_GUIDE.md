@@ -126,8 +126,16 @@ the current overlay. Controls also work through normal Tab navigation.
 Mother/father badges come from explicit `mother`/`father` fields, `role` on inline
 parent claims, or `parent_role` on legacy relationship notes, never from a person's name or an inferred gender. Unspecified roles stay
 Parent. The Parents panel identifies whose mother or father is shown and retains
-biological/adoptive/foster type and claim status. The icons have text labels.
-Birth and death years with the age, and the occupation, appear on cards; the full dates appear in details. Occupations can be
+biological/adoptive/foster type and claim status. Roles are shown as words, never
+as gender symbols.
+
+A card shows the name, the life line (`* 1928 † 2005 · 76 Jahre` in German,
+`1928–2005 · 76 years` in English) and the occupation and place of birth; Research
+cards add the parent role. Cards stay neutral; after you select someone, a bar on
+the left marks their blood relatives, coloured by side, while partners and in-laws
+have none. A recorded marriage event between two partners shows as rings and its
+year below the couple. When you zoom out far, cards drop the picture and details
+and show the name and life line in larger type. The full dates appear in details. Occupations can be
 strings or flat lists, and uncertain date wording remains unchanged.
 
 Write stories and research notes in the person's Markdown body, using headings

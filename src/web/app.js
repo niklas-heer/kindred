@@ -39,11 +39,14 @@
   ].map((id) => [id.replaceAll("-", "_"), document.getElementById(id)]));
 
   const svgNs = "http://www.w3.org/2000/svg";
-  const CARD_WIDTH = 224;
-  const CARD_HEIGHT = 112;
+  const CARD_WIDTH = 216;
+  // Research cards add a row for the parent role; applyView sets the height for the view.
+  let CARD_HEIGHT = 96;
   // Phones: the same breakpoint as the stylesheet. Below READABLE_SCALE a card name is too small to read.
   const phoneQuery = window.matchMedia("(max-width: 560px)");
   const READABLE_SCALE = .7;
+  // Below this scale cards switch to large type with only the name and life line (semantic zoom).
+  const FAR_SCALE = .6;
 
   function icon(name) {
     const image = svg("svg", { className: "icon", attrs: { viewBox: "0 0 24 24", width: 18, height: 18, "aria-hidden": "true", focusable: "false" } });
@@ -56,12 +59,9 @@
     return ["mother", "father"].includes(role) ? role : "parent";
   }
 
-  function roleIcon(role) { return role === "mother" ? "venus" : role === "father" ? "mars" : "users-round"; }
-
+  // Roles are words: the archive records roles, not sexes, so no gender symbols.
   function roleBadge(role, status = "accepted") {
-    const badge = html("span", { className: `parent-role ${role} ${status}` });
-    badge.append(icon(roleIcon(role)), document.createTextNode(known("role", role)));
-    return badge;
+    return html("span", { className: `parent-role ${role} ${status}`, text: known("role", role) });
   }
 
   function portraitFor(item) {
@@ -242,6 +242,7 @@
       const previous = keepSelection ? state.selected : "";
       state.data = payload;
       state.loadError = "";
+      KindredI18n.apply(el.empty_state);
       state.selected = previous && record(previous) ? previous : state.person;
       if (!state.person) state.person = payload.query.nodes.find((item) => item.kind === "person")?.id || "";
       populatePeople();
@@ -252,6 +253,9 @@
       if (request !== state.request) return;
       state.loadError = error instanceof Error ? error.message : String(error);
       el.graph_status.textContent = t("couldNotLoad");
+      // Relatives get a way forward; the technical message stays in the Research diagnostics.
+      el.empty_state.querySelector("strong").textContent = t("couldNotLoad");
+      el.empty_state.querySelector("p").textContent = t("reloadHint");
       el.empty_state.hidden = false;
       clear(el.nodes);
       clear(el.edges);
@@ -474,6 +478,7 @@
 
     const rails = KindredLayout.familyRails(edges, state.positions, { cardWidth: CARD_WIDTH, cardHeight: CARD_HEIGHT });
     for (const edge of edges) renderEdge(edge, edges, rails);
+    for (const edge of edges) renderMarriage(edge, edges);
     for (const node of nodes) renderNode(node);
     renderGraphSelection();
 
@@ -525,24 +530,51 @@
     el.edges.append(group);
   }
 
+  // A card is name, life line and one line of detail. Lineage shows as a bar on the left (see renderGraphSelection);
+  // the surface stays neutral, so no colour can be read as a gender code.
+  // A recorded marriage between two partners shows as rings and its year where the couple's line meets the children's.
+  function renderMarriage(edge, edges) {
+    if (edge.relation !== "partner" || state.mode === "path") return;
+    const from = state.positions.get(edge.from), to = state.positions.get(edge.to);
+    if (!from || !to || from.y !== to.y) return;
+    const marriage = state.data.records.find((item) => item.kind === "event"
+      && String(item.metadata?.event_type || item.metadata?.type) === "marriage"
+      && [edge.from, edge.to].every((id) => linkedIds(item, "people").includes(id) || item.owner === id));
+    if (!marriage) return;
+    const date = plainValue(marriage.metadata?.date);
+    const place = record(marriage.metadata?.place);
+    const adjacent = Math.abs(to.x - from.x) <= CARD_WIDTH + 40;
+    const x = (from.x + to.x) / 2, y = from.y + CARD_HEIGHT / 2 + (adjacent ? 13 : 20);
+    const width = date ? 54 : 24;
+    const group = svg("g", { className: "marriage-mark", attrs: { transform: `translate(${x} ${y})`, "data-from": edge.from, "data-to": edge.to } });
+    group.append(svg("rect", { attrs: { x: -width / 2, y: -9, width, height: 18, rx: 9 } }));
+    const rings = svg("use", { attrs: { href: "/icons.svg#rings", x: date ? -width / 2 + 4 : -7, y: -7, width: 14, height: 14 } });
+    group.append(rings);
+    if (date) group.append(svg("text", { text: year(date), attrs: { x: -width / 2 + 20, y: 4 } }));
+    group.append(svg("title", { text: [t("marriedOn", { date: date ? formatDate(date) : "?" }), place ? label(place) : ""].filter(Boolean).join(" · ") }));
+    el.edges.append(group);
+  }
+
   function renderNode(node) {
     const position = state.positions.get(node.id);
     if (!position) return;
+    const person = node.kind === "person";
+    const deceased = person && KindredLife.deceased(node);
     const group = svg("g", {
-      className: `node${node.kind === "person" ? "" : " evidence"}${state.selected === node.id ? " selected" : ""}`,
+      className: `node${person ? "" : " evidence"}${deceased ? " deceased" : ""}${state.selected === node.id ? " selected" : ""}`,
       attrs: { transform: `translate(${position.x} ${position.y})`, tabindex: "0", role: "button", "aria-label": nodeAriaLabel(label(node)), "data-id": node.id }
     });
     const frame = { x: -CARD_WIDTH / 2, y: -CARD_HEIGHT / 2, width: CARD_WIDTH, height: CARD_HEIGHT };
-    group.append(svg("rect", { className: "node-card", attrs: { ...frame, rx: 14 } }));
+    group.append(svg("rect", { className: "node-halo", attrs: { x: frame.x - 5, y: frame.y - 5, width: frame.width + 10, height: frame.height + 10, rx: 16 } }));
+    group.append(svg("rect", { className: "node-card", attrs: { ...frame, rx: 12 } }));
     const content = svg("foreignObject", { attrs: frame });
     const card = html("div", { className: "person-card" });
     const head = html("div", { className: "person-head" });
-    const roles = [...new Set(state.data.query.edges.filter((edge) => edge.from === node.id && edge.relation !== "partner").map(parentRole))];
-    const role = roles.length === 1 ? roles[0] : "parent";
-    const avatar = html("span", { className: "person-avatar", attrs: { "aria-hidden": "true" } });
-    avatar.textContent = node.kind === "person" ? initials(label(node)) : "";
-    if (node.kind !== "person") avatar.append(icon("book-open"));
     const portrait = portraitFor(node);
+    const missing = person && state.questions ? openQuestions(node) : [];
+    const avatar = html("span", { className: `person-avatar${missing.includes("portrait") ? " wanted" : ""}`, attrs: { "aria-hidden": "true" } });
+    avatar.textContent = person ? initials(label(node)) : "";
+    if (!person) avatar.append(icon("book-open"));
     if (portrait) {
       const photo = html("img", { attrs: { src: portrait.url, alt: "", decoding: "async" } });
       photo.addEventListener("error", () => { avatar.textContent = initials(label(node)); });
@@ -550,23 +582,26 @@
     }
     const copy = html("div", { className: "person-copy" });
     copy.append(html("span", { className: "person-name", text: label(node) }));
-    // Simple view leaves out the parent role: the lines already show who is whose parent.
-    if (node.kind !== "person") copy.append(html("span", { className: "record-kind", text: known("kind", node.kind) }));
-    else if (roles.length && state.view !== "simple") { const description = html("span", { className: "person-description" }); description.append(roleBadge(role)); copy.append(description); }
-    head.append(avatar, copy); card.append(head);
+    head.append(avatar, copy);
+    card.append(head, html("div", { className: "person-life", text: person ? lifeSummary(node) : known("kind", node.kind) }));
+    // Research names the parent role in words; Simple leaves it to the lines.
+    if (person && state.view !== "simple") {
+      const roles = [...new Set(state.data.query.edges.filter((edge) => edge.from === node.id && edge.relation !== "partner").map(parentRole))];
+      card.append(html("div", { className: "person-role", text: roles.length ? known("role", roles.length === 1 ? roles[0] : "parent") : "" }));
+    }
     const occupation = plainValue(node.metadata?.occupation);
-    if (node.kind === "person") {
-      card.append(html("div", { className: "person-life", text: lifeSummary(node) }));
-      const job = html("div", { className: "person-occupation", attrs: { title: occupation } });
-      if (occupation) job.append(icon("briefcase-business"), html("span", { text: occupation }));
-      card.append(job);
-      const open = state.questions ? openQuestions(node).length : 0;
-      if (open) card.append(html("span", { className: "question-badge", text: open, attrs: { title: t("missingCount", { count: open }) } }));
-    } else {
-      card.append(html("div", { className: "person-occupation", text: t("evidenceAndResearch") }), html("div", { className: "person-life", text: t("openToReadSource") }));
+    const birthPlace = plainValue(node.metadata?.birth_place);
+    const meta = person ? [occupation, birthPlace].filter(Boolean).join(" · ") : t("openToReadSource");
+    if (missing.length) {
+      const names = missing.slice(0, 2).map((key) => t(`question.${key}`));
+      const more = missing.length > 2 ? ` +${missing.length - 2}` : "";
+      card.append(html("div", { className: "person-meta missing", text: `${t("missingShort")} ${names.join(", ")}${more}` }));
+    } else if (meta) {
+      card.append(html("div", { className: "person-meta", text: meta }));
     }
     content.append(card); group.append(content);
-    group.append(svg("title", { text: `${label(node)} · ${lifeSummary(node, { full: true })}${occupation ? ` · ${occupation}` : ""}` }));
+    const missingText = missing.length ? ` · ${t("missingCount", { count: missing.length })}` : "";
+    group.append(svg("title", { text: `${label(node)} · ${lifeSummary(node, { full: true })}${meta && person ? ` · ${meta}` : ""}${missingText}` }));
     group.addEventListener("click", () => select(node.id));
     group.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(node.id, true); }
@@ -590,7 +625,7 @@
     const born = dateValue(item, "born"), died = dateValue(item, "died");
     const show = full ? formatDate : year;
     const span = KindredLife.deceased(item)
-      ? `${born ? show(born) : "?"} – ${died ? show(died) : "?"}`
+      ? t("lifeSpan", { born: born ? show(born) : "?", died: died ? show(died) : "?" })
       : born ? t("bornShort", { date: show(born) }) : "";
     return [span, ageText(item)].filter(Boolean).join(" · ") || t("datesNotRecorded");
   }
@@ -655,6 +690,10 @@
       node.setAttribute("aria-pressed", String(id === state.selected));
     }
     for (const edge of el.edges.children) {
+      if (edge.classList.contains("marriage-mark")) {
+        edge.classList.toggle("family-muted", active && !(family.people.has(edge.dataset.from) && family.people.has(edge.dataset.to)));
+        continue;
+      }
       const category = family.edges.get(edge.dataset.id);
       const selectedClaim = edge.dataset.id === state.selected;
       edge.classList.toggle("highlight", Boolean(category) || selectedClaim);
@@ -702,7 +741,7 @@
           const place = record(record(lifeEventId(item, kind))?.metadata?.place);
           return place ? [kind === "birth" ? t("bornIn", { place: label(place) }) : t("diedIn", { place: label(place) })] : [];
         });
-        if (places.length) header.append(html("p", { className: "detail-places", text: places.join(" · ") }));
+        if (places.length) { const line = html("p", { className: "detail-places" }); line.append(icon("map-pin"), document.createTextNode(places.join(" · "))); header.append(line); }
       }
       const job = plainValue(item.metadata?.occupation);
       if (job) { const occupation = html("p", { className: "detail-occupation" }); occupation.append(icon("briefcase-business"), document.createTextNode(job)); header.append(occupation); }
@@ -893,12 +932,12 @@
   }
 
   function renderFacts(item) {
-    const omitted = new Set(["version", "mother", "father", "parents", "partners", "events", "portrait", "portrait_credit", "portrait_caption", "portrait_source", "portrait_artist", "portrait_date", "portrait_license", "born", "birth", "birth_date", "died", "death", "death_date", "occupation", "id", "type", "name", "aliases", "attachments", "media", "sources", "from", "to", "parent", "child"]);
+    const omitted = new Set(["version", "mother", "father", "parents", "partners", "events", "portrait", "portrait_credit", "portrait_caption", "portrait_source", "portrait_artist", "portrait_date", "portrait_license", "born", "birth", "birth_date", "died", "death", "death_date", "occupation", "id", "type", "name", "aliases", "attachments", "media", "sources", "from", "to", "parent", "child", "birth_place", "death_place", "living", "date_display"]);
     const facts = Object.entries(item.metadata || {}).filter(([key, value]) => !omitted.has(key) && plainValue(value));
     if (!facts.length) return;
     const list = html("dl", { className: "facts" });
     for (const [key, value] of facts) {
-      list.append(html("dt", { text: shortRelation(key) }), html("dd", { text: linkedIds(item, key).map((id) => label(record(id))).join(", ") || plainValue(value) }));
+      list.append(html("dt", { text: KindredI18n.has(`field.${key}`) ? t(`field.${key}`) : shortRelation(key) }), html("dd", { text: linkedIds(item, key).map((id) => label(record(id))).join(", ") || plainValue(value) }));
     }
     section(t("sectionFacts"), list, "briefcase-business");
   }
@@ -1081,6 +1120,7 @@
 
   function applyView(view) {
     state.view = view;
+    CARD_HEIGHT = view === "simple" ? 96 : 112;
     document.body.classList.toggle("simple-view", view === "simple");
     for (const button of document.querySelectorAll("[data-view]")) button.setAttribute("aria-pressed", String(button.dataset.view === view));
     // Hidden research filters must not silently shape the Simple graph, so they match what Simple shows.
@@ -1399,6 +1439,7 @@
 
   function applyTransform() {
     el.zoom_level.textContent = `${Math.round(state.scale * 100)}%`;
+    el.graph.dataset.zoom = state.scale < FAR_SCALE ? "far" : "near";
     el.viewport.setAttribute("transform", `translate(${state.tx} ${state.ty}) scale(${state.scale})`);
   }
 
