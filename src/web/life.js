@@ -70,5 +70,35 @@
     return open;
   }
 
-  globalThis.KindredLife = Object.freeze({ age, deceased, questions, OLD_AGE });
+  // Birthdays of the living, anniversaries of deaths, and wedding anniversaries of couples who are both living,
+  // within `days` of today. Only full dates count, so year-only (protected) dates never produce an occasion.
+  // `marriages` are { ids, date }; `byId` maps person IDs to records.
+  function upcoming(people, marriages, { today = new Date(), days = 60 } = {}) {
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const byId = new Map(people.map((person) => [person.id, person]));
+    const occasions = [];
+    const add = (type, ids, parsed) => {
+      if (!parsed || !parsed.day || parsed.approximate) return;
+      let date = new Date(start.getFullYear(), parsed.month - 1, parsed.day);
+      if (date < start) date = new Date(start.getFullYear() + 1, parsed.month - 1, parsed.day);
+      const inDays = Math.round((date - start) / 864e5);
+      const years = date.getFullYear() - parsed.year;
+      if (inDays <= days && years > 0) occasions.push({ type, ids, date, inDays, years });
+    };
+    for (const person of people) {
+      if (!deceased(person)) {
+        const years = age(person, today);
+        if (!years || years.years < OLD_AGE) add("birthday", [person.id], birth(person));
+      } else {
+        add("memorial", [person.id], death(person));
+      }
+    }
+    for (const marriage of marriages) {
+      const couple = marriage.ids.map((id) => byId.get(id));
+      if (couple.length === 2 && couple.every((person) => person && !deceased(person))) add("wedding", marriage.ids, parse(String(marriage.date || "").trim()));
+    }
+    return occasions.sort((left, right) => left.inDays - right.inDays || left.type.localeCompare(right.type) || left.ids.join().localeCompare(right.ids.join()));
+  }
+
+  globalThis.KindredLife = Object.freeze({ age, deceased, questions, upcoming, OLD_AGE });
 })();

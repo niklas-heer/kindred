@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 
 require("../src/web/family.js");
 
-const { analyze, bloodRelatives } = globalThis.KindredFamily;
+const { analyze, bloodRelatives, kinship, familyOf } = globalThis.KindredFamily;
 const parent = (id, from, to, role = "parent") => ({
   id,
   from,
@@ -162,4 +162,45 @@ test("blood relatives follow biological parent links only", () => {
     { id: "p", from: "mum", to: "stepdad", relation: "partner" }, edge("stepdad", "half", "adoptive_parent")];
   assert.deepEqual([...bloodRelatives("me", edges)].sort(), ["aunt", "cousin", "grandma", "me", "mum"]);
   assert.deepEqual([...bloodRelatives("", edges)], []);
+});
+
+const kin = (from, to, relation = "biological_parent") => ({ id: `${from}-${to}`, from, to, relation });
+const tree = [
+  kin("gp1", "mum"), kin("gp2", "mum"), kin("gp1", "aunt"), kin("gp2", "aunt"), kin("gp1", "halfuncle"),
+  kin("mum", "me"), kin("dad", "me"), kin("mum", "sis"), kin("dad", "sis"), kin("mum", "half"),
+  kin("aunt", "cousin"), kin("cousin", "cousinkid"), kin("me", "kid"), kin("kid", "grandkid"), kin("sis", "niece"),
+  { id: "p1", from: "me", to: "spouse", relation: "partner" }, { id: "p2", from: "aunt", to: "auntspouse", relation: "partner" },
+  kin("spouseparent", "spouse"), { id: "p3", from: "kid", to: "kidspouse", relation: "partner" }
+];
+
+test("kinship names the closest common ancestor's distance on both sides", () => {
+  const of = (other) => { const found = kinship("me", other, tree); return found && [found.kind, found.up, found.down, found.half]; };
+  assert.deepEqual(of("me"), ["self", undefined, undefined, undefined]);
+  assert.deepEqual(of("mum"), ["blood", 1, 0, false]);
+  assert.deepEqual(of("gp1"), ["blood", 2, 0, false]);
+  assert.deepEqual(of("sis"), ["blood", 1, 1, false]);
+  assert.deepEqual(of("half"), ["blood", 1, 1, true]);
+  assert.deepEqual(of("aunt"), ["blood", 2, 1, false]);
+  assert.deepEqual(of("cousin"), ["blood", 2, 2, false]);
+  assert.deepEqual(of("cousinkid"), ["blood", 2, 3, false]);
+  assert.deepEqual(of("grandkid"), ["blood", 0, 2, false]);
+  assert.deepEqual(of("niece"), ["blood", 1, 2, false]);
+  assert.deepEqual(kinship("me", "aunt", tree).via, ["gp1", "gp2"]);
+});
+
+test("kinship falls back to one partner link and reports unconnected people as null", () => {
+  assert.equal(kinship("me", "spouse", tree).kind, "partner");
+  const inLaw = kinship("me", "auntspouse", tree);
+  assert.deepEqual([inLaw.kind, inLaw.partner, inLaw.up, inLaw.down], ["partnerOfRelative", "aunt", 2, 1]);
+  const partnerParent = kinship("me", "spouseparent", tree);
+  assert.deepEqual([partnerParent.kind, partnerParent.partner, partnerParent.up, partnerParent.down], ["relativeOfPartner", "spouse", 1, 0]);
+  assert.equal(kinship("me", "nobody", tree), null);
+});
+
+test("familyOf lists parents, partners, children with their other parents, and half-siblings", () => {
+  const family = familyOf("me", tree);
+  assert.deepEqual(family.parents.sort(), ["dad", "mum"]);
+  assert.deepEqual(family.partners, ["spouse"]);
+  assert.deepEqual(family.children, [{ id: "kid", otherParents: [] }]);
+  assert.deepEqual(family.siblings.sort((a, b) => a.id.localeCompare(b.id)), [{ id: "half", half: true }, { id: "sis", half: false }]);
 });

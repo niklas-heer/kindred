@@ -2,7 +2,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 require("../src/web/life.js");
-const { age, deceased, questions } = KindredLife;
+const { age, deceased, questions, upcoming } = KindredLife;
 const today = new Date(2026, 10, 1);
 const person = (metadata) => ({ id: "p", kind: "person", metadata });
 
@@ -42,4 +42,17 @@ test("only an implausible age asks whether someone is still alive", () => {
   assert.deepEqual(questions(person({ ...base, born: "1927-05-01" }), { parents: 2, portrait: true, today }), []);
   assert.deepEqual(questions(person({ ...base, born: "1925-05-01" }), { parents: 2, portrait: true, today }), ["stillAlive"]);
   assert.deepEqual(questions(person({ ...base, born: "1925-05-01", died: "2010-01-02", death_place: "Z" }), { parents: 2, portrait: true, today }), []);
+});
+
+test("upcoming lists birthdays, memorials and weddings with full dates only, nearest first", () => {
+  const people = [
+    person({ born: "1954-11-05" }), { ...person({ born: "1950-11-20" }), id: "b" }, { ...person({ born: "2017" }), id: "minor" },
+    { ...person({ born: "1928-09-21", died: "2005-11-03" }), id: "late" }, { ...person({ born: "1920-11-10" }), id: "old" },
+    { ...person({ born: "1960-01-01", living: false }), id: "gone" }, { ...person({ born: "1990-03-01" }), id: "far" }
+  ];
+  const marriages = [{ ids: ["p", "b"], date: "1980-11-02" }, { ids: ["p", "late"], date: "1975-11-04" }, { ids: ["p", "b"], date: "1985" }];
+  const list = upcoming(people, marriages, { today, days: 30 });
+  assert.deepEqual(list.map((item) => [item.type, item.ids.join("+"), item.inDays, item.years]), [
+    ["wedding", "p+b", 1, 46], ["memorial", "late", 2, 21], ["birthday", "p", 4, 72], ["birthday", "b", 19, 76]
+  ]);
 });
