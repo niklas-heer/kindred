@@ -105,14 +105,16 @@ select, .query-options input[type="number"] { border: 1px solid var(--line); bor
 .missing-more { flex: 0 0 auto; }
 .missing-flag { display: none; position: absolute; top: 8px; right: 8px; padding: 1px 6px; border-radius: 999px; color: light-dark(#724a15, #f1d3a6); background: light-dark(#f5e4c6, #4a3a22); font: 700 14px/1.2 ui-sans-serif, system-ui, sans-serif; }
 #graph[data-zoom="far"] .missing-flag { display: block; }
-#graph[data-zoom="far"] .person-card.flagged .person-head { padding-right: 40px; }
+#graph[data-zoom="far"] .missing-flag { top: auto; bottom: 8px; }
+#graph[data-zoom="far"] .person-card.flagged .person-life { padding-right: 44px; }
 /* Lineage: blood relatives (biological links only) of the selected person carry one green bar; the side stays on lines and chips. */
 .node.blood .person-card { box-shadow: inset 4px 0 0 light-dark(#2d6654, #8cc9b1); }
 /* Semantic zoom: far away only the name and life line remain, in larger type. */
 #graph[data-zoom="far"] .person-avatar, #graph[data-zoom="far"] .person-meta, #graph[data-zoom="far"] .person-role { display: none; }
 #graph[data-zoom="far"] .person-name { font-size: 20px; line-height: 1.15; }
 #graph[data-zoom="far"] .person-life { font-size: 16px; }
-#graph[data-zoom="far"] .marriage-body { transform: scale(1.8); }
+#graph[data-zoom="far"] .marriage-body { transform: translateY(8px) scale(1.5); }
+#graph[data-zoom="far"] .node.deceased .life-age { display: none; }
 .marriage-mark rect { fill: var(--paper); stroke: light-dark(#b5a58b, #7f7566); stroke-width: 1; }
 .marriage-mark use { color: light-dark(#9a7a3e, #d7b77c); }
 .marriage-mark text { fill: light-dark(#6b5d45, #d8ccb4); font: 600 10px ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums; }

@@ -572,7 +572,7 @@
     body.append(svg("use", { attrs: { href: "/icons.svg#rings", x: date ? -width / 2 + 4 : -7, y: -7, width: 14, height: 14 } }));
     if (date) body.append(svg("text", { text: year(date), attrs: { x: -width / 2 + 20, y: 4 } }));
     group.append(body);
-    group.append(svg("title", { text: [t("marriedOn", { date: date ? formatDate(date) : "?" }), place ? label(place) : ""].filter(Boolean).join(" · ") }));
+    group.append(svg("title", { text: [date ? t("marriedOn", { date: formatDate(date) }) : t("married"), place ? label(place) : ""].filter(Boolean).join(" · ") }));
     el.edges.append(group);
   }
 
@@ -604,7 +604,13 @@
     const copy = html("div", { className: "person-copy" });
     copy.append(html("span", { className: "person-name", text: label(node) }));
     head.append(avatar, copy);
-    card.append(head, html("div", { className: "person-life", text: person ? lifeSummary(node) : known("kind", node.kind) }));
+    // The age sits in its own span, so compact cards can drop it for the deceased, whose two years already imply it.
+    const life = html("div", { className: "person-life" });
+    const age = person && KindredLife.deceased(node) ? ageText(node) : "";
+    const summary = person ? lifeSummary(node) : known("kind", node.kind);
+    if (age && summary.endsWith(` · ${age}`)) life.append(html("span", { text: summary.slice(0, -age.length - 3) }), html("span", { className: "life-age", text: ` · ${age}` }));
+    else life.textContent = summary;
+    card.append(head, life);
     // Research names the parent role in words; Simple leaves it to the lines.
     if (person && state.view !== "simple") {
       const roles = [...new Set(state.data.query.edges.filter((edge) => edge.from === node.id && edge.relation !== "partner").map(parentRole))];
@@ -981,7 +987,8 @@
       row.append(html("strong", { text: label(other) }));
       if (state.view !== "simple" || (edge.status || "accepted") !== "accepted") row.append(html("span", { className: `tag ${edge.status || ""}`, text: known("status", edge.status || "accepted") }));
       const marriage = edge.relation === "partner" ? marriageOf(edge.from, edge.to) : null;
-      const married = marriage ? ` · ${t("marriedOn", { date: formatDate(plainValue(marriage.metadata?.date)) || "?" })}` : "";
+      const marriageDate = marriage ? formatDate(plainValue(marriage.metadata?.date)) : "";
+      const married = marriage ? ` · ${marriageDate ? t("marriedOn", { date: marriageDate }) : t("married")}` : "";
       const direction = edge.relation === "partner" ? `${t("relation.partner")}${married}` : edge.to === item.id ? known("role", parentRole(edge)) : t("direction.child");
       const relationType = edge.relation === "partner" ? "" : ` · ${known("relation", edge.relation.replace("_parent", ""))}`;
       button.append(row, html("small", { text: `${direction}${relationType}` }));
