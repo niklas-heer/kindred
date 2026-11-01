@@ -30,7 +30,7 @@
         <button type="button" data-lang="de" lang="de" title="Deutsch" aria-pressed="false">DE</button>
       </div>
       <button id="questions-toggle" class="quiet-button questions-toggle" type="button" aria-pressed="false" data-i18n-attr="title:whatsMissingHint" title="Show what is still missing about each person"><svg class="icon" aria-hidden="true"><use href="/icons.svg#circle-question-mark"/></svg> <span data-i18n="whatsMissing">What's missing?</span></button>
-      <button id="upcoming-button" class="quiet-button icon-only" type="button" data-i18n-attr="aria-label:upcomingTitle;title:upcomingTitle" aria-label="Coming up" title="Coming up"><svg class="icon" aria-hidden="true"><use href="/icons.svg#cake"/></svg></button>
+      <button id="upcoming-button" class="quiet-button icon-only" type="button" aria-pressed="false" data-i18n-attr="aria-label:upcomingTitle;title:upcomingTitle" aria-label="Coming up" title="Coming up"><svg class="icon" aria-hidden="true"><use href="/icons.svg#cake"/></svg></button>
       <button id="theme-toggle" class="quiet-button theme-toggle" type="button" aria-pressed="false" aria-label="Dark mode"></button>
       <button id="help-button" class="quiet-button" type="button" aria-expanded="false" aria-controls="shortcuts" data-i18n="keyboard">Keyboard</button>
       <button id="menu-button" class="quiet-button menu-button" type="button" aria-expanded="false" aria-controls="menu-panel" data-i18n="menu">Menu</button>
@@ -121,6 +121,7 @@
           <button id="fit-button" type="button" data-i18n-attr="aria-label:fitGraph" aria-label="Fit graph"><svg class="icon" aria-hidden="true"><use href="/icons.svg#scan"/></svg> <span data-i18n="fit">Fit</span></button>
         </div>
         <div id="family-page" class="family-page" hidden></div>
+        <div id="upcoming-page" class="side-page upcoming-page" hidden></div>
         <div id="graph-status" class="graph-status" role="status" data-i18n="loadingArchive">Loading archive…</div>
       </div>
     </section>
@@ -164,13 +165,6 @@
       <label class="suggestion-field"><span data-i18n="suggestLabel">What is wrong or missing?</span><textarea id="suggestion-text" rows="7" maxlength="2000" required data-i18n-attr="placeholder:suggestPlaceholder" placeholder="A misspelled name, a missing date, a detail to check…"></textarea></label>
       <div id="suggestion-message" class="editor-message" role="status"></div>
       <footer><button value="cancel" formnovalidate class="quiet-button" data-i18n="cancel">Cancel</button><button id="suggestion-send" value="send" class="primary-button" data-i18n="suggestSend">Send</button></footer>
-    </form>
-  </dialog>
-
-  <dialog id="upcoming" class="upcoming-dialog">
-    <form method="dialog" class="editor-card">
-      <header><div><span class="eyebrow" data-i18n="upcomingEyebrow">Next three months</span><h2 data-i18n="upcomingTitle">Coming up</h2></div><button value="cancel" data-i18n-attr="aria-label:close" aria-label="Close">×</button></header>
-      <div id="upcoming-list" class="upcoming-list"></div>
     </form>
   </dialog>
 

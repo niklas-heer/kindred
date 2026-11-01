@@ -71,6 +71,15 @@ pub struct Options {
     view: View,
     suggest: Option<String>,
     today: Date,
+    name: String,
+    push: Option<Push>,
+}
+
+/// Where the viewer registers devices for reminders, and the server's VAPID public key.
+#[derive(Debug, Serialize)]
+struct Push {
+    url: String,
+    key: String,
 }
 
 impl Options {
@@ -81,6 +90,8 @@ impl Options {
         view: Option<&str>,
         suggest: Option<&str>,
         today: Option<&str>,
+        name: Option<&str>,
+        push: (Option<&str>, Option<&str>),
     ) -> Result<Self, String> {
         let view = match view.unwrap_or("research") {
             "simple" => View::Simple,
@@ -98,10 +109,44 @@ impl Options {
                 .ok_or("usage: --today must be a YYYY-MM-DD date; try --help")?,
             None => Date::utc_today()?,
         };
+        let name = name.unwrap_or("Kindred").trim();
+        if name.is_empty() || name.chars().count() > 60 || name.chars().any(char::is_control) {
+            return Err("usage: --name must be 1 to 60 printable characters; try --help".into());
+        }
+        let push = match push {
+            (None, None) => None,
+            (Some(url), Some(key)) => {
+                if !url.starts_with('/') || url.starts_with("//") || !safe_suggestion(url) {
+                    return Err(
+                        "usage: --push-url must be a path starting with / (not //); try --help"
+                            .into(),
+                    );
+                }
+                // An uncompressed P-256 public key is 65 bytes, 87 characters of unpadded base64url.
+                if key.len() != 87
+                    || !key.starts_with('B')
+                    || !key.chars().all(|character| {
+                        character.is_ascii_alphanumeric() || character == '-' || character == '_'
+                    })
+                {
+                    return Err(
+                        "usage: --push-key must be the VAPID public key in base64url; try --help"
+                            .into(),
+                    );
+                }
+                Some(Push {
+                    url: url.to_owned(),
+                    key: key.to_owned(),
+                })
+            }
+            _ => return Err("usage: --push-url and --push-key go together; try --help".into()),
+        };
         Ok(Self {
             view,
             suggest: suggest.map(str::to_owned),
             today,
+            name: name.to_owned(),
+            push,
         })
     }
 }
@@ -549,20 +594,54 @@ fn index_html(options: &Options) -> Result<String, String> {
     struct Settings<'a> {
         view: &'a str,
         suggest: Option<&'a str>,
+        name: &'a str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        push: Option<&'a Push>,
     }
     let settings = Settings {
         view: options.view.name(),
         suggest: options.suggest.as_deref(),
+        name: &options.name,
+        push: options.push.as_ref(),
     };
     let content =
         escape_attribute(&serde_json::to_string(&settings).map_err(|error| error.to_string())?);
     let (head, body) = web::INDEX
         .split_once("</head>")
         .ok_or("viewer shell has no head")?;
+    // Installable app: the manifest is fetched with credentials, so it also loads behind an access gate.
+    let app = format!(
+        "  <link rel=\"manifest\" href=\"manifest.webmanifest\" crossorigin=\"use-credentials\">\n  <link rel=\"apple-touch-icon\" href=\"apple-touch-icon.png\">\n  <meta name=\"theme-color\" content=\"#2d6654\">\n  <meta name=\"apple-mobile-web-app-title\" content=\"{title}\">\n",
+        title = escape_attribute(&options.name)
+    );
+    let head = head.replacen(
+        "<title data-i18n=\"pageTitle\">Kindred · Family archive</title>",
+        &format!("<title>{}</title>", escape_attribute(&options.name)),
+        1,
+    );
     Ok(format!(
-        "{head}  <meta name=\"kindred-site\" content=\"{content}\">\n  <meta http-equiv=\"Content-Security-Policy\" content=\"{policy}\">\n</head>{body}",
+        "{head}{app}  <meta name=\"kindred-site\" content=\"{content}\">\n  <meta http-equiv=\"Content-Security-Policy\" content=\"{policy}\">\n</head>{body}",
         policy = page_policy(options.suggest.as_deref())
     ))
+}
+
+/// The web app manifest: the site's name, its own start URL and scope, and the app icons.
+fn manifest(options: &Options) -> Result<Vec<u8>, String> {
+    let short: String = options.name.chars().take(12).collect();
+    serde_json::to_vec_pretty(&serde_json::json!({
+        "name": options.name,
+        "short_name": short,
+        "start_url": "./",
+        "scope": "./",
+        "display": "standalone",
+        "background_color": "#f6f7f2",
+        "theme_color": "#2d6654",
+        "icons": [
+            { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+            { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+        ]
+    }))
+    .map_err(|error| error.to_string())
 }
 
 /// The page policy, with an `https://` suggestion host allowed as a connection target. The host is
@@ -601,6 +680,7 @@ struct Graph {
 struct Plan {
     graph: Graph,
     index: String,
+    manifest: Vec<u8>,
     copies: BTreeSet<String>,
     protected: Vec<(String, Date)>,
     report: Report,
@@ -645,6 +725,7 @@ fn plan(archive: &Archive, options: &Options) -> Result<Plan, String> {
             .filter_map(|(id, birth)| birth.map(|date| (id.clone(), date)))
             .collect(),
         index: index_html(options)?,
+        manifest: manifest(options)?,
         graph: Graph {
             records,
             edges,
@@ -672,6 +753,16 @@ pub fn build(root: &Path, destination: &Path, options: &Options) -> Result<Repor
             fs::write(stage.join(name), contents).map_err(|error| error.to_string())?;
         }
         fs::write(stage.join("index.html"), &plan.index).map_err(|error| error.to_string())?;
+        fs::write(stage.join("sw.js"), web::SERVICE_WORKER).map_err(|error| error.to_string())?;
+        fs::write(stage.join("manifest.webmanifest"), &plan.manifest)
+            .map_err(|error| error.to_string())?;
+        for (name, contents) in [
+            ("icon-192.png", web::APP_ICON_192),
+            ("icon-512.png", web::APP_ICON_512),
+            ("apple-touch-icon.png", web::TOUCH_ICON),
+        ] {
+            fs::write(stage.join(name), contents).map_err(|error| error.to_string())?;
+        }
         fs::write(
             stage.join("graph.json"),
             serde_json::to_vec(&plan.graph).map_err(|error| error.to_string())?,
@@ -708,6 +799,13 @@ fn verify(stage: &Path, protected: &[(String, Date)]) -> Result<(), String> {
             continue;
         }
         let name = entry.file_name().to_string_lossy().into_owned();
+        // The app icons are the embedded images, not archive content; every other top-level file is text.
+        if Path::new(&name)
+            .extension()
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("png"))
+        {
+            continue;
+        }
         // Month names may be written in any case, so compare lowercased text.
         let text = fs::read_to_string(entry.path())
             .map_err(|error| format!("cannot read {name}: {error}"))?

@@ -28,6 +28,7 @@
     questions: false,
     pendingCamera: null,
     allEdges: null,
+    page: "",
     me: readMe(),
     familyAsTree: false,
     loadError: ""
@@ -39,7 +40,7 @@
     "edges", "nodes", "empty-state", "graph-status", "details", "editor",
     "editor-title", "editor-text", "editor-message", "save-button", "help-button", "shortcuts",
     "suggest-general", "suggestion", "suggestion-form", "suggestion-about", "suggestion-text", "suggestion-message", "suggestion-send",
-    "workspace", "toolbar", "query-options", "view-switch", "lang-switch", "menu-button", "menu-panel", "details-body", "sheet-handle", "sheet-close", "sheet-peek", "sheet-name", "sheet-years", "sheet-occupation", "questions-toggle", "theme-toggle", "more-options", "centre-button", "first-hint", "first-hint-close", "empty-reset", "empty-search", "home-button", "upcoming-button", "upcoming", "upcoming-list", "family-page", "bands"
+    "workspace", "toolbar", "query-options", "view-switch", "lang-switch", "menu-button", "menu-panel", "details-body", "sheet-handle", "sheet-close", "sheet-peek", "sheet-name", "sheet-years", "sheet-occupation", "questions-toggle", "theme-toggle", "more-options", "centre-button", "first-hint", "first-hint-close", "empty-reset", "empty-search", "home-button", "upcoming-button", "upcoming-page", "family-page", "bands"
   ].map((id) => [id.replaceAll("-", "_"), document.getElementById(id)]));
 
   const svgNs = "http://www.w3.org/2000/svg";
@@ -259,8 +260,14 @@
       renderDiagnostics();
       renderGraph();
       renderDetails();
+      if (!keepSelection) {
+        const query = new URLSearchParams(location.search);
+        const requested = query.get("person");
+        if (requested && record(requested)?.kind === "person") { state.selected = requested; renderGraphSelection(); renderDetails(); }
+        if (query.get("page") === "upcoming") { state.page = "upcoming"; renderUpcomingPage(); }
+      }
       if (!history.state?.kindred) history.replaceState(snapshot(), "");
-      if (!keepSelection && phoneQuery.matches && record(state.selected)?.kind === "person") setSheet("peek", { focus: false });
+      if (!keepSelection && phoneQuery.matches && record(state.selected)?.kind === "person" && !state.page) setSheet("peek", { focus: false });
     } catch (error) {
       if (request !== state.request) return;
       state.loadError = error instanceof Error ? error.message : String(error);
@@ -354,7 +361,11 @@
     try { settings = JSON.parse(meta.getAttribute("content") || "null"); } catch { settings = null; }
     const view = settings?.view === "simple" || settings?.view === "research" ? settings.view : "";
     const suggest = typeof settings?.suggest === "string" && safeSuggestUrl(settings.suggest) ? settings.suggest : "";
-    return { view, suggest };
+    // Reminders need a same-origin registration path and the server's VAPID public key.
+    const push = typeof settings?.push?.url === "string" && /^\/(?!\/)\S*$/u.test(settings.push.url) && /^[A-Za-z0-9_-]{87}$/u.test(settings?.push?.key || "")
+      ? { url: settings.push.url, key: settings.push.key } : null;
+    const name = typeof settings?.name === "string" ? settings.name.trim().slice(0, 60) : "";
+    return { view, suggest, push, name };
   }
 
   // The same rule the site builder enforces: a path on this origin (not //), or an https:// URL, with no spaces or backslashes.
@@ -794,10 +805,10 @@
 
   // Back and forward walk through the people and views a reader chose. Panning and zooming add no steps; the step
   // being left keeps its camera, so going back returns to the same place.
-  const STEP_KEYS = ["selected", "person", "to", "mode", "overviewRoot", "generations"];
+  const STEP_KEYS = ["selected", "person", "to", "mode", "overviewRoot", "generations", "page"];
   let restoring = false;
   function snapshot() {
-    return { kindred: 1, selected: state.selected, person: state.person, to: state.to, mode: state.mode, overviewRoot: state.overviewRoot, generations: el.generations.value };
+    return { kindred: 1, selected: state.selected, person: state.person, to: state.to, mode: state.mode, overviewRoot: state.overviewRoot, generations: el.generations.value, page: state.page };
   }
   function leaveStep() {
     if (restoring || !history.state?.kindred) return;
@@ -814,7 +825,8 @@
     if (!step?.kindred || !state.data) return;
     restoring = true;
     const reload = step.mode !== state.mode || step.person !== state.person || step.to !== state.to || step.generations !== el.generations.value;
-    Object.assign(state, { selected: step.selected, person: step.person, to: step.to, overviewRoot: step.overviewRoot, mode: step.mode, layoutRoot: "", pendingCamera: step.camera || null });
+    Object.assign(state, { selected: step.selected, person: step.person, to: step.to, overviewRoot: step.overviewRoot, mode: step.mode, layoutRoot: "", pendingCamera: step.camera || null, page: step.page || "" });
+    renderUpcomingPage();
     el.generations.value = step.generations;
     showMode(step.mode);
     // A path step from before its second person was chosen waits for that choice again.
@@ -1151,17 +1163,52 @@
     block(t("familySiblings"), family.siblings.map((sibling) => personRow(sibling.id, sibling.half ? t("kin.halfSibling") : "", go)));
   }
 
-  // Birthdays, memorial days and wedding anniversaries in the next 90 days, from full dates only.
-  function openUpcoming() {
+  // The "Coming up" page: the next twelve months of birthdays, memorial days and wedding anniversaries, by month,
+  // from full dates only, and the reminder settings when the site offers reminders.
+  function setPage(page) {
+    leaveStep();
+    state.page = page;
+    // A page takes the whole area: the menu closes, and on phones the peek sheet steps aside.
+    setMenu(false);
+    if (page && phoneQuery.matches && state.sheet === "peek") setSheet("hidden", { focus: false });
+    enterStep();
+    renderUpcomingPage();
+  }
+
+  function occasionsAhead(days) {
     const persons = state.data.records.filter((item) => item.kind === "person");
     const marriages = state.data.records.filter((item) => item.kind === "event" && String(item.metadata?.event_type || item.metadata?.type) === "marriage")
       .map((item) => ({ ids: [...new Set([...(item.owner ? [item.owner] : []), ...linkedIds(item, "people")])], date: plainValue(item.metadata?.date) }));
-    const occasions = KindredLife.upcoming(persons, marriages, { days: 90 });
+    return KindredLife.upcoming(persons, marriages, { days });
+  }
+
+  function renderUpcomingPage() {
+    const open = state.page === "upcoming" && Boolean(state.data);
+    el.upcoming_page.hidden = !open;
+    el.upcoming_button.setAttribute("aria-pressed", String(open));
+    clear(el.upcoming_page);
+    if (!open) return;
+    const head = html("header", { className: "page-head" });
+    head.append(html("h2", { text: t("upcomingTitle") }));
+    const close = html("button", { className: "quiet-button", text: t("backToTree"), attrs: { type: "button" } });
+    close.addEventListener("click", () => setPage(""));
+    head.append(close);
+    el.upcoming_page.append(head);
+    if (staticSite?.push) el.upcoming_page.append(reminderCard());
     const locale = KindredI18n.lang() === "de" ? "de-DE" : "en-GB";
     const day = new Intl.DateTimeFormat(locale, { weekday: "short", day: "numeric", month: "short" });
-    clear(el.upcoming_list);
-    if (!occasions.length) el.upcoming_list.append(html("p", { className: "upcoming-none", text: t("upcomingNone") }));
+    const month = new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" });
+    const occasions = occasionsAhead(365);
+    if (!occasions.length) el.upcoming_page.append(html("p", { className: "upcoming-none", text: t("upcomingNone") }));
+    let list = null, current = "";
     for (const occasion of occasions) {
+      const heading = month.format(occasion.date);
+      if (heading !== current) {
+        current = heading;
+        el.upcoming_page.append(html("h3", { className: "upcoming-month", text: heading }));
+        list = html("div", { className: "upcoming-list" });
+        el.upcoming_page.append(list);
+      }
       const names = occasion.ids.map((id) => label(record(id)));
       const text = t(`upcoming.${occasion.type}`, { name: names[0], names: names.join(" & "), count: occasion.years });
       const when = occasion.inDays === 0 ? t("today") : occasion.inDays === 1 ? t("tomorrow") : t("inDays", { count: occasion.inDays });
@@ -1169,10 +1216,102 @@
       const date = html("span", { className: "upcoming-date" });
       date.append(html("strong", { text: day.format(occasion.date) }), html("small", { text: when }));
       row.append(date, html("span", { className: "upcoming-text", text }));
-      row.addEventListener("click", () => { el.upcoming.close(); select(occasion.ids[0]); });
-      el.upcoming_list.append(row);
+      row.addEventListener("click", () => { setPage(""); select(occasion.ids[0]); });
+      list.append(row);
     }
-    el.upcoming.showModal();
+  }
+
+  // Reminders arrive as Web Push messages from the site's server. iPhones only allow them for a site added to the
+  // Home Screen, so the card explains that first. The choices are kept in this browser and sent with the subscription.
+  const REMINDER_KEY = "kindred.reminders";
+  function reminderChoices() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(REMINDER_KEY) || "null");
+      if (stored && Array.isArray(stored.offsets) && Array.isArray(stored.kinds)) return stored;
+    } catch { /* Fall back to the defaults. */ }
+    return { offsets: [1, 7], kinds: ["birthday", "wedding"] };
+  }
+
+  function base64urlBytes(text) {
+    const padded = text.replaceAll("-", "+").replaceAll("_", "/") + "=".repeat((4 - text.length % 4) % 4);
+    return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
+  }
+
+  function reminderCard() {
+    const card = html("section", { className: "reminder-card" });
+    card.append(html("h3", { text: t("reminders.title") }));
+    const status = html("p", { className: "reminder-status", attrs: { role: "status" } });
+    const ios = /iPad|iPhone|iPod/u.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const installed = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+    const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+    if (ios && !installed) { status.textContent = t("reminders.installFirst"); card.append(status); return card; }
+    if (!supported) { status.textContent = t("reminders.unsupported"); card.append(status); return card; }
+    const choices = reminderChoices();
+    const options = html("div", { className: "reminder-options" });
+    const box = (group, value, text) => {
+      const field = html("label", { className: "reminder-choice" });
+      const input = html("input", { attrs: { type: "checkbox", value, "data-group": group } });
+      input.checked = choices[group].includes(group === "offsets" ? Number(value) : value);
+      field.append(input, document.createTextNode(` ${text}`));
+      return field;
+    };
+    const when = html("fieldset");
+    when.append(html("legend", { text: t("reminders.when") }), box("offsets", "0", t("reminders.onTheDay")), box("offsets", "1", t("reminders.dayBefore")), box("offsets", "7", t("reminders.weekBefore")));
+    const what = html("fieldset");
+    what.append(html("legend", { text: t("reminders.what") }), box("kinds", "birthday", t("reminders.birthdays")), box("kinds", "wedding", t("reminders.weddings")), box("kinds", "memorial", t("reminders.memorials")));
+    options.append(when, what);
+    const actions = html("div", { className: "reminder-actions" });
+    const enable = html("button", { className: "primary-button", attrs: { type: "button" } });
+    const disable = html("button", { className: "quiet-button", text: t("reminders.off"), attrs: { type: "button" } });
+    actions.append(enable, disable);
+    card.append(options, actions, status);
+    const read = () => ({
+      offsets: [...card.querySelectorAll('input[data-group="offsets"]:checked')].map((input) => Number(input.value)),
+      kinds: [...card.querySelectorAll('input[data-group="kinds"]:checked')].map((input) => input.value)
+    });
+    const show = async () => {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      enable.textContent = t(subscription ? "reminders.save" : "reminders.on");
+      disable.hidden = !subscription;
+      if (!status.textContent) status.textContent = subscription ? t("reminders.active") : "";
+    };
+    enable.addEventListener("click", async () => {
+      const chosen = read();
+      if (!chosen.offsets.length || !chosen.kinds.length) { status.textContent = t("reminders.chooseSomething"); return; }
+      enable.disabled = true;
+      status.textContent = t("reminders.working");
+      try {
+        if (await Notification.requestPermission() !== "granted") throw new Error("permission");
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription()
+          || await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: base64urlBytes(staticSite.push.key) });
+        const response = await fetch(staticSite.push.url, {
+          method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subscription: subscription.toJSON(), offsets: chosen.offsets, kinds: chosen.kinds, lang: KindredI18n.lang() })
+        });
+        if (!response.ok) throw new Error(`status ${response.status}`);
+        try { localStorage.setItem(REMINDER_KEY, JSON.stringify(chosen)); } catch { /* Private browsing can refuse storage. */ }
+        status.textContent = t("reminders.saved");
+      } catch (error) {
+        status.textContent = t(error.message === "permission" ? "reminders.denied" : "reminders.failed");
+      } finally {
+        enable.disabled = false;
+        show();
+      }
+    });
+    disable.addEventListener("click", async () => {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) {
+        await fetch(staticSite.push.url, { method: "DELETE", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: subscription.endpoint }) }).catch(() => {});
+        await subscription.unsubscribe();
+      }
+      status.textContent = t("reminders.stopped");
+      show();
+    });
+    show();
+    return card;
   }
 
   function relationExtra(parent, child) {
@@ -1881,7 +2020,7 @@
   document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.view)));
   document.querySelectorAll("[data-lang]").forEach((button) => button.addEventListener("click", () => switchLang(button.dataset.lang)));
   el.questions_toggle.addEventListener("click", toggleQuestions);
-  el.upcoming_button.addEventListener("click", () => { if (state.data) openUpcoming(); });
+  el.upcoming_button.addEventListener("click", () => { if (state.data) setPage(state.page === "upcoming" ? "" : "upcoming"); });
   el.home_button.addEventListener("click", () => {
     if (!state.me || !record(state.me)) return;
     if (!state.positions.has(state.me)) { leaveStep(); state.person = state.me; state.selected = state.me; setMode("focus"); return; }
@@ -2105,6 +2244,15 @@
   applyView(initialView());
   setQuestions(initialQuestions());
   el.home_button.hidden = !state.me;
+  // A published site names itself in the masthead; Kindred stays as the small line beneath.
+  if (staticSite?.name && staticSite.name !== "Kindred") {
+    const brand = document.querySelector(".brand strong"), line = document.querySelector(".brand small");
+    brand.textContent = staticSite.name;
+    line.removeAttribute("data-i18n");
+    line.textContent = "Kindred";
+  }
+  // Published sites register the service worker that shows pushed reminders; it caches nothing.
+  if (staticSite && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   KindredI18n.setLang(initialLang());
   renderStrings();
   showHint();

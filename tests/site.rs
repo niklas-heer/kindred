@@ -159,7 +159,7 @@ fn writes_viewer_assets_and_escaped_settings() {
     let index = fs::read_to_string(fixture.target().join("index.html"))
         .expect("index.html should be written");
     assert!(index.contains(
-        "<meta name=\"kindred-site\" content=\"{&quot;view&quot;:&quot;simple&quot;,&quot;suggest&quot;:&quot;/help?a=1&amp;b=2&quot;}\">"
+        "<meta name=\"kindred-site\" content=\"{&quot;view&quot;:&quot;simple&quot;,&quot;suggest&quot;:&quot;/help?a=1&amp;b=2&quot;,&quot;name&quot;:&quot;Kindred&quot;}\">"
     ));
     assert!(index.contains("<meta http-equiv=\"Content-Security-Policy\""));
     assert!(index.contains("default-src 'none'"));
@@ -173,7 +173,7 @@ fn writes_viewer_assets_and_escaped_settings() {
         .expect("index.html should be written");
     assert!(
         index.contains(
-            "content=\"{&quot;view&quot;:&quot;research&quot;,&quot;suggest&quot;:null}\""
+            "content=\"{&quot;view&quot;:&quot;research&quot;,&quot;suggest&quot;:null,&quot;name&quot;:&quot;Kindred&quot;}\""
         )
     );
 }
@@ -220,7 +220,7 @@ fn static_viewer_reads_graph_json_only_through_its_meta_tag() {
     let index = fs::read_to_string(injected.target().join("index.html"))
         .expect("index.html should be written");
     // The URL still appears in the settings attribute, but never as a connection source.
-    assert!(index.contains("connect-src 'self'; base-uri"));
+    assert!(index.contains("connect-src 'self'; manifest-src"));
     assert!(!index.contains("connect-src 'self' https://"));
 }
 
@@ -252,6 +252,72 @@ fn invalid_archive_publishes_nothing() {
     assert_eq!(output.status.code(), Some(1));
     assert!(!fixture.target().exists());
     assert!(!fixture.0.join(".site.kindred-staging").exists());
+}
+
+const PUSH_KEY: &str =
+    "BAbcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_abcdefghijklmnopqrstuv";
+
+#[test]
+fn publishes_an_installable_app_with_optional_reminders() {
+    let fixture = Fixture::new();
+    fixture.person("ada", "Ada Linde", "living: false\n", "Story.");
+    let output = fixture.build(&[
+        "--today",
+        TODAY,
+        "--name",
+        "Linde & Co",
+        "--push-url",
+        "/api/push",
+        "--push-key",
+        PUSH_KEY,
+    ]);
+    assert_success(&output);
+    let target = fixture.target();
+    let manifest: Value = serde_json::from_str(
+        &fs::read_to_string(target.join("manifest.webmanifest")).expect("manifest"),
+    )
+    .expect("manifest JSON");
+    assert_eq!(manifest["name"], "Linde & Co");
+    assert_eq!(manifest["start_url"], "./");
+    assert_eq!(manifest["display"], "standalone");
+    for name in [
+        "sw.js",
+        "icon-192.png",
+        "icon-512.png",
+        "apple-touch-icon.png",
+    ] {
+        assert!(target.join(name).is_file(), "{name} should be written");
+    }
+    let index = fs::read_to_string(target.join("index.html")).expect("index.html");
+    assert!(index.contains("<title>Linde &amp; Co</title>"));
+    assert!(index.contains(
+        "<link rel=\"manifest\" href=\"manifest.webmanifest\" crossorigin=\"use-credentials\">"
+    ));
+    assert!(index.contains(&format!("&quot;push&quot;:{{&quot;url&quot;:&quot;/api/push&quot;,&quot;key&quot;:&quot;{PUSH_KEY}&quot;}}")));
+    assert!(index.contains("worker-src 'self'") && index.contains("manifest-src 'self'"));
+}
+
+#[test]
+fn reminder_options_must_be_complete_and_well_formed() {
+    let fixture = Fixture::new();
+    fixture.person("ada", "Ada Linde", "living: false\n", "Story.");
+    for extra in [
+        vec!["--push-url", "/api/push"],
+        vec!["--push-key", PUSH_KEY],
+        vec![
+            "--push-url",
+            "https://example.org/push",
+            "--push-key",
+            PUSH_KEY,
+        ],
+        vec!["--push-url", "/api/push", "--push-key", "short"],
+        vec!["--name", ""],
+    ] {
+        let output = fixture.build(&extra);
+        assert_eq!(output.status.code(), Some(2), "{extra:?}");
+        assert!(String::from_utf8_lossy(&output.stderr).contains("usage:"));
+        assert!(!fixture.target().exists());
+    }
 }
 
 #[test]

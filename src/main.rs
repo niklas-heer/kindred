@@ -37,6 +37,9 @@ Site options:
   --view simple|research  Viewer opened first (default research)
   --suggest-url URL       Same-origin path starting with / (not //), or https://
   --today YYYY-MM-DD      Reference date for minors (default: today, UTC)
+  --name TEXT             Page title and installed app name (default Kindred)
+  --push-url PATH         Same-origin path where devices register for reminders
+  --push-key KEY          VAPID public key (base64url) for reminders; needs --push-url
 
 Export scope is required. --all includes private/living records and attachments;
 --public emits a minimal projection of explicitly deceased, non-private people.
@@ -74,6 +77,9 @@ impl Arguments {
                         | "--view"
                         | "--suggest-url"
                         | "--today"
+                        | "--name"
+                        | "--push-url"
+                        | "--push-key"
                 ) {
                     return Err(format!("usage: unknown option {value}; try --help"));
                 }
@@ -304,19 +310,33 @@ fn run(args: &Arguments) -> Result<u8, String> {
             args.validate(3, &[])?;
             json(&exchange::gedcom::import(root, Path::new(args.at(2)?))?)?;
         }
-        "site" => {
-            args.validate(3, &["--view", "--suggest-url", "--today"])?;
-            let options = site::Options::new(
-                args.option("--view"),
-                args.option("--suggest-url"),
-                args.option("--today"),
-            )?;
-            json(&site::build(root, Path::new(args.at(2)?), &options)?)?;
-        }
+        "site" => publish(root, args)?,
         _ => return Err("usage: unrecognized command; try --help".into()),
     }
     Ok(0)
 }
+fn publish(root: &Path, args: &Arguments) -> Result<(), String> {
+    args.validate(
+        3,
+        &[
+            "--view",
+            "--suggest-url",
+            "--today",
+            "--name",
+            "--push-url",
+            "--push-key",
+        ],
+    )?;
+    let options = site::Options::new(
+        args.option("--view"),
+        args.option("--suggest-url"),
+        args.option("--today"),
+        args.option("--name"),
+        (args.option("--push-url"), args.option("--push-key")),
+    )?;
+    json(&site::build(root, Path::new(args.at(2)?), &options)?)
+}
+
 fn edit(root: &Path, args: &Arguments) -> Result<(), String> {
     args.validate(3, &["--expected", "--from", "--body"])?;
     let expected = fs::read_to_string(

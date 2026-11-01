@@ -176,16 +176,32 @@ select, .query-options input[type="number"] { border: 1px solid var(--line); bor
 .timeline .timeline-death::before { background: light-dark(#b9b2a6, #6b665c); }
 .timeline-year { color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 650; }
 .family-page { position: absolute; z-index: 9; inset: 0; overflow-y: auto; overscroll-behavior: contain; padding: .9rem .9rem 10rem; background: var(--paper); }
+#upcoming-button[aria-pressed="true"] { border-color: var(--green); background: var(--green-soft); }
 .family-hero { display: flex; align-items: center; gap: .9rem; width: 100%; padding: .9rem; border: 2px solid var(--green); border-radius: 1rem; background: var(--panel); text-align: left; box-shadow: 0 4px 14px rgba(41,60,48,.08); }
 .family-hero .row-copy strong { font: 1.25rem/1.25 Georgia, serif; white-space: normal; }
 .family-hero .row-copy small { font-size: .82rem; white-space: normal; }
 .family-tree-button { display: block; margin: .6rem 0 0 auto; min-height: 40px; font-size: .82rem; }
 .family-block { margin-top: 1rem; }
 .family-block h3 { margin: 0 0 .45rem .2rem; color: var(--muted); font-size: .72rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
-.upcoming-dialog { width: min(520px, calc(100% - 2rem)); max-height: min(680px, calc(100% - 2rem)); }
-.upcoming-dialog, .suggestion-dialog { height: fit-content; }
-.upcoming-dialog .editor-card, .suggestion-dialog .editor-card { height: auto; }
-.upcoming-list { display: grid; gap: .5rem; max-height: 60vh; overflow-y: auto; padding: 1rem 1.2rem 1.3rem; }
+.suggestion-dialog { height: fit-content; }
+.suggestion-dialog .editor-card { height: auto; }
+/* Full-area pages over the graph: the phone family page and Coming up. */
+.side-page { position: absolute; z-index: 9; inset: 0; overflow-y: auto; overscroll-behavior: contain; padding: 1.2rem max(1rem, calc((100% - 44rem) / 2)) 10rem; background: var(--paper); }
+.page-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .9rem; }
+.page-head h2 { margin: 0; font: 1.6rem/1.2 Georgia, serif; }
+.upcoming-month { margin: 1.4rem 0 .5rem .2rem; color: var(--muted); font-size: .74rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.reminder-card { display: grid; gap: .8rem; padding: 1rem 1.1rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--panel); }
+.reminder-card h3 { margin: 0; font: 1.05rem Georgia, serif; }
+.reminder-options { display: flex; flex-wrap: wrap; gap: 1rem 2rem; }
+.reminder-options fieldset { display: grid; gap: .35rem; margin: 0; padding: 0; border: 0; }
+.reminder-options legend { margin-bottom: .3rem; color: var(--muted); font-size: .72rem; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+.reminder-choice { display: flex; align-items: center; gap: .45rem; min-height: 32px; font-size: .88rem; }
+.reminder-choice input { width: 1.1rem; height: 1.1rem; accent-color: var(--green); }
+.reminder-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.reminder-actions button { min-height: 44px; }
+.reminder-status { margin: 0; color: var(--muted); font-size: .84rem; line-height: 1.5; }
+.reminder-status:empty { display: none; }
+.upcoming-list { display: grid; gap: .5rem; }
 .upcoming-row { display: grid; grid-template-columns: 7.2rem 1fr; align-items: center; gap: .8rem; width: 100%; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .7rem; background: var(--panel); text-align: left; }
 .upcoming-row:hover { border-color: light-dark(#9ab4a6, #4f6a5e); }
 .upcoming-date { display: grid; }

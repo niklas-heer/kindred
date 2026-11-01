@@ -24,9 +24,14 @@ pub(crate) const QUERY: &str = include_str!("web/query.js");
 pub(crate) const LIFE: &str = include_str!("web/life.js");
 pub(crate) const SCRIPT: &str = include_str!("web/app.js");
 pub(crate) const ICONS: &str = include_str!("web/icons.svg");
+/// Published sites only: the service worker that shows pushed reminders, and the app icons.
+pub(crate) const SERVICE_WORKER: &str = include_str!("web/sw.js");
+pub(crate) const APP_ICON_192: &[u8] = include_bytes!("web/pwa/icon-192.png");
+pub(crate) const APP_ICON_512: &[u8] = include_bytes!("web/pwa/icon-512.png");
+pub(crate) const TOUCH_ICON: &[u8] = include_bytes!("web/pwa/apple-touch-icon.png");
 /// Content-Security-Policy for viewer pages. The server adds `frame-ancestors`, which a
 /// `<meta>` element cannot carry.
-pub(crate) const PAGE_POLICY: &str = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'";
+pub(crate) const PAGE_POLICY: &str = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'self'";
 const MAX_EDIT_BYTES: u64 = 4 * 1024 * 1024;
 
 /// Serves the archive on IPv4 loopback until the process is stopped.
