@@ -181,6 +181,10 @@ select, .query-options input[type="number"] { border: 1px solid var(--line); bor
 .family-hero .row-copy strong { font: 1.25rem/1.25 Georgia, serif; white-space: normal; }
 .family-hero .row-copy small { font-size: .82rem; white-space: normal; }
 .family-tree-button { display: block; margin: .6rem 0 0 auto; min-height: 40px; font-size: .82rem; }
+.family-list-button { position: absolute; z-index: 7; top: .5rem; left: .6rem; min-height: 40px; font-size: .85rem; box-shadow: 0 6px 18px light-dark(rgba(30,50,42,.14), rgba(0,0,0,.45)); }
+.row-avatar { overflow: hidden; }
+.row-avatar img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 22%; }
+.family-hero .hero-kin { color: var(--green-dark); font-weight: 650; }
 .family-block { margin-top: 1rem; }
 .family-block h3 { margin: 0 0 .45rem .2rem; color: var(--muted); font-size: .72rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
 .suggestion-dialog { height: fit-content; }

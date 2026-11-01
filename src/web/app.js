@@ -40,7 +40,7 @@
     "edges", "nodes", "empty-state", "graph-status", "details", "editor",
     "editor-title", "editor-text", "editor-message", "save-button", "help-button", "shortcuts",
     "suggest-general", "suggestion", "suggestion-form", "suggestion-about", "suggestion-text", "suggestion-message", "suggestion-send",
-    "workspace", "toolbar", "query-options", "view-switch", "lang-switch", "menu-button", "menu-panel", "details-body", "sheet-handle", "sheet-close", "sheet-peek", "sheet-name", "sheet-years", "sheet-occupation", "questions-toggle", "theme-toggle", "more-options", "centre-button", "first-hint", "first-hint-close", "empty-reset", "empty-search", "home-button", "upcoming-button", "upcoming-page", "family-page", "bands"
+    "workspace", "toolbar", "query-options", "view-switch", "lang-switch", "menu-button", "menu-panel", "details-body", "sheet-handle", "sheet-close", "sheet-peek", "sheet-name", "sheet-years", "sheet-occupation", "questions-toggle", "theme-toggle", "more-options", "centre-button", "first-hint", "first-hint-close", "empty-reset", "empty-search", "home-button", "upcoming-button", "upcoming-page", "family-page", "bands", "family-list-button"
   ].map((id) => [id.replaceAll("-", "_"), document.getElementById(id)]));
 
   const svgNs = "http://www.w3.org/2000/svg";
@@ -247,7 +247,7 @@
       for (const item of [...payload.records, ...payload.query.nodes]) item.kind = item.kind || item.type;
       const previous = keepSelection ? state.selected : "";
       state.data = payload;
-      state.allEdges ??= await archiveEdges();
+      if (!staticSite || !state.allEdges) state.allEdges = await archiveEdges();
       if (request !== state.request) return;
       state.loadError = "";
       el.empty_state.classList.remove("failed");
@@ -1071,7 +1071,8 @@
     else if (down === 1) term = up === 2 ? t("kin.auntUncle") : t("kin.grandAuntUncle", { greats: repeat(up - 3, t("kin.great")) });
     else {
       const degree = Math.min(up, down) - 1, removed = Math.abs(up - down);
-      term = degree === 1 ? t("kin.cousin") : t("kin.cousinDegree", { degree });
+      const ordinal = KindredI18n.has(`kin.ordinal.${degree}`) ? t(`kin.ordinal.${degree}`) : `${degree}.`;
+      term = degree === 1 ? t("kin.cousin") : t("kin.cousinDegree", { degree, ordinal });
       if (removed) term = t("kin.removed", { term, count: removed });
     }
     if (found.half && !(up === 1 && down === 1)) term = t("kin.half", { term });
@@ -1090,7 +1091,7 @@
     const found = kinshipTo(item.id);
     const box = html("div", { className: "kinship" });
     box.append(html("strong", { className: "kinship-term", text: found ? kinTerm(found) : t("kin.none") }));
-    if (found?.via?.length && found.kind !== "partner") {
+    if (found?.via?.length && found.kind !== "partner" && !found.via.some((id) => id === item.id || id === state.me)) {
       const line = html("p", { className: "kinship-via" });
       line.append(document.createTextNode(`${t(found.via.length > 1 ? "kin.commonAncestors" : "kin.commonAncestor")} `));
       found.via.forEach((id, index) => {
@@ -1105,11 +1106,22 @@
   }
 
   // Simple view: parents, partners (with the marriage), children and siblings as compact rows.
+  function rowAvatar(person, large = false) {
+    const avatar = html("span", { className: `row-avatar${large ? " large" : ""}${KindredLife.deceased(person) ? " deceased" : ""}`, text: initials(label(person)), attrs: { "aria-hidden": "true" } });
+    const portrait = portraitFor(person);
+    if (portrait) {
+      const photo = html("img", { attrs: { src: portrait.url, alt: "", decoding: "async" } });
+      photo.addEventListener("error", () => { avatar.textContent = initials(label(person)); });
+      avatar.replaceChildren(photo);
+    }
+    return avatar;
+  }
+
   function personRow(id, extra = "", open = select) {
     const person = record(id);
     const row = html("button", { className: "family-row", attrs: { type: "button" } });
     if (!person) return row;
-    const avatar = html("span", { className: `row-avatar${KindredLife.deceased(person) ? " deceased" : ""}`, text: initials(label(person)), attrs: { "aria-hidden": "true" } });
+    const avatar = rowAvatar(person);
     const copy = html("span", { className: "row-copy" });
     copy.append(html("strong", { text: label(person) }), html("small", { text: [lifeSummary(person), extra].filter(Boolean).join(" · ") }));
     row.append(avatar, copy);
@@ -1121,8 +1133,10 @@
   // Tapping someone makes them the centre; "Show as tree" returns to the graph until the tab is opened again.
   function renderFamilyPage() {
     const person = record(state.person);
-    const show = phoneQuery.matches && state.mode === "focus" && !state.familyAsTree && person?.kind === "person";
+    const family_tab = phoneQuery.matches && state.mode === "focus" && person?.kind === "person";
+    const show = family_tab && !state.familyAsTree;
     el.family_page.hidden = !show;
+    el.family_list_button.hidden = !(family_tab && state.familyAsTree);
     clear(el.family_page);
     if (!show) return;
     // The page already shows the person; the peek sheet would only repeat it.
@@ -1135,7 +1149,9 @@
     const birthPlace = record(record(lifeEventId(person, "birth"))?.metadata?.place);
     const meta = [plainValue(person.metadata?.occupation), birthPlace ? label(birthPlace) : ""].filter(Boolean).join(" · ");
     if (meta) copy.append(html("small", { text: meta }));
-    hero.append(html("span", { className: `row-avatar large${KindredLife.deceased(person) ? " deceased" : ""}`, text: initials(label(person)), attrs: { "aria-hidden": "true" } }), copy);
+    const kin = state.me && state.me !== person.id ? kinTerm(kinshipTo(person.id)) : "";
+    if (kin) copy.append(html("small", { className: "hero-kin", text: t("kin.forYou", { term: kin }) }));
+    hero.append(rowAvatar(person, true), copy);
     hero.addEventListener("click", () => { select(person.id); setSheet("expanded"); });
     const tree = html("button", { className: "quiet-button family-tree-button", text: t("showAsTree"), attrs: { type: "button" } });
     tree.addEventListener("click", () => { state.familyAsTree = true; renderGraph(); });
@@ -1160,7 +1176,8 @@
       block(t("familyWith", { name: label(record(partner)) }), rows);
     }
     block(t("familyChildren"), byBirth(family.children.map((child) => child.id).filter((id) => !placed.has(id))).map((id) => personRow(id, relationExtra(person.id, id), go)));
-    block(t("familySiblings"), family.siblings.map((sibling) => personRow(sibling.id, sibling.half ? t("kin.halfSibling") : "", go)));
+    const half = new Map(family.siblings.map((sibling) => [sibling.id, sibling.half]));
+    block(t("familySiblings"), byBirth([...half.keys()]).map((id) => personRow(id, half.get(id) ? t("kin.halfSibling") : "", go)));
   }
 
   // The "Coming up" page: the next twelve months of birthdays, memorial days and wedding anniversaries, by month,
@@ -2016,7 +2033,11 @@
     el.nodes.style.transform = `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})`;
   }
 
-  document.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => setMode(button.dataset.mode)));
+  document.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => {
+    if (button.dataset.mode === "focus" && state.mode === "focus" && state.familyAsTree) { state.familyAsTree = false; renderFamilyPage(); return; }
+    setMode(button.dataset.mode);
+  }));
+  el.family_list_button.addEventListener("click", () => { state.familyAsTree = false; renderFamilyPage(); });
   document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.view)));
   document.querySelectorAll("[data-lang]").forEach((button) => button.addEventListener("click", () => switchLang(button.dataset.lang)));
   el.questions_toggle.addEventListener("click", toggleQuestions);
