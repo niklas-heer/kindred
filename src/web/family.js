@@ -217,8 +217,11 @@
       }
       if (!best) return null;
       const via = [...up].filter(([id, depth]) => depth === best.up && down.get(id) === best.down).map(([id]) => id).sort();
-      // Siblings sharing one recorded parent while either has two are half-siblings.
-      const half = best.up === 1 && best.down === 1 && via.length === 1 && ((parents.get(first)?.size || 0) > 1 || (parents.get(second)?.size || 0) > 1);
+      // Half kin: the two lines meet in one recorded ancestor although a person just below it on either line has
+      // two recorded parents (half-siblings, a parent's half-sibling, half-cousins).
+      const below = (found, depth) => [...found].filter(([id, d]) => d === depth - 1 && parents.get(id)?.has(via[0])).map(([id]) => id);
+      const half = best.up >= 1 && best.down >= 1 && via.length === 1
+        && [...below(up, best.up), ...below(down, best.down)].some((id) => (parents.get(id)?.size || 0) > 1);
       return { kind: "blood", up: best.up, down: best.down, half, via };
     };
     const direct = blood(selfId, otherId);

@@ -128,6 +128,25 @@ visit until it is closed or you start exploring. On phones the starting person's
 summary opens in the bottom sheet. Fit, centring, and revealing a card glide unless
 the system asks for reduced motion.
 
+**This is me** in a person's details marks you in this browser. Every other person's
+details then say how they are related to you, such as `Cousin oder Cousine` or
+`Tante oder Onkel, halbbürtig`, with the shared ancestors as links; the phone sheet
+shows the same, and the house button next to **Fit** returns to you. Kinship is
+counted through parent links to the closest common ancestor, then through one
+partner link for in-laws. The terms are neutral because the archive records roles,
+not genders.
+
+In Simple view, details list the family as rows (parents, partners with the
+marriage year, children, siblings, with half-siblings marked) and a **Life**
+timeline of the dated events: birth, marriages, children's births, other recorded
+events, and death. Faint bands mark each generation row, labelled with the row's
+median birth year, and relative to you (Parents, Grandparents) once you have
+marked yourself. The cake button lists birthdays, memorial days, and wedding
+anniversaries of the next three months, from full dates only, so protected
+year-only dates never appear. On phones the **Family** tab is a page of rows for
+the person, their parents, each partner with their children, and siblings; tap
+someone to move there, or choose **Show as a tree**.
+
 The keyboard help lists navigation: `/` focuses search, arrow keys move between
 people, Enter opens a family view, `+` and `-` change depth, and Escape closes
 the current overlay. Controls also work through normal Tab navigation.

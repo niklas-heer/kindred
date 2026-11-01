@@ -27,6 +27,9 @@
     sheet: "hidden",
     questions: false,
     pendingCamera: null,
+    allEdges: null,
+    me: readMe(),
+    familyAsTree: false,
     loadError: ""
   };
 
@@ -36,7 +39,7 @@
     "edges", "nodes", "empty-state", "graph-status", "details", "editor",
     "editor-title", "editor-text", "editor-message", "save-button", "help-button", "shortcuts",
     "suggest-general", "suggestion", "suggestion-form", "suggestion-about", "suggestion-text", "suggestion-message", "suggestion-send",
-    "workspace", "toolbar", "query-options", "view-switch", "lang-switch", "menu-button", "menu-panel", "details-body", "sheet-handle", "sheet-close", "sheet-peek", "sheet-name", "sheet-years", "sheet-occupation", "questions-toggle", "theme-toggle", "more-options", "centre-button", "first-hint", "first-hint-close", "empty-reset", "empty-search"
+    "workspace", "toolbar", "query-options", "view-switch", "lang-switch", "menu-button", "menu-panel", "details-body", "sheet-handle", "sheet-close", "sheet-peek", "sheet-name", "sheet-years", "sheet-occupation", "questions-toggle", "theme-toggle", "more-options", "centre-button", "first-hint", "first-hint-close", "empty-reset", "empty-search", "home-button", "upcoming-button", "upcoming", "upcoming-list", "family-page", "bands"
   ].map((id) => [id.replaceAll("-", "_"), document.getElementById(id)]));
 
   const svgNs = "http://www.w3.org/2000/svg";
@@ -243,6 +246,8 @@
       for (const item of [...payload.records, ...payload.query.nodes]) item.kind = item.kind || item.type;
       const previous = keepSelection ? state.selected : "";
       state.data = payload;
+      state.allEdges ??= await archiveEdges();
+      if (request !== state.request) return;
       state.loadError = "";
       el.empty_state.classList.remove("failed");
       el.empty_state.querySelector("strong").dataset.i18n = "noConnections";
@@ -270,6 +275,28 @@
       clear(el.edges);
       showError(state.loadError);
     }
+  }
+
+  // Accepted claims of the whole archive: family rows, kinship and the family page need more than the current view.
+  async function archiveEdges() {
+    try {
+      const edges = staticSite
+        ? (await readStaticGraph()).edges
+        : (await fetchPayload(new URLSearchParams({ mode: "overview", generations: "64", relations: "", statuses: "accepted" }))).query.edges;
+      return edges.filter((edge) => (edge.status || "accepted") === "accepted");
+    } catch { return null; }
+  }
+  function familyEdges() { return state.allEdges || state.data?.query.edges || []; }
+
+  function readMe() {
+    try { return localStorage.getItem("kindred.me") || ""; } catch { return ""; }
+  }
+  function setMe(id) {
+    state.me = id;
+    try { if (id) localStorage.setItem("kindred.me", id); else localStorage.removeItem("kindred.me"); } catch { /* Private browsing can refuse storage. */ }
+    el.home_button.hidden = !id;
+    renderGraph({ fit: false });
+    renderDetails();
   }
 
   async function fetchPayload(parameters) {
@@ -484,8 +511,10 @@
     state.orderedIds = nodes.map((node) => node.id);
     clear(el.nodes);
     clear(el.edges);
+    renderFamilyPage();
 
     const rails = KindredLayout.familyRails(edges, state.positions, { cardWidth: CARD_WIDTH, cardHeight: CARD_HEIGHT });
+    renderBands(nodes);
     for (const edge of edges) renderEdge(edge, edges, rails);
     for (const edge of edges) renderMarriage(edge, edges);
     for (const node of nodes) renderNode(node);
@@ -558,6 +587,35 @@
       marriages = { data: state.data, byPair };
     }
     return marriages.byPair.get([first, second].sort().join("\u0000")) || null;
+  }
+
+  // Faint alternating bands, one per generation row, labelled with the row's median birth year, or relative to
+  // "me" when that person is in the view.
+  function renderBands(nodes) {
+    clear(el.bands);
+    if (state.mode === "path") return;
+    const rows = new Map();
+    for (const node of nodes) {
+      if (node.kind !== "person" || !state.positions.has(node.id)) continue;
+      const y = state.positions.get(node.id).y;
+      if (!rows.has(y)) rows.set(y, []);
+      rows.get(y).push(node);
+    }
+    if (rows.size < 2) return;
+    const ys = [...rows.keys()].sort((a, b) => a - b);
+    const xs = [...state.positions.values()].map((point) => point.x);
+    const left = Math.min(...xs) - CARD_WIDTH / 2, right = Math.max(...xs) + CARD_WIDTH / 2;
+    const step = Math.min(...ys.slice(1).map((y, index) => y - ys[index]));
+    const meY = state.me && state.positions.has(state.me) ? state.positions.get(state.me).y : null;
+    ys.forEach((y, index) => {
+      if (index % 2 === 0) el.bands.append(svg("rect", { className: "band", attrs: { x: left - 4000, y: y - step / 2, width: right - left + 8000, height: step } }));
+      const years = rows.get(y).map((node) => Number.parseInt(year(dateValue(node, "born")), 10)).filter(Number.isFinite).sort((a, b) => a - b);
+      const around = years.length ? t("generationAround", { year: Math.round(years[Math.floor(years.length / 2)] / 5) * 5 }) : "";
+      const offset = meY === null ? null : Math.round((y - meY) / step);
+      const relative = offset !== null && KindredI18n.has(`generation.${offset}`) ? t(`generation.${offset}`) : "";
+      const text = [relative, around].filter(Boolean).join(" · ");
+      if (text) el.bands.append(svg("text", { className: "band-label", text, attrs: { x: left - 28, y, "text-anchor": "end", "dominant-baseline": "central" } }));
+    });
   }
 
   // A recorded marriage is a knot on the couple's descent line: a small disc with interlocking rings, centred on the
@@ -908,6 +966,14 @@
     if (item.kind === "source" && typeof itemUrl === "string" && /^https?:\/\//iu.test(itemUrl)) {
       actions.append(html("a", { className: "quiet-button", text: t("openSource"), attrs: { href: itemUrl, target: "_blank", rel: "noopener noreferrer" } }));
     }
+    if (item.kind === "person") {
+      const mine = state.me === item.id;
+      const me = html("button", { className: `quiet-button me-button${mine ? " is-me" : ""}`, attrs: { type: "button", "aria-pressed": String(mine) } });
+      me.append(icon("user-round-check"), document.createTextNode(t(mine ? "thisIsYou" : "thisIsMe")));
+      me.title = t(mine ? "notMeHint" : "thisIsMeHint");
+      me.addEventListener("click", () => setMe(mine ? "" : item.id));
+      actions.append(me);
+    }
     header.append(actions);
     if (item.owner) {
       const owner = record(item.owner);
@@ -917,12 +983,13 @@
     }
     el.details_body.append(header);
 
+    if (item.kind === "person") renderKinship(item);
     if (state.questions && item.kind === "person") renderQuestions(item);
-    renderParents(item);
+    if (simple && item.kind === "person") renderFamilyRows(item);
+    else renderParents(item);
     if (item.body) section(t("sectionStories"), renderProse(item.body), "book-open");
-    if (!simple) renderFacts(item);
-    renderRelations(item);
-    renderEvents(item);
+    if (item.kind === "person") renderTimeline(item);
+    if (!simple) { renderFacts(item); renderRelations(item); renderEvents(item); }
     if (!simple) {
       renderEvidence(item);
       renderAttachments(item);
@@ -975,6 +1042,207 @@
     heading.append(document.createTextNode(title));
     wrapper.append(heading, content);
     el.details_body.append(wrapper);
+  }
+
+  // Kinship terms are neutral: the archive records roles, not genders, so "aunt or uncle" rather than a guess.
+  function kinTerm(found) {
+    if (!found) return "";
+    if (found.kind === "self") return t("kin.self");
+    if (found.kind === "partner") return t("kin.partner");
+    const { up, down } = found;
+    const repeat = (count, word) => count <= 0 ? "" : count <= 3 ? word.repeat(count) : `${count}× ${word}`;
+    let term;
+    if (up === 0) term = down === 1 ? t("kin.child") : down === 2 ? t("kin.grandchild") : t("kin.greatGrandchild", { greats: repeat(down - 2, t("kin.great")) });
+    else if (down === 0) term = up === 1 ? t("kin.parent") : up === 2 ? t("kin.grandparent") : t("kin.greatGrandparent", { greats: repeat(up - 2, t("kin.great")) });
+    else if (up === 1 && down === 1) term = t(found.half ? "kin.halfSibling" : "kin.sibling");
+    else if (up === 1) term = down === 2 ? t("kin.nibling") : t("kin.grandNibling", { greats: repeat(down - 3, t("kin.great")) });
+    else if (down === 1) term = up === 2 ? t("kin.auntUncle") : t("kin.grandAuntUncle", { greats: repeat(up - 3, t("kin.great")) });
+    else {
+      const degree = Math.min(up, down) - 1, removed = Math.abs(up - down);
+      term = degree === 1 ? t("kin.cousin") : t("kin.cousinDegree", { degree });
+      if (removed) term = t("kin.removed", { term, count: removed });
+    }
+    if (found.half && !(up === 1 && down === 1)) term = t("kin.half", { term });
+    term = term.charAt(0).toLocaleUpperCase() + term.slice(1);
+    if (found.kind === "partnerOfRelative") return t("kin.partnerOf", { name: label(record(found.partner)), term });
+    if (found.kind === "relativeOfPartner") return t("kin.ofPartner", { name: label(record(found.partner)), term });
+    return term;
+  }
+
+  function kinshipTo(id) {
+    return state.me && id && record(state.me) ? KindredFamily.kinship(state.me, id, familyEdges()) : null;
+  }
+
+  function renderKinship(item) {
+    if (!state.me || state.me === item.id || !record(state.me)) return;
+    const found = kinshipTo(item.id);
+    const box = html("div", { className: "kinship" });
+    box.append(html("strong", { className: "kinship-term", text: found ? kinTerm(found) : t("kin.none") }));
+    if (found?.via?.length && found.kind !== "partner") {
+      const line = html("p", { className: "kinship-via" });
+      line.append(document.createTextNode(`${t(found.via.length > 1 ? "kin.commonAncestors" : "kin.commonAncestor")} `));
+      found.via.forEach((id, index) => {
+        if (index) line.append(document.createTextNode(t("and")));
+        const link = html("button", { className: "link-button", text: label(record(id)), attrs: { type: "button" } });
+        link.addEventListener("click", () => select(id));
+        line.append(link);
+      });
+      box.append(line);
+    }
+    section(t("kin.title", { name: label(record(state.me)) }), box, "users-round");
+  }
+
+  // Simple view: parents, partners (with the marriage), children and siblings as compact rows.
+  function personRow(id, extra = "", open = select) {
+    const person = record(id);
+    const row = html("button", { className: "family-row", attrs: { type: "button" } });
+    if (!person) return row;
+    const avatar = html("span", { className: `row-avatar${KindredLife.deceased(person) ? " deceased" : ""}`, text: initials(label(person)), attrs: { "aria-hidden": "true" } });
+    const copy = html("span", { className: "row-copy" });
+    copy.append(html("strong", { text: label(person) }), html("small", { text: [lifeSummary(person), extra].filter(Boolean).join(" · ") }));
+    row.append(avatar, copy);
+    row.addEventListener("click", () => open(id));
+    return row;
+  }
+
+  // On phones the Family tab is a page of rows: the person, parents, each partner with their children, siblings.
+  // Tapping someone makes them the centre; "Show as tree" returns to the graph until the tab is opened again.
+  function renderFamilyPage() {
+    const person = record(state.person);
+    const show = phoneQuery.matches && state.mode === "focus" && !state.familyAsTree && person?.kind === "person";
+    el.family_page.hidden = !show;
+    clear(el.family_page);
+    if (!show) return;
+    // The page already shows the person; the peek sheet would only repeat it.
+    if (state.sheet === "peek") setSheet("hidden", { focus: false });
+    const go = (id) => { leaveStep(); state.person = id; state.selected = id; setMode("focus"); };
+    const family = KindredFamily.familyOf(person.id, familyEdges());
+    const hero = html("button", { className: "family-hero", attrs: { type: "button" } });
+    const copy = html("span", { className: "row-copy" });
+    copy.append(html("strong", { text: label(person) }), html("small", { text: lifeSummary(person, { full: true }) }));
+    const birthPlace = record(record(lifeEventId(person, "birth"))?.metadata?.place);
+    const meta = [plainValue(person.metadata?.occupation), birthPlace ? label(birthPlace) : ""].filter(Boolean).join(" · ");
+    if (meta) copy.append(html("small", { text: meta }));
+    hero.append(html("span", { className: `row-avatar large${KindredLife.deceased(person) ? " deceased" : ""}`, text: initials(label(person)), attrs: { "aria-hidden": "true" } }), copy);
+    hero.addEventListener("click", () => { select(person.id); setSheet("expanded"); });
+    const tree = html("button", { className: "quiet-button family-tree-button", text: t("showAsTree"), attrs: { type: "button" } });
+    tree.addEventListener("click", () => { state.familyAsTree = true; renderGraph(); });
+    el.family_page.append(hero, tree);
+    const block = (title, rows) => {
+      if (!rows.length) return;
+      const group = html("section", { className: "family-block" });
+      group.append(html("h3", { text: title }));
+      const list = html("div", { className: "family-rows" });
+      list.append(...rows);
+      group.append(list);
+      el.family_page.append(group);
+    };
+    const born = (id) => String(dateValue(record(id) || {}, "born") || "9999");
+    const byBirth = (ids) => [...ids].sort((a, b) => born(a).localeCompare(born(b)));
+    block(t("familyParents"), byBirth(family.parents).map((id) => personRow(id, relationExtra(id, person.id), go)));
+    const placed = new Set();
+    for (const partner of family.partners) {
+      const children = family.children.filter((child) => child.otherParents.includes(partner)).map((child) => child.id);
+      children.forEach((id) => placed.add(id));
+      const rows = [personRow(partner, marriageExtra(person.id, partner), go), ...byBirth(children).map((id) => personRow(id, relationExtra(person.id, id), go))];
+      block(t("familyWith", { name: label(record(partner)) }), rows);
+    }
+    block(t("familyChildren"), byBirth(family.children.map((child) => child.id).filter((id) => !placed.has(id))).map((id) => personRow(id, relationExtra(person.id, id), go)));
+    block(t("familySiblings"), family.siblings.map((sibling) => personRow(sibling.id, sibling.half ? t("kin.halfSibling") : "", go)));
+  }
+
+  // Birthdays, memorial days and wedding anniversaries in the next 90 days, from full dates only.
+  function openUpcoming() {
+    const persons = state.data.records.filter((item) => item.kind === "person");
+    const marriages = state.data.records.filter((item) => item.kind === "event" && String(item.metadata?.event_type || item.metadata?.type) === "marriage")
+      .map((item) => ({ ids: [...new Set([...(item.owner ? [item.owner] : []), ...linkedIds(item, "people")])], date: plainValue(item.metadata?.date) }));
+    const occasions = KindredLife.upcoming(persons, marriages, { days: 90 });
+    const locale = KindredI18n.lang() === "de" ? "de-DE" : "en-GB";
+    const day = new Intl.DateTimeFormat(locale, { weekday: "short", day: "numeric", month: "short" });
+    clear(el.upcoming_list);
+    if (!occasions.length) el.upcoming_list.append(html("p", { className: "upcoming-none", text: t("upcomingNone") }));
+    for (const occasion of occasions) {
+      const names = occasion.ids.map((id) => label(record(id)));
+      const text = t(`upcoming.${occasion.type}`, { name: names[0], names: names.join(" & "), count: occasion.years });
+      const when = occasion.inDays === 0 ? t("today") : occasion.inDays === 1 ? t("tomorrow") : t("inDays", { count: occasion.inDays });
+      const row = html("button", { className: `upcoming-row ${occasion.type}`, attrs: { type: "button" } });
+      const date = html("span", { className: "upcoming-date" });
+      date.append(html("strong", { text: day.format(occasion.date) }), html("small", { text: when }));
+      row.append(date, html("span", { className: "upcoming-text", text }));
+      row.addEventListener("click", () => { el.upcoming.close(); select(occasion.ids[0]); });
+      el.upcoming_list.append(row);
+    }
+    el.upcoming.showModal();
+  }
+
+  function relationExtra(parent, child) {
+    const edge = familyEdges().find((candidate) => candidate.from === parent && candidate.to === child && candidate.relation !== "partner");
+    return edge && edge.relation !== "biological_parent" ? known("relation", edge.relation.replace("_parent", "")) : "";
+  }
+
+  function marriageExtra(first, second) {
+    const marriage = marriageOf(first, second);
+    if (!marriage) return "";
+    const date = plainValue(marriage.metadata?.date);
+    return date ? t("marriedOn", { date: year(date) }) : t("married");
+  }
+
+  function renderFamilyRows(item) {
+    const family = KindredFamily.familyOf(item.id, familyEdges());
+    const byBirth = (ids) => [...ids].sort((a, b) => String(dateValue(record(a) || {}, "born") || "9999").localeCompare(String(dateValue(record(b) || {}, "born") || "9999")));
+    const groups = [
+      ["familyParents", byBirth(family.parents).map((id) => personRow(id, relationExtra(id, item.id)))],
+      ["familyPartners", family.partners.map((id) => personRow(id, marriageExtra(item.id, id)))],
+      ["familyChildren", byBirth(family.children.map((child) => child.id)).map((id) => personRow(id, relationExtra(item.id, id)))],
+      ["familySiblings", family.siblings.sort((a, b) => byBirth([a.id, b.id])[0] === a.id ? -1 : 1).map((sibling) => personRow(sibling.id, sibling.half ? t("kin.halfSibling") : ""))]
+    ];
+    for (const [key, rows] of groups) {
+      if (!rows.length) continue;
+      const list = html("div", { className: "family-rows" });
+      list.append(...rows);
+      section(t(key), list, "users-round");
+    }
+  }
+
+  // A life in order: birth, marriages, children's births, other recorded events, death. Only dated entries.
+  function renderTimeline(item) {
+    const sortable = (value) => { const match = /(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?/u.exec(String(value || "")); return match ? `${match[1]}-${match[2] || "00"}-${match[3] || "00"}` : ""; };
+    const entries = [];
+    const placeOf = (kind) => record(record(lifeEventId(item, kind))?.metadata?.place);
+    const born = dateValue(item, "born"), died = dateValue(item, "died");
+    if (born) entries.push({ date: born, text: placeOf("birth") ? t("timeline.bornIn", { place: label(placeOf("birth")) }) : t("timeline.born"), kind: "birth" });
+    const family = KindredFamily.familyOf(item.id, familyEdges());
+    for (const partner of family.partners) {
+      const marriage = marriageOf(item.id, partner);
+      const date = plainValue(marriage?.metadata?.date);
+      if (date) entries.push({ date, text: t("timeline.married", { name: label(record(partner)) }), kind: "marriage", id: partner });
+    }
+    for (const child of family.children) {
+      const date = dateValue(record(child.id) || {}, "born");
+      if (date) entries.push({ date, text: t("timeline.child", { name: label(record(child.id)) }), kind: "child", id: child.id });
+    }
+    for (const event of eventsForPerson(item.id)) {
+      const type = String(event.metadata?.event_type || event.metadata?.type || "");
+      if (["birth", "death", "marriage"].includes(type) || event.id === lifeEventId(item, "birth") || event.id === lifeEventId(item, "death")) continue;
+      const date = plainValue(event.metadata?.date || event.metadata?.when);
+      if (date) entries.push({ date, text: label(event), kind: "event", event: event.id });
+    }
+    if (died) entries.push({ date: died, text: placeOf("death") ? t("timeline.diedIn", { place: label(placeOf("death")) }) : t("timeline.died"), kind: "death" });
+    const dated = entries.filter((entry) => sortable(entry.date)).sort((a, b) => sortable(a.date).localeCompare(sortable(b.date)));
+    if (dated.length < 2) return;
+    const list = html("ol", { className: "timeline" });
+    for (const entry of dated) {
+      const row = html("li", { className: `timeline-${entry.kind}` });
+      row.append(html("span", { className: "timeline-year", text: year(entry.date) }));
+      const target = entry.id || entry.event;
+      if (target) {
+        const link = html("button", { className: "link-button", text: entry.text, attrs: { type: "button" } });
+        link.addEventListener("click", () => select(target));
+        row.append(link);
+      } else row.append(html("span", { text: entry.text }));
+      list.append(row);
+    }
+    section(t("timeline.title"), list, "calendar-days");
   }
 
   // Each gap can be answered through the suggestion form, which starts with the gap's name.
@@ -1150,7 +1418,7 @@
     if (record(state.selected)?.kind === "person") state.person = state.selected;
     // Each view starts at a readable depth; the control can then expand it.
     if (mode === "overview" && state.mode !== "overview") el.generations.value = "2";
-    if (mode === "focus" && state.mode !== "focus") el.generations.value = "1";
+    if (mode === "focus" && state.mode !== "focus") { el.generations.value = "1"; state.familyAsTree = false; }
     if ((mode === "ancestors" || mode === "descendants") && state.mode === "focus") el.generations.value = "4";
     state.mode = mode;
     showMode(mode);
@@ -1564,8 +1832,14 @@
   function renderPeek(item) {
     el.sheet_name.textContent = label(item);
     el.sheet_years.textContent = lifeSummary(item, { full: true });
-    if (item.kind === "person" && dateValue(item, "born")) { const mark = icon("birth-mark"); mark.classList.add("life-symbol"); el.sheet_years.prepend(mark); }
-    const occupation = plainValue(item.metadata?.occupation);
+    if (item.kind === "person" && dateValue(item, "born")) {
+      // The birth mark replaces the word "born" here.
+      const parts = lifeParts(item, { full: true });
+      el.sheet_years.textContent = ` ${[parts.years, parts.age].filter(Boolean).join(" · ")}`;
+      const mark = icon("birth-mark"); mark.classList.add("life-symbol"); el.sheet_years.prepend(mark);
+    }
+    const kin = item.kind === "person" && state.me && state.me !== item.id ? kinTerm(kinshipTo(item.id)) : "";
+    const occupation = kin ? t("kin.forYou", { term: kin }) : plainValue(item.metadata?.occupation);
     el.sheet_occupation.textContent = occupation;
     el.sheet_occupation.hidden = !occupation;
   }
@@ -1573,12 +1847,12 @@
   // On a phone the switches and filters live in the menu panel; on desktop they go back to the masthead and toolbar.
   function placeMenu() {
     if (phoneQuery.matches) {
-      el.menu_panel.append(el.view_switch, el.lang_switch, el.questions_toggle, el.theme_toggle, el.query_options);
+      el.menu_panel.append(el.view_switch, el.lang_switch, el.questions_toggle, el.upcoming_button, el.theme_toggle, el.query_options);
       // The menu panel is already a disclosure, so its options are always open there.
       el.more_options.open = true;
     } else {
       el.more_options.open = false;
-      el.help_button.before(el.view_switch, el.lang_switch, el.questions_toggle, el.theme_toggle);
+      el.help_button.before(el.view_switch, el.lang_switch, el.questions_toggle, el.upcoming_button, el.theme_toggle);
       el.toolbar.append(el.query_options);
       setMenu(false);
     }
@@ -1607,6 +1881,13 @@
   document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.view)));
   document.querySelectorAll("[data-lang]").forEach((button) => button.addEventListener("click", () => switchLang(button.dataset.lang)));
   el.questions_toggle.addEventListener("click", toggleQuestions);
+  el.upcoming_button.addEventListener("click", () => { if (state.data) openUpcoming(); });
+  el.home_button.addEventListener("click", () => {
+    if (!state.me || !record(state.me)) return;
+    if (!state.positions.has(state.me)) { leaveStep(); state.person = state.me; state.selected = state.me; setMode("focus"); return; }
+    select(state.me);
+    centreOn(state.positions.get(state.me), Math.max(state.scale, phoneQuery.matches ? READABLE_SCALE : START_SCALE), { animate: true });
+  });
   el.first_hint_close.addEventListener("click", dismissHint);
   // An empty view offers a way out: back to the defaults, or straight to the search.
   el.empty_reset.addEventListener("click", () => {
@@ -1820,9 +2101,10 @@
   el.suggest_general.hidden = !staticSite?.suggest;
   if (!staticSite?.suggest) el.suggestion.remove();
   placeMenu();
-  phoneQuery.addEventListener("change", placeMenu);
+  phoneQuery.addEventListener("change", () => { placeMenu(); if (state.data) renderFamilyPage(); });
   applyView(initialView());
   setQuestions(initialQuestions());
+  el.home_button.hidden = !state.me;
   KindredI18n.setLang(initialLang());
   renderStrings();
   showHint();

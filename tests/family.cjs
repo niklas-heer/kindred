@@ -185,6 +185,7 @@ test("kinship names the closest common ancestor's distance on both sides", () =>
   assert.deepEqual(of("cousinkid"), ["blood", 2, 3, false]);
   assert.deepEqual(of("grandkid"), ["blood", 0, 2, false]);
   assert.deepEqual(of("niece"), ["blood", 1, 2, false]);
+  assert.deepEqual(of("halfuncle"), ["blood", 2, 1, true]);
   assert.deepEqual(kinship("me", "aunt", tree).via, ["gp1", "gp2"]);
 });
 

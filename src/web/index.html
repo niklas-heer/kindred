@@ -30,6 +30,7 @@
         <button type="button" data-lang="de" lang="de" title="Deutsch" aria-pressed="false">DE</button>
       </div>
       <button id="questions-toggle" class="quiet-button questions-toggle" type="button" aria-pressed="false" data-i18n-attr="title:whatsMissingHint" title="Show what is still missing about each person"><svg class="icon" aria-hidden="true"><use href="/icons.svg#circle-question-mark"/></svg> <span data-i18n="whatsMissing">What's missing?</span></button>
+      <button id="upcoming-button" class="quiet-button icon-only" type="button" data-i18n-attr="aria-label:upcomingTitle;title:upcomingTitle" aria-label="Coming up" title="Coming up"><svg class="icon" aria-hidden="true"><use href="/icons.svg#cake"/></svg></button>
       <button id="theme-toggle" class="quiet-button theme-toggle" type="button" aria-pressed="false" aria-label="Dark mode"></button>
       <button id="help-button" class="quiet-button" type="button" aria-expanded="false" aria-controls="shortcuts" data-i18n="keyboard">Keyboard</button>
       <button id="menu-button" class="quiet-button menu-button" type="button" aria-expanded="false" aria-controls="menu-panel" data-i18n="menu">Menu</button>
@@ -94,7 +95,7 @@
         <div class="graph-heading"><strong id="selection-summary" data-i18n="yourFamily">Your family, connected</strong><small id="arrangement-caption" data-i18n="parentsAboveChildren">Parents above children</small><div id="selection-key" class="selection-key" data-i18n-attr="aria-label:highlightedRelatives" aria-label="Highlighted relatives"></div></div>
         <!-- Lines are SVG; cards are an HTML layer moved with the same transform, because WebKit misplaces HTML inside SVG. -->
         <div id="graph" class="graph" role="group" data-i18n-attr="aria-label:graphLabel" aria-label="Family relationship graph" tabindex="0">
-          <svg class="graph-lines" aria-hidden="true" focusable="false"><g id="viewport"><g id="edges"></g></g></svg>
+          <svg class="graph-lines" aria-hidden="true" focusable="false"><g id="viewport"><g id="bands"></g><g id="edges"></g></g></svg>
           <div id="nodes" class="node-layer"></div>
         </div>
         <div id="empty-state" class="empty-state" hidden>
@@ -115,9 +116,11 @@
           <button id="zoom-out" type="button" data-i18n-attr="aria-label:zoomOut" aria-label="Zoom out"><svg class="icon" aria-hidden="true"><use href="/icons.svg#minus"/></svg></button>
           <span id="zoom-level">100%</span>
           <button id="zoom-in" type="button" data-i18n-attr="aria-label:zoomIn" aria-label="Zoom in"><svg class="icon" aria-hidden="true"><use href="/icons.svg#plus"/></svg></button>
+          <button id="home-button" type="button" hidden data-i18n-attr="aria-label:goToMe;title:goToMe" aria-label="Go to me" title="Go to me"><svg class="icon" aria-hidden="true"><use href="/icons.svg#house"/></svg></button>
           <button id="centre-button" type="button" data-i18n-attr="aria-label:centrePerson;title:centrePerson" aria-label="Centre the selected person" title="Centre the selected person"><svg class="icon" aria-hidden="true"><use href="/icons.svg#locate-fixed"/></svg></button>
           <button id="fit-button" type="button" data-i18n-attr="aria-label:fitGraph" aria-label="Fit graph"><svg class="icon" aria-hidden="true"><use href="/icons.svg#scan"/></svg> <span data-i18n="fit">Fit</span></button>
         </div>
+        <div id="family-page" class="family-page" hidden></div>
         <div id="graph-status" class="graph-status" role="status" data-i18n="loadingArchive">Loading archive…</div>
       </div>
     </section>
@@ -161,6 +164,13 @@
       <label class="suggestion-field"><span data-i18n="suggestLabel">What is wrong or missing?</span><textarea id="suggestion-text" rows="7" maxlength="2000" required data-i18n-attr="placeholder:suggestPlaceholder" placeholder="A misspelled name, a missing date, a detail to check…"></textarea></label>
       <div id="suggestion-message" class="editor-message" role="status"></div>
       <footer><button value="cancel" formnovalidate class="quiet-button" data-i18n="cancel">Cancel</button><button id="suggestion-send" value="send" class="primary-button" data-i18n="suggestSend">Send</button></footer>
+    </form>
+  </dialog>
+
+  <dialog id="upcoming" class="upcoming-dialog">
+    <form method="dialog" class="editor-card">
+      <header><div><span class="eyebrow" data-i18n="upcomingEyebrow">Next three months</span><h2 data-i18n="upcomingTitle">Coming up</h2></div><button value="cancel" data-i18n-attr="aria-label:close" aria-label="Close">×</button></header>
+      <div id="upcoming-list" class="upcoming-list"></div>
     </form>
   </dialog>
 
