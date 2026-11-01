@@ -46,7 +46,7 @@
   const phoneQuery = window.matchMedia("(max-width: 560px)");
   const READABLE_SCALE = .7;
   // Below this scale cards switch to large type with only the name and life line (semantic zoom).
-  const FAR_SCALE = .6;
+  const FAR_SCALE = .8;
   const START_SCALE = .85;
 
   function icon(name) {
@@ -243,6 +243,8 @@
       const previous = keepSelection ? state.selected : "";
       state.data = payload;
       state.loadError = "";
+      el.empty_state.querySelector("strong").dataset.i18n = "noConnections";
+      el.empty_state.querySelector("p").dataset.i18n = "noConnectionsHint";
       KindredI18n.apply(el.empty_state);
       state.selected = previous && record(previous) ? previous : state.person;
       if (!state.person) state.person = payload.query.nodes.find((item) => item.kind === "person")?.id || "";
@@ -255,8 +257,9 @@
       state.loadError = error instanceof Error ? error.message : String(error);
       el.graph_status.textContent = t("couldNotLoad");
       // Relatives get a way forward; the technical message stays in the Research diagnostics.
-      el.empty_state.querySelector("strong").textContent = t("couldNotLoad");
-      el.empty_state.querySelector("p").textContent = t("reloadHint");
+      el.empty_state.querySelector("strong").dataset.i18n = "couldNotLoad";
+      el.empty_state.querySelector("p").dataset.i18n = "reloadHint";
+      KindredI18n.apply(el.empty_state);
       el.empty_state.hidden = false;
       clear(el.nodes);
       clear(el.edges);
@@ -479,7 +482,7 @@
 
     const rails = KindredLayout.familyRails(edges, state.positions, { cardWidth: CARD_WIDTH, cardHeight: CARD_HEIGHT });
     for (const edge of edges) renderEdge(edge, edges, rails);
-    for (const edge of edges) renderMarriage(edge, edges);
+    for (const edge of edges) renderMarriage(edge);
     for (const node of nodes) renderNode(node);
     renderGraphSelection();
 
@@ -534,13 +537,29 @@
   // A card is name, life line and one line of detail. Lineage shows as a bar on the left (see renderGraphSelection);
   // the surface stays neutral, so no colour can be read as a gender code.
   // A recorded marriage between two partners shows as rings and its year where the couple's line meets the children's.
-  function renderMarriage(edge, edges) {
+  // Recorded marriage events by the pair of people they name, built once per payload.
+  let marriages = { data: null, byPair: new Map() };
+  function marriageOf(first, second) {
+    if (marriages.data !== state.data) {
+      const byPair = new Map();
+      for (const item of state.data.records) {
+        if (item.kind !== "event" || String(item.metadata?.event_type || item.metadata?.type) !== "marriage") continue;
+        const people = [...new Set([...linkedIds(item, "people"), ...(item.owner ? [item.owner] : [])])].sort();
+        for (let i = 0; i < people.length; i += 1) for (let j = i + 1; j < people.length; j += 1) {
+          const key = `${people[i]}\u0000${people[j]}`;
+          if (!byPair.has(key)) byPair.set(key, item);
+        }
+      }
+      marriages = { data: state.data, byPair };
+    }
+    return marriages.byPair.get([first, second].sort().join("\u0000")) || null;
+  }
+
+  function renderMarriage(edge) {
     if (edge.relation !== "partner" || state.mode === "path") return;
     const from = state.positions.get(edge.from), to = state.positions.get(edge.to);
     if (!from || !to || from.y !== to.y) return;
-    const marriage = state.data.records.find((item) => item.kind === "event"
-      && String(item.metadata?.event_type || item.metadata?.type) === "marriage"
-      && [edge.from, edge.to].every((id) => linkedIds(item, "people").includes(id) || item.owner === id));
+    const marriage = marriageOf(edge.from, edge.to);
     if (!marriage) return;
     const date = plainValue(marriage.metadata?.date);
     const place = record(marriage.metadata?.place);
@@ -548,10 +567,11 @@
     const x = (from.x + to.x) / 2, y = from.y + CARD_HEIGHT / 2 + (adjacent ? 13 : 20);
     const width = date ? 54 : 24;
     const group = svg("g", { className: "marriage-mark", attrs: { transform: `translate(${x} ${y})`, "data-from": edge.from, "data-to": edge.to } });
-    group.append(svg("rect", { attrs: { x: -width / 2, y: -9, width, height: 18, rx: 9 } }));
-    const rings = svg("use", { attrs: { href: "/icons.svg#rings", x: date ? -width / 2 + 4 : -7, y: -7, width: 14, height: 14 } });
-    group.append(rings);
-    if (date) group.append(svg("text", { text: year(date), attrs: { x: -width / 2 + 20, y: 4 } }));
+    const body = svg("g", { className: "marriage-body" });
+    body.append(svg("rect", { attrs: { x: -width / 2, y: -9, width, height: 18, rx: 9 } }));
+    body.append(svg("use", { attrs: { href: "/icons.svg#rings", x: date ? -width / 2 + 4 : -7, y: -7, width: 14, height: 14 } }));
+    if (date) body.append(svg("text", { text: year(date), attrs: { x: -width / 2 + 20, y: 4 } }));
+    group.append(body);
     group.append(svg("title", { text: [t("marriedOn", { date: date ? formatDate(date) : "?" }), place ? label(place) : ""].filter(Boolean).join(" · ") }));
     el.edges.append(group);
   }
@@ -628,6 +648,7 @@
     if (item.kind !== "person") return known("kind", item.kind);
     const born = dateValue(item, "born"), died = dateValue(item, "died");
     const show = full ? formatDate : year;
+    if (!born && !died) return ageText(item) || t("datesNotRecorded");
     const span = KindredLife.deceased(item)
       ? t("lifeSpan", { born: born ? show(born) : "?", died: died ? show(died) : "?" })
       : born ? t("bornShort", { date: show(born) }) : "";
@@ -959,7 +980,9 @@
       const row = html("span", { className: "card-row" });
       row.append(html("strong", { text: label(other) }));
       if (state.view !== "simple" || (edge.status || "accepted") !== "accepted") row.append(html("span", { className: `tag ${edge.status || ""}`, text: known("status", edge.status || "accepted") }));
-      const direction = edge.relation === "partner" ? t("relation.partner") : edge.to === item.id ? known("role", parentRole(edge)) : t("direction.child");
+      const marriage = edge.relation === "partner" ? marriageOf(edge.from, edge.to) : null;
+      const married = marriage ? ` · ${t("marriedOn", { date: formatDate(plainValue(marriage.metadata?.date)) || "?" })}` : "";
+      const direction = edge.relation === "partner" ? `${t("relation.partner")}${married}` : edge.to === item.id ? known("role", parentRole(edge)) : t("direction.child");
       const relationType = edge.relation === "partner" ? "" : ` · ${known("relation", edge.relation.replace("_parent", ""))}`;
       button.append(row, html("small", { text: `${direction}${relationType}` }));
       button.addEventListener("click", () => select(otherId));

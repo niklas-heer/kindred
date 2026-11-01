@@ -129,12 +129,12 @@ Parent. The Parents panel identifies whose mother or father is shown and retains
 biological/adoptive/foster type and claim status. Roles are shown as words, never
 as gender symbols.
 
-A card shows the name, the life line (`* 1928 † 2005 · 76 Jahre` in German,
-`1928–2005 · 76 years` in English) and the occupation and place of birth; Research
+A card shows the name, the life line (`1928–2005 · 76 Jahre`, or `* 1954 · 72 Jahre`
+for the living) and the occupation and place of birth; Research
 cards add the parent role. Cards stay neutral; after you select someone, a bar on
-the left marks their blood relatives, coloured by side. Only biological parent
+the left marks their blood relatives. Only biological parent
 links count, so partners, in-laws, and adoptive or foster relatives have none. A recorded marriage event between two partners shows as rings and its
-year below the couple. When you zoom out far, cards drop the picture and details
+year below the couple, and on the partner row in details. Below 80% zoom, cards drop the picture and details
 and show the name and life line in larger type. When fitting everything would need
 that far zoom, the graph starts centred on the selected person at a readable size
 instead; **Fit** still shows everyone. The full dates appear in details. Occupations can be

@@ -350,7 +350,7 @@
       "question.portrait": "Foto",
       darkMode: "Dunkles Design",
       lightMode: "Helles Design",
-      lifeSpan: "* {born} † {died}",
+      lifeSpan: "{born}–{died}",
       missingShort: "Fehlt:",
       marriedOn: "Heirat {date}",
       reloadHint: "Bitte die Seite neu laden. Wenn es wieder passiert, der Archivverwaltung Bescheid geben.",

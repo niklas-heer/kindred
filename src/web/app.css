@@ -88,7 +88,7 @@ select, .query-options input[type="number"] { border: 1px solid var(--line); bor
 .person-avatar { display: grid; place-items: center; flex: 0 0 40px; height: 40px; overflow: hidden; border: 1px solid light-dark(#d7e5dc, #2f3e34); border-radius: 50%; background: light-dark(#edf3ed, #22302a); color: light-dark(#52705e, #b2c9bc); font: 15px Georgia, serif; }
 .node[data-family="partner"] .person-avatar { border-color: light-dark(#dedad2, #3a3a34); background: light-dark(#f3f1ec, #26272a); color: light-dark(#6b665c, #bdb8ad); }
 .node.deceased .person-avatar { border-color: light-dark(#ddd6cb, #3d3a33); background: light-dark(#ece7de, #2a2824); color: light-dark(#6f675a, #c2b9a8); }
-.person-avatar.wanted { border: 1.5px dashed light-dark(#c9a46a, #a68756); }
+.node .person-avatar.wanted { border: 1.5px dashed light-dark(#c9a46a, #c49a5a); }
 .person-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
 .person-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; color: light-dark(#263b32, #e3ebe6); font: 650 15px/1.15 ui-sans-serif, system-ui, -apple-system, sans-serif; }
 .parent-role { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 550; line-height: 1.3; color: light-dark(#62716a, #b0b6b3); }
@@ -105,13 +105,14 @@ select, .query-options input[type="number"] { border: 1px solid var(--line); bor
 .missing-more { flex: 0 0 auto; }
 .missing-flag { display: none; position: absolute; top: 8px; right: 8px; padding: 1px 6px; border-radius: 999px; color: light-dark(#724a15, #f1d3a6); background: light-dark(#f5e4c6, #4a3a22); font: 700 14px/1.2 ui-sans-serif, system-ui, sans-serif; }
 #graph[data-zoom="far"] .missing-flag { display: block; }
-#graph[data-zoom="far"] .person-card.flagged .person-head { padding-right: 44px; }
-/* Lineage: blood relatives (biological links only) of the selected person carry a bar coloured by side. */
-.node.blood .person-card { box-shadow: inset 4px 0 0 var(--family-stroke, light-dark(#2d6654, #8cc9b1)); }
+#graph[data-zoom="far"] .person-card.flagged .person-head { padding-right: 40px; }
+/* Lineage: blood relatives (biological links only) of the selected person carry one green bar; the side stays on lines and chips. */
+.node.blood .person-card { box-shadow: inset 4px 0 0 light-dark(#2d6654, #8cc9b1); }
 /* Semantic zoom: far away only the name and life line remain, in larger type. */
 #graph[data-zoom="far"] .person-avatar, #graph[data-zoom="far"] .person-meta, #graph[data-zoom="far"] .person-role { display: none; }
-#graph[data-zoom="far"] .person-name { font-size: 24px; line-height: 1.1; }
-#graph[data-zoom="far"] .person-life { font-size: 14px; }
+#graph[data-zoom="far"] .person-name { font-size: 20px; line-height: 1.15; }
+#graph[data-zoom="far"] .person-life { font-size: 16px; }
+#graph[data-zoom="far"] .marriage-body { transform: scale(1.8); }
 .marriage-mark rect { fill: var(--paper); stroke: light-dark(#b5a58b, #7f7566); stroke-width: 1; }
 .marriage-mark use { color: light-dark(#9a7a3e, #d7b77c); }
 .marriage-mark text { fill: light-dark(#6b5d45, #d8ccb4); font: 600 10px ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums; }
