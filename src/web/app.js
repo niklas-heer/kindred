@@ -660,7 +660,7 @@
     const name = label(item);
     const base = category ? t("nodeLabelRole", { name, role: t(familyLabels[category]) }) : t("nodeLabel", { name });
     const life = item?.kind === "person" ? lifeDescription(item) : "";
-    return life ? `${base}. ${life}` : base;
+    return life ? `${base.replace(/\.$/u, "")}. ${life}` : base;
   }
 
   function truncate(value, length) {
@@ -682,7 +682,7 @@
     const born = dateValue(item, "born"), died = dateValue(item, "died");
     const show = full ? formatDate : year;
     const deceased = KindredLife.deceased(item);
-    const years = deceased && (born || died) ? t("lifeSpan", { born: born ? show(born) : "?", died: died ? show(died) : "?" }) : born ? show(born) : "";
+    const years = deceased && (born || died) ? t(full ? "lifeSpanFull" : "lifeSpan", { born: born ? show(born) : "?", died: died ? show(died) : "?" }) : born ? show(born) : "";
     return { years, born: Boolean(born), deceased, age: ageText(item) };
   }
 

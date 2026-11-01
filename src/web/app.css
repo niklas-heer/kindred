@@ -68,6 +68,7 @@ select, .query-options input[type="number"] { border: 1px solid var(--line); bor
 .more-options[open] > summary::after { margin-top: .2rem; transform: rotate(225deg); }
 .more-options-body { position: absolute; z-index: 12; top: calc(100% + .4rem); left: 0; display: grid; gap: .7rem; min-width: 15rem; padding: .8rem; border: 1px solid var(--line); border-radius: .7rem; background: var(--panel); box-shadow: 0 14px 40px light-dark(rgba(30,50,42,.16), rgba(0,0,0,.45)); }
 .more-options-body > label { justify-content: space-between; }
+.more-options-body > .quiet-button { font-size: .82rem; }
 .icon-button { width: 34px; height: 34px; padding: 0; }
 .diagnostics { padding: .65rem 1.1rem; border-bottom: 1px solid light-dark(#e6cda8, #534b3f); color: light-dark(#704b1e, #dfc9ad); background: light-dark(#fff3df, #2f2b24); font-size: .82rem; }
 .path-picker { display: flex; align-items: center; justify-content: center; gap: .8rem; padding: .55rem; border-bottom: 1px solid var(--line); background: light-dark(#f1f4ef, #262c22); font-size: .82rem; }
