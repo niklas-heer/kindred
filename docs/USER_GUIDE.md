@@ -350,6 +350,29 @@ with `/` but not `//`, or an `https://` URL. Invalid options exit with code 2.
 
 With a suggestion URL, the page offers "Something wrong or missing?" on each person and on the start panel. Sending makes a `POST` to that URL with `Content-Type: application/json` and the body `{"text", "person", "personName", "lang"}`, where `person` and `personName` are `null` for a general note. Your endpoint must answer `201` to confirm receipt; any other status shows that the note was not sent and keeps the text in the browser. Kindred does not store or forward notes itself, so the endpoint belongs behind the same login as the site.
 
+`--name TEXT` sets the page title, the name in the masthead, and the name of the
+installed app (default `Kindred`). Every site is installable: it ships a web app
+manifest, app icons, and a service worker. The service worker caches nothing; it
+only shows pushed reminders and opens the site when one is tapped. The manifest is
+requested with credentials, so it also loads behind an access gate.
+
+The cake button opens **Coming up**: birthdays of the living, wedding
+anniversaries of living couples, and memorial days in the next twelve months, by
+month, from full dates only. `?page=upcoming` opens it directly and `?person=ID`
+opens a person; reminders link to both.
+
+`--push-url PATH --push-key KEY` adds reminders to that page. `PATH` is a
+same-origin path and `KEY` the server's VAPID public key (an uncompressed P-256 key
+in unpadded base64url, 87 characters). The reader chooses when (on the day, the day
+before, a week before) and what (birthdays, wedding anniversaries, memorial days).
+The page subscribes the device through the browser's Push API and sends `POST PATH`
+with `{"subscription", "offsets", "kinds", "lang"}`; turning reminders off sends
+`DELETE PATH` with `{"endpoint"}`. Any `2xx` confirms. Kindred does not send pushes
+itself: the endpoint's server stores subscriptions and sends encrypted Web Push
+messages (RFC 8291, VAPID per RFC 8292) as JSON `{"title", "body", "tag", "url"}`.
+On iPhone and iPad, Web Push works only for a site added to the Home Screen, so the
+page asks for that first.
+
 ## Optional Obsidian use
 
 Open the archive folder as a vault. No plugin is required. Simple properties,
