@@ -63,6 +63,7 @@ function SignIn() {
           <KeyRound size={19} /> {busy ? 'Waiting for your device…' : 'Sign in with a passkey'}
         </button>
       </div>
+      <p className="auth-device-hint"><b>Use a passkey from another device</b><br />In the passkey prompt, choose another device or a phone, then scan the QR code. You can also choose 1Password or your password manager.</p>
       <PasskeyExplainer />
       {session?.uninvitedEmail && session.accessLogout && (
         <div className="auth-alt">

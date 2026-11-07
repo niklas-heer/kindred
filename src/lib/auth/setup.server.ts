@@ -1,9 +1,7 @@
-// First run: while nobody has an account, /setup creates the first steward, but only with a one-time
-// code that the server prints to its own console. Whoever can read the server's console owns it; a
-// stranger who finds the site first cannot claim it.
+// The first account claims stewardship; an optional console code protects public deployments.
 import { randomInt } from 'node:crypto';
-import { userCount } from './store.server';
-import { safeEqual } from './tokens.server';
+import { userCount } from './store.server.ts';
+import { safeEqual } from './tokens.server.ts';
 
 // No 0/O or 1/I/L: the code is read off a terminal and typed by hand. 16 characters ≈ 80 bits.
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -17,6 +15,8 @@ function state() {
   return g.__kindredSetup;
 }
 
+export const setupCodeRequired = () => process.env.KINDRED_SETUP_CODE === 'required' || process.env.KINDRED_REQUIRE_SETUP_CODE === '1';
+
 export const needsSetup = () => userCount() === 0;
 
 /**
@@ -24,7 +24,7 @@ export const needsSetup = () => userCount() === 0;
  * someone opens /setup (at most once a minute). The only secret Kindred ever logs.
  */
 export function announceSetup(origin?: string, force = false) {
-  if (!needsSetup()) return;
+  if (!needsSetup() || !setupCodeRequired()) return;
   const s = state();
   if (!force && s.shownAt) return;
   if (force && Date.now() - s.shownAt < 60_000) return;
@@ -45,5 +45,5 @@ export function announceSetup(origin?: string, force = false) {
 /** Whether a typed code is the setup code (case, spaces and dashes don't matter). */
 export function checkSetupCode(typed: string): boolean {
   const norm = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  return needsSetup() && safeEqual(norm(typed), norm(state().code));
+  return needsSetup() && (!setupCodeRequired() || safeEqual(norm(typed), norm(state().code)));
 }

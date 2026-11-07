@@ -1,5 +1,6 @@
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, notFound, Outlet, redirect } from '@tanstack/react-router';
-import { BookOpen, CalendarHeart, CircleHelp, Contact, Landmark, Map as MapIcon, Menu, MoreHorizontal, Network, ScrollText, Search, Users } from 'lucide-react';
+import { BookOpen, CalendarHeart, CircleHelp, Contact, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, Users } from 'lucide-react';
 import { AccountMenu } from '~/components/AccountMenu';
 import { useEffect, useMemo, useState } from 'react';
 import { FirstRun } from '~/components/FirstRun';
@@ -43,6 +44,8 @@ function TreeLayout() {
   const f = useFamily();
   const theme = usePref('theme');
   const palette = usePalette();
+  const { data: families = [] } = useQuery(myFamiliesQuery);
+  const multiple = families.length >= 2;
   const [more, setMore] = useState(false);
 
   // Each tree opens in its own theme unless the reader picked one.
@@ -66,7 +69,7 @@ function TreeLayout() {
   return (
     <div className="shell">
       <header className="topbar">
-        <Link to="/" className="brand" title="All families">
+        <Link to={multiple ? "/" : "/$tree"} params={{ tree }} search={multiple ? { families: "all" } : {}} className="brand" title={multiple ? "All families" : "Family tree"}>
           {crest ? <Arms arms={crest.arms} size={28} /> : null}
           <b>{f.graph.tree.name}</b>
         </Link>
@@ -108,9 +111,6 @@ function TreeLayout() {
           <ThemeSwitch />
         </span>
         <AccountMenu familyName={f.graph.tree.name} />
-        <button className="btn icon ghost topbar-menu" onClick={() => setMore(true)} aria-label="Menu" aria-expanded={more}>
-          <Menu size={19} />
-        </button>
       </header>
       <Outlet />
       {/* Phones: the sections move to a bar along the bottom edge. */}
@@ -131,7 +131,7 @@ function TreeLayout() {
           <MoreHorizontal size={20} /> More
         </button>
       </nav>
-      <MoreSheet open={more} onClose={() => setMore(false)} tree={tree} />
+      <MoreSheet open={more} onClose={() => setMore(false)} tree={tree} multiple={multiple} />
       <Palette />
       <FirstRun />
       <Toasts />
@@ -140,7 +140,7 @@ function TreeLayout() {
 }
 
 /** Contacts, Register and Chronicle, plus theme and sound: what the phone's tab bar has no room for. */
-function MoreSheet({ open, onClose, tree }: { open: boolean; onClose: () => void; tree: string }) {
+function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: () => void; tree: string; multiple: boolean }) {
   const theme = useTheme();
   const steward = useCan('manage-access');
   const [sound, toggleSound] = useSound();
@@ -152,7 +152,7 @@ function MoreSheet({ open, onClose, tree }: { open: boolean; onClose: () => void
         <li><Link to="/$tree/houses" params={{ tree }}><Landmark size={19} /> Houses <small>arms, mottos &amp; members</small></Link></li>
         <li><Link to="/$tree/chronicle" params={{ tree }}><ScrollText size={19} /> Chronicle <small>stories &amp; sayings</small></Link></li>
         {steward && <li><Link to="/$tree/access" params={{ tree }}><Users size={19} /> Access <small>members &amp; invitations</small></Link></li>}
-        <li><Link to="/"><Network size={19} /> All families</Link></li>
+        {multiple && <li><Link to="/" search={{ families: "all" }}><Network size={19} /> All families</Link></li>}
       </ul>
       <div className="more-row">
         <span>Theme</span>

@@ -25,7 +25,7 @@ export const passkeysSupported = () => typeof window !== 'undefined' && 'PublicK
 function friendly(e: unknown): Error {
   if (e instanceof AuthRequestError) return e;
   const name = (e as { name?: string })?.name;
-  if (name === 'NotAllowedError' || name === 'AbortError') return new Error('The passkey prompt was closed before it finished. Try again when you’re ready.');
+  if (name === 'NotAllowedError' || name === 'AbortError') return new Error('Your browser or password manager cancelled the passkey prompt, or it timed out. Try again and choose your saved passkey, or use another device.');
   if (name === 'InvalidStateError') return new Error('This device already has a passkey for your account.');
   if (name === 'SecurityError') return new Error('Passkeys only work on the site’s real address (https, or localhost).');
   return new Error('Your device couldn’t make or use a passkey. Try again, or try another device.');
@@ -43,7 +43,7 @@ async function create(optionsAction: string, finishAction: string, optionsBody: 
   await post(finishAction, { ...finishBody, challengeId, response });
 }
 
-/** Creates the first steward's passkey (needs the setup code from the server's console). */
+/** Creates the first steward's passkey (checks the setup code when enabled). */
 export const setUpFirstSteward = (code: string, name: string) => create('setup-options', 'setup', { code, name }, { code });
 
 /** Creates a passkey from an invitation and joins the family. */

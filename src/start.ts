@@ -15,7 +15,7 @@ const csrf = createCsrfMiddleware({
   }),
 });
 
-// While nobody has an account, print the one-time setup code on the server's console (once).
+// In code-protected mode, announce the setup code once while no account exists.
 const setupNotice = createMiddleware().server(async ({ next, request }) => {
   const { announceSetup } = await import('./lib/auth/setup.server');
   const { siteOrigin } = await import('./lib/auth/session.server');

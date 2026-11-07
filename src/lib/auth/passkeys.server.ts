@@ -7,13 +7,13 @@ import {
   type AuthenticationResponseJSON, type RegistrationResponseJSON,
 } from '@simplewebauthn/server';
 import { isoBase64URL } from '@simplewebauthn/server/helpers';
-import { AuthError } from './errors';
-import { siteOrigin } from './session.server';
-import { checkSetupCode } from './setup.server';
+import { AuthError } from './errors.ts';
+import { siteOrigin } from './session.server.ts';
+import { checkSetupCode } from './setup.server.ts';
 import {
   addCredential, addMembership, credentialById, credentialsOf, credentialUsed, createUser, inviteById, openInvite, saveChallenge, takeChallenge, tx,
   useInvite, userByEmail, userById, userCount, type UserRow,
-} from './store.server';
+} from './store.server.ts';
 
 const RP_NAME = 'Kindred';
 
@@ -42,8 +42,9 @@ async function creationOptions(request: Request, user: { name: string; handle: s
     userDisplayName: user.name,
     userID: isoBase64URL.toBuffer(user.handle),
     attestationType: 'none',
+    supportedAlgorithmIDs: [-7, -257],
     // A passkey the device remembers (so signing in needs no name), unlocked by face, fingerprint or PIN.
-    authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
+    authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' },
     excludeCredentials: user.existing.map((c) => ({ id: c.id, transports: JSON.parse(c.transports) })),
   });
 }
@@ -53,7 +54,7 @@ const newHandle = () => isoBase64URL.fromBuffer(crypto.getRandomValues(new Uint8
 
 // ---------- creating a passkey ----------
 
-/** Options for the first steward's passkey; needs the setup code. */
+/** Options for the first steward's passkey; checks the optional setup code. */
 export async function setupOptions(request: Request, code: string, rawName: unknown) {
   if (!checkSetupCode(code)) throw invalid(userCount() ? 'Kindred is already set up. Sign in instead.' : 'That setup code isn’t right. Check the server’s console and try again.');
   const name = cleanName(rawName);
@@ -82,7 +83,7 @@ async function verifyNew(request: Request, challenge: string, response: Registra
   const { rpID, origin } = relyingParty(request);
   let result;
   try {
-    result = await verifyRegistrationResponse({ response, expectedChallenge: challenge, expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: true });
+    result = await verifyRegistrationResponse({ response, expectedChallenge: challenge, expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: false });
   } catch {
     throw invalid('Your device’s passkey couldn’t be checked. Please try again.');
   }
@@ -145,7 +146,7 @@ export async function finishAdd(request: Request, user: UserRow, challengeId: un
 export async function signInOptions(request: Request) {
   const { rpID } = relyingParty(request);
   // No allowCredentials: the device offers whichever of its passkeys for this site the reader picks.
-  const options = await generateAuthenticationOptions({ rpID, userVerification: 'required' });
+  const options = await generateAuthenticationOptions({ rpID, allowCredentials: [], userVerification: 'preferred' });
   return { options, challengeId: saveChallenge({ challenge: options.challenge, purpose: 'login' }) };
 }
 
@@ -164,7 +165,7 @@ export async function finishSignIn(request: Request, challengeId: unknown, respo
   let result;
   try {
     result = await verifyAuthenticationResponse({
-      response, expectedChallenge: c.challenge, expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: true,
+      response, expectedChallenge: c.challenge, expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: false,
       credential: { id: row.id, publicKey: new Uint8Array(row.public_key), counter: row.counter, transports: JSON.parse(row.transports) },
     });
   } catch {

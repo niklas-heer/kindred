@@ -9,10 +9,14 @@ import { myFamiliesQuery, sessionQuery } from '~/lib/auth/functions';
 import '~/styles/home.css';
 
 export const Route = createFileRoute('/')({
-  beforeLoad: async ({ context }) => {
+  validateSearch: (s: Record<string, unknown>): { families?: 'all' } => s.families === 'all' ? { families: 'all' } : {},
+  beforeLoad: async ({ context, search }) => {
     const session = await context.queryClient.ensureQueryData(sessionQuery);
     if (session.needsSetup) throw redirect({ to: '/setup' });
     if (!session.user) throw redirect({ to: '/signin' });
+    const trees = await context.queryClient.ensureQueryData(myFamiliesQuery);
+    const target = trees.find((t) => t.id === session.defaultTree) ?? (trees.length === 1 ? trees[0] : undefined);
+    if (target && search.families !== 'all') throw redirect({ to: '/$tree', params: { tree: target.id } });
   },
   component: Home,
 });
@@ -28,9 +32,9 @@ function Home() {
       if (theme && ['codex', 'modern', 'night'].includes(theme)) document.documentElement.dataset.theme = theme;
     } catch {}
   }, []);
-  const birthdays = trees.flatMap((t) => (t.birthdays ?? []).map((p) => ({ ...p, tree: t.id, family: t.name })));
-  return <main className="home"><div className="home-inner">
-    <PageHeader title="Kindred" subtitle="A family tree you can live in. Pick a family." actions={<AccountMenu />} />
+  const today = trees.flatMap((t) => (t.today ?? []).map((p) => ({ ...p, tree: t.id, family: t.name })));
+  return <main className="home"><div className="home-account"><AccountMenu /></div><div className="home-inner">
+    <PageHeader title="Kindred" subtitle="A family tree you can live in. Pick a family."  />
     {isPending ? <div className="home-grid" aria-busy="true" aria-label="Loading families">{[0, 1, 2].map((i) => <div className="ui-card" key={i} style={{ padding: 24 }}><Skeleton height={84} width={84} radius="50%" /><Skeleton lines={3} /></div>)}</div>
       : isError ? <ErrorState title="Could not load your families" onRetry={() => { void refetch(); }} />
       : trees.length === 0 ? <EmptyState icon={<Shield size={30} />} title="No families yet" text="You don’t belong to a family here yet. When a steward invites you, open their link and the family will appear here." /> : <>
@@ -39,7 +43,7 @@ function Home() {
         <span className="home-crest" aria-hidden>{t.crest ? <Arms arms={t.crest} size={80} /> : <Shield size={60} />}</span>
         <b className="home-name">{t.name}</b><span className="home-tagline muted">{t.tagline}</span><span className="home-people"><span className="home-count display">{t.people.toLocaleString('en-GB')}</span><span className="home-count-label">{t.people === 1 ? 'person' : 'people'}</span></span>
       </span></Link></div>)}</div>
-      <section className="home-today ui-card"><h2><Cake size={20} /> Today across your families</h2>{birthdays.length ? <ul>{birthdays.map((p) => <li key={`${p.tree}:${p.id}`}><Link to="/$tree" params={{ tree: p.tree }} search={{ focus: p.id }}>{p.name}</Link><span className="muted">{p.family}</span></li>)}</ul> : <p className="muted">A quiet day: no birthdays recorded for today.</p>}</section>
+      <section className="home-today ui-card"><h2><Cake size={20} /> Today across your families</h2>{today.length ? <ul>{today.map((p) => <li key={`${p.tree}:${p.key}`}><Link to="/$tree" params={{ tree: p.tree }} search={{ focus: p.id }}>{p.name}</Link><span>{p.label}</span><span className="muted">{p.family}</span></li>)}</ul> : <p className="muted">A quiet day: no birthdays, anniversaries or memorial days recorded for today.</p>}</section>
     </>}
   </div></main>;
 }

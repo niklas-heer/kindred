@@ -95,3 +95,5 @@
 .auth-explain details[open] summary::before { transform: rotate(45deg); }
 .auth-explain summary::-webkit-details-marker { display: none; }
 @media (prefers-reduced-motion: reduce) { .auth-explain summary::before { transition: none; } }
+
+.auth-device-hint { margin: 18px 0 0; color: var(--subtle); font-size: 15px; line-height: 1.5; }

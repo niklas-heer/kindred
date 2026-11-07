@@ -1,10 +1,12 @@
 // Who is asking: a session cookie from a passkey sign-in, or else (behind Cloudflare Access) a
 // verified Access identity. The cookie holds a random token; the store keeps only its hash.
-import { accessEmail } from './access.server';
+import { setupCodeRequired } from './setup.server.ts';
+import { families } from './trees.server.ts';
+import { accessEmail } from './access.server.ts';
 import {
-  createSession, createUser, deleteSession, now, pendingInvitesFor, sessionByToken, slideSession, touchUser, tx, useInvite,
+  addMembership, userCount, createSession, createUser, deleteSession, now, pendingInvitesFor, sessionByToken, slideSession, touchUser, tx, useInvite,
   userByEmail, userById, type UserRow,
-} from './store.server';
+} from './store.server.ts';
 
 /** The site's own origin: KINDRED_ORIGIN when set (behind a proxy), else the request's. */
 export function siteOrigin(request: Request): URL {
@@ -68,7 +70,7 @@ const nameFromEmail = (email: string) =>
  * Resolves who is making `request`. Never throws for a stranger: `user` is then null.
  * `verifiedEmail` is the Cloudflare Access check; tests pass their own.
  */
-export async function getSession(request: Request, verifiedEmail: (r: Request) => Promise<string | undefined> = accessEmail): Promise<Session> {
+export async function getSession(request: Request, verifiedEmail: (r: Request) => Promise<string | undefined> = accessEmail, listFamilies: () => Promise<{ id: string }[]> = families): Promise<Session> {
   const token = sessionToken(request);
   if (token) {
     const row = sessionByToken(token);
@@ -84,9 +86,14 @@ export async function getSession(request: Request, verifiedEmail: (r: Request) =
   if (!email) return { user: null, via: null };
   // A verified Access identity: the account with that email, or an invitation sent to that email,
   // accepted on this first visit. Further invitations to the same email are accepted as they come.
+  const trees = userCount() === 0 && !setupCodeRequired() ? await listFamilies() : [];
   const user = tx((d) => {
     let u = userByEmail(email);
     const pending = pendingInvitesFor(email);
+    if (!u && userCount() === 0 && !setupCodeRequired()) {
+      u = createUser(d, nameFromEmail(email), email);
+      for (const tree of trees) addMembership(d, u.id, tree.id, 'steward');
+    }
     if (!u && !pending.length) return undefined;
     if (!u) u = createUser(d, nameFromEmail(email), email);
     for (const inv of pending) {

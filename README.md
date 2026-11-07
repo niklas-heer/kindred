@@ -33,6 +33,28 @@ The generated trees are deterministic (`scripts/gen-realm.ts`, `scripts/gen-mode
 **Your edits are safe:** `scripts/seed.ts` never overwrites an existing database. `--force` rebuilds one,
 after copying it to `data/backups/`. `mise run data` force-rebuilds only the two generated trees.
 
+## Setup and environment
+
+On a fresh deployment, open the site and create your account and passkey. The first account becomes
+steward of every existing family. Setup closes as soon as that account exists; invite other relatives
+from Access. Concurrent setup attempts can create only one first steward.
+
+By default there is no setup code. For a public deployment, set `KINDRED_SETUP_CODE=required`
+(or `KINDRED_REQUIRE_SETUP_CODE=1`) before starting. The server prints a one-time code for `/setup`;
+it changes on restart. Behind Cloudflare Access, configure `CF_ACCESS_TEAM_DOMAIN` and
+`CF_ACCESS_AUD`: the first verified Access identity can become steward automatically when setup
+codes are disabled. With code protection enabled, use `/setup` and its passkey flow first.
+
+One family opens directly from `/`. Two or more show the family chooser. Advanced multi-family
+installations can set `KINDRED_DEFAULT_TREE=modern` to open that family from `/`; this applies only
+to members of that tree. The All families link opens the chooser (`/?families=all`) for multi-family members, even with a pinned default.
+
+Set `KINDRED_ORIGIN=https://family.example.org` behind a reverse proxy. This public origin supplies
+both the WebAuthn origin and RP hostname, and enables secure session cookies. Passkeys require HTTPS
+(or localhost); changing hostname requires new passkeys. 1Password, iCloud Keychain, Google Password
+Manager and discoverable security keys can store passkeys. Choose another device in the browser's
+prompt to use a phone's passkey. `KINDRED_ACCOUNTS_DB` can isolate an accounts database for testing.
+
 ## What to try
 
 - **Click** a card to select it: the panel changes, the tree stays still. **Double-click** or press **Enter** to centre

@@ -23,7 +23,7 @@ export function NoAccessPage() {
             {trees.map((t) => (
               <li key={t.id}>
                 <Link to="/$tree" params={{ tree: t.id }}>
-                  <b className="display">{t.name}</b>
+                  <b style={{ fontFamily: "'EB Garamond Variable', Garamond, serif", fontWeight: 500 }}>{t.name}</b>
                   <span>{t.people.toLocaleString('en-GB')} {t.people === 1 ? 'person' : 'people'}</span>
                 </Link>
               </li>
@@ -31,7 +31,7 @@ export function NoAccessPage() {
           </ul>
         )}
         <div className="ui-state-actions">
-          <Link to="/" className="btn">Your families</Link>
+          <Link to="/" search={trees && trees.length >= 2 ? { families: "all" } : {}} className="btn">{trees?.length === 1 ? "Your family" : "Your families"}</Link>
           <button className="btn ghost" onClick={() => void signOut(session?.accessLogout)}>Sign out</button>
         </div>
       </NotFound>

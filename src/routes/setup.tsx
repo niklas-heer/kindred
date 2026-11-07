@@ -8,7 +8,7 @@ import { sessionQuery } from '~/lib/auth/functions';
 import { useIsClient } from '~/components/ui';
 import { createServerFn } from '@tanstack/react-start';
 
-// Prints the code on the server's console again (at most once a minute) for whoever is setting up.
+// In code-protected mode, prints the code on the server's console again (at most once a minute) for whoever is setting up.
 const nudgeSetupCode = createServerFn({ method: 'POST' }).handler(async () => {
   const [{ announceSetup }, { siteOrigin }, { getRequest }] = await Promise.all([
     import('~/lib/auth/setup.server'), import('~/lib/auth/session.server'), import('@tanstack/react-start/server'),
@@ -63,6 +63,7 @@ function Setup() {
       lede="Nobody has an account yet. You’ll look after every family on this server: invite relatives, and choose what each of them may change."
     >
       <form className="auth-form" onSubmit={submit}>
+        {session?.setupCodeRequired && <>
         <label className="field">
           <span>Setup code</span>
           <input
@@ -81,16 +82,18 @@ function Setup() {
           The server printed it in its terminal when it started (look for “Kindred setup”).{' '}
           <button type="button" className="auth-link" onClick={() => void nudgeSetupCode()}>Print it again</button>
         </p>
+        </>}
         <label className="field">
           <span>Your name</span>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required maxLength={60} placeholder="As the family calls you" />
         </label>
         <AuthError>{error}</AuthError>
         {!supported && <AuthError>This browser can’t use passkeys. Try the newest Safari, Chrome, Edge or Firefox.</AuthError>}
-        <button className="btn primary auth-go" disabled={busy || !supported || !code.trim() || !name.trim()}>
+        <button className="btn primary auth-go" disabled={busy || !supported || (session?.setupCodeRequired && !code.trim()) || !name.trim()}>
           <KeyRound size={19} /> {busy ? 'Waiting for your device…' : 'Create your passkey'}
         </button>
       </form>
+      <p className="auth-device-hint">Save your passkey in 1Password, iCloud Keychain, Google Password Manager or a security key.</p>
       <PasskeyExplainer creating />
     </AuthCard>
   );

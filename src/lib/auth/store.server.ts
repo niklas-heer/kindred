@@ -4,7 +4,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { Role } from '../roles';
-import { hashToken, randomToken } from './tokens.server';
+import { hashToken, randomToken } from './tokens.server.ts';
 
 const DATA = resolve(process.cwd(), 'data');
 const PATH = process.env.KINDRED_ACCOUNTS_DB ? resolve(process.env.KINDRED_ACCOUNTS_DB) : join(DATA, 'accounts.db');

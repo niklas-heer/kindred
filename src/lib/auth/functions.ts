@@ -19,6 +19,8 @@ export interface SessionInfo {
   memberships: { tree: string; role: Role; person: string | null }[];
   /** Nobody has an account yet: /setup creates the first steward. */
   needsSetup: boolean;
+  setupCodeRequired: boolean;
+  defaultTree?: string;
   /** Signed in through Cloudflare Access as this email, but not invited. */
   uninvitedEmail?: string;
   /** Where "Sign out" must also go when signed in through Access. */
@@ -27,12 +29,14 @@ export interface SessionInfo {
 
 /** Who is signed in, and their role and "who you are" in each family. Never cached across readers. */
 export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): Promise<SessionInfo> => {
-  const [{ currentSession }, s, { needsSetup }, { accessLogoutUrl }] = await Promise.all([guard(), store(), import('./setup.server'), import('./access.server')]);
+  const [{ currentSession }, s, { needsSetup, setupCodeRequired }, { accessLogoutUrl }] = await Promise.all([guard(), store(), import('./setup.server'), import('./access.server')]);
   const { user, via, uninvitedEmail } = await currentSession();
   return {
     user: user && via ? { id: user.id, name: user.name, email: user.email, via } : null,
     memberships: user ? s.membershipsOf(user.id).map((m) => ({ tree: m.tree, role: m.role, person: m.person })) : [],
     needsSetup: needsSetup(),
+    setupCodeRequired: setupCodeRequired(),
+    defaultTree: process.env.KINDRED_DEFAULT_TREE?.trim() || undefined,
     uninvitedEmail,
     accessLogout: via === 'access' || uninvitedEmail ? accessLogoutUrl() : undefined,
   };
@@ -40,12 +44,13 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): 
 export const sessionQuery = queryOptions({ queryKey: ['session'], queryFn: () => fetchSession(), staleTime: 60_000 });
 
 /** The families the signed-in reader belongs to, with their role in each. Empty when signed out. */
-export const fetchMyFamilies = createServerFn({ method: 'GET' }).handler(async (): Promise<(TreeMeta & { role: Role })[]> => {
+export const fetchMyFamilies = createServerFn({ method: 'GET' }).handler(async (): Promise<(TreeMeta & { role: Role; today: import('./today').TodayEvent[] })[]> => {
   const [{ currentSession }, s, { families }] = await Promise.all([guard(), store(), import('./trees.server')]);
   const { user } = await currentSession();
   if (!user) return [];
   const mine = new Map(s.membershipsOf(user.id).map((m) => [m.tree, m.role]));
-  return (await families()).filter((t) => mine.has(t.id)).map((t) => ({ ...t, role: mine.get(t.id)! }));
+  const [{ graph }, { todayEvents }] = await Promise.all([import('../db.server'), import('./today')]);
+  return (await families()).filter((t) => mine.has(t.id)).map((t) => ({ ...t, role: mine.get(t.id)!, today: todayEvents(graph(t.id)) }));
 });
 export const myFamiliesQuery = queryOptions({ queryKey: ['session', 'families'], queryFn: () => fetchMyFamilies() });
 
