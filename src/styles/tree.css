@@ -1,11 +1,16 @@
 .tree-page { position: relative; height: 100%; overflow: hidden; }
 
 .tree-toolbar {
-  position: absolute; top: 12px; left: 16px; right: 16px; z-index: 7; width: fit-content; max-width: calc(100% - 32px);
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px; margin: 0 auto;
-  transition: left 200ms;
+  width: fit-content; max-width: 100%;
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; padding: 6px;
 }
-.tree-toolbar.with-panel, .house-banner.with-panel, .lens-banner.with-panel { left: 432px; }
+/* Toolbar, house banner and lens chip stack in one column, so a wrapping toolbar never covers them. */
+.hud {
+  position: absolute; top: 12px; left: 16px; right: 16px; z-index: 7;
+  display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; transition: left 200ms;
+}
+.hud > * { pointer-events: auto; }
+.hud.with-panel { left: 432px; }
 .tree-toolbar .seg { display: flex; gap: 2px; }
 .tree-toolbar .btn { height: 30px; font-size: 13.5px; }
 .tb-sep { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
@@ -17,8 +22,7 @@
 .tb-lens .input { height: 30px; width: auto; font-size: 13.5px; padding: 0 6px; }
 
 .house-banner {
-  position: absolute; top: 60px; left: 16px; right: 16px; z-index: 6; width: fit-content; margin: 0 auto;
-  display: flex; align-items: center; gap: 12px; padding: 6px 8px 6px 12px;
+  width: fit-content; display: flex; align-items: center; gap: 12px; padding: 6px 8px 6px 12px;
   background: var(--panel-solid); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow);
   animation: banner-in 300ms cubic-bezier(.2,.8,.2,1);
 }
@@ -38,8 +42,7 @@
 [data-theme='codex'] .tree-toolbar { box-shadow: inset 0 0 0 1px var(--edge-soft), 0 6px 16px #0008; }
 
 .lens-banner {
-  position: absolute; top: 62px; left: 16px; right: 16px; z-index: 6; width: fit-content; margin: 0 auto;
-  display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 14px; border-radius: 999px;
+  width: fit-content; display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 14px; border-radius: 999px;
   background: var(--accent); color: var(--accent-text); box-shadow: var(--shadow); font-size: 14.5px;
   animation: rise 160ms ease-out;
 }
@@ -70,4 +73,6 @@
 @media (prefers-reduced-motion: reduce) { .house-banner, .house-banner .arms { animation: none; } }
 .tb-house { height: 30px; width: auto; max-width: 220px; font-size: 13.5px; padding: 0 6px; }
 .lens-count { opacity: 0.75; font-size: 12.5px; }
-.house-banner ~ .lens-banner { top: 128px; }
+/* Inter runs wider than Garamond: tighter buttons keep the toolbar on one row. */
+[data-theme='modern'] .tree-toolbar .btn, [data-theme='night'] .tree-toolbar .btn { padding: 0 9px; font-size: 13px; }
+[data-theme='modern'] .tree-toolbar .btn.icon, [data-theme='night'] .tree-toolbar .btn.icon { padding: 0; }

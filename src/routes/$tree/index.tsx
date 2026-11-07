@@ -299,7 +299,8 @@ function TreePage() {
         onBackground={() => {}}
         overlay={
           <>
-            <div className={`tree-toolbar panel no-pan${panel ? ' with-panel' : ''}`}>
+            <div className={`hud${panel ? ' with-panel' : ''}`}>
+            <div className="tree-toolbar panel no-pan">
               <div className="seg">
                 <button className="btn" aria-pressed={view === 'family'} onClick={() => go({ view: 'family', focus: sel, sel: undefined })} title="Family around the focus (1)"><Network size={15} /> Family</button>
                 <button className="btn" aria-pressed={view === 'dynasty'} onClick={() => go({ view: 'dynasty', root: undefined, focus: sel, sel: undefined })} title="Dynasty tree (2)"><Crown size={15} /> Dynasty</button>
@@ -354,7 +355,7 @@ function TreePage() {
             </div>
 
             {view === 'dynasty' && rootPerson && (
-              <div key={lay.root + line} className={`house-banner no-pan${panel ? ' with-panel' : ''}`}>
+              <div key={lay.root + line} className="house-banner no-pan">
                 {line === 'house' && rootHouse ? <Arms arms={rootHouse.arms} size={30} /> : null}
                 <div>
                   <b className="display">{line === 'house' && rootHouse ? rootHouse.name : `Descendants of ${displayName(rootPerson, f)}`}</b>
@@ -370,7 +371,7 @@ function TreePage() {
             )}
 
             {lens !== 'none' && (
-              <div className={`lens-banner no-pan${panel ? ' with-panel' : ''}`}>
+              <div className="lens-banner no-pan">
                 {lens === 'path' ? (
                   <>Showing how <b>{displayName(f.byId.get(search.to ?? sel)!, f)}</b> is your <b>{kinship(f, me, search.to ?? sel)?.label ?? 'relative'}</b></>
                 ) : lens === 'line' ? (
@@ -384,6 +385,8 @@ function TreePage() {
                 <button className="btn icon ghost" onClick={() => go({ lens: 'none', to: undefined })}><X size={14} /></button>
               </div>
             )}
+
+            </div>
 
             {trail.length > 1 && (
               <div className={`trail no-pan panel${panel ? ' with-panel' : ''}`}>
