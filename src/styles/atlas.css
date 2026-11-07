@@ -82,3 +82,18 @@
 .atlas-time .faint { font-size: 12.5px; white-space: nowrap; }
 
 @media (prefers-reduced-motion: reduce) { .arc, .pin { animation: none; } }
+
+/* "All": each kind of event has its colour, around the pin and in the lists. */
+.atlas { --k-births: #e2bd6b; --k-deaths: #8fa3b8; --k-weddings: #d27a8c; }
+[data-theme='modern'] .atlas { --k-births: #b8862b; --k-deaths: #5f7387; --k-weddings: #b4506a; }
+.kind-ring path, .kind-ring circle { fill: none; stroke-linecap: butt; }
+.kind-ring .k-births { stroke: var(--k-births); }
+.kind-ring .k-deaths { stroke: var(--k-deaths); }
+.kind-ring .k-weddings { stroke: var(--k-weddings); }
+.atlas-kinds { display: inline-flex; gap: 8px; margin-left: 8px; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.atlas-kinds span { display: inline-flex; align-items: center; gap: 2px; }
+.atlas .k-births { color: var(--k-births); }
+.atlas .k-deaths { color: var(--k-deaths); }
+.atlas .k-weddings { color: var(--k-weddings); }
+.atlas-detail .rule { text-transform: none; }
+.atlas-side .seg .btn { padding: 0 4px; }
