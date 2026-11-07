@@ -11,7 +11,7 @@ export const Route = createFileRoute('/')({
 /** The first letter that isn't an article: "The Realm of Aurelmarch" becomes R. */
 const initialOf = (name: string) => name.replace(/^(the|a|an)\s+/i, '').charAt(0).toUpperCase() || '?';
 /** A deterministic crest colour (0 to 3) from the tree id, so each banner keeps its colour between visits. */
-const crestOf = (id: string) => [...id].reduce((n, c) => n + c.charCodeAt(0), 0) % 4;
+const crestOf = (id: string | undefined) => [...(id ?? '')].reduce((n, c) => n + c.charCodeAt(0), 0) % 4;
 
 function Home() {
   const { data: trees } = useSuspenseQuery(treesQuery);

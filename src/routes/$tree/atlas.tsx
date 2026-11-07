@@ -26,7 +26,7 @@ export const Route = createFileRoute('/$tree/atlas')({
 });
 
 interface Event { kind: Kind; place: string; year: number; people: string[] }
-interface Pin { place: Place; people: string[]; first: number; entries: { kind: Kind; id: string }[]; kinds: Record<Kind, number>; house?: string }
+interface Pin { place: Place; people: string[]; first: number; entries: { kind: Kind; id: string }[]; kinds: Record<Kind, number>; house?: string; /** Events here: a wedding counts once. */ n: number }
 
 const KINDS: Kind[] = ['births', 'deaths', 'weddings'];
 const ICON: Record<Kind, 'cake-slice' | 'candle-light' | 'linked-rings'> = { births: 'cake-slice', deaths: 'candle-light', weddings: 'linked-rings' };
@@ -90,9 +90,10 @@ function Atlas() {
     const m = new Map<string, Pin>();
     for (const e of events) {
       if (e.year > cursor) break;
-      const pin = m.get(e.place) ?? m.set(e.place, { place: placeBy.get(e.place)!, people: [], first: e.year, entries: [], kinds: { births: 0, deaths: 0, weddings: 0 } }).get(e.place)!;
+      const pin = m.get(e.place) ?? m.set(e.place, { place: placeBy.get(e.place)!, people: [], first: e.year, entries: [], kinds: { births: 0, deaths: 0, weddings: 0 }, n: 0 }).get(e.place)!;
       pin.people.push(...e.people);
-      pin.kinds[e.kind] += e.people.length;
+      pin.kinds[e.kind] += 1;
+      pin.n += 1;
       for (const id of e.people) pin.entries.push({ kind: e.kind, id });
     }
     // The house most of a place's people belong to, for the heraldry view.
@@ -101,7 +102,7 @@ function Atlas() {
       for (const id of pin.people) { const h = f.byId.get(id)?.house; if (h) n.set(h, (n.get(h) ?? 0) + 1); }
       pin.house = [...n].sort((a, b) => b[1] - a[1])[0]?.[0];
     }
-    return [...m.values()].sort((a, b) => b.people.length - a.people.length);
+    return [...m.values()].sort((a, b) => b.n - a.n);
   }, [events, cursor, placeBy, f]);
 
   // A new place appearing during the replay gets a small tick.
@@ -145,7 +146,7 @@ function Atlas() {
   }, [playing, feed, cursor, y0, y1]);
 
   const selected = search.place && pins.find((p) => p.place.name === search.place);
-  const total = mode === 'weddings' ? new Set(pins.flatMap((p) => p.people)).size : pins.reduce((n, p) => n + p.people.length, 0);
+  const total = mode === 'weddings' ? new Set(pins.flatMap((p) => p.people)).size : pins.reduce((n, p) => n + p.n, 0);
   const select = (name?: string) => {
     if (name) play('tick');
     navigate({ search: (s) => ({ ...s, place: name }), replace: true });
@@ -177,15 +178,15 @@ function Atlas() {
               <li key={p.place.name}>
                 <button onClick={() => select(p.place.name)}>
                   <span className="atlas-place-name">
-                    {p.place.name}
+                    <span>{p.place.name}</span>
                     {mode === 'all' && (
                       <small className="atlas-kinds">
                         {KINDS.filter((k) => p.kinds[k]).map((k) => <span key={k} className={`k-${k}`}><GameIcon name={ICON[k]} size={11} />{p.kinds[k]}</span>)}
                       </small>
                     )}
                   </span>
-                  <span className="atlas-bar"><i style={{ width: `${(p.people.length / (pins[0]?.people.length || 1)) * 100}%` }} /></span>
-                  <b>{p.people.length}</b>
+                  <span className="atlas-bar"><i style={{ width: `${(p.n / (pins[0]?.n || 1)) * 100}%` }} /></span>
+                  <b>{p.n}</b>
                 </button>
               </li>
             ))}
@@ -227,7 +228,7 @@ function Atlas() {
               aria-label="Year"
             />
             <span className="faint">{y0}–{y1}</span>
-            <button className="btn" aria-pressed={heraldry} onClick={() => { setHeraldry((h) => !h); play('seal'); }} title="Show each place by the arms of the house most of its people belong to">
+            <button className="btn" aria-pressed={heraldry} onClick={() => { if (!heraldry) play('seal'); setHeraldry((h) => !h); }} title="Show each place by the arms of the house most of its people belong to">
               <Shield size={15} /> Arms
             </button>
             {(mode === 'births' || mode === 'all') && (
@@ -276,6 +277,8 @@ function PlaceDetail({ pin, f, tree, mode, onBack }: { pin: Pin; f: ReturnType<t
 
 // ---------- the map ----------
 
+const PLAIN: House['arms'] = { field: 'argent', division: 'plain', charge: 'none', chargeTincture: 'sable' };
+
 type World = { land: GeoPermissibleObjects; borders: GeoPermissibleObjects };
 let worldCache: Promise<World> | null = null;
 const loadWorld = () =>
@@ -297,17 +300,21 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry, rec
   onSelect: (name?: string) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ w: 900, h: 700 });
+  const [size, setSize] = useState({ w: 900, h: 700, measured: false });
   const [world, setWorld] = useState<World | null>(null);
   const [cam, setCam] = useState({ x: 0, y: 0, k: 1 });
   useEffect(() => { loadWorld().then(setWorld); }, []);
   useEffect(() => {
     const el = host.current!;
-    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
+    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight, measured: true }));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
+  // Room taken by the side panel (docked left, or a bottom sheet on narrow windows) and the time bar.
+  const narrow = size.w <= 900;
+  const padL = narrow ? 24 : 340 + 40;
+  const padB = narrow ? Math.round(size.h * 0.42) + 90 : 130;
   // Fit the projection to the family's places, with room around them.
   const projection = useMemo(() => {
     const p = geoNaturalEarth1();
@@ -318,14 +325,26 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry, rec
     const clampLat = (y: number) => Math.max(-85, Math.min(85, y));
     const around = pts.flatMap(([x, y]) => [[clampLng(x - 2.5), clampLat(y - 2)], [clampLng(x + 2.5), clampLat(y + 2)]]);
     // Leave the side panel (left) and the time bar (bottom) clear, plus room for pins and labels.
-    return p.fitExtent([[420, 70], [size.w - 70, size.h - 130]], { type: 'MultiPoint', coordinates: around });
-  }, [places, size]);
+    return p.fitExtent([[padL + 20, 70], [size.w - 50, size.h - padB]], { type: 'MultiPoint', coordinates: around });
+  }, [places, size, padL, padB]);
   const path = useMemo(() => geoPath(projection), [projection]);
   const paths = useMemo(
     () => (world ? { land: path(world.land) ?? '', borders: path(world.borders) ?? '', grid: path(geoGraticule10()) ?? '', sphere: path({ type: 'Sphere' }) ?? '' } : null),
     [world, path],
   );
-  useEffect(() => setCam({ x: 0, y: 0, k: 1 }), [projection]);
+  const prev = useRef<{ projection: typeof projection; places: Place[]; size: typeof size } | null>(null);
+  useEffect(() => {
+    const was = prev.current;
+    prev.current = { projection, places, size };
+    // A fresh fit for a new tree, and for the first real measurement (the placeholder size means nothing).
+    if (!was || was.places !== places || !was.size.measured) return setCam({ x: 0, y: 0, k: 1 });
+    // A resize: keep the same place at the centre of the screen, at the same zoom.
+    setCam((c) => {
+      const centre = was.projection.invert?.([(was.size.w / 2 - c.x) / c.k, (was.size.h / 2 - c.y) / c.k]);
+      const xy = centre && projection(centre);
+      return xy ? { k: c.k, x: size.w / 2 - xy[0] * c.k, y: size.h / 2 - xy[1] * c.k } : { x: 0, y: 0, k: 1 };
+    });
+  }, [projection]); // eslint-disable-line react-hooks/exhaustive-deps
   // Choosing a place brings it to the middle of the free map area, close enough to read its neighbours.
   useEffect(() => {
     const pin = selected && places.find((p) => p.name === selected);
@@ -333,7 +352,7 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry, rec
     if (!xy) return;
     setCam((c) => {
       const k = Math.max(c.k, 3);
-      return { k, x: 390 + (size.w - 390) / 2 - xy[0] * k, y: size.h / 2 - 40 - xy[1] * k };
+      return { k, x: padL + (size.w - padL) / 2 - xy[0] * k, y: (size.h - padB + 70) / 2 - xy[1] * k };
     });
   }, [selected, projection]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -357,24 +376,34 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry, rec
     return () => el.removeEventListener('wheel', stop);
   }, []);
 
-  const max = Math.max(1, ...pins.map((p) => p.people.length));
+  const max = Math.max(1, ...pins.map((p) => p.n));
   // Labels, busiest place first, skipping any that would overlap one already placed (screen space).
   const labelled = useMemo(() => {
-    const out = new Set<string>();
-    const boxes: [number, number, number, number][] = [];
-    for (const p of pins) {
+    // Screen-space boxes: first every pin's body (dot, or shield and count), then labels, busiest
+    // place first (the selected one before all), skipping any label that would overlap.
+    type Box = [number, number, number, number];
+    const hit = (a: Box, b: Box) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
+    const placed = pins.flatMap((p) => {
       const xy = projection([p.place.lng, p.place.lat]);
-      if (!xy) continue;
-      const r = (5 + Math.sqrt(p.people.length / max) * 18);
-      const x = xy[0] * cam.k + cam.x, y = xy[1] * cam.k + cam.y - r - 10;
-      const w = p.place.name.length * 7.6 + 6, h = 16;
-      const b: [number, number, number, number] = [x - w / 2, y - h / 2, x + w / 2, y + h / 2];
-      if (p.place.name !== selected && boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1])) continue;
-      boxes.push(b);
-      out.add(p.place.name);
+      if (!xy) return [];
+      const r = 5 + Math.sqrt(p.n / max) * 18;
+      const x = xy[0] * cam.k + cam.x, y = xy[1] * cam.k + cam.y;
+      const body: Box = heraldry ? [x - r * 1.1, y - r * 1.32, x + r * 1.1, y + r * 1.32 + 14] : [x - r, y - r, x + r, y + r];
+      const top = heraldry ? r * 1.35 : r;
+      const w = p.place.name.length * 7.6 + 6;
+      const label: Box = [x - w / 2, y - top - 22, x + w / 2, y - top - 4];
+      return [{ name: p.place.name, body, label }];
+    });
+    const boxes: Box[] = placed.map((q) => q.body);
+    const out = new Set<string>();
+    const order = [...placed].sort((a, b) => (a.name === selected ? -1 : b.name === selected ? 1 : 0));
+    for (const q of order) {
+      if (q.name !== selected && boxes.some((o) => o !== q.body && hit(q.label, o))) continue;
+      boxes.push(q.label);
+      out.add(q.name);
     }
     return out;
-  }, [pins, projection, cam, max, selected]);
+  }, [pins, projection, cam, max, selected, heraldry]);
   // Screen-constant pin sizes: zooming in spreads places apart instead of inflating them.
   const radius = (n: number) => (5 + Math.sqrt(n / max) * 18) / cam.k;
   return (
@@ -421,30 +450,30 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry, rec
           {[...pins].sort((a, b) => a.first - b.first || a.place.name.localeCompare(b.place.name)).map((p) => {
             const xy = projection([p.place.lng, p.place.lat]);
             if (!xy) return null;
-            const r = radius(p.people.length);
+            const r = radius(p.n);
             const on = selected === p.place.name;
             return (
               <g key={p.place.name} className={`pin${on ? ' on' : ''}${recent.has(p.place.name) ? ' recent' : ''}`} transform={`translate(${xy[0]},${xy[1]})`} onClick={() => onSelect(on ? undefined : p.place.name)}>
                 {recent.has(p.place.name) && <circle r={r} className="pulse" style={{ strokeWidth: 2 / cam.k }} />}
                 <g className="pin-grow">
-                {heraldry && p.house && heraldry.get(p.house) ? (
-                  // A shield instead of a dot; its count sits underneath.
+                {heraldry ? (
+                  // A shield instead of a dot (plain silver where no house dominates); its count sits underneath.
                   <g className="pin-arms" transform={`translate(${-r * 1.1},${-r * 1.32})`}>
-                    <Arms arms={heraldry.get(p.house)!.arms} size={r * 2.2} title={heraldry.get(p.house)!.name} />
+                    <Arms arms={(p.house && heraldry.get(p.house)?.arms) || PLAIN} size={r * 2.2} title={(p.house && heraldry.get(p.house)?.name) || p.place.name} />
                   </g>
                 ) : (
                   <circle r={r} className="pin-dot" style={{ strokeWidth: 2 / cam.k }} />
                 )}
                 {rings && <KindRing kinds={p.kinds} r={r + 2.5 / cam.k} w={3.5 / cam.k} />}
-                {p.people.length > 1 && r * cam.k > 11 && (
-                  heraldry && p.house && heraldry.get(p.house)
-                    ? <text className="pin-n under" style={{ fontSize: 11 / cam.k, strokeWidth: 3 / cam.k }} y={r * 1.32 + 11 / cam.k}>{p.people.length}</text>
-                    : <text className="pin-n" style={{ fontSize: 11 / cam.k }} dy="0.35em">{p.people.length}</text>
+                {p.n > 1 && r * cam.k > 11 && (
+                  heraldry
+                    ? <text className="pin-n under" style={{ fontSize: 11 / cam.k, strokeWidth: 3 / cam.k }} y={r * 1.32 + 11 / cam.k}>{p.n}</text>
+                    : <text className="pin-n" style={{ fontSize: 11 / cam.k }} dy="0.35em">{p.n}</text>
                 )}
                 {(on || labelled.has(p.place.name)) && (
-                  <text className="pin-label" style={{ fontSize: 13 / cam.k, strokeWidth: 3 / cam.k }} y={-(heraldry && p.house ? r * 1.35 : r) - 5 / cam.k}>{p.place.name}</text>
+                  <text className="pin-label" style={{ fontSize: 13 / cam.k, strokeWidth: 3 / cam.k }} y={-(heraldry ? r * 1.35 : r) - 5 / cam.k}>{p.place.name}</text>
                 )}
-                <title>{`${p.place.name}: ${p.people.length}`}</title>
+                <title>{`${p.place.name}: ${p.n}`}</title>
                 </g>
               </g>
             );

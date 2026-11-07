@@ -12,3 +12,5 @@
 .needed-gaps .chip.on { background: color-mix(in srgb, #d9a25a 20%, transparent); }
 .needed-more { margin: 16px auto 0; display: flex; }
 @media (max-width: 760px) { .needed-list li { grid-template-columns: 48px 1fr; } .needed-gaps, .needed-list .btn { grid-column: 2; } }
+.needed-gaps .chip { cursor: pointer; background: transparent; }
+.needed-gaps .chip:hover { border-style: solid; }

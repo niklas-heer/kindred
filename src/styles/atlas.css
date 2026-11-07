@@ -60,7 +60,8 @@
   padding: 7px 8px; border: 0; background: none; border-radius: var(--radius); cursor: pointer; text-align: left;
 }
 .atlas-places button:hover { background: var(--panel-2); }
-.atlas-place-name { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.atlas-place-name { display: flex; align-items: baseline; min-width: 0; font-size: 15px; white-space: nowrap; }
+.atlas-place-name > :first-child, .atlas-place-name { overflow: hidden; text-overflow: ellipsis; }
 .atlas-places b { text-align: right; font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 600; }
 .atlas-bar { height: 5px; border-radius: 3px; background: var(--panel-3); overflow: hidden; }
 .atlas-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
@@ -76,7 +77,7 @@
 
 /* Time bar */
 .atlas-time {
-  position: absolute; left: 370px; right: 20px; bottom: 18px; z-index: 5; max-width: 760px; margin: 0 auto;
+  position: absolute; left: 360px; right: 20px; bottom: 18px; z-index: 5; max-width: min(760px, calc(100% - 32px)); margin: 0 auto; flex-wrap: wrap;
   display: flex; align-items: center; gap: 12px; padding: 8px 14px 8px 8px;
 }
 .atlas-year { font-size: 24px; min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; }
@@ -139,3 +140,10 @@
 @keyframes pulse { from { opacity: 0.9; scale: 1; } to { opacity: 0; scale: 2.2; } }
 @media (prefers-reduced-motion: reduce) { .atlas-feed li, .pin.recent .pulse { animation: none; } }
 @media (max-width: 1100px) { .atlas-feed { display: none; } }
+
+.atlas-kinds { flex: none; }
+/* Narrow windows: the side panel becomes a bottom sheet under the map, the time bar sits above it. */
+@media (max-width: 900px) {
+  .atlas-side { top: auto; height: 42%; width: 100%; border-width: 1px 0 0; box-shadow: 0 -2px 10px #0004; }
+  .atlas-time { left: 16px; right: 16px; bottom: calc(42% + 12px); }
+}

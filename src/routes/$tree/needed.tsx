@@ -16,8 +16,9 @@ function Needed() {
   const f = useFamily();
   const tree = useTreeId();
   const me = useMe();
-  const [only, setOnly] = useState<GapKey | null>(null);
+  const [only, setOnlyRaw] = useState<GapKey | null>(null);
   const [limit, setLimit] = useState(120);
+  const setOnly = (g: GapKey | null) => { setOnlyRaw(g); setLimit(120); };
 
   // Steps from you through parents, children and partners: who is closest gets asked first.
   const hops = useMemo(() => {
@@ -77,7 +78,7 @@ function Needed() {
                     <span className="muted">{[lifespan(p), k && (k === 'you' ? 'you' : `your ${k}`)].filter(Boolean).join(' · ')}</span>
                   </div>
                   <div className="needed-gaps">
-                    {gaps.map((g) => <span key={g} className={`chip${only === g ? ' on' : ''}`}>{GAP_LABEL[g]}</span>)}
+                    {gaps.map((g) => <button key={g} className={`chip${only === g ? ' on' : ''}`} onClick={() => setOnly(only === g ? null : g)} title={`Show everyone missing: ${GAP_LABEL[g]}`}>{GAP_LABEL[g]}</button>)}
                   </div>
                   <Link className="btn" to="/$tree" params={{ tree }} search={gaps.includes('parents') ? { focus: p.id, view: 'ancestors' } : { focus: p.id }}>
                     {gaps.includes('parents') ? 'Find parents' : 'Open'}
