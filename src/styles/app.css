@@ -1,0 +1,275 @@
+/* Themes are token sets on <html data-theme>. Components use only these variables.
+   codex  — CK3-like: lacquered dark panels, gold trim, an olive tapestry canvas
+   modern — quiet, light, paper and ink
+   night  — modern, dark */
+
+:root,
+[data-theme='codex'] {
+  --font-display: 'Cinzel Variable', 'Trajan Pro', serif;
+  --font-body: 'EB Garamond Variable', Garamond, serif;
+  --font-ui: 'EB Garamond Variable', Garamond, serif;
+  --font-hand: 'IM Fell English', 'EB Garamond Variable', serif;
+
+  --bg: #0f1218;
+  --panel: linear-gradient(180deg, #232b3a 0%, #171d28 100%);
+  --panel-solid: #1c2331;
+  --panel-2: #283245;
+  --panel-3: #323e55;
+  --border: #3c475d;
+  --edge: #b8954f; /* gold trim */
+  --edge-soft: #b8954f55;
+  --text: #ece1c6;
+  --muted: #a2977f;
+  --faint: #6f6858;
+  --accent: #e2bd6b;
+  --accent-text: #1a1408;
+  --danger: #c4573f;
+  --ok: #7fb36d;
+  --info: #7fa6d6;
+
+  --canvas: #6b6142;
+  --canvas-ink: #f3e9cf; /* names drawn on the canvas */
+  --canvas-ink-muted: #d8cba6;
+  --canvas-shadow: 0 1px 2px #000a, 0 0 8px #0006;
+  --canvas-texture:
+    radial-gradient(ellipse at 50% 40%, #7a6f4c00 0%, #3a331f 120%),
+    repeating-linear-gradient(0deg, #0000 0 3px, #00000008 3px 4px),
+    repeating-linear-gradient(90deg, #0000 0 3px, #ffffff06 3px 4px);
+  --line: #d9c89a;
+  --line-dim: #d9c89a40;
+  --line-hl: #ffe08a;
+
+  --card-frame: linear-gradient(160deg, #e9cf86, #8a6a2c 45%, #d9b766 70%, #6e5221);
+  --card-bg: #1d2533;
+  --card-dead: grayscale(0.92) sepia(0.25) brightness(0.82);
+  --card-name-size: 15px;
+  --chip: #12161ecc;
+  --chip-text: #ecdcae;
+
+  --radius: 3px;
+  --radius-lg: 6px;
+  --shadow: 0 10px 30px #000a, 0 2px 6px #0008;
+  --focus-ring: 0 0 0 2px #1c2331, 0 0 0 4px #e2bd6b;
+  --minimap-bg: #12161ee6;
+  color-scheme: dark;
+}
+
+[data-theme='modern'] {
+  --font-display: 'Inter Variable', system-ui, sans-serif;
+  --font-body: 'Inter Variable', system-ui, sans-serif;
+  --font-ui: 'Inter Variable', system-ui, sans-serif;
+  --font-hand: 'EB Garamond Variable', Georgia, serif;
+
+  --bg: #f4f2ee;
+  --panel: #ffffff;
+  --panel-solid: #ffffff;
+  --panel-2: #f6f4f0;
+  --panel-3: #ece8e1;
+  --border: #e3ded5;
+  --edge: #e3ded5;
+  --edge-soft: #e3ded5;
+  --text: #1f1d1a;
+  --muted: #6d675e;
+  --faint: #a59f94;
+  --accent: #2f6f5e;
+  --accent-text: #ffffff;
+  --danger: #b4452f;
+  --ok: #2f7d4a;
+  --info: #3767b0;
+
+  --canvas: #f4f2ee;
+  --canvas-ink: #1f1d1a;
+  --canvas-ink-muted: #6d675e;
+  --canvas-shadow: none;
+  --canvas-texture: radial-gradient(circle, #d8d2c6 1px, transparent 1.2px) 0 0 / 24px 24px;
+  --line: #b9b1a3;
+  --line-dim: #b9b1a340;
+  --line-hl: #2f6f5e;
+
+  --card-frame: #ffffff;
+  --card-bg: #ffffff;
+  --card-dead: grayscale(1) contrast(0.9) brightness(1.05);
+  --card-name-size: 14px;
+  --chip: #ffffff;
+  --chip-text: #3d3a35;
+
+  --radius: 8px;
+  --radius-lg: 14px;
+  --shadow: 0 8px 28px #2a221414, 0 1px 3px #2a22141a;
+  --focus-ring: 0 0 0 2px #fff, 0 0 0 4px #2f6f5e;
+  --minimap-bg: #ffffffe6;
+  color-scheme: light;
+}
+
+[data-theme='night'] {
+  --font-display: 'Inter Variable', system-ui, sans-serif;
+  --font-body: 'Inter Variable', system-ui, sans-serif;
+  --font-ui: 'Inter Variable', system-ui, sans-serif;
+  --font-hand: 'EB Garamond Variable', Georgia, serif;
+
+  --bg: #111315;
+  --panel: #181b1e;
+  --panel-solid: #181b1e;
+  --panel-2: #202428;
+  --panel-3: #2a2f34;
+  --border: #2c3136;
+  --edge: #2c3136;
+  --edge-soft: #2c3136;
+  --text: #e9e6e1;
+  --muted: #9c978f;
+  --faint: #66625c;
+  --accent: #7cc4ad;
+  --accent-text: #0d1512;
+  --danger: #e07a62;
+  --ok: #7cc48a;
+  --info: #8fb4ec;
+
+  --canvas: #111315;
+  --canvas-ink: #e9e6e1;
+  --canvas-ink-muted: #9c978f;
+  --canvas-shadow: none;
+  --canvas-texture: radial-gradient(circle, #24282c 1px, transparent 1.2px) 0 0 / 24px 24px;
+  --line: #4a5057;
+  --line-dim: #4a505740;
+  --line-hl: #7cc4ad;
+
+  --card-frame: #1d2124;
+  --card-bg: #1d2124;
+  --card-dead: grayscale(1) brightness(0.75);
+  --card-name-size: 14px;
+  --chip: #202428;
+  --chip-text: #d6d2cb;
+
+  --radius: 8px;
+  --radius-lg: 14px;
+  --shadow: 0 10px 30px #0009, 0 1px 3px #0007;
+  --focus-ring: 0 0 0 2px #111315, 0 0 0 4px #7cc4ad;
+  --minimap-bg: #181b1ee6;
+  color-scheme: dark;
+}
+
+/* ---------- base ---------- */
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+#app { height: 100%; }
+a { color: inherit; }
+button { font: inherit; color: inherit; }
+input, textarea, select { font: inherit; color: inherit; }
+::selection { background: var(--accent); color: var(--accent-text); }
+
+.display { font-family: var(--font-display); letter-spacing: 0.02em; }
+[data-theme='codex'] .display { font-variant: small-caps; letter-spacing: 0.06em; }
+.muted { color: var(--muted); }
+.faint { color: var(--faint); }
+
+/* A panel: dark lacquer with a gold hairline in codex, a white card elsewhere. */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  border-radius: var(--radius-lg);
+}
+[data-theme='codex'] .panel {
+  border-color: #0a0d12;
+  box-shadow: inset 0 0 0 1px var(--edge-soft), var(--shadow);
+}
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.btn:hover { background: var(--panel-3); }
+.btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.btn.primary { background: var(--accent); color: var(--accent-text); border-color: transparent; font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.ghost:hover { background: var(--panel-2); }
+.btn.icon { width: 32px; padding: 0; justify-content: center; }
+.btn[aria-pressed='true'] { background: var(--panel-3); border-color: var(--edge); }
+[data-theme='codex'] .btn { border-color: #0b0e13; box-shadow: inset 0 0 0 1px #b8954f33; background: linear-gradient(180deg, #2e384b, #222a39); }
+[data-theme='codex'] .btn:hover { background: linear-gradient(180deg, #3a4660, #2a3447); }
+[data-theme='codex'] .btn.primary { background: linear-gradient(180deg, #f0cf83, #b8913f); color: #1a1408; box-shadow: inset 0 1px 0 #fff6, 0 1px 2px #0008; }
+[data-theme='codex'] .btn[aria-pressed='true'] { background: linear-gradient(180deg, #4a3d22, #352b17); box-shadow: inset 0 0 0 1px var(--edge); }
+
+.input {
+  height: 34px; padding: 0 10px; width: 100%;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); font-family: var(--font-ui); font-size: 15px;
+}
+textarea.input { height: auto; min-height: 88px; padding: 8px 10px; line-height: 1.45; resize: vertical; }
+.input:focus { outline: none; box-shadow: var(--focus-ring); }
+[data-theme='codex'] .input { background: #121722; border-color: #0b0e13; box-shadow: inset 0 0 0 1px #b8954f2a; }
+.field { display: grid; gap: 4px; }
+.field > span { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--font-ui); }
+[data-theme='codex'] .field > span { font-family: var(--font-display); text-transform: none; font-variant: small-caps; letter-spacing: 0.08em; font-size: 13px; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 1px 8px; border-radius: 999px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  font-size: 12px; color: var(--muted); font-family: var(--font-ui);
+}
+kbd {
+  font-family: ui-monospace, monospace; font-size: 11px;
+  padding: 1px 5px; border-radius: 4px;
+  border: 1px solid var(--border); border-bottom-width: 2px;
+  background: var(--panel-2); color: var(--muted);
+}
+
+/* Section header with a gold rule, like CK3's "Family 12" tabs. */
+.rule {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--font-display); color: var(--muted); font-size: 13px;
+  text-transform: uppercase; letter-spacing: 0.12em; margin: 18px 0 8px;
+}
+.rule::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--edge), transparent); }
+[data-theme='codex'] .rule { text-transform: none; font-variant: small-caps; font-size: 15px; color: var(--accent); }
+
+/* ---------- app shell ---------- */
+
+.shell { display: grid; grid-template-rows: auto 1fr; height: 100vh; overflow: hidden; }
+.topbar {
+  display: flex; align-items: center; gap: 12px;
+  height: 52px; padding: 0 14px;
+  background: var(--panel); border-bottom: 1px solid var(--border);
+  position: relative; z-index: 20;
+}
+[data-theme='codex'] .topbar { border-bottom: 1px solid #0a0d12; box-shadow: inset 0 -1px 0 var(--edge-soft), 0 2px 12px #0008; }
+.topbar .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.topbar .brand b { font-family: var(--font-display); font-size: 18px; font-weight: 600; }
+.topbar nav { display: flex; gap: 2px; margin-left: 12px; }
+.topbar nav a {
+  padding: 6px 12px; border-radius: var(--radius); text-decoration: none; color: var(--muted);
+  font-family: var(--font-ui); font-size: 15px; display: inline-flex; gap: 6px; align-items: center;
+}
+.topbar nav a:hover { color: var(--text); background: var(--panel-2); }
+.topbar nav a[data-status='active'] { color: var(--text); background: var(--panel-2); box-shadow: inset 0 -2px 0 var(--accent); }
+.topbar .spacer { flex: 1; }
+.search-trigger { width: 260px; justify-content: space-between; color: var(--muted); }
+
+.page { overflow: auto; height: 100%; }
+.page-inner { max-width: 1100px; margin: 0 auto; padding: 28px 24px 80px; }
+.page h1 { font-family: var(--font-display); font-weight: 600; font-size: 30px; margin: 0 0 4px; }
+[data-theme='codex'] .page h1 { font-variant: small-caps; color: var(--accent); }
+
+.empty { padding: 40px; text-align: center; color: var(--muted); }
+
+/* Scrollbars that fit */
+* { scrollbar-width: thin; scrollbar-color: var(--panel-3) transparent; }

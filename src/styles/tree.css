@@ -1,0 +1,59 @@
+.tree-page { position: relative; height: 100%; overflow: hidden; }
+
+.tree-toolbar {
+  position: absolute; top: 12px; left: 16px; right: 16px; z-index: 7; width: fit-content; max-width: calc(100% - 32px);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px; margin: 0 auto;
+  transition: left 200ms;
+}
+.tree-toolbar.with-panel, .tree-caption.with-panel, .lens-banner.with-panel { left: 432px; }
+.tree-toolbar .seg { display: flex; gap: 2px; }
+.tree-toolbar .btn { height: 30px; font-size: 13.5px; }
+.tb-sep { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
+[data-theme='codex'] .tb-sep { background: var(--edge-soft); }
+.stepper { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+.stepper .btn { width: 26px; height: 26px; }
+.stepper b { min-width: 14px; text-align: center; font-variant-numeric: tabular-nums; }
+.tb-lens { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.tb-lens .input { height: 30px; width: auto; font-size: 13.5px; padding: 0 6px; }
+
+.tree-caption {
+  position: absolute; top: 62px; left: 16px; right: 16px; z-index: 6; width: fit-content; margin: 0 auto;
+  display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 14px; border-radius: 999px;
+  color: var(--canvas-ink); text-shadow: var(--canvas-shadow); font-size: 15px;
+}
+.tree-caption .display { font-size: 19px; }
+.tree-caption .faint { color: var(--canvas-ink-muted); }
+.tree-caption .btn { height: 26px; font-size: 12.5px; text-shadow: none; }
+
+.lens-banner {
+  position: absolute; top: 100px; left: 16px; right: 16px; z-index: 6; width: fit-content; margin: 0 auto;
+  display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 14px; border-radius: 999px;
+  background: var(--accent); color: var(--accent-text); box-shadow: var(--shadow); font-size: 14.5px;
+  animation: rise 160ms ease-out;
+}
+.lens-banner .btn { color: inherit; width: 26px; height: 26px; }
+
+.trail {
+  position: absolute; left: 16px; bottom: 16px; z-index: 6; display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+  font-size: 12px; transition: left 200ms;
+}
+.trail.with-panel { left: 432px; }
+.trail-item { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 50%; overflow: hidden; width: 30px; height: 30px; transition: transform 120ms; }
+.trail-item:hover { transform: scale(1.15); }
+.trail-item > * { border-radius: 50%; }
+.trail-item:nth-child(n + 5) { opacity: 0.75; }
+.trail-item:nth-child(n + 7) { opacity: 0.5; }
+
+.help-card {
+  position: absolute; right: 16px; top: 64px; z-index: 9; width: 320px; padding: 12px 14px; font-size: 14px;
+  animation: rise 140ms ease-out;
+}
+.help-card header { display: flex; justify-content: space-between; align-items: center; font-size: 17px; margin-bottom: 6px; }
+.help-row { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.help-row span:first-child { display: inline-flex; gap: 3px; }
+.help-card p { margin: 10px 0 0; font-size: 12.5px; }
+
+/* The generation ruler steps out from behind the side panel. */
+.tree-page:has(.person-panel) .ruler { left: 418px; }
+.tb-house { height: 30px; width: auto; max-width: 220px; font-size: 13.5px; padding: 0 6px; }
+.lens-count { opacity: 0.75; font-size: 12.5px; }

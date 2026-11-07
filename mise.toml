@@ -1,0 +1,31 @@
+[tools]
+node = "26"
+
+[tasks.install]
+run = "npm install"
+
+[tasks.data]
+description = "Generate the test families, import the real archive if present, and rebuild data/*.db"
+run = [
+  "node scripts/gen-realm.ts",
+  "node scripts/gen-modern.ts",
+  "test -d ../family-archive && node scripts/import-kindred.ts ../family-archive data/seed/smith.json || echo 'no ../family-archive; skipping the real family'",
+  "node scripts/seed.ts",
+]
+
+[tasks.seed]
+description = "Rebuild data/*.db from the JSON in data/seed/"
+run = "node scripts/seed.ts"
+
+[tasks.dev]
+run = "vite dev"
+
+[tasks.check]
+run = "tsc --noEmit"
+
+[tasks.build]
+run = "vite build"
+
+[tasks.clean]
+description = "Remove build output and generated databases"
+run = "rm -rf dist .output .tanstack data/*.db data/*.db-wal data/*.db-shm"

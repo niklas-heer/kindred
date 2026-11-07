@@ -1,0 +1,13 @@
+.home { min-height: 100vh; display: grid; place-items: center; background: var(--canvas-texture), var(--canvas); }
+.home-inner { width: min(980px, 92vw); padding: 60px 0; }
+.home h1 { font-size: 56px; margin: 0; color: var(--canvas-ink); text-shadow: var(--canvas-shadow); }
+.home > .home-inner > p { color: var(--canvas-ink-muted); font-size: 19px; margin: 4px 0 32px; text-shadow: var(--canvas-shadow); }
+.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; }
+.home-card {
+  display: grid; gap: 4px; padding: 22px 22px 20px; text-decoration: none;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+.home-card:hover { transform: translateY(-3px); }
+.home-card b { font-size: 21px; margin-top: 14px; }
+.home-count { font-size: 44px; line-height: 1; color: var(--accent); }
+.home-count-label { font-size: 13px; text-transform: uppercase; letter-spacing: 0.14em; }

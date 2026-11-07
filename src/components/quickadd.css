@@ -1,0 +1,8 @@
+.qa-backdrop { position: fixed; inset: 0; z-index: 90; background: #0006; display: grid; place-items: center; animation: fade 120ms ease-out; }
+.qa { width: min(480px, 92vw); padding: 16px 18px; animation: rise 160ms ease-out; }
+.qa header { display: flex; align-items: baseline; gap: 6px; margin-bottom: 12px; }
+.qa header b { font-size: 19px; }
+.qa header .btn { margin-left: auto; }
+.qa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.qa-grid .wide { grid-column: 1 / -1; }
+.qa footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; font-size: 13px; }

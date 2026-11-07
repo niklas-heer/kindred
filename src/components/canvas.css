@@ -1,0 +1,62 @@
+.canvas {
+  position: relative; overflow: hidden; height: 100%;
+  background: var(--canvas-texture), var(--canvas);
+  cursor: grab; touch-action: none; user-select: none;
+}
+[data-theme='codex'] .canvas {
+  /* Woven tapestry: two soft weaves and a vignette over the olive ground. */
+  background:
+    radial-gradient(ellipse 80% 70% at 55% 45%, transparent 40%, #2b2414cc 100%),
+    repeating-linear-gradient(45deg, #ffffff05 0 2px, transparent 2px 5px),
+    repeating-linear-gradient(-45deg, #00000010 0 2px, transparent 2px 5px),
+    radial-gradient(ellipse at 30% 20%, #8a7c52 0%, transparent 60%),
+    #6b6142;
+}
+.canvas.panning { cursor: grabbing; }
+.world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+.slot {
+  position: absolute; left: 0; top: 0; width: 148px; height: 196px;
+  transition: transform 420ms cubic-bezier(.2,.8,.2,1), opacity 220ms;
+  animation: slot-in 260ms ease-out;
+}
+.slot.is-dim { opacity: 0.22; }
+.slot.is-dim:hover { opacity: 0.7; }
+@keyframes slot-in { from { opacity: 0; } }
+
+.edges { position: absolute; overflow: visible; pointer-events: none; }
+.edge { fill: none; stroke: var(--line); stroke-width: 2; opacity: 0.85; transition: opacity 200ms, stroke 200ms; }
+[data-theme='codex'] .edge { stroke-width: 2.5; filter: drop-shadow(0 1px 1px #0008); }
+.edge.dashed { stroke-dasharray: 6 5; }
+.edge.marriage { stroke: var(--accent); stroke-width: 3; stroke-dasharray: 2 5; stroke-linecap: round; }
+.edge.dim { opacity: 0.15; }
+.edge.lit { stroke: var(--line-hl); stroke-width: 3.5; opacity: 1; }
+.detail-far .edge { stroke-width: 6; }
+
+/* ---------- ruler: generations and their era, like line numbers ---------- */
+.ruler { position: absolute; left: 0; top: 0; bottom: 0; width: 0; pointer-events: none; z-index: 3; }
+.ruler-row {
+  position: absolute; left: 0; display: flex; align-items: center;
+  border-left: 3px solid var(--accent);
+  transition: top 60ms linear;
+}
+.ruler-row { overflow: hidden; }
+.ruler-row span {
+  writing-mode: vertical-rl; transform: rotate(180deg);
+  padding: 8px 4px; font-family: var(--font-display); font-size: 12px; letter-spacing: 0.1em;
+  color: var(--canvas-ink); text-shadow: var(--canvas-shadow); white-space: nowrap; opacity: 0.85;
+}
+.detail-far .ruler-row span { font-size: 10px; }
+
+/* ---------- minimap ---------- */
+.minimap {
+  position: absolute; right: 16px; bottom: 16px; z-index: 6; padding: 6px; cursor: default;
+  background: var(--minimap-bg); backdrop-filter: blur(6px);
+}
+.minimap-map { position: relative; width: 232px; height: 148px; cursor: crosshair; border-radius: var(--radius); overflow: hidden; }
+.minimap-map canvas { display: block; }
+.minimap-view {
+  position: absolute; border: 1.5px solid var(--accent); border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: 0 0 0 9999px #00000026; pointer-events: none;
+}
+.minimap-foot { display: flex; justify-content: space-between; padding: 5px 4px 0; font-size: 12px; color: var(--muted); font-family: var(--font-ui); }

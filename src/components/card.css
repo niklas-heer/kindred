@@ -1,0 +1,108 @@
+.card { position: relative; width: 148px; height: 196px; }
+.card-hit {
+  display: flex; flex-direction: column; align-items: center; width: 100%; height: 100%;
+  padding: 0; border: 0; background: none; cursor: pointer; text-align: center;
+}
+.card-hit:focus-visible { outline: none; }
+.card-portrait { position: relative; margin-top: 4px; transition: transform 160ms ease; }
+.card-hit:hover .card-portrait { transform: translateY(-2px); }
+.card-arms { position: absolute; left: -12px; bottom: -6px; filter: drop-shadow(0 2px 2px #0009); }
+.card-stories {
+  position: absolute; right: -8px; top: 10px; display: inline-flex; align-items: center; gap: 2px;
+  padding: 1px 5px; border-radius: 999px; font-size: 11px; font-family: var(--font-ui);
+  background: var(--chip); color: var(--chip-text); box-shadow: 0 1px 3px #0006;
+}
+.card-name {
+  margin-top: 8px; padding: 0 2px; max-width: 160px;
+  font-family: var(--font-display); font-size: var(--card-name-size); line-height: 1.15; font-weight: 600;
+  color: var(--canvas-ink); text-shadow: var(--canvas-shadow);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+[data-theme='codex'] .card-name { font-weight: 500; }
+.card-sub {
+  font-size: 12.5px; color: var(--canvas-ink-muted); text-shadow: var(--canvas-shadow);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 146px; font-style: italic;
+}
+.card-years { font-size: 12.5px; color: var(--canvas-ink-muted); text-shadow: var(--canvas-shadow); font-variant-numeric: oldstyle-nums; }
+[data-theme='modern'] .card-years, [data-theme='night'] .card-years { font-variant-numeric: tabular-nums; }
+
+/* Selected: a glow like CK3's highlighted portrait. */
+.card.selected .card-portrait { transform: translateY(-2px) scale(1.05); }
+.card.selected .card-portrait::after {
+  content: ''; position: absolute; inset: -6px; border-radius: calc(var(--radius) + 6px); pointer-events: none;
+  box-shadow: 0 0 0 2px var(--accent), 0 0 24px 4px color-mix(in srgb, var(--accent) 55%, transparent);
+  animation: glow 2.4s ease-in-out infinite;
+}
+@keyframes glow { 50% { box-shadow: 0 0 0 2px var(--accent), 0 0 12px 1px color-mix(in srgb, var(--accent) 35%, transparent); } }
+.slot.is-focus { z-index: 2; }
+
+/* Modern themes: cards are paper tiles rather than portraits on cloth. */
+[data-theme='modern'] .card.near .card-hit, [data-theme='night'] .card.near .card-hit,
+[data-theme='modern'] .card.mid .card-hit, [data-theme='night'] .card.mid .card-hit {
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow); padding-top: 8px;
+}
+[data-theme='modern'] .card.selected .card-hit, [data-theme='night'] .card.selected .card-hit { border-color: var(--accent); }
+
+.card.partner .card-portrait, .card.sibling .card-portrait { opacity: 0.95; }
+.card.dup { opacity: 0.6; }
+.card.dup .card-portrait { filter: blur(0.5px); }
+.card-dup {
+  position: absolute; left: 50%; top: 46px; transform: translateX(-50%) rotate(-8deg);
+  font-family: var(--font-display); font-size: 11px; padding: 2px 6px; border-radius: 3px;
+  background: var(--chip); color: var(--chip-text); border: 1px dashed var(--edge); white-space: nowrap;
+}
+
+.card-kin {
+  position: absolute; left: 50%; top: -14px; transform: translateX(-50%);
+  padding: 1px 8px; border-radius: 999px; font-size: 11px; font-family: var(--font-ui); white-space: nowrap;
+  background: var(--chip); color: var(--chip-text); box-shadow: 0 1px 3px #0005; max-width: 170px; overflow: hidden; text-overflow: ellipsis;
+}
+.card-kin.me { background: var(--accent); color: var(--accent-text); font-weight: 600; }
+
+.card-spouses { position: absolute; right: -18px; top: 18px; display: grid; gap: 4px; }
+.card-spouse { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 50%; overflow: hidden; width: 30px; height: 30px; box-shadow: 0 0 0 2px var(--accent), 0 2px 4px #0008; }
+.card-spouse.more { display: grid; place-items: center; font-size: 11px; background: var(--chip); color: var(--chip-text); }
+.card-spouse > * { border-radius: 50%; }
+
+.card-fold {
+  position: absolute; left: 50%; bottom: -26px; transform: translateX(-50%);
+  min-width: 22px; height: 18px; padding: 0 5px; display: inline-flex; align-items: center; gap: 2px;
+  border-radius: 3px; border: 1px solid var(--edge); background: var(--chip); color: var(--chip-text);
+  font-size: 11px; font-family: var(--font-ui); cursor: pointer; opacity: 0.75;
+}
+.card-fold:hover { opacity: 1; }
+.card-fold.folded { opacity: 1; background: var(--accent); color: var(--accent-text); border-color: transparent; font-weight: 600; }
+.card-out {
+  position: absolute; right: -6px; bottom: 6px; font-size: 10.5px; font-family: var(--font-ui);
+  color: var(--canvas-ink-muted); text-shadow: var(--canvas-shadow); font-style: italic;
+}
+
+/* Add-relative slots around the selected card, CK3's "+" marks. */
+.add {
+  position: absolute; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  border: 1.5px dashed var(--accent); background: var(--chip); color: var(--accent); cursor: pointer;
+  box-shadow: 0 2px 6px #0007; animation: pop 200ms ease-out backwards;
+}
+.add:hover { background: var(--accent); color: var(--accent-text); border-style: solid; transform: scale(1.12); }
+.add-parent { left: 50%; top: -42px; margin-left: -13px; }
+.add-child { left: 50%; bottom: -54px; margin-left: -13px; animation-delay: 40ms; }
+.add-partner { right: -40px; top: 60px; animation-delay: 80ms; }
+.add-sibling { left: -40px; top: 60px; animation-delay: 120ms; }
+@keyframes pop { from { transform: scale(0.4); opacity: 0; } }
+
+/* Mid detail: a smaller plate. */
+.card.mid .card-name { font-size: 16px; margin-top: 10px; }
+.card.mid .card-years { font-size: 14px; }
+
+/* Far: a tile in the house colour. */
+.card.far {
+  display: block; width: 148px; height: 196px; padding: 0; border: 0; cursor: pointer;
+  border-radius: 10px; box-shadow: inset 0 0 0 6px #0003, 0 4px 10px #0005;
+}
+.card.far.living { box-shadow: inset 0 0 0 6px #0003, 0 0 0 8px var(--ok); }
+.card.far.selected { outline: 14px solid var(--accent); }
+.far-fold { display: grid; place-items: center; height: 100%; font-size: 48px; font-weight: 700; color: #fff; text-shadow: 0 2px 6px #000a; }
+.card.far.young { opacity: 0.45; transform: scale(0.8); }
+.card.far.me { outline: 14px solid var(--ok); }
+.far-crown { display: grid; place-items: center; height: 100%; font-size: 92px; color: #fff8; text-shadow: 0 3px 8px #0009; }

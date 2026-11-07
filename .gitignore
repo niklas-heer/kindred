@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.output/
+.tanstack/
+.nitro/
+data/*.db
+data/*.db-*
+data/seed/smith.json
+.DS_Store
+data/seed/realm.json
+data/seed/modern.json
