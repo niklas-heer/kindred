@@ -42,7 +42,7 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
         {detail !== 'far' && (
           <>
             <span className="ghost-plus"><Plus size={detail === 'near' ? 26 : 34} /></span>
-            <span className="ghost-label">{as === 'father' ? 'Father' : 'Mother'}</span>
+            {detail === 'near' && <span className="ghost-label">{as === 'father' ? 'Father' : 'Mother'}</span>}
             {detail === 'near' && <span className="ghost-sub">of {of?.given ?? '?'} · unknown</span>}
           </>
         )}
@@ -111,7 +111,7 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
           </div>
         </div>
       </button>
-      {isMe ? <span className="card-kin me">you</span> : kin && detail === 'near' ? <span className="card-kin">{kin}</span> : null}
+      {detail !== 'near' ? null : isMe ? <span className="card-kin me">you</span> : kin ? <span className="card-kin">{kin}</span> : null}
       {node.role === 'dup' && <span className="card-dup">appears again</span>}
 
       {spouses.length > 0 && detail === 'near' && (
@@ -133,7 +133,7 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
 
       {selected && onAdd && node.role !== 'dup' && detail === 'near' && (
         <>
-          <button className="add add-parent" onClick={() => onAdd(p.id, 'parent')} title="Add a parent"><Plus size={14} /></button>
+          {(f.parentsOf.get(p.id)?.length ?? 0) < 2 && <button className="add add-parent" onClick={() => onAdd(p.id, 'parent')} title="Add a parent"><Plus size={14} /></button>}
           <button className="add add-child" onClick={() => onAdd(p.id, 'child')} title="Add a child"><Plus size={14} /></button>
           <button className="add add-partner" onClick={() => onAdd(p.id, 'partner')} title="Add a partner"><Plus size={14} /></button>
           <button className="add add-sibling" onClick={() => onAdd(p.id, 'sibling')} title="Add a sibling"><Plus size={14} /></button>

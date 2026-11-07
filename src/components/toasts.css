@@ -1,4 +1,4 @@
-.toasts { position: fixed; top: 116px; right: 16px; z-index: 80; display: grid; gap: 10px; width: min(360px, 92vw); pointer-events: none; }
+.toasts { position: fixed; top: var(--hud-bottom, 116px); right: 16px; z-index: 80; display: grid; gap: 10px; width: min(360px, 92vw); pointer-events: none; }
 .toast {
   pointer-events: auto; display: flex; gap: 12px; align-items: flex-start; padding: 12px 12px 12px 14px;
   animation: toast-in 280ms cubic-bezier(.2,.8,.2,1);

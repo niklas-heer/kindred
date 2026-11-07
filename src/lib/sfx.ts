@@ -60,6 +60,10 @@ const reducedMotion = () => typeof matchMedia !== 'undefined' && matchMedia('(pr
 
 export function play(name: Sfx, opts: { pitch?: number } = {}) {
   if (!soundOn() || document.hidden || !document.hasFocus()) return;
+  // Before any click or key press the browser keeps audio suspended; a sound scheduled then would
+  // play late, on the first click. Drop it instead.
+  const ua = (navigator as { userActivation?: { hasBeenActive: boolean } }).userActivation;
+  if (ua && !ua.hasBeenActive) return;
   if (reducedMotion() && (name === 'whoosh' || name === 'page')) return;
   if (name === 'tick') {
     const now = performance.now();

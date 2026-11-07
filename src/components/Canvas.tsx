@@ -19,7 +19,8 @@ const detailFor = (k: number, prev: Detail): Detail => {
 interface Cam { x: number; y: number; k: number } // screen = world * k + (x, y)
 
 export interface CanvasHandle {
-  centerOn(id: string, opts?: { k?: number; animate?: boolean }): void;
+  /** Returns whether the camera had to move noticeably. */
+  centerOn(id: string, opts?: { k?: number; animate?: boolean }): boolean;
   fit(): void;
   zoomBy(f: number): void;
   /** World position of a node by person id (first placement). */
@@ -73,6 +74,12 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
 
   const animateTo = useCallback((to: Cam, ms = 420) => {
     cancelAnimationFrame(anim.current);
+    // Reduced motion: no flying, just arrive.
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      cam.current = to;
+      apply();
+      return;
+    }
     const from = { ...cam.current };
     const t0 = performance.now();
     const step = (t: number) => {
@@ -96,13 +103,16 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
   const centerOn = useCallback((id: string, opts?: { k?: number; animate?: boolean }) => {
     const n = firstOf.get(id);
     const el = host.current;
-    if (!n || !el) return;
+    if (!n || !el) return false;
     const { width: w, height: h } = el.getBoundingClientRect();
     const k = opts?.k ?? Math.max(cam.current.k, 0.55);
     // Centre in the part of the canvas no panel covers.
     const cx = inset.left + (w - inset.left) / 2, cy = inset.top + (h - inset.top) * 0.46;
     const target = { k, x: cx - n.x * k, y: cy - (n.y + CARD_H / 2) * k };
+    const c = cam.current;
+    const moved = Math.hypot(target.x - c.x, target.y - c.y) > 24 || Math.abs(target.k - c.k) > 0.02;
     if (opts?.animate === false) { cam.current = target; apply(); } else animateTo(target);
+    return moved;
   }, [firstOf, apply, animateTo, inset.left, inset.top]);
 
   const fit = useCallback(() => {
@@ -241,10 +251,10 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
           <div
             key={n.key}
             className={`slot${n.id === focus ? ' is-focus' : ''}${dimmed && !dimmed.has(n.id) ? ' is-dim' : ''}`}
-            data-flash={flash && flash.id === n.id && n.role !== 'dup' ? flash.at : undefined}
             style={{ transform: `translate(${n.x - CARD_W / 2}px, ${n.y}px)` }}
           >
             {renderCard(n, detail)}
+            {flash && flash.id === n.id && n.role !== 'dup' ? <span key={flash.at} className="arrive" aria-hidden /> : null}
           </div>
         ))}
       </div>

@@ -25,14 +25,14 @@ export function ThemeSwitch() {
 
 /** Sound on or off. On by default in the codex theme only; the choice is remembered. */
 export function SoundSwitch() {
-  usePref('sound');
-  usePref('theme');
   const [on, setOn] = useState(false);
   // After the layout has applied the theme (parent effects run after this one).
+  const soundPref = usePref('sound');
+  const themePref = usePref('theme');
   useEffect(() => {
     const id = requestAnimationFrame(() => setOn(soundOn()));
     return () => cancelAnimationFrame(id);
-  });
+  }, [soundPref, themePref]);
   const Icon = on ? Volume2 : VolumeX;
   return (
     <button

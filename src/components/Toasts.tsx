@@ -14,7 +14,7 @@ export function Toasts() {
       {list.map((t) => {
         const p = t.person ? f.byId.get(t.person) : undefined;
         return (
-          <div key={t.id} className="toast panel" role="status">
+          <div key={t.id} className="toast panel">
             {p ? <Portrait person={p} tree={tree} size={52} /> : t.icon ? <span className="toast-icon"><GameIcon name={t.icon} size={28} /></span> : null}
             <div className="toast-text">
               <b className="display">{t.icon && p && <GameIcon name={t.icon} size={15} />} {t.title}</b>

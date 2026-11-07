@@ -256,7 +256,9 @@ function parentSlots(f: Family, id: string, slots: boolean): string[] {
     if (!father) father = p;
     else if (!mother) mother = p;
   }
-  return [father ?? `${GHOST}${id}:father`, mother ?? `${GHOST}${id}:mother`];
+  // Recorded parents beyond the two slots (a step-parent, say) still show, after them.
+  const rest = ps.filter((p) => p !== father && p !== mother);
+  return [father ?? `${GHOST}${id}:father`, mother ?? `${GHOST}${id}:mother`, ...rest];
 }
 
 function pedigree(f: Family, focus: string, up: number, slots = false): Layout {
@@ -317,7 +319,8 @@ function kinCluster(f: Family, parent: { id: string; x: number }, dir: -1 | 1, e
     edges.push({
       key: `kin:${parent.id}`,
       kind: 'line',
-      d: `M${Math.min(parent.x, ...xs)},${mid}H${Math.max(parent.x, ...xs)}` + xs.map((x) => `M${x},${mid}V${-ROW_H}`).join(''),
+      // The parent's own drop to the bar is included, so it connects even when grandparents are hidden.
+      d: `M${Math.min(parent.x, ...xs)},${mid}H${Math.max(parent.x, ...xs)}` + [parent.x, ...xs].map((x) => `M${x},${mid}V${-ROW_H}`).join(''),
       ids: [parent.id, ...tops.map((n) => n.id)],
     });
   }

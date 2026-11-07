@@ -49,6 +49,20 @@ function TreePage() {
   const panTo = useRef<string | null>(null);
   const panQuiet = useRef(false);
   const [flash, setFlash] = useState<{ id: string; at: number } | null>(null);
+  // The toolbar wraps on narrow windows: measure the HUD so centring and notices clear it.
+  const hud = useRef<HTMLDivElement>(null);
+  const [hudH, setHudH] = useState(100);
+  useEffect(() => {
+    const el = hud.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      const h = el.getBoundingClientRect().height;
+      setHudH(h);
+      document.documentElement.style.setProperty('--hud-bottom', `${Math.round(h + 64)}px`);
+    });
+    ro.observe(el);
+    return () => { ro.disconnect(); document.documentElement.style.removeProperty('--hud-bottom'); };
+  }, []);
 
   const root = view === 'dynasty' ? (search.root && f.byId.has(search.root) ? search.root : rootFor(f, focus, line)) : undefined;
   const lay = useMemo(
@@ -94,12 +108,16 @@ function TreePage() {
     panTo.current = null;
     panQuiet.current = false;
     if (!target) return;
-    requestAnimationFrame(() => canvas.current?.centerOn(target));
-    if (quiet) return;
-    // A journey: a whoosh while the camera flies, rings and a little arrival tune when it lands.
-    play('whoosh');
-    const t = setTimeout(() => { setFlash({ id: target, at: Date.now() }); play('found'); }, 380);
-    return () => clearTimeout(t);
+    let t1 = 0, t2 = 0;
+    const raf = requestAnimationFrame(() => {
+      const moved = canvas.current?.centerOn(target) ?? false;
+      // A journey only when the camera really travels: a whoosh, then rings and a little tune on arrival.
+      if (quiet || !moved) return;
+      play('whoosh');
+      t1 = window.setTimeout(() => { setFlash({ id: target, at: Date.now() }); play('found'); }, 380);
+      t2 = window.setTimeout(() => setFlash(null), 1400);
+    });
+    return () => { cancelAnimationFrame(raf); clearTimeout(t1); clearTimeout(t2); };
   }, [focus, sel, view, lay]);
   const prevView = useRef(view);
   useEffect(() => {
@@ -159,6 +177,7 @@ function TreePage() {
     const keep = new Set([sel, ...anc(f, sel).keys()]);
     const n = new Set<string>();
     for (const node of lay.nodes) if (!keep.has(node.id) && children(f, node.id).length) n.add(node.id);
+    play('page');
     setCollapsed(n);
     panTo.current = sel;
   };
@@ -259,13 +278,14 @@ function TreePage() {
     try { if (localStorage.getItem(key)) return; } catch { return; }
     const who = f.graph.people.filter((p) => p.living && p.born && /^\d{4}-\d\d-\d\d$/.test(p.born) && p.born.endsWith(md));
     if (!who.length) return;
-    const t = setTimeout(() => {
+    let t = 0;
+    const show = () => {
       // Marked only once shown: a cancelled effect (StrictMode runs effects twice) must not eat it.
       try { localStorage.setItem(key, '1'); } catch {}
       play('fanfare');
       for (const p of who.slice(0, 2)) {
         toast({
-          title: `${p.given} turns ${today.getFullYear() - parseInt(p.born!, 10)} today`,
+          title: `${displayName(p, f)} turns ${today.getFullYear() - parseInt(p.born!, 10)} today`,
           body: kinOf(p.id) ? `Your ${kinOf(p.id)}. A call would make their day.` : 'A good day to get in touch.',
           person: p.id,
           icon: 'cake-slice',
@@ -273,8 +293,12 @@ function TreePage() {
           action: { label: 'Open', run: () => select(p.id) },
         });
       }
-    }, 1200);
-    return () => clearTimeout(t);
+    };
+    // Wait until someone is looking: a notice in a background tab would expire unseen.
+    const arm = () => { if (!document.hidden) { t = window.setTimeout(show, 1200); document.removeEventListener('visibilitychange', arm); } };
+    document.addEventListener('visibilitychange', arm);
+    arm();
+    return () => { clearTimeout(t); document.removeEventListener('visibilitychange', arm); };
   }, [tree]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const houses = useMemo(() => {
@@ -295,11 +319,11 @@ function TreePage() {
         renderCard={renderCard}
         rowLabel={rowLabel}
         flash={flash}
-        inset={{ left: panel ? 430 + 56 : 56, top: view === 'dynasty' ? 136 : 76, right: 270 }}
+        inset={{ left: panel ? 430 + 56 : 56, top: hudH + 24, right: 270 }}
         onBackground={() => {}}
         overlay={
           <>
-            <div className={`hud${panel ? ' with-panel' : ''}`}>
+            <div ref={hud} className={`hud${panel ? ' with-panel' : ''}`}>
             <div className="tree-toolbar panel no-pan">
               <div className="seg">
                 <button className="btn" aria-pressed={view === 'family'} onClick={() => go({ view: 'family', focus: sel, sel: undefined })} title="Family around the focus (1)"><Network size={15} /> Family</button>
@@ -428,7 +452,7 @@ function TreePage() {
           relation={adding.relation}
           sex={adding.sex}
           onCancel={() => setAdding(null)}
-          onDone={(id, person) => { setAdding(null); panTo.current = id; go({ sel: id }); announce(id, person, adding.anchor, adding.relation); }}
+          onDone={(id, person) => { setAdding(null); panTo.current = id; panQuiet.current = true; go({ sel: id }); announce(id, person, adding.anchor, adding.relation); }}
         />
       )}
     </div>
