@@ -29,9 +29,11 @@ export function listTrees(): TreeMeta[] {
     .map((f) => {
       const d = db(f.slice(0, -3));
       const m = meta(d);
+      if (!m.id) return null; // not a tree (a half-built file): skip it rather than break the home page
       const { n } = d.prepare('SELECT count(*) AS n FROM person').get() as { n: number };
       return { id: m.id, name: m.name, tagline: m.tagline, theme: m.theme as TreeMeta['theme'], focus: m.focus, people: n };
     })
+    .filter((t): t is TreeMeta => t !== null)
     .sort((a, b) => b.people - a.people);
 }
 

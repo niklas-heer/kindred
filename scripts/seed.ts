@@ -1,18 +1,37 @@
-// Rebuilds data/<id>.db from every data/seed/*.json (or the files given as arguments).
-//   node scripts/seed.ts [data/seed/realm.json ...]
-import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+// Builds data/<id>.db from every data/seed/*.json (or the files given as arguments).
+//   node scripts/seed.ts [--force] [data/seed/realm.json ...]
+// An existing database holds what the family typed in, so it is left alone unless --force is given;
+// even then the old file is first copied to data/backups/.
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { SCHEMA } from '../src/lib/schema.ts';
 import type { SeedTree } from '../src/lib/seed-format.ts';
 
-const files = process.argv.length > 2
-  ? process.argv.slice(2)
+const args = process.argv.slice(2);
+const force = args.includes('--force');
+const named = args.filter((a) => a !== '--force');
+const files = named.length
+  ? named
   : readdirSync('data/seed').filter((f) => f.endsWith('.json') && !f.endsWith('-places.json')).map((f) => join('data/seed', f));
 
 for (const file of files) {
   const t: SeedTree = JSON.parse(readFileSync(file, 'utf8'));
   const path = `data/${t.id}.db`;
+  if (existsSync(path)) {
+    if (!force) {
+      console.log(`${path}: exists, kept (it may hold edits; use --force to rebuild, a backup is made first)`);
+      continue;
+    }
+    mkdirSync('data/backups', { recursive: true });
+    const backup = `data/backups/${t.id}-${new Date().toISOString().replace(/[:.]/g, '-')}.db`;
+    // Fold the write-ahead log in first, so the copy is complete.
+    const old = new DatabaseSync(path);
+    old.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+    old.close();
+    copyFileSync(path, backup);
+    console.log(`${path}: backed up to ${backup}`);
+  }
   for (const p of [path, `${path}-wal`, `${path}-shm`]) if (existsSync(p)) rmSync(p);
   const db = new DatabaseSync(path);
   db.exec(SCHEMA);

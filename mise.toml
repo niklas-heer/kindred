@@ -5,16 +5,17 @@ node = "26"
 run = "npm install"
 
 [tasks.data]
-description = "Generate the test families, import the real archive if present, and rebuild data/*.db"
+description = "Generate the test families and rebuild their databases; import the real archive only if its database is new"
 run = [
   "node scripts/gen-realm.ts",
   "node scripts/gen-modern.ts",
   "test -d ../family-archive && node scripts/import-kindred.ts ../family-archive data/seed/smith.json || echo 'no ../family-archive; skipping the real family'",
-  "node scripts/seed.ts",
+  "node scripts/seed.ts --force data/seed/realm.json data/seed/modern.json",
+  "test -f data/seed/smith.json && node scripts/seed.ts data/seed/smith.json || true",
 ]
 
 [tasks.seed]
-description = "Rebuild data/*.db from the JSON in data/seed/"
+description = "Build missing data/*.db from data/seed/ (existing ones are kept; pass --force to rebuild with a backup)"
 run = "node scripts/seed.ts"
 
 [tasks.dev]

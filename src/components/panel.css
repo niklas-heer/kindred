@@ -133,3 +133,6 @@
 .pp-gaps > div { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .pp-gaps .chip { cursor: pointer; font-size: 12.5px; }
 .pp-gaps .chip:hover { border-color: var(--accent); color: var(--text); }
+.btn.danger { color: var(--danger); }
+.btn.danger:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.pp-edit .row .spacer { flex: 1; }

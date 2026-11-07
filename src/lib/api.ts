@@ -147,6 +147,29 @@ export const patchPerson = createServerFn({ method: 'POST' })
     (await server()).db(data.tree).prepare(sql).run(...set.map(([, v]) => v as string), data.id);
   });
 
+/** Takes someone out of the tree, with their links, stories, contacts and photo. */
+export const removePerson = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, id: z.string() }))
+  .handler(async ({ data }) => {
+    const d = (await server()).db(data.tree);
+    d.exec('PRAGMA foreign_keys = ON; BEGIN');
+    try {
+      // The tree must keep a person to open on.
+      const focus = d.prepare("SELECT value FROM meta WHERE key = 'focus'").get() as { value: string } | undefined;
+      if (focus?.value === data.id) {
+        const other = d.prepare('SELECT id FROM person WHERE id != ? LIMIT 1').get(data.id) as { id: string } | undefined;
+        if (!other) throw new Error('The last person cannot be removed');
+        d.prepare("UPDATE meta SET value = ? WHERE key = 'focus'").run(other.id);
+      }
+      const r = d.prepare('DELETE FROM person WHERE id = ?').run(data.id);
+      d.exec('COMMIT');
+      return r.changes;
+    } catch (e) {
+      d.exec('ROLLBACK');
+      throw e;
+    }
+  });
+
 export const addStory = createServerFn({ method: 'POST' })
   .validator(
     z.object({

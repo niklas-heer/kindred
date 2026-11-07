@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { marked } from 'marked';
 import { useMemo, useState, type ReactNode } from 'react';
-import { addContact, addStory, deleteContact, deleteStory, personQuery, updatePerson, uploadPhoto } from '~/lib/api';
+import { addContact, addStory, deleteContact, removePerson, deleteStory, personQuery, updatePerson, uploadPhoto } from '~/lib/api';
 import {
   ageAt, age, children, displayName, fmtDate, kinship, lifespan, parents, partnersOf, siblings, yearOf, type Family,
 } from '~/lib/graph';
@@ -154,7 +154,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
         {tab === 'family' && <FamilyTab f={f} tree={tree} id={id} onSelect={onSelect} />}
         {tab === 'stories' && <StoriesTab tree={tree} p={p} detail={detail} />}
         {tab === 'everyday' && <EverydayTab f={f} tree={tree} p={p} detail={detail} />}
-        {tab === 'edit' && detail && <EditTab tree={tree} p={p} detail={detail} done={() => setTab('family')} />}
+        {tab === 'edit' && detail && <EditTab tree={tree} p={p} detail={detail} done={() => setTab('family')} onRemoved={onClose} />}
       </div>
     </aside>
   );
@@ -455,8 +455,15 @@ function Fact({ icon, label, children }: { icon: ReactNode; label: string; child
 
 // ---------- edit ----------
 
-function EditTab({ tree, p, detail, done }: { tree: string; p: GPerson; detail: PersonDetail; done: () => void }) {
+function EditTab({ tree, p, detail, done, onRemoved }: { tree: string; p: GPerson; detail: PersonDetail; done: () => void; onRemoved: () => void }) {
   const qc = useQueryClient();
+  const remove = useMutation({
+    mutationFn: () => removePerson({ data: { tree, id: p.id } }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['graph', tree] });
+      onRemoved();
+    },
+  });
   const form = useForm({
     defaultValues: {
       given: p.given, surname: p.surname ?? '', nickname: p.nickname ?? '', sex: (p.sex ?? '') as '' | 'm' | 'f' | 'x',
@@ -521,6 +528,15 @@ function EditTab({ tree, p, detail, done }: { tree: string; p: GPerson; detail: 
         )}
       </form.Field>
       <div className="row end wide">
+        <button
+          type="button"
+          className="btn ghost danger"
+          disabled={remove.isPending}
+          onClick={() => confirm(`Remove ${p.given} from the tree? Their family links, stories, contacts and photo go too.`) && remove.mutate()}
+        >
+          <Trash2 size={14} /> Remove from tree
+        </button>
+        <span className="spacer" />
         <button type="button" className="btn ghost" onClick={done}>Cancel</button>
         <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>
           {([ok, busy]) => <button className="btn primary" disabled={!ok || busy}><Check size={14} /> Save</button>}

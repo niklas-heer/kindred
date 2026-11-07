@@ -12,6 +12,8 @@ import { ancestorDepths, ancestorDepths as anc, descendants, displayName, kinPat
 import { layout as computeLayout, rootFor, type LNode, type View } from '~/lib/layout';
 import { treeSearch } from '~/lib/search';
 import { gapsOf, useRequired } from '~/lib/gaps';
+import { removePerson } from '~/lib/api';
+import { useQueryClient } from '@tanstack/react-query';
 import { play } from '~/lib/sfx';
 import { toast } from '~/lib/toast';
 import { Arms } from '~/components/Heraldry';
@@ -30,6 +32,7 @@ function TreePage() {
   const navigate = useNavigate({ from: '/$tree/' });
   const f = useFamily();
   const me = useMe();
+  const qc = useQueryClient();
   const codex = f.graph.tree.theme === 'codex';
 
   // `focus` anchors the layout (the hourglass centre, the dynasty's line); `sel` is who the panel
@@ -278,7 +281,22 @@ function TreePage() {
       relation === 'sibling' ? `A ${word('brother', 'sister', 'sibling')} for ${a?.given ?? 'them'}` :
       `${a?.given ?? 'Their'}'s ${word('father', 'mother', 'parent')} is found`;
     play('chime');
-    toast({ title, body: `${person.given} has a place in the tree now. Add a birthday or a memory whenever you like.`, person: id });
+    toast({
+      title,
+      body: `${person.given} has a place in the tree now. Add a birthday or a memory whenever you like.`,
+      person: id,
+      ms: 9000,
+      // Added by mistake? One click takes them out again.
+      action: {
+        label: 'Undo',
+        run: async () => {
+          await removePerson({ data: { tree, id } });
+          await qc.invalidateQueries({ queryKey: ['graph', tree] });
+          go({ sel: anchor === focus ? undefined : anchor });
+          play('page');
+        },
+      },
+    });
   };
 
   // Once a day per tree: whose birthday is today.
