@@ -106,3 +106,36 @@
 .pin:hover .pin-arms { filter: drop-shadow(0 0 4px var(--pin)) drop-shadow(0 2px 2px #0008); }
 .pin.on .pin-arms { filter: drop-shadow(0 0 6px var(--pin)); }
 .pin-n.under { fill: var(--label); paint-order: stroke; stroke: var(--label-halo); stroke-linejoin: round; }
+
+/* The chronicle feed: what is happening in the replay, newest first, like a game's event log. */
+.atlas-feed {
+  position: absolute; right: 18px; bottom: 92px; z-index: 5; width: 340px; max-height: calc(100% - 200px);
+  display: flex; flex-direction: column; padding: 10px 10px 6px; overflow: hidden;
+}
+.atlas-feed > header { display: flex; align-items: baseline; justify-content: space-between; padding: 0 4px 6px; border-bottom: 1px solid var(--border); }
+[data-theme='codex'] .atlas-feed > header { border-bottom-color: var(--edge-soft); }
+.atlas-feed > header b { font-family: var(--font-display); font-size: 15px; font-weight: 600; }
+[data-theme='codex'] .atlas-feed > header b { color: var(--accent); font-weight: 500; }
+.atlas-feed ol { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; overflow: hidden; }
+.atlas-feed li { animation: feed-in 260ms cubic-bezier(.2,.8,.2,1); }
+.atlas-feed li:nth-child(n + 5) { opacity: 0.7; }
+.atlas-feed li:nth-child(n + 7) { opacity: 0.45; }
+.atlas-feed button {
+  width: 100%; display: grid; grid-template-columns: 40px 32px 1fr; gap: 8px; align-items: center;
+  padding: 5px 4px; border: 0; background: none; border-radius: var(--radius); cursor: pointer; text-align: left;
+}
+.atlas-feed button:hover { background: var(--panel-2); }
+.feed-year { font-family: var(--font-display); font-size: 14px; font-variant-numeric: tabular-nums; color: var(--muted); text-align: right; }
+.feed-face { display: grid; place-items: center; width: 32px; height: 32px; position: relative; }
+.feed-kind { position: absolute; right: -4px; bottom: -3px; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; background: var(--panel-solid); box-shadow: 0 0 0 1px var(--border); }
+.feed-text { font-size: 13.5px; line-height: 1.3; }
+.feed-text b { font-weight: 600; }
+[data-theme='codex'] .feed-text b { font-weight: 500; color: #f3e7c8; }
+.feed-text i { font-style: normal; color: var(--muted); }
+@keyframes feed-in { from { opacity: 0; transform: translateY(-6px); } }
+/* Places where something just happened pulse once. */
+.pin.recent .pin-grow::after { content: none; }
+.pin.recent .pulse { fill: none; stroke: var(--pin); transform-box: fill-box; transform-origin: center; animation: pulse 1s ease-out infinite; }
+@keyframes pulse { from { opacity: 0.9; scale: 1; } to { opacity: 0; scale: 2.2; } }
+@media (prefers-reduced-motion: reduce) { .atlas-feed li, .pin.recent .pulse { animation: none; } }
+@media (max-width: 1100px) { .atlas-feed { display: none; } }

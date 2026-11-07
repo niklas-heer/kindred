@@ -68,14 +68,15 @@ function Atlas() {
   const [heraldry, setHeraldry] = useState(false);
   useEffect(() => { setYear(null); setPlaying(false); }, [mode, tree]);
 
-  // Replay: about twelve seconds from the first event to the last.
+  // Replay: long enough to read the chronicle as it goes (15–45 s, by how much happens).
+  const duration = Math.min(45000, Math.max(15000, events.length * 25));
   useEffect(() => {
     if (!playing) return;
     const span = Math.max(1, y1 - y0);
-    const start = performance.now() - ((cursor >= y1 ? y0 : cursor) - y0) / span * 12000;
+    const start = performance.now() - ((cursor >= y1 ? y0 : cursor) - y0) / span * duration;
     let raf = 0;
     const step = (t: number) => {
-      const y = Math.min(y1, Math.round(y0 + ((t - start) / 12000) * span));
+      const y = Math.min(y1, Math.round(y0 + ((t - start) / duration) * span));
       setYear(y);
       if (y >= y1) setPlaying(false);
       else raf = requestAnimationFrame(step);
@@ -129,6 +130,20 @@ function Atlas() {
     return all.length > 40 ? all.filter((a) => a.n >= 3) : all;
   }, [f, mode, moves, cursor, placeBy]);
 
+  // The chronicle: the latest events up to the cursor, newest first.
+  const feed = useMemo(() => {
+    let hi = events.length;
+    for (let lo = 0; lo < hi; ) { const mid = (lo + hi) >> 1; if (events[mid].year <= cursor) lo = mid + 1; else hi = mid; }
+    return events.slice(Math.max(0, hi - 8), hi).reverse();
+  }, [events, cursor]);
+  const showFeed = playing || year !== null;
+  // Places touched in the last few years of the replay pulse on the map.
+  const recent = useMemo(() => {
+    if (!playing) return new Set<string>();
+    const window = Math.max(1, Math.round((y1 - y0) / 60));
+    return new Set(feed.filter((e) => e.year > cursor - window).map((e) => e.place));
+  }, [playing, feed, cursor, y0, y1]);
+
   const selected = search.place && pins.find((p) => p.place.name === search.place);
   const total = mode === 'weddings' ? new Set(pins.flatMap((p) => p.people)).size : pins.reduce((n, p) => n + p.people.length, 0);
   const select = (name?: string) => {
@@ -180,7 +195,23 @@ function Atlas() {
       </aside>
 
       <div className="atlas-map">
-        <WorldMap places={f.graph.places} pins={pins} arcs={arcs} selected={search.place} onSelect={select} rings={mode === 'all' && !heraldry} heraldry={heraldry ? f.house : null} />
+        <WorldMap places={f.graph.places} pins={pins} arcs={arcs} selected={search.place} onSelect={select} rings={mode === 'all' && !heraldry} heraldry={heraldry ? f.house : null} recent={recent} />
+        {showFeed && feed.length > 0 && (
+          <section className="atlas-feed panel" aria-live="polite">
+            <header><b>Chronicle</b><span className="faint">{cursor}</span></header>
+            <ol>
+              {feed.map((e) => (
+                <li key={`${e.kind}:${e.year}:${e.people.join('+')}`}>
+                  <button onClick={() => select(e.place)}>
+                    <span className="feed-year">{e.year}</span>
+                    <FeedFace e={e} f={f} tree={tree} heraldry={heraldry} />
+                    <span className="feed-text">{sentence(e, f)}</span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
         {events.length > 0 && (
           <div className="atlas-time panel">
             <button className="btn icon primary" onClick={() => { if (cursor >= y1) setYear(y0); setPlaying((p) => !p); }} title={playing ? 'Pause' : 'Replay through time'}>
@@ -254,7 +285,8 @@ const loadWorld = () =>
     return { land: feature(t, t.objects.countries) as GeoPermissibleObjects, borders: mesh(t, t.objects.countries as never, (a, b) => a !== b) as GeoPermissibleObjects };
   }));
 
-function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry }: {
+function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry, recent }: {
+  recent: ReadonlySet<string>;
   places: Place[];
   pins: Pin[];
   rings: boolean;
@@ -392,7 +424,8 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry }: {
             const r = radius(p.people.length);
             const on = selected === p.place.name;
             return (
-              <g key={p.place.name} className={`pin${on ? ' on' : ''}`} transform={`translate(${xy[0]},${xy[1]})`} onClick={() => onSelect(on ? undefined : p.place.name)}>
+              <g key={p.place.name} className={`pin${on ? ' on' : ''}${recent.has(p.place.name) ? ' recent' : ''}`} transform={`translate(${xy[0]},${xy[1]})`} onClick={() => onSelect(on ? undefined : p.place.name)}>
+                {recent.has(p.place.name) && <circle r={r} className="pulse" style={{ strokeWidth: 2 / cam.k }} />}
                 <g className="pin-grow">
                 {heraldry && p.house && heraldry.get(p.house) ? (
                   // A shield instead of a dot; its count sits underneath.
@@ -441,5 +474,31 @@ function KindRing({ kinds, r, w }: { kinds: Record<Kind, number>; r: number; w: 
         return full ? <circle key={k} r={r} className={`k-${k}`} /> : <path key={k} d={d} className={`k-${k}`} />;
       })}
     </g>
+  );
+}
+
+// ---------- the chronicle feed ----------
+
+/** "Ulric Valcourt is born in Castel Sainte-Ode", in the voice of a chronicle. */
+function sentence(e: Event, f: ReturnType<typeof useFamily>) {
+  const [a, b] = e.people.map((id) => f.byId.get(id));
+  const name = (p?: GPerson) => <b>{p ? displayName(p, f) : 'Someone'}</b>;
+  if (e.kind === 'births') return <>{name(a)} is born <i>in {e.place}</i></>;
+  if (e.kind === 'deaths') {
+    const age = a && !isNaN(yearOf(a.born)) ? e.year - yearOf(a.born) : undefined;
+    return <>{name(a)} dies <i>in {e.place}{age !== undefined ? `, aged ${age}` : ''}</i></>;
+  }
+  return <>{name(a)} marries {name(b)} <i>in {e.place}</i></>;
+}
+
+/** The portrait of who it is about, or their house's arms when the map shows arms. */
+function FeedFace({ e, f, tree, heraldry }: { e: Event; f: ReturnType<typeof useFamily>; tree: string; heraldry: boolean }) {
+  const p = f.byId.get(e.people[0]);
+  const house = p?.house ? f.house.get(p.house) : undefined;
+  return (
+    <span className="feed-face">
+      {heraldry && house ? <Arms arms={house.arms} size={26} title={house.name} /> : p ? <Portrait person={p} tree={tree} size={32} frame={false} /> : null}
+      <span className={`feed-kind k-${e.kind}`}><GameIcon name={ICON[e.kind]} size={11} /></span>
+    </span>
   );
 }
