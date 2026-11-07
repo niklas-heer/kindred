@@ -1,5 +1,6 @@
-import { createFileRoute, Link, notFound, Outlet } from '@tanstack/react-router';
-import { BookOpen, CalendarHeart, CircleHelp, Contact, Map as MapIcon, Menu, MoreHorizontal, Network, ScrollText, Search } from 'lucide-react';
+import { createFileRoute, Link, notFound, Outlet, redirect } from '@tanstack/react-router';
+import { BookOpen, CalendarHeart, CircleHelp, Contact, Map as MapIcon, Menu, MoreHorizontal, Network, ScrollText, Search, Users } from 'lucide-react';
+import { AccountMenu } from '~/components/AccountMenu';
 import { useEffect, useMemo, useState } from 'react';
 import { FirstRun } from '~/components/FirstRun';
 import { Arms } from '~/components/Heraldry';
@@ -9,20 +10,31 @@ import { SoundSwitch, THEME_ICONS, THEME_LABEL, ThemeSwitch, useSound, useTheme 
 import { Toasts } from '~/components/Toasts';
 import { Dialog } from '~/components/ui/Dialog';
 import { Switch } from '~/components/ui/Switch';
-import { graphQuery, treesQuery } from '~/lib/api';
+import { graphQuery } from '~/lib/api';
+import { myFamiliesQuery, sessionQuery } from '~/lib/auth/functions';
+import { NoAccessPage } from '~/components/NoAccess';
+import { useCan } from '~/lib/session';
 import { useFamily } from '~/lib/family';
 import { setPref, THEMES, usePref } from '~/lib/prefs';
 import { treeTitle } from '~/lib/title';
 
 export const Route = createFileRoute('/$tree')({
+  // Signed out: to /signin and back. Not a member: "You don't have access" (whether or not the family exists).
+  beforeLoad: async ({ context, params, location }) => {
+    const session = await context.queryClient.ensureQueryData(sessionQuery);
+    if (session.needsSetup) throw redirect({ to: '/setup' });
+    if (!session.user) throw redirect({ to: '/signin', search: { next: location.href } });
+    if (!session.memberships.some((m) => m.tree === params.tree)) throw notFound({ data: { access: false } });
+  },
   loader: async ({ context, params }) => {
     // An unknown family is a friendly "not found", never a server error with a developer hint.
-    const trees = await context.queryClient.ensureQueryData(treesQuery);
+    const trees = await context.queryClient.ensureQueryData(myFamiliesQuery);
     if (!trees.some((t) => t.id === params.tree)) throw notFound();
     await context.queryClient.ensureQueryData(graphQuery(params.tree));
   },
   head: (ctx) => ({ meta: [{ title: treeTitle(ctx) }] }),
-  notFoundComponent: () => <NotFoundPage kind="family" id={Route.useParams().tree} />,
+  notFoundComponent: ({ data }) =>
+    (data as { access?: boolean } | undefined)?.access === false ? <NoAccessPage /> : <NotFoundPage kind="family" id={Route.useParams().tree} />,
   component: TreeLayout,
 });
 
@@ -92,6 +104,7 @@ function TreeLayout() {
           <SoundSwitch />
           <ThemeSwitch />
         </span>
+        <AccountMenu familyName={f.graph.tree.name} />
         <button className="btn icon ghost topbar-menu" onClick={() => setMore(true)} aria-label="Menu" aria-expanded={more}>
           <Menu size={19} />
         </button>
@@ -126,6 +139,7 @@ function TreeLayout() {
 /** Contacts, Register and Chronicle, plus theme and sound: what the phone's tab bar has no room for. */
 function MoreSheet({ open, onClose, tree }: { open: boolean; onClose: () => void; tree: string }) {
   const theme = useTheme();
+  const steward = useCan('manage-access');
   const [sound, toggleSound] = useSound();
   return (
     <Dialog open={open} onClose={onClose} title="More" placement="sheet" width={560}>
@@ -133,6 +147,7 @@ function MoreSheet({ open, onClose, tree }: { open: boolean; onClose: () => void
         <li><Link to="/$tree/contacts" params={{ tree }}><Contact size={19} /> Contacts <small>addresses &amp; phones</small></Link></li>
         <li><Link to="/$tree/people" params={{ tree }}><BookOpen size={19} /> Register <small>everyone, as a table</small></Link></li>
         <li><Link to="/$tree/chronicle" params={{ tree }}><ScrollText size={19} /> Chronicle <small>stories &amp; sayings</small></Link></li>
+        {steward && <li><Link to="/$tree/access" params={{ tree }}><Users size={19} /> Access <small>members &amp; invitations</small></Link></li>}
         <li><Link to="/"><Network size={19} /> All families</Link></li>
       </ul>
       <div className="more-row">

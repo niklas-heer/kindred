@@ -3,8 +3,10 @@ import { useSuspenseQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { useMemo } from 'react';
 import { graphQuery } from './api';
+import { setMyPerson } from './auth/functions';
 import { buildFamily, generations, type Family } from './graph';
-import { usePref } from './prefs';
+import { setPref, usePref } from './prefs';
+import { useMembership } from './session';
 
 export function useTreeId(): string {
   return useParams({ strict: false }).tree as string;
@@ -42,15 +44,31 @@ export function useMe(): string {
 /**
  * Who the reader said they are, or null until they choose (or chose "just browsing"). Kinship
  * labels ("your aunt") are only shown when this is set, never computed from an arbitrary person.
+ *
+ * The answer is saved with their membership of the family, so it follows them to every device. The
+ * `me:<tree>` preference in this browser takes precedence: "Be them" changes only that, for a while.
  */
 export function useMeChosen(): string | null {
   const f = useFamily();
-  const me = usePref(`me:${f.graph.tree.id}`);
+  const local = usePref(`me:${f.graph.tree.id}`);
+  const saved = useMembership(f.graph.tree.id)?.person ?? null;
+  const me = local ?? saved;
   return me && me !== BROWSING && f.byId.has(me) ? me : null;
 }
 
 /** Whether the reader has answered "Who are you?" for this tree (including "just browsing"). */
 export function useMeAnswered(): boolean {
   const f = useFamily();
-  return usePref(`me:${f.graph.tree.id}`) !== null;
+  const local = usePref(`me:${f.graph.tree.id}`);
+  const saved = useMembership(f.graph.tree.id)?.person ?? null;
+  return local !== null || saved !== null;
+}
+
+/**
+ * The reader says who they are in a family (a person id, or BROWSING): saved in this browser at once
+ * and with their membership on the server. Use this for "This is me", not for "Be them".
+ */
+export function chooseMe(tree: string, id: string): Promise<void> {
+  setPref(`me:${tree}`, id);
+  return setMyPerson({ data: { tree, person: id } }).then(() => undefined, () => undefined);
 }

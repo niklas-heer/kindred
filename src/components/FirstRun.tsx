@@ -1,10 +1,11 @@
 // First visit to a tree: "Who are you in this family?", then an optional three-step tour.
-// The answer is the `me:<tree>` preference (a person id, or BROWSING); the tour is remembered
-// once seen or skipped (`tour`). Until the reader answers, kinship labels stay hidden.
+// The answer is saved with the reader's membership and as the `me:<tree>` preference (a person id,
+// or BROWSING); the tour is remembered once seen or skipped (`tour`). Until the reader answers,
+// kinship labels stay hidden. `WhoPicker` is the same list, for the invitation page.
 import { MousePointerClick, Search, UserPlus } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { BROWSING, useFamily, useMeAnswered, useTreeId } from '~/lib/family';
-import { children, displayName, lifespan, parents, partnersOf, siblings } from '~/lib/graph';
+import { BROWSING, chooseMe, useFamily, useMeAnswered, useTreeId } from '~/lib/family';
+import { children, displayName, lifespan, parents, partnersOf, siblings, type Family } from '~/lib/graph';
 import { setPref, usePref } from '~/lib/prefs';
 import { searchPeople } from './Palette';
 import { Portrait } from './Portrait';
@@ -43,7 +44,7 @@ export function FirstRun() {
   useEffect(() => { const reopen = () => { setStep(0); setTouring(true); }; window.addEventListener('kindred:reopen-tour', reopen); return () => window.removeEventListener('kindred:reopen-tour', reopen); }, []);
 
   const choose = (id: string) => {
-    setPref(`me:${tree}`, id);
+    void chooseMe(tree, id);
     if (!tourSeen) setTouring(true);
   };
   const endTour = () => {
@@ -86,16 +87,6 @@ export function FirstRun() {
 function WhoAreYou({ open, onChoose, onLater, familyName }: { open: boolean; onChoose: (id: string) => void; onLater: () => void; familyName: string }) {
   const f = useFamily();
   const tree = useTreeId();
-  const [q, setQ] = useState('');
-  const results = useMemo(() => searchPeople(f, q, 8).map((r) => r.id), [f, q]);
-  // Before any typing: the living people around the tree's starting point, a likely "you".
-  const suggested = useMemo(() => {
-    const c = f.graph.tree.focus;
-    const near = [c, ...partnersOf(f, c), ...children(f, c), ...siblings(f, c), ...parents(f, c)];
-    return [...new Set(near)].filter((id) => f.byId.get(id)?.living).slice(0, 6);
-  }, [f]);
-  const list = q.trim() ? results : suggested;
-
   return (
     <Dialog
       open={open}
@@ -111,11 +102,31 @@ function WhoAreYou({ open, onChoose, onLater, familyName }: { open: boolean; onC
         </div>
       }
     >
+      <WhoPicker f={f} tree={tree} onChoose={onChoose} />
+    </Dialog>
+  );
+}
+
+/** Search for yourself, or pick from the living people around the tree's starting point. */
+export function WhoPicker({ f, tree, onChoose, autoFocus }: { f: Family; tree: string; onChoose: (id: string) => void; autoFocus?: boolean }) {
+  const [q, setQ] = useState('');
+  const results = useMemo(() => searchPeople(f, q, 8).map((r) => r.id), [f, q]);
+  // Before any typing: the living people around the tree's starting point, a likely "you".
+  const suggested = useMemo(() => {
+    const c = f.graph.tree.focus;
+    const near = [c, ...partnersOf(f, c), ...children(f, c), ...siblings(f, c), ...parents(f, c)];
+    return [...new Set(near)].filter((id) => f.byId.get(id)?.living).slice(0, 6);
+  }, [f]);
+  const list = q.trim() ? results : suggested;
+
+  return (
+    <>
       <div className="who-search">
         <Search size={16} />
         <input
           className="input"
           value={q}
+          autoFocus={autoFocus}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && list[0]) { e.preventDefault(); onChoose(list[0]); } }}
           placeholder="Your name…"
@@ -141,6 +152,6 @@ function WhoAreYou({ open, onChoose, onLater, familyName }: { open: boolean; onC
           );
         })}
       </ul>
-    </Dialog>
+    </>
   );
 }

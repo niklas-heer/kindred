@@ -1,0 +1,70 @@
+/* The account menu in the topbar, the "Your name & passkeys" dialog, and name monograms. */
+.acct-initials {
+  display: inline-grid; place-items: center; flex: none; border-radius: 50%;
+  font-family: var(--font-display); font-weight: 600; letter-spacing: 0.02em; line-height: 1;
+  color: var(--accent-text); background: var(--accent);
+}
+[data-theme='codex'] .acct-initials {
+  color: #f3e3b5; background: radial-gradient(circle at 50% 30%, #3a4660, #1b2230);
+  box-shadow: inset 0 0 0 1.5px var(--edge), 0 1px 3px #000a;
+}
+[data-theme='night'] .acct-initials { color: #1d1a14; background: linear-gradient(180deg, #ebb46c, #c98a3f); }
+
+.acct-trigger { height: 40px; padding: 0 8px 0 5px; gap: 8px; border-radius: 999px; }
+.acct-trigger-name { max-width: 14ch; overflow: hidden; text-overflow: ellipsis; font-size: 14.5px; }
+@media (max-width: 1600px) { .acct-trigger-name { display: none; } .acct-trigger { width: 40px; padding: 0; justify-content: center; } }
+@media (max-width: 760px) { .acct-trigger { width: 40px; height: 40px; } }
+
+.acct-menu {
+  position: fixed; top: 56px; right: 10px; z-index: 90; width: 320px; max-width: calc(100vw - 20px);
+  padding: 14px; background: var(--panel-solid);
+  animation: acct-in 120ms ease-out;
+}
+[data-theme='codex'] .acct-menu { background: linear-gradient(180deg, #232b3a, #171d28); }
+@keyframes acct-in { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .acct-menu { animation: none; } }
+
+.acct-head { display: flex; align-items: center; gap: 12px; }
+.acct-head > div { min-width: 0; display: grid; }
+.acct-name { font-family: var(--font-body); font-weight: 500; font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct-sub { font-family: var(--font-ui); font-size: 13.5px; color: var(--subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct-role {
+  margin: 12px 0 8px; padding: 10px 12px; border-radius: var(--radius); background: var(--panel-2);
+  font-size: 15px; line-height: 1.4;
+}
+.acct-role b { font-weight: 600; color: var(--accent); }
+[data-theme='modern'] .acct-role b { color: var(--text); }
+.acct-role span { display: block; color: var(--muted); font-size: 14px; margin-top: 2px; }
+.acct-items { display: grid; gap: 2px; margin-top: 6px; }
+.acct-item {
+  display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 10px; width: 100%;
+  border: 0; border-radius: var(--radius); background: none; text-align: left; text-decoration: none; cursor: pointer;
+  font-family: var(--font-ui); font-size: 15.5px; color: var(--text);
+}
+.acct-item svg { color: var(--muted); flex: none; }
+.acct-item:hover, .acct-item:focus-visible { background: var(--panel-3); outline: none; }
+[data-theme='codex'] .acct-item:hover, [data-theme='codex'] .acct-item:focus-visible { background: linear-gradient(90deg, #4a3d2288, #4a3d2222); box-shadow: inset 2px 0 0 var(--accent); }
+
+/* The dialog */
+.acct-rename { display: flex; align-items: flex-end; gap: 8px; }
+.acct-rename .field { flex: 1; }
+.acct-rename .input, .acct-rename .btn { height: 40px; }
+.acct-h { font-family: var(--font-display); font-weight: 600; font-size: 17px; margin: 22px 0 4px; }
+[data-theme='codex'] .acct-h { font-variant: small-caps; color: var(--accent); letter-spacing: 0.04em; }
+.acct-help { margin: 0 0 10px; color: var(--muted); line-height: 1.45; font-size: 15px; }
+.acct-keys { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
+.acct-keys li {
+  display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 10px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-2);
+}
+.acct-keys li > div { flex: 1; min-width: 0; display: grid; }
+.acct-keys b { font-weight: 500; }
+.acct-keys span { color: var(--subtle); font-size: 13.5px; font-family: var(--font-ui); }
+.acct-keys span svg { vertical-align: -2px; }
+.acct-key-icon { width: 36px; height: 36px; display: grid; place-items: center; border-radius: var(--radius); color: var(--accent); background: var(--panel-3); flex: none; }
+.acct-key-remove { width: 40px; height: 40px; }
+.acct-key-remove:disabled { opacity: 0.4; cursor: not-allowed; }
+.acct-add { height: 42px; }
+.acct-error { color: var(--danger); margin: 8px 0; font-size: 15px; }
+.acct-ok { color: var(--ok); display: flex; align-items: center; gap: 6px; margin: 8px 0 0; font-size: 15px; }
+.btn.acct-danger, [data-theme] .btn.acct-danger { background: var(--danger); color: #fff; box-shadow: none; }

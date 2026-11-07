@@ -1,13 +1,14 @@
-// "Family not found" and "Page not found": a friendly page with a link to every family, never a
-// developer hint. Used by the $tree route (unknown tree id) and as the router's default.
+// "Family not found" and "Page not found": a friendly page with a link to each of the reader's
+// families (none when signed out), never a developer hint. Used by the $tree route (unknown tree id)
+// and as the router's default.
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { Users } from 'lucide-react';
-import { treesQuery } from '~/lib/api';
+import { myFamiliesQuery } from '~/lib/auth/functions';
 import { NotFound } from './ui/states';
 
 export function NotFoundPage({ kind = 'page', id }: { kind?: 'family' | 'page'; id?: string }) {
-  const { data: trees } = useQuery(treesQuery);
+  const { data: trees } = useQuery(myFamiliesQuery);
   return (
     <main className="page ui-notfound-page">
       <NotFound
@@ -20,7 +21,7 @@ export function NotFoundPage({ kind = 'page', id }: { kind?: 'family' | 'page'; 
         }
       >
         {trees && trees.length > 0 ? (
-          <ul className="ui-state-links" aria-label="All families">
+          <ul className="ui-state-links" aria-label="Your families">
             {trees.map((t) => (
               <li key={t.id}>
                 <Link to="/$tree" params={{ tree: t.id }}>
@@ -31,7 +32,7 @@ export function NotFoundPage({ kind = 'page', id }: { kind?: 'family' | 'page'; 
             ))}
           </ul>
         ) : (
-          <div className="ui-state-actions"><Link to="/" className="btn primary">All families</Link></div>
+          <div className="ui-state-actions"><Link to="/" className="btn primary">Your families</Link></div>
         )}
       </NotFound>
     </main>

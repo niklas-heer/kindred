@@ -11,14 +11,21 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TreeRouteImport } from './routes/$tree'
+import { Route as SetupRouteImport } from './routes/setup'
+import { Route as SigninRouteImport } from './routes/signin'
 import { Route as UiRouteImport } from './routes/ui'
 import { Route as TreeIndexRouteImport } from './routes/$tree/index'
+import { Route as TreeAccessRouteImport } from './routes/$tree/access'
 import { Route as TreeAlmanacRouteImport } from './routes/$tree/almanac'
 import { Route as TreeAtlasRouteImport } from './routes/$tree/atlas'
 import { Route as TreeChronicleRouteImport } from './routes/$tree/chronicle'
 import { Route as TreeContactsRouteImport } from './routes/$tree/contacts'
+import { Route as TreeHousesRouteImport } from './routes/$tree/houses'
 import { Route as TreeNeededRouteImport } from './routes/$tree/needed'
 import { Route as TreePeopleRouteImport } from './routes/$tree/people'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
+import { Route as TreeHouseHouseRouteImport } from './routes/$tree/house.$house'
+import { Route as ApiAuthActionRouteImport } from './routes/api/auth/$action'
 import { Route as ApiPhotoTreeIdRouteImport } from './routes/api/photo.$tree.$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -31,6 +38,16 @@ const TreeRoute = TreeRouteImport.update({
   path: '/$tree',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SetupRoute = SetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SigninRoute = SigninRouteImport.update({
+  id: '/signin',
+  path: '/signin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UiRoute = UiRouteImport.update({
   id: '/ui',
   path: '/ui',
@@ -39,6 +56,11 @@ const UiRoute = UiRouteImport.update({
 const TreeIndexRoute = TreeIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => TreeRoute,
+} as any)
+const TreeAccessRoute = TreeAccessRouteImport.update({
+  id: '/access',
+  path: '/access',
   getParentRoute: () => TreeRoute,
 } as any)
 const TreeAlmanacRoute = TreeAlmanacRouteImport.update({
@@ -61,6 +83,11 @@ const TreeContactsRoute = TreeContactsRouteImport.update({
   path: '/contacts',
   getParentRoute: () => TreeRoute,
 } as any)
+const TreeHousesRoute = TreeHousesRouteImport.update({
+  id: '/houses',
+  path: '/houses',
+  getParentRoute: () => TreeRoute,
+} as any)
 const TreeNeededRoute = TreeNeededRouteImport.update({
   id: '/needed',
   path: '/needed',
@@ -71,6 +98,21 @@ const TreePeopleRoute = TreePeopleRouteImport.update({
   path: '/people',
   getParentRoute: () => TreeRoute,
 } as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TreeHouseHouseRoute = TreeHouseHouseRouteImport.update({
+  id: '/house/$house',
+  path: '/house/$house',
+  getParentRoute: () => TreeRoute,
+} as any)
+const ApiAuthActionRoute = ApiAuthActionRouteImport.update({
+  id: '/api/auth/$action',
+  path: '/api/auth/$action',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPhotoTreeIdRoute = ApiPhotoTreeIdRouteImport.update({
   id: '/api/photo/$tree/$id',
   path: '/api/photo/$tree/$id',
@@ -80,40 +122,61 @@ const ApiPhotoTreeIdRoute = ApiPhotoTreeIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$tree': typeof TreeRouteWithChildren
+  '/setup': typeof SetupRoute
+  '/signin': typeof SigninRoute
   '/ui': typeof UiRoute
+  '/$tree/access': typeof TreeAccessRoute
   '/$tree/almanac': typeof TreeAlmanacRoute
   '/$tree/atlas': typeof TreeAtlasRoute
   '/$tree/chronicle': typeof TreeChronicleRoute
   '/$tree/contacts': typeof TreeContactsRoute
+  '/$tree/houses': typeof TreeHousesRoute
   '/$tree/needed': typeof TreeNeededRoute
   '/$tree/people': typeof TreePeopleRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/$tree/': typeof TreeIndexRoute
+  '/$tree/house/$house': typeof TreeHouseHouseRoute
+  '/api/auth/$action': typeof ApiAuthActionRoute
   '/api/photo/$tree/$id': typeof ApiPhotoTreeIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/setup': typeof SetupRoute
+  '/signin': typeof SigninRoute
   '/ui': typeof UiRoute
+  '/$tree/access': typeof TreeAccessRoute
   '/$tree/almanac': typeof TreeAlmanacRoute
   '/$tree/atlas': typeof TreeAtlasRoute
   '/$tree/chronicle': typeof TreeChronicleRoute
   '/$tree/contacts': typeof TreeContactsRoute
+  '/$tree/houses': typeof TreeHousesRoute
   '/$tree/needed': typeof TreeNeededRoute
   '/$tree/people': typeof TreePeopleRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/$tree': typeof TreeIndexRoute
+  '/$tree/house/$house': typeof TreeHouseHouseRoute
+  '/api/auth/$action': typeof ApiAuthActionRoute
   '/api/photo/$tree/$id': typeof ApiPhotoTreeIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$tree': typeof TreeRouteWithChildren
+  '/setup': typeof SetupRoute
+  '/signin': typeof SigninRoute
   '/ui': typeof UiRoute
+  '/$tree/access': typeof TreeAccessRoute
   '/$tree/almanac': typeof TreeAlmanacRoute
   '/$tree/atlas': typeof TreeAtlasRoute
   '/$tree/chronicle': typeof TreeChronicleRoute
   '/$tree/contacts': typeof TreeContactsRoute
+  '/$tree/houses': typeof TreeHousesRoute
   '/$tree/needed': typeof TreeNeededRoute
   '/$tree/people': typeof TreePeopleRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/$tree/': typeof TreeIndexRoute
+  '/$tree/house/$house': typeof TreeHouseHouseRoute
+  '/api/auth/$action': typeof ApiAuthActionRoute
   '/api/photo/$tree/$id': typeof ApiPhotoTreeIdRoute
 }
 export interface FileRouteTypes {
@@ -121,46 +184,71 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$tree'
+    | '/setup'
+    | '/signin'
     | '/ui'
+    | '/$tree/access'
     | '/$tree/almanac'
     | '/$tree/atlas'
     | '/$tree/chronicle'
     | '/$tree/contacts'
+    | '/$tree/houses'
     | '/$tree/needed'
     | '/$tree/people'
+    | '/invite/$token'
     | '/$tree/'
+    | '/$tree/house/$house'
+    | '/api/auth/$action'
     | '/api/photo/$tree/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/setup'
+    | '/signin'
     | '/ui'
+    | '/$tree/access'
     | '/$tree/almanac'
     | '/$tree/atlas'
     | '/$tree/chronicle'
     | '/$tree/contacts'
+    | '/$tree/houses'
     | '/$tree/needed'
     | '/$tree/people'
+    | '/invite/$token'
     | '/$tree'
+    | '/$tree/house/$house'
+    | '/api/auth/$action'
     | '/api/photo/$tree/$id'
   id:
     | '__root__'
     | '/'
     | '/$tree'
+    | '/setup'
+    | '/signin'
     | '/ui'
+    | '/$tree/access'
     | '/$tree/almanac'
     | '/$tree/atlas'
     | '/$tree/chronicle'
     | '/$tree/contacts'
+    | '/$tree/houses'
     | '/$tree/needed'
     | '/$tree/people'
+    | '/invite/$token'
     | '/$tree/'
+    | '/$tree/house/$house'
+    | '/api/auth/$action'
     | '/api/photo/$tree/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   TreeRoute: typeof TreeRouteWithChildren
+  SetupRoute: typeof SetupRoute
+  SigninRoute: typeof SigninRoute
   UiRoute: typeof UiRoute
+  InviteTokenRoute: typeof InviteTokenRoute
+  ApiAuthActionRoute: typeof ApiAuthActionRoute
   ApiPhotoTreeIdRoute: typeof ApiPhotoTreeIdRoute
 }
 
@@ -180,6 +268,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TreeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/setup': {
+      id: '/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signin': {
+      id: '/signin'
+      path: '/signin'
+      fullPath: '/signin'
+      preLoaderRoute: typeof SigninRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/ui': {
       id: '/ui'
       path: '/ui'
@@ -192,6 +294,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/$tree/'
       preLoaderRoute: typeof TreeIndexRouteImport
+      parentRoute: typeof TreeRoute
+    }
+    '/$tree/access': {
+      id: '/$tree/access'
+      path: '/access'
+      fullPath: '/$tree/access'
+      preLoaderRoute: typeof TreeAccessRouteImport
       parentRoute: typeof TreeRoute
     }
     '/$tree/almanac': {
@@ -222,6 +331,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TreeContactsRouteImport
       parentRoute: typeof TreeRoute
     }
+    '/$tree/houses': {
+      id: '/$tree/houses'
+      path: '/houses'
+      fullPath: '/$tree/houses'
+      preLoaderRoute: typeof TreeHousesRouteImport
+      parentRoute: typeof TreeRoute
+    }
     '/$tree/needed': {
       id: '/$tree/needed'
       path: '/needed'
@@ -236,6 +352,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TreePeopleRouteImport
       parentRoute: typeof TreeRoute
     }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$tree/house/$house': {
+      id: '/$tree/house/$house'
+      path: '/house/$house'
+      fullPath: '/$tree/house/$house'
+      preLoaderRoute: typeof TreeHouseHouseRouteImport
+      parentRoute: typeof TreeRoute
+    }
+    '/api/auth/$action': {
+      id: '/api/auth/$action'
+      path: '/api/auth/$action'
+      fullPath: '/api/auth/$action'
+      preLoaderRoute: typeof ApiAuthActionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/photo/$tree/$id': {
       id: '/api/photo/$tree/$id'
       path: '/api/photo/$tree/$id'
@@ -247,23 +384,29 @@ declare module '@tanstack/react-router' {
 }
 
 interface TreeRouteChildren {
+  TreeAccessRoute: typeof TreeAccessRoute
   TreeAlmanacRoute: typeof TreeAlmanacRoute
   TreeAtlasRoute: typeof TreeAtlasRoute
   TreeChronicleRoute: typeof TreeChronicleRoute
   TreeContactsRoute: typeof TreeContactsRoute
+  TreeHousesRoute: typeof TreeHousesRoute
   TreeNeededRoute: typeof TreeNeededRoute
   TreePeopleRoute: typeof TreePeopleRoute
   TreeIndexRoute: typeof TreeIndexRoute
+  TreeHouseHouseRoute: typeof TreeHouseHouseRoute
 }
 
 const TreeRouteChildren: TreeRouteChildren = {
+  TreeAccessRoute: TreeAccessRoute,
   TreeAlmanacRoute: TreeAlmanacRoute,
   TreeAtlasRoute: TreeAtlasRoute,
   TreeChronicleRoute: TreeChronicleRoute,
   TreeContactsRoute: TreeContactsRoute,
+  TreeHousesRoute: TreeHousesRoute,
   TreeNeededRoute: TreeNeededRoute,
   TreePeopleRoute: TreePeopleRoute,
   TreeIndexRoute: TreeIndexRoute,
+  TreeHouseHouseRoute: TreeHouseHouseRoute,
 }
 
 const TreeRouteWithChildren = TreeRoute._addFileChildren(TreeRouteChildren)
@@ -271,7 +414,11 @@ const TreeRouteWithChildren = TreeRoute._addFileChildren(TreeRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   TreeRoute: TreeRouteWithChildren,
+  SetupRoute: SetupRoute,
+  SigninRoute: SigninRoute,
   UiRoute: UiRoute,
+  InviteTokenRoute: InviteTokenRoute,
+  ApiAuthActionRoute: ApiAuthActionRoute,
   ApiPhotoTreeIdRoute: ApiPhotoTreeIdRoute,
 }
 export const routeTree = rootRouteImport

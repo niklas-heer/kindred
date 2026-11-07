@@ -1,15 +1,24 @@
 import { useQuery } from '@tanstack/react-query';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { Cake, Shield } from 'lucide-react';
+import { AccountMenu } from '~/components/AccountMenu';
 import { Arms } from '~/components/Heraldry';
 import { PageHeader, EmptyState, ErrorState, Skeleton } from '~/components/ui';
-import { treesQuery } from '~/lib/api';
+import { myFamiliesQuery, sessionQuery } from '~/lib/auth/functions';
 import '~/styles/home.css';
 
-export const Route = createFileRoute('/')({ component: Home });
+export const Route = createFileRoute('/')({
+  beforeLoad: async ({ context }) => {
+    const session = await context.queryClient.ensureQueryData(sessionQuery);
+    if (session.needsSetup) throw redirect({ to: '/setup' });
+    if (!session.user) throw redirect({ to: '/signin' });
+  },
+  component: Home,
+});
 function Home() {
-  const { data: trees = [], isPending, isError, refetch } = useQuery(treesQuery);
+  // Only the families the reader belongs to.
+  const { data: trees = [], isPending, isError, refetch } = useQuery(myFamiliesQuery);
   const [last, setLast] = useState<{ tree: string; person: string; name: string } | null>(null);
   useEffect(() => {
     try {
@@ -21,10 +30,10 @@ function Home() {
   }, []);
   const birthdays = trees.flatMap((t) => (t.birthdays ?? []).map((p) => ({ ...p, tree: t.id, family: t.name })));
   return <main className="home"><div className="home-inner">
-    <PageHeader title="Kindred" subtitle="A family tree you can live in. Pick a family." />
+    <PageHeader title="Kindred" subtitle="A family tree you can live in. Pick a family." actions={<AccountMenu />} />
     {isPending ? <div className="home-grid" aria-busy="true" aria-label="Loading families">{[0, 1, 2].map((i) => <div className="ui-card" key={i} style={{ padding: 24 }}><Skeleton height={84} width={84} radius="50%" /><Skeleton lines={3} /></div>)}</div>
       : isError ? <ErrorState title="Could not load your families" onRetry={() => { void refetch(); }} />
-      : trees.length === 0 ? <EmptyState icon={<Shield size={30} />} title="Your family starts here" text="There are no families in your library yet. Once a family is added, it will appear here." /> : <>
+      : trees.length === 0 ? <EmptyState icon={<Shield size={30} />} title="No families yet" text="You don’t belong to a family here yet. When a steward invites you, open their link and the family will appear here." /> : <>
       {last && trees.some((t) => t.id === last.tree) && <Link className="home-continue ui-card interactive" to="/$tree" params={{ tree: last.tree }} search={{ focus: last.person }}>Continue where you left off <b>{last.name}</b><span aria-hidden>→</span></Link>}
       <div className="home-grid">{trees.map((t) => <div className="home-banner" key={t.id}><Link to="/$tree" params={{ tree: t.id }} className="home-card ui-card interactive" onClick={() => { try { localStorage.setItem('kindred:last-visit', JSON.stringify({ tree: t.id, person: t.focus, name: t.name })); } catch {} }}><span className="home-card-in">
         <span className="home-crest" aria-hidden>{t.crest ? <Arms arms={t.crest} size={80} /> : <Shield size={60} />}</span>
