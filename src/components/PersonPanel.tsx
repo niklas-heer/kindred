@@ -16,6 +16,7 @@ import {
 import { setPref, usePref } from '~/lib/prefs';
 import type { GPerson, PersonDetail, Story } from '~/lib/types';
 import { TRAITS } from '~/lib/traits';
+import { validDate } from '~/lib/dates';
 import { GAP_LABEL, GAP_WHERE, gapsOf, useRequired } from '~/lib/gaps';
 import { GameIcon } from './GameIcon';
 import { Arms } from './Heraldry';
@@ -457,6 +458,7 @@ function Fact({ icon, label, children }: { icon: ReactNode; label: string; child
 
 function EditTab({ tree, p, detail, done, onRemoved }: { tree: string; p: GPerson; detail: PersonDetail; done: () => void; onRemoved: () => void }) {
   const qc = useQueryClient();
+  const [saveError, setSaveError] = useState<string | null>(null);
   const remove = useMutation({
     mutationFn: () => removePerson({ data: { tree, id: p.id } }),
     onSuccess: async () => {
@@ -471,12 +473,17 @@ function EditTab({ tree, p, detail, done, onRemoved }: { tree: string; p: GPerso
       title: p.title ?? '', epithet: p.epithet ?? '', occupation: p.occupation ?? '', favourite: detail.favourite ?? '', bio: detail.bio ?? '',
     },
     onSubmit: async ({ value }) => {
-      await updatePerson({ data: { tree, id: p.id, patch: { ...value, sex: value.sex || null } } });
-      await Promise.all([qc.invalidateQueries({ queryKey: ['graph', tree] }), qc.invalidateQueries({ queryKey: ['person', tree, p.id] })]);
-      done();
+      setSaveError(null);
+      try {
+        await updatePerson({ data: { tree, id: p.id, patch: { ...value, sex: value.sex || null } } });
+        await Promise.all([qc.invalidateQueries({ queryKey: ['graph', tree] }), qc.invalidateQueries({ queryKey: ['person', tree, p.id] })]);
+        done();
+      } catch (e) {
+        setSaveError(e instanceof Error ? e.message : 'Could not save');
+      }
     },
   });
-  const date = ({ value }: { value: string }) => (value === '' || /^~?\d{3,4}(-\d\d(-\d\d)?)?$/.test(value) ? undefined : 'Use 1953, 1953-08 or 1953-08-08; ~1953 for about');
+  const date = ({ value }: { value: string }) => (value === '' || validDate(value.trim()) ? undefined : 'A real date: 1953, 1953-08 or 1953-08-08; ~1953 for about');
   const text = (name: any, label: string, opts: { placeholder?: string; validate?: typeof date; wide?: boolean } = {}) => (
     <form.Field name={name} validators={opts.validate ? { onChange: opts.validate } : undefined}>
       {(field: any) => (
@@ -527,6 +534,7 @@ function EditTab({ tree, p, detail, done, onRemoved }: { tree: string; p: GPerso
           </label>
         )}
       </form.Field>
+      {saveError && <em className="err wide">{saveError}</em>}
       <div className="row end wide">
         <button
           type="button"

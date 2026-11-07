@@ -71,6 +71,24 @@ function Atlas() {
   const speedPref = usePref('atlas-speed');
   const speed = [0.5, 1, 2, 4].includes(Number(speedPref)) ? Number(speedPref) : 1;
   const [feedOpen, setFeedOpen] = useState(false);
+  // After a replay reaches the end, the chronicle bows out a few seconds later, unless the reader
+  // scrubs or opens it themselves meanwhile. (Its own effect: the replay's cleanup must not cancel it.)
+  const finished = useRef(false);
+  useEffect(() => {
+    if (playing || !finished.current || year !== y1 || feedOpen) return;
+    const t = window.setTimeout(() => { finished.current = false; setYear((y) => (y === y1 ? null : y)); }, 4000);
+    return () => clearTimeout(t);
+  }, [playing, year, y1, feedOpen]);
+  // The time bar's real height, so the chronicle always sits clear above it.
+  const timeBar = useRef<HTMLDivElement>(null);
+  const atlasEl = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = timeBar.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => atlasEl.current?.style.setProperty('--time-h', `${Math.round(el.getBoundingClientRect().height)}px`));
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
   const [feedLimit, setFeedLimit] = useState(300);
   const [moves, setMoves] = useState(true);
   const [heraldry, setHeraldry] = useState(false);
@@ -86,18 +104,18 @@ function Atlas() {
     while (past < n && events[past].year <= cursor && cursor < y1) past++;
     const span = duration / speed;
     const start = performance.now() - (past / n) * span;
-    let raf = 0, end = 0;
+    let raf = 0;
+    finished.current = false;
     const step = (t: number) => {
       const idx = Math.min(n - 1, Math.floor(((t - start) / span) * n));
       setYear(events[idx].year);
       if (idx >= n - 1) {
         setPlaying(false);
-        // The chronicle bows out a few seconds after the end, unless someone scrubs meanwhile.
-        end = window.setTimeout(() => setYear((y) => (y === y1 ? null : y)), 4000);
+        finished.current = true;
       } else raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
-    return () => { cancelAnimationFrame(raf); clearTimeout(end); };
+    return () => cancelAnimationFrame(raf);
   }, [playing, speed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pins: people per place up to the cursor year.
@@ -196,7 +214,7 @@ function Atlas() {
   };
 
   return (
-    <div className="atlas">
+    <div className="atlas" ref={atlasEl}>
       <aside className="atlas-side panel">
         <header>
           <h1 className="display">Atlas</h1>
@@ -255,7 +273,7 @@ function Atlas() {
           />
         )}
         {events.length > 0 && (
-          <div className="atlas-time panel">
+          <div className="atlas-time panel" ref={timeBar}>
             <button className="btn icon primary" onClick={() => { if (cursor >= y1) setYear(y0); setPlaying((p) => !p); }} title={playing ? 'Pause' : 'Replay through time'}>
               {playing ? <Pause size={16} /> : <Play size={16} />}
             </button>
@@ -277,14 +295,14 @@ function Atlas() {
               {speed === 0.5 ? '½×' : `${speed}×`}
             </button>
             <button className="btn" aria-pressed={showFeed} onClick={() => (showFeed ? (setFeedOpen(false), setYear(null), setPlaying(false)) : setFeedOpen(true))} title="Open the chronicle of everything up to this year">
-              <ScrollText size={15} /> Chronicle
+              <ScrollText size={15} /> <span className="tb-label">Chronicle</span>
             </button>
             <button className="btn" aria-pressed={heraldry} onClick={() => { if (!heraldry) play('seal'); setHeraldry((h) => !h); }} title="Show each place by the arms of the house most of its people belong to">
-              <Shield size={15} /> Arms
+              <Shield size={15} /> <span className="tb-label">Arms</span>
             </button>
             {(mode === 'births' || mode === 'all') && (
               <button className="btn" aria-pressed={moves} onClick={() => setMoves((m) => !m)} title="Show moves from a mother's birthplace to her child's">
-                <RouteIcon size={15} /> Moves
+                <RouteIcon size={15} /> <span className="tb-label">Moves</span>
               </button>
             )}
           </div>
@@ -648,7 +666,7 @@ function Chronicle({ rows, more, onMore, cursor, playing, f, tree, heraldry, onS
   }, [rows]);
 
   return (
-    <section className="atlas-feed panel" aria-live={playing ? 'off' : 'polite'}>
+    <section className={`atlas-feed panel${playing ? ' playing' : ''}`} aria-live={playing ? 'off' : 'polite'}>
       <header>
         <b>Chronicle</b>
         {away ? (
@@ -678,7 +696,7 @@ function Chronicle({ rows, more, onMore, cursor, playing, f, tree, heraldry, onS
             )}
           </li>
         ))}
-        {more && <button className="btn feed-more" onClick={onMore}>Show earlier</button>}
+        {more && <li className="feed-more-row"><button className="btn feed-more" onClick={onMore}>Show earlier</button></li>}
       </ol>
     </section>
   );

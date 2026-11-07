@@ -3,6 +3,8 @@ import { useForm } from '@tanstack/react-form';
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, X } from 'lucide-react';
 import { addRelative } from '~/lib/api';
+import { validDate } from '~/lib/dates';
+import { useState } from 'react';
 import { displayName, partnersOf, type Family } from '~/lib/graph';
 import type { AddRelation } from './Card';
 import './quickadd.css';
@@ -12,6 +14,7 @@ const TITLE: Record<AddRelation, string> = { parent: 'Add a parent of', child: '
 export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onCancel }: {
   family: Family; tree: string; anchor: string; relation: AddRelation; sex?: 'm' | 'f'; onDone: (id: string, person: { given: string; sex?: string }) => void; onCancel: () => void;
 }) {
+  const [error, setError] = useState<string | null>(null);
   const qc = useQueryClient();
   const a = f.byId.get(anchor)!;
   const partners = partnersOf(f, anchor).map((id) => f.byId.get(id)!).filter(Boolean);
@@ -26,6 +29,8 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onCan
       coParent: relation === 'child' && partners.length === 1 ? partners[0].id : '',
     },
     onSubmit: async ({ value }) => {
+      setError(null);
+      try {
       const id = await addRelative({
         data: {
           tree, anchor, relation,
@@ -35,9 +40,12 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onCan
       });
       await qc.invalidateQueries({ queryKey: ['graph', tree] });
       onDone(id, { given: value.given, sex: value.sex || undefined });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Could not add them');
+      }
     },
   });
-  const date = ({ value }: { value: string }) => (value === '' || /^~?\d{3,4}(-\d\d(-\d\d)?)?$/.test(value) ? undefined : '1990, 1990-05 or 1990-05-17');
+  const date = ({ value }: { value: string }) => (value === '' || validDate(value.trim()) ? undefined : 'A real date: 1990, 1990-05 or 1990-05-17');
 
   return (
     <div className="qa-backdrop" onMouseDown={onCancel}>
@@ -112,7 +120,7 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onCan
           </form.Field>
         </div>
         <footer>
-          <span className="faint">Everything else can wait. You can add details later.</span>
+          {error ? <span className="err">{error}</span> : <span className="faint">Everything else can wait. You can add details later.</span>}
           <form.Subscribe selector={(s) => s.isSubmitting}>
             {(busy) => <button className="btn primary" disabled={busy}><Check size={14} /> Add <kbd>↵</kbd></button>}
           </form.Subscribe>

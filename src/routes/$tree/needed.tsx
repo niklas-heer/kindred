@@ -26,6 +26,8 @@ function Needed() {
   const [limit, setLimit] = useState(120);
   const setOnly = (g: GapKey | null) => { setOnlyRaw(g); setLimit(120); };
   const [blaze, setBlaze] = useState<string[] | null>(null);
+  // A filtered run asks only for that kind of gap; "Fill in" on a row asks for everything.
+  const [blazeOnly, setBlazeOnly] = useState<GapKey | null>(null);
   const [settings, setSettings] = useState(false);
 
   // Steps from you through parents, children and partners: who is closest gets asked first.
@@ -75,7 +77,7 @@ function Needed() {
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" aria-pressed={settings} onClick={() => setSettings((s) => !s)}>What counts?</button>
             {shown.length > 0 && (
-              <button className="btn primary" onClick={() => { play('seal'); setBlaze(shown.map((r) => r.p.id)); }} title="One person at a time, only what is missing: ↵ saves and moves on">
+              <button className="btn primary" onClick={() => { play('seal'); setBlazeOnly(only); setBlaze(shown.map((r) => r.p.id)); }} title="One person at a time, only what is missing: ↵ saves and moves on">
                 <Flame size={16} /> Blaze through {only ? GAP_LABEL[only].toLowerCase() : 'everything'}
               </button>
             )}
@@ -119,7 +121,7 @@ function Needed() {
                   <div className="needed-gaps">
                     {gaps.map((g) => <button key={g} className={`chip${only === g ? ' on' : ''}`} onClick={() => setOnly(only === g ? null : g)} title={`Show everyone missing: ${GAP_LABEL[g]}`}>{GAP_LABEL[g]}</button>)}
                   </div>
-                  <button className="btn" onClick={() => setBlaze([p.id, ...shown.map((r) => r.p.id).filter((id) => id !== p.id)])}>Fill in</button>
+                  <button className="btn" onClick={() => { setBlazeOnly(null); setBlaze([p.id, ...shown.map((r) => r.p.id).filter((id) => id !== p.id)]); }} title="Fill in this person, then carry on down the list">Fill in</button>
                 </li>
               );
             })}
@@ -127,7 +129,7 @@ function Needed() {
         )}
         {shown.length > limit && <button className="btn needed-more" onClick={() => setLimit((l) => l + 200)}>Show {Math.min(200, shown.length - limit)} more</button>}
       </div>
-      {blaze && <Blaze queue={blaze} f={f} tree={tree} me={me} required={required} onClose={() => setBlaze(null)} />}
+      {blaze && <Blaze queue={blaze} only={blazeOnly} f={f} tree={tree} me={me} required={required} onClose={() => setBlaze(null)} />}
     </div>
   );
 }
@@ -139,7 +141,7 @@ type Values = Partial<Record<'born' | 'bornPlace' | 'died' | 'occupation' | 'fat
   photo?: File;
 };
 
-function Blaze({ queue, f, tree, me, required, onClose }: { queue: string[]; f: Family; tree: string; me: string; required: ReadonlySet<GapKey>; onClose: () => void }) {
+function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[]; only: GapKey | null; f: Family; tree: string; me: string; required: ReadonlySet<GapKey>; onClose: () => void }) {
   const qc = useQueryClient();
   const author = usePref('author') ?? '';
   const [i, setI] = useState(0);
@@ -152,7 +154,8 @@ function Blaze({ queue, f, tree, me, required, onClose }: { queue: string[]; f: 
 
   const id = queue[i];
   const p = id ? f.byId.get(id) : undefined;
-  const gaps = p ? gapsOf(f, p, required) : [];
+  const gaps = p ? gapsOf(f, p, required).filter((g) => !only || g === only) : [];
+  const dialog = useRef<HTMLDivElement>(null);
   const done = i >= queue.length;
 
   // Someone already complete (filled in elsewhere) is passed over.
@@ -160,9 +163,10 @@ function Blaze({ queue, f, tree, me, required, onClose }: { queue: string[]; f: 
     if (!done && p && !gaps.length) setI((x) => x + 1);
   }, [done, p, gaps.length]);
   useEffect(() => {
-    setV({ fatherSurname: p?.surname, contactKind: 'phone', born: gaps.includes('birthday') ? `${p?.born ?? ''}-` : undefined });
+    setV({ fatherSurname: p?.surname, contactKind: 'phone', born: gaps.includes('birthday') && p?.born ? `${p.born}-` : undefined });
     setError(null);
-    requestAnimationFrame(() => first.current?.focus());
+    // Focus the first field; with none that takes focus (a photo, a memory box), the dialog itself, so ↵ and Esc still work.
+    requestAnimationFrame(() => (first.current ?? dialog.current)?.focus());
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (done) play('fanfare'); }, [done]);
 
@@ -196,11 +200,12 @@ function Blaze({ queue, f, tree, me, required, onClose }: { queue: string[]; f: 
         did = true;
         for (const k of ['born', 'bornPlace', 'died', 'sex', 'occupation'] as const) delete rest[k];
       }
+      const slots = parentSlots(f, p.id, gaps);
       for (const [as, gk, sk] of [['m', 'fatherGiven', 'fatherSurname'], ['f', 'motherGiven', 'motherSurname']] as const) {
         const given = rest[gk]?.trim();
         if (!given) continue;
         // Parents of someone born after 1950 may well be alive.
-        await addRelative({ data: { tree, anchor: p.id, relation: 'parent', person: { given, surname: rest[sk]?.trim() || undefined, sex: as, living: parseInt(p.born ?? '0', 10) >= 1950 } } });
+        await addRelative({ data: { tree, anchor: p.id, relation: 'parent', person: { given, surname: rest[sk]?.trim() || undefined, sex: slots.includes('x') ? undefined : as, living: parseInt(p.born ?? '0', 10) >= 1950 } } });
         did = true;
         delete rest[gk];
         delete rest[sk];
@@ -230,11 +235,12 @@ function Blaze({ queue, f, tree, me, required, onClose }: { queue: string[]; f: 
       setV(rest);
       setError(`${did ? 'Partly saved. ' : ''}${e instanceof Error ? e.message : 'Could not save'}`);
     } finally {
+      // The next person is ready at once; the tree refreshes in the background.
+      setBusy(false);
       if (did) {
-        await qc.invalidateQueries({ queryKey: ['graph', tree] });
+        qc.invalidateQueries({ queryKey: ['graph', tree] });
         qc.invalidateQueries({ queryKey: ['person', tree, p.id] });
       }
-      setBusy(false);
     }
   };
 
@@ -251,7 +257,7 @@ function Blaze({ queue, f, tree, me, required, onClose }: { queue: string[]; f: 
   if (done) {
     return (
       <div className="blaze-backdrop" onMouseDown={onClose}>
-        <div className="blaze panel" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="blaze panel" onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.key === 'Escape' && onClose()} role="dialog" aria-modal="true" aria-label="Done">
           <div className="blaze-done">
             <GameIcon name="wax-seal" size={56} />
             <h2 className="display">The chronicle grows</h2>
@@ -264,15 +270,13 @@ function Blaze({ queue, f, tree, me, required, onClose }: { queue: string[]; f: 
   }
   if (!p) return null;
   const k = p.id === me ? 'you' : kinship(f, me, p.id)?.label;
-  const missingParents = gaps.includes('parents')
-    ? (['m', 'f'] as const).filter((sx) => !parents(f, p.id).some((q) => f.byId.get(q)?.sex === sx) && parents(f, p.id).length < 2)
-    : [];
+  const missingParents = parentSlots(f, p.id, gaps);
   let firstSet = false;
   const firstRef = <T extends HTMLInputElement | HTMLButtonElement>() => (firstSet ? undefined : ((firstSet = true), (el: T | null) => { first.current = el; }));
 
   return (
     <div className="blaze-backdrop" onMouseDown={onClose}>
-      <div className="blaze panel" onMouseDown={(e) => e.stopPropagation()} onKeyDown={onKey} role="dialog" aria-label={`Fill in ${displayName(p, f)}`}>
+      <div ref={dialog} tabIndex={-1} className="blaze panel" onMouseDown={(e) => e.stopPropagation()} onKeyDown={onKey} role="dialog" aria-modal="true" aria-label={`Fill in ${displayName(p, f)}`}>
         <div className="blaze-progress"><i style={{ width: `${(i / queue.length) * 100}%` }} /></div>
         <div className="blaze-top">
           <span>{i + 1} of {queue.length} · {filled} filled</span>
@@ -290,7 +294,7 @@ function Blaze({ queue, f, tree, me, required, onClose }: { queue: string[]; f: 
           {(gaps.includes('born') || gaps.includes('birthday')) && (
             <label className="field">
               <span>{gaps.includes('birthday') ? 'Full birthday' : 'Born'}</span>
-              <input ref={firstRef()} className="input" value={v.born ?? ''} onChange={set('born')} placeholder={gaps.includes('birthday') ? `${p.born}-05-17` : '1953, 1953-08-08 or ~1890'} />
+              <input ref={firstRef()} className="input" value={v.born ?? ''} onChange={set('born')} placeholder={gaps.includes('birthday') ? `${p.born ?? '1988'}-05-17` : '1953, 1953-08-08 or ~1890'} />
             </label>
           )}
           {gaps.includes('birthplace') && (
@@ -323,10 +327,10 @@ function Blaze({ queue, f, tree, me, required, onClose }: { queue: string[]; f: 
           )}
           {missingParents.map((sx) => (
             <div key={sx} className="field wide">
-              <span>{sx === 'm' ? 'Father' : 'Mother'}</span>
+              <span>{sx === 'm' ? 'Father' : sx === 'f' ? 'Mother' : 'Other parent'}</span>
               <div className="blaze-parent">
-                <input ref={firstRef()} className="input" value={(sx === 'm' ? v.fatherGiven : v.motherGiven) ?? ''} onChange={set(sx === 'm' ? 'fatherGiven' : 'motherGiven')} placeholder="Given name" />
-                <input className="input" value={(sx === 'm' ? v.fatherSurname : v.motherSurname) ?? ''} onChange={set(sx === 'm' ? 'fatherSurname' : 'motherSurname')} placeholder="Surname at birth" />
+                <input ref={firstRef()} className="input" value={(sx === 'f' ? v.motherGiven : v.fatherGiven) ?? ''} onChange={set(sx === 'f' ? 'motherGiven' : 'fatherGiven')} placeholder="Given name" />
+                <input className="input" value={(sx === 'f' ? v.motherSurname : v.fatherSurname) ?? ''} onChange={set(sx === 'f' ? 'motherSurname' : 'fatherSurname')} placeholder="Surname at birth" />
               </div>
             </div>
           ))}
@@ -370,3 +374,16 @@ function Blaze({ queue, f, tree, me, required, onClose }: { queue: string[]; f: 
   );
 }
 
+
+/**
+ * Which parent fields to offer: both when none is known; the missing one when one is known; a single
+ * "other parent" when the known one's sex is not recorded (so nobody ends up with three parents).
+ */
+function parentSlots(f: Family, id: string, gaps: GapKey[]): ('m' | 'f' | 'x')[] {
+  if (!gaps.includes('parents')) return [];
+  const known = parents(f, id);
+  if (known.length >= 2) return [];
+  if (!known.length) return ['m', 'f'];
+  const sx = f.byId.get(known[0])?.sex;
+  return sx === 'm' ? ['f'] : sx === 'f' ? ['m'] : ['x'];
+}

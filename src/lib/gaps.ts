@@ -53,7 +53,7 @@ export function gapsOf(f: Family, p: GPerson, required: ReadonlySet<GapKey> = ne
   const want = (k: GapKey) => required.has(k);
   if (want('born') && !p.born) out.push('born');
   // Living people need a full date, so the Almanac can remind the family of their birthday.
-  if (want('birthday') && p.born && p.living && !/^\d{4}-\d\d-\d\d$/.test(p.born)) out.push('birthday');
+  if (want('birthday') && p.living && !/^\d{4}-\d\d-\d\d$/.test(p.born ?? '') && !(want('born') && !p.born)) out.push('birthday');
   if (want('birthplace') && !p.bornPlace) out.push('birthplace');
   // Both slots, as in the ancestors view: one known parent still leaves the other to find.
   if (want('parents') && parents(f, p.id).length < 2) out.push('parents');

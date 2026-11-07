@@ -49,3 +49,4 @@
 .blaze .err { font-size: 12px; }
 @media (max-width: 600px) { .blaze-fields { grid-template-columns: 1fr; } }
 .blaze-file { justify-content: flex-start; width: fit-content; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.blaze:focus { outline: none; }

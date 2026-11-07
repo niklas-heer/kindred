@@ -290,10 +290,14 @@ function TreePage() {
       action: {
         label: 'Undo',
         run: async () => {
-          await removePerson({ data: { tree, id } });
-          await qc.invalidateQueries({ queryKey: ['graph', tree] });
-          go({ sel: anchor === focus ? undefined : anchor });
-          play('page');
+          try {
+            await removePerson({ data: { tree, id } });
+            await qc.invalidateQueries({ queryKey: ['graph', tree] });
+            go({ sel: anchor === focus ? undefined : anchor });
+            play('page');
+          } catch (e) {
+            toast({ title: 'Could not undo', body: e instanceof Error ? e.message : 'Remove them from their Edit tab instead.' });
+          }
         },
       },
     });
