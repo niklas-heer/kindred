@@ -1,7 +1,8 @@
+import { PageSkeleton, ErrorState, PageHeader, EmptyState, Select } from '~/components/ui';
 // Information needed: the family's research to-do list, nearest relatives first, and a way to
 // blaze through it: one person at a time, only the missing fields, save and on to the next.
 import { useQueryClient } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
+import { useRouter, createFileRoute } from '@tanstack/react-router';
 import { Camera, Check, Flame, SkipForward, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { GameIcon } from '~/components/GameIcon';
@@ -18,17 +19,20 @@ import '~/styles/needed.css';
 import { sectionHead } from '~/lib/title';
 
 export const Route = createFileRoute('/$tree/needed')({
+  pendingComponent: PageSkeleton,
+  errorComponent: function PageError() { const router = useRouter(); return <div className="page"><PageHeader title="Information needed" /><ErrorState message="This page could not be loaded." onRetry={() => { void router.invalidate(); }} /></div>; },
   head: sectionHead('Information needed'), component: Needed });
 
 function Needed() {
   const f = useFamily();
   const tree = useTreeId();
+  usePageTrail('needed', tree);
   const me = useMe();
   // Kinship labels only once the reader has said who they are.
   const who = useMeChosen();
   const [required, setRequired] = useRequired(tree);
-  const [only, setOnlyRaw] = useState<GapKey | null>(null);
-  const [limit, setLimit] = useState(120);
+  const [only, setOnlyRaw] = useRememberedState<GapKey | null>(`needed:${tree}:only`, null);
+  const [limit, setLimit] = useRememberedState(`needed:${tree}:limit`, 120);
   const setOnly = (g: GapKey | null) => { setOnlyRaw(g); setLimit(120); };
   const [blaze, setBlaze] = useState<string[] | null>(null);
   // A filtered run asks only for that kind of gap; "Fill in" on a row asks for everything.
@@ -71,23 +75,17 @@ function Needed() {
   return (
     <div className="page">
       <div className="page-inner needed">
-        <div className="needed-head">
-          <div>
-            <h1 className="display">Information needed</h1>
-            <p className="muted">
+        <PageHeader title="Information needed" subtitle={<>
               {rows.length.toLocaleString('en-GB')} of {f.graph.people.length.toLocaleString('en-GB')} people have something still to find out.
               {' '}{complete > 0 && <>{complete.toLocaleString('en-GB')} are complete.</>} Closest relatives first: they are the easiest to ask.
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+            </>} actions={<div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" aria-pressed={settings} onClick={() => setSettings((s) => !s)}>What counts?</button>
             {shown.length > 0 && (
               <button className="btn primary" onClick={() => { play('seal'); setBlazeOnly(only); setBlaze(shown.map((r) => r.p.id)); }} title="One person at a time, only what is missing: ↵ saves and moves on">
                 <Flame size={16} /> Blaze through {only ? GAP_LABEL[only].toLowerCase() : 'everything'}
               </button>
             )}
-          </div>
-        </div>
+          </div>} />
 
         {settings && (
           <div className="needed-settings">
@@ -111,20 +109,20 @@ function Needed() {
           ))}
         </div>
         {shown.length === 0 ? (
-          <p className="empty"><GameIcon name="wax-seal" size={28} /><br />Nothing missing here. The chroniclers would be proud.</p>
+          <EmptyState icon={<GameIcon name="wax-seal" size={28} />} title={only ? 'No one has this gap' : f.graph.people.length ? 'Everything counted is complete' : 'No people recorded yet'} text={only ? 'Try another filter to continue your research.' : 'Choose “What counts?” to decide which details to collect.'} action={only ? <button className="btn" onClick={() => setOnly(null)}>Clear filter</button> : undefined} />
         ) : (
           <ol className="needed-list">
             {shown.slice(0, limit).map(({ p, gaps }) => {
-              const k = !who ? undefined : p.id === who ? 'you' : kinship(f, who, p.id, myAnc)?.label;
+              const k = !who ? undefined : p.id === who ? 'you' : safeRelation(f, who, p.id, myAnc);
               return (
-                <li key={p.id} className="panel">
-                  <Portrait person={p} tree={tree} size={48} />
+                <li key={p.id} className="ui-card">
+                  <span className="needed-ring" style={{ '--filled': `${required.size ? (required.size - gaps.length) / required.size * 100 : 100}%` } as React.CSSProperties} title={`${required.size - gaps.length} of ${required.size} counted fields filled`}><Portrait person={p} tree={tree} size={48} /></span>
                   <div className="needed-who">
-                    <b className="display">{displayName(p, f)}</b>
+                    <b>{displayName(p, f)}</b>
                     <span className="muted">{[lifespan(p), k && (k === 'you' ? 'you' : `your ${k}`)].filter(Boolean).join(' · ')}</span>
-                  </div>
                   <div className="needed-gaps">
                     {gaps.map((g) => <button key={g} className={`chip${only === g ? ' on' : ''}`} onClick={() => setOnly(only === g ? null : g)} title={`Show everyone missing: ${GAP_LABEL[g]}`}>{GAP_LABEL[g]}</button>)}
+                  </div>
                   </div>
                   <button className="btn" onClick={() => { setBlazeOnly(null); setBlaze([p.id, ...shown.map((r) => r.p.id).filter((id) => id !== p.id)]); }} title="Fill in this person, then carry on down the list">Fill in</button>
                 </li>
@@ -152,6 +150,7 @@ function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[
   const [i, setI] = useState(0);
   const [filled, setFilled] = useState(0);
   const [skipped, setSkipped] = useState(0);
+  const [stamped, setStamped] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [v, setV] = useState<Values>({});
@@ -242,7 +241,7 @@ function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[
         did = true;
         delete rest.photo;
       }
-      if (did) play('chime');
+      if (did) { play('seal'); setStamped(true); setTimeout(() => setStamped(false), 900); }
       next(did);
     } catch (e) {
       setV(rest);
@@ -282,13 +281,14 @@ function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[
     );
   }
   if (!p) return null;
-  const k = !me ? undefined : p.id === me ? 'you' : kinship(f, me, p.id)?.label;
+  const k = !me ? undefined : p.id === me ? 'you' : safeRelation(f, me, p.id);
   const missingParents = parentSlots(f, p.id, gaps);
   let firstSet = false;
   const firstRef = <T extends HTMLInputElement | HTMLButtonElement | HTMLTextAreaElement>() => (firstSet ? undefined : ((firstSet = true), (el: T | null) => { first.current = el; }));
 
   return (
     <Dialog open onClose={onClose} variant="event" label={`Fill in ${displayName(p, f)}`} bare width={640} className="blaze" panelRef={dialog} onKeyDown={onKey} dirty={dirty && !busy}>
+        {stamped && <div className="blaze-stamp" role="status"><GameIcon name="wax-seal" size={42} /><span>Recorded</span></div>}
         <div className="blaze-progress"><i style={{ width: `${(i / queue.length) * 100}%` }} /></div>
         <div className="blaze-top">
           <span>{i + 1} of {queue.length} · {filled} filled</span>
@@ -350,9 +350,7 @@ function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[
             <div className="field wide">
               <span>Contact</span>
               <div className="blaze-parent" style={{ gridTemplateColumns: '120px 1fr' }}>
-                <select className="input" value={v.contactKind} onChange={set('contactKind')}>
-                  <option value="phone">Phone</option><option value="email">Email</option><option value="address">Address</option>
-                </select>
+                <Select value={v.contactKind ?? 'phone'} onChange={(value) => setV((x) => ({ ...x, contactKind: value }))} aria-label="Contact kind" options={[{ value: 'phone', label: 'Phone' }, { value: 'email', label: 'Email' }, { value: 'address', label: 'Address' }]} />
                 <input ref={firstRef()} className="input" value={v.contactValue ?? ''} onChange={set('contactValue')} placeholder="+49 …, name@example.com, Street 1, Town" />
               </div>
             </div>
@@ -397,4 +395,59 @@ function parentSlots(f: Family, id: string, gaps: GapKey[]): ('m' | 'f' | 'x')[]
   if (!known.length) return ['m', 'f'];
   const sx = f.byId.get(known[0])?.sex;
   return sx === 'm' ? ['f'] : sx === 'f' ? ['m'] : ['x'];
+}
+
+// Restore after hydration, so stored preferences never change server-rendered markup.
+function useRememberedState<T>(key: string, fallback: T): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const [value, setValue] = useState<T>(fallback);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(key);
+      if (stored !== null) setValue(JSON.parse(stored) as T);
+
+    } catch { /* Private browsing can disable storage. */ }
+    setReady(true);
+  }, [key]);
+  useEffect(() => {
+    if (!ready) return;
+    try {
+      sessionStorage.setItem(key, JSON.stringify(value));
+
+    } catch { /* Keeping filters in memory still works. */ }
+  }, [key, value, ready]);
+  return [value, setValue];
+}
+function usePageTrail(page: string, tree: string) {
+  useEffect(() => {
+    const key = `kindred:scroll:${tree}:${page}`;
+    const restore = () => {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(key) ?? '{}') as Record<string, number>;
+        for (const selector of [':root', '.page', '.reg-scroll']) {
+          const el = document.querySelector(selector);
+          if (el) el.scrollTop = saved[selector] ?? 0;
+        }
+      } catch {}
+    };
+    const timer = window.setTimeout(() => { restore(); document.addEventListener('scroll', scroll, true); }, 450);
+    const scroll = () => {
+      try { sessionStorage.setItem(key, JSON.stringify(Object.fromEntries([':root', '.page', '.reg-scroll'].map((selector) => [selector, document.querySelector(selector)?.scrollTop ?? 0])))); } catch {}
+    };
+    const click = (event: MouseEvent) => {
+      const link = (event.target as Element).closest('a');
+      if (!link) return;
+      const url = new URL(link.href);
+      const person = url.searchParams.get('focus');
+      if (person && url.pathname === `/${tree}`) {
+        try { localStorage.setItem('kindred:last-visit', JSON.stringify({ tree, person, name: link.textContent?.trim() || 'your family' })); } catch {}
+      }
+    };
+    document.addEventListener('click', click, true);
+    return () => { clearTimeout(timer); document.removeEventListener('scroll', scroll, true); document.removeEventListener('click', click, true); };
+  }, [page, tree]);
+}
+
+function safeRelation(f: Family, me: string, id: string, ancestors?: Map<string, number>) {
+  try { return kinship(f, me, id, ancestors)?.label; } catch { return undefined; }
 }

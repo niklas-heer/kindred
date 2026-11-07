@@ -1,8 +1,9 @@
+import { PageHeader, Skeleton, ErrorState } from '~/components/ui';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ChefHat, Clock, Quote, Search, Sparkles, StickyNote } from 'lucide-react';
 import { Marked } from 'marked';
-import { useMemo, useState, type ComponentType } from 'react';
+import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { GameIcon } from '~/components/GameIcon';
 import { Portrait } from '~/components/Portrait';
 import { chronicleQuery } from '~/lib/api';
@@ -80,11 +81,12 @@ type Tab = 'recent' | 'sayings';
 function ChroniclePage() {
   const f = useFamily();
   const tree = useTreeId();
-  const { data, isPending } = useQuery(chronicleQuery(tree));
-  const [tab, setTab] = useState<Tab>('recent');
-  const [kind, setKind] = useState<Kind | null>(null);
-  const [q, setQ] = useState('');
-  const [limit, setLimit] = useState(30);
+  usePageTrail('chronicle', tree);
+  const { data, isPending, isError, refetch } = useQuery(chronicleQuery(tree));
+  const [tab, setTab] = useRememberedState<Tab>(`chronicle:${tree}:tab`, 'recent');
+  const [kind, setKind] = useRememberedState<Kind | null>(`chronicle:${tree}:kind`, null);
+  const [q, setQ] = useRememberedState(`chronicle:${tree}:q`, '');
+  const [limit, setLimit] = useRememberedState(`chronicle:${tree}:limit`, 30);
   const [now] = useState(() => new Date());
 
   const stories = useMemo(
@@ -138,23 +140,20 @@ function ChroniclePage() {
   return (
     <div className="page">
       <div className="page-inner chr">
-        <header className="chr-head">
-          <div>
-            <h1>Chronicle</h1>
-            <p className="muted">
+        <PageHeader title="Chronicle" subtitle={<>
               {isPending
                 ? 'Unrolling the scroll…'
                 : stories.length
                   ? `${stories.length} contributions from ${authors} ${authors === 1 ? 'voice' : 'voices'}`
                   : 'The family’s notes, sayings and memories'}
-            </p>
-          </div>
-          <label className="chr-search">
+            </>} actions={<><label className="chr-search">
             <Search size={16} />
             <input className="input" type="search" placeholder="Search the chronicle…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search the chronicle" />
-          </label>
-        </header>
+          </label></>} />
 
+        {isPending && <div className="page-loading" aria-busy="true" aria-label="Loading chronicle">{Array.from({ length: 4 }, (_, i) => <div className="ui-card" key={i} style={{ padding: 20, marginBottom: 12 }}><Skeleton width={48} height={48} radius="50%" /><Skeleton lines={3} /></div>)}</div>}
+        {isError && <ErrorState title="Could not open the chronicle" message="Your family’s information is still safe. Please try again." onRetry={() => { void refetch(); }} />}
+        {!isPending && !isError && <>
         <div className="chr-bar">
           <div className="chr-tabs" role="tablist">
             <button role="tab" aria-selected={tab === 'recent'} onClick={() => pick('recent')}>
@@ -211,6 +210,7 @@ function ChroniclePage() {
             </div>
           </>
         )}
+        </>}
       </div>
     </div>
   );
@@ -239,7 +239,7 @@ function FeedItem({ s, f, tree, now }: { s: Story; f: Family; tree: string; now:
           <Portrait person={p} tree={tree} size={50} />
         </Link>
       )}
-      <article className="chr-card panel">
+      <article className="chr-card ui-card">
         <header>
           <span className="chr-kind">
             <k.icon size={14} /> {k.label}
@@ -289,7 +289,7 @@ function SayingCard({ s, f, tree, now }: { s: Story; f: Family; tree: string; no
 
 function Empty({ tree }: { tree: string }) {
   return (
-    <div className="chr-empty panel">
+    <div className="chr-empty ui-card">
       <GameIcon name="quill-ink" size={34} />
       <h2 className="display">Nothing written yet</h2>
       <p className="muted">
@@ -304,7 +304,7 @@ function Empty({ tree }: { tree: string }) {
 
 function NoSayings({ tree }: { tree: string }) {
   return (
-    <div className="chr-empty panel">
+    <div className="chr-empty ui-card">
       <Quote size={30} />
       <h2 className="display">No sayings yet</h2>
       <p className="muted">The things people always say are worth keeping. Open someone on the tree and add one.</p>
@@ -317,7 +317,7 @@ function NoSayings({ tree }: { tree: string }) {
 
 function NoMatch({ onClear }: { onClear: () => void }) {
   return (
-    <div className="chr-empty panel">
+    <div className="chr-empty ui-card">
       <Search size={26} />
       <h2 className="display">Nothing matches</h2>
       <p className="muted">Try fewer words or another kind.</p>
@@ -326,4 +326,55 @@ function NoMatch({ onClear }: { onClear: () => void }) {
       </button>
     </div>
   );
+}
+
+// Restore after hydration, so stored preferences never change server-rendered markup.
+function useRememberedState<T>(key: string, fallback: T): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const [value, setValue] = useState<T>(fallback);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(key);
+      if (stored !== null) setValue(JSON.parse(stored) as T);
+
+    } catch { /* Private browsing can disable storage. */ }
+    setReady(true);
+  }, [key]);
+  useEffect(() => {
+    if (!ready) return;
+    try {
+      sessionStorage.setItem(key, JSON.stringify(value));
+
+    } catch { /* Keeping filters in memory still works. */ }
+  }, [key, value, ready]);
+  return [value, setValue];
+}
+function usePageTrail(page: string, tree: string) {
+  useEffect(() => {
+    const key = `kindred:scroll:${tree}:${page}`;
+    const restore = () => {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(key) ?? '{}') as Record<string, number>;
+        for (const selector of [':root', '.page', '.reg-scroll']) {
+          const el = document.querySelector(selector);
+          if (el) el.scrollTop = saved[selector] ?? 0;
+        }
+      } catch {}
+    };
+    const timer = window.setTimeout(() => { restore(); document.addEventListener('scroll', scroll, true); }, 450);
+    const scroll = () => {
+      try { sessionStorage.setItem(key, JSON.stringify(Object.fromEntries([':root', '.page', '.reg-scroll'].map((selector) => [selector, document.querySelector(selector)?.scrollTop ?? 0])))); } catch {}
+    };
+    const click = (event: MouseEvent) => {
+      const link = (event.target as Element).closest('a');
+      if (!link) return;
+      const url = new URL(link.href);
+      const person = url.searchParams.get('focus');
+      if (person && url.pathname === `/${tree}`) {
+        try { localStorage.setItem('kindred:last-visit', JSON.stringify({ tree, person, name: link.textContent?.trim() || 'your family' })); } catch {}
+      }
+    };
+    document.addEventListener('click', click, true);
+    return () => { clearTimeout(timer); document.removeEventListener('scroll', scroll, true); document.removeEventListener('click', click, true); };
+  }, [page, tree]);
 }

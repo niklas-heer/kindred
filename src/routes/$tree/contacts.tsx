@@ -1,3 +1,4 @@
+import { PageHeader, Skeleton, ErrorState } from '~/components/ui';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useDebouncedValue } from '@tanstack/react-pacer';
@@ -7,7 +8,7 @@ import { GameIcon } from '~/components/GameIcon';
 import { Arms } from '~/components/Heraldry';
 import { Portrait } from '~/components/Portrait';
 import { contactsQuery } from '~/lib/api';
-import { useFamily, useMe, useTreeId } from '~/lib/family';
+import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
 import { play } from '~/lib/sfx';
 import { age as ageOf, ageAt, children, displayName, partnersOf, parents, siblings, type Family } from '~/lib/graph';
 import type { GPerson } from '~/lib/types';
@@ -166,18 +167,19 @@ const webHref = (v: string) => (/^https?:\/\//i.test(v) ? v : /^[a-z][a-z0-9+.-]
 
 function ContactsPage() {
   const f = useFamily();
-  const me = useMe();
+  const me = useMeChosen();
   const tree = useTreeId();
-  const { data, isPending } = useQuery(contactsQuery(tree));
-  const [q, setQ] = useState('');
+  usePageTrail('contacts', tree);
+  const { data, isPending, isError, refetch } = useQuery(contactsQuery(tree));
+  const [q, setQ] = useRememberedState(`contacts:${tree}:q`, '');
   const [dq] = useDebouncedValue(q, { wait: 180 });
-  const [onlyPhone, setOnlyPhone] = useState(false);
-  const [onlyAddress, setOnlyAddress] = useState(false);
-  const [onlyClose, setOnlyClose] = useState(false);
-  const [allNoDetails, setAllNoDetails] = useState(false);
+  const [onlyPhone, setOnlyPhone] = useRememberedState(`contacts:${tree}:onlyPhone`, false);
+  const [onlyAddress, setOnlyAddress] = useRememberedState(`contacts:${tree}:onlyAddress`, false);
+  const [onlyClose, setOnlyClose] = useRememberedState(`contacts:${tree}:onlyClose`, false);
+  const [allNoDetails, setAllNoDetails] = useRememberedState(`contacts:${tree}:allNoDetails`, false);
 
   const { households, noDetails } = useMemo(() => buildHouseholds(f, (data ?? []) as Row[]), [f, data]);
-  const close = useMemo(() => (onlyClose ? closeFamily(f, me) : null), [f, me, onlyClose]);
+  const close = useMemo(() => (onlyClose && me ? closeFamily(f, me) : null), [f, me, onlyClose]);
 
   const tokens = dq.toLowerCase().split(/\s+/).filter(Boolean);
   const filtering = tokens.length > 0 || onlyPhone || onlyAddress || onlyClose;
@@ -236,27 +238,24 @@ function ContactsPage() {
     setOnlyAddress(false);
     setOnlyClose(false);
   };
-  const noData = !isPending && households.length === 0;
+  const noData = !isPending && !isError && households.length === 0;
 
   return (
     <div className="page">
       <div className="page-inner con">
-        <header className="con-head">
-          <div>
-            <h1>Contacts</h1>
-            <p className="muted">
+        <PageHeader title="Contacts" subtitle={<>
               {isPending
                 ? 'Opening the address book…'
                 : noData
                   ? 'Nobody has contact details yet'
                   : `${households.length} ${households.length === 1 ? 'household' : 'households'} · ${households.reduce((n, h) => n + h.members.length, 0)} people with details`}
-            </p>
-          </div>
-          <button className="btn" onClick={downloadAll} disabled={!shown.length} title="Save everyone shown as a .vcf file for your phone or address book">
+            </>} actions={<><button className="btn" onClick={downloadAll} disabled={!shown.length} title="Save everyone shown as a .vcf file for your phone or address book">
             <Download size={16} /> Download vCard{shown.length ? ` (${people})` : ''}
-          </button>
-        </header>
+          </button></>} />
 
+        {isPending && <div className="page-loading" aria-busy="true" aria-label="Loading contacts">{Array.from({ length: 4 }, (_, i) => <div className="ui-card" key={i} style={{ padding: 20, marginBottom: 12 }}><Skeleton width={48} height={48} radius="50%" /><Skeleton lines={3} /></div>)}</div>}
+        {isError && <ErrorState title="Could not open the address book" message="Your family’s information is still safe. Please try again." onRetry={() => { void refetch(); }} />}
+        {!isPending && !isError && <>
         <div className="con-tools" role="search">
           <label className="con-search">
             <Search size={16} />
@@ -276,7 +275,7 @@ function ContactsPage() {
             <button className="btn" aria-pressed={onlyAddress} onClick={() => setOnlyAddress(!onlyAddress)}>
               <Home size={14} /> Has address
             </button>
-            <button className="btn" aria-pressed={onlyClose} onClick={() => setOnlyClose(!onlyClose)} title="You, your partner, parents, children, siblings and grandparents or grandchildren">
+            <button className="btn" disabled={!me} aria-pressed={onlyClose} onClick={() => setOnlyClose(!onlyClose)} title="You, your partner, parents, children, siblings and grandparents or grandchildren">
               <BookUser size={14} /> Close family
             </button>
             {filtering && (
@@ -288,7 +287,7 @@ function ContactsPage() {
         </div>
 
         {noData && (
-          <div className="con-empty panel">
+          <div className="con-empty ui-card">
             <BookUser size={28} />
             <h2 className="display">An empty address book</h2>
             <p className="muted">
@@ -298,8 +297,8 @@ function ContactsPage() {
           </div>
         )}
 
-        {!noData && shown.length === 0 && (
-          <div className="con-empty panel">
+        {!noData && shown.length === 0 && shownNoDetails.length === 0 && (
+          <div className="con-empty ui-card">
             <Search size={26} />
             <h2 className="display">No one matches</h2>
             <p className="muted">Try fewer words or switch a filter off.</p>
@@ -320,7 +319,7 @@ function ContactsPage() {
           </section>
         ))}
 
-        {shownNoDetails.length > 0 && (
+        {!noData && shownNoDetails.length > 0 && (
           <section className="con-nodetails" aria-labelledby="nod">
             <h2 id="nod" className="rule">
               No details yet <span className="chip">{shownNoDetails.length}</span>
@@ -344,6 +343,7 @@ function ContactsPage() {
             )}
           </section>
         )}
+        </>}
       </div>
     </div>
   );
@@ -418,7 +418,8 @@ function sharedHouse(h: Household, f: Family) {
 function HouseholdCard({ h, f, tree }: { h: Household; f: Family; tree: string }) {
   const house = sharedHouse(h, f);
   return (
-    <article className="con-card panel" data-house={house ? true : undefined}>
+    <article className="con-card ui-card" data-house={house ? true : undefined}>
+      <button className="btn ghost con-download" aria-label="Download household vCards" onClick={() => download(`${tree}-${h.id}.vcf`, 'text/vcard', h.members.map((m) => vcard(m, h.rows.get(m.id) ?? [], f)).join('\r\n'))}><Download size={15} /> Save contact{h.members.length > 1 ? 's' : ''}</button>
       {house && (
         <header className="con-house">
           <Arms arms={house.arms} size={22} />
@@ -449,14 +450,7 @@ function HouseholdCard({ h, f, tree }: { h: Household; f: Family; tree: string }
                   )}
                 </div>
               </div>
-              <button
-                className="btn ghost icon"
-                aria-label={`Download ${m.given}'s vCard`}
-                title="Download vCard"
-                onClick={() => download(`${m.given.toLowerCase()}-${m.id}.vcf`.replace(/[^a-z0-9._-]+/g, '_'), 'text/vcard', vcard(m, h.rows.get(m.id) ?? [], f) + '\r\n')}
-              >
-                <Download size={15} />
-              </button>
+
             </div>
             {mine.length > 0 && (
               <ul className="con-lines">
@@ -477,4 +471,55 @@ function HouseholdCard({ h, f, tree }: { h: Household; f: Family; tree: string }
       )}
     </article>
   );
+}
+
+// Restore after hydration, so stored preferences never change server-rendered markup.
+function useRememberedState<T>(key: string, fallback: T): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const [value, setValue] = useState<T>(fallback);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(key);
+      if (stored !== null) setValue(JSON.parse(stored) as T);
+
+    } catch { /* Private browsing can disable storage. */ }
+    setReady(true);
+  }, [key]);
+  useEffect(() => {
+    if (!ready) return;
+    try {
+      sessionStorage.setItem(key, JSON.stringify(value));
+
+    } catch { /* Keeping filters in memory still works. */ }
+  }, [key, value, ready]);
+  return [value, setValue];
+}
+function usePageTrail(page: string, tree: string) {
+  useEffect(() => {
+    const key = `kindred:scroll:${tree}:${page}`;
+    const restore = () => {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(key) ?? '{}') as Record<string, number>;
+        for (const selector of [':root', '.page', '.reg-scroll']) {
+          const el = document.querySelector(selector);
+          if (el) el.scrollTop = saved[selector] ?? 0;
+        }
+      } catch {}
+    };
+    const timer = window.setTimeout(() => { restore(); document.addEventListener('scroll', scroll, true); }, 450);
+    const scroll = () => {
+      try { sessionStorage.setItem(key, JSON.stringify(Object.fromEntries([':root', '.page', '.reg-scroll'].map((selector) => [selector, document.querySelector(selector)?.scrollTop ?? 0])))); } catch {}
+    };
+    const click = (event: MouseEvent) => {
+      const link = (event.target as Element).closest('a');
+      if (!link) return;
+      const url = new URL(link.href);
+      const person = url.searchParams.get('focus');
+      if (person && url.pathname === `/${tree}`) {
+        try { localStorage.setItem('kindred:last-visit', JSON.stringify({ tree, person, name: link.textContent?.trim() || 'your family' })); } catch {}
+      }
+    };
+    document.addEventListener('click', click, true);
+    return () => { clearTimeout(timer); document.removeEventListener('scroll', scroll, true); document.removeEventListener('click', click, true); };
+  }, [page, tree]);
 }

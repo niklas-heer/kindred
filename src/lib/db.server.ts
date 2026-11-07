@@ -26,12 +26,15 @@ const meta = (d: DatabaseSync) =>
 export function listTrees(): TreeMeta[] {
   return readdirSync(DATA)
     .filter((f) => f.endsWith('.db'))
-    .map((f) => {
+    .map((f): TreeMeta | null => {
       const d = db(f.slice(0, -3));
       const m = meta(d);
       if (!m.id) return null; // not a tree (a half-built file): skip it rather than break the home page
       const { n } = d.prepare('SELECT count(*) AS n FROM person').get() as { n: number };
-      return { id: m.id, name: m.name, tagline: m.tagline, theme: m.theme as TreeMeta['theme'], focus: m.focus, people: n };
+      const crestRow = d.prepare('SELECT h.arms FROM house h LEFT JOIN person p ON p.house = h.id GROUP BY h.id ORDER BY count(p.id) DESC, h.id LIMIT 1').get() as { arms: string } | undefined;
+      const monthDay = `${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+      const birthdays = (d.prepare("SELECT id, given, surname FROM person WHERE living = 1 AND substr(born, 6) = ?").all(monthDay) as { id: string; given: string; surname: string | null }[]).map((p) => ({ id: p.id, name: [p.given, p.surname].filter(Boolean).join(' ') }));
+      return { id: m.id, name: m.name, tagline: m.tagline, theme: m.theme as TreeMeta['theme'], focus: m.focus, people: n, crest: crestRow ? JSON.parse(crestRow.arms) as House['arms'] : undefined, birthdays };
     })
     .filter((t): t is TreeMeta => t !== null)
     .sort((a, b) => b.people - a.people);

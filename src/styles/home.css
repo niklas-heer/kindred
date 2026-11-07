@@ -68,3 +68,26 @@
   .home-banner { transition: none; }
   .home-banner:hover, .home-banner:has(:focus-visible) { transform: none; }
 }
+
+/* Families share one height; only Codex uses the hanging pennant. */
+.home-grid { align-items: stretch; }
+.home-banner { display: flex; min-width: 0; }
+.home-card { width: 100%; height: 100%; }
+.home-card-in { height: 100%; min-height: 340px; grid-template-rows: 88px auto 1fr auto; }
+.home-crest { border: 0; background: none; box-shadow: none !important; border-radius: 0; }
+.home-name { font-family: var(--font-body); font-weight: 500; }
+.home-continue { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; padding: 16px 20px; margin: 0 0 24px; text-decoration: none; }
+.home-continue b { font-weight: 500; }
+.home-continue > span { margin-left: auto; }
+.home-today { padding: 20px 24px; margin-top: 30px; }
+.home-today h2 { display: flex; gap: 10px; align-items: center; font-size: 19px; margin: 0 0 12px; }
+.home-today ul { padding: 0; list-style: none; margin: 0; display: grid; gap: 10px; }
+.home-today li { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.home-today p { margin: 0; }
+[data-theme='modern'] .home-banner::before, [data-theme='night'] .home-banner::before { display: none; }
+[data-theme='modern'] .home-card, [data-theme='night'] .home-card { clip-path: none; position: relative; border-radius: var(--radius-lg); padding: 1px; }
+[data-theme='modern'] .home-card-in, [data-theme='night'] .home-card-in { clip-path: none; padding: 28px 20px; border-radius: inherit; }
+[data-theme='modern'] .home-card::after, [data-theme='night'] .home-card::after { content: ''; position: absolute; right: 20px; top: 0; width: 18px; height: 32px; background: var(--accent); clip-path: polygon(0 0,100% 0,100% 100%,50% 75%,0 100%); }
+@media(max-width:600px) { .home-inner { padding: 28px 0; } .home-grid { grid-template-columns: minmax(0,1fr); } .home h1 { font-size: 38px; } }
+
+.home-name { font-family: 'EB Garamond Variable', Garamond, serif; font-weight: 500; }

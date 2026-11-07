@@ -1,3 +1,4 @@
+import { PageSkeleton, PageHeader, ErrorState, EmptyState, Select } from '~/components/ui';
 import {
   columnFilteringFeature,
   createColumnHelper,
@@ -12,7 +13,7 @@ import {
   type FilterFn,
 } from '@tanstack/react-table';
 import { useDebouncedValue } from '@tanstack/react-pacer';
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { useRouter, createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowDown, ArrowUp, ArrowUpDown, ScrollText, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
@@ -27,6 +28,8 @@ import '~/styles/people.css';
 import { sectionHead } from '~/lib/title';
 
 export const Route = createFileRoute('/$tree/people')({
+  pendingComponent: PageSkeleton,
+  errorComponent: function PageError() { const router = useRouter(); return <div className="page"><PageHeader title="Register" /><ErrorState message="This page could not be loaded." onRetry={() => { void router.invalidate(); }} /></div>; },
   head: sectionHead('Register'),
   component: RegisterPage,
 });
@@ -244,14 +247,16 @@ function RegisterPage() {
   // Kinship only once the reader has said who they are.
   const me = useMeChosen();
   const tree = useTreeId();
+  usePageTrail('people', tree);
   const navigate = useNavigate();
 
-  const [q, setQ] = useState('');
+  const [q, setQ] = useRememberedState(`people:${tree}:q`, '');
   const [dq] = useDebouncedValue(q, { wait: 150 });
-  const [scope, setScope] = useState<Scope>('all');
-  const [withStories, setWithStories] = useState(false);
-  const [house, setHouse] = useState('');
+  const [scope, setScope] = useRememberedState<Scope>(`people:${tree}:scope`, 'all');
+  const [withStories, setWithStories] = useRememberedState(`people:${tree}:withStories`, false);
+  const [house, setHouse] = useRememberedState(`people:${tree}:house`, '');
   const [sel, setSel] = useState(0);
+  const [mobileLimit, setMobileLimit] = useRememberedState(`people:${tree}:limit`, 100);
 
   const all = useMemo(() => buildRows(f, tree, me), [f, tree, me]);
   const houses = useMemo(() => {
@@ -336,18 +341,12 @@ function RegisterPage() {
   return (
     <div className="page reg-page">
       <div className="page-inner reg" onKeyDown={onKeyDown}>
-        <header className="reg-head">
-          <div>
-            <h1>Register</h1>
-            <p className="muted">
+        <PageHeader title="Register" subtitle={<>
               {n(all.length)} people · {n(f.graph.houses.length)} {f.graph.houses.length === 1 ? 'house' : 'houses'}
               {filtered && <> · showing {n(rows.length)}</>}
-            </p>
-          </div>
-          <p className="reg-keys muted">
+            </>} actions={<><p className="reg-keys muted">
             <kbd>↑</kbd> <kbd>↓</kbd> move <kbd>Enter</kbd> open
-          </p>
-        </header>
+          </p></>} />
 
         <div className="reg-tools" role="search">
           <label className="reg-search">
@@ -372,14 +371,7 @@ function RegisterPage() {
             <ScrollText size={14} /> Has stories
           </button>
           {houses.length > 1 && (
-            <select className="input reg-house-pick" value={house} onChange={(e) => setHouse(e.target.value)} aria-label="Filter by house">
-              <option value="">All houses</option>
-              {houses.map((x) => (
-                <option key={x.id} value={x.id}>
-                  {x.name} ({n(x.n)})
-                </option>
-              ))}
-            </select>
+            <Select value={house} onChange={setHouse} aria-label="Filter by house" options={[{ value: '', label: 'All houses' }, ...houses.map((x) => ({ value: x.id, label: `${x.name} (${n(x.n)})` }))]} />
           )}
           {filtered && (
             <button className="btn ghost" onClick={reset}>
@@ -388,7 +380,15 @@ function RegisterPage() {
           )}
         </div>
 
-        <div className="reg-table panel">
+        <div className="reg-mobile">
+          {rows.length === 0 && <EmptyState title={all.length ? 'No one matches' : 'No people recorded yet'} text={all.length ? 'Try fewer words or clear your filters.' : 'Add the first person from the family tree.'} action={filtered ? <button className="btn" onClick={reset}>Clear filters</button> : undefined} />}
+          {rows.slice(0, mobileLimit).map(({ original: r }) => <details className="reg-mobile-person ui-card" key={r.id}>
+            <summary><Portrait person={r.p} tree={tree} size={42} /><span><b>{r.base}</b>{r.p.epithet && <i>{r.p.epithet}</i>}<small>{short(r.p.born) || 'Birth unknown'} · {r.p.living ? 'Living' : short(r.p.died) || 'Death unknown'}</small>{r.rel && <small>{r.rel === 'you' ? 'You' : `Your ${r.rel}`}</small>}</span></summary>
+            <div className="reg-mobile-detail">{r.house && <span className="reg-house"><Arms arms={r.house.arms} size={18} />{r.house.name}</span>}{r.role && <p>{r.role}</p>}<Link className="btn" to="/$tree" params={{ tree }} search={{ focus: r.id }}>Open person</Link></div>
+          </details>)}
+          {rows.length > mobileLimit && <button className="btn" onClick={() => setMobileLimit((n) => n + 100)}>Show {Math.min(100, rows.length - mobileLimit)} more people</button>}
+        </div>
+        <div className="reg-table ui-card">
           <div
             ref={scroller}
             className="reg-scroll"
@@ -425,7 +425,7 @@ function RegisterPage() {
               {rows.length === 0 ? (
                 <div className="reg-none">
                   <Search size={24} />
-                  <h2 className="display">No one matches</h2>
+                  <h2 className="display">{all.length ? 'No one matches' : 'No people recorded yet'}</h2>
                   <p className="muted">Try fewer words, or clear the filters.</p>
                   <button className="btn" onClick={reset}>
                     Clear filters
@@ -465,4 +465,61 @@ function RegisterPage() {
       </div>
     </div>
   );
+}
+
+// Restore after hydration, so stored preferences never change server-rendered markup.
+function useRememberedState<T>(key: string, fallback: T): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const [value, setValue] = useState<T>(fallback);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(key);
+      if (stored !== null) setValue(JSON.parse(stored) as T);
+      const param = key.split(':').at(-1)!;
+      const raw = new URLSearchParams(location.search).get(param);
+      if (raw !== null) setValue((typeof fallback === 'boolean' ? raw === 'true' : typeof fallback === 'number' ? Math.max(100, Number(raw) || fallback) : raw) as T);
+    } catch { /* Private browsing can disable storage. */ }
+    setReady(true);
+  }, [key]);
+  useEffect(() => {
+    if (!ready) return;
+    try {
+      sessionStorage.setItem(key, JSON.stringify(value));
+      const url = new URL(location.href);
+      const param = key.split(':').at(-1)!;
+      if (value === fallback) url.searchParams.delete(param);
+      else url.searchParams.set(param, String(value));
+      history.replaceState(history.state, '', url);
+    } catch { /* Keeping filters in memory still works. */ }
+  }, [key, value, ready]);
+  return [value, setValue];
+}
+function usePageTrail(page: string, tree: string) {
+  useEffect(() => {
+    const key = `kindred:scroll:${tree}:${page}`;
+    const restore = () => {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(key) ?? '{}') as Record<string, number>;
+        for (const selector of [':root', '.page', '.reg-scroll']) {
+          const el = document.querySelector(selector);
+          if (el) el.scrollTop = saved[selector] ?? 0;
+        }
+      } catch {}
+    };
+    const timer = window.setTimeout(() => { restore(); document.addEventListener('scroll', scroll, true); }, 450);
+    const scroll = () => {
+      try { sessionStorage.setItem(key, JSON.stringify(Object.fromEntries([':root', '.page', '.reg-scroll'].map((selector) => [selector, document.querySelector(selector)?.scrollTop ?? 0])))); } catch {}
+    };
+    const click = (event: MouseEvent) => {
+      const link = (event.target as Element).closest('a');
+      if (!link) return;
+      const url = new URL(link.href);
+      const person = url.searchParams.get('focus');
+      if (person && url.pathname === `/${tree}`) {
+        try { localStorage.setItem('kindred:last-visit', JSON.stringify({ tree, person, name: link.textContent?.trim() || 'your family' })); } catch {}
+      }
+    };
+    document.addEventListener('click', click, true);
+    return () => { clearTimeout(timer); document.removeEventListener('scroll', scroll, true); document.removeEventListener('click', click, true); };
+  }, [page, tree]);
 }

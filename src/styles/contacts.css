@@ -100,3 +100,19 @@ a.con-value:focus-visible { outline: none; box-shadow: var(--focus-ring); border
 .con-nod-list li:hover { background: var(--panel-2); }
 .con-nod-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .con-nod-list .btn { height: 28px; }
+
+.con-grid { display: block; columns: 340px; column-gap: 16px; }
+.con-card { break-inside: avoid; margin-bottom: 16px; padding-top: 12px; }
+.con-download { justify-self: end; font-size: 12px; min-height: 36px; }
+.con-copy { opacity: 0; pointer-events: none; height: 36px; width: 36px; }
+.con-line:hover .con-copy, .con-line:focus-within .con-copy, .con-copy[data-done] { opacity: 1; pointer-events: auto; }
+.con-line > svg { color: var(--muted); }
+.con-name, .con-nod-name { font-family: var(--font-body); font-weight: 500; }
+.con-line { min-height: 40px; gap: 6px; }
+.con-search { min-width: 0; }
+@media(hover:none), (pointer:coarse) { .con-copy { opacity: 1; pointer-events: auto; min-height: 44px; min-width: 44px; } }
+@media(max-width:600px) { .con-grid { columns: auto; } .con-letter-row { grid-template-columns: minmax(0,1fr); } .con-letter { position: static; text-align: left; } .con-search { max-width: none; } .con-line { grid-template-columns: 16px minmax(0,1fr) auto auto; } .con-label { grid-column: 2; justify-self: start; } .con-line:has(.con-label) .con-value { grid-column: 2; } .con-line > svg { grid-row: 1 / span 2; } .con-copy { opacity: 1; pointer-events: auto; min-width: 44px; min-height: 44px; grid-row: 1 / span 2; } .con-nod-list { grid-template-columns: minmax(0,1fr); } }
+
+.con-name, .con-nod-name { font-family: 'EB Garamond Variable', Garamond, serif; font-weight: 500; }
+
+@media(max-width:600px) { .con .btn { min-height: 44px; } }

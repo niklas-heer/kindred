@@ -175,3 +175,21 @@
   .alm-tile { transition: none; }
   .alm-tile:hover { transform: none; }
 }
+
+.alm-row { grid-template-columns: 54px auto minmax(0,1fr) auto; }
+.alm-faces { position: relative; }
+.alm-faces .alm-seal { position: absolute; right: -6px; bottom: -7px; width: 25px; height: 25px; margin: 0; }
+.alm-seal svg { width: 15px; height: 15px; }
+.alm-tile { min-height: 94px; justify-content: space-between; padding: 12px 3px 14px; }
+.alm-tile-n { font: 13px var(--font-ui); }
+.alm-tile-n small { display: block; font-size: 10px; color: var(--muted); }
+.alm-tile-gauge { left: 8%; width: 84%; height: calc(4px + var(--heat) * 18px); opacity: .65; bottom: 0; }
+.alm-tile-n { z-index: 1; padding-bottom: 16px; }
+.alm-who { overflow: visible; overflow-wrap: anywhere; font-family: var(--font-body); font-weight: 500; }
+@media(max-width:640px) { .alm-row { grid-template-columns: 40px 46px minmax(0,1fr); padding: 12px 10px; gap: 10px; } .alm-faces { display: flex; } .alm-leaf { height: 46px; } .alm-meta { grid-column: 3; flex-wrap: wrap; } .alm-head { flex-wrap: wrap; } .alm-strip-cap { flex-wrap: wrap; } .alm-today { padding: 16px 12px; } .alm-hrow[data-day] { grid-template-columns: 18px 48px 28px minmax(0,1fr); gap: 6px; } }
+
+@media(max-width:640px) { .alm-faces { width: 46px; } .alm-faces > :nth-child(2):not(.alm-seal) { display: none; } }
+
+.alm-name { font-family: 'EB Garamond Variable', Garamond, serif; font-weight: 500; }
+
+@media(max-width:600px) { .alm .btn { min-height: 44px; } }

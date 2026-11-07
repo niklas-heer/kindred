@@ -7,8 +7,8 @@
 [data-theme='codex'] .needed-who b { font-weight: 500; }
 .needed-who span { font-size: 13.5px; }
 .needed-gaps { display: flex; flex-wrap: wrap; gap: 5px; }
-.needed-gaps .chip { border-style: dashed; border-color: #d9a25a88; color: #e0a85a; }
-[data-theme='modern'] .needed-gaps .chip { color: #a0621a; }
+.needed-gaps .chip { border-style: dashed; border-color: #d9a25a88; color: var(--text); }
+[data-theme='modern'] .needed-gaps .chip { color: var(--text); }
 .needed-gaps .chip.on { background: color-mix(in srgb, #d9a25a 20%, transparent); }
 .needed-more { margin: 16px auto 0; display: flex; }
 @media (max-width: 760px) { .needed-list li { grid-template-columns: 48px 1fr; } .needed-gaps, .needed-list .btn { grid-column: 2; } }
@@ -31,7 +31,7 @@
 .blaze-top { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px 0; font-size: 13px; color: var(--muted); }
 .blaze-who { display: flex; gap: 16px; align-items: center; padding: 12px 18px 6px; }
 .blaze-who h2 { margin: 0; font-size: 24px; font-weight: 600; line-height: 1.1; }
-[data-theme='codex'] .blaze-who h2 { color: #f6ead0; font-weight: 500; }
+[data-theme='codex'] .blaze-who h2 { color: var(--text); font-weight: 500; }
 .blaze-who .muted { font-size: 14px; }
 .blaze-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 18px; }
 .blaze-fields .wide { grid-column: 1 / -1; }
@@ -48,3 +48,24 @@
 @media (max-width: 600px) { .blaze-fields { grid-template-columns: 1fr; } }
 .blaze-file { justify-content: flex-start; width: fit-content; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .blaze:focus { outline: none; }
+
+.needed-list li { grid-template-columns: 56px minmax(0,1fr) auto; padding: 16px; align-items: start; }
+.needed-ring { padding: 4px; border-radius: 50%; background: conic-gradient(var(--accent) var(--filled), var(--border) 0); display: inline-flex; }
+.needed-ring > * { border-radius: 50%; box-shadow: 0 0 0 2px var(--panel-solid); }
+.needed-who { gap: 5px; }
+.needed-who b { white-space: normal; font-family: var(--font-body); font-weight: 500; overflow-wrap: anywhere; }
+.needed-gaps { margin-top: 5px; }
+.needed-gaps .chip, [data-theme='modern'] .needed-gaps .chip { color: var(--muted); border-color: var(--border); background: var(--panel-2); border-style: solid; font-size: 12px; }
+.needed-who > span { overflow-wrap: anywhere; }
+.needed .faint, .blaze .faint { color: var(--muted); }
+.blaze { position: relative; }
+.blaze-who h2 { font-family: var(--font-body); font-weight: 500; overflow-wrap: anywhere; }
+.blaze-foot { flex-wrap: wrap; }
+.blaze-stamp { pointer-events: none; position: absolute; z-index: 5; right: 28px; top: 46px; display: grid; justify-items: center; gap: 3px; color: var(--accent); background: var(--panel-solid); border: 2px double var(--accent); border-radius: 50%; padding: 12px; font: 12px var(--font-display); animation: seal-stamp .8s ease both; }
+@keyframes seal-stamp { 0% { opacity: 0; transform: scale(1.5) rotate(-18deg); } 25%,80% { opacity: 1; transform: scale(1) rotate(-8deg); } 100% { opacity: 0; transform: scale(.95) rotate(-8deg); } }
+@media(max-width:600px) { .needed-list li { grid-template-columns: 56px minmax(0,1fr); padding: 12px; gap: 12px; } .needed-list li > .btn { grid-column: 2; justify-self: start; min-height: 44px; } .needed-gaps { grid-column: auto; } .needed .ui-page-header-actions > div { flex-wrap: wrap; } .needed .ui-page-header-actions .btn { height: auto; min-height: 44px; white-space: normal; text-align: left; } .blaze-parent { grid-template-columns: minmax(0,1fr) !important; } .blaze-fields .input { min-width: 0; } .blaze-who { gap: 12px; } .blaze-who > div { min-width: 0; } .blaze-foot .faint { flex-basis: 100%; white-space: normal; } }
+@media(prefers-reduced-motion:reduce) { .blaze-stamp { animation: none; } .blaze-progress i { transition: none; } }
+
+.needed-who b, .blaze-who h2 { font-family: 'EB Garamond Variable', Garamond, serif; font-weight: 500; }
+
+@media(max-width:600px) { .needed .btn, .needed-gaps .chip, .blaze .btn { min-height: 44px; } }

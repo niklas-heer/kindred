@@ -1,6 +1,7 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { PageSkeleton, PageHeader, ErrorState, EmptyState } from '~/components/ui';
+import { useRouter, createFileRoute, Link } from '@tanstack/react-router';
 import { CalendarPlus, Check, Hourglass } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { GameIcon, type GameIconName } from '~/components/GameIcon';
 import { Portrait } from '~/components/Portrait';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
@@ -11,6 +12,8 @@ import '~/styles/almanac.css';
 import { sectionHead } from '~/lib/title';
 
 export const Route = createFileRoute('/$tree/almanac')({
+  pendingComponent: PageSkeleton,
+  errorComponent: function PageError() { const router = useRouter(); return <div className="page"><PageHeader title="Almanac" /><ErrorState message="This page could not be loaded." onRetry={() => { void router.invalidate(); }} /></div>; },
   head: sectionHead('Almanac'),
   component: AlmanacPage,
 });
@@ -210,9 +213,10 @@ function AlmanacPage() {
   // Kinship ("your aunt's birthday") only once the reader has said who they are.
   const me = useMeChosen();
   const tree = useTreeId();
+  usePageTrail('almanac', tree);
   // Frozen for the life of the page, so rows don't shuffle at midnight under your hands.
   const [today] = useState(() => startOfDay(new Date()));
-  const [month, setMonth] = useState<number | null>(null);
+  const [month, setMonth] = useRememberedState<number | null>(`almanac:${tree}:month`, null);
   const [saved, setSaved] = useState(false);
 
   const all = useMemo(() => upcoming(f, today), [f, today]);
@@ -255,14 +259,6 @@ function AlmanacPage() {
   const onThisDay = hist
     .filter((h) => h.month === todayM && h.day === today.getDate() && !h.approx && h.year < today.getFullYear())
     .sort((a, b) => a.year - b.year);
-  const nextInHistory = useMemo(() => {
-    if (onThisDay.length) return [];
-    return hist
-      .filter((h) => h.day && !h.approx)
-      .map((h) => ({ h, days: daysBetween(occurrence(h.month, h.day!, today), today) }))
-      .sort((a, b) => a.days - b.days)
-      .slice(0, 3);
-  }, [hist, onThisDay.length, today]);
   const monthHist = hist.filter((h) => h.month === histMonth).sort((a, b) => (a.day ?? 99) - (b.day ?? 99) || a.year - b.year);
 
   const exportIcs = () => {
@@ -278,7 +274,7 @@ function AlmanacPage() {
   const dateLine = today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 
   const historyPanel = (
-    <section className="alm-today panel" aria-labelledby="otd">
+    <section className="alm-today ui-card" aria-labelledby="otd">
       <header>
         <span className="alm-today-date">
           <b>{today.getDate()}</b>
@@ -300,16 +296,7 @@ function AlmanacPage() {
           ))}
         </ol>
       )}
-      {nextInHistory.length > 0 && (
-        <div className="alm-next-hist">
-          <span className="muted">Coming up in history</span>
-          <ol className="alm-hist">
-            {nextInHistory.map(({ h, days }) => (
-              <HistRow key={h.key} h={h} f={f} tree={tree} thisYear={today.getFullYear()} away={days} />
-            ))}
-          </ol>
-        </div>
-      )}
+
     </section>
   );
 
@@ -330,18 +317,12 @@ function AlmanacPage() {
   return (
     <div className="page">
       <div className="page-inner alm">
-        <header className="alm-head">
-          <div>
-            <h1>Almanac</h1>
-            <p className="muted">{dateLine}</p>
-          </div>
-          {hasLiving && (
+        <PageHeader title="Almanac" subtitle={<>{dateLine}</>} actions={<>{hasLiving && (
             <button className="btn" onClick={exportIcs} disabled={!recurring} title="Download every birthday and wedding anniversary as a yearly calendar (.ics)">
               {saved ? <Check size={16} /> : <CalendarPlus size={16} />}
               {saved ? 'Calendar file saved' : 'Add to calendar'}
             </button>
-          )}
-        </header>
+          )}</>} />
 
         <div className="alm-strip-wrap">
           <MonthStrip counts={strip} current={todayM} selected={month} onSelect={(m) => setMonth(month === m ? null : m)} noun={hasLiving ? 'birthday' : 'event'} />
@@ -355,7 +336,7 @@ function AlmanacPage() {
           </p>
         </div>
 
-        {!hasLiving ? (
+        {f.graph.people.length === 0 ? <EmptyState title="No family events yet" text="Add people and dates from the family tree to start your calendar." /> : !hasLiving ? (
           <div className="alm-solo">
             {historyPanel}
             {monthPanel}
@@ -364,7 +345,7 @@ function AlmanacPage() {
           <div className="alm-cols">
             <div className="alm-main">
               {groups.length === 0 ? (
-                <div className="alm-empty panel">
+                <div className="alm-empty ui-card">
                   <Hourglass size={26} />
                   <h2 className="display">{month === null ? 'A quiet stretch' : `Nothing in ${MONTHS[month - 1]}`}</h2>
                   <p className="muted">
@@ -450,7 +431,7 @@ function MonthStrip({ counts, current, selected, onSelect, noun }: { counts: num
             onClick={() => onSelect(m)}
           >
             <span className="alm-tile-m">{MONTHS[m - 1].slice(0, 3)}</span>
-            <span className="alm-tile-n">{c}</span>
+            <span className="alm-tile-n">{c} <small>{noun}{c === 1 ? '' : 's'}</small></span>
             <span className="alm-tile-gauge" aria-hidden />
           </button>
         );
@@ -506,7 +487,7 @@ function EventRow({ ev, f, tree, me, myAnc }: { ev: Ev; f: Family; tree: string;
         ? `${ord(ev.n)} anniversary${ev.note ? ` · ${ev.note} wedding` : ''}`
         : `${ev.n} ${ev.n === 1 ? 'year' : 'years'} since they passed`;
   return (
-    <li className="alm-row" data-kind={ev.kind} data-milestone={ev.milestone || undefined} data-today={today || undefined}>
+    <li className="alm-row ui-card" data-kind={ev.kind} data-milestone={ev.milestone || undefined} data-today={today || undefined}>
       <div className="alm-leaf" aria-hidden>
         <i>{ev.date.toLocaleDateString('en-GB', { month: 'short' })}</i>
         <b>{ev.date.getDate()}</b>
@@ -515,10 +496,11 @@ function EventRow({ ev, f, tree, me, myAnc }: { ev: Ev; f: Family; tree: string;
         {people.slice(0, 2).map((p) => (
           <Portrait key={p.id} person={p} tree={tree} size={46} />
         ))}
-      </div>
       <span className="alm-seal" aria-hidden>
         <GameIcon name={ICON[ev.kind]} size={18} />
       </span>
+      </div>
+
       <div className="alm-text">
         <div className="alm-who">
           <EventNames ev={ev} f={f} tree={tree} />
@@ -597,4 +579,55 @@ function MonthHistory({ hist, f, tree, thisYear }: { hist: Hist[]; f: Family; tr
       )}
     </>
   );
+}
+
+// Restore after hydration, so stored preferences never change server-rendered markup.
+function useRememberedState<T>(key: string, fallback: T): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const [value, setValue] = useState<T>(fallback);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(key);
+      if (stored !== null) setValue(JSON.parse(stored) as T);
+
+    } catch { /* Private browsing can disable storage. */ }
+    setReady(true);
+  }, [key]);
+  useEffect(() => {
+    if (!ready) return;
+    try {
+      sessionStorage.setItem(key, JSON.stringify(value));
+
+    } catch { /* Keeping filters in memory still works. */ }
+  }, [key, value, ready]);
+  return [value, setValue];
+}
+function usePageTrail(page: string, tree: string) {
+  useEffect(() => {
+    const key = `kindred:scroll:${tree}:${page}`;
+    const restore = () => {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(key) ?? '{}') as Record<string, number>;
+        for (const selector of [':root', '.page', '.reg-scroll']) {
+          const el = document.querySelector(selector);
+          if (el) el.scrollTop = saved[selector] ?? 0;
+        }
+      } catch {}
+    };
+    const timer = window.setTimeout(() => { restore(); document.addEventListener('scroll', scroll, true); }, 450);
+    const scroll = () => {
+      try { sessionStorage.setItem(key, JSON.stringify(Object.fromEntries([':root', '.page', '.reg-scroll'].map((selector) => [selector, document.querySelector(selector)?.scrollTop ?? 0])))); } catch {}
+    };
+    const click = (event: MouseEvent) => {
+      const link = (event.target as Element).closest('a');
+      if (!link) return;
+      const url = new URL(link.href);
+      const person = url.searchParams.get('focus');
+      if (person && url.pathname === `/${tree}`) {
+        try { localStorage.setItem('kindred:last-visit', JSON.stringify({ tree, person, name: link.textContent?.trim() || 'your family' })); } catch {}
+      }
+    };
+    document.addEventListener('click', click, true);
+    return () => { clearTimeout(timer); document.removeEventListener('scroll', scroll, true); document.removeEventListener('click', click, true); };
+  }, [page, tree]);
 }
