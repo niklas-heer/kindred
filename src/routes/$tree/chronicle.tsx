@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { ChefHat, Clock, MessageCircle, Quote, ScrollText, Search, Sparkles, StickyNote, type LucideIcon } from 'lucide-react';
+import { ChefHat, Clock, Quote, Search, Sparkles, StickyNote } from 'lucide-react';
 import { Marked } from 'marked';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ComponentType } from 'react';
+import { GameIcon } from '~/components/GameIcon';
 import { Portrait } from '~/components/Portrait';
 import { chronicleQuery } from '~/lib/api';
 import { useFamily, useTreeId } from '~/lib/family';
@@ -34,10 +35,12 @@ const render = (s: string) => md.parse(s, { async: false }) as string;
 // ---------- kinds ----------
 
 type Kind = Story['kind'];
-const KINDS: { id: Kind; label: string; plural: string; verb: string; icon: LucideIcon }[] = [
+/** Stories are written with a quill; the rest keep their line icons. */
+const Quill = ({ size = 14 }: { size?: number }) => <GameIcon name="quill-ink" size={size} />;
+const KINDS: { id: Kind; label: string; plural: string; verb: string; icon: ComponentType<{ size?: number }> }[] = [
   { id: 'note', label: 'Note', plural: 'Notes', verb: 'added a note on', icon: StickyNote },
   { id: 'quote', label: 'Saying', plural: 'Sayings', verb: 'recorded a saying of', icon: Quote },
-  { id: 'anecdote', label: 'Story', plural: 'Stories', verb: 'told a story about', icon: MessageCircle },
+  { id: 'anecdote', label: 'Story', plural: 'Stories', verb: 'told a story about', icon: Quill },
   { id: 'recipe', label: 'Recipe', plural: 'Recipes', verb: 'shared a recipe from', icon: ChefHat },
   { id: 'memory', label: 'Memory', plural: 'Memories', verb: 'remembered', icon: Sparkles },
 ];
@@ -231,7 +234,7 @@ function FeedItem({ s, f, tree, now }: { s: Story; f: Family; tree: string; now:
     <li className="chr-item" data-kind={s.kind}>
       {p && (
         <Link to="/$tree" params={{ tree }} search={{ focus: p.id }} className="chr-face" aria-label={displayName(p, f)}>
-          <Portrait person={p} tree={tree} size={46} frame={false} />
+          <Portrait person={p} tree={tree} size={50} />
         </Link>
       )}
       <article className="chr-card panel">
@@ -267,12 +270,9 @@ function SayingCard({ s, f, tree, now }: { s: Story; f: Family; tree: string; no
   const p = f.byId.get(s.person);
   return (
     <figure className="chr-saying">
-      <span className="chr-mark" aria-hidden>
-        “
-      </span>
       <blockquote dangerouslySetInnerHTML={{ __html: render(s.body) }} />
       <figcaption>
-        {p && <Portrait person={p} tree={tree} size={36} frame={false} />}
+        {p && <Portrait person={p} tree={tree} size={42} />}
         <div>
           <PersonLink p={p} f={f} tree={tree} />
           {s.context && <em>{s.context}</em>}
@@ -288,7 +288,7 @@ function SayingCard({ s, f, tree, now }: { s: Story; f: Family; tree: string; no
 function Empty({ tree }: { tree: string }) {
   return (
     <div className="chr-empty panel">
-      <ScrollText size={30} />
+      <GameIcon name="quill-ink" size={34} />
       <h2 className="display">Nothing written yet</h2>
       <p className="muted">
         Open anyone on the tree and add a note, a recipe, a memory or something they always said. Whatever the family adds shows up here, newest first.

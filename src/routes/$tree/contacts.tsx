@@ -1,11 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useDebouncedValue } from '@tanstack/react-pacer';
-import { BookUser, Cake, Check, Copy, Download, Globe, Home, Mail, MapPin, MessageCircle, Phone, Search, UserPlus, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { BookUser, Check, Copy, Download, Globe, Home, Mail, MapPin, MessageCircle, Phone, Search, UserPlus, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { GameIcon } from '~/components/GameIcon';
+import { Arms } from '~/components/Heraldry';
 import { Portrait } from '~/components/Portrait';
 import { contactsQuery } from '~/lib/api';
 import { useFamily, useMe, useTreeId } from '~/lib/family';
+import { play } from '~/lib/sfx';
 import { age as ageOf, ageAt, children, displayName, partnersOf, parents, siblings, type Family } from '~/lib/graph';
 import type { GPerson } from '~/lib/types';
 import '~/styles/contacts.css';
@@ -223,6 +226,7 @@ function ContactsPage() {
   const downloadAll = () => {
     const cards = shown.flatMap((h) => h.members.map((m) => vcard(m, h.rows.get(m.id) ?? [], f)));
     download(`${tree}-contacts.vcf`, 'text/vcard', cards.join('\r\n') + '\r\n');
+    play('chime');
   };
   const clear = () => {
     setQ('');
@@ -323,7 +327,7 @@ function ContactsPage() {
             <ul className="con-nod-list">
               {(allNoDetails ? shownNoDetails : shownNoDetails.slice(0, 36)).map((p) => (
                 <li key={p.id}>
-                  <Portrait person={p} tree={tree} size={32} frame={false} />
+                  <Portrait person={p} tree={tree} size={36} />
                   <span className="con-nod-name">{displayName(p, f)}</span>
                   <Link className="btn ghost" to="/$tree" params={{ tree }} search={{ focus: p.id }}>
                     <UserPlus size={14} /> Add
@@ -347,19 +351,28 @@ function ContactsPage() {
 
 function CopyButton({ value, label }: { value: string; label: string }) {
   const [done, setDone] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
   return (
     <button
       className="btn ghost icon con-copy"
       aria-label={`Copy ${label}`}
       title={done ? 'Copied' : `Copy ${label}`}
+      data-done={done || undefined}
       onClick={() => {
-        navigator.clipboard?.writeText(value).then(() => {
-          setDone(true);
-          setTimeout(() => setDone(false), 1400);
-        });
+        navigator.clipboard
+          ?.writeText(value)
+          .then(() => {
+            play('tick');
+            setDone(true);
+            clearTimeout(timer.current);
+            timer.current = setTimeout(() => setDone(false), 1200);
+          })
+          .catch(() => {});
       }}
     >
       {done ? <Check size={14} /> : <Copy size={14} />}
+      <span className="con-sr" role="status">{done ? 'Copied' : ''}</span>
     </button>
   );
 }
@@ -392,9 +405,25 @@ function ContactLine({ r }: { r: Row }) {
   );
 }
 
+/** The house most of the card belongs to, when at least two people share one. */
+function sharedHouse(h: Household, f: Family) {
+  const n = new Map<string, number>();
+  for (const m of h.members) if (m.house) n.set(m.house, (n.get(m.house) ?? 0) + 1);
+  const [id, c] = [...n.entries()].sort((a, b) => b[1] - a[1])[0] ?? [];
+  return id && c >= 2 ? f.house.get(id) : undefined;
+}
+
 function HouseholdCard({ h, f, tree }: { h: Household; f: Family; tree: string }) {
+  const house = sharedHouse(h, f);
   return (
-    <article className="con-card panel">
+    <article className="con-card panel" data-house={house ? true : undefined}>
+      {house && (
+        <header className="con-house">
+          <Arms arms={house.arms} size={22} />
+          <span className="display">{house.name}</span>
+          <span className="con-house-n">{h.members.length}</span>
+        </header>
+      )}
       {h.members.map((m) => {
         const bd = nextBirthday(m);
         const mine = (h.rows.get(m.id) ?? []).filter((r) => r.kind !== 'address');
@@ -402,7 +431,7 @@ function HouseholdCard({ h, f, tree }: { h: Household; f: Family; tree: string }
         return (
           <div key={m.id} className="con-member">
             <div className="con-who">
-              <Portrait person={m} tree={tree} size={48} frame={false} />
+              <Portrait person={m} tree={tree} size={50} />
               <div className="con-id">
                 <Link to="/$tree" params={{ tree }} search={{ focus: m.id }} className="con-name">
                   {displayName(m, f)}
@@ -412,7 +441,7 @@ function HouseholdCard({ h, f, tree }: { h: Household; f: Family; tree: string }
                   {years !== undefined && <span>{years} {years === 1 ? 'year' : 'years'}</span>}
                   {bd && (
                     <span className="con-bday" data-soon={bd.days <= 14 || undefined}>
-                      <Cake size={13} />
+                      <GameIcon name="cake-slice" size={14} />
                       {bd.days === 0 ? 'Birthday today' : bd.days === 1 ? 'Birthday tomorrow' : `${bd.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, turns ${bd.turns}`}
                     </span>
                   )}

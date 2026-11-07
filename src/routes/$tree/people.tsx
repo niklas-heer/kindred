@@ -16,9 +16,11 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowDown, ArrowUp, ArrowUpDown, ScrollText, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { GameIcon } from '~/components/GameIcon';
 import { Arms } from '~/components/Heraldry';
 import { Portrait } from '~/components/Portrait';
 import { useFamily, useMe, useTreeId } from '~/lib/family';
+import { TRAITS } from '~/lib/traits';
 import { age as ageOf, ancestorDepths, displayName, kinship, partnersOf, type Family } from '~/lib/graph';
 import type { GPerson, House } from '~/lib/types';
 import '~/styles/people.css';
@@ -144,7 +146,7 @@ const searchFn: FilterFn<typeof features, R> = (row, _col, value: string) => {
 
 const h = createColumnHelper<typeof features, R>();
 const columns = h.columns([
-  h.display({ id: 'portrait', header: '', enableSorting: false, cell: ({ row }) => <Portrait person={row.original.p} tree={row.original.tree} size={30} frame={false} /> }),
+  h.display({ id: 'portrait', header: '', enableSorting: false, cell: ({ row }) => <Portrait person={row.original.p} tree={row.original.tree} size={34} /> }),
   h.accessor((r) => r.sortName, {
     id: 'name',
     header: 'Name',
@@ -153,6 +155,7 @@ const columns = h.columns([
       const r = row.original;
       return (
         <span className="reg-name">
+          {r.p.living ? <span className="reg-dot" title="Living" role="img" aria-label="Living" /> : <span className="reg-dot" data-off aria-hidden />}
           <Link to="/$tree" params={{ tree: r.tree }} search={{ focus: r.id }} onClick={(e) => e.stopPropagation()} tabIndex={-1}>
             {r.base}
           </Link>
@@ -160,6 +163,23 @@ const columns = h.columns([
           {r.p.nickname && <small>“{r.p.nickname}”</small>}
         </span>
       );
+    },
+  }),
+  h.display({
+    id: 'traits',
+    header: 'Traits',
+    enableSorting: false,
+    cell: ({ row }) => {
+      const t = (row.original.p.traits ?? []).filter((x) => TRAITS[x]);
+      return t.length ? (
+        <span className="reg-traits">
+          {t.map((x) => (
+            <span key={x} className="reg-trait" data-kind={TRAITS[x].kind}>
+              <GameIcon name={TRAITS[x].icon} size={14} title={x} />
+            </span>
+          ))}
+        </span>
+      ) : null;
     },
   }),
   h.accessor((r) => r.house?.name, {
@@ -392,6 +412,8 @@ function RegisterPage() {
                           {hd.isPlaceholder ? null : <table.FlexRender header={hd} />}
                           {dir === 'asc' ? <ArrowUp size={13} /> : dir === 'desc' ? <ArrowDown size={13} /> : <ArrowUpDown size={13} className="reg-idle" />}
                         </button>
+                      ) : hd.column.id === 'traits' ? (
+                        <span className="reg-plain">Traits</span>
                       ) : null}
                     </div>
                   );

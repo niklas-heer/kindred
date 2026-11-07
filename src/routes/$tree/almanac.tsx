@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Cake, CalendarPlus, Check, Flower2, Heart, Hourglass, Sparkles } from 'lucide-react';
+import { CalendarPlus, Check, Hourglass } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { GameIcon, type GameIconName } from '~/components/GameIcon';
 import { Portrait } from '~/components/Portrait';
 import { useFamily, useMe, useTreeId } from '~/lib/family';
+import { play } from '~/lib/sfx';
 import { ancestorDepths, displayName, kinship, partnersOf, type Family } from '~/lib/graph';
 import type { GPerson } from '~/lib/types';
 import '~/styles/almanac.css';
@@ -264,6 +266,7 @@ function AlmanacPage() {
     const { text, count } = buildIcs(f, f.graph.tree.name);
     if (!count) return;
     download(`${tree}-family-calendar.ics`, 'text/calendar', text);
+    play('chime');
     setSaved(true);
     setTimeout(() => setSaved(false), 2400);
   };
@@ -445,6 +448,7 @@ function MonthStrip({ counts, current, selected, onSelect, noun }: { counts: num
           >
             <span className="alm-tile-m">{MONTHS[m - 1].slice(0, 3)}</span>
             <span className="alm-tile-n">{c}</span>
+            <span className="alm-tile-gauge" aria-hidden />
           </button>
         );
       })}
@@ -452,7 +456,7 @@ function MonthStrip({ counts, current, selected, onSelect, noun }: { counts: num
   );
 }
 
-const ICON: Record<Kind, typeof Cake> = { birthday: Cake, anniversary: Heart, memorial: Flower2 };
+const ICON: Record<Kind, GameIconName> = { birthday: 'cake-slice', anniversary: 'linked-rings', memorial: 'candle-light' };
 
 function Name({ p, f, tree }: { p?: GPerson; f: Family; tree: string }) {
   if (!p) return <>someone</>;
@@ -487,7 +491,8 @@ function relation(ev: Ev, f: Family, me: string, myAnc: Map<string, number>): st
 }
 
 function EventRow({ ev, f, tree, me, myAnc }: { ev: Ev; f: Family; tree: string; me: string; myAnc: Map<string, number> }) {
-  const Icon = ICON[ev.kind];
+  const today = ev.days === 0;
+  const crowned = ev.milestone && ev.kind === 'birthday';
   const people = ev.ids.map((id) => f.byId.get(id)).filter((p): p is GPerson => !!p);
   const rel = relation(ev, f, me, myAnc);
   const what =
@@ -497,32 +502,40 @@ function EventRow({ ev, f, tree, me, myAnc }: { ev: Ev; f: Family; tree: string;
         ? `${ord(ev.n)} anniversary${ev.note ? ` · ${ev.note} wedding` : ''}`
         : `${ev.n} ${ev.n === 1 ? 'year' : 'years'} since they passed`;
   return (
-    <li className="alm-row" data-kind={ev.kind} data-milestone={ev.milestone || undefined} data-today={ev.days === 0 || undefined}>
+    <li className="alm-row" data-kind={ev.kind} data-milestone={ev.milestone || undefined} data-today={today || undefined}>
       <div className="alm-leaf" aria-hidden>
         <i>{ev.date.toLocaleDateString('en-GB', { month: 'short' })}</i>
         <b>{ev.date.getDate()}</b>
       </div>
       <div className="alm-faces">
         {people.slice(0, 2).map((p) => (
-          <Portrait key={p.id} person={p} tree={tree} size={44} frame={false} />
+          <Portrait key={p.id} person={p} tree={tree} size={46} />
         ))}
       </div>
+      <span className="alm-seal" aria-hidden>
+        <GameIcon name={ICON[ev.kind]} size={18} />
+      </span>
       <div className="alm-text">
         <div className="alm-who">
           <EventNames ev={ev} f={f} tree={tree} />
         </div>
         <div className="alm-what">
-          <Icon size={14} />
-          <span>{what}</span>
+          <span className="alm-what-text">{what}</span>
           {ev.milestone && ev.kind !== 'memorial' && (
             <span className="alm-star" title="A round number">
-              <Sparkles size={13} /> milestone
+              <GameIcon name={crowned ? 'laurel-crown' : 'crown'} size={14} /> milestone
             </span>
           )}
         </div>
       </div>
       <div className="alm-meta">
-        <span className="alm-away">{awayLabel(ev.days)}</span>
+        {today ? (
+          <span className="alm-ribbon">
+            <GameIcon name="wax-seal" size={15} /> Today
+          </span>
+        ) : (
+          <span className="alm-away">{awayLabel(ev.days)}</span>
+        )}
         {rel && <span className="alm-rel">{rel}</span>}
       </div>
     </li>
