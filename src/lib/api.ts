@@ -3,6 +3,7 @@ import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { validDate } from './dates';
+import { can, needs, type Action, type Role } from './roles';
 
 const tree = z.string().regex(/^[a-z0-9-]+$/);
 const date = z.string().refine(validDate, 'Not a real date').optional();
@@ -285,3 +286,43 @@ export const getPlacesIn = createServerFn({ method: 'GET' })
 export const upsertPlaces = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, places: z.array(z.object({ name: z.string().trim().min(1).max(200), lat, lng, country: z.string().regex(/^[a-z]{2}$/).optional(), move: z.boolean().optional() })).max(10) }))
   .handler(async ({ data }) => (await server()).upsertPlaces(data.tree, data.places));
+
+// ---------- houses ----------
+
+/**
+ * The server's permission check: every server function that changes something goes through here, with
+ * the same `Action` the client asks `useCan()` about, so hiding a button is never the only protection.
+ */
+async function requireCan(t: string, action: Action): Promise<void> {
+  // TODO(auth): check the session's role. Replace this body with the guard from src/lib/auth/guard.server.ts
+  // (same name and arguments, imported dynamically so it stays server-only):
+  //   await (await import('./auth/guard.server')).requireCan(t, action);
+  // Until then every caller counts as a steward.
+  const role: Role = 'steward';
+  if (!can(role, action)) throw new Error(`Only a ${needs(action)} can do that in the ${t} tree.`);
+}
+
+const tincture = z.enum(['or', 'argent', 'gules', 'azure', 'vert', 'sable', 'purpure']);
+const arms = z.object({
+  field: tincture,
+  field2: tincture.optional(),
+  division: z.enum(['plain', 'per-pale', 'per-fess', 'per-bend', 'quarterly', 'chevron', 'paly', 'bendy', 'saltire', 'cross']),
+  charge: z.enum(['none', 'lion', 'eagle', 'tower', 'star', 'crescent', 'fleur', 'key', 'rose', 'boar', 'stag', 'sword']),
+  chargeTincture: tincture,
+});
+
+/** A steward renames a house or changes its motto and arms. */
+export const updateHouse = createServerFn({ method: 'POST' })
+  .validator(
+    z.object({
+      tree,
+      id: z.string().min(1).max(120),
+      name: z.string().trim().min(1, 'A house needs a name').max(80),
+      motto: z.string().trim().max(160).nullable(),
+      arms,
+    }),
+  )
+  .handler(async ({ data }) => {
+    await requireCan(data.tree, 'edit-house');
+    return (await server()).updateHouse(data.tree, data.id, { name: data.name, motto: data.motto || null, arms: data.arms });
+  });

@@ -260,3 +260,17 @@ export function upsertPlaces(tree: string, places: { name: string; lat: number; 
   }
   return kept;
 }
+
+// ---------- houses ----------
+
+/** Renames a house and changes its motto and arms. Returns the house as the graph shows it. */
+export function updateHouse(tree: string, id: string, patch: { name: string; motto: string | null; arms: House['arms'] }): House {
+  const d = db(tree);
+  const r = d.prepare('SELECT founder FROM house WHERE id = ?').get(id) as { founder: string | null } | undefined;
+  if (!r) throw new Error('That house is not in this family.');
+  // Store only the fields the arms use: a plain field keeps no second tincture.
+  const arms: House['arms'] = { field: patch.arms.field, division: patch.arms.division, charge: patch.arms.charge, chargeTincture: patch.arms.chargeTincture };
+  if (patch.arms.field2 && patch.arms.division !== 'plain') arms.field2 = patch.arms.field2;
+  d.prepare('UPDATE house SET name = ?, motto = ?, arms = ? WHERE id = ?').run(patch.name, patch.motto, JSON.stringify(arms), id);
+  return { id, name: patch.name, motto: patch.motto ?? undefined, arms, founder: opt(r.founder) };
+}
