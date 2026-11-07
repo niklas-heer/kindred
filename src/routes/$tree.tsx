@@ -1,5 +1,5 @@
 import { createFileRoute, Link, notFound, Outlet, redirect } from '@tanstack/react-router';
-import { BookOpen, CalendarHeart, CircleHelp, Contact, Map as MapIcon, Menu, MoreHorizontal, Network, ScrollText, Search, Users } from 'lucide-react';
+import { BookOpen, CalendarHeart, CircleHelp, Contact, Landmark, Map as MapIcon, Menu, MoreHorizontal, Network, ScrollText, Search, Users } from 'lucide-react';
 import { AccountMenu } from '~/components/AccountMenu';
 import { useEffect, useMemo, useState } from 'react';
 import { FirstRun } from '~/components/FirstRun';
@@ -86,6 +86,9 @@ function TreeLayout() {
           <Link to="/$tree/people" params={{ tree }} title="Register">
             <BookOpen size={16} /> <span className="nav-label">Register</span>
           </Link>
+          <Link to="/$tree/houses" params={{ tree }} title="Houses" activeOptions={{ exact: false }}>
+            <Landmark size={16} /> <span className="nav-label">Houses</span>
+          </Link>
           <Link to="/$tree/needed" params={{ tree }} title="Information needed">
             <CircleHelp size={16} /> <span className="nav-label">Needed</span>
           </Link>
@@ -146,6 +149,7 @@ function MoreSheet({ open, onClose, tree }: { open: boolean; onClose: () => void
       <ul className="more-list" onClick={(e) => (e.target as HTMLElement).closest('a') && onClose()}>
         <li><Link to="/$tree/contacts" params={{ tree }}><Contact size={19} /> Contacts <small>addresses &amp; phones</small></Link></li>
         <li><Link to="/$tree/people" params={{ tree }}><BookOpen size={19} /> Register <small>everyone, as a table</small></Link></li>
+        <li><Link to="/$tree/houses" params={{ tree }}><Landmark size={19} /> Houses <small>arms, mottos &amp; members</small></Link></li>
         <li><Link to="/$tree/chronicle" params={{ tree }}><ScrollText size={19} /> Chronicle <small>stories &amp; sayings</small></Link></li>
         {steward && <li><Link to="/$tree/access" params={{ tree }}><Users size={19} /> Access <small>members &amp; invitations</small></Link></li>}
         <li><Link to="/"><Network size={19} /> All families</Link></li>

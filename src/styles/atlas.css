@@ -331,3 +331,11 @@
 /* "All": a place's split into kinds sits under its name, so the name is never cut short. */
 .atlas-place-name:has(.atlas-kinds) { flex-direction: column; align-items: flex-start; gap: 0; }
 .atlas-place-name:has(.atlas-kinds) .atlas-place-text { max-width: 100%; }
+
+/* The place's main house opens the house's page. */
+a.atlas-place-mark { min-height: 44px; border-radius: var(--radius); transition: transform 140ms; }
+a.atlas-place-mark:hover { transform: translateY(-1px); }
+a.atlas-place-mark:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+a.atlas-house { color: inherit; text-underline-offset: 3px; }
+a.atlas-house:hover { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { a.atlas-place-mark { transition: none; } a.atlas-place-mark:hover { transform: none; } }

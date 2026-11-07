@@ -13,11 +13,14 @@ import { addContact, addStory, deleteContact, removePerson, deleteStory, personQ
 import {
   ageAt, age, children, displayName, fmtDate, kinship, lifespan, parents, partnersOf, siblings, yearOf, type Family,
 } from '~/lib/graph';
-import { setPref, usePref } from '~/lib/prefs';
+import { setPref } from '~/lib/prefs';
+import { chooseMe } from '~/lib/family';
+import { can } from '~/lib/roles';
+import { useCan, useRole, useSession } from '~/lib/session';
 import type { GPerson, PersonDetail, Story } from '~/lib/types';
 import { TRAITS } from '~/lib/traits';
 import { validDate } from '~/lib/dates';
-import { GAP_LABEL, GAP_WHERE, gapsOf, useRequired } from '~/lib/gaps';
+import { GAP_ACTION, GAP_LABEL, GAP_WHERE, gapsOf, useRequired } from '~/lib/gaps';
 import { GameIcon } from './GameIcon';
 import { Arms } from './Heraldry';
 import { Portrait } from './Portrait';
@@ -76,6 +79,11 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   }, [draft, onClose]);
   const p = f.byId.get(id);
   const [tab, setTab] = useState<Tab>('family');
+  // What this reader may do here (the server checks the same; see src/lib/roles.ts).
+  const role = useRole();
+  const canEdit = can(role, 'edit-person');
+  const canAdd = can(role, 'add-person');
+  const canPhoto = can(role, 'upload-photo');
   const [required] = useRequired(tree);
   const { data: detail } = useQuery(personQuery(tree, id));
   const qc = useQueryClient();
@@ -100,11 +108,17 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
     <DraftContext.Provider value={{ register: setDraft, leave }}><aside className="person-panel panel" key={id}>
       <button className="btn icon ghost panel-close" onClick={() => leave(onClose)} aria-label="Close person panel" title="Close (Esc)"><X size={16} /></button>
       <header className="pp-head">
-        <button type="button" disabled={photo.isPending} className="pp-portrait" aria-label="Change portrait" onClick={() => photoInput.current?.click()}>
-          <Portrait person={p} tree={tree} size={124} />
-          <span className="pp-photo"><Camera size={14} /></span>
-        </button>
-          <input ref={photoInput} type="file" accept="image/*" aria-label="Portrait image" hidden onChange={(e) => e.target.files?.[0] && photo.mutate(e.target.files[0])} />
+        {canPhoto ? (
+          <>
+            <button type="button" disabled={photo.isPending} className="pp-portrait" aria-label="Change portrait" onClick={() => photoInput.current?.click()}>
+              <Portrait person={p} tree={tree} size={124} />
+              <span className="pp-photo"><Camera size={14} /></span>
+            </button>
+            <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" aria-label="Portrait image" hidden onChange={(e) => e.target.files?.[0] && photo.mutate(e.target.files[0])} />
+          </>
+        ) : (
+          <span className="pp-portrait readonly"><Portrait person={p} tree={tree} size={124} /></span>
+        )}
         <div className="pp-id">
           <h2 className="display">{displayName(p, f)}</h2>
           {p.title && <div className="pp-title">{p.title}</div>}
@@ -114,9 +128,9 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
             {a !== undefined && <span className="muted"> · {p.living ? `${a} years old` : `died aged ${a}`}</span>}
           </div>
           {house && (
-            <button className="pp-house" onClick={onDynasty} title="Show this house's dynasty tree">
+            <Link className="pp-house" to="/$tree/house/$house" params={{ tree, house: house.id }} title={`Open the page of ${house.name}`}>
               <Arms arms={house.arms} size={22} /> <span>{house.name}</span>
-            </button>
+            </Link>
           )}
           {house?.motto && <div className="pp-motto">“{house.motto}”</div>}
         </div>
@@ -136,7 +150,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
         <span className="spacer" />
         {id !== me && k && <button className="btn ghost" onClick={onPath} title="Highlight the line between you"><RouteIcon size={14} /> How?</button>}
         {!me ? (
-          <button className="btn ghost" onClick={() => setPref(`me:${tree}`, id)} title="Kinship labels will be relative to this person">This is me</button>
+          <button className="btn ghost" onClick={() => void chooseMe(tree, id)} title="Kinship labels will be relative to this person">This is me</button>
         ) : id !== me && <button className="btn ghost" onClick={() => setPref(`me:${tree}`, id)} title="See everyone's relationship from this person's point of view">Be them</button>}
       </div>
 
@@ -160,11 +174,21 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
           <div className="pp-gaps">
             <span className="pp-gaps-title"><GameIcon name="quill-ink" size={14} /> Information needed</span>
             <div>
-              {gaps.map((g) => (
-                <button key={g} className="chip" onClick={() => (GAP_WHERE[g] === 'tree' ? onAncestors() : leave(() => setTab(GAP_WHERE[g] as Tab)))} title={GAP_WHERE[g] === 'tree' ? 'Open the ancestors view to fill the empty slots' : 'Fill it in'}>
-                  {GAP_LABEL[g]}
-                </button>
-              ))}
+              {gaps.map((g) =>
+                // Only the gaps this reader may fill in are buttons; the rest are just listed.
+                !can(role, GAP_ACTION[g]) ? (
+                  <span key={g} className="chip">{GAP_LABEL[g]}</span>
+                ) : (
+                  <button
+                    key={g}
+                    className="chip"
+                    onClick={() => (g === 'photo' ? photoInput.current?.click() : GAP_WHERE[g] === 'tree' ? onAncestors() : leave(() => setTab(GAP_WHERE[g] as Tab)))}
+                    title={g === 'photo' ? 'Choose a photo' : GAP_WHERE[g] === 'tree' ? 'Open the ancestors view to fill the empty slots' : 'Fill it in'}
+                  >
+                    {GAP_LABEL[g]}
+                  </button>
+                ),
+              )}
             </div>
           </div>
         );
@@ -185,7 +209,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
             ['everyday', p.living ? 'Everyday' : 'Life', undefined],
             ['edit', 'Edit', undefined],
           ] as const
-        ).map(([t, label, n]) => (
+        ).filter(([t]) => t !== 'edit' || canEdit).map(([t, label, n]) => (
           <UiTab key={t} value={t}>
             {label} {n ? <span className="pp-count">{n}</span> : null}
           </UiTab>
@@ -193,13 +217,17 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
       </TabList>
 
       <div className="pp-body">
-        <TabPanel value="family"><FamilyTab f={f} tree={tree} id={id} onSelect={(v) => leave(() => onSelect(v))} /></TabPanel>
+        <TabPanel value="family"><FamilyTab f={f} tree={tree} id={id} canAdd={canAdd} onSelect={(v) => leave(() => onSelect(v))} /></TabPanel>
         <TabPanel value="stories"><StoriesTab tree={tree} p={p} detail={detail} /></TabPanel>
         <TabPanel value="everyday"><EverydayTab f={f} tree={tree} p={p} detail={detail} /></TabPanel>
-        <TabPanel value="edit">{detail && <EditTab tree={tree} p={p} detail={detail} done={() => setTab('family')} onRemoved={onClose} />}</TabPanel>
+        <TabPanel value="edit">{canEdit && detail && <EditTab tree={tree} p={p} detail={detail} done={() => setTab('family')} onRemoved={onClose} />}</TabPanel>
       </div></Tabs>
-      <div className="pp-add-relative"><Select aria-label="Add relative" placeholder="Add relative" value="" onChange={(v) => { if (v) leave(() => setAdd(v as AddRelation)); }} options={['parent', 'partner', 'child', 'sibling'].map((v) => ({ value: v, label: `Add ${v}` }))} /></div>
-      {add && <QuickAdd family={f} tree={tree} anchor={id} relation={add} onCancel={() => setAdd(null)} onDone={() => setAdd(null)} />}
+      {canAdd ? (
+        <div className="pp-add-relative"><Select aria-label="Add relative" placeholder="Add relative" value="" onChange={(v) => { if (v) leave(() => setAdd(v as AddRelation)); }} options={['parent', 'partner', 'child', 'sibling'].map((v) => ({ value: v, label: `Add ${v}` }))} /></div>
+      ) : (
+        <p className="pp-add-relative pp-ask subtle">Ask an editor to add people or change details.</p>
+      )}
+      {add && canAdd && <QuickAdd family={f} tree={tree} anchor={id} relation={add} onCancel={() => setAdd(null)} onDone={() => setAdd(null)} />}
       <Dialog open={!!guarded} onClose={keep} title="Unsaved changes" dismissible={!savingDraft && !draft?.busy} footer={<>
         <button className="btn ghost" disabled={savingDraft || draft?.busy} onClick={keep}>Keep editing</button>
         <button className="btn" disabled={savingDraft || draft?.busy} onClick={proceed}>Discard</button>
@@ -216,7 +244,7 @@ function relativesCount(f: Family, id: string) {
 
 // ---------- family ----------
 
-function FamilyTab({ f, tree, id, onSelect }: { f: Family; tree: string; id: string; onSelect: (id: string) => void }) {
+function FamilyTab({ f, tree, id, canAdd, onSelect }: { f: Family; tree: string; id: string; canAdd: boolean; onSelect: (id: string) => void }) {
   const gps = [...new Set(parents(f, id).flatMap((p) => parents(f, p)))];
   const unions = f.unionsOf.get(id) ?? [];
   const groups: [string, string[]][] = [
@@ -227,7 +255,7 @@ function FamilyTab({ f, tree, id, onSelect }: { f: Family; tree: string; id: str
     ['Grandparents', gps],
   ];
   const any = groups.some(([, ids]) => ids.length);
-  if (!any) return <p className="empty">No relatives recorded yet. Use the <Plus size={12} /> marks around the card to add some.</p>;
+  if (!any) return <p className="empty">No relatives recorded yet.{canAdd && <> Use the <Plus size={12} /> marks around the card to add some.</>}</p>;
   return (
     <>
       {groups.map(([label, ids]) =>
@@ -268,6 +296,8 @@ const KINDS: { id: Story['kind']; label: string; icon: ReactNode }[] = [
 function StoriesTab({ tree, p, detail }: { tree: string; p: GPerson; detail?: PersonDetail }) {
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
+  const canWrite = useCan('add-story');
+  const canDelete = useCan('edit-person');
   const remove = useMutation({
     mutationFn: (sid: string) => deleteStory({ data: { tree, id: sid } }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['person', tree, p.id] }); qc.invalidateQueries({ queryKey: ['graph', tree] }); },
@@ -275,21 +305,22 @@ function StoriesTab({ tree, p, detail }: { tree: string; p: GPerson; detail?: Pe
   return (
     <>
       {detail?.bio && <div className="pp-bio" dangerouslySetInnerHTML={{ __html: marked.parse(detail.bio, { async: false }) as string }} />}
-      {adding ? (
+      {!canWrite ? null : adding ? (
         <StoryForm tree={tree} person={p} done={() => setAdding(false)} />
       ) : (
         <button className="btn primary pp-add-story" onClick={() => setAdding(true)}><Plus size={14} /> Add a memory, saying or recipe</button>
       )}
       {detail && detail.stories.length === 0 && !adding && (
-        <p className="empty">Nothing written down about {p.given} yet. What do you remember?</p>
+        <p className="empty">Nothing written down about {p.given} yet.{canWrite ? ' What do you remember?' : ''}</p>
       )}
+      {!canWrite && <p className="pp-ask subtle">Ask a steward if you’d like to add memories of your own.</p>}
       <div className="pp-stories">
         {detail?.stories.map((s) => (
           <article key={s.id} className={`story story-${s.kind}`}>
             <header>
               {KINDS.find((k) => k.id === s.kind)?.icon}
               <span>{s.title ?? KINDS.find((k) => k.id === s.kind)?.label}</span>
-              <button className="btn icon ghost story-del" aria-label="Remove story" title="Remove story" onClick={() => confirm('Remove this story?') && remove.mutate(s.id)}><Trash2 size={13} /></button>
+              {canDelete && <button className="btn icon ghost story-del" aria-label="Remove story" title="Remove story" onClick={() => confirm('Remove this story?') && remove.mutate(s.id)}><Trash2 size={13} /></button>}
             </header>
             {s.kind === 'quote' ? (
               <blockquote>{s.body}</blockquote>
@@ -311,13 +342,13 @@ function StoryForm({ tree, person, done }: { tree: string; person: GPerson; done
   const { leave } = useContext(DraftContext);
   const [saveError, setSaveError] = useState('');
   const qc = useQueryClient();
-  const author = usePref('author') ?? '';
+  // Stories are signed with the writer's account name; the server fills it in.
+  const author = useSession()?.user?.name;
   const form = useForm({
-    defaultValues: { kind: 'memory' as Story['kind'], title: '', body: '', context: '', author },
+    defaultValues: { kind: 'memory' as Story['kind'], title: '', body: '', context: '' },
     onSubmit: async ({ value }) => {
       setSaveError('');
       try {
-      setPref('author', value.author);
       await addStory({ data: { tree, person: person.id, ...value, title: value.title || undefined, context: value.context || undefined } });
       await qc.invalidateQueries({ queryKey: ['person', tree, person.id] });
       qc.invalidateQueries({ queryKey: ['graph', tree] });
@@ -373,17 +404,8 @@ function StoryForm({ tree, person, done }: { tree: string; person: GPerson; done
           </>
         )}
       </form.Subscribe>
-      <div className="row">
-        <form.Field name="author" validators={{ onSubmit: ({ value }) => (value.trim() ? undefined : 'Who is writing?') }}>
-          {(field) => (
-            <label className="field grow">
-              <span>Your name</span>
-              <input aria-describedby="story-author-error" aria-invalid={!!field.state.meta.errors.length} className="input" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} placeholder="So the family knows who remembered" />{field.state.meta.errors.length > 0 && <em className="err" id="story-author-error">{field.state.meta.errors.join(", ")}</em>}
-            </label>
-          )}
-        </form.Field>
-      </div>
       <div className="row end">
+        <span className="subtle pp-signed" title={author ? `Signed as ${author}` : undefined}>{author ? `Signed as ${author}` : ''}</span>
         <button type="button" className="btn ghost" onClick={() => leave(done)}>Cancel</button>
         <form.Subscribe selector={(s) => s.isSubmitting}>
           {(busy) => <button className="btn primary" disabled={busy}><Check size={14} /> Save <kbd>⌘↵</kbd></button>}
@@ -412,6 +434,8 @@ const contactHref = (kind: string, v: string) =>
 
 function EverydayTab({ f, tree, p, detail }: { f: Family; tree: string; p: GPerson; detail?: PersonDetail }) {
   const qc = useQueryClient();
+  const canContact = useCan('edit-contact');
+  const canEdit = useCan('edit-person');
   const [kind, setKind] = useState<'phone' | 'email' | 'address' | 'messenger'>('phone');
   const [value, setValue] = useState('');
   const add = useMutation({
@@ -456,7 +480,7 @@ function EverydayTab({ f, tree, p, detail }: { f: Family; tree: string; p: GPers
           </div>
         </div>
       ) : (
-        <Fact icon={<Cake size={15} />} label="Born">{fmtDate(p.born) ?? 'unknown, add it in Edit'}</Fact>
+        <Fact icon={<Cake size={15} />} label="Born">{fmtDate(p.born) ?? (canEdit ? 'unknown, add it in Edit' : 'unknown')}</Fact>
       )}
       {anniversaries.map(({ u, next, other }) => (
         <div className="pp-countdown" key={u.id}>
@@ -470,7 +494,7 @@ function EverydayTab({ f, tree, p, detail }: { f: Family; tree: string; p: GPers
       {p.nickname && <Fact icon={<UserRound size={15} />} label="Called">{p.nickname}</Fact>}
       {detail?.bornPlace && <Fact icon={<MapPin size={15} />} label="Born in"><PlaceLink tree={tree} name={detail.bornPlace} /></Fact>}
       {p.occupation && <Fact icon={<Pencil size={15} />} label="Does">{p.occupation}</Fact>}
-      <Fact icon={<Gift size={15} />} label="Likes">{detail?.favourite ?? <span className="faint">Gift ideas, favourite food, music… add them in Edit</span>}</Fact>
+      {(detail?.favourite || canEdit) && <Fact icon={<Gift size={15} />} label="Likes">{detail?.favourite ?? <span className="subtle">Gift ideas, favourite food, music… add them in Edit</span>}</Fact>}
 
       <div className="rule">Reach {p.given}</div>
       {detail?.contacts.map((c) => (
@@ -478,14 +502,16 @@ function EverydayTab({ f, tree, p, detail }: { f: Family; tree: string; p: GPers
           {CONTACT_ICON[c.kind]}
           {contactHref(c.kind, c.value) ? <a href={contactHref(c.kind, c.value)} target={c.kind === 'address' ? '_blank' : undefined} rel="noreferrer">{c.value}</a> : <span>{c.value}</span>}
           {c.label && <span className="chip">{c.label}</span>}
-          <button className="btn icon ghost" aria-label="Remove contact" title="Remove contact" onClick={() => del.mutate(c.id)}><Trash2 size={13} /></button>
+          {canContact && <button className="btn icon ghost" aria-label="Remove contact" title="Remove contact" onClick={() => del.mutate(c.id)}><Trash2 size={13} /></button>}
         </div>
       ))}
-      <form className="pp-contact-add" onSubmit={(e) => { e.preventDefault(); value.trim() && add.mutate(); }}>
+      {!canContact ? (
+        detail && !detail.contacts.length ? <p className="pp-ask subtle">No contact details yet. Ask an editor to add them.</p> : null
+      ) : <form className="pp-contact-add" onSubmit={(e) => { e.preventDefault(); value.trim() && add.mutate(); }}>
         <Select aria-label="Contact kind" value={kind} onChange={setKind} options={(['phone', 'email', 'address', 'messenger'] as const).map((value) => ({value, label: value[0].toUpperCase() + value.slice(1)}))} />
         <input aria-label="Contact details" className="input" value={value} onChange={(e) => setValue(e.target.value)} placeholder={kind === 'address' ? 'Street, town' : kind === 'email' ? 'name@example.com' : '+49 …'} />
         <button aria-label="Add contact" className="btn" disabled={!value.trim() || add.isPending}><Plus size={14} /></button>
-      </form>
+      </form>}
     </div>
   );
 }
@@ -509,6 +535,7 @@ function Fact({ icon, label, children }: { icon: ReactNode; label: string; child
 
 function EditTab({ tree, p, detail, done, onRemoved }: { tree: string; p: GPerson; detail: PersonDetail; done: () => void; onRemoved: () => void }) {
   const { leave } = useContext(DraftContext);
+  const canRemove = useCan('remove-person');
   const medieval = tree === 'realm' || (!!p.born && yearOf(p.born) < 1500);
   const qc = useQueryClient();
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -603,14 +630,16 @@ function EditTab({ tree, p, detail, done, onRemoved }: { tree: string; p: GPerso
       </form.Field>
       {saveError && <em role="alert" className="err wide">{saveError}</em>}
       <div className="row end wide">
-        <button
-          type="button"
-          className="btn ghost danger"
-          disabled={remove.isPending}
-          onClick={() => confirm(`Remove ${p.given} from the tree? Their family links, stories, contacts and photo go too.`) && remove.mutate()}
-        >
-          <Trash2 size={14} /> Remove from tree
-        </button>
+        {canRemove && (
+          <button
+            type="button"
+            className="btn ghost danger"
+            disabled={remove.isPending}
+            onClick={() => confirm(`Remove ${p.given} from the tree? Their family links, stories, contacts and photo go too.`) && remove.mutate()}
+          >
+            <Trash2 size={14} /> Remove from tree
+          </button>
+        )}
         <span className="spacer" />
         <button type="button" className="btn ghost" onClick={() => leave(done)}>Cancel</button>
         <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>

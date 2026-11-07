@@ -6,11 +6,12 @@ import type { GParent, GPerson, GUnion, Graph, House, PersonDetail, TreeMeta } f
 
 const DATA = resolve(process.cwd(), 'data');
 const open = new Map<string, DatabaseSync>();
-/** data/gazetteer.db is the place search index, not a tree. */
+/** data/gazetteer.db is the place search index and data/accounts.db the accounts store: not trees. Keep in step with NOT_TREES in auth/store.server.ts. */
 const GAZETTEER = 'gazetteer';
+const NOT_TREES = new Set([GAZETTEER, 'accounts']);
 
 export function db(tree: string): DatabaseSync {
-  if (!/^[a-z0-9-]+$/.test(tree) || tree === GAZETTEER) throw new Error(`bad tree id ${tree}`);
+  if (!/^[a-z0-9-]+$/.test(tree) || NOT_TREES.has(tree)) throw new Error(`bad tree id ${tree}`);
   let d = open.get(tree);
   if (!d) {
     const path = join(DATA, `${tree}.db`);
@@ -27,7 +28,7 @@ const meta = (d: DatabaseSync) =>
 
 export function listTrees(): TreeMeta[] {
   return readdirSync(DATA)
-    .filter((f) => f.endsWith('.db') && f !== `${GAZETTEER}.db`)
+    .filter((f) => f.endsWith('.db') && !NOT_TREES.has(f.slice(0, -3)))
     .map((f): TreeMeta | null => {
       const d = db(f.slice(0, -3));
       const m = meta(d);

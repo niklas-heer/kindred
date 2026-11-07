@@ -21,6 +21,7 @@ import {
 } from 'react';
 import { feature, mesh } from 'topojson-client';
 import { getPlacesIn, graphQuery, placeSearchQuery, searchPlaces, upsertPlaces } from '~/lib/api';
+import { useCan } from '~/lib/session';
 import type { Place } from '~/lib/types';
 import { Dialog } from './ui/Dialog';
 import { isTopOverlay, useOverlayLayer } from './ui/overlay';
@@ -116,6 +117,9 @@ export function PlaceInput({ tree, value, onChange, id, placeholder = 'Town, vil
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const [mapOpen, setMapOpen] = useState(false);
+  // Putting places on the family's map takes 'edit-place' (the server checks it too). Without it the
+  // field still takes a name, but never coordinates, so saving never touches the map.
+  const canPin = useCan('edit-place');
   const box = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement | null>(null);
   const pop = useRef<HTMLDivElement>(null);
@@ -174,7 +178,7 @@ export function PlaceInput({ tree, value, onChange, id, placeholder = 'Town, vil
   }, [shown, active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const choose = (h: Hit) => {
-    onChange({ name: h.name, lat: h.lat, lng: h.lng, country: h.country, region: h.region });
+    onChange(canPin ? { name: h.name, lat: h.lat, lng: h.lng, country: h.country, region: h.region } : { name: h.name });
     setOpen(false);
     setActive(-1);
   };
@@ -219,9 +223,9 @@ export function PlaceInput({ tree, value, onChange, id, placeholder = 'Town, vil
           type="button"
           className="pi-pin"
           data-placed={placed}
-          disabled={disabled}
+          disabled={disabled || !canPin}
           onClick={() => setMapOpen(true)}
-          title={placed ? (name ? `${name} is on the map. Move its pin…` : 'On the map') : 'Place it on the map…'}
+          title={!canPin ? (placed ? 'On the map' : 'Ask an editor to put it on the map') : placed ? (name ? `${name} is on the map. Move its pin…` : 'On the map') : 'Place it on the map…'}
           aria-label={placed ? `On the map${where ? `: ${where}` : ''}. Move the pin` : 'Place it on the map'}
         >
           <MapPin size={16} aria-hidden />
@@ -257,7 +261,7 @@ export function PlaceInput({ tree, value, onChange, id, placeholder = 'Town, vil
         )}
       </div>
 
-      {!shown && clash && (
+      {!shown && clash && canPin && (
         <div className="pi-note" role="status">
           {value.move ? (
             <>
@@ -275,7 +279,7 @@ export function PlaceInput({ tree, value, onChange, id, placeholder = 'Town, vil
           )}
         </div>
       )}
-      {!shown && !placed && name && (
+      {!shown && !placed && name && canPin && (
         <div className="pi-note" role="status">
           <span>Not on the map yet.</span>
           {suggestion && (
@@ -338,7 +342,7 @@ export function PlaceInput({ tree, value, onChange, id, placeholder = 'Town, vil
         </div>
       )}
 
-      {mapOpen && (
+      {mapOpen && canPin && (
         <PinMap
           tree={tree}
           name={name || 'this place'}

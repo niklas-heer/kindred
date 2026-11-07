@@ -444,12 +444,16 @@ function PlaceDetail({ pin, f, tree, mode, onBack }: { pin: Pin; f: ReturnType<t
     <div className="atlas-detail">
       <button className="btn ghost atlas-back" onClick={onBack}><ArrowLeft size={16} aria-hidden /> All places</button>
       <div className="ui-card atlas-place-card">
-        <span className="atlas-place-mark" aria-hidden>
-          {house ? <Arms arms={house.arms} size={34} /> : <PlaceToken size={38} />}
-        </span>
+        {house ? (
+          <Link className="atlas-place-mark" to="/$tree/house/$house" params={{ tree, house: house.id }} title={`Open the page of ${house.name}`} aria-label={`Open the page of ${house.name}`}>
+            <Arms arms={house.arms} size={34} />
+          </Link>
+        ) : (
+          <span className="atlas-place-mark" aria-hidden><PlaceToken size={38} /></span>
+        )}
         <div>
           <h2 className="display">{pin.place.name}</h2>
-          <p className="muted">First recorded in {pin.first}{house ? <> · mostly <span className="atlas-house">{house.name}</span></> : null}</p>
+          <p className="muted">First recorded in {pin.first}{house ? <> · mostly <Link className="atlas-house" to="/$tree/house/$house" params={{ tree, house: house.id }}>{house.name}</Link></> : null}</p>
           <p className="atlas-place-kinds">
             {KINDS.filter((k) => pin.kinds[k]).map((k) => (
               <span key={k} className={`k-${k}`}><GameIcon name={ICON[k]} size={13} /> {pin.kinds[k]} {KIND_ONE[k][pin.kinds[k] === 1 ? 0 : 1]}</span>

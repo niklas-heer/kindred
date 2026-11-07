@@ -194,10 +194,10 @@ const columns = h.columns([
     sortUndefined: 'last',
     cell: ({ row }) =>
       row.original.house ? (
-        <span className="reg-house">
+        <Link className="reg-house" to="/$tree/house/$house" params={{ tree: row.original.tree, house: row.original.house.id }} onClick={(e) => e.stopPropagation()} tabIndex={-1} title={`Open the page of ${row.original.house.name}`}>
           <Arms arms={row.original.house.arms} size={18} />
           <span>{row.original.house.name}</span>
-        </span>
+        </Link>
       ) : null,
   }),
   h.accessor((r) => r.bornKey, { id: 'born', sortDescFirst: false, header: 'Born', sortFn: 'basic', sortUndefined: 'last', cell: ({ row }) => short(row.original.p.born) || <span className="faint">—</span> }),
@@ -384,7 +384,7 @@ function RegisterPage() {
           {rows.length === 0 && <EmptyState title={all.length ? 'No one matches' : 'No people recorded yet'} text={all.length ? 'Try fewer words or clear your filters.' : 'Add the first person from the family tree.'} action={filtered ? <button className="btn" onClick={reset}>Clear filters</button> : undefined} />}
           {rows.slice(0, mobileLimit).map(({ original: r }) => <details className="reg-mobile-person ui-card" key={r.id}>
             <summary><Portrait person={r.p} tree={tree} size={42} /><span><b>{r.base}</b>{r.p.epithet && <i>{r.p.epithet}</i>}<small>{short(r.p.born) || 'Birth unknown'} · {r.p.living ? 'Living' : short(r.p.died) || 'Death unknown'}</small>{r.rel && <small>{r.rel === 'you' ? 'You' : `Your ${r.rel}`}</small>}</span></summary>
-            <div className="reg-mobile-detail">{r.house && <span className="reg-house"><Arms arms={r.house.arms} size={18} />{r.house.name}</span>}{r.role && <p>{r.role}</p>}<Link className="btn" to="/$tree" params={{ tree }} search={{ focus: r.id }}>Open person</Link></div>
+            <div className="reg-mobile-detail">{r.house && <Link className="reg-house" to="/$tree/house/$house" params={{ tree, house: r.house.id }}><Arms arms={r.house.arms} size={18} /><span>{r.house.name}</span></Link>}{r.role && <p>{r.role}</p>}<Link className="btn" to="/$tree" params={{ tree }} search={{ focus: r.id }}>Open person</Link></div>
           </details>)}
           {rows.length > mobileLimit && <button className="btn" onClick={() => setMobileLimit((n) => n + 100)}>Show {Math.min(100, rows.length - mobileLimit)} more people</button>}
         </div>

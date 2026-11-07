@@ -1,7 +1,7 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import {
   ArrowDownToLine, ArrowLeft, ArrowUpToLine, ChevronUp, ChevronsDownUp, ChevronsUpDown, Crown, FileQuestion, GitFork, Glasses,
-  HeartPulse, Keyboard, Minus, Network, Plus, Route as RouteIcon, Shield, Users, Waypoints, X,
+  HeartPulse, Keyboard, Landmark, Minus, Network, Plus, Route as RouteIcon, Shield, Users, Waypoints, X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
 import { Canvas, type CanvasHandle, type Detail } from '~/components/Canvas';
@@ -21,6 +21,7 @@ import { play } from '~/lib/sfx';
 import { toast } from '~/lib/toast';
 import { Arms } from '~/components/Heraldry';
 import { personName, treeTitle } from '~/lib/title';
+import { useCan } from '~/lib/session';
 import '~/styles/tree.css';
 
 export const Route = createFileRoute('/$tree/')({
@@ -48,6 +49,9 @@ function TreePage() {
   const who = useMeChosen();
   const qc = useQueryClient();
   const codex = f.graph.tree.theme === 'codex';
+  // Adding from the tree (the + marks, empty parent slots) and its Undo need these roles; the server checks too.
+  const canAdd = useCan('add-person');
+  const canRemove = useCan('remove-person');
 
   // `focus` anchors the layout (the hourglass centre, the dynasty's line); `sel` is who the panel
   // shows. Clicking selects without moving anything; double-click or Enter re-centres.
@@ -267,10 +271,10 @@ function TreePage() {
         onSelect={(id) => select(id, 'click')}
         onOpen={refocus}
         onToggle={view === 'dynasty' || (view === 'family' && n.row > 0 && n.role === 'main') ? toggle : undefined}
-        onAdd={(anchor, relation, sex) => setAdding({ anchor, relation, sex })}
+        onAdd={canAdd ? (anchor, relation, sex) => setAdding({ anchor, relation, sex }) : undefined}
       />
     ),
-    [f, tree, kinOf, sel, who, view, select, refocus, toggle],
+    [f, tree, kinOf, sel, who, view, select, refocus, toggle, canAdd],
   );
 
   // ---- keyboard: walk the tree ----
@@ -345,7 +349,7 @@ function TreePage() {
       person: id,
       ms: 9000,
       // Added by mistake? One click takes them out again.
-      action: {
+      action: !canRemove ? undefined : {
         label: 'Undo',
         run: async () => {
           try {
@@ -427,9 +431,12 @@ function TreePage() {
     { value: 'ancestors', label: 'Ancestors', icon: <GitFork size={15} style={{ transform: 'rotate(180deg)' }} />, title: 'Ancestors (3)' },
   ];
   const ALL = '*all';
+  const PAGE = '*page';
+  const lineHouse = view === 'dynasty' && line === 'house' ? f.house.get(f.byId.get(lay.root)?.house ?? '') : undefined;
   const houseOptions: SelectOption[] = [
     ...houses.map(([h, n]) => ({ value: h.id, label: h.name, icon: <Arms arms={h.arms} size={18} />, hint: n.toLocaleString('en-GB'), group: 'House line' })),
     { value: ALL, label: 'All descendants', icon: <Users size={16} />, hint: 'through daughters too', group: 'Every descendant' },
+    ...(lineHouse ? [{ value: PAGE, label: 'Open house page', icon: <Landmark size={16} />, hint: lineHouse.name, group: 'This house' }] : []),
   ];
   const lensOptions: SelectOption<NonNullable<typeof search.lens>>[] = [
     { value: 'none', label: 'Everyone', icon: <Glasses size={16} /> },
@@ -545,6 +552,7 @@ function TreePage() {
                     value={line === 'house' ? (f.byId.get(lay.root)?.house ?? '') : ALL}
                     options={houseOptions}
                     onChange={(v) => {
+                      if (v === PAGE) return lineHouse && navigate({ to: '/$tree/house/$house', params: { tree, house: lineHouse.id } });
                       if (v === ALL) return go({ line: 'all', root: undefined });
                       const r = houseRoot(f, v);
                       if (r) { panTo.current = r; go({ line: 'house', root: r, focus: r, sel: undefined }); }
@@ -580,7 +588,7 @@ function TreePage() {
                     <b className="display">{line === 'house' && rootHouse ? rootHouse.name : `Descendants of ${displayName(rootPerson, f)}`}</b>
                     {bannerBig ? (
                       <span className="faint">
-                        {members.toLocaleString('en-GB')} {line === 'house' ? 'members' : 'descendants'} · from {displayName(rootPerson, f)}
+                        {members.toLocaleString('en-GB')} {line === 'house' ? (members === 1 ? 'member' : 'members') : members === 1 ? 'descendant' : 'descendants'} · from {displayName(rootPerson, f)}
                         {rootHouse?.motto && line === 'house' ? <> · <i>“{rootHouse.motto}”</i></> : null}
                       </span>
                     ) : (
@@ -588,6 +596,11 @@ function TreePage() {
                     )}
                   </span>
                 </button>
+                {line === 'house' && rootHouse && (
+                  <Link className={`btn ${bannerBig ? 'ghost' : 'icon ghost'} banner-page`} to="/$tree/house/$house" params={{ tree, house: rootHouse.id }} title={`Open the page of ${rootHouse.name}`} aria-label={`Open the page of ${rootHouse.name}`}>
+                    <Landmark size={15} />{bannerBig && <> House page</>}
+                  </Link>
+                )}
                 {older && (
                   bannerBig
                     ? <button className="btn ghost" onClick={() => go({ root: older })} title="Start the tree one generation earlier"><ChevronUp size={15} /> Older</button>
@@ -678,7 +691,7 @@ function TreePage() {
           )}
         </div>
       )}
-      {adding && (
+      {adding && canAdd && (
         <QuickAdd
           family={f}
           tree={tree}

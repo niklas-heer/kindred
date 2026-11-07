@@ -233,3 +233,6 @@
 }
 [data-theme='modern'] .card-gaps { color: #a0621a; background: #fff6e8; border-color: #d9a25a; top: 100px; }
 [data-theme='night'] .card-gaps { top: 100px; }
+
+/* An unknown parent for a reader who may not add people: a quiet outline, not a button. */
+.card.ghost.readonly { cursor: default; pointer-events: none; }

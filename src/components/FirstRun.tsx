@@ -7,12 +7,13 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BROWSING, chooseMe, useFamily, useMeAnswered, useTreeId } from '~/lib/family';
 import { children, displayName, lifespan, parents, partnersOf, siblings, type Family } from '~/lib/graph';
 import { setPref, usePref } from '~/lib/prefs';
+import { useCan } from '~/lib/session';
 import { searchPeople } from './Palette';
 import { Portrait } from './Portrait';
 import { Dialog } from './ui/Dialog';
 import './firstrun.css';
 
-const STEPS: { title: string; art: ReactNode; body: ReactNode }[] = [
+const STEPS: { title: string; art: ReactNode; body: ReactNode; adds?: boolean }[] = [
   {
     title: 'Select, then centre',
     art: <MousePointerClick size={38} />,
@@ -20,6 +21,7 @@ const STEPS: { title: string; art: ReactNode; body: ReactNode }[] = [
   },
   {
     title: 'Add with the + marks',
+    adds: true,
     art: <UserPlus size={38} />,
     body: <>Dashed <b>+</b> marks surround the selected card: a parent above, a child below, a partner to the right, a sibling to the left. Only a name is needed.</>,
   },
@@ -41,6 +43,9 @@ export function FirstRun() {
   const [later, setLater] = useState(false);
   const [touring, setTouring] = useState(false);
   const [step, setStep] = useState(0);
+  // Readers who can't add people skip the step about the + marks: they don't see them.
+  const canAdd = useCan('add-person');
+  const steps = canAdd ? STEPS : STEPS.filter((s) => !s.adds);
   useEffect(() => { const reopen = () => { setStep(0); setTouring(true); }; window.addEventListener('kindred:reopen-tour', reopen); return () => window.removeEventListener('kindred:reopen-tour', reopen); }, []);
 
   const choose = (id: string) => {
@@ -53,8 +58,8 @@ export function FirstRun() {
   };
 
   if (touring) {
-    const s = STEPS[step];
-    const last = step === STEPS.length - 1;
+    const s = steps[Math.min(step, steps.length - 1)];
+    const last = step >= steps.length - 1;
     return (
       <Dialog
         open
@@ -64,8 +69,8 @@ export function FirstRun() {
         title={s.title}
         footer={
           <>
-            <span className="tour-dots" aria-label={`Step ${step + 1} of ${STEPS.length}`}>
-              {STEPS.map((_, i) => <i key={i} data-on={i === step || undefined} />)}
+            <span className="tour-dots" aria-label={`Step ${step + 1} of ${steps.length}`}>
+              {steps.map((_, i) => <i key={i} data-on={i === step || undefined} />)}
             </span>
             {!last && <button className="btn ghost" onClick={endTour}>Skip tour</button>}
             {step > 0 && <button className="btn" onClick={() => setStep(step - 1)}>Back</button>}

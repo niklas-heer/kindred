@@ -35,6 +35,19 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
     // An unknown parent: an open slot that invites filling in.
     const { child, as } = node.ghost;
     const of = f.byId.get(child);
+    // Readers who may not add people see the slot as a plain "unknown", not a button.
+    if (!onAdd) {
+      return (
+        <div className={`card ghost readonly ${detail}`} title={`${of?.given ?? 'Their'}'s ${as} is unknown`} aria-hidden>
+          {detail === 'near' && (
+            <>
+              <span className="ghost-label">{as === 'father' ? 'Father' : 'Mother'}</span>
+              <span className="ghost-sub">of {of?.given ?? '?'} · unknown</span>
+            </>
+          )}
+        </div>
+      );
+    }
     return (
       <button
         className={`card ghost ${detail}`}

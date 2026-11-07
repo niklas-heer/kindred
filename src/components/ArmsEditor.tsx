@@ -7,7 +7,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Dices, Info, RotateCcw, Undo2 } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { graphQuery, treesQuery, updateHouse } from '~/lib/api';
+import { graphQuery, updateHouse } from '~/lib/api';
+import { myFamiliesQuery } from '~/lib/auth/functions';
+import { useCan } from '~/lib/session';
 import type { Tincture } from '~/lib/seed-format';
 import { play } from '~/lib/sfx';
 import { toast } from '~/lib/toast';
@@ -52,6 +54,8 @@ function useHistory(initial: Draft) {
 
 export function ArmsEditor({ open, onClose, house, tree }: { open: boolean; onClose: () => void; house: House; tree: string }) {
   const qc = useQueryClient();
+  // Only a steward may change a house; the server refuses anyone else too.
+  const allowed = useCan('edit-house');
   const saved = draftOf(house);
   const h = useHistory(saved);
   const { draft } = h;
@@ -71,7 +75,7 @@ export function ArmsEditor({ open, onClose, house, tree }: { open: boolean; onCl
       updateHouse({ data: { tree, id: house.id, name: d.name.trim(), motto: d.motto.trim() || null, arms: d.arms } }),
     onSuccess: async (h2) => {
       // Every shield in the app reads the graph, so they all change together.
-      await Promise.all([qc.invalidateQueries({ queryKey: graphQuery(tree).queryKey }), qc.invalidateQueries({ queryKey: treesQuery.queryKey })]);
+      await Promise.all([qc.invalidateQueries({ queryKey: graphQuery(tree).queryKey }), qc.invalidateQueries({ queryKey: myFamiliesQuery.queryKey })]);
       play('seal');
       toast({ title: 'Arms sealed', body: `${h2.name} bears its new arms.`, icon: 'crown' });
       onClose();
@@ -98,6 +102,7 @@ export function ArmsEditor({ open, onClose, house, tree }: { open: boolean; onCl
     }
   };
 
+  if (!allowed) return null;
   return (
     <Dialog
       open={open}

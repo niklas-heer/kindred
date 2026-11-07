@@ -69,3 +69,6 @@
 .needed-who b, .blaze-who h2 { font-family: 'EB Garamond Variable', Garamond, serif; font-weight: 500; }
 
 @media(max-width:600px) { .needed .btn, .needed-gaps .chip, .blaze .btn { min-height: 44px; } }
+
+/* A reader who may not fill anything in here: why there is no Blaze button. */
+.needed-ask { margin: -4px 0 14px; font-size: 14.5px; }

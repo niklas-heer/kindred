@@ -12,9 +12,10 @@ import { PlaceInput, savePlaces, type PlaceValue } from '~/components/PlaceInput
 import { addContact, addRelative, addStory, patchPerson, uploadPhoto } from '~/lib/api';
 import { fullDate, validDate } from '~/lib/dates';
 import { useFamily, useMe, useMeChosen, useTreeId } from '~/lib/family';
-import { ALL_GAPS, GAP_HINT, GAP_LABEL, gapsOf, useRequired, type GapKey } from '~/lib/gaps';
+import { ALL_GAPS, GAP_ACTION, GAP_HINT, GAP_LABEL, gapsOf, useRequired, type GapKey } from '~/lib/gaps';
 import { ancestorDepths, children, displayName, kinship, lifespan, parents, partnersOf, type Family } from '~/lib/graph';
-import { usePref } from '~/lib/prefs';
+import { can, type Role } from '~/lib/roles';
+import { useRole } from '~/lib/session';
 import { play } from '~/lib/sfx';
 import '~/styles/needed.css';
 import { sectionHead } from '~/lib/title';
@@ -66,6 +67,12 @@ function Needed() {
     return c;
   }, [rows]);
   const shown = only ? rows.filter((r) => r.gaps.includes(only)) : rows;
+  // Each gap needs the right to fill it in (the server checks the same): a viewer only browses the list,
+  // a contributor can add photos and memories, an editor everything else.
+  const role = useRole();
+  const fillable = (g: GapKey) => can(role, GAP_ACTION[g]);
+  const canFill = (gaps: GapKey[]) => gaps.some((g) => (!only || g === only) && fillable(g));
+  const queue = shown.filter((r) => canFill(r.gaps));
   const complete = f.graph.people.length - rows.length;
   const toggle = (k: GapKey) => {
     const next = required.has(k) ? [...required].filter((x) => x !== k) : [...required, k];
@@ -81,12 +88,20 @@ function Needed() {
               {' '}{complete > 0 && <>{complete.toLocaleString('en-GB')} are complete.</>} Closest relatives first: they are the easiest to ask.
             </>} actions={<div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" aria-pressed={settings} onClick={() => setSettings((s) => !s)}>What counts?</button>
-            {shown.length > 0 && (
-              <button className="btn primary" onClick={() => { play('seal'); setBlazeOnly(only); setBlaze(shown.map((r) => r.p.id)); }} title="One person at a time, only what is missing: ↵ saves and moves on">
+            {queue.length > 0 && (
+              <button className="btn primary" onClick={() => { play('seal'); setBlazeOnly(only); setBlaze(queue.map((r) => r.p.id)); }} title="One person at a time, only what is missing: ↵ saves and moves on">
                 <Flame size={16} /> Blaze through {only ? GAP_LABEL[only].toLowerCase() : 'everything'}
               </button>
             )}
           </div>} />
+
+        {shown.length > 0 && queue.length === 0 && (
+          <p className="needed-ask subtle" role="note">
+            {role === 'viewer'
+              ? 'You can browse what’s missing; ask an editor to fill it in.'
+              : 'Only an editor can fill these in. You can add photos and memories: choose them under “What counts?”.'}
+          </p>
+        )}
 
         {settings && (
           <div className="needed-settings">
@@ -125,7 +140,9 @@ function Needed() {
                     {gaps.map((g) => <button key={g} className={`chip${only === g ? ' on' : ''}`} onClick={() => setOnly(only === g ? null : g)} title={`Show everyone missing: ${GAP_LABEL[g]}`}>{GAP_LABEL[g]}</button>)}
                   </div>
                   </div>
-                  <button className="btn" onClick={() => { setBlazeOnly(null); setBlaze([p.id, ...shown.map((r) => r.p.id).filter((id) => id !== p.id)]); }} title="Fill in this person, then carry on down the list">Fill in</button>
+                  {gaps.some(fillable) ? (
+                    <button className="btn" onClick={() => { setBlazeOnly(null); setBlaze([p.id, ...queue.map((r) => r.p.id).filter((id) => id !== p.id)]); }} title="Fill in this person, then carry on down the list">Fill in</button>
+                  ) : <span aria-hidden />}
                 </li>
               );
             })}
@@ -133,7 +150,7 @@ function Needed() {
         )}
         {shown.length > limit && <button className="btn needed-more" onClick={() => setLimit((l) => l + 200)}>Show {Math.min(200, shown.length - limit)} more</button>}
       </div>
-      {blaze && <Blaze queue={blaze} only={blazeOnly} f={f} tree={tree} me={who} required={required} onClose={() => setBlaze(null)} />}
+      {blaze && <Blaze queue={blaze} only={blazeOnly} f={f} tree={tree} me={who} role={role} required={required} onClose={() => setBlaze(null)} />}
     </div>
   );
 }
@@ -147,9 +164,8 @@ type Values = Partial<Record<'born' | 'bornPlace' | 'died' | 'occupation' | 'fat
   bornPin?: Omit<PlaceValue, 'name'>;
 };
 
-function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[]; only: GapKey | null; f: Family; tree: string; me: string | null; required: ReadonlySet<GapKey>; onClose: () => void }) {
+function Blaze({ queue, only, f, tree, me, role, required, onClose }: { queue: string[]; only: GapKey | null; f: Family; tree: string; me: string | null; role: Role; required: ReadonlySet<GapKey>; onClose: () => void }) {
   const qc = useQueryClient();
-  const author = usePref('author') ?? '';
   const [i, setI] = useState(0);
   const [filled, setFilled] = useState(0);
   const [skipped, setSkipped] = useState(0);
@@ -161,7 +177,8 @@ function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[
 
   const id = queue[i];
   const p = id ? f.byId.get(id) : undefined;
-  const gaps = p ? gapsOf(f, p, required).filter((g) => !only || g === only) : [];
+  // Only what this reader may fill in: the rest waits for someone who can.
+  const gaps = p ? gapsOf(f, p, required).filter((g) => (!only || g === only) && can(role, GAP_ACTION[g])) : [];
   const dialog = useRef<HTMLDivElement>(null);
   const done = i >= queue.length;
 
@@ -232,7 +249,8 @@ function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[
         delete rest.contactValue;
       }
       if (rest.story?.trim()) {
-        await addStory({ data: { tree, person: p.id, kind: 'memory', body: rest.story.trim(), author: author || 'Family' } });
+        // Signed with the writer's account name by the server.
+        await addStory({ data: { tree, person: p.id, kind: 'memory', body: rest.story.trim() } });
         did = true;
         delete rest.story;
       }
@@ -378,7 +396,6 @@ function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[
             <label className="field wide">
               <span>A memory of {p.given}</span>
               <textarea ref={firstRef<HTMLTextAreaElement>()} className="input" rows={3} value={v.story ?? ''} onChange={set('story')} placeholder={`Something you remember about ${p.given} (⌘↵ to save)`} />
-              {!author && <em className="faint">Signed as “Family”; set your name when adding a story in the panel.</em>}
             </label>
           )}
           {error && <em className="err wide">{error}</em>}

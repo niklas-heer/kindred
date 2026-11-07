@@ -339,6 +339,8 @@ kbd {
 
 /* Narrow windows: the nav keeps its icons, titles explain them. */
 @media (max-width: 1400px) { .topbar nav .nav-label { display: none; } .topbar nav a { padding: 6px 10px; } .search-trigger { width: 200px; } }
+/* Eight sections (with Houses) keep their labels down to 1400px: a little less padding and a narrower search. */
+@media (min-width: 1401px) and (max-width: 1680px) { .topbar nav a { padding: 6px 7px; gap: 5px; } .search-trigger { width: 168px; } }
 @media (max-width: 900px) { .topbar .brand b { display: none; } .search-trigger { width: auto; } .search-trigger > span:first-child { font-size: 0; } }
 
 /* ---------- phone: a bottom tab bar ---------- */

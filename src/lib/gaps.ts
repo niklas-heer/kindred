@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { parents, type Family } from './graph';
 import { setPref, usePref } from './prefs';
+import type { Action } from './roles';
 import type { GPerson } from './types';
 
 export type GapKey = 'born' | 'birthday' | 'birthplace' | 'parents' | 'died' | 'sex' | 'photo' | 'contact' | 'occupation' | 'story';
@@ -41,6 +42,12 @@ export const DEFAULT_GAPS: GapKey[] = ['born', 'birthday', 'birthplace', 'parent
 export const GAP_WHERE: Record<GapKey, 'edit' | 'tree' | 'everyday' | 'stories'> = {
   born: 'edit', birthday: 'edit', birthplace: 'edit', parents: 'tree', died: 'edit', sex: 'edit',
   photo: 'edit', contact: 'everyday', occupation: 'edit', story: 'stories',
+};
+
+/** What filling a gap in takes: the same actions the server checks (src/lib/roles.ts). */
+export const GAP_ACTION: Record<GapKey, Action> = {
+  born: 'edit-person', birthday: 'edit-person', birthplace: 'edit-person', died: 'edit-person', sex: 'edit-person', occupation: 'edit-person',
+  parents: 'add-person', photo: 'upload-photo', contact: 'edit-contact', story: 'add-story',
 };
 
 const isAdult = (p: GPerson) => {

@@ -3,33 +3,51 @@ import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { validDate } from './dates';
-import { can, needs, type Action, type Role } from './roles';
+import type { Action } from './roles';
 
-const tree = z.string().regex(/^[a-z0-9-]+$/);
+const tree = z.string().regex(/^[a-z0-9-]+$/).max(64);
 const date = z.string().refine(validDate, 'Not a real date').optional();
 const server = () => import('./db.server');
 
-export const getTrees = createServerFn({ method: 'GET' }).handler(async () => (await server()).listTrees());
-export const treesQuery = queryOptions({ queryKey: ['trees'], queryFn: () => getTrees() });
+// The server's permission checks (src/lib/auth/guard.server.ts), imported inside each handler so they
+// stay server-only. Every handler below starts with one: reads need membership of the tree, changes
+// need the same `Action` the browser asks `useCan()` about, so hiding a button is never the only
+// protection. They answer 401 when signed out and 403 for a non-member or a role that is too low.
+const guard = () => import('./auth/guard.server');
+const requireMember = async (t: string) => (await guard()).requireMember(t);
+const requireCan = async (t: string, action: Action) => (await guard()).requireCan(t, action);
+// The families list lives in src/lib/auth/functions.ts (`fetchMyFamilies`): only the reader's own.
 
 export const getGraph = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
-  .handler(async ({ data }) => (await server()).graph(data.tree));
+  .handler(async ({ data }) => {
+    await requireMember(data.tree);
+    return (await server()).graph(data.tree);
+  });
 export const graphQuery = (t: string) => queryOptions({ queryKey: ['graph', t], queryFn: () => getGraph({ data: { tree: t } }), staleTime: Infinity });
 
 export const getPerson = createServerFn({ method: 'GET' })
   .validator(z.object({ tree, id: z.string() }))
-  .handler(async ({ data }) => (await server()).person(data.tree, data.id));
+  .handler(async ({ data }) => {
+    await requireMember(data.tree);
+    return (await server()).person(data.tree, data.id);
+  });
 export const personQuery = (t: string, id: string) => queryOptions({ queryKey: ['person', t, id], queryFn: () => getPerson({ data: { tree: t, id } }) });
 
 export const getChronicle = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
-  .handler(async ({ data }) => (await server()).chronicle(data.tree, 300));
+  .handler(async ({ data }) => {
+    await requireMember(data.tree);
+    return (await server()).chronicle(data.tree, 300);
+  });
 export const chronicleQuery = (t: string) => queryOptions({ queryKey: ['chronicle', t], queryFn: () => getChronicle({ data: { tree: t } }) });
 
 export const getContacts = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
-  .handler(async ({ data }) => (await server()).allContacts(data.tree));
+  .handler(async ({ data }) => {
+    await requireMember(data.tree);
+    return (await server()).allContacts(data.tree);
+  });
 export const contactsQuery = (t: string) => queryOptions({ queryKey: ['contacts', t], queryFn: () => getContacts({ data: { tree: t } }) });
 
 const newPerson = z.object({
@@ -55,6 +73,7 @@ export const addRelative = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data }) => {
+    await requireCan(data.tree, 'add-person');
     const { db, newId } = await server();
     const d = db(data.tree);
     const p = data.person;
@@ -93,6 +112,7 @@ export const addRelative = createServerFn({ method: 'POST' })
 export const linkRelative = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, anchor: z.string(), person: z.string(), relation: z.enum(['parent', 'child', 'sibling', 'partner']), coParent: z.string().optional(), partnership: z.object({ kind: z.enum(['marriage', 'partnership', 'other']), start: date, place: z.string().trim().max(200).optional() }).optional() }))
   .handler(async ({ data }) => {
+    await requireCan(data.tree, 'edit-person');
     const d = (await server()).db(data.tree);
     if (data.anchor === data.person) throw new Error('A person cannot be their own relative.');
     for (const id of [data.anchor, data.person, data.coParent].filter(Boolean)) {
@@ -145,6 +165,7 @@ export const updatePerson = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data }) => {
+    await requireCan(data.tree, 'edit-person');
     const { db } = await server();
     const p = data.patch;
     const empty = (s: string | null) => (s === null || s.trim() === '' ? null : s.trim());
@@ -173,6 +194,7 @@ export const patchPerson = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data }) => {
+    await requireCan(data.tree, 'edit-person');
     const cols: Record<string, string> = { born: 'born', bornPlace: 'born_place', died: 'died', sex: 'sex', occupation: 'occupation' };
     const set = Object.entries(data.patch).filter(([, v]) => v !== undefined && v !== '');
     if (!set.length) return;
@@ -184,6 +206,7 @@ export const patchPerson = createServerFn({ method: 'POST' })
 export const removePerson = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, id: z.string() }))
   .handler(async ({ data }) => {
+    await requireCan(data.tree, 'remove-person');
     const d = (await server()).db(data.tree);
     d.exec('PRAGMA foreign_keys = ON; BEGIN');
     try {
@@ -211,22 +234,25 @@ export const addStory = createServerFn({ method: 'POST' })
       kind: z.enum(['note', 'quote', 'anecdote', 'recipe', 'memory']),
       title: z.string().trim().max(200).optional(),
       body: z.string().trim().min(1).max(20_000),
-      author: z.string().trim().min(1).max(120),
       context: z.string().trim().max(300).optional(),
     }),
   )
   .handler(async ({ data }) => {
+    // Signed with the writer's own name from their account, never a name the browser sends.
+    const { user } = await requireCan(data.tree, 'add-story');
     const { db } = await server();
+    const d = db(data.tree);
+    if (!d.prepare('SELECT id FROM person WHERE id = ?').get(data.person)) throw new Error('Person not found.');
     const id = crypto.randomUUID();
-    db(data.tree)
-      .prepare('INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, data.person, data.kind, data.title || null, data.body, data.author, new Date().toISOString(), data.context || null);
+    d.prepare('INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, data.person, data.kind, data.title || null, data.body, user.name, new Date().toISOString(), data.context || null);
     return id;
   });
 
 export const deleteStory = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, id: z.string() }))
   .handler(async ({ data }) => {
+    await requireCan(data.tree, 'edit-person');
     (await server()).db(data.tree).prepare('DELETE FROM story WHERE id = ?').run(data.id);
   });
 
@@ -241,12 +267,14 @@ export const addContact = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data }) => {
+    await requireCan(data.tree, 'edit-contact');
     (await server()).db(data.tree).prepare('INSERT INTO contact (person, kind, label, value) VALUES (?, ?, ?, ?)').run(data.person, data.kind, data.label || null, data.value);
   });
 
 export const deleteContact = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, id: z.number().int() }))
   .handler(async ({ data }) => {
+    await requireCan(data.tree, 'edit-contact');
     (await server()).db(data.tree).prepare('DELETE FROM contact WHERE id = ?').run(data.id);
   });
 
@@ -254,10 +282,12 @@ export const uploadPhoto = createServerFn({ method: 'POST' })
   .validator((d: unknown) => {
     if (!(d instanceof FormData)) throw new Error('expected form data');
     const file = d.get('file');
-    if (!(file instanceof File) || !file.type.startsWith('image/') || file.size > 5_000_000) throw new Error('an image under 5 MB');
+    // Photos only (no SVG: it can carry script). The Portrait shows them with <img>.
+    if (!(file instanceof File) || !/^image\/(jpeg|png|webp|gif|avif)$/.test(file.type) || file.size > 5_000_000) throw new Error('A photo (JPEG, PNG, WebP, GIF or AVIF) under 5 MB');
     return { tree: tree.parse(d.get('tree')), id: z.string().parse(d.get('id')), file };
   })
   .handler(async ({ data }) => {
+    await requireCan(data.tree, 'upload-photo');
     const bytes = new Uint8Array(await data.file.arrayBuffer());
     (await server())
       .db(data.tree)
@@ -270,7 +300,10 @@ export const uploadPhoto = createServerFn({ method: 'POST' })
 /** Place suggestions for a place field: the tree's own places, then the offline gazetteer. Cheap enough for every keystroke. */
 export const searchPlaces = createServerFn({ method: 'GET' })
   .validator(z.object({ tree, q: z.string().max(120) }))
-  .handler(async ({ data }) => (await server()).searchPlaces(data.tree, data.q));
+  .handler(async ({ data }) => {
+    await requireMember(data.tree);
+    return (await server()).searchPlaces(data.tree, data.q);
+  });
 export const placeSearchQuery = (t: string, q: string) =>
   queryOptions({ queryKey: ['places', t, q.trim().toLowerCase()], queryFn: () => searchPlaces({ data: { tree: t, q: q.trim() } }), staleTime: 60_000, placeholderData: (prev) => prev });
 
@@ -280,27 +313,21 @@ const lng = z.number().min(-180).max(180);
 /** Gazetteer towns in a map box, for orientation when dropping a pin. */
 export const getPlacesIn = createServerFn({ method: 'GET' })
   .validator(z.object({ west: lng, south: lat, east: lng, north: lat, limit: z.number().int().min(1).max(200) }))
-  .handler(async ({ data }) => (await server()).placesIn(data, data.limit));
+  .handler(async ({ data }) => {
+    // The gazetteer belongs to no family: any signed-in reader may look at it.
+    await (await guard()).requireUser();
+    return (await server()).placesIn(data, data.limit);
+  });
 
 /** Puts places on the tree's map. Existing pins stay where they are unless `move` is set. Safe to repeat. */
 export const upsertPlaces = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, places: z.array(z.object({ name: z.string().trim().min(1).max(200), lat, lng, country: z.string().regex(/^[a-z]{2}$/).optional(), move: z.boolean().optional() })).max(10) }))
-  .handler(async ({ data }) => (await server()).upsertPlaces(data.tree, data.places));
+  .handler(async ({ data }) => {
+    await requireCan(data.tree, 'edit-place');
+    return (await server()).upsertPlaces(data.tree, data.places);
+  });
 
 // ---------- houses ----------
-
-/**
- * The server's permission check: every server function that changes something goes through here, with
- * the same `Action` the client asks `useCan()` about, so hiding a button is never the only protection.
- */
-async function requireCan(t: string, action: Action): Promise<void> {
-  // TODO(auth): check the session's role. Replace this body with the guard from src/lib/auth/guard.server.ts
-  // (same name and arguments, imported dynamically so it stays server-only):
-  //   await (await import('./auth/guard.server')).requireCan(t, action);
-  // Until then every caller counts as a steward.
-  const role: Role = 'steward';
-  if (!can(role, action)) throw new Error(`Only a ${needs(action)} can do that in the ${t} tree.`);
-}
 
 const tincture = z.enum(['or', 'argent', 'gules', 'azure', 'vert', 'sable', 'purpure']);
 const arms = z.object({

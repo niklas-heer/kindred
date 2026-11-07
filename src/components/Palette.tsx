@@ -1,12 +1,13 @@
 // ⌘K: jump to anyone by name, nickname, epithet, title or place; or run a command.
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useNavigate } from '@tanstack/react-router';
-import { CalendarHeart, Contact, Map as MapIcon, Crown, GitFork, Moon, Network, Palette as PaletteIcon, ScrollText, Sun, UserRound } from 'lucide-react';
+import { CalendarHeart, Contact, Landmark, Map as MapIcon, Crown, GitFork, Moon, Network, Palette as PaletteIcon, ScrollText, Sun, UserRound } from 'lucide-react';
 import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useFamily, useMe, useMeChosen, useTreeId } from '~/lib/family';
 import { displayName, kinship, lifespan, ancestorDepths, type Family } from '~/lib/graph';
 import { setPref } from '~/lib/prefs';
 import { play } from '~/lib/sfx';
+import { Arms } from './Heraldry';
 import { Portrait } from './Portrait';
 import { Dialog } from './ui/Dialog';
 import { reopenTour } from './FirstRun';
@@ -26,6 +27,8 @@ interface Item {
   key: string;
   icon?: ReactNode;
   person?: string;
+  /** The heading it is listed under; people and commands by default. */
+  group?: string;
   label: string;
   hint?: string;
   run: () => void;
@@ -49,6 +52,8 @@ export function searchPeople(f: Family, q: string, limit = 40): { id: string; sc
   }
   return out.sort((a, b) => b.score - a.score).slice(0, limit);
 }
+
+const groupOf = (it: Item) => it.group ?? (it.person ? 'People' : 'Commands');
 
 export function Palette() {
   const { isOpen, open, close } = usePalette();
@@ -82,6 +87,14 @@ export function Palette() {
       const k = who ? kinship(f, who, id, myAnc)?.label : undefined;
       return { key: id, person: id, label: displayName(p, f), hint: [lifespan(p), k && k !== 'you' ? `your ${k}` : k].filter(Boolean).join(' · '), run: go(id) };
     });
+    // Houses by name: straight to the house's page.
+    const fqh = fold(dq.trim());
+    const houses: Item[] = fqh
+      ? f.graph.houses.filter((h) => fold(h.name).includes(fqh)).slice(0, 5).map((h) => ({
+          key: `house:${h.id}`, group: 'Houses', icon: <Arms arms={h.arms} size={22} />, label: h.name, hint: 'house page',
+          run: () => { navigate({ to: '/$tree/house/$house', params: { tree, house: h.id } }); close(); },
+        }))
+      : [];
     const cmds: Item[] = [
       { key: 'tour', icon: <UserRound size={16} />, label: 'Reopen first-run tour', hint: 'Learn how to explore the tree', run: () => { close(); reopenTour(); } },
       { key: 'v-family', icon: <Network size={16} />, label: 'View: Family (hourglass)', run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'family' }) }); close(); } },
@@ -92,13 +105,14 @@ export function Palette() {
       { key: 'atlas', icon: <MapIcon size={16} />, label: 'Open Atlas', hint: 'where the family was born', run: () => { navigate({ to: '/$tree/atlas', params: { tree } }); close(); } },
       { key: 'contacts', icon: <Contact size={16} />, label: 'Open Contacts', run: () => { navigate({ to: '/$tree/contacts', params: { tree } }); close(); } },
       { key: 'chronicle', icon: <ScrollText size={16} />, label: 'Open Chronicle', hint: 'stories & sayings', run: () => { navigate({ to: '/$tree/chronicle', params: { tree } }); close(); } },
+      { key: 'houses', icon: <Landmark size={16} />, label: 'Open Houses', hint: 'arms, mottos & members', run: () => { navigate({ to: '/$tree/houses', params: { tree } }); close(); } },
       { key: 't-codex', icon: <PaletteIcon size={16} />, label: 'Theme: Codex', run: () => { setPref('theme', 'codex'); close(); } },
       { key: 't-paper', icon: <Sun size={16} />, label: 'Theme: Paper', run: () => { setPref('theme', 'modern'); close(); } },
       { key: 't-night', icon: <Moon size={16} />, label: 'Theme: Night', run: () => { setPref('theme', 'night'); close(); } },
     ];
     const fq = fold(dq);
     const matched = fq ? cmds.filter((c) => fold(c.label).includes(fq)) : cmds;
-    return fq ? [...people, ...matched] : matched;
+    return fq ? [...people, ...houses, ...matched] : matched;
   }, [f, dq, me, who, myAnc, navigate, tree, close]);
 
   useEffect(() => setSel(0), [dq]);
@@ -132,7 +146,7 @@ export function Palette() {
           {items.length === 0 && <div className="empty">Nobody by that name. Yet.</div>}
           {items.map((it, i) => (
             <Fragment key={it.key}>
-            {(i === 0 || !!items[i - 1].person !== !!it.person) && <div className="palette-group">{it.person ? 'People' : 'Commands'}</div>}
+            {(i === 0 || groupOf(items[i - 1]) !== groupOf(it)) && <div className="palette-group">{groupOf(it)}</div>}
             <button data-i={i} id={`palette-i${i}`} role="option" tabIndex={-1} className="palette-item" aria-selected={i === sel} onMouseMove={() => setSel(i)} onClick={it.run}>
               <span className="palette-icon">
                 {it.person ? <Portrait person={f.byId.get(it.person)!} tree={tree} size={30} frame={false} /> : it.icon}
