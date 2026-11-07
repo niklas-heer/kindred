@@ -107,9 +107,10 @@ function Atlas() {
     const m = new Map<string, { from: Place; to: Place; n: number }>();
     for (const p of f.graph.people) {
       if (!p.bornPlace || yearOf(p.born) > cursor) continue;
-      const ps = parents(f, p.id).map((id) => f.byId.get(id)!).filter((q) => q?.bornPlace && q.bornPlace !== p.bornPlace);
+      // The mother's birthplace when known, else the father's; no move when the child was born there too.
+      const ps = parents(f, p.id).map((id) => f.byId.get(id)!).filter((q) => q?.bornPlace);
       const from = (ps.find((q) => q.sex === 'f') ?? ps[0])?.bornPlace;
-      if (!from || !placeBy.has(from) || !placeBy.has(p.bornPlace)) continue;
+      if (!from || from === p.bornPlace || !placeBy.has(from) || !placeBy.has(p.bornPlace)) continue;
       const k = `${from}→${p.bornPlace}`;
       const a = m.get(k) ?? m.set(k, { from: placeBy.get(from)!, to: placeBy.get(p.bornPlace)!, n: 0 }).get(k)!;
       a.n++;
@@ -120,7 +121,7 @@ function Atlas() {
   }, [f, mode, moves, cursor, placeBy]);
 
   const selected = search.place && pins.find((p) => p.place.name === search.place);
-  const total = pins.reduce((n, p) => n + p.people.length, 0);
+  const total = mode === 'weddings' ? new Set(pins.flatMap((p) => p.people)).size : pins.reduce((n, p) => n + p.people.length, 0);
   const select = (name?: string) => {
     if (name) play('tick');
     navigate({ search: (s) => ({ ...s, place: name }), replace: true });
@@ -235,7 +236,7 @@ function PlaceDetail({ pin, f, tree, mode, onBack }: { pin: Pin; f: ReturnType<t
 type World = { land: GeoPermissibleObjects; borders: GeoPermissibleObjects };
 let worldCache: Promise<World> | null = null;
 const loadWorld = () =>
-  (worldCache ??= import('world-atlas/countries-50m.json').then((m) => {
+  (worldCache ??= import('world-atlas/countries-110m.json').then((m) => {
     const topo = (m as { default?: unknown }).default ?? m;
     const t = topo as Parameters<typeof feature>[0] & { objects: { countries: Parameters<typeof feature>[1]; land?: unknown } };
     return { land: feature(t, t.objects.countries) as GeoPermissibleObjects, borders: mesh(t, t.objects.countries as never, (a, b) => a !== b) as GeoPermissibleObjects };
@@ -266,14 +267,12 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings }: {
     const p = geoNaturalEarth1();
     const pts = places.map((pl) => [pl.lng, pl.lat]);
     if (!pts.length) return p.fitExtent([[20, 20], [size.w - 20, size.h - 20]], { type: 'Sphere' });
-    const lngs = pts.map((q) => q[0]), lats = pts.map((q) => q[1]);
-    const pad = Math.max(3, (Math.max(...lngs) - Math.min(...lngs)) * 0.15, (Math.max(...lats) - Math.min(...lats)) * 0.15);
-    const box = {
-      type: 'MultiPoint' as const,
-      coordinates: [[Math.min(...lngs) - pad, Math.min(...lats) - pad], [Math.max(...lngs) + pad, Math.max(...lats) + pad]],
-    };
-    // Leave the side panel (left) and the time bar (bottom) clear.
-    return p.fitExtent([[390, 40], [size.w - 50, size.h - 110]], box);
+    // Every place, each with a little neighbourhood (clamped to the globe) so a tight cluster is not over-zoomed.
+    const clampLng = (x: number) => Math.max(-179.9, Math.min(179.9, x));
+    const clampLat = (y: number) => Math.max(-85, Math.min(85, y));
+    const around = pts.flatMap(([x, y]) => [[clampLng(x - 2.5), clampLat(y - 2)], [clampLng(x + 2.5), clampLat(y + 2)]]);
+    // Leave the side panel (left) and the time bar (bottom) clear, plus room for pins and labels.
+    return p.fitExtent([[420, 70], [size.w - 70, size.h - 130]], { type: 'MultiPoint', coordinates: around });
   }, [places, size]);
   const path = useMemo(() => geoPath(projection), [projection]);
   const paths = useMemo(
@@ -294,12 +293,16 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings }: {
 
   // Pan and zoom.
   const drag = useRef<{ x: number; y: number } | null>(null);
+  const moved = useRef(0);
   const onWheel = (e: React.WheelEvent) => {
     const r = host.current!.getBoundingClientRect();
     const sx = e.clientX - r.left, sy = e.clientY - r.top;
-    const k = Math.min(40, Math.max(0.6, cam.k * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0018))));
-    const f = k / cam.k;
-    setCam({ k, x: sx - (sx - cam.x) * f, y: sy - (sy - cam.y) * f });
+    const step = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0018));
+    setCam((c) => {
+      const k = Math.min(12, Math.max(0.6, c.k * step));
+      const f = k / c.k;
+      return { k, x: sx - (sx - c.x) * f, y: sy - (sy - c.y) * f };
+    });
   };
   useEffect(() => {
     const el = host.current!;
@@ -333,9 +336,9 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings }: {
       ref={host}
       className="atlas-canvas"
       onWheel={onWheel}
-      onPointerDown={(e) => { if ((e.target as Element).closest('.pin')) return; drag.current = { x: e.clientX, y: e.clientY }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); }}
-      onPointerMove={(e) => { const d = drag.current; if (!d) return; setCam((c) => ({ ...c, x: c.x + e.clientX - d.x, y: c.y + e.clientY - d.y })); drag.current = { x: e.clientX, y: e.clientY }; }}
-      onPointerUp={() => (drag.current = null)}
+      onPointerDown={(e) => { if ((e.target as Element).closest('.pin')) return; drag.current = { x: e.clientX, y: e.clientY }; moved.current = 0; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); }}
+      onPointerMove={(e) => { const d = drag.current; if (!d) return; moved.current += Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y); setCam((c) => ({ ...c, x: c.x + e.clientX - d.x, y: c.y + e.clientY - d.y })); drag.current = { x: e.clientX, y: e.clientY }; }}
+      onPointerUp={() => { if (drag.current && moved.current < 4 && selected) onSelect(undefined); drag.current = null; }}
     >
       <svg width={size.w} height={size.h}>
         <defs>
@@ -364,17 +367,19 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings }: {
                 key={`${a.from.name}→${a.to.name}`}
                 className="arc"
                 d={`M${p0[0]},${p0[1]}Q${mx - dy * bend},${my + dx * bend} ${p1[0]},${p1[1]}`}
-                style={{ strokeWidth: (1 + Math.log2(a.n + 1)) / cam.k, opacity: Math.min(0.75, 0.25 + a.n * 0.08) }}
+                style={{ strokeWidth: (1 + Math.log2(a.n + 1)) / cam.k, strokeDasharray: `${6 / cam.k} ${5 / cam.k}`, opacity: Math.min(0.75, 0.25 + a.n * 0.08) }}
               />
             );
           })}
-          {[...pins].reverse().map((p) => {
+          {/* Stable order (first appearance): reordering would move DOM nodes and restart their animation. */}
+          {[...pins].sort((a, b) => a.first - b.first || a.place.name.localeCompare(b.place.name)).map((p) => {
             const xy = projection([p.place.lng, p.place.lat]);
             if (!xy) return null;
             const r = radius(p.people.length);
             const on = selected === p.place.name;
             return (
               <g key={p.place.name} className={`pin${on ? ' on' : ''}`} transform={`translate(${xy[0]},${xy[1]})`} onClick={() => onSelect(on ? undefined : p.place.name)}>
+                <g className="pin-grow">
                 <circle r={r} className="pin-dot" style={{ strokeWidth: 2 / cam.k }} />
                 {rings && <KindRing kinds={p.kinds} r={r + 2.5 / cam.k} w={3.5 / cam.k} />}
                 {p.people.length > 1 && r * cam.k > 11 && <text className="pin-n" style={{ fontSize: 11 / cam.k }} dy="0.35em">{p.people.length}</text>}
@@ -382,6 +387,7 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings }: {
                   <text className="pin-label" style={{ fontSize: 13 / cam.k, strokeWidth: 3 / cam.k }} y={-r - 5 / cam.k}>{p.place.name}</text>
                 )}
                 <title>{`${p.place.name}: ${p.people.length}`}</title>
+                </g>
               </g>
             );
           })}

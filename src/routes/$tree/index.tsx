@@ -279,7 +279,18 @@ function TreePage() {
     const who = f.graph.people.filter((p) => p.living && p.born && /^\d{4}-\d\d-\d\d$/.test(p.born) && p.born.endsWith(md));
     if (!who.length) return;
     let t = 0;
+    // Shown only to someone looking: the timer starts over whenever the tab is hidden and shown again.
+    const arm = () => {
+      clearTimeout(t);
+      if (!document.hidden) t = window.setTimeout(show, 1200);
+    };
+    const disarm = () => {
+      clearTimeout(t);
+      document.removeEventListener('visibilitychange', arm);
+    };
     const show = () => {
+      if (document.hidden) return;
+      disarm();
       // Marked only once shown: a cancelled effect (StrictMode runs effects twice) must not eat it.
       try { localStorage.setItem(key, '1'); } catch {}
       play('fanfare');
@@ -294,11 +305,9 @@ function TreePage() {
         });
       }
     };
-    // Wait until someone is looking: a notice in a background tab would expire unseen.
-    const arm = () => { if (!document.hidden) { t = window.setTimeout(show, 1200); document.removeEventListener('visibilitychange', arm); } };
     document.addEventListener('visibilitychange', arm);
     arm();
-    return () => { clearTimeout(t); document.removeEventListener('visibilitychange', arm); };
+    return disarm;
   }, [tree]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const houses = useMemo(() => {

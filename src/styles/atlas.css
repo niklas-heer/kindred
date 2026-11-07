@@ -20,14 +20,15 @@
 .sea-hi { stop-color: var(--sea-hi); }
 .sea-lo { stop-color: var(--sea-lo); }
 .land { fill: var(--land); stroke: var(--land-edge); stroke-width: 0.6; vector-effect: non-scaling-stroke; }
-[data-theme='codex'] .land { filter: drop-shadow(0 0 6px #0006); }
 .borders { fill: none; stroke: var(--borders); stroke-width: 0.6; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; }
 .graticule { fill: none; stroke: var(--grid); stroke-width: 0.8; vector-effect: non-scaling-stroke; }
 
-.arc { fill: none; stroke: var(--arc); stroke-linecap: round; stroke-dasharray: 6 5; animation: atlas-flow 1.6s linear infinite; }
+.arc { fill: none; stroke: var(--arc); stroke-linecap: round; animation: atlas-flow 1.6s linear infinite; }
 @keyframes atlas-flow { to { stroke-dashoffset: -22; } }
 
-.pin { cursor: pointer; animation: pin-in 360ms cubic-bezier(.3,1.5,.5,1); }
+.pin { cursor: pointer; }
+/* Grow in place: the animated group has no translate of its own, so it scales around the pin. */
+.pin-grow { transform-box: fill-box; transform-origin: center; animation: pin-in 360ms cubic-bezier(.3,1.5,.5,1); }
 @keyframes pin-in { from { scale: 0; opacity: 0; } }
 .pin-dot { fill: var(--pin); stroke: var(--pin-edge); opacity: 0.92; transition: r 200ms; }
 .pin:hover .pin-dot { opacity: 1; filter: brightness(1.12); }
@@ -81,7 +82,7 @@
 .atlas-time input[type='range'] { flex: 1; accent-color: var(--accent); }
 .atlas-time .faint { font-size: 12.5px; white-space: nowrap; }
 
-@media (prefers-reduced-motion: reduce) { .arc, .pin { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .arc, .pin-grow { animation: none; } }
 
 /* "All": each kind of event has its colour, around the pin and in the lists. */
 .atlas { --k-births: #e2bd6b; --k-deaths: #8fa3b8; --k-weddings: #d27a8c; }
