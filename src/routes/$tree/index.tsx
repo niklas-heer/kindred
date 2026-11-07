@@ -40,7 +40,7 @@ function TreePage() {
 
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [panel, setPanel] = useState(true);
-  const [adding, setAdding] = useState<{ anchor: string; relation: AddRelation } | null>(null);
+  const [adding, setAdding] = useState<{ anchor: string; relation: AddRelation; sex?: 'm' | 'f' } | null>(null);
   const [help, setHelp] = useState(false);
   const canvas = useRef<CanvasHandle>(null);
   const panTo = useRef<string | null>(null);
@@ -160,8 +160,8 @@ function TreePage() {
         showSpouses={view === 'dynasty'}
         onSelect={(id) => select(id, 'click')}
         onOpen={refocus}
-        onToggle={view === 'dynasty' || (view === 'family' && n.row > 0) ? toggle : undefined}
-        onAdd={(anchor, relation) => setAdding({ anchor, relation })}
+        onToggle={view === 'dynasty' || (view === 'family' && n.row > 0 && n.role === 'main') ? toggle : undefined}
+        onAdd={(anchor, relation, sex) => setAdding({ anchor, relation, sex })}
       />
     ),
     [f, tree, kinOf, sel, me, view, select, refocus, toggle],
@@ -171,7 +171,7 @@ function TreePage() {
   const spatial = (dir: 'left' | 'right') => {
     const cur = canvas.current?.nodeOf(sel);
     if (!cur) return;
-    const row = lay.nodes.filter((n) => n.row === cur.row && n.role !== 'dup' && (dir === 'left' ? n.x < cur.x : n.x > cur.x));
+    const row = lay.nodes.filter((n) => n.row === cur.row && n.role !== 'dup' && n.role !== 'ghost' && (dir === 'left' ? n.x < cur.x : n.x > cur.x));
     row.sort((a, b) => Math.abs(a.x - cur.x) - Math.abs(b.x - cur.x));
     if (row[0]) select(row[0].id);
   };
@@ -349,6 +349,7 @@ function TreePage() {
           tree={tree}
           anchor={adding.anchor}
           relation={adding.relation}
+          sex={adding.sex}
           onCancel={() => setAdding(null)}
           onDone={(id) => { setAdding(null); panTo.current = id; go({ sel: id }); }}
         />

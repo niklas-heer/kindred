@@ -9,8 +9,8 @@ import './quickadd.css';
 
 const TITLE: Record<AddRelation, string> = { parent: 'Add a parent of', child: 'Add a child of', partner: 'Add a partner of', sibling: 'Add a sibling of' };
 
-export function QuickAdd({ family: f, tree, anchor, relation, onDone, onCancel }: {
-  family: Family; tree: string; anchor: string; relation: AddRelation; onDone: (id: string) => void; onCancel: () => void;
+export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onCancel }: {
+  family: Family; tree: string; anchor: string; relation: AddRelation; sex?: 'm' | 'f'; onDone: (id: string) => void; onCancel: () => void;
 }) {
   const qc = useQueryClient();
   const a = f.byId.get(anchor)!;
@@ -18,8 +18,9 @@ export function QuickAdd({ family: f, tree, anchor, relation, onDone, onCancel }
   const form = useForm({
     defaultValues: {
       given: '',
-      surname: relation === 'child' || relation === 'sibling' ? (a.surname ?? '') : relation === 'parent' ? (a.surname ?? '') : '',
-      sex: '' as '' | 'm' | 'f' | 'x',
+      // A father usually passes on the surname; a mother's birth name is usually different.
+      surname: relation === 'child' || relation === 'sibling' || (relation === 'parent' && sex !== 'f') ? (a.surname ?? '') : '',
+      sex: (sex ?? '') as '' | 'm' | 'f' | 'x',
       born: '',
       living: a.living,
       coParent: relation === 'child' && partners.length === 1 ? partners[0].id : '',

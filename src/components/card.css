@@ -106,3 +106,17 @@
 .card.far.young { opacity: 0.45; transform: scale(0.8); }
 .card.far.me { outline: 14px solid var(--ok); }
 .far-crown { display: grid; place-items: center; height: 100%; font-size: 92px; color: #fff8; text-shadow: 0 3px 8px #0009; }
+
+/* An unknown ancestor: a dashed, empty slot. */
+.card.ghost {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  width: 148px; height: 150px; margin-top: 4px; padding: 0; cursor: pointer;
+  border: 2px dashed color-mix(in srgb, var(--canvas-ink) 45%, transparent); border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--canvas-ink) 6%, transparent); color: var(--canvas-ink-muted);
+  transition: background 160ms, border-color 160ms, transform 160ms;
+}
+.card.ghost:hover { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); transform: translateY(-2px); }
+.card.ghost.far { height: 196px; border-width: 6px; }
+.ghost-plus { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; border: 1.5px solid currentColor; }
+.ghost-label { font-family: var(--font-display); font-size: 15px; text-shadow: var(--canvas-shadow); }
+.ghost-sub { font-size: 12px; font-style: italic; opacity: 0.8; }

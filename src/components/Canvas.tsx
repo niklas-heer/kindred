@@ -334,7 +334,7 @@ function Minimap({ family, layout, view, focus, dimmed, onJump }: {
     const w = Math.max(1.5, CARD_W * s), h = Math.max(1.5, CARD_H * s);
     for (const n of layout.nodes) {
       const p = family.byId.get(n.id);
-      g.globalAlpha = dimmed && !dimmed.has(n.id) ? 0.18 : n.role === 'dup' ? 0.4 : 1;
+      g.globalAlpha = n.role === 'ghost' ? 0.2 : dimmed && !dimmed.has(n.id) ? 0.18 : n.role === 'dup' ? 0.4 : 1;
       g.fillStyle = colours.get(p?.house ?? '') ?? '#8a8a8a';
       g.fillRect((n.x - CARD_W / 2) * s + ox, n.y * s + oy, w, h);
     }
@@ -353,7 +353,7 @@ function Minimap({ family, layout, view, focus, dimmed, onJump }: {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     onJump((e.clientX - r.left - ox) / s, (e.clientY - r.top - oy) / s);
   };
-  const people = new Set(layout.nodes.map((n) => n.id)).size;
+  const people = new Set(layout.nodes.filter((n) => n.role !== 'ghost').map((n) => n.id)).size;
   return (
     <div className="minimap no-pan panel">
       <div

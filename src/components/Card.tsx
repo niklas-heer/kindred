@@ -23,10 +23,30 @@ interface Props {
   /** Double-click: make this person the centre of the tree. */
   onOpen?: (id: string) => void;
   onToggle?: (id: string) => void;
-  onAdd?: (id: string, r: AddRelation) => void;
+  onAdd?: (id: string, r: AddRelation, sex?: 'm' | 'f') => void;
 }
 
 export const Card = memo(function Card({ node, detail, family: f, tree, kin, selected, isMe, showSpouses, onSelect, onOpen, onToggle, onAdd }: Props) {
+  if (node.ghost) {
+    // An unknown parent: an open slot that invites filling in.
+    const { child, as } = node.ghost;
+    const of = f.byId.get(child);
+    return (
+      <button
+        className={`card ghost ${detail}`}
+        onClick={() => onAdd?.(child, 'parent', as === 'father' ? 'm' : 'f')}
+        title={`Add ${of?.given ?? 'their'}'s ${as}`}
+      >
+        {detail !== 'far' && (
+          <>
+            <span className="ghost-plus"><Plus size={detail === 'near' ? 26 : 34} /></span>
+            <span className="ghost-label">{as === 'father' ? 'Father' : 'Mother'}</span>
+            {detail === 'near' && <span className="ghost-sub">of {of?.given ?? '?'} · unknown</span>}
+          </>
+        )}
+      </button>
+    );
+  }
   const p = f.byId.get(node.id);
   if (!p) return null;
   const house = p.house ? f.house.get(p.house) : undefined;
@@ -50,7 +70,7 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
   }
 
   const spouses = showSpouses ? partnersOf(f, p.id).map((id) => f.byId.get(id)!).filter(Boolean) : [];
-  const roleClass = node.role === 'dup' ? ' dup' : node.role === 'partner' ? ' partner' : node.role === 'sibling' ? ' sibling' : '';
+  const roleClass = node.role === 'dup' ? ' dup' : node.role === 'partner' ? ' partner' : node.role === 'sibling' ? ' sibling' : node.role === 'kin' ? ' kin' : '';
   return (
     <div className={`card ${detail}${selected ? ' selected' : ''}${roleClass}${p.living ? ' living' : ' dead'}`}>
       <button className="card-hit" onClick={() => onSelect(p.id)} onDoubleClick={() => onOpen?.(p.id)} aria-label={name} title="Click to select · double-click to centre the tree here">

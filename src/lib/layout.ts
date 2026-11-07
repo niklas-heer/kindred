@@ -2,8 +2,9 @@
 // as close as their outlines allow), so 300 dynasty members stay compact.
 //
 //  dynasty   — descendants of a root, optionally only those in the root's house (CK3's dynasty tree)
-//  family    — hourglass around the focus: ancestors above, descendants below, siblings and partners beside
-//  ancestors — the pedigree of the focus, deeper
+//  family    — hourglass around the focus: ancestors above, descendants below, siblings and partners beside,
+//              aunts, uncles and cousins on each parent's side
+//  ancestors — the pedigree of the focus, deeper, with an empty slot for every unknown parent
 import { children, partnersOf, parents, siblings, yearOf, type Family } from './graph';
 
 export const CARD_W = 148;
@@ -19,7 +20,9 @@ export interface LNode {
   x: number; // centre
   y: number; // top
   row: number;
-  role: 'main' | 'sibling' | 'partner' | 'dup';
+  role: 'main' | 'sibling' | 'partner' | 'kin' | 'dup' | 'ghost';
+  /** Empty ancestor slot: whose parent is missing, and which one. */
+  ghost?: { child: string; as: 'father' | 'mother' };
   /** Hidden descendants (collapsed) or children outside the house. */
   folded?: number;
   outOfHouse?: number;
@@ -132,15 +135,16 @@ function forkUp(key: string, from: { x: number; y: number }, ps: { x: number; y:
   const mid = from.y - (ROW_H - CARD_H) / 2;
   const xs = ps.map((p) => p.x);
   const lo = Math.min(from.x, ...xs), hi = Math.max(from.x, ...xs);
-  return [
+  const edges: LEdge[] = [
     {
       key: `${key}:up`,
       kind: 'line',
-      d: `M${from.x},${from.y}V${mid}M${lo},${mid}H${hi}` + ps.map((p) => `M${p.x},${mid}V${p.y + CARD_H}`).join(''),
-      dashed: ps.some((p) => p.dashed),
+      d: `M${from.x},${from.y}V${mid}M${lo},${mid}H${hi}` + ps.filter((p) => !p.dashed).map((p) => `M${p.x},${mid}V${p.y + CARD_H}`).join(''),
       ids: [fromId, ...ps.map((p) => p.id)],
     },
   ];
+  for (const p of ps.filter((p) => p.dashed)) edges.push({ key: `${key}:up:${p.id}`, kind: 'line', dashed: true, d: `M${p.x},${mid}V${p.y + CARD_H}`, ids: [fromId, p.id] });
+  return edges;
 }
 
 // ---------- views ----------
@@ -178,7 +182,7 @@ export function rootFor(f: Family, focus: string, line: 'house' | 'all'): string
 export function layout(f: Family, o: LayoutOptions): Layout {
   if (!f.byId.has(o.focus)) o = { ...o, focus: f.graph.tree.focus };
   if (o.view === 'dynasty') return dynasty(f, o);
-  if (o.view === 'ancestors') return pedigree(f, o.focus, Math.max(o.up, 6));
+  if (o.view === 'ancestors') return pedigree(f, o.focus, Math.max(o.up, 6), true);
   return hourglass(f, o);
 }
 
@@ -238,23 +242,86 @@ function countDesc(f: Family, id: string, inLine: (id: string) => boolean): numb
   return seen.size;
 }
 
-function pedigree(f: Family, focus: string, up: number): Layout {
-  const t = tidy(focus, (id) => parents(f, id), up);
-  const nodes: LNode[] = t.items.map((it) => ({
-    key: it.dup ? `${it.id}#dup${it.dx}` : it.id,
-    id: it.id,
-    x: it.dx,
-    y: -it.depth * ROW_H,
-    row: -it.depth,
-    role: it.dup ? 'dup' : 'main',
-    hasMore: it.depth === up && parents(f, it.id).length > 0,
-  }));
+const GHOST = '?';
+export const isGhost = (id: string) => id.startsWith(GHOST);
+
+/** Father and mother slots; an unknown one becomes a ghost id when `slots` is on. */
+function parentSlots(f: Family, id: string, slots: boolean): string[] {
+  const ps = parents(f, id);
+  if (!slots || isGhost(id)) return ps;
+  let father = ps.find((p) => f.byId.get(p)?.sex === 'm');
+  let mother = ps.find((p) => f.byId.get(p)?.sex === 'f');
+  for (const p of ps) {
+    if (p === father || p === mother) continue;
+    if (!father) father = p;
+    else if (!mother) mother = p;
+  }
+  return [father ?? `${GHOST}${id}:father`, mother ?? `${GHOST}${id}:mother`];
+}
+
+function pedigree(f: Family, focus: string, up: number, slots = false): Layout {
+  const t = tidy(focus, (id) => parentSlots(f, id, slots), up);
+  const nodes: LNode[] = t.items.map((it) => {
+    if (isGhost(it.id)) {
+      const [child, as] = it.id.slice(GHOST.length).split(':') as [string, 'father' | 'mother'];
+      return { key: it.id, id: it.id, x: it.dx, y: -it.depth * ROW_H, row: -it.depth, role: 'ghost', ghost: { child, as } };
+    }
+    return {
+      key: it.dup ? `${it.id}#dup${it.dx}` : it.id,
+      id: it.id,
+      x: it.dx,
+      y: -it.depth * ROW_H,
+      row: -it.depth,
+      role: it.dup ? 'dup' : 'main',
+      hasMore: it.depth === up && parents(f, it.id).length > 0,
+    };
+  });
   const edges: LEdge[] = [];
   for (const [ci, pis] of childIndex(t.items)) {
     const n = nodes[ci];
-    edges.push(...forkUp(n.key, n, pis.map((pi) => nodes[pi]).map((p) => ({ x: p.x, y: p.y, id: p.id, dashed: f.disputed.has(`${n.id}>${p.id}`) })), n.id));
+    edges.push(...forkUp(n.key, n, pis.map((pi) => nodes[pi]).map((p) => ({ x: p.x, y: p.y, id: p.id, dashed: p.role === 'ghost' || f.disputed.has(`${n.id}>${p.id}`) })), n.id));
   }
   return finish(nodes, edges, f, focus);
+}
+
+/**
+ * A parent's brothers and sisters with their children, packed outward from `edge` (dir −1: left,
+ * +1: right) on the parents' row and the focus's row, hanging from the grandparents' line.
+ */
+function kinCluster(f: Family, parent: { id: string; x: number }, dir: -1 | 1, edge: number, exclude: ReadonlySet<string>): { nodes: LNode[]; edges: LEdge[] } {
+  const aunts = siblings(f, parent.id).filter((a) => !exclude.has(a));
+  if (dir === -1) aunts.reverse(); // the eldest ends up furthest out on either side
+  const nodes: LNode[] = [];
+  const edges: LEdge[] = [];
+  let cursor = edge;
+  for (const a of aunts) {
+    const t = tidy(a, (id) => children(f, id).filter((c) => !exclude.has(c)), 1);
+    const minL = Math.min(...t.left), maxR = Math.max(...t.right);
+    const offset = dir === -1 ? cursor - GAP_X * 2 - maxR : cursor + GAP_X * 2 - minL;
+    cursor = dir === -1 ? offset + minL : offset + maxR;
+    const placed = t.items.map((it, i): LNode => ({
+      key: `k:${it.id}`, id: it.id, x: it.dx + offset, y: (i === 0 ? -1 : 0) * ROW_H, row: i === 0 ? -1 : 0, role: 'kin',
+      hasMore: i === 0 ? false : children(f, it.id).length > 0,
+    }));
+    nodes.push(...placed);
+    for (const [pi, cis] of childIndex(t.items)) {
+      const n = placed[pi];
+      edges.push(...forkDown(`k:${n.id}`, n, cis.map((ci) => placed[ci]).map((c) => ({ x: c.x, y: c.y, id: c.id })), n.id));
+    }
+  }
+  if (nodes.length) {
+    // Hang the aunts and uncles from the same bar as the parent, under the grandparents.
+    const tops = nodes.filter((n) => n.row === -1);
+    const mid = -ROW_H - (ROW_H - CARD_H) / 2;
+    const xs = tops.map((n) => n.x);
+    edges.push({
+      key: `kin:${parent.id}`,
+      kind: 'line',
+      d: `M${Math.min(parent.x, ...xs)},${mid}H${Math.max(parent.x, ...xs)}` + xs.map((x) => `M${x},${mid}V${-ROW_H}`).join(''),
+      ids: [parent.id, ...tops.map((n) => n.id)],
+    });
+  }
+  return { nodes, edges };
 }
 
 function hourglass(f: Family, o: LayoutOptions): Layout {
@@ -294,8 +361,16 @@ function hourglass(f: Family, o: LayoutOptions): Layout {
   younger.forEach((s, i) => side.push({ key: `s:${s}`, id: s, x: rightEdge + step * (i + 1) + 40, y: 0, row: 0, role: 'sibling', hasMore: children(f, s).length > 0 }));
   older.reverse().forEach((s, i) => side.push({ key: `s:${s}`, id: s, x: -step * (i + 1) - 40, y: 0, row: 0, role: 'sibling', hasMore: children(f, s).length > 0 }));
 
-  const nodes = [...up.nodes, ...down, ...side];
-  const edges = [...up.edges];
+  // Aunts, uncles and cousins: the father's side far left, the mother's far right.
+  const shown = new Set([focus, ...sibs, ...ps, ...up.nodes.map((n) => n.id)]);
+  const rowsX = [...up.nodes, ...side].filter((n) => n.row === -1 || n.row === 0);
+  const leftEdge = Math.min(...rowsX.map((n) => n.x - CARD_W / 2));
+  const rightEdgeAll = Math.max(...rowsX.map((n) => n.x + CARD_W / 2));
+  const parentNodes = up.nodes.filter((n) => n.row === -1 && n.role === 'main');
+  const clusters = parentNodes.map((pn, i) => kinCluster(f, pn, i === 0 ? -1 : 1, i === 0 ? leftEdge : rightEdgeAll, shown));
+
+  const nodes = [...up.nodes, ...down, ...side, ...clusters.flatMap((c) => c.nodes)];
+  const edges = [...up.edges, ...clusters.flatMap((c) => c.edges)];
   // Marriage lines from the focus to each partner.
   for (const s of side.filter((n) => n.role === 'partner')) {
     edges.push({ key: `m:${s.id}`, kind: 'marriage', d: `M${CARD_W / 2},${CARD_H * 0.42}H${s.x - CARD_W / 2}`, ids: [focus, s.id] });
