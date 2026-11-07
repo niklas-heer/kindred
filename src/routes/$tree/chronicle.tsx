@@ -2,7 +2,7 @@ import { PageHeader, Skeleton, ErrorState } from '~/components/ui';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ChefHat, Clock, Quote, Search, Sparkles, StickyNote } from 'lucide-react';
-import { Marked } from 'marked';
+import { renderMarkdown } from '~/lib/markdown';
 import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { GameIcon } from '~/components/GameIcon';
 import { Portrait } from '~/components/Portrait';
@@ -22,18 +22,7 @@ export const Route = createFileRoute('/$tree/chronicle')({
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 // Raw HTML in a story is shown as text, and script links are dropped.
-const md = new Marked({
-  gfm: true,
-  breaks: true,
-  renderer: {
-    html: ({ text }) => esc(text),
-    link({ href, tokens }) {
-      if (/^\s*(javascript|data|vbscript):/i.test(href)) return this.parser.parseInline(tokens);
-      return false;
-    },
-  },
-});
-const render = (s: string) => md.parse(s, { async: false }) as string;
+const render = renderMarkdown;
 
 // ---------- kinds ----------
 

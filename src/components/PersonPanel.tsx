@@ -7,7 +7,7 @@ import {
   Cake, Camera, Check, CookingPot, Crosshair, Crown, Gift, GitFork, Heart, Mail, MapPin, MessageCircle, MessagesSquare, Pencil,
   Phone, Plus, Quote, Route as RouteIcon, Sparkles, StickyNote, Trash2, UserRound, X,
 } from 'lucide-react';
-import { marked } from 'marked';
+import { renderMarkdown } from '~/lib/markdown';
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { addContact, addStory, deleteContact, removePerson, deleteStory, personQuery, updatePerson, uploadPhoto } from '~/lib/api';
 import {
@@ -304,7 +304,7 @@ function StoriesTab({ tree, p, detail }: { tree: string; p: GPerson; detail?: Pe
   });
   return (
     <>
-      {detail?.bio && <div className="pp-bio" dangerouslySetInnerHTML={{ __html: marked.parse(detail.bio, { async: false }) as string }} />}
+      {detail?.bio && <div className="pp-bio" dangerouslySetInnerHTML={{ __html: renderMarkdown(detail.bio) }} />}
       {!canWrite ? null : adding ? (
         <StoryForm tree={tree} person={p} done={() => setAdding(false)} />
       ) : (
@@ -325,7 +325,7 @@ function StoriesTab({ tree, p, detail }: { tree: string; p: GPerson; detail?: Pe
             {s.kind === 'quote' ? (
               <blockquote>{s.body}</blockquote>
             ) : (
-              <div className="story-body" dangerouslySetInnerHTML={{ __html: marked.parse(s.body, { async: false }) as string }} />
+              <div className="story-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(s.body) }} />
             )}
             <footer>
               {s.context && <span>{s.context} · </span>}
