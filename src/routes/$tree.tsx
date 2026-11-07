@@ -3,7 +3,8 @@ import { BookOpen, CalendarHeart, Contact, Network, ScrollText, Search } from 'l
 import { useEffect } from 'react';
 import { Arms } from '~/components/Heraldry';
 import { Palette, usePalette } from '~/components/Palette';
-import { ThemeSwitch } from '~/components/ThemeSwitch';
+import { SoundSwitch, ThemeSwitch } from '~/components/ThemeSwitch';
+import { Toasts } from '~/components/Toasts';
 import { graphQuery, treesQuery } from '~/lib/api';
 import { useFamily } from '~/lib/family';
 import { usePref } from '~/lib/prefs';
@@ -22,7 +23,10 @@ function TreeLayout() {
 
   // Each tree opens in its own theme unless the reader picked one.
   useEffect(() => {
-    document.documentElement.dataset.theme = theme ?? f.graph.tree.theme;
+    // Read storage directly: during hydration the pref hook still reports the server's null.
+    let saved: string | null = null;
+    try { saved = localStorage.getItem('kindred:theme'); } catch {}
+    document.documentElement.dataset.theme = theme ?? saved ?? f.graph.tree.theme;
   }, [theme, f.graph.tree.theme]);
 
   const focusHouse = f.house.get(f.byId.get(f.graph.tree.focus)?.house ?? '');
@@ -57,10 +61,12 @@ function TreeLayout() {
           </span>
           <kbd>⌘K</kbd>
         </button>
+        <SoundSwitch />
         <ThemeSwitch />
       </header>
       <Outlet />
       <Palette />
+      <Toasts />
     </div>
   );
 }

@@ -1,4 +1,5 @@
-import { Moon, Shield, Sun } from 'lucide-react';
+import { Moon, Shield, Sun, Volume2, VolumeX } from 'lucide-react';
+import { play, soundOn } from '~/lib/sfx';
 import { useEffect, useState } from 'react';
 import { setPref, usePref, type Theme } from '~/lib/prefs';
 
@@ -17,6 +18,32 @@ export function ThemeSwitch() {
   const Icon = ICONS[current] ?? Shield;
   return (
     <button className="btn icon" title={`Theme: ${LABEL[current]} (switch to ${LABEL[next]})`} onClick={() => setPref('theme', next)}>
+      <Icon size={16} />
+    </button>
+  );
+}
+
+/** Sound on or off. On by default in the codex theme only; the choice is remembered. */
+export function SoundSwitch() {
+  usePref('sound');
+  usePref('theme');
+  const [on, setOn] = useState(false);
+  // After the layout has applied the theme (parent effects run after this one).
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setOn(soundOn()));
+    return () => cancelAnimationFrame(id);
+  });
+  const Icon = on ? Volume2 : VolumeX;
+  return (
+    <button
+      className="btn icon"
+      aria-pressed={on}
+      title={on ? 'Sound on (click to mute)' : 'Sound off (click to turn on)'}
+      onClick={() => {
+        setPref('sound', on ? 'off' : 'on');
+        if (!on) setTimeout(() => play('tick'), 0);
+      }}
+    >
       <Icon size={16} />
     </button>
   );

@@ -2,10 +2,11 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useNavigate } from '@tanstack/react-router';
 import { CalendarHeart, Contact, Crown, GitFork, Moon, Network, Palette as PaletteIcon, ScrollText, Sun, UserRound } from 'lucide-react';
-import { useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useFamily, useMe, useTreeId } from '~/lib/family';
 import { displayName, kinship, lifespan, ancestorDepths, type Family } from '~/lib/graph';
 import { setPref } from '~/lib/prefs';
+import { play } from '~/lib/sfx';
 import { Portrait } from './Portrait';
 import './palette.css';
 
@@ -112,20 +113,23 @@ export function Palette() {
           onKeyDown={(e) => {
             if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.min(s + 1, items.length - 1)); }
             else if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); }
-            else if (e.key === 'Enter') items[sel]?.run();
+            else if (e.key === 'Enter') { play('tick'); items[sel]?.run(); }
             else if (e.key === 'Escape') close();
           }}
         />
         <div className="palette-list" ref={list}>
           {items.length === 0 && <div className="empty">Nobody by that name. Yet.</div>}
           {items.map((it, i) => (
-            <button key={it.key} data-i={i} className="palette-item" aria-selected={i === sel} onMouseMove={() => setSel(i)} onClick={it.run}>
+            <Fragment key={it.key}>
+            {(i === 0 || !!items[i - 1].person !== !!it.person) && <div className="palette-group">{it.person ? 'People' : 'Commands'}</div>}
+            <button data-i={i} className="palette-item" aria-selected={i === sel} onMouseMove={() => setSel(i)} onClick={it.run}>
               <span className="palette-icon">
                 {it.person ? <Portrait person={f.byId.get(it.person)!} tree={tree} size={30} frame={false} /> : it.icon}
               </span>
               <span className="palette-label">{it.label}</span>
               {it.hint && <span className="palette-hint">{it.hint}</span>}
             </button>
+            </Fragment>
           ))}
         </div>
         <div className="palette-foot muted">

@@ -25,3 +25,6 @@
 .palette-foot { display: flex; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--border); font-size: 12px; font-family: var(--font-ui); }
 @keyframes fade { from { opacity: 0; } }
 @keyframes rise { from { opacity: 0; transform: translateY(-8px) scale(0.99); } }
+.palette-group { padding: 8px 10px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--faint); font-family: var(--font-ui); }
+[data-theme='codex'] .palette-group { font-family: var(--font-display); text-transform: none; font-variant: small-caps; font-size: 13px; color: var(--accent); }
+[data-theme='codex'] .palette-hint { font-variant: small-caps; letter-spacing: 0.03em; }

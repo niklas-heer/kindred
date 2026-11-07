@@ -1,5 +1,5 @@
 // Writes src/components/charges.gen.ts with only the game-icons bodies the app draws (heraldic
-// charges and headwear badges), so the client bundle does not carry the whole icon set.
+// charges, headwear badges, occasions and traits), so the client bundle does not carry the whole icon set.
 // Run with: node scripts/extract-icons.ts
 import { readFileSync, writeFileSync } from 'node:fs';
 import { iconToSVG } from '@iconify/utils';
@@ -19,6 +19,17 @@ const NAMES = [
   'stag-head',
   'star-formation',
   'tower-flag',
+  // Facts about people: occasions, stories, uncertainty.
+  'cake-slice',
+  'linked-rings',
+  'candle-light',
+  'quill-ink',
+  'uncertainty',
+  'wax-seal',
+  // Traits.
+  'sword-brandish', 'run', 'prayer', 'shrug', 'open-book', 'sprout', 'bow-arrow', 'lyre', 'enrage', 'hourglass',
+  'open-treasure-chest', 'coins', 'scales', 'mountain-climbing', 'meditation', 'beer-stein', 'hood', 'lily-pads',
+  'lips', 'chess-knight',
 ];
 
 interface IconSet {

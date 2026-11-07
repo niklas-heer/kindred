@@ -10,7 +10,7 @@ import './quickadd.css';
 const TITLE: Record<AddRelation, string> = { parent: 'Add a parent of', child: 'Add a child of', partner: 'Add a partner of', sibling: 'Add a sibling of' };
 
 export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onCancel }: {
-  family: Family; tree: string; anchor: string; relation: AddRelation; sex?: 'm' | 'f'; onDone: (id: string) => void; onCancel: () => void;
+  family: Family; tree: string; anchor: string; relation: AddRelation; sex?: 'm' | 'f'; onDone: (id: string, person: { given: string; sex?: string }) => void; onCancel: () => void;
 }) {
   const qc = useQueryClient();
   const a = f.byId.get(anchor)!;
@@ -34,7 +34,7 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onCan
         },
       });
       await qc.invalidateQueries({ queryKey: ['graph', tree] });
-      onDone(id);
+      onDone(id, { given: value.given, sex: value.sex || undefined });
     },
   });
   const date = ({ value }: { value: string }) => (value === '' || /^~?\d{3,4}(-\d\d(-\d\d)?)?$/.test(value) ? undefined : '1990, 1990-05 or 1990-05-17');

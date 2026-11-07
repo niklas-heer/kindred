@@ -11,6 +11,9 @@ import { useFamily, useMe } from '~/lib/family';
 import { ancestorDepths, ancestorDepths as anc, descendants, displayName, kinPath, kinship, parents, children } from '~/lib/graph';
 import { layout as computeLayout, rootFor, type LNode, type View } from '~/lib/layout';
 import { treeSearch } from '~/lib/search';
+import { play } from '~/lib/sfx';
+import { toast } from '~/lib/toast';
+import { Arms } from '~/components/Heraldry';
 import '~/styles/tree.css';
 
 export const Route = createFileRoute('/$tree/')({
@@ -44,6 +47,8 @@ function TreePage() {
   const [help, setHelp] = useState(false);
   const canvas = useRef<CanvasHandle>(null);
   const panTo = useRef<string | null>(null);
+  const panQuiet = useRef(false);
+  const [flash, setFlash] = useState<{ id: string; at: number } | null>(null);
 
   const root = view === 'dynasty' ? (search.root && f.byId.has(search.root) ? search.root : rootFor(f, focus, line)) : undefined;
   const lay = useMemo(
@@ -68,10 +73,12 @@ function TreePage() {
   );
   /** Show someone in the panel. Clicks stay put; keys and panel links bring them into view. */
   const select = useCallback(
-    (id: string, how: 'click' | 'jump' = 'jump') => {
+    (id: string, how: 'click' | 'jump' | 'key' = 'jump') => {
       setPanel(true);
-      if (how === 'jump' && !inLayout(id)) return refocus(id);
-      if (how === 'jump') panTo.current = id;
+      if (how !== 'click' && !inLayout(id)) return refocus(id);
+      if (how !== 'click') panTo.current = id;
+      panQuiet.current = how === 'key';
+      if (how !== 'jump') play('tick', { pitch: how === 'key' ? 0.96 + Math.random() * 0.08 : 1 });
       go({ sel: id === focus ? undefined : id });
     },
     [go, inLayout, refocus, focus],
@@ -80,10 +87,19 @@ function TreePage() {
   // The camera follows only when asked to (panTo), or when a new layout centres on someone else.
   const prevFocus = useRef(focus);
   useEffect(() => {
-    const target = panTo.current ?? (prevFocus.current !== focus && view !== 'dynasty' ? focus : null);
+    const changed = prevFocus.current !== focus;
+    const target = panTo.current ?? (changed && view !== 'dynasty' ? focus : null);
+    const quiet = panQuiet.current;
     prevFocus.current = focus;
     panTo.current = null;
-    if (target) requestAnimationFrame(() => canvas.current?.centerOn(target));
+    panQuiet.current = false;
+    if (!target) return;
+    requestAnimationFrame(() => canvas.current?.centerOn(target));
+    if (quiet) return;
+    // A journey: a whoosh while the camera flies, rings and a little arrival tune when it lands.
+    play('whoosh');
+    const t = setTimeout(() => { setFlash({ id: target, at: Date.now() }); play('found'); }, 380);
+    return () => clearTimeout(t);
   }, [focus, sel, view, lay]);
   const prevView = useRef(view);
   useEffect(() => {
@@ -131,12 +147,12 @@ function TreePage() {
     [kinCache, f, me, myAnc],
   );
 
-  const toggle = useCallback((id: string) => setCollapsed((c) => {
+  const toggle = useCallback((id: string) => (play('page'), setCollapsed((c) => {
     const n = new Set(c);
     if (n.has(id)) n.delete(id);
     else n.add(id);
     return n;
-  }), []);
+  })), []);
 
   // Fold everything except the line from the root to the selected person.
   const foldToFocus = () => {
@@ -173,11 +189,11 @@ function TreePage() {
     if (!cur) return;
     const row = lay.nodes.filter((n) => n.row === cur.row && n.role !== 'dup' && n.role !== 'ghost' && (dir === 'left' ? n.x < cur.x : n.x > cur.x));
     row.sort((a, b) => Math.abs(a.x - cur.x) - Math.abs(b.x - cur.x));
-    if (row[0]) select(row[0].id);
+    if (row[0]) select(row[0].id, 'key');
   };
   const vertical = (dir: 'up' | 'down') => {
     const next = dir === 'up' ? parents(f, sel) : children(f, sel);
-    if (next.length) select(next.find(inLayout) ?? next[0]);
+    if (next.length) select(next.find(inLayout) ?? next[0], 'key');
   };
   const live = !adding;
   useHotkey('ArrowLeft', () => spatial('left'), { enabled: live });
@@ -201,21 +217,72 @@ function TreePage() {
     else setPanel(false);
   }, { enabled: live });
 
-  const rowLabel = (row: number, year: number | undefined, i: number) => {
-    const gen = view === 'dynasty' ? i + 1 : row;
-    const g = view === 'dynasty' ? (codex ? `Gen. ${ROMAN[gen - 1] ?? gen}` : `Gen ${gen}`) : gen === 0 ? 'Focus' : gen < 0 ? `${-gen} up` : `${gen} down`;
-    const era = year === undefined ? '' : codex ? ` · c. ${year}` : ` · ${Math.floor(year / 10) * 10}s`;
-    return g + era;
+  const rowLabel = (row: number, year: number | undefined, i: number): [string, string?] => {
+    const mark = view === 'dynasty' ? (codex ? ROMAN[i] ?? String(i + 1) : String(i + 1)) : row === 0 ? '●' : row < 0 ? `↑${-row}` : `↓${row}`;
+    const era = year === undefined ? undefined : codex ? `c. ${year}` : `${Math.floor(year / 10) * 10}s`;
+    return [mark, era];
   };
 
+
   const focusPerson = f.byId.get(sel)!;
+  const rootPerson = root ? f.byId.get(root) : undefined;
+  const rootHouse = rootPerson?.house ? f.house.get(rootPerson.house) : undefined;
+  const members = useMemo(() => new Set(lay.nodes.filter((n) => n.role !== 'ghost').map((n) => n.id)).size, [lay]);
+  const prevRoot = useRef(lay.root);
+  useEffect(() => {
+    if (view !== 'dynasty' || prevRoot.current === lay.root) return;
+    prevRoot.current = lay.root;
+    play('seal');
+    requestAnimationFrame(() => canvas.current?.fit());
+  }, [lay.root, view]);
+
+  /** A CK3-style notice once someone joins: "A daughter for House Valcourt". */
+  const announce = (id: string, person: { given: string; sex?: string }, anchor: string, relation: AddRelation) => {
+    const a = f.byId.get(anchor);
+    const h = a?.house ? f.house.get(a.house) : undefined;
+    const fam = h ? (h.name.startsWith('House') ? h.name : `the ${h.name} family`) : 'the family';
+    const word = (m: string, w: string, x: string) => (person.sex === 'm' ? m : person.sex === 'f' ? w : x);
+    const title =
+      relation === 'child' ? `A ${word('son', 'daughter', 'child')} for ${fam}` :
+      relation === 'partner' ? `${person.given} joins ${fam}` :
+      relation === 'sibling' ? `A ${word('brother', 'sister', 'sibling')} for ${a?.given ?? 'them'}` :
+      `${a?.given ?? 'Their'}'s ${word('father', 'mother', 'parent')} is found`;
+    play('chime');
+    toast({ title, body: `${person.given} has a place in the tree now. Add a birthday or a memory whenever you like.`, person: id });
+  };
+
+  // Once a day per tree: whose birthday is today.
+  useEffect(() => {
+    const today = new Date();
+    const md = `-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const key = `kindred:bday:${tree}:${today.toDateString()}`;
+    try { if (localStorage.getItem(key)) return; } catch { return; }
+    const who = f.graph.people.filter((p) => p.living && p.born && /^\d{4}-\d\d-\d\d$/.test(p.born) && p.born.endsWith(md));
+    if (!who.length) return;
+    const t = setTimeout(() => {
+      // Marked only once shown: a cancelled effect (StrictMode runs effects twice) must not eat it.
+      try { localStorage.setItem(key, '1'); } catch {}
+      play('fanfare');
+      for (const p of who.slice(0, 2)) {
+        toast({
+          title: `${p.given} turns ${today.getFullYear() - parseInt(p.born!, 10)} today`,
+          body: kinOf(p.id) ? `Your ${kinOf(p.id)}. A call would make their day.` : 'A good day to get in touch.',
+          person: p.id,
+          icon: 'cake-slice',
+          ms: 9000,
+          action: { label: 'Open', run: () => select(p.id) },
+        });
+      }
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [tree]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const houses = useMemo(() => {
     const n = new Map<string, number>();
     for (const p of f.graph.people) if (p.house) n.set(p.house, (n.get(p.house) ?? 0) + 1);
     return f.graph.houses.map((h) => [h, n.get(h.id) ?? 0] as const).filter(([, c]) => c > 1).sort((a, b) => b[1] - a[1]);
   }, [f]);
   const house = focusPerson.house ? f.house.get(focusPerson.house) : undefined;
-  const rootPerson = root ? f.byId.get(root) : undefined;
 
   return (
     <div className="tree-page">
@@ -227,7 +294,8 @@ function TreePage() {
         dimmed={dimmed}
         renderCard={renderCard}
         rowLabel={rowLabel}
-        inset={{ left: panel ? 430 : 0, top: view === 'dynasty' ? 150 : 110 }}
+        flash={flash}
+        inset={{ left: panel ? 430 + 56 : 56, top: view === 'dynasty' ? 136 : 76, right: 270 }}
         onBackground={() => {}}
         overlay={
           <>
@@ -286,9 +354,15 @@ function TreePage() {
             </div>
 
             {view === 'dynasty' && rootPerson && (
-              <div className={`tree-caption no-pan${panel ? ' with-panel' : ''}`}>
-                <span className="display">{line === 'house' && house ? `${f.house.get(rootPerson.house ?? '')?.name ?? 'Descendants'}` : `Descendants of ${displayName(rootPerson, f)}`}</span>
-                <span className="faint"> · {new Set(lay.nodes.map((n) => n.id)).size.toLocaleString('en-GB')} members · from {displayName(rootPerson, f)}</span>
+              <div key={lay.root + line} className={`house-banner no-pan${panel ? ' with-panel' : ''}`}>
+                {line === 'house' && rootHouse ? <Arms arms={rootHouse.arms} size={30} /> : null}
+                <div>
+                  <b className="display">{line === 'house' && rootHouse ? rootHouse.name : `Descendants of ${displayName(rootPerson, f)}`}</b>
+                  <span className="faint">
+                    {members.toLocaleString('en-GB')} {line === 'house' ? 'members' : 'descendants'} · from {displayName(rootPerson, f)}
+                    {rootHouse?.motto && line === 'house' ? <> · <i>“{rootHouse.motto}”</i></> : null}
+                  </span>
+                </div>
                 {parents(f, rootPerson.id).length > 0 && (
                   <button className="btn ghost" onClick={() => go({ root: parents(f, rootPerson.id)[0] })} title="Start the tree one generation earlier">▲ Older</button>
                 )}
@@ -351,7 +425,7 @@ function TreePage() {
           relation={adding.relation}
           sex={adding.sex}
           onCancel={() => setAdding(null)}
-          onDone={(id) => { setAdding(null); panTo.current = id; go({ sel: id }); }}
+          onDone={(id, person) => { setAdding(null); panTo.current = id; go({ sel: id }); announce(id, person, adding.anchor, adding.relation); }}
         />
       )}
     </div>

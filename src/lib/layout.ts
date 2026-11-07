@@ -9,8 +9,8 @@ import { children, partnersOf, parents, siblings, yearOf, type Family } from './
 
 export const CARD_W = 148;
 export const CARD_H = 196;
-export const GAP_X = 22;
-export const ROW_H = CARD_H + 92;
+export const GAP_X = 44;
+export const ROW_H = CARD_H + 120;
 
 export type View = 'dynasty' | 'family' | 'ancestors';
 

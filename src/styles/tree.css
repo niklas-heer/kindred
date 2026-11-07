@@ -5,7 +5,7 @@
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px; margin: 0 auto;
   transition: left 200ms;
 }
-.tree-toolbar.with-panel, .tree-caption.with-panel, .lens-banner.with-panel { left: 432px; }
+.tree-toolbar.with-panel, .house-banner.with-panel, .lens-banner.with-panel { left: 432px; }
 .tree-toolbar .seg { display: flex; gap: 2px; }
 .tree-toolbar .btn { height: 30px; font-size: 13.5px; }
 .tb-sep { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
@@ -16,17 +16,29 @@
 .tb-lens { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
 .tb-lens .input { height: 30px; width: auto; font-size: 13.5px; padding: 0 6px; }
 
-.tree-caption {
-  position: absolute; top: 62px; left: 16px; right: 16px; z-index: 6; width: fit-content; margin: 0 auto;
-  display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 14px; border-radius: 999px;
-  color: var(--canvas-ink); text-shadow: var(--canvas-shadow); font-size: 15px;
+.house-banner {
+  position: absolute; top: 60px; left: 16px; right: 16px; z-index: 6; width: fit-content; margin: 0 auto;
+  display: flex; align-items: center; gap: 12px; padding: 6px 8px 6px 12px;
+  background: var(--panel-solid); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow);
+  animation: banner-in 300ms cubic-bezier(.2,.8,.2,1);
 }
-.tree-caption .display { font-size: 19px; }
-.tree-caption .faint { color: var(--canvas-ink-muted); }
-.tree-caption .btn { height: 26px; font-size: 12.5px; text-shadow: none; }
+[data-theme='codex'] .house-banner {
+  background: linear-gradient(180deg, #2a3446, #1a202c); border-color: #0a0d12; border-radius: 3px;
+  box-shadow: inset 0 0 0 1px #b8954f66, inset 0 1px 0 #f0d58f44, 0 8px 18px #0009;
+}
+.house-banner > div { display: grid; line-height: 1.2; }
+.house-banner b { font-size: 18px; font-weight: 600; }
+[data-theme='codex'] .house-banner b { color: var(--accent); font-weight: 500; }
+.house-banner .faint { font-size: 13px; }
+.house-banner .btn { height: 26px; font-size: 12.5px; }
+.house-banner .arms { animation: arms-in 420ms cubic-bezier(.3,1.5,.5,1); }
+@keyframes banner-in { from { opacity: 0; transform: translateY(-12px); } }
+@keyframes arms-in { from { scale: 0.6; opacity: 0; } }
+.tree-toolbar { box-shadow: var(--shadow); }
+[data-theme='codex'] .tree-toolbar { box-shadow: inset 0 0 0 1px var(--edge-soft), 0 6px 16px #0008; }
 
 .lens-banner {
-  position: absolute; top: 100px; left: 16px; right: 16px; z-index: 6; width: fit-content; margin: 0 auto;
+  position: absolute; top: 62px; left: 16px; right: 16px; z-index: 6; width: fit-content; margin: 0 auto;
   display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 14px; border-radius: 999px;
   background: var(--accent); color: var(--accent-text); box-shadow: var(--shadow); font-size: 14.5px;
   animation: rise 160ms ease-out;
@@ -55,5 +67,7 @@
 
 /* The generation ruler steps out from behind the side panel. */
 .tree-page:has(.person-panel) .ruler { left: 418px; }
+@media (prefers-reduced-motion: reduce) { .house-banner, .house-banner .arms { animation: none; } }
 .tb-house { height: 30px; width: auto; max-width: 220px; font-size: 13.5px; padding: 0 6px; }
 .lens-count { opacity: 0.75; font-size: 12.5px; }
+.house-banner ~ .lens-banner { top: 128px; }

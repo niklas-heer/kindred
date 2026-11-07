@@ -14,6 +14,8 @@ import {
 } from '~/lib/graph';
 import { setPref, usePref } from '~/lib/prefs';
 import type { GPerson, PersonDetail, Story } from '~/lib/types';
+import { TRAITS } from '~/lib/traits';
+import { GameIcon } from './GameIcon';
 import { Arms } from './Heraldry';
 import { Portrait } from './Portrait';
 import './panel.css';
@@ -68,6 +70,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
           <h2 className="display">{displayName(p, f)}</h2>
           {p.title && <div className="pp-title">{p.title}</div>}
           <div className="pp-life">
+            {p.living && <span className="pp-living" title="Living">●</span>}
             {lifespan(p)}
             {a !== undefined && <span className="muted"> · {p.living ? `${a} years old` : `died aged ${a}`}</span>}
           </div>
@@ -94,7 +97,16 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
       </div>
 
       {p.traits?.length ? (
-        <div className="pp-traits">{p.traits.map((t) => <span key={t} className="trait" title={t}>{TRAIT_ICON[t] ?? '◆'} {t}</span>)}</div>
+        <div className="pp-traits">
+          {p.traits.map((t) => {
+            const tr = TRAITS[t];
+            return (
+              <span key={t} className={`trait ${tr?.kind ?? 'other'}`} title={t}>
+                <span className="trait-medal">{tr ? <GameIcon name={tr.icon} size={16} /> : '◆'}</span> {t}
+              </span>
+            );
+          })}
+        </div>
       ) : null}
 
       <div className="pp-actions">
@@ -128,11 +140,6 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   );
 }
 
-const TRAIT_ICON: Record<string, string> = {
-  brave: '⚔', craven: '🐇', pious: '✝', cynical: '◐', scholar: '📜', gardener: '❀', hunter: '🏹', poet: '✒', wrathful: '🔥',
-  patient: '⌛', generous: '✦', greedy: '⚖', just: '⚖', ambitious: '♛', content: '☺', gregarious: '☀', shy: '☾', chaste: '❦',
-  lustful: '♥', strategist: '♜',
-};
 
 function relativesCount(f: Family, id: string) {
   return parents(f, id).length + partnersOf(f, id).length + children(f, id).length + siblings(f, id).length;
@@ -167,7 +174,7 @@ function FamilyTab({ f, tree, id, onSelect }: { f: Family; tree: string; id: str
                     <Portrait person={rp} tree={tree} size={58} frame />
                     <span className="pp-rel-name">{rp.given}</span>
                     {u ? <span className="pp-rel-sub">{u.kind === 'marriage' ? '⚭' : '♡'} {u.start ? yearOf(u.start) : ''}{u.end ? `–${yearOf(u.end)}` : ''}</span> : <span className="pp-rel-sub">{lifespan(rp)}</span>}
-                    {f.disputed.has(`${id}>${r}`) && <span className="pp-disputed" title="Disputed parentage">?</span>}
+                    {f.disputed.has(`${id}>${r}`) && <span className="pp-disputed" title="Parentage disputed"><GameIcon name="uncertainty" size={12} /></span>}
                   </button>
                 );
               })}

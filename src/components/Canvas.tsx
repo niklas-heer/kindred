@@ -34,14 +34,17 @@ interface Props {
   pathEdges?: ReadonlySet<string> | null;
   renderCard: (n: LNode, detail: Detail) => ReactNode;
   onBackground?: () => void;
-  rowLabel?: (row: number, year: number | undefined, index: number) => string;
+  /** Ruler label per generation row: a short mark ("IX") and an era ("c. 1146"). */
+  rowLabel?: (row: number, year: number | undefined, index: number) => [string, string?];
   overlay?: ReactNode;
-  /** Screen space covered by floating panels: the side panel on the left, the toolbar on top. */
-  inset?: { left: number; top: number };
+  /** Screen space covered by floating panels: side panel left, toolbar and banner on top, minimap right. */
+  inset?: { left: number; top: number; right?: number };
+  /** Person to greet with a brief ring, after the camera arrives at them. */
+  flash?: { id: string; at: number } | null;
 }
 
 export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
-  { family, layout, focus, dimmed, renderCard, onBackground, rowLabel, overlay, inset = { left: 0, top: 0 } },
+  { family, layout, focus, dimmed, renderCard, onBackground, rowLabel, overlay, inset = { left: 0, top: 0 }, flash },
   ref,
 ) {
   const host = useRef<HTMLDivElement>(null);
@@ -107,10 +110,11 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     if (!el) return;
     const { width: w, height: h } = el.getBoundingClientRect();
     const b = layout.bounds;
-    const aw = w - inset.left - 120, ah = h - inset.top - 70;
+    const right = inset.right ?? 0;
+    const aw = w - inset.left - right - 120, ah = h - inset.top - 60;
     const k = Math.min(1, Math.max(0.04, Math.min(aw / b.w, ah / b.h)));
-    animateTo({ k, x: inset.left + 60 + aw / 2 - (b.x + b.w / 2) * k, y: inset.top + 30 + ah / 2 - (b.y + b.h / 2) * k });
-  }, [layout, animateTo, inset.left, inset.top]);
+    animateTo({ k, x: inset.left + 60 + aw / 2 - (b.x + b.w / 2) * k, y: inset.top + 20 + ah / 2 - (b.y + b.h / 2) * k });
+  }, [layout, animateTo, inset.left, inset.top, inset.right]);
 
   const zoomAt = useCallback((factor: number, sx: number, sy: number) => {
     cancelAnimationFrame(anim.current);
@@ -237,13 +241,14 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
           <div
             key={n.key}
             className={`slot${n.id === focus ? ' is-focus' : ''}${dimmed && !dimmed.has(n.id) ? ' is-dim' : ''}`}
+            data-flash={flash && flash.id === n.id && n.role !== 'dup' ? flash.at : undefined}
             style={{ transform: `translate(${n.x - CARD_W / 2}px, ${n.y}px)` }}
           >
             {renderCard(n, detail)}
           </div>
         ))}
       </div>
-      <Ruler layout={layout} view={view} label={rowLabel} />
+      <Ruler layout={layout} view={view} label={rowLabel} active={layout.nodes.find((n) => n.id === focus)?.row} />
       <Minimap family={family} layout={layout} view={view} focus={focus} dimmed={dimmed} onJump={(wx, wy) => {
         const r = host.current!.getBoundingClientRect();
         cancelAnimationFrame(anim.current);
@@ -273,16 +278,19 @@ const Edges = memo(function Edges({ layout, dimmed }: { layout: Layout; dimmed?:
   );
 });
 
-function Ruler({ layout, view, label }: { layout: Layout; view: { k: number; cy: number; h: number }; label?: Props['rowLabel'] }) {
+function Ruler({ layout, view, label, active }: { layout: Layout; view: { k: number; cy: number; h: number }; label?: Props['rowLabel']; active?: number }) {
+  // A gutter like an editor's line numbers: the generation, and its era when there is room.
   return (
     <div className="ruler" aria-hidden>
       {layout.rows.map((r, i) => {
         const y = r.y * view.k + view.cy;
         const h = CARD_H * view.k;
-        if (y + h < 0 || y > view.h) return null;
+        if (y + h < 0 || y > view.h || h < 24) return null;
+        const [mark, era] = label ? label(r.row, r.year, i) : [String(i + 1)];
         return (
-          <div key={r.row} className="ruler-row" style={{ top: Math.max(8, y), height: Math.max(18, h) }}>
-            <span>{label ? label(r.row, r.year, i) : `Gen ${i + 1}`}</span>
+          <div key={r.row} className={`ruler-row${r.row === active ? ' active' : ''}`} style={{ top: y, height: h }}>
+            <b>{mark}</b>
+            {era && h >= 60 && <span>{era}</span>}
           </div>
         );
       })}
@@ -292,7 +300,7 @@ function Ruler({ layout, view, label }: { layout: Layout; view: { k: number; cy:
 
 // ---------- minimap ----------
 
-const MM_W = 232, MM_H = 148;
+const MM_MAX_W = 240, MM_MAX_H = 180, MM_MIN_W = 150, MM_MIN_H = 110;
 
 function Minimap({ family, layout, view, focus, dimmed, onJump }: {
   family: Family; layout: Layout; view: { x0: number; y0: number; x1: number; y1: number; k: number }; focus: string;
@@ -300,7 +308,11 @@ function Minimap({ family, layout, view, focus, dimmed, onJump }: {
 }) {
   const cv = useRef<HTMLCanvasElement>(null);
   const b = layout.bounds;
-  const s = Math.min((MM_W - 12) / b.w, (MM_H - 12) / b.h);
+  // The map takes the tree's shape, within limits, so a tall dynasty is not a sliver in a wide box.
+  const fitS = Math.min((MM_MAX_W - 16) / b.w, (MM_MAX_H - 16) / b.h);
+  const MM_W = Math.round(Math.max(MM_MIN_W, b.w * fitS + 16));
+  const MM_H = Math.round(Math.max(MM_MIN_H, b.h * fitS + 16));
+  const s = Math.min((MM_W - 16) / b.w, (MM_H - 16) / b.h);
   const ox = (MM_W - b.w * s) / 2 - b.x * s;
   const oy = (MM_H - b.h * s) / 2 - b.y * s;
   const colours = useMemo(() => {
@@ -334,18 +346,24 @@ function Minimap({ family, layout, view, focus, dimmed, onJump }: {
     const w = Math.max(1.5, CARD_W * s), h = Math.max(1.5, CARD_H * s);
     for (const n of layout.nodes) {
       const p = family.byId.get(n.id);
-      g.globalAlpha = n.role === 'ghost' ? 0.2 : dimmed && !dimmed.has(n.id) ? 0.18 : n.role === 'dup' ? 0.4 : 1;
+      g.globalAlpha = n.role === 'ghost' ? 0.2 : dimmed && !dimmed.has(n.id) ? 0.15 : n.role === 'dup' ? 0.35 : 0.85;
       g.fillStyle = colours.get(p?.house ?? '') ?? '#8a8a8a';
       g.fillRect((n.x - CARD_W / 2) * s + ox, n.y * s + oy, w, h);
     }
+    // You are here: a bright dot with a dark ring, visible on any house colour.
     const f = layout.nodes.find((n) => n.id === focus);
     if (f) {
+      const cx = f.x * s + ox, cy = (f.y + CARD_H / 2) * s + oy;
       g.globalAlpha = 1;
-      g.strokeStyle = css.getPropertyValue('--accent').trim() || '#fc0';
+      g.beginPath();
+      g.arc(cx, cy, 4.5, 0, Math.PI * 2);
+      g.fillStyle = css.getPropertyValue('--accent').trim() || '#fc0';
+      g.fill();
       g.lineWidth = 2;
-      g.strokeRect((f.x - CARD_W / 2) * s + ox - 2, f.y * s + oy - 2, w + 4, h + 4);
+      g.strokeStyle = '#0b0e14';
+      g.stroke();
     }
-  }, [layout, family, s, ox, oy, colours, focus, dimmed]);
+  }, [layout, family, s, ox, oy, colours, focus, dimmed, MM_W, MM_H]);
 
   const vx = view.x0 + 260 / view.k, vy = view.y0 + 260 / view.k;
   const vw = view.x1 - view.x0 - 520 / view.k, vh = view.y1 - view.y0 - 520 / view.k;
@@ -358,6 +376,7 @@ function Minimap({ family, layout, view, focus, dimmed, onJump }: {
     <div className="minimap no-pan panel">
       <div
         className="minimap-map"
+        style={{ width: MM_W, height: MM_H }}
         onPointerDown={(e) => { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); jump(e); }}
         onPointerMove={(e) => e.buttons && jump(e)}
       >
@@ -365,7 +384,7 @@ function Minimap({ family, layout, view, focus, dimmed, onJump }: {
         <div className="minimap-view" style={{ left: vx * s + ox, top: vy * s + oy, width: Math.max(6, vw * s), height: Math.max(6, vh * s) }} />
       </div>
       <div className="minimap-foot">
-        <span>{people.toLocaleString('en-GB')} shown</span>
+        <span>{people.toLocaleString('en-GB')} people</span>
         <span>{layout.rows.length} generations</span>
       </div>
     </div>
