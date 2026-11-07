@@ -11,7 +11,7 @@ imported, and both that import and the databases are gitignored.
 
 ```sh
 mise install && npm install
-mise run data   # generate the test families, import ../family-archive if present, build data/*.db
+mise run data   # generate the test families; build data/smith.db from ../family-archive only if it doesn't exist
 mise run dev    # http://localhost:4517
 ```
 
@@ -24,6 +24,9 @@ Three trees:
 | `smith`: imported from `../family-archive` | 22 | Whether it feels right with your own family |
 
 The generated trees are deterministic (`scripts/gen-realm.ts`, `scripts/gen-modern.ts`, seeded PRNG).
+
+**Your edits are safe:** `scripts/seed.ts` never overwrites an existing database. `--force` rebuilds one,
+after copying it to `data/backups/`. `mise run data` force-rebuilds only the two generated trees.
 
 ## What to try
 
@@ -46,7 +49,22 @@ The generated trees are deterministic (`scripts/gen-realm.ts`, `scripts/gen-mode
 - **Everyday:** the Almanac lists upcoming birthdays, anniversaries and memorial days, with `.ics` export and
   "On this day". Contacts is an address book grouped by household, with vCard export.
 - **"Be them"** sees the whole tree from someone else's point of view, so every kinship label changes.
-- **Themes:** Codex (CK3), Paper and Night, via the shield button or ⌘K.
+- **Themes:** Codex (CK3), Paper and Night, via the shield button or ⌘K. Codex plays small synthesised sound
+  effects (speaker button to mute). Adding someone posts a CK3-style notice with **Undo**. Today's birthdays
+  get a notice once a day.
+- **Atlas:** a world map of where the family was born, died and married (All, Births, Deaths, Weddings).
+  - **Replay:** play the family spreading out through time at ½×–4×. Space plays and pauses, and ←/→ step
+    through years.
+  - **Chronicle:** an event log that narrates the replay and scrolls through everything up to the current
+    year.
+  - **Arms:** draws each place as its main house's shield.
+  - **Moves:** traces the path from a mother's birthplace to her child's.
+- **Needed:** the family's research to-do list, nearest relatives first.
+  - **What counts?** chooses which gaps count, per tree.
+  - **Blaze through** goes one person at a time, asking only for what is missing (dates, places, parents, a
+    photo, a memory). ↵ saves and moves on.
+  - Cards, the panel and a lens on the tree show the same gaps.
+- **Mistakes:** remove someone from their Edit tab, or Undo right after adding them.
 
 ## How it is built
 
