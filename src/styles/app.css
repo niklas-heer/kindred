@@ -273,3 +273,7 @@ kbd {
 
 /* Scrollbars that fit */
 * { scrollbar-width: thin; scrollbar-color: var(--panel-3) transparent; }
+
+/* Narrow windows: the nav keeps its icons, titles explain them. */
+@media (max-width: 1400px) { .topbar nav .nav-label { display: none; } .topbar nav a { padding: 6px 10px; } .search-trigger { width: 200px; } }
+@media (max-width: 900px) { .topbar .brand b { display: none; } .search-trigger { width: auto; } .search-trigger > span:first-child { font-size: 0; } }

@@ -3,11 +3,13 @@
 // from a mother's birthplace to her child's.
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { geoGraticule10, geoNaturalEarth1, geoPath, type GeoPermissibleObjects } from 'd3-geo';
-import { Layers, Pause, Play, Route as RouteIcon } from 'lucide-react';
+import { Layers, Pause, Play, Route as RouteIcon, Shield } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { feature, mesh } from 'topojson-client';
 import { z } from 'zod';
 import { GameIcon } from '~/components/GameIcon';
+import { Arms } from '~/components/Heraldry';
+import type { House } from '~/lib/types';
 import { Portrait } from '~/components/Portrait';
 import { useFamily, useTreeId } from '~/lib/family';
 import { displayName, lifespan, parents, yearOf } from '~/lib/graph';
@@ -24,7 +26,7 @@ export const Route = createFileRoute('/$tree/atlas')({
 });
 
 interface Event { kind: Kind; place: string; year: number; people: string[] }
-interface Pin { place: Place; people: string[]; first: number; entries: { kind: Kind; id: string }[]; kinds: Record<Kind, number> }
+interface Pin { place: Place; people: string[]; first: number; entries: { kind: Kind; id: string }[]; kinds: Record<Kind, number>; house?: string }
 
 const KINDS: Kind[] = ['births', 'deaths', 'weddings'];
 const ICON: Record<Kind, 'cake-slice' | 'candle-light' | 'linked-rings'> = { births: 'cake-slice', deaths: 'candle-light', weddings: 'linked-rings' };
@@ -63,6 +65,7 @@ function Atlas() {
   const cursor = year ?? y1;
   const [playing, setPlaying] = useState(false);
   const [moves, setMoves] = useState(true);
+  const [heraldry, setHeraldry] = useState(false);
   useEffect(() => { setYear(null); setPlaying(false); }, [mode, tree]);
 
   // Replay: about twelve seconds from the first event to the last.
@@ -91,8 +94,14 @@ function Atlas() {
       pin.kinds[e.kind] += e.people.length;
       for (const id of e.people) pin.entries.push({ kind: e.kind, id });
     }
+    // The house most of a place's people belong to, for the heraldry view.
+    for (const pin of m.values()) {
+      const n = new Map<string, number>();
+      for (const id of pin.people) { const h = f.byId.get(id)?.house; if (h) n.set(h, (n.get(h) ?? 0) + 1); }
+      pin.house = [...n].sort((a, b) => b[1] - a[1])[0]?.[0];
+    }
     return [...m.values()].sort((a, b) => b.people.length - a.people.length);
-  }, [events, cursor, placeBy]);
+  }, [events, cursor, placeBy, f]);
 
   // A new place appearing during the replay gets a small tick.
   const seen = useRef(0);
@@ -171,7 +180,7 @@ function Atlas() {
       </aside>
 
       <div className="atlas-map">
-        <WorldMap places={f.graph.places} pins={pins} arcs={arcs} selected={search.place} onSelect={select} rings={mode === 'all'} />
+        <WorldMap places={f.graph.places} pins={pins} arcs={arcs} selected={search.place} onSelect={select} rings={mode === 'all' && !heraldry} heraldry={heraldry ? f.house : null} />
         {events.length > 0 && (
           <div className="atlas-time panel">
             <button className="btn icon primary" onClick={() => { if (cursor >= y1) setYear(y0); setPlaying((p) => !p); }} title={playing ? 'Pause' : 'Replay through time'}>
@@ -187,6 +196,9 @@ function Atlas() {
               aria-label="Year"
             />
             <span className="faint">{y0}–{y1}</span>
+            <button className="btn" aria-pressed={heraldry} onClick={() => { setHeraldry((h) => !h); play('seal'); }} title="Show each place by the arms of the house most of its people belong to">
+              <Shield size={15} /> Arms
+            </button>
             {(mode === 'births' || mode === 'all') && (
               <button className="btn" aria-pressed={moves} onClick={() => setMoves((m) => !m)} title="Show moves from a mother's birthplace to her child's">
                 <RouteIcon size={15} /> Moves
@@ -242,10 +254,12 @@ const loadWorld = () =>
     return { land: feature(t, t.objects.countries) as GeoPermissibleObjects, borders: mesh(t, t.objects.countries as never, (a, b) => a !== b) as GeoPermissibleObjects };
   }));
 
-function WorldMap({ places, pins, arcs, selected, onSelect, rings }: {
+function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry }: {
   places: Place[];
   pins: Pin[];
   rings: boolean;
+  /** When set, pins are drawn as the arms of each place's main house. */
+  heraldry: Map<string, House> | null;
   arcs: { from: Place; to: Place; n: number }[];
   selected?: string;
   onSelect: (name?: string) => void;
@@ -380,11 +394,22 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings }: {
             return (
               <g key={p.place.name} className={`pin${on ? ' on' : ''}`} transform={`translate(${xy[0]},${xy[1]})`} onClick={() => onSelect(on ? undefined : p.place.name)}>
                 <g className="pin-grow">
-                <circle r={r} className="pin-dot" style={{ strokeWidth: 2 / cam.k }} />
+                {heraldry && p.house && heraldry.get(p.house) ? (
+                  // A shield instead of a dot; its count sits underneath.
+                  <g className="pin-arms" transform={`translate(${-r * 1.1},${-r * 1.32})`}>
+                    <Arms arms={heraldry.get(p.house)!.arms} size={r * 2.2} title={heraldry.get(p.house)!.name} />
+                  </g>
+                ) : (
+                  <circle r={r} className="pin-dot" style={{ strokeWidth: 2 / cam.k }} />
+                )}
                 {rings && <KindRing kinds={p.kinds} r={r + 2.5 / cam.k} w={3.5 / cam.k} />}
-                {p.people.length > 1 && r * cam.k > 11 && <text className="pin-n" style={{ fontSize: 11 / cam.k }} dy="0.35em">{p.people.length}</text>}
+                {p.people.length > 1 && r * cam.k > 11 && (
+                  heraldry && p.house && heraldry.get(p.house)
+                    ? <text className="pin-n under" style={{ fontSize: 11 / cam.k, strokeWidth: 3 / cam.k }} y={r * 1.32 + 11 / cam.k}>{p.people.length}</text>
+                    : <text className="pin-n" style={{ fontSize: 11 / cam.k }} dy="0.35em">{p.people.length}</text>
+                )}
                 {(on || labelled.has(p.place.name)) && (
-                  <text className="pin-label" style={{ fontSize: 13 / cam.k, strokeWidth: 3 / cam.k }} y={-r - 5 / cam.k}>{p.place.name}</text>
+                  <text className="pin-label" style={{ fontSize: 13 / cam.k, strokeWidth: 3 / cam.k }} y={-(heraldry && p.house ? r * 1.35 : r) - 5 / cam.k}>{p.place.name}</text>
                 )}
                 <title>{`${p.place.name}: ${p.people.length}`}</title>
                 </g>

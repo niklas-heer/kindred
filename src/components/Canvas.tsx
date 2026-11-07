@@ -106,8 +106,9 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     if (!n || !el) return false;
     const { width: w, height: h } = el.getBoundingClientRect();
     const k = opts?.k ?? Math.max(cam.current.k, 0.55);
-    // Centre in the part of the canvas no panel covers.
-    const cx = inset.left + (w - inset.left) / 2, cy = inset.top + (h - inset.top) * 0.46;
+    // Centre in the part of the canvas no panel covers (unless the panel leaves almost nothing).
+    const left = w - inset.left < 320 ? 56 : inset.left;
+    const cx = left + (w - left) / 2, cy = inset.top + (h - inset.top) * 0.46;
     const target = { k, x: cx - n.x * k, y: cy - (n.y + CARD_H / 2) * k };
     const c = cam.current;
     const moved = Math.hypot(target.x - c.x, target.y - c.y) > 24 || Math.abs(target.k - c.k) > 0.02;
@@ -120,10 +121,11 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     if (!el) return;
     const { width: w, height: h } = el.getBoundingClientRect();
     const b = layout.bounds;
-    const right = inset.right ?? 0;
-    const aw = w - inset.left - right - 120, ah = h - inset.top - 60;
+    const right = w - inset.left - (inset.right ?? 0) < 400 ? 0 : inset.right ?? 0;
+    const left = w - inset.left < 320 ? 56 : inset.left;
+    const aw = w - left - right - 120, ah = h - inset.top - 60;
     const k = Math.min(1, Math.max(0.04, Math.min(aw / b.w, ah / b.h)));
-    animateTo({ k, x: inset.left + 60 + aw / 2 - (b.x + b.w / 2) * k, y: inset.top + 20 + ah / 2 - (b.y + b.h / 2) * k });
+    animateTo({ k, x: left + 60 + aw / 2 - (b.x + b.w / 2) * k, y: inset.top + 20 + ah / 2 - (b.y + b.h / 2) * k });
   }, [layout, animateTo, inset.left, inset.top, inset.right]);
 
   const zoomAt = useCallback((factor: number, sx: number, sy: number) => {

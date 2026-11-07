@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
-import { BookOpen, CalendarHeart, Contact, Map as MapIcon, Network, ScrollText, Search } from 'lucide-react';
+import { BookOpen, CalendarHeart, CircleHelp, Contact, Map as MapIcon, Network, ScrollText, Search } from 'lucide-react';
 import { useEffect } from 'react';
 import { Arms } from '~/components/Heraldry';
 import { Palette, usePalette } from '~/components/Palette';
@@ -38,23 +38,26 @@ function TreeLayout() {
           <b>{f.graph.tree.name}</b>
         </Link>
         <nav>
-          <Link to="/$tree" params={{ tree }} activeOptions={{ exact: true, includeSearch: false }}>
-            <Network size={16} /> Tree
+          <Link to="/$tree" params={{ tree }} activeOptions={{ exact: true, includeSearch: false }} title="Tree">
+            <Network size={16} /> <span className="nav-label">Tree</span>
           </Link>
-          <Link to="/$tree/almanac" params={{ tree }}>
-            <CalendarHeart size={16} /> Almanac
+          <Link to="/$tree/almanac" params={{ tree }} title="Almanac">
+            <CalendarHeart size={16} /> <span className="nav-label">Almanac</span>
           </Link>
-          <Link to="/$tree/atlas" params={{ tree }}>
-            <MapIcon size={16} /> Atlas
+          <Link to="/$tree/atlas" params={{ tree }} title="Atlas">
+            <MapIcon size={16} /> <span className="nav-label">Atlas</span>
           </Link>
-          <Link to="/$tree/contacts" params={{ tree }}>
-            <Contact size={16} /> Contacts
+          <Link to="/$tree/contacts" params={{ tree }} title="Contacts">
+            <Contact size={16} /> <span className="nav-label">Contacts</span>
           </Link>
-          <Link to="/$tree/people" params={{ tree }}>
-            <BookOpen size={16} /> Register
+          <Link to="/$tree/people" params={{ tree }} title="Register">
+            <BookOpen size={16} /> <span className="nav-label">Register</span>
           </Link>
-          <Link to="/$tree/chronicle" params={{ tree }}>
-            <ScrollText size={16} /> Chronicle
+          <Link to="/$tree/needed" params={{ tree }} title="Information needed">
+            <CircleHelp size={16} /> <span className="nav-label">Needed</span>
+          </Link>
+          <Link to="/$tree/chronicle" params={{ tree }} title="Chronicle">
+            <ScrollText size={16} /> <span className="nav-label">Chronicle</span>
           </Link>
         </nav>
         <span className="spacer" />

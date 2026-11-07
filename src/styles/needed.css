@@ -1,0 +1,14 @@
+.needed > p { margin: 4px 0 18px; }
+.needed-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+.needed-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.needed-list li { display: grid; grid-template-columns: 48px minmax(180px, 1.2fr) 2fr auto; gap: 14px; align-items: center; padding: 10px 14px; }
+.needed-who { display: grid; min-width: 0; }
+.needed-who b { font-size: 16.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-theme='codex'] .needed-who b { font-weight: 500; }
+.needed-who span { font-size: 13.5px; }
+.needed-gaps { display: flex; flex-wrap: wrap; gap: 5px; }
+.needed-gaps .chip { border-style: dashed; border-color: #d9a25a88; color: #e0a85a; }
+[data-theme='modern'] .needed-gaps .chip { color: #a0621a; }
+.needed-gaps .chip.on { background: color-mix(in srgb, #d9a25a 20%, transparent); }
+.needed-more { margin: 16px auto 0; display: flex; }
+@media (max-width: 760px) { .needed-list li { grid-template-columns: 48px 1fr; } .needed-gaps, .needed-list .btn { grid-column: 2; } }

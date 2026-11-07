@@ -1,4 +1,8 @@
-.tree-page { position: relative; height: 100%; overflow: hidden; }
+.tree-page {
+  position: relative; height: 100%; overflow: hidden;
+  /* One width for the docked panel; the ruler, HUD and trail line up against it. */
+  --panel-w: min(400px, calc(100vw - 120px));
+}
 
 .tree-toolbar {
   width: fit-content; max-width: 100%;
@@ -10,7 +14,7 @@
   display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; transition: left 200ms;
 }
 .hud > * { pointer-events: auto; }
-.hud.with-panel { left: 432px; }
+.hud.with-panel { left: calc(var(--panel-w) + 72px); }
 .tree-toolbar .seg { display: flex; gap: 2px; }
 .tree-toolbar .btn { height: 30px; font-size: 13.5px; }
 .tb-sep { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
@@ -52,7 +56,7 @@
   position: absolute; left: 16px; bottom: 16px; z-index: 6; display: flex; align-items: center; gap: 6px; padding: 6px 10px;
   font-size: 12px; transition: left 200ms;
 }
-.trail.with-panel { left: 432px; }
+.trail.with-panel { left: calc(var(--panel-w) + 72px); }
 .trail-item { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 50%; overflow: hidden; width: 30px; height: 30px; transition: transform 120ms; }
 .trail-item:hover { transform: scale(1.15); }
 .trail-item > * { border-radius: 50%; }
@@ -69,10 +73,16 @@
 .help-card p { margin: 10px 0 0; font-size: 12.5px; }
 
 /* The generation ruler steps out from behind the side panel. */
-.tree-page:has(.person-panel) .ruler { left: 418px; }
+.tree-page:has(.person-panel) .ruler { left: var(--panel-w); }
 @media (prefers-reduced-motion: reduce) { .house-banner, .house-banner .arms { animation: none; } }
 .tb-house { height: 30px; width: auto; max-width: 220px; font-size: 13.5px; padding: 0 6px; }
 .lens-count { opacity: 0.75; font-size: 12.5px; }
 /* Inter runs wider than Garamond: tighter buttons keep the toolbar on one row. */
 [data-theme='modern'] .tree-toolbar .btn, [data-theme='night'] .tree-toolbar .btn { padding: 0 9px; font-size: 13px; }
 [data-theme='modern'] .tree-toolbar .btn.icon, [data-theme='night'] .tree-toolbar .btn.icon { padding: 0; }
+
+/* Narrow windows: the panel becomes a full sheet over the tree; close it (×) to get back to the tree. */
+@media (max-width: 900px) {
+  .tree-page { --panel-w: 100vw; }
+  .hud.with-panel, .trail.with-panel, .tree-page:has(.person-panel) .ruler, .tree-page:has(.person-panel) .minimap { display: none; }
+}

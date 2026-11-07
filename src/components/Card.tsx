@@ -3,6 +3,7 @@ import { Minus, Plus } from 'lucide-react';
 import { memo } from 'react';
 import { displayName, lifespan, partnersOf, type Family } from '~/lib/graph';
 import type { GPerson } from '~/lib/types';
+import { GAP_LABEL, gapsOf } from '~/lib/gaps';
 import type { LNode } from '~/lib/layout';
 import type { Detail } from './Canvas';
 import { GameIcon } from './GameIcon';
@@ -76,6 +77,7 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
   const sub = p.title && !name.startsWith(p.title.split(' ')[0]) ? p.title : p.title ? '' : p.occupation ?? '';
   const soon = birthdaySoon(p);
   const disputed = (f.parentsOf.get(p.id) ?? []).some((q) => f.disputed.has(`${p.id}>${q}`));
+  const gaps = detail === 'near' && node.role !== 'dup' ? gapsOf(f, p) : [];
   return (
     <div className={`card ${detail}${selected ? ' selected' : ''}${roleClass}${p.living ? ' living' : ' dead'}${ruler ? ' crowned' : ''}`}>
       <button className="card-hit" onClick={() => onSelect(p.id)} onDoubleClick={() => onOpen?.(p.id)} aria-label={name} title="Click to select · double-click to centre the tree here">
@@ -113,6 +115,11 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
       </button>
       {detail !== 'near' ? null : isMe ? <span className="card-kin me">you</span> : kin ? <span className="card-kin">{kin}</span> : null}
       {node.role === 'dup' && <span className="card-dup">appears again</span>}
+      {gaps.length > 0 && (
+        <span className="card-gaps" title={`Information needed: ${gaps.map((g) => GAP_LABEL[g]).join(', ')}`}>
+          {gaps.length}
+        </span>
+      )}
 
       {spouses.length > 0 && detail === 'near' && (
         <div className="card-spouses">

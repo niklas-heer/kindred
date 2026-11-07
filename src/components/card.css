@@ -160,3 +160,13 @@
   .card-bday.today, .card.selected .card-portrait::after, .add { animation: none; }
   .card-portrait { transition: none; }
 }
+
+/* Information needed: a small dashed seal on the plate's corner, counting the gaps. */
+.card-gaps {
+  position: absolute; right: -4px; top: 108px; z-index: 2; pointer-events: auto; cursor: help;
+  min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px; display: grid; place-items: center;
+  font-size: 10.5px; font-family: var(--font-ui); font-weight: 700; font-variant-numeric: tabular-nums;
+  color: #f0b25a; background: #2a1f10; border: 1.5px dashed #f0b25a99;
+}
+[data-theme='modern'] .card-gaps { color: #a0621a; background: #fff6e8; border-color: #d9a25a; top: 100px; }
+[data-theme='night'] .card-gaps { top: 100px; }

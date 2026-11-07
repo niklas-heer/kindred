@@ -1,10 +1,13 @@
 .person-panel {
-  position: absolute; left: 14px; top: 14px; bottom: 14px; width: 404px; z-index: 8;
+  /* Docked to the window edge like CK3's character window: no floating gap, no heavy shadow. */
+  position: absolute; left: 0; top: 0; bottom: 0; width: var(--panel-w); z-index: 8;
   display: flex; flex-direction: column; overflow: hidden;
+  border-radius: 0; border-width: 0 1px 0 0; box-shadow: 2px 0 10px #0004;
   animation: panel-in 220ms cubic-bezier(.2,.8,.2,1);
 }
 @keyframes panel-in { from { opacity: 0; transform: translateX(-16px); } }
 [data-theme='codex'] .person-panel {
+  box-shadow: inset -1px 0 0 var(--edge-soft), 2px 0 10px #0005;
   background:
     linear-gradient(180deg, #0000 0, #0000 150px, #171d28 230px),
     radial-gradient(ellipse at 30% 0%, #4a5a7a 0%, #232b3a 55%, #171d28 100%);
@@ -123,3 +126,10 @@
 .field.check { display: flex; align-items: center; gap: 8px; font-size: 15px; }
 .pp-place { color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; }
 .pp-place:hover { color: var(--accent); }
+
+.pp-gaps { margin: 10px 14px 0; padding: 8px 10px; border-radius: var(--radius); border: 1px dashed #d9a25a88; background: color-mix(in srgb, #d9a25a 8%, transparent); }
+.pp-gaps-title { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #e0a85a; font-family: var(--font-display); }
+[data-theme='modern'] .pp-gaps-title { color: #a0621a; }
+.pp-gaps > div { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.pp-gaps .chip { cursor: pointer; font-size: 12.5px; }
+.pp-gaps .chip:hover { border-color: var(--accent); color: var(--text); }

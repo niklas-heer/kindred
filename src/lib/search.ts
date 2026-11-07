@@ -15,7 +15,7 @@ export const treeSearch = z.object({
   up: z.number().int().min(1).max(12).optional(),
   down: z.number().int().min(1).max(12).optional(),
   /** Highlight lens: dims everyone outside it. */
-  lens: z.enum(['none', 'line', 'living', 'house', 'path']).optional(),
+  lens: z.enum(['none', 'line', 'living', 'house', 'path', 'gaps']).optional(),
   /** For the path lens: the other person. */
   to: z.string().optional(),
 });

@@ -11,6 +11,7 @@ import { useFamily, useMe } from '~/lib/family';
 import { ancestorDepths, ancestorDepths as anc, descendants, displayName, kinPath, kinship, parents, children } from '~/lib/graph';
 import { layout as computeLayout, rootFor, type LNode, type View } from '~/lib/layout';
 import { treeSearch } from '~/lib/search';
+import { gapsOf } from '~/lib/gaps';
 import { play } from '~/lib/sfx';
 import { toast } from '~/lib/toast';
 import { Arms } from '~/components/Heraldry';
@@ -49,6 +50,14 @@ function TreePage() {
   const panTo = useRef<string | null>(null);
   const panQuiet = useRef(false);
   const [flash, setFlash] = useState<{ id: string; at: number } | null>(null);
+  // The docked panel's width (matches --panel-w in tree.css).
+  const [panelW, setPanelW] = useState(400);
+  useEffect(() => {
+    const on = () => setPanelW(window.innerWidth <= 900 ? window.innerWidth : Math.min(400, window.innerWidth - 120));
+    on();
+    addEventListener('resize', on);
+    return () => removeEventListener('resize', on);
+  }, []);
   // The toolbar wraps on narrow windows: measure the HUD so centring and notices clear it.
   const hud = useRef<HTMLDivElement>(null);
   const [hudH, setHudH] = useState(100);
@@ -135,6 +144,7 @@ function TreePage() {
   const dimmed = useMemo<Set<string> | null>(() => {
     if (lens === 'line') return new Set([sel, ...anc(f, sel).keys(), ...descendants(f, sel)]);
     if (lens === 'living') return new Set(f.graph.people.filter((p) => p.living).map((p) => p.id));
+    if (lens === 'gaps') return new Set(f.graph.people.filter((p) => gapsOf(f, p).length).map((p) => p.id));
     if (lens === 'house') {
       const h = f.byId.get(sel)?.house;
       return new Set(f.graph.people.filter((p) => p.house === h).map((p) => p.id));
@@ -328,7 +338,7 @@ function TreePage() {
         renderCard={renderCard}
         rowLabel={rowLabel}
         flash={flash}
-        inset={{ left: panel ? 430 + 56 : 56, top: hudH + 24, right: 270 }}
+        inset={{ left: panel ? panelW + 56 : 56, top: hudH + 24, right: 270 }}
         onBackground={() => {}}
         overlay={
           <>
@@ -377,6 +387,7 @@ function TreePage() {
                   <option value="line">Direct line of {focusPerson.given}</option>
                   <option value="house">{house ? house.name : 'Same house'}</option>
                   <option value="living">Living people</option>
+                  <option value="gaps">Information needed</option>
                   <option value="path">Path from me</option>
                 </select>
               </label>
@@ -411,6 +422,8 @@ function TreePage() {
                   <>Direct line of <b>{focusPerson.given}</b>: ancestors and descendants</>
                 ) : lens === 'living' ? (
                   <>Living people</>
+                ) : lens === 'gaps' ? (
+                  <>People with information still needed</>
                 ) : (
                   <>{house?.name ?? 'House'} only</>
                 )}

@@ -16,6 +16,7 @@ import {
 import { setPref, usePref } from '~/lib/prefs';
 import type { GPerson, PersonDetail, Story } from '~/lib/types';
 import { TRAITS } from '~/lib/traits';
+import { GAP_LABEL, GAP_WHERE, gapsOf } from '~/lib/gaps';
 import { GameIcon } from './GameIcon';
 import { Arms } from './Heraldry';
 import { Portrait } from './Portrait';
@@ -109,6 +110,23 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
           })}
         </div>
       ) : null}
+
+      {(() => {
+        const gaps = gapsOf(f, p);
+        if (!gaps.length) return null;
+        return (
+          <div className="pp-gaps">
+            <span className="pp-gaps-title"><GameIcon name="quill-ink" size={14} /> Information needed</span>
+            <div>
+              {gaps.map((g) => (
+                <button key={g} className="chip" onClick={() => (GAP_WHERE[g] === 'tree' ? onAncestors() : setTab('edit'))} title={GAP_WHERE[g] === 'tree' ? 'Open the ancestors view to fill the empty slots' : 'Fill it in'}>
+                  {GAP_LABEL[g]}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="pp-actions">
         <button className="btn" onClick={onCenter}><Crosshair size={14} /> Centre</button>
