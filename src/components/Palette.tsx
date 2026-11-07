@@ -9,6 +9,7 @@ import { setPref } from '~/lib/prefs';
 import { play } from '~/lib/sfx';
 import { Portrait } from './Portrait';
 import { Dialog } from './ui/Dialog';
+import { reopenTour } from './FirstRun';
 import './palette.css';
 
 let isOpen = false;
@@ -82,6 +83,7 @@ export function Palette() {
       return { key: id, person: id, label: displayName(p, f), hint: [lifespan(p), k && k !== 'you' ? `your ${k}` : k].filter(Boolean).join(' · '), run: go(id) };
     });
     const cmds: Item[] = [
+      { key: 'tour', icon: <UserRound size={16} />, label: 'Reopen first-run tour', hint: 'Learn how to explore the tree', run: () => { close(); reopenTour(); } },
       { key: 'v-family', icon: <Network size={16} />, label: 'View: Family (hourglass)', run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'family' }) }); close(); } },
       { key: 'v-dynasty', icon: <Crown size={16} />, label: 'View: Dynasty tree', run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'dynasty' }) }); close(); } },
       { key: 'v-anc', icon: <GitFork size={16} style={{ transform: 'rotate(180deg)' }} />, label: 'View: Ancestors', run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'ancestors' }) }); close(); } },
@@ -112,13 +114,15 @@ export function Palette() {
           placeholder="Find anyone — name, nickname, title, house…"
           aria-label="Find anyone"
           role="combobox"
-          aria-expanded="true"
+          aria-expanded={isOpen}
+          aria-autocomplete="list"
+          aria-describedby="palette-count"
           aria-controls="palette-list"
           aria-activedescendant={items[sel] ? `palette-i${sel}` : undefined}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.min(s + 1, items.length - 1)); }
+            if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.max(0, Math.min(s + 1, items.length - 1))); }
             else if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); }
             else if (e.key === 'Enter') { play('tick'); items[sel]?.run(); }
             else if (e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); close(); }
@@ -140,6 +144,7 @@ export function Palette() {
           ))}
         </div>
         <div className="palette-foot muted">
+          <span id="palette-count" role="status" aria-live="polite">{items.length ? `${items.length} results` : 'No results. Try a different name or command.'}</span>
           <span><kbd>↑</kbd> <kbd>↓</kbd> move</span>
           <span><kbd>↵</kbd> go</span>
           <span><kbd>esc</kbd> close</span>

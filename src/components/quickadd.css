@@ -5,3 +5,12 @@
 .qa-what { display: block; font-family: var(--font-ui); font-size: 14px; font-weight: 400; font-variant: normal; letter-spacing: 0; color: var(--muted); }
 .qa-note { margin-right: auto; font-size: 13px; }
 @media (max-width: 520px) { .qa-grid { grid-template-columns: 1fr; } }
+
+.qa-fields { border: 0; padding: 0; margin: 14px 0 0; min-width: 0; }
+.qa-modes, .qa-matches { display: flex; flex-wrap: wrap; gap: 8px; }
+.qa-matches { margin-block: 12px; max-height: 190px; overflow: auto; }
+.qa-matches > .subtle { flex-basis: 100%; }
+.qa-matches .btn { width: 100%; justify-content: start; white-space: normal; text-align: left; height: auto; min-height: 44px; }
+.qa-modes .btn { min-height: 44px; height: auto; white-space: normal; }
+.qa-modes .btn[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
+.qa-grid > *, .qa input { min-width: 0; }

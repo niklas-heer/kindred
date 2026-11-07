@@ -2,7 +2,7 @@
 // The answer is the `me:<tree>` preference (a person id, or BROWSING); the tour is remembered
 // once seen or skipped (`tour`). Until the reader answers, kinship labels stay hidden.
 import { MousePointerClick, Search, UserPlus } from 'lucide-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BROWSING, useFamily, useMeAnswered, useTreeId } from '~/lib/family';
 import { children, displayName, lifespan, parents, partnersOf, siblings } from '~/lib/graph';
 import { setPref, usePref } from '~/lib/prefs';
@@ -29,6 +29,8 @@ const STEPS: { title: string; art: ReactNode; body: ReactNode }[] = [
   },
 ];
 
+export function reopenTour() { window.dispatchEvent(new Event('kindred:reopen-tour')); }
+
 export function FirstRun() {
   const f = useFamily();
   const tree = useTreeId();
@@ -38,6 +40,7 @@ export function FirstRun() {
   const [later, setLater] = useState(false);
   const [touring, setTouring] = useState(false);
   const [step, setStep] = useState(0);
+  useEffect(() => { const reopen = () => { setStep(0); setTouring(true); }; window.addEventListener('kindred:reopen-tour', reopen); return () => window.removeEventListener('kindred:reopen-tour', reopen); }, []);
 
   const choose = (id: string) => {
     setPref(`me:${tree}`, id);

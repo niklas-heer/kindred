@@ -50,6 +50,7 @@ export const addRelative = createServerFn({ method: 'POST' })
       /** For a child: the anchor's partner who is the other parent. */
       coParent: z.string().optional(),
       person: newPerson,
+      partnership: z.object({ kind: z.enum(['marriage', 'partnership', 'other']), start: date, place: z.string().trim().max(200).optional() }).optional(),
     }),
   )
   .handler(async ({ data }) => {
@@ -59,6 +60,7 @@ export const addRelative = createServerFn({ method: 'POST' })
     const id = newId(p.given);
     const anchor = d.prepare('SELECT house, surname FROM person WHERE id = ?').get(data.anchor) as { house: string | null; surname: string | null } | undefined;
     if (!anchor) throw new Error('unknown anchor');
+    if (data.relation === 'sibling' && !d.prepare('SELECT parent FROM parent WHERE child = ?').get(data.anchor)) throw new Error('Record a shared parent first to add a sibling.');
     // Children and siblings join the anchor's house; parents and partners only if they share its surname.
     const sameHouse = data.relation === 'child' || data.relation === 'sibling' || (p.surname && p.surname === anchor.surname);
     d.exec('BEGIN');
@@ -72,13 +74,11 @@ export const addRelative = createServerFn({ method: 'POST' })
         if (data.coParent) link.run(id, data.coParent);
       } else if (data.relation === 'parent') {
         link.run(data.anchor, id);
-        // Two parents of the same child are usually a couple; record it so the tree can draw them together.
-        const other = d.prepare('SELECT parent FROM parent WHERE child = ? AND parent != ?').get(data.anchor, id) as { parent: string } | undefined;
-        if (other) d.prepare('INSERT INTO partnership (id, a, b, kind) VALUES (?, ?, ?, ?)').run(`${other.parent}__${id}`, other.parent, id, 'marriage');
       } else if (data.relation === 'sibling') {
         for (const r of d.prepare('SELECT parent FROM parent WHERE child = ?').all(data.anchor) as { parent: string }[]) link.run(id, r.parent);
       } else {
-        d.prepare('INSERT INTO partnership (id, a, b, kind) VALUES (?, ?, ?, ?)').run(`${data.anchor}__${id}`, data.anchor, id, 'marriage');
+        d.prepare('INSERT INTO partnership (id, a, b, kind) VALUES (?, ?, ?, ?)').run(`${data.anchor}__${id}`, data.anchor, id, data.partnership?.kind ?? 'partnership');
+        d.prepare('UPDATE partnership SET start = ?, place = ? WHERE id = ?').run(data.partnership?.start ?? null, data.partnership?.place ?? null, `${data.anchor}__${id}`);
       }
       d.exec('COMMIT');
     } catch (e) {
@@ -86,6 +86,38 @@ export const addRelative = createServerFn({ method: 'POST' })
       throw e;
     }
     return id;
+  });
+
+/** Connect an existing person without inventing couples or duplicating edges. */
+export const linkRelative = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, anchor: z.string(), person: z.string(), relation: z.enum(['parent', 'child', 'sibling', 'partner']), coParent: z.string().optional(), partnership: z.object({ kind: z.enum(['marriage', 'partnership', 'other']), start: date, place: z.string().trim().max(200).optional() }).optional() }))
+  .handler(async ({ data }) => {
+    const d = (await server()).db(data.tree);
+    if (data.anchor === data.person) throw new Error('A person cannot be their own relative.');
+    for (const id of [data.anchor, data.person, data.coParent].filter(Boolean)) {
+      if (!d.prepare('SELECT id FROM person WHERE id = ?').get(id!)) throw new Error('Person not found.');
+    }
+    d.exec('BEGIN');
+    try {
+      const link = (child: string, parent: string) => {
+        if (child === parent) throw new Error('A person cannot be their own parent.');
+        const cycle = d.prepare('WITH RECURSIVE ancestors(id) AS (SELECT parent FROM parent WHERE child = ? UNION SELECT p.parent FROM parent p JOIN ancestors a ON p.child = a.id) SELECT id FROM ancestors WHERE id = ?').get(parent, child);
+        if (cycle) throw new Error('This would create a loop in the ancestry.');
+        d.prepare('INSERT OR IGNORE INTO parent (child, parent) VALUES (?, ?)').run(child, parent);
+      };
+      if (data.relation === 'parent') link(data.anchor, data.person);
+      if (data.relation === 'child') { link(data.person, data.anchor); if (data.coParent) link(data.person, data.coParent); }
+      if (data.relation === 'sibling') {
+        const ps = d.prepare('SELECT parent FROM parent WHERE child = ?').all(data.anchor) as { parent: string }[];
+        if (!ps.length) throw new Error('Record a shared parent first to link siblings.');
+        for (const p of ps) link(data.person, p.parent);
+      }
+      if (data.relation === 'partner' && !d.prepare('SELECT id FROM partnership WHERE (a = ? AND b = ?) OR (a = ? AND b = ?)').get(data.anchor, data.person, data.person, data.anchor)) {
+        d.prepare('INSERT INTO partnership (id, a, b, kind, start, place) VALUES (?, ?, ?, ?, ?, ?)').run(crypto.randomUUID(), data.anchor, data.person, data.partnership?.kind ?? 'partnership', data.partnership?.start ?? null, data.partnership?.place ?? null);
+      }
+      d.exec('COMMIT');
+    } catch (e) { d.exec('ROLLBACK'); throw e; }
+    return data.person;
   });
 
 export const updatePerson = createServerFn({ method: 'POST' })

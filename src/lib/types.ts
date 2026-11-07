@@ -12,6 +12,8 @@ export interface TreeMeta {
   theme: 'codex' | 'modern';
   focus: string;
   people: number;
+  crest?: House['arms'];
+  birthdays?: { id: string; name: string }[];
 }
 
 /** The slim person record the graph needs. Details (bio, stories, contacts) load per person. */
@@ -55,7 +57,7 @@ export interface GUnion {
   id: string;
   a: string;
   b: string;
-  kind: 'marriage' | 'partnership' | 'betrothal';
+  kind: 'marriage' | 'partnership' | 'betrothal' | 'other';
   start?: string;
   end?: string;
   endReason?: string;
