@@ -6,9 +6,11 @@ import type { GParent, GPerson, GUnion, Graph, House, PersonDetail, TreeMeta } f
 
 const DATA = resolve(process.cwd(), 'data');
 const open = new Map<string, DatabaseSync>();
+/** data/gazetteer.db is the place search index, not a tree. */
+const GAZETTEER = 'gazetteer';
 
 export function db(tree: string): DatabaseSync {
-  if (!/^[a-z0-9-]+$/.test(tree)) throw new Error(`bad tree id ${tree}`);
+  if (!/^[a-z0-9-]+$/.test(tree) || tree === GAZETTEER) throw new Error(`bad tree id ${tree}`);
   let d = open.get(tree);
   if (!d) {
     const path = join(DATA, `${tree}.db`);
@@ -25,7 +27,7 @@ const meta = (d: DatabaseSync) =>
 
 export function listTrees(): TreeMeta[] {
   return readdirSync(DATA)
-    .filter((f) => f.endsWith('.db'))
+    .filter((f) => f.endsWith('.db') && f !== `${GAZETTEER}.db`)
     .map((f): TreeMeta | null => {
       const d = db(f.slice(0, -3));
       const m = meta(d);
@@ -123,3 +125,138 @@ export function photo(tree: string, id: string) {
 
 export const newId = (given: string) =>
   `${given.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'person'}_${crypto.randomUUID().slice(0, 6)}`;
+
+// ---------- places ----------
+
+/** Lower case, no accents, punctuation as spaces: "Saint-Étienne" → "saint etienne". Keep in step with `fold` in scripts/gazetteer.ts. */
+export function foldPlace(s: string) {
+  return s
+    .toLowerCase()
+    .replace(/ß/g, 'ss').replace(/[øœ]/g, (c) => (c === 'ø' ? 'o' : 'oe')).replace(/æ/g, 'ae').replace(/ł/g, 'l').replace(/đ/g, 'd').replace(/þ/g, 'th').replace(/ı/g, 'i')
+    .normalize('NFD').replace(/\p{M}/gu, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}
+
+let gazetteerDb: DatabaseSync | null = null;
+/** The offline gazetteer (scripts/gazetteer.ts), or null until it has been built. Checked again on each call until it exists. */
+function gazetteer(): DatabaseSync | null {
+  if (gazetteerDb) return gazetteerDb;
+  const path = join(DATA, `${GAZETTEER}.db`);
+  if (!existsSync(path)) return null;
+  try {
+    gazetteerDb = new DatabaseSync(path, { readOnly: true });
+    gazetteerDb.prepare('SELECT 1 FROM name LIMIT 1').get();
+  } catch {
+    gazetteerDb = null;
+  }
+  return gazetteerDb;
+}
+
+export interface PlaceHit {
+  name: string;
+  lat?: number;
+  lng?: number;
+  /** ISO 3166 alpha-2, lower case. */
+  country?: string;
+  /** State or province, from the gazetteer. */
+  region?: string;
+  /** The gazetteer's own name when the hit matched another spelling ("Munich" for München). */
+  also?: string;
+  /** How many records in this tree use the name; set only for the tree's own places. */
+  uses?: number;
+}
+
+/** The tree's own places first (by use), then gazetteer towns ranked by how well they match and how big they are. */
+export function searchPlaces(tree: string, q: string, limit = 8): PlaceHit[] {
+  const d = db(tree);
+  const fq = foldPlace(q);
+  const placed = new Map((d.prepare('SELECT name, lat, lng, country FROM place').all() as { name: string; lat: number; lng: number; country: string | null }[]).map((r) => [r.name, r]));
+  const used = new Map((d.prepare(`SELECT name, count(*) AS n FROM (
+      SELECT born_place AS name FROM person WHERE born_place IS NOT NULL AND born_place != ''
+      UNION ALL SELECT died_place FROM person WHERE died_place IS NOT NULL AND died_place != ''
+      UNION ALL SELECT place FROM partnership WHERE place IS NOT NULL AND place != ''
+    ) GROUP BY name`).all() as { name: string; n: number }[]).map((r) => [r.name, r.n]));
+  for (const name of placed.keys()) if (!used.has(name)) used.set(name, 0);
+
+  // A family place matches when any of its words starts with what was typed; a match at the very start ranks first.
+  const g = fq.length >= 2 ? gazetteer() : null;
+  const own = [...used]
+    .map(([name, uses]) => ({ name, uses, f: foldPlace(name) }))
+    .filter((p) => !fq || p.f.startsWith(fq) || p.f.includes(` ${fq}`))
+    .sort((a, b) => Number(!a.f.startsWith(fq)) - Number(!b.f.startsWith(fq)) || b.uses - a.uses || a.name.localeCompare(b.name))
+    .slice(0, fq && g ? 4 : limit)
+    .map((p): PlaceHit => {
+      const at = placed.get(p.name);
+      return { name: p.name, uses: p.uses, ...(at && { lat: at.lat, lng: at.lng, country: at.country ?? undefined }) };
+    });
+
+  if (!g) return own;
+  type Row = { id: number; name: string; cc: string | null; admin1: string | null; lat: number; lng: number; pop: number; alt: string | null; key: string };
+  const range = 'n.key >= ? AND n.key < ?';
+  const sql = (where: string, n: number) =>
+    `SELECT p.id, p.name, p.cc, p.admin1, p.lat, p.lng, p.pop, n.alt, n.key FROM name n JOIN place p ON p.id = n.id WHERE ${where} ORDER BY p.pop DESC LIMIT ${n}`;
+  const hi = `${fq}\uffff`;
+  const rows = [
+    ...(g.prepare(sql('n.key = ?', 12)).all(fq) as Row[]),
+    ...(g.prepare(sql(`${range} AND n.alt IS NULL`, 40)).all(fq, hi) as Row[]),
+    ...(g.prepare(sql(`${range} AND n.alt IS NOT NULL`, 20)).all(fq, hi) as Row[]),
+  ];
+  // Size counts most; another spelling counts less than the place's own name; an exact match counts more.
+  const best = new Map<number, { r: Row; score: number }>();
+  for (const r of rows) {
+    const score = Math.log10(r.pop + 10) - (r.alt ? 1.5 : 0) + (r.key === fq ? 1 : 0);
+    const had = best.get(r.id);
+    if (!had || score > had.score) best.set(r.id, { r, score });
+  }
+  const near = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => Math.abs(a.lat - b.lat) < 0.2 && Math.abs(a.lng - b.lng) < 0.2;
+  // A town the family already has a pin for, under any spelling ("munich" finds their München), is offered as theirs.
+  const pinned = [...placed.values()];
+  const towns = [...best.values()]
+    .sort((a, b) => b.score - a.score)
+    .map(({ r }): PlaceHit => {
+      const theirs = pinned.find((pl) => (foldPlace(pl.name) === foldPlace(r.alt ?? r.name) && near(pl, r)) || (Math.abs(pl.lat - r.lat) < 0.03 && Math.abs(pl.lng - r.lng) < 0.03));
+      if (theirs) return { name: theirs.name, lat: theirs.lat, lng: theirs.lng, country: theirs.country ?? r.cc ?? undefined, region: r.admin1 ?? undefined, uses: used.get(theirs.name) ?? 0 };
+      return { name: r.alt ?? r.name, also: r.alt ? r.name : undefined, lat: r.lat, lng: r.lng, country: r.cc ?? undefined, region: r.admin1 ?? undefined };
+    })
+    // Drop only true repeats; a town that shares a name with a family place elsewhere stays, so it can be told apart.
+    .filter((t, i, all) => !(t.uses !== undefined && own.some((o) => o.name === t.name)) && all.findIndex((x) => x.name === t.name && x.lat === t.lat) === i)
+    .slice(0, Math.max(3, limit - own.length));
+  // The family's places stay together at the top.
+  const theirs = towns.filter((t) => t.uses !== undefined);
+  return [...own, ...theirs, ...towns.filter((t) => t.uses === undefined)].slice(0, limit + 1);
+}
+
+/** Towns inside a box, biggest first, so a map with no tiles still shows where you are. */
+export function placesIn(box: { west: number; south: number; east: number; north: number }, limit: number) {
+  const g = gazetteer();
+  if (!g) return [];
+  const wrap = box.west > box.east;
+  return g
+    .prepare(`SELECT name, cc, admin1, lat, lng, pop FROM place WHERE lat BETWEEN ? AND ? AND ${wrap ? '(lng >= ? OR lng <= ?)' : 'lng BETWEEN ? AND ?'} ORDER BY pop DESC LIMIT ?`)
+    .all(box.south, box.north, box.west, box.east, limit) as { name: string; cc: string | null; admin1: string | null; lat: number; lng: number; pop: number }[];
+}
+
+/**
+ * Records where places are, so the Atlas can draw them. An existing place keeps its coordinates unless
+ * `move` is set (the user chose to move its pin). Returns the names whose pin was left alone.
+ */
+export function upsertPlaces(tree: string, places: { name: string; lat: number; lng: number; country?: string; move?: boolean }[]) {
+  const d = db(tree);
+  const kept: string[] = [];
+  d.exec('BEGIN');
+  try {
+    for (const p of places) {
+      const sql = p.move
+        ? 'INSERT INTO place (name, lat, lng, country) VALUES (?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET lat = excluded.lat, lng = excluded.lng, country = coalesce(excluded.country, country)'
+        : 'INSERT INTO place (name, lat, lng, country) VALUES (?, ?, ?, ?) ON CONFLICT(name) DO NOTHING';
+      const r = d.prepare(sql).run(p.name, p.lat, p.lng, p.country ?? null);
+      if (!r.changes) kept.push(p.name);
+    }
+    d.exec('COMMIT');
+  } catch (e) {
+    d.exec('ROLLBACK');
+    throw e;
+  }
+  return kept;
+}

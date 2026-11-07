@@ -263,3 +263,25 @@ export const uploadPhoto = createServerFn({ method: 'POST' })
       .prepare('INSERT INTO photo (person, mime, data, at) VALUES (?, ?, ?, ?) ON CONFLICT(person) DO UPDATE SET mime = excluded.mime, data = excluded.data, at = excluded.at')
       .run(data.id, data.file.type, bytes, new Date().toISOString());
   });
+
+// ---------- places ----------
+
+/** Place suggestions for a place field: the tree's own places, then the offline gazetteer. Cheap enough for every keystroke. */
+export const searchPlaces = createServerFn({ method: 'GET' })
+  .validator(z.object({ tree, q: z.string().max(120) }))
+  .handler(async ({ data }) => (await server()).searchPlaces(data.tree, data.q));
+export const placeSearchQuery = (t: string, q: string) =>
+  queryOptions({ queryKey: ['places', t, q.trim().toLowerCase()], queryFn: () => searchPlaces({ data: { tree: t, q: q.trim() } }), staleTime: 60_000, placeholderData: (prev) => prev });
+
+const lat = z.number().min(-90).max(90);
+const lng = z.number().min(-180).max(180);
+
+/** Gazetteer towns in a map box, for orientation when dropping a pin. */
+export const getPlacesIn = createServerFn({ method: 'GET' })
+  .validator(z.object({ west: lng, south: lat, east: lng, north: lat, limit: z.number().int().min(1).max(200) }))
+  .handler(async ({ data }) => (await server()).placesIn(data, data.limit));
+
+/** Puts places on the tree's map. Existing pins stay where they are unless `move` is set. Safe to repeat. */
+export const upsertPlaces = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, places: z.array(z.object({ name: z.string().trim().min(1).max(200), lat, lng, country: z.string().regex(/^[a-z]{2}$/).optional(), move: z.boolean().optional() })).max(10) }))
+  .handler(async ({ data }) => (await server()).upsertPlaces(data.tree, data.places));

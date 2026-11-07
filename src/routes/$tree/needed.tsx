@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { GameIcon } from '~/components/GameIcon';
 import { Dialog } from '~/components/ui/Dialog';
 import { Portrait } from '~/components/Portrait';
+import { PlaceInput, savePlaces, type PlaceValue } from '~/components/PlaceInput';
 import { addContact, addRelative, addStory, patchPerson, uploadPhoto } from '~/lib/api';
 import { fullDate, validDate } from '~/lib/dates';
 import { useFamily, useMe, useMeChosen, useTreeId } from '~/lib/family';
@@ -142,6 +143,8 @@ function Needed() {
 type Values = Partial<Record<'born' | 'bornPlace' | 'died' | 'occupation' | 'fatherGiven' | 'fatherSurname' | 'motherGiven' | 'motherSurname' | 'contactKind' | 'contactValue' | 'story', string>> & {
   sex?: 'm' | 'f' | 'x';
   photo?: File;
+  /** Where the birthplace is, when it was picked from the suggestions or pinned on the map. */
+  bornPin?: Omit<PlaceValue, 'name'>;
 };
 
 function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[]; only: GapKey | null; f: Family; tree: string; me: string | null; required: ReadonlySet<GapKey>; onClose: () => void }) {
@@ -188,7 +191,6 @@ function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[
     else setSkipped((n) => n + 1);
     setI((x) => x + 1);
   };
-  const placeNames = useMemo(() => [...new Set([...f.graph.places.map((pl) => pl.name), ...f.graph.people.map((q) => q.bornPlace).filter(Boolean) as string[]])].sort(), [f]);
 
   const save = async () => {
     if (!p || busy) return;
@@ -208,9 +210,11 @@ function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[
     try {
       const patch = { born, bornPlace: v.bornPlace?.trim() || undefined, died, sex: v.sex, occupation: v.occupation?.trim() || undefined };
       if (Object.values(patch).some(Boolean)) {
+        // The pin first: repeating it on a retry changes nothing, and the Atlas has it as soon as the person points there.
+        if (patch.bornPlace) await savePlaces(tree, { ...v.bornPin, name: patch.bornPlace });
         await patchPerson({ data: { tree, id: p.id, patch } });
         did = true;
-        for (const k of ['born', 'bornPlace', 'died', 'sex', 'occupation'] as const) delete rest[k];
+        for (const k of ['born', 'bornPlace', 'bornPin', 'died', 'sex', 'occupation'] as const) delete rest[k];
       }
       const slots = parentSlots(f, p.id, gaps);
       for (const [as, gk, sk] of [['m', 'fatherGiven', 'fatherSurname'], ['f', 'motherGiven', 'motherSurname']] as const) {
@@ -301,7 +305,6 @@ function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[
             <div className="muted">{[lifespan(p), k && (k === 'you' ? 'you' : `your ${k}`)].filter(Boolean).join(' · ')}</div>
           </div>
         </div>
-        <datalist id="blaze-places">{placeNames.map((n) => <option key={n} value={n} />)}</datalist>
         <div className="blaze-fields">
           {(gaps.includes('born') || gaps.includes('birthday')) && (
             <label className="field">
@@ -310,10 +313,17 @@ function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[
             </label>
           )}
           {gaps.includes('birthplace') && (
-            <label className="field">
-              <span>Birthplace</span>
-              <input ref={firstRef()} className="input" list="blaze-places" value={v.bornPlace ?? ''} onChange={set('bornPlace')} placeholder="Town" />
-            </label>
+            <div className="field wide">
+              <span id="blaze-bornplace">Birthplace</span>
+              <PlaceInput
+                tree={tree}
+                inputRef={firstRef<HTMLInputElement>()}
+                aria-labelledby="blaze-bornplace"
+                value={{ ...v.bornPin, name: v.bornPlace ?? '' }}
+                onChange={({ name, ...pin }) => setV((x) => ({ ...x, bornPlace: name, bornPin: pin.lat !== undefined ? pin : undefined }))}
+                placeholder="Town, village or farm"
+              />
+            </div>
           )}
           {gaps.includes('died') && (
             <label className="field">

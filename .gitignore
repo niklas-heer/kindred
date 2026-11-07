@@ -4,6 +4,8 @@ dist/
 .tanstack/
 .nitro/
 data/*.db
+# The offline place gazetteer (mise run gazetteer); rebuilt from GeoNames, never committed.
+data/gazetteer.db
 data/*.db-*
 data/seed/smith.json
 .DS_Store

@@ -18,6 +18,10 @@ run = [
 description = "Build missing data/*.db from data/seed/ (existing ones are kept; pass --force to rebuild with a backup)"
 run = "node scripts/seed.ts"
 
+[tasks.gazetteer]
+description = "Download GeoNames cities500 once and build data/gazetteer.db for offline place search (~40 MB; downloads are deleted)"
+run = "node scripts/gazetteer.ts"
+
 [tasks.dev]
 run = "vite dev"
 

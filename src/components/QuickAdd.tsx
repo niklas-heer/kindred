@@ -11,6 +11,7 @@ import { Switch } from './ui/Switch';
 import { displayName, lifespan, partnersOf, yearOf, type Family } from '~/lib/graph';
 import type { AddRelation } from './Card';
 import { searchPeople } from './Palette';
+import { PlaceInput, placeValue, savePlaces, type PlaceValue } from './PlaceInput';
 import './quickadd.css';
 
 const TITLE: Record<AddRelation, string> = { parent: 'Add a parent of', child: 'Add a child of', partner: 'Add a partner of', sibling: 'Add a sibling of' };
@@ -25,7 +26,7 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onCan
   const [linking, setLinking] = useState(false);
   const [partnerKind, setPartnerKind] = useState<'marriage' | 'partnership' | 'other'>('partnership');
   const [start, setStart] = useState('');
-  const [place, setPlace] = useState('');
+  const [place, setPlace] = useState<PlaceValue>(placeValue());
   const qc = useQueryClient();
   const a = f.byId.get(anchor)!;
   const partners = partnersOf(f, anchor).map((id) => f.byId.get(id)!).filter(Boolean);
@@ -42,10 +43,11 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onCan
     onSubmit: async ({ value }) => {
       setError(null);
       try {
+      if (relation === 'partner') await savePlaces(tree, place);
       const id = await addRelative({
         data: {
           tree, anchor, relation,
-          partnership: relation === 'partner' ? {kind: partnerKind, start: start || undefined, place: place || undefined} : undefined,
+          partnership: relation === 'partner' ? {kind: partnerKind, start: start || undefined, place: place.name.trim() || undefined} : undefined,
           coParent: value.coParent || undefined,
           person: { given: value.given, surname: value.surname || undefined, sex: value.sex || undefined, born: value.born || undefined, living: value.living },
         },
@@ -60,12 +62,13 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onCan
   const date = ({ value }: { value: string }) => (value === '' || validDate(value.trim()) ? undefined : 'Enter a real year, year-month or year-month-day');
   const given = useStore(form.store, (s) => s.values.given);
   const born = useStore(form.store, (s) => s.values.born);
-  const dirty = useStore(form.store, (s) => s.isDirty) || !!query || !!selected || !!start || !!place || partnerKind !== 'partnership';
+  const dirty = useStore(form.store, (s) => s.isDirty) || !!query || !!selected || !!start || !!place.name || partnerKind !== 'partnership';
   const submitting = useStore(form.store, (s) => s.isSubmitting);
   const busy = submitting || linking;
   const matches = searchPeople(f, mode === 'existing' ? query : given, 8).map(({id}) => f.byId.get(id)!).filter((p) => p.id !== anchor && (mode === 'existing' || !born || !p.born || Math.abs(yearOf(p.born) - yearOf(born)) <= 1));
   const saveLink = async () => { if (!selected || busy) return; setLinking(true); setError(null); try {
-    await linkRelative({data: {tree, anchor, relation, person: selected, coParent: form.state.values.coParent || undefined, partnership: relation === 'partner' ? {kind: partnerKind, start: start || undefined, place: place || undefined} : undefined}});
+    if (relation === 'partner') await savePlaces(tree, place);
+    await linkRelative({data: {tree, anchor, relation, person: selected, coParent: form.state.values.coParent || undefined, partnership: relation === 'partner' ? {kind: partnerKind, start: start || undefined, place: place.name.trim() || undefined} : undefined}});
     await qc.invalidateQueries({queryKey: ['graph', tree]}); onCancel();
   } catch (e) { setError(e instanceof Error ? e.message : 'Could not link this person'); } finally { setLinking(false); } };
   const formId = useId();
@@ -155,7 +158,7 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onCan
               </div>
             )}
           </form.Field>}
-          {relation === 'partner' && <><div className="field wide"><span>Relationship type</span><Select aria-label="Relationship type" value={partnerKind} onChange={setPartnerKind} options={[{value: 'marriage', label: 'Married'}, {value: 'partnership', label: 'Partners'}, {value: 'other', label: 'Other'}]} /></div><label className="field"><span>Start date (optional)</span><input className="input" value={start} onChange={(e) => setStart(e.target.value)} aria-invalid={!!start && !validDate(start)} aria-describedby={`${formId}-start-error`} placeholder={tree === 'realm' ? '1140' : '2000-06'} />{!!start && !validDate(start) && <em id={`${formId}-start-error`} className="err">Enter a real date.</em>}</label><label className="field"><span>Place (optional)</span><input className="input" value={place} onChange={(e) => setPlace(e.target.value)} /></label></>}
+          {relation === 'partner' && <><div className="field wide"><span>Relationship type</span><Select aria-label="Relationship type" value={partnerKind} onChange={setPartnerKind} options={[{value: 'marriage', label: 'Married'}, {value: 'partnership', label: 'Partners'}, {value: 'other', label: 'Other'}]} /></div><div className="wide pi-pair"><label className="field"><span>Start date (optional)</span><input className="input" value={start} onChange={(e) => setStart(e.target.value)} aria-invalid={!!start && !validDate(start)} aria-describedby={`${formId}-start-error`} placeholder={tree === 'realm' ? '1140' : '2000-06'} />{!!start && !validDate(start) && <em id={`${formId}-start-error`} className="err">Enter a real date.</em>}</label><div className="field"><span id={`${formId}-place`}>Place (optional)</span><PlaceInput tree={tree} value={place} onChange={setPlace} aria-labelledby={`${formId}-place`} placeholder={tree === 'realm' ? 'Where they wed' : 'Town or church'} /></div></div></>}
         </div></fieldset>
       </form>
     </Dialog>

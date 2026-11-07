@@ -23,6 +23,7 @@ import { Arms } from './Heraldry';
 import { Portrait } from './Portrait';
 import { Dialog, Tabs, TabList, Tab as UiTab, TabPanel, Select, Switch, isOverlayOpen } from './ui';
 import { QuickAdd } from './QuickAdd';
+import { PlaceInput, placeValue, savePlaces, type PlaceValue } from './PlaceInput';
 import type { AddRelation } from './Card';
 import './panel.css';
 
@@ -521,13 +522,15 @@ function EditTab({ tree, p, detail, done, onRemoved }: { tree: string; p: GPerso
   const form = useForm({
     defaultValues: {
       given: p.given, surname: p.surname ?? '', nickname: p.nickname ?? '', sex: (p.sex ?? '') as '' | 'm' | 'f' | 'x',
-      born: p.born ?? '', bornPlace: detail.bornPlace ?? '', died: p.died ?? '', diedPlace: detail.diedPlace ?? '', living: p.living,
+      born: p.born ?? '', bornPlace: placeValue(detail.bornPlace), died: p.died ?? '', diedPlace: placeValue(detail.diedPlace), living: p.living,
       title: p.title ?? '', epithet: p.epithet ?? '', occupation: p.occupation ?? '', favourite: detail.favourite ?? '', bio: detail.bio ?? '',
     },
     onSubmit: async ({ value }) => {
       setSaveError(null);
       try {
-        await updatePerson({ data: { tree, id: p.id, patch: { ...value, sex: value.sex || null } } });
+        // Pins first: repeating them on a retry changes nothing, and the Atlas has them as soon as the person points there.
+        await savePlaces(tree, value.bornPlace, value.living ? undefined : value.diedPlace);
+        await updatePerson({ data: { tree, id: p.id, patch: { ...value, bornPlace: value.bornPlace.name, diedPlace: value.diedPlace.name, sex: value.sex || null } } });
         await Promise.all([qc.invalidateQueries({ queryKey: ['graph', tree] }), qc.invalidateQueries({ queryKey: ['person', tree, p.id] })]);
         form.reset(value);
         done();
@@ -548,6 +551,16 @@ function EditTab({ tree, p, detail, done, onRemoved }: { tree: string; p: GPerso
       )}
     </form.Field>
   );
+  const place = (name: 'bornPlace' | 'diedPlace', label: string) => (
+    <form.Field name={name}>
+      {(field) => (
+        <div className="field">
+          <span id={`edit-${name}-label`}>{label}</span>
+          <PlaceInput tree={tree} value={field.state.value} onChange={(v: PlaceValue) => field.handleChange(v)} aria-labelledby={`edit-${name}-label`} />
+        </div>
+      )}
+    </form.Field>
+  );
   return (
     <form className="pp-edit" onSubmit={(e) => { e.preventDefault(); form.handleSubmit(); }}>
       <DraftTracker form={form} />
@@ -562,8 +575,10 @@ function EditTab({ tree, p, detail, done, onRemoved }: { tree: string; p: GPerso
           </label>
         )}
       </form.Field>
-      {text('born', 'Born', { placeholder: medieval ? '1120 or ~1120' : '1953 or 1953-08-08', validate: date })}
-      {text('bornPlace', 'Birthplace')}
+      <div className="wide pi-pair">
+        {text('born', 'Born', { placeholder: medieval ? '1120 or ~1120' : '1953 or 1953-08-08', validate: date })}
+        {place('bornPlace', 'Birthplace')}
+      </div>
       <form.Field name="living">
         {(field) => (
           <label className="field check wide">
@@ -572,7 +587,7 @@ function EditTab({ tree, p, detail, done, onRemoved }: { tree: string; p: GPerso
         )}
       </form.Field>
       <form.Subscribe selector={(s) => s.values.living}>
-        {(living) => (living ? null : <>{text('died', 'Died', { validate: date })}{text('diedPlace', 'Place of death')}</>)}
+        {(living) => (living ? null : <div className="wide pi-pair">{text('died', 'Died', { validate: date })}{place('diedPlace', 'Place of death')}</div>)}
       </form.Subscribe>
       {text('title', 'Title', { placeholder: medieval ? 'Duchess of Brennac' : 'Title, if any' })}
       {text('epithet', 'Epithet', { placeholder: 'the Bold' })}

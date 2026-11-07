@@ -12,8 +12,13 @@ imported, and both that import and the databases are gitignored.
 ```sh
 mise install && npm install
 mise run data   # generate the test families; build data/smith.db from ../family-archive only if it doesn't exist
+mise run gazetteer  # optional: build data/gazetteer.db (~40 MB) so place fields suggest real towns, offline
 mise run dev    # http://localhost:4517
 ```
+
+The place picker searches the tree's own places first, then the offline gazetteer: every town with 500+ people,
+from [GeoNames](https://www.geonames.org) (CC BY 4.0). Without `data/gazetteer.db` it still offers the tree's places and
+a map to drop a pin on.
 
 Three trees:
 
