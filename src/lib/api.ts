@@ -2,9 +2,10 @@
 import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
+import { validDate } from './dates';
 
 const tree = z.string().regex(/^[a-z0-9-]+$/);
-const date = z.string().regex(/^~?\d{3,4}(-\d\d(-\d\d)?)?$/).optional();
+const date = z.string().refine(validDate, 'Not a real date').optional();
 const server = () => import('./db.server');
 
 export const getTrees = createServerFn({ method: 'GET' }).handler(async () => (await server()).listTrees());
@@ -97,9 +98,9 @@ export const updatePerson = createServerFn({ method: 'POST' })
         surname: z.string().trim().max(120).nullable(),
         nickname: z.string().trim().max(120).nullable(),
         sex: z.enum(['m', 'f', 'x']).nullable(),
-        born: z.string().nullable(),
+        born: z.string().refine((d) => d.trim() === '' || validDate(d.trim()), 'Not a real date').nullable(),
         bornPlace: z.string().trim().max(200).nullable(),
-        died: z.string().nullable(),
+        died: z.string().refine((d) => d.trim() === '' || validDate(d.trim()), 'Not a real date').nullable(),
         diedPlace: z.string().trim().max(200).nullable(),
         living: z.boolean(),
         title: z.string().trim().max(200).nullable(),

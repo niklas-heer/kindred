@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { GameIcon } from '~/components/GameIcon';
 import { Portrait } from '~/components/Portrait';
 import { addContact, addRelative, addStory, patchPerson, uploadPhoto } from '~/lib/api';
+import { fullDate, validDate } from '~/lib/dates';
 import { useFamily, useMe, useTreeId } from '~/lib/family';
 import { ALL_GAPS, GAP_HINT, GAP_LABEL, gapsOf, useRequired, type GapKey } from '~/lib/gaps';
 import { ancestorDepths, children, displayName, kinship, lifespan, parents, partnersOf, type Family } from '~/lib/graph';
@@ -137,7 +138,6 @@ type Values = Partial<Record<'born' | 'bornPlace' | 'died' | 'occupation' | 'fat
   sex?: 'm' | 'f' | 'x';
   photo?: File;
 };
-const DATE = /^~?\d{3,4}(-\d\d(-\d\d)?)?$/;
 
 function Blaze({ queue, f, tree, me, required, onClose }: { queue: string[]; f: Family; tree: string; me: string; required: ReadonlySet<GapKey>; onClose: () => void }) {
   const qc = useQueryClient();
@@ -176,59 +176,76 @@ function Blaze({ queue, f, tree, me, required, onClose }: { queue: string[]; f: 
 
   const save = async () => {
     if (!p || busy) return;
-    const bad = (['born', 'died'] as const).find((k) => v[k] && !DATE.test(v[k]!));
-    if (bad) return setError(`${bad === 'born' ? 'Born' : 'Died'}: use 1953, 1953-08 or 1953-08-08 (~1953 for about)`);
-    if (gaps.includes('birthday') && v.born && !/^\d{4}-\d\d-\d\d$/.test(v.born)) return setError('A full birthday looks like 1988-05-17');
+    // The birthday field starts as "1950-" to help typing; untouched, it means "don't know yet".
+    const born = v.born && v.born !== `${p.born}-` ? v.born.trim() : undefined;
+    const died = v.died?.trim() || undefined;
+    if (born && !validDate(born)) return setError('Born: use a real date — 1953, 1953-08 or 1953-08-08 (~1953 for about)');
+    if (died && !validDate(died)) return setError('Died: use a real date — 1999, 1999-03 or 1999-03-02');
+    if (born && gaps.includes('birthday') && !fullDate(born)) return setError('A full birthday looks like 1988-05-17');
+    // Check the photo before writing anything, so a bad file never leaves half a save behind.
+    if (v.photo && (!v.photo.type.startsWith('image/') || v.photo.size > 5_000_000)) return setError('The photo must be an image under 5 MB');
     setBusy(true);
+    setError(null);
+    // Each step that succeeds is removed from the form, so retrying after a failure never repeats it.
+    const rest: Values = { ...v };
+    let did = false;
     try {
-      const patch = {
-        born: v.born && v.born !== `${p.born}-` ? v.born : undefined,
-        bornPlace: v.bornPlace?.trim() || undefined,
-        died: v.died || undefined,
-        sex: v.sex,
-        occupation: v.occupation?.trim() || undefined,
-      };
-      const any = Object.values(patch).some(Boolean);
-      if (any) await patchPerson({ data: { tree, id: p.id, patch } });
-      let did = any;
-      for (const [as, given, surname] of [['m', v.fatherGiven, v.fatherSurname], ['f', v.motherGiven, v.motherSurname]] as const) {
-        if (!given?.trim()) continue;
-        await addRelative({ data: { tree, anchor: p.id, relation: 'parent', // Parents of someone born after 1950 may well be alive.
-          person: { given: given.trim(), surname: surname?.trim() || undefined, sex: as, living: parseInt(p.born ?? '0', 10) >= 1950 } } });
+      const patch = { born, bornPlace: v.bornPlace?.trim() || undefined, died, sex: v.sex, occupation: v.occupation?.trim() || undefined };
+      if (Object.values(patch).some(Boolean)) {
+        await patchPerson({ data: { tree, id: p.id, patch } });
         did = true;
+        for (const k of ['born', 'bornPlace', 'died', 'sex', 'occupation'] as const) delete rest[k];
       }
-      if (v.contactValue?.trim()) {
-        await addContact({ data: { tree, person: p.id, kind: (v.contactKind as 'phone') ?? 'phone', value: v.contactValue.trim() } });
+      for (const [as, gk, sk] of [['m', 'fatherGiven', 'fatherSurname'], ['f', 'motherGiven', 'motherSurname']] as const) {
+        const given = rest[gk]?.trim();
+        if (!given) continue;
+        // Parents of someone born after 1950 may well be alive.
+        await addRelative({ data: { tree, anchor: p.id, relation: 'parent', person: { given, surname: rest[sk]?.trim() || undefined, sex: as, living: parseInt(p.born ?? '0', 10) >= 1950 } } });
         did = true;
+        delete rest[gk];
+        delete rest[sk];
       }
-      if (v.story?.trim()) {
-        await addStory({ data: { tree, person: p.id, kind: 'memory', body: v.story.trim(), author: author || 'Family' } });
+      if (rest.contactValue?.trim()) {
+        await addContact({ data: { tree, person: p.id, kind: (rest.contactKind as 'phone') ?? 'phone', value: rest.contactValue.trim() } });
         did = true;
+        delete rest.contactValue;
       }
-      if (v.photo) {
+      if (rest.story?.trim()) {
+        await addStory({ data: { tree, person: p.id, kind: 'memory', body: rest.story.trim(), author: author || 'Family' } });
+        did = true;
+        delete rest.story;
+      }
+      if (rest.photo) {
         const fd = new FormData();
         fd.set('tree', tree);
         fd.set('id', p.id);
-        fd.set('file', v.photo);
+        fd.set('file', rest.photo);
         await uploadPhoto({ data: fd });
         did = true;
+        delete rest.photo;
       }
+      if (did) play('chime');
+      next(did);
+    } catch (e) {
+      setV(rest);
+      setError(`${did ? 'Partly saved. ' : ''}${e instanceof Error ? e.message : 'Could not save'}`);
+    } finally {
       if (did) {
-        play('chime');
         await qc.invalidateQueries({ queryKey: ['graph', tree] });
         qc.invalidateQueries({ queryKey: ['person', tree, p.id] });
       }
-      next(did);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save');
-    } finally {
       setBusy(false);
     }
   };
 
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') onClose();
-    else if (e.key === 'Enter' && !(e.target instanceof HTMLTextAreaElement && !e.metaKey && !e.ctrlKey)) { e.preventDefault(); save(); }
+    // ↵ saves from a text field (⌘↵ from the memory box); on a button it keeps meaning "press this button".
+    else if (e.key === 'Enter') {
+      const t = e.target;
+      const field = (t instanceof HTMLInputElement && t.type !== 'file') || (t instanceof HTMLTextAreaElement && (e.metaKey || e.ctrlKey));
+      if (field) { e.preventDefault(); save(); }
+    }
   };
 
   if (done) {
