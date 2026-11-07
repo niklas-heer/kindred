@@ -32,6 +32,7 @@ export interface GPerson {
   look?: Look;
   photo?: string; // photo timestamp, for cache busting
   stories: number;
+  contacts: number;
   bornPlace?: string;
   diedPlace?: string;
 }

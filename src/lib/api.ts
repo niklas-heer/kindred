@@ -121,6 +121,31 @@ export const updatePerson = createServerFn({ method: 'POST' })
         p.living ? 1 : 0, empty(p.title), empty(p.epithet), empty(p.occupation), empty(p.favourite), empty(p.bio), data.id);
   });
 
+/** Fills in only the fields given: the Needed page saves exactly what was missing. */
+export const patchPerson = createServerFn({ method: 'POST' })
+  .validator(
+    z.object({
+      tree,
+      id: z.string(),
+      patch: z
+        .object({
+          born: date,
+          bornPlace: z.string().trim().min(1).max(200),
+          died: date,
+          sex: z.enum(['m', 'f', 'x']),
+          occupation: z.string().trim().min(1).max(200),
+        })
+        .partial(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const cols: Record<string, string> = { born: 'born', bornPlace: 'born_place', died: 'died', sex: 'sex', occupation: 'occupation' };
+    const set = Object.entries(data.patch).filter(([, v]) => v !== undefined && v !== '');
+    if (!set.length) return;
+    const sql = `UPDATE person SET ${set.map(([k]) => `${cols[k]} = ?`).join(', ')}, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`;
+    (await server()).db(data.tree).prepare(sql).run(...set.map(([, v]) => v as string), data.id);
+  });
+
 export const addStory = createServerFn({ method: 'POST' })
   .validator(
     z.object({

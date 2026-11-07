@@ -16,7 +16,7 @@ import {
 import { setPref, usePref } from '~/lib/prefs';
 import type { GPerson, PersonDetail, Story } from '~/lib/types';
 import { TRAITS } from '~/lib/traits';
-import { GAP_LABEL, GAP_WHERE, gapsOf } from '~/lib/gaps';
+import { GAP_LABEL, GAP_WHERE, gapsOf, useRequired } from '~/lib/gaps';
 import { GameIcon } from './GameIcon';
 import { Arms } from './Heraldry';
 import { Portrait } from './Portrait';
@@ -40,6 +40,7 @@ interface Props {
 export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPath, onDynasty, onAncestors, onClose }: Props) {
   const p = f.byId.get(id);
   const [tab, setTab] = useState<Tab>('family');
+  const [required] = useRequired(tree);
   const { data: detail } = useQuery(personQuery(tree, id));
   const qc = useQueryClient();
   const k = useMemo(() => (p ? kinship(f, me, id) : undefined), [f, me, id, p]);
@@ -112,14 +113,14 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
       ) : null}
 
       {(() => {
-        const gaps = gapsOf(f, p);
+        const gaps = gapsOf(f, p, required);
         if (!gaps.length) return null;
         return (
           <div className="pp-gaps">
             <span className="pp-gaps-title"><GameIcon name="quill-ink" size={14} /> Information needed</span>
             <div>
               {gaps.map((g) => (
-                <button key={g} className="chip" onClick={() => (GAP_WHERE[g] === 'tree' ? onAncestors() : setTab('edit'))} title={GAP_WHERE[g] === 'tree' ? 'Open the ancestors view to fill the empty slots' : 'Fill it in'}>
+                <button key={g} className="chip" onClick={() => (GAP_WHERE[g] === 'tree' ? onAncestors() : setTab(GAP_WHERE[g] as Tab))} title={GAP_WHERE[g] === 'tree' ? 'Open the ancestors view to fill the empty slots' : 'Fill it in'}>
                   {GAP_LABEL[g]}
                 </button>
               ))}

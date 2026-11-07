@@ -3,7 +3,7 @@ import { Minus, Plus } from 'lucide-react';
 import { memo } from 'react';
 import { displayName, lifespan, partnersOf, type Family } from '~/lib/graph';
 import type { GPerson } from '~/lib/types';
-import { GAP_LABEL, gapsOf } from '~/lib/gaps';
+import { GAP_LABEL, gapsOf, useRequired } from '~/lib/gaps';
 import type { LNode } from '~/lib/layout';
 import type { Detail } from './Canvas';
 import { GameIcon } from './GameIcon';
@@ -30,6 +30,7 @@ interface Props {
 }
 
 export const Card = memo(function Card({ node, detail, family: f, tree, kin, selected, isMe, showSpouses, onSelect, onOpen, onToggle, onAdd }: Props) {
+  const [required] = useRequired(tree);
   if (node.ghost) {
     // An unknown parent: an open slot that invites filling in.
     const { child, as } = node.ghost;
@@ -77,7 +78,7 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
   const sub = p.title && !name.startsWith(p.title.split(' ')[0]) ? p.title : p.title ? '' : p.occupation ?? '';
   const soon = birthdaySoon(p);
   const disputed = (f.parentsOf.get(p.id) ?? []).some((q) => f.disputed.has(`${p.id}>${q}`));
-  const gaps = detail === 'near' && node.role !== 'dup' ? gapsOf(f, p) : [];
+  const gaps = detail === 'near' && node.role !== 'dup' ? gapsOf(f, p, required) : [];
   return (
     <div className={`card ${detail}${selected ? ' selected' : ''}${roleClass}${p.living ? ' living' : ' dead'}${ruler ? ' crowned' : ''}`}>
       <button className="card-hit" onClick={() => onSelect(p.id)} onDoubleClick={() => onOpen?.(p.id)} aria-label={name} title="Click to select · double-click to centre the tree here">

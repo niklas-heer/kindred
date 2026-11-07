@@ -41,7 +41,7 @@ const opt = <T>(v: T | null): T | undefined => (v === null ? undefined : v);
 export function graph(tree: string): Graph {
   const d = db(tree);
   const m = meta(d);
-  const people = (d.prepare(`SELECT p.*, ph.at AS photo, (SELECT count(*) FROM story s WHERE s.person = p.id) AS stories
+  const people = (d.prepare(`SELECT p.*, ph.at AS photo, (SELECT count(*) FROM story s WHERE s.person = p.id) AS stories, (SELECT count(*) FROM contact c WHERE c.person = p.id) AS contacts
     FROM person p LEFT JOIN photo ph ON ph.person = p.id`).all() as any[]).map(
     (r): GPerson => ({
       id: r.id,
@@ -60,6 +60,7 @@ export function graph(tree: string): Graph {
       look: json(r.look),
       photo: opt(r.photo),
       stories: r.stories,
+      contacts: r.contacts,
       bornPlace: opt(r.born_place),
       diedPlace: opt(r.died_place),
     }),

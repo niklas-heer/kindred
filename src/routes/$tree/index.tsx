@@ -11,7 +11,7 @@ import { useFamily, useMe } from '~/lib/family';
 import { ancestorDepths, ancestorDepths as anc, descendants, displayName, kinPath, kinship, parents, children } from '~/lib/graph';
 import { layout as computeLayout, rootFor, type LNode, type View } from '~/lib/layout';
 import { treeSearch } from '~/lib/search';
-import { gapsOf } from '~/lib/gaps';
+import { gapsOf, useRequired } from '~/lib/gaps';
 import { play } from '~/lib/sfx';
 import { toast } from '~/lib/toast';
 import { Arms } from '~/components/Heraldry';
@@ -141,10 +141,11 @@ function TreePage() {
 
   // ---- lenses ----
   const myAnc = useMemo(() => ancestorDepths(f, me), [f, me]);
+  const [required] = useRequired(tree);
   const dimmed = useMemo<Set<string> | null>(() => {
     if (lens === 'line') return new Set([sel, ...anc(f, sel).keys(), ...descendants(f, sel)]);
     if (lens === 'living') return new Set(f.graph.people.filter((p) => p.living).map((p) => p.id));
-    if (lens === 'gaps') return new Set(f.graph.people.filter((p) => gapsOf(f, p).length).map((p) => p.id));
+    if (lens === 'gaps') return new Set(f.graph.people.filter((p) => gapsOf(f, p, required).length).map((p) => p.id));
     if (lens === 'house') {
       const h = f.byId.get(sel)?.house;
       return new Set(f.graph.people.filter((p) => p.house === h).map((p) => p.id));
@@ -154,7 +155,7 @@ function TreePage() {
       return path.length ? new Set(path) : null;
     }
     return null;
-  }, [lens, f, sel, me, search.to]);
+  }, [lens, f, sel, me, search.to, required]);
   const lensCount = useMemo(() => {
     if (!dimmed) return '';
     const shown = new Set(lay.nodes.map((n) => n.id));
