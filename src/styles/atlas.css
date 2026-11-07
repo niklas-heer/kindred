@@ -154,8 +154,16 @@
 
 .atlas-feed > header { align-items: center; gap: 8px; }
 .atlas-feed > header .faint { margin-left: auto; font-variant-numeric: tabular-nums; }
-.atlas-feed > header .btn { width: 22px; height: 22px; }
+
 .feed-sum { color: var(--accent); }
 .atlas-feed > header { display: grid; grid-template-columns: 1fr auto auto; }
 .atlas-feed > header .faint { margin-left: 0; }
 .atlas-feed > header .btn.icon { width: 24px; height: 24px; padding: 0; display: grid; place-items: center; border: 0; background: transparent; box-shadow: none; }
+
+/* The chronicle scrolls: the whole history up to the current year. */
+.atlas-feed ol { overflow-y: auto; overscroll-behavior: contain; position: relative; padding-right: 2px; }
+.atlas-feed li:nth-child(n + 5), .atlas-feed li:nth-child(n + 7) { opacity: 1; }
+.atlas-feed > header .feed-latest { width: auto; height: 24px; font-size: 12px; padding: 0 8px; white-space: nowrap; }
+.feed-more { justify-self: center; margin: 6px auto 2px; height: 26px; font-size: 12.5px; }
+.atlas-speed { min-width: 46px; justify-content: center; font-variant-numeric: tabular-nums; }
+@media (max-width: 1100px) { .atlas-feed li:nth-child(n + 4) { display: list-item; } }

@@ -3,8 +3,10 @@
 // from a mother's birthplace to her child's.
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { geoGraticule10, geoNaturalEarth1, geoPath, type GeoPermissibleObjects } from 'd3-geo';
-import { Layers, Pause, Play, Route as RouteIcon, Shield, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Layers, Pause, Play, Route as RouteIcon, ScrollText, Shield, X } from 'lucide-react';
+import { useHotkey } from '@tanstack/react-hotkeys';
+import { setPref, usePref } from '~/lib/prefs';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { feature, mesh } from 'topojson-client';
 import { z } from 'zod';
 import { GameIcon } from '~/components/GameIcon';
@@ -65,6 +67,11 @@ function Atlas() {
   const [year, setYear] = useState<number | null>(null);
   const cursor = year ?? y1;
   const [playing, setPlaying] = useState(false);
+  // Playback speed, remembered: ½×, 1×, 2× or 4× the base pace.
+  const speedPref = usePref('atlas-speed');
+  const speed = [0.5, 1, 2, 4].includes(Number(speedPref)) ? Number(speedPref) : 1;
+  const [feedOpen, setFeedOpen] = useState(false);
+  const [feedLimit, setFeedLimit] = useState(300);
   const [moves, setMoves] = useState(true);
   const [heraldry, setHeraldry] = useState(false);
   useEffect(() => { setYear(null); setPlaying(false); }, [mode, tree]);
@@ -77,10 +84,11 @@ function Atlas() {
     // Resume from the cursor: the share of events already past it.
     let past = 0;
     while (past < n && events[past].year <= cursor && cursor < y1) past++;
-    const start = performance.now() - (past / n) * duration;
+    const span = duration / speed;
+    const start = performance.now() - (past / n) * span;
     let raf = 0, end = 0;
     const step = (t: number) => {
-      const idx = Math.min(n - 1, Math.floor(((t - start) / duration) * n));
+      const idx = Math.min(n - 1, Math.floor(((t - start) / span) * n));
       setYear(events[idx].year);
       if (idx >= n - 1) {
         setPlaying(false);
@@ -90,7 +98,7 @@ function Atlas() {
     };
     raf = requestAnimationFrame(step);
     return () => { cancelAnimationFrame(raf); clearTimeout(end); };
-  }, [playing]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [playing, speed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pins: people per place up to the cursor year.
   const pins = useMemo(() => {
@@ -148,18 +156,29 @@ function Atlas() {
   const feed = useMemo(() => {
     const rows: FeedRow[] = [];
     let k = upto - 1;
-    while (k >= 0 && rows.length < 8) {
+    while (k >= 0 && rows.length < feedLimit) {
       const yr = events[k].year;
       let a = k;
       while (a > 0 && events[a - 1].year === yr) a--;
       const year = events.slice(a, k + 1);
       if (year.length > 3) rows.push({ year: yr, summary: year });
-      else for (const e of [...year].reverse()) if (rows.length < 8) rows.push({ year: yr, event: e });
+      else for (const e of [...year].reverse()) if (rows.length < feedLimit) rows.push({ year: yr, event: e });
       k = a - 1;
     }
-    return rows;
-  }, [events, upto]);
-  const showFeed = playing || year !== null;
+    return { rows, more: k >= 0 };
+  }, [events, upto, feedLimit]);
+  const showFeed = feedOpen || playing || year !== null;
+
+  // Keys: space plays and pauses, arrows step to the previous or next year with an event.
+  const stepTo = (dir: -1 | 1) => {
+    setPlaying(false);
+    if (!events.length) return;
+    const target = dir > 0 ? events.find((e) => e.year > cursor)?.year : [...events].reverse().find((e) => e.year < cursor)?.year;
+    if (target !== undefined) setYear(target >= y1 ? y1 : target);
+  };
+  useHotkey('Space', () => { if (cursor >= y1 && !playing) setYear(y0); setPlaying((p) => !p); });
+  useHotkey('ArrowRight', () => stepTo(1));
+  useHotkey('ArrowLeft', () => stepTo(-1));
   // Places touched in the last few years of the replay pulse on the map (every event in that window).
   const recent = useMemo(() => {
     if (!playing) return new Set<string>();
@@ -221,35 +240,19 @@ function Atlas() {
 
       <div className="atlas-map">
         <WorldMap places={f.graph.places} pins={pins} arcs={arcs} selected={search.place} onSelect={select} rings={mode === 'all' && !heraldry} heraldry={heraldry ? f.house : null} recent={recent} />
-        {showFeed && feed.length > 0 && (
-          <section className="atlas-feed panel" aria-live={playing ? 'off' : 'polite'}>
-            <header>
-              <b>Chronicle</b>
-              <span className="faint">{cursor}</span>
-              <button className="btn icon ghost" onClick={() => { setPlaying(false); setYear(null); }} title="Close the chronicle"><X size={14} /></button>
-            </header>
-            <ol>
-              {feed.map((row) =>
-                row.event ? (
-                  <li key={`${row.event.kind}:${row.year}:${row.event.people.join('+')}`}>
-                    <button onClick={() => select(row.event!.place)}>
-                      <span className="feed-year">{row.year}</span>
-                      <FeedFace e={row.event} f={f} tree={tree} heraldry={heraldry} />
-                      <span className="feed-text">{sentence(row.event, f)}</span>
-                    </button>
-                  </li>
-                ) : (
-                  <li key={`sum:${row.year}`}>
-                    <button onClick={() => select(busiest(row.summary!))}>
-                      <span className="feed-year">{row.year}</span>
-                      <span className="feed-face feed-sum"><GameIcon name="quill-ink" size={18} /></span>
-                      <span className="feed-text">{summary(row.summary!, f)}</span>
-                    </button>
-                  </li>
-                ),
-              )}
-            </ol>
-          </section>
+        {showFeed && feed.rows.length > 0 && (
+          <Chronicle
+            rows={feed.rows}
+            more={feed.more}
+            onMore={() => setFeedLimit((l) => l + 300)}
+            cursor={cursor}
+            playing={playing}
+            f={f}
+            tree={tree}
+            heraldry={heraldry}
+            onSelect={select}
+            onClose={() => { setPlaying(false); setYear(null); setFeedOpen(false); }}
+          />
         )}
         {events.length > 0 && (
           <div className="atlas-time panel">
@@ -266,6 +269,16 @@ function Atlas() {
               aria-label="Year"
             />
             <span className="faint">{y0}–{y1}</span>
+            <button
+              className="btn atlas-speed"
+              onClick={() => setPref('atlas-speed', String(speed === 4 ? 0.5 : speed * 2))}
+              title="Playback speed (click to change)"
+            >
+              {speed === 0.5 ? '½×' : `${speed}×`}
+            </button>
+            <button className="btn" aria-pressed={showFeed} onClick={() => (showFeed ? (setFeedOpen(false), setYear(null), setPlaying(false)) : setFeedOpen(true))} title="Open the chronicle of everything up to this year">
+              <ScrollText size={15} /> Chronicle
+            </button>
             <button className="btn" aria-pressed={heraldry} onClick={() => { if (!heraldry) play('seal'); setHeraldry((h) => !h); }} title="Show each place by the arms of the house most of its people belong to">
               <Shield size={15} /> Arms
             </button>
@@ -602,4 +615,71 @@ function busiest(events: Event[]): string {
   const c = new Map<string, number>();
   for (const e of events) c.set(e.place, (c.get(e.place) ?? 0) + 1);
   return [...c].sort((a, b) => b[1] - a[1])[0][0];
+}
+
+/**
+ * The chronicle: every event up to the current year, newest first, scrollable. While someone reads
+ * further down, new entries arriving at the top do not move what they are reading; "Latest" returns.
+ */
+function Chronicle({ rows, more, onMore, cursor, playing, f, tree, heraldry, onSelect, onClose }: {
+  rows: FeedRow[]; more: boolean; onMore: () => void; cursor: number; playing: boolean;
+  f: ReturnType<typeof useFamily>; tree: string; heraldry: boolean; onSelect: (place: string) => void; onClose: () => void;
+}) {
+  const box = useRef<HTMLOListElement>(null);
+  const anchor = useRef<{ key: string; offset: number } | null>(null);
+  const [away, setAway] = useState(false);
+  const keyOf = (r: FeedRow) => (r.event ? `${r.event.kind}:${r.year}:${r.event.people.join('+')}` : `sum:${r.year}`);
+
+  const remember = () => {
+    const el = box.current;
+    if (!el) return;
+    const isAway = el.scrollTop > 8;
+    setAway(isAway);
+    if (!isAway) return (anchor.current = null);
+    const first = [...el.querySelectorAll<HTMLElement>('li[data-key]')].find((li) => li.offsetTop + li.offsetHeight > el.scrollTop);
+    anchor.current = first ? { key: first.dataset.key!, offset: first.offsetTop - el.scrollTop } : null;
+  };
+  // Keep the reader's place: after new rows arrive, scroll so the remembered row sits where it was.
+  useLayoutEffect(() => {
+    const el = box.current, a = anchor.current;
+    if (!el || !a) return;
+    const li = el.querySelector<HTMLElement>(`li[data-key="${CSS.escape(a.key)}"]`);
+    if (li) el.scrollTop = li.offsetTop - a.offset;
+  }, [rows]);
+
+  return (
+    <section className="atlas-feed panel" aria-live={playing ? 'off' : 'polite'}>
+      <header>
+        <b>Chronicle</b>
+        {away ? (
+          <button className="btn feed-latest" onClick={() => { box.current?.scrollTo({ top: 0, behavior: 'smooth' }); anchor.current = null; setAway(false); }}>
+            ↑ Latest
+          </button>
+        ) : (
+          <span className="faint">{cursor}</span>
+        )}
+        <button className="btn icon ghost" onClick={onClose} title="Close the chronicle"><X size={14} /></button>
+      </header>
+      <ol ref={box} onScroll={remember}>
+        {rows.map((row) => (
+          <li key={keyOf(row)} data-key={keyOf(row)}>
+            {row.event ? (
+              <button onClick={() => onSelect(row.event!.place)}>
+                <span className="feed-year">{row.year}</span>
+                <FeedFace e={row.event} f={f} tree={tree} heraldry={heraldry} />
+                <span className="feed-text">{sentence(row.event, f)}</span>
+              </button>
+            ) : (
+              <button onClick={() => onSelect(busiest(row.summary!))}>
+                <span className="feed-year">{row.year}</span>
+                <span className="feed-face feed-sum"><GameIcon name="quill-ink" size={18} /></span>
+                <span className="feed-text">{summary(row.summary!, f)}</span>
+              </button>
+            )}
+          </li>
+        ))}
+        {more && <button className="btn feed-more" onClick={onMore}>Show earlier</button>}
+      </ol>
+    </section>
+  );
 }
