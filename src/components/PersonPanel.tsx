@@ -1,6 +1,7 @@
 // The character window: who this is, how they're yours, their family at a glance, what the family
 // remembers about them, and the everyday things (birthday, how to reach them, what they like).
 import { useForm } from '@tanstack/react-form';
+import { Link } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Cake, Camera, Check, CookingPot, Crosshair, Crown, Gift, GitFork, Heart, Mail, MapPin, MessageCircle, MessagesSquare, Pencil,
@@ -356,7 +357,7 @@ function EverydayTab({ f, tree, p, detail }: { f: Family; tree: string; p: GPers
     const died = p.died ? nextOccurrence(p.died) : undefined;
     return (
       <div className="pp-facts">
-        <Fact icon={<Cake size={15} />} label="Born">{fmtDate(p.born) ?? 'unknown'}{detail?.bornPlace && <> in {detail.bornPlace}</>}</Fact>
+        <Fact icon={<Cake size={15} />} label="Born">{fmtDate(p.born) ?? 'unknown'}{detail?.bornPlace && <> in <PlaceLink tree={tree} name={detail.bornPlace} /></>}</Fact>
         <Fact icon={<span>✝</span>} label="Died">{fmtDate(p.died) ?? 'unknown'}{detail?.diedPlace && <> in {detail.diedPlace}</>}{age(p) !== undefined && <span className="muted"> · aged {age(p)}</span>}</Fact>
         {died && daysUntil(died) < 60 && <Fact icon={<Heart size={15} />} label="Remembrance">{inDays(daysUntil(died))}</Fact>}
         {p.occupation && <Fact icon={<Pencil size={15} />} label="Occupation">{p.occupation}</Fact>}
@@ -391,7 +392,7 @@ function EverydayTab({ f, tree, p, detail }: { f: Family; tree: string; p: GPers
         </div>
       ))}
       {p.nickname && <Fact icon={<UserRound size={15} />} label="Called">{p.nickname}</Fact>}
-      {detail?.bornPlace && <Fact icon={<MapPin size={15} />} label="Born in">{detail.bornPlace}</Fact>}
+      {detail?.bornPlace && <Fact icon={<MapPin size={15} />} label="Born in"><PlaceLink tree={tree} name={detail.bornPlace} /></Fact>}
       {p.occupation && <Fact icon={<Pencil size={15} />} label="Does">{p.occupation}</Fact>}
       <Fact icon={<Gift size={15} />} label="Likes">{detail?.favourite ?? <span className="faint">Gift ideas, favourite food, music… add them in Edit</span>}</Fact>
 
@@ -416,6 +417,11 @@ function EverydayTab({ f, tree, p, detail }: { f: Family; tree: string; p: GPers
       </form>
     </div>
   );
+}
+
+/** A place name that opens the Atlas there. */
+function PlaceLink({ tree, name }: { tree: string; name: string }) {
+  return <Link to="/$tree/atlas" params={{ tree }} search={{ place: name }} className="pp-place">{name}</Link>;
 }
 
 function Fact({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {

@@ -1,7 +1,7 @@
 // ⌘K: jump to anyone by name, nickname, epithet, title or place; or run a command.
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useNavigate } from '@tanstack/react-router';
-import { CalendarHeart, Contact, Crown, GitFork, Moon, Network, Palette as PaletteIcon, ScrollText, Sun, UserRound } from 'lucide-react';
+import { CalendarHeart, Contact, Map as MapIcon, Crown, GitFork, Moon, Network, Palette as PaletteIcon, ScrollText, Sun, UserRound } from 'lucide-react';
 import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useFamily, useMe, useTreeId } from '~/lib/family';
 import { displayName, kinship, lifespan, ancestorDepths, type Family } from '~/lib/graph';
@@ -84,6 +84,7 @@ export function Palette() {
       { key: 'v-anc', icon: <GitFork size={16} style={{ transform: 'rotate(180deg)' }} />, label: 'View: Ancestors', run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'ancestors' }) }); close(); } },
       { key: 'me', icon: <UserRound size={16} />, label: 'Go to me', hint: displayName(f.byId.get(me)!, f), run: go(me) },
       { key: 'almanac', icon: <CalendarHeart size={16} />, label: 'Open Almanac', hint: 'birthdays & anniversaries', run: () => { navigate({ to: '/$tree/almanac', params: { tree } }); close(); } },
+      { key: 'atlas', icon: <MapIcon size={16} />, label: 'Open Atlas', hint: 'where the family was born', run: () => { navigate({ to: '/$tree/atlas', params: { tree } }); close(); } },
       { key: 'contacts', icon: <Contact size={16} />, label: 'Open Contacts', run: () => { navigate({ to: '/$tree/contacts', params: { tree } }); close(); } },
       { key: 'chronicle', icon: <ScrollText size={16} />, label: 'Open Chronicle', hint: 'stories & sayings', run: () => { navigate({ to: '/$tree/chronicle', params: { tree } }); close(); } },
       { key: 't-codex', icon: <PaletteIcon size={16} />, label: 'Theme: Codex', run: () => { setPref('theme', 'codex'); close(); } },

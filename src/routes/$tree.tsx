@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
-import { BookOpen, CalendarHeart, Contact, Network, ScrollText, Search } from 'lucide-react';
+import { BookOpen, CalendarHeart, Contact, Map as MapIcon, Network, ScrollText, Search } from 'lucide-react';
 import { useEffect } from 'react';
 import { Arms } from '~/components/Heraldry';
 import { Palette, usePalette } from '~/components/Palette';
@@ -43,6 +43,9 @@ function TreeLayout() {
           </Link>
           <Link to="/$tree/almanac" params={{ tree }}>
             <CalendarHeart size={16} /> Almanac
+          </Link>
+          <Link to="/$tree/atlas" params={{ tree }}>
+            <MapIcon size={16} /> Atlas
           </Link>
           <Link to="/$tree/contacts" params={{ tree }}>
             <Contact size={16} /> Contacts

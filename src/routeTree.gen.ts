@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as TreeRouteImport } from './routes/$tree'
 import { Route as TreeIndexRouteImport } from './routes/$tree/index'
 import { Route as TreeAlmanacRouteImport } from './routes/$tree/almanac'
+import { Route as TreeAtlasRouteImport } from './routes/$tree/atlas'
 import { Route as TreeChronicleRouteImport } from './routes/$tree/chronicle'
 import { Route as TreeContactsRouteImport } from './routes/$tree/contacts'
 import { Route as TreePeopleRouteImport } from './routes/$tree/people'
@@ -36,6 +37,11 @@ const TreeIndexRoute = TreeIndexRouteImport.update({
 const TreeAlmanacRoute = TreeAlmanacRouteImport.update({
   id: '/almanac',
   path: '/almanac',
+  getParentRoute: () => TreeRoute,
+} as any)
+const TreeAtlasRoute = TreeAtlasRouteImport.update({
+  id: '/atlas',
+  path: '/atlas',
   getParentRoute: () => TreeRoute,
 } as any)
 const TreeChronicleRoute = TreeChronicleRouteImport.update({
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$tree': typeof TreeRouteWithChildren
   '/$tree/almanac': typeof TreeAlmanacRoute
+  '/$tree/atlas': typeof TreeAtlasRoute
   '/$tree/chronicle': typeof TreeChronicleRoute
   '/$tree/contacts': typeof TreeContactsRoute
   '/$tree/people': typeof TreePeopleRoute
@@ -72,6 +79,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$tree/almanac': typeof TreeAlmanacRoute
+  '/$tree/atlas': typeof TreeAtlasRoute
   '/$tree/chronicle': typeof TreeChronicleRoute
   '/$tree/contacts': typeof TreeContactsRoute
   '/$tree/people': typeof TreePeopleRoute
@@ -83,6 +91,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$tree': typeof TreeRouteWithChildren
   '/$tree/almanac': typeof TreeAlmanacRoute
+  '/$tree/atlas': typeof TreeAtlasRoute
   '/$tree/chronicle': typeof TreeChronicleRoute
   '/$tree/contacts': typeof TreeContactsRoute
   '/$tree/people': typeof TreePeopleRoute
@@ -95,6 +104,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$tree'
     | '/$tree/almanac'
+    | '/$tree/atlas'
     | '/$tree/chronicle'
     | '/$tree/contacts'
     | '/$tree/people'
@@ -104,6 +114,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/$tree/almanac'
+    | '/$tree/atlas'
     | '/$tree/chronicle'
     | '/$tree/contacts'
     | '/$tree/people'
@@ -114,6 +125,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$tree'
     | '/$tree/almanac'
+    | '/$tree/atlas'
     | '/$tree/chronicle'
     | '/$tree/contacts'
     | '/$tree/people'
@@ -157,6 +169,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TreeAlmanacRouteImport
       parentRoute: typeof TreeRoute
     }
+    '/$tree/atlas': {
+      id: '/$tree/atlas'
+      path: '/atlas'
+      fullPath: '/$tree/atlas'
+      preLoaderRoute: typeof TreeAtlasRouteImport
+      parentRoute: typeof TreeRoute
+    }
     '/$tree/chronicle': {
       id: '/$tree/chronicle'
       path: '/chronicle'
@@ -190,6 +209,7 @@ declare module '@tanstack/react-router' {
 
 interface TreeRouteChildren {
   TreeAlmanacRoute: typeof TreeAlmanacRoute
+  TreeAtlasRoute: typeof TreeAtlasRoute
   TreeChronicleRoute: typeof TreeChronicleRoute
   TreeContactsRoute: typeof TreeContactsRoute
   TreePeopleRoute: typeof TreePeopleRoute
@@ -198,6 +218,7 @@ interface TreeRouteChildren {
 
 const TreeRouteChildren: TreeRouteChildren = {
   TreeAlmanacRoute: TreeAlmanacRoute,
+  TreeAtlasRoute: TreeAtlasRoute,
   TreeChronicleRoute: TreeChronicleRoute,
   TreeContactsRoute: TreeContactsRoute,
   TreePeopleRoute: TreePeopleRoute,

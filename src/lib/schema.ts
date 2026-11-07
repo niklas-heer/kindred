@@ -70,6 +70,14 @@ CREATE TABLE IF NOT EXISTS contact (
 );
 CREATE INDEX IF NOT EXISTS contact_by_person ON contact(person);
 
+-- Where places are, so the Atlas can draw them. Keyed by the name people's records use.
+CREATE TABLE IF NOT EXISTS place (
+  name TEXT PRIMARY KEY,
+  lat REAL NOT NULL,
+  lng REAL NOT NULL,
+  country TEXT
+);
+
 -- Portraits live in the database too, so one file is the whole family.
 CREATE TABLE IF NOT EXISTS photo (
   person TEXT PRIMARY KEY REFERENCES person(id) ON DELETE CASCADE,

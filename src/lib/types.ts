@@ -32,6 +32,15 @@ export interface GPerson {
   look?: Look;
   photo?: string; // photo timestamp, for cache busting
   stories: number;
+  bornPlace?: string;
+  diedPlace?: string;
+}
+
+export interface Place {
+  name: string;
+  lat: number;
+  lng: number;
+  country?: string;
 }
 
 export interface GParent {
@@ -58,6 +67,7 @@ export interface Graph {
   people: GPerson[];
   parents: GParent[];
   unions: GUnion[];
+  places: Place[];
 }
 
 export type Story = SeedStory;

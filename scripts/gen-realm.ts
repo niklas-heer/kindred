@@ -6,6 +6,7 @@ import type { SeedHouse, SeedParent, SeedPerson, SeedStory, SeedTree, SeedUnion 
 import { idOf, mulberry32 } from './lib/rng.ts';
 import type { Rng } from './lib/rng.ts';
 import { summarize, validate, writeTree } from './lib/check.ts';
+import { placeRealm } from './lib/places.ts';
 import {
   ABBEYS,
   BISHOP_SEES,
@@ -404,6 +405,7 @@ function main(): void {
     if (!built) continue;
     const { tree, sim, reigns, focus } = built;
     validate(tree);
+    placeRealm(tree, mulberry32(built.seed));
     writeTree(tree, OUT_PATH);
 
     const s = summarize(tree);

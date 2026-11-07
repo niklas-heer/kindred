@@ -8,7 +8,7 @@ import type { SeedTree } from '../src/lib/seed-format.ts';
 
 const files = process.argv.length > 2
   ? process.argv.slice(2)
-  : readdirSync('data/seed').filter((f) => f.endsWith('.json')).map((f) => join('data/seed', f));
+  : readdirSync('data/seed').filter((f) => f.endsWith('.json') && !f.endsWith('-places.json')).map((f) => join('data/seed', f));
 
 for (const file of files) {
   const t: SeedTree = JSON.parse(readFileSync(file, 'utf8'));
@@ -42,10 +42,13 @@ for (const file of files) {
   const unquote = (s: { kind: string; body: string }) => (s.kind === 'quote' ? s.body.trim().replace(/^["“„]|["”“]$/g, '') : s.body);
   for (const s of t.stories) story.run(s.id, s.person, s.kind, s.title ?? null, unquote(s), s.author, s.at, s.context ?? null);
 
+  const place = db.prepare('INSERT OR REPLACE INTO place (name, lat, lng, country) VALUES (?, ?, ?, ?)');
+  for (const p of t.places ?? []) place.run(p.name, p.lat, p.lng, p.country ?? null);
+
   const contact = db.prepare('INSERT INTO contact (person, kind, label, value) VALUES (?, ?, ?, ?)');
   for (const c of t.contacts) contact.run(c.person, c.kind, c.label ?? null, c.value);
   db.exec('COMMIT');
   const fk = db.prepare('PRAGMA foreign_key_check').all();
   db.close();
-  console.log(`${path}: ${t.people.length} people, ${t.unions.length} unions, ${t.stories.length} stories${fk.length ? `, ${fk.length} broken references!` : ''}`);
+  console.log(`${path}: ${t.people.length} people, ${t.unions.length} unions, ${t.stories.length} stories, ${(t.places ?? []).length} places${fk.length ? `, ${fk.length} broken references!` : ''}`);
 }

@@ -60,6 +60,8 @@ export function graph(tree: string): Graph {
       look: json(r.look),
       photo: opt(r.photo),
       stories: r.stories,
+      bornPlace: opt(r.born_place),
+      diedPlace: opt(r.died_place),
     }),
   );
   const houses = (d.prepare('SELECT * FROM house').all() as any[]).map(
@@ -69,7 +71,9 @@ export function graph(tree: string): Graph {
   const unions = (d.prepare('SELECT * FROM partnership ORDER BY start').all() as any[]).map(
     (r): GUnion => ({ id: r.id, a: r.a, b: r.b, kind: r.kind, start: opt(r.start), end: opt(r.end), endReason: opt(r.end_reason), place: opt(r.place) }),
   );
+  const places = (d.prepare('SELECT * FROM place').all() as any[]).map((r) => ({ name: r.name, lat: r.lat, lng: r.lng, country: opt(r.country) }));
   return {
+    places,
     tree: { id: m.id, name: m.name, tagline: m.tagline, theme: m.theme as TreeMeta['theme'], focus: m.focus, people: people.length },
     houses,
     people,

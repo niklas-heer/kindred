@@ -18,6 +18,8 @@ export interface SeedTree {
   unions: SeedUnion[];
   stories: SeedStory[];
   contacts: SeedContact[];
+  /** Coordinates for the place names used above, for the Atlas. Optional per place. */
+  places?: SeedPlace[];
   /** The person the tree opens on (the "player character"). */
   focus: string;
 }
@@ -66,6 +68,14 @@ export interface SeedPerson {
   /** Everyday data. */
   nickname?: string;
   favourite?: string; // "Cheesecake, Dire Straits, gardening"
+}
+
+export interface SeedPlace {
+  name: string;
+  lat: number;
+  lng: number;
+  /** Two-letter country code, lower case. */
+  country?: string;
 }
 
 export interface SeedParent {

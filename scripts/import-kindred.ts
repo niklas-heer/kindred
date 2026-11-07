@@ -1,7 +1,7 @@
 // Converts a Kindred Markdown archive into a SeedTree JSON file.
 //   node scripts/import-kindred.ts ../family-archive data/seed/smith.json
 // The output holds living people's data: data/seed/smith.json is gitignored.
-import { readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { parse } from 'yaml';
 import type { SeedHouse, SeedPerson, SeedTree, Tincture } from '../src/lib/seed-format.ts';
@@ -95,6 +95,10 @@ for (const n of notes) {
   }
 }
 
+// Coordinates come from a local gazetteer next to the output (gitignored: it says where the family lived).
+const gazetteer = join(dirname(out), 'smith-places.json');
+const places: SeedTree['places'] = existsSync(gazetteer) ? JSON.parse(readFileSync(gazetteer, 'utf8')) : [];
+
 const tree: SeedTree = {
   id: 'smith',
   name: 'The Smith family',
@@ -106,6 +110,7 @@ const tree: SeedTree = {
   unions: [...unions.values()],
   stories: [],
   contacts: [],
+  places,
   focus: idByFile.get('niklas-heer') ?? people[0].id,
 };
 mkdirSync(dirname(out), { recursive: true });

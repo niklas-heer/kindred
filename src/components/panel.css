@@ -121,3 +121,5 @@
 .pp-edit { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-top: 14px; }
 .pp-edit .wide { grid-column: 1 / -1; }
 .field.check { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.pp-place { color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; }
+.pp-place:hover { color: var(--accent); }

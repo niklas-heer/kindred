@@ -6,6 +6,7 @@ import type { SeedContact, SeedHouse, SeedParent, SeedPerson, SeedStory, SeedTre
 import type { Rng } from './lib/rng.ts';
 import { idOf, mulberry32 } from './lib/rng.ts';
 import { summarize, validate, writeTree } from './lib/check.ts';
+import { placeModern } from './lib/places.ts';
 import {
   FAMILIES,
   FAVOURITE_FOODS,
@@ -509,6 +510,7 @@ function main(): void {
     if (!built) continue;
     const { tree, focus } = built;
     validate(tree);
+    placeModern(tree, mulberry32(built.seed));
     writeTree(tree, OUT_PATH);
 
     const s = summarize(tree);
