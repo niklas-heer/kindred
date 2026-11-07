@@ -32,7 +32,7 @@
   border: 1px solid transparent; border-radius: var(--radius); background: none; cursor: pointer; font-family: var(--font-display);
 }
 .pp-house:hover { border-color: var(--edge); background: var(--panel-2); }
-.pp-motto { font-size: 13px; color: var(--faint); font-style: italic; }
+.pp-motto { font-size: 13px; color: var(--subtle); font-style: italic; }
 
 .pp-kin {
   display: flex; align-items: center; gap: 4px; margin: 0 14px; padding: 6px 10px;
@@ -66,7 +66,7 @@
   font-family: var(--font-display); font-size: 14.5px; border-bottom: 2px solid transparent; margin-bottom: -1px;
 }
 .pp-tabs button[aria-selected='true'] { color: var(--text); border-bottom-color: var(--accent); }
-.pp-count { font-family: var(--font-ui); font-size: 12px; color: var(--faint); margin-left: 2px; }
+.pp-count { font-family: var(--font-ui); font-size: 12px; color: var(--subtle); margin-left: 2px; }
 
 .pp-body { flex: 1; overflow: auto; padding: 4px 16px 24px; }
 .pp-body .rule:first-child { margin-top: 12px; }

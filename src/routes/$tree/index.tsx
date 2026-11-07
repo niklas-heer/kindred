@@ -1,4 +1,3 @@
-import { useHotkey } from '@tanstack/react-hotkeys';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { ChevronsDownUp, ChevronsUpDown, Crown, Expand, GitFork, Keyboard, Minus, Network, Plus, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -7,7 +6,8 @@ import { Card, type AddRelation } from '~/components/Card';
 import { PersonPanel } from '~/components/PersonPanel';
 import { Portrait } from '~/components/Portrait';
 import { QuickAdd } from '~/components/QuickAdd';
-import { useFamily, useMe } from '~/lib/family';
+import { useFamily, useMe, useMeChosen } from '~/lib/family';
+import { usePageHotkey } from '~/components/ui/overlay';
 import { ancestorDepths, ancestorDepths as anc, descendants, displayName, kinPath, kinship, parents, children } from '~/lib/graph';
 import { layout as computeLayout, rootFor, type LNode, type View } from '~/lib/layout';
 import { treeSearch } from '~/lib/search';
@@ -17,10 +17,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { play } from '~/lib/sfx';
 import { toast } from '~/lib/toast';
 import { Arms } from '~/components/Heraldry';
+import { personName, treeTitle } from '~/lib/title';
 import '~/styles/tree.css';
 
 export const Route = createFileRoute('/$tree/')({
   validateSearch: treeSearch,
+  // "Ada Lindqvist · The Lindqvist–Ashworth family · Kindred" when someone is selected or centred.
+  head: (ctx) => ({ meta: [{ title: treeTitle(ctx, personName(ctx, ctx.match.search.sel ?? ctx.match.search.focus)) }] }),
   component: TreePage,
 });
 
@@ -32,6 +35,8 @@ function TreePage() {
   const navigate = useNavigate({ from: '/$tree/' });
   const f = useFamily();
   const me = useMe();
+  // Who the reader said they are; kinship labels wait for this.
+  const who = useMeChosen();
   const qc = useQueryClient();
   const codex = f.graph.tree.theme === 'codex';
 
@@ -39,6 +44,23 @@ function TreePage() {
   // shows. Clicking selects without moving anything; double-click or Enter re-centres.
   const focus = search.focus && f.byId.has(search.focus) ? search.focus : me;
   const sel = search.sel && f.byId.has(search.sel) ? search.sel : focus;
+
+  // Someone in the URL who isn't in this tree (a stale link, a typo): say so once and tidy the URL.
+  // People who were here a moment ago (removed with Undo) are dropped quietly.
+  const known = useRef(new Set<string>());
+  for (const p of f.graph.people) known.current.add(p.id);
+  const told = useRef('');
+  useEffect(() => {
+    const stale = (['focus', 'sel', 'root', 'to'] as const).filter((k) => search[k] && !f.byId.has(search[k]!));
+    if (!stale.length) return;
+    const unseen = stale.some((k) => !known.current.has(search[k]!));
+    navigate({ search: (s) => ({ ...s, ...Object.fromEntries(stale.map((k) => [k, undefined])) }), replace: true });
+    // Once per stale link, even if the effect runs again before the URL is tidied.
+    const key = stale.map((k) => search[k]).join('|');
+    if (told.current === key) return;
+    told.current = key;
+    if (unseen) toast({ title: 'That person isn’t in this tree', body: 'The link may be old. Showing the family from the start instead.', ms: 6000 });
+  }, [search.focus, search.sel, search.root, search.to, f]); // eslint-disable-line react-hooks/exhaustive-deps
   const view: View = search.view ?? (codex ? 'dynasty' : 'family');
   const line = search.line ?? (codex ? 'house' : 'all');
   const up = search.up ?? 3;
@@ -143,7 +165,7 @@ function TreePage() {
   useEffect(() => setTrail((t) => [sel, ...t.filter((x) => x !== sel)].slice(0, 9)), [sel]);
 
   // ---- lenses ----
-  const myAnc = useMemo(() => ancestorDepths(f, me), [f, me]);
+  const myAnc = useMemo(() => (who ? ancestorDepths(f, who) : new Map<string, number>()), [f, who]);
   const [required] = useRequired(tree);
   const dimmed = useMemo<Set<string> | null>(() => {
     if (lens === 'line') return new Set([sel, ...anc(f, sel).keys(), ...descendants(f, sel)]);
@@ -154,11 +176,11 @@ function TreePage() {
       return new Set(f.graph.people.filter((p) => p.house === h).map((p) => p.id));
     }
     if (lens === 'path') {
-      const path = kinPath(f, me, search.to ?? sel);
+      const path = kinPath(f, who ?? me, search.to ?? sel);
       return path.length ? new Set(path) : null;
     }
     return null;
-  }, [lens, f, sel, me, search.to, required]);
+  }, [lens, f, sel, me, who, search.to, required]);
   const lensCount = useMemo(() => {
     if (!dimmed) return '';
     const shown = new Set(lay.nodes.map((n) => n.id));
@@ -167,16 +189,17 @@ function TreePage() {
   }, [dimmed, lay]);
 
   // ---- kinship labels, computed lazily for the cards on screen ----
-  const kinCache = useMemo(() => new Map<string, string | undefined>(), [f, me]);
+  const kinCache = useMemo(() => new Map<string, string | undefined>(), [f, who]);
   const kinOf = useCallback(
     (id: string) => {
+      if (!who) return undefined;
       if (!kinCache.has(id)) {
-        const k = kinship(f, me, id, myAnc)?.label;
+        const k = kinship(f, who, id, myAnc)?.label;
         kinCache.set(id, k && k !== 'you' ? k : undefined);
       }
       return kinCache.get(id);
     },
-    [kinCache, f, me, myAnc],
+    [kinCache, f, who, myAnc],
   );
 
   const toggle = useCallback((id: string) => (play('page'), setCollapsed((c) => {
@@ -205,7 +228,7 @@ function TreePage() {
         tree={tree}
         kin={detail === 'near' ? kinOf(n.id) : undefined}
         selected={n.id === sel}
-        isMe={n.id === me}
+        isMe={n.id === who}
         showSpouses={view === 'dynasty'}
         onSelect={(id) => select(id, 'click')}
         onOpen={refocus}
@@ -213,7 +236,7 @@ function TreePage() {
         onAdd={(anchor, relation, sex) => setAdding({ anchor, relation, sex })}
       />
     ),
-    [f, tree, kinOf, sel, me, view, select, refocus, toggle],
+    [f, tree, kinOf, sel, who, view, select, refocus, toggle],
   );
 
   // ---- keyboard: walk the tree ----
@@ -229,22 +252,22 @@ function TreePage() {
     if (next.length) select(next.find(inLayout) ?? next[0], 'key');
   };
   const live = !adding;
-  useHotkey('ArrowLeft', () => spatial('left'), { enabled: live });
-  useHotkey('ArrowRight', () => spatial('right'), { enabled: live });
-  useHotkey('ArrowUp', () => vertical('up'), { enabled: live });
-  useHotkey('ArrowDown', () => vertical('down'), { enabled: live });
-  useHotkey('Enter', () => refocus(sel), { enabled: live });
-  useHotkey('F', () => canvas.current?.fit(), { enabled: live });
-  useHotkey('C', () => canvas.current?.centerOn(sel), { enabled: live });
-  useHotkey('H', () => refocus(me), { enabled: live });
-  useHotkey('1', () => go({ view: 'family', focus: sel, sel: undefined }), { enabled: live });
-  useHotkey('2', () => go({ view: 'dynasty', root: undefined, focus: sel, sel: undefined }), { enabled: live });
-  useHotkey('3', () => go({ view: 'ancestors', focus: sel, sel: undefined }), { enabled: live });
-  useHotkey('L', () => go({ lens: lens === 'line' ? 'none' : 'line' }), { enabled: live });
-  useHotkey('=', () => canvas.current?.zoomBy(1.25), { enabled: live });
-  useHotkey('-', () => canvas.current?.zoomBy(0.8), { enabled: live });
-  useHotkey('?', () => setHelp((h) => !h), { enabled: live });
-  useHotkey('Escape', () => {
+  usePageHotkey('ArrowLeft', () => spatial('left'), { enabled: live });
+  usePageHotkey('ArrowRight', () => spatial('right'), { enabled: live });
+  usePageHotkey('ArrowUp', () => vertical('up'), { enabled: live });
+  usePageHotkey('ArrowDown', () => vertical('down'), { enabled: live });
+  usePageHotkey('Enter', () => refocus(sel), { enabled: live });
+  usePageHotkey('F', () => canvas.current?.fit(), { enabled: live });
+  usePageHotkey('C', () => canvas.current?.centerOn(sel), { enabled: live });
+  usePageHotkey('H', () => refocus(me), { enabled: live });
+  usePageHotkey('1', () => go({ view: 'family', focus: sel, sel: undefined }), { enabled: live });
+  usePageHotkey('2', () => go({ view: 'dynasty', root: undefined, focus: sel, sel: undefined }), { enabled: live });
+  usePageHotkey('3', () => go({ view: 'ancestors', focus: sel, sel: undefined }), { enabled: live });
+  usePageHotkey('L', () => go({ lens: lens === 'line' ? 'none' : 'line' }), { enabled: live });
+  usePageHotkey('=', () => canvas.current?.zoomBy(1.25), { enabled: live });
+  usePageHotkey('-', () => canvas.current?.zoomBy(0.8), { enabled: live });
+  usePageHotkey('?', () => setHelp((h) => !h), { enabled: live });
+  usePageHotkey('Escape', () => {
     if (help) setHelp(false);
     else if (lens !== 'none') go({ lens: 'none', to: undefined });
     else setPanel(false);
@@ -440,7 +463,9 @@ function TreePage() {
             {lens !== 'none' && (
               <div className="lens-banner no-pan">
                 {lens === 'path' ? (
-                  <>Showing how <b>{displayName(f.byId.get(search.to ?? sel)!, f)}</b> is your <b>{kinship(f, me, search.to ?? sel)?.label ?? 'relative'}</b></>
+                  who
+                    ? <>Showing how <b>{displayName(f.byId.get(search.to ?? sel)!, f)}</b> is your <b>{kinship(f, who, search.to ?? sel)?.label ?? 'relative'}</b></>
+                    : <>Showing how <b>{displayName(f.byId.get(search.to ?? sel)!, f)}</b> is related to <b>{displayName(f.byId.get(me)!, f)}</b></>
                 ) : lens === 'line' ? (
                   <>Direct line of <b>{focusPerson.given}</b>: ancestors and descendants</>
                 ) : lens === 'living' ? (
@@ -480,7 +505,7 @@ function TreePage() {
           family={f}
           tree={tree}
           id={sel}
-          me={me}
+          me={who}
           onSelect={(id) => select(id)}
           onCenter={() => refocus(sel)}
           onPath={() => go({ lens: 'path', to: sel })}

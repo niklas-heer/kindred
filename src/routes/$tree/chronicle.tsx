@@ -10,8 +10,10 @@ import { useFamily, useTreeId } from '~/lib/family';
 import { displayName, type Family } from '~/lib/graph';
 import type { GPerson, Story } from '~/lib/types';
 import '~/styles/chronicle.css';
+import { sectionHead } from '~/lib/title';
 
 export const Route = createFileRoute('/$tree/chronicle')({
+  head: sectionHead('Chronicle'),
   component: ChroniclePage,
 });
 

@@ -19,13 +19,15 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { GameIcon } from '~/components/GameIcon';
 import { Arms } from '~/components/Heraldry';
 import { Portrait } from '~/components/Portrait';
-import { useFamily, useMe, useTreeId } from '~/lib/family';
+import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
 import { TRAITS } from '~/lib/traits';
 import { age as ageOf, ancestorDepths, displayName, kinship, partnersOf, type Family } from '~/lib/graph';
 import type { GPerson, House } from '~/lib/types';
 import '~/styles/people.css';
+import { sectionHead } from '~/lib/title';
 
 export const Route = createFileRoute('/$tree/people')({
+  head: sectionHead('Register'),
   component: RegisterPage,
 });
 
@@ -84,14 +86,14 @@ function safeKinship(f: Family, me: string, id: string, myAnc: Map<string, numbe
   }
 }
 
-function buildRows(f: Family & { gen: Map<string, number> }, tree: string, me: string): R[] {
-  const myAnc = ancestorDepths(f, me);
-  const myPartners = new Set(partnersOf(f, me));
+function buildRows(f: Family & { gen: Map<string, number> }, tree: string, me: string | null): R[] {
+  const myAnc = me ? ancestorDepths(f, me) : new Map<string, number>();
+  const myPartners = new Set(me ? partnersOf(f, me) : []);
   return f.graph.people.map((p) => {
     const dn = displayName(p, f);
     const base = p.epithet && dn.endsWith(p.epithet) ? dn.slice(0, -p.epithet.length).trim() : dn;
     const house = p.house ? f.house.get(p.house) : undefined;
-    const label = safeKinship(f, me, p.id, myAnc);
+    const label = me ? safeKinship(f, me, p.id, myAnc) : undefined;
     let relRank: number | undefined;
     if (label) {
       if (p.id === me) relRank = 0;
@@ -239,7 +241,8 @@ type Scope = 'all' | 'living' | 'deceased';
 
 function RegisterPage() {
   const f = useFamily();
-  const me = useMe();
+  // Kinship only once the reader has said who they are.
+  const me = useMeChosen();
   const tree = useTreeId();
   const navigate = useNavigate();
 

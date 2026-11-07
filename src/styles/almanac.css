@@ -27,7 +27,7 @@
   position: absolute; left: 0; bottom: 0; height: 3px; width: calc(var(--heat) * 100%);
   background: var(--accent); opacity: 0.75;
 }
-.alm-tile[data-empty] .alm-tile-n { color: var(--faint); font-weight: 400; }
+.alm-tile[data-empty] .alm-tile-n { color: var(--subtle); font-weight: 400; }
 .alm-tile[data-current] { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
 .alm-tile[data-current] .alm-tile-m { color: var(--accent); font-weight: 700; }
 /* The current month wears a little ribbon marker, like a bookmarked leaf. */
@@ -163,7 +163,7 @@
 .alm-hrow[data-day] { grid-template-columns: 26px 62px 32px minmax(0, 1fr); }
 .alm-hist > .alm-hrow:first-child { border-top: 0; }
 .alm-hyear { font-size: 16px; color: var(--accent); text-align: right; font-variant-numeric: tabular-nums; }
-.alm-hday { text-align: right; color: var(--faint); font-family: var(--font-ui); font-size: 13px; font-variant-numeric: tabular-nums; }
+.alm-hday { text-align: right; color: var(--subtle); font-family: var(--font-ui); font-size: 13px; font-variant-numeric: tabular-nums; }
 .alm-htext { font-size: 16px; line-height: 1.3; }
 .alm-htext small { font-size: 13px; font-family: var(--font-ui); display: block; }
 .alm-next-hist { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); display: grid; gap: 4px; }

@@ -1,10 +1,13 @@
 // Adding a relative from the "+" marks: a tiny form, prefilled where we can guess, saved with ↵.
-import { useForm } from '@tanstack/react-form';
+import { useForm, useStore } from '@tanstack/react-form';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, X } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { addRelative } from '~/lib/api';
 import { validDate } from '~/lib/dates';
-import { useState } from 'react';
+import { useId, useState } from 'react';
+import { Dialog } from './ui/Dialog';
+import { Select } from './ui/Select';
+import { Switch } from './ui/Switch';
 import { displayName, partnersOf, type Family } from '~/lib/graph';
 import type { AddRelation } from './Card';
 import './quickadd.css';
@@ -46,25 +49,36 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onCan
     },
   });
   const date = ({ value }: { value: string }) => (value === '' || validDate(value.trim()) ? undefined : 'A real date: 1990, 1990-05 or 1990-05-17');
+  const dirty = useStore(form.store, (s) => s.isDirty);
+  const busy = useStore(form.store, (s) => s.isSubmitting);
+  const formId = useId();
 
   return (
-    <div className="qa-backdrop" onMouseDown={onCancel}>
+    <Dialog
+      open
+      onClose={onCancel}
+      variant="event"
+      width={500}
+      dirty={dirty && !busy}
+      title={<><span className="qa-what">{TITLE[relation]}</span> {displayName(a, f)}</>}
+      footer={
+        <>
+          {error ? <span className="err qa-note">{error}</span> : <span className="subtle qa-note">Everything else can wait. You can add details later.</span>}
+          <button className="btn primary" form={formId} disabled={busy}><Check size={14} /> Add <kbd>↵</kbd></button>
+        </>
+      }
+    >
       <form
-        className="qa panel"
-        onMouseDown={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.key === 'Escape' && onCancel()}
+        id={formId}
+        className="qa"
         onSubmit={(e) => { e.preventDefault(); form.handleSubmit(); }}
       >
-        <header>
-          <span className="muted">{TITLE[relation]}</span> <b className="display">{displayName(a, f)}</b>
-          <button type="button" className="btn icon ghost" onClick={onCancel}><X size={16} /></button>
-        </header>
         <div className="qa-grid">
           <form.Field name="given" validators={{ onSubmit: ({ value }) => (value.trim() ? undefined : 'A name, even a guess') }}>
             {(field) => (
               <label className="field">
                 <span>Given name</span>
-                <input autoFocus className="input" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
+                <input data-autofocus className="input" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
                 {field.state.meta.errors[0] && <em className="err">{field.state.meta.errors[0]}</em>}
               </label>
             )}
@@ -101,31 +115,27 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onCan
           {relation === 'child' && partners.length > 0 && (
             <form.Field name="coParent">
               {(field) => (
-                <label className="field wide">
-                  <span>Other parent</span>
-                  <select className="input" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)}>
-                    {partners.map((p) => <option key={p.id} value={p.id}>{displayName(p, f)}</option>)}
-                    <option value="">Someone else / unknown</option>
-                  </select>
-                </label>
+                <div className="field wide">
+                  <span id={`${formId}-co`}>Other parent</span>
+                  <Select
+                    aria-labelledby={`${formId}-co`}
+                    value={field.state.value}
+                    onChange={(v) => field.handleChange(v)}
+                    options={[...partners.map((p) => ({ value: p.id, label: displayName(p, f) })), { value: '', label: 'Someone else / unknown' }]}
+                  />
+                </div>
               )}
             </form.Field>
           )}
           <form.Field name="living">
             {(field) => (
-              <label className="field check wide">
-                <input type="checkbox" checked={field.state.value} onChange={(e) => field.handleChange(e.target.checked)} /> Still living
-              </label>
+              <div className="field wide">
+                <Switch checked={field.state.value} onChange={(v) => field.handleChange(v)}>Still living</Switch>
+              </div>
             )}
           </form.Field>
         </div>
-        <footer>
-          {error ? <span className="err">{error}</span> : <span className="faint">Everything else can wait. You can add details later.</span>}
-          <form.Subscribe selector={(s) => s.isSubmitting}>
-            {(busy) => <button className="btn primary" disabled={busy}><Check size={14} /> Add <kbd>↵</kbd></button>}
-          </form.Subscribe>
-        </footer>
       </form>
-    </div>
+    </Dialog>
   );
 }

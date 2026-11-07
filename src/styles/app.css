@@ -1,7 +1,10 @@
 /* Themes are token sets on <html data-theme>. Components use only these variables.
    codex  — CK3-like: lacquered dark panels, gold trim, an olive tapestry canvas
-   modern — quiet, light, paper and ink
-   night  — modern, dark */
+   modern — "Paper": quiet, light, paper and ink
+   night  — a candlelit study: warm ink-blue, amber light, Garamond headings
+
+   Text colours: --text for body, --muted for secondary text, --subtle for tertiary text (all three
+   reach 4.5:1 on --bg, --panel and --panel-2). --faint is decoration only: rules, rods, icons. */
 
 :root,
 [data-theme='codex'] {
@@ -19,7 +22,8 @@
   --edge: #b8954f; /* gold trim */
   --edge-soft: #b8954f55;
   --text: #ece1c6;
-  --muted: #a2977f;
+  --muted: #b8ad92;
+  --subtle: #aa9f85;
   --faint: #6f6858;
   --accent: #e2bd6b;
   --accent-text: #1a1408;
@@ -51,6 +55,11 @@
   --shadow: 0 10px 30px #000a, 0 2px 6px #0008;
   --focus-ring: 0 0 0 2px #1c2331, 0 0 0 4px #e2bd6b;
   --minimap-bg: #12161ee6;
+  --theme-color: #171d28;
+  /* Pages: navy lacquer under a soft vignette, with a faint linen weave. */
+  --page-bg:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9 .06' numOctaves='2' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .95 0 0 0 0 .88 0 0 0 0 .7 0 0 0 .9 0'/%3E%3C/filter%3E%3Cfilter id='b'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.06 .9' numOctaves='2' seed='8' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .95 0 0 0 0 .88 0 0 0 0 .7 0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23a)' opacity='.035'/%3E%3Crect width='240' height='240' filter='url(%23b)' opacity='.03'/%3E%3C/svg%3E") 0 0 / 240px 240px,
+    radial-gradient(ellipse 130% 90% at 50% 0%, #1e283b 0%, #141a26 50%, #0c0f15 100%) fixed;
   color-scheme: dark;
 }
 
@@ -69,7 +78,8 @@
   --edge: #e3ded5;
   --edge-soft: #e3ded5;
   --text: #1f1d1a;
-  --muted: #6d675e;
+  --muted: #5c564d;
+  --subtle: #6a645b;
   --faint: #a59f94;
   --accent: #2f6f5e;
   --accent-text: #ffffff;
@@ -81,7 +91,10 @@
   --canvas-ink: #1f1d1a;
   --canvas-ink-muted: #6d675e;
   --canvas-shadow: none;
-  --canvas-texture: radial-gradient(circle, #d8d2c6 1px, transparent 1.2px) 0 0 / 24px 24px;
+  /* Paper grain: warm fibres, a few percent strong. */
+  --canvas-texture:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='3' seed='5' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .27 0 0 0 0 .16 0 0 0 1.2 -.25'/%3E%3C/filter%3E%3Crect width='260' height='260' filter='url(%23g)' opacity='.16'/%3E%3C/svg%3E") 0 0 / 260px 260px,
+    radial-gradient(ellipse 120% 100% at 50% 30%, #0000 55%, #6b55300f 100%);
   --line: #b9b1a3;
   --line-dim: #b9b1a340;
   --line-hl: #2f6f5e;
@@ -98,53 +111,62 @@
   --shadow: 0 8px 28px #2a221414, 0 1px 3px #2a22141a;
   --focus-ring: 0 0 0 2px #fff, 0 0 0 4px #2f6f5e;
   --minimap-bg: #ffffffe6;
+  --theme-color: #ffffff;
+  --page-bg: var(--canvas-texture), var(--bg);
   color-scheme: light;
 }
 
 [data-theme='night'] {
-  --font-display: 'Inter Variable', system-ui, sans-serif;
+  --font-display: 'EB Garamond Variable', Garamond, Georgia, serif;
   --font-body: 'Inter Variable', system-ui, sans-serif;
   --font-ui: 'Inter Variable', system-ui, sans-serif;
   --font-hand: 'EB Garamond Variable', Georgia, serif;
 
-  --bg: #111315;
-  --panel: #181b1e;
-  --panel-solid: #181b1e;
-  --panel-2: #202428;
-  --panel-3: #2a2f34;
-  --border: #2c3136;
-  --edge: #2c3136;
-  --edge-soft: #2c3136;
-  --text: #e9e6e1;
-  --muted: #9c978f;
-  --faint: #66625c;
-  --accent: #7cc4ad;
-  --accent-text: #0d1512;
-  --danger: #e07a62;
-  --ok: #7cc48a;
+  --bg: #13161d;
+  --panel: linear-gradient(180deg, #1c2029 0%, #181b23 100%);
+  --panel-solid: #1a1e27;
+  --panel-2: #222733;
+  --panel-3: #2b3140;
+  --border: #2e3442;
+  --edge: #6b5636; /* brass, catching the candle */
+  --edge-soft: #6b563666;
+  --text: #ece6dc;
+  --muted: #b8b0a2;
+  --subtle: #a59e92;
+  --faint: #5d5a55;
+  --accent: #e0a458; /* candle amber */
+  --accent-text: #1a1206;
+  --danger: #e58a6f;
+  --ok: #8cc48a;
   --info: #8fb4ec;
 
-  --canvas: #111315;
-  --canvas-ink: #e9e6e1;
-  --canvas-ink-muted: #9c978f;
+  --canvas: #13161d;
+  --canvas-ink: #ece6dc;
+  --canvas-ink-muted: #b8b0a2;
   --canvas-shadow: none;
-  --canvas-texture: radial-gradient(circle, #24282c 1px, transparent 1.2px) 0 0 / 24px 24px;
-  --line: #4a5057;
-  --line-dim: #4a505740;
-  --line-hl: #7cc4ad;
+  /* Grain plus a pool of warm light, as if from a lamp above the page. */
+  --canvas-texture:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='3' seed='5' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 .9 0 0 0 0 .75 0 0 0 1.2 -.25'/%3E%3C/filter%3E%3Crect width='260' height='260' filter='url(%23g)' opacity='.07'/%3E%3C/svg%3E") 0 0 / 260px 260px,
+    radial-gradient(ellipse 90% 70% at 50% 20%, #e0a4580c 0%, #0000 60%),
+    radial-gradient(ellipse 140% 110% at 50% 30%, #0000 50%, #05070b99 100%);
+  --line: #5b606d;
+  --line-dim: #5b606d40;
+  --line-hl: #e0a458;
 
-  --card-frame: #1d2124;
-  --card-bg: #1d2124;
+  --card-frame: linear-gradient(160deg, #8a7048, #3a3122 50%, #6b5636);
+  --card-bg: #1d222c;
   --card-dead: grayscale(1) brightness(0.75);
-  --card-name-size: 14px;
-  --chip: #202428;
-  --chip-text: #d6d2cb;
+  --card-name-size: 15px;
+  --chip: #222733;
+  --chip-text: #ddd5c6;
 
-  --radius: 8px;
-  --radius-lg: 14px;
-  --shadow: 0 10px 30px #0009, 0 1px 3px #0007;
-  --focus-ring: 0 0 0 2px #111315, 0 0 0 4px #7cc4ad;
-  --minimap-bg: #181b1ee6;
+  --radius: 6px;
+  --radius-lg: 12px;
+  --shadow: 0 12px 32px #000a, 0 1px 3px #0008;
+  --focus-ring: 0 0 0 2px #13161d, 0 0 0 4px #e0a458;
+  --minimap-bg: #1a1e27e6;
+  --theme-color: #181b23;
+  --page-bg: var(--canvas-texture), var(--bg);
   color-scheme: dark;
 }
 
@@ -168,7 +190,11 @@ input, textarea, select { font: inherit; color: inherit; }
 .display { font-family: var(--font-display); letter-spacing: 0.02em; }
 [data-theme='codex'] .display { font-variant: small-caps; letter-spacing: 0.06em; }
 .muted { color: var(--muted); }
-.faint { color: var(--faint); }
+/* Tertiary text. Still readable (4.5:1); --faint itself is for decoration only. */
+.faint, .subtle { color: var(--subtle); }
+h1, h2, h3, h4 { text-wrap: balance; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+[data-theme='night'] .display { letter-spacing: 0.01em; }
 
 /* A panel: dark lacquer with a gold hairline in codex, a white card elsewhere. */
 .panel {
@@ -181,6 +207,24 @@ input, textarea, select { font: inherit; color: inherit; }
   border-color: #0a0d12;
   box-shadow: inset 0 0 0 1px var(--edge-soft), var(--shadow);
 }
+[data-theme='night'] .panel { box-shadow: inset 0 1px 0 #ffffff08, var(--shadow); }
+
+/* A framed card, like the tree's portraits: a gilded frame round a lacquer panel in codex, a quiet
+   tile in Paper, a brass hairline in Night. (.card is the tree's person card; this is .ui-card.) */
+.ui-card {
+  position: relative; padding: 16px 18px; border-radius: var(--radius-lg);
+  background: var(--panel-solid); border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+[data-theme='modern'] .ui-card { box-shadow: 0 1px 2px #2a22140f, 0 4px 14px #2a22140a; }
+[data-theme='night'] .ui-card { background: var(--panel-solid); border-color: #2e3442; box-shadow: inset 0 0 0 1px #6b563633, inset 0 1px 0 #ffffff08, var(--shadow); }
+[data-theme='codex'] .ui-card {
+  border: 2px solid transparent; border-radius: 4px;
+  background: linear-gradient(180deg, #222a39, #171d28) padding-box, var(--card-frame) border-box;
+  box-shadow: inset 0 0 0 1px #0a0d12, inset 0 1px 0 #f0d58f22, 0 6px 18px #0009, 0 1px 3px #000a;
+}
+.ui-card.interactive { cursor: pointer; transition: transform 140ms ease, box-shadow 140ms ease; }
+.ui-card.interactive:hover { transform: translateY(-2px); }
+.ui-card.interactive:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 .btn {
   display: inline-flex; align-items: center; gap: 6px;
@@ -207,6 +251,16 @@ input, textarea, select { font: inherit; color: inherit; }
 [data-theme='codex'] .btn:hover { background: linear-gradient(180deg, #3a4660, #2a3447); }
 [data-theme='codex'] .btn.primary { background: linear-gradient(180deg, #f0cf83, #b8913f); color: #1a1408; box-shadow: inset 0 1px 0 #fff6, 0 1px 2px #0008; }
 [data-theme='codex'] .btn[aria-pressed='true'] { background: linear-gradient(180deg, #4a3d22, #352b17); box-shadow: inset 0 0 0 1px var(--edge); }
+/* Ghost buttons stay ghosts in every theme, pressed or not; a pressed ghost only tints its icon. */
+.btn.ghost, [data-theme='codex'] .btn.ghost { background: transparent; border-color: transparent; box-shadow: none; }
+.btn.ghost:hover, [data-theme='codex'] .btn.ghost:hover { background: var(--panel-2); }
+[data-theme='codex'] .btn.ghost:hover { background: #ffffff0d; box-shadow: inset 0 0 0 1px #b8954f33; }
+.btn.ghost:focus-visible { box-shadow: var(--focus-ring); }
+.btn.ghost[aria-pressed] { background: transparent; box-shadow: none; }
+.btn.ghost[aria-pressed]:hover { background: var(--panel-2); }
+.btn.ghost[aria-pressed='false'] { color: var(--muted); }
+.btn.ghost[aria-pressed='true'] { color: var(--accent); }
+[data-theme='night'] .btn.primary { background: linear-gradient(180deg, #ebb46c, #d49446); }
 
 .input {
   height: 34px; padding: 0 10px; width: 100%;
@@ -218,6 +272,7 @@ textarea.input { height: auto; min-height: 88px; padding: 8px 10px; line-height:
 [data-theme='codex'] .input { background: #121722; border-color: #0b0e13; box-shadow: inset 0 0 0 1px #b8954f2a; }
 .field { display: grid; gap: 4px; }
 .field > span { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--font-ui); }
+[data-theme='night'] .field > span { text-transform: none; letter-spacing: 0.02em; font-size: 13px; }
 [data-theme='codex'] .field > span { font-family: var(--font-display); text-transform: none; font-variant: small-caps; letter-spacing: 0.08em; font-size: 13px; }
 
 .chip {
@@ -244,7 +299,9 @@ kbd {
 
 /* ---------- app shell ---------- */
 
-.shell { display: grid; grid-template-rows: auto 1fr; height: 100vh; overflow: hidden; }
+.shell { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100vh; height: 100dvh; overflow: hidden; }
+/* Grid children must be allowed to shrink, or one wide table pushes the whole page sideways. */
+.shell > * { min-width: 0; min-height: 0; }
 .topbar {
   display: flex; align-items: center; gap: 12px;
   height: 52px; padding: 0 14px;
@@ -252,22 +309,28 @@ kbd {
   position: relative; z-index: 20;
 }
 [data-theme='codex'] .topbar { border-bottom: 1px solid #0a0d12; box-shadow: inset 0 -1px 0 var(--edge-soft), 0 2px 12px #0008; }
-.topbar .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-.topbar .brand b { font-family: var(--font-display); font-size: 18px; font-weight: 600; }
-.topbar nav { display: flex; gap: 2px; margin-left: 12px; }
+[data-theme='night'] .topbar { box-shadow: inset 0 -1px 0 #6b563640, 0 2px 12px #0006; }
+.topbar .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; min-width: 0; flex: none; }
+.topbar .brand b { font-family: var(--font-display); font-size: 18px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32ch; }
+[data-theme='night'] .topbar .brand b { font-size: 20px; font-weight: 500; }
+.topbar nav { display: flex; gap: 2px; margin-left: 12px; min-width: 0; }
 .topbar nav a {
   padding: 6px 12px; border-radius: var(--radius); text-decoration: none; color: var(--muted);
   font-family: var(--font-ui); font-size: 15px; display: inline-flex; gap: 6px; align-items: center;
 }
 .topbar nav a:hover { color: var(--text); background: var(--panel-2); }
 .topbar nav a[data-status='active'] { color: var(--text); background: var(--panel-2); box-shadow: inset 0 -2px 0 var(--accent); }
+.topbar nav a:focus-visible, .topbar .brand:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius); }
 .topbar .spacer { flex: 1; }
+.topbar-tools { display: flex; gap: 2px; }
+.topbar-menu { display: none; }
 .search-trigger { width: 260px; justify-content: space-between; color: var(--muted); }
 
-.page { overflow: auto; height: 100%; }
+.page { overflow: auto; height: 100%; background: var(--page-bg); }
 .page-inner { max-width: 1100px; margin: 0 auto; padding: 28px 24px 80px; }
 .page h1 { font-family: var(--font-display); font-weight: 600; font-size: 30px; margin: 0 0 4px; }
 [data-theme='codex'] .page h1 { font-variant: small-caps; color: var(--accent); }
+[data-theme='night'] .page h1 { font-weight: 500; }
 
 .empty { padding: 40px; text-align: center; color: var(--muted); }
 
@@ -277,3 +340,59 @@ kbd {
 /* Narrow windows: the nav keeps its icons, titles explain them. */
 @media (max-width: 1400px) { .topbar nav .nav-label { display: none; } .topbar nav a { padding: 6px 10px; } .search-trigger { width: 200px; } }
 @media (max-width: 900px) { .topbar .brand b { display: none; } .search-trigger { width: auto; } .search-trigger > span:first-child { font-size: 0; } }
+
+/* ---------- phone: a bottom tab bar ---------- */
+
+.tabbar { display: none; }
+@media (max-width: 760px) {
+  .topbar { gap: 6px; padding: 0 8px 0 12px; }
+  .topbar nav, .topbar-tools { display: none; }
+  .topbar .brand b { display: block; font-size: 16px; max-width: 100%; }
+  .topbar .brand { flex: 0 1 auto; }
+  .topbar-menu { display: inline-flex; }
+  .search-trigger { width: 36px; height: 36px; padding: 0; justify-content: center; }
+  .search-trigger kbd { display: none; }
+  .search-trigger > span:first-child { font-size: 0; }
+
+  .tabbar {
+    display: grid; grid-template-columns: repeat(5, 1fr); align-items: stretch;
+    padding: 0 4px env(safe-area-inset-bottom); position: relative; z-index: 20;
+    background: var(--panel); border-top: 1px solid var(--border);
+  }
+  [data-theme='codex'] .tabbar { border-top-color: #0a0d12; box-shadow: inset 0 1px 0 var(--edge-soft), 0 -2px 12px #0008; }
+  .tabbar a, .tabbar button {
+    display: grid; justify-items: center; align-content: center; gap: 3px; height: 56px; padding: 0;
+    border: 0; background: none; color: var(--muted); text-decoration: none; cursor: pointer;
+    font-family: var(--font-ui); font-size: 11.5px; letter-spacing: 0.01em; position: relative;
+    -webkit-tap-highlight-color: transparent;
+  }
+  [data-theme='codex'] .tabbar a, [data-theme='codex'] .tabbar button { font-family: var(--font-display); font-variant: small-caps; font-size: 12.5px; letter-spacing: 0.04em; }
+  .tabbar a[data-status='active'], .tabbar button[aria-expanded='true'] { color: var(--accent); }
+  .tabbar a[data-status='active']::before {
+    content: ''; position: absolute; top: -1px; left: 28%; right: 28%; height: 2px; border-radius: 0 0 2px 2px; background: var(--accent);
+  }
+  .tabbar a:focus-visible, .tabbar button:focus-visible { outline: none; box-shadow: inset var(--focus-ring); border-radius: var(--radius); }
+}
+
+/* The "More" sheet. */
+.more-list { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 2px; }
+.more-list a {
+  display: flex; align-items: center; gap: 14px; padding: 12px 10px; border-radius: var(--radius);
+  text-decoration: none; font-family: var(--font-ui); font-size: 16px;
+}
+.more-list a svg { color: var(--muted); }
+.more-list a:hover, .more-list a[data-status='active'] { background: var(--panel-2); }
+.more-list a[data-status='active'] svg { color: var(--accent); }
+.more-list a:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.more-list a small { margin-left: auto; color: var(--subtle); font-size: 13px; }
+.more-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border-top: 1px solid var(--border); font-family: var(--font-ui); }
+[data-theme='codex'] .more-row { border-top-color: var(--edge-soft); }
+.more-row .seg { display: flex; gap: 4px; }
+
+/* ---------- page transitions ---------- */
+
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 160ms; animation-timing-function: ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}
+.more-row .ui-switch-wrap { width: 100%; justify-content: space-between; }

@@ -3,11 +3,12 @@ import { useHotkey } from '@tanstack/react-hotkeys';
 import { useNavigate } from '@tanstack/react-router';
 import { CalendarHeart, Contact, Map as MapIcon, Crown, GitFork, Moon, Network, Palette as PaletteIcon, ScrollText, Sun, UserRound } from 'lucide-react';
 import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { useFamily, useMe, useTreeId } from '~/lib/family';
+import { useFamily, useMe, useMeChosen, useTreeId } from '~/lib/family';
 import { displayName, kinship, lifespan, ancestorDepths, type Family } from '~/lib/graph';
 import { setPref } from '~/lib/prefs';
 import { play } from '~/lib/sfx';
 import { Portrait } from './Portrait';
+import { Dialog } from './ui/Dialog';
 import './palette.css';
 
 let isOpen = false;
@@ -53,6 +54,8 @@ export function Palette() {
   const f = useFamily();
   const tree = useTreeId();
   const me = useMe();
+  // Kinship hints only once the reader has said who they are.
+  const who = useMeChosen();
   const navigate = useNavigate();
   const [q, setQ] = useState('');
   const dq = useDeferredValue(q);
@@ -60,29 +63,29 @@ export function Palette() {
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
 
+  // While open, the dialog keeps keys to itself, so ⌘K inside it is handled on the input below.
   useHotkey('Mod+K', () => (isOpen ? close() : open()), { ignoreInputs: false });
   useHotkey('/', () => open(), { enabled: !isOpen });
   useEffect(() => {
     if (isOpen) {
       setQ('');
       setSel(0);
-      requestAnimationFrame(() => input.current?.focus());
     }
   }, [isOpen]);
 
-  const myAnc = useMemo(() => ancestorDepths(f, me), [f, me]);
+  const myAnc = useMemo(() => (who ? ancestorDepths(f, who) : new Map<string, number>()), [f, who]);
   const items: Item[] = useMemo(() => {
     const go = (focus: string) => () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, focus, sel: undefined, root: undefined }) }); close(); };
     const people = searchPeople(f, dq).map(({ id }) => {
       const p = f.byId.get(id)!;
-      const k = kinship(f, me, id, myAnc)?.label;
+      const k = who ? kinship(f, who, id, myAnc)?.label : undefined;
       return { key: id, person: id, label: displayName(p, f), hint: [lifespan(p), k && k !== 'you' ? `your ${k}` : k].filter(Boolean).join(' · '), run: go(id) };
     });
     const cmds: Item[] = [
       { key: 'v-family', icon: <Network size={16} />, label: 'View: Family (hourglass)', run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'family' }) }); close(); } },
       { key: 'v-dynasty', icon: <Crown size={16} />, label: 'View: Dynasty tree', run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'dynasty' }) }); close(); } },
       { key: 'v-anc', icon: <GitFork size={16} style={{ transform: 'rotate(180deg)' }} />, label: 'View: Ancestors', run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'ancestors' }) }); close(); } },
-      { key: 'me', icon: <UserRound size={16} />, label: 'Go to me', hint: displayName(f.byId.get(me)!, f), run: go(me) },
+      { key: 'me', icon: <UserRound size={16} />, label: who ? 'Go to me' : 'Go home', hint: displayName(f.byId.get(me)!, f), run: go(me) },
       { key: 'almanac', icon: <CalendarHeart size={16} />, label: 'Open Almanac', hint: 'birthdays & anniversaries', run: () => { navigate({ to: '/$tree/almanac', params: { tree } }); close(); } },
       { key: 'atlas', icon: <MapIcon size={16} />, label: 'Open Atlas', hint: 'where the family was born', run: () => { navigate({ to: '/$tree/atlas', params: { tree } }); close(); } },
       { key: 'contacts', icon: <Contact size={16} />, label: 'Open Contacts', run: () => { navigate({ to: '/$tree/contacts', params: { tree } }); close(); } },
@@ -94,36 +97,39 @@ export function Palette() {
     const fq = fold(dq);
     const matched = fq ? cmds.filter((c) => fold(c.label).includes(fq)) : cmds;
     return fq ? [...people, ...matched] : matched;
-  }, [f, dq, me, myAnc, navigate, tree, close]);
+  }, [f, dq, me, who, myAnc, navigate, tree, close]);
 
   useEffect(() => setSel(0), [dq]);
   useEffect(() => {
     list.current?.querySelector(`[data-i="${sel}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [sel]);
 
-  if (!isOpen) return null;
   return (
-    <div className="palette-backdrop" onMouseDown={close}>
-      <div className="palette panel" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-label="Find anyone">
+    <Dialog open={isOpen} onClose={close} label="Find anyone" placement="top" width={640} bare className="palette" initialFocus={input}>
         <input
           ref={input}
           className="palette-input"
           placeholder="Find anyone — name, nickname, title, house…"
+          aria-label="Find anyone"
+          role="combobox"
+          aria-expanded="true"
+          aria-controls="palette-list"
+          aria-activedescendant={items[sel] ? `palette-i${sel}` : undefined}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.min(s + 1, items.length - 1)); }
             else if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); }
             else if (e.key === 'Enter') { play('tick'); items[sel]?.run(); }
-            else if (e.key === 'Escape') close();
+            else if (e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); close(); }
           }}
         />
-        <div className="palette-list" ref={list}>
+        <div className="palette-list" ref={list} id="palette-list" role="listbox" aria-label="Results">
           {items.length === 0 && <div className="empty">Nobody by that name. Yet.</div>}
           {items.map((it, i) => (
             <Fragment key={it.key}>
             {(i === 0 || !!items[i - 1].person !== !!it.person) && <div className="palette-group">{it.person ? 'People' : 'Commands'}</div>}
-            <button data-i={i} className="palette-item" aria-selected={i === sel} onMouseMove={() => setSel(i)} onClick={it.run}>
+            <button data-i={i} id={`palette-i${i}`} role="option" tabIndex={-1} className="palette-item" aria-selected={i === sel} onMouseMove={() => setSel(i)} onClick={it.run}>
               <span className="palette-icon">
                 {it.person ? <Portrait person={f.byId.get(it.person)!} tree={tree} size={30} frame={false} /> : it.icon}
               </span>
@@ -139,7 +145,6 @@ export function Palette() {
           <span><kbd>esc</kbd> close</span>
           <span style={{ marginLeft: 'auto' }}>{f.graph.people.length.toLocaleString('en-GB')} people</span>
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }

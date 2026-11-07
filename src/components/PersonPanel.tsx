@@ -29,7 +29,8 @@ interface Props {
   family: Family;
   tree: string;
   id: string;
-  me: string;
+  /** Who the reader said they are; null until they choose (then no kinship is shown). */
+  me: string | null;
   onSelect: (id: string) => void;
   onCenter: () => void;
   onPath: () => void;
@@ -44,7 +45,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   const [required] = useRequired(tree);
   const { data: detail } = useQuery(personQuery(tree, id));
   const qc = useQueryClient();
-  const k = useMemo(() => (p ? kinship(f, me, id) : undefined), [f, me, id, p]);
+  const k = useMemo(() => (p && me ? kinship(f, me, id) : undefined), [f, me, id, p]);
   const photo = useMutation({
     mutationFn: (file: File) => {
       const fd = new FormData();
@@ -88,7 +89,9 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
       </header>
 
       <div className="pp-kin">
-        {id === me ? (
+        {!me ? (
+          <span className="muted">Say who you are to see how you’re related</span>
+        ) : id === me ? (
           <span className="pp-you"><UserRound size={14} /> This is you</span>
         ) : k ? (
           <span>Your <b>{k.label}</b></span>
@@ -97,7 +100,9 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
         )}
         <span className="spacer" />
         {id !== me && k && <button className="btn ghost" onClick={onPath} title="Highlight the line between you"><RouteIcon size={14} /> How?</button>}
-        {id !== me && <button className="btn ghost" onClick={() => setPref(`me:${tree}`, id)} title="See everyone's relationship from this person's point of view">Be them</button>}
+        {!me ? (
+          <button className="btn ghost" onClick={() => setPref(`me:${tree}`, id)} title="Kinship labels will be relative to this person">This is me</button>
+        ) : id !== me && <button className="btn ghost" onClick={() => setPref(`me:${tree}`, id)} title="See everyone's relationship from this person's point of view">Be them</button>}
       </div>
 
       {p.traits?.length ? (

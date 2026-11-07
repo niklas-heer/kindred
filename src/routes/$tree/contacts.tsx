@@ -12,8 +12,10 @@ import { play } from '~/lib/sfx';
 import { age as ageOf, ageAt, children, displayName, partnersOf, parents, siblings, type Family } from '~/lib/graph';
 import type { GPerson } from '~/lib/types';
 import '~/styles/contacts.css';
+import { sectionHead } from '~/lib/title';
 
 export const Route = createFileRoute('/$tree/contacts')({
+  head: sectionHead('Contacts'),
   component: ContactsPage,
 });
 

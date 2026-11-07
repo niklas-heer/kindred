@@ -5,22 +5,27 @@ import { createFileRoute } from '@tanstack/react-router';
 import { Camera, Check, Flame, SkipForward, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { GameIcon } from '~/components/GameIcon';
+import { Dialog } from '~/components/ui/Dialog';
 import { Portrait } from '~/components/Portrait';
 import { addContact, addRelative, addStory, patchPerson, uploadPhoto } from '~/lib/api';
 import { fullDate, validDate } from '~/lib/dates';
-import { useFamily, useMe, useTreeId } from '~/lib/family';
+import { useFamily, useMe, useMeChosen, useTreeId } from '~/lib/family';
 import { ALL_GAPS, GAP_HINT, GAP_LABEL, gapsOf, useRequired, type GapKey } from '~/lib/gaps';
 import { ancestorDepths, children, displayName, kinship, lifespan, parents, partnersOf, type Family } from '~/lib/graph';
 import { usePref } from '~/lib/prefs';
 import { play } from '~/lib/sfx';
 import '~/styles/needed.css';
+import { sectionHead } from '~/lib/title';
 
-export const Route = createFileRoute('/$tree/needed')({ component: Needed });
+export const Route = createFileRoute('/$tree/needed')({
+  head: sectionHead('Information needed'), component: Needed });
 
 function Needed() {
   const f = useFamily();
   const tree = useTreeId();
   const me = useMe();
+  // Kinship labels only once the reader has said who they are.
+  const who = useMeChosen();
   const [required, setRequired] = useRequired(tree);
   const [only, setOnlyRaw] = useState<GapKey | null>(null);
   const [limit, setLimit] = useState(120);
@@ -40,7 +45,7 @@ function Needed() {
     }
     return d;
   }, [f, me]);
-  const myAnc = useMemo(() => ancestorDepths(f, me), [f, me]);
+  const myAnc = useMemo(() => (who ? ancestorDepths(f, who) : new Map<string, number>()), [f, who]);
 
   const rows = useMemo(
     () =>
@@ -110,7 +115,7 @@ function Needed() {
         ) : (
           <ol className="needed-list">
             {shown.slice(0, limit).map(({ p, gaps }) => {
-              const k = p.id === me ? 'you' : kinship(f, me, p.id, myAnc)?.label;
+              const k = !who ? undefined : p.id === who ? 'you' : kinship(f, who, p.id, myAnc)?.label;
               return (
                 <li key={p.id} className="panel">
                   <Portrait person={p} tree={tree} size={48} />
@@ -129,7 +134,7 @@ function Needed() {
         )}
         {shown.length > limit && <button className="btn needed-more" onClick={() => setLimit((l) => l + 200)}>Show {Math.min(200, shown.length - limit)} more</button>}
       </div>
-      {blaze && <Blaze queue={blaze} only={blazeOnly} f={f} tree={tree} me={me} required={required} onClose={() => setBlaze(null)} />}
+      {blaze && <Blaze queue={blaze} only={blazeOnly} f={f} tree={tree} me={who} required={required} onClose={() => setBlaze(null)} />}
     </div>
   );
 }
@@ -141,7 +146,7 @@ type Values = Partial<Record<'born' | 'bornPlace' | 'died' | 'occupation' | 'fat
   photo?: File;
 };
 
-function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[]; only: GapKey | null; f: Family; tree: string; me: string; required: ReadonlySet<GapKey>; onClose: () => void }) {
+function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[]; only: GapKey | null; f: Family; tree: string; me: string | null; required: ReadonlySet<GapKey>; onClose: () => void }) {
   const qc = useQueryClient();
   const author = usePref('author') ?? '';
   const [i, setI] = useState(0);
@@ -162,13 +167,21 @@ function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[
   useEffect(() => {
     if (!done && p && !gaps.length) setI((x) => x + 1);
   }, [done, p, gaps.length]);
+  // What the form starts with for this person: typing anything beyond it makes the dialog "dirty".
+  const initial = useRef<Values>({});
+  const dirty = (Object.keys({ ...v, ...initial.current }) as (keyof Values)[]).some((k) => (v[k] ?? '') !== (initial.current[k] ?? ''));
   useEffect(() => {
-    setV({ fatherSurname: p?.surname, contactKind: 'phone', born: gaps.includes('birthday') && p?.born ? `${p.born}-` : undefined });
+    initial.current = { fatherSurname: p?.surname, contactKind: 'phone', born: gaps.includes('birthday') && p?.born ? `${p.born}-` : undefined };
+    setV(initial.current);
     setError(null);
     // Focus the first field; with none that takes focus (a photo, a memory box), the dialog itself, so ↵ and Esc still work.
     requestAnimationFrame(() => (first.current ?? dialog.current)?.focus());
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (done) play('fanfare'); }, [done]);
+  useEffect(() => {
+    if (!done) return;
+    play('fanfare');
+    requestAnimationFrame(() => dialog.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus());
+  }, [done]);
 
   const set = (k: keyof Values) => (e: { target: { value: string } }) => setV((x) => ({ ...x, [k]: e.target.value }));
   const next = (saved: boolean) => {
@@ -245,9 +258,9 @@ function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[
   };
 
   const onKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') onClose();
     // ↵ saves from a text field (⌘↵ from the memory box); on a button it keeps meaning "press this button".
-    else if (e.key === 'Enter') {
+    // Escape and Tab are the Dialog's.
+    if (e.key === 'Enter') {
       const t = e.target;
       // The dialog itself counts too: it holds focus when the only gap is a photo or a memory.
       const field = t === dialog.current || (t instanceof HTMLInputElement && t.type !== 'file') || (t instanceof HTMLTextAreaElement && (e.metaKey || e.ctrlKey));
@@ -255,29 +268,27 @@ function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[
     }
   };
 
+  // One Dialog for the whole run, so focus and the overlay layer carry from person to person.
   if (done) {
     return (
-      <div className="blaze-backdrop" onMouseDown={onClose}>
-        <div className="blaze panel" onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.key === 'Escape' && onClose()} role="dialog" aria-modal="true" aria-label="Done">
-          <div className="blaze-done">
-            <GameIcon name="wax-seal" size={56} />
-            <h2 className="display">The chronicle grows</h2>
-            <p className="muted">{filled} filled in{skipped ? `, ${skipped} skipped for another day` : ''}.</p>
-            <button className="btn primary" autoFocus onClick={onClose}>Close</button>
-          </div>
+      <Dialog open onClose={onClose} variant="event" label="Done" bare width={640} className="blaze" panelRef={dialog}>
+        <div className="blaze-done">
+          <GameIcon name="wax-seal" size={56} />
+          <h2 className="display">The chronicle grows</h2>
+          <p className="muted">{filled} filled in{skipped ? `, ${skipped} skipped for another day` : ''}.</p>
+          <button className="btn primary" data-autofocus onClick={onClose}>Close</button>
         </div>
-      </div>
+      </Dialog>
     );
   }
   if (!p) return null;
-  const k = p.id === me ? 'you' : kinship(f, me, p.id)?.label;
+  const k = !me ? undefined : p.id === me ? 'you' : kinship(f, me, p.id)?.label;
   const missingParents = parentSlots(f, p.id, gaps);
   let firstSet = false;
   const firstRef = <T extends HTMLInputElement | HTMLButtonElement | HTMLTextAreaElement>() => (firstSet ? undefined : ((firstSet = true), (el: T | null) => { first.current = el; }));
 
   return (
-    <div className="blaze-backdrop" onMouseDown={onClose}>
-      <div ref={dialog} tabIndex={-1} className="blaze panel" onMouseDown={(e) => e.stopPropagation()} onKeyDown={onKey} role="dialog" aria-modal="true" aria-label={`Fill in ${displayName(p, f)}`}>
+    <Dialog open onClose={onClose} variant="event" label={`Fill in ${displayName(p, f)}`} bare width={640} className="blaze" panelRef={dialog} onKeyDown={onKey} dirty={dirty && !busy}>
         <div className="blaze-progress"><i style={{ width: `${(i / queue.length) * 100}%` }} /></div>
         <div className="blaze-top">
           <span>{i + 1} of {queue.length} · {filled} filled</span>
@@ -370,8 +381,7 @@ function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[
           <button className="btn" onClick={() => next(false)} title="Ask later"><SkipForward size={14} /> Skip</button>
           <button className="btn primary" onClick={save} disabled={busy}><Check size={14} /> Save & next <kbd>↵</kbd></button>
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }
 

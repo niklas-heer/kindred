@@ -4,7 +4,7 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { geoGraticule10, geoNaturalEarth1, geoPath, type GeoPermissibleObjects } from 'd3-geo';
 import { Layers, Pause, Play, Route as RouteIcon, ScrollText, Shield, X } from 'lucide-react';
-import { useHotkey } from '@tanstack/react-hotkeys';
+import { usePageHotkey } from '~/components/ui/overlay';
 import { setPref, usePref } from '~/lib/prefs';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { feature, mesh } from 'topojson-client';
@@ -18,11 +18,13 @@ import { displayName, lifespan, parents, yearOf } from '~/lib/graph';
 import { play } from '~/lib/sfx';
 import type { GPerson, Place } from '~/lib/types';
 import '~/styles/atlas.css';
+import { sectionHead } from '~/lib/title';
 
 type Kind = 'births' | 'deaths' | 'weddings';
 type Mode = Kind | 'all';
 
 export const Route = createFileRoute('/$tree/atlas')({
+  head: sectionHead('Atlas'),
   validateSearch: z.object({ mode: z.enum(['all', 'births', 'deaths', 'weddings']).optional(), place: z.string().optional() }),
   component: Atlas,
 });
@@ -195,9 +197,9 @@ function Atlas() {
     const target = dir > 0 ? events.find((e) => e.year > cursor)?.year : [...events].reverse().find((e) => e.year < cursor)?.year;
     if (target !== undefined) setYear(target >= y1 ? y1 : target);
   };
-  useHotkey('Space', () => { if (cursor >= y1 && !playing) setYear(y0); setPlaying((p) => !p); });
-  useHotkey('ArrowRight', () => stepTo(1));
-  useHotkey('ArrowLeft', () => stepTo(-1));
+  usePageHotkey('Space', () => { if (cursor >= y1 && !playing) setYear(y0); setPlaying((p) => !p); });
+  usePageHotkey('ArrowRight', () => stepTo(1));
+  usePageHotkey('ArrowLeft', () => stepTo(-1));
   // Places touched in the last few years of the replay pulse on the map (every event in that window).
   const recent = useMemo(() => {
     if (!playing) return new Set<string>();

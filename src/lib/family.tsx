@@ -26,9 +26,31 @@ export function useFamily(): Family & { gen: Map<string, number> } {
   }, [data]);
 }
 
-/** Who "you" are in this tree: kinship labels are relative to this person. */
+/** The `me:<tree>` preference value for "just browsing": the reader chose not to be anyone. */
+export const BROWSING = '-';
+
+/**
+ * Where the tree opens and "home" goes: the reader's own card once they've said who they are, else
+ * the tree's focus person. Not for kinship labels: use `useMeChosen()` for those.
+ */
 export function useMe(): string {
   const f = useFamily();
+  const who = useMeChosen();
+  return who ?? f.graph.tree.focus;
+}
+
+/**
+ * Who the reader said they are, or null until they choose (or chose "just browsing"). Kinship
+ * labels ("your aunt") are only shown when this is set, never computed from an arbitrary person.
+ */
+export function useMeChosen(): string | null {
+  const f = useFamily();
   const me = usePref(`me:${f.graph.tree.id}`);
-  return me && f.byId.has(me) ? me : f.graph.tree.focus;
+  return me && me !== BROWSING && f.byId.has(me) ? me : null;
+}
+
+/** Whether the reader has answered "Who are you?" for this tree (including "just browsing"). */
+export function useMeAnswered(): boolean {
+  const f = useFamily();
+  return usePref(`me:${f.graph.tree.id}`) !== null;
 }

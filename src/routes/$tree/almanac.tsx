@@ -3,13 +3,15 @@ import { CalendarPlus, Check, Hourglass } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { GameIcon, type GameIconName } from '~/components/GameIcon';
 import { Portrait } from '~/components/Portrait';
-import { useFamily, useMe, useTreeId } from '~/lib/family';
+import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
 import { play } from '~/lib/sfx';
 import { ancestorDepths, displayName, kinship, partnersOf, type Family } from '~/lib/graph';
 import type { GPerson } from '~/lib/types';
 import '~/styles/almanac.css';
+import { sectionHead } from '~/lib/title';
 
 export const Route = createFileRoute('/$tree/almanac')({
+  head: sectionHead('Almanac'),
   component: AlmanacPage,
 });
 
@@ -205,7 +207,8 @@ function download(name: string, mime: string, text: string) {
 
 function AlmanacPage() {
   const f = useFamily();
-  const me = useMe();
+  // Kinship ("your aunt's birthday") only once the reader has said who they are.
+  const me = useMeChosen();
   const tree = useTreeId();
   // Frozen for the life of the page, so rows don't shuffle at midnight under your hands.
   const [today] = useState(() => startOfDay(new Date()));
@@ -214,7 +217,7 @@ function AlmanacPage() {
 
   const all = useMemo(() => upcoming(f, today), [f, today]);
   const hist = useMemo(() => history(f), [f]);
-  const myAnc = useMemo(() => ancestorDepths(f, me), [f, me]);
+  const myAnc = useMemo(() => (me ? ancestorDepths(f, me) : new Map<string, number>()), [f, me]);
   const hasLiving = f.graph.people.some((p) => p.living);
 
   const soon = useMemo(() => all.filter((e) => e.days <= 60), [all]);
@@ -482,7 +485,8 @@ function EventNames({ ev, f, tree }: { ev: Ev; f: Family; tree: string }) {
   );
 }
 
-function relation(ev: Ev, f: Family, me: string, myAnc: Map<string, number>): string | undefined {
+function relation(ev: Ev, f: Family, me: string | null, myAnc: Map<string, number>): string | undefined {
+  if (!me) return undefined;
   if (ev.ids.includes(me)) return ev.kind === 'birthday' ? 'your birthday' : ev.kind === 'anniversary' ? 'your anniversary' : 'you';
   const labels = ev.ids.map((id) => safeKinship(f, me, id, myAnc)).filter((x): x is string => !!x);
   if (!labels.length) return undefined;
@@ -490,7 +494,7 @@ function relation(ev: Ev, f: Family, me: string, myAnc: Map<string, number>): st
   return `your ${uniq.join(' & ')}`;
 }
 
-function EventRow({ ev, f, tree, me, myAnc }: { ev: Ev; f: Family; tree: string; me: string; myAnc: Map<string, number> }) {
+function EventRow({ ev, f, tree, me, myAnc }: { ev: Ev; f: Family; tree: string; me: string | null; myAnc: Map<string, number> }) {
   const today = ev.days === 0;
   const crowned = ev.milestone && ev.kind === 'birthday';
   const people = ev.ids.map((id) => f.byId.get(id)).filter((p): p is GPerson => !!p);
