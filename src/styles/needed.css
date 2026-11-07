@@ -16,7 +16,7 @@
 .needed-gaps .chip:hover { border-style: solid; }
 
 /* What counts as needed: a row of toggles, remembered per tree. */
-.needed-settings { margin: -4px 0 16px; padding: 10px 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--panel-2); }
+.needed-settings { margin: 10px 0 16px; padding: 10px 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--panel-2); }
 [data-theme='codex'] .needed-settings { background: #121722; border-color: #0a0d12; box-shadow: inset 0 0 0 1px var(--edge-soft); }
 .needed-settings > span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-family: var(--font-ui); }
 .needed-settings div { display: flex; flex-wrap: wrap; gap: 5px; }

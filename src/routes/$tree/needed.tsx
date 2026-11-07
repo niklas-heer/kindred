@@ -150,7 +150,7 @@ function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [v, setV] = useState<Values>({});
-  const first = useRef<HTMLInputElement | HTMLButtonElement | null>(null);
+  const first = useRef<HTMLInputElement | HTMLButtonElement | HTMLTextAreaElement | null>(null);
 
   const id = queue[i];
   const p = id ? f.byId.get(id) : undefined;
@@ -249,7 +249,8 @@ function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[
     // ↵ saves from a text field (⌘↵ from the memory box); on a button it keeps meaning "press this button".
     else if (e.key === 'Enter') {
       const t = e.target;
-      const field = (t instanceof HTMLInputElement && t.type !== 'file') || (t instanceof HTMLTextAreaElement && (e.metaKey || e.ctrlKey));
+      // The dialog itself counts too: it holds focus when the only gap is a photo or a memory.
+      const field = t === dialog.current || (t instanceof HTMLInputElement && t.type !== 'file') || (t instanceof HTMLTextAreaElement && (e.metaKey || e.ctrlKey));
       if (field) { e.preventDefault(); save(); }
     }
   };
@@ -272,7 +273,7 @@ function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[
   const k = p.id === me ? 'you' : kinship(f, me, p.id)?.label;
   const missingParents = parentSlots(f, p.id, gaps);
   let firstSet = false;
-  const firstRef = <T extends HTMLInputElement | HTMLButtonElement>() => (firstSet ? undefined : ((firstSet = true), (el: T | null) => { first.current = el; }));
+  const firstRef = <T extends HTMLInputElement | HTMLButtonElement | HTMLTextAreaElement>() => (firstSet ? undefined : ((firstSet = true), (el: T | null) => { first.current = el; }));
 
   return (
     <div className="blaze-backdrop" onMouseDown={onClose}>
@@ -357,7 +358,7 @@ function Blaze({ queue, only, f, tree, me, required, onClose }: { queue: string[
           {gaps.includes('story') && (
             <label className="field wide">
               <span>A memory of {p.given}</span>
-              <textarea className="input" rows={3} value={v.story ?? ''} onChange={set('story')} placeholder={`Something you remember about ${p.given} (⌘↵ to save)`} />
+              <textarea ref={firstRef<HTMLTextAreaElement>()} className="input" rows={3} value={v.story ?? ''} onChange={set('story')} placeholder={`Something you remember about ${p.given} (⌘↵ to save)`} />
               {!author && <em className="faint">Signed as “Family”; set your name when adding a story in the panel.</em>}
             </label>
           )}

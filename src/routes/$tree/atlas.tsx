@@ -88,7 +88,7 @@ function Atlas() {
     const ro = new ResizeObserver(() => atlasEl.current?.style.setProperty('--time-h', `${Math.round(el.getBoundingClientRect().height)}px`));
     ro.observe(el);
     return () => ro.disconnect();
-  });
+  }, [events.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
   const [feedLimit, setFeedLimit] = useState(300);
   const [moves, setMoves] = useState(true);
   const [heraldry, setHeraldry] = useState(false);
@@ -190,6 +190,7 @@ function Atlas() {
   // Keys: space plays and pauses, arrows step to the previous or next year with an event.
   const stepTo = (dir: -1 | 1) => {
     setPlaying(false);
+    finished.current = false;
     if (!events.length) return;
     const target = dir > 0 ? events.find((e) => e.year > cursor)?.year : [...events].reverse().find((e) => e.year < cursor)?.year;
     if (target !== undefined) setYear(target >= y1 ? y1 : target);
@@ -283,7 +284,7 @@ function Atlas() {
               min={y0}
               max={y1}
               value={cursor}
-              onChange={(e) => { setPlaying(false); setYear(+e.target.value === y1 ? null : +e.target.value); }}
+              onChange={(e) => { setPlaying(false); finished.current = false; setYear(+e.target.value === y1 ? null : +e.target.value); }}
               aria-label="Year"
             />
             <span className="faint">{y0}–{y1}</span>

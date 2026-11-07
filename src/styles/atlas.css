@@ -149,7 +149,7 @@
 /* Places where something just happened pulse. */
 .pin.recent .pulse { fill: none; stroke: var(--pin); transform-box: fill-box; transform-origin: center; animation: pulse 1s ease-out infinite; }
 @keyframes pulse { from { opacity: 0.9; scale: 1; } to { opacity: 0; scale: 2.2; } }
-@media (prefers-reduced-motion: reduce) { .atlas-feed li, .pin.recent .pulse { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .atlas-feed li, .atlas-feed:not(.playing) li, .pin.recent .pulse { animation: none; } }
 
 .atlas-kinds { flex: none; }
 .atlas-speed { min-width: 46px; justify-content: center; font-variant-numeric: tabular-nums; }
