@@ -3,7 +3,7 @@
 // from a mother's birthplace to her child's.
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { geoGraticule10, geoNaturalEarth1, geoPath, type GeoPermissibleObjects } from 'd3-geo';
-import { Layers, Pause, Play, Route as RouteIcon, Shield } from 'lucide-react';
+import { Layers, Pause, Play, Route as RouteIcon, Shield, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { feature, mesh } from 'topojson-client';
 import { z } from 'zod';
@@ -26,6 +26,7 @@ export const Route = createFileRoute('/$tree/atlas')({
 });
 
 interface Event { kind: Kind; place: string; year: number; people: string[] }
+interface FeedRow { year: number; event?: Event; summary?: Event[] }
 interface Pin { place: Place; people: string[]; first: number; entries: { kind: Kind; id: string }[]; kinds: Record<Kind, number>; house?: string; /** Events here: a wedding counts once. */ n: number }
 
 const KINDS: Kind[] = ['births', 'deaths', 'weddings'];
@@ -68,21 +69,27 @@ function Atlas() {
   const [heraldry, setHeraldry] = useState(false);
   useEffect(() => { setYear(null); setPlaying(false); }, [mode, tree]);
 
-  // Replay: long enough to read the chronicle as it goes (15–45 s, by how much happens).
-  const duration = Math.min(45000, Math.max(15000, events.length * 25));
+  // Replay, paced by events rather than years: busy centuries get the time they need (15–60 s).
+  const duration = Math.min(60000, Math.max(15000, events.length * 25));
   useEffect(() => {
-    if (!playing) return;
-    const span = Math.max(1, y1 - y0);
-    const start = performance.now() - ((cursor >= y1 ? y0 : cursor) - y0) / span * duration;
-    let raf = 0;
+    if (!playing || !events.length) return;
+    const n = events.length;
+    // Resume from the cursor: the share of events already past it.
+    let past = 0;
+    while (past < n && events[past].year <= cursor && cursor < y1) past++;
+    const start = performance.now() - (past / n) * duration;
+    let raf = 0, end = 0;
     const step = (t: number) => {
-      const y = Math.min(y1, Math.round(y0 + ((t - start) / duration) * span));
-      setYear(y);
-      if (y >= y1) setPlaying(false);
-      else raf = requestAnimationFrame(step);
+      const idx = Math.min(n - 1, Math.floor(((t - start) / duration) * n));
+      setYear(events[idx].year);
+      if (idx >= n - 1) {
+        setPlaying(false);
+        // The chronicle bows out a few seconds after the end, unless someone scrubs meanwhile.
+        end = window.setTimeout(() => setYear((y) => (y === y1 ? null : y)), 4000);
+      } else raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
+    return () => { cancelAnimationFrame(raf); clearTimeout(end); };
   }, [playing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pins: people per place up to the cursor year.
@@ -131,19 +138,36 @@ function Atlas() {
     return all.length > 40 ? all.filter((a) => a.n >= 3) : all;
   }, [f, mode, moves, cursor, placeBy]);
 
-  // The chronicle: the latest events up to the cursor, newest first.
-  const feed = useMemo(() => {
+  // The chronicle: the latest events up to the cursor, newest first. A year with more than three
+  // events becomes one summary line, so a busy century stays readable.
+  const upto = useMemo(() => {
     let hi = events.length;
     for (let lo = 0; lo < hi; ) { const mid = (lo + hi) >> 1; if (events[mid].year <= cursor) lo = mid + 1; else hi = mid; }
-    return events.slice(Math.max(0, hi - 8), hi).reverse();
+    return hi;
   }, [events, cursor]);
+  const feed = useMemo(() => {
+    const rows: FeedRow[] = [];
+    let k = upto - 1;
+    while (k >= 0 && rows.length < 8) {
+      const yr = events[k].year;
+      let a = k;
+      while (a > 0 && events[a - 1].year === yr) a--;
+      const year = events.slice(a, k + 1);
+      if (year.length > 3) rows.push({ year: yr, summary: year });
+      else for (const e of [...year].reverse()) if (rows.length < 8) rows.push({ year: yr, event: e });
+      k = a - 1;
+    }
+    return rows;
+  }, [events, upto]);
   const showFeed = playing || year !== null;
-  // Places touched in the last few years of the replay pulse on the map.
+  // Places touched in the last few years of the replay pulse on the map (every event in that window).
   const recent = useMemo(() => {
     if (!playing) return new Set<string>();
     const window = Math.max(1, Math.round((y1 - y0) / 60));
-    return new Set(feed.filter((e) => e.year > cursor - window).map((e) => e.place));
-  }, [playing, feed, cursor, y0, y1]);
+    const out = new Set<string>();
+    for (let k = upto - 1; k >= 0 && events[k].year > cursor - window; k--) out.add(events[k].place);
+    return out;
+  }, [playing, events, upto, cursor, y0, y1]);
 
   const selected = search.place && pins.find((p) => p.place.name === search.place);
   const total = mode === 'weddings' ? new Set(pins.flatMap((p) => p.people)).size : pins.reduce((n, p) => n + p.n, 0);
@@ -198,18 +222,32 @@ function Atlas() {
       <div className="atlas-map">
         <WorldMap places={f.graph.places} pins={pins} arcs={arcs} selected={search.place} onSelect={select} rings={mode === 'all' && !heraldry} heraldry={heraldry ? f.house : null} recent={recent} />
         {showFeed && feed.length > 0 && (
-          <section className="atlas-feed panel" aria-live="polite">
-            <header><b>Chronicle</b><span className="faint">{cursor}</span></header>
+          <section className="atlas-feed panel" aria-live={playing ? 'off' : 'polite'}>
+            <header>
+              <b>Chronicle</b>
+              <span className="faint">{cursor}</span>
+              <button className="btn icon ghost" onClick={() => { setPlaying(false); setYear(null); }} title="Close the chronicle"><X size={14} /></button>
+            </header>
             <ol>
-              {feed.map((e) => (
-                <li key={`${e.kind}:${e.year}:${e.people.join('+')}`}>
-                  <button onClick={() => select(e.place)}>
-                    <span className="feed-year">{e.year}</span>
-                    <FeedFace e={e} f={f} tree={tree} heraldry={heraldry} />
-                    <span className="feed-text">{sentence(e, f)}</span>
-                  </button>
-                </li>
-              ))}
+              {feed.map((row) =>
+                row.event ? (
+                  <li key={`${row.event.kind}:${row.year}:${row.event.people.join('+')}`}>
+                    <button onClick={() => select(row.event!.place)}>
+                      <span className="feed-year">{row.year}</span>
+                      <FeedFace e={row.event} f={f} tree={tree} heraldry={heraldry} />
+                      <span className="feed-text">{sentence(row.event, f)}</span>
+                    </button>
+                  </li>
+                ) : (
+                  <li key={`sum:${row.year}`}>
+                    <button onClick={() => select(busiest(row.summary!))}>
+                      <span className="feed-year">{row.year}</span>
+                      <span className="feed-face feed-sum"><GameIcon name="quill-ink" size={18} /></span>
+                      <span className="feed-text">{summary(row.summary!, f)}</span>
+                    </button>
+                  </li>
+                ),
+              )}
             </ol>
           </section>
         )}
@@ -346,7 +384,11 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry, rec
     });
   }, [projection]); // eslint-disable-line react-hooks/exhaustive-deps
   // Choosing a place brings it to the middle of the free map area, close enough to read its neighbours.
+  // Only on a new choice: a resize keeps whatever panning happened since.
+  const centred = useRef<string | undefined>(undefined);
   useEffect(() => {
+    if (centred.current === selected) return;
+    centred.current = selected;
     const pin = selected && places.find((p) => p.name === selected);
     const xy = pin && projection([pin.lng, pin.lat]);
     if (!xy) return;
@@ -394,14 +436,21 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry, rec
       const label: Box = [x - w / 2, y - top - 22, x + w / 2, y - top - 4];
       return [{ name: p.place.name, body, label }];
     });
-    const boxes: Box[] = placed.map((q) => q.body);
-    const out = new Set<string>();
+    const bodies: Box[] = placed.map((q) => q.body);
+    const labels: Box[] = [];
+    const out = new Map<string, 'above' | 'below'>();
     const order = [...placed].sort((a, b) => (a.name === selected ? -1 : b.name === selected ? 1 : 0));
-    for (const q of order) {
-      if (q.name !== selected && boxes.some((o) => o !== q.body && hit(q.label, o))) continue;
-      boxes.push(q.label);
-      out.add(q.name);
-    }
+    order.forEach((q, rank) => {
+      // The selected and the three busiest places always get a name (they may cover a small pin);
+      // others take the first free spot above or below their pin.
+      const vip = q.name === selected || rank < 3;
+      const free = (b: Box) => !labels.some((o) => hit(b, o)) && (vip || !bodies.some((o) => o !== q.body && hit(b, o)));
+      const below: Box = [q.label[0], q.body[3] + 2, q.label[2], q.body[3] + 20];
+      const spot = free(q.label) ? 'above' : free(below) ? 'below' : null;
+      if (!spot) return;
+      labels.push(spot === 'above' ? q.label : below);
+      out.set(q.name, spot);
+    });
     return out;
   }, [pins, projection, cam, max, selected, heraldry]);
   // Screen-constant pin sizes: zooming in spreads places apart instead of inflating them.
@@ -470,8 +519,14 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry, rec
                     ? <text className="pin-n under" style={{ fontSize: 11 / cam.k, strokeWidth: 3 / cam.k }} y={r * 1.32 + 11 / cam.k}>{p.n}</text>
                     : <text className="pin-n" style={{ fontSize: 11 / cam.k }} dy="0.35em">{p.n}</text>
                 )}
-                {(on || labelled.has(p.place.name)) && (
-                  <text className="pin-label" style={{ fontSize: 13 / cam.k, strokeWidth: 3 / cam.k }} y={-(heraldry ? r * 1.35 : r) - 5 / cam.k}>{p.place.name}</text>
+                {labelled.has(p.place.name) && (
+                  <text
+                    className="pin-label"
+                    style={{ fontSize: 13 / cam.k, strokeWidth: 3 / cam.k }}
+                    y={labelled.get(p.place.name) === 'below' ? (heraldry ? r * 1.32 + 14 / cam.k : r) + 15 / cam.k : -(heraldry ? r * 1.35 : r) - 5 / cam.k}
+                  >
+                    {p.place.name}
+                  </text>
                 )}
                 <title>{`${p.place.name}: ${p.n}`}</title>
                 </g>
@@ -526,8 +581,25 @@ function FeedFace({ e, f, tree, heraldry }: { e: Event; f: ReturnType<typeof use
   const house = p?.house ? f.house.get(p.house) : undefined;
   return (
     <span className="feed-face">
-      {heraldry && house ? <Arms arms={house.arms} size={26} title={house.name} /> : p ? <Portrait person={p} tree={tree} size={32} frame={false} /> : null}
+      {heraldry ? <Arms arms={house?.arms ?? PLAIN} size={26} title={house?.name ?? 'No house'} /> : p ? <Portrait person={p} tree={tree} size={32} frame={false} /> : null}
       <span className={`feed-kind k-${e.kind}`}><GameIcon name={ICON[e.kind]} size={11} /></span>
     </span>
   );
+}
+
+/** "37 births, 9 deaths and 2 weddings across the realm", for a busy year. */
+function summary(events: Event[], f: ReturnType<typeof useFamily>) {
+  const n = (k: Kind) => events.filter((e) => e.kind === k).length;
+  const parts = ([['births', 'birth'], ['deaths', 'death'], ['weddings', 'wedding']] as const)
+    .filter(([k]) => n(k))
+    .map(([k, one]) => `${n(k)} ${n(k) === 1 ? one : k}`);
+  const text = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0];
+  const where = f.graph.tree.theme === 'codex' ? 'across the realm' : 'in the family';
+  return <><b>{text}</b> <i>{where}, most in {busiest(events)}</i></>;
+}
+
+function busiest(events: Event[]): string {
+  const c = new Map<string, number>();
+  for (const e of events) c.set(e.place, (c.get(e.place) ?? 0) + 1);
+  return [...c].sort((a, b) => b[1] - a[1])[0][0];
 }

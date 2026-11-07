@@ -121,11 +121,11 @@
 .atlas-feed li { animation: feed-in 260ms cubic-bezier(.2,.8,.2,1); }
 .atlas-feed li:nth-child(n + 5) { opacity: 0.7; }
 .atlas-feed li:nth-child(n + 7) { opacity: 0.45; }
-.atlas-feed button {
+.atlas-feed li button {
   width: 100%; display: grid; grid-template-columns: 40px 32px 1fr; gap: 8px; align-items: center;
   padding: 5px 4px; border: 0; background: none; border-radius: var(--radius); cursor: pointer; text-align: left;
 }
-.atlas-feed button:hover { background: var(--panel-2); }
+.atlas-feed li button:hover { background: var(--panel-2); }
 .feed-year { font-family: var(--font-display); font-size: 14px; font-variant-numeric: tabular-nums; color: var(--muted); text-align: right; }
 .feed-face { display: grid; place-items: center; width: 32px; height: 32px; position: relative; }
 .feed-kind { position: absolute; right: -4px; bottom: -3px; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; background: var(--panel-solid); box-shadow: 0 0 0 1px var(--border); }
@@ -135,11 +135,15 @@
 .feed-text i { font-style: normal; color: var(--muted); }
 @keyframes feed-in { from { opacity: 0; transform: translateY(-6px); } }
 /* Places where something just happened pulse once. */
-.pin.recent .pin-grow::after { content: none; }
 .pin.recent .pulse { fill: none; stroke: var(--pin); transform-box: fill-box; transform-origin: center; animation: pulse 1s ease-out infinite; }
 @keyframes pulse { from { opacity: 0.9; scale: 1; } to { opacity: 0; scale: 2.2; } }
 @media (prefers-reduced-motion: reduce) { .atlas-feed li, .pin.recent .pulse { animation: none; } }
-@media (max-width: 1100px) { .atlas-feed { display: none; } }
+/* Narrower windows: a compact three-line chronicle above the time bar. */
+@media (max-width: 1100px) {
+  .atlas-feed { left: 360px; right: 18px; width: auto; max-height: 172px; bottom: 96px; }
+  .atlas-feed li:nth-child(n + 4) { display: none; }
+}
+@media (max-width: 900px) { .atlas-feed { left: 16px; right: 16px; bottom: calc(42% + 84px); } }
 
 .atlas-kinds { flex: none; }
 /* Narrow windows: the side panel becomes a bottom sheet under the map, the time bar sits above it. */
@@ -147,3 +151,11 @@
   .atlas-side { top: auto; height: 42%; width: 100%; border-width: 1px 0 0; box-shadow: 0 -2px 10px #0004; }
   .atlas-time { left: 16px; right: 16px; bottom: calc(42% + 12px); }
 }
+
+.atlas-feed > header { align-items: center; gap: 8px; }
+.atlas-feed > header .faint { margin-left: auto; font-variant-numeric: tabular-nums; }
+.atlas-feed > header .btn { width: 22px; height: 22px; }
+.feed-sum { color: var(--accent); }
+.atlas-feed > header { display: grid; grid-template-columns: 1fr auto auto; }
+.atlas-feed > header .faint { margin-left: 0; }
+.atlas-feed > header .btn.icon { width: 24px; height: 24px; padding: 0; display: grid; place-items: center; border: 0; background: transparent; box-shadow: none; }
