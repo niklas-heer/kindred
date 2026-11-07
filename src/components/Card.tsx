@@ -40,6 +40,7 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
         className={`card ghost ${detail}`}
         onClick={() => onAdd?.(child, 'parent', as === 'father' ? 'm' : 'f')}
         title={`Add ${of?.given ?? 'their'}'s ${as}`}
+        aria-label={`Add ${of?.given ?? 'their'}'s ${as}`}
       >
         {detail !== 'far' && (
           <>
@@ -57,17 +58,32 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
   const name = displayName(p, f);
 
   if (detail === 'far') {
-    // Overview: a small shield in the house colour, a crown for rulers.
+    // Overview: a shield in the house colour (rich for the living, faded for the dead), a crown for
+    // rulers, and the house's arms on its founder.
     const ruler = /^(King|Queen|Emperor|Empress)\b/.test(p.title ?? '');
+    const founder = house?.founder === p.id;
     return (
       <button
-        className={`card far${selected ? ' selected' : ''}${p.living ? ' living' : ''}${isMe ? ' me' : ''}${ruler ? ' crowned' : ''}`}
-        style={{ ['--house' as string]: house ? houseColour(house.arms) : '#8a8270' }}
+        className={`card far${selected ? ' selected' : ''}${p.living ? ' living' : ' dead'}${isMe ? ' me' : ''}${ruler ? ' crowned' : ''}${founder ? ' founder' : ''}`}
+        style={{
+          ['--house' as string]: house ? houseColour(house.arms) : '#8a8270',
+          // Silver vanishes on paper: an ink for borders that still reads as the house.
+          ['--house-ink' as string]: house ? (house.arms.field === 'argent' ? '#9a958a' : houseColour(house.arms)) : '#a59f94',
+        }}
         onClick={() => onSelect(p.id)}
         onDoubleClick={() => onOpen?.(p.id)}
-        title={`${name} · ${lifespan(p)}`}
+        title={`${name} · ${lifespan(p)}${founder ? ` · founder of ${house!.name}` : ''}`}
+        aria-label={`${name}, ${lifespan(p)}${founder ? `, founder of ${house!.name}` : ''}`}
       >
-        {node.folded ? <span className="far-fold">+{node.folded}</span> : ruler ? <GameIcon name="crown" size={84} className="far-crown" /> : null}
+        {ruler && <GameIcon name="crown" size={84} className="far-crown" />}
+        {node.folded ? (
+          <span className="far-fold">+{node.folded}</span>
+        ) : founder ? (
+          <span className="far-arms"><Arms arms={house!.arms} size={96} /></span>
+        ) : (
+          // A seal with the initial, so a wall of shields still has faces to tell apart.
+          <span className="far-initial" aria-hidden>{p.given.slice(0, 1)}</span>
+        )}
       </button>
     );
   }
@@ -79,9 +95,12 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
   const soon = birthdaySoon(p);
   const disputed = (f.parentsOf.get(p.id) ?? []).some((q) => f.disputed.has(`${p.id}>${q}`));
   const gaps = detail === 'near' && node.role !== 'dup' ? gapsOf(f, p, required) : [];
+  // The epithet ("the Pious") is set in italic; mid detail drops it so the name stays large.
+  const epithet = p.epithet && name.endsWith(` ${p.epithet}`) ? p.epithet : undefined;
+  const base = epithet ? name.slice(0, -epithet.length - 1) : name;
   return (
     <div className={`card ${detail}${selected ? ' selected' : ''}${roleClass}${p.living ? ' living' : ' dead'}${ruler ? ' crowned' : ''}`}>
-      <button className="card-hit" onClick={() => onSelect(p.id)} onDoubleClick={() => onOpen?.(p.id)} aria-label={name} title="Click to select · double-click to centre the tree here">
+      <button className="card-hit" onClick={() => onSelect(p.id)} onDoubleClick={() => onOpen?.(p.id)} aria-label={`${name}, ${lifespan(p)}`} title={`${name} · click to select, double-click to centre the tree here`}>
         <div className="card-portrait">
           <Portrait person={p} tree={tree} size={detail === 'near' ? 104 : 84} />
           {house && (
@@ -106,7 +125,7 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
           )}
         </div>
         <div className="card-plate">
-          <div className="card-name">{name}</div>
+          <div className="card-name">{base}{epithet && detail === 'near' ? <> <i className="card-epithet">{epithet}</i></> : null}</div>
           {detail === 'near' && <div className="card-sub">{sub || '\u00a0'}</div>}
           <div className="card-years">
             {lifespan(p)}
@@ -125,7 +144,7 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
       {spouses.length > 0 && detail === 'near' && (
         <div className="card-spouses">
           {spouses.slice(0, 2).map((s) => (
-            <button key={s.id} className="card-spouse" title={`Partner: ${displayName(s, f)}`} onClick={() => onSelect(s.id)}>
+            <button key={s.id} className="card-spouse" title={`Partner: ${displayName(s, f)}`} aria-label={`Partner: ${displayName(s, f)}`} onClick={() => onSelect(s.id)}>
               <Portrait person={s} tree={tree} size={28} frame={false} />
             </button>
           ))}
@@ -134,17 +153,17 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
       )}
 
       {onToggle && (node.folded || (f.childrenOf.get(p.id)?.length && node.role === 'main')) ? (
-        <button className={`card-fold${node.folded ? ' folded' : ''}`} onClick={() => onToggle(p.id)} title={node.folded ? `Unfold ${node.folded} descendants` : 'Fold descendants'}>
+        <button className={`card-fold${node.folded ? ' folded' : ''}`} onClick={() => onToggle(p.id)} title={node.folded ? `Unfold ${node.folded} descendants` : 'Fold descendants'} aria-label={node.folded ? `Unfold ${node.folded} descendants of ${name}` : `Fold the descendants of ${name}`} aria-expanded={!node.folded}>
           {node.folded ? <>+{node.folded}</> : <Minus size={11} />}
         </button>
       ) : null}
 
       {selected && onAdd && node.role !== 'dup' && detail === 'near' && (
         <>
-          {(f.parentsOf.get(p.id)?.length ?? 0) < 2 && <button className="add add-parent" onClick={() => onAdd(p.id, 'parent')} title="Add a parent"><Plus size={14} /></button>}
-          <button className="add add-child" onClick={() => onAdd(p.id, 'child')} title="Add a child"><Plus size={14} /></button>
-          <button className="add add-partner" onClick={() => onAdd(p.id, 'partner')} title="Add a partner"><Plus size={14} /></button>
-          <button className="add add-sibling" onClick={() => onAdd(p.id, 'sibling')} title="Add a sibling"><Plus size={14} /></button>
+          {(f.parentsOf.get(p.id)?.length ?? 0) < 2 && <button className="add add-parent" onClick={() => onAdd(p.id, 'parent')} title="Add a parent" aria-label={`Add a parent of ${p.given}`}><Plus size={14} /></button>}
+          <button className="add add-child" onClick={() => onAdd(p.id, 'child')} title="Add a child" aria-label={`Add a child of ${p.given}`}><Plus size={14} /></button>
+          <button className="add add-partner" onClick={() => onAdd(p.id, 'partner')} title="Add a partner" aria-label={`Add a partner of ${p.given}`}><Plus size={14} /></button>
+          <button className="add add-sibling" onClick={() => onAdd(p.id, 'sibling')} title="Add a sibling" aria-label={`Add a sibling of ${p.given}`}><Plus size={14} /></button>
         </>
       )}
     </div>

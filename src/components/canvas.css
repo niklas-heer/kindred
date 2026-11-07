@@ -48,25 +48,38 @@
 @keyframes flow { to { stroke-dashoffset: -32; } }
 
 /* ---------- ruler: generations and their era, like an editor's line numbers ---------- */
+.canvas { --ruler-w: 56px; }
 .ruler {
-  position: absolute; left: 0; top: 0; bottom: 0; width: 56px; pointer-events: none; z-index: 3;
+  position: absolute; left: 0; top: 0; bottom: 0; width: var(--ruler-w); pointer-events: none; z-index: 3;
   background: var(--panel-solid); border-right: 1px solid var(--border);
 }
 [data-theme='codex'] .ruler { background: #141a24; border-right-color: var(--edge-soft); }
 .ruler-row {
-  position: absolute; left: 0; width: 56px; overflow: hidden;
+  position: absolute; left: 0; width: var(--ruler-w); overflow: hidden;
   display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px;
-  border-left: 2px solid color-mix(in srgb, var(--text) 18%, transparent);
-  color: var(--text);
+  color: var(--muted);
 }
 .ruler-row b { font-family: var(--font-display); font-weight: 600; font-size: 17px; line-height: 1; }
 .ruler-row span { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.ruler-row.active { border-left-color: var(--accent); background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent); }
+/* The current generation: a 2px accent bar and the faintest tint, not a selection slab. */
+.ruler-row.active { color: var(--text); box-shadow: inset 2px 0 0 var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .ruler-row.active b { color: var(--accent); }
+[data-theme='modern'] .ruler-row.active { background: color-mix(in srgb, var(--accent) 5%, transparent); }
 
-/* ---------- minimap ---------- */
+/* ---------- map dock: zoom and fit stacked above the minimap, like a map app ---------- */
+.map-dock {
+  position: absolute; right: 16px; bottom: calc(var(--sheet-h, 0px) + 16px); z-index: 6;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 10px; cursor: default;
+  transition: bottom 220ms cubic-bezier(.2,.8,.2,1);
+}
+.map-controls { display: flex; flex-direction: column; gap: 2px; padding: 4px; }
+.map-controls .btn { width: 36px; height: 36px; color: var(--text); }
+.map-controls .btn.ghost[aria-pressed='false'] { color: var(--text); }
+[data-theme='codex'] .map-controls { border-radius: 3px; }
+.map-toggle { display: none !important; }
+
 .minimap {
-  position: absolute; right: 16px; bottom: 16px; z-index: 6; padding: 8px; cursor: default;
+  padding: 8px; cursor: default;
   background: var(--minimap-bg); backdrop-filter: blur(6px); border-radius: var(--radius-lg);
 }
 [data-theme='codex'] .minimap {
@@ -74,6 +87,7 @@
   box-shadow: 0 0 0 3px #10141c, 0 0 0 4px #c9a24a55, 0 10px 24px #000b;
 }
 .minimap-map { position: relative; cursor: crosshair; border-radius: var(--radius); overflow: hidden; background: var(--canvas-texture), var(--canvas); }
+.minimap-map:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 [data-theme='codex'] .minimap-map {
   border-radius: 2px;
   background: radial-gradient(ellipse at 50% 40%, #7d7150, #4f4730), #6b6142;
@@ -87,7 +101,19 @@
 .minimap-foot { display: flex; justify-content: space-between; gap: 12px; padding: 6px 2px 0; font-size: 12px; color: var(--muted); font-family: var(--font-ui); }
 [data-theme='codex'] .minimap-foot { font-family: var(--font-display); font-size: 11.5px; letter-spacing: 0.04em; }
 
+/* Phones and narrow tablets: a slimmer ruler, bigger controls, and the minimap only on request. */
+@media (max-width: 900px) {
+  .canvas { --ruler-w: 40px; }
+  .ruler-row b { font-size: 15px; }
+  .ruler-row span { font-size: 10px; }
+  .map-dock { right: 10px; bottom: calc(var(--sheet-h, 0px) + 10px); gap: 8px; }
+  .map-controls .btn { width: 44px; height: 44px; }
+  .map-toggle { display: inline-flex !important; }
+  .map-dock:not(.map-open) .minimap { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .map-dock { transition: none; }
   .slot { transition: none; animation: none; }
   .arrive::before, .arrive::after { animation: none; }
   .edge.lit { animation: none; stroke-dasharray: none; }

@@ -3,17 +3,25 @@
 // Feel: drag or two-finger scroll pans; pinch, ⌘/ctrl+wheel or a mouse wheel zooms around the
 // pointer. Cards change detail with zoom (portrait → name plate → house-coloured tile). A minimap
 // shows where you are in the whole tree; a ruler on the left names each generation and its era.
-import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Expand, Map as MapIcon, Minus, Plus } from 'lucide-react';
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { CARD_H, CARD_W, ROW_H, type LNode, type Layout } from '~/lib/layout';
 import type { Family } from '~/lib/graph';
 import { houseColour } from './Heraldry';
 import './canvas.css';
 
 export type Detail = 'far' | 'mid' | 'near';
+/** Card name sizes in world pixels at each level (card.css reads them as --name-near / --name-mid). */
+export const NAME_PX = { near: 15, mid: 24 } as const;
+/** Smallest name on screen we accept before dropping to a simpler level. */
+const MIN_TEXT_PX = 9.5;
+// Detail follows the size names actually reach on screen (zoom × font size), not fixed zoom steps.
 // With a little hysteresis, so cards don't flicker between levels while zooming near a threshold.
 const detailFor = (k: number, prev: Detail): Detail => {
-  const far = prev === 'far' ? 0.34 : 0.3, mid = prev === 'near' ? 0.6 : 0.64;
-  return k < far ? 'far' : k < mid ? 'mid' : 'near';
+  const keep = 0.5; // px of slack before leaving the current level
+  if (k * NAME_PX.near >= MIN_TEXT_PX - (prev === 'near' ? keep : 0)) return 'near';
+  if (k * NAME_PX.mid >= MIN_TEXT_PX - (prev !== 'far' ? keep : 0)) return 'mid';
+  return 'far';
 };
 
 interface Cam { x: number; y: number; k: number } // screen = world * k + (x, y)
@@ -38,16 +46,23 @@ interface Props {
   /** Ruler label per generation row: a short mark ("IX") and an era ("c. 1146"). */
   rowLabel?: (row: number, year: number | undefined, index: number) => [string, string?];
   overlay?: ReactNode;
-  /** Screen space covered by floating panels: side panel left, toolbar and banner on top, minimap right. */
-  inset?: { left: number; top: number; right?: number };
+  /** Screen space covered by floating panels: side panel left, toolbar and banner on top, minimap right, sheet below. */
+  inset?: { left: number; top: number; right?: number; bottom?: number };
   /** Person to greet with a brief ring, after the camera arrives at them. */
   flash?: { id: string; at: number } | null;
+  /** Extra buttons for the map control stack (below zoom and fit), e.g. keyboard help. */
+  controls?: ReactNode;
+  /** Called once when the reader starts moving the camera themselves (drag, wheel, pinch, minimap). */
+  onUserMove?: () => void;
 }
 
 export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
-  { family, layout, focus, dimmed, renderCard, onBackground, rowLabel, overlay, inset = { left: 0, top: 0 }, flash },
+  { family, layout, focus, dimmed, renderCard, onBackground, rowLabel, overlay, inset = { left: 0, top: 0 }, flash, controls, onUserMove },
   ref,
 ) {
+  const moved = useRef(onUserMove);
+  moved.current = onUserMove;
+  const userMove = () => moved.current?.();
   const host = useRef<HTMLDivElement>(null);
   const world = useRef<HTMLDivElement>(null);
   const cam = useRef<Cam>({ x: 0, y: 0, k: 0.8 });
@@ -108,25 +123,29 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     const k = opts?.k ?? Math.max(cam.current.k, 0.55);
     // Centre in the part of the canvas no panel covers (unless the panel leaves almost nothing).
     const left = w - inset.left < 320 ? 56 : inset.left;
-    const cx = left + (w - left) / 2, cy = inset.top + (h - inset.top) * 0.46;
+    const bottom = h - inset.top - (inset.bottom ?? 0) < 200 ? 0 : inset.bottom ?? 0;
+    const cx = left + (w - left) / 2, cy = inset.top + (h - inset.top - bottom) * 0.46;
     const target = { k, x: cx - n.x * k, y: cy - (n.y + CARD_H / 2) * k };
     const c = cam.current;
     const moved = Math.hypot(target.x - c.x, target.y - c.y) > 24 || Math.abs(target.k - c.k) > 0.02;
     if (opts?.animate === false) { cam.current = target; apply(); } else animateTo(target);
     return moved;
-  }, [firstOf, apply, animateTo, inset.left, inset.top]);
+  }, [firstOf, apply, animateTo, inset.left, inset.top, inset.right, inset.bottom]);
 
   const fit = useCallback(() => {
     const el = host.current;
     if (!el) return;
     const { width: w, height: h } = el.getBoundingClientRect();
     const b = layout.bounds;
-    const right = w - inset.left - (inset.right ?? 0) < 400 ? 0 : inset.right ?? 0;
+    const right = w - inset.left - (inset.right ?? 0) < (w < 600 ? 220 : 400) ? 0 : inset.right ?? 0;
     const left = w - inset.left < 320 ? 56 : inset.left;
-    const aw = w - left - right - 120, ah = h - inset.top - 60;
+    const bottom = h - inset.top - (inset.bottom ?? 0) < 200 ? 0 : inset.bottom ?? 0;
+    // Narrow screens get a slimmer margin, or the tree shrinks to nothing.
+    const mx = w < 600 ? 16 : 60, my = w < 600 ? 12 : 30;
+    const aw = w - left - right - 2 * mx, ah = h - inset.top - bottom - 2 * my;
     const k = Math.min(1, Math.max(0.04, Math.min(aw / b.w, ah / b.h)));
-    animateTo({ k, x: left + 60 + aw / 2 - (b.x + b.w / 2) * k, y: inset.top + 20 + ah / 2 - (b.y + b.h / 2) * k });
-  }, [layout, animateTo, inset.left, inset.top, inset.right]);
+    animateTo({ k, x: left + mx + aw / 2 - (b.x + b.w / 2) * k, y: inset.top + my + ah / 2 - (b.y + b.h / 2) * k });
+  }, [layout, animateTo, inset.left, inset.top, inset.right, inset.bottom]);
 
   const zoomAt = useCallback((factor: number, sx: number, sy: number) => {
     cancelAnimationFrame(anim.current);
@@ -137,17 +156,21 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     apply();
   }, [apply]);
 
+  const zoomBy = useCallback((f: number) => {
+    const r = host.current!.getBoundingClientRect();
+    const c = cam.current;
+    const k = Math.min(2.2, Math.max(0.04, c.k * f));
+    animateTo({ k, x: r.width / 2 - ((r.width / 2 - c.x) / c.k) * k, y: r.height / 2 - ((r.height / 2 - c.y) / c.k) * k }, 220);
+  }, [animateTo]);
+  // The minimap is always there on wide screens; phones show it on request (see canvas.css).
+  const [mapOpen, setMapOpen] = useState(false);
+
   useImperativeHandle(ref, () => ({
     centerOn,
     fit,
-    zoomBy: (f) => {
-      const r = host.current!.getBoundingClientRect();
-      const c = cam.current;
-      const k = Math.min(2.2, Math.max(0.04, c.k * f));
-      animateTo({ k, x: r.width / 2 - ((r.width / 2 - c.x) / c.k) * k, y: r.height / 2 - ((r.height / 2 - c.y) / c.k) * k }, 220);
-    },
+    zoomBy,
     nodeOf: (id) => firstOf.get(id),
-  }), [centerOn, fit, animateTo, firstOf]);
+  }), [centerOn, fit, zoomBy, firstOf]);
 
   // ---- input ----
   useEffect(() => {
@@ -158,6 +181,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
       const sx = e.clientX - r.left, sy = e.clientY - r.top;
       // Trackpad pinch arrives as ctrl+wheel; a notched mouse wheel scrolls in lines or big steps.
       const mouseWheel = e.deltaMode === 1 || (e.deltaX === 0 && Math.abs(e.deltaY) >= 40 && Number.isInteger(e.deltaY));
+      userMove();
       if (e.ctrlKey || e.metaKey || mouseWheel) {
         zoomAt(Math.exp(-e.deltaY * (e.ctrlKey ? 0.012 : 0.0018)), sx, sy);
       } else {
@@ -193,6 +217,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
       const [a, b] = [...pointers.current.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
       const r = host.current!.getBoundingClientRect();
+      userMove();
       zoomAt(d / pinch.current.d, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
       pinch.current.d = d;
       return;
@@ -201,6 +226,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     if (!d || d.id !== e.pointerId) return;
     const dx = e.clientX - d.x, dy = e.clientY - d.y;
     if (!d.moved && Math.hypot(dx, dy) < 4) return;
+    if (!d.moved) userMove();
     d.moved = true;
     host.current!.classList.add('panning');
     d.x = e.clientX;
@@ -242,6 +268,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     <div
       ref={host}
       className={`canvas detail-${detail}`}
+      style={{ '--name-near': `${NAME_PX.near}px`, '--name-mid': `${NAME_PX.mid}px` } as CSSProperties}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -261,12 +288,26 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
         ))}
       </div>
       <Ruler layout={layout} view={view} label={rowLabel} active={layout.nodes.find((n) => n.id === focus)?.row} />
-      <Minimap family={family} layout={layout} view={view} focus={focus} dimmed={dimmed} onJump={(wx, wy) => {
-        const r = host.current!.getBoundingClientRect();
-        cancelAnimationFrame(anim.current);
-        cam.current = { ...cam.current, x: r.width / 2 - wx * cam.current.k, y: r.height / 2 - wy * cam.current.k };
-        apply();
-      }} />
+      <div className={`map-dock no-pan${mapOpen ? ' map-open' : ''}`}>
+        <div className="map-controls panel" role="toolbar" aria-label="Map" aria-orientation="vertical">
+          <button className="btn icon ghost" onClick={() => zoomBy(1.25)} title="Zoom in (=)" aria-label="Zoom in"><Plus size={17} /></button>
+          <button className="btn icon ghost" onClick={() => zoomBy(0.8)} title="Zoom out (−)" aria-label="Zoom out"><Minus size={17} /></button>
+          <button className="btn icon ghost" onClick={fit} title="Fit everything (F)" aria-label="Fit everything"><Expand size={16} /></button>
+          {controls}
+          <button className="btn icon ghost map-toggle" onClick={() => setMapOpen((o) => !o)} aria-pressed={mapOpen} title={mapOpen ? 'Hide the minimap' : 'Show the minimap'} aria-label="Minimap"><MapIcon size={16} /></button>
+        </div>
+        <Minimap family={family} layout={layout} view={view} focus={focus} dimmed={dimmed} onJump={(wx, wy) => {
+          const r = host.current!.getBoundingClientRect();
+          cancelAnimationFrame(anim.current);
+          userMove();
+          // Into the middle of the part of the canvas no panel covers.
+          const left = r.width - inset.left < 320 ? 56 : inset.left;
+          const bottom = r.height - inset.top - (inset.bottom ?? 0) < 200 ? 0 : inset.bottom ?? 0;
+          const cx = left + (r.width - left) / 2, cy = inset.top + (r.height - inset.top - bottom) / 2;
+          cam.current = { ...cam.current, x: cx - wx * cam.current.k, y: cy - wy * cam.current.k };
+          apply();
+        }} />
+      </div>
       {overlay}
     </div>
   );
@@ -327,11 +368,28 @@ function Minimap({ family, layout, view, focus, dimmed, onJump }: {
   const s = Math.min((MM_W - 16) / b.w, (MM_H - 16) / b.h);
   const ox = (MM_W - b.w * s) / 2 - b.x * s;
   const oy = (MM_H - b.h * s) / 2 - b.y * s;
-  const colours = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const h of family.graph.houses) m.set(h.id, houseColour(h.arms));
+  const theme = useThemeName();
+  // House tints rather than raw tinctures: full heraldic red or silver is loud on paper and lost on
+  // dark lacquer. Living people get the stronger tint, the dead a paler one.
+  const tints = useMemo(() => {
+    const css = typeof document === 'undefined' ? null : getComputedStyle(document.documentElement);
+    const ground = css?.getPropertyValue('--canvas').trim() || '#6b6142';
+    const light = theme === 'modern';
+    const m = new Map<string, { living: string; dead: string }>();
+    for (const h of family.graph.houses) {
+      // Silver vanishes on paper and gold on the codex's gold canvas: give metals some ink.
+      let c = houseColour(h.arms);
+      if (light && h.arms.field === 'argent') c = '#8f8b80';
+      if (!light && h.arms.field === 'sable') c = '#5a5650';
+      // Paper draws people as white tiles, so its map uses pale house tints, like coloured index cards.
+      m.set(h.id, light
+        ? { living: mixHex(c, '#ffffff', 0.42), dead: mixHex(c, '#ffffff', 0.24) }
+        : { living: mixHex(c, '#ffffff', 0.88), dead: mixHex(c, ground, 0.68) });
+    }
+    const none = css?.getPropertyValue('--line').trim() || '#999';
+    m.set('', light ? { living: mixHex(none, '#ffffff', 0.5), dead: mixHex(none, '#ffffff', 0.3) } : { living: mixHex(none, ground, 0.9), dead: mixHex(none, ground, 0.6) });
     return m;
-  }, [family]);
+  }, [family, theme]);
 
   useEffect(() => {
     const c = cv.current;
@@ -358,9 +416,15 @@ function Minimap({ family, layout, view, focus, dimmed, onJump }: {
     const w = Math.max(1.5, CARD_W * s), h = Math.max(1.5, CARD_H * s);
     for (const n of layout.nodes) {
       const p = family.byId.get(n.id);
-      g.globalAlpha = n.role === 'ghost' ? 0.2 : dimmed && !dimmed.has(n.id) ? 0.15 : n.role === 'dup' ? 0.35 : 0.85;
-      g.fillStyle = colours.get(p?.house ?? '') ?? '#8a8a8a';
+      const t = tints.get(p?.house ?? '') ?? tints.get('')!;
+      g.globalAlpha = n.role === 'ghost' ? 0.25 : dimmed && !dimmed.has(n.id) ? 0.2 : n.role === 'dup' ? 0.5 : 1;
+      g.fillStyle = n.role === 'ghost' ? tints.get('')!.dead : p?.living ? t.living : t.dead;
       g.fillRect((n.x - CARD_W / 2) * s + ox, n.y * s + oy, w, h);
+      if (theme === 'modern' && w >= 4) {
+        g.lineWidth = 0.75;
+        g.strokeStyle = '#2a22142e';
+        g.strokeRect((n.x - CARD_W / 2) * s + ox + 0.4, n.y * s + oy + 0.4, w - 0.8, h - 0.8);
+      }
     }
     // You are here: a bright dot with a dark ring, visible on any house colour.
     const f = layout.nodes.find((n) => n.id === focus);
@@ -372,10 +436,10 @@ function Minimap({ family, layout, view, focus, dimmed, onJump }: {
       g.fillStyle = css.getPropertyValue('--accent').trim() || '#fc0';
       g.fill();
       g.lineWidth = 2;
-      g.strokeStyle = '#0b0e14';
+      g.strokeStyle = theme === 'modern' ? '#ffffff' : '#0b0e14';
       g.stroke();
     }
-  }, [layout, family, s, ox, oy, colours, focus, dimmed, MM_W, MM_H]);
+  }, [layout, family, s, ox, oy, tints, focus, dimmed, MM_W, MM_H, theme]);
 
   const vx = view.x0 + 260 / view.k, vy = view.y0 + 260 / view.k;
   const vw = view.x1 - view.x0 - 520 / view.k, vh = view.y1 - view.y0 - 520 / view.k;
@@ -384,10 +448,22 @@ function Minimap({ family, layout, view, focus, dimmed, onJump }: {
     onJump((e.clientX - r.left - ox) / s, (e.clientY - r.top - oy) / s);
   };
   const people = new Set(layout.nodes.filter((n) => n.role !== 'ghost').map((n) => n.id)).size;
+  // Keyboard: arrows move the view a quarter screen at a time.
+  const onKey = (e: React.KeyboardEvent) => {
+    const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onJump(vx + vw / 2 + (step[0] * vw) / 4, vy + vh / 2 + (step[1] * vh) / 4);
+  };
   return (
     <div className="minimap no-pan panel">
       <div
         className="minimap-map"
+        role="application"
+        tabIndex={0}
+        aria-label={`Minimap of ${people} people. Click to jump there, or use the arrow keys to move the view.`}
+        onKeyDown={onKey}
         style={{ width: MM_W, height: MM_H }}
         onPointerDown={(e) => { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); jump(e); }}
         onPointerMove={(e) => e.buttons && jump(e)}
@@ -401,4 +477,29 @@ function Minimap({ family, layout, view, focus, dimmed, onJump }: {
       </div>
     </div>
   );
+}
+
+/** The theme on <html>, kept in sync when the reader switches it. */
+function useThemeName(): string {
+  const [t, setT] = useState('codex');
+  useEffect(() => {
+    const el = document.documentElement;
+    const read = () => setT(el.dataset.theme ?? 'codex');
+    read();
+    const mo = new MutationObserver(read);
+    mo.observe(el, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => mo.disconnect();
+  }, []);
+  return t;
+}
+
+/** Mix two #rrggbb colours: t = 1 is all `a`. */
+function mixHex(a: string, b: string, t: number): string {
+  const p = (h: string) => {
+    const x = h.replace('#', '');
+    const f = x.length === 3 ? x.split('').map((c) => c + c).join('') : x.slice(0, 6);
+    return [0, 2, 4].map((i) => parseInt(f.slice(i, i + 2), 16) || 0);
+  };
+  const [ca, cb] = [p(a), p(b)];
+  return '#' + ca.map((v, i) => Math.round(v * t + cb[i] * (1 - t)).toString(16).padStart(2, '0')).join('');
 }
