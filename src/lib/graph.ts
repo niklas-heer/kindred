@@ -1,6 +1,7 @@
 // The in-browser family graph: lookups, kinship, and date helpers. Built once per Graph payload.
 import { useSyncExternalStore } from 'react';
 import type { GPerson, GUnion, Graph, House } from './types';
+import { translate, type Locale } from './i18n/dictionary.ts';
 
 export interface Family {
   graph: Graph;
@@ -107,7 +108,7 @@ export function personDisplayName(p: GPerson, mode: NameMode = 'full', f?: Famil
 }
 
 /** Compact age, with partial or approximate dates explicitly marked as uncertain. */
-export function cardAge(p: GPerson, now = new Date()): string | undefined {
+export function cardAge(p: GPerson, now = new Date(), locale: Locale = 'en'): string | undefined {
   const b = yearOf(p.born), end = p.living ? now.getFullYear() : yearOf(p.died);
   if (!Number.isFinite(b) || !Number.isFinite(end)) return undefined;
   const exactBirth = /^\d{4}-\d{2}-\d{2}$/.test(p.born ?? '');
@@ -119,18 +120,19 @@ export function cardAge(p: GPerson, now = new Date()): string | undefined {
     years = ageAt(p.born, at) ?? years;
   }
   if (years < 0) return undefined;
-  return `${p.living ? '' : '†'}${uncertain ? 'c. ' : ''}${years}`;
+  return `${p.living ? '' : '†'}${uncertain ? translate(locale, 'life.circa') : ''}${years}`;
 }
 
 /** Year from a partial date: "~1153-06" -> 1153. NaN when unknown. */
 export const yearOf = (d?: string) => (d ? parseInt(d.replace(/^~/, ''), 10) : NaN);
 export const approx = (d?: string) => !!d && d.startsWith('~');
 
-export function lifespan(p: GPerson): string {
+/** The life years shown on a card: "1890–1960", or "geb. 1890" for someone living. */
+export function lifespan(p: GPerson, locale: Locale = 'en'): string {
   const b = yearOf(p.born);
   const d = yearOf(p.died);
-  const bs = isNaN(b) ? '?' : `${approx(p.born) ? 'c. ' : ''}${b}`;
-  if (p.living) return isNaN(b) ? '' : `b. ${bs}`;
+  const bs = isNaN(b) ? '?' : `${approx(p.born) ? translate(locale, 'life.circa') : ''}${b}`;
+  if (p.living) return isNaN(b) ? '' : translate(locale, 'life.born', { year: bs });
   return `${bs}–${isNaN(d) ? (p.living ? '' : '?') : d}`;
 }
 

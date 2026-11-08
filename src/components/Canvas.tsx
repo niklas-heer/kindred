@@ -79,6 +79,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
   { family, layout, focus, dimmed, renderCard, onBackground, rowLabel, overlay, inset, flash, controls, onUserMove },
   ref,
 ) {
+  const t = useT();
   const insetOf = useRef(inset);
   insetOf.current = inset;
   const dock = useRef<HTMLDivElement>(null);
@@ -373,12 +374,12 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
       </div>
       <Ruler layout={layout} view={view} label={rowLabel} active={layout.nodes.find((n) => n.id === focus)?.row} />
       <div ref={dock} className={`map-dock no-pan${mapOpen ? ' map-open' : ''}`}>
-        <div className="map-controls panel" role="toolbar" aria-label="Map" aria-orientation="vertical">
-          <button className="btn icon ghost" onClick={() => zoomBy(1.25)} title="Zoom in (=)" aria-label="Zoom in"><Plus size={17} /></button>
-          <button className="btn icon ghost" onClick={() => zoomBy(0.8)} title="Zoom out (−)" aria-label="Zoom out"><Minus size={17} /></button>
-          <button className="btn icon ghost" onClick={fit} title="Fit everything (F)" aria-label="Fit everything"><Expand size={16} /></button>
+        <div className="map-controls panel" role="toolbar" aria-label={t('canvas.map')} aria-orientation="vertical">
+          <button className="btn icon ghost" onClick={() => zoomBy(1.25)} title={t('canvas.zoomInTitle')} aria-label={t('canvas.zoomIn')}><Plus size={17} /></button>
+          <button className="btn icon ghost" onClick={() => zoomBy(0.8)} title={t('canvas.zoomOutTitle')} aria-label={t('canvas.zoomOut')}><Minus size={17} /></button>
+          <button className="btn icon ghost" onClick={fit} title={t('canvas.fitTitle')} aria-label={t('canvas.fit')}><Expand size={16} /></button>
           {controls}
-          <button className="btn icon ghost map-toggle" onClick={() => setMapOpen((o) => !o)} aria-pressed={mapOpen} title={mapOpen ? 'Hide the minimap' : 'Show the minimap'} aria-label="Minimap"><MapIcon size={16} /></button>
+          <button className="btn icon ghost map-toggle" onClick={() => setMapOpen((o) => !o)} aria-pressed={mapOpen} title={mapOpen ? t('canvas.hideMinimap') : t('canvas.showMinimap')} aria-label={t('canvas.minimap')}><MapIcon size={16} /></button>
         </div>
         <Minimap family={family} layout={layout} view={view} focus={focus} dimmed={dimmed} onJump={(wx, wy) => {
           const r = host.current!.getBoundingClientRect();

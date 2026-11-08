@@ -8,11 +8,14 @@
 
 export type Role = 'viewer' | 'contributor' | 'editor' | 'steward';
 
-export const ROLES: { id: Role; label: string; description: string }[] = [
-  { id: 'viewer', label: 'Viewer', description: 'Can browse everything, change nothing' },
-  { id: 'contributor', label: 'Contributor', description: 'Can add memories, sayings, recipes and photos' },
-  { id: 'editor', label: 'Editor', description: 'Can add and edit people, links, places and contacts' },
-  { id: 'steward', label: 'Steward', description: 'Can edit houses and their arms, and manage access' },
+import type { Key } from './i18n/dictionary.ts';
+
+/** Each role's name and one-line description, as translation keys (the Access page and the invitation show them). */
+export const ROLES: { id: Role; label: Key; description: Key }[] = [
+  { id: 'viewer', label: 'role.viewer', description: 'role.viewerDescription' },
+  { id: 'contributor', label: 'role.contributor', description: 'role.contributorDescription' },
+  { id: 'editor', label: 'role.editor', description: 'role.editorDescription' },
+  { id: 'steward', label: 'role.steward', description: 'role.stewardDescription' },
 ];
 
 export type Action =

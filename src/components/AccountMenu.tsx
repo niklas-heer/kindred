@@ -194,7 +194,7 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
               <li key={k.id}>
                 <span className="acct-key-icon" aria-hidden><Fingerprint size={20} /></span>
                 <div>
-                  <b>{k.device ?? t("accountmenu.passkey")}</b>
+                  <b>{k.device ? translateMessage(k.device, t.locale) : t("accountmenu.passkey")}</b>
                   <span> {t("accountmenu.added")} {formatDate(k.created, t.locale)} {t("accountmenu.used")} {ago(k.lastUsed, t.locale)}
                     {k.synced && <> · <ShieldCheck size={13} aria-hidden /> {t("accountmenu.synced")}</>}
                   </span>
@@ -224,7 +224,7 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
         onClose={() => setConfirm(null)}
         title={t("accountmenu.remove_this_passkey")}
         width={420}
-        description={<>{t("accountmenu.the_passkey_on")} <b>{confirm?.device ?? t("accountmenu.that_device")}</b> {t("accountmenu.will_no_longer_sign_you_in_you_can_add_it_again_later")}</>}
+        description={<>{t("accountmenu.the_passkey_on")} <b>{confirm?.device ? translateMessage(confirm.device, t.locale) : t("accountmenu.that_device")}</b> {t("accountmenu.will_no_longer_sign_you_in_you_can_add_it_again_later")}</>}
         footer={
           <>
             <button className="btn" data-autofocus onClick={() => setConfirm(null)}>{t("accountmenu.keep_it")}</button>

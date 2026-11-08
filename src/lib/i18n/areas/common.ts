@@ -3,6 +3,10 @@
 import type { Message } from "../types.ts";
 
 export const en = {
+  "common.appDescription": "A family tree you can live in.",
+  "common.you": "you",
+  "life.born": "b. {year}",
+  "life.circa": "c. ",
   "common.language": "Language",
   "common.people": {
     one: "{count} person",
@@ -46,6 +50,10 @@ export const en = {
 };
 
 export const de: Record<keyof typeof en, Message> = {
+  "common.appDescription": "Ein Stammbaum, in dem du wohnen kannst.",
+  "common.you": "du",
+  "life.born": "geb. {year}",
+  "life.circa": "ca. ",
   "common.language": "Sprache",
   "common.people": {
     one: "{count} Person",
@@ -90,6 +98,10 @@ export const de: Record<keyof typeof en, Message> = {
 
 /** Afrikaans. A missing entry falls back to English at runtime; the test reports them. */
 export const af: Partial<Record<keyof typeof en, Message>> = {
+  "common.appDescription": "’n Familieboom waarin jy kan woon.",
+  "common.you": "jy",
+  "life.born": "geb. {year}",
+  "life.circa": "ong. ",
   "common.language": "Taal",
   "common.people": {
     one: "{count} persoon",

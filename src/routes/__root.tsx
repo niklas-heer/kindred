@@ -1,4 +1,4 @@
-import { I18nProvider } from '~/lib/i18n';
+import { I18nProvider, translate, type Locale } from '~/lib/i18n';
 import { requestLocale } from '~/lib/i18n/request';
 import { sessionQuery, setMyLocale } from '~/lib/auth/functions';
 import '@fontsource-variable/cinzel';
@@ -19,12 +19,12 @@ var u=function(){m.content=c[d.dataset.theme]||c.codex};u();new MutationObserver
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   beforeLoad: async ({context}) => { const [locale, session] = await Promise.all([requestLocale(), context.queryClient.ensureQueryData(sessionQuery)]); return {locale, localeAccount: session.user?.id}; },
-  head: () => ({
+  head: (ctx) => ({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { title: 'Kindred' },
-      { name: 'description', content: 'A family tree you can live in.' },
+      { name: 'description', content: translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'common.appDescription') },
     ],
     links: [
       { rel: 'stylesheet', href: appCss },

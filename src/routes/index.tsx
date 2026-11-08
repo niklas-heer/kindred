@@ -1,4 +1,4 @@
-import { formatNumber, useT } from '~/lib/i18n';
+import { formatNumber, translateMessage, useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
@@ -47,7 +47,7 @@ function Home() {
         <span className="home-crest" aria-hidden>{t.crest ? <Arms arms={t.crest} size={80} /> : <Shield size={60} />}</span>
         <b className="home-name">{t.name}</b><span className="home-tagline muted">{t.tagline}</span><span className="home-people"><span className="home-count display">{formatNumber(t.people, tLocale)}</span><span className="home-count-label">{tr('common.personUnit', {count: t.people})}</span></span>
       </span></Link></div>)}</div>
-      <section className="home-today ui-card"><h2><Cake size={20} /> {t("index.today_across_your_families")}</h2>{today.length ? <ul>{today.map((p) => <li key={`${p.tree}:${p.key}`}><Link to="/$tree" params={{ tree: p.tree }} search={{ focus: p.id }}>{p.name}</Link><span>{p.label}</span><span className="muted">{p.family}</span></li>)}</ul> : <p className="muted">{t("index.a_quiet_day_no_birthdays_anniversaries_or_memorial_days_recorded_for_today")}</p>}</section>
+      <section className="home-today ui-card"><h2><Cake size={20} /> {t("index.today_across_your_families")}</h2>{today.length ? <ul>{today.map((p) => <li key={`${p.tree}:${p.key}`}><Link to="/$tree" params={{ tree: p.tree }} search={{ focus: p.id }}>{p.name}</Link><span>{translateMessage(p.label, t.locale)}</span><span className="muted">{p.family}</span></li>)}</ul> : <p className="muted">{t("index.a_quiet_day_no_birthdays_anniversaries_or_memorial_days_recorded_for_today")}</p>}</section>
     </>}
   </div></main>;
 }

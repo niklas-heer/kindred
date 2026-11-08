@@ -1,6 +1,7 @@
 // What the family still needs to find out about someone: the research to-do list. Which kinds of
 // gap count is up to the reader (per tree); the standard genealogical set is on by default.
 import { useMemo } from 'react';
+import type { Key } from './i18n/dictionary.ts';
 import { parents, type Family } from './graph';
 import { setPref, usePref } from './prefs';
 import type { Action } from './roles';
@@ -8,31 +9,32 @@ import type { GPerson } from './types';
 
 export type GapKey = 'born' | 'birthday' | 'birthplace' | 'parents' | 'died' | 'sex' | 'photo' | 'contact' | 'occupation' | 'story';
 
-export const GAP_LABEL: Record<GapKey, string> = {
-  born: 'Birth year',
-  birthday: 'Full birthday',
-  birthplace: 'Birthplace',
-  parents: 'Parents',
-  died: 'Death date',
-  sex: 'Sex',
-  photo: 'Photo',
-  contact: 'Contact',
-  occupation: 'Occupation',
-  story: 'A memory',
+/** The gap's short name, as a translation key: `t(GAP_LABEL[gap])`. */
+export const GAP_LABEL: Record<GapKey, Key> = {
+  born: 'needed.gap.born',
+  birthday: 'needed.gap.birthday',
+  birthplace: 'needed.gap.birthplace',
+  parents: 'needed.gap.parents',
+  died: 'needed.gap.died',
+  sex: 'needed.gap.sex',
+  photo: 'needed.gap.photo',
+  contact: 'needed.gap.contact',
+  occupation: 'needed.gap.occupation',
+  story: 'needed.gap.story',
 };
 
-/** What the gap is about, for the settings row. */
-export const GAP_HINT: Record<GapKey, string> = {
-  born: 'Everyone has at least a birth year',
-  birthday: 'Living people have a full date, so the Almanac can remind you',
-  birthplace: 'Everyone has a birthplace, for the Atlas',
-  parents: 'Both parents are known',
-  died: 'The dead have a death date',
-  sex: 'Sex is recorded, for kinship words like aunt or uncle',
-  photo: 'Everyone has a real photo instead of a drawn portrait',
-  contact: 'Living adults have a phone, email or address',
-  occupation: 'What they do or did for a living',
-  story: 'At least one memory, saying or anecdote',
+/** What the gap is about, as a translation key. */
+export const GAP_HINT: Record<GapKey, Key> = {
+  born: 'needed.hint.born',
+  birthday: 'needed.hint.birthday',
+  birthplace: 'needed.hint.birthplace',
+  parents: 'needed.hint.parents',
+  died: 'needed.hint.died',
+  sex: 'needed.hint.sex',
+  photo: 'needed.hint.photo',
+  contact: 'needed.hint.contact',
+  occupation: 'needed.hint.occupation',
+  story: 'needed.hint.story',
 };
 
 export const ALL_GAPS: GapKey[] = ['born', 'birthday', 'birthplace', 'parents', 'died', 'sex', 'photo', 'contact', 'occupation', 'story'];

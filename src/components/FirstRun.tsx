@@ -190,7 +190,7 @@ export function WhoPicker({ f, tree, onChoose, autoFocus, initialQuery }: { f: F
                 <Portrait person={p} tree={tree} size={38} frame={false} />
                 <div>
                   <b>{displayName(p, f)}</b>
-                  <span>{lifespan(p) || (p.living ? t('firstrun.living') : '')}</span>
+                  <span>{lifespan(p, t.locale) || (p.living ? t('firstrun.living') : '')}</span>
                 </div>
                 {exact && <em className="who-exact">{t("firstrun.your_name")}</em>}
               </button>

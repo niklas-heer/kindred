@@ -1,4 +1,5 @@
-import { LANGUAGE_NAME, LOCALES, useT, type Translator } from '~/lib/i18n';
+import { kinshipLabel, LANGUAGE_NAME, LOCALES, useT, type Translator } from '~/lib/i18n';
+import { matchesName } from '~/lib/search';
 import { occupationSearchText } from '~/lib/occupations';
 // ⌘K: jump to anyone by name, nickname, epithet, title or place; or run a command.
 import { useHotkey } from '@tanstack/react-hotkeys';
@@ -42,26 +43,24 @@ export function searchPeople(f: Family, q: string, limit = 40): { id: string; sc
   if (!terms.length) return [];
   const out: { id: string; score: number }[] = [];
   for (const p of f.graph.people) {
+    // Names first (any known name, in any order); the epithet, title, occupation and house also find someone.
+    const named = matchesName(p, q);
     const name = fold([p.given, p.surname, p.nickname].filter(Boolean).join(' '));
     const extra = fold([p.epithet, p.title, p.occupation, occupationSearchText(p.occupationCode), f.house.get(p.house ?? '')?.name].filter(Boolean).join(' '));
-    let score = 0;
-    for (const t of terms) {
-      if (name.split(' ').some((w) => w.startsWith(t))) score += 10;
-      else if (name.includes(t)) score += 5;
-      else if (extra.includes(t)) score += 2;
-      else { score = 0; break; }
-    }
-    if (score) out.push({ id: p.id, score: score + (p.living ? 1 : 0) + Math.min(p.stories, 5) * 0.2 + (p.title ? 0.5 : 0) });
+    if (!named && !terms.every((t) => extra.includes(t))) continue;
+    const score = named ? 10 + terms.filter((t) => name.split(' ').some((w) => w.startsWith(t))).length * 5 : 2;
+    out.push({ id: p.id, score: score + (p.living ? 1 : 0) + Math.min(p.stories, 5) * 0.2 + (p.title ? 0.5 : 0) });
   }
   return out.sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
 /** "1890–1960 · your great-uncle": life years, and kinship once the reader has said who they are. */
-export function personHint(f: Family, id: string, who: string | null, anc?: Map<string, number>): string {
+export function personHint(f: Family, id: string, who: string | null, anc: Map<string, number> | undefined, t: Translator): string {
   const p = f.byId.get(id);
   if (!p) return '';
-  const k = who ? kinship(f, who, id, anc)?.label : undefined;
-  return [lifespan(p), k && k !== 'you' ? `your ${k}` : k].filter(Boolean).join(' · ');
+  const k = who ? kinship(f, who, id, anc) : undefined;
+  const kin = !k ? '' : k.label === 'you' ? t('common.you') : t('shell.palette.yourKin', { kin: kinshipLabel(k, t.locale) });
+  return [lifespan(p, t.locale), kin].filter(Boolean).join(' · ');
 }
 
 /**
@@ -69,9 +68,10 @@ export function personHint(f: Family, id: string, who: string | null, anc?: Map<
  * element with the `palette-item` class; `note` adds a second line under the name.
  */
 export function PersonRow({ f, tree, id, who, anc, note }: { f: Family; tree: string; id: string; who: string | null; anc?: Map<string, number>; note?: ReactNode }) {
+  const t = useT();
   const p = f.byId.get(id);
   if (!p) return null;
-  const hint = personHint(f, id, who, anc);
+  const hint = personHint(f, id, who, anc, t);
   return (
     <>
       <span className="palette-icon"><Portrait person={p} tree={tree} size={30} frame={false} /></span>
@@ -124,7 +124,7 @@ export function Palette() {
     const go = (focus: string) => () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, focus, sel: undefined, root: undefined }) }); close(); };
     const people = searchPeople(f, dq).map(({ id }) => {
       const p = f.byId.get(id)!;
-      return { key: id, person: id, label: displayName(p, f), hint: personHint(f, id, who, myAnc), run: go(id) };
+      return { key: id, person: id, label: displayName(p, f), hint: personHint(f, id, who, myAnc, t), run: go(id) };
     });
     // Houses by name: straight to the house's page.
     const fqh = fold(dq.trim());
@@ -184,8 +184,8 @@ export function Palette() {
             else if (e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); close(); }
           }}
         />
-        <div className="palette-list" ref={list} id="palette-list" role="listbox" aria-label="Results">
-          {items.length === 0 && <div className="empty">Nobody by that name. Yet.</div>}
+        <div className="palette-list" ref={list} id="palette-list" role="listbox" aria-label={t('shell.palette.results')}>
+          {items.length === 0 && <div className="empty">{t('shell.palette.nobody')}</div>}
           {items.map((it, i) => (
             <Fragment key={it.key}>
             {(i === 0 || groupOf(items[i - 1], t) !== groupOf(it, t)) && <div className="palette-group">{groupOf(it, t)}</div>}
@@ -206,7 +206,7 @@ export function Palette() {
           <span><kbd>↑</kbd> <kbd>↓</kbd> {t('shell.palette.move')}</span>
           <span><kbd>↵</kbd> {t('shell.palette.go')}</span>
           <span><kbd>esc</kbd> {t('shell.palette.close')}</span>
-          <span style={{ marginLeft: 'auto' }}>{f.graph.people.length.toLocaleString('en-GB')} people</span>
+          <span style={{ marginLeft: 'auto' }}>{t('common.people', { count: f.graph.people.length })}</span>
         </div>
     </Dialog>
   );

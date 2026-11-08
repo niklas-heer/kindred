@@ -24,6 +24,9 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
 | `0003_person_fields.sql` | The birth name and the current name on `person`, and `person_field`: the list of a person's fields (phone, address, school, diet…). |
 | `0004_media.sql` | The gallery: `album`, `media` (pictures and their dates, places and albums) and `media_person` (face boxes). |
 | `0005_house_succession.sql` | `house_succession`: each house's head, heir, succession law and country. |
+| `0006_occupation.sql` | `person.occupation_code`, and `occupation_translation`, the cache of AI-translated occupations. |
+| `0007_prefer_avatar.sql` | `person.prefer_avatar`: show the drawn portrait even when there is a photo. |
+| `0008_drop_legacy_contact.sql` | Drops the old `contact` table and `person.favourite`, both replaced by `person_field` in 0003. |
 
 ### Tables
 
@@ -31,16 +34,14 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
 - **`house`**: a house (`id`, `name`, `motto`, `arms` as JSON, `founder`).
 - **`person`**: a person. `given`, `surname`, `house`, `sex` (`m`, `f`, `x` or null), `born` and `died` as partial dates
   (`1953`, `1953-08`, `1953-08-08`, with `~` for about), their places, `living`, `epithet`, `title`, `occupation`,
-  `bio`, `traits` (JSON), `look` (JSON, the portrait's seed), `nickname`, `favourite`, and `current_given` and
-  `current_surname` (null means "the same as the birth name"). `updated_at` is set on each change.
+  `bio`, `traits` (JSON), `look` (JSON, the portrait's seed), `nickname`, `current_given` and `current_surname` (null means "the same as
+  the birth name"), `occupation_code` (an entry in the occupation vocabulary, 0006) and `prefer_avatar` (0007). `updated_at` is set on each change.
 - **`parent`**: a parent link from `child` to `parent`, with `kind` (`biological`, `adoptive`, `foster`, `step`) and
   `confidence` (`certain`, `probable`, `disputed`). The key is the pair.
 - **`partnership`**: a union between `a` and `b`, with `kind` (`marriage`, `partnership`, `betrothal`, `other`), `start`,
   `end`, `end_reason` (for example `divorce` or `death`) and `place`. There is no uniqueness on the pair, so a person
   can marry the same person twice.
 - **`story`**: a memory, saying, anecdote or recipe, with its author and the date it was written.
-- **`contact`**: the first contact table, from before `person_field`. Migration 0003 copied its rows across, and nothing
-  reads it now; a later migration removes it.
 - **`place`**: a place name with coordinates and a country, for the Atlas.
 - **`photo`**: each person's portrait: `person`, `mime`, `key` (where the picture is in media storage) and, only for
   pictures saved before media storage, `data`.
@@ -63,11 +64,12 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
 | `0001_initial.sql` | The first schema, as before versioned migrations (every statement `IF NOT EXISTS`). |
 | `0002_guard.sql` | The `guard` view and trigger. |
 | `0003_ai_settings.sql` | The AI settings, the usage counter and the assistant's conversations. |
+| `0004_locale.sql` | `user.locale`: the reader's language, used before the cookie when the server renders. |
 
 ### Tables
 
 - **`user`**: a person with an account: `name`, an optional `email`, a random `handle` (the passkey's user handle, so a
-  passkey reveals nothing about the account), `created` and `last_seen`.
+  passkey reveals nothing about the account), `locale`, `created` and `last_seen`.
 - **`credential`**: a passkey: its id, public key, counter, transports, a device name, whether it is synced, and when it
   was last used. Each user has one or more.
 - **`session`**: a sign-in. Its key is the SHA-256 hash of the cookie's token, never the token; it has `expires` and

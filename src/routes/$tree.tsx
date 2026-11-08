@@ -4,6 +4,7 @@ import { createFileRoute, Link, notFound, Outlet, redirect } from '@tanstack/rea
 import { BookOpen, CalendarHeart, CircleHelp, Contact, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, Sparkles, Users } from 'lucide-react';
 import { AccountMenu } from '~/components/AccountMenu';
 import { AssistantButton, AssistantHost } from '~/components/assistant/AssistantDrawer';
+import { openAssistant, useAiStatus } from '~/components/assistant/store';
 import { useEffect, useMemo, useState } from 'react';
 import { FirstRun } from '~/components/FirstRun';
 import { Arms } from '~/components/Heraldry';
@@ -147,6 +148,8 @@ function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: 
   const t = useT();
   const theme = useTheme();
   const steward = useCan('manage-access');
+  const editor = useCan('edit-person');
+  const assistant = !!useAiStatus(tree)?.features.assistant;
   const [sound, toggleSound] = useSound();
   return (
     <Dialog open={open} onClose={onClose} title={t("shell.more")} placement="sheet" width={560}>
@@ -156,6 +159,8 @@ function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: 
         <li><Link to="/$tree/houses" params={{ tree }}><Landmark size={19} /> {t("shell.houses")} <small>{t("shell.arms_mottos_members")}</small></Link></li>
         <li><Link to="/$tree/chronicle" params={{ tree }}><ScrollText size={19} /> {t("shell.chronicle")} <small>{t("shell.stories_sayings")}</small></Link></li>
         <li><Link to="/$tree/gallery" params={{ tree }}><Images size={19} /> {t("shell.gallery")} <small>{t("shell.gallery_hint")}</small></Link></li>
+        {assistant && <li><button type="button" onClick={() => { onClose(); openAssistant(); }}><Sparkles size={19} /> {t("ai.askCommand")}</button></li>}
+        {editor && <li><Link to="/$tree/settings/import" params={{ tree }}><Images size={19} /> {t("shell.importExport")} <small>{t("shell.importExportHint")}</small></Link></li>}
         {steward && <li><Link to="/$tree/access" params={{ tree }}><Users size={19} /> {t("shell.access")} <small>{t("shell.members_invitations")}</small></Link></li>}
         {steward && <li><Link to="/$tree/settings/ai" params={{ tree }}><Sparkles size={19} /> {t("shell.ai_settings")} <small>{t("shell.ai_settings_hint")}</small></Link></li>}
         {multiple && <li><Link to="/" search={{ families: "all" }}><Network size={19} /> {t("shell.all_families")}</Link></li>}
@@ -164,11 +169,11 @@ function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: 
       <div className="more-row">
         <span>{t("shell.theme")}</span>
         <div className="seg" role="group" aria-label={t("shell.theme")}>
-          {THEMES.map((t) => {
-            const Icon = THEME_ICONS[t.id];
+          {THEMES.map((th) => {
+            const Icon = THEME_ICONS[th.id];
             return (
-              <button key={t.id} className="btn" aria-pressed={theme === t.id} onClick={() => setPref('theme', t.id)}>
-                <Icon size={14} /> {THEME_LABEL[t.id]}
+              <button key={th.id} className="btn" aria-pressed={theme === th.id} onClick={() => setPref('theme', th.id)}>
+                <Icon size={14} /> {t(THEME_LABEL[th.id])}
               </button>
             );
           })}

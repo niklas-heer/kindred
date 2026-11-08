@@ -17,7 +17,8 @@ export class AuthError extends Error {
 
 export const signedOut = () => new AuthError('signed-out', 'Please sign in to continue.');
 export const notMember = () => new AuthError('not-member', 'You don’t have access to this family.');
-export const forbidden = (action: Action, needed: Role) => new AuthError('forbidden', `Only ${needed === 'editor' ? 'an' : 'a'} ${needed} can do that (${action.replace('-', ' ')}). Ask a steward for access.`);
+// The text is one fixed English sentence, so the client can translate it (see translateMessage).
+export const forbidden = (_action: Action, _needed: Role) => new AuthError('forbidden', 'You don’t have permission for that. Ask a steward for access.');
 
 /** The kind of an error that came back from a server function, if it was an auth error. */
 export function authErrorCode(e: unknown): AuthErrorCode | undefined {

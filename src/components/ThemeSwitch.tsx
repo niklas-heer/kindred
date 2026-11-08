@@ -2,9 +2,11 @@ import { Moon, Shield, Sun, Volume2, VolumeX } from 'lucide-react';
 import { play, soundOn } from '~/lib/sfx';
 import { useEffect, useState } from 'react';
 import { setPref, usePref, type Theme } from '~/lib/prefs';
+import { useT, type Key } from '~/lib/i18n';
 
 export const THEME_ICONS: Record<Theme, typeof Sun> = { codex: Shield, modern: Sun, night: Moon };
-export const THEME_LABEL: Record<Theme, string> = { codex: 'Codex', modern: 'Paper', night: 'Night' };
+/** The theme names, as translation keys. "Codex" is a name and reads the same everywhere. */
+export const THEME_LABEL: Record<Theme, Key> = { codex: 'shell.themeCodex', modern: 'shell.themePaper', night: 'shell.themeNight' };
 const ORDER: Theme[] = ['codex', 'modern', 'night'];
 
 /** The theme in use: the reader's pick, else what the tree applied. Neutral (codex) until mounted. */
@@ -37,11 +39,14 @@ export function useSound(): [boolean, () => void] {
 
 /** Cycles codex → paper → night. The tree's own default applies until the reader picks one. */
 export function ThemeSwitch() {
+  const t = useT();
   const current = useTheme();
   const next = ORDER[(ORDER.indexOf(current) + 1) % ORDER.length];
   const Icon = THEME_ICONS[current] ?? Shield;
+  const from = t(THEME_LABEL[current]);
+  const to = t(THEME_LABEL[next]);
   return (
-    <button className="btn icon ghost" title={`Theme: ${THEME_LABEL[current]} (switch to ${THEME_LABEL[next]})`} aria-label={`Theme: ${THEME_LABEL[current]}. Switch to ${THEME_LABEL[next]}`} onClick={() => setPref('theme', next)}>
+    <button className="btn icon ghost" title={t('shell.themeSwitchTitle', { current: from, next: to })} aria-label={t('shell.themeSwitchAria', { current: from, next: to })} onClick={() => setPref('theme', next)}>
       <Icon size={17} />
     </button>
   );
@@ -49,10 +54,11 @@ export function ThemeSwitch() {
 
 /** Sound on or off, as a ghost button like the theme switch: the icon says which. */
 export function SoundSwitch() {
+  const t = useT();
   const [on, toggle] = useSound();
   const Icon = on ? Volume2 : VolumeX;
   return (
-    <button className="btn icon ghost" aria-pressed={on} aria-label="Sound" title={on ? 'Sound on (click to mute)' : 'Sound off (click to turn on)'} onClick={toggle}>
+    <button className="btn icon ghost" aria-pressed={on} aria-label={t('shell.sound_effects')} title={on ? t('shell.soundOn') : t('shell.soundOff')} onClick={toggle}>
       <Icon size={17} />
     </button>
   );

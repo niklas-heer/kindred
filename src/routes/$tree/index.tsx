@@ -19,6 +19,7 @@ import { removePerson } from '~/lib/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { play } from '~/lib/sfx';
 import { toast } from '~/lib/toast';
+import { formatNumber, kinshipLabel, translateMessage, useT, type Key } from '~/lib/i18n';
 import { Arms } from '~/components/Heraldry';
 import { personName, treeTitle } from '~/lib/title';
 import { useCan } from '~/lib/session';
@@ -63,6 +64,7 @@ function TreePage() {
   const known = useRef(new Set<string>());
   for (const p of f.graph.people) known.current.add(p.id);
   const told = useRef('');
+  const t = useT();
   useEffect(() => {
     const stale = (['focus', 'sel', 'root', 'to'] as const).filter((k) => search[k] && !f.byId.has(search[k]!));
     if (!stale.length) return;
@@ -72,7 +74,7 @@ function TreePage() {
     const key = stale.map((k) => search[k]).join('|');
     if (told.current === key) return;
     told.current = key;
-    if (unseen) toast({ title: 'That person isn’t in this tree', body: 'The link may be old. Showing the family from the start instead.', ms: 6000 });
+    if (unseen) toast({ title: t('tp.toastStale'), body: t('tp.toastStaleBody'), ms: 6000 });
   }, [search.focus, search.sel, search.root, search.to, f]); // eslint-disable-line react-hooks/exhaustive-deps
   const view: View = search.view ?? (codex ? 'dynasty' : 'family');
   const line = search.line ?? (codex ? 'house' : 'all');
@@ -255,7 +257,7 @@ function TreePage() {
     if (!dimmed) return '';
     const shown = new Set(lay.nodes.map((n) => n.id));
     const lit = [...dimmed].filter((id) => shown.has(id)).length;
-    return `${lit.toLocaleString('en-GB')} of ${shown.size.toLocaleString('en-GB')} shown`;
+    return t('tp.lensCount', { lit, total: shown.size });
   }, [dimmed, lay]);
 
   // ---- kinship labels, computed lazily for the cards on screen ----
@@ -265,7 +267,7 @@ function TreePage() {
       if (!who) return undefined;
       if (!kinCache.has(id)) {
         const k = kinship(f, who, id, myAnc)?.label;
-        kinCache.set(id, k && k !== 'you' ? k : undefined);
+        kinCache.set(id, k && k !== 'you' ? kinshipLabel({ label: k, via: [] }, t.locale) : undefined);
       }
       return kinCache.get(id);
     },
@@ -352,7 +354,8 @@ function TreePage() {
   };
 
 
-  const focusPerson = f.byId.get(sel)!;
+  // An empty family has nobody to focus on yet.
+  const focusPerson = f.byId.get(sel);
   const rootPerson = root ? f.byId.get(root) : undefined;
   const rootHouse = rootPerson?.house ? f.house.get(rootPerson.house) : undefined;
   const members = useMemo(() => new Set(lay.nodes.filter((n) => n.role !== 'ghost').map((n) => n.id)).size, [lay]);
@@ -368,22 +371,22 @@ function TreePage() {
   const announce = (id: string, person: { given: string; sex?: string }, anchor: string, relation: AddRelation) => {
     const a = f.byId.get(anchor);
     const h = a?.house ? f.house.get(a.house) : undefined;
-    const fam = h ? (h.name.startsWith('House') ? h.name : `the ${h.name} family`) : 'the family';
-    const word = (m: string, w: string, x: string) => (person.sex === 'm' ? m : person.sex === 'f' ? w : x);
+    const fam = h ? (h.name.startsWith('House') ? h.name : t('tp.famNamed', { name: h.name })) : t('tp.famFallback');
+    const word = (m: Key, w: Key, x: Key) => t(person.sex === 'm' ? m : person.sex === 'f' ? w : x);
     const title =
-      relation === 'child' ? `A ${word('son', 'daughter', 'child')} for ${fam}` :
-      relation === 'partner' ? `${person.given} joins ${fam}` :
-      relation === 'sibling' ? `A ${word('brother', 'sister', 'sibling')} for ${a?.given ?? 'them'}` :
-      `${a?.given ?? 'Their'}'s ${word('father', 'mother', 'parent')} is found`;
+      relation === 'child' ? t('tp.annChild', { word: word('tp.new.son', 'tp.new.daughter', 'tp.new.child'), family: fam }) :
+      relation === 'partner' ? t('tp.annPartner', { name: person.given, family: fam }) :
+      relation === 'sibling' ? t('tp.annSibling', { word: word('tp.new.brother', 'tp.new.sister', 'tp.new.sibling'), name: a?.given ?? t('tp.theirs') }) :
+      t('tp.annParent', { who: a?.given ?? t('tp.theirs'), rel: word('tp.rel.father', 'tp.rel.mother', 'tp.rel.parent') });
     play('chime');
     toast({
       title,
-      body: `${person.given} has a place in the tree now. Add a birthday or a memory whenever you like.`,
+      body: t('tp.annBody', { name: person.given }),
       person: id,
       ms: 9000,
       // Added by mistake? One click takes them out again.
       action: !canRemove ? undefined : {
-        label: 'Undo',
+        label: t('tp.undo'),
         run: async () => {
           // Back to the person they were adding to first: once the new person is gone, the page would
           // otherwise clear the selection that pointed at them, and land on the focus instead.
@@ -393,7 +396,7 @@ function TreePage() {
             await qc.invalidateQueries({ queryKey: ['graph', tree] });
             play('page');
           } catch (e) {
-            toast({ title: 'Could not undo', body: e instanceof Error ? e.message : 'Remove them from their Edit tab instead.' });
+            toast({ title: t('quick.undoFailed'), body: e instanceof Error ? translateMessage(e.message, t.locale) : t('tp.undoBody') });
           }
         },
       },
@@ -408,14 +411,14 @@ function TreePage() {
     try { if (localStorage.getItem(key)) return; } catch { return; }
     const who = f.graph.people.filter((p) => p.living && p.born && /^\d{4}-\d\d-\d\d$/.test(p.born) && p.born.endsWith(md));
     if (!who.length) return;
-    let t = 0;
+    let timer = 0;
     // Shown only to someone looking: the timer starts over whenever the tab is hidden and shown again.
     const arm = () => {
-      clearTimeout(t);
-      if (!document.hidden) t = window.setTimeout(show, 1200);
+      clearTimeout(timer);
+      if (!document.hidden) timer = window.setTimeout(show, 1200);
     };
     const disarm = () => {
-      clearTimeout(t);
+      clearTimeout(timer);
       document.removeEventListener('visibilitychange', arm);
     };
     const show = () => {
@@ -426,12 +429,12 @@ function TreePage() {
       play('fanfare');
       for (const p of who.slice(0, 2)) {
         toast({
-          title: `${displayName(p, f)} turns ${today.getFullYear() - parseInt(p.born!, 10)} today`,
-          body: kinOf(p.id) ? `Your ${kinOf(p.id)}. A call would make their day.` : 'A good day to get in touch.',
+          title: t('tp.birthdayToast', { name: displayName(p, f), n: today.getFullYear() - parseInt(p.born!, 10) }),
+          body: kinOf(p.id) ? `${t('panel.yourKin', { kin: kinOf(p.id)! })}. ${t('tp.callDay')}` : t('tp.goodDay'),
           person: p.id,
           icon: 'cake-slice',
           ms: 9000,
-          action: { label: 'Open', run: () => select(p.id) },
+          action: { label: t('tp.open'), run: () => select(p.id) },
         });
       }
     };
@@ -447,8 +450,8 @@ function TreePage() {
   useEffect(() => {
     if (!bannerKey) return;
     setBannerBig(true);
-    const t = window.setTimeout(() => setBannerBig(false), 2500);
-    return () => clearTimeout(t);
+    const timer = window.setTimeout(() => setBannerBig(false), 2500);
+    return () => clearTimeout(timer);
   }, [bannerKey]);
   const onUserMove = useCallback(() => setBannerBig(false), []);
 
@@ -457,31 +460,31 @@ function TreePage() {
     for (const p of f.graph.people) if (p.house) n.set(p.house, (n.get(p.house) ?? 0) + 1);
     return f.graph.houses.map((h) => [h, n.get(h.id) ?? 0] as const).filter(([, c]) => c > 1).sort((a, b) => b[1] - a[1]);
   }, [f]);
-  const house = focusPerson.house ? f.house.get(focusPerson.house) : undefined;
+  const house = focusPerson?.house ? f.house.get(focusPerson.house) : undefined;
 
   const setView = (v: View) => go(v === 'dynasty' ? { view: v, root: undefined, focus: sel, sel: undefined } : { view: v, focus: sel, sel: undefined });
   const viewOptions: (SelectOption<View> & { title: string })[] = [
-    { value: 'family', label: 'Family', icon: <Network size={15} />, title: 'Family around the focus (1)' },
-    { value: 'dynasty', label: 'Dynasty', icon: <Crown size={15} />, title: 'Dynasty tree (2)' },
-    { value: 'ancestors', label: 'Ancestors', icon: <GitFork size={15} style={{ transform: 'rotate(180deg)' }} />, title: 'Ancestors (3)' },
+    { value: 'family', label: t('tp.view.family'), icon: <Network size={15} />, title: t('tp.viewTitle.family') },
+    { value: 'dynasty', label: t('tp.view.dynasty'), icon: <Crown size={15} />, title: t('tp.viewTitle.dynasty') },
+    { value: 'ancestors', label: t('tp.view.ancestors'), icon: <GitFork size={15} style={{ transform: 'rotate(180deg)' }} />, title: t('tp.viewTitle.ancestors') },
   ];
   const ALL = '*all';
   const PAGE = '*page';
   const lineHouse = view === 'dynasty' && line === 'house' ? f.house.get(f.byId.get(lay.root)?.house ?? '') : undefined;
   const houseOptions: SelectOption[] = [
-    ...houses.map(([h, n]) => ({ value: h.id, label: h.name, icon: <Arms arms={h.arms} size={18} />, hint: n.toLocaleString('en-GB'), group: 'House line' })),
-    { value: ALL, label: 'All descendants', icon: <Users size={16} />, hint: 'through daughters too', group: 'Every descendant' },
-    ...(lineHouse ? [{ value: PAGE, label: 'Open house page', icon: <Landmark size={16} />, hint: lineHouse.name, group: 'This house' }] : []),
+    ...houses.map(([h, n]) => ({ value: h.id, label: h.name, icon: <Arms arms={h.arms} size={18} />, hint: formatNumber(n, t.locale), group: t('tp.houseLine') })),
+    { value: ALL, label: t('tp.allDesc'), icon: <Users size={16} />, hint: t('tp.throughDaughters'), group: t('tp.everyDesc') },
+    ...(lineHouse ? [{ value: PAGE, label: t('tp.openHousePage'), icon: <Landmark size={16} />, hint: lineHouse.name, group: t('tp.thisHouse') }] : []),
   ];
   const lensOptions: SelectOption<NonNullable<typeof search.lens>>[] = [
-    { value: 'none', label: 'Everyone', icon: <Glasses size={16} /> },
-    { value: 'line', label: `Direct line of ${focusPerson.given}`, icon: <Waypoints size={16} />, hint: 'L' },
-    { value: 'house', label: house ? house.name : 'Same house', icon: house ? <Arms arms={house.arms} size={16} /> : <Shield size={16} /> },
-    { value: 'living', label: 'Living people', icon: <HeartPulse size={16} /> },
-    { value: 'gaps', label: 'Information needed', icon: <FileQuestion size={16} /> },
-    { value: 'path', label: who ? 'Path from me' : 'Path from the start', icon: <RouteIcon size={16} /> },
+    { value: 'none', label: t('tp.lensEveryone'), icon: <Glasses size={16} /> },
+    { value: 'line', label: t('tp.lensLine', { name: focusPerson?.given ?? '' }), icon: <Waypoints size={16} />, hint: 'L' },
+    { value: 'house', label: house ? house.name : t('tp.lensSameHouse'), icon: house ? <Arms arms={house.arms} size={16} /> : <Shield size={16} /> },
+    { value: 'living', label: t('tp.lensLiving'), icon: <HeartPulse size={16} /> },
+    { value: 'gaps', label: t('needed.title'), icon: <FileQuestion size={16} /> },
+    { value: 'path', label: who ? t('tp.lensPathMe') : t('tp.lensPathStart'), icon: <RouteIcon size={16} /> },
   ];
-  const lensLabel = lensOptions.find((o) => o.value === lens)?.label ?? 'Everyone';
+  const lensLabel = lensOptions.find((o) => o.value === lens)?.label ?? t('tp.lensEveryone');
   const older = rootPerson ? parents(f, rootPerson.id)[0] : undefined;
 
   // What covers the canvas, measured when the camera frames something: the HUD (toolbar, banner, lens
@@ -566,36 +569,36 @@ function TreePage() {
         onBackground={() => {}}
         onUserMove={onUserMove}
         controls={
-          <button className="btn icon ghost map-keys" onClick={() => setHelp((h) => !h)} title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts" aria-pressed={help}><Keyboard size={16} /></button>
+          <button className="btn icon ghost map-keys" onClick={() => setHelp((h) => !h)} title={t('tp.keysTitle')} aria-label={t('tp.keys')} aria-pressed={help}><Keyboard size={16} /></button>
         }
         overlay={
           <>
             <div ref={hud} className={`hud${panel ? ' with-panel' : ''}`}>
-            <div className="tree-toolbar panel no-pan" role="toolbar" aria-label="Tree view">
-              <div className="seg tb-views" role="group" aria-label="View">
+            <div className="tree-toolbar panel no-pan" role="toolbar" aria-label={t('tp.toolbarAria')}>
+              <div className="seg tb-views" role="group" aria-label={t('tp.view')}>
                 {viewOptions.map((o) => (
                   <button key={o.value} className="btn" aria-pressed={view === o.value} onClick={() => setView(o.value)} title={o.title} aria-label={o.label}>
                     {o.icon}<span className="tb-label">{o.label}</span>
                   </button>
                 ))}
               </div>
-              <Select className="tb-view-select" size="sm" value={view} onChange={setView} options={viewOptions} aria-label="View" menuWidth={170} />
+              <Select className="tb-view-select" size="sm" value={view} onChange={setView} options={viewOptions} aria-label={t('tp.view')} menuWidth={170} />
               <span className="tb-sep" />
               {view === 'family' && (
                 <>
-                  <Stepper label="Up" long="Generations up" icon={<ArrowUpToLine size={15} />} value={up} onChange={(v) => go({ up: v }, true)} />
-                  <Stepper label="Down" long="Generations down" icon={<ArrowDownToLine size={15} />} value={down} onChange={(v) => go({ down: v }, true)} />
+                  <Stepper label="tp.up" long="tp.genUp" icon={<ArrowUpToLine size={15} />} value={up} onChange={(v) => go({ up: v }, true)} />
+                  <Stepper label="tp.down" long="tp.genDown" icon={<ArrowDownToLine size={15} />} value={down} onChange={(v) => go({ down: v }, true)} />
                 </>
               )}
-              {view === 'ancestors' && <Stepper label="Generations" long="Generations" icon={<ArrowUpToLine size={15} />} value={Math.max(up, 6)} onChange={(v) => go({ up: v }, true)} />}
+              {view === 'ancestors' && <Stepper label="tp.generations" long="tp.generations" icon={<ArrowUpToLine size={15} />} value={Math.max(up, 6)} onChange={(v) => go({ up: v }, true)} />}
               {view === 'dynasty' && (
                 <>
                   <Select
                     className="tb-house"
                     size="sm"
-                    aria-label="House"
-                    title="Whose dynasty tree: a house's own line, or every descendant"
-                    placeholder="Choose a house"
+                    aria-label={t('tp.houseWord')}
+                    title={t('tp.dynastyTitle')}
+                    placeholder={t('tp.chooseHouse')}
                     menuWidth={260}
                     value={line === 'house' ? (f.byId.get(lay.root)?.house ?? '') : ALL}
                     options={houseOptions}
@@ -606,8 +609,8 @@ function TreePage() {
                       if (r) { panTo.current = r; go({ line: 'house', root: r, focus: r, sel: undefined }); }
                     }}
                   />
-                  <button className="btn tb-fold" onClick={foldToFocus} title="Fold every branch except the line to the selected person" aria-label="Fold others"><ChevronsDownUp size={15} /><span className="tb-label">Fold others</span></button>
-                  {collapsed.size > 0 && <button className="btn tb-fold" onClick={() => setCollapsed(new Set())} title="Unfold every branch" aria-label="Unfold all"><ChevronsUpDown size={15} /><span className="tb-label">Unfold all</span></button>}
+                  <button className="btn tb-fold" onClick={foldToFocus} title={t('tp.foldTitle')} aria-label={t('tp.foldOthers')}><ChevronsDownUp size={15} /><span className="tb-label">{t('tp.foldOthers')}</span></button>
+                  {collapsed.size > 0 && <button className="btn tb-fold" onClick={() => setCollapsed(new Set())} title={t('tp.unfoldTitle')} aria-label={t('tp.unfoldAll')}><ChevronsUpDown size={15} /><span className="tb-label">{t('tp.unfoldAll')}</span></button>}
                 </>
               )}
               <span className="tb-sep" />
@@ -622,20 +625,20 @@ function TreePage() {
                 onChange={(v) => go({ lens: v, to: undefined })}
               />
               {phone && (
-                <button type="button" className="btn icon tb-display" onClick={() => setDisplayOpen(true)} aria-haspopup="dialog" aria-label="Names and ages" title="Names and ages">
+                <button type="button" className="btn icon tb-display" onClick={() => setDisplayOpen(true)} aria-haspopup="dialog" aria-label={t('tp.namesAndAges')} title={t('tp.namesAndAges')}>
                   <SlidersHorizontal size={16} />
                 </button>
               )}
             </div>
 
             {!phone && (
-              <div className="tree-display-controls panel no-pan" role="group" aria-label="Card display">
+              <div className="tree-display-controls panel no-pan" role="group" aria-label={t('tp.cardDisplay')}>
                 <DisplayChoices nameMode={nameMode} onName={changeNameMode} ageMode={ageMode} onAge={changeAgeMode} />
               </div>
             )}
             {phone && (
-              <Dialog open={displayOpen} onClose={() => setDisplayOpen(false)} title="Names and ages" placement="sheet" width={420}>
-                <div className="tb-display-sheet" role="group" aria-label="Card display">
+              <Dialog open={displayOpen} onClose={() => setDisplayOpen(false)} title={t('tp.namesAndAges')} placement="sheet" width={420}>
+                <div className="tb-display-sheet" role="group" aria-label={t('tp.cardDisplay')}>
                   <DisplayChoices nameMode={nameMode} onName={changeNameMode} ageMode={ageMode} onAge={changeAgeMode} />
                 </div>
               </Dialog>
@@ -647,30 +650,30 @@ function TreePage() {
                   className="banner-id"
                   onClick={() => setBannerBig((b) => !b)}
                   aria-expanded={bannerBig}
-                  title={bannerBig ? 'Fold the banner' : 'Show the house’s details'}
+                  title={bannerBig ? t('tp.bannerFold') : t('tp.houseDetails')}
                 >
                   {line === 'house' && rootHouse ? <Arms arms={rootHouse.arms} size={bannerBig ? 30 : 20} /> : <Users size={bannerBig ? 22 : 16} />}
                   <span className="banner-text">
-                    <b className="display">{line === 'house' && rootHouse ? rootHouse.name : `Descendants of ${displayName(rootPerson, f)}`}</b>
+                    <b className="display">{line === 'house' && rootHouse ? rootHouse.name : t('tp.descendantsOf', { name: displayName(rootPerson, f) })}</b>
                     {bannerBig ? (
                       <span className="faint">
-                        {members.toLocaleString('en-GB')} {line === 'house' ? (members === 1 ? 'member' : 'members') : members === 1 ? 'descendant' : 'descendants'} · from {displayName(rootPerson, f)}
+                        {t(line === 'house' ? 'tp.memberCount' : 'tp.descCount', { count: members })} · {t('tp.from', { name: displayName(rootPerson, f) })}
                         {rootHouse?.motto && line === 'house' ? <> · <i>“{rootHouse.motto}”</i></> : null}
                       </span>
                     ) : (
-                      <span className="faint banner-count">{members.toLocaleString('en-GB')}</span>
+                      <span className="faint banner-count">{formatNumber(members, t.locale)}</span>
                     )}
                   </span>
                 </button>
                 {line === 'house' && rootHouse && (
-                  <Link className={`btn ${bannerBig ? 'ghost' : 'icon ghost'} banner-page`} to="/$tree/house/$house" params={{ tree, house: rootHouse.id }} title={`Open the page of ${rootHouse.name}`} aria-label={`Open the page of ${rootHouse.name}`}>
-                    <Landmark size={15} />{bannerBig && <> House page</>}
+                  <Link className={`btn ${bannerBig ? 'ghost' : 'icon ghost'} banner-page`} to="/$tree/house/$house" params={{ tree, house: rootHouse.id }} title={t('panel.openHouse', { name: rootHouse.name })} aria-label={t('panel.openHouse', { name: rootHouse.name })}>
+                    <Landmark size={15} />{bannerBig && <> {t('tp.housePage')}</>}
                   </Link>
                 )}
                 {older && (
                   bannerBig
-                    ? <button className="btn ghost" onClick={() => go({ root: older })} title="Start the tree one generation earlier"><ChevronUp size={15} /> Older</button>
-                    : <button className="btn icon ghost" onClick={() => go({ root: older })} title="Start the tree one generation earlier" aria-label="Start one generation earlier"><ChevronUp size={15} /></button>
+                    ? <button className="btn ghost" onClick={() => go({ root: older })} title={t('tp.olderTitle')}><ChevronUp size={15} /> {t('tp.older')}</button>
+                    : <button className="btn icon ghost" onClick={() => go({ root: older })} title={t('tp.olderTitle')} aria-label={t('tp.startEarlier')}><ChevronUp size={15} /></button>
                 )}
               </div>
             )}
@@ -680,28 +683,28 @@ function TreePage() {
                 <span className="lens-text">
                 {lens === 'path' ? (
                   who
-                    ? <>Showing how <b>{displayName(f.byId.get(search.to ?? sel)!, f)}</b> is your <b>{kinship(f, who, search.to ?? sel)?.label ?? 'relative'}</b></>
-                    : <>Showing how <b>{displayName(f.byId.get(search.to ?? sel)!, f)}</b> is related to <b>{displayName(f.byId.get(me)!, f)}</b></>
+                    ? <>{t('tp.bannerPathYou', { name: displayName(f.byId.get(search.to ?? sel)!, f), rel: kinshipLabel(kinship(f, who, search.to ?? sel), t.locale) || t('tp.relative') })}</>
+                    : <>{t('tp.bannerPathRelated', { name: displayName(f.byId.get(search.to ?? sel)!, f), me: displayName(f.byId.get(me)!, f) })}</>
                 ) : lens === 'line' ? (
-                  <>Direct line of <b>{focusPerson.given}</b>: ancestors and descendants</>
+                  <>{t('tp.bannerLine', { name: focusPerson?.given ?? '' })}</>
                 ) : lens === 'living' ? (
-                  <>Living people</>
+                  <>{t('tp.lensLiving')}</>
                 ) : lens === 'gaps' ? (
-                  <>People with information still needed</>
+                  <>{t('tp.bannerGaps')}</>
                 ) : (
-                  <>{house?.name ?? 'House'} only</>
+                  <>{t('tp.bannerHouse', { name: house?.name ?? t('tp.houseWord') })}</>
                 )}
                 </span>
                 <span className="lens-count">{lensCount}</span>
-                <button className="btn icon ghost" onClick={() => go({ lens: 'none', to: undefined })} aria-label="Clear the lens" title="Clear the lens (Esc)"><X size={14} /></button>
+                <button className="btn icon ghost" onClick={() => go({ lens: 'none', to: undefined })} aria-label={t('tp.clearLens')} title={t('tp.clearLensEsc')}><X size={14} /></button>
               </div>
             )}
 
             </div>
 
             {trail.length > 1 && (
-              <nav className={`trail no-pan panel${panel ? ' with-panel' : ''}`} aria-label="Recently viewed">
-                <span className="faint">Trail</span>
+              <nav className={`trail no-pan panel${panel ? ' with-panel' : ''}`} aria-label={t('tp.recent')}>
+                <span className="faint">{t('tp.trail')}</span>
                 {trail.slice(1).map((id) => {
                   const p = f.byId.get(id);
                   return p ? (
@@ -729,13 +732,13 @@ function TreePage() {
         >
           <div className="sheet-bar">
             {snap === 'full' && (
-              <button className="btn ghost sheet-back" onClick={() => setSnap('peek')}><ArrowLeft size={16} /> Back to tree</button>
+              <button className="btn ghost sheet-back" onClick={() => setSnap('peek')}><ArrowLeft size={16} /> {t('tp.backToTree')}</button>
             )}
             <button
               className="sheet-grip"
               onClick={cycle}
-              aria-label={snap === 'peek' ? 'Show more' : snap === 'half' ? 'Show everything' : 'Show less'}
-              title={snap === 'full' ? 'Show less' : 'Show more'}
+              aria-label={snap === 'peek' ? t('tp.showMore') : snap === 'half' ? t('tp.showEverything') : t('tp.showLess')}
+              title={snap === 'full' ? t('tp.showLess') : t('tp.showMore')}
             >
               <span />
             </button>
@@ -753,7 +756,7 @@ function TreePage() {
             onClose={() => setPanel(false)}
           />
           {snap === 'peek' && (
-            <button className="sheet-peek-hit" onClick={() => !justDragged.current && setSnap('half')} aria-label={`More about ${displayName(focusPerson, f)}`} />
+            <button className="sheet-peek-hit" onClick={() => !justDragged.current && setSnap('half')} aria-label={t('tp.moreAbout', { name: focusPerson ? displayName(focusPerson, f) : '' })} />
           )}
         </div>
       )}
@@ -779,13 +782,14 @@ type AgeMode = 'living' | 'all' | 'off';
 
 /** Names and ages on the cards: a toolbar row on desktop, the display sheet on phones. */
 function DisplayChoices({ nameMode, onName, ageMode, onAge }: { nameMode: NameMode; onName: (m: NameMode) => void; ageMode: AgeMode; onAge: (m: AgeMode) => void }) {
+  const t = useT();
   return (
     <>
-      <Select size="sm" value={nameMode} onChange={onName} aria-label="Names" options={[
-        { value: 'nickname', label: 'Nickname' }, { value: 'first', label: 'First name' }, { value: 'full', label: 'Full name' },
+      <Select size="sm" value={nameMode} onChange={onName} aria-label={t('tp.names')} options={[
+        { value: 'nickname', label: t('tp.nick') }, { value: 'first', label: t('tp.firstName') }, { value: 'full', label: t('tp.fullName') },
       ]} />
-      <Select size="sm" value={ageMode} onChange={onAge} aria-label="Ages" options={[
-        { value: 'living', label: 'Ages: living' }, { value: 'all', label: 'Ages: everyone' }, { value: 'off', label: 'Ages: hidden' },
+      <Select size="sm" value={ageMode} onChange={onAge} aria-label={t('tp.ages')} options={[
+        { value: 'living', label: t('tp.agesLiving') }, { value: 'all', label: t('tp.agesAll') }, { value: 'off', label: t('tp.agesHidden') },
       ]} />
     </>
   );
@@ -817,38 +821,40 @@ function houseRoot(f: ReturnType<typeof useFamily>, house: string): string | und
   return best;
 }
 
-function Stepper({ label, long, icon, value, onChange }: { label: string; long: string; icon: ReactNode; value: number; onChange: (v: number) => void }) {
+function Stepper({ label, long, icon, value, onChange }: { label: Key; long: Key; icon: ReactNode; value: number; onChange: (v: number) => void }) {
+  const t = useT();
   return (
-    <span className="stepper" role="group" aria-label={long} title={long}>
-      <span className="faint tb-label">{label}</span>
+    <span className="stepper" role="group" aria-label={t(long)} title={t(long)}>
+      <span className="faint tb-label">{t(label)}</span>
       <span className="tb-icon faint" aria-hidden>{icon}</span>
-      <button className="btn icon" onClick={() => onChange(Math.max(1, value - 1))} disabled={value <= 1} aria-label={`Fewer: ${long}`}><Minus size={13} /></button>
+      <button className="btn icon" onClick={() => onChange(Math.max(1, value - 1))} disabled={value <= 1} aria-label={t('tp.fewer', { what: t(long) })}><Minus size={13} /></button>
       <b aria-live="polite">{value}</b>
-      <button className="btn icon" onClick={() => onChange(Math.min(12, value + 1))} disabled={value >= 12} aria-label={`More: ${long}`}><Plus size={13} /></button>
+      <button className="btn icon" onClick={() => onChange(Math.min(12, value + 1))} disabled={value >= 12} aria-label={t('tp.more', { what: t(long) })}><Plus size={13} /></button>
     </span>
   );
 }
 
 function HelpCard({ onClose }: { onClose: () => void }) {
-  const keys: [string, string][] = [
-    ['← →', 'neighbour in the same generation'],
-    ['↑ ↓', 'parent / child'],
-    ['⌘K or /', 'find anyone'],
-    ['1 2 3', 'family / dynasty / ancestors'],
-    ['L', 'lens: direct line'],
-    ['C', 'centre on selected'],
-    ['F', 'fit the whole tree'],
-    ['H', 'go home to you'],
-    ['= −', 'zoom'],
-    ['Esc', 'clear lens, close panel'],
+  const t = useT();
+  const keys: [string, Key][] = [
+    ['← →', 'tp.k.neighbour'],
+    ['↑ ↓', 'tp.k.parentChild'],
+    ['⌘K or /', 'tp.k.find'],
+    ['1 2 3', 'tp.k.views'],
+    ['L', 'tp.k.lens'],
+    ['C', 'tp.k.centre'],
+    ['F', 'tp.k.fit'],
+    ['H', 'tp.k.home'],
+    ['= −', 'tp.k.zoom'],
+    ['Esc', 'tp.k.esc'],
   ];
   return (
-    <div className="help-card panel no-pan" role="dialog" aria-label="Keyboard shortcuts">
-      <header className="display">Getting around <button className="btn icon ghost" onClick={onClose} aria-label="Close"><X size={14} /></button></header>
+    <div className="help-card panel no-pan" role="dialog" aria-label={t('tp.keys')}>
+      <header className="display">{t('tp.gettingAround')} <button className="btn icon ghost" onClick={onClose} aria-label={t('ui.close')}><X size={14} /></button></header>
       {keys.map(([k, v]) => (
-        <div key={k} className="help-row"><span>{k.split(' ').map((x) => <kbd key={x}>{x}</kbd>)}</span><span>{v}</span></div>
+        <div key={k} className="help-row"><span>{k.split(' ').map((x) => <kbd key={x}>{x}</kbd>)}</span><span>{t(v)}</span></div>
       ))}
-      <p className="faint">Drag or scroll to pan · pinch or ⌘-scroll to zoom · click the minimap to jump</p>
+      <p className="faint">{t('tp.canvasHint')}</p>
     </div>
   );
 }

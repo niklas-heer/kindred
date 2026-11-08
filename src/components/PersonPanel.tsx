@@ -12,7 +12,7 @@ import { feature, mesh } from 'topojson-client';
 import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { addStory, deleteStory, newOpKey, opKeys, uploadPhoto, unlinkRelative } from '~/lib/api';
 import { addPersonField, deletePersonField, personDetailQuery, setLook } from '~/lib/person.functions';
-import { locales, useT, type Translator } from '~/lib/i18n';
+import { kinshipLabel, locales, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
 import { occupationText } from '~/lib/occupations';
 import { translateOccupation } from '~/lib/occupations.functions';
 import { useAiStatus } from './assistant/store';
@@ -122,15 +122,15 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
 
   return (
     <DraftContext.Provider value={{ register: setDraft, leave }}><aside className="person-panel panel" key={id}>
-      <button className="btn icon ghost panel-close" onClick={() => leave(onClose)} aria-label="Close person panel" title="Close (Esc)"><X size={16} /></button>
+      <button className="btn icon ghost panel-close" onClick={() => leave(onClose)} aria-label={t('panel.closeAria')} title={t('panel.closeTitle')}><X size={16} /></button>
       <header className="pp-head">
         {canPhoto ? (
           <>
-            <button type="button" disabled={photo.isPending} className="pp-portrait" aria-label="Change portrait" onClick={() => photoInput.current?.click()}>
+            <button type="button" disabled={photo.isPending} className="pp-portrait" aria-label={t('panel.changePortrait')} onClick={() => photoInput.current?.click()}>
               <Portrait person={p} tree={tree} size={124} />
               <span className="pp-photo"><Camera size={14} /></span>
             </button>
-            <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" aria-label="Portrait image" hidden onChange={(e) => e.target.files?.[0] && photo.mutate(e.target.files[0])} />
+            <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" aria-label={t('panel.portraitImage')} hidden onChange={(e) => e.target.files?.[0] && photo.mutate(e.target.files[0])} />
           </>
         ) : (
           <span className="pp-portrait readonly"><Portrait person={p} tree={tree} size={124} /></span>
@@ -142,27 +142,28 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
           </h2>
           {p.title && <div className="pp-title">{p.title}</div>}
           <div className="pp-life">
-            {p.living && <span className="pp-living" title="Living">●</span>}
-            {lifespan(p)}
-            {a !== undefined && <span className="muted"> · {p.living ? `${a} years old` : `died aged ${a}`}</span>}
+            {p.living && <span className="pp-living" title={t('panel.living')}>●</span>}
+            {lifespan(p, t.locale)}
+            {a !== undefined && <span className="muted"> · {p.living ? t('panel.ageLiving', { count: a }) : t('panel.diedAgedLower', { n: a })}</span>}
           </div>
           {house && (
-            <Link className="pp-house" to="/$tree/house/$house" params={{ tree, house: house.id }} title={`Open the page of ${house.name}`}>
+            <Link className="pp-house" to="/$tree/house/$house" params={{ tree, house: house.id }} title={t('panel.openHouse', { name: house.name })}>
               <Arms arms={house.arms} size={22} /> <span>{house.name}</span>
             </Link>
           )}
         </div>
       </header>
 
-      {photo.isError && <p className="err pp-photo-err" role="alert">Could not change portrait. Try an image smaller than 5 MB.</p>}
+      {photo.isError && <p className="err pp-photo-err" role="alert">{t('panel.photoError')}</p>}
 
       {p.traits?.length ? (
         <div className="pp-traits">
-          {p.traits.map((t) => {
-            const tr = TRAITS[t];
+          {p.traits.map((trait) => {
+            const tr = TRAITS[trait];
+            const name = tr ? t(tr.label) : trait;
             return (
-              <span key={t} className={`trait ${tr?.kind ?? 'other'}`} title={t}>
-                <span className="trait-medal">{tr ? <GameIcon name={tr.icon} size={16} /> : '◆'}</span> {t}
+              <span key={trait} className={`trait ${tr?.kind ?? 'other'}`} title={name}>
+                <span className="trait-medal">{tr ? <GameIcon name={tr.icon} size={16} /> : '◆'}</span> {name}
               </span>
             );
           })}
@@ -170,23 +171,23 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
       ) : null}
 
       <div className="pp-actions">
-        <button className="btn" onClick={onCenter}><Crosshair size={14} /> Centre</button>
-        <button className="btn" onClick={onAncestors}><GitFork size={14} style={{ transform: 'rotate(180deg)' }} /> Ancestors</button>
-        <button className="btn" onClick={onDynasty}><Crown size={14} /> Dynasty</button>
+        <button className="btn" onClick={onCenter}><Crosshair size={14} /> {t('panel.centre')}</button>
+        <button className="btn" onClick={onAncestors}><GitFork size={14} style={{ transform: 'rotate(180deg)' }} /> {t('panel.ancestors')}</button>
+        <button className="btn" onClick={onDynasty}><Crown size={14} /> {t('panel.dynasty')}</button>
       </div>
 
-      <Tabs value={tab} onChange={(v) => leave(() => setTab(v as Tab))} label="Person details">
+      <Tabs value={tab} onChange={(v) => leave(() => setTab(v as Tab))} label={t('panel.tabsLabel')}>
       <TabList className="pp-tabs">
         {(
           [
-            ['overview', 'Overview', undefined],
-            ['family', 'Family', relativesCount(f, id)],
-            ['stories', 'Stories', detail?.stories.length ?? p.stories],
-            ['everyday', p.living ? 'Everyday' : 'Life', undefined],
-            ['edit', 'Edit', undefined],
+            ['overview', t('panel.tab.overview'), undefined],
+            ['family', t('panel.tab.family'), relativesCount(f, id)],
+            ['stories', t('panel.tab.stories'), detail?.stories.length ?? p.stories],
+            ['everyday', p.living ? t('panel.tab.everyday') : t('panel.tab.life'), undefined],
+            ['edit', t('panel.tab.edit'), undefined],
           ] as const
-        ).filter(([t]) => t !== 'edit' || canEdit).map(([t, label, n]) => (
-          <UiTab key={t} value={t} title={n ? `${label}: ${n}` : undefined}>
+        ).filter(([tb]) => tb !== 'edit' || canEdit).map(([tb, label, n]) => (
+          <UiTab key={tb} value={tb} title={n ? `${label}: ${n}` : undefined}>
             {label}{n ? <span className="pp-count">{n}</span> : null}
           </UiTab>
         ))}
@@ -196,7 +197,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
         <TabPanel value="overview">
           <OverviewTab
             f={f} tree={tree} p={p} me={me} details={details} role={role} gaps={gapsOf(f, p, required)}
-            onSelect={(v) => leave(() => onSelect(v))} onPath={onPath} onGap={fillGap} onTab={(t) => leave(() => setTab(t))}
+            onSelect={(v) => leave(() => onSelect(v))} onPath={onPath} onGap={fillGap} onTab={(tb) => leave(() => setTab(tb))}
           />
         </TabPanel>
         <TabPanel value="family"><FamilyTab f={f} tree={tree} id={id} canAdd={canAdd} canEdit={canEdit} onSelect={(v) => leave(() => onSelect(v))} /></TabPanel>
@@ -213,16 +214,16 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
         </TabPanel>
       </div></Tabs>
       {canAdd ? (
-        <div className="pp-add-relative"><Select aria-label="Add relative" placeholder="Add relative" value="" onChange={(v) => { if (v) leave(() => setAdd(v as AddRelation)); }} options={['parent', 'partner', 'child', 'sibling'].map((v) => ({ value: v, label: `Add ${v}` }))} /></div>
+        <div className="pp-add-relative"><Select aria-label={t('panel.addRelative')} placeholder={t('panel.addRelative')} value="" onChange={(v) => { if (v) leave(() => setAdd(v as AddRelation)); }} options={(['parent', 'partner', 'child', 'sibling'] as const).map((v) => ({ value: v, label: t(`card.add${v[0].toUpperCase()}${v.slice(1)}` as Key) }))} /></div>
       ) : (
         <p className="pp-add-relative pp-ask subtle">{c('ask.editor')}</p>
       )}
       {add && canAdd && <QuickAdd family={f} tree={tree} anchor={id} relation={add} onCancel={() => setAdd(null)} onDone={() => setAdd(null)} />}
-      <Dialog open={!!guarded} onClose={keep} title="Unsaved changes" dismissible={!savingDraft && !draft?.busy} footer={<>
-        <button className="btn ghost" disabled={savingDraft || draft?.busy} onClick={keep}>Keep editing</button>
-        <button className="btn" disabled={savingDraft || draft?.busy} onClick={proceed}>Discard</button>
-        <button className="btn primary" disabled={savingDraft || draft?.busy} onClick={async () => { setSavingDraft(true); try { if (await draft?.save()) proceed(); } finally { setSavingDraft(false); } }}>Save</button>
-      </>}><p>Save your draft before leaving?</p></Dialog>
+      <Dialog open={!!guarded} onClose={keep} title={t('panel.unsavedTitle')} dismissible={!savingDraft && !draft?.busy} footer={<>
+        <button className="btn ghost" disabled={savingDraft || draft?.busy} onClick={keep}>{t('panel.keepEditing')}</button>
+        <button className="btn" disabled={savingDraft || draft?.busy} onClick={proceed}>{t('panel.discard')}</button>
+        <button className="btn primary" disabled={savingDraft || draft?.busy} onClick={async () => { setSavingDraft(true); try { if (await draft?.save()) proceed(); } finally { setSavingDraft(false); } }}>{t('panel.save')}</button>
+      </>}><p>{t('panel.unsavedBody')}</p></Dialog>
       {appearance && canEdit && <AppearanceDialog tree={tree} p={p} house={house ?? null} onClose={() => setAppearance(false)} />}
     </aside></DraftContext.Provider>
   );
@@ -265,8 +266,9 @@ function AppearanceDialog({ tree, p, house, onClose }: { tree: string; p: GPerso
 
 /** While the person's details load, a skeleton; when they failed, the error with Retry. Never a blank tab. */
 function DetailFallback({ details, lines = 4 }: { details: DetailState; lines?: number }) {
-  if (details.failed) return <ErrorState className="pp-error" title="Couldn’t load their details" message="Stories, places and contacts didn’t arrive. Check the connection and try again." onRetry={details.retry} />;
-  return <div className="pp-loading" aria-busy="true"><span className="sr-only">Loading…</span><Skeleton lines={lines} height={16} /></div>;
+  const t = useT();
+  if (details.failed) return <ErrorState className="pp-error" title={t('panel.detailsFailedTitle')} message={t('panel.detailsFailedText')} onRetry={details.retry} />;
+  return <div className="pp-loading" aria-busy="true"><span className="sr-only">{t('ui.loading')}</span><Skeleton lines={lines} height={16} /></div>;
 }
 
 function relativesCount(f: Family, id: string) {
@@ -294,36 +296,36 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
     <div className="pp-overview">
       <PersonPhotos tree={tree} id={p.id} />
       <HeadOfHouse person={p.id} />
-      <section className="pp-kin" aria-label="How you are related">
+      <section className="pp-kin" aria-label={c('panel.howRelated')}>
         {!me ? (
-          <span className="muted">Say who you are to see how you’re related</span>
+          <span className="muted">{c('panel.sayWho')}</span>
         ) : me === p.id ? (
-          <span className="pp-you"><UserRound size={14} /> This is you</span>
+          <span className="pp-you"><UserRound size={14} /> {c('panel.thisIsYou')}</span>
         ) : k ? (
-          <span>Your <b>{k.label}</b></span>
+          <span>{c('panel.yourWord')} <b>{kinshipLabel(k, c.locale)}</b></span>
         ) : (
-          <span className="muted">Not related by blood or marriage to you</span>
+          <span className="muted">{c('panel.notRelated')}</span>
         )}
         <span className="spacer" />
-        {me !== p.id && k && <button className="btn ghost" onClick={onPath} title="Highlight the line between you"><RouteIcon size={14} /> How?</button>}
+        {me !== p.id && k && <button className="btn ghost" onClick={onPath} title={c('panel.howTitle')}><RouteIcon size={14} /> {c('panel.how')}</button>}
         {!me ? (
-          <button className="btn ghost" onClick={() => void chooseMe(tree, p.id)} title="Kinship labels will be relative to this person">This is me</button>
-        ) : me !== p.id && <button className="btn ghost" onClick={() => setPref(`me:${tree}`, p.id)} title="See everyone's relationship from this person's point of view">Be them</button>}
+          <button className="btn ghost" onClick={() => void chooseMe(tree, p.id)} title={c('panel.thisIsMeTitle')}>{c('panel.thisIsMe')}</button>
+        ) : me !== p.id && <button className="btn ghost" onClick={() => setPref(`me:${tree}`, p.id)} title={c('panel.beThemTitle')}>{c('panel.beThem')}</button>}
       </section>
 
       <div className="pp-facts pp-keyfacts">
-        <Fact icon={<Cake size={15} />} label="Born">
-          {fmtDate(p.born) ?? 'Date unknown'}{bornPlace && <> in <PlaceLink tree={tree} name={bornPlace} /></>}
+        <Fact icon={<Cake size={15} />} label={c('fact.born')}>
+          {fmtDate(p.born, locales[c.locale]) ?? c('panel.dateUnknown')}{bornPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={bornPlace} /></>}
         </Fact>
         {!p.living && (
-          <Fact icon={<span aria-hidden>✝</span>} label="Died">
-            {fmtDate(p.died) ?? 'Date unknown'}{diedPlace && <> in <PlaceLink tree={tree} name={diedPlace} /></>}
+          <Fact icon={<span aria-hidden>✝</span>} label={c('fact.died')}>
+            {fmtDate(p.died, locales[c.locale]) ?? c('panel.dateUnknown')}{diedPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={diedPlace} /></>}
           </Fact>
         )}
-        {a !== undefined && <Fact icon={<Hourglass size={15} />} label="Age">{p.living ? `${a} years old` : `Died aged ${a}`}</Fact>}
+        {a !== undefined && <Fact icon={<Hourglass size={15} />} label={c('panel.age')}>{p.living ? c('panel.ageLiving', { count: a }) : c('panel.diedAged', { n: a })}</Fact>}
         <OccupationFact tree={tree} p={p} icon={<BriefcaseBusiness size={15} />} label={c('fact.occupation')} />
-        {p.title && <Fact icon={<Crown size={15} />} label="Title">{p.title}</Fact>}
-        {p.nickname && <Fact icon={<UserRound size={15} />} label="Called">{p.nickname}</Fact>}
+        {p.title && <Fact icon={<Crown size={15} />} label={c('panel.title')}>{p.title}</Fact>}
+        {p.nickname && <Fact icon={<UserRound size={15} />} label={c('fact.called')}>{p.nickname}</Fact>}
       </div>
 
       {p.living && <Upcoming f={f} p={p} />}
@@ -334,13 +336,13 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
       <PlacesMap f={f} tree={tree} p={p} bornPlace={bornPlace} diedPlace={diedPlace} unions={unions} />
 
       <section className="pp-ov-section">
-        <div className="rule">In their words and ours</div>
+        <div className="rule">{c('panel.wordsRule')}</div>
         {!detail ? (
           <DetailFallback details={details} lines={2} />
         ) : words.length ? (
           <div className="pp-stories">
             {words.map((s) => <StoryCard key={s.id} s={s} compact />)}
-            {detail.stories.length > words.length && <button className="btn ghost pp-more" onClick={() => onTab('stories')}>All {detail.stories.length} stories</button>}
+            {detail.stories.length > words.length && <button className="btn ghost pp-more" onClick={() => onTab('stories')}>{c('panel.allStories', { count: detail.stories.length })}</button>}
           </div>
         ) : (
           <p className="pp-quiet subtle">{c('panel.nothingWritten', { name: p.given })}{can(role, 'add-story') && <> <button className="pp-inline-link" onClick={() => onTab('stories')}>{c('panel.addMemory')}</button></>}</p>
@@ -349,7 +351,7 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
 
       {house && (
         <section className="pp-ov-section">
-          <div className="rule">House</div>
+          <div className="rule">{c('panel.houseRule')}</div>
           <Link className="pp-house-card ui-card interactive" to="/$tree/house/$house" params={{ tree, house: house.id }}>
             <Arms arms={house.arms} size={40} />
             <span>
@@ -361,16 +363,16 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
       )}
 
       {gaps.length > 0 && (
-        <section className="pp-gaps" aria-label="Information needed">
-          <span className="pp-gaps-title"><GameIcon name="quill-ink" size={14} /> Information needed</span>
+        <section className="pp-gaps" aria-label={c('panel.gapsTitle')}>
+          <span className="pp-gaps-title"><GameIcon name="quill-ink" size={14} /> {c('panel.gapsTitle')}</span>
           <div>
             {gaps.map((g) =>
               // Only the gaps this reader may fill in are buttons; the rest are just listed.
               !can(role, GAP_ACTION[g]) ? (
-                <span key={g} className="chip">{GAP_LABEL[g]}</span>
+                <span key={g} className="chip">{c(GAP_LABEL[g])}</span>
               ) : (
-                <button key={g} className="chip" onClick={() => onGap(g)} title={g === 'photo' ? 'Choose a photo' : GAP_WHERE[g] === 'tree' ? 'Open the ancestors view to fill the empty slots' : 'Fill it in'}>
-                  <Plus size={12} aria-hidden /> {GAP_LABEL[g]}
+                <button key={g} className="chip" onClick={() => onGap(g)} title={g === 'photo' ? c('panel.gapPhoto') : GAP_WHERE[g] === 'tree' ? c('panel.gapTree') : c('panel.gapFill')}>
+                  <Plus size={12} aria-hidden /> {c(GAP_LABEL[g])}
                 </button>
               ),
             )}
@@ -406,7 +408,7 @@ function Upcoming({ f, p }: { f: Family; p: GPerson }) {
           <Heart size={20} />
           <div>
             <b>{c('fact.anniversaryWith', { name: other!.given, when: inDays(daysUntil(next!), c) })}</b>
-            <div className="muted">{c('fact.years', { n: next!.getFullYear() - yearOf(u.start) })} · {c('fact.marriedOn', { date: fmtDate(u.start) ?? '' })}</div>
+            <div className="muted">{c('fact.years', { n: next!.getFullYear() - yearOf(u.start) })} · {c('fact.marriedOn', { date: fmtDate(u.start, locales[c.locale]) ?? '' })}</div>
           </div>
         </div>
       ))}
@@ -435,32 +437,33 @@ type LifeEvent = { year: number; date?: string; icon: ReactNode; text: ReactNode
 
 /** Birth, partnerships, children's births and death, in order, from the graph. */
 function LifeTimeline({ f, tree, p, onSelect }: { f: Family; tree: string; p: GPerson; onSelect: (id: string) => void }) {
+  const c = useT();
   const [all, setAll] = useState(false);
   const events = useMemo(() => {
     const out: LifeEvent[] = [];
-    if (!isNaN(yearOf(p.born))) out.push({ key: 'born', year: yearOf(p.born), date: p.born, icon: <Cake size={13} />, text: <>Born{p.bornPlace && <> in <PlaceLink tree={tree} name={p.bornPlace} /></>}</> });
+    if (!isNaN(yearOf(p.born))) out.push({ key: 'born', year: yearOf(p.born), date: p.born, icon: <Cake size={13} />, text: <>{c('fact.born')}{p.bornPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={p.bornPlace} /></>}</> });
     for (const u of f.unionsOf.get(p.id) ?? []) {
       const o = f.byId.get(u.a === p.id ? u.b : u.a);
       if (!o) continue;
       const who = <button className="pp-inline-link" onClick={() => onSelect(o.id)}>{displayName(o, f)}</button>;
-      if (!isNaN(yearOf(u.start))) out.push({ key: `u${u.id}`, year: yearOf(u.start), date: u.start, icon: <Heart size={13} />, text: <>{u.kind === 'marriage' ? 'Married' : 'Partnered with'} {who}{u.place && <> in <PlaceLink tree={tree} name={u.place} /></>}</> });
-      if (!isNaN(yearOf(u.end)) && u.endReason && u.endReason !== 'death') out.push({ key: `e${u.id}`, year: yearOf(u.end), date: u.end, icon: <HeartCrack size={13} />, text: <>{u.endReason === 'divorce' ? 'Divorced' : 'Parted from'} {who}</> });
+      if (!isNaN(yearOf(u.start))) out.push({ key: `u${u.id}`, year: yearOf(u.start), date: u.start, icon: <Heart size={13} />, text: <>{u.kind === 'marriage' ? c('fact.married') : c('panel.partneredWith')} {who}{u.place && <> {c('fact.in')} <PlaceLink tree={tree} name={u.place} /></>}</> });
+      if (!isNaN(yearOf(u.end)) && u.endReason && u.endReason !== 'death') out.push({ key: `e${u.id}`, year: yearOf(u.end), date: u.end, icon: <HeartCrack size={13} />, text: <>{u.endReason === 'divorce' ? c('panel.divorced') : c('panel.partedFrom')} {who}</> });
     }
-    for (const c of children(f, p.id)) {
-      const kid = f.byId.get(c);
+    for (const kidId of children(f, p.id)) {
+      const kid = f.byId.get(kidId);
       if (!kid || isNaN(yearOf(kid.born))) continue;
-      const word = kid.sex === 'm' ? 'A son' : kid.sex === 'f' ? 'A daughter' : 'A child';
-      out.push({ key: `c${c}`, year: yearOf(kid.born), date: kid.born, icon: <Baby size={13} />, text: <>{word}, <button className="pp-inline-link" onClick={() => onSelect(c)}>{kid.given}</button>, is born</> });
+      const word = kid.sex === 'm' ? c('panel.childSon') : kid.sex === 'f' ? c('panel.childDaughter') : c('panel.childAny');
+      out.push({ key: `c${kidId}`, year: yearOf(kid.born), date: kid.born, icon: <Baby size={13} />, text: <>{word}, <button className="pp-inline-link" onClick={() => onSelect(kidId)}>{kid.given}</button>, {c('panel.isBorn')}</> });
     }
-    if (!p.living && !isNaN(yearOf(p.died))) out.push({ key: 'died', year: yearOf(p.died), date: p.died, icon: <span aria-hidden>✝</span>, text: <>Died{p.diedPlace && <> in <PlaceLink tree={tree} name={p.diedPlace} /></>}{age(p) !== undefined && <span className="muted">, aged {age(p)}</span>}</> });
+    if (!p.living && !isNaN(yearOf(p.died))) out.push({ key: 'died', year: yearOf(p.died), date: p.died, icon: <span aria-hidden>✝</span>, text: <>{c('fact.died')}{p.diedPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={p.diedPlace} /></>}{age(p) !== undefined && <span className="muted">, {c('fact.agedN', { n: age(p)! })}</span>}</> });
     const order = (e: LifeEvent) => (e.key === 'born' ? 0 : e.key === 'died' ? 2 : 1);
     return out.sort((a, b) => a.year - b.year || order(a) - order(b) || (a.date ?? '').localeCompare(b.date ?? ''));
-  }, [f, tree, p, onSelect]);
+  }, [f, tree, p, onSelect, c]);
   if (events.length < 2) return null;
   const shown = all || events.length <= 8 ? events : [...events.slice(0, 6), events[events.length - 1]];
   return (
     <section className="pp-ov-section">
-      <div className="rule">Life</div>
+      <div className="rule">{c('panel.tab.life')}</div>
       <ol className="pp-timeline">
         {shown.map((e, i) => (
           <li key={e.key} data-gap={!all && events.length > 8 && i === 6 ? true : undefined}>
@@ -470,7 +473,7 @@ function LifeTimeline({ f, tree, p, onSelect }: { f: Family; tree: string; p: GP
           </li>
         ))}
       </ol>
-      {!all && events.length > 8 && <button className="btn ghost pp-more" onClick={() => setAll(true)}>Show all {events.length} events</button>}
+      {!all && events.length > 8 && <button className="btn ghost pp-more" onClick={() => setAll(true)}>{c('panel.showAll', { count: events.length })}</button>}
     </section>
   );
 }
@@ -488,6 +491,7 @@ const MAP_W = 360, MAP_H = 170;
 
 /** Where their life happened: birth, partnerships and death on a small map, with the places listed below. */
 function PlacesMap({ f, tree, p, bornPlace, diedPlace, unions }: { f: Family; tree: string; p: GPerson; bornPlace?: string; diedPlace?: string; unions: Family['graph']['unions'] }) {
+  const c = useT();
   const [world, setWorld] = useState<MiniWorld | null>(null);
   const places = useMemo(() => {
     const at = new Map(f.graph.places.map((pl) => [pl.name, pl]));
@@ -498,11 +502,11 @@ function PlacesMap({ f, tree, p, bornPlace, diedPlace, unions }: { f: Family; tr
       if (had) had.what += `, ${what.toLowerCase()}`;
       else list.push({ name, what, pl: at.get(name) });
     };
-    push(bornPlace, 'Born');
-    for (const u of unions) push(u.place, u.kind === 'marriage' ? 'Married' : 'Partnership');
-    if (!p.living) push(diedPlace, 'Died');
+    push(bornPlace, c('fact.born'));
+    for (const u of unions) push(u.place, u.kind === 'marriage' ? c('fact.married') : c('panel.partnership'));
+    if (!p.living) push(diedPlace, c('fact.died'));
     return list;
-  }, [f, p.living, bornPlace, diedPlace, unions]);
+  }, [f, p.living, bornPlace, diedPlace, unions, c]);
   const pinned = places.filter((x) => x.pl);
   useEffect(() => { if (pinned.length) void loadMiniWorld().then(setWorld); }, [pinned.length]);
   const drawn = useMemo(() => {
@@ -519,7 +523,7 @@ function PlacesMap({ f, tree, p, bornPlace, diedPlace, unions }: { f: Family; tr
   if (!places.length) return null;
   return (
     <section className="pp-ov-section">
-      <div className="rule">Places</div>
+      <div className="rule">{c('panel.placesRule')}</div>
       {pinned.length > 0 && (
         <div className="pp-map ui-card" aria-hidden>
           <svg viewBox={`0 0 ${MAP_W} ${MAP_H}`} preserveAspectRatio="xMidYMid slice">
@@ -545,7 +549,7 @@ function PlacesMap({ f, tree, p, bornPlace, diedPlace, unions }: { f: Family; tr
           <li key={x.name}>
             <MapPin size={14} className={x.pl ? 'on' : undefined} aria-hidden />
             <PlaceLink tree={tree} name={x.name} />
-            <span className="subtle">{x.what}{x.pl ? '' : ' · not on the map yet'}</span>
+            <span className="subtle">{x.what}{x.pl ? '' : ` · ${c('places.notOnMapShort')}`}</span>
           </li>
         ))}
       </ul>
@@ -598,10 +602,10 @@ function FamilyTab({ f, tree, id, canAdd, canEdit, onSelect }: { f: Family; tree
                 const removable = canEdit && kind !== 'siblings' && kind !== 'grandparents';
                 return (
                   <div className="pp-rel-cell" key={r}>
-                    <button className="pp-rel" onClick={() => onSelect(r)} title={`${displayName(rp, f)} · ${lifespan(rp)}`}>
+                    <button className="pp-rel" onClick={() => onSelect(r)} title={`${displayName(rp, f)} · ${lifespan(rp, c.locale)}`}>
                       <Portrait person={rp} tree={tree} size={58} frame />
                       <span className="pp-rel-name">{rp.given}</span>
-                      {u ? <span className="pp-rel-sub">{u.kind === 'marriage' ? '⚭' : '♡'} {u.start ? yearOf(u.start) : ''}{u.end ? `–${yearOf(u.end)}` : ''}</span> : <span className="pp-rel-sub">{lifespan(rp)}</span>}
+                      {u ? <span className="pp-rel-sub">{u.kind === 'marriage' ? '⚭' : '♡'} {u.start ? yearOf(u.start) : ''}{u.end ? `–${yearOf(u.end)}` : ''}</span> : <span className="pp-rel-sub">{lifespan(rp, c.locale)}</span>}
                       {f.disputed.has(`${id}>${r}`) && <span className="pp-disputed" title={c('rel.disputed')}><GameIcon name="uncertainty" size={12} /></span>}
                     </button>
                     {removable && (armed === key ? (
@@ -626,12 +630,12 @@ function FamilyTab({ f, tree, id, canAdd, canEdit, onSelect }: { f: Family; tree
 
 // ---------- stories ----------
 
-const KINDS: { id: Story['kind']; label: string; icon: ReactNode }[] = [
-  { id: 'memory', label: 'Memory', icon: <Sparkles size={14} /> },
-  { id: 'quote', label: 'Saying', icon: <Quote size={14} /> },
-  { id: 'anecdote', label: 'Anecdote', icon: <MessagesSquare size={14} /> },
-  { id: 'recipe', label: 'Recipe', icon: <CookingPot size={14} /> },
-  { id: 'note', label: 'Note', icon: <StickyNote size={14} /> },
+const KINDS: { id: Story['kind']; label: Key; icon: ReactNode }[] = [
+  { id: 'memory', label: 'panel.kind.memory', icon: <Sparkles size={14} /> },
+  { id: 'quote', label: 'panel.kind.quote', icon: <Quote size={14} /> },
+  { id: 'anecdote', label: 'panel.kind.anecdote', icon: <MessagesSquare size={14} /> },
+  { id: 'recipe', label: 'panel.kind.recipe', icon: <CookingPot size={14} /> },
+  { id: 'note', label: 'panel.kind.note', icon: <StickyNote size={14} /> },
 ];
 
 function StoriesTab({ tree, p, details }: { tree: string; p: GPerson; details: DetailState }) {
@@ -652,30 +656,33 @@ function StoriesTab({ tree, p, details }: { tree: string; p: GPerson; details: D
       {!canWrite ? null : adding ? (
         <StoryForm tree={tree} person={p} done={() => setAdding(false)} />
       ) : (
-        <button className="btn primary pp-add-story" onClick={() => setAdding(true)}><Plus size={14} /> Add a memory, saying or recipe</button>
+        <button className="btn primary pp-add-story" onClick={() => setAdding(true)}><Plus size={14} /> {c('panel.addStory')}</button>
       )}
       {detail.stories.length === 0 && !adding && (
-        <p className="empty">Nothing written down about {p.given} yet.{canWrite ? ' What do you remember?' : ''}</p>
+        <p className="empty">{c('panel.nothingWritten', { name: p.given })}{canWrite ? ` ${c('panel.rememberQ')}` : ''}</p>
       )}
       {!canWrite && <p className="pp-ask subtle">{c('ask.editor')}</p>}
       <div className="pp-stories">
         {detail.stories.map((s) => (
-          <StoryCard key={s.id} s={s} onDelete={canDelete ? () => confirm('Remove this story?') && remove.mutate(s.id) : undefined} />
+          <StoryCard key={s.id} s={s} onDelete={canDelete ? () => confirmed(c('panel.removeStoryConfirm')) && remove.mutate(s.id) : undefined} />
         ))}
       </div>
     </>
   );
 }
 
+const confirmed = (question: string) => window.confirm(question);
+
 /** One story: a saying in the hand font, anything else as safe Markdown. `compact` clamps it for the Overview. */
 function StoryCard({ s, compact, onDelete }: { s: Story; compact?: boolean; onDelete?: () => void }) {
+  const c = useT();
   const kind = KINDS.find((k) => k.id === s.kind);
   return (
     <article className={`story story-${s.kind}${compact ? ' compact' : ''}`}>
       <header>
         {kind?.icon}
-        <span>{s.title ?? kind?.label}</span>
-        {onDelete && <button className="btn icon ghost story-del" aria-label="Remove story" title="Remove story" onClick={onDelete}><Trash2 size={13} /></button>}
+        <span>{s.title ?? (kind ? c(kind.label) : undefined)}</span>
+        {onDelete && <button className="btn icon ghost story-del" aria-label={c('panel.removeStory')} title={c('panel.removeStory')} onClick={onDelete}><Trash2 size={13} /></button>}
       </header>
       {s.kind === 'quote' ? (
         <blockquote>{s.body}</blockquote>
@@ -684,13 +691,14 @@ function StoryCard({ s, compact, onDelete }: { s: Story; compact?: boolean; onDe
       )}
       <footer>
         {s.context && <span>{s.context} · </span>}
-        <span>added by {s.author}</span> · <time dateTime={s.at}>{new Date(s.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</time>
+        <span>{c('panel.addedBy', { name: s.author })}</span> · <time dateTime={s.at}>{new Date(s.at).toLocaleDateString(locales[c.locale], { day: 'numeric', month: 'short', year: 'numeric' })}</time>
       </footer>
     </article>
   );
 }
 
 function StoryForm({ tree, person, done }: { tree: string; person: GPerson; done: () => void }) {
+  const t = useT();
   const { leave } = useContext(DraftContext);
   const [saveError, setSaveError] = useState('');
   const qc = useQueryClient();
@@ -712,7 +720,7 @@ function StoryForm({ tree, person, done }: { tree: string; person: GPerson; done
       qc.invalidateQueries({ queryKey: ['chronicle', tree] });
       form.reset(value);
       done();
-      } catch (e) { setSaveError(e instanceof Error ? e.message : 'Could not save story'); }
+      } catch (e) { setSaveError(e instanceof Error ? translateMessage(e.message, t.locale) : t('panel.storySaveFailed')); }
     },
   });
   return (
@@ -723,7 +731,7 @@ function StoryForm({ tree, person, done }: { tree: string; person: GPerson; done
           <div className="seg">
             {KINDS.map((k) => (
               <button type="button" key={k.id} aria-pressed={field.state.value === k.id} className="btn" onClick={() => field.handleChange(k.id)}>
-                {k.icon} {k.label}
+                {k.icon} {t(k.label)}
               </button>
             ))}
           </div>
@@ -734,17 +742,17 @@ function StoryForm({ tree, person, done }: { tree: string; person: GPerson; done
           <>
             {kind !== 'quote' && (
               <form.Field name="title">
-                {(field) => <input aria-label="Story title (optional)" className="input" placeholder="Title (optional)" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />}
+                {(field) => <input aria-label={t('panel.titleOptional')} className="input" placeholder={t('panel.titlePh')} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />}
               </form.Field>
             )}
-            <form.Field name="body" validators={{ onSubmit: ({ value }) => (value.trim() ? undefined : 'Write something first') }}>
+            <form.Field name="body" validators={{ onSubmit: ({ value }) => (value.trim() ? undefined : t('panel.writeFirst')) }}>
               {(field) => (
                 <>
                   <textarea
-                    aria-label="Story" aria-describedby="story-body-error" aria-invalid={!!field.state.meta.errors.length}
+                    aria-label={t('panel.storyAria')} aria-describedby="story-body-error" aria-invalid={!!field.state.meta.errors.length}
                     autoFocus
                     className={`input${kind === 'quote' ? ' quote-input' : ''}`}
-                    placeholder={kind === 'quote' ? `Something ${person.given} always said…` : kind === 'recipe' ? 'Ingredients and method…' : `What do you remember about ${person.given}?`}
+                    placeholder={kind === 'quote' ? t('panel.phQuote', { name: person.given }) : kind === 'recipe' ? t('panel.phRecipe') : t('panel.phMemory', { name: person.given })}
                     value={field.state.value}
                     onChange={(e) => field.handleChange(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && form.handleSubmit()}
@@ -755,17 +763,17 @@ function StoryForm({ tree, person, done }: { tree: string; person: GPerson; done
             </form.Field>
             {kind === 'quote' && (
               <form.Field name="context">
-                {(field) => <input aria-label="When or where" className="input" placeholder={tree === 'realm' ? 'At the winter feast…' : 'At every family dinner…'} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />}
+                {(field) => <input aria-label={t('panel.whenWhere')} className="input" placeholder={tree === 'realm' ? t('panel.ctxRealm') : t('panel.ctxOther')} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />}
               </form.Field>
             )}
           </>
         )}
       </form.Subscribe>
       <div className="row end">
-        <span className="subtle pp-signed" title={author ? `Signed as ${author}` : undefined}>{author ? `Signed as ${author}` : ''}</span>
-        <button type="button" className="btn ghost" onClick={() => leave(done)}>Cancel</button>
+        <span className="subtle pp-signed" title={author ? t('panel.signedAs', { name: author }) : undefined}>{author ? t('panel.signedAs', { name: author }) : ''}</span>
+        <button type="button" className="btn ghost" onClick={() => leave(done)}>{t('common.cancel')}</button>
         <form.Subscribe selector={(s) => s.isSubmitting}>
-          {(busy) => <button className="btn primary" disabled={busy}><Check size={14} /> Save <kbd>⌘↵</kbd></button>}
+          {(busy) => <button className="btn primary" disabled={busy}><Check size={14} /> {t('panel.save')} <kbd>⌘↵</kbd></button>}
         </form.Subscribe>
       </div>
     </form>
@@ -830,13 +838,13 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
     return (
       <>
         <div className="pp-facts">
-          <Fact icon={<Cake size={15} />} label={c('fact.born')}>{fmtDate(p.born) ?? c('fact.unknown')}{detail?.bornPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={detail.bornPlace} /></>}</Fact>
-          <Fact icon={<span>✝</span>} label={c('fact.died')}>{fmtDate(p.died) ?? c('fact.unknown')}{detail?.diedPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={detail.diedPlace} /></>}{age(p) !== undefined && <span className="muted"> · {c('fact.agedN', { n: age(p)! })}</span>}</Fact>
+          <Fact icon={<Cake size={15} />} label={c('fact.born')}>{fmtDate(p.born, locales[c.locale]) ?? c('fact.unknown')}{detail?.bornPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={detail.bornPlace} /></>}</Fact>
+          <Fact icon={<span>✝</span>} label={c('fact.died')}>{fmtDate(p.died, locales[c.locale]) ?? c('fact.unknown')}{detail?.diedPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={detail.diedPlace} /></>}{age(p) !== undefined && <span className="muted"> · {c('fact.agedN', { n: age(p)! })}</span>}</Fact>
           {died && daysUntil(died) < 60 && <Fact icon={<Heart size={15} />} label={c('fact.remembrance')}>{inDays(daysUntil(died), c)}</Fact>}
           <OccupationFact tree={tree} p={p} icon={<Pencil size={15} />} label={c('fact.occupation')} />
           {(f.unionsOf.get(p.id) ?? []).map((u) => {
             const o = f.byId.get(u.a === p.id ? u.b : u.a);
-            return o ? <Fact key={u.id} icon={<Heart size={15} />} label={u.kind === 'marriage' ? c('fact.married') : c('fact.partner')}>{displayName(o, f)}{u.start && <> · {fmtDate(u.start)}</>}{u.place && <> · {u.place}</>}{u.endReason && u.endReason !== 'death' && <span className="muted"> ({u.endReason})</span>}</Fact> : null;
+            return o ? <Fact key={u.id} icon={<Heart size={15} />} label={u.kind === 'marriage' ? c('fact.married') : c('fact.partner')}>{displayName(o, f)}{u.start && <> · {fmtDate(u.start, locales[c.locale])}</>}{u.place && <> · {u.place}</>}{u.endReason && u.endReason !== 'death' && <span className="muted"> ({u.endReason})</span>}</Fact> : null;
           })}
         </div>
         {fieldsBlock}
@@ -856,14 +864,14 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
             </div>
           </div>
         ) : (
-          <Fact icon={<Cake size={15} />} label={c('fact.born')}>{fmtDate(p.born) ?? (canEdit ? c('fact.unknownAdd') : c('fact.unknown'))}</Fact>
+          <Fact icon={<Cake size={15} />} label={c('fact.born')}>{fmtDate(p.born, locales[c.locale]) ?? (canEdit ? c('fact.unknownAdd') : c('fact.unknown'))}</Fact>
         )}
         {anniversaries.map(({ u, next, other }) => (
           <div className="pp-countdown ui-card" key={u.id}>
             <Heart size={20} />
             <div>
               <b>{c('fact.anniversaryWith', { name: other!.given, when: inDays(daysUntil(next!), c) })}</b>
-              <div className="muted">{c('fact.years', { n: next!.getFullYear() - yearOf(u.start) })} · {c('fact.marriedOn', { date: fmtDate(u.start) ?? '' })}</div>
+              <div className="muted">{c('fact.years', { n: next!.getFullYear() - yearOf(u.start) })} · {c('fact.marriedOn', { date: fmtDate(u.start, locales[c.locale]) ?? '' })}</div>
             </div>
           </div>
         ))}

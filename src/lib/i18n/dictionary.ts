@@ -124,10 +124,36 @@ export function translate(locale: Locale, key: Key, vars: Vars = {}): string {
   );
 }
 
-/** Looks up an English message text and returns its key, for legacy messages that arrive as text. */
+/**
+ * Translates a message the server threw as English text. An exact English match wins; otherwise a key whose English
+ * has {placeholders} matches the text with those parts filled in ("Birthday · 3 years" in any language).
+ */
 export function translateMessage(message: string, locale: Locale): string {
   const key = KEYS.find((k) => tables.en[k] === message);
-  return key ? translate(locale, key) : message;
+  if (key) return translate(locale, key);
+  for (const k of KEYS) {
+    const english = tables.en[k];
+    if (typeof english !== "string" || !english.includes("{")) continue;
+    const names: string[] = [];
+    let literal = 0;
+    const pattern = english
+      .split(/(\{\w+\})/)
+      .map((part) => {
+        const named = /^\{(\w+)\}$/.exec(part);
+        if (named) {
+          names.push(named[1]);
+          return "(.+?)";
+        }
+        literal += part.length;
+        return part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      })
+      .join("");
+    // Templates with only a little fixed text would match too much; leave those alone.
+    if (literal < 8) continue;
+    const match = new RegExp(`^${pattern}$`, "s").exec(message);
+    if (match) return translate(locale, k, Object.fromEntries(names.map((n, i) => [n, match[i + 1]])));
+  }
+  return message;
 }
 
 export function formatNumber(value: number, locale: Locale = "en", options?: Intl.NumberFormatOptions) {

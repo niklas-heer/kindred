@@ -6,6 +6,7 @@ import { Link, useRouter, createFileRoute } from '@tanstack/react-router';
 import { Camera, Check, Flame, Link2, SkipForward, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { GameIcon } from '~/components/GameIcon';
+import { kinshipLabel, translateMessage, useT, type Translator } from '~/lib/i18n';
 import { Dialog } from '~/components/ui/Dialog';
 import { Portrait } from '~/components/Portrait';
 import { PlaceInput, savePlacesKeyed, type PlaceValue } from '~/components/PlaceInput';
@@ -24,10 +25,11 @@ import { sectionHead } from '~/lib/title';
 
 export const Route = createFileRoute('/$tree/needed')({
   pendingComponent: PageSkeleton,
-  errorComponent: function PageError() { const router = useRouter(); return <div className="page"><PageHeader title="Information needed" /><ErrorState message="This page could not be loaded." onRetry={() => { void router.invalidate(); }} /></div>; },
+  errorComponent: function PageError() { const router = useRouter(); const t = useT(); return <div className="page"><PageHeader title={t('needed.title')} /><ErrorState message={t('needed.loadFailed')} onRetry={() => { void router.invalidate(); }} /></div>; },
   head: sectionHead('Information needed'), component: Needed });
 
 function Needed() {
+  const t = useT();
   const f = useFamily();
   const tree = useTreeId();
   usePageTrail('needed', tree);
@@ -85,14 +87,14 @@ function Needed() {
   return (
     <div className="page">
       <div className="page-inner needed">
-        <PageHeader title="Information needed" subtitle={<>
-              {rows.length.toLocaleString('en-GB')} of {f.graph.people.length.toLocaleString('en-GB')} people have something still to find out.
-              {' '}{complete > 0 && <>{complete.toLocaleString('en-GB')} are complete.</>} Closest relatives first: they are the easiest to ask.
+        <PageHeader title={t('needed.title')} subtitle={<>
+              {t('needed.summary', { shown: rows.length, total: f.graph.people.length })}
+              {' '}{complete > 0 && t('needed.complete', { count: complete })} {t('needed.closestFirst')}
             </>} actions={<div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn" aria-pressed={settings} onClick={() => setSettings((s) => !s)}>What counts?</button>
+            <button className="btn" aria-pressed={settings} onClick={() => setSettings((s) => !s)}>{t('needed.whatCounts')}</button>
             {queue.length > 0 && (
-              <button className="btn primary" onClick={() => { play('seal'); setBlazeOnly(only); setBlaze(queue.map((r) => r.p.id)); }} title="One person at a time, only what is missing: ↵ saves and moves on">
-                <Flame size={16} /> Blaze through {only ? GAP_LABEL[only].toLowerCase() : 'everything'}
+              <button className="btn primary" onClick={() => { play('seal'); setBlazeOnly(only); setBlaze(queue.map((r) => r.p.id)); }} title={t('needed.blazeTitle')}>
+                <Flame size={16} /> {t('needed.blaze', { what: only ? t(GAP_LABEL[only]).toLowerCase() : t('needed.everything') })}
               </button>
             )}
           </div>} />
@@ -100,18 +102,18 @@ function Needed() {
         {shown.length > 0 && queue.length === 0 && (
           <p className="needed-ask subtle" role="note">
             {role === 'viewer'
-              ? 'You can browse what’s missing; ask an editor to fill it in.'
-              : 'Only an editor can fill these in. You can add photos and memories: choose them under “What counts?”.'}
+              ? t('needed.viewerNote')
+              : t('needed.editorNote')}
           </p>
         )}
 
         {settings && (
           <div className="needed-settings">
-            <span>Count as needed — remembered for this tree</span>
+            <span>{t('needed.countAsNeeded')}</span>
             <div>
               {ALL_GAPS.map((k) => (
-                <button key={k} className="btn" aria-pressed={required.has(k)} onClick={() => toggle(k)} title={GAP_HINT[k]}>
-                  {required.has(k) ? <Check size={13} /> : null} {GAP_LABEL[k]}
+                <button key={k} className="btn" aria-pressed={required.has(k)} onClick={() => toggle(k)} title={t(GAP_HINT[k])}>
+                  {required.has(k) ? <Check size={13} /> : null} {t(GAP_LABEL[k])}
                 </button>
               ))}
             </div>
@@ -119,15 +121,15 @@ function Needed() {
         )}
 
         <div className="needed-filters">
-          <button className="btn" aria-pressed={!only} onClick={() => setOnly(null)}>Everything <span className="faint">{rows.length}</span></button>
+          <button className="btn" aria-pressed={!only} onClick={() => setOnly(null)}>{t('needed.allFilter')} <span className="faint">{rows.length}</span></button>
           {ALL_GAPS.filter((g) => counts.get(g)).map((g) => (
             <button key={g} className="btn" aria-pressed={only === g} onClick={() => setOnly(only === g ? null : g)}>
-              {GAP_LABEL[g]} <span className="faint">{counts.get(g)}</span>
+              {t(GAP_LABEL[g])} <span className="faint">{counts.get(g)}</span>
             </button>
           ))}
         </div>
         {shown.length === 0 ? (
-          <EmptyState icon={<GameIcon name="wax-seal" size={28} />} title={only ? 'No one has this gap' : f.graph.people.length ? 'Everything counted is complete' : 'No people recorded yet'} text={only ? 'Try another filter to continue your research.' : 'Choose “What counts?” to decide which details to collect.'} action={only ? <button className="btn" onClick={() => setOnly(null)}>Clear filter</button> : undefined} />
+          <EmptyState icon={<GameIcon name="wax-seal" size={28} />} title={only ? t('needed.noOneGap') : f.graph.people.length ? t('needed.allComplete') : t('needed.noPeople')} text={only ? t('needed.tryAnother') : t('needed.chooseWhatCounts')} action={only ? <button className="btn" onClick={() => setOnly(null)}>{t('needed.clearFilter')}</button> : undefined} />
         ) : (
           <ol className={`needed-list${queue.length ? '' : ' readonly'}`}>
             {shown.slice(0, limit).map(({ p, gaps }) => {
@@ -142,28 +144,28 @@ function Needed() {
                     className="needed-ring"
                     style={{ '--filled': `${filled * 100}%` } as React.CSSProperties}
                     role="img"
-                    aria-label={`${required.size - gaps.length} of ${required.size} counted details known`}
-                    title={`${required.size - gaps.length} of ${required.size} counted details known`}
+                    aria-label={t('needed.ringAria', { known: required.size - gaps.length, total: required.size })}
+                    title={t('needed.ringAria', { known: required.size - gaps.length, total: required.size })}
                   >
                     <Portrait person={p} tree={tree} size={40} frame={false} />
                   </span>
                   <div className="needed-who">
-                    <Link className="needed-name" to="/$tree" params={{ tree }} search={((s: Record<string, unknown>) => ({ ...s, focus: p.id, sel: p.id })) as never} title="Show on the tree">{displayName(p, f)}</Link>
-                    <span className="needed-meta">{[lifespan(p), k && (k === 'you' ? 'you' : `your ${k}`)].filter(Boolean).join(' · ')}</span>
+                    <Link className="needed-name" to="/$tree" params={{ tree }} search={((s: Record<string, unknown>) => ({ ...s, focus: p.id, sel: p.id })) as never} title={t('needed.showOnTree')}>{displayName(p, f)}</Link>
+                    <span className="needed-meta">{[lifespan(p, t.locale), k && kinText(t, k)].filter(Boolean).join(' · ')}</span>
                   </div>
-                  <ul className="needed-tags" aria-label="Still to find out">
-                    {tags.slice(0, 3).map((g) => <li key={g} className={`needed-tag${only === g ? ' on' : ''}`}>{GAP_LABEL[g]}</li>)}
-                    {tags.length > 3 && <li className="needed-tag more" title={tags.slice(3).map((g) => GAP_LABEL[g]).join(', ')}>+{tags.length - 3}</li>}
+                  <ul className="needed-tags" aria-label={t('needed.stillToFind')}>
+                    {tags.slice(0, 3).map((g) => <li key={g} className={`needed-tag${only === g ? ' on' : ''}`}>{t(GAP_LABEL[g])}</li>)}
+                    {tags.length > 3 && <li className="needed-tag more" title={tags.slice(3).map((g) => t(GAP_LABEL[g])).join(', ')}>+{tags.length - 3}</li>}
                   </ul>
                   {may ? (
-                    <button className="btn needed-fill" onClick={() => { setBlazeOnly(null); setBlaze([p.id, ...queue.map((r) => r.p.id).filter((id) => id !== p.id)]); }} title="Fill in this person, then carry on down the list">Fill in</button>
+                    <button className="btn needed-fill" onClick={() => { setBlazeOnly(null); setBlaze([p.id, ...queue.map((r) => r.p.id).filter((id) => id !== p.id)]); }} title={t('needed.fillTitle')}>{t('needed.fillIn')}</button>
                   ) : queue.length ? <span aria-hidden /> : null}
                 </li>
               );
             })}
           </ol>
         )}
-        {shown.length > limit && <button className="btn needed-more" onClick={() => setLimit((l) => l + 200)}>Show {Math.min(200, shown.length - limit)} more</button>}
+        {shown.length > limit && <button className="btn needed-more" onClick={() => setLimit((l) => l + 200)}>{t('needed.showMore', { count: Math.min(200, shown.length - limit) })}</button>}
       </div>
       {blaze && <Blaze queue={blaze} only={blazeOnly} f={f} tree={tree} me={who} role={role} required={required} onClose={() => setBlaze(null)} />}
     </div>
@@ -180,6 +182,7 @@ type Values = Partial<Record<'born' | 'bornPlace' | 'died' | 'occupation' | 'fat
 };
 
 function Blaze({ queue, only, f, tree, me, role, required, onClose }: { queue: string[]; only: GapKey | null; f: Family; tree: string; me: string | null; role: Role; required: ReadonlySet<GapKey>; onClose: () => void }) {
+  const t = useT();
   const qc = useQueryClient();
   const [i, setI] = useState(0);
   const [filled, setFilled] = useState(0);
@@ -240,12 +243,12 @@ function Blaze({ queue, only, f, tree, me, role, required, onClose }: { queue: s
     // The birthday field starts as "1950-" to help typing; untouched, it means "don't know yet".
     const born = v.born && v.born !== `${p.born}-` ? v.born.trim() : undefined;
     const died = v.died?.trim() || undefined;
-    if (born && !validDate(born)) return setError('Born: use a real date — 1953, 1953-08 or 1953-08-08 (~1953 for about)');
-    if (died && !validDate(died)) return setError('Died: use a real date — 1999, 1999-03 or 1999-03-02');
-    if (born && gaps.includes('birthday') && !fullDate(born)) return setError('A full birthday looks like 1988-05-17');
+    if (born && !validDate(born)) return setError(t('needed.errBorn'));
+    if (died && !validDate(died)) return setError(t('needed.errDied'));
+    if (born && gaps.includes('birthday') && !fullDate(born)) return setError(t('needed.errBirthday'));
     // Check the photo before writing anything, so a bad file never leaves half a save behind.
-    if (v.photo && (!v.photo.type.startsWith('image/') || v.photo.size > 5_000_000)) return setError('The photo must be an image under 5 MB');
-    if (v.fatherLink && v.fatherLink === v.motherLink) return setError('The same person can’t be both parents.');
+    if (v.photo && (!v.photo.type.startsWith('image/') || v.photo.size > 5_000_000)) return setError(t('needed.errPhoto'));
+    if (v.fatherLink && v.fatherLink === v.motherLink) return setError(t('needed.errSameParent'));
     setBusy(true);
     setError(null);
     const key = (step: string, payload: unknown) => keys.current.for(step, payload);
@@ -307,7 +310,7 @@ function Blaze({ queue, only, f, tree, me, role, required, onClose }: { queue: s
       next(did);
     } catch (e) {
       setV(rest);
-      setError(`${did ? 'Partly saved. ' : ''}${e instanceof Error ? e.message : 'Could not save'}`);
+      setError(`${did ? `${t('needed.partlySaved')} ` : ''}${e instanceof Error ? translateMessage(e.message, t.locale) : t('needed.couldNotSave')}`);
     } finally {
       // The next person is ready at once; the tree refreshes in the background.
       setBusy(false);
@@ -332,12 +335,12 @@ function Blaze({ queue, only, f, tree, me, role, required, onClose }: { queue: s
   // One Dialog for the whole run, so focus and the overlay layer carry from person to person.
   if (done) {
     return (
-      <Dialog open onClose={onClose} variant="event" label="Done" bare width={640} className="blaze" panelRef={dialog}>
+      <Dialog open onClose={onClose} variant="event" label={t('needed.doneLabel')} bare width={640} className="blaze" panelRef={dialog}>
         <div className="blaze-done">
           <GameIcon name="wax-seal" size={56} />
-          <h2 className="display">The chronicle grows</h2>
-          <p className="muted">{filled} filled in{skipped ? `, ${skipped} skipped for another day` : ''}.</p>
-          <button className="btn primary" data-autofocus onClick={onClose}>Close</button>
+          <h2 className="display">{t('needed.chronicleGrows')}</h2>
+          <p className="muted">{t('needed.filledIn', { filled })}{skipped ? `, ${t('needed.skippedDay', { count: skipped })}` : ''}.</p>
+          <button className="btn primary" data-autofocus onClick={onClose}>{t('ui.close')}</button>
         </div>
       </Dialog>
     );
@@ -355,92 +358,91 @@ function Blaze({ queue, only, f, tree, me, role, required, onClose }: { queue: s
       onClose={askClose}
       dismissible={!busy}
       variant="event"
-      label={`Fill in ${displayName(p, f)}`}
+      label={t('needed.fillInName', { name: displayName(p, f) })}
       bare
       width={640}
       className="blaze"
       panelRef={dialog}
       onKeyDown={onKey}
     >
-        {stamped && <div className="blaze-stamp" role="status"><GameIcon name="wax-seal" size={42} /><span>Recorded</span></div>}
+        {stamped && <div className="blaze-stamp" role="status"><GameIcon name="wax-seal" size={42} /><span>{t('needed.recorded')}</span></div>}
         <div className="blaze-progress"><i style={{ width: `${(i / queue.length) * 100}%` }} /></div>
         <div className="blaze-top">
-          <span>{i + 1} of {queue.length} · {filled} filled</span>
-          <button className="btn icon ghost" onClick={askClose} disabled={busy} aria-label="Stop" title="Stop (Esc)"><X size={16} /></button>
+          <span>{t('needed.progress', { i: i + 1, total: queue.length, filled })}</span>
+          <button className="btn icon ghost" onClick={askClose} disabled={busy} aria-label={t('needed.stop')} title={t('needed.stopEsc')}><X size={16} /></button>
         </div>
         <div className="blaze-who">
           <Portrait person={p} tree={tree} size={84} />
           <div>
             <h2 className="display">{displayName(p, f)}</h2>
-            <div className="muted">{[lifespan(p), k && (k === 'you' ? 'you' : `your ${k}`)].filter(Boolean).join(' · ')}</div>
+            <div className="muted">{[lifespan(p, t.locale), k && kinText(t, k)].filter(Boolean).join(' · ')}</div>
           </div>
         </div>
         <fieldset className="blaze-fields" disabled={busy}>
           {(gaps.includes('born') || gaps.includes('birthday')) && (
             <label className="field">
-              <span>{gaps.includes('birthday') ? 'Full birthday' : 'Born'}</span>
-              <input ref={firstRef()} className="input" value={v.born ?? ''} onChange={set('born')} placeholder={gaps.includes('birthday') ? `${p.born ?? '1988'}-05-17` : '1953, 1953-08-08 or ~1890'} />
+              <span>{t(gaps.includes('birthday') ? GAP_LABEL.birthday : 'fact.born')}</span>
+              <input ref={firstRef()} className="input" value={v.born ?? ''} onChange={set('born')} placeholder={gaps.includes('birthday') ? `${p.born ?? '1988'}-05-17` : t('needed.phBorn')} />
             </label>
           )}
           {gaps.includes('birthplace') && (
             <div className="field wide">
-              <span id="blaze-bornplace">Birthplace</span>
+              <span id="blaze-bornplace">{t(GAP_LABEL.birthplace)}</span>
               <PlaceInput
                 tree={tree}
                 inputRef={firstRef<HTMLInputElement>()}
                 aria-labelledby="blaze-bornplace"
                 value={{ ...v.bornPin, name: v.bornPlace ?? '' }}
                 onChange={({ name, ...pin }) => setV((x) => ({ ...x, bornPlace: name, bornPin: pin.lat !== undefined ? pin : undefined }))}
-                placeholder="Town, village or farm"
               />
             </div>
           )}
           {gaps.includes('died') && (
             <label className="field">
-              <span>Died</span>
-              <input ref={firstRef()} className="input" value={v.died ?? ''} onChange={set('died')} placeholder="1999 or 1999-03-02" />
+              <span>{t('fact.died')}</span>
+              <input ref={firstRef()} className="input" value={v.died ?? ''} onChange={set('died')} placeholder={t('needed.phDied')} />
             </label>
           )}
           {gaps.includes('occupation') && (
             <label className="field">
-              <span>Occupation</span>
+              <span>{t(GAP_LABEL.occupation)}</span>
               <input ref={firstRef()} className="input" value={v.occupation ?? ''} onChange={set('occupation')} placeholder="Weaver, Lehrerin…" />
             </label>
           )}
           {gaps.includes('sex') && (
             <div className="field">
-              <span>Sex</span>
+              <span>{t(GAP_LABEL.sex)}</span>
               <div className="seg">
-                {([['f', 'Female'], ['m', 'Male'], ['x', 'Other']] as const).map(([val, l], n) => (
-                  <button key={val} ref={n === 0 ? firstRef<HTMLButtonElement>() : undefined} type="button" className="btn" aria-pressed={v.sex === val} onClick={() => setV((x) => ({ ...x, sex: val }))}>{l}</button>
+                {([['f', 'quick.sexFemale'], ['m', 'quick.sexMale'], ['x', 'quick.sexOther']] as const).map(([val, l], n) => (
+                  <button key={val} ref={n === 0 ? firstRef<HTMLButtonElement>() : undefined} type="button" className="btn" aria-pressed={v.sex === val} onClick={() => setV((x) => ({ ...x, sex: val }))}>{t(l)}</button>
                 ))}
               </div>
             </div>
           )}
           {missingParents.map((sx) => {
             const [gk, sk, lk] = sx === 'f' ? (['motherGiven', 'motherSurname', 'motherLink'] as const) : (['fatherGiven', 'fatherSurname', 'fatherLink'] as const);
-            const word = sx === 'm' ? 'Father' : sx === 'f' ? 'Mother' : 'Other parent';
+            const word = t(sx === 'm' ? 'card.fatherLabel' : sx === 'f' ? 'card.motherLabel' : 'quick.otherParent');
             const linked = v[lk];
             return (
               <div key={sx} className="field wide blaze-parent-slot">
                 <span>{word}</span>
                 {linked ? (
                   <div className="blaze-linked">
-                    <span className="palette-item" aria-label={`${word}: already in the tree`}><PersonRow f={f} tree={tree} id={linked} who={me} note={<><Link2 size={11} aria-hidden /> Linking someone already in the tree</>} /></span>
-                    <button type="button" className="btn ghost" onClick={() => setV((x) => ({ ...x, [lk]: undefined }))}>Change</button>
+                    <span className="palette-item" aria-label={t('needed.linkedAria', { word })}><PersonRow f={f} tree={tree} id={linked} who={me} note={<><Link2 size={11} aria-hidden /> {t('needed.linkingNote')}</>} /></span>
+                    <button type="button" className="btn ghost" onClick={() => setV((x) => ({ ...x, [lk]: undefined }))}>{t('needed.change')}</button>
                   </div>
                 ) : (
                   <>
                     <div className="blaze-parent">
-                      <input ref={firstRef()} className="input" aria-label={`${word}: given name`} value={v[gk] ?? ''} onChange={set(gk)} placeholder="Given name" />
-                      <input className="input" aria-label={`${word}: surname at birth`} value={v[sk] ?? ''} onChange={set(sk)} placeholder="Surname at birth" />
+                      <input ref={firstRef()} className="input" aria-label={t('needed.givenAria', { word })} value={v[gk] ?? ''} onChange={set(gk)} placeholder={t('quick.given')} />
+                      <input className="input" aria-label={t('needed.surnameAria', { word })} value={v[sk] ?? ''} onChange={set(sk)} placeholder={t('quick.surnameBirth')} />
                     </div>
                     {(v[gk] ?? '').trim().length >= 2 && (
                       <div className="blaze-matches">
-                        <span className="subtle">Already in the tree? Pick them instead of adding someone new.</span>
+                        <span className="subtle">{t('needed.alreadyPick')}</span>
                         <LinkCandidates
                           f={f} tree={tree} anchor={p.id} relation="parent" query={v[gk] ?? ''} surname={v[sk]} limit={3}
-                          prefer={sx === 'x' ? undefined : sx} label={`${word}: people already in the tree`}
+                          prefer={sx === 'x' ? undefined : sx} label={t('needed.peopleAria', { word })}
                           onPick={(pid) => setV((x) => ({ ...x, [lk]: pid }))}
                         />
                       </div>
@@ -452,44 +454,44 @@ function Blaze({ queue, only, f, tree, me, role, required, onClose }: { queue: s
           })}
           {gaps.includes('contact') && (
             <div className="field wide">
-              <span>Contact</span>
+              <span>{t(GAP_LABEL.contact)}</span>
               <div className="blaze-parent" style={{ gridTemplateColumns: '120px 1fr' }}>
-                <Select value={v.contactKind ?? 'phone'} onChange={(value) => setV((x) => ({ ...x, contactKind: value }))} aria-label="Contact kind" options={[{ value: 'phone', label: 'Phone' }, { value: 'email', label: 'Email' }, { value: 'address', label: 'Address' }]} />
-                <input ref={firstRef()} className="input" value={v.contactValue ?? ''} onChange={set('contactValue')} placeholder="+49 …, name@example.com, Street 1, Town" />
+                <Select value={v.contactKind ?? 'phone'} onChange={(value) => setV((x) => ({ ...x, contactKind: value }))} aria-label={t('needed.contactKind')} options={[{ value: 'phone', label: t('type.phone') }, { value: 'email', label: t('type.email') }, { value: 'address', label: t('type.address') }]} />
+                <input ref={firstRef()} className="input" value={v.contactValue ?? ''} onChange={set('contactValue')} placeholder={t('needed.phContact')} />
               </div>
             </div>
           )}
           {gaps.includes('photo') && (
             <div className="field wide">
-              <span>Photo</span>
+              <span>{t(GAP_LABEL.photo)}</span>
               <label className="btn blaze-file">
-                <Camera size={14} /> {v.photo ? v.photo.name : 'Choose a photo…'}
+                <Camera size={14} /> {v.photo ? v.photo.name : t('needed.choosePhoto')}
                 <input type="file" accept="image/*" hidden onChange={(e) => setV((x) => ({ ...x, photo: e.target.files?.[0] }))} />
               </label>
             </div>
           )}
           {gaps.includes('story') && (
             <label className="field wide">
-              <span>A memory of {p.given}</span>
-              <textarea ref={firstRef<HTMLTextAreaElement>()} className="input" rows={3} value={v.story ?? ''} onChange={set('story')} placeholder={`Something you remember about ${p.given} (⌘↵ to save)`} />
+              <span>{t('needed.memoryOf', { name: p.given })}</span>
+              <textarea ref={firstRef<HTMLTextAreaElement>()} className="input" rows={3} value={v.story ?? ''} onChange={set('story')} placeholder={t('needed.phStory', { name: p.given })} />
             </label>
           )}
           {error && <em className="err wide" role="alert">{error}</em>}
         </fieldset>
         <div className="blaze-foot">
-          <span className="faint">Leave a field empty if nobody knows yet.</span>
+          <span className="faint">{t('needed.leaveEmpty')}</span>
           <span className="spacer" />
-          <button className="btn" onClick={askSkip} disabled={busy} title="Ask later"><SkipForward size={14} /> Skip</button>
-          <button className="btn primary" onClick={() => void save()} disabled={busy}><Check size={14} /> {busy ? 'Saving…' : 'Save & next'} <kbd>↵</kbd></button>
+          <button className="btn" onClick={askSkip} disabled={busy} title={t('needed.askLater')}><SkipForward size={14} /> {t('needed.skip')}</button>
+          <button className="btn primary" onClick={() => void save()} disabled={busy}><Check size={14} /> {busy ? t('needed.saving') : t('needed.saveNext')} <kbd>↵</kbd></button>
         </div>
         {confirm && (
           <div className="ui-dialog-confirm" role="alertdialog" aria-modal="true" aria-labelledby="blaze-confirm">
             <div>
-              <b id="blaze-confirm">{confirm === 'skip' ? `Skip ${p.given} without saving?` : 'Stop without saving?'}</b>
-              <p>What you typed for {p.given} will be lost.</p>
+              <b id="blaze-confirm">{confirm === 'skip' ? t('needed.skipConfirm', { name: p.given }) : t('needed.stopConfirm')}</b>
+              <p>{t('needed.typedLost', { name: p.given })}</p>
               <div className="ui-row">
-                <button ref={keep} type="button" className="btn" onClick={() => setConfirm(null)}>Keep editing</button>
-                <button type="button" className="btn primary" onClick={confirmed}>{confirm === 'skip' ? 'Skip' : 'Stop'}</button>
+                <button ref={keep} type="button" className="btn" onClick={() => setConfirm(null)}>{t('panel.keepEditing')}</button>
+                <button type="button" className="btn primary" onClick={confirmed}>{confirm === 'skip' ? t('needed.skip') : t('needed.stop')}</button>
               </div>
             </div>
           </div>
@@ -498,6 +500,11 @@ function Blaze({ queue, only, f, tree, me, role, required, onClose }: { queue: s
   );
 }
 
+
+/** "you", or "your aunt": a kinship label in the reader's language. */
+function kinText(t: Translator, k: string): string {
+  return k === 'you' ? t('common.you') : t('shell.palette.yourKin', { kin: kinshipLabel({ label: k, via: [] }, t.locale) });
+}
 
 /**
  * Which parent fields to offer: both when none is known; the missing one when one is known; a single

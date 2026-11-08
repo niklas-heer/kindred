@@ -31,7 +31,7 @@ if (!trees.length) {
 if (from && trees.length > 1) throw new Error('--from takes one tree');
 
 /** Tables in the order their foreign keys need. `op` (retry keys) is not copied. */
-const TABLES = ['meta', 'house', 'person', 'parent', 'partnership', 'story', 'contact', 'place', 'photo'];
+const TABLES = ['meta', 'house', 'person', 'parent', 'partnership', 'story', 'place', 'photo'];
 
 const literal = (v: unknown): string => {
   if (v === null || v === undefined) return 'NULL';

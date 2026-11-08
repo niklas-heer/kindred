@@ -41,8 +41,8 @@ test('a seed writes contacts and favourites as person fields, and the current na
     ]);
     const ben = db.prepare("SELECT type, value FROM person_field WHERE person = 'ben'").all().map((r) => ({ ...r }));
     assert.deepEqual(ben, [{ type: 'email', value: '{"address":"ben@example.org"}' }]);
-    const ada = db.prepare('SELECT current_given, current_surname, favourite FROM person WHERE id = ?').get('ada');
-    assert.deepEqual({ ...ada }, { current_given: null, current_surname: 'King', favourite: null });
+    const ada = db.prepare('SELECT current_given, current_surname FROM person WHERE id = ?').get('ada');
+    assert.deepEqual({ ...ada }, { current_given: null, current_surname: 'King' });
     assert.equal(db.prepare('PRAGMA foreign_key_check').all().length, 0);
   } finally {
     db.close();

@@ -44,14 +44,17 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
     // An unknown parent: an open slot that invites filling in.
     const { child, as } = node.ghost;
     const of = f.byId.get(child);
+    const who = of?.given ?? t('card.theirs');
+    const rel = t(as === 'father' ? 'card.father' : 'card.mother');
+    const relLabel = t(as === 'father' ? 'card.fatherLabel' : 'card.motherLabel');
     // Readers who may not add people see the slot as a plain "unknown", not a button.
     if (!onAdd) {
       return (
-        <div className={`card ghost readonly ${detail}`} title={`${of?.given ?? 'Their'}'s ${as} is unknown`} aria-hidden>
+        <div className={`card ghost readonly ${detail}`} title={t('card.unknownSlot', { who, rel })} aria-hidden>
           {detail === 'near' && (
             <>
-              <span className="ghost-label">{as === 'father' ? 'Father' : 'Mother'}</span>
-              <span className="ghost-sub">of {of?.given ?? '?'} · unknown</span>
+              <span className="ghost-label">{relLabel}</span>
+              <span className="ghost-sub">{t('card.of', { who: of?.given ?? '?' })}</span>
             </>
           )}
         </div>
@@ -61,14 +64,14 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
       <button
         className={`card ghost ${detail}`}
         onClick={() => onAdd?.(child, 'parent', as === 'father' ? 'm' : 'f')}
-        title={`Add ${of?.given ?? 'their'}'s ${as}`}
-        aria-label={`Add ${of?.given ?? 'their'}'s ${as}`}
+        title={t('card.addSlot', { who, rel })}
+        aria-label={t('card.addSlot', { who, rel })}
       >
         {detail !== 'far' && (
           <>
             <span className="ghost-plus"><Plus size={detail === 'near' ? 26 : 34} /></span>
-            {detail === 'near' && <span className="ghost-label">{as === 'father' ? 'Father' : 'Mother'}</span>}
-            {detail === 'near' && <span className="ghost-sub">of {of?.given ?? '?'} · unknown</span>}
+            {detail === 'near' && <span className="ghost-label">{relLabel}</span>}
+            {detail === 'near' && <span className="ghost-sub">{t('card.of', { who: of?.given ?? '?' })}</span>}
           </>
         )}
       </button>
@@ -78,13 +81,15 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
   if (!p) return null;
   const house = p.house ? f.house.get(p.house) : undefined;
   const name = personDisplayName(p, nameMode, f);
-  const ageLabel = ageMode === 'all' || (ageMode === 'living' && p.living) ? cardAge(p) : undefined;
+  const years = lifespan(p, t.locale);
+  const ageLabel = ageMode === 'all' || (ageMode === 'living' && p.living) ? cardAge(p, undefined, t.locale) : undefined;
 
   if (detail === 'far') {
     // Overview: a shield in the house colour (rich for the living, faded for the dead), a crown for
     // rulers, and the house's arms on its founder.
     const ruler = /^(King|Queen|Emperor|Empress)\b/.test(p.title ?? '');
     const founder = house?.founder === p.id;
+    const founderText = founder ? t('card.founderOf', { house: house!.name }) : '';
     return (
       <button
         className={`card far${selected ? ' selected' : ''}${p.living ? ' living' : ' dead'}${isMe ? ' me' : ''}${ruler ? ' crowned' : ''}${founder ? ' founder' : ''}`}
@@ -95,8 +100,8 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
         }}
         onClick={() => onSelect(p.id)}
         onDoubleClick={() => onOpen?.(p.id)}
-        title={`${name} · ${lifespan(p)}${founder ? ` · founder of ${house!.name}` : ''}`}
-        aria-label={`${name}, ${lifespan(p)}${founder ? `, founder of ${house!.name}` : ''}`}
+        title={[name, years, founder ? founderText : ''].filter(Boolean).join(' · ')}
+        aria-label={[`${name}`, years, founder ? founderText : ''].filter(Boolean).join(', ')}
       >
         {ruler && <GameIcon name="crown" size={84} className="far-crown" />}
         {node.folded ? (
@@ -121,11 +126,12 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
   // The epithet ("the Pious") is set in italic; mid detail drops it so the name stays large.
   const epithet = p.epithet && name.endsWith(` ${p.epithet}`) ? p.epithet : undefined;
   const base = epithet ? name.slice(0, -epithet.length - 1) : name;
+  const canFold = !!onToggle && !!(node.folded || (f.childrenOf.get(p.id)?.length && node.role === 'main'));
   return (
     <div className={`card ${detail}${selected ? ' selected' : ''}${roleClass}${p.living ? ' living' : ' dead'}${ruler ? ' crowned' : ''}`}>
-      <button className="card-hit" onClick={() => onSelect(p.id)} onDoubleClick={() => onOpen?.(p.id)} aria-label={`${name}, ${lifespan(p)}`} title={`${name} · click to select, double-click to centre the tree here`}>
+      <button className="card-hit" onClick={() => onSelect(p.id)} onDoubleClick={() => onOpen?.(p.id)} aria-label={`${name}, ${years}`} title={t('card.clickToSelect', { name })}>
         <div className="card-portrait">
-          <Portrait person={p} tree={tree} size={detail === 'near' ? 104 : 84} prefer={p.preferAvatar ? 'avatar' : 'photo'} />
+          <Portrait person={p} tree={tree} size={detail === 'near' ? 104 : 84} />
           {house && (
             <span className="card-arms" title={house.name}>
               <Arms arms={house.arms} size={detail === 'near' ? 28 : 24} />
@@ -138,51 +144,51 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
             <span className="card-heir" title={t('houses.heirOf', { name: bareHouseName(houseRole.house) })}>{t('houses.heirRibbon')}</span>
           )}
           {p.stories > 0 && detail === 'near' && (
-            <span className="card-badge card-stories" title={`${p.stories} ${p.stories === 1 ? 'story' : 'stories'}`}>
+            <span className="card-badge card-stories" title={t('card.stories', { count: p.stories })}>
               <GameIcon name="quill-ink" size={12} /> {p.stories}
             </span>
           )}
           {soon !== undefined && (
-            <span className={`card-badge card-bday${soon === 0 ? ' today' : ''}`} title={soon === 0 ? 'Birthday today' : `Birthday in ${soon} day${soon === 1 ? '' : 's'}`}>
+            <span className={`card-badge card-bday${soon === 0 ? ' today' : ''}`} title={soon === 0 ? t('card.birthdayToday') : t('card.birthdayIn', { count: soon })}>
               <GameIcon name="cake-slice" size={13} />
             </span>
           )}
           {disputed && detail === 'near' && (
-            <span className="card-badge card-disputed" title="Parentage disputed">
+            <span className="card-badge card-disputed" title={t('rel.disputed')}>
               <GameIcon name="uncertainty" size={12} />
             </span>
           )}
         </div>
         <div className="card-plate">
           <div className="card-name">{base}{epithet && detail === 'near' ? <> <i className="card-epithet">{epithet}</i></> : null}</div>
-          {detail === 'near' && <div className="card-sub">{sub || '\u00a0'}</div>}
+          {detail === 'near' && <div className="card-sub">{sub || ' '}</div>}
           <div className="card-years">
-            {lifespan(p)}
-            {ageLabel && <span className="card-age" aria-label={`${p.living ? 'Age' : 'Age at death'}: ${ageLabel}`}>{ageLabel}</span>}
-            {node.outOfHouse && detail === 'near' ? <span className="card-out" title={`${node.outOfHouse} children belong to other houses`}>↗{node.outOfHouse}</span> : null}
+            {years}
+            {ageLabel && <span className="card-age" aria-label={`${p.living ? t('card.age') : t('card.ageAtDeath')}: ${ageLabel}`}>{ageLabel}</span>}
+            {node.outOfHouse && detail === 'near' ? <span className="card-out" title={t('card.outOfHouse', { count: node.outOfHouse })}>↗{node.outOfHouse}</span> : null}
           </div>
         </div>
       </button>
-      {detail !== 'near' ? null : isMe ? <span className="card-kin me">you</span> : kin ? <span className="card-kin">{kin}</span> : null}
-      {node.role === 'dup' && <span className="card-dup">appears again</span>}
+      {detail !== 'near' ? null : isMe ? <span className="card-kin me">{t('common.you')}</span> : kin ? <span className="card-kin">{kin}</span> : null}
+      {node.role === 'dup' && <span className="card-dup">{t('card.appearsAgain')}</span>}
       {gaps.length > 0 && (
-        <span className="card-gaps" title={`Information needed: ${gaps.map((g) => GAP_LABEL[g]).join(', ')}`}>
+        <span className="card-gaps" title={t('card.gapsTitle', { list: gaps.map((g) => t(GAP_LABEL[g])).join(', ') })}>
           {gaps.length}
         </span>
       )}
 
-      {onToggle && (node.folded || (f.childrenOf.get(p.id)?.length && node.role === 'main')) ? (
-        <button className={`card-fold${node.folded ? ' folded' : ''}`} onClick={() => onToggle(p.id)} title={node.folded ? `Unfold ${node.folded} descendants` : 'Fold descendants'} aria-label={node.folded ? `Unfold ${node.folded} descendants of ${name}` : `Fold the descendants of ${name}`} aria-expanded={!node.folded}>
+      {canFold ? (
+        <button className={`card-fold${node.folded ? ' folded' : ''}`} onClick={() => onToggle?.(p.id)} title={node.folded ? t('card.unfold', { count: node.folded }) : t('card.fold')} aria-label={node.folded ? t('card.unfoldOf', { count: node.folded, name }) : t('card.foldOf', { name })} aria-expanded={!node.folded}>
           {node.folded ? <>+{node.folded}</> : <Minus size={11} />}
         </button>
       ) : null}
 
       {selected && onAdd && node.role !== 'dup' && detail === 'near' && (
         <>
-          {(f.parentsOf.get(p.id)?.length ?? 0) < 2 && <button className="add add-parent" onClick={() => onAdd(p.id, 'parent')} title="Add a parent" aria-label={`Add a parent of ${name}`}><Plus size={14} /></button>}
-          <button className="add add-child" onClick={() => onAdd(p.id, 'child')} title="Add a child" aria-label={`Add a child of ${name}`}><Plus size={14} /></button>
-          <button className="add add-partner" onClick={() => onAdd(p.id, 'partner')} title="Add a partner" aria-label={`Add a partner of ${name}`}><Plus size={14} /></button>
-          <button className="add add-sibling" onClick={() => onAdd(p.id, 'sibling')} title="Add a sibling" aria-label={`Add a sibling of ${name}`}><Plus size={14} /></button>
+          {(f.parentsOf.get(p.id)?.length ?? 0) < 2 && <button className="add add-parent" onClick={() => onAdd(p.id, 'parent')} title={t('card.addParent')} aria-label={t('card.addParentOf', { name })}><Plus size={14} /></button>}
+          <button className="add add-child" onClick={() => onAdd(p.id, 'child')} title={t('card.addChild')} aria-label={t('card.addChildOf', { name })}><Plus size={14} /></button>
+          <button className="add add-partner" onClick={() => onAdd(p.id, 'partner')} title={t('card.addPartner')} aria-label={t('card.addPartnerOf', { name })}><Plus size={14} /></button>
+          <button className="add add-sibling" onClick={() => onAdd(p.id, 'sibling')} title={t('card.addSibling')} aria-label={t('card.addSiblingOf', { name })}><Plus size={14} /></button>
         </>
       )}
     </div>

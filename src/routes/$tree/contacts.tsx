@@ -10,6 +10,7 @@ import { Portrait } from '~/components/Portrait';
 import { contactsQuery } from '~/lib/api';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
 import { play } from '~/lib/sfx';
+import { locales, useT, type Key, type Translator } from '~/lib/i18n';
 import { age as ageOf, ageAt, children, displayName, partnersOf, parents, siblings, type Family } from '~/lib/graph';
 import type { GPerson } from '~/lib/types';
 import '~/styles/contacts.css';
@@ -166,6 +167,7 @@ const webHref = (v: string) => (/^https?:\/\//i.test(v) ? v : /^[a-z][a-z0-9+.-]
 // ---------- page ----------
 
 function ContactsPage() {
+  const t = useT();
   const f = useFamily();
   const me = useMeChosen();
   const tree = useTreeId();
@@ -243,18 +245,18 @@ function ContactsPage() {
   return (
     <div className="page">
       <div className="page-inner con">
-        <PageHeader title="Contacts" subtitle={<>
+        <PageHeader title={t('con.titleLabel')} subtitle={<>
               {isPending
-                ? 'Opening the address book…'
+                ? t('con.opening')
                 : noData
-                  ? 'Nobody has contact details yet'
-                  : `${households.length} ${households.length === 1 ? 'household' : 'households'} · ${households.reduce((n, h) => n + h.members.length, 0)} people with details`}
-            </>} actions={<><button className="btn" onClick={downloadAll} disabled={!shown.length} title="Save everyone shown as a .vcf file for your phone or address book">
-            <Download size={16} /> Download vCard{shown.length ? ` (${people})` : ''}
+                  ? t('con.noneYet')
+                  : `${t('con.households', { count: households.length })} · ${t('con.peopleWithDetails', { count: households.reduce((n, h) => n + h.members.length, 0) })}`}
+            </>} actions={<><button className="btn" onClick={downloadAll} disabled={!shown.length} title={t('con.downloadTitle')}>
+            <Download size={16} /> {t('con.downloadVcard')}{shown.length ? ` (${people})` : ''}
           </button></>} />
 
-        {isPending && <div className="page-loading" aria-busy="true" aria-label="Loading contacts">{Array.from({ length: 4 }, (_, i) => <div className="ui-card" key={i} style={{ padding: 20, marginBottom: 12 }}><Skeleton width={48} height={48} radius="50%" /><Skeleton lines={3} /></div>)}</div>}
-        {isError && <ErrorState title="Could not open the address book" message="Your family’s information is still safe. Please try again." onRetry={() => { void refetch(); }} />}
+        {isPending && <div className="page-loading" aria-busy="true" aria-label={t('con.loadingAria')}>{Array.from({ length: 4 }, (_, i) => <div className="ui-card" key={i} style={{ padding: 20, marginBottom: 12 }}><Skeleton width={48} height={48} radius="50%" /><Skeleton lines={3} /></div>)}</div>}
+        {isError && <ErrorState title={t('con.errorTitle')} message={t('con.errorText')} onRetry={() => { void refetch(); }} />}
         {!isPending && !isError && <>
         <div className="con-tools" role="search">
           <label className="con-search">
@@ -262,25 +264,25 @@ function ContactsPage() {
             <input
               className="input"
               type="search"
-              placeholder="Search names, numbers, streets…"
+              placeholder={t('con.searchPlaceholder')}
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              aria-label="Search contacts"
+              aria-label={t('con.searchAria')}
             />
           </label>
           <div className="con-filters">
             <button className="btn" aria-pressed={onlyPhone} onClick={() => setOnlyPhone(!onlyPhone)}>
-              <Phone size={14} /> Has phone
+              <Phone size={14} /> {t('con.hasPhone')}
             </button>
             <button className="btn" aria-pressed={onlyAddress} onClick={() => setOnlyAddress(!onlyAddress)}>
-              <Home size={14} /> Has address
+              <Home size={14} /> {t('con.hasAddress')}
             </button>
-            <button className="btn" disabled={!me} aria-pressed={onlyClose} onClick={() => setOnlyClose(!onlyClose)} title="You, your partner, parents, children, siblings and grandparents or grandchildren">
-              <BookUser size={14} /> Close family
+            <button className="btn" disabled={!me} aria-pressed={onlyClose} onClick={() => setOnlyClose(!onlyClose)} title={t('con.closeFamilyTitle')}>
+              <BookUser size={14} /> {t('con.closeFamily')}
             </button>
             {filtering && (
               <button className="btn ghost" onClick={clear}>
-                <X size={14} /> Clear
+                <X size={14} /> {t('con.clear')}
               </button>
             )}
           </div>
@@ -289,22 +291,17 @@ function ContactsPage() {
         {noData && (
           <div className="con-empty ui-card">
             <BookUser size={28} />
-            <h2 className="display">An empty address book</h2>
-            <p className="muted">
-              Open anyone on the tree and add a phone number, email or address. Households fill in here on their own: partners who share an address,
-              with their children.
-            </p>
+            <h2 className="display">{t('con.emptyTitle')}</h2>
+            <p className="muted">{t('con.emptyText')}</p>
           </div>
         )}
 
         {!noData && shown.length === 0 && shownNoDetails.length === 0 && (
           <div className="con-empty ui-card">
             <Search size={26} />
-            <h2 className="display">No one matches</h2>
-            <p className="muted">Try fewer words or switch a filter off.</p>
-            <button className="btn" onClick={clear}>
-              Clear filters
-            </button>
+            <h2 className="display">{t('con.noMatchTitle')}</h2>
+            <p className="muted">{t('con.noMatchText')}</p>
+            <button className="btn" onClick={clear}>{t('con.clearFilters')}</button>
           </div>
         )}
 
@@ -322,23 +319,23 @@ function ContactsPage() {
         {!noData && shownNoDetails.length > 0 && (
           <section className="con-nodetails" aria-labelledby="nod">
             <h2 id="nod" className="rule">
-              No details yet <span className="chip">{shownNoDetails.length}</span>
+              {t('con.noDetailsTitle')} <span className="chip">{shownNoDetails.length}</span>
             </h2>
-            <p className="muted con-nod-note">Living relatives with no phone, email or address on file.</p>
+            <p className="muted con-nod-note">{t('con.noDetailsText')}</p>
             <ul className="con-nod-list">
               {(allNoDetails ? shownNoDetails : shownNoDetails.slice(0, 36)).map((p) => (
                 <li key={p.id}>
                   <Portrait person={p} tree={tree} size={36} />
                   <span className="con-nod-name">{displayName(p, f)}</span>
                   <Link className="btn ghost" to="/$tree" params={{ tree }} search={{ focus: p.id }}>
-                    <UserPlus size={14} /> Add
+                    <UserPlus size={14} /> {t('con.add')}
                   </Link>
                 </li>
               ))}
             </ul>
             {shownNoDetails.length > 36 && (
               <button className="btn" onClick={() => setAllNoDetails(!allNoDetails)}>
-                {allNoDetails ? 'Show fewer' : `Show all ${shownNoDetails.length}`}
+                {allNoDetails ? t('con.showFewer') : t('con.showAll', { count: shownNoDetails.length })}
               </button>
             )}
           </section>
@@ -352,14 +349,15 @@ function ContactsPage() {
 // ---------- cards ----------
 
 function CopyButton({ value, label }: { value: string; label: string }) {
+  const t = useT();
   const [done, setDone] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
   return (
     <button
       className="btn ghost icon con-copy"
-      aria-label={`Copy ${label}`}
-      title={done ? 'Copied' : `Copy ${label}`}
+      aria-label={t('con.copyLabel', { label })}
+      title={done ? t('con.copied') : t('con.copyLabel', { label })}
       data-done={done || undefined}
       onClick={() => {
         navigator.clipboard
@@ -374,14 +372,16 @@ function CopyButton({ value, label }: { value: string; label: string }) {
       }}
     >
       {done ? <Check size={14} /> : <Copy size={14} />}
-      <span className="con-sr" role="status">{done ? 'Copied' : ''}</span>
+      <span className="con-sr" role="status">{done ? t('con.copied') : ''}</span>
     </button>
   );
 }
 
 const ICONS = { phone: Phone, email: Mail, address: MapPin, web: Globe, messenger: MessageCircle };
+const KIND_KEY: Record<Row['kind'], Key> = { phone: 'con.kind.phone', email: 'con.kind.email', address: 'con.kind.address', web: 'con.kind.web', messenger: 'con.kind.messenger' };
 
 function ContactLine({ r }: { r: Row }) {
+  const t = useT();
   const Icon = ICONS[r.kind];
   const href =
     r.kind === 'phone' ? `tel:${r.value.replace(/[^\d+]/g, '')}` : r.kind === 'email' ? `mailto:${r.value}` : r.kind === 'web' ? webHref(r.value) : undefined;
@@ -398,11 +398,11 @@ function ContactLine({ r }: { r: Row }) {
         <span className="con-value">{r.value}</span>
       )}
       {map && (
-        <a className="btn ghost icon con-copy" href={map} target="_blank" rel="noreferrer noopener" aria-label="Open on a map" title="Open on a map">
+        <a className="btn ghost icon con-copy" href={map} target="_blank" rel="noreferrer noopener" aria-label={t('con.openMap')} title={t('con.openMap')}>
           <MapPin size={14} />
         </a>
       )}
-      <CopyButton value={r.value} label={r.kind} />
+      <CopyButton value={r.value} label={t(KIND_KEY[r.kind])} />
     </li>
   );
 }
@@ -416,6 +416,7 @@ function sharedHouse(h: Household, f: Family) {
 }
 
 function HouseholdCard({ h, f, tree }: { h: Household; f: Family; tree: string }) {
+  const t = useT();
   const house = sharedHouse(h, f);
   return (
     <article className="con-card ui-card" data-house={house ? true : undefined}>
@@ -440,11 +441,11 @@ function HouseholdCard({ h, f, tree }: { h: Household; f: Family; tree: string }
                 </Link>
                 <div className="con-sub">
                   {m.nickname && <span className="con-nick">“{m.nickname}”</span>}
-                  {years !== undefined && <span>{years} {years === 1 ? 'year' : 'years'}</span>}
+                  {years !== undefined && <span>{t('con.years', { count: years })}</span>}
                   {bd && (
                     <span className="con-bday" data-soon={bd.days <= 14 || undefined}>
                       <GameIcon name="cake-slice" size={14} />
-                      {bd.days === 0 ? 'Birthday today' : bd.days === 1 ? 'Birthday tomorrow' : `${bd.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, turns ${bd.turns}`}
+                      {bd.days === 0 ? t('con.birthdayToday') : bd.days === 1 ? t('con.birthdayTomorrow') : t('con.birthdayOn', { date: bd.date.toLocaleDateString(locales[t.locale], { day: 'numeric', month: 'short' }), n: bd.turns })}
                     </span>
                   )}
                 </div>
@@ -472,10 +473,10 @@ function HouseholdCard({ h, f, tree }: { h: Household; f: Family; tree: string }
       <footer className="con-actions">
         <button
           className="btn ghost con-download"
-          aria-label={h.members.length > 1 ? `Save ${h.members.length} contacts to your address book` : `Save ${h.members[0] ? displayName(h.members[0], f) : 'this contact'} to your address book`}
+          aria-label={h.members.length > 1 ? t('con.saveMany', { count: h.members.length }) : t('con.saveOne', { name: h.members[0] ? displayName(h.members[0], f) : t('con.saveFallback') })}
           onClick={() => download(`${tree}-${h.id}.vcf`, 'text/vcard', h.members.map((m) => vcard(m, h.rows.get(m.id) ?? [], f)).join('\r\n'))}
         >
-          <Download size={15} /> Save contact{h.members.length > 1 ? 's' : ''}
+          <Download size={15} /> {t('con.saveButton', { count: h.members.length })}
         </button>
       </footer>
     </article>

@@ -21,7 +21,7 @@ import {
 } from 'react';
 import { feature, mesh } from 'topojson-client';
 import { getPlacesIn, graphQuery, placeSearchQuery, searchPlaces, upsertPlaces } from '~/lib/api';
-import { useT } from '~/lib/i18n';
+import { locales, useT, type Locale } from '~/lib/i18n';
 import { useCan } from '~/lib/session';
 import type { Place } from '~/lib/types';
 import { Dialog } from './ui/Dialog';
@@ -72,18 +72,18 @@ const fold = (s: string) =>
 export const flagOf = (cc?: string) =>
   cc && /^[a-z]{2}$/i.test(cc) ? String.fromCodePoint(...[...cc.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)) : '';
 let regionNames: Intl.DisplayNames | null | undefined;
-export function countryName(cc?: string) {
+export function countryName(cc?: string, locale: Locale = 'en') {
   if (!cc) return '';
   try {
-    regionNames ??= new Intl.DisplayNames(['en'], { type: 'region' });
+    regionNames = new Intl.DisplayNames([locales[locale]], { type: 'region' });
     return regionNames.of(cc.toUpperCase()) ?? cc.toUpperCase();
   } catch {
     return cc.toUpperCase();
   }
 }
 /** "Baden-Württemberg, Germany"; the region is left out when it only repeats the name (Berlin, Berlin). */
-const whereOf = (p: { name: string; region?: string; country?: string }) =>
-  [p.region && fold(p.region) !== fold(p.name) ? p.region : '', countryName(p.country)].filter(Boolean).join(', ');
+const whereOf = (p: { name: string; region?: string; country?: string }, locale: Locale = 'en') =>
+  [p.region && fold(p.region) !== fold(p.name) ? p.region : '', countryName(p.country, locale)].filter(Boolean).join(', ');
 const far = (a: { lat: number; lng: number }, b: { lat?: number; lng?: number }) =>
   b.lat === undefined || b.lng === undefined || Math.abs(a.lat - b.lat) > 0.05 || Math.abs(a.lng - b.lng) > 0.05;
 
@@ -119,8 +119,9 @@ export interface PlaceInputProps {
   'aria-invalid'?: boolean;
 }
 
-export function PlaceInput({ tree, value, onChange, id, placeholder = 'Town, village or farm', disabled, inputRef, ...aria }: PlaceInputProps) {
+export function PlaceInput({ tree, value, onChange, id, placeholder, disabled, inputRef, ...aria }: PlaceInputProps) {
   const t = useT();
+  placeholder ??= t('places.placeholder');
   const base = useId();
   const optId = (i: number) => `${base}-o${i}`;
   const [focused, setFocused] = useState(false);
@@ -147,7 +148,7 @@ export function PlaceInput({ tree, value, onChange, id, placeholder = 'Town, vil
   const placed = value.lat !== undefined || !!family;
   // A picked town that shares its name with a family pin somewhere else: never move that pin silently.
   const clash = value.lat !== undefined && family && !value.move && far(family, value) ? family : undefined;
-  const where = value.lat !== undefined ? whereOf(value) : family ? countryName(family.country) : '';
+  const where = value.lat !== undefined ? whereOf(value, t.locale) : family ? countryName(family.country, t.locale) : '';
   const flag = flagOf(value.lat !== undefined ? value.country : family?.country);
   // "Uppsala" typed in full but not picked: offer the town, one click away.
   const suggestion = !placed && name && dq.trim() === name ? hits.find((h) => h.uses === undefined && fold(h.name) === fold(name)) : undefined;
@@ -242,8 +243,8 @@ export function PlaceInput({ tree, value, onChange, id, placeholder = 'Town, vil
           data-placed={placed}
           disabled={disabled || !canPin}
           onClick={() => setMapOpen(true)}
-          title={!canPin ? (placed ? 'On the map' : 'Ask an editor to put it on the map') : placed ? (name ? `${name} is on the map. Move its pin…` : 'On the map') : 'Place it on the map…'}
-          aria-label={placed ? `On the map${where ? `: ${where}` : ''}. Move the pin` : 'Place it on the map'}
+          title={!canPin ? (placed ? t('places.onMap') : t('places.askEditor')) : placed ? (name ? t('places.pinMove', { name }) : t('places.onMap')) : t('places.placeIt')}
+          aria-label={placed ? (where ? t('places.onMapWhere', { where }) : t('places.onMapMove')) : t('places.placeAria')}
         >
           <MapPin size={16} aria-hidden />
         </button>
@@ -282,29 +283,29 @@ export function PlaceInput({ tree, value, onChange, id, placeholder = 'Town, vil
         <div className="pi-note" role="status">
           {value.move ? (
             <>
-              <span>The family’s “{name}” pin will move here.</span>
-              <button type="button" className="pi-link" onClick={() => onChange({ ...value, move: undefined })}>Keep it where it was</button>
+              <span>{t('places.movesHere', { name })}</span>
+              <button type="button" className="pi-link" onClick={() => onChange({ ...value, move: undefined })}>{t('places.keepWhere')}</button>
             </>
           ) : (
             <>
-              <span>The family already has a “{name}” elsewhere on the map.</span>
+              <span>{t('places.elsewhere', { name })}</span>
               {value.region && fold(value.region) !== fold(name) && !known.has(`${name}, ${value.region}`) && (
-                <button type="button" className="pi-link" onClick={() => onChange({ ...value, name: `${name}, ${value.region}` })}>Call this one “{name}, {value.region}”</button>
+                <button type="button" className="pi-link" onClick={() => onChange({ ...value, name: `${name}, ${value.region}` })}>{t('places.callThis', { name: `${name}, ${value.region}` })}</button>
               )}
-              <button type="button" className="pi-link" onClick={() => onChange({ ...value, move: true })}>Move that pin here</button>
+              <button type="button" className="pi-link" onClick={() => onChange({ ...value, move: true })}>{t('places.moveHere')}</button>
             </>
           )}
         </div>
       )}
       {!shown && !placed && name && canPin && (
         <div className="pi-note" role="status">
-          <span>Not on the map yet.</span>
+          <span>{t('places.notOnMap')}</span>
           {suggestion && (
             <button type="button" className="pi-link" onClick={() => choose(suggestion)}>
-              <span>{flagOf(suggestion.country) && <span className="pi-flag" aria-hidden>{flagOf(suggestion.country)} </span>}{suggestion.name}, {whereOf(suggestion)}?</span>
+              <span>{flagOf(suggestion.country) && <span className="pi-flag" aria-hidden>{flagOf(suggestion.country)} </span>}{suggestion.name}, {whereOf(suggestion, t.locale)}?</span>
             </button>
           )}
-          <button type="button" className="pi-link" onClick={() => setMapOpen(true)}><Crosshair size={13} aria-hidden /> Place it on the map</button>
+          <button type="button" className="pi-link" onClick={() => setMapOpen(true)}><Crosshair size={13} aria-hidden /> {t('places.placeAria')}</button>
         </div>
       )}
 
@@ -314,17 +315,17 @@ export function PlaceInput({ tree, value, onChange, id, placeholder = 'Town, vil
           popover="manual"
           id={`${base}-list`}
           role="listbox"
-          aria-label="Suggested places"
+          aria-label={t('places.suggestedAria')}
           className="ui-select-pop pi-pop"
           // Keep focus in the field; a press on an option must not blur it first.
           onMouseDown={(e) => e.preventDefault()}
         >
           {hits.map((h, i) => {
             const fam = h.uses !== undefined;
-            const heading = i === 0 && fam ? 'In this family' : !fam && (i === 0 || hits[i - 1].uses !== undefined) ? 'Towns and cities' : undefined;
+            const heading = i === 0 && fam ? t('places.inFamily') : !fam && (i === 0 || hits[i - 1].uses !== undefined) ? t('places.townsCities') : undefined;
             const selected = h.name === value.name && (h.lat === undefined || !far({ lat: h.lat, lng: h.lng! }, value) || (fam && value.lat === undefined));
             // A town found by another spelling shows its official name first, and the spelling that matched as a hint.
-            const sub = fam ? (h.lat === undefined ? 'not on the map yet' : whereOf(h) || 'on the map') : [h.also ? t('places.also_spelled', { name: h.also }) : '', whereOf(h)].filter(Boolean).join(' · ');
+            const sub = fam ? (h.lat === undefined ? t('places.notOnMapShort') : whereOf(h, t.locale) || t('places.onMapShort')) : [h.also ? t('places.also_spelled', { name: h.also }) : '', whereOf(h, t.locale)].filter(Boolean).join(' · ');
             return (
               <div key={`${fam ? 'f' : 'g'}${h.name}${h.lat}`}>
                 {heading && <div className="ui-select-group" role="presentation">{heading}</div>}
@@ -345,7 +346,7 @@ export function PlaceInput({ tree, value, onChange, id, placeholder = 'Town, vil
                     {sub && <small>{sub}</small>}
                   </span>
                   {fam && h.uses ? (
-                    <span className="ui-option-hint" title={`Used ${h.uses} ${h.uses === 1 ? 'time' : 'times'} in this family`}>
+                    <span className="ui-option-hint" title={t('places.used', { count: h.uses })}>
                       <Users size={12} aria-hidden /> {h.uses}
                     </span>
                   ) : null}
@@ -354,7 +355,7 @@ export function PlaceInput({ tree, value, onChange, id, placeholder = 'Town, vil
             );
           })}
           {famHits === hits.length && dq.trim().length >= 2 && (
-            <div className="pi-foot" role="presentation">No towns to suggest. Type it as you know it, and drop a pin.</div>
+            <div className="pi-foot" role="presentation">{t('places.noTowns')}</div>
           )}
         </div>
       )}
@@ -406,6 +407,7 @@ function PinMap({ tree, name, start, family, onClose, onSave }: {
   tree: string; name: string; start?: LatLng; family: Place[]; onClose: () => void;
   onSave: (p: LatLng & { country?: string; region?: string }) => void;
 }) {
+  const t = useT();
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 700, h: 420 });
   const [world, setWorld] = useState<World | null>(null);
@@ -624,22 +626,22 @@ function PinMap({ tree, name, start, family, onClose, onSave }: {
       variant="event"
       width={760}
       dirty={dirty}
-      title={<>Place “{name}” on the map</>}
-      description="Click where it is. Drag to move the map, scroll or pinch to zoom."
+      title={<>{t('places.placeTitle', { name })}</>}
+      description={t('places.mapDesc')}
       initialFocus={host}
       footer={
         <div className="pm-foot">
           <span className="pm-at" aria-live="polite">
-            {pin ? <>{at}{near && <> · {near.km < 2 ? 'in' : `${near.km} km from`} {near.name}{near.cc ? `, ${countryName(near.cc)}` : ''}</>}</> : 'No pin yet'}
+            {pin ? <>{at}{near && <> · {near.km < 2 ? t('places.nearIn', { name: near.name }) : t('places.kmFrom', { km: near.km, name: near.name })}{near.cc ? `, ${countryName(near.cc, t.locale)}` : ''}</>}</> : t('places.noPin')}
           </span>
-          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn" onClick={onClose}>{t('common.cancel')}</button>
           <button
             type="button"
             className="btn primary"
             disabled={!pin}
             onClick={() => pin && onSave({ ...pin, country: near?.cc ?? undefined, region: near?.admin1 ?? undefined })}
           >
-            <MapPin size={14} aria-hidden /> Save pin
+            <MapPin size={14} aria-hidden /> {t('places.savePin')}
           </button>
         </div>
       }
@@ -647,7 +649,7 @@ function PinMap({ tree, name, start, family, onClose, onSave }: {
       <div className="pm">
         <div className="pm-tools">
           <div className="field pm-go">
-            <span id="pm-go-label">Go to a town nearby</span>
+            <span id="pm-go-label">{t('places.goNearby')}</span>
             <input
               className="input"
               aria-labelledby="pm-go-label"
@@ -667,15 +669,15 @@ function PinMap({ tree, name, start, family, onClose, onSave }: {
                 {goHits.filter((h) => h.lat !== undefined).slice(0, 4).map((h) => (
                   <button type="button" key={`${h.name}${h.lat}`} className="btn" onClick={() => { glide(view({ lat: h.lat!, lng: h.lng! }, 0.6)); setGo(''); }}>
                     {flagOf(h.country) && <span className="pi-flag" aria-hidden>{flagOf(h.country)}</span>}
-                    {h.name} <small>{whereOf(h)}</small>
+                    {h.name} <small>{whereOf(h, t.locale)}</small>
                   </button>
                 ))}
-                {!goHits.some((h) => h.lat !== undefined) && <span className="subtle">No town by that name.</span>}
+                {!goHits.some((h) => h.lat !== undefined) && <span className="subtle">{t('places.noTownName')}</span>}
               </div>
             )}
           </div>
           <label className="field">
-            <span>Or coordinates</span>
+            <span>{t('places.orCoords')}</span>
             <input
               className="input"
               value={coords}
@@ -697,7 +699,7 @@ function PinMap({ tree, name, start, family, onClose, onSave }: {
           className={`pm-map${dragging ? ' dragging' : ''}`}
           tabIndex={0}
           role="application"
-          aria-label={`Map. Arrow keys move, plus and minus zoom, Enter drops the pin in the middle.${pin ? ` Pin at ${at}.` : ''}`}
+          aria-label={`${t('places.mapAria')}${pin ? ` ${t('places.mapPin', { at })}` : ''}`}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -740,11 +742,11 @@ function PinMap({ tree, name, start, family, onClose, onSave }: {
             })()}
           </svg>
           <div className="pm-zoom">
-            <button type="button" className="btn" aria-label="Zoom in" onClick={() => glide({ ...zoomed(camRef.current, size, 2) })}><Plus size={16} /></button>
-            <button type="button" className="btn" aria-label="Zoom out" onClick={() => glide({ ...zoomed(camRef.current, size, 0.5) })}><Minus size={16} /></button>
+            <button type="button" className="btn" aria-label={t('places.zoomIn')} onClick={() => glide({ ...zoomed(camRef.current, size, 2) })}><Plus size={16} /></button>
+            <button type="button" className="btn" aria-label={t('places.zoomOut')} onClick={() => glide({ ...zoomed(camRef.current, size, 0.5) })}><Minus size={16} /></button>
           </div>
-          {!pin && <div className="pm-hint">Click the map to drop the pin</div>}
-          <div className="pm-attr">Towns: GeoNames</div>
+          {!pin && <div className="pm-hint">{t('places.pinHint')}</div>}
+          <div className="pm-attr">{t('places.attribution')}</div>
         </div>
       </div>
     </Dialog>

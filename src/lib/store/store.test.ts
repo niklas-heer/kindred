@@ -69,14 +69,14 @@ test('a retry key replays its result for the same person and change, and refuses
 test('two copies of one change racing write once and both get the same result', async () => {
   const op = { key: 'key-race-01', user: 'u1', payload: { kind: 'note' } };
   const run = () =>
-    s.once('old', op, 'addContact', async (d) => {
+    s.once('old', op, 'addRace', async (d) => {
       await d.get('SELECT 1'); // both copies read before either writes
-      return { writes: [q("INSERT INTO contact (person, kind, value) VALUES ('ada', 'email', 'a@example.org')")], result: (r) => r[0].lastRowId, resultSql: 'last_insert_rowid()' };
+      return { writes: [q("INSERT INTO person (id, given) VALUES ('race-1', 'Race')")], result: (r) => r[0].lastRowId, resultSql: 'last_insert_rowid()' };
     });
   const [a, b] = await Promise.all([run(), run()]);
   assert.equal(a, b);
   assert.equal(typeof a, 'number');
-  assert.equal((await s.db('old').get<{ n: number }>("SELECT count(*) AS n FROM contact WHERE person = 'ada'"))!.n, 1);
+  assert.equal((await s.db('old').get<{ n: number }>("SELECT count(*) AS n FROM person WHERE id = 'race-1'"))!.n, 1);
   assert.equal(await run(), a);
 });
 

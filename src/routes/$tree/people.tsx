@@ -21,7 +21,7 @@ import { GameIcon } from '~/components/GameIcon';
 import { Arms } from '~/components/Heraldry';
 import { Portrait } from '~/components/Portrait';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
-import { useT, type Locale } from '~/lib/i18n';
+import { formatNumber, kinshipLabel, locales, translate, useT, type Locale, type Translator } from '~/lib/i18n';
 import { occupationSearchText, occupationText } from '~/lib/occupations';
 import { TRAITS } from '~/lib/traits';
 import { age as ageOf, ancestorDepths, displayName, kinship, partnersOf, type Family } from '~/lib/graph';
@@ -31,7 +31,7 @@ import { sectionHead } from '~/lib/title';
 
 export const Route = createFileRoute('/$tree/people')({
   pendingComponent: PageSkeleton,
-  errorComponent: function PageError() { const router = useRouter(); return <div className="page"><PageHeader title="Register" /><ErrorState message="This page could not be loaded." onRetry={() => { void router.invalidate(); }} /></div>; },
+  errorComponent: function PageError() { const router = useRouter(); const t = useT(); return <div className="page"><PageHeader title={t('shell.register')} /><ErrorState message={t('needed.loadFailed')} onRetry={() => { void router.invalidate(); }} /></div>; },
   head: sectionHead('Register'),
   component: RegisterPage,
 });
@@ -61,12 +61,12 @@ const dateKey = (d?: string) => {
   const m = d && PARTIAL.exec(d);
   return m ? +m[2] * 10_000 + (m[3] ? +m[3] : 0) * 100 + (m[4] ? +m[4] : 0) : undefined;
 };
-function short(d?: string): string {
+function short(d: string | undefined, locale: Locale = 'en'): string {
   const m = d && PARTIAL.exec(d);
   if (!m) return '';
-  const c = m[1] ? 'c. ' : '';
-  if (m[4]) return c + new Date(Date.UTC(+m[2], +m[3] - 1, +m[4])).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
-  if (m[3]) return c + new Date(Date.UTC(+m[2], +m[3] - 1, 1)).toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+  const c = m[1] ? translate(locale, 'life.circa') : '';
+  if (m[4]) return c + new Date(Date.UTC(+m[2], +m[3] - 1, +m[4])).toLocaleDateString(locales[locale], { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  if (m[3]) return c + new Date(Date.UTC(+m[2], +m[3] - 1, 1)).toLocaleDateString(locales[locale], { month: 'short', year: 'numeric', timeZone: 'UTC' });
   return c + m[2];
 }
 
@@ -118,7 +118,7 @@ function buildRows(f: Family & { gen: Map<string, number> }, tree: string, me: s
       house,
       base,
       sortName: `${p.surname ?? ''} ${p.given} ${p.born ?? ''}`.toLowerCase(),
-      search: [dn, p.given, p.surname, p.nickname, p.title, p.occupation, occupationSearchText(p.occupationCode), house?.name, label, short(p.born), short(p.died)].filter(Boolean).join(' ').toLowerCase(),
+      search: [dn, p.given, p.surname, p.nickname, p.title, p.occupation, occupationSearchText(p.occupationCode), house?.name, label, short(p.born, locale), short(p.died, locale)].filter(Boolean).join(' ').toLowerCase(),
       bornKey: dateKey(p.born),
       diedKey: dateKey(p.died),
       age: ageOf(p),
@@ -152,17 +152,19 @@ const searchFn: FilterFn<typeof features, R> = (row, _col, value: string) => {
 };
 
 const h = createColumnHelper<typeof features, R>();
-const columns = h.columns([
+function buildColumns(t: Translator) {
+  const locale = t.locale;
+  return h.columns([
   h.display({ id: 'portrait', header: '', enableSorting: false, cell: ({ row }) => <Portrait person={row.original.p} tree={row.original.tree} size={34} /> }),
   h.accessor((r) => r.sortName, {
     id: 'name',
-    header: 'Name',
+    header: t('people.col.name'),
     sortFn: 'text',
     cell: ({ row }) => {
       const r = row.original;
       return (
         <span className="reg-name">
-          {r.p.living ? <span className="reg-dot" title="Living" role="img" aria-label="Living" /> : <span className="reg-dot" data-off aria-hidden />}
+          {r.p.living ? <span className="reg-dot" title={t('panel.living')} role="img" aria-label={t('panel.living')} /> : <span className="reg-dot" data-off aria-hidden />}
           <Link to="/$tree" params={{ tree: r.tree }} search={{ focus: r.id }} onClick={(e) => e.stopPropagation()} tabIndex={-1}>
             {r.base}
           </Link>
@@ -174,15 +176,15 @@ const columns = h.columns([
   }),
   h.display({
     id: 'traits',
-    header: 'Traits',
+    header: t('people.col.traits'),
     enableSorting: false,
     cell: ({ row }) => {
-      const t = (row.original.p.traits ?? []).filter((x) => TRAITS[x]);
-      return t.length ? (
+      const traits = (row.original.p.traits ?? []).filter((x) => TRAITS[x]);
+      return traits.length ? (
         <span className="reg-traits">
-          {t.map((x) => (
+          {traits.map((x) => (
             <span key={x} className="reg-trait" data-kind={TRAITS[x].kind}>
-              <GameIcon name={TRAITS[x].icon} size={14} title={x} />
+              <GameIcon name={TRAITS[x].icon} size={14} title={t(TRAITS[x].label)} />
             </span>
           ))}
         </span>
@@ -191,38 +193,38 @@ const columns = h.columns([
   }),
   h.accessor((r) => r.house?.name, {
     id: 'house',
-    header: 'House',
+    header: t('people.col.house'),
     sortFn: 'text',
     sortUndefined: 'last',
     cell: ({ row }) =>
       row.original.house ? (
-        <Link className="reg-house" to="/$tree/house/$house" params={{ tree: row.original.tree, house: row.original.house.id }} onClick={(e) => e.stopPropagation()} tabIndex={-1} title={`Open the page of ${row.original.house.name}`}>
+        <Link className="reg-house" to="/$tree/house/$house" params={{ tree: row.original.tree, house: row.original.house.id }} onClick={(e) => e.stopPropagation()} tabIndex={-1} title={t('panel.openHouse', { name: row.original.house.name })}>
           <Arms arms={row.original.house.arms} size={18} />
           <span>{row.original.house.name}</span>
         </Link>
       ) : null,
   }),
-  h.accessor((r) => r.bornKey, { id: 'born', sortDescFirst: false, header: 'Born', sortFn: 'basic', sortUndefined: 'last', cell: ({ row }) => short(row.original.p.born) || <span className="faint">—</span> }),
+  h.accessor((r) => r.bornKey, { id: 'born', sortDescFirst: false, header: t('fact.born'), sortFn: 'basic', sortUndefined: 'last', cell: ({ row }) => short(row.original.p.born, locale) || <span className="faint">—</span> }),
   h.accessor((r) => r.diedKey, {
     id: 'died', sortDescFirst: false,
-    header: 'Died',
+    header: t('fact.died'),
     sortFn: 'basic',
     sortUndefined: 'last',
-    cell: ({ row }) => (row.original.p.living ? <span className="reg-alive">living</span> : short(row.original.p.died) || <span className="faint">?</span>),
+    cell: ({ row }) => (row.original.p.living ? <span className="reg-alive">{t('people.livingLower')}</span> : short(row.original.p.died, locale) || <span className="faint">?</span>),
   }),
-  h.accessor((r) => r.age, { id: 'age', sortDescFirst: false, header: 'Age', sortFn: 'basic', sortUndefined: 'last', cell: ({ row }) => row.original.age ?? <span className="faint">—</span> }),
-  h.accessor((r) => r.gen, { id: 'gen', sortDescFirst: false, header: 'Gen', sortFn: 'basic', cell: ({ row }) => row.original.gen + 1 }),
-  h.accessor((r) => r.role, { id: 'role', header: 'Title or work', sortFn: 'text', sortUndefined: 'last', cell: ({ row }) => row.original.role || <span className="faint">—</span> }),
+  h.accessor((r) => r.age, { id: 'age', sortDescFirst: false, header: t('panel.age'), sortFn: 'basic', sortUndefined: 'last', cell: ({ row }) => row.original.age ?? <span className="faint">—</span> }),
+  h.accessor((r) => r.gen, { id: 'gen', sortDescFirst: false, header: t('people.col.gen'), sortFn: 'basic', cell: ({ row }) => row.original.gen + 1 }),
+  h.accessor((r) => r.role, { id: 'role', header: t('people.col.work'), sortFn: 'text', sortUndefined: 'last', cell: ({ row }) => row.original.role || <span className="faint">—</span> }),
   h.accessor((r) => r.relRank, {
     id: 'rel', sortDescFirst: false,
-    header: 'To you',
+    header: t('people.col.toYou'),
     sortFn: 'basic',
     sortUndefined: 'last',
-    cell: ({ row }) => (row.original.rel === 'you' ? <b className="reg-you">you</b> : row.original.rel ? <span title={row.original.rel}>{row.original.rel}</span> : <span className="faint">—</span>),
+    cell: ({ row }) => (row.original.rel === 'you' ? <b className="reg-you">{t('common.you')}</b> : row.original.rel ? <span title={kinshipLabel({ label: row.original.rel, via: [] }, locale)}>{kinshipLabel({ label: row.original.rel, via: [] }, locale)}</span> : <span className="faint">—</span>),
   }),
   h.accessor((r) => r.p.stories, {
     id: 'stories',
-    header: 'Stories',
+    header: t('panel.tab.stories'),
     sortFn: 'basic',
     sortDescFirst: true,
     cell: ({ row }) =>
@@ -236,6 +238,7 @@ const columns = h.columns([
       ),
   }),
 ]);
+}
 
 /** Each column's track in the shared grid, and the least width it needs. */
 const TRACKS: Record<string, [string, number]> = {
@@ -284,8 +287,10 @@ function RegisterPage() {
   const [sel, setSel] = useState(0);
   const [mobileLimit, setMobileLimit] = useRememberedState(`people:${tree}:limit`, 100);
 
-  const { locale } = useT();
+  const t = useT();
+  const { locale } = t;
   const all = useMemo(() => buildRows(f, tree, me, locale), [f, tree, me, locale]);
+  const columns = useMemo(() => buildColumns(t), [t.locale]);
   // Hide a column nobody in the tree has anything for (no traits recorded, nobody chosen as "you").
   // Judged on everyone, not the filtered rows, so columns don't come and go while typing.
   const shown = useMemo(() => {
@@ -369,16 +374,16 @@ function RegisterPage() {
     setWithStories(false);
     setHouse('');
   };
-  const n = (x: number) => x.toLocaleString('en-GB');
+  const n = (x: number) => formatNumber(x, locale);
 
   return (
     <div className="page reg-page">
       <div className="page-inner reg" onKeyDown={onKeyDown}>
-        <PageHeader title="Register" subtitle={<>
-              {n(all.length)} people · {n(f.graph.houses.length)} {f.graph.houses.length === 1 ? 'house' : 'houses'}
-              {filtered && <> · showing {n(rows.length)}</>}
+        <PageHeader title={t('shell.register')} subtitle={<>
+              {t('common.people', { count: all.length })} · {t('people.houses', { count: f.graph.houses.length })}
+              {filtered && <> · {t('people.showing', { count: rows.length })}</>}
             </>} actions={<><p className="reg-keys muted">
-            <kbd>↑</kbd> <kbd>↓</kbd> move <kbd>Enter</kbd> open
+            <kbd>↑</kbd> <kbd>↓</kbd> {t('people.keysMove')} <kbd>Enter</kbd> {t('people.keysOpen')}
           </p></>} />
 
         <div className="reg-tools" role="search">
@@ -387,39 +392,39 @@ function RegisterPage() {
             <input
               className="input"
               type="search"
-              placeholder="Search by name, house, title, year…"
+              placeholder={t('people.searchPlaceholder')}
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              aria-label="Search the register"
+              aria-label={t('people.searchAria')}
             />
           </label>
-          <div className="reg-seg" role="group" aria-label="Living or deceased">
+          <div className="reg-seg" role="group" aria-label={t('people.livingOrDeceased')}>
             {(['all', 'living', 'deceased'] as const).map((s) => (
               <button key={s} className="btn" aria-pressed={scope === s} onClick={() => setScope(s)}>
-                {s === 'all' ? 'Everyone' : s === 'living' ? 'Living' : 'Deceased'}
+                {s === 'all' ? t('people.everyone') : s === 'living' ? t('panel.living') : t('people.deceased')}
               </button>
             ))}
           </div>
           <button className="btn" aria-pressed={withStories} onClick={() => setWithStories(!withStories)}>
-            <ScrollText size={14} /> Has stories
+            <ScrollText size={14} /> {t('people.hasStories')}
           </button>
           {houses.length > 1 && (
-            <Select value={house} onChange={setHouse} aria-label="Filter by house" options={[{ value: '', label: 'All houses' }, ...houses.map((x) => ({ value: x.id, label: `${x.name} (${n(x.n)})` }))]} />
+            <Select value={house} onChange={setHouse} aria-label={t('people.filterHouse')} options={[{ value: '', label: t('people.allHouses') }, ...houses.map((x) => ({ value: x.id, label: `${x.name} (${n(x.n)})` }))]} />
           )}
           {filtered && (
             <button className="btn ghost" onClick={reset}>
-              <X size={14} /> Clear
+              <X size={14} /> {t('people.clear')}
             </button>
           )}
         </div>
 
         <div className="reg-mobile">
-          {rows.length === 0 && <EmptyState title={all.length ? 'No one matches' : 'No people recorded yet'} text={all.length ? 'Try fewer words or clear your filters.' : 'Add the first person from the family tree.'} action={filtered ? <button className="btn" onClick={reset}>Clear filters</button> : undefined} />}
+          {rows.length === 0 && <EmptyState title={all.length ? t('con.noMatchTitle') : t('needed.noPeople')} text={all.length ? t('people.tryFewer') : t('people.addFirst')} action={filtered ? <button className="btn" onClick={reset}>{t('con.clearFilters')}</button> : undefined} />}
           {rows.slice(0, mobileLimit).map(({ original: r }) => <details className="reg-mobile-person ui-card" key={r.id}>
-            <summary><Portrait person={r.p} tree={tree} size={42} /><span><b>{r.base}</b>{r.p.epithet && <i>{r.p.epithet}</i>}<small>{short(r.p.born) || 'Birth unknown'} · {r.p.living ? 'Living' : short(r.p.died) || 'Death unknown'}</small>{r.rel && <small>{r.rel === 'you' ? 'You' : `Your ${r.rel}`}</small>}</span></summary>
-            <div className="reg-mobile-detail">{r.house && <Link className="reg-house" to="/$tree/house/$house" params={{ tree, house: r.house.id }}><Arms arms={r.house.arms} size={18} /><span>{r.house.name}</span></Link>}{r.role && <p>{r.role}</p>}<Link className="btn" to="/$tree" params={{ tree }} search={{ focus: r.id }}>Open person</Link></div>
+            <summary><Portrait person={r.p} tree={tree} size={42} /><span><b>{r.base}</b>{r.p.epithet && <i>{r.p.epithet}</i>}<small>{short(r.p.born, locale) || t('people.birthUnknown')} · {r.p.living ? t('panel.living') : short(r.p.died, locale) || t('people.deathUnknown')}</small>{r.rel && <small>{r.rel === 'you' ? t('people.youCap') : t('panel.yourKin', { kin: kinshipLabel({ label: r.rel, via: [] }, locale) })}</small>}</span></summary>
+            <div className="reg-mobile-detail">{r.house && <Link className="reg-house" to="/$tree/house/$house" params={{ tree, house: r.house.id }}><Arms arms={r.house.arms} size={18} /><span>{r.house.name}</span></Link>}{r.role && <p>{r.role}</p>}<Link className="btn" to="/$tree" params={{ tree }} search={{ focus: r.id }}>{t('people.openPerson')}</Link></div>
           </details>)}
-          {rows.length > mobileLimit && <button className="btn" onClick={() => setMobileLimit((n) => n + 100)}>Show {Math.min(100, rows.length - mobileLimit)} more people</button>}
+          {rows.length > mobileLimit && <button className="btn" onClick={() => setMobileLimit((n) => n + 100)}>{t('people.showMorePeople', { count: Math.min(100, rows.length - mobileLimit) })}</button>}
         </div>
         <div className="reg-table ui-card">
           <div
@@ -427,7 +432,7 @@ function RegisterPage() {
             className="reg-scroll"
             role="grid"
             aria-rowcount={rows.length}
-            aria-label="Everyone in the family"
+            aria-label={t('people.tableAria')}
             tabIndex={0}
             aria-activedescendant={rows[cur] ? `reg-${rows[cur].id}` : undefined}
           >
@@ -449,7 +454,7 @@ function RegisterPage() {
                           {dir === 'asc' ? <ArrowUp size={13} /> : dir === 'desc' ? <ArrowDown size={13} /> : <ArrowUpDown size={13} className="reg-idle" />}
                         </button>
                       ) : hd.column.id === 'traits' ? (
-                        <span className="reg-plain">Traits</span>
+                        <span className="reg-plain">{t('people.col.traits')}</span>
                       ) : null}
                     </div>
                   );
@@ -458,10 +463,10 @@ function RegisterPage() {
               {rows.length === 0 ? (
                 <div className="reg-none">
                   <Search size={24} />
-                  <h2 className="display">{all.length ? 'No one matches' : 'No people recorded yet'}</h2>
-                  <p className="muted">Try fewer words, or clear the filters.</p>
+                  <h2 className="display">{all.length ? t('con.noMatchTitle') : t('needed.noPeople')}</h2>
+                  <p className="muted">{t('people.tryFewer')}</p>
                   <button className="btn" onClick={reset}>
-                    Clear filters
+                    {t('con.clearFilters')}
                   </button>
                 </div>
               ) : (

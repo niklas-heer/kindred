@@ -1,4 +1,4 @@
-import { localizeTitle, useT } from '~/lib/i18n';
+import { localizeTitle, translateMessage, useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Crown, KeyRound, TriangleAlert } from 'lucide-react';
@@ -52,7 +52,7 @@ function Setup() {
       forgetLocalIdentity();
       window.location.assign('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("setup.setup_didn_t_work_please_try_again"));
+      setError(err instanceof Error ? translateMessage(err.message, t.locale) : t("setup.setup_didn_t_work_please_try_again"));
       setBusy(false);
     }
   };
