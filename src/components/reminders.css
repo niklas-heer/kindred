@@ -1,0 +1,20 @@
+/* The Reminders dialog's layout (components/Reminders.tsx). Text and buttons come from the account menu's classes. */
+.reminders-choices {
+  margin: 0.9rem 0 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.reminders-choices legend {
+  padding: 0;
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+}
+.reminders-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0 0.9rem;
+}

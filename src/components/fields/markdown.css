@@ -1,0 +1,15 @@
+/* The biography's Markdown editor (MarkdownEditor.tsx): a toolbar, the text or the preview, and a mention picker. */
+.md-editor { display: grid; gap: 6px; min-width: 0; }
+.md-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.md-tools { display: flex; flex-wrap: wrap; gap: 4px; }
+.md-tool { min-width: 44px; min-height: 44px; }
+.md-tool[aria-pressed='true'] { color: var(--accent); }
+.md-tool:disabled { opacity: 0.4; }
+.md-mode .btn { min-height: 44px; }
+.md-text { min-height: 160px; resize: vertical; font-family: var(--font-body); font-size: 16px; line-height: 1.55; }
+.md-preview { min-height: 160px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-2); overflow-wrap: anywhere; }
+.md-preview > div > :first-child { margin-top: 0; }
+.md-mention { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-2); }
+.md-mention-list { display: grid; gap: 2px; max-height: 220px; overflow: auto; overscroll-behavior: contain; }
+.md-mention-item { justify-content: flex-start; min-height: 44px; text-align: left; }
+.md-hint { font-size: 12.5px; }

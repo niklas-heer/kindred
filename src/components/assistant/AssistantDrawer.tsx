@@ -1,0 +1,170 @@
+// The assistant: a side drawer for one family. Questions are answered from the tree's own records;
+// proposed changes arrive as cards that wait for the reader's approval. Mount <AssistantHost /> once in
+// the tree layout (see the report); open it with <AssistantButton /> or openAssistant().
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { errorText } from '~/lib/errortext';
+import { MessageSquarePlus, Send, Sparkles, X } from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { aiChatNew, aiChatQuery, aiChatSend } from '~/lib/ai.functions';
+import { toAiLocale } from '~/lib/ai/types';
+import { useT } from '~/lib/i18n';
+import { renderMarkdown } from '~/lib/markdown';
+import { useCan } from '~/lib/session';
+import { EmptyState, ErrorState, Notice, Skeleton } from '~/components/ui';
+import { useOverlayLayer } from '~/components/ui/overlay';
+import { ProposalCard } from './ProposalCard';
+import { closeAssistant, openAssistant, useAiStatus, useAssistantOpen } from './store';
+import { AiSetupButton, AiSetupDialog } from './AiSetup';
+import './assistant.css';
+
+const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+/** Renders the drawer while it is open, and nothing otherwise. Mount once per family, inside the tree layout. Also the "Set up AI" panel. */
+export function AssistantHost({ tree }: { tree: string }) {
+  const open = useAssistantOpen();
+  const status = useAiStatus(tree);
+  return (
+    <>
+      <AiSetupDialog tree={tree} />
+      {open && status?.features.assistant ? <AssistantDrawer tree={tree} /> : null}
+    </>
+  );
+}
+
+/**
+ * The "Ask" button. Shown only when the assistant is switched on and configured for this family. A steward of a
+ * family with no AI key gets "Set up AI" in its place, which opens the panel that explains it.
+ */
+export function AssistantButton({ tree, className = '' }: { tree: string; className?: string }) {
+  const t = useT();
+  const status = useAiStatus(tree);
+  if (!status?.features.assistant) return <AiSetupButton tree={tree} className={className} />;
+  return (
+    <button type="button" className={`btn ai-launch ${className}`} onClick={openAssistant} aria-haspopup="dialog">
+      <Sparkles size={16} aria-hidden /> {t('ai.askButton')}
+    </button>
+  );
+}
+
+function AssistantDrawer({ tree }: { tree: string }) {
+  const t = useT();
+  const locale = toAiLocale(t.locale);
+  const qc = useQueryClient();
+  const canPropose = useCan('add-story');
+  const chat = useQuery(aiChatQuery(tree));
+  const items = chat.data?.items ?? [];
+  const [text, setText] = useState('');
+  const [pending, setPending] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const areaRef = useRef<HTMLTextAreaElement>(null);
+  const logRef = useRef<HTMLDivElement>(null);
+  const returnTo = useRef<Element | null>(document.activeElement);
+
+  // Page hotkeys stay quiet while the drawer is up (ui/overlay.ts).
+  useOverlayLayer(true);
+  useEffect(() => {
+    areaRef.current?.focus();
+    const back = returnTo.current as HTMLElement | null;
+    return () => back?.focus?.();
+  }, []);
+  useEffect(() => {
+    const log = logRef.current;
+    log?.scrollTo({ top: log.scrollHeight, behavior: reduced() ? 'auto' : 'smooth' });
+  }, [items.length, pending, busy]);
+
+  async function send(e?: FormEvent) {
+    e?.preventDefault();
+    const msg = text.trim();
+    if (!msg || busy) return;
+    setBusy(true);
+    setPending(msg);
+    setText('');
+    setError(null);
+    try {
+      await aiChatSend({ data: { tree, text: msg, locale } });
+      await qc.invalidateQueries({ queryKey: ['ai-chat', tree] });
+    } catch (err) {
+      setText(msg);
+      setError(errorText(err, t.locale));
+    } finally {
+      setPending(null);
+      setBusy(false);
+    }
+  }
+
+  async function newConversation() {
+    setError(null);
+    await aiChatNew({ data: { tree } });
+    await qc.invalidateQueries({ queryKey: ['ai-chat', tree] });
+    areaRef.current?.focus();
+  }
+
+  function onKey(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      closeAssistant();
+    }
+  }
+
+  function onInputKey(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      void send();
+    }
+  }
+
+  return (
+    <aside className="ai-drawer" role="dialog" aria-label={t('ai.title')} onKeyDown={onKey}>
+      <header className="ai-drawer-head">
+        <h2 className="ai-drawer-title"><Sparkles size={16} aria-hidden /> {t('ai.title')}</h2>
+        <div className="ai-drawer-tools">
+          <button type="button" className="btn ghost ai-touch" onClick={newConversation} disabled={busy}>
+            <MessageSquarePlus size={15} aria-hidden /> {t('ai.newConversation')}
+          </button>
+          <button type="button" className="btn ghost ai-touch ai-icon" onClick={closeAssistant} aria-label={t('ai.close')} title={t('ai.close')}>
+            <X size={17} aria-hidden />
+          </button>
+        </div>
+      </header>
+
+      <div className="ai-log" ref={logRef} role="log" aria-live="polite">
+        {chat.isPending && <Skeleton lines={3} />}
+        {chat.isError && <ErrorState title={t('ai.loadFailed')} message={errorText(chat.error, t.locale)} onRetry={() => chat.refetch()} />}
+        {chat.isSuccess && items.length === 0 && !pending && <EmptyState title={t('ai.title')} text={t('ai.empty')} />}
+        {items.map((m) =>
+          m.role === 'user' ? (
+            <div key={m.id} className="ai-msg ai-msg-user"><p>{m.text}</p></div>
+          ) : (
+            <div key={m.id} className="ai-msg ai-msg-assistant">
+              {m.text && <div className="ai-text" dangerouslySetInnerHTML={{ __html: renderMarkdown(m.text) }} />}
+              {m.proposals?.map((p) => <ProposalCard key={p.id} tree={tree} itemId={m.id} proposal={p} />)}
+            </div>
+          ),
+        )}
+        {pending && <div className="ai-msg ai-msg-user"><p>{pending}</p></div>}
+        {busy && <p className="ai-thinking subtle">{t('ai.sending')}</p>}
+        {error && <Notice onDismiss={() => setError(null)}>{t('ai.sendFailed')} <span className="subtle">{error}</span></Notice>}
+      </div>
+
+      <form className="ai-composer" onSubmit={send}>
+        <label className="ai-sr" htmlFor="ai-input">{t('ai.placeholder')}</label>
+        <textarea
+          id="ai-input"
+          ref={areaRef}
+          rows={2}
+          maxLength={4000}
+          placeholder={t('ai.placeholder')}
+          value={text}
+          disabled={busy}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={onInputKey}
+        />
+        <button type="submit" className="btn primary ai-touch" disabled={busy || !text.trim()}>
+          <Send size={15} aria-hidden /> {t('ai.send')}
+        </button>
+      </form>
+      {!canPropose && <p className="ai-foot subtle">{t('ai.viewerNote')}</p>}
+    </aside>
+  );
+}

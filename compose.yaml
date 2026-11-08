@@ -1,0 +1,57 @@
+# Kindred on Docker: the app with its data in a named volume, and an optional Caddy in front for HTTPS.
+#
+#   cp .env.example .env                           # then edit it; docs/self-host.md explains each line
+#   docker compose up -d --build                   # the app, on http://localhost:4901 (this machine only)
+#   docker compose --profile https up -d --build   # HTTPS on $KINDRED_DOMAIN, certificates from Let's Encrypt
+#   docker compose logs app                        # shows the setup code, when KINDRED_SETUP_CODE=required
+name: kindred
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        WITH_GAZETTEER: ${WITH_GAZETTEER:-0}
+    image: kindred:local
+    restart: unless-stopped
+    # Time for in-flight requests to finish and the databases to close after `docker stop`.
+    stop_grace_period: 20s
+    # The settings from .env that the app reads (docs/self-host.md, "Settings"). Compose does not pass .env into the
+    # container by itself, so each one is listed here. An empty value is the same as not setting it.
+    environment:
+      KINDRED_ORIGIN: ${KINDRED_ORIGIN:-http://localhost:4901}
+      KINDRED_SETUP_CODE: ${KINDRED_SETUP_CODE:-}
+      KINDRED_REQUIRE_SETUP_CODE: ${KINDRED_REQUIRE_SETUP_CODE:-}
+      KINDRED_DEFAULT_TREE: ${KINDRED_DEFAULT_TREE:-}
+      KINDRED_SECRET: ${KINDRED_SECRET:-}
+      KINDRED_VAPID_PUBLIC_KEY: ${KINDRED_VAPID_PUBLIC_KEY:-}
+      KINDRED_VAPID_PRIVATE_JWK: ${KINDRED_VAPID_PRIVATE_JWK:-}
+      KINDRED_VAPID_SUBJECT: ${KINDRED_VAPID_SUBJECT:-}
+      KINDRED_JOBS: ${KINDRED_JOBS:-}
+    ports:
+      # Only this machine can reach the app directly. With the https profile, Caddy is the way in.
+      # For plain-HTTP use on a home network, change this to "4901:4901" and read docs/self-host.md first.
+      - "127.0.0.1:4901:4901"
+    volumes:
+      - kindred-data:/data
+
+  caddy:
+    image: caddy:2
+    profiles: ["https"]
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      KINDRED_DOMAIN: ${KINDRED_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  kindred-data:
+  caddy-data:
+  caddy-config:

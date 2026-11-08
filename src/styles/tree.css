@@ -1,0 +1,245 @@
+.tree-page {
+  position: relative; height: 100%; overflow: hidden;
+  /* One width for the docked panel; the ruler, HUD and trail line up against it. */
+  --panel-w: min(400px, calc(100vw - 120px));
+}
+
+/* ---------- HUD: toolbar, house banner and lens chip, stacked in one column ---------- */
+.hud {
+  position: absolute; top: 12px; left: 72px; right: 16px; z-index: 7;
+  display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; transition: left 200ms;
+  /* The toolbar compacts by the room it has, not by the window: the docked panel takes 400px. */
+  container: hud / inline-size;
+}
+.hud > * { pointer-events: auto; }
+.hud.with-panel { left: calc(var(--panel-w) + 72px); }
+
+.tree-toolbar {
+  width: fit-content; max-width: 100%;
+  display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; padding: 6px;
+  box-shadow: var(--shadow);
+}
+[data-theme='codex'] .tree-toolbar { box-shadow: inset 0 0 0 1px var(--edge-soft), 0 6px 16px #0008; }
+.tree-toolbar .seg { display: flex; gap: 2px; flex: none; }
+.tree-toolbar .btn { height: 30px; font-size: 13.5px; flex: none; }
+.tree-toolbar .ui-select { height: 30px; font-size: 13.5px; }
+.tb-sep { width: 1px; height: 22px; background: var(--border); margin: 0 2px; flex: none; }
+[data-theme='codex'] .tb-sep { background: var(--edge-soft); }
+/* Inter runs wider than Garamond: tighter buttons keep the toolbar on one row. */
+[data-theme='modern'] .tree-toolbar .btn, [data-theme='night'] .tree-toolbar .btn { padding: 0 9px; font-size: 13px; }
+[data-theme='modern'] .tree-toolbar .btn.icon, [data-theme='night'] .tree-toolbar .btn.icon { padding: 0; }
+
+.tb-icon { display: none; }
+.tb-view-select { display: none !important; }
+
+.stepper { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; flex: none; }
+.stepper .btn { position: relative; width: 26px; height: 26px; }
+.stepper b { min-width: 14px; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* House: a select with each house's shield. */
+.tb-house { min-width: 0; width: auto; max-width: 230px; flex: 0 1 auto; }
+.tb-house .arms { flex: none; }
+
+/* Lens: an icon button; the list says what each lens does. */
+.tb-lens { flex: none; padding: 0 6px 0 8px; gap: 4px; }
+.tb-lens .ui-select-value > span:last-child { display: none; }
+.tb-lens .ui-select-value { color: var(--muted); }
+.tb-lens.on { border-color: var(--accent); }
+.tb-lens.on .ui-select-value { color: var(--accent); }
+[data-theme='codex'] .tb-lens.on { box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* Less room: labels give way to icons, then the view buttons fold into one select. */
+@container hud (max-width: 860px) {
+  .tb-views .tb-label, .tb-fold .tb-label { display: none; }
+  .tb-views .btn, .tb-fold { width: 32px; padding: 0; justify-content: center; }
+}
+@container hud (max-width: 600px) {
+  .tb-views { display: none !important; }
+  .tb-view-select { display: inline-flex !important; flex: none; padding: 0 6px 0 8px; gap: 4px; }
+  .tb-view-select .ui-select-value > span:last-child { display: none; }
+  .stepper .tb-label { display: none; }
+  .stepper .tb-icon { display: inline-grid; }
+  .tree-toolbar { gap: 4px; padding: 5px; }
+  .tb-sep { margin: 0; }
+  .tb-house { max-width: 170px; }
+}
+
+/* ---------- house banner: a title card that folds into a pill ---------- */
+.house-banner {
+  width: fit-content; max-width: 100%; display: flex; align-items: center; gap: 6px; padding: 5px 6px 5px 6px;
+  background: var(--panel-solid); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow);
+  animation: banner-in 300ms cubic-bezier(.2,.8,.2,1);
+  transition: padding 220ms, border-radius 220ms;
+}
+[data-theme='codex'] .house-banner {
+  background: linear-gradient(180deg, #2a3446, #1a202c); border-color: #0a0d12; border-radius: 3px;
+  box-shadow: inset 0 0 0 1px #b8954f66, inset 0 1px 0 #f0d58f44, 0 8px 18px #0009;
+}
+.banner-id {
+  display: flex; align-items: center; gap: 12px; min-width: 0; padding: 2px 8px 2px 6px; border: 0; border-radius: var(--radius);
+  background: none; color: inherit; text-align: left; cursor: pointer;
+}
+.banner-id:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.banner-id:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.banner-text { display: grid; line-height: 1.2; min-width: 0; }
+.banner-text > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.house-banner b { font-size: 18px; font-weight: 600; }
+[data-theme='codex'] .house-banner b { color: var(--accent); font-weight: 500; }
+.house-banner .faint { font-size: 13px; }
+.house-banner .btn { height: 28px; font-size: 13px; }
+.house-banner .arms { flex: none; animation: arms-in 420ms cubic-bezier(.3,1.5,.5,1); }
+/* Folded: one line, shield, name and head count. */
+.house-banner.compact { padding: 2px 3px; border-radius: 999px; }
+[data-theme='codex'] .house-banner.compact { border-radius: 999px; }
+.house-banner.compact .banner-id { gap: 7px; padding: 2px 8px 2px 4px; border-radius: 999px; }
+.house-banner.compact .banner-text { display: flex; align-items: baseline; gap: 8px; }
+.house-banner.compact b { font-size: 14.5px; }
+.house-banner.compact .banner-count { font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.house-banner.compact .btn { width: 26px; height: 26px; border-radius: 999px; }
+.house-banner.compact .arms { animation: none; }
+@keyframes banner-in { from { opacity: 0; transform: translateY(-12px); } }
+@keyframes arms-in { from { scale: 0.6; opacity: 0; } }
+
+.lens-banner {
+  width: fit-content; max-width: 100%; display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 14px; border-radius: 999px;
+  background: var(--accent); color: var(--accent-text); box-shadow: var(--shadow); font-size: 14.5px;
+  animation: rise 160ms ease-out;
+}
+.lens-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lens-banner .btn { color: inherit; width: 26px; height: 26px; flex: none; }
+.lens-banner .btn:hover { background: color-mix(in srgb, var(--accent-text) 12%, transparent); }
+.lens-count { opacity: 0.8; font-size: 12.5px; white-space: nowrap; }
+
+/* ---------- trail ---------- */
+.trail {
+  position: absolute; left: 72px; bottom: 16px; z-index: 6; display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+  font-size: 12px; transition: left 200ms;
+}
+.trail.with-panel { left: calc(var(--panel-w) + 72px); }
+.trail-item { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 50%; width: 30px; height: 30px; transition: transform 120ms; flex: none; }
+.trail-item:hover { transform: scale(1.15); }
+.trail-item:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.trail-item > * { border-radius: 50%; overflow: hidden; }
+.trail-item:nth-child(n + 5) { opacity: 0.75; }
+.trail-item:nth-child(n + 7) { opacity: 0.5; }
+
+/* ---------- keyboard help, beside the map controls ---------- */
+.help-card {
+  position: absolute; right: 76px; bottom: 16px; z-index: 9; width: 320px; padding: 12px 14px; font-size: 14px;
+  animation: rise 140ms ease-out;
+}
+.help-card header { display: flex; justify-content: space-between; align-items: center; font-size: 17px; margin-bottom: 6px; }
+.help-row { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.help-row span:first-child { display: inline-flex; gap: 3px; }
+.help-card p { margin: 10px 0 0; font-size: 12.5px; }
+@media (hover: none), (max-width: 900px) { .map-keys { display: none !important; } }
+
+/* ---------- the person panel: docked on the left on wide screens ---------- */
+.panel-sheet { display: contents; }
+.sheet-bar, .sheet-peek-hit { display: none; }
+@media (min-width: 901px) {
+  /* The generation ruler steps out from behind the side panel. */
+  .tree-page.has-panel .ruler { left: var(--panel-w); }
+}
+
+@media (prefers-reduced-motion: reduce) { .house-banner, .house-banner .arms { animation: none; transition: none; } }
+
+/* ---------- phones and narrow tablets: a bottom sheet over the tree ---------- */
+@media (max-width: 900px) {
+  .hud, .hud.with-panel { left: 8px; right: 8px; top: 8px; gap: 6px; }
+  .tb-sep { display: none; }
+  .tree-toolbar { max-width: 100%; }
+  /* Touch: every toolbar control gets a 44px target, drawn smaller than it reaches. */
+  .tree-toolbar .btn, .tree-toolbar .ui-select { height: 36px; position: relative; }
+  .tree-toolbar .btn.icon, .tb-views .btn, .tb-fold { width: 36px; }
+  .tree-toolbar .btn::after, .tree-toolbar .ui-select::after { content: ''; position: absolute; inset: -4px; }
+  .stepper .btn { width: 28px; height: 28px; }
+  .stepper .btn::after { inset: -8px; }
+  .stepper { gap: 3px; }
+  .house-banner .btn { position: relative; }
+  .house-banner .btn::after, .lens-banner .btn::after, .banner-id::after { content: ''; position: absolute; inset: -8px; }
+  .banner-id { position: relative; }
+  .lens-banner .btn { position: relative; }
+  .lens-banner { font-size: 13.5px; }
+
+  .trail, .trail.with-panel { left: 48px; bottom: calc(var(--sheet-h, 0px) + 10px); padding: 4px 8px; gap: 8px; transition: bottom 220ms cubic-bezier(.2,.8,.2,1); }
+  .trail > .faint { display: none; }
+  .trail-item { width: 36px; height: 36px; }
+  .trail-item > * { width: 36px !important; height: 36px !important; }
+  .trail-item:nth-child(n + 6) { display: none; }
+  .help-card { display: none; }
+
+  .panel-sheet {
+    display: flex; flex-direction: column; position: absolute; left: 0; right: 0; bottom: 0; z-index: 10;
+    height: 55%; max-height: 100%;
+    background: var(--panel-solid); border-top: 1px solid var(--border);
+    border-radius: 16px 16px 0 0; box-shadow: 0 -8px 28px #0006;
+    transition: height 260ms cubic-bezier(.2,.8,.2,1), border-radius 200ms;
+    animation: sheet-in 260ms cubic-bezier(.2,.8,.2,1);
+    overscroll-behavior: contain;
+  }
+  [data-theme='codex'] .panel-sheet {
+    background: radial-gradient(ellipse at 30% 0%, #4a5a7a 0%, #232b3a 45%, #171d28 100%);
+    border-top: 1px solid #b8954f88; box-shadow: 0 -1px 0 #0a0d12, 0 -10px 30px #000a;
+  }
+  [data-theme='modern'] .panel-sheet { box-shadow: 0 -6px 24px #2a22141f; }
+  .panel-sheet[data-snap='peek'] { height: 150px; }
+  /* With the sheet half open the zoom stack stays above the sheet, with zoom in, zoom out and Fit. The
+     minimap is hidden there, so its toggle and the shortcuts button go too. */
+  .tree-page[data-sheet='half'] .map-controls > :is(.map-keys, .map-toggle), .tree-page[data-sheet='half'] .minimap { display: none !important; }
+  .panel-sheet[data-snap='half'] { height: 55%; }
+  .panel-sheet[data-snap='full'] { height: 100%; border-radius: 0; }
+
+  .sheet-bar {
+    display: flex; align-items: center; justify-content: center; position: relative; flex: none;
+    height: 28px; touch-action: none; cursor: grab;
+  }
+  .panel-sheet[data-snap='full'] .sheet-bar { height: 48px; border-bottom: 1px solid var(--border); }
+  [data-theme='codex'] .panel-sheet[data-snap='full'] .sheet-bar { border-bottom-color: var(--edge-soft); }
+  .sheet-grip {
+    width: 88px; height: 44px; margin: -8px 0; padding: 0; border: 0; background: none; cursor: grab;
+    display: grid; place-items: center; touch-action: none;
+  }
+  .sheet-grip > span { width: 40px; height: 5px; border-radius: 999px; background: color-mix(in srgb, var(--text) 30%, transparent); }
+  .sheet-grip:focus-visible { outline: none; }
+  .sheet-grip:focus-visible > span { box-shadow: var(--focus-ring); }
+  .sheet-back { position: absolute; left: 6px; top: 50%; translate: 0 -50%; height: 44px; font-size: 15px; color: var(--text); }
+  [data-theme='codex'] .sheet-back { color: var(--accent); }
+
+  /* The panel fills the sheet and scrolls as one. */
+  .panel-sheet .person-panel {
+    position: relative; inset: auto; width: auto; height: auto; flex: 1; min-height: 0;
+    border: 0; border-radius: 0; box-shadow: none; background: none; animation: none;
+    overflow: auto; overscroll-behavior: contain;
+  }
+  .panel-sheet .person-panel > * { flex-shrink: 0; }
+  .panel-sheet .person-panel .pp-body { flex: none; overflow: visible; }
+  .panel-sheet .pp-head { padding-top: 4px; }
+  .panel-sheet .panel-close { top: 0; right: 4px; width: 44px; height: 44px; }
+
+  /* Peek: name and kinship only, with a small portrait. Tapping or dragging opens the sheet. */
+  .panel-sheet[data-snap='peek'] .person-panel { overflow: hidden; }
+  .panel-sheet[data-snap='peek'] .pp-portrait { zoom: 0.5; }
+  .panel-sheet[data-snap='peek'] .pp-head { gap: 12px; padding-bottom: 8px; }
+  .panel-sheet[data-snap='peek'] .pp-id { padding-top: 0; gap: 1px; }
+  .panel-sheet[data-snap='peek'] .pp-id h2 { font-size: 20px; }
+  .panel-sheet[data-snap='peek'] :is(.pp-title, .pp-house, .pp-motto, .pp-kin ~ *) { display: none; }
+  .sheet-peek-hit {
+    display: block; position: absolute; left: 0; right: 52px; top: 28px; bottom: 0; z-index: 3;
+    border: 0; padding: 0; background: none; cursor: pointer; touch-action: none;
+  }
+  .sheet-peek-hit:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
+}
+@keyframes sheet-in { from { transform: translateY(40px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .panel-sheet { transition: none; animation: none; }
+  .trail { transition: none; }
+}
+
+.tree-display-controls { display: flex; gap: 6px; padding: 4px; max-width: 100%; }
+.tree-display-controls .ui-select { font-size: 13px; min-height: 32px; }
+@media (max-width: 900px) { .tree-display-controls .ui-select { min-height: 44px; } }
+
+/* Phones: names and ages sit in a sheet from the toolbar's display button, not in a row of their own. */
+.tb-display-sheet { display: grid; gap: 10px; padding: 4px 2px 8px; }
+.tb-display-sheet .ui-select { min-height: 44px; width: 100%; }

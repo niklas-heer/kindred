@@ -1,0 +1,75 @@
+import { localizeTitle, useT } from '~/lib/i18n';
+import { useQuery } from '@tanstack/react-query';
+import { createFileRoute, redirect } from '@tanstack/react-router';
+import { Info, KeyRound, LogOut } from 'lucide-react';
+import { useState } from 'react';
+import { AuthCard, AuthError, PasskeyExplainer } from '~/components/AuthCard';
+import { forgetLocalIdentity, passkeysSupported, safeNext, signInWithPasskey, signOutRequest } from '~/lib/auth/client';
+import { sessionQuery } from '~/lib/auth/functions';
+import { useIsClient } from '~/components/ui';
+
+export const Route = createFileRoute('/signin')({
+  validateSearch: (s: Record<string, unknown>): { next?: string } => (typeof s.next === 'string' ? { next: s.next } : {}),
+  beforeLoad: async ({ context, search }) => {
+    const session = await context.queryClient.fetchQuery({ ...sessionQuery, staleTime: 0 });
+    if (session.needsSetup) throw redirect({ to: '/setup' });
+    if (session.user) throw redirect({ href: safeNext(search.next) });
+  },
+  head: ({match}) => ({ meta: [{ title: localizeTitle('Sign in · Kindred', match.context.locale) }] }),
+  component: SignIn,
+});
+
+function SignIn() {
+  const t = useT();
+  const { next } = Route.useSearch();
+  const { data: session } = useQuery(sessionQuery);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const client = useIsClient();
+  const supported = !client || passkeysSupported();
+
+  const go = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await signInWithPasskey();
+      forgetLocalIdentity();
+      // A full load, so nothing from before signing in stays in memory.
+      window.location.assign(safeNext(next));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("signin.signing_in_didn_t_work_please_try_again"));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <AuthCard
+      crest={<KeyRound size={44} />}
+      kicker="Kindred"
+      title={t("signin.welcome_back")}
+      lede={t("signin.sign_in_to_see_your_family_s_tree_stories_and_birthdays")}
+    >
+      {session?.uninvitedEmail && (
+        <p className="auth-note" role="status">
+          <Info size={18} />
+          <span> {t("signin.you_re_signed_in_as")} <b>{session.uninvitedEmail}</b>{t("signin.but_nobody_has_invited_that_address_to_a_family_yet_ask_a_steward_of_your_family_to_invite_you")} {session.accessLogout && <> <a className="auth-link" href={session.accessLogout}>{t("signin.use_another_account")}</a></>}
+          </span>
+        </p>
+      )}
+      <div className="auth-form">
+        <AuthError>{error}</AuthError>
+        {!supported && <AuthError>{t("signin.this_browser_can_t_use_passkeys_try_the_newest_safari_chrome_edge_or_firefox_or_your_phone")}</AuthError>}
+        <button className="btn primary auth-go" onClick={go} disabled={busy || !supported} data-autofocus>
+          <KeyRound size={19} /> {busy ? t("signin.waiting_for_your_device") : t("signin.sign_in_with_a_passkey")}
+        </button>
+      </div>
+      <p className="auth-device-hint"><b>{t("signin.use_a_passkey_from_another_device")}</b><br />{t("signin.in_the_passkey_prompt_choose_another_device_or_a_phone_then_scan_the_qr_code_you_can_also_choose_1password_or_your_password_manager")}</p>
+      <PasskeyExplainer />
+      {session?.uninvitedEmail && session.accessLogout && (
+        <div className="auth-alt">
+          <button className="auth-link" onClick={() => void signOutRequest().finally(() => window.location.assign(session.accessLogout!))}><LogOut size={14} /> {t("signin.sign_out")}</button>
+        </div>
+      )}
+    </AuthCard>
+  );
+}

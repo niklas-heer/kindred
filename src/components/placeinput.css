@@ -1,0 +1,130 @@
+/* PlaceInput: a text field that suggests the family's places and real towns, and a small map to drop a pin.
+   The suggestion list reuses the Select popover (.ui-select-pop, .ui-option) so it looks like every other list. */
+.pi { display: grid; gap: 5px; min-width: 0; container-type: inline-size; }
+/* In a narrow column the flag alone says where; the region would squeeze the name. */
+@container (max-width: 250px) { .pi-where > span:last-child { display: none; } }
+.pi-box {
+  position: relative; display: flex; align-items: center; min-width: 0; height: 34px;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.pi-box:focus-within { box-shadow: var(--focus-ring); }
+[data-theme='codex'] .pi-box { background: #121722; border-color: #0b0e13; box-shadow: inset 0 0 0 1px #b8954f2a; }
+[data-theme='codex'] .pi-box:focus-within { box-shadow: inset 0 0 0 1px #b8954f2a, var(--focus-ring); }
+.pi-input {
+  flex: 1; min-width: 0; height: 100%; padding: 0 6px 0 2px; border: 0; background: none; outline: none;
+  color: var(--text); font-family: var(--font-ui); font-size: 15px;
+}
+.pi-input::placeholder { color: var(--subtle); }
+.pi-input::-webkit-search-cancel-button { display: none; }
+/* The pin at the start: filled when the place is on the map; a button that opens the map either way. */
+.pi-pin {
+  flex: none; display: grid; place-items: center; width: 32px; height: 100%; padding: 0; border: 0; background: none;
+  color: var(--subtle); cursor: pointer; border-radius: var(--radius) 0 0 var(--radius);
+}
+.pi-pin:hover { color: var(--accent); }
+.pi-pin:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+.pi-pin[data-placed='true'] { color: var(--accent); }
+.pi-pin[data-placed='true'] svg { fill: color-mix(in srgb, var(--accent) 22%, transparent); }
+.pi-where {
+  flex: none; display: inline-flex; align-items: center; gap: 5px; max-width: 45%; padding-right: 9px;
+  color: var(--muted); font-family: var(--font-ui); font-size: 12.5px; white-space: nowrap; overflow: hidden;
+}
+.pi-where > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.pi-flag { font-size: 14px; line-height: 1; font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; }
+
+/* The line under the field: a gentle nudge, never an error. */
+.pi-note {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-height: 22px;
+  color: var(--subtle); font-family: var(--font-ui); font-size: 13px; line-height: 1.35;
+}
+.pi-note > span { margin-right: 2px; }
+.pi-link {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 4px; margin: 0 -4px; text-align: left;
+  border: 0; background: none; border-radius: var(--radius);
+  color: var(--accent); font: inherit; font-weight: 500; cursor: pointer; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); text-underline-offset: 3px;
+}
+.pi-link:hover { text-decoration-color: currentColor; }
+.pi-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+[data-theme='codex'] .pi-link { color: #e8c77c; }
+@media (pointer: coarse) { .pi-link { min-height: 40px; } }
+
+/* A date and its place on one row ("Born 1953 in Uppsala"): the date narrow, the place given the room,
+   both held at the top so a note under one never pushes the other down. */
+.pi-pair { display: grid; grid-template-columns: minmax(0, 8.5em) minmax(0, 1fr); column-gap: 10px; row-gap: 4px; align-items: start; }
+/* Label, control and note rows are shared, so the two inputs line up even when one label wraps. */
+.pi-pair > .field { grid-row: span 3; grid-template-rows: subgrid; row-gap: 4px; align-content: start; }
+.pi-pair > .field > span:first-child { align-self: end; }
+@media (max-width: 520px) {
+  .pi-pair { grid-template-columns: minmax(0, 1fr); }
+  .pi-pair > .field + .field { margin-top: 8px; }
+}
+
+/* Suggestions: the Select popover, with a second line of region text. */
+.pi-pop { padding: 5px; }
+.pi-pop .ui-option { white-space: normal; align-items: center; min-height: 40px; }
+.pi-pop .ui-option-icon { width: 22px; font-size: 15px; }
+.pi-pop .ui-option-label { display: grid; line-height: 1.25; }
+.pi-pop .ui-option-label small { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pi-pop .pi-hl { font-weight: 600; }
+.pi-pop .ui-option-hint { white-space: nowrap; }
+.pi-pop .pi-icon-placed { color: var(--accent); }
+.pi-pop .pi-icon-placed svg { fill: color-mix(in srgb, var(--accent) 22%, transparent); }
+.pi-pop .pi-icon-loose { color: var(--subtle); }
+.pi-pop .pi-foot { padding: 6px 10px 4px; color: var(--subtle); font-size: 12px; border-top: 1px solid var(--border); margin-top: 4px; }
+@media (pointer: coarse) { .pi-pop .ui-option { min-height: 44px; } }
+
+/* ---------- the pin map ---------- */
+.pm {
+  --sea: #dde8ea; --land: #fbfaf6; --land-edge: #c9bfac; --borders: #d4cab8; --dot: #6c6457; --label: #2b2822; --halo: #fbfaf6;
+  --family: var(--accent); --pin: #b8432f; --pin-edge: #fff;
+  display: grid; gap: 10px;
+}
+[data-theme='codex'] .pm {
+  --sea: #2c3f3e; --land: #cdb98a; --land-edge: #7e6a43; --borders: #8f7a4e; --dot: #4a3716; --label: #2a1f0e; --halo: #e8d7ab;
+  --family: #7a2a1c; --pin: #8a1f14; --pin-edge: #f3e3b5;
+}
+[data-theme='night'] .pm {
+  --sea: #0f1922; --land: #343c46; --land-edge: #5d6672; --borders: #4c5560; --dot: #c9c2b4; --label: #f1e9dc; --halo: #141a21;
+  --family: #8fd0bc; --pin: #e0a458; --pin-edge: #1a1209;
+}
+.pm-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
+.pm-tools .field { flex: 1 1 200px; min-width: 0; }
+.pm-go { position: relative; }
+.pm-results { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.pm-results .btn { height: auto; min-height: 32px; white-space: normal; text-align: left; }
+.pm-results .btn small { color: var(--muted); }
+.pm-map {
+  position: relative; height: min(420px, 52vh); min-height: 260px; overflow: hidden; touch-action: none; user-select: none;
+  border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--sea); cursor: crosshair;
+}
+[data-theme='codex'] .pm-map { border-color: #0a0d12; box-shadow: inset 0 0 0 1px var(--edge-soft), inset 0 0 40px #0006; }
+.pm-map:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.pm-map.dragging { cursor: grabbing; }
+.pm-map > svg { display: block; width: 100%; height: 100%; }
+.pm-land { fill: var(--land); stroke: var(--land-edge); stroke-width: 0.7; vector-effect: non-scaling-stroke; }
+.pm-borders { fill: none; stroke: var(--borders); stroke-width: 0.7; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; }
+.pm-town circle { fill: var(--dot); }
+.pm-label { font-family: var(--font-ui); font-size: 11.5px; fill: var(--label); paint-order: stroke; stroke: var(--halo); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+.pm-label.big { font-size: 12.5px; font-weight: 600; }
+.pm-family circle { fill: var(--family); stroke: var(--pin-edge); stroke-width: 1.5; }
+.pm-family .pm-label { font-weight: 600; font-style: italic; }
+.pm-pin path { fill: var(--pin); stroke: var(--pin-edge); stroke-width: 1.5; }
+.pm-pin circle { fill: var(--pin-edge); }
+.pm-pin .pm-label { font-weight: 700; font-size: 13px; }
+.pm-zoom { position: absolute; right: 10px; top: 10px; display: grid; gap: 6px; }
+.pm-zoom .btn { width: 36px; height: 36px; padding: 0; justify-content: center; }
+.pm-hint {
+  position: absolute; left: 10px; bottom: 10px; max-width: calc(100% - 20px); padding: 4px 10px; border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-solid, var(--panel)) 88%, transparent); color: var(--muted);
+  font-family: var(--font-ui); font-size: 12.5px; pointer-events: none;
+}
+.pm-attr { position: absolute; right: 8px; bottom: 6px; font-family: var(--font-ui); font-size: 10.5px; color: var(--label); opacity: 0.7; pointer-events: none; }
+.pm-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; }
+.pm-foot .pm-at { margin-right: auto; color: var(--muted); font-family: var(--font-ui); font-size: 13px; font-variant-numeric: tabular-nums; }
+@media (max-width: 520px) {
+  .pm-map { height: 46vh; }
+  .pm-zoom .btn { width: 44px; height: 44px; }
+  .pm-foot .pm-at { flex-basis: 100%; }
+  .pm-foot .btn { flex: 1; justify-content: center; min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) { .pi-pop { animation: none; } }

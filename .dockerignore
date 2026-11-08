@@ -1,0 +1,15 @@
+# Not part of the image: local data, dependencies, build output, secrets and documentation.
+# Dependencies are installed inside the image (npm ci), and data/ is the volume at /data.
+node_modules
+data
+dist
+.output
+.tanstack
+.wrangler
+.dev.vars
+.env
+.env.*
+.git
+.DS_Store
+*.log
+docs

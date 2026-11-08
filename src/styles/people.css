@@ -1,0 +1,124 @@
+/* Register: a dense, sortable table of everyone. The scroll area fills the page; rows are virtual. */
+
+.page.reg-page { overflow: hidden; }
+.reg-page > .page-inner.reg { height: 100%; display: flex; flex-direction: column; padding-bottom: 18px; max-width: 1400px; }
+
+.reg-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.reg-head p { margin: 0; font-size: 17px; }
+.reg-keys { font-size: 13px !important; font-family: var(--font-ui); display: flex; align-items: center; gap: 4px; }
+.reg-keys kbd + kbd { margin-left: 0; }
+.reg-keys kbd:nth-of-type(2) { margin-right: 4px; }
+@media (max-width: 760px) { .reg-keys { display: none; } }
+
+.reg-tools { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin-bottom: 12px; }
+.reg-search { position: relative; flex: 1 1 260px; max-width: 400px; display: block; }
+.reg-search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.reg-search .input { padding-left: 34px; height: 34px; }
+.reg-seg { display: inline-flex; }
+.reg-seg .btn { border-radius: 0; }
+.reg-seg .btn:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.reg-seg .btn:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.reg-seg .btn + .btn { margin-left: -1px; }
+.reg-house-pick { width: auto; max-width: 240px; cursor: pointer; }
+
+.reg-table { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.reg-scroll { flex: 1; min-height: 0; overflow: auto; position: relative; }
+.reg-scroll:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
+.reg-inner { min-width: 1240px; position: relative; }
+
+/* One grid, shared by the header and every row. */
+.reg-row {
+  display: grid; align-items: center; column-gap: 12px; padding: 0 16px;
+  /* The page sets --reg-cols to the columns this tree has something for. */
+  grid-template-columns: var(--reg-cols, 38px minmax(240px, 2.4fr) minmax(100px, 0.9fr) minmax(150px, 1.3fr) 118px 118px 52px 48px minmax(150px, 1.5fr) minmax(190px, 1.2fr) 70px);
+}
+
+.reg-header {
+  position: sticky; top: 0; z-index: 3; height: 40px;
+  background: var(--panel-solid);
+  border-bottom: 1px solid var(--edge);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--bg) 60%, transparent);
+}
+.reg-header .reg-cell { font-family: var(--font-ui); font-size: 13px; color: var(--muted); min-width: 0; }
+.reg-header button {
+  display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 6px; margin-left: -6px;
+  background: none; border: 0; border-radius: var(--radius); cursor: pointer; color: inherit; font: inherit;
+}
+.reg-header button:hover { background: var(--panel-2); color: var(--text); }
+.reg-header button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.reg-header button[data-active] { color: var(--accent); font-weight: 600; }
+[data-theme='codex'] .reg-header .reg-cell { font-family: var(--font-display); font-variant: small-caps; letter-spacing: 0.06em; font-size: 14px; }
+.reg-idle { opacity: 0.35; }
+
+.reg-body { position: relative; }
+.reg-data {
+  position: absolute; top: 0; left: 0; width: 100%; cursor: pointer;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  color: var(--text); font-size: 15px;
+}
+.reg-data:hover { background: var(--panel-2); }
+/* The keyboard row: a clear gold bar on the left and a warm wash, so you always know where Enter will go. */
+.reg-data[data-selected] {
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel-solid));
+  box-shadow: inset 4px 0 0 var(--accent), inset 0 1px 0 color-mix(in srgb, var(--accent) 30%, transparent), inset 0 -1px 0 color-mix(in srgb, var(--accent) 30%, transparent);
+}
+[data-theme='codex'] .reg-data[data-selected] { background: linear-gradient(90deg, #e2bd6b30, #e2bd6b12 60%, #e2bd6b0a); }
+.reg-data[data-dead] .reg-cell:not(.reg-c-name):not(.reg-c-portrait) { color: var(--muted); }
+
+/* Codex body text is lifted a notch: warm cream on lacquer, with a brighter "dim". */
+[data-theme='codex'] .reg-data { color: var(--text); }
+[data-theme='codex'] .reg-data[data-dead] .reg-cell:not(.reg-c-name):not(.reg-c-portrait) { color: var(--text); }
+[data-theme='codex'] .reg-name i, [data-theme='codex'] .reg-name small { color: var(--text); }
+[data-theme='codex'] .reg-header .reg-cell { color: var(--text); }
+[data-theme='codex'] .reg-data .faint { color: var(--text); }
+
+.reg-cell { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.reg-cell { font-variant-numeric: tabular-nums lining-nums; }
+.reg-c-age, .reg-c-gen, .reg-c-stories { text-align: right; }
+.reg-data .reg-c-gen { padding-right: 10px; }
+.reg-header .reg-c-gen { padding-right: 10px; }
+.reg-header .reg-c-age button, .reg-header .reg-c-gen button, .reg-header .reg-c-stories button { margin-left: auto; margin-right: -6px; }
+.reg-c-portrait { display: flex; align-items: center; overflow: visible; }
+
+.reg-name { display: inline-flex; align-items: baseline; gap: 7px; max-width: 100%; }
+.reg-dot { align-self: center; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ok) 25%, transparent); }
+.reg-dot[data-off] { visibility: hidden; }
+.reg-name a { text-decoration: none; font-size: 16px; overflow: hidden; text-overflow: ellipsis; }
+.reg-name a:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.reg-name i { color: var(--muted); font-family: var(--font-hand); font-size: 15px; }
+.reg-name small { color: var(--muted); font-family: var(--font-hand); font-style: italic; font-size: 14px; }
+.reg-house { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; }
+.reg-house > svg { flex: none; }
+.reg-house span { overflow: hidden; text-overflow: ellipsis; }
+.reg-alive { font-size: 14px; color: var(--ok); font-family: var(--font-ui); }
+.reg-plain { font-size: inherit; }
+
+/* Trait glyphs: 14 px, tinted by kind. Virtues green, vices red, the rest quiet. */
+.reg-traits { display: inline-flex; align-items: center; gap: 5px; }
+.reg-trait { display: inline-grid; place-items: center; color: var(--muted); }
+.reg-trait[data-kind='virtue'] { color: var(--ok); }
+.reg-trait[data-kind='vice'] { color: var(--danger); }
+[data-theme='codex'] .reg-trait[data-kind='other'] { color: var(--accent); }
+.reg-c-traits { overflow: visible; }
+.reg-you { color: var(--accent); }
+.reg-stories { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); }
+
+.reg-none { display: grid; justify-items: center; gap: 6px; padding: 56px 20px; text-align: center; }
+.reg-none svg { color: var(--accent); }
+.reg-none h2 { font-size: 20px; font-weight: 600; margin: 4px 0 0; }
+.reg-none p { margin: 0 0 6px; }
+
+.reg-mobile { display: none; }
+.reg-name a, .reg-mobile-person b { font-family: var(--font-name); font-weight: var(--name-weight); }
+.reg-trait, .reg-trait[data-kind], [data-theme='codex'] .reg-trait[data-kind] { color: var(--muted); }
+.reg-house { align-items: baseline; }
+.reg-house > svg { align-self: center; transform: translateY(2px); }
+.reg-data .faint, [data-theme='codex'] .reg-data .faint { color: var(--muted); }
+@media(max-width:900px) { .reg-table { display: none; } .reg-mobile { display: grid; gap: 8px; } .page.reg-page { overflow: auto; } .reg-page > .page-inner.reg { height: auto; display: block; padding-bottom: 24px; } .reg-mobile-person { padding: 12px; } .reg-mobile-person summary { display: flex; gap: 12px; align-items: center; cursor: pointer; min-height: 54px; list-style: none; } .reg-mobile-person summary::-webkit-details-marker { display: none; } .reg-mobile-person summary::after { content: '+'; margin-left: auto; color: var(--muted); } .reg-mobile-person[open] summary::after { content: '−'; } .reg-mobile-person summary > span { display: grid; min-width: 0; gap: 3px; } .reg-mobile-person b { font-size: 18px; overflow-wrap: anywhere; } .reg-mobile-person small { color: var(--muted); font-size: 13px; } .reg-mobile-person i { font-style: italic; color: var(--muted); } .reg-mobile-detail { margin: 12px 0 0 54px; padding-top: 12px; border-top: 1px solid var(--border); display: grid; justify-items: start; gap: 10px; } .reg-mobile-detail p { margin: 0; } .reg-tools .input { min-height: 44px; } }
+
+
+@media(max-width:600px) { .reg .btn { min-height: 44px; } }
+
+/* The house cell opens the house's page. */
+a.reg-house { color: inherit; text-decoration: none; }
+a.reg-house:hover span { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }

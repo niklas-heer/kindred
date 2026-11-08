@@ -1,0 +1,125 @@
+// The assistant: one reader's conversation in one family. Each turn is a short loop: the model may call
+// read tools and propose changes; the loop ends when it answers in plain text. Messages are stored per
+// reader per family (accounts DB, ai_chat); a proposal's status is stored with its reply.
+//
+// Each stored turn carries the tier it needed to be read: "editor" for a turn by a reader who can see private
+// fields (its answers may quote them), "member" for any other turn. A reader only gets back the turns their role
+// may read now, and only those go to the model as history, so a reader demoted from editor loses the earlier
+// editor turns, private details included.
+import { graph } from '../db.server';
+import { fullName } from '../graph';
+import { accounts, q } from '../auth/store.server';
+import { can, type Role } from '../roles';
+import type { AiMessage } from './adapters';
+import { tr } from './labels';
+import { systemPrompt } from './prompt';
+import { adapterForFeature } from './settings.server';
+import { runTool, toolsFor } from './tools.server';
+import { toAiLocale, type AiLocale, type ChatItem, type Proposal } from './types';
+
+const HISTORY = 12;
+const MAX_STEPS = 5;
+const id = () => crypto.randomUUID();
+
+type Tier = 'member' | 'editor';
+interface Body { text: string; proposals?: Proposal[]; tier?: Tier; sources?: { url: string; title?: string }[] }
+interface ChatRow { id: string; role: 'user' | 'assistant'; body: string; at: number }
+
+const parse = (r: ChatRow): Body => JSON.parse(r.body) as Body;
+/** Turns stored before tiers were kept count as editor turns: a demoted reader does not get them back. */
+const tierOf = (b: Body): Tier => (b.tier === 'member' ? 'member' : 'editor');
+
+/** Whether a reader whose role is `role` may read a stored turn now. */
+export const mayRead = (b: Body, role: Role): boolean => tierOf(b) === 'member' || can(role, 'edit-person');
+
+/** The reader's current conversation in this family (created on first use). */
+async function currentConv(tree: string, user: string): Promise<string> {
+  const r = await accounts().get<{ conv: string }>('SELECT conv FROM ai_conversation WHERE tree = ? AND user = ?', tree, user);
+  if (r) return r.conv;
+  const conv = id();
+  await accounts().run('INSERT OR IGNORE INTO ai_conversation (tree, user, conv, started) VALUES (?, ?, ?, ?)', tree, user, conv, Date.now());
+  return (await accounts().get<{ conv: string }>('SELECT conv FROM ai_conversation WHERE tree = ? AND user = ?', tree, user))!.conv;
+}
+
+const toItem = (r: ChatRow): ChatItem => {
+  const b = parse(r);
+  return { id: r.id, role: r.role, text: b.text, ...(b.proposals?.length && { proposals: b.proposals }), ...(b.sources?.length && { sources: b.sources }), at: r.at };
+};
+
+/** The reader's current conversation, oldest first, without the turns their role may no longer read. */
+export async function loadChat(tree: string, user: string, role: Role): Promise<{ items: ChatItem[] }> {
+  const conv = await currentConv(tree, user);
+  const rows = await accounts().all<ChatRow>('SELECT id, role, body, at FROM ai_chat WHERE tree = ? AND user = ? AND conv = ? ORDER BY at, rowid', tree, user, conv);
+  return { items: rows.filter((r) => mayRead(parse(r), role)).map(toItem) };
+}
+
+/** "New conversation": the next message starts a fresh one. Earlier ones stay stored, for the family's records. */
+export async function newConversation(tree: string, user: string): Promise<void> {
+  await accounts().run('INSERT INTO ai_conversation (tree, user, conv, started) VALUES (?, ?, ?, ?) ON CONFLICT(tree, user) DO UPDATE SET conv = excluded.conv, started = excluded.started', tree, user, id(), Date.now());
+}
+
+/** Records the reader's decision on a card (done or dismissed), so a reload shows it as settled. */
+export async function markProposal(tree: string, user: string, role: Role, itemId: string, proposalId: string, status: 'done' | 'dismissed'): Promise<void> {
+  const row = await accounts().get<ChatRow>('SELECT id, role, body, at FROM ai_chat WHERE id = ? AND tree = ? AND user = ?', itemId, tree, user);
+  if (!row || !mayRead(parse(row), role)) return;
+  const b = parse(row);
+  const p = b.proposals?.find((x) => x.id === proposalId);
+  if (!p) return;
+  p.status = status;
+  await accounts().run('UPDATE ai_chat SET body = ? WHERE id = ?', JSON.stringify(b), itemId);
+}
+
+/** One message from the reader, and the assistant's reply to it. Nothing is stored unless the turn completes. */
+export async function sendMessage(o: { tree: string; user: string; role: Role; me: string | null; text: string; locale: string }): Promise<{ items: ChatItem[] }> {
+  const locale: AiLocale = toAiLocale(o.locale);
+  const c = tr(locale);
+  const { adapter, webSearch } = await adapterForFeature(o.tree, 'assistant', locale);
+  const conv = await currentConv(o.tree, o.user);
+  const started = Date.now();
+
+  const recent = await accounts().all<ChatRow>('SELECT id, role, body, at FROM ai_chat WHERE tree = ? AND user = ? AND conv = ? ORDER BY at DESC, rowid DESC LIMIT ?', o.tree, o.user, conv, HISTORY * 4);
+  const past: AiMessage[] = recent
+    .filter((r) => mayRead(parse(r), o.role))
+    .slice(0, HISTORY)
+    .reverse()
+    .map((r) => {
+      const b = parse(r);
+      return r.role === 'user' ? { role: 'user', text: b.text } : { role: 'assistant', text: b.text };
+    });
+
+  const g = await graph(o.tree);
+  const me = o.me && o.me !== '-' ? g.people.find((p) => p.id === o.me) : undefined;
+  const { tools, proposals: canPropose } = toolsFor(o.role, webSearch);
+  const system = systemPrompt({
+    locale, family: g.tree.name, readerName: me ? fullName(me) : null, kinToReader: null, canPropose, role: o.role, webSearch,
+  });
+  // The sources of the web lookups this turn ran. The chat's own requests never search: a lookup is its own request.
+  const sources: { url: string; title?: string }[] = [];
+  const ctx = { tree: o.tree, role: o.role, me: me?.id ?? null, locale, search: webSearch ? { adapter, sources } : undefined };
+  const messages: AiMessage[] = [...past, { role: 'user', text: o.text }];
+  const proposals: Proposal[] = [];
+  let text = '';
+  for (let step = 0; ; step++) {
+    // Each call is booked against the family's budget by the adapter, so a loop cannot outspend it.
+    const reply = await adapter.complete({ system, messages, tools, maxTokens: 1200, timeoutMs: 60_000 });
+    if (!reply.calls.length || step >= MAX_STEPS) {
+      text = reply.text.trim();
+      break;
+    }
+    messages.push({ role: 'assistant', text: reply.text, calls: reply.calls });
+    for (const call of reply.calls) {
+      messages.push({ role: 'tool', callId: call.id, content: await runTool(ctx, call.name, call.args, proposals) });
+    }
+  }
+  if (!text) text = proposals.length ? '' : c('ai.notRecorded');
+
+  const tier: Tier = can(o.role, 'edit-person') ? 'editor' : 'member';
+  const userRow: ChatRow = { id: id(), role: 'user', body: JSON.stringify({ text: o.text, tier }), at: started };
+  const reply: ChatRow = {
+    id: id(), role: 'assistant', body: JSON.stringify({ text, ...(proposals.length && { proposals }), ...(sources.length && { sources }), tier }), at: Date.now(),
+  };
+  // Both turns or neither: a message is never stored without its answer, and a failed turn leaves nothing to resend.
+  const insert = (r: ChatRow) => q('INSERT INTO ai_chat (id, tree, user, conv, role, body, at) VALUES (?, ?, ?, ?, ?, ?, ?)', r.id, o.tree, o.user, conv, r.role, r.body, r.at);
+  await accounts().batch([insert(userRow), insert(reply)]);
+  return { items: [toItem(userRow), toItem(reply)] };
+}

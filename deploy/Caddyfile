@@ -1,0 +1,7 @@
+# Caddy in front of the app (compose profile "https"). It gets a certificate for KINDRED_DOMAIN from
+# Let's Encrypt, which needs ports 80 and 443 reachable from the internet. The app's own KINDRED_ORIGIN
+# in .env must be the same address with https://, because passkeys are bound to it.
+{$KINDRED_DOMAIN:localhost} {
+	encode zstd gzip
+	reverse_proxy app:4901
+}

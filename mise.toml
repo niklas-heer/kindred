@@ -1,67 +1,84 @@
 [tools]
-# Keep Rust aligned with rust-toolchain.toml; cargo-dist uses that toolchain too.
-rust = { version = "1.97.1", profile = "minimal", components = ["clippy", "rustfmt", "rust-analyzer", "rust-src"] }
-dagger = "0.21.9"
-cargo-dist = "0.32.0"
-actionlint = "1.7.12"
-git-cliff = "2.14.2"
-# Built-in test runner for the browser graph algorithms; no npm dependencies.
-node = "26.5.0"
+node = "26"
 
-[tasks.fmt]
-description = "Format Rust source"
-run = "cargo fmt --all"
+[env]
+# The project's own tools (vite, tsc, wrangler) live in node_modules/.bin, which mise run does not put on PATH.
+_.path = ["node_modules/.bin"]
 
-[tasks.check]
-description = "Check formatting, compilation, lints, and CLI behavior"
+[tasks.install]
+run = "npm install"
+
+[tasks.data]
+description = "Generate the test families and rebuild their databases"
 run = [
-  "cargo fmt --all -- --check",
-  "cargo check --locked --all-targets --all-features",
-  "cargo clippy --locked --all-targets --all-features -- -D warnings",
-  "cargo test --locked --all-features",
-  "node --test tests/family.cjs tests/layout.cjs tests/i18n.cjs tests/query.cjs tests/life.cjs",
+  "node scripts/gen-realm.ts",
+  "node scripts/gen-modern.ts",
+  "node scripts/seed.ts --force data/seed/realm.json data/seed/modern.json",
 ]
 
+[tasks.seed]
+description = "Build missing data/*.db from data/seed/ (existing ones are kept; pass --force to rebuild with a backup)"
+run = "node scripts/seed.ts"
+
+[tasks.gazetteer]
+description = "Download GeoNames cities500 once and build data/gazetteer.db for offline place search (~40 MB; downloads are deleted)"
+run = "node scripts/gazetteer.ts"
+
+[tasks.dev]
+description = "Run on Node with the SQLite files in data/ (http://localhost:4517)"
+run = "vite dev"
+
+[tasks."dev:cf"]
+description = "Run the Worker in workerd with local D1 and R2 (wrangler env `local`); `mise run cf:seed` loads the test families"
+depends = ["cf:migrate"]
+env = { CLOUDFLARE_ENV = "local" }
+run = "vite dev"
+
+[tasks."cf:migrate"]
+description = "Apply migrations/ to every local D1 database in wrangler.jsonc (env `local`)"
+run = "node scripts/cf-migrate.ts --env local"
+
+[tasks."cf:migrate:remote"]
+description = "Apply migrations/ to the deployed D1 databases (needs `wrangler login`)"
+run = "node scripts/cf-migrate.ts --remote"
+
+[tasks."cf:seed"]
+description = "Copy data/modern.db and data/realm.db into the local D1 databases (replacing what is there)"
+depends = ["cf:migrate"]
+run = "node scripts/import-to-d1.ts modern realm --env local --replace"
+
+[tasks.check]
+run = "tsc --noEmit"
+
 [tasks.test]
-description = "Run tests through the real CLI"
-run = "cargo test --locked --all-features"
+description = "Unit tests: accounts, Access, the storage layer"
+run = "node --test src/lib/auth/*.test.ts src/lib/store/*.test.ts src/lib/*.test.ts src/lib/exchange/*.test.ts src/lib/i18n/*.test.ts src/lib/jobs/*.test.ts scripts/*.test.ts server/*.test.ts"
 
 [tasks.build]
-description = "Build the optimized binary"
-run = "cargo build --locked --release"
+description = "Build the Worker (dist/); KINDRED_TARGET=node builds for Node instead"
+run = "vite build"
+
+[tasks."build:node"]
+description = "Build the production server for Node into dist/ (run mise run start afterwards)"
+env = { KINDRED_TARGET = "node" }
+run = "vite build"
+
+[tasks.start]
+description = "Run the production Node server from dist/ (build it first): PORT (4901), HOST (127.0.0.1), KINDRED_DATA_DIR (data/)"
+run = "node server/node.ts"
+
+[tasks.deploy]
+description = "Build and deploy to Cloudflare (needs `wrangler login` and the D1/R2 ids in wrangler.jsonc)"
+run = ["vite build", "npx wrangler deploy"]
+
+[tasks."vapid-keys"]
+description = "Make the VAPID key pair for Web Push reminders and print its three settings (docs/self-host.md, Reminders)"
+run = "node scripts/vapid-keys.ts"
 
 [tasks.clean]
-description = "Remove all local build output in target/"
-run = "cargo clean"
+description = "Remove build output and generated databases"
+run = "rm -rf dist .output .tanstack .wrangler data/*.db data/*.db-wal data/*.db-shm data/media"
 
-[tasks."clean-debug"]
-description = "Remove debug builds and test binaries; keep release builds"
-run = "cargo clean --profile dev"
-
-[tasks.ci]
-description = "Run Linux checks in Dagger (requires a container engine)"
-run = "dagger call ci"
-
-[tasks."release:check"]
-description = "Verify generated release workflow and preview release artifacts"
-run = ["dist generate --check", "dist plan"]
-
-[tasks."workflow:check"]
-description = "Validate GitHub Actions syntax and expressions"
-run = "actionlint -shellcheck="
-
-[tasks."release:build"]
-description = "Build release archives for the current host without publishing"
-run = "dist build --artifacts=host"
-
-[tasks."test:graph"]
-description = "Test family highlighting and layout invariants"
-run = "node --test tests/family.cjs tests/layout.cjs tests/i18n.cjs tests/query.cjs tests/life.cjs"
-
-[tasks.changelog]
-description = "Generate the changelog from Conventional Commits"
-run = "git-cliff --config cliff.toml --output CHANGELOG.md"
-
-[tasks."release:notes"]
-description = "Print notes for the current version tag"
-run = "git-cliff --config cliff.toml --current --strip header"
+[tasks."smoke:worker"]
+description = "Build the Worker into a scratch folder, run it locally (workerd, empty local D1 and R2) and check its routes; never contacts Cloudflare"
+run = "node scripts/worker-smoke.ts"

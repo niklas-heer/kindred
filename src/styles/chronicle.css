@@ -1,0 +1,118 @@
+/* Chronicle: recent changes, and a wall of sayings. */
+
+.chr-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.chr-head p { margin: 0; font-size: 17px; }
+.chr-search { position: relative; flex: 0 1 320px; display: block; }
+.chr-search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.chr-search .input { padding-left: 34px; height: 36px; }
+
+.chr-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; margin-bottom: 8px; border-bottom: 1px solid var(--border); }
+.chr-tabs { display: flex; gap: 2px; }
+.chr-tabs button {
+  display: inline-flex; align-items: center; gap: 7px; padding: 10px 14px 9px; margin-bottom: -1px;
+  background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer;
+  font-family: var(--font-ui); font-size: 16px; color: var(--muted);
+}
+.chr-tabs button span { font-size: 12px; padding: 0 7px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); }
+.chr-tabs button:hover { color: var(--text); }
+.chr-tabs button:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius); }
+.chr-tabs button[aria-selected='true'] { color: var(--text); border-bottom-color: var(--accent); }
+.chr-tabs button[aria-selected='true'] svg { color: var(--accent); }
+.chr-kinds { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 8px; }
+.chr-kinds .btn { height: 28px; font-size: 13px; }
+
+/* ---- the feed ---- */
+.chr-day .rule { margin-top: 22px; }
+.chr-feed { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; position: relative; }
+.chr-item { display: grid; grid-template-columns: 50px minmax(0, 1fr); gap: 14px; align-items: start; }
+.chr-face { margin-top: 4px; display: block; border-radius: var(--radius); }
+.chr-face:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.chr-card { padding: 12px 18px 12px; display: grid; gap: 6px; min-width: 0; }
+.chr-card { --meta: var(--muted); }
+[data-theme='codex'] .chr-card { --meta: #bdb195; }
+.chr-card header { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; font-family: var(--font-ui); font-size: 14px; color: var(--meta); }
+.chr-kind { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 600; }
+.chr-line { flex: 1 1 auto; min-width: 0; }
+.chr-line b { color: var(--text); font-weight: 600; }
+.chr-card time { font-size: 14px; white-space: nowrap; color: var(--meta); font-variant-numeric: tabular-nums; }
+.chr-person { color: var(--text); text-decoration: underline; text-decoration-color: var(--edge-soft); text-underline-offset: 3px; }
+.chr-person:hover { color: var(--accent); text-decoration-color: var(--accent); }
+.chr-person:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 3px; }
+.chr-card h3 { margin: 2px 0 0; font-family: var(--font-display); font-size: 20px; font-weight: 600; line-height: 1.25; }
+[data-theme='codex'] .chr-card h3 { font-variant: small-caps; letter-spacing: 0.03em; }
+.chr-ctx { margin: 0; font-size: 15px; font-style: italic; color: var(--meta); }
+.chr-toggle { justify-self: start; height: 28px; margin-left: -8px; color: var(--accent); }
+
+/* Markdown body, shared by feed and wall */
+.chr-md, .chr-inline-quote, .chr-saying blockquote { line-height: 1.55; font-size: 17px; overflow-wrap: anywhere; }
+.chr-md > :first-child, .chr-inline-quote > :first-child, .chr-saying blockquote > :first-child { margin-top: 0; }
+.chr-md > :last-child, .chr-inline-quote > :last-child, .chr-saying blockquote > :last-child { margin-bottom: 0; }
+.chr-md p, .chr-md ul, .chr-md ol { margin: 0 0 0.7em; }
+.chr-md ul, .chr-md ol { padding-left: 1.3em; }
+.chr-md h1, .chr-md h2, .chr-md h3, .chr-md h4 { font-family: var(--font-display); font-size: 17px; margin: 0.8em 0 0.3em; }
+.chr-md a, .chr-saying a { color: var(--accent); }
+.chr-md blockquote { margin: 0.5em 0; padding-left: 12px; border-left: 2px solid var(--edge); color: var(--muted); }
+.chr-md code { font-size: 0.9em; background: var(--panel-2); padding: 1px 4px; border-radius: 3px; }
+.chr-md[data-clamped] { max-height: 9em; overflow: hidden; mask-image: linear-gradient(180deg, #000 60%, transparent); -webkit-mask-image: linear-gradient(180deg, #000 60%, transparent); }
+.chr-inline-quote { margin: 0; font-family: var(--font-hand); font-size: 21px; line-height: 1.4; padding-left: 14px; border-left: 3px solid var(--accent); }
+/* Typographic quotation marks. Sayings are stored bare, so the opening and closing marks are added here,
+   as the real U+201C / U+201D glyphs, set in the hand font and tinted. */
+.chr-inline-quote > p:first-child::before,
+.chr-saying blockquote > p:first-child::before { content: '\201C'; }
+.chr-inline-quote > p:last-child::after,
+.chr-saying blockquote > p:last-child::after { content: '\201D'; }
+.chr-inline-quote > p:first-child::before,
+.chr-inline-quote > p:last-child::after,
+.chr-saying blockquote > p:first-child::before,
+.chr-saying blockquote > p:last-child::after {
+  font-family: var(--font-hand); font-style: normal; color: var(--accent); font-size: 1.25em; line-height: 0;
+}
+.chr-more { margin: 18px auto 0; display: flex; }
+
+/* ---- the wall of sayings ---- */
+.chr-wall { columns: 320px; column-gap: 20px; margin-top: 20px; }
+.chr-saying {
+  --meta: var(--muted); break-inside: avoid; margin: 0 0 20px; padding: 22px 24px 16px; position: relative; overflow: hidden;
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow);
+}
+[data-theme='codex'] .chr-saying { --meta: #bdb195; border-color: #0a0d12; box-shadow: inset 0 0 0 1px var(--edge-soft), var(--shadow); }
+.chr-saying blockquote { margin: 0 0 16px; position: relative; font-family: var(--font-hand); font-size: 24px; line-height: 1.38; padding-top: 2px; text-wrap: pretty; }
+.chr-saying:nth-child(3n + 2) blockquote { font-size: 27px; }
+.chr-saying:nth-child(5n) blockquote { font-size: 21px; }
+.chr-saying figcaption { display: flex; align-items: center; gap: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.chr-saying figcaption > div { display: grid; gap: 1px; min-width: 0; font-family: var(--font-ui); font-size: 15px; }
+.chr-saying figcaption em { font-size: 15px; color: var(--meta); font-style: italic; }
+.chr-saying figcaption small { font-size: 13.5px; color: var(--meta); text-wrap: balance; }
+.chr-saying .chr-person { text-decoration: none; font-weight: 600; }
+
+/* ---- empty ---- */
+.chr-empty { padding: 44px 28px; display: grid; justify-items: center; gap: 8px; text-align: center; max-width: 560px; margin: 28px auto; }
+.chr-empty svg { color: var(--accent); }
+.chr-empty h2 { font-size: 22px; font-weight: 600; margin: 4px 0 0; }
+.chr-empty p { margin: 0 0 8px; }
+
+@media (max-width: 560px) {
+  .chr-item { grid-template-columns: 1fr; }
+  .chr-face { display: none; }
+}
+
+.chr-md, .chr-inline-quote { max-width: 68ch; }
+.chr-card, .chr-saying { overflow-wrap: anywhere; }
+.chr-md pre { max-width: 100%; overflow: auto; white-space: pre-wrap; }
+.chr-md table { display: block; max-width: 100%; overflow-x: auto; }
+.chr-md img { max-width: 100%; height: auto; }
+.chr-person { font-family: var(--font-name); font-weight: var(--name-weight); }
+.chr-card[data-kind='quote'], .chr-item[data-kind='quote'] .chr-card, .chr-item[data-kind='recipe'] .chr-card, .chr-saying { background: var(--panel-2); }
+@media(max-width:600px) { .chr-search { width: 100%; flex-basis: 100%; } .chr-search .input { width: 100%; } .chr-wall { columns: auto; } .chr-card { padding: 16px; } .chr-saying { padding: 20px 18px; } .chr-card header { display: grid; gap: 6px; } .chr-md[data-clamped] { max-height: none; overflow: visible; mask-image: none; -webkit-mask-image: none; } .chr-bar .btn, .chr-tabs button { min-height: 44px; } }
+
+/* Match the story sheets in the person panel, with ink colours on parchment. */
+.chr-item[data-kind='quote'] .chr-card, .chr-item[data-kind='recipe'] .chr-card, .chr-saying {
+  --text: #302718; --muted: #665335; --meta: #665335; --accent: #704510; --border: #bba57b;
+  color: var(--text); background: linear-gradient(145deg, #f3e9cd, #e5d4a8);
+  border-color: var(--border); box-shadow: inset 0 0 24px #a0864c22, 0 2px 5px #0002;
+}
+
+[data-theme='codex'] .chr-saying { --meta: #665335; }
+
+
+@media(max-width:600px) { .chr .btn { min-height: 44px; } }

@@ -1,0 +1,352 @@
+/* The Atlas. The map fills the page; the place list (left), the time bar (bottom) and the chronicle
+   (right) sit over it, and the map keeps its pins inside the rectangle they leave free. On narrow
+   screens the list and the chronicle become bottom sheets and the time bar rides on top of them. */
+.atlas { position: relative; height: 100%; overflow: hidden; --side-w: 340px; --feed-w: 340px; }
+@media (max-width: 1200px) { .atlas { --side-w: 300px; --feed-w: 300px; } }
+.atlas-map { position: absolute; inset: 0; }
+.atlas-canvas { position: absolute; inset: 0; cursor: grab; touch-action: none; user-select: none; }
+.atlas-canvas:active { cursor: grabbing; }
+.atlas-canvas svg { display: block; }
+
+/* ---------- map colours: quiet paper, a parchment chart in codex, ink and brass at night ---------- */
+.atlas {
+  --sea-hi: #e3ecee; --sea-lo: #cfdcdf; --land: #fbfaf6; --land-edge: #cfc6b5; --borders: #d9d1c2; --grid: #b9c7cb55;
+  --pin: var(--accent); --pin-edge: #fff; --pin-text: #fff; --label: #2b2822; --label-halo: #fbfaf6; --arc: #2f6f5e;
+  --token-bg: #f4f1ea; --token-edge: #8a7f6c; --token-ink: #5a5246; --stipple: transparent;
+}
+[data-theme='codex'] .atlas {
+  --sea-hi: #3e5552; --sea-lo: #1f2c2d; --land: #cdb98a; --land-edge: #7e6a43; --borders: #8f7a4e; --grid: #ffffff10;
+  --pin: #e2bd6b; --pin-edge: #241a0b; --pin-text: #241a0b; --label: #2a1f0e; --label-halo: #e8d7ab; --arc: #8a2f22;
+  --token-bg: #ead9ad; --token-edge: #3a2a10; --token-ink: #4a3716;
+}
+/* Night: an ink sea and a lifted slate land with a faint stipple, so the coast always reads. */
+[data-theme='night'] .atlas {
+  --sea-hi: #13212c; --sea-lo: #0a1118; --land: #343c46; --land-edge: #5d6672; --borders: #4c5560; --grid: #ffffff0a;
+  --pin: #e0a458; --pin-edge: #1a1209; --pin-text: #1a1209; --label: #f1e9dc; --label-halo: #141a21; --arc: #8fd0bc;
+  --token-bg: #262d36; --token-edge: #e0a458; --token-ink: #e7c38f; --stipple: #ffffff17;
+}
+.sea-hi { stop-color: var(--sea-hi); }
+.sea-lo { stop-color: var(--sea-lo); }
+.land { fill: var(--land); stroke: var(--land-edge); stroke-width: 0.6; vector-effect: non-scaling-stroke; }
+.land-stipple { stroke: none; pointer-events: none; display: none; }
+[data-theme='night'] .land-stipple { display: inline; }
+.stipple-dot { fill: var(--stipple); }
+.borders { fill: none; stroke: var(--borders); stroke-width: 0.6; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; }
+.graticule { fill: none; stroke: var(--grid); stroke-width: 0.8; vector-effect: non-scaling-stroke; }
+
+/* Moves: one quiet arc per pair of places, wider for busier roads; the dashes flow only during a replay. */
+.arc { fill: none; stroke: var(--arc); stroke-linecap: round; opacity: 0.3; transition: opacity 160ms; }
+.arc:hover { opacity: 0.75; }
+.arcs.flowing .arc { animation: atlas-flow 1.6s linear infinite; }
+@keyframes atlas-flow { to { stroke-dashoffset: -22; } }
+
+/* ---------- pins ---------- */
+.pin { cursor: pointer; outline: none; }
+/* Grow in place: the animated group has no translate of its own, so it scales around the pin. */
+.pin-grow { transform-box: fill-box; transform-origin: center; animation: pin-in 360ms cubic-bezier(.3,1.5,.5,1); }
+@keyframes pin-in { from { scale: 0; opacity: 0; } }
+.pin-dot { fill: var(--pin); stroke: var(--pin-edge); opacity: 0.92; transition: r 200ms; }
+.pin:hover .pin-dot { opacity: 1; filter: brightness(1.12); }
+.pin.on .pin-dot { stroke: var(--text); fill: var(--pin); filter: drop-shadow(0 0 6px var(--pin)); }
+.pin-focus { fill: none; stroke: transparent; }
+.pin:focus-visible .pin-focus { stroke: var(--accent); }
+[data-theme='codex'] .pin:focus-visible .pin-focus { stroke: #fff3c4; }
+.pin-n { text-anchor: middle; fill: var(--pin-text); font-family: var(--font-ui); font-weight: 700; pointer-events: none; font-variant-numeric: tabular-nums; }
+.pin-label {
+  fill: var(--label); font-family: var(--font-title); font-weight: 600; pointer-events: none;
+  paint-order: stroke; stroke: var(--label-halo); stroke-linejoin: round;
+}
+[data-theme='night'] .pin-label { font-weight: 500; }
+.atlas-loading {
+  position: absolute; top: 0; display: grid; place-items: center; pointer-events: none;
+  color: var(--muted); font-family: var(--font-display); font-size: 18px;
+}
+
+/* "All": each kind of event has its colour, around the pin and in the lists. */
+.atlas { --k-births: #e2bd6b; --k-deaths: #8fa3b8; --k-weddings: #d27a8c; }
+[data-theme='modern'] .atlas { --k-births: #9a6f1f; --k-deaths: #55697d; --k-weddings: #a8455f; }
+.kind-ring path, .kind-ring circle { fill: none; stroke-linecap: butt; }
+.kind-ring .k-births { stroke: var(--k-births); }
+.kind-ring .k-deaths { stroke: var(--k-deaths); }
+.kind-ring .k-weddings { stroke: var(--k-weddings); }
+.atlas .k-births { color: var(--k-births); }
+.atlas .k-deaths { color: var(--k-deaths); }
+.atlas .k-weddings { color: var(--k-weddings); }
+
+/* Heraldry view: each place flies its main house's arms; a place without one shows a tower token. */
+.pin-arms { filter: drop-shadow(0 2px 2px #0008); }
+.pin:hover .pin-arms { filter: drop-shadow(0 0 4px var(--pin)) drop-shadow(0 2px 2px #0008); }
+.pin.on .pin-arms, .pin.on .pin-token { filter: drop-shadow(0 0 6px var(--pin)); }
+.pin-token { filter: drop-shadow(0 1px 2px #0007); }
+.token-disc { fill: var(--token-bg); stroke: var(--token-edge); }
+.token-inner { fill: none; stroke: var(--token-edge); opacity: 0.45; }
+.token-ink { color: var(--token-ink); }
+.pin-n.under { fill: var(--label); paint-order: stroke; stroke: var(--label-halo); stroke-linejoin: round; }
+.place-token { display: block; filter: drop-shadow(0 1px 1px #0005); }
+
+/* Places where something just happened pulse. */
+.pin.recent .pulse { fill: none; stroke: var(--pin); transform-box: fill-box; transform-origin: center; animation: pulse 1s ease-out infinite; }
+@keyframes pulse { from { opacity: 0.9; scale: 1; } to { opacity: 0; scale: 2.2; } }
+
+/* ---------- the side panel ---------- */
+.atlas-side {
+  position: absolute; left: 0; top: 0; bottom: 0; width: var(--side-w); z-index: 5;
+  display: flex; flex-direction: column; overflow: hidden;
+  border-radius: 0; border-width: 0 1px 0 0;
+}
+[data-theme='codex'] .atlas-side { box-shadow: inset -1px 0 0 var(--edge-soft), 4px 0 14px #0006; }
+[data-theme='modern'] .atlas-side { box-shadow: 2px 0 12px #2a22140d; }
+.atlas-handle { display: none; }
+.atlas-head { padding: 20px 20px 2px; }
+.atlas-head .ui-page-header { margin-bottom: 12px; }
+.atlas-head .ui-page-header h1 { font-size: 28px; }
+[data-theme='codex'] .atlas-head .ui-page-header h1 { font-size: 30px; }
+.atlas-head .ui-page-header p { font-size: 14.5px; line-height: 1.4; margin-top: 4px; }
+[data-theme='codex'] .atlas-head .ui-page-header p { font-size: 15.5px; }
+
+/* The event kinds: one segmented control. */
+.atlas-seg {
+  display: flex; gap: 2px; margin: 0 16px 14px; padding: 3px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel-2);
+}
+[data-theme='codex'] .atlas-seg { background: #121722; border-color: #0b0e13; box-shadow: inset 0 0 0 1px #b8954f2a; }
+.atlas-seg-btn {
+  flex: 1; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  height: 32px; padding: 0 4px; border: 0; border-radius: calc(var(--radius-lg) - 2px);
+  background: transparent; color: var(--muted); font-family: var(--font-ui); font-size: 13.5px; cursor: pointer; white-space: nowrap;
+}
+.atlas-seg-btn:hover { color: var(--text); background: var(--panel-3); }
+.atlas-seg-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.atlas-seg-btn[aria-pressed='true'] { background: var(--panel-solid); color: var(--text); box-shadow: 0 1px 2px #0002, inset 0 0 0 1px var(--border); }
+[data-theme='modern'] .atlas-seg-btn[aria-pressed='true'] { color: var(--accent); font-weight: 600; }
+[data-theme='night'] .atlas-seg-btn[aria-pressed='true'] { background: #2b3140; color: var(--accent); box-shadow: inset 0 0 0 1px #6b563655; }
+[data-theme='codex'] .atlas-seg-btn { font-size: 14.5px; }
+[data-theme='codex'] .atlas-seg-btn:hover { background: #ffffff0a; }
+[data-theme='codex'] .atlas-seg-btn[aria-pressed='true'] { background: linear-gradient(180deg, #4a3d22, #352b17); color: #f3e7c8; box-shadow: inset 0 0 0 1px var(--edge); }
+
+.atlas-side-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; border-top: 1px solid var(--border); }
+[data-theme='codex'] .atlas-side-body { border-top-color: var(--edge-soft); }
+.atlas-empty { margin: 0; padding: 32px 24px; text-align: center; }
+
+.atlas-places { list-style: none; margin: 0; padding: 8px 8px 20px; }
+.atlas-places button {
+  width: 100%; min-height: 38px; display: grid; grid-template-columns: 22px 1fr 60px 34px; gap: 10px; align-items: center;
+  padding: 6px 10px 6px 6px; border: 0; background: none; border-radius: var(--radius); cursor: pointer; text-align: left; color: var(--text);
+}
+.atlas-places button:hover { background: var(--panel-2); }
+[data-theme='codex'] .atlas-places button:hover { background: #ffffff0a; box-shadow: inset 0 0 0 1px #b8954f26; }
+.atlas-places button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.atlas-rank { font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+.atlas-place-name { display: flex; align-items: baseline; min-width: 0; gap: 8px; }
+.atlas-place-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-name); font-weight: var(--name-weight); font-size: 15px; }
+[data-theme='codex'] .atlas-place-text { font-size: 16px; }
+.atlas-places b { text-align: right; font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 600; font-family: var(--font-ui); }
+.atlas-bar { height: 5px; border-radius: 3px; background: var(--panel-3); overflow: hidden; }
+[data-theme='codex'] .atlas-bar { background: #121722; box-shadow: inset 0 0 0 1px #0a0d12; }
+.atlas-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+[data-theme='codex'] .atlas-bar i { background: linear-gradient(90deg, #8a6a2c, #e2bd6b); }
+.atlas-kinds { flex: none; display: inline-flex; gap: 7px; font-size: 11.5px; font-variant-numeric: tabular-nums; font-family: var(--font-ui); }
+.atlas-kinds span { display: inline-flex; align-items: center; gap: 2px; }
+
+/* A chosen place. */
+.atlas-detail { padding: 10px 16px 20px; }
+.atlas-back { margin-left: -6px; color: var(--muted); }
+.atlas-place-card { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; margin: 8px 0 6px; padding: 14px 16px; }
+.atlas-place-mark { display: grid; place-items: center; width: 40px; }
+.atlas-place-card h2 { margin: 0; font-size: 22px; font-weight: 600; line-height: 1.2; }
+[data-theme='codex'] .atlas-place-card h2 { color: var(--accent); font-weight: 500; }
+[data-theme='night'] .atlas-place-card h2 { font-weight: 500; font-size: 24px; }
+.atlas-place-card p { margin: 3px 0 0; font-size: 13.5px; }
+.atlas-house { font-style: italic; }
+.atlas-place-kinds { display: flex; flex-wrap: wrap; gap: 4px 12px; font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
+.atlas-place-kinds span { display: inline-flex; align-items: center; gap: 4px; }
+.atlas-detail h3.rule { margin: 18px 0 6px; font-weight: 400; }
+.atlas-detail ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.atlas-detail a { display: flex; gap: 10px; align-items: center; padding: 5px 6px; border-radius: var(--radius); text-decoration: none; color: var(--text); }
+.atlas-detail a:hover { background: var(--panel-2); }
+.atlas-detail a:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.atlas-detail a span { display: grid; min-width: 0; }
+.atlas-name { font-family: var(--font-name); font-weight: var(--name-weight); font-size: 15px; }
+[data-theme='codex'] .atlas-name { font-size: 16px; }
+.atlas-detail small { font-size: 12.5px; }
+
+/* ---------- the time bar ---------- */
+.atlas-time {
+  position: absolute; z-index: 6; bottom: 16px; left: calc(var(--side-w) + 16px); right: 16px; max-width: 860px; margin-inline: auto;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 10px 8px 8px;
+  transition: right 260ms cubic-bezier(.2,.8,.2,1);
+}
+.atlas.feed-on .atlas-time { right: calc(var(--feed-w) + 16px); }
+.atlas-play { width: 40px; height: 40px; padding: 0; justify-content: center; border-radius: 50%; flex: none; }
+.atlas-play svg { display: block; }
+.atlas-year { font-size: 24px; min-width: 2.6em; text-align: center; font-variant-numeric: tabular-nums; line-height: 1; }
+[data-theme='codex'] .atlas-year { color: var(--accent); }
+.atlas-range { flex: 1 1 180px; padding-top: 8px; }
+.atlas-tools { display: flex; gap: 6px; margin-left: auto; }
+/* Speed and the three view toggles: one family of buttons. */
+.atlas-tool { height: 34px; padding: 0 10px; gap: 6px; font-size: 13.5px; justify-content: center; }
+.atlas-tool svg { flex: none; }
+.atlas-tool[aria-pressed='false'] { color: var(--muted); }
+.atlas-tool[aria-pressed='true'] svg { color: var(--accent); }
+[data-theme='codex'] .atlas-tool[aria-pressed='true'] svg { color: #f0cf83; }
+.atlas-speed { min-width: 2ch; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* ---------- the chronicle: a right-hand column ---------- */
+.atlas-feed {
+  position: absolute; right: 0; top: 0; bottom: 0; width: var(--feed-w); z-index: 5;
+  display: flex; flex-direction: column; overflow: hidden;
+  border-radius: 0; border-width: 0 0 0 1px;
+  animation: feed-dock 260ms cubic-bezier(.2,.8,.2,1);
+}
+@keyframes feed-dock { from { opacity: 0; transform: translateX(28px); } }
+[data-theme='codex'] .atlas-feed { box-shadow: inset 1px 0 0 var(--edge-soft), -4px 0 14px #0006; }
+[data-theme='modern'] .atlas-feed { box-shadow: -2px 0 12px #2a22140d; }
+.atlas-feed > header {
+  display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 6px;
+  padding: 14px 10px 10px 18px; border-bottom: 1px solid var(--border);
+}
+[data-theme='codex'] .atlas-feed > header { border-bottom-color: var(--edge-soft); }
+.atlas-feed h2 { margin: 0; font-size: 20px; font-weight: 600; }
+[data-theme='codex'] .atlas-feed h2 { color: var(--accent); font-weight: 500; font-variant: small-caps; letter-spacing: 0.04em; font-size: 21px; }
+[data-theme='night'] .atlas-feed h2 { font-weight: 500; font-size: 22px; }
+.feed-cursor { font-family: var(--font-display); font-size: 16px; color: var(--muted); font-variant-numeric: tabular-nums; padding: 0 6px; }
+.atlas-feed > header .btn.icon { width: 34px; height: 34px; }
+.feed-fold { display: none !important; }
+.feed-latest { height: 30px; font-size: 13px; padding: 0 10px 0 8px; gap: 4px; }
+.atlas-feed ol {
+  list-style: none; margin: 0; padding: 6px 8px 16px; display: grid; align-content: start; gap: 2px;
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; position: relative;
+}
+/* Rows slide in when the reader steps or scrubs; during playback they simply appear (no half-faded top). */
+.atlas-feed:not(.playing) li { animation: feed-in 220ms cubic-bezier(.2,.8,.2,1); }
+@keyframes feed-in { from { opacity: 0; transform: translateY(-6px); } }
+.atlas-feed li button {
+  width: 100%; min-height: 44px; display: grid; grid-template-columns: 38px 32px 1fr; gap: 9px; align-items: center;
+  padding: 5px 6px; border: 0; background: none; border-radius: var(--radius); cursor: pointer; text-align: left; color: var(--text);
+}
+.atlas-feed li button:hover { background: var(--panel-2); }
+[data-theme='codex'] .atlas-feed li button:hover { background: #ffffff0a; }
+.atlas-feed li button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.atlas-feed li.feed-more-row { display: grid; }
+.feed-more { justify-self: center; margin: 8px auto 2px; }
+.feed-year { font-family: var(--font-display); font-size: 14px; font-variant-numeric: tabular-nums; color: var(--muted); text-align: right; }
+.feed-face { display: grid; place-items: center; width: 32px; height: 32px; position: relative; }
+.feed-sum { color: var(--accent); }
+.feed-kind { position: absolute; right: -4px; bottom: -3px; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; background: var(--panel-solid); box-shadow: 0 0 0 1px var(--border); }
+.feed-text { font-size: 14px; line-height: 1.35; min-width: 0; }
+[data-theme='codex'] .feed-text { font-size: 15px; }
+.feed-text b { font-family: var(--font-name); font-weight: var(--name-weight); }
+[data-theme='codex'] .feed-text b { color: #f3e7c8; }
+.feed-text i { font-style: normal; color: var(--muted); }
+
+/* ---------- narrower desktops: icon-only toggles, so the time bar keeps to one or two lines ---------- */
+@media (max-width: 1200px) {
+  .atlas-time .tb-label { display: none; }
+  .atlas-tool { width: 38px; padding: 0; }
+  .atlas-tool:first-child { width: auto; padding: 0 9px; }
+}
+
+/* ---------- narrow screens: bottom sheets ---------- */
+@media (max-width: 900px) {
+  .atlas-side {
+    top: auto; bottom: 0; left: 0; right: 0; width: auto; max-height: 62%;
+    border-width: 1px 0 0; border-radius: 14px 14px 0 0;
+  }
+  [data-theme='codex'] .atlas-side { box-shadow: inset 0 1px 0 var(--edge-soft), 0 -4px 16px #0007; }
+  [data-theme='modern'] .atlas-side { box-shadow: 0 -2px 14px #2a221414; }
+  .atlas.list-open .atlas-side { height: 62%; }
+  .atlas.feed-on .atlas-side { display: none; }
+  .atlas-head { display: none; }
+  .atlas-side-body { display: none; }
+  .atlas.list-open .atlas-side-body { display: block; }
+
+  /* The handle: the sheet's title, and the one control that folds the list away to show the map. */
+  .atlas-handle {
+    position: relative; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px;
+    width: 100%; min-height: 56px; padding: 12px 16px 6px; border: 0; background: none; color: var(--text); cursor: pointer; text-align: left;
+  }
+  .atlas-handle:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
+  .atlas-grip { position: absolute; top: 6px; left: 50%; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--faint); }
+  .atlas-handle-text { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .atlas-handle-text b { font-size: 21px; font-weight: 600; }
+  [data-theme='codex'] .atlas-handle-text b { color: var(--accent); font-weight: 500; font-variant: small-caps; letter-spacing: 0.04em; }
+  .atlas-handle-text .subtle { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .atlas-handle-act {
+    display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 18px;
+    border: 1px solid var(--border); background: var(--panel-2); font-family: var(--font-ui); font-size: 14px; white-space: nowrap;
+  }
+  [data-theme='codex'] .atlas-handle-act { border-color: #0b0e13; box-shadow: inset 0 0 0 1px #b8954f44; background: linear-gradient(180deg, #2e384b, #222a39); color: var(--accent); }
+
+  .atlas-seg { margin: 4px 12px 12px; }
+  .atlas-seg-btn { height: 44px; }
+  /* A thumb you can catch with a finger. */
+  .atlas-range { padding-top: 0; }
+  .atlas-range input { height: 44px; }
+  .atlas-range .ui-range-ticks { margin-top: -10px; }
+  .atlas-places button { min-height: 44px; }
+  .atlas-detail a { min-height: 44px; }
+  .atlas-back { height: 44px; }
+
+  /* The time bar sits on whichever sheet is showing (its height is measured into --sheet-h). */
+  .atlas-time, .atlas.feed-on .atlas-time {
+    left: 8px; right: 8px; bottom: calc(var(--sheet-h, 0px) + 8px); max-width: none; transition: none;
+    gap: 6px 10px; padding: 6px 8px;
+  }
+  .atlas-play { width: 44px; height: 44px; }
+  .atlas-range { flex: 1 1 120px; }
+  .atlas-tools { width: 100%; margin: 0; gap: 6px; }
+  .atlas-time .tb-label { display: inline; }
+  .atlas-tool, .atlas-tool:first-child { flex: 1 1 0; min-width: 0; width: auto; height: 44px; padding: 0 6px; gap: 5px; font-size: 13px; }
+
+  /* The chronicle: a sheet from the bottom that folds to its header; close stays in reach. */
+  .atlas-feed {
+    top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 44%;
+    border-width: 1px 0 0; border-radius: 14px 14px 0 0;
+    animation: sheet-up 260ms cubic-bezier(.2,.8,.2,1);
+  }
+  @keyframes sheet-up { from { opacity: 0; transform: translateY(24px); } }
+  [data-theme='codex'] .atlas-feed { box-shadow: inset 0 1px 0 var(--edge-soft), 0 -4px 16px #0007; }
+  .atlas.feed-folded .atlas-feed { height: auto; }
+  .atlas.feed-folded .atlas-feed ol { display: none; }
+  .atlas.feed-folded .atlas-feed > header { border-bottom: 0; }
+  .atlas-feed > header { grid-template-columns: 1fr auto auto auto; padding: 8px 6px 8px 16px; }
+  .atlas-feed > header .btn.icon { width: 44px; height: 44px; }
+  .feed-fold { display: grid !important; place-items: center; }
+  .feed-latest { height: 44px; }
+}
+@media (max-width: 420px) {
+  .atlas-handle-text .subtle { display: none; }
+  .atlas-seg-btn { font-size: 13px; gap: 4px; }
+  .atlas-year { font-size: 21px; min-width: 2.3em; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arcs.flowing .arc, .pin-grow, .pin.recent .pulse, .atlas-feed, .atlas-feed li, .atlas-feed:not(.playing) li { animation: none; }
+  .atlas-time { transition: none; }
+}
+/* The kinds control in a narrower side panel: words only, so "Weddings" fits. */
+@media (min-width: 901px) and (max-width: 1200px) {
+  .atlas-seg-btn > svg { display: none; }
+}
+/* "All": a place's split into kinds sits under its name, so the name is never cut short. */
+.atlas-place-name:has(.atlas-kinds) { flex-direction: column; align-items: flex-start; gap: 0; }
+.atlas-place-name:has(.atlas-kinds) .atlas-place-text { max-width: 100%; }
+
+/* The place's main house opens the house's page. */
+a.atlas-place-mark { min-height: 44px; border-radius: var(--radius); transition: transform 140ms; }
+a.atlas-place-mark:hover { transform: translateY(-1px); }
+a.atlas-place-mark:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+a.atlas-house { color: inherit; text-underline-offset: 3px; }
+a.atlas-house:hover { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { a.atlas-place-mark { transition: none; } a.atlas-place-mark:hover { transform: none; } }
+
+/* The opening view frames where most of the family lived; a chip says what is left out and widens it. */
+.atlas-scope { position: absolute; z-index: 4; display: flex; justify-content: center; pointer-events: none; padding: 0 12px; }
+.atlas-scope-btn {
+  pointer-events: auto; height: 34px; padding: 0 14px; gap: 7px; border-radius: 999px; font-size: 13.5px;
+  background: var(--panel-solid); box-shadow: var(--shadow); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  animation: rise 200ms ease-out;
+}
+[data-theme='codex'] .atlas-scope-btn { border-color: var(--edge-soft); }
+@media (max-width: 600px) { .atlas-scope-btn { height: 40px; font-size: 13px; white-space: normal; text-align: left; } }
+@media (prefers-reduced-motion: reduce) { .atlas-scope-btn { animation: none; } }

@@ -1,0 +1,307 @@
+/* The AI setup page: five guided steps. Theme colours come from the tokens app.css defines for codex, modern (Paper)
+   and night; nothing here sets a colour directly except through those tokens. Phone width stacks everything. */
+
+.ai-settings {
+  display: grid;
+  gap: 16px;
+  max-width: 760px;
+  margin-inline: auto;
+  padding-bottom: 32px;
+}
+
+.ai-step {
+  display: grid;
+  gap: 12px;
+  padding: 18px 20px;
+  min-width: 0;
+}
+
+.ai-step-title {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+}
+
+.ai-step > p { margin: 0; }
+
+.ai-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+/* ---------- 1. provider cards ---------- */
+
+.ai-providers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.ai-provider {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  min-width: 0;
+}
+
+.ai-provider[data-active] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.ai-provider-pick {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px 8px;
+  min-height: 44px;
+  text-align: start;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.ai-provider-pick:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.ai-provider-name {
+  font-family: var(--font-title);
+  font-size: 1rem;
+}
+
+.ai-provider-blurb {
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.ai-provider-key {
+  justify-self: start;
+  margin: 0 14px 12px;
+  padding: 8px 0;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.9rem;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---------- 2. key ---------- */
+
+.ai-key-input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.ai-key-status { margin: 0; font-size: 0.92rem; min-height: 1.4em; }
+.ai-key-status.ok { color: var(--ok); }
+.ai-key-status.bad { color: var(--danger); }
+
+.ai-key-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.ai-key-masked {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 6px 10px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+
+/* ---------- 3. model ---------- */
+
+.ai-model-search { display: flex; }
+.ai-model-search .input { width: 100%; min-height: 44px; }
+
+.ai-model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 380px;
+  overflow: auto;
+  padding: 2px 4px 4px 0;
+  overscroll-behavior: contain;
+}
+
+.ai-model-group {
+  margin: 8px 0 0;
+  font-family: var(--font-title);
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.ai-model-note { font-size: 0.85rem; }
+
+.ai-model {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  align-items: start;
+  width: 100%;
+  min-height: 44px;
+  height: auto;
+  flex: none;
+  padding: 10px 12px;
+  text-align: start;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ai-model[aria-pressed="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.ai-model:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.ai-model-name {
+  font-family: var(--font-body);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.ai-model-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.ai-model-price {
+  text-align: end;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.ai-model-price.unknown { color: var(--muted); }
+
+.ai-model-estimate {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.ai-badges {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ai-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: var(--chip);
+  color: var(--text);
+}
+
+.ai-badge.role { border-color: var(--accent); color: var(--text); background: transparent; font-weight: 600; }
+
+.ai-model-more { margin: 0; font-size: 0.85rem; }
+
+.ai-selected {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.ai-selected-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 12px;
+  font-size: 0.9rem;
+}
+
+.ai-custom-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.ai-custom-grid label { display: grid; gap: 4px; font-size: 0.85rem; }
+
+.ai-custom-grid .input { min-height: 44px; }
+
+/* ---------- 4. features ---------- */
+
+.ai-feature { display: grid; gap: 4px; }
+.ai-feature-hint { margin: 0 0 0 0; font-size: 0.88rem; line-height: 1.45; }
+
+/* ---------- 5. budget ---------- */
+
+.ai-budget-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.ai-budget-input { width: 9em; min-height: 44px; font-variant-numeric: tabular-nums; }
+
+.ai-meter {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  /* A dim track, so an empty budget does not read as a full bar. */
+  background: color-mix(in srgb, var(--faint) 28%, transparent);
+}
+
+.ai-meter > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent);
+  border-radius: inherit;
+  transition: width 240ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-meter > span { transition: none; }
+}
+
+.ai-usage { margin: 0; font-variant-numeric: tabular-nums; }
+
+.ai-privacy { margin: 0; font-size: 0.9rem; line-height: 1.5; }
+
+.ai-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.ai-actions .btn { min-height: 44px; }
+
+.ai-save-hint { margin: 0; font-size: 0.88rem; }
+
+/* ---------- phones ---------- */
+
+@media (max-width: 640px) {
+  .ai-step { padding: 16px; }
+  .ai-model { grid-template-columns: 1fr; }
+  .ai-model-price { text-align: start; }
+  .ai-actions { justify-content: stretch; }
+  .ai-actions .btn { flex: 1 1 auto; }
+}

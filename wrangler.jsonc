@@ -1,0 +1,49 @@
+// Kindred on Cloudflare Workers: TanStack Start built by the Cloudflare Vite plugin (`vite build`),
+// deployed with `mise run deploy`. Locally, `mise run dev` keeps running on Node and SQLite;
+// `mise run dev:cf` runs this Worker in workerd with local D1 and R2 (the `local` environment below).
+//
+// Bindings (src/lib/store/cf.ts):
+//   ACCOUNTS     D1: accounts, passkeys, sessions, invitations (migrations/accounts)
+//   TREE_<ID>    D1: one database per family; TREE_FAMILY serves /family (migrations/tree)
+//   MEDIA        R2: portraits and other uploads, under <tree>/<key>
+//
+// Before the first deploy (not done for you):
+//   npx wrangler login
+//   npx wrangler d1 create kindred-accounts     → paste its database_id below
+//   npx wrangler d1 create kindred-family       → paste its database_id below
+//   npx wrangler r2 bucket create kindred-media
+//   mise run cf:migrate:remote                  → the schema
+//   node scripts/import-to-d1.ts family --remote    → a family you already run locally (data/family.db)
+//   npx wrangler secret put KINDRED_SETUP_CODE  → a long code for /setup (or put Cloudflare Access in front)
+// Add a family: another TREE_<ID> database with migrations_dir migrations/tree, then migrate and import it.
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "kindred",
+	"main": "src/server.ts",
+	"compatibility_date": "2026-10-12",
+	// nodejs_compat: process.env carries vars and secrets (KINDRED_ORIGIN, CF_ACCESS_*, KINDRED_SETUP_CODE).
+	"compatibility_flags": ["nodejs_compat"],
+	"observability": { "enabled": true },
+	"upload_source_maps": true,
+	// The daily jobs (src/lib/jobs: Web Push reminders) run at 06:00 UTC: src/server.ts → scheduled.
+	"triggers": { "crons": ["0 6 * * *"] },
+	"d1_databases": [
+		{ "binding": "ACCOUNTS", "database_name": "kindred-accounts", "database_id": "REPLACE-WITH-D1-ID", "migrations_dir": "migrations/accounts" },
+		{ "binding": "TREE_FAMILY", "database_name": "kindred-family", "database_id": "REPLACE-WITH-D1-ID", "migrations_dir": "migrations/tree" }
+	],
+	"r2_buckets": [{ "binding": "MEDIA", "bucket_name": "kindred-media" }],
+	// Optional vars: KINDRED_ORIGIN (the public origin, if not the request's), KINDRED_DEFAULT_TREE,
+	// CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD (Cloudflare Access). Locally in .dev.vars.
+
+	"env": {
+		// `mise run dev:cf`: the two test families in local-only D1 databases (never deployed).
+		"local": {
+			"d1_databases": [
+				{ "binding": "ACCOUNTS", "database_name": "kindred-local-accounts", "database_id": "local-accounts", "migrations_dir": "migrations/accounts" },
+				{ "binding": "TREE_MODERN", "database_name": "kindred-local-modern", "database_id": "local-modern", "migrations_dir": "migrations/tree" },
+				{ "binding": "TREE_REALM", "database_name": "kindred-local-realm", "database_id": "local-realm", "migrations_dir": "migrations/tree" }
+			],
+			"r2_buckets": [{ "binding": "MEDIA", "bucket_name": "kindred-local-media" }]
+		}
+	}
+}

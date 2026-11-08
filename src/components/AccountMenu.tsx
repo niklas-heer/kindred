@@ -1,0 +1,261 @@
+import { translateMessage, formatDate, relativeTime, useT, type Locale } from '~/lib/i18n';
+// The signed-in reader's menu in the topbar: who they are, their role in this family, the way to their passkeys,
+// the steward's Access page and AI assistant settings, the editor's import and export, and signing out. Also
+// `Initials`, a name's monogram.
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useParams } from '@tanstack/react-router';
+import { graphQuery } from '~/lib/api';
+import { Bell, Check, Fingerprint, Images, KeyRound, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users } from 'lucide-react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { addPasskey, forgetLocalIdentity, passkeysSupported, signOutRequest } from '~/lib/auth/client';
+import { myPasskeysQuery, removeMyPasskey, renameMe, type Passkey } from '~/lib/auth/functions';
+import { fetchRemindersAvailable } from '~/lib/reminders.functions';
+import { ROLES, can } from '~/lib/roles';
+import { Portrait } from './Portrait';
+import { dropThisDevice, ReminderRefresh, RemindersDialog } from './Reminders';
+import { useMembership, useSession } from '~/lib/session';
+import { Dialog } from './ui/Dialog';
+import { isTopOverlay, useOverlayLayer } from './ui/overlay';
+import './account.css';
+
+/** A name's initials in a small medallion: "Anna Lindqvist" → "AL". */
+export function Initials({ name, size = 32 }: { name: string; size?: number }) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const letters = (words.length > 1 ? words[0][0] + words[words.length - 1][0] : (words[0] ?? '?').slice(0, 2)).toUpperCase();
+  return (
+    <span className="acct-initials" style={{ width: size, height: size, fontSize: Math.round(size * 0.4) }} aria-hidden>
+      {letters}
+    </span>
+  );
+}
+
+const roleOf = (id: string) => ROLES.find((r) => r.id === id);
+
+/**
+ * The account's picture: the portrait of the person the account is linked to in this family, when there is
+ * one (and the family's graph is loaded); the initials otherwise.
+ */
+function Avatar({ name, size }: { name: string; size: number }) {
+  const tree = useParams({ strict: false }).tree as string | undefined;
+  const linked = useMembership()?.person ?? null;
+  const graph = useQuery({ ...graphQuery(tree ?? ''), enabled: !!tree && !!linked });
+  const person = linked && tree ? graph.data?.people.find((p) => p.id === linked) : undefined;
+  if (person && tree) return <Portrait person={person} tree={tree} size={size} frame={false} />;
+  return <Initials name={name} size={size} />;
+}
+
+/**
+ * Signs out everywhere this browser knows about, then reloads at /signin with nothing cached. First this device stops
+ * the account's reminders (server and browser). That step is bounded and its failure is ignored: it never blocks sign-out.
+ */
+export async function signOut(accessLogout?: string) {
+  const boundedDrop = Promise.race([dropThisDevice().catch(() => {}), new Promise<void>((resolve) => setTimeout(resolve, 3000))]);
+  await boundedDrop;
+  try { await signOutRequest(); } catch {}
+  forgetLocalIdentity();
+  window.location.assign(accessLogout ?? '/signin');
+}
+
+export function AccountMenu({ familyName }: { familyName?: string }) {
+  const t = useT();
+  const session = useSession();
+  const tree = useParams({ strict: false }).tree as string | undefined;
+  const m = useMembership();
+  const [open, setOpen] = useState(false);
+  const [passkeys, setPasskeys] = useState(false);
+  const [reminders, setReminders] = useState(false);
+  // Reminders are offered only when this server has its VAPID keys (docs/self-host.md, "Reminders").
+  const remindersOn = useQuery({ queryKey: ['reminders', 'available'], queryFn: () => fetchRemindersAvailable(), staleTime: 5 * 60_000 });
+  const layer = useOverlayLayer(open);
+  const button = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const id = useId();
+
+  // Close on Escape (only when this is the top layer) or a press outside; focus moves into the menu.
+  useEffect(() => {
+    if (!open) return;
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isTopOverlay(layer)) { e.preventDefault(); setOpen(false); button.current?.focus(); }
+    };
+    const press = (e: PointerEvent) => {
+      if (!menu.current?.contains(e.target as Node) && !button.current?.contains(e.target as Node)) setOpen(false);
+    };
+    window.addEventListener('keydown', key);
+    window.addEventListener('pointerdown', press);
+    return () => { window.removeEventListener('keydown', key); window.removeEventListener('pointerdown', press); };
+  }, [open, layer]);
+  // Hang the menu under its button, kept on screen.
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const r = button.current?.getBoundingClientRect();
+    if (r) setPos({ top: Math.round(r.bottom + 6), right: Math.max(10, Math.round(window.innerWidth - r.right)) });
+    menu.current?.querySelector<HTMLElement>('a, button')?.focus();
+  }, [open]);
+
+  const user = session?.user;
+  if (!user) return null;
+  const role = m ? roleOf(m.role) : undefined;
+
+  // Arrow keys move between the menu's items.
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    const items = [...(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+    const i = items.indexOf(document.activeElement as HTMLElement);
+    items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+    e.preventDefault();
+  };
+
+  return (
+    <>
+      <button
+        ref={button}
+        className="btn ghost acct-trigger"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? id : undefined}
+        title={t('account.trigger', {name:user.name})}
+      >
+        <Avatar name={user.name} size={30} />
+        <span className="acct-trigger-name">{user.name}</span>
+      </button>
+      {open && (
+        <div className="acct-menu panel" id={id} ref={menu} role="menu" aria-label={t("accountmenu.your_account")} onKeyDown={onKeyDown} style={pos ?? undefined}>
+          <div className="acct-head">
+            <Avatar name={user.name} size={44} />
+            <div>
+              <b className="acct-name">{user.name}</b>
+              <span className="acct-sub">{user.via === 'access' ? t('account.signedIn', {email:user.email ?? ''}) : user.email ?? t("accountmenu.signed_in_with_a_passkey")}</span>
+            </div>
+          </div>
+          {role && (
+            <p className="acct-role">
+              {t('account.role', {family:familyName ?? t('accountmenu.this_family'), role:t(`role.${role.id}`)})} <span>{t(`role.${role.id}Description`)}.</span>
+            </p>
+          )}
+          <div className="acct-items">
+            {tree && m && can(m.role, 'manage-access') && (
+              <Link role="menuitem" className="acct-item" to="/$tree/access" params={{ tree }} onClick={() => setOpen(false)}>
+                <Users size={17} /> {t("accountmenu.manage_access")} </Link>
+            )}
+            {tree && m && can(m.role, 'manage-access') && (
+              <Link role="menuitem" className="acct-item" to="/$tree/settings/ai" params={{ tree }} onClick={() => setOpen(false)}>
+                <Sparkles size={17} /> {t("shell.ai_settings")} </Link>
+            )}
+            {tree && m && can(m.role, 'edit-person') && (
+              <Link role="menuitem" className="acct-item" to="/$tree/settings/import" params={{ tree }} onClick={() => setOpen(false)}>
+                <Images size={17} /> {t("shell.importExport")} </Link>
+            )}
+            <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setPasskeys(true); }}>
+              <KeyRound size={17} /> {t("accountmenu.your_name_passkeys")} </button>
+            {tree && m && remindersOn.data && (
+              <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setReminders(true); }}>
+                <Bell size={17} /> {t('reminders.menu')} </button>
+            )}
+            <button role="menuitem" className="acct-item" onClick={() => void signOut(session?.accessLogout)}>
+              <LogOut size={17} /> {t("accountmenu.sign_out")} </button>
+          </div>
+        </div>
+      )}
+      <PasskeysDialog open={passkeys} onClose={() => setPasskeys(false)} />
+      {tree && m && <ReminderRefresh tree={tree} />}
+      {tree && m && <RemindersDialog tree={tree} open={reminders} onClose={() => setReminders(false)} />}
+    </>
+  );
+}
+
+export const ago = (ms: number | null, locale: Locale = 'en') => relativeTime(ms, locale);
+
+/** "Your name & passkeys": rename yourself, add a passkey on this device, remove an old one. */
+export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = useT();
+  const session = useSession();
+  const qc = useQueryClient();
+  const keys = useQuery({ ...myPasskeysQuery, enabled: open });
+  const [name, setName] = useState(session?.user?.name ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<Passkey | null>(null);
+  useEffect(() => { if (open) { setName(session?.user?.name ?? ''); setError(null); } }, [open, session?.user?.name]);
+
+  const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ['session'] })]);
+  const add = useMutation({ mutationFn: addPasskey, onSuccess: refresh, onError: (e) => setError(e.message) });
+  const remove = useMutation({
+    mutationFn: (id: string) => removeMyPasskey({ data: { id } }),
+    onSuccess: () => { setConfirm(null); return refresh(); },
+    onError: (e) => { setConfirm(null); setError(e.message); },
+  });
+  const rename = useMutation({ mutationFn: () => renameMe({ data: { name } }), onSuccess: refresh, onError: (e) => setError(e.message) });
+  const list = keys.data ?? [];
+  const accessOnly = session?.user?.via === 'access';
+
+  return (
+    <>
+      <Dialog open={open} onClose={onClose} title={t("accountmenu.your_name_passkeys")} width={520} bodyClassName="acct-dialog">
+        <form className="acct-rename" onSubmit={(e) => { e.preventDefault(); setError(null); rename.mutate(); }}>
+          <label className="field">
+            <span>{t("accountmenu.your_name_as_the_family_sees_it")}</span>
+            <input className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} autoComplete="name" />
+          </label>
+          <button className="btn" disabled={rename.isPending || !name.trim() || name.trim() === session?.user?.name}>
+            {rename.isSuccess && name.trim() === session?.user?.name ? <><Check size={15} /> {t("accountmenu.saved")}</> : t("accountmenu.save")}
+          </button>
+        </form>
+
+        <h3 className="acct-h">{t("accountmenu.passkeys")}</h3>
+        <p className="acct-help"> {t("accountmenu.a_passkey_lets_this_device_sign_you_in_with_your_face_fingerprint_or_screen_lock_nothing_to_remember_add_one_on_each_phone_or_computer_you_use")}{accessOnly ? t("accountmenu.or_keep_signing_in_through_your_organisation_s_login") : ''}.
+        </p>
+        {error && <p className="acct-error" role="alert">{translateMessage(error,t.locale)}</p>}
+        {keys.isPending ? (
+          <p className="subtle">{t("accountmenu.loading_your_passkeys")}</p>
+        ) : keys.isError ? (
+          <p className="acct-error" role="alert">{t("accountmenu.your_passkeys_couldn_t_be_loaded")} <button className="btn ghost" onClick={() => void keys.refetch()}>{t("accountmenu.retry")}</button></p>
+        ) : list.length === 0 ? (
+          <p className="subtle">{t("accountmenu.no_passkeys_yet")}</p>
+        ) : (
+          <ul className="acct-keys">
+            {list.map((k) => (
+              <li key={k.id}>
+                <span className="acct-key-icon" aria-hidden><Fingerprint size={20} /></span>
+                <div>
+                  <b>{k.device ? translateMessage(k.device, t.locale) : t("accountmenu.passkey")}</b>
+                  <span> {t("accountmenu.added")} {formatDate(k.created, t.locale)} {t("accountmenu.used")} {ago(k.lastUsed, t.locale)}
+                    {k.synced && <> · <ShieldCheck size={13} aria-hidden /> {t("accountmenu.synced")}</>}
+                  </span>
+                </div>
+                <button
+                  className="btn ghost icon acct-key-remove"
+                  aria-label={t('account.removeKey', {device:k.device ?? t('accountmenu.this_device')})}
+                  title={list.length <= 1 && !accessOnly ? t("accountmenu.your_only_passkey_add_another_first") : t("accountmenu.remove")}
+                  disabled={list.length <= 1 && !accessOnly}
+                  onClick={() => setConfirm(k)}
+                >
+                  <Trash2 size={16} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {passkeysSupported() && (
+          <button className="btn acct-add" onClick={() => { setError(null); add.mutate(); }} disabled={add.isPending}>
+            <Plus size={16} /> {add.isPending ? t("accountmenu.waiting_for_your_device") : t("accountmenu.add_a_passkey_on_this_device")}
+          </button>
+        )}
+        {add.isSuccess && <p className="acct-ok" role="status"><Check size={15} /> {t("accountmenu.passkey_added")}</p>}
+      </Dialog>
+      <Dialog
+        open={!!confirm}
+        onClose={() => setConfirm(null)}
+        title={t("accountmenu.remove_this_passkey")}
+        width={420}
+        description={<>{t("accountmenu.the_passkey_on")} <b>{confirm?.device ? translateMessage(confirm.device, t.locale) : t("accountmenu.that_device")}</b> {t("accountmenu.will_no_longer_sign_you_in_you_can_add_it_again_later")}</>}
+        footer={
+          <>
+            <button className="btn" data-autofocus onClick={() => setConfirm(null)}>{t("accountmenu.keep_it")}</button>
+            <button className="btn primary acct-danger" onClick={() => confirm && remove.mutate(confirm.id)} disabled={remove.isPending}>{t("accountmenu.remove")}</button>
+          </>
+        }
+      />
+    </>
+  );
+}
