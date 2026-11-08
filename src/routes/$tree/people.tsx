@@ -25,6 +25,7 @@ import { useCan } from '~/lib/session';
 import { formatNumber, kinshipLabel, locales, translate, useT, type Locale, type Translator } from '~/lib/i18n';
 import { occupationSearchText, occupationText } from '~/lib/occupations';
 import { TRAITS } from '~/lib/traits';
+import { useToday } from '~/lib/clock';
 import { age as ageOf, ancestorDepths, displayName, kinship, partnersOf, type Family } from '~/lib/graph';
 import type { GPerson, House } from '~/lib/types';
 import '~/styles/people.css';
@@ -92,7 +93,7 @@ function safeKinship(f: Family, me: string, id: string, myAnc: Map<string, numbe
   }
 }
 
-function buildRows(f: Family & { gen: Map<string, number> }, tree: string, me: string | null, locale: Locale): R[] {
+function buildRows(f: Family & { gen: Map<string, number> }, tree: string, me: string | null, locale: Locale, today: Date | undefined): R[] {
   const myAnc = me ? ancestorDepths(f, me) : new Map<string, number>();
   const myPartners = new Set(me ? partnersOf(f, me) : []);
   return f.graph.people.map((p) => {
@@ -122,7 +123,7 @@ function buildRows(f: Family & { gen: Map<string, number> }, tree: string, me: s
       search: [dn, p.given, p.surname, p.nickname, p.title, p.occupation, occupationSearchText(p.occupationCode), house?.name, label, short(p.born, locale), short(p.died, locale)].filter(Boolean).join(' ').toLowerCase(),
       bornKey: dateKey(p.born),
       diedKey: dateKey(p.died),
-      age: ageOf(p),
+      age: ageOf(p, today),
       gen: f.gen.get(p.id) ?? 0,
       role: [p.title, occupationText(p, locale)].filter(Boolean).join(' · '),
       rel: label,
@@ -291,7 +292,9 @@ function RegisterPage() {
 
   const t = useT();
   const { locale } = t;
-  const all = useMemo(() => buildRows(f, tree, me, locale), [f, tree, me, locale]);
+  // The age of someone living needs the reader's day, so it fills in after hydration.
+  const today = useToday();
+  const all = useMemo(() => buildRows(f, tree, me, locale, today), [f, tree, me, locale, today]);
   const columns = useMemo(() => buildColumns(t), [t.locale]);
   // Hide a column nobody in the tree has anything for (no traits recorded, nobody chosen as "you").
   // Judged on everyone, not the filtered rows, so columns don't come and go while typing.
