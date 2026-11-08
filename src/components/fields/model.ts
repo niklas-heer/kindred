@@ -30,11 +30,14 @@ export interface PersonField {
 
 /** Ways to reach someone. Changing these needs `edit-contact`; the rest need `edit-person`. */
 export const CONTACT_TYPES: readonly FieldType[] = ['phone', 'email', 'address', 'website', 'social'];
-/** Only these can be kept from everyone but editors and stewards. */
-export const PRIVATE_TYPES: readonly FieldType[] = ['address', 'medical', 'allergies'];
+/**
+ * Any field can be kept from everyone but editors and stewards. These start private, in the Edit tab and in the
+ * assistant's proposals alike, because they are sensitive by nature.
+ */
+export const PRIVATE_BY_DEFAULT: readonly FieldType[] = ['address', 'medical', 'allergies'];
 
 export const isContactType = (t: string) => (CONTACT_TYPES as readonly string[]).includes(t);
-export const canBePrivate = (t: string) => (PRIVATE_TYPES as readonly string[]).includes(t);
+export const privateByDefault = (t: string) => (PRIVATE_BY_DEFAULT as readonly string[]).includes(t);
 
 /**
  * Labels offered for each type, as stored. The stored label is the English word; the view shows the
@@ -108,7 +111,6 @@ export const fieldInput = z
   .superRefine((f, ctx) => {
     const r = VALUE[f.type].safeParse(f.value);
     if (!r.success) ctx.addIssue({ code: 'custom', message: r.error.issues[0]?.message ?? 'invalid', path: ['value'] });
-    if (f.private && !canBePrivate(f.type)) ctx.addIssue({ code: 'custom', message: 'privateNotAllowed', path: ['private'] });
   });
 export type FieldInput = z.infer<typeof fieldInput>;
 
@@ -119,12 +121,11 @@ export function storedValue(type: FieldType, value: Record<string, string>): Fie
 }
 
 /** What can be wrong with a field, as a code the editor shows in the reader's language (`issue.<code>`). */
-export type IssueCode = 'required' | 'tooLong' | 'date' | 'email' | 'url' | 'address' | 'related' | 'privateNotAllowed' | 'invalid';
-const CODES: readonly string[] = ['date', 'email', 'url', 'address', 'related', 'privateNotAllowed'];
+export type IssueCode = 'required' | 'tooLong' | 'date' | 'email' | 'url' | 'address' | 'related' | 'invalid';
+const CODES: readonly string[] = ['date', 'email', 'url', 'address', 'related'];
 
 /** The first thing wrong with a field's value; undefined when it is fine. */
-export function fieldIssue(type: FieldType, value: Record<string, string>, isPrivate: boolean): IssueCode | undefined {
-  if (isPrivate && !canBePrivate(type)) return 'privateNotAllowed';
+export function fieldIssue(type: FieldType, value: Record<string, string>): IssueCode | undefined {
   const r = VALUE[type].safeParse(value);
   if (r.success) return undefined;
   const i = r.error.issues[0];

@@ -7,7 +7,7 @@ import type { Family } from '~/lib/graph';
 import { displayName } from '~/lib/graph';
 import { Select, Switch } from '../ui';
 import { TYPE_ICON } from './FieldsView';
-import { blankValue, canBePrivate, DEFAULT_LABEL, fieldIssue, MAX_FIELDS, PRESETS, type FieldType, type FieldValue } from './model';
+import { blankValue, DEFAULT_LABEL, fieldIssue, MAX_FIELDS, PRESETS, privateByDefault, type FieldType, type FieldValue } from './model';
 import { presetLabel } from './presets';
 import { useT, type Key } from '~/lib/i18n';
 
@@ -81,7 +81,7 @@ export function FieldEditor({ value, onChange, fam, self }: { value: DraftField[
   const [adding, setAdding] = useState(false);
   const full = value.length >= MAX_FIELDS;
   const add = (type: FieldType) => {
-    onChange([...value, { key: newKey(), type, label: DEFAULT_LABEL[type] ?? '', value: blankValue(type), private: false }]);
+    onChange([...value, { key: newKey(), type, label: DEFAULT_LABEL[type] ?? '', value: blankValue(type), private: privateByDefault(type) }]);
     setAdding(false);
   };
   const update = (i: number, patch: Partial<DraftField>) => onChange(value.map((x, j) => (j === i ? { ...x, ...patch } : x)));
@@ -141,7 +141,7 @@ function FieldRowEditor({ f, index, count, fam, self, onChange, onMove, onRemove
   // A label the family typed (not one of the offered words) keeps the box open for typing.
   const [typing, setTyping] = useState(!!f.label && !presets.includes(f.label) && presets.length > 0);
   const typeName = c(`type.${f.type}` as Key);
-  const issue = fieldIssue(f.type, f.value, f.private);
+  const issue = fieldIssue(f.type, f.value);
   const issueText = issue ? c(`issue.${issue}`) : undefined;
   const labelOptions = [
     { value: '__none', label: c('label.none') },
@@ -226,12 +226,10 @@ function FieldRowEditor({ f, index, count, fam, self, onChange, onMove, onRemove
         })}
       </div>
 
-      {canBePrivate(f.type) && (
-        <div className="fe-private">
-          <Switch checked={f.private} onChange={(on) => onChange({ private: on })}>{c('field.private')}</Switch>
-          <span className="subtle">{c('field.privateHint')}</span>
-        </div>
-      )}
+      <div className="fe-private">
+        <Switch checked={f.private} onChange={(on) => onChange({ private: on })}>{c('field.private')}</Switch>
+        <span className="subtle">{c('field.privateHint')}</span>
+      </div>
       {issueText && <em className="err fe-issue" role="status">{issueText}</em>}
     </li>
   );

@@ -207,7 +207,7 @@ export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
 
       <form.Field
         name="fields"
-        validators={{ onSubmit: ({ value }: { value: DraftField[] }) => (value.some((x) => fieldIssue(x.type, x.value, x.private)) ? c('edit.fixFields') : undefined) }}
+        validators={{ onSubmit: ({ value }: { value: DraftField[] }) => (value.some((x) => fieldIssue(x.type, x.value)) ? c('edit.fixFields') : undefined) }}
       >
         {(field) => (
           <div className="wide">

@@ -2,7 +2,7 @@
 // run through `once`: it reads what it decides on, guards those facts in the batch, and writes in one
 // transaction, so a retried or racing request never writes twice or half-way (see db.server.ts).
 import { guard, once, personExists, q, type OpKey, type Query } from './db.server.ts';
-import { canBePrivate, MAX_FIELDS, storedValue, type FieldInput, type FieldType } from '../components/fields/model.ts';
+import { MAX_FIELDS, storedValue, type FieldInput, type FieldType } from '../components/fields/model.ts';
 import type { Look } from './types.ts';
 import { occupationCodeFor } from './occupations.ts';
 
@@ -108,7 +108,7 @@ export function addPersonField(tree: string, person: string, f: FieldInput, op: 
         personExists(person),
         guard('(SELECT count(*) FROM person_field WHERE person = ?) = ?', person, at?.n ?? 0),
         q('INSERT INTO person_field (id, person, type, label, value, ord, private, created_by, created_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          fid, person, f.type, f.label, JSON.stringify(storedValue(f.type, f.value)), (at?.last ?? -1) + 1, f.private && canBePrivate(f.type) ? 1 : 0, by, now, by, now),
+          fid, person, f.type, f.label, JSON.stringify(storedValue(f.type, f.value)), (at?.last ?? -1) + 1, f.private ? 1 : 0, by, now, by, now),
       ],
       result: fid,
     };
