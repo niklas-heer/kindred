@@ -537,7 +537,8 @@ function Minimap({ family, layout, view, focus, dimmed, onJump }: {
     onJump((e.clientX - r.left - ox) / s, (e.clientY - r.top - oy) / s);
   };
   const t = useT();
-  const people = new Set(layout.nodes.filter((n) => n.role !== 'ghost').map((n) => n.id)).size;
+  // Only real people count: an empty family's layout still holds a placeholder card.
+  const people = new Set(layout.nodes.filter((n) => n.role !== 'ghost' && family.byId.has(n.id)).map((n) => n.id)).size;
   const peopleText = t('common.people', { count: people });
   // Keyboard: arrows move the view a quarter screen at a time.
   const onKey = (e: React.KeyboardEvent) => {
@@ -564,7 +565,7 @@ function Minimap({ family, layout, view, focus, dimmed, onJump }: {
       </div>
       <div className="minimap-foot">
         <span>{peopleText}</span>
-        <span>{t('common.generations', { count: layout.rows.length })}</span>
+        <span>{t('common.generations', { count: people ? layout.rows.length : 0 })}</span>
       </div>
     </div>
   );
