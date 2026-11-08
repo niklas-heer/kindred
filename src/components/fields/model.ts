@@ -107,7 +107,7 @@ export const fieldInput = z
   })
   .superRefine((f, ctx) => {
     const r = VALUE[f.type].safeParse(f.value);
-    if (!r.success) ctx.addIssue({ code: 'custom', message: r.error.issues[0]?.message ?? 'Not valid', path: ['value'] });
+    if (!r.success) ctx.addIssue({ code: 'custom', message: r.error.issues[0]?.message ?? 'invalid', path: ['value'] });
     if (f.private && !canBePrivate(f.type)) ctx.addIssue({ code: 'custom', message: 'privateNotAllowed', path: ['private'] });
   });
 export type FieldInput = z.infer<typeof fieldInput>;

@@ -64,7 +64,7 @@ async function post(label: Provider, url: string, headers: Record<string, string
       res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) });
     } catch (e) {
       if (e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')) throw new AiError('timeout', `${name} did not answer in time. Try again.`);
-      throw new AiError('unreachable', `Could not reach ${name}. Check the connection.`);
+      throw new AiError('unreachable', 'ai.err_unreachable');
     }
     if (res.ok) {
       try {
@@ -133,7 +133,7 @@ function anthropic(key: string, model: string): AiAdapter {
       const tokens = (data.usage?.input_tokens ?? 0) + (data.usage?.output_tokens ?? 0);
       if (req.json) {
         const answer = calls.find((c) => c.name === req.json!.name);
-        if (!answer) throw new AiError('bad-output', 'The AI did not answer in the shape asked for.');
+        if (!answer) throw new AiError('bad-output', 'ai.err_shape');
         return { text, calls: [], json: answer.args, tokens };
       }
       return { text, calls, tokens };
@@ -181,7 +181,7 @@ function chatCompletions(provider: 'openai' | 'openrouter', key: string, model: 
         try {
           return { text, calls: [], json: JSON.parse(text), tokens };
         } catch {
-          throw new AiError('bad-output', 'The AI did not answer in the shape asked for.');
+          throw new AiError('bad-output', 'ai.err_shape');
         }
       }
       const calls = (msg.tool_calls ?? []).map((c) => {

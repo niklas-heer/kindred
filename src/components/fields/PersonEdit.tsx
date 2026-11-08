@@ -174,8 +174,8 @@ export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
       <form.Subscribe selector={(s) => s.values.living}>
         {(living) => (living ? null : <div className="wide pi-pair">{text('died', c('edit.died'), { validate: date })}{place('diedPlace', c('edit.diedPlace'))}</div>)}
       </form.Subscribe>
-      {text('title', c('edit.title'), { placeholder: medieval ? 'Duchess of Brennac' : c('edit.titlePlaceholder') })}
-      {text('epithet', c('edit.epithet'), { placeholder: 'the Bold' })}
+      {text('title', c('edit.title'), { placeholder: medieval ? c('edit.titleMedievalPlaceholder') : c('edit.titlePlaceholder') })}
+      {text('epithet', c('edit.epithet'), { placeholder: c('edit.epithetPlaceholder') })}
       <form.Subscribe selector={(s) => s.values.sex}>
         {(sex) => (
           <form.Field name="occupation">

@@ -3,7 +3,7 @@
 // checks the role and the family's rules again on every call.
 import type { QueryClient } from '@tanstack/react-query';
 import { addRelative, addStory, linkRelative, opKeys, patchPerson } from '~/lib/api';
-import { addPersonField } from '~/lib/person.functions';
+import { addPersonField, setDiedPlace } from '~/lib/person.functions';
 import { fieldInput } from '~/components/fields/model';
 import { proposalArgs, type Proposal, type ProposalArgs } from '~/lib/ai/types';
 
@@ -14,7 +14,7 @@ export const approvalKeys = () => opKeys();
 /** Sends one approved proposal. Throws the server's message when the family or the reader's role refuses it. */
 export async function applyProposal(tree: string, p: Proposal, args: ProposalArgs, keys: ApprovalKeys, qc: QueryClient): Promise<void> {
   const parsed = proposalArgs[p.kind].safeParse(args);
-  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? 'Check the fields.');
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? 'ai.err_check_fields');
   const a = parsed.data as Record<string, any>;
   const opKey = keys.for(p.kind, args);
 
@@ -26,9 +26,11 @@ export async function applyProposal(tree: string, p: Proposal, args: ProposalArg
     await addStory({ data: { tree, person: a.person, kind: a.kind, title: a.title || undefined, body: a.body, opKey } });
   } else if (p.kind === 'set-dates') {
     await patchPerson({ data: { tree, id: a.person, patch: { born: a.born || undefined, bornPlace: a.bornPlace || undefined, died: a.died || undefined }, opKey } });
+    // The death place has its own endpoint, with its own retry key, so a lost reply cannot write it twice.
+    if (a.diedPlace !== undefined) await setDiedPlace({ data: { tree, id: a.person, place: a.diedPlace || null, opKey: keys.for('set-dates:died-place', { person: a.person, place: a.diedPlace }) } });
   } else {
     const field = fieldInput.safeParse({ type: a.type, label: a.label ?? '', value: a.value, private: false });
-    if (!field.success) throw new Error(field.error.issues[0]?.message ?? 'That detail does not fit its type.');
+    if (!field.success) throw new Error(field.error.issues[0]?.message ?? 'ai.err_detail_type');
     await addPersonField({ data: { tree, person: a.person, field: field.data, opKey } });
   }
   await Promise.all([

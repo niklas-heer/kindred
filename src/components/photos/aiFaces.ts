@@ -39,6 +39,6 @@ export async function facesOn(tree: string): Promise<boolean> {
 /** The faces the AI finds in a picture. Throws when the feature is unavailable or the search fails. */
 export async function findFaces(tree: string, mediaKey: string, locale: string): Promise<AiFace[]> {
   const m = await aiModule();
-  if (!m) throw new Error('The face finder is not available.');
+  if (!m) throw new Error('lb.err_faces');
   return (await m.aiFindFaces({ data: { tree, mediaKey, locale } })).faces;
 }

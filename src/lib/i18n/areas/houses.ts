@@ -116,6 +116,11 @@ export const en = {
   "houses.wholeChronicle": "The whole chronicle",
   "houses.years": "Years",
   "houses.yourHouse": "Your house",
+  "houses.title": "Houses",
+  "houses.house_title": "House",
+  "houses.err.not_found": "House not found",
+  "houses.err.not_member": "Choose a member of this house",
+  "houses.err.same_person": "The head and the heir must be different people",
 };
 
 export const de: Record<keyof typeof en, Message> = {
@@ -227,11 +232,16 @@ export const de: Record<keyof typeof en, Message> = {
   "houses.succeedText": "Lege fest, wer das Haus führt und wie die Linie verläuft. „Automatisch“ überlässt es dem Recht.",
   "houses.succession": "Thronfolge",
   "houses.suggestArms": "Wappen aus dem Namen vorschlagen",
-  "houses.summary": "Ein Haus mit {members} über {generations}.",
-  "houses.summaryLiving": "Ein Haus mit {members} über {generations}, davon {living} lebend.",
+  "houses.summary": "Ein Haus: {members} über {generations}.",
+  "houses.summaryLiving": "Ein Haus: {members} über {generations}, davon {living} lebend.",
   "houses.wholeChronicle": "Die ganze Chronik",
   "houses.years": "Jahre",
   "houses.yourHouse": "Dein Haus",
+  "houses.title": "Häuser",
+  "houses.house_title": "Haus",
+  "houses.err.not_found": "Haus nicht gefunden",
+  "houses.err.not_member": "Wähle ein Mitglied dieses Hauses",
+  "houses.err.same_person": "Oberhaupt und Erbe müssen verschiedene Menschen sein",
 };
 
 /** Afrikaans. A missing entry falls back to English at runtime; the test reports them. */
@@ -349,4 +359,9 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   "houses.wholeChronicle": "Die hele kroniek",
   "houses.years": "Jare",
   "houses.yourHouse": "Jou huis",
+  "houses.title": "Huise",
+  "houses.house_title": "Huis",
+  "houses.err.not_found": "Huis nie gevind nie",
+  "houses.err.not_member": "Kies ’n lid van hierdie huis",
+  "houses.err.same_person": "Die hoof en die erfgenaam moet verskillende mense wees",
 };

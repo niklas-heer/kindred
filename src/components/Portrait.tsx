@@ -43,7 +43,7 @@ export function Portrait({
   size = 96,
   frame = true,
   house: givenHouse,
-  prefer = 'photo',
+  prefer,
   age,
   mourn = true,
 }: {
@@ -53,7 +53,8 @@ export function Portrait({
   frame?: boolean;
   /** The person's house, when the caller has it to hand; otherwise looked up from the tree. */
   house?: House | null;
-  /** 'avatar' draws the likeness even when a photo exists, e.g. beside the photo it stands in for. */
+  /** 'avatar' draws the likeness even when a photo exists, e.g. beside the photo it stands in for. Absent: the
+   *  person's own choice (`preferAvatar`), so callers need not pass it. An explicit value always wins. */
   prefer?: 'photo' | 'avatar';
   /** Shows the drawing at this age (a life stage, a chronicle entry) instead of the look's own. */
   age?: number;
@@ -64,7 +65,8 @@ export function Portrait({
   const house = useHouse(person, tree, givenHouse);
   const detail = detailOf(size);
   const headwear = person.look?.headwear;
-  const photo = !!person.photo && prefer === 'photo';
+  const shownAs = prefer ?? (person.preferAvatar ? 'avatar' : 'photo');
+  const photo = !!person.photo && shownAs === 'photo';
   // A drawing wears its crown on its head; a photo gets the badge on the frame instead.
   const badge = photo && headwear && HEADWEAR_ICON[headwear] ? CHARGE_ICONS[HEADWEAR_ICON[headwear]] : null;
   const src = photo

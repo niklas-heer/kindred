@@ -17,7 +17,7 @@ function secretText(): string {
   try {
     return store.secret();
   } catch (e) {
-    throw new AiError('key-unreadable', e instanceof Error ? e.message : 'The server secret is not available.');
+    throw new AiError('key-unreadable', e instanceof Error ? e.message : 'ai.err_secret_missing');
   }
 }
 
@@ -35,12 +35,12 @@ export async function sealKey(tree: string, key: string): Promise<string> {
 
 export async function openKey(tree: string, sealed: string): Promise<string> {
   const [v, iv, ct] = sealed.split('.');
-  if (v !== 'v1' || !iv || !ct) throw new AiError('key-unreadable', 'The saved key is in an unknown format.');
+  if (v !== 'v1' || !iv || !ct) throw new AiError('key-unreadable', 'ai.err_key_format');
   try {
     return new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(iv) }, await familyKey(tree), unb64(ct)));
   } catch (e) {
     if (e instanceof AiError) throw e;
-    throw new AiError('key-unreadable', 'The saved key can’t be read any more.');
+    throw new AiError('key-unreadable', 'ai.err_key_unreadable');
   }
 }
 

@@ -7,14 +7,14 @@ import { aiChatMark } from '~/lib/ai.functions';
 import { PROPOSAL_KIND_KEY } from '~/lib/ai/labels';
 import type { Proposal, ProposalArgs } from '~/lib/ai/types';
 import { useT, type Key } from '~/lib/i18n';
+import { errorText } from '~/lib/errortext';
 import { applyProposal, approvalKeys, type ApprovalKeys } from './apply';
 
 const FIELD: Record<string, Key> = {
-  given: 'ai.fieldName', surname: 'ai.fieldSurname', born: 'ai.fieldBorn', died: 'ai.fieldDied', bornPlace: 'ai.fieldBornPlace',
+  given: 'ai.fieldName', surname: 'ai.fieldSurname', born: 'ai.fieldBorn', died: 'ai.fieldDied', bornPlace: 'ai.fieldBornPlace', diedPlace: 'ai.fieldDiedPlace',
   title: 'ai.fieldName', body: 'ai.fieldStory', label: 'ai.fieldLabel',
 };
 
-const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export function ProposalCard({ tree, itemId, proposal }: { tree: string; itemId: string; proposal: Proposal }) {
   const t = useT();
@@ -46,7 +46,7 @@ export function ProposalCard({ tree, itemId, proposal }: { tree: string; itemId:
       setStatus('done');
       await mark('done').catch(() => {});
     } catch (e) {
-      setError(messageOf(e));
+      setError(errorText(e, t.locale));
     } finally {
       setBusy(false);
     }

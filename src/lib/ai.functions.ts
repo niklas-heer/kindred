@@ -68,8 +68,8 @@ export const aiSaveSettings = createServerFn({ method: 'POST' })
     const m = await (await guard()).requireCan(data.tree, 'manage-access');
     const s = await ai();
     const c = (await import('./ai/labels')).tr(toAiLocale(data.locale));
-    if (!s.validModel(data.model)) throw new Error('That model id has characters no provider uses.');
-    if (data.apiKey && !/^\S{8,400}$/.test(data.apiKey)) throw new Error('That doesn’t look like an API key.');
+    if (!s.validModel(data.model)) throw new Error('ai.err_model_chars');
+    if (data.apiKey && !/^\S{8,400}$/.test(data.apiKey)) throw new Error('ai.err_key_shape');
     const cur = await s.readSettings(data.tree);
     const keyWillExist = !data.clearKey && (!!data.apiKey || !!cur.sealed);
     if (!keyWillExist && (FEATURES as readonly string[]).some((f) => data.features[f as keyof AiFeatures])) throw new Error(c('ai.needsKey'));
@@ -81,7 +81,7 @@ export const aiTestConnection = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     await (await guard()).requireCan(data.tree, 'manage-access');
     const s = await ai();
-    if (!s.validModel(data.model)) return { ok: false as const, message: 'That model id has characters no provider uses.', model: data.model, code: 'bad-input' as const };
+    if (!s.validModel(data.model)) return { ok: false as const, message: 'ai.err_model_chars', model: data.model, code: 'bad-input' as const };
     return s.testConnection(data.tree, { provider: data.provider, model: data.model, apiKey: data.apiKey || undefined }, toAiLocale(data.locale));
   });
 

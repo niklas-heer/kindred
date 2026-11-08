@@ -19,11 +19,12 @@ import {
   COUNTRY_CODES, DEFAULT_HOUSE_SETTINGS, houseHistory, houseStats, houseSuccession, kinToHead, memberOrder, notables,
   SUCCESSION_LAWS, spanLabel, useHouseSettings, type HouseSettings, type HouseTenure, type Succession, type SuccessionLaw,
 } from '~/lib/houses';
-import { kinshipLabel, locales, useT, type Key } from '~/lib/i18n';
+import { kinshipLabel, locales, translate, useT, type Key, type Locale } from '~/lib/i18n';
 import { occupationText } from '~/lib/occupations';
 import { useCan } from '~/lib/session';
 import { toast } from '~/lib/toast';
 import { treeTitle } from '~/lib/title';
+import { errorText } from '~/lib/errortext';
 import type { GPerson, House, Story } from '~/lib/types';
 import '~/styles/house.css';
 
@@ -32,7 +33,7 @@ export const Route = createFileRoute('/$tree/house/$house')({
   head: (ctx) => {
     const qc = (ctx.match.context as { queryClient?: QueryClient }).queryClient;
     const name = qc?.getQueryData(graphQuery(ctx.params.tree).queryKey)?.houses.find((h) => h.id === ctx.params.house)?.name;
-    return { meta: [{ title: treeTitle(ctx, name ?? 'House') }] };
+    return { meta: [{ title: treeTitle(ctx, name ?? translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'houses.house_title')) }] };
   },
   component: HousePage,
 });
@@ -340,7 +341,7 @@ function SuccessionDialog({ f, house, tree, settings, members, onClose }: {
       toast({ title: t('houses.saved'), body: house.name, icon: 'crown' });
       onClose();
     },
-    onError: (e) => setError(e instanceof Error ? e.message : t('houses.saveFailed')),
+    onError: (e) => setError(e instanceof Error ? errorText(e, t.locale) : t('houses.saveFailed')),
   });
 
   const people = useMemo<SelectOption<string>[]>(

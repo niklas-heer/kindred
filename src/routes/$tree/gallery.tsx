@@ -8,12 +8,13 @@ import { formatDate, useT } from '~/lib/i18n';
 import { useFamily, useTreeId } from '~/lib/family';
 import { displayName } from '~/lib/graph';
 import { galleryQuery } from '~/lib/photos.functions';
-import { sectionHead } from '~/lib/title';
+import { translate, type Locale } from '~/lib/i18n';
+import { treeTitle } from '~/lib/title';
 import { useCan } from '~/lib/session';
 import '~/styles/gallery.css';
 
 export const Route = createFileRoute('/$tree/gallery')({
-  head: sectionHead('Gallery'),
+  head: (ctx) => ({ meta: [{ title: treeTitle(ctx, translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'gallery.title')) }] }),
   component: GalleryPage,
 });
 

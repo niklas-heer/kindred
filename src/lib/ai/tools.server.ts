@@ -73,8 +73,8 @@ const PROPOSE: { spec: ToolSpec; kind: ProposalKind; action: Action }[] = [
     kind: 'set-dates', action: 'edit-person',
     spec: {
       name: 'propose_set_dates',
-      description: 'Propose a birth date, birth place or death date for a person. Only the fields given change.',
-      parameters: { type: 'object', properties: { person: idParam, born: date, bornPlace: { type: 'string' }, died: date }, required: ['person'] },
+      description: 'Propose a birth date, birth place, death date or death place for a person. Only the fields given change.',
+      parameters: { type: 'object', properties: { person: idParam, born: date, bornPlace: { type: 'string' }, died: date, diedPlace: { type: 'string' } }, required: ['person'] },
     },
   },
   {
@@ -222,11 +222,12 @@ async function propose(ctx: Ctx, c: Tr, byId: Map<string, GPerson>, kind: Propos
     const a = args as { person: string } & Record<string, string | undefined>;
     const cur = byId.get(a.person)!;
     summary = c('ai.summaryDates', { name: name(a.person) });
-    const rows: [string, 'born' | 'bornPlace' | 'died', string | undefined][] = [
+    const rows: [string, 'born' | 'bornPlace' | 'died' | 'diedPlace', string | undefined][] = [
       [c('ai.fieldBorn'), 'born', cur.born], [c('ai.fieldBornPlace'), 'bornPlace', cur.bornPlace], [c('ai.fieldDied'), 'died', cur.died],
+      [c('ai.fieldDiedPlace'), 'diedPlace', cur.diedPlace],
     ];
     for (const [label, k, was] of rows) if (a[k] !== undefined) diff.push({ label, from: show(was), to: String(a[k]) });
-    editable = ['born', 'bornPlace', 'died'];
+    editable = ['born', 'bornPlace', 'died', 'diedPlace'];
   } else if (kind === 'add-story') {
     const a = args as { person: string; kind: string; title?: string; body: string };
     summary = c('ai.summaryStory', { kind: storyKind(a.kind), name: name(a.person) });

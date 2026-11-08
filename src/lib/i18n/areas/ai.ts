@@ -114,6 +114,16 @@ export const en = {
   "ai.armsDesign": "Design {n}",
   "ai.faceSuggestion": "Could be {name}",
   "ai.faceConfidence": "{pct}% sure",
+  "ai.err_check_fields": "Check the fields.",
+  "ai.err_detail_type": "That detail does not fit its type.",
+  "ai.settings_title": "AI settings",
+  "ai.err_model_chars": "That model id has characters no provider uses.",
+  "ai.err_key_shape": "That doesn’t look like an API key.",
+  "ai.err_secret_missing": "The server secret is not available.",
+  "ai.err_key_format": "The saved key is in an unknown format.",
+  "ai.err_key_unreadable": "The saved key can’t be read any more.",
+  "ai.err_unreachable": "Could not reach the AI service. Check the connection.",
+  "ai.err_shape": "The AI did not answer in the shape asked for.",
 };
 
 export const de: Record<keyof typeof en, Message> = {
@@ -228,6 +238,16 @@ export const de: Record<keyof typeof en, Message> = {
   "ai.armsDesign": "Entwurf {n}",
   "ai.faceSuggestion": "Könnte {name} sein",
   "ai.faceConfidence": "{pct} % sicher",
+  "ai.err_check_fields": "Prüf die Felder.",
+  "ai.err_detail_type": "Diese Angabe passt nicht zu ihrem Typ.",
+  "ai.settings_title": "KI-Einstellungen",
+  "ai.err_model_chars": "Diese Modell-ID enthält Zeichen, die kein Anbieter verwendet.",
+  "ai.err_key_shape": "Das sieht nicht nach einem API-Schlüssel aus.",
+  "ai.err_secret_missing": "Das Geheimnis des Servers ist nicht verfügbar.",
+  "ai.err_key_format": "Der gespeicherte Schlüssel hat ein unbekanntes Format.",
+  "ai.err_key_unreadable": "Der gespeicherte Schlüssel kann nicht mehr gelesen werden.",
+  "ai.err_unreachable": "Der KI-Dienst ist nicht erreichbar. Prüf die Verbindung.",
+  "ai.err_shape": "Die KI hat nicht in der verlangten Form geantwortet.",
 };
 
 /** Afrikaans. A missing entry falls back to English at runtime; the test reports them. */
@@ -343,4 +363,14 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   "ai.armsDesign": "Ontwerp {n}",
   "ai.faceSuggestion": "Kan {name} wees",
   "ai.faceConfidence": "{pct}% seker",
+  "ai.err_check_fields": "Kyk die velde na.",
+  "ai.err_detail_type": "Hierdie besonderheid pas nie by sy tipe nie.",
+  "ai.settings_title": "KI-instellings",
+  "ai.err_model_chars": "Daardie model-ID bevat karakters wat geen verskaffer gebruik nie.",
+  "ai.err_key_shape": "Dit lyk nie soos ’n API-sleutel nie.",
+  "ai.err_secret_missing": "Die bediener se geheim is nie beskikbaar nie.",
+  "ai.err_key_format": "Die gestoorde sleutel is in ’n onbekende formaat.",
+  "ai.err_key_unreadable": "Die gestoorde sleutel kan nie meer gelees word nie.",
+  "ai.err_unreachable": "Kon nie die KI-diens bereik nie. Kyk die verbinding.",
+  "ai.err_shape": "Die KI het nie in die gevraagde vorm geantwoord nie.",
 };

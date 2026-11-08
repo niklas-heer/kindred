@@ -189,6 +189,8 @@ export const en = {
   "preset.carer": "Carer",
   "fields.occupation.listLabel": "Suggested occupations",
   "fields.occupation.hint": "Start typing in any language and pick an entry: it then shows in every reader’s language. Or keep your own words.",
+  "edit.titleMedievalPlaceholder": "Duchess of Brennac",
+  "edit.epithetPlaceholder": "the Bold",
 };
 
 export const de: Record<keyof typeof en, Message> = {
@@ -378,6 +380,8 @@ export const de: Record<keyof typeof en, Message> = {
   "preset.carer": "Pflege",
   "fields.occupation.listLabel": "Vorgeschlagene Berufe",
   "fields.occupation.hint": "Tipp los, in jeder Sprache, und wähl einen Beruf: Dann sieht ihn jede Leserin und jeder Leser in der eigenen Sprache. Oder behalte deine eigenen Worte.",
+  "edit.titleMedievalPlaceholder": "Herzogin von Brennac",
+  "edit.epithetPlaceholder": "der Kühne",
 };
 
 /** Afrikaans. A missing entry falls back to English at runtime; the test reports them. */
@@ -568,4 +572,6 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   "preset.carer": "Versorger",
   "fields.occupation.listLabel": "Voorgestelde beroepe",
   "fields.occupation.hint": "Begin tik in enige taal en kies ’n beroep: dan sien elke leser dit in hul eie taal. Of hou jou eie woorde.",
+  "edit.titleMedievalPlaceholder": "Hertogin van Brennac",
+  "edit.epithetPlaceholder": "die Dapper",
 };

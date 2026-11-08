@@ -98,7 +98,7 @@ export async function scaledPicture(file: Blob, max = 2400, quality = 0.85): Pro
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('no canvas');
+    if (!ctx) throw new Error('up.err_canvas');
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, width, height);
     ctx.drawImage(bitmap, 0, 0, width, height);
@@ -115,7 +115,7 @@ export async function squareCrop(source: CanvasImageSource, box: { x: number; y:
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('no canvas');
+  if (!ctx) throw new Error('up.err_canvas');
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, size, size);
   ctx.imageSmoothingQuality = 'high';
@@ -125,6 +125,6 @@ export async function squareCrop(source: CanvasImageSource, box: { x: number; y:
 
 function toBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('could not encode the picture'))), 'image/jpeg', quality),
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('up.err_encode'))), 'image/jpeg', quality),
   );
 }

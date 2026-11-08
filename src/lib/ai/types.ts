@@ -103,6 +103,7 @@ export const proposalArgs = {
     born: iso.optional(),
     bornPlace: z.string().trim().max(200).optional(),
     died: iso.optional(),
+    diedPlace: z.string().trim().max(200).optional(),
   }),
   'add-story': z.object({
     person: id,

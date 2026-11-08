@@ -2,6 +2,7 @@
 // proposed changes arrive as cards that wait for the reader's approval. Mount <AssistantHost /> once in
 // the tree layout (see the report); open it with <AssistantButton /> or openAssistant().
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { errorText } from '~/lib/errortext';
 import { MessageSquarePlus, Send, Sparkles, X } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { aiChatNew, aiChatQuery, aiChatSend } from '~/lib/ai.functions';
@@ -15,7 +16,6 @@ import { ProposalCard } from './ProposalCard';
 import { closeAssistant, openAssistant, useAiStatus, useAssistantOpen } from './store';
 import './assistant.css';
 
-const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 /** Renders the drawer while it is open, and nothing otherwise. Mount once per family, inside the tree layout. */
@@ -78,7 +78,7 @@ function AssistantDrawer({ tree }: { tree: string }) {
       await qc.invalidateQueries({ queryKey: ['ai-chat', tree] });
     } catch (err) {
       setText(msg);
-      setError(messageOf(err));
+      setError(errorText(err, t.locale));
     } finally {
       setPending(null);
       setBusy(false);
@@ -122,7 +122,7 @@ function AssistantDrawer({ tree }: { tree: string }) {
 
       <div className="ai-log" ref={logRef} role="log" aria-live="polite">
         {chat.isPending && <Skeleton lines={3} />}
-        {chat.isError && <ErrorState title={t('ai.loadFailed')} message={messageOf(chat.error)} onRetry={() => chat.refetch()} />}
+        {chat.isError && <ErrorState title={t('ai.loadFailed')} message={errorText(chat.error, t.locale)} onRetry={() => chat.refetch()} />}
         {chat.isSuccess && items.length === 0 && !pending && <EmptyState title={t('ai.title')} text={t('ai.empty')} />}
         {items.map((m) =>
           m.role === 'user' ? (

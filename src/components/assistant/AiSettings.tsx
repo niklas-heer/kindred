@@ -2,20 +2,20 @@
 // switches, a daily token budget, a privacy note, and "Test connection". Stewards only; the server
 // checks the same (manage-access) on every call.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { errorText } from '~/lib/errortext';
 import { Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { aiSaveSettings, aiSettingsQuery, aiTestConnection } from '~/lib/ai.functions';
 import { PROVIDER_NOTE } from '~/lib/ai/labels';
 import { DEFAULT_MODEL, FEATURES, PROVIDERS, PROVIDER_LABEL, toAiLocale, type AiFeatures, type AiSettingsData, type Feature, type Provider } from '~/lib/ai/types';
 import { useTreeId } from '~/lib/family';
-import { locales, useT, type Key } from '~/lib/i18n';
+import { locales, translate, useT, type Key, type Locale } from '~/lib/i18n';
 import { useCan } from '~/lib/session';
 import { EmptyState, ErrorState, PageHeader, Range, Select, Skeleton, Switch } from '~/components/ui';
 import { AssistantButton } from './AssistantDrawer';
-import { sectionHead } from '~/lib/title';
+import { treeTitle } from '~/lib/title';
 import './assistant.css';
 
-const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const FEATURE_LABEL: Record<Feature, Key> = {
   assistant: 'ai.featureAssistant', faces: 'ai.featureFaces', avatar: 'ai.featureAvatar', arms: 'ai.featureArms',
 };
@@ -41,7 +41,7 @@ export function AiSettingsPage() {
     <main className="page ai-settings-page">
       <PageHeader title={t('ai.settingsTitle')} subtitle={t('ai.settingsSubtitle')} icon={<Sparkles size={22} />} />
       {q.isPending && <Skeleton lines={6} />}
-      {q.isError && <ErrorState title={t('ai.settingsLoadFailed')} message={messageOf(q.error)} onRetry={() => q.refetch()} />}
+      {q.isError && <ErrorState title={t('ai.settingsLoadFailed')} message={errorText(q.error, t.locale)} onRetry={() => q.refetch()} />}
       {q.data && <SettingsForm key={q.data.updated} tree={tree} data={q.data} />}
       {/* A way to try the assistant from here. The drawer itself is mounted once, in the tree layout. */}
       <div className="ai-actions"><AssistantButton tree={tree} /></div>
@@ -72,7 +72,7 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
       setNotice({ ok: true, text: t('ai.saved') });
       await Promise.all([qc.invalidateQueries({ queryKey: ['ai-settings', tree] }), qc.invalidateQueries({ queryKey: ['ai-status', tree] })]);
     },
-    onError: (e) => setNotice({ ok: false, text: messageOf(e) }),
+    onError: (e) => setNotice({ ok: false, text: errorText(e, t.locale) }),
   });
 
   async function test() {
@@ -80,9 +80,9 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
     setNotice(null);
     try {
       const r = await aiTestConnection({ data: { tree, provider, model, apiKey: apiKey.trim() || undefined, locale } });
-      setNotice(r.ok ? { ok: true, text: t('ai.testOk', { provider: PROVIDER_LABEL[provider], model: r.model, ms: r.ms }) } : { ok: false, text: r.message });
+      setNotice(r.ok ? { ok: true, text: t('ai.testOk', { provider: PROVIDER_LABEL[provider], model: r.model, ms: r.ms }) } : { ok: false, text: errorText(r.message, t.locale) });
     } catch (e) {
-      setNotice({ ok: false, text: messageOf(e) });
+      setNotice({ ok: false, text: errorText(e, t.locale) });
     } finally {
       setTesting(false);
     }
@@ -185,4 +185,5 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
   );
 }
 
-export const aiSettingsHead = sectionHead('AI settings');
+/** The settings page title, in the reader's language. */
+export const aiSettingsHead = (ctx: Parameters<typeof treeTitle>[0]) => ({ meta: [{ title: treeTitle(ctx, translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'ai.settings_title')) }] });

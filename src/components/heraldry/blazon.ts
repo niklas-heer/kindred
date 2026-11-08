@@ -6,16 +6,19 @@ import { CENTRAL, clampPieces, standsBetween } from './geometry';
 import { fieldTinctures } from './render';
 import { labelV2 } from './tinctures';
 import { ARRANGEMENTS, divisionLabel, HELMS, ordinaryLabel } from './vocab';
+import { translate, type Key } from '~/lib/i18n/dictionary';
 
 const NUM = ['', 'a', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
-const t = (x: TinctureV2) => labelV2(x).toLowerCase();
+/** The blazon is always heraldic English, whatever language the reader has chosen. */
+const en = (k: Key) => translate('en', k);
+const t = (x: TinctureV2) => en(labelV2(x)).toLowerCase();
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const an = (word: string) => (/^[aeiou]/i.test(word) ? `an ${word}` : `a ${word}`);
 const lineWord = (l: string) => (l === 'straight' ? '' : ` ${l}`);
 
 export function chargeNoun(id: string, n: number): string {
   const c = CHARGE_BY_ID[id];
-  const label = c?.label ?? id;
+  const label = c ? en(c.label) : id;
   const keep = /^(Jerusalem|Thor)/.test(label);
   const one = keep ? label : label.charAt(0).toLowerCase() + label.slice(1);
   if (n === 1) return one;
@@ -36,7 +39,7 @@ function chargePhrase(c: ChargeLayer, opts: { seme?: boolean } = {}): string {
 }
 
 function ordinaryNoun(o: OrdinaryLayer): string {
-  return `${ordinaryLabel(o.kind).toLowerCase()}${lineWord(o.line)}`;
+  return `${en(ordinaryLabel(o.kind)).toLowerCase()}${lineWord(o.line)}`;
 }
 function ordinaryTincture(o: OrdinaryLayer): string {
   return `${o.counterchanged ? 'counterchanged' : t(o.tincture)}${o.cotised ? ' cotised' : ''}`;
@@ -47,7 +50,7 @@ function fieldPhrase(a: ArmsV2): string {
   const div = a.field.division;
   if (div === 'plain') return cap(ts[0]);
   const line = lineWord(a.field.line);
-  const label = divisionLabel(div);
+  const label = en(divisionLabel(div));
   const pieces = clampPieces(a.field.pieces ?? 6);
   const list = ts.length === 3 ? `${ts[0]}, ${ts[1]} and ${ts[2]}` : `${ts[0]} and ${ts[1]}`;
   if (div === 'paly' || div === 'barry' || div === 'bendy' || div === 'bendy-sinister') return `${label}${line} of ${NUM[pieces]} ${list}`;
@@ -112,7 +115,8 @@ function lastChief(layers: ArmsV2['layers'], k: number): number {
 export function blazonAchievement(ach: Achievement | undefined): string {
   if (!ach) return '';
   const out: string[] = [];
-  if (ach.helm !== 'none') out.push(`Helm of ${an(HELMS.find((h) => h.id === ach.helm)?.label.toLowerCase() ?? ach.helm)}.`);
+  const helm = HELMS.find((h) => h.id === ach.helm);
+  if (ach.helm !== 'none') out.push(`Helm of ${an(helm ? en(helm.label).toLowerCase() : ach.helm)}.`);
   if (ach.mantling) out.push(`Mantling ${t(ach.mantling[0])} doubled ${t(ach.mantling[1])}.`);
   if (ach.crest) out.push(`Crest: ${ach.torse ? 'on a wreath of the colours ' : ''}${an(chargeNoun(ach.crest.charge, 1))} ${t(ach.crest.tincture)}.`);
   if (ach.supporters) out.push(`Supporters: two ${chargeNoun(ach.supporters.charge, 2)} ${t(ach.supporters.tincture)}.`);

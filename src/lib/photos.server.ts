@@ -84,7 +84,7 @@ export interface NewPhoto {
 /** Stores a picture and its details. The picture is written first; the row is kept only if the batch commits. */
 export function addPhoto(tree: string, by: string, bytes: Uint8Array, p: NewPhoto, op: OpKey | undefined): Promise<MediaItem> {
   return once(tree, op, 'addPhoto', async (d) => {
-    if (p.album && !(await d.get('SELECT id FROM album WHERE id = ?', p.album))) throw new Error('That album is gone. Reload and try again.');
+    if (p.album && !(await d.get('SELECT id FROM album WHERE id = ?', p.album))) throw new Error('photos.err.album_gone');
     const key = newMediaKey('gallery', p.mime);
     await media.put(tree, key, bytes, p.mime);
     const at = new Date().toISOString();
@@ -107,8 +107,8 @@ export function addPhoto(tree: string, by: string, bytes: Uint8Array, p: NewPhot
 /** Changes a photo's date, place, caption or album. */
 export function editPhoto(tree: string, key: string, patch: Pick<NewPhoto, 'taken' | 'place' | 'caption' | 'album'>, op: OpKey | undefined) {
   return once(tree, op, 'editPhoto', async (d) => {
-    if (!(await d.get('SELECT key FROM media WHERE key = ?', key))) throw new Error('That photo is gone. Reload to see the gallery.');
-    if (patch.album && !(await d.get('SELECT id FROM album WHERE id = ?', patch.album))) throw new Error('That album is gone. Reload and try again.');
+    if (!(await d.get('SELECT key FROM media WHERE key = ?', key))) throw new Error('photos.err.photo_gone');
+    if (patch.album && !(await d.get('SELECT id FROM album WHERE id = ?', patch.album))) throw new Error('photos.err.album_gone');
     return {
       writes: [
         guard('EXISTS (SELECT 1 FROM media WHERE key = ?)', key),
@@ -122,11 +122,11 @@ export function editPhoto(tree: string, key: string, patch: Pick<NewPhoto, 'take
 /** Deletes a photo with its tags, and its picture from storage once the delete has committed. */
 export function removePhoto(tree: string, key: string, op: OpKey | undefined) {
   return once(tree, op, 'removePhoto', async (d) => {
-    if (!(await d.get('SELECT key FROM media WHERE key = ?', key))) throw new Error('That photo is already gone.');
+    if (!(await d.get('SELECT key FROM media WHERE key = ?', key))) throw new Error('photos.err.photo_already_gone');
     return {
       writes: [guard('EXISTS (SELECT 1 FROM media WHERE key = ?)', key), q('DELETE FROM media WHERE key = ?', key)],
       result: undefined,
-      after: () => media.delete(tree, key).catch((e) => console.error('[media] could not delete', key, e)),
+      after: () => media.delete(tree, key).catch((e) => console.error('photos.err.delete_failed', key, e)),
     };
   });
 }
@@ -137,7 +137,7 @@ export function removePhoto(tree: string, key: string, op: OpKey | undefined) {
 export function saveAlbum(tree: string, a: { id?: string; name: string }, op: OpKey | undefined): Promise<{ id: string }> {
   return once(tree, op, 'saveAlbum', async (d) => {
     if (a.id) {
-      if (!(await d.get('SELECT id FROM album WHERE id = ?', a.id))) throw new Error('That album is gone. Reload and try again.');
+      if (!(await d.get('SELECT id FROM album WHERE id = ?', a.id))) throw new Error('photos.err.album_gone');
       return {
         writes: [guard('EXISTS (SELECT 1 FROM album WHERE id = ?)', a.id), q('UPDATE album SET name = ? WHERE id = ?', a.name, a.id)],
         result: { id: a.id },
@@ -154,7 +154,7 @@ export function saveAlbum(tree: string, a: { id?: string; name: string }, op: Op
 /** Deletes an album. Its photos stay in the gallery, without an album (the row's album is cleared by the foreign key). */
 export function deleteAlbum(tree: string, id: string, op: OpKey | undefined) {
   return once(tree, op, 'deleteAlbum', async (d) => {
-    if (!(await d.get('SELECT id FROM album WHERE id = ?', id))) throw new Error('That album is already gone.');
+    if (!(await d.get('SELECT id FROM album WHERE id = ?', id))) throw new Error('photos.err.album_already_gone');
     return {
       writes: [guard('EXISTS (SELECT 1 FROM album WHERE id = ?)', id), q('DELETE FROM album WHERE id = ?', id)],
       result: undefined,
@@ -167,8 +167,8 @@ export function deleteAlbum(tree: string, id: string, op: OpKey | undefined) {
 /** Someone confirmed in a photo, at a box the reader drew. */
 export function addTag(tree: string, by: string, key: string, person: string, box: Box, op: OpKey | undefined) {
   return once(tree, op, 'addTag', async (d) => {
-    if (!(await d.get('SELECT id FROM person WHERE id = ?', person))) throw new Error('Person not found.');
-    if (!(await d.get('SELECT key FROM media WHERE key = ?', key))) throw new Error('That photo is gone. Reload to see the gallery.');
+    if (!(await d.get('SELECT id FROM person WHERE id = ?', person))) throw new Error('photos.err.person_not_found');
+    if (!(await d.get('SELECT key FROM media WHERE key = ?', key))) throw new Error('photos.err.photo_gone');
     return {
       writes: [
         personExists(person),
@@ -187,7 +187,7 @@ export function addTag(tree: string, by: string, key: string, person: string, bo
  */
 export function suggestTags(tree: string, by: string, key: string, faces: Face[], op: OpKey | undefined) {
   return once(tree, op, 'suggestTags', async (d) => {
-    if (!(await d.get('SELECT key FROM media WHERE key = ?', key))) throw new Error('That photo is gone. Reload to see the gallery.');
+    if (!(await d.get('SELECT key FROM media WHERE key = ?', key))) throw new Error('photos.err.photo_gone');
     const at = new Date().toISOString();
     return {
       writes: [
@@ -207,7 +207,7 @@ export function suggestTags(tree: string, by: string, key: string, faces: Face[]
 export function confirmTag(tree: string, by: string, id: number, op: OpKey | undefined) {
   return once(tree, op, 'confirmTag', async (d) => {
     const t = await d.get<{ confirmed: number }>('SELECT confirmed FROM media_person WHERE id = ?', id);
-    if (!t) throw new Error('That tag is gone. Reload to see the gallery.');
+    if (!t) throw new Error('photos.err.tag_gone');
     return {
       writes: [
         guard('EXISTS (SELECT 1 FROM media_person WHERE id = ? AND confirmed = ?)', id, t.confirmed),
@@ -221,7 +221,7 @@ export function confirmTag(tree: string, by: string, id: number, op: OpKey | und
 /** Removes a tag, or dismisses a suggestion. */
 export function removeTag(tree: string, id: number, op: OpKey | undefined) {
   return once(tree, op, 'removeTag', async (d) => {
-    if (!(await d.get('SELECT id FROM media_person WHERE id = ?', id))) throw new Error('That tag is already gone.');
+    if (!(await d.get('SELECT id FROM media_person WHERE id = ?', id))) throw new Error('photos.err.tag_already_gone');
     return {
       writes: [guard('EXISTS (SELECT 1 FROM media_person WHERE id = ?)', id), q('DELETE FROM media_person WHERE id = ?', id)],
       result: undefined,
@@ -237,7 +237,7 @@ export function removeTag(tree: string, id: number, op: OpKey | undefined) {
  */
 export function setPortrait(tree: string, person: string, bytes: Uint8Array, mime: string, op: OpKey | undefined) {
   return once(tree, op, 'setPortrait', async (d) => {
-    if (!(await d.get('SELECT id FROM person WHERE id = ?', person))) throw new Error('Person not found.');
+    if (!(await d.get('SELECT id FROM person WHERE id = ?', person))) throw new Error('photos.err.person_not_found');
     const key = newMediaKey('photo', mime);
     await media.put(tree, key, bytes, mime);
     return {
@@ -251,7 +251,7 @@ export function setPortrait(tree: string, person: string, bytes: Uint8Array, mim
       abandon: () => media.delete(tree, key).catch(() => {}),
       after: async (r) => {
         const old = (r[1].rows[0] as { key: string | null } | undefined)?.key;
-        if (old && old !== key) await media.delete(tree, old).catch((e) => console.error('[media] could not delete', old, e));
+        if (old && old !== key) await media.delete(tree, old).catch((e) => console.error('photos.err.delete_failed', old, e));
       },
     };
   });
@@ -263,7 +263,7 @@ export function setPortrait(tree: string, person: string, bytes: Uint8Array, mim
  */
 export function setPreferAvatar(tree: string, person: string, prefer: boolean, op: OpKey | undefined) {
   return once(tree, op, 'setPreferAvatar', async (d) => {
-    if (!(await d.get('SELECT id FROM person WHERE id = ?', person))) throw new Error('Person not found.');
+    if (!(await d.get('SELECT id FROM person WHERE id = ?', person))) throw new Error('photos.err.person_not_found');
     return {
       writes: [personExists(person), q('UPDATE person SET prefer_avatar = ? WHERE id = ?', prefer ? 1 : 0, person)],
       result: undefined,

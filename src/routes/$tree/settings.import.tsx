@@ -7,14 +7,14 @@ import { useRef, useState } from 'react';
 import { EmptyState, ErrorState, Notice, PageHeader, Skeleton, Switch } from '~/components/ui';
 import { opKeys } from '~/lib/api';
 import { applyImportFile, exchangeContext, exportReport, previewImportFile } from '~/lib/exchange/exchange.functions';
-import { useT } from '~/lib/i18n';
-import { sectionHead } from '~/lib/title';
+import { translate, useT, type Locale } from '~/lib/i18n';
+import { treeTitle } from '~/lib/title';
 import '~/styles/exchange.css';
 
 const MAX_BYTES = 5_000_000; // the server refuses more (exchange.functions.ts)
 
 export const Route = createFileRoute('/$tree/settings/import')({
-  head: sectionHead('Import and export'),
+  head: (ctx) => ({ meta: [{ title: treeTitle(ctx, translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'exchange.page.title')) }] }),
   component: ExchangePage,
 });
 

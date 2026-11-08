@@ -17,6 +17,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { feature, mesh } from 'topojson-client';
 import { z } from 'zod';
 import { GameIcon } from '~/components/GameIcon';
+import { translate, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
 import { Arms } from '~/components/Heraldry';
 import type { House } from '~/lib/types';
 import { Portrait } from '~/components/Portrait';
@@ -25,13 +26,13 @@ import { displayName, lifespan, parents, yearOf } from '~/lib/graph';
 import { play } from '~/lib/sfx';
 import type { GPerson, Place } from '~/lib/types';
 import '~/styles/atlas.css';
-import { sectionHead } from '~/lib/title';
+import { treeTitle } from '~/lib/title';
 
 type Kind = 'births' | 'deaths' | 'weddings';
 type Mode = Kind | 'all';
 
 export const Route = createFileRoute('/$tree/atlas')({
-  head: sectionHead('Atlas'),
+  head: (ctx) => ({ meta: [{ title: treeTitle(ctx, translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'atlas.title')) }] }),
   validateSearch: z.object({ mode: z.enum(['all', 'births', 'deaths', 'weddings']).optional(), place: z.string().optional() }),
   component: Atlas,
 });
@@ -45,12 +46,13 @@ interface Arc { from: Place; to: Place; n: number }
 
 const KINDS: Kind[] = ['births', 'deaths', 'weddings'];
 const ICON: Record<Kind, 'cake-slice' | 'candle-light' | 'linked-rings'> = { births: 'cake-slice', deaths: 'candle-light', weddings: 'linked-rings' };
-const KIND_ONE: Record<Kind, [string, string]> = { births: ['birth', 'births'], deaths: ['death', 'deaths'], weddings: ['wedding', 'weddings'] };
-const MODES: { id: Mode; label: string; icon?: 'cake-slice' | 'candle-light' | 'linked-rings' }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'births', label: 'Births', icon: 'cake-slice' },
-  { id: 'deaths', label: 'Deaths', icon: 'candle-light' },
-  { id: 'weddings', label: 'Weddings', icon: 'linked-rings' },
+/** Each kind's noun, singular and plural (by count). */
+const KIND_ONE: Record<Kind, Key> = { births: 'atlas.kind.births', deaths: 'atlas.kind.deaths', weddings: 'atlas.kind.weddings' };
+const MODES: { id: Mode; label: Key; icon?: 'cake-slice' | 'candle-light' | 'linked-rings' }[] = [
+  { id: 'all', label: 'atlas.mode.all' },
+  { id: 'births', label: 'atlas.mode.births', icon: 'cake-slice' },
+  { id: 'deaths', label: 'atlas.mode.deaths', icon: 'candle-light' },
+  { id: 'weddings', label: 'atlas.mode.weddings', icon: 'linked-rings' },
 ];
 const SPEEDS = [0.5, 1, 2, 4];
 const speedLabel = (s: number) => (s === 0.5 ? '½×' : `${s}×`);
@@ -91,6 +93,7 @@ function eraTicks(y0: number, y1: number) {
 
 function Atlas() {
   const f = useFamily();
+  const tr = useT();
   const tree = useTreeId();
   const navigate = useNavigate({ from: '/$tree/atlas' });
   const search = Route.useSearch();
@@ -316,29 +319,30 @@ function Atlas() {
   }, [measure, showFeed, feedFolded, listOpen, narrow, events.length > 0, !!selected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ticks = useMemo(() => eraTicks(y0, y1), [y0, y1]);
-  const countText = `${total.toLocaleString('en-GB')} ${mode === 'all' ? 'births, deaths and weddings' : mode === 'weddings' ? 'people married' : mode === 'births' ? 'born' : 'died'} in ${pins.length} ${pins.length === 1 ? 'place' : 'places'}${cursor < y1 ? ` by ${cursor}` : ''}`;
+  const what = mode === 'all' ? 'atlas.what_all' : mode === 'weddings' ? 'atlas.what_weddings' : mode === 'births' ? 'atlas.what_births' : 'atlas.what_deaths';
+  const countText = `${tr('atlas.count_text', { total, what: tr(what), places: tr('atlas.places_n', { count: pins.length }) })}${cursor < y1 ? tr('atlas.by_year', { year: cursor }) : ''}`;
 
   return (
     <div className={`atlas${showFeed ? ' feed-on' : ''}${listOpen ? ' list-open' : ''}${feedFolded ? ' feed-folded' : ''}`} ref={atlasEl}>
-      <aside className="atlas-side panel" ref={sideEl} aria-label="Places">
+      <aside className="atlas-side panel" ref={sideEl} aria-label={tr('atlas.places')}>
         {/* On a narrow screen: the sheet's handle, folding the list away to show the map. */}
         <button className="atlas-handle" aria-expanded={listOpen} onClick={() => setListOpen((o) => !o)}>
           <span className="atlas-grip" aria-hidden />
           <span className="atlas-handle-text">
-            <b className="display">Atlas</b>
-            <span className="subtle">{pins.length} {pins.length === 1 ? 'place' : 'places'}{cursor < y1 ? ` by ${cursor}` : ''}</span>
+            <b className="display">{tr('atlas.title')}</b>
+            <span className="subtle">{tr('atlas.places_n', { count: pins.length })}{cursor < y1 ? tr('atlas.by_year', { year: cursor }) : ''}</span>
           </span>
           <span className="atlas-handle-act">
-            {listOpen ? <><MapIcon size={16} aria-hidden /> Show map</> : <><List size={16} aria-hidden /> Show list</>}
+            {listOpen ? <><MapIcon size={16} aria-hidden /> {tr('atlas.show_map')}</> : <><List size={16} aria-hidden /> {tr('atlas.show_list')}</>}
           </span>
         </button>
         <div className="atlas-head">
-          <PageHeader title="Atlas" subtitle={<>{countText}{unplaced > 0 && <span className="subtle"> · {unplaced.toLocaleString('en-GB')} without a known place</span>}</>} />
+          <PageHeader title={tr('atlas.title')} subtitle={<>{countText}{unplaced > 0 && <span className="subtle"> · {tr('atlas.unplaced', { count: unplaced })}</span>}</>} />
         </div>
-        <div className="atlas-seg" role="group" aria-label="Events shown">
+        <div className="atlas-seg" role="group" aria-label={tr('atlas.events_shown')}>
           {MODES.map((m) => (
             <button key={m.id} className="atlas-seg-btn" aria-pressed={mode === m.id} onClick={() => navigate({ search: { mode: m.id }, replace: true })}>
-              {m.icon ? <GameIcon name={m.icon} size={15} /> : <Layers size={15} aria-hidden />} <span>{m.label}</span>
+              {m.icon ? <GameIcon name={m.icon} size={15} /> : <Layers size={15} aria-hidden />} <span>{tr(m.label)}</span>
             </button>
           ))}
         </div>
@@ -346,7 +350,7 @@ function Atlas() {
           {selected ? (
             <PlaceDetail pin={selected} f={f} tree={tree} mode={mode} onBack={() => select(undefined)} />
           ) : pins.length === 0 ? (
-            <p className="atlas-empty muted">{events.length === 0 ? 'No places recorded for this tree yet.' : `Nothing recorded by ${cursor}.`}</p>
+            <p className="atlas-empty muted">{events.length === 0 ? tr('atlas.none_yet') : tr('atlas.nothing_by', { year: cursor })}</p>
           ) : (
             <ol className="atlas-places">
               {pins.map((p, i) => (
@@ -358,7 +362,7 @@ function Atlas() {
                       {mode === 'all' && (
                         <small className="atlas-kinds">
                           {KINDS.filter((k) => p.kinds[k]).map((k) => (
-                            <span key={k} className={`k-${k}`} title={`${p.kinds[k]} ${KIND_ONE[k][p.kinds[k] === 1 ? 0 : 1]}`}>
+                            <span key={k} className={`k-${k}`} title={`${p.kinds[k]} ${tr(KIND_ONE[k], { count: p.kinds[k] })}`}>
                               <GameIcon name={ICON[k]} size={11} />{p.kinds[k]}
                             </span>
                           ))}
@@ -393,30 +397,30 @@ function Atlas() {
       </div>
 
       {events.length > 0 && (
-        <div className="atlas-time panel" ref={timeBar} role="group" aria-label="Time">
-          <button className="btn primary atlas-play" onClick={togglePlay} aria-label={playing ? 'Pause the replay' : 'Replay through time'} title={playing ? 'Pause (Space)' : 'Replay through time (Space)'}>
+        <div className="atlas-time panel" ref={timeBar} role="group" aria-label={tr('atlas.time')}>
+          <button className="btn primary atlas-play" onClick={togglePlay} aria-label={playing ? tr('atlas.pause_replay') : tr('atlas.replay')} title={playing ? tr('atlas.pause_key') : tr('atlas.replay_key')}>
             {playing ? <Pause size={18} fill="currentColor" strokeWidth={1.5} aria-hidden /> : <Play size={18} fill="currentColor" strokeWidth={1.5} aria-hidden />}
           </button>
           <span className="atlas-year display" aria-hidden>{cursor}</span>
-          <Range className="atlas-range" value={cursor} onChange={scrub} min={y0} max={y1} ticks={ticks} aria-label="Year" format={(v) => String(v)} />
+          <Range className="atlas-range" value={cursor} onChange={scrub} min={y0} max={y1} ticks={ticks} aria-label={tr('atlas.year')} format={(v) => String(v)} />
           <div className="atlas-tools">
             <button
               className="btn atlas-tool"
               onClick={() => setPref('atlas-speed', String(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]))}
-              aria-label={`Replay speed ${speedLabel(speed)}. Change speed`}
-              title="Replay speed (click to change)"
+              aria-label={tr('atlas.speed_aria', { speed: speedLabel(speed) })}
+              title={tr('atlas.speed_title')}
             >
               <Gauge size={16} aria-hidden /> <span className="atlas-speed">{speedLabel(speed)}</span>
             </button>
-            <button className="btn atlas-tool" aria-pressed={showFeed} onClick={() => (showFeed ? closeFeed() : setFeedOpen(true))} aria-label="Chronicle" title="The chronicle of everything up to this year">
-              <ScrollText size={16} aria-hidden /> <span className="tb-label">Chronicle</span>
+            <button className="btn atlas-tool" aria-pressed={showFeed} onClick={() => (showFeed ? closeFeed() : setFeedOpen(true))} aria-label={tr('atlas.chronicle')} title={tr('atlas.chronicle_title')}>
+              <ScrollText size={16} aria-hidden /> <span className="tb-label">{tr('atlas.chronicle')}</span>
             </button>
-            <button className="btn atlas-tool" aria-pressed={heraldry} onClick={() => { if (!heraldry) play('seal'); setHeraldry((h) => !h); }} aria-label="Arms" title="Show each place by the arms of the house most of its people belong to">
-              <Shield size={16} aria-hidden /> <span className="tb-label">Arms</span>
+            <button className="btn atlas-tool" aria-pressed={heraldry} onClick={() => { if (!heraldry) play('seal'); setHeraldry((h) => !h); }} aria-label={tr('atlas.arms')} title={tr('atlas.arms_title')}>
+              <Shield size={16} aria-hidden /> <span className="tb-label">{tr('atlas.arms')}</span>
             </button>
             {(mode === 'births' || mode === 'all') && (
-              <button className="btn atlas-tool" aria-pressed={moves} onClick={() => setMoves((m) => !m)} aria-label="Moves" title="Show moves from a mother's birthplace to her child's">
-                <RouteIcon size={16} aria-hidden /> <span className="tb-label">Moves</span>
+              <button className="btn atlas-tool" aria-pressed={moves} onClick={() => setMoves((m) => !m)} aria-label={tr('atlas.moves')} title={tr('atlas.moves_title')}>
+                <RouteIcon size={16} aria-hidden /> <span className="tb-label">{tr('atlas.moves')}</span>
               </button>
             )}
           </div>
@@ -445,17 +449,18 @@ function Atlas() {
 }
 
 function PlaceDetail({ pin, f, tree, mode, onBack }: { pin: Pin; f: ReturnType<typeof useFamily>; tree: string; mode: Mode; onBack: () => void }) {
-  const WHAT: Record<Kind, string> = { births: 'Born here', deaths: 'Died here', weddings: 'Married here' };
+  const tr = useT();
+  const WHAT: Record<Kind, Key> = { births: 'atlas.born_here', deaths: 'atlas.died_here', weddings: 'atlas.married_here' };
   const groups = KINDS.filter((k) => mode === 'all' || mode === k)
     .map((k) => [k, [...new Set(pin.entries.filter((e) => e.kind === k).map((e) => e.id))].map((id) => f.byId.get(id)).filter((p): p is GPerson => !!p)] as const)
     .filter(([, ps]) => ps.length);
   const house = pin.house ? f.house.get(pin.house) : undefined;
   return (
     <div className="atlas-detail">
-      <button className="btn ghost atlas-back" onClick={onBack}><ArrowLeft size={16} aria-hidden /> All places</button>
+      <button className="btn ghost atlas-back" onClick={onBack}><ArrowLeft size={16} aria-hidden /> {tr('atlas.all_places')}</button>
       <div className="ui-card atlas-place-card">
         {house ? (
-          <Link className="atlas-place-mark" to="/$tree/house/$house" params={{ tree, house: house.id }} title={`Open the page of ${house.name}`} aria-label={`Open the page of ${house.name}`}>
+          <Link className="atlas-place-mark" to="/$tree/house/$house" params={{ tree, house: house.id }} title={tr('atlas.open_house', { name: house.name })} aria-label={tr('atlas.open_house', { name: house.name })}>
             <Arms arms={house.arms} size={34} />
           </Link>
         ) : (
@@ -463,10 +468,10 @@ function PlaceDetail({ pin, f, tree, mode, onBack }: { pin: Pin; f: ReturnType<t
         )}
         <div>
           <h2 className="display">{pin.place.name}</h2>
-          <p className="muted">First recorded in {pin.first}{house ? <> · mostly <Link className="atlas-house" to="/$tree/house/$house" params={{ tree, house: house.id }}>{house.name}</Link></> : null}</p>
+          <p className="muted">{tr('atlas.first_recorded', { year: pin.first })}{house ? <> · {tr('atlas.mostly')} <Link className="atlas-house" to="/$tree/house/$house" params={{ tree, house: house.id }}>{house.name}</Link></> : null}</p>
           <p className="atlas-place-kinds">
             {KINDS.filter((k) => pin.kinds[k]).map((k) => (
-              <span key={k} className={`k-${k}`}><GameIcon name={ICON[k]} size={13} /> {pin.kinds[k]} {KIND_ONE[k][pin.kinds[k] === 1 ? 0 : 1]}</span>
+              <span key={k} className={`k-${k}`}><GameIcon name={ICON[k]} size={13} /> {pin.kinds[k]} {tr(KIND_ONE[k], { count: pin.kinds[k] })}</span>
             ))}
           </p>
         </div>
@@ -814,7 +819,8 @@ function WorldMap({ places, weight, pins, arcs, selected, onSelect, rings, heral
     return out;
   }, [pins, projection, cam, max, selected, heraldry, rings, free, size, theme, fontsReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const kindWord = mode === 'all' ? 'events' : mode === 'births' ? 'born' : mode === 'deaths' ? 'died' : 'married';
+  const tr = useT();
+  const kindWord = tr(mode === 'all' ? 'atlas.kindword.all' : mode === 'births' ? 'atlas.kindword.births' : mode === 'deaths' ? 'atlas.kindword.deaths' : 'atlas.kindword.weddings');
   const arcMax = Math.max(1, ...arcs.map((a) => a.n));
   // Screen-constant pin sizes: zooming in spreads places apart instead of inflating them.
   const radius = (n: number) => screenR(n) / cam.k;
@@ -863,7 +869,7 @@ function WorldMap({ places, weight, pins, arcs, selected, onSelect, rings, heral
       }}
       onPointerCancel={(e) => { touches.current.delete(e.pointerId); pinch.current = null; drag.current = null; }}
     >
-      <svg width={size.w} height={size.h} role="group" aria-label="Map of places">
+      <svg width={size.w} height={size.h} role="group" aria-label={tr('atlas.map_label')}>
         <defs>
           <radialGradient id="sea-glow" cx="50%" cy="45%" r="75%">
             <stop offset="0%" className="sea-hi" />
@@ -900,7 +906,7 @@ function WorldMap({ places, weight, pins, arcs, selected, onSelect, rings, heral
                   d={`M${p0[0]},${p0[1]}Q${mx - dy * bend},${my + dx * bend} ${p1[0]},${p1[1]}`}
                   style={{ strokeWidth: w / cam.k, strokeDasharray: `${6 / cam.k} ${5 / cam.k}` }}
                 >
-                  <title>{`${a.from.name} – ${a.to.name}: ${a.n} ${a.n === 1 ? 'move' : 'moves'}`}</title>
+                  <title>{tr('atlas.move_title', { from: a.from.name, to: a.to.name, count: a.n })}</title>
                 </path>
               );
             })}
@@ -921,7 +927,7 @@ function WorldMap({ places, weight, pins, arcs, selected, onSelect, rings, heral
                 role="button"
                 tabIndex={0}
                 aria-pressed={on}
-                aria-label={`${p.place.name}, ${p.n} ${kindWord}${arms ? `, house ${arms.name}` : ''}`}
+                aria-label={`${tr('atlas.pin_label', { place: p.place.name, n: p.n, kind: kindWord })}${arms ? tr('atlas.pin_house', { house: arms.name }) : ''}`}
                 onClick={() => onSelect(on ? undefined : p.place.name)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(on ? undefined : p.place.name); } }}
               >
@@ -979,16 +985,16 @@ function WorldMap({ places, weight, pins, arcs, selected, onSelect, rings, heral
           {scope === 'core' ? (
             <button className="btn atlas-scope-btn" onClick={() => showScope('all')}>
               <Expand size={15} aria-hidden />
-              {beyond.size === 1 ? '1 place' : `${beyond.size} places`} beyond this view · Show all
+              {tr('atlas.beyond', { places: tr('atlas.places_n', { count: beyond.size }) })}
             </button>
           ) : (
             <button className="btn atlas-scope-btn" onClick={() => showScope('core')}>
-              <Shrink size={15} aria-hidden /> Back to where most of the family lived
+              <Shrink size={15} aria-hidden /> {tr('atlas.back_core')}
             </button>
           )}
         </div>
       )}
-      {!paths && <div className="atlas-loading" style={{ left: free.l, right: free.r, bottom: free.b }}>Unrolling the map…</div>}
+      {!paths && <div className="atlas-loading" style={{ left: free.l, right: free.r, bottom: free.b }}>{tr('atlas.unrolling')}</div>}
     </div>
   );
 }
@@ -1017,15 +1023,15 @@ function KindRing({ kinds, r, w }: { kinds: Record<Kind, number>; r: number; w: 
 // ---------- the chronicle feed ----------
 
 /** "Ulric Valcourt is born in Castel Sainte-Ode", in the voice of a chronicle. */
-function sentence(e: Event, f: ReturnType<typeof useFamily>) {
+function sentence(e: Event, f: ReturnType<typeof useFamily>, tr: Translator) {
   const [a, b] = e.people.map((id) => f.byId.get(id));
-  const name = (p?: GPerson) => <b>{p ? displayName(p, f) : 'Someone'}</b>;
-  if (e.kind === 'births') return <>{name(a)} is born <i>in {e.place}</i></>;
+  const name = (p?: GPerson) => <b>{p ? displayName(p, f) : tr('atlas.someone')}</b>;
+  if (e.kind === 'births') return <>{name(a)} {tr('atlas.is_born')} <i>{tr('atlas.in_place', { place: e.place })}</i></>;
   if (e.kind === 'deaths') {
     const age = a && !isNaN(yearOf(a.born)) ? e.year - yearOf(a.born) : undefined;
-    return <>{name(a)} dies <i>in {e.place}{age !== undefined ? `, aged ${age}` : ''}</i></>;
+    return <>{name(a)} {tr('atlas.dies')} <i>{tr('atlas.in_place', { place: e.place })}{age !== undefined ? tr('atlas.aged', { age }) : ''}</i></>;
   }
-  return <>{name(a)} marries {name(b)} <i>in {e.place}</i></>;
+  return <>{name(a)} {tr('atlas.marries')} {name(b)} <i>{tr('atlas.in_place', { place: e.place })}</i></>;
 }
 
 /** The portrait of who it is about, or their house's arms when the map shows arms. */
@@ -1041,12 +1047,12 @@ function FeedFace({ e, f, tree, heraldry }: { e: Event; f: ReturnType<typeof use
 }
 
 /** "37 births, 9 deaths and 2 weddings across the realm", for a busy year. */
-function summary(events: Event[], f: ReturnType<typeof useFamily>) {
+function summary(events: Event[], f: ReturnType<typeof useFamily>, tr: Translator) {
   const n = (k: Kind) => events.filter((e) => e.kind === k).length;
-  const parts = KINDS.filter((k) => n(k)).map((k) => `${n(k)} ${KIND_ONE[k][n(k) === 1 ? 0 : 1]}`);
-  const text = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0];
-  const where = f.graph.tree.theme === 'codex' ? 'across the realm' : 'in the family';
-  return <><b>{text}</b> <i>{where}, most in {busiest(events)}</i></>;
+  const parts = KINDS.filter((k) => n(k)).map((k) => `${n(k)} ${tr(KIND_ONE[k], { count: n(k) })}`);
+  const text = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} ${tr('atlas.and')} ${parts.at(-1)}` : parts[0];
+  const where = f.graph.tree.theme === 'codex' ? tr('atlas.realm') : tr('atlas.family');
+  return <><b>{text}</b> <i>{where}, {tr('atlas.most_in', { place: busiest(events) })}</i></>;
 }
 
 function busiest(events: Event[]): string {
@@ -1066,6 +1072,7 @@ function Chronicle({ ref, rows, more, onMore, cursor, playing, f, tree, heraldry
   f: ReturnType<typeof useFamily>; tree: string; heraldry: boolean; onSelect: (place: string) => void; onClose: () => void;
   folded: boolean; onFold: () => void;
 }) {
+  const tr = useT();
   const box = useRef<HTMLOListElement>(null);
   const anchor = useRef<{ key: string; offset: number } | null>(null);
   const [away, setAway] = useState(false);
@@ -1089,20 +1096,20 @@ function Chronicle({ ref, rows, more, onMore, cursor, playing, f, tree, heraldry
   }, [rows]);
 
   return (
-    <section ref={ref} className={`atlas-feed panel${playing ? ' playing' : ''}`} aria-label="Chronicle">
+    <section ref={ref} className={`atlas-feed panel${playing ? ' playing' : ''}`} aria-label={tr('atlas.chronicle')}>
       <header>
-        <h2 className="display">Chronicle</h2>
+        <h2 className="display">{tr('atlas.chronicle')}</h2>
         {away ? (
           <button className="btn feed-latest" onClick={() => { box.current?.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' }); anchor.current = null; setAway(false); }}>
-            <ChevronUp size={14} aria-hidden /> Latest
+            <ChevronUp size={14} aria-hidden /> {tr('atlas.latest')}
           </button>
         ) : (
           <span className="feed-cursor">{cursor}</span>
         )}
-        <button className="btn icon ghost feed-fold" onClick={onFold} aria-expanded={!folded} aria-label={folded ? 'Unfold the chronicle' : 'Fold the chronicle'} title={folded ? 'Unfold' : 'Fold'}>
+        <button className="btn icon ghost feed-fold" onClick={onFold} aria-expanded={!folded} aria-label={folded ? tr('atlas.unfold') : tr('atlas.fold')} title={folded ? tr('atlas.unfold_short') : tr('atlas.fold_short')}>
           {folded ? <ChevronUp size={18} aria-hidden /> : <ChevronDown size={18} aria-hidden />}
         </button>
-        <button className="btn icon ghost feed-close" onClick={onClose} aria-label="Close the chronicle" title="Close the chronicle"><X size={18} aria-hidden /></button>
+        <button className="btn icon ghost feed-close" onClick={onClose} aria-label={tr('atlas.close_chronicle')} title={tr('atlas.close_chronicle')}><X size={18} aria-hidden /></button>
       </header>
       <ol ref={box} onScroll={remember} aria-live={playing ? 'off' : 'polite'}>
         {rows.map((row) => (
@@ -1111,18 +1118,18 @@ function Chronicle({ ref, rows, more, onMore, cursor, playing, f, tree, heraldry
               <button onClick={() => onSelect(row.event!.place)}>
                 <span className="feed-year">{row.year}</span>
                 <FeedFace e={row.event} f={f} tree={tree} heraldry={heraldry} />
-                <span className="feed-text">{sentence(row.event, f)}</span>
+                <span className="feed-text">{sentence(row.event, f, tr)}</span>
               </button>
             ) : (
               <button onClick={() => onSelect(busiest(row.summary!))}>
                 <span className="feed-year">{row.year}</span>
                 <span className="feed-face feed-sum"><GameIcon name="quill-ink" size={18} /></span>
-                <span className="feed-text">{summary(row.summary!, f)}</span>
+                <span className="feed-text">{summary(row.summary!, f, tr)}</span>
               </button>
             )}
           </li>
         ))}
-        {more && <li className="feed-more-row"><button className="btn feed-more" onClick={onMore}>Show earlier</button></li>}
+        {more && <li className="feed-more-row"><button className="btn feed-more" onClick={onMore}>{tr('atlas.show_earlier')}</button></li>}
       </ol>
     </section>
   );

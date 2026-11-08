@@ -22,11 +22,11 @@ const text = (max: number) => z.string().trim().max(max).transform((s) => s || n
 /** An album id, or nothing ('' from a form is nothing). */
 const albumId = z.string().max(64).nullable().transform((s) => s || null);
 /** A partial date ("1985", "1985-06", "1985-06-14") or nothing. */
-const partialDate = z.string().max(10).refine((s) => s === '' || validDate(s), 'Not a real date').transform((s) => s || null);
+const partialDate = z.string().max(10).refine((s) => s === '' || validDate(s), 'photos.err.not_a_date').transform((s) => s || null);
 const unit = z.number().min(0).max(1);
 const box = z
-  .object({ x: unit, y: unit, w: unit.refine((n) => n > 0, 'Too small'), h: unit.refine((n) => n > 0, 'Too small') })
-  .refine((b) => b.x + b.w <= 1.0001 && b.y + b.h <= 1.0001, 'The box runs off the picture');
+  .object({ x: unit, y: unit, w: unit.refine((n) => n > 0, 'photos.err.box_small'), h: unit.refine((n) => n > 0, 'photos.err.box_small') })
+  .refine((b) => b.x + b.w <= 1.0001 && b.y + b.h <= 1.0001, 'photos.err.box_off');
 
 /** The retry key for a change, bound to who sends it and to everything else they sent (see db.server.ts `once`). */
 function opOf<D extends { opKey?: string }>(user: string, data: D) {
@@ -38,16 +38,16 @@ function opOf<D extends { opKey?: string }>(user: string, data: D) {
 /** The picture in a form, checked by its first bytes as well as its declared type. */
 async function pictureIn(form: FormData, max: number) {
   const file = form.get('file');
-  if (!(file instanceof File) || !/^image\/(jpeg|png|webp)$/.test(file.type) || file.size > max) throw new Error('A picture (JPEG, PNG or WebP) under the size limit');
+  if (!(file instanceof File) || !/^image\/(jpeg|png|webp)$/.test(file.type) || file.size > max) throw new Error('photos.err.picture_type');
   const bytes = new Uint8Array(await file.arrayBuffer());
   const { sniff } = await server();
-  if (sniff(bytes) !== file.type) throw new Error('That file is not a picture of the type it claims');
+  if (sniff(bytes) !== file.type) throw new Error('photos.err.not_picture');
   return { file, bytes, mime: file.type };
 }
 
 const pixels = (v: FormDataEntryValue | null) => {
   const n = Number(v);
-  if (!Number.isInteger(n) || n < 1 || n > 4000) throw new Error('A size in pixels');
+  if (!Number.isInteger(n) || n < 1 || n > 4000) throw new Error('photos.err.pixels');
   return n;
 };
 const field = (d: FormData, name: string) => {
@@ -118,7 +118,7 @@ export const removeGalleryPhoto = createServerFn({ method: 'POST' })
 // ---------- albums ----------
 
 export const saveAlbum = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, id: z.string().max(64).optional(), name: z.string().trim().min(1, 'A name').max(80), opKey }))
+  .validator(z.object({ tree, id: z.string().max(64).optional(), name: z.string().trim().min(1, 'photos.err.name_required').max(80), opKey }))
   .handler(async ({ data }) => {
     const m = await requireCan(data.tree, 'upload-photo');
     return (await server()).saveAlbum(data.tree, { id: data.id, name: data.name }, opOf(m.user.id, data));

@@ -48,7 +48,7 @@ test('showing the drawn avatar keeps the photo, and the photo can be shown again
 });
 
 test('a choice for someone who is not in the family is refused', async () => {
-  await assert.rejects(photos.setPreferAvatar('family', 'nobody', true, undefined), /Person not found/);
+  await assert.rejects(photos.setPreferAvatar('family', 'nobody', true, undefined), /photos\.err\.person_not_found/);
 });
 
 test('a steward deletes an album; its photographs stay, without an album', async () => {
@@ -58,5 +58,5 @@ test('a steward deletes an album; its photographs stay, without an album', async
   const m = await d.get<{ album: string | null }>('SELECT album FROM media WHERE key = ?', 'gallery/one.jpg');
   assert.ok(m, 'the photograph is kept');
   assert.equal(m.album, null);
-  await assert.rejects(photos.deleteAlbum('family', 'a1', undefined), /already gone/);
+  await assert.rejects(photos.deleteAlbum('family', 'a1', undefined), /photos\.err\.album_already_gone/);
 });

@@ -9,12 +9,13 @@ import { Portrait } from '~/components/Portrait';
 import { chronicleQuery } from '~/lib/api';
 import { useFamily, useTreeId } from '~/lib/family';
 import { displayName, type Family } from '~/lib/graph';
+import { locales, translate, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
 import type { GPerson, Story } from '~/lib/types';
 import '~/styles/chronicle.css';
-import { sectionHead } from '~/lib/title';
+import { treeTitle } from '~/lib/title';
 
 export const Route = createFileRoute('/$tree/chronicle')({
-  head: sectionHead('Chronicle'),
+  head: (ctx) => ({ meta: [{ title: treeTitle(ctx, translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'chronicle.title')) }] }),
   component: ChroniclePage,
 });
 
@@ -29,22 +30,22 @@ const render = renderMarkdown;
 type Kind = Story['kind'];
 /** Stories are written with a quill; the rest keep their line icons. */
 const Quill = ({ size = 14 }: { size?: number }) => <GameIcon name="quill-ink" size={size} />;
-const KINDS: { id: Kind; label: string; plural: string; verb: string; icon: ComponentType<{ size?: number }> }[] = [
-  { id: 'note', label: 'Note', plural: 'Notes', verb: 'added a note on', icon: StickyNote },
-  { id: 'quote', label: 'Saying', plural: 'Sayings', verb: 'recorded a saying of', icon: Quote },
-  { id: 'anecdote', label: 'Story', plural: 'Stories', verb: 'told a story about', icon: Quill },
-  { id: 'recipe', label: 'Recipe', plural: 'Recipes', verb: 'shared a recipe from', icon: ChefHat },
-  { id: 'memory', label: 'Memory', plural: 'Memories', verb: 'remembered', icon: Sparkles },
+const KINDS: { id: Kind; label: Key; plural: Key; verb: Key; icon: ComponentType<{ size?: number }> }[] = [
+  { id: 'note', label: 'chronicle.kind.note', plural: 'chronicle.kind.note_plural', verb: 'chronicle.verb.note', icon: StickyNote },
+  { id: 'quote', label: 'chronicle.kind.quote', plural: 'chronicle.kind.quote_plural', verb: 'chronicle.verb.quote', icon: Quote },
+  { id: 'anecdote', label: 'chronicle.kind.anecdote', plural: 'chronicle.kind.anecdote_plural', verb: 'chronicle.verb.anecdote', icon: Quill },
+  { id: 'recipe', label: 'chronicle.kind.recipe', plural: 'chronicle.kind.recipe_plural', verb: 'chronicle.verb.recipe', icon: ChefHat },
+  { id: 'memory', label: 'chronicle.kind.memory', plural: 'chronicle.kind.memory_plural', verb: 'chronicle.verb.memory', icon: Sparkles },
 ];
 const KIND = Object.fromEntries(KINDS.map((k) => [k.id, k])) as Record<Kind, (typeof KINDS)[number]>;
 
 // ---------- time ----------
 
-const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
-function ago(at: string, now: number): string {
+function ago(at: string, now: number, tr: Translator): string {
+  const rtf = new Intl.RelativeTimeFormat(locales[tr.locale], { numeric: 'auto' });
   const s = (new Date(at).getTime() - now) / 1000;
   const a = Math.abs(s);
-  if (a < 60) return 'just now';
+  if (a < 60) return tr('chronicle.just_now');
   if (a < 3600) return rtf.format(Math.round(s / 60), 'minute');
   if (a < 86_400) return rtf.format(Math.round(s / 3600), 'hour');
   if (a < 86_400 * 7) return rtf.format(Math.round(s / 86_400), 'day');
@@ -52,16 +53,16 @@ function ago(at: string, now: number): string {
   if (a < 86_400 * 365) return rtf.format(Math.round(s / (86_400 * 30)), 'month');
   return rtf.format(Math.round(s / (86_400 * 365)), 'year');
 }
-function dayLabel(at: string, now: Date): string {
+function dayLabel(at: string, now: Date, tr: Translator): string {
   const d = new Date(at);
   const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) / 86_400_000);
-  if (days <= 0) return 'Today';
-  if (days === 1) return 'Yesterday';
-  if (days < 7) return 'Earlier this week';
-  if (days < 30) return 'Earlier this month';
-  return d.toLocaleDateString('en-GB', { month: 'long', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' });
+  if (days <= 0) return tr('chronicle.today');
+  if (days === 1) return tr('chronicle.yesterday');
+  if (days < 7) return tr('chronicle.earlier_week');
+  if (days < 30) return tr('chronicle.earlier_month');
+  return d.toLocaleDateString(locales[tr.locale], { month: 'long', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' });
 }
-const exact = (at: string) => new Date(at).toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
+const exact = (at: string, locale: Locale) => new Date(at).toLocaleString(locales[locale], { dateStyle: 'long', timeStyle: 'short' });
 
 // ---------- page ----------
 
@@ -70,7 +71,8 @@ type Tab = 'recent' | 'sayings';
 function ChroniclePage() {
   const f = useFamily();
   const tree = useTreeId();
-  usePageTrail('chronicle', tree);
+  const t = useT();
+  usePageTrail('chronicle', tree, t.locale);
   const { data, isPending, isError, refetch } = useQuery(chronicleQuery(tree));
   const [tab, setTab] = useRememberedState<Tab>(`chronicle:${tree}:tab`, 'recent');
   const [kind, setKind] = useRememberedState<Kind | null>(`chronicle:${tree}:kind`, null);
@@ -113,13 +115,14 @@ function ChroniclePage() {
   const groups = useMemo(() => {
     const m = new Map<string, Story[]>();
     for (const s of recent.slice(0, limit)) {
-      const k = dayLabel(s.at, now);
+      const k = dayLabel(s.at, now, t);
       const a = m.get(k);
       if (a) a.push(s);
       else m.set(k, [s]);
     }
     return [...m.entries()];
-  }, [recent, limit, now]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recent, limit, now, t.locale]);
 
   const pick = (t: Tab) => {
     setTab(t);
@@ -129,37 +132,37 @@ function ChroniclePage() {
   return (
     <div className="page">
       <div className="page-inner chr">
-        <PageHeader title="Chronicle" subtitle={<>
+        <PageHeader title={t('chronicle.title')} subtitle={<>
               {isPending
-                ? 'Unrolling the scroll…'
+                ? t('chronicle.unrolling')
                 : stories.length
-                  ? `${stories.length} contributions from ${authors} ${authors === 1 ? 'voice' : 'voices'}`
-                  : 'The family’s notes, sayings and memories'}
+                  ? t('chronicle.contributions', { count: stories.length, voices: t('chronicle.voices', { count: authors }) })
+                  : t('chronicle.subtitle')}
             </>} actions={<><label className="chr-search">
             <Search size={16} />
-            <input className="input" type="search" placeholder="Search the chronicle…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search the chronicle" />
+            <input className="input" type="search" placeholder={t('chronicle.search')} value={q} onChange={(e) => setQ(e.target.value)} aria-label={t('chronicle.search_label')} />
           </label></>} />
 
-        {isPending && <div className="page-loading" aria-busy="true" aria-label="Loading chronicle">{Array.from({ length: 4 }, (_, i) => <div className="ui-card" key={i} style={{ padding: 20, marginBottom: 12 }}><Skeleton width={48} height={48} radius="50%" /><Skeleton lines={3} /></div>)}</div>}
-        {isError && <ErrorState title="Could not open the chronicle" message="Your family’s information is still safe. Please try again." onRetry={() => { void refetch(); }} />}
+        {isPending && <div className="page-loading" aria-busy="true" aria-label={t('chronicle.loading')}>{Array.from({ length: 4 }, (_, i) => <div className="ui-card" key={i} style={{ padding: 20, marginBottom: 12 }}><Skeleton width={48} height={48} radius="50%" /><Skeleton lines={3} /></div>)}</div>}
+        {isError && <ErrorState title={t('chronicle.error')} message={t('chronicle.error_text')} onRetry={() => { void refetch(); }} />}
         {!isPending && !isError && <>
         <div className="chr-bar">
           <div className="chr-tabs" role="tablist">
             <button role="tab" aria-selected={tab === 'recent'} onClick={() => pick('recent')}>
-              <Clock size={15} /> Recent <span>{stories.length}</span>
+              <Clock size={15} /> {t('chronicle.tab_recent')} <span>{stories.length}</span>
             </button>
             <button role="tab" aria-selected={tab === 'sayings'} onClick={() => pick('sayings')}>
-              <Quote size={15} /> Sayings <span>{counts.quote ?? 0}</span>
+              <Quote size={15} /> {t('chronicle.kind.quote_plural')} <span>{counts.quote ?? 0}</span>
             </button>
           </div>
           {tab === 'recent' && stories.length > 0 && (
-            <div className="chr-kinds" role="group" aria-label="Filter by kind">
+            <div className="chr-kinds" role="group" aria-label={t('chronicle.filter_kind')}>
               <button className="btn" aria-pressed={kind === null} onClick={() => setKind(null)}>
-                All
+                {t('chronicle.all')}
               </button>
               {KINDS.filter((k) => counts[k.id]).map((k) => (
                 <button key={k.id} className="btn" aria-pressed={kind === k.id} onClick={() => setKind(kind === k.id ? null : k.id)}>
-                  <k.icon size={14} /> {k.plural} <span className="muted">{counts[k.id]}</span>
+                  <k.icon size={14} /> {t(k.plural)} <span className="muted">{counts[k.id]}</span>
                 </button>
               ))}
             </div>
@@ -183,7 +186,7 @@ function ChroniclePage() {
             ))}
             {recent.length > limit && (
               <button className="btn chr-more" onClick={() => setLimit(limit + 30)}>
-                Show {Math.min(30, recent.length - limit)} more
+                {t('chronicle.show_more', { count: Math.min(30, recent.length - limit) })}
               </button>
             )}
           </>
@@ -208,7 +211,8 @@ function ChroniclePage() {
 // ---------- pieces ----------
 
 function PersonLink({ p, f, tree }: { p?: GPerson; f: Family; tree: string }) {
-  if (!p) return <>someone</>;
+  const t = useT();
+  if (!p) return <>{t('chronicle.someone')}</>;
   return (
     <Link to="/$tree" params={{ tree }} search={{ focus: p.id }} className="chr-person">
       {displayName(p, f)}
@@ -218,6 +222,7 @@ function PersonLink({ p, f, tree }: { p?: GPerson; f: Family; tree: string }) {
 
 function FeedItem({ s, f, tree, now }: { s: Story; f: Family; tree: string; now: number }) {
   const [open, setOpen] = useState(false);
+  const t = useT();
   const p = f.byId.get(s.person);
   const k = KIND[s.kind];
   const long = s.body.length > 360 || s.body.split('\n').length > 6;
@@ -231,13 +236,13 @@ function FeedItem({ s, f, tree, now }: { s: Story; f: Family; tree: string; now:
       <article className="chr-card ui-card">
         <header>
           <span className="chr-kind">
-            <k.icon size={14} /> {k.label}
+            <k.icon size={14} /> {t(k.label)}
           </span>
           <span className="chr-line">
-            <b>{s.author}</b> {k.verb} <PersonLink p={p} f={f} tree={tree} />
+            <b>{s.author}</b> {t(k.verb)} <PersonLink p={p} f={f} tree={tree} />
           </span>
-          <time dateTime={s.at} title={exact(s.at)}>
-            {ago(s.at, now)}
+          <time dateTime={s.at} title={exact(s.at, t.locale)}>
+            {ago(s.at, now, t)}
           </time>
         </header>
         {s.title && <h3>{s.title}</h3>}
@@ -249,7 +254,7 @@ function FeedItem({ s, f, tree, now }: { s: Story; f: Family; tree: string; now:
         {s.context && <p className="chr-ctx">{s.context}</p>}
         {long && s.kind !== 'quote' && (
           <button className="btn ghost chr-toggle" onClick={() => setOpen(!open)}>
-            {open ? 'Show less' : 'Read more'}
+            {open ? t('chronicle.show_less') : t('chronicle.read_more')}
           </button>
         )}
       </article>
@@ -259,6 +264,7 @@ function FeedItem({ s, f, tree, now }: { s: Story; f: Family; tree: string; now:
 
 function SayingCard({ s, f, tree, now }: { s: Story; f: Family; tree: string; now: number }) {
   const p = f.byId.get(s.person);
+  const t = useT();
   return (
     <figure className="chr-saying">
       <blockquote dangerouslySetInnerHTML={{ __html: render(s.body) }} />
@@ -268,7 +274,7 @@ function SayingCard({ s, f, tree, now }: { s: Story; f: Family; tree: string; no
           <PersonLink p={p} f={f} tree={tree} />
           {s.context && <em>{s.context}</em>}
           <small>
-            heard by {s.author} · <time dateTime={s.at} title={exact(s.at)}>{ago(s.at, now)}</time>
+            {t('chronicle.heard_by', { author: s.author })} · <time dateTime={s.at} title={exact(s.at, t.locale)}>{ago(s.at, now, t)}</time>
           </small>
         </div>
       </figcaption>
@@ -277,41 +283,44 @@ function SayingCard({ s, f, tree, now }: { s: Story; f: Family; tree: string; no
 }
 
 function Empty({ tree }: { tree: string }) {
+  const t = useT();
   return (
     <div className="chr-empty ui-card">
       <GameIcon name="quill-ink" size={34} />
-      <h2 className="display">Nothing written yet</h2>
+      <h2 className="display">{t('chronicle.empty_title')}</h2>
       <p className="muted">
-        Open anyone on the tree and add a note, a recipe, a memory or something they always said. Whatever the family adds shows up here, newest first.
+        {t('chronicle.empty_text')}
       </p>
       <Link className="btn primary" to="/$tree" params={{ tree }}>
-        Open the tree
+        {t('chronicle.open_tree')}
       </Link>
     </div>
   );
 }
 
 function NoSayings({ tree }: { tree: string }) {
+  const t = useT();
   return (
     <div className="chr-empty ui-card">
       <Quote size={30} />
-      <h2 className="display">No sayings yet</h2>
-      <p className="muted">The things people always say are worth keeping. Open someone on the tree and add one.</p>
+      <h2 className="display">{t('chronicle.no_sayings')}</h2>
+      <p className="muted">{t('chronicle.no_sayings_text')}</p>
       <Link className="btn primary" to="/$tree" params={{ tree }}>
-        Open the tree
+        {t('chronicle.open_tree')}
       </Link>
     </div>
   );
 }
 
 function NoMatch({ onClear }: { onClear: () => void }) {
+  const t = useT();
   return (
     <div className="chr-empty ui-card">
       <Search size={26} />
-      <h2 className="display">Nothing matches</h2>
-      <p className="muted">Try fewer words or another kind.</p>
+      <h2 className="display">{t('chronicle.no_match')}</h2>
+      <p className="muted">{t('chronicle.no_match_text')}</p>
       <button className="btn" onClick={onClear}>
-        Clear filters
+        {t('chronicle.clear_filters')}
       </button>
     </div>
   );
@@ -338,7 +347,7 @@ function useRememberedState<T>(key: string, fallback: T): [T, React.Dispatch<Rea
   }, [key, value, ready]);
   return [value, setValue];
 }
-function usePageTrail(page: string, tree: string) {
+function usePageTrail(page: string, tree: string, locale: Locale) {
   useEffect(() => {
     const key = `kindred:scroll:${tree}:${page}`;
     const restore = () => {
@@ -360,10 +369,10 @@ function usePageTrail(page: string, tree: string) {
       const url = new URL(link.href);
       const person = url.searchParams.get('focus');
       if (person && url.pathname === `/${tree}`) {
-        try { localStorage.setItem('kindred:last-visit', JSON.stringify({ tree, person, name: link.textContent?.trim() || 'your family' })); } catch {}
+        try { localStorage.setItem('kindred:last-visit', JSON.stringify({ tree, person, name: link.textContent?.trim() || translate(locale, 'chronicle.your_family') })); } catch {}
       }
     };
     document.addEventListener('click', click, true);
     return () => { clearTimeout(timer); document.removeEventListener('scroll', scroll, true); document.removeEventListener('click', click, true); };
-  }, [page, tree]);
+  }, [page, tree, locale]);
 }

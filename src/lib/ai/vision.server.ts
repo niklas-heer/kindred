@@ -8,6 +8,7 @@ import { AiError, type ImagePart, type JsonSchema } from './adapters';
 import { tr } from './labels';
 import { adapterForFeature, spend } from './settings.server';
 import { SKIN_LABELS, HAIR_LABELS, EYE_LABELS } from '../../components/portrait/look';
+import { translate } from '../i18n/dictionary';
 import type { Look } from '../types';
 
 const MIME: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
@@ -145,9 +146,9 @@ export async function findFaces(o: { tree: string; mediaKey: string; locale: AiL
 const LOOK_JSON: JsonSchema = {
   type: 'object',
   properties: {
-    skin: { type: 'integer', minimum: 0, maximum: 8, description: 'Skin tone index: ' + SKIN_LABELS.map((l, i) => `${i} ${l}`).join(', ') },
-    hair: { type: 'integer', minimum: 0, maximum: 9, description: 'Hair colour index: ' + HAIR_LABELS.map((l, i) => `${i} ${l}`).join(', ') },
-    eyes: { type: 'integer', minimum: 0, maximum: 6, description: 'Eye colour index: ' + EYE_LABELS.map((l, i) => `${i} ${l}`).join(', ') },
+    skin: { type: 'integer', minimum: 0, maximum: 8, description: 'Skin tone index: ' + SKIN_LABELS.map((l, i) => `${i} ${translate('en', l)}`).join(', ') },
+    hair: { type: 'integer', minimum: 0, maximum: 9, description: 'Hair colour index: ' + HAIR_LABELS.map((l, i) => `${i} ${translate('en', l)}`).join(', ') },
+    eyes: { type: 'integer', minimum: 0, maximum: 6, description: 'Eye colour index: ' + EYE_LABELS.map((l, i) => `${i} ${translate('en', l)}`).join(', ') },
     hairStyle: { type: 'string' }, beardStyle: { type: 'string' }, moustache: { type: 'string' }, glasses: { type: 'string' },
     clothing: { type: 'string' }, headwear: { type: 'string' }, brows: { type: 'string' }, hairGreys: { type: 'boolean' },
     marks: { type: 'array', items: { type: 'string' } }, age: { type: 'integer' },

@@ -11,7 +11,7 @@ import { aiArmsFromName } from '~/lib/ai.functions';
 import type { ArmsDesign } from '~/lib/ai/types';
 import { toAiLocale } from '~/lib/ai/types';
 import { myFamiliesQuery } from '~/lib/auth/functions';
-import { useT } from '~/lib/i18n';
+import { useT, type Key, type Translator } from '~/lib/i18n';
 import type {
   Achievement, ArmsLayer, ArmsV2, ChargeArrangement, ChargeLayer, FieldDivision, HelmRank, OrdinaryKind, OrdinaryLayer,
   PartitionLine, ShieldShape, TinctureV2,
@@ -82,6 +82,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
   open: boolean; onClose: () => void; house: House; tree: string; initialTab?: DesignerTab;
 }) {
   const qc = useQueryClient();
+  const tr = useT();
   const allowed = useCan('edit-house');
   const country = (house as House & { country?: string }).country;
   const saved = useMemo(() => draftOf(house), [house]);
@@ -116,8 +117,8 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
       play('seal');
       const kept = !!h2.arms.v2 || JSON.stringify(d.arms) === JSON.stringify(saved.arms);
       toast(kept
-        ? { title: 'Arms sealed', body: `${h2.name} bears its new arms.`, icon: 'crown' }
-        : { title: 'Arms sealed, simplified', body: 'The server kept only the classic parts of this design for now; the full design is not stored yet.', icon: 'crown', ms: 9000 });
+        ? { title: tr('heraldry.sealed'), body: tr('heraldry.sealed_body', { name: h2.name }), icon: 'crown' }
+        : { title: tr('heraldry.sealed_simple'), body: tr('heraldry.sealed_simple_body'), icon: 'crown', ms: 9000 });
       onClose();
     },
   });
@@ -125,7 +126,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
   const dirty = key(draft) !== key(saved);
   const nameOk = draft.name.trim().length > 0;
   const setArms = (next: ArmsV2, k?: string) => h.set({ ...draft, arms: next }, k);
-  const clashes = tinctureClashesV2(a);
+  const clashes = tinctureClashesV2(a, tr);
   const shield = blazonV2(a);
   const achievementText = blazonAchievement(a.achievement);
 
@@ -141,8 +142,8 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
     <Dialog
       open={open}
       onClose={() => { if (!save.isPending) onClose(); }}
-      title="Coat of arms"
-      description={<>Design the arms of <b>{saved.name}</b>. Every shield in the family changes when you seal them.</>}
+      title={tr('heraldry.dialog_title')}
+      description={<>{tr('heraldry.dialog_desc_pre')} <b>{saved.name}</b>{tr('heraldry.dialog_desc_post')}</>}
       variant="event"
       width={1180}
       dirty={dirty}
@@ -155,27 +156,27 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
         <div className="ae-foot">
           <div className="ae-tools">
             <button type="button" className="btn" onClick={() => { setArms(randomArmsV2()); setSel('field'); play('tick'); }}>
-              <Dices size={16} aria-hidden /> Randomise
+              <Dices size={16} aria-hidden /> {tr('heraldry.randomise')}
             </button>
-            <button type="button" className="btn ghost" onClick={h.undo} disabled={!h.canUndo} aria-keyshortcuts="Meta+Z Control+Z" title="Undo (⌘Z)">
-              <Undo2 size={16} aria-hidden /> <span className="ae-tool-label">Undo</span>
+            <button type="button" className="btn ghost" onClick={h.undo} disabled={!h.canUndo} aria-keyshortcuts="Meta+Z Control+Z" title={tr('heraldry.undo_title')}>
+              <Undo2 size={16} aria-hidden /> <span className="ae-tool-label">{tr('heraldry.undo')}</span>
             </button>
-            <button type="button" className="btn ghost" onClick={h.redo} disabled={!h.canRedo} aria-keyshortcuts="Meta+Shift+Z Control+Y" title="Redo (⇧⌘Z)">
-              <Redo2 size={16} aria-hidden /> <span className="ae-tool-label">Redo</span>
+            <button type="button" className="btn ghost" onClick={h.redo} disabled={!h.canRedo} aria-keyshortcuts="Meta+Shift+Z Control+Y" title={tr('heraldry.redo_title')}>
+              <Redo2 size={16} aria-hidden /> <span className="ae-tool-label">{tr('heraldry.redo')}</span>
             </button>
             <button type="button" className="btn ghost" onClick={() => h.set(draftOf(house))} disabled={!dirty}>
-              <RotateCcw size={16} aria-hidden /> <span className="ae-tool-label">Reset</span>
+              <RotateCcw size={16} aria-hidden /> <span className="ae-tool-label">{tr('heraldry.reset')}</span>
             </button>
           </div>
           {save.isError && (
             <p className="ae-error" role="alert">
-              {save.error instanceof Error && save.error.message ? save.error.message : 'The arms could not be saved.'} Your design is still here; try again.
+              {save.error instanceof Error && save.error.message ? save.error.message : tr('heraldry.save_failed')} {tr('heraldry.save_failed_hint')}
             </p>
           )}
           <div className="ae-actions">
-            <button type="button" className="btn" onClick={onClose} disabled={save.isPending}>Cancel</button>
+            <button type="button" className="btn" onClick={onClose} disabled={save.isPending}>{tr('heraldry.cancel')}</button>
             <button type="button" className="btn primary" onClick={() => save.mutate(draft)} disabled={!dirty || !nameOk || save.isPending}>
-              {save.isPending ? 'Sealing…' : 'Seal the arms'}
+              {save.isPending ? tr('heraldry.sealing') : tr('heraldry.seal')}
             </button>
           </div>
         </div>
@@ -183,18 +184,18 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
     >
       <div className="ae-grid">
         <div className="ae-left">
-        <section className="ae-preview" aria-label="Preview">
+        <section className="ae-preview" aria-label={tr('heraldry.preview')}>
           <div className="ae-stage" data-full={(full && !!a.achievement) || undefined}>
-            <ArmsV2View arms={a} size={full && a.achievement ? 150 : 220} full={full} title={`Arms of ${draft.name.trim() || 'the house'}: ${shield}`} />
+            <ArmsV2View arms={a} size={full && a.achievement ? 150 : 220} full={full} title={tr('heraldry.arms_title', { name: draft.name.trim() || tr('heraldry.the_house'), blazon: shield })} />
             {country && <span className="ae-flag"><Flag code={country} size={16} /></span>}
           </div>
           {a.achievement && (
-            <Switch size="sm" checked={full} onChange={setFull} className="ae-full-switch">Show the full achievement</Switch>
+            <Switch size="sm" checked={full} onChange={setFull} className="ae-full-switch">{tr('heraldry.full_achievement')}</Switch>
           )}
           <div className="ae-caption">
-            <b className="ae-name">{draft.name.trim() || 'Unnamed house'}</b>
+            <b className="ae-name">{draft.name.trim() || tr('heraldry.unnamed')}</b>
             {draft.motto.trim() && <i className="ae-motto">“{draft.motto.trim()}”</i>}
-            <p className="ae-blazon" aria-live="polite"><span className="ae-blazon-label">Blazon</span> {shield}.{achievementText && <> <span className="ae-blazon-ach">{achievementText}</span></>}</p>
+            <p className="ae-blazon" aria-live="polite"><span className="ae-blazon-label">{tr('heraldry.blazon')}</span> {shield}.{achievementText && <> <span className="ae-blazon-ach">{achievementText}</span></>}</p>
           </div>
         </section>
         <div className="ae-meta">
@@ -211,30 +212,30 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
                       </li>
                     ))}
                   </ul>
-                  <small>Heralds keep metal off metal and colour off colour so arms read from afar. You may keep it.</small>
+                  <small>{tr('heraldry.rule_note')}</small>
                 </div>
               </div>
             )}
           </div>
           <div className="ae-texts">
             <label className="field">
-              <span>House name</span>
+              <span>{tr('heraldry.house_name')}</span>
               <input className="input" value={draft.name} maxLength={80} required aria-invalid={!nameOk || undefined} onChange={(e) => h.set({ ...draft, name: e.target.value }, 'name')} />
             </label>
             <label className="field">
-              <span>Motto</span>
-              <input className="input" value={draft.motto} maxLength={160} placeholder="Words to live by" onChange={(e) => h.set({ ...draft, motto: e.target.value }, 'motto')} />
+              <span>{tr('heraldry.motto')}</span>
+              <input className="input" value={draft.motto} maxLength={160} placeholder={tr('heraldry.motto_placeholder')} onChange={(e) => h.set({ ...draft, motto: e.target.value }, 'motto')} />
             </label>
           </div>
         </div>
         </div>
 
         <div className="ae-work">
-          <Tabs value={tab} onChange={setTab} label="Designer">
+          <Tabs value={tab} onChange={setTab} label={tr('heraldry.designer_label')}>
             <TabList>
-              <Tab value="design" icon={<Layers size={15} />}>Design</Tab>
-              <Tab value="presets" icon={<Shield size={15} />}>Presets</Tab>
-              <Tab value="name" icon={<Wand2 size={15} />}>Suggest from the name</Tab>
+              <Tab value="design" icon={<Layers size={15} />}>{tr('heraldry.tab_design')}</Tab>
+              <Tab value="presets" icon={<Shield size={15} />}>{tr('heraldry.tab_presets')}</Tab>
+              <Tab value="name" icon={<Wand2 size={15} />}>{tr('heraldry.tab_name')}</Tab>
             </TabList>
             <TabPanel value="design">
               <div className="ae-design">
@@ -245,12 +246,12 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
               </div>
             </TabPanel>
             <TabPanel value="presets">
-              <p className="subtle ae-lead">Classic designs to start from. Picking one replaces the shield; Undo brings yours back.</p>
+              <p className="subtle ae-lead">{tr('heraldry.presets_lead')}</p>
               <div className="ae-gallery">
                 {PRESETS.map((p) => (
                   <button key={p.id} type="button" className="ae-card" onClick={() => { setArms(structuredClone(p.arms)); setSel(p.arms.layers.length ? p.arms.layers.length - 1 : 'field'); setFull(!!p.arms.achievement); setTab('design'); play('tick'); }}>
                     <ArmsV2View arms={p.arms} size={64} />
-                    <span className="ae-card-title">{p.label}</span>
+                    <span className="ae-card-title">{tr(p.label)}</span>
                     <small>{blazonV2(p.arms)}</small>
                   </button>
                 ))}
@@ -272,7 +273,7 @@ function Suggestions({ tree, initial, country, onPick }: { tree: string; initial
   const t = useT();
   const aiOn = !!useAiStatus(tree)?.features.arms;
   const [name, setName] = useState(initial);
-  const list = useMemo(() => cantingArms(name, country), [name, country]);
+  const list = useMemo(() => cantingArms(name, country, t), [name, country, t.locale]);
   // The AI's designs for this name, added to the list each time "Ask the AI for more" finishes. A new name starts over.
   const [more, setMore] = useState<ArmsDesign[]>([]);
   const ask = useMutation({
@@ -285,18 +286,18 @@ function Suggestions({ tree, initial, country, onPick }: { tree: string; initial
   return (
     <div className="ae-suggest">
       <label className="field ae-suggest-name">
-        <span>Name to read</span>
+        <span>{t('heraldry.name_to_read')}</span>
         <input
           className="input"
           value={name}
           maxLength={60}
           onChange={(e) => { setName(e.target.value); setMore([]); ask.reset(); }}
-          placeholder="A family name, e.g. Müller"
+          placeholder={t('heraldry.name_placeholder')}
         />
       </label>
-      <p className="subtle ae-lead">{CANTING_SOURCE_NOTE}</p>
+      <p className="subtle ae-lead">{t(CANTING_SOURCE_NOTE)}</p>
       {list.length === 0 && more.length === 0 ? (
-        <p className="subtle">Type a family name to see ideas.</p>
+        <p className="subtle">{t('heraldry.type_name')}</p>
       ) : (
         <div className="ae-gallery ae-gallery-wide">
           {list.map((s, i) => (
@@ -336,14 +337,23 @@ function Suggestions({ tree, initial, country, onPick }: { tree: string; initial
 
 // ---------- the layer list ----------
 
-function layerTitle(l: ArmsLayer): string {
-  if (l.type === 'ordinary') return `${ordinaryLabel(l.kind)}${l.line !== 'straight' ? ` ${l.line}` : ''}`;
+/** English reads mid-sentence in lower case; the other languages keep their own capitals. */
+const low = (tr: Translator, s: string) => (tr.locale === 'en' ? s.toLowerCase() : s);
+const lineName = (tr: Translator, line: PartitionLine) => low(tr, tr(`heraldry.line.${line}` as Key));
+
+function layerTitle(l: ArmsLayer, tr: Translator): string {
+  if (l.type === 'ordinary') return `${tr(ordinaryLabel(l.kind))}${l.line !== 'straight' ? ` ${lineName(tr, l.line)}` : ''}`;
   const n = l.arrangement === 'seme' ? 2 : l.count;
-  const noun = chargeNoun(l.charge, n);
-  return l.arrangement === 'seme' ? `Semé of ${noun}` : n === 1 ? noun.charAt(0).toUpperCase() + noun.slice(1) : `${n} ${noun}`;
+  // English blazons the noun ("three mullets"); the other languages name the charge and count it.
+  const english = tr.locale === 'en';
+  const noun = english ? chargeNoun(l.charge, n) : CHARGE_BY_ID[l.charge] ? tr(CHARGE_BY_ID[l.charge].label) : l.charge;
+  if (l.arrangement === 'seme') return tr('heraldry.seme_of', { noun: low(tr, noun) });
+  if (n === 1) return english ? noun.charAt(0).toUpperCase() + noun.slice(1) : noun;
+  return english ? `${n} ${noun}` : `${n} × ${noun}`;
 }
 
 function LayerList({ arms, sel, setSel, setArms }: { arms: ArmsV2; sel: Sel; setSel: (s: Sel) => void; setArms: (a: ArmsV2) => void }) {
+  const tr = useT();
   const ft = fieldTinctures(arms);
   const move = (i: number, d: -1 | 1) => {
     const j = i + d;
@@ -379,15 +389,15 @@ function LayerList({ arms, sel, setSel, setArms }: { arms: ArmsV2; sel: Sel; set
   };
   const div = arms.field.division;
   return (
-    <nav className="ae-layers" aria-label="Layers">
+    <nav className="ae-layers" aria-label={tr('heraldry.layers')}>
       <ol>
         <li>
-          <LayerRow current={sel === 'field'} onSelect={() => setSel('field')} title="Field" hint={`${SHIELDS.find((s) => s.id === arms.shield)?.label} · ${labelV2(ft[0])}`} icon={<TinctureSwatch t={ft[0]} size={22} />} />
+          <LayerRow current={sel === 'field'} onSelect={() => setSel('field')} title={tr('heraldry.field')} hint={`${tr(SHIELDS.find((s) => s.id === arms.shield)!.label)} · ${tr(labelV2(ft[0]))}`} icon={<TinctureSwatch t={ft[0]} size={22} />} />
         </li>
         <li>
-          <LayerRow current={sel === 'division'} onSelect={() => setSel('division')} title="Division" hint={div === 'plain' ? 'None' : `${divisionLabel(div)}${arms.field.line !== 'straight' ? ` ${arms.field.line}` : ''}`}
+          <LayerRow current={sel === 'division'} onSelect={() => setSel('division')} title={tr('heraldry.division')} hint={div === 'plain' ? tr('heraldry.none') : `${tr(divisionLabel(div))}${arms.field.line !== 'straight' ? ` ${lineName(tr, arms.field.line)}` : ''}`}
             icon={<MiniShield arms={{ ...arms, layers: [], achievement: undefined }} />}
-            onRemove={div !== 'plain' ? () => setArms({ ...arms, field: { ...arms.field, division: 'plain', tinctures: [ft[0]] } }) : undefined} removeLabel="Remove the division" />
+            onRemove={div !== 'plain' ? () => setArms({ ...arms, field: { ...arms.field, division: 'plain', tinctures: [ft[0]] } }) : undefined} removeLabel={tr('heraldry.remove_division')} />
         </li>
         {arms.layers.map((l, i) => (
           <li key={i}>
@@ -395,24 +405,24 @@ function LayerList({ arms, sel, setSel, setArms }: { arms: ArmsV2; sel: Sel; set
               current={sel === i}
               onSelect={() => setSel(i)}
               onKeyDown={(e) => rowKey(e, i)}
-              title={layerTitle(l)}
-              hint={l.counterchanged ? 'counterchanged' : labelV2(l.tincture)}
+              title={layerTitle(l, tr)}
+              hint={l.counterchanged ? tr('heraldry.counterchanged') : tr(labelV2(l.tincture))}
               icon={l.type === 'ordinary' ? <MiniShield arms={{ shield: arms.shield, field: { division: 'plain', tinctures: ['argent'], line: 'straight' }, layers: [{ ...l, counterchanged: false, tincture: l.tincture === 'argent' ? 'sable' : l.tincture }] }} /> : <ChargeGlyph id={l.charge} size={22} />}
               onUp={i > 0 ? () => move(i, -1) : undefined}
               onDown={i < arms.layers.length - 1 ? () => move(i, 1) : undefined}
               onRemove={() => remove(i)}
-              removeLabel={`Remove ${layerTitle(l).toLowerCase()}`}
+              removeLabel={tr('heraldry.remove_layer', { what: low(tr, layerTitle(l, tr)) })}
             />
           </li>
         ))}
         <li>
-          <LayerRow current={sel === 'achievement'} onSelect={() => setSel('achievement')} title="Achievement" hint={arms.achievement ? 'Helm, crest, motto' : 'Shield only'} icon={<Crown size={18} aria-hidden />}
-            onRemove={arms.achievement ? () => setArms({ ...arms, achievement: undefined }) : undefined} removeLabel="Remove the achievement" />
+          <LayerRow current={sel === 'achievement'} onSelect={() => setSel('achievement')} title={tr('heraldry.achievement')} hint={arms.achievement ? tr('heraldry.ach_hint') : tr('heraldry.shield_only')} icon={<Crown size={18} aria-hidden />}
+            onRemove={arms.achievement ? () => setArms({ ...arms, achievement: undefined }) : undefined} removeLabel={tr('heraldry.remove_achievement')} />
         </li>
       </ol>
       <div className="ae-add">
-        <button type="button" className="btn ghost" onClick={addOrdinary} disabled={arms.layers.length >= 12}><Plus size={15} aria-hidden /> Ordinary</button>
-        <button type="button" className="btn ghost" onClick={addCharges} disabled={arms.layers.length >= 12}><Plus size={15} aria-hidden /> Charges</button>
+        <button type="button" className="btn ghost" onClick={addOrdinary} disabled={arms.layers.length >= 12}><Plus size={15} aria-hidden /> {tr('heraldry.add_ordinary')}</button>
+        <button type="button" className="btn ghost" onClick={addCharges} disabled={arms.layers.length >= 12}><Plus size={15} aria-hidden /> {tr('heraldry.add_charges')}</button>
       </div>
     </nav>
   );
@@ -422,6 +432,7 @@ function LayerRow({ current, onSelect, title, hint, icon, onUp, onDown, onRemove
   current: boolean; onSelect: () => void; title: string; hint: string; icon: ReactNode;
   onUp?: () => void; onDown?: () => void; onRemove?: () => void; removeLabel?: string; onKeyDown?: (e: KeyboardEvent) => void;
 }) {
+  const tr = useT();
   return (
     <div className="ae-layer" data-current={current || undefined}>
       <button type="button" className="ae-layer-main" aria-current={current} onClick={onSelect} onKeyDown={onKeyDown} aria-keyshortcuts={onUp || onDown ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}>
@@ -430,8 +441,8 @@ function LayerRow({ current, onSelect, title, hint, icon, onUp, onDown, onRemove
       </button>
       {(onUp || onDown) && (
         <span className="ae-layer-move">
-          <button type="button" className="ae-icon-btn" onClick={onUp} disabled={!onUp} aria-label={`Move ${title.toLowerCase()} up`} title="Move up (⌥↑)"><ArrowUp size={14} /></button>
-          <button type="button" className="ae-icon-btn" onClick={onDown} disabled={!onDown} aria-label={`Move ${title.toLowerCase()} down`} title="Move down (⌥↓)"><ArrowDown size={14} /></button>
+          <button type="button" className="ae-icon-btn" onClick={onUp} disabled={!onUp} aria-label={tr('heraldry.move_up', { what: low(tr, title) })} title={tr('heraldry.move_up_title')}><ArrowUp size={14} /></button>
+          <button type="button" className="ae-icon-btn" onClick={onDown} disabled={!onDown} aria-label={tr('heraldry.move_down', { what: low(tr, title) })} title={tr('heraldry.move_down_title')}><ArrowDown size={14} /></button>
         </span>
       )}
       {onRemove && <button type="button" className="ae-icon-btn ae-remove" onClick={onRemove} aria-label={removeLabel} title={removeLabel}><Trash2 size={14} /></button>}
@@ -456,16 +467,17 @@ function ChargeGlyph({ id, size = 30 }: { id: string; size?: number }) {
 
 function Inspector({ arms, sel, setArms, motto, onFull }: { arms: ArmsV2; sel: Sel; setArms: (a: ArmsV2, k?: string) => void; motto: string; onFull: () => void }) {
   const ft = fieldTinctures(arms);
+  const tr = useT();
   if (sel === 'field') {
     return (
       <>
-        <Section title="Shield">
-          <Choices label="Shield shape" className="ae-shields" value={arms.shield} onChange={(shield: ShieldShape) => setArms({ ...arms, shield })}
-            options={SHIELDS.map((s) => ({ value: s.id, label: `${s.label}: ${s.hint}` }))}
-            render={(o) => <><MiniShield arms={{ ...arms, shield: o.value, achievement: undefined }} size={34} /><small>{SHIELDS.find((s) => s.id === o.value)?.label}</small></>} />
+        <Section title={tr('heraldry.shield')}>
+          <Choices label={tr('heraldry.shield_shape')} className="ae-shields" value={arms.shield} onChange={(shield: ShieldShape) => setArms({ ...arms, shield })}
+            options={SHIELDS.map((s) => ({ value: s.id, label: `${tr(s.label)}: ${tr(s.hint)}` }))}
+            render={(o) => <><MiniShield arms={{ ...arms, shield: o.value, achievement: undefined }} size={34} /><small>{tr(SHIELDS.find((s) => s.id === o.value)!.label)}</small></>} />
         </Section>
-        <Section title="Field tincture">
-          <TincturePicker label="Field tincture" value={ft[0]} onChange={(t) => setArms({ ...arms, field: { ...arms.field, tinctures: [t, ...ft.slice(1)] } })} />
+        <Section title={tr('heraldry.field_tincture')}>
+          <TincturePicker label={tr('heraldry.field_tincture')} value={ft[0]} onChange={(t) => setArms({ ...arms, field: { ...arms.field, tinctures: [t, ...ft.slice(1)] } })} />
         </Section>
       </>
     );
@@ -481,28 +493,28 @@ function Inspector({ arms, sel, setArms, motto, onFull }: { arms: ArmsV2; sel: S
     };
     return (
       <>
-        <Section title="Division">
-          <Choices label="Division" className="ae-tiles ae-tiles-shield" value={div} onChange={setDiv}
-            options={DIVISIONS_V2.map((d) => ({ value: d.id, label: d.label }))}
+        <Section title={tr('heraldry.division')}>
+          <Choices label={tr('heraldry.division')} className="ae-tiles ae-tiles-shield" value={div} onChange={setDiv}
+            options={DIVISIONS_V2.map((d) => ({ value: d.id, label: tr(d.label) }))}
             render={(o) => <><MiniShield arms={{ shield: arms.shield, field: { division: o.value, tinctures: tinctureCount(o.value) === 3 ? [ft[0], ft[1] ?? contrastFor([ft[0]]), ft[2] ?? 'azure'] : [ft[0], ft[1] ?? contrastFor([ft[0]])], line: 'straight' }, layers: [] }} size={34} /><small>{o.label}</small></>} />
         </Section>
         {div !== 'plain' && info.lines && (
-          <Section title="Line of partition">
+          <Section title={tr('heraldry.line_of_partition')}>
             <LinePicker value={arms.field.line} onChange={(line) => setArms({ ...arms, field: { ...arms.field, line } })} />
           </Section>
         )}
         {info.pieces && (
-          <Section title="Pieces">
-            <Range value={arms.field.pieces ?? 6} min={4} max={10} step={1} ticks={[4, 6, 8, 10].map((v) => ({ value: v, label: String(v) }))} aria-label="Number of pieces" format={(v) => `${v} pieces`}
+          <Section title={tr('heraldry.pieces')}>
+            <Range value={arms.field.pieces ?? 6} min={4} max={10} step={1} ticks={[4, 6, 8, 10].map((v) => ({ value: v, label: String(v) }))} aria-label={tr('heraldry.number_of_pieces')} format={(v) => tr('heraldry.pieces_count', { count: v })}
               onChange={(pieces) => setArms({ ...arms, field: { ...arms.field, pieces } }, 'pieces')} />
           </Section>
         )}
         {ft.slice(1).map((t, i) => (
-          <Section key={i} title={i === 0 ? 'Second tincture' : 'Third tincture'}>
-            <TincturePicker label={i === 0 ? 'Second tincture' : 'Third tincture'} value={t} under={[ft[0]]} onChange={(x) => setArms({ ...arms, field: { ...arms.field, tinctures: ft.map((y, k) => (k === i + 1 ? x : y)) } })} />
+          <Section key={i} title={i === 0 ? tr('heraldry.second_tincture') : tr('heraldry.third_tincture')}>
+            <TincturePicker label={i === 0 ? tr('heraldry.second_tincture') : tr('heraldry.third_tincture')} value={t} under={[ft[0]]} onChange={(x) => setArms({ ...arms, field: { ...arms.field, tinctures: ft.map((y, k) => (k === i + 1 ? x : y)) } })} />
           </Section>
         ))}
-        {div === 'plain' && <p className="subtle ae-lead">Pick a division to split the field into two or three tinctures.</p>}
+        {div === 'plain' && <p className="subtle ae-lead">{tr('heraldry.pick_division')}</p>}
       </>
     );
   }
@@ -515,20 +527,20 @@ function Inspector({ arms, sel, setArms, motto, onFull }: { arms: ArmsV2; sel: S
   if (layer.type === 'ordinary') {
     return (
       <>
-        <Section title="Ordinary">
-          <Choices label="Ordinary" className="ae-tiles ae-tiles-shield" value={layer.kind} onChange={(kind: OrdinaryKind) => patch({ kind })}
-            options={ORDINARIES.map((o) => ({ value: o.id, label: o.label }))}
+        <Section title={tr('heraldry.ordinary')}>
+          <Choices label={tr('heraldry.ordinary')} className="ae-tiles ae-tiles-shield" value={layer.kind} onChange={(kind: OrdinaryKind) => patch({ kind })}
+            options={ORDINARIES.map((o) => ({ value: o.id, label: tr(o.label) }))}
             render={(o) => <><MiniShield arms={{ shield: arms.shield, field: { division: 'plain', tinctures: [ft[0]], line: 'straight' }, layers: [{ ...layer, kind: o.value, counterchanged: false, tincture: contrastFor([ft[0]], layer.tincture) }] }} size={34} /><small>{o.label}</small></>} />
         </Section>
-        <Section title="Line">
+        <Section title={tr('heraldry.line')}>
           <LinePicker value={layer.line} onChange={(line) => patch({ line })} />
         </Section>
-        <Section title="Tincture">
-          <TincturePicker label="Ordinary tincture" value={layer.tincture} under={under} disabled={!!layer.counterchanged && divided} onChange={(tincture) => patch({ tincture })} />
+        <Section title={tr('heraldry.tincture')}>
+          <TincturePicker label={tr('heraldry.ordinary_tincture')} value={layer.tincture} under={under} disabled={!!layer.counterchanged && divided} onChange={(tincture) => patch({ tincture })} />
         </Section>
         <div className="ae-switches">
-          <Switch checked={!!layer.cotised} disabled={!COTISABLE.has(layer.kind)} onChange={(cotised) => patch({ cotised })}>Cotised{!COTISABLE.has(layer.kind) && <small className="subtle"> · fess, pale, bend or chevron</small>}</Switch>
-          <Switch checked={!!layer.counterchanged} disabled={!divided} onChange={(counterchanged) => patch({ counterchanged })}>Counterchanged{!divided && <small className="subtle"> · needs a divided field</small>}</Switch>
+          <Switch checked={!!layer.cotised} disabled={!COTISABLE.has(layer.kind)} onChange={(cotised) => patch({ cotised })}>{tr('heraldry.cotised')}{!COTISABLE.has(layer.kind) && <small className="subtle"> · {tr('heraldry.cotised_hint')}</small>}</Switch>
+          <Switch checked={!!layer.counterchanged} disabled={!divided} onChange={(counterchanged) => patch({ counterchanged })}>{tr('heraldry.counterchange')}{!divided && <small className="subtle"> · {tr('heraldry.needs_divided')}</small>}</Switch>
         </div>
       </>
     );
@@ -538,39 +550,39 @@ function Inspector({ arms, sel, setArms, motto, onFull }: { arms: ArmsV2; sel: S
   const arrs = arrangementsFor(layer.count);
   return (
     <>
-      <Section title="Charge">
+      <Section title={tr('heraldry.charge')}>
         <ChargePicker value={layer.charge} onChange={(charge) => patch({ charge, ...(CHARGE_BY_ID[charge]?.facing ? {} : { contourne: undefined }) })} />
       </Section>
-      <Section title="Tincture">
-        <TincturePicker label="Charge tincture" value={layer.tincture} under={under} allowProper charge={layer.charge} disabled={!!layer.counterchanged && divided} onChange={(tincture) => patch({ tincture })} />
+      <Section title={tr('heraldry.tincture')}>
+        <TincturePicker label={tr('heraldry.charge_tincture')} value={layer.tincture} under={under} allowProper charge={layer.charge} disabled={!!layer.counterchanged && divided} onChange={(tincture) => patch({ tincture })} />
       </Section>
       <div className="ae-row">
-        <Section title="How many">
-          <Range value={layer.arrangement === 'seme' ? 1 : layer.count} min={1} max={9} step={1} disabled={layer.arrangement === 'seme'} ticks={[1, 3, 5, 7, 9].map((v) => ({ value: v, label: String(v) }))} aria-label="How many charges" format={(v) => `${v}`}
+        <Section title={tr('heraldry.how_many')}>
+          <Range value={layer.arrangement === 'seme' ? 1 : layer.count} min={1} max={9} step={1} disabled={layer.arrangement === 'seme'} ticks={[1, 3, 5, 7, 9].map((v) => ({ value: v, label: String(v) }))} aria-label={tr('heraldry.how_many_aria')} format={(v) => `${v}`}
             onChange={(count) => patch({ count, arrangement: arrangementsFor(count).includes(layer.arrangement) ? layer.arrangement : 'auto' }, 'count')} />
         </Section>
-        <Section title="Arrangement">
-          <Select<ChargeArrangement> value={layer.arrangement} onChange={(arrangement) => patch({ arrangement })} aria-label="Arrangement"
-            options={arrs.map((x) => ({ value: x, label: ARRANGEMENTS.find((r) => r.id === x)!.label }))} />
+        <Section title={tr('heraldry.arrangement')}>
+          <Select<ChargeArrangement> value={layer.arrangement} onChange={(arrangement) => patch({ arrangement })} aria-label={tr('heraldry.arrangement')}
+            options={arrs.map((x) => ({ value: x, label: tr(ARRANGEMENTS.find((r) => r.id === x)!.label) }))} />
         </Section>
       </div>
-      <Section title="Placed">
-        <Choices label="Where the charges lie" className="ae-seg" value={layer.on} onChange={(on: ChargeLayer['on']) => patch({ on })}
+      <Section title={tr('heraldry.placed')}>
+        <Choices label={tr('heraldry.where_lie')} className="ae-seg" value={layer.on} onChange={(on: ChargeLayer['on']) => patch({ on })}
           options={[
-            { value: 'field' as const, label: 'On the field' },
-            { value: 'ordinary' as const, label: 'On the ordinary', disabled: !hasOrdinary },
-            { value: 'chief' as const, label: 'In chief' },
-            { value: 'base' as const, label: 'In base' },
+            { value: 'field' as const, label: tr('heraldry.on_field') },
+            { value: 'ordinary' as const, label: tr('heraldry.on_ordinary'), disabled: !hasOrdinary },
+            { value: 'chief' as const, label: tr('heraldry.in_chief') },
+            { value: 'base' as const, label: tr('heraldry.in_base') },
           ]}
           render={(o) => <small>{o.label}</small>} />
       </Section>
-      <Section title="Size">
-        <Range value={Math.round((layer.scale ?? 1) * 100)} min={60} max={140} step={5} ticks={[{ value: 60, label: 'Small' }, { value: 100, label: 'Usual' }, { value: 140, label: 'Large' }]} aria-label="Charge size" format={(v) => `${v}%`}
+      <Section title={tr('heraldry.size')}>
+        <Range value={Math.round((layer.scale ?? 1) * 100)} min={60} max={140} step={5} ticks={[{ value: 60, label: tr('heraldry.small') }, { value: 100, label: tr('heraldry.usual') }, { value: 140, label: tr('heraldry.large') }]} aria-label={tr('heraldry.charge_size')} format={(v) => `${v}%`}
           onChange={(v) => patch({ scale: v === 100 ? undefined : v / 100 }, 'scale')} />
       </Section>
       <div className="ae-switches">
-        <Switch checked={!!layer.contourne} disabled={!def?.facing} onChange={(contourne) => patch({ contourne })}>Turned the other way (contourné){!def?.facing && <small className="subtle"> · this charge faces front</small>}</Switch>
-        <Switch checked={!!layer.counterchanged} disabled={!divided} onChange={(counterchanged) => patch({ counterchanged })}>Counterchanged{!divided && <small className="subtle"> · needs a divided field</small>}</Switch>
+        <Switch checked={!!layer.contourne} disabled={!def?.facing} onChange={(contourne) => patch({ contourne })}>{tr('heraldry.contourne')}{!def?.facing && <small className="subtle"> · {tr('heraldry.faces_front')}</small>}</Switch>
+        <Switch checked={!!layer.counterchanged} disabled={!divided} onChange={(counterchanged) => patch({ counterchanged })}>{tr('heraldry.counterchange')}{!divided && <small className="subtle"> · {tr('heraldry.needs_divided')}</small>}</Switch>
       </div>
     </>
   );
@@ -579,17 +591,18 @@ function Inspector({ arms, sel, setArms, motto, onFull }: { arms: ArmsV2; sel: S
 function AchievementInspector({ arms, setArms, motto, onFull }: { arms: ArmsV2; setArms: (a: ArmsV2, k?: string) => void; motto: string; onFull: () => void }) {
   const ach = arms.achievement;
   const ft = fieldTinctures(arms);
+  const tr = useT();
   if (!ach) {
     return (
       <div className="ae-empty">
         <Crown size={28} aria-hidden />
-        <p>The full achievement adds a helm, mantling, a crest on a wreath, a motto scroll and supporters. Small shields across the app stay shield only.</p>
+        <p>{tr('heraldry.achievement_text')}</p>
         <button type="button" className="btn primary" onClick={() => {
           const lining = arms.layers.find((l) => l.type === 'charge')?.tincture;
           const outer = ft.find((t) => kindOf(t) === 'colour') ?? 'gules';
           setArms({ ...arms, achievement: { helm: 'esquire', torse: true, mantling: [outer, lining && kindOf(lining) === 'metal' ? lining : 'or'], ...(motto.trim() && { motto: motto.trim() }) } });
           onFull();
-        }}><Sparkles size={16} aria-hidden /> Add an achievement</button>
+        }}><Sparkles size={16} aria-hidden /> {tr('heraldry.add_achievement')}</button>
       </div>
     );
   }
@@ -597,37 +610,37 @@ function AchievementInspector({ arms, setArms, motto, onFull }: { arms: ArmsV2; 
   const mantling = ach.mantling ?? [ft[0], 'or'];
   return (
     <>
-      <Section title="Helm">
-        <Choices label="Helm" className="ae-tiles" value={ach.helm} onChange={(helm: HelmRank) => set({ helm })}
-          options={HELMS.map((x) => ({ value: x.id, label: x.id === 'none' ? 'No helm' : HELM_GLYPH[x.id as Exclude<HelmRank, 'none'>].label }))}
-          render={(o) => <>{o.value === 'none' ? <span className="ae-none" aria-hidden>—</span> : <HelmGlyph rank={o.value} />}<small>{HELMS.find((x) => x.id === o.value)?.label}</small></>} />
+      <Section title={tr('heraldry.helm')}>
+        <Choices label={tr('heraldry.helm')} className="ae-tiles" value={ach.helm} onChange={(helm: HelmRank) => set({ helm })}
+          options={HELMS.map((x) => ({ value: x.id, label: x.id === 'none' ? tr('heraldry.no_helm') : tr(HELM_GLYPH[x.id as Exclude<HelmRank, 'none'>].label) }))}
+          render={(o) => <>{o.value === 'none' ? <span className="ae-none" aria-hidden>—</span> : <HelmGlyph rank={o.value} />}<small>{tr(HELMS.find((x) => x.id === o.value)!.label)}</small></>} />
       </Section>
       {ach.helm !== 'none' && (
         <div className="ae-row">
-          <Section title="Mantling">
-            <TincturePicker label="Mantling, outside" compact value={mantling[0]} onChange={(t) => set({ mantling: [t, mantling[1]] })} />
+          <Section title={tr('heraldry.mantling')}>
+            <TincturePicker label={tr('heraldry.mantling_outside')} compact value={mantling[0]} onChange={(t) => set({ mantling: [t, mantling[1]] })} />
           </Section>
-          <Section title="Lined with">
-            <TincturePicker label="Mantling, lining" compact value={mantling[1]} onChange={(t) => set({ mantling: [mantling[0], t] })} />
+          <Section title={tr('heraldry.lined_with')}>
+            <TincturePicker label={tr('heraldry.mantling_lining')} compact value={mantling[1]} onChange={(t) => set({ mantling: [mantling[0], t] })} />
           </Section>
         </div>
       )}
-      <Section title="Crest">
+      <Section title={tr('heraldry.crest')}>
         <ChargePicker value={ach.crest?.charge ?? ''} allowNone compact onChange={(charge) => set({ crest: charge ? { charge, tincture: ach.crest?.tincture ?? 'or' } : undefined })} />
-        {ach.crest && <TincturePicker label="Crest tincture" compact allowProper charge={ach.crest.charge} value={ach.crest.tincture} onChange={(tincture) => set({ crest: { ...ach.crest!, tincture } })} />}
-        <Switch checked={!!ach.torse} onChange={(torse) => set({ torse })}>On a wreath (torse) of the colours</Switch>
+        {ach.crest && <TincturePicker label={tr('heraldry.crest_tincture')} compact allowProper charge={ach.crest.charge} value={ach.crest.tincture} onChange={(tincture) => set({ crest: { ...ach.crest!, tincture } })} />}
+        <Switch checked={!!ach.torse} onChange={(torse) => set({ torse })}>{tr('heraldry.torse')}</Switch>
       </Section>
-      <Section title="Motto scroll">
-        <Switch checked={ach.motto !== undefined} onChange={(on) => set({ motto: on ? motto.trim() || 'Fide et labore' : undefined })}>Show a scroll</Switch>
+      <Section title={tr('heraldry.motto_scroll')}>
+        <Switch checked={ach.motto !== undefined} onChange={(on) => set({ motto: on ? motto.trim() || 'Fide et labore' : undefined })}>{tr('heraldry.show_scroll')}</Switch>
         {ach.motto !== undefined && (
-          <input className="input" aria-label="Motto on the scroll" value={ach.motto} maxLength={80} onChange={(e) => set({ motto: e.target.value }, 'scroll')} />
+          <input className="input" aria-label={tr('heraldry.motto_on_scroll')} value={ach.motto} maxLength={80} onChange={(e) => set({ motto: e.target.value }, 'scroll')} />
         )}
       </Section>
-      <Section title="Supporters">
-        <Choices label="Supporters" className="ae-tiles" value={ach.supporters?.charge ?? ''} onChange={(charge: string) => set({ supporters: charge ? { charge, tincture: ach.supporters?.tincture ?? 'or' } : undefined })}
-          options={[{ value: '', label: 'None' }, ...SUPPORTERS.map((s) => ({ value: s, label: CHARGE_BY_ID[s]?.label ?? s }))]}
+      <Section title={tr('heraldry.supporters')}>
+        <Choices label={tr('heraldry.supporters')} className="ae-tiles" value={ach.supporters?.charge ?? ''} onChange={(charge: string) => set({ supporters: charge ? { charge, tincture: ach.supporters?.tincture ?? 'or' } : undefined })}
+          options={[{ value: '', label: tr('heraldry.none') }, ...SUPPORTERS.map((s) => ({ value: s, label: CHARGE_BY_ID[s] ? tr(CHARGE_BY_ID[s].label) : s }))]}
           render={(o) => <>{o.value ? <ChargeGlyph id={o.value} size={28} /> : <span className="ae-none" aria-hidden>—</span>}<small>{o.label}</small></>} />
-        {ach.supporters && <TincturePicker label="Supporters’ tincture" compact allowProper charge={ach.supporters.charge} value={ach.supporters.tincture} onChange={(tincture) => set({ supporters: { ...ach.supporters!, tincture } })} />}
+        {ach.supporters && <TincturePicker label={tr('heraldry.supporters_tincture')} compact allowProper charge={ach.supporters.charge} value={ach.supporters.tincture} onChange={(tincture) => set({ supporters: { ...ach.supporters!, tincture } })} />}
       </Section>
     </>
   );
@@ -653,8 +666,8 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-const GROUPS: { kind: 'metal' | 'colour' | 'stain' | 'fur' | 'proper'; label: string }[] = [
-  { kind: 'metal', label: 'Metals' }, { kind: 'colour', label: 'Colours' }, { kind: 'stain', label: 'Stains' }, { kind: 'fur', label: 'Furs' },
+const GROUPS: { kind: 'metal' | 'colour' | 'stain' | 'fur' | 'proper'; label: Key }[] = [
+  { kind: 'metal', label: 'heraldry.group.metal' }, { kind: 'colour', label: 'heraldry.group.colour' }, { kind: 'stain', label: 'heraldry.group.stain' }, { kind: 'fur', label: 'heraldry.group.fur' },
 ];
 const STAIN_IDS = new Set(['murrey', 'sanguine', 'tenne', 'carnation']);
 const groupOf = (t: TinctureV2) => (t === 'proper' ? 'proper' : STAIN_IDS.has(t) ? 'stain' : kindOf(t));
@@ -662,33 +675,35 @@ const groupOf = (t: TinctureV2) => (t === 'proper' ? 'proper' : STAIN_IDS.has(t)
 function TincturePicker({ label, value, onChange, under = [], allowProper, charge, disabled, compact }: {
   label: string; value: TinctureV2; onChange: (t: TinctureV2) => void; under?: TinctureV2[]; allowProper?: boolean; charge?: string; disabled?: boolean; compact?: boolean;
 }) {
+  const tr = useT();
   if (compact) {
     // A dropdown where space is short (mantling, crest, supporters).
     return (
       <Select<TinctureV2> value={value} onChange={onChange} aria-label={label} disabled={disabled} className="ae-tincture-select"
-        options={TINCTURES_V2.filter((t) => allowProper || t.id !== 'proper').map((t) => ({ value: t.id, label: t.label, hint: t.plain, icon: <TinctureSwatch t={t.id} size={16} charge={charge} />, group: GROUPS.find((g) => g.kind === groupOf(t.id))?.label ?? 'Proper' }))} />
+        options={TINCTURES_V2.filter((t) => allowProper || t.id !== 'proper').map((t) => ({ value: t.id, label: tr(t.label), hint: tr(t.plain), icon: <TinctureSwatch t={t.id} size={16} charge={charge} />, group: tr(GROUPS.find((g) => g.kind === groupOf(t.id))?.label ?? 'heraldry.group.proper') }))} />
     );
   }
   const options = TINCTURES_V2.filter((t) => allowProper || t.id !== 'proper').map((t) => {
     const breaks = under.some((u) => (kindOf(u) === 'metal' || kindOf(u) === 'colour') && kindOf(u) === kindOf(t.id));
-    return { value: t.id, label: `${t.label} (${t.plain})${breaks ? ', breaks the rule of tincture here' : ''}`, group: groupOf(t.id), breaks };
+    return { value: t.id, label: `${tr(t.label)} (${tr(t.plain)})${breaks ? tr('heraldry.breaks_rule') : ''}`, group: groupOf(t.id), breaks };
   });
   return (
     <Choices label={label} className={`ae-tinctures${compact ? ' compact' : ''}`} value={value} onChange={onChange} disabled={disabled} options={options}
-      groupLabel={(g) => GROUPS.find((x) => x.kind === g)?.label}
+      groupLabel={(g) => { const k = GROUPS.find((x) => x.kind === g)?.label; return k ? tr(k) : undefined; }}
       render={(o) => (
         <>
           <TinctureSwatch t={o.value} size={compact ? 22 : 26} charge={charge} />
-          <small>{labelV2(o.value)}</small>
-          {o.breaks && <span className="ae-breaks" aria-hidden title="Breaks the rule of tincture here" />}
+          <small>{tr(labelV2(o.value))}</small>
+          {o.breaks && <span className="ae-breaks" aria-hidden title={tr('heraldry.breaks_rule_title')} />}
         </>
       )} />
   );
 }
 
 function LinePicker({ value, onChange }: { value: PartitionLine; onChange: (l: PartitionLine) => void }) {
+  const tr = useT();
   return (
-    <Choices label="Line" className="ae-tiles ae-lines" value={value} onChange={onChange} options={LINES_V2.map((l) => ({ value: l.id, label: l.label }))}
+    <Choices label={tr('heraldry.line')} className="ae-tiles ae-lines" value={value} onChange={onChange} options={LINES_V2.map((l) => ({ value: l.id, label: tr(l.label) }))}
       render={(o) => {
         const pts: Pt[] = [[0, 12], ...edge([0, 12], [64, 12], o.value, -1)];
         return (
@@ -706,36 +721,37 @@ function LinePicker({ value, onChange }: { value: PartitionLine; onChange: (l: P
 const ALL = 'all';
 function ChargePicker({ value, onChange, allowNone, compact }: { value: string; onChange: (id: string) => void; allowNone?: boolean; compact?: boolean }) {
   const ready = useLibraryReady();
+  const tr = useT();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState<ChargeCategory | typeof ALL>(() => CHARGE_BY_ID[value]?.cat ?? 'classic');
   const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   const list = useMemo(() => {
     const words = fold(q).split(/\s+/).filter(Boolean);
-    if (words.length) return CHARGES_V2.filter((c) => words.every((w) => fold(`${c.label} ${c.id} ${c.keys ?? ''} ${c.cat}`).includes(w)));
+    if (words.length) return CHARGES_V2.filter((c) => words.every((w) => fold(`${tr(c.label)} ${c.id} ${c.keys ?? ''} ${c.cat}`).includes(w)));
     return cat === ALL ? CHARGES_V2 : CHARGES_V2.filter((c) => c.cat === cat);
-  }, [q, cat]);
-  const options = [...(allowNone ? [{ value: '', label: 'None' }] : []), ...list.map((c) => ({ value: c.id, label: c.label }))];
+  }, [q, cat, tr.locale]);
+  const options = [...(allowNone ? [{ value: '', label: tr('heraldry.none') }] : []), ...list.map((c) => ({ value: c.id, label: tr(c.label) }))];
   const current = CHARGE_BY_ID[value];
   return (
     <div className={`ae-charges${compact ? ' compact' : ''}`}>
       <div className="ae-charge-search">
         <Search size={15} aria-hidden />
-        <input className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search charges: lion, Mühlrad, key…" aria-label="Search charges" />
+        <input className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('heraldry.search_charges')} aria-label={tr('heraldry.search_charges_aria')} />
       </div>
       {!q && (
-        <div className="ae-cats" role="group" aria-label="Categories">
-          {[{ id: ALL, label: 'All' }, ...CATEGORIES].map((c) => (
+        <div className="ae-cats" role="group" aria-label={tr('heraldry.categories')}>
+          {[{ id: ALL, label: tr('heraldry.all') }, ...CATEGORIES.map((c) => ({ id: c.id, label: tr(c.label) }))].map((c) => (
             <button key={c.id} type="button" className="ae-chip" aria-pressed={cat === c.id} onClick={() => setCat(c.id as ChargeCategory)}>{c.label}</button>
           ))}
         </div>
       )}
       {options.length === 0 ? (
-        <p className="subtle ae-lead">No charge matches “{q}”.</p>
+        <p className="subtle ae-lead">{tr('heraldry.no_charge_matches', { q })}</p>
       ) : (
-        <Choices label="Charge" className="ae-tiles ae-glyphs" value={value} onChange={onChange} options={options}
+        <Choices label={tr('heraldry.charge')} className="ae-tiles ae-glyphs" value={value} onChange={onChange} options={options}
           render={(o) => (o.value ? <ChargeGlyph id={o.value} size={compact ? 26 : 30} /> : <span className="ae-none" aria-hidden>—</span>)} />
       )}
-      <p className="ae-charge-name subtle">{current ? <><b>{current.label}</b>{!ready && current.gi ? ' · loading the library…' : ''}</> : allowNone ? 'No crest' : ''}{q && ` · ${list.length} found`}</p>
+      <p className="ae-charge-name subtle">{current ? <><b>{tr(current.label)}</b>{!ready && current.gi ? ` · ${tr('heraldry.loading_library')}` : ''}</> : allowNone ? tr('heraldry.no_crest') : ''}{q && ` · ${tr('heraldry.found', { count: list.length })}`}</p>
     </div>
   );
 }

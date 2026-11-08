@@ -2,6 +2,8 @@
 // breach; and randomised arms that keep it.
 import type { ArmsLayer, ArmsV2, ChargeLayer, FieldDivision, OrdinaryKind, OrdinaryLayer, PartitionLine, ShieldShape, TinctureV2 } from '~/lib/seed-format';
 import { chargeNoun } from './blazon';
+import { CHARGE_BY_ID } from './catalogue';
+import type { Key, Translator } from '~/lib/i18n';
 import { CENTRAL, standsBetween, tinctureCount } from './geometry';
 import { fieldTinctures } from './render';
 import { kindOf, labelV2 } from './tinctures';
@@ -15,7 +17,8 @@ export interface Clash {
   fix?: { label: string; apply: (a: ArmsV2) => ArmsV2 };
 }
 
-const lc = (x: TinctureV2) => labelV2(x).toLowerCase();
+/** A tincture's heraldic name in the reader's language; lower case in English, where it reads mid-sentence. */
+const nameOf = (t: Translator, x: TinctureV2) => (t.locale === 'en' ? t(labelV2(x)).toLowerCase() : t(labelV2(x)));
 /** Only metal and colour are bound by the rule; furs and proper go anywhere. */
 const bound = (x: TinctureV2) => kindOf(x) === 'metal' || kindOf(x) === 'colour';
 const clashes2 = (a: TinctureV2, b: TinctureV2) => bound(a) && bound(b) && kindOf(a) === kindOf(b);
@@ -52,26 +55,30 @@ export function underOf(a: ArmsV2, index: number): TinctureV2[] {
 
 const setLayer = (a: ArmsV2, i: number, patch: Partial<ArmsLayer>): ArmsV2 => ({ ...a, layers: a.layers.map((l, k) => (k === i ? ({ ...l, ...patch } as ArmsLayer) : l)) });
 
-export function tinctureClashesV2(a: ArmsV2): Clash[] {
+export function tinctureClashesV2(a: ArmsV2, t: Translator): Clash[] {
   const out: Clash[] = [];
   const field = fieldTinctures(a);
   if (field.length > 1 && new Set(field).size < field.length) {
-    out.push({ layer: -1, message: `The field repeats ${lc(field.find((x, i) => field.indexOf(x) !== i)!)}, so part of the division disappears.` });
+    out.push({ layer: -1, message: t('heraldry.clash.repeat', { tincture: nameOf(t, field.find((x, i) => field.indexOf(x) !== i)!) }) });
   }
   a.layers.forEach((l, i) => {
     if (l.counterchanged && field.length > 1) return;
     const under = underOf(a, i);
     const bad = [...new Set(under.filter((u) => clashes2(u, l.tincture)))];
     if (!bad.length) return;
-    const kind = kindOf(l.tincture);
-    const what = l.type === 'ordinary' ? ordinaryLabel(l.kind).toLowerCase() : chargeNoun(l.charge, (l as ChargeLayer).count);
-    const message = `The ${lc(l.tincture)} ${what} ${l.type === 'charge' && l.count > 1 ? 'lie' : 'lies'} on ${bad.map(lc).join(' and ')}: ${kind} on ${kind}.`;
+    const kind = t(`heraldry.kind.${kindOf(l.tincture)}` as Key);
+    const what = l.type === 'ordinary'
+      ? (t.locale === 'en' ? t(ordinaryLabel(l.kind)).toLowerCase() : t(ordinaryLabel(l.kind)))
+      : t.locale === 'en' ? chargeNoun(l.charge, (l as ChargeLayer).count) : CHARGE_BY_ID[l.charge] ? t(CHARGE_BY_ID[l.charge].label) : l.charge;
+    const message = t(l.type === 'charge' && l.count > 1 ? 'heraldry.clash.on_many' : 'heraldry.clash.on', {
+      tincture: nameOf(t, l.tincture), what, on: bad.map((x) => nameOf(t, x)).join(` ${t('heraldry.and')} `), kind,
+    });
     const mixed = new Set(under.filter(bound).map(kindOf)).size === 2;
     const partition = field.length > 1 && under.length === field.length && under.every((t, k) => t === field[k]);
     const fix: Clash['fix'] = mixed && partition
-      ? { label: 'Counterchange', apply: (x) => setLayer(x, i, { counterchanged: true }) }
+      ? { label: t('heraldry.counterchange'), apply: (x) => setLayer(x, i, { counterchanged: true }) }
       : mixed ? undefined
-        : { label: `Make it ${labelV2(contrastFor(under))}`, apply: (x) => setLayer(x, i, { tincture: contrastFor(under) }) };
+        : { label: t('heraldry.make_it', { tincture: nameOf(t, contrastFor(under)) }), apply: (x) => setLayer(x, i, { tincture: contrastFor(under) }) };
     out.push({ layer: i, message, fix });
   });
   return out;

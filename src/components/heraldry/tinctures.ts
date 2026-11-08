@@ -1,5 +1,6 @@
 // Tinctures for heraldry v2: the seven classic ones, the stains, the furs and "proper".
 import type { Fur, Stain, Tincture, TinctureV2 } from '~/lib/seed-format';
+import type { Key } from '~/lib/i18n/dictionary';
 
 /** The everyday colours. Furs use their dominant colour here (for swatches, minimap dots and summaries). */
 export const HEX_V2: Record<TinctureV2, string> = {
@@ -38,29 +39,30 @@ export function kindOf(t: TinctureV2): TinctureKind {
 }
 
 /** Every tincture, in picker order, with its heraldic and everyday names. */
-export const TINCTURES_V2: { id: TinctureV2; label: string; plain: string; kind: TinctureKind }[] = [
-  { id: 'or', label: 'Or', plain: 'gold', kind: 'metal' },
-  { id: 'argent', label: 'Argent', plain: 'silver', kind: 'metal' },
-  { id: 'gules', label: 'Gules', plain: 'red', kind: 'colour' },
-  { id: 'azure', label: 'Azure', plain: 'blue', kind: 'colour' },
-  { id: 'vert', label: 'Vert', plain: 'green', kind: 'colour' },
-  { id: 'sable', label: 'Sable', plain: 'black', kind: 'colour' },
-  { id: 'purpure', label: 'Purpure', plain: 'purple', kind: 'colour' },
-  { id: 'murrey', label: 'Murrey', plain: 'mulberry', kind: 'colour' },
-  { id: 'sanguine', label: 'Sanguine', plain: 'blood red', kind: 'colour' },
-  { id: 'tenne', label: 'Tenné', plain: 'orange-brown', kind: 'colour' },
-  { id: 'carnation', label: 'Carnation', plain: 'flesh', kind: 'colour' },
-  { id: 'ermine', label: 'Ermine', plain: 'white with black spots', kind: 'fur' },
-  { id: 'ermines', label: 'Ermines', plain: 'black with white spots', kind: 'fur' },
-  { id: 'erminois', label: 'Erminois', plain: 'gold with black spots', kind: 'fur' },
-  { id: 'vair', label: 'Vair', plain: 'blue and white bells', kind: 'fur' },
-  { id: 'counter-vair', label: 'Counter-vair', plain: 'bells base to base', kind: 'fur' },
-  { id: 'potent', label: 'Potent', plain: 'blue and white crutches', kind: 'fur' },
-  { id: 'proper', label: 'Proper', plain: 'natural colours', kind: 'proper' },
+export const TINCTURES_V2: { id: TinctureV2; label: Key; plain: Key; kind: TinctureKind }[] = [
+  { id: 'or', label: 'heraldry.tincture.or', plain: 'heraldry.tincture_plain.or', kind: 'metal' },
+  { id: 'argent', label: 'heraldry.tincture.argent', plain: 'heraldry.tincture_plain.argent', kind: 'metal' },
+  { id: 'gules', label: 'heraldry.tincture.gules', plain: 'heraldry.tincture_plain.gules', kind: 'colour' },
+  { id: 'azure', label: 'heraldry.tincture.azure', plain: 'heraldry.tincture_plain.azure', kind: 'colour' },
+  { id: 'vert', label: 'heraldry.tincture.vert', plain: 'heraldry.tincture_plain.vert', kind: 'colour' },
+  { id: 'sable', label: 'heraldry.tincture.sable', plain: 'heraldry.tincture_plain.sable', kind: 'colour' },
+  { id: 'purpure', label: 'heraldry.tincture.purpure', plain: 'heraldry.tincture_plain.purpure', kind: 'colour' },
+  { id: 'murrey', label: 'heraldry.tincture.murrey', plain: 'heraldry.tincture_plain.murrey', kind: 'colour' },
+  { id: 'sanguine', label: 'heraldry.tincture.sanguine', plain: 'heraldry.tincture_plain.sanguine', kind: 'colour' },
+  { id: 'tenne', label: 'heraldry.tincture.tenne', plain: 'heraldry.tincture_plain.tenne', kind: 'colour' },
+  { id: 'carnation', label: 'heraldry.tincture.carnation', plain: 'heraldry.tincture_plain.carnation', kind: 'colour' },
+  { id: 'ermine', label: 'heraldry.tincture.ermine', plain: 'heraldry.tincture_plain.ermine', kind: 'fur' },
+  { id: 'ermines', label: 'heraldry.tincture.ermines', plain: 'heraldry.tincture_plain.ermines', kind: 'fur' },
+  { id: 'erminois', label: 'heraldry.tincture.erminois', plain: 'heraldry.tincture_plain.erminois', kind: 'fur' },
+  { id: 'vair', label: 'heraldry.tincture.vair', plain: 'heraldry.tincture_plain.vair', kind: 'fur' },
+  { id: 'counter-vair', label: 'heraldry.tincture.counter-vair', plain: 'heraldry.tincture_plain.counter-vair', kind: 'fur' },
+  { id: 'potent', label: 'heraldry.tincture.potent', plain: 'heraldry.tincture_plain.potent', kind: 'fur' },
+  { id: 'proper', label: 'heraldry.tincture.proper', plain: 'heraldry.tincture_plain.proper', kind: 'proper' },
 ];
 const LABEL = new Map(TINCTURES_V2.map((t) => [t.id, t]));
-export const labelV2 = (t: TinctureV2) => LABEL.get(t)?.label ?? t;
-export const plainV2 = (t: TinctureV2) => LABEL.get(t)?.plain ?? t;
+/** The i18n key of a tincture's name. Blazon uses the English text; the Designer translates. */
+export const labelV2 = (t: TinctureV2): Key => LABEL.get(t)!.label;
+export const plainV2 = (t: TinctureV2): Key => LABEL.get(t)!.plain;
 
 /** The nearest of the seven v1 tinctures, for the v1 summary older readers see. */
 export function nearestV1(t: TinctureV2): Tincture {

@@ -1,6 +1,7 @@
 // What a portrait shows, resolved from the person and their recorded look: age, era, presentation and
 // every part. Recorded fields win; the rest is chosen deterministically from the person's id, so a
 // portrait never changes between renders, and a person seen at another age stays recognisably them.
+import type { Key } from '~/lib/i18n/dictionary';
 import type {
   BeardStyle, BrowStyle, ClothingStyle, GlassesStyle, HairStyle, Headwear, Mark, MoustacheStyle,
 } from '~/lib/seed-format';
@@ -17,15 +18,24 @@ export type FaceShape = 'round' | 'oval' | 'square' | 'long' | 'heart';
 export const SKIN = ['#f3d5bd', '#e8bd98', '#d39f75', '#b77d52', '#8f5c3a', '#6a4129', '#fae3d3', '#4b2c1d', '#e9d6b9'];
 export const SKIN_ORDER = [6, 0, 1, 2, 3, 4, 5, 7];
 export const SKIN_NEUTRAL = 8;
-export const SKIN_LABELS = ['Fair', 'Light', 'Light medium', 'Medium', 'Brown', 'Deep', 'Porcelain', 'Deepest', 'Neutral'];
+export const SKIN_LABELS: Key[] = [
+  'look.skin.fair', 'look.skin.light', 'look.skin.light_medium', 'look.skin.medium', 'look.skin.brown', 'look.skin.deep',
+  'look.skin.porcelain', 'look.skin.deepest', 'look.skin.neutral',
+];
 
 /** Natural hair colours. */
 export const HAIR = ['#2b201b', '#4a3226', '#6b462d', '#8a5631', '#a7783f', '#d2ac69', '#a3482a', '#e4cf9a', '#17151a', '#c66c2e'];
 export const HAIR_ORDER = [8, 0, 1, 2, 3, 4, 9, 6, 5, 7];
-export const HAIR_LABELS = ['Black', 'Dark brown', 'Brown', 'Chestnut', 'Light brown', 'Blond', 'Auburn', 'Flaxen', 'Jet', 'Copper'];
+export const HAIR_LABELS: Key[] = [
+  'look.hair_colour.black', 'look.hair_colour.dark_brown', 'look.hair_colour.brown', 'look.hair_colour.chestnut',
+  'look.hair_colour.light_brown', 'look.hair_colour.blond', 'look.hair_colour.auburn', 'look.hair_colour.flaxen',
+  'look.hair_colour.jet', 'look.hair_colour.copper',
+];
 
 export const EYES = ['#4a2e1c', '#6f4b2a', '#7a6a3a', '#4f7a4a', '#4f7fae', '#7d8b96', '#2f2420'];
-export const EYE_LABELS = ['Brown', 'Light brown', 'Hazel', 'Green', 'Blue', 'Grey', 'Dark'];
+export const EYE_LABELS: Key[] = [
+  'look.eye.brown', 'look.eye.light_brown', 'look.eye.hazel', 'look.eye.green', 'look.eye.blue', 'look.eye.grey', 'look.eye.dark',
+];
 
 const GREY = '#b9b3aa';
 const WHITE = '#ece8e0';
@@ -33,55 +43,57 @@ const POWDER = '#ebe6dc';
 
 // ---------- Catalogues, for the editor ----------
 
-type Opt<T extends string> = { id: T; label: string };
+/** A catalogue entry: its stored id, and the i18n key of its label. */
+type Opt<T extends string> = { id: T; label: Key };
 export const HAIR_STYLES: Opt<HairStyle>[] = [
-  { id: 'cropped', label: 'Cropped' }, { id: 'short', label: 'Short' }, { id: 'side-part', label: 'Side part' },
-  { id: 'swept', label: 'Swept' }, { id: 'quiff', label: 'Quiff' }, { id: 'curly', label: 'Curly' },
-  { id: 'afro', label: 'Afro' }, { id: 'bowl', label: 'Bowl' }, { id: 'pixie', label: 'Pixie' }, { id: 'bob', label: 'Bob' },
-  { id: 'shoulder', label: 'Shoulder' }, { id: 'long', label: 'Long' }, { id: 'wavy', label: 'Wavy' },
-  { id: 'braid', label: 'Braids' }, { id: 'ponytail', label: 'Ponytail' }, { id: 'pigtails', label: 'Pigtails' },
-  { id: 'bun', label: 'Bun' }, { id: 'chignon', label: 'Chignon' }, { id: 'periwig', label: 'Periwig' },
-  { id: 'powdered', label: 'Powdered wig' }, { id: 'receding', label: 'Receding' }, { id: 'bald', label: 'Bald' },
+  { id: 'cropped', label: 'look.hair.cropped' }, { id: 'short', label: 'look.hair.short' }, { id: 'side-part', label: 'look.hair.side_part' },
+  { id: 'swept', label: 'look.hair.swept' }, { id: 'quiff', label: 'look.hair.quiff' }, { id: 'curly', label: 'look.hair.curly' },
+  { id: 'afro', label: 'look.hair.afro' }, { id: 'bowl', label: 'look.hair.bowl' }, { id: 'pixie', label: 'look.hair.pixie' }, { id: 'bob', label: 'look.hair.bob' },
+  { id: 'shoulder', label: 'look.hair.shoulder' }, { id: 'long', label: 'look.hair.long' }, { id: 'wavy', label: 'look.hair.wavy' },
+  { id: 'braid', label: 'look.hair.braid' }, { id: 'ponytail', label: 'look.hair.ponytail' }, { id: 'pigtails', label: 'look.hair.pigtails' },
+  { id: 'bun', label: 'look.hair.bun' }, { id: 'chignon', label: 'look.hair.chignon' }, { id: 'periwig', label: 'look.hair.periwig' },
+  { id: 'powdered', label: 'look.hair.powdered' }, { id: 'receding', label: 'look.hair.receding' }, { id: 'bald', label: 'look.hair.bald' },
 ];
 export const BEARDS: Opt<BeardStyle>[] = [
-  { id: 'none', label: 'None' }, { id: 'stubble', label: 'Stubble' }, { id: 'short', label: 'Short' }, { id: 'full', label: 'Full' },
-  { id: 'long', label: 'Long' }, { id: 'goatee', label: 'Goatee' }, { id: 'vandyke', label: 'Van Dyke' }, { id: 'muttonchops', label: 'Mutton chops' },
+  { id: 'none', label: 'look.beard.none' }, { id: 'stubble', label: 'look.beard.stubble' }, { id: 'short', label: 'look.beard.short' }, { id: 'full', label: 'look.beard.full' },
+  { id: 'long', label: 'look.beard.long' }, { id: 'goatee', label: 'look.beard.goatee' }, { id: 'vandyke', label: 'look.beard.vandyke' }, { id: 'muttonchops', label: 'look.beard.muttonchops' },
 ];
 export const MOUSTACHES: Opt<MoustacheStyle>[] = [
-  { id: 'none', label: 'None' }, { id: 'thin', label: 'Thin' }, { id: 'chevron', label: 'Chevron' },
-  { id: 'handlebar', label: 'Handlebar' }, { id: 'walrus', label: 'Walrus' },
+  { id: 'none', label: 'look.moustache.none' }, { id: 'thin', label: 'look.moustache.thin' }, { id: 'chevron', label: 'look.moustache.chevron' },
+  { id: 'handlebar', label: 'look.moustache.handlebar' }, { id: 'walrus', label: 'look.moustache.walrus' },
 ];
 export const BROWS: Opt<BrowStyle>[] = [
-  { id: 'soft', label: 'Soft' }, { id: 'straight', label: 'Straight' }, { id: 'arched', label: 'Arched' },
-  { id: 'thick', label: 'Thick' }, { id: 'thin', label: 'Thin' }, { id: 'bushy', label: 'Bushy' },
+  { id: 'soft', label: 'look.brows.soft' }, { id: 'straight', label: 'look.brows.straight' }, { id: 'arched', label: 'look.brows.arched' },
+  { id: 'thick', label: 'look.brows.thick' }, { id: 'thin', label: 'look.brows.thin' }, { id: 'bushy', label: 'look.brows.bushy' },
 ];
 export const GLASSES: Opt<GlassesStyle>[] = [
-  { id: 'none', label: 'None' }, { id: 'round', label: 'Round' }, { id: 'oval', label: 'Oval' }, { id: 'square', label: 'Square' },
-  { id: 'browline', label: 'Browline' }, { id: 'half', label: 'Half-moon' },
+  { id: 'none', label: 'look.glasses.none' }, { id: 'round', label: 'look.glasses.round' }, { id: 'oval', label: 'look.glasses.oval' }, { id: 'square', label: 'look.glasses.square' },
+  { id: 'browline', label: 'look.glasses.browline' }, { id: 'half', label: 'look.glasses.half' },
 ];
 export const HEADWEAR: Opt<Headwear>[] = [
-  { id: 'none', label: 'None' }, { id: 'crown', label: 'Crown' }, { id: 'circlet', label: 'Circlet' }, { id: 'mitre', label: 'Mitre' },
-  { id: 'veil', label: 'Veil' }, { id: 'wimple', label: 'Wimple' }, { id: 'hood', label: 'Hood' }, { id: 'coif', label: 'Coif' },
-  { id: 'beret', label: 'Bonnet (Tudor)' }, { id: 'mobcap', label: 'Mob cap' }, { id: 'tricorn', label: 'Tricorn' },
-  { id: 'tophat', label: 'Top hat' }, { id: 'bonnet', label: 'Bonnet' }, { id: 'flatcap', label: 'Flat cap' },
-  { id: 'fedora', label: 'Fedora' }, { id: 'cloche', label: 'Cloche' }, { id: 'headscarf', label: 'Headscarf' },
-  { id: 'beanie', label: 'Beanie' },
+  { id: 'none', label: 'look.headwear.none' }, { id: 'crown', label: 'look.headwear.crown' }, { id: 'circlet', label: 'look.headwear.circlet' }, { id: 'mitre', label: 'look.headwear.mitre' },
+  { id: 'veil', label: 'look.headwear.veil' }, { id: 'wimple', label: 'look.headwear.wimple' }, { id: 'hood', label: 'look.headwear.hood' }, { id: 'coif', label: 'look.headwear.coif' },
+  { id: 'beret', label: 'look.headwear.beret' }, { id: 'mobcap', label: 'look.headwear.mobcap' }, { id: 'tricorn', label: 'look.headwear.tricorn' },
+  { id: 'tophat', label: 'look.headwear.tophat' }, { id: 'bonnet', label: 'look.headwear.bonnet' }, { id: 'flatcap', label: 'look.headwear.flatcap' },
+  { id: 'fedora', label: 'look.headwear.fedora' }, { id: 'cloche', label: 'look.headwear.cloche' }, { id: 'headscarf', label: 'look.headwear.headscarf' },
+  { id: 'beanie', label: 'look.headwear.beanie' },
 ];
 export const CLOTHING: Opt<ClothingStyle>[] = [
-  { id: 'tunic', label: 'Tunic and cloak' }, { id: 'cotehardie', label: 'Cotehardie' }, { id: 'gown', label: 'Gown' },
-  { id: 'doublet', label: 'Doublet' }, { id: 'bodice', label: 'Bodice' }, { id: 'ruff', label: 'Ruff' },
-  { id: 'lace-collar', label: 'Lace collar' }, { id: 'coat', label: 'Coat and jabot' }, { id: 'stays', label: 'Fichu' },
-  { id: 'frock', label: 'Frock coat' }, { id: 'victorian', label: 'High collar' }, { id: 'suit', label: 'Three-piece' },
-  { id: 'blouse', label: 'Blouse' }, { id: 'suit-slim', label: 'Slim suit' }, { id: 'pearls', label: 'Dress and pearls' },
-  { id: 'shirt', label: 'Open shirt' }, { id: 'turtleneck', label: 'Turtleneck' }, { id: 'sweater', label: 'Sweater' },
-  { id: 'tshirt', label: 'T-shirt' }, { id: 'hoodie', label: 'Hoodie' }, { id: 'cardigan', label: 'Cardigan' },
-  { id: 'smock', label: 'Smock' }, { id: 'sailor', label: 'Sailor suit' }, { id: 'pinafore', label: 'Pinafore' },
-  { id: 'knit', label: 'Knit' }, { id: 'stripes', label: 'Stripes' }, { id: 'onesie', label: 'Romper' },
+  { id: 'tunic', label: 'look.clothing.tunic' }, { id: 'cotehardie', label: 'look.clothing.cotehardie' }, { id: 'gown', label: 'look.clothing.gown' },
+  { id: 'doublet', label: 'look.clothing.doublet' }, { id: 'bodice', label: 'look.clothing.bodice' }, { id: 'ruff', label: 'look.clothing.ruff' },
+  { id: 'lace-collar', label: 'look.clothing.lace_collar' }, { id: 'coat', label: 'look.clothing.coat' }, { id: 'stays', label: 'look.clothing.stays' },
+  { id: 'frock', label: 'look.clothing.frock' }, { id: 'victorian', label: 'look.clothing.victorian' }, { id: 'suit', label: 'look.clothing.suit' },
+  { id: 'blouse', label: 'look.clothing.blouse' }, { id: 'suit-slim', label: 'look.clothing.suit_slim' }, { id: 'pearls', label: 'look.clothing.pearls' },
+  { id: 'shirt', label: 'look.clothing.shirt' }, { id: 'turtleneck', label: 'look.clothing.turtleneck' }, { id: 'sweater', label: 'look.clothing.sweater' },
+  { id: 'tshirt', label: 'look.clothing.tshirt' }, { id: 'hoodie', label: 'look.clothing.hoodie' }, { id: 'cardigan', label: 'look.clothing.cardigan' },
+  { id: 'smock', label: 'look.clothing.smock' }, { id: 'sailor', label: 'look.clothing.sailor' }, { id: 'pinafore', label: 'look.clothing.pinafore' },
+  { id: 'knit', label: 'look.clothing.knit' }, { id: 'stripes', label: 'look.clothing.stripes' }, { id: 'onesie', label: 'look.clothing.onesie' },
 ];
 export const MARKS: Opt<Mark>[] = [
-  { id: 'freckles', label: 'Freckles' }, { id: 'blush', label: 'Rosy cheeks' }, { id: 'dimples', label: 'Dimples' },
-  { id: 'mole', label: 'Beauty mark' }, { id: 'scar', label: 'Scar' },
+  { id: 'freckles', label: 'look.mark.freckles' }, { id: 'blush', label: 'look.mark.blush' }, { id: 'dimples', label: 'look.mark.dimples' },
+  { id: 'mole', label: 'look.mark.mole' }, { id: 'scar', label: 'look.mark.scar' },
 ];
+
 
 // ---------- Helpers ----------
 
@@ -107,9 +119,10 @@ export function eraOf(year: number): Era {
   return year < 1150 ? 'early-medieval' : year < 1450 ? 'high-medieval' : year < 1600 ? 'renaissance' : year < 1700 ? 'c17'
     : year < 1800 ? 'c18' : year < 1900 ? 'c19' : year < 1945 ? 'c1900' : year < 1970 ? 'c1945' : year < 2000 ? 'c1970' : 'c2000';
 }
-export const ERA_LABELS: Record<Era, string> = {
-  'early-medieval': 'Early medieval', 'high-medieval': 'High medieval', renaissance: 'Renaissance', c17: '17th century',
-  c18: '18th century', c19: '19th century', c1900: '1900–1945', c1945: '1945–1970', c1970: '1970–2000', c2000: '2000 onwards',
+export const ERA_LABELS: Record<Era, Key> = {
+  'early-medieval': 'look.era.early_medieval', 'high-medieval': 'look.era.high_medieval', renaissance: 'look.era.renaissance',
+  c17: 'look.era.c17', c18: 'look.era.c18', c19: 'look.era.c19', c1900: 'look.era.c1900', c1945: 'look.era.c1945',
+  c1970: 'look.era.c1970', c2000: 'look.era.c2000',
 };
 
 const MEDIEVAL = new Set<Era>(['early-medieval', 'high-medieval']);

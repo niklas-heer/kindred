@@ -7,7 +7,7 @@ import { Camera, Dices, RotateCcw, Sparkles, Undo2 } from 'lucide-react';
 import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { aiAvatarFromPhoto } from '~/lib/ai.functions';
 import { toAiLocale } from '~/lib/ai/types';
-import { useT } from '~/lib/i18n';
+import { useT, type Key } from '~/lib/i18n';
 import { personPhotosQuery } from '~/lib/photos.functions';
 import type { Mark } from '~/lib/seed-format';
 import type { GPerson, House, Look } from '~/lib/types';
@@ -34,10 +34,10 @@ export interface CharacterEditorProps {
 type Optional = Exclude<keyof Look, 'skin' | 'hair' | 'eyes'>;
 
 const STAGES = [
-  { label: 'Child', age: 8 },
-  { label: 'Adult', age: 32 },
-  { label: 'Elder', age: 76 },
-];
+  { label: 'character.stage.child', age: 8 },
+  { label: 'character.stage.adult', age: 32 },
+  { label: 'character.stage.elder', age: 76 },
+] as const;
 const LIFE = [1, 6, 12, 17, 28, 45, 62, 82];
 const NOW = new Date().getFullYear();
 
@@ -110,18 +110,18 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
 
   // A render function, not a component: a component defined here would remount on every change and
   // drop keyboard focus from the tile just pressed.
-  const tiles = <T extends string>({ field, options, adultOnly, auto = true }: { field: Optional; options: { id: T; label: string }[]; adultOnly?: boolean; auto?: boolean }) => (
+  const tiles = <T extends string>({ field, options, adultOnly, auto = true }: { field: Optional; options: { id: T; label: Key }[]; adultOnly?: boolean; auto?: boolean }) => (
     <div className="ce-tiles" role="group">
       {auto && (
         <button type="button" className="ce-tile is-auto" aria-pressed={look[field] === undefined} onClick={() => set(field, undefined)}>
           <span className="ce-auto"><Sparkles size={20} aria-hidden="true" /></span>
-          Automatic
+          {t('character.auto')}
         </button>
       )}
       {options.map((o) => (
         <button key={o.id} type="button" className="ce-tile" aria-pressed={look[field] === o.id} onClick={() => set(field, o.id as never)}>
           <Portrait person={tile(field, o.id, adultOnly)} tree={tree} house={house} mourn={false} size={56} frame={false} />
-          {o.label}
+          {t(o.label)}
         </button>
       ))}
     </div>
@@ -138,21 +138,21 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
       <div className="ce-stage">
         <div className="ce-hero">
           <Portrait person={shown} tree={tree} house={house} mourn={false} size={176} age={preview} />
-          <span className="ce-hero-caption">{heroAge === undefined ? 'Age unknown' : `Aged ${heroAge}`}</span>
+          <span className="ce-hero-caption">{heroAge === undefined ? t('character.age_unknown') : t('character.aged', { age: heroAge })}</span>
         </div>
-        <div className="ce-ages" role="group" aria-label="Preview at age">
+        <div className="ce-ages" role="group" aria-label={t('character.preview_age')}>
           <button type="button" className="ce-age" aria-pressed={preview === undefined} onClick={() => setPreview(undefined)}>
             <Portrait person={shown} tree={tree} house={house} mourn={false} size={44} frame={false} />
-            As shown
+            {t('character.as_shown')}
           </button>
           {STAGES.filter((s) => ages.some((a) => a >= s.age - 6) || s.age <= 8).map((s) => (
             <button key={s.label} type="button" className="ce-age" aria-pressed={preview === s.age} onClick={() => setPreview(s.age)}>
               <Portrait person={shown} tree={tree} house={house} mourn={false} size={44} frame={false} age={s.age} />
-              {s.label}
+              {t(s.label)}
             </button>
           ))}
         </div>
-        <Switch checked={life} onChange={setLife} size="sm">Through their life</Switch>
+        <Switch checked={life} onChange={setLife} size="sm">{t('character.life')}</Switch>
         {life && (
           <div className="ce-life">
             {ages.map((a) => (
@@ -167,15 +167,15 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
 
       <div className="ce-controls">
         <div className="ce-toolbar">
-          <button type="button" className="btn" onClick={randomise}><Dices size={16} aria-hidden="true" /> Randomise</button>
+          <button type="button" className="btn" onClick={randomise}><Dices size={16} aria-hidden="true" /> {t('character.randomise')}</button>
           {aiAvatar && (
             <button type="button" className="btn" onClick={() => setPicking((p) => !p)} aria-expanded={picking} aria-controls="ce-photo-pick">
               <Camera size={16} aria-hidden="true" /> {t('character.make_from_photo')}
             </button>
           )}
           <span className="ce-spacer" />
-          <button type="button" className="btn ghost" onClick={undo} disabled={!history.length} aria-keyshortcuts="Control+Z Meta+Z"><Undo2 size={16} aria-hidden="true" /> Undo</button>
-          <button type="button" className="btn ghost" onClick={reset}><RotateCcw size={16} aria-hidden="true" /> Reset</button>
+          <button type="button" className="btn ghost" onClick={undo} disabled={!history.length} aria-keyshortcuts="Control+Z Meta+Z"><Undo2 size={16} aria-hidden="true" /> {t('character.undo')}</button>
+          <button type="button" className="btn ghost" onClick={reset}><RotateCcw size={16} aria-hidden="true" /> {t('character.reset')}</button>
         </div>
         {aiAvatar && picking && (
           <div className="ce-photo-pick" id="ce-photo-pick" role="group" aria-label={t('character.make_from_photo')}>
@@ -196,75 +196,75 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
             {fromPhoto.isSuccess && !fromPhoto.isPending && <p className="ce-hint" role="status">{t('character.photo_loaded')}</p>}
           </div>
         )}
-        <Tabs value={tab} onChange={setTab} label="Appearance">
+        <Tabs value={tab} onChange={setTab} label={t('character.appearance')}>
           <TabList>
-            <Tab value="face">Face</Tab>
-            <Tab value="hair">Hair</Tab>
-            <Tab value="beard">Beard</Tab>
-            <Tab value="extras">Headwear</Tab>
-            <Tab value="clothes">Clothes</Tab>
-            <Tab value="age">Age</Tab>
+            <Tab value="face">{t('character.tab.face')}</Tab>
+            <Tab value="hair">{t('character.tab.hair')}</Tab>
+            <Tab value="beard">{t('character.tab.beard')}</Tab>
+            <Tab value="extras">{t('character.tab.headwear')}</Tab>
+            <Tab value="clothes">{t('character.tab.clothes')}</Tab>
+            <Tab value="age">{t('character.tab.age')}</Tab>
           </TabList>
           <TabPanel value="face">
-            <Section title="Skin">
+            <Section title={t('character.section.skin')}>
               <Swatches
                 value={look.skin}
                 order={[...SKIN_ORDER, SKIN_NEUTRAL]}
                 colours={SKIN}
-                labels={SKIN_LABELS}
+                labels={SKIN_LABELS.map((k) => t(k))}
                 neutral={SKIN_NEUTRAL}
                 onPick={(i) => set('skin', i)}
               />
             </Section>
-            <Section title="Eyes">
-              <Swatches value={look.eyes} order={EYES.map((_, i) => i)} colours={EYES} labels={EYE_LABELS} onPick={(i) => set('eyes', i)} />
+            <Section title={t('character.section.eyes')}>
+              <Swatches value={look.eyes} order={EYES.map((_, i) => i)} colours={EYES} labels={EYE_LABELS.map((k) => t(k))} onPick={(i) => set('eyes', i)} />
             </Section>
-            <Section title="Eyebrows">{tiles({ field: 'brows', options: BROWS })}</Section>
-            <Section title="Marks">
+            <Section title={t('character.section.eyebrows')}>{tiles({ field: 'brows', options: BROWS })}</Section>
+            <Section title={t('character.section.marks')}>
               <div className="ce-tiles" role="group">
                 <button type="button" className="ce-tile is-auto" aria-pressed={marks === undefined} onClick={() => set('marks', undefined)}>
                   <span className="ce-auto"><Sparkles size={20} aria-hidden="true" /></span>
-                  Automatic
+                  {t('character.auto')}
                 </button>
                 {MARKS.map((m) => (
                   <button key={m.id} type="button" className="ce-tile" aria-pressed={!!marks?.includes(m.id)} onClick={() => toggleMark(m.id)}>
                     <Portrait person={tile('marks', [m.id])} tree={tree} house={house} mourn={false} size={56} frame={false} />
-                    {m.label}
+                    {t(m.label)}
                   </button>
                 ))}
               </div>
             </Section>
           </TabPanel>
           <TabPanel value="hair">
-            <Section title="Colour">
-              <Swatches value={look.hair} order={HAIR_ORDER} colours={HAIR} labels={HAIR_LABELS} onPick={(i) => set('hair', i)} />
-              <Switch checked={look.hairGreys !== false} onChange={(v) => set('hairGreys', v ? undefined : false)} size="sm">Greys with age</Switch>
+            <Section title={t('character.section.colour')}>
+              <Swatches value={look.hair} order={HAIR_ORDER} colours={HAIR} labels={HAIR_LABELS.map((k) => t(k))} onPick={(i) => set('hair', i)} />
+              <Switch checked={look.hairGreys !== false} onChange={(v) => set('hairGreys', v ? undefined : false)} size="sm">{t('character.greys')}</Switch>
             </Section>
-            <Section title="Style">{tiles({ field: 'hairStyle', options: HAIR_STYLES })}</Section>
+            <Section title={t('character.section.style')}>{tiles({ field: 'hairStyle', options: HAIR_STYLES })}</Section>
           </TabPanel>
           <TabPanel value="beard">
-            {heroAge !== undefined && heroAge < 20 && <p className="ce-hint">Shown on them as a grown-up: a beard only appears from twenty.</p>}
-            <Section title="Beard">{tiles({ field: 'beardStyle', options: BEARDS, adultOnly: true })}</Section>
-            <Section title="Moustache">{tiles({ field: 'moustache', options: MOUSTACHES, adultOnly: true })}</Section>
-            {sex !== 'm' && <p className="ce-hint">Automatic gives a beard only to men; pick one here to add it.</p>}
+            {heroAge !== undefined && heroAge < 20 && <p className="ce-hint">{t('character.hint.beard_young')}</p>}
+            <Section title={t('character.section.beard')}>{tiles({ field: 'beardStyle', options: BEARDS, adultOnly: true })}</Section>
+            <Section title={t('character.section.moustache')}>{tiles({ field: 'moustache', options: MOUSTACHES, adultOnly: true })}</Section>
+            {sex !== 'm' && <p className="ce-hint">{t('character.hint.beard_men')}</p>}
           </TabPanel>
           <TabPanel value="extras">
-            <Section title="Headwear">{tiles({ field: 'headwear', options: HEADWEAR, adultOnly: true })}</Section>
-            <Section title="Glasses">{tiles({ field: 'glasses', options: GLASSES, adultOnly: true })}</Section>
+            <Section title={t('character.section.headwear')}>{tiles({ field: 'headwear', options: HEADWEAR, adultOnly: true })}</Section>
+            <Section title={t('character.section.glasses')}>{tiles({ field: 'glasses', options: GLASSES, adultOnly: true })}</Section>
           </TabPanel>
           <TabPanel value="clothes">
-            <p className="ce-hint">Automatic dresses them for their era and age. A choice here applies at every age except as a baby.</p>
-            <Section title="Clothing">{tiles({ field: 'clothing', options: CLOTHING })}</Section>
+            <p className="ce-hint">{t('character.hint.clothes')}</p>
+            <Section title={t('character.section.clothing')}>{tiles({ field: 'clothing', options: CLOTHING })}</Section>
           </TabPanel>
           <TabPanel value="age">
-            <Section title="Age shown">
-              <Switch checked={look.age !== undefined} onChange={(v) => set('age', v ? ownAge ?? 40 : undefined)} size="sm">Show a fixed age</Switch>
+            <Section title={t('character.section.age')}>
+              <Switch checked={look.age !== undefined} onChange={(v) => set('age', v ? ownAge ?? 40 : undefined)} size="sm">{t('character.show_fixed_age')}</Switch>
               <p className="ce-hint">
-                {look.age === undefined ? (person.living ? 'Automatic: their age today.' : 'Automatic: their age when they died.') : 'Everywhere in the tree, the portrait shows this age.'}
+                {look.age === undefined ? t(person.living ? 'character.age_auto_today' : 'character.age_auto_died') : t('character.age_fixed_note')}
               </p>
               {look.age !== undefined && (
                 <div className="ce-age-range">
-                  <Range aria-label="Age shown" value={look.age} min={0} max={100} ticks={[0, 25, 50, 75, 100]} onChange={(v) => set('age', v)} format={(v) => String(v)} />
+                  <Range aria-label={t('character.section.age')} value={look.age} min={0} max={100} ticks={[0, 25, 50, 75, 100]} onChange={(v) => set('age', v)} format={(v) => String(v)} />
                 </div>
               )}
             </Section>

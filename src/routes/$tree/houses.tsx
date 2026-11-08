@@ -7,12 +7,12 @@ import { Arms } from '~/components/Heraldry';
 import { EmptyState, ErrorState, PageHeader, Select } from '~/components/ui';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
 import { GenSpark, houseStats, houseSuccession, maxGeneration, spanLabel, useHouseSettings, type HouseStats } from '~/lib/houses';
-import { locales, useT } from '~/lib/i18n';
-import { sectionHead } from '~/lib/title';
+import { locales, translate, useT, type Locale } from '~/lib/i18n';
+import { treeTitle } from '~/lib/title';
 import '~/styles/house.css';
 
 export const Route = createFileRoute('/$tree/houses')({
-  head: sectionHead('Houses'),
+  head: (ctx) => ({ meta: [{ title: treeTitle(ctx, translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'houses.title')) }] }),
   component: HousesPage,
 });
 

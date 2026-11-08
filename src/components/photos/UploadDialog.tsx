@@ -10,6 +10,7 @@ import { addGalleryPhoto } from '~/lib/photos.functions';
 import { exifDate, scaledPicture } from './image';
 import { refreshPhotos } from './refresh';
 import { useT } from '~/lib/i18n';
+import { errorText } from '~/lib/errortext';
 import type { Album } from './types';
 import '~/styles/gallery.css';
 
@@ -133,7 +134,7 @@ export function UploadDialog({ tree, albums, initialAlbum, files, onClose }: {
         update(it.id, { status: 'added' });
       } catch (e) {
         failed++;
-        update(it.id, { status: 'failed', error: e instanceof Error ? e.message : undefined });
+        update(it.id, { status: 'failed', error: e instanceof Error ? errorText(e, g.locale) : undefined });
       }
       setDone((n) => n + 1);
     }

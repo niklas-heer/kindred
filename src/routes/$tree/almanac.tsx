@@ -6,15 +6,16 @@ import { GameIcon, type GameIconName } from '~/components/GameIcon';
 import { Portrait } from '~/components/Portrait';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
 import { play } from '~/lib/sfx';
-import { ancestorDepths, displayName, kinship, partnersOf, type Family } from '~/lib/graph';
+import { ancestorDepths, displayName, kinship, partnersOf, type Family, type Kinship } from '~/lib/graph';
+import { kinshipLabel, locales, ordinal, translate, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
 import type { GPerson } from '~/lib/types';
 import '~/styles/almanac.css';
-import { sectionHead } from '~/lib/title';
+import { treeTitle } from '~/lib/title';
 
 export const Route = createFileRoute('/$tree/almanac')({
   pendingComponent: PageSkeleton,
-  errorComponent: function PageError() { const router = useRouter(); return <div className="page"><PageHeader title="Almanac" /><ErrorState message="This page could not be loaded." onRetry={() => { void router.invalidate(); }} /></div>; },
-  head: sectionHead('Almanac'),
+  errorComponent: function PageError() { const router = useRouter(); const t = useT(); return <div className="page"><PageHeader title={t('almanac.title')} /><ErrorState message={t('almanac.error')} onRetry={() => { void router.invalidate(); }} /></div>; },
+  head: (ctx) => ({ meta: [{ title: treeTitle(ctx, translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'almanac.title')) }] }),
   component: AlmanacPage,
 });
 
@@ -23,7 +24,9 @@ export const Route = createFileRoute('/$tree/almanac')({
 const FULL = /^(\d{4})-(\d\d)-(\d\d)$/;
 const PARTIAL = /^(~?)(\d{3,4})(?:-(\d\d)(?:-(\d\d))?)?$/;
 const DAY = 86_400_000;
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+/** A month's name in the reader's language. */
+const monthName = (m: number, locale: Locale, style: 'long' | 'short' = 'long') =>
+  new Intl.DateTimeFormat(locales[locale], { month: style, timeZone: 'UTC' }).format(new Date(Date.UTC(2000, m - 1, 1)));
 
 function full(d?: string) {
   const m = d && FULL.exec(d);
@@ -36,7 +39,9 @@ function partial(d?: string) {
 const isLeap = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const daysBetween = (a: Date, b: Date) => Math.round((a.getTime() - b.getTime()) / DAY);
-const ord = (n: number) => {
+/** English ordinals read "1st", "2nd"; the other languages have their own forms. */
+const ordOf = (n: number, locale: Locale) => {
+  if (locale !== 'en') return ordinal(n, locale);
   const s = ['th', 'st', 'nd', 'rd'];
   const v = n % 100;
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
@@ -62,13 +67,15 @@ interface Ev {
   /** Age turned, years married, or years since. */
   n: number;
   milestone: boolean;
-  note?: string;
+  note?: Key;
 }
 
 const ROUND_AGES = new Set([18, 30, 40, 50, 60, 70, 80, 90, 100]);
-const WEDDING: Record<number, string> = {
-  1: 'paper', 5: 'wood', 10: 'tin', 15: 'crystal', 20: 'china', 25: 'silver', 30: 'pearl', 35: 'coral', 40: 'ruby',
-  45: 'sapphire', 50: 'golden', 55: 'emerald', 60: 'diamond', 65: 'blue sapphire', 70: 'platinum',
+const WEDDING: Record<number, Key> = {
+  1: 'almanac.wedding.paper', 5: 'almanac.wedding.wood', 10: 'almanac.wedding.tin', 15: 'almanac.wedding.crystal', 20: 'almanac.wedding.china',
+  25: 'almanac.wedding.silver', 30: 'almanac.wedding.pearl', 35: 'almanac.wedding.coral', 40: 'almanac.wedding.ruby',
+  45: 'almanac.wedding.sapphire', 50: 'almanac.wedding.golden', 55: 'almanac.wedding.emerald', 60: 'almanac.wedding.diamond',
+  65: 'almanac.wedding.blue_sapphire', 70: 'almanac.wedding.platinum',
 };
 
 /** Everything that comes round again within the next year, soonest first. */
@@ -136,20 +143,21 @@ function history(f: Family): Hist[] {
   return out;
 }
 
-function groupOf(e: Ev, today: Date, mode: 'soon' | 'month'): { id: string; label: string } {
+function groupOf(e: Ev, today: Date, mode: 'soon' | 'month', tr: Translator): { id: string; label: string } {
   if (mode === 'month' || e.days > 60) {
     const y = e.date.getFullYear();
-    return { id: `${y}-${e.date.getMonth()}`, label: MONTHS[e.date.getMonth()] + (y !== today.getFullYear() ? ` ${y}` : '') };
+    return { id: `${y}-${e.date.getMonth()}`, label: monthName(e.date.getMonth() + 1, tr.locale) + (y !== today.getFullYear() ? ` ${y}` : '') };
   }
-  if (e.days === 0) return { id: 'today', label: 'Today' };
+  if (e.days === 0) return { id: 'today', label: tr('almanac.today') };
   const toSunday = 6 - ((today.getDay() + 6) % 7);
-  if (e.days <= toSunday) return { id: 'week', label: 'This week' };
-  if (e.days <= toSunday + 7) return { id: 'next', label: 'Next week' };
-  if (e.date.getMonth() === today.getMonth() && e.date.getFullYear() === today.getFullYear()) return { id: 'later', label: 'Later this month' };
-  return groupOf(e, today, 'month');
+  if (e.days <= toSunday) return { id: 'week', label: tr('almanac.week_this') };
+  if (e.days <= toSunday + 7) return { id: 'next', label: tr('almanac.week_next') };
+  if (e.date.getMonth() === today.getMonth() && e.date.getFullYear() === today.getFullYear()) return { id: 'later', label: tr('almanac.later_month') };
+  return groupOf(e, today, 'month', tr);
 }
 
-const awayLabel = (n: number) => (n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : n < 60 ? `in ${n} days` : `in ${Math.round(n / 30.4)} months`);
+const awayLabel = (n: number, tr: Translator) =>
+  n === 0 ? tr('almanac.today') : n === 1 ? tr('almanac.tomorrow') : n < 60 ? tr('almanac.away_days', { count: n }) : tr('almanac.away_months', { count: Math.round(n / 30.4) });
 
 // ---------- .ics ----------
 
@@ -161,7 +169,7 @@ function fold(line: string) {
   return out.join('\r\n');
 }
 
-function buildIcs(f: Family, treeName: string): { text: string; count: number } {
+function buildIcs(f: Family, treeName: string, tr: Translator): { text: string; count: number } {
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Kindred//Almanac//EN', 'CALSCALE:GREGORIAN', `X-WR-CALNAME:${icsText(treeName)}`];
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
   let count = 0;
@@ -184,14 +192,14 @@ function buildIcs(f: Family, treeName: string): { text: string; count: number } 
   };
   for (const p of f.graph.people) {
     const b = full(p.born);
-    if (p.living && b) add(`birthday-${p.id}`, b, `${displayName(p, f)}'s birthday`, `Born ${b.y}. From the ${treeName} family tree.`);
+    if (p.living && b) add(`birthday-${p.id}`, b, tr('almanac.ics_birthday', { name: displayName(p, f) }), tr('almanac.ics_born', { year: b.y, tree: treeName }));
   }
   for (const u of f.graph.unions) {
     const s = full(u.start);
     const a = f.byId.get(u.a);
     const b = f.byId.get(u.b);
     if (u.kind !== 'marriage' || !s || u.end || !a?.living || !b?.living) continue;
-    add(`anniversary-${u.id}`, s, `${a.given} & ${b.given}: wedding anniversary`, `Married ${s.y}. From the ${treeName} family tree.`);
+    add(`anniversary-${u.id}`, s, tr('almanac.ics_anniversary', { a: a.given, b: b.given }), tr('almanac.ics_married', { year: s.y, tree: treeName }));
   }
   lines.push('END:VCALENDAR');
   return { text: lines.map(fold).join('\r\n') + '\r\n', count };
@@ -213,7 +221,8 @@ function AlmanacPage() {
   // Kinship ("your aunt's birthday") only once the reader has said who they are.
   const me = useMeChosen();
   const tree = useTreeId();
-  usePageTrail('almanac', tree);
+  const t = useT();
+  usePageTrail('almanac', tree, t.locale);
   // Frozen for the life of the page, so rows don't shuffle at midnight under your hands.
   const [today] = useState(() => startOfDay(new Date()));
   const [month, setMonth] = useRememberedState<number | null>(`almanac:${tree}:month`, null);
@@ -232,13 +241,14 @@ function AlmanacPage() {
   const groups = useMemo(() => {
     const m = new Map<string, { label: string; events: Ev[] }>();
     for (const e of shown) {
-      const g = groupOf(e, today, mode);
+      const g = groupOf(e, today, mode, t);
       const cur = m.get(g.id) ?? { label: g.label, events: [] };
       cur.events.push(e);
       m.set(g.id, cur);
     }
     return [...m.entries()];
-  }, [shown, today, mode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown, today, mode, t.locale]);
 
   // Birthdays per month for the strip; for a tree with nobody alive, everything that ever happened.
   const strip = useMemo(() => {
@@ -262,7 +272,7 @@ function AlmanacPage() {
   const monthHist = hist.filter((h) => h.month === histMonth).sort((a, b) => (a.day ?? 99) - (b.day ?? 99) || a.year - b.year);
 
   const exportIcs = () => {
-    const { text, count } = buildIcs(f, f.graph.tree.name);
+    const { text, count } = buildIcs(f, f.graph.tree.name, t);
     if (!count) return;
     download(`${tree}-family-calendar.ics`, 'text/calendar', text);
     play('chime');
@@ -271,21 +281,21 @@ function AlmanacPage() {
   };
   const recurring = hasLiving && (all.length > 0 || f.graph.unions.some((u) => full(u.start)));
 
-  const dateLine = today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const dateLine = today.toLocaleDateString(locales[t.locale], { weekday: 'long', day: 'numeric', month: 'long' });
 
   const historyPanel = (
     <section className="alm-today ui-card" aria-labelledby="otd">
       <header>
         <span className="alm-today-date">
           <b>{today.getDate()}</b>
-          <i>{MONTHS[todayM - 1].slice(0, 3)}</i>
+          <i>{monthName(todayM, t.locale, 'short')}</i>
         </span>
         <div>
-          <h2 id="otd" className="display">On this day</h2>
+          <h2 id="otd" className="display">{t('almanac.on_this_day')}</h2>
           <p className="muted">
             {onThisDay.length
-              ? `${onThisDay.length} ${onThisDay.length === 1 ? 'thing' : 'things'} happened on ${today.getDate()} ${MONTHS[todayM - 1]} in family history`
-              : `Nothing is recorded for ${today.getDate()} ${MONTHS[todayM - 1]}. A quiet day in the family.`}
+              ? t('almanac.otd_things', { count: onThisDay.length, day: today.getDate(), month: monthName(todayM, t.locale) })
+              : t('almanac.otd_quiet', { day: today.getDate(), month: monthName(todayM, t.locale) })}
           </p>
         </div>
       </header>
@@ -303,13 +313,13 @@ function AlmanacPage() {
   const monthPanel = (
     <section className="alm-month-hist" aria-labelledby="mih">
       <h2 id="mih" className="rule">
-        {month === null ? 'This month in history' : `${MONTHS[month - 1]} in history`}
+        {month === null ? t('almanac.month_history') : t('almanac.month_history_named', { month: monthName(month, t.locale) })}
         <span className="chip">{monthHist.length}</span>
       </h2>
       {monthHist.length ? (
         <MonthHistory key={histMonth} hist={monthHist} f={f} tree={tree} thisYear={today.getFullYear()} />
       ) : (
-        <p className="muted alm-quiet">Nothing is recorded for {MONTHS[histMonth - 1]} yet.</p>
+        <p className="muted alm-quiet">{t('almanac.month_quiet', { month: monthName(histMonth, t.locale) })}</p>
       )}
     </section>
   );
@@ -317,26 +327,26 @@ function AlmanacPage() {
   return (
     <div className="page">
       <div className="page-inner alm">
-        <PageHeader title="Almanac" subtitle={<>{dateLine}</>} actions={<>{hasLiving && (
-            <button className="btn" onClick={exportIcs} disabled={!recurring} title="Download every birthday and wedding anniversary as a yearly calendar (.ics)">
+        <PageHeader title={t('almanac.title')} subtitle={<>{dateLine}</>} actions={<>{hasLiving && (
+            <button className="btn" onClick={exportIcs} disabled={!recurring} title={t('almanac.ics_title')}>
               {saved ? <Check size={16} /> : <CalendarPlus size={16} />}
-              {saved ? 'Calendar file saved' : 'Add to calendar'}
+              {saved ? t('almanac.saved') : t('almanac.add_calendar')}
             </button>
           )}</>} />
 
         <div className="alm-strip-wrap">
-          <MonthStrip counts={strip} current={todayM} selected={month} onSelect={(m) => setMonth(month === m ? null : m)} noun={hasLiving ? 'birthday' : 'event'} />
+          <MonthStrip counts={strip} current={todayM} selected={month} onSelect={(m) => setMonth(month === m ? null : m)} noun={hasLiving ? 'almanac.noun.birthday' : 'almanac.noun.event'} />
           <p className="muted alm-strip-cap">
-            {hasLiving ? 'Birthdays through the year' : 'Births, deaths and weddings through the year'}
+            {hasLiving ? t('almanac.strip_birthdays') : t('almanac.strip_events')}
             {month !== null && (
               <button className="btn ghost" onClick={() => setMonth(null)}>
-                Back to today
+                {t('almanac.back_today')}
               </button>
             )}
           </p>
         </div>
 
-        {f.graph.people.length === 0 ? <EmptyState title="No family events yet" text="Add people and dates from the family tree to start your calendar." /> : !hasLiving ? (
+        {f.graph.people.length === 0 ? <EmptyState title={t('almanac.no_events_title')} text={t('almanac.no_events_text')} /> : !hasLiving ? (
           <div className="alm-solo">
             {historyPanel}
             {monthPanel}
@@ -347,16 +357,16 @@ function AlmanacPage() {
               {groups.length === 0 ? (
                 <div className="alm-empty ui-card">
                   <Hourglass size={26} />
-                  <h2 className="display">{month === null ? 'A quiet stretch' : `Nothing in ${MONTHS[month - 1]}`}</h2>
+                  <h2 className="display">{month === null ? t('almanac.quiet_title') : t('almanac.nothing_in', { month: monthName(month, t.locale) })}</h2>
                   <p className="muted">
                     {month === null
-                      ? 'No birthdays, anniversaries or remembrances in the next 60 days.'
-                      : `No birthdays or anniversaries fall in ${MONTHS[month - 1]}.`}
+                      ? t('almanac.quiet_text')
+                      : t('almanac.quiet_month_text', { month: monthName(month, t.locale) })}
                   </p>
                   {month === null && nextBeyond && (
                     <p>
-                      Next up: <EventNames ev={nextBeyond} f={f} tree={tree} /> {awayLabel(nextBeyond.days)},{' '}
-                      {nextBeyond.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}.
+                      {t('almanac.next_up')} <EventNames ev={nextBeyond} f={f} tree={tree} /> {awayLabel(nextBeyond.days, t).toLowerCase()},{' '}
+                      {nextBeyond.date.toLocaleDateString(locales[t.locale], { day: 'numeric', month: 'long' })}.
                     </p>
                   )}
                 </div>
@@ -397,26 +407,27 @@ function relatedTo(f: Family, anc: Map<string, number>, id: string) {
   for (const a of ancestorDepths(f, id).keys()) if (anc.has(a)) return true;
   return false;
 }
-function safeKinship(f: Family, me: string, id: string, myAnc: Map<string, number>): string | undefined {
+function safeKinship(f: Family, me: string, id: string, myAnc: Map<string, number>): Kinship | undefined {
   const tied =
     relatedTo(f, myAnc, id) ||
     partnersOf(f, me).some((s) => relatedTo(f, ancestorDepths(f, s), id)) ||
     partnersOf(f, id).some((s) => relatedTo(f, myAnc, s));
   if (!tied) return undefined;
   try {
-    return kinship(f, me, id, myAnc)?.label;
+    return kinship(f, me, id, myAnc);
   } catch {
     return undefined;
   }
 }
 
 
-function MonthStrip({ counts, current, selected, onSelect, noun }: { counts: number[]; current: number; selected: number | null; onSelect: (m: number) => void; noun: string }) {
+function MonthStrip({ counts, current, selected, onSelect, noun }: { counts: number[]; current: number; selected: number | null; onSelect: (m: number) => void; noun: Key }) {
+  const t = useT();
   const max = Math.max(1, ...counts);
   // Starts at this month so the strip reads as "the year ahead".
   const order = Array.from({ length: 12 }, (_, i) => ((current - 1 + i) % 12) + 1);
   return (
-    <div className="alm-strip" role="group" aria-label="Jump to a month">
+    <div className="alm-strip" role="group" aria-label={t('almanac.jump_month')}>
       {order.map((m) => {
         const c = counts[m - 1];
         return (
@@ -427,11 +438,11 @@ function MonthStrip({ counts, current, selected, onSelect, noun }: { counts: num
             aria-pressed={selected === m}
             data-current={m === current || undefined}
             data-empty={c === 0 || undefined}
-            title={`${MONTHS[m - 1]}: ${c} ${noun}${c === 1 ? '' : 's'}`}
+            title={`${monthName(m, t.locale)}: ${c} ${t(noun, { count: c })}`}
             onClick={() => onSelect(m)}
           >
-            <span className="alm-tile-m">{MONTHS[m - 1].slice(0, 3)}</span>
-            <span className="alm-tile-n">{c} <small>{noun}{c === 1 ? '' : 's'}</small></span>
+            <span className="alm-tile-m">{monthName(m, t.locale, 'short')}</span>
+            <span className="alm-tile-n">{c} <small>{t(noun, { count: c })}</small></span>
             <span className="alm-tile-gauge" aria-hidden />
           </button>
         );
@@ -443,7 +454,8 @@ function MonthStrip({ counts, current, selected, onSelect, noun }: { counts: num
 const ICON: Record<Kind, GameIconName> = { birthday: 'cake-slice', anniversary: 'linked-rings', memorial: 'candle-light' };
 
 function Name({ p, f, tree }: { p?: GPerson; f: Family; tree: string }) {
-  if (!p) return <>someone</>;
+  const t = useT();
+  if (!p) return <>{t('almanac.someone')}</>;
   return (
     <Link to="/$tree" params={{ tree }} search={{ focus: p.id }} className="alm-name">
       {displayName(p, f)}
@@ -466,30 +478,33 @@ function EventNames({ ev, f, tree }: { ev: Ev; f: Family; tree: string }) {
   );
 }
 
-function relation(ev: Ev, f: Family, me: string | null, myAnc: Map<string, number>): string | undefined {
+function relation(ev: Ev, f: Family, me: string | null, myAnc: Map<string, number>, t: Translator): string | undefined {
   if (!me) return undefined;
-  if (ev.ids.includes(me)) return ev.kind === 'birthday' ? 'your birthday' : ev.kind === 'anniversary' ? 'your anniversary' : 'you';
-  const labels = ev.ids.map((id) => safeKinship(f, me, id, myAnc)).filter((x): x is string => !!x);
+  if (ev.ids.includes(me)) return ev.kind === 'birthday' ? t('almanac.rel_birthday') : ev.kind === 'anniversary' ? t('almanac.rel_anniversary') : t('almanac.rel_you');
+  const labels = ev.ids.map((id) => safeKinship(f, me, id, myAnc)).filter((x): x is Kinship => !!x).map((k) => kinshipLabel(k, t.locale));
   if (!labels.length) return undefined;
   const uniq = [...new Set(labels)];
-  return `your ${uniq.join(' & ')}`;
+  return t('shell.palette.yourKin', { kin: uniq.join(' & ') });
 }
 
 function EventRow({ ev, f, tree, me, myAnc }: { ev: Ev; f: Family; tree: string; me: string | null; myAnc: Map<string, number> }) {
+  const t = useT();
   const today = ev.days === 0;
   const crowned = ev.milestone && ev.kind === 'birthday';
   const people = ev.ids.map((id) => f.byId.get(id)).filter((p): p is GPerson => !!p);
-  const rel = relation(ev, f, me, myAnc);
+  const rel = relation(ev, f, me, myAnc, t);
   const what =
     ev.kind === 'birthday'
-      ? `turns ${ev.n}`
+      ? t('almanac.turns', { count: ev.n })
       : ev.kind === 'anniversary'
-        ? `${ord(ev.n)} anniversary${ev.note ? ` · ${ev.note} wedding` : ''}`
-        : `${ev.n} ${ev.n === 1 ? 'year' : 'years'} since they passed`;
+        ? ev.note
+          ? t('almanac.anniversary_note', { ord: ordOf(ev.n, t.locale), note: t(ev.note) })
+          : t('almanac.anniversary', { ord: ordOf(ev.n, t.locale) })
+        : t('almanac.years_since', { count: ev.n });
   return (
     <li className="alm-row ui-card" data-kind={ev.kind} data-milestone={ev.milestone || undefined} data-today={today || undefined}>
       <div className="alm-leaf" aria-hidden>
-        <i>{ev.date.toLocaleDateString('en-GB', { month: 'short' })}</i>
+        <i>{monthName(ev.date.getMonth() + 1, t.locale, 'short')}</i>
         <b>{ev.date.getDate()}</b>
       </div>
       <div className="alm-faces">
@@ -508,8 +523,8 @@ function EventRow({ ev, f, tree, me, myAnc }: { ev: Ev; f: Family; tree: string;
         <div className="alm-what">
           <span className="alm-what-text">{what}</span>
           {ev.milestone && ev.kind !== 'memorial' && (
-            <span className="alm-star" title="A round number">
-              <GameIcon name={crowned ? 'laurel-crown' : 'crown'} size={14} /> milestone
+            <span className="alm-star" title={t('almanac.round_number')}>
+              <GameIcon name={crowned ? 'laurel-crown' : 'crown'} size={14} /> {t('almanac.milestone')}
             </span>
           )}
         </div>
@@ -517,10 +532,10 @@ function EventRow({ ev, f, tree, me, myAnc }: { ev: Ev; f: Family; tree: string;
       <div className="alm-meta">
         {today ? (
           <span className="alm-ribbon">
-            <GameIcon name="wax-seal" size={15} /> Today
+            <GameIcon name="wax-seal" size={15} /> {t('almanac.today')}
           </span>
         ) : (
-          <span className="alm-away">{awayLabel(ev.days)}</span>
+          <span className="alm-away">{awayLabel(ev.days, t)}</span>
         )}
         {rel && <span className="alm-rel">{rel}</span>}
       </div>
@@ -528,9 +543,10 @@ function EventRow({ ev, f, tree, me, myAnc }: { ev: Ev; f: Family; tree: string;
   );
 }
 
-const HIST_VERB: Record<HistType, string> = { born: 'was born', died: 'died', married: 'married' };
+const HIST_VERB: Record<HistType, Key> = { born: 'almanac.was_born', died: 'almanac.died', married: 'almanac.married' };
 
 function HistRow({ h, f, tree, thisYear, away, showDay }: { h: Hist; f: Family; tree: string; thisYear: number; away?: number; showDay?: boolean }) {
+  const t = useT();
   const ps = h.ids.map((id) => f.byId.get(id)).filter((p): p is GPerson => !!p);
   if (!ps.length) return null;
   const ago = thisYear - h.year;
@@ -547,15 +563,15 @@ function HistRow({ h, f, tree, thisYear, away, showDay }: { h: Hist; f: Family; 
         {h.type === 'married' && ps[1] ? (
           <>
             {' '}
-            married <Name p={ps[1]} f={f} tree={tree} />
+            {t('almanac.married')} <Name p={ps[1]} f={f} tree={tree} />
           </>
         ) : (
-          <> {HIST_VERB[h.type]}</>
+          <> {t(HIST_VERB[h.type])}</>
         )}
         <small className="muted">
           {' '}
-          {away !== undefined ? `${awayLabel(away).toLowerCase()} · ` : ''}
-          {ago.toLocaleString('en-GB')} years ago
+          {away !== undefined ? `${awayLabel(away, t).toLowerCase()} · ` : ''}
+          {t('almanac.years_ago', { count: ago })}
         </small>
       </span>
     </li>
@@ -563,6 +579,7 @@ function HistRow({ h, f, tree, thisYear, away, showDay }: { h: Hist; f: Family; 
 }
 
 function MonthHistory({ hist, f, tree, thisYear }: { hist: Hist[]; f: Family; tree: string; thisYear: number }) {
+  const t = useT();
   const [more, setMore] = useState(false);
   const rows = more ? hist : hist.slice(0, 8);
   return (
@@ -574,7 +591,7 @@ function MonthHistory({ hist, f, tree, thisYear }: { hist: Hist[]; f: Family; tr
       </ol>
       {hist.length > 8 && (
         <button className="btn ghost" onClick={() => setMore(!more)}>
-          {more ? 'Show fewer' : `Show all ${hist.length}`}
+          {more ? t('almanac.show_fewer') : t('almanac.show_all', { count: hist.length })}
         </button>
       )}
     </>
@@ -602,7 +619,7 @@ function useRememberedState<T>(key: string, fallback: T): [T, React.Dispatch<Rea
   }, [key, value, ready]);
   return [value, setValue];
 }
-function usePageTrail(page: string, tree: string) {
+function usePageTrail(page: string, tree: string, locale: Locale) {
   useEffect(() => {
     const key = `kindred:scroll:${tree}:${page}`;
     const restore = () => {
@@ -624,10 +641,10 @@ function usePageTrail(page: string, tree: string) {
       const url = new URL(link.href);
       const person = url.searchParams.get('focus');
       if (person && url.pathname === `/${tree}`) {
-        try { localStorage.setItem('kindred:last-visit', JSON.stringify({ tree, person, name: link.textContent?.trim() || 'your family' })); } catch {}
+        try { localStorage.setItem('kindred:last-visit', JSON.stringify({ tree, person, name: link.textContent?.trim() || translate(locale, 'chronicle.your_family') })); } catch {}
       }
     };
     document.addEventListener('click', click, true);
     return () => { clearTimeout(timer); document.removeEventListener('scroll', scroll, true); document.removeEventListener('click', click, true); };
-  }, [page, tree]);
+  }, [page, tree, locale]);
 }
