@@ -7,7 +7,8 @@ import { useRef, useState } from 'react';
 import { EmptyState, ErrorState, Notice, PageHeader, Skeleton, Switch } from '~/components/ui';
 import { opKeys } from '~/lib/api';
 import { applyImportFile, exchangeContext, exportReport, previewImportFile } from '~/lib/exchange/exchange.functions';
-import { translate, useT, type Locale } from '~/lib/i18n';
+import { errorText } from '~/lib/errortext';
+import { translate, useT, type Locale, type Translator } from '~/lib/i18n';
 import { treeTitle } from '~/lib/title';
 import '~/styles/exchange.css';
 
@@ -20,7 +21,13 @@ export const Route = createFileRoute('/$tree/settings/import')({
 
 type Preview = Awaited<ReturnType<typeof previewImportFile>>;
 type Applied = Awaited<ReturnType<typeof applyImportFile>>;
+type Conflict = Preview['conflicts'][number];
 const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** A conflict in the reader's language: one fact that differs, or a parent link that would make a loop. */
+function conflictText(t: Translator, c: Conflict) {
+  return c.kind === 'cycle' ? t('exchange.conflict.cycle', c.vars) : t('exchange.conflict.value', { ...c.vars, field: t(c.code) });
+}
 
 function ExchangePage() {
   const { tree } = Route.useParams();
@@ -128,7 +135,7 @@ function ImportSection({ tree, people }: { tree: string; people: number }) {
       setPreview(await previewImportFile({ data: { tree, text: file.text } }));
     } catch (e) {
       setPreview(null);
-      setError(/GEDCOM/i.test(messageOf(e)) ? t('exchange.import.notGedcom') : `${t('exchange.state.failed')} ${messageOf(e)}`);
+      setError(/GEDCOM/i.test(messageOf(e)) ? t('exchange.import.notGedcom') : `${t('exchange.state.failed')} ${errorText(e, t.locale)}`);
     } finally {
       setBusy(null);
     }
@@ -149,7 +156,7 @@ function ImportSection({ tree, people }: { tree: string; people: number }) {
       qc.invalidateQueries({ queryKey: ['exchange-context', tree] });
     } catch (e) {
       // Nothing was written: the same key is kept, so pressing again is a safe retry.
-      setError(`${t('exchange.import.failed')} ${messageOf(e)}`);
+      setError(`${t('exchange.import.failed')} ${errorText(e, t.locale)}`);
     } finally {
       setBusy(null);
     }
@@ -213,12 +220,12 @@ function ImportSection({ tree, people }: { tree: string; people: number }) {
           {preview.conflicts.length > 0 && (
             <PreviewList
               title={t('exchange.import.list.conflicts')}
-              rows={preview.conflicts.map((c) => `${c.name}: ${c.field} ${c.existing} → ${c.incoming}`)}
+              rows={preview.conflicts.map((c) => conflictText(t, c))}
               total={preview.conflictCount}
             />
           )}
           {preview.issues.length > 0 && (
-            <PreviewList title={t('exchange.import.list.issues')} rows={preview.issues.map((i) => i.message)} total={preview.issueCount} />
+            <PreviewList title={t('exchange.import.list.issues')} rows={preview.issues.map((i) => t(i.code, i.vars))} total={preview.issueCount} />
           )}
 
           {people > 0 && (

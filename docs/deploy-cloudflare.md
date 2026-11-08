@@ -33,6 +33,9 @@ it upper case and change dashes to underscores. The binding names the database, 
 The app finds families by these bindings, so a family with no binding does not exist for the site. The family's
 URL is `/<id>`.
 
+The first family that first-time setup makes (step 7) needs its binding too. Its id is `KINDRED_DEFAULT_TREE`, or
+`family` when that is not set, so `TREE_FAMILY` must exist, or the binding for whatever `KINDRED_DEFAULT_TREE` names.
+
 ## 3. Apply the schema
 
 ```sh
@@ -44,15 +47,31 @@ driver applies, so both targets keep one schema.
 
 ## 4. Bring a family in (optional)
 
-If you have a family in a local `data/<id>.db` (for example, from `mise run data`):
+If you have a family in a local `data/<id>.db` (for example, from `mise run data`), check the copy first, then send it:
 
 ```sh
-node scripts/import-to-d1.ts <id> --remote
+node scripts/import-to-d1.ts <id> --plan     # prints what would be copied; changes nothing, needs no Cloudflare login
+node scripts/import-to-d1.ts <id> --remote   # copies the rows into the family's D1 database and its pictures into R2
 ```
 
-It copies the family's rows into its D1 database, and its pictures into R2. It refuses a database that already holds
-people unless you pass `--replace`, and the local file is never changed. Accounts are not copied: passkeys belong to
-a host name, so the first person to open the deployed site sets it up and invites the others.
+`--plan` prints the row count of each table that would be copied, and the pictures that would go to R2: every file
+under `data/media/<id>/`, plus any picture stored inside the database. It reads the local file and `wrangler.jsonc`,
+and it calls neither D1 nor R2.
+
+A transfer copies all 14 tables the family's data lives in: its name and settings, houses, people, parent links,
+partnerships, memories, map pins, portraits, the Edit tab's fields, house succession, gallery albums and pictures, the
+tags on gallery pictures, and the cached occupation translations. Two bookkeeping tables are left out on purpose.
+`op` holds the retry keys of changes already sent; they expire after 30 days and mean nothing on another database.
+`d1_migrations` is wrangler's record of the schema the target already has. After the rows are written, the script reads
+each table's count back from D1 and compares it with what it sent. A mismatch stops the run before any picture is
+uploaded.
+
+It refuses a database that already holds people unless you pass `--replace`. `--replace` empties the 14 copied tables
+and writes them again. It leaves `op` alone, so the target keeps its retry keys, and it leaves the pictures already in
+R2. The local file is never changed.
+
+Accounts are not copied: passkeys belong to a host name, so the first person to open the deployed site sets it up and
+invites the others.
 
 ## 5. Secrets and settings
 
@@ -85,8 +104,14 @@ extra lock, not a replacement for passkeys: people still sign in to Kindred with
 mise run deploy    # vite build, then npx wrangler deploy
 ```
 
-The first account claims stewardship when it is made: open the site, go through `/setup` (with the setup code, if
-you set one), and create the passkey. Setup closes after that account exists.
+The first account claims stewardship when it is made, and setup makes the server's first family too. Open the site and
+go through `/setup` (with the setup code, if you set one). Type the family's name and your own name, then create the
+passkey. The family gets the id `KINDRED_DEFAULT_TREE` (or `family`) and the name you typed. On the next screen, add
+yourself to it as its starting point, or skip that and the family opens empty. Setup closes after that account exists.
+
+Setup can only make that family when its binding exists (`TREE_FAMILY`, or the `TREE_<ID>` for your
+`KINDRED_DEFAULT_TREE`), and its database has the schema from step 3. Otherwise setup stops before it asks for a
+passkey, and says what to add.
 
 ## Checking a deployment locally first
 
@@ -110,6 +135,8 @@ AI keys. Test the restore on a scratch database before you rely on it.
 ## Troubleshooting
 
 - **A family is missing from the site**: its `TREE_<ID>` binding is absent or misspelt, or the id is not lower case.
+- **Setup stops before the passkey**: the family it would make has no `TREE_<ID>` binding, or its database has no
+  schema yet. Add the binding (step 2) and run `mise run cf:migrate:remote` (step 3), then open `/setup` again.
 - **Passkey errors on a custom domain**: set `KINDRED_ORIGIN` to the public address. Changing the host name later
   needs new passkeys.
 - **The AI settings say the key cannot be read**: `KINDRED_SECRET` changed or is missing. Enter the key again.

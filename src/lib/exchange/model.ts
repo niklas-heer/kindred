@@ -2,6 +2,8 @@
 // a GEDCOM or Markdown file. Pure: it imports nothing from storage at runtime, so the Node scripts, the
 // Worker and the unit tests all share it. Dates are Kindred's partial dates ("1953", "1953-08",
 // "1953-08-08"), with "~" in front of an approximate one.
+import type { Key } from '../i18n/dictionary.ts';
+import type { Vars } from '../i18n/types.ts';
 import type { Db } from '../store/db.ts';
 
 export type Sex = 'm' | 'f' | 'x';
@@ -60,10 +62,18 @@ export interface ExTree {
   extras: { stories: number; fields: number; houses: number; places: number };
 }
 
-/** Something a reader should know about a file or an export: a skipped tag, a guess, a conflict. */
+/** A translation key for something a reader is told about in the import preview (`exchange.issue.*`). */
+export type IssueCode = Extract<Key, `exchange.issue.${string}`>;
+
+/**
+ * Something a reader should know about a file or an export: a skipped tag, a guess, a conflict. `message` is the
+ * English text, which the CLI and the tests read. The app says `code` with `vars` in the reader's language.
+ */
 export interface Issue {
   level: 'skipped' | 'warning' | 'loss';
   message: string;
+  code: IssueCode;
+  vars: Vars;
 }
 
 interface PersonRow {

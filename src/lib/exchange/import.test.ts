@@ -57,7 +57,8 @@ test('applying the import writes the family, and reading it back gives the same 
 });
 
 test('a family that already has people refuses the import unless the steward says to add to it', async () => {
-  await assert.rejects(applyImport('target', text, undefined, false), /already has 8 people/);
+  // The refusal is a translation key: the app shows it in the reader's language.
+  await assert.rejects(applyImport('target', text, undefined, false), { message: 'exchange.import.needAllow' });
 });
 
 test('adding a file to a family that already has its people matches them and writes nothing new', async () => {
@@ -70,7 +71,19 @@ test('a preview of a different family’s file lists the conflicts without chang
   const changed = text.replace('2 DATE 14 JUN 1971', '2 DATE 14 JUN 1972');
   const p = await previewImport('target', changed);
   assert.equal(p.conflictCount, 1);
-  assert.deepEqual(p.conflicts[0], { name: 'Anna Linden', field: 'died', existing: '1971-06-14', incoming: '1972-06-14' });
+  const [c] = p.conflicts;
+  assert.deepEqual(
+    { name: c.name, field: c.field, code: c.code, kind: c.kind, existing: c.existing, incoming: c.incoming, vars: c.vars },
+    {
+      name: 'Anna Linden',
+      field: 'died',
+      code: 'exchange.conflict.field.died',
+      kind: 'value',
+      existing: '1971-06-14',
+      incoming: '1972-06-14',
+      vars: { name: 'Anna Linden', existing: '1971-06-14', incoming: '1972-06-14' },
+    },
+  );
   assert.equal((await readTree(db('target'))).people.find((x) => x.id === 'anna')!.died, '1971-06-14');
 });
 
@@ -98,8 +111,9 @@ test('a file that would make someone their own ancestor previews the loop as a c
   ].join('\n') + '\n';
   const preview = await previewImport('loops', loop);
   assert.equal(preview.conflicts.filter((c) => c.field === 'parent').length, 1, 'the loop is shown in the preview');
-  assert.ok(preview.issues.some((i) => i.level === 'loss'));
-  await assert.rejects(applyImport('loops', loop, undefined, false), /would make someone their own ancestor/);
+  assert.ok(preview.issues.some((i) => i.level === 'loss' && i.code === 'exchange.issue.cycles' && i.vars.count === 1));
+  assert.equal(preview.conflicts.find((c) => c.field === 'parent')?.kind, 'cycle');
+  await assert.rejects(applyImport('loops', loop, undefined, false), { message: 'exchange.cycle_refused' });
   assert.equal((await db('loops').get<{ n: number }>('SELECT count(*) AS n FROM person'))!.n, 0, 'nothing was written');
   assert.equal((await db('loops').get<{ n: number }>('SELECT count(*) AS n FROM parent'))!.n, 0);
 });

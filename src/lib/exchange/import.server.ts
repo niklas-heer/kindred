@@ -2,12 +2,12 @@
 // same plan, written as one guarded batch through `once`, so a retry or a second copy cannot write twice).
 // Server-only: it uses the family's database. The steward's permission is checked by the server function that
 // calls this (exchange.functions.ts), before anything here runs.
-import { translate } from '../i18n/dictionary.ts';
 import { db, newId, once, type OpKey } from '../db.server.ts';
 import { guard, q, type Query } from '../store/index.ts';
 import { readGedcom } from './gedcom.ts';
-import { planImport, type ImportPlan } from './plan.ts';
-import { readTree, type ExTree } from './model.ts';
+import { planImport, type ConflictCode, type ImportPlan } from './plan.ts';
+import type { Vars } from '../i18n/types.ts';
+import { readTree, type ExTree, type IssueCode } from './model.ts';
 
 /** Lists are cut at this many rows; the counts are always complete. */
 const LIST = 300;
@@ -23,7 +23,7 @@ export interface ImportPreview {
   matched: { name: string; by: 'id' | 'name' }[];
   matchCount: number;
   ambiguous: string[];
-  conflicts: { name: string; field: string; existing: string; incoming: string }[];
+  conflicts: { name: string; field: string; code: ConflictCode; kind: 'value' | 'cycle'; existing: string; incoming: string; vars: Vars }[];
   conflictCount: number;
   parents: number;
   duplicateParents: number;
@@ -31,7 +31,7 @@ export interface ImportPreview {
   duplicateUnions: number;
   unlinked: number;
   pictures: number;
-  issues: { level: string; message: string }[];
+  issues: { level: string; message: string; code: IssueCode; vars: Vars }[];
   issueCount: number;
 }
 
@@ -46,7 +46,9 @@ function summarize(plan: ImportPlan, incoming: ReturnType<typeof readGedcom>, ex
     matched: plan.matched.slice(0, LIST).map((m) => ({ name: m.name, by: m.by })),
     matchCount: plan.matched.length,
     ambiguous: plan.ambiguous.slice(0, LIST),
-    conflicts: plan.conflicts.slice(0, LIST).map((c) => ({ name: c.name, field: c.field, existing: c.existing, incoming: c.incoming })),
+    conflicts: plan.conflicts
+      .slice(0, LIST)
+      .map((c) => ({ name: c.name, field: c.field, code: c.code, kind: c.kind, existing: c.existing, incoming: c.incoming, vars: c.vars })),
     conflictCount: plan.conflicts.length,
     parents: plan.parents.length,
     duplicateParents: plan.duplicateParents,
@@ -54,7 +56,7 @@ function summarize(plan: ImportPlan, incoming: ReturnType<typeof readGedcom>, ex
     duplicateUnions: plan.duplicateUnions,
     unlinked: plan.unlinked,
     pictures: incoming.pictures,
-    issues: plan.issues.slice(0, LIST).map((i) => ({ level: i.level, message: i.message })),
+    issues: plan.issues.slice(0, LIST).map((i) => ({ level: i.level, message: i.message, code: i.code, vars: i.vars })),
     issueCount: plan.issues.length,
   };
 }
@@ -82,12 +84,12 @@ export function applyImport(tree: string, text: string, op: OpKey | undefined, a
   return once<ApplyResult>(tree, op, 'importExchange', async (d) => {
     const existing = await readTree(d);
     if (existing.people.length && !allowExisting) {
-      throw new Error(`This family already has ${existing.people.length} people. Tick “Add to this family” to add the file’s people to it.`);
+      throw new Error('exchange.import.needAllow');
     }
     const incoming = readGedcom(text);
     const plan = planImport(incoming, existing, newId);
     // A file that would make someone their own ancestor is not written at all: the steward corrects it first.
-    if (plan.cycles.length) throw new Error(translate('en', 'exchange.cycle_refused', { count: plan.cycles.length }));
+    if (plan.cycles.length) throw new Error('exchange.cycle_refused');
     const writes: Query[] = [
       guard('(SELECT count(*) FROM person) = ?', existing.people.length),
       guard('(SELECT count(*) FROM parent) = ?', existing.parents.length),

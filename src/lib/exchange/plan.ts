@@ -10,15 +10,36 @@
 //   - Parent links and partnerships are added when they are new; one already in the tree is counted, not repeated.
 //   - A parent link that would make someone their own ancestor (directly or through others, in the tree or in the
 //     file) is a conflict, and is not added. `applyImport` refuses the whole file while there are any.
+import type { Key } from '../i18n/dictionary.ts';
+import type { Vars } from '../i18n/types.ts';
 import type { Incoming, IncomingPerson } from './gedcom.ts';
-import type { ExParent, ExPerson, ExTree, ExUnion, Issue } from './model.ts';
+import type { ExParent, ExPerson, ExTree, ExUnion, Issue, IssueCode } from './model.ts';
+
+type ConflictField = 'born' | 'died' | 'born place' | 'died place' | 'parent';
+export type ConflictCode = Extract<Key, `exchange.conflict.field.${string}`>;
+
+/** The field's translation key, for each raw field word. */
+const FIELD_CODE: Record<ConflictField, ConflictCode> = {
+  born: 'exchange.conflict.field.born',
+  died: 'exchange.conflict.field.died',
+  'born place': 'exchange.conflict.field.born_place',
+  'died place': 'exchange.conflict.field.died_place',
+  parent: 'exchange.conflict.field.parent',
+};
 
 export interface Conflict {
   name: string;
   id: string;
-  field: 'born' | 'died' | 'born place' | 'died place' | 'parent';
+  /** The raw word ("born place", "parent"), for the CLI and the tests. */
+  field: ConflictField;
+  /** The field's name in the reader's language. */
+  code: ConflictCode;
+  /** `value`: one fact differs between the file and the family. `cycle`: a parent link that would make a loop. */
+  kind: 'value' | 'cycle';
   existing: string;
   incoming: string;
+  /** What the translated sentence needs: `exchange.conflict.value` or `exchange.conflict.cycle`. */
+  vars: Vars;
 }
 
 /** A parent link the file would make a cycle with: `child` cannot have `parent` as a parent. */
@@ -95,7 +116,12 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
     let by: 'id' | 'name' = 'name';
     if (p.preferredId) {
       if (seenInFile.has(p.preferredId)) {
-        issues.push({ level: 'warning', message: `${name} has the same id as an earlier person in the file; this one is matched by name or added as new` });
+        issues.push({
+          level: 'warning',
+          code: 'exchange.issue.duplicate_id',
+          vars: { name },
+          message: `${name} has the same id as an earlier person in the file; this one is matched by name or added as new`,
+        });
       }
       seenInFile.add(p.preferredId);
     }
@@ -107,7 +133,12 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
       if (candidates.length === 1) hit = candidates[0];
       else if (candidates.length > 1) {
         ambiguous.push(name);
-        issues.push({ level: 'warning', message: `${name} matches ${candidates.length} people in the family; added as a new person` });
+        issues.push({
+          level: 'warning',
+          code: 'exchange.issue.ambiguous',
+          vars: { name, count: candidates.length },
+          message: `${name} matches ${candidates.length} people in the family; added as a new person`,
+        });
       }
     }
 
@@ -115,8 +146,10 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
       matchedIds.add(hit.id);
       keyToId.set(p.id, hit.id);
       matched.push({ name, id: hit.id, by });
-      const check = (field: Conflict['field'], a: string | null, b: string | null) => {
-        if (a && b && fold(a) !== fold(b)) conflicts.push({ name, id: hit!.id, field, existing: a, incoming: b });
+      const check = (field: ConflictField, a: string | null, b: string | null) => {
+        if (a && b && fold(a) !== fold(b)) {
+          conflicts.push({ name, id: hit!.id, field, code: FIELD_CODE[field], kind: 'value', existing: a, incoming: b, vars: { name, existing: a, incoming: b } });
+        }
       };
       check('born', hit.born, p.born);
       check('died', hit.died, p.died);
@@ -176,7 +209,16 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
     if (isAncestorOf(parentsOf, child, parent)) {
       const cycle = { child, parent, childName: nameById.get(child) ?? child, parentName: nameById.get(parent) ?? parent };
       cycles.push(cycle);
-      conflicts.push({ name: cycle.childName, id: child, field: 'parent', existing: `${cycle.parentName} is a descendant`, incoming: `${cycle.parentName} as a parent` });
+      conflicts.push({
+        name: cycle.childName,
+        id: child,
+        field: 'parent',
+        code: FIELD_CODE.parent,
+        kind: 'cycle',
+        existing: `${cycle.parentName} is a descendant`,
+        incoming: `${cycle.parentName} as a parent`,
+        vars: { name: cycle.childName, parent: cycle.parentName },
+      });
       continue;
     }
     existingLinks.add(k);
@@ -184,8 +226,11 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
     parents.push({ child, parent, kind: l.kind, confidence: l.confidence });
   }
   if (cycles.length) {
+    const code: IssueCode = 'exchange.issue.cycles';
     issues.push({
       level: 'loss',
+      code,
+      vars: { count: cycles.length },
       message: `${cycles.length} parent link${cycles.length === 1 ? '' : 's'} would make someone their own ancestor. Nothing is imported until the file is corrected.`,
     });
   }

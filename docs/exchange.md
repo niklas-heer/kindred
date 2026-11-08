@@ -122,12 +122,18 @@ then shows, and nothing is written yet:
 - the parent links and partnerships that would be new, and how many were already there;
 - possible duplicates, and anything the reader should know about the file.
 
+**Language.** The preview's own sentences (the counts, the conflicts, the notes and any refusal) are shown in the
+reader's language: English, German or Afrikaans. Names, dates and the file's own text are shown as they are. The notes
+about a date Kindred can keep only as near as it can (such as `BEF 1900`) are still in English.
+
 **Matching.** A person matches someone in the family when they carry the same `_KINDRED_ID`, or else when their name is
 the same and their birth years agree (or one has no birth year). A name that matches two people is not guessed at: the
 person is added as new, and the preview says so. A second person in the file with the same id is reported too.
 
 **What an import changes.** It only adds: new people, new parent links and new partnerships. It never changes a person
 who is already in the family, and it never removes anything. A conflict is listed for the steward to settle by hand.
+A parent link that would make someone their own ancestor is listed as a conflict and is not added. While the file holds
+any such link, the whole import is refused, and nothing is written until the file is corrected.
 
 **A family that already has people** needs an explicit choice. The page asks the steward to turn on "Add to this
 family", and the server refuses the import without it. The same goes for a family with no new people to add: the

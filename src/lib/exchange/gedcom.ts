@@ -10,7 +10,18 @@
 //
 // Nothing here touches storage: `writeGedcom` takes an ExTree, `readGedcom` returns what the file says.
 import { fromGedcomDate, toGedcomDate } from './dates.ts';
-import type { Confidence, ExParent, ExPerson, ExTree, ExUnion, Issue, ParentKind, Sex, UnionKind } from './model.ts';
+import type { Confidence, ExParent, ExPerson, ExTree, ExUnion, Issue, IssueCode, ParentKind, Sex, UnionKind } from './model.ts';
+
+/** The date facts a file can hold, and the words that name them in the report. */
+type DateEvent = 'birth' | 'death' | 'marriage' | 'start' | 'divorce' | 'end';
+const DATE_EVENT: Record<DateEvent, { word: string; code: IssueCode }> = {
+  birth: { word: 'birth date', code: 'exchange.issue.date_birth' },
+  death: { word: 'death date', code: 'exchange.issue.date_death' },
+  marriage: { word: 'marriage date', code: 'exchange.issue.date_marriage' },
+  start: { word: 'start date', code: 'exchange.issue.date_start' },
+  divorce: { word: 'divorce date', code: 'exchange.issue.date_divorce' },
+  end: { word: 'end date', code: 'exchange.issue.date_end' },
+};
 
 const CHUNK = 120; // characters per line, before escaping: keeps every line under GEDCOM's 255
 const UNION_KINDS: UnionKind[] = ['marriage', 'partnership', 'betrothal', 'other'];
@@ -276,7 +287,7 @@ export function readGedcom(text: string): Incoming {
       if (raw.trim() === '') return;
       const m = LINE.exec(raw.trim());
       if (!m) {
-        issues.push({ level: 'skipped', message: `Line ${i + 1} is not GEDCOM and was skipped` });
+        issues.push({ level: 'skipped', code: 'exchange.issue.line_skipped', vars: { line: i + 1 }, message: `Line ${i + 1} is not GEDCOM and was skipped` });
         return;
       }
       const level = Number(m[1]);
@@ -297,7 +308,7 @@ export function readGedcom(text: string): Incoming {
       else {
         const parent = stack[level - 1];
         if (!parent) {
-          issues.push({ level: 'skipped', message: `Line ${i + 1} sits under nothing and was skipped` });
+          issues.push({ level: 'skipped', code: 'exchange.issue.line_orphan', vars: { line: i + 1 }, message: `Line ${i + 1} sits under nothing and was skipped` });
           return;
         }
         parent.children.push(node);
@@ -319,21 +330,27 @@ export function readGedcom(text: string): Incoming {
     if (!KNOWN.has(r.tag)) skipped.set(r.tag, (skipped.get(r.tag) ?? 0) + 1);
     else walk(r);
   }
-  for (const [tag, n] of skipped) issues.push({ level: 'skipped', message: `Skipped ${n}× ${tag}: Kindred does not import it` });
+  for (const [tag, n] of skipped) {
+    issues.push({ level: 'skipped', code: 'exchange.issue.tag_skipped', vars: { tag, count: n }, message: `Skipped ${n}× ${tag}: Kindred does not import it` });
+  }
 
   const head = roots.find((r) => r.tag === 'HEAD');
   const charset = head?.children.find((c) => c.tag === 'CHAR')?.value.toUpperCase();
   if (charset && !['UTF-8', 'UTF8', 'UNICODE', 'ASCII'].includes(charset)) {
-    issues.push({ level: 'warning', message: `The file says it uses ${charset}; it was read as UTF-8` });
+    issues.push({ level: 'warning', code: 'exchange.issue.charset', vars: { charset }, message: `The file says it uses ${charset}; it was read as UTF-8` });
   }
 
   const first = (n: GNode | undefined, tag: string) => n?.children.find((c) => c.tag === tag);
   const all = (n: GNode | undefined, tag: string) => n?.children.filter((c) => c.tag === tag) ?? [];
   const id = (s: string | undefined) => (s && ID.test(s) ? s : null);
-  const parseDate = (text: string | undefined, where: string): string | null => {
+  /** A date from the file. A date Kindred cannot hold exactly is kept as near as it can be, and the reader is told why. */
+  const parseDate = (text: string | undefined, event: DateEvent, subject: string): string | null => {
     if (!text) return null;
     const p = fromGedcomDate(text);
-    if (p.note) issues.push({ level: 'warning', message: `${where}: ${p.note}` });
+    if (p.note) {
+      const { word, code } = DATE_EVENT[event];
+      issues.push({ level: 'warning', code, vars: { subject, note: p.note }, message: `${word} of ${subject}: ${p.note}` });
+    }
     return p.date;
   };
 
@@ -361,7 +378,7 @@ export function readGedcom(text: string): Incoming {
     let { given, surname } = parseName(birthName);
     if (!given) {
       given = 'Unnamed';
-      issues.push({ level: 'warning', message: `${key} has no given name; it is called “Unnamed”` });
+      issues.push({ level: 'warning', code: 'exchange.issue.no_given_name', vars: { id: key }, message: `${key} has no given name; it is called “Unnamed”` });
     }
     const cur = currentName ? parseName(currentName) : null;
     const sexTag = first(r, 'SEX')?.value.toUpperCase();
@@ -388,9 +405,9 @@ export function readGedcom(text: string): Incoming {
       currentGiven: cur && cur.given !== given ? cur.given : null,
       currentSurname: cur && cur.surname !== surname ? cur.surname : null,
       sex,
-      born: parseDate(first(birth, 'DATE')?.value, `${given}’s birth`),
+      born: parseDate(first(birth, 'DATE')?.value, 'birth', given),
       bornPlace: first(birth, 'PLAC')?.value ?? null,
-      died: parseDate(first(death, 'DATE')?.value, `${given}’s death`),
+      died: parseDate(first(death, 'DATE')?.value, 'death', given),
       diedPlace: first(death, 'PLAC')?.value ?? null,
       living: livingTag ? livingTag === 'Y' : !dead,
       title: first(r, 'TITL')?.value || null,
@@ -412,7 +429,9 @@ export function readGedcom(text: string): Incoming {
     const spouses = [first(f, 'HUSB')?.value, first(f, 'WIFE')?.value].filter((s): s is string => !!s && known.has(s));
     const children = all(f, 'CHIL').map((c) => c.value).filter((c) => known.has(c));
     for (const bad of [first(f, 'HUSB')?.value, first(f, 'WIFE')?.value, ...all(f, 'CHIL').map((c) => c.value)]) {
-      if (bad && !known.has(bad)) issues.push({ level: 'warning', message: `${xref} refers to ${bad}, who is not in the file` });
+      if (bad && !known.has(bad)) {
+        issues.push({ level: 'warning', code: 'exchange.issue.unknown_ref', vars: { family: xref, person: bad }, message: `${xref} refers to ${bad}, who is not in the file` });
+      }
     }
     for (const c of children) {
       const k = famcKind.get(c)?.get(xref) ?? { kind: 'biological' as ParentKind, confidence: 'certain' as Confidence };
@@ -434,7 +453,12 @@ export function readGedcom(text: string): Incoming {
     else if (marr || div) kind = 'marriage';
     if (!kind) continue;
     if (spouses.length !== 2) {
-      issues.push({ level: 'warning', message: `${xref}: a marriage or partnership needs two spouses; it was not imported as one` });
+      issues.push({
+        level: 'warning',
+        code: 'exchange.issue.union_spouses',
+        vars: { family: xref },
+        message: `${xref}: a marriage or partnership needs two spouses; it was not imported as one`,
+      });
       continue;
     }
     const u: IncomingUnion = {
@@ -449,17 +473,17 @@ export function readGedcom(text: string): Incoming {
       place: null,
     };
     if (kind === 'marriage' && marr) {
-      u.start = parseDate(first(marr, 'DATE')?.value, `${xref} marriage`);
+      u.start = parseDate(first(marr, 'DATE')?.value, 'marriage', xref);
       u.place = first(marr, 'PLAC')?.value ?? null;
     } else if (began) {
-      u.start = parseDate(first(began, 'DATE')?.value, `${xref} start`);
+      u.start = parseDate(first(began, 'DATE')?.value, 'start', xref);
       u.place = first(began, 'PLAC')?.value ?? null;
     }
     if (div) {
-      u.end = parseDate(first(div, 'DATE')?.value, `${xref} divorce`);
+      u.end = parseDate(first(div, 'DATE')?.value, 'divorce', xref);
       u.endReason = 'divorce';
     } else if (ended) {
-      u.end = parseDate(first(ended, 'DATE')?.value, `${xref} end`);
+      u.end = parseDate(first(ended, 'DATE')?.value, 'end', xref);
       u.endReason = ended.value || null;
     }
     unions.push(u);
