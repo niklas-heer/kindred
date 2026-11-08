@@ -60,25 +60,29 @@ function state() {
 
 /** The values that turn KINDRED_REQUIRE_SETUP_CODE on, in any case. */
 const REQUIRE_ON = new Set(['1', 'true', 'yes', 'required']);
+/** The values that turn it off on purpose, in any case. */
+const REQUIRE_OFF = new Set(['0', 'false', 'no', 'off']);
 let warnedRequireFlag = false;
 
 /**
- * KINDRED_REQUIRE_SETUP_CODE: 1, true, yes or required (any case) require the code. Any other non-empty value does not,
- * and the server says so once. It fails open, as the other switches here do not: the warning is the only guard against a
- * typo. The value itself is never logged, because someone may have pasted the setup code there by mistake.
+ * KINDRED_REQUIRE_SETUP_CODE: 1, true, yes or required (any case) require the code; 0, false, no or off do not. Any
+ * other non-empty value fails closed, like KINDRED_SETUP_CODE: the code is required, and the server says so once. The
+ * value itself is never logged, because someone may have pasted the setup code there by mistake.
  */
 function requireFlagOn(): boolean {
   const raw = process.env.KINDRED_REQUIRE_SETUP_CODE?.trim();
   if (!raw) return false;
-  if (REQUIRE_ON.has(raw.toLowerCase())) return true;
+  const v = raw.toLowerCase();
+  if (REQUIRE_ON.has(v)) return true;
+  if (REQUIRE_OFF.has(v)) return false;
   if (!warnedRequireFlag) {
     warnedRequireFlag = true;
     console.warn(
-      '[kindred] KINDRED_REQUIRE_SETUP_CODE has a value Kindred does not understand, so the setup code is NOT required. ' +
-        'Use 1, true, yes or required (docs/self-host.md).',
+      '[kindred] KINDRED_REQUIRE_SETUP_CODE has a value Kindred does not understand, so the setup code IS required, to be safe. ' +
+        'Use 1, true, yes or required to require it, or 0, false, no or off (or leave it empty) not to (docs/self-host.md).',
     );
   }
-  return false;
+  return true;
 }
 
 /** Whether setup needs a code. A locked KINDRED_SETUP_CODE counts: setup is then closed, not open to the public. */

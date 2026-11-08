@@ -135,7 +135,7 @@ test('bootstrap modes, discoverable options, exclusions and proxy origin', async
       assert.equal(lines.length, 1);
       assert.match(lines[0], /other\.example\.net.*family\.example\.org/);
     });
-    await t.test('KINDRED_REQUIRE_SETUP_CODE takes 1, true, yes or required in any case; other values leave it off, warn once and are not repeated', () => {
+    await t.test('KINDRED_REQUIRE_SETUP_CODE takes 1, true, yes or required in any case, 0, false, no or off turn it off, and anything else requires the code with one warning', () => {
       const saved = console.warn;
       const warnings: string[] = [];
       console.warn = (m: unknown) => { warnings.push(String(m)); };
@@ -146,10 +146,15 @@ test('bootstrap modes, discoverable options, exclusions and proxy origin', async
           assert.equal(setup.setupCodeRequired(), true, JSON.stringify(v));
         }
         assert.equal(warnings.length, 0, 'the accepted values do not warn');
-        // A pasted setup code in this variable must not be echoed into the log.
-        for (const v of ['0', 'false', 'no', 'on', 'y', '2', 'ABCD-EFGH-JKMN-PQRS']) {
+        for (const v of ['0', 'false', 'No', ' OFF ']) {
           process.env.KINDRED_REQUIRE_SETUP_CODE = v;
           assert.equal(setup.setupCodeRequired(), false, JSON.stringify(v));
+        }
+        assert.equal(warnings.length, 0, 'the off values do not warn');
+        // Unknown values fail closed. A pasted setup code in this variable must not be echoed into the log.
+        for (const v of ['on', 'y', '2', 'ABCD-EFGH-JKMN-PQRS']) {
+          process.env.KINDRED_REQUIRE_SETUP_CODE = v;
+          assert.equal(setup.setupCodeRequired(), true, JSON.stringify(v));
         }
         assert.equal(warnings.length, 1, 'one warning, however many values or calls');
         assert.match(warnings[0], /KINDRED_REQUIRE_SETUP_CODE/);
