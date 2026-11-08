@@ -8,6 +8,7 @@ import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'r
 import { aiAvatarFromPhoto } from '~/lib/ai.functions';
 import { toAiLocale } from '~/lib/ai/types';
 import { useT, type Key } from '~/lib/i18n';
+import { errorText } from '~/lib/errortext';
 import { personPhotosQuery } from '~/lib/photos.functions';
 import type { Mark } from '~/lib/seed-format';
 import type { GPerson, House, Look } from '~/lib/types';
@@ -77,7 +78,8 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
   const photos = useQuery({ ...personPhotosQuery(tree, person.id), enabled: aiAvatar && picking });
   const fromPhoto = useMutation({
     mutationFn: (mediaKey: string) => aiAvatarFromPhoto({ data: { tree, personId: person.id, mediaKey, locale: toAiLocale(t.locale) } }),
-    onSuccess: (next) => commit(next),
+    // Over the current look: a photo says nothing about era-driven headwear, clothing or a fixed age.
+    onSuccess: (next) => commit({ ...look, ...next }),
   });
   const undo = () => {
     if (!history.length) return;
@@ -121,7 +123,7 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
       )}
       {options.map((o) => (
         <button key={o.id} type="button" className="ce-tile" aria-pressed={look[field] === o.id} onClick={() => set(field, o.id as never)}>
-          <Portrait person={tile(field, o.id, adultOnly)} tree={tree} house={house} mourn={false} size={56} frame={false} />
+          <Portrait prefer="avatar" person={tile(field, o.id, adultOnly)} tree={tree} house={house} mourn={false} size={56} frame={false} />
           {t(o.label)}
         </button>
       ))}
@@ -138,17 +140,17 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
     <div className="ce" onKeyDown={onKeyDown}>
       <div className="ce-stage">
         <div className="ce-hero">
-          <Portrait person={shown} tree={tree} house={house} mourn={false} size={176} age={preview} />
+          <Portrait prefer="avatar" person={shown} tree={tree} house={house} mourn={false} size={176} age={preview} />
           <span className="ce-hero-caption">{heroAge === undefined ? t('character.age_unknown') : t('character.aged', { age: heroAge })}</span>
         </div>
         <div className="ce-ages" role="group" aria-label={t('character.preview_age')}>
           <button type="button" className="ce-age" aria-pressed={preview === undefined} onClick={() => setPreview(undefined)}>
-            <Portrait person={shown} tree={tree} house={house} mourn={false} size={44} frame={false} />
+            <Portrait prefer="avatar" person={shown} tree={tree} house={house} mourn={false} size={44} frame={false} />
             {t('character.as_shown')}
           </button>
           {STAGES.filter((s) => ages.some((a) => a >= s.age - 6) || s.age <= 8).map((s) => (
             <button key={s.label} type="button" className="ce-age" aria-pressed={preview === s.age} onClick={() => setPreview(s.age)}>
-              <Portrait person={shown} tree={tree} house={house} mourn={false} size={44} frame={false} age={s.age} />
+              <Portrait prefer="avatar" person={shown} tree={tree} house={house} mourn={false} size={44} frame={false} age={s.age} />
               {t(s.label)}
             </button>
           ))}
@@ -158,7 +160,7 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
           <div className="ce-life">
             {ages.map((a) => (
               <figure key={a}>
-                <Portrait person={shown} tree={tree} house={house} mourn={false} size={52} age={a} />
+                <Portrait prefer="avatar" person={shown} tree={tree} house={house} mourn={false} size={52} age={a} />
                 <figcaption>{a}</figcaption>
               </figure>
             ))}
@@ -193,7 +195,7 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
               <p className="ce-hint">{t('character.no_photos')}</p>
             ) : null}
             {fromPhoto.isPending && <p className="ce-hint" role="status" aria-busy="true">{t('character.photo_loading')}</p>}
-            {fromPhoto.isError && <p className="ce-hint ce-err" role="alert">{t('character.photo_failed')}</p>}
+            {fromPhoto.isError && <p className="ce-hint ce-err" role="alert">{t('character.photo_failed')} {errorText(fromPhoto.error, t.locale)}</p>}
             {fromPhoto.isSuccess && !fromPhoto.isPending && <p className="ce-hint" role="status">{t('character.photo_loaded')}</p>}
           </div>
         )}
@@ -229,7 +231,7 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
                 </button>
                 {MARKS.map((m) => (
                   <button key={m.id} type="button" className="ce-tile" aria-pressed={!!marks?.includes(m.id)} onClick={() => toggleMark(m.id)}>
-                    <Portrait person={tile('marks', [m.id])} tree={tree} house={house} mourn={false} size={56} frame={false} />
+                    <Portrait prefer="avatar" person={tile('marks', [m.id])} tree={tree} house={house} mourn={false} size={56} frame={false} />
                     {t(m.label)}
                   </button>
                 ))}

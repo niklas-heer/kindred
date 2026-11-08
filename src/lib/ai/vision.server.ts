@@ -7,7 +7,7 @@ import { lookSchema, faceResultSchema, type AiLocale, type FaceResult } from './
 import { AiError, type ImagePart, type JsonSchema } from './adapters';
 import { tr } from './labels';
 import { adapterForFeature } from './settings.server';
-import { SKIN_LABELS, HAIR_LABELS, EYE_LABELS } from '../../components/portrait/look';
+import { SKIN_LABELS, HAIR_LABELS, EYE_LABELS, PHOTO_LOOK_FIELDS, sanitizeLook } from '../../components/portrait/look';
 import { translate } from '../i18n/dictionary';
 import type { Look } from '../types';
 
@@ -145,15 +145,19 @@ export async function findFaces(o: { tree: string; mediaKey: string; locale: AiL
 
 // ---------- a portrait look ----------
 
-const LOOK_JSON: JsonSchema = {
+const oneOf = (values: readonly string[]) => ({ type: 'string', enum: [...values] });
+
+/** Only what a face shows (see PHOTO_LOOK_FIELDS): headwear, clothing and age follow the person's era and stay as they were. */
+export const LOOK_JSON: JsonSchema = {
   type: 'object',
   properties: {
     skin: { type: 'integer', minimum: 0, maximum: 8, description: 'Skin tone index: ' + SKIN_LABELS.map((l, i) => `${i} ${translate('en', l)}`).join(', ') },
     hair: { type: 'integer', minimum: 0, maximum: 9, description: 'Hair colour index: ' + HAIR_LABELS.map((l, i) => `${i} ${translate('en', l)}`).join(', ') },
     eyes: { type: 'integer', minimum: 0, maximum: 6, description: 'Eye colour index: ' + EYE_LABELS.map((l, i) => `${i} ${translate('en', l)}`).join(', ') },
-    hairStyle: { type: 'string' }, beardStyle: { type: 'string' }, moustache: { type: 'string' }, glasses: { type: 'string' },
-    clothing: { type: 'string' }, headwear: { type: 'string' }, brows: { type: 'string' }, hairGreys: { type: 'boolean' },
-    marks: { type: 'array', items: { type: 'string' } }, age: { type: 'integer' },
+    hairStyle: oneOf(PHOTO_LOOK_FIELDS.hairStyle.of), beardStyle: oneOf(PHOTO_LOOK_FIELDS.beardStyle.of),
+    moustache: oneOf(PHOTO_LOOK_FIELDS.moustache.of), glasses: oneOf(PHOTO_LOOK_FIELDS.glasses.of),
+    brows: oneOf(PHOTO_LOOK_FIELDS.brows.of), hairGreys: { type: 'boolean' },
+    marks: { type: 'array', items: oneOf(PHOTO_LOOK_FIELDS.marks.of) },
   },
   required: ['skin', 'hair', 'eyes'],
 };
@@ -165,13 +169,14 @@ export async function avatarFromPhoto(o: { tree: string; personId: string; media
   if (!(await db(o.tree).get('SELECT id FROM person WHERE id = ?', o.personId))) throw new AiError('bad-input', c('ai.errNoPerson'));
   const photo = await photoOrThrow(o.tree, o.mediaKey, o.locale);
   const reply = await adapter.complete({
-    system: 'You describe a person’s look for a flat illustration, from a photo. Choose each value from the lists given in the schema; leave out what you cannot see; never guess who the person is.',
+    system: 'You describe a person’s look for a flat illustration, from a photo. Choose each value from the lists given in the schema; leave out what you cannot see; never guess who the person is. Describe the person, not the day: sunglasses are not glasses (use none unless clear glasses are worn), and a hat is not hair.',
     messages: [{ role: 'user', text: 'Describe the person in this photo.', images: [photo] }],
     json: { name: 'look', schema: LOOK_JSON },
     maxTokens: 800,
     timeoutMs: 60_000,
   });
-  const parsed = lookSchema.safeParse(reply.json);
+  // One odd value must not cost the whole portrait: keep what is valid and let the rest stay automatic.
+  const parsed = lookSchema.safeParse(sanitizeLook(reply.json));
   if (!parsed.success) throw new AiError('bad-output', c('ai.errBadOutput'));
   return parsed.data as Look;
 }
