@@ -26,7 +26,7 @@
 
 .acct-head { display: flex; align-items: center; gap: 12px; }
 .acct-head > div { min-width: 0; display: grid; }
-.acct-name { font-family: var(--font-body); font-weight: 500; font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct-name { font-family: var(--font-name); font-weight: var(--name-weight); font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acct-sub { font-family: var(--font-ui); font-size: 13.5px; color: var(--subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acct-role {
   margin: 12px 0 8px; padding: 10px 12px; border-radius: var(--radius); background: var(--panel-2);

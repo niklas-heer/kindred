@@ -25,7 +25,7 @@ export function NotFoundPage({ kind = 'page', id }: { kind?: 'family' | 'page'; 
             {trees.map((t) => (
               <li key={t.id}>
                 <Link to="/$tree" params={{ tree: t.id }}>
-                  <b style={{ fontFamily: "'EB Garamond Variable', Garamond, serif", fontWeight: 500 }}>{t.name}</b>
+                  <b className="name">{t.name}</b>
                   <span>{t.people.toLocaleString('en-GB')} {t.people === 1 ? 'person' : 'people'}</span>
                 </Link>
               </li>
