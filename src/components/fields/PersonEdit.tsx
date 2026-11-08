@@ -1,13 +1,15 @@
 // The Edit tab: the names, the facts, the biography and the list of fields. One Save writes all of it, with the
 // places pinned first (the Atlas has them as soon as the person points at them). The dirty guard in the
-// panel covers the whole tab.
+// panel covers the whole tab. The draft and "Load the latest" both start from one consistent snapshot of the person
+// (`editSnapshot`), so the draft never mixes values from one moment with a revision from another.
 import { useForm } from '@tanstack/react-form';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, Trash2 } from 'lucide-react';
-import { useContext, useRef, useState } from 'react';
-import { graphQuery, opKeys, removePerson } from '~/lib/api';
-import { personDetailQuery, savePersonEdit } from '~/lib/person.functions';
-import { buildFamily, yearOf, type Family } from '~/lib/graph';
+import { useContext, useEffect, useRef, useState } from 'react';
+import { opKeys, removePerson } from '~/lib/api';
+import { getEditSnapshot, savePersonEdit } from '~/lib/person.functions';
+import type { EditSnapshot } from '~/lib/person.server';
+import { yearOf, type Family } from '~/lib/graph';
 import { validDate } from '~/lib/dates';
 import { useCan } from '~/lib/session';
 import type { GPerson, PersonDetail } from '~/lib/types';
@@ -16,15 +18,16 @@ import { MarkdownEditor } from '../MarkdownEditor';
 import { Select, Switch } from '../ui';
 import { DraftContext, DraftTracker } from './draft';
 import { draftOf, FieldEditor, type DraftField } from './FieldEditor';
-import { CHANGED_SINCE_OPENED, fieldIssue } from './model';
-import { rebaseDraft } from './rebase';
-import { translateMessage, useT } from '~/lib/i18n';
+import { CHANGED_SINCE_OPENED, fieldIssue, fieldText } from './model';
+import { rebaseDraft, takeTheirs, type Conflict } from './rebase';
+import { translateMessage, useT, type Key } from '~/lib/i18n';
 import { OccupationField } from './OccupationField';
 
 interface Props {
   tree: string;
   p: GPerson;
   f: Family;
+  /** The panel's read of the person. Not used for the draft: the Edit tab loads its own snapshot, so it is never mixed. */
   detail: PersonDetail;
   done: () => void;
   onRemoved: () => void;
@@ -39,37 +42,71 @@ interface Values {
 }
 
 /** The form's values for a person as the server has them: the same for the first draft and for a rebase. */
-function valuesOf(p: GPerson, detail: PersonDetail): Values {
+function valuesOf(s: EditSnapshot): Values {
   // Names: a null current name means "same as birth", so the switch starts on when both are unset.
-  const sameName = p.currentGiven == null && p.currentSurname == null;
+  const sameName = s.currentGiven == null && s.currentSurname == null;
   return {
-    given: p.given, surname: p.surname ?? '', sameName,
-    currentGiven: p.currentGiven ?? p.given, currentSurname: p.currentSurname ?? p.surname ?? '',
-    nickname: p.nickname ?? '', sex: (p.sex ?? '') as '' | 'm' | 'f' | 'x',
-    born: p.born ?? '', bornPlace: placeValue(detail.bornPlace), died: p.died ?? '', diedPlace: placeValue(detail.diedPlace), living: p.living,
-    title: p.title ?? '', epithet: p.epithet ?? '', occupation: p.occupation ?? '', occupationCode: p.occupationCode ?? '', bio: detail.bio ?? '',
-    fields: detail.fields.map(draftOf),
+    given: s.given, surname: s.surname ?? '', sameName,
+    currentGiven: s.currentGiven ?? s.given, currentSurname: s.currentSurname ?? s.surname ?? '',
+    nickname: s.nickname ?? '', sex: (s.sex ?? '') as '' | 'm' | 'f' | 'x',
+    born: s.born ?? '', bornPlace: placeValue(s.bornPlace), died: s.died ?? '', diedPlace: placeValue(s.diedPlace), living: s.living,
+    title: s.title ?? '', epithet: s.epithet ?? '', occupation: s.occupation ?? '', occupationCode: s.occupationCode ?? '', bio: s.bio ?? '',
+    fields: s.fields.map(draftOf),
   };
 }
 
-export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
+/** The reader's words for the scalar a conflict names (a unit names its first key). */
+const LABEL: Record<string, Key> = {
+  given: 'edit.givenAtBirth', surname: 'edit.surnameAtBirth', sameName: 'edit.sameName', currentGiven: 'edit.currentGiven',
+  currentSurname: 'edit.currentSurname', nickname: 'edit.nickname', sex: 'edit.sex', born: 'edit.born', bornPlace: 'edit.birthplace',
+  died: 'edit.died', diedPlace: 'edit.diedPlace', living: 'edit.living', title: 'edit.title', epithet: 'edit.epithet',
+  occupation: 'edit.occupation', bio: 'edit.biography',
+};
+
+/**
+ * The Edit tab. Loads the person's snapshot when it opens, and shows the form once it has it. The draft starts from that
+ * snapshot and never from anything else.
+ */
+export function PersonEdit(props: Props) {
+  const { tree, p } = props;
+  const c = useT();
+  const [snap, setSnap] = useState<EditSnapshot | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    setSnap(null);
+    setFailed(false);
+    getEditSnapshot({ data: { tree, id: p.id } }).then(
+      (s) => { if (live) setSnap(s); },
+      () => { if (live) setFailed(true); },
+    );
+    return () => { live = false; };
+  }, [tree, p.id]);
+  if (failed) return <p role="alert" className="err wide">{c('edit.loadFailed')}</p>;
+  if (!snap) return <p role="status" className="subtle wide">{c('ui.loading')}</p>;
+  return <EditForm {...props} snap={snap} />;
+}
+
+function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> & { snap: EditSnapshot }) {
   const { leave } = useContext(DraftContext);
   const c = useT();
   const canRemove = useCan('remove-person');
-  const medieval = tree === 'realm' || (!!p.born && yearOf(p.born) < 1500);
+  const medieval = tree === 'realm' || (!!snap.born && yearOf(snap.born) < 1500);
   const qc = useQueryClient();
   const [saveError, setSaveError] = useState<string | null>(null);
   // Set when the save was refused because the person changed: the reader may load the latest and keep their changes.
   const [stale, setStale] = useState(false);
   const [rebasing, setRebasing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // Where the reader and someone else changed the same thing: each is shown, and the reader picks one.
+  const [conflicts, setConflicts] = useState<Conflict<DraftField>[]>([]);
   const [keys] = useState(opKeys);
   // What the draft was opened on, read once: a refetch must not re-base the draft on newer data by accident. After a
   // rebase these are the latest values, so the next rebase compares the reader's changes with what they last saw.
-  const [start] = useState(() => valuesOf(p, detail));
+  const [start] = useState(() => valuesOf(snap));
   const base = useRef<Values>(start);
   // The revision the draft was opened at; a rebase moves it to the latest one the reader has loaded.
-  const revision = useRef(detail.revision ?? 0);
+  const revision = useRef(snap.revision);
   const remove = useMutation({
     mutationFn: () => removePerson({ data: { tree, id: p.id } }),
     onSuccess: async () => {
@@ -83,6 +120,7 @@ export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
       setSaveError(null);
       setStale(false);
       setNotice(null);
+      setConflicts([]);
       try {
         // Pins first: repeating them on a retry changes nothing.
         await savePlacesKeyed(tree, (pl) => keys.for('places', pl), value.bornPlace, value.living ? undefined : value.diedPlace);
@@ -115,23 +153,20 @@ export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
 
   /**
    * Loads the person as it is now, and rebases the draft onto it: what the reader changed stays changed, the rest
-   * takes the latest values, and the revision moves on. The reader then checks it and saves again.
+   * takes the latest values, and the revision moves on. Where someone else changed the same thing, the reader's version
+   * stays and both are listed for the reader to choose. The reader then checks it and saves again.
    */
   async function loadLatest() {
     setRebasing(true);
     setSaveError(null);
     try {
-      const [graph, latestDetail] = await Promise.all([
-        qc.fetchQuery({ ...graphQuery(tree), staleTime: 0 }),
-        qc.fetchQuery({ ...personDetailQuery(tree, p.id), staleTime: 0 }),
-      ]);
-      const now = buildFamily(graph).byId.get(p.id);
-      if (!now) throw new Error('gone');
-      const latest = valuesOf(now, latestDetail);
-      const rebased = rebaseDraft(base.current, form.state.values as Values, latest);
-      base.current = latest;
-      revision.current = latestDetail.revision ?? revision.current;
-      for (const k of Object.keys(rebased) as (keyof Values)[]) form.setFieldValue(k, rebased[k] as never);
+      const latest = await getEditSnapshot({ data: { tree, id: p.id } });
+      const latestValues = valuesOf(latest);
+      const { values, conflicts: found } = rebaseDraft<Values, DraftField>(base.current, form.state.values as Values, latestValues);
+      base.current = latestValues;
+      revision.current = latest.revision;
+      for (const k of Object.keys(values) as (keyof Values)[]) form.setFieldValue(k, values[k] as never);
+      setConflicts(found);
       setStale(false);
       setNotice(c('edit.rebased'));
     } catch {
@@ -140,6 +175,32 @@ export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
       setRebasing(false);
     }
   }
+
+  /** Settles one conflict: "mine" keeps the draft's version (already there); "theirs" takes the other person's. */
+  function settle(k: Conflict<DraftField>, pick: 'mine' | 'theirs') {
+    setConflicts((list) => list.filter((x) => x !== k));
+    if (pick === 'mine') return;
+    const next = takeTheirs(form.state.values as Values, k);
+    if (k.kind === 'value') for (const key of k.keys) form.setFieldValue(key as keyof Values, next[key as keyof Values] as never);
+    else form.setFieldValue('fields', next.fields as never);
+  }
+
+  /** A scalar's value as the reader sees it. */
+  const shown = (key: string, v: unknown): string => {
+    if (key === 'bornPlace' || key === 'diedPlace') return (v as PlaceValue | undefined)?.name || c('edit.empty');
+    if (key === 'sex') return c(v ? (`sex.${v}` as Key) : 'sex.unknown');
+    if (typeof v === 'boolean') return c(v ? 'edit.yes' : 'edit.no');
+    return typeof v === 'string' && v !== '' ? v : c('edit.empty');
+  };
+  const fieldShown = (x: DraftField | null) => (x ? fieldText(x.type, x.value) || c('edit.empty') : c('edit.gone'));
+  const titleOf = (k: Conflict<DraftField>) => {
+    if (k.kind === 'value') return c(LABEL[k.keys[0] ?? 'bio'] ?? 'edit.biography');
+    const x = k.mine ?? k.theirs;
+    const kind = x ? c(`type.${x.type}` as Key) : '';
+    return x?.label ? `${kind} (${x.label})` : kind;
+  };
+  const yoursOf = (k: Conflict<DraftField>) => (k.kind === 'value' ? shown(k.keys[0] ?? 'bio', k.mine[k.keys[0] ?? 'bio']) : fieldShown(k.mine));
+  const theirsOf = (k: Conflict<DraftField>) => (k.kind === 'value' ? shown(k.keys[0] ?? 'bio', k.theirs[k.keys[0] ?? 'bio']) : fieldShown(k.theirs));
 
   const date = ({ value }: { value: string }) => (value === '' || validDate(value.trim()) ? undefined : c('edit.dateHint'));
   const text = (name: keyof Values, label: string, opts: { placeholder?: string; validate?: typeof date; wide?: boolean } = {}) => (
@@ -272,6 +333,22 @@ export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
         </div>
       )}
       {notice && <p role="status" className="wide subtle">{notice}</p>}
+      {conflicts.length > 0 && (
+        <div className="wide edit-conflicts" role="group" aria-label={c('edit.conflictsIntro')}>
+          <p className="subtle">{c('edit.conflictsIntro')}</p>
+          {conflicts.map((k) => (
+            <div className="edit-conflict" key={k.kind === 'field' ? `field-${k.id}` : `value-${k.keys.join('+')}`}>
+              <strong>{titleOf(k)}</strong>
+              <span>{c('edit.yours', { value: yoursOf(k) })}</span>
+              <span>{c('edit.theirs', { value: theirsOf(k) })}</span>
+              <span className="edit-conflict-choices">
+                <button type="button" className="btn" onClick={() => settle(k, 'mine')}>{c('edit.keepMine')}</button>
+                <button type="button" className="btn" onClick={() => settle(k, 'theirs')}>{c('edit.useTheirs')}</button>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="row end wide pp-edit-actions">
         {canRemove && (
           <button

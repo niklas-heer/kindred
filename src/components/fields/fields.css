@@ -45,3 +45,13 @@
   .fe-inputs { grid-template-columns: minmax(0, 1fr); }
   .fe-labelrow .ui-select { min-width: 0; width: 100%; }
 }
+
+/* Conflicts after "Load the latest": the same thing changed on both sides, one card each, the choices at 44px. */
+.edit-conflicts { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-2); min-width: 0; }
+.edit-conflicts > p { margin: 0; }
+.edit-conflict { display: grid; gap: 4px; min-width: 0; padding-top: 10px; border-top: 1px dotted var(--border); overflow-wrap: anywhere; }
+.edit-conflict:first-of-type { padding-top: 0; border-top: 0; }
+.edit-conflict strong { font-weight: 500; font-size: 15px; }
+.edit-conflict > span { font-size: 14px; color: var(--muted); }
+.edit-conflict-choices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.edit-conflict-choices .btn { min-height: 44px; }

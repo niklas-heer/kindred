@@ -49,7 +49,7 @@ test('changing your own look does not move the revision, so the draft you opened
   const opened = await revisionOf();
   await setPersonLook(TREE, 'ada', look, undefined);
   assert.equal(await revisionOf(), opened, 'the look did not bump the revision');
-  await savePersonEdit(TREE, 'ada', details('Ada'), [], opened, undefined, 'Test');
+  await savePersonEdit(TREE, 'ada', details('Ada Lovelace'), [], opened, undefined, 'Test');
   assert.equal(await revisionOf(), opened + 1, 'the Edit save itself moves it once');
 });
 

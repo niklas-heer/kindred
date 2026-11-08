@@ -41,7 +41,7 @@ const fieldCount = async () => (await db(TREE).get<{ n: number }>('SELECT count(
 
 test('a draft opened at the person’s current revision saves, and the revision moves on', async () => {
   const opened = (await person(TREE, 'ada')).revision!;
-  await savePersonEdit(TREE, 'ada', details('Ada'), [], opened, undefined, 'Test');
+  await savePersonEdit(TREE, 'ada', { ...details('Ada'), nickname: 'Addy' }, [], opened, undefined, 'Test');
   const after = (await person(TREE, 'ada')).revision!;
   assert.ok(after > opened, `revision went from ${opened} to ${after}`);
 });
@@ -69,7 +69,7 @@ test('a change that lands between the check and the write is caught by the batch
     const inner = realTree(id);
     const get = (async (sql: string, ...params: Param[]) => {
       const row = await inner.get(sql, ...params);
-      if (sql.startsWith('SELECT revision FROM person')) {
+      if (sql.startsWith('SELECT revision')) {
         reads++;
         if (!injected) {
           injected = true;

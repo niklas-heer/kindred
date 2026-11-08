@@ -31,6 +31,17 @@ export const getPersonDetail = createServerFn({ method: 'GET' })
 export const personDetailQuery = (t: string, id: string) =>
   queryOptions({ queryKey: ['person', t, id], queryFn: () => getPersonDetail({ data: { tree: t, id } }) });
 
+/**
+ * The Edit tab's data as one consistent snapshot: the scalars, places, biography, fields and revision (see
+ * `editSnapshot` in person.server.ts). Private fields only for editors and stewards, as `getPersonDetail`.
+ */
+export const getEditSnapshot = createServerFn({ method: 'GET' })
+  .validator(z.object({ tree, id: personId }))
+  .handler(async ({ data }) => {
+    const m = await (await guard()).requireMember(data.tree);
+    return (await import('./person.server')).editSnapshot(data.tree, data.id, can(m.role, 'edit-person'));
+  });
+
 const details = z.object({
   given: z.string().trim().min(1, 'A given name is needed').max(120),
   surname: z.string().trim().max(120).nullable(),

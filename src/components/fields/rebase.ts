@@ -1,8 +1,10 @@
 // Rebasing an Edit draft onto the person's latest version, after a save was refused because the person changed.
-// What the reader changed wins; what they did not touch takes the latest value, so the rebase never writes back
-// an old copy of something someone else has since changed. Pure: the Edit tab and the tests use the same code.
+// What the reader changed stays changed; what they did not touch takes the latest value, so the rebase never writes
+// back an old copy of something someone else has since changed. Where the reader and someone else both changed the
+// same thing to different values, the reader's version stays in the draft and the case comes back as a conflict, so
+// the Edit tab can show both versions and the reader chooses. Pure: the Edit tab and the tests use the same code.
 
-/** A field in the draft (`key` is React's and is not compared; `id` is set once the family has saved the field). */
+/** A field in the draft (`key` is React's; `id` is set once the family has saved the field). */
 export interface RebaseField {
   key: string;
   id?: string;
@@ -12,9 +14,23 @@ export interface RebaseField {
   private: boolean;
 }
 
+/** Scalars saved as one unit: the occupation text and its vocabulary code, so a save never stores one with the other's partner. */
+export const UNITS: string[][] = [['occupation', 'occupationCode']];
+
+/**
+ * Something the reader and someone else both changed, to different values. A `value` conflict is one scalar, or a unit,
+ * named by `keys`; `mine` and `theirs` hold those keys. A `field` conflict is a field by its `id`: `mine` is null when the
+ * reader removed it, `theirs` is null when someone else did.
+ */
+export type Conflict<F extends RebaseField = RebaseField> =
+  | { kind: 'value'; keys: string[]; mine: Record<string, unknown>; theirs: Record<string, unknown> }
+  | { kind: 'field'; id: string; mine: F | null; theirs: F | null };
+
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+const at = (o: object, k: string): unknown => (o as Record<string, unknown>)[k];
 const sameField = (a: RebaseField, b: RebaseField) =>
   a.type === b.type && a.label === b.label && a.private === b.private && same(a.value, b.value);
+const byId = <F extends RebaseField>(fields: F[]) => new Map(fields.flatMap((f) => (f.id ? [[f.id, f] as const] : [])));
 
 /**
  * The fields of the draft, rebased. In the draft's order: a field the reader changed keeps their version (if the
@@ -23,8 +39,8 @@ const sameField = (a: RebaseField, b: RebaseField) =>
  * was opened are kept, after the draft's own, so the save does not delete them.
  */
 export function rebaseFields<F extends RebaseField>(base: F[], draft: F[], latest: F[]): F[] {
-  const baseById = new Map(base.flatMap((f) => (f.id ? [[f.id, f] as const] : [])));
-  const latestById = new Map(latest.flatMap((f) => (f.id ? [[f.id, f] as const] : [])));
+  const baseById = byId(base);
+  const latestById = byId(latest);
   const draftIds = new Set(draft.flatMap((f) => (f.id ? [f.id] : [])));
   const out: F[] = [];
   for (const d of draft) {
@@ -42,16 +58,62 @@ export function rebaseFields<F extends RebaseField>(base: F[], draft: F[], lates
   return out;
 }
 
+/** The fields the reader and someone else both changed (or one removed and the other changed): see `Conflict`. */
+export function fieldConflicts<F extends RebaseField>(base: F[], draft: F[], latest: F[]): Conflict<F>[] {
+  const baseById = byId(base);
+  const draftById = byId(draft);
+  const latestById = byId(latest);
+  const out: Conflict<F>[] = [];
+  for (const [id, was] of baseById) {
+    const mine = draftById.get(id) ?? null;
+    const theirs = latestById.get(id) ?? null;
+    const reader = !mine || !sameField(mine, was);
+    const other = !theirs || !sameField(theirs, was);
+    if (!reader || !other) continue;
+    if (!mine && !theirs) continue; // both removed it
+    if (mine && theirs && sameField(mine, theirs)) continue; // both made the same change
+    out.push({ kind: 'field', id, mine, theirs });
+  }
+  return out;
+}
+
 /**
- * The whole draft, rebased: each scalar the reader changed (compared with the version they opened) keeps their
- * value, every other one takes the latest value, and the fields are rebased as above. `fields` is the list key.
+ * The whole draft, rebased. Each scalar (and each unit) the reader changed, compared with the version they opened, keeps
+ * their value; every other one takes the latest value. Where someone else changed it too, to a different value, the
+ * reader's value is kept and the case is returned in `conflicts`, so nothing is overwritten without the reader seeing it.
+ * The fields are rebased as above; `fields` is the list key.
  */
-export function rebaseDraft<V extends { fields: F[] }, F extends RebaseField>(base: V, draft: V, latest: V): V {
+export function rebaseDraft<V extends { fields: F[] }, F extends RebaseField>(base: V, draft: V, latest: V): { values: V; conflicts: Conflict<F>[] } {
   const out: Record<string, unknown> = { ...latest };
-  for (const k of Object.keys(latest) as (keyof V & string)[]) {
-    if (k === 'fields') continue;
-    if (!same(draft[k], base[k])) out[k] = draft[k];
+  const conflicts: Conflict<F>[] = [];
+  const unitKeys = new Set(UNITS.flat());
+  const groups: string[][] = [
+    ...UNITS,
+    ...Object.keys(latest).filter((k) => k !== 'fields' && !unitKeys.has(k)).map((k) => [k]),
+  ];
+  for (const keys of groups) {
+    if (!keys.some((k) => !same(at(draft, k), at(base, k)))) continue; // the reader did not touch it: latest stays
+    for (const k of keys) out[k] = at(draft, k);
+    const other = keys.some((k) => !same(at(latest, k), at(base, k)));
+    if (other && keys.some((k) => !same(at(draft, k), at(latest, k)))) {
+      const pick = (v: object) => Object.fromEntries(keys.map((k) => [k, at(v, k)]));
+      conflicts.push({ kind: 'value', keys, mine: pick(draft), theirs: pick(latest) });
+    }
   }
   out.fields = rebaseFields(base.fields, draft.fields, latest.fields);
-  return out as V;
+  return { values: out as V, conflicts: [...conflicts, ...fieldConflicts(base.fields, draft.fields, latest.fields)] };
+}
+
+/**
+ * The draft with one conflict settled on the other person's version. Keeping the reader's version needs no change:
+ * the rebased draft already holds it.
+ */
+export function takeTheirs<V extends { fields: F[] }, F extends RebaseField>(draft: V, c: Conflict<F>): V {
+  if (c.kind === 'value') return { ...draft, ...c.theirs } as V;
+  const matches = (f: F) => f.id === c.id || f.key === c.id;
+  if (!c.theirs) return { ...draft, fields: draft.fields.filter((f) => !matches(f)) };
+  const theirs = c.theirs;
+  const first = draft.fields.findIndex(matches);
+  if (first < 0) return { ...draft, fields: [...draft.fields, theirs] };
+  return { ...draft, fields: draft.fields.flatMap((f, i) => (i === first ? [theirs] : matches(f) ? [] : [f])) };
 }

@@ -1,8 +1,9 @@
-// Changes to a person's details and fields. Reads are in db.server.ts (`person`). Every change is a plan
-// run through `once`: it reads what it decides on, guards those facts in the batch, and writes in one
-// transaction, so a retried or racing request never writes twice or half-way (see db.server.ts).
-import { guard, newId, once, personExists, q, type OpKey, type Query } from './db.server.ts';
-import { CHANGED_SINCE_OPENED, MAX_FIELDS, storedValue, type FieldInput, type FieldType } from '../components/fields/model.ts';
+// Changes to a person's details and fields. Reads are in db.server.ts (`person`), and the Edit tab's read is
+// `editSnapshot` below. Every change is a plan run through `once`: it reads what it decides on, guards those facts in
+// the batch, and writes in one transaction, so a retried or racing request never writes twice or half-way (see
+// db.server.ts).
+import { db, fieldOf, guard, newId, once, personExists, q, type OpKey, type Query } from './db.server.ts';
+import { CHANGED_SINCE_OPENED, MAX_FIELDS, storedValue, type FieldInput, type FieldType, type FieldValue, type PersonField } from '../components/fields/model.ts';
 import type { Look } from './types.ts';
 import { occupationCodeFor } from './occupations.ts';
 
@@ -30,28 +31,122 @@ export interface PersonDetails {
   bio: string | null;
 }
 
+/**
+ * Everything the Edit tab writes, read as one consistent view: the person's scalars, places and biography, the list
+ * of fields, and the revision they are at. The draft and "Load the latest" both start from this, so they never mix
+ * a value from one moment with a revision from another.
+ */
+export interface EditSnapshot {
+  id: string;
+  revision: number;
+  given: string;
+  surname: string | null;
+  currentGiven: string | null;
+  currentSurname: string | null;
+  nickname: string | null;
+  sex: 'm' | 'f' | 'x' | null;
+  born: string | null;
+  bornPlace: string | null;
+  died: string | null;
+  diedPlace: string | null;
+  living: boolean;
+  title: string | null;
+  epithet: string | null;
+  occupation: string | null;
+  occupationCode: string | null;
+  bio: string | null;
+  fields: PersonField[];
+}
+
+/** The person's columns the Edit tab writes. Each one moves the revision (migration 0010). */
+const EDIT_COLUMNS = [
+  'given', 'surname', 'current_given', 'current_surname', 'nickname', 'sex', 'born', 'born_place', 'died', 'died_place',
+  'living', 'title', 'epithet', 'occupation', 'occupation_code', 'bio',
+] as const;
+type EditColumn = (typeof EDIT_COLUMNS)[number];
+type Cell = string | number | null;
+/** The row as the database gives it (see `EDIT_COLUMNS`). */
+interface EditRow {
+  given: string; surname: string | null; current_given: string | null; current_surname: string | null; nickname: string | null;
+  sex: 'm' | 'f' | 'x' | null; born: string | null; born_place: string | null; died: string | null; died_place: string | null;
+  living: number; title: string | null; epithet: string | null; occupation: string | null; occupation_code: string | null; bio: string | null;
+}
+
+/** How often `editSnapshot` reads again when the person changes in the middle of the read. */
+const SNAPSHOT_ATTEMPTS = 3;
+
 const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 const empty = (s: string | null) => (s === null || s.trim() === '' ? null : s.trim());
 
 interface Existing { id: string; type: string; label: string; value: string; private: number; ord: number }
 
+/** A field's parts for comparing: a blank part and a missing one are the same, and the order of keys does not matter. */
+const parts = (v: Record<string, string>) =>
+  JSON.stringify(Object.keys(v).sort().filter((k) => v[k] !== '' && v[k] != null).map((k) => [k, v[k]]));
+/** Whether a stored value already says what the draft says, so an untouched field is not rewritten. */
+const sameContent = (stored: string, value: FieldValue) => parts(JSON.parse(stored)) === parts(value);
+
 /**
- * Saves the details and the whole list of fields in one batch. `fields` is the list in its new order:
- * a field with an `id` is updated, one without is added, and any field of this person not in the list is
- * removed. `revision` is the person's revision when the draft was opened: if anything about the person has
- * changed since (a field added elsewhere, a name changed), the save is refused and the draft stays with the
- * reader. The batch restates the revision it read, so a change that lands between this check and the write
- * makes the batch write nothing, and the plan runs again on fresh reads (and then refuses).
+ * The Edit tab's read. Reads the person's row (scalars and revision) in one statement, then the fields, then the
+ * revision again: if the person changed in between, the read starts again, so the snapshot is one moment, never a
+ * mix. Private fields are only listed when `canSee` (editors and stewards), as the person read does.
+ */
+export async function editSnapshot(tree: string, id: string, canSee: boolean): Promise<EditSnapshot> {
+  const d = db(tree);
+  for (let attempt = 1; ; attempt++) {
+    const r = await d.get<EditRow & { revision: number }>(`SELECT revision, ${EDIT_COLUMNS.join(', ')} FROM person WHERE id = ?`, id);
+    if (!r) throw new Error('Person not found.');
+    const fields = await d.all<any>(`SELECT * FROM person_field WHERE person = ? ${canSee ? '' : 'AND private = 0'} ORDER BY ord, id`, id);
+    const again = await d.get<{ revision: number }>('SELECT revision FROM person WHERE id = ?', id);
+    if (again?.revision === r.revision) {
+      return {
+        id,
+        revision: r.revision,
+        given: r.given,
+        surname: r.surname,
+        currentGiven: r.current_given,
+        currentSurname: r.current_surname,
+        nickname: r.nickname,
+        sex: r.sex,
+        born: r.born,
+        bornPlace: r.born_place,
+        died: r.died,
+        diedPlace: r.died_place,
+        living: r.living === 1,
+        title: r.title,
+        epithet: r.epithet,
+        occupation: r.occupation,
+        occupationCode: r.occupation_code,
+        bio: r.bio,
+        fields: fields.map(fieldOf),
+      };
+    }
+    if (attempt >= SNAPSHOT_ATTEMPTS) throw new Error('The family changed while this was loaded. Please try again.');
+  }
+}
+
+/**
+ * Saves the details and the whole list of fields in one batch. `fields` is the list in its new order: a field with an
+ * `id` is updated, one without is added, and any field of this person not in the list is removed. `revision` is the
+ * person's revision when the draft was opened: if anything about the person has changed since (a field added elsewhere,
+ * a name changed), the save is refused and the draft stays with the reader. The batch restates the revision it read, so a
+ * change that lands between this check and the write makes the batch write nothing, and the plan runs again on fresh
+ * reads (and then refuses).
+ *
+ * Only what changed is written: a field whose content, label, privacy and position are as stored is left alone (so its
+ * last editor and time stand), and the person's row is written only if one of its columns differs. Each write moves the
+ * revision once per row, so a save of one nickname makes one step, not several.
  */
 export function savePersonEdit(tree: string, id: string, details: PersonDetails, fields: FieldInput[], revision: number, op: OpKey | undefined, by: string) {
   return once(tree, op, 'savePersonEdit', async (d) => {
-    const now = await d.get<{ revision: number }>('SELECT revision FROM person WHERE id = ?', id);
+    const now = await d.get<EditRow & { revision: number }>(`SELECT revision, ${EDIT_COLUMNS.join(', ')} FROM person WHERE id = ?`, id);
     if (!now) throw new Error('Person not found.');
     if (now.revision !== revision) throw new Error(CHANGED_SINCE_OPENED);
     const had = await d.all<Existing>('SELECT id, type, label, value, private, ord FROM person_field WHERE person = ?', id);
     const hadById = new Map(had.map((r) => [r.id, r]));
     const kept = new Set<string>();
     // What the plan read: the person at this revision (every change bumps it, see migration 0009), and the fields.
+    // Every decision below rests on that revision, so the guard covers the person's columns as well.
     const writes: Query[] = [
       guard('EXISTS (SELECT 1 FROM person WHERE id = ? AND revision = ?)', id, revision),
       guard('(SELECT count(*) FROM person_field WHERE person = ?) = ?', id, had.length),
@@ -59,7 +154,6 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
 
     for (const [ord, f] of fields.entries()) {
       const value = storedValue(f.type as FieldType, f.value);
-      const json = JSON.stringify(value);
       if (f.type === 'related' && value.person) {
         if (!(await d.get('SELECT id FROM person WHERE id = ?', value.person))) throw new Error('That person is not in this family.');
         if (value.person === id) throw new Error('A person cannot be their own relative.');
@@ -70,31 +164,38 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
         if (!before || before.type !== f.type) throw new Error('That field is not on this person.');
         kept.add(f.id);
         writes.push(guard('EXISTS (SELECT 1 FROM person_field WHERE id = ? AND person = ?)', f.id, id));
-        const same = before.label === f.label && before.value === json && before.private === (f.private ? 1 : 0) && before.ord === ord;
+        const sameText = sameContent(before.value, value);
+        const same = before.label === f.label && before.private === (f.private ? 1 : 0) && before.ord === ord && sameText;
         if (!same) {
           writes.push(q(
             'UPDATE person_field SET label = ?, value = ?, private = ?, ord = ?, updated_by = ?, updated_at = ? WHERE id = ? AND person = ?',
-            f.label, json, f.private ? 1 : 0, ord, by, nowIso(), f.id, id,
+            f.label, sameText ? before.value : JSON.stringify(value), f.private ? 1 : 0, ord, by, nowIso(), f.id, id,
           ));
         }
       } else {
         writes.push(q(
           'INSERT INTO person_field (id, person, type, label, value, ord, private, created_by, created_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          crypto.randomUUID(), id, f.type, f.label, json, ord, f.private ? 1 : 0, by, nowIso(), by, nowIso(),
+          crypto.randomUUID(), id, f.type, f.label, JSON.stringify(value), ord, f.private ? 1 : 0, by, nowIso(), by, nowIso(),
         ));
       }
     }
     for (const r of had) if (!kept.has(r.id)) writes.push(q('DELETE FROM person_field WHERE id = ? AND person = ?', r.id, id));
 
     const s = details;
-    writes.push(q(
-      `UPDATE person SET given = ?, surname = ?, current_given = ?, current_surname = ?, nickname = ?, sex = ?, born = ?, born_place = ?,
-        died = ?, died_place = ?, living = ?, title = ?, epithet = ?, occupation = ?, occupation_code = ?, bio = ?, updated_at = ? WHERE id = ?`,
-      s.given.trim(), empty(s.surname), empty(s.currentGiven), empty(s.currentSurname), empty(s.nickname), s.sex, empty(s.born),
-      empty(s.bornPlace), empty(s.died), empty(s.diedPlace), s.living ? 1 : 0, empty(s.title), empty(s.epithet), empty(s.occupation),
-      empty(s.occupation) ? occupationCodeFor(empty(s.occupation), s.occupationCode) : null,
-      empty(s.bio), nowIso(), id,
-    ));
+    const occupation = empty(s.occupation);
+    const next: Record<EditColumn, Cell> = {
+      given: s.given.trim(), surname: empty(s.surname), current_given: empty(s.currentGiven), current_surname: empty(s.currentSurname),
+      nickname: empty(s.nickname), sex: s.sex, born: empty(s.born), born_place: empty(s.bornPlace), died: empty(s.died),
+      died_place: empty(s.diedPlace), living: s.living ? 1 : 0, title: empty(s.title), epithet: empty(s.epithet),
+      occupation, occupation_code: occupation ? occupationCodeFor(occupation, s.occupationCode) : null, bio: empty(s.bio),
+    };
+    const changed = EDIT_COLUMNS.filter((c) => next[c] !== now[c]);
+    if (changed.length) {
+      writes.push(q(
+        `UPDATE person SET ${changed.map((c) => `${c} = ?`).join(', ')}, updated_at = ? WHERE id = ?`,
+        ...changed.map((c) => next[c]), nowIso(), id,
+      ));
+    }
     return { writes, result: undefined };
   });
 }
