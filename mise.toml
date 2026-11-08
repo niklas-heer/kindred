@@ -1,6 +1,10 @@
 [tools]
 node = "26"
 
+[env]
+# The project's own tools (vite, tsc, wrangler) live in node_modules/.bin, which mise run does not put on PATH.
+_.path = ["node_modules/.bin"]
+
 [tasks.install]
 run = "npm install"
 
@@ -50,11 +54,20 @@ run = "tsc --noEmit"
 
 [tasks.test]
 description = "Unit tests: accounts, Access, the storage layer"
-run = "node --test src/lib/auth/*.test.ts src/lib/store/*.test.ts src/lib/*.test.ts src/lib/exchange/*.test.ts scripts/*.test.ts"
+run = "node --test src/lib/auth/*.test.ts src/lib/store/*.test.ts src/lib/*.test.ts src/lib/exchange/*.test.ts src/lib/i18n/*.test.ts scripts/*.test.ts server/*.test.ts"
 
 [tasks.build]
 description = "Build the Worker (dist/); KINDRED_TARGET=node builds for Node instead"
 run = "vite build"
+
+[tasks."build:node"]
+description = "Build the production server for Node into dist/ (run mise run start afterwards)"
+env = { KINDRED_TARGET = "node" }
+run = "vite build"
+
+[tasks.start]
+description = "Run the production Node server from dist/ (build it first): PORT (4901), HOST (127.0.0.1), KINDRED_DATA_DIR (data/)"
+run = "node server/node.ts"
 
 [tasks.deploy]
 description = "Build and deploy to Cloudflare (needs `wrangler login` and the D1/R2 ids in wrangler.jsonc)"

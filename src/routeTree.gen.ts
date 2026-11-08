@@ -24,6 +24,7 @@ import { Route as TreeGalleryRouteImport } from './routes/$tree/gallery'
 import { Route as TreeHousesRouteImport } from './routes/$tree/houses'
 import { Route as TreeNeededRouteImport } from './routes/$tree/needed'
 import { Route as TreePeopleRouteImport } from './routes/$tree/people'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as UiCharacterRouteImport } from './routes/ui_.character'
 import { Route as TreeHouseHouseRouteImport } from './routes/$tree/house.$house'
@@ -109,6 +110,11 @@ const TreePeopleRoute = TreePeopleRouteImport.update({
   path: '/people',
   getParentRoute: () => TreeRoute,
 } as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
   id: '/invite/$token',
   path: '/invite/$token',
@@ -170,6 +176,7 @@ export interface FileRoutesByFullPath {
   '/$tree/houses': typeof TreeHousesRoute
   '/$tree/needed': typeof TreeNeededRoute
   '/$tree/people': typeof TreePeopleRoute
+  '/api/health': typeof ApiHealthRoute
   '/invite/$token': typeof InviteTokenRoute
   '/ui/character': typeof UiCharacterRoute
   '/$tree/': typeof TreeIndexRoute
@@ -195,6 +202,7 @@ export interface FileRoutesByTo {
   '/$tree/houses': typeof TreeHousesRoute
   '/$tree/needed': typeof TreeNeededRoute
   '/$tree/people': typeof TreePeopleRoute
+  '/api/health': typeof ApiHealthRoute
   '/invite/$token': typeof InviteTokenRoute
   '/ui/character': typeof UiCharacterRoute
   '/$tree': typeof TreeIndexRoute
@@ -222,6 +230,7 @@ export interface FileRoutesById {
   '/$tree/houses': typeof TreeHousesRoute
   '/$tree/needed': typeof TreeNeededRoute
   '/$tree/people': typeof TreePeopleRoute
+  '/api/health': typeof ApiHealthRoute
   '/invite/$token': typeof InviteTokenRoute
   '/ui_/character': typeof UiCharacterRoute
   '/$tree/': typeof TreeIndexRoute
@@ -250,6 +259,7 @@ export interface FileRouteTypes {
     | '/$tree/houses'
     | '/$tree/needed'
     | '/$tree/people'
+    | '/api/health'
     | '/invite/$token'
     | '/ui/character'
     | '/$tree/'
@@ -275,6 +285,7 @@ export interface FileRouteTypes {
     | '/$tree/houses'
     | '/$tree/needed'
     | '/$tree/people'
+    | '/api/health'
     | '/invite/$token'
     | '/ui/character'
     | '/$tree'
@@ -301,6 +312,7 @@ export interface FileRouteTypes {
     | '/$tree/houses'
     | '/$tree/needed'
     | '/$tree/people'
+    | '/api/health'
     | '/invite/$token'
     | '/ui_/character'
     | '/$tree/'
@@ -319,6 +331,7 @@ export interface RootRouteChildren {
   SetupRoute: typeof SetupRoute
   SigninRoute: typeof SigninRoute
   UiRoute: typeof UiRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   InviteTokenRoute: typeof InviteTokenRoute
   UiCharacterRoute: typeof UiCharacterRoute
   ApiAuthActionRoute: typeof ApiAuthActionRoute
@@ -434,6 +447,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TreePeopleRouteImport
       parentRoute: typeof TreeRoute
     }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/invite/$token': {
       id: '/invite/$token'
       path: '/invite/$token'
@@ -540,6 +560,7 @@ const rootRouteChildren: RootRouteChildren = {
   SetupRoute: SetupRoute,
   SigninRoute: SigninRoute,
   UiRoute: UiRoute,
+  ApiHealthRoute: ApiHealthRoute,
   InviteTokenRoute: InviteTokenRoute,
   UiCharacterRoute: UiCharacterRoute,
   ApiAuthActionRoute: ApiAuthActionRoute,

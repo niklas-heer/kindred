@@ -89,8 +89,24 @@ Every task is in `mise.toml`. These are the ones you are likely to use:
 | `mise run check` | `tsc --noEmit` |
 | `mise run test` | The unit tests for accounts, Access and the storage layer |
 | `mise run build` | Build the Worker into `dist/` (`KINDRED_TARGET=node` builds for Node instead) |
+| `mise run build:node` | Build the production server for Node into `dist/` |
+| `mise run start` | Run that production server (`PORT`, `HOST`, `KINDRED_DATA_DIR`; see [docs/self-host.md](docs/self-host.md)) |
 | `mise run deploy` | Build and `wrangler deploy` (see [docs/deploy-cloudflare.md](docs/deploy-cloudflare.md)) |
 | `mise run clean` | Remove build output and the generated databases |
+
+## Self-host with Docker
+
+The image runs the production server on Node 26, with the data in a volume. The full guide is
+[docs/self-host.md](docs/self-host.md): settings, HTTPS, backups and upgrades.
+
+```sh
+cp .env.example .env          # optional; set KINDRED_ORIGIN and KINDRED_SETUP_CODE for a public address
+docker compose up -d --build  # http://localhost:4901; open /setup and create the first account
+```
+
+For HTTPS on a domain, set `KINDRED_DOMAIN` and `KINDRED_ORIGIN` to `https://` that domain, and run
+`docker compose --profile https up -d --build` (Caddy gets the certificate). Without Docker:
+`mise run build:node && mise run start`.
 
 ## Deploy on Cloudflare
 

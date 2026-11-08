@@ -12,8 +12,10 @@
     "dev": "vite dev",
     "dev:cf": "node scripts/cf-migrate.ts --env local && CLOUDFLARE_ENV=local vite dev",
     "build": "vite build",
+    "build:node": "KINDRED_TARGET=node vite build",
+    "start": "node server/node.ts",
     "check": "tsc --noEmit",
-    "test": "node --test src/lib/auth/*.test.ts src/lib/store/*.test.ts src/lib/*.test.ts src/lib/exchange/*.test.ts src/lib/i18n/*.test.ts scripts/*.test.ts",
+    "test": "node --test src/lib/auth/*.test.ts src/lib/store/*.test.ts src/lib/*.test.ts src/lib/exchange/*.test.ts src/lib/i18n/*.test.ts scripts/*.test.ts server/*.test.ts",
     "seed": "node scripts/seed.ts",
     "preview": "vite preview",
     "deploy": "vite build && wrangler deploy"
@@ -42,6 +44,7 @@
     "marked": "^18.1.3",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "srvx": "^1.0.8",
     "topojson-client": "^3.1.0",
     "world-atlas": "^2.0.2",
     "zod": "^4.6.7"

@@ -20,3 +20,6 @@ data/backups/
 data/media/
 # The server secret that seals the family AI key on Node (KINDRED_SECRET). Back it up; never commit it.
 data/secret
+
+# Docker settings for this machine (copy .env.example): the public address and any setup code.
+.env

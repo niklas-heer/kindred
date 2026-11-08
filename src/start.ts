@@ -17,7 +17,9 @@ const csrf = createCsrfMiddleware({
 
 // In code-protected mode, announce the setup code once while no account exists. Without a code, warn
 // once when that setup is open on a public address (the first visitor would become the steward).
+// The health check (/api/health) is left alone: it must not open the accounts database.
 const setupNotice = createMiddleware().server(async ({ next, request }) => {
+  if (new URL(request.url).pathname === '/api/health') return next();
   const { announceSetup, warnOpenSetup } = await import('./lib/auth/setup.server');
   const { siteOrigin } = await import('./lib/auth/session.server');
   try {

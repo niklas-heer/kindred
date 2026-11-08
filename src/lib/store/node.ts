@@ -9,6 +9,7 @@ import { checkMediaKey, NOT_TREES, TREE_ID, type Db, type Driver, type MediaStor
 const DATA = process.env.KINDRED_DATA_DIR ? resolve(process.env.KINDRED_DATA_DIR) : resolve(process.cwd(), 'data');
 const MIGRATIONS = resolve(process.cwd(), 'migrations');
 const MEDIA = join(DATA, 'media');
+const GAZETTEER = process.env.KINDRED_GAZETTEER ? resolve(process.env.KINDRED_GAZETTEER) : join(DATA, 'gazetteer.db');
 const accountsPath = () => (process.env.KINDRED_ACCOUNTS_DB ? resolve(process.env.KINDRED_ACCOUNTS_DB) : join(DATA, 'accounts.db'));
 
 export type Kind = 'tree' | 'accounts';
@@ -192,6 +193,8 @@ const g = globalThis as unknown as { __kindredAccounts?: { path: string; d: Data
 const trees = new Map<string, Db>();
 let accountsDb: { d: DatabaseSync; db: Db } | undefined;
 let gazetteerDb: Db | null = null;
+/** Every connection this process has open, so a shutdown can close them all (closeDatabases). */
+const open = new Set<DatabaseSync>();
 
 const driver: Driver = {
   name: 'node',
@@ -203,6 +206,7 @@ const driver: Driver = {
       const path = join(DATA, `${id}.db`);
       if (!existsSync(path)) throw new Error(`no tree ${id}; run mise run seed`);
       const d = openSqlite(path, 'tree');
+      open.add(d);
       movePhotosOut(d, id);
       db = wrap(d);
       trees.set(id, db);
@@ -232,9 +236,14 @@ const driver: Driver = {
     const had = g.__kindredAccounts;
     if (had && (had.path !== path || !existsSync(path))) {
       try { had.d.close(); } catch {}
+      open.delete(had.d);
       g.__kindredAccounts = undefined;
     }
-    if (!g.__kindredAccounts) g.__kindredAccounts = { path, d: openSqlite(path, 'accounts', { create: true }) };
+    if (!g.__kindredAccounts) {
+      const d = openSqlite(path, 'accounts', { create: true });
+      open.add(d);
+      g.__kindredAccounts = { path, d };
+    }
     const { d } = g.__kindredAccounts;
     if (accountsDb?.d !== d) accountsDb = { d, db: wrap(d) };
     return accountsDb.db;
@@ -243,11 +252,11 @@ const driver: Driver = {
   /** The offline gazetteer (scripts/gazetteer.ts), or null until it has been built. Checked again on each call until it exists. */
   gazetteer() {
     if (gazetteerDb) return gazetteerDb;
-    const path = join(DATA, 'gazetteer.db');
-    if (!existsSync(path)) return null;
+    if (!existsSync(GAZETTEER)) return null;
     try {
-      const d = new DatabaseSync(path, { readOnly: true });
+      const d = new DatabaseSync(GAZETTEER, { readOnly: true });
       d.prepare('SELECT 1 FROM name LIMIT 1').get();
+      open.add(d);
       gazetteerDb = wrap(d);
     } catch {
       gazetteerDb = null;
@@ -282,5 +291,24 @@ export function closeAccounts() {
   g.__kindredAccounts = undefined;
   accountsDb = undefined;
 }
+
+/**
+ * Closes every SQLite connection this process has open: the families, the accounts and the gazetteer.
+ * server/node.ts calls it on SIGTERM, after the last request has finished, so each file is closed cleanly
+ * (its write-ahead log is folded in). The next call to the driver opens them again.
+ */
+export function closeDatabases() {
+  for (const d of open) {
+    try { d.close(); } catch {}
+  }
+  open.clear();
+  trees.clear();
+  accountsDb = undefined;
+  g.__kindredAccounts = undefined;
+  gazetteerDb = null;
+}
+
+// The Node server bundle contains its own copy of this module, so server/node.ts finds the close by name.
+(globalThis as unknown as Record<symbol, () => void>)[Symbol.for('kindred.closeDatabases')] = closeDatabases;
 
 export default driver;

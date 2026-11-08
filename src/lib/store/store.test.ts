@@ -122,6 +122,30 @@ test('new accounts databases get the accounts migrations', async () => {
   (await import('./node.ts')).closeAccounts();
 });
 
+test('closeDatabases closes the families and the accounts, folding in their logs, and the next use opens them again', async () => {
+  const { closeDatabases } = await import('./node.ts');
+  const count = () => store.tree('old').get<{ n: number }>('SELECT COUNT(*) AS n FROM person').then((r) => r!.n);
+  const before = await count();
+  await store.tree('old').run("INSERT OR REPLACE INTO meta (key, value) VALUES ('closed-test', 'written just before the close')");
+  await store.accounts().get('SELECT 1 AS one');
+  assert.ok(existsSync(join(dir, 'old.db-wal')));
+  assert.ok(existsSync(join(dir, 'accounts.db-wal')));
+
+  closeDatabases();
+  assert.equal(existsSync(join(dir, 'old.db-wal')), false);
+  assert.equal(existsSync(join(dir, 'accounts.db-wal')), false);
+
+  assert.equal(await count(), before);
+  const kept = await store.tree('old').get<{ value: string }>("SELECT value FROM meta WHERE key = 'closed-test'");
+  assert.equal(kept?.value, 'written just before the close');
+  (await import('./node.ts')).closeAccounts();
+});
+
+test('the place gazetteer is optional: without its file there is none, and the place search still works', () => {
+  assert.equal(existsSync(join(dir, 'gazetteer.db')), false);
+  assert.equal(store.gazetteer(), null);
+});
+
 test('the server secret is made once, kept in the data folder with mode 600, and read back', () => {
   const env = process.env.KINDRED_SECRET;
   delete process.env.KINDRED_SECRET;
