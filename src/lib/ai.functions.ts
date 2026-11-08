@@ -5,7 +5,12 @@
 import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
-import { DEFAULT_MODEL, PROVIDERS, FEATURES, toAiLocale, type AiFeatures } from './ai/types';
+import { DEFAULT_MODEL, PROVIDERS, FEATURES, toAiLocale, type AiFeatures, type ModelInfo, type Provider } from './ai/types';
+
+/** The models a provider offers, or why they could not be listed (the page then offers a typed model id). */
+export type ModelsResult =
+  | { ok: true; provider: Provider; models: ModelInfo[]; cached: boolean }
+  | { ok: false; code: string; message: string };
 
 const tree = z.string().regex(/^[a-z0-9-]{1,64}$/);
 const locale = z.string().max(8).optional();
@@ -44,8 +49,11 @@ export const aiSettings = createServerFn({ method: 'GET' })
       keyState,
       keyTail: keyState === 'saved' ? cur.keyTail : null,
       features: cur.features,
-      dailyTokens: cur.dailyTokens,
-      usedToday: await s.usedToday(data.tree),
+      webSearch: cur.webSearch,
+      monthlyMicros: cur.monthlyMicros,
+      spentMicros: await s.spentThisMonth(data.tree),
+      resetsOn: s.resetsOn(),
+      customPrices: cur.customPrices,
       updated: cur.updated,
     };
   });
@@ -61,7 +69,11 @@ export const aiSaveSettings = createServerFn({ method: 'POST' })
     apiKey: z.string().trim().max(400).optional(),
     clearKey: z.boolean().optional(),
     features,
-    dailyTokens: z.number().int().min(0).max(100_000_000),
+    /** The monthly budget in US dollars. 0 turns AI off. */
+    monthlyUsd: z.number().min(0).max(10_000),
+    webSearch: z.boolean(),
+    /** The family's own prices, for models Kindred has no price for (USD per 1M tokens). Replaces the saved map when sent. */
+    customPrices: z.record(z.string().trim().min(1).max(120), z.object({ inPerM: z.number().min(0).max(10_000), outPerM: z.number().min(0).max(10_000) })).optional(),
     locale,
   }))
   .handler(async ({ data }) => {
@@ -73,7 +85,49 @@ export const aiSaveSettings = createServerFn({ method: 'POST' })
     const cur = await s.readSettings(data.tree);
     const keyWillExist = !data.clearKey && (!!data.apiKey || !!cur.sealed);
     if (!keyWillExist && (FEATURES as readonly string[]).some((f) => data.features[f as keyof AiFeatures])) throw new Error(c('ai.needsKey'));
-    await s.saveSettings(data.tree, m.user.id, { provider: data.provider, model: data.model, features: data.features, dailyTokens: data.dailyTokens, apiKey: data.apiKey || undefined, clearKey: data.clearKey });
+    await s.saveSettings(data.tree, m.user.id, {
+      provider: data.provider,
+      model: data.model,
+      features: data.features,
+      webSearch: data.webSearch,
+      monthlyMicros: Math.round(data.monthlyUsd * 1_000_000),
+      customPrices: data.customPrices ?? cur.customPrices,
+      apiKey: data.apiKey || undefined,
+      clearKey: data.clearKey,
+    });
+  });
+
+/**
+ * The models a provider offers, for the page's list. Uses the key typed on the page when one is given (checked, and
+ * never stored or logged), else the family's saved key for the saved provider. Stewards only.
+ */
+export const aiListModels = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, provider: z.enum(PROVIDERS).optional(), key: z.string().trim().max(400).optional(), locale }))
+  .handler(async ({ data }): Promise<ModelsResult> => {
+    await (await guard()).requireCan(data.tree, 'manage-access');
+    const s = await ai();
+    const c = (await import('./ai/labels')).tr(toAiLocale(data.locale));
+    const cur = await s.readSettings(data.tree);
+    const provider: Provider = data.provider ?? cur.provider;
+    let key = data.key ?? '';
+    if (!key && provider === cur.provider && cur.sealed) {
+      const { openKey } = await import('./ai/secret.server');
+      try {
+        key = await openKey(data.tree, cur.sealed);
+      } catch {
+        return { ok: false, code: 'key-unreadable', message: c('ai.err_key_unreadable') };
+      }
+    }
+    if (!key) return { ok: false, code: 'not-configured', message: c('ai.errNoKey') };
+    const { AiError } = await import('./ai/adapters');
+    try {
+      const { listModels } = await import('./ai/models.server');
+      const r = await listModels(provider, key);
+      return { ok: true, provider, models: r.models, cached: r.cached };
+    } catch (e) {
+      if (e instanceof AiError) return { ok: false, code: e.code, message: e.message };
+      throw e;
+    }
   });
 
 export const aiTestConnection = createServerFn({ method: 'POST' })
@@ -133,11 +187,4 @@ export const aiAvatarFromPhoto = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     await (await guard()).requireCan(data.tree, 'edit-person');
     return (await import('./ai/vision.server')).avatarFromPhoto({ tree: data.tree, personId: data.personId, mediaKey: data.mediaKey, locale: toAiLocale(data.locale) });
-  });
-
-export const aiArmsFromName = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, surname: z.string().trim().min(1).max(80), country: z.string().regex(/^[A-Z]{2}$/).optional(), locale }))
-  .handler(async ({ data }) => {
-    await (await guard()).requireCan(data.tree, 'edit-house');
-    return (await import('./ai/vision.server')).armsFromName({ tree: data.tree, surname: data.surname, country: data.country, locale: toAiLocale(data.locale) });
   });

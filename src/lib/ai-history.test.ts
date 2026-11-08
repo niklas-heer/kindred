@@ -45,7 +45,7 @@ test.after(async () => {
 
 await accounts().run('INSERT INTO user (id, name, handle, created) VALUES (?, ?, ?, ?)', 'u1', 'Anna', 'handle-history', Date.now());
 await settings.saveSettings(TREE, 'u1', {
-  provider: 'anthropic', model: '', features: { assistant: true, faces: false, avatar: false, arms: false }, dailyTokens: 1_000_000, apiKey: 'sk-test-abcdefgh1234',
+  provider: 'anthropic', model: '', features: { assistant: true, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: 'sk-test-abcdefgh1234',
 });
 
 const texts = (items: { text: string }[]) => items.map((i) => i.text).join('\n');
@@ -113,7 +113,7 @@ test('a demoted reader cannot change the status of a card from an editor turn', 
 test('a chat turn that the budget cannot cover stores nothing', async () => {
   const before = (await accounts().all('SELECT id FROM ai_chat WHERE tree = ? AND user = ?', TREE, 'u1')).length;
   await settings.saveSettings(TREE, 'u1', {
-    provider: 'anthropic', model: '', features: { assistant: true, faces: false, avatar: false, arms: false }, dailyTokens: 1, apiKey: 'sk-test-abcdefgh1234',
+    provider: 'anthropic', model: '', features: { assistant: true, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 0, customPrices: {}, apiKey: 'sk-test-abcdefgh1234',
   });
   await assert.rejects(
     chat.sendMessage({ tree: TREE, user: 'u1', role: 'editor', me: null, text: 'Anything', locale: 'en' }),
@@ -124,7 +124,7 @@ test('a chat turn that the budget cannot cover stores nothing', async () => {
 
 test('an add-field proposal is private by the type\'s rule, whatever the model asks for', async () => {
   await settings.saveSettings(TREE, 'u1', {
-    provider: 'anthropic', model: '', features: { assistant: true, faces: false, avatar: false, arms: false }, dailyTokens: 1_000_000, apiKey: 'sk-test-abcdefgh1234',
+    provider: 'anthropic', model: '', features: { assistant: true, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: 'sk-test-abcdefgh1234',
   });
   const ctx = { tree: TREE, role: 'editor' as Role, me: null, locale: 'en' as const };
   const out: import('./ai/types.ts').Proposal[] = [];

@@ -2,8 +2,8 @@ import { isLocale, type Locale } from '../i18n/types';
 // Types and schemas the AI features share between the server and the browser. Nothing here touches a
 // provider, a key or the database: keep it that way, since the browser imports this file.
 import { z } from 'zod';
-import { armsSchema } from '~/components/heraldry/schema';
 import { FIELD_TYPES } from '~/components/fields/model';
+import type { ArmsV2 } from '~/lib/seed-format';
 
 export const PROVIDERS = ['anthropic', 'openai', 'openrouter'] as const;
 export type Provider = (typeof PROVIDERS)[number];
@@ -31,7 +31,10 @@ export interface AiStatus {
   features: AiFeatures;
 }
 
-/** What the AI settings page reads: never the key itself, only its masked tail. */
+/** A price the family typed in for a model Kindred has no price for: USD per 1M tokens. */
+export interface CustomPrice { inPerM: number; outPerM: number }
+
+/** What the AI settings page reads: never the key itself, only its masked tail. Money is in micro-dollars (1 USD = 1,000,000). */
 export interface AiSettingsData {
   provider: Provider;
   model: string;
@@ -39,9 +42,33 @@ export interface AiSettingsData {
   keyState: 'none' | 'saved' | 'unreadable';
   keyTail: string | null;
   features: AiFeatures;
-  dailyTokens: number;
-  usedToday: number;
+  /** Web search for the assistant: the model may search the web, and the search queries go to the provider. */
+  webSearch: boolean;
+  /** The monthly budget. 0 turns AI off. */
+  monthlyMicros: number;
+  /** What this UTC month has booked so far. */
+  spentMicros: number;
+  /** The first day of next month (UTC, YYYY-MM-DD): when the budget starts again. */
+  resetsOn: string;
+  /** The family's own prices, by model id. */
+  customPrices: Record<string, CustomPrice>;
   updated: number;
+}
+
+/** A model a provider offers, with what Kindred knows about it. Null means unknown, never "no". */
+export interface ModelInfo {
+  id: string;
+  name: string;
+  /** The largest input the model takes, in tokens, when the provider says. */
+  contextTokens: number | null;
+  /** USD per 1M tokens, when Kindred knows the price (its table, or OpenRouter's list). */
+  inPerM: number | null;
+  outPerM: number | null;
+  /** USD per web search, when known. */
+  searchEach: number | null;
+  vision: boolean | null;
+  tools: boolean | null;
+  webSearch: boolean | null;
 }
 
 export const PROPOSAL_KINDS = ['add-person', 'link-relative', 'set-dates', 'add-story', 'add-field'] as const;
@@ -70,6 +97,8 @@ export interface ChatItem {
   role: 'user' | 'assistant';
   text: string;
   proposals?: Proposal[];
+  /** The pages a web search drew on for this reply, when the family allowed web search. */
+  sources?: { url: string; title?: string }[];
   at: number;
 }
 
@@ -149,8 +178,46 @@ export const faceResultSchema = z.object({
 });
 export type FaceResult = z.infer<typeof faceResultSchema>;
 
-/** Several arms designs for a surname, each with what it may mean. The arms are the v1 shape the house editor stores. */
-export const armsDesignSchema = z.object({
-  designs: z.array(z.object({ meaning: z.string().trim().min(1).max(300), arms: armsSchema })).min(3).max(5),
+
+// ---------- arms from a name, in two steps: what the name means, then the arms that follow ----------
+
+/** Well attested: dictionaries and etymology agree. Speculative: a guess or folk etymology. Family: the family's own meaning. */
+export const ATTESTATIONS = ['well-attested', 'speculative', 'family'] as const;
+export type Attestation = (typeof ATTESTATIONS)[number];
+export const IDEA_KINDS = ['quality', 'object', 'trade', 'sound'] as const;
+export type IdeaKind = (typeof IDEA_KINDS)[number];
+
+/** One candidate meaning of a surname, as the reader sees and selects it. `id` is set by the server (or by the browser for a reader's own). */
+export const nameMeaningSchema = z.object({
+  id: z.string().trim().min(1).max(20),
+  /** The languages or regions it belongs to, in the reader's language, e.g. "Dutch and German". Empty for the family's own. */
+  language: z.string().trim().max(80),
+  root: z.string().trim().max(60),
+  meaning: z.string().trim().min(1).max(200),
+  attestation: z.enum(ATTESTATIONS),
+  ideas: z.array(z.object({ kind: z.enum(IDEA_KINDS), idea: z.string().trim().min(1).max(160) })).max(6),
+  /** Web pages the research drew on for this meaning. Only ever the pages a search returned. */
+  sources: z.array(z.object({ url: z.string().min(8).max(400), title: z.string().max(200).optional() })).max(3).optional(),
 });
-export type ArmsDesign = z.infer<typeof armsDesignSchema>['designs'][number];
+export type NameMeaning = z.infer<typeof nameMeaningSchema>;
+/** The meanings the reader chose to design from: the research's fields without the sources. */
+export const designMeaningSchema = nameMeaningSchema.omit({ sources: true });
+export type DesignMeaning = z.infer<typeof designMeaningSchema>;
+
+/** What step one returns: the candidate meanings, and whether the web was searched for them. */
+export interface NameResearch {
+  meanings: NameMeaning[];
+  /** The model's own honest note, e.g. that the name is rare and little is written about it. */
+  note?: string;
+  /** True when the family allows web search and it was offered to the model; false means the model's own knowledge only. */
+  webSearched: boolean;
+}
+
+/** One design from step two: the arms, what it draws on, and why, in the reader's language. */
+export interface NameDesign {
+  arms: ArmsV2;
+  explanation: string;
+  /** The id of the chosen meaning it draws on, and that meaning's line for display ("heer: lord, gentleman"). */
+  meaningId: string;
+  meaning: string;
+}

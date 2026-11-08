@@ -15,6 +15,8 @@ export function systemPrompt(o: {
   kinToReader: string | null;
   canPropose: boolean;
   role: string;
+  /** The family allows web search: the model may search, under the rules below. */
+  webSearch?: boolean;
 }): string {
   const lines = [
     `You are the assistant for the family tree “${o.family}” in Kindred. Reply in ${LANGUAGE_NAME[o.locale]}, whatever language the question is in.`,
@@ -23,6 +25,9 @@ export function systemPrompt(o: {
     'Never repeat contact details or anything a tool did not return.',
     `The reader's role is ${o.role}.`,
   ];
+  if (o.webSearch) {
+    lines.push('You may search the web, but only for historical or general facts: a place’s history, what a word, trade or custom meant, a past event. Never search for a living relative, and never put a private detail in a search (a living person’s name with their dates, places, occupation or contact details, or anything from this tree). Family facts still come only from the tools.');
+  }
   if (o.readerName) lines.push(`The reader is ${o.readerName} in this family${o.kinToReader ? `, so “my” means relatives of them` : ''}.`);
   if (o.canPropose) {
     lines.push('When the reader wants something changed, call one propose_ tool with the ids the tools gave you. Nothing is saved until the reader approves the card; never say that anything has been saved, added or changed.');

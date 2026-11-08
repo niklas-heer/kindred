@@ -1,9 +1,9 @@
-// The three features that look at a picture or a name and return suggestions: faces in a photo, a
-// portrait look from a photo, and arms from a surname. Each returns validated data and writes nothing;
-// the caller decides what to keep (the reader's own role applies to every save).
+// The two features that look at a picture and return suggestions: faces in a photo, and a portrait look
+// from a photo. Each returns validated data and writes nothing; the caller decides what to keep (the
+// reader's own role applies to every save). Arms from a name are in arms.server.ts.
 import { db, media } from '../db.server';
 import { checkMediaKey } from '../store/index.ts';
-import { lookSchema, faceResultSchema, armsDesignSchema, type AiLocale, type ArmsDesign, type FaceResult } from './types';
+import { lookSchema, faceResultSchema, type AiLocale, type FaceResult } from './types';
 import { AiError, type ImagePart, type JsonSchema } from './adapters';
 import { tr } from './labels';
 import { adapterForFeature } from './settings.server';
@@ -174,57 +174,4 @@ export async function avatarFromPhoto(o: { tree: string; personId: string; media
   const parsed = lookSchema.safeParse(reply.json);
   if (!parsed.success) throw new AiError('bad-output', c('ai.errBadOutput'));
   return parsed.data as Look;
-}
-
-// ---------- arms from a name ----------
-
-const TINCTURE = ['or', 'argent', 'gules', 'azure', 'vert', 'sable', 'purpure'];
-const DIVISION = ['plain', 'per-pale', 'per-fess', 'per-bend', 'quarterly', 'chevron', 'paly', 'bendy', 'saltire', 'cross'];
-const CHARGE = ['none', 'lion', 'eagle', 'tower', 'star', 'crescent', 'fleur', 'key', 'rose', 'boar', 'stag', 'sword'];
-const ARMS_JSON: JsonSchema = {
-  type: 'object',
-  properties: {
-    designs: {
-      type: 'array', minItems: 3, maxItems: 5,
-      items: {
-        type: 'object',
-        properties: {
-          meaning: { type: 'string', description: 'One short sentence on what the arms may stand for.' },
-          arms: {
-            type: 'object',
-            properties: {
-              field: { type: 'string', enum: TINCTURE },
-              field2: { type: 'string', enum: TINCTURE },
-              division: { type: 'string', enum: DIVISION },
-              charge: { type: 'string', enum: CHARGE },
-              chargeTincture: { type: 'string', enum: TINCTURE },
-            },
-            required: ['field', 'division', 'charge', 'chargeTincture'],
-          },
-        },
-        required: ['meaning', 'arms'],
-      },
-    },
-  },
-  required: ['designs'],
-};
-
-/** Three to five coats of arms for a surname, each with what it may mean. They are the v1 arms shape the house editor stores. */
-export async function armsFromName(o: { tree: string; surname: string; country?: string; locale: AiLocale }): Promise<ArmsDesign[]> {
-  const c = tr(o.locale);
-  const { adapter } = await adapterForFeature(o.tree, 'arms', o.locale);
-  const reply = await adapter.complete({
-    system: [
-      'You design heraldic arms for a family from its surname. Use only the tinctures, divisions and charges in the schema, in the classic style: few tinctures, a clear charge, a colour contrast (metal on colour).',
-      'Give three to five different designs. Each meaning is one short sentence, in ' + LANG[o.locale] + ', and may play on the name only when that is plausible; never claim a real historic family.',
-      o.country ? `The family is from ${o.country} (ISO code).` : '',
-    ].filter(Boolean).join('\n'),
-    messages: [{ role: 'user', text: `Surname: ${o.surname}` }],
-    json: { name: 'arms', schema: ARMS_JSON },
-    maxTokens: 1200,
-    timeoutMs: 60_000,
-  });
-  const parsed = armsDesignSchema.safeParse(reply.json);
-  if (!parsed.success) throw new AiError('bad-output', c('ai.errBadOutput'));
-  return parsed.data.designs;
 }

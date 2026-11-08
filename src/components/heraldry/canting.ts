@@ -26,6 +26,8 @@ export interface CantingIdea {
   explanation: string;
   /** The part of the name the idea plays on. */
   element?: string;
+  /** The id of the meaning it draws on, when the reader chose meanings to design from (see components/ai/arms). */
+  meaningId?: string;
   field?: TinctureV2[];
   division?: FieldDivision;
   /** A mount, water or a green field across the foot of the shield. */
@@ -47,6 +49,7 @@ export const cantingResponseSchema = z.object({
   suggestions: z.array(z.object({
     explanation: z.string().min(1).max(200),
     element: z.string().max(60).optional(),
+    meaningId: z.string().max(20).optional(),
     field: z.array(tinctureZ).min(1).max(3).optional(),
     division: z.enum(['plain', 'per-pale', 'per-fess', 'per-bend', 'per-bend-sinister', 'per-saltire', 'quarterly', 'per-chevron', 'per-pall', 'tierced-pale', 'tierced-fess', 'gyronny', 'paly', 'barry', 'bendy', 'bendy-sinister', 'chequy', 'lozengy', 'fusilly']).optional(),
     base: z.enum(['mount', 'water', 'field']).optional(),
@@ -75,6 +78,7 @@ export interface CantingSuggestion {
   arms: ArmsV2;
   explanation: string;
   element?: string;
+  meaningId?: string;
 }
 
 // ---------- the table ----------
@@ -356,6 +360,7 @@ export function cantingFromIdeas(input: CantingResponse | unknown, req: CantingR
     arms: ideaToArms(idea as CantingIdea, { country: req.country, seed: hash(req.surname) + i }),
     explanation: idea.explanation,
     element: idea.element,
+    meaningId: idea.meaningId,
   }));
 }
 

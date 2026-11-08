@@ -192,6 +192,49 @@
 [data-theme='codex'] .ae-card { background: linear-gradient(180deg, #232c3c, #1b2230); border-color: #0b0e13; box-shadow: inset 0 0 0 1px #b8954f22; }
 [data-theme='codex'] .ae-card:hover { box-shadow: inset 0 0 0 1px var(--edge); }
 
+/* ---- suggestions from the name: the AI's research, its meanings and its designs ---- */
+.ae-research { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); display: grid; gap: 10px; }
+.ae-research-title { margin: 0; font-family: var(--font-title); font-size: 15px; font-weight: 600; letter-spacing: 0.02em; }
+.ae-research-title + .ae-lead { margin-top: 0; }
+.ae-research-hint .input { width: min(100%, 420px); height: 40px; }
+.ae-research-go { justify-self: start; min-height: 44px; }
+.ae-research-busy { display: grid; gap: 8px; }
+.ae-meanings { display: grid; gap: 12px; }
+.ae-basis { margin: 0; font-size: 13px; line-height: 1.45; }
+.ae-meaning-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ae-meaning { border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--panel-2); }
+.ae-meaning.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.ae-meaning-pick { display: flex; gap: 12px; width: 100%; min-height: 44px; padding: 12px; text-align: left; background: none; border: 0; border-radius: inherit; color: var(--text); font: inherit; cursor: pointer; }
+.ae-meaning-pick:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.ae-meaning-check { flex: none; width: 20px; height: 20px; margin-top: 1px; display: grid; place-items: center; border-radius: 6px; border: 1px solid var(--border); }
+.ae-meaning.on .ae-meaning-check { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.ae-meaning-body { display: grid; gap: 4px; min-width: 0; }
+.ae-meaning-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.ae-meaning-root { font-weight: 500; font-size: 15px; }
+.ae-meaning-head small { color: var(--muted); font-size: 12.5px; }
+.ae-meaning-body .ae-card-title { font-size: 14.5px; font-weight: 500; }
+.ae-meaning-ideas { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 13px; line-height: 1.4; }
+.ae-meaning-ideas small { color: var(--muted); }
+.ae-badge { display: inline-block; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); font-size: 11.5px; line-height: 1.5; }
+.ae-badge.well-attested { color: var(--ok); border-color: currentColor; }
+.ae-badge.speculative { color: var(--info); border-color: currentColor; }
+.ae-badge.family, .ae-badge.own { color: var(--accent); border-color: currentColor; }
+.ae-meaning-sources { margin: 0; padding: 0 12px 10px 44px; font-size: 12.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.ae-meaning-sources a { color: var(--accent); }
+.ae-meaning-add { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.ae-meaning-add .field { flex: 1 1 220px; min-width: 0; }
+.ae-meaning-add .input { height: 40px; }
+.ae-design-go { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.ae-design-go .btn { min-height: 44px; }
+.ae-designs { display: grid; gap: 6px; }
+.ae-designs-title { margin: 6px 0 0; font-family: var(--font-title); font-size: 15px; font-weight: 600; }
+.ae-design-draws { color: var(--muted); font-size: 12.5px; font-style: normal; }
+@media (max-width: 640px) {
+  .ae-research-hint .input, .ae-meaning-add .input { width: 100%; }
+  .ae-meaning-add .btn, .ae-design-go .btn { width: 100%; justify-content: center; }
+  .ae-meaning-sources { padding-left: 12px; }
+}
+
 /* ---- the footer ---- */
 .ae-dialog .ui-dialog-foot { position: sticky; bottom: 0; z-index: 1; background: inherit; }
 [data-theme='codex'] .ae-dialog .ui-dialog-foot { background: #1a2130; border-top-color: var(--edge-soft); }

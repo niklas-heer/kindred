@@ -7,9 +7,6 @@ import {
 } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { graphQuery, updateHouse } from '~/lib/api';
-import { aiArmsFromName } from '~/lib/ai.functions';
-import type { ArmsDesign } from '~/lib/ai/types';
-import { toAiLocale } from '~/lib/ai/types';
 import { myFamiliesQuery } from '~/lib/auth/functions';
 import { useT, type Key, type Translator } from '~/lib/i18n';
 import type {
@@ -33,6 +30,7 @@ import { CANTING_SOURCE_NOTE, cantingArms } from './canting';
 import { CATEGORIES, CHARGE_BY_ID, CHARGES_V2, HELM_GLYPH, SUPPORTERS, type ChargeCategory } from './catalogue';
 import { asV2, storeV2 } from './convert';
 import { Flag } from './Flag';
+import { NameResearchPanel } from './NameResearch';
 import { arrangementsFor, COTISABLE, edge, tinctureCount, type Pt } from './geometry';
 import { PRESETS } from './presets';
 import { ArmsV2View, fieldTinctures, TinctureSwatch } from './render';
@@ -259,7 +257,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
               </div>
             </TabPanel>
             <TabPanel value="name">
-              <Suggestions tree={tree} initial={surnameOf(saved.name)} country={country} onPick={(arms) => { setArms(arms); setSel(arms.layers.length ? arms.layers.length - 1 : 'field'); setTab('design'); play('tick'); }} />
+              <Suggestions tree={tree} initial={surnameOf(saved.name)} country={country} allowed={allowed} onPick={(arms) => { setArms(arms); setSel(arms.layers.length ? arms.layers.length - 1 : 'field'); setTab('design'); play('tick'); }} />
             </TabPanel>
           </Tabs>
         </div>
@@ -268,21 +266,15 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
   );
 }
 
-// ---------- canting suggestions ----------
+// ---------- suggestions from the name ----------
 
-function Suggestions({ tree, initial, country, onPick }: { tree: string; initial: string; country?: string; onPick: (a: ArmsV2) => void }) {
+/** The offline ideas for a name, then (with AI arms on, for stewards) the AI's research and designs. */
+function Suggestions({ tree, initial, country, allowed, onPick }: { tree: string; initial: string; country?: string; allowed: boolean; onPick: (a: ArmsV2) => void }) {
   const t = useT();
-  const aiOn = !!useAiStatus(tree)?.features.arms;
+  const aiFeature = !!useAiStatus(tree)?.features.arms;
+  const aiOn = aiFeature && allowed;
   const [name, setName] = useState(initial);
   const list = useMemo(() => cantingArms(name, country, t), [name, country, t.locale]);
-  // The AI's designs for this name, added to the list each time "Ask the AI for more" finishes. A new name starts over.
-  const [more, setMore] = useState<ArmsDesign[]>([]);
-  const ask = useMutation({
-    mutationFn: () => aiArmsFromName({
-      data: { tree, surname: name.trim(), country: country && /^[A-Z]{2}$/.test(country) ? country : undefined, locale: toAiLocale(t.locale) },
-    }),
-    onSuccess: (designs) => setMore((m) => [...m, ...designs]),
-  });
   useLibraryReady();
   return (
     <div className="ae-suggest">
@@ -292,12 +284,12 @@ function Suggestions({ tree, initial, country, onPick }: { tree: string; initial
           className="input"
           value={name}
           maxLength={60}
-          onChange={(e) => { setName(e.target.value); setMore([]); ask.reset(); }}
+          onChange={(e) => setName(e.target.value)}
           placeholder={t('heraldry.name_placeholder')}
         />
       </label>
       <p className="subtle ae-lead">{t(CANTING_SOURCE_NOTE)}</p>
-      {list.length === 0 && more.length === 0 ? (
+      {list.length === 0 ? (
         <p className="subtle">{t('heraldry.type_name')}</p>
       ) : (
         <div className="ae-gallery ae-gallery-wide">
@@ -310,31 +302,12 @@ function Suggestions({ tree, initial, country, onPick }: { tree: string; initial
               </span>
             </button>
           ))}
-          {more.map((d, i) => {
-            const arms = asV2(d.arms);
-            return (
-              <button key={`ai${i}`} type="button" className="ae-card ae-card-wide" onClick={() => onPick(structuredClone(arms))}>
-                <ArmsV2View arms={arms} size={72} />
-                <span className="ae-card-text">
-                  <span className="ae-card-title">{d.meaning}</span>
-                  <small>{blazonV2(arms)}</small>
-                </span>
-              </button>
-            );
-          })}
         </div>
       )}
-      {aiOn && name.trim() !== '' && (
+      {aiOn && name.trim() !== '' && <NameResearchPanel tree={tree} surname={name} country={country} onPick={onPick} />}
+      {allowed && !aiFeature && name.trim() !== '' && (
         <div className="ae-ai-more">
-          <button type="button" className="btn" onClick={() => ask.mutate()} disabled={ask.isPending} aria-busy={ask.isPending || undefined}>
-            <Sparkles size={15} aria-hidden /> {ask.isPending ? t('arms.asking') : t('arms.ask_more')}
-          </button>
-          {ask.isError && <p className="err" role="alert">{t('arms.ask_more_failed')}</p>}
-        </div>
-      )}
-      {!aiOn && name.trim() !== '' && (
-        <div className="ae-ai-more">
-          <AiSetupHint tree={tree} feature={t('arms.ask_more')} />
+          <AiSetupHint tree={tree} feature={t('heraldry.research_name')} />
         </div>
       )}
     </div>

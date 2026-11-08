@@ -1,7 +1,8 @@
 // One interface over the three providers, built on plain fetch so it runs on Workers as well as Node:
-// chat with tools, image input and JSON-structured output. Anthropic's Messages API; OpenAI's Chat
-// Completions API; OpenRouter, which speaks the same Chat Completions shape. Never logs the key, and
-// never puts it in an error message.
+// chat with tools, image input, JSON-structured output and web search. Anthropic's Messages API (web search as its
+// server tool, web_search_20250305); OpenAI's Chat Completions API, and for a call with web search its Responses API
+// (the hosted web_search tool); OpenRouter, which speaks the Chat Completions shape and searches through its web
+// plugin. Never logs the key, and never puts it in an error message.
 import { PROVIDER_LABEL, type Provider } from './types';
 
 export type AiErrorCode = 'not-configured' | 'bad-input' | 'budget' | 'auth' | 'rate-limited' | 'timeout' | 'unreachable' | 'provider' | 'bad-output' | 'key-unreadable';
@@ -23,6 +24,9 @@ export type AiMessage =
   | { role: 'assistant'; text: string; calls?: ToolCall[] }
   | { role: 'tool'; callId: string; content: string };
 
+/** The most searches one call may run when the request does not say. The budget reserves for this many. */
+export const DEFAULT_SEARCH_USES = 3;
+
 export interface AiRequest {
   system: string;
   messages: AiMessage[];
@@ -31,7 +35,7 @@ export interface AiRequest {
   json?: { name: string; schema: JsonSchema };
   maxTokens?: number;
   timeoutMs?: number;
-  /** Let the model search the web, when the provider can and the family has allowed it. Costs extra per search. */
+  /** Let the model search the web, when the provider can and the family has allowed it. Costs extra per search. Not used with `json`. */
   webSearch?: { maxUses?: number };
 }
 
@@ -39,8 +43,16 @@ export interface AiReply {
   text: string;
   calls: ToolCall[];
   json?: unknown;
-  /** Tokens the call used (input and output), for the family's daily budget. */
+  /** Tokens the call used (input and output together). Kept for callers that only count tokens. */
   tokens: number;
+  /** Tokens the call sent. */
+  inputTokens: number;
+  /** Tokens the call generated. */
+  outputTokens: number;
+  /** Web searches the provider ran for this call. */
+  searches: number;
+  /** The cost the provider reported in USD, when it does (OpenRouter). Otherwise the budget prices the usage itself. */
+  reportedCostUsd?: number;
   /** The pages a web search drew on, when the provider reports them. */
   sources?: { url: string; title?: string }[];
 }
@@ -93,6 +105,12 @@ async function post(label: Provider, url: string, headers: Record<string, string
   }
 }
 
+/** A URL citation or search result, de-duplicated by URL, in the order the provider gave them. */
+function addSource(list: { url: string; title?: string }[], url: unknown, title?: unknown): void {
+  if (typeof url !== 'string' || !/^https?:\/\//.test(url) || list.some((s) => s.url === url)) return;
+  list.push(typeof title === 'string' && title ? { url, title } : { url });
+}
+
 // ---------- Anthropic Messages API ----------
 
 function anthropic(key: string, model: string): AiAdapter {
@@ -123,26 +141,99 @@ function anthropic(key: string, model: string): AiAdapter {
       if (req.json) {
         body.tools = [{ name: req.json.name, description: 'Give the answer in this shape.', input_schema: req.json.schema }];
         body.tool_choice = { type: 'tool', name: req.json.name };
-      } else if (req.tools?.length) {
-        body.tools = req.tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters }));
+      } else {
+        const tools: unknown[] = (req.tools ?? []).map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters }));
+        // The server tool: Anthropic runs the searches itself and cites them. Basic version, which every current model accepts.
+        if (req.webSearch) tools.push({ type: 'web_search_20250305', name: 'web_search', max_uses: req.webSearch.maxUses ?? DEFAULT_SEARCH_USES });
+        if (tools.length) body.tools = tools;
       }
-      const data = await post('anthropic', 'https://api.anthropic.com/v1/messages', {
-        'content-type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-      }, body, key, req.timeoutMs ?? 45_000);
-      const blocks = (data.content ?? []) as { type: string; text?: string; id?: string; name?: string; input?: unknown }[];
-      const text = blocks.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
-      const calls = blocks.filter((b) => b.type === 'tool_use').map((b) => ({ id: b.id!, name: b.name!, args: b.input }));
-      const tokens = (data.usage?.input_tokens ?? 0) + (data.usage?.output_tokens ?? 0);
+      const headers = { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' };
+      const timeoutMs = req.timeoutMs ?? 45_000;
+      let text = '';
+      const calls: ToolCall[] = [];
+      const sources: { url: string; title?: string }[] = [];
+      let inputTokens = 0;
+      let outputTokens = 0;
+      let searches = 0;
+      let data: any;
+      // A long search turn can pause (stop_reason pause_turn): send the paused message back unchanged to continue it.
+      for (let round = 0; ; round++) {
+        data = await post('anthropic', 'https://api.anthropic.com/v1/messages', headers, body, key, timeoutMs);
+        const blocks = (data.content ?? []) as { type: string; text?: string; id?: string; name?: string; input?: unknown; content?: unknown }[];
+        text += blocks.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
+        for (const b of blocks.filter((x) => x.type === 'tool_use')) calls.push({ id: b.id!, name: b.name!, args: b.input });
+        for (const b of blocks) {
+          if (b.type !== 'web_search_tool_result' || !Array.isArray(b.content)) continue;
+          for (const r of b.content as { url?: unknown; title?: unknown }[]) addSource(sources, r.url, r.title);
+        }
+        inputTokens += data.usage?.input_tokens ?? 0;
+        outputTokens += data.usage?.output_tokens ?? 0;
+        searches += data.usage?.server_tool_use?.web_search_requests ?? blocks.filter((b) => b.type === 'server_tool_use' && b.name === 'web_search').length;
+        if (data.stop_reason !== 'pause_turn' || round >= 3) break;
+        body.messages = [...(body.messages as unknown[]), { role: 'assistant', content: data.content }];
+      }
       if (req.json) {
         const answer = calls.find((c) => c.name === req.json!.name);
         if (!answer) throw new AiError('bad-output', 'ai.err_shape');
-        return { text, calls: [], json: answer.args, tokens };
+        return { text, calls: [], json: answer.args, tokens: inputTokens + outputTokens, inputTokens, outputTokens, searches: 0 };
       }
-      return { text, calls, tokens };
+      return {
+        text,
+        calls,
+        tokens: inputTokens + outputTokens,
+        inputTokens,
+        outputTokens,
+        searches,
+        ...(sources.length ? { sources } : {}),
+      };
     },
   };
+}
+
+// ---------- OpenAI: Chat Completions, and the Responses API for web search ----------
+
+/** Responses API: the hosted web_search tool. Used for a call that asks for web search (OpenAI only). */
+async function openaiResponses(key: string, model: string, req: AiRequest): Promise<AiReply> {
+  const input: unknown[] = [];
+  for (const m of req.messages) {
+    if (m.role === 'user') {
+      if (m.images?.length) {
+        input.push({ role: 'user', content: [...m.images.map((img) => ({ type: 'input_image', image_url: `data:${img.mime};base64,${img.base64}` })), { type: 'input_text', text: m.text || ' ' }] });
+      } else input.push({ role: 'user', content: m.text });
+    } else if (m.role === 'assistant') {
+      if (m.text) input.push({ role: 'assistant', content: m.text });
+      for (const c of m.calls ?? []) input.push({ type: 'function_call', call_id: c.id, name: c.name, arguments: JSON.stringify(c.args ?? {}) });
+    } else {
+      input.push({ type: 'function_call_output', call_id: m.callId, output: m.content });
+    }
+  }
+  const tools: unknown[] = [{ type: 'web_search' }];
+  for (const t of req.tools ?? []) tools.push({ type: 'function', name: t.name, description: t.description, parameters: t.parameters, strict: false });
+  const data = await post('openai', 'https://api.openai.com/v1/responses', { 'content-type': 'application/json', authorization: `Bearer ${key}` }, {
+    model, instructions: req.system, input, tools, max_output_tokens: req.maxTokens ?? 1024,
+  }, key, req.timeoutMs ?? 60_000);
+  let text = '';
+  const calls: ToolCall[] = [];
+  const sources: { url: string; title?: string }[] = [];
+  let searches = 0;
+  for (const item of (data.output ?? []) as { type: string; status?: string; call_id?: string; name?: string; arguments?: string; content?: { type: string; text?: string; annotations?: { type: string; url?: string; title?: string }[] }[] }[]) {
+    if (item.type === 'web_search_call') {
+      if (item.status !== 'failed') searches++;
+    } else if (item.type === 'message') {
+      for (const part of item.content ?? []) {
+        if (part.type !== 'output_text') continue;
+        text += part.text ?? '';
+        for (const a of part.annotations ?? []) if (a.type === 'url_citation') addSource(sources, a.url, a.title);
+      }
+    } else if (item.type === 'function_call') {
+      let args: unknown = {};
+      try { args = JSON.parse(item.arguments || '{}'); } catch {}
+      calls.push({ id: item.call_id!, name: item.name!, args });
+    }
+  }
+  const inputTokens = data.usage?.input_tokens ?? 0;
+  const outputTokens = data.usage?.output_tokens ?? 0;
+  return { text, calls, tokens: inputTokens + outputTokens, inputTokens, outputTokens, searches, ...(sources.length ? { sources } : {}) };
 }
 
 // ---------- OpenAI Chat Completions, and OpenRouter, which is the same shape ----------
@@ -156,6 +247,8 @@ function chatCompletions(provider: 'openai' | 'openrouter', key: string, model: 
     provider,
     model,
     async complete(req) {
+      // OpenAI's web search is the Responses API's hosted tool. Structured output keeps the Chat Completions path.
+      if (provider === 'openai' && req.webSearch && !req.json) return openaiResponses(key, model, req);
       const messages: unknown[] = [{ role: 'system', content: req.system }];
       for (const m of req.messages) {
         if (m.role === 'user') {
@@ -176,14 +269,25 @@ function chatCompletions(provider: 'openai' | 'openrouter', key: string, model: 
       else body.max_tokens = req.maxTokens ?? 1024;
       if (req.json) body.response_format = { type: 'json_schema', json_schema: { name: req.json.name, schema: req.json.schema, strict: false } };
       else if (req.tools?.length) body.tools = req.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
+      // OpenRouter's web plugin searches for any model it lists. Its cost comes back in usage.cost.
+      if (provider === 'openrouter' && req.webSearch && !req.json) body.plugins = [{ id: 'web', max_results: 5 }];
       const data = await post(provider, url, headers, body, key, req.timeoutMs ?? 45_000);
-      const msg = data.choices?.[0]?.message as { content?: string | null; tool_calls?: { id: string; function: { name: string; arguments: string } }[] } | undefined;
+      const msg = data.choices?.[0]?.message as {
+        content?: string | null;
+        tool_calls?: { id: string; function: { name: string; arguments: string } }[];
+        annotations?: { type: string; url_citation?: { url?: string; title?: string } }[];
+      } | undefined;
       if (!msg) throw new AiError('bad-output', `${PROVIDER_LABEL[provider]} sent back no answer.`);
-      const tokens = data.usage?.total_tokens ?? (data.usage?.prompt_tokens ?? 0) + (data.usage?.completion_tokens ?? 0);
+      const inputTokens = data.usage?.prompt_tokens ?? 0;
+      const outputTokens = data.usage?.completion_tokens ?? 0;
       const text = msg.content ?? '';
+      const sources: { url: string; title?: string }[] = [];
+      for (const a of msg.annotations ?? []) if (a.type === 'url_citation') addSource(sources, a.url_citation?.url, a.url_citation?.title);
+      const reported = typeof data.usage?.cost === 'number' ? { reportedCostUsd: data.usage.cost as number } : {};
+      const searched = provider === 'openrouter' && !!req.webSearch && !req.json ? 1 : 0;
       if (req.json) {
         try {
-          return { text, calls: [], json: JSON.parse(text), tokens };
+          return { text, calls: [], json: JSON.parse(text), tokens: inputTokens + outputTokens, inputTokens, outputTokens, searches: 0, ...reported };
         } catch {
           throw new AiError('bad-output', 'ai.err_shape');
         }
@@ -193,7 +297,16 @@ function chatCompletions(provider: 'openai' | 'openrouter', key: string, model: 
         try { args = JSON.parse(c.function.arguments || '{}'); } catch {}
         return { id: c.id, name: c.function.name, args };
       });
-      return { text, calls, tokens };
+      return {
+        text,
+        calls,
+        tokens: inputTokens + outputTokens,
+        inputTokens,
+        outputTokens,
+        searches: searched,
+        ...reported,
+        ...(sources.length ? { sources } : {}),
+      };
     },
   };
 }

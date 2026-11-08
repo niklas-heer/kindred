@@ -22,7 +22,7 @@ const MAX_STEPS = 5;
 const id = () => crypto.randomUUID();
 
 type Tier = 'member' | 'editor';
-interface Body { text: string; proposals?: Proposal[]; tier?: Tier }
+interface Body { text: string; proposals?: Proposal[]; tier?: Tier; sources?: { url: string; title?: string }[] }
 interface ChatRow { id: string; role: 'user' | 'assistant'; body: string; at: number }
 
 const parse = (r: ChatRow): Body => JSON.parse(r.body) as Body;
@@ -43,7 +43,7 @@ async function currentConv(tree: string, user: string): Promise<string> {
 
 const toItem = (r: ChatRow): ChatItem => {
   const b = parse(r);
-  return { id: r.id, role: r.role, text: b.text, ...(b.proposals?.length && { proposals: b.proposals }), at: r.at };
+  return { id: r.id, role: r.role, text: b.text, ...(b.proposals?.length && { proposals: b.proposals }), ...(b.sources?.length && { sources: b.sources }), at: r.at };
 };
 
 /** The reader's current conversation, oldest first, without the turns their role may no longer read. */
@@ -73,7 +73,7 @@ export async function markProposal(tree: string, user: string, role: Role, itemI
 export async function sendMessage(o: { tree: string; user: string; role: Role; me: string | null; text: string; locale: string }): Promise<{ items: ChatItem[] }> {
   const locale: AiLocale = toAiLocale(o.locale);
   const c = tr(locale);
-  const { adapter } = await adapterForFeature(o.tree, 'assistant', locale);
+  const { adapter, webSearch } = await adapterForFeature(o.tree, 'assistant', locale);
   const conv = await currentConv(o.tree, o.user);
   const started = Date.now();
 
@@ -91,15 +91,17 @@ export async function sendMessage(o: { tree: string; user: string; role: Role; m
   const me = o.me && o.me !== '-' ? g.people.find((p) => p.id === o.me) : undefined;
   const { tools, proposals: canPropose } = toolsFor(o.role);
   const system = systemPrompt({
-    locale, family: g.tree.name, readerName: me ? fullName(me) : null, kinToReader: null, canPropose, role: o.role,
+    locale, family: g.tree.name, readerName: me ? fullName(me) : null, kinToReader: null, canPropose, role: o.role, webSearch,
   });
   const ctx = { tree: o.tree, role: o.role, me: me?.id ?? null, locale };
   const messages: AiMessage[] = [...past, { role: 'user', text: o.text }];
   const proposals: Proposal[] = [];
+  const sources: { url: string; title?: string }[] = [];
   let text = '';
   for (let step = 0; ; step++) {
     // Each call is booked against the family's budget by the adapter, so a loop cannot outspend it.
-    const reply = await adapter.complete({ system, messages, tools, maxTokens: 1200, timeoutMs: 60_000 });
+    const reply = await adapter.complete({ system, messages, tools, maxTokens: 1200, timeoutMs: 60_000, ...(webSearch && { webSearch: { maxUses: 3 } }) });
+    for (const s of reply.sources ?? []) if (!sources.some((x) => x.url === s.url)) sources.push(s);
     if (!reply.calls.length || step >= MAX_STEPS) {
       text = reply.text.trim();
       break;
@@ -114,7 +116,7 @@ export async function sendMessage(o: { tree: string; user: string; role: Role; m
   const tier: Tier = can(o.role, 'edit-person') ? 'editor' : 'member';
   const userRow: ChatRow = { id: id(), role: 'user', body: JSON.stringify({ text: o.text, tier }), at: started };
   const reply: ChatRow = {
-    id: id(), role: 'assistant', body: JSON.stringify({ text, ...(proposals.length && { proposals }), tier }), at: Date.now(),
+    id: id(), role: 'assistant', body: JSON.stringify({ text, ...(proposals.length && { proposals }), ...(sources.length && { sources }), tier }), at: Date.now(),
   };
   // Both turns or neither: a message is never stored without its answer, and a failed turn leaves nothing to resend.
   const insert = (r: ChatRow) => q('INSERT INTO ai_chat (id, tree, user, conv, role, body, at) VALUES (?, ?, ?, ?, ?, ?, ?)', r.id, o.tree, o.user, conv, r.role, r.body, r.at);

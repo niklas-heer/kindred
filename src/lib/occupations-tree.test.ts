@@ -40,7 +40,7 @@ test.after(async () => {
 
 await accounts().run('INSERT INTO user (id, name, handle, created) VALUES (?, ?, ?, ?)', 'u1', 'Anna', 'handle-occ', Date.now());
 await settings.saveSettings(TREE, 'u1', {
-  provider: 'anthropic', model: '', features: { assistant: true, faces: false, avatar: false, arms: false }, dailyTokens: 1_000_000, apiKey: 'sk-test-abcdefgh1234',
+  provider: 'anthropic', model: '', features: { assistant: true, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: 'sk-test-abcdefgh1234',
 });
 
 // The cache lives in the family's own database (occupation_translation), not in the accounts database.
