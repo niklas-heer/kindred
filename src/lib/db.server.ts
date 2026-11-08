@@ -167,6 +167,7 @@ export async function graph(tree: string): Promise<Graph> {
       diedPlace: opt(r.died_place),
       currentGiven: opt(r.current_given),
       currentSurname: opt(r.current_surname),
+      preferAvatar: r.prefer_avatar === 1,
     }),
   );
   const houses = houseRows.map((r): House => ({ id: r.id, name: r.name, motto: opt(r.motto), arms: JSON.parse(r.arms), founder: opt(r.founder) }));

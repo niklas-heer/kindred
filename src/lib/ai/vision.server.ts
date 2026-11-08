@@ -79,21 +79,34 @@ export async function findFaces(o: { tree: string; mediaKey: string; locale: AiL
   const { adapter } = await adapterForFeature(o.tree, 'faces', o.locale);
   const photo = await photoOrThrow(o.tree, o.mediaKey, o.locale);
 
-  const rows = await db(o.tree).all<{ id: string; given: string; surname: string | null; key: string; mime: string }>(
-    `SELECT p.id, p.given, p.surname, ph.key, ph.mime FROM person p JOIN photo ph ON ph.person = p.id
-     WHERE ph.key IS NOT NULL ORDER BY ph.at DESC LIMIT ?`, CANDIDATES,
+  // Candidates come from the media model: pictures a person is confirmed in (with the box of their face in
+  // it, so the model knows which face is theirs), and profile photos. Newest first, one picture per person.
+  const rows = await db(o.tree).all<{ id: string; given: string; surname: string | null; key: string; mime: string; x: number | null; y: number | null; w: number | null; h: number | null }>(
+    `SELECT id, given, surname, key, mime, x, y, w, h, at FROM (
+       SELECT p.id, p.given, p.surname, m.key, m.mime, mp.x, mp.y, mp.w, mp.h, mp.at
+         FROM media_person mp JOIN person p ON p.id = mp.person JOIN media m ON m.key = mp.media
+        WHERE mp.confirmed = 1
+       UNION ALL
+       SELECT p.id, p.given, p.surname, ph.key, ph.mime, NULL, NULL, NULL, NULL, ph.at
+         FROM photo ph JOIN person p ON p.id = ph.person
+        WHERE ph.key IS NOT NULL
+     ) ORDER BY at DESC LIMIT ?`, CANDIDATES * 4,
   );
   const parts: ImagePart[] = [photo];
   const lines: string[] = [];
   const ids: string[] = [];
+  const seen = new Set<string>();
   let bytes = 0;
   for (const r of rows) {
+    if (seen.has(r.id) || ids.length >= CANDIDATES) continue;
     const img = await readImage(o.tree, r.key, r.mime).catch(() => undefined);
     if (!img || bytes + img.bytes.length > CANDIDATE_BYTES) continue;
     bytes += img.bytes.length;
+    seen.add(r.id);
     ids.push(r.id);
     parts.push(img);
-    lines.push(`Image ${parts.length} is ${[r.given, r.surname].filter(Boolean).join(' ')} (id ${r.id}).`);
+    const where = r.x === null ? '' : ` Their face is at x ${r.x.toFixed(2)}, y ${r.y!.toFixed(2)}, width ${r.w!.toFixed(2)}, height ${r.h!.toFixed(2)} (fractions of the picture).`;
+    lines.push(`Image ${parts.length} is ${[r.given, r.surname].filter(Boolean).join(' ')} (id ${r.id}).${where}`);
   }
   const system = [
     'You find the faces in the first image, a family photo. For each face, give its box as fractions of the whole image (x, y from the top left; w, h), and suggest which candidate person it may be, from the images after it.',

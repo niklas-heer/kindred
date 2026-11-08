@@ -70,6 +70,12 @@ const driver: Driver = {
 
   gazetteer: () => null,
 
+  secret() {
+    const s = (env as Record<string, unknown>).KINDRED_SECRET;
+    if (typeof s !== 'string' || !s.trim()) throw new Error('KINDRED_SECRET is not set. Add it as a Worker secret.');
+    return s.trim();
+  },
+
   media: {
     async put(tree, key, bytes, mime) {
       checkMediaKey(tree, key);

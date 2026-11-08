@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { FolderPlus, ImagePlus, Images, Pencil, Tag as TagIcon } from 'lucide-react';
+import { FolderPlus, ImagePlus, Images, Pencil, Tag as TagIcon, Trash2 } from 'lucide-react';
 import { useMemo, useState, type DragEvent } from 'react';
-import { AlbumDialog, Lightbox, PersonPhotos, UploadDialog, mediaUrl, useG, type Album, type MediaItem } from '~/components/photos';
+import { AlbumDialog, DeleteAlbumDialog, Lightbox, PersonPhotos, UploadDialog, mediaUrl, useG, type Album, type MediaItem } from '~/components/photos';
 import { EmptyState, ErrorState, PageHeader, Select, Skeleton, Switch } from '~/components/ui';
 import { formatDate, useT } from '~/lib/i18n';
 import { useFamily, useTreeId } from '~/lib/family';
@@ -30,6 +30,7 @@ function GalleryPage() {
   const g = useG();
   const t = useT();
   const canAdd = useCan('upload-photo');
+  const canDeleteAlbum = useCan('delete-album');
   const q = useQuery(galleryQuery(tree));
   const [album, setAlbum] = useState<AlbumScope>('all');
   const [person, setPerson] = useState('all');
@@ -38,6 +39,7 @@ function GalleryPage() {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [uploading, setUploading] = useState<{ files?: File[] } | null>(null);
   const [albumEdit, setAlbumEdit] = useState<{ id?: string; name?: string } | null>(null);
+  const [albumDelete, setAlbumDelete] = useState<{ id: string; name: string } | null>(null);
   const [dragging, setDragging] = useState(false);
 
   const media = q.data?.media ?? [];
@@ -146,6 +148,11 @@ function GalleryPage() {
                 ) : null}
               </>
             ) : null}
+            {canDeleteAlbum && selectedAlbum ? (
+              <button type="button" className="btn ghost" onClick={() => setAlbumDelete({ id: selectedAlbum.id, name: selectedAlbum.name })}>
+                <Trash2 size={16} aria-hidden /> {g('gallery.delete_album')}
+              </button>
+            ) : null}
           </div>
 
           <div className="gal-filters">
@@ -230,6 +237,19 @@ function GalleryPage() {
           initialAlbum={selectedAlbum?.id ?? null}
           files={uploading.files}
           onClose={() => setUploading(null)}
+        />
+      ) : null}
+
+      {albumDelete ? (
+        <DeleteAlbumDialog
+          tree={tree}
+          id={albumDelete.id}
+          name={albumDelete.name}
+          onClose={() => setAlbumDelete(null)}
+          onDeleted={() => {
+            setAlbumDelete(null);
+            setAlbum('all');
+          }}
         />
       ) : null}
 

@@ -151,6 +151,17 @@ export function saveAlbum(tree: string, a: { id?: string; name: string }, op: Op
   });
 }
 
+/** Deletes an album. Its photos stay in the gallery, without an album (the row's album is cleared by the foreign key). */
+export function deleteAlbum(tree: string, id: string, op: OpKey | undefined) {
+  return once(tree, op, 'deleteAlbum', async (d) => {
+    if (!(await d.get('SELECT id FROM album WHERE id = ?', id))) throw new Error('That album is already gone.');
+    return {
+      writes: [guard('EXISTS (SELECT 1 FROM album WHERE id = ?)', id), q('DELETE FROM album WHERE id = ?', id)],
+      result: undefined,
+    };
+  });
+}
+
 // ---------- tags ----------
 
 /** Someone confirmed in a photo, at a box the reader drew. */
@@ -246,16 +257,16 @@ export function setPortrait(tree: string, person: string, bytes: Uint8Array, mim
   });
 }
 
-/** Takes the person's portrait back to the drawn avatar. The gallery copies stay. */
-export function removePortrait(tree: string, person: string, op: OpKey | undefined) {
-  return once(tree, op, 'removePortrait', async (d) => {
-    const had = await d.get<{ key: string | null }>('SELECT key FROM photo WHERE person = ?', person);
+/**
+ * Shows the drawn avatar instead of the person's photo, or the photo again. The photo is kept either way,
+ * so the choice can be undone without a new upload.
+ */
+export function setPreferAvatar(tree: string, person: string, prefer: boolean, op: OpKey | undefined) {
+  return once(tree, op, 'setPreferAvatar', async (d) => {
+    if (!(await d.get('SELECT id FROM person WHERE id = ?', person))) throw new Error('Person not found.');
     return {
-      writes: [guard('(SELECT key FROM photo WHERE person = ?) IS ?', person, had?.key ?? null), q('DELETE FROM photo WHERE person = ?', person)],
+      writes: [personExists(person), q('UPDATE person SET prefer_avatar = ? WHERE id = ?', prefer ? 1 : 0, person)],
       result: undefined,
-      after: async () => {
-        if (had?.key) await media.delete(tree, had.key).catch((e) => console.error('[media] could not delete', had.key, e));
-      },
     };
   });
 }

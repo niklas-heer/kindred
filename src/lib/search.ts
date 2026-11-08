@@ -1,6 +1,7 @@
 // The tree canvas's state lives in the URL, so every view is a link: back/forward walk your
 // trail, and a view can be shared.
 import { z } from 'zod';
+import type { GPerson } from './types';
 
 export const treeSearch = z.object({
   /** The centre of the family/ancestor views and the dynasty's line. */
@@ -20,3 +21,29 @@ export const treeSearch = z.object({
   to: z.string().optional(),
 });
 export type TreeSearch = z.infer<typeof treeSearch>;
+
+// ---------- finding people by name ----------
+
+/** Lower case, no accents: what a name search compares. */
+export const foldName = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+
+/**
+ * Every name a person is known by, folded: the birth name, the name they go by now (the current name
+ * where recorded), the nickname and their parts. A search looks at all of them, so a woman found by
+ * her birth surname is found by her married one too.
+ */
+export function personNames(p: GPerson): string[] {
+  const now = { given: p.currentGiven ?? p.given, surname: p.currentSurname ?? p.surname };
+  const join = (...parts: (string | undefined)[]) => parts.filter(Boolean).join(' ');
+  return [join(p.given, p.surname), join(now.given, now.surname), p.given, now.given, p.nickname, p.surname, now.surname]
+    .filter((s): s is string => !!s)
+    .map(foldName);
+}
+
+/** Whether a person matches a typed search: every word typed appears in one of their names, in any order. */
+export function matchesName(p: GPerson, query: string): boolean {
+  const words = foldName(query.trim()).split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const names = personNames(p);
+  return words.every((w) => names.some((n) => n.includes(w)));
+}

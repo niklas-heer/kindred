@@ -4,6 +4,7 @@
 import { z } from 'zod';
 import { graph, person } from '../db.server';
 import { buildFamily, children, fullName, kinship, parents, partnersOf, siblings } from '../graph';
+import { matchesName } from '../search';
 import type { GPerson } from '../types';
 import { can, type Action, type Role } from '../roles';
 import { validDate } from '../dates';
@@ -21,7 +22,6 @@ export interface Ctx {
 }
 
 const RESULT_LIMIT = 6000;
-const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
 const idParam = { type: 'string', description: 'A person id, as the tools returned it.' };
 
 export const READ_TOOLS: ToolSpec[] = [
@@ -129,11 +129,14 @@ export async function runTool(ctx: Ctx, name: string, input: unknown, out: Propo
   try {
     if (name === 'search_people') {
       const a = z.object({ query: z.string().min(1).max(80), limit: z.number().int().min(1).max(15).optional() }).parse(input);
-      const needle = fold(a.query.trim());
+      // Birth and current names both match; the birth name is shown too when it differs from the name now.
       const hits = g.people
-        .filter((p) => fold(`${p.given} ${p.surname ?? ''} ${p.nickname ?? ''}`).includes(needle))
+        .filter((p) => matchesName(p, a.query))
         .slice(0, a.limit ?? 15)
-        .map((p) => ({ id: p.id, name: fullName(p), born: p.born, died: p.died, living: p.living, house: p.house ? houses.get(p.house) : undefined }));
+        .map((p) => {
+          const birth = [p.given, p.surname].filter(Boolean).join(' ');
+          return { id: p.id, name: fullName(p), ...(birth !== fullName(p) && { birthName: birth }), born: p.born, died: p.died, living: p.living, house: p.house ? houses.get(p.house) : undefined };
+        });
       return json({ people: hits, count: hits.length });
     }
     if (name === 'read_person') {

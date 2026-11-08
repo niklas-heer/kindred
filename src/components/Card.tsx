@@ -124,7 +124,7 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
     <div className={`card ${detail}${selected ? ' selected' : ''}${roleClass}${p.living ? ' living' : ' dead'}${ruler ? ' crowned' : ''}`}>
       <button className="card-hit" onClick={() => onSelect(p.id)} onDoubleClick={() => onOpen?.(p.id)} aria-label={`${name}, ${lifespan(p)}`} title={`${name} · click to select, double-click to centre the tree here`}>
         <div className="card-portrait">
-          <Portrait person={p} tree={tree} size={detail === 'near' ? 104 : 84} />
+          <Portrait person={p} tree={tree} size={detail === 'near' ? 104 : 84} prefer={p.preferAvatar ? 'avatar' : 'photo'} />
           {house && (
             <span className="card-arms" title={house.name}>
               <Arms arms={house.arms} size={detail === 'near' ? 28 : 24} />
@@ -178,10 +178,10 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
 
       {selected && onAdd && node.role !== 'dup' && detail === 'near' && (
         <>
-          {(f.parentsOf.get(p.id)?.length ?? 0) < 2 && <button className="add add-parent" onClick={() => onAdd(p.id, 'parent')} title="Add a parent" aria-label={`Add a parent of ${p.given}`}><Plus size={14} /></button>}
-          <button className="add add-child" onClick={() => onAdd(p.id, 'child')} title="Add a child" aria-label={`Add a child of ${p.given}`}><Plus size={14} /></button>
-          <button className="add add-partner" onClick={() => onAdd(p.id, 'partner')} title="Add a partner" aria-label={`Add a partner of ${p.given}`}><Plus size={14} /></button>
-          <button className="add add-sibling" onClick={() => onAdd(p.id, 'sibling')} title="Add a sibling" aria-label={`Add a sibling of ${p.given}`}><Plus size={14} /></button>
+          {(f.parentsOf.get(p.id)?.length ?? 0) < 2 && <button className="add add-parent" onClick={() => onAdd(p.id, 'parent')} title="Add a parent" aria-label={`Add a parent of ${name}`}><Plus size={14} /></button>}
+          <button className="add add-child" onClick={() => onAdd(p.id, 'child')} title="Add a child" aria-label={`Add a child of ${name}`}><Plus size={14} /></button>
+          <button className="add add-partner" onClick={() => onAdd(p.id, 'partner')} title="Add a partner" aria-label={`Add a partner of ${name}`}><Plus size={14} /></button>
+          <button className="add add-sibling" onClick={() => onAdd(p.id, 'sibling')} title="Add a sibling" aria-label={`Add a sibling of ${name}`}><Plus size={14} /></button>
         </>
       )}
     </div>

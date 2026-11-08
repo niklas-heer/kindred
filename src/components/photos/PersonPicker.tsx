@@ -2,8 +2,8 @@
 import { useMemo, useState } from 'react';
 import { useFamily } from '~/lib/family';
 import { displayName } from '~/lib/graph';
+import { matchesName } from '~/lib/search';
 import type { GPerson } from '~/lib/types';
-import { fold } from './refresh';
 import { useG } from './strings';
 import '~/styles/gallery.css';
 
@@ -15,13 +15,8 @@ export function PersonPicker({ onPick, label }: { onPick: (person: GPerson) => v
   const g = useG();
   const [q, setQ] = useState('');
   const matches = useMemo(() => {
-    const needle = fold(q.trim());
-    const people = f.graph.people.filter((p) => {
-      if (!needle) return true;
-      const hay = fold([displayName(p, f), p.given, p.surname, p.nickname].filter(Boolean).join(' '));
-      return hay.includes(needle);
-    });
-    return people.slice(0, 8);
+    // Birth and current names both count, so a married name finds the person as well as the birth name.
+    return f.graph.people.filter((p) => matchesName(p, q)).slice(0, 8);
   }, [f, q]);
 
   return (

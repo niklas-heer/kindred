@@ -153,7 +153,11 @@ export interface SeedPerson {
   look?: SeedLook;
   /** Everyday data. */
   nickname?: string;
+  /** Free text, becomes a "favourites" field. */
   favourite?: string; // "Cheesecake, Dire Straits, gardening"
+  /** The name the person goes by now, when it differs from the birth name. Absent means "same as birth". */
+  currentGiven?: string;
+  currentSurname?: string;
 }
 
 /**

@@ -41,6 +41,8 @@ export interface GPerson {
   /** The name a person goes by now, when it differs from the birth name. Absent means "same as birth". */
   currentGiven?: string;
   currentSurname?: string;
+  /** Show the drawn avatar even though a photo is kept (person.prefer_avatar). Absent means false. */
+  preferAvatar?: boolean;
 }
 
 export interface Place {

@@ -1,7 +1,7 @@
 // node --test src/lib/store/store.test.ts — the Node driver, migrations, and changes without
 // interactive transactions: retry keys, guards and races. Runs on a private data folder.
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -120,4 +120,20 @@ test('new accounts databases get the accounts migrations', async () => {
   const names = (await a.all<{ name: string }>('SELECT name FROM d1_migrations')).map((r) => r.name);
   assert.deepEqual(names, readdirSync('migrations/accounts').filter((f) => f.endsWith('.sql')).sort());
   (await import('./node.ts')).closeAccounts();
+});
+
+test('the server secret is made once, kept in the data folder with mode 600, and read back', () => {
+  const env = process.env.KINDRED_SECRET;
+  delete process.env.KINDRED_SECRET;
+  try {
+    const first = store.secret();
+    assert.match(first, /^[A-Za-z0-9+/]{43}=$/);
+    assert.equal(statSync(join(dir, 'secret')).mode & 0o777, 0o600);
+    assert.equal(store.secret(), first);
+    process.env.KINDRED_SECRET = ' from-the-environment ';
+    assert.equal(store.secret(), 'from-the-environment');
+  } finally {
+    if (env === undefined) delete process.env.KINDRED_SECRET;
+    else process.env.KINDRED_SECRET = env;
+  }
 });

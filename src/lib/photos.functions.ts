@@ -1,7 +1,8 @@
 // The gallery's server functions. Each one checks the reader's role first (requireMember for reads,
 // requireCan for changes, with the same Action the browser asks useCan() about), then calls photos.server.ts.
 //   upload-photo (contributor): add photos and albums, caption and date them, tag people, confirm suggestions
-//   edit-person  (editor):      delete photos, and set or remove a person's profile picture
+//   edit-person  (editor):      delete photos, set a person's profile picture, or show their drawn avatar instead
+//   delete-album (steward):     delete an album; its photos stay in the gallery
 import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
@@ -123,6 +124,14 @@ export const saveAlbum = createServerFn({ method: 'POST' })
     return (await server()).saveAlbum(data.tree, { id: data.id, name: data.name }, opOf(m.user.id, data));
   });
 
+/** Stewards delete an album. Its photos stay, without an album. */
+export const deleteAlbum = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, id: z.string().min(1).max(64), opKey }))
+  .handler(async ({ data }) => {
+    const m = await requireCan(data.tree, 'delete-album');
+    return (await server()).deleteAlbum(data.tree, data.id, opOf(m.user.id, data));
+  });
+
 // ---------- tags ----------
 
 export const tagPhoto = createServerFn({ method: 'POST' })
@@ -173,9 +182,10 @@ export const setPersonPortrait = createServerFn({ method: 'POST' })
     return (await server()).setPortrait(t, id, bytes, mime, opOf(m.user.id, { opKey: k, tree: t, id, file }));
   });
 
-export const removePersonPortrait = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, id: z.string().min(1).max(120), opKey }))
+/** Shows the drawn avatar instead of the person's photo, or the photo again. Editors and stewards only. */
+export const setPreferAvatar = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, id: z.string().min(1).max(120), prefer: z.boolean(), opKey }))
   .handler(async ({ data }) => {
     const m = await requireCan(data.tree, 'edit-person');
-    return (await server()).removePortrait(data.tree, data.id, opOf(m.user.id, data));
+    return (await server()).setPreferAvatar(data.tree, data.id, data.prefer, opOf(m.user.id, data));
   });

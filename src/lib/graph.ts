@@ -55,15 +55,26 @@ export function siblings(f: Family, id: string): string[] {
 
 // ---------- names and dates ----------
 
-export const fullName = (p: GPerson) => [p.given, p.surname].filter(Boolean).join(' ');
+/**
+ * The name a person goes by now: their current name where one is recorded, else the birth name. A null
+ * current name means "same as birth", so it follows the birth name when that changes.
+ */
+export const nowNames = (p: GPerson): GPerson =>
+  p.currentGiven === undefined && p.currentSurname === undefined ? p : { ...p, given: p.currentGiven ?? p.given, surname: p.currentSurname ?? p.surname };
+
+export const fullName = (p: GPerson) => {
+  const n = nowNames(p);
+  return [n.given, n.surname].filter(Boolean).join(' ');
+};
 export function displayName(p: GPerson, f?: Family): string {
-  if (p.title && /^(King|Queen|Duke|Duchess|Count|Countess|Prince|Princess|Bishop|Abbess|Abbot|Sir|Lady)\b/.test(p.title)) {
-    const rank = p.title.split(' ')[0];
-    return `${rank} ${p.given}${p.epithet ? ` ${p.epithet}` : ''}`;
+  const n = nowNames(p);
+  if (n.title && /^(King|Queen|Duke|Duchess|Count|Countess|Prince|Princess|Bishop|Abbess|Abbot|Sir|Lady)\b/.test(n.title)) {
+    const rank = n.title.split(' ')[0];
+    return `${rank} ${n.given}${n.epithet ? ` ${n.epithet}` : ''}`;
   }
-  const house = p.house && f?.house.get(p.house);
-  const surname = p.surname ?? (house && !house.name.startsWith('House') ? house.name : undefined);
-  return [p.given, surname].filter(Boolean).join(' ') + (p.epithet ? ` ${p.epithet}` : '');
+  const house = n.house && f?.house.get(n.house);
+  const surname = n.surname ?? (house && !house.name.startsWith('House') ? house.name : undefined);
+  return [n.given, surname].filter(Boolean).join(' ') + (n.epithet ? ` ${n.epithet}` : '');
 }
 
 /** Per-tree display preference shared by tree cards and the panel subtitle. */
@@ -87,9 +98,11 @@ export function useNameMode(tree: string): NameMode {
   );
 }
 
+/** The name shown for a person in the reader's chosen mode, always from their current name. */
 export function personDisplayName(p: GPerson, mode: NameMode = 'full', f?: Family): string {
-  if (mode === 'nickname') return p.nickname?.trim() || p.given;
-  if (mode === 'first') return p.given;
+  const n = nowNames(p);
+  if (mode === 'nickname') return n.nickname?.trim() || n.given;
+  if (mode === 'first') return n.given;
   return displayName(p, f);
 }
 

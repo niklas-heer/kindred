@@ -1,42 +1,23 @@
-// Sealing the family's AI key. AES-GCM with WebCrypto, under a key derived (HKDF-SHA-256) from
-// KINDRED_SECRET and the family's id, so one family's sealed key cannot be moved to another's.
-//   Workers: KINDRED_SECRET is a Worker secret (wrangler secret put KINDRED_SECRET).
-//   Node:    KINDRED_SECRET from the environment, else data/secret, made on first use with mode 600.
+// Sealing the family's AI key. AES-GCM with WebCrypto, under a key derived (HKDF-SHA-256) from the server
+// secret and the family's id, so one family's sealed key cannot be moved to another's.
+//   The secret comes from the store driver (store.secret()): KINDRED_SECRET on Workers (a Worker secret), and
+//   on Node KINDRED_SECRET from the environment, else data/secret, made on first use with mode 600.
 // Changing the secret makes saved keys unreadable; the settings page then asks for the key again.
-import { onWorkers } from '../store/index.ts';
+import { store } from '../store/index.ts';
 import { AiError } from './adapters';
 
 const enc = new TextEncoder();
 const SALT = enc.encode('kindred-ai-keys/v1');
 
-// Node's built-ins are reached without an import, so no node: module is bundled for Workers.
-type NodeFs = typeof import('node:fs');
-type NodePath = typeof import('node:path');
-const nodeBuiltin = <T>(name: string): T | undefined => (globalThis as { process?: { getBuiltinModule?: (n: string) => unknown } }).process?.getBuiltinModule?.(name) as T | undefined;
-
 const b64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
 const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
-/** The secret as text: the environment first, then (Node only) data/secret, made on first use. */
+/** The server secret as text, from the driver. A missing one is said plainly (see the driver). */
 function secretText(): string {
-  const fromEnv = process.env.KINDRED_SECRET?.trim();
-  if (fromEnv) return fromEnv;
-  if (onWorkers) throw new AiError('key-unreadable', 'KINDRED_SECRET is not set. Add it as a Worker secret.');
-  const fs = nodeBuiltin<NodeFs>('node:fs');
-  const path = nodeBuiltin<NodePath>('node:path');
-  if (!fs || !path) throw new AiError('key-unreadable', 'KINDRED_SECRET is not set.');
-  const dir = path.resolve(process.env.KINDRED_DATA_DIR || 'data');
-  const file = path.join(dir, 'secret');
-  if (fs.existsSync(file)) return fs.readFileSync(file, 'utf8').trim();
-  fs.mkdirSync(dir, { recursive: true });
-  const fresh = b64(crypto.getRandomValues(new Uint8Array(32)));
   try {
-    fs.writeFileSync(file, `${fresh}\n`, { mode: 0o600, flag: 'wx' });
-    return fresh;
+    return store.secret();
   } catch (e) {
-    // Another request made it first: use theirs.
-    if ((e as { code?: string }).code === 'EEXIST') return fs.readFileSync(file, 'utf8').trim();
-    throw e;
+    throw new AiError('key-unreadable', e instanceof Error ? e.message : 'The server secret is not available.');
   }
 }
 

@@ -10,7 +10,7 @@ import { Dialog, EmptyState, Range, Skeleton } from '~/components/ui';
 import { opKeys } from '~/lib/api';
 import { useFamily } from '~/lib/family';
 import { displayName } from '~/lib/graph';
-import { personPhotosQuery, removePersonPortrait, setPersonPortrait } from '~/lib/photos.functions';
+import { personPhotosQuery, setPersonPortrait, setPreferAvatar } from '~/lib/photos.functions';
 import { useCan } from '~/lib/session';
 import { squareCrop } from './image';
 import { refreshPhotos } from './refresh';
@@ -29,11 +29,12 @@ export function PersonPhotos({ tree, id }: { tree: string; id: string }) {
   const [cropping, setCropping] = useState<MediaItem | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const keys = useRef(opKeys());
-  const drawn = useMutation({
-    mutationFn: () => removePersonPortrait({ data: { tree, id, opKey: keys.current.for('drawn', [id]) } }),
-    onSuccess: async () => {
-      keys.current.clear('drawn');
-      setNotice(g('pp.drawn_done'));
+  // Shows the drawn avatar, or the photo again. The photo is kept either way.
+  const avatar = useMutation({
+    mutationFn: (prefer: boolean) => setPreferAvatar({ data: { tree, id, prefer, opKey: keys.current.for('prefer', [id, prefer]) } }),
+    onSuccess: async (_r, prefer) => {
+      keys.current.clear('prefer');
+      setNotice(g(prefer ? 'pp.avatar_done' : 'pp.photo_done'));
       await refreshPhotos(qc, tree);
     },
     onError: () => setNotice(g('pp.failed')),
@@ -43,6 +44,7 @@ export function PersonPhotos({ tree, id }: { tree: string; id: string }) {
   const name = displayName(person, f);
   const photos = q.data ?? [];
   const chosen = photos.find((m) => m.key === selected) ?? null;
+  const drawnShown = !!person.preferAvatar;
 
   return (
     <section className="pp" aria-labelledby={`pp-${id}`}>
@@ -53,12 +55,14 @@ export function PersonPhotos({ tree, id }: { tree: string; id: string }) {
           <figure className="pp-portrait">
             <Portrait person={person} tree={tree} size={88} prefer="photo" />
             <figcaption>
-              {g('pp.photo')} <span className="pp-badge">{g('pp.in_use')}</span>
+              {g('pp.photo')} {!drawnShown ? <span className="pp-badge">{g('pp.in_use')}</span> : null}
             </figcaption>
           </figure>
           <figure className="pp-portrait">
             <Portrait person={person} tree={tree} size={88} prefer="avatar" />
-            <figcaption>{g('pp.drawn')}</figcaption>
+            <figcaption>
+              {g('pp.drawn')} {drawnShown ? <span className="pp-badge">{g('pp.in_use')}</span> : null}
+            </figcaption>
           </figure>
         </div>
       ) : null}
@@ -102,8 +106,8 @@ export function PersonPhotos({ tree, id }: { tree: string; id: string }) {
             </button>
           ) : null}
           {person.photo ? (
-            <button type="button" className="btn ghost" onClick={() => drawn.mutate()} disabled={drawn.isPending}>
-              {g('pp.use_drawn')}
+            <button type="button" className="btn ghost" onClick={() => avatar.mutate(!drawnShown)} disabled={avatar.isPending}>
+              {drawnShown ? g('pp.use_photo') : g('pp.use_drawn')}
             </button>
           ) : null}
         </div>

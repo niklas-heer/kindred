@@ -27,14 +27,6 @@ export const getGraph = createServerFn({ method: 'GET' })
   });
 export const graphQuery = (t: string) => queryOptions({ queryKey: ['graph', t], queryFn: () => getGraph({ data: { tree: t } }), staleTime: Infinity });
 
-export const getPerson = createServerFn({ method: 'GET' })
-  .validator(z.object({ tree, id: z.string() }))
-  .handler(async ({ data }) => {
-    await requireMember(data.tree);
-    return (await server()).person(data.tree, data.id);
-  });
-export const personQuery = (t: string, id: string) => queryOptions({ queryKey: ['person', t, id], queryFn: () => getPerson({ data: { tree: t, id } }) });
-
 export const getChronicle = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
@@ -282,7 +274,6 @@ export const updatePerson = createServerFn({ method: 'POST' })
         title: z.string().trim().max(200).nullable(),
         epithet: z.string().trim().max(120).nullable(),
         occupation: z.string().trim().max(200).nullable(),
-        favourite: z.string().trim().max(500).nullable(),
         bio: z.string().max(20_000).nullable(),
       }),
     }),
@@ -294,9 +285,9 @@ export const updatePerson = createServerFn({ method: 'POST' })
     const empty = (s: string | null) => (s === null || s.trim() === '' ? null : s.trim());
     await db(data.tree)
       .run(`UPDATE person SET given = ?, surname = ?, nickname = ?, sex = ?, born = ?, born_place = ?, died = ?, died_place = ?,
-        living = ?, title = ?, epithet = ?, occupation = ?, favourite = ?, bio = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`,
+        living = ?, title = ?, epithet = ?, occupation = ?, bio = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`,
         p.given, empty(p.surname), empty(p.nickname), p.sex, empty(p.born), empty(p.bornPlace), empty(p.died), empty(p.diedPlace),
-        p.living ? 1 : 0, empty(p.title), empty(p.epithet), empty(p.occupation), empty(p.favourite), empty(p.bio), data.id);
+        p.living ? 1 : 0, empty(p.title), empty(p.epithet), empty(p.occupation), empty(p.bio), data.id);
   });
 
 /** Fills in only the fields given: the Needed page saves exactly what was missing. */

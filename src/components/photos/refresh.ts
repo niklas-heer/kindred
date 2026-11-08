@@ -9,6 +9,3 @@ export function refreshPhotos(qc: QueryClient, tree: string) {
     qc.invalidateQueries({ queryKey: graphQuery(tree).queryKey }),
   ]);
 }
-
-/** Lower case, no accents: what a person search compares. */
-export const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();

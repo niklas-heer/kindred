@@ -72,6 +72,12 @@ export interface Driver {
   /** The offline place gazetteer (data/gazetteer.db), only on Node and only once built. */
   gazetteer(): Db | null;
   media: MediaStore;
+  /**
+   * The server secret that seals the family AI keys (src/lib/ai/secret.server.ts). Node: KINDRED_SECRET from the
+   * environment, else data/secret, made on first use with mode 600. Workers: the KINDRED_SECRET binding. Throws
+   * when a Worker has none.
+   */
+  secret(): string;
 }
 
 /** Tree ids are URL segments and database names: lower-case letters, digits and dashes. */

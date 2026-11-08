@@ -249,6 +249,24 @@ const driver: Driver = {
   },
 
   media,
+
+  // Kept in the data folder, beside the family files: back it up with them, and never commit it.
+  secret() {
+    const fromEnv = process.env.KINDRED_SECRET?.trim();
+    if (fromEnv) return fromEnv;
+    const file = join(DATA, 'secret');
+    if (existsSync(file)) return readFileSync(file, 'utf8').trim();
+    mkdirSync(DATA, { recursive: true });
+    const fresh = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64');
+    try {
+      writeFileSync(file, `${fresh}\n`, { mode: 0o600, flag: 'wx' });
+      return fresh;
+    } catch (e) {
+      // Another request made it first: use theirs.
+      if ((e as { code?: string }).code === 'EEXIST') return readFileSync(file, 'utf8').trim();
+      throw e;
+    }
+  },
 };
 
 /** Closes the accounts connection (tests). */

@@ -4,7 +4,7 @@
 //   viewer      — browse the tree, the Atlas, the Almanac
 //   contributor — also add memories, sayings, recipes and photos; suggest corrections
 //   editor      — also add, edit and remove people and their links, places and contacts
-//   steward     — also edit houses and their arms, and manage who has access
+//   steward     — also edit houses and their arms, delete albums, and manage who has access
 
 export type Role = 'viewer' | 'contributor' | 'editor' | 'steward';
 
@@ -25,6 +25,7 @@ export type Action =
   | 'edit-contact'
   | 'edit-place'
   | 'edit-house'
+  | 'delete-album'
   | 'manage-access';
 
 const RANK: Record<Role, number> = { viewer: 0, contributor: 1, editor: 2, steward: 3 };
@@ -39,6 +40,7 @@ const NEEDS: Record<Action, Role> = {
   'edit-contact': 'editor',
   'edit-place': 'editor',
   'edit-house': 'steward',
+  'delete-album': 'steward',
   'manage-access': 'steward',
 };
 
