@@ -17,6 +17,7 @@ import * as neededArea from "./areas/needed.ts";
 import * as panelArea from "./areas/panel.ts";
 import * as photosArea from "./areas/photos.ts";
 import * as portraitArea from "./areas/portrait.ts";
+import * as remindersArea from "./areas/reminders.ts";
 import * as setupArea from "./areas/setup.ts";
 import * as shellArea from "./areas/shell.ts";
 import * as treeArea from "./areas/tree.ts";
@@ -46,6 +47,7 @@ const AREAS = [
   neededArea,
   accessArea,
   setupArea,
+  remindersArea,
 ] as const;
 
 type AreaModule = (typeof AREAS)[number];

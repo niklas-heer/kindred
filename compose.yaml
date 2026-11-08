@@ -24,6 +24,10 @@ services:
       KINDRED_REQUIRE_SETUP_CODE: ${KINDRED_REQUIRE_SETUP_CODE:-}
       KINDRED_DEFAULT_TREE: ${KINDRED_DEFAULT_TREE:-}
       KINDRED_SECRET: ${KINDRED_SECRET:-}
+      KINDRED_VAPID_PUBLIC_KEY: ${KINDRED_VAPID_PUBLIC_KEY:-}
+      KINDRED_VAPID_PRIVATE_JWK: ${KINDRED_VAPID_PRIVATE_JWK:-}
+      KINDRED_VAPID_SUBJECT: ${KINDRED_VAPID_SUBJECT:-}
+      KINDRED_JOBS: ${KINDRED_JOBS:-}
     ports:
       # Only this machine can reach the app directly. With the https profile, Caddy is the way in.
       # For plain-HTTP use on a home network, change this to "4901:4901" and read docs/self-host.md first.

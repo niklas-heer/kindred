@@ -73,6 +73,10 @@ run = "node server/node.ts"
 description = "Build and deploy to Cloudflare (needs `wrangler login` and the D1/R2 ids in wrangler.jsonc)"
 run = ["vite build", "npx wrangler deploy"]
 
+[tasks."vapid-keys"]
+description = "Make the VAPID key pair for Web Push reminders and print its three settings (docs/self-host.md, Reminders)"
+run = "node scripts/vapid-keys.ts"
+
 [tasks.clean]
 description = "Remove build output and generated databases"
 run = "rm -rf dist .output .tanstack .wrangler data/*.db data/*.db-wal data/*.db-shm data/media"

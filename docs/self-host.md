@@ -24,7 +24,8 @@ do not work on a plain address other than `localhost`.
 ## Settings
 
 Compose reads `.env` for the settings below, and passes the ones the app reads into the container: `KINDRED_ORIGIN`,
-`KINDRED_SETUP_CODE`, `KINDRED_REQUIRE_SETUP_CODE`, `KINDRED_DEFAULT_TREE` and `KINDRED_SECRET`. `KINDRED_DOMAIN` goes to
+`KINDRED_SETUP_CODE`, `KINDRED_REQUIRE_SETUP_CODE`, `KINDRED_DEFAULT_TREE`, `KINDRED_SECRET`, the three `KINDRED_VAPID_*` reminder
+settings and `KINDRED_JOBS`. `KINDRED_DOMAIN` goes to
 Caddy, and `WITH_GAZETTEER` to the build. An empty value is the same as an unset one, so the defaults still apply. Without
 Docker, set them as environment variables for the server.
 
@@ -41,6 +42,8 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 | `KINDRED_DATA_DIR` | `/data` in the image, `data/` otherwise | Where the families, pictures, accounts and the secret are kept. Docker: fixed at `/data`. |
 | `KINDRED_SECRET` | the `secret` file in the data folder | The key that seals the AI keys the stewards save. Set it here to keep it out of the data folder; it must then stay the same. |
 | `KINDRED_GAZETTEER` | `gazetteer.db` in the data folder | The offline place search. The image sets it to a file it may contain (see below). |
+| `KINDRED_VAPID_PUBLIC_KEY`, `KINDRED_VAPID_PRIVATE_JWK`, `KINDRED_VAPID_SUBJECT` | empty | Web Push reminders. Make the three with `mise run vapid-keys -- mailto:you@example.org`. Without all three the Reminders item is hidden. See [Reminders](#reminders). |
+| `KINDRED_JOBS` | empty | `off` stops the daily run at 06:00 UTC that sends the reminders. Any other value keeps it on. |
 | `PORT` | `4901` | The port the server listens on. Docker: the image uses 4901, and Compose maps it. |
 | `HOST` | `127.0.0.1` | The address it listens on. The image sets `0.0.0.0`, so that Docker can reach it. |
 
@@ -224,6 +227,68 @@ To run it now for one family, without waiting for the night, and see what it wou
 ```sh
 node scripts/archive-now.ts modern --dry-run   # then the same without --dry-run to commit
 ```
+
+## Reminders
+
+Kindred can remind the members of a family on their own devices of birthdays, wedding anniversaries and memorial days.
+A reminder is a browser notification (Web Push), so it needs three settings and a browser with push. Each member turns
+reminders on for each family under **Reminders** in the account menu.
+
+1. Make the keys once, on any machine with mise:
+
+   ```sh
+   mise run vapid-keys -- mailto:you@example.org
+   ```
+
+   It prints `KINDRED_VAPID_PUBLIC_KEY`, `KINDRED_VAPID_PRIVATE_JWK` and `KINDRED_VAPID_SUBJECT`. The private key is secret:
+   whoever has it can send messages as your server.
+2. Put the three lines in `.env` (Docker reads them; `compose.yaml` lists them), or in the environment for `mise run start`.
+3. Restart the server. Without the three settings the **Reminders** item stays hidden, and the daily run sends nothing.
+
+**Reusing keys.** If you already have a VAPID key pair, from another Kindred server or a family site you run, use its three
+values instead of making new ones. Browser subscriptions belong to this site's address, so each device still turns
+reminders on once here, but it needs no new keys to do so.
+
+### What the server does each day
+
+- At **06:00 UTC** each day, the server sends each device the reminders due that day, for the days the device chose: on the
+  day, the day before, a week before. A device gets one message per family per day, the occasions nearest first, at most six
+  lines and then a count.
+- Days are counted in UTC, so an occasion is reminded on the UTC day it falls on.
+- The occasions are those of the Almanac: birthdays of living people (up to 100 years old), wedding anniversaries of living
+  couples who have not separated, and memorial days of people who died within the last 30 years. A year on its own, or a
+  partial date, is never remembered.
+- A device is paused when the app has not been opened on it for 35 days, and removed after 60 days. Opening the app
+  refreshes it. A device is also removed when the push service says it is gone, or when its owner leaves the family.
+- A person can have reminders on up to ten devices.
+- The run logs one summary line with counts, and one line for each family that fails. Logs never contain names or device addresses.
+- `KINDRED_JOBS=off` stops the daily run, for example on a second server that serves the same families. The run never
+  happens at startup, so a restart sends nothing early.
+
+### Privacy
+
+- Each reminder is encrypted for its device (RFC 8291) before it leaves the server, and signed with your VAPID key (RFC 8292).
+  The browser's push service (Apple, Google, Mozilla or Microsoft) carries the encrypted message. It sees that a message
+  reached the device, and when, but it cannot read it.
+- The server sends only to those four push services. It cannot be used to send messages anywhere else.
+- A reminder names people and gives dates from the family's record, in the device's language (English, German or Afrikaans).
+  It never includes private fields, notes or stories. Every member can read the same names and dates in the app
+  ([roles-and-privacy.md](roles-and-privacy.md)).
+- The subscriptions are rows in the accounts database (`push_subscription`): the device's push address, its two keys, the
+  days and kinds it chose, its language and the time it was last opened. Back them up with the accounts database.
+
+### iPhone and iPad
+
+Safari sends reminders only to a site added to the Home Screen (Share, then Add to Home Screen), and only once it is opened
+from there. The Reminders dialog says so when it is needed.
+
+### Troubleshooting
+
+- **No Reminders item in the account menu:** one of the three settings is missing or malformed. The daily run logs
+  `the VAPID keys are not set` each day it runs.
+- **"This device has reminders set up by someone else.":** another member turned reminders on in this browser. They can
+  turn them off there, or you can use another browser.
+- **"This device's reminders have expired.":** the push service no longer knows the device. Turn reminders on again.
 
 ## Upgrades
 

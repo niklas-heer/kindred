@@ -5,11 +5,13 @@
 //   HOST              127.0.0.1 (use 0.0.0.0 to accept connections from other machines; the Docker image does)
 //   KINDRED_ORIGIN    the public address, e.g. https://family.example.org (passkeys and cookies depend on it)
 //   KINDRED_DATA_DIR  the families, media, accounts and secret (default: data/ in this folder)
+//   KINDRED_JOBS      the daily jobs (reminders) run at 06:00 UTC; "off" turns them off
 // SIGTERM and SIGINT stop new connections, let requests in progress finish, close the SQLite files and exit.
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { serve } from 'srvx/node';
+import { scheduleDailyJobs } from './jobs.ts';
 import { staticResponse } from './static.ts';
 
 // migrations/ and the default data/ folder resolve from the app folder, wherever this is started from.
@@ -49,7 +51,8 @@ if (configuredOrigin) {
 const CLOSE_DATABASES = Symbol.for('kindred.closeDatabases');
 const closeDatabases = () => (globalThis as unknown as Record<symbol, (() => void) | undefined>)[CLOSE_DATABASES]?.();
 
-const { default: app } = (await import(pathToFileURL(bundle).href)) as { default: { fetch: (req: Request) => Response | Promise<Response> } };
+type Server = { fetch: (req: Request) => Response | Promise<Response>; runJobs?: (now: Date, env: (name: string) => string | undefined) => Promise<void> };
+const { default: app } = (await import(pathToFileURL(bundle).href)) as { default: Server };
 
 const server = serve({
   port,
@@ -62,6 +65,13 @@ await server.ready();
 const dataDir = process.env.KINDRED_DATA_DIR ? resolve(process.env.KINDRED_DATA_DIR) : join(root, 'data');
 console.log(`[kindred] listening on http://${hostname}:${port}${origin ? ` as ${origin.origin}` : ''}; data in ${dataDir}`);
 
+// The daily jobs (src/lib/jobs) run at 06:00 UTC, never at startup. KINDRED_JOBS=off turns them off (docs/self-host.md).
+const jobsOff = process.env.KINDRED_JOBS?.trim().toLowerCase() === 'off';
+const stopJobs = jobsOff || !app.runJobs
+  ? undefined
+  : scheduleDailyJobs((now) => app.runJobs!(now, (name) => process.env[name]?.trim() || undefined));
+console.log(stopJobs ? '[kindred] daily jobs run at 06:00 UTC' : '[kindred] daily jobs are off (KINDRED_JOBS=off)');
+
 let stopping = false;
 async function shutdown(signal: NodeJS.Signals) {
   if (stopping) return;
@@ -73,6 +83,7 @@ async function shutdown(signal: NodeJS.Signals) {
     closeDatabases();
     process.exit(1);
   }, 15_000);
+  stopJobs?.();
   await server.close();
   clearTimeout(forced);
   closeDatabases();

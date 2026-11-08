@@ -23,6 +23,8 @@ Kindred v1 is. See [docs/migration-plan.md](docs/migration-plan.md) for how it m
   out through time, the *Chronicle* that narrates it, arms on each place, and the moves a mother's line made.
 - **Almanac and contacts.** Upcoming birthdays, anniversaries and memorial days, with `.ics` export and "on this
   day". An address book grouped by household, with vCard export.
+- **Reminders (optional).** Browser notifications on each device for birthdays, anniversaries and memorial days, in the
+  device's language. Needs three VAPID settings; [docs/self-host.md](docs/self-host.md#reminders) says how.
 - **Chronicle and stories.** Memories, sayings, anecdotes and recipes on each person, and a wall of sayings.
 - **Photographs.** A gallery of the family's pictures, albums, places and dates, with faces tagged to people.
   Pictures live in media storage (`data/media/` on Node, R2 on Cloudflare).

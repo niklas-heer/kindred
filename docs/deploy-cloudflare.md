@@ -89,6 +89,8 @@ invites the others.
 | `KINDRED_ORIGIN` | variable | The public address, e.g. `https://family.example.org`. Passkeys are tied to it. Set it when the address is not the one the Worker sees. |
 | `KINDRED_DEFAULT_TREE` | variable | The family `/` opens directly, for its members. Without it, two or more families show the chooser. |
 | `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` | variable | Cloudflare Access. The team domain and the application's audience tag. See step 6. |
+| `KINDRED_VAPID_PUBLIC_KEY`, `KINDRED_VAPID_SUBJECT` | variable | Web Push reminders: the public VAPID key and a contact (`mailto:` or `https:`). Reminders stay hidden without them. See Reminders below. |
+| `KINDRED_VAPID_PRIVATE_JWK` | secret | Web Push reminders: the private VAPID key as JWK JSON. Keep it secret. |
 
 ```sh
 npx wrangler secret put KINDRED_SECRET
@@ -124,6 +126,25 @@ Put the variables in the dashboard or in `wrangler.jsonc` under `vars`, as the o
 
 Give each family its own repository and token. Two families can share a repository only with different folders, and each
 folder then belongs to its family: the marker file there refuses the other family.
+
+### Reminders (optional)
+
+Web Push reminders need the three VAPID settings. Make them once with `mise run vapid-keys -- mailto:you@example.org`, and
+read [self-host.md](self-host.md#reminders) for what the reminders say and what they send:
+
+```sh
+npx wrangler secret put KINDRED_VAPID_PRIVATE_JWK    # paste the JSON line the command printed
+```
+
+Put `KINDRED_VAPID_PUBLIC_KEY` and `KINDRED_VAPID_SUBJECT` in the dashboard or in `wrangler.jsonc` under `vars`. Only the
+private key is a secret.
+
+The daily run is the cron trigger in `wrangler.jsonc`, `"triggers": { "crons": ["0 6 * * *"] }`: it runs at 06:00 UTC and
+sends each device the reminders due that day (`scheduled` in `src/server.ts`). On Workers the trigger is the switch, so
+remove it to stop the daily run. `KINDRED_JOBS` is read by the Node server only.
+
+Each reminder is encrypted for its device before it leaves the Worker, and only the browser's push services carry it. The
+subscriptions are rows of the `push_subscription` table in the `ACCOUNTS` database, so they are part of its backups.
 
 ## 6. Cloudflare Access (optional)
 

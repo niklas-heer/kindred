@@ -275,7 +275,8 @@ export const removeMember = createServerFn({ method: 'POST' })
       if (!m) return { writes: [], result: undefined };
       if (m.role === 'steward' && (await s.stewardCount(data.tree)) <= 1) throw fail(new AuthError('invalid', lastSteward));
       return {
-        writes: [s.q('DELETE FROM membership WHERE user = ? AND tree = ?', data.user, data.tree), s.keepsASteward(data.tree)],
+        // Their reminder devices for this family go with the membership (migrations/accounts/0005_push.sql).
+        writes: [s.q('DELETE FROM membership WHERE user = ? AND tree = ?', data.user, data.tree), s.keepsASteward(data.tree), s.q('DELETE FROM push_subscription WHERE user = ? AND tree = ?', data.user, data.tree)],
         result: undefined,
         refused: () => fail(new AuthError('invalid', lastSteward)),
       };

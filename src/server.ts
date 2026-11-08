@@ -1,0 +1,20 @@
+// The server entry for both targets. TanStack Start uses this file (src/server.ts) instead of its default entry, so one
+// module carries the request handler and the daily job runner:
+//   Cloudflare Workers   the Worker's `main` (wrangler.jsonc). Its cron trigger (06:00 UTC) calls `scheduled`.
+//   Node                 dist/server/server.js, which server/node.ts imports. Its daily timer (06:00 UTC) calls `runJobs`.
+// Jobs run once a day for every family (src/lib/jobs). KINDRED_JOBS=off turns them off on Node (docs/self-host.md).
+import startEntry from '@tanstack/react-start/server-entry';
+import { runJobs, workerSetting } from './lib/jobs/run.server.ts';
+
+export default {
+  // The TanStack Start request handler, unchanged.
+  fetch: startEntry.fetch,
+
+  /** Cloudflare's cron trigger. The run continues after the response, so the cron is not held open by it. */
+  scheduled(controller: { scheduledTime: number }, env: unknown, ctx: { waitUntil(promise: Promise<unknown>): void }) {
+    ctx.waitUntil(runJobs(new Date(controller.scheduledTime), workerSetting(env)));
+  },
+
+  /** Node's daily timer (server/node.ts) calls this with the time of the run and its own settings. */
+  runJobs,
+};

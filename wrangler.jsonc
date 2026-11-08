@@ -19,12 +19,14 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"name": "kindred",
-	"main": "@tanstack/react-start/server-entry",
+	"main": "src/server.ts",
 	"compatibility_date": "2026-10-12",
 	// nodejs_compat: process.env carries vars and secrets (KINDRED_ORIGIN, CF_ACCESS_*, KINDRED_SETUP_CODE).
 	"compatibility_flags": ["nodejs_compat"],
 	"observability": { "enabled": true },
 	"upload_source_maps": true,
+	// The daily jobs (src/lib/jobs: Web Push reminders) run at 06:00 UTC: src/server.ts → scheduled.
+	"triggers": { "crons": ["0 6 * * *"] },
 	"d1_databases": [
 		{ "binding": "ACCOUNTS", "database_name": "kindred-accounts", "database_id": "REPLACE-WITH-D1-ID", "migrations_dir": "migrations/accounts" },
 		{ "binding": "TREE_SMITH", "database_name": "kindred-smith", "database_id": "REPLACE-WITH-D1-ID", "migrations_dir": "migrations/tree" }
