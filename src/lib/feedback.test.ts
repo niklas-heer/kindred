@@ -154,9 +154,23 @@ test('the selector is structure only: classes, position, a real id, never text',
 test('recent client errors are cut short and only the newest are kept', () => {
   const { errors, error } = shared.FEEDBACK_LIMITS;
   for (let i = 0; i < errors + 5; i++) client.recordClientError(`error ${i}`);
-  client.recordClientError(`long ${'x'.repeat(error * 2)}`);
+  client.recordClientError(`long ${'word '.repeat(error)}`);
   const list = client.recentClientErrors();
   assert.equal(list.length, errors);
   assert.equal(list.at(-1)!.length, error);
   assert.ok(!list.includes('error 0'));
+});
+
+test('automatic context drops query strings and personal data from errors', () => {
+  client.recordClientError('Failed https://x.test/api/a?token=SECRET123&email=a@b.org#frag now');
+  client.recordClientError('mail relative@example.org failed');
+  client.recordClientError(`key ${'a1'.repeat(20)}`);
+  const text = client.recentClientErrors().slice(-3).join('\n');
+  assert.ok(text.includes('https://x.test/api/a now'));
+  assert.ok(!/SECRET123|relative@|a1a1a1a1|frag|email=/.test(text), text);
+  const url = new URL('https://x.test/people/ada?email=a@b.org#h');
+  (globalThis as any).location = { pathname: url.pathname, search: url.search };
+  (globalThis as any).document = { documentElement: { dataset: {} } };
+  (globalThis as any).innerWidth = 1; (globalThis as any).innerHeight = 1; (globalThis as any).screen = { width: 1, height: 1 }; (globalThis as any).devicePixelRatio = 1;
+  assert.equal(client.feedbackContext(null, 'en').page, '/people/ada');
 });

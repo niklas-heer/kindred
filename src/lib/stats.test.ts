@@ -260,3 +260,17 @@ test('the page reads changes from the family’s own records', async () => {
   assert.equal(o.active.d7, 1);
   assert.equal(o.collecting, true);
 });
+
+test('turning collection off wins against a batch already under way', async () => {
+  const tree = 'race';
+  await stats.recordMemberBatch('u1', { tree, views: { atlas: 1 } }, NOW);
+  await Promise.all([
+    stats.recordMemberBatch('u2', { tree, visit: true, views: { atlas: 1 }, events: { 'tour.finished': 1 } }, NOW),
+    stats.recordGuestVisit(tree, NOW),
+    stats.setCollecting(tree, false, NOW),
+  ]);
+  assert.equal((await db().all('SELECT * FROM stats_member WHERE tree = ?', tree)).length, 0);
+  assert.equal((await db().all('SELECT * FROM stats_once WHERE tree = ?', tree)).length, 0);
+  assert.equal(await counter('visit', 'guest', tree), 0);
+  assert.equal(await counter('view', 'atlas', tree), 1);
+});

@@ -25,16 +25,19 @@ export async function isCollecting(tree: string): Promise<boolean> {
   return row ? row.collect === 1 : true;
 }
 
+/** True inside a write's own statement: the steward has not turned collection off. Checked there, not before, so turning it off cannot lose a race with a write already under way. */
+const ON = "NOT EXISTS (SELECT 1 FROM stats_setting WHERE tree = ? AND collect = 0)";
+
 const bump = (tree: string, day: string, kind: DailyRow['kind'], name: string, n: number): Query =>
-  q('INSERT INTO stats_daily (tree, day, kind, name, n) VALUES (?, ?, ?, ?, ?) ON CONFLICT (tree, day, kind, name) DO UPDATE SET n = n + excluded.n', tree, day, kind, name, n);
+  q(`INSERT INTO stats_daily (tree, day, kind, name, n) SELECT ?, ?, ?, ?, ? WHERE ${ON} ON CONFLICT (tree, day, kind, name) DO UPDATE SET n = n + excluded.n`, tree, day, kind, name, n, tree);
 
 /** Counts `name` only for a member not yet counted for it, in one statement with the check. */
 function onceWrites(tree: string, day: string, actor: string, name: EventName): Query[] {
   return [
     q(`INSERT INTO stats_daily (tree, day, kind, name, n) SELECT ?, ?, 'event', ?, 1
-       WHERE NOT EXISTS (SELECT 1 FROM stats_once WHERE tree = ? AND actor = ? AND name = ?)
-       ON CONFLICT (tree, day, kind, name) DO UPDATE SET n = n + 1`, tree, day, name, tree, actor, name),
-    q('INSERT INTO stats_once (tree, actor, name) VALUES (?, ?, ?) ON CONFLICT (tree, actor, name) DO NOTHING', tree, actor, name),
+       WHERE ${ON} AND NOT EXISTS (SELECT 1 FROM stats_once WHERE tree = ? AND actor = ? AND name = ?)
+       ON CONFLICT (tree, day, kind, name) DO UPDATE SET n = n + 1`, tree, day, name, tree, tree, actor, name),
+    q(`INSERT INTO stats_once (tree, actor, name) SELECT ?, ?, ? WHERE ${ON} ON CONFLICT (tree, actor, name) DO NOTHING`, tree, actor, name, tree),
   ];
 }
 
@@ -42,9 +45,9 @@ function onceWrites(tree: string, day: string, actor: string, name: EventName): 
 function activeWrites(tree: string, day: string, actor: string): Query[] {
   return [
     q(`INSERT INTO stats_daily (tree, day, kind, name, n) SELECT ?, ?, 'active', 'member', 1
-       WHERE NOT EXISTS (SELECT 1 FROM stats_member WHERE tree = ? AND actor = ? AND last_day = ?)
-       ON CONFLICT (tree, day, kind, name) DO UPDATE SET n = n + 1`, tree, day, tree, actor, day),
-    q('INSERT INTO stats_member (tree, actor, last_day) VALUES (?, ?, ?) ON CONFLICT (tree, actor) DO UPDATE SET last_day = excluded.last_day WHERE last_day <> excluded.last_day', tree, actor, day),
+       WHERE ${ON} AND NOT EXISTS (SELECT 1 FROM stats_member WHERE tree = ? AND actor = ? AND last_day = ?)
+       ON CONFLICT (tree, day, kind, name) DO UPDATE SET n = n + 1`, tree, day, tree, tree, actor, day),
+    q(`INSERT INTO stats_member (tree, actor, last_day) SELECT ?, ?, ? WHERE ${ON} ON CONFLICT (tree, actor) DO UPDATE SET last_day = excluded.last_day WHERE last_day <> excluded.last_day`, tree, actor, day, tree),
   ];
 }
 
@@ -68,9 +71,9 @@ export async function recordMemberBatch(user: string, batch: StatsBatch, now = D
 export async function recordGuestVisit(tree: string, now = Date.now()): Promise<void> {
   if (!(await isCollecting(tree))) return;
   await accounts().run(
-    `INSERT INTO stats_daily (tree, day, kind, name, n) VALUES (?, ?, 'visit', 'guest', 1)
+    `INSERT INTO stats_daily (tree, day, kind, name, n) SELECT ?, ?, 'visit', 'guest', 1 WHERE ${ON}
      ON CONFLICT (tree, day, kind, name) DO UPDATE SET n = n + 1 WHERE n < ?`,
-    tree, dayOf(now), GUEST_DAILY_CAP,
+    tree, dayOf(now), tree, GUEST_DAILY_CAP,
   );
 }
 

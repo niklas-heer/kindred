@@ -7,16 +7,26 @@ declare const __KINDRED_COMMIT__: string | undefined;
 
 const recent: string[] = [];
 
-/** Keeps a short, cut-off line; the newest {FEEDBACK_LIMITS.errors} are kept. */
+/** Takes out what could identify someone or carry a secret: query strings and fragments of any URL, e-mail addresses, and long token-like strings. */
+export function scrubError(text: string): string {
+  return text
+    .replace(/\b(?:https?|wss?):\/\/[^\s"'<>)]+/gi, (url) => url.replace(/[?#].*$/, ''))
+    .replace(/[?#][^\s"'<>)]*=[^\s"'<>)]*/g, '')
+    .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, '[email]')
+    .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '[token]');
+}
+
+/** Keeps a short, cleaned, cut-off line; the newest {FEEDBACK_LIMITS.errors} are kept. */
 export function recordClientError(text: string) {
-  const line = text.replace(/\s+/g, ' ').trim().slice(0, FEEDBACK_LIMITS.error);
+  const line = scrubError(text).replace(/\s+/g, ' ').trim().slice(0, FEEDBACK_LIMITS.error);
   if (!line || recent.at(-1) === line) return;
   recent.push(line);
   if (recent.length > FEEDBACK_LIMITS.errors) recent.shift();
 }
 export const recentClientErrors = () => [...recent];
 
-const describe = (v: unknown) => (v instanceof Error ? `${v.name}: ${v.message}` : typeof v === 'string' ? v : (() => { try { return JSON.stringify(v); } catch { return String(v); } })());
+// Only errors and plain strings are described; other values (objects may hold names or addresses) are reduced to their type.
+const describe = (v: unknown) => (v instanceof Error ? `${v.name}: ${v.message}` : typeof v === 'string' ? v : v === null || v === undefined || typeof v !== 'object' ? String(v) : `[${Array.isArray(v) ? 'array' : 'object'}]`);
 
 let watching = false;
 /** Starts listening for uncaught errors, rejected promises and console.error. Once only; does nothing on the server. */
@@ -72,7 +82,7 @@ export const appVersion = () => (typeof __KINDRED_COMMIT__ === 'string' && __KIN
 /** Everything attached to a report automatically. The panel shows exactly this before sending. */
 export function feedbackContext(selector: string | null, locale: Locale): FeedbackContext {
   return {
-    page: (location.pathname + location.search).slice(0, FEEDBACK_LIMITS.page),
+    page: location.pathname.slice(0, FEEDBACK_LIMITS.page),
     selector,
     locale,
     theme: document.documentElement.dataset.theme ?? '',
