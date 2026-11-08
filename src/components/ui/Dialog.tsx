@@ -195,6 +195,7 @@ export function Dialog({
           else if (panelRef) (panelRef as { current: HTMLDivElement | null }).current = el;
         }}
         tabIndex={-1}
+        data-bare={bare || undefined}
         className={`ui-dialog-panel panel ${className}`}
         style={{ ...(width !== undefined ? { ['--dialog-w' as string]: typeof width === 'number' ? `${width}px` : width } : null), ...style }}
         onKeyDown={onKey}

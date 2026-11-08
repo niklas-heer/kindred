@@ -27,6 +27,7 @@
   display: flex; flex-direction: column; overflow: hidden;
   animation: ui-rise 160ms cubic-bezier(.2, .8, .2, 1);
 }
+.ui-dialog-panel[data-bare] { overflow-y: auto; overscroll-behavior: contain; } /* no body to scroll, so the panel does */
 .ui-dialog-panel:focus { outline: none; }
 .ui-dialog[data-placement='top'] .ui-dialog-panel { max-height: calc(88vh - 16px); }
 .ui-dialog[data-placement='sheet'] .ui-dialog-panel {

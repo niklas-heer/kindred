@@ -5,8 +5,8 @@
 // The guest host is open to the internet, so it answers only what a guest needs. Anything else is 404, and it never honours
 // an account's session or an Access login (session.server.ts). Plain code, with no server-only imports.
 
-/** A family's section names a guest must not be served. */
-const NOT_GUEST_SECTIONS = new Set(['access', 'settings']);
+/** The sections under a family that a guest may open. Anything not listed (a new route, access, settings) stays closed. */
+const GUEST_SECTIONS = new Set(['almanac', 'atlas', 'chronicle', 'contacts', 'gallery', 'house', 'houses', 'needed', 'people', 'research']);
 /** First path segments that are not families and that a guest must not reach: the routes for accounts and setup. */
 const NOT_GUEST_ROOTS = new Set(['signin', 'setup', 'invite', 'ui', 'ui_', 'api']);
 const GUEST_MEDIA = /^\/api\/(?:photo|portrait|media|research)\/[^/]+\/[^/]+$/;
@@ -22,5 +22,5 @@ export function guestHostAllows(rawPath: string): boolean {
   const [, root, section] = pathname.split('/');
   if (!root || NOT_GUEST_ROOTS.has(root) || root.startsWith('_')) return false;
   if (!section) return /^[a-z0-9-]+$/.test(root) || /\.[a-z0-9]+$/.test(root); // a family, or a file at the root (favicon.svg)
-  return !NOT_GUEST_SECTIONS.has(section);
+  return GUEST_SECTIONS.has(section);
 }
