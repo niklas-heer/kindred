@@ -8,6 +8,7 @@ import { can } from '~/lib/roles';
 import { useRole } from '~/lib/session';
 import { bareHouseName, useHouseRole } from '~/lib/houses';
 import { useT } from '~/lib/i18n';
+import { useToday } from '~/lib/clock';
 import { occupationText } from '~/lib/occupations';
 import type { LNode } from '~/lib/layout';
 import type { Detail } from './Canvas';
@@ -39,6 +40,8 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
   const [required] = useRequired(tree);
   const role = useRole();
   const t = useT();
+  // The reader's day: the age and birthday badge are drawn only once the browser knows it (src/lib/clock.ts).
+  const today = useToday();
   const houseRole = useHouseRole(tree, f, node.id);
   if (node.ghost) {
     // An unknown parent: an open slot that invites filling in.
@@ -82,7 +85,7 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
   const house = p.house ? f.house.get(p.house) : undefined;
   const name = personDisplayName(p, nameMode, f);
   const years = lifespan(p, t.locale);
-  const ageLabel = ageMode === 'all' || (ageMode === 'living' && p.living) ? cardAge(p, undefined, t.locale) : undefined;
+  const ageLabel = ageMode === 'all' || (ageMode === 'living' && p.living) ? cardAge(p, today, t.locale) : undefined;
 
   if (detail === 'far') {
     // Overview: a shield in the house colour (rich for the living, faded for the dead), a crown for
@@ -119,7 +122,7 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
   const roleClass = node.role === 'dup' ? ' dup' : node.role === 'partner' ? ' partner' : node.role === 'sibling' ? ' sibling' : node.role === 'kin' ? ' kin' : '';
   const ruler = /^(King|Queen|Emperor|Empress)\b/.test(p.title ?? '');
   const sub = p.title && !name.startsWith(p.title.split(' ')[0]) ? p.title : p.title ? '' : occupationText(p, t.locale) ?? '';
-  const soon = birthdaySoon(p);
+  const soon = today ? birthdaySoon(p, today) : undefined;
   const disputed = (f.parentsOf.get(p.id) ?? []).some((q) => f.disputed.has(`${p.id}>${q}`));
   // Only gaps this reader could fill: a viewer gets no to-do badges they can do nothing about.
   const gaps = detail === 'near' && node.role !== 'dup' ? gapsOf(f, p, required).filter((g) => can(role, GAP_ACTION[g])) : [];
@@ -196,11 +199,9 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
 });
 
 /** Days until a living person's birthday, when it is within a week; undefined otherwise. */
-function birthdaySoon(p: GPerson): number | undefined {
+function birthdaySoon(p: GPerson, today: Date): number | undefined {
   if (!p.living || !p.born || !/^\d{4}-\d\d-\d\d$/.test(p.born)) return undefined;
   const [, m, d] = p.born.split('-').map(Number);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   let next = new Date(today.getFullYear(), m - 1, d);
   if (next < today) next = new Date(today.getFullYear() + 1, m - 1, d);
   const days = Math.round((next.getTime() - today.getTime()) / 86_400_000);

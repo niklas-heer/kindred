@@ -11,6 +11,7 @@ import { kinshipLabel, locales, ordinal, translate, useT, type Key, type Locale,
 import type { GPerson } from '~/lib/types';
 import '~/styles/almanac.css';
 import { treeTitle } from '~/lib/title';
+import { useToday } from '~/lib/clock';
 
 export const Route = createFileRoute('/$tree/almanac')({
   pendingComponent: PageSkeleton,
@@ -37,7 +38,6 @@ function partial(d?: string) {
   return m ? { approx: !!m[1], y: +m[2], m: m[3] ? +m[3] : undefined, d: m[4] ? +m[4] : undefined } : null;
 }
 const isLeap = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
-const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const daysBetween = (a: Date, b: Date) => Math.round((a.getTime() - b.getTime()) / DAY);
 /** English ordinals read "1st", "2nd"; the other languages have their own forms. */
 const ordOf = (n: number, locale: Locale) => {
@@ -216,7 +216,26 @@ function download(name: string, mime: string, text: string) {
 
 // ---------- page ----------
 
+/**
+ * The almanac counts from the reader's day, which the server can't know. Until the browser does, the server
+ * draws the title alone; then the page (its header date, the month strip and every row) comes in.
+ */
 function AlmanacPage() {
+  const t = useT();
+  const today = useToday();
+  if (!today) {
+    return (
+      <div className="page">
+        <div className="page-inner alm">
+          <PageHeader title={t('almanac.title')} />
+        </div>
+      </div>
+    );
+  }
+  return <AlmanacView today={today} />;
+}
+
+function AlmanacView({ today: startDay }: { today: Date }) {
   const f = useFamily();
   // Kinship ("your aunt's birthday") only once the reader has said who they are.
   const me = useMeChosen();
@@ -224,7 +243,7 @@ function AlmanacPage() {
   const t = useT();
   usePageTrail('almanac', tree, t.locale);
   // Frozen for the life of the page, so rows don't shuffle at midnight under your hands.
-  const [today] = useState(() => startOfDay(new Date()));
+  const [today] = useState(startDay);
   const [month, setMonth] = useRememberedState<number | null>(`almanac:${tree}:month`, null);
   const [saved, setSaved] = useState(false);
 

@@ -22,6 +22,7 @@ import {
 } from '~/lib/graph';
 import { setPref } from '~/lib/prefs';
 import { chooseMe } from '~/lib/family';
+import { useToday } from '~/lib/clock';
 import { can, type Role } from '~/lib/roles';
 import { useCan, useRole, useSession } from '~/lib/session';
 import type { GPerson, House, Look, PersonDetail, Place, Story } from '~/lib/types';
@@ -97,6 +98,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   const c = useT();
   const nameMode = useNameMode(tree);
   const t = useT();
+  const today = useToday();
   const [photoKeys] = useState(opKeys);
   const photo = useMutation({
     mutationFn: (file: File) => {
@@ -113,7 +115,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
 
   if (!p) return null;
   const house = p.house ? f.house.get(p.house) : undefined;
-  const a = age(p);
+  const a = age(p, today);
   const fillGap = (g: GapKey) => (g === 'photo' ? photoInput.current?.click() : GAP_WHERE[g] === 'tree' ? onAncestors() : leave(() => setTab(GAP_WHERE[g] as Tab)));
   // The name a person goes by now, and the birth surname when it differs ("née").
   const current = { ...p, given: p.currentGiven ?? p.given, surname: p.currentSurname ?? p.surname };
@@ -286,7 +288,8 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
   const qc = useQueryClient();
   const k = useMemo(() => (me && me !== p.id ? kinship(f, me, p.id) : undefined), [f, me, p.id]);
   const house = p.house ? f.house.get(p.house) : undefined;
-  const a = age(p);
+  const today = useToday();
+  const a = age(p, today);
   const unions = f.unionsOf.get(p.id) ?? [];
   const bornPlace = detail?.bornPlace ?? p.bornPlace;
   const diedPlace = detail?.diedPlace ?? p.diedPlace;
@@ -387,10 +390,12 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
 /** Next birthday and wedding anniversaries, as countdown cards. */
 function Upcoming({ f, p }: { f: Family; p: GPerson }) {
   const c = useT();
-  const bday = p.born ? nextOccurrence(p.born) : undefined;
+  const today = useToday();
+  if (!today) return null;
+  const bday = p.born ? nextOccurrence(p.born, today) : undefined;
   const anniversaries = (f.unionsOf.get(p.id) ?? [])
     .filter((u) => u.kind === 'marriage' && u.start && !u.end)
-    .map((u) => ({ u, next: nextOccurrence(u.start!), other: f.byId.get(u.a === p.id ? u.b : u.a) }))
+    .map((u) => ({ u, next: nextOccurrence(u.start!, today), other: f.byId.get(u.a === p.id ? u.b : u.a) }))
     .filter((x) => x.next && x.other?.living);
   if (!bday && !anniversaries.length) return null;
   return (
@@ -399,8 +404,8 @@ function Upcoming({ f, p }: { f: Family; p: GPerson }) {
         <div className="pp-countdown ui-card">
           <Cake size={20} />
           <div>
-            <b>{c('fact.birthdayIn', { when: inDays(daysUntil(bday), c) })}</b>
-            <div className="muted">{bday.toLocaleDateString(locales[c.locale], { weekday: 'long', day: 'numeric', month: 'long' })} · {c('fact.turns', { n: (ageAt(p.born) ?? 0) + 1 })}</div>
+            <b>{c('fact.birthdayIn', { when: inDays(daysUntil(bday, today), c) })}</b>
+            <div className="muted">{bday.toLocaleDateString(locales[c.locale], { weekday: 'long', day: 'numeric', month: 'long' })} · {c('fact.turns', { n: (ageAt(p.born, today) ?? 0) + 1 })}</div>
           </div>
         </div>
       )}
@@ -408,7 +413,7 @@ function Upcoming({ f, p }: { f: Family; p: GPerson }) {
         <div className="pp-countdown ui-card" key={u.id}>
           <Heart size={20} />
           <div>
-            <b>{c('fact.anniversaryWith', { name: other!.given, when: inDays(daysUntil(next!), c) })}</b>
+            <b>{c('fact.anniversaryWith', { name: other!.given, when: inDays(daysUntil(next!, today), c) })}</b>
             <div className="muted">{c('fact.years', { n: next!.getFullYear() - yearOf(u.start) })} · {c('fact.marriedOn', { date: fmtDate(u.start, locales[c.locale]) ?? '' })}</div>
           </div>
         </div>
@@ -783,7 +788,7 @@ function StoryForm({ tree, person, done }: { tree: string; person: GPerson; done
 
 // ---------- everyday ----------
 
-function nextOccurrence(date: string, from = new Date()): Date | undefined {
+function nextOccurrence(date: string, from: Date): Date | undefined {
   if (!/^\d{4}-\d\d-\d\d$/.test(date)) return undefined;
   const [, m, d] = date.split('-').map(Number);
   const today = new Date(from.getFullYear(), from.getMonth(), from.getDate());
@@ -791,7 +796,7 @@ function nextOccurrence(date: string, from = new Date()): Date | undefined {
   if (next < today) next = new Date(today.getFullYear() + 1, m - 1, d);
   return next;
 }
-const daysUntil = (d: Date) => Math.round((d.getTime() - new Date(new Date().toDateString()).getTime()) / 86_400_000);
+const daysUntil = (d: Date, today: Date) => Math.round((d.getTime() - today.getTime()) / 86_400_000);
 const inDays = (n: number, c: Translator) => (n === 0 ? c('when.today') : n === 1 ? c('when.tomorrow') : c('when.inDays', { n }));
 
 /** The kinds a contact can be quickly added as, from the Everyday tab. */
@@ -805,6 +810,7 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
   const qc = useQueryClient();
   const c = useT();
   const canContact = useCan('edit-contact');
+  const today = useToday();
   const [kind, setKind] = useState<QuickKind>('phone');
   const [value, setValue] = useState('');
   // One key per attempt: a retry after a lost answer never adds the contact twice.
@@ -821,11 +827,11 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['person', tree, p.id] }); qc.invalidateQueries({ queryKey: ['contacts', tree] }); qc.invalidateQueries({ queryKey: ['graph', tree] }); },
   });
 
-  const bday = p.born ? nextOccurrence(p.born) : undefined;
-  const anniversaries = (f.unionsOf.get(p.id) ?? [])
+  const bday = p.born && today ? nextOccurrence(p.born, today) : undefined;
+  const anniversaries = today ? (f.unionsOf.get(p.id) ?? [])
     .filter((u) => u.kind === 'marriage' && u.start && !u.end)
-    .map((u) => ({ u, next: nextOccurrence(u.start!), other: f.byId.get(u.a === p.id ? u.b : u.a) }))
-    .filter((x) => x.next && x.other?.living);
+    .map((u) => ({ u, next: nextOccurrence(u.start!, today), other: f.byId.get(u.a === p.id ? u.b : u.a) }))
+    .filter((x) => x.next && x.other?.living) : [];
 
   if (!detail) return <DetailFallback details={details} />;
   const contacts = contactsOf(detail.fields);
@@ -835,13 +841,13 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
   const fieldsBlock = <FieldGroups fields={detail.fields} fam={f} onSelect={onSelect} />;
 
   if (!p.living) {
-    const died = p.died ? nextOccurrence(p.died) : undefined;
+    const died = p.died && today ? nextOccurrence(p.died, today) : undefined;
     return (
       <>
         <div className="pp-facts">
           <Fact icon={<Cake size={15} />} label={c('fact.born')}>{fmtDate(p.born, locales[c.locale]) ?? c('fact.unknown')}{detail?.bornPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={detail.bornPlace} /></>}</Fact>
           <Fact icon={<span>✝</span>} label={c('fact.died')}>{fmtDate(p.died, locales[c.locale]) ?? c('fact.unknown')}{detail?.diedPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={detail.diedPlace} /></>}{age(p) !== undefined && <span className="muted"> · {c('fact.agedN', { n: age(p)! })}</span>}</Fact>
-          {died && daysUntil(died) < 60 && <Fact icon={<Heart size={15} />} label={c('fact.remembrance')}>{inDays(daysUntil(died), c)}</Fact>}
+          {died && today && daysUntil(died, today) < 60 && <Fact icon={<Heart size={15} />} label={c('fact.remembrance')}>{inDays(daysUntil(died, today), c)}</Fact>}
           <OccupationFact tree={tree} p={p} icon={<Pencil size={15} />} label={c('fact.occupation')} />
           {(f.unionsOf.get(p.id) ?? []).map((u) => {
             const o = f.byId.get(u.a === p.id ? u.b : u.a);
@@ -856,22 +862,22 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
   return (
     <>
       <div className="pp-facts">
-        {bday ? (
+        {bday && today ? (
           <div className="pp-countdown ui-card">
             <Cake size={20} />
             <div>
-              <b>{c('fact.birthdayIn', { when: inDays(daysUntil(bday), c) })}</b>
-              <div className="muted">{bday.toLocaleDateString(locales[c.locale], { weekday: 'long', day: 'numeric', month: 'long' })} · {c('fact.turns', { n: (ageAt(p.born) ?? 0) + 1 })}</div>
+              <b>{c('fact.birthdayIn', { when: inDays(daysUntil(bday, today), c) })}</b>
+              <div className="muted">{bday.toLocaleDateString(locales[c.locale], { weekday: 'long', day: 'numeric', month: 'long' })} · {c('fact.turns', { n: (ageAt(p.born, today) ?? 0) + 1 })}</div>
             </div>
           </div>
         ) : (
           <Fact icon={<Cake size={15} />} label={c('fact.born')}>{fmtDate(p.born, locales[c.locale]) ?? (canEdit ? c('fact.unknownAdd') : c('fact.unknown'))}</Fact>
         )}
-        {anniversaries.map(({ u, next, other }) => (
+        {today && anniversaries.map(({ u, next, other }) => (
           <div className="pp-countdown ui-card" key={u.id}>
             <Heart size={20} />
             <div>
-              <b>{c('fact.anniversaryWith', { name: other!.given, when: inDays(daysUntil(next!), c) })}</b>
+              <b>{c('fact.anniversaryWith', { name: other!.given, when: inDays(daysUntil(next!, today), c) })}</b>
               <div className="muted">{c('fact.years', { n: next!.getFullYear() - yearOf(u.start) })} · {c('fact.marriedOn', { date: fmtDate(u.start, locales[c.locale]) ?? '' })}</div>
             </div>
           </div>

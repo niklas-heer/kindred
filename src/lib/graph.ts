@@ -107,9 +107,12 @@ export function personDisplayName(p: GPerson, mode: NameMode = 'full', f?: Famil
   return displayName(p, f);
 }
 
-/** Compact age, with partial or approximate dates explicitly marked as uncertain. */
-export function cardAge(p: GPerson, now = new Date(), locale: Locale = 'en'): string | undefined {
-  const b = yearOf(p.born), end = p.living ? now.getFullYear() : yearOf(p.died);
+/**
+ * Compact age, with partial or approximate dates explicitly marked as uncertain. A living person needs the
+ * reader's `now`; without it there is no age yet (the server has no reader's day, see src/lib/clock.ts).
+ */
+export function cardAge(p: GPerson, now?: Date, locale: Locale = 'en'): string | undefined {
+  const b = yearOf(p.born), end = p.living ? (now?.getFullYear() ?? NaN) : yearOf(p.died);
   if (!Number.isFinite(b) || !Number.isFinite(end)) return undefined;
   const exactBirth = /^\d{4}-\d{2}-\d{2}$/.test(p.born ?? '');
   const exactEnd = p.living || /^\d{4}-\d{2}-\d{2}$/.test(p.died ?? '');
@@ -144,8 +147,9 @@ export function ageAt(born?: string, at: Date = new Date()): number | undefined 
   return age;
 }
 
-export function age(p: GPerson): number | undefined {
-  if (p.living) return ageAt(p.born);
+/** A person's age, or their age at death. A living person's age needs the reader's `today` (see src/lib/clock.ts). */
+export function age(p: GPerson, today?: Date): number | undefined {
+  if (p.living) return today ? ageAt(p.born, today) : undefined;
   if (!p.born || !p.died) return undefined;
   const b = yearOf(p.born), d = yearOf(p.died);
   return isNaN(b) || isNaN(d) ? undefined : d - b;
