@@ -20,7 +20,8 @@ export const Route = createFileRoute('/api/stats')({
           ]);
           const { user, guest } = await currentSession();
           // A member is counted as a member, also with a guest cookie; a guest of this family only as one anonymous visit.
-          if (user && (await membership(user.id, batch.tree))) await stats.recordMemberBatch(user.id, batch);
+          const m = user && (await membership(user.id, batch.tree));
+          if (user && m) await stats.recordMemberBatch(user.id, batch, Date.now(), m.role);
           else if (guest?.tree === batch.tree && batch.visit) await stats.recordGuestVisit(batch.tree);
         } catch {}
         return done();

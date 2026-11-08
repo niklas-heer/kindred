@@ -16,6 +16,8 @@ import { withPresetLabel } from '../fields/presets';
 import { applyProposal, approvalKeys, type ApprovalKeys } from './apply';
 import { FamilyDraft } from './FamilyDraft';
 import { CardHead } from './CardHead';
+import { VisibilityPicker } from '../fields/VisibilityMark';
+import type { Visibility } from '~/lib/visibility';
 
 const FIELD: Record<string, Key> = {
   given: 'ai.fieldName', surname: 'ai.fieldSurname', born: 'ai.fieldBorn', died: 'ai.fieldDied', bornPlace: 'ai.fieldBornPlace', diedPlace: 'ai.fieldDiedPlace',
@@ -121,8 +123,8 @@ function GenericCard({ tree, itemId, proposal }: { tree: string; itemId: string;
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // A new detail starts as the family's rule says (private for a health detail); the approver may change it.
-  const [isPrivate, setPrivate] = useState(proposal.args.private === true);
+  // A new detail starts at the level the family's rule says (the editors' for a health detail); the approver may change it.
+  const [level, setLevel] = useState<Visibility>((proposal.args.visibility as Visibility | undefined) ?? (proposal.args.private === true ? 'editors' : 'family'));
   // Photos the reader took off the card (a row's remove button): they are not sent on approval.
   const [dropped, setDropped] = useState<string[]>([]);
   // One key per card: a retry of the same approval replays the stored result rather than writing twice.
@@ -142,7 +144,7 @@ function GenericCard({ tree, itemId, proposal }: { tree: string; itemId: string;
       if (v.trim() === '') delete args[k];
       else args[k] = v.trim();
     }
-    if (proposal.kind === 'add-field') args.private = isPrivate;
+    if (proposal.kind === 'add-field') args.visibility = level;
     if (proposal.kind === 'photo-tags') args.people = (proposal.args.people as { person: string }[]).filter((p) => !dropped.includes(p.person));
     else if (photoKind) args.items = (proposal.args.items as Pic[]).filter((p) => !dropped.includes(p.key));
     try {
@@ -181,10 +183,7 @@ function GenericCard({ tree, itemId, proposal }: { tree: string; itemId: string;
         </dl>
       )}
       {open && proposal.kind === 'add-field' && (
-        <label className="ai-switch">
-          <input type="checkbox" role="switch" checked={isPrivate} onChange={(e) => setPrivate(e.target.checked)} />
-          <span>{t('ai.privateSwitch')}</span>
-        </label>
+        <VisibilityPicker value={level} onChange={setLevel} />
       )}
       {open && editing && (
         <div className="ai-card-edit">

@@ -26,7 +26,8 @@ import '~/styles/gallery.css';
 type Display = 'drawing' | 'photo' | 'portrait';
 const DISPLAY_LABEL: Record<Display, Key> = { drawing: 'paint.showDrawing', photo: 'paint.showPhoto', portrait: 'paint.showPainted' };
 
-export function PersonPhotos({ tree, id }: { tree: string; id: string }) {
+/** `bare` is for a host that already titles the section: the heading stays for screen readers only. */
+export function PersonPhotos({ tree, id, bare }: { tree: string; id: string; bare?: boolean }) {
   const g = useT();
   const f = useFamily();
   const qc = useQueryClient();
@@ -60,7 +61,7 @@ export function PersonPhotos({ tree, id }: { tree: string; id: string }) {
 
   return (
     <section className="pp" aria-labelledby={`pp-${id}`}>
-      <h3 className="pp-title" id={`pp-${id}`}>{g('pp.title')}</h3>
+      <h3 className={bare ? 'sr-only' : 'pp-title'} id={`pp-${id}`}>{g('pp.title')}</h3>
 
       {person.photo || person.portrait ? (
         <div className="pp-portraits">

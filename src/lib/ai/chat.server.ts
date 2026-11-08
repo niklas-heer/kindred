@@ -11,6 +11,7 @@ import { fullName } from '../graph';
 import { accounts, q } from '../auth/store.server';
 import { can, type Role } from '../roles';
 import type { AiMessage, ImagePart } from './adapters';
+import { checkChatImages } from './chat-images';
 import { tr } from './labels';
 import { systemPrompt } from './prompt';
 import { adapterForFeature } from './settings.server';
@@ -22,7 +23,7 @@ const MAX_STEPS = 5;
 const id = () => crypto.randomUUID();
 
 type Tier = 'member' | 'editor';
-interface Body { text: string; proposals?: Proposal[]; tier?: Tier; sources?: { url: string; title?: string }[]; session?: boolean }
+interface Body { text: string; proposals?: Proposal[]; tier?: Tier; sources?: { url: string; title?: string }[]; session?: boolean; images?: { count: number; kept: string[] } }
 interface ChatRow { id: string; role: 'user' | 'assistant'; body: string; at: number }
 
 const parse = (r: ChatRow): Body => JSON.parse(r.body) as Body;
@@ -43,7 +44,7 @@ async function currentConv(tree: string, user: string): Promise<string> {
 
 const toItem = (r: ChatRow): ChatItem => {
   const b = parse(r);
-  return { id: r.id, role: r.role, text: b.text, ...(b.session && { session: true }), ...(b.proposals?.length && { proposals: b.proposals }), ...(b.sources?.length && { sources: b.sources }), at: r.at };
+  return { id: r.id, role: r.role, text: b.text, ...(b.session && { session: true }), ...(b.images && { images: b.images }), ...(b.proposals?.length && { proposals: b.proposals }), ...(b.sources?.length && { sources: b.sources }), at: r.at };
 };
 
 /** The reader's current conversation, oldest first, without the turns their role may no longer read. */
@@ -51,6 +52,16 @@ export async function loadChat(tree: string, user: string, role: Role): Promise<
   const conv = await currentConv(tree, user);
   const rows = await accounts().all<ChatRow>('SELECT id, role, body, at FROM ai_chat WHERE tree = ? AND user = ? AND conv = ? ORDER BY at, rowid', tree, user, conv);
   return { items: rows.filter((r) => mayRead(parse(r), role)).map(toItem) };
+}
+
+/** A picture the reader kept with a message: only theirs, and only while their role may read that message. */
+export async function loadChatImage(tree: string, user: string, role: Role, imageId: string): Promise<{ mime: string; base64: string } | null> {
+  const row = await accounts().get<{ mime: string; data: string; body: string }>(
+    'SELECT i.mime, i.data, c.body FROM ai_chat_image i JOIN ai_chat c ON c.id = i.item WHERE i.id = ? AND i.tree = ? AND i.user = ? AND c.tree = ? AND c.user = ?',
+    imageId, tree, user, tree, user,
+  );
+  if (!row || !mayRead(JSON.parse(row.body) as Body, role)) return null;
+  return { mime: row.mime, base64: row.data };
 }
 
 /** "New conversation": the next message starts a fresh one. Earlier ones stay stored, for the family's records. */
@@ -76,9 +87,15 @@ export async function sendMessage(o: {
   session?: boolean;
   /** The person speaking in a family session (an id in the tree), who "my" and "I" mean. */
   speaker?: string | null;
+  /** Pictures attached to this message. They go to the provider once and are not stored unless `keepImages` is set. */
+  images?: readonly { base64: string }[];
+  keepImages?: boolean;
 }): Promise<{ items: ChatItem[] }> {
   // A session costs far more than a message and can only end in a draft. Refused before anything is spent for a role that could not apply one.
-  if (o.session && !can(o.role, 'add-person')) throw new Error('ai.famRefused');
+  // Pictures have the same rule, and the same reason.
+  if ((o.session || o.images?.length) && !can(o.role, 'add-person')) throw new Error('ai.famRefused');
+  const attached = checkChatImages(o.images ?? []);
+  if (!o.text.trim() && !attached.length) throw new Error('ai.err_empty_message');
   const locale: AiLocale = toAiLocale(o.locale);
   const c = tr(locale);
   const { adapter, webSearch, settings } = await adapterForFeature(o.tree, 'assistant', locale);
@@ -96,7 +113,9 @@ export async function sendMessage(o: {
       const b = parse(r);
       // A family session's transcript is long and was already drafted: the model sees a note of it, not the whole talk.
       if (r.role === 'user' && b.session) return { role: 'user', text: `[A family session was drafted here: ${b.text.split('\n').length} lines.]` };
-      return r.role === 'user' ? { role: 'user', text: b.text } : { role: 'assistant', text: b.text };
+      // A picture is sent once. Later turns are told it was there, and work from the reply that read it.
+      const pictures = r.role === 'user' && b.images ? `[The reader attached ${b.images.count} picture(s) here. They are not shown again.]` : '';
+      return r.role === 'user' ? { role: 'user', text: [b.text, pictures].filter(Boolean).join('\n') } : { role: 'assistant', text: b.text };
     });
 
   const g = await graph(o.tree);
@@ -106,17 +125,17 @@ export async function sendMessage(o: {
   const { tools, proposals: canPropose } = toolsFor(o.role, { web: webSearch, faces, avatar });
   const system = systemPrompt({
     locale, family: g.tree.name, readerName: me ? fullName(me) : null, kinToReader: null, canPropose, role: o.role, webSearch,
-    faces, avatar, session: o.session,
+    faces, avatar, session: o.session, pictures: attached.length,
   });
   // The sources of the web lookups this turn ran. The chat's own requests never search: a lookup is its own request.
   const sources: { url: string; title?: string }[] = [];
   const images: ImagePart[] = [];
-  const ctx: Ctx = { tree: o.tree, role: o.role, me: me?.id ?? null, session: o.session, locale, faces, avatar, images, search: webSearch ? { adapter, sources, lookups: 0 } : undefined };
-  const messages: AiMessage[] = [...past, { role: 'user', text: o.text }];
+  const ctx: Ctx = { tree: o.tree, role: o.role, me: me?.id ?? null, session: o.session, pictures: attached.length > 0, locale, faces, avatar, images, search: webSearch ? { adapter, sources, lookups: 0 } : undefined };
+  const messages: AiMessage[] = [...past, { role: 'user', text: o.text || 'See the attached pictures.', ...(attached.length && { images: attached }) }];
   const proposals: Proposal[] = [];
   let text = '';
   // A family draft's reply carries a whole set of people in one tool call, so it may run longer than a chat answer.
-  const maxTokens = o.session ? 4000 : 1200;
+  const maxTokens = o.session || attached.length ? 4000 : 1200;
   for (let step = 0; ; step++) {
     // Each call is booked against the family's budget by the adapter, so a loop cannot outspend it.
     const reply = await adapter.complete({ system, messages, tools, maxTokens, timeoutMs: 60_000 });
@@ -135,12 +154,17 @@ export async function sendMessage(o: {
   if (!text) text = proposals.length ? '' : c('ai.notRecorded');
 
   const tier: Tier = can(o.role, 'edit-person') ? 'editor' : 'member';
-  const userRow: ChatRow = { id: id(), role: 'user', body: JSON.stringify({ text: o.text, tier, ...(o.session && { session: true }) }), at: started };
+  const keep = o.keepImages ? attached.map((img) => ({ id: id(), img })) : [];
+  const userRow: ChatRow = {
+    id: id(), role: 'user', at: started,
+    body: JSON.stringify({ text: o.text, tier, ...(o.session && { session: true }), ...(attached.length && { images: { count: attached.length, kept: keep.map((k) => k.id) } }) }),
+  };
   const reply: ChatRow = {
     id: id(), role: 'assistant', body: JSON.stringify({ text, ...(proposals.length && { proposals }), ...(sources.length && { sources }), tier }), at: Date.now(),
   };
   // Both turns or neither: a message is never stored without its answer, and a failed turn leaves nothing to resend.
   const insert = (r: ChatRow) => q('INSERT INTO ai_chat (id, tree, user, conv, role, body, at) VALUES (?, ?, ?, ?, ?, ?, ?)', r.id, o.tree, o.user, conv, r.role, r.body, r.at);
-  await accounts().batch([insert(userRow), insert(reply)]);
+  const keptRows = keep.map((k) => q('INSERT INTO ai_chat_image (id, item, tree, user, mime, data, at) VALUES (?, ?, ?, ?, ?, ?, ?)', k.id, userRow.id, o.tree, o.user, k.img.mime, k.img.base64, started));
+  await accounts().batch([insert(userRow), insert(reply), ...keptRows]);
   return { items: [toItem(userRow), toItem(reply)] };
 }

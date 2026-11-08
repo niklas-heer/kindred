@@ -38,8 +38,8 @@ export const Route = createFileRoute('/$tree')({
       throw redirect({ to: '/signin', search: { next: location.href } });
     }
     if (!session.memberships.some((m) => m.tree === params.tree)) throw notFound({ data: { access: false } });
-    // A guest looks around; Access and the settings are not for them (the server refuses their data anyway).
-    if (session.guest?.tree === params.tree && /^\/[^/]+\/(?:access|settings)(?:\/|$)/i.test(location.pathname)) throw redirect({ to: '/$tree', params: { tree: params.tree } });
+    // A guest looks around; Access, the settings and Contacts are not for them (the server refuses or empties their data anyway).
+    if (session.guest?.tree === params.tree && /^\/[^/]+\/(?:access|settings|contacts)(?:\/|$)/i.test(location.pathname)) throw redirect({ to: '/$tree', params: { tree: params.tree } });
   },
   loader: async ({ context, params }) => {
     // An unknown family is a friendly "not found", never a server error with a developer hint.
@@ -107,9 +107,11 @@ function TreeLayout() {
           <Link to="/$tree/atlas" params={{ tree }} title={t("shell.atlas")}>
             <MapIcon size={16} /> <span className="nav-label">{t("shell.atlas")}</span>
           </Link>
-          <Link to="/$tree/contacts" params={{ tree }} title={t("shell.contacts")}>
-            <Contact size={16} /> <span className="nav-label">{t("shell.contacts")}</span>
-          </Link>
+          {!guest && (
+            <Link to="/$tree/contacts" params={{ tree }} title={t("shell.contacts")}>
+              <Contact size={16} /> <span className="nav-label">{t("shell.contacts")}</span>
+            </Link>
+          )}
           <Link to="/$tree/people" params={{ tree }} title={t("shell.register")}>
             <BookOpen size={16} /> <span className="nav-label">{t("shell.register")}</span>
           </Link>
@@ -171,6 +173,7 @@ function TreeLayout() {
 
 /** Contacts, Register and Chronicle, plus theme and sound: what the phone's tab bar has no room for. */
 function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: () => void; tree: string; multiple: boolean }) {
+  const guest = useSession()?.guest?.tree === tree;
   const t = useT();
   const theme = useTheme();
   const steward = useCan('manage-access');
@@ -182,7 +185,7 @@ function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: 
   return (
     <Dialog open={open} onClose={onClose} title={t("shell.more")} placement="sheet" width={560}>
       <ul className="more-list" onClick={(e) => (e.target as HTMLElement).closest('a') && onClose()}>
-        <li><Link to="/$tree/contacts" params={{ tree }}><Contact size={19} /> {t("shell.contacts")} <small>{t("shell.addresses_phones")}</small></Link></li>
+        {!guest && <li><Link to="/$tree/contacts" params={{ tree }}><Contact size={19} /> {t("shell.contacts")} <small>{t("shell.addresses_phones")}</small></Link></li>}
         <li><Link to="/$tree/people" params={{ tree }}><BookOpen size={19} /> {t("shell.register")} <small>{t("shell.everyone_as_a_table")}</small></Link></li>
         <li><Link to="/$tree/houses" params={{ tree }}><Landmark size={19} /> {t("shell.houses")} <small>{t("shell.arms_mottos_members")}</small></Link></li>
         <li><Link to="/$tree/chronicle" params={{ tree }}><ScrollText size={19} /> {t("shell.chronicle")} <small>{t("shell.stories_sayings")}</small></Link></li>

@@ -168,7 +168,7 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
           born: value.born, bornPlace: value.bornPlace.name, died: value.died, diedPlace: value.diedPlace.name, living: value.living,
           title: value.title, epithet: value.epithet, occupation: value.occupation, occupationCode: value.occupationCode || null, bio: value.bio,
         };
-        const fields = value.fields.map((x) => ({ id: x.id, type: x.type, label: x.label, value: x.value, private: x.private }));
+        const fields = value.fields.map((x) => ({ id: x.id, type: x.type, label: x.label, value: x.value, visibility: x.visibility }));
         const body = { tree, id: p.id, details, fields, revision: revision.current };
         await savePersonEdit({ data: { ...body, opKey: keys.for('edit', body) } });
         keys.clear('edit');
@@ -245,7 +245,7 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
   const fieldShown = (x: DraftField | null) => (x ? fieldText(x.type, x.value) || c('edit.empty') : c('edit.gone'));
   /** A field's label and privacy, as the Edit tab shows them: a choice overwrites these too. */
   const fieldMeta = (x: DraftField) =>
-    [c('edit.labelOf', { label: x.label ? presetLabel(x.label, c) : c('edit.empty') }), c(x.private ? 'edit.onlyEditors' : 'field.visible')].join(' · ');
+    [c('edit.labelOf', { label: x.label ? presetLabel(x.label, c) : c('edit.empty') }), c(`field.vis.${x.visibility}` as Key)].join(' · ');
   const titleOf = (k: Conflict<DraftField>) => {
     if (k.kind === 'value') return c(LABEL[k.keys[0] ?? 'bio'] ?? 'edit.biography');
     const x = k.mine ?? k.theirs;

@@ -6,6 +6,8 @@ import { db, fieldOf, guard, newId, once, personExists, q, type OpKey, type Quer
 import { CHANGED_SINCE_OPENED, MAX_FIELDS, storedValue, type FieldInput, type FieldType, type FieldValue, type PersonField } from '../components/fields/model.ts';
 import type { Look } from './types.ts';
 import { occupationCodeFor } from './occupations.ts';
+import { translate } from './i18n/dictionary.ts';
+import { fieldsVisibleTo, maySee, type Audience, type Visibility } from './visibility.ts';
 
 /** The message a save gets when the person changed after the draft was opened (the reader sees it in their language). */
 export { CHANGED_SINCE_OPENED };
@@ -78,7 +80,14 @@ const SNAPSHOT_ATTEMPTS = 3;
 const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 const empty = (s: string | null) => (s === null || s.trim() === '' ? null : s.trim());
 
-interface Existing { id: string; type: string; label: string; value: string; private: number; ord: number }
+interface Existing { id: string; type: string; label: string; value: string; visibility: Visibility; owner: string | null; ord: number }
+
+/** The owner a field at this level has: the person saving it when it is personal, nobody otherwise. */
+function ownerFor(visibility: Visibility, who: Audience): string | null {
+  if (visibility !== 'personal') return null;
+  if (!who.account) throw new Error(translate('en', 'field.vis.needsAccount'));
+  return who.account;
+}
 
 /** A field's parts for comparing: a blank part and a missing one are the same, and the order of keys does not matter. */
 const parts = (v: Record<string, string>) =>
@@ -89,14 +98,15 @@ const sameContent = (stored: string, value: FieldValue) => parts(JSON.parse(stor
 /**
  * The Edit tab's read. Reads the person's row (scalars and revision) in one statement, then the fields, then the
  * revision again: if the person changed in between, the read starts again, so the snapshot is one moment, never a
- * mix. Private fields are only listed when `canSee` (editors and stewards), as the person read does.
+ * mix. Only the fields this reader may see are listed, by the same rule as the person read (visibility.ts).
  */
-export async function editSnapshot(tree: string, id: string, canSee: boolean): Promise<EditSnapshot> {
+export async function editSnapshot(tree: string, id: string, reader: Audience): Promise<EditSnapshot> {
   const d = db(tree);
+  const seen = fieldsVisibleTo(reader);
   for (let attempt = 1; ; attempt++) {
     const r = await d.get<EditRow & { revision: number }>(`SELECT revision, ${EDIT_COLUMNS.join(', ')} FROM person WHERE id = ?`, id);
     if (!r) throw new Error('Person not found.');
-    const fields = await d.all<any>(`SELECT * FROM person_field WHERE person = ? ${canSee ? '' : 'AND private = 0'} ORDER BY ord, id`, id);
+    const fields = await d.all<any>(`SELECT * FROM person_field WHERE person = ? AND ${seen.sql} ORDER BY ord, id`, id, ...seen.params);
     const again = await d.get<{ revision: number }>('SELECT revision FROM person WHERE id = ?', id);
     if (again?.revision === r.revision) {
       return {
@@ -136,23 +146,28 @@ export async function editSnapshot(tree: string, id: string, canSee: boolean): P
  * Only what changed is written: a field whose content, label, privacy and position are as stored is left alone (so its
  * last editor and time stand), and the person's row is written only if one of its columns differs. Each write moves the
  * revision once per row, so a save of one nickname makes one step, not several.
+ *
+ * `who` is the person saving. The list only ever covers what they may see: someone else's personal field is not in their
+ * draft, so it is neither removed nor changed, and an id naming one is refused as any unknown field is.
  */
-export function savePersonEdit(tree: string, id: string, details: PersonDetails, fields: FieldInput[], revision: number, op: OpKey | undefined, by: string) {
+export function savePersonEdit(tree: string, id: string, details: PersonDetails, fields: FieldInput[], revision: number, op: OpKey | undefined, by: string, who: Audience) {
   return once(tree, op, 'savePersonEdit', async (d) => {
     const now = await d.get<EditRow & { revision: number }>(`SELECT revision, ${EDIT_COLUMNS.join(', ')} FROM person WHERE id = ?`, id);
     if (!now) throw new Error('Person not found.');
     if (now.revision !== revision) throw new Error(CHANGED_SINCE_OPENED);
-    const had = await d.all<Existing>('SELECT id, type, label, value, private, ord FROM person_field WHERE person = ?', id);
+    const seen = fieldsVisibleTo(who);
+    const had = await d.all<Existing>(`SELECT id, type, label, value, visibility, owner, ord FROM person_field WHERE person = ? AND ${seen.sql}`, id, ...seen.params);
     const hadById = new Map(had.map((r) => [r.id, r]));
     const kept = new Set<string>();
     // What the plan read: the person at this revision (every change bumps it, see migration 0009), and the fields.
     // Every decision below rests on that revision, so the guard covers the person's columns as well.
     const writes: Query[] = [
       guard('EXISTS (SELECT 1 FROM person WHERE id = ? AND revision = ?)', id, revision),
-      guard('(SELECT count(*) FROM person_field WHERE person = ?) = ?', id, had.length),
+      guard(`(SELECT count(*) FROM person_field WHERE person = ? AND ${seen.sql}) = ?`, id, ...seen.params, had.length),
     ];
 
     for (const [ord, f] of fields.entries()) {
+      const owner = ownerFor(f.visibility, who);
       const value = storedValue(f.type as FieldType, f.value);
       if (f.type === 'related' && value.person) {
         if (!(await d.get('SELECT id FROM person WHERE id = ?', value.person))) throw new Error('That person is not in this family.');
@@ -165,17 +180,17 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
         kept.add(f.id);
         writes.push(guard('EXISTS (SELECT 1 FROM person_field WHERE id = ? AND person = ?)', f.id, id));
         const sameText = sameContent(before.value, value);
-        const same = before.label === f.label && before.private === (f.private ? 1 : 0) && before.ord === ord && sameText;
+        const same = before.label === f.label && before.visibility === f.visibility && before.owner === owner && before.ord === ord && sameText;
         if (!same) {
           writes.push(q(
-            'UPDATE person_field SET label = ?, value = ?, private = ?, ord = ?, updated_by = ?, updated_at = ? WHERE id = ? AND person = ?',
-            f.label, sameText ? before.value : JSON.stringify(value), f.private ? 1 : 0, ord, by, nowIso(), f.id, id,
+            'UPDATE person_field SET label = ?, value = ?, visibility = ?, owner = ?, ord = ?, updated_by = ?, updated_at = ? WHERE id = ? AND person = ?',
+            f.label, sameText ? before.value : JSON.stringify(value), f.visibility, owner, ord, by, nowIso(), f.id, id,
           ));
         }
       } else {
         writes.push(q(
-          'INSERT INTO person_field (id, person, type, label, value, ord, private, created_by, created_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          crypto.randomUUID(), id, f.type, f.label, JSON.stringify(value), ord, f.private ? 1 : 0, by, nowIso(), by, nowIso(),
+          'INSERT INTO person_field (id, person, type, label, value, ord, visibility, owner, created_by, created_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          crypto.randomUUID(), id, f.type, f.label, JSON.stringify(value), ord, f.visibility, owner, by, nowIso(), by, nowIso(),
         ));
       }
     }
@@ -201,8 +216,9 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
 }
 
 /** Adds one field to the end of a person's list (the Everyday tab's quick add for a contact). Returns its id. */
-export function addPersonField(tree: string, person: string, f: FieldInput, op: OpKey | undefined, by: string) {
+export function addPersonField(tree: string, person: string, f: FieldInput, op: OpKey | undefined, by: string, who: Audience) {
   return once(tree, op, 'addPersonField', async (d) => {
+    const owner = ownerFor(f.visibility, who);
     if (!(await d.get('SELECT id FROM person WHERE id = ?', person))) throw new Error('Person not found.');
     const at = await d.get<{ n: number; last: number }>('SELECT count(*) AS n, coalesce(max(ord), -1) AS last FROM person_field WHERE person = ?', person);
     if ((at?.n ?? 0) >= MAX_FIELDS) throw new Error(`A person can have up to ${MAX_FIELDS} fields.`);
@@ -216,22 +232,25 @@ export function addPersonField(tree: string, person: string, f: FieldInput, op: 
       writes: [
         personExists(person),
         guard('(SELECT count(*) FROM person_field WHERE person = ?) = ?', person, at?.n ?? 0),
-        q('INSERT INTO person_field (id, person, type, label, value, ord, private, created_by, created_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          fid, person, f.type, f.label, JSON.stringify(storedValue(f.type, f.value)), (at?.last ?? -1) + 1, f.private ? 1 : 0, by, now, by, now),
+        q('INSERT INTO person_field (id, person, type, label, value, ord, visibility, owner, created_by, created_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          fid, person, f.type, f.label, JSON.stringify(storedValue(f.type, f.value)), (at?.last ?? -1) + 1, f.visibility, owner, by, now, by, now),
       ],
       result: fid,
     };
   });
 }
 
-/** Removes one field. Refuses a field that is not of the type the caller checked the role for. */
-export function deletePersonField(tree: string, id: string, op: OpKey | undefined) {
+/**
+ * Removes one field. Refuses a field that is not of the type the caller checked the role for. Someone else's personal
+ * field is left alone, and it answers exactly as a field that does not exist does.
+ */
+export function deletePersonField(tree: string, id: string, op: OpKey | undefined, who: Audience) {
   return once(tree, op, 'deletePersonField', async (d) => {
-    const row = await d.get<{ person: string; type: string }>('SELECT person, type FROM person_field WHERE id = ?', id);
-    if (!row) return { writes: [], result: undefined };
+    const row = await d.get<{ person: string; type: string; visibility: Visibility; owner: string | null }>('SELECT person, type, visibility, owner FROM person_field WHERE id = ?', id);
+    if (!row || !maySee(who, row)) return { writes: [], result: undefined };
     return {
       writes: [
-        guard('EXISTS (SELECT 1 FROM person_field WHERE id = ? AND person = ? AND type = ?)', id, row.person, row.type),
+        guard('EXISTS (SELECT 1 FROM person_field WHERE id = ? AND person = ? AND type = ? AND visibility = ? AND owner IS ?)', id, row.person, row.type, row.visibility, row.owner),
         q('DELETE FROM person_field WHERE id = ?', id),
       ],
       result: undefined,

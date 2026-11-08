@@ -59,7 +59,8 @@ function makeFamily(id: string, names: string[]): void {
   names.forEach((name, i) => d.exec(`INSERT INTO house (id, name, arms) VALUES ('h${i + 1}', 'House ${name}', '${JSON.stringify(ARMS)}');`));
   d.exec(`
     INSERT INTO person (id, given, house, living) VALUES ('ada', 'Ada-Private-Given', 'h1', 1);
-    INSERT INTO person_field (id, person, type, label, value, ord, private) VALUES ('pf1', 'ada', 'phone', 'Mobile', '{"value":"SECRET-PHONE-0123"}', 0, 1);
+    INSERT INTO person_field (id, person, type, label, value, ord, visibility) VALUES ('pf1', 'ada', 'phone', 'Mobile', '{"value":"SECRET-PHONE-0123"}', 0, 'editors');
+    INSERT INTO person_field (id, person, type, label, value, ord, visibility, owner) VALUES ('pf2', 'ada', 'notes', '', '{"text":"SECRET-PERSONAL-NOTE"}', 1, 'personal', 'author-1');
     INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES ('s1', 'ada', 'memory', 'SECRET-TITLE', 'SECRET-STORY', 'Ada', '2026-01-01T10:00:00Z', NULL);
     INSERT INTO house_succession (house, country) VALUES ('h1', 'DE');
   `);

@@ -5,14 +5,14 @@ import { Link, useBlocker } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { geoMercator, geoPath, type GeoPermissibleObjects } from 'd3-geo';
 import {
-  Baby, BriefcaseBusiness, Cake, Camera, Check, CookingPot, Crosshair, Crown, GitFork, Heart, HeartCrack, Hourglass, Mail, MapPin, MessagesSquare, Pencil,
+  Baby, BriefcaseBusiness, Cake, Camera, Check, ChevronDown, CookingPot, Crosshair, Crown, GitFork, Heart, HeartCrack, Mail, MapPin, MessagesSquare, Pencil,
   Paintbrush, Phone, Plus, Quote, Route as RouteIcon, Sparkles, StickyNote, Trash2, UserRound, X,
 } from 'lucide-react';
 import { feature, mesh } from 'topojson-client';
-import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { addStory, deleteStory, newOpKey, opKeys, setPartnershipEnd, uploadPhoto, unlinkRelative } from '~/lib/api';
 import { addPersonField, deletePersonField, personDetailQuery, setLook } from '~/lib/person.functions';
-import { kinshipLabel, locales, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
+import { kinshipLabel, locales, ordinal, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
 import { occupationText } from '~/lib/occupations';
 import { translateOccupation } from '~/lib/occupations.functions';
 import { useAiStatus } from './assistant/store';
@@ -20,12 +20,19 @@ import { HeadOfHouse } from '~/lib/houses';
 import {
   ageAt, age, children, displayName, fmtDate, kinship, lifespan, parents, partnersOf, personDisplayName, siblings, useNameMode, yearOf, type Family,
 } from '~/lib/graph';
-import { setPref } from '~/lib/prefs';
+import { setPref, usePref } from '~/lib/prefs';
+import { closestFamily, FOLD_PREF, lifeGlance, openFolds, partitionSoon, toggleFold, type CloseRelative, type FoldKey, type GlanceItem } from '~/lib/person-overview';
+import { meaningLine } from '~/lib/house-meaning';
+import { houseMeaningsQuery, houseTranslationsQuery } from '~/lib/house-meaning.functions';
+import { translateSaved } from '~/lib/house-translation';
+import { personPhotosQuery } from '~/lib/photos.functions';
+import { personResearchQuery } from '~/lib/research.functions';
+import { mayPaintPerson } from '~/lib/ai/portrait-rules';
 import { ageOn, widowedOn, type Age } from '~/lib/life';
 import { chooseMe } from '~/lib/family';
 import { useToday } from '~/lib/clock';
 import { can, type Role } from '~/lib/roles';
-import { useCan, useRole, useSession } from '~/lib/session';
+import { useCan, useMembership, useRole, useSession } from '~/lib/session';
 import type { GPerson, House, Look, PersonDetail, Place, Story } from '~/lib/types';
 import { TRAITS } from '~/lib/traits';
 import { GAP_ACTION, GAP_LABEL, GAP_WHERE, gapsOf, useRequired, type GapKey } from '~/lib/gaps';
@@ -40,9 +47,13 @@ import { DraftContext, DraftTracker, type Draft } from './fields/draft';
 import { PersonEdit } from './fields/PersonEdit';
 import { CharacterEditor } from './CharacterEditor';
 import { PersonPhotos } from './photos/PersonPhotos';
+import { mediaUrl } from './photos/types';
 import { PersonResearch } from './research/PersonResearch';
 import { ContactRow, FieldGroups, contactHref, contactsOf } from './fields/FieldsView';
-import { DEFAULT_LABEL } from './fields/model';
+import { RemoveOwnField, VisibilityMark } from './fields/VisibilityMark';
+import { AddressFinder } from './fields/AddressFinder';
+import { formatAddress, parseAddress, type AddressParts } from '~/lib/address';
+import { DEFAULT_LABEL, defaultVisibility } from './fields/model';
 import './panel.css';
 
 type Tab = 'overview' | 'family' | 'stories' | 'everyday' | 'edit';
@@ -291,17 +302,16 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
   const k = useMemo(() => (me && me !== p.id ? kinship(f, me, p.id) : undefined), [f, me, p.id]);
   const house = p.house ? f.house.get(p.house) : undefined;
   const today = useToday();
-  const a = age(p, today);
   const unions = f.unionsOf.get(p.id) ?? [];
   const bornPlace = detail?.bornPlace ?? p.bornPlace;
   const diedPlace = detail?.diedPlace ?? p.diedPlace;
-  const words = (detail?.stories ?? []).filter((s) => s.kind !== 'recipe' && s.kind !== 'note').slice(0, 2);
+  // The newest story first (the server sorts them): one up front, the rest a click away.
+  const latest = (detail?.stories ?? []).find((s) => s.kind !== 'recipe' && s.kind !== 'note');
   const c = useT();
+  const { soon, later } = partitionSoon(p.living && today ? upcomingDates(f, p, today, c) : [], (d) => d.days);
 
   return (
     <div className="pp-overview">
-      <PersonPhotos tree={tree} id={p.id} />
-      <PersonResearch tree={tree} id={p.id} />
       <HeadOfHouse person={p.id} />
       <section className="pp-kin" aria-label={c('panel.howRelated')}>
         {!me ? (
@@ -320,109 +330,235 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
         ) : me !== p.id && <button className="btn ghost" onClick={() => setPref(`me:${tree}`, p.id)} title={c('panel.beThemTitle')}>{c('panel.beThem')}</button>}
       </section>
 
+      <LifeGlance f={f} p={p} today={today} />
+
       <div className="pp-facts pp-keyfacts">
-        <Fact icon={<Cake size={15} />} label={c('fact.born')}>
-          {fmtDate(p.born, locales[c.locale]) ?? c('panel.dateUnknown')}{bornPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={bornPlace} /></>}
-        </Fact>
-        {!p.living && (
+        {(p.born || bornPlace) && (
+          <Fact icon={<Cake size={15} />} label={c('fact.born')}>
+            {fmtDate(p.born, locales[c.locale]) ?? c('panel.dateUnknown')}{bornPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={bornPlace} /></>}
+          </Fact>
+        )}
+        {!p.living && (p.died || diedPlace) && (
           <Fact icon={<span aria-hidden>✝</span>} label={c('fact.died')}>
             {fmtDate(p.died, locales[c.locale]) ?? c('panel.dateUnknown')}{diedPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={diedPlace} /></>}
           </Fact>
         )}
-        {a !== undefined && <Fact icon={<Hourglass size={15} />} label={c('panel.age')}>{p.living ? c('panel.ageLiving', { count: a }) : c('panel.diedAged', { n: a })}</Fact>}
         <OccupationFact tree={tree} p={p} icon={<BriefcaseBusiness size={15} />} label={c('fact.occupation')} />
-        {p.title && <Fact icon={<Crown size={15} />} label={c('panel.title')}>{p.title}</Fact>}
         {p.nickname && <Fact icon={<UserRound size={15} />} label={c('fact.called')}>{p.nickname}</Fact>}
       </div>
 
-      {p.living && <Upcoming f={f} p={p} />}
+      {soon.length > 0 && <div className="pp-upcoming">{soon.map((d) => d.card)}</div>}
       {p.living && detail && <ContactActions p={p} detail={detail} onMore={() => onTab('everyday')} />}
 
-      <LifeTimeline f={f} tree={tree} p={p} onSelect={onSelect} />
+      <ClosestFamily f={f} tree={tree} id={p.id} onSelect={onSelect} onAll={() => onTab('family')} />
 
-      <PlacesMap f={f} tree={tree} p={p} bornPlace={bornPlace} diedPlace={diedPlace} unions={unions} />
-
-      <section className="pp-ov-section">
-        <div className="rule">{c('panel.wordsRule')}</div>
-        {!detail ? (
-          <DetailFallback details={details} lines={2} />
-        ) : words.length ? (
-          <div className="pp-stories">
-            {words.map((s) => <StoryCard key={s.id} s={s} compact />)}
-            {detail.stories.length > words.length && <button className="btn ghost pp-more" onClick={() => onTab('stories')}>{c('panel.allStories', { count: detail.stories.length })}</button>}
-          </div>
-        ) : (
-          <p className="pp-quiet subtle">{c('panel.nothingWritten', { name: p.given })}{can(role, 'add-story') && <> <button className="pp-inline-link" onClick={() => onTab('stories')}>{c('panel.addMemory')}</button></>}</p>
-        )}
-      </section>
-
-      {house && (
+      {details.failed ? (
+        <DetailFallback details={details} lines={2} />
+      ) : !detail ? (
+        p.stories > 0 && <DetailFallback details={details} lines={2} />
+      ) : latest && (
         <section className="pp-ov-section">
-          <div className="rule">{c('panel.houseRule')}</div>
-          <Link className="pp-house-card ui-card interactive" to="/$tree/house/$house" params={{ tree, house: house.id }}>
-            <Arms arms={house.arms} size={40} />
-            <span>
-              <b>{house.name}</b>
-              {house.motto && <i>“{house.motto}”</i>}
-            </span>
-          </Link>
-        </section>
-      )}
-
-      {gaps.length > 0 && (
-        <section className="pp-gaps" aria-label={c('panel.gapsTitle')}>
-          <span className="pp-gaps-title"><GameIcon name="quill-ink" size={14} /> {c('panel.gapsTitle')}</span>
-          <div>
-            {gaps.map((g) =>
-              // Only the gaps this reader may fill in are buttons; the rest are just listed.
-              !can(role, GAP_ACTION[g]) ? (
-                <span key={g} className="chip">{c(GAP_LABEL[g])}</span>
-              ) : (
-                <button key={g} className="chip" onClick={() => onGap(g)} title={g === 'photo' ? c('panel.gapPhoto') : GAP_WHERE[g] === 'tree' ? c('panel.gapTree') : c('panel.gapFill')}>
-                  <Plus size={12} aria-hidden /> {c(GAP_LABEL[g])}
-                </button>
-              ),
-            )}
+          <div className="rule">{c('panel.wordsRule')}</div>
+          <div className="pp-stories">
+            <StoryCard s={latest} compact />
+            {detail.stories.length > 1 && <button className="btn ghost pp-more" onClick={() => onTab('stories')}>{c('panel.allStories', { count: detail.stories.length })}</button>}
           </div>
         </section>
       )}
+
+      {house && <HouseSection tree={tree} house={house} />}
+
+      <div className="pp-folds">
+        <LifeTimeline f={f} tree={tree} p={p} onSelect={onSelect} />
+        <PlacesMap f={f} tree={tree} p={p} bornPlace={bornPlace} diedPlace={diedPlace} unions={unions} />
+        <PhotosFold tree={tree} p={p} role={role} />
+        <ResearchFold tree={tree} id={p.id} />
+        {later.length > 0 && (
+          <Fold id="dates" title={c('panel.ov_dates')} hint={inDays(later[0].days, c)}>
+            <div className="pp-upcoming">{later.map((d) => d.card)}</div>
+          </Fold>
+        )}
+        {gaps.length > 0 && (
+          <Fold id="missing" title={c('panel.gapsTitle')} hint={String(gaps.length)}>
+            <div className="pp-gaps pp-gaps-bare">
+              <div>
+                {gaps.map((g) =>
+                  // Only the gaps this reader may fill in are buttons; the rest are just listed.
+                  !can(role, GAP_ACTION[g]) ? (
+                    <span key={g} className="chip">{c(GAP_LABEL[g])}</span>
+                  ) : (
+                    <button key={g} className="chip" onClick={() => onGap(g)} title={g === 'photo' ? c('panel.gapPhoto') : GAP_WHERE[g] === 'tree' ? c('panel.gapTree') : c('panel.gapFill')}>
+                      <Plus size={12} aria-hidden /> {c(GAP_LABEL[g])}
+                    </button>
+                  ),
+                )}
+              </div>
+            </div>
+          </Fold>
+        )}
+      </div>
     </div>
   );
 }
 
-/** Next birthday and wedding anniversaries, as countdown cards. */
-function Upcoming({ f, p }: { f: Family; p: GPerson }) {
-  const c = useT();
-  const today = useToday();
-  if (!today) return null;
-  const bday = p.born ? nextOccurrence(p.born, today) : undefined;
-  const anniversaries = (f.unionsOf.get(p.id) ?? [])
-    .filter((u) => u.kind === 'marriage' && u.start && !u.end)
-    .map((u) => ({ u, next: nextOccurrence(u.start!, today), other: f.byId.get(u.a === p.id ? u.b : u.a) }))
-    .filter((x) => x.next && x.other?.living);
-  if (!bday && !anniversaries.length) return null;
+/** A section of the Overview that can be folded away. Which ones are open is kept in this browser, for everyone it shows. */
+function Fold({ id, title, hint, peek, children }: { id: FoldKey; title: string; hint?: string; peek?: ReactNode; children: ReactNode }) {
+  const open = openFolds(usePref(FOLD_PREF));
+  const isOpen = open.includes(id);
+  const bodyId = useId();
   return (
-    <div className="pp-upcoming">
-      {bday && (
-        <div className="pp-countdown ui-card">
-          <Cake size={20} />
-          <div>
-            <b>{c('fact.birthdayIn', { when: inDays(daysUntil(bday, today), c) })}</b>
-            <div className="muted">{bday.toLocaleDateString(locales[c.locale], { weekday: 'long', day: 'numeric', month: 'long' })} · {c('fact.turns', { n: (ageAt(p.born, today) ?? 0) + 1 })}</div>
-          </div>
-        </div>
-      )}
-      {anniversaries.map(({ u, next, other }) => (
-        <div className="pp-countdown ui-card" key={u.id}>
-          <Heart size={20} />
-          <div>
-            <b>{c('fact.anniversaryWith', { name: other!.given, when: inDays(daysUntil(next!, today), c) })}</b>
-            <div className="muted">{c('fact.years', { n: next!.getFullYear() - yearOf(u.start) })} · {c('fact.marriedOn', { date: fmtDate(u.start, locales[c.locale]) ?? '' })}</div>
-          </div>
-        </div>
-      ))}
-    </div>
+    <section className="pp-fold">
+      <button type="button" className="pp-fold-head" aria-expanded={isOpen} aria-controls={bodyId} onClick={() => setPref(FOLD_PREF, JSON.stringify(toggleFold(open, id)))}>
+        <span className="pp-fold-title">{title}</span>
+        {hint && <span className="pp-fold-hint">{hint}</span>}
+        <ChevronDown size={16} className="pp-fold-chevron" aria-hidden />
+        {!isOpen && peek && <span className="pp-fold-peek" aria-hidden>{peek}</span>}
+      </button>
+      <div id={bodyId} className="pp-fold-body" hidden={!isOpen}>{isOpen && children}</div>
+    </section>
   );
+}
+
+const GLANCE_MAX = 4;
+
+/** The few numbers that sum up a life. Nothing at all when the family hasn't recorded any. */
+function LifeGlance({ f, p, today }: { f: Family; p: GPerson; today?: Date }) {
+  const c = useT();
+  const items = useMemo(() => lifeGlance(f, p, today).slice(0, GLANCE_MAX), [f, p, today]);
+  if (!items.length) return null;
+  const tile = (i: GlanceItem): [string, string] => {
+    switch (i.key) {
+      case 'together': return [c(i.married ? 'panel.ov_married' : 'panel.ov_together'), c(i.approx ? 'panel.ov_years_about' : 'panel.ov_years', { count: i.years })];
+      case 'order': return [c('panel.ov_order'), c('panel.ov_order_value', { pos: ordinal(i.position, c.locale), total: i.of })];
+      case 'children': return [c('rel.children'), String(i.n)];
+      case 'siblings': return [c('rel.siblings'), String(i.n)];
+      case 'grandchildren': return [c('panel.ov_grandchildren'), String(i.n)];
+      case 'descendants': return [c('panel.ov_descendants'), String(i.n)];
+    }
+  };
+  return (
+    <dl className="pp-glance" aria-label={c('panel.ov_glance')}>
+      {items.map((i) => {
+        const [label, value] = tile(i);
+        return <div key={i.key} className="pp-glance-tile"><dd>{value}</dd><dt>{label}</dt></div>;
+      })}
+    </dl>
+  );
+}
+
+const REL_WORD: Record<CloseRelative['kind'], Record<'m' | 'f' | 'x', Key>> = {
+  parent: { m: 'panel.ov_rel_father', f: 'panel.ov_rel_mother', x: 'panel.ov_rel_parent' },
+  child: { m: 'panel.ov_rel_son', f: 'panel.ov_rel_daughter', x: 'panel.ov_rel_child' },
+  sibling: { m: 'panel.ov_rel_brother', f: 'panel.ov_rel_sister', x: 'panel.ov_rel_sibling' },
+  partner: { m: 'panel.ov_rel_husband', f: 'panel.ov_rel_wife', x: 'panel.ov_rel_spouse' },
+};
+
+const CLOSEST_MAX = 8;
+
+/** The nearest people as a row of faces. The whole family, and how to change it, is on the Family tab. */
+function ClosestFamily({ f, tree, id, onSelect, onAll }: { f: Family; tree: string; id: string; onSelect: (id: string) => void; onAll: () => void }) {
+  const c = useT();
+  const { shown, more } = useMemo(() => closestFamily(f, id, CLOSEST_MAX), [f, id]);
+  if (!shown.length) return null;
+  const word = (r: CloseRelative, sex: GPerson['sex']): string => {
+    if (r.kind === 'partner' && !r.married) return c('panel.ov_rel_partner');
+    return c(REL_WORD[r.kind][r.neutral || (sex !== 'm' && sex !== 'f') ? 'x' : sex]);
+  };
+  return (
+    <section className="pp-ov-section">
+      <div className="rule">{c('panel.ov_closest')}</div>
+      <div className="pp-grid pp-closest">
+        {shown.map((r) => {
+          const rp = f.byId.get(r.id)!;
+          return (
+            <button key={r.id} type="button" className="pp-rel" onClick={() => onSelect(r.id)} title={`${displayName(rp, f)} · ${lifespan(rp, c.locale)}`}>
+              <Portrait person={rp} tree={tree} size={52} frame />
+              <span className="pp-rel-name">{rp.given}</span>
+              <span className="pp-rel-sub">{word(r, rp.sex)}</span>
+            </button>
+          );
+        })}
+      </div>
+      {more > 0 && <button type="button" className="btn ghost pp-more" onClick={onAll}>{c('panel.ov_all_family', { count: shown.length + more })}</button>}
+    </section>
+  );
+}
+
+/** Their house as a card that opens its page: the arms, the motto, and what the name means once a steward has chosen that. */
+function HouseSection({ tree, house }: { tree: string; house: House }) {
+  const c = useT();
+  const meanings = useQuery(houseMeaningsQuery(tree));
+  const translations = useQuery(houseTranslationsQuery(tree, c.locale));
+  const saved = meanings.data?.[house.id];
+  // A steward's copy also holds the origins nobody chose; meaningLine reads only the chosen ones, so every reader gets the same line.
+  const meaning = saved ? meaningLine(translateSaved(saved, translations.data?.meanings[house.id])) : '';
+  return (
+    <section className="pp-ov-section">
+      <div className="rule">{c('panel.houseRule')}</div>
+      <Link className="pp-house-card ui-card interactive" to="/$tree/house/$house" params={{ tree, house: house.id }}>
+        <Arms arms={house.arms} size={40} />
+        <span>
+          <b>{house.name}</b>
+          {house.motto && <i>“{house.motto}”</i>}
+          {meaning && <small className="pp-house-meaning">{c('panel.ov_name_meaning', { meaning })}</small>}
+        </span>
+      </Link>
+    </section>
+  );
+}
+
+/** Their photographs and portraits. Gone for a reader with nothing to see and nothing they could do here. */
+function PhotosFold({ tree, p, role }: { tree: string; p: GPerson; role: Role }) {
+  const c = useT();
+  const membership = useMembership(tree);
+  const photos = useQuery(personPhotosQuery(tree, p.id)).data ?? [];
+  if (!photos.length && !p.photo && !p.portrait && !can(role, 'edit-person') && !mayPaintPerson(membership, p.id)) return null;
+  const hint = photos.length ? c('panel.ov_photos_count', { count: photos.length }) : p.photo || p.portrait ? undefined : c('panel.ov_photos_none');
+  return (
+    <Fold id="photos" title={c('panel.ov_photos')} hint={hint} peek={photos.length ? photos.slice(0, 5).map((m) => <img key={m.key} src={mediaUrl(tree, m.key)} alt="" loading="lazy" decoding="async" />) : undefined}>
+      <PersonPhotos tree={tree} id={p.id} bare />
+    </Fold>
+  );
+}
+
+/** The research projects that name them, as far as this reader may see them. */
+function ResearchFold({ tree, id }: { tree: string; id: string }) {
+  const c = useT();
+  const n = useQuery(personResearchQuery(tree, id)).data?.length ?? 0;
+  if (!n) return null;
+  return <Fold id="research" title={c('research.panel_title')} hint={c('panel.ov_projects', { count: n })}><PersonResearch tree={tree} id={id} bare /></Fold>;
+}
+
+/** The next birthday and wedding anniversaries as countdown cards, nearest first. */
+function upcomingDates(f: Family, p: GPerson, today: Date, c: Translator): { days: number; card: ReactNode }[] {
+  const out: { days: number; card: ReactNode }[] = [];
+  const bday = p.born ? nextOccurrence(p.born, today) : undefined;
+  if (bday) {
+    out.push({ days: daysUntil(bday, today), card: (
+      <div className="pp-countdown ui-card" key="birthday">
+        <Cake size={20} />
+        <div>
+          <b>{c('fact.birthdayIn', { when: inDays(daysUntil(bday, today), c) })}</b>
+          <div className="muted">{bday.toLocaleDateString(locales[c.locale], { weekday: 'long', day: 'numeric', month: 'long' })} · {c('fact.turns', { n: (ageAt(p.born, today) ?? 0) + 1 })}</div>
+        </div>
+      </div>
+    ) });
+  }
+  for (const u of f.unionsOf.get(p.id) ?? []) {
+    const next = u.kind === 'marriage' && u.start && !u.end ? nextOccurrence(u.start, today) : undefined;
+    const other = f.byId.get(u.a === p.id ? u.b : u.a);
+    if (!next || !other?.living) continue;
+    out.push({ days: daysUntil(next, today), card: (
+      <div className="pp-countdown ui-card" key={u.id}>
+        <Heart size={20} />
+        <div>
+          <b>{c('fact.anniversaryWith', { name: other.given, when: inDays(daysUntil(next, today), c) })}</b>
+          <div className="muted">{c('fact.years', { n: next.getFullYear() - yearOf(u.start) })} · {c('fact.marriedOn', { date: fmtDate(u.start, locales[c.locale]) ?? '' })}</div>
+        </div>
+      </div>
+    ) });
+  }
+  return out.sort((a, b) => a.days - b.days);
 }
 
 /** Call, write or find them: one button per way to reach them. */
@@ -434,9 +570,9 @@ function ContactActions({ p, detail, onMore }: { p: GPerson; detail: PersonDetai
   if (!phone && !email && !address) return null;
   return (
     <div className="pp-reach" role="group" aria-label={c('reach.group', { name: p.given })}>
-      {phone && <a className="btn" href={contactHref(phone)}><Phone size={14} /> {c('reach.call')}</a>}
-      {email && <a className="btn" href={contactHref(email)}><Mail size={14} /> {c('reach.email')}</a>}
-      {address && <a className="btn" href={contactHref(address)} target="_blank" rel="noreferrer"><MapPin size={14} /> {c('reach.directions')}</a>}
+      {phone && <a className="btn" href={contactHref(phone)}><Phone size={14} /> {c('reach.call')} <VisibilityMark level={phone.visibility} /></a>}
+      {email && <a className="btn" href={contactHref(email)}><Mail size={14} /> {c('reach.email')} <VisibilityMark level={email.visibility} /></a>}
+      {address && <a className="btn" href={contactHref(address)} target="_blank" rel="noreferrer"><MapPin size={14} /> {c('reach.directions')} <VisibilityMark level={address.visibility} /></a>}
       {list.length > [phone, email, address].filter(Boolean).length && <button className="btn ghost" onClick={onMore}>{c('reach.more')}</button>}
     </div>
   );
@@ -474,8 +610,7 @@ function LifeTimeline({ f, tree, p, onSelect }: { f: Family; tree: string; p: GP
   if (events.length < 2) return null;
   const shown = all || events.length <= 8 ? events : [...events.slice(0, 6), events[events.length - 1]];
   return (
-    <section className="pp-ov-section">
-      <div className="rule">{c('panel.tab.life')}</div>
+    <Fold id="life" title={c('panel.tab.life')} hint={c('panel.ov_moments', { count: events.length })}>
       <ol className="pp-timeline">
         {shown.map((e, i) => (
           <li key={e.key} data-gap={!all && events.length > 8 && i === 6 ? true : undefined}>
@@ -486,7 +621,7 @@ function LifeTimeline({ f, tree, p, onSelect }: { f: Family; tree: string; p: GP
         ))}
       </ol>
       {!all && events.length > 8 && <button className="btn ghost pp-more" onClick={() => setAll(true)}>{c('panel.showAll', { count: events.length })}</button>}
-    </section>
+    </Fold>
   );
 }
 
@@ -520,7 +655,8 @@ function PlacesMap({ f, tree, p, bornPlace, diedPlace, unions }: { f: Family; tr
     return list;
   }, [f, p.living, bornPlace, diedPlace, unions, c]);
   const pinned = places.filter((x) => x.pl);
-  useEffect(() => { if (pinned.length) void loadMiniWorld().then(setWorld); }, [pinned.length]);
+  const mapOpen = openFolds(usePref(FOLD_PREF)).includes('places');
+  useEffect(() => { if (mapOpen && pinned.length) void loadMiniWorld().then(setWorld); }, [mapOpen, pinned.length]);
   const drawn = useMemo(() => {
     if (!world || !pinned.length) return null;
     // Fit the pins with room around them: at least a country's worth of map, so one town still has context.
@@ -534,8 +670,7 @@ function PlacesMap({ f, tree, p, bornPlace, diedPlace, unions }: { f: Family; tr
   }, [world, pinned]);
   if (!places.length) return null;
   return (
-    <section className="pp-ov-section">
-      <div className="rule">{c('panel.placesRule')}</div>
+    <Fold id="places" title={c('panel.placesRule')} hint={places.slice(0, 2).map((x) => x.name).join(', ') + (places.length > 2 ? ` +${places.length - 2}` : '')}>
       {pinned.length > 0 && (
         <div className="pp-map ui-card" aria-hidden>
           <svg viewBox={`0 0 ${MAP_W} ${MAP_H}`} preserveAspectRatio="xMidYMid slice">
@@ -565,7 +700,7 @@ function PlacesMap({ f, tree, p, bornPlace, diedPlace, unions }: { f: Family; tr
           </li>
         ))}
       </ul>
-    </section>
+    </Fold>
   );
 }
 
@@ -851,11 +986,12 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
   // One key per attempt: a retry after a lost answer never adds the contact twice.
   const [keys] = useState(opKeys);
   const add = useMutation({
-    mutationFn: () => {
-      const data = { tree, person: p.id, field: { type: kind, label: DEFAULT_LABEL[kind] ?? '', value: { [QUICK_KEY[kind]]: value.trim() }, private: false } };
+    // `copied` is a relative's address: it becomes this person's own field, at the restricted default.
+    mutationFn: (copied?: AddressParts) => {
+      const data = { tree, person: p.id, field: { type: kind, label: DEFAULT_LABEL[kind] ?? '', value: kind === 'address' ? { ...(copied ?? parseAddress(value)) } : { [QUICK_KEY[kind]]: value.trim() }, visibility: defaultVisibility(kind) } };
       return addPersonField({ data: { ...data, opKey: keys.for('contact', data) } });
     },
-    onSuccess: () => { keys.clear('contact'); setValue(''); qc.invalidateQueries({ queryKey: ['person', tree, p.id] }); qc.invalidateQueries({ queryKey: ['contacts', tree] }); qc.invalidateQueries({ queryKey: ['graph', tree] }); },
+    onSuccess: () => { keys.clear('contact'); setValue(''); qc.invalidateQueries({ queryKey: ['family-addresses', tree, p.id] }); qc.invalidateQueries({ queryKey: ['person', tree, p.id] }); qc.invalidateQueries({ queryKey: ['contacts', tree] }); qc.invalidateQueries({ queryKey: ['graph', tree] }); },
   });
   const del = useMutation({
     mutationFn: (fid: string) => deletePersonField({ data: { tree, id: fid, opKey: newOpKey() } }),
@@ -873,7 +1009,7 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
   const removeContact = (fid: string) => (
     <button className="btn icon ghost" aria-label={c('reach.remove')} title={c('reach.remove')} onClick={() => del.mutate(fid)} disabled={del.isPending}><Trash2 size={13} /></button>
   );
-  const fieldsBlock = <FieldGroups fields={detail.fields} fam={f} onSelect={onSelect} />;
+  const fieldsBlock = <FieldGroups fields={detail.fields} fam={f} onSelect={onSelect} removeOwn={canEdit ? undefined : (id) => <RemoveOwnField tree={tree} person={p.id} id={id} />} />;
 
   if (!p.living) {
     const died = p.died && today ? nextOccurrence(p.died, today) : undefined;
@@ -923,12 +1059,14 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
       </div>
 
       <div className="rule">{c('reach.heading', { name: p.given })}</div>
-      {contacts.map((x) => <ContactRow key={x.id} f={x} actions={canContact ? removeContact(x.id) : undefined} />)}
+      {contacts.map((x) => <ContactRow key={x.id} f={x} actions={canContact ? removeContact(x.id) : x.visibility === 'personal' ? <RemoveOwnField tree={tree} person={p.id} id={x.id} /> : undefined} />)}
       {!contacts.length && !canContact && <p className="pp-ask subtle">{c('reach.none')}</p>}
       {canContact && (
-        <form className="pp-contact-add" onSubmit={(e) => { e.preventDefault(); value.trim() && add.mutate(); }}>
+        <form className="pp-contact-add" onSubmit={(e) => { e.preventDefault(); if (value.trim()) add.mutate(undefined); }}>
           <Select aria-label={c('reach.kind')} value={kind} onChange={(v) => setKind(v as QuickKind)} options={QUICK_KINDS.map((k) => ({ value: k, label: c(`type.${k}`) }))} />
-          <input aria-label={c('reach.details')} className="input" value={value} onChange={(e) => setValue(e.target.value)} placeholder={c(`reach.placeholder.${kind}`)} />
+          {kind === 'address'
+            ? <AddressFinder tree={tree} value={value} onChange={setValue} onPick={(parts) => setValue(formatAddress(parts))} family={{ person: p.id, fam: f, onCopy: (parts) => add.mutate(parts) }} label={c('reach.details')} placeholder={c('reach.placeholder.address')} />
+            : <input aria-label={c('reach.details')} className="input" value={value} onChange={(e) => setValue(e.target.value)} placeholder={c(`reach.placeholder.${kind}`)} />}
           <button aria-label={c('reach.add')} className="btn" disabled={!value.trim() || add.isPending}><Plus size={14} /></button>
         </form>
       )}

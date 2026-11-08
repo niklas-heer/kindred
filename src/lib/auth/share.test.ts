@@ -109,7 +109,7 @@ before(async () => {
   for (const [id, name] of [[TREE, 'Share Test'], [OTHER, 'Other']]) await dbs.provisionFamily(id, name);
   const d = dbs.db(TREE);
   await d.run("INSERT INTO person (id, given, living, born) VALUES ('ada', 'Ada', 1, '1950')");
-  await d.run(`INSERT INTO person_field (id, person, type, label, value, private) VALUES ('f1', 'ada', 'medical', 'Note', '{"text":"SECRET-DIAGNOSIS"}', 1)`);
+  await d.run(`INSERT INTO person_field (id, person, type, label, value, visibility) VALUES ('f1', 'ada', 'medical', 'Note', '{"text":"SECRET-DIAGNOSIS"}', 'editors')`);
   await d.run("INSERT INTO media (key, mime, uploaded_by, uploaded_at) VALUES (?, 'image/jpeg', 'x', '2026-01-01')", `gallery/${MEDIA_KEY}`);
   await dbs.media.put(TREE, `gallery/${MEDIA_KEY}`, new Uint8Array([255, 216, 255]), 'image/jpeg');
   await store.accounts().run('INSERT INTO user (id, name, handle, created) VALUES (?, ?, ?, ?)', STEWARD, 'steward', 'handle-steward', Date.now());

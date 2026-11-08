@@ -179,4 +179,9 @@ test('the family name and tagline are checked, and a steward renames the family'
   const saved = await asRequest(steward, () => family.updateFamilyDetails({ data: { tree: TREE, opKey: 'rename-steward', name: 'Die Familie Test', tagline: 'Seit 1820' } }));
   assert.deepEqual(saved, { name: 'Die Familie Test', tagline: 'Seit 1820' });
   assert.deepEqual(await rows("SELECT value FROM meta WHERE key = 'name' OR key = 'tagline' ORDER BY key"), [{ value: 'Die Familie Test' }, { value: 'Seit 1820' }]);
+  // The family id (the link's slug) is untouched, and the name reaches the invitation text.
+  assert.deepEqual(await rows("SELECT value FROM meta WHERE key = 'id'"), [{ value: TREE }]);
+  const { translate } = await load<typeof import('./i18n/dictionary.ts')>('/src/lib/i18n/dictionary.ts');
+  for (const locale of ['en', 'de', 'af'] as const) assert.ok(translate(locale, 'share.messageOpen', { family: 'Die Familie Test', url: 'https://x.test/s/1' }).includes('Die Familie Test'));
+  assert.ok(translate('en', 'acc.familySlug', { slug: TREE }).includes('/family'));
 });

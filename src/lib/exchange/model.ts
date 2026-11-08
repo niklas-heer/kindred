@@ -139,7 +139,7 @@ export async function readTree(d: Db): Promise<ExTree> {
     unions: unions.map((r) => ({ id: r.id, a: r.a, b: r.b, kind: r.kind, start: or(r.start), end: or(r.end), endReason: or(r.end_reason), place: or(r.place) })),
     extras: {
       stories: await count('SELECT count(*) AS n FROM story'),
-      fields: await count('SELECT count(*) AS n FROM person_field'),
+      fields: await count("SELECT count(*) AS n FROM person_field WHERE visibility <> 'personal'"), // a personal item is its author's alone, even as a number
       houses: await count('SELECT count(*) AS n FROM house'),
       places: await count('SELECT count(*) AS n FROM place'),
     },

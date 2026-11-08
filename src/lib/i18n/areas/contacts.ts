@@ -50,6 +50,9 @@ export const en = {
   "con.contactNumber": "{count} contacts",
   "con.noDetailsNote": "Living relatives with no phone, email or address on file.",
   "con.titleLabel": "Contacts",
+  "con.kidsTitle": "Children under 18",
+  "con.kidsOption": "Put them on a parent's card",
+  "con.kidsText": "Off by default: children without contact details of their own are listed under No details yet. Turn this on to show them on the card of a parent who has details.",
   "con.sectionNoDetails": "No details yet",
 };
 
@@ -101,6 +104,9 @@ export const de: Record<keyof typeof en, Message> = {
   "con.contactNumber": "{count} Kontakte",
   "con.noDetailsNote": "Lebende Verwandte ohne Telefon, E-Mail oder Adresse in den Unterlagen.",
   "con.titleLabel": "Kontakte",
+  "con.kidsTitle": "Kinder unter 18",
+  "con.kidsOption": "Auf der Karte eines Elternteils zeigen",
+  "con.kidsText": "Standardmäßig aus: Kinder ohne eigene Kontaktdaten stehen unter Noch keine Angaben. Schalte das ein, um sie auf der Karte eines Elternteils zu zeigen, das Angaben hat.",
   "con.sectionNoDetails": "Noch keine Angaben",
 };
 
@@ -153,5 +159,8 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   "con.contactNumber": "{count} kontakte",
   "con.noDetailsNote": "Lewende familielede sonder telefoon, e-pos of adres op lêer.",
   "con.titleLabel": "Kontakte",
+  "con.kidsTitle": "Kinders onder 18",
+  "con.kidsOption": "Wys hulle op 'n ouer se kaart",
+  "con.kidsText": "Standaard af: kinders sonder eie kontakbesonderhede staan onder Nog geen besonderhede nie. Skakel dit aan om hulle op die kaart van 'n ouer met besonderhede te wys.",
   "con.sectionNoDetails": "Nog geen besonderhede nie",
 };

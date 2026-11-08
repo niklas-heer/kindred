@@ -16,6 +16,8 @@ const { db, person } = await import('./db.server.ts');
 const { savePersonEdit, setPersonLook, CHANGED_SINCE_OPENED } = await import('./person.server.ts');
 import type { Look } from './types.ts';
 
+const EDITOR = { account: 'editor-account', role: 'editor', guest: false } as const;
+const VIEWER = { account: 'viewer-account', role: 'viewer', guest: false } as const;
 const TREE = 'revision';
 {
   const d = openSqlite(join(dir, `${TREE}.db`), 'tree', { create: true });
@@ -49,7 +51,7 @@ test('changing your own look does not move the revision, so the draft you opened
   const opened = await revisionOf();
   await setPersonLook(TREE, 'ada', look, undefined);
   assert.equal(await revisionOf(), opened, 'the look did not bump the revision');
-  await savePersonEdit(TREE, 'ada', details('Ada Lovelace'), [], opened, undefined, 'Test');
+  await savePersonEdit(TREE, 'ada', details('Ada Lovelace'), [], opened, undefined, 'Test', EDITOR);
   assert.equal(await revisionOf(), opened + 1, 'the Edit save itself moves it once');
 });
 
@@ -65,12 +67,12 @@ test('a change to a column the Edit tab saves moves the revision, so a stale dra
   const opened = await revisionOf();
   await db(TREE).run('UPDATE person SET nickname = ? WHERE id = ?', 'Addy', 'ada');
   assert.equal(await revisionOf(), opened + 1, 'a nickname change from another route counts');
-  await assert.rejects(savePersonEdit(TREE, 'ada', details('Ada'), [], opened, undefined, 'Test'), (e: Error) => e.message === CHANGED_SINCE_OPENED);
+  await assert.rejects(savePersonEdit(TREE, 'ada', details('Ada'), [], opened, undefined, 'Test', EDITOR), (e: Error) => e.message === CHANGED_SINCE_OPENED);
 });
 
 test('a look change between opening and saving does not stop the save of a name change', async () => {
   const opened = await revisionOf();
   await setPersonLook(TREE, 'ada', { skin: 4, hair: 4, eyes: 4 } as Look, undefined);
-  await savePersonEdit(TREE, 'ada', details('Ada Lovelace'), [], opened, undefined, 'Test');
+  await savePersonEdit(TREE, 'ada', details('Ada Lovelace'), [], opened, undefined, 'Test', EDITOR);
   assert.equal((await db(TREE).get<{ given: string }>('SELECT given FROM person WHERE id = ?', 'ada'))!.given, 'Ada Lovelace');
 });

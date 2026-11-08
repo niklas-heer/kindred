@@ -6,13 +6,14 @@ import { useT } from '~/lib/i18n';
 import { personResearchQuery } from '~/lib/research.functions';
 import '~/styles/research.css';
 
-export function PersonResearch({ tree, id }: { tree: string; id: string }) {
+/** `bare` is for a host that already titles the section. */
+export function PersonResearch({ tree, id, bare }: { tree: string; id: string; bare?: boolean }) {
   const t = useT();
   const q = useQuery(personResearchQuery(tree, id));
   if (!q.data?.length) return null;
   return (
     <section className="pp-ov-section rs-panel" aria-label={t('research.panel_title')}>
-      <h3 className="rs-panel-title"><FolderSearch size={14} aria-hidden /> {t('research.panel_title')}</h3>
+      {!bare && <h3 className="rs-panel-title"><FolderSearch size={14} aria-hidden /> {t('research.panel_title')}</h3>}
       <ul className="rs-panel-list">
         {q.data.map((p) => (
           <li key={p.id}>

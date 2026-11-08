@@ -18,6 +18,8 @@ const { editSnapshot, savePersonEdit } = await import('./person.server.ts');
 import type { EditSnapshot } from './person.server.ts';
 import { blankValue, type FieldInput } from '../components/fields/model.ts';
 
+const EDITOR = { account: 'editor-account', role: 'editor', guest: false } as const;
+const VIEWER = { account: 'viewer-account', role: 'viewer', guest: false } as const;
 const TREE = 'save';
 const SEEN = '2026-01-01T00:00:00Z';
 {
@@ -27,9 +29,9 @@ const SEEN = '2026-01-01T00:00:00Z';
   // from the JSON) and a note. Every field was last written by "Seed".
   for (const p of ['nick', 'same', 'label', 'added', 'text']) {
     d.exec(`INSERT INTO person (id, given, born, living) VALUES ('${p}', 'Ada', '1950', 1)`);
-    d.exec(`INSERT INTO person_field (id, person, type, label, value, ord, private, created_by, created_at, updated_by, updated_at) VALUES
-      ('${p}-street', '${p}', 'address', 'home', '{"street":"Main St"}', 0, 0, 'Seed', '${SEEN}', 'Seed', '${SEEN}'),
-      ('${p}-note', '${p}', 'notes', 'General', '{"text":"Hello"}', 1, 0, 'Seed', '${SEEN}', 'Seed', '${SEEN}')`);
+    d.exec(`INSERT INTO person_field (id, person, type, label, value, ord, visibility, created_by, created_at, updated_by, updated_at) VALUES
+      ('${p}-street', '${p}', 'address', 'home', '{"street":"Main St"}', 0, 'family', 'Seed', '${SEEN}', 'Seed', '${SEEN}'),
+      ('${p}-note', '${p}', 'notes', 'General', '{"text":"Hello"}', 1, 'family', 'Seed', '${SEEN}', 'Seed', '${SEEN}')`);
   }
   d.close();
 }
@@ -43,7 +45,7 @@ const detailsOf = (s: EditSnapshot) => ({
 });
 /** A field as the Edit tab sends it: the blank parts of its type filled in, as `draftOf` does. */
 const inputOf = (f: EditSnapshot['fields'][number]): FieldInput => ({
-  id: f.id, type: f.type, label: f.label, value: { ...blankValue(f.type), ...f.value }, private: f.private,
+  id: f.id, type: f.type, label: f.label, value: { ...blankValue(f.type), ...f.value }, visibility: f.visibility,
 });
 const row = (id: string) => db(TREE).get<{ label: string; value: string; ord: number; updated_by: string; updated_at: string }>(
   'SELECT label, value, ord, updated_by, updated_at FROM person_field WHERE id = ?', id,
@@ -51,10 +53,10 @@ const row = (id: string) => db(TREE).get<{ label: string; value: string; ord: nu
 const revisionOf = async (p: string) => (await person(TREE, p)).revision!;
 
 test('a save that changes one nickname writes that, and no field, even one stored with blanks missing', async () => {
-  const snap = await editSnapshot(TREE, 'nick', true);
+  const snap = await editSnapshot(TREE, 'nick', EDITOR);
   const before = await revisionOf('nick');
   assert.equal(before, snap.revision);
-  await savePersonEdit(TREE, 'nick', { ...detailsOf(snap), nickname: 'Addy' }, snap.fields.map(inputOf), snap.revision, undefined, 'Editor');
+  await savePersonEdit(TREE, 'nick', { ...detailsOf(snap), nickname: 'Addy' }, snap.fields.map(inputOf), snap.revision, undefined, 'Editor', EDITOR);
   assert.equal(await revisionOf('nick'), before + 1, 'the revision moved once, for the person’s row');
   for (const id of ['nick-street', 'nick-note']) {
     assert.equal((await row(id))!.updated_by, 'Seed', `${id} keeps its last editor`);
@@ -64,25 +66,25 @@ test('a save that changes one nickname writes that, and no field, even one store
 });
 
 test('a save with nothing changed writes nothing: the revision stays where it was', async () => {
-  const snap = await editSnapshot(TREE, 'same', true);
-  await savePersonEdit(TREE, 'same', detailsOf(snap), snap.fields.map(inputOf), snap.revision, undefined, 'Editor');
+  const snap = await editSnapshot(TREE, 'same', EDITOR);
+  await savePersonEdit(TREE, 'same', detailsOf(snap), snap.fields.map(inputOf), snap.revision, undefined, 'Editor', EDITOR);
   assert.equal(await revisionOf('same'), snap.revision);
   assert.equal((await row('same-street'))!.updated_by, 'Seed');
 });
 
 test('a field whose label changed is written by its editor, and the field beside it is not', async () => {
-  const snap = await editSnapshot(TREE, 'label', true);
+  const snap = await editSnapshot(TREE, 'label', EDITOR);
   const fields = snap.fields.map(inputOf).map((f) => (f.id === 'label-street' ? { ...f, label: 'work' } : f));
-  await savePersonEdit(TREE, 'label', detailsOf(snap), fields, snap.revision, undefined, 'Editor');
+  await savePersonEdit(TREE, 'label', detailsOf(snap), fields, snap.revision, undefined, 'Editor', EDITOR);
   assert.equal((await row('label-street'))!.label, 'work');
   assert.equal((await row('label-street'))!.updated_by, 'Editor');
   assert.equal((await row('label-note'))!.updated_by, 'Seed', 'the untouched field keeps its editor');
 });
 
 test('a field added at the end writes that field only: the others keep their editor and their place', async () => {
-  const snap = await editSnapshot(TREE, 'added', true);
-  const added: FieldInput = { type: 'notes', label: 'New', value: { text: 'Fresh' }, private: false };
-  await savePersonEdit(TREE, 'added', detailsOf(snap), [...snap.fields.map(inputOf), added], snap.revision, undefined, 'Editor');
+  const snap = await editSnapshot(TREE, 'added', EDITOR);
+  const added: FieldInput = { type: 'notes', label: 'New', value: { text: 'Fresh' }, visibility: 'family' };
+  await savePersonEdit(TREE, 'added', detailsOf(snap), [...snap.fields.map(inputOf), added], snap.revision, undefined, 'Editor', EDITOR);
   assert.equal((await row('added-street'))!.updated_by, 'Seed');
   assert.equal((await row('added-note'))!.updated_by, 'Seed');
   const count = await db(TREE).get<{ n: number }>('SELECT count(*) AS n FROM person_field WHERE person = ?', 'added');
@@ -90,14 +92,14 @@ test('a field added at the end writes that field only: the others keep their edi
 });
 
 test('a field with the same text, with blank parts written out, is not rewritten; a field whose text changed is', async () => {
-  const snap = await editSnapshot(TREE, 'text', true);
+  const snap = await editSnapshot(TREE, 'text', EDITOR);
   // Nothing but the blanks differ: the street address gains empty city, postcode and country. Not a change.
-  await savePersonEdit(TREE, 'text', detailsOf(snap), snap.fields.map(inputOf), snap.revision, undefined, 'Editor');
+  await savePersonEdit(TREE, 'text', detailsOf(snap), snap.fields.map(inputOf), snap.revision, undefined, 'Editor', EDITOR);
   assert.equal((await row('text-street'))!.updated_by, 'Seed');
   assert.equal((await revisionOf('text')), snap.revision);
   // The note's text itself changed: that field, and only that one, is written.
   const edited = snap.fields.map(inputOf).map((f) => (f.id === 'text-note' ? { ...f, value: { text: 'Hello again' } } : f));
-  await savePersonEdit(TREE, 'text', detailsOf(snap), edited, snap.revision, undefined, 'Editor');
+  await savePersonEdit(TREE, 'text', detailsOf(snap), edited, snap.revision, undefined, 'Editor', EDITOR);
   assert.equal((await row('text-note'))!.updated_by, 'Editor');
   assert.equal((await row('text-street'))!.updated_by, 'Seed');
 });

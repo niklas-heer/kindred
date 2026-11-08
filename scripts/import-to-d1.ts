@@ -23,7 +23,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { movePhotosOut, openSqlite } from '../src/lib/store/node.ts';
-import { countMismatches, countSql, deleteSql, existingFamilyProblem, foreignKeyOrderErrors, insertSql, listFiles, planMedia, planTables, type MediaFile } from './lib/d1-transfer.ts';
+import { COPY_ONLY, countMismatches, countSql, deleteSql, existingFamilyProblem, foreignKeyOrderErrors, insertSql, listFiles, planMedia, planTables, type MediaFile } from './lib/d1-transfer.ts';
 import { treeBinding, where, wrangler, wranglerBindings } from './lib/wrangler.ts';
 
 const args = process.argv.slice(2);
@@ -84,8 +84,10 @@ for (const tree of trees) {
     for (const t of tables.copy) {
       const cols = (d.prepare(`PRAGMA table_info(${t})`).all() as { name: string }[]).map((c) => c.name).filter((c) => !(t === 'photo' && c === 'data'));
       columns.set(t, cols);
-      rows.set(t, d.prepare(`SELECT ${cols.join(', ')} FROM ${t}`).all() as Record<string, unknown>[]);
+      rows.set(t, d.prepare(`SELECT ${cols.join(', ')} FROM ${t}${COPY_ONLY[t] ? ` WHERE ${COPY_ONLY[t]}` : ''}`).all() as Record<string, unknown>[]);
     }
+    const stay = (d.prepare("SELECT count(*) AS n FROM person_field WHERE visibility = 'personal'").get() as { n: number }).n;
+    if (stay) console.log(`${tree}: ${stay} personal ${stay === 1 ? 'item stays' : 'items stay'} in the source database: accounts are not copied, so nobody could read ${stay === 1 ? 'it' : 'them'} on the target`);
     // Pictures the family names (portraits and gallery) must all have a file; the folder's files all go up.
     const named = [...rows.get('photo')!, ...rows.get('media')!, ...rows.get('portrait')!, ...rows.get('research_document')!].map((r) => r.key).filter((k): k is string => typeof k === 'string');
     const onDisk = listFiles(resolve('data/media', tree)).map((f) => ({ key: f.key, file: f.file }));

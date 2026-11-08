@@ -1,3 +1,4 @@
+import { socialLink } from '~/lib/social';
 import { useToday } from '~/lib/clock';
 import { PageHeader, Skeleton, ErrorState } from '~/components/ui';
 import { useQuery } from '@tanstack/react-query';
@@ -9,11 +10,13 @@ import { GameIcon } from '~/components/GameIcon';
 import { Arms } from '~/components/Heraldry';
 import { Portrait } from '~/components/Portrait';
 import { contactsQuery } from '~/lib/api';
+import { VisibilityMark } from '~/components/fields/VisibilityMark';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
 import { play } from '~/lib/sfx';
 import { locales, useT, type Key, type Translator } from '~/lib/i18n';
 import { age as ageOf, ageAt, children, displayName, partnersOf, parents, siblings, type Family } from '~/lib/graph';
 import type { GPerson } from '~/lib/types';
+import { buildHouseholds, type Household, type Row } from '~/lib/contact-households';
 import '~/styles/contacts.css';
 import { sectionHead } from '~/lib/title';
 
@@ -21,95 +24,6 @@ export const Route = createFileRoute('/$tree/contacts')({
   head: sectionHead('Contacts'),
   component: ContactsPage,
 });
-
-interface Row {
-  id: number;
-  person: string;
-  kind: 'phone' | 'email' | 'address' | 'web' | 'messenger';
-  label: string | null;
-  value: string;
-}
-
-interface Household {
-  id: string;
-  members: GPerson[];
-  rows: Map<string, Row[]>;
-  /** Addresses of everyone in the card, shown once. */
-  addresses: Row[];
-  sortKey: string;
-}
-
-const norm = (s: string) => s.toLowerCase().replace(/[\s,.\-/]+/g, '');
-
-// ---------- households ----------
-
-function buildHouseholds(f: Family, rows: Row[]) {
-  const by = new Map<string, Row[]>();
-  for (const r of rows) {
-    if (!f.byId.get(r.person)?.living) continue;
-    const a = by.get(r.person);
-    if (a) a.push(r);
-    else by.set(r.person, [r]);
-  }
-  // Union-find over people who share a card.
-  const root = new Map<string, string>();
-  const find = (x: string): string => {
-    let r = root.get(x) ?? x;
-    while ((root.get(r) ?? r) !== r) r = root.get(r)!;
-    root.set(x, r);
-    return r;
-  };
-  const join = (a: string, b: string) => root.set(find(a), find(b));
-  const addrs = (id: string) => new Set((by.get(id) ?? []).filter((r) => r.kind === 'address').map((r) => norm(r.value)));
-
-  for (const u of f.graph.unions) {
-    if (u.end || !by.has(u.a) || !by.has(u.b)) continue;
-    const a = addrs(u.a);
-    if ([...addrs(u.b)].some((v) => a.has(v))) join(u.a, u.b);
-  }
-  const attached = new Set<string>();
-  for (const p of f.graph.people) {
-    if (!p.living) continue;
-    const years = ageAt(p.born);
-    if (years === undefined || years >= 18) continue;
-    const home = parents(f, p.id).find((x) => by.has(x));
-    if (home) {
-      join(p.id, home);
-      attached.add(p.id);
-    }
-  }
-
-  const groups = new Map<string, GPerson[]>();
-  const noDetails: GPerson[] = [];
-  for (const p of f.graph.people) {
-    if (!p.living) continue;
-    if (!by.has(p.id) && !attached.has(p.id)) {
-      noDetails.push(p);
-      continue;
-    }
-    const r = find(p.id);
-    const g = groups.get(r);
-    if (g) g.push(p);
-    else groups.set(r, [p]);
-  }
-
-  const households: Household[] = [...groups.entries()].map(([id, members]) => {
-    members.sort((a, b) => (a.born ?? '9999').replace(/^~/, '').localeCompare((b.born ?? '9999').replace(/^~/, '')));
-    const seen = new Set<string>();
-    const addresses: Row[] = [];
-    for (const m of members)
-      for (const r of by.get(m.id) ?? [])
-        if (r.kind === 'address' && !seen.has(norm(r.value))) {
-          seen.add(norm(r.value));
-          addresses.push(r);
-        }
-    const lead = members[0];
-    return { id, members, rows: by, addresses, sortKey: `${lead.surname ?? lead.given} ${lead.given}`.toLowerCase() };
-  });
-  households.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
-  noDetails.sort((a, b) => displayName(a, f).localeCompare(displayName(b, f)));
-  return { households, noDetails };
-}
 
 /** You, your partner, parents, children, siblings, grandparents and grandchildren. */
 function closeFamily(f: Family, me: string): Set<string> {
@@ -133,7 +47,9 @@ function nextBirthday(p: GPerson, today: Date): { days: number; turns: number; d
 }
 
 const vEsc = (s: string) => s.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1');
-function vcard(p: GPerson, rows: Row[], f: Family): string {
+function vcard(p: GPerson, all: Row[], f: Family): string {
+  // A card is a file that leaves the app, so it holds only what every member may read, whoever makes it.
+  const rows = all.filter((r) => r.visibility === 'family');
   const name = displayName(p, f);
   const lines = ['BEGIN:VCARD', 'VERSION:3.0', `N:${vEsc(p.surname ?? '')};${vEsc(p.given)};;;`, `FN:${vEsc([p.given, p.surname].filter(Boolean).join(' ') || name)}`];
   if (p.nickname) lines.push(`NICKNAME:${vEsc(p.nickname)}`);
@@ -179,7 +95,14 @@ function ContactsPage() {
   const [onlyClose, setOnlyClose] = useRememberedState(`contacts:${tree}:onlyClose`, false);
   const [allNoDetails, setAllNoDetails] = useRememberedState(`contacts:${tree}:allNoDetails`, false);
 
-  const { households, noDetails } = useMemo(() => buildHouseholds(f, (data ?? []) as Row[]), [f, data]);
+  const [kidsWithParent, setKidsWithParent] = useRememberedState(`contacts:${tree}:kidsWithParent`, false);
+  const built = useMemo(() => {
+    const rows = (data ?? []) as Row[];
+    const base = buildHouseholds(f, rows);
+    const withKids = buildHouseholds(f, rows, { childrenWithParent: true });
+    return { base, withKids, kids: base.noDetails.length - withKids.noDetails.length };
+  }, [f, data]);
+  const { households, noDetails } = kidsWithParent ? built.withKids : built.base;
   const close = useMemo(() => (onlyClose && me ? closeFamily(f, me) : null), [f, me, onlyClose]);
 
   const tokens = dq.toLowerCase().split(/\s+/).filter(Boolean);
@@ -315,6 +238,17 @@ function ContactsPage() {
           </section>
         ))}
 
+        {!noData && (built.kids > 0 || kidsWithParent) && (
+          <details className="con-kids">
+            <summary>{t('con.kidsTitle')}</summary>
+            <label className="con-kids-opt">
+              <input type="checkbox" checked={kidsWithParent} onChange={(e) => setKidsWithParent(e.target.checked)} />
+              <span>{t('con.kidsOption')}</span>
+            </label>
+            <p className="muted">{t('con.kidsText')}</p>
+          </details>
+        )}
+
         {!noData && shownNoDetails.length > 0 && (
           <section className="con-nodetails" aria-labelledby="nod">
             <h2 id="nod" className="rule">
@@ -384,12 +318,16 @@ function ContactLine({ r }: { r: Row }) {
   const Icon = ICONS[r.kind];
   const href =
     r.kind === 'phone' ? `tel:${r.value.replace(/[^\d+]/g, '')}` : r.kind === 'email' ? `mailto:${r.value}` : r.kind === 'web' ? webHref(r.value) : undefined;
+  const social = r.kind === 'messenger' ? socialLink(r.value, r.label ?? '') : null;
   const map = r.kind === 'address' ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(r.value)}` : undefined;
   return (
     <li className="con-line" data-kind={r.kind}>
       <Icon size={15} />
-      {r.label && <span className="con-label">{r.label}</span>}
-      {href ? (
+      {r.label && !social && <span className="con-label">{r.label}</span>}
+      <VisibilityMark level={r.visibility} />
+      {social ? (
+        <a href={social.href} className="con-value" target="_blank" rel="noopener noreferrer">{social.network} · {social.handle}</a>
+      ) : href ? (
         <a href={href} className="con-value" {...(r.kind === 'web' ? { target: '_blank', rel: 'noreferrer noopener' } : {})}>
           {r.value}
         </a>

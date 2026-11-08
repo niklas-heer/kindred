@@ -4,7 +4,7 @@ import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { fieldInput, isContactType, MAX_FIELDS } from '../components/fields/model';
-import { can } from './roles';
+import { audienceOf } from './visibility';
 import { validDate } from './dates';
 import { sanitizeLook } from '../components/portrait/look';
 
@@ -20,12 +20,12 @@ const opOf = (user: { id: string }, data: { opKey: string }) => {
   return { key, user: user.id, payload };
 };
 
-/** A person's details: their biography, stories and fields. Private fields only for editors and stewards. */
+/** A person's details: their biography, stories and the fields this reader may see (src/lib/visibility.ts). */
 export const getPersonDetail = createServerFn({ method: 'GET' })
   .validator(z.object({ tree, id: personId }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireReader(data.tree);
-    return (await import('./db.server')).person(data.tree, data.id, can(m.role, 'edit-person'));
+    return (await import('./db.server')).person(data.tree, data.id, audienceOf(m));
   });
 
 export const personDetailQuery = (t: string, id: string) =>
@@ -33,13 +33,13 @@ export const personDetailQuery = (t: string, id: string) =>
 
 /**
  * The Edit tab's data as one consistent snapshot: the scalars, places, biography, fields and revision (see
- * `editSnapshot` in person.server.ts). Private fields only for editors and stewards, as `getPersonDetail`.
+ * `editSnapshot` in person.server.ts). Only the fields this reader may see, as `getPersonDetail`.
  */
 export const getEditSnapshot = createServerFn({ method: 'GET' })
   .validator(z.object({ tree, id: personId }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireMember(data.tree);
-    return (await import('./person.server')).editSnapshot(data.tree, data.id, can(m.role, 'edit-person'));
+    return (await import('./person.server')).editSnapshot(data.tree, data.id, audienceOf(m));
   });
 
 const details = z.object({
@@ -70,7 +70,7 @@ export const savePersonEdit = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const m = await (await guard()).requireCan(data.tree, 'edit-person');
     if (data.fields.some((f) => isContactType(f.type))) await (await guard()).requireCan(data.tree, 'edit-contact');
-    return (await import('./person.server')).savePersonEdit(data.tree, data.id, data.details, data.fields, data.revision, opOf(m.user, data), m.user.name);
+    return (await import('./person.server')).savePersonEdit(data.tree, data.id, data.details, data.fields, data.revision, opOf(m.user, data), m.user.name, audienceOf(m));
   });
 
 /** The first-run step after setup: the steward adds themselves to the new family, with their given name and surname apart. Returns their person id. */
@@ -87,17 +87,25 @@ export const addPersonField = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const m = await (await guard()).requireCan(data.tree, 'edit-person');
     if (isContactType(data.field.type)) await (await guard()).requireCan(data.tree, 'edit-contact');
-    return (await import('./person.server')).addPersonField(data.tree, data.person, data.field, opOf(m.user, data), m.user.name);
+    return (await import('./person.server')).addPersonField(data.tree, data.person, data.field, opOf(m.user, data), m.user.name, audienceOf(m));
   });
 
-/** Removes one field. Contact fields need `edit-contact`, which the editor also has. */
+/**
+ * Removes one field. Contact fields need `edit-contact`, which the editor also has. A member may always remove their own
+ * personal field, whatever their role is now. Anyone else's personal field answers like a field that is not there.
+ */
 export const deletePersonField = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, id: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/), opKey }))
   .handler(async ({ data }) => {
-    const m = await (await guard()).requireCan(data.tree, 'edit-person');
-    const row = await (await import('./db.server')).db(data.tree).get<{ type: string }>('SELECT type FROM person_field WHERE id = ?', data.id);
-    if (row && isContactType(row.type)) await (await guard()).requireCan(data.tree, 'edit-contact');
-    return (await import('./person.server')).deletePersonField(data.tree, data.id, opOf(m.user, data));
+    const { requireCan, requireMember } = await guard();
+    const m = await requireMember(data.tree);
+    const row = await (await import('./db.server')).db(data.tree).get<{ type: string; visibility: string; owner: string | null }>('SELECT type, visibility, owner FROM person_field WHERE id = ?', data.id);
+    const own = row?.visibility === 'personal' && row.owner === m.user.id;
+    if (!own) {
+      await requireCan(data.tree, 'edit-person');
+      if (row && row.visibility !== 'personal' && isContactType(row.type)) await requireCan(data.tree, 'edit-contact');
+    }
+    return (await import('./person.server')).deletePersonField(data.tree, data.id, opOf(m.user, data), audienceOf(m));
   });
 
 /** The portrait's look, from the Appearance dialog. The server cleans it: unknown parts are dropped. */

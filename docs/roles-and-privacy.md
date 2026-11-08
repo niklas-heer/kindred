@@ -52,10 +52,12 @@ URL for the family and, by default, a password. The steward can copy the link, t
 and paste it into a chat or an email. A guest is not a member and is not an account: they don't appear in the members list,
 and they have no name, no "who you are" and no settings.
 
-A guest sees what a viewer sees, which includes the public contact details: **nothing private, no editing, no AI, no money
-spent, no export, no Access or settings pages.** The server enforces this: a guest can only reach the reads named in
-`requireReader` (`src/lib/auth/guard.server.ts`), and those return exactly what a viewer gets, so private fields and private
-research are held back by the same rule. Every other server function refuses a guest, because the checks it uses need an
+A guest sees less than a viewer: the tree, the people's names, dates, biographies and stories, and the research that isn't private, but
+**no person's fields at any level (no contacts, no favourites, no notes), no Contacts page, no editing, no AI, no money
+spent, no export, no Access or settings pages.** A link can be passed on, so "Family" means the members with an account, not
+everyone holding the link. One number does reach a guest: the Needed page can say that someone has no contact recorded. The
+server enforces this: a guest can only reach the reads named in
+`requireReader` (`src/lib/auth/guard.server.ts`), and the person read and Contacts give a guest no fields (`src/lib/visibility.ts`). Every other server function refuses a guest, because the checks it uses need an
 account. A guest's pictures go through the same checks, and they need the guest's visit too.
 
 - **The link.** The token is 256 random bits and only its hash is stored. Without a password, the URL alone opens the
@@ -70,18 +72,37 @@ account. A guest's pictures go through the same checks, and they need the guest'
 - **Revoke or replace at any time.** Turning a link off ends it. Replacing it makes a new URL and password; the old ones stop
   working. The expiry can be 1 day, a week, 30 or 90 days, or none.
 
-Before you share a link, decide what a viewer should read, as above: anyone who has the link and the password can read
-everything that isn't private, for as long as the link works, and can pass it on.
+Before you share a link, decide what it should show: anyone who has the link and the password can read the names, dates,
+biographies and stories, for as long as the link works, and can pass it on.
 
 ## What is private
 
 Kindred separates three things, and they behave differently.
 
-**Private fields.** A person's field (a phone number, an address, a diagnosis, a dietary note, anything the family adds
-as a field) can be marked private. Private fields are returned by the server only to editors and stewards. Viewers and
-contributors never receive them, and that includes the AI assistant's reads, which use the same rule.
+**A person's fields and notes have three levels**, shown by a small symbol on each one and chosen when it is added or edited:
 
-**Private research.** A research project, a document, a note, or a link from a project to a person can be marked private. It follows the private-field rule: only editors and stewards ever receive it, and for anyone else it is not there at all: no entry in a list, no count, no timeline event, and the file answers "not found". Only editors can mark something private. Kindred has no private person (see below), so a person whose connection to a piece of research is sensitive is kept private by the link, not by hiding them from the family.
+| Level | Who sees it |
+| --- | --- |
+| **Personal** (a lock) | Only the account that added it. Not an editor, not a steward, not the assistant. |
+| **Editors** (a pen) | Editors and stewards. This is what "private" used to mean, and addresses, medical notes and allergies start here. |
+| **Family** (two people) | Every member of the family, including viewers and contributors. Not a guest with a share link. |
+
+The rule is one file, `src/lib/visibility.ts`, and the server applies it on every read. Fields that were private before became
+Editors; the others became Family.
+
+Each reader sees everything their level allows wherever a field appears, with its symbol: the person's page and its Everyday tab, the Overview's call and write buttons, and Contacts. The assistant answers an editor or a steward from Editors fields too.
+
+A personal item shows only to its author, in those same places. It stays out of everything that is shared or passed on: suggestions, the assistant and everything sent to an AI provider (even for its own author), the
+web lookup guard, GEDCOM and Markdown exports with their counts, the nightly archive, and vCards (a vCard holds Family fields only, whoever downloads it). Its author always finds it on the person's page, whatever their role is now. Someone who loses the right to edit keeps
+seeing their personal items and may remove them, but cannot change them until they can edit again.
+
+**When a member is removed, their personal items are deleted**, and the Access page says so before you confirm. Nobody else could ever read or remove them, so keeping them would leave
+data in the family that no one can reach. Removing a person from the tree removes all their fields, personal ones included.
+
+Personal does not mean encrypted. Whoever runs the server can read it in a copy of the database: **a database backup contains personal items**. The move to
+Cloudflare with `scripts/import-to-d1.ts` leaves them behind, because accounts are not copied and the target would have no one to show them to.
+
+**Private research.** A research project, a document, a note, or a link from a project to a person can be marked private. It follows the Editors level above: only editors and stewards ever receive it, and for anyone else it is not there at all: no entry in a list, no count, no timeline event, and the file answers "not found". Only editors can mark something private. Kindred has no private person (see below), so a person whose connection to a piece of research is sensitive is kept private by the link, not by hiding them from the family.
 
 **Everything else is visible to every member.** That includes names, dates, places, biographies, memories and
 sayings, and the public contact fields. Contributors can add to these, and viewers can read them.
@@ -89,17 +110,17 @@ sayings, and the public contact fields. Contributors can add to these, and viewe
 **The living flag does not hide anyone.** Kindred does not hide living people from viewers. A person marked as living
 still appears with their name and details to every member. The flag affects what the app does: it drives the birthday
 list on the home page and in the Almanac, the research prompts in *Needed*, and the age-based gaps (a living adult with
-no contact, for example). If a living person's details must be hidden, make them private fields, or leave the person
+no contact, for example). If a living person's details must be hidden, keep them at the Editors or Personal level, or leave the person
 out of the family.
 
-So before you invite relatives, decide what a viewer should read. The safest place for a detail is a private field,
-then an editor's own notes; a family that wants nothing hidden from members needs no changes.
+So before you invite relatives, decide what a viewer should read. The safest place for a detail is the Personal level,
+then the Editors level; a family that wants nothing hidden from members needs no changes.
 
 ## What an export contains
 
 An export is a copy of everything the family holds that its format can carry, and an editor or steward can make one.
 It holds everyone's names, dates, places, links and biographies, so treat an export as private as the family. It
-leaves out stories, contact details and other person fields (private or not), houses and arms, and the pictures
+leaves out stories, contact details and other person fields (at every level), houses and arms, and the pictures
 themselves. The Markdown archive carries research that isn't private, with its documents, and leaves private research out. Viewers and contributors can read the same people in the app, but they cannot take a copy away. Each download lists what it leaves out, before you download it. See [exchange.md](exchange.md).
 
 ## Sign-in and sessions
@@ -123,7 +144,7 @@ runs offline once the gazetteer is built.
 
 **Usage statistics** stay in the same place and go nowhere else: no third-party service is involved. See [Usage statistics](#usage-statistics).
 
-To leave, export the family, or copy the database. Deleting a family means deleting its database and its media.
+To leave, export the family, or copy the database (a copy of the database holds everyone's personal items too). Deleting a family means deleting its database and its media.
 
 ## Usage statistics
 
@@ -131,9 +152,11 @@ A steward can see how the family uses Kindred on the family's Statistics page, a
 
 **What is counted, per family and per day:** page views by section (Almanac, Atlas, "a house's page"), visits, how many members were active, and the use of a few features (asked the assistant, designed arms, added research, finished or skipped the tour). A guest from a share link counts as one anonymous visit, and nothing else about them is kept. The changes on the page (people, photos, stories, research) and the number of feedback reports are read from what the family already holds, so they add no new data. A person counts on the day they were last edited.
 
+**Who did it, by category.** Every counter is also filed under the role the member held when it happened: steward, editor, contributor or viewer, and share-link guests as their own group. The server reads the role from the membership; a browser cannot name its own category. The Statistics page headline and its "how it's being received" reading cover **the family without stewards**, so a steward using Kindred does not make it look busier; a switch shows each group or everyone. A "Who did what" table gives each group's visits, active people, page views, changes and feature use. These are totals per group, never a list of people. A group with one member says so, because its numbers may then be that one person. Changes are told apart by who made them from the day categories began (the family's records keep no author); before that, and for counters written before categories existed, the numbers appear only under "Everyone", labelled as from before categories.
+
 **What is never stored:** names, anything anyone wrote, which person, house or project was opened, search terms, or IP addresses. The browser turns an address into its section before reporting it, and the server keeps only section and feature names from a fixed list.
 
-**The one thing tied to a member** is a marker saying which day they were last seen, plus a note that they have been counted for the tour, so "active in the last 30 days" and "finished the tour" count each member once. Each is stored under a one-way pseudonym that differs per family, never the account id. The page shows only totals, never who. Markers are deleted 100 days after a member was last seen.
+**The one thing tied to a member** is a marker saying which day they were last seen, plus a note that they have been counted for the tour, so "active in the last 30 days" and "finished the tour" count each member once. Each is stored under a one-way pseudonym that differs per family, never the account id. The marker also holds the category the member was last seen in, so "active in the last 30 days" can be split by group. The page shows only totals, never who. Markers are deleted 100 days after a member was last seen.
 
 **How long:** the browser sends a small report about every 30 seconds and when the page is left. There is no log of individual events, only daily counters, which are deleted after three years.
 

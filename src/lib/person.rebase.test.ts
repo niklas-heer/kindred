@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { rebaseDraft, rebaseFields, takeTheirs, type Conflict, type RebaseField } from '../components/fields/rebase.ts';
 
 const field = (id: string | undefined, over: Partial<RebaseField> = {}): RebaseField => ({
-  key: id ?? `new-${over.label ?? 'x'}`, id, type: 'notes', label: 'General', value: { text: 'first' }, private: false, ...over,
+  key: id ?? `new-${over.label ?? 'x'}`, id, type: 'notes', label: 'General', value: { text: 'first' }, visibility: 'family', ...over,
 });
 type V = { given: string; nickname: string; living: boolean; fields: RebaseField[] };
 const values = (over: Partial<V> = {}): V => ({ given: 'Ada', nickname: '', living: true, fields: [], ...over });

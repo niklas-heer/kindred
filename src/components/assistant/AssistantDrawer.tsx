@@ -9,7 +9,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { errorText } from '~/lib/errortext';
 import { ArrowDown, Mic, MicOff, MessageSquarePlus, Pencil, RotateCw, Send, Sparkles, Users, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
-import { aiChatNew, aiChatQuery, aiChatSend, aiStatusQuery } from '~/lib/ai.functions';
+import { aiChatImageQuery, aiChatNew, aiChatQuery, aiChatSend, aiStatusQuery } from '~/lib/ai.functions';
 import { graphQuery } from '~/lib/api';
 import { toAiLocale, type ChatItem } from '~/lib/ai/types';
 import { useT, type Key } from '~/lib/i18n';
@@ -22,6 +22,7 @@ import { useOverlayLayer } from '~/components/ui/overlay';
 import { ProposalCard } from './ProposalCard';
 import { closeAssistant, openAssistant, useAiStatus, useAssistantOpen } from './store';
 import { AiSetupButton, AiSetupDialog } from './AiSetup';
+import { AttachButton, DropVeil, ImageTray, useImageAttach, type Attached } from './attachments';
 import { useDictation } from './dictation';
 import { FamilySession } from './FamilySession';
 import { linkMentions } from './mentions';
@@ -58,11 +59,12 @@ export function AssistantButton({ tree, className = '' }: { tree: string; classN
 const joined = (a: string, b: string) => (a.trim() ? `${a.replace(/\s+$/, '')} ${b}` : b);
 
 /** A message that did not go: its text, why it failed, and the id Retry and Edit work from. */
-interface Unsent { id: string; text: string; error: string }
+interface Unsent { id: string; text: string; error: string; images?: Attached[]; keep?: boolean }
 
 // Kept for the page's life, not across a reload: a family's draft and its unsent messages survive closing the drawer.
 const drafts = new Map<string, string>();
 const unsentByTree = new Map<string, Unsent[]>();
+const draftImages = new Map<string, Attached[]>();
 let seq = 0;
 const newId = () => `u${Date.now().toString(36)}${(seq++).toString(36)}`;
 
@@ -113,10 +115,13 @@ function AssistantDrawer({ tree }: { tree: string }) {
 
   const [text, setText] = useState(() => drafts.get(tree) ?? '');
   const [pending, setPending] = useState<string | null>(null);
+  const [pendingImages, setPendingImages] = useState<Attached[]>([]);
   const [busy, setBusy] = useState(false);
   const [slow, setSlow] = useState(false);
   const [unsent, setUnsent] = useState<Unsent[]>(() => unsentByTree.get(tree) ?? []);
   const [error, setError] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [keepImages, setKeepImages] = useState(false);
   const [session, setSession] = useState<{ open: boolean; used: boolean }>({ open: false, used: false });
   // Whether the reader has scrolled away from the newest message; then new content waits behind "Jump to latest".
   const [away, setAway] = useState(false);
@@ -126,6 +131,8 @@ function AssistantDrawer({ tree }: { tree: string }) {
   const stick = useRef(true);
   const returnTo = useRef<Element | null>(document.activeElement);
   const dictation = useDictation({ locale, onFinal: (s) => setText((prev) => joined(prev, s)) });
+  // Pictures need the same role as a family session. The composer shows nothing of them to anyone else.
+  const attach = useImageAttach({ active: canDraft && !session.open, initial: draftImages.get(tree), onError: setImageError });
 
   // Page hotkeys stay quiet while the drawer is up (ui/overlay.ts).
   useOverlayLayer(true);
@@ -138,6 +145,7 @@ function AssistantDrawer({ tree }: { tree: string }) {
   useEffect(() => () => dictation.stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { drafts.set(tree, text); if (!text) drafts.delete(tree); }, [tree, text]);
   useEffect(() => { unsentByTree.set(tree, unsent); }, [tree, unsent]);
+  useEffect(() => { draftImages.set(tree, attach.images); }, [tree, attach.images]);
   // The typing line says more after a while: a lookup can take long, and the reader should know it has not stalled.
   useEffect(() => {
     if (!busy) {
@@ -214,20 +222,22 @@ function AssistantDrawer({ tree }: { tree: string }) {
   ];
 
   /** One message, from the composer or a Retry. Its text stays in the thread until it is stored, or until Edit or Retry takes it. */
-  async function transmit(msg: string, retryId?: string) {
+  async function transmit(msg: string, images: Attached[], keep: boolean, retryId?: string) {
     stick.current = true;
     setBusy(true);
     setError(null);
     setPending(msg);
+    setPendingImages(images);
     if (retryId) setUnsent((u) => u.filter((x) => x.id !== retryId));
     try {
-      await aiChatSend({ data: { tree, text: msg, locale } });
+      await aiChatSend({ data: { tree, text: msg, locale, ...(images.length && { images: images.map((i) => ({ base64: i.base64 })), keepImages: keep }) } });
       await qc.invalidateQueries({ queryKey: ['ai-chat', tree] });
     } catch (err) {
       const id = retryId ?? newId();
-      setUnsent((u) => [...u.filter((x) => x.id !== id), { id, text: msg, error: errorText(err, t.locale) }]);
+      setUnsent((u) => [...u.filter((x) => x.id !== id), { id, text: msg, error: errorText(err, t.locale), images, keep }]);
     } finally {
       setPending(null);
+      setPendingImages([]);
       setBusy(false);
       areaRef.current?.focus();
     }
@@ -236,26 +246,34 @@ function AssistantDrawer({ tree }: { tree: string }) {
   function send(e?: FormEvent) {
     e?.preventDefault();
     const msg = text.trim();
-    if (!msg || busy) return;
+    const images = attach.images;
+    if ((!msg && !images.length) || busy || attach.reading) return;
     setText('');
-    void transmit(msg);
+    attach.replace([]);
+    setImageError(null);
+    const keep = keepImages;
+    setKeepImages(false);
+    void transmit(msg, images, keep);
   }
 
   /** Puts an unsent message back in the box to change it. A draft already typed stays above it. */
   function editUnsent(u: Unsent) {
     setUnsent((list) => list.filter((x) => x.id !== u.id));
     setText((prev) => (prev.trim() ? `${prev}\n${u.text}` : u.text));
+    if (u.images?.length) attach.replace(u.images);
+    setKeepImages(!!u.keep);
     areaRef.current?.focus();
   }
 
   /** A family session's transcript, sent once. Resolves true when the draft was made. */
-  async function draftFamily(transcript: string, speaker: string): Promise<boolean> {
+  async function draftFamily(transcript: string, speaker: string, images: Attached[], keep: boolean): Promise<boolean> {
     stick.current = true;
     setBusy(true);
     setError(null);
-    setPending(t('ai.sessionMessage', { count: transcript.split('\n').length }));
+    setPending(transcript ? t('ai.sessionMessage', { count: transcript.split('\n').length }) : t('ai.imagesSent', { count: images.length }));
+    setPendingImages(images);
     try {
-      await aiChatSend({ data: { tree, text: transcript, locale, session: true, speaker } });
+      await aiChatSend({ data: { tree, text: transcript, locale, session: true, speaker, ...(images.length && { images: images.map((i) => ({ base64: i.base64 })), keepImages: keep }) } });
       await qc.invalidateQueries({ queryKey: ['ai-chat', tree] });
       setSession({ open: false, used: true });
       return true;
@@ -264,6 +282,7 @@ function AssistantDrawer({ tree }: { tree: string }) {
       return false;
     } finally {
       setPending(null);
+      setPendingImages([]);
       setBusy(false);
     }
   }
@@ -324,7 +343,7 @@ function AssistantDrawer({ tree }: { tree: string }) {
   }
 
   const listening = dictation.state === 'listening';
-  const empty = chat.isSuccess && items.length === 0 && unsent.length === 0 && !pending;
+  const empty = chat.isSuccess && items.length === 0 && unsent.length === 0 && pending === null;
 
   return (
     <aside ref={asideRef} className="ai-drawer" role="dialog" aria-label={t('ai.title')} onKeyDown={onKey}>
@@ -360,11 +379,14 @@ function AssistantDrawer({ tree }: { tree: string }) {
             onDraft={draftFamily}
             onLeave={leaveSession}
             locale={locale}
+            active={session.open}
+            provider={status?.provider}
           />
         </div>
       )}
 
-      <div className="ai-body" hidden={session.open}>
+      <div className="ai-body ai-drop-zone" hidden={session.open} {...(canDraft ? attach.dropProps : {})}>
+        <DropVeil show={attach.dragging} />
         <div className="ai-thread">
           <div className="ai-log" ref={logRef} role="log" aria-live="polite" aria-label={t('ai.title')} onScroll={onLogScroll} onClick={onLogClick}>
             {chat.isPending && <Skeleton lines={3} />}
@@ -397,10 +419,11 @@ function AssistantDrawer({ tree }: { tree: string }) {
                 </div>
               </div>
             )}
-            {items.map((m) => (m.role === 'user' ? <UserTurn key={m.id} item={m} /> : <AssistantTurn key={m.id} tree={tree} item={m} people={people} places={places} />))}
-            {pending && (
+            {items.map((m) => (m.role === 'user' ? <UserTurn key={m.id} tree={tree} item={m} /> : <AssistantTurn key={m.id} tree={tree} item={m} people={people} places={places} />))}
+            {(pending !== null) && (
               <div className="ai-turn ai-turn-user ai-turn-pending">
-                <div className="ai-bubble">{pending}</div>
+                <AttachedThumbs images={pendingImages} />
+                {pending && <div className="ai-bubble">{pending}</div>}
               </div>
             )}
             {busy && !session.open && (
@@ -415,13 +438,14 @@ function AssistantDrawer({ tree }: { tree: string }) {
             )}
             {unsent.map((u) => (
               <div key={u.id} className="ai-turn ai-turn-user ai-turn-unsent">
-                <div className="ai-bubble">{u.text}</div>
+                <AttachedThumbs images={u.images ?? []} />
+                {u.text && <div className="ai-bubble">{u.text}</div>}
                 <div className="ai-unsent">
                   <p className="ai-unsent-line" role="alert">
                     <strong>{t('ai.notSent')}</strong> <span className="subtle">{u.error}</span>
                   </p>
                   <div className="ai-unsent-actions">
-                    <button type="button" className="btn ai-touch ai-retry" onClick={() => !busy && void transmit(u.text, u.id)} disabled={busy}>
+                    <button type="button" className="btn ai-touch ai-retry" onClick={() => !busy && void transmit(u.text, u.images ?? [], !!u.keep, u.id)} disabled={busy}>
                       <RotateCw size={14} aria-hidden /> {t('ai.retryNow')}
                     </button>
                     <button type="button" className="btn ghost ai-touch" onClick={() => editUnsent(u)} disabled={busy}>
@@ -442,6 +466,7 @@ function AssistantDrawer({ tree }: { tree: string }) {
 
         <form className="ai-composer" onSubmit={send}>
           <label className="ai-sr" htmlFor="ai-input">{t('ai.placeholder')}</label>
+          {canDraft && <ImageTray attach={attach} provider={status?.provider} keep={keepImages} onKeep={setKeepImages} disabled={busy} />}
           {listening && (
             <p className="ai-rec" role="status">
               <span className="ai-rec-dot" aria-hidden /> {t('ai.micRecording')}
@@ -460,18 +485,20 @@ function AssistantDrawer({ tree }: { tree: string }) {
             onKeyDown={onInputKey}
           />
           <div className="ai-composer-row">
+            {canDraft && <AttachButton attach={attach} disabled={busy} />}
             {dictation.supported && (
               <button type="button" className={`btn ai-touch ai-mic${listening ? ' ai-mic-on' : ''}`} onClick={toggleMic} disabled={busy} aria-pressed={listening} aria-label={listening ? t('ai.micStop') : t('ai.mic')} title={listening ? t('ai.micStop') : t('ai.mic')}>
                 {listening ? <MicOff size={16} aria-hidden /> : <Mic size={16} aria-hidden />}
                 <span className="ai-mic-label">{listening ? t('ai.micStop') : t('ai.mic')}</span>
               </button>
             )}
-            <button type="submit" className="btn primary ai-touch ai-send" disabled={busy || !text.trim()}>
+            <button type="submit" className="btn primary ai-touch ai-send" disabled={busy || attach.reading || (!text.trim() && !attach.images.length)}>
               <Send size={15} aria-hidden /> {t('ai.send')}
             </button>
           </div>
         </form>
-        <p className="ai-composer-hint subtle">{t('ai.composerHint')}</p>
+        {imageError && <p className="ai-foot ai-card-error" role="alert">{t(imageError as Key)}</p>}
+        <p className="ai-composer-hint subtle">{t(canDraft ? 'ai.composerHintImages' : 'ai.composerHint')}</p>
         {dictation.state === 'denied' && <p className="ai-foot subtle" role="status">{t('ai.micDenied')}</p>}
         {dictation.state === 'error' && <p className="ai-foot subtle" role="status">{t('ai.micFailed')}</p>}
         {!dictation.supported && <p className="ai-foot subtle">{t('ai.micUnsupported')}</p>}
@@ -482,21 +509,53 @@ function AssistantDrawer({ tree }: { tree: string }) {
 }
 
 /** The reader's turn: their words in a bubble. A family session's transcript is a summary that opens to the full text. */
-function UserTurn({ item }: { item: ChatItem }) {
+function UserTurn({ tree, item }: { tree: string; item: ChatItem }) {
   const t = useT();
-  if (item.session) {
+  if (item.session && item.text.trim()) {
     return (
       <details className="ai-turn ai-turn-user ai-msg-session">
         <summary>{t('ai.sessionMessage', { count: item.text.split('\n').length })}</summary>
         <pre className="ai-session-text">{item.text}</pre>
+        <SentImages tree={tree} images={item.images} />
       </details>
     );
   }
   return (
     <div className="ai-turn ai-turn-user">
-      <div className="ai-bubble">{item.text}</div>
+      <SentImages tree={tree} images={item.images} />
+      {item.text && <div className="ai-bubble">{item.text}</div>}
     </div>
   );
+}
+
+/** The pictures on a message that has not been stored yet. */
+function AttachedThumbs({ images }: { images: Attached[] }) {
+  const t = useT();
+  if (!images.length) return null;
+  return (
+    <ul className="ai-thumbs ai-thumbs-sent">
+      {images.map((img, i) => <li key={img.id} className="ai-thumb"><img src={img.url} alt={t('ai.attachAlt', { n: i + 1 })} /></li>)}
+    </ul>
+  );
+}
+
+/** The pictures on a stored message: the ones its writer kept, and how many there were. */
+function SentImages({ tree, images }: { tree: string; images: ChatItem['images'] }) {
+  const t = useT();
+  if (!images) return null;
+  const dropped = images.count - images.kept.length;
+  return (
+    <div className="ai-sent-images">
+      {images.kept.length > 0 && <ul className="ai-thumbs ai-thumbs-sent">{images.kept.map((id, i) => <KeptImage key={id} tree={tree} id={id} n={i + 1} />)}</ul>}
+      {dropped > 0 && <p className="ai-sent-note subtle">{t('ai.imagesNotKept', { count: dropped })}</p>}
+    </div>
+  );
+}
+
+function KeptImage({ tree, id, n }: { tree: string; id: string; n: number }) {
+  const t = useT();
+  const img = useQuery(aiChatImageQuery(tree, id)).data;
+  return <li className="ai-thumb">{img ? <img src={`data:${img.mime};base64,${img.base64}`} alt={t('ai.attachAlt', { n })} /> : null}</li>;
 }
 
 /** The assistant's turn: its text as Markdown, names and places as links, its proposals as cards, and the pages it drew on. */

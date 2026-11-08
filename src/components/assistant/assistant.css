@@ -326,8 +326,6 @@
 .ai-field textarea { min-height: 96px; resize: vertical; }
 .ai-card-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .ai-card-actions .btn { min-height: 44px; }
-.ai-switch { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; min-height: 44px; cursor: pointer; }
-.ai-switch input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
 .ai-card-state { margin: 0; font-size: 0.9rem; }
 .ai-card-state.ok { color: var(--ok); }
 .ai-card-error { margin: 0; color: var(--danger); font-size: 0.9rem; overflow-wrap: anywhere; }
@@ -539,3 +537,60 @@
   .ai-text a,
   .ai-sources a { transition: none; }
 }
+
+/* Pictures on a message: the tray in the composer, the thumbnails in the thread, and the veil while a file is dragged over. */
+.ai-drop-zone { position: relative; }
+.ai-drop {
+  position: absolute;
+  inset: 6px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  color: var(--accent);
+  font-weight: 500;
+  pointer-events: none;
+}
+.ai-tray { display: flex; flex-direction: column; gap: 6px; padding: 2px 2px 4px; }
+.ai-thumbs { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; }
+.ai-thumb { position: relative; width: 64px; height: 64px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--card-bg); }
+.ai-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ai-thumb-busy { display: flex; align-items: center; justify-content: center; padding: 4px; font-size: 0.7rem; text-align: center; }
+/* The visible mark is small over the picture; the button around it is the full 44px target on a phone. */
+.ai-thumb-x {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  width: 44px;
+  height: 44px;
+  padding: 3px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.ai-thumb-x svg { padding: 1px; border-radius: 50%; background: var(--panel-solid); box-shadow: 0 0 0 1px var(--border); box-sizing: content-box; }
+.ai-tray-note { margin: 0; font-size: 0.78rem; line-height: 1.4; }
+.ai-tray-keep { display: flex; align-items: center; gap: 8px; min-height: 32px; font-size: 0.85rem; cursor: pointer; }
+.ai-tray-keep input { accent-color: var(--accent); }
+.ai-composer .ai-attach { min-width: 44px; padding-inline: 10px; }
+.ai-session-type .ai-attach { min-width: 44px; padding-inline: 10px; }
+.ai-thumbs-sent { justify-content: flex-end; margin-bottom: 4px; }
+.ai-sent-images { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.ai-sent-note { margin: 0 0 4px; font-size: 0.78rem; }
+.ai-fam-pick { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
+.ai-fam-pick input { width: 20px; height: 20px; flex-shrink: 0; accent-color: var(--accent); }
+.ai-fam-pickall { display: flex; gap: 4px; }
+.ai-fam-known { margin: 0; font-size: 0.85rem; overflow-wrap: anywhere; }
+.ai-fam-socials { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 0.88rem; overflow-wrap: anywhere; }
+.ai-fam-socials a { color: var(--accent); }
+.ai-fam-match { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; }
+.ai-fam-social-edit > div { display: flex; align-items: center; gap: 4px; }
+.ai-fam-social-edit input { flex: 1 1 auto; min-width: 0; }

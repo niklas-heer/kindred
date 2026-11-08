@@ -37,13 +37,13 @@ family.exec(`
     ('an', 'Anna Maria', 'Strauß', 'Annie', 1, 'Annie', 'Brandt'),
     ('jn', 'Jan', 'Berg', NULL, 1, NULL, NULL),
     ('ot', 'Otto', 'Vogt', NULL, 0, NULL, NULL);
-  INSERT INTO person_field (id, person, type, label, value, ord, private) VALUES
-    ('f1', 'hp', 'phone', '', '{"number":"+27 82 123 4567"}', 0, 1),
-    ('f2', 'hp', 'medical', '', '{"text":"Diabetes"}', 1, 1),
-    ('f3', 'an', 'address', '', '{"street":"Hauptstraße 5","postcode":"7600","city":"Stellenbosch","country":"South Africa"}', 2, 1),
-    ('f4', 'an', 'email', '', '{"address":"anna@example.org"}', 3, 0),
-    ('f5', 'ot', 'address', '', '{"street":"Ardent Pilgrim Lodge"}', 4, 1),
-    ('f6', 'ot', 'notes', '', '{"text":"yes"}', 5, 1);
+  INSERT INTO person_field (id, person, type, label, value, ord, visibility) VALUES
+    ('f1', 'hp', 'phone', '', '{"number":"+27 82 123 4567"}', 0, 'editors'),
+    ('f2', 'hp', 'medical', '', '{"text":"Diabetes"}', 1, 'editors'),
+    ('f3', 'an', 'address', '', '{"street":"Hauptstraße 5","postcode":"7600","city":"Stellenbosch","country":"South Africa"}', 2, 'editors'),
+    ('f4', 'an', 'email', '', '{"address":"anna@example.org"}', 3, 'family'),
+    ('f5', 'ot', 'address', '', '{"street":"Ardent Pilgrim Lodge"}', 4, 'editors'),
+    ('f6', 'ot', 'notes', '', '{"text":"yes"}', 5, 'editors');
 `);
 family.close();
 

@@ -1,17 +1,26 @@
 // The Edit tab's fields, shaped like a contact card: each field is a card with its kind, its label and its inputs.
 // The list is shown in three groups (contact, life, more), and the whole list is one array, so the order that is
 // saved is the order the cards were added in. Fields are added from one searchable menu, grouped by kind, and put in
-// order with the arrows (within their group), marked private where that applies, and removed.
+// order with the arrows (within their group), given a level (personal, editors, family), and removed.
 import { ArrowDown, ArrowUp, Plus, Search, Trash2, X } from 'lucide-react';
-import { useId, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useId, useMemo, useState } from 'react';
+import { formatAddress, parseAddress, type AddressParts } from '~/lib/address';
+import { countrySuggestions, languageSuggestions, wordSuggestions, type Used } from '~/lib/field-suggest';
+import { familyWordsQuery, type FamilyWords } from '~/lib/field-suggest.functions';
 import type { Family } from '~/lib/graph';
 import { displayName } from '~/lib/graph';
-import { useT, type Key } from '~/lib/i18n';
-import { DatePicker, Select, Switch } from '../ui';
+import { locales, useT, type Key } from '~/lib/i18n';
+import { DatePicker, Select } from '../ui';
 import { PlaceInput, type PlaceValue } from '../PlaceInput';
+import { AddressFinder } from './AddressFinder';
 import { TYPE_ICON } from './FieldsView';
-import { blankValue, DEFAULT_LABEL, fieldIssue, isContactType, MAX_FIELDS, PRESETS, privateByDefault, type FieldType, type FieldValue } from './model';
+import { VisibilityPicker } from './VisibilityMark';
+import type { Visibility } from '~/lib/visibility';
+import { blankValue, DEFAULT_LABEL, fieldIssue, isContactType, MAX_FIELDS, PRESETS, defaultVisibility, type FieldType, type FieldValue } from './model';
 import { presetLabel } from './presets';
+import { SuggestInput } from './SuggestInput';
+import './suggest.css';
 
 /** A field while it is being edited. `key` is for React; `id` is set once the family has saved it. */
 export interface DraftField {
@@ -20,12 +29,12 @@ export interface DraftField {
   type: FieldType;
   label: string;
   value: FieldValue;
-  private: boolean;
+  visibility: Visibility;
 }
 
 /** A saved field as a draft: every key of its type present, so the inputs are all controlled. */
-export const draftOf = (f: { id: string; type: FieldType; label: string; value: FieldValue; private: boolean }): DraftField =>
-  ({ key: f.id, id: f.id, type: f.type, label: f.label, value: { ...blankValue(f.type), ...f.value }, private: f.private });
+export const draftOf = (f: { id: string; type: FieldType; label: string; value: FieldValue; visibility: Visibility }): DraftField =>
+  ({ key: f.id, id: f.id, type: f.type, label: f.label, value: { ...blankValue(f.type), ...f.value }, visibility: f.visibility });
 
 const newKey = () => `n${Math.random().toString(36).slice(2, 10)}`;
 
@@ -47,9 +56,11 @@ const ADD_GROUPS: { title: Key; types: FieldType[] }[] = [
 
 /**
  * One input for a value key. `kind` picks the control: a date (the date picker), a partial date that is usually a year
- * (the picker, year first), a place (the place picker, which suggests the family's own places), or plain text.
+ * (the picker, year first), a place (the place picker, which suggests the family's own places), plain text, or text
+ * with suggestions (see WordInput).
  */
-interface Input { key: string; label: Key; wide?: boolean; multi?: boolean; type?: string; placeholder?: string; kind?: 'date' | 'period' | 'place' }
+type WordKind = 'language' | 'level' | 'country' | 'nationality' | 'religion';
+interface Input { key: string; label: Key; wide?: boolean; multi?: boolean; type?: string; placeholder?: string; kind?: 'date' | 'period' | 'place' | WordKind }
 const from: Input = { key: 'from', label: 'input.from', kind: 'period' };
 const to: Input = { key: 'to', label: 'input.to', kind: 'period' };
 const note: Input = { key: 'note', label: 'input.note', wide: true };
@@ -60,7 +71,7 @@ const INPUTS: Record<FieldType, Input[]> = {
     { key: 'street', label: 'input.street', wide: true },
     { key: 'postcode', label: 'input.postcode' },
     { key: 'city', label: 'input.city' },
-    { key: 'country', label: 'input.country', wide: true },
+    { key: 'country', label: 'input.country', wide: true, kind: 'country' },
   ],
   website: [{ key: 'url', label: 'input.url', type: 'url', wide: true, placeholder: 'example.org' }],
   social: [{ key: 'handle', label: 'input.handle', wide: true, placeholder: '@name' }],
@@ -69,9 +80,9 @@ const INPUTS: Record<FieldType, Input[]> = {
   education: [{ key: 'school', label: 'input.school', wide: true }, { key: 'place', label: 'input.place', wide: true, kind: 'place' }, from, to, note],
   occupation: [{ key: 'title', label: 'input.title', wide: true }, { key: 'employer', label: 'input.employer', wide: true }, from, to, note],
   military: [{ key: 'unit', label: 'input.unit', wide: true }, { key: 'rank', label: 'input.rank' }, from, to],
-  religion: [{ key: 'name', label: 'input.name', wide: true }],
-  nationality: [{ key: 'country', label: 'input.country', wide: true }],
-  languages: [{ key: 'language', label: 'input.language' }, { key: 'level', label: 'input.level' }],
+  religion: [{ key: 'name', label: 'input.name', wide: true, kind: 'religion' }],
+  nationality: [{ key: 'country', label: 'input.country', wide: true, kind: 'nationality' }],
+  languages: [{ key: 'language', label: 'input.language', kind: 'language' }, { key: 'level', label: 'input.level', kind: 'level' }],
   medical: [{ key: 'note', label: 'input.note', wide: true, multi: true }],
   allergies: [{ key: 'note', label: 'input.note', wide: true, multi: true }],
   favourites: [{ key: 'text', label: 'input.text', wide: true }],
@@ -84,6 +95,55 @@ const INPUTS: Record<FieldType, Input[]> = {
   ],
   custom: [{ key: 'text', label: 'input.text', wide: true, multi: true }],
 };
+
+const LEVELS: readonly Key[] = ['suggest.level.native', 'suggest.level.fluent', 'suggest.level.good', 'suggest.level.basic'];
+const RELIGIONS: readonly Key[] = [
+  'suggest.religion.catholic', 'suggest.religion.protestant', 'suggest.religion.lutheran', 'suggest.religion.reformed', 'suggest.religion.orthodox',
+  'suggest.religion.anglican', 'suggest.religion.jewish', 'suggest.religion.muslim', 'suggest.religion.buddhist', 'suggest.religion.hindu',
+];
+const FAMILY_WORD: Partial<Record<WordKind, keyof FamilyWords>> = { language: 'language', level: 'level', nationality: 'nationality', religion: 'religion' };
+
+/** A text input that suggests words of its kind, what this family already uses first. Anything else can be typed. */
+function WordInput({ tree, kind, value, onChange, labelledBy }: { tree: string; kind: WordKind; value: string; onChange: (text: string) => void; labelledBy: string }) {
+  const c = useT();
+  const { data } = useQuery(familyWordsQuery(tree));
+  const key = FAMILY_WORD[kind];
+  const used: Used[] = useMemo(() => (key && data ? data[key] : []), [key, data]);
+  const options = useMemo(() => {
+    const tag = locales[c.locale];
+    if (kind === 'language') return languageSuggestions(value, tag, used);
+    if (kind === 'country' || kind === 'nationality') return countrySuggestions(value, tag, used);
+    return wordSuggestions(value, (kind === 'level' ? LEVELS : RELIGIONS).map((k) => c(k)), used);
+  }, [kind, value, used, c]);
+  return <SuggestInput value={value} onChange={onChange} options={options} labelledBy={labelledBy} />;
+}
+
+/** The address card's one box: a picked place or address fills the parts below it. */
+function AddressCardFinder({ tree, f, onChange, id, fam, self }: { tree: string; f: DraftField; onChange: (patch: Partial<DraftField>) => void; id: string; fam: Family; self: string }) {
+  const c = useT();
+  const [text, setText] = useState('');
+  const fill = (parts: AddressParts) => {
+    // A town picked on its own must not wipe a street that is already there.
+    onChange({ value: { ...f.value, ...Object.fromEntries(Object.entries(parts).filter(([, v]) => v)) } });
+    setText('');
+  };
+  return (
+    <div className="field wide">
+      <span id={id}>{c('addr.find')}</span>
+      <AddressFinder
+        tree={tree}
+        value={text}
+        onChange={setText}
+        onPick={fill}
+        labelledBy={id}
+        // Someone's copy is this person's own field, at the restricted default, whatever the original was.
+        family={{ person: self, fam, onCopy: (parts) => { onChange({ value: { ...blankValue('address'), ...parts }, visibility: defaultVisibility('address') }); setText(''); } }}
+        // Typed in full and not picked: read it into the empty boxes, never over what is there.
+        onBlur={() => { if (text.trim() && !formatAddress(f.value)) fill(parseAddress(text)); }}
+      />
+    </div>
+  );
+}
 
 /** Accent- and case-insensitive, so a search for "geburt" also finds "Gebürt". */
 const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
@@ -99,7 +159,7 @@ export function FieldEditor({ tree, value, onChange, fam, self, group, addMenu =
   const full = value.length >= MAX_FIELDS;
   const rows = value.map((f, i) => ({ f, i })).filter(({ f }) => groupOf(f.type) === group);
   const add = (type: FieldType) => {
-    onChange([...value, { key: newKey(), type, label: DEFAULT_LABEL[type] ?? '', value: blankValue(type), private: privateByDefault(type) }]);
+    onChange([...value, { key: newKey(), type, label: DEFAULT_LABEL[type] ?? '', value: blankValue(type), visibility: defaultVisibility(type) }]);
     setAdding(false);
     setQuery('');
   };
@@ -235,6 +295,7 @@ function FieldRowEditor({ tree, f, index, count, fam, self, onChange, onMove, on
       )}
 
       <div className="fe-inputs">
+        {f.type === 'address' && <AddressCardFinder tree={tree} f={f} onChange={onChange} id={`${id}-find`} fam={fam} self={self} />}
         {INPUTS[f.type].map((inp) => {
           const v = f.value[inp.key] ?? '';
           const setV = (text: string) => onChange({ value: { ...f.value, [inp.key]: text } });
@@ -251,6 +312,14 @@ function FieldRowEditor({ tree, f, index, count, fam, self, onChange, onMove, on
               <div className={cls} key={inp.key}>
                 <span id={`${id}-${inp.key}`}>{label}</span>
                 <PlaceInput tree={tree} value={{ name: v }} onChange={(p: PlaceValue) => setV(p.name)} aria-labelledby={`${id}-${inp.key}`} />
+              </div>
+            );
+          }
+          if (inp.kind) {
+            return (
+              <div className={cls} key={inp.key}>
+                <span id={`${id}-${inp.key}`}>{label}</span>
+                <WordInput tree={tree} kind={inp.kind} value={v} onChange={setV} labelledBy={`${id}-${inp.key}`} />
               </div>
             );
           }
@@ -288,10 +357,7 @@ function FieldRowEditor({ tree, f, index, count, fam, self, onChange, onMove, on
         })}
       </div>
 
-      <div className="fe-private">
-        <Switch size="sm" checked={f.private} onChange={(on) => onChange({ private: on })}>{c('field.private')}</Switch>
-        <span className="subtle">{c('field.privateHint')}</span>
-      </div>
+      <VisibilityPicker value={f.visibility} onChange={(visibility) => onChange({ visibility })} />
       {issueText && <em className="err fe-issue" role="status">{issueText}</em>}
     </li>
   );

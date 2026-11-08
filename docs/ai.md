@@ -119,7 +119,7 @@ Every provider call is made by the server. The browser never talks to a provider
 - the conversation so far, which is the reader's own messages and the assistant's replies (stored per reader and family);
 - the results of the read tools the model asked for. `search_people`, `read_person` and `relatives` return the people
   the reader is allowed to see: names, dates, places, occupation, the biography (cut to 1,500 characters), up to 40
-  fields, and family links. **Private fields are included only for editors and stewards**, the same rule the rest of the
+  fields, and family links. **Fields at the Editors level are included only for editors and stewards, and a Personal field is never included, not even for its author**, the same rule the rest of the
   app follows, and the reader's role decides what is returned.
 - with web search on, the query of each web lookup the assistant writes. It goes to the provider's search alone, after the
   guard above has checked it for names, private details, addresses and long numbers.
@@ -211,7 +211,7 @@ What background work never does:
 - **It never changes the family's record by itself.** It fills the caches and the translations, and it raises suggestions.
   An arms review that suggests a change is listed on the AI activity page under "Waiting for a steward", and it changes
   nothing until a steward acts on it (or keeps the arms, which is the existing "Keep these arms").
-- **It never sends a private field.** The background tasks do not read `person_field` at all. A test sends every task through a
+- **It never sends a person's field, at any level.** The background tasks do not read `person_field` at all. A test sends every task through a
   real adapter behind a stubbed `fetch` and checks that a private value is not in any request body.
 - **It searches the web only for name meanings.** That task may, and only when the family has web search on; any other background call that asks for a search is refused before it is sent.
 

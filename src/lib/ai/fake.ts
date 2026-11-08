@@ -34,6 +34,16 @@ const DESIGNS = [
   { explanation: 'Fake: a tower, for a steward’s house', field: ['vert'], charges: [{ charge: 'tower', tincture: 'argent', count: 1 }], symbolism: [{ element: 'a tower', why: 'a tower for the army, Heer' }] },
 ];
 
+/** What the fake "reads" from any picture: three profiles, as a list on a phone screen would give them. Invented names. */
+const PICTURE_DRAFT = {
+  people: [
+    { ref: 'n1', given: 'Mira', surname: 'Lindqvist', living: true, social: [{ network: 'Instagram', handle: 'mira.lindqvist' }] },
+    { ref: 'n2', given: 'Tomas', surname: 'Adeyemi', living: true, social: [{ network: 'instagram', handle: '@tomas_adeyemi' }] },
+    { ref: 'n3', given: 'jo_paints', living: true, social: [{ network: 'Instagram', handle: 'jo_paints' }] },
+  ],
+  links: [],
+};
+
 function fixture(name: string, prompt: string, user: string, webSearch: boolean): { json: unknown; sources?: { url: string; title?: string }[] } {
   if (name === 'faces') {
     const line = prompt.split('\n').find((l) => l.startsWith('CANDIDATES:'));
@@ -102,6 +112,11 @@ export function fakeAdapter(model = 'fake-model'): AiAdapter {
       const family = /FAKE-FAMILY (\{.*\})/.exec(user);
       if (family && req.tools?.some((t) => t.name === 'propose_family')) {
         return { text: '', calls: [{ id: `fake-family-${req.messages.length}`, name: 'propose_family', args: JSON.parse(family[1]) }], ...split(60) };
+      }
+      // A message with pictures reads as a screenshot of profiles, so the browser path can be walked without a script in the text.
+      const seen = req.messages.at(-1);
+      if (seen?.role === 'user' && seen.images?.length && req.tools?.some((t) => t.name === 'propose_family')) {
+        return { text: '', calls: [{ id: `fake-pictures-${req.messages.length}`, name: 'propose_family', args: PICTURE_DRAFT }], ...split(60 + seen.images.length * 100) };
       }
       const m = /^\/tool\s+(\S+)\s*(\{[\s\S]*\})?\s*$/.exec(user);
       if (m && req.tools?.some((t) => t.name === m[1])) {

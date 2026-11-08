@@ -1,0 +1,39 @@
+/* The suggesting text box and the address finder. The list hangs under the box and scrolls with its panel. */
+.sg { position: relative; min-width: 0; }
+.sg > .input { width: 100%; }
+.sg-list {
+  position: absolute; left: 0; right: 0; top: 100%; z-index: 6; margin-top: 4px; padding: 4px; min-width: min(240px, 80vw);
+  max-height: 280px; overflow: auto; overflow-wrap: normal;
+  background: var(--panel-solid); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
+}
+[data-theme='codex'] .sg-list { border-color: #0a0d12; box-shadow: inset 0 0 0 1px var(--edge-soft), var(--shadow); }
+.sg-option { min-height: 44px; cursor: pointer; }
+.sg-option small { display: block; color: var(--muted); font-size: 12.5px; }
+.sg-gap { height: 1px; margin: 4px 6px; background: var(--border); }
+
+.af { display: grid; gap: 8px; min-width: 0; }
+.af-tools { display: grid; gap: 6px; min-width: 0; }
+.af-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.af-lookup { min-height: 40px; }
+.af-where { font-size: 13px; }
+.af-note { margin: 0; font-size: 14px; }
+.af-results { display: grid; gap: 4px; min-width: 0; }
+.af-result {
+  min-height: 44px; padding: 6px 10px; text-align: start; cursor: pointer; font-family: var(--font-ui); font-size: 15px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); color: var(--text);
+}
+.af-result:hover { border-color: var(--edge); background: var(--panel-3); }
+.af-result:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.af-attr { font-size: 12px; }
+.af-family { display: grid; gap: 4px; min-width: 0; }
+.af-family-title { font-size: 13px; color: var(--muted); font-family: var(--font-ui); }
+.af-copy { display: flex; align-items: center; gap: 10px; }
+.af-copy > svg { flex: none; color: var(--accent); }
+.af-copy > span { min-width: 0; }
+.af-copy b { display: block; font-weight: 500; }
+.af-copy small { display: block; color: var(--muted); font-size: 13px; }
+
+/* In the Everyday tab's add row: the box takes the row's middle cell, and the lookup goes on its own line beneath. */
+.pp-contact-add .af { display: contents; }
+.pp-contact-add .af-tools, .pp-contact-add .af-family { grid-column: 1 / -1; order: 1; }
+@media (max-width: 600px) { .af-lookup { min-height: 44px; } }

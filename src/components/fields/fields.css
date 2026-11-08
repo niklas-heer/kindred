@@ -5,12 +5,17 @@
 .fv-row { display: grid; grid-template-columns: 22px minmax(0, 0.9fr) minmax(0, 1.5fr); gap: 4px 10px; align-items: start; padding: 8px 0; border-bottom: 1px dotted var(--border); font-size: 15px; }
 .fv-row:last-child { border-bottom: 0; }
 .fv-icon { color: var(--accent); padding-top: 3px; }
-.fv-label { display: grid; gap: 3px; min-width: 0; font-size: 13.5px; color: var(--muted); }
+.fv-label { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; min-width: 0; font-size: 13.5px; color: var(--muted); overflow-wrap: break-word; }
+.fv-label > span:first-child { min-width: 0; }
 .fv-value { min-width: 0; overflow-wrap: anywhere; }
 .fv-lines { display: grid; }
 .fv-text { white-space: pre-wrap; }
-.fv-private { justify-self: start; padding: 0 7px; border: 1px solid currentColor; border-radius: 999px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); line-height: 18px; }
-.pp-contact .fv-private { margin-left: 4px; }
+
+/* A contact: the value, then its tags. They share a line while they fit, and the tags drop under the value when they do not. */
+.pp-contact-body { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
+.pp-contact-value { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.pp-contact-tags { flex: 0 1 auto; display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+.pp-contact-tags .chip { display: inline-block; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
 @media (max-width: 600px) {
   .fv-row { grid-template-columns: 22px minmax(0, 1fr); }
   .fv-value { grid-column: 2; }

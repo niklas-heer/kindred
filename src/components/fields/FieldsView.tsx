@@ -7,9 +7,11 @@ import {
 import type { ReactNode } from 'react';
 import { formatDate, useT, type Key, type Translator } from '~/lib/i18n';
 import { displayName, type Family } from '~/lib/graph';
+import { socialLink } from '~/lib/social';
 import type { PersonField } from '~/lib/types';
 import { fieldText, isContactType, type FieldType } from './model';
 import { presetLabel } from './presets';
+import { VisibilityMark } from './VisibilityMark';
 import './fields.css';
 
 export const TYPE_ICON: Record<FieldType, ReactNode> = {
@@ -40,6 +42,7 @@ export function contactHref(f: PersonField): string | undefined {
   if (f.type === 'email') return `mailto:${v.address ?? ''}`;
   if (f.type === 'address') return `https://maps.apple.com/?q=${encodeURIComponent(fieldText('address', v))}`;
   if (f.type === 'website') return /^https?:\/\//i.test(v.url ?? '') ? v.url : `https://${v.url ?? ''}`;
+  if (f.type === 'social') return socialLink(v.handle, f.label)?.href;
   return undefined;
 }
 
@@ -89,20 +92,20 @@ function FieldValue({ f, fam, onSelect }: { f: PersonField; fam?: Family; onSele
 }
 
 /** One row: its label, then its value. The label is the family's word for it, or the type's name. */
-export function FieldRow({ f, fam, onSelect }: { f: PersonField; fam?: Family; onSelect?: (id: string) => void }) {
+export function FieldRow({ f, fam, onSelect, removeOwn }: { f: PersonField; fam?: Family; onSelect?: (id: string) => void; removeOwn?: (id: string) => ReactNode }) {
   const c = useT();
   const name = f.label ? presetLabel(f.label, c) : c(`type.${f.type}` as Key);
   return (
-    <div className={`fv-row${f.private ? ' is-private' : ''}`}>
+    <div className="fv-row">
       <span className="fv-icon" aria-hidden>{TYPE_ICON[f.type]}</span>
-      <span className="fv-label">{name}{f.private && <span className="fv-private" title={c('field.privateHint')}>{c('field.private')}</span>}</span>
+      <span className="fv-label"><span>{name}</span><VisibilityMark level={f.visibility} />{removeOwn && f.visibility === 'personal' && removeOwn(f.id)}</span>
       <span className="fv-value"><FieldValue f={f} fam={fam} onSelect={onSelect} /></span>
     </div>
   );
 }
 
 /** The non-contact fields, under their group headings. Nothing renders when there are none. */
-export function FieldGroups({ fields, fam, onSelect }: { fields: PersonField[]; fam?: Family; onSelect?: (id: string) => void }) {
+export function FieldGroups({ fields, fam, onSelect, removeOwn }: { fields: PersonField[]; fam?: Family; onSelect?: (id: string) => void; removeOwn?: (id: string) => ReactNode }) {
   const c = useT();
   const groups = GROUPS.map((g) => ({ ...g, items: fields.filter((x) => g.types.includes(x.type)) })).filter((g) => g.items.length);
   if (!groups.length) return null;
@@ -111,7 +114,7 @@ export function FieldGroups({ fields, fam, onSelect }: { fields: PersonField[]; 
       {groups.map((g) => (
         <section className="fv-group" key={g.id} aria-label={c(g.title)}>
           <div className="rule">{c(g.title)}</div>
-          {g.items.map((f) => <FieldRow key={f.id} f={f} fam={fam} onSelect={onSelect} />)}
+          {g.items.map((f) => <FieldRow key={f.id} f={f} fam={fam} onSelect={onSelect} removeOwn={removeOwn} />)}
         </section>
       ))}
     </>
@@ -124,12 +127,21 @@ export function ContactRow({ f, actions }: { f: PersonField; actions?: ReactNode
   const link = contactHref(f);
   const name = f.label ? presetLabel(f.label, c) : c(`type.${f.type}` as Key);
   const text = fieldText(f.type, f.value);
+  const social = f.type === 'social' ? socialLink(f.value.handle, f.label) : null;
   return (
     <div className="pp-contact">
       {TYPE_ICON[f.type]}
-      {link ? <a href={link} target={f.type === 'address' || f.type === 'website' ? '_blank' : undefined} rel="noreferrer">{text}</a> : <span>{text}</span>}
-      {name && <span className="chip">{name}</span>}
-      {f.private && <span className="fv-private">{c('field.private')}</span>}
+      <div className="pp-contact-body">
+        {link ? (
+          <a className="pp-contact-value" href={link} target={f.type === 'address' || f.type === 'website' || f.type === 'social' ? '_blank' : undefined} rel="noopener noreferrer">
+            {social ? `${social.network} · ${social.handle}` : text}
+          </a>
+        ) : <span className="pp-contact-value">{text}</span>}
+        <span className="pp-contact-tags">
+          {name && !social && <span className="chip">{name}</span>}
+          <VisibilityMark level={f.visibility} />
+        </span>
+      </div>
       {actions}
     </div>
   );

@@ -6,7 +6,9 @@ import { Mic, MicOff, Plus, Send, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Notice, Select } from '~/components/ui';
 import { FAMILY_SESSION_CHARS } from '~/lib/ai/types';
-import { useT } from '~/lib/i18n';
+import { useT, type Key } from '~/lib/i18n';
+import type { Provider } from '~/lib/ai/types';
+import { AttachButton, DropVeil, ImageTray, useImageAttach, type Attached } from './attachments';
 import { useDictation } from './dictation';
 
 export interface SessionPerson { id: string; name: string }
@@ -18,20 +20,26 @@ export function formatTranscript(lines: Line[], people: SessionPerson[]): string
   return lines.map((l) => `[${name(l.speaker)}, ${l.speaker}] ${l.text}`).join('\n');
 }
 
-export function FamilySession({ people, initial, busy, onDraft, onLeave, locale }: {
+export function FamilySession({ people, initial, busy, onDraft, onLeave, locale, active, provider }: {
   people: SessionPerson[];
   /** The speaker to start with: the reader's own person, when they have chosen one. */
   initial: string | null;
   busy: boolean;
   /** Sends the transcript; resolves true when the draft was made, so the session can clear. */
-  onDraft: (text: string, speaker: string) => Promise<boolean>;
+  onDraft: (text: string, speaker: string, images: Attached[], keepImages: boolean) => Promise<boolean>;
   onLeave: () => void;
   locale: string;
+  /** Whether the session is the part of the drawer showing: a pasted picture comes here only then. */
+  active: boolean;
+  provider: Provider | 'fake' | null | undefined;
 }) {
   const t = useT();
   const [speaker, setSpeaker] = useState<string | null>(initial);
   const [lines, setLines] = useState<Line[]>([]);
   const [typed, setTyped] = useState('');
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [keepImages, setKeepImages] = useState(false);
+  const attach = useImageAttach({ active, onError: setImageError });
   const nextId = useRef(1);
   const speakerRef = useRef(speaker);
   speakerRef.current = speaker;
@@ -45,7 +53,7 @@ export function FamilySession({ people, initial, busy, onDraft, onLeave, locale 
   const dictation = useDictation({ locale, onFinal: add });
   const transcript = formatTranscript(lines, people);
   const over = transcript.length > FAMILY_SESSION_CHARS;
-  const ready = lines.length > 0 && !!speaker && !over && !busy;
+  const ready = (lines.length > 0 || attach.images.length > 0) && !!speaker && !over && !busy && !attach.reading;
   const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? id;
 
   function toggleMic() {
@@ -61,15 +69,18 @@ export function FamilySession({ people, initial, busy, onDraft, onLeave, locale 
   async function finish() {
     if (!ready || !speaker) return;
     dictation.stop();
-    const done = await onDraft(transcript, speaker);
+    const done = await onDraft(transcript, speaker, attach.images, keepImages);
     if (done) {
       setLines([]);
       setTyped('');
+      attach.replace([]);
+      setKeepImages(false);
     }
   }
 
   return (
-    <section className="ai-session" aria-label={t('ai.sessionStart')}>
+    <section className="ai-session ai-drop-zone" aria-label={t('ai.sessionStart')} {...attach.dropProps}>
+      <DropVeil show={attach.dragging} />
       <p className="ai-session-intro subtle">{t('ai.sessionIntro')}</p>
       {dictation.supported && <p className="ai-session-note subtle">{t('ai.micNote')}</p>}
 
@@ -143,7 +154,10 @@ export function FamilySession({ people, initial, busy, onDraft, onLeave, locale 
         <button type="submit" className="btn ghost ai-touch" disabled={!speaker || !typed.trim() || busy}>
           <Plus size={15} aria-hidden /> {t('ai.sessionAdd')}
         </button>
+        <AttachButton attach={attach} disabled={busy} />
       </form>
+      <ImageTray attach={attach} provider={provider} keep={keepImages} onKeep={setKeepImages} disabled={busy} />
+      {imageError && <p className="ai-card-error" role="alert">{t(imageError as Key)}</p>}
 
       <p className={`ai-session-length ${over ? 'ai-session-over' : 'subtle'}`} aria-live="polite">
         {t('ai.sessionLength', { count: transcript.length.toLocaleString(locale), max: FAMILY_SESSION_CHARS.toLocaleString(locale) })}

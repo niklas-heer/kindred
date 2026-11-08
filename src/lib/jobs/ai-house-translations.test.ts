@@ -50,7 +50,7 @@ function makeFamily(id: string, meanings: unknown[] = MEANINGS): void {
     INSERT INTO meta (key, value) VALUES ('id', '${id}'), ('name', 'Family ${id}'), ('tagline', ''), ('theme', 'codex'), ('focus', 'ada');
     INSERT INTO house (id, name, arms) VALUES ('h1', 'House Heer', '${JSON.stringify(ARMS)}');
     INSERT INTO person (id, given, house, living) VALUES ('ada', 'PERSON-ADA', 'h1', 1);
-    INSERT INTO person_field (id, person, type, label, value, ord, private) VALUES ('pf1', 'ada', 'phone', 'Mobile', '{"value":"SECRET-PHONE"}', 0, 1);
+    INSERT INTO person_field (id, person, type, label, value, ord, visibility) VALUES ('pf1', 'ada', 'phone', 'Mobile', '{"value":"SECRET-PHONE"}', 0, 'editors');
   `);
   d.prepare(`INSERT INTO house_meaning (house, name, family_words, meanings, web_searched, note, saved_at, saved_by) VALUES ('h1', 'Heer', 'FAMILY-WORDS', ?, 0, 'Little is known.', ?, 'steward-1')`).run(JSON.stringify(meanings), NOW.getTime());
   d.close();

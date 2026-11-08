@@ -36,6 +36,9 @@ const db = () => store.accounts();
 const daily = (tree = TREE) => db().all<{ day: string; kind: string; name: string; n: number }>('SELECT day, kind, name, n FROM stats_daily WHERE tree = ? ORDER BY day, kind, name', tree);
 const counter = async (kind: string, name: string, tree = TREE) => (await daily(tree)).filter((r) => r.kind === kind && r.name === name).reduce((sum, r) => sum + r.n, 0);
 
+/** A member's report, under the role the test gives them (the server reads it from the membership). */
+const rec = (user: string, batch: Parameters<typeof stats.recordMemberBatch>[1], now: number, cat: import('./stats/shared.ts').Category = 'viewer') => stats.recordMemberBatch(user, batch, now, cat);
+
 function makeFamily(id: string) {
   const d = openSqlite(join(dir, `${id}.db`), 'tree', { create: true });
   d.exec(`INSERT INTO meta (key, value) VALUES ('id', '${id}'), ('name', 'Family'), ('tagline', ''), ('theme', 'codex'), ('focus', 'ada')`);
@@ -44,9 +47,9 @@ function makeFamily(id: string) {
 
 test('reports add up in one row per day and name', async () => {
   const tree = 'rollup';
-  await stats.recordMemberBatch('u1', { tree, visit: true, views: { almanac: 2, tree: 1 } }, NOW);
-  await stats.recordMemberBatch('u1', { tree, views: { almanac: 3 }, events: { 'assistant.asked': 1 } }, NOW + 1000);
-  await stats.recordMemberBatch('u1', { tree, views: { almanac: 1 } }, NOW + DAY);
+  await rec('u1', { tree, visit: true, views: { almanac: 2, tree: 1 } }, NOW);
+  await rec('u1', { tree, views: { almanac: 3 }, events: { 'assistant.asked': 1 } }, NOW + 1000);
+  await rec('u1', { tree, views: { almanac: 1 } }, NOW + DAY);
   const rows = await daily(tree);
   assert.deepEqual(rows.filter((r) => r.kind === 'view' && r.name === 'almanac').map((r) => [r.day, r.n]), [['2026-11-08', 5], ['2026-11-09', 1]]);
   assert.equal(await counter('visit', 'member', tree), 1);
@@ -55,10 +58,10 @@ test('reports add up in one row per day and name', async () => {
 
 test('a member counts as active once a day, however many reports arrive', async () => {
   const tree = 'active';
-  await stats.recordMemberBatch('u1', { tree, views: { tree: 1 } }, NOW);
-  await stats.recordMemberBatch('u1', { tree, views: { tree: 1 } }, NOW + 60_000);
-  await stats.recordMemberBatch('u2', { tree, views: { tree: 1 } }, NOW + 120_000);
-  await stats.recordMemberBatch('u1', { tree, views: { tree: 1 } }, NOW + DAY);
+  await rec('u1', { tree, views: { tree: 1 } }, NOW);
+  await rec('u1', { tree, views: { tree: 1 } }, NOW + 60_000);
+  await rec('u2', { tree, views: { tree: 1 } }, NOW + 120_000);
+  await rec('u1', { tree, views: { tree: 1 } }, NOW + DAY);
   const active = (await daily(tree)).filter((r) => r.kind === 'active').map((r) => [r.day, r.n]);
   assert.deepEqual(active, [['2026-11-08', 2], ['2026-11-09', 1]]);
   assert.equal((await db().all('SELECT actor FROM stats_member WHERE tree = ?', tree)).length, 2, 'one marker per member');
@@ -66,9 +69,9 @@ test('a member counts as active once a day, however many reports arrive', async 
 
 test('finishing the tour counts once per member, also from a second device', async () => {
   const tree = 'once';
-  await stats.recordMemberBatch('u1', { tree, events: { 'tour.finished': 1 } }, NOW);
-  await stats.recordMemberBatch('u1', { tree, events: { 'tour.finished': 1 } }, NOW + DAY);
-  await stats.recordMemberBatch('u2', { tree, events: { 'tour.finished': 1 } }, NOW);
+  await rec('u1', { tree, events: { 'tour.finished': 1 } }, NOW);
+  await rec('u1', { tree, events: { 'tour.finished': 1 } }, NOW + DAY);
+  await rec('u2', { tree, events: { 'tour.finished': 1 } }, NOW);
   assert.equal(await counter('event', 'tour.finished', tree), 2);
 });
 
@@ -99,18 +102,18 @@ test('a path becomes its section, without ids', () => {
 test('the off switch stops counting and forgets members, and the totals stay', async () => {
   const tree = 'switch';
   assert.equal(await stats.isCollecting(tree), true, 'on until a steward turns it off');
-  await stats.recordMemberBatch('u1', { tree, visit: true, views: { atlas: 1 }, events: { 'tour.finished': 1 } }, NOW);
+  await rec('u1', { tree, visit: true, views: { atlas: 1 }, events: { 'tour.finished': 1 } }, NOW);
   await stats.setCollecting(tree, false, NOW);
   assert.equal(await stats.isCollecting(tree), false);
   const before = await daily(tree);
-  await stats.recordMemberBatch('u1', { tree, visit: true, views: { atlas: 4 } }, NOW + 1000);
+  await rec('u1', { tree, visit: true, views: { atlas: 4 } }, NOW + 1000);
   await stats.recordGuestVisit(tree, NOW + 1000);
   assert.deepEqual(await daily(tree), before, 'nothing new is written');
   assert.equal((await db().all('SELECT * FROM stats_member WHERE tree = ?', tree)).length, 0);
   assert.equal((await db().all('SELECT * FROM stats_once WHERE tree = ?', tree)).length, 0);
   assert.equal(await counter('view', 'atlas', tree), 1, 'the anonymous totals stay');
   await stats.setCollecting(tree, true, NOW + 2000);
-  await stats.recordMemberBatch('u1', { tree, views: { atlas: 1 } }, NOW + 3000);
+  await rec('u1', { tree, views: { atlas: 1 } }, NOW + 3000);
   assert.equal(await counter('view', 'atlas', tree), 2);
 });
 
@@ -144,7 +147,7 @@ test('only stewards may read or switch statistics, and the server checks', () =>
 test('nothing personal is stored', async () => {
   const tree = 'privacy';
   const user = 'user-ada-lindqvist-7f3a';
-  await stats.recordMemberBatch(user, { tree, visit: true, views: { house: 2 }, events: { 'tour.finished': 1, 'assistant.asked': 1 } }, NOW);
+  await rec(user, { tree, visit: true, views: { house: 2 }, events: { 'tour.finished': 1, 'assistant.asked': 1 } }, NOW);
   await stats.recordGuestVisit(tree, NOW);
   const tables = ['stats_daily', 'stats_member', 'stats_once'];
   const dump = JSON.stringify(await Promise.all(tables.map((t) => db().all(`SELECT * FROM ${t} WHERE tree = ?`, tree))));
@@ -158,7 +161,7 @@ test('nothing personal is stored', async () => {
 
 test('guests count only as anonymous visits, up to a daily limit', async () => {
   const tree = 'guests';
-  await db().run(`INSERT INTO stats_daily (tree, day, kind, name, n) VALUES (?, ?, 'visit', 'guest', ?)`, tree, shared.dayOf(NOW), stats.GUEST_DAILY_CAP - 1);
+  await db().run(`INSERT INTO stats_daily (tree, day, kind, cat, name, n) VALUES (?, ?, 'visit', 'guest', 'guest', ?)`, tree, shared.dayOf(NOW), stats.GUEST_DAILY_CAP - 1);
   await stats.recordGuestVisit(tree, NOW);
   await stats.recordGuestVisit(tree, NOW);
   assert.equal(await counter('visit', 'guest', tree), stats.GUEST_DAILY_CAP);
@@ -183,36 +186,76 @@ test('old counters and markers go; recent ones stay', async () => {
 });
 
 test('the overview fills empty days, compares periods, and ranks', () => {
+  const r = (day: string, kind: 'view' | 'visit' | 'event' | 'active', name: string, n: number, cat: import('./stats/shared.ts').StoredCategory = 'legacy') => ({ day, kind, cat, name, n });
   const o = buildOverview({
     days: 7, today: '2026-11-08', collecting: true, since: '2026-10-01',
     rows: [
-      { day: '2026-11-08', kind: 'view', name: 'atlas', n: 4 },
-      { day: '2026-11-05', kind: 'view', name: 'almanac', n: 10 },
-      { day: '2026-10-30', kind: 'view', name: 'almanac', n: 7 },
-      { day: '2026-11-08', kind: 'visit', name: 'member', n: 3 },
-      { day: '2026-11-08', kind: 'visit', name: 'guest', n: 2 },
-      { day: '2026-11-08', kind: 'event', name: 'assistant.asked', n: 5 },
-      { day: '2026-11-08', kind: 'active', name: 'member', n: 2 },
-      { day: '2020-01-01', kind: 'view', name: 'tree', n: 99 },
+      r('2026-11-08', 'view', 'atlas', 4), r('2026-11-05', 'view', 'almanac', 10), r('2026-10-30', 'view', 'almanac', 7),
+      r('2026-11-08', 'visit', 'member', 3), r('2026-11-08', 'visit', 'guest', 2), r('2026-11-08', 'event', 'assistant.asked', 5),
+      r('2026-11-08', 'active', 'member', 2), r('2020-01-01', 'view', 'tree', 99),
     ],
     changes: [{ day: '2026-11-07', kind: 'stories', n: 2 }, { day: '2026-11-07', kind: 'people', n: 1 }, { day: '2026-11-01', kind: 'photos', n: 1 }],
-    active: { d7: 3, d30: 4, d90: 5 }, members: 6, lifetime: { 'tour.finished': 2 }, feedback: 1,
+    active: { legacy: { d7: 3, d30: 4, d90: 5 } }, members: { steward: 1, viewer: 5 }, lifetime: { 'tour.finished': 2 }, feedback: 1,
   });
-  assert.equal(o.series.length, 7);
-  assert.equal(o.series[0].day, '2026-11-02');
-  assert.equal(o.series[6].views, 4);
-  assert.equal(o.totals.views, 14);
-  assert.equal(o.previous.views, 7);
-  assert.equal(o.totals.visits, 3);
-  assert.equal(o.totals.guests, 2, 'guests are counted apart from members');
-  assert.equal(o.totals.changes, 3);
-  assert.equal(o.previous.changes, 1);
-  assert.deepEqual(o.routes.map((r) => r.name), ['almanac', 'atlas']);
-  assert.deepEqual(o.recent.map((r) => r.day), ['2026-11-07']);
+  const all = o.slices.all;
+  assert.equal(all.series.length, 7);
+  assert.equal(all.series[0].day, '2026-11-02');
+  assert.equal(all.series[6].views, 4);
+  assert.equal(all.totals.views, 14);
+  assert.equal(all.previous.views, 7);
+  assert.equal(all.totals.visits, 3);
+  assert.equal(all.totals.guests, 2, 'guests are counted apart from members');
+  assert.equal(all.totals.changes, 3);
+  assert.equal(all.previous.changes, 1);
+  assert.deepEqual(all.routes.map((r) => r.name), ['almanac', 'atlas']);
+  assert.deepEqual(all.recent.map((r) => r.day), ['2026-11-07']);
+  assert.equal(all.members, 6);
   assert.equal(o.tour.finished, 2);
   assert.equal(o.feedback, 1);
   assert.equal(percentChange(14, 7), 100);
   assert.equal(percentChange(5, 0), null);
+  // Counters from before categories are in "everyone" and nowhere else, and say so instead of being guessed at.
+  assert.equal(o.beforeCategories, 4 + 10 + 3 + 2);
+  assert.equal(o.slices.family.totals.views, 0);
+  assert.equal(o.slices.family.totals.guests, 0);
+  assert.equal(o.slices.steward.totals.views, 0);
+  assert.equal(o.categorized, null);
+});
+
+test('the family view leaves out stewards, counts guests, and each category stands alone', () => {
+  const r = (day: string, kind: 'view' | 'visit' | 'event' | 'active' | 'change', cat: import('./stats/shared.ts').StoredCategory, name: string, n: number) => ({ day, kind, cat, name, n });
+  const o = buildOverview({
+    days: 7, today: '2026-11-08', collecting: true, since: '2026-10-01', categorized: '2026-11-05',
+    rows: [
+      r('2026-11-08', 'view', 'steward', 'atlas', 50), r('2026-11-08', 'view', 'viewer', 'atlas', 5), r('2026-11-08', 'view', 'editor', 'almanac', 3),
+      r('2026-11-08', 'visit', 'guest', 'guest', 4), r('2026-11-08', 'visit', 'steward', 'member', 9), r('2026-11-08', 'visit', 'viewer', 'member', 2),
+      r('2026-11-08', 'event', 'steward', 'assistant.asked', 8), r('2026-11-08', 'event', 'editor', 'assistant.asked', 1),
+      r('2026-11-08', 'change', 'steward', 'people', 30), r('2026-11-08', 'change', 'editor', 'people', 2), r('2026-11-07', 'change', 'contributor', 'stories', 1),
+      r('2026-11-08', 'active', 'steward', 'member', 1), r('2026-11-08', 'active', 'viewer', 'member', 2),
+      r('2026-11-08', 'view', 'legacy', 'tree', 1000),
+    ],
+    changes: [{ day: '2026-11-08', kind: 'people', n: 99 }],
+    active: { steward: { d7: 1, d30: 1, d90: 1 }, viewer: { d7: 2, d30: 2, d90: 2 }, editor: { d7: 1, d30: 1, d90: 1 } },
+    members: { steward: 1, editor: 1, viewer: 3 }, lifetime: {}, feedback: 0,
+  });
+  const f = o.slices.family;
+  assert.equal(f.totals.views, 8, 'stewards (50) and the uncategorised (1000) are not in the headline');
+  assert.equal(f.totals.visits, 2);
+  assert.equal(f.totals.guests, 4, 'guests are counted');
+  assert.equal(f.totals.changes, 3, 'counted by category, not the records that include the steward');
+  assert.deepEqual(f.features.map((x) => [x.name, x.n]), [['assistant.asked', 1]]);
+  assert.equal(f.members, 4, 'the family’s members: no steward');
+  assert.deepEqual(f.active, { d7: 3, d30: 3, d90: 3 });
+  assert.equal(o.slices.steward.totals.views, 50);
+  assert.equal(o.slices.steward.totals.changes, 30);
+  assert.equal(o.slices.viewer.totals.views, 5);
+  assert.equal(o.slices.guest.totals.guests, 4);
+  assert.equal(o.slices.all.totals.views, 1058, 'everyone includes the uncategorised');
+  assert.equal(o.slices.all.totals.changes, 99, '"everyone" reads changes from the family’s records');
+  assert.equal(f.changesKnown, false, 'categories began after this range started, so changes are not complete');
+  assert.ok(f.reception.points.every((p) => p.key !== ('stats.rc.only_reading' as string)));
+  assert.equal(o.slices.guest.reception.points[0].key, 'stats.rc.guests_only');
+  assert.equal(o.beforeCategories, 1000);
 });
 
 const base = { since: '2026-08-01', today: '2026-11-08', days: 30 as const, members: 10, tour: { finished: 0, skipped: 0 }, feedback: 0, active: { d7: 7, d30: 8, d90: 9 },
@@ -251,21 +294,21 @@ test('the page reads changes from the family’s own records', async () => {
   d.prepare(`INSERT INTO story (id, person, kind, body, author, at) VALUES ('s1', 'ada', 'memory', 'x', 'y', ?)`).run(iso(NOW - DAY));
   d.prepare(`INSERT INTO media (key, mime, uploaded_by, uploaded_at) VALUES ('gallery/a.jpg', 'image/jpeg', 'y', ?)`).run(iso(NOW));
   d.close();
-  await stats.recordMemberBatch('u1', { tree: TREE, views: { atlas: 1 } }, NOW);
-  const o = await stats.readOverview(TREE, 7, NOW);
+  await rec('u1', { tree: TREE, views: { atlas: 1 } }, NOW);
+  const o = (await stats.readOverview(TREE, 7, NOW)).slices.all;
   assert.equal(o.series.at(-1)!.people, 1);
   assert.equal(o.series.at(-1)!.photos, 1);
   assert.equal(o.series.at(-2)!.stories, 1);
   assert.equal(o.totals.changes, 3, 'the person edited 400 days ago is outside the range');
   assert.equal(o.active.d7, 1);
-  assert.equal(o.collecting, true);
+  assert.equal((await stats.readOverview(TREE, 7, NOW)).collecting, true);
 });
 
 test('turning collection off wins against a batch already under way', async () => {
   const tree = 'race';
-  await stats.recordMemberBatch('u1', { tree, views: { atlas: 1 } }, NOW);
+  await rec('u1', { tree, views: { atlas: 1 } }, NOW);
   await Promise.all([
-    stats.recordMemberBatch('u2', { tree, visit: true, views: { atlas: 1 }, events: { 'tour.finished': 1 } }, NOW),
+    rec('u2', { tree, visit: true, views: { atlas: 1 }, events: { 'tour.finished': 1 } }, NOW),
     stats.recordGuestVisit(tree, NOW),
     stats.setCollecting(tree, false, NOW),
   ]);
@@ -273,4 +316,79 @@ test('turning collection off wins against a batch already under way', async () =
   assert.equal((await db().all('SELECT * FROM stats_once WHERE tree = ?', tree)).length, 0);
   assert.equal(await counter('visit', 'guest', tree), 0);
   assert.equal(await counter('view', 'atlas', tree), 1);
+});
+
+const rows = (tree: string) => db().all<{ kind: string; cat: string; name: string; n: number }>('SELECT kind, cat, name, n FROM stats_daily WHERE tree = ? ORDER BY kind, cat, name', tree);
+
+test('the server files a report under the member’s role at that moment, not what the browser says', async () => {
+  const tree = 'attribution';
+  const user = 'u-role';
+  await db().run('INSERT INTO user (id, name, handle, created) VALUES (?, ?, ?, ?)', user, 'Role', 'handle-role', NOW);
+  await db().run('INSERT INTO membership (user, tree, role, created) VALUES (?, ?, ?, ?)', user, tree, 'contributor', NOW);
+  const noMember = await stats.categoryOf('nobody', tree);
+  assert.equal(noMember, null);
+  assert.equal(await stats.categoryOf(user, tree), 'contributor');
+  {
+    // A browser that claims a category in its report is ignored: parseBatch only keeps the fields it knows.
+    const batch = shared.parseBatch({ tree, visit: true, views: { atlas: 1 }, cat: 'steward', role: 'steward' })!;
+    assert.deepEqual(Object.keys(batch).sort(), ['events', 'tree', 'views', 'visit']);
+    await stats.recordMemberBatch(user, batch, NOW);
+    assert.deepEqual((await rows(tree)).filter((r) => r.kind === 'view').map((r) => r.cat), ['contributor']);
+    await db().run('UPDATE membership SET role = ? WHERE user = ? AND tree = ?', 'steward', user, tree);
+    await stats.recordMemberBatch(user, { tree, views: { atlas: 1 } }, NOW + DAY);
+    assert.deepEqual((await rows(tree)).filter((r) => r.kind === 'view').map((r) => r.cat).sort(), ['contributor', 'steward'], 'after a promotion the new role counts');
+  }
+  await stats.recordMemberBatch('not-a-member', { tree, views: { atlas: 9 } }, NOW);
+  assert.ok(!(await rows(tree)).some((r) => r.n === 9), 'someone who is no member is not counted');
+});
+
+test('categories keep one counter per role, a change is counted under the role that made it, and guests are their own', async () => {
+  const tree = 'cats';
+  makeFamily(tree).close();
+  await rec('s', { tree, views: { atlas: 1 } }, NOW, 'steward');
+  await rec('v', { tree, views: { atlas: 1 } }, NOW, 'viewer');
+  await rec('v2', { tree, views: { atlas: 1 } }, NOW, 'viewer');
+  await stats.recordGuestVisit(tree, NOW);
+  await stats.countChange(tree, 's', 'steward', 'edit-person', NOW);
+  await stats.countChange(tree, 's', 'steward', 'view', NOW);
+  await stats.countChange(tree, 'e', 'editor', 'add-story', NOW);
+  const r = await rows(tree);
+  const get = (kind: string, cat: string, name: string) => r.find((x) => x.kind === kind && x.cat === cat && x.name === name)?.n ?? 0;
+  assert.equal(get('view', 'viewer', 'atlas'), 2);
+  assert.equal(get('view', 'steward', 'atlas'), 1);
+  assert.equal(get('visit', 'guest', 'guest'), 1);
+  assert.equal(get('change', 'steward', 'people'), 1);
+  assert.equal(get('change', 'editor', 'stories'), 1);
+  assert.equal(r.filter((x) => x.kind === 'change').length, 2, 'a read-only action is not a change');
+  assert.equal(get('active', 'steward', 'member'), 1, 'a steward who only saved something is active once that day');
+  const o = await stats.readOverview(tree, 7, NOW);
+  assert.equal(o.slices.family.totals.views, 2);
+  assert.equal(o.slices.family.totals.guests, 1);
+  assert.equal(o.slices.steward.totals.views, 1);
+  assert.equal(o.slices.steward.totals.changes, 1);
+  assert.equal(o.slices.all.active.d7, 4);
+});
+
+test('counters from before categories stay readable and are not guessed at', async () => {
+  const tree = 'before';
+  makeFamily(tree).close();
+  await db().run(`INSERT INTO stats_daily (tree, day, kind, name, n) VALUES (?, ?, 'view', 'atlas', 7)`, tree, shared.dayOf(NOW));
+  await db().run(`INSERT INTO stats_member (tree, actor, last_day) VALUES (?, 'old-marker', ?)`, tree, shared.dayOf(NOW));
+  const r = await rows(tree);
+  assert.equal(r[0].cat, 'legacy', 'the default for a row without a category');
+  const o = await stats.readOverview(tree, 7, NOW);
+  assert.equal(o.slices.all.totals.views, 7);
+  assert.equal(o.slices.all.active.d7, 1, 'a marker with no category counts for everyone');
+  assert.equal(o.slices.family.totals.views, 0);
+  assert.equal(o.beforeCategories, 7);
+  assert.equal(o.categorized, null);
+});
+
+test('the category tables hold no per-person rows', async () => {
+  const columns = (await db().all<{ name: string }>(`SELECT name FROM pragma_table_info('stats_daily')`)).map((c) => c.name);
+  assert.deepEqual(columns.sort(), ['cat', 'day', 'kind', 'n', 'name', 'tree']);
+  const marker = (await db().all<{ name: string }>(`SELECT name FROM pragma_table_info('stats_member')`)).map((c) => c.name);
+  assert.deepEqual(marker.sort(), ['actor', 'cat', 'last_day', 'tree'], 'one pseudonymous marker per member, with the category they were last seen in');
+  const per = await db().get<{ n: number }>('SELECT MAX(c) AS n FROM (SELECT COUNT(*) AS c FROM stats_daily GROUP BY tree, day, kind, cat, name)');
+  assert.equal(per?.n, 1, 'one row per family, day, kind, category and name');
 });

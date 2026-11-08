@@ -1,0 +1,7 @@
+/* A field's level: a small symbol, and the choice of three in the Edit tab. */
+.fv-vis { display: inline-flex; flex: none; color: var(--muted); }
+.fv-vis-personal { color: var(--accent); }
+.pp-contact .fv-vis svg { color: inherit; }
+.fv-vis-picker { display: grid; gap: 4px; margin-top: 8px; }
+.fv-vis-picker .subtle { font-size: 13px; }
+.fv-vis-remove { flex: none; }

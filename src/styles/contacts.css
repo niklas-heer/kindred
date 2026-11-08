@@ -119,3 +119,10 @@ a.con-value:focus-visible { outline: none; box-shadow: var(--focus-ring); border
 
 
 @media(max-width:600px) { .con .btn { min-height: 44px; } }
+
+/* An optional grouping, folded away until asked for. */
+.con-kids { margin: 18px 0 6px; padding: 2px 0; }
+.con-kids summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--muted); font-size: 14px; }
+.con-kids summary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius); }
+.con-kids-opt { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
+.con-kids p { margin: 0 0 8px; font-size: 13px; max-width: 60ch; }

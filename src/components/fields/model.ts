@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import { validDate } from '../../lib/dates.ts';
 import { translate } from '../../lib/i18n/dictionary.ts';
+import { VISIBILITIES, type Visibility } from '../../lib/visibility.ts';
 
 export const FIELD_TYPES = [
   'phone', 'email', 'address', 'website', 'social', 'names', 'dates', 'education', 'occupation', 'military',
@@ -27,21 +28,20 @@ export interface PersonField {
   label: string;
   value: FieldValue;
   ord: number;
-  private: boolean;
+  /** Who may see it (src/lib/visibility.ts). A reader only ever receives what their level allows. */
+  visibility: Visibility;
   updatedAt: string;
   updatedBy: string;
 }
 
 /** Ways to reach someone. Changing these needs `edit-contact`; the rest need `edit-person`. */
 export const CONTACT_TYPES: readonly FieldType[] = ['phone', 'email', 'address', 'website', 'social'];
-/**
- * Any field can be kept from everyone but editors and stewards. These start private, in the Edit tab and in the
- * assistant's proposals alike, because they are sensitive by nature.
- */
-export const PRIVATE_BY_DEFAULT: readonly FieldType[] = ['address', 'medical', 'allergies'];
+/** These start at the editors' level, in the Edit tab and in the assistant's proposals alike: they are sensitive by nature. */
+export const RESTRICTED_BY_DEFAULT: readonly FieldType[] = ['address', 'medical', 'allergies'];
 
 export const isContactType = (t: string) => (CONTACT_TYPES as readonly string[]).includes(t);
-export const privateByDefault = (t: string) => (PRIVATE_BY_DEFAULT as readonly string[]).includes(t);
+/** The level a new field of this type starts at. */
+export const defaultVisibility = (t: string): Visibility => ((RESTRICTED_BY_DEFAULT as readonly string[]).includes(t) ? 'editors' : 'family');
 
 /**
  * Labels offered for each type, as stored. The stored label is the English word; the view shows the
@@ -52,7 +52,7 @@ export const PRESETS: Record<FieldType, readonly string[]> = {
   email: ['personal', 'work', 'other'],
   address: ['home', 'work', 'holiday', 'other'],
   website: ['home page', 'work', 'blog', 'other'],
-  social: ['Instagram', 'Facebook', 'LinkedIn', 'X', 'Bluesky', 'Mastodon', 'WhatsApp', 'Signal', 'Other'],
+  social: ['Instagram', 'Facebook', 'LinkedIn', 'X', 'TikTok', 'YouTube', 'Bluesky', 'Threads', 'Mastodon', 'WhatsApp', 'Signal', 'Other'],
   names: ['maiden', 'birth', 'nickname', 'religious', 'alias'],
   dates: ['anniversary', 'baptism', 'confirmation'],
   education: ['school', 'university', 'training', 'other'],
@@ -110,7 +110,7 @@ export const fieldInput = z
     type: z.enum(FIELD_TYPES),
     label: z.string().trim().max(60),
     value: z.record(z.string(), z.string().max(5000)),
-    private: z.boolean(),
+    visibility: z.enum(VISIBILITIES),
   })
   .superRefine((f, ctx) => {
     const r = VALUE[f.type].safeParse(f.value);

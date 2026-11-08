@@ -31,7 +31,7 @@ export interface PrivacyGuard {
   living: { given: string[]; surname: string[] }[];
   /** The nicknames of living people, as words. A query that has every word of one names that person. */
   nicknames: string[][];
-  /** The values of private fields the reader may see, as words. A query that has every word of one carries that value. */
+  /** The values of editors' fields the reader may see, as words. A query that has every word of one carries that value. Personal fields are never in here: a refusal must not tell anyone one exists. */
   privates: string[][];
 }
 
@@ -88,7 +88,7 @@ export async function privacyGuard(tree: string, people: GPerson[], seePrivate: 
   }
   const privates: string[][] = [];
   if (seePrivate) {
-    const rows = await db(tree).all<{ type: string; value: string }>('SELECT type, value FROM person_field WHERE private = 1');
+    const rows = await db(tree).all<{ type: string; value: string }>("SELECT type, value FROM person_field WHERE visibility = 'editors'");
     for (const r of rows) {
       let value: Record<string, unknown>;
       try {

@@ -18,6 +18,8 @@ const { db, person } = await import('./db.server.ts');
 const { savePersonEdit, addPersonField, addFirstPerson, CHANGED_SINCE_OPENED } = await import('./person.server.ts');
 
 const TREE = 'scratch';
+const EDITOR = { account: 'editor-account', role: 'editor', guest: false } as const;
+const VIEWER = { account: 'viewer-account', role: 'viewer', guest: false } as const;
 {
   const d = openSqlite(join(dir, `${TREE}.db`), 'tree', { create: true });
   d.exec(`INSERT INTO meta (key, value) VALUES ('id', '${TREE}'), ('name', 'Scratch'), ('tagline', ''), ('theme', 'codex'), ('focus', '')`);
@@ -41,7 +43,7 @@ const fieldCount = async () => (await db(TREE).get<{ n: number }>('SELECT count(
 
 test('a draft opened at the person’s current revision saves, and the revision moves on', async () => {
   const opened = (await person(TREE, 'ada')).revision!;
-  await savePersonEdit(TREE, 'ada', { ...details('Ada'), nickname: 'Addy' }, [], opened, undefined, 'Test');
+  await savePersonEdit(TREE, 'ada', { ...details('Ada'), nickname: 'Addy' }, [], opened, undefined, 'Test', EDITOR);
   const after = (await person(TREE, 'ada')).revision!;
   assert.ok(after > opened, `revision went from ${opened} to ${after}`);
 });
@@ -49,14 +51,14 @@ test('a draft opened at the person’s current revision saves, and the revision 
 test('a draft opened before someone else added a field is refused, and that field survives', async () => {
   const opened = (await person(TREE, 'ada')).revision!;
   // Another reader adds a private note through the Everyday tab.
-  await addPersonField(TREE, 'ada', { type: 'notes', label: 'Note', value: { text: 'Kept safe' }, private: true }, undefined, 'Other');
+  await addPersonField(TREE, 'ada', { type: 'notes', label: 'Note', value: { text: 'Kept safe' }, visibility: 'editors' }, undefined, 'Other', EDITOR);
   assert.equal(await fieldCount(), 1);
   await assert.rejects(
-    savePersonEdit(TREE, 'ada', details('Ada, edited'), [], opened, undefined, 'Test'),
+    savePersonEdit(TREE, 'ada', details('Ada, edited'), [], opened, undefined, 'Test', EDITOR),
     (e: Error) => e.message === CHANGED_SINCE_OPENED,
   );
   assert.equal(await fieldCount(), 1, 'the stale draft did not delete the newer field');
-  assert.equal((await person(TREE, 'ada', true)).fields[0]?.label, 'Note');
+  assert.equal((await person(TREE, 'ada', EDITOR)).fields[0]?.label, 'Note');
   assert.equal((await db(TREE).get<{ given: string }>('SELECT given FROM person WHERE id = ?', 'ada'))!.given, 'Ada', 'nor its names');
 });
 
@@ -73,7 +75,7 @@ test('a change that lands between the check and the write is caught by the batch
         reads++;
         if (!injected) {
           injected = true;
-          await inner.run("INSERT INTO person_field (id, person, type, label, value, ord, private, created_by, created_at, updated_by, updated_at) VALUES ('race', 'ada', 'notes', 'Raced', '{\"text\":\"late\"}', 5, 0, 'Other', '2026-11-08T00:00:00Z', 'Other', '2026-11-08T00:00:00Z')");
+          await inner.run("INSERT INTO person_field (id, person, type, label, value, ord, visibility, created_by, created_at, updated_by, updated_at) VALUES ('race', 'ada', 'notes', 'Raced', '{\"text\":\"late\"}', 5, 'family', 'Other', '2026-11-08T00:00:00Z', 'Other', '2026-11-08T00:00:00Z')");
         }
       }
       return row;
@@ -81,7 +83,7 @@ test('a change that lands between the check and the write is caught by the batch
     return { ...inner, get };
   };
   try {
-    await assert.rejects(savePersonEdit(TREE, 'ada', details('Ada, raced'), [], opened, undefined, 'Test'), (e: Error) => e.message === CHANGED_SINCE_OPENED);
+    await assert.rejects(savePersonEdit(TREE, 'ada', details('Ada, raced'), [], opened, undefined, 'Test', EDITOR), (e: Error) => e.message === CHANGED_SINCE_OPENED);
   } finally {
     store.tree = realTree;
   }
@@ -91,9 +93,9 @@ test('a change that lands between the check and the write is caught by the batch
 });
 
 test('a draft opened at the current revision, with the fields it shows, still saves after the race', async () => {
-  const current = await person(TREE, 'ada', true);
-  const fields = current.fields.map((f) => ({ id: f.id, type: f.type, label: f.label, value: f.value, private: f.private }));
-  await savePersonEdit(TREE, 'ada', details('Ada, again'), fields, current.revision!, undefined, 'Test');
+  const current = await person(TREE, 'ada', EDITOR);
+  const fields = current.fields.map((f) => ({ id: f.id, type: f.type, label: f.label, value: f.value, visibility: f.visibility }));
+  await savePersonEdit(TREE, 'ada', details('Ada, again'), fields, current.revision!, undefined, 'Test', EDITOR);
   assert.equal(await fieldCount(), 2, 'both fields kept: the draft listed them');
   assert.equal((await db(TREE).get<{ given: string }>('SELECT given FROM person WHERE id = ?', 'ada'))!.given, 'Ada, again');
 });

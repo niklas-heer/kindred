@@ -4,6 +4,8 @@
 // same thing to different values, the reader's version stays in the draft and the case comes back as a conflict, so
 // the Edit tab can show both versions and the reader chooses. Pure: the Edit tab and the tests use the same code.
 
+import type { Visibility } from '../../lib/visibility.ts';
+
 /** A field in the draft (`key` is React's; `id` is set once the family has saved the field). */
 export interface RebaseField {
   key: string;
@@ -11,7 +13,7 @@ export interface RebaseField {
   type: string;
   label: string;
   value: Record<string, string>;
-  private: boolean;
+  visibility: Visibility;
 }
 
 /** Scalars saved as one unit: the occupation text and its vocabulary code, so a save never stores one with the other's partner. */
@@ -30,7 +32,7 @@ export type Conflict<F extends RebaseField = RebaseField> =
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const at = (o: object, k: string): unknown => (o as Record<string, unknown>)[k];
 const sameField = (a: RebaseField, b: RebaseField) =>
-  a.type === b.type && a.label === b.label && a.private === b.private && same(a.value, b.value);
+  a.type === b.type && a.label === b.label && a.visibility === b.visibility && same(a.value, b.value);
 const byId = <F extends RebaseField>(fields: F[]) => new Map(fields.flatMap((f) => (f.id ? [[f.id, f] as const] : [])));
 
 /**

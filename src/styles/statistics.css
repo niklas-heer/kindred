@@ -118,3 +118,17 @@
   .st-card { padding: 14px; }
   .st-ranked li { grid-template-columns: minmax(0, 8.5em) minmax(0, 1fr) 2.8em; }
 }
+
+/* Whose activity: the switch and the plain notes about what the numbers are. */
+.st-view { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.st-view .st-caption { margin: 0; }
+@media (max-width: 700px) {
+  .st-view .ui-seg { flex-wrap: wrap; display: flex; }
+  .st-view .ui-seg-item { flex: 1 1 auto; min-height: 40px; padding: 0 12px; font-size: 15px; }
+}
+.st-who th, .st-who td { white-space: nowrap; }
+.st-who tbody th { text-align: left; font-weight: 600; }
+.st-who { width: 100%; border-collapse: collapse; font-family: var(--font-ui); font-size: 14px; font-variant-numeric: tabular-nums; }
+.st-who th, .st-who td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--border); color: var(--text); font-weight: 400; }
+.st-who thead th { color: var(--muted); font-weight: 600; }
+.st-who tbody th, .st-who thead th:first-child { text-align: left; }

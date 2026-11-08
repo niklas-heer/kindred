@@ -312,4 +312,7 @@ export const removeMember = createServerFn({ method: 'POST' })
         refused: () => fail(new AuthError('invalid', lastSteward)),
       };
     });
+    // What they kept for themselves goes with them: nobody else could ever read or remove it. After the commit, and on every
+    // call, so a failure here can be finished by removing them again.
+    await (await import('../db.server')).db(data.tree).run("DELETE FROM person_field WHERE visibility = 'personal' AND owner = ?", data.user);
   });

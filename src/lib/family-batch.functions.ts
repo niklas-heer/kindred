@@ -11,7 +11,8 @@ const retryKey = z.string().regex(/^[A-Za-z0-9_-]{8,80}$/);
 export const applyFamilyBatch = createServerFn({ method: 'POST' })
   .validator(z.object({
     tree,
-    people: z.array(familyPersonSchema.extend({ key: retryKey })).max(40),
+    // `existing`: the card says this row is someone already in the tree, so only their new details are added.
+    people: z.array(familyPersonSchema.extend({ key: retryKey, existing: z.string().min(1).max(100).optional() })).max(40),
     links: z.array(familyLinkSchema.extend({ key: retryKey })).max(80),
     locale: z.string().max(8).optional(),
   }))

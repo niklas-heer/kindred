@@ -19,7 +19,7 @@ export const COPIED_TABLES: readonly string[] = [
   'story_translation', // chronicle translations, kept beside each story (migration 0014): asked for once, so copied after their story
   'place', // map pins for the atlas
   'photo', // portraits: the row keeps a media key, the picture itself is in R2
-  'person_field', // the Edit tab's fields: contacts, medical and private notes, in their order
+  'person_field', // the Edit tab's fields: contacts, medical and editors' notes, in their order (not the personal ones, see below)
   'house_succession', // who heads each house, its heir and its country
   'house_meaning', // what each house's name means, as the steward researched and chose it (migration 0012)
   'house_arms_review', // the steward's latest check of each house's arms against its name (migration 0012)
@@ -50,6 +50,13 @@ export const LEFT_OUT_TABLES: Record<string, string> = {
   // is still the one in the batch, so the target keeps its own (seeded at 0) rather than receiving the source's.
   ancestry_rev: 'the ancestry revision counts changes on the database that holds the links; the target keeps its own',
 };
+
+/**
+ * Rows a copied table holds back, as a SQL condition on the rows that go. A personal field belongs to one account, and
+ * accounts are not copied (docs/deploy-cloudflare.md): on the target its owner would not exist, so nobody could ever see or
+ * remove it. It stays in the source database.
+ */
+export const COPY_ONLY: Record<string, string> = { person_field: "visibility <> 'personal'" };
 
 export interface TablePlan {
   /** The tables whose rows are copied, in order. */

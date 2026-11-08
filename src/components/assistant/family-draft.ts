@@ -3,18 +3,20 @@
 import { NEW_REF, type FamilyLink, type FamilyPerson } from '~/lib/ai/types';
 
 export type Status = 'todo' | 'done' | 'failed';
-export interface DraftRow extends FamilyPerson { status: Status; id?: string; error?: string }
+export interface DraftRow extends FamilyPerson { status: Status; id?: string; error?: string; /** Chosen on the card: this row is someone already in the tree, so no one new is created. */ existing?: string }
 export interface DraftLink extends FamilyLink { uid: string; status: Status; error?: string }
 export interface LinkToSend { uid: string; payload: { anchor: string; person: string; relation: FamilyLink['relation']; coParent?: string } }
 
 /** The person as the server takes it: empty fields left out, so a blank date is not sent as a date, and a memory emptied on the card is not sent at all. */
-export function cleanPerson(r: FamilyPerson): FamilyPerson {
+export function cleanPerson(r: FamilyPerson & { existing?: string }): FamilyPerson & { existing?: string } {
   const s = (v?: string) => (v && v.trim() ? v.trim() : undefined);
   const body = s(r.story?.body);
   return {
     ref: r.ref, given: r.given.trim(), surname: s(r.surname), sex: r.sex || undefined, born: s(r.born), bornPlace: s(r.bornPlace),
     died: s(r.died), diedPlace: s(r.diedPlace), living: r.living, occupation: s(r.occupation),
     story: r.story && body ? { kind: r.story.kind, title: s(r.story.title), body, teller: r.story.teller || undefined } : undefined,
+    social: r.social?.flatMap((x) => (x.handle.trim() ? [{ network: x.network, handle: x.handle.trim() }] : [])),
+    existing: r.existing || undefined,
   };
 }
 

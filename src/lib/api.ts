@@ -6,6 +6,7 @@ import { armsSchema } from '~/components/heraldry/schema';
 import { validDate } from './dates';
 import type { Action } from './roles';
 import { occupationCodeFor } from './occupations.ts';
+import { audienceOf } from './visibility';
 
 const tree = z.string().regex(/^[a-z0-9-]+$/).max(64);
 const date = z.string().refine(validDate, 'Not a real date').optional();
@@ -24,8 +25,9 @@ const requireCan = async (t: string, action: Action) => (await guard()).requireC
 export const getGraph = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
-    await requireReader(data.tree);
-    return (await server()).graph(data.tree);
+    const r = await requireReader(data.tree);
+    // A guest gets the plain count, so the Needed page does not say that everyone lacks a contact. Never a value.
+    return (await server()).graph(data.tree, r.guest ? undefined : audienceOf(r));
   });
 export const graphQuery = (t: string) => queryOptions({ queryKey: ['graph', t], queryFn: () => getGraph({ data: { tree: t } }), staleTime: Infinity });
 
@@ -40,8 +42,7 @@ export const chronicleQuery = (t: string) => queryOptions({ queryKey: ['chronicl
 export const getContacts = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
-    await requireReader(data.tree);
-    return (await server()).allContacts(data.tree);
+    return (await server()).allContacts(data.tree, audienceOf(await requireReader(data.tree)));
   });
 export const contactsQuery = (t: string) => queryOptions({ queryKey: ['contacts', t], queryFn: () => getContacts({ data: { tree: t } }) });
 
@@ -324,7 +325,7 @@ export const addContact = createServerFn({ method: 'POST' })
     const _m = await requireCan(data.tree, 'edit-contact');
     // Contacts are person fields now (src/lib/person.server.ts): the old kinds map onto their field types.
     const [type, key] = LEGACY_CONTACT[data.kind];
-    return (await import('./person.server')).addPersonField(data.tree, data.person, { type, label: data.label ?? '', value: { [key]: data.value }, private: false }, opOf(_m, data), _m.user.name);
+    return (await import('./person.server')).addPersonField(data.tree, data.person, { type, label: data.label ?? '', value: { [key]: data.value }, visibility: 'family' }, opOf(_m, data), _m.user.name, audienceOf(_m));
   });
 
 const LEGACY_CONTACT = { phone: ['phone', 'number'], email: ['email', 'address'], address: ['address', 'street'], web: ['website', 'url'], messenger: ['social', 'handle'] } as const;
@@ -332,8 +333,9 @@ const LEGACY_CONTACT = { phone: ['phone', 'number'], email: ['email', 'address']
 export const deleteContact = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, id: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/) }))
   .handler(async ({ data }) => {
-    await requireCan(data.tree, 'edit-contact');
-    await (await server()).db(data.tree).run("DELETE FROM person_field WHERE id = ? AND type IN ('phone', 'email', 'address', 'website', 'social')", data.id);
+    const m = await requireCan(data.tree, 'edit-contact');
+    // Someone else's personal field is not theirs to remove, whatever their role.
+    await (await server()).db(data.tree).run("DELETE FROM person_field WHERE id = ? AND type IN ('phone', 'email', 'address', 'website', 'social') AND (visibility <> 'personal' OR owner = ?)", data.id, m.user.id);
   });
 
 export const uploadPhoto = createServerFn({ method: 'POST' })

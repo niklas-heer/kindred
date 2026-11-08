@@ -77,9 +77,9 @@ function populatedFamily(name: string): DatabaseSync {
     INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES ('s1', 'ada', 'memory', 'A ''quoted'' title', 'Body text', 'Ben', '${now}', NULL);
     INSERT INTO place (name, lat, lng, country) VALUES ('Lindby', 54.1, 9.8, 'de');
     INSERT INTO photo (person, mime, key, at) VALUES ('ada', 'image/jpeg', 'photo/ada-1.jpg', '${now}');
-    INSERT INTO person_field (id, person, type, label, value, ord, private, created_by, created_at, updated_by, updated_at) VALUES
-      ('f1', 'ada', 'phone', 'mobile', '{"number":"+49 1"}', 0, 0, 'Ben', '${now}', 'Ben', '${now}'),
-      ('f2', 'ada', 'medical', '', '{"text":"Keep private"}', 1, 1, 'Ben', '${now}', 'Ben', '${now}');
+    INSERT INTO person_field (id, person, type, label, value, ord, visibility, created_by, created_at, updated_by, updated_at) VALUES
+      ('f1', 'ada', 'phone', 'mobile', '{"number":"+49 1"}', 0, 'family', 'Ben', '${now}', 'Ben', '${now}'),
+      ('f2', 'ada', 'medical', '', '{"text":"Keep private"}', 1, 'editors', 'Ben', '${now}', 'Ben', '${now}');
     INSERT INTO house_succession (house, law, head, heir, country) VALUES ('h1', 'seniority', 'ada', 'ben', 'DE');
     INSERT INTO house_meaning (house, name, family_words, meanings, web_searched, note, saved_at, saved_by) VALUES ('h1', 'O''Neill', 'The champion''s line', '[{"id":"m1","language":"Irish","root":"Niall","meaning":"champion","attestation":"well-attested","ideas":[],"chosen":true}]', 1, '', ${Date.now()}, 'ada');
     INSERT INTO house_arms_review (house, fingerprint, verdict, reason, advice, locale, checked_at, checked_by, dismissed_fingerprint) VALUES ('h1', 'f00d', 'partly', 'Some elements speak to it.', 'Add a charge for the trade.', 'en', ${Date.now()}, 'ada', '');

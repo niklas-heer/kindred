@@ -4,6 +4,7 @@ import { guard, isGuardError, q, store, type Db, type Query, type Result } from 
 import type { GParent, GPerson, GUnion, Graph, House, PersonDetail, TreeMeta } from './types';
 import { photoAge } from './portrait-face.ts';
 import { fieldText, type FieldType, type FieldValue, type PersonField } from '../components/fields/model.ts';
+import { fieldsVisibleTo, PLAIN_MEMBER, type Audience, type Visibility } from './visibility.ts';
 
 export { guard, q, store, type Db, type Query } from './store/index.ts';
 
@@ -153,14 +154,16 @@ export async function provisionFamily(id: string, name: string, theme = 'codex')
 const json = <T>(s: unknown): T | undefined => (typeof s === 'string' ? JSON.parse(s) : undefined);
 const opt = <T>(v: T | null): T | undefined => (v === null ? undefined : v);
 
-export async function graph(tree: string): Promise<Graph> {
+/** The family as one reader's page needs it. `contacts` counts the ways to reach someone that this reader may see. */
+export async function graph(tree: string, reader: Audience = PLAIN_MEMBER): Promise<Graph> {
   const d = db(tree);
+  const seen = fieldsVisibleTo(reader);
   const [m, peopleRows, houseRows, parents, unionRows, placeRows] = await Promise.all([
     meta(d),
     d.all<any>(`SELECT p.*, ph.at AS photo, (SELECT count(*) FROM story s WHERE s.person = p.id) AS stories,
       (SELECT pt.key FROM portrait pt WHERE pt.person = p.id AND pt.accepted = 1) AS portrait, (SELECT pt.source_year FROM portrait pt WHERE pt.person = p.id AND pt.accepted = 1) AS portrait_year,
-      (SELECT count(*) FROM person_field f WHERE f.person = p.id AND f.private = 0 AND f.type IN ('phone', 'email', 'address', 'website', 'social')) AS contacts
-      FROM person p LEFT JOIN photo ph ON ph.person = p.id`),
+      (SELECT count(*) FROM person_field f WHERE f.person = p.id AND ${seen.sql} AND f.type IN ('phone', 'email', 'address', 'website', 'social')) AS contacts
+      FROM person p LEFT JOIN photo ph ON ph.person = p.id`, ...seen.params),
     d.all<any>('SELECT * FROM house'),
     d.all<GParent>('SELECT child, parent, kind, confidence FROM parent'),
     d.all<any>('SELECT * FROM partnership ORDER BY start'),
@@ -211,24 +214,25 @@ export async function graph(tree: string): Promise<Graph> {
   };
 }
 
-/** A person_field row as the browser gets it. */
+/** A person_field row as the browser gets it. The owner stays on the server: a reader only ever gets their own. */
 export const fieldOf = (r: any): PersonField => ({
   id: r.id,
   type: r.type as FieldType,
   label: r.label,
   value: JSON.parse(r.value) as FieldValue,
   ord: r.ord,
-  private: r.private === 1,
+  visibility: r.visibility as Visibility,
   updatedAt: r.updated_at,
   updatedBy: r.updated_by,
 });
 
-export async function person(tree: string, id: string, canSee = false): Promise<PersonDetail> {
+export async function person(tree: string, id: string, reader: Audience = PLAIN_MEMBER): Promise<PersonDetail> {
   const d = db(tree);
+  const seen = fieldsVisibleTo(reader);
   const [r, stories, fields] = await Promise.all([
     d.get<any>('SELECT bio, born_place, died_place, updated_at, revision FROM person WHERE id = ?', id),
     d.all<any>('SELECT * FROM story WHERE person = ? ORDER BY at DESC', id),
-    d.all<any>(`SELECT * FROM person_field WHERE person = ? ${canSee ? '' : 'AND private = 0'} ORDER BY ord, id`, id),
+    d.all<any>(`SELECT * FROM person_field WHERE person = ? AND ${seen.sql} ORDER BY ord, id`, id, ...seen.params),
   ]);
   if (!r) throw new Error(`no person ${id}`);
   return {
@@ -250,13 +254,15 @@ export function chronicle(tree: string, limit: number) {
   return db(tree).all<any>('SELECT * FROM story ORDER BY at DESC LIMIT ?', limit);
 }
 
-// The contacts page and its vCards speak in the older kinds; these map the fields onto them. Only fields
-// everyone may see are listed.
+// The contacts page and its vCards speak in the older kinds; these map the fields onto them. Each reader gets every
+// contact they may see, by the one rule (visibility.ts), with its level so the page can mark it; a guest gets none.
 const CONTACT_KIND: Record<string, string> = { phone: 'phone', email: 'email', address: 'address', website: 'web', social: 'messenger' };
 
-export async function allContacts(tree: string) {
+export async function allContacts(tree: string, reader: Audience) {
+  const seen = fieldsVisibleTo(reader);
   const rows = await db(tree).all<any>(
-    "SELECT id, person, type, label, value FROM person_field WHERE private = 0 AND type IN ('phone', 'email', 'address', 'website', 'social') ORDER BY person, ord, id",
+    `SELECT id, person, type, label, value, visibility FROM person_field WHERE ${seen.sql} AND type IN ('phone', 'email', 'address', 'website', 'social') ORDER BY person, ord, id`,
+    ...seen.params,
   );
   return rows.map((r) => ({
     id: r.id,
@@ -264,6 +270,7 @@ export async function allContacts(tree: string) {
     kind: CONTACT_KIND[r.type],
     label: r.label || null,
     value: fieldText(r.type as FieldType, JSON.parse(r.value)),
+    visibility: r.visibility as Visibility,
   }));
 }
 

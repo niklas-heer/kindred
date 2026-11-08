@@ -32,12 +32,12 @@ test('a seed writes contacts and favourites as person fields, and the current na
   execFileSync(process.execPath, ['scripts/seed.ts', file], { env: { ...process.env, KINDRED_DATA_DIR: data }, stdio: 'pipe' });
   const db = new DatabaseSync(join(data, 'scratch.db'), { readOnly: true });
   try {
-    const fields = db.prepare('SELECT person, type, label, value, ord, private, created_by FROM person_field WHERE person = ? ORDER BY ord').all('ada')
+    const fields = db.prepare('SELECT person, type, label, value, ord, visibility, created_by FROM person_field WHERE person = ? ORDER BY ord').all('ada')
       .map((r) => ({ ...r }));
     assert.deepEqual(fields, [
-      { person: 'ada', type: 'phone', label: 'mobile', value: '{"number":"+49 170 1"}', ord: 0, private: 0, created_by: 'seed' },
-      { person: 'ada', type: 'social', label: 'Messenger', value: '{"handle":"ada_l"}', ord: 1, private: 0, created_by: 'seed' },
-      { person: 'ada', type: 'favourites', label: '', value: '{"text":"Cheesecake, gardening"}', ord: 1000, private: 0, created_by: 'seed' },
+      { person: 'ada', type: 'phone', label: 'mobile', value: '{"number":"+49 170 1"}', ord: 0, visibility: 'family', created_by: 'seed' },
+      { person: 'ada', type: 'social', label: 'Messenger', value: '{"handle":"ada_l"}', ord: 1, visibility: 'family', created_by: 'seed' },
+      { person: 'ada', type: 'favourites', label: '', value: '{"text":"Cheesecake, gardening"}', ord: 1000, visibility: 'family', created_by: 'seed' },
     ]);
     const ben = db.prepare("SELECT type, value FROM person_field WHERE person = 'ben'").all().map((r) => ({ ...r }));
     assert.deepEqual(ben, [{ type: 'email', value: '{"address":"ben@example.org"}' }]);

@@ -168,8 +168,13 @@ export const aiChatNew = createServerFn({ method: 'POST' })
 export const aiChatSend = createServerFn({ method: 'POST' })
   .validator(z.object({
     tree,
-    text: z.string().trim().min(1).max(FAMILY_SESSION_CHARS),
+    // Empty only when pictures come with it; the server says so if neither does.
+    text: z.string().trim().max(FAMILY_SESSION_CHARS),
     locale,
+    /** Pictures for this message, as base64. The server takes their type from their bytes (ai/chat-images.ts), and checks their size there too. */
+    images: z.array(z.object({ base64: z.string().min(1) })).optional(),
+    /** Keep these pictures with the message. Without it they are read once and not stored. */
+    keepImages: z.boolean().optional(),
     /** A family session: the text is a whole transcript, and the reply drafts the family from it. */
     session: z.boolean().optional(),
     /** The person speaking in the session (a person id in this tree). */
@@ -182,11 +187,21 @@ export const aiChatSend = createServerFn({ method: 'POST' })
     if (data.session && data.text.length > FAMILY_SESSION_CHARS) throw new Error('ai.err_session_long');
     const reply = await (await import('./ai/chat.server')).sendMessage({
       tree: data.tree, user: m.user.id, role: m.role, me: m.person, text: data.text, locale: data.locale ?? 'en',
-      session: data.session, speaker: data.speaker ?? null,
+      session: data.session, speaker: data.speaker ?? null, images: data.images, keepImages: data.keepImages,
     });
     await (await import('./stats/store.server')).countFeature(data.tree, m.user.id, 'assistant.asked');
     return reply;
   });
+
+/** A picture this reader kept with one of their own messages. The same check as the message itself. */
+export const aiChatImage = createServerFn({ method: 'GET' })
+  .validator(z.object({ tree, id: z.string().uuid() }))
+  .handler(async ({ data }) => {
+    const m = await (await guard()).requireMember(data.tree);
+    return (await import('./ai/chat.server')).loadChatImage(data.tree, m.user.id, m.role, data.id);
+  });
+
+export const aiChatImageQuery = (t: string, id: string) => queryOptions({ queryKey: ['ai-chat-image', t, id], queryFn: () => aiChatImage({ data: { tree: t, id } }), staleTime: Infinity });
 
 export const aiChatMark = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, itemId: z.string().max(64), proposalId: z.string().max(64), status: z.enum(['done', 'dismissed']) }))

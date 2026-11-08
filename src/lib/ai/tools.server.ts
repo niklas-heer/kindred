@@ -9,7 +9,8 @@ import { matchesName } from '../search';
 import type { GPerson, Graph } from '../types';
 import { can, type Action, type Role } from '../roles';
 import { validDate } from '../dates';
-import { fieldInput, FIELD_TYPES, privateByDefault } from '../../components/fields/model';
+import { defaultVisibility, fieldInput, FIELD_TYPES } from '../../components/fields/model';
+import { assistantAudience } from '../visibility';
 import type { Key } from '../i18n/dictionary';
 import { gapsOf, DEFAULT_GAPS, GAP_LABEL } from '../gaps';
 import { gallery, personMedia } from '../photos.server';
@@ -17,7 +18,7 @@ import { mediaUrl, type MediaItem } from '../../components/photos/types';
 import { STORY_KIND_KEY, tr, type Tr } from './labels';
 import type { AiAdapter, ImagePart, ToolSpec } from './adapters';
 import { isolatedLookup, privacyGuard, refusal, REFUSAL_REASON } from './lookup.server';
-import { checkFamily } from './family.server';
+import { checkFamily, cleanSocial, matchesFor, profileKey, profilesInTree } from './family.server';
 import { readHouseSettings } from '../houses.server';
 import { proposalArgs, PROPOSAL_KINDS, NEW_REF, type AiLocale, type Proposal, type ProposalArgs, type ProposalKind, type ProposalView } from './types';
 
@@ -36,6 +37,8 @@ export interface Ctx {
   me: string | null;
   /** This turn is a family session: a memory with no named teller came from its speaker. */
   session?: boolean;
+  /** The reader attached pictures to this message: a draft from it may hold strangers. */
+  pictures?: boolean;
   locale: AiLocale;
   /** Set when the family allows web lookups: the family's budgeted adapter, and where a lookup's sources are collected. */
   search?: { adapter: AiAdapter; sources: { url: string; title?: string }[]; lookups: number };
@@ -113,6 +116,7 @@ const familyPersonSpec = {
     living: { type: 'boolean', description: 'True for someone who is alive.' },
     occupation: { type: 'string' },
     story: { type: 'object', description: 'A memory, note or anecdote about the person.', properties: { kind: { type: 'string', enum: ['note', 'quote', 'anecdote', 'recipe', 'memory'] }, title: { type: 'string' }, body: { type: 'string' }, teller: { type: 'string', description: 'In a family session: the id of the speaker whose line this memory came from.' } }, required: ['kind', 'body'] },
+    social: { type: 'array', maxItems: 5, description: 'Social profiles the reader showed or named.', items: { type: 'object', properties: { network: { type: 'string', description: 'For example Instagram, Facebook, TikTok.' }, handle: { type: 'string', description: 'The username, without its @.' } }, required: ['network', 'handle'] } },
   },
   required: ['ref', 'given', 'living'],
 };
@@ -316,7 +320,7 @@ function base64(bytes: Uint8Array): string {
 
 /** Runs one read tool, or checks one proposal. Returns the text the model sees. */
 export async function runTool(ctx: Ctx, name: string, input: unknown, out: Proposal[]): Promise<string> {
-  const g = await graph(ctx.tree);
+  const g = await graph(ctx.tree, assistantAudience(ctx.role));
   const byId = new Map(g.people.map((p) => [p.id, p]));
   const houses = new Map(g.houses.map((h) => [h.id, h.name]));
   const c = tr(ctx.locale);
@@ -389,8 +393,9 @@ export async function runTool(ctx: Ctx, name: string, input: unknown, out: Propo
 }
 
 async function readPerson(ctx: Ctx, p: GPerson, houses: Map<string, string>) {
-  // The family's own rule (person() and components/fields/model.ts): private fields are for editors and stewards only.
-  const d = await person(ctx.tree, p.id, can(ctx.role, 'edit-person'));
+  // The family's own rule (lib/visibility.ts): editors' fields only for editors and stewards, and no personal field ever,
+  // not even the reader's own, because this goes to the provider.
+  const d = await person(ctx.tree, p.id, assistantAudience(ctx.role));
   return {
     id: p.id,
     name: fullName(p),
@@ -406,7 +411,7 @@ async function readPerson(ctx: Ctx, p: GPerson, houses: Map<string, string>) {
     occupation: p.occupation,
     house: p.house ? houses.get(p.house) : undefined,
     bio: d.bio ? clip(d.bio, 1500) : undefined,
-    fields: d.fields.slice(0, 40).map((f) => ({ type: f.type, label: f.label, value: f.value, private: f.private })),
+    fields: d.fields.slice(0, 40).map((f) => ({ type: f.type, label: f.label, value: f.value, private: f.visibility !== 'family' })),
     stories: d.stories.slice(0, 8).map((s) => ({ kind: s.kind, title: s.title, body: clip(s.body, 800), author: s.author, at: s.at.slice(0, 10) })),
   };
 }
@@ -528,10 +533,11 @@ async function propose(ctx: Ctx, c: Tr, byId: Map<string, GPerson>, kind: Propos
     editable = ['title', 'body'];
   } else {
     const a = args as { person: string; type: string; label?: string; value: Record<string, string> };
-    const checked = fieldInput.safeParse({ type: a.type, label: a.label ?? '', value: a.value, private: false });
+    const checked = fieldInput.safeParse({ type: a.type, label: a.label ?? '', value: a.value, visibility: 'family' });
     if (!checked.success) return json({ error: 'that detail does not fit its type: ' + (checked.error.issues[0]?.message ?? 'check the keys') });
-    // Set by the family's rule, not by the model: a health detail starts private. The approver can change it on the card.
-    args.private = privateByDefault(a.type);
+    // Set by the family's rule, not by the model: a health detail starts at the editors' level. The approver can change it on the card.
+    delete args.private;
+    args.visibility = defaultVisibility(a.type);
     const typeName = c(`type.${a.type}` as Key);
     const valueName = (k: string) => (VALUE_LABEL[k] ? c(VALUE_LABEL[k]) : k);
     summary = c('ai.summaryField', { field: a.label ? `${typeName} (${a.label})` : typeName, name: name(a.person) });
@@ -558,13 +564,17 @@ async function proposeNew(ctx: Ctx, c: Tr, g: Graph, byId: Map<string, GPerson>,
   if (kind === 'family') {
     const parsed = proposalArgs.family.extend({ questions: z.array(z.string().trim().min(1).max(240)).max(8).optional() }).safeParse(input);
     if (!parsed.success) return bad('the arguments did not fit the tool: ' + parsed.error.issues.map((i) => i.path.join('.') || 'input').join(', '));
-    const { links, questions } = parsed.data;
+    const { questions } = parsed.data;
+    let { links } = parsed.data;
     // A memory is told by the speaker the model named, or else the session's speaker. An id that is not in the tree is dropped, never shown.
-    const people = parsed.data.people.map((p) => {
-      if (!p.story) return p;
+    let people = parsed.data.people.map((p) => {
+      // A handle a network could not have is left off: it was misread, and a card should not offer it.
+      const social = p.social?.flatMap((s) => cleanSocial(s) ?? []);
+      const row = { ...p, ...(p.social ? { social } : {}) };
+      if (!p.story) return row;
       const named = p.story.teller && byId.has(p.story.teller) ? p.story.teller : undefined;
       const speaker = ctx.session && ctx.me && byId.has(ctx.me) ? ctx.me : undefined;
-      return { ...p, story: { ...p.story, teller: named ?? speaker } };
+      return { ...row, story: { ...p.story, teller: named ?? speaker } };
     });
     const refs = new Set<string>();
     for (const p of people) {
@@ -581,12 +591,33 @@ async function proposeNew(ctx: Ctx, c: Tr, g: Graph, byId: Map<string, GPerson>,
       }
       if (l.anchor === l.person) return bad('a link cannot join a person to themselves');
     }
+    // Someone the tree already has with every one of these profiles is not offered again. Links to them go to the person in the tree.
+    const profiles = await profilesInTree(ctx.tree);
+    const inTree: NonNullable<ProposalView['known']> = [];
+    people = people.filter((p) => {
+      const owners = new Set((p.social ?? []).map((s) => profiles.get(profileKey(s.network, s.handle))));
+      const [owner] = owners;
+      if (!owner || owners.size !== 1 || !byId.has(owner)) return true;
+      inTree.push({ name: name(byId, owner), handle: p.social![0].handle });
+      links = links.map((l) => {
+        const to = (x: string) => (x === p.ref ? owner : x);
+        return { ...l, anchor: to(l.anchor), person: to(l.person), ...(l.coParent ? { coParent: to(l.coParent) } : {}) };
+      }).filter((l) => l.anchor !== l.person);
+      return false;
+    });
+    if (!people.length && inTree.length) return json({ proposed: false, note: `Everyone in this draft is already in the tree with these profiles: ${inTree.map((k) => k.name).join(', ')}. Tell the reader; there is nothing to add.` });
+    // A list read from a picture may hold strangers, so the reader ticks who is added and sees who may already be in the tree.
+    const pick = !!ctx.pictures || people.some((p) => p.social?.length);
+    const matches = pick ? Object.fromEntries(people.flatMap((p) => {
+      const found = matchesFor(g, p, profiles);
+      return found.length ? [[p.ref, found]] : [];
+    })) : undefined;
     const checks = checkFamily(g, people, links);
     const names: Record<string, string> = {};
     for (const x of new Set(links.flatMap((l) => [l.anchor, l.person, l.coParent]).filter((v): v is string => !!v && byId.has(v)))) names[x] = name(byId, x);
     for (const d of checks.duplicates) names[d.id] = d.name;
     for (const p of people) if (p.story?.teller) names[p.story.teller] = name(byId, p.story.teller);
-    const view: ProposalView = { names, duplicates: checks.duplicates, loops: checks.loops, questions };
+    const view: ProposalView = { names, duplicates: checks.duplicates, loops: checks.loops, questions, ...(pick && { pick, matches }), ...(inTree.length && { known: inTree }) };
     return done({
       kind, args: { people, links }, editable: [],
       summary: c('ai.summaryFamily', { count: people.length, links: links.length - checks.loops.length }),

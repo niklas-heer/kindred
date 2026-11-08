@@ -12,6 +12,9 @@ import { can, type Role } from '../roles';
 import { validDate } from '../dates';
 import { occupationCodeFor } from '../occupations';
 import { linkPlan } from '../relations.server';
+import { addPersonField } from '../person.server';
+import { socialLink } from '../social';
+import { defaultVisibility, fieldInput, PRESETS } from '../../components/fields/model';
 import { tr } from './labels';
 import { NEW_REF, toAiLocale, type FamilyLink, type FamilyPerson } from './types';
 
@@ -23,11 +26,15 @@ export const FAMILY_ERR = {
   unknownRef: 'ai.famUnknownRef',
   duplicateRef: 'ai.famDuplicateRef',
   tellerGone: 'ai.famTellerGone',
+  existingGone: 'ai.famExistingGone',
+  badHandle: 'ai.famBadHandle',
 } as const;
 
 export interface FamilyRow extends FamilyPerson {
   /** The retry key of this person's step (a random id per row, kept until the row changes). */
   key: string;
+  /** Someone already in the tree: no one is created, and this row's new details go on them. */
+  existing?: string;
 }
 export interface FamilyLinkRow extends FamilyLink {
   /** The retry key of this link's step. */
@@ -99,6 +106,69 @@ export function checkFamily(g: Graph, people: FamilyPerson[], links: FamilyLink[
   return { duplicates, loops };
 }
 
+// ---------- social profiles ----------
+
+/**
+ * A social profile as it is stored: the network under its usual name, the handle without its @. Null when a known network
+ * could not have this handle, so what a model misread never becomes a link.
+ */
+export function cleanSocial(s: { network: string; handle: string }): { network: string; handle: string } | null {
+  const network = s.network.trim();
+  const handle = s.handle.trim().replace(/^@/, '');
+  if (!network || !handle || /\s/.test(handle)) return null;
+  const known = PRESETS.social.find((p) => p.toLowerCase() === network.toLowerCase());
+  const link = socialLink(handle, network);
+  // A network Kindred builds links for has to accept the handle. Any other (Signal, say) stays plain text.
+  if (!link && socialLink('someone', network)) return null;
+  return { network: link?.network ?? known ?? network, handle };
+}
+
+/** The same profile whichever way it was typed: a full address, an @handle or a bare username. */
+export function profileKey(network: string, handle: string): string {
+  const link = socialLink(handle, network);
+  return `${(link?.network ?? network).trim().toLowerCase()}|${(link?.handle ?? handle).trim().replace(/^@/, '').toLowerCase()}`;
+}
+
+/** Every social profile in the tree that an editor may see, by profileKey: who has it. Someone's personal notes are left out. */
+export async function profilesInTree(tree: string): Promise<Map<string, string>> {
+  const rows = await db(tree).all<{ person: string; label: string; value: string }>("SELECT person, label, value FROM person_field WHERE type = 'social' AND visibility != 'personal'");
+  const out = new Map<string, string>();
+  for (const r of rows) {
+    let handle = '';
+    try {
+      handle = (JSON.parse(r.value) as { handle?: string }).handle ?? '';
+    } catch {}
+    if (handle) out.set(profileKey(r.label, handle), r.person);
+  }
+  return out;
+}
+
+export interface PersonMatch { id: string; name: string; born: string | null; sure: boolean }
+
+/**
+ * Who in the tree a draft row may be, best first, at most four. Sure is the same profile, or the same given name and surname
+ * with no birth year against it. A first name alone is only offered: a list of first names matches many people.
+ */
+export function matchesFor(g: Graph, row: FamilyPerson, profiles: ReadonlyMap<string, string>): PersonMatch[] {
+  const out: PersonMatch[] = [];
+  const add = (id: string, sure: boolean) => {
+    const p = g.people.find((x) => x.id === id);
+    if (p && !out.some((m) => m.id === id)) out.push({ id, name: fullName(p), born: p.born ?? null, sure });
+  };
+  for (const s of row.social ?? []) {
+    const owner = profiles.get(profileKey(s.network, s.handle));
+    if (owner) add(owner, true);
+  }
+  for (const p of g.people) {
+    if (norm(p.given) !== norm(row.given)) continue;
+    const bothSurnames = !!row.surname && !!p.surname;
+    if (bothSurnames && norm(p.surname) !== norm(row.surname)) continue;
+    const yearFits = Number.isNaN(yearOf(p.born)) || Number.isNaN(yearOf(row.born)) || yearOf(p.born) === yearOf(row.born);
+    if (yearFits) add(p.id, bothSurnames);
+  }
+  return out.sort((a, b) => Number(b.sure) - Number(a.sure)).slice(0, 4);
+}
+
 /** The person's own fields, as the plan stores them. Dates are checked on the calendar; an approximate one keeps its ~. */
 function personFields(row: FamilyRow) {
   return {
@@ -112,6 +182,17 @@ function personFields(row: FamilyRow) {
     living: row.living,
     occupation: row.occupation?.trim() || null,
   };
+}
+
+async function profilesOf(tree: string, person: string): Promise<Set<string>> {
+  const rows = await db(tree).all<{ label: string; value: string }>("SELECT label, value FROM person_field WHERE person = ? AND type = 'social' AND visibility != 'personal'", person);
+  const out = new Set<string>();
+  for (const r of rows) {
+    try {
+      out.add(profileKey(r.label, (JSON.parse(r.value) as { handle?: string }).handle ?? ''));
+    } catch {}
+  }
+  return out;
 }
 
 /**
@@ -143,7 +224,14 @@ export async function applyFamilyBatch(o: { tree: string; user: string; author: 
       const tellerId = row.story?.teller && row.story.teller !== o.me ? row.story.teller : null;
       const teller = tellerId ? await db(tree).get<{ given: string; surname: string | null }>('SELECT given, surname FROM person WHERE id = ?', tellerId) : undefined;
       if (tellerId && !teller) throw new Error(FAMILY_ERR.tellerGone);
-      const id = await once(tree, { key: row.key, user, payload: f }, 'aiFamilyPerson', async (d) => {
+      // Each profile is checked first, so one that cannot be saved does not leave a person without it.
+      const socials = (row.social ?? []).map((s) => {
+        const clean = cleanSocial(s);
+        if (!clean) throw new Error(FAMILY_ERR.badHandle);
+        return clean;
+      });
+      if (row.existing && !(await db(tree).get('SELECT id FROM person WHERE id = ?', row.existing))) throw new Error(FAMILY_ERR.existingGone);
+      const id = row.existing ?? await once(tree, { key: row.key, user, payload: f }, 'aiFamilyPerson', async (d) => {
         const newPersonId = newId(f.given);
         return {
           writes: [q(
@@ -154,6 +242,14 @@ export async function applyFamilyBatch(o: { tree: string; user: string; author: 
         };
       });
       refs.set(row.ref, id);
+      // The profiles this person does not have yet, each with its own retry key, through the same step as the person's page.
+      const have = await profilesOf(tree, id);
+      for (const [i, s] of socials.entries()) {
+        if (have.has(profileKey(s.network, s.handle))) continue;
+        const field = fieldInput.parse({ type: 'social', label: s.network, value: { handle: s.handle }, visibility: defaultVisibility('social') });
+        await addPersonField(tree, id, field, { key: `${row.key}f${i}`, user, payload: { person: id, ...s } }, o.author, { account: o.user, role: o.role, guest: false });
+        have.add(profileKey(s.network, s.handle));
+      }
       people.push({ ref: row.ref, id });
       if (row.story) {
         const s = row.story;

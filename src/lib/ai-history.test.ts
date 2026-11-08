@@ -32,9 +32,9 @@ const family = openSqlite(join(dir, `${TREE}.db`), 'tree', { create: true });
 family.exec(`
   INSERT INTO meta (key, value) VALUES ('id', '${TREE}'), ('name', 'Family'), ('tagline', ''), ('theme', 'codex'), ('focus', 'ada');
   INSERT INTO person (id, given, surname) VALUES ('ada', 'Ada', 'Lovelace'), ('bob', 'Bob', 'Hope');
-  INSERT INTO person_field (id, person, type, label, value, ord, private) VALUES
-    ('f1', 'ada', 'medical', 'condition', '{"note":"${MARKER}"}', 0, 1),
-    ('f2', 'ada', 'phone', 'mobile', '{"number":"+44 555"}', 1, 0);
+  INSERT INTO person_field (id, person, type, label, value, ord, visibility) VALUES
+    ('f1', 'ada', 'medical', 'condition', '{"note":"${MARKER}"}', 0, 'editors'),
+    ('f2', 'ada', 'phone', 'mobile', '{"number":"+44 555"}', 1, 'family');
 `);
 family.close();
 
@@ -131,8 +131,8 @@ test('an add-field proposal is private by the type\'s rule, whatever the model a
   const out: import('./ai/types.ts').Proposal[] = [];
   await tools.runTool(ctx, 'propose_add_field', { person: 'ada', type: 'medical', value: { note: 'Asthma' }, private: false }, out);
   await tools.runTool(ctx, 'propose_add_field', { person: 'ada', type: 'phone', value: { number: '+44 1' } }, out);
-  assert.equal(out[0].args.private, true, 'medical starts private even when the model says otherwise');
-  assert.equal(out[1].args.private, false, 'a phone number starts public');
+  assert.equal(out[0].args.visibility, 'editors', 'medical starts at the editors’ level even when the model says otherwise');
+  assert.equal(out[1].args.visibility, 'family', 'a phone number starts at the family’s level');
 });
 
 test('an add-field proposal names its type and value keys in the reader\'s language', async () => {

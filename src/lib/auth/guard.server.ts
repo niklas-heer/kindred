@@ -11,6 +11,7 @@
 // safe for someone who is not a member, lets a guest through, and then with exactly a viewer's role. Anything new is closed to
 // guests until it says otherwise.
 import { appendResponseHeader, getRequest, setResponseStatus } from '@tanstack/react-start/server';
+import { CHANGE_OF_ACTION } from '../stats/shared';
 import { can, needs, type Action, type Role } from '../roles';
 import { forbidden, notMember, signedOut, type AuthError } from './errors';
 import { getSession, type Session } from './session.server';
@@ -79,5 +80,7 @@ export async function requireReader(tree: string): Promise<Reader> {
 export async function requireCan(tree: string, action: Action): Promise<Member> {
   const m = await requireMember(tree);
   if (!can(m.role, action)) throw fail(forbidden(action, needs(action)));
+  // Counts a change under the role just confirmed, for the statistics by category; it never throws. Awaited, so a Worker does not end the request before it is written.
+  if (CHANGE_OF_ACTION[action]) await import('../stats/store.server').then((s) => s.countChange(tree, m.user.id, m.role, action)).catch(() => {});
   return m;
 }

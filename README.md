@@ -56,8 +56,8 @@ budget, $5 by default. [docs/ai.md](docs/ai.md) says exactly what is sent where.
 ## Who sees what
 
 Everyone signs in with a **passkey**, so there are no passwords to forget, and you can put Cloudflare Access in front as well.
-A member is a viewer, contributor, editor or steward, and the server checks every change. Private fields are shown only to
-editors and stewards. A relative who doesn't want an account can have a read-only **share link**, protected by a password by default.
+A member is a viewer, contributor, editor or steward, and the server checks every change. A person's fields and notes have three levels: personal (only the
+account that added them), editors, or the whole family. A relative who doesn't want an account can have a read-only **share link**, protected by a password by default.
 
 New members are offered a short **tour**. Stewards get counts-only **statistics**, which never hold names or what anyone
 wrote and can be turned off, and a **feedback** inbox that stays inside the family's own Kindred. The app comes in English,

@@ -1,6 +1,8 @@
 // What usage statistics may contain, for the browser and the server alike. Only names on these two lists are ever stored, so a
 // person's id, a house, a search or anything a reader typed cannot reach the counters, whatever a browser sends.
 
+import type { Action } from '../roles.ts';
+
 /** The sections counted as page views. A page about one person or house counts as its section, without the id. */
 export const ROUTES = [
   'tree', 'almanac', 'atlas', 'contacts', 'register', 'houses', 'house', 'needed', 'chronicle', 'gallery',
@@ -16,6 +18,23 @@ export type EventName = (typeof EVENTS)[number];
 
 /** Events that count once per member however often they happen, such as a tour reopened on another device. */
 export const ONCE_EVENTS: readonly EventName[] = ['tour.finished', 'tour.skipped'];
+
+/** Who did something, as the server saw it at that moment. Guests are anonymous visits from a share link. */
+export const CATEGORIES = ['steward', 'editor', 'contributor', 'viewer', 'guest'] as const;
+export type Category = (typeof CATEGORIES)[number];
+/** What is stored for a counter written before categories existed. */
+export const LEGACY = 'legacy';
+export type StoredCategory = Category | typeof LEGACY;
+
+/** The kinds of change that are counted when a member saves one. */
+export const CHANGE_KINDS = ['people', 'photos', 'stories', 'research'] as const;
+export type ChangeKind = (typeof CHANGE_KINDS)[number];
+
+/** The change a permission check stands for, so a save is counted where the role is already known. */
+export const CHANGE_OF_ACTION: Partial<Record<Action, ChangeKind>> = {
+  'add-person': 'people', 'edit-person': 'people', 'remove-person': 'people',
+  'upload-photo': 'photos', 'add-story': 'stories', 'add-research': 'research', 'edit-research': 'research',
+};
 
 export const RANGES = [7, 30, 90] as const;
 export type RangeDays = (typeof RANGES)[number];

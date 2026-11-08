@@ -55,9 +55,9 @@ family.exec(`
   INSERT INTO person (id, given, surname, nickname, living, current_given, current_surname) VALUES
     ('anna', 'Anna', 'Kramer', 'Annie', 1, 'Anna', 'Brandt'),
     ('otto', 'Otto', 'Vogt', NULL, 0, NULL, NULL);
-  INSERT INTO person_field (id, person, type, label, value, ord, private) VALUES
-    ('f1', 'otto', 'address', 'lodge', '{"street":"${PRIVATE}"}', 0, 1),
-    ('f2', 'otto', 'notes', 'short', '{"text":"yes"}', 1, 1);
+  INSERT INTO person_field (id, person, type, label, value, ord, visibility) VALUES
+    ('f1', 'otto', 'address', 'lodge', '{"street":"${PRIVATE}"}', 0, 'editors'),
+    ('f2', 'otto', 'notes', 'short', '{"text":"yes"}', 1, 'editors');
 `);
 family.close();
 

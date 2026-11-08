@@ -68,7 +68,8 @@ function makeFamily(id: string, { meanings = true }: { meanings?: boolean } = {}
       ('di', 'Di', NULL, 'Brunnenbauer', 1),
       ('ed', 'Ed', NULL, 'Lohgerber', 1),
       ('fi', 'Fi', NULL, 'Ziegelbrenner', 1);
-    INSERT INTO person_field (id, person, type, label, value, ord, private) VALUES ('pf1', 'ada', 'phone', 'Mobile', '{"value":"SECRET-PHONE-0123"}', 0, 1);
+    INSERT INTO person_field (id, person, type, label, value, ord, visibility) VALUES ('pf1', 'ada', 'phone', 'Mobile', '{"value":"SECRET-PHONE-0123"}', 0, 'editors');
+    INSERT INTO person_field (id, person, type, label, value, ord, visibility, owner) VALUES ('pf2', 'ada', 'notes', '', '{"text":"SECRET-PERSONAL-NOTE"}', 1, 'personal', 'author-1');
     INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES
       ('s1', 'ada', 'memory', 'The workshop', 'We mended kettles on Sundays.', 'Ada', '2026-01-01T10:00:00Z', NULL),
       ('s2', 'bo', 'quote', NULL, '"Mind the kettle, it is hot."', 'Bo', '2026-01-02T10:00:00Z', 'At the fair');
@@ -271,6 +272,7 @@ test('no private field is sent: the outgoing bodies of all three tasks, from a r
   assert.ok(fetched.bodies.some((b) => b.includes('We mended kettles')), 'a story was sent');
   assert.ok(fetched.bodies.some((b) => b.includes('House Heer') || b.includes('lord, gentleman')), 'the arms review was sent');
   for (const body of fetched.bodies) assert.ok(!body.includes('SECRET-PHONE-0123'), 'a private field never leaves the server');
+  for (const body of fetched.bodies) assert.ok(!body.includes('SECRET-PERSONAL-NOTE'), 'a personal field never leaves the server');
   assert.equal(originals(tree), before, 'the originals are not altered');
 });
 

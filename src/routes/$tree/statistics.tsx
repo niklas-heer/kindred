@@ -11,8 +11,8 @@ import { useFamily, useTreeId } from '~/lib/family';
 import { formatNumber, locales, useT, type Key, type Translator } from '~/lib/i18n';
 import { useCan } from '~/lib/session';
 import { setStatsCollecting, statsOverviewQuery } from '~/lib/stats/functions';
-import { CHANGE_KINDS, percentChange, type ChangeKind, type Overview, type Tone } from '~/lib/stats/overview';
-import { RANGES, type EventName, type RangeDays, type RouteName } from '~/lib/stats/shared';
+import { CHANGE_KINDS, percentChange, VIEWS, type ChangeKind, type Overview, type Tone, type ViewKey } from '~/lib/stats/overview';
+import { CATEGORIES, RANGES, type EventName, type RangeDays, type RouteName } from '~/lib/stats/shared';
 import { sectionHead } from '~/lib/title';
 import '~/styles/statistics.css';
 
@@ -41,6 +41,7 @@ function StatisticsPage() {
   const f = useFamily();
   const steward = useCan('view-statistics');
   const [days, setDays] = useState<RangeDays>(30);
+  const [view, setView] = useState<ViewKey>('family');
   const overview = useQuery({ ...statsOverviewQuery(tree, days), enabled: steward });
 
   if (!steward) {
@@ -56,20 +57,28 @@ function StatisticsPage() {
         actions={<Segmented aria-label={t('stats.range')} value={String(days)} onChange={(v) => setDays(Number(v) as RangeDays)} options={RANGES.map((d) => ({ value: String(d), label: t('stats.days', { count: d }) }))} />}
       />
       {overview.isError ? <ErrorState title={t('stats.load_failed')} error={overview.error} onRetry={() => void overview.refetch()} />
-        : overview.data ? <Report o={overview.data} t={t} tree={tree} />
+        : overview.data ? <Report o={overview.data} t={t} tree={tree} view={view} setView={setView} />
         : <Skeleton height={420} />}
     </div></div>
   );
 }
 
-function Report({ o, t, tree }: { o: Overview; t: Translator; tree: string }) {
+const VIEW_LABEL: Record<ViewKey, Key> = {
+  family: 'stats.view.family', all: 'stats.view.all', steward: 'stats.view.steward', editor: 'stats.view.editor',
+  contributor: 'stats.view.contributor', viewer: 'stats.view.viewer', guest: 'stats.view.guest',
+};
+
+function Report({ o, t, tree, view, setView }: { o: Overview; t: Translator; tree: string; view: ViewKey; setView: (v: ViewKey) => void }) {
+  const s = o.slices[view];
   const count = (n: number) => formatNumber(n, t.locale);
   const short = new Intl.DateTimeFormat(locales[t.locale], { day: 'numeric', month: 'short', timeZone: 'UTC' });
   const long = new Intl.DateTimeFormat(locales[t.locale], { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
   const dayLabel = (day: string) => short.format(Date.parse(`${day}T00:00:00Z`));
-  const days = o.series.map((p) => p.day);
-  const rangeActive = o.days === 7 ? o.active.d7 : o.days === 30 ? o.active.d30 : o.active.d90;
-  const nothing = !o.since && o.totals.changes === 0;
+  const days = s.series.map((p) => p.day);
+  const rangeActive = o.days === 7 ? s.active.d7 : o.days === 30 ? s.active.d30 : s.active.d90;
+  const nothing = !o.since && o.slices.all.totals.changes === 0;
+  const guest = view === 'guest';
+  const category = (CATEGORIES as readonly string[]).includes(view);
 
   const delta = (now: number, before: number) => {
     const p = percentChange(now, before);
@@ -81,18 +90,31 @@ function Report({ o, t, tree }: { o: Overview; t: Translator; tree: string }) {
       {!o.collecting && <Notice>{t('stats.off_notice')}</Notice>}
       {nothing && o.collecting && <Notice>{t('stats.empty_notice')}</Notice>}
 
-      <section className="st-tiles" aria-label={t('stats.summary')}>
-        <Tile label={t('stats.tile.views')} value={count(o.totals.views)} note={delta(o.totals.views, o.previous.views)} />
-        <Tile label={t('stats.tile.active')} value={count(rangeActive)} note={t('stats.of_members', { count: o.members })} />
-        <Tile label={t('stats.tile.visits')} value={count(o.totals.visits + o.totals.guests)} note={t('stats.guests', { count: o.totals.guests })} />
-        <Tile label={t('stats.tile.changes')} value={count(o.totals.changes)} note={delta(o.totals.changes, o.previous.changes)} />
+      <div className="st-view">
+        <Segmented aria-label={t('stats.view.label')} value={view} onChange={setView} size="sm"
+          options={VIEWS.map((v) => ({ value: v, label: t(VIEW_LABEL[v]) }))} />
+        <p className="st-caption" id="st-scope">
+          {view === 'family' ? t('stats.scope.family') : view === 'all' ? t('stats.scope.all') : t('stats.scope.one', { who: t(VIEW_LABEL[view]) })}
+        </p>
+        {category && !guest && s.members === 0 && <Notice>{t('stats.small_none')}</Notice>}
+        {category && !guest && s.members === 1 && <Notice>{t('stats.small_one')}</Notice>}
+        {guest && <Notice>{t('stats.guest_note')}</Notice>}
+        {view === 'all' && o.beforeCategories > 0 && <Notice>{t('stats.before_cats', { count: o.beforeCategories })}</Notice>}
+        {view !== 'all' && !guest && !s.changesKnown && o.categorized && <Notice>{t('stats.changes_partial', { day: dayLabel(o.categorized) })}</Notice>}
+      </div>
+
+      <section className="st-tiles" aria-label={t('stats.summary')} aria-describedby="st-scope">
+        {!guest && <Tile label={t('stats.tile.views')} value={count(s.totals.views)} note={delta(s.totals.views, s.previous.views)} />}
+        {!guest && <Tile label={t('stats.tile.active')} value={count(rangeActive)} note={t('stats.of_members', { count: s.members })} />}
+        <Tile label={t('stats.tile.visits')} value={count(s.totals.visits + s.totals.guests)} note={guest ? delta(s.totals.guests, s.previous.guests) : t('stats.guests', { count: s.totals.guests })} />
+        {!guest && <Tile label={t('stats.tile.changes')} value={count(s.totals.changes)} note={s.changesKnown ? delta(s.totals.changes, s.previous.changes) : o.categorized ? t('stats.changes_since', { day: dayLabel(o.categorized) }) : t('stats.no_comparison')} />}
       </section>
 
-      <section className="st-card st-reception" data-verdict={o.reception.verdict}>
+      <section className="st-card st-reception" data-verdict={s.reception.verdict}>
         <h2>{t('stats.reception_title')}</h2>
-        <p className="st-verdict">{t(`stats.verdict.${o.reception.verdict}` as Key)}</p>
+        <p className="st-verdict">{t(`stats.verdict.${s.reception.verdict}` as Key)}</p>
         <ul>
-          {o.reception.points.map((p) => (
+          {s.reception.points.map((p) => (
             <li key={p.key} data-tone={p.tone}><span aria-hidden>{TONE_ICON[p.tone]}</span>{t(p.key, p.vars)}</li>
           ))}
         </ul>
@@ -102,11 +124,11 @@ function Report({ o, t, tree }: { o: Overview; t: Translator; tree: string }) {
       <div className="st-grid-2">
         <Card title={t('stats.chart.views')}>
           <TimeChart mode="area" days={days} dayLabel={dayLabel} locale={t.locale} label={t('stats.chart.views')}
-            series={[{ label: t('stats.tile.views'), color: 'var(--st-line)', values: o.series.map((p) => p.views) }]} />
+            series={[{ label: t('stats.tile.views'), color: 'var(--st-line)', values: s.series.map((p) => p.views) }]} />
         </Card>
         <Card title={t('stats.chart.active')}>
           <TimeChart mode="bars" days={days} dayLabel={dayLabel} locale={t.locale} label={t('stats.chart.active')}
-            series={[{ label: t('stats.tile.active'), color: 'var(--st-1)', values: o.series.map((p) => p.active) }]} />
+            series={[{ label: t('stats.tile.active'), color: 'var(--st-1)', values: s.series.map((p) => p.active) }]} />
         </Card>
       </div>
 
@@ -115,8 +137,10 @@ function Report({ o, t, tree }: { o: Overview; t: Translator; tree: string }) {
           {CHANGE_KINDS.map((k) => <li key={k}><i style={{ background: CHANGE_COLOR[k] }} />{t(CHANGE_LABEL[k])}</li>)}
         </ul>
         <TimeChart mode="bars" days={days} dayLabel={dayLabel} locale={t.locale} label={t('stats.chart.changes')} height={210}
-          series={CHANGE_KINDS.map((k) => ({ label: t(CHANGE_LABEL[k]), color: CHANGE_COLOR[k], values: o.series.map((p) => p[k]) }))} />
+          series={CHANGE_KINDS.map((k) => ({ label: t(CHANGE_LABEL[k]), color: CHANGE_COLOR[k], values: s.series.map((p) => p[k]) }))} />
       </Card>
+
+      <Who o={o} t={t} count={count} />
 
       <details className="st-card st-table">
         <summary>{t('stats.show_table')}</summary>
@@ -127,7 +151,7 @@ function Report({ o, t, tree }: { o: Overview; t: Translator; tree: string }) {
               {CHANGE_KINDS.map((k) => <th scope="col" key={k}>{t(CHANGE_LABEL[k])}</th>)}
             </tr></thead>
             <tbody>
-              {[...o.series].reverse().map((p) => (
+              {[...s.series].reverse().map((p) => (
                 <tr key={p.day}><th scope="row">{dayLabel(p.day)}</th><td>{count(p.views)}</td><td>{count(p.visits)}</td><td>{count(p.active)}</td>{CHANGE_KINDS.map((k) => <td key={k}>{count(p[k])}</td>)}</tr>
               ))}
             </tbody>
@@ -137,18 +161,18 @@ function Report({ o, t, tree }: { o: Overview; t: Translator; tree: string }) {
 
       <div className="st-grid-2">
         <Card title={t('stats.most_visited')}>
-          <Ranked rows={o.routes.map((r) => ({ id: r.name, label: t(ROUTE_LABEL[r.name]), n: r.n }))} empty={t('stats.none_yet')} count={count} />
+          <Ranked rows={s.routes.map((r) => ({ id: r.name, label: t(ROUTE_LABEL[r.name]), n: r.n }))} empty={t('stats.none_yet')} count={count} />
         </Card>
         <Card title={t('stats.most_used')}>
-          <Ranked rows={o.features.map((r) => ({ id: r.name, label: t(EVENT_LABEL[r.name]), n: r.n }))} empty={t('stats.none_yet')} count={count} />
+          <Ranked rows={s.features.map((r) => ({ id: r.name, label: t(EVENT_LABEL[r.name]), n: r.n }))} empty={t('stats.none_yet')} count={count} />
         </Card>
       </div>
 
       <div className="st-grid-2">
         <Card title={t('stats.recent')}>
-          {o.recent.length === 0 ? <p className="st-none">{t('stats.none_yet')}</p> : (
+          {s.recent.length === 0 ? <p className="st-none">{t('stats.none_yet')}</p> : (
             <ul className="st-recent">
-              {o.recent.map((r) => (
+              {s.recent.map((r) => (
                 <li key={r.day}>
                   <b>{long.format(Date.parse(`${r.day}T00:00:00Z`))}</b>
                   <span>{CHANGE_KINDS.filter((k) => r[k] > 0).map((k) => t(CHANGE_COUNT[k], { count: r[k] })).join(' · ')}</span>
@@ -162,13 +186,46 @@ function Report({ o, t, tree }: { o: Overview; t: Translator; tree: string }) {
             <div><dt>{t('stats.tour_finished')}</dt><dd>{count(o.tour.finished)}</dd></div>
             <div><dt>{t('stats.tour_skipped')}</dt><dd>{count(o.tour.skipped)}</dd></div>
             <div><dt>{t('stats.feedback')}</dt><dd>{count(o.feedback)}</dd></div>
-            <div><dt>{t('stats.active_week')}</dt><dd>{count(o.active.d7)}</dd></div>
+            <div><dt>{t('stats.active_week')}</dt><dd>{count(s.active.d7)}</dd></div>
           </dl>
         </Card>
       </div>
 
       <Collection on={o.collecting} tree={tree} t={t} />
     </>
+  );
+}
+
+/** Who did what in this range, one row per category: totals only. A group of one may be one person, and the page says so above. */
+function Who({ o, t, count }: { o: Overview; t: Translator; count: (n: number) => string }) {
+  const cell = (v: ViewKey) => {
+    const s = o.slices[v];
+    return {
+      v, visits: s.totals.visits + s.totals.guests, active: v === 'guest' ? null : o.days === 7 ? s.active.d7 : o.days === 30 ? s.active.d30 : s.active.d90,
+      views: s.totals.views, changes: v === 'guest' ? null : s.changesKnown ? s.totals.changes : null, features: s.features.reduce((n, f) => n + f.n, 0), members: s.members,
+    };
+  };
+  const rows = (['steward', 'editor', 'contributor', 'viewer', 'guest'] as const).map(cell);
+  const dash = '–';
+  return (
+    <Card title={t('stats.who_title')} note={t('stats.who_note')}>
+      <div className="st-table-scroll" tabIndex={0}>
+        <table className="st-who">
+          <thead><tr>
+            <th scope="col">{t('stats.col.group')}</th><th scope="col">{t('stats.tile.visits')}</th><th scope="col">{t('stats.tile.active')}</th>
+            <th scope="col">{t('stats.tile.views')}</th><th scope="col">{t('stats.tile.changes')}</th><th scope="col">{t('stats.col.features')}</th>
+          </tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.v}>
+                <th scope="row">{t(VIEW_LABEL[r.v])}</th><td>{count(r.visits)}</td><td>{r.active === null ? dash : count(r.active)}</td>
+                <td>{r.v === 'guest' ? dash : count(r.views)}</td><td>{r.changes === null ? dash : count(r.changes)}</td><td>{r.v === 'guest' ? dash : count(r.features)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }
 

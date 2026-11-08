@@ -226,7 +226,7 @@ function AccessPage() {
         onClose={() => setRemoving(null)}
         title={t('acc.removeTitle', { name: removing?.name ?? '' })}
         width={440}
-        description={<>{t('acc.removeText', { family: f.graph.tree.name })}</>}
+        description={<>{t('acc.removeText', { family: f.graph.tree.name })} {t('acc.removePersonal')}</>}
         footer={
           <>
             <button className="btn" data-autofocus onClick={() => setRemoving(null)}>{t('acc.keepThem')}</button>
@@ -287,6 +287,7 @@ function FamilyDetails({ tree, name, tagline }: { tree: string; name: string; ta
           <span>{t('acc.familyTagline')}</span>
           <input className="input" value={draft.tagline} maxLength={140} onChange={(e) => setDraft({ ...draft, tagline: e.target.value })} autoComplete="off" />
         </label>
+        <p className="acc-hint">{t('acc.familySlug', { slug: tree })}</p>
         <div className="fam-actions">
           <button type="submit" className="btn primary" disabled={!dirty || !draft.name.trim() || save.isPending}>
             {save.isPending ? t('acc.familySaving') : t('acc.familySave')}

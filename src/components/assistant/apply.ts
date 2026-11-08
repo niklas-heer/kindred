@@ -7,7 +7,7 @@ import { addRelative, addStory, linkRelative, opKeys, patchPerson } from '~/lib/
 import { addPersonField, setDiedPlace, setLook } from '~/lib/person.functions';
 import { saveAlbum, saveGalleryPhoto, tagPhoto } from '~/lib/photos.functions';
 import { updateHouseSettings } from '~/lib/houses.functions';
-import { fieldInput, privateByDefault } from '~/components/fields/model';
+import { defaultVisibility, fieldInput } from '~/components/fields/model';
 import { proposalArgs, type Proposal, type ProposalArgs } from '~/lib/ai/types';
 
 /** A form's retry keys: the same approval sent twice reuses its key, so a lost reply can't write twice. */
@@ -33,9 +33,9 @@ export async function applyProposal(tree: string, p: Proposal, args: ProposalArg
     // The death place has its own endpoint, with its own retry key, so a lost reply cannot write it twice.
     if (a.diedPlace !== undefined) await setDiedPlace({ data: { tree, id: a.person, place: a.diedPlace || null, opKey: keys.for('set-dates:died-place', { person: a.person, place: a.diedPlace }) } });
   } else if (p.kind === 'add-field') {
-    // The card's Private switch (the proposal's default is the type's rule, see tools.server.ts).
-    const isPrivate = typeof a.private === 'boolean' ? a.private : privateByDefault(a.type);
-    const field = fieldInput.safeParse({ type: a.type, label: a.label ?? '', value: a.value, private: isPrivate });
+    // The card's choice of level. A proposal saved before there were levels has the old flag instead.
+    const visibility = a.visibility ?? (typeof a.private === 'boolean' ? (a.private ? 'editors' : 'family') : defaultVisibility(a.type));
+    const field = fieldInput.safeParse({ type: a.type, label: a.label ?? '', value: a.value, visibility });
     if (!field.success) throw new Error(field.error.issues[0]?.message ?? 'ai.err_detail_type');
     await addPersonField({ data: { tree, person: a.person, field: field.data, opKey } });
   } else if (p.kind === 'set-occupation') {

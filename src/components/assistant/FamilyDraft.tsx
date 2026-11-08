@@ -13,6 +13,7 @@ import { type FamilyLink, type FamilyPerson, type Proposal } from '~/lib/ai/type
 import { useT, type Key } from '~/lib/i18n';
 import { PROPOSAL_KIND_KEY, STORY_KIND_KEY } from '~/lib/ai/labels';
 import { errorText } from '~/lib/errortext';
+import { socialLink } from '~/lib/social';
 import type { Locale } from '~/lib/i18n/types';
 import { Select } from '~/components/ui';
 import { CardHead } from './CardHead';
@@ -35,10 +36,14 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
   const qc = useQueryClient();
   const seed = proposal.args as unknown as { people: FamilyPerson[]; links: FamilyLink[] };
   const view = proposal.view ?? {};
-  const [rows, setRows] = useState<Row[]>(() => seed.people.map((p) => ({ ...p, status: 'todo' as Status })));
+  // A row the server is sure is someone already in the tree starts as that person, so adding it adds no one new.
+  const [rows, setRows] = useState<Row[]>(() => seed.people.map((p) => ({ ...p, status: 'todo' as Status, ...(view.matches?.[p.ref]?.[0]?.sure && { existing: view.matches[p.ref][0].id }) })));
   // A link's uid is its place in the draft as the server checked it (view.loops counts those places).
   const [links, setLinks] = useState<LinkRow[]>(() => seed.links.map((l, i) => ({ ...l, uid: `l${i}`, status: 'todo' as Status })));
   const [editing, setEditing] = useState<string | null>(null);
+  // A list read from a picture may hold strangers, so nobody is on the way in until the reader ticks them.
+  const pick = !!view.pick;
+  const [chosen, setChosen] = useState<ReadonlySet<string>>(() => new Set());
   // One key per step, kept for the card's life: a retry of the same row or link replays what it did, and an edited row gets a new key.
   const [keys] = useState(() => opKeys());
   const [busy, setBusy] = useState(false);
@@ -68,6 +73,27 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
     setRows((rs) => rs.map((r) => (r.ref === ref ? { ...r, [field]: value, status: r.status === 'failed' ? 'todo' : r.status, error: undefined } : r)));
   }
 
+  /** Changes one profile's handle, or takes the profile off (null). The row is sent again with new content. */
+  function editSocial(ref: string, index: number, handle: string | null) {
+    setRows((rs) => rs.map((r) => (r.ref === ref
+      ? { ...r, social: handle === null ? r.social?.filter((_, i) => i !== index) : r.social?.map((s, i) => (i === index ? { ...s, handle } : s)), status: r.status === 'failed' ? 'todo' : r.status, error: undefined }
+      : r)));
+  }
+
+  /** Whether this row is a new person or someone already in the tree. */
+  function setExisting(ref: string, existing: string | undefined) {
+    setRows((rs) => rs.map((r) => (r.ref === ref ? { ...r, existing, status: r.status === 'failed' ? 'todo' : r.status, error: undefined } : r)));
+  }
+
+  function toggleChosen(ref: string, on: boolean) {
+    setChosen((c) => {
+      const next = new Set(c);
+      if (on) next.add(ref);
+      else next.delete(ref);
+      return next;
+    });
+  }
+
   /** The same for the memory: a change or removal sends the row again with new content. Blanking the text leaves the memory out. */
   function editStory(ref: string, patch: Partial<Story> | null) {
     setRows((rs) => rs.map((r) => (r.ref === ref && r.story
@@ -94,7 +120,7 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
   async function add(only?: string) {
     setBusy(true);
     setNotice(null);
-    const sendRows = rows.filter((r) => r.status !== 'done' && (!only || r.ref === only));
+    const sendRows = rows.filter((r) => r.status !== 'done' && (only ? r.ref === only : !pick || chosen.has(r.ref)));
     const sending = new Set(sendRows.map((r) => r.ref));
     const sendLinks = linksToSend(rows, links, loopUids, sending);
     const people = sendRows.map((r) => {
@@ -159,12 +185,17 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
     return out;
   });
   const connections = links.filter((l) => !rows.some((r) => r.ref === l.person));
+  const open = rows.filter((r) => r.status !== 'done');
+  const chosenCount = open.filter((r) => chosen.has(r.ref)).length;
   return (
     <article className="ai-card ai-card-open" aria-label={t('ai.proposalHeading')}>
       <CardHead kind={kind} state="open" />
       <p className="ai-card-summary">{proposal.summary}</p>
       <div className="ai-fam">
-        <p className="ai-fam-intro subtle">{t('ai.famIntro')}</p>
+        <p className="ai-fam-intro subtle">{t(pick ? 'ai.famPickIntro' : 'ai.famIntro')}</p>
+        {view.known && view.known.length > 0 && (
+          <p className="ai-fam-known subtle">{t('ai.famKnown', { names: view.known.map((k) => k.name).join(', ') })}</p>
+        )}
         {view.questions && view.questions.length > 0 && (
           <div className="ai-fam-questions">
             <p className="ai-fam-label">{t('ai.famQuestions')}</p>
@@ -172,16 +203,49 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
           </div>
         )}
 
+        {pick && open.length > 1 && (
+          <div className="ai-fam-pickall">
+            <button type="button" className="btn ghost ai-touch" onClick={() => setChosen(new Set(open.map((r) => r.ref)))} disabled={busy}>{t('ai.famPickAll')}</button>
+            <button type="button" className="btn ghost ai-touch" onClick={() => setChosen(new Set())} disabled={busy || chosenCount === 0}>{t('ai.famPickNone')}</button>
+          </div>
+        )}
         <ol className="ai-fam-rows">
           {rows.length === 0 && <li className="subtle">{t('ai.famEmpty')}</li>}
           {rows.map((r) => {
             const dup = duplicateOf(r.ref);
+            const matches = view.matches?.[r.ref] ?? [];
             const locked = r.status === 'done';
             const facts = [r.born ? t('ai.famBorn', { date: dateText(t, r.born) }) : null, r.died ? t('ai.famDied', { date: dateText(t, r.died) }) : null, r.occupation || null].filter(Boolean);
             return (
               <li key={r.ref} className={`ai-fam-row ai-fam-${r.status}`}>
                 <div className="ai-fam-main">
-                  <p className="ai-fam-name">{nameOfRow(r)}</p>
+                  {pick && !locked ? (
+                    <label className="ai-fam-pick">
+                      <input type="checkbox" checked={chosen.has(r.ref)} onChange={(e) => toggleChosen(r.ref, e.target.checked)} disabled={busy} aria-label={t('ai.famPickRow', { name: nameOfRow(r) })} />
+                      <span className="ai-fam-name">{nameOfRow(r)}</span>
+                    </label>
+                  ) : <p className="ai-fam-name">{nameOfRow(r)}</p>}
+                  {r.social && r.social.length > 0 && (
+                    <ul className="ai-fam-socials">
+                      {r.social.map((s, i) => {
+                        const link = socialLink(s.handle, s.network);
+                        return <li key={i}>{link ? <a href={link.href} target="_blank" rel="noopener noreferrer nofollow">{link.network} {link.handle}</a> : `${s.network} ${s.handle}`}</li>;
+                      })}
+                    </ul>
+                  )}
+                  {pick && !locked && matches.length > 0 && (
+                    <div className="ai-field ai-fam-match">
+                      <span>{t('ai.famMatchLabel')}</span>
+                      <Select
+                        value={r.existing ?? ''}
+                        onChange={(v) => setExisting(r.ref, v || undefined)}
+                        options={[{ value: '', label: t('ai.famMatchNew') }, ...matches.map((m) => ({ value: m.id, label: m.born ? `${m.name} (${m.born.replace(/^~/, '').slice(0, 4)})` : m.name }))]}
+                        aria-label={t('ai.famMatchLabel')}
+                        size="md"
+                      />
+                    </div>
+                  )}
+                  {pick && !locked && !r.existing && rowLines(r.ref).length === 0 && <p className="ai-fam-facts subtle">{t('ai.famNoLink')}</p>}
                   {facts.length > 0 && <p className="ai-fam-facts subtle">{facts.join(' · ')}</p>}
                   {rowLines(r.ref).length > 0 && (
                     <ul className="ai-fam-rels">
@@ -213,7 +277,7 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
                       <p className="ai-fam-story-by subtle">{r.story.teller ? t('ai.famToldBy', { name: refName(r.story.teller) }) : t('ai.famToldByYou')}</p>
                     </div>
                   )}
-                  {dup && !locked && <p className="ai-fam-dup" role="note">{t('ai.famDuplicate', { name: dup.name })}</p>}
+                  {dup && !locked && matches.length === 0 && <p className="ai-fam-dup" role="note">{t('ai.famDuplicate', { name: dup.name })}</p>}
                   {locked && <p className="ai-card-state ok">{t('ai.famDone')}</p>}
                   {r.status === 'failed' && <p className="ai-card-error" role="alert">{r.error}</p>}
                 </div>
@@ -232,7 +296,7 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
                 )}
                 {editing === r.ref && !locked && (
                   <div className="ai-fam-edit">
-                    {([
+                    {(r.existing ? [] : [
                       ['given', 'ai.fieldName'], ['surname', 'ai.fieldSurname'], ['born', 'ai.fieldBorn'], ['bornPlace', 'ai.fieldBornPlace'],
                       ['died', 'ai.fieldDied'], ['diedPlace', 'ai.fieldDiedPlace'], ['occupation', 'ai.fieldOccupation'],
                     ] as [keyof FamilyPerson, Key][]).map(([field, label]) => (
@@ -240,6 +304,17 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
                         <span>{t(label)}</span>
                         <input value={(r[field] as string | undefined) ?? ''} onChange={(e) => edit(r.ref, field, e.target.value)} />
                       </label>
+                    ))}
+                    {r.social?.map((s, i) => (
+                      <div key={i} className="ai-field ai-fam-wide ai-fam-social-edit">
+                        <label htmlFor={`${r.ref}-social-${i}`}>{t('ai.famSocialLabel', { network: s.network })}</label>
+                        <div>
+                          <input id={`${r.ref}-social-${i}`} value={s.handle} onChange={(e) => editSocial(r.ref, i, e.target.value)} />
+                          <button type="button" className="btn ghost ai-touch" onClick={() => editSocial(r.ref, i, null)} aria-label={t('ai.famRemove')} title={t('ai.famRemove')}>
+                            <X size={13} aria-hidden />
+                          </button>
+                        </div>
+                      </div>
                     ))}
                     {r.story && (
                       <>
@@ -303,9 +378,9 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
         )}
 
         <div className="ai-card-actions">
-          <button type="button" className="btn primary" onClick={() => add()} disabled={busy || progress.unfinished === 0}>
+          <button type="button" className="btn primary" onClick={() => add()} disabled={busy || progress.unfinished === 0 || (pick && chosenCount === 0)}>
             {failedAny ? <RotateCw size={15} aria-hidden /> : <Check size={15} aria-hidden />}{' '}
-            {busy ? t('ai.approving') : failedAny ? t('ai.famRetry') : t('ai.famAddAll')}
+            {busy ? t('ai.approving') : pick ? t('ai.famAddChosen', { count: chosenCount }) : failedAny ? t('ai.famRetry') : t('ai.famAddAll')}
           </button>
           <button type="button" className="btn ghost" onClick={() => finish(progress.anyDone ? 'done' : 'dismissed')} disabled={busy}>
             <X size={14} aria-hidden /> {progress.anyDone ? t('ai.famLeaveRest') : t('ai.dismiss')}

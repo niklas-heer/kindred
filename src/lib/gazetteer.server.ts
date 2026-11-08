@@ -2,8 +2,11 @@
 // CC BY 4.0, on Node in data/gazetteer.db and on Workers in the GAZETTEER D1 database) only when the match is certain:
 // its town name matches exactly one gazetteer town, or, when the name also gives a country, exactly one town of that
 // name in that country. A name with more than one candidate is never guessed at. The place's text is never changed.
+import { countryCodeOf } from './address.ts';
 import { foldPlace } from './db.server.ts';
 import { store, type Db } from './store/index.ts';
+
+export { countryCodeOf };
 
 export interface Located {
   lat: number;
@@ -16,40 +19,6 @@ export interface Located {
 export function splitPlace(name: string): { town: string; country: string | null } {
   const parts = name.split(',').map((p) => p.trim()).filter(Boolean);
   return { town: parts[0] ?? '', country: parts.length > 1 ? parts[parts.length - 1] : null };
-}
-
-let countries: Map<string, string> | undefined;
-
-/** Codes that were retired or are exceptional, and whose names the platform gives to a current country ("DD" is Germany). */
-const RETIRED = new Set(['AN', 'BU', 'CS', 'DD', 'DY', 'EU', 'EZ', 'FX', 'NT', 'QU', 'SU', 'TP', 'UK', 'YU', 'ZR']);
-
-/**
- * Folded country names (English, German and Afrikaans) and codes → ISO 3166 alpha-2, from the platform's own region
- * names. A name two regions share is left out, so it can never pick the wrong one.
- */
-function countryTable(): Map<string, string> {
-  if (countries) return countries;
-  const table = new Map<string, string>();
-  const clash = new Set<string>();
-  const namers = ['en', 'de', 'af'].map((l) => new Intl.DisplayNames([l], { type: 'region' }));
-  for (let a = 65; a <= 90; a++) {
-    for (let b = 65; b <= 90; b++) {
-      const code = String.fromCharCode(a, b);
-      if (RETIRED.has(code)) continue;
-      const keys = new Set([foldPlace(code), ...namers.map((n) => foldPlace(n.of(code) ?? ''))].filter(Boolean));
-      for (const k of keys) {
-        if (table.has(k) && table.get(k) !== code) clash.add(k);
-        table.set(k, code);
-      }
-    }
-  }
-  for (const k of clash) table.delete(k);
-  return (countries = table);
-}
-
-/** The ISO code of a country written as its name (any of the three languages) or as its code; null when unknown. */
-export function countryCodeOf(name: string): string | null {
-  return countryTable().get(foldPlace(name.trim())) ?? null;
 }
 
 /**

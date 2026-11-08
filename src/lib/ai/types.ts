@@ -4,6 +4,7 @@ import { isLocale, type Locale } from '../i18n/types';
 import { z } from 'zod';
 import { cutText, firstOf } from './trim';
 import { FIELD_TYPES } from '~/components/fields/model';
+import { VISIBILITIES } from '../visibility';
 import type { ArmsV2 } from '~/lib/seed-format';
 
 export const PROVIDERS = ['anthropic', 'openai', 'openrouter'] as const;
@@ -133,6 +134,12 @@ export interface ProposalView {
   loops?: number[];
   /** Short questions for the reader, when something in the draft is uncertain ("Which Hans?"). */
   questions?: string[];
+  /** The list may hold strangers (it was read from a picture or holds profiles): the reader ticks who is added. */
+  pick?: boolean;
+  /** People in the tree a draft row may be, by the row's ref, best first. `sure`: the same profile, or the same full name. */
+  matches?: Record<string, { id: string; name: string; born?: string | null; sure: boolean }[]>;
+  /** People the draft left out because the tree already has them with this profile. */
+  known?: { name: string; handle: string }[];
   /** The person's name, for a drawn avatar. */
   personName?: string;
   /** The photos' details as they are now, by key, so a card can show what changes. */
@@ -164,6 +171,8 @@ export interface ChatItem {
   text: string;
   /** A family session's transcript (its text), shown as a summary rather than in full. */
   session?: boolean;
+  /** Pictures sent with this message: how many, and the ids of those the reader chose to keep. */
+  images?: { count: number; kept: string[] };
   proposals?: Proposal[];
   /** The pages a web search drew on for this reply, when the family allowed web search. */
   sources?: { url: string; title?: string }[];
@@ -213,7 +222,9 @@ const baseProposalArgs = {
     type: z.enum(FIELD_TYPES),
     label: z.string().trim().max(60).optional(),
     value: z.record(z.string(), z.string().max(5000)),
-    /** Set by the server to the type's default (privateByDefault); the approver may change it on the card. */
+    /** Set by the server to the type's default (defaultVisibility); the approver may change it on the card. */
+    visibility: z.enum(VISIBILITIES).optional(),
+    /** The older form, on proposals saved before there were levels. Read by apply.ts only. */
     private: z.boolean().optional(),
   }),
 } as const;
@@ -283,6 +294,8 @@ export const familyPersonSchema = z.object({
   occupation: z.string().trim().max(200).optional(),
   /** One memory, note or story for the person, added once they exist. */
   story: z.object({ kind: z.enum(['note', 'quote', 'anecdote', 'recipe', 'memory']), title: z.string().trim().max(200).optional(), body: text(20_000), /** Who told it, as an id in the tree. Without one it is saved under the approver's name. */ teller: id.optional() }).optional(),
+  /** Social profiles to save on the person: the network's name, and the handle without its @. */
+  social: z.array(z.object({ network: text(40), handle: text(300) })).max(5).optional(),
 });
 /** A relationship in a family draft: `anchor` and `person` are a new person's ref or an id in the tree. */
 export const familyLinkSchema = z.object({ anchor: id, person: id, relation: relationKind, coParent: id.optional() });
@@ -370,6 +383,15 @@ export interface ArmsFeedback { reason: string; advice: string }
 /** A refinement keeps the arms as they are and adds the charges in `added` or swaps those in `replaced`; a fresh design starts again from the meanings. */
 export type RevisionKind = 'refinement' | 'fresh';
 export interface ArmsRevision extends NameDesign { kind: RevisionKind; added?: string[]; replaced?: { from: string; to: string }[] }
+
+/** How many pictures one chat message may carry. */
+export const CHAT_IMAGE_COUNT = 6;
+/** The largest one picture may be after the browser has scaled it down. Small enough to keep as one database row. */
+export const CHAT_IMAGE_BYTES = 1_200_000;
+/** The largest file the browser will try to open at all: a phone's camera stays well under it. */
+export const CHAT_IMAGE_FILE_BYTES = 40_000_000;
+/** The longer side of a picture as it is sent, in pixels: the names in a screenshot stay readable. */
+export const CHAT_IMAGE_EDGE = 2000;
 
 /** The longest chat message the assistant takes. */
 export const CHAT_MESSAGE_CHARS = 4_000;
