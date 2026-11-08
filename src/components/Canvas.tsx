@@ -4,11 +4,10 @@
 // pointer. Cards change detail with zoom (portrait → name plate → house-coloured tile). A minimap
 // shows where you are in the whole tree; a ruler on the left names each generation and its era.
 import { Expand, Map as MapIcon, Minus, Plus } from 'lucide-react';
-import { forwardRef, memo, useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { CARD_H, CARD_W, ROW_H, type LNode, type Layout } from '~/lib/layout';
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { CARD_H, CARD_W, type LNode, type Layout } from '~/lib/layout';
 import type { Family } from '~/lib/graph';
-import { houseLandmarks, type HouseLandmark, type LandmarkPerson } from '~/lib/minimap-landmarks';
-import { Arms, houseColour } from './Heraldry';
+import { Minimap } from './Minimap';
 import { useT } from '~/lib/i18n';
 import './canvas.css';
 
@@ -248,8 +247,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     animateTo({ k, x: r.width / 2 - ((r.width / 2 - c.x) / c.k) * k, y: r.height / 2 - ((r.height / 2 - c.y) / c.k) * k }, 220);
   }, [animateTo]);
 
-  // Minimap clicks and drags move the view at once, keeping the zoom. Stable, so the minimap's
-  // shields are not re-rendered on every pan frame.
+  // Minimap clicks and drags move the view at once, keeping the zoom.
   const minimapJump = useCallback((wx: number, wy: number) => {
     const r = host.current!.getBoundingClientRect();
     cancelAnimationFrame(anim.current);
@@ -260,15 +258,6 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     cam.current = { ...cam.current, x: cx - wx * cam.current.k, y: cy - wy * cam.current.k };
     apply();
   }, [apply, area]);
-
-  // A house shield glides to the house, centred as a search centres a person, and at a zoom where its people read.
-  const houseJump = useCallback((wx: number, wy: number) => {
-    if (!host.current) return;
-    moved.current?.();
-    const a = area();
-    const k = Math.max(cam.current.k, 0.55);
-    animateTo({ k, x: (a.l + a.w) / 2 - wx * k, y: a.t + (a.b - a.t) * 0.46 - wy * k });
-  }, [area, animateTo]);
 
   // The minimap is always there on wide screens; phones show it on request (see canvas.css).
   const [mapOpen, setMapOpen] = useState(false);
@@ -405,7 +394,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
           {controls}
           <button className="btn icon ghost map-toggle" onClick={() => setMapOpen((o) => !o)} aria-pressed={mapOpen} title={mapOpen ? t('canvas.hideMinimap') : t('canvas.showMinimap')} aria-label={t('canvas.minimap')}><MapIcon size={16} /></button>
         </div>
-        <Minimap family={family} layout={layout} view={view} focus={focus} dimmed={dimmed} onJump={minimapJump} onHouse={houseJump} />
+        <Minimap family={family} layout={layout} view={view} focus={focus} here={firstOf.get(focus)} dimmed={dimmed} onJump={minimapJump} />
       </div>
       {overlay}
     </div>
@@ -454,223 +443,4 @@ function Ruler({ layout, view, label, active }: { layout: Layout; view: { k: num
       })}
     </div>
   );
-}
-
-// ---------- minimap ----------
-
-const MM_MAX_W = 240, MM_MAX_H = 180, MM_MIN_W = 150, MM_MIN_H = 110;
-/** A house shield on the minimap, px wide (Arms draws it 5 wide to 6 tall). */
-const SHIELD_PX = 22;
-
-function Minimap({ family, layout, view, focus, dimmed, onJump, onHouse }: {
-  family: Family; layout: Layout; view: { x0: number; y0: number; x1: number; y1: number; k: number }; focus: string;
-  dimmed?: ReadonlySet<string> | null; onJump: (wx: number, wy: number) => void; onHouse: (wx: number, wy: number) => void;
-}) {
-  const cv = useRef<HTMLCanvasElement>(null);
-  const b = layout.bounds;
-  // The map takes the tree's shape, within limits, so a tall dynasty is not a sliver in a wide box.
-  const fitS = Math.min((MM_MAX_W - 16) / b.w, (MM_MAX_H - 16) / b.h);
-  const MM_W = Math.round(Math.max(MM_MIN_W, b.w * fitS + 16));
-  const MM_H = Math.round(Math.max(MM_MIN_H, b.h * fitS + 16));
-  const s = Math.min((MM_W - 16) / b.w, (MM_H - 16) / b.h);
-  const ox = (MM_W - b.w * s) / 2 - b.x * s;
-  const oy = (MM_H - b.h * s) / 2 - b.y * s;
-  const theme = useThemeName();
-  // House tints rather than raw tinctures: full heraldic red or silver is loud on paper and lost on
-  // dark lacquer. Living people get the stronger tint, the dead a paler one.
-  const tints = useMemo(() => {
-    const css = typeof document === 'undefined' ? null : getComputedStyle(document.documentElement);
-    const ground = css?.getPropertyValue('--canvas').trim() || '#6b6142';
-    const light = theme === 'modern';
-    const m = new Map<string, { living: string; dead: string }>();
-    for (const h of family.graph.houses) {
-      // Silver vanishes on paper and gold on the codex's gold canvas: give metals some ink.
-      let c = houseColour(h.arms);
-      if (light && h.arms.field === 'argent') c = '#8f8b80';
-      if (!light && h.arms.field === 'sable') c = '#5a5650';
-      // Paper draws people as white tiles, so its map uses pale house tints, like coloured index cards.
-      m.set(h.id, light
-        ? { living: mixHex(c, '#ffffff', 0.42), dead: mixHex(c, '#ffffff', 0.24) }
-        : { living: mixHex(c, '#ffffff', 0.88), dead: mixHex(c, ground, 0.68) });
-    }
-    const none = css?.getPropertyValue('--line').trim() || '#999';
-    m.set('', light ? { living: mixHex(none, '#ffffff', 0.5), dead: mixHex(none, '#ffffff', 0.3) } : { living: mixHex(none, ground, 0.9), dead: mixHex(none, ground, 0.6) });
-    return m;
-  }, [family, theme]);
-
-  useEffect(() => {
-    const c = cv.current;
-    if (!c) return;
-    const dpr = window.devicePixelRatio || 1;
-    c.width = MM_W * dpr;
-    c.height = MM_H * dpr;
-    const g = c.getContext('2d')!;
-    g.scale(dpr, dpr);
-    g.clearRect(0, 0, MM_W, MM_H);
-    const css = getComputedStyle(c);
-    g.strokeStyle = css.getPropertyValue('--line').trim() || '#999';
-    g.globalAlpha = 0.35;
-    g.lineWidth = 0.6;
-    g.beginPath();
-    const row = new Map<number, number[]>();
-    for (const n of layout.nodes) (row.get(n.row) ?? row.set(n.row, []).get(n.row)!).push(n.x);
-    for (const [r, xs] of row) {
-      const y = (r * ROW_H - (ROW_H - CARD_H) / 2) * s + oy;
-      g.moveTo(Math.min(...xs) * s + ox, y);
-      g.lineTo(Math.max(...xs) * s + ox, y);
-    }
-    g.stroke();
-    const w = Math.max(1.5, CARD_W * s), h = Math.max(1.5, CARD_H * s);
-    for (const n of layout.nodes) {
-      const p = family.byId.get(n.id);
-      const t = tints.get(p?.house ?? '') ?? tints.get('')!;
-      g.globalAlpha = n.role === 'ghost' ? 0.25 : dimmed && !dimmed.has(n.id) ? 0.2 : n.role === 'dup' ? 0.5 : 1;
-      g.fillStyle = n.role === 'ghost' ? tints.get('')!.dead : p?.living ? t.living : t.dead;
-      g.fillRect((n.x - CARD_W / 2) * s + ox, n.y * s + oy, w, h);
-      if (theme === 'modern' && w >= 4) {
-        g.lineWidth = 0.75;
-        g.strokeStyle = '#2a22142e';
-        g.strokeRect((n.x - CARD_W / 2) * s + ox + 0.4, n.y * s + oy + 0.4, w - 0.8, h - 0.8);
-      }
-    }
-    // "You are here" is a DOM dot (below), so the house shields can sit under it.
-  }, [layout, family, s, ox, oy, tints, dimmed, MM_W, MM_H, theme]);
-
-  const vx = view.x0 + 260 / view.k, vy = view.y0 + 260 / view.k;
-  const vw = view.x1 - view.x0 - 520 / view.k, vh = view.y1 - view.y0 - 520 / view.k;
-  const jump = (e: React.PointerEvent) => {
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    onJump((e.clientX - r.left - ox) / s, (e.clientY - r.top - oy) / s);
-  };
-  const t = useT();
-  // Only real people count: an empty family's layout still holds a placeholder card. Memoised: this renders every frame of a pan.
-  const count = useMemo(
-    () => new Set(layout.nodes.filter((n) => n.role !== 'ghost' && family.byId.has(n.id)).map((n) => n.id)).size,
-    [layout, family],
-  );
-  const peopleText = t('common.people', { count });
-  // The house shields: each placed person with a house, at the middle of their card. Only the layout changes them.
-  const people = useMemo(() => {
-    const out: LandmarkPerson[] = [];
-    for (const n of layout.nodes) {
-      const p = n.role === 'ghost' ? undefined : family.byId.get(n.id);
-      if (p?.house && family.house.has(p.house)) out.push({ id: n.id, house: p.house, x: n.x, y: n.y + CARD_H / 2 });
-    }
-    return out;
-  }, [layout, family]);
-  const marks = useMemo(
-    () => houseLandmarks(people, { s, ox, oy, width: MM_W, height: MM_H }, { cardW: CARD_W, rowH: ROW_H, size: SHIELD_PX }),
-    [people, s, ox, oy, MM_W, MM_H],
-  );
-  // With a filter on (`dimmed` is the set that stays bright), a house with none of those people fades, as its dots do.
-  const faded = useMemo(() => {
-    const out = new Set<string>();
-    if (!dimmed) return out;
-    const lit = new Set(people.filter((p) => dimmed.has(p.id)).map((p) => p.house));
-    for (const m of marks) if (!lit.has(m.house)) out.add(m.house);
-    return out;
-  }, [dimmed, people, marks]);
-  const here = useMemo(() => layout.nodes.find((n) => n.id === focus), [layout, focus]);
-  // Keyboard: arrows move the view a quarter screen at a time.
-  const onKey = (e: React.KeyboardEvent) => {
-    const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
-    if (!step) return;
-    e.preventDefault();
-    e.stopPropagation();
-    onJump(vx + vw / 2 + (step[0] * vw) / 4, vy + vh / 2 + (step[1] * vh) / 4);
-  };
-  return (
-    <div className="minimap no-pan panel">
-      {/* The shields sit beside the map, not inside it, so their tooltips are not clipped and their clicks never start a map drag. */}
-      <div className="minimap-stage" style={{ width: MM_W, height: MM_H }}>
-        <div
-          className="minimap-map"
-          role="application"
-          tabIndex={0}
-          aria-label={t('canvas.minimap_label', { people: peopleText })}
-          onKeyDown={onKey}
-          style={{ width: MM_W, height: MM_H }}
-          onPointerDown={(e) => { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); jump(e); }}
-          onPointerMove={(e) => e.buttons && jump(e)}
-        >
-          <canvas ref={cv} style={{ width: MM_W, height: MM_H }} />
-          <div className="minimap-view" style={{ left: vx * s + ox, top: vy * s + oy, width: Math.max(6, vw * s), height: Math.max(6, vh * s) }} />
-        </div>
-        <HouseShields marks={marks} family={family} faded={faded} onHouse={onHouse} />
-        {here ? <span className="minimap-here" aria-hidden style={{ left: here.x * s + ox, top: (here.y + CARD_H / 2) * s + oy }} /> : null}
-      </div>
-      <div className="minimap-foot">
-        <span>{peopleText}</span>
-        <span>{t('common.generations', { count: count ? layout.rows.length : 0 })}</span>
-      </div>
-    </div>
-  );
-}
-
-/**
- * One house shield or small marker per landmark. Memoised on the landmarks, not the camera: a pan or zoom re-renders the minimap
- * (its viewport box moves) but leaves these buttons alone. Each is a real button, so Tab reaches it and Enter or
- * a click jumps the main view there; its name is "Jump to <house>", and its tooltip (shown on hover or keyboard
- * focus) gives the people count.
- */
-const HouseShields = memo(function HouseShields({ marks, family, faded, onHouse }: {
-  marks: HouseLandmark[]; family: Family; faded: ReadonlySet<string>; onHouse: (wx: number, wy: number) => void;
-}) {
-  const t = useT();
-  const id = useId();
-  if (!marks.length) return null;
-  return (
-    <div className="house-landmarks" role="group" aria-label={t('canvas.houses')}>
-      {marks.map((m, i) => {
-        const house = family.house.get(m.house)!;
-        const tipId = `${id}-${i}`;
-        return (
-          <button
-            key={m.house}
-            type="button"
-            className={`house-landmark${m.compact ? ' is-compact' : ''}${faded.has(m.house) ? ' is-faded' : ''}`}
-            data-tip={m.tip}
-            data-align={m.align}
-            style={{ left: m.x, top: m.y, width: m.size, height: m.size * 1.2 }}
-            aria-label={t('canvas.jumpHouse', { house: house.name })}
-            aria-describedby={tipId}
-            onClick={() => onHouse(m.wx, m.wy)}
-          >
-            {m.compact
-              ? <span className="house-marker" aria-hidden style={{ background: houseColour(house.arms) }} />
-              : <span className="house-shield" aria-hidden><Arms arms={house.arms} size={m.size} /></span>}
-            <span className="house-tip" id={tipId}>
-              <b>{house.name}</b>
-              <span>{t('common.people', { count: m.people })}</span>
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-});
-
-/** The theme on <html>, kept in sync when the reader switches it. */
-function useThemeName(): string {
-  const [t, setT] = useState('codex');
-  useEffect(() => {
-    const el = document.documentElement;
-    const read = () => setT(el.dataset.theme ?? 'codex');
-    read();
-    const mo = new MutationObserver(read);
-    mo.observe(el, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => mo.disconnect();
-  }, []);
-  return t;
-}
-
-/** Mix two #rrggbb colours: t = 1 is all `a`. */
-function mixHex(a: string, b: string, t: number): string {
-  const p = (h: string) => {
-    const x = h.replace('#', '');
-    const f = x.length === 3 ? x.split('').map((c) => c + c).join('') : x.slice(0, 6);
-    return [0, 2, 4].map((i) => parseInt(f.slice(i, i + 2), 16) || 0);
-  };
-  const [ca, cb] = [p(a), p(b)];
-  return '#' + ca.map((v, i) => Math.round(v * t + cb[i] * (1 - t)).toString(16).padStart(2, '0')).join('');
 }

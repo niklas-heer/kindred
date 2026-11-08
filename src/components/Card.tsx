@@ -13,7 +13,7 @@ import { occupationText } from '~/lib/occupations';
 import type { LNode } from '~/lib/layout';
 import type { Detail } from './Canvas';
 import { GameIcon } from './GameIcon';
-import { Arms, houseColour } from './Heraldry';
+import { Arms, shieldColours } from './Heraldry';
 import { Portrait } from './Portrait';
 import './card.css';
 
@@ -93,14 +93,11 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
     const ruler = /^(King|Queen|Emperor|Empress)\b/.test(p.title ?? '');
     const founder = house?.founder === p.id;
     const founderText = founder ? t('card.founderOf', { house: house!.name }) : '';
+    const farColour = shieldColours(house?.arms);
     return (
       <button
         className={`card far${selected ? ' selected' : ''}${p.living ? ' living' : ' dead'}${isMe ? ' me' : ''}${ruler ? ' crowned' : ''}${founder ? ' founder' : ''}`}
-        style={{
-          ['--house' as string]: house ? houseColour(house.arms) : '#8a8270',
-          // Silver vanishes on paper: an ink for borders that still reads as the house.
-          ['--house-ink' as string]: house ? (house.arms.field === 'argent' ? '#9a958a' : houseColour(house.arms)) : '#a59f94',
-        }}
+        style={{ ['--house' as string]: farColour.house, ['--house-ink' as string]: farColour.ink }}
         onClick={() => onSelect(p.id)}
         onDoubleClick={() => onOpen?.(p.id)}
         title={[name, years, founder ? founderText : ''].filter(Boolean).join(' · ')}

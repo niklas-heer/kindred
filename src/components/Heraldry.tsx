@@ -46,6 +46,13 @@ export function houseColour(arms: House['arms']): string {
   return t ? HEX_V2[t] : TINCTURE_HEX[arms.field];
 }
 
+/** A far-zoom shield's colours: its fill, and an ink for borders, since silver vanishes on paper. No house gets a neutral pair. */
+export function shieldColours(arms?: House['arms']): { house: string; ink: string } {
+  if (!arms) return { house: '#8a8270', ink: '#a59f94' };
+  const house = houseColour(arms);
+  return { house, ink: arms.field === 'argent' ? '#9a958a' : house };
+}
+
 /** Paints the field and the division, in colours `a` (field) and `b` (field2), over the whole box. */
 function Division({ division, a, b }: { division: House['arms']['division']; a: string; b: string }) {
   switch (division) {
