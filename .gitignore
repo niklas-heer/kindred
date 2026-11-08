@@ -18,3 +18,5 @@ data/backups/
 .wrangler/
 .dev.vars
 data/media/
+# The server secret that seals the family AI key on Node (KINDRED_SECRET). Back it up; never commit it.
+data/secret
