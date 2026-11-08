@@ -6,6 +6,7 @@
 //   ACCOUNTS     D1: accounts, passkeys, sessions, invitations (migrations/accounts)
 //   TREE_<ID>    D1: one database per family; TREE_FAMILY serves /family (migrations/tree)
 //   MEDIA        R2: portraits and other uploads, under <tree>/<key>
+//   GAZETTEER    D1, optional: GeoNames towns for assisted place entry, read-only (migrations/gazetteer)
 //
 // Before the first deploy (not done for you):
 //   npx wrangler login
@@ -29,7 +30,10 @@
 	"triggers": { "crons": ["0 6 * * *"] },
 	"d1_databases": [
 		{ "binding": "ACCOUNTS", "database_name": "kindred-accounts", "database_id": "REPLACE-WITH-D1-ID", "migrations_dir": "migrations/accounts" },
-		{ "binding": "TREE_FAMILY", "database_name": "kindred-family", "database_id": "REPLACE-WITH-D1-ID", "migrations_dir": "migrations/tree" }
+		{ "binding": "TREE_FAMILY", "database_name": "kindred-family", "database_id": "REPLACE-WITH-D1-ID", "migrations_dir": "migrations/tree" },
+			// Optional: assisted place entry on Workers (docs/deploy-cloudflare.md, "Places on Workers"). Create the database,
+			// put its id below and uncomment the line, then `mise run cf:migrate:remote` and `mise run cf:gazetteer --remote`.
+			// { "binding": "GAZETTEER", "database_name": "kindred-gazetteer", "database_id": "REPLACE-WITH-D1-ID", "migrations_dir": "migrations/gazetteer" }
 	],
 	"r2_buckets": [{ "binding": "MEDIA", "bucket_name": "kindred-media" }],
 	// Optional vars: KINDRED_ORIGIN (the public origin, if not the request's), KINDRED_DEFAULT_TREE,
@@ -41,6 +45,7 @@
 			"d1_databases": [
 				{ "binding": "ACCOUNTS", "database_name": "kindred-local-accounts", "database_id": "local-accounts", "migrations_dir": "migrations/accounts" },
 				{ "binding": "TREE_MODERN", "database_name": "kindred-local-modern", "database_id": "local-modern", "migrations_dir": "migrations/tree" },
+					{ "binding": "GAZETTEER", "database_name": "kindred-local-gazetteer", "database_id": "local-gazetteer", "migrations_dir": "migrations/gazetteer" },
 				{ "binding": "TREE_REALM", "database_name": "kindred-local-realm", "database_id": "local-realm", "migrations_dir": "migrations/tree" }
 			],
 			"r2_buckets": [{ "binding": "MEDIA", "bucket_name": "kindred-local-media" }]

@@ -26,6 +26,10 @@ run = "node scripts/seed.ts"
 description = "Download GeoNames cities500 once and build data/gazetteer.db for offline place search (~40 MB; downloads are deleted)"
 run = "node scripts/gazetteer.ts"
 
+[tasks."cf:gazetteer"]
+description = "Load data/gazetteer.db (mise run gazetteer) into the GAZETTEER D1 database for assisted place entry on Workers: --local --env local, or --remote; --source, --persist-to, --rows. Attribution: GeoNames, CC BY 4.0"
+run = 'node scripts/gazetteer-to-d1.ts "$@"'
+
 [tasks.dev]
 description = "Run on Node with the SQLite files in data/ (http://localhost:4517)"
 run = "vite dev"

@@ -10,13 +10,21 @@ import { Dialog, EmptyState, Range, Skeleton } from '~/components/ui';
 import { opKeys } from '~/lib/api';
 import { useFamily } from '~/lib/family';
 import { displayName } from '~/lib/graph';
-import { personPhotosQuery, setPersonPortrait, setPreferAvatar } from '~/lib/photos.functions';
+import { personPhotosQuery, setPersonPortrait } from '~/lib/photos.functions';
+import { setPersonDisplay } from '~/lib/portrait.functions';
+import { PaintPortrait } from '~/components/PaintPortrait';
+import { portraitFits } from '~/lib/portrait-face';
+import { shownAge } from '~/components/portrait/look';
 import { useCan } from '~/lib/session';
 import { squareCrop } from './image';
 import { refreshPhotos } from './refresh';
-import { useT } from '~/lib/i18n';
+import { useT, type Key } from '~/lib/i18n';
 import { mediaUrl, type MediaItem } from './types';
 import '~/styles/gallery.css';
+
+/** What a person shows: the drawing, the photo, or the painted portrait. */
+type Display = 'drawing' | 'photo' | 'portrait';
+const DISPLAY_LABEL: Record<Display, Key> = { drawing: 'paint.showDrawing', photo: 'paint.showPhoto', portrait: 'paint.showPainted' };
 
 export function PersonPhotos({ tree, id }: { tree: string; id: string }) {
   const g = useT();
@@ -29,12 +37,12 @@ export function PersonPhotos({ tree, id }: { tree: string; id: string }) {
   const [cropping, setCropping] = useState<MediaItem | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const keys = useRef(opKeys());
-  // Shows the drawn avatar, or the photo again. The photo is kept either way.
-  const avatar = useMutation({
-    mutationFn: (prefer: boolean) => setPreferAvatar({ data: { tree, id, prefer, opKey: keys.current.for('prefer', [id, prefer]) } }),
-    onSuccess: async (_r, prefer) => {
-      keys.current.clear('prefer');
-      setNotice(g(prefer ? 'pp.avatar_done' : 'pp.photo_done'));
+  // What the person shows: the drawing, the photo, or the painted portrait. The photo and the painting are kept either way.
+  const display = useMutation({
+    mutationFn: (to: Display) => setPersonDisplay({ data: { tree, id, display: to, opKey: keys.current.for('display', [id, to]) } }),
+    onSuccess: async (_r, to) => {
+      keys.current.clear('display');
+      setNotice(g('paint.showSaved', { as: g(DISPLAY_LABEL[to]) }));
       await refreshPhotos(qc, tree);
     },
     onError: () => setNotice(g('pp.failed')),
@@ -44,24 +52,38 @@ export function PersonPhotos({ tree, id }: { tree: string; id: string }) {
   const name = displayName(person, f);
   const photos = q.data ?? [];
   const chosen = photos.find((m) => m.key === selected) ?? null;
-  const drawnShown = !!person.preferAvatar;
+  const shownNow: Display = person.preferAvatar ? 'drawing' : person.preferPortrait && person.portrait ? 'portrait' : 'photo';
+  // The painting is shown only where it fits the age shown now; elsewhere the drawing is, and the page says so.
+  const ageNow = shownAge(person, new Date().getFullYear());
+  const paintedFits = !!person.portrait && portraitFits({ born: person.born, shown: ageNow, photoAge: person.portraitAge ?? null });
+  const fitsAge = String(person.portraitAge ?? 35);
 
   return (
     <section className="pp" aria-labelledby={`pp-${id}`}>
       <h3 className="pp-title" id={`pp-${id}`}>{g('pp.title')}</h3>
 
-      {person.photo ? (
+      {person.photo || person.portrait ? (
         <div className="pp-portraits">
-          <figure className="pp-portrait">
-            <Portrait person={person} tree={tree} size={88} prefer="photo" />
-            <figcaption>
-              {g('pp.photo')} {!drawnShown ? <span className="pp-badge">{g('pp.in_use')}</span> : null}
-            </figcaption>
-          </figure>
+          {person.photo ? (
+            <figure className="pp-portrait">
+              <Portrait person={person} tree={tree} size={88} prefer="photo" />
+              <figcaption>
+                {g('pp.photo')} {shownNow === 'photo' ? <span className="pp-badge">{g('pp.in_use')}</span> : null}
+              </figcaption>
+            </figure>
+          ) : null}
+          {person.portrait ? (
+            <figure className="pp-portrait">
+              <Portrait person={person} tree={tree} size={88} prefer="portrait" />
+              <figcaption>
+                {g('paint.showPainted')} {shownNow === 'portrait' && paintedFits ? <span className="pp-badge">{g('pp.in_use')}</span> : null}
+              </figcaption>
+            </figure>
+          ) : null}
           <figure className="pp-portrait">
             <Portrait person={person} tree={tree} size={88} prefer="avatar" />
             <figcaption>
-              {g('pp.drawn')} {drawnShown ? <span className="pp-badge">{g('pp.in_use')}</span> : null}
+              {g('pp.drawn')} {shownNow === 'drawing' ? <span className="pp-badge">{g('pp.in_use')}</span> : null}
             </figcaption>
           </figure>
         </div>
@@ -105,13 +127,22 @@ export function PersonPhotos({ tree, id }: { tree: string; id: string }) {
               <Crop size={16} aria-hidden /> {g('pp.set')}
             </button>
           ) : null}
-          {person.photo ? (
-            <button type="button" className="btn ghost" onClick={() => avatar.mutate(!drawnShown)} disabled={avatar.isPending}>
-              {drawnShown ? g('pp.use_photo') : g('pp.use_drawn')}
-            </button>
-          ) : null}
         </div>
       ) : null}
+      {canEdit && (person.photo || person.portrait) ? (
+        <div className="pp-display" role="group" aria-label={g('paint.showAs')}>
+          <span className="subtle">{g('paint.showAs')}</span>
+          {person.photo ? (
+            <button type="button" className="btn ghost" data-current={shownNow === 'photo' || undefined} aria-pressed={shownNow === 'photo'} onClick={() => display.mutate('photo')} disabled={display.isPending}>{g('paint.showPhoto')}</button>
+          ) : null}
+          {person.portrait ? (
+            <button type="button" className="btn ghost" data-current={shownNow === 'portrait' || undefined} aria-pressed={shownNow === 'portrait'} onClick={() => display.mutate('portrait')} disabled={display.isPending}>{g('paint.showPainted')}</button>
+          ) : null}
+          <button type="button" className="btn ghost" data-current={shownNow === 'drawing' || undefined} aria-pressed={shownNow === 'drawing'} onClick={() => display.mutate('drawing')} disabled={display.isPending}>{g('paint.showDrawing')}</button>
+          {shownNow === 'portrait' && !paintedFits ? <p className="subtle pp-notfit">{g('paint.notNow', { fits: fitsAge })}</p> : null}
+        </div>
+      ) : null}
+      {canEdit ? <PaintPortrait tree={tree} person={person} photos={photos} /> : null}
       {notice ? <p className="subtle pp-notice" role="status">{notice}</p> : null}
 
       {cropping ? (

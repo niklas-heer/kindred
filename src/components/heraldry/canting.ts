@@ -6,7 +6,7 @@
 // (`CantingRequest` in, `CantingResponse` out) and `cantingFromIdeas` turns either into drawable arms.
 import { translate, type Key, type Vars } from '~/lib/i18n/dictionary';
 import type { ArmsLayer, ArmsV2, ChargeLayer, FieldDivision, OrdinaryKind, PartitionLine, ShieldShape, TinctureV2 } from '~/lib/seed-format';
-import { CHARGE_BY_ID } from './catalogue';
+import { chargeDef } from './registry';
 import { cantingResponseSchema, type Symbolism } from './canting-schema.ts';
 import { contrastFor, underOf } from './rules';
 import { kindOf } from './tinctures';
@@ -128,6 +128,21 @@ const OCCUPATIONS: Element[] = [
   { re: /^(toepfer|topfer|potter|pottebakker|krukmakare)/, means: 'canting.the_potters_ewer', ideas: [{ field: ['azure'], charges: [C('jug', 'argent', 3)] }] },
   { re: /^(glaser|glazier|glazenmaker)/, means: 'canting.the_glaziers_glass', ideas: [{ field: ['sable'], charges: [C('wine', 'argent')] }] },
   { re: /^(bergmann|bergman|miner|mijnwerker|gruvarbetare)/, means: 'canting.the_miners_hammer_and_mountain', ideas: [{ field: ['argent'], base: 'mount', charges: [C('hammer', 'sable')] }] },
+  // Trades with a charge of their own: the tools, the goods and the work.
+  { re: /^(schuster|schuhmacher|schumacher|schumaker|schoenmaker|schoenmacher|skoenmaker|skomaker|cobbler|shoemaker|sutor)/, means: 'canting.the_cobblers_boot', ideas: [
+    { field: ['gules'], charges: [C('boot', 'argent')] }, { field: ['azure'], charges: [C('clogs', 'or')] }] },
+  { re: /^(schlosser|schlossmacher|slotenmaker|locksmith)/, means: 'canting.the_locksmiths_padlock', ideas: [
+    { field: ['azure'], charges: [C('padlock', 'or')] }, { field: ['gules'], charges: [C('key', 'argent', 2)] }] },
+  { re: /^(steinmetz|maurer|mason|metselaar|murer|steenmetser)/, means: 'canting.the_masons_trowel', ideas: [
+    { field: ['gules'], charges: [C('trowel', 'argent')] }, { field: ['argent'], charges: [C('stone', 'sable')] }] },
+  { re: /^(barbier|barber|balbier|scherer|scheerder)/, means: 'canting.the_barbers_razor', ideas: [
+    { field: ['azure'], charges: [C('razor', 'argent')] }] },
+  { re: /^(seiler|reepslager|ropemaker|reepmaker|ropewalker)/, means: 'canting.the_ropemakers_rope', ideas: [
+    { field: ['or'], charges: [C('rope', 'sable')] }] },
+  { re: /^(kuefer|kuiper|cooper|boettcher|bottcher|boettger|bodeker)/, means: 'canting.the_coopers_barrel', ideas: [
+    { field: ['argent'], charges: [C('barrel', 'gules')] }, { field: ['vert'], charges: [C('barrels', 'or')] }] },
+  { re: /^(holzfaller|houthakker|woodcutter|hauer|hewer)/, means: 'canting.the_woodcutters_axe', ideas: [
+    { field: ['vert'], charges: [C('wood-axe', 'argent')] }, { field: ['or'], charges: [C('hatchet', 'sable')] }] },
   // Patronymics: the sons of saints carry their saint's emblem.
   { re: /^(peter[sz]?(en|sen|son|s)?|pieters(en|e)?|petersen|pedersen|persson|peers)$/, means: 'canting.st_peters_keys_for_the_son_of_peter', ideas: [{ field: ['gules'], charges: [C('key', 'or', 2)] }, { field: ['azure'], charges: [C('keys', 'or')] }] },
   { re: /^(andersen|anderson|andersson|andreas|andres(en)?|andrews?)$/, means: 'canting.st_andrews_saltire_for_the_son_of_andrew', ideas: [{ field: ['azure'], ordinary: { kind: 'saltire', tincture: 'argent' } }, { field: ['or'], ordinary: { kind: 'saltire', tincture: 'gules', line: 'engrailed' } }] },
@@ -294,7 +309,7 @@ export function ideaToArms(idea: CantingIdea, opts: { country?: string; seed?: n
     ord = { kind: idea.ordinary.kind, tincture };
     layers.push({ type: 'ordinary', kind: idea.ordinary.kind, tincture, line: idea.ordinary.line ?? 'straight' });
   }
-  const charges = (idea.charges ?? []).filter((c) => CHARGE_BY_ID[c.charge]).slice(0, 3);
+  const charges = (idea.charges ?? []).filter((c) => chargeDef(c.charge)).slice(0, 3);
   if (idea.base === 'mount' && !charges.some((c) => c.charge === 'trimount')) {
     const mount: TinctureV2 = field[0] === 'vert' ? 'or' : kindOf(field[0]) === 'metal' ? 'vert' : 'argent';
     layers.push({ type: 'charge', charge: 'trimount', tincture: mount, count: 1, arrangement: 'auto', on: 'base' });

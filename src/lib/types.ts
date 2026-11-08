@@ -45,6 +45,12 @@ export interface GPerson {
   currentSurname?: string;
   /** Show the drawn avatar even though a photo is kept (person.prefer_avatar). Absent means false. */
   preferAvatar?: boolean;
+  /** Show the accepted painted portrait, when it fits the age shown (person.prefer_portrait). Absent means false. */
+  preferPortrait?: boolean;
+  /** The accepted painted portrait's media key (portrait/<uuid>.<ext>), when there is one. The picture is fetched by person. */
+  portrait?: string;
+  /** The age the person was in their photo, from its date and their birth year; null when either is unknown (an adult is then assumed). */
+  portraitAge?: number | null;
 }
 
 export interface Place {

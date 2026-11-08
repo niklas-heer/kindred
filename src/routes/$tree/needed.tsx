@@ -1,4 +1,4 @@
-import { PageSkeleton, ErrorState, PageHeader, EmptyState, Select } from '~/components/ui';
+import { PageSkeleton, ErrorState, PageHeader, EmptyState, Select, DatePicker } from '~/components/ui';
 // Information needed: the family's research to-do list, nearest relatives first, and a way to
 // blaze through it: one person at a time, only the missing fields, save and on to the next.
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,9 +11,11 @@ import { Dialog } from '~/components/ui/Dialog';
 import { Portrait } from '~/components/Portrait';
 import { PlaceInput, savePlacesKeyed, type PlaceValue } from '~/components/PlaceInput';
 import { PersonRow } from '~/components/Palette';
+import { HousesToReview } from '~/components/HouseMeaning';
 import { LinkCandidates } from '~/components/QuickAdd';
 import { addContact, addRelative, addStory, linkRelative, opKeys, patchPerson, uploadPhoto } from '~/lib/api';
 import { fullDate, validDate } from '~/lib/dates';
+import { isoOfDate } from '~/lib/partial-date';
 import { useFamily, useMe, useMeChosen, useTreeId } from '~/lib/family';
 import { ALL_GAPS, GAP_ACTION, GAP_HINT, GAP_LABEL, gapsOf, useRequired, type GapKey } from '~/lib/gaps';
 import { ancestorDepths, children, displayName, kinship, lifespan, parents, partnersOf, type Family } from '~/lib/graph';
@@ -98,6 +100,8 @@ function Needed() {
               </button>
             )}
           </div>} />
+
+        <HousesToReview tree={tree} />
 
         {shown.length > 0 && queue.length === 0 && (
           <p className="needed-ask subtle" role="note">
@@ -240,8 +244,8 @@ function Blaze({ queue, only, f, tree, me, role, required, onClose }: { queue: s
 
   const save = async () => {
     if (!p || busy || confirm) return;
-    // The birthday field starts as "1950-" to help typing; untouched, it means "don't know yet".
-    const born = v.born && v.born !== `${p.born}-` ? v.born.trim() : undefined;
+    // An empty picker means "don't know yet"; a partial date is a year or a month, which the checks below accept or refuse.
+    const born = v.born?.trim() || undefined;
     const died = v.died?.trim() || undefined;
     if (born && !validDate(born)) return setError(t('needed.errBorn'));
     if (died && !validDate(died)) return setError(t('needed.errDied'));
@@ -380,10 +384,15 @@ function Blaze({ queue, only, f, tree, me, role, required, onClose }: { queue: s
         </div>
         <fieldset className="blaze-fields" disabled={busy}>
           {(gaps.includes('born') || gaps.includes('birthday')) && (
-            <label className="field">
-              <span>{t(gaps.includes('birthday') ? GAP_LABEL.birthday : 'fact.born')}</span>
-              <input ref={firstRef()} className="input" value={v.born ?? ''} onChange={set('born')} placeholder={gaps.includes('birthday') ? `${p.born ?? '1988'}-05-17` : t('needed.phBorn')} />
-            </label>
+            <DatePicker
+              label={t(gaps.includes('birthday') ? GAP_LABEL.birthday : 'fact.born')}
+              value={v.born ?? ''}
+              onChange={(next) => setV((x) => ({ ...x, born: next }))}
+              precisions={gaps.includes('birthday') ? ['day'] : undefined}
+              yearHint={gaps.includes('birthday') ? p.born : undefined}
+              notAfter={isoOfDate(new Date())}
+              inputRef={firstRef<HTMLInputElement>()}
+            />
           )}
           {gaps.includes('birthplace') && (
             <div className="field wide">
@@ -398,10 +407,14 @@ function Blaze({ queue, only, f, tree, me, role, required, onClose }: { queue: s
             </div>
           )}
           {gaps.includes('died') && (
-            <label className="field">
-              <span>{t('fact.died')}</span>
-              <input ref={firstRef()} className="input" value={v.died ?? ''} onChange={set('died')} placeholder={t('needed.phDied')} />
-            </label>
+            <DatePicker
+              label={t('fact.died')}
+              value={v.died ?? ''}
+              onChange={(next) => setV((x) => ({ ...x, died: next }))}
+              notAfter={isoOfDate(new Date())}
+              notBefore={v.born || p.born || undefined}
+              notBeforeWhat={t('date.whatBirth')}
+            />
           )}
           {gaps.includes('occupation') && (
             <label className="field">

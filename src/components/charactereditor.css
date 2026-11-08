@@ -196,3 +196,29 @@
 @media (prefers-reduced-motion: reduce) {
   .ce-swatch > span { transition: none; }
 }
+
+/* The 0–10 face measures: a slider, and a reset to the automatic value once it has been set by hand. */
+.ce-measure {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px 12px;
+  margin-block: 6px;
+}
+.ce-measure-state {
+  min-width: 44px;
+  text-align: end;
+  font-size: 0.85em;
+  color: var(--text-muted, inherit);
+}
+.ce-link {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 10px 4px;
+  min-height: 44px;
+  color: var(--accent, inherit);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}

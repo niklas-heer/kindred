@@ -3,9 +3,10 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { ImagePlus, Trash, Upload } from 'lucide-react';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
-import { Dialog, Notice, Select } from '~/components/ui';
+import { DatePicker, Dialog, Notice, Select } from '~/components/ui';
 import { opKeys } from '~/lib/api';
 import { validDate } from '~/lib/dates';
+import { isoOfDate } from '~/lib/partial-date';
 import { addGalleryPhoto } from '~/lib/photos.functions';
 import { exifDate, scaledPicture } from './image';
 import { refreshPhotos } from './refresh';
@@ -228,21 +229,14 @@ export function UploadDialog({ tree, albums, initialAlbum, files, onClose }: {
                 </div>
                 <div className="gal-item-fields">
                   <p className="gal-item-name" title={it.name}>{it.name}</p>
-                  <label className="gal-field">
-                    <span>
-                      {g('lb.date')}
-                      {it.fromPhoto && it.taken === it.fromPhoto ? <em className="subtle"> · {g('up.from_photo')}</em> : null}
-                    </span>
-                    <input
-                      className="input"
-                      value={it.taken}
-                      placeholder="1985-06-14"
-                      inputMode="numeric"
-                      maxLength={10}
-                      disabled={it.status === 'adding' || it.status === 'added'}
-                      onChange={(e) => update(it.id, { taken: e.target.value.trim() })}
-                    />
-                  </label>
+                  <DatePicker
+                    className="gal-field"
+                    label={<>{g('lb.date')}{it.fromPhoto && it.taken === it.fromPhoto ? <em className="subtle"> · {g('up.from_photo')}</em> : null}</>}
+                    value={it.taken}
+                    onChange={(next) => update(it.id, { taken: next })}
+                    notAfter={isoOfDate(new Date())}
+                    disabled={it.status === 'adding' || it.status === 'added'}
+                  />
                   <label className="gal-field">
                     <span>{g('lb.caption')}</span>
                     <input

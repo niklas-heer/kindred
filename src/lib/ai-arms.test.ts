@@ -318,7 +318,9 @@ test('the design prompt carries the chosen meanings, the family’s words, the c
   assert.match(c.text, /^The family says: "honourable"$/m);
   assert.match(c.text, /^own1: the family's own meaning, in their words: "honourable"\. Heraldic ideas: none\.$/m);
   assert.match(c.text, /^m1: "heer" \(Dutch and German\): lord, gentleman, well attested\./m);
-  assert.match(c.system, /lion \(Lion’s head; löwe/);
+  // The charges are a short list that fits the meanings, then a general stock, not the whole library.
+  assert.match(c.system, /General charges, for any design: .*lion \(Lion’s head\)/);
+  assert.match(c.system, /Charges whose names fit the chosen meanings:\n/);
   assert.match(c.system, /metal \(or, argent\) on colour/);
   assert.ok(c.system.length < 16_000, `design prompt is ${c.system.length} characters`);
 });
@@ -379,4 +381,30 @@ test('suggested arms keep the rule of tincture on divided fields, whatever the i
       }
     }
   }
+});
+
+// ---------- the charges for a meaning: the candidates the model is shown, and the offline ideas ----------
+
+test('a boot-maker meaning puts the boot first among the charges that fit, and the rules forbid look-alikes', async () => {
+  const s = stub([{ json: { suggestions: [
+    DESIGN('A', 'm1', ['azure'], [{ charge: 'boot', tincture: 'or' }]),
+    DESIGN('B', 'm1', ['gules'], [{ charge: 'anvil', tincture: 'or' }]),
+    DESIGN('C', 'm1', ['vert'], [{ charge: 'mullet', tincture: 'or' }]),
+  ] } }]);
+  const trade = { id: 'm1', language: 'Middle Dutch', root: 'bote', meaning: 'boot-maker or shoemaker’s trade name, from bote (boot)', attestation: 'speculative' as const, ideas: [{ kind: 'trade' as const, idea: 'a boot-maker’s trade' }], sources: [] };
+  await arms.designArms({ adapter: s.adapter, surname: 'Botha', meanings: [trade], locale: 'en' });
+  const system = s.calls[0].system;
+  const fit = system.slice(system.indexOf('Charges whose names fit'), system.indexOf('General charges'));
+  assert.match(fit, /^Charges whose names fit the chosen meanings:\nboot \(Boot;/, 'the boot is the first charge that fits');
+  assert.match(system, /a boat is not a boot/);
+  assert.match(system, /Say so plainly in the explanation/);
+  assert.match(system, /narrow ordinary/);
+  assert.ok(system.length < 12_000, `the design prompt is ${system.length} characters, about ${Math.round(system.length / 4)} tokens`);
+});
+
+test('the offline ideas draw the trades that have a charge: a cobbler’s boot, a locksmith’s padlock', async () => {
+  const canting = await load<typeof import('../components/heraldry/canting')>('/src/components/heraldry/canting.ts');
+  const charges = (name: string) => canting.cantingArms(name).flatMap((s) => s.arms.layers.filter((l) => l.type === 'charge').map((l) => l.charge));
+  assert.ok(charges('Schuster').includes('boot'), 'a shoemaker draws a boot');
+  assert.ok(charges('Schlosser').includes('padlock'), 'a locksmith draws a padlock');
 });

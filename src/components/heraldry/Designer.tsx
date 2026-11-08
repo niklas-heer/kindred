@@ -24,15 +24,17 @@ import { Range } from '../ui/Range';
 import { Select } from '../ui/Select';
 import { Switch } from '../ui/Switch';
 import { Tab, TabList, TabPanel, Tabs } from '../ui/Tabs';
-import { glyph, loadLibrary, useLibraryReady } from './art';
+import { ensureLibrary, glyph, useLibrary, useLibraryMeta } from './art';
 import { blazonAchievement, blazonV2, chargeNoun } from './blazon';
 import { CANTING_SOURCE_NOTE, cantingArms } from './canting';
-import { CATEGORIES, CHARGE_BY_ID, CHARGES_V2, HELM_GLYPH, SUPPORTERS, type ChargeCategory } from './catalogue';
+import { CATEGORIES, HELM_GLYPH, SUPPORTERS, type ChargeCategory } from './catalogue';
+import { searchCharges } from './charge-search';
 import { asV2, storeV2 } from './convert';
 import { Flag } from './Flag';
 import { NameResearchPanel } from './NameResearch';
 import { ArmsMeanings, ChargeGlyph, useWide } from './ArmsMeanings';
 import { chargeMeaning, divisionMeaning, ordinaryMeaning, tinctureMeaning } from './meanings';
+import { allChargeDefs, chargeDef, chargeLabel, chargeName } from './registry';
 import { arrangementsFor, COTISABLE, edge, tinctureCount, type Pt } from './geometry';
 import { PRESETS } from './presets';
 import { ArmsV2View, fieldTinctures, TinctureSwatch } from './render';
@@ -105,7 +107,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
     setTab(initialTab);
     setFull(!!d.arms.achievement);
     save.reset();
-    void loadLibrary();
+    void ensureLibrary().catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -128,6 +130,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
   const nameOk = draft.name.trim().length > 0;
   const setArms = (next: ArmsV2, k?: string) => h.set({ ...draft, arms: next }, k);
   const clashes = tinctureClashesV2(a, tr);
+  useLibraryMeta();
   const shield = blazonV2(a);
   const achievementText = blazonAchievement(a.achievement);
   // "What it means" is open on a wide screen and folded on a phone, where the pickers have no hover.
@@ -279,8 +282,9 @@ function Suggestions({ tree, initial, country, allowed, onPick }: { tree: string
   const aiFeature = !!useAiStatus(tree)?.features.arms;
   const aiOn = aiFeature && allowed;
   const [name, setName] = useState(initial);
-  const list = useMemo(() => cantingArms(name, country, t), [name, country, t.locale]);
-  useLibraryReady();
+  // The library's names arrive after the first render: the offline ideas then name their charges, so they are made again.
+  const metaReady = useLibraryMeta();
+  const list = useMemo(() => cantingArms(name, country, t), [name, country, t.locale, metaReady]);
   return (
     <div className="ae-suggest">
       <label className="field ae-suggest-name">
@@ -330,7 +334,7 @@ function layerTitle(l: ArmsLayer, tr: Translator): string {
   const n = l.arrangement === 'seme' ? 2 : l.count;
   // English blazons the noun ("three mullets"); the other languages name the charge and count it.
   const english = tr.locale === 'en';
-  const noun = english ? chargeNoun(l.charge, n) : CHARGE_BY_ID[l.charge] ? tr(CHARGE_BY_ID[l.charge].label) : l.charge;
+  const noun = english ? chargeNoun(l.charge, n) : chargeName(l.charge, tr.locale);
   if (l.arrangement === 'seme') return tr('heraldry.seme_of', { noun: low(tr, noun) });
   if (n === 1) return english ? noun.charAt(0).toUpperCase() + noun.slice(1) : noun;
   return english ? `${n} ${noun}` : `${n} × ${noun}`;
@@ -518,13 +522,13 @@ function Inspector({ arms, sel, setArms, motto, onFull }: { arms: ArmsV2; sel: S
       </>
     );
   }
-  const def = CHARGE_BY_ID[layer.charge];
+  const def = chargeDef(layer.charge);
   const hasOrdinary = arms.layers.slice(0, sel).some((l) => l.type === 'ordinary');
   const arrs = arrangementsFor(layer.count);
   return (
     <>
       <Section title={tr('heraldry.charge')}>
-        <ChargePicker value={layer.charge} onChange={(charge) => patch({ charge, ...(CHARGE_BY_ID[charge]?.facing ? {} : { contourne: undefined }) })} />
+        <ChargePicker value={layer.charge} onChange={(charge) => patch({ charge, ...(chargeDef(charge)?.facing ? {} : { contourne: undefined }) })} />
       </Section>
       <Section title={tr('heraldry.tincture')}>
         <TincturePicker label={tr('heraldry.charge_tincture')} value={layer.tincture} under={under} allowProper charge={layer.charge} disabled={!!layer.counterchanged && divided} onChange={(tincture) => patch({ tincture })} />
@@ -611,7 +615,7 @@ function AchievementInspector({ arms, setArms, motto, onFull }: { arms: ArmsV2; 
       </Section>
       <Section title={tr('heraldry.supporters')}>
         <Choices label={tr('heraldry.supporters')} className="ae-tiles" value={ach.supporters?.charge ?? ''} onChange={(charge: string) => set({ supporters: charge ? { charge, tincture: ach.supporters?.tincture ?? 'or' } : undefined })}
-          options={[{ value: '', label: tr('heraldry.none') }, ...SUPPORTERS.map((s) => ({ value: s, label: CHARGE_BY_ID[s] ? tr(CHARGE_BY_ID[s].label) : s }))]}
+          options={[{ value: '', label: tr('heraldry.none') }, ...SUPPORTERS.map((s) => ({ value: s, label: chargeName(s, tr.locale) }))]}
           render={(o) => <>{o.value ? <ChargeGlyph id={o.value} size={28} /> : <span className="ae-none" aria-hidden>—</span>}<small>{o.label}</small></>} />
         {ach.supporters && <TincturePicker label={tr('heraldry.supporters_tincture')} compact allowProper charge={ach.supporters.charge} value={ach.supporters.tincture} onChange={(tincture) => set({ supporters: { ...ach.supporters!, tincture } })} />}
       </Section>
@@ -620,7 +624,7 @@ function AchievementInspector({ arms, setArms, motto, onFull }: { arms: ArmsV2; 
 }
 
 function HelmGlyph({ rank }: { rank: HelmRank }) {
-  useLibraryReady();
+  useLibrary([], ['weapons']);
   if (rank === 'none') return null;
   const art = glyph(HELM_GLYPH[rank].gi);
   if (!art) return <span className="ae-glyph-wait" style={{ width: 28, height: 28 }} />;
@@ -692,19 +696,25 @@ function LinePicker({ value, onChange }: { value: PartitionLine; onChange: (l: P
 }
 
 const ALL = 'all';
+/** The tiles a page shows: a grid of every charge would be slow on a phone, so the rest come a page at a time. */
+const PAGE = 120;
 function ChargePicker({ value, onChange, allowNone, compact }: { value: string; onChange: (id: string) => void; allowNone?: boolean; compact?: boolean }) {
-  const ready = useLibraryReady();
   const tr = useT();
+  // The names of every charge are in the library's metadata; the search and the list wait for it, then grow.
+  const metaReady = useLibraryMeta();
+  const ready = useLibrary(value ? [value] : []);
   const [q, setQ] = useState('');
-  const [cat, setCat] = useState<ChargeCategory | typeof ALL>(() => CHARGE_BY_ID[value]?.cat ?? 'classic');
-  const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  const list = useMemo(() => {
-    const words = fold(q).split(/\s+/).filter(Boolean);
-    if (words.length) return CHARGES_V2.filter((c) => words.every((w) => fold(`${tr(c.label)} ${c.id} ${c.keys ?? ''} ${c.cat}`).includes(w)));
-    return cat === ALL ? CHARGES_V2 : CHARGES_V2.filter((c) => c.cat === cat);
-  }, [q, cat, tr.locale]);
-  const options = [...(allowNone ? [{ value: '', label: tr('heraldry.none') }] : []), ...list.map((c) => ({ value: c.id, label: tr(c.label) }))];
-  const current = CHARGE_BY_ID[value];
+  const [cat, setCat] = useState<ChargeCategory | typeof ALL>(() => chargeDef(value)?.cat ?? 'classic');
+  const [shown, setShown] = useState(PAGE);
+  useEffect(() => setShown(PAGE), [q, cat]);
+  const found = useMemo(() => {
+    if (q.trim()) return searchCharges(q);
+    return allChargeDefs().filter((c) => cat === ALL || c.cat === cat);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, cat, metaReady]);
+  const page = found.slice(0, shown);
+  const options = [...(allowNone ? [{ value: '', label: tr('heraldry.none') }] : []), ...page.map((c) => ({ value: c.id, label: chargeLabel(c, tr.locale) }))];
+  const current = chargeDef(value);
   return (
     <div className={`ae-charges${compact ? ' compact' : ''}`}>
       <div className="ae-charge-search">
@@ -724,7 +734,10 @@ function ChargePicker({ value, onChange, allowNone, compact }: { value: string; 
         <Choices label={tr('heraldry.charge')} className="ae-tiles ae-glyphs" value={value} onChange={onChange} options={options} hint={(v) => (v ? tr(chargeMeaning(v)) : undefined)}
           render={(o) => (o.value ? <ChargeGlyph id={o.value} size={compact ? 26 : 30} /> : <span className="ae-none" aria-hidden>—</span>)} />
       )}
-      <p className="ae-charge-name subtle">{current ? <><b>{tr(current.label)}</b>{!ready && current.gi ? ` · ${tr('heraldry.loading_library')}` : ''}</> : allowNone ? tr('heraldry.no_crest') : ''}{q && ` · ${tr('heraldry.found', { count: list.length })}`}</p>
+      {found.length > shown && (
+        <button type="button" className="ae-chip ae-more" onClick={() => setShown((n) => n + PAGE)}>{tr('heraldry.show_more', { count: Math.min(PAGE, found.length - shown) })}</button>
+      )}
+      <p className="ae-charge-name subtle">{current ? <><b>{chargeLabel(current, tr.locale)}</b>{!ready && current.gi ? ` · ${tr('heraldry.loading_library')}` : ''}</> : allowNone ? tr('heraldry.no_crest') : ''}{q && ` · ${tr('heraldry.found', { count: found.length })}`}</p>
       {current && <p className="ae-charge-meaning subtle">{tr(chargeMeaning(current.id))}</p>}
     </div>
   );

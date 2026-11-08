@@ -166,6 +166,43 @@ language), just as passkey setup does. Set
 `CF_ACCESS_TEAM_DOMAIN` to your team's domain and `CF_ACCESS_AUD` to the application's audience tag. Access is an
 extra lock, not a replacement for passkeys: people still sign in to Kindred with their own passkey.
 
+## Places on Workers (optional)
+
+Assisted place entry suggests towns as you type a place, and the Atlas can draw towns that have no pin of the family's
+own yet. The towns are GeoNames' cities with 500 or more people. On Node they come from `data/gazetteer.db`, which
+`mise run gazetteer` builds. Workers have no file system, so on Workers they live in an optional D1 database bound as
+`GAZETTEER`. Without that binding the place picker offers only the family's own places, as it always did.
+
+1. Create the database and put its id in `wrangler.jsonc`:
+
+   ```sh
+   npx wrangler d1 create kindred-gazetteer
+   ```
+
+   Then uncomment the `GAZETTEER` line in `d1_databases` (it is the last comment in the list) and paste the id.
+2. Apply the schema (`migrations/gazetteer`) and load the towns:
+
+   ```sh
+   mise run gazetteer              # once, on the machine that builds the file: ~40 MB download, ~30 MB database
+   mise run cf:migrate:remote      # the schema, for every database in wrangler.jsonc, GAZETTEER included
+   mise run cf:gazetteer --remote  # copies data/gazetteer.db in files of about 5,000 rows, then checks the counts
+   ```
+
+   The load empties the three tables first, so running it again replaces the data, and a load that stops is not
+   mistaken for a finished one (the meta rows are written last). `--rows` changes the file size. For the local
+   `dev:cf` databases, `mise run cf:gazetteer -- --local --env local` does the same.
+3. Deploy as usual. The Worker only reads the database: a write through the binding is refused.
+
+**Attribution.** The town names come from [GeoNames](https://www.geonames.org), released under the
+[Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/) licence (CC BY 4.0). Keep that credit
+wherever the towns are shown: the place picker and the Atlas already say "Towns: GeoNames", and the database records its
+source in its `meta` table (`source`).
+
+**Speed.** The place search reads the `name` table through its primary key, by the folded spelling, and the Atlas's towns
+in a map box read the `place_by_lat` index. Both are index range scans (`EXPLAIN QUERY PLAN` shows them), and the three
+name reads of one search are sent together. On a database of 150,000 towns a search took a few milliseconds on SQLite;
+on D1 the time is mostly the round trip, and the name reads of a search wait for about one of them.
+
 ## 7. Deploy
 
 ```sh

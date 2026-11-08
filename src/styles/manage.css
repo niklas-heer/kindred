@@ -1,0 +1,96 @@
+/* Making houses and changing who is in them (HouseCreate.tsx, HouseMembers.tsx), and the family's name and tagline on the
+   Access page. Colours come from the theme tokens, so Codex, Paper and Night all read the same way. */
+
+.hm-form { display: grid; gap: 14px; }
+.hm-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
+.hm-section { display: grid; gap: 8px; margin-top: 18px; }
+.hm-section > h3 { margin: 0; }
+.hm-search { display: flex; align-items: center; gap: 8px; }
+.hm-search .input { flex: 1; min-width: 0; }
+.manage-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: min(42vh, 360px); overflow: auto; }
+.hm-row,
+.hm-pick {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 6px 10px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-2); color: var(--text);
+  font: inherit; text-align: start; cursor: pointer;
+}
+.hm-row:hover:not(:disabled),
+.hm-pick:hover:not(:disabled) { border-color: var(--accent); }
+.hm-row[aria-pressed='true'],
+.hm-pick[aria-pressed='true'] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.hm-row:disabled,
+.hm-pick:disabled { opacity: 0.55; cursor: not-allowed; }
+.hm-row:focus-visible,
+.hm-pick:focus-visible,
+.hm-chip:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.hm-name { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.hm-name b { font-family: var(--font-name); font-weight: 500; overflow-wrap: anywhere; }
+.hm-name small,
+.hm-count { color: var(--subtle); font-size: 0.85rem; }
+.hm-count { white-space: nowrap; }
+.hm-mark { flex: none; font-size: 0.85rem; font-weight: 600; color: var(--accent); white-space: nowrap; }
+.hm-box {
+  flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px;
+  border: 1.5px solid var(--muted); color: var(--accent);
+}
+.hm-pick[aria-pressed='true'] .hm-box {
+  border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.hm-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.hm-chip {
+  min-height: 40px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border);
+  background: transparent; color: var(--text); font: inherit; font-size: 0.9rem; cursor: pointer;
+}
+.hm-chip:hover { border-color: var(--accent); }
+.hm-chip[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
+.hm-empty { margin: 0; color: var(--muted); }
+.hm-summary { margin-inline-end: auto; align-self: center; color: var(--subtle); font-size: 0.9rem; }
+
+/* The family's name and tagline, on the Access page. */
+.fam-card { display: grid; gap: 12px; margin-bottom: 8px; }
+.fam-card h2 { margin: 0; }
+.fam-card p { margin: 0; color: var(--muted); }
+.fam-form { display: grid; gap: 12px; }
+@media (min-width: 640px) {
+  .fam-form { grid-template-columns: 1fr 1fr; align-items: end; }
+  .fam-form .fam-actions { grid-column: 1 / -1; justify-self: end; }
+}
+.fam-form label { display: grid; gap: 6px; }
+.fam-form label > span { color: var(--muted); font-size: 0.9rem; }
+.fam-actions { display: flex; justify-content: flex-end; }
+
+@media (max-width: 480px) {
+  .hm-tools .btn,
+  .hm-chips .hm-chip { flex: 1 1 auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-row,
+  .hm-pick,
+  .hm-chip { transition: none; }
+}
+
+/* The Houses page's empty state and the house page's "Manage members" button. */
+.hs-empty-how { display: block; margin-top: 8px; }
+.hs-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.hp-manage { margin-top: 8px; }
+
+/* The heading of the family card sits at the card's top edge, as the other Access cards' headings do. */
+.fam-card > .rule:first-child { margin-top: 0; }
+
+/* The Houses toolbar wraps on a phone instead of running off the edge; its buttons keep their words on one line. */
+.hs-toolbar { flex-wrap: wrap; justify-content: center; max-width: 100%; }
+.hs-toolbar .btn { white-space: nowrap; }
+@media (max-width: 600px) {
+  .hs-toolbar .btn,
+  .hm-tools .btn,
+  .hs-empty-actions .btn,
+  .fam-actions .btn { min-height: 44px; }
+}
+
+/* A long note beside a name (a surname that already names a house) wraps, and the name keeps its width. */
+.hm-pick .hm-name { flex: 1 1 auto; min-width: 5.5em; }
+.hm-pick .hm-count { white-space: normal; text-align: end; max-width: 52%; line-height: 1.3; }
+
+/* Each list is one full-width column, so a row is as wide as its box on every width. */
+.manage-list { grid-template-columns: minmax(0, 1fr); }

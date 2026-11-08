@@ -4,10 +4,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, ScanFace, Tag as TagIcon, Trash, X } from 'lucide-react';
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
-import { Dialog, Notice, Select } from '~/components/ui';
+import { DatePicker, Dialog, Notice, Select } from '~/components/ui';
 import { opKeys } from '~/lib/api';
 import { formatDate, useT } from '~/lib/i18n';
 import { validDate } from '~/lib/dates';
+import { isoOfDate } from '~/lib/partial-date';
 import { useFamily } from '~/lib/family';
 import { displayName } from '~/lib/graph';
 import { confirmPhotoTag, removeGalleryPhoto, removePhotoTag, saveGalleryPhoto, suggestPhotoTags, tagPhoto } from '~/lib/photos.functions';
@@ -425,11 +426,14 @@ function Photo({ tree, item, index, count, albums, onGo, onDirty }: {
               saveDetails();
             }}
           >
-            <label className="gal-field">
-              <span>{g('lb.date')}</span>
-              <input className="input" value={taken} onChange={(e) => setTaken(e.target.value)} placeholder="1985-06-14" maxLength={10} inputMode="numeric" />
-              <small className="subtle">{g('lb.date_hint')}</small>
-            </label>
+            <DatePicker
+              className="gal-field"
+              label={g('lb.date')}
+              value={taken}
+              onChange={setTaken}
+              notAfter={isoOfDate(new Date())}
+              hint={g('lb.date_hint')}
+            />
             <label className="gal-field">
               <span>{g('lb.place')}</span>
               <input className="input" value={place} onChange={(e) => setPlace(e.target.value)} maxLength={200} />

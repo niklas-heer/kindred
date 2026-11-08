@@ -17,6 +17,8 @@ import { locales, translate, useT, type Key, type Locale } from '~/lib/i18n';
 import { useCan } from '~/lib/session';
 import { EmptyState, ErrorState, PageHeader, Range, Skeleton, Switch } from '~/components/ui';
 import { AssistantButton } from './AssistantDrawer';
+import { PortraitSettings } from './PortraitSettings';
+import { BackgroundSettings } from './BackgroundSettings';
 import { treeTitle } from '~/lib/title';
 import './assistant.css';
 import './aisettings.css';
@@ -445,6 +447,8 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
         <p className="ai-privacy">{t('ai.privacyEditors', { provider: PROVIDER_NOTE[provider] })}</p>
       </section>
 
+      <PortraitSettings tree={tree} />
+      <BackgroundSettings tree={tree} />
       {notice && <p className={notice.ok ? 'ai-card-state ok' : 'ai-card-error'} role={notice.ok ? 'status' : 'alert'}>{notice.text}</p>}
       <div className="ai-actions">
         {(keyBlocked || typedPartial || needsKey) && (

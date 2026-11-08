@@ -188,7 +188,40 @@ export interface SeedLook {
   marks?: Mark[];
   /** The age the portrait shows. Absent: age at death, or today's age for the living. */
   age?: number;
+  /** Face shape. Absent: automatic, from the person's id. */
+  face?: FaceShape;
+  /** Nose shape. Absent: automatic. */
+  noseShape?: NoseShape;
+  /** Eye shape. Absent: automatic. */
+  eyeShape?: EyeShape;
+  /*
+   * The numbers below are whole numbers from 0 to 10, where 5 is the average face. Absent means
+   * automatic: a small, stable variation around 5 chosen from the person's id, so no two faces are
+   * drawn alike even before anyone has set them.
+   */
+  /** Jaw and cheek width: 0 narrow and pointed, 10 broad and square. */
+  jaw?: number;
+  /** Nose size: 0 small, 10 large. */
+  noseSize?: number;
+  /** Mouth width: 0 narrow, 10 wide. */
+  mouthWidth?: number;
+  /** Lips: 0 thin, 10 full. */
+  mouthFullness?: number;
+  /** Eye size: 0 small, 10 large. */
+  eyeSize?: number;
+  /** Eye spacing: 0 close together, 10 wide apart. */
+  eyeSpacing?: number;
+  /** Brow height: 0 low, 10 high. */
+  browHeight?: number;
+  /** Ear size: 0 small, 10 large. */
+  earSize?: number;
+  /** Hairline: 0 high, 10 low. */
+  hairline?: number;
 }
+
+export type FaceShape = 'round' | 'oval' | 'square' | 'long' | 'heart';
+export type NoseShape = 'straight' | 'aquiline' | 'broad' | 'snub';
+export type EyeShape = 'round' | 'almond' | 'hooded';
 
 export type Headwear =
   | 'none' | 'crown' | 'circlet' | 'mitre' | 'veil' | 'wimple' | 'hood' | 'coif' | 'beret' | 'mobcap' | 'tricorn'

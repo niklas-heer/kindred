@@ -1,7 +1,7 @@
 // The blazon: a coat of arms in heraldic English, built from the v2 design.
 // "Azure, a fess wavy argent between three mullets or" — field first, then what lies on it, in painting order.
 import type { Achievement, ArmsV2, ChargeLayer, OrdinaryLayer, TinctureV2 } from '~/lib/seed-format';
-import { CHARGE_BY_ID } from './catalogue';
+import { chargeDef, chargeName } from './registry';
 import { CENTRAL, clampPieces, standsBetween } from './geometry';
 import { fieldTinctures } from './render';
 import { labelV2 } from './tinctures';
@@ -17,8 +17,8 @@ const an = (word: string) => (/^[aeiou]/i.test(word) ? `an ${word}` : `a ${word}
 const lineWord = (l: string) => (l === 'straight' ? '' : ` ${l}`);
 
 export function chargeNoun(id: string, n: number): string {
-  const c = CHARGE_BY_ID[id];
-  const label = c ? en(c.label) : id;
+  const c = chargeDef(id);
+  const label = chargeName(id, 'en');
   const keep = /^(Jerusalem|Thor)/.test(label);
   const one = keep ? label : label.charAt(0).toLowerCase() + label.slice(1);
   if (n === 1) return one;

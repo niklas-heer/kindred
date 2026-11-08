@@ -4,6 +4,8 @@
  */
 import * as accessArea from "./areas/access.ts";
 import * as aiArea from "./areas/ai.ts";
+import * as aiPortraitArea from "./areas/ai-portrait.ts";
+import * as aiTasksArea from "./areas/ai-tasks.ts";
 import * as almanacArea from "./areas/almanac.ts";
 import * as atlasArea from "./areas/atlas.ts";
 import * as chronicleArea from "./areas/chronicle.ts";
@@ -36,6 +38,8 @@ const AREAS = [
   fieldsArea,
   photosArea,
   aiArea,
+  aiPortraitArea,
+  aiTasksArea,
   exchangeArea,
   housesArea,
   heraldryArea,

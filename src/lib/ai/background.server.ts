@@ -1,0 +1,353 @@
+// Background AI tasks for a family: the steward's settings, the spending cap for background work, the run log and the
+// daily scheduler (src/lib/jobs/ai-tasks.ts). What each task does is in background-tasks.server.ts; this file decides
+// whether a task may run now, how much it may spend, and what is recorded.
+//
+// Off by default: a task runs only when its steward switched it on, the family's AI is set up (a key, a budget above 0),
+// and the family's own switch for its feature (arms, or the assistant) is on. Every call is booked twice before it is
+// sent: against the background share of the monthly budget (ai_background_spend), and against the whole budget (ai_spend,
+// through the same path the assistant uses). Whichever runs out first stops the work.
+import { accounts } from '../auth/store.server';
+import { db } from '../db.server';
+import { readReviews } from '../house-meaning.server';
+import { AiError, callRounds, outputCap, type AiAdapter, type AiReply, type AiRequest } from './adapters';
+import { pending, perform, type Pending } from './background-tasks.server';
+import { tr, type Tr } from './labels';
+import { budgeted, adapterFor, estimateMicros, failureMicros, fakeOn, monthNow, readSettings, replyMicros, resetsOn, spentThisMonth, type Settings } from './settings.server';
+import { openRouterListed } from './models.server';
+import { resolvePrice, type Price } from './prices';
+import type { Locale } from '../i18n/types';
+import {
+  BATCH, CALLS_PER_DAILY_RUN, TASK_FEATURE, TASKS, capMicros, defaultSettings, isDue,
+  type Activity, type ActivityTask, type BackgroundSettings, type Readiness, type SaveInput, type Task, type TaskRun, type TaskSetting, type WaitingReview,
+} from './background';
+
+/** Runs kept per family for the activity page; older ones are dropped when a new one is written. */
+const RUNS_KEPT = 200;
+
+interface BgRow { tree: string; cap_share: number; languages: string; locale: string; updated: number; updated_by: string }
+interface TaskRow { tree: string; task: string; enabled: number; schedule: string; last_started: number | null }
+
+const isTask = (t: string): t is Task => (TASKS as readonly string[]).includes(t);
+const LOCALES_OK: readonly Locale[] = ['en', 'de', 'af'];
+const localeOf = (s: string): Locale => (LOCALES_OK as readonly string[]).includes(s) ? (s as Locale) : 'en';
+
+function parseLanguages(s: string): Locale[] {
+  try {
+    const list = JSON.parse(s) as unknown;
+    return Array.isArray(list) ? [...new Set(list.filter((l): l is Locale => (LOCALES_OK as readonly string[]).includes(l as string)))] : [];
+  } catch {
+    return [];
+  }
+}
+
+// ---------- settings ----------
+
+/** A family's background settings. Without a saved row every task is off. */
+export async function readBackground(tree: string): Promise<BackgroundSettings> {
+  const row = await accounts().get<BgRow>('SELECT * FROM ai_background WHERE tree = ?', tree);
+  const s = defaultSettings();
+  if (row) {
+    s.capShare = row.cap_share;
+    s.languages = parseLanguages(row.languages);
+    s.locale = localeOf(row.locale);
+    s.updated = row.updated;
+  }
+  const tasks = await accounts().all<TaskRow>('SELECT * FROM ai_background_task WHERE tree = ?', tree);
+  for (const r of tasks) {
+    if (!isTask(r.task)) continue;
+    s.tasks[r.task] = { enabled: r.enabled === 1, schedule: r.schedule === 'weekly' ? 'weekly' : 'daily', lastStarted: r.last_started };
+  }
+  return s;
+}
+
+/** Saves what the steward chose. `by` is the steward's account id. Nothing else is touched: the last-run times stay. */
+export async function saveBackground(tree: string, by: string, input: SaveInput): Promise<BackgroundSettings> {
+  const now = Date.now();
+  await accounts().run(
+    `INSERT INTO ai_background (tree, cap_share, languages, locale, updated, updated_by) VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT (tree) DO UPDATE SET cap_share = excluded.cap_share, languages = excluded.languages, locale = excluded.locale,
+       updated = excluded.updated, updated_by = excluded.updated_by`,
+    tree, input.capShare, JSON.stringify([...new Set(input.languages)]), input.locale, now, by,
+  );
+  for (const task of TASKS) {
+    const t = input.tasks[task];
+    await accounts().run(
+      `INSERT INTO ai_background_task (tree, task, enabled, schedule) VALUES (?, ?, ?, ?)
+       ON CONFLICT (tree, task) DO UPDATE SET enabled = excluded.enabled, schedule = excluded.schedule`,
+      tree, task, t.enabled ? 1 : 0, t.schedule,
+    );
+  }
+  return readBackground(tree);
+}
+
+// ---------- readiness ----------
+
+
+/**
+ * Whether a task may run now, and why not. `off` is the steward's switch; the rest are the family's AI being unset or the
+ * task's own feature switched off. Reads only.
+ */
+export async function readiness(tree: string, task: Task, bg?: BackgroundSettings): Promise<{ state: Readiness; settings: Settings }> {
+  const settings = await readSettings(tree);
+  const current = bg ?? (await readBackground(tree));
+  if (!current.tasks[task].enabled) return { state: 'off', settings };
+  if (!settings.sealed) return { state: 'no-key', settings };
+  if (settings.monthlyMicros <= 0) return { state: 'budget-off', settings };
+  if (!settings.features[TASK_FEATURE[task]]) return { state: 'feature-off', settings };
+  return { state: 'ready', settings };
+}
+
+// ---------- the background share of the budget ----------
+
+interface Booking { month: string; amount: number }
+
+/** Books `amount` against the background share, or throws `budget` when that would take it past `limit`. One statement decides. */
+async function reserveBackground(tree: string, limit: number, amount: number, c: Tr): Promise<Booking> {
+  const month = monthNow();
+  await accounts().run('INSERT INTO ai_background_spend (tree, month, micros) VALUES (?, ?, 0) ON CONFLICT (tree, month) DO NOTHING', tree, month);
+  const r = await accounts().run(
+    'UPDATE ai_background_spend SET micros = micros + ? WHERE tree = ? AND month = ? AND micros + ? <= ?',
+    amount, tree, month, amount, limit,
+  );
+  if (r.changes !== 1) throw new AiError('budget', c('aitasks.errCap'));
+  return { month, amount };
+}
+
+async function settleBackground(tree: string, booked: Booking, actual: number): Promise<void> {
+  await accounts().run(
+    'UPDATE ai_background_spend SET micros = MAX(0, micros - ? + ?) WHERE tree = ? AND month = ?',
+    booked.amount, Math.max(0, Math.round(actual)), tree, booked.month,
+  );
+}
+
+export async function backgroundSpentThisMonth(tree: string): Promise<number> {
+  return (await accounts().get<{ micros: number }>('SELECT micros FROM ai_background_spend WHERE tree = ? AND month = ?', tree, monthNow()))?.micros ?? 0;
+}
+
+/**
+ * The adapter a background task calls through: refuses a web search (background work never searches the web), books each
+ * call against the background cap and then against the whole budget, and settles both to what the call really cost. `meter`
+ * collects what the run spent, for the run log.
+ */
+export function backgroundAdapter(tree: string, inner: AiAdapter, o: { monthlyMicros: number; capMicros: number; price: Price; c: Tr; meter: { micros: number } }): AiAdapter {
+  const total = budgeted(tree, o.monthlyMicros, inner, o.price, o.c);
+  return {
+    provider: inner.provider,
+    model: inner.model,
+    reasoning: inner.reasoning,
+    async complete(req: AiRequest): Promise<AiReply> {
+      if (req.webSearch) throw new AiError('bad-input', o.c('aitasks.errSearch'));
+      const cap = outputCap(inner.provider, inner.model, req.maxTokens, inner.reasoning);
+      const estimate = estimateMicros(req, o.price, cap, callRounds(inner.provider, req));
+      const booked = await reserveBackground(tree, o.capMicros, estimate, o.c);
+      let actual = booked.amount;
+      try {
+        const reply = await total.complete(req);
+        actual = replyMicros(reply, o.price);
+        return reply;
+      } catch (e) {
+        // The same rule the budget applies to a failed call: what its completed requests billed, plus a request in flight
+        // that may have billed, else nothing when the provider did not bill it.
+        actual = e instanceof AiError && e.billed
+          ? replyMicros(e.billed, o.price) + (e.inFlight && (e.code === 'timeout' || e.code === 'bad-output') ? estimateMicros(req, o.price, cap, 1) : 0)
+          : failureMicros(e, booked.amount);
+        throw e;
+      } finally {
+        await settleBackground(tree, booked, actual);
+        o.meter.micros += actual;
+      }
+    },
+  };
+}
+
+async function priceFor(s: Settings): Promise<Price> {
+  const listed = s.provider === 'openrouter' && !fakeOn() ? await openRouterListed(s.effectiveModel) : undefined;
+  return resolvePrice(s.provider, s.effectiveModel, s.customPrices, listed?.price).price;
+}
+
+// ---------- runs ----------
+
+export interface TaskOutcome {
+  status: TaskRun['status'];
+  done: number;
+  failed: number;
+  waiting: number;
+  micros: number;
+  /** Provider calls made (done plus failed): what the daily run's limit counts. */
+  calls: number;
+  note: string;
+}
+
+export interface RunOptions {
+  /** Who asked: the schedule, or a steward's "Run now". */
+  source?: 'schedule' | 'manual';
+  now?: Date;
+  /** Items to do in this run at most (defaults to BATCH). */
+  limit?: number;
+  /** Tests: the provider adapter, and its price, instead of the family's own key. Never set in the app. */
+  adapter?: AiAdapter;
+  price?: Price;
+}
+
+/** Runs in progress in this process, so a steward's "Run now" never doubles a scheduled run of the same task. */
+const running = new Set<string>();
+
+const skipped = (note: string): TaskOutcome => ({ status: 'skipped', done: 0, failed: 0, waiting: 0, micros: 0, calls: 0, note });
+
+/**
+ * Runs one task for a family, one batch at most. Never throws: a failure is recorded as a `failed` run. Writes the run log
+ * for a run that did something, failed, stopped at the cap, or was asked for by hand (an idle scheduled run is not logged).
+ */
+export async function runTask(tree: string, task: Task, o: RunOptions = {}): Promise<TaskOutcome> {
+  const key = `${tree}\u0000${task}`;
+  if (running.has(key)) return skipped('busy');
+  running.add(key);
+  const source = o.source ?? 'manual';
+  const now = o.now ?? new Date();
+  try {
+    const bg = await readBackground(tree);
+    const ready = await readiness(tree, task, bg);
+    if (ready.state !== 'ready') {
+      const out = skipped(ready.state);
+      if (source === 'manual') await logRun(tree, task, source, now, out);
+      return out;
+    }
+    const c = tr(bg.locale);
+    const meter = { micros: 0 };
+    const inner = o.adapter ?? (await adapterFor(tree, ready.settings));
+    const price = o.price ?? (await priceFor(ready.settings));
+    const adapter = backgroundAdapter(tree, inner, { monthlyMicros: ready.settings.monthlyMicros, capMicros: capMicros(ready.settings.monthlyMicros, bg.capShare), price, c, meter });
+    const items: Pending[] = await pending(tree, task, bg.languages);
+    let done = 0;
+    let failed = 0;
+    let stopped = false;
+    let note = '';
+    for (const item of items.slice(0, o.limit ?? BATCH)) {
+      try {
+        await perform(tree, item, { adapter, locale: bg.locale, now });
+        done++;
+      } catch (e) {
+        if (e instanceof AiError && e.code === 'budget') {
+          stopped = true;
+          note = e.message;
+          break;
+        }
+        failed++;
+        note = e instanceof AiError ? e.message : c('aitasks.errFailed');
+      }
+    }
+    const waiting = items.length - done;
+    const status: TaskRun['status'] = stopped ? 'stopped' : items.length === 0 ? 'idle' : done === 0 && failed > 0 ? 'failed' : 'done';
+    const out: TaskOutcome = { status, done, failed, waiting, micros: meter.micros, calls: done + failed, note: status === 'idle' ? '' : note };
+    if (status !== 'idle' || source === 'manual') {
+      await accounts().run('UPDATE ai_background_task SET last_started = ? WHERE tree = ? AND task = ?', now.getTime(), tree, task);
+    }
+    if (status !== 'idle' || source === 'manual') await logRun(tree, task, source, now, out);
+    return out;
+  } catch (e) {
+    const out: TaskOutcome = { status: 'failed', done: 0, failed: 1, waiting: 0, micros: 0, calls: 0, note: e instanceof AiError ? e.message : tr('en')('aitasks.errFailed') };
+    await logRun(tree, task, source, now, out);
+    return out;
+  } finally {
+    running.delete(key);
+  }
+}
+
+async function logRun(tree: string, task: Task, source: 'schedule' | 'manual', now: Date, out: TaskOutcome): Promise<void> {
+  const a = accounts();
+  await a.run(
+    'INSERT INTO ai_task_run (tree, task, source, started, status, done, failed, waiting, micros, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    tree, task, source, now.getTime(), out.status, out.done, out.failed, out.waiting, out.micros, out.note.slice(0, 300),
+  );
+  await a.run(
+    'DELETE FROM ai_task_run WHERE tree = ? AND id NOT IN (SELECT id FROM ai_task_run WHERE tree = ? ORDER BY id DESC LIMIT ?)',
+    tree, tree, RUNS_KEPT,
+  );
+}
+
+/**
+ * The daily run, for every family the deployment serves: each switched-on task that is due runs one batch, and the whole run
+ * makes at most CALLS_PER_DAILY_RUN provider calls. Work left over waits for the next day: the lists are recomputed, so nothing
+ * is lost and nothing is done twice.
+ */
+export async function runScheduled(trees: string[], now: Date, log: (message: string) => void): Promise<void> {
+  let calls = 0;
+  for (const tree of trees) {
+    const bg = await readBackground(tree);
+    for (const task of TASKS) {
+      const t: TaskSetting = bg.tasks[task];
+      if (!t.enabled || !isDue(t.lastStarted, t.schedule, now.getTime())) continue;
+      const room = CALLS_PER_DAILY_RUN - calls;
+      if (room <= 0) {
+        log(`${tree}: ${task} waits for the next run (today's ${CALLS_PER_DAILY_RUN} calls are used)`);
+        continue;
+      }
+      const out = await runTask(tree, task, { source: 'schedule', now, limit: Math.min(BATCH, room) });
+      calls += out.calls;
+      if (out.status !== 'skipped') log(`${tree}: ${task} ${out.status}: ${out.done} done, ${out.failed} failed, ${out.waiting} waiting`);
+    }
+  }
+}
+
+// ---------- what the steward sees ----------
+
+/**
+ * What the AI activity page shows: each task's state, what is still waiting, the recent runs, what is waiting for a steward
+ * (arms reviews that suggest a change and are not kept), and the spending. Reads only.
+ */
+export async function activity(tree: string, now = new Date()): Promise<Activity> {
+  const bg = await readBackground(tree);
+  const settings = await readSettings(tree);
+  const tasks: ActivityTask[] = [];
+  for (const task of TASKS) {
+    const t = bg.tasks[task];
+    const state = (await readiness(tree, task, bg)).state;
+    // What it still has to do: the list is recomputed, so this is the number a run would work through.
+    const waiting = (await pending(tree, task, bg.languages)).length;
+    tasks.push({ task, enabled: t.enabled, schedule: t.schedule, lastStarted: t.lastStarted, waiting, state });
+  }
+  const runs = await accounts().all<{ id: number; task: string; source: string; started: number; status: string; done: number; failed: number; waiting: number; micros: number; note: string }>(
+    'SELECT * FROM ai_task_run WHERE tree = ? ORDER BY id DESC LIMIT 60',
+    tree,
+  );
+  const names = new Map((await db(tree).all<{ id: string; name: string }>('SELECT id, name FROM house')).map((h) => [h.id, h.name]));
+  const waiting: WaitingReview[] = [];
+  for (const [house, r] of Object.entries(await readReviews(tree))) {
+    if (!r.current || r.dismissed || r.verdict === 'fits') continue;
+    waiting.push({ house, name: names.get(house) ?? house, verdict: r.verdict as 'partly' | 'reconsider', reason: r.reason, advice: r.advice, checkedAt: r.checkedAt });
+  }
+  const weekAgo = now.getTime() - 7 * 86_400_000;
+  const failedRecently = (await accounts().get<{ n: number }>("SELECT COUNT(*) AS n FROM ai_task_run WHERE tree = ? AND status = 'failed' AND started > ?", tree, weekAgo))?.n ?? 0;
+  return {
+    settings: bg,
+    tasks,
+    runs: runs.map((r) => ({
+      id: r.id,
+      task: isTask(r.task) ? r.task : 'arms',
+      source: r.source === 'schedule' ? 'schedule' : 'manual',
+      started: r.started,
+      status: r.status as TaskRun['status'],
+      done: r.done,
+      failed: r.failed,
+      waiting: r.waiting,
+      micros: r.micros,
+      note: r.note,
+    })),
+    waiting,
+    failedRecently,
+    capMicros: capMicros(settings.monthlyMicros, bg.capShare),
+    backgroundSpentMicros: await backgroundSpentThisMonth(tree),
+    monthlyMicros: settings.monthlyMicros,
+    spentMicros: await spentThisMonth(tree),
+    resetsOn: resetsOn(now),
+  };
+}
+
+/** The number on the quiet badge: arms suggestions waiting for a steward, and failed runs in the last week. Reads only. */
+export async function attention(tree: string, now = new Date()): Promise<number> {
+  let n = 0;
+  for (const r of Object.values(await readReviews(tree))) if (r.current && !r.dismissed && r.verdict !== 'fits') n++;
+  const weekAgo = now.getTime() - 7 * 86_400_000;
+  n += (await accounts().get<{ n: number }>("SELECT COUNT(*) AS n FROM ai_task_run WHERE tree = ? AND status = 'failed' AND started > ?", tree, weekAgo))?.n ?? 0;
+  return n;
+}

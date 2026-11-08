@@ -93,3 +93,16 @@ To leave, export the family, or copy the database. Deleting a family means delet
 The assistant reads only what the reader's role may see, and it proposes changes that the reader approves. A proposal
 runs under the reader's own role, so an approval cannot give a contributor an editor's power. The details of what is
 sent, and how the key is stored, are in [ai.md](ai.md).
+
+What the assistant may propose depends on the reader's role, and the server checks again on approval:
+
+| Role | Offered to propose |
+| --- | --- |
+| **Viewer** | Nothing. Questions only: who someone is, what is recorded, what is missing, which photos have no date. |
+| **Contributor** | Viewer, plus memories and stories, and for photos: a date, place and caption, an album (new or existing), and people tagged in a photo. |
+| **Editor** | Contributor, plus people (one at a time or a whole family draft from a conversation), links, dates and places, occupations, details and contacts, and a drawn avatar when that feature is on. |
+| **Steward** | Editor, plus a house's succession law, head, heir and country. |
+
+Nobody is offered a delete, a change to who has access or invitations, or a change to the AI settings or keys. Pictures
+are looked at by the assistant only when the family's faces feature is on, and a family session is drafted only after its
+speaker finishes it. A family draft shows its likely duplicates and its loops before anything is added.

@@ -3,14 +3,19 @@
 // portrait never changes between renders, and a person seen at another age stays recognisably them.
 import type { Key } from '~/lib/i18n/dictionary';
 import type {
-  BeardStyle, BrowStyle, ClothingStyle, GlassesStyle, HairStyle, Headwear, Mark, MoustacheStyle,
+  BeardStyle, BrowStyle, ClothingStyle, EyeShape, FaceShape, GlassesStyle, HairStyle, Headwear, Mark, MoustacheStyle, NoseShape,
 } from '~/lib/seed-format';
 import type { GPerson, Look } from '~/lib/types';
 
+export type { EyeShape, FaceShape, NoseShape };
 export type Stage = 'baby' | 'child' | 'teen' | 'adult' | 'middle' | 'elder';
 export type Era = 'early-medieval' | 'high-medieval' | 'renaissance' | 'c17' | 'c18' | 'c19' | 'c1900' | 'c1945' | 'c1970' | 'c2000';
 export type Presentation = 'm' | 'f' | 'x';
-export type FaceShape = 'round' | 'oval' | 'square' | 'long' | 'heart';
+
+/** The face measures from 0 to 10, where 5 is the average (see SeedLook). */
+export const LEVEL_KEYS = ['jaw', 'noseSize', 'mouthWidth', 'mouthFullness', 'eyeSize', 'eyeSpacing', 'browHeight', 'earSize', 'hairline'] as const;
+export type LevelKey = typeof LEVEL_KEYS[number];
+export type Features = Record<LevelKey, number>;
 
 // ---------- Palettes (indices are stored in Look; never reorder, only append) ----------
 
@@ -93,6 +98,23 @@ export const MARKS: Opt<Mark>[] = [
   { id: 'freckles', label: 'look.mark.freckles' }, { id: 'blush', label: 'look.mark.blush' }, { id: 'dimples', label: 'look.mark.dimples' },
   { id: 'mole', label: 'look.mark.mole' }, { id: 'scar', label: 'look.mark.scar' },
 ];
+export const FACE_SHAPES: Opt<FaceShape>[] = [
+  { id: 'round', label: 'look.face.round' }, { id: 'oval', label: 'look.face.oval' }, { id: 'square', label: 'look.face.square' },
+  { id: 'long', label: 'look.face.long' }, { id: 'heart', label: 'look.face.heart' },
+];
+export const NOSE_SHAPES: Opt<NoseShape>[] = [
+  { id: 'straight', label: 'look.nose.straight' }, { id: 'aquiline', label: 'look.nose.aquiline' }, { id: 'broad', label: 'look.nose.broad' },
+  { id: 'snub', label: 'look.nose.snub' },
+];
+export const EYE_SHAPES: Opt<EyeShape>[] = [
+  { id: 'round', label: 'look.eyeshape.round' }, { id: 'almond', label: 'look.eyeshape.almond' }, { id: 'hooded', label: 'look.eyeshape.hooded' },
+];
+/** The labels of the numeric features, for the editor's sliders. */
+export const LEVEL_LABELS: Record<LevelKey, Key> = {
+  jaw: 'look.level.jaw', noseSize: 'look.level.nose_size', mouthWidth: 'look.level.mouth_width', mouthFullness: 'look.level.mouth_fullness',
+  eyeSize: 'look.level.eye_size', eyeSpacing: 'look.level.eye_spacing', browHeight: 'look.level.brow_height', earSize: 'look.level.ear_size',
+  hairline: 'look.level.hairline',
+};
 
 
 // ---------- Helpers ----------
@@ -160,10 +182,30 @@ export interface Appearance {
   marks: Mark[];
   /** 0 smooth, 1 a hint, 2 lined, 3 deeply lined. */
   lines: number;
-  /** Small per-person variations: mouth, nose, eye shape. */
+  /** Mouth style, 0–3: a closed smile, full lips, an open smile, a thin line. */
   mouth: number;
-  nose: number;
-  eyeShape: number;
+  noseShape: NoseShape;
+  eyeShape: EyeShape;
+  /** The 0–10 measures, recorded or automatic. */
+  feat: Features;
+}
+
+const NOSE_AUTO: NoseShape[] = ['straight', 'aquiline', 'broad', 'snub'];
+const EYE_AUTO: EyeShape[] = ['round', 'almond', 'hooded'];
+
+/** The automatic 0–10 measures for a person: a stable 2 to 8 around the average, from their id. */
+export function autoFeatures(id: string): Features {
+  const out = {} as Features;
+  for (const k of LEVEL_KEYS) out[k] = 5 + Math.round((roll(id, `feat:${k}`) - 0.5) * 7);
+  return out;
+}
+
+/** A 0–10 measure from the look, or its automatic value. */
+function measure(look: Partial<Look>, id: string): Features {
+  const auto = autoFeatures(id);
+  const out = {} as Features;
+  for (const k of LEVEL_KEYS) out[k] = look[k] ?? auto[k];
+  return out;
 }
 
 /** Adult-only styles a child cannot have, with what they wear instead. */
@@ -367,7 +409,8 @@ export function resolveAppearance(p: GPerson, now: number, at?: number): Appeara
   if (roll(id, 'dimp') < 0.12) autoMarks.push('dimples');
   const marks = look.marks ?? autoMarks;
 
-  const face: FaceShape = !adult ? 'round' : pick(id, 'face', (pres === 'f' ? ['oval', 'heart', 'round', 'oval'] : pres === 'm' ? ['square', 'oval', 'long', 'round'] : ['oval', 'round', 'heart']) as FaceShape[]);
+  const autoFace: FaceShape = !adult ? 'round' : pick(id, 'face', (pres === 'f' ? ['oval', 'heart', 'round', 'oval'] : pres === 'm' ? ['square', 'oval', 'long', 'round'] : ['oval', 'round', 'heart']) as FaceShape[]);
+  const face = look.face ?? autoFace;
   const lines = age >= 75 ? 3 : age >= 62 ? 2 : age >= 48 ? 1 : 0;
 
   return {
@@ -378,8 +421,9 @@ export function resolveAppearance(p: GPerson, now: number, at?: number): Appeara
     eyes: EYES[((look.eyes ?? hash(`${id}:eyes`)) % EYES.length + EYES.length) % EYES.length],
     beard, moustache, glasses, headwear, clothing, marks, lines,
     mouth: hash(`${id}:mouth`) % 4,
-    nose: hash(`${id}:nose`) % 4,
-    eyeShape: hash(`${id}:eyeshape`) % 3,
+    noseShape: look.noseShape ?? NOSE_AUTO[hash(`${id}:nose`) % 4],
+    eyeShape: look.eyeShape ?? EYE_AUTO[hash(`${id}:eyeshape`) % 3],
+    feat: measure(look, id),
   };
 }
 
@@ -398,9 +442,12 @@ const ids = <T extends string>(xs: Opt<T>[]) => new Set<string>(xs.map((x) => x.
 const VALID = {
   hairStyle: ids(HAIR_STYLES), beardStyle: ids(BEARDS), moustache: ids(MOUSTACHES), brows: ids(BROWS),
   glasses: ids(GLASSES), headwear: ids(HEADWEAR), clothing: ids(CLOTHING),
+  face: ids(FACE_SHAPES), noseShape: ids(NOSE_SHAPES), eyeShape: ids(EYE_SHAPES),
 };
 const MARK_IDS = ids(MARKS);
 const int = (v: unknown, max: number) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < max ? v : undefined);
+/** A 0–10 measure: a whole number, or undefined (automatic). */
+const level = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 10 ? v : undefined);
 
 /**
  * A Look from untrusted input (a form, an import, an AI reply): unknown values are dropped, so the
@@ -416,6 +463,10 @@ export function sanitizeLook(input: unknown): Look | undefined {
     const v = o[k];
     if (typeof v === 'string' && VALID[k].has(v)) (out as unknown as Record<string, unknown>)[k] = v;
   }
+  for (const k of LEVEL_KEYS) {
+    const v = level(o[k]);
+    if (v !== undefined) out[k] = v;
+  }
   if (Array.isArray(o.marks)) out.marks = [...new Set(o.marks.filter((m): m is Mark => typeof m === 'string' && MARK_IDS.has(m)))];
   const age = int(o.age, 121);
   if (age !== undefined) out.age = age;
@@ -427,7 +478,9 @@ export function sanitizeLook(input: unknown): Look | undefined {
  * with the allowed values. Run the reply through `sanitizeLook`, then merge it over the person's
  * current look so era-driven choices (headwear, clothing) and a fixed age stay as they were.
  *
- * - Fill: skin, hair, eyes, hairStyle, hairGreys, brows, beardStyle, moustache, glasses, marks.
+ * - Fill: skin, hair, eyes, hairStyle, hairGreys, brows, beardStyle, moustache, glasses, marks, and the
+ *   face itself: face, noseShape, eyeShape and the 0–10 measures. Each measure's `what` tells the model
+ *   what to look at; a measure the photo cannot show (ears under hair) should be left out.
  *   These describe the face and do not depend on when the photo was taken.
  * - Leave out: headwear and clothing (the portrait dresses people for the era shown, and a photo's
  *   hat or jumper is rarely who they are), and age (a photo of a 30-year-old should not freeze a
@@ -446,4 +499,25 @@ export const PHOTO_LOOK_FIELDS = {
   moustache: { kind: 'one', of: MOUSTACHES.map((o) => o.id) },
   glasses: { kind: 'one', of: GLASSES.map((o) => o.id) },
   marks: { kind: 'many', of: MARKS.map((o) => o.id) },
+  face: {
+    kind: 'one', of: FACE_SHAPES.map((o) => o.id),
+    what: 'the outline of the face: round (soft, wide cheeks and chin), oval (longer, narrower chin), square (flat jaw, angular corners), long (narrow and tall), heart (wide forehead, pointed chin)',
+  },
+  noseShape: {
+    kind: 'one', of: NOSE_SHAPES.map((o) => o.id),
+    what: 'the profile of the nose: straight (a flat bridge), aquiline (a bump on the bridge), broad (wide nostrils and a rounded tip), snub (short, turned up at the tip)',
+  },
+  eyeShape: {
+    kind: 'one', of: EYE_SHAPES.map((o) => o.id),
+    what: 'the eye opening: round (wide open, lid not heavy), almond (outer corners lift a little), hooded (the upper lid hangs over the eye)',
+  },
+  jaw: { kind: 'level', min: 0, max: 10, what: 'how wide the jaw and cheeks are at the bottom of the face: 0 narrow and pointed, 5 average, 10 broad and square' },
+  noseSize: { kind: 'level', min: 0, max: 10, what: 'the size of the nose from bridge to tip and across the nostrils: 0 small, 5 average, 10 large' },
+  mouthWidth: { kind: 'level', min: 0, max: 10, what: 'the width of the mouth at rest, corner to corner: 0 narrow, 5 average, 10 wide' },
+  mouthFullness: { kind: 'level', min: 0, max: 10, what: 'how full the lips are: 0 thin, 5 average, 10 full' },
+  eyeSize: { kind: 'level', min: 0, max: 10, what: 'how large the eyes are when open: 0 small or narrow, 5 average, 10 large and wide open' },
+  eyeSpacing: { kind: 'level', min: 0, max: 10, what: 'the gap between the eyes: 0 close together, 5 average, 10 wide apart' },
+  browHeight: { kind: 'level', min: 0, max: 10, what: 'how high the brows sit above the eyes: 0 low and close, 5 average, 10 high' },
+  earSize: { kind: 'level', min: 0, max: 10, what: 'the size of the ears if they show: 0 small, 5 average, 10 large; leave out if hidden' },
+  hairline: { kind: 'level', min: 0, max: 10, what: 'where the hair starts on the forehead: 0 high or receded, 5 average, 10 low and close to the brows' },
 } as const;

@@ -1,8 +1,9 @@
 // Draws heraldry v2: the shield (field, division, ordinaries, charges) and, when asked, the full achievement.
 import { useId, type ReactNode } from 'react';
 import type { Achievement, ArmsV2, ChargeLayer, Fur, OrdinaryLayer, TinctureV2 } from '~/lib/seed-format';
-import { chargeArtV2, glyph, needsLibrary, useLibrary, type Art } from './art';
-import { CHARGE_BY_ID, FACES_LEFT, HELM_GLYPH } from './catalogue';
+import { chargeArtV2, glyph, useLibrary, type Art } from './art';
+import { FACES_LEFT, HELM_GLYPH } from './catalogue';
+import { chargeDef } from './registry';
 import { divisionPaint, ordinaryShape, placeCharges, SHIELD_PATH, tinctureCount, type Spot } from './geometry';
 import { FUR_COLOURS, HEX_V2, isFur } from './tinctures';
 
@@ -199,13 +200,14 @@ export function ArmsV2View({ arms, size = 32, title, full, className = 'arms' }:
   const uid = useId().replace(/\W/g, '');
   const ach = full ? arms.achievement : undefined;
   const helmGi = ach && ach.helm !== 'none' ? HELM_GLYPH[ach.helm].gi : undefined;
-  useLibrary(needsLibrary(chargeIdsOf(arms, !!ach), helmGi ? [helmGi] : []));
+  // The charges' drawings load by category, and the achievement's helm by the weapons category.
+  useLibrary(chargeIdsOf(arms, !!ach), helmGi ? ['weapons'] : []);
 
   const used = usedTinctures(arms);
   const furId = (f: Fur) => `${uid}-fur-${f}`;
   const paint: Painter = (t, charge) => {
     if (isFur(t)) return `url(#${furId(t)})`;
-    if (t === 'proper') return (charge && CHARGE_BY_ID[charge]?.proper) || HEX_V2.proper;
+    if (t === 'proper') return (charge && chargeDef(charge)?.proper) || HEX_V2.proper;
     return HEX_V2[t];
   };
   const clip = `${uid}-shield`;
@@ -410,7 +412,7 @@ function AchievementParts({ ach, arms, layout, paint, where }: { ach: Achievemen
 /** A round swatch of one tincture, furs drawn as their pattern. For pickers. */
 export function TinctureSwatch({ t, size = 26, charge }: { t: TinctureV2; size?: number; charge?: string }) {
   const id = `${useId().replace(/\W/g, '')}-sw`;
-  const fill = isFur(t) ? `url(#${id})` : t === 'proper' ? (charge && CHARGE_BY_ID[charge]?.proper) || HEX_V2.proper : HEX_V2[t];
+  const fill = isFur(t) ? `url(#${id})` : t === 'proper' ? (charge && chargeDef(charge)?.proper) || HEX_V2.proper : HEX_V2[t];
   return (
     <svg className="ae-swatch" width={size} height={size} viewBox="0 0 26 26" aria-hidden data-tincture={t}>
       {isFur(t) && (

@@ -160,86 +160,10 @@ export const linkRelative = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, anchor: z.string(), person: z.string(), relation: z.enum(['parent', 'child', 'sibling', 'partner']), coParent: z.string().optional(), partnership: partnershipInput.optional(), opKey }))
   .handler(async ({ data }): Promise<LinkResult> => {
     const _m = await requireCan(data.tree, 'edit-person');
-    const { once, q, guard, sameParents, sameBorn } = await server();
-    return once(data.tree, opOf(_m, data), 'linkRelative', async (d) => {
-      if (data.anchor === data.person) throw new Error('A person cannot be their own relative.');
-      // Everything a check reads is guarded in the batch: birth dates, parent sets, the ancestry, partners.
-      const guards: ReturnType<typeof q>[] = [];
-      const born = new Map<string, string | null>();
-      const people = new Map<string, { given: string; born: string | null }>();
-      for (const id of [data.anchor, data.person, data.coParent].filter((x): x is string => !!x)) {
-        const r = await d.get<{ given: string; born: string | null }>('SELECT given, born FROM person WHERE id = ?', id);
-        if (!r) throw new Error('Person not found.');
-        people.set(id, r);
-        born.set(id, r.born);
-      }
-      const parentSets = new Map<string, string[]>();
-      const parentsOf = async (id: string) => {
-        let ps = parentSets.get(id);
-        if (!ps) parentSets.set(id, (ps = (await d.all<{ parent: string }>('SELECT parent FROM parent WHERE child = ?', id)).map((r) => r.parent)));
-        return ps;
-      };
-      const created: LinkResult = { person: data.person, parents: [] };
-      // All checks for every edge first, then the writes, so a refusal never leaves half a link.
-      const edges: [child: string, parent: string][] = [];
-      if (data.relation === 'parent') edges.push([data.anchor, data.person]);
-      if (data.relation === 'child') {
-        edges.push([data.person, data.anchor]);
-        if (data.coParent && data.coParent !== data.anchor) edges.push([data.person, data.coParent]);
-      }
-      if (data.relation === 'sibling') {
-        const ps = await parentsOf(data.anchor);
-        if (!ps.length) throw new Error('Record a shared parent first to link siblings.');
-        const theirs = await parentsOf(data.person);
-        if (ps.every((p) => theirs.includes(p))) throw new Error(`${people.get(data.person)!.given} is already their sibling.`);
-        for (const p of ps) edges.push([data.person, p]);
-      }
-      const name = (id: string) => d.get<{ given: string }>('SELECT given FROM person WHERE id = ?', id);
-      const bornOf = async (id: string) => {
-        if (!born.has(id)) born.set(id, (await d.get<{ born: string | null }>('SELECT born FROM person WHERE id = ?', id))?.born ?? null);
-        return born.get(id)!;
-      };
-      const newParents = new Map<string, Set<string>>();
-      for (const [child, parent] of edges) {
-        if (child === parent) throw new Error('A person cannot be their own parent.');
-        const had = await parentsOf(child);
-        if (had.includes(parent)) {
-          if (data.relation === 'sibling') continue; // a shared parent they already have
-          throw new Error(`${(await name(parent))?.given ?? 'They'} is already ${(await name(child))?.given ?? 'their'}’s parent.`);
-        }
-        const all = newParents.get(child) ?? new Set(had);
-        all.add(parent);
-        newParents.set(child, all);
-        if (all.size > 2) throw new Error(`${(await name(child))?.given ?? 'They'} already has two parents.`);
-        const cy = yearIn(await bornOf(child));
-        const py = yearIn(await bornOf(parent));
-        if (cy <= py) throw new Error(`${(await name(child))?.given ?? 'The child'} was born before ${(await name(parent))?.given ?? 'the parent'}, so cannot be their child.`);
-        const ancestry = 'WITH RECURSIVE ancestors(id) AS (SELECT parent FROM parent WHERE child = ? UNION SELECT p.parent FROM parent p JOIN ancestors a ON p.child = a.id) SELECT id FROM ancestors WHERE id = ?';
-        if (await d.get(ancestry, parent, child)) throw new Error('This would create a loop in the ancestry.');
-        guards.push(guard(`NOT EXISTS (${ancestry})`, parent, child));
-      }
-      for (const [id, b] of born) guards.push(sameBorn(id, b));
-      for (const [id, ps] of parentSets) guards.push(sameParents(id, ps));
-      const writes = [...guards];
-      if (data.relation === 'partner') {
-        const pair = '(a = ? AND b = ?) OR (a = ? AND b = ?)';
-        if (await d.get(`SELECT id FROM partnership WHERE ${pair}`, data.anchor, data.person, data.person, data.anchor)) {
-          throw new Error(`${people.get(data.person)!.given} is already their partner.`);
-        }
-        const id = newOpKey();
-        writes.push(
-          guard(`NOT EXISTS (SELECT 1 FROM partnership WHERE ${pair})`, data.anchor, data.person, data.person, data.anchor),
-          q('INSERT INTO partnership (id, a, b, kind, start, place) VALUES (?, ?, ?, ?, ?, ?)', id, data.anchor, data.person, data.partnership?.kind ?? 'partnership', data.partnership?.start ?? null, data.partnership?.place ?? null),
-        );
-        created.partnership = id;
-      }
-      // The guards hold every parent set as read, so exactly the edges not already there are new.
-      for (const [child, parent] of edges) {
-        writes.push(q('INSERT OR IGNORE INTO parent (child, parent) VALUES (?, ?)', child, parent));
-        if (!(await parentsOf(child)).includes(parent) && !created.parents.some((e) => e.child === child && e.parent === parent)) created.parents.push({ child, parent });
-      }
-      return { writes, result: created };
-    });
+    const { once } = await server();
+    // The rules live in relations.server.ts, shared with the assistant's family drafts.
+    const { linkPlan } = await import('./relations.server');
+    return once(data.tree, opOf(_m, data), 'linkRelative', (d) => linkPlan(d, data));
   });
 
 /** Undo for a link: removes exactly the edges and the partnership that link created. */

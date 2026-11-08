@@ -17,4 +17,11 @@ export const PROPOSAL_KIND_KEY: Record<ProposalKind, Key> = {
   'set-dates': 'ai.kindSetDates',
   'add-story': 'ai.kindAddStory',
   'add-field': 'ai.kindAddField',
+  family: 'ai.kindFamily',
+  'photo-details': 'ai.kindPhotoDetails',
+  'photo-album': 'ai.kindPhotoAlbum',
+  'photo-tags': 'ai.kindPhotoTags',
+  avatar: 'ai.kindAvatar',
+  'set-occupation': 'ai.kindSetOccupation',
+  'house-settings': 'ai.kindHouse',
 };

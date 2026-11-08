@@ -20,9 +20,9 @@ export const RECOMMENDED: readonly Recommendation[] = [
   { provider: 'openai', model: 'gpt-6.1-sol', role: 'balanced', provisional: true },
   { provider: 'openai', model: 'gpt-6.1-terra', role: 'cheap', provisional: true },
   { provider: 'openai', model: 'gpt-6-astra', role: 'best', provisional: true },
-  { provider: 'openrouter', model: 'anthropic/claude-sonnet-5-5', role: 'balanced', provisional: true },
-  { provider: 'openrouter', model: 'anthropic/claude-haiku-5-5', role: 'cheap', provisional: true },
-  { provider: 'openrouter', model: 'anthropic/claude-opus-5-5', role: 'best', provisional: true },
+  { provider: 'openrouter', model: 'anthropic/claude-sonnet-5.5', role: 'balanced', provisional: true },
+  { provider: 'openrouter', model: 'anthropic/claude-haiku-5.5', role: 'cheap', provisional: true },
+  { provider: 'openrouter', model: 'anthropic/claude-opus-5.5', role: 'best', provisional: true },
 ];
 
 export const recommendedFor = (provider: Provider): Recommendation[] => RECOMMENDED.filter((r) => r.provider === provider);

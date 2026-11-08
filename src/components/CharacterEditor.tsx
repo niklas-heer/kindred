@@ -17,8 +17,9 @@ import { AiSetupHint } from './assistant/AiSetup';
 import { mediaUrl } from './photos/types';
 import { Portrait } from './Portrait';
 import {
-  BEARDS, BROWS, CLOTHING, EYE_LABELS, EYES, GLASSES, HAIR, HAIR_LABELS, HAIR_ORDER, HAIR_STYLES, HEADWEAR, MARKS,
-  MOUSTACHES, SKIN, SKIN_LABELS, SKIN_NEUTRAL, SKIN_ORDER, defaultLook, shownAge,
+  BEARDS, BROWS, CLOTHING, EYE_LABELS, EYE_SHAPES, EYES, FACE_SHAPES, GLASSES, HAIR, HAIR_LABELS, HAIR_ORDER, HAIR_STYLES, HEADWEAR,
+  LEVEL_LABELS, MARKS, MOUSTACHES, NOSE_SHAPES, SKIN, SKIN_LABELS, SKIN_NEUTRAL, SKIN_ORDER, autoFeatures, defaultLook, shownAge,
+  type LevelKey,
 } from './portrait/look';
 import { Range, Switch, Tab, TabList, TabPanel, Tabs } from './ui';
 import './charactereditor.css';
@@ -53,6 +54,8 @@ function lifeAges(p: GPerson): number[] {
 
 export function CharacterEditor({ person, tree, house = null, value, onChange }: CharacterEditorProps) {
   const look = value ?? defaultLook(person);
+  // The 0–10 measures a slider shows when it is on automatic: the value the drawing will use.
+  const auto = autoFeatures(person.id);
   const initial = useRef(value);
   const [history, setHistory] = useState<(Look | undefined)[]>([]);
   // undefined: the age the portrait itself shows (age at death, today's age, or the fixed age).
@@ -127,6 +130,27 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
           {t(o.label)}
         </button>
       ))}
+    </div>
+  );
+
+  /** A 0–10 measure: a slider, showing the automatic value until it is set by hand. */
+  const measure = (key: LevelKey) => (
+    <div className="ce-measure">
+      <Range
+        aria-label={t(LEVEL_LABELS[key])}
+        value={look[key] ?? auto[key]}
+        min={0}
+        max={10}
+        step={1}
+        ticks={[0, 5, 10]}
+        format={(v) => String(v)}
+        onChange={(v) => set(key, v)}
+      />
+      <span className="ce-measure-state">
+        {look[key] === undefined ? t('character.auto') : (
+          <button type="button" className="ce-link" onClick={() => set(key, undefined)}>{t('character.auto')}</button>
+        )}
+      </span>
     </div>
   );
 
@@ -209,6 +233,9 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
             <Tab value="age">{t('character.tab.age')}</Tab>
           </TabList>
           <TabPanel value="face">
+            <p className="ce-hint">{t('character.hint.measures')}</p>
+            <Section title={t('character.section.face_shape')}>{tiles({ field: 'face', options: FACE_SHAPES })}</Section>
+            <Section title={t('character.section.jaw')}>{measure('jaw')}</Section>
             <Section title={t('character.section.skin')}>
               <Swatches
                 value={look.skin}
@@ -222,7 +249,20 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
             <Section title={t('character.section.eyes')}>
               <Swatches value={look.eyes} order={EYES.map((_, i) => i)} colours={EYES} labels={EYE_LABELS.map((k) => t(k))} onPick={(i) => set('eyes', i)} />
             </Section>
+            <Section title={t('character.section.eye_shape')}>{tiles({ field: 'eyeShape', options: EYE_SHAPES })}</Section>
+            <Section title={t('character.section.eye_size')}>{measure('eyeSize')}</Section>
+            <Section title={t('character.section.eye_spacing')}>{measure('eyeSpacing')}</Section>
             <Section title={t('character.section.eyebrows')}>{tiles({ field: 'brows', options: BROWS })}</Section>
+            <Section title={t('character.section.brow_height')}>{measure('browHeight')}</Section>
+            <Section title={t('character.section.nose')}>
+              {tiles({ field: 'noseShape', options: NOSE_SHAPES })}
+              {measure('noseSize')}
+            </Section>
+            <Section title={t('character.section.mouth')}>
+              {measure('mouthWidth')}
+              {measure('mouthFullness')}
+            </Section>
+            <Section title={t('character.section.ears')}>{measure('earSize')}</Section>
             <Section title={t('character.section.marks')}>
               <div className="ce-tiles" role="group">
                 <button type="button" className="ce-tile is-auto" aria-pressed={marks === undefined} onClick={() => set('marks', undefined)}>
@@ -244,6 +284,7 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
               <Switch checked={look.hairGreys !== false} onChange={(v) => set('hairGreys', v ? undefined : false)} size="sm">{t('character.greys')}</Switch>
             </Section>
             <Section title={t('character.section.style')}>{tiles({ field: 'hairStyle', options: HAIR_STYLES })}</Section>
+            <Section title={t('character.section.hairline')}>{measure('hairline')}</Section>
           </TabPanel>
           <TabPanel value="beard">
             {heroAge !== undefined && heroAge < 20 && <p className="ce-hint">{t('character.hint.beard_young')}</p>}

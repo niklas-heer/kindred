@@ -14,7 +14,10 @@ import { tr, type Tr } from './labels';
 import { translate, type Key } from '../i18n/dictionary';
 import { ATTESTATIONS, IDEA_KINDS, nameMeaningSchema, type AiLocale, type DesignMeaning, type NameDesign, type NameMeaning, type NameResearch } from './types';
 import { cantingFromIdeas, cantingResponseSchema, type CantingRequest } from '../../components/heraldry/canting';
-import { CATEGORIES, CHARGES_V2 } from '../../components/heraldry/catalogue';
+import { candidateCharges, STOCK_CHARGES, termsOf } from '../../components/heraldry/charge-search';
+import type { ChargeDef } from '../../components/heraldry/catalogue';
+import { chargeDef, chargeLabel } from '../../components/heraldry/registry';
+import './arms-library.server';
 import { armsV2Schema } from '../../components/heraldry/schema';
 
 const LANG = { en: 'English', de: 'German (du)', af: 'Afrikaans (jy)' } as const;
@@ -174,16 +177,23 @@ export async function nameMeaning(o: { tree: string; surname: string; country?: 
 
 // ---------- step two: arms from the chosen meanings ----------
 
-let CATALOGUE: string | undefined;
-/** The charges the model may use, grouped, as "id (English name; German and other words)". Built once. */
-function catalogue(): string {
-  if (CATALOGUE) return CATALOGUE;
-  const en = (k: Key) => translate('en', k);
-  CATALOGUE = CATEGORIES.map((cat) => {
-    const items = CHARGES_V2.filter((c) => c.cat === cat.id).map((c) => `${c.id} (${en(c.label)}${c.keys ? `; ${c.keys}` : ''})`);
-    return items.length ? `${en(cat.label)}: ${items.join(', ')}` : '';
-  }).filter(Boolean).join('\n');
-  return CATALOGUE;
+/**
+ * The charges the model may use for these meanings: the charges whose names and words answer to the meanings' words,
+ * best first, then a general stock. Not the whole library: a long list makes the model reach for the nearest look.
+ */
+function chargeList(meanings: DesignMeaning[]): string {
+  const terms = termsOf(...meanings.flatMap((m) => [m.root, m.meaning, ...m.ideas.map((i) => i.idea)]));
+  const fit = candidateCharges(terms, 40);
+  const fitIds = new Set(fit.map((c) => c.id));
+  const stock = STOCK_CHARGES.flatMap((id) => {
+    const c = chargeDef(id);
+    return c && !fitIds.has(c.id) ? [c] : [];
+  });
+  const line = (c: ChargeDef) => `${c.id} (${chargeLabel(c, 'en')}${c.keys ? `; ${c.keys}` : ''})`;
+  return [
+    fit.length ? `Charges whose names fit the chosen meanings:\n${fit.map(line).join('\n')}` : 'No charge name fits the chosen meanings.',
+    `General charges, for any design: ${stock.map((c) => `${c.id} (${chargeLabel(c, 'en')})`).join(', ')}.`,
+  ].join('\n');
 }
 
 const meaningLine = (m: DesignMeaning) => {
@@ -194,15 +204,18 @@ const meaningLine = (m: DesignMeaning) => {
   return `${m.id}: ${sense}. Heraldic ideas: ${ideas}.`;
 };
 
-function designSystem(locale: AiLocale): string {
+function designSystem(locale: AiLocale, charges: string): string {
   return [
     'You design coats of arms for a family from what its name means. The reader has chosen the meanings below, and each design must draw on one of them: give its id in "meaningId", and say in "explanation", in ' + LANG[locale] + ', one sentence on why the design follows from that meaning (the sense of the name, or how it sounds).',
     'Make three to five designs, all different. Use only the charges listed below, by their id, and at most three charges in a design. Keep the rule of tincture: metal (or, argent) on colour (gules, azure, vert, sable, purpure), never colour on colour and never metal on metal. Prefer a clear, classic shield: a field, one ordinary or one main charge, and a base only when it helps.',
+    'A charge must show the meaning, not only look like it or sound like the name. Use the charge that depicts the meaning when one is listed: a boot for a boot-maker, a fish for a fisher, a mill for a miller. Never use an object because it looks or sounds like the name: a boat is not a boot, and a rock is not "sturdy" while a listed charge fits better. Make a pun on the name only when the sound really is the same in that language.',
+    'When no listed charge fits the chosen meaning, do not force one. Say so plainly in the explanation, and design with a tincture and an ordinary (a field, a chevron, a cross) instead.',
+    'Do not put a detailed charge on a narrow ordinary (a fess, a bend, a bend sinister, a chevron or a pale): it is too small to read there. On a narrow ordinary use a plain, bold charge, or put the detailed charge on the field, in chief or in base.',
     'The family\'s own meaning, when chosen, is the most important input: prefer it and never contradict it. Never say that the family bore these arms in history: they are proposals to choose from.',
     'For each design, add "symbolism": up to three of its colours or charges, each as "element" (its name, a few words) and "why" (in ' + LANG[locale] + ', one short line on what it stands for in the meaning the design draws on, as a reader would say it, e.g. "Argent for the honour your family names" or "a tower for the army, Heer"). Leave it out when there is nothing to say.',
     'Answer only in the JSON shape you are given.',
     'Charges (id: English name; German and other words):',
-    catalogue(),
+    charges,
   ].join('\n');
 }
 
@@ -227,7 +240,7 @@ export async function designArms(o: { adapter: AiAdapter; surname: string; count
   const chosen = new Map(o.meanings.map((m) => [m.id, m]));
   const req: CantingRequest = { surname: o.surname, country: o.country?.toLowerCase() };
   return ask(c, () => o.adapter.complete({
-    system: designSystem(o.locale),
+    system: designSystem(o.locale, chargeList(o.meanings)),
     messages: [{ role: 'user', text: designUser({ ...o, familyHint: hint }) }],
     json: { name: 'arms_designs', schema: CANTING_JSON },
     maxTokens: 2500,

@@ -1,11 +1,15 @@
 // The roll of houses: every house of the family as a card with its arms and country, motto, size, founder,
 // the head today, years and a sparkline of members per generation. Each card opens the house's page.
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Shield } from 'lucide-react';
+import { Plus, Shield, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Arms } from '~/components/Heraldry';
+import { ReviewBadgeChip, useStewardBadges } from '~/components/HouseMeaning';
+import { HouseCreateDialog, SurnameHousesDialog } from '~/components/HouseCreate';
 import { EmptyState, ErrorState, PageHeader, Select } from '~/components/ui';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
+import { useCan } from '~/lib/session';
+import { meaningLine, type ReviewBadge, type SavedMeaning } from '~/lib/house-meaning';
 import { GenSpark, houseStats, houseSuccession, maxGeneration, spanLabel, useHouseSettings, type HouseStats } from '~/lib/houses';
 import { locales, translate, useT, type Locale } from '~/lib/i18n';
 import { treeTitle } from '~/lib/title';
@@ -40,6 +44,8 @@ function HousesPage() {
   const [sort, setSort] = useSort(tree);
   const settingsQ = useHouseSettings(tree);
   const settings = settingsQ.data;
+  // A steward's review badges and count; a viewer gets none, and nothing is queried for them.
+  const steward = useStewardBadges(tree);
 
   const stats = useMemo(() => {
     const max = maxGeneration(f);
@@ -48,6 +54,23 @@ function HousesPage() {
   const sorted = useMemo(() => [...stats].sort((a, b) => COMPARE[sort](a, b) || sortName(a).localeCompare(sortName(b))), [stats, sort]);
   const inHouses = stats.reduce((n, s) => n + s.members.length, 0);
   const myHouse = me ? f.byId.get(me)?.house : undefined;
+  // Making houses is for stewards. "From surnames" needs someone without a house to gather.
+  const canEdit = useCan('edit-house');
+  const unhoused = f.graph.people.filter((p) => !p.house).length;
+  const [creating, setCreating] = useState(false);
+  const [surnaming, setSurnaming] = useState(false);
+  const makeActions = canEdit ? (
+    <>
+      <button type="button" className="btn primary" onClick={() => setCreating(true)} aria-haspopup="dialog">
+        <Plus size={16} /> {t('houses.new')}
+      </button>
+      {unhoused > 0 && (
+        <button type="button" className="btn" onClick={() => setSurnaming(true)} aria-haspopup="dialog">
+          <Users size={16} /> {t('houses.fromSurnames')}
+        </button>
+      )}
+    </>
+  ) : null;
 
   return (
     <div className="page">
@@ -61,10 +84,20 @@ function HousesPage() {
               : t('houses.listSubtitleNone')
           }
           actions={
-            stats.length > 1 ? (
+            stats.length > 1 || steward.count > 0 || (stats.length > 0 && makeActions) ? (
               <div className="hs-toolbar">
-                <span id="hs-sort-label" className="sr-only">{t('houses.sortLabel')}</span>
-                <Select aria-labelledby="hs-sort-label" value={sort} onChange={setSort} options={SORTS.map((value) => ({ value, label: t(SORT_KEY[value]) }))} menuWidth={180} />
+                {steward.count > 0 && (
+                  <Link className="hs-review-count" to="/$tree/needed" params={{ tree }}>
+                    {t('houses.review.count', { count: steward.count })}
+                  </Link>
+                )}
+                {stats.length > 1 && (
+                  <>
+                    <span id="hs-sort-label" className="sr-only">{t('houses.sortLabel')}</span>
+                    <Select aria-labelledby="hs-sort-label" value={sort} onChange={setSort} options={SORTS.map((value) => ({ value, label: t(SORT_KEY[value]) }))} menuWidth={180} />
+                  </>
+                )}
+                {stats.length > 0 && makeActions}
               </div>
             ) : undefined
           }
@@ -76,8 +109,22 @@ function HousesPage() {
           <EmptyState
             icon={<Shield size={28} />}
             title={t('houses.emptyTitle')}
-            text={t('houses.emptyText')}
-            action={<Link className="btn primary" to="/$tree" params={{ tree }}>{t('houses.openTree')}</Link>}
+            text={
+              <>
+                <span>{t('houses.emptyText')}</span>
+                <span className="hs-empty-how">{canEdit ? (f.graph.people.length ? t('houses.emptyHow') : t('houses.emptyNoPeople')) : t('houses.emptyViewer')}</span>
+              </>
+            }
+            action={
+              canEdit ? (
+                <div className="hs-empty-actions">
+                  <button type="button" className="btn primary" onClick={() => setCreating(true)}><Plus size={16} /> {t('houses.new')}</button>
+                  {unhoused > 0 && <button type="button" className="btn" onClick={() => setSurnaming(true)}><Users size={16} /> {t('houses.fromSurnames')}</button>}
+                </div>
+              ) : (
+                <Link className="btn primary" to="/$tree" params={{ tree }}>{t('houses.openTree')}</Link>
+              )
+            }
           />
         ) : (
           <ul className="hs-grid">
@@ -85,23 +132,36 @@ function HousesPage() {
               const succ = houseSuccession(f, s.house, settings?.[s.house.id]);
               return (
                 <li key={s.house.id}>
-                  <HouseCard s={s} tree={tree} mine={s.house.id === myHouse} country={settings?.[s.house.id]?.country ?? null} head={succ.head?.id} />
+                  <HouseCard
+                    s={s}
+                    tree={tree}
+                    mine={s.house.id === myHouse}
+                    country={settings?.[s.house.id]?.country ?? null}
+                    head={succ.head?.id}
+                    meaning={steward.meanings?.[s.house.id]}
+                    badge={steward.badges[s.house.id]}
+                  />
                 </li>
               );
             })}
           </ul>
         )}
       </div>
+      {canEdit && creating && <HouseCreateDialog open onClose={() => setCreating(false)} tree={tree} />}
+      {canEdit && surnaming && <SurnameHousesDialog open onClose={() => setSurnaming(false)} tree={tree} />}
     </div>
   );
 }
 
-function HouseCard({ s, tree, mine, country, head }: { s: HouseStats; tree: string; mine: boolean; country: string | null; head?: string }) {
+function HouseCard({ s, tree, mine, country, head, meaning, badge }: {
+  s: HouseStats; tree: string; mine: boolean; country: string | null; head?: string; meaning?: SavedMeaning; badge?: ReviewBadge;
+}) {
   const t = useT();
   const f = useFamily();
   const span = spanLabel(s, t('houses.present'));
   const total = s.members.length;
   const headName = head ? f.byId.get(head) : undefined;
+  const line = meaningLine(meaning);
   return (
     <Link to="/$tree/house/$house" params={{ tree, house: s.house.id }} className="ui-card interactive hs-card">
       <div className="hs-arms">
@@ -110,7 +170,9 @@ function HouseCard({ s, tree, mine, country, head }: { s: HouseStats; tree: stri
       <div className="hs-main">
         <h2 className="hs-name">{s.house.name}</h2>
         {s.house.motto && <p className="hs-motto">“{s.house.motto}”</p>}
+        {line && <p className="hs-meaning" title={line}>{line}</p>}
         {mine && <span className="hs-chip" style={{ justifySelf: 'start', marginTop: 4 }}>{t('houses.yourHouse')}</span>}
+        {badge && <span className="hs-badge"><ReviewBadgeChip badge={badge} /></span>}
         <dl className="hs-facts">
           <dt>{t('houses.membersHeading')}</dt>
           <dd className="hs-num">

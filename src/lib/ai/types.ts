@@ -12,7 +12,7 @@ export const PROVIDER_LABEL: Record<Provider, string> = { anthropic: 'Anthropic'
 export const DEFAULT_MODEL: Record<Provider, string> = {
   anthropic: 'claude-haiku-5-5', // the measured best value: docs/ai-model-test.md
   openai: 'gpt-6.1-sol',
-  openrouter: 'anthropic/claude-sonnet-5-5',
+  openrouter: 'anthropic/claude-sonnet-5.5',
 };
 
 export const FEATURES = ['assistant', 'faces', 'avatar', 'arms'] as const;
@@ -73,12 +73,36 @@ export interface ModelInfo {
   reasoning?: boolean;
 }
 
-export const PROPOSAL_KINDS = ['add-person', 'link-relative', 'set-dates', 'add-story', 'add-field'] as const;
+export const PROPOSAL_KINDS = [
+  'add-person', 'link-relative', 'set-dates', 'add-story', 'add-field',
+  'family', 'photo-details', 'photo-album', 'photo-tags', 'avatar', 'set-occupation', 'house-settings',
+] as const;
 export type ProposalKind = (typeof PROPOSAL_KINDS)[number];
 
-/** Serialisable, so it can travel to the browser and back: flat values, and a field's value as text keys. */
-export type ProposalArg = string | boolean | Record<string, string>;
+/** A JSON value: what a proposal's arguments may hold, so they travel to the browser and back unchanged. */
+export type ProposalArg = string | number | boolean | null | ProposalArg[] | { [key: string]: ProposalArg };
 export type ProposalArgs = Record<string, ProposalArg>;
+
+/**
+ * What the card shows beyond the diff, computed on the server and never sent back on approval: thumbnails of photos,
+ * the names of people the draft refers to, and the checks that found a likely duplicate or a loop.
+ */
+export interface ProposalView {
+  /** Thumbnail addresses of the photos a card shows, by media key. */
+  thumbs?: Record<string, string>;
+  /** Names of existing people the card refers to, by id. */
+  names?: Record<string, string>;
+  /** People in a family draft who may already be in the tree: the draft row's ref, and the existing person. */
+  duplicates?: { ref: string; id: string; name: string; born?: string | null }[];
+  /** Indices of the draft's links that would make someone their own ancestor. */
+  loops?: number[];
+  /** Short questions for the reader, when something in the draft is uncertain ("Which Hans?"). */
+  questions?: string[];
+  /** The person's name, for a drawn avatar. */
+  personName?: string;
+  /** The photos' details as they are now, by key, so a card can show what changes. */
+  before?: Record<string, { taken?: string | null; place?: string | null; caption?: string | null; album?: string | null }>;
+}
 
 /** One change the assistant suggests. Nothing is written until the reader approves it (see components/assistant/apply.ts). */
 export interface Proposal {
@@ -92,12 +116,19 @@ export interface Proposal {
   args: ProposalArgs;
   editable: string[];
   status: 'open' | 'done' | 'dismissed';
+  /** Display-only data for the card (see ProposalView). Never sent on approval. */
+  view?: ProposalView;
 }
+
+/** A temporary id for a person who is not in the tree yet: "n1", "n2"… Only meaningful inside one family draft. */
+export const NEW_REF = /^n\d{1,3}$/;
 
 export interface ChatItem {
   id: string;
   role: 'user' | 'assistant';
   text: string;
+  /** A family session's transcript (its text), shown as a summary rather than in full. */
+  session?: boolean;
   proposals?: Proposal[];
   /** The pages a web search drew on for this reply, when the family allowed web search. */
   sources?: { url: string; title?: string }[];
@@ -111,7 +142,7 @@ const sex = z.enum(['m', 'f', 'x']);
 const id = z.string().min(1).max(100);
 const text = (max: number) => z.string().trim().min(1).max(max);
 
-export const proposalArgs = {
+const baseProposalArgs = {
   'add-person': z.object({
     anchor: id,
     relation: z.enum(['child', 'parent', 'partner', 'sibling']),
@@ -172,6 +203,62 @@ export const lookSchema = z.object({
   age: z.number().int().min(0).max(120).optional(),
 });
 
+// ---------- the family draft, photos, avatars and the fill-in proposals (see ai/family.server.ts) ----------
+
+const mediaKey = z.string().regex(/^gallery\/[a-z0-9-]{1,80}\.[a-z]{2,4}$/);
+const relationKind = z.enum(['child', 'parent', 'partner', 'sibling']);
+const picBox = z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), w: z.number().gt(0).max(1), h: z.number().gt(0).max(1) });
+/** A photo's details as the gallery stores them: `null` clears a field, an absent one is left as it is. */
+const photoItem = z.object({
+  key: mediaKey,
+  taken: z.string().max(10).nullable().optional(),
+  place: z.string().trim().max(200).nullable().optional(),
+  caption: z.string().trim().max(1000).nullable().optional(),
+  album: z.string().max(64).nullable().optional(),
+});
+
+/** One person in a family draft. A new person has a temporary `ref`; an approximate date is written with a leading ~. */
+export const familyPersonSchema = z.object({
+  ref: z.string().regex(NEW_REF),
+  given: text(120),
+  surname: z.string().trim().max(120).optional(),
+  sex: sex.optional(),
+  born: iso.optional(),
+  bornPlace: z.string().trim().max(200).optional(),
+  died: iso.optional(),
+  diedPlace: z.string().trim().max(200).optional(),
+  living: z.boolean(),
+  occupation: z.string().trim().max(200).optional(),
+  /** One memory, note or story for the person, added once they exist. */
+  story: z.object({ kind: z.enum(['note', 'quote', 'anecdote', 'recipe', 'memory']), title: z.string().trim().max(200).optional(), body: text(20_000) }).optional(),
+});
+/** A relationship in a family draft: `anchor` and `person` are a new person's ref or an id in the tree. */
+export const familyLinkSchema = z.object({ anchor: id, person: id, relation: relationKind, coParent: id.optional() });
+export type FamilyPerson = z.infer<typeof familyPersonSchema>;
+export type FamilyLink = z.infer<typeof familyLinkSchema>;
+
+const fillArgs = {
+  family: z.object({ people: z.array(familyPersonSchema).max(40), links: z.array(familyLinkSchema).max(80) }),
+  'photo-details': z.object({ items: z.array(photoItem).min(1).max(40) }),
+  'photo-album': z.object({
+    name: text(80).optional(),
+    albumId: id.optional(),
+    items: z.array(photoItem).min(1).max(40),
+  }).refine((a) => !!a.name || !!a.albumId, 'Name the album, or pick one'),
+  'photo-tags': z.object({ key: mediaKey, people: z.array(z.object({ person: id, box: picBox.optional() })).min(1).max(20) }),
+  avatar: z.object({ person: id, look: lookSchema }),
+  'set-occupation': z.object({ person: id, occupation: text(200) }),
+  'house-settings': z.object({
+    house: id,
+    law: z.enum(['absolute-primogeniture', 'seniority', 'elective']),
+    head: id.nullable(),
+    heir: id.nullable(),
+    country: z.string().regex(/^[A-Z]{2}$/).nullable(),
+  }),
+};
+
+export const proposalArgs = { ...baseProposalArgs, ...fillArgs } as typeof baseProposalArgs & typeof fillArgs;
+
 export const faceResultSchema = z.object({
   faces: z.array(z.object({
     box: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }),
@@ -225,3 +312,8 @@ export interface NameDesign {
   /** What its colours and charges stand for, in the reader's language. Optional: an older or sparse answer has none. */
   symbolism?: { element: string; why: string }[];
 }
+
+/** The longest chat message the assistant takes. */
+export const CHAT_MESSAGE_CHARS = 4_000;
+/** The longest family session transcript sent in one go (a whole session, about an hour of talk). */
+export const FAMILY_SESSION_CHARS = 20_000;

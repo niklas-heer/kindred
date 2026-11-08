@@ -1,5 +1,6 @@
 // The daily job runner. Each job runs once a day for every family: on Cloudflare from the cron trigger (src/server.ts,
 // scheduled), on Node from a timer (server/node.ts). Jobs run in turn; a failure is logged, and the next job still runs.
+import { aiTasksJob } from './ai-tasks.ts';
 import { archiveJob } from './archive.ts';
 import { remindersJob } from './reminders.ts';
 import type { DailyJob, JobContext } from './types.ts';
@@ -10,6 +11,7 @@ export type { DailyJob, JobContext } from './types.ts';
 export const DAILY_JOBS: readonly DailyJob[] = [
   remindersJob,
   archiveJob,
+  aiTasksJob,
 ];
 
 /**

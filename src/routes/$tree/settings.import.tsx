@@ -4,6 +4,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
+import { SurnameHousesDialog } from '~/components/HouseCreate';
 import { EmptyState, ErrorState, Notice, PageHeader, Skeleton, Switch } from '~/components/ui';
 import { opKeys } from '~/lib/api';
 import { applyImportFile, exchangeContext, exportReport, previewImportFile } from '~/lib/exchange/exchange.functions';
@@ -108,6 +109,7 @@ function ImportSection({ tree, people }: { tree: string; people: number }) {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [applied, setApplied] = useState<Applied | null>(null);
   const [allow, setAllow] = useState(false);
+  const [housing, setHousing] = useState(false);
   const [busy, setBusy] = useState<'preview' | 'apply' | null>(null);
   const [error, setError] = useState<string | null>(null);
   // One retry key per attempt: a retry of the same change after a lost response writes nothing twice.
@@ -189,10 +191,22 @@ function ImportSection({ tree, people }: { tree: string; people: number }) {
       )}
 
       {applied && (
-        <p className="exchange-done" role="status">
-          {t('exchange.import.done', { people: applied.people, parents: applied.parents, unions: applied.unions })}
-        </p>
+        <>
+          <p className="exchange-done" role="status">
+            {t('exchange.import.done', { people: applied.people, parents: applied.parents, unions: applied.unions })}
+          </p>
+          <p className="exchange-text">{t('exchange.import.placed', { located: applied.places.located, unplaced: applied.places.unplaced })}</p>
+          {applied.people > 0 && (
+            <div className="exchange-actions">
+              <p className="exchange-text">{t('exchange.import.housesText')}</p>
+              <button type="button" className="exchange-primary" onClick={() => setHousing(true)} aria-haspopup="dialog">
+                {t('houses.createFromSurnames')}
+              </button>
+            </div>
+          )}
+        </>
       )}
+      {housing && <SurnameHousesDialog open onClose={() => setHousing(false)} tree={tree} />}
 
       {preview && (
         <>
@@ -212,7 +226,14 @@ function ImportSection({ tree, people }: { tree: string; people: number }) {
               {preview.ambiguous.length > 0 && <li>{t('exchange.import.summary.ambiguous', { count: preview.ambiguous.length })}</li>}
               {preview.pictures > 0 && <li>{t('exchange.import.summary.pictures', { count: preview.pictures })}</li>}
               {preview.unlinked > 0 && <li>{t('exchange.import.summary.unlinked', { count: preview.unlinked })}</li>}
+              {preview.places.located + preview.places.unplaced > 0 && (
+                <li>{t('exchange.import.placesWillBe', { located: preview.places.located, unplaced: preview.places.unplaced })}</li>
+              )}
             </ul>
+          )}
+          {!nothingToAdd && preview.places.unplaced > 0 && !preview.places.gazetteer && <Notice>{t('exchange.import.noGazetteer')}</Notice>}
+          {!nothingToAdd && preview.places.unplacedNames.length > 0 && (
+            <PreviewList title={t('exchange.import.list.unplaced')} rows={preview.places.unplacedNames} total={preview.places.unplaced} />
           )}
 
           <PreviewList title={t('exchange.import.list.add')} rows={preview.add.map((a) => a.name)} total={preview.addCount} />

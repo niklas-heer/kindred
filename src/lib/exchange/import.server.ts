@@ -2,7 +2,8 @@
 // same plan, written as one guarded batch through `once`, so a retry or a second copy cannot write twice).
 // Server-only: it uses the family's database. The steward's permission is checked by the server function that
 // calls this (exchange.functions.ts), before anything here runs.
-import { db, newId, once, type OpKey } from '../db.server.ts';
+import { db, newId, once, type Db, type OpKey } from '../db.server.ts';
+import { gazetteer, locatePlaces, type Located } from '../gazetteer.server.ts';
 import { guard, q, type Query } from '../store/index.ts';
 import { readGedcom } from './gedcom.ts';
 import { planImport, type ConflictCode, type ImportPlan } from './plan.ts';
@@ -11,6 +12,51 @@ import { readTree, type ExTree, type IssueCode } from './model.ts';
 
 /** Lists are cut at this many rows; the counts are always complete. */
 const LIST = 300;
+
+/**
+ * The places the import brings that the family has no pin for yet. A place the gazetteer places with certainty gets its
+ * pin on the Atlas; the rest are listed, and keep only their text. Pins already on the map are never moved.
+ */
+interface PlacePlan {
+  located: Map<string, Located>;
+  unplaced: string[];
+  /** Places the family already has a pin for. */
+  alreadyPinned: number;
+  /** The pins the family has now: a write that is guarded on this number. */
+  pins: number;
+  gazetteer: boolean;
+}
+
+export interface PlacePreview {
+  located: number;
+  unplaced: number;
+  alreadyPinned: number;
+  /** Whether this deployment has a gazetteer at all; without one nothing can be placed. */
+  gazetteer: boolean;
+  unplacedNames: string[];
+}
+
+async function placePlan(d: Db, plan: ImportPlan): Promise<PlacePlan> {
+  const names = [...new Set([...plan.add.flatMap((p) => [p.bornPlace, p.diedPlace]), ...plan.unions.map((u) => u.place)])].filter(
+    (n): n is string => !!n,
+  );
+  const pinned = await d.all<{ name: string }>('SELECT name FROM place');
+  const have = new Set(pinned.map((r) => r.name));
+  const wanted = names.filter((n) => !have.has(n));
+  const g = gazetteer();
+  const located = g && wanted.length ? await locatePlaces(g, wanted) : new Map<string, Located>();
+  return {
+    located,
+    unplaced: wanted.filter((n) => !located.has(n)),
+    alreadyPinned: names.length - wanted.length,
+    pins: pinned.length,
+    gazetteer: !!g,
+  };
+}
+
+function placePreview(p: PlacePlan): PlacePreview {
+  return { located: p.located.size, unplaced: p.unplaced.length, alreadyPinned: p.alreadyPinned, gazetteer: p.gazetteer, unplacedNames: p.unplaced.slice(0, LIST) };
+}
 
 export interface ImportPreview {
   /** The family's own name, and the name the file gives itself. */
@@ -33,10 +79,12 @@ export interface ImportPreview {
   pictures: number;
   issues: { level: string; message: string; code: IssueCode; vars: Vars }[];
   issueCount: number;
+  places: PlacePreview;
 }
 
-function summarize(plan: ImportPlan, incoming: ReturnType<typeof readGedcom>, existing: ExTree): ImportPreview {
+function summarize(plan: ImportPlan, incoming: ReturnType<typeof readGedcom>, existing: ExTree, places: PlacePlan): ImportPreview {
   return {
+    places: placePreview(places),
     family: { name: existing.name },
     fileName: incoming.tree.name,
     existing: existing.people.length,
@@ -63,9 +111,11 @@ function summarize(plan: ImportPlan, incoming: ReturnType<typeof readGedcom>, ex
 
 /** What importing `text` into `tree` would do. Reads only. */
 export async function previewImport(tree: string, text: string): Promise<ImportPreview> {
-  const existing = await readTree(db(tree));
+  const d = db(tree);
+  const existing = await readTree(d);
   const incoming = readGedcom(text);
-  return summarize(planImport(incoming, existing, newId), incoming, existing);
+  const plan = planImport(incoming, existing, newId);
+  return summarize(plan, incoming, existing, await placePlan(d, plan));
 }
 
 export interface ApplyResult {
@@ -73,6 +123,8 @@ export interface ApplyResult {
   parents: number;
   unions: number;
   matched: number;
+  /** Places given a pin on the Atlas from the gazetteer, and places that could not be placed with certainty. */
+  places: { located: number; unplaced: number };
 }
 
 /**
@@ -132,9 +184,21 @@ export function applyImport(tree: string, text: string, op: OpKey | undefined, a
         q('INSERT INTO partnership (id, a, b, kind, start, end, end_reason, place) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', u.id, u.a, u.b, u.kind, u.start, u.end, u.endReason, u.place),
       );
     }
+    // The pins: only for places the gazetteer places with certainty, and only where the family has no pin yet.
+    const places = await placePlan(d, plan);
+    writes.push(guard('(SELECT count(*) FROM place) = ?', places.pins));
+    for (const [name, at] of places.located) {
+      writes.push(q('INSERT INTO place (name, lat, lng, country) VALUES (?, ?, ?, ?) ON CONFLICT(name) DO NOTHING', name, at.lat, at.lng, at.country));
+    }
     return {
       writes,
-      result: { people: plan.add.length, parents: plan.parents.length, unions: plan.unions.length, matched: plan.matched.length },
+      result: {
+        people: plan.add.length,
+        parents: plan.parents.length,
+        unions: plan.unions.length,
+        matched: plan.matched.length,
+        places: { located: places.located.size, unplaced: places.unplaced.length },
+      },
     };
   });
 }

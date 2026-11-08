@@ -84,6 +84,11 @@ export function fakeAdapter(model = 'fake-model'): AiAdapter {
       }
       const last = req.messages.at(-1);
       if (last?.role === 'tool') return { text: `Fake summary: ${last.content.slice(0, 300)}`, calls: [], ...split(40) };
+      // A family session (its transcript): a line "FAKE-FAMILY {json}" is the draft the fake proposes, so a test can script one.
+      const family = /FAKE-FAMILY (\{.*\})/.exec(user);
+      if (family && req.tools?.some((t) => t.name === 'propose_family')) {
+        return { text: '', calls: [{ id: `fake-family-${req.messages.length}`, name: 'propose_family', args: JSON.parse(family[1]) }], ...split(60) };
+      }
       const m = /^\/tool\s+(\S+)\s*(\{[\s\S]*\})?\s*$/.exec(user);
       if (m && req.tools?.some((t) => t.name === m[1])) {
         return { text: '', calls: [{ id: `fake-${m[1]}-${req.messages.length}`, name: m[1], args: JSON.parse(m[2] || '{}') }], ...split(30) };

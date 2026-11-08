@@ -81,12 +81,16 @@ function populatedFamily(name: string): DatabaseSync {
       ('f1', 'ada', 'phone', 'mobile', '{"number":"+49 1"}', 0, 0, 'Ben', '${now}', 'Ben', '${now}'),
       ('f2', 'ada', 'medical', '', '{"text":"Keep private"}', 1, 1, 'Ben', '${now}', 'Ben', '${now}');
     INSERT INTO house_succession (house, law, head, heir, country) VALUES ('h1', 'seniority', 'ada', 'ben', 'DE');
+    INSERT INTO house_meaning (house, name, family_words, meanings, web_searched, note, saved_at, saved_by) VALUES ('h1', 'O''Neill', 'The champion''s line', '[{"id":"m1","language":"Irish","root":"Niall","meaning":"champion","attestation":"well-attested","ideas":[],"chosen":true}]', 1, '', ${Date.now()}, 'ada');
+    INSERT INTO house_arms_review (house, fingerprint, verdict, reason, advice, locale, checked_at, checked_by, dismissed_fingerprint) VALUES ('h1', 'f00d', 'partly', 'Some elements speak to it.', 'Add a charge for the trade.', 'en', ${Date.now()}, 'ada', '');
     INSERT INTO album (id, name, at) VALUES ('al1', 'Summer ''41', '${now}');
     INSERT INTO media (key, mime, width, height, taken, place, caption, album, uploaded_by, uploaded_at) VALUES
       ('gallery/g1.jpg', 'image/jpeg', 800, 600, '1941-06', 'Lindby', 'On the steps', 'al1', 'Ben', '${now}'),
       ('gallery/g2.jpg', 'image/png', 10, 10, NULL, NULL, NULL, NULL, 'Ben', '${now}');
     INSERT INTO media_person (media, person, x, y, w, h, confirmed, tagged_by, at) VALUES ('gallery/g1.jpg', 'ada', 0.1, 0.1, 0.2, 0.3, 1, 'Ben', '${now}');
+    INSERT INTO portrait (key, person, mime, source, source_year, model, created_by, created_at, accepted) VALUES ('portrait/ada-1.png', 'ada', 'image/png', 'gallery/g1.jpg', 1941, 'openai/gpt-image-2', 'Ben', '${now}', 1);
     INSERT INTO occupation_translation (text, locale, label) VALUES ('Baker', 'de', 'Bäcker');
+    INSERT INTO story_translation (story, locale, source_hash, title, body, same, translated_at) SELECT id, 'de', 'h1', NULL, 'Eine Geschichte.', 0, '${now}' FROM story LIMIT 1;
   `);
   return d;
 }

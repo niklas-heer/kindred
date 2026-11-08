@@ -1,0 +1,255 @@
+/* Background AI tasks: the settings section, the AI activity page, the quiet badge, and the Chronicle's "translated by AI"
+   label. Colours come from the tokens app.css defines for codex, modern (Paper) and night; nothing sets a colour directly.
+   Phone width stacks everything, with no horizontal scroll. */
+
+/* ---------- settings section ---------- */
+
+.aitasks-cap {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.aitasks-cap-line,
+.aitasks-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.aitasks-langs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+}
+
+.aitasks-langs > .aitasks-label {
+  color: var(--muted);
+  font-size: 0.9rem;
+  flex-basis: 100%;
+}
+
+.aitasks-task {
+  display: grid;
+  gap: 10px;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+
+.aitasks-task:first-of-type { border-top: 0; padding-top: 0; }
+
+.aitasks-task-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.aitasks-task-name {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 0.98rem;
+  letter-spacing: 0.03em;
+}
+
+.aitasks-task-what {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.aitasks-task-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.aitasks-task-controls .ui-select-wrap,
+.aitasks-task-controls .ui-select { min-width: 10.5rem; }
+
+.aitasks-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.aitasks-status.bad { color: var(--danger); }
+
+.aitasks-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ---------- AI activity page ---------- */
+
+.ai-activity-page {
+  display: grid;
+  gap: 16px;
+  max-width: 880px;
+  margin-inline: auto;
+  padding: 0 16px 32px;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.ai-activity-page > .ai-privacy { margin: 0; }
+
+.aitasks-section {
+  display: grid;
+  gap: 12px;
+  padding: 18px 20px;
+  min-width: 0;
+}
+
+.aitasks-section > h2 {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+}
+
+.aitasks-waiting {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.aitasks-waiting li {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.aitasks-waiting b { font-family: var(--font-body); font-weight: 500; }
+
+.aitasks-verdict {
+  font-size: 0.82rem;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+
+.aitasks-spend {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--chip);
+  overflow: hidden;
+}
+
+.aitasks-spend > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+}
+
+.aitasks-tasks {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.aitasks-tasks li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.aitasks-runs {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+}
+
+.aitasks-runs li {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 1.1fr) minmax(6rem, 0.9fr) minmax(0, 1.4fr) minmax(4rem, 0.5fr);
+  gap: 4px 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  align-items: baseline;
+}
+
+.aitasks-runs li:first-child { border-top: 0; }
+
+.aitasks-runs .aitasks-note { color: var(--muted); font-size: 0.84rem; overflow-wrap: anywhere; }
+
+.aitasks-runs .aitasks-failed { color: var(--danger); }
+
+@media (max-width: 640px) {
+  .aitasks-runs li {
+    grid-template-columns: 1fr auto;
+    padding: 12px 0;
+  }
+  .aitasks-runs .aitasks-note { grid-column: 1 / -1; }
+}
+
+/* ---------- the quiet badge (the account menu) ---------- */
+
+.aitasks-dot {
+  display: inline-block;
+  min-width: 16px;
+  height: 16px;
+  margin-inline-start: -6px;
+  margin-block-start: -10px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--page-bg, #111);
+  font-size: 0.68rem;
+  line-height: 16px;
+  text-align: center;
+  font-weight: 600;
+  vertical-align: top;
+}
+
+.aitasks-count {
+  margin-inline-start: auto;
+  min-width: 1.4em;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--page-bg, #111);
+  font-size: 0.75rem;
+  line-height: 1.4em;
+  text-align: center;
+}
+
+/* ---------- the Chronicle's translations ---------- */
+
+.chr-ai {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.chr-ai button {
+  font-size: 0.82rem;
+  padding: 2px 8px;
+  min-height: 32px;
+}

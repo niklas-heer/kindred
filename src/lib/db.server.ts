@@ -2,6 +2,7 @@
 // async `Db` interface (./store): node:sqlite files on Node, D1 on Cloudflare Workers.
 import { guard, isGuardError, q, store, type Db, type Query, type Result } from './store/index.ts';
 import type { GParent, GPerson, GUnion, Graph, House, PersonDetail, TreeMeta } from './types';
+import { photoAge } from './portrait-face.ts';
 import { fieldText, type FieldType, type FieldValue, type PersonField } from '../components/fields/model.ts';
 
 export { guard, q, store, type Db, type Query } from './store/index.ts';
@@ -157,6 +158,7 @@ export async function graph(tree: string): Promise<Graph> {
   const [m, peopleRows, houseRows, parents, unionRows, placeRows] = await Promise.all([
     meta(d),
     d.all<any>(`SELECT p.*, ph.at AS photo, (SELECT count(*) FROM story s WHERE s.person = p.id) AS stories,
+      (SELECT pt.key FROM portrait pt WHERE pt.person = p.id AND pt.accepted = 1) AS portrait, (SELECT pt.source_year FROM portrait pt WHERE pt.person = p.id AND pt.accepted = 1) AS portrait_year,
       (SELECT count(*) FROM person_field f WHERE f.person = p.id AND f.private = 0 AND f.type IN ('phone', 'email', 'address', 'website', 'social')) AS contacts
       FROM person p LEFT JOIN photo ph ON ph.person = p.id`),
     d.all<any>('SELECT * FROM house'),
@@ -189,6 +191,9 @@ export async function graph(tree: string): Promise<Graph> {
       currentGiven: opt(r.current_given),
       currentSurname: opt(r.current_surname),
       preferAvatar: r.prefer_avatar === 1,
+      preferPortrait: r.prefer_portrait === 1,
+      portrait: opt(r.portrait),
+      portraitAge: r.portrait ? photoAge(opt(r.born), r.portrait_year) : undefined,
     }),
   );
   const houses = houseRows.map((r): House => ({ id: r.id, name: r.name, motto: opt(r.motto), arms: JSON.parse(r.arms), founder: opt(r.founder) }));
@@ -329,11 +334,13 @@ export async function searchPlaces(tree: string, q: string, limit = 8): Promise<
   const sql = (where: string, n: number) =>
     `SELECT p.id, p.name, p.cc, p.admin1, p.lat, p.lng, p.pop, n.alt, n.key FROM name n JOIN place p ON p.id = n.id WHERE ${where} ORDER BY p.pop DESC LIMIT ${n}`;
   const hi = `${fq}￿`;
-  const rows = [
-    ...(await g.all<Row>(sql('n.key = ?', 12), fq)),
-    ...(await g.all<Row>(sql(`${range} AND n.alt IS NULL`, 40), fq, hi)),
-    ...(await g.all<Row>(sql(`${range} AND n.alt IS NOT NULL`, 20), fq, hi)),
-  ];
+  // Three independent reads, sent together: on D1 each is a round trip, so one wait instead of three.
+  const [exact, plain, alt] = await Promise.all([
+    g.all<Row>(sql('n.key = ?', 12), fq),
+    g.all<Row>(sql(`${range} AND n.alt IS NULL`, 40), fq, hi),
+    g.all<Row>(sql(`${range} AND n.alt IS NOT NULL`, 20), fq, hi),
+  ]);
+  const rows = [...exact, ...plain, ...alt];
   // Size counts most; another spelling counts less than the place's own name; an exact match counts more.
   const best = new Map<number, { r: Row; score: number }>();
   for (const r of rows) {

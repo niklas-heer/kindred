@@ -5,7 +5,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { af, de, en } from '../../lib/i18n/areas/heraldry.ts';
 import type { Key } from '../../lib/i18n/dictionary.ts';
-import { CHARGES_V2, CHARGE_BY_ID, CATEGORIES } from './catalogue.ts';
+import { CATEGORIES } from './catalogue.ts';
+import { LIBRARY_CHARGES } from './library/charges.gen.ts';
+import { addLibraryCharges, allChargeDefs, chargeDef } from './registry.ts';
 import {
   CATEGORY_MEANING, CHARGE_MEANING, DIVISION_MEANING, ORDINARY_MEANING, TINCTURE_MEANING,
   chargeMeaning, divisionMeaning, ordinaryMeaning, tinctureMeaning,
@@ -13,6 +15,10 @@ import {
 import { TINCTURES_V2 } from './tinctures.ts';
 
 const LANGUAGES = [['en', en], ['de', de], ['af', af]] as const;
+
+// Every charge: the catalogue's, and the library's (which the client loads on demand).
+addLibraryCharges(LIBRARY_CHARGES);
+const CHARGES = allChargeDefs();
 
 /** Fails with the item's name and the language when a key has no text, or an empty one. */
 function assertAllLanguages(key: Key, what: string) {
@@ -41,16 +47,16 @@ test('every common division has a meaning in all three languages', () => {
   assert.equal(Object.keys(DIVISION_MEANING).length, 19);
 });
 
-test('every catalogue charge resolves to an explanation in all three languages', () => {
-  for (const c of CHARGES_V2) assertAllLanguages(chargeMeaning(c.id), `charge ${c.id}`);
+test('every charge, catalogue and library, resolves to an explanation in all three languages', () => {
+  for (const c of CHARGES) assertAllLanguages(chargeMeaning(c.id), `charge ${c.id}`);
 });
 
 test('the specific charge lines name real catalogue charges, so none is orphaned', () => {
-  for (const id of Object.keys(CHARGE_MEANING)) assert.ok(CHARGE_BY_ID[id], `no catalogue charge called ${id}`);
+  for (const id of Object.keys(CHARGE_MEANING)) assert.ok(chargeDef(id), `no catalogue charge called ${id}`);
 });
 
 test('a charge without its own line falls back to its category, and an unknown one to objects', () => {
-  const plain = CHARGES_V2.find((c) => !CHARGE_MEANING[c.id])!;
+  const plain = CHARGES.find((c) => !CHARGE_MEANING[c.id])!;
   assert.equal(chargeMeaning(plain.id), CATEGORY_MEANING[plain.cat]);
   assert.equal(chargeMeaning('no-such-charge'), CATEGORY_MEANING.objects);
   for (const cat of CATEGORIES) assertAllLanguages(CATEGORY_MEANING[cat.id], `category ${cat.id}`);
@@ -62,7 +68,7 @@ test('every meaning is one short line', () => {
     ...Object.values(ORDINARY_MEANING),
     ...Object.values(DIVISION_MEANING),
     ...Object.values(CATEGORY_MEANING),
-    ...CHARGES_V2.map((c) => chargeMeaning(c.id)),
+    ...CHARGES.map((c) => chargeMeaning(c.id)),
   ];
   for (const key of keys) {
     for (const [lang, area] of LANGUAGES) {

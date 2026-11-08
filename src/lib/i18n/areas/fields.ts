@@ -3,6 +3,15 @@
 import type { Message } from "../types.ts";
 
 export const en = {
+  "edit.lifeSection": "Life dates and places",
+  "edit.more": "More",
+  "edit.saving": "Saving…",
+  "edit.allSaved": "All saved",
+  "edit.barLabel": "Save changes",
+  "edit.savedTitle": "Saved",
+  "edit.savedBody": "{name}’s details are saved.",
+  "fields.searchPlaceholder": "Search fields",
+  "fields.noMatch": "No field matches “{query}”.",
   "draft.unsaved": "Unsaved changes",
   "fields.changed_since_opened": "Someone changed this person since you opened it.",
   "type.phone": "Phone",
@@ -212,6 +221,15 @@ export const en = {
 };
 
 export const de: Record<keyof typeof en, Message> = {
+  "edit.lifeSection": "Lebensdaten und Orte",
+  "edit.more": "Mehr",
+  "edit.saving": "Wird gespeichert …",
+  "edit.allSaved": "Alles gespeichert",
+  "edit.barLabel": "Änderungen speichern",
+  "edit.savedTitle": "Gespeichert",
+  "edit.savedBody": "Die Angaben zu {name} sind gespeichert.",
+  "fields.searchPlaceholder": "Felder suchen",
+  "fields.noMatch": "Kein Feld passt zu „{query}“.",
   "draft.unsaved": "Ungespeicherte Änderungen",
   "fields.changed_since_opened": "Jemand hat diese Person geändert, seit du sie geöffnet hast.",
   "type.phone": "Telefon",
@@ -422,6 +440,15 @@ export const de: Record<keyof typeof en, Message> = {
 
 /** Afrikaans. A missing entry falls back to English at runtime; the test reports them. */
 export const af: Partial<Record<keyof typeof en, Message>> = {
+  "edit.lifeSection": "Lewensdatums en plekke",
+  "edit.more": "Meer",
+  "edit.saving": "Stoor tans …",
+  "edit.allSaved": "Alles gestoor",
+  "edit.barLabel": "Veranderinge stoor",
+  "edit.savedTitle": "Gestoor",
+  "edit.savedBody": "{name} se besonderhede is gestoor.",
+  "fields.searchPlaceholder": "Soek velde",
+  "fields.noMatch": "Geen veld pas by “{query}” nie.",
   "draft.unsaved": "Ongestoorde veranderinge",
   "fields.changed_since_opened": "Iemand het hierdie persoon verander sedert jy dit oopgemaak het.",
   "type.phone": "Telefoon",

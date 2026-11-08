@@ -28,12 +28,15 @@ import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as UiCharacterRouteImport } from './routes/ui_.character'
 import { Route as TreeHouseHouseRouteImport } from './routes/$tree/house.$house'
+import { Route as TreeSettingsActivityRouteImport } from './routes/$tree/settings.activity'
 import { Route as TreeSettingsAiRouteImport } from './routes/$tree/settings.ai'
 import { Route as TreeSettingsImportRouteImport } from './routes/$tree/settings.import'
 import { Route as ApiAuthActionRouteImport } from './routes/api/auth/$action'
 import { Route as ApiExportTreeRouteImport } from './routes/api/export.$tree'
 import { Route as ApiMediaTreeKeyRouteImport } from './routes/api/media.$tree.$key'
+import { Route as ApiPaintTreeKeyRouteImport } from './routes/api/paint.$tree.$key'
 import { Route as ApiPhotoTreeIdRouteImport } from './routes/api/photo.$tree.$id'
+import { Route as ApiPortraitTreeIdRouteImport } from './routes/api/portrait.$tree.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -130,6 +133,11 @@ const TreeHouseHouseRoute = TreeHouseHouseRouteImport.update({
   path: '/house/$house',
   getParentRoute: () => TreeRoute,
 } as any)
+const TreeSettingsActivityRoute = TreeSettingsActivityRouteImport.update({
+  id: '/settings/activity',
+  path: '/settings/activity',
+  getParentRoute: () => TreeRoute,
+} as any)
 const TreeSettingsAiRoute = TreeSettingsAiRouteImport.update({
   id: '/settings/ai',
   path: '/settings/ai',
@@ -155,9 +163,19 @@ const ApiMediaTreeKeyRoute = ApiMediaTreeKeyRouteImport.update({
   path: '/api/media/$tree/$key',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPaintTreeKeyRoute = ApiPaintTreeKeyRouteImport.update({
+  id: '/api/paint/$tree/$key',
+  path: '/api/paint/$tree/$key',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPhotoTreeIdRoute = ApiPhotoTreeIdRouteImport.update({
   id: '/api/photo/$tree/$id',
   path: '/api/photo/$tree/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPortraitTreeIdRoute = ApiPortraitTreeIdRouteImport.update({
+  id: '/api/portrait/$tree/$id',
+  path: '/api/portrait/$tree/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -181,12 +199,15 @@ export interface FileRoutesByFullPath {
   '/ui/character': typeof UiCharacterRoute
   '/$tree/': typeof TreeIndexRoute
   '/$tree/house/$house': typeof TreeHouseHouseRoute
+  '/$tree/settings/activity': typeof TreeSettingsActivityRoute
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
   '/$tree/settings/import': typeof TreeSettingsImportRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
   '/api/export/$tree': typeof ApiExportTreeRoute
   '/api/media/$tree/$key': typeof ApiMediaTreeKeyRoute
+  '/api/paint/$tree/$key': typeof ApiPaintTreeKeyRoute
   '/api/photo/$tree/$id': typeof ApiPhotoTreeIdRoute
+  '/api/portrait/$tree/$id': typeof ApiPortraitTreeIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -207,12 +228,15 @@ export interface FileRoutesByTo {
   '/ui/character': typeof UiCharacterRoute
   '/$tree': typeof TreeIndexRoute
   '/$tree/house/$house': typeof TreeHouseHouseRoute
+  '/$tree/settings/activity': typeof TreeSettingsActivityRoute
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
   '/$tree/settings/import': typeof TreeSettingsImportRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
   '/api/export/$tree': typeof ApiExportTreeRoute
   '/api/media/$tree/$key': typeof ApiMediaTreeKeyRoute
+  '/api/paint/$tree/$key': typeof ApiPaintTreeKeyRoute
   '/api/photo/$tree/$id': typeof ApiPhotoTreeIdRoute
+  '/api/portrait/$tree/$id': typeof ApiPortraitTreeIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -235,12 +259,15 @@ export interface FileRoutesById {
   '/ui_/character': typeof UiCharacterRoute
   '/$tree/': typeof TreeIndexRoute
   '/$tree/house/$house': typeof TreeHouseHouseRoute
+  '/$tree/settings/activity': typeof TreeSettingsActivityRoute
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
   '/$tree/settings/import': typeof TreeSettingsImportRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
   '/api/export/$tree': typeof ApiExportTreeRoute
   '/api/media/$tree/$key': typeof ApiMediaTreeKeyRoute
+  '/api/paint/$tree/$key': typeof ApiPaintTreeKeyRoute
   '/api/photo/$tree/$id': typeof ApiPhotoTreeIdRoute
+  '/api/portrait/$tree/$id': typeof ApiPortraitTreeIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -264,12 +291,15 @@ export interface FileRouteTypes {
     | '/ui/character'
     | '/$tree/'
     | '/$tree/house/$house'
+    | '/$tree/settings/activity'
     | '/$tree/settings/ai'
     | '/$tree/settings/import'
     | '/api/auth/$action'
     | '/api/export/$tree'
     | '/api/media/$tree/$key'
+    | '/api/paint/$tree/$key'
     | '/api/photo/$tree/$id'
+    | '/api/portrait/$tree/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -290,12 +320,15 @@ export interface FileRouteTypes {
     | '/ui/character'
     | '/$tree'
     | '/$tree/house/$house'
+    | '/$tree/settings/activity'
     | '/$tree/settings/ai'
     | '/$tree/settings/import'
     | '/api/auth/$action'
     | '/api/export/$tree'
     | '/api/media/$tree/$key'
+    | '/api/paint/$tree/$key'
     | '/api/photo/$tree/$id'
+    | '/api/portrait/$tree/$id'
   id:
     | '__root__'
     | '/'
@@ -317,12 +350,15 @@ export interface FileRouteTypes {
     | '/ui_/character'
     | '/$tree/'
     | '/$tree/house/$house'
+    | '/$tree/settings/activity'
     | '/$tree/settings/ai'
     | '/$tree/settings/import'
     | '/api/auth/$action'
     | '/api/export/$tree'
     | '/api/media/$tree/$key'
+    | '/api/paint/$tree/$key'
     | '/api/photo/$tree/$id'
+    | '/api/portrait/$tree/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -337,7 +373,9 @@ export interface RootRouteChildren {
   ApiAuthActionRoute: typeof ApiAuthActionRoute
   ApiExportTreeRoute: typeof ApiExportTreeRoute
   ApiMediaTreeKeyRoute: typeof ApiMediaTreeKeyRoute
+  ApiPaintTreeKeyRoute: typeof ApiPaintTreeKeyRoute
   ApiPhotoTreeIdRoute: typeof ApiPhotoTreeIdRoute
+  ApiPortraitTreeIdRoute: typeof ApiPortraitTreeIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -475,6 +513,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TreeHouseHouseRouteImport
       parentRoute: typeof TreeRoute
     }
+    '/$tree/settings/activity': {
+      id: '/$tree/settings/activity'
+      path: '/settings/activity'
+      fullPath: '/$tree/settings/activity'
+      preLoaderRoute: typeof TreeSettingsActivityRouteImport
+      parentRoute: typeof TreeRoute
+    }
     '/$tree/settings/ai': {
       id: '/$tree/settings/ai'
       path: '/settings/ai'
@@ -510,11 +555,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMediaTreeKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/paint/$tree/$key': {
+      id: '/api/paint/$tree/$key'
+      path: '/api/paint/$tree/$key'
+      fullPath: '/api/paint/$tree/$key'
+      preLoaderRoute: typeof ApiPaintTreeKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/photo/$tree/$id': {
       id: '/api/photo/$tree/$id'
       path: '/api/photo/$tree/$id'
       fullPath: '/api/photo/$tree/$id'
       preLoaderRoute: typeof ApiPhotoTreeIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/portrait/$tree/$id': {
+      id: '/api/portrait/$tree/$id'
+      path: '/api/portrait/$tree/$id'
+      fullPath: '/api/portrait/$tree/$id'
+      preLoaderRoute: typeof ApiPortraitTreeIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -532,6 +591,7 @@ interface TreeRouteChildren {
   TreePeopleRoute: typeof TreePeopleRoute
   TreeIndexRoute: typeof TreeIndexRoute
   TreeHouseHouseRoute: typeof TreeHouseHouseRoute
+  TreeSettingsActivityRoute: typeof TreeSettingsActivityRoute
   TreeSettingsAiRoute: typeof TreeSettingsAiRoute
   TreeSettingsImportRoute: typeof TreeSettingsImportRoute
 }
@@ -548,6 +608,7 @@ const TreeRouteChildren: TreeRouteChildren = {
   TreePeopleRoute: TreePeopleRoute,
   TreeIndexRoute: TreeIndexRoute,
   TreeHouseHouseRoute: TreeHouseHouseRoute,
+  TreeSettingsActivityRoute: TreeSettingsActivityRoute,
   TreeSettingsAiRoute: TreeSettingsAiRoute,
   TreeSettingsImportRoute: TreeSettingsImportRoute,
 }
@@ -566,7 +627,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthActionRoute: ApiAuthActionRoute,
   ApiExportTreeRoute: ApiExportTreeRoute,
   ApiMediaTreeKeyRoute: ApiMediaTreeKeyRoute,
+  ApiPaintTreeKeyRoute: ApiPaintTreeKeyRoute,
   ApiPhotoTreeIdRoute: ApiPhotoTreeIdRoute,
+  ApiPortraitTreeIdRoute: ApiPortraitTreeIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

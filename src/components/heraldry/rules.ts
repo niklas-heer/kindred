@@ -2,7 +2,7 @@
 // breach; and randomised arms that keep it.
 import type { ArmsLayer, ArmsV2, ChargeLayer, FieldDivision, OrdinaryKind, OrdinaryLayer, PartitionLine, ShieldShape, TinctureV2 } from '~/lib/seed-format';
 import { chargeNoun } from './blazon';
-import { CHARGE_BY_ID } from './catalogue';
+import { chargeName } from './registry';
 import type { Key, Translator } from '~/lib/i18n';
 import { CENTRAL, standsBetween, tinctureCount } from './geometry';
 import { fieldTinctures } from './render';
@@ -69,7 +69,7 @@ export function tinctureClashesV2(a: ArmsV2, t: Translator): Clash[] {
     const kind = t(`heraldry.kind.${kindOf(l.tincture)}` as Key);
     const what = l.type === 'ordinary'
       ? (t.locale === 'en' ? t(ordinaryLabel(l.kind)).toLowerCase() : t(ordinaryLabel(l.kind)))
-      : t.locale === 'en' ? chargeNoun(l.charge, (l as ChargeLayer).count) : CHARGE_BY_ID[l.charge] ? t(CHARGE_BY_ID[l.charge].label) : l.charge;
+      : t.locale === 'en' ? chargeNoun(l.charge, (l as ChargeLayer).count) : chargeName(l.charge, t.locale);
     const message = t(l.type === 'charge' && l.count > 1 ? 'heraldry.clash.on_many' : 'heraldry.clash.on', {
       tincture: nameOf(t, l.tincture), what, on: bad.map((x) => nameOf(t, x)).join(` ${t('heraldry.and')} `), kind,
     });

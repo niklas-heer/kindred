@@ -9,7 +9,12 @@ import { Dialog, EmptyState, ErrorState, Notice, PageHeader, Select, Skeleton } 
 import { accessQuery, createInvite, removeMember, renewInvite, revokeInvite, setMemberRole, type AccessInvite, type AccessMember } from '~/lib/auth/functions';
 import { BROWSING, useFamily, useTreeId } from '~/lib/family';
 import { displayName } from '~/lib/graph';
+import { errorText } from '~/lib/errortext';
+import { opKeys } from '~/lib/api';
+import { updateFamilyDetails } from '~/lib/family-details.functions';
 import { locales, translateMessage, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
+import { toast } from '~/lib/toast';
+import '~/styles/manage.css';
 import { ROLES, type Role } from '~/lib/roles';
 import { useCan } from '~/lib/session';
 import { sectionHead } from '~/lib/title';
@@ -92,6 +97,8 @@ function AccessPage() {
           actions={<button className="btn primary" onClick={() => setInviting(true)}><UserPlus size={16} /> {t('acc.inviteSomeone')}</button>}
         />
         {error && <Notice onDismiss={() => setError(null)} className="acc-notice">{error}</Notice>}
+
+        <FamilyDetails tree={tree} name={f.graph.tree.name} tagline={f.graph.tree.tagline} />
 
         {access.isPending ? (
           <div className="ui-card" aria-busy="true" aria-label={t('acc.loadingMembers')}><Skeleton lines={4} /></div>
@@ -198,6 +205,61 @@ function AccessPage() {
 /** The role choices with their names and hints, in the reader's language. */
 function roleOptions(t: Translator) {
   return ROLES.map((r) => ({ value: r.id, label: t(r.label), icon: ROLE_ICON[r.id], hint: undefined as string | undefined }));
+}
+
+/**
+ * The family's name and tagline: shown on every page and in every invitation. A steward changes them here; the server checks
+ * the steward's permission first, and a retry of the same save writes nothing twice.
+ */
+function FamilyDetails({ tree, name, tagline }: { tree: string; name: string; tagline: string }) {
+  const t = useT();
+  const qc = useQueryClient();
+  const [keys] = useState(() => opKeys());
+  const [draft, setDraft] = useState({ name, tagline });
+  const [error, setError] = useState<string | null>(null);
+  // The fields follow the family when it changes elsewhere, unless the steward has typed something of their own.
+  const [saved, setSaved] = useState({ name, tagline });
+  const dirty = draft.name !== saved.name || draft.tagline !== saved.tagline;
+  if (saved.name !== name || saved.tagline !== tagline) {
+    setSaved({ name, tagline });
+    if (!dirty) setDraft({ name, tagline });
+  }
+
+  const save = useMutation({
+    mutationFn: () => updateFamilyDetails({ data: { tree, opKey: keys.for('family-details', draft), ...draft } }),
+    onSuccess: async (done) => {
+      keys.clear();
+      setError(null);
+      setSaved(done);
+      setDraft(done);
+      await Promise.all([qc.invalidateQueries({ queryKey: ['graph', tree] }), qc.invalidateQueries({ queryKey: ['session'] })]);
+      toast({ title: t('acc.familySaved'), body: done.name, icon: 'crown' });
+    },
+    onError: (e) => setError(errorText(e, t.locale)),
+  });
+
+  return (
+    <section className="ui-card fam-card" aria-labelledby="acc-family-heading">
+      <h2 className="rule" id="acc-family-heading">{t('acc.familyHeading')}</h2>
+      <p>{t('acc.familyText')}</p>
+      <form className="fam-form" onSubmit={(e) => { e.preventDefault(); if (dirty && draft.name.trim() && !save.isPending) save.mutate(); }}>
+        <label>
+          <span>{t('acc.familyName')}</span>
+          <input className="input" value={draft.name} maxLength={80} required onChange={(e) => setDraft({ ...draft, name: e.target.value })} autoComplete="organization" />
+        </label>
+        <label>
+          <span>{t('acc.familyTagline')}</span>
+          <input className="input" value={draft.tagline} maxLength={140} onChange={(e) => setDraft({ ...draft, tagline: e.target.value })} autoComplete="off" />
+        </label>
+        <div className="fam-actions">
+          <button type="submit" className="btn primary" disabled={!dirty || !draft.name.trim() || save.isPending}>
+            {save.isPending ? t('acc.familySaving') : t('acc.familySave')}
+          </button>
+        </div>
+      </form>
+      {error && <p role="alert" className="acc-error">{error}</p>}
+    </section>
+  );
 }
 
 async function copy(text: string) {

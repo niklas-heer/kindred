@@ -4,7 +4,7 @@
 //
 // Style: flat fills, one soft shadow tone, outlines in a darker shade of each fill (never black).
 import type { ClothingStyle, HairStyle } from '~/lib/seed-format';
-import { mixHex as mix, type Appearance } from './look';
+import { mixHex as mix, type Appearance, type Features, type LevelKey } from './look';
 import type { Dress } from './palette';
 
 export type Detail = 'sm' | 'md' | 'lg';
@@ -20,7 +20,15 @@ interface Geo {
   cx: number; cy: number; w: number; h: number;
   nw: number; ny: number; S: number;
   eyeY: number; dx: number; er: number; browY: number; noseY: number; mouthY: number;
+  /** The face's 0–10 measures, as −1…1 offsets from the average (see `m`). */
+  m: Record<LevelKey, number>;
+  /** Shifts the hairline: negative lowers it. */
+  hs: number;
+  f: Features;
 }
+
+/** A measure as an offset: 0 at the average (5), −1 at 0, +1 at 10. */
+const offset = (f: Features, k: LevelKey) => (f[k] - 5) / 5;
 
 function geo(a: Appearance): Geo {
   const f = a.pres === 'f';
@@ -31,10 +39,14 @@ function geo(a: Appearance): Geo {
     adult: { cy: 43.6, w: f ? 17.9 : 18.8, h: 24.2, nw: f ? 6.8 : 7.5, ny: 77, S: f ? 37 : 40.5, e: 0.06, er: 2.2, nose: 0.35, mouth: 0.6 },
   }[a.stage === 'baby' || a.stage === 'child' || a.stage === 'teen' ? a.stage : 'adult'];
   const { cy, w, h } = P;
+  const m = Object.fromEntries((Object.keys(a.feat) as LevelKey[]).map((k) => [k, offset(a.feat, k)])) as Record<LevelKey, number>;
   const eyeY = cy + P.e * h;
+  const er = P.er * 1.12 * (1 + 0.2 * m.eyeSize);
   return {
     cx: 50, cy, w, h, nw: P.nw, ny: P.ny, S: P.S,
-    eyeY, dx: w * 0.42, er: P.er, browY: eyeY - P.er * 2.05 - 0.7, noseY: cy + P.nose * h, mouthY: cy + P.mouth * h,
+    eyeY, dx: w * 0.42 * (1 + 0.14 * m.eyeSpacing), er,
+    browY: eyeY - er * 2.05 - 0.7 - 1.4 * m.browHeight, noseY: cy + P.nose * h, mouthY: cy + P.mouth * h,
+    m, hs: -0.025 * (a.feat.hairline - 5), f: a.feat,
   };
 }
 
@@ -72,20 +84,41 @@ const stroked = (color: string, width: number, extra = '') =>
 
 // ---------- Head ----------
 
-const JAW = { round: [0.94, 0.42], oval: [0.84, 0.34], square: [1, 0.5], long: [0.86, 0.37], heart: [0.72, 0.26] } as const;
+/**
+ * The outline of each face shape: the right half from the crown to the chin, as [x, y] in units of the
+ * head's half-width and height from the centre (y down). The left half is its mirror.
+ */
+const OUTLINE: Record<Appearance['face'], [number, number][]> = {
+  round: [[0, -1], [0.56, -1], [1, -0.6], [1.0, -0.05], [0.94, 0.42], [0.84, 0.74], [0.42, 0.93], [0, 1.05]],
+  oval: [[0, -1], [0.54, -1], [0.96, -0.6], [0.98, -0.05], [0.84, 0.4], [0.66, 0.76], [0.34, 0.95], [0, 1.06]],
+  square: [[0, -1], [0.64, -1], [0.98, -0.68], [1.0, -0.12], [0.99, 0.3], [0.94, 0.62], [0.74, 0.88], [0.46, 0.98], [0, 1.02]],
+  long: [[0, -1], [0.5, -1], [0.9, -0.62], [0.92, -0.05], [0.8, 0.42], [0.62, 0.8], [0.32, 0.98], [0, 1.1]],
+  heart: [[0, -1], [0.62, -1], [1.0, -0.6], [0.94, -0.1], [0.78, 0.3], [0.6, 0.6], [0.36, 0.84], [0.16, 0.98], [0, 1.06]],
+};
+
+/** A closed smooth curve through the points (Catmull-Rom, as cubic Béziers). */
+function smoothClosed(pts: [number, number][]): string {
+  const N = pts.length;
+  let d = `M${n(pts[0][0])} ${n(pts[0][1])}`;
+  for (let i = 0; i < N; i++) {
+    const p0 = pts[(i - 1 + N) % N];
+    const p1 = pts[i];
+    const p2 = pts[(i + 1) % N];
+    const p3 = pts[(i + 2) % N];
+    d += `C${n(p1[0] + (p2[0] - p0[0]) / 6)} ${n(p1[1] + (p2[1] - p0[1]) / 6)} ${n(p2[0] - (p3[0] - p1[0]) / 6)} ${n(p2[1] - (p3[1] - p1[1]) / 6)} ${n(p2[0])} ${n(p2[1])}`;
+  }
+  return d + 'Z';
+}
 
 function headPath(g: Geo, a: Appearance): string {
   const { cx, cy, w } = g;
   const h = a.face === 'long' ? g.h * 1.04 : g.h;
-  const [jx, cw] = JAW[a.face];
-  return (
-    `M${n(cx)} ${n(cy - h)}` +
-    `C${n(cx + 0.56 * w)} ${n(cy - h)} ${n(cx + w)} ${n(cy - 0.6 * h)} ${n(cx + w)} ${n(cy - 0.05 * h)}` +
-    `C${n(cx + w)} ${n(cy + 0.42 * h)} ${n(cx + jx * w)} ${n(cy + 0.74 * h)} ${n(cx + cw * w)} ${n(cy + 0.93 * h)}` +
-    `Q${n(cx)} ${n(cy + 1.05 * h)} ${n(cx - cw * w)} ${n(cy + 0.93 * h)}` +
-    `C${n(cx - jx * w)} ${n(cy + 0.74 * h)} ${n(cx - w)} ${n(cy + 0.42 * h)} ${n(cx - w)} ${n(cy - 0.05 * h)}` +
-    `C${n(cx - w)} ${n(cy - 0.6 * h)} ${n(cx - 0.56 * w)} ${n(cy - h)} ${n(cx)} ${n(cy - h)}Z`
-  );
+  // The jaw is the one measure that changes the outline: broad below the cheekbones, or narrow.
+  const jawK = 1 + 0.16 * g.m.jaw;
+  const right = OUTLINE[a.face].map(([x, y]) => [x * (y > 0.2 ? jawK : 1), y] as [number, number]);
+  const mirror = right.slice(1, -1).reverse().map(([x, y]) => [-x, y] as [number, number]);
+  const pts = [...right, ...mirror].map(([x, y]) => [cx + x * w, cy + y * h] as [number, number]);
+  return smoothClosed(pts);
 }
 
 function neckAndChest(g: Geo, p: Paint): string {
@@ -101,12 +134,13 @@ function neckAndChest(g: Geo, p: Paint): string {
 
 function ears(g: Geo, p: Paint, a: Appearance): string {
   const y = g.eyeY + (a.stage === 'baby' ? 1.5 : 2.6);
-  const rx = a.stage === 'baby' ? 3.1 : 2.8;
-  const ry = a.stage === 'baby' ? 3.8 : 4.4;
+  const k = 1 + 0.3 * g.m.earSize;
+  const rx = (a.stage === 'baby' ? 3.1 : 2.8) * k;
+  const ry = (a.stage === 'baby' ? 3.8 : 4.4) * k;
   const one = (s: number) => {
     const x = g.cx + s * (g.w - 0.3);
-    return `<ellipse cx="${n(x)}" cy="${n(y)}" rx="${rx}" ry="${ry}" ${filled(p.skin, p.sw, p.skinLine)}/>` +
-      `<path d="M${n(x + s * 0.9)} ${n(y - 2)}Q${n(x - s * 0.6)} ${n(y - 1)} ${n(x + s * 0.4)} ${n(y + 2)}" ${stroked(p.skinShade, 0.9)}/>`;
+    return `<ellipse cx="${n(x)}" cy="${n(y)}" rx="${n(rx)}" ry="${n(ry)}" ${filled(p.skin, p.sw, p.skinLine)}/>` +
+      `<path d="M${n(x + s * 0.9 * k)} ${n(y - 2 * k)}Q${n(x - s * 0.6 * k)} ${n(y - k)} ${n(x + s * 0.4 * k)} ${n(y + 2 * k)}" ${stroked(p.skinShade, 0.9)}/>`;
   };
   return one(-1) + one(1);
 }
@@ -118,6 +152,15 @@ function face(g: Geo, p: Paint, a: Appearance, detail: Detail): string {
   let s = '';
   // Shade the far side of the face, and the hair's shadow on the forehead (drawn with the hair).
   if (lg) s += `<ellipse cx="${n(cx + w * 0.98)}" cy="${n(cy + h * 0.15)}" rx="${n(w * 0.32)}" ry="${n(h * 0.95)}" fill="${p.skinShade}" opacity=".55" clip-path="url(#hc)"/>`;
+  // Modelling: a soft shadow under the cheekbones and along the jaw, a light plane on the cheekbones,
+  // and the sockets above the eyes. Flat tones only, so they stay cheap and print well.
+  if (lg) {
+    s += `<ellipse cx="${n(cx)}" cy="${n(cy + 0.9 * h)}" rx="${n(w * 0.78)}" ry="${n(h * 0.2)}" fill="${p.skinShade}" opacity=".16" clip-path="url(#hc)"/>`;
+    for (const sx of [-1, 1]) {
+      s += `<ellipse cx="${n(cx + sx * (dx + 0.6))}" cy="${n(eyeY - er * 1.5)}" rx="${n(dx * 0.42)}" ry="${n(er * 0.9)}" fill="${p.skinShade}" opacity=".13"/>`;
+      s += `<ellipse cx="${n(cx + sx * w * 0.5)}" cy="${n(g.noseY - 1.5)}" rx="${n(w * 0.22)}" ry="${n(h * 0.1)}" fill="${tint(p.skin, 0.3)}" opacity=".3"/>`;
+    }
+  }
 
   // Cheeks.
   const blushO = a.marks.includes('blush') ? 0.6 : kid ? 0.45 : a.pres === 'f' ? 0.28 : 0.16;
@@ -153,28 +196,70 @@ function face(g: Geo, p: Paint, a: Appearance, detail: Detail): string {
   return s;
 }
 
+/**
+ * One eye opening. A round eye is an ellipse; an almond eye has its outer corner lifted; a hooded eye
+ * has the upper lid lowered over the iris. `lid` is the top edge alone, `open` the whole opening.
+ */
+function eyeShapes(x: number, y: number, sx: number, rx: number, ry: number, shape: Appearance['eyeShape']) {
+  if (shape === 'round') {
+    return {
+      lid: `M${n(x - rx)} ${n(y)}A${n(rx)} ${n(ry)} 0 0 1 ${n(x + rx)} ${n(y)}`,
+      low: `M${n(x + rx)} ${n(y)}A${n(rx)} ${n(ry)} 0 0 1 ${n(x - rx)} ${n(y)}`,
+      open: `M${n(x - rx)} ${n(y)}A${n(rx)} ${n(ry)} 0 1 1 ${n(x + rx)} ${n(y)}A${n(rx)} ${n(ry)} 0 1 1 ${n(x - rx)} ${n(y)}Z`,
+    };
+  }
+  const lift = shape === 'hooded' ? 0.55 : 1;
+  const ix = x - sx * rx;
+  const iy = y + 0.15 * ry;
+  const ox = x + sx * rx;
+  const oy = y - 0.22 * ry;
+  const lid = `M${n(ix)} ${n(iy)}C${n(x - sx * rx * 0.35)} ${n(y - ry * 1.25 * lift)} ${n(x + sx * rx * 0.55)} ${n(y - ry * 1.15 * lift)} ${n(ox)} ${n(oy)}`;
+  const low = `M${n(ox)} ${n(oy)}C${n(x + sx * rx * 0.5)} ${n(y + ry * 0.9)} ${n(x - sx * rx * 0.3)} ${n(y + ry * 1.0)} ${n(ix)} ${n(iy)}`;
+  return { lid, low, open: `${lid}${low.slice(low.indexOf('C'))}Z` };
+}
+
 function eyes(g: Geo, p: Paint, a: Appearance, detail: Detail): string {
   const { cx, eyeY: y, dx, er } = g;
   const kid = a.stage === 'baby' || a.stage === 'child';
   const iris = mix(a.eyes, '#120a06', 0.12);
+  const rx = er * (a.eyeShape === 'round' ? 0.86 : 1.02);
+  const ry = er * (kid ? 0.98 : 0.92);
+  const lg = detail === 'lg';
   let s = '';
   for (const sx of [-1, 1]) {
     const x = cx + sx * dx;
-    const ry = a.eyeShape === 1 || kid ? er : er * 0.92;
-    const rx = er * (kid ? 0.86 : 0.8);
+    const e = eyeShapes(x, y, sx, rx, ry, a.eyeShape);
     if (detail === 'sm') {
-      s += `<ellipse cx="${n(x)}" cy="${n(y)}" rx="${n(rx * 1.05)}" ry="${n(ry)}" fill="${mix(iris, '#120a06', 0.45)}"/>`;
+      // At list size an eye is a dark shape, with a light gleam so it still reads as an eye.
+      s += `<path d="${e.open}" fill="${mix(iris, '#120a06', 0.45)}"/>`;
+      s += `<circle cx="${n(x + er * 0.3)}" cy="${n(y - er * 0.35)}" r="${n(er * 0.26)}" fill="#fff" opacity=".9"/>`;
       continue;
     }
-    s += `<ellipse cx="${n(x)}" cy="${n(y)}" rx="${n(rx)}" ry="${n(ry)}" fill="${iris}"/>`;
-    s += `<ellipse cx="${n(x)}" cy="${n(y + er * 0.08)}" rx="${n(er * 0.42)}" ry="${n(er * 0.52)}" fill="#160d09"/>`;
-    s += `<circle cx="${n(x + er * 0.3)}" cy="${n(y - er * 0.38)}" r="${n(er * 0.3)}" fill="#fff"/>`;
-    if (detail === 'lg') s += `<circle cx="${n(x - er * 0.28)}" cy="${n(y + er * 0.4)}" r="${n(er * 0.13)}" fill="#fff" opacity=".7"/>`;
-    // The upper lid: heavier with age, a lash flick for a feminine face.
-    if (!kid || a.stage === 'child') {
-      const lid = a.lines > 1 || a.eyeShape === 2 ? 0.25 : 0;
-      s += `<path d="M${n(x - sx * er * 1.25)} ${n(y - er * (0.1 - lid))}Q${n(x)} ${n(y - er * (1.45 - lid))} ${n(x + sx * er * 1.3)} ${n(y - er * (0.25 - lid))}" ${stroked(shade(p.skinLine, 0.25), detail === 'lg' ? 0.9 : 1.05)}/>`;
-      if (a.pres === 'f' && !kid) s += `<path d="M${n(x + sx * er * 1.2)} ${n(y - er * 0.3)}l${n(sx * 0.9)} -0.8" ${stroked(shade(p.skinLine, 0.25), 0.8)}/>`;
+    const id = sx < 0 ? 'el' : 'er';
+    const ir = er * (kid ? 0.56 : 0.5);
+    // The sclera, the iris and pupil clipped to the opening, the lid's shadow over the top of the eye.
+    s += `<clipPath id="${id}"><path d="${e.open}"/></clipPath>`;
+    s += `<path d="${e.open}" fill="#f4eee5"/>`;
+    s += `<g clip-path="url(#${id})">` +
+      `<circle cx="${n(x)}" cy="${n(y + 0.1 * ry)}" r="${n(ir)}" fill="${iris}" stroke="${shade(iris, 0.5)}" stroke-width="${lg ? 0.35 : 0}"/>` +
+      `<circle cx="${n(x)}" cy="${n(y + 0.1 * ry)}" r="${n(ir * 0.5)}" fill="#120a06"/>` +
+      `<circle cx="${n(x + ir * 0.36)}" cy="${n(y + 0.1 * ry - ir * 0.36)}" r="${n(ir * 0.28)}" fill="#fff"/>` +
+      (lg ? `<circle cx="${n(x - ir * 0.4)}" cy="${n(y + 0.1 * ry + ir * 0.4)}" r="${n(ir * 0.14)}" fill="#fff" opacity=".6"/>` : '') +
+      `<ellipse cx="${n(x)}" cy="${n(y - ry * 1.05)}" rx="${n(rx * 1.1)}" ry="${n(ry * 0.48)}" fill="${p.skinShade}" opacity="${a.eyeShape === 'hooded' ? 0.6 : 0.42}"/>` +
+      `</g>`;
+    // The lids: a dark upper line, a fainter lower one, and a crease over a hooded eye.
+    const heavy = a.eyeShape === 'hooded' || a.lines > 1;
+    s += `<path d="${e.lid}" ${stroked(shade(p.skinLine, 0.25), lg ? 1.05 : 1.2)}/>`;
+    if (lg) s += `<path d="${e.low}" ${stroked(p.skinShade, 0.45)} opacity=".6"/>`;
+    if (a.eyeShape === 'hooded' && lg) {
+      s += `<path d="M${n(x - sx * rx * 0.9)} ${n(y - ry * 1.5)}Q${n(x + sx * 0.2)} ${n(y - ry * 2.0)} ${n(x + sx * rx * 0.95)} ${n(y - ry * 1.4)}" ${stroked(p.skinShade, 0.7)} opacity=".7"/>`;
+    }
+    if (heavy && !lg) s += `<path d="${e.lid}" ${stroked(shade(p.skinLine, 0.25), 1.6)}/>`;
+    // Lashes flick out at the outer corner for a feminine face.
+    if (a.pres === 'f' && !kid && lg) {
+      const ox = x + sx * rx;
+      const oy = y - 0.22 * ry;
+      s += `<path d="M${n(ox)} ${n(oy)}l${n(sx * 1.2)} -0.9" ${stroked(shade(p.skinLine, 0.25), 0.8)}/>`;
     }
   }
   return s + brows(g, p, a, detail);
@@ -183,18 +268,34 @@ function eyes(g: Geo, p: Paint, a: Appearance, detail: Detail): string {
 function brows(g: Geo, p: Paint, a: Appearance, detail: Detail): string {
   const { cx, dx, browY: y } = g;
   const kid = a.stage === 'baby' || a.stage === 'child';
-  const width = { soft: 1.35, straight: 1.5, arched: 1.15, thick: 2.1, thin: 0.8, bushy: 2.3 }[a.brows] * (kid ? 0.85 : 1) * (detail === 'sm' ? 1.3 : 1);
-  const len = kid ? 2.8 : 3.3;
+  const k = kid ? 0.85 : 1;
+  // A tapered brow: thick towards the nose, thinning to the outer end. `arch` lifts the middle,
+  // `tilt` drops the outer end, `thick` is the brow's depth at its middle.
+  const B = {
+    soft: { arch: 1.0, thick: 0.9, tilt: 0.5, inner: 1.5 },
+    straight: { arch: 0.2, thick: 0.75, tilt: 0.2, inner: 1.2 },
+    arched: { arch: 2.1, thick: 0.6, tilt: 0.9, inner: 1.1 },
+    thick: { arch: 0.9, thick: 1.45, tilt: 0.3, inner: 2.1 },
+    thin: { arch: 1.2, thick: 0.45, tilt: 0.5, inner: 0.8 },
+    bushy: { arch: 1.5, thick: 2.0, tilt: 0.4, inner: 2.6 },
+  }[a.brows];
+  const len = (kid ? 2.8 : 3.3) * (detail === 'sm' ? 1.1 : 1);
   let s = '';
   for (const sx of [-1, 1]) {
     const X = (u: number) => n(cx + sx * (dx + u));
+    const Y = (v: number) => n(v);
+    const y0 = y + 0.6;
+    const y1 = y + B.tilt * k;
+    const mid = (y0 + y1) / 2;
+    const thick = B.thick * k * (detail === 'sm' ? 1.3 : 1);
+    const inner = B.inner * k * (detail === 'sm' ? 1.3 : 1);
     const d =
-      a.brows === 'arched' ? `M${X(-len)} ${n(y + 0.7)}Q${X(-0.3)} ${n(y - 2.2)} ${X(len)} ${n(y + 0.6)}`
-      : a.brows === 'straight' ? `M${X(-len)} ${n(y + 0.1)}Q${X(0)} ${n(y - 0.9)} ${X(len)} ${n(y + 0.2)}`
-      : a.brows === 'bushy' ? `M${X(-len)} ${n(y + 0.3)}Q${X(0)} ${n(y - 1.6)} ${X(len + 0.4)} ${n(y + 0.9)}`
-      : `M${X(-len)} ${n(y + 0.5)}Q${X(-0.2)} ${n(y - 1.4)} ${X(len)} ${n(y + 0.4)}`;
-    s += `<path d="${d}" ${stroked(p.brow, width)}/>`;
-    if (a.brows === 'bushy' && detail === 'lg') s += `<path d="M${X(len - 1)} ${n(y - 0.4)}l${n(sx * 1.6)} -0.9" ${stroked(p.brow, 0.8)}/>`;
+      `M${X(-1)} ${Y(y0)}Q${X(len * 0.45)} ${Y(mid - B.arch)} ${X(len)} ${Y(y1)}` +
+      `Q${X(len * 0.4)} ${Y(mid - B.arch + thick)} ${X(-1)} ${Y(y0 + inner)}Z`;
+    s += `<path d="${d}" fill="${p.brow}"${detail === 'lg' ? ` stroke="${shade(p.brow, 0.2)}" stroke-width=".3"` : ''}/>`;
+    if (a.brows === 'bushy' && detail === 'lg') {
+      s += `<path d="M${X(len * 0.2)} ${Y(mid - B.arch)}l${n(sx * 1.2)} -1.1M${X(len * 0.6)} ${Y(mid - B.arch + 0.3)}l${n(sx * 1.2)} -0.9" ${stroked(p.brow, 0.5)}/>`;
+    }
   }
   return s;
 }
@@ -205,40 +306,63 @@ function nose(g: Geo, p: Paint, a: Appearance, detail: Detail): string {
   if (a.stage === 'baby' || a.stage === 'child') {
     return `<path d="M${n(cx - 1.5)} ${n(y)}Q${n(cx)} ${n(y + 1.4)} ${n(cx + 1.5)} ${n(y)}" ${line}/>`;
   }
-  const under = detail === 'sm' ? '' : `<ellipse cx="${n(cx)}" cy="${n(y + 1.7)}" rx="2.4" ry=".8" fill="${p.skinShade}" opacity=".8"/>`;
-  switch (a.nose) {
-    case 0:
-      return under + `<path d="M${n(cx + 0.2)} ${n(y - 5.5)}Q${n(cx + 2.6)} ${n(y - 0.4)} ${n(cx + 1)} ${n(y + 1.2)}Q${n(cx)} ${n(y + 1.8)} ${n(cx - 1.3)} ${n(y + 1)}" ${line}/>`;
-    case 1:
-      return under + `<path d="M${n(cx - 2.2)} ${n(y + 0.3)}Q${n(cx)} ${n(y + 2.2)} ${n(cx + 2.2)} ${n(y + 0.3)}" ${line}/>`;
-    case 2:
-      return under + `<path d="M${n(cx + 0.8)} ${n(y - 6)}L${n(cx + 1.8)} ${n(y + 0.2)}Q${n(cx + 0.6)} ${n(y + 1.8)} ${n(cx - 1.2)} ${n(y + 0.9)}" ${line}/>`;
+  // Size scales the whole nose about its root, so a large nose keeps its shape.
+  const k = 1 + 0.3 * g.m.noseSize;
+  const lg = detail !== 'sm';
+  const shadowLine = lg ? `<path d="M${n(cx + 1.4)} ${n(y - 4.6)}Q${n(cx + 2.6)} ${n(y - 1.2)} ${n(cx + 1.8)} ${n(y + 0.8)}" ${stroked(p.skinShade, 0.9)} opacity=".55"/>` : '';
+  const under = lg ? `<ellipse cx="${n(cx)}" cy="${n(y + 1.9)}" rx="2.7" ry=".75" fill="${p.skinShade}" opacity=".75"/>` : '';
+  let body: string;
+  switch (a.noseShape) {
+    case 'straight':
+      body = `<path d="M${n(cx + 0.9)} ${n(y - 5.4)}Q${n(cx + 1.8)} ${n(y - 2)} ${n(cx + 1.7)} ${n(y + 0.3)}" ${stroked(p.skinShade, 0.7)}/>` +
+        `<path d="M${n(cx - 2.4)} ${n(y + 0.2)}Q${n(cx - 2.3)} ${n(y + 2)} ${n(cx - 0.6)} ${n(y + 1.9)}Q${n(cx)} ${n(y + 1.4)} ${n(cx + 0.6)} ${n(y + 1.9)}Q${n(cx + 2.3)} ${n(y + 2)} ${n(cx + 2.4)} ${n(y + 0.2)}" ${line}/>`;
+      break;
+    case 'aquiline':
+      body = `<path d="M${n(cx + 0.5)} ${n(y - 5.6)}Q${n(cx + 2.5)} ${n(y - 2.6)} ${n(cx + 1.5)} ${n(y + 0.2)}" ${stroked(p.skinShade, 0.8)}/>` +
+        `<path d="M${n(cx - 2.2)} ${n(y + 0.4)}Q${n(cx - 2.4)} ${n(y + 2.2)} ${n(cx - 0.6)} ${n(y + 2)}Q${n(cx)} ${n(y + 1.6)} ${n(cx + 0.6)} ${n(y + 2)}Q${n(cx + 2.4)} ${n(y + 2.2)} ${n(cx + 2.2)} ${n(y + 0.4)}" ${line}/>`;
+      break;
+    case 'broad':
+      body = `<path d="M${n(cx + 0.8)} ${n(y - 4.5)}Q${n(cx + 1.4)} ${n(y - 1.5)} ${n(cx + 1.6)} ${n(y + 0.4)}" ${stroked(p.skinShade, 0.7)}/>` +
+        `<path d="M${n(cx - 3.4)} ${n(y + 0.4)}Q${n(cx - 3.7)} ${n(y + 2.4)} ${n(cx - 1.4)} ${n(y + 2.2)}Q${n(cx)} ${n(y + 2.8)} ${n(cx + 1.4)} ${n(y + 2.2)}Q${n(cx + 3.7)} ${n(y + 2.4)} ${n(cx + 3.4)} ${n(y + 0.4)}" ${line}/>`;
+      break;
     default:
-      return under + `<path d="M${n(cx - 2.6)} ${n(y - 0.4)}Q${n(cx - 3.1)} ${n(y + 1.7)} ${n(cx - 1.1)} ${n(y + 1.5)}M${n(cx + 2.6)} ${n(y - 0.4)}Q${n(cx + 3.1)} ${n(y + 1.7)} ${n(cx + 1.1)} ${n(y + 1.5)}M${n(cx - 1.1)} ${n(y + 1.5)}Q${n(cx)} ${n(y + 2)} ${n(cx + 1.1)} ${n(y + 1.5)}" ${line}/>`;
+      body = `<path d="M${n(cx + 0.6)} ${n(y - 2.6)}Q${n(cx + 1)} ${n(y - 0.8)} ${n(cx + 1.2)} ${n(y + 0.2)}" ${stroked(p.skinShade, 0.6)}/>` +
+        `<path d="M${n(cx - 1.8)} ${n(y + 0.9)}Q${n(cx - 1.5)} ${n(y + 2.3)} ${n(cx)} ${n(y + 2)}Q${n(cx + 1.5)} ${n(y + 2.3)} ${n(cx + 1.8)} ${n(y + 0.9)}" ${line}/>`;
   }
+  const nostrils = lg ? `<ellipse cx="${n(cx - 1.1)}" cy="${n(y + 1.3)}" rx=".55" ry=".3" fill="${p.skinLine}" opacity=".8"/><ellipse cx="${n(cx + 1.1)}" cy="${n(y + 1.3)}" rx=".55" ry=".3" fill="${p.skinLine}" opacity=".8"/>` : '';
+  return `<g transform="translate(${n(cx)} ${n(y)}) scale(${n(k)}) translate(${n(-cx)} ${n(-y)})">${under}${shadowLine}${body}${nostrils}</g>`;
 }
 
 function mouth(g: Geo, p: Paint, a: Appearance, detail: Detail): string {
   const { cx, mouthY: y } = g;
-  const line = stroked(shade(p.lips, 0.45), detail === 'sm' ? 1.2 : 0.95);
   const kid = a.stage === 'baby' || a.stage === 'child';
-  const wd = kid ? 3.2 : a.stage === 'elder' ? 3.4 : 3.8;
+  const base = kid ? 3.2 : a.stage === 'elder' ? 3.4 : 3.8;
+  const wd = base * (1 + 0.24 * g.m.mouthWidth);
+  // Fuller lips for a feminine face, and whatever the measure says.
+  const fu = Math.max(0.5, 1 + 0.5 * g.m.mouthFullness) * (a.pres === 'f' && !kid ? 1.12 : 1);
   const style = kid ? (a.mouth % 2 ? 2 : 0) : a.mouth;
+  const L = cx - wd;
+  const R = cx + wd;
+  const line = stroked(shade(p.lips, 0.45), detail === 'sm' ? 1.2 : 0.95);
   let s = '';
   if (style === 2 && detail !== 'sm') {
-    // An open smile.
-    s += `<path d="M${n(cx - wd)} ${n(y - 0.4)}Q${n(cx)} ${n(y + 4.6)} ${n(cx + wd)} ${n(y - 0.4)}Q${n(cx)} ${n(y + 0.9)} ${n(cx - wd)} ${n(y - 0.4)}Z" fill="#7a2c26" ${line.replace('fill="none" ', '')}/>`;
+    // An open smile: the dark inside, and the teeth along the top.
+    s += `<path d="M${n(L)} ${n(y - 0.4)}Q${n(cx)} ${n(y + 4.6 * fu)} ${n(R)} ${n(y - 0.4)}Q${n(cx)} ${n(y + 0.9)} ${n(L)} ${n(y - 0.4)}Z" fill="#7a2c26" stroke="${shade(p.lips, 0.5)}" stroke-width=".7"/>`;
     s += `<path d="M${n(cx - wd * 0.75)} ${n(y + 0.25)}Q${n(cx)} ${n(y + 1.3)} ${n(cx + wd * 0.75)} ${n(y + 0.25)}L${n(cx + wd * 0.6)} ${n(y + 1.2)}Q${n(cx)} ${n(y + 2)} ${n(cx - wd * 0.6)} ${n(y + 1.2)}Z" fill="#fff"/>`;
-  } else if (style === 3) {
-    s += `<path d="M${n(cx - wd * 0.8)} ${n(y + 0.3)}Q${n(cx)} ${n(y + 1.8)} ${n(cx + wd * 0.8)} ${n(y + 0.3)}" ${line}/>`;
-  } else {
-    s += `<path d="M${n(cx - wd)} ${n(y)}Q${n(cx)} ${n(y + 2.6)} ${n(cx + wd)} ${n(y)}" ${line}/>`;
+    return s;
   }
-  // A lower lip, fuller for a feminine face.
-  if (detail !== 'sm' && style !== 2) {
-    const o = a.pres === 'f' && !kid ? 0.85 : 0.45;
-    s += `<path d="M${n(cx - 2)} ${n(y + 2.3)}Q${n(cx)} ${n(y + 3.6)} ${n(cx + 2)} ${n(y + 2.3)}Q${n(cx)} ${n(y + 2.7)} ${n(cx - 2)} ${n(y + 2.3)}Z" fill="${p.lips}" opacity="${o}"/>`;
+  if (detail !== 'sm') {
+    // Both lips are filled shapes, so the mouth reads as lips and not a line; a thin mouth keeps them pale.
+    const upper = style === 3 ? 0.3 : 0.78;
+    const lower = style === 3 ? 0.28 : 0.85;
+    s += `<path d="M${n(L)} ${n(y)}Q${n(cx - wd * 0.5)} ${n(y - 1.4 * fu)} ${n(cx - 0.6)} ${n(y - 0.9)}Q${n(cx)} ${n(y - 0.1)} ${n(cx + 0.6)} ${n(y - 0.9)}Q${n(cx + wd * 0.5)} ${n(y - 1.4 * fu)} ${n(R)} ${n(y)}Q${n(cx)} ${n(y + 1.2)} ${n(L)} ${n(y)}Z" fill="${p.lips}" opacity="${upper}"/>`;
+    s += `<path d="M${n(L + 0.6)} ${n(y + 0.2)}Q${n(cx)} ${n(y + 1.5 + 1.1 * fu)} ${n(R - 0.6)} ${n(y + 0.2)}Q${n(cx)} ${n(y + 1.4)} ${n(L + 0.6)} ${n(y + 0.2)}Z" fill="${p.lips}" opacity="${lower}"/>`;
+    if (style !== 3) s += `<path d="M${n(cx - wd * 0.2)} ${n(y + 1.2 + 0.4 * fu)}Q${n(cx)} ${n(y + 1.8 + 0.6 * fu)} ${n(cx + wd * 0.2)} ${n(y + 1.2 + 0.4 * fu)}" ${stroked('#fff8f0', 0.6)} opacity=".35"/>`;
   }
+  // The line between the lips: a smile, or straight for a thin mouth.
+  s += style === 3
+    ? `<path d="M${n(L)} ${n(y)}Q${n(cx)} ${n(y + 1.2)} ${n(R)} ${n(y)}" ${line}/>`
+    : `<path d="M${n(L)} ${n(y)}Q${n(cx)} ${n(y + 1.8)} ${n(R)} ${n(y)}" ${line}/>`;
   if (a.marks.includes('dimples') && detail !== 'sm') {
     for (const sx of [-1, 1]) s += `<path d="M${n(cx + sx * (wd + 1.2))} ${n(y - 0.8)}q${n(sx * 0.6)} 1 0 2" ${stroked(p.skinLine, 0.6)} opacity=".6"/>`;
   }
@@ -260,8 +384,9 @@ function dome(g: Geo, v: number, y0: number, lift = 1.25): string {
 }
 
 /** A plain hairline back from the right temple to the left one, through the forehead at `fh`. */
-function hairline(g: Geo, fh: number, side: number, part = 0): string {
+function hairline(g: Geo, fh0: number, side: number, part = 0): string {
   const { cx, cy, w, h } = g;
+  const fh = fh0 + g.hs;
   return (
     `L${n(cx + w * 0.97)} ${n(cy + side * h)}` +
     `C${n(cx + w * 0.95)} ${n(cy - 0.22 * h)} ${n(cx + 0.58 * w)} ${n(cy - fh * h)} ${n(cx + part)} ${n(cy - fh * h + Math.abs(part) * 0.1)}` +
@@ -270,8 +395,9 @@ function hairline(g: Geo, fh: number, side: number, part = 0): string {
 }
 
 /** A fringe swept from a parting on the right down across the forehead to the left temple. */
-function sweptLine(g: Geo, side: number, depth: number): string {
+function sweptLine(g: Geo, side: number, depth0: number): string {
   const { cx, cy, w, h } = g;
+  const depth = depth0 + g.hs;
   return (
     `L${n(cx + w * 0.97)} ${n(cy + side * h)}` +
     `C${n(cx + w * 0.95)} ${n(cy - 0.3 * h)} ${n(cx + 0.62 * w)} ${n(cy - 0.6 * h)} ${n(cx + 0.42 * w)} ${n(cy - 0.64 * h)}` +
@@ -367,12 +493,22 @@ function hair(g: Geo, p: Paint, a: Appearance, style: HairStyle, detail: Detail)
         front: `<path d="${dome(g, 1.5, 0.15)}${hairline(g, 0.46, 0.15)}" fill="${p.hair}"/>` + strand(`M${n(cx - w * 0.6)} ${n(cy - 0.5 * h)}Q${n(cx)} ${n(cy - 0.62 * h)} ${n(cx + w * 0.6)} ${n(cy - 0.5 * h)}`),
       };
     }
-    case 'bowl':
+    case 'bowl': {
+      // Not a helmet: the dome comes down to a hem that flares a little at the jaw, and the fringe is
+      // cut in an uneven, soft line across the forehead, with the sides tucked in at the temples.
+      const X = (u: number) => n(cx + u * w);
+      const Y = (v: number) => n(cy + v * h);
+      const right = `L${X(1.02)} ${Y(0.6)}Q${X(0.9)} ${Y(0.72)} ${X(0.74)} ${Y(0.62)}L${X(0.84)} ${Y(0.2)}` +
+        `C${X(0.9)} ${Y(-0.08)} ${X(0.84)} ${Y(-0.24)} ${X(0.66)} ${Y(-0.36)}Q${X(0.56)} ${Y(-0.5)} ${X(0.34)} ${Y(-0.42)}`;
+      const fringe = `Q${X(0.16)} ${Y(-0.34)} ${X(0)} ${Y(-0.44)}Q${X(-0.2)} ${Y(-0.55)} ${X(-0.38)} ${Y(-0.44)}`;
+      const left = `Q${X(-0.6)} ${Y(-0.36)} ${X(-0.7)} ${Y(-0.34)}C${X(-0.84)} ${Y(-0.24)} ${X(-0.9)} ${Y(-0.08)} ${X(-0.84)} ${Y(0.2)}` +
+        `L${X(-0.74)} ${Y(0.62)}Q${X(-0.9)} ${Y(0.72)} ${X(-1.02)} ${Y(0.6)}Z`;
       return {
         ...none,
-        front: path(`${dome(g, 2.8, 0.38)}L${n(cx + w * 0.95)} ${n(cy + 0.38 * h)}L${n(cx + w * 0.88)} ${n(cy - 0.26 * h)}Q${n(cx)} ${n(cy - 0.38 * h)} ${n(cx - w * 0.88)} ${n(cy - 0.26 * h)}L${n(cx - w * 0.95)} ${n(cy + 0.38 * h)}Z`) +
-          strand(`M${n(cx - w * 0.3)} ${n(cy - h * 0.6)}l-1 ${n(h * 0.28)}M${n(cx + w * 0.3)} ${n(cy - h * 0.6)}l1 ${n(h * 0.28)}`) + shine(2.8),
+        front: path(`${dome(g, 2.8, 0.38)}${right}${fringe}${left}`) +
+          strand(`M${X(0.22)} ${Y(-0.44)}Q${X(0.14)} ${Y(-0.2)} ${X(0.2)} ${Y(0.08)}`) + shine(2.8),
       };
+    }
     case 'pixie':
       return {
         ...none,

@@ -5,7 +5,9 @@ import { translateMessage, formatDate, relativeTime, useT, type Locale } from '~
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { graphQuery } from '~/lib/api';
-import { Bell, Check, Fingerprint, Images, KeyRound, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users } from 'lucide-react';
+import { Activity, Bell, Check, Fingerprint, Images, KeyRound, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users } from 'lucide-react';
+import { aiAttentionQuery } from '~/lib/ai/background.functions';
+import '~/components/assistant/ai-tasks.css';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { addPasskey, forgetLocalIdentity, passkeysSupported, signOutRequest } from '~/lib/auth/client';
 import { myPasskeysQuery, removeMyPasskey, renameMe, type Passkey } from '~/lib/auth/functions';
@@ -66,6 +68,8 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
   const [reminders, setReminders] = useState(false);
   // Reminders are offered only when this server has its VAPID keys (docs/self-host.md, "Reminders").
   const remindersOn = useQuery({ queryKey: ['reminders', 'available'], queryFn: () => fetchRemindersAvailable(), staleTime: 5 * 60_000 });
+  // The quiet badge: what in AI activity wants a steward (zero for everyone else, who see no badge).
+  const attention = useQuery({ ...aiAttentionQuery(tree ?? ''), enabled: !!tree && !!m && can(m.role, 'manage-access') });
   const layer = useOverlayLayer(open);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -118,6 +122,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
         title={t('account.trigger', {name:user.name})}
       >
         <Avatar name={user.name} size={30} />
+        {attention.data ? <span className="aitasks-dot" aria-label={t('aitasks.attention')}>{attention.data}</span> : null}
         <span className="acct-trigger-name">{user.name}</span>
       </button>
       {open && (
@@ -142,6 +147,10 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
             {tree && m && can(m.role, 'manage-access') && (
               <Link role="menuitem" className="acct-item" to="/$tree/settings/ai" params={{ tree }} onClick={() => setOpen(false)}>
                 <Sparkles size={17} /> {t("shell.ai_settings")} </Link>
+            )}
+            {tree && m && can(m.role, 'manage-access') && (
+              <Link role="menuitem" className="acct-item" to="/$tree/settings/activity" params={{ tree }} onClick={() => setOpen(false)}>
+                <Activity size={17} /> {t("aitasks.menu")} {attention.data ? <span className="aitasks-count">{attention.data}</span> : null} </Link>
             )}
             {tree && m && can(m.role, 'edit-person') && (
               <Link role="menuitem" className="acct-item" to="/$tree/settings/import" params={{ tree }} onClick={() => setOpen(false)}>

@@ -3,7 +3,8 @@
 //   TREE_<ID>      D1, one database per family (migrations/tree); TREE_FAMILY serves /family,
 //                  TREE_MY_FAMILY serves /my-family
 //   MEDIA          R2, uploaded files under <tree>/<key>
-// There is no gazetteer on Workers: the place picker offers the family's own places and the map pin.
+//   GAZETTEER      D1, optional: the GeoNames towns for assisted place entry, read-only (migrations/gazetteer,
+//                  loaded by `mise run cf:gazetteer`). Without it the place picker offers the family's own places.
 import { env } from 'cloudflare:workers';
 import { checkMediaKey, NOT_TREES, TREE_ID, type Db, type Driver, type Param, type Query, type Result } from './db.ts';
 
@@ -73,7 +74,16 @@ const driver: Driver = {
     return db(d1);
   },
 
-  gazetteer: () => null,
+  // Read-only: the gazetteer is only ever searched. A write through it is refused, never sent to D1.
+  gazetteer() {
+    const g = env.GAZETTEER;
+    if (!isD1(g)) return null;
+    const d = db(g);
+    const refuse = async (): Promise<never> => {
+      throw new Error('The gazetteer is read-only');
+    };
+    return { all: d.all.bind(d), get: d.get.bind(d), run: refuse, batch: refuse };
+  },
 
   secret() {
     const s = (env as Record<string, unknown>).KINDRED_SECRET;

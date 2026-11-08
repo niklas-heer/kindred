@@ -220,7 +220,7 @@ export function replyMicros(reply: Pick<AiReply, 'reportedCostUsd' | 'inputToken
 }
 
 /** Books `amount` micro-dollars of the month's budget, or throws `budget` when they would take it past `limit`. One statement decides, so it is atomic. */
-async function reserve(tree: string, limit: number, amount: number, c: Tr): Promise<{ month: string; amount: number }> {
+export async function reserve(tree: string, limit: number, amount: number, c: Tr): Promise<{ month: string; amount: number }> {
   const month = monthNow();
   await accounts().run('INSERT INTO ai_spend (tree, month, micros) VALUES (?, ?, 0) ON CONFLICT (tree, month) DO NOTHING', tree, month);
   const r = await accounts().run('UPDATE ai_spend SET micros = micros + ? WHERE tree = ? AND month = ? AND micros + ? <= ?', amount, tree, month, amount, limit);
@@ -229,7 +229,7 @@ async function reserve(tree: string, limit: number, amount: number, c: Tr): Prom
 }
 
 /** Replaces a booking with what the call really cost. */
-async function settle(tree: string, booked: { month: string; amount: number }, actual: number): Promise<void> {
+export async function settle(tree: string, booked: { month: string; amount: number }, actual: number): Promise<void> {
   await accounts().run('UPDATE ai_spend SET micros = MAX(0, micros - ? + ?) WHERE tree = ? AND month = ?', booked.amount, Math.max(0, Math.round(actual)), tree, booked.month);
 }
 

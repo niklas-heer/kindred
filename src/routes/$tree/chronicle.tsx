@@ -13,6 +13,8 @@ import { locales, translate, useT, type Key, type Locale, type Translator } from
 import type { GPerson, Story } from '~/lib/types';
 import '~/styles/chronicle.css';
 import { treeTitle } from '~/lib/title';
+import { storyTranslationsQuery } from '~/lib/ai/background.functions';
+import '~/components/assistant/ai-tasks.css';
 
 export const Route = createFileRoute('/$tree/chronicle')({
   head: (ctx) => ({ meta: [{ title: treeTitle(ctx, translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'chronicle.title')) }] }),
@@ -74,6 +76,9 @@ function ChroniclePage() {
   const t = useT();
   usePageTrail('chronicle', tree, t.locale);
   const { data, isPending, isError, refetch } = useQuery(chronicleQuery(tree));
+  // AI translations into the reader's language, shown beside the originals (see background-tasks.server.ts). Optional: a
+  // failure here shows the originals, as it always did.
+  const translations: Record<string, StoryTranslation> = useQuery(storyTranslationsQuery(tree, t.locale)).data ?? {};
   const [tab, setTab] = useRememberedState<Tab>(`chronicle:${tree}:tab`, 'recent');
   const [kind, setKind] = useRememberedState<Kind | null>(`chronicle:${tree}:kind`, null);
   const [q, setQ] = useRememberedState(`chronicle:${tree}:q`, '');
@@ -179,7 +184,7 @@ function ChroniclePage() {
                 <h2 className="rule">{label}</h2>
                 <ol className="chr-feed">
                   {items.map((s) => (
-                    <FeedItem key={s.id} s={s} f={f} tree={tree} now={now.getTime()} />
+                    <FeedItem key={s.id} s={s} f={f} tree={tree} now={now.getTime()} tr={translations[s.id]} />
                   ))}
                 </ol>
               </section>
@@ -197,7 +202,7 @@ function ChroniclePage() {
             {sayings.length === 0 && (q ? <NoMatch onClear={() => setQ('')} /> : <NoSayings tree={tree} />)}
             <div className="chr-wall">
               {sayings.map((s) => (
-                <SayingCard key={s.id} s={s} f={f} tree={tree} now={now.getTime()} />
+                <SayingCard key={s.id} s={s} f={f} tree={tree} now={now.getTime()} tr={translations[s.id]} />
               ))}
             </div>
           </>
@@ -220,12 +225,46 @@ function PersonLink({ p, f, tree }: { p?: GPerson; f: Family; tree: string }) {
   );
 }
 
-function FeedItem({ s, f, tree, now }: { s: Story; f: Family; tree: string; now: number }) {
+/** An AI translation of a story into the reader's language (its source text was current when it was made). */
+type StoryTranslation = { title: string | null; body: string };
+
+/**
+ * The text a story card shows: its translation while there is one and the reader has not asked for the original. The
+ * original is always one click away (TranslatedNote), and it is what a story without a translation shows.
+ */
+function useShownStory(s: Story, tr: StoryTranslation | undefined) {
+  const [original, setOriginal] = useState(false);
+  const translated = !!tr && !original;
+  return {
+    title: translated ? (tr?.title ?? s.title) : s.title,
+    body: translated && tr ? tr.body : s.body,
+    hasTranslation: !!tr,
+    original,
+    toggle: () => setOriginal((v) => !v),
+  };
+}
+
+/** "Translated by AI", with the other text one click away. Nothing when the story has no translation. */
+function TranslatedNote({ shown }: { shown: ReturnType<typeof useShownStory> }) {
+  const t = useT();
+  if (!shown.hasTranslation) return null;
+  return (
+    <p className="chr-ai">
+      <Sparkles size={14} /> {t('aitasks.chronicle.translated')}
+      <button type="button" className="btn ghost" onClick={shown.toggle}>
+        {shown.original ? t('aitasks.chronicle.showTranslation') : t('aitasks.chronicle.showOriginal')}
+      </button>
+    </p>
+  );
+}
+
+function FeedItem({ s, f, tree, now, tr }: { s: Story; f: Family; tree: string; now: number; tr?: StoryTranslation }) {
   const [open, setOpen] = useState(false);
   const t = useT();
   const p = f.byId.get(s.person);
   const k = KIND[s.kind];
-  const long = s.body.length > 360 || s.body.split('\n').length > 6;
+  const shown = useShownStory(s, tr);
+  const long = shown.body.length > 360 || shown.body.split('\n').length > 6;
   return (
     <li className="chr-item" data-kind={s.kind}>
       {p && (
@@ -245,12 +284,13 @@ function FeedItem({ s, f, tree, now }: { s: Story; f: Family; tree: string; now:
             {ago(s.at, now, t)}
           </time>
         </header>
-        {s.title && <h3>{s.title}</h3>}
+        {shown.title && <h3>{shown.title}</h3>}
         {s.kind === 'quote' ? (
-          <blockquote className="chr-inline-quote" dangerouslySetInnerHTML={{ __html: render(s.body) }} />
+          <blockquote className="chr-inline-quote" dangerouslySetInnerHTML={{ __html: render(shown.body) }} />
         ) : (
-          <div className="chr-md" data-clamped={(long && !open) || undefined} dangerouslySetInnerHTML={{ __html: render(s.body) }} />
+          <div className="chr-md" data-clamped={(long && !open) || undefined} dangerouslySetInnerHTML={{ __html: render(shown.body) }} />
         )}
+        <TranslatedNote shown={shown} />
         {s.context && <p className="chr-ctx">{s.context}</p>}
         {long && s.kind !== 'quote' && (
           <button className="btn ghost chr-toggle" onClick={() => setOpen(!open)}>
@@ -262,12 +302,14 @@ function FeedItem({ s, f, tree, now }: { s: Story; f: Family; tree: string; now:
   );
 }
 
-function SayingCard({ s, f, tree, now }: { s: Story; f: Family; tree: string; now: number }) {
+function SayingCard({ s, f, tree, now, tr }: { s: Story; f: Family; tree: string; now: number; tr?: StoryTranslation }) {
   const p = f.byId.get(s.person);
   const t = useT();
+  const shown = useShownStory(s, tr);
   return (
     <figure className="chr-saying">
-      <blockquote dangerouslySetInnerHTML={{ __html: render(s.body) }} />
+      <blockquote dangerouslySetInnerHTML={{ __html: render(shown.body) }} />
+      <TranslatedNote shown={shown} />
       <figcaption>
         {p && <Portrait person={p} tree={tree} size={42} />}
         <div>

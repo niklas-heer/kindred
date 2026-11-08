@@ -497,7 +497,17 @@ function chatCompletions(provider: 'openai' | 'openrouter', key: string, model: 
         body.max_tool_calls = maxUses;
       }
       if (tools.length) body.tools = tools;
-      const data = await post(provider, url, headers, body, key, req.timeoutMs ?? 45_000);
+      let data;
+      try {
+        data = await post(provider, url, headers, body, key, req.timeoutMs ?? 45_000);
+      } catch (e) {
+        // Some models behind OpenRouter refuse a schema they can't express (Google answers "invalid argument"). A refused
+        // request isn't billed, so ask once more in plain JSON mode; the caller validates the answer against the schema anyway.
+        if (!(provider === 'openrouter' && req.json && e instanceof AiError && e.code === 'provider' && /answered 400/.test(e.message))) throw e;
+        body.response_format = { type: 'json_object' };
+        (body.messages as { role: string; content: unknown }[]).unshift({ role: 'system', content: `Answer with one JSON object and nothing else. It must match this JSON schema: ${JSON.stringify(req.json.schema)}` });
+        data = await post(provider, url, headers, body, key, req.timeoutMs ?? 45_000);
+      }
       const choice = data.choices?.[0] as { finish_reason?: string; message?: {
         content?: string | null;
         reasoning_details?: unknown[];
@@ -522,7 +532,8 @@ function chatCompletions(provider: 'openai' | 'openrouter', key: string, model: 
         : 0;
       if (req.json) {
         try {
-          return { text, calls: [], json: JSON.parse(text), tokens: inputTokens + outputTokens, inputTokens, outputTokens, searches: 0, ...reported };
+          const bare = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+          return { text, calls: [], json: JSON.parse(bare), tokens: inputTokens + outputTokens, inputTokens, outputTokens, searches: 0, ...reported };
         } catch {
           throw new AiError('bad-output', 'ai.err_shape');
         }

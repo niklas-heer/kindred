@@ -3,7 +3,7 @@
 // reader's own role applies to every save). Arms from a name are in arms.server.ts.
 import { db, media } from '../db.server';
 import { checkMediaKey } from '../store/index.ts';
-import { lookSchema, faceResultSchema, type AiLocale, type FaceResult } from './types';
+import { faceResultSchema, type AiLocale, type FaceResult } from './types';
 import { AiError, type ImagePart, type JsonSchema } from './adapters';
 import { tr } from './labels';
 import { adapterForFeature } from './settings.server';
@@ -158,25 +158,38 @@ export const LOOK_JSON: JsonSchema = {
     moustache: oneOf(PHOTO_LOOK_FIELDS.moustache.of), glasses: oneOf(PHOTO_LOOK_FIELDS.glasses.of),
     brows: oneOf(PHOTO_LOOK_FIELDS.brows.of), hairGreys: { type: 'boolean' },
     marks: { type: 'array', items: oneOf(PHOTO_LOOK_FIELDS.marks.of) },
+    face: { ...oneOf(PHOTO_LOOK_FIELDS.face.of), description: PHOTO_LOOK_FIELDS.face.what },
+    noseShape: { ...oneOf(PHOTO_LOOK_FIELDS.noseShape.of), description: PHOTO_LOOK_FIELDS.noseShape.what },
+    eyeShape: { ...oneOf(PHOTO_LOOK_FIELDS.eyeShape.of), description: PHOTO_LOOK_FIELDS.eyeShape.what },
+    // The 0–10 measures: whole numbers, 5 the average. The description says what to look at.
+    ...Object.fromEntries(
+      (['jaw', 'noseSize', 'mouthWidth', 'mouthFullness', 'eyeSize', 'eyeSpacing', 'browHeight', 'earSize', 'hairline'] as const).map((k) => [
+        k,
+        { type: 'integer', minimum: 0, maximum: 10, description: PHOTO_LOOK_FIELDS[k].what },
+      ]),
+    ),
   },
   required: ['skin', 'hair', 'eyes'],
 };
 
-/** A portrait look for a person, from a photo. The style fields must come from the portrait's own lists (lookSchema). */
+/** A portrait look for a person, from a photo. Enum fields come from the portrait's own lists, and the result is `sanitizeLook`'s, so every face field the photo sets is kept. */
 export async function avatarFromPhoto(o: { tree: string; personId: string; mediaKey: string; locale: AiLocale }): Promise<Look> {
   const c = tr(o.locale);
   const { adapter } = await adapterForFeature(o.tree, 'avatar', o.locale);
   if (!(await db(o.tree).get('SELECT id FROM person WHERE id = ?', o.personId))) throw new AiError('bad-input', c('ai.errNoPerson'));
   const photo = await photoOrThrow(o.tree, o.mediaKey, o.locale);
   const reply = await adapter.complete({
-    system: 'You describe a person’s look for a flat illustration, from a photo. Choose each value from the lists given in the schema; leave out what you cannot see; never guess who the person is. Describe the person, not the day: sunglasses are not glasses (use none unless clear glasses are worn), and a hat is not hair.',
+    system: 'You describe a person’s face for a flat illustration, from a photo. Choose each value from the lists given in the schema. For the face shape, nose, eyes and the 0–10 measures, compare with an average face (5) and leave a measure out when the photo cannot show it. Never guess who the person is. Describe the person, not the day: sunglasses are not glasses (use none unless clear glasses are worn), and a hat is not hair.',
     messages: [{ role: 'user', text: 'Describe the person in this photo.', images: [photo] }],
     json: { name: 'look', schema: LOOK_JSON },
     maxTokens: 800,
     timeoutMs: 60_000,
   });
   // One odd value must not cost the whole portrait: keep what is valid and let the rest stay automatic.
-  const parsed = lookSchema.safeParse(sanitizeLook(reply.json));
-  if (!parsed.success) throw new AiError('bad-output', c('ai.errBadOutput'));
-  return parsed.data as Look;
+  // The colours are required; `sanitizeLook` keeps every field the portrait knows, so nothing is lost here
+  // (lookSchema, the assistant's own check, would drop the face fields).
+  const raw = reply.json as Record<string, unknown> | undefined;
+  const look = sanitizeLook(reply.json);
+  if (!look || !(['skin', 'hair', 'eyes'] as const).every((k) => typeof raw?.[k] === 'number')) throw new AiError('bad-output', c('ai.errBadOutput'));
+  return look;
 }

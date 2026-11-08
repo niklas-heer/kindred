@@ -3,7 +3,7 @@
 // the family has written about them. Stewards set the succession and country, and redesign the arms.
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { ChevronLeft, ListOrdered, Lock, Network, PenLine, ScrollText, Search, Sparkles } from 'lucide-react';
+import { ChevronLeft, ListOrdered, Lock, Network, PenLine, ScrollText, Search, Sparkles, UserPlus } from 'lucide-react';
 import { useId, useMemo, useState, type CSSProperties } from 'react';
 import { ArmsEditor } from '~/components/ArmsEditor';
 import { GameIcon } from '~/components/GameIcon';
@@ -11,11 +11,15 @@ import { Arms, TINCTURE_HEX } from '~/components/Heraldry';
 import { asV2 } from '~/components/heraldry/convert';
 import { countryName, Flag } from '~/components/heraldry/Flag';
 import { ArmsMeanings } from '~/components/heraldry/ArmsMeanings';
+import { ArmsReviewCard, HouseMeaning } from '~/components/HouseMeaning';
+import { HouseMembersDialog } from '~/components/HouseMembers';
+import { useAiStatus } from '~/components/assistant/store';
 import { Portrait } from '~/components/Portrait';
 import { Dialog, ErrorState, NotFound, Select, Skeleton, type SelectOption } from '~/components/ui';
 import { chronicleQuery, graphQuery, opKeys } from '~/lib/api';
 import { useFamily, useTreeId } from '~/lib/family';
 import { lifespan } from '~/lib/graph';
+import { armsReviewsQuery, houseMeaningsQuery } from '~/lib/house-meaning.functions';
 import { houseSettingsQuery, updateHouseSettings } from '~/lib/houses.functions';
 import {
   COUNTRY_CODES, DEFAULT_HOUSE_SETTINGS, houseHistory, houseStats, houseSuccession, kinToHead, memberOrder, notables,
@@ -69,10 +73,17 @@ function HousePage() {
   // Which tab the arms designer opens on: its own design, or the suggestions from the name.
   const [armsTab, setArmsTab] = useState<'design' | 'name'>('design');
   const [succession, setSuccession] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
   const s = useMemo(() => (house ? houseStats(f, house) : undefined), [f, house]);
   const settings: HouseSettings = (house && settingsQ.data?.[house.id]) || DEFAULT_HOUSE_SETTINGS;
   const succ = useMemo<Succession | undefined>(() => (house ? houseSuccession(f, house, settings) : undefined), [f, house, settings]);
   const history = useMemo<HouseTenure[]>(() => (house ? houseHistory(f, house, settings) : []), [f, house, settings]);
+  // What the name means is for every reader; the review of the arms is for stewards, and only a steward's action checks it.
+  const meaningsQ = useQuery(houseMeaningsQuery(tree));
+  const savedMeaning = house ? meaningsQ.data?.[house.id] : undefined;
+  const reviewsQ = useQuery({ ...armsReviewsQuery(tree), enabled: canEdit });
+  const aiOn = !!useAiStatus(tree)?.features.arms;
+  const review = house ? reviewsQ.data?.[house.id] : undefined;
 
   if (!house || !s || !succ) {
     return (
@@ -176,6 +187,10 @@ function HousePage() {
           </div>
         </header>
         <ArmsMeanings arms={asV2(house.arms)} label={t('heraldry.means.open')} className="hp-means" />
+        <HouseMeaning saved={savedMeaning} canEdit={canEdit} onResearch={() => { setArmsTab('name'); setArmsOpen(true); }} />
+        {canEdit && savedMeaning && (aiOn || review) && (
+          <ArmsReviewCard tree={tree} house={house} review={review} aiOn={aiOn} onDesigner={(tab) => { setArmsTab(tab); setArmsOpen(true); }} />
+        )}
 
         <section className="hp-section hp-succession" aria-labelledby="hp-succession">
           <h2 className="rule" id="hp-succession">{t('houses.succession')}</h2>
@@ -200,12 +215,15 @@ function HousePage() {
         <Notables s={s} tree={tree} />
 
         <div className="hp-cols">
-          <Members members={s.members} tree={tree} />
+          <Members members={s.members} tree={tree} canEdit={canEdit} onManage={() => setMembersOpen(true)} />
           <HouseChronicle members={s.members} tree={tree} houseName={house.name} />
         </div>
       </div>
       {canEdit && succession && (
         <SuccessionDialog f={f} house={house} tree={tree} settings={settings} members={s.members} onClose={() => setSuccession(false)} />
+      )}
+      {canEdit && membersOpen && (
+        <HouseMembersDialog open house={house} tree={tree} members={s.members} onClose={() => setMembersOpen(false)} />
       )}
       {canEdit && armsOpen && (
         // The designer reads the house's country (for its flag and its name suggestions) from the house object.
@@ -446,7 +464,7 @@ function Notables({ s, tree }: { s: ReturnType<typeof houseStats>; tree: string 
 
 const PAGE = 40;
 
-function Members({ members, tree }: { members: GPerson[]; tree: string }) {
+function Members({ members, tree, canEdit, onManage }: { members: GPerson[]; tree: string; canEdit: boolean; onManage: () => void }) {
   const t = useT();
   const [q, setQ] = useState('');
   const [limit, setLimit] = useState(PAGE);
@@ -477,6 +495,11 @@ function Members({ members, tree }: { members: GPerson[]; tree: string }) {
             <Search size={15} />
             <input className="input" type="search" placeholder={t('houses.findMember')} aria-label={t('houses.findMemberLabel')} value={q} onChange={(e) => { setQ(e.target.value); setLimit(PAGE); }} />
           </label>
+        )}
+        {canEdit && (
+          <button type="button" className="btn hp-manage" onClick={onManage} aria-haspopup="dialog">
+            <UserPlus size={15} /> {t('houses.manageMembers')}
+          </button>
         )}
       </div>
       <div className="ui-card hp-members">

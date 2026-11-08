@@ -31,6 +31,15 @@ async function portraitFiles(tree: string, t: ExTree): Promise<ArchiveFile[]> {
     const bytes = got.body instanceof Uint8Array ? got.body : new Uint8Array(await new Response(got.body).arrayBuffer());
     out.push({ path, data: bytes });
   }
+  // A painted portrait a person has accepted goes too, beside the photo under the same name. The notes still refer to the photo.
+  const painted = await db(tree).all<{ person: string; key: string }>('SELECT person, key FROM portrait WHERE accepted = 1');
+  for (const row of painted) {
+    const name = names.get(row.person);
+    const got = name ? await media.get(tree, row.key) : undefined;
+    if (!got || !name) continue;
+    const bytes = got.body instanceof Uint8Array ? got.body : new Uint8Array(await new Response(got.body).arrayBuffer());
+    out.push({ path: `attachments/${name}-painted.${row.key.slice(row.key.lastIndexOf(".") + 1)}`, data: bytes });
+  }
   return out;
 }
 

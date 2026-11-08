@@ -4,6 +4,8 @@
 export { Dialog, useIsClient, type DialogProps } from './Dialog';
 export { Select, type SelectOption, type SelectProps } from './Select';
 export { Switch, type SwitchProps } from './Switch';
+export { Segmented, type SegmentedProps, type SegmentedOption } from './Segmented';
+export { DatePicker, type DatePickerProps } from './DatePicker';
 export { Range, type RangeProps, type RangeTick } from './Range';
 export { Tabs, TabList, Tab, TabPanel, type TabsProps } from './Tabs';
 export { PageHeader, Fleuron, type PageHeaderProps } from './PageHeader';

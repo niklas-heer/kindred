@@ -5,7 +5,8 @@
 // it looked, or as a pun on the name. The interface says so once; these lines are for reading the arms, not proof.
 import type { FieldDivision, OrdinaryKind, TinctureV2 } from '~/lib/seed-format';
 import type { Key } from '~/lib/i18n/dictionary';
-import { CHARGE_BY_ID, type ChargeCategory } from './catalogue.ts';
+import type { ChargeCategory } from './catalogue.ts';
+import { chargeDef } from './registry.ts';
 
 /** Every tincture, stain and fur. Furs are a mark of rank in the older writers; stains are the less settled ones. */
 export const TINCTURE_MEANING: Record<TinctureV2, Key> = {
@@ -84,6 +85,9 @@ export const CATEGORY_MEANING: Record<ChargeCategory, Key> = {
   buildings: 'heraldry.means.cat.buildings',
   crowns: 'heraldry.means.cat.crowns',
   objects: 'heraldry.means.cat.objects',
+  faith: 'heraldry.means.cat.faith',
+  body: 'heraldry.means.cat.body',
+  music: 'heraldry.means.cat.music',
 };
 
 /** Specific lines for the common charges. Every other catalogue charge falls back to its category's line. */
@@ -177,6 +181,54 @@ export const CHARGE_MEANING: Record<string, Key> = {
   harp: 'heraldry.means.c.harp',
   cup: 'heraldry.means.c.cup',
   ring: 'heraldry.means.c.ring',
+  boot: 'heraldry.means.c.boot',
+  clogs: 'heraldry.means.c.clogs',
+  padlock: 'heraldry.means.c.padlock',
+  'family-tree': 'heraldry.means.c.family-tree',
+  stork: 'heraldry.means.c.stork',
+  feather: 'heraldry.means.c.feather',
+  'scroll-quill': 'heraldry.means.c.scroll-quill',
+  books: 'heraldry.means.c.books',
+  'law-book': 'heraldry.means.c.law-book',
+  spyglass: 'heraldry.means.c.spyglass',
+  telescope: 'heraldry.means.c.telescope',
+  'magnifying-glass': 'heraldry.means.c.magnifying-glass',
+  'wood-axe': 'heraldry.means.c.wood-axe',
+  'stone-axe': 'heraldry.means.c.stone-axe',
+  bellows: 'heraldry.means.c.bellows',
+  rope: 'heraldry.means.c.rope',
+  knot: 'heraldry.means.c.knot',
+  'broken-chain': 'heraldry.means.c.broken-chain',
+  barrels: 'heraldry.means.c.barrels',
+  'piggy-bank': 'heraldry.means.c.piggy-bank',
+  gavel: 'heraldry.means.c.gavel',
+  'theatre-masks': 'heraldry.means.c.theatre-masks',
+  palette: 'heraldry.means.c.palette',
+  globe: 'heraldry.means.c.globe',
+  sextant: 'heraldry.means.c.sextant',
+  astrolabe: 'heraldry.means.c.astrolabe',
+  comet: 'heraldry.means.c.comet',
+  galaxy: 'heraldry.means.c.galaxy',
+  mountains: 'heraldry.means.c.mountains',
+  forest: 'heraldry.means.c.forest',
+  river: 'heraldry.means.c.river',
+  baobab: 'heraldry.means.c.baobab',
+  daisy: 'heraldry.means.c.daisy',
+  poppy: 'heraldry.means.c.poppy',
+  flax: 'heraldry.means.c.flax',
+  wool: 'heraldry.means.c.wool',
+  'crown-thorns': 'heraldry.means.c.crown-thorns',
+  halo: 'heraldry.means.c.halo',
+  ankh: 'heraldry.means.c.ankh',
+  'eye-horus': 'heraldry.means.c.eye-horus',
+  'eye-providence': 'heraldry.means.c.eye-providence',
+  'prayer-beads': 'heraldry.means.c.prayer-beads',
+  'hand-god': 'heraldry.means.c.hand-god',
+  crucifix: 'heraldry.means.c.crucifix',
+  skull: 'heraldry.means.c.skull',
+  'chess-king': 'heraldry.means.c.chess-king',
+  dice: 'heraldry.means.c.dice',
+  candles: 'heraldry.means.c.candles',
 };
 
 export const tinctureMeaning = (t: TinctureV2): Key => TINCTURE_MEANING[t];
@@ -185,5 +237,5 @@ export const divisionMeaning = (d: FieldDivision): Key => DIVISION_MEANING[d];
 
 /** The line for a charge: its own when it has one, else its category's. An id the catalogue does not know gets "objects". */
 export function chargeMeaning(id: string): Key {
-  return CHARGE_MEANING[id] ?? CATEGORY_MEANING[CHARGE_BY_ID[id]?.cat ?? 'objects'];
+  return CHARGE_MEANING[id] ?? CATEGORY_MEANING[chargeDef(id)?.cat ?? 'objects'];
 }

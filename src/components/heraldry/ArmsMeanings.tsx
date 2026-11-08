@@ -4,9 +4,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useT, type Translator } from '~/lib/i18n';
 import type { ArmsV2, ChargeLayer, OrdinaryLayer, TinctureV2 } from '~/lib/seed-format';
-import { chargeArtV2, needsLibrary, useLibrary, useLibraryReady } from './art';
-import { CHARGE_BY_ID } from './catalogue';
+import { chargeArtV2, useLibrary } from './art';
 import { chargeMeaning, divisionMeaning, ordinaryMeaning, tinctureMeaning } from './meanings';
+import { chargeDef, chargeName } from './registry';
 import { ArmsV2View, fieldTinctures, TinctureSwatch } from './render';
 import { HEX_V2, labelV2 } from './tinctures';
 import { divisionLabel, LINES_V2, ordinaryLabel } from './vocab';
@@ -14,7 +14,7 @@ import './meanings.css';
 
 /** A charge's drawing, one colour: `color` sets it, and the surrounding colour is kept when it is absent. */
 export function ChargeGlyph({ id, size = 30, color }: { id: string; size?: number; color?: string }) {
-  useLibraryReady();
+  useLibrary([id]);
   const art = chargeArtV2(id);
   if (!art) return <span className="ae-glyph-wait" style={{ width: size, height: size }} />;
   return (
@@ -26,7 +26,7 @@ export function ChargeGlyph({ id, size = 30, color }: { id: string; size?: numbe
 
 /** The colour a charge is drawn in: its tincture, or its own colour when it is blazoned proper. */
 function chargeColour(t: TinctureV2, charge: string): string {
-  if (t === 'proper') return CHARGE_BY_ID[charge]?.proper ?? '#8a5a32';
+  if (t === 'proper') return chargeDef(charge)?.proper ?? '#8a5a32';
   return HEX_V2[t];
 }
 
@@ -85,7 +85,7 @@ function rowsOf(arms: ArmsV2, tr: Translator): Row[] {
     const c: ChargeLayer = layer;
     const where = c.on === 'chief' ? tr('heraldry.in_chief') : c.on === 'base' ? tr('heraldry.in_base') : c.on === 'ordinary' ? tr('heraldry.on_ordinary') : '';
     const count = c.arrangement === 'seme' ? tr('heraldry.arrangement.seme') : c.count > 1 ? tr('heraldry.means.times', { count: c.count }) : '';
-    const label = CHARGE_BY_ID[c.charge] ? tr(CHARGE_BY_ID[c.charge].label) : c.charge;
+    const label = chargeName(c.charge, tr.locale);
     rows.push({
       key: `c-${i}`,
       kind: tr('heraldry.means.charge'),
@@ -125,7 +125,7 @@ export function ArmsMeanings({ arms, label, open = false, className }: {
 }) {
   const tr = useT();
   const charges = arms.layers.filter((l): l is ChargeLayer => l.type === 'charge').map((l) => l.charge);
-  useLibrary(needsLibrary(charges));
+  useLibrary(charges);
   const rows = rowsOf(arms, tr);
   const plain = !arms.layers.length;
   return (

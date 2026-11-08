@@ -1,0 +1,117 @@
+/* Painted portraits, in the person's photos area and the review dialog. Colours come from the theme's tokens. */
+.pp-display {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+.pp-display .btn[data-current] {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+.pp-notfit {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.85rem;
+}
+.paint {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+  margin-block: 0.5rem;
+}
+.paint-cost,
+.paint-setup,
+.paint-notice {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.paint-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.paint-remove {
+  margin-top: 0.25rem;
+}
+
+.paint-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0.5rem 0 0.75rem;
+  padding: 0;
+}
+.paint-strip .pp-thumb {
+  width: 4.5rem;
+  height: 4.5rem;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.paint-review {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  align-items: start;
+}
+.paint-pic {
+  margin: 0;
+  display: grid;
+  gap: 0.35rem;
+  justify-items: center;
+}
+.paint-pic img {
+  width: 100%;
+  max-width: 260px;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+}
+.paint-pic figcaption {
+  font-size: 0.85rem;
+}
+.paint-review-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.paint-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.paint-working {
+  display: grid;
+  gap: 0.5rem;
+}
+
+@media (max-width: 560px) {
+  .paint-review {
+    gap: 0.5rem;
+  }
+  .paint-pic img {
+    max-width: 100%;
+  }
+  .paint-actions .btn,
+  .paint .btn,
+  .pp-display .btn {
+    flex: 1 1 auto;
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paint-pic img {
+    transition: none;
+  }
+}

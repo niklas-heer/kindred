@@ -6,6 +6,8 @@ import { CHARGE_ICONS, type ChargeIconName } from './charges.gen';
 import { TINCTURE_HEX } from './Heraldry';
 import { ensurePortraitDefs } from './portrait/defs';
 import { detailOf, drawingUri } from './portrait/drawing';
+import { shownAge } from './portrait/look';
+import { chooseFace, portraitFits } from '~/lib/portrait-face';
 
 const HEADWEAR_ICON: Partial<Record<NonNullable<Look['headwear']>, ChargeIconName>> = {
   crown: 'crown',
@@ -53,9 +55,10 @@ export function Portrait({
   frame?: boolean;
   /** The person's house, when the caller has it to hand; otherwise looked up from the tree. */
   house?: House | null;
-  /** 'avatar' draws the likeness even when a photo exists, e.g. beside the photo it stands in for. Absent: the
-   *  person's own choice (`preferAvatar`), so callers need not pass it. An explicit value always wins. */
-  prefer?: 'photo' | 'avatar';
+  /** 'avatar' draws the likeness even when a photo exists, e.g. beside the photo it stands in for; 'portrait' shows the
+   *  painted portrait where it fits the age shown, else the drawing. Absent: the person's own choice (`preferAvatar`, then
+   *  `preferPortrait`), so callers need not pass it. An explicit value always wins. */
+  prefer?: 'photo' | 'avatar' | 'portrait';
   /** Shows the drawing at this age (a life stage, a chronicle entry) instead of the look's own. */
   age?: number;
   /** False shows the dead in colour, as the character editor must to pick colours. */
@@ -65,24 +68,32 @@ export function Portrait({
   const house = useHouse(person, tree, givenHouse);
   const detail = detailOf(size);
   const headwear = person.look?.headwear;
-  const shownAs = prefer ?? (person.preferAvatar ? 'avatar' : 'photo');
-  const photo = !!person.photo && shownAs === 'photo';
-  // A drawing wears its crown on its head; a photo gets the badge on the frame instead.
-  const badge = photo && headwear && HEADWEAR_ICON[headwear] ? CHARGE_ICONS[HEADWEAR_ICON[headwear]] : null;
+  // A painted portrait stands in only where it fits the age shown: near the age in its photo, and in its era (portraitFits).
+  const shown = shownAge(person, new Date().getFullYear(), age);
+  const fits = !!person.portrait && portraitFits({ born: person.born, shown, photoAge: person.portraitAge ?? null });
+  const shownAs = prefer ?? (person.preferAvatar ? 'avatar' : person.preferPortrait ? 'portrait' : 'photo');
+  const which = chooseFace({ shownAs, hasPhoto: !!person.photo, hasPortrait: !!person.portrait, fits });
+  const photo = which === 'photo';
+  const painted = which === 'portrait';
+  const pictured = photo || painted;
+  // A drawing wears its crown on its head; a photo or a painting gets the badge on the frame instead.
+  const badge = pictured && headwear && HEADWEAR_ICON[headwear] ? CHARGE_ICONS[HEADWEAR_ICON[headwear]] : null;
   const src = photo
     ? `/api/photo/${tree}/${person.id}?v=${encodeURIComponent(person.photo!)}`
-    : drawingUri(person, house, detail, age);
+    : painted
+      ? `/api/portrait/${tree}/${person.id}?v=${encodeURIComponent(person.portrait!)}`
+      : drawingUri(person, house, detail, age);
   const name = [person.given, person.surname].filter(Boolean).join(' ');
 
   const cls = ['portrait', frame ? 'is-framed' : 'is-bare', `is-${detail}`].join(' ');
-  const face = ['portrait-face', photo ? 'is-photo' : 'is-drawn', person.living || !mourn ? '' : 'is-dead'].filter(Boolean).join(' ');
+  const face = ['portrait-face', pictured ? 'is-photo' : 'is-drawn', person.living || !mourn ? '' : 'is-dead'].filter(Boolean).join(' ');
   const style = { width: size, height: size, '--house': house ? TINCTURE_HEX[house.arms.field] : undefined } as CSSProperties;
 
   return (
     <span className={cls} style={style}>
       <span className="portrait-mat">
         <span className={face}>
-          <img className="portrait-img" src={src} alt={name} loading={photo ? 'lazy' : undefined} decoding="async" draggable={false} />
+          <img className="portrait-img" src={src} alt={name} loading={pictured ? 'lazy' : undefined} decoding="async" draggable={false} />
         </span>
       </span>
       {badge ? (

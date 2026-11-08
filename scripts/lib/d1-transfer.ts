@@ -16,13 +16,17 @@ export const COPIED_TABLES: readonly string[] = [
   'parent', // parent links
   'partnership', // marriages and other unions
   'story', // memories, notes, quotes and recipes
+  'story_translation', // chronicle translations, kept beside each story (migration 0014): asked for once, so copied after their story
   'place', // map pins for the atlas
   'photo', // portraits: the row keeps a media key, the picture itself is in R2
   'person_field', // the Edit tab's fields: contacts, medical and private notes, in their order
   'house_succession', // who heads each house, its heir and its country
+  'house_meaning', // what each house's name means, as the steward researched and chose it (migration 0012)
+  'house_arms_review', // the steward's latest check of each house's arms against its name (migration 0012)
   'album', // gallery albums
   'media', // gallery pictures: the row keeps a media key, the picture is in R2
   'media_person', // face boxes and the people tagged in gallery pictures
+  'portrait', // painted portraits (migration 0013): candidates and each person's accepted one; the picture is in media (portrait/)
   'occupation_translation', // cached translations of occupations, per text and locale (asked for once, so copied)
 ];
 

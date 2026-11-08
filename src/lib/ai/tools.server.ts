@@ -1,19 +1,25 @@
-// The assistant's tools. Reads return only what the reader's role may see. Proposals describe a change
-// and are checked against the family, but nothing is written here: the card goes to the reader, and
-// approving it calls the existing server function under their own role (components/assistant/apply.ts).
+// The assistant's tools. Reads return only what the reader's role may see, and only a capped number of rows. Proposals
+// describe a change and are checked against the family, but nothing is written here: the card goes to the reader, and
+// approving it calls the existing server function under their own role (components/assistant/apply.ts), or, for a
+// family draft, applyFamilyBatch (ai/family.server.ts). Nothing here deletes, manages access, or touches AI settings.
 import { z } from 'zod';
-import { graph, person } from '../db.server';
+import { db, graph, person } from '../db.server';
 import { buildFamily, children, fullName, kinship, parents, partnersOf, siblings } from '../graph';
 import { matchesName } from '../search';
-import type { GPerson } from '../types';
+import type { GPerson, Graph } from '../types';
 import { can, type Action, type Role } from '../roles';
 import { validDate } from '../dates';
 import { fieldInput, FIELD_TYPES, privateByDefault } from '../../components/fields/model';
 import type { Key } from '../i18n/dictionary';
+import { gapsOf, DEFAULT_GAPS, GAP_LABEL } from '../gaps';
+import { gallery, personMedia } from '../photos.server';
+import { mediaUrl, type MediaItem } from '../../components/photos/types';
 import { tr, type Tr } from './labels';
-import type { AiAdapter, ToolSpec } from './adapters';
+import type { AiAdapter, ImagePart, ToolSpec } from './adapters';
 import { isolatedLookup, privacyGuard, refusal, REFUSAL_REASON } from './lookup.server';
-import { proposalArgs, PROPOSAL_KINDS, type AiLocale, type Proposal, type ProposalArgs, type ProposalKind } from './types';
+import { checkFamily } from './family.server';
+import { readHouseSettings } from '../houses.server';
+import { proposalArgs, PROPOSAL_KINDS, NEW_REF, type AiLocale, type Proposal, type ProposalArgs, type ProposalKind, type ProposalView } from './types';
 
 /** The fields area's word for each value key of a field (the same words the Edit tab shows). */
 const VALUE_LABEL: Record<string, Key> = {
@@ -26,15 +32,23 @@ const VALUE_LABEL: Record<string, Key> = {
 export interface Ctx {
   tree: string;
   role: Role;
-  /** The reader's own person in this family, when they have chosen one. */
+  /** The reader's own person in this family, when they have chosen one (or the speaker of a family session). */
   me: string | null;
   locale: AiLocale;
   /** Set when the family allows web lookups: the family's budgeted adapter, and where a lookup's sources are collected. */
   search?: { adapter: AiAdapter; sources: { url: string; title?: string }[]; lookups: number };
+  /** The assistant may look at pictures: the family's faces feature is on (see describe_photo). */
+  faces?: boolean;
+  /** The family's drawn-avatar feature is on (see propose_avatar). */
+  avatar?: boolean;
+  /** Pictures a tool asked the model to look at; the chat loop sends them with the next step. */
+  images?: ImagePart[];
 }
 
 const RESULT_LIMIT = 6000;
+const LIST_LIMIT = 15;
 const idParam = { type: 'string', description: 'A person id, as the tools returned it.' };
+const photoParam = { type: 'string', description: 'A photo key, as list_photos returned it.' };
 
 export const READ_TOOLS: ToolSpec[] = [
   {
@@ -52,16 +66,63 @@ export const READ_TOOLS: ToolSpec[] = [
     description: 'Parents, children, partners and siblings of one person, and how they are related to the reader when the reader has chosen a person.',
     parameters: { type: 'object', properties: { id: idParam }, required: ['id'] },
   },
+  {
+    name: 'missing_info',
+    description: 'What is still missing in the tree: the facts a person has no record of (birth, parents, death, place, occupation and so on). With a person, that person and their close relatives; without one, the people with the most gaps. At most 12 people.',
+    parameters: { type: 'object', properties: { person: idParam, limit: { type: 'integer', minimum: 1, maximum: 12 } } },
+  },
+  {
+    name: 'list_houses',
+    description: 'The family’s houses, with each one’s succession law, head, heir and country, so a steward can be offered a change. At most 30.',
+    parameters: { type: 'object', properties: {} },
+  },
+  {
+    name: 'list_photos',
+    description: 'Photos in the gallery, newest first, with their date, place, caption, album and the people confirmed in them. Filter by album or person, or ask for photos missing a date, place, caption, album or people. At most 15, plus the albums (with ids).',
+    parameters: {
+      type: 'object',
+      properties: {
+        album: { type: 'string', description: 'An album id, as the tools returned it.' },
+        person: idParam,
+        missing: { type: 'array', items: { type: 'string', enum: ['date', 'place', 'caption', 'album', 'tags'] }, maxItems: 5 },
+        limit: { type: 'integer', minimum: 1, maximum: LIST_LIMIT },
+      },
+    },
+  },
 ];
 
+/** Looking at a picture: offered only when the family's faces feature is on, and the picture then goes to the provider. */
+export const LOOK_TOOL: ToolSpec = {
+  name: 'describe_photo',
+  description: 'Look at one photo yourself. The picture is sent with your next step, so you can say what it shows: people, place, period, objects. Use it only when the details alone are not enough.',
+  parameters: { type: 'object', properties: { key: photoParam }, required: ['key'] },
+};
+
 const relation = { type: 'string', enum: ['child', 'parent', 'partner', 'sibling'], description: 'The new or linked person is this to the anchor: child = their child, parent = their parent.' };
-const date = { type: 'string', description: 'YYYY, YYYY-MM or YYYY-MM-DD. A leading ~ marks an approximate date.' };
-const PROPOSE: { spec: ToolSpec; kind: ProposalKind; action: Action }[] = [
+const date = { type: 'string', description: 'YYYY, YYYY-MM or YYYY-MM-DD. A leading ~ marks an approximate date (about 1938 is ~1938). Never guess a date.' };
+const newRef = { type: 'string', description: 'For a person who is not in the tree yet: a temporary id such as n1, n2 (unique in this draft). Use the same id wherever that person is named.' };
+const personOrRef = { type: 'string', description: 'A person id from the tree, or the temporary id (n1, n2…) of a new person in this draft.' };
+const familyPersonSpec = {
+  type: 'object',
+  properties: {
+    ref: newRef,
+    given: { type: 'string' }, surname: { type: 'string' }, sex: { type: 'string', enum: ['m', 'f', 'x'] },
+    born: date, bornPlace: { type: 'string' }, died: date, diedPlace: { type: 'string' },
+    living: { type: 'boolean', description: 'True for someone who is alive.' },
+    occupation: { type: 'string' },
+    story: { type: 'object', description: 'A memory, note or anecdote about the person.', properties: { kind: { type: 'string', enum: ['note', 'quote', 'anecdote', 'recipe', 'memory'] }, title: { type: 'string' }, body: { type: 'string' } }, required: ['kind', 'body'] },
+  },
+  required: ['ref', 'given', 'living'],
+};
+
+const photoDetail = { type: 'object', properties: { key: photoParam, taken: { type: 'string', description: 'YYYY, YYYY-MM or YYYY-MM-DD; ~ for about.' }, place: { type: 'string' }, caption: { type: 'string' } }, required: ['key'] };
+
+const PROPOSE: { spec: ToolSpec; kind: ProposalKind; action: Action; feature?: 'avatar' }[] = [
   {
     kind: 'add-person', action: 'add-person',
     spec: {
       name: 'propose_add_person',
-      description: 'Propose adding a new person connected to an existing one. Use search_people first for the anchor.',
+      description: 'Propose adding one new person connected to an existing one. Use search_people first for the anchor. For several people at once, use propose_family.',
       parameters: {
         type: 'object',
         properties: {
@@ -70,6 +131,30 @@ const PROPOSE: { spec: ToolSpec; kind: ProposalKind; action: Action }[] = [
           born: date, died: date, living: { type: 'boolean' },
         },
         required: ['anchor', 'relation', 'given', 'living'],
+      },
+    },
+  },
+  {
+    kind: 'family', action: 'add-person',
+    spec: {
+      name: 'propose_family',
+      description: 'Propose a whole draft of new people and how they connect, for the reader to approve as one card. Use it when the reader tells you about several people, or a family session ends. Each new person gets a temporary ref (n1, n2…); a link joins two people by ref or by an id from the tree. Dates the reader did not give stay out. Ask about anything uncertain in questions (for example "Which Hans?") instead of guessing.',
+      parameters: {
+        type: 'object',
+        properties: {
+          people: { type: 'array', maxItems: 40, items: familyPersonSpec },
+          links: {
+            type: 'array', maxItems: 80,
+            items: {
+              type: 'object',
+              description: 'anchor is the person the relation is to: "child" means person is a child of anchor; "parent" means person is a parent of anchor; "sibling" and "partner" are between the two.',
+              properties: { anchor: personOrRef, person: personOrRef, relation, coParent: { ...personOrRef, description: 'For a child: the other parent.' } },
+              required: ['anchor', 'person', 'relation'],
+            },
+          },
+          questions: { type: 'array', maxItems: 8, items: { type: 'string' }, description: 'Short questions for the reader about what is unclear.' },
+        },
+        required: ['people', 'links'],
       },
     },
   },
@@ -87,6 +172,14 @@ const PROPOSE: { spec: ToolSpec; kind: ProposalKind; action: Action }[] = [
       name: 'propose_set_dates',
       description: 'Propose a birth date, birth place, death date or death place for a person. Only the fields given change.',
       parameters: { type: 'object', properties: { person: idParam, born: date, bornPlace: { type: 'string' }, died: date, diedPlace: { type: 'string' } }, required: ['person'] },
+    },
+  },
+  {
+    kind: 'set-occupation', action: 'edit-person',
+    spec: {
+      name: 'propose_set_occupation',
+      description: 'Propose the occupation of a person who is in the tree (the words the reader would use, e.g. "baker").',
+      parameters: { type: 'object', properties: { person: idParam, occupation: { type: 'string' } }, required: ['person', 'occupation'] },
     },
   },
   {
@@ -118,6 +211,66 @@ const PROPOSE: { spec: ToolSpec; kind: ProposalKind; action: Action }[] = [
       },
     },
   },
+  {
+    kind: 'photo-details', action: 'upload-photo',
+    spec: {
+      name: 'propose_photo_details',
+      description: 'Propose a date, place or caption for one or more photos, as one card. Give only what the photo or the reader tells you; a caption may describe what the picture shows. Leave out what is unknown.',
+      parameters: { type: 'object', properties: { items: { type: 'array', maxItems: 25, items: photoDetail } }, required: ['items'] },
+    },
+  },
+  {
+    kind: 'photo-album', action: 'upload-photo',
+    spec: {
+      name: 'propose_photo_album',
+      description: 'Propose putting several photos in an album: an existing album (albumId, from list_photos) or a new one (name). One card for all of them.',
+      parameters: {
+        type: 'object',
+        properties: { name: { type: 'string', description: 'A new album’s name.' }, albumId: { type: 'string' }, keys: { type: 'array', maxItems: 40, items: photoParam } },
+        required: ['keys'],
+      },
+    },
+  },
+  {
+    kind: 'photo-tags', action: 'upload-photo',
+    spec: {
+      name: 'propose_photo_tags',
+      description: 'Propose that people appear in one photo. The tag covers the whole picture unless a box (x, y, w, h from 0 to 1) is given.',
+      parameters: {
+        type: 'object',
+        properties: {
+          key: photoParam,
+          people: { type: 'array', maxItems: 20, items: { type: 'object', properties: { person: idParam, box: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' }, w: { type: 'number' }, h: { type: 'number' } } } }, required: ['person'] } },
+        },
+        required: ['key', 'people'],
+      },
+    },
+  },
+  {
+    kind: 'avatar', action: 'edit-person', feature: 'avatar',
+    spec: {
+      name: 'propose_avatar',
+      description: 'Propose a drawn avatar for a person, made from one photo in which they are confirmed. The drawing is shown on the card before anything is kept.',
+      parameters: { type: 'object', properties: { person: idParam, key: photoParam }, required: ['person', 'key'] },
+    },
+  },
+  {
+    kind: 'house-settings', action: 'edit-house',
+    spec: {
+      name: 'propose_house_settings',
+      description: 'Propose a house’s succession law, head, heir or country (a two-letter code such as DE). Only the fields given change. Use list_houses first; a head or heir must belong to the house.',
+      parameters: {
+        type: 'object',
+        properties: {
+          house: idParam,
+          law: { type: 'string', enum: ['absolute-primogeniture', 'seniority', 'elective'] },
+          head: idParam, heir: idParam,
+          country: { type: 'string', description: 'Two capital letters, e.g. DE.' },
+        },
+        required: ['house'],
+      },
+    },
+  },
 ];
 
 /** A general question answered from the web. Its query goes to the web alone (see lookup.server.ts). */
@@ -127,16 +280,37 @@ export const WEB_TOOL: ToolSpec = {
   parameters: { type: 'object', properties: { query: { type: 'string', description: 'A general question, in a few words.' } }, required: ['query'] },
 };
 
-/** The tools this reader may use: reads for everyone, a proposal only where their role may make that change, a web lookup when the family allows one. */
-export function toolsFor(role: Role, web = false): { tools: ToolSpec[]; proposals: boolean } {
-  const proposing = PROPOSE.filter((p) => can(role, p.action));
-  return { tools: [...READ_TOOLS, ...(web ? [WEB_TOOL] : []), ...proposing.map((p) => p.spec)], proposals: proposing.length > 0 };
+export interface ToolOptions {
+  /** The family allows web lookups. */
+  web?: boolean;
+  /** The family's faces feature is on: the assistant may look at pictures. */
+  faces?: boolean;
+  /** The family's avatar feature is on: the assistant may propose drawn avatars. */
+  avatar?: boolean;
+}
+
+/**
+ * The tools this reader may use: reads for everyone, a proposal only where their role may make that change, a feature's
+ * tool only while the family has it on. Stewards alone see the house proposal; nobody is offered a delete, an access or a settings tool.
+ */
+export function toolsFor(role: Role, o: ToolOptions = {}): { tools: ToolSpec[]; proposals: boolean } {
+  const proposing = PROPOSE.filter((p) => can(role, p.action) && (!p.feature || (p.feature === 'avatar' && o.avatar)));
+  const reads = [...READ_TOOLS, ...(o.faces ? [LOOK_TOOL] : []), ...(o.web ? [WEB_TOOL] : [])];
+  return { tools: [...reads, ...proposing.map((p) => p.spec)], proposals: proposing.length > 0 };
 }
 
 const ACTION_OF = Object.fromEntries(PROPOSE.map((p) => [p.kind, p.action])) as Record<ProposalKind, Action>;
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
 const json = (v: unknown) => clip(JSON.stringify(v), RESULT_LIMIT);
+const refused = (role: Role, action: Action) => json({ error: `this reader may not make that change (${role} cannot ${action}); say that someone with more rights must` });
+
+/** Base64 for a picture, in chunks, so a large one does not overflow the stack or need Node's Buffer. */
+function base64(bytes: Uint8Array): string {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
 
 /** Runs one read tool, or checks one proposal. Returns the text the model sees. */
 export async function runTool(ctx: Ctx, name: string, input: unknown, out: Proposal[]): Promise<string> {
@@ -172,6 +346,19 @@ export async function runTool(ctx: Ctx, name: string, input: unknown, out: Propo
       const kin = ctx.me && ctx.me !== id && byId.has(ctx.me) ? kinship(f, ctx.me, id)?.label ?? null : null;
       return json({ parents: names(parents(f, id)), children: names(children(f, id)), partners: names(partnersOf(f, id)), siblings: names(siblings(f, id)), relatedToReader: kin });
     }
+    if (name === 'missing_info') return json(missingInfo(c, g, byId, input));
+    if (name === 'list_houses') {
+      const settings = await readHouseSettings(ctx.tree);
+      return json({
+        houses: g.houses.slice(0, 30).map((h) => {
+          const s = settings[h.id];
+          return { id: h.id, name: h.name, law: s?.law ?? null, head: s?.head ? name_(s.head) : null, heir: s?.heir ? name_(s.heir) : null, country: s?.country ?? null };
+        }),
+        count: g.houses.length,
+      });
+    }
+    if (name === 'list_photos') return json(await listPhotos(ctx, byId, input));
+    if (name === 'describe_photo') return await describePhoto(ctx, input);
     if (name === 'web_lookup') {
       const a = z.object({ query: z.string().trim().min(2).max(160) }).parse(input);
       if (!ctx.search) return json({ error: 'web lookups are off for this family' });
@@ -185,7 +372,13 @@ export async function runTool(ctx: Ctx, name: string, input: unknown, out: Propo
       return json({ summary: r.text, sources: r.sources, searches: r.searches });
     }
     const p = PROPOSE.find((x) => x.spec.name === name);
-    if (p) return await propose(ctx, c, byId, p.kind, input, out);
+    if (p) {
+      if (!can(ctx.role, p.action)) return refused(ctx.role, p.action);
+      if (p.kind === 'family' || p.kind === 'photo-details' || p.kind === 'photo-album' || p.kind === 'photo-tags' || p.kind === 'avatar' || p.kind === 'set-occupation' || p.kind === 'house-settings') {
+        return await proposeNew(ctx, c, g, byId, p.kind, input, out);
+      }
+      return await propose(ctx, c, byId, p.kind, input, out);
+    }
     return json({ error: `no tool ${name}` });
   } catch (e) {
     if (e instanceof z.ZodError) return json({ error: 'the arguments did not fit the tool: ' + e.issues.map((i) => i.path.join('.') || 'input').join(', ') });
@@ -216,11 +409,77 @@ async function readPerson(ctx: Ctx, p: GPerson, houses: Map<string, string>) {
   };
 }
 
+/** What is still missing: one person and their close relatives, or the people with the most gaps. Capped. */
+function missingInfo(c: Tr, g: Graph, byId: Map<string, GPerson>, input: unknown) {
+  const a = z.object({ person: z.string().min(1).max(120).optional(), limit: z.number().int().min(1).max(12).optional() }).parse(input);
+  const f = buildFamily(g);
+  const gapNames = (p: GPerson) => gapsOf(f, p, new Set(DEFAULT_GAPS)).map((k) => c(GAP_LABEL[k]));
+  if (a.person) {
+    const root = byId.get(a.person);
+    if (!root) return { error: 'not in this tree' };
+    const ids = [...new Set([a.person, ...parents(f, a.person), ...children(f, a.person), ...partnersOf(f, a.person), ...siblings(f, a.person)])].slice(0, a.limit ?? 12);
+    return { people: ids.map((id) => ({ id, name: fullName(byId.get(id)!), missing: gapNames(byId.get(id)!) })) };
+  }
+  const rows = g.people
+    .map((p) => ({ id: p.id, name: fullName(p), missing: gapNames(p) }))
+    .filter((r) => r.missing.length)
+    .sort((x, y) => y.missing.length - x.missing.length || x.name.localeCompare(y.name));
+  return { count: rows.length, people: rows.slice(0, a.limit ?? 12) };
+}
+
+/** Photos that match the filters, newest first, with the album names and the people confirmed in them. At most 15. */
+async function listPhotos(ctx: Ctx, byId: Map<string, GPerson>, input: unknown) {
+  const a = z.object({
+    album: z.string().max(64).optional(),
+    person: z.string().min(1).max(120).optional(),
+    missing: z.array(z.enum(['date', 'place', 'caption', 'album', 'tags'])).max(5).optional(),
+    limit: z.number().int().min(1).max(LIST_LIMIT).optional(),
+  }).parse(input);
+  const gal = await gallery(ctx.tree);
+  const albumName = new Map(gal.albums.map((x) => [x.id, x.name]));
+  let items: MediaItem[] = a.person ? await personMedia(ctx.tree, a.person) : gal.media;
+  if (a.album) items = items.filter((p) => p.album === a.album);
+  const missing = new Set(a.missing ?? []);
+  if (missing.has('date')) items = items.filter((p) => !p.taken);
+  if (missing.has('place')) items = items.filter((p) => !p.place);
+  if (missing.has('caption')) items = items.filter((p) => !p.caption);
+  if (missing.has('album')) items = items.filter((p) => !p.album);
+  if (missing.has('tags')) items = items.filter((p) => !p.tags.some((t) => t.confirmed));
+  const limit = a.limit ?? LIST_LIMIT;
+  return {
+    total: items.length,
+    albums: gal.albums.slice(0, 30).map((x) => ({ id: x.id, name: x.name, count: x.count })),
+    photos: items.slice(0, limit).map((p) => ({
+      key: p.key,
+      album: p.album ? albumName.get(p.album) ?? null : null,
+      taken: p.taken,
+      place: p.place,
+      caption: p.caption ? clip(p.caption, 160) : null,
+      people: p.tags.filter((t) => t.confirmed).map((t) => (byId.get(t.person) ? fullName(byId.get(t.person)!) : t.person)),
+    })),
+  };
+}
+
+/** A picture the model may look at, when the family's faces feature is on. Otherwise the reader's details only. */
+async function describePhoto(ctx: Ctx, input: unknown): Promise<string> {
+  const { key } = z.object({ key: z.string().min(3).max(200) }).parse(input);
+  const row = await db(ctx.tree).get<{ key: string; mime: string }>('SELECT key, mime FROM media WHERE key = ?', key);
+  if (!row) return json({ error: 'not a photo in this family' });
+  if (!ctx.faces || !ctx.images) return json({ note: 'Looking at pictures is off for this family, so work from the details alone.' });
+  if (ctx.images.length >= 2) return json({ error: 'Only two pictures can be looked at in one reply.' });
+  const { media } = await import('../db.server');
+  const obj = await media.get(ctx.tree, key);
+  if (!obj) return json({ error: 'the picture is missing from storage' });
+  const body = obj.body instanceof Uint8Array ? obj.body : new Uint8Array(await new Response(obj.body).arrayBuffer());
+  ctx.images.push({ mime: row.mime, base64: base64(body) });
+  return json({ shown: true, note: 'The picture is attached to your next step. Describe only what you can see.' });
+}
+
 /** Checks a proposed change against the tree and describes it for the card. */
 async function propose(ctx: Ctx, c: Tr, byId: Map<string, GPerson>, kind: ProposalKind, input: unknown, out: Proposal[]): Promise<string> {
   if (!PROPOSAL_KINDS.includes(kind)) return json({ error: 'unknown kind' });
   if (!can(ctx.role, ACTION_OF[kind])) return json({ error: 'this reader may not make that change; say a contributor or editor must' });
-  const parsed = proposalArgs[kind].safeParse(input);
+  const parsed = (proposalArgs as unknown as Record<string, z.ZodTypeAny>)[kind].safeParse(input);
   if (!parsed.success) return json({ error: 'the arguments did not fit the tool: ' + parsed.error.issues.map((i) => i.path.join('.') || 'input').join(', ') });
   const args = parsed.data as ProposalArgs;
   for (const k of ['born', 'died'] as const) {
@@ -283,3 +542,168 @@ async function propose(ctx: Ctx, c: Tr, byId: Map<string, GPerson>, kind: Propos
   out.push(proposal);
   return json({ proposed: true, kind, note: 'Shown to the reader for approval. Nothing is saved yet.' });
 }
+
+/** The proposals that cover many changes, or a photo, a drawn avatar, an occupation or a house. Each one is checked before it is shown. */
+async function proposeNew(ctx: Ctx, c: Tr, g: Graph, byId: Map<string, GPerson>, kind: ProposalKind, input: unknown, out: Proposal[]): Promise<string> {
+  const done = (proposal: Omit<Proposal, 'id' | 'status'> & { view?: ProposalView }) => {
+    out.push({ id: crypto.randomUUID(), status: 'open', ...proposal });
+    return json({ proposed: true, kind, note: 'Shown to the reader for approval. Nothing is saved yet.' });
+  };
+  const bad = (msg: string) => json({ error: msg });
+  const gal = async () => gallery(ctx.tree);
+  const photoOf = (media: MediaItem[], key: string) => media.find((m) => m.key === key);
+
+  if (kind === 'family') {
+    const parsed = proposalArgs.family.extend({ questions: z.array(z.string().trim().min(1).max(240)).max(8).optional() }).safeParse(input);
+    if (!parsed.success) return bad('the arguments did not fit the tool: ' + parsed.error.issues.map((i) => i.path.join('.') || 'input').join(', '));
+    const { people, links, questions } = parsed.data;
+    const refs = new Set<string>();
+    for (const p of people) {
+      if (refs.has(p.ref)) return bad(`ref ${p.ref} is used twice; give each new person its own`);
+      if (byId.has(p.ref)) return bad(`ref ${p.ref} is a tree id; choose another`);
+      refs.add(p.ref);
+      for (const k of ['born', 'died'] as const) if (p[k] && !validDate(p[k]!)) return bad(`${k} of ${p.given} is not a real date; use YYYY, YYYY-MM or YYYY-MM-DD, with ~ for about`);
+    }
+    const known = (x: string) => refs.has(x) || byId.has(x);
+    for (const l of links) {
+      for (const x of [l.anchor, l.person, l.coParent].filter((v): v is string => !!v)) {
+        if (NEW_REF.test(x) && !refs.has(x)) return bad(`${x} is not a new person in this draft`);
+        if (!NEW_REF.test(x) && !known(x)) return bad(`${x} is not a person in this tree; search for them first`);
+      }
+      if (l.anchor === l.person) return bad('a link cannot join a person to themselves');
+    }
+    const checks = checkFamily(g, people, links);
+    const names: Record<string, string> = {};
+    for (const x of new Set(links.flatMap((l) => [l.anchor, l.person, l.coParent]).filter((v): v is string => !!v && byId.has(v)))) names[x] = name(byId, x);
+    for (const d of checks.duplicates) names[d.id] = d.name;
+    const view: ProposalView = { names, duplicates: checks.duplicates, loops: checks.loops, questions };
+    return done({
+      kind, args: { people, links }, editable: [],
+      summary: c('ai.summaryFamily', { count: people.length, links: links.length }),
+      diff: [], view,
+    });
+  }
+
+  if (kind === 'photo-details') {
+    const a = z.object({ items: z.array(z.object({ key: z.string(), taken: z.string().max(10).optional(), place: z.string().trim().max(200).optional(), caption: z.string().trim().max(1000).optional() })).min(1).max(25) }).parse(input);
+    const media = (await gal()).media;
+    const before: NonNullable<ProposalView['before']> = {};
+    const items = [];
+    for (const it of a.items) {
+      const cur = photoOf(media, it.key);
+      if (!cur) return bad(`${it.key} is not a photo in this family`);
+      if (it.taken && !validDate(it.taken)) return bad(`${it.taken} is not a real date; use YYYY, YYYY-MM or YYYY-MM-DD, with ~ for about`);
+      before[it.key] = { taken: cur.taken, place: cur.place, caption: cur.caption, album: cur.album };
+      // The gallery saves all four details at once, so the card keeps what is not being changed.
+      items.push({ key: it.key, taken: it.taken ?? cur.taken ?? null, place: it.place ?? cur.place ?? null, caption: it.caption ?? cur.caption ?? null, album: cur.album ?? null });
+    }
+    const parsed = proposalArgs['photo-details'].safeParse({ items });
+    if (!parsed.success) return bad('the arguments did not fit the tool');
+    return done({
+      kind, args: parsed.data as ProposalArgs, editable: [],
+      summary: c('ai.summaryPhotos', { count: items.length }),
+      diff: [],
+      view: { thumbs: thumbsFor(ctx.tree, items.map((i) => i.key)), before },
+    });
+  }
+
+  if (kind === 'photo-album') {
+    const a = z.object({ name: z.string().trim().min(1).max(80).optional(), albumId: z.string().max(64).optional(), keys: z.array(z.string()).min(1).max(40) }).parse(input);
+    const { media, albums } = await gal();
+    if (a.albumId && !albums.some((x) => x.id === a.albumId)) return bad('that album is not in this family; list the albums first');
+    if (!a.albumId && !a.name) return bad('name the new album, or pick an existing one');
+    const items = [];
+    for (const key of a.keys) {
+      const cur = photoOf(media, key);
+      if (!cur) return bad(`${key} is not a photo in this family`);
+      items.push({ key, taken: cur.taken ?? null, place: cur.place ?? null, caption: cur.caption ?? null, album: cur.album ?? null });
+    }
+    const albumName = a.albumId ? albums.find((x) => x.id === a.albumId)!.name : a.name!;
+    const args: ProposalArgs = { items, ...(a.name && !a.albumId ? { name: a.name } : { albumId: a.albumId! }) };
+    return done({
+      kind, args, editable: [],
+      summary: c('ai.summaryAlbum', { count: items.length, name: albumName }),
+      diff: [],
+      view: { thumbs: thumbsFor(ctx.tree, a.keys), names: {} },
+    });
+  }
+
+  if (kind === 'photo-tags') {
+    const a = z.object({ key: z.string(), people: z.array(z.object({ person: z.string().min(1), box: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }).optional() })).min(1).max(20) }).parse(input);
+    const media = (await gal()).media;
+    if (!photoOf(media, a.key)) return bad(`${a.key} is not a photo in this family`);
+    for (const p of a.people) if (!byId.has(p.person)) return bad(`${p.person} is not a person in this tree; search for them first`);
+    const people = a.people.map((p) => ({ person: p.person, box: p.box ?? { x: 0, y: 0, w: 1, h: 1 } }));
+    const names = Object.fromEntries(people.map((p) => [p.person, name(byId, p.person)]));
+    return done({
+      kind, args: { key: a.key, people }, editable: [],
+      summary: c('ai.summaryTags', { count: people.length }),
+      diff: [],
+      view: { thumbs: thumbsFor(ctx.tree, [a.key]), names },
+    });
+  }
+
+  if (kind === 'avatar') {
+    if (!ctx.avatar) return bad('drawn avatars are off for this family');
+    const a = z.object({ person: z.string().min(1), key: z.string() }).parse(input);
+    if (!byId.has(a.person)) return bad(`${a.person} is not a person in this tree; search for them first`);
+    const media = (await gal()).media;
+    const photo = photoOf(media, a.key);
+    if (!photo || !photo.tags.some((t) => t.confirmed && t.person === a.person)) return bad('that photo is not one where this person is confirmed; tag them in it first');
+    const { avatarFromPhoto } = await import('./vision.server');
+    const { AiError } = await import('./adapters');
+    let look;
+    try {
+      look = await avatarFromPhoto({ tree: ctx.tree, personId: a.person, mediaKey: a.key, locale: ctx.locale });
+    } catch (e) {
+      if (e instanceof AiError) return bad(e.message);
+      throw e;
+    }
+    const parsed = proposalArgs.avatar.safeParse({ person: a.person, look });
+    if (!parsed.success) return bad('the drawing did not come out in a form the portrait can show');
+    return done({
+      kind, args: parsed.data as ProposalArgs, editable: [],
+      summary: c('ai.summaryAvatar', { name: name(byId, a.person) }),
+      diff: [],
+      view: { thumbs: thumbsFor(ctx.tree, [a.key]), names: { [a.person]: name(byId, a.person) }, personName: name(byId, a.person) },
+    });
+  }
+
+  if (kind === 'set-occupation') {
+    const a = z.object({ person: z.string().min(1), occupation: z.string().trim().min(1).max(200) }).parse(input);
+    const cur = byId.get(a.person);
+    if (!cur) return bad(`${a.person} is not a person in this tree; search for them first`);
+    return done({
+      kind, args: { person: a.person, occupation: a.occupation }, editable: [],
+      summary: c('ai.summaryOccupation', { name: fullName(cur), occupation: a.occupation }),
+      diff: [{ label: c('ai.fieldOccupation'), from: cur.occupation ?? c('ai.fieldNone'), to: a.occupation }],
+    });
+  }
+
+  // house-settings: stewards only (the server checks it again on approval). Unchanged fields keep their stored value.
+  const a = z.object({
+    house: z.string().min(1), law: z.enum(['absolute-primogeniture', 'seniority', 'elective']).optional(),
+    head: z.string().min(1).optional(), heir: z.string().min(1).optional(), country: z.string().regex(/^[A-Z]{2}$/).optional(),
+  }).parse(input);
+  const house = g.houses.find((h) => h.id === a.house);
+  if (!house) return bad('that house is not in this family; list the houses first');
+  const cur = (await readHouseSettings(ctx.tree))[house.id];
+  const next = { house: house.id, law: a.law ?? cur?.law ?? 'absolute-primogeniture', head: a.head ?? cur?.head ?? null, heir: a.heir ?? cur?.heir ?? null, country: a.country ?? cur?.country ?? null };
+  for (const who of [next.head, next.heir]) if (who && !(byId.get(who)?.house === house.id)) return bad(`${who} is not a member of ${house.name}`);
+  const parsed = proposalArgs['house-settings'].safeParse(next);
+  if (!parsed.success) return bad('the arguments did not fit the tool');
+  const show2 = (v: unknown) => (v === null || v === undefined || v === '' ? c('ai.fieldNone') : String(v));
+  return done({
+    kind, args: parsed.data as ProposalArgs, editable: [],
+    summary: c('ai.summaryHouse', { house: house.name }),
+    diff: [
+      { label: c('ai.fieldLaw'), from: show2(cur?.law), to: next.law },
+      { label: c('ai.fieldCountry'), from: show2(cur?.country), to: show2(next.country) },
+      { label: c('ai.fieldHead'), from: show2(cur?.head ? name(byId, cur.head) : null), to: show2(next.head ? name(byId, next.head) : null) },
+      { label: c('ai.fieldHeir'), from: show2(cur?.heir ? name(byId, cur.heir) : null), to: show2(next.heir ? name(byId, next.heir) : null) },
+    ],
+  });
+}
+
+const name = (byId: Map<string, GPerson>, id: string) => (byId.get(id) ? fullName(byId.get(id)!) : id);
+const thumbsFor = (tree: string, keys: string[]) => Object.fromEntries(keys.map((k) => [k, mediaUrl(tree, k)]));

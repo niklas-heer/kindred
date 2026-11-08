@@ -526,3 +526,22 @@ test('outputCap: an Anthropic reply is never capped below its floor, and a large
   assert.equal(outputCap('anthropic', 'claude-opus-5-5'), 8_000);
 });
 
+
+test('OpenRouter retries once in plain JSON mode when a model refuses the schema', async () => {
+  const bodies: Record<string, unknown>[] = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = (async (_u: unknown, init: RequestInit) => {
+    bodies.push(JSON.parse(String(init.body)));
+    if (bodies.length === 1) return new Response(JSON.stringify({ error: { message: 'Provider returned error', code: 400 } }), { status: 400 });
+    return new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: '```json\n{"a":1}\n```' } }], usage: { prompt_tokens: 1, completion_tokens: 1 } }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const reply = await makeAdapter('openrouter', KEY, 'google/gemini-3.8-flash').complete({ system: 'S', messages: [{ role: 'user', text: 'Hi' }], json: { name: 'x', schema: { type: 'object', properties: { a: { type: 'number' } } } } });
+    assert.deepEqual(reply.json, { a: 1 });
+    assert.equal(bodies.length, 2);
+    assert.equal((bodies[0].response_format as { type: string }).type, 'json_schema');
+    assert.equal((bodies[1].response_format as { type: string }).type, 'json_object');
+  } finally {
+    globalThis.fetch = real;
+  }
+});

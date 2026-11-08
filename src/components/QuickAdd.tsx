@@ -7,7 +7,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { Check } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { addRelative, linkRelative, opKeys, unlinkRelative } from '~/lib/api';
-import { validDate } from '~/lib/dates';
+import { isoOfDate, storedIssue } from '~/lib/partial-date';
 import { useMeChosen } from '~/lib/family';
 import { ancestorDepths, children, descendants, displayName, parents, partnersOf, siblings, yearOf, type Family } from '~/lib/graph';
 import { translateMessage, useT, type Key, type Translator, type Vars } from '~/lib/i18n';
@@ -19,6 +19,7 @@ import type { AddRelation } from './Card';
 import { PersonRow, searchPeople } from './Palette';
 import { PlaceInput, placeValue, savePlacesKeyed, type PlaceValue } from './PlaceInput';
 import { Dialog } from './ui/Dialog';
+import { DatePicker } from './ui/DatePicker';
 import { Select } from './ui/Select';
 import { Switch } from './ui/Switch';
 import './quickadd.css';
@@ -146,7 +147,7 @@ export function LinkCandidates({ f, tree, anchor, relation, query, surname, coPa
   const rows = useMemo(() => {
     const q = query.trim();
     const pool = q ? searchPeople(f, q, 60) : likely(f, anchor, relation, coParent).map((id) => ({ id, score: 10 }));
-    const by = !born || !validDate(born) ? NaN : yearOf(born);
+    const by = !born || storedIssue(born) ? NaN : yearOf(born);
     const fs = foldName(surname ?? '');
     return pool
       .filter(({ id }) => id !== anchor && (isNaN(by) || isNaN(yearOf(f.byId.get(id)?.born)) || Math.abs(yearOf(f.byId.get(id)!.born) - by) <= 1))
@@ -255,7 +256,7 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onLin
       }
     },
   });
-  const date = ({ value }: { value: string }) => (value === '' || validDate(value.trim()) ? undefined : t('quick.error.year'));
+  const date = ({ value }: { value: string }) => (storedIssue(value.trim(), { notAfter: isoOfDate(new Date()) }) ? t('date.err.invalid') : undefined);
   const given = useStore(form.store, (s) => s.values.given);
   const born = useStore(form.store, (s) => s.values.born);
   const coParent = useStore(form.store, (s) => s.values.coParent);
@@ -327,7 +328,7 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onLin
       footer={
         <>
           {error ? <span className="err qa-note" role="alert">{error}</span> : <span className="subtle qa-note">{mode === 'existing' ? t('quick.note.existing') : t('quick.note.new')}</span>}
-          <button className="btn primary qa-submit" form={formId} disabled={busy || (mode === 'existing' && !selected) || (!!start && !validDate(start))}><Check size={14} /> {mode === 'existing' ? t('quick.submit.existing') : t('quick.submit.new')} <kbd>↵</kbd></button>
+          <button className="btn primary qa-submit" form={formId} disabled={busy || (mode === 'existing' && !selected) || !!storedIssue(start)}><Check size={14} /> {mode === 'existing' ? t('quick.submit.existing') : t('quick.submit.new')} <kbd>↵</kbd></button>
         </>
       }
     >
@@ -388,11 +389,13 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onLin
               </form.Field>
               <form.Field name="born" validators={{ onChange: date }}>
                 {(field) => (
-                  <label className="field">
-                    <span>{t('quick.born')}</span>
-                    <input aria-describedby={`${formId}-born-error`} aria-invalid={!!field.state.meta.errors.length} className="input" placeholder={tree === 'realm' ? t('quick.ph.bornRealm') : t('quick.ph.born')} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
-                    {field.state.meta.errors[0] && <em id={`${formId}-born-error`} className="err">{field.state.meta.errors[0]}</em>}
-                  </label>
+                  <DatePicker
+                    label={t('quick.born')}
+                    value={field.state.value}
+                    onChange={(v) => field.handleChange(v)}
+                    notAfter={isoOfDate(new Date())}
+                    error={field.state.meta.errors[0] ?? undefined}
+                  />
                 )}
               </form.Field>
             </>}
@@ -431,12 +434,8 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onLin
                   <span>{t('quick.relType')}</span>
                   <Select aria-label={t('quick.relType')} value={partnerKind} onChange={setPartnerKind} options={[{ value: 'marriage', label: t('quick.relMarried') }, { value: 'partnership', label: t('quick.relPartners') }, { value: 'other', label: t('quick.relOther') }]} />
                 </div>
-                <div className="wide pi-pair">
-                  <label className="field">
-                    <span>{t('quick.startDate')}</span>
-                    <input className="input" value={start} onChange={(e) => setStart(e.target.value)} aria-invalid={!!start && !validDate(start)} aria-describedby={`${formId}-start-error`} placeholder={tree === 'realm' ? '1140' : '2000-06'} />
-                    {!!start && !validDate(start) && <em id={`${formId}-start-error`} className="err">{t('quick.error.date')}</em>}
-                  </label>
+                <div className="wide qa-stack">
+                  <DatePicker label={t('quick.startDate')} value={start} onChange={setStart} />
                   <div className="field">
                     <span id={`${formId}-place`}>{t('quick.place')}</span>
                     <PlaceInput tree={tree} value={place} onChange={setPlace} aria-labelledby={`${formId}-place`} placeholder={tree === 'realm' ? t('quick.ph.placeWed') : t('quick.ph.placeOther')} />

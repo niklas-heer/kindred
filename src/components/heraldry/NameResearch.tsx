@@ -2,14 +2,22 @@
 // the meanings to use, and may add their own), step two designs arms from the chosen meanings. Stewards only, and
 // only when the family's AI arms feature is on; the offline ideas above it are unaffected. Results belong to the
 // name they were asked for: change the name and they go, the family's own words stay.
-import { useMutation } from '@tanstack/react-query';
-import { Check, Plus, Sparkles } from 'lucide-react';
-import { useState } from 'react';
+// A steward saves the chosen meanings for the house (src/lib/house-meaning.functions.ts). Reopening the designer then
+// shows the saved research instead of starting over, and a save asks the model whether the arms still fit the name.
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useParams } from '@tanstack/react-router';
+import { Check, Plus, Save, Sparkles } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { checkArmsFit } from '~/lib/ai/arms-fit.functions';
 import { MAX_DESIGN_MEANINGS, aiArmsDesigns, aiNameMeaning } from '~/lib/ai/arms.functions';
 import { toAiLocale, type Attestation, type DesignMeaning, type IdeaKind, type NameDesign, type NameMeaning, type NameResearch } from '~/lib/ai/types';
+import { opKeys } from '~/lib/api';
 import { errorText } from '~/lib/errortext';
-import { useT, type Key } from '~/lib/i18n';
+import { armsReviewsQuery, houseMeaningsQuery, saveHouseMeaning } from '~/lib/house-meaning.functions';
+import type { SavedMeaning } from '~/lib/house-meaning';
+import { locales, useT, type Key } from '~/lib/i18n';
 import { play } from '~/lib/sfx';
+import { toast } from '~/lib/toast';
 import type { ArmsV2 } from '~/lib/seed-format';
 import { EmptyState, ErrorState, Skeleton } from '../ui';
 import { blazonV2 } from './blazon';
@@ -30,14 +38,26 @@ const IDEA_KEY: Record<IdeaKind, Key> = {
 interface Result { surname: string; data: NameResearch }
 interface Designs { surname: string; list: NameDesign[] }
 
-export function NameResearchPanel({ tree, surname, country, onPick }: {
+/** A saved research as the research panel shows it: the same fields a fresh research returns. */
+const asResearch = (s: SavedMeaning): NameResearch => ({
+  meanings: s.meanings.map(({ chosen: _chosen, ...m }) => m),
+  note: s.note || undefined,
+  webSearched: s.webSearched,
+});
+
+export function NameResearchPanel({ tree, surname, country, onPick, house }: {
   tree: string;
   surname: string;
   /** ISO 3166 code, upper case, when the house has one. */
   country?: string;
   onPick: (arms: ArmsV2) => void;
+  /** The house whose research this is. Without it, the house in the page's address (the designer opens from the house page). */
+  house?: string;
 }) {
   const t = useT();
+  const qc = useQueryClient();
+  const routeHouse = (useParams({ strict: false }) as { house?: string }).house;
+  const houseId = house ?? routeHouse;
   const locale = toAiLocale(t.locale);
   const name = surname.trim();
   const iso = country && /^[A-Z]{2}$/.test(country) ? country : undefined;
@@ -50,12 +70,30 @@ export function NameResearchPanel({ tree, surname, country, onPick }: {
   const [designs, setDesigns] = useState<Designs | null>(null);
   /** Set when the reader tries to choose more meanings than the design call takes. */
   const [limitHit, setLimitHit] = useState(false);
+  const [keys] = useState(() => opKeys());
+  const [checkKeys] = useState(() => opKeys());
+
+  // The saved research for this house, when it is for the name being typed now.
+  const meanings = useQuery({ ...houseMeaningsQuery(tree), enabled: !!houseId });
+  const savedRow = houseId ? meanings.data?.[houseId] : undefined;
+  const saved = savedRow && savedRow.name === name ? savedRow : undefined;
 
   /** A failed call's line: the server's own message when it is a readable one, never raw validation JSON. */
   const failure = (e: unknown, fallback: string) => {
     const m = e instanceof Error ? e.message : '';
     return m && !/^[[{]/.test(m) ? errorText(e, t.locale) : fallback;
   };
+
+  // Opening the designer on a house with saved research: its meanings, its choice and its family's words are the starting point.
+  const seeded = useRef<number | null>(null);
+  useEffect(() => {
+    if (!saved || result || seeded.current === saved.savedAt) return;
+    seeded.current = saved.savedAt;
+    setHint(saved.familyWords);
+    setOwn(saved.meanings.filter((m) => m.id.startsWith('own')).map(({ chosen: _chosen, ...m }) => m));
+    setPicked(new Set(saved.meanings.filter((m) => m.chosen).map((m) => m.id)));
+    setDesigns(null);
+  }, [saved?.savedAt, result]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const research = useMutation({
     mutationFn: (q: { surname: string; familyHint: string }) => aiNameMeaning({
@@ -76,8 +114,32 @@ export function NameResearchPanel({ tree, surname, country, onPick }: {
     onSuccess: (list, q) => setDesigns({ surname: q.surname, list }),
   });
 
-  // Results for another name are not shown; a fresh search replaces them.
-  const current = result && result.surname === name ? result.data : undefined;
+  const check = useMutation({
+    mutationFn: (force: boolean) => checkArmsFit({
+      data: { tree, house: houseId ?? '', opKey: checkKeys.for('arms-check', { force }), locale, force },
+    }),
+    onSuccess: () => {
+      checkKeys.clear();
+      void qc.invalidateQueries({ queryKey: armsReviewsQuery(tree).queryKey });
+    },
+  });
+
+  const save = useMutation({
+    mutationFn: (body: { name: string; familyWords: string; webSearched: boolean; note: string; meanings: (NameMeaning & { chosen: boolean })[] }) =>
+      saveHouseMeaning({ data: { tree, house: houseId ?? '', opKey: keys.for('house-meaning', body), ...body } }),
+    onSuccess: (s) => {
+      qc.setQueryData(houseMeaningsQuery(tree).queryKey, (old: Record<string, SavedMeaning> | undefined) => ({ ...old, [s.house]: s }));
+      keys.clear();
+      toast({ title: t('houses.meaning.saved'), body: name, icon: 'crown' });
+      // The arms are checked against the name the moment its meanings are saved.
+      check.mutate(false);
+    },
+  });
+
+  // Results for another name are not shown; a fresh search replaces them, and the saved research shows until then.
+  const fresh = result && result.surname === name ? result.data : undefined;
+  const usingSaved = !fresh && !!saved;
+  const current: NameResearch | undefined = fresh ?? (saved ? asResearch(saved) : undefined);
   const shown: NameMeaning[] = current ? [...current.meanings, ...own] : [];
   const chosen = shown.filter((m) => picked.has(m.id));
   const liveDesigns = designs && designs.surname === name ? designs.list : null;
@@ -112,8 +174,21 @@ export function NameResearchPanel({ tree, surname, country, onPick }: {
 
   const meaningsFor = (list: NameMeaning[]): DesignMeaning[] => list.map(({ id, language, root, meaning, attestation, ideas }) => ({ id, language, root, meaning, attestation, ideas }));
 
+  const saveChosen = () => {
+    if (!current || !houseId || chosen.length === 0) return;
+    save.mutate({
+      name,
+      familyWords: familyHint,
+      webSearched: current.webSearched,
+      note: current.note ?? '',
+      meanings: shown.map(({ sources, ...m }) => ({ ...m, ...(sources && sources.length ? { sources } : {}), chosen: picked.has(m.id) })),
+    });
+  };
+
+  const when = (ms: number) => new Date(ms).toLocaleDateString(locales[t.locale], { day: 'numeric', month: 'short', year: 'numeric' });
+
   return (
-    <section className="ae-research" aria-label={t('heraldry.research_title')} aria-busy={research.isPending || design.isPending || undefined}>
+    <section className="ae-research" aria-label={t('heraldry.research_title')} aria-busy={research.isPending || design.isPending || save.isPending || check.isPending || undefined}>
       <h3 className="ae-research-title">{t('heraldry.research_title')}</h3>
       <p className="subtle ae-lead">{t('heraldry.research_lead')}</p>
 
@@ -133,7 +208,7 @@ export function NameResearchPanel({ tree, surname, country, onPick }: {
         disabled={!name || research.isPending}
         onClick={() => research.mutate({ surname: name, familyHint })}
       >
-        <Sparkles size={15} aria-hidden /> {t('heraldry.research_name')}
+        <Sparkles size={15} aria-hidden /> {usingSaved ? t('houses.meaning.researchAgain') : t('heraldry.research_name')}
       </button>
 
       {research.isPending && (
@@ -153,6 +228,7 @@ export function NameResearchPanel({ tree, surname, country, onPick }: {
 
       {current && !research.isPending && (
         <div className="ae-meanings">
+          {usingSaved && saved && <p className="subtle ae-basis">{t('houses.meaning.savedWhen', { when: when(saved.savedAt) })}</p>}
           <p className="subtle ae-basis">{t(current.webSearched ? 'heraldry.basis_web' : 'heraldry.basis_knowledge')}</p>
           {current.note && <p className="subtle ae-basis">{current.note}</p>}
 
@@ -225,6 +301,16 @@ export function NameResearchPanel({ tree, surname, country, onPick }: {
           {(limitHit || full) && <p className="subtle ae-limit" role="status">{t('heraldry.meanings_limit', { max: MAX_DESIGN_MEANINGS })}</p>}
           <div className="ae-design-go">
             <span className="subtle">{chosen.length === 0 ? t('heraldry.no_meaning_chosen') : t('heraldry.meanings_selected', { count: chosen.length })}</span>
+            {houseId && (
+              <button
+                type="button"
+                className="btn"
+                disabled={chosen.length === 0 || save.isPending}
+                onClick={saveChosen}
+              >
+                <Save size={15} aria-hidden /> {t('houses.meaning.save')}
+              </button>
+            )}
             <button
               type="button"
               className="btn primary"
@@ -234,6 +320,10 @@ export function NameResearchPanel({ tree, surname, country, onPick }: {
               <Sparkles size={15} aria-hidden /> {t('heraldry.design_from_these')}
             </button>
           </div>
+          {save.isPending && <p className="subtle ae-basis" role="status">{t('houses.review.checking')}</p>}
+          {save.isError && !save.isPending && <p className="hp-error" role="alert">{failure(save.error, t('houses.meaning.saveFailed'))}</p>}
+          {check.isPending && <p className="subtle ae-basis" role="status">{t('houses.review.checking')}</p>}
+          {check.isError && !check.isPending && <p className="hp-error" role="alert">{failure(check.error, t('houses.review.failed'))}</p>}
         </div>
       )}
 

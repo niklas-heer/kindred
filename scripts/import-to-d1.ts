@@ -87,7 +87,7 @@ for (const tree of trees) {
       rows.set(t, d.prepare(`SELECT ${cols.join(', ')} FROM ${t}`).all() as Record<string, unknown>[]);
     }
     // Pictures the family names (portraits and gallery) must all have a file; the folder's files all go up.
-    const named = [...rows.get('photo')!, ...rows.get('media')!].map((r) => r.key).filter((k): k is string => typeof k === 'string');
+    const named = [...rows.get('photo')!, ...rows.get('media')!, ...rows.get('portrait')!].map((r) => r.key).filter((k): k is string => typeof k === 'string');
     const onDisk = listFiles(resolve('data/media', tree)).map((f) => ({ key: f.key, file: f.file }));
     const media = planMedia(named, [...moved, ...onDisk]);
     d.close();

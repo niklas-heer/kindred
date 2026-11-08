@@ -37,3 +37,6 @@
 
 /* The submit button, while nothing can be sent yet ("Link person" with nobody picked): it reads as off, not as a dud. */
 .btn.qa-submit:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; filter: saturate(0.4); }
+
+/* The partnership's start date and place, one above the other: the date picker is taller than a pair row. */
+.qa-stack { display: grid; gap: 12px; min-width: 0; }

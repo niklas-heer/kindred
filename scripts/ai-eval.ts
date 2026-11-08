@@ -56,6 +56,7 @@ export interface Server {
   types: typeof import('../src/lib/ai/types.ts');
   canting: typeof import('../src/components/heraldry/canting.ts');
   catalogue: typeof import('../src/components/heraldry/catalogue.ts');
+  registry: typeof import('../src/components/heraldry/registry.ts');
   tinctures: typeof import('../src/components/heraldry/tinctures.ts');
   schema: typeof import('../src/components/heraldry/schema.ts');
   fake: typeof import('../src/lib/ai/fake.ts');
@@ -344,6 +345,7 @@ export async function loadServer(): Promise<{ server: Server; close: () => Promi
     types: await load<Server['types']>('/src/lib/ai/types.ts'),
     canting: await load<Server['canting']>('/src/components/heraldry/canting.ts'),
     catalogue: await load<Server['catalogue']>('/src/components/heraldry/catalogue.ts'),
+    registry: await load<Server['registry']>('/src/components/heraldry/registry.ts'),
     tinctures: await load<Server['tinctures']>('/src/components/heraldry/tinctures.ts'),
     schema: await load<Server['schema']>('/src/components/heraldry/schema.ts'),
     fake: await load<Server['fake']>('/src/lib/ai/fake.ts'),
@@ -391,7 +393,7 @@ async function item(id: string, fn: () => Promise<{ pass: boolean; note?: string
 /** The assistant's loop, as sendMessage runs it: the app's prompt and tools, the reader's role `editor`, up to MAX_STEPS tool turns. */
 async function converse(cx: Cx, question: string, locale: Lang): Promise<{ text: string; calls: string[]; proposals: Proposal[] }> {
   const { server, adapter } = cx;
-  const { tools, proposals: canPropose } = server.tools.toolsFor('editor', false);
+  const { tools, proposals: canPropose } = server.tools.toolsFor('editor', { web: false });
   const system = server.prompt.systemPrompt({ locale: locale as AiLocale, family: FAMILY.name, readerName: null, kinToReader: null, canPropose, role: 'editor', webSearch: false });
   const messages: AiMessage[] = [{ role: 'user', text: question }];
   const ctx: ToolCtx = { tree: TREE_ID, role: 'editor', me: null, locale: locale as AiLocale };
@@ -421,7 +423,7 @@ export function scoreDesigns(server: Server, designs: NameDesign[], chosenIds: s
   const parsed = server.canting.cantingResponseSchema.safeParse(raw);
   const suggestions = parsed.success ? parsed.data.suggestions : [];
   const kind = (t: string) => server.tinctures.kindOf(t as TinctureV2);
-  const unknown = suggestions.reduce((n, s) => n + (s.charges ?? []).filter((c) => !server.catalogue.CHARGE_BY_ID[c.charge]).length, 0);
+  const unknown = suggestions.reduce((n, s) => n + (s.charges ?? []).filter((c) => !server.registry.chargeDef(c.charge)).length, 0);
   const clashes = suggestions.filter((s) => rawClash(s, kind)).length;
   const dropped = Math.max(0, suggestions.length - designs.length);
   const repairs = unknown + clashes + dropped;
@@ -430,7 +432,7 @@ export function scoreDesigns(server: Server, designs: NameDesign[], chosenIds: s
   if (designs.length < 3) failed.add(`fewer than three designs (${designs.length})`);
   for (const d of designs) {
     if (!server.schema.armsV2Schema.safeParse(d.arms).success) failed.add('arms schema');
-    if (!d.arms.layers.every((l) => l.type !== 'charge' || !!server.catalogue.CHARGE_BY_ID[l.charge])) failed.add('unknown charge');
+    if (!d.arms.layers.every((l) => l.type !== 'charge' || !!server.registry.chargeDef(l.charge))) failed.add('unknown charge');
     if (!ruleHolds(d.arms, kind)) failed.add('tincture rule');
     if (!chosenIds.includes(d.meaningId) || d.meaning.trim() === '' || d.explanation.trim() === '') failed.add('no chosen meaning named');
   }

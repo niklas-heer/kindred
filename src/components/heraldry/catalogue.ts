@@ -3,19 +3,29 @@
 // are game-icons.net glyphs (Lorc, Delapouite and contributors, CC BY 3.0).
 //
 // Pure data with no imports, so scripts/extract-icons.ts can read it: that script extracts exactly the glyphs
-// named here. `core` glyphs ship in the main bundle (the v1 charges every old shield uses); the rest live in
-// library.gen.ts, which loads on demand.
+// named here. `core` glyphs ship in the main bundle (the v1 charges every old shield uses). The rest of these
+// charges, and the library of charges added since (library/charges.gen.ts, from scripts/charge-library.tsv), load
+// on demand: see registry.ts for the charges of both, and art.ts for their drawings.
 
 import type { Key } from '~/lib/i18n/dictionary';
 
 export type ChargeCategory =
   | 'classic' | 'crosses' | 'beasts' | 'birds' | 'sea' | 'monsters' | 'plants' | 'celestial' | 'weapons' | 'tools'
-  | 'buildings' | 'crowns' | 'objects';
+  | 'buildings' | 'crowns' | 'objects' | 'faith' | 'body' | 'music';
+
+/** A charge's name in each language. The library's charges carry theirs here, not in the i18n dictionary. */
+export interface ChargeNames {
+  en: string;
+  de: string;
+  af: string;
+}
 
 export interface ChargeDef {
   id: string;
-  /** The i18n key of the label ("heraldry.charge.<id>"); the blazon speaks it in English. */
-  label: Key;
+  /** The i18n key of the label ("heraldry.charge.<id>"); the blazon speaks it in English. The first charges have one. */
+  label?: Key;
+  /** The name in each language, for the library's charges (see library/charges.gen.ts). Exactly one of label and name is set. */
+  name?: ChargeNames;
   cat: ChargeCategory;
   /** The game-icons glyph. Absent: a classic shape from classic.ts. */
   gi?: string;
@@ -45,6 +55,9 @@ export const CATEGORIES: { id: ChargeCategory; label: Key }[] = [
   { id: 'buildings', label: 'heraldry.category.buildings' },
   { id: 'crowns', label: 'heraldry.category.crowns' },
   { id: 'objects', label: 'heraldry.category.objects' },
+  { id: 'faith', label: 'heraldry.category.faith' },
+  { id: 'body', label: 'heraldry.category.body' },
+  { id: 'music', label: 'heraldry.category.music' },
 ];
 
 const BROWN = '#8a5a32';
