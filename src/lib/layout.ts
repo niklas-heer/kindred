@@ -196,7 +196,7 @@ function marriageEdge(key: string, u: GUnion, lx: number, rx: number, y: number,
       x: (lx + rx) / 2,
       y: cy - 9,
       text: `${u.kind === 'marriage' ? '⚭' : '◇'}${Number.isFinite(start) ? ` ${start}` : ''}${Number.isFinite(end) ? `–${end}` : ''}`,
-      status: u.endReason === 'death' ? 'widowed' : u.endReason === 'divorce' ? 'divorced' : u.endReason,
+      status: u.endReason === 'death' ? 'widowed' : u.endReason === 'divorce' ? 'divorced' : u.endReason ? 'ended' : undefined,
     },
   };
 }

@@ -40,6 +40,7 @@ import { DraftContext, DraftTracker, type Draft } from './fields/draft';
 import { PersonEdit } from './fields/PersonEdit';
 import { CharacterEditor } from './CharacterEditor';
 import { PersonPhotos } from './photos/PersonPhotos';
+import { PersonResearch } from './research/PersonResearch';
 import { ContactRow, FieldGroups, contactHref, contactsOf } from './fields/FieldsView';
 import { DEFAULT_LABEL } from './fields/model';
 import './panel.css';
@@ -300,6 +301,7 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
   return (
     <div className="pp-overview">
       <PersonPhotos tree={tree} id={p.id} />
+      <PersonResearch tree={tree} id={p.id} />
       <HeadOfHouse person={p.id} />
       <section className="pp-kin" aria-label={c('panel.howRelated')}>
         {!me ? (
@@ -650,7 +652,7 @@ function PartnershipEnd({ tree, u }: { tree: string; u: Family['graph']['unions'
     mutationFn: () => setPartnershipEnd({ data: { tree, id: u.id, end: end || null, endReason: end && reason ? reason as 'divorce' | 'death' | 'other' : null } }),
     onSuccess: async () => { setOpen(false); await qc.invalidateQueries({ queryKey: ['graph', tree] }); },
   });
-  if (!open) return <button className="btn ghost pp-end-open" onClick={() => setOpen(true)}>{c('family.endEdit')}</button>;
+  if (!open) return <button className="btn ghost pp-end-open" onClick={() => setOpen(true)}>{c(u.end || u.endReason ? 'family.endChange' : 'family.endEdit')}</button>;
   return (
     <div className="pp-end" role="group" aria-label={c('family.endEdit')}>
       <DatePicker label={c('family.endDate')} value={end} onChange={setEnd} />

@@ -423,7 +423,12 @@
 .ai-fam-rels li { overflow-wrap: anywhere; }
 .ai-fam-loop { text-decoration: line-through; color: var(--muted); }
 .ai-fam-dup { margin: 4px 0 0; font-size: 0.85rem; color: var(--accent); }
-.ai-fam-story { margin: 0; font-size: 0.85rem; font-style: italic; }
+.ai-fam-story { margin-top: 6px; padding-left: 10px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
+.ai-fam-story p { margin: 0; }
+.ai-fam-story-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 0.8rem; color: var(--muted); overflow-wrap: anywhere; }
+.ai-fam-story-body { font-size: 0.95rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ai-fam-story-by { font-size: 0.8rem; }
+.ai-fam-wide { grid-column: 1 / -1; }
 .ai-fam-done .ai-fam-name { color: var(--muted); }
 .ai-fam-actions { display: flex; align-items: flex-start; gap: 2px; }
 .ai-fam-edit {
@@ -435,8 +440,8 @@
   border-top: 1px dashed var(--border);
 }
 .ai-fam-edit .ai-field input { min-height: 44px; }
-.ai-fam-connections .ai-fam-rels li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-.ai-link-remove { min-width: 44px; min-height: 44px; }
+.ai-fam-connections .ai-fam-rels li, .ai-fam-rels li:has(> .ai-link-remove) { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.ai-link-remove { min-width: 44px; min-height: 44px; margin-left: auto; flex-shrink: 0; }
 
 .ai-photo { display: flex; flex-direction: column; gap: 8px; }
 .ai-photo-list { display: flex; flex-direction: column; gap: 8px; }

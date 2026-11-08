@@ -4,7 +4,7 @@ import { occupationSearchText } from '~/lib/occupations';
 // ⌘K: jump to anyone by name, nickname, epithet, title or place; or run a command.
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useNavigate } from '@tanstack/react-router';
-import { CalendarHeart, Contact, Landmark, Map as MapIcon, Crown, GitFork, Moon, Network, Palette as PaletteIcon, ScrollText, Sparkles, Sun, UserRound } from 'lucide-react';
+import { CalendarHeart, Contact, Landmark, Map as MapIcon, Crown, GitFork, Moon, Network, Palette as PaletteIcon, ScrollText, Sparkles, Sun, UserRound, FolderSearch } from 'lucide-react';
 import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useFamily, useMe, useMeChosen, useTreeId } from '~/lib/family';
 import { displayName, kinship, lifespan, ancestorDepths, type Family } from '~/lib/graph';
@@ -149,6 +149,7 @@ export function Palette() {
       { key: 'atlas', icon: <MapIcon size={16} />, label: t('shell.cmd.atlas'), hint: t('shell.cmd.atlasHint'), run: () => { navigate({ to: '/$tree/atlas', params: { tree } }); close(); } },
       { key: 'contacts', icon: <Contact size={16} />, label: t('shell.cmd.contacts'), run: () => { navigate({ to: '/$tree/contacts', params: { tree } }); close(); } },
       { key: 'chronicle', icon: <ScrollText size={16} />, label: t('shell.cmd.chronicle'), hint: t('shell.cmd.chronicleHint'), run: () => { navigate({ to: '/$tree/chronicle', params: { tree } }); close(); } },
+      { key: 'research', icon: <FolderSearch size={16} />, label: t('research.title'), hint: t('research.cmd_hint'), run: () => { navigate({ to: '/$tree/research', params: { tree } }); close(); } },
       { key: 'houses', icon: <Landmark size={16} />, label: t('shell.cmd.houses'), hint: t('shell.cmd.housesHint'), run: () => { navigate({ to: '/$tree/houses', params: { tree } }); close(); } },
       ...(assistantOn ? [{ key: 'assistant', icon: <Sparkles size={16} />, label: t('ai.askCommand'), run: () => { close(); openAssistant(); } }] : []),
       ...(setupNeeded ? [{ key: 'ai-setup', icon: <Sparkles size={16} />, label: t('ai.setupCommand'), run: () => { close(); openAiSetup(); } }] : []),

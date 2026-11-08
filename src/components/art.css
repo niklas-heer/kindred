@@ -110,6 +110,10 @@
   height: 100%;
   object-fit: cover;
 }
+/* A painting taller than its roundel keeps its head: the crop favours the top, where the face is. Square paintings are unaffected. */
+.portrait-img.is-painted {
+  object-position: 50% 8%;
+}
 
 /* Paper and Night: a rounded square with a hairline and a soft shadow, the roundel inset on paper. */
 .portrait.is-framed {

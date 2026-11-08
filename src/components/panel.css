@@ -287,6 +287,9 @@ p.pp-add-relative.pp-ask { margin: 0; padding: 12px 16px; }
 /* Relatives: an editor may take a direct link out from its card (two taps: the link, then the confirm). */
 .pp-rel-cell { display: grid; justify-items: center; align-content: start; gap: 2px; min-width: 0; }
 .pp-unlink { width: 100%; min-height: 44px; padding: 2px 4px; font-size: 12px; line-height: 1.2; white-space: normal; text-align: center; color: var(--muted); }
+.pp-end-open { width: 100%; min-height: 44px; padding: 2px 4px; font-size: 12px; line-height: 1.2; white-space: normal; text-align: center; color: var(--muted); }
+/* The open end form needs room: it takes the whole row. */
+.pp-rel-cell:has(.pp-end) { grid-column: 1 / -1; justify-items: stretch; }
 .pp-unlink-confirm { display: grid; width: 100%; gap: 2px; }
 .pp-unlink-confirm .btn { width: 100%; min-height: 44px; padding: 2px 4px; font-size: 12px; line-height: 1.2; white-space: normal; }
 /* The name a person went by at birth, after the current one. */

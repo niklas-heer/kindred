@@ -7,6 +7,7 @@ import { markdownArchive, noteNames, portraitPath } from './markdown.ts';
 import { writeGedcom } from './gedcom.ts';
 import { readTree, type ExTree } from './model.ts';
 import { storeZip } from './zip.ts';
+import { researchArchive, researchGedcomLosses } from './research-archive.ts';
 
 export type ExportFormat = 'gedcom' | 'markdown';
 
@@ -16,7 +17,7 @@ const stamp = (now: Date) => now.toISOString().slice(0, 10);
 export async function gedcomExport(tree: string, now: Date = new Date()) {
   const t = await readTree(db(tree));
   const { text, losses } = writeGedcom(t, now);
-  return { body: text, losses, filename: `${tree}-${stamp(now)}.ged`, contentType: 'text/plain; charset=utf-8' };
+  return { body: text, losses: [...losses, ...(await researchGedcomLosses(tree))], filename: `${tree}-${stamp(now)}.ged`, contentType: 'text/plain; charset=utf-8' };
 }
 
 /** Each portrait the family has, read from media storage, at the path its Markdown note refers to. */
@@ -52,23 +53,27 @@ export async function markdownExport(tree: string, now: Date = new Date()) {
   const attachments = await portraitFiles(tree, t);
   const have = new Set(attachments.map((a) => a.path));
   const { files, losses } = markdownArchive(t, have, now);
-  return { body: storeZip([...files, ...attachments], now), losses, filename: `${tree}-markdown-${stamp(now)}.zip`, contentType: 'application/zip' };
+  const research = await researchArchive(tree);
+  return { body: storeZip([...files, ...attachments, ...research.files], now), losses: [...losses, ...research.losses], filename: `${tree}-markdown-${stamp(now)}.zip`, contentType: 'application/zip' };
 }
 
 /** A family as the nightly archive reads it: the model, and its portraits as archive files. */
 export interface FamilySnapshot {
   tree: ExTree;
   portraits: ArchiveFile[];
+  /** The research projects' notes and documents; absent for a snapshot from before research existed. */
+  research?: ArchiveFile[];
 }
 
 /** The family's current data, read from its database and media storage. Read-only. */
 export async function familySnapshot(tree: string): Promise<FamilySnapshot> {
   const t = await readTree(db(tree));
-  return { tree: t, portraits: await portraitFiles(tree, t) };
+  return { tree: t, portraits: await portraitFiles(tree, t), research: (await researchArchive(tree)).files };
 }
 
 /** What the format leaves out, without building the file: the export page shows it before the download. */
 export async function exportLosses(tree: string, format: ExportFormat): Promise<string[]> {
   const t = await readTree(db(tree));
-  return format === 'gedcom' ? writeGedcom(t).losses : markdownArchive(t).losses;
+  if (format === 'gedcom') return [...writeGedcom(t).losses, ...(await researchGedcomLosses(tree))];
+  return [...markdownArchive(t).losses, ...(await researchArchive(tree)).losses];
 }

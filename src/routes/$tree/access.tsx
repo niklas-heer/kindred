@@ -6,7 +6,7 @@ import { ago, Initials } from '~/components/AccountMenu';
 import { Portrait } from '~/components/Portrait';
 import { ROLE_ICON } from '~/components/RoleIcon';
 import { Dialog, EmptyState, ErrorState, Notice, PageHeader, Select, Skeleton } from '~/components/ui';
-import { accessQuery, createInvite, removeMember, renewInvite, revokeInvite, setMemberRole, type AccessInvite, type AccessMember } from '~/lib/auth/functions';
+import { accessQuery, answerPersonLink, createInvite, removeMember, renewInvite, revokeInvite, setMemberRole, type AccessInvite, type AccessMember } from '~/lib/auth/functions';
 import { BROWSING, useFamily, useTreeId } from '~/lib/family';
 import { displayName } from '~/lib/graph';
 import { errorText } from '~/lib/errortext';
@@ -58,6 +58,12 @@ function AccessPage() {
   const onError = (e: Error) => setError(translateMessage(e.message, t.locale));
   const role = useMutation({ mutationFn: (v: { user: string; role: Role }) => setMemberRole({ data: { tree, ...v } }), onSuccess: refresh, onError });
   const remove = useMutation({ mutationFn: (user: string) => removeMember({ data: { tree, user } }), onSuccess: () => { setRemoving(null); return refresh(); }, onError: (e) => { setRemoving(null); onError(e); } });
+  // Whatever the answer, the list is read again: a member may have changed who they say they are.
+  const answer = useMutation({
+    mutationFn: (v: { user: string; person: string; confirm: boolean }) => answerPersonLink({ data: { tree, ...v } }),
+    onError,
+    onSettled: () => Promise.all([refresh(), qc.invalidateQueries({ queryKey: ['ai-attention', tree] }), qc.invalidateQueries({ queryKey: ['ai-activity', tree] })]),
+  });
   const revoke = useMutation({ mutationFn: (id: string) => revokeInvite({ data: { tree, id } }), onSuccess: (_, id) => { forgetLink(id); return refresh(); }, onError });
   const renew = useMutation({
     mutationFn: (id: string) => renewInvite({ data: { tree, id } }),
@@ -75,6 +81,7 @@ function AccessPage() {
 
   const data = access.data;
   const members = data?.members ?? [];
+  const waitingLinks = data?.waitingLinks ?? [];
   const stewards = members.filter((m) => m.role === 'steward').length;
   const pending = (data?.invites ?? []).filter((i) => i.status === 'open');
   const past = (data?.invites ?? []).filter((i) => i.status !== 'open').slice(0, 20);
@@ -106,6 +113,32 @@ function AccessPage() {
           <ErrorState title={t('acc.loadFailed')} error={access.error} onRetry={() => void access.refetch()} />
         ) : (
           <>
+            {waitingLinks.length > 0 && (
+              <>
+                <h2 className="rule">{t('acc.linksWaiting')} <small>{waitingLinks.length}</small></h2>
+                <p className="acc-hint">{t('acc.linksWaitingText')}</p>
+                <ul className="acc-list acc-inv ui-card" style={{ padding: 0 }}>
+                  {waitingLinks.map((l) => {
+                    const p = f.byId.get(l.person);
+                    const claimed = p ? displayName(p, f) : l.person;
+                    return (
+                      <li key={l.user}>
+                        <Initials name={l.name} size={40} />
+                        <div className="acc-who">
+                          <span className="acc-name"><span className="name">{l.name}</span></span>
+                          <span className="acc-sub"><span className="acc-person">{p && <Portrait person={p} tree={tree} size={22} frame={false} />} {t('acc.linkClaims', { name: claimed })}</span></span>
+                        </div>
+                        <div className="acc-inv-actions">
+                          <button className="btn primary" aria-label={t('acc.linkConfirmAria', { name: l.name, person: claimed })} disabled={answer.isPending} onClick={() => { setError(null); answer.mutate({ user: l.user, person: l.person, confirm: true }); }}><Check size={15} /> {t('acc.linkConfirm')}</button>
+                          <button className="btn ghost" aria-label={t('acc.linkDeclineAria', { name: l.name, person: claimed })} disabled={answer.isPending} onClick={() => { setError(null); answer.mutate({ user: l.user, person: l.person, confirm: false }); }}><X size={15} /> {t('acc.linkDecline')}</button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+
             <h2 className="rule">{t('acc.members')} <small>{members.length}</small></h2>
             <ul className="acc-list ui-card" style={{ padding: 0 }}>
               {members.map((m) => {

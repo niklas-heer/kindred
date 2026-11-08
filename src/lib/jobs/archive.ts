@@ -111,6 +111,7 @@ export function renderFamily(tree: string, snap: FamilySnapshot, date: string): 
     { path: `${tree}.ged`, data: writeGedcom(snap.tree, when).text },
     ...files,
     ...snap.portraits,
+    ...(snap.research ?? []),
     { path: MARKER, data: `family ${tree}\nexported ${date}\n` },
   ];
 }

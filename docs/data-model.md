@@ -34,6 +34,8 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
 | `0013_portrait.sql` | Painted portrait candidates and the accepted portrait; `person.prefer_portrait`. |
 | `0014_ai_background.sql` | `story_translation`: the background AI translations of stories, kept beside each original (see [ai.md](ai.md), "Background tasks"). |
 | `0015_collected_meanings.sql` | `house_meaning.collect_failures`: failed tries of the background name research for a house. |
+| `0016_arms_review_history.sql` | `house_arms_review.history`: what each arms check advised and what the steward decided, oldest first. |
+| `0017_research.sql` | The Research page: `research_project`, `research_document`, `research_note`, `research_picture`, `research_person`, `research_place`. |
 
 ### Tables
 
@@ -68,6 +70,7 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
   `heir` and `country`. A house with no row uses absolute primogeniture and derives its head from the family graph.
 - **`house_meaning`**: one row per house with a saved research: the `name` researched, `family_words` (the family's own words, may be empty), `meanings` (JSON: every meaning the research returned, each with `chosen` for the ones the steward kept), `web_searched`, `note`, and `saved_at` and `saved_by` (the steward's user id). Saved again in place. A row with no chosen meaning is not saved research: it is what the background task collected (`saved_by` is `ai-background`), a dismissed collection, or failed tries (`collect_failures`), and only stewards can read it.
 - **`house_arms_review`**: one row per house with a check of its arms: `fingerprint` (a hash of the arms, the family's words and the chosen meanings the check read), `verdict` (`fits`, `partly` or `reconsider`), `reason` and `advice` in the reader's language of the check, `checked_at`, `checked_by`, and `dismissed_fingerprint` (set when the steward keeps the arms; it counts only while it matches the current fingerprint). A check is out of date when the fingerprint no longer matches.
+- **`research_project`**, **`research_document`**, **`research_note`**, **`research_picture`**, **`research_person`**, **`research_place`** (migration 0017): a family's research. A project (`title`, `summary`, `private`) holds documents (the file is in media storage under `research/<uuid>.<ext>`, the row keeps its `key`, `mime`, `size`, `title`, partial `date`, `source`, `notes` and `private`), Markdown notes (`title`, `body`, partial `date`, `private`), and links to gallery pictures, people and Atlas places, which cascade away with the row they point at. `private` is 1 for editors and stewards only; a link to a person has it too. Every row keeps `created_by` (the account id, which decides who may change it) and `created_by_name` (the name shown, which outlives the account). The timeline is derived from these and the people's dates; nothing about it is stored.
 - **`ancestry_rev`**: a single row (`id` = 1) with `rev`, the ancestry revision. Triggers on `parent` add one on every insert, update and delete, so `rev` moves with any change to who is whose parent, whatever the size of the family. The GEDCOM import reads it while planning and guards `rev = ?` inside its batch, so a change to the links in between makes the import plan again. The D1 transfer leaves it out (see `LEFT_OUT_TABLES` in `scripts/lib/d1-transfer.ts`): the target's links bump the target's own counter as they are written, and the counter is only ever compared with itself.
 - **`op`**: the retry keys. A change sent with a key records its result in the same batch as the change (see below).
 - **`guard`**: a view with a trigger, used to abort a batch (see below).
@@ -143,7 +146,7 @@ These rules keep the data consistent without interactive transactions, which D1 
   reused for something else is refused. Rows older than 30 days are pruned.
 - **Constraints back the same rules.** Primary keys, foreign keys and `CHECK`s hold in the database itself, so a bug in
   the application cannot store, for example, a parent link to a person who does not exist.
-- **Pictures are in media storage.** The database holds only keys (`photo/<uuid>.jpg`, `gallery/<uuid>.jpg`). Node keeps
+- **Pictures and research documents are in media storage.** The database holds only keys (`photo/<uuid>.jpg`, `gallery/<uuid>.jpg`, `research/<uuid>.pdf`). Node keeps
   them in `data/media/<id>/`, Cloudflare in R2 under `<id>/<key>`. A replaced picture is deleted after the change that
   replaced it is written.
 

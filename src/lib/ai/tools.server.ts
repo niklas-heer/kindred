@@ -14,7 +14,7 @@ import type { Key } from '../i18n/dictionary';
 import { gapsOf, DEFAULT_GAPS, GAP_LABEL } from '../gaps';
 import { gallery, personMedia } from '../photos.server';
 import { mediaUrl, type MediaItem } from '../../components/photos/types';
-import { tr, type Tr } from './labels';
+import { STORY_KIND_KEY, tr, type Tr } from './labels';
 import type { AiAdapter, ImagePart, ToolSpec } from './adapters';
 import { isolatedLookup, privacyGuard, refusal, REFUSAL_REASON } from './lookup.server';
 import { checkFamily } from './family.server';
@@ -34,6 +34,8 @@ export interface Ctx {
   role: Role;
   /** The reader's own person in this family, when they have chosen one (or the speaker of a family session). */
   me: string | null;
+  /** This turn is a family session: a memory with no named teller came from its speaker. */
+  session?: boolean;
   locale: AiLocale;
   /** Set when the family allows web lookups: the family's budgeted adapter, and where a lookup's sources are collected. */
   search?: { adapter: AiAdapter; sources: { url: string; title?: string }[]; lookups: number };
@@ -110,7 +112,7 @@ const familyPersonSpec = {
     born: date, bornPlace: { type: 'string' }, died: date, diedPlace: { type: 'string' },
     living: { type: 'boolean', description: 'True for someone who is alive.' },
     occupation: { type: 'string' },
-    story: { type: 'object', description: 'A memory, note or anecdote about the person.', properties: { kind: { type: 'string', enum: ['note', 'quote', 'anecdote', 'recipe', 'memory'] }, title: { type: 'string' }, body: { type: 'string' } }, required: ['kind', 'body'] },
+    story: { type: 'object', description: 'A memory, note or anecdote about the person.', properties: { kind: { type: 'string', enum: ['note', 'quote', 'anecdote', 'recipe', 'memory'] }, title: { type: 'string' }, body: { type: 'string' }, teller: { type: 'string', description: 'In a family session: the id of the speaker whose line this memory came from.' } }, required: ['kind', 'body'] },
   },
   required: ['ref', 'given', 'living'],
 };
@@ -490,7 +492,7 @@ async function propose(ctx: Ctx, c: Tr, byId: Map<string, GPerson>, kind: Propos
   }
   const name = (id: string) => fullName(byId.get(id)!);
   const rel = (r: string) => (r === 'child' ? c('ai.relChild') : r === 'parent' ? c('ai.relParent') : r === 'partner' ? c('ai.relPartner') : c('ai.relSibling'));
-  const storyKind = (k: string) => (c as unknown as Record<string, string>)[`storyKind${k[0].toUpperCase()}${k.slice(1)}`] ?? k;
+  const storyKind = (k: string) => (STORY_KIND_KEY[k] ? c(STORY_KIND_KEY[k]) : k);
   const show = (v: unknown) => (v === undefined || v === null || v === '' ? c('ai.fieldNone') : String(v));
   const diff: Proposal['diff'] = [];
   let summary: string;
@@ -556,7 +558,14 @@ async function proposeNew(ctx: Ctx, c: Tr, g: Graph, byId: Map<string, GPerson>,
   if (kind === 'family') {
     const parsed = proposalArgs.family.extend({ questions: z.array(z.string().trim().min(1).max(240)).max(8).optional() }).safeParse(input);
     if (!parsed.success) return bad('the arguments did not fit the tool: ' + parsed.error.issues.map((i) => i.path.join('.') || 'input').join(', '));
-    const { people, links, questions } = parsed.data;
+    const { links, questions } = parsed.data;
+    // A memory is told by the speaker the model named, or else the session's speaker. An id that is not in the tree is dropped, never shown.
+    const people = parsed.data.people.map((p) => {
+      if (!p.story) return p;
+      const named = p.story.teller && byId.has(p.story.teller) ? p.story.teller : undefined;
+      const speaker = ctx.session && ctx.me && byId.has(ctx.me) ? ctx.me : undefined;
+      return { ...p, story: { ...p.story, teller: named ?? speaker } };
+    });
     const refs = new Set<string>();
     for (const p of people) {
       if (refs.has(p.ref)) return bad(`ref ${p.ref} is used twice; give each new person its own`);
@@ -576,10 +585,11 @@ async function proposeNew(ctx: Ctx, c: Tr, g: Graph, byId: Map<string, GPerson>,
     const names: Record<string, string> = {};
     for (const x of new Set(links.flatMap((l) => [l.anchor, l.person, l.coParent]).filter((v): v is string => !!v && byId.has(v)))) names[x] = name(byId, x);
     for (const d of checks.duplicates) names[d.id] = d.name;
+    for (const p of people) if (p.story?.teller) names[p.story.teller] = name(byId, p.story.teller);
     const view: ProposalView = { names, duplicates: checks.duplicates, loops: checks.loops, questions };
     return done({
       kind, args: { people, links }, editable: [],
-      summary: c('ai.summaryFamily', { count: people.length, links: links.length }),
+      summary: c('ai.summaryFamily', { count: people.length, links: links.length - checks.loops.length }),
       diff: [], view,
     });
   }

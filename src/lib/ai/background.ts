@@ -116,12 +116,20 @@ export interface WaitingReview {
   checkedAt: number;
 }
 
+/** A member who says they are someone in the tree and waits for a steward to confirm it (see auth/links.server.ts). */
+export interface WaitingLink {
+  user: string;
+  name: string;
+  person: string;
+}
+
 /** What the AI activity page and the background section read. Money is in micro-dollars. */
 export interface Activity {
   settings: BackgroundSettings;
   tasks: ActivityTask[];
   runs: TaskRun[];
   waiting: WaitingReview[];
+  waitingLinks: WaitingLink[];
   failedRecently: number;
   /** The background cap this month, what background work spent this month, the whole monthly budget, and what it all spent. */
   capMicros: number;

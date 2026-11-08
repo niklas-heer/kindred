@@ -1,7 +1,9 @@
-// Painted portraits, as pure rules: the fixed style prompt, the OpenRouter image request and reply, which models
+// Painted portraits, as pure rules: the prompt (fixed rules, the family's style, a person's tweaks), the OpenRouter image request and reply, which models
 // are offered and which are benchmarked, what a portrait costs to reserve, and when a painted portrait is shown.
 // No I/O: the server (portrait.server.ts), the bake-off script and the Portrait component all use these, so the
 // request a test checks is the request that is sent. Reply shapes and cost figures are OpenRouter's (see below).
+import { can, type Role } from '../roles.ts';
+
 /**
  * A reply that cannot be read as a painted portrait. The server turns it into an AiError (bad-output), so the budget
  * charges it as the reply may have billed. Kept here, not in adapters.ts, so this module loads without the adapters.
@@ -15,14 +17,111 @@ export class ReplyError extends Error {
   }
 }
 
-/** The fixed style prompt. Keeps the person as they are, and their age as in the photo: a painting, not a retouch. */
-export const PORTRAIT_PROMPT = [
-  'Paint a head-and-shoulders portrait of the person in this photo, in the style of a painted character portrait from a grand-strategy game:',
-  'a formal, dignified half-length study with rich painterly brushwork, soft dramatic light and a restrained palette.',
-  'Keep this exact person: their real facial features, face shape, eyes, nose, mouth, hairline and expression, so that they are plainly recognisable as the person in the photo.',
-  'Keep their apparent age as in the photo. Do not change, age or de-age them.',
-  'Plain dark background. No text, no lettering, no frame or border, no signature, no watermark.',
-].join(' ');
+/** The most characters a family style may have, and a personal note. */
+export const MAX_STYLE_CHARS = 800;
+export const MAX_NOTE_CHARS = 140;
+/** The most portraits a person keeps, the one they show included. */
+export const MAX_KEPT_PORTRAITS = 6;
+
+/** The look every portrait in a family shares, until a steward writes their own. Look only: see the fixed rules below. */
+export const DEFAULT_FAMILY_STYLE =
+  'A hand-painted character portrait in the manner of a grand-strategy game, clearly an oil painting and not a filtered photograph: visible, rich brushwork and a restrained palette. Flattering soft studio light comes from high on the left, as in a classic Rembrandt portrait: the viewer’s-left side of the face is warmly lit, and the opposite cheek is clearly darker, with soft natural shadow beside the nose, under the chin and on the neck. The face has real depth, and no flat frontal light or camera flash remains. They wear dignified, formal period dress instead of their everyday clothes, against a plain dark painted background.';
+
+// The rules a family style and a personal tweak can never change. They frame for the app's circle and keep the person.
+const FRAMING =
+  'Make a square head-and-shoulders portrait of the person in this photo, centred and facing the viewer. It will be shown cropped to a circle, so the whole head must sit well inside the circle: leave clear empty background above the hair, with the top of the hair about one fifth of the way down the image, and clear space on both sides of the head. The head takes up about two fifths of the image height, with the neck and the top of the shoulders showing below it. If the photo is cropped tightly or badly framed, never zoom in and never cut off the head: paint the rest of the hair, the ears, the shoulders, the clothing and the background beyond the edges of the photo so that the portrait is complete.';
+const LIKENESS =
+  'Keep this exact person: their real face shape, eyes, nose, mouth, hairline, facial hair, glasses and marks, so that they are plainly recognisable as the person in the photo. Keep their apparent age as in the photo. Do not change, age or de-age them, and do not slim them or turn them into someone more conventionally handsome.';
+const TOUCH_UP =
+  'Make the best of the photo, as a kind portrait retoucher would: correct harsh flash and poor light, and gently soften tiredness, dark under-eye shadows and blotchy skin so that they look rested and at ease. Keep natural skin texture and soft shadow on the face. This is a light touch-up only.';
+const LIMITS =
+  'The family style sets only the look of the painting. Any personal adjustment is small and must not replace the family style, change who the person is or their age, or cut off the head. No text, no lettering, no frame or border, no signature, no watermark.';
+
+/** A person's own small adjustments. Fixed choices, and a short note; none of them replaces the family style. */
+export interface PortraitTweak {
+  framing?: 'closer' | 'farther';
+  warmth?: 'warmer' | 'cooler';
+  smile?: boolean;
+  note?: string;
+}
+
+const FRAMING_TWEAK = {
+  closer: 'Frame a little closer: the head may take up to half of the image height, still with background above the hair and the whole head inside the circle.',
+  farther: 'Frame a little wider: the head takes about one third of the image height, with more of the shoulders and background.',
+} as const;
+const WARMTH_TWEAK = {
+  warmer: 'Make the light and colours slightly warmer.',
+  cooler: 'Make the light and colours slightly cooler.',
+} as const;
+
+/** Text as it may go into a prompt: one line, no control characters or quotation marks, no longer than `max`. */
+export function cleanPromptText(text: string, max: number): string {
+  return text.replace(/[\p{Cc}\p{Cf}"“”„«»]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, max).trim();
+}
+
+/** The family style as it is stored: cleaned, and empty when it is the default, so a later better default reaches the family. */
+export const storedFamilyStyle = (text: string): string => {
+  const clean = cleanPromptText(text, MAX_STYLE_CHARS);
+  return clean === DEFAULT_FAMILY_STYLE ? '' : clean;
+};
+
+/** A tweak with only what is allowed in it, so what is sent and what is saved are the same. Undefined when nothing is left. */
+export function cleanTweak(t: PortraitTweak | null | undefined): PortraitTweak | undefined {
+  const out: PortraitTweak = {};
+  if (t?.framing === 'closer' || t?.framing === 'farther') out.framing = t.framing;
+  if (t?.warmth === 'warmer' || t?.warmth === 'cooler') out.warmth = t.warmth;
+  if (t?.smile === true) out.smile = true;
+  const note = t?.note ? cleanPromptText(t.note, MAX_NOTE_CHARS) : '';
+  if (note) out.note = note;
+  return Object.keys(out).length ? out : undefined;
+}
+
+/**
+ * The whole prompt: the fixed framing, likeness and touch-up, the family's style, the person's small adjustments, and the
+ * fixed limits last. The family style is always there, and a tweak only adds to it. It holds nothing about the person.
+ */
+export function portraitPrompt(style?: string | null, tweak?: PortraitTweak | null): string {
+  const t = cleanTweak(tweak);
+  const adjust = [
+    t?.framing ? FRAMING_TWEAK[t.framing] : '',
+    t?.warmth ? WARMTH_TWEAK[t.warmth] : '',
+    t?.smile ? 'Give them a gentle, natural, closed-mouth smile in their own features.' : '',
+    t?.note ? `A small personal note, to follow only where it fits the rest: "${t.note}"` : '',
+  ].filter(Boolean);
+  return [
+    FRAMING,
+    LIKENESS,
+    TOUCH_UP,
+    `The family style: ${cleanPromptText(style ?? '', MAX_STYLE_CHARS) || DEFAULT_FAMILY_STYLE}`,
+    ...(adjust.length ? [`Personal adjustments: ${adjust.join(' ')}`] : []),
+    LIMITS,
+  ].join('\n\n');
+}
+
+/** The prompt with the default style and no tweak. */
+export const PORTRAIT_PROMPT = portraitPrompt();
+
+/** The parts of a membership that decide who may paint. */
+export interface PainterLink { role: Role | null | undefined; person: string | null | undefined; personConfirmed: boolean }
+
+/** Who may paint and tweak a person's portrait: an editor, or the member linked to that person once a steward has confirmed the link. */
+export const mayPaintPerson = (m: PainterLink | null | undefined, personId: string): boolean =>
+  !!m && (can(m.role, 'edit-person') || (!!m.role && !!personId && m.person === personId && m.personConfirmed));
+
+/** This member says they are this person, and painting through that waits for a steward. */
+export const awaitsLinkConfirmation = (m: PainterLink | null | undefined, personId: string): boolean =>
+  !!m && !!m.role && !can(m.role, 'edit-person') && !!personId && m.person === personId && !m.personConfirmed;
+
+/**
+ * Which kept portraits go when a person has more than the cap: the oldest first, never the one shown and never those named
+ * in `protect` (the one just kept, and the one it just replaced).
+ */
+export function overCapKeys(kept: { key: string; createdAt: string; shown: boolean }[], protect: readonly string[] = [], cap = MAX_KEPT_PORTRAITS): string[] {
+  const spare = kept
+    .filter((k) => !k.shown && !protect.includes(k.key))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.key.localeCompare(b.key));
+  return spare.slice(0, Math.max(0, kept.length - cap)).map((k) => k.key);
+}
 
 /** OpenRouter's image generation endpoint: POST, JSON, the model's id, a prompt and reference images as data URLs. */
 export const OPENROUTER_IMAGES_URL = 'https://openrouter.ai/api/v1/images';
@@ -178,15 +277,20 @@ export function toBase64(bytes: Uint8Array): string {
 }
 
 /**
- * The request for one portrait: the fixed prompt, and the photo as a reference image (a data URL). Returned as plain
- * data, so the caller sends it with its own key.
+ * The request for one portrait: the prompt, and the photo as a reference image (a data URL). Returned as plain data, so the
+ * caller sends it with its own key.
  */
-export function portraitRequest(model: string, photo: { mime: string; bytes: Uint8Array }): { url: string; body: Record<string, unknown> } {
+export function portraitRequest(
+  model: string,
+  photo: { mime: string; bytes: Uint8Array },
+  look?: { style?: string | null; tweak?: PortraitTweak | null },
+): { url: string; body: Record<string, unknown> } {
   return {
     url: OPENROUTER_IMAGES_URL,
     body: {
       model,
-      prompt: PORTRAIT_PROMPT,
+      prompt: portraitPrompt(look?.style, look?.tweak),
+      aspect_ratio: '1:1', // the app shows a portrait in a circle; every image model tried takes this, and some refuse pixel sizes
       input_references: [{ type: 'image_url', image_url: { url: `data:${photo.mime};base64,${toBase64(photo.bytes)}` } }],
     },
   };

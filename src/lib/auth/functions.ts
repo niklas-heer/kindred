@@ -4,6 +4,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
+import type { WaitingLink } from '../ai/background';
 import type { Role } from '../roles';
 import type { TreeMeta } from '../types';
 import { LOCALES } from '../i18n/types';
@@ -17,7 +18,7 @@ const store = () => import('./store.server');
 
 export interface SessionInfo {
   user: { id: string; name: string; email: string | null; via: 'passkey' | 'access'; locale: (typeof LOCALES)[number] | null } | null;
-  memberships: { tree: string; role: Role; person: string | null }[];
+  memberships: { tree: string; role: Role; person: string | null; personConfirmed: boolean }[];
   /** Nobody has an account yet: /setup creates the first steward. */
   needsSetup: boolean;
   /** Setup will make the server's first family, so it asks for that family's name. */
@@ -42,7 +43,7 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): 
   const needsFamily = needs && !(await (await import('./trees.server')).families()).length;
   return {
     user: user && via ? { id: user.id, name: user.name, email: user.email, via, locale: user.locale } : null,
-    memberships: user ? (await s.membershipsOf(user.id)).map((m) => ({ tree: m.tree, role: m.role, person: m.person })) : [],
+    memberships: user ? (await s.membershipsOf(user.id)).map((m) => ({ tree: m.tree, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed })) : [],
     needsSetup: needs,
     needsFamily,
     setupCodeRequired: setup.setupCodeRequired(),
@@ -122,17 +123,31 @@ export const acceptInvite = createServerFn({ method: 'POST' })
 
 // ---------- "who you are" ----------
 
-/** Saves who the reader is in a family (a person id, or '-' for just browsing). */
+/**
+ * Saves who the reader is in a family (a person id, or '-' for just browsing). It takes effect at once for what it only
+ * labels; painting through it waits for a steward's confirmation, unless the reader can paint anyway.
+ */
 export const setMyPerson = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, person: z.string().min(1).max(120).nullable() }))
   .handler(async ({ data }) => {
-    const [{ requireMember, fail }, s, { AuthError }] = await Promise.all([guard(), store(), import('./errors')]);
-    const { user } = await requireMember(data.tree);
-    if (data.person && data.person !== '-') {
+    const [{ requireMember, fail }, s, { AuthError }, { can }] = await Promise.all([guard(), store(), import('./errors'), import('../roles')]);
+    const { user, role } = await requireMember(data.tree);
+    const named = !!data.person && data.person !== '-';
+    if (named) {
       const { db } = await import('../db.server');
       if (!(await db(data.tree).get('SELECT id FROM person WHERE id = ?', data.person))) throw fail(new AuthError('invalid', 'That person isn’t in this family.'));
     }
-    await s.setPerson(user.id, data.tree, data.person);
+    await s.setPerson(user.id, data.tree, data.person, named && can(role, 'edit-person'));
+  });
+
+/** A steward answers who a member says they are: confirming lets them paint through the link, declining unlinks them. */
+export const answerPersonLink = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, user: z.string().uuid(), person: z.string().min(1).max(120), confirm: z.boolean() }))
+  .handler(async ({ data }) => {
+    const [{ requireCan, fail }, s, { AuthError }] = await Promise.all([guard(), store(), import('./errors')]);
+    await requireCan(data.tree, 'manage-access');
+    const done = await (data.confirm ? s.confirmPerson : s.declinePerson)(data.user, data.tree, data.person);
+    if (!done) throw fail(new AuthError('invalid', 'That member has changed who they say they are. Look at the list again.'));
   });
 
 // ---------- the reader's own account ----------
@@ -195,8 +210,8 @@ export interface AccessInvite { id: string; role: Role; email: string | null; ex
 
 export const fetchAccess = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
-  .handler(async ({ data }): Promise<{ members: AccessMember[]; invites: AccessInvite[] }> => {
-    const [{ requireCan }, s] = await Promise.all([guard(), store()]);
+  .handler(async ({ data }): Promise<{ members: AccessMember[]; invites: AccessInvite[]; waitingLinks: WaitingLink[] }> => {
+    const [{ requireCan }, s, { linksWaiting }] = await Promise.all([guard(), store(), import('./links.server')]);
     const { user } = await requireCan(data.tree, 'manage-access');
     const names = new Map<string, string>();
     const members = (await s.membersOf(data.tree)).map((m) => {
@@ -210,7 +225,7 @@ export const fetchAccess = createServerFn({ method: 'GET' })
       status: i.revoked_at ? 'revoked' as const : i.used_at ? 'used' as const : i.expires <= t ? 'expired' as const : 'open' as const,
       usedBy: await nameOf(i.used_by), usedAt: i.used_at,
     })));
-    return { members, invites };
+    return { members, invites, waitingLinks: await linksWaiting(data.tree) };
   });
 export const accessQuery = (t: string) => queryOptions({ queryKey: ['session', 'access', t], queryFn: () => fetchAccess({ data: { tree: t } }) });
 
@@ -258,7 +273,7 @@ export const setMemberRole = createServerFn({ method: 'POST' })
       if (!m) throw fail(new AuthError('invalid', 'They are no longer a member.'));
       if (m.role === 'steward' && data.role !== 'steward' && (await s.stewardCount(data.tree)) <= 1) throw fail(new AuthError('invalid', lastSteward));
       return {
-        writes: [s.q('UPDATE membership SET role = ? WHERE user = ? AND tree = ?', data.role, data.user, data.tree), s.keepsASteward(data.tree)],
+        writes: [s.changeRole(data.user, data.tree, data.role), s.keepsASteward(data.tree)],
         result: undefined,
         refused: () => fail(new AuthError('invalid', lastSteward)),
       };

@@ -13,10 +13,11 @@ export const applyFamilyBatch = createServerFn({ method: 'POST' })
     tree,
     people: z.array(familyPersonSchema.extend({ key: retryKey })).max(40),
     links: z.array(familyLinkSchema.extend({ key: retryKey })).max(80),
+    locale: z.string().max(8).optional(),
   }))
   .handler(async ({ data }) => {
     const m = await (await import('./auth/guard.server')).requireMember(data.tree);
     return (await import('./ai/family.server')).applyFamilyBatch({
-      tree: data.tree, user: m.user.id, author: m.user.name, role: m.role, batch: { people: data.people, links: data.links },
+      tree: data.tree, user: m.user.id, author: m.user.name, me: m.person, role: m.role, locale: data.locale, batch: { people: data.people, links: data.links },
     });
   });

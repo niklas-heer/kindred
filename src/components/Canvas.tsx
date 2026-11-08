@@ -413,6 +413,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
 });
 
 const Edges = memo(function Edges({ layout, dimmed }: { layout: Layout; dimmed?: ReadonlySet<string> | null }) {
+  const t = useT();
   const b = layout.bounds;
   return (
     <svg className="edges" style={{ left: b.x - 40, top: b.y - 40, width: b.w + 80, height: b.h + 80 }} viewBox={`${b.x - 40} ${b.y - 40} ${b.w + 80} ${b.h + 80}`}>
@@ -426,7 +427,7 @@ const Edges = memo(function Edges({ layout, dimmed }: { layout: Layout; dimmed?:
           />
           {e.label && <text className={`union-label${dimmed && !lit ? ' dim' : ''}`} x={e.label.x} y={e.label.y} textAnchor="middle">
             <tspan>{e.label.text}</tspan>
-            {e.label.status && <tspan className="union-status" x={e.label.x} dy={-16}>{e.label.status}</tspan>}
+            {e.label.status && <tspan className="union-status" x={e.label.x} dy={-16}>{t(`union.${e.label.status as 'widowed' | 'divorced' | 'ended'}`)}</tspan>}
           </text>}
           </g>
         );

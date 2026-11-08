@@ -1,7 +1,7 @@
 import { formatDate, formatNumber, relativeTime, useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, notFound, Outlet, redirect } from '@tanstack/react-router';
-import { BookOpen, CalendarHeart, CircleHelp, Contact, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, Sparkles, Users } from 'lucide-react';
+import { BookOpen, CalendarHeart, CircleHelp, Contact, FolderSearch, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, Sparkles, Users } from 'lucide-react';
 import { AccountMenu } from '~/components/AccountMenu';
 import { AssistantButton, AssistantHost } from '~/components/assistant/AssistantDrawer';
 import { useAiSetupNeeded } from '~/components/assistant/AiSetup';
@@ -110,6 +110,9 @@ function TreeLayout() {
           <Link to="/$tree/gallery" params={{ tree }} title={t("shell.gallery")}>
             <Images size={16} /> <span className="nav-label">{t("shell.gallery")}</span>
           </Link>
+          <Link to="/$tree/research" params={{ tree }} title={t("research.title")} activeOptions={{ exact: false }}>
+            <FolderSearch size={16} /> <span className="nav-label">{t("research.title")}</span>
+          </Link>
         </nav>
         <span className="spacer" />
         <button className="btn search-trigger" onClick={() => palette.open()} aria-label={t("shell.find_anyone_k")}>
@@ -167,6 +170,7 @@ function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: 
         <li><Link to="/$tree/houses" params={{ tree }}><Landmark size={19} /> {t("shell.houses")} <small>{t("shell.arms_mottos_members")}</small></Link></li>
         <li><Link to="/$tree/chronicle" params={{ tree }}><ScrollText size={19} /> {t("shell.chronicle")} <small>{t("shell.stories_sayings")}</small></Link></li>
         <li><Link to="/$tree/gallery" params={{ tree }}><Images size={19} /> {t("shell.gallery")} <small>{t("shell.gallery_hint")}</small></Link></li>
+        <li><Link to="/$tree/research" params={{ tree }}><FolderSearch size={19} /> {t("research.title")} <small>{t("research.nav_hint")}</small></Link></li>
         {assistant && <li><button type="button" onClick={() => { onClose(); openAssistant(); }}><Sparkles size={19} /> {t("ai.askCommand")}</button></li>}
         {editor && <li><Link to="/$tree/settings/import" params={{ tree }}><Images size={19} /> {t("shell.importExport")} <small>{t("shell.importExportHint")}</small></Link></li>}
         {steward && <li><Link to="/$tree/access" params={{ tree }}><Users size={19} /> {t("shell.access")} <small>{t("shell.members_invitations")}</small></Link></li>}

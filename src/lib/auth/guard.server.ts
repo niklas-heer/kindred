@@ -46,14 +46,14 @@ export async function requireUser(): Promise<UserRow> {
   return user;
 }
 
-export interface Member { user: UserRow; role: Role; person: string | null }
+export interface Member { user: UserRow; role: Role; person: string | null; personConfirmed: boolean }
 
 /** The signed-in reader's membership of `tree`; 401 when signed out, 403 when not a member. */
 export async function requireMember(tree: string): Promise<Member> {
   const user = await requireUser();
   const m = await membership(user.id, tree);
   if (!m) throw fail(notMember());
-  return { user, role: m.role, person: m.person };
+  return { user, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed };
 }
 
 /** Like `requireMember`, and the reader's role must allow `action` (403 otherwise). */

@@ -22,6 +22,8 @@ export type Action =
   | 'view'
   | 'add-story'
   | 'upload-photo'
+  | 'add-research'
+  | 'edit-research'
   | 'edit-person'
   | 'add-person'
   | 'remove-person'
@@ -37,6 +39,8 @@ const NEEDS: Record<Action, Role> = {
   view: 'viewer',
   'add-story': 'contributor',
   'upload-photo': 'contributor',
+  'add-research': 'contributor',
+  'edit-research': 'editor',
   'edit-person': 'editor',
   'add-person': 'editor',
   'remove-person': 'editor',

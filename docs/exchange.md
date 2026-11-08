@@ -187,6 +187,10 @@ KINDRED_ARCHIVE_MODERN_REPO=family/kindred-archive KINDRED_ARCHIVE_MODERN_TOKEN=
 `--dry-run` reads the repository, prints the files that would be added, changed or removed, and writes nothing. Without
 it, the run commits the change. The script exits with status 1 when the archive could not be written.
 
+Research projects are carried by the Markdown archive and this nightly archive only, in `research/<project>.md` with each
+document under `research/files/`. Private research is left out, and past 40 MB of documents the rest are listed by name
+but not copied, so a run stays within a Worker's memory. A GEDCOM file carries no research. Each report says what is missing.
+
 The archive is a copy, not a backup: it leaves out what the formats leave out, which the sections above list. Keep the
 database's own backups (see [self-host.md](self-host.md) and [deploy-cloudflare.md](deploy-cloudflare.md)).
 

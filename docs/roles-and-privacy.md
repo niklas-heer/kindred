@@ -9,9 +9,9 @@ Each person has one role in each family they belong to. Roles are cumulative: ea
 
 | Role | Can do |
 | --- | --- |
-| **Viewer** | Browse the tree, the Atlas, the Almanac, the Chronicle, the gallery and the houses, and read everyone's public details. |
-| **Contributor** | Viewer, plus add memories, sayings, recipes and photos. |
-| **Editor** | Contributor, plus add and edit people, parent and partner links, places and contacts, and remove people. Editors can also export the family. |
+| **Viewer** | Browse the tree, the Atlas, the Almanac, the Chronicle, the gallery, the houses and the research, and read everyone's public details. |
+| **Contributor** | Viewer, plus add memories, sayings, recipes and photos, and add research projects, documents, notes and links, and change their own. |
+| **Editor** | Contributor, plus add and edit people, parent and partner links, places and contacts, and remove people. Editors can also export the family, change or remove anyone's research, and mark research private. |
 | **Steward** | Editor, plus edit houses and their arms, delete albums, manage AI settings and who has access (invite, change roles, remove), and import a GEDCOM file. |
 
 The source of truth is `src/lib/roles.ts`. Each action has the lowest role that may do it, and the same table decides
@@ -21,6 +21,8 @@ both what the browser shows and what the server allows.
 | --- | --- |
 | View | Viewer |
 | Add a memory, saying, recipe or photo | Contributor |
+| Add research (a project, a document, a note, a link), and change your own | Contributor |
+| Change or remove anyone's research; mark research private | Editor |
 | Edit or add a person, a link, a place or a contact; remove a person | Editor |
 | Export the family (GEDCOM or Markdown) | Editor |
 | Edit a house and its arms | Steward |
@@ -38,7 +40,9 @@ Hiding a button is never the only protection. Every server function and server r
 - **Access** (the family's Access page) shows the members and their roles. Stewards can change a role or remove a
   member. A family always keeps at least one steward: the last one cannot be removed or demoted.
 - **"Who you are"** is a separate choice: the person in the tree a member stands for, which makes kinship labels such
-  as "your aunt" work. It does not change what the member may do.
+  as "your aunt" work. It takes effect at once. A member may also paint their own portrait through it, but only after a
+  steward confirms the link on the Access page (declining unlinks them, and changing the link asks again). Editors and
+  stewards can paint anyway, so their own links need no confirmation.
 
 ## What is private
 
@@ -47,6 +51,8 @@ Kindred separates three things, and they behave differently.
 **Private fields.** A person's field (a phone number, an address, a diagnosis, a dietary note, anything the family adds
 as a field) can be marked private. Private fields are returned by the server only to editors and stewards. Viewers and
 contributors never receive them, and that includes the AI assistant's reads, which use the same rule.
+
+**Private research.** A research project, a document, a note, or a link from a project to a person can be marked private. It follows the private-field rule: only editors and stewards ever receive it, and for anyone else it is not there at all: no entry in a list, no count, no timeline event, and the file answers "not found". Only editors can mark something private. Kindred has no private person (see below), so a person whose connection to a piece of research is sensitive is kept private by the link, not by hiding them from the family.
 
 **Everything else is visible to every member.** That includes names, dates, places, biographies, memories and
 sayings, and the public contact fields. Contributors can add to these, and viewers can read them.
@@ -65,7 +71,7 @@ then an editor's own notes; a family that wants nothing hidden from members need
 An export is a copy of everything the family holds that its format can carry, and an editor or steward can make one.
 It holds everyone's names, dates, places, links and biographies, so treat an export as private as the family. It
 leaves out stories, contact details and other person fields (private or not), houses and arms, and the pictures
-themselves. Viewers and contributors can read the same people in the app, but they cannot take a copy away. Each download lists what it leaves out, before you download it. See [exchange.md](exchange.md).
+themselves. The Markdown archive carries research that isn't private, with its documents, and leaves private research out. Viewers and contributors can read the same people in the app, but they cannot take a copy away. Each download lists what it leaves out, before you download it. See [exchange.md](exchange.md).
 
 ## Sign-in and sessions
 

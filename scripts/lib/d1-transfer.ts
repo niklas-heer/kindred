@@ -28,6 +28,12 @@ export const COPIED_TABLES: readonly string[] = [
   'media_person', // face boxes and the people tagged in gallery pictures
   'portrait', // painted portraits (migration 0013): candidates and each person's accepted one; the picture is in media (portrait/)
   'occupation_translation', // cached translations of occupations, per text and locale (asked for once, so copied)
+  'research_project', // the Research page's projects (migration 0017)
+  'research_document', // a project's documents: the row keeps a media key, the file is in R2 (research/)
+  'research_note', // a project's notes
+  'research_picture', // gallery pictures linked to a project (after media)
+  'research_person', // people linked to a project (after person)
+  'research_place', // Atlas places linked to a project (after place)
 ];
 
 /**

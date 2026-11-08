@@ -265,32 +265,9 @@ export const removePerson = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, id: z.string() }))
   .handler(async ({ data }) => {
     await requireCan(data.tree, 'remove-person');
-    const { once, q, guard, media } = await server();
-    return once(data.tree, undefined, 'removePerson', async (d) => {
-      // The tree must keep a person to open on.
-      const focus = await d.get<{ value: string }>("SELECT value FROM meta WHERE key = 'focus'");
-      const writes = [
-        guard("(SELECT value FROM meta WHERE key = 'focus') IS ?", focus?.value ?? null),
-        // Their portrait, read in the batch, so the file deleted afterwards is the one the row pointed at.
-        q('SELECT key FROM photo WHERE person = ?', data.id),
-      ];
-      if (focus?.value === data.id) {
-        const other = await d.get<{ id: string }>('SELECT id FROM person WHERE id != ? LIMIT 1', data.id);
-        if (!other) throw new Error('The last person cannot be removed');
-        writes.push(guard('EXISTS (SELECT 1 FROM person WHERE id = ?)', other.id), q("UPDATE meta SET value = ? WHERE key = 'focus'", other.id));
-      }
-      // Their links, stories, contacts and photo row go with them (ON DELETE CASCADE).
-      // RETURNING counts the person alone (D1's `changes` would include the cascade).
-      writes.push(q('DELETE FROM person WHERE id = ? RETURNING id', data.id));
-      return {
-        writes,
-        result: (r) => r[r.length - 1].rows.length,
-        after: async (r) => {
-          const key = (r[1].rows[0] as { key: string | null } | undefined)?.key;
-          if (key) await media.delete(data.tree, key).catch((e) => console.error('[media] could not delete', key, e));
-        },
-      };
-    });
+    const { once } = await server();
+    const { removePlan } = await import('./relations.server');
+    return once(data.tree, undefined, 'removePerson', (d) => removePlan(d, data.tree, data.id));
   });
 
 export const addStory = createServerFn({ method: 'POST' })

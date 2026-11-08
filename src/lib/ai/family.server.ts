@@ -5,14 +5,15 @@
 // runs on approval, under the approver's own role: each person is created in its own plan, then each link runs the
 // same rules as the form (relations.server.ts). Every step carries its own retry key, so a repeated approval replays
 // what already happened instead of writing twice. A step that cannot apply is reported and the rest carry on.
-import { once, newId, q, type Db } from '../db.server';
+import { db, once, newId, q, type Db } from '../db.server';
 import { buildFamily, fullName, parents } from '../graph';
 import type { Graph } from '../types';
 import { can, type Role } from '../roles';
 import { validDate } from '../dates';
 import { occupationCodeFor } from '../occupations';
 import { linkPlan } from '../relations.server';
-import { NEW_REF, type FamilyLink, type FamilyPerson } from './types';
+import { tr } from './labels';
+import { NEW_REF, toAiLocale, type FamilyLink, type FamilyPerson } from './types';
 
 /** Refusals and failures that the reader sees in their own language (translation keys, see errortext.ts). */
 export const FAMILY_ERR = {
@@ -21,6 +22,7 @@ export const FAMILY_ERR = {
   notCreated: 'ai.famNotCreated',
   unknownRef: 'ai.famUnknownRef',
   duplicateRef: 'ai.famDuplicateRef',
+  tellerGone: 'ai.famTellerGone',
 } as const;
 
 export interface FamilyRow extends FamilyPerson {
@@ -112,9 +114,14 @@ function personFields(row: FamilyRow) {
   };
 }
 
-/** One batch, approved by one reader. `user` and `author` are the approver's own id and name, never sent by the browser. */
-export async function applyFamilyBatch(o: { tree: string; user: string; author: string; role: Role; batch: FamilyBatch }): Promise<FamilyResult> {
+/**
+ * One batch, approved by one reader. `user` and `author` are the approver's own id and name, never sent by the browser.
+ * A memory told in a family session is saved under the person who told it, named from the tree, and its context says who
+ * approved it. The browser can only send that person's id, so a memory cannot carry a made-up name.
+ */
+export async function applyFamilyBatch(o: { tree: string; user: string; author: string; me?: string | null; role: Role; locale?: string; batch: FamilyBatch }): Promise<FamilyResult> {
   const { tree, user, role, batch } = o;
+  const c = tr(toAiLocale(o.locale));
   const refs = new Map<string, string>();
   const failed = new Set<string>();
   const people: FamilyResult['people'] = [];
@@ -131,6 +138,11 @@ export async function applyFamilyBatch(o: { tree: string; user: string; author: 
       const f = personFields(row);
       if (!can(role, 'add-person')) throw new Error(FAMILY_ERR.refused);
       if ((f.born && !validDate(f.born)) || (f.died && !validDate(f.died))) throw new Error(FAMILY_ERR.badDate);
+      // Checked before the person is written, so a memory that cannot be attributed does not leave half a row behind.
+      if (row.story && !can(role, 'add-story')) throw new Error(FAMILY_ERR.refused);
+      const tellerId = row.story?.teller && row.story.teller !== o.me ? row.story.teller : null;
+      const teller = tellerId ? await db(tree).get<{ given: string; surname: string | null }>('SELECT given, surname FROM person WHERE id = ?', tellerId) : undefined;
+      if (tellerId && !teller) throw new Error(FAMILY_ERR.tellerGone);
       const id = await once(tree, { key: row.key, user, payload: f }, 'aiFamilyPerson', async (d) => {
         const newPersonId = newId(f.given);
         return {
@@ -144,11 +156,12 @@ export async function applyFamilyBatch(o: { tree: string; user: string; author: 
       refs.set(row.ref, id);
       people.push({ ref: row.ref, id });
       if (row.story) {
-        if (!can(role, 'add-story')) throw new Error(FAMILY_ERR.refused);
         const s = row.story;
+        const author = teller ? [teller.given, teller.surname].filter(Boolean).join(' ') : o.author;
+        const context = teller ? c('ai.famStoryContext', { name: o.author }) : null;
         await once(tree, { key: `${row.key}s`, user, payload: { person: id, ...s } }, 'aiFamilyStory', () => ({
           writes: [q('INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            crypto.randomUUID(), id, s.kind, s.title || null, s.body, o.author, new Date().toISOString(), null)],
+            crypto.randomUUID(), id, s.kind, s.title || null, s.body, author, new Date().toISOString(), context)],
           result: undefined,
         }));
       }

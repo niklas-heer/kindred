@@ -6,6 +6,7 @@
 // and the family's own switch for its feature (arms, or the assistant) is on. Every call is booked twice before it is
 // sent: against the background share of the monthly budget (ai_background_spend), and against the whole budget (ai_spend,
 // through the same path the assistant uses). Whichever runs out first stops the work.
+import { linksWaiting } from '../auth/links.server';
 import { accounts } from '../auth/store.server';
 import { db } from '../db.server';
 import { errorText } from '../errortext';
@@ -401,6 +402,7 @@ export async function activity(tree: string, now = new Date()): Promise<Activity
       note: r.note,
     })),
     waiting,
+    waitingLinks: await linksWaiting(tree),
     failedRecently,
     capMicros: capMicros(settings.monthlyMicros, bg.capShare),
     backgroundSpentMicros: await backgroundSpentThisMonth(tree),
@@ -410,9 +412,9 @@ export async function activity(tree: string, now = new Date()): Promise<Activity
   };
 }
 
-/** The number on the quiet badge: arms suggestions waiting for a steward, and failed runs in the last week. Reads only. */
+/** The number on the quiet badge: arms suggestions and links waiting for a steward, and failed runs in the last week. Reads only. */
 export async function attention(tree: string, now = new Date()): Promise<number> {
-  let n = 0;
+  let n = (await linksWaiting(tree)).length;
   for (const r of Object.values(await readReviews(tree))) if (needsAttention(r)) n++;
   const weekAgo = now.getTime() - 7 * 86_400_000;
   n += (await accounts().get<{ n: number }>("SELECT COUNT(*) AS n FROM ai_task_run WHERE tree = ? AND status = 'failed' AND started > ?", tree, weekAgo))?.n ?? 0;

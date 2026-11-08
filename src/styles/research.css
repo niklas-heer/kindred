@@ -1,0 +1,130 @@
+/* The Research page: projects, a project's sections and its timeline, the document viewer, and the panel's small section.
+   Colours come from the theme tokens in app.css, so Codex, Paper and Night follow the same rules. */
+
+.research { display: flex; flex-direction: column; gap: 14px; }
+.rs-back { align-self: flex-start; min-height: 40px; }
+
+/* the list of projects */
+.rs-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+.rs-card { display: flex; flex-direction: column; gap: 8px; height: 100%; color: var(--text); text-decoration: none; }
+.rs-card-title { margin: 0; font-family: var(--font-title); font-size: 18px; font-weight: 600; line-height: 1.25; }
+[data-theme='codex'] .rs-card-title { color: var(--accent); }
+.rs-card-summary { margin: 0; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
+.rs-card-counts { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: auto 0 0; color: var(--muted); font-size: 14px; }
+.rs-card-counts span { display: inline-flex; align-items: center; gap: 5px; }
+.rs-card-updated { margin: 0; font-size: 13px; }
+
+.rs-private { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; font-size: 12px; color: var(--muted); vertical-align: 2px; font-family: var(--font-ui); font-weight: 400; font-variant: normal; }
+.rs-private-title { font-size: 14px; }
+.rs-private-mark { display: inline-block; margin-left: 6px; vertical-align: -1px; color: var(--muted); }
+
+/* a project */
+.rs-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; align-items: start; }
+.rs-main, .rs-side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.rs-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; min-height: 36px; }
+.rs-section-head h2 { margin: 0; font-family: var(--font-title); font-size: 17px; font-weight: 600; }
+[data-theme='codex'] .rs-section-head h2 { font-variant: small-caps; color: var(--accent); letter-spacing: 0.02em; }
+.rs-empty-line { margin: 0; line-height: 1.45; }
+@media (max-width: 900px) { .rs-layout { grid-template-columns: minmax(0, 1fr); } .rs-side { order: -1; } }
+
+/* the timeline */
+.rs-timeline, .rs-tl-events { list-style: none; margin: 0; padding: 0; }
+.rs-tl-year { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 8px; padding-top: 10px; }
+.rs-tl-year:first-child { padding-top: 0; }
+.rs-tl-yearmark { font-family: var(--font-title); font-size: 16px; color: var(--accent); padding-top: 2px; }
+.rs-tl-events { position: relative; padding-left: 26px; }
+.rs-tl-events::before { content: ''; position: absolute; left: 8px; top: 6px; bottom: 2px; width: 1px; background: var(--border); }
+.rs-tl-event { position: relative; display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; padding: 3px 0; }
+.rs-tl-icon { position: absolute; left: -26px; top: 4px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--panel-solid); color: var(--muted); }
+.rs-tl-event.is-document .rs-tl-icon, .rs-tl-event.is-note .rs-tl-icon, .rs-tl-event.is-picture .rs-tl-icon { color: var(--accent); }
+.rs-tl-date { font-size: 13.5px; color: var(--muted); white-space: nowrap; min-width: 86px; }
+.rs-tl-text a { color: var(--text); }
+.rs-tl-link { all: unset; color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.rs-tl-link:focus-visible { box-shadow: var(--focus-ring); border-radius: 2px; }
+
+/* documents */
+.rs-doc-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.rs-doc { all: unset; display: flex; flex-direction: column; gap: 6px; width: 100%; cursor: pointer; }
+.rs-doc:focus-visible { box-shadow: var(--focus-ring); border-radius: 6px; }
+.rs-doc-thumb { display: grid; place-items: center; aspect-ratio: 3 / 4; border-radius: 6px; border: 1px solid var(--border); background: var(--panel-2); color: var(--muted); overflow: hidden; }
+.rs-doc-thumb.is-pdf { gap: 4px; align-content: center; justify-items: center; }
+.rs-doc-thumb.is-pdf small { font-family: var(--font-ui); letter-spacing: 0.08em; }
+.rs-doc-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rs-doc-title { font-weight: 500; line-height: 1.25; overflow-wrap: anywhere; }
+.rs-doc-meta { font-size: 13px; line-height: 1.3; }
+
+/* pictures */
+.rs-pic-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.rs-pic { position: relative; }
+.rs-pic-open { all: unset; display: block; width: 100%; aspect-ratio: 1; cursor: pointer; border-radius: 6px; overflow: hidden; background: var(--panel-2); }
+.rs-pic-open:focus-visible { box-shadow: var(--focus-ring); }
+.rs-pic-open img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rs-pic-remove { position: absolute; top: 4px; right: 4px; width: 30px; height: 30px; background: color-mix(in srgb, var(--panel-solid) 88%, transparent); }
+
+/* notes */
+.rs-notes { display: flex; flex-direction: column; gap: 14px; }
+.rs-note + .rs-note { border-top: 1px solid var(--border); padding-top: 14px; }
+.rs-note-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.rs-note-head h3 { margin: 0; font-size: 17px; font-weight: 600; font-family: var(--font-name); }
+.rs-note-head .subtle { font-size: 13px; }
+.rs-note-actions { display: inline-flex; gap: 2px; margin-left: auto; }
+.rs-note-body { line-height: 1.5; overflow-wrap: anywhere; }
+.rs-note-body > :first-child { margin-top: 6px; }
+.rs-note-body > :last-child { margin-bottom: 0; }
+
+/* people and places */
+.rs-people, .rs-places { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.rs-person { display: flex; align-items: center; gap: 6px; min-height: 44px; }
+.rs-person-link { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; color: inherit; text-decoration: none; }
+.rs-person-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.rs-person-text .name { font-family: var(--font-name); font-weight: var(--name-weight); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rs-place { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 40px; }
+.rs-place a { display: inline-flex; align-items: center; gap: 6px; color: var(--text); }
+
+/* forms */
+.rs-form { display: flex; flex-direction: column; gap: 14px; }
+.rs-field { display: flex; flex-direction: column; gap: 5px; }
+.rs-field > span { font-size: 14px; color: var(--muted); }
+.rs-form textarea.input { min-height: 70px; resize: vertical; font: inherit; }
+.rs-drop { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px; border: 1px dashed var(--border); border-radius: 8px; background: var(--panel-2); color: var(--muted); text-align: center; }
+.rs-drop.is-over { border-color: var(--accent); background: var(--panel-3); }
+.rs-drop-preview { max-width: 180px; max-height: 180px; border-radius: 4px; }
+.rs-drop-name { overflow-wrap: anywhere; font-size: 14px; color: var(--text); }
+.rs-confirm-text { margin: 0 0 8px; line-height: 1.45; }
+
+/* the picture and place pickers */
+.rs-pick-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; max-height: min(60vh, 460px); overflow: auto; }
+.rs-pick-tile { all: unset; position: relative; display: block; width: 100%; aspect-ratio: 1; border-radius: 6px; overflow: hidden; cursor: pointer; background: var(--panel-2); }
+.rs-pick-tile:focus-visible { box-shadow: var(--focus-ring); }
+.rs-pick-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rs-pick-add { position: absolute; right: 4px; bottom: 4px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--accent-text); }
+.rs-pick-switch { margin-top: 12px; }
+.rs-place-list { list-style: none; margin: 10px 0 0; padding: 0; max-height: 300px; overflow: auto; display: flex; flex-direction: column; }
+.rs-place-item { all: unset; display: block; width: 100%; box-sizing: border-box; padding: 10px; cursor: pointer; border-radius: 4px; }
+.rs-place-item:hover { background: var(--panel-2); }
+.rs-place-item:focus-visible { box-shadow: var(--focus-ring); }
+.rs-place-none { margin: 12px 0 0; }
+
+/* the document viewer */
+.rs-viewer { display: flex; flex-direction: column; gap: 12px; }
+.rs-viewer-file { display: flex; justify-content: center; }
+.rs-viewer-pdf { width: 100%; height: 68vh; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
+.rs-viewer-img { max-width: 100%; max-height: 68vh; border-radius: 6px; }
+.rs-viewer-nopdf { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 34px 20px; text-align: center; color: var(--muted); }
+.rs-viewer-line { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; align-items: baseline; }
+.rs-viewer-line .rs-private { margin-left: 0; }
+.rs-viewer-notes { margin: 8px 0 0; white-space: pre-line; line-height: 1.45; }
+.rs-viewer-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.rs-viewer-actions .btn { min-height: 44px; }
+
+/* a person's panel */
+.rs-panel-title { display: flex; align-items: center; gap: 6px; margin: 10px 0 6px; font-size: 14px; font-weight: 600; color: var(--muted); }
+.rs-panel-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.rs-panel-list li { display: flex; align-items: center; min-height: 28px; }
+.rs-panel-list a { color: var(--accent); overflow-wrap: anywhere; }
+
+@media (max-width: 600px) {
+  .rs-doc-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+  .rs-tl-year { grid-template-columns: 50px minmax(0, 1fr); }
+  .rs-tl-date { min-width: 0; }
+}

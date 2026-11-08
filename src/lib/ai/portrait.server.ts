@@ -16,17 +16,22 @@ import { PAINT_PROVIDERS, toAiLocale, type Provider } from './types';
 import { RECOMMENDED_PORTRAIT } from './recommended';
 import {
   MAX_SOURCE_BYTES,
+  MAX_STYLE_CHARS,
   OPENROUTER_IMAGE_MODELS_URL,
   UNPRICED_USD,
   imageModels,
   ReplyError,
+  cleanTweak,
+  overCapKeys,
   parsePortraitReply,
   pickableImageModels,
   portraitRequest,
   sniffImage,
+  storedFamilyStyle,
   usdToMicros,
   type ImageModel,
   type PaintedImage,
+  type PortraitTweak,
   type RawImageModel,
 } from './portrait-rules.ts';
 import { yearOfDate } from '../portrait-face.ts';
@@ -107,6 +112,7 @@ export async function portraitModelChoices(): Promise<ImageModel[]> {
 interface Row {
   tree: string;
   enabled: number;
+  style: string;
   updated: number;
   updated_by: string | null;
 }
@@ -123,6 +129,8 @@ export interface PortraitSettings {
   model: string;
   /** The painting provider is connected, so the route can run. */
   connected: boolean;
+  /** The family's own style; empty means the default. */
+  style: string;
 }
 
 /** The painting settings as the steward sees them. Never a key. */
@@ -134,6 +142,7 @@ export async function readPortraitSettings(tree: string): Promise<PortraitSettin
     provider: route.effective?.provider ?? null,
     model: route.effective?.model ?? '',
     connected: route.connected,
+    style: r?.style ?? '',
   };
 }
 
@@ -159,6 +168,16 @@ export async function setPortraitEnabled(tree: string, by: string, enabled: bool
     `INSERT INTO ai_portrait (tree, enabled, model, reuse_family_key, updated, updated_by) VALUES (?, ?, '', 0, ?, ?)
      ON CONFLICT(tree) DO UPDATE SET enabled = excluded.enabled, updated = excluded.updated, updated_by = excluded.updated_by`,
     tree, enabled ? 1 : 0, Date.now(), by,
+  );
+}
+
+/** Saves the family's portrait style. Empty, or the default's own words, goes back to the default. */
+export async function setPortraitStyle(tree: string, by: string, text: string): Promise<void> {
+  if (text.trim().length > MAX_STYLE_CHARS) throw new AiError('bad-input', 'paint.err_style_long');
+  await accounts().run(
+    `INSERT INTO ai_portrait (tree, enabled, model, reuse_family_key, style, updated, updated_by) VALUES (?, 0, '', 0, ?, ?, ?)
+     ON CONFLICT(tree) DO UPDATE SET style = excluded.style, updated = excluded.updated, updated_by = excluded.updated_by`,
+    tree, storedFamilyStyle(text), Date.now(), by,
   );
 }
 
@@ -237,15 +256,15 @@ export async function profilePhotoKey(tree: string, personId: string): Promise<s
 export const DRAFT_TTL_MS = 60 * 60_000;
 
 /**
- * Deletes a person's old unused drafts and their pictures. Only rows with accepted = 0 are touched, in the same statement,
- * so the portrait a person shows can never go. Returns how many it looked at.
+ * Deletes a person's old unused drafts and their pictures. Only rows with accepted = 0 and kept = 0 are touched, in the same
+ * statement, so neither the portrait a person shows nor a version they kept can go. Returns how many it looked at.
  */
 export async function sweepDrafts(tree: string, personId: string, olderThanMs = DRAFT_TTL_MS, now = Date.now()): Promise<number> {
   const cutoff = new Date(now - olderThanMs).toISOString();
-  const old = await db(tree).all<{ key: string }>('SELECT key FROM portrait WHERE person = ? AND accepted = 0 AND created_at < ?', personId, cutoff);
+  const old = await db(tree).all<{ key: string }>('SELECT key FROM portrait WHERE person = ? AND accepted = 0 AND kept = 0 AND created_at < ?', personId, cutoff);
   for (const { key } of old) {
     await once<void>(tree, undefined, 'sweepDraft', async () => ({
-      writes: [q('DELETE FROM portrait WHERE key = ? AND person = ? AND accepted = 0', key, personId)],
+      writes: [q('DELETE FROM portrait WHERE key = ? AND person = ? AND accepted = 0 AND kept = 0', key, personId)],
       result: undefined,
       after: async () => {
         // The picture goes only when the row is gone (a draft accepted in the meantime keeps both).
@@ -268,7 +287,7 @@ export interface Candidate {
  * Paints a portrait of a person from one of their photos (a gallery picture they are confirmed in, or their profile
  * photo). The picture is stored as a candidate: nothing the person shows changes until it is accepted.
  */
-export async function createPortrait(tree: string, o: { by: string; personId: string; mediaKey: string; locale?: string }): Promise<Candidate> {
+export async function createPortrait(tree: string, o: { by: string; personId: string; mediaKey: string; locale?: string; tweak?: PortraitTweak | null }): Promise<Candidate> {
   const c = tr(toAiLocale(o.locale));
   const s = await readPortraitSettings(tree);
   if (!s.enabled) throw new AiError('not-configured', 'paint.err_off');
@@ -288,11 +307,12 @@ export async function createPortrait(tree: string, o: { by: string; personId: st
   const mime = sniffImage(bytes);
   if (!mime) throw new AiError('bad-input', 'paint.err_not_image');
   const sourceYear = tagged ? (yearOfDate(tagged.taken) ?? null) : null;
+  const tweak = cleanTweak(o.tweak);
   const apiKey = await paintingKey(tree);
   const priced = (await imageModelList()).find((m) => m.id === model);
   const painted: PaintedImage = await bookedCall(tree, priced?.priceUsd ?? UNPRICED_USD, c, async () => {
     if (fakeOn()) return { value: { bytes, mime, costUsd: 0.04 }, costUsd: 0.04 };
-    const req = portraitRequest(model, { mime, bytes });
+    const req = portraitRequest(model, { mime, bytes }, { style: s.style, tweak });
     const json = await postImages(req.url, apiKey, req.body as Record<string, unknown>);
     let img: PaintedImage;
     try {
@@ -311,8 +331,8 @@ export async function createPortrait(tree: string, o: { by: string; personId: st
     return {
       writes: [
         personExists(o.personId),
-        q('INSERT INTO portrait (key, person, mime, source, source_year, model, created_by, created_at, accepted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)',
-          key, o.personId, painted.mime, o.mediaKey, sourceYear, model, o.by, at),
+        q('INSERT INTO portrait (key, person, mime, source, source_year, model, created_by, created_at, accepted, kept, tweak) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)',
+          key, o.personId, painted.mime, o.mediaKey, sourceYear, model, o.by, at, tweak ? JSON.stringify(tweak) : null),
       ],
       result: { key, model, sourceYear, createdAt: at },
       abandon: () => media.delete(tree, key).catch(() => {}),
@@ -320,42 +340,108 @@ export async function createPortrait(tree: string, o: { by: string; personId: st
   });
 }
 
-/** Chooses a candidate: it becomes the person's portrait, and the person shows it. The one it replaces is deleted. */
+type Reader = { all: <T>(sql: string, ...args: any[]) => Promise<T[]> };
+
+/** A person's kept portraits, the one they show included. */
+async function keptOf(d: Reader, personId: string) {
+  const rows = await d.all<{ key: string; created_at: string; accepted: number }>('SELECT key, created_at, accepted FROM portrait WHERE person = ? AND kept = 1', personId);
+  return rows.map((r) => ({ key: r.key, createdAt: r.created_at, shown: r.accepted === 1 }));
+}
+
+/** Deletes pictures whose rows are gone. A row that is still there (it was chosen in the meantime) keeps its picture. */
+async function deletePictures(tree: string, keys: string[]) {
+  for (const key of keys) {
+    if (!(await db(tree).get('SELECT key FROM portrait WHERE key = ?', key))) await media.delete(tree, key).catch((e) => console.error('paint.err_delete', key, e));
+  }
+}
+
+/** The statements that remove versions over the cap. `accepted = 0` is in each one, so the portrait shown can never go. */
+const evictions = (personId: string, keys: string[]) => keys.map((key) => q('DELETE FROM portrait WHERE key = ? AND person = ? AND kept = 1 AND accepted = 0', key, personId));
+
+/**
+ * Shows a draft or a kept version: it becomes the portrait the person shows. The one it replaces stays as a kept version;
+ * if that leaves too many, the oldest unused version goes.
+ */
 export function acceptPortrait(tree: string, personId: string, key: string, op?: { key: string; user: string; payload: unknown }) {
   return once<void>(tree, op, 'acceptPortrait', async (d) => {
-    const cand = await d.get<{ accepted: number }>('SELECT accepted FROM portrait WHERE key = ? AND person = ?', key, personId);
+    const cand = await d.get<{ accepted: number; created_at: string }>('SELECT accepted, created_at FROM portrait WHERE key = ? AND person = ?', key, personId);
     if (!cand) throw new Error('paint.err_candidate_gone');
     if (cand.accepted === 1) return { writes: [personExists(personId)], result: undefined };
+    const kept = await keptOf(d as unknown as Reader, personId);
+    const before = kept.find((k) => k.shown)?.key;
+    const after = [...kept.filter((k) => k.key !== key).map((k) => ({ ...k, shown: false })), { key, createdAt: cand.created_at, shown: true }];
+    const evict = overCapKeys(after, before ? [key, before] : [key]);
     return {
       writes: [
         guard('EXISTS (SELECT 1 FROM portrait WHERE key = ? AND person = ? AND accepted = 0)', key, personId),
         personExists(personId),
-        q('SELECT key FROM portrait WHERE person = ? AND accepted = 1', personId), // the one this replaces
-        q('DELETE FROM portrait WHERE person = ? AND accepted = 1', personId),
-        q('UPDATE portrait SET accepted = 1 WHERE key = ?', key),
+        q('UPDATE portrait SET accepted = 0, kept = 1 WHERE person = ? AND accepted = 1', personId),
+        q('UPDATE portrait SET accepted = 1, kept = 1 WHERE key = ?', key),
         q('UPDATE person SET prefer_avatar = 0, prefer_portrait = 1 WHERE id = ?', personId),
+        ...evictions(personId, evict),
       ],
       result: undefined,
-      after: async (r) => {
-        const old = (r[2]!.rows[0] as { key: string } | undefined)?.key;
-        if (old && old !== key) await media.delete(tree, old).catch((e) => console.error('paint.err_delete', old, e));
-      },
+      after: () => deletePictures(tree, evict),
     };
   });
 }
 
-/** Throws the candidate away, and its picture with it. The portrait a person has accepted is not a candidate: use remove. */
+/** Keeps a draft as a version, without showing it. If that leaves too many, the oldest unused version goes. */
+export function keepPortrait(tree: string, personId: string, key: string, op?: { key: string; user: string; payload: unknown }) {
+  return once<void>(tree, op, 'keepPortrait', async (d) => {
+    const cand = await d.get<{ kept: number; created_at: string }>('SELECT kept, created_at FROM portrait WHERE key = ? AND person = ?', key, personId);
+    if (!cand) throw new Error('paint.err_candidate_gone');
+    if (cand.kept === 1) return { writes: [personExists(personId)], result: undefined };
+    const after = [...(await keptOf(d as unknown as Reader, personId)), { key, createdAt: cand.created_at, shown: false }];
+    const evict = overCapKeys(after, [key]);
+    return {
+      writes: [guard('EXISTS (SELECT 1 FROM portrait WHERE key = ? AND person = ? AND kept = 0)', key, personId), q('UPDATE portrait SET kept = 1 WHERE key = ?', key), ...evictions(personId, evict)],
+      result: undefined,
+      after: () => deletePictures(tree, evict),
+    };
+  });
+}
+
+/** Deletes a draft or a kept version, and its picture. The portrait a person shows is not one of these: use remove. */
 export function discardPortrait(tree: string, personId: string, key: string, op?: { key: string; user: string; payload: unknown }) {
   return once<void>(tree, op, 'discardPortrait', async (d) => {
     const cand = await d.get<{ accepted: number }>('SELECT accepted FROM portrait WHERE key = ? AND person = ?', key, personId);
     if (!cand) throw new Error('paint.err_candidate_gone');
     if (cand.accepted === 1) throw new Error('paint.err_is_current');
     return {
-      writes: [guard('EXISTS (SELECT 1 FROM portrait WHERE key = ? AND accepted = 0)', key), q('DELETE FROM portrait WHERE key = ?', key)],
+      writes: [guard('EXISTS (SELECT 1 FROM portrait WHERE key = ? AND person = ? AND accepted = 0)', key, personId), q('DELETE FROM portrait WHERE key = ? AND accepted = 0', key)],
       result: undefined,
-      after: () => media.delete(tree, key).catch((e) => console.error('paint.err_delete', key, e)),
+      after: () => deletePictures(tree, [key]),
     };
   });
+}
+
+/** One of the portraits a person has kept. */
+export interface PortraitVersion {
+  key: string;
+  source: string;
+  sourceYear: number | null;
+  createdAt: string;
+  shown: boolean;
+  tweak: PortraitTweak | null;
+}
+
+function parseTweak(json: string | null): PortraitTweak | null {
+  if (!json) return null;
+  try {
+    return cleanTweak(JSON.parse(json) as PortraitTweak) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** The portraits a person has kept, newest first. Drafts are not among them. */
+export async function portraitVersions(tree: string, personId: string): Promise<PortraitVersion[]> {
+  const rows = await db(tree).all<{ key: string; source: string; source_year: number | null; created_at: string; accepted: number; tweak: string | null }>(
+    'SELECT key, source, source_year, created_at, accepted, tweak FROM portrait WHERE person = ? AND kept = 1 ORDER BY created_at DESC, key DESC',
+    personId,
+  );
+  return rows.map((r) => ({ key: r.key, source: r.source, sourceYear: r.source_year, createdAt: r.created_at, shown: r.accepted === 1, tweak: parseTweak(r.tweak) }));
 }
 
 /** Removes the person's accepted portrait and its picture. The person shows their photo or drawing again. */

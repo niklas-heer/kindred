@@ -219,6 +219,12 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
     }
   }
   /** The model a test uses: the provider's default, or the model a job already uses with it. */
+  // The steps that search the web, each with its own route's provider: the assistant, arms research and name research.
+  const webSearchVars = (() => {
+    const of = (route: Route) => PROVIDER_NOTE[effective(route)?.provider ?? 'anthropic'];
+    const searchers = [...new Set((['assistant', 'arms', 'names'] as const).map(of))];
+    return { provider: of('arms'), searchers: new Intl.ListFormat(t.locale, { style: 'long', type: 'conjunction' }).format(searchers) };
+  })();
   const effectiveFor = (p: Provider): string => ROUTES.map((r) => effective(r)).find((e) => e?.provider === p)?.model || DEFAULT_MODEL[p];
 
   // ---------- save ----------
@@ -494,7 +500,7 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
           <Switch checked={webSearch} onChange={setWebSearch} disabled={!webSearch && !(connected('anthropic') || connected('openai') || connected('openrouter'))}>
             {t('ai.featureWebSearch')}
           </Switch>
-          <p className="ai-feature-hint subtle">{t(FEATURE_HINT.webSearch, { provider: PROVIDER_NOTE[effective('assistant')?.provider ?? 'anthropic'] })}</p>
+          <p className="ai-feature-hint subtle">{t(FEATURE_HINT.webSearch, webSearchVars)}</p>
         </div>
       </section>
 

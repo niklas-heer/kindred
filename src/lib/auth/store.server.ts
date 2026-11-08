@@ -121,7 +121,7 @@ export const deleteSession = async (token: string) => accounts().run('DELETE FRO
 
 // ---------- memberships ----------
 
-export interface MembershipRow { user: string; tree: string; role: Role; person: string | null; created: number }
+export interface MembershipRow { user: string; tree: string; role: Role; person: string | null; person_confirmed: number; created: number }
 
 export const membershipsOf = (user: string) => accounts().all<MembershipRow>('SELECT * FROM membership WHERE user = ? ORDER BY created', user);
 export const membership = (user: string, tree: string) => accounts().get<MembershipRow>('SELECT * FROM membership WHERE user = ? AND tree = ?', user, tree);
@@ -147,8 +147,31 @@ export const membersOf = (tree: string) =>
     tree,
   );
 
-export const setPerson = (user: string, tree: string, person: string | null) =>
-  accounts().run('UPDATE membership SET person = ? WHERE user = ? AND tree = ?', person, user, tree);
+/**
+ * Saves who a member says they are. A different answer clears the steward's confirmation; the same answer keeps it. `trusted`
+ * confirms it straight away (someone who can paint anyway, naming a person). One statement, so no race.
+ */
+export const setPerson = (user: string, tree: string, person: string | null, trusted = false) =>
+  accounts().run(
+    'UPDATE membership SET person_confirmed = CASE WHEN person IS ? THEN max(person_confirmed, ?) ELSE ? END, person = ? WHERE user = ? AND tree = ?',
+    person, trusted ? 1 : 0, trusted ? 1 : 0, person, user, tree,
+  );
+
+/**
+ * A steward confirms who a member says they are. Only that answer: if the member has changed it since the steward looked,
+ * nothing changes and this returns false.
+ */
+export const confirmPerson = async (user: string, tree: string, person: string) =>
+  (await accounts().run('UPDATE membership SET person_confirmed = 1 WHERE user = ? AND tree = ? AND person = ?', user, tree, person)).changes === 1;
+
+/** A steward declines who a member says they are, which unlinks them. Like confirmPerson, only that answer. */
+export const declinePerson = async (user: string, tree: string, person: string) =>
+  (await accounts().run('UPDATE membership SET person = NULL, person_confirmed = 0 WHERE user = ? AND tree = ? AND person = ?', user, tree, person)).changes === 1;
+
+/** A new role. Someone who stops being an editor loses a confirmation they only had for being one, so their link goes to a steward. */
+export const changeRole = (user: string, tree: string, role: Role) =>
+  q(`UPDATE membership SET person_confirmed = CASE WHEN role IN ('editor', 'steward') AND ? IN ('viewer', 'contributor') THEN 0 ELSE person_confirmed END, role = ?
+     WHERE user = ? AND tree = ?`, role, role, user, tree);
 
 // ---------- invites ----------
 

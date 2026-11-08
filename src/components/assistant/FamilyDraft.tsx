@@ -2,39 +2,30 @@
 // whose person is already in the tree listed under "Connections". Warnings show where a person may already be in the
 // tree or a link would loop. Rows can be edited or removed until they are added. "Add all", or each row's own "Add",
 // sends the rows to applyFamilyBatch; every step has its own retry key, so a row that failed can be sent again, and a
-// row that worked is never written twice.
+// row that worked is never written twice. A memory is shown in full, because approving it puts those words in the Chronicle.
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, Pencil, RotateCw, X } from 'lucide-react';
 import { useState } from 'react';
 import { aiChatMark } from '~/lib/ai.functions';
 import { applyFamilyBatch } from '~/lib/family-batch.functions';
 import { opKeys } from '~/lib/api';
-import { NEW_REF, type FamilyLink, type FamilyPerson, type Proposal } from '~/lib/ai/types';
+import { type FamilyLink, type FamilyPerson, type Proposal } from '~/lib/ai/types';
 import { useT, type Key } from '~/lib/i18n';
-import { PROPOSAL_KIND_KEY } from '~/lib/ai/labels';
+import { PROPOSAL_KIND_KEY, STORY_KIND_KEY } from '~/lib/ai/labels';
 import { errorText } from '~/lib/errortext';
 import type { Locale } from '~/lib/i18n/types';
+import { Select } from '~/components/ui';
 import { CardHead } from './CardHead';
+import { cleanPerson, draftProgress, linksToSend, type DraftLink as LinkRow, type DraftRow as Row, type Status } from './family-draft';
 
-type Status = 'todo' | 'done' | 'failed';
 type Translate = ReturnType<typeof useT>;
-interface Row extends FamilyPerson { status: Status; id?: string; error?: string }
-interface LinkRow extends FamilyLink { uid: string; status: Status; error?: string }
+type Story = NonNullable<FamilyPerson['story']>;
 
 const REL_KEY: Record<FamilyLink['relation'], Key> = {
   child: 'ai.famRelChild', parent: 'ai.famRelParent', partner: 'ai.famRelPartner', sibling: 'ai.famRelSibling',
 };
 /** The same relation said from the other person's end: a child's parent is someone whose child they are. */
 const INVERSE: Record<FamilyLink['relation'], FamilyLink['relation']> = { child: 'parent', parent: 'child', partner: 'partner', sibling: 'sibling' };
-
-/** The person as the server takes it: empty fields left out, so a blank date is not sent as a date. */
-function clean(r: FamilyPerson): FamilyPerson {
-  const s = (v?: string) => (v && v.trim() ? v.trim() : undefined);
-  return {
-    ref: r.ref, given: r.given.trim(), surname: s(r.surname), sex: r.sex || undefined, born: s(r.born), bornPlace: s(r.bornPlace),
-    died: s(r.died), diedPlace: s(r.diedPlace), living: r.living, occupation: s(r.occupation), story: r.story,
-  };
-}
 
 /** A date for the card: "~1938" reads as "about 1938". */
 const dateText = (t: Translate, d: string) => (d.startsWith('~') ? t('ai.famAboutDate', { date: d.slice(1) }) : d);
@@ -77,9 +68,26 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
     setRows((rs) => rs.map((r) => (r.ref === ref ? { ...r, [field]: value, status: r.status === 'failed' ? 'todo' : r.status, error: undefined } : r)));
   }
 
-  function removeRow(ref: string) {
-    setRows((rs) => rs.filter((r) => r.ref !== ref));
-    setLinks((ls) => ls.filter((l) => l.anchor !== ref && l.person !== ref && l.coParent !== ref));
+  /** The same for the memory: a change or removal sends the row again with new content. Blanking the text leaves the memory out. */
+  function editStory(ref: string, patch: Partial<Story> | null) {
+    setRows((rs) => rs.map((r) => (r.ref === ref && r.story
+      ? { ...r, story: patch ? { ...r.story, ...patch } : undefined, status: r.status === 'failed' ? 'todo' : r.status, error: undefined }
+      : r)));
+  }
+
+  /** Takes rows or links off the card. When that leaves only what was already added, the card is finished. */
+  function applyRemoval(nextRows: Row[], nextLinks: LinkRow[]) {
+    setRows(nextRows);
+    setLinks(nextLinks);
+    if (draftProgress(nextRows, nextLinks, loopUids).settled) void finish('done');
+  }
+
+  const removeRow = (ref: string) => applyRemoval(rows.filter((r) => r.ref !== ref), links.filter((l) => l.anchor !== ref && l.person !== ref && l.coParent !== ref));
+  const removeLink = (uid: string) => applyRemoval(rows, links.filter((l) => l.uid !== uid));
+
+  async function finish(next: 'done' | 'dismissed') {
+    setStatus(next);
+    await aiChatMark({ data: { tree, itemId, proposalId: proposal.id, status: next } }).catch(() => {});
   }
 
   /** Sends the chosen rows (all, or one), and every link whose two ends are known by then. */
@@ -88,20 +96,9 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
     setNotice(null);
     const sendRows = rows.filter((r) => r.status !== 'done' && (!only || r.ref === only));
     const sending = new Set(sendRows.map((r) => r.ref));
-    // A reference is a row sent now (the server maps it to the id it creates), a row already added (its real id), or an id in the tree.
-    const doneId = (ref: string) => rows.find((r) => r.ref === ref && r.status === 'done')?.id;
-    const resolve = (x: string): string | undefined => (sending.has(x) ? x : doneId(x) ?? (NEW_REF.test(x) ? undefined : x));
-    const sendLinks: { uid: string; payload: { anchor: string; person: string; relation: FamilyLink['relation']; coParent?: string } }[] = [];
-    for (const l of links) {
-      if (l.status === 'done') continue;
-      const anchor = resolve(l.anchor);
-      const person = resolve(l.person);
-      const coParent = l.coParent ? resolve(l.coParent) : undefined;
-      if (!anchor || !person || (l.coParent && !coParent)) continue;
-      sendLinks.push({ uid: l.uid, payload: { anchor, person, relation: l.relation, ...(coParent ? { coParent } : {}) } });
-    }
+    const sendLinks = linksToSend(rows, links, loopUids, sending);
     const people = sendRows.map((r) => {
-      const body = clean(r);
+      const body = cleanPerson(r);
       return { ...body, key: keys.for(`person:${r.ref}`, body) };
     });
     const uidOfKey = new Map<string, string>();
@@ -111,7 +108,7 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
       return { ...l.payload, key };
     });
     try {
-      const res = await applyFamilyBatch({ data: { tree, people, links: linkBody } });
+      const res = await applyFamilyBatch({ data: { tree, people, links: linkBody, locale } });
       const newRows = rows.map((r) => {
         const got = res.people.find((p) => p.ref === r.ref);
         if (!got) return r;
@@ -128,20 +125,12 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
         qc.invalidateQueries({ queryKey: ['graph', tree] }),
         qc.invalidateQueries({ queryKey: ['chronicle', tree] }),
       ]);
-      if (newRows.every((r) => r.status === 'done') && newLinks.every((l) => l.status === 'done')) {
-        setStatus('done');
-        await aiChatMark({ data: { tree, itemId, proposalId: proposal.id, status: 'done' } }).catch(() => {});
-      }
+      if (draftProgress(newRows, newLinks, loopUids).settled) await finish('done');
     } catch (e) {
       setNotice(errorText(e, locale));
     } finally {
       setBusy(false);
     }
-  }
-
-  async function dismiss() {
-    setStatus('dismissed');
-    await aiChatMark({ data: { tree, itemId, proposalId: proposal.id, status: 'dismissed' } }).catch(() => {});
   }
 
   const kind = t(PROPOSAL_KIND_KEY[proposal.kind]);
@@ -154,8 +143,10 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
     );
   }
 
-  const todo = rows.filter((r) => r.status !== 'done').length;
-  const failedAny = rows.some((r) => r.status === 'failed') || links.some((l) => l.status === 'failed');
+  const progress = draftProgress(rows, links, loopUids);
+  const failedAny = progress.failed;
+  // Who a memory can be saved under: the person who told it, or the approver. The server looks the name up from the id.
+  const tellers = [...new Set(seed.people.flatMap((p) => (p.story?.teller ? [p.story.teller] : [])))];
   // Each link is said on the row of the person it describes ("sibling of Ingrid"), and again from the other end when that
   // end is also a new person in the draft ("partner of Kurt" on Greta's row). A link to a person in the tree is under Connections.
   const rowLines = (ref: string) => links.flatMap((l) => {
@@ -199,11 +190,29 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
                           {x.text}
                           {loopUids.has(x.uid) && x.status !== 'done' && <span className="subtle"> · {t('ai.famLoop')}</span>}
                           {x.status === 'failed' && x.error && <span className="ai-card-error"> {x.error}</span>}
+                          {x.status === 'failed' && (
+                            <button type="button" className="btn ghost ai-touch ai-link-remove" onClick={() => removeLink(x.uid)} disabled={busy} aria-label={t('ai.famRemove')} title={t('ai.famRemove')}>
+                              <X size={13} aria-hidden />
+                            </button>
+                          )}
                         </li>
                       ))}
                     </ul>
                   )}
-                  {r.story && <p className="ai-fam-story subtle">{t('ai.famStory', { title: r.story.title || r.story.kind })}</p>}
+                  {r.story && r.story.body.trim() && (
+                    <div className="ai-fam-story">
+                      <p className="ai-fam-story-head">
+                        <span>{[STORY_KIND_KEY[r.story.kind] ? t(STORY_KIND_KEY[r.story.kind]) : r.story.kind, r.story.title].filter(Boolean).join(' · ')}</span>
+                        {!locked && (
+                          <button type="button" className="btn ghost ai-touch ai-link-remove" onClick={() => editStory(r.ref, null)} disabled={busy} aria-label={t('ai.famStoryRemove')} title={t('ai.famStoryRemove')}>
+                            <X size={13} aria-hidden />
+                          </button>
+                        )}
+                      </p>
+                      <p className="ai-fam-story-body">{r.story.body}</p>
+                      <p className="ai-fam-story-by subtle">{r.story.teller ? t('ai.famToldBy', { name: refName(r.story.teller) }) : t('ai.famToldByYou')}</p>
+                    </div>
+                  )}
                   {dup && !locked && <p className="ai-fam-dup" role="note">{t('ai.famDuplicate', { name: dup.name })}</p>}
                   {locked && <p className="ai-card-state ok">{t('ai.famDone')}</p>}
                   {r.status === 'failed' && <p className="ai-card-error" role="alert">{r.error}</p>}
@@ -232,6 +241,30 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
                         <input value={(r[field] as string | undefined) ?? ''} onChange={(e) => edit(r.ref, field, e.target.value)} />
                       </label>
                     ))}
+                    {r.story && (
+                      <>
+                        <label className="ai-field ai-fam-wide">
+                          <span>{t('ai.famStoryTitle')}</span>
+                          <input value={r.story.title ?? ''} onChange={(e) => editStory(r.ref, { title: e.target.value })} />
+                        </label>
+                        <label className="ai-field ai-fam-wide">
+                          <span>{t('ai.famStoryBody')}</span>
+                          <textarea value={r.story.body} maxLength={20_000} onChange={(e) => editStory(r.ref, { body: e.target.value })} />
+                        </label>
+                        {tellers.length > 0 && (
+                          <div className="ai-field ai-fam-wide">
+                            <span>{t('ai.famStoryTeller')}</span>
+                            <Select
+                              value={r.story.teller ?? ''}
+                              onChange={(v) => editStory(r.ref, { teller: v || undefined })}
+                              options={[{ value: '', label: t('ai.famStoryMe') }, ...tellers.map((id) => ({ value: id, label: refName(id) }))]}
+                              aria-label={t('ai.famStoryTeller')}
+                              size="md"
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
               </li>
@@ -250,7 +283,7 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
                   {l.status === 'failed' && <span className="ai-card-error"> {l.error}</span>}
                   {l.status === 'done' && <span className="ai-card-state ok"> · {t('ai.famDone')}</span>}
                   {l.status !== 'done' && (
-                    <button type="button" className="btn ghost ai-touch ai-link-remove" onClick={() => setLinks((ls) => ls.filter((x) => x.uid !== l.uid))} disabled={busy} aria-label={t('ai.famRemove')} title={t('ai.famRemove')}>
+                    <button type="button" className="btn ghost ai-touch ai-link-remove" onClick={() => removeLink(l.uid)} disabled={busy} aria-label={t('ai.famRemove')} title={t('ai.famRemove')}>
                       <X size={13} aria-hidden />
                     </button>
                   )}
@@ -262,20 +295,24 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
 
         {notice && <p className="ai-card-error" role="alert">{t('ai.approveFailed')}{notice}</p>}
         {failedAny && !notice && (
-          <p className="ai-card-state subtle" role="status">{t('ai.famPartial', { done: String(rows.length - todo), total: String(rows.length) })}</p>
+          <p className="ai-card-state subtle" role="status">
+            {t('ai.famCountPeople', { done: String(progress.peopleDone), total: String(progress.peopleTotal) })}
+            {progress.linksTotal > 0 && <> {t('ai.famCountLinks', { done: String(progress.linksDone), total: String(progress.linksTotal) })}</>}
+            {' '}{t('ai.famPartial')}
+          </p>
         )}
 
         <div className="ai-card-actions">
-          <button type="button" className="btn primary" onClick={() => add()} disabled={busy || todo === 0}>
+          <button type="button" className="btn primary" onClick={() => add()} disabled={busy || progress.unfinished === 0}>
             {failedAny ? <RotateCw size={15} aria-hidden /> : <Check size={15} aria-hidden />}{' '}
             {busy ? t('ai.approving') : failedAny ? t('ai.famRetry') : t('ai.famAddAll')}
           </button>
-          <button type="button" className="btn ghost" onClick={dismiss} disabled={busy}>
-            <X size={14} aria-hidden /> {t('ai.dismiss')}
+          <button type="button" className="btn ghost" onClick={() => finish(progress.anyDone ? 'done' : 'dismissed')} disabled={busy}>
+            <X size={14} aria-hidden /> {progress.anyDone ? t('ai.famLeaveRest') : t('ai.dismiss')}
           </button>
         </div>
       </div>
-      <p className="ai-card-note subtle">{t('ai.notSavedYet')}</p>
+      {!progress.anyDone && <p className="ai-card-note subtle">{t('ai.notSavedYet')}</p>}
     </article>
   );
 }

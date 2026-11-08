@@ -11,6 +11,11 @@ export type Tr = ReturnType<typeof tr>;
 /** Provider brand names are never translated. */
 export const PROVIDER_NOTE = { anthropic: 'Anthropic', openai: 'OpenAI', openrouter: 'OpenRouter' } as const;
 
+/** A story's kind, as its name in the reader's language. */
+export const STORY_KIND_KEY: Record<string, Key> = {
+  note: 'ai.storyKindNote', quote: 'ai.storyKindQuote', anecdote: 'ai.storyKindAnecdote', recipe: 'ai.storyKindRecipe', memory: 'ai.storyKindMemory',
+};
+
 export const PROPOSAL_KIND_KEY: Record<ProposalKind, Key> = {
   'add-person': 'ai.kindAddPerson',
   'link-relative': 'ai.kindLinkRelative',

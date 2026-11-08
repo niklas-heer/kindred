@@ -142,7 +142,7 @@ export function PersonPhotos({ tree, id }: { tree: string; id: string }) {
           {shownNow === 'portrait' && !paintedFits ? <p className="subtle pp-notfit">{g('paint.notNow', { fits: fitsAge })}</p> : null}
         </div>
       ) : null}
-      {canEdit ? <PaintPortrait tree={tree} person={person} photos={photos} /> : null}
+      <PaintPortrait tree={tree} person={person} photos={photos} />
       {notice ? <p className="subtle pp-notice" role="status">{notice}</p> : null}
 
       {cropping ? (

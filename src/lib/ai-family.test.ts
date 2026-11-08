@@ -173,6 +173,109 @@ test('a viewer and a contributor are offered no change beyond their role, and th
   assert.match(viaTool, /may not make that change/);
 });
 
+test('a memory told in a session is saved under its teller and names its approver; without one it is the approver’s', async () => {
+  const stories = async (given: string) => (await db(TREE).all<{ author: string; context: string | null; body: string }>(
+    'SELECT author, context, body FROM story WHERE person = (SELECT id FROM person WHERE given = ?)', given,
+  )).map((r) => ({ ...r }));
+  const out = await family.applyFamilyBatch({
+    tree: TREE, user: 'u-a', author: 'Anna Approver', role: 'editor', locale: 'de',
+    batch: {
+      people: [
+        { key: key('told'), ref: 'n40', given: 'Told', living: false, story: { kind: 'memory', body: 'Sie sang im Chor.', teller: 'ingrid' } },
+        { key: key('own'), ref: 'n41', given: 'Own', living: false, story: { kind: 'memory', body: 'Mine.' } },
+        { key: key('mine'), ref: 'n42', given: 'Mineself', living: false, story: { kind: 'memory', body: 'Told by the approver.', teller: 'hans' } },
+      ],
+      links: [],
+    },
+    me: 'hans',
+  });
+  assert.ok(out.people.every((p) => p.id), 'all three are added');
+  assert.deepEqual(await stories('Told'), [{ author: 'Ingrid Braun', context: 'Aus einer Familiensitzung, bestätigt von Anna Approver', body: 'Sie sang im Chor.' }]);
+  assert.deepEqual(await stories('Own'), [{ author: 'Anna Approver', context: null, body: 'Mine.' }]);
+  assert.deepEqual(await stories('Mineself'), [{ author: 'Anna Approver', context: null, body: 'Told by the approver.' }], 'telling it yourself is your own memory');
+
+  const before = await countPeople();
+  const gone = await family.applyFamilyBatch({
+    tree: TREE, user: 'u-a', author: 'Anna Approver', role: 'editor',
+    batch: { people: [{ key: key('gone'), ref: 'n43', given: 'Gone', living: false, story: { kind: 'note', body: 'x', teller: 'nobody' } }], links: [] },
+  });
+  assert.deepEqual(gone.people, [{ ref: 'n43', error: 'ai.famTellerGone' }], 'a teller who is not in the tree is reported');
+  assert.equal(await countPeople(), before, 'and the person is not half written');
+});
+
+test('the draft names a memory’s teller from the tree: the speaker the model named, else the session’s speaker, never an unknown id', async () => {
+  const propose = async (session: boolean, teller?: string) => {
+    const out: import('./ai/types.ts').Proposal[] = [];
+    await tools.runTool({ tree: TREE, role: 'editor', me: 'ingrid', session, locale: 'en' }, 'propose_family', {
+      people: [{ ref: 'n50', given: 'Tilda', living: false, story: { kind: 'memory', body: 'A line.', ...(teller ? { teller } : {}) } }], links: [],
+    }, out);
+    return out[0];
+  };
+  const tellerOf = (p: import('./ai/types.ts').Proposal) => (p.args as { people: { story: { teller?: string } }[] }).people[0].story.teller;
+  const named = await propose(true, 'hans');
+  assert.equal(tellerOf(named), 'hans');
+  assert.equal(named.view?.names?.hans, 'Hans Braun', 'the card can say who told it');
+  assert.equal(tellerOf(await propose(true)), 'ingrid', 'the session’s speaker, when the model named nobody');
+  assert.equal(tellerOf(await propose(true, 'nobody')), 'ingrid', 'an id not in the tree is not kept');
+  assert.equal(tellerOf(await propose(false)), undefined, 'outside a session it is the reader’s own');
+});
+
+test('the card shows the words it asks you to approve, and who they will be saved under', async () => {
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { createElement } = await import('react');
+  const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');
+  const { FamilyDraft } = await load<typeof import('../components/assistant/FamilyDraft.tsx')>('/src/components/assistant/FamilyDraft.tsx');
+  const proposal = {
+    id: 'p1', kind: 'family', summary: 'Add 1', status: 'open', editable: [], diff: [],
+    args: { people: [{ ref: 'n1', given: 'Tilda', living: false, story: { kind: 'memory', body: 'Sie sang im Chor.', teller: 'hans' } }, { ref: 'n2', given: 'Ulla', living: false, story: { kind: 'note', body: 'Eine Notiz.' } }], links: [] },
+    view: { names: { hans: 'Hans Braun' } },
+  } as unknown as import('./ai/types.ts').Proposal;
+  const html = renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(FamilyDraft, { tree: TREE, itemId: 'i1', proposal })));
+  assert.match(html, /Sie sang im Chor\./, 'the memory itself is on the card');
+  assert.match(html, /Told by Hans Braun/);
+  assert.match(html, /Will be saved under your name/, 'a memory with no teller says so');
+});
+
+test('a failed link keeps the card open and retryable, and a link left out is neither sent nor counted', async () => {
+  const { draftProgress, linksToSend, cleanPerson } = await load<typeof import('../components/assistant/family-draft.ts')>('/src/components/assistant/family-draft.ts');
+  const rows = [
+    { ref: 'n1', given: 'A', living: true, status: 'done' as const, id: 'a1' },
+    { ref: 'n2', given: 'B', living: true, status: 'done' as const, id: 'b1' },
+  ];
+  const failed = { uid: 'l0', anchor: 'n1', person: 'n2', relation: 'partner' as const, status: 'failed' as const, error: 'no' };
+  const loop = { uid: 'l1', anchor: 'n1', person: 'otto', relation: 'parent' as const, status: 'todo' as const };
+  const leftOut = new Set(['l1']);
+
+  const stuck = draftProgress(rows, [failed, loop], leftOut);
+  assert.deepEqual(
+    { people: [stuck.peopleDone, stuck.peopleTotal], links: [stuck.linksDone, stuck.linksTotal], unfinished: stuck.unfinished, failed: stuck.failed, settled: stuck.settled },
+    { people: [2, 2], links: [0, 1], unfinished: 1, failed: true, settled: false },
+    'two people added and one link failed is not finished, so a retry is open',
+  );
+
+  const sent = linksToSend(rows, [failed, loop], leftOut, new Set());
+  assert.deepEqual(sent.map((l) => l.uid), ['l0'], 'the failed link is sent again and the left-out link never is');
+  assert.deepEqual(sent[0].payload, { anchor: 'a1', person: 'b1', relation: 'partner' }, 'by the ids the people got');
+
+  assert.equal(draftProgress(rows, [loop], leftOut).settled, true, 'with the failed link removed, a left-out link does not hold the card open');
+  assert.equal(draftProgress(rows.map((r) => ({ ...r, status: 'todo' as const })), [], leftOut).settled, false, 'nothing added yet is not finished');
+
+  const person = { ref: 'n3', given: ' C ', living: true };
+  assert.equal(cleanPerson({ ...person, story: { kind: 'memory', body: '   ' } }).story, undefined, 'a memory emptied on the card is not sent');
+  assert.deepEqual(cleanPerson({ ...person, story: { kind: 'memory', title: ' ', body: ' Edited. ', teller: '' } }).story, { kind: 'memory', title: undefined, body: 'Edited.', teller: undefined });
+});
+
+test('a family session is refused before any spend for a role that could not apply its draft', async () => {
+  const { accounts } = await load<typeof import('./auth/store.server.ts')>('/src/lib/auth/store.server.ts');
+  const chat = await load<typeof import('./ai/chat.server.ts')>('/src/lib/ai/chat.server.ts');
+  const rows = async () => (await accounts().get<{ n: number }>('SELECT count(*) AS n FROM ai_chat'))!.n;
+  const before = await rows();
+  for (const role of ['viewer', 'contributor'] as Role[]) {
+    await assert.rejects(chat.sendMessage({ tree: TREE, user: 'u-v', role, me: null, text: 'x'.repeat(20_000), locale: 'en', session: true }), /ai\.famRefused/, `${role} may not send a session`);
+  }
+  assert.equal(await rows(), before, 'nothing was recorded, so nothing was spent');
+});
+
 test('no tool deletes, manages access or invitations, or changes AI settings or keys', async () => {
   const offered = tools.toolsFor('steward', { web: true, faces: true, avatar: true }).tools.map((t) => t.name);
   for (const name of offered) {

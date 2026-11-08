@@ -105,7 +105,7 @@ Everything the app keeps is in the data folder: `/data` in the container, which 
 | --- | --- | --- |
 | Each family | `<id>.db` | One SQLite file per family. The id is the file name. |
 | Accounts, passkeys, sessions, memberships, AI settings, provider connections and feature routes | `accounts.db` | Separate from the families. |
-| Portraits and gallery pictures | `media/<id>/` | The database holds only each picture's key. |
+| Portraits, gallery pictures and research documents | `media/<id>/` | The database holds only each file's key. |
 | The sealing secret for saved AI keys | `secret` | Made the first time an AI key is saved, with mode 600. See below. |
 | Copies made before a migration | `backups/` | See "Upgrades". |
 

@@ -1,7 +1,7 @@
 // The rules for connecting two people who are already in the tree: the plan behind `linkRelative` (api.ts) and
 // behind each link of an assistant's family draft (ai/family.server.ts). Both run the same checks, so a draft can
 // never link what the form would refuse. A plan reads what it needs and guards every fact it read (db.server.ts `once`).
-import { guard, q, sameBorn, sameParents, type Db, type Plan } from './db.server';
+import { guard, media, q, sameBorn, sameParents, type Db, type Plan } from './db.server';
 import type { LinkResult } from './api';
 
 export interface LinkInput {
@@ -104,4 +104,34 @@ export async function linkPlan(d: Db, data: LinkInput): Promise<Plan<LinkResult>
     if (!(await parentsOf(child)).includes(parent) && !created.parents.some((e) => e.child === child && e.parent === parent)) created.parents.push({ child, parent });
   }
   return { writes, result: created };
+}
+
+/**
+ * Takes a person out of the tree. Their links, stories and contacts go by cascade; their photo file and every painted
+ * portrait file (accepted, kept or draft, whatever its state) are deleted once the batch committed.
+ */
+export async function removePlan(d: Db, tree: string, id: string): Promise<Plan<number>> {
+  // The tree must keep a person to open on.
+  const focus = await d.get<{ value: string }>("SELECT value FROM meta WHERE key = 'focus'");
+  const writes = [
+    guard("(SELECT value FROM meta WHERE key = 'focus') IS ?", focus?.value ?? null),
+    // Their files, read in the batch, so the ones deleted afterwards are the ones the rows pointed at.
+    q('SELECT key FROM photo WHERE person = ?', id),
+    q('SELECT key FROM portrait WHERE person = ?', id),
+  ];
+  if (focus?.value === id) {
+    const other = await d.get<{ id: string }>('SELECT id FROM person WHERE id != ? LIMIT 1', id);
+    if (!other) throw new Error('The last person cannot be removed');
+    writes.push(guard('EXISTS (SELECT 1 FROM person WHERE id = ?)', other.id), q("UPDATE meta SET value = ? WHERE key = 'focus'", other.id));
+  }
+  // RETURNING counts the person alone (D1's `changes` would include the cascade).
+  writes.push(q('DELETE FROM person WHERE id = ? RETURNING id', id));
+  return {
+    writes,
+    result: (r) => r[r.length - 1].rows.length,
+    after: async (r) => {
+      const keys = [...r[1].rows, ...r[2].rows].map((x) => (x as { key: string | null }).key).filter((k): k is string => !!k);
+      for (const key of keys) await media.delete(tree, key).catch((e) => console.error('[media] could not delete', key, e));
+    },
+  };
 }

@@ -8,7 +8,7 @@
 // What is copied, and in what order, is decided in scripts/lib/d1-transfer.ts (COPIED_TABLES): every table a
 // family's data lives in, parents before the rows that refer to them. Left out on purpose: `op` (retry keys of
 // changes already sent, which expire after 30 days) and `d1_migrations` (the target's own migration record).
-// Pictures are every file under data/media/<tree>/ (gallery/ and photo/ alike), uploaded to R2 under <tree>/<key>.
+// Pictures and research documents are every file under data/media/<tree>/ (gallery/, photo/ and research/ alike), uploaded to R2 under <tree>/<key>.
 // After the rows are written, every copied table's count is read back from D1 and compared; a mismatch fails loudly.
 //
 // Accounts are not copied: passkeys belong to a host name, so the first person to open the deployed
@@ -43,7 +43,7 @@ if (from && trees.length > 1) throw new Error('--from takes one tree');
 
 const bindings = wranglerBindings(env);
 const bucket = bindings.r2.find((b) => b.binding === 'MEDIA')?.bucket_name;
-const MIME: Record<string, string> = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', avif: 'image/avif' };
+const MIME: Record<string, string> = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', avif: 'image/avif', pdf: 'application/pdf' };
 
 /** The foreign keys of the copied tables, as `table → parent`, from the copy's own schema. */
 const keysOf = (d: DatabaseSync, tables: string[]) =>
@@ -87,7 +87,7 @@ for (const tree of trees) {
       rows.set(t, d.prepare(`SELECT ${cols.join(', ')} FROM ${t}`).all() as Record<string, unknown>[]);
     }
     // Pictures the family names (portraits and gallery) must all have a file; the folder's files all go up.
-    const named = [...rows.get('photo')!, ...rows.get('media')!, ...rows.get('portrait')!].map((r) => r.key).filter((k): k is string => typeof k === 'string');
+    const named = [...rows.get('photo')!, ...rows.get('media')!, ...rows.get('portrait')!, ...rows.get('research_document')!].map((r) => r.key).filter((k): k is string => typeof k === 'string');
     const onDisk = listFiles(resolve('data/media', tree)).map((f) => ({ key: f.key, file: f.file }));
     const media = planMedia(named, [...moved, ...onDisk]);
     d.close();

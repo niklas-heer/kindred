@@ -77,6 +77,8 @@ export async function sendMessage(o: {
   /** The person speaking in a family session (an id in the tree), who "my" and "I" mean. */
   speaker?: string | null;
 }): Promise<{ items: ChatItem[] }> {
+  // A session costs far more than a message and can only end in a draft. Refused before anything is spent for a role that could not apply one.
+  if (o.session && !can(o.role, 'add-person')) throw new Error('ai.famRefused');
   const locale: AiLocale = toAiLocale(o.locale);
   const c = tr(locale);
   const { adapter, webSearch, settings } = await adapterForFeature(o.tree, 'assistant', locale);
@@ -109,7 +111,7 @@ export async function sendMessage(o: {
   // The sources of the web lookups this turn ran. The chat's own requests never search: a lookup is its own request.
   const sources: { url: string; title?: string }[] = [];
   const images: ImagePart[] = [];
-  const ctx: Ctx = { tree: o.tree, role: o.role, me: me?.id ?? null, locale, faces, avatar, images, search: webSearch ? { adapter, sources, lookups: 0 } : undefined };
+  const ctx: Ctx = { tree: o.tree, role: o.role, me: me?.id ?? null, session: o.session, locale, faces, avatar, images, search: webSearch ? { adapter, sources, lookups: 0 } : undefined };
   const messages: AiMessage[] = [...past, { role: 'user', text: o.text }];
   const proposals: Proposal[] = [];
   let text = '';

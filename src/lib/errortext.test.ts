@@ -13,6 +13,12 @@ test('each browser\'s network failure is translated', () => {
   }
 });
 
+test('an English sentence the dictionary knows is translated, with its name', () => {
+  assert.equal(errorText(new Error('Kerstin already has two parents.'), 'de'), 'Kerstin hat schon zwei Elternteile.');
+  assert.match(errorText(new Error('This would create a loop in the ancestry.'), 'af'), /lus in die afkoms/);
+  assert.equal(errorText(new Error('Something nobody wrote down'), 'de'), 'Something nobody wrote down');
+});
+
 test('another error keeps its own message', () => {
   assert.equal(errorText(new Error('Failed to fetch'), 'en'), 'Failed to fetch');
   assert.equal(errorText(new TypeError('x is not a function'), 'en'), 'x is not a function');

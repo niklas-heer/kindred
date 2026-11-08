@@ -91,6 +91,12 @@ function populatedFamily(name: string): DatabaseSync {
     INSERT INTO portrait (key, person, mime, source, source_year, model, created_by, created_at, accepted) VALUES ('portrait/ada-1.png', 'ada', 'image/png', 'gallery/g1.jpg', 1941, 'openai/gpt-image-2', 'Ben', '${now}', 1);
     INSERT INTO occupation_translation (text, locale, label) VALUES ('Baker', 'de', 'Bäcker');
     INSERT INTO story_translation (story, locale, source_hash, title, body, same, translated_at) SELECT id, 'de', 'h1', NULL, 'Eine Geschichte.', 0, '${now}' FROM story LIMIT 1;
+    INSERT INTO research_project (id, title, summary, private, created_by, created_by_name, created_at, updated_at) VALUES ('rp1', 'Where the line began', '', 0, 'u1', 'Ben', '${now}', '${now}');
+    INSERT INTO research_document (id, project, key, mime, size, title, date, source, notes, private, created_by, created_by_name, created_at, updated_at) VALUES ('rd1', 'rp1', 'research/d1.pdf', 'application/pdf', 1200, 'Baptism record', '1815-12', 'Parish book', '', 0, 'u1', 'Ben', '${now}', '${now}');
+    INSERT INTO research_note (id, project, title, body, date, private, created_by, created_by_name, created_at, updated_at) VALUES ('rn1', 'rp1', 'First lead', 'Body', NULL, 0, 'u1', 'Ben', '${now}', '${now}');
+    INSERT INTO research_picture (project, media, created_by, created_by_name, created_at) VALUES ('rp1', 'gallery/g1.jpg', 'u1', 'Ben', '${now}');
+    INSERT INTO research_person (project, person, private, created_by, created_by_name, created_at) VALUES ('rp1', 'ada', 0, 'u1', 'Ben', '${now}');
+    INSERT INTO research_place (project, place, created_by, created_by_name, created_at) VALUES ('rp1', 'Lindby', 'u1', 'Ben', '${now}');
   `);
   return d;
 }
@@ -134,6 +140,12 @@ test('the same family written in the wrong order is refused by the foreign keys,
   target.exec('PRAGMA foreign_keys = ON');
   assert.throws(() => target.exec(sql.join('\n')), /FOREIGN KEY/i);
   target.close();
+});
+
+test('a research document is a file the family names, so a missing one stops the transfer', () => {
+  const offered = [{ key: 'research/d1.pdf', file: join(dir, 'x.pdf') }];
+  assert.equal(T.planMedia(['research/d1.pdf'], offered).length, 1);
+  assert.throws(() => T.planMedia(['research/gone.pdf'], offered), /research\/gone\.pdf/);
 });
 
 test('the pictures to upload are every file under the tree, gallery/ included, and the family’s own pictures must all exist', () => {

@@ -35,6 +35,10 @@ logged by the listing. If a list cannot be read, the page says why and you can s
 They are provisional. The choices are first picks, not yet measured on real family questions. A measured test comes later.
 **Recommended painters** are there too, from a bake-off of 21 image models: GPT Image 2.6 Flare is the best and the portrait route's default when no model is chosen (about $0.048 a portrait), and FLUX 3 Image Klein is the budget pick (about $0.009); one OpenRouter no longer lists is not offered.
 
+**The family's portrait style.** A steward sets it in Painted portraits, in AI settings, with a Reset to default; it is bounded to 800 characters. Every portrait in the family uses it, so they stay uniform, and the text goes to the painter as style only. Framing, likeness and a gentle touch-up are fixed rules the style cannot change: a square head-and-shoulders portrait with room above the hair, the whole head inside the app's circle even from a tightly cropped photo, the person kept as they are at their apparent age. Requests ask for `aspect_ratio: 1:1`, because some models refuse pixel sizes.
+
+**A person's own portraits.** An editor, or the member whose account is linked to that person, may paint and tweak a portrait; the server checks this on every call. Tweaks are fixed choices (closer or farther, warmer or cooler, a gentle smile) and a note of up to 140 characters, added after the family style and before the fixed limits, so they never replace it. A person keeps up to 6 portraits: the oldest unused one goes first, and never the one shown. Drafts are separate, are not listed, and are swept after an hour. Nothing changes what a person shows until someone chooses "Use this portrait" or "Show this one". Portraits are in the family's monthly budget.
+
 **Prices** are in `src/lib/ai/prices.ts`, with the date they were checked and the source of each provider's prices.
 Anthropic and OpenAI prices are in a table there (USD per 1M tokens, input and output). OpenRouter has no table: its
 prices come from its own model list. Web search costs $10 per 1,000 searches on Anthropic and OpenAI.

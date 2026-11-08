@@ -93,7 +93,7 @@ export function Portrait({
     <span className={cls} style={style}>
       <span className="portrait-mat">
         <span className={face}>
-          <img className="portrait-img" src={src} alt={name} loading={pictured ? 'lazy' : undefined} decoding="async" draggable={false} />
+          <img className={painted ? 'portrait-img is-painted' : 'portrait-img'} src={src} alt={name} loading={pictured ? 'lazy' : undefined} decoding="async" draggable={false} />
         </span>
       </span>
       {badge ? (

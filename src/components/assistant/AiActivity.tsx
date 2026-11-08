@@ -12,7 +12,8 @@ import { errorText } from '~/lib/errortext';
 import { locales, translate, useT, type Key, type Locale } from '~/lib/i18n';
 import { toAiLocale } from '~/lib/ai/types';
 import { treeTitle } from '~/lib/title';
-import { useTreeId } from '~/lib/family';
+import { useFamily, useTreeId } from '~/lib/family';
+import { displayName } from '~/lib/graph';
 import { useCan } from '~/lib/session';
 import { EmptyState, ErrorState, PageHeader, Skeleton } from '~/components/ui';
 import { ago, usd } from './BackgroundSettings';
@@ -55,6 +56,7 @@ export function AiActivityPage() {
 
 function ActivityBody({ tree, data }: { tree: string; data: Activity }) {
   const t = useT();
+  const f = useFamily();
   const locale = toAiLocale(t.locale);
   const qc = useQueryClient();
   const [now] = useState(() => Date.now());
@@ -81,9 +83,25 @@ function ActivityBody({ tree, data }: { tree: string; data: Activity }) {
     <>
       <section className="ui-card aitasks-section" aria-labelledby="aitasks-waiting-h">
         <h2 id="aitasks-waiting-h">{t('aitasks.waitingTitle')}</h2>
-        {data.waiting.length === 0 ? (
-          <p className="muted">{t('aitasks.waitingNone')}</p>
-        ) : (
+        {data.waiting.length === 0 && data.waitingLinks.length === 0 && <p className="muted">{t('aitasks.waitingNone')}</p>}
+        {data.waitingLinks.length > 0 && (
+          <ul className="aitasks-waiting">
+            {data.waitingLinks.map((l) => {
+              const person = f.byId.get(l.person);
+              return (
+                <li key={l.user}>
+                  <span className="aitasks-verdict">{t('aitasks.linkClaim')}</span>
+                  <b>{l.name}</b>
+                  <span>{t('aitasks.linkClaimText', { person: person ? displayName(person, f) : l.person })}</span>
+                  <span>
+                    <Link to="/$tree/access" params={{ tree }} className="btn ghost">{t('aitasks.openAccess')}</Link>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {data.waiting.length > 0 && (
           <>
             <p className="muted">{t('aitasks.waitingText')}</p>
             <ul className="aitasks-waiting">
