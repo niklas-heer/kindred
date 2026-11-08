@@ -133,8 +133,8 @@
 .pp-gaps > div { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .pp-gaps .chip { cursor: pointer; font-size: 12.5px; }
 .pp-gaps .chip:hover { border-color: var(--accent); color: var(--text); }
-.btn.danger { color: var(--danger); }
-.btn.danger:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.btn.ghost.danger { color: var(--danger); }
+.btn.ghost.danger:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .pp-edit .row .spacer { flex: 1; }
 
 /* Panel content: persistent actions and narrow-screen reading. */
@@ -315,3 +315,45 @@ p.pp-add-relative.pp-ask { margin: 0; padding: 12px 16px; }
 /* A partnership's end, edited from the Family tab: the date, the reason, then the actions. */
 .pp-end { display: grid; gap: 8px; margin-top: 6px; min-width: 0; }
 .pp-end-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* The Overview's top: a life in a few numbers, the nearest faces. */
+.pp-glance { display: grid; grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); gap: 6px; margin: 6px 0 2px; }
+.pp-glance-tile { display: flex; flex-direction: column; gap: 1px; min-width: 0; padding: 8px 6px; text-align: center; border-radius: var(--radius); background: var(--panel-2); }
+[data-theme='codex'] .pp-glance-tile { background: #0e121acc; box-shadow: inset 0 0 0 1px var(--edge-soft); }
+.pp-glance dd { margin: 0; font-family: var(--font-display); font-size: 20px; line-height: 1.15; color: var(--accent); }
+.pp-glance dt { font-size: 12px; line-height: 1.25; color: var(--muted); }
+.pp-closest { grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); margin-top: 8px; }
+.pp-closest .pp-rel-sub { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-house-meaning { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-top: 2px; font-size: 13px; line-height: 1.35; color: var(--muted); }
+
+/* What is only useful later: folded away, each with a short hint of what is inside. */
+.pp-folds { display: grid; margin-top: 16px; border-top: 1px solid var(--border); }
+[data-theme='codex'] .pp-folds { border-top-color: var(--edge-soft); }
+.pp-fold { border-bottom: 1px solid var(--border); min-width: 0; }
+[data-theme='codex'] .pp-fold { border-bottom-color: var(--edge-soft); }
+.pp-fold-head {
+  display: flex; flex-wrap: wrap; align-items: center; column-gap: 10px; width: 100%; min-height: 44px; padding: 8px 2px;
+  border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.pp-fold-head:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius); }
+.pp-fold-title { font-family: var(--font-display); font-size: 15px; color: var(--text); }
+[data-theme='codex'] .pp-fold-title { font-variant: small-caps; letter-spacing: 0.03em; color: var(--accent); }
+.pp-fold-hint { flex: 1; min-width: 0; text-align: right; font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-fold-title:has(+ .pp-fold-chevron) { flex: 1; }
+.pp-fold-chevron { flex: none; color: var(--muted); transition: transform 150ms; }
+.pp-fold-head:hover .pp-fold-chevron { color: var(--accent); }
+.pp-fold-head[aria-expanded='true'] .pp-fold-chevron { transform: rotate(180deg); }
+.pp-fold-peek { display: flex; gap: 4px; flex-basis: 100%; padding-top: 6px; }
+.pp-fold-peek img { width: 52px; height: 52px; object-fit: cover; border-radius: var(--radius); }
+.pp-fold-body { padding: 2px 0 12px; }
+.pp-fold-body[hidden] { display: none; }
+.pp-fold-body .pp-timeline, .pp-fold-body .pp-map, .pp-fold-body .pp-upcoming { margin-top: 2px; }
+.pp-fold-body .ui-state { padding: 10px 8px 14px; }
+.pp-fold-body .ui-state-title { font-size: 16px; }
+.pp-fold-body .rs-panel { margin-top: 0; }
+.pp-gaps.pp-gaps-bare { margin: 0; padding: 0; border: 0; background: none; }
+.pp-gaps.pp-gaps-bare > div { margin-top: 2px; }
+@media (prefers-reduced-motion: reduce) { .pp-fold-chevron { transition: none; } }
+.pp-glance dd { font-size: 18px; text-wrap: balance; }
+.pp-glance-tile { padding-inline: 3px; }
+.pp-glance dt { overflow-wrap: normal; hyphens: auto; }

@@ -132,7 +132,6 @@
 .lb-sure { display: grid; gap: 8px; }
 .lb-sure p { margin: 0; font-size: 13px; }
 .lb-sure .btn { min-height: 44px; }
-.btn.danger { background: var(--danger); color: #fff; border-color: transparent; font-weight: 600; }
 
 /* ---------- uploading ---------- */
 

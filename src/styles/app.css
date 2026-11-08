@@ -412,3 +412,6 @@ kbd {
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
 .more-row .ui-switch-wrap { width: 100%; justify-content: space-between; }
+
+/* A solid danger button: panel.css has the quiet ghost one. Lives here so it never depends on which page's sheet loaded. */
+.btn.danger:not(.ghost) { background: var(--danger); color: #fff; border-color: transparent; font-weight: 600; }
