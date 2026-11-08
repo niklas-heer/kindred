@@ -1,3 +1,4 @@
+import { LanguageSwitch, translateMessage, formatDate, formatNumber, relativeTime, useT } from '~/lib/i18n';
 // The signed-in reader's menu in the topbar: who they are, their role in this family, and the way to
 // their passkeys, the steward's Access page and signing out. Also `Initials`, a name's monogram.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -24,7 +25,6 @@ export function Initials({ name, size = 32 }: { name: string; size?: number }) {
 }
 
 const roleOf = (id: string) => ROLES.find((r) => r.id === id);
-const article = (word: string) => (/^[aeiou]/i.test(word) ? 'an' : 'a');
 
 /** Signs out everywhere this browser knows about, then reloads at /signin with nothing cached. */
 export async function signOut(accessLogout?: string) {
@@ -34,6 +34,7 @@ export async function signOut(accessLogout?: string) {
 }
 
 export function AccountMenu({ familyName }: { familyName?: string }) {
+  const t = useT();
   const session = useSession();
   const tree = useParams({ strict: false }).tree as string | undefined;
   const m = useMembership();
@@ -88,37 +89,35 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
-        title={`${user.name}: your account`}
+        title={t('account.trigger', {name:user.name})}
       >
         <Initials name={user.name} size={30} />
         <span className="acct-trigger-name">{user.name}</span>
       </button>
       {open && (
-        <div className="acct-menu panel" id={id} ref={menu} role="menu" aria-label="Your account" onKeyDown={onKeyDown} style={pos ?? undefined}>
+        <div className="acct-menu panel" id={id} ref={menu} role="menu" aria-label={t("accountmenu.your_account")} onKeyDown={onKeyDown} style={pos ?? undefined}>
           <div className="acct-head">
             <Initials name={user.name} size={44} />
             <div>
               <b className="acct-name">{user.name}</b>
-              <span className="acct-sub">{user.via === 'access' ? `Signed in as ${user.email}` : user.email ?? 'Signed in with a passkey'}</span>
+              <span className="acct-sub">{user.via === 'access' ? t('account.signedIn', {email:user.email ?? ''}) : user.email ?? t("accountmenu.signed_in_with_a_passkey")}</span>
             </div>
           </div>
           {role && (
             <p className="acct-role">
-              You are {article(role.label)} <b>{role.label.toLowerCase()}</b> in {familyName ?? 'this family'}. <span>{role.description}.</span>
+              {t('account.role', {family:familyName ?? t('accountmenu.this_family'), role:t(`role.${role.id}`)})} <span>{t(`role.${role.id}Description`)}.</span>
             </p>
           )}
           <div className="acct-items">
+            <LanguageSwitch />
             {tree && m && can(m.role, 'manage-access') && (
               <Link role="menuitem" className="acct-item" to="/$tree/access" params={{ tree }} onClick={() => setOpen(false)}>
-                <Users size={17} /> Manage access
-              </Link>
+                <Users size={17} /> {t("accountmenu.manage_access")} </Link>
             )}
             <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setPasskeys(true); }}>
-              <KeyRound size={17} /> Your name &amp; passkeys
-            </button>
+              <KeyRound size={17} /> {t("accountmenu.your_name_passkeys")} </button>
             <button role="menuitem" className="acct-item" onClick={() => void signOut(session?.accessLogout)}>
-              <LogOut size={17} /> Sign out
-            </button>
+              <LogOut size={17} /> {t("accountmenu.sign_out")} </button>
           </div>
         </div>
       )}
@@ -127,18 +126,11 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
   );
 }
 
-const dateFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-export function ago(ms: number | null): string {
-  if (!ms) return 'never';
-  const d = Math.floor((Date.now() - ms) / 86_400_000);
-  if (d <= 0) return 'today';
-  if (d === 1) return 'yesterday';
-  if (d < 30) return `${d} days ago`;
-  return dateFmt.format(ms);
-}
+export const ago = (ms: number | null, locale: 'en' | 'de' = 'en') => relativeTime(ms, locale);
 
 /** "Your name & passkeys": rename yourself, add a passkey on this device, remove an old one. */
 export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = useT();
   const session = useSession();
   const qc = useQueryClient();
   const keys = useQuery({ ...myPasskeysQuery, enabled: open });
@@ -160,45 +152,42 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
 
   return (
     <>
-      <Dialog open={open} onClose={onClose} title="Your name & passkeys" width={520} bodyClassName="acct-dialog">
+      <Dialog open={open} onClose={onClose} title={t("accountmenu.your_name_passkeys")} width={520} bodyClassName="acct-dialog">
         <form className="acct-rename" onSubmit={(e) => { e.preventDefault(); setError(null); rename.mutate(); }}>
           <label className="field">
-            <span>Your name, as the family sees it</span>
+            <span>{t("accountmenu.your_name_as_the_family_sees_it")}</span>
             <input className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} autoComplete="name" />
           </label>
           <button className="btn" disabled={rename.isPending || !name.trim() || name.trim() === session?.user?.name}>
-            {rename.isSuccess && name.trim() === session?.user?.name ? <><Check size={15} /> Saved</> : 'Save'}
+            {rename.isSuccess && name.trim() === session?.user?.name ? <><Check size={15} /> {t("accountmenu.saved")}</> : t("accountmenu.save")}
           </button>
         </form>
 
-        <h3 className="acct-h">Passkeys</h3>
-        <p className="acct-help">
-          A passkey lets this device sign you in with your face, fingerprint or screen lock: nothing to remember. Add one on each phone or
-          computer you use{accessOnly ? ', or keep signing in through your organisation’s login' : ''}.
+        <h3 className="acct-h">{t("accountmenu.passkeys")}</h3>
+        <p className="acct-help"> {t("accountmenu.a_passkey_lets_this_device_sign_you_in_with_your_face_fingerprint_or_screen_lock_nothing_to_remember_add_one_on_each_phone_or_computer_you_use")}{accessOnly ? t("accountmenu.or_keep_signing_in_through_your_organisation_s_login") : ''}.
         </p>
-        {error && <p className="acct-error" role="alert">{error}</p>}
+        {error && <p className="acct-error" role="alert">{translateMessage(error,t.locale)}</p>}
         {keys.isPending ? (
-          <p className="subtle">Loading your passkeys…</p>
+          <p className="subtle">{t("accountmenu.loading_your_passkeys")}</p>
         ) : keys.isError ? (
-          <p className="acct-error" role="alert">Your passkeys couldn’t be loaded. <button className="btn ghost" onClick={() => void keys.refetch()}>Retry</button></p>
+          <p className="acct-error" role="alert">{t("accountmenu.your_passkeys_couldn_t_be_loaded")} <button className="btn ghost" onClick={() => void keys.refetch()}>{t("accountmenu.retry")}</button></p>
         ) : list.length === 0 ? (
-          <p className="subtle">No passkeys yet.</p>
+          <p className="subtle">{t("accountmenu.no_passkeys_yet")}</p>
         ) : (
           <ul className="acct-keys">
             {list.map((k) => (
               <li key={k.id}>
                 <span className="acct-key-icon" aria-hidden><Fingerprint size={20} /></span>
                 <div>
-                  <b>{k.device ?? 'Passkey'}</b>
-                  <span>
-                    Added {dateFmt.format(k.created)} · used {ago(k.lastUsed)}
-                    {k.synced && <> · <ShieldCheck size={13} aria-hidden /> synced</>}
+                  <b>{k.device ?? t("accountmenu.passkey")}</b>
+                  <span> {t("accountmenu.added")} {formatDate(k.created, t.locale)} {t("accountmenu.used")} {ago(k.lastUsed, t.locale)}
+                    {k.synced && <> · <ShieldCheck size={13} aria-hidden /> {t("accountmenu.synced")}</>}
                   </span>
                 </div>
                 <button
                   className="btn ghost icon acct-key-remove"
-                  aria-label={`Remove the passkey on ${k.device ?? 'this device'}`}
-                  title={list.length <= 1 && !accessOnly ? 'Your only passkey: add another first' : 'Remove'}
+                  aria-label={t('account.removeKey', {device:k.device ?? t('accountmenu.this_device')})}
+                  title={list.length <= 1 && !accessOnly ? t("accountmenu.your_only_passkey_add_another_first") : t("accountmenu.remove")}
                   disabled={list.length <= 1 && !accessOnly}
                   onClick={() => setConfirm(k)}
                 >
@@ -210,21 +199,21 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
         )}
         {passkeysSupported() && (
           <button className="btn acct-add" onClick={() => { setError(null); add.mutate(); }} disabled={add.isPending}>
-            <Plus size={16} /> {add.isPending ? 'Waiting for your device…' : 'Add a passkey on this device'}
+            <Plus size={16} /> {add.isPending ? t("accountmenu.waiting_for_your_device") : t("accountmenu.add_a_passkey_on_this_device")}
           </button>
         )}
-        {add.isSuccess && <p className="acct-ok" role="status"><Check size={15} /> Passkey added.</p>}
+        {add.isSuccess && <p className="acct-ok" role="status"><Check size={15} /> {t("accountmenu.passkey_added")}</p>}
       </Dialog>
       <Dialog
         open={!!confirm}
         onClose={() => setConfirm(null)}
-        title="Remove this passkey?"
+        title={t("accountmenu.remove_this_passkey")}
         width={420}
-        description={<>The passkey on <b>{confirm?.device ?? 'that device'}</b> will no longer sign you in. You can add it again later.</>}
+        description={<>{t("accountmenu.the_passkey_on")} <b>{confirm?.device ?? t("accountmenu.that_device")}</b> {t("accountmenu.will_no_longer_sign_you_in_you_can_add_it_again_later")}</>}
         footer={
           <>
-            <button className="btn" data-autofocus onClick={() => setConfirm(null)}>Keep it</button>
-            <button className="btn primary acct-danger" onClick={() => confirm && remove.mutate(confirm.id)} disabled={remove.isPending}>Remove</button>
+            <button className="btn" data-autofocus onClick={() => setConfirm(null)}>{t("accountmenu.keep_it")}</button>
+            <button className="btn primary acct-danger" onClick={() => confirm && remove.mutate(confirm.id)} disabled={remove.isPending}>{t("accountmenu.remove")}</button>
           </>
         }
       />

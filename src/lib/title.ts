@@ -1,3 +1,4 @@
+import { localizeTitle, type Locale } from './i18n';
 // Page titles: "Almanac · The Lindqvist–Ashworth family · Kindred". Built in each route's head() from
 // the graph already in the query cache, so nothing extra is sent to the browser.
 import type { QueryClient } from '@tanstack/react-query';
@@ -28,4 +29,4 @@ export function personName(ctx: HeadCtx, id: string | undefined): string | undef
 }
 
 /** head() for a section page: `head: sectionHead('Almanac')`. */
-export const sectionHead = (section: string) => (ctx: HeadCtx) => ({ meta: [{ title: treeTitle(ctx, section) }] });
+export const sectionHead = (section: string) => (ctx: HeadCtx) => ({ meta: [{ title: treeTitle(ctx, localizeTitle(section, (ctx.match.context as {locale?: Locale}).locale ?? 'en')) }] });

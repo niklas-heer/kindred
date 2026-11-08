@@ -1,3 +1,6 @@
+import { I18nProvider } from '~/lib/i18n';
+import { requestLocale } from '~/lib/i18n/request';
+import { sessionQuery } from '~/lib/auth/functions';
 import '@fontsource-variable/cinzel';
 import '@fontsource-variable/eb-garamond';
 import '@fontsource-variable/inter';
@@ -15,6 +18,7 @@ var c={codex:'#171d28',modern:'#ffffff',night:'#181b23'},m=document.createElemen
 var u=function(){m.content=c[d.dataset.theme]||c.codex};u();new MutationObserver(u).observe(d,{attributes:true,attributeFilter:['data-theme']})})()`;
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  beforeLoad: async ({context}) => { const [locale, session] = await Promise.all([requestLocale(), context.queryClient.ensureQueryData(sessionQuery)]); return {locale, localeAccount: session.user?.id}; },
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
@@ -32,14 +36,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function Shell({ children }: { children: ReactNode }) {
+  const {locale, localeAccount} = Route.useRouteContext();
   return (
-    <html lang="en" data-theme="codex" suppressHydrationWarning>
+    <html lang={locale} data-theme="codex" suppressHydrationWarning>
       <head>
         <HeadContent />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
-        <div id="app">{children}</div>
+        <I18nProvider initialLocale={locale} account={localeAccount}><div id="app">{children}</div></I18nProvider>
         <Scripts />
       </body>
     </html>

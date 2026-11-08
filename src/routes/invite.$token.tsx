@@ -1,3 +1,4 @@
+import { formatDate, translate, useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { KeyRound, MailX, Shield } from 'lucide-react';
@@ -19,9 +20,9 @@ import { useSession } from '~/lib/session';
 export const Route = createFileRoute('/invite/$token')({
   loader: async ({ params }) => ({ info: await fetchInvite({ data: { token: params.token } }) }),
   // The link is a secret: never send it to another site as a Referer.
-  head: ({ loaderData }) => ({
+  head: ({ loaderData, match }) => ({
     meta: [
-      { title: loaderData?.info.family ? `Join ${loaderData.info.family.name} · Kindred` : 'Invitation · Kindred' },
+      { title: loaderData?.info.family ? translate(match.context.locale, 'invite.title', {family:loaderData.info.family.name}) : translate(match.context.locale, 'invite.invitation') },
       { name: 'referrer', content: 'no-referrer' },
     ],
   }),
@@ -29,10 +30,9 @@ export const Route = createFileRoute('/invite/$token')({
   component: Invite,
 });
 
-const dateFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long' });
-const article = (word: string) => (/^[aeiou]/i.test(word) ? 'an' : 'a');
 
 function Invite() {
+  const t = useT();
   const { token } = Route.useParams();
   const { info } = Route.useLoaderData();
   const [step, setStep] = useState<'welcome' | 'who'>('welcome');
@@ -55,15 +55,15 @@ function Invite() {
 
   if (!fam || info.status !== 'open') {
     const copy = {
-      expired: ['This invitation has expired', <>Invitations last two weeks. Ask {info.inviter ?? 'whoever sent it'} for a new link.</>],
-      used: ['This invitation was already used', 'If it was you, sign in with your passkey. Each link works once, for one person.'],
-      revoked: ['This invitation was withdrawn', 'The steward who sent it has cancelled it. Ask them if you should have a new one.'],
-      unknown: ['This invitation link isn’t valid', 'Check that you copied the whole link, or ask for a new one.'],
+      expired: [t("invitetoken.this_invitation_has_expired"), <>{t("invitetoken.invitations_last_two_weeks_ask")} {info.inviter ?? t("invitetoken.whoever_sent_it")} {t("invitetoken.for_a_new_link")}</>],
+      used: [t("invitetoken.this_invitation_was_already_used"), t("invitetoken.if_it_was_you_sign_in_with_your_passkey_each_link_works_once_for_one_person")],
+      revoked: [t("invitetoken.this_invitation_was_withdrawn"), t("invitetoken.the_steward_who_sent_it_has_cancelled_it_ask_them_if_you_should_have_a_new_one")],
+      unknown: [t("invitetoken.this_invitation_link_isn_t_valid"), t("invitetoken.check_that_you_copied_the_whole_link_or_ask_for_a_new_one")],
       open: ['', ''],
     }[info.status];
     return (
       <AuthCard crest={fam ? crest : <MailX size={44} />} kicker={fam?.name ?? 'Kindred'} title={copy[0]} lede={copy[1]}>
-        <Link className="btn primary auth-go" to="/signin" search={fam ? { next: `/${fam.id}` } : {}}>Sign in</Link>
+        <Link className="btn primary auth-go" to="/signin" search={fam ? { next: `/${fam.id}` } : {}}>{t("invitetoken.sign_in")}</Link>
       </AuthCard>
     );
   }
@@ -74,8 +74,8 @@ function Invite() {
 
   if (info.alreadyMember) {
     return (
-      <AuthCard crest={crest} kicker={fam.name} title="You’re already in this family" lede={<>You’re signed in as <b>{info.signedInAs}</b>, and you already belong to {fam.name}.</>}>
-        <a className="btn primary auth-go" href={`/${fam.id}`}>Open {fam.name}</a>
+      <AuthCard crest={crest} kicker={fam.name} title={t("invitetoken.you_re_already_in_this_family")} lede={<>{t("invitetoken.you_re_signed_in_as")} <b>{info.signedInAs}</b> {t("invitetoken.and_you_already_belong_to")} {fam.name}.</>}>
+        <a className="btn primary auth-go" href={`/${fam.id}`}>{t("invitetoken.open")} {fam.name}</a>
       </AuthCard>
     );
   }
@@ -89,7 +89,7 @@ function Invite() {
       forgetLocalIdentity();
       setStep('who');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'That didn’t work. Please try again.');
+      setError(err instanceof Error ? err.message : t("invitetoken.that_didn_t_work_please_try_again"));
     } finally {
       setBusy(false);
     }
@@ -101,7 +101,7 @@ function Invite() {
       await acceptInvite({ data: { token } });
       setStep('who');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'That didn’t work. Please try again.');
+      setError(err instanceof Error ? err.message : t("invitetoken.that_didn_t_work_please_try_again"));
     } finally {
       setBusy(false);
     }
@@ -110,44 +110,44 @@ function Invite() {
   return (
     <AuthCard
       crest={crest}
-      kicker="You’re invited"
-      title={<>Join {fam.name}</>}
+      kicker={t("invitetoken.you_re_invited")}
+      title={<>{t("invitetoken.join")} {fam.name}</>}
       lede={fam.tagline || undefined}
     >
       <div className="auth-role">
         <span aria-hidden>{ROLE_ICON[role.id]}</span>
         <div>
-          <b>{info.inviter ? `${info.inviter} invited you` : 'You’ve been invited'} as {article(role.label)} {role.label.toLowerCase()}</b>
-          <small>{role.description}. {info.expires ? `This invitation works until ${dateFmt.format(info.expires)}.` : ''}</small>
+          <b>{info.inviter ? t('invite.invited', {name:info.inviter}) : t("invitetoken.you_ve_been_invited")} {t("invitetoken.as")} {t(`role.${role.id}`)}</b>
+          <small>{t(`role.${role.id}Description`)}. {info.expires ? t('invite.expires', {date:formatDate(info.expires,t.locale)}) : ''}</small>
         </div>
       </div>
       {info.signedInAs ? (
         <div className="auth-form">
           <AuthError>{error}</AuthError>
           <button className="btn primary auth-go" onClick={join} disabled={busy} data-autofocus>
-            {busy ? 'Joining…' : <>Join as {info.signedInAs}</>}
+            {busy ? t("invitetoken.joining") : <>{t("invitetoken.join_as")} {info.signedInAs}</>}
           </button>
           <div className="auth-alt">
-            <span>Not {info.signedInAs}?</span>
-            <button className="auth-link" onClick={() => void signOutRequest().finally(() => { forgetLocalIdentity(); window.location.reload(); })}>Sign out</button>
+            <span>{t("invitetoken.not")} {info.signedInAs}?</span>
+            <button className="auth-link" onClick={() => void signOutRequest().finally(() => { forgetLocalIdentity(); window.location.reload(); })}>{t("invitetoken.sign_out")}</button>
           </div>
         </div>
       ) : (
         <>
           <form className="auth-form" onSubmit={createPasskey}>
             <label className="field">
-              <span>What should the family call you?</span>
-              <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required maxLength={60} placeholder="Your name" />
+              <span>{t("invitetoken.what_should_the_family_call_you")}</span>
+              <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required maxLength={60} placeholder={t("invitetoken.your_name")} />
             </label>
             <AuthError>{error}</AuthError>
-            {!supported && <AuthError>This browser can’t use passkeys. Open the link in the newest Safari, Chrome, Edge or Firefox, or on your phone.</AuthError>}
+            {!supported && <AuthError>{t("invitetoken.this_browser_can_t_use_passkeys_open_the_link_in_the_newest_safari_chrome_edge_or_firefox_or_on_your_phone")}</AuthError>}
             <button className="btn primary auth-go" disabled={busy || !supported || !name.trim()}>
-              <KeyRound size={19} /> {busy ? 'Waiting for your device…' : 'Create your passkey'}
+              <KeyRound size={19} /> {busy ? t("invitetoken.waiting_for_your_device") : t("invitetoken.create_your_passkey")}
             </button>
           </form>
           <div className="auth-alt">
-            <span>Already use Kindred?</span>
-            <Link className="auth-link" to="/signin" search={{ next: `/invite/${token}` }}>Sign in first</Link>
+            <span>{t("invitetoken.already_use_kindred")}</span>
+            <Link className="auth-link" to="/signin" search={{ next: `/invite/${token}` }}>{t("invitetoken.sign_in_first")}</Link>
           </div>
           <PasskeyExplainer creating />
         </>
@@ -158,6 +158,7 @@ function Invite() {
 
 /** After joining: "Who are you in this family?" (the same chooser stewards see in the tree), then into the tree. */
 function WhoStep({ tree, familyName, crest, name }: { tree: string; familyName: string; crest: ReactNode; name?: string }) {
+  const t = useT();
   const graph = useQuery(graphQuery(tree));
   const f = useMemo(() => (graph.data ? buildFamily(graph.data) : null), [graph.data]);
   const session = useSession();
@@ -172,15 +173,15 @@ function WhoStep({ tree, familyName, crest, name }: { tree: string; familyName: 
     <AuthCard
       wide
       crest={crest}
-      kicker={`Welcome to ${familyName}`}
-      title="Who are you in this family?"
-      lede={<>Kindred names everyone from your point of view: “your great-aunt”, “your second cousin”.</>}
+      kicker={t('invite.welcome', {family:familyName})}
+      title={t("invitetoken.who_are_you_in_this_family")}
+      lede={<>{t("invitetoken.kindred_names_everyone_from_your_point_of_view_your_great_aunt_your_second_cousin")}</>}
     >
       <div className="auth-who" aria-busy={saving}>
         {graph.isError ? (
-          <AuthError>The family tree couldn’t be loaded. <button className="auth-link" onClick={() => void graph.refetch()}>Retry</button></AuthError>
+          <AuthError>{t("invitetoken.the_family_tree_couldn_t_be_loaded")} <button className="auth-link" onClick={() => void graph.refetch()}>{t("invitetoken.retry")}</button></AuthError>
         ) : !f ? (
-          <p className="subtle">Loading the family…</p>
+          <p className="subtle">{t("invitetoken.loading_the_family")}</p>
         ) : (
           <WhoChooser f={f} tree={tree} onChoose={(id) => void choose(id)} name={name ?? session?.user?.name} autoFocus busy={saving} />
         )}

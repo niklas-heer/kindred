@@ -1,3 +1,4 @@
+import { formatNumber, useT } from '~/lib/i18n';
 // A signed-in reader opened a family they don't belong to. Says so without revealing whether that
 // family exists, and offers the families they do belong to.
 import { useQuery } from '@tanstack/react-query';
@@ -9,30 +10,33 @@ import { signOut } from './AccountMenu';
 import { NotFound } from './ui/states';
 
 export function NoAccessPage() {
+  const t = useT();
+  const tLocale = t.locale;
+  const tr = t;
   const session = useSession();
   const { data: trees } = useQuery(myFamiliesQuery);
   return (
     <main className="page ui-notfound-page">
       <NotFound
         icon={<Lock size={28} />}
-        title="You don’t have access to this family"
-        text={<>You’re signed in as <b>{session?.user?.name ?? 'someone else'}</b>. If you should be here, ask one of this family’s stewards to send you an invitation.</>}
+        title={t("noaccess.you_don_t_have_access_to_this_family")}
+        text={<>{t("noaccess.you_re_signed_in_as")} <b>{session?.user?.name ?? t("noaccess.someone_else")}</b>{t("noaccess.if_you_should_be_here_ask_one_of_this_family_s_stewards_to_send_you_an_invitation")}</>}
       >
         {trees && trees.length > 0 && (
-          <ul className="ui-state-links" aria-label="Your families">
+          <ul className="ui-state-links" aria-label={t("noaccess.your_families")}>
             {trees.map((t) => (
               <li key={t.id}>
                 <Link to="/$tree" params={{ tree: t.id }}>
                   <b className="name">{t.name}</b>
-                  <span>{t.people.toLocaleString('en-GB')} {t.people === 1 ? 'person' : 'people'}</span>
+                  <span>{formatNumber(t.people, tLocale)} {tr('common.personUnit', {count: t.people})}</span>
                 </Link>
               </li>
             ))}
           </ul>
         )}
         <div className="ui-state-actions">
-          <Link to="/" search={trees && trees.length >= 2 ? { families: "all" } : {}} className="btn">{trees?.length === 1 ? "Your family" : "Your families"}</Link>
-          <button className="btn ghost" onClick={() => void signOut(session?.accessLogout)}>Sign out</button>
+          <Link to="/" search={trees && trees.length >= 2 ? { families: "all" } : {}} className="btn">{trees?.length === 1 ? t("noaccess.your_family") : t("noaccess.your_families")}</Link>
+          <button className="btn ghost" onClick={() => void signOut(session?.accessLogout)}>{t("noaccess.sign_out")}</button>
         </div>
       </NotFound>
     </main>

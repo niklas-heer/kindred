@@ -1,3 +1,4 @@
+import { LanguageSwitch, formatDate, formatNumber, relativeTime, useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, notFound, Outlet, redirect } from '@tanstack/react-router';
 import { BookOpen, CalendarHeart, CircleHelp, Contact, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, Users } from 'lucide-react';
@@ -40,6 +41,7 @@ export const Route = createFileRoute('/$tree')({
 });
 
 function TreeLayout() {
+  const t = useT();
   const { tree } = Route.useParams();
   const f = useFamily();
   const theme = usePref('theme');
@@ -69,41 +71,40 @@ function TreeLayout() {
   return (
     <div className="shell">
       <header className="topbar">
-        <Link to={multiple ? "/" : "/$tree"} params={{ tree }} search={multiple ? { families: "all" } : {}} className="brand" title={multiple ? "All families" : "Family tree"}>
+        <Link to={multiple ? "/" : "/$tree"} params={{ tree }} search={multiple ? { families: "all" } : {}} className="brand" style={{flexShrink: 1}} title={multiple ? t("shell.all_families") : t("shell.family_tree")}>
           {crest ? <Arms arms={crest.arms} size={28} /> : null}
           <b>{f.graph.tree.name}</b>
         </Link>
-        <nav aria-label="Sections">
-          <Link to="/$tree" params={{ tree }} activeOptions={{ exact: true, includeSearch: false }} title="Tree">
-            <Network size={16} /> <span className="nav-label">Tree</span>
+        <nav aria-label={t("shell.sections")} style={{flexShrink: 0}}>
+          <Link to="/$tree" params={{ tree }} activeOptions={{ exact: true, includeSearch: false }} title={t("shell.tree")}>
+            <Network size={16} /> <span className="nav-label">{t("shell.tree")}</span>
           </Link>
-          <Link to="/$tree/almanac" params={{ tree }} title="Almanac">
-            <CalendarHeart size={16} /> <span className="nav-label">Almanac</span>
+          <Link to="/$tree/almanac" params={{ tree }} title={t("shell.almanac")}>
+            <CalendarHeart size={16} /> <span className="nav-label">{t("shell.almanac")}</span>
           </Link>
-          <Link to="/$tree/atlas" params={{ tree }} title="Atlas">
-            <MapIcon size={16} /> <span className="nav-label">Atlas</span>
+          <Link to="/$tree/atlas" params={{ tree }} title={t("shell.atlas")}>
+            <MapIcon size={16} /> <span className="nav-label">{t("shell.atlas")}</span>
           </Link>
-          <Link to="/$tree/contacts" params={{ tree }} title="Contacts">
-            <Contact size={16} /> <span className="nav-label">Contacts</span>
+          <Link to="/$tree/contacts" params={{ tree }} title={t("shell.contacts")}>
+            <Contact size={16} /> <span className="nav-label">{t("shell.contacts")}</span>
           </Link>
-          <Link to="/$tree/people" params={{ tree }} title="Register">
-            <BookOpen size={16} /> <span className="nav-label">Register</span>
+          <Link to="/$tree/people" params={{ tree }} title={t("shell.register")}>
+            <BookOpen size={16} /> <span className="nav-label">{t("shell.register")}</span>
           </Link>
-          <Link to="/$tree/houses" params={{ tree }} title="Houses" activeOptions={{ exact: false }}>
-            <Landmark size={16} /> <span className="nav-label">Houses</span>
+          <Link to="/$tree/houses" params={{ tree }} title={t("shell.houses")} activeOptions={{ exact: false }}>
+            <Landmark size={16} /> <span className="nav-label">{t("shell.houses")}</span>
           </Link>
-          <Link to="/$tree/needed" params={{ tree }} title="Information needed">
-            <CircleHelp size={16} /> <span className="nav-label">Needed</span>
+          <Link to="/$tree/needed" params={{ tree }} title={t("shell.information_needed")}>
+            <CircleHelp size={16} /> <span className="nav-label">{t("shell.needed")}</span>
           </Link>
-          <Link to="/$tree/chronicle" params={{ tree }} title="Chronicle">
-            <ScrollText size={16} /> <span className="nav-label">Chronicle</span>
+          <Link to="/$tree/chronicle" params={{ tree }} title={t("shell.chronicle")}>
+            <ScrollText size={16} /> <span className="nav-label">{t("shell.chronicle")}</span>
           </Link>
         </nav>
         <span className="spacer" />
-        <button className="btn search-trigger" onClick={() => palette.open()} aria-label="Find anyone (⌘K)">
+        <button className="btn search-trigger" onClick={() => palette.open()} aria-label={t("shell.find_anyone_k")}>
           <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-            <Search size={15} /> Find anyone…
-          </span>
+            <Search size={15} /> {t("shell.find_anyone")} </span>
           <kbd>⌘K</kbd>
         </button>
         <span className="topbar-tools">
@@ -114,22 +115,17 @@ function TreeLayout() {
       </header>
       <Outlet />
       {/* Phones: the sections move to a bar along the bottom edge. */}
-      <nav className="tabbar" aria-label="Sections">
+      <nav className="tabbar" aria-label={t("shell.sections")}>
         <Link to="/$tree" params={{ tree }} activeOptions={{ exact: true, includeSearch: false }}>
-          <Network size={20} /> Tree
-        </Link>
+          <Network size={20} /> {t("shell.tree")} </Link>
         <Link to="/$tree/almanac" params={{ tree }}>
-          <CalendarHeart size={20} /> Almanac
-        </Link>
+          <CalendarHeart size={20} /> {t("shell.almanac")} </Link>
         <Link to="/$tree/atlas" params={{ tree }}>
-          <MapIcon size={20} /> Atlas
-        </Link>
+          <MapIcon size={20} /> {t("shell.atlas")} </Link>
         <Link to="/$tree/needed" params={{ tree }}>
-          <CircleHelp size={20} /> Needed
-        </Link>
+          <CircleHelp size={20} /> {t("shell.needed")} </Link>
         <button type="button" onClick={() => setMore(true)} aria-expanded={more} aria-haspopup="dialog">
-          <MoreHorizontal size={20} /> More
-        </button>
+          <MoreHorizontal size={20} /> {t("shell.more")} </button>
       </nav>
       <MoreSheet open={more} onClose={() => setMore(false)} tree={tree} multiple={multiple} />
       <Palette />
@@ -141,22 +137,24 @@ function TreeLayout() {
 
 /** Contacts, Register and Chronicle, plus theme and sound: what the phone's tab bar has no room for. */
 function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: () => void; tree: string; multiple: boolean }) {
+  const t = useT();
   const theme = useTheme();
   const steward = useCan('manage-access');
   const [sound, toggleSound] = useSound();
   return (
-    <Dialog open={open} onClose={onClose} title="More" placement="sheet" width={560}>
+    <Dialog open={open} onClose={onClose} title={t("shell.more")} placement="sheet" width={560}>
       <ul className="more-list" onClick={(e) => (e.target as HTMLElement).closest('a') && onClose()}>
-        <li><Link to="/$tree/contacts" params={{ tree }}><Contact size={19} /> Contacts <small>addresses &amp; phones</small></Link></li>
-        <li><Link to="/$tree/people" params={{ tree }}><BookOpen size={19} /> Register <small>everyone, as a table</small></Link></li>
-        <li><Link to="/$tree/houses" params={{ tree }}><Landmark size={19} /> Houses <small>arms, mottos &amp; members</small></Link></li>
-        <li><Link to="/$tree/chronicle" params={{ tree }}><ScrollText size={19} /> Chronicle <small>stories &amp; sayings</small></Link></li>
-        {steward && <li><Link to="/$tree/access" params={{ tree }}><Users size={19} /> Access <small>members &amp; invitations</small></Link></li>}
-        {multiple && <li><Link to="/" search={{ families: "all" }}><Network size={19} /> All families</Link></li>}
+        <li><Link to="/$tree/contacts" params={{ tree }}><Contact size={19} /> {t("shell.contacts")} <small>{t("shell.addresses_phones")}</small></Link></li>
+        <li><Link to="/$tree/people" params={{ tree }}><BookOpen size={19} /> {t("shell.register")} <small>{t("shell.everyone_as_a_table")}</small></Link></li>
+        <li><Link to="/$tree/houses" params={{ tree }}><Landmark size={19} /> {t("shell.houses")} <small>{t("shell.arms_mottos_members")}</small></Link></li>
+        <li><Link to="/$tree/chronicle" params={{ tree }}><ScrollText size={19} /> {t("shell.chronicle")} <small>{t("shell.stories_sayings")}</small></Link></li>
+        {steward && <li><Link to="/$tree/access" params={{ tree }}><Users size={19} /> {t("shell.access")} <small>{t("shell.members_invitations")}</small></Link></li>}
+        {multiple && <li><Link to="/" search={{ families: "all" }}><Network size={19} /> {t("shell.all_families")}</Link></li>}
       </ul>
+      <div className="more-row"><LanguageSwitch /></div>
       <div className="more-row">
-        <span>Theme</span>
-        <div className="seg" role="group" aria-label="Theme">
+        <span>{t("shell.theme")}</span>
+        <div className="seg" role="group" aria-label={t("shell.theme")}>
           {THEMES.map((t) => {
             const Icon = THEME_ICONS[t.id];
             return (
@@ -168,7 +166,7 @@ function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: 
         </div>
       </div>
       <div className="more-row">
-        <Switch checked={sound} onChange={toggleSound} labelFirst className="more-switch">Sound effects</Switch>
+        <Switch checked={sound} onChange={toggleSound} labelFirst className="more-switch">{t("shell.sound_effects")}</Switch>
       </div>
     </Dialog>
   );

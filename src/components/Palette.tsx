@@ -1,3 +1,4 @@
+import { useT } from '~/lib/i18n';
 // ⌘K: jump to anyone by name, nickname, epithet, title or place; or run a command.
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useNavigate } from '@tanstack/react-router';
@@ -81,6 +82,7 @@ export function PersonRow({ f, tree, id, who, anc, note }: { f: Family; tree: st
 const groupOf = (it: Item) => it.group ?? (it.person ? 'People' : 'Commands');
 
 export function Palette() {
+  const t = useT();
   const { isOpen, open, close } = usePalette();
   const f = useFamily();
   const tree = useTreeId();
@@ -120,6 +122,7 @@ export function Palette() {
         }))
       : [];
     const cmds: Item[] = [
+      { key: 'language', label: t('common.changeLanguage'), run: () => { t.setLocale(t.locale === 'en' ? 'de' : 'en'); close(); } },
       { key: 'tour', icon: <UserRound size={16} />, label: 'Reopen first-run tour', hint: 'Learn how to explore the tree', run: () => { close(); reopenTour(); } },
       { key: 'v-family', icon: <Network size={16} />, label: 'View: Family (hourglass)', run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'family' }) }); close(); } },
       { key: 'v-dynasty', icon: <Crown size={16} />, label: 'View: Dynasty tree', run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'dynasty' }) }); close(); } },
@@ -137,7 +140,7 @@ export function Palette() {
     const fq = fold(dq);
     const matched = fq ? cmds.filter((c) => fold(c.label).includes(fq)) : cmds;
     return fq ? [...people, ...houses, ...matched] : matched;
-  }, [f, dq, me, who, myAnc, navigate, tree, close]);
+  }, [f, dq, me, who, myAnc, navigate, tree, close, t.locale]);
 
   useEffect(() => setSel(0), [dq]);
   useEffect(() => {

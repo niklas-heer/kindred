@@ -1,3 +1,4 @@
+import { localizeTitle, useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Crown, KeyRound } from 'lucide-react';
@@ -20,11 +21,12 @@ export const Route = createFileRoute('/setup')({
   loader: async ({ context }) => {
     await context.queryClient.fetchQuery({ ...sessionQuery, staleTime: 0 });
   },
-  head: () => ({ meta: [{ title: 'Set up · Kindred' }] }),
+  head: ({match}) => ({ meta: [{ title: localizeTitle('Set up · Kindred', match.context.locale) }] }),
   component: Setup,
 });
 
 function Setup() {
+  const t = useT();
   const { data: session } = useQuery(sessionQuery);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -35,8 +37,8 @@ function Setup() {
 
   if (session && !session.needsSetup) {
     return (
-      <AuthCard crest={<Crown size={44} />} kicker="Kindred" title="Already set up" lede="Kindred already has a steward. Sign in with your passkey, or ask a steward for an invitation.">
-        <Link className="btn primary auth-go" to="/signin">Go to sign in</Link>
+      <AuthCard crest={<Crown size={44} />} kicker="Kindred" title={t("setup.already_set_up")} lede={t("setup.kindred_already_has_a_steward_sign_in_with_your_passkey_or_ask_a_steward_for_an_invitation")}>
+        <Link className="btn primary auth-go" to="/signin">{t("setup.go_to_sign_in")}</Link>
       </AuthCard>
     );
   }
@@ -50,7 +52,7 @@ function Setup() {
       forgetLocalIdentity();
       window.location.assign('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Setup didn’t work. Please try again.');
+      setError(err instanceof Error ? err.message : t("setup.setup_didn_t_work_please_try_again"));
       setBusy(false);
     }
   };
@@ -58,14 +60,14 @@ function Setup() {
   return (
     <AuthCard
       crest={<Crown size={44} />}
-      kicker="First-time setup"
-      title="Become the first steward"
-      lede="Nobody has an account yet. You’ll look after every family on this server: invite relatives, and choose what each of them may change."
+      kicker={t("setup.first_time_setup")}
+      title={t("setup.become_the_first_steward")}
+      lede={t("setup.nobody_has_an_account_yet_you_ll_look_after_every_family_on_this_server_invite_relatives_and_choose_what_each_of_them_may_change")}
     >
       <form className="auth-form" onSubmit={submit}>
         {session?.setupCodeRequired && <>
         <label className="field">
-          <span>Setup code</span>
+          <span>{t("setup.setup_code")}</span>
           <input
             className="input auth-code"
             value={code}
@@ -78,22 +80,21 @@ function Setup() {
             maxLength={40}
           />
         </label>
-        <p className="auth-hint">
-          The server printed it in its terminal when it started (look for “Kindred setup”).{' '}
-          <button type="button" className="auth-link" onClick={() => void nudgeSetupCode()}>Print it again</button>
+        <p className="auth-hint"> {t("setup.the_server_printed_it_in_its_terminal_when_it_started_look_for_kindred_setup")}{' '}
+          <button type="button" className="auth-link" onClick={() => void nudgeSetupCode()}>{t("setup.print_it_again")}</button>
         </p>
         </>}
         <label className="field">
-          <span>Your name</span>
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required maxLength={60} placeholder="As the family calls you" />
+          <span>{t("setup.your_name")}</span>
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required maxLength={60} placeholder={t("setup.as_the_family_calls_you")} />
         </label>
         <AuthError>{error}</AuthError>
-        {!supported && <AuthError>This browser can’t use passkeys. Try the newest Safari, Chrome, Edge or Firefox.</AuthError>}
+        {!supported && <AuthError>{t("setup.this_browser_can_t_use_passkeys_try_the_newest_safari_chrome_edge_or_firefox")}</AuthError>}
         <button className="btn primary auth-go" disabled={busy || !supported || (session?.setupCodeRequired && !code.trim()) || !name.trim()}>
-          <KeyRound size={19} /> {busy ? 'Waiting for your device…' : 'Create your passkey'}
+          <KeyRound size={19} /> {busy ? t("setup.waiting_for_your_device") : t("setup.create_your_passkey")}
         </button>
       </form>
-      <p className="auth-device-hint">Save your passkey in 1Password, iCloud Keychain, Google Password Manager or a security key.</p>
+      <p className="auth-device-hint">{t("setup.save_your_passkey_in_1password_icloud_keychain_google_password_manager_or_a_security_key")}</p>
       <PasskeyExplainer creating />
     </AuthCard>
   );

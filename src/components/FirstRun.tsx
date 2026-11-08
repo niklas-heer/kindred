@@ -1,3 +1,4 @@
+import { useT } from '~/lib/i18n';
 // First visit to a tree: "Who are you in this family?", then an optional three-step tour.
 // The answer is saved with the reader's membership and as the `me:<tree>` preference (a person id,
 // or BROWSING); the tour is remembered once seen or skipped (`tour`). Until the reader answers,
@@ -13,28 +14,30 @@ import { Portrait } from './Portrait';
 import { Dialog } from './ui/Dialog';
 import './firstrun.css';
 
-const STEPS: { title: string; art: ReactNode; body: ReactNode; adds?: boolean }[] = [
-  {
-    title: 'Select, then centre',
-    art: <MousePointerClick size={38} />,
-    body: <>A <b>click</b> shows someone in the side panel and leaves the tree where it is. <b>Double-click</b>, or press <kbd>↵</kbd>, to centre the tree on them.</>,
-  },
-  {
-    title: 'Add with the + marks',
-    adds: true,
-    art: <UserPlus size={38} />,
-    body: <>Dashed <b>+</b> marks surround the selected card: a parent above, a child below, a partner to the right, a sibling to the left. Only a name is needed.</>,
-  },
-  {
-    title: 'Find anyone',
-    art: <Search size={38} />,
-    body: <>Press <kbd>⌘K</kbd> or <kbd>/</kbd> and type a name, nickname, title or house. It also switches views and themes.</>,
-  },
-];
+
 
 export function reopenTour() { window.dispatchEvent(new Event('kindred:reopen-tour')); }
 
 export function FirstRun() {
+  const t = useT();
+const STEPS: { title: string; art: ReactNode; body: ReactNode; adds?: boolean }[] = [
+  {
+    title: t("firstrun.select_then_centre"),
+    art: <MousePointerClick size={38} />,
+    body: <>{t("firstrun.a")} <b>{t("firstrun.click")}</b> {t("firstrun.shows_someone_in_the_side_panel_and_leaves_the_tree_where_it_is")} <b>{t("firstrun.double_click")}</b>{t("firstrun.or_press")} <kbd>↵</kbd>{t("firstrun.to_centre_the_tree_on_them")}</>,
+  },
+  {
+    title: t("firstrun.add_with_the_marks"),
+    adds: true,
+    art: <UserPlus size={38} />,
+    body: <>{t("firstrun.dashed")} <b>+</b> {t("firstrun.marks_surround_the_selected_card_a_parent_above_a_child_below_a_partner_to_the_right_a_sibling_to_the_left_only_a_name_is_needed")}</>,
+  },
+  {
+    title: t("firstrun.find_anyone"),
+    art: <Search size={38} />,
+    body: <>{t("firstrun.press")} <kbd>⌘K</kbd> {t("firstrun.or")} <kbd>/</kbd> {t("firstrun.and_type_a_name_nickname_title_or_house_it_also_switches_views_and_themes")}</>,
+  },
+];
   const f = useFamily();
   const tree = useTreeId();
   const answered = useMeAnswered();
@@ -69,12 +72,12 @@ export function FirstRun() {
         title={s.title}
         footer={
           <>
-            <span className="tour-dots" aria-label={`Step ${step + 1} of ${steps.length}`}>
+            <span className="tour-dots" aria-label={t('common.step', {step:step+1,count:steps.length})}>
               {steps.map((_, i) => <i key={i} data-on={i === step || undefined} />)}
             </span>
-            {!last && <button className="btn ghost" onClick={endTour}>Skip tour</button>}
-            {step > 0 && <button className="btn" onClick={() => setStep(step - 1)}>Back</button>}
-            <button className="btn primary" data-autofocus onClick={() => (last ? endTour() : setStep(step + 1))}>{last ? 'Start exploring' : 'Next'}</button>
+            {!last && <button className="btn ghost" onClick={endTour}>{t("firstrun.skip_tour")}</button>}
+            {step > 0 && <button className="btn" onClick={() => setStep(step - 1)}>{t("firstrun.back")}</button>}
+            <button className="btn primary" data-autofocus onClick={() => (last ? endTour() : setStep(step + 1))}>{last ? t("firstrun.start_exploring") : t("firstrun.next")}</button>
           </>
         }
       >
@@ -90,6 +93,7 @@ export function FirstRun() {
 }
 
 function WhoAreYou({ open, onChoose, onLater, familyName }: { open: boolean; onChoose: (id: string) => void; onLater: () => void; familyName: string }) {
+  const t = useT();
   const f = useFamily();
   const tree = useTreeId();
   const name = useSession()?.user?.name;
@@ -99,8 +103,8 @@ function WhoAreYou({ open, onChoose, onLater, familyName }: { open: boolean; onC
       onClose={onLater}
       variant="event"
       width={520}
-      title="Who are you in this family?"
-      description={<>Kindred names everyone in <b>{familyName}</b> from your point of view: “your great-aunt”, “your second cousin”.</>}
+      title={t("firstrun.who_are_you_in_this_family")}
+      description={<>{t("firstrun.kindred_names_everyone_in")} <b>{familyName}</b> {t("firstrun.from_your_point_of_view_your_great_aunt_your_second_cousin")}</>}
     >
       <WhoChooser f={f} tree={tree} onChoose={onChoose} name={name} />
     </Dialog>
@@ -124,12 +128,13 @@ function exactName(f: Family, id: string, q: string): boolean {
  * The steward's first-run dialog and the invitation page both use this.
  */
 export function WhoChooser({ f, tree, onChoose, name, autoFocus, busy }: { f: Family; tree: string; onChoose: (id: string) => void; name?: string; autoFocus?: boolean; busy?: boolean }) {
+  const t = useT();
   return (
     <div className="who" aria-busy={busy || undefined}>
       <WhoPicker f={f} tree={tree} onChoose={onChoose} initialQuery={name} autoFocus={autoFocus} />
       <div className="who-foot">
-        <p>Not in the tree yet, or not sure? You can choose later with “This is me” on someone’s card.</p>
-        <button className="btn" onClick={() => onChoose(BROWSING)} disabled={busy}>Just browsing</button>
+        <p>{t("firstrun.not_in_the_tree_yet_or_not_sure_you_can_choose_later_with_this_is_me_on_someone_s_card")}</p>
+        <button className="btn" onClick={() => onChoose(BROWSING)} disabled={busy}>{t("firstrun.just_browsing")}</button>
       </div>
     </div>
   );
@@ -137,6 +142,7 @@ export function WhoChooser({ f, tree, onChoose, name, autoFocus, busy }: { f: Fa
 
 /** Search for yourself, or pick from the living people around the tree's starting point. */
 export function WhoPicker({ f, tree, onChoose, autoFocus, initialQuery }: { f: Family; tree: string; onChoose: (id: string) => void; autoFocus?: boolean; initialQuery?: string }) {
+  const t = useT();
   const [q, setQ] = useState(initialQuery?.trim() ?? '');
   const results = useMemo(() => {
     const ids = searchPeople(f, q, 8).map((r) => r.id);
@@ -167,14 +173,14 @@ export function WhoPicker({ f, tree, onChoose, autoFocus, initialQuery }: { f: F
           // The prefilled name is selected, so typing another replaces it.
           onFocus={(e) => { if (!selectedOnce.current && initialQuery) { selectedOnce.current = true; e.target.select(); } }}
           onKeyDown={(e) => { if (e.key === 'Enter' && list[0]) { e.preventDefault(); onChoose(list[0]); } }}
-          placeholder="Your name…"
-          aria-label="Search for yourself by name"
+          placeholder={t("firstrun.your_name")}
+          aria-label={t("firstrun.search_for_yourself_by_name")}
           aria-controls="who-list"
         />
       </div>
-      <div className="who-label">{prefilledMiss ? <>No one called “{q}” yet. Perhaps you are…</> : q.trim() ? 'Matches' : 'Perhaps you are…'}</div>
+      <div className="who-label">{prefilledMiss ? <>{t("firstrun.no_one_called")}{q}{t("firstrun.yet_perhaps_you_are")}</> : q.trim() ? t("firstrun.matches") : t("firstrun.perhaps_you_are")}</div>
       <ul className="who-list" id="who-list" aria-live="polite">
-        {list.length === 0 && <li className="who-empty">Nobody by that name yet. Try a nickname, or browse for now.</li>}
+        {list.length === 0 && <li className="who-empty">{t("firstrun.nobody_by_that_name_yet_try_a_nickname_or_browse_for_now")}</li>}
         {list.map((id) => {
           const p = f.byId.get(id)!;
           const exact = !prefilledMiss && exactName(f, id, q);
@@ -184,9 +190,9 @@ export function WhoPicker({ f, tree, onChoose, autoFocus, initialQuery }: { f: F
                 <Portrait person={p} tree={tree} size={38} frame={false} />
                 <div>
                   <b>{displayName(p, f)}</b>
-                  <span>{lifespan(p) || (p.living ? 'living' : '')}</span>
+                  <span>{lifespan(p) || (p.living ? (t.locale === 'de' ? 'lebt' : 'living') : '')}</span>
                 </div>
-                {exact && <em className="who-exact">Your name</em>}
+                {exact && <em className="who-exact">{t("firstrun.your_name")}</em>}
               </button>
             </li>
           );

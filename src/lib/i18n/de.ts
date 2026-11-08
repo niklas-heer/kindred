@@ -1,0 +1,296 @@
+import type { Key, Message } from "./index";
+export const de: Partial<Record<Key, Message>> = {
+  "auth.promptCancelled":
+    "Dein Browser oder Passwortmanager hat die Passkey-Abfrage abgebrochen oder die Zeit ist abgelaufen. Versuch es erneut und wähle deinen gespeicherten Passkey oder verwende ein anderes Gerät.",
+  "auth.alreadyRegistered":
+    "Auf diesem Gerät gibt es bereits einen Passkey für dein Konto.",
+  "auth.secureOrigin":
+    "Passkeys funktionieren nur unter der richtigen Adresse dieser Seite (HTTPS oder localhost).",
+  "auth.deviceFailed":
+    "Dein Gerät konnte keinen Passkey erstellen oder verwenden. Versuch es erneut oder mit einem anderen Gerät.",
+  "auth.failed": "Etwas ist schiefgelaufen. Versuch es bitte noch einmal.",
+  "invite.invitation": "Einladung · Kindred",
+  "common.language": "Sprache",
+  "common.people": {
+    one: "{count} Person",
+    other: "{count} Personen",
+  },
+  "common.personUnit": {
+    one: "Person",
+    other: "Personen",
+  },
+  "common.changeLanguage": "Sprache: EN | DE",
+  "common.step": "Schritt {step} von {count}",
+  "shell.all_families": "Alle Familien",
+  "shell.family_tree": "Stammbaum",
+  "shell.sections": "Bereiche",
+  "shell.tree": "Stammbaum",
+  "shell.almanac": "Kalender",
+  "shell.atlas": "Atlas",
+  "shell.contacts": "Kontakte",
+  "shell.register": "Verzeichnis",
+  "shell.houses": "Häuser",
+  "shell.information_needed": "Fehlende Angaben",
+  "shell.needed": "Gesucht",
+  "shell.chronicle": "Chronik",
+  "shell.find_anyone_k": "Person suchen (⌘K)",
+  "shell.find_anyone": "Person suchen…",
+  "shell.more": "Mehr",
+  "shell.addresses_phones": "Adressen & Telefonnummern",
+  "shell.everyone_as_a_table": "alle Personen als Tabelle",
+  "shell.arms_mottos_members": "Wappen, Wahlsprüche & Mitglieder",
+  "shell.stories_sayings": "Geschichten & Sprüche",
+  "shell.access": "Zugang",
+  "shell.members_invitations": "Mitglieder & Einladungen",
+  "shell.theme": "Darstellung",
+  "shell.sound_effects": "Klangeffekte",
+  "index.a_family_tree_you_can_live_in_pick_a_family":
+    "Ein Stammbaum voller Leben. Wähle eine Familie.",
+  "index.loading_families": "Familien werden geladen",
+  "index.could_not_load_your_families":
+    "Deine Familien konnten nicht geladen werden",
+  "index.no_families_yet": "Noch keine Familien",
+  "index.you_don_t_belong_to_a_family_here_yet_when_a_steward_invites_you_open_their_link_and_the_family_will_appear_here":
+    "Du gehörst hier noch keiner Familie an. Sobald dich jemand aus der Familienverwaltung einlädt, öffne den Link. Dann erscheint die Familie hier.",
+  "index.continue_where_you_left_off": "Mach dort weiter, wo du aufgehört hast",
+  "index.today_across_your_families": "Heute in deinen Familien",
+  "index.a_quiet_day_no_birthdays_anniversaries_or_memorial_days_recorded_for_today":
+    "Ein ruhiger Tag: Für heute sind keine Geburtstage, Jahrestage oder Gedenktage eingetragen.",
+  "signin.signing_in_didn_t_work_please_try_again":
+    "Die Anmeldung hat nicht geklappt. Versuch es bitte noch einmal.",
+  "signin.welcome_back": "Willkommen zurück",
+  "signin.sign_in_to_see_your_family_s_tree_stories_and_birthdays":
+    "Melde dich an und entdecke den Stammbaum, die Geschichten und die Geburtstage deiner Familie.",
+  "signin.you_re_signed_in_as": "Du bist angemeldet als",
+  "signin.but_nobody_has_invited_that_address_to_a_family_yet_ask_a_steward_of_your_family_to_invite_you":
+    ", aber diese Adresse wurde noch nicht zu einer Familie eingeladen. Bitte jemanden aus deiner Familienverwaltung um eine Einladung.",
+  "signin.use_another_account": "Anderes Konto verwenden",
+  "signin.this_browser_can_t_use_passkeys_try_the_newest_safari_chrome_edge_or_firefox_or_your_phone":
+    "Dieser Browser unterstützt keine Passkeys. Versuche es mit einem aktuellen Safari, Chrome, Edge oder Firefox oder auf deinem Handy.",
+  "signin.waiting_for_your_device": "Warte auf dein Gerät…",
+  "signin.sign_in_with_a_passkey": "Mit Passkey anmelden",
+  "signin.use_a_passkey_from_another_device":
+    "Passkey von einem anderen Gerät verwenden",
+  "signin.in_the_passkey_prompt_choose_another_device_or_a_phone_then_scan_the_qr_code_you_can_also_choose_1password_or_your_password_manager":
+    "Wähle im Passkey-Dialog ein anderes Gerät oder ein Handy und scanne den QR-Code. Du kannst auch 1Password oder deinen Passwortmanager auswählen.",
+  "signin.sign_out": "Abmelden",
+  "setup.already_set_up": "Bereits eingerichtet",
+  "setup.kindred_already_has_a_steward_sign_in_with_your_passkey_or_ask_a_steward_for_an_invitation":
+    "Kindred wird bereits verwaltet. Melde dich mit deinem Passkey an oder bitte die Familienverwaltung um eine Einladung.",
+  "setup.go_to_sign_in": "Zur Anmeldung",
+  "setup.setup_didn_t_work_please_try_again":
+    "Die Einrichtung hat nicht geklappt. Versuch es bitte noch einmal.",
+  "setup.first_time_setup": "Erste Einrichtung",
+  "setup.become_the_first_steward": "Übernimm die Familienverwaltung",
+  "setup.nobody_has_an_account_yet_you_ll_look_after_every_family_on_this_server_invite_relatives_and_choose_what_each_of_them_may_change":
+    "Hier hat noch niemand ein Konto. Du verwaltest alle Familien auf diesem Server, lädst Verwandte ein und legst fest, was sie ändern dürfen.",
+  "setup.setup_code": "Einrichtungscode",
+  "setup.the_server_printed_it_in_its_terminal_when_it_started_look_for_kindred_setup":
+    "Du findest ihn im Terminal des Servers beim Start unter „Kindred setup“.",
+  "setup.print_it_again": "Erneut anzeigen",
+  "setup.your_name": "Dein Name",
+  "setup.as_the_family_calls_you": "Wie dich deine Familie nennt",
+  "setup.this_browser_can_t_use_passkeys_try_the_newest_safari_chrome_edge_or_firefox":
+    "Dieser Browser unterstützt keine Passkeys. Versuche es mit einem aktuellen Safari, Chrome, Edge oder Firefox.",
+  "setup.waiting_for_your_device": "Warte auf dein Gerät…",
+  "setup.create_your_passkey": "Deinen Passkey erstellen",
+  "setup.save_your_passkey_in_1password_icloud_keychain_google_password_manager_or_a_security_key":
+    "Speichere deinen Passkey in 1Password, im iCloud-Schlüsselbund, im Google Passwortmanager oder auf einem Sicherheitsschlüssel.",
+  "invitetoken.this_invitation_has_expired": "Diese Einladung ist abgelaufen",
+  "invitetoken.invitations_last_two_weeks_ask":
+    "Einladungen gelten zwei Wochen. Bitte",
+  "invitetoken.whoever_sent_it": "die Person, die sie geschickt hat",
+  "invitetoken.for_a_new_link": "um einen neuen Link.",
+  "invitetoken.this_invitation_was_already_used":
+    "Diese Einladung wurde schon verwendet",
+  "invitetoken.if_it_was_you_sign_in_with_your_passkey_each_link_works_once_for_one_person":
+    "Wenn du das warst, melde dich mit deinem Passkey an. Jeder Link gilt einmal für eine Person.",
+  "invitetoken.this_invitation_was_withdrawn":
+    "Diese Einladung wurde zurückgezogen",
+  "invitetoken.the_steward_who_sent_it_has_cancelled_it_ask_them_if_you_should_have_a_new_one":
+    "Die Familienverwaltung hat diese Einladung zurückgezogen. Frag dort nach einer neuen Einladung.",
+  "invitetoken.this_invitation_link_isn_t_valid":
+    "Dieser Einladungslink ist ungültig",
+  "invitetoken.check_that_you_copied_the_whole_link_or_ask_for_a_new_one":
+    "Prüfe, ob du den vollständigen Link kopiert hast, oder bitte um einen neuen.",
+  "invitetoken.sign_in": "Anmelden",
+  "invitetoken.you_re_already_in_this_family":
+    "Du gehörst bereits zu dieser Familie",
+  "invitetoken.you_re_signed_in_as": "Du bist angemeldet als",
+  "invitetoken.and_you_already_belong_to": "und gehörst bereits zu",
+  "invitetoken.open": "Öffnen",
+  "invitetoken.that_didn_t_work_please_try_again":
+    "Das hat nicht geklappt. Versuch es bitte noch einmal.",
+  "invitetoken.you_re_invited": "Du bist eingeladen",
+  "invitetoken.join": "Beitreten:",
+  "invitetoken.you_ve_been_invited": "Du wurdest eingeladen",
+  "invitetoken.as": "als",
+  "invitetoken.joining": "Du trittst bei…",
+  "invitetoken.join_as": "Beitreten als",
+  "invitetoken.not": "Nicht",
+  "invitetoken.sign_out": "Abmelden",
+  "invitetoken.what_should_the_family_call_you":
+    "Wie soll dich deine Familie nennen?",
+  "invitetoken.your_name": "Dein Name",
+  "invitetoken.this_browser_can_t_use_passkeys_open_the_link_in_the_newest_safari_chrome_edge_or_firefox_or_on_your_phone":
+    "Dieser Browser unterstützt keine Passkeys. Öffne den Link in einem aktuellen Safari, Chrome, Edge oder Firefox oder auf deinem Handy.",
+  "invitetoken.waiting_for_your_device": "Warte auf dein Gerät…",
+  "invitetoken.create_your_passkey": "Deinen Passkey erstellen",
+  "invitetoken.already_use_kindred": "Nutzt du Kindred schon?",
+  "invitetoken.sign_in_first": "Zuerst anmelden",
+  "invitetoken.who_are_you_in_this_family": "Wer bist du in dieser Familie?",
+  "invitetoken.kindred_names_everyone_from_your_point_of_view_your_great_aunt_your_second_cousin":
+    "Kindred zeigt dir, wie alle mit dir verwandt sind: „Großtante“, „Cousin 2. Grades“.",
+  "invitetoken.the_family_tree_couldn_t_be_loaded":
+    "Der Stammbaum konnte nicht geladen werden.",
+  "invitetoken.retry": "Erneut versuchen",
+  "invitetoken.loading_the_family": "Familie wird geladen…",
+  "ui.close": "Schließen",
+  "ui.close_esc": "Schließen (Esc)",
+  "ui.discard_changes": "Änderungen verwerfen?",
+  "ui.what_you_typed_here_will_be_lost": "Deine Eingaben gehen dabei verloren.",
+  "ui.keep_editing": "Weiter bearbeiten",
+  "ui.discard": "Verwerfen",
+  "ui.loading": "Wird geladen…",
+  "ui.retry": "Erneut versuchen",
+  "ui.dismiss": "Ausblenden",
+  "accountmenu.your_account": "Dein Konto",
+  "accountmenu.signed_in_with_a_passkey": "Mit einem Passkey angemeldet",
+  "accountmenu.you_are": "Du bist",
+  "accountmenu.in": "in",
+  "accountmenu.this_family": "dieser Familie",
+  "accountmenu.manage_access": "Zugang verwalten",
+  "accountmenu.your_name_passkeys": "Dein Name & deine Passkeys",
+  "accountmenu.sign_out": "Abmelden",
+  "accountmenu.your_name_as_the_family_sees_it":
+    "Dein Name, wie ihn die Familie sieht",
+  "accountmenu.saved": "Gespeichert",
+  "accountmenu.save": "Speichern",
+  "accountmenu.passkeys": "Passkeys",
+  "accountmenu.a_passkey_lets_this_device_sign_you_in_with_your_face_fingerprint_or_screen_lock_nothing_to_remember_add_one_on_each_phone_or_computer_you_use":
+    "Mit einem Passkey meldest du dich per Gesichtserkennung, Fingerabdruck oder Gerätesperre an. Du musst dir nichts merken. Erstelle einen auf jedem Handy oder Computer, den du nutzt",
+  "accountmenu.or_keep_signing_in_through_your_organisation_s_login":
+    ", oder melde dich weiterhin über deine Organisation an",
+  "accountmenu.loading_your_passkeys": "Deine Passkeys werden geladen…",
+  "accountmenu.your_passkeys_couldn_t_be_loaded":
+    "Deine Passkeys konnten nicht geladen werden.",
+  "accountmenu.retry": "Erneut versuchen",
+  "accountmenu.no_passkeys_yet": "Noch keine Passkeys.",
+  "accountmenu.passkey": "Passkey",
+  "accountmenu.added": "Erstellt am",
+  "accountmenu.used": "· verwendet",
+  "accountmenu.synced": "synchronisiert",
+  "accountmenu.this_device": "diesem Gerät",
+  "accountmenu.your_only_passkey_add_another_first":
+    "Dein einziger Passkey: Erstelle zuerst einen weiteren",
+  "accountmenu.remove": "Entfernen",
+  "accountmenu.waiting_for_your_device": "Warte auf dein Gerät…",
+  "accountmenu.add_a_passkey_on_this_device":
+    "Passkey auf diesem Gerät erstellen",
+  "accountmenu.passkey_added": "Passkey erstellt.",
+  "accountmenu.remove_this_passkey": "Diesen Passkey entfernen?",
+  "accountmenu.the_passkey_on": "Der Passkey auf",
+  "accountmenu.that_device": "diesem Gerät",
+  "accountmenu.will_no_longer_sign_you_in_you_can_add_it_again_later":
+    "kann dich nicht mehr anmelden. Du kannst später einen neuen erstellen.",
+  "accountmenu.keep_it": "Behalten",
+  "noaccess.you_don_t_have_access_to_this_family":
+    "Du hast keinen Zugang zu dieser Familie",
+  "noaccess.you_re_signed_in_as": "Du bist angemeldet als",
+  "noaccess.someone_else": "jemand anderes",
+  "noaccess.if_you_should_be_here_ask_one_of_this_family_s_stewards_to_send_you_an_invitation":
+    ". Wenn du hierher gehörst, bitte die Familienverwaltung um eine Einladung.",
+  "noaccess.your_families": "Deine Familien",
+  "noaccess.your_family": "Deine Familie",
+  "noaccess.sign_out": "Abmelden",
+  "notfoundpage.family_not_found": "Familie nicht gefunden",
+  "notfoundpage.page_not_found": "Seite nicht gefunden",
+  "notfoundpage.there_s_no_family": "Hier gibt es keine Familie",
+  "notfoundpage.called": "namens „",
+  "notfoundpage.": "“",
+  "notfoundpage.here_it_may_have_been_renamed_or_the_link_is_old":
+    ". Vielleicht wurde sie umbenannt oder der Link ist veraltet.",
+  "notfoundpage.this_page_doesn_t_exist_or_it_has_moved":
+    "Diese Seite gibt es nicht oder sie wurde verschoben.",
+  "notfoundpage.your_families": "Deine Familien",
+  "firstrun.select_then_centre": "Auswählen, dann zentrieren",
+  "firstrun.a": "Ein",
+  "firstrun.click": "Klick",
+  "firstrun.shows_someone_in_the_side_panel_and_leaves_the_tree_where_it_is":
+    "zeigt eine Person in der Seitenleiste. Der Stammbaum bleibt an seinem Platz.",
+  "firstrun.double_click": "Klicke doppelt",
+  "firstrun.or_press": "oder drücke",
+  "firstrun.to_centre_the_tree_on_them":
+    ", um die Person im Stammbaum zu zentrieren.",
+  "firstrun.add_with_the_marks": "Personen mit + hinzufügen",
+  "firstrun.dashed": "Gestrichelte",
+  "firstrun.marks_surround_the_selected_card_a_parent_above_a_child_below_a_partner_to_the_right_a_sibling_to_the_left_only_a_name_is_needed":
+    "Zeichen umgeben die ausgewählte Karte: Eltern oben, Kinder unten, Partner rechts und Geschwister links. Ein Name genügt.",
+  "firstrun.find_anyone": "Person suchen",
+  "firstrun.press": "Drücke",
+  "firstrun.or": "oder",
+  "firstrun.and_type_a_name_nickname_title_or_house_it_also_switches_views_and_themes":
+    "und gib einen Namen, Spitznamen, Titel oder ein Haus ein. Hier kannst du auch Ansicht und Darstellung wechseln.",
+  "firstrun.skip_tour": "Einführung überspringen",
+  "firstrun.back": "Zurück",
+  "firstrun.start_exploring": "Los geht’s",
+  "firstrun.next": "Weiter",
+  "firstrun.who_are_you_in_this_family": "Wer bist du in dieser Familie?",
+  "firstrun.kindred_names_everyone_in": "Kindred zeigt dir alle in",
+  "firstrun.from_your_point_of_view_your_great_aunt_your_second_cousin":
+    "aus deiner Sicht: „Großtante“, „Cousin 2. Grades“.",
+  "firstrun.not_in_the_tree_yet_or_not_sure_you_can_choose_later_with_this_is_me_on_someone_s_card":
+    "Noch nicht im Stammbaum oder unsicher? Du kannst dich später über „Das bin ich“ auf deiner Karte auswählen.",
+  "firstrun.just_browsing": "Erst mal umsehen",
+  "firstrun.your_name": "Dein Name",
+  "firstrun.search_for_yourself_by_name": "Nach deinem Namen suchen",
+  "firstrun.no_one_called": "Noch niemand namens „",
+  "firstrun.yet_perhaps_you_are": "“. Vielleicht bist du…",
+  "firstrun.matches": "Treffer",
+  "firstrun.perhaps_you_are": "Vielleicht bist du…",
+  "firstrun.nobody_by_that_name_yet_try_a_nickname_or_browse_for_now":
+    "Dieser Name ist noch nicht dabei. Versuch einen Spitznamen oder sieh dich erst einmal um.",
+  "authcard.what_happens_next": "So geht es weiter",
+  "authcard.what_s_a_passkey": "Was ist ein Passkey?",
+  "authcard.no_password_to_remember": "Kein Passwort zum Merken.",
+  "authcard.your_phone_or_computer_makes_a_key_for_kindred_and_keeps_it_safe":
+    "Dein Handy oder Computer erstellt einen Schlüssel für Kindred und bewahrt ihn sicher auf.",
+  "authcard.instead_your_phone_or_computer_keeps_a_key_for_kindred_made_when_you_were_invited":
+    "Dein Handy oder Computer bewahrt einen Schlüssel für Kindred auf, der bei deiner Einladung erstellt wurde.",
+  "authcard.unlock_it_like_your_phone": "Entsperre ihn wie dein Handy.",
+  "authcard.your_device_asks_for_your_face_your_fingerprint_or_the_pin_you_already_use_that_never_leaves_your_device":
+    "Dein Gerät fragt nach deinem Gesicht, Fingerabdruck oder deiner gewohnten PIN. Diese Daten verlassen dein Gerät nie.",
+  "authcard.another_device": "Ein anderes Gerät?",
+  "authcard.most_phones_share_passkeys_with_your_other_devices_you_can_also_add_one_later_from_your_name_at_the_top_of_the_page":
+    "Die meisten Handys teilen Passkeys mit deinen anderen Geräten. Über deinen Namen oben auf der Seite kannst du später weitere hinzufügen.",
+  "authcard.on_a_computer_without_your_passkey_choose_use_a_phone_in_the_prompt_and_scan_the_code_with_your_phone":
+    "Wähle auf einem Computer ohne deinen Passkey „Handy verwenden“ im Dialog und scanne den Code mit deinem Handy.",
+  "authcard.first_time_here": "Zum ersten Mal hier?",
+  "authcard.you_need_an_invitation_from_someone_in_the_family_who_looks_after_the_tree_a_steward_open_their_link_on_this_device_and_it_will_set_up_your_passkey_in_a_minute":
+    "Du brauchst eine Einladung von jemandem, der den Stammbaum verwaltet. Öffne den Link auf diesem Gerät, dann ist dein Passkey in einer Minute eingerichtet.",
+  "ui.something_went_wrong": "Etwas ist schiefgelaufen",
+  "ui.could_not_show":
+    "Dieser Bereich von Kindred konnte nicht angezeigt werden.",
+  "ui.nothing_here": "Hier ist nichts",
+  "ui.page_missing": "Diese Seite gibt es nicht oder sie wurde verschoben.",
+  "ui.choose": "Auswählen…",
+  "account.trigger": "{name}: dein Konto",
+  "account.signedIn": "Angemeldet als {email}",
+  "account.role": "Deine Rolle in {family}: {role}.",
+  "account.removeKey": "Passkey auf {device} entfernen",
+  "invite.invited": "{name} hat dich eingeladen",
+  "invite.expires": "Diese Einladung gilt bis zum {date}.",
+  "invite.welcome": "Willkommen in {family}",
+  "invite.title": "{family} beitreten · Kindred",
+  "role.viewer": "Lesen",
+  "role.contributor": "Mitwirken",
+  "role.editor": "Bearbeiten",
+  "role.steward": "Verwalten",
+  "role.viewerDescription": "Du kannst alles ansehen, aber nichts ändern",
+  "role.contributorDescription":
+    "Du kannst Erinnerungen, Sprüche, Rezepte und Fotos hinzufügen",
+  "role.editorDescription":
+    "Du kannst Personen, Verbindungen, Orte und Kontakte hinzufügen und bearbeiten",
+  "role.stewardDescription":
+    "Du kannst Häuser und ihre Wappen bearbeiten und den Zugang verwalten",
+};

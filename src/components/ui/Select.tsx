@@ -1,3 +1,4 @@
+import { useT } from '~/lib/i18n';
 // Select: a popover listbox in the palette's style, replacing <select>. The WAI-ARIA "select-only
 // combobox": focus stays on the button, the active option is announced via aria-activedescendant.
 //
@@ -52,9 +53,10 @@ export interface SelectProps<V extends string = string> {
 const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 export function Select<V extends string = string>({
-  value, onChange, options, placeholder = 'Choose…', disabled, name, id, title, size = 'md', className = '', style, menuWidth,
+  value, onChange, options, placeholder, disabled, name, id, title, size = 'md', className = '', style, menuWidth,
   ...aria
 }: SelectProps<V>) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
@@ -210,7 +212,7 @@ export function Select<V extends string = string>({
       >
         <span className="ui-select-value">
           {current?.icon}
-          {current ? <span>{current.label}</span> : <span className="ui-select-placeholder">{placeholder}</span>}
+          {current ? <span>{current.label}</span> : <span className="ui-select-placeholder">{placeholder ?? t('ui.choose')}</span>}
         </span>
         <ChevronDown size={15} className="ui-select-chevron" aria-hidden />
       </button>

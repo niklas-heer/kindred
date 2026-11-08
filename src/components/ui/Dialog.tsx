@@ -1,3 +1,4 @@
+import { useT } from '~/lib/i18n';
 // Dialog: an accessible modal on the native <dialog> (top layer; the rest of the page is inert).
 //
 // Usage:
@@ -79,6 +80,7 @@ export function Dialog({
   dismissible = true, dirty = false, closeButton, footer, bare = false, className = '', bodyClassName = '',
   style, panelRef, onKeyDown, children,
 }: DialogProps) {
+  const t = useT();
   const client = useIsClient();
   const shown = open && client;
   const layer = useOverlayLayer(shown);
@@ -204,7 +206,7 @@ export function Dialog({
                 {title && <h2 id={titleId} className="ui-dialog-title">{title}</h2>}
                 {title && variant === 'event' && <span className="ui-dialog-fleuron" aria-hidden><Fleuron size={14} /></span>}
                 {showClose && (
-                  <button type="button" className="btn icon ghost ui-dialog-close" onClick={requestClose} aria-label="Close" title="Close (Esc)">
+                  <button type="button" className="btn icon ghost ui-dialog-close" onClick={requestClose} aria-label={t("ui.close")} title={t("ui.close_esc")}>
                     <X size={16} />
                   </button>
                 )}
@@ -218,11 +220,11 @@ export function Dialog({
         {confirming && (
           <div className="ui-dialog-confirm" role="alertdialog" aria-modal="true" aria-labelledby={`${titleId}-c`}>
             <div>
-              <b id={`${titleId}-c`}>Discard changes?</b>
-              <p>What you typed here will be lost.</p>
+              <b id={`${titleId}-c`}>{t("ui.discard_changes")}</b>
+              <p>{t("ui.what_you_typed_here_will_be_lost")}</p>
               <div className="ui-row">
-                <button ref={keep} type="button" className="btn" onClick={() => setConfirming(false)}>Keep editing</button>
-                <button type="button" className="btn primary" onClick={() => { setConfirming(false); latest.current.onClose(); }}>Discard</button>
+                <button ref={keep} type="button" className="btn" onClick={() => setConfirming(false)}>{t("ui.keep_editing")}</button>
+                <button type="button" className="btn primary" onClick={() => { setConfirming(false); latest.current.onClose(); }}>{t("ui.discard")}</button>
               </div>
             </div>
           </div>

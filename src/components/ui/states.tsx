@@ -1,3 +1,4 @@
+import { useT } from '~/lib/i18n';
 // Loading, empty, error and not-found states, so no screen is ever blank or shows a developer hint.
 //
 // Usage:
@@ -54,10 +55,11 @@ export function Skeleton({ width, height = 14, radius, lines, delay = 300, class
 
 /** A page-shaped placeholder: a title, a line, and a few rows. Used as the router's pending view. */
 export function PageSkeleton({ delay = 300 }: { delay?: number }) {
+  const t = useT();
   const shown = useDelayed(delay);
   return (
     <div className="page" aria-busy="true" aria-live="polite">
-      <span className="sr-only">Loading…</span>
+      <span className="sr-only">{t("ui.loading")}</span>
       {shown && (
         <div className="ui-skel-page">
           <Skeleton delay={0} width="min(320px, 70%)" height={34} style={{ justifySelf: 'center' }} />
@@ -104,16 +106,17 @@ export interface ErrorStateProps {
   className?: string;
 }
 
-export function ErrorState({ title = 'Something went wrong', message = 'This part of Kindred could not be shown.', onRetry, error, action, className = '' }: ErrorStateProps) {
+export function ErrorState({ title, message, onRetry, error, action, className = '' }: ErrorStateProps) {
+  const t = useT();
   const detail = error instanceof Error ? error.message : typeof error === 'string' ? error : undefined;
   return (
     <div className={`ui-state error ${className}`} role="alert">
       <span className="ui-state-icon" aria-hidden><AlertTriangle size={28} /></span>
-      <h2 className="ui-state-title">{title}</h2>
-      {message && <p className="ui-state-text">{message}</p>}
+      <h2 className="ui-state-title">{title ?? t('ui.something_went_wrong')}</h2>
+      {(message ?? t('ui.could_not_show')) && <p className="ui-state-text">{message ?? t('ui.could_not_show')}</p>}
       {(onRetry || action) && (
         <div className="ui-state-actions">
-          {onRetry && <button className="btn primary" onClick={onRetry}><RotateCcw size={14} /> Retry</button>}
+          {onRetry && <button className="btn primary" onClick={onRetry}><RotateCcw size={14} /> {t("ui.retry")}</button>}
           {action}
         </div>
       )}
@@ -131,12 +134,13 @@ export interface NotFoundProps {
   className?: string;
 }
 
-export function NotFound({ title = 'Nothing here', text = 'This page doesn’t exist, or it has moved.', icon = <Compass size={28} />, children, className = '' }: NotFoundProps) {
+export function NotFound({ title, text, icon = <Compass size={28} />, children, className = '' }: NotFoundProps) {
+  const t = useT();
   return (
     <div className={`ui-state ${className}`}>
       <span className="ui-state-icon" aria-hidden>{icon}</span>
-      <h1 className="ui-state-title">{title}</h1>
-      {text && <p className="ui-state-text">{text}</p>}
+      <h1 className="ui-state-title">{title ?? t('ui.nothing_here')}</h1>
+      {(text ?? t('ui.page_missing')) && <p className="ui-state-text">{text ?? t('ui.page_missing')}</p>}
       {children}
     </div>
   );
@@ -144,11 +148,12 @@ export function NotFound({ title = 'Nothing here', text = 'This page doesn’t e
 
 /** A small notice line with an optional dismiss button. */
 export function Notice({ children, onDismiss, icon = <Info size={15} />, className = '' }: { children: ReactNode; onDismiss?: () => void; icon?: ReactNode; className?: string }) {
+  const t = useT();
   return (
     <div className={`ui-notice ${className}`} role="status">
       {icon}
       <span>{children}</span>
-      {onDismiss && <button className="btn icon ghost" style={{ width: 26, height: 26 }} onClick={onDismiss} aria-label="Dismiss"><X size={13} /></button>}
+      {onDismiss && <button className="btn icon ghost" style={{ width: 26, height: 26 }} onClick={onDismiss} aria-label={t("ui.dismiss")}><X size={13} /></button>}
     </div>
   );
 }
