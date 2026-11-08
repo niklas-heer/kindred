@@ -120,13 +120,21 @@
 }
 @keyframes house-in { from { opacity: 0; } }
 .house-shield { display: block; filter: drop-shadow(0 1px 1.5px #000b); transition: transform 160ms ease; }
+.house-marker {
+  display: block; width: 100%; height: 100%; border-radius: 2px 2px 50% 50% / 2px 2px 70% 70%;
+  box-shadow: 0 0 0 1px #000a, 0 0 0 1.5px #fff6; transition: transform 160ms ease;
+}
 .house-landmark:hover { z-index: 3; }
 .house-landmark:hover .house-shield { transform: scale(1.14); }
+.house-landmark:hover .house-marker { transform: scale(1.3); }
 .house-landmark:focus-visible { z-index: 3; outline: 2px solid var(--accent); outline-offset: 2px; }
 .house-landmark.is-faded { opacity: 0.3; }
 .house-landmark.is-faded:hover, .house-landmark.is-faded:focus-visible { opacity: 0.9; }
 /* A finger needs more room than the shield: a 44px target, without making the shield any bigger. */
-@media (pointer: coarse) { .house-landmark::before { content: ''; position: absolute; inset: -11px; } }
+@media (pointer: coarse) {
+  .house-landmark::before { content: ''; position: absolute; inset: -11px; }
+  .house-landmark.is-compact::before { inset: -16px; }
+}
 
 .house-tip {
   position: absolute; z-index: 4; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);

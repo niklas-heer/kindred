@@ -1,5 +1,6 @@
 // Where the house shields sit on the minimap: one per house, at the middle of its largest cluster of people,
-// nudged off each other where two would collide. Pure geometry with no React, so the rules are unit-tested
+// nudged off each other where two would collide. Past a handful of houses the rest become small plain markers,
+// so a big family's map stays readable and every house can still be jumped to. Pure geometry with no React, so the rules are unit-tested
 // (minimap-landmarks.test.ts). The minimap says how world units map onto its pixels with `frame`.
 
 /** One placed card of the layout: which house its person belongs to, and the card's centre in world units. */
@@ -37,6 +38,10 @@ export interface HouseLandmark {
   /** Where a jump lands, world units: the middle of the house's largest cluster. */
   wx: number;
   wy: number;
+  /** Width in minimap pixels, the height being 1.2 times that. */
+  size: number;
+  /** A small plain marker in the house's colour rather than the full shield. */
+  compact: boolean;
   /** Tooltip side and alignment, so it stays inside the minimap. */
   tip: 'above' | 'below';
   align: 'start' | 'center' | 'end';
@@ -45,13 +50,17 @@ export interface HouseLandmark {
 const SHIELD_ASPECT = 1.2; // height over width, as Arms draws it
 const NUDGE_STEP = 4; // minimap px per ring when a shield looks for a free place
 const GAP = 2; // clear space kept between two shields
+export const MAX_SHIELDS = 6; // full shields on one map: the point where they begin to hide the people under them
+const MAX_MARKERS = 12; // small markers on one map, for the same reason
+const MARKER_NUDGE = 24; // minimap px a marker may move to find a free place
 const TIP_ROOM = 44; // a shield this close to the top gets its tooltip below
 const RING: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]];
 
 /**
  * The shields for the houses in view. One house (or none) gets no landmark at all: the whole map is that house.
- * Biggest houses are placed first, so when two would overlap the smaller one moves, and a shield with no free
- * place near its house is left out rather than piled on another.
+ * Biggest houses are placed first, so when two would overlap the smaller one moves. The first MAX_SHIELDS get a
+ * full shield; the rest, and any shield with no free place near its house, get a small marker instead, and a
+ * marker with no free place is left out rather than piled on another.
  */
 export function houseLandmarks(people: LandmarkPerson[], frame: MinimapFrame, grid: LandmarkGrid): HouseLandmark[] {
   const groups = new Map<string, { pts: LandmarkPerson[]; ids: Set<string> }>();
@@ -67,13 +76,22 @@ export function houseLandmarks(people: LandmarkPerson[], frame: MinimapFrame, gr
   const houses = [...groups].map(([house, g]) => ({ house, people: g.ids.size, ...largestCluster(g.pts, grid) }))
     .sort((a, b) => b.people - a.people || (a.house < b.house ? -1 : a.house > b.house ? 1 : 0));
 
-  const h = grid.size * SHIELD_ASPECT;
-  const taken: { x: number; y: number }[] = [];
+  const markerSize = grid.size / 2;
+  const taken: Placed[] = [];
   const out: HouseLandmark[] = [];
+  let shields = 0, markers = 0;
   for (const m of houses) {
-    const spot = nearestFree(m.x * frame.s + frame.ox, m.y * frame.s + frame.oy, taken, frame, grid.size);
+    const ax = m.x * frame.s + frame.ox, ay = m.y * frame.s + frame.oy;
+    let spot = shields < MAX_SHIELDS ? nearestFree(ax, ay, taken, frame, grid.size, grid.size + 8) : null;
+    const compact = !spot;
+    if (compact) {
+      if (markers >= MAX_MARKERS) continue;
+      spot = nearestFree(ax, ay, taken, frame, markerSize, MARKER_NUDGE);
+    }
     if (!spot) continue;
-    taken.push(spot);
+    if (compact) markers++; else shields++;
+    const size = compact ? markerSize : grid.size;
+    taken.push({ ...spot, size });
     out.push({
       house: m.house,
       people: m.people,
@@ -81,7 +99,9 @@ export function houseLandmarks(people: LandmarkPerson[], frame: MinimapFrame, gr
       y: spot.y,
       wx: m.x,
       wy: m.y,
-      tip: spot.y - h / 2 < TIP_ROOM ? 'below' : 'above',
+      size,
+      compact,
+      tip: spot.y - (size * SHIELD_ASPECT) / 2 < TIP_ROOM ? 'below' : 'above',
       align: spot.x < frame.width * 0.35 ? 'start' : spot.x > frame.width * 0.65 ? 'end' : 'center',
     });
   }
@@ -121,17 +141,18 @@ export function largestCluster(pts: LandmarkPerson[], grid: LandmarkGrid): { x: 
   return { x: best.x / best.n, y: best.y / best.n };
 }
 
-/** The nearest spot to (ax, ay) inside the minimap where a shield does not touch one already placed. */
-function nearestFree(ax: number, ay: number, taken: { x: number; y: number }[], frame: MinimapFrame, size: number): { x: number; y: number } | null {
+interface Placed { x: number; y: number; size: number }
+
+/** The nearest spot to (ax, ay), within `maxNudge`, inside the minimap where a mark of this width does not touch one already placed. */
+function nearestFree(ax: number, ay: number, taken: Placed[], frame: MinimapFrame, size: number, maxNudge: number): { x: number; y: number } | null {
   const hw = size / 2, hh = (size * SHIELD_ASPECT) / 2;
   const clampX = (x: number) => Math.min(frame.width - hw, Math.max(hw, x));
   const clampY = (y: number) => Math.min(frame.height - hh, Math.max(hh, y));
-  const maxNudge = size + 8;
   for (let d = 0; d <= maxNudge; d += NUDGE_STEP) {
     const offsets: [number, number][] = d === 0 ? [[0, 0]] : RING.map(([dx, dy]) => [dx * d, dy * d]);
     for (const [dx, dy] of offsets) {
       const x = clampX(ax + dx), y = clampY(ay + dy);
-      const clear = taken.every((t) => Math.abs(t.x - x) >= size + GAP || Math.abs(t.y - y) >= size * SHIELD_ASPECT + GAP);
+      const clear = taken.every((t) => Math.abs(t.x - x) >= (t.size + size) / 2 + GAP || Math.abs(t.y - y) >= ((t.size + size) * SHIELD_ASPECT) / 2 + GAP);
       if (clear) return { x, y };
     }
   }

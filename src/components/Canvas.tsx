@@ -607,7 +607,7 @@ function Minimap({ family, layout, view, focus, dimmed, onJump, onHouse }: {
 }
 
 /**
- * One house shield per landmark. Memoised on the landmarks, not the camera: a pan or zoom re-renders the minimap
+ * One house shield or small marker per landmark. Memoised on the landmarks, not the camera: a pan or zoom re-renders the minimap
  * (its viewport box moves) but leaves these buttons alone. Each is a real button, so Tab reaches it and Enter or
  * a click jumps the main view there; its name is "Jump to <house>", and its tooltip (shown on hover or keyboard
  * focus) gives the people count.
@@ -627,17 +627,17 @@ const HouseShields = memo(function HouseShields({ marks, family, faded, onHouse 
           <button
             key={m.house}
             type="button"
-            className={`house-landmark${faded.has(m.house) ? ' is-faded' : ''}`}
+            className={`house-landmark${m.compact ? ' is-compact' : ''}${faded.has(m.house) ? ' is-faded' : ''}`}
             data-tip={m.tip}
             data-align={m.align}
-            style={{ left: m.x, top: m.y, width: SHIELD_PX, height: SHIELD_PX * 1.2 }}
+            style={{ left: m.x, top: m.y, width: m.size, height: m.size * 1.2 }}
             aria-label={t('canvas.jumpHouse', { house: house.name })}
             aria-describedby={tipId}
             onClick={() => onHouse(m.wx, m.wy)}
           >
-            <span className="house-shield" aria-hidden>
-              <Arms arms={house.arms} size={SHIELD_PX} />
-            </span>
+            {m.compact
+              ? <span className="house-marker" aria-hidden style={{ background: houseColour(house.arms) }} />
+              : <span className="house-shield" aria-hidden><Arms arms={house.arms} size={m.size} /></span>}
             <span className="house-tip" id={tipId}>
               <b>{house.name}</b>
               <span>{t('common.people', { count: m.people })}</span>

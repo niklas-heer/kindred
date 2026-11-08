@@ -472,40 +472,122 @@ function semeSpots(): Spot[] {
   return out;
 }
 
+// ---------- charges on a narrow ordinary ----------
+
+/**
+ * The narrow ordinaries as the charges see them: a centre, the arms leaving it (unit directions, in the order
+ * they take charges), and the arms' half-width, as ordinaryShape draws them. A band (fess, pale, bend) is two arms
+ * back to back. `centre` says how many charges make one stand on the centre: n odd for two and four arms.
+ */
+type NarrowKind = 'fess' | 'pale' | 'bend' | 'bend-sinister' | 'chevron' | 'cross' | 'saltire' | 'pall';
+interface Narrow { c: Pt; arms: Pt[]; h: number; band?: boolean; centre: (n: number) => boolean }
+const odd = (n: number) => n % 2 === 1;
+const CHEVRON_ARM = unit(1, 0.8);
+const NARROW: Record<NarrowKind, Narrow> = {
+  fess: { c: [50, 55], arms: [[-1, 0], [1, 0]], h: 14, band: true, centre: odd },
+  pale: { c: [50, 57], arms: [[0, -1], [0, 1]], h: 14, band: true, centre: odd },
+  bend: { c: [50, 55], arms: [[-BEND_DIR[0], -BEND_DIR[1]], BEND_DIR], h: 13, band: true, centre: odd },
+  'bend-sinister': { c: [50, 55], arms: [[BEND_DIR[0], -BEND_DIR[1]], [-BEND_DIR[0], BEND_DIR[1]]], h: 13, band: true, centre: odd },
+  // The chevron is 24 deep measured straight down; across its slanted arms that is 24 · cos(atan 0.8).
+  chevron: { c: [50, 46], arms: [[-CHEVRON_ARM[0], CHEVRON_ARM[1]], CHEVRON_ARM], h: 12 * CHEVRON_ARM[0], centre: odd },
+  cross: { c: [50, 56], arms: [[-1, 0], [1, 0], [0, -1], [0, 1]], h: 12, centre: odd },
+  saltire: { c: [50, 60], arms: [unit(-100, -120), unit(100, -120), unit(-100, 120), unit(100, 120)], h: 12, centre: odd },
+  pall: { c: [50, 54], arms: [unit(-50, -54), unit(50, -54), [0, 1]], h: 10, centre: (n) => n % 3 === 1 },
+};
+
+/** How much of the ordinary's width a charge may fill: the glyphs carry their own margin, so a little short of all. */
+export const NARROW_FILL = 0.9;
+/** Room kept clear inside the shield's edge, where the rim is drawn. */
+const RIM = 3;
+/** How deep each line of partition bites into an ordinary, so the charges keep clear of its teeth. */
+const BITE: Record<PartitionLine, number> = { straight: 0, wavy: 2.6, nebuly: 3, engrailed: 2.4, invected: 0, indented: 2, dancetty: 4, embattled: 2.4 };
+
+/** The largest charge that fits across an arm of half-width h. */
+export const fitAcross = (h: number) => 2 * h * NARROW_FILL;
+
+/** True when a disc of radius r at p lies inside the shield. */
+function inShield(p: Pt, r: number, shield: ShieldShape): boolean {
+  const o = outline(shield);
+  let inside = false;
+  for (let i = 0, j = o.length - 1; i < o.length; j = i++) {
+    const a = o[i], b = o[j];
+    if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < ((b[0] - a[0]) * (p[1] - a[1])) / (b[1] - a[1]) + a[0]) inside = !inside;
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+    if (Math.hypot(p[0] - a[0] - dx * t, p[1] - a[1] - dy * t) < r) return false;
+  }
+  return inside;
+}
+
+/** How far along u from c a charge of size s can stand and stay inside the shield. */
+function reach(c: Pt, u: Pt, s: number, shield: ShieldShape): number {
+  const r = (s / 2) * NARROW_FILL + RIM;
+  let t = 0;
+  while (t < 140 && inShield([c[0] + u[0] * (t + 0.5), c[1] + u[1] * (t + 0.5)], r, shield)) t += 0.5;
+  return t;
+}
+
+/**
+ * Charges on a fess, pale, bend, chevron, cross, saltire or pall. Each is as large as the arm it sits on allows,
+ * smaller only when there are too many to fit along it, and never past the edge of the shield.
+ */
+function onNarrow(kind: NarrowKind, n: number, shield: ShieldShape, line: PartitionLine): Spot[] {
+  const g = NARROW[kind];
+  const h = g.h - BITE[line];
+  const centre = g.centre(n);
+  const per = g.arms.map(() => 0);
+  for (let i = 0; i < n - (centre ? 1 : 0); i++) per[i % g.arms.length]++;
+  const s0 = fitAcross(h);
+  // Where an arm's charges may start: at the centre for a band, which is one straight line; clear of the
+  // crossing for the others, whose arms meet there.
+  const start = (k: number) => (g.band || centre || k === 0 ? 0 : h);
+  const layout = (s: number) => g.arms.map((u, i) => {
+    const k = per[i];
+    if (!k) return { u, k, step: Infinity, a: 0 };
+    // A band's two halves share one spacing, so the row stays even across the middle.
+    const far = g.band ? Math.min(...g.arms.map((v) => reach(g.c, v, s, shield))) : reach(g.c, u, s, shield);
+    const a = start(k);
+    const room = far - a;
+    // With a charge on the centre the last one is k steps out; without, the first is half a step out.
+    const step = Math.min(s0 * 1.3, room / (centre ? k : k - 0.5));
+    return { u, k, step, a };
+  });
+  // The spacing caps the size, and the size moves the edge of the shield: settle the two in a few rounds.
+  let s = s0;
+  let arms = layout(s);
+  for (let r = 0; r < 4; r++) {
+    const step = Math.min(...arms.map((a) => a.step));
+    const next = Math.min(s0, step / 1.08);
+    if (Math.abs(next - s) < 0.05) break;
+    s = next;
+    arms = layout(s);
+  }
+  const out: Spot[] = centre ? [{ x: g.c[0], y: g.c[1], s }] : [];
+  const step = g.band ? Math.min(...arms.map((a) => a.step)) : undefined;
+  for (const { u, k, a, step: own } of arms) {
+    const d = step ?? own;
+    for (let j = 0; j < k; j++) {
+      const t = a + (centre ? j + 1 : j + 0.5) * d;
+      out.push({ x: g.c[0] + u[0] * t, y: g.c[1] + u[1] * t, s });
+    }
+  }
+  // Reading order: top to bottom, then left to right.
+  return out.sort((p, q) => p.y - q.y || p.x - q.x);
+}
+
 /** Charges set on an ordinary, along its length. */
-function onOrdinary(kind: OrdinaryKind, n: number, shield: ShieldShape): Spot[] {
-  const s = 21;
+function onOrdinary(o: Pick<OrdinaryLayer, 'kind' | 'line'>, n: number, shield: ShieldShape): Spot[] {
+  const { kind } = o;
+  if (kind in NARROW) return onNarrow(kind as NarrowKind, n, shield, o.line);
   switch (kind) {
     case 'chief': return inChief(n);
     case 'base': return row(n, 106, n === 1 ? 50 : 30, n === 1 ? 50 : 70, 15);
-    case 'fess': return row(n, 55, n === 1 ? 50 : 50 - Math.min(13 * (n - 1), 38), n === 1 ? 50 : 50 + Math.min(13 * (n - 1), 38), Math.min(s, 76 / n));
-    case 'pale': return col(n, 50, n === 1 ? 55 : 55 - Math.min(14 * (n - 1), 40), n === 1 ? 55 : 55 + Math.min(14 * (n - 1), 40), Math.min(s, 88 / n));
-    case 'bend':
-    case 'bend-sinister': {
-      const u = kind === 'bend' ? BEND_DIR : ([-BEND_DIR[0], BEND_DIR[1]] as Pt);
-      const half = n === 1 ? 0 : Math.min(15 * (n - 1), 42);
-      return line(n, [50 - u[0] * half, 55 - u[1] * half], [50 + u[0] * half, 55 + u[1] * half], 19);
-    }
-    case 'chevron': {
-      const at = (x: number): Spot => ({ x, y: 46 + 0.8 * Math.abs(x - 50), s: 18 });
-      if (n === 1) return [at(50)];
-      if (n === 2) return [at(30), at(70)];
-      return [at(50), ...Array.from({ length: n - 1 }, (_, i) => { const k = Math.floor(i / 2) + 1; return at(50 + (i % 2 ? 1 : -1) * 21 * k); })].slice(0, n);
-    }
-    case 'cross': return [{ x: 50, y: 56, s: 20 }, { x: 50, y: 25, s: 19 }, { x: 22, y: 56, s: 19 }, { x: 78, y: 56, s: 19 }, { x: 50, y: 90, s: 19 }].slice(0, n);
-    case 'saltire': {
-      const d1 = unit(100, 120), d2 = unit(-100, 120);
-      return [{ x: 50, y: 60, s: 19 }, ...[[-1, d1], [-1, d2], [1, d2], [1, d1]].map(([k, d]) => ({ x: 50 + (d as Pt)[0] * 33 * (k as number), y: 60 + (d as Pt)[1] * 33 * (k as number), s: 17 }))].slice(0, n);
-    }
-    case 'pall': {
-      const ul = unit(-50, -54), ur = unit(50, -54);
-      return [{ x: 50, y: 54, s: 17 }, { x: 50 + ul[0] * 30, y: 54 + ul[1] * 30, s: 15 }, { x: 50 + ur[0] * 30, y: 54 + ur[1] * 30, s: 15 }, { x: 50, y: 88, s: 16 }].slice(0, n);
-    }
     case 'pile': return col(n, 50, 18, n === 1 ? 18 : 18 + Math.min(22 * (n - 1), 52), n === 1 ? 26 : 18).map((p, i) => ({ ...p, s: p.s * (1 - i * 0.12) }));
     case 'canton': return [{ x: 21, y: 22, s: 28 }];
     case 'quarter': return [{ x: 26, y: 30, s: 36 }];
     case 'bordure': return orleSpots(n < 3 ? 8 : n, shield, 2, 9);
     case 'orle': return orleSpots(n < 3 ? 8 : n, shield, 15.5, 6);
+    default: return [];
   }
 }
 
@@ -567,7 +649,7 @@ export function placeCharges(layer: ChargeLayer, before: ArmsLayer[], shield: Sh
   if (layer.on === 'base') return scaled(n === 1 ? [{ x: 50, y: 92, s: 62 }] : row(n, 98, 50 - 12 * (n - 1), 50 + 12 * (n - 1), Math.min(20, 70 / n)));
   if (layer.on === 'ordinary') {
     const o = ords[ords.length - 1];
-    if (o) return scaled(onOrdinary(o.kind, n, shield));
+    if (o) return scaled(onOrdinary(o, n, shield));
   }
   const central = ords.find((o) => !['chief', 'base', 'bordure', 'orle', 'canton', 'quarter'].includes(o.kind));
   let spots = (layer.arrangement === 'auto' && central && between(central.kind, n)) || fieldSpots(n, layer.arrangement, shield);
