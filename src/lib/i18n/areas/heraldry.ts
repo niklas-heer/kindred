@@ -1166,7 +1166,7 @@ export const de: Record<keyof typeof en, Message> = {
   "heraldry.redo_title": "Wiederholen (⇧⌘Z)",
   "heraldry.reset": "Zurücksetzen",
   "heraldry.save_failed": "Das Wappen konnte nicht gespeichert werden.",
-  "heraldry.save_failed_hint": "Dein Entwurf ist noch da. Versuch es noch einmal.",
+  "heraldry.save_failed_hint": "Dein Entwurf ist noch da. Versuche es noch einmal.",
   "heraldry.cancel": "Abbrechen",
   "heraldry.sealing": "Wird besiegelt…",
   "heraldry.seal": "Wappen besiegeln",
@@ -1280,7 +1280,7 @@ export const de: Record<keyof typeof en, Message> = {
   "heraldry.helm_glyph.royal": "Königlich (vergittert, golden)",
   "arms.ask_more": "Die KI um mehr bitten",
   "arms.asking": "Frage nach…",
-  "arms.ask_more_failed": "Die KI hat diesmal keine Wappen vorgeschlagen. Versuch es noch einmal.",
+  "arms.ask_more_failed": "Die KI hat diesmal keine Wappen vorgeschlagen. Versuche es noch einmal.",
   "heraldry.arms_title": "Wappen von {name}: {blazon}",
   "heraldry.the_house": "das Haus",
 };

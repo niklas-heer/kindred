@@ -17,14 +17,38 @@ function randomChar(): string {
 
 const norm = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
+/** KINDRED_SETUP_CODE, trimmed ('' when unset). */
+const setupValue = () => process.env.KINDRED_SETUP_CODE?.trim() ?? '';
+const isRequiredWord = (v: string) => v.toLowerCase() === 'required';
+const usableCode = (v: string) => norm(v).length >= 12;
+
 /**
  * A code set in KINDRED_SETUP_CODE itself (12+ letters or digits) rather than `required`: the same in
  * every process, which a Worker needs (each isolate would otherwise make up its own). Keep it secret.
  */
 const fixedCode = () => {
-  const v = process.env.KINDRED_SETUP_CODE?.trim();
-  return v && v !== 'required' && norm(v).length >= 12 ? v : undefined;
+  const v = setupValue();
+  return v && !isRequiredWord(v) && usableCode(v) ? v : undefined;
 };
+
+/**
+ * KINDRED_SETUP_CODE is set, but to neither `required` (any case) nor a code of 12+ letters or digits. It fails closed:
+ * setup stays locked (no one has a code that cannot be used), until the value is fixed, and the server says so once.
+ * The value itself is never logged, because it may be a code someone meant to type in.
+ */
+let lockWarned = false;
+function lockedBySetupCode(): boolean {
+  const v = setupValue();
+  if (!v || isRequiredWord(v) || usableCode(v)) return false;
+  if (!lockWarned) {
+    lockWarned = true;
+    console.warn(
+      '[kindred] KINDRED_SETUP_CODE is set to a value Kindred cannot use, so SETUP IS LOCKED until you fix it. ' +
+        'Use "required", or a code of 12 or more letters or digits (docs/self-host.md). The value is not logged.',
+    );
+  }
+  return true;
+}
 
 function state() {
   if (!g.__kindredSetup) {
@@ -57,7 +81,12 @@ function requireFlagOn(): boolean {
   return false;
 }
 
-export const setupCodeRequired = () => process.env.KINDRED_SETUP_CODE === 'required' || requireFlagOn() || !!fixedCode();
+/** Whether setup needs a code. A locked KINDRED_SETUP_CODE counts: setup is then closed, not open to the public. */
+export const setupCodeRequired = () => {
+  const locked = lockedBySetupCode();
+  const flag = requireFlagOn();
+  return locked || isRequiredWord(setupValue()) || flag || !!fixedCode();
+};
 
 export const needsSetup = async () => (await userCount()) === 0;
 
@@ -145,6 +174,7 @@ export function logOriginMismatch(configured: string | undefined, request: URL, 
 export async function announceSetup(origin?: string, force = false) {
   try {
     if (!setupCodeRequired() || !(await needsSetup())) return;
+    if (lockedBySetupCode()) return;
     const where = origin ? `${origin}/setup` : '/setup';
     if (fixedCode()) {
       if (!force) return;
@@ -173,6 +203,7 @@ export async function announceSetup(origin?: string, force = false) {
 /** Whether a typed code is the setup code (case, spaces and dashes don't matter). */
 export async function checkSetupCode(typed: string): Promise<boolean> {
   if (!(await needsSetup())) return false;
+  if (lockedBySetupCode()) return false;
   if (!setupCodeRequired()) return true;
   return safeEqual(norm(typed), norm(fixedCode() ?? state().code));
 }

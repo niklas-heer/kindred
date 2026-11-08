@@ -161,6 +161,42 @@ test('bootstrap modes, discoverable options, exclusions and proxy origin', async
         delete process.env.KINDRED_REQUIRE_SETUP_CODE;
       }
     });
+    await t.test('KINDRED_SETUP_CODE: required in any case and with spaces counts; an unusable value locks setup, warns once and is never logged', async () => {
+      const savedWarn = console.warn;
+      const savedLog = console.log;
+      const warnings: string[] = [];
+      const logs: string[] = [];
+      console.warn = (m: unknown) => { warnings.push(String(m)); };
+      console.log = (m: unknown) => { logs.push(String(m)); };
+      try {
+        await store.accounts().run('DELETE FROM user');
+        delete process.env.KINDRED_REQUIRE_SETUP_CODE;
+        process.env.KINDRED_SETUP_CODE = ' Required ';
+        assert.equal(setup.setupCodeRequired(), true);
+        assert.equal(await setup.checkSetupCode(''), false, 'required: no code, no setup');
+        assert.equal(warnings.length, 0, 'a word that Kindred accepts does not warn');
+        // Ten characters: too short for a fixed code, and not "required", so nothing can match it.
+        process.env.KINDRED_SETUP_CODE = 'family2026';
+        assert.equal(setup.setupCodeRequired(), true, 'locked counts as required, so setup is not open to the public');
+        assert.equal(setup.setupOpenToPublic(new URL('https://family.example.org')), false);
+        assert.equal(await setup.checkSetupCode('family2026'), false, 'locked: even the value itself does not open setup');
+        assert.equal(await setup.checkSetupCode(''), false);
+        await setup.announceSetup(undefined, true);
+        assert.equal(logs.length, 0, 'no code is printed while locked');
+        assert.equal(warnings.length, 1, 'one warning, however many calls');
+        assert.match(warnings[0], /KINDRED_SETUP_CODE/);
+        assert.match(warnings[0], /LOCKED/);
+        assert.equal(warnings[0].includes('family2026'), false, 'the value is not logged');
+        // Fixed fully: a usable code works again, with its own spacing and case.
+        process.env.KINDRED_SETUP_CODE = ' family-2026-abcd ';
+        assert.equal(await setup.checkSetupCode('FAMILY 2026 ABCD'), true);
+        assert.equal(await setup.checkSetupCode('family2026'), false);
+      } finally {
+        console.warn = savedWarn;
+        console.log = savedLog;
+        delete process.env.KINDRED_SETUP_CODE;
+      }
+    });
     await t.test('behind a TLS proxy the address a request arrived at uses X-Forwarded-Proto; only http and https count', () => {
       assert.equal(setup.arrivedAt(new Request('http://family.example.org:8080/setup?x=1')).href, 'http://family.example.org:8080/setup?x=1');
       const behind = setup.arrivedAt(new Request('http://family.example.org/setup', { headers: { 'x-forwarded-proto': 'https, http' } }));

@@ -50,7 +50,7 @@ export const de: Record<keyof typeof en, Message> = {
   "setup.already_set_up": "Bereits eingerichtet",
   "setup.kindred_already_has_a_steward_sign_in_with_your_passkey_or_ask_a_steward_for_an_invitation": "Kindred wird bereits verwaltet. Melde dich mit deinem Passkey an oder bitte die Familienverwaltung um eine Einladung.",
   "setup.go_to_sign_in": "Zur Anmeldung",
-  "setup.setup_didn_t_work_please_try_again": "Die Einrichtung hat nicht geklappt. Versuch es bitte noch einmal.",
+  "setup.setup_didn_t_work_please_try_again": "Die Einrichtung hat nicht geklappt. Versuche es bitte noch einmal.",
   "setup.first_time_setup": "Erste Einrichtung",
   "setup.become_the_first_steward": "Übernimm die Familienverwaltung",
   "setup.open_public_warning": "Es ist kein Einrichtungscode gesetzt, und diese Adresse ist nicht dieser Rechner. Wer hier das erste Konto anlegt, übernimmt die Familienverwaltung. Setze auf dem Server KINDRED_SETUP_CODE, um einen Code zu verlangen.",

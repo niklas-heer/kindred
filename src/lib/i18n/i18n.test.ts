@@ -36,6 +36,17 @@ test('every area module exports en, de and af, and en and de have the same keys'
   }
 });
 
+test('German imperatives are the full du-forms (“versuche”, “prüfe”, “speichere”), not the clipped ones', async () => {
+  const clipped = /(?:^|[^\p{L}])(?:[Vv]ersuch (?:es|weniger|einen)|[Pp]rüf (?:die|es)|[Ww]ähl|[Ss]chreib|[Nn]utz|[Ff]üg|[Pp]robier|[Tt]ipp ihn|setz einen|[Kk]lick auf|speicher dann)(?=\s|$|[.,])/u;
+  for (const file of areaFiles) {
+    const area = await import(new URL(file, areasUrl).href);
+    for (const [key, value] of Object.entries(area.de as Record<string, unknown>)) {
+      const parts = typeof value === 'string' ? [value] : Object.values(value as Record<string, string>);
+      for (const s of parts) assert.doesNotMatch(s, clipped, `${file.replace(/\.ts$/, '')}: ${key}`);
+    }
+  }
+});
+
 test('no key is defined in two areas', () => {
   assert.deepEqual(DUPLICATE_KEYS, []);
 });

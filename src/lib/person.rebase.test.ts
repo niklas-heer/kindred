@@ -175,14 +175,48 @@ test('takeTheirs settles a unit as one: the occupation text and code both come f
 
 test('takeTheirs puts a field back in its place with the other person’s version, and a removed field stays gone when theirs is removed', () => {
   const draft = full({ fields: [field('a', { value: { text: 'mine' } }), field('b')] });
-  const replaced = takeTheirs(draft, { kind: 'field', id: 'a', mine: draft.fields[0]!, theirs: field('a', { value: { text: 'theirs' } }) });
+  const replaced = takeTheirs(draft, { kind: 'field', id: 'a', before: [], mine: draft.fields[0]!, theirs: field('a', { value: { text: 'theirs' } }) });
   assert.deepEqual(replaced.fields.map((f) => [f.id, f.value.text]), [['a', 'theirs'], ['b', 'first']]);
-  const removed = takeTheirs(draft, { kind: 'field', id: 'a', mine: draft.fields[0]!, theirs: null });
+  const removed = takeTheirs(draft, { kind: 'field', id: 'a', before: [], mine: draft.fields[0]!, theirs: null });
   assert.deepEqual(removed.fields.map((f) => f.id), ['b']);
 });
 
-test('takeTheirs restores a field the reader removed, when someone else changed it', () => {
-  const draft = full({ fields: [field('b')] });
-  const restored = takeTheirs(draft, { kind: 'field', id: 'a', mine: null, theirs: field('a', { value: { text: 'theirs' } }) });
-  assert.deepEqual(restored.fields.map((f) => f.id), ['b', 'a']);
+test('“Use theirs” on a field the reader removed (and someone else changed) puts it back where it was, not at the end', () => {
+  const base = full({ fields: [field('a'), field('b'), field('c')] });
+  const draft = full({ fields: [field('a'), field('c')] }); // the reader removed b
+  const latest = full({ fields: [field('a'), field('b', { value: { text: 'changed elsewhere' } }), field('c')] });
+  const { values, conflicts } = rebaseDraft(base, draft, latest);
+  assert.equal(conflicts.length, 1);
+  const next = takeTheirs(values, conflicts[0]!);
+  assert.deepEqual(next.fields.map((f) => [f.id, f.value.text]), [['a', 'first'], ['b', 'changed elsewhere'], ['c', 'first']]);
+});
+
+test('a removed field goes back after the nearest earlier field that is still there, even when the first one was removed too', () => {
+  const base = full({ fields: [field('a'), field('b'), field('c'), field('d')] });
+  const draft = full({ fields: [field('a'), field('d')] }); // the reader removed b and c
+  const latest = full({ fields: [field('a'), field('b', { value: { text: 'b2' } }), field('c', { value: { text: 'c2' } }), field('d')] });
+  const { values, conflicts } = rebaseDraft(base, draft, latest);
+  assert.deepEqual(conflicts.map((c) => (c.kind === 'field' ? c.id : null)), ['b', 'c']);
+  const b = conflicts.find((c) => c.kind === 'field' && c.id === 'b')!;
+  const afterB = takeTheirs(values, b);
+  assert.deepEqual(afterB.fields.map((f) => f.id), ['a', 'b', 'd']);
+  const c = conflicts.find((x) => x.kind === 'field' && x.id === 'c')!;
+  assert.deepEqual(takeTheirs(afterB, c).fields.map((f) => f.id), ['a', 'b', 'c', 'd']);
+});
+
+test('when none of the fields before a removed one is left, it goes back first', () => {
+  const base = full({ fields: [field('a'), field('b')] });
+  const draft = full({ fields: [] }); // the reader removed both
+  const latest = full({ fields: [field('a', { value: { text: 'a2' } }), field('b')] });
+  const { values, conflicts } = rebaseDraft(base, draft, latest);
+  assert.deepEqual(conflicts.map((c) => (c.kind === 'field' ? [c.id, c.before] : null)), [['a', []]]);
+  assert.deepEqual(takeTheirs(values, conflicts[0]!).fields.map((f) => f.id), ['a']);
+});
+
+test('takeTheirs restores a field the reader removed, when someone else changed it, at its place among the others', () => {
+  const draft = full({ fields: [field('b'), field('c')] });
+  const restored = takeTheirs(draft, { kind: 'field', id: 'a', before: [], mine: null, theirs: field('a', { value: { text: 'theirs' } }) });
+  assert.deepEqual(restored.fields.map((f) => f.id), ['a', 'b', 'c']);
+  const later = takeTheirs(draft, { kind: 'field', id: 'a', before: ['c', 'b'], mine: null, theirs: field('a', { value: { text: 'theirs' } }) });
+  assert.deepEqual(later.fields.map((f) => f.id), ['b', 'c', 'a']);
 });

@@ -35,7 +35,7 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `KINDRED_ORIGIN` | `http://localhost:4901` in Compose; otherwise the address the request came in on | The public address, such as `https://family.example.org`. Passkeys are bound to its host name, sessions use its scheme for the cookie's `Secure` flag, and the setup warning uses it. Set it before the first sign-in. |
-| `KINDRED_SETUP_CODE` | empty | Who may create the first account. Empty: anyone who reaches `/setup` first. `required`: a one-time code is printed in the log at each start, until the first account exists. Or a code of your own, 12 characters or more, which stays the same. |
+| `KINDRED_SETUP_CODE` | empty | Who may create the first account. Empty: anyone who reaches `/setup` first. `required` (any case): a one-time code is printed in the log at each start, until the first account exists. Or a code of your own, 12 or more letters or digits, which stays the same. Any other value locks setup: nobody can create the first account until the value is fixed, and the log says so once. |
 | `KINDRED_REQUIRE_SETUP_CODE` | empty | `1`, `true`, `yes` or `required` (any case) does the same as `KINDRED_SETUP_CODE=required`. Any other non-empty value does not require the code, and the log says so once. |
 | `KINDRED_DEFAULT_TREE` | `family` | The family that `/` opens directly, for its members. Lower-case letters, digits and dashes. |
 | `KINDRED_DATA_DIR` | `/data` in the image, `data/` otherwise | Where the families, pictures, accounts and the secret are kept. Docker: fixed at `/data`. |
@@ -46,7 +46,7 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 
 The Docker build also takes `WITH_GAZETTEER=1`, set in `.env` or on the command line (see below).
 
-`KINDRED_SETUP_CODE=required` can be replaced by `KINDRED_REQUIRE_SETUP_CODE=1` (or `true`, `yes` or `required`), which means the same thing. Check the log after you change it: a value Kindred does not understand leaves the code off, and it says so.
+`KINDRED_SETUP_CODE=required` can be replaced by `KINDRED_REQUIRE_SETUP_CODE=1` (or `true`, `yes` or `required`), which means the same thing. Check the log after you change either variable. A `KINDRED_REQUIRE_SETUP_CODE` value Kindred does not understand leaves the code off; a `KINDRED_SETUP_CODE` value it does not understand locks setup. Either way the log says so, and never prints the value.
 
 ### The setup code and a public address
 
@@ -57,7 +57,10 @@ The server is loud about it:
   that setup is open on that address. Anyone who reaches `/setup` first becomes the steward.
 - With `KINDRED_SETUP_CODE=required`, the code is printed in the log (`docker compose logs app`) at each start, and `/setup`
   asks for it. The code changes on every restart, so the first person to set up after a restart needs the new one.
-- With a fixed code of 12 characters or more in `KINDRED_SETUP_CODE`, `/setup` asks for it, and the server never prints it.
+- With a fixed code of 12 or more letters or digits in `KINDRED_SETUP_CODE`, `/setup` asks for it, and the server never prints it.
+  Spaces, dashes and capitals do not matter when you type it.
+- With `KINDRED_SETUP_CODE` set to anything else (other than `required`, in any case), setup is locked: no one can create the
+  first account, and the log warns once. That is deliberate, so a typo cannot leave setup open. Fix the value and restart.
 
 For a public address, set a code, create the steward account yourself, and then the code no longer matters: setup closes once
 the first account exists.

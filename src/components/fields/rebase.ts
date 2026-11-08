@@ -20,11 +20,12 @@ export const UNITS: string[][] = [['occupation', 'occupationCode']];
 /**
  * Something the reader and someone else both changed, to different values. A `value` conflict is one scalar, or a unit,
  * named by `keys`; `mine` and `theirs` hold those keys. A `field` conflict is a field by its `id`: `mine` is null when the
- * reader removed it, `theirs` is null when someone else did.
+ * reader removed it, `theirs` is null when someone else did. `before` lists the ids of the fields that came before it
+ * when the reader opened the draft, nearest first: "Use theirs" puts a removed field back after the nearest of them.
  */
 export type Conflict<F extends RebaseField = RebaseField> =
   | { kind: 'value'; keys: string[]; mine: Record<string, unknown>; theirs: Record<string, unknown> }
-  | { kind: 'field'; id: string; mine: F | null; theirs: F | null };
+  | { kind: 'field'; id: string; before: string[]; mine: F | null; theirs: F | null };
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const at = (o: object, k: string): unknown => (o as Record<string, unknown>)[k];
@@ -63,17 +64,19 @@ export function fieldConflicts<F extends RebaseField>(base: F[], draft: F[], lat
   const baseById = byId(base);
   const draftById = byId(draft);
   const latestById = byId(latest);
+  const ids = base.flatMap((f) => (f.id ? [f.id] : []));
   const out: Conflict<F>[] = [];
-  for (const [id, was] of baseById) {
+  ids.forEach((id, i) => {
+    const was = baseById.get(id)!;
     const mine = draftById.get(id) ?? null;
     const theirs = latestById.get(id) ?? null;
     const reader = !mine || !sameField(mine, was);
     const other = !theirs || !sameField(theirs, was);
-    if (!reader || !other) continue;
-    if (!mine && !theirs) continue; // both removed it
-    if (mine && theirs && sameField(mine, theirs)) continue; // both made the same change
-    out.push({ kind: 'field', id, mine, theirs });
-  }
+    if (!reader || !other) return;
+    if (!mine && !theirs) return; // both removed it
+    if (mine && theirs && sameField(mine, theirs)) return; // both made the same change
+    out.push({ kind: 'field', id, before: ids.slice(0, i).reverse(), mine, theirs });
+  });
   return out;
 }
 
@@ -114,6 +117,19 @@ export function takeTheirs<V extends { fields: F[] }, F extends RebaseField>(dra
   if (!c.theirs) return { ...draft, fields: draft.fields.filter((f) => !matches(f)) };
   const theirs = c.theirs;
   const first = draft.fields.findIndex(matches);
-  if (first < 0) return { ...draft, fields: [...draft.fields, theirs] };
+  if (first < 0) {
+    // Put back where it was: after the nearest field that came before it and is still in the draft, else first.
+    const index = restoreIndex(draft.fields, c.before);
+    return { ...draft, fields: [...draft.fields.slice(0, index), theirs, ...draft.fields.slice(index)] };
+  }
   return { ...draft, fields: draft.fields.flatMap((f, i) => (i === first ? [theirs] : matches(f) ? [] : [f])) };
+}
+
+/** The index a removed field goes back to: just after the nearest id in `before` that the list still has, else 0. */
+function restoreIndex<F extends RebaseField>(fields: F[], before: string[]): number {
+  for (const id of before) {
+    const i = fields.findIndex((f) => f.id === id || f.key === id);
+    if (i >= 0) return i + 1;
+  }
+  return 0;
 }

@@ -22,6 +22,7 @@ import { CHANGED_SINCE_OPENED, fieldIssue, fieldText } from './model';
 import { rebaseDraft, takeTheirs, type Conflict } from './rebase';
 import { translateMessage, useT, type Key } from '~/lib/i18n';
 import { OccupationField } from './OccupationField';
+import { presetLabel } from './presets';
 
 interface Props {
   tree: string;
@@ -72,6 +73,8 @@ export function PersonEdit(props: Props) {
   const c = useT();
   const [snap, setSnap] = useState<EditSnapshot | null>(null);
   const [failed, setFailed] = useState(false);
+  // Retry bumps this, so the same load runs again.
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let live = true;
     setSnap(null);
@@ -81,8 +84,15 @@ export function PersonEdit(props: Props) {
       () => { if (live) setFailed(true); },
     );
     return () => { live = false; };
-  }, [tree, p.id]);
-  if (failed) return <p role="alert" className="err wide">{c('edit.loadFailed')}</p>;
+  }, [tree, p.id, attempt]);
+  if (failed) {
+    return (
+      <div className="wide">
+        <p role="alert" className="err">{c('edit.loadFailed')}</p>
+        <button type="button" className="btn" onClick={() => setAttempt((n) => n + 1)}>{c('ui.retry')}</button>
+      </div>
+    );
+  }
   if (!snap) return <p role="status" className="subtle wide">{c('ui.loading')}</p>;
   return <EditForm {...props} snap={snap} />;
 }
@@ -100,6 +110,9 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
   const [notice, setNotice] = useState<string | null>(null);
   // Where the reader and someone else changed the same thing: each is shown, and the reader picks one.
   const [conflicts, setConflicts] = useState<Conflict<DraftField>[]>([]);
+  // Read by the submit handler: Save is disabled while a conflict is open, but Enter in a field also submits.
+  const openConflicts = useRef(0);
+  openConflicts.current = conflicts.length;
   const [keys] = useState(opKeys);
   // What the draft was opened on, read once: a refetch must not re-base the draft on newer data by accident. After a
   // rebase these are the latest values, so the next rebase compares the reader's changes with what they last saw.
@@ -117,10 +130,12 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
   const form = useForm({
     defaultValues: start,
     onSubmit: async ({ value }) => {
+      // Nothing is saved while a conflict is open. The choices stay on screen until a save succeeds, so a refused or
+      // failed save never drops them.
+      if (openConflicts.current > 0) return;
       setSaveError(null);
       setStale(false);
       setNotice(null);
-      setConflicts([]);
       try {
         // Pins first: repeating them on a retry changes nothing.
         await savePlacesKeyed(tree, (pl) => keys.for('places', pl), value.bornPlace, value.living ? undefined : value.diedPlace);
@@ -179,10 +194,21 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
   /** Settles one conflict: "mine" keeps the draft's version (already there); "theirs" takes the other person's. */
   function settle(k: Conflict<DraftField>, pick: 'mine' | 'theirs') {
     setConflicts((list) => list.filter((x) => x !== k));
-    if (pick === 'mine') return;
-    const next = takeTheirs(form.state.values as Values, k);
-    if (k.kind === 'value') for (const key of k.keys) form.setFieldValue(key as keyof Values, next[key as keyof Values] as never);
-    else form.setFieldValue('fields', next.fields as never);
+    if (pick === 'theirs') applyTheirs([k]);
+  }
+
+  /** Settles every open conflict: "mine" keeps the draft as it is; "theirs" takes the other person's for each. */
+  function settleAll(pick: 'mine' | 'theirs') {
+    if (pick === 'theirs') applyTheirs(conflicts);
+    setConflicts([]);
+  }
+
+  /** Takes the other person's version for each conflict in turn, then writes the changed parts of the form once. */
+  function applyTheirs(list: Conflict<DraftField>[]) {
+    let next = form.state.values as Values;
+    for (const k of list) next = takeTheirs(next, k);
+    const parts = new Set(list.flatMap((k) => (k.kind === 'value' ? k.keys : ['fields'])));
+    for (const part of parts) form.setFieldValue(part as keyof Values, next[part as keyof Values] as never);
   }
 
   /** A scalar's value as the reader sees it. */
@@ -193,11 +219,16 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
     return typeof v === 'string' && v !== '' ? v : c('edit.empty');
   };
   const fieldShown = (x: DraftField | null) => (x ? fieldText(x.type, x.value) || c('edit.empty') : c('edit.gone'));
+  /** A field's label and privacy, as the Edit tab shows them: a choice overwrites these too. */
+  const fieldMeta = (x: DraftField) =>
+    [c('edit.labelOf', { label: x.label ? presetLabel(x.label, c) : c('edit.empty') }), c(x.private ? 'edit.onlyEditors' : 'field.visible')].join(' · ');
   const titleOf = (k: Conflict<DraftField>) => {
     if (k.kind === 'value') return c(LABEL[k.keys[0] ?? 'bio'] ?? 'edit.biography');
     const x = k.mine ?? k.theirs;
     const kind = x ? c(`type.${x.type}` as Key) : '';
-    return x?.label ? `${kind} (${x.label})` : kind;
+    // The label goes in the title when both versions share it; otherwise each version's label is listed under it.
+    const shared = !k.mine || !k.theirs || k.mine.label === k.theirs.label;
+    return x?.label && shared ? `${kind} (${presetLabel(x.label, c)})` : kind;
   };
   const yoursOf = (k: Conflict<DraftField>) => (k.kind === 'value' ? shown(k.keys[0] ?? 'bio', k.mine[k.keys[0] ?? 'bio']) : fieldShown(k.mine));
   const theirsOf = (k: Conflict<DraftField>) => (k.kind === 'value' ? shown(k.keys[0] ?? 'bio', k.theirs[k.keys[0] ?? 'bio']) : fieldShown(k.theirs));
@@ -336,11 +367,17 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
       {conflicts.length > 0 && (
         <div className="wide edit-conflicts" role="group" aria-label={c('edit.conflictsIntro')}>
           <p className="subtle">{c('edit.conflictsIntro')}</p>
+          <div className="edit-conflict-choices">
+            <button type="button" className="btn" onClick={() => settleAll('mine')}>{c('edit.keepAllMine')}</button>
+            <button type="button" className="btn" onClick={() => settleAll('theirs')}>{c('edit.useAllTheirs')}</button>
+          </div>
           {conflicts.map((k) => (
             <div className="edit-conflict" key={k.kind === 'field' ? `field-${k.id}` : `value-${k.keys.join('+')}`}>
               <strong>{titleOf(k)}</strong>
               <span>{c('edit.yours', { value: yoursOf(k) })}</span>
+              {k.kind === 'field' && k.mine && <span>{fieldMeta(k.mine)}</span>}
               <span>{c('edit.theirs', { value: theirsOf(k) })}</span>
+              {k.kind === 'field' && k.theirs && <span>{fieldMeta(k.theirs)}</span>}
               <span className="edit-conflict-choices">
                 <button type="button" className="btn" onClick={() => settle(k, 'mine')}>{c('edit.keepMine')}</button>
                 <button type="button" className="btn" onClick={() => settle(k, 'theirs')}>{c('edit.useTheirs')}</button>
@@ -361,9 +398,18 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
           </button>
         )}
         <span className="spacer" />
+        {conflicts.length > 0 && <span className="subtle" id="edit-choose-first">{c('edit.chooseFirst')}</span>}
         <button type="button" className="btn ghost" onClick={() => leave(done)}>{c('edit.cancel')}</button>
         <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>
-          {([ok, busy]) => <button className="btn primary" disabled={!ok || busy}><Check size={14} /> {c('edit.save')}</button>}
+          {([ok, busy]) => (
+            <button
+              className="btn primary"
+              disabled={!ok || busy || conflicts.length > 0}
+              aria-describedby={conflicts.length > 0 ? 'edit-choose-first' : undefined}
+            >
+              <Check size={14} /> {c('edit.save')}
+            </button>
+          )}
         </form.Subscribe>
       </div>
     </form>
