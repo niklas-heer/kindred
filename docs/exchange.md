@@ -112,6 +112,84 @@ A partnership belongs to the note of its lower-id partner, so it is declared onc
 claim would be a false fact in v1; stories, memories and sayings; contact details and other fields; houses and arms; and
 pictures other than portraits.
 
+## The nightly archive
+
+The database is the family's source of truth. A nightly job can also keep a readable copy in a **private GitHub
+repository**: the v1 Markdown archive above and a GEDCOM file, committed to a folder of that repository. Nothing is read
+back from it. It is a copy to read, to search, or to restore from by hand.
+
+> **The archive holds private data.** It has every name, date, place, link and biography in the family, and the GEDCOM
+> file has the same. The repository must stay **private**, and only stewards should configure it. Kindred checks the
+> repository's visibility before each write and refuses a public one.
+
+It is off until a family has its settings (below). A family without them is skipped quietly.
+
+### Settings
+
+Each family has its own settings, named by its id in capitals with `-` written as `_`. For the family `modern`:
+
+| Name | Kind | What it does |
+| --- | --- | --- |
+| `KINDRED_ARCHIVE_MODERN_REPO` | variable | `owner/name` of the private repository, such as `family/kindred-archive`. |
+| `KINDRED_ARCHIVE_MODERN_TOKEN` | secret | A fine-grained token for that one repository. See below. |
+| `KINDRED_ARCHIVE_MODERN_BRANCH` | variable | The branch to commit to. Default `main`. The branch must exist: the repository needs at least one commit. |
+| `KINDRED_ARCHIVE_MODERN_PATH` | variable | The folder the archive owns. Default `archive`. Nothing outside it is changed. |
+
+Set both `_REPO` and `_TOKEN`, or neither: one without the other is reported in the log and the family is not archived.
+
+**The token.** Create it under GitHub's fine-grained tokens, with **Only select repositories** set to the one archive
+repository. Give it **Contents: Read and write**, and nothing else. Metadata read comes with it, and Kindred uses it to
+check the repository is private. Give each family its own repository and token, so that one leaked token reaches one
+family.
+
+### What the job does
+
+Each night, for each configured family:
+
+1. Reads the family's current data from its database, and renders the GEDCOM file, the notes, the README and the
+   portraits, the same way the exports do.
+2. Reads the branch and the folder, and compares every file by its git blob id. Nothing is written when nothing differs.
+3. If something differs, creates the new files and removes the files in the folder that are no longer exported, then
+   makes one commit and moves the branch to it. The commit is by `Kindred <kindred@users.noreply.github.com>`, with the
+   message `archive: nightly export of <family>, <date>`, and a line that counts the files added, changed and removed.
+
+The exports print the date they were written on. The job keeps the date of the folder's last commit, so a night on
+which nothing else changed writes nothing. A change moves the date on to that day.
+
+The folder's layout:
+
+| Path | What it is |
+| --- | --- |
+| `<family>.ged` | The GEDCOM 5.5.1 file. It refers to the portraits but does not include them. |
+| `README.md` | The README of the v1 archive, which says what the archive leaves out. |
+| `people/<id>.md` | One note per person, in the v1 format. |
+| `attachments/` | The portraits. |
+| `.kindred-archive` | The marker: which family the folder belongs to, and the date of its last export. Do not edit it. |
+
+**One folder, one family.** The marker names its family, and a run refuses a folder whose marker names another. Two
+families in one folder would delete each other's files, so they need their own folder or their own repository.
+
+**Errors and limits.** A failure is logged with the family's name, and the other families still run. The token is never
+written to a log. GitHub's rate limits are handled: a secondary limit (GitHub's guard against many writes at once) is
+waited out, up to five times in one run, and after that the run fails and the next night tries again. A primary limit
+(the hourly quota) fails the run at once, for the same reason. If the branch moves while the job works (someone
+pushed), the job reads it again and commits on top.
+
+### Running it by hand
+
+From the command line, with the settings in the environment, for one family:
+
+```sh
+KINDRED_ARCHIVE_MODERN_REPO=family/kindred-archive KINDRED_ARCHIVE_MODERN_TOKEN=… \
+  node scripts/archive-now.ts modern --dry-run
+```
+
+`--dry-run` reads the repository, prints the files that would be added, changed or removed, and writes nothing. Without
+it, the run commits the change. The script exits with status 1 when the archive could not be written.
+
+The archive is a copy, not a backup: it leaves out what the formats leave out, which the sections above list. Keep the
+database's own backups (see [self-host.md](self-host.md) and [deploy-cloudflare.md](deploy-cloudflare.md)).
+
 ## Importing a GEDCOM file
 
 On the **Import and export** page, a steward chooses a `.ged` file (up to 5 MB) and presses **Preview**. The page

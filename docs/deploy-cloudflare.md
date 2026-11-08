@@ -98,6 +98,33 @@ npx wrangler secret put KINDRED_SETUP_CODE
 Set the variables in the Cloudflare dashboard (Workers, Settings, Variables), or in `wrangler.jsonc` under `vars`,
 which the repository does not set today. Locally they go in `.dev.vars`, which is gitignored.
 
+### The nightly archive (optional)
+
+The daily job can keep a readable copy of each family in a **private GitHub repository**: the v1 Markdown archive and a
+GEDCOM file, committed to a folder of that repository. What it does, and what it leaves out, is in
+[exchange.md](exchange.md#the-nightly-archive). For each family you want archived, set these (`<ID>` is the family id in
+capitals, with `-` as `_`):
+
+| Name | Kind | What it does |
+| --- | --- | --- |
+| `KINDRED_ARCHIVE_<ID>_REPO` | variable | `owner/name` of the private repository, such as `family/kindred-archive`. |
+| `KINDRED_ARCHIVE_<ID>_TOKEN` | secret | A fine-grained token for that repository only: **Only select repositories** set to it, and **Contents: Read and write**. Nothing else. |
+| `KINDRED_ARCHIVE_<ID>_BRANCH` | variable | The branch to commit to. Default `main`; it must exist, with at least one commit. |
+| `KINDRED_ARCHIVE_<ID>_PATH` | variable | The folder the archive owns. Default `archive`. |
+
+```sh
+npx wrangler secret put KINDRED_ARCHIVE_MODERN_TOKEN
+```
+
+Put the variables in the dashboard or in `wrangler.jsonc` under `vars`, as the other settings above.
+
+> **The archive holds private family data.** Every name, date, place, link and biography goes into it, and the GEDCOM
+> file has them too. The repository must be private, and the people who can read it must be the family's stewards. Kindred
+> refuses a public repository, but it cannot see who else has access to a private one.
+
+Give each family its own repository and token. Two families can share a repository only with different folders, and each
+folder then belongs to its family: the marker file there refuses the other family.
+
 ## 6. Cloudflare Access (optional)
 
 Put an Access application in front of the site's hostname. Kindred then reads the signed-in identity from the Access

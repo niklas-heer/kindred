@@ -190,6 +190,41 @@ docker compose start app
 A GEDCOM or Markdown export ([exchange.md](exchange.md)) is readable, but it is not a backup: it leaves out stories, contacts,
 houses, and the pictures.
 
+## The nightly archive (optional)
+
+The daily job can keep a readable copy of each family in a **private GitHub repository**: the v1 Markdown archive and a
+GEDCOM file, committed to a folder of that repository once a day, and only when something changed. What it writes, and
+what it leaves out, is in [exchange.md](exchange.md#the-nightly-archive).
+
+> **The archive holds private family data.** Every name, date, place, link and biography goes into it. The repository
+> must be private, and only the family's stewards should have access to it. Kindred refuses a public repository.
+
+For each family you want archived, set these (`<ID>` is the family id in capitals, with `-` as `_`; for `modern`, `MODERN`):
+
+- `KINDRED_ARCHIVE_<ID>_REPO`: `owner/name` of the private repository.
+- `KINDRED_ARCHIVE_<ID>_TOKEN`: a fine-grained GitHub token for that one repository, with **Contents: Read and write**
+  and nothing else. Create a new token for each family.
+- `KINDRED_ARCHIVE_<ID>_BRANCH` (default `main`, which must already exist with a commit) and `KINDRED_ARCHIVE_<ID>_PATH`
+  (default `archive`, the folder the archive owns).
+
+Without Docker, set them as environment variables for the server. With Docker, Compose passes only the variables it lists,
+so add the family's lines to the `environment:` list of `app` in `compose.yaml`, reading their values from `.env`, which
+is gitignored:
+
+```yaml
+      KINDRED_ARCHIVE_MODERN_REPO: ${KINDRED_ARCHIVE_MODERN_REPO:-}
+      KINDRED_ARCHIVE_MODERN_TOKEN: ${KINDRED_ARCHIVE_MODERN_TOKEN:-}
+```
+
+Keep the token in `.env` and out of `compose.yaml`, which is committed. Each family needs its own repository or its own
+folder, because a folder belongs to one family (see [exchange.md](exchange.md#the-nightly-archive)).
+
+To run it now for one family, without waiting for the night, and see what it would change first:
+
+```sh
+node scripts/archive-now.ts modern --dry-run   # then the same without --dry-run to commit
+```
+
 ## Upgrades
 
 With Docker, update the code (`git pull`, or the new release), then rebuild:
