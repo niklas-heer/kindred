@@ -26,7 +26,7 @@ export function systemPrompt(o: {
     `The reader's role is ${o.role}.`,
   ];
   if (o.webSearch) {
-    lines.push('You may search the web, but only for historical or general facts: a place’s history, what a word, trade or custom meant, a past event. Never search for a living relative, and never put a private detail in a search (a living person’s name with their dates, places, occupation or contact details, or anything from this tree). Family facts still come only from the tools.');
+    lines.push('You may look things up with web_lookup, but only for historical or general facts: a place’s history, what a word, trade or custom meant, a past event. The lookup sends only its query to the web, so never put a living person’s name, a nickname or any detail from this tree in it. If a lookup is refused, say so and do not retry with the same names. Family facts still come only from the tools, and say when an answer comes from a web lookup.');
   }
   if (o.readerName) lines.push(`The reader is ${o.readerName} in this family${o.kinToReader ? `, so “my” means relatives of them` : ''}.`);
   if (o.canPropose) {

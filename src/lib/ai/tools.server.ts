@@ -11,7 +11,8 @@ import { validDate } from '../dates';
 import { fieldInput, FIELD_TYPES, privateByDefault } from '../../components/fields/model';
 import type { Key } from '../i18n/dictionary';
 import { tr, type Tr } from './labels';
-import type { ToolSpec } from './adapters';
+import type { AiAdapter, ToolSpec } from './adapters';
+import { isolatedLookup, privacyGuard, refusal, REFUSAL_REASON } from './lookup.server';
 import { proposalArgs, PROPOSAL_KINDS, type AiLocale, type Proposal, type ProposalArgs, type ProposalKind } from './types';
 
 /** The fields area's word for each value key of a field (the same words the Edit tab shows). */
@@ -28,6 +29,8 @@ export interface Ctx {
   /** The reader's own person in this family, when they have chosen one. */
   me: string | null;
   locale: AiLocale;
+  /** Set when the family allows web lookups: the family's budgeted adapter, and where a lookup's sources are collected. */
+  search?: { adapter: AiAdapter; sources: { url: string; title?: string }[] };
 }
 
 const RESULT_LIMIT = 6000;
@@ -117,10 +120,17 @@ const PROPOSE: { spec: ToolSpec; kind: ProposalKind; action: Action }[] = [
   },
 ];
 
-/** The tools this reader may use: reads for everyone, a proposal only where their role may make that change. */
-export function toolsFor(role: Role): { tools: ToolSpec[]; proposals: boolean } {
+/** A general question answered from the web. Its query goes to the web alone (see lookup.server.ts). */
+export const WEB_TOOL: ToolSpec = {
+  name: 'web_lookup',
+  description: 'Look up a general or historical fact on the web: a place’s history, what a word, trade or custom meant, a past event. Only the query is sent to the web, so never put a living person’s name, a nickname or any detail from this tree in it. Returns a short summary and its sources.',
+  parameters: { type: 'object', properties: { query: { type: 'string', description: 'A general question, in a few words.' } }, required: ['query'] },
+};
+
+/** The tools this reader may use: reads for everyone, a proposal only where their role may make that change, a web lookup when the family allows one. */
+export function toolsFor(role: Role, web = false): { tools: ToolSpec[]; proposals: boolean } {
   const proposing = PROPOSE.filter((p) => can(role, p.action));
-  return { tools: [...READ_TOOLS, ...proposing.map((p) => p.spec)], proposals: proposing.length > 0 };
+  return { tools: [...READ_TOOLS, ...(web ? [WEB_TOOL] : []), ...proposing.map((p) => p.spec)], proposals: proposing.length > 0 };
 }
 
 const ACTION_OF = Object.fromEntries(PROPOSE.map((p) => [p.kind, p.action])) as Record<ProposalKind, Action>;
@@ -161,6 +171,16 @@ export async function runTool(ctx: Ctx, name: string, input: unknown, out: Propo
       const names = (ids: string[]) => ids.map((x) => ({ id: x, name: name_(x) }));
       const kin = ctx.me && ctx.me !== id && byId.has(ctx.me) ? kinship(f, ctx.me, id)?.label ?? null : null;
       return json({ parents: names(parents(f, id)), children: names(children(f, id)), partners: names(partnersOf(f, id)), siblings: names(siblings(f, id)), relatedToReader: kin });
+    }
+    if (name === 'web_lookup') {
+      const a = z.object({ query: z.string().trim().min(2).max(160) }).parse(input);
+      // The guard runs before anything is sent. A refusal says why, not what the private detail was.
+      const why = refusal(await privacyGuard(ctx.tree, g.people), a.query);
+      if (why) return json({ refused: true, reason: REFUSAL_REASON[why], note: 'Not sent to the web. Ask a general question instead, without names or private details.' });
+      if (!ctx.search) return json({ error: 'web lookups are off for this family' });
+      const r = await isolatedLookup(ctx.search.adapter, a.query);
+      for (const s of r.sources) if (!ctx.search.sources.some((x) => x.url === s.url)) ctx.search.sources.push(s);
+      return json({ summary: r.text, sources: r.sources, searches: r.searches });
     }
     const p = PROPOSE.find((x) => x.spec.name === name);
     if (p) return await propose(ctx, c, byId, p.kind, input, out);

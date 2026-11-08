@@ -122,6 +122,16 @@ export function costMicros(u: { inputTokens: number; outputTokens: number; searc
   return Math.ceil(u.inputTokens * p.inPerM + u.outputTokens * p.outPerM + u.searches * p.searchEach * MICROS_PER_USD);
 }
 
+/** The cheapest a search is reserved at: a listed price of "0", or none, still reserves this much per search. */
+export const SEARCH_RESERVE_FLOOR_USD = 0.01;
+/** The margin a search's reservation carries over its listed price, so a price that moves a little still fits. */
+export const SEARCH_RESERVE_MARGIN = 1.5;
+
+/** Micro-dollars reserved for `searches` searches at a model's price: the price (floored, with a margin) per search. */
+export function searchReserveMicros(searches: number, p: Pick<Price, 'searchEach'>): number {
+  return Math.ceil(Math.max(0, searches) * Math.max(p.searchEach, SEARCH_RESERVE_FLOOR_USD) * SEARCH_RESERVE_MARGIN * MICROS_PER_USD);
+}
+
 /** The cost a provider reported in USD, as micro-dollars. */
 export const reportedMicros = (usd: number): number => Math.ceil(Math.max(0, usd) * MICROS_PER_USD);
 

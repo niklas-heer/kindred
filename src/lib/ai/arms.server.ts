@@ -1,12 +1,14 @@
 // Arms from a surname, in two steps the reader drives from the Designer's "Suggest from the name" tab:
 //   1. researchName: what the name may mean across its languages and regions, as distinct candidate meanings,
-//      each with the heraldic ideas that follow from it. Web search only when the family allows it, with the
-//      surname and country as the only things searched for.
+//      each with the heraldic ideas that follow from it. The family's words never reach the web. When the family
+//      allows web search, a first call searches the web for the surname and country only (a fixed instruction; the
+//      surname and country as the only text); a second call, with no web search, turns those notes and the
+//      family's own words into the meanings. The family's meaning leads and is never contradicted.
 //   2. designArms: 3–5 designs with the full v2 heraldry (the canting hook in components/heraldry/canting.ts),
 //      each naming the chosen meaning it draws on and why.
 // Both validate what the model sends back, retry once on bad output, and write nothing. The caller keeps what it wants.
 import { z } from 'zod';
-import { AiError, type AiAdapter, type AiReply, type AiRequest, type JsonSchema } from './adapters';
+import { AiError, isolatedSearch, type AiAdapter, type AiReply, type JsonSchema } from './adapters';
 import { adapterForFeature } from './settings.server';
 import { tr, type Tr } from './labels';
 import { translate, type Key } from '../i18n/dictionary';
@@ -20,6 +22,8 @@ const WEB_SEARCHES = 3;
 const MAX_MEANINGS = 8;
 const MAX_DESIGNS = 5;
 const MIN_DESIGNS = 3;
+/** The research notes from the web are cut to this many characters before they go into the second call. */
+const FINDINGS_MAX = 6000;
 
 // ---------- step 1: what the name means ----------
 
@@ -33,11 +37,12 @@ const modelMeaning = z.object({
     kind: z.enum(IDEA_KINDS).describe('quality: a virtue or trait; object: a thing; trade: an occupation; sound: a play on how the name sounds.'),
     idea: z.string().describe('A short phrase, e.g. "a lord\'s courage".'),
   })).max(4).describe('Heraldic ideas that follow from this meaning. Up to four, each short.'),
-  sources: z.array(z.string()).max(3).describe('Full URLs of the pages you used for this meaning. Empty when you did not search.'),
+  sources: z.array(z.string()).max(3).describe('Full URLs of the pages you used for this meaning, from the list given. Empty when you did not use any.'),
 });
 const modelReply = z.object({
   meanings: z.array(modelMeaning).max(MAX_MEANINGS),
-  note: z.string().max(400).optional().describe('One honest sentence on what is uncertain, if anything. Empty when nothing is.'),
+  // Null is an honest "nothing to add", not a bad answer: it must not cost a retry.
+  note: z.string().max(400).nullish().describe('One honest sentence on what is uncertain, if anything. Empty when nothing is.'),
 });
 
 const NAME_JSON: JsonSchema = jsonOf(modelReply);
@@ -49,28 +54,41 @@ function jsonOf(schema: z.ZodType): JsonSchema {
   return rest;
 }
 
-const WEB_RULES = (on: boolean) => on
-  ? `You may search the web, up to ${WEB_SEARCHES} searches. Search only for the surname, with its country when one is given. Never search for the family's own words, and never put anything about a family member into a search. For each meaning, list in "sources" the full URLs of the pages you used for it; leave it empty when you used none.`
-  : 'You cannot search the web. Work from your own knowledge only, and say in "note" that the answer is from your own knowledge and not checked online.';
+/** The web call's instruction. Fixed text: the same for every family, every locale and every hint, so it can carry nothing private. */
+const SEARCH_SYSTEM = 'You look up what a surname means in public sources such as dictionaries and etymologies. Search the web for the surname, with its country when one is given, and for nothing else. Then write plain notes: for each distinct meaning you find, its languages or regions, its root in its own spelling, what it means in a few words, and whether the sources agree or it is a guess. Name the full URLs of the pages you used. Say plainly when little is known. Invent nothing.';
 
-function researchSystem(locale: AiLocale, webSearch: boolean, hint: boolean): string {
+/** The only text a web-enabled call carries: the surname and, when there is one, the country. */
+const searchPrompt = (surname: string, country?: string) => [
+  `Surname: ${surname}`,
+  country ? `Country (ISO code): ${country}` : '',
+].filter(Boolean).join('\n');
+
+function researchSystem(locale: AiLocale, o: { hint: boolean; findings: boolean }): string {
   return [
     'You research what a family surname means, for a heraldic designer who makes arms that play on a name. Look across the languages and regions where the name is found, and give each distinct meaning once: no two candidates with the same root and meaning.',
     'For each meaning give the languages or regions, the root word in its own spelling, what it means in a few words, whether it is well attested or speculative, and up to four heraldic ideas that follow from it: a quality (a virtue such as honour or courage), an object, a trade, or a sound (a play on how the name sounds). Ideas must follow from the meaning. Keep them short.',
     'For example, the surname Heer has three candidates: Dutch and German "heer" (lord, gentleman), German "hehr" (noble, honourable) and German "Heer" (army, host). A name may have one candidate or none; do not pad the list.',
     'Be honest about what you know. Mark a meaning speculative when it is a guess, a folk etymology or one you cannot place. If you know nothing reliable, return few or no meanings and say so in "note". Never invent a historic family, an ancestor, a coat of arms, or a place the name comes from.',
-    hint ? 'The family\'s own meaning is the most important input. Include it as a meaning with attestation "family", in the family\'s own words, with an empty language, and give it ideas too. Never contradict it or call it wrong; you may add what the dictionaries say as other candidates.' : '',
+    o.hint ? 'The family\'s own meaning is the most important input. Include it as a meaning with attestation "family", in the family\'s own words, with an empty language, and give it ideas too. Never contradict it or call it wrong; you may add what the dictionaries say as other candidates.' : '',
     `Write the meanings, the ideas and the note in ${LANG[locale]}. Keep roots in their own spelling.`,
-    WEB_RULES(webSearch),
+    o.findings
+      ? 'The message holds research notes from a public web search for the surname, and the pages that search returned. Build the meanings from those notes. Use your own knowledge only where they say nothing, and then say so in "note". For each meaning list in "sources" the full URLs, taken from that list only, of the pages you used for it; leave it empty when you used none.'
+      : 'You cannot search the web. Work from your own knowledge only, and say in "note" that the answer is from your own knowledge and not checked online. Leave "sources" empty.',
     'Answer only in the JSON shape you are given.',
   ].filter(Boolean).join('\n');
 }
 
-function researchUser(o: { surname: string; country?: string; familyHint?: string }): string {
+/** What the public search brought back: its notes, and the pages it returned. */
+interface Findings { text: string; sources: { url: string; title?: string }[] }
+
+function researchUser(o: { surname: string; country?: string; familyHint?: string; found?: Findings }): string {
+  const f = o.found;
   return [
     `Surname: ${o.surname}`,
     o.country ? `Country (ISO code): ${o.country}` : '',
     o.familyHint ? `The family says: "${o.familyHint}"` : '',
+    f ? `Research notes from a public web search for the surname (not from the family):\n${f.text}` : '',
+    f ? `Pages the search returned (the only URLs you may list as sources):\n${f.sources.map((s) => (s.title ? `${s.url} (${s.title})` : s.url)).join('\n') || 'none'}` : '',
   ].filter(Boolean).join('\n');
 }
 
@@ -117,29 +135,19 @@ function toMeanings(list: z.infer<typeof modelMeaning>[], o: { familyHint?: stri
 export async function researchName(o: { adapter: AiAdapter; webSearch: boolean; surname: string; country?: string; familyHint?: string; locale: AiLocale }): Promise<NameResearch> {
   const c = tr(o.locale);
   const hint = o.familyHint?.trim() || undefined;
-  // A provider cannot search and answer in a forced JSON tool at once, so with web search the answer is free text
-  // holding one JSON object: read from the text, checked against the same schema, retried like any bad output.
-  const req: AiRequest = o.webSearch
-    ? {
-      system: `${researchSystem(o.locale, true, !!hint)}\n${JSON_TEXT_RULE}\n${JSON.stringify(NAME_JSON)}`,
-      messages: [{ role: 'user', text: researchUser({ ...o, familyHint: hint }) }],
-      maxTokens: 2000,
-      timeoutMs: 120_000,
-      webSearch: { maxUses: WEB_SEARCHES },
-    }
-    : {
-      system: researchSystem(o.locale, false, !!hint),
-      messages: [{ role: 'user', text: researchUser({ ...o, familyHint: hint }) }],
-      json: { name: 'name_meaning', schema: NAME_JSON },
-      maxTokens: 2000,
-      timeoutMs: 60_000,
-    };
-  return ask(c, o.adapter, req, (reply) => {
-    const parsed = modelReply.safeParse(o.webSearch ? jsonFromText(reply.text) : reply.json);
+  // The web sees the surname and country and nothing else (searchName). Only the second call has the family's words.
+  const found = o.webSearch ? await searchName(c, o.adapter, o) : undefined;
+  const webSearched = found !== undefined;
+  const webSources = new Map((found?.sources ?? []).map((s) => [s.url, s.title]));
+  return ask(c, () => o.adapter.complete({
+    system: researchSystem(o.locale, { hint: !!hint, findings: webSearched }),
+    messages: [{ role: 'user', text: researchUser({ surname: o.surname, country: o.country, familyHint: hint, found }) }],
+    json: { name: 'name_meaning', schema: NAME_JSON },
+    maxTokens: 2000,
+    timeoutMs: 60_000,
+  }), (reply) => {
+    const parsed = modelReply.safeParse(reply.json);
     if (!parsed.success) return undefined;
-    // "Checked on the web" only when the provider says it ran a search; a model that did not search says so.
-    const webSearched = o.webSearch && reply.searches > 0;
-    const webSources = new Map((reply.sources ?? []).map((s) => [s.url, s.title]));
     return {
       meanings: toMeanings(parsed.data.meanings, { familyHint: hint, webSources, webSearched }),
       note: parsed.data.note?.trim() || undefined,
@@ -148,18 +156,14 @@ export async function researchName(o: { adapter: AiAdapter; webSearch: boolean; 
   });
 }
 
-const JSON_TEXT_RULE = 'Answer with one JSON object and nothing else (no prose, no code fence), shaped like this schema:';
-
-/** The JSON object in a free-text answer: the text between its first "{" and last "}", or undefined. */
-function jsonFromText(text: string): unknown {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start < 0 || end < start) return undefined;
-  try {
-    return JSON.parse(text.slice(start, end + 1));
-  } catch {
-    return undefined;
-  }
+/**
+ * The public web search for the surname: an isolated request (no family text, no tree data, no other messages). Undefined
+ * when the provider ran no search, so the research goes on from the model's own knowledge and says so.
+ */
+async function searchName(c: Tr, adapter: AiAdapter, o: { surname: string; country?: string }): Promise<Findings | undefined> {
+  const reply = await ask(c, () => isolatedSearch(adapter, { system: SEARCH_SYSTEM, prompt: searchPrompt(o.surname, o.country), maxUses: WEB_SEARCHES, maxTokens: 2000, timeoutMs: 120_000 }), (r: AiReply) => (r.text.trim() ? r : undefined));
+  if (reply.searches < 1) return undefined;
+  return { text: reply.text.trim().slice(0, FINDINGS_MAX), sources: reply.sources ?? [] };
 }
 
 /** Step one for a family: the adapter and the web-search switch come from the family's settings. */
@@ -168,7 +172,7 @@ export async function nameMeaning(o: { tree: string; surname: string; country?: 
   return researchName({ ...o, adapter, webSearch: webSearch === true });
 }
 
-// ---------- step 2: arms from the chosen meanings ----------
+// ---------- step two: arms from the chosen meanings ----------
 
 let CATALOGUE: string | undefined;
 /** The charges the model may use, grouped, as "id (English name; German and other words)". Built once. */
@@ -221,13 +225,13 @@ export async function designArms(o: { adapter: AiAdapter; surname: string; count
   const hint = o.familyHint?.trim() || undefined;
   const chosen = new Map(o.meanings.map((m) => [m.id, m]));
   const req: CantingRequest = { surname: o.surname, country: o.country?.toLowerCase() };
-  return ask(c, o.adapter, {
+  return ask(c, () => o.adapter.complete({
     system: designSystem(o.locale),
     messages: [{ role: 'user', text: designUser({ ...o, familyHint: hint }) }],
     json: { name: 'arms_designs', schema: CANTING_JSON },
     maxTokens: 2500,
     timeoutMs: 60_000,
-  }, (reply) => {
+  }), (reply) => {
     const parsed = cantingResponseSchema.safeParse(reply.json);
     if (!parsed.success) return undefined;
     // cantingFromIdeas keeps the order of the suggestions, so each design lines up with its idea.
@@ -251,12 +255,15 @@ export async function armsDesigns(o: { tree: string; surname: string; country?: 
 
 // ---------- one call, one retry on bad output ----------
 
-/** Asks once; if the answer is bad (not the shape, or the provider sent no usable answer), asks once more. Other errors pass through. */
-async function ask<T>(c: Tr, adapter: AiAdapter, req: AiRequest, read: (reply: AiReply) => T | undefined): Promise<T> {
+/**
+ * Runs one call; if the answer is bad (not the shape, or the provider sent no usable answer), runs it once more.
+ * Other errors pass through. `run` makes the call, so the same retry covers a plain request and an isolated search.
+ */
+async function ask<T>(c: Tr, run: () => Promise<AiReply>, read: (reply: AiReply) => T | undefined): Promise<T> {
   for (let attempt = 1; attempt <= 2; attempt++) {
     let reply: AiReply;
     try {
-      reply = await adapter.complete(req);
+      reply = await run();
     } catch (e) {
       if (e instanceof AiError && e.code === 'bad-output') {
         if (attempt === 1) continue;

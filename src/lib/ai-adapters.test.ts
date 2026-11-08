@@ -143,6 +143,10 @@ test('openai: web search goes through the Responses API, with the hosted web_sea
   });
   assert.equal(sent[0].url, 'https://api.openai.com/v1/responses');
   assert.deepEqual(sent[0].body.tools, [{ type: 'web_search' }]);
+  // The search ceiling is the Responses API's cap on built-in tool calls, and the sources are asked for by name.
+  assert.equal(sent[0].body.max_tool_calls, 2);
+  assert.deepEqual(sent[0].body.include, ['web_search_call.action.sources']);
+  assert.deepEqual(sent[0].body.reasoning, { effort: 'low' }, 'a reasoning model searches at low effort, not minimal');
   assert.equal(sent[0].body.model, 'gpt-6.1-sol');
   assert.equal(reply.text, 'Ada was a mathematician.');
   assert.deepEqual(reply.sources, [{ url: 'https://example.org/ada', title: 'Ada' }]);
@@ -151,14 +155,15 @@ test('openai: web search goes through the Responses API, with the hosted web_sea
   assert.equal(reply.outputTokens, 40);
 });
 
-test('openai: without web search the Chat Completions API is used, as before', async () => {
+test('openai: without web search the Chat Completions API is used; a reasoning model gets the larger cap and low effort', async () => {
   const sent = stubFetch([json({
     choices: [{ message: { role: 'assistant', content: 'Hi there' } }],
     usage: { prompt_tokens: 12, completion_tokens: 3, total_tokens: 15 },
   })]);
   const reply = await makeAdapter('openai', KEY, 'gpt-6.1-sol').complete({ system: 'S', messages: [{ role: 'user', text: 'Hi' }], maxTokens: 50 });
   assert.equal(sent[0].url, 'https://api.openai.com/v1/chat/completions');
-  assert.equal(sent[0].body.max_completion_tokens, 50);
+  assert.equal(sent[0].body.max_completion_tokens, 25_000, 'reasoning tokens count against the cap, so a reasoning model is never capped low');
+  assert.equal(sent[0].body.reasoning_effort, 'low');
   assert.equal(sent[0].body.tools, undefined);
   assert.equal(reply.text, 'Hi there');
   assert.equal(reply.inputTokens, 12);
@@ -168,7 +173,7 @@ test('openai: without web search the Chat Completions API is used, as before', a
 
 // ---------- OpenRouter ----------
 
-test('openrouter: the web plugin is requested, and the reported cost and citations come back', async () => {
+test('openrouter: the openrouter:web_search server tool is requested with its ceiling, and the reported cost and citations come back', async () => {
   const sent = stubFetch([json({
     choices: [{ message: {
       role: 'assistant',
@@ -178,10 +183,12 @@ test('openrouter: the web plugin is requested, and the reported cost and citatio
     usage: { prompt_tokens: 50, completion_tokens: 10, total_tokens: 60, cost: 0.0042 },
   })]);
   const reply = await makeAdapter('openrouter', KEY, 'anthropic/claude-sonnet-5-5').complete({
-    system: 'S', messages: [{ role: 'user', text: 'Who was Ada?' }], webSearch: {},
+    system: 'S', messages: [{ role: 'user', text: 'Who was Ada?' }], webSearch: { maxUses: 2 },
   });
   assert.equal(sent[0].url, 'https://openrouter.ai/api/v1/chat/completions');
-  assert.deepEqual(sent[0].body.plugins, [{ id: 'web', max_results: 5 }]);
+  assert.equal(sent[0].body.plugins, undefined, 'the deprecated web plugin is not used');
+  assert.deepEqual(sent[0].body.tools, [{ type: 'openrouter:web_search', parameters: { max_results: 5, max_uses: 2 } }]);
+  assert.equal(sent[0].body.max_tool_calls, 2);
   assert.equal(reply.reportedCostUsd, 0.0042);
   assert.deepEqual(reply.sources, [{ url: 'https://x.example/ada', title: 'Ada X' }]);
   assert.equal(reply.searches, 1);
@@ -192,7 +199,7 @@ test('openrouter: the web plugin is requested, and the reported cost and citatio
 test('openrouter: without web search there is no plugin and no reported cost unless the provider sends one', async () => {
   const sent = stubFetch([json({ choices: [{ message: { content: 'Hi' } }], usage: { prompt_tokens: 5, completion_tokens: 1 } })]);
   const reply = await makeAdapter('openrouter', KEY, 'openai/gpt-5').complete({ system: 'S', messages: [{ role: 'user', text: 'Hi' }] });
-  assert.equal(sent[0].body.plugins, undefined);
+  assert.equal(sent[0].body.tools, undefined);
   assert.equal(reply.reportedCostUsd, undefined);
   assert.equal(reply.searches, 0);
 });

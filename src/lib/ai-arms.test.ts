@@ -1,7 +1,8 @@
-// node --test src/lib/ai-arms.test.ts — arms from a surname in two steps: what the prompts carry (the family's own
-// words, the country), when web search is offered and what it may cite, the shape of both answers, the one retry on
-// bad output, the tincture repair and dropped charges, and the whole flow on the fake provider. A stub adapter
-// stands in for the provider; no key is read and nothing is sent anywhere.
+// node --test src/lib/ai-arms.test.ts — arms from a surname in two steps: what each call carries (the family's own
+// words never reach a web-enabled call; the public search sees the surname and country only), when web search is
+// offered and what it may cite, the shape of both answers, the one retry on bad output, the tincture repair and dropped
+// charges, and the whole flow on the fake provider. A stub adapter stands in for the provider; no key is read and
+// nothing is sent anywhere.
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -31,21 +32,23 @@ test.after(async () => {
 
 // ---------- a stub provider: each call takes the next scripted answer (or throws it) ----------
 
-type Answer = { json: unknown; sources?: { url: string; title?: string }[]; text?: string } | Error;
+type Answer = { json?: unknown; text?: string; sources?: { url: string; title?: string }[]; searches?: number } | Error;
+interface Recorded { system: string; text: string; messages: number; raw: string; webSearch?: { maxUses?: number }; name: string | undefined; timeoutMs?: number; maxTokens?: number; hasTool: boolean }
 function stub(answers: Answer[]) {
-  const calls: { system: string; text: string; webSearch?: { maxUses?: number }; name: string | undefined; timeoutMs?: number; maxTokens?: number; hasTool: boolean }[] = [];
+  const calls: Recorded[] = [];
   let i = 0;
   const adapter = {
     provider: 'fake' as const,
     model: 'stub',
     async complete(req: { system: string; messages: { role: string; text?: string }[]; json?: { name: string }; webSearch?: { maxUses?: number }; timeoutMs?: number; maxTokens?: number }) {
       const user = [...req.messages].reverse().find((m) => m.role === 'user')?.text ?? '';
-      calls.push({ system: req.system, text: user, webSearch: req.webSearch, name: req.json?.name, timeoutMs: req.timeoutMs, maxTokens: req.maxTokens, hasTool: !!req.json });
+      calls.push({ system: req.system, text: user, messages: req.messages.length, raw: JSON.stringify(req), webSearch: req.webSearch, name: req.json?.name, timeoutMs: req.timeoutMs, maxTokens: req.maxTokens, hasTool: !!req.json });
       const a = answers[Math.min(i++, answers.length - 1)];
       if (a instanceof Error) throw a;
-      // A forced JSON tool answers in json; free text (with web search) answers in text, as the JSON object itself or with prose around it.
+      // A forced JSON tool answers in json; free text (a web search) answers in text.
       const text = a.text ?? JSON.stringify(a.json);
-      return { text, calls: [], json: req.json ? a.json : undefined, tokens: 10, inputTokens: 5, outputTokens: 5, searches: a.sources ? 1 : 0, ...(a.sources ? { sources: a.sources } : {}) };
+      const searches = a.searches ?? (a.sources ? 1 : 0);
+      return { text, calls: [], json: req.json ? a.json : undefined, tokens: 10, inputTokens: 5, outputTokens: 5, searches, ...(a.sources ? { sources: a.sources } : {}) };
     },
   };
   return { adapter: adapter as never, calls };
@@ -55,6 +58,7 @@ const LORD = { language: 'Dutch and German', root: 'heer', meaning: 'lord, gentl
 const HONOUR = { language: 'German', root: 'hehr', meaning: 'noble, honourable', attestation: 'well-attested', ideas: [{ kind: 'quality', idea: 'honour' }], sources: ['https://de.wiktionary.org/wiki/hehr'] };
 const HOST = { language: 'German', root: 'Heer', meaning: 'army, host', attestation: 'well-attested', ideas: [{ kind: 'object', idea: 'a banner over a host' }], sources: [] };
 const bad = { meanings: [{ language: 'x', root: 'x', meaning: 'x', attestation: 'nonsense', ideas: [] }] };
+const HEHR_PAGE = { url: 'https://de.wiktionary.org/wiki/hehr', title: 'hehr: Wiktionary' };
 
 const DESIGN = (explanation: string, meaningId: string, field: string[], charges: { charge: string; tincture?: string; count?: number }[]) =>
   ({ explanation, meaningId, field, charges });
@@ -63,7 +67,7 @@ const CHOSEN = [
   { id: 'm2', language: 'German', root: 'hehr', meaning: 'noble, honourable', attestation: 'well-attested' as const, ideas: [] },
 ];
 
-// ---------- step one: the research ----------
+// ---------- step one: the research, without the web ----------
 
 test('step one carries the family’s own words and the country, and puts the family’s meaning first, unchanged', async () => {
   const s = stub([{ json: { meanings: [LORD, HONOUR] } }]);
@@ -107,57 +111,22 @@ test('an honest empty answer is an empty list, not an error', async () => {
   assert.equal(out.note, 'Little is known of this name.');
 });
 
-test('web search is offered only when the family allows it, and then with three searches at most', async () => {
-  const on = stub([{ json: { meanings: [HONOUR] }, sources: [{ url: 'https://de.wiktionary.org/wiki/hehr', title: 'hehr' }] }]);
-  const r1 = await arms.researchName({ adapter: on.adapter, webSearch: true, surname: 'Heer', country: 'NL', familyHint: 'honourable', locale: 'en' });
-  assert.deepEqual(on.calls[0].webSearch, { maxUses: 3 });
-  assert.equal(r1.webSearched, true);
-  assert.match(on.calls[0].system, /Search only for the surname/);
-  assert.match(on.calls[0].system, /never put anything about a family member into a search/);
+test('a null note is an honest "nothing to add": it is no note, and it costs no retry', async () => {
+  const s = stub([{ json: { meanings: [LORD], note: null } }]);
+  const out = await arms.researchName({ adapter: s.adapter, webSearch: false, surname: 'Heer', locale: 'en' });
+  assert.equal(s.calls.length, 1, 'no retry');
+  assert.equal(out.note, undefined);
+  assert.equal(out.meanings.length, 1);
+});
 
+test('without web search the research is one call with no web, and says so', async () => {
   const off = stub([{ json: { meanings: [HONOUR] } }]);
   const r2 = await arms.researchName({ adapter: off.adapter, webSearch: false, surname: 'Heer', locale: 'en' });
+  assert.equal(off.calls.length, 1);
   assert.equal(off.calls[0].webSearch, undefined);
   assert.equal(r2.webSearched, false);
   assert.match(off.calls[0].system, /cannot search the web/);
-});
-
-test('with web search the answer is free text, read from the JSON object inside it; no forced tool', async () => {
-  const s = stub([{ json: { meanings: [HONOUR] }, sources: [{ url: 'https://de.wiktionary.org/wiki/hehr', title: 'hehr' }], text: `Here is what I found.\n\`\`\`json\n${JSON.stringify({ meanings: [HONOUR] })}\n\`\`\`\nThanks.` }]);
-  const out = await arms.researchName({ adapter: s.adapter, webSearch: true, surname: 'Heer', locale: 'en' });
-  assert.equal(s.calls[0].hasTool, false, 'a forced tool would stop the search');
-  assert.match(s.calls[0].system, /Answer with one JSON object and nothing else/);
-  assert.equal(out.meanings[0].root, 'hehr');
-  assert.equal(out.webSearched, true);
-});
-
-test('a model that did not search says so: the research is from its own knowledge, with no sources', async () => {
-  const s = stub([{ json: { meanings: [HONOUR] }, sources: undefined }]);
-  const out = await arms.researchName({ adapter: s.adapter, webSearch: true, surname: 'Heer', locale: 'en' });
-  assert.equal(s.calls[0].webSearch?.maxUses, 3, 'the search was offered');
-  assert.equal(out.webSearched, false);
-  assert.deepEqual(out.meanings[0].sources ?? [], []);
-});
-
-test('the search and the prompt carry only the surname, the country and the family’s words, never more', async () => {
-  const s = stub([{ json: { meanings: [] } }]);
-  await arms.researchName({ adapter: s.adapter, webSearch: true, surname: 'Heer', country: 'NL', familyHint: 'honourable', locale: 'en' });
-  const lines = s.calls[0].text.split('\n');
-  assert.deepEqual(lines, ['Surname: Heer', 'Country (ISO code): NL', 'The family says: "honourable"']);
-});
-
-test('sources are kept only when the search returned them, and only the pages the meaning cites', async () => {
-  const s = stub([{
-    json: { meanings: [{ ...HONOUR, sources: ['https://de.wiktionary.org/wiki/hehr', 'https://example.invalid/made-up'] }] },
-    sources: [{ url: 'https://de.wiktionary.org/wiki/hehr', title: 'hehr: Wiktionary' }],
-  }]);
-  const out = await arms.researchName({ adapter: s.adapter, webSearch: true, surname: 'Heer', locale: 'en' });
-  assert.deepEqual(out.meanings[0].sources, [{ url: 'https://de.wiktionary.org/wiki/hehr', title: 'hehr: Wiktionary' }]);
-
-  // Without a search, nothing the model names is shown as a source.
-  const off = stub([{ json: { meanings: [HONOUR] }, sources: [{ url: 'https://de.wiktionary.org/wiki/hehr' }] }]);
-  const out2 = await arms.researchName({ adapter: off.adapter, webSearch: false, surname: 'Heer', locale: 'en' });
-  assert.deepEqual(out2.meanings[0].sources ?? [], []);
+  assert.deepEqual(r2.meanings[0].sources ?? [], []);
 });
 
 test('bad output is retried once; a second bad answer is a clear error in the reader’s language', async () => {
@@ -190,6 +159,100 @@ test('the prompts are in the reader’s language, with German in du and Afrikaan
   await arms.researchName({ adapter: s.adapter, webSearch: false, surname: 'Heer', locale: 'af' });
   assert.match(s.calls[0].system, /German \(du\)/);
   assert.match(s.calls[1].system, /Afrikaans \(jy\)/);
+});
+
+// ---------- step one with the web: the search sees the surname and country, nothing else ----------
+
+test('web search is offered only when the family allows it, and then with three searches at most, in a call of its own', async () => {
+  const on = stub([{ text: 'Heer: lord (Dutch). Hehr: noble (German).', sources: [HEHR_PAGE] }, { json: { meanings: [HONOUR] } }]);
+  const r1 = await arms.researchName({ adapter: on.adapter, webSearch: true, surname: 'Heer', country: 'NL', familyHint: 'honourable', locale: 'en' });
+  assert.equal(on.calls.length, 2, 'the search, then the meanings');
+  assert.deepEqual(on.calls[0].webSearch, { maxUses: 3 });
+  assert.equal(on.calls[0].hasTool, false, 'a forced tool would stop the search');
+  assert.equal(on.calls[1].webSearch, undefined, 'the meanings are made with no web search');
+  assert.match(on.calls[1].system, /holds research notes from a public web search/);
+  assert.equal(r1.webSearched, true);
+
+  const off = stub([{ json: { meanings: [HONOUR] } }]);
+  const r2 = await arms.researchName({ adapter: off.adapter, webSearch: false, surname: 'Heer', locale: 'en' });
+  assert.equal(off.calls[0].webSearch, undefined);
+  assert.equal(r2.webSearched, false);
+  assert.match(off.calls[0].system, /cannot search the web/);
+});
+
+test('the web-enabled calls carry only a fixed instruction and the surname and country: the family’s words reach no search', async () => {
+  const SECRET = 'a-private-family-remark-7f3a';
+  const notes = { text: 'Heer: lord (Dutch). Hehr: noble (German).', sources: [HEHR_PAGE] };
+  const first = stub([notes, { json: { meanings: [HONOUR] } }]);
+  const out = await arms.researchName({ adapter: first.adapter, webSearch: true, surname: 'Heer', country: 'NL', familyHint: SECRET, locale: 'en' });
+  // The same search with no hint, in another language: the instruction is the same, and the search is the same.
+  const second = stub([notes, { json: { meanings: [HONOUR] } }]);
+  await arms.researchName({ adapter: second.adapter, webSearch: true, surname: 'Heer', country: 'NL', locale: 'de' });
+
+  const searches = [...first.calls, ...second.calls].filter((c) => c.webSearch);
+  assert.equal(searches.length, 2);
+  for (const c of searches) {
+    assert.equal(c.messages, 1, 'one message: no family text, no earlier turns');
+    assert.equal(c.text, 'Surname: Heer\nCountry (ISO code): NL');
+    assert.ok(!c.raw.includes(SECRET), 'the family’s words are in no web-enabled request');
+  }
+  assert.equal(searches[0].system, searches[1].system, 'the instruction is fixed, whatever the hint and the language');
+
+  // The family's words lead the meanings, and go only to the call that has no web search.
+  assert.equal(first.calls[1].webSearch, undefined);
+  assert.match(first.calls[1].text, new RegExp(`^The family says: "${SECRET}"$`, 'm'));
+  assert.equal(out.meanings[0].attestation, 'family');
+  assert.equal(out.meanings[0].meaning, SECRET);
+});
+
+test('the meanings call is given the search notes and the pages it returned, and may cite only those pages', async () => {
+  const s = stub([
+    { text: 'Hehr: noble, honourable (German).', sources: [HEHR_PAGE] },
+    { json: { meanings: [{ ...HONOUR, sources: [HEHR_PAGE.url, 'https://example.invalid/made-up'] }] } },
+  ]);
+  await arms.researchName({ adapter: s.adapter, webSearch: true, surname: 'Heer', locale: 'en' });
+  const meanings = s.calls[1];
+  assert.match(meanings.text, /^Research notes from a public web search for the surname \(not from the family\):$/m);
+  assert.match(meanings.text, /^Hehr: noble, honourable \(German\)\.$/m);
+  assert.match(meanings.text, /^https:\/\/de\.wiktionary\.org\/wiki\/hehr \(hehr: Wiktionary\)$/m);
+  assert.match(meanings.system, /Build the meanings from those notes/);
+});
+
+test('the search notes are cut to a sensible size before the meanings call', async () => {
+  const s = stub([{ text: 'x'.repeat(20_000), sources: [HEHR_PAGE] }, { json: { meanings: [HONOUR] } }]);
+  await arms.researchName({ adapter: s.adapter, webSearch: true, surname: 'Heer', locale: 'en' });
+  assert.ok(s.calls[1].text.length < 7_000, `the meanings call is ${s.calls[1].text.length} characters`);
+});
+
+test('a model that ran no search says so: the meanings come from its own knowledge, with no sources', async () => {
+  const s = stub([{ text: 'Heer means lord, I think.' }, { json: { meanings: [HONOUR] } }]);
+  const out = await arms.researchName({ adapter: s.adapter, webSearch: true, surname: 'Heer', locale: 'en' });
+  assert.equal(s.calls[0].webSearch?.maxUses, 3, 'the search was offered');
+  assert.equal(s.calls[1].webSearch, undefined);
+  assert.match(s.calls[1].system, /cannot search the web/);
+  assert.equal(out.webSearched, false);
+  assert.deepEqual(out.meanings[0].sources ?? [], []);
+});
+
+test('sources are kept only when the search returned them, and only the pages the meaning cites', async () => {
+  const s = stub([
+    { text: 'Hehr: noble.', sources: [HEHR_PAGE] },
+    { json: { meanings: [{ ...HONOUR, sources: [HEHR_PAGE.url, 'https://example.invalid/made-up'] }] } },
+  ]);
+  const out = await arms.researchName({ adapter: s.adapter, webSearch: true, surname: 'Heer', locale: 'en' });
+  assert.deepEqual(out.meanings[0].sources, [HEHR_PAGE]);
+
+  // Without a search, nothing the model names is shown as a source.
+  const off = stub([{ json: { meanings: [HONOUR] }, sources: [HEHR_PAGE] }]);
+  const out2 = await arms.researchName({ adapter: off.adapter, webSearch: false, surname: 'Heer', locale: 'en' });
+  assert.deepEqual(out2.meanings[0].sources ?? [], []);
+});
+
+test('an empty search answer is bad output and is retried once', async () => {
+  const s = stub([{ text: '   ', sources: [HEHR_PAGE] }, { text: 'Hehr: noble.', sources: [HEHR_PAGE] }, { json: { meanings: [HONOUR] } }]);
+  const out = await arms.researchName({ adapter: s.adapter, webSearch: true, surname: 'Heer', locale: 'en' });
+  assert.equal(s.calls.length, 3);
+  assert.equal(out.webSearched, true);
 });
 
 // ---------- step two: the designs ----------

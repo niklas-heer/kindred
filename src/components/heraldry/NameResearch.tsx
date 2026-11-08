@@ -5,8 +5,9 @@
 import { useMutation } from '@tanstack/react-query';
 import { Check, Plus, Sparkles } from 'lucide-react';
 import { useState } from 'react';
-import { aiArmsDesigns, aiNameMeaning } from '~/lib/ai/arms.functions';
+import { MAX_DESIGN_MEANINGS, aiArmsDesigns, aiNameMeaning } from '~/lib/ai/arms.functions';
 import { toAiLocale, type Attestation, type DesignMeaning, type IdeaKind, type NameDesign, type NameMeaning, type NameResearch } from '~/lib/ai/types';
+import { errorText } from '~/lib/errortext';
 import { useT, type Key } from '~/lib/i18n';
 import { play } from '~/lib/sfx';
 import type { ArmsV2 } from '~/lib/seed-format';
@@ -47,6 +48,14 @@ export function NameResearchPanel({ tree, surname, country, onPick }: {
   const [draft, setDraft] = useState('');
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [designs, setDesigns] = useState<Designs | null>(null);
+  /** Set when the reader tries to choose more meanings than the design call takes. */
+  const [limitHit, setLimitHit] = useState(false);
+
+  /** A failed call's line: the server's own message when it is a readable one, never raw validation JSON. */
+  const failure = (e: unknown, fallback: string) => {
+    const m = e instanceof Error ? e.message : '';
+    return m && !/^[[{]/.test(m) ? errorText(e, t.locale) : fallback;
+  };
 
   const research = useMutation({
     mutationFn: (q: { surname: string; familyHint: string }) => aiNameMeaning({
@@ -74,7 +83,12 @@ export function NameResearchPanel({ tree, surname, country, onPick }: {
   const liveDesigns = designs && designs.surname === name ? designs.list : null;
   const familyHint = hint.trim();
 
+  // The design call takes at most MAX_DESIGN_MEANINGS: a meaning past that is not selected, and the reader is told why.
+  const full = chosen.length >= MAX_DESIGN_MEANINGS;
+
   const toggle = (id: string) => {
+    if (!picked.has(id) && full) { setLimitHit(true); return; }
+    setLimitHit(false);
     setPicked((p) => {
       const next = new Set(p);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -89,7 +103,8 @@ export function NameResearchPanel({ tree, surname, country, onPick }: {
     if (!meaning) return;
     const id = `own${own.length + 1}`;
     setOwn((o) => [...o, { id, language: '', root: '', meaning: meaning.slice(0, 200), attestation: 'family', ideas: [] }]);
-    setPicked((p) => new Set(p).add(id));
+    if (!full) setPicked((p) => new Set(p).add(id));
+    setLimitHit(full);
     setDraft('');
     setDesigns(null);
     play('tick');
@@ -131,8 +146,7 @@ export function NameResearchPanel({ tree, surname, country, onPick }: {
       {research.isError && !research.isPending && (
         <ErrorState
           title={t('heraldry.research_failed')}
-          message={t('heraldry.research_failed_text')}
-          error={research.error}
+          message={failure(research.error, t('heraldry.research_failed_text'))}
           onRetry={() => research.mutate({ surname: name, familyHint })}
         />
       )}
@@ -208,6 +222,7 @@ export function NameResearchPanel({ tree, surname, country, onPick }: {
             </button>
           </div>
 
+          {(limitHit || full) && <p className="subtle ae-limit" role="status">{t('heraldry.meanings_limit', { max: MAX_DESIGN_MEANINGS })}</p>}
           <div className="ae-design-go">
             <span className="subtle">{chosen.length === 0 ? t('heraldry.no_meaning_chosen') : t('heraldry.meanings_selected', { count: chosen.length })}</span>
             <button
@@ -232,8 +247,7 @@ export function NameResearchPanel({ tree, surname, country, onPick }: {
       {design.isError && !design.isPending && (
         <ErrorState
           title={t('heraldry.design_failed')}
-          message={t('heraldry.design_failed_text')}
-          error={design.error}
+          message={failure(design.error, t('heraldry.design_failed_text'))}
           onRetry={() => design.mutate({ surname: name, meanings: meaningsFor(chosen), familyHint })}
         />
       )}

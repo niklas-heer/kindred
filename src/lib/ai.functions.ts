@@ -110,15 +110,17 @@ export const aiListModels = createServerFn({ method: 'POST' })
     const cur = await s.readSettings(data.tree);
     const provider: Provider = data.provider ?? cur.provider;
     let key = data.key ?? '';
-    if (!key && provider === cur.provider && cur.sealed) {
+    const fits = s.savedKeyFits(cur, provider);
+    if (!key && fits) {
       const { openKey } = await import('./ai/secret.server');
       try {
-        key = await openKey(data.tree, cur.sealed);
+        key = await openKey(data.tree, cur.sealed!);
       } catch {
         return { ok: false, code: 'key-unreadable', message: c('ai.err_key_unreadable') };
       }
     }
-    if (!key) return { ok: false, code: 'not-configured', message: c('ai.errNoKey') };
+    // The saved key is never sent to another provider: a different one needs a key typed here.
+    if (!key) return cur.sealed && !fits ? { ok: false, code: 'key-required', message: c('ai.err_key_required') } : { ok: false, code: 'not-configured', message: c('ai.errNoKey') };
     const { AiError } = await import('./ai/adapters');
     try {
       const { listModels } = await import('./ai/models.server');

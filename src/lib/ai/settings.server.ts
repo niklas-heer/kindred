@@ -1,10 +1,10 @@
 // A family's AI settings, the monthly budget in money, and turning a settings row into a ready adapter. Settings
 // live in the accounts database (migrations/accounts/0003_ai_settings.sql and 0007_ai_money.sql), one row per family.
 import { accounts } from '../auth/store.server';
-import { AiError, DEFAULT_SEARCH_USES, makeAdapter, type AiAdapter, type AiReply, type AiRequest } from './adapters';
+import { AiError, DEFAULT_MAX_TOKENS, DEFAULT_SEARCH_USES, makeAdapter, outputCap, type AiAdapter, type AiReply, type AiRequest } from './adapters';
 import { fakeAdapter } from './fake';
 import { openRouterListedPrice } from './models.server';
-import { costMicros, reportedMicros, resolvePrice, type Price } from './prices';
+import { costMicros, reportedMicros, resolvePrice, searchReserveMicros, type Price } from './prices';
 import { keyTail, openKey, sealKey } from './secret.server';
 import { tr, type Tr } from './labels';
 import { translate } from '../i18n/dictionary';
@@ -116,6 +116,10 @@ export async function saveSettings(tree: string, by: string, input: SaveInput): 
   } else if (input.apiKey) {
     sealed = await sealKey(tree, input.apiKey);
     tail = keyTail(input.apiKey);
+  } else if (cur.sealed && !savedKeyFits(cur, input.provider)) {
+    // Switching provider keeps the old key only if it would be sent to the new provider: refused, and nothing is saved.
+    // The message is the dictionary key: the settings page shows its translated text.
+    throw new AiError('key-required', 'ai.err_key_required');
   }
   await accounts().run(
     `INSERT INTO ai_settings (tree, provider, model, key_sealed, key_tail, features, web_search, monthly_micros, custom_prices, updated, updated_by)
@@ -128,6 +132,12 @@ export async function saveSettings(tree: string, by: string, input: SaveInput): 
     Math.max(0, Math.round(input.monthlyMicros)), JSON.stringify(input.customPrices), Date.now(), by,
   );
 }
+
+/**
+ * A saved key may be used only with the provider it was saved for. Every path that would send it (Test connection,
+ * Save, the model list, a call) asks this one rule, so a key is never sent to a provider it was not saved for.
+ */
+export const savedKeyFits = (cur: Pick<Settings, 'sealed' | 'provider'>, provider: Provider): boolean => !!cur.sealed && cur.provider === provider;
 
 export const validModel = (m: string) => m === '' || MODEL.test(m);
 export const providerOk = (p: string): p is Provider => (PROVIDERS as readonly string[]).includes(p);
@@ -165,10 +175,24 @@ export function estimateInputTokens(req: AiRequest): number {
   return Math.ceil(text.length / 2) + images * IMAGE_TOKENS + searches * SEARCH_TOKENS;
 }
 
-/** Micro-dollars a call may cost, before it is sent: its estimated input, its reply's cap, and the searches it may run. */
-export function estimateMicros(req: AiRequest, price: Price): number {
+/**
+ * Micro-dollars a call may cost, before it is sent: its estimated input, its reply's cap, and the searches it may run.
+ * Each search is reserved at its listed price with a margin (see searchReserveMicros), so a call that runs no more
+ * searches than it was allowed cannot book more than it reserved.
+ */
+export function estimateMicros(req: AiRequest, price: Price, outputTokens = req.maxTokens ?? DEFAULT_MAX_TOKENS): number {
   const searches = req.webSearch && !req.json ? (req.webSearch.maxUses ?? DEFAULT_SEARCH_USES) : 0;
-  return costMicros({ inputTokens: estimateInputTokens(req), outputTokens: req.maxTokens ?? 1024, searches }, price);
+  return costMicros({ inputTokens: estimateInputTokens(req), outputTokens, searches: 0 }, price) + searchReserveMicros(searches, price);
+}
+
+/**
+ * What a failed call costs. A refusal, a rate limit, a key the provider does not take, a network error or a 5xx did
+ * not bill, so nothing is charged. A timeout, or a reply that could not be read (or was cut off), may have billed,
+ * so the reservation stays. A failure that is not a typed AiError is charged its reservation, to be safe.
+ */
+export function failureMicros(e: unknown, reserved: number): number {
+  if (e instanceof AiError && e.code !== 'timeout' && e.code !== 'bad-output') return 0;
+  return reserved;
 }
 
 /** What a finished call cost, in micro-dollars: the provider's own figure when it has one, else its usage at the model's price. */
@@ -200,12 +224,16 @@ export function budgeted(tree: string, limitMicros: number, adapter: AiAdapter, 
     provider: adapter.provider,
     model: adapter.model,
     async complete(req) {
-      const booked = await reserve(tree, limitMicros, estimateMicros(req, price), c);
+      // The reservation prices the reply cap the adapter will send (a reasoning model's is raised), so they agree.
+      const booked = await reserve(tree, limitMicros, estimateMicros(req, price, outputCap(adapter.provider, adapter.model, req.maxTokens)), c);
       let actual = booked.amount;
       try {
         const reply = await adapter.complete(req);
         actual = replyMicros(reply, price);
         return reply;
+      } catch (e) {
+        actual = failureMicros(e, booked.amount);
+        throw e;
       } finally {
         await settle(tree, booked, actual);
       }
@@ -273,16 +301,18 @@ export async function testConnection(tree: string, input: { provider: Provider; 
   const started = Date.now();
   try {
     let adapter: AiAdapter;
-    if (fakeOn()) adapter = fakeAdapter(model);
-    else {
-      let key = input.apiKey?.trim() ?? '';
-      if (!key) {
-        const s = await readSettings(tree);
+    let key = input.apiKey?.trim() ?? '';
+    if (!key) {
+      const s = await readSettings(tree);
+      // The saved key goes only to the provider it was saved for: another provider needs a key typed here.
+      if (s.sealed && !savedKeyFits(s, input.provider)) throw new AiError('key-required', c('ai.err_key_required'));
+      if (!fakeOn()) {
         if (!s.sealed) throw new AiError('not-configured', c('ai.errNotConfigured'));
         key = await openKey(tree, s.sealed);
       }
-      adapter = makeAdapter(input.provider, key, model);
     }
+    if (fakeOn()) adapter = fakeAdapter(model);
+    else adapter = makeAdapter(input.provider, key, model);
     await adapter.complete({ system: 'You check a connection. Reply with the single word OK.', messages: [{ role: 'user', text: 'Ping' }], maxTokens: 16, timeoutMs: 15_000 });
     return { ok: true as const, provider: adapter.provider, model, ms: Date.now() - started };
   } catch (e) {

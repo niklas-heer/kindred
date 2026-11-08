@@ -38,9 +38,17 @@ const KEY_ERROR: Record<string, Key> = { auth: 'ai.keyErrAuth', 'rate-limited': 
 /** Budget ticks in dollars, and how many model rows are drawn before the page asks for a search. */
 const BUDGET_TICKS = [0, 5, 20, 50, 100];
 const ROW_LIMIT = 150;
+/** The most the monthly budget may be, in dollars: the server's own limit (aiSaveSettings), checked here first. */
+const BUDGET_MAX_USD = 10_000;
 
 /** A key is worth checking once it has the length of a real one; anything shorter is still being typed. */
 const looksLikeKey = (s: string) => /^\S{8,400}$/.test(s.trim());
+
+/** A failed call's line: a translated message when the server sent one, never the raw JSON of a validation error. */
+const failureText = (e: unknown, locale: Locale, fallback: string) => {
+  const m = e instanceof Error ? e.message : String(e ?? '');
+  return !m || /^[[{]/.test(m) ? fallback : errorText(e, locale);
+};
 
 export function AiSettingsPage() {
   const tree = useTreeId();
@@ -60,7 +68,8 @@ export function AiSettingsPage() {
       <PageHeader title={t('ai.settingsTitle')} subtitle={t('ai.settingsSubtitle')} icon={<Sparkles size={22} />} />
       {q.isPending && <Skeleton lines={6} />}
       {q.isError && <ErrorState title={t('ai.settingsLoadFailed')} message={errorText(q.error, t.locale)} onRetry={() => q.refetch()} />}
-      {q.data && <SettingsForm key={q.data.updated} tree={tree} data={q.data} />}
+      {/* Not keyed on the data's version: a save refetches the settings, and a remount would drop the "Saved." notice. */}
+      {q.data && <SettingsForm tree={tree} data={q.data} />}
       {/* A way to try the assistant from here. The drawer itself is mounted once, in the tree layout. */}
       <div className="ai-actions"><AssistantButton tree={tree} /></div>
     </main>
@@ -92,6 +101,12 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
   const current = model.trim() || DEFAULT_MODEL[provider];
   const typedValid = looksLikeKey(typedKey);
   const typedPartial = typedKey.trim().length > 0 && !typedValid;
+  // A saved key belongs to the provider it was saved for. Another provider needs a key typed here before anything runs.
+  const providerChanged = provider !== data.provider;
+  const needsKey = providerChanged && !typedValid;
+  const hasKey = typedValid || (!clearKey && data.keyState === 'saved' && !providerChanged);
+  const overBudget = budgetUsd > BUDGET_MAX_USD;
+  const keyNeededText = t('ai.keyNeeded', { provider: PROVIDER_LABEL[provider], saved: PROVIDER_LABEL[data.provider] });
 
   // The typed key is checked once typing pauses: the provider's model list comes back (or the reason it doesn't).
   useEffect(() => {
@@ -121,8 +136,6 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
   const listingLoading = keyActive ? check.isPending && !typedResult : savedEnabled && savedList.isPending;
   const models: ModelInfo[] = listing?.ok ? listing.models : [];
   const keyBlocked = keyActive && typedResult?.ok === false && typedResult.code === 'auth';
-  const hasKey = !clearKey && (data.keyState === 'saved' || typedValid);
-
   /** What a model costs here: the steward's own price first (the server books it first too), then the table, then the list. */
   const priceOf = (id: string): Price | null => {
     const mine = customPrices[id];
@@ -181,7 +194,7 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
       setNotice({ ok: true, text: t('ai.saved') });
       await Promise.all([qc.invalidateQueries({ queryKey: ['ai-settings', tree] }), qc.invalidateQueries({ queryKey: ['ai-status', tree] })]);
     },
-    onError: (e) => setNotice({ ok: false, text: errorText(e, t.locale) }),
+    onError: (e) => setNotice({ ok: false, text: failureText(e, t.locale, t('ai.saveInvalid')) }),
   });
 
   async function test() {
@@ -189,9 +202,11 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
     setNotice(null);
     try {
       const r = await aiTestConnection({ data: { tree, provider, model: current, apiKey: typedValid ? typedKey.trim() : undefined, locale } });
-      setNotice(r.ok ? { ok: true, text: t('ai.testOk', { provider: PROVIDER_LABEL[provider], model: r.model, ms: r.ms }) } : { ok: false, text: errorText(r.message, t.locale) });
+      if (r.ok) setNotice({ ok: true, text: t('ai.testOk', { provider: PROVIDER_LABEL[provider], model: r.model, ms: r.ms }) });
+      else if (r.code === 'key-required') setNotice({ ok: false, text: keyNeededText });
+      else setNotice({ ok: false, text: failureText(r.message, t.locale, t('ai.keyErrOther')) });
     } catch (e) {
-      setNotice({ ok: false, text: errorText(e, t.locale) });
+      setNotice({ ok: false, text: failureText(e, t.locale, t('ai.keyErrOther')) });
     } finally {
       setTesting(false);
     }
@@ -200,6 +215,7 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
   // ---------- the key line ----------
   let keyLine: { cls: string; text: string } | null = null;
   if (typedKey.trim() && !typedValid) keyLine = { cls: 'subtle', text: t('ai.keyTypeHint') };
+  else if (needsKey) keyLine = { cls: 'subtle', text: keyNeededText };
   else if (typedValid && checkKey !== typedKey.trim()) keyLine = { cls: 'subtle', text: t('ai.keyChecking') };
   else if (keyActive && check.isPending) keyLine = { cls: 'subtle', text: t('ai.keyChecking') };
   else if (keyActive && typedResult?.ok) keyLine = { cls: 'ai-key-status ok', text: models.length ? t('ai.keyOk', { n: number(models.length) }) : t('ai.keyOkNoList') };
@@ -293,10 +309,10 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
           {keyLine?.text ?? (clearKey ? t('ai.apiKeyEmpty') : data.keyState === 'unreadable' ? t('ai.keyUnreadable') : data.keyState === 'none' ? t('ai.apiKeyEmpty') : '')}
         </p>
         <div className="ai-key-row">
-          {data.keyState === 'saved' && !clearKey && <span className="ai-key-masked">{t('ai.keyMasked', { tail: data.keyTail ?? '' })}</span>}
-          {data.keyState === 'saved' && !clearKey && <button type="button" className="btn ghost" onClick={() => setClearKey(true)}>{t('ai.removeKey')}</button>}
+          {data.keyState === 'saved' && !clearKey && !providerChanged && <span className="ai-key-masked">{t('ai.keyMasked', { tail: data.keyTail ?? '' })}</span>}
+          {data.keyState === 'saved' && !clearKey && !providerChanged && <button type="button" className="btn ghost" onClick={() => setClearKey(true)}>{t('ai.removeKey')}</button>}
           {clearKey && <button type="button" className="btn ghost" onClick={() => setClearKey(false)}>{t('ai.keepKey')}</button>}
-          <button type="button" className="btn" onClick={test} disabled={testing || save.isPending}>{testing ? t('ai.testing') : t('ai.test')}</button>
+          <button type="button" className="btn" onClick={test} disabled={testing || save.isPending || needsKey}>{testing ? t('ai.testing') : t('ai.test')}</button>
         </div>
       </section>
 
@@ -326,9 +342,10 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
               {selectedPrice ? `${t('ai.priceLine', { input: money(selectedPrice.inPerM), output: money(selectedPrice.outPerM) })}` : t('ai.priceUnknown')}
             </span>
           </div>
-          {!selectedPrice && (
+          {/* Open while the model has no price, and whenever it has the steward's own: a half-typed number must not close it. */}
+          {(!selectedPrice || customPrices[current]) && (
             <>
-              <p className="ai-privacy">{t('ai.budgetUnenforced')}</p>
+              {!customPrices[current] && <p className="ai-privacy">{t('ai.budgetUnenforced')}</p>}
               <p className="subtle">{t('ai.customPriceHint')}</p>
               <div className="ai-custom-grid">
                 <label>
@@ -376,12 +393,15 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
             type="number"
             inputMode="decimal"
             min={0}
-            max={10000}
+            max={BUDGET_MAX_USD}
             step={0.5}
             value={budgetUsd}
+            aria-invalid={overBudget || undefined}
+            aria-describedby={overBudget ? 'ai-budget-max' : undefined}
             onChange={(e) => setBudgetUsd(Math.max(0, Number(e.target.value) || 0))}
           />
         </div>
+        {overBudget && <p id="ai-budget-max" className="ai-key-status bad" role="alert">{t('ai.budgetTooHigh', { max: money(BUDGET_MAX_USD, 0) })}</p>}
         <Range
           value={Math.min(budgetUsd, 100)}
           onChange={setBudgetUsd}
@@ -420,12 +440,16 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
 
       {notice && <p className={notice.ok ? 'ai-card-state ok' : 'ai-card-error'} role={notice.ok ? 'status' : 'alert'}>{notice.text}</p>}
       <div className="ai-actions">
-        {(keyBlocked || typedPartial) && <p className="ai-save-hint ai-key-status bad">{keyBlocked ? t('ai.keyErrAuth') : t('ai.keyTypeHint')}</p>}
+        {(keyBlocked || typedPartial || needsKey) && (
+          <p className="ai-save-hint ai-key-status bad" role="alert">
+            {keyBlocked ? t('ai.keyErrAuth') : typedPartial ? t('ai.keyTypeHint') : keyNeededText}
+          </p>
+        )}
         <button
           type="button"
           className="btn primary"
           onClick={() => save.mutate()}
-          disabled={save.isPending || testing || keyBlocked || typedPartial}
+          disabled={save.isPending || testing || keyBlocked || typedPartial || needsKey || overBudget}
         >
           {save.isPending ? t('ai.saving') : t('ai.save')}
         </button>

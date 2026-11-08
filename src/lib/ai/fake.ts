@@ -53,7 +53,7 @@ function fixture(name: string, prompt: string, user: string, webSearch: boolean)
     const meanings = heer
       ? HEER_MEANINGS
       : [{ language: '', root: surname, meaning: 'Fake: a meaning to choose from', attestation: 'speculative', ideas: [{ kind: 'sound', idea: 'a play on the name' }], sources: [] }];
-    // Only the pages the search "found" are cited, and only when web search was on.
+    // Only the pages the search "found" are cited, and only when web search was on (or its pages are in the prompt).
     const sources = webSearch && heer ? HEER_SOURCES : undefined;
     return {
       json: { meanings: webSearch ? meanings : meanings.map((m) => ({ ...m, sources: [] })), note: webSearch ? undefined : 'Fake: from the model’s own knowledge, not checked online.' },
@@ -77,8 +77,10 @@ export function fakeAdapter(model = 'fake-model'): AiAdapter {
       const user = lastUser(req.messages);
       const prompt = [req.system, ...req.messages.map((m) => ('text' in m ? m.text : m.content))].join('\n');
       if (req.json) {
-        const f = fixture(req.json.name, user + '\n' + prompt, user, !!req.webSearch);
-        return { text: '', calls: [], json: f.json, ...split(50), ...(f.sources ? { sources: f.sources, searches: 1 } : {}) };
+        // A JSON answer built from pages a search returned (arms.server.ts) keeps those pages, as a searched run does.
+        const searched = !!req.webSearch || /Pages the search returned/.test(user);
+        const f = fixture(req.json.name, user + '\n' + prompt, user, searched);
+        return { text: '', calls: [], json: f.json, ...split(50), ...(f.sources ? { sources: f.sources, searches: req.webSearch ? 1 : 0 } : {}) };
       }
       const last = req.messages.at(-1);
       if (last?.role === 'tool') return { text: `Fake summary: ${last.content.slice(0, 300)}`, calls: [], ...split(40) };
@@ -90,6 +92,15 @@ export function fakeAdapter(model = 'fake-model'): AiAdapter {
       if (req.webSearch && /Answer with one JSON object/.test(req.system)) {
         const f = fixture('name_meaning', user + '\n' + prompt, user, true);
         return { text: `Here is the research.\n${JSON.stringify(f.json)}`, calls: [], ...split(50), ...(f.sources ? { sources: f.sources, searches: 1 } : { searches: 0 }) };
+      }
+      // Arms research in prose with web search (arms.server.ts's Surname: and Country lines): the Heer example is searched, anything else is not.
+      if (req.webSearch && /^Surname: /m.test(user)) {
+        const surname = /^Surname: (.+)$/m.exec(user)?.[1]?.trim() ?? '';
+        const heer = surname.toLowerCase() === 'heer';
+        return {
+          text: heer ? 'Research notes: Heer is a lord, a host or an army in Dutch and German, with sources.' : 'Research notes: nothing was checked on the web for this surname.',
+          calls: [], ...split(40), ...(heer ? { sources: HEER_SOURCES, searches: 1 } : { searches: 0 }),
+        };
       }
       // A chat reply with web search on: the fake "searches" once and cites one page, so the search path is exercised.
       if (req.webSearch) {

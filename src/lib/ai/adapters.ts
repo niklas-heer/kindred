@@ -1,11 +1,12 @@
 // One interface over the three providers, built on plain fetch so it runs on Workers as well as Node:
 // chat with tools, image input, JSON-structured output and web search. Anthropic's Messages API (web search as its
 // server tool, web_search_20250305); OpenAI's Chat Completions API, and for a call with web search its Responses API
-// (the hosted web_search tool); OpenRouter, which speaks the Chat Completions shape and searches through its web
-// plugin. Never logs the key, and never puts it in an error message.
+// (the hosted web_search tool); OpenRouter, which speaks the Chat Completions shape and searches through its server
+// tool openrouter:web_search. Never logs the key, and never puts it in an error message.
 import { PROVIDER_LABEL, type Provider } from './types';
 
-export type AiErrorCode = 'not-configured' | 'bad-input' | 'budget' | 'auth' | 'rate-limited' | 'timeout' | 'unreachable' | 'provider' | 'bad-output' | 'key-unreadable';
+export type AiErrorCode =
+  | 'not-configured' | 'key-required' | 'bad-input' | 'budget' | 'auth' | 'rate-limited' | 'timeout' | 'unreachable' | 'provider' | 'bad-output' | 'key-unreadable';
 
 export class AiError extends Error {
   constructor(readonly code: AiErrorCode, message: string, readonly retryAfter?: number) {
@@ -26,6 +27,26 @@ export type AiMessage =
 
 /** The most searches one call may run when the request does not say. The budget reserves for this many. */
 export const DEFAULT_SEARCH_USES = 3;
+/** The reply length a call asks for when the request does not say. */
+export const DEFAULT_MAX_TOKENS = 1024;
+/**
+ * OpenAI's guidance for reasoning models: reserve at least 25,000 tokens for reasoning and the answer together, since
+ * reasoning tokens count against max_output_tokens. A reasoning model's reply is never capped below this.
+ */
+export const REASONING_MAX_TOKENS = 25_000;
+const REASONING_MODEL: Record<'openai' | 'openrouter', RegExp> = {
+  openai: /^(o\d|gpt-5|gpt-6)/,
+  openrouter: /(^|\/)(o\d|gpt-5|gpt-6)/,
+};
+
+/** Whether a model reasons before it answers (so it needs the larger cap, and takes a reasoning effort). */
+export const isReasoningModel = (provider: Provider | 'fake', model: string): boolean =>
+  provider === 'openai' || provider === 'openrouter' ? REASONING_MODEL[provider].test(model) : false;
+
+/** The most tokens a reply may use: the caller's request, raised for a reasoning model. Sent to the provider and reserved by the budget alike. */
+export function outputCap(provider: Provider | 'fake', model: string, requested = DEFAULT_MAX_TOKENS): number {
+  return isReasoningModel(provider, model) ? Math.max(requested, REASONING_MAX_TOKENS) : requested;
+}
 
 export interface AiRequest {
   system: string;
@@ -35,7 +56,11 @@ export interface AiRequest {
   json?: { name: string; schema: JsonSchema };
   maxTokens?: number;
   timeoutMs?: number;
-  /** Let the model search the web, when the provider can and the family has allowed it. Costs extra per search. Not used with `json`. */
+  /**
+   * Let the model search the web in this request, when the provider can. Costs extra per search, and the reply says
+   * how many it ran. The provider is told the most it may run, and the budget reserves for that many. Not used with `json`.
+   * The chat never sets this: its web lookups run as their own requests (see isolatedSearch).
+   */
   webSearch?: { maxUses?: number };
 }
 
@@ -61,6 +86,20 @@ export interface AiAdapter {
   readonly provider: Provider | 'fake';
   readonly model: string;
   complete(req: AiRequest): Promise<AiReply>;
+}
+
+/**
+ * One search, in a request of its own: the only input is a fixed system prompt and one prompt (the query). No history,
+ * no tools, no family data: the caller builds `system` and `prompt` from nothing else. Booked like any call.
+ */
+export function isolatedSearch(adapter: AiAdapter, o: { system: string; prompt: string; maxUses?: number; maxTokens?: number; timeoutMs?: number }): Promise<AiReply> {
+  return adapter.complete({
+    system: o.system,
+    messages: [{ role: 'user', text: o.prompt }],
+    maxTokens: o.maxTokens ?? 800,
+    timeoutMs: o.timeoutMs ?? 45_000,
+    webSearch: { maxUses: o.maxUses ?? DEFAULT_SEARCH_USES },
+  });
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -137,13 +176,13 @@ function anthropic(key: string, model: string): AiAdapter {
           else messages.push({ role: 'user', content: [block] });
         }
       }
-      const body: Record<string, unknown> = { model, max_tokens: req.maxTokens ?? 1024, system: req.system, messages };
+      const body: Record<string, unknown> = { model, max_tokens: req.maxTokens ?? DEFAULT_MAX_TOKENS, system: req.system, messages };
       if (req.json) {
         body.tools = [{ name: req.json.name, description: 'Give the answer in this shape.', input_schema: req.json.schema }];
         body.tool_choice = { type: 'tool', name: req.json.name };
       } else {
         const tools: unknown[] = (req.tools ?? []).map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters }));
-        // The server tool: Anthropic runs the searches itself and cites them. Basic version, which every current model accepts.
+        // The server tool: Anthropic runs the searches itself and cites them. max_uses is the ceiling the provider enforces.
         if (req.webSearch) tools.push({ type: 'web_search_20250305', name: 'web_search', max_uses: req.webSearch.maxUses ?? DEFAULT_SEARCH_USES });
         if (tools.length) body.tools = tools;
       }
@@ -172,6 +211,8 @@ function anthropic(key: string, model: string): AiAdapter {
         if (data.stop_reason !== 'pause_turn' || round >= 3) break;
         body.messages = [...(body.messages as unknown[]), { role: 'assistant', content: data.content }];
       }
+      // A reply cut off by its cap, or a search turn still paused, is not an answer: say so instead of showing part of one.
+      if (data.stop_reason === 'max_tokens' || data.stop_reason === 'pause_turn') throw new AiError('bad-output', 'Anthropic stopped before it finished its answer.');
       if (req.json) {
         const answer = calls.find((c) => c.name === req.json!.name);
         if (!answer) throw new AiError('bad-output', 'ai.err_shape');
@@ -209,16 +250,29 @@ async function openaiResponses(key: string, model: string, req: AiRequest): Prom
   }
   const tools: unknown[] = [{ type: 'web_search' }];
   for (const t of req.tools ?? []) tools.push({ type: 'function', name: t.name, description: t.description, parameters: t.parameters, strict: false });
-  const data = await post('openai', 'https://api.openai.com/v1/responses', { 'content-type': 'application/json', authorization: `Bearer ${key}` }, {
-    model, instructions: req.system, input, tools, max_output_tokens: req.maxTokens ?? 1024,
-  }, key, req.timeoutMs ?? 60_000);
+  const maxUses = req.webSearch?.maxUses ?? DEFAULT_SEARCH_USES;
+  const body: Record<string, unknown> = {
+    model,
+    instructions: req.system,
+    input,
+    tools,
+    max_output_tokens: outputCap('openai', model, req.maxTokens),
+    // The pages the model consulted, not only the ones it cited: the sources come back even when the answer is JSON text.
+    include: ['web_search_call.action.sources'],
+    // The most calls to the built-in search tool the reply may make. The budget reserves for this many searches.
+    max_tool_calls: maxUses,
+  };
+  if (isReasoningModel('openai', model)) body.reasoning = { effort: 'low' };
+  const data = await post('openai', 'https://api.openai.com/v1/responses', { 'content-type': 'application/json', authorization: `Bearer ${key}` }, body, key, req.timeoutMs ?? 60_000);
+  if (data.status === 'incomplete') throw new AiError('bad-output', 'OpenAI stopped before it finished its answer.');
   let text = '';
   const calls: ToolCall[] = [];
   const sources: { url: string; title?: string }[] = [];
   let searches = 0;
-  for (const item of (data.output ?? []) as { type: string; status?: string; call_id?: string; name?: string; arguments?: string; content?: { type: string; text?: string; annotations?: { type: string; url?: string; title?: string }[] }[] }[]) {
+  for (const item of (data.output ?? []) as { type: string; status?: string; call_id?: string; name?: string; arguments?: string; action?: { sources?: { url?: string; title?: string }[] }; content?: { type: string; text?: string; annotations?: { type: string; url?: string; title?: string }[] }[] }[]) {
     if (item.type === 'web_search_call') {
       if (item.status !== 'failed') searches++;
+      for (const s of item.action?.sources ?? []) addSource(sources, s.url, s.title);
     } else if (item.type === 'message') {
       for (const part of item.content ?? []) {
         if (part.type !== 'output_text') continue;
@@ -264,27 +318,46 @@ function chatCompletions(provider: 'openai' | 'openrouter', key: string, model: 
         }
       }
       const body: Record<string, unknown> = { model, messages };
+      const cap = outputCap(provider, model, req.maxTokens);
+      const reasoning = isReasoningModel(provider, model);
       // OpenAI's reasoning models take max_completion_tokens; OpenRouter's normalised API takes max_tokens.
-      if (provider === 'openai') body.max_completion_tokens = req.maxTokens ?? 1024;
-      else body.max_tokens = req.maxTokens ?? 1024;
+      if (provider === 'openai') {
+        body.max_completion_tokens = cap;
+        if (reasoning) body.reasoning_effort = 'low';
+      } else {
+        body.max_tokens = cap;
+        if (reasoning) body.reasoning = { effort: 'low' };
+      }
       if (req.json) body.response_format = { type: 'json_schema', json_schema: { name: req.json.name, schema: req.json.schema, strict: false } };
-      else if (req.tools?.length) body.tools = req.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
-      // OpenRouter's web plugin searches for any model it lists. Its cost comes back in usage.cost.
-      if (provider === 'openrouter' && req.webSearch && !req.json) body.plugins = [{ id: 'web', max_results: 5 }];
+      const tools: unknown[] = (req.tools ?? []).map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
+      // OpenRouter's server tool: the model decides whether and what to search, and max_tool_calls is the ceiling for every server tool in the request.
+      if (provider === 'openrouter' && req.webSearch && !req.json) {
+        const maxUses = req.webSearch.maxUses ?? DEFAULT_SEARCH_USES;
+        tools.push({ type: 'openrouter:web_search', parameters: { max_results: 5, max_uses: maxUses } });
+        body.max_tool_calls = maxUses;
+      }
+      if (tools.length) body.tools = tools;
       const data = await post(provider, url, headers, body, key, req.timeoutMs ?? 45_000);
-      const msg = data.choices?.[0]?.message as {
+      const choice = data.choices?.[0] as { finish_reason?: string; message?: {
         content?: string | null;
         tool_calls?: { id: string; function: { name: string; arguments: string } }[];
         annotations?: { type: string; url_citation?: { url?: string; title?: string } }[];
-      } | undefined;
+      } } | undefined;
+      const msg = choice?.message;
       if (!msg) throw new AiError('bad-output', `${PROVIDER_LABEL[provider]} sent back no answer.`);
+      // A reply cut off by its cap is not an answer: say so, rather than showing an empty or partial one.
+      if (choice?.finish_reason === 'length') throw new AiError('bad-output', `${PROVIDER_LABEL[provider]} stopped before it finished its answer.`);
       const inputTokens = data.usage?.prompt_tokens ?? 0;
       const outputTokens = data.usage?.completion_tokens ?? 0;
       const text = msg.content ?? '';
       const sources: { url: string; title?: string }[] = [];
       for (const a of msg.annotations ?? []) if (a.type === 'url_citation') addSource(sources, a.url_citation?.url, a.url_citation?.title);
       const reported = typeof data.usage?.cost === 'number' ? { reportedCostUsd: data.usage.cost as number } : {};
-      const searched = provider === 'openrouter' && !!req.webSearch && !req.json ? 1 : 0;
+      // A search counts only when the reply says it ran one, or cites a page: "checked on the web" is never claimed on a guess.
+      const reportedSearches = data.usage?.server_tool_use_details?.web_search_requests;
+      const searched = provider === 'openrouter' && !!req.webSearch && !req.json
+        ? Math.max(typeof reportedSearches === 'number' ? reportedSearches : 0, sources.length ? 1 : 0)
+        : 0;
       if (req.json) {
         try {
           return { text, calls: [], json: JSON.parse(text), tokens: inputTokens + outputTokens, inputTokens, outputTokens, searches: 0, ...reported };

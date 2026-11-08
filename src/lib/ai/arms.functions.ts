@@ -13,6 +13,9 @@ const country = z.string().regex(/^[A-Z]{2}$/).optional();
 const familyHint = z.string().trim().max(200).optional();
 const guard = () => import('../auth/guard.server');
 
+/** The most meanings one design call takes. The reader's screen holds to the same number, so it never asks for more. */
+export const MAX_DESIGN_MEANINGS = 10;
+
 /** Step one: what the surname may mean, across its languages and regions. Web search only when the family allows it. */
 export const aiNameMeaning = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, surname, country, familyHint, locale }))
@@ -23,11 +26,11 @@ export const aiNameMeaning = createServerFn({ method: 'POST' })
     });
   });
 
-/** Step two: 3–5 arms designs drawing on the meanings the reader chose (at most ten). */
+/** Step two: 3–5 arms designs drawing on the meanings the reader chose (at most MAX_DESIGN_MEANINGS). */
 export const aiArmsDesigns = createServerFn({ method: 'POST' })
   .validator(z.object({
     tree, surname, country, familyHint, locale,
-    meanings: z.array(designMeaningSchema).min(1).max(10),
+    meanings: z.array(designMeaningSchema).min(1).max(MAX_DESIGN_MEANINGS),
   }))
   .handler(async ({ data }) => {
     await (await guard()).requireCan(data.tree, 'edit-house');

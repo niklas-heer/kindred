@@ -89,19 +89,19 @@ export async function sendMessage(o: { tree: string; user: string; role: Role; m
 
   const g = await graph(o.tree);
   const me = o.me && o.me !== '-' ? g.people.find((p) => p.id === o.me) : undefined;
-  const { tools, proposals: canPropose } = toolsFor(o.role);
+  const { tools, proposals: canPropose } = toolsFor(o.role, webSearch);
   const system = systemPrompt({
     locale, family: g.tree.name, readerName: me ? fullName(me) : null, kinToReader: null, canPropose, role: o.role, webSearch,
   });
-  const ctx = { tree: o.tree, role: o.role, me: me?.id ?? null, locale };
+  // The sources of the web lookups this turn ran. The chat's own requests never search: a lookup is its own request.
+  const sources: { url: string; title?: string }[] = [];
+  const ctx = { tree: o.tree, role: o.role, me: me?.id ?? null, locale, search: webSearch ? { adapter, sources } : undefined };
   const messages: AiMessage[] = [...past, { role: 'user', text: o.text }];
   const proposals: Proposal[] = [];
-  const sources: { url: string; title?: string }[] = [];
   let text = '';
   for (let step = 0; ; step++) {
     // Each call is booked against the family's budget by the adapter, so a loop cannot outspend it.
-    const reply = await adapter.complete({ system, messages, tools, maxTokens: 1200, timeoutMs: 60_000, ...(webSearch && { webSearch: { maxUses: 3 } }) });
-    for (const s of reply.sources ?? []) if (!sources.some((x) => x.url === s.url)) sources.push(s);
+    const reply = await adapter.complete({ system, messages, tools, maxTokens: 1200, timeoutMs: 60_000 });
     if (!reply.calls.length || step >= MAX_STEPS) {
       text = reply.text.trim();
       break;
