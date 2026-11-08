@@ -28,9 +28,9 @@ This page is the plan. Some steps are decisions for the owner, and they are mark
 
 - **Check the history for private data.** This repository has no remote and holds the owner's real family in
   `data/`, which is gitignored. Before the code is pushed anywhere, confirm that no commit contains family data, names
-  from `data/`, or `data/seed/smith.json`: `git log --all --stat` and `git log -p --all -- data/` are the checks, and
+  from `data/`, or `data/seed/*.json`: `git log --all --stat` and `git log -p --all -- data/` are the checks, and
   `git grep` for a name from the real archive. If anything is there, rewrite the history before the push, not after.
-- **Check the ignore rules still cover the secrets.** `.gitignore` covers `data/*.db`, `data/seed/smith.json`,
+- **Check the ignore rules still cover the secrets.** `.gitignore` covers `data/*.db`, `data/seed/*.json`,
   `data/secret`, `data/backups/`, `.dev.vars`, `.wrangler/` and `data/media/`.
 - **Run the checks:** `mise run check`, `mise run test`, and `mise run build` (the Worker build). The exchange tests are
   not in `npm test` until `package.json` lists `src/lib/exchange/*.test.ts`.

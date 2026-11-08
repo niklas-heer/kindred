@@ -9,13 +9,11 @@ _.path = ["node_modules/.bin"]
 run = "npm install"
 
 [tasks.data]
-description = "Generate the test families and rebuild their databases; import the real archive only if its database is new"
+description = "Generate the test families and rebuild their databases"
 run = [
   "node scripts/gen-realm.ts",
   "node scripts/gen-modern.ts",
-  "test -d ../family-archive && node scripts/import-kindred.ts ../family-archive data/seed/smith.json || echo 'no ../family-archive; skipping the real family'",
   "node scripts/seed.ts --force data/seed/realm.json data/seed/modern.json",
-  "test -f data/seed/smith.json && node scripts/seed.ts data/seed/smith.json || true",
 ]
 
 [tasks.seed]

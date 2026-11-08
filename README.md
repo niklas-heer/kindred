@@ -70,8 +70,7 @@ mise run dev      # http://localhost:4517
 On a new install, open the site and create the first account with a passkey. The first account becomes steward
 of every family that exists, and setup closes as soon as it exists. Invite everyone else from the Access page.
 
-`mise run data` also imports the real archive from `../family-archive` when that folder exists, and says so when it
-does not. Your own family's files never leave `data/`, which is gitignored.
+Your own family's files never leave `data/`, which is gitignored.
 
 Passkeys need HTTPS or `localhost`. Behind a reverse proxy, set `KINDRED_ORIGIN` to the public address (see
 [docs/self-host.md](docs/self-host.md)).

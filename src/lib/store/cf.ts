@@ -1,6 +1,6 @@
 // The Cloudflare driver: D1 for the families and the accounts, R2 for media. Bindings (wrangler.jsonc):
 //   ACCOUNTS       D1, the accounts database (migrations/accounts)
-//   TREE_<ID>      D1, one database per family (migrations/tree); TREE_SMITH serves /smith,
+//   TREE_<ID>      D1, one database per family (migrations/tree); TREE_FAMILY serves /family,
 //                  TREE_MY_FAMILY serves /my-family
 //   MEDIA          R2, uploaded files under <tree>/<key>
 // There is no gazetteer on Workers: the place picker offers the family's own places and the map pin.

@@ -1,6 +1,6 @@
 // Web Push with WebCrypto only, so it runs on Node and in Workers alike: payloads encrypted for the device
 // (RFC 8291, aes128gcm), requests signed with VAPID (RFC 8292, ES256). The push service only relays ciphertext.
-// Ported from the family site's push.js (family-archive), which has sent reminders in production with this wire format.
+// Ported from an earlier family site's push code, which has sent reminders in production with this wire format.
 // Nothing is stored here; src/lib/reminders.server.ts decides who gets what.
 
 export const PUSH_TIMEOUT_MS = 10_000;

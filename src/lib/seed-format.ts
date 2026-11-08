@@ -1,5 +1,5 @@
 // The JSON shape every seed source produces (generated realm, generated modern family, the real
-// Smith archive). scripts/seed.ts loads one of these into its own SQLite file in data/.
+// a Kindred archive). scripts/seed.ts loads one of these into its own SQLite file in data/.
 //
 // Dates are partial ISO strings: "1153", "1153-06", "1153-06-14". Approximate dates are prefixed
 // with "~" ("~1153"). Absent means unknown.

@@ -7,11 +7,8 @@ data/*.db
 # The offline place gazetteer (mise run gazetteer); rebuilt from GeoNames, never committed.
 data/gazetteer.db
 data/*.db-*
-data/seed/smith.json
 .DS_Store
-data/seed/realm.json
-data/seed/modern.json
-data/seed/smith-places.json
+data/seed/*.json
 data/backups/
 
 # Cloudflare: local workerd state (D1, R2) and local secrets; uploaded media on Node.

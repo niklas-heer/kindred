@@ -359,8 +359,7 @@ node scripts/seed.ts --force data/seed/modern.json   # rebuild one family; the o
 mise run clean     # remove dist/, .output/, .tanstack/, .wrangler/, the generated databases and data/media
 ```
 
-`mise run clean` deletes the databases, so keep a copy of `data/` first if you have edits in it. `mise run data` also imports
-the owner's real archive from `../family-archive` when that folder is there. It is skipped with a message otherwise.
+`mise run clean` deletes the databases, so keep a copy of `data/` first if you have edits in it.
 
 ## Checking it works
 

@@ -4,16 +4,16 @@
 //
 // Bindings (src/lib/store/cf.ts):
 //   ACCOUNTS     D1: accounts, passkeys, sessions, invitations (migrations/accounts)
-//   TREE_<ID>    D1: one database per family; TREE_SMITH serves /smith (migrations/tree)
+//   TREE_<ID>    D1: one database per family; TREE_FAMILY serves /family (migrations/tree)
 //   MEDIA        R2: portraits and other uploads, under <tree>/<key>
 //
 // Before the first deploy (not done for you):
 //   npx wrangler login
 //   npx wrangler d1 create kindred-accounts     → paste its database_id below
-//   npx wrangler d1 create kindred-smith      → paste its database_id below
+//   npx wrangler d1 create kindred-family       → paste its database_id below
 //   npx wrangler r2 bucket create kindred-media
 //   mise run cf:migrate:remote                  → the schema
-//   node scripts/import-to-d1.ts smith --remote   → the family (from data/smith.db)
+//   node scripts/import-to-d1.ts family --remote    → a family you already run locally (data/family.db)
 //   npx wrangler secret put KINDRED_SETUP_CODE  → a long code for /setup (or put Cloudflare Access in front)
 // Add a family: another TREE_<ID> database with migrations_dir migrations/tree, then migrate and import it.
 {
@@ -29,7 +29,7 @@
 	"triggers": { "crons": ["0 6 * * *"] },
 	"d1_databases": [
 		{ "binding": "ACCOUNTS", "database_name": "kindred-accounts", "database_id": "REPLACE-WITH-D1-ID", "migrations_dir": "migrations/accounts" },
-		{ "binding": "TREE_SMITH", "database_name": "kindred-smith", "database_id": "REPLACE-WITH-D1-ID", "migrations_dir": "migrations/tree" }
+		{ "binding": "TREE_FAMILY", "database_name": "kindred-family", "database_id": "REPLACE-WITH-D1-ID", "migrations_dir": "migrations/tree" }
 	],
 	"r2_buckets": [{ "binding": "MEDIA", "bucket_name": "kindred-media" }],
 	// Optional vars: KINDRED_ORIGIN (the public origin, if not the request's), KINDRED_DEFAULT_TREE,

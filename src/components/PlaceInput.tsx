@@ -654,7 +654,7 @@ function PinMap({ tree, name, start, family, onClose, onSave }: {
               className="input"
               aria-labelledby="pm-go-label"
               value={go}
-              placeholder="Uppsala, Uppsala…"
+              placeholder="Uppsala, Porto…"
               onChange={(e) => setGo(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {

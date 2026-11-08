@@ -14,7 +14,7 @@ from `mise.toml`, `wrangler.jsonc` or `scripts/`.
 
 ```sh
 npx wrangler d1 create kindred-accounts
-npx wrangler d1 create kindred-<family>      # one for each family; <family> is its id, e.g. kindred-smith
+npx wrangler d1 create kindred-<family>      # one for each family; <family> is its id, e.g. kindred-smiths
 npx wrangler r2 bucket create kindred-media
 ```
 

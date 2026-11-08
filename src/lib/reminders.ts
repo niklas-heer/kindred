@@ -1,5 +1,5 @@
 // The reminder rules, without storage or network: which occasions fall on a day, what a device's reminder says, and
-// the choices a device may make. Ported from the family site's push.js (family-archive) and aligned with the Almanac:
+// the choices a device may make. Ported from an earlier family site's push code and aligned with the Almanac:
 // birthdays of living people, wedding anniversaries of living couples without an end, and memorial days, from full
 // ISO dates only (a year on its own, as protected dates often are, never matches).
 import type { Graph, GPerson } from './types';

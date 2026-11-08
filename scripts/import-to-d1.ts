@@ -1,9 +1,8 @@
 // Moves a family from its local SQLite file into its D1 database, and its pictures into R2.
 //   node scripts/import-to-d1.ts modern realm --env local --replace   the local D1 that `mise run dev:cf` uses
-//   node scripts/import-to-d1.ts smith --remote                     the deployed one (only when you mean it)
+//   node scripts/import-to-d1.ts family --remote                     the deployed one (only when you mean it)
 //   node scripts/import-to-d1.ts modern --plan                        what would be copied, touching no Cloudflare
-// The family's file is data/<id>.db (for the Kindred archive in ../family-archive, `mise run data` builds
-// data/smith.db). Its D1 database is the TREE_<ID> binding in wrangler.jsonc. The source file is not
+// The family's file is data/<id>.db (`scripts/import-kindred.ts` and `scripts/seed.ts` can build one from a v1 archive). Its D1 database is the TREE_<ID> binding in wrangler.jsonc. The source file is not
 // changed: a copy is brought up to date with migrations/ and its pictures moved out, then uploaded.
 //
 // What is copied, and in what order, is decided in scripts/lib/d1-transfer.ts (COPIED_TABLES): every table a
