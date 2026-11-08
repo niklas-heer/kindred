@@ -11,8 +11,10 @@ import { applyFamilyBatch } from '~/lib/family-batch.functions';
 import { opKeys } from '~/lib/api';
 import { NEW_REF, type FamilyLink, type FamilyPerson, type Proposal } from '~/lib/ai/types';
 import { useT, type Key } from '~/lib/i18n';
+import { PROPOSAL_KIND_KEY } from '~/lib/ai/labels';
 import { errorText } from '~/lib/errortext';
 import type { Locale } from '~/lib/i18n/types';
+import { CardHead } from './CardHead';
 
 type Status = 'todo' | 'done' | 'failed';
 type Translate = ReturnType<typeof useT>;
@@ -142,8 +144,14 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
     await aiChatMark({ data: { tree, itemId, proposalId: proposal.id, status: 'dismissed' } }).catch(() => {});
   }
 
+  const kind = t(PROPOSAL_KIND_KEY[proposal.kind]);
   if (status !== 'open') {
-    return <p className={`ai-card-state ${status === 'done' ? 'ok' : 'subtle'}`}>{t(status === 'done' ? 'ai.done' : 'ai.dismissed')}</p>;
+    return (
+      <article className={`ai-card ai-card-${status}`} aria-label={t('ai.proposalHeading')}>
+        <CardHead kind={kind} state={status} />
+        <p className="ai-card-summary">{proposal.summary}</p>
+      </article>
+    );
   }
 
   const todo = rows.filter((r) => r.status !== 'done').length;
@@ -161,108 +169,113 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
   });
   const connections = links.filter((l) => !rows.some((r) => r.ref === l.person));
   return (
-    <div className="ai-fam">
-      <p className="ai-fam-intro subtle">{t('ai.famIntro')}</p>
-      {view.questions && view.questions.length > 0 && (
-        <div className="ai-fam-questions">
-          <p className="ai-fam-label">{t('ai.famQuestions')}</p>
-          <ul>{view.questions.map((q, i) => <li key={i}>{q}</li>)}</ul>
-        </div>
-      )}
+    <article className="ai-card ai-card-open" aria-label={t('ai.proposalHeading')}>
+      <CardHead kind={kind} state="open" />
+      <p className="ai-card-summary">{proposal.summary}</p>
+      <div className="ai-fam">
+        <p className="ai-fam-intro subtle">{t('ai.famIntro')}</p>
+        {view.questions && view.questions.length > 0 && (
+          <div className="ai-fam-questions">
+            <p className="ai-fam-label">{t('ai.famQuestions')}</p>
+            <ul>{view.questions.map((q, i) => <li key={i}>{q}</li>)}</ul>
+          </div>
+        )}
 
-      <ol className="ai-fam-rows">
-        {rows.length === 0 && <li className="subtle">{t('ai.famEmpty')}</li>}
-        {rows.map((r) => {
-          const dup = duplicateOf(r.ref);
-          const locked = r.status === 'done';
-          const facts = [r.born ? t('ai.famBorn', { date: dateText(t, r.born) }) : null, r.died ? t('ai.famDied', { date: dateText(t, r.died) }) : null, r.occupation || null].filter(Boolean);
-          return (
-            <li key={r.ref} className={`ai-fam-row ai-fam-${r.status}`}>
-              <div className="ai-fam-main">
-                <p className="ai-fam-name">{nameOfRow(r)}</p>
-                {facts.length > 0 && <p className="ai-fam-facts subtle">{facts.join(' · ')}</p>}
-                {rowLines(r.ref).length > 0 && (
-                  <ul className="ai-fam-rels">
-                    {rowLines(r.ref).map((x) => (
-                      <li key={x.key} className={loopUids.has(x.uid) && x.status !== 'done' ? 'ai-fam-loop' : undefined}>
-                        {x.text}
-                        {loopUids.has(x.uid) && x.status !== 'done' && <span className="subtle"> · {t('ai.famLoop')}</span>}
-                        {x.status === 'failed' && x.error && <span className="ai-card-error"> {x.error}</span>}
-                      </li>
-                    ))}
-                  </ul>
+        <ol className="ai-fam-rows">
+          {rows.length === 0 && <li className="subtle">{t('ai.famEmpty')}</li>}
+          {rows.map((r) => {
+            const dup = duplicateOf(r.ref);
+            const locked = r.status === 'done';
+            const facts = [r.born ? t('ai.famBorn', { date: dateText(t, r.born) }) : null, r.died ? t('ai.famDied', { date: dateText(t, r.died) }) : null, r.occupation || null].filter(Boolean);
+            return (
+              <li key={r.ref} className={`ai-fam-row ai-fam-${r.status}`}>
+                <div className="ai-fam-main">
+                  <p className="ai-fam-name">{nameOfRow(r)}</p>
+                  {facts.length > 0 && <p className="ai-fam-facts subtle">{facts.join(' · ')}</p>}
+                  {rowLines(r.ref).length > 0 && (
+                    <ul className="ai-fam-rels">
+                      {rowLines(r.ref).map((x) => (
+                        <li key={x.key} className={loopUids.has(x.uid) && x.status !== 'done' ? 'ai-fam-loop' : undefined}>
+                          {x.text}
+                          {loopUids.has(x.uid) && x.status !== 'done' && <span className="subtle"> · {t('ai.famLoop')}</span>}
+                          {x.status === 'failed' && x.error && <span className="ai-card-error"> {x.error}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {r.story && <p className="ai-fam-story subtle">{t('ai.famStory', { title: r.story.title || r.story.kind })}</p>}
+                  {dup && !locked && <p className="ai-fam-dup" role="note">{t('ai.famDuplicate', { name: dup.name })}</p>}
+                  {locked && <p className="ai-card-state ok">{t('ai.famDone')}</p>}
+                  {r.status === 'failed' && <p className="ai-card-error" role="alert">{r.error}</p>}
+                </div>
+                {!locked && (
+                  <div className="ai-fam-actions">
+                    <button type="button" className="btn ghost ai-touch" onClick={() => setEditing(editing === r.ref ? null : r.ref)} aria-expanded={editing === r.ref} aria-label={t('ai.edit')} title={t('ai.edit')}>
+                      <Pencil size={14} aria-hidden />
+                    </button>
+                    <button type="button" className="btn ghost ai-touch" onClick={() => add(r.ref)} disabled={busy} aria-label={t('ai.famAddRow')} title={t('ai.famAddRow')}>
+                      <Check size={15} aria-hidden />
+                    </button>
+                    <button type="button" className="btn ghost ai-touch" onClick={() => removeRow(r.ref)} disabled={busy} aria-label={t('ai.famRemove')} title={t('ai.famRemove')}>
+                      <X size={15} aria-hidden />
+                    </button>
+                  </div>
                 )}
-                {r.story && <p className="ai-fam-story subtle">{t('ai.famStory', { title: r.story.title || r.story.kind })}</p>}
-                {dup && !locked && <p className="ai-fam-dup" role="note">{t('ai.famDuplicate', { name: dup.name })}</p>}
-                {locked && <p className="ai-card-state ok">{t('ai.famDone')}</p>}
-                {r.status === 'failed' && <p className="ai-card-error" role="alert">{r.error}</p>}
-              </div>
-              {!locked && (
-                <div className="ai-fam-actions">
-                  <button type="button" className="btn ghost ai-touch" onClick={() => setEditing(editing === r.ref ? null : r.ref)} aria-expanded={editing === r.ref} aria-label={t('ai.edit')} title={t('ai.edit')}>
-                    <Pencil size={14} aria-hidden />
-                  </button>
-                  <button type="button" className="btn ghost ai-touch" onClick={() => add(r.ref)} disabled={busy} aria-label={t('ai.famAddRow')} title={t('ai.famAddRow')}>
-                    <Check size={15} aria-hidden />
-                  </button>
-                  <button type="button" className="btn ghost ai-touch" onClick={() => removeRow(r.ref)} disabled={busy} aria-label={t('ai.famRemove')} title={t('ai.famRemove')}>
-                    <X size={15} aria-hidden />
-                  </button>
-                </div>
-              )}
-              {editing === r.ref && !locked && (
-                <div className="ai-fam-edit">
-                  {([
-                    ['given', 'ai.fieldName'], ['surname', 'ai.fieldSurname'], ['born', 'ai.fieldBorn'], ['bornPlace', 'ai.fieldBornPlace'],
-                    ['died', 'ai.fieldDied'], ['diedPlace', 'ai.fieldDiedPlace'], ['occupation', 'ai.fieldOccupation'],
-                  ] as [keyof FamilyPerson, Key][]).map(([field, label]) => (
-                    <label key={field} className="ai-field">
-                      <span>{t(label)}</span>
-                      <input value={(r[field] as string | undefined) ?? ''} onChange={(e) => edit(r.ref, field, e.target.value)} />
-                    </label>
-                  ))}
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-
-      {connections.length > 0 && (
-        <div className="ai-fam-connections">
-          <p className="ai-fam-label">{t('ai.famConnections')}</p>
-          <ul className="ai-fam-rels">
-            {connections.map((l) => (
-              <li key={l.uid} className={loopUids.has(l.uid) && l.status !== 'done' ? 'ai-fam-loop' : undefined}>
-                <span>{refName(l.person)}, {relLine(l)}</span>
-                {loopUids.has(l.uid) && l.status !== 'done' && <span className="subtle"> · {t('ai.famLoop')}</span>}
-                {l.status === 'failed' && <span className="ai-card-error"> {l.error}</span>}
-                {l.status === 'done' && <span className="ai-card-state ok"> · {t('ai.famDone')}</span>}
-                {l.status !== 'done' && (
-                  <button type="button" className="btn ghost ai-touch ai-link-remove" onClick={() => setLinks((ls) => ls.filter((x) => x.uid !== l.uid))} disabled={busy} aria-label={t('ai.famRemove')} title={t('ai.famRemove')}>
-                    <X size={13} aria-hidden />
-                  </button>
+                {editing === r.ref && !locked && (
+                  <div className="ai-fam-edit">
+                    {([
+                      ['given', 'ai.fieldName'], ['surname', 'ai.fieldSurname'], ['born', 'ai.fieldBorn'], ['bornPlace', 'ai.fieldBornPlace'],
+                      ['died', 'ai.fieldDied'], ['diedPlace', 'ai.fieldDiedPlace'], ['occupation', 'ai.fieldOccupation'],
+                    ] as [keyof FamilyPerson, Key][]).map(([field, label]) => (
+                      <label key={field} className="ai-field">
+                        <span>{t(label)}</span>
+                        <input value={(r[field] as string | undefined) ?? ''} onChange={(e) => edit(r.ref, field, e.target.value)} />
+                      </label>
+                    ))}
+                  </div>
                 )}
               </li>
-            ))}
-          </ul>
+            );
+          })}
+        </ol>
+
+        {connections.length > 0 && (
+          <div className="ai-fam-connections">
+            <p className="ai-fam-label">{t('ai.famConnections')}</p>
+            <ul className="ai-fam-rels">
+              {connections.map((l) => (
+                <li key={l.uid} className={loopUids.has(l.uid) && l.status !== 'done' ? 'ai-fam-loop' : undefined}>
+                  <span>{refName(l.person)}, {relLine(l)}</span>
+                  {loopUids.has(l.uid) && l.status !== 'done' && <span className="subtle"> · {t('ai.famLoop')}</span>}
+                  {l.status === 'failed' && <span className="ai-card-error"> {l.error}</span>}
+                  {l.status === 'done' && <span className="ai-card-state ok"> · {t('ai.famDone')}</span>}
+                  {l.status !== 'done' && (
+                    <button type="button" className="btn ghost ai-touch ai-link-remove" onClick={() => setLinks((ls) => ls.filter((x) => x.uid !== l.uid))} disabled={busy} aria-label={t('ai.famRemove')} title={t('ai.famRemove')}>
+                      <X size={13} aria-hidden />
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {notice && <p className="ai-card-error" role="alert">{t('ai.approveFailed')}{notice}</p>}
+        {failedAny && !notice && (
+          <p className="ai-card-state subtle" role="status">{t('ai.famPartial', { done: String(rows.length - todo), total: String(rows.length) })}</p>
+        )}
+
+        <div className="ai-card-actions">
+          <button type="button" className="btn primary" onClick={() => add()} disabled={busy || todo === 0}>
+            {failedAny ? <RotateCw size={15} aria-hidden /> : <Check size={15} aria-hidden />}{' '}
+            {busy ? t('ai.approving') : failedAny ? t('ai.famRetry') : t('ai.famAddAll')}
+          </button>
+          <button type="button" className="btn ghost" onClick={dismiss} disabled={busy}>
+            <X size={14} aria-hidden /> {t('ai.dismiss')}
+          </button>
         </div>
-      )}
-
-      {notice && <p className="ai-card-error" role="alert">{t('ai.approveFailed')}{notice}</p>}
-      {failedAny && !notice && (
-        <p className="ai-card-state subtle" role="status">{t('ai.famPartial', { done: String(rows.length - todo), total: String(rows.length) })}</p>
-      )}
-
-      <div className="ai-card-actions">
-        <button type="button" className="btn primary" onClick={() => add()} disabled={busy || todo === 0}>
-          {failedAny ? <RotateCw size={15} aria-hidden /> : <Check size={15} aria-hidden />}{' '}
-          {busy ? t('ai.approving') : failedAny ? t('ai.famRetry') : t('ai.famAddAll')}
-        </button>
-        <button type="button" className="btn ghost" onClick={dismiss} disabled={busy}>
-          <X size={14} aria-hidden /> {t('ai.dismiss')}
-        </button>
       </div>
-    </div>
+      <p className="ai-card-note subtle">{t('ai.notSavedYet')}</p>
+    </article>
   );
 }

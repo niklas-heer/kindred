@@ -1,5 +1,7 @@
-/* The assistant drawer, its proposal cards, and the AI settings page. Colours and type come from the
-   theme tokens in styles/app.css, so the three themes (codex, modern, night) all apply. */
+/* The assistant drawer, its proposal cards, and the AI settings page.
+   Colours and type come from the theme tokens in styles/app.css, so the three themes (codex, modern, night) all apply.
+   Touch targets stay at 44px. The drawer is a sheet on the right (the full height of the screen on a phone): the thread
+   is the one part that scrolls, and the composer stays at its foot. */
 
 .ai-launch { gap: 6px; }
 
@@ -11,86 +13,284 @@
   z-index: 60;
   display: flex;
   flex-direction: column;
-  width: min(440px, 100vw);
+  width: min(400px, 100vw);
+  height: 100dvh;
+  overflow: hidden;
   background: var(--panel-solid);
   color: var(--text);
   border-left: 1px solid var(--border);
   box-shadow: var(--shadow);
   font-family: var(--font-body);
 }
+.ai-drawer [hidden] { display: none !important; }
+
 .ai-drawer-head {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 12px 14px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px 8px;
   border-bottom: 1px solid var(--border);
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--accent) 8%, transparent), transparent);
 }
+.ai-drawer-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .ai-drawer-title {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   margin: 0;
   font-family: var(--font-title);
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
+  color: var(--text);
 }
-.ai-drawer-tools { display: flex; align-items: center; gap: 6px; }
+.ai-drawer-title svg { color: var(--accent); flex: 0 0 auto; }
+.ai-drawer-close { margin-right: -10px; }
+.ai-drawer-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-left: -8px; }
+.ai-tool { min-height: 44px; font-size: 0.9rem; color: var(--muted); }
+.ai-tool:hover:not(:disabled) { color: var(--text); }
 .ai-touch { min-height: 44px; min-width: 44px; }
 .ai-icon { padding: 0; justify-content: center; }
 .ai-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
+.ai-body { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.ai-thread { position: relative; display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 .ai-log {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 14px;
+  padding: 16px 14px 14px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   overscroll-behavior: contain;
 }
-.ai-msg { max-width: 100%; }
-.ai-msg p { margin: 0; }
-.ai-msg-user {
-  align-self: flex-end;
-  max-width: 88%;
-  padding: 8px 12px;
-  border-radius: var(--radius-lg);
-  background: var(--chip);
-  color: var(--text);
-  overflow-wrap: anywhere;
-}
-.ai-msg-assistant { align-self: stretch; display: flex; flex-direction: column; gap: 10px; }
-.ai-text { line-height: 1.5; overflow-wrap: anywhere; }
-.ai-text p { margin: 0 0 0.5em; }
-.ai-text p:last-child { margin-bottom: 0; }
-.ai-text a { color: var(--accent-text); }
-.ai-thinking { margin: 0; font-style: italic; }
 
-.ai-composer {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
-  align-items: end;
-  padding: 10px 14px 6px;
-  border-top: 1px solid var(--border);
+/* The empty thread: a welcome, then the things to ask as suggestions */
+.ai-empty { display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }
+.ai-welcome { display: flex; align-items: flex-start; gap: 12px; }
+.ai-welcome-text { margin: 0; max-width: 44ch; font-size: 1rem; line-height: 1.5; }
+.ai-mark {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
 }
-.ai-composer textarea {
-  resize: none;
+.ai-welcome .ai-mark { width: 30px; height: 30px; }
+.ai-examples-title {
+  margin: 6px 0 0;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.ai-examples { display: flex; flex-direction: column; gap: 6px; }
+.ai-example {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-height: 44px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   background: var(--panel-2);
   color: var(--text);
   font: inherit;
-  line-height: 1.4;
+  font-size: 0.93rem;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
-.ai-composer textarea:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.ai-foot { margin: 0; padding: 0 14px 12px; font-size: 0.85rem; }
+.ai-example:hover { border-color: var(--accent); background: var(--chip); }
+.ai-example:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.ai-example-primary {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel-2));
+}
+.ai-example-primary svg { color: var(--accent); flex: 0 0 auto; }
+
+/* Turns: the reader's words in a bubble on the right, the assistant's text on the left with its mark */
+.ai-turn { display: flex; gap: 10px; min-width: 0; }
+.ai-turn-user { justify-content: flex-end; }
+.ai-turn-user .ai-bubble { max-width: 86%; }
+.ai-turn-pending .ai-bubble { opacity: 0.62; }
+.ai-bubble {
+  padding: 9px 13px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 16px 16px 4px 16px;
+  background: color-mix(in srgb, var(--accent) 15%, var(--panel-2));
+  color: var(--text);
+  font-size: 0.97rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ai-turn-assistant { align-items: flex-start; }
+.ai-turn-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 10px; max-width: 60ch; }
+
+/* The model's Markdown: a reading size and rhythm, with its links in the accent colour */
+.ai-text { font-size: 0.98rem; line-height: 1.6; color: var(--text); overflow-wrap: anywhere; }
+.ai-text > :first-child { margin-top: 0; }
+.ai-text > :last-child { margin-bottom: 0; }
+.ai-text p { margin: 0 0 0.7em; }
+.ai-text ul,
+.ai-text ol { margin: 0 0 0.7em; padding-left: 1.3em; }
+.ai-text li + li { margin-top: 0.2em; }
+.ai-text strong { font-weight: 600; }
+.ai-text code {
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+  background: var(--chip);
+  font-size: 0.88em;
+}
+.ai-text blockquote { margin: 0 0 0.7em; padding-left: 10px; border-left: 2px solid var(--accent); color: var(--muted); }
+.ai-text h1,
+.ai-text h2,
+.ai-text h3 { margin: 0.6em 0 0.3em; font-family: var(--font-title); font-size: 1rem; letter-spacing: 0.02em; }
+.ai-text a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  text-underline-offset: 3px;
+  border-radius: 2px;
+}
+.ai-text a:hover { text-decoration-color: currentColor; }
+.ai-text a:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Where a web lookup's pages came from: small links under the reply */
+.ai-sources { font-size: 0.84rem; color: var(--muted); }
+.ai-sources-title {
+  margin: 0 0 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ai-sources ul { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ai-sources a {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--accent);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.ai-sources a:hover { border-color: var(--accent); }
+.ai-sources a:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Waiting for a reply: three dots and what is happening, then a longer note if it takes a while */
+.ai-turn-typing { align-items: center; }
+.ai-typing-body { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-height: 30px; font-size: 0.9rem; }
+.ai-dots { display: inline-flex; align-items: center; gap: 4px; }
+.ai-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: ai-dot 1.2s ease-in-out infinite;
+}
+.ai-dots i:nth-child(2) { animation-delay: 0.15s; }
+.ai-dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes ai-dot {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+.ai-slow { flex-basis: 100%; margin: 0; }
+
+/* A message that did not go: dashed, with Retry and Edit beside it */
+.ai-turn-unsent { flex-direction: column; align-items: flex-end; }
+.ai-turn-unsent .ai-bubble {
+  background: color-mix(in srgb, var(--danger) 8%, var(--panel-2));
+  border: 1px dashed color-mix(in srgb, var(--danger) 60%, var(--border));
+}
+.ai-unsent { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: 86%; }
+.ai-unsent-line { margin: 0; font-size: 0.88rem; color: var(--danger); text-align: right; overflow-wrap: anywhere; }
+.ai-unsent-line .subtle { color: var(--muted); }
+.ai-unsent-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.ai-unsent-actions .btn { min-height: 44px; }
+
+/* "Jump to latest": shown when the reader has scrolled up and something new has come */
+.ai-jump {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px 14px;
+  transform: translateX(-50%);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--panel-solid);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+.ai-jump:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* The composer: one box that grows with the text, with the microphone and Send under it */
+.ai-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 12px;
+  padding: 8px 8px 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--panel-2);
+}
+.ai-composer:focus-within { border-color: var(--accent); }
+.ai-composer textarea {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  max-height: 200px;
+  padding: 8px 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.45;
+  resize: none;
+  outline: none;
+}
+.ai-composer textarea::placeholder { color: var(--muted); opacity: 1; }
+.ai-composer textarea:disabled { opacity: 0.6; }
+.ai-composer-row { display: flex; align-items: center; gap: 8px; }
+.ai-composer-hint { margin: 6px 16px 10px; font-size: 0.76rem; line-height: 1.4; }
+.ai-composer .ai-send { margin-left: auto; min-width: 44px; }
+.ai-composer .ai-send:disabled { opacity: 0.5; }
+
+@media (max-width: 640px) {
+  .ai-drawer { width: 100vw; border-left: 0; }
+  .ai-bubble { font-size: 1rem; }
+  .ai-turn-user .ai-bubble { max-width: 90%; }
+  .ai-composer { margin: 0 8px; }
+  .ai-body { padding-bottom: env(safe-area-inset-bottom); }
+  .ai-feature-hint { margin-left: 0; }
+  .ai-composer-hint { display: none; }
+}
+@media (pointer: coarse) {
+  .ai-composer-hint { display: none; }
+}
 
 /* Proposal cards */
 .ai-card {
@@ -132,6 +332,27 @@
 .ai-card-state.ok { color: var(--ok); }
 .ai-card-error { margin: 0; color: var(--danger); font-size: 0.9rem; overflow-wrap: anywhere; }
 
+.ai-card-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 10px; }
+.ai-card-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 1px 9px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.ai-card-pill-done { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok); }
+.ai-card-pill-dismissed { border-color: var(--line); background: transparent; color: var(--muted); }
+.ai-card-note { margin: 0; font-size: 0.8rem; }
+.ai-card-done { border-left-color: var(--ok); }
+
 /* Settings page */
 .ai-settings { display: flex; flex-direction: column; gap: 16px; max-width: 760px; }
 .ai-section { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
@@ -146,39 +367,6 @@
 .ai-actions .btn { min-height: 44px; }
 .ai-privacy { margin: 0; font-size: 0.92rem; line-height: 1.5; }
 .ai-usage { margin: 0; font-variant-numeric: tabular-nums; }
-
-@media (max-width: 640px) {
-  .ai-drawer { width: 100vw; }
-  .ai-composer { grid-template-columns: 1fr; }
-  .ai-composer-actions { width: 100%; }
-  .ai-composer-actions .btn.primary { flex: 1 1 auto; justify-content: center; }
-  .ai-feature-hint { margin-left: 0; }
-}
-
-/* ---- the drawer's parts: examples, voice, family sessions, drafts and photo and avatar cards ----
-   Built from the theme tokens only, so Codex, Paper and Night all apply. Touch targets stay at 44px. */
-
-.ai-drawer [hidden] { display: none !important; }
-.ai-body { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
-.ai-body > .ai-log { flex: 1 1 auto; }
-
-.ai-empty { display: flex; flex-direction: column; gap: 12px; }
-.ai-examples-title { margin: 4px 0 0; font-size: 0.85rem; letter-spacing: 0.02em; }
-.ai-examples { display: flex; flex-wrap: wrap; gap: 8px; }
-.ai-example {
-  min-height: 44px;
-  padding: 8px 14px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--chip);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.9rem;
-  text-align: left;
-  cursor: pointer;
-}
-.ai-example:hover { border-color: var(--accent); }
-.ai-example:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 .ai-mic { min-width: 44px; padding-inline: 0; justify-content: center; }
 .ai-rec {
@@ -305,14 +493,26 @@
   .ai-rec-dot { animation: none; }
 }
 
-/* The header wraps its tools onto a second line rather than squeezing the title into three. */
-.ai-drawer-head { flex-wrap: wrap; row-gap: 8px; }
-.ai-drawer-title { white-space: nowrap; }
-.ai-drawer-tools { flex-wrap: wrap; justify-content: flex-end; }
-.ai-msg-session { padding: 6px 12px; }
-.ai-msg-session > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-size: 0.9rem; }
+/* The drawer's voice control: a labelled button, pressed and red while listening */
+.ai-mic { min-width: 44px; padding-inline: 10px; gap: 6px; }
+.ai-mic-label { font-size: 0.86rem; white-space: nowrap; }
+.ai-mic-on { border-color: var(--danger); color: var(--danger); }
+.ai-composer .ai-rec { margin: 0; padding: 2px 4px 0; font-size: 0.85rem; }
+.ai-composer .ai-rec em { display: block; }
+
+/* A family session's transcript, sent earlier, opens to the full text */
+.ai-turn.ai-msg-session {
+  display: block;
+  max-width: 86%;
+  margin-left: auto;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px 16px 4px 16px;
+  background: var(--panel-2);
+}
+.ai-msg-session > summary { display: flex; align-items: center; min-height: 32px; cursor: pointer; font-size: 0.92rem; }
 .ai-session-text {
-  margin: 4px 0 0;
+  margin: 6px 0 0;
   max-height: 40vh;
   overflow: auto;
   white-space: pre-wrap;
@@ -320,10 +520,17 @@
   font: inherit;
   font-size: 0.85rem;
 }
-
 .ai-session-note { margin: 0; font-size: 0.8rem; }
 
-.ai-composer-actions { display: flex; align-items: flex-end; gap: 6px; }
+/* After the settings rules, so a phone keeps the hint flush left. */
+@media (max-width: 640px) {
+  .ai-feature-hint { margin-left: 0; }
+}
 
-.ai-drawer-close { margin-left: auto; }
-.ai-drawer-head > .ai-drawer-tools { width: 100%; }
+/* Motion: the waiting dots and the listening dot stop when the reader asks for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .ai-dots i { animation: none; opacity: 0.8; }
+  .ai-example,
+  .ai-text a,
+  .ai-sources a { transition: none; }
+}

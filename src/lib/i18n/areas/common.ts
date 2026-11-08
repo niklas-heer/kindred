@@ -77,6 +77,7 @@ export const en = {
   "common.name": "Name",
   "common.find_person": "Find a person by name",
   "common.no_match": "No one matches. Try another spelling.",
+  "common.err_network": "Couldn’t reach Kindred. Check your connection and try again.",
   "common.photo_of": "Photograph of {name}",
   "common.photo_undated": "Photograph, date unknown",
 };
@@ -155,7 +156,8 @@ export const de: Record<keyof typeof en, Message> = {
   "common.close": "Schließen",
   "common.name": "Name",
   "common.find_person": "Find a person by name",
-  "common.no_match": "No one matches. Try another spelling.",
+  "common.no_match": "Niemand passt. Probiere eine andere Schreibweise.",
+  "common.err_network": "Kindred ist gerade nicht erreichbar. Prüfe deine Verbindung und versuche es noch einmal.",
   "common.photo_of": "Foto von {name}",
   "common.photo_undated": "Foto, Datum unbekannt",
 };
@@ -236,6 +238,7 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   "common.name": "Naam",
   "common.find_person": "Soek ’n persoon op naam",
   "common.no_match": "Niemand pas nie. Probeer ’n ander spelling.",
+  "common.err_network": "Kindred kon nie bereik word nie. Kyk jou verbinding en probeer weer.",
   "common.photo_of": "Foto van {name}",
   "common.photo_undated": "Foto, datum onbekend",
 };

@@ -15,6 +15,7 @@ import { Portrait } from '~/components/Portrait';
 import { withPresetLabel } from '../fields/presets';
 import { applyProposal, approvalKeys, type ApprovalKeys } from './apply';
 import { FamilyDraft } from './FamilyDraft';
+import { CardHead } from './CardHead';
 
 const FIELD: Record<string, Key> = {
   given: 'ai.fieldName', surname: 'ai.fieldSurname', born: 'ai.fieldBorn', died: 'ai.fieldDied', bornPlace: 'ai.fieldBornPlace', diedPlace: 'ai.fieldDiedPlace',
@@ -32,15 +33,8 @@ function summaryWithLabel(proposal: Proposal, t: ReturnType<typeof useT>): strin
 
 export function ProposalCard({ tree, itemId, proposal }: { tree: string; itemId: string; proposal: Proposal }) {
   const t = useT();
-  if (proposal.kind === 'family') {
-    return (
-      <article className={`ai-card ai-card-${proposal.status}`} aria-label={t('ai.proposalHeading')}>
-        <p className="ai-card-kind">{t(PROPOSAL_KIND_KEY[proposal.kind])}</p>
-        <p className="ai-card-summary">{proposal.summary}</p>
-        <FamilyDraft tree={tree} itemId={itemId} proposal={proposal} />
-      </article>
-    );
-  }
+  // A family draft is its own card (it has rows that are added one by one), so it draws its own head and state.
+  if (proposal.kind === 'family') return <FamilyDraft tree={tree} itemId={itemId} proposal={proposal} />;
   return <GenericCard tree={tree} itemId={itemId} proposal={proposal} />;
 }
 
@@ -169,7 +163,7 @@ function GenericCard({ tree, itemId, proposal }: { tree: string; itemId: string;
 
   return (
     <article className={`ai-card ai-card-${status}`} aria-label={t('ai.proposalHeading')}>
-      <p className="ai-card-kind">{t(PROPOSAL_KIND_KEY[proposal.kind])}</p>
+      <CardHead kind={t(PROPOSAL_KIND_KEY[proposal.kind])} state={status} />
       <p className="ai-card-summary">{summaryWithLabel(proposal, t)}</p>
       {photoKind && open && <PhotoRows proposal={proposal} dropped={dropped} onDrop={(k) => setDropped((d) => [...d, k])} t={t} />}
       {proposal.kind === 'avatar' && <AvatarPreview tree={tree} proposal={proposal} t={t} />}
@@ -226,8 +220,7 @@ function GenericCard({ tree, itemId, proposal }: { tree: string; itemId: string;
           </button>
         </div>
       )}
-      {status === 'done' && <p className="ai-card-state ok">{t('ai.done')}</p>}
-      {status === 'dismissed' && <p className="ai-card-state subtle">{t('ai.dismissed')}</p>}
+      {open && <p className="ai-card-note subtle">{t('ai.notSavedYet')}</p>}
       {error && <p className="ai-card-error" role="alert">{t('ai.approveFailed')}{error}</p>}
     </article>
   );
