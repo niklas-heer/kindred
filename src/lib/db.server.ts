@@ -129,6 +129,26 @@ export async function listTrees(): Promise<TreeMeta[]> {
   return trees.filter((t): t is TreeMeta => t !== null).sort((a, b) => b.people - a.people);
 }
 
+// ---------- creating a family ----------
+
+/**
+ * Makes a family's database and writes its details: the name, the theme, and an empty starting point until the
+ * steward adds themselves (see addFirstPerson in person.server.ts). Idempotent: a database that already names
+ * this family is left as it is, and two setups that race both succeed. The schema comes from migrations/tree.
+ */
+export async function provisionFamily(id: string, name: string, theme = 'codex'): Promise<'created' | 'exists'> {
+  const d = store.ensureTree(id);
+  const had = await d.get<{ value: string }>("SELECT value FROM meta WHERE key = 'id'");
+  if (had) {
+    if (had.value !== id) throw new Error(`That database holds the family "${had.value}", not "${id}".`);
+    return 'exists';
+  }
+  await d.batch(
+    Object.entries({ id, name, tagline: '', theme, focus: '' }).map(([k, v]) => q('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING', k, v)),
+  );
+  return 'created';
+}
+
 const json = <T>(s: unknown): T | undefined => (typeof s === 'string' ? JSON.parse(s) : undefined);
 const opt = <T>(v: T | null): T | undefined => (v === null ? undefined : v);
 
@@ -201,7 +221,7 @@ export const fieldOf = (r: any): PersonField => ({
 export async function person(tree: string, id: string, canSee = false): Promise<PersonDetail> {
   const d = db(tree);
   const [r, stories, fields] = await Promise.all([
-    d.get<any>('SELECT bio, born_place, died_place, updated_at FROM person WHERE id = ?', id),
+    d.get<any>('SELECT bio, born_place, died_place, updated_at, revision FROM person WHERE id = ?', id),
     d.all<any>('SELECT * FROM story WHERE person = ? ORDER BY at DESC', id),
     d.all<any>(`SELECT * FROM person_field WHERE person = ? ${canSee ? '' : 'AND private = 0'} ORDER BY ord, id`, id),
   ]);
@@ -212,6 +232,7 @@ export async function person(tree: string, id: string, canSee = false): Promise<
     bornPlace: opt(r.born_place),
     diedPlace: opt(r.died_place),
     updatedAt: r.updated_at,
+    revision: r.revision,
     stories: stories.map((s) => ({
       id: s.id, person: s.person, kind: s.kind, title: opt(s.title), body: s.body, author: s.author, at: s.at, context: opt(s.context),
     })),

@@ -3,6 +3,17 @@
 import type { Message } from "../types.ts";
 
 export const en = {
+  "setup.family_name": "Family name",
+  "setup.family_name_hint": "How relatives will see the family. You can change it later.",
+  "setup.family_default": "Our family",
+  "setup.family_ready_title": "{name} is ready",
+  "setup.family_ready_lede": "Start with yourself. Once you are in the tree, add your relatives and invite the family to join.",
+  "setup.add_me": "Add me to the family",
+  "setup.skip": "Not now",
+  "setup.family_add_failed": "Could not add you to the family. Try again, or skip this step.",
+  "setup.err_no_binding": "Kindred has no database for the family “{id}” yet. On Cloudflare, bind one as {binding} (docs/deploy-cloudflare.md, step 2), apply the migrations (step 3), and deploy again.",
+  "setup.err_not_migrated": "The database for the family “{id}” has no tables yet. Apply the migrations (docs/deploy-cloudflare.md, step 3), then try again.",
+  "setup.err_family_name_long": "The family name is too long; {max} characters at most.",
   "setup.already_set_up": "Already set up",
   "setup.kindred_already_has_a_steward_sign_in_with_your_passkey_or_ask_a_steward_for_an_invitation": "Kindred already has a steward. Sign in with your passkey, or ask a steward for an invitation.",
   "setup.go_to_sign_in": "Go to sign in",
@@ -23,6 +34,17 @@ export const en = {
 };
 
 export const de: Record<keyof typeof en, Message> = {
+  "setup.family_name": "Name der Familie",
+  "setup.family_name_hint": "So sehen Verwandte die Familie. Du kannst ihn später ändern.",
+  "setup.family_default": "Unsere Familie",
+  "setup.family_ready_title": "{name} ist bereit",
+  "setup.family_ready_lede": "Fang mit dir selbst an. Sobald du im Stammbaum bist, kannst du Verwandte hinzufügen und die Familie einladen.",
+  "setup.add_me": "Mich zur Familie hinzufügen",
+  "setup.skip": "Nicht jetzt",
+  "setup.family_add_failed": "Du konntest nicht zur Familie hinzugefügt werden. Versuche es erneut oder überspringe diesen Schritt.",
+  "setup.err_no_binding": "Kindred hat noch keine Datenbank für die Familie „{id}“. Bind sie auf Cloudflare als {binding} (docs/deploy-cloudflare.md, Schritt 2), wende die Migrationen an (Schritt 3) und deploye erneut.",
+  "setup.err_not_migrated": "Die Datenbank der Familie „{id}“ hat noch keine Tabellen. Wende die Migrationen an (docs/deploy-cloudflare.md, Schritt 3) und versuche es dann erneut.",
+  "setup.err_family_name_long": "Der Familienname ist zu lang; höchstens {max} Zeichen.",
   "setup.already_set_up": "Bereits eingerichtet",
   "setup.kindred_already_has_a_steward_sign_in_with_your_passkey_or_ask_a_steward_for_an_invitation": "Kindred wird bereits verwaltet. Melde dich mit deinem Passkey an oder bitte die Familienverwaltung um eine Einladung.",
   "setup.go_to_sign_in": "Zur Anmeldung",
@@ -44,6 +66,17 @@ export const de: Record<keyof typeof en, Message> = {
 
 /** Afrikaans. A missing entry falls back to English at runtime; the test reports them. */
 export const af: Partial<Record<keyof typeof en, Message>> = {
+  "setup.family_name": "Familienaam",
+  "setup.family_name_hint": "Hoe familielede die familie sal sien. Jy kan dit later verander.",
+  "setup.family_default": "Ons familie",
+  "setup.family_ready_title": "{name} is gereed",
+  "setup.family_ready_lede": "Begin met jouself. Wanneer jy in die stamboom is, voeg familie by en nooi hulle uit.",
+  "setup.add_me": "Voeg my by die familie",
+  "setup.skip": "Nie nou nie",
+  "setup.family_add_failed": "Ons kon jou nie by die familie voeg nie. Probeer weer, of slaan hierdie stap oor.",
+  "setup.err_no_binding": "Kindred het nog geen databasis vir die familie “{id}” nie. Bind dit op Cloudflare as {binding} (docs/deploy-cloudflare.md, stap 2), pas die migrasies toe (stap 3) en ontplooi weer.",
+  "setup.err_not_migrated": "Die databasis van die familie “{id}” het nog geen tabelle nie. Pas die migrasies toe (docs/deploy-cloudflare.md, stap 3) en probeer weer.",
+  "setup.err_family_name_long": "Die familienaam is te lank; hoogstens {max} karakters.",
   "setup.already_set_up": "Alreeds opgestel",
   "setup.kindred_already_has_a_steward_sign_in_with_your_passkey_or_ask_a_steward_for_an_invitation": "Kindred het reeds ’n rentmeester. Meld aan met jou passkey, of vra ’n rentmeester vir ’n uitnodiging.",
   "setup.go_to_sign_in": "Gaan na aanmelding",

@@ -3,6 +3,7 @@
 import type { Message } from "../types.ts";
 
 export const en = {
+  "exchange.cycle_refused": { one: "Nothing was imported: one parent link would make someone their own ancestor. Correct the file and try again.", other: "Nothing was imported: {count} parent links would make someone their own ancestor. Correct the file and try again." },
   "exchange.page.title": "Import and export",
   "exchange.page.subtitle": "Take the family out as GEDCOM or a Markdown archive, or bring a GEDCOM file in.",
   "exchange.export.heading": "Export",
@@ -48,6 +49,7 @@ export const en = {
 };
 
 export const de: Record<keyof typeof en, Message> = {
+  "exchange.cycle_refused": { one: "Nichts wurde importiert: eine Elternverbindung würde eine Person zu ihrer eigenen Vorfahrin oder ihrem eigenen Vorfahren machen. Korrigiere die Datei und versuche es erneut.", other: "Nichts wurde importiert: {count} Elternverbindungen würden eine Person zu ihrer eigenen Vorfahrin oder ihrem eigenen Vorfahren machen. Korrigiere die Datei und versuche es erneut." },
   "exchange.page.title": "Import und Export",
   "exchange.page.subtitle": "Nimm die Familie als GEDCOM oder als Markdown-Archiv heraus, oder bring eine GEDCOM-Datei hinein.",
   "exchange.export.heading": "Export",
@@ -94,6 +96,7 @@ export const de: Record<keyof typeof en, Message> = {
 
 /** Afrikaans. A missing entry falls back to English at runtime; the test reports them. */
 export const af: Partial<Record<keyof typeof en, Message>> = {
+  "exchange.cycle_refused": { one: "Niks is ingevoer nie: een ouerskakel sou iemand se eie voorouer maak. Korrigeer die lêer en probeer weer.", other: "Niks is ingevoer nie: {count} ouerskakels sou iemand se eie voorouer maak. Korrigeer die lêer en probeer weer." },
   "exchange.page.title": "Invoer en uitvoer",
   "exchange.page.subtitle": "Haal die familie uit as GEDCOM of ’n Markdown-argief, of bring ’n GEDCOM-lêer in.",
   "exchange.export.heading": "Uitvoer",

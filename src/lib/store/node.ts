@@ -210,6 +210,13 @@ const driver: Driver = {
     return db;
   },
 
+  ensureTree(id) {
+    if (!TREE_ID.test(id) || NOT_TREES.has(id)) throw new Error(`bad tree id ${id}`);
+    const path = join(DATA, `${id}.db`);
+    if (!trees.has(id) && !existsSync(path)) openSqlite(path, 'tree', { create: true }).close();
+    return driver.tree(id);
+  },
+
   treeIds() {
     if (!existsSync(DATA)) return [];
     return readdirSync(DATA)

@@ -4,6 +4,7 @@ import type { Message } from "../types.ts";
 
 export const en = {
   "draft.unsaved": "Unsaved changes",
+  "fields.changed_since_opened": "Someone changed this person since you opened it — reload.",
   "type.phone": "Phone",
   "type.email": "Email",
   "type.address": "Address",
@@ -194,6 +195,7 @@ export const en = {
 
 export const de: Record<keyof typeof en, Message> = {
   "draft.unsaved": "Ungespeicherte Änderungen",
+  "fields.changed_since_opened": "Jemand hat diese Person geändert, seit du sie geöffnet hast — lade neu.",
   "type.phone": "Telefon",
   "type.email": "E-Mail",
   "type.address": "Adresse",
@@ -385,6 +387,7 @@ export const de: Record<keyof typeof en, Message> = {
 /** Afrikaans. A missing entry falls back to English at runtime; the test reports them. */
 export const af: Partial<Record<keyof typeof en, Message>> = {
   "draft.unsaved": "Ongestoorde veranderinge",
+  "fields.changed_since_opened": "Iemand het hierdie persoon verander sedert jy dit oopgemaak het — laai weer.",
   "type.phone": "Telefoon",
   "type.email": "E-pos",
   "type.address": "Adres",

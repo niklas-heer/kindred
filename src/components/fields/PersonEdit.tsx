@@ -17,7 +17,7 @@ import { Select, Switch } from '../ui';
 import { DraftContext, DraftTracker } from './draft';
 import { draftOf, FieldEditor, type DraftField } from './FieldEditor';
 import { fieldIssue } from './model';
-import { useT } from '~/lib/i18n';
+import { translateMessage, useT } from '~/lib/i18n';
 import { OccupationField } from './OccupationField';
 
 interface Props {
@@ -45,6 +45,8 @@ export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
   const qc = useQueryClient();
   const [saveError, setSaveError] = useState<string | null>(null);
   const [keys] = useState(opKeys);
+  // The revision the draft was opened at. Read once: a refetch must not re-base the draft on newer data.
+  const [revision] = useState(detail.revision ?? 0);
   const remove = useMutation({
     mutationFn: () => removePerson({ data: { tree, id: p.id } }),
     onSuccess: async () => {
@@ -75,7 +77,7 @@ export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
           title: value.title, epithet: value.epithet, occupation: value.occupation, occupationCode: value.occupationCode || null, bio: value.bio,
         };
         const fields = value.fields.map((x) => ({ id: x.id, type: x.type, label: x.label, value: x.value, private: x.private }));
-        const body = { tree, id: p.id, details, fields };
+        const body = { tree, id: p.id, details, fields, revision };
         await savePersonEdit({ data: { ...body, opKey: keys.for('edit', body) } });
         keys.clear('edit');
         await Promise.all([
@@ -88,7 +90,8 @@ export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
       } catch (e) {
         // A refused field comes back as the validator's JSON; the reader gets a sentence instead.
         const msg = e instanceof Error ? e.message : '';
-        setSaveError(!msg ? c('edit.saveFailed') : msg.startsWith('[') ? c('edit.checkFields') : msg);
+        // A server message that is one of ours (in person.server.ts) is shown in the reader's language.
+        setSaveError(!msg ? c('edit.saveFailed') : msg.startsWith('[') ? c('edit.checkFields') : translateMessage(msg, c.locale));
       }
     },
   });

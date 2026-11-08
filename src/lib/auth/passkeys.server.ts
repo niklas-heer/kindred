@@ -10,6 +10,7 @@ import { isoBase64URL } from '@simplewebauthn/server/helpers';
 import { AuthError } from './errors.ts';
 import { siteOrigin } from './session.server.ts';
 import { checkSetupCode } from './setup.server.ts';
+import { checkCanMakeFamily, cleanFamilyName, makeFirstFamily } from './trees.server.ts';
 import {
   accounts, commit, credentialById, credentialsOf, credentialUsed, insertCredential, inviteById, inviteUsed, newUser, noUsersYet, openInvite, saveChallenge, takeChallenge,
   upsertMembership, usable, useInvite, userByEmail, userById, userCount, type UserRow,
@@ -54,10 +55,15 @@ const newHandle = () => isoBase64URL.fromBuffer(crypto.getRandomValues(new Uint8
 
 // ---------- creating a passkey ----------
 
-/** Options for the first steward's passkey; checks the optional setup code. */
-export async function setupOptions(request: Request, code: string, rawName: unknown) {
+/**
+ * Options for the first steward's passkey; checks the optional setup code. A server with no family yet must be
+ * able to make one (on Workers its database must be bound), so a missing binding is refused here, before a passkey.
+ */
+export async function setupOptions(request: Request, code: string, rawName: unknown, rawFamily?: unknown) {
   if (!(await checkSetupCode(code))) throw invalid((await userCount()) ? 'Kindred is already set up. Sign in instead.' : 'That setup code isn’t right. Check the server’s console and try again.');
   const name = cleanName(rawName);
+  cleanFamilyName(rawFamily);
+  await checkCanMakeFamily();
   const handle = newHandle();
   const options = await creationOptions(request, { name, handle, existing: [] });
   return { options, challengeId: await saveChallenge({ challenge: options.challenge, purpose: 'setup', subject: handle, name }) };
@@ -99,12 +105,23 @@ const take = async (id: unknown, purpose: string) => {
   return c;
 };
 
-/** Finishes setup: the first account, a steward of every family on this server. Returns its id. */
-export async function finishSetup(request: Request, code: string, challengeId: unknown, response: RegistrationResponseJSON, trees: string[]): Promise<string> {
+/**
+ * Finishes setup: the first account, a steward of every family on this server. A server with no family yet makes
+ * its first one, named `familyName` (default "Our family"), and the steward is in it. Returns the account's id and
+ * the family made for it, if one was.
+ */
+export async function finishSetup(
+  request: Request, code: string, challengeId: unknown, response: RegistrationResponseJSON, trees: string[], familyName?: unknown,
+): Promise<{ user: string; tree: string | null }> {
   const c = await take(challengeId, 'setup');
   if (!(await checkSetupCode(code))) throw invalid('Kindred is already set up. Sign in instead.');
   const cred = await verifyNew(request, c.challenge, response);
   const done = invalid('Kindred is already set up. Sign in instead.');
+  const name = cleanFamilyName(familyName);
+  // Made before the account, and only once a passkey is verified; a family made for a setup that then loses the
+  // race to another is simply the family the winner uses (its details are written only if it has none).
+  const made = trees.length ? null : await makeFirstFamily(name);
+  const granted = made ? [made] : trees;
   // Only one first steward, however many tabs race: the batch starts with a guard that no account
   // exists, and batches run one at a time, so a second setup writes nothing.
   const { user, insert } = newUser(c.name!, null, c.subject!);
@@ -113,13 +130,13 @@ export async function finishSetup(request: Request, code: string, challengeId: u
       noUsersYet(),
       insert,
       insertCredential({ ...cred, user: user.id, device: deviceName(request) }),
-      ...trees.map((t) => upsertMembership(user.id, t, 'steward')),
+      ...granted.map((t) => upsertMembership(user.id, t, 'steward')),
     ]);
   } catch (e) {
     if ((await userCount()) > 0) throw done;
     throw e;
   }
-  return user.id;
+  return { user: user.id, tree: made };
 }
 
 /** Finishes an invitation: a new account with the invited role. Returns its id. */

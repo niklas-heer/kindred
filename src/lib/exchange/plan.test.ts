@@ -106,3 +106,69 @@ test('two people in one file with the same id: the second is reported, not silen
   assert.equal(plan.add.length, 2, 'both are added, because the tree is empty');
   assert.ok(plan.issues.some((i) => /same id as an earlier person/.test(i.message)));
 });
+
+// ---------- ancestry cycles ----------
+
+/** A GEDCOM file with the given people (by id, named after it) and one family per parent link, the parent as husband. */
+function fileWith(people: string[], links: [child: string, parent: string][]): string {
+  const lines = [
+    '0 HEAD',
+    ...people.flatMap((id) => [`0 @${id}@ INDI`, `1 NAME ${id.toUpperCase()} /Test/`]),
+    ...links.flatMap(([child, parent], i) => [`0 @F${i}@ FAM`, `1 HUSB @${parent}@`, `1 CHIL @${child}@`]),
+    '0 TRLR',
+  ];
+  return lines.join('\n') + '\n';
+}
+
+test('two people who are each the other’s parent: one link is added, the other is refused as a conflict', () => {
+  const plan = planImport(readGedcom(fileWith(['a', 'b'], [['b', 'a'], ['a', 'b']])), emptyTree(), makeId);
+  assert.equal(plan.add.length, 2);
+  assert.equal(plan.parents.length, 1, 'the first link is kept');
+  assert.equal(plan.cycles.length, 1, 'the link that closes the loop is refused');
+  assert.deepEqual(
+    { child: plan.cycles[0].childName, parent: plan.cycles[0].parentName },
+    { child: 'A Test', parent: 'B Test' },
+  );
+  assert.equal(plan.conflicts.filter((c) => c.field === 'parent').length, 1, 'shown as a conflict in the preview');
+  assert.ok(plan.issues.some((i) => i.level === 'loss'), 'and reported as a loss');
+});
+
+test('a longer loop of three is caught at the link that closes it, and the two links before it are kept', () => {
+  // a is b's parent, b is c's parent, c is a's parent: the last link closes the loop.
+  const plan = planImport(readGedcom(fileWith(['a', 'b', 'c'], [['b', 'a'], ['c', 'b'], ['a', 'c']])), emptyTree(), makeId);
+  assert.equal(plan.parents.length, 2);
+  assert.equal(plan.cycles.length, 1);
+  assert.equal(plan.cycles[0].childName, 'A Test');
+  assert.equal(plan.cycles[0].parentName, 'C Test');
+});
+
+test('a loop through the family’s existing links is caught, even though the file alone has none', () => {
+  const tree = fixtureTree();
+  const [link] = tree.parents;
+  const name = (id: string) => {
+    const p = tree.people.find((x) => x.id === id)!;
+    return { given: p.given, surname: p.surname };
+  };
+  const child = name(link.child);
+  const parent = name(link.parent);
+  // The file says the family's child is the parent of the family's parent: a loop through the existing link.
+  const text = [
+    '0 HEAD',
+    `0 @x@ INDI`, `1 NAME ${child.given} /${child.surname ?? ''}/`,
+    `0 @y@ INDI`, `1 NAME ${parent.given} /${parent.surname ?? ''}/`,
+    '0 @F1@ FAM', '1 HUSB @x@', '1 CHIL @y@',
+    '0 TRLR',
+  ].join('\n') + '\n';
+  const plan = planImport(readGedcom(text), tree, makeId);
+  assert.equal(plan.matched.length, 2, 'both people are the family’s own');
+  assert.equal(plan.cycles.length, 1);
+  assert.equal(plan.parents.length, 0);
+});
+
+test('a family with two parents, and the diamond above it, is not a loop', () => {
+  // a is the parent of b and c; b and c are both parents of d. Nothing loops back.
+  const plan = planImport(readGedcom(fileWith(['a', 'b', 'c', 'd'], [['b', 'a'], ['c', 'a'], ['d', 'b'], ['d', 'c']])), emptyTree(), makeId);
+  assert.equal(plan.parents.length, 4);
+  assert.equal(plan.cycles.length, 0);
+  assert.equal(plan.conflicts.filter((c) => c.field === 'parent').length, 0);
+});

@@ -2,6 +2,7 @@
 // same plan, written as one guarded batch through `once`, so a retry or a second copy cannot write twice).
 // Server-only: it uses the family's database. The steward's permission is checked by the server function that
 // calls this (exchange.functions.ts), before anything here runs.
+import { translate } from '../i18n/dictionary.ts';
 import { db, newId, once, type OpKey } from '../db.server.ts';
 import { guard, q, type Query } from '../store/index.ts';
 import { readGedcom } from './gedcom.ts';
@@ -85,6 +86,8 @@ export function applyImport(tree: string, text: string, op: OpKey | undefined, a
     }
     const incoming = readGedcom(text);
     const plan = planImport(incoming, existing, newId);
+    // A file that would make someone their own ancestor is not written at all: the steward corrects it first.
+    if (plan.cycles.length) throw new Error(translate('en', 'exchange.cycle_refused', { count: plan.cycles.length }));
     const writes: Query[] = [
       guard('(SELECT count(*) FROM person) = ?', existing.people.length),
       guard('(SELECT count(*) FROM parent) = ?', existing.parents.length),

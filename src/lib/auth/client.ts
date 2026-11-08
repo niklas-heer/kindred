@@ -31,7 +31,7 @@ function friendly(e: unknown): Error {
   return new Error('Your device couldn’t make or use a passkey. Try again, or try another device.');
 }
 
-async function create(optionsAction: string, finishAction: string, optionsBody: object, finishBody: object) {
+async function create<T = { ok: boolean }>(optionsAction: string, finishAction: string, optionsBody: object, finishBody: object): Promise<T> {
   const { startRegistration } = await import('@simplewebauthn/browser');
   const { options, challengeId } = await post<{ options: PublicKeyCredentialCreationOptionsJSON; challengeId: string }>(optionsAction, optionsBody);
   let response;
@@ -40,11 +40,12 @@ async function create(optionsAction: string, finishAction: string, optionsBody: 
   } catch (e) {
     throw friendly(e);
   }
-  await post(finishAction, { ...finishBody, challengeId, response });
+  return post<T>(finishAction, { ...finishBody, challengeId, response });
 }
 
-/** Creates the first steward's passkey (checks the setup code when enabled). */
-export const setUpFirstSteward = (code: string, name: string) => create('setup-options', 'setup', { code, name }, { code });
+/** Creates the first steward's passkey (checks the setup code when enabled) and, on a new server, its family. Returns that family's id. */
+export const setUpFirstSteward = (code: string, name: string, familyName: string) =>
+  create<{ ok: boolean; tree: string | null }>('setup-options', 'setup', { code, name, familyName }, { code, familyName });
 
 /** Creates a passkey from an invitation and joins the family. */
 export const acceptWithPasskey = (token: string, name: string) => create('invite-options', 'invite', { token, name }, { token });

@@ -89,3 +89,17 @@ test('a key sent again with a different file is refused, not written', async () 
 });
 
 test.after(() => rmSync(dir, { recursive: true, force: true }));
+
+test('a file that would make someone their own ancestor previews the loop as a conflict, and is refused whole', async () => {
+  emptyFamily('loops');
+  const loop = [
+    '0 HEAD', '0 @a@ INDI', '1 NAME Ann /Loop/', '0 @b@ INDI', '1 NAME Ben /Loop/',
+    '0 @F1@ FAM', '1 HUSB @a@', '1 CHIL @b@', '0 @F2@ FAM', '1 HUSB @b@', '1 CHIL @a@', '0 TRLR',
+  ].join('\n') + '\n';
+  const preview = await previewImport('loops', loop);
+  assert.equal(preview.conflicts.filter((c) => c.field === 'parent').length, 1, 'the loop is shown in the preview');
+  assert.ok(preview.issues.some((i) => i.level === 'loss'));
+  await assert.rejects(applyImport('loops', loop, undefined, false), /would make someone their own ancestor/);
+  assert.equal((await db('loops').get<{ n: number }>('SELECT count(*) AS n FROM person'))!.n, 0, 'nothing was written');
+  assert.equal((await db('loops').get<{ n: number }>('SELECT count(*) AS n FROM parent'))!.n, 0);
+});

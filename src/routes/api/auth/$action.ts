@@ -44,11 +44,12 @@ export const Route = createFileRoute('/api/auth/$action')({
         try {
           switch (action) {
             case 'setup-options':
-              return json(await p.setupOptions(request, str(body.code), body.name));
+              return json(await p.setupOptions(request, str(body.code), body.name, body.familyName));
             case 'setup': {
               const trees = (await families()).map((t) => t.id);
-              const user = await p.finishSetup(request, str(body.code), body.challengeId, body.response, trees);
-              return json({ ok: true }, 200, await s.startSession(request, user));
+              const { user, tree } = await p.finishSetup(request, str(body.code), body.challengeId, body.response, trees, body.familyName);
+              // `tree` is the family made for a new server, so the first-run step can add the steward to it.
+              return json({ ok: true, tree }, 200, await s.startSession(request, user));
             }
             case 'invite-options':
               return json(await p.inviteOptions(request, str(body.token), body.name));

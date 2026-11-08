@@ -1,10 +1,14 @@
 // Changes to a person's details and fields. Reads are in db.server.ts (`person`). Every change is a plan
 // run through `once`: it reads what it decides on, guards those facts in the batch, and writes in one
 // transaction, so a retried or racing request never writes twice or half-way (see db.server.ts).
-import { guard, once, personExists, q, type OpKey, type Query } from './db.server.ts';
+import { guard, newId, once, personExists, q, type OpKey, type Query } from './db.server.ts';
 import { MAX_FIELDS, storedValue, type FieldInput, type FieldType } from '../components/fields/model.ts';
 import type { Look } from './types.ts';
 import { occupationCodeFor } from './occupations.ts';
+import { translate } from './i18n/dictionary.ts';
+
+/** The message a save gets when the person changed after the draft was opened (the reader sees it in their language). */
+export const CHANGED_SINCE_OPENED = translate('en', 'fields.changed_since_opened');
 
 /** The scalar details of a person, as the Edit tab saves them. Names: a null current name means "same as birth". */
 export interface PersonDetails {
@@ -35,17 +39,22 @@ interface Existing { id: string; type: string; label: string; value: string; pri
 /**
  * Saves the details and the whole list of fields in one batch. `fields` is the list in its new order:
  * a field with an `id` is updated, one without is added, and any field of this person not in the list is
- * removed. Everything is checked against what the database holds when the batch runs.
+ * removed. `revision` is the person's revision when the draft was opened: if anything about the person has
+ * changed since (a field added elsewhere, a name changed), the save is refused and the draft stays with the
+ * reader. The batch restates the revision it read, so a change that lands between this check and the write
+ * makes the batch write nothing, and the plan runs again on fresh reads (and then refuses).
  */
-export function savePersonEdit(tree: string, id: string, details: PersonDetails, fields: FieldInput[], op: OpKey | undefined, by: string) {
+export function savePersonEdit(tree: string, id: string, details: PersonDetails, fields: FieldInput[], revision: number, op: OpKey | undefined, by: string) {
   return once(tree, op, 'savePersonEdit', async (d) => {
-    if (!(await d.get('SELECT id FROM person WHERE id = ?', id))) throw new Error('Person not found.');
+    const now = await d.get<{ revision: number }>('SELECT revision FROM person WHERE id = ?', id);
+    if (!now) throw new Error('Person not found.');
+    if (now.revision !== revision) throw new Error(CHANGED_SINCE_OPENED);
     const had = await d.all<Existing>('SELECT id, type, label, value, private, ord FROM person_field WHERE person = ?', id);
     const hadById = new Map(had.map((r) => [r.id, r]));
     const kept = new Set<string>();
-    // What the plan read: the person, and the set of fields they have.
+    // What the plan read: the person at this revision (every change bumps it, see migration 0009), and the fields.
     const writes: Query[] = [
-      personExists(id),
+      guard('EXISTS (SELECT 1 FROM person WHERE id = ? AND revision = ?)', id, revision),
       guard('(SELECT count(*) FROM person_field WHERE person = ?) = ?', id, had.length),
     ];
 
@@ -153,5 +162,22 @@ export function setPersonDiedPlace(tree: string, id: string, place: string | nul
       ],
       result: undefined,
     };
+  });
+}
+
+/**
+ * The first person of a family: the steward adds themselves from the first-run step. Sets the family's
+ * starting point (meta `focus`) to them when it has none yet. Returns the new person's id.
+ */
+export function addFirstPerson(tree: string, given: string, op: OpKey | undefined) {
+  return once(tree, op, 'addFirstPerson', async (d) => {
+    const focus = await d.get<{ value: string }>("SELECT value FROM meta WHERE key = 'focus'");
+    const id = newId(given);
+    const writes: Query[] = [
+      guard("(SELECT value FROM meta WHERE key = 'focus') IS ?", focus?.value ?? null),
+      q('INSERT INTO person (id, given, living, updated_at) VALUES (?, ?, 1, ?)', id, given, nowIso()),
+    ];
+    if (focus && focus.value === '') writes.push(q("UPDATE meta SET value = ? WHERE key = 'focus'", id));
+    return { writes, result: id };
   });
 }

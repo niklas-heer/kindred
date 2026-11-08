@@ -55,11 +55,19 @@ const details = z.object({
  * needs `edit-contact` as well as `edit-person`; both are the editor's role, so the editor may do both.
  */
 export const savePersonEdit = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, id: personId, details, fields: z.array(fieldInput).max(MAX_FIELDS), opKey }))
+  .validator(z.object({ tree, id: personId, details, fields: z.array(fieldInput).max(MAX_FIELDS), revision: z.number().int().min(0), opKey }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireCan(data.tree, 'edit-person');
     if (data.fields.some((f) => isContactType(f.type))) await (await guard()).requireCan(data.tree, 'edit-contact');
-    return (await import('./person.server')).savePersonEdit(data.tree, data.id, data.details, data.fields, opOf(m.user, data), m.user.name);
+    return (await import('./person.server')).savePersonEdit(data.tree, data.id, data.details, data.fields, data.revision, opOf(m.user, data), m.user.name);
+  });
+
+/** The first-run step after setup: the steward adds themselves to the new family. Returns their person id. */
+export const addSelfToFamily = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, name: z.string().trim().min(1, 'A name is needed').max(120), opKey }))
+  .handler(async ({ data }) => {
+    const m = await (await guard()).requireCan(data.tree, 'edit-person');
+    return (await import('./person.server')).addFirstPerson(data.tree, data.name, opOf(m.user, data));
   });
 
 /** Adds one field to the end of the list: a contact from the Everyday tab. */

@@ -65,6 +65,11 @@ export interface Driver {
   name: 'node' | 'cloudflare';
   /** A family's database. Throws for an unknown tree. */
   tree(id: string): Db;
+  /**
+   * A family's database, made if it does not exist yet, with the tree schema brought up to date. Node: a new
+   * data/<id>.db. Workers: the bound D1 database, which must already exist (`tree` says which binding is missing).
+   */
+  ensureTree(id: string): Db;
   /** The ids of every family database there is (some may still be empty). */
   treeIds(): string[];
   /** The accounts database: people, passkeys, sessions, invitations, memberships. */

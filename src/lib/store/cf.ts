@@ -55,6 +55,11 @@ const driver: Driver = {
     return db(d1);
   },
 
+  // The binding must already exist (docs/deploy-cloudflare.md, step 2): nothing can be created here.
+  ensureTree(id) {
+    return driver.tree(id);
+  },
+
   treeIds() {
     return Object.keys(env)
       .filter((k) => /^TREE_[A-Z0-9_]+$/.test(k) && isD1(env[k]))

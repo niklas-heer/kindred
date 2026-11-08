@@ -8,15 +8,25 @@
 //     difference is listed as a conflict for the steward to settle by hand.
 //   - New people are added, with the id the file gives when that id is free, otherwise a new one.
 //   - Parent links and partnerships are added when they are new; one already in the tree is counted, not repeated.
+//   - A parent link that would make someone their own ancestor (directly or through others, in the tree or in the
+//     file) is a conflict, and is not added. `applyImport` refuses the whole file while there are any.
 import type { Incoming, IncomingPerson } from './gedcom.ts';
 import type { ExParent, ExPerson, ExTree, ExUnion, Issue } from './model.ts';
 
 export interface Conflict {
   name: string;
   id: string;
-  field: 'born' | 'died' | 'born place' | 'died place';
+  field: 'born' | 'died' | 'born place' | 'died place' | 'parent';
   existing: string;
   incoming: string;
+}
+
+/** A parent link the file would make a cycle with: `child` cannot have `parent` as a parent. */
+export interface Cycle {
+  child: string;
+  parent: string;
+  childName: string;
+  parentName: string;
 }
 
 export interface ImportPlan {
@@ -27,6 +37,8 @@ export interface ImportPlan {
   /** People with more than one possible match: added as new, to be checked by a steward. */
   ambiguous: string[];
   conflicts: Conflict[];
+  /** Parent links refused because they would make someone their own ancestor (also listed in `conflicts`). */
+  cycles: Cycle[];
   /** New parent links (ids of the tree), and how many were already there. */
   parents: ExParent[];
   duplicateParents: number;
@@ -138,9 +150,14 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
     });
   }
 
-  // Parent links.
+  // Parent links. Each new link is checked against the ancestry as it stands: the family's, plus the links
+  // accepted so far in this file. A link that would make a person their own ancestor is refused, not written.
   const existingLinks = new Set(existing.parents.map((l) => `${l.child}|${l.parent}`));
+  const parentsOf = new Map<string, Set<string>>();
+  for (const l of existing.parents) addParent(parentsOf, l.child, l.parent);
+  const nameById = new Map([...existing.people, ...add].map((p) => [p.id, nameOf(p)]));
   const parents: ExParent[] = [];
+  const cycles: Cycle[] = [];
   let duplicateParents = 0;
   let unlinked = 0;
   for (const l of incoming.parents) {
@@ -155,8 +172,22 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
       duplicateParents++;
       continue;
     }
+    // Adding child→parent closes a cycle exactly when the child is already an ancestor of (or the same as) the parent.
+    if (isAncestorOf(parentsOf, child, parent)) {
+      const cycle = { child, parent, childName: nameById.get(child) ?? child, parentName: nameById.get(parent) ?? parent };
+      cycles.push(cycle);
+      conflicts.push({ name: cycle.childName, id: child, field: 'parent', existing: `${cycle.parentName} is a descendant`, incoming: `${cycle.parentName} as a parent` });
+      continue;
+    }
     existingLinks.add(k);
+    addParent(parentsOf, child, parent);
     parents.push({ child, parent, kind: l.kind, confidence: l.confidence });
+  }
+  if (cycles.length) {
+    issues.push({
+      level: 'loss',
+      message: `${cycles.length} parent link${cycles.length === 1 ? '' : 's'} would make someone their own ancestor. Nothing is imported until the file is corrected.`,
+    });
   }
 
   // Partnerships.
@@ -182,5 +213,25 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
     unions.push({ id, a, b, kind: u.kind, start: u.start, end: u.end, endReason: u.endReason, place: u.place });
   }
 
-  return { add, matched, ambiguous, conflicts, parents, duplicateParents, unions, duplicateUnions, unlinked, issues };
+  return { add, matched, ambiguous, conflicts, cycles, parents, duplicateParents, unions, duplicateUnions, unlinked, issues };
+}
+
+const addParent = (parentsOf: Map<string, Set<string>>, child: string, parent: string) => {
+  const set = parentsOf.get(child) ?? new Set<string>();
+  set.add(parent);
+  parentsOf.set(child, set);
+};
+
+/** Whether `x` is `of` or one of its ancestors, walking up the parent links. */
+function isAncestorOf(parentsOf: Map<string, Set<string>>, x: string, of: string): boolean {
+  const seen = new Set<string>();
+  const up = [of];
+  while (up.length) {
+    const cur = up.pop()!;
+    if (cur === x) return true;
+    if (seen.has(cur)) continue;
+    seen.add(cur);
+    for (const p of parentsOf.get(cur) ?? []) up.push(p);
+  }
+  return false;
 }

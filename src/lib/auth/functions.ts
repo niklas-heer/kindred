@@ -20,6 +20,8 @@ export interface SessionInfo {
   memberships: { tree: string; role: Role; person: string | null }[];
   /** Nobody has an account yet: /setup creates the first steward. */
   needsSetup: boolean;
+  /** Setup will make the server's first family, so it asks for that family's name. */
+  needsFamily?: boolean;
   setupCodeRequired: boolean;
   /** Setup is open (no code) on a public address: /setup warns that the first visitor becomes the steward. */
   setupOpenToPublic?: boolean;
@@ -37,10 +39,12 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): 
   ]);
   const { user, via, uninvitedEmail } = await currentSession();
   const needs = await setup.needsSetup();
+  const needsFamily = needs && !(await (await import('./trees.server')).families()).length;
   return {
     user: user && via ? { id: user.id, name: user.name, email: user.email, via, locale: user.locale } : null,
     memberships: user ? (await s.membershipsOf(user.id)).map((m) => ({ tree: m.tree, role: m.role, person: m.person })) : [],
     needsSetup: needs,
+    needsFamily,
     setupCodeRequired: setup.setupCodeRequired(),
     setupOpenToPublic: needs && setup.setupOpenToPublic(siteOrigin(getRequest())),
     defaultTree: process.env.KINDRED_DEFAULT_TREE?.trim() || undefined,
