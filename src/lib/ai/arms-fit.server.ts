@@ -19,7 +19,7 @@ import type { ArmsV2 } from '../seed-format';
 import { AiError, type AiAdapter, type AiReply, type JsonSchema } from './adapters';
 import { tr, type Tr } from './labels';
 import { adapterForFeature, fakeOn } from './settings.server';
-import type { AiLocale } from './types';
+import { TASK_ROUTE, type AiLocale } from './types';
 
 const LANG = { en: 'English', de: 'German (du)', af: 'Afrikaans (jy)' } as const;
 const english = Object.assign((k: Key, vars?: Vars) => translate('en', k, vars), { locale: 'en' as const }) as Translator;
@@ -155,7 +155,7 @@ export async function checkArms(o: FitInput): Promise<ArmsReview> {
     const s = await snapshot(d, o.house);
     if (!s) throw new Error('houses.meaning.err_not_researched');
     if (!s.chosen.length) throw new Error('houses.meaning.err_none_chosen');
-    const adapter = o.adapter ?? (await adapterForFeature(o.tree, 'arms', o.locale)).adapter;
+    const adapter = o.adapter ?? (await adapterForFeature(o.tree, 'arms', o.locale, TASK_ROUTE.arms)).adapter;
     const run = !o.adapter && fakeOn() ? withFitFixture(adapter) : adapter;
     const fit = await ask(c, () => run.complete({
       system: fitSystem(o.locale),

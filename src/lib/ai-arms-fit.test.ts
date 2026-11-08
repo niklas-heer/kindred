@@ -27,6 +27,7 @@ const { newUser, upsertMembership } = await load<typeof import('./auth/store.ser
 const { checkArms, describeArms, fitSystem, withFitFixture } = await load<typeof import('./ai/arms-fit.server.ts')>('/src/lib/ai/arms-fit.server.ts');
 const { checkArmsFit } = await load<typeof import('./ai/arms-fit.functions.ts')>('/src/lib/ai/arms-fit.functions.ts');
 const { budgeted, spentThisMonth, OFF } = await load<typeof import('./ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
+const providers = await load<typeof import('./ai/providers.server.ts')>('/src/lib/ai/providers.server.ts');
 const { setUpFamilyAi } = await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts');
 const { tr } = await load<typeof import('./ai/labels.ts')>('/src/lib/ai/labels.ts');
 const { AiError } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
@@ -246,6 +247,33 @@ test('the check is booked against the family’s budget, and a call the budget c
   await assert.rejects(checkArms({ tree: TREE, house: HOUSE, locale: 'en', force: true, by: steward.id, op: op('fit-broke-00001', steward.id, true), adapter: budgeted(TREE, 1, broke.adapter, PRICE, c) }),
     (e: unknown) => e instanceof AiError && e.code === 'budget');
   assert.equal(broke.count(), 0, 'refused before it was sent');
+});
+
+// ---------- the route ----------
+
+test('a steward’s manual check goes to the arms-review route, not the arms route', async () => {
+  const steward = await memberWith('steward');
+  await providers.saveProviderKey(TREE, steward.id, 'openrouter', 'sk-or-v1-REVIEW-ROUTE-KEY-4444');
+  await setUpFamilyAi(TREE, steward.id, {
+    provider: 'anthropic', model: '', features: { ...OFF, arms: true }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: 'sk-test-0123456789',
+    routes: [{ route: 'arms-review', provider: 'openrouter', model: 'google/gemini-3.8-flash' }],
+  });
+  const urls: string[] = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = String(input);
+    urls.push(url);
+    if (url.includes('/models')) return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'not json' } }], usage: { prompt_tokens: 1, completion_tokens: 1 } }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }) as typeof fetch;
+  try {
+    await checkArms({ tree: TREE, house: HOUSE, locale: 'en', force: true, by: steward.id, op: op('fit-route-00001', steward.id, true) }).catch(() => undefined);
+  } finally {
+    globalThis.fetch = real;
+  }
+  const sent = urls.filter((u) => !u.includes('/models'));
+  assert.ok(sent.length >= 1, 'the check was sent');
+  assert.ok(sent.every((u) => u.startsWith('https://openrouter.ai/')), 'every call went to the arms-review provider, none to the arms (assistant) provider');
 });
 
 // ---------- who may ask ----------

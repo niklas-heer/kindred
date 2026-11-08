@@ -10,7 +10,8 @@
 --   * the portrait's own key (ai_portrait, when not reused from the family) becomes the OpenRouter connection, unless the
 --     family already has an OpenRouter connection. Then that second OpenRouter key is deleted: one connection holds one
 --     key, nothing reads ai_portrait.key_sealed any more, and a sealed key nobody uses must not linger. The portrait then
---     paints with the family's OpenRouter connection;
+--     paints with the family's OpenRouter connection (ai_portrait keys exist only in unreleased v2 builds, so no released
+--     family loses a working key here, and the single-connection rule stands);
 --   * the portrait's model becomes the portrait's route (OpenRouter, the only provider that paints);
 --   * the switches (ai_settings.features, ai_portrait.enabled, ai_background_task.enabled), the monthly budget, the web-search
 --     switch, the custom prices and every spend row are untouched.

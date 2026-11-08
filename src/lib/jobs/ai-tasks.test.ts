@@ -389,6 +389,38 @@ test('the daily run makes at most its call limit across families and tasks; the 
   assert.ok(BATCH <= CALLS_PER_DAILY_RUN);
 });
 
+test('the daily call ceiling counts calls: retries cannot pass it, and a retry never takes a later item’s first attempt', async () => {
+  const tree = 'limit-calls';
+  makeFamily(tree);
+  await setupAi(tree);
+  const make = (left: number, owed: number) => {
+    const room = { left, owed, item: 0 };
+    const requests: number[] = [];
+    const inner: AiAdapter = { provider: 'anthropic', model: 'claude-haiku-5-5', async complete() { requests.push(1); return { text: 'x', calls: [], tokens: 2, inputTokens: 1, outputTokens: 1, searches: 0 }; } };
+    const adapter = bg.backgroundAdapter(tree, inner, { monthlyMicros: 1_000_000, capMicros: 500_000, price: PRICE, c: (k) => k, meter: { micros: 0 }, room });
+    return { room, requests, adapter };
+  };
+  const ask = (a: AiAdapter) => a.complete({ system: 'x', messages: [{ role: 'user', text: 'x' }] });
+  const refused = (e: unknown) => e instanceof AiError && e.code === 'budget';
+
+  // One call of room: the first attempt goes, the retry of the same item does not.
+  const one = make(1, 0);
+  await ask(one.adapter);
+  await assert.rejects(ask(one.adapter), refused);
+  assert.equal(one.requests.length, 1);
+  assert.equal(one.room.left, 0);
+
+  // Two calls of room, one later item still owed its first attempt: the retry is refused, the later item's first attempt is not.
+  const two = make(2, 1);
+  await ask(two.adapter);
+  await assert.rejects(ask(two.adapter), refused);
+  two.room.item = 0;
+  two.room.owed = 0;
+  await ask(two.adapter);
+  assert.equal(two.requests.length, 2);
+  assert.equal(two.room.left, 0);
+});
+
 // ---------- the role checks, on the real server functions ----------
 
 async function memberWith(tree: string, role: 'viewer' | 'contributor' | 'editor' | 'steward') {

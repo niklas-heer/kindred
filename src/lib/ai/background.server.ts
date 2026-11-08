@@ -138,11 +138,18 @@ export async function backgroundSpentThisMonth(tree: string): Promise<number> {
 }
 
 /**
+ * The provider calls a daily run may still make, shared by every task of the run. `owed` is the first attempts the current
+ * task still owes its later items, and `item` the calls the current item has made: an item's first call needs only room,
+ * but a further call (a retry) needs room beyond `owed`, so a retry never takes the call a later item has not had yet.
+ */
+export interface CallRoom { left: number; owed: number; item: number }
+
+/**
  * The adapter a background task calls through: refuses a web search unless `allowSearch` says otherwise (only the name research, when the family has web search on), books each
  * call against the background cap and then against the whole budget, and settles both to what the call really cost. `meter`
  * collects what the run spent, for the run log.
  */
-export function backgroundAdapter(tree: string, inner: AiAdapter, o: { monthlyMicros: number; capMicros: number; price: Price; c: Tr; meter: { micros: number; calls?: number }; allowSearch?: boolean }): AiAdapter {
+export function backgroundAdapter(tree: string, inner: AiAdapter, o: { monthlyMicros: number; capMicros: number; price: Price; c: Tr; meter: { micros: number; calls?: number }; allowSearch?: boolean; room?: CallRoom }): AiAdapter {
   const total = budgeted(tree, o.monthlyMicros, inner, o.price, o.c);
   return {
     provider: inner.provider,
@@ -150,9 +157,16 @@ export function backgroundAdapter(tree: string, inner: AiAdapter, o: { monthlyMi
     reasoning: inner.reasoning,
     async complete(req: AiRequest): Promise<AiReply> {
       if (req.webSearch && !o.allowSearch) throw new AiError('bad-input', o.c('aitasks.errSearch'));
+      const room = o.room;
+      if (room && (room.left <= 0 || (room.item > 0 && room.left <= room.owed))) throw new AiError('budget', o.c('aitasks.errCalls'));
       const cap = outputCap(inner.provider, inner.model, req.maxTokens, inner.reasoning);
       const estimate = estimateMicros(req, o.price, cap, callRounds(inner.provider, req));
       const booked = await reserveBackground(tree, o.capMicros, estimate, o.c);
+      if (room) {
+        // Counted once the call is going out, failed or not: it may have billed.
+        room.left--;
+        room.item++;
+      }
       let actual = booked.amount;
       try {
         const reply = await total.complete(req);
@@ -194,6 +208,8 @@ export interface RunOptions {
   now?: Date;
   /** Items to do in this run at most (defaults to BATCH). */
   limit?: number;
+  /** The daily run's shared call room: every provider call of this run is counted in it, retries included. */
+  room?: CallRoom;
   /** Tests: the provider adapter, and its price, instead of the family's own key. Never set in the app. */
   adapter?: AiAdapter;
   price?: Price;
@@ -228,13 +244,18 @@ export async function runTask(tree: string, task: Task, o: RunOptions = {}): Pro
     const routed = await routeAdapter(tree, TASK_ROUTE[task], bg.locale);
     const inner = o.adapter ?? routed.inner;
     const price = o.price ?? routed.price;
-    const adapter = backgroundAdapter(tree, inner, { monthlyMicros: ready.settings.monthlyMicros, capMicros: capMicros(ready.settings.monthlyMicros, bg.capShare), price, c, meter, allowSearch: task === 'names' && ready.settings.webSearch });
+    const adapter = backgroundAdapter(tree, inner, { monthlyMicros: ready.settings.monthlyMicros, capMicros: capMicros(ready.settings.monthlyMicros, bg.capShare), price, c, meter, allowSearch: task === 'names' && ready.settings.webSearch, room: o.room });
     const items: Pending[] = await pending(tree, task, bg.languages);
     let done = 0;
     let failed = 0;
     let stopped = false;
     let note = '';
-    for (const item of items.slice(0, o.limit ?? BATCH)) {
+    const batch = items.slice(0, o.limit ?? BATCH);
+    for (const [at, item] of batch.entries()) {
+      if (o.room) {
+        o.room.owed = batch.length - at - 1;
+        o.room.item = 0;
+      }
       try {
         await perform(tree, item, { adapter, locale: bg.locale, now, webSearch: ready.settings.webSearch });
         done++;
@@ -283,20 +304,18 @@ async function logRun(tree: string, task: Task, source: 'schedule' | 'manual', n
  * is lost and nothing is done twice.
  */
 export async function runScheduled(trees: string[], now: Date, log: (message: string) => void): Promise<void> {
-  let calls = 0;
+  const room: CallRoom = { left: CALLS_PER_DAILY_RUN, owed: 0, item: 0 };
   for (const tree of trees) {
     const bg = await readBackground(tree);
     for (const task of TASKS) {
       const t: TaskSetting = bg.tasks[task];
       if (!t.enabled || !isDue(t.lastStarted, t.schedule, now.getTime())) continue;
-      const room = CALLS_PER_DAILY_RUN - calls;
-      const limit = Math.min(BATCH, task === 'names' ? Math.floor(room / CALLS_PER_NAME) : room);
+      const limit = Math.min(BATCH, task === 'names' ? Math.floor(room.left / CALLS_PER_NAME) : room.left);
       if (limit <= 0) {
         log(`${tree}: ${task} waits for the next run (today's ${CALLS_PER_DAILY_RUN} calls are used)`);
         continue;
       }
-      const out = await runTask(tree, task, { source: 'schedule', now, limit });
-      calls += out.calls;
+      const out = await runTask(tree, task, { source: 'schedule', now, limit, room });
       if (out.status !== 'skipped') log(`${tree}: ${task} ${out.status}: ${out.done} done, ${out.failed} failed, ${out.waiting} waiting`);
     }
   }

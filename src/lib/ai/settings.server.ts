@@ -264,15 +264,15 @@ export async function routeAdapter(tree: string, route: Route, locale: AiLocale)
 /**
  * The adapter for one feature, after its switch is checked, and whether this family allows web search. Every call the adapter
  * makes is booked against the family's monthly budget before it is sent (see `budgeted`). Throws AiError with a message in
- * the reader's language when it can't run. `webSearch` is for the caller to pass on: only the assistant does, and only when
+ * the reader's language when it can't run. `route` is the route whose provider and model run it (the feature's own by default). `webSearch` is for the caller to pass on: only the assistant does, and only when
  * the reply can say what it searched.
  */
-export async function adapterForFeature(tree: string, feature: Feature, locale: AiLocale): Promise<{ adapter: AiAdapter; webSearch: boolean; settings: Settings }> {
+export async function adapterForFeature(tree: string, feature: Feature, locale: AiLocale, route: Route = feature as Route): Promise<{ adapter: AiAdapter; webSearch: boolean; settings: Settings }> {
   const c = tr(locale);
   const settings = await readSettings(tree);
   if (!settings.features[feature]) throw new AiError('not-configured', c('ai.errOff'));
   if (settings.monthlyMicros <= 0) throw new AiError('budget', c('ai.errBudget'));
-  const { inner, price } = await routeAdapter(tree, feature as Route, locale);
+  const { inner, price } = await routeAdapter(tree, route, locale);
   return { adapter: budgeted(tree, settings.monthlyMicros, inner, price, c), webSearch: settings.webSearch, settings };
 }
 
