@@ -1,19 +1,7 @@
 .needed > p { margin: 4px 0 18px; }
 .needed-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
 .needed-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.needed-list li { display: grid; grid-template-columns: 48px minmax(180px, 1.2fr) 2fr auto; gap: 14px; align-items: center; padding: 10px 14px; }
-.needed-who { display: grid; min-width: 0; }
-.needed-who b { font-size: 16.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-[data-theme='codex'] .needed-who b { font-weight: 500; }
-.needed-who span { font-size: 13.5px; }
-.needed-gaps { display: flex; flex-wrap: wrap; gap: 5px; }
-.needed-gaps .chip { border-style: dashed; border-color: #d9a25a88; color: var(--text); }
-[data-theme='modern'] .needed-gaps .chip { color: var(--text); }
-.needed-gaps .chip.on { background: color-mix(in srgb, #d9a25a 20%, transparent); }
 .needed-more { margin: 16px auto 0; display: flex; }
-@media (max-width: 760px) { .needed-list li { grid-template-columns: 48px 1fr; } .needed-gaps, .needed-list .btn { grid-column: 2; } }
-.needed-gaps .chip { cursor: pointer; background: transparent; }
-.needed-gaps .chip:hover { border-style: solid; }
 
 /* What counts as needed: a row of toggles, remembered per tree. */
 .needed-settings { margin: 10px 0 16px; padding: 10px 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--panel-2); }
@@ -49,26 +37,86 @@
 .blaze-file { justify-content: flex-start; width: fit-content; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .blaze:focus { outline: none; }
 
-.needed-list li { grid-template-columns: 56px minmax(0,1fr) auto; padding: 16px; align-items: start; }
-.needed-ring { padding: 4px; border-radius: 50%; background: conic-gradient(var(--accent) var(--filled), var(--border) 0); display: inline-flex; }
-.needed-ring > * { border-radius: 50%; box-shadow: 0 0 0 2px var(--panel-solid); }
-.needed-who { gap: 5px; }
-.needed-who b { white-space: normal; font-family: var(--font-body); font-weight: 500; overflow-wrap: anywhere; }
-.needed-gaps { margin-top: 5px; }
-.needed-gaps .chip, [data-theme='modern'] .needed-gaps .chip { color: var(--muted); border-color: var(--border); background: var(--panel-2); border-style: solid; font-size: 12px; }
-.needed-who > span { overflow-wrap: anywhere; }
 .needed .faint, .blaze .faint { color: var(--muted); }
 .blaze { position: relative; }
 .blaze-who h2 { font-family: var(--font-body); font-weight: 500; overflow-wrap: anywhere; }
 .blaze-foot { flex-wrap: wrap; }
 .blaze-stamp { pointer-events: none; position: absolute; z-index: 5; right: 28px; top: 46px; display: grid; justify-items: center; gap: 3px; color: var(--accent); background: var(--panel-solid); border: 2px double var(--accent); border-radius: 50%; padding: 12px; font: 12px var(--font-display); animation: seal-stamp .8s ease both; }
 @keyframes seal-stamp { 0% { opacity: 0; transform: scale(1.5) rotate(-18deg); } 25%,80% { opacity: 1; transform: scale(1) rotate(-8deg); } 100% { opacity: 0; transform: scale(.95) rotate(-8deg); } }
-@media(max-width:600px) { .needed-list li { grid-template-columns: 56px minmax(0,1fr); padding: 12px; gap: 12px; } .needed-list li > .btn { grid-column: 2; justify-self: start; min-height: 44px; } .needed-gaps { grid-column: auto; } .needed .ui-page-header-actions > div { flex-wrap: wrap; } .needed .ui-page-header-actions .btn { height: auto; min-height: 44px; white-space: normal; text-align: left; } .blaze-parent { grid-template-columns: minmax(0,1fr) !important; } .blaze-fields .input { min-width: 0; } .blaze-who { gap: 12px; } .blaze-who > div { min-width: 0; } .blaze-foot .faint { flex-basis: 100%; white-space: normal; } }
+@media(max-width:600px) { .needed .ui-page-header-actions > div { flex-wrap: wrap; } .needed .ui-page-header-actions .btn { height: auto; min-height: 44px; white-space: normal; text-align: left; } .blaze-parent { grid-template-columns: minmax(0,1fr) !important; } .blaze-fields .input { min-width: 0; } .blaze-who { gap: 12px; } .blaze-who > div { min-width: 0; } .blaze-foot .faint { flex-basis: 100%; white-space: normal; } }
 @media(prefers-reduced-motion:reduce) { .blaze-stamp { animation: none; } .blaze-progress i { transition: none; } }
 
-.needed-who b, .blaze-who h2 { font-family: 'EB Garamond Variable', Garamond, serif; font-weight: 500; }
 
-@media(max-width:600px) { .needed .btn, .needed-gaps .chip, .blaze .btn { min-height: 44px; } }
 
 /* A reader who may not fill anything in here: why there is no Blaze button. */
 .needed-ask { margin: -4px 0 14px; font-size: 14.5px; }
+.blaze-who h2 { font-family: var(--font-body); font-weight: 500; }
+@media(max-width:600px) { .needed-filters .btn, .needed-settings .btn, .blaze .btn { min-height: 44px; } }
+
+/* ---------- the list: one compact row per person (about 64px) ---------- */
+.needed-list { gap: 6px; }
+.needed-row {
+  display: grid; grid-template-columns: 48px minmax(150px, 260px) minmax(0, 1fr) auto; align-items: center; gap: 0 14px;
+  min-height: 64px; padding: 8px 10px 8px 8px; border-radius: var(--radius-lg);
+  background: var(--panel-solid); border: 1px solid var(--border);
+}
+[data-theme='modern'] .needed-row { box-shadow: 0 1px 2px #2a22140f; }
+[data-theme='night'] .needed-row { border-color: #2e3442; box-shadow: inset 0 0 0 1px #6b563622; }
+[data-theme='codex'] .needed-row {
+  border: 1px solid #0a0d12; border-radius: 4px; background: linear-gradient(180deg, #222a39, #1a202c);
+  box-shadow: inset 0 0 0 1px var(--edge-soft), 0 2px 6px #0007;
+}
+.needed-list.readonly .needed-row { grid-template-columns: 48px minmax(150px, 260px) minmax(0, 1fr); }
+
+/* Progress: a ring drawn around the round cameo, filling clockwise with what is known. */
+.needed-ring {
+  position: relative; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(var(--accent) var(--filled), color-mix(in srgb, var(--muted) 28%, transparent) 0);
+  -webkit-mask: radial-gradient(circle, #000 0 20px, transparent 20.5px 21px, #000 21.5px); mask: radial-gradient(circle, #000 0 20px, transparent 20.5px 21px, #000 21.5px);
+}
+.needed-list.readonly .needed-ring { background: conic-gradient(color-mix(in srgb, var(--accent) 55%, var(--muted)) var(--filled), color-mix(in srgb, var(--muted) 22%, transparent) 0); }
+
+.needed-who { display: grid; min-width: 0; gap: 1px; }
+.needed-name {
+  color: var(--text); text-decoration: none; font-family: var(--font-body); font-weight: 500; font-size: 16.5px; line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+[data-theme='codex'] .needed-name { color: #f3e6c6; }
+.needed-name:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.needed-name:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 2px; }
+.needed-meta { color: var(--muted); font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: oldstyle-nums; }
+
+/* Gap tags: flat labels, not buttons: no border, no lift, a small quill-coloured mark. */
+.needed-tags { list-style: none; margin: 0; padding: 0; display: flex; gap: 4px 12px; flex-wrap: nowrap; min-width: 0; overflow: hidden; }
+.needed-tag {
+  flex: none; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+  color: var(--muted); font-family: var(--font-ui); font-size: 13px; line-height: 22px;
+}
+.needed-tag::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: #c98d3f; flex: none; }
+[data-theme='codex'] .needed-tag::before, [data-theme='night'] .needed-tag::before { background: #e0a85a; }
+.needed-tag.on { color: var(--text); font-weight: 600; }
+.needed-tag.more { color: var(--subtle); }
+.needed-tag.more::before { display: none; }
+.needed-fill { justify-self: end; }
+
+@media (max-width: 760px) {
+  .needed-row, .needed-list.readonly .needed-row { grid-template-columns: 48px minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 2px 12px; padding: 8px 8px 8px 6px; }
+  .needed-list.readonly .needed-row { grid-template-columns: 48px minmax(0, 1fr); }
+  .needed-ring { grid-row: 1 / 3; }
+  .needed-who { grid-column: 2; display: flex; align-items: baseline; gap: 8px; }
+  .needed-name { flex: 0 1 auto; font-size: 16px; }
+  .needed-meta { flex: 1 1 0; font-size: 12.5px; }
+  .needed-tags { grid-column: 2; gap: 10px; }
+  .needed-tag { font-size: 12.5px; line-height: 20px; }
+  .needed-fill { grid-column: 3; grid-row: 1 / 3; min-height: 44px; padding: 0 12px; }
+}
+
+/* Blaze: the parent slot can link someone already in the tree. */
+.blaze-fields { border: 0; margin: 0; min-width: 0; }
+.blaze-matches { display: grid; gap: 4px; margin-top: 6px; }
+.blaze-matches > .subtle { font-size: 12.5px; }
+.blaze-linked { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.blaze-linked .palette-item { flex: 1; min-width: 0; border: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 10%, transparent); cursor: default; }
+.blaze-linked .palette-label { display: grid; font-family: var(--font-body); font-weight: 500; line-height: 1.25; }
+.blaze-linked .palette-note { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-ui); font-weight: 400; font-size: 12.5px; color: var(--muted); }
+.blaze .ui-dialog-confirm { border-radius: inherit; }

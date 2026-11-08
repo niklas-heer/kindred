@@ -85,4 +85,13 @@ CREATE TABLE IF NOT EXISTS photo (
   data BLOB NOT NULL,
   at TEXT NOT NULL
 );
+
+-- Idempotency: a change sent with an opKey is recorded here in the same transaction as the change, so a
+-- retry after a lost response replays the stored result instead of writing twice. Pruned after 30 days.
+CREATE TABLE IF NOT EXISTS op (
+  key TEXT PRIMARY KEY,
+  fn TEXT NOT NULL,
+  result TEXT NOT NULL,
+  at TEXT NOT NULL
+);
 `;

@@ -14,3 +14,23 @@
 .qa-modes .btn { min-height: 44px; height: auto; white-space: normal; }
 .qa-modes .btn[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
 .qa-grid > *, .qa input { min-width: 0; }
+
+/* People already in the tree: the palette's person row, the impossible ones greyed out with the reason. */
+.qa-matches { display: grid; gap: 4px; max-height: none; overflow: visible; }
+.qa-hint { font-size: 13px; }
+.qa-none { margin: 2px 0 0; font-size: 14px; }
+.qa-candidates { display: grid; gap: 2px; max-height: 248px; overflow: auto; overscroll-behavior: contain; margin: 0 -6px; padding: 2px 6px; }
+.qa-candidate { color: inherit; font: inherit; position: relative; }
+.qa-candidate .palette-label { display: grid; line-height: 1.25; font-family: var(--font-body); font-weight: 500; }
+.qa-candidate .palette-note { font-family: var(--font-ui); font-weight: 400; font-size: 12.5px; color: var(--muted); }
+.qa-candidate[data-warn] .palette-note { color: var(--warn, #b7791f); }
+[data-theme='codex'] .qa-candidate[data-warn] .palette-note, [data-theme='night'] .qa-candidate[data-warn] .palette-note { color: #e0a85a; }
+.qa-candidate:hover:not([aria-disabled]) { background: var(--panel-3); }
+[data-theme='codex'] .qa-candidate:hover:not([aria-disabled]) { background: linear-gradient(90deg, #4a3d2266, #4a3d2211); }
+.qa-candidate[aria-pressed='true'] { background: color-mix(in srgb, var(--accent) 16%, transparent); box-shadow: inset 2px 0 0 var(--accent); }
+.qa-candidate:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.qa-candidate[aria-disabled] { cursor: not-allowed; }
+.qa-candidate[aria-disabled] .palette-icon, .qa-candidate[aria-disabled] .palette-label > :not(.palette-note), .qa-candidate[aria-disabled] .palette-hint { opacity: 0.5; }
+.qa-candidate[aria-disabled] .palette-label { color: var(--muted); }
+.qa-tick { flex: none; color: var(--accent); }
+@media (max-width: 600px) { .qa-candidate .palette-hint { margin-left: 38px; } }

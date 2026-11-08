@@ -23,6 +23,46 @@ export function db(tree: string): DatabaseSync {
   return d;
 }
 
+// ---------- idempotent writes ----------
+
+const OP_KEEP_DAYS = 30;
+let lastPrune = 0;
+
+/**
+ * Runs `work` in one transaction. With an `opKey`, the result is stored in the `op` table in that same
+ * transaction, and the same key arriving again (a retry after a lost response) gets the stored result back
+ * instead of a second write. A key used for a different kind of change is refused.
+ */
+export function once<T>(tree: string, opKey: string | undefined, fn: string, work: (d: DatabaseSync) => T): T {
+  const d = db(tree);
+  d.exec('BEGIN IMMEDIATE');
+  let replay: { fn: string; result: string } | undefined;
+  try {
+    if (opKey) replay = d.prepare('SELECT fn, result FROM op WHERE key = ?').get(opKey) as typeof replay;
+    if (replay) {
+      d.exec('COMMIT');
+    } else {
+      const out = work(d);
+      if (opKey) {
+        const now = Date.now();
+        d.prepare('INSERT INTO op (key, fn, result, at) VALUES (?, ?, ?, ?)').run(opKey, fn, JSON.stringify(out ?? null), new Date(now).toISOString());
+        // Old keys are only kept long enough to cover a retry.
+        if (now - lastPrune > 3_600_000) {
+          lastPrune = now;
+          d.prepare('DELETE FROM op WHERE at < ?').run(new Date(now - OP_KEEP_DAYS * 86_400_000).toISOString());
+        }
+      }
+      d.exec('COMMIT');
+      return out;
+    }
+  } catch (e) {
+    if (d.isTransaction) d.exec('ROLLBACK');
+    throw e;
+  }
+  if (replay.fn !== fn) throw new Error('That change was already sent as something else. Reload and try again.');
+  return JSON.parse(replay.result) as T;
+}
+
 const meta = (d: DatabaseSync) =>
   Object.fromEntries((d.prepare('SELECT key, value FROM meta').all() as { key: string; value: string }[]).map((r) => [r.key, r.value]));
 
@@ -242,11 +282,9 @@ export function placesIn(box: { west: number; south: number; east: number; north
  * Records where places are, so the Atlas can draw them. An existing place keeps its coordinates unless
  * `move` is set (the user chose to move its pin). Returns the names whose pin was left alone.
  */
-export function upsertPlaces(tree: string, places: { name: string; lat: number; lng: number; country?: string; move?: boolean }[]) {
-  const d = db(tree);
-  const kept: string[] = [];
-  d.exec('BEGIN');
-  try {
+export function upsertPlaces(tree: string, places: { name: string; lat: number; lng: number; country?: string; move?: boolean }[], opKey?: string) {
+  return once(tree, opKey, 'upsertPlaces', (d) => {
+    const kept: string[] = [];
     for (const p of places) {
       const sql = p.move
         ? 'INSERT INTO place (name, lat, lng, country) VALUES (?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET lat = excluded.lat, lng = excluded.lng, country = coalesce(excluded.country, country)'
@@ -254,12 +292,8 @@ export function upsertPlaces(tree: string, places: { name: string; lat: number; 
       const r = d.prepare(sql).run(p.name, p.lat, p.lng, p.country ?? null);
       if (!r.changes) kept.push(p.name);
     }
-    d.exec('COMMIT');
-  } catch (e) {
-    d.exec('ROLLBACK');
-    throw e;
-  }
-  return kept;
+    return kept;
+  });
 }
 
 // ---------- houses ----------

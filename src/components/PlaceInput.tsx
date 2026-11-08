@@ -48,10 +48,18 @@ export const placeValue = (name?: string | null): PlaceValue => ({ name: name ??
  * name stays put unless the user chose to move it. Safe to call again on a retry.
  */
 export async function savePlaces(tree: string, ...values: (PlaceValue | undefined)[]) {
+  return savePlacesKeyed(tree, undefined, ...values);
+}
+
+/**
+ * The same, with an idempotency key for the payload (see `opKeys` in ~/lib/api), so a retry after a lost
+ * response is recognised: `savePlacesKeyed(tree, (p) => keys.for('places', p), born)`.
+ */
+export async function savePlacesKeyed(tree: string, key: ((payload: unknown) => string) | undefined, ...values: (PlaceValue | undefined)[]) {
   const places = values
     .filter((v): v is PlaceValue & { lat: number; lng: number } => !!v?.name.trim() && v.lat !== undefined && v.lng !== undefined)
     .map((v) => ({ name: v.name.trim(), lat: v.lat, lng: v.lng, country: v.country, move: v.move || undefined }));
-  if (places.length) await upsertPlaces({ data: { tree, places } });
+  if (places.length) await upsertPlaces({ data: { tree, places, opKey: key?.(places) } });
 }
 
 // ---------- small helpers ----------
@@ -123,7 +131,6 @@ export function PlaceInput({ tree, value, onChange, id, placeholder = 'Town, vil
   const box = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement | null>(null);
   const pop = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
 
   const [dq] = useDebouncedValue(value.name, { wait: 150 });
   const { data: graph } = useQuery(graphQuery(tree));
@@ -145,17 +152,31 @@ export function PlaceInput({ tree, value, onChange, id, placeholder = 'Town, vil
 
   useEffect(() => setActive(-1), [search.data]);
 
+  // Anchored to the field: below it, or above when there is more room there, and never over it. Placed
+  // straight on the element every frame while open, so it follows the field through scrolling, a panel
+  // sliding in, a note appearing above or a phone keyboard opening, without re-rendering.
   const place = useCallback(() => {
     const b = box.current?.getBoundingClientRect();
-    if (!b) return;
-    const below = innerHeight - b.bottom - 8, above = b.top - 8;
-    const want = Math.min(380, innerHeight * 0.55);
+    const el = pop.current;
+    if (!b || !el) return;
+    const vv = window.visualViewport;
+    const top0 = vv ? vv.offsetTop : 0, bottom0 = vv ? vv.offsetTop + vv.height : innerHeight;
+    const gap = 4, margin = 8;
+    const below = bottom0 - b.bottom - gap - margin, above = b.top - top0 - gap - margin;
+    const want = Math.min(380, el.scrollHeight || 380);
     const up = below < Math.min(want, 220) && above > below;
-    const maxHeight = Math.max(140, Math.min(want, up ? above - 4 : below - 4));
+    // The list may be no taller than the room on its side; above the field it hangs from its bottom
+    // edge, so however tall the content grows it never reaches down over the field.
+    const room = Math.floor(Math.max(48, Math.min(380, up ? above : below)));
     const width = Math.min(Math.max(b.width, 300), innerWidth - 16);
     const left = Math.max(8, Math.min(b.left, innerWidth - width - 8));
-    const h = Math.min(maxHeight, pop.current?.scrollHeight ?? maxHeight);
-    setPos({ top: up ? b.top - 4 - h : b.bottom + 4, left, width, maxHeight });
+    const next: Record<'top' | 'bottom' | 'left' | 'width' | 'maxHeight', string> = {
+      top: up ? 'auto' : `${Math.round(b.bottom + gap)}px`,
+      bottom: up ? `${Math.round(innerHeight - b.top + gap)}px` : 'auto',
+      left: `${Math.round(left)}px`, width: `${Math.round(width)}px`, maxHeight: `${room}px`,
+    };
+    for (const [k, v] of Object.entries(next) as [keyof typeof next, string][]) if (el.style[k] !== v) el.style[k] = v;
+    el.dataset.side = up ? 'above' : 'below';
   }, []);
   // In the top layer, like the Select popover, so a dialog never clips it.
   useLayoutEffect(() => {
@@ -163,16 +184,10 @@ export function PlaceInput({ tree, value, onChange, id, placeholder = 'Town, vil
     if (!shown || !el) return;
     try { if (!el.matches(':popover-open')) el.showPopover(); } catch {}
     place();
-    return () => { try { el.hidePopover(); } catch {} };
+    let raf = requestAnimationFrame(function follow() { place(); raf = requestAnimationFrame(follow); });
+    return () => { cancelAnimationFrame(raf); try { el.hidePopover(); } catch {} };
   }, [shown, place]);
-  useLayoutEffect(() => { if (shown) place(); }, [shown, hits.length, place]);
-  useEffect(() => {
-    if (!shown) return;
-    const onScroll = (e: Event) => { if (!pop.current?.contains(e.target as Node)) place(); };
-    addEventListener('scroll', onScroll, true);
-    addEventListener('resize', place);
-    return () => { removeEventListener('scroll', onScroll, true); removeEventListener('resize', place); };
-  }, [shown, place]);
+  useLayoutEffect(() => { if (shown) place(); }, [shown, hits, place]);
   useEffect(() => {
     if (shown && active >= 0) pop.current?.querySelector(`#${CSS.escape(optId(active))}`)?.scrollIntoView({ block: 'nearest' });
   }, [shown, active]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -299,7 +314,6 @@ export function PlaceInput({ tree, value, onChange, id, placeholder = 'Town, vil
           role="listbox"
           aria-label="Suggested places"
           className="ui-select-pop pi-pop"
-          style={pos ? { top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxHeight } : { visibility: 'hidden' }}
           // Keep focus in the field; a press on an option must not blur it first.
           onMouseDown={(e) => e.preventDefault()}
         >

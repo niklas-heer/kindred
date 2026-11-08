@@ -53,6 +53,31 @@ export function searchPeople(f: Family, q: string, limit = 40): { id: string; sc
   return out.sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
+/** "1890–1960 · your great-uncle": life years, and kinship once the reader has said who they are. */
+export function personHint(f: Family, id: string, who: string | null, anc?: Map<string, number>): string {
+  const p = f.byId.get(id);
+  if (!p) return '';
+  const k = who ? kinship(f, who, id, anc)?.label : undefined;
+  return [lifespan(p), k && k !== 'you' ? `your ${k}` : k].filter(Boolean).join(' · ');
+}
+
+/**
+ * The palette's person row: portrait, name, then life years and "your …" kinship. Put it inside an
+ * element with the `palette-item` class; `note` adds a second line under the name.
+ */
+export function PersonRow({ f, tree, id, who, anc, note }: { f: Family; tree: string; id: string; who: string | null; anc?: Map<string, number>; note?: ReactNode }) {
+  const p = f.byId.get(id);
+  if (!p) return null;
+  const hint = personHint(f, id, who, anc);
+  return (
+    <>
+      <span className="palette-icon"><Portrait person={p} tree={tree} size={30} frame={false} /></span>
+      <span className="palette-label palette-name">{displayName(p, f)}{note && <small className="palette-note">{note}</small>}</span>
+      {hint && <span className="palette-hint">{hint}</span>}
+    </>
+  );
+}
+
 const groupOf = (it: Item) => it.group ?? (it.person ? 'People' : 'Commands');
 
 export function Palette() {
@@ -84,8 +109,7 @@ export function Palette() {
     const go = (focus: string) => () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, focus, sel: undefined, root: undefined }) }); close(); };
     const people = searchPeople(f, dq).map(({ id }) => {
       const p = f.byId.get(id)!;
-      const k = who ? kinship(f, who, id, myAnc)?.label : undefined;
-      return { key: id, person: id, label: displayName(p, f), hint: [lifespan(p), k && k !== 'you' ? `your ${k}` : k].filter(Boolean).join(' · '), run: go(id) };
+      return { key: id, person: id, label: displayName(p, f), hint: personHint(f, id, who, myAnc), run: go(id) };
     });
     // Houses by name: straight to the house's page.
     const fqh = fold(dq.trim());
@@ -148,11 +172,13 @@ export function Palette() {
             <Fragment key={it.key}>
             {(i === 0 || groupOf(items[i - 1]) !== groupOf(it)) && <div className="palette-group">{groupOf(it)}</div>}
             <button data-i={i} id={`palette-i${i}`} role="option" tabIndex={-1} className="palette-item" aria-selected={i === sel} onMouseMove={() => setSel(i)} onClick={it.run}>
-              <span className="palette-icon">
-                {it.person ? <Portrait person={f.byId.get(it.person)!} tree={tree} size={30} frame={false} /> : it.icon}
-              </span>
-              <span className="palette-label">{it.label}</span>
-              {it.hint && <span className="palette-hint">{it.hint}</span>}
+              {it.person ? <PersonRow f={f} tree={tree} id={it.person} who={who} anc={myAnc} /> : (
+                <>
+                  <span className="palette-icon">{it.icon}</span>
+                  <span className="palette-label">{it.label}</span>
+                  {it.hint && <span className="palette-hint">{it.hint}</span>}
+                </>
+              )}
             </button>
             </Fragment>
           ))}

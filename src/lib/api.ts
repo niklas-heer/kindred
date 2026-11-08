@@ -50,6 +50,38 @@ export const getContacts = createServerFn({ method: 'GET' })
   });
 export const contactsQuery = (t: string) => queryOptions({ queryKey: ['contacts', t], queryFn: () => getContacts({ data: { tree: t } }) });
 
+/**
+ * An idempotency key: one per logical attempt at a change, reused when that attempt is retried. The server
+ * stores the result under it in the same transaction as the change and replays it for a repeat.
+ */
+const opKey = z.string().regex(/^[A-Za-z0-9_-]{8,80}$/).optional();
+
+/** A fresh key. Works outside secure contexts too, where crypto.randomUUID is missing. */
+export function newOpKey(): string {
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  return [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Keys for one form: the same step with the same payload keeps its key, so a retry after a lost response
+ * is recognised; a changed payload is a new attempt and gets a new key. `clear()` after a success.
+ */
+export function opKeys() {
+  const keys = new Map<string, { sig: string; key: string }>();
+  return {
+    for(step: string, payload: unknown): string {
+      const sig = JSON.stringify(payload ?? null);
+      const had = keys.get(step);
+      if (had && had.sig === sig) return had.key;
+      const key = newOpKey();
+      keys.set(step, { sig, key });
+      return key;
+    },
+    clear(step?: string) { if (step) keys.delete(step); else keys.clear(); },
+  };
+}
+
 const newPerson = z.object({
   given: z.string().trim().min(1).max(120),
   surname: z.string().trim().max(120).optional(),
@@ -58,6 +90,11 @@ const newPerson = z.object({
   died: date,
   living: z.boolean(),
 });
+
+const partnershipInput = z.object({ kind: z.enum(['marriage', 'partnership', 'other']), start: date, place: z.string().trim().max(200).optional() });
+
+/** The first year of a stored date ("~1890-05" → 1890), or NaN. */
+const yearIn = (d: string | null | undefined) => (d ? parseInt(d.replace(/^~/, ''), 10) : NaN);
 
 /** Adds a person already connected to someone: the "+" slots on the tree. Returns the new id. */
 export const addRelative = createServerFn({ method: 'POST' })
@@ -69,76 +106,124 @@ export const addRelative = createServerFn({ method: 'POST' })
       /** For a child: the anchor's partner who is the other parent. */
       coParent: z.string().optional(),
       person: newPerson,
-      partnership: z.object({ kind: z.enum(['marriage', 'partnership', 'other']), start: date, place: z.string().trim().max(200).optional() }).optional(),
+      partnership: partnershipInput.optional(),
+      opKey,
     }),
   )
   .handler(async ({ data }) => {
     await requireCan(data.tree, 'add-person');
-    const { db, newId } = await server();
-    const d = db(data.tree);
-    const p = data.person;
-    const id = newId(p.given);
-    const anchor = d.prepare('SELECT house, surname FROM person WHERE id = ?').get(data.anchor) as { house: string | null; surname: string | null } | undefined;
-    if (!anchor) throw new Error('unknown anchor');
-    if (data.relation === 'sibling' && !d.prepare('SELECT parent FROM parent WHERE child = ?').get(data.anchor)) throw new Error('Record a shared parent first to add a sibling.');
-    // Children and siblings join the anchor's house; parents and partners only if they share its surname.
-    const sameHouse = data.relation === 'child' || data.relation === 'sibling' || (p.surname && p.surname === anchor.surname);
-    d.exec('BEGIN');
-    try {
+    const { once, newId } = await server();
+    return once(data.tree, data.opKey, 'addRelative', (d) => {
+      const p = data.person;
+      const id = newId(p.given);
+      const anchor = d.prepare('SELECT house, surname, born FROM person WHERE id = ?').get(data.anchor) as { house: string | null; surname: string | null; born: string | null } | undefined;
+      if (!anchor) throw new Error('unknown anchor');
+      const anchorParents = (d.prepare('SELECT parent FROM parent WHERE child = ?').all(data.anchor) as { parent: string }[]).map((r) => r.parent);
+      if (data.relation === 'sibling' && !anchorParents.length) throw new Error('Record a shared parent first to add a sibling.');
+      if (data.relation === 'parent' && anchorParents.length >= 2) throw new Error('They already have two parents.');
+      if (data.relation === 'parent' && yearIn(p.born) >= yearIn(anchor.born)) throw new Error('A parent must be born before their child.');
+      if (data.relation === 'child' && yearIn(p.born) <= yearIn(anchor.born)) throw new Error('A child must be born after their parent.');
+      // Children and siblings join the anchor's house; parents and partners only if they share its surname.
+      const sameHouse = data.relation === 'child' || data.relation === 'sibling' || (p.surname && p.surname === anchor.surname);
       d.prepare('INSERT INTO person (id, given, surname, house, sex, born, died, living) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
         id, p.given, p.surname ?? null, sameHouse ? anchor.house : null, p.sex ?? null, p.born ?? null, p.died ?? null, p.living ? 1 : 0,
       );
       const link = d.prepare('INSERT OR IGNORE INTO parent (child, parent) VALUES (?, ?)');
       if (data.relation === 'child') {
         link.run(id, data.anchor);
-        if (data.coParent) link.run(id, data.coParent);
+        if (data.coParent && data.coParent !== data.anchor) link.run(id, data.coParent);
       } else if (data.relation === 'parent') {
         link.run(data.anchor, id);
       } else if (data.relation === 'sibling') {
-        for (const r of d.prepare('SELECT parent FROM parent WHERE child = ?').all(data.anchor) as { parent: string }[]) link.run(id, r.parent);
+        for (const parent of anchorParents) link.run(id, parent);
       } else {
-        d.prepare('INSERT INTO partnership (id, a, b, kind) VALUES (?, ?, ?, ?)').run(`${data.anchor}__${id}`, data.anchor, id, data.partnership?.kind ?? 'partnership');
-        d.prepare('UPDATE partnership SET start = ?, place = ? WHERE id = ?').run(data.partnership?.start ?? null, data.partnership?.place ?? null, `${data.anchor}__${id}`);
+        d.prepare('INSERT INTO partnership (id, a, b, kind, start, place) VALUES (?, ?, ?, ?, ?, ?)').run(
+          `${data.anchor}__${id}`, data.anchor, id, data.partnership?.kind ?? 'partnership', data.partnership?.start ?? null, data.partnership?.place ?? null,
+        );
       }
-      d.exec('COMMIT');
-    } catch (e) {
-      d.exec('ROLLBACK');
-      throw e;
-    }
-    return id;
+      return id;
+    });
   });
 
-/** Connect an existing person without inventing couples or duplicating edges. */
+/** What a link created, so Undo removes exactly that and nothing that was there before. */
+export interface LinkResult { person: string; parents: { child: string; parent: string }[]; partnership?: string }
+
+/**
+ * Connects an existing person without inventing couples or duplicating edges. Refuses a third parent, a
+ * child born before (or with) their parent, a loop in the ancestry, and a link that already exists.
+ */
 export const linkRelative = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, anchor: z.string(), person: z.string(), relation: z.enum(['parent', 'child', 'sibling', 'partner']), coParent: z.string().optional(), partnership: z.object({ kind: z.enum(['marriage', 'partnership', 'other']), start: date, place: z.string().trim().max(200).optional() }).optional() }))
-  .handler(async ({ data }) => {
+  .validator(z.object({ tree, anchor: z.string(), person: z.string(), relation: z.enum(['parent', 'child', 'sibling', 'partner']), coParent: z.string().optional(), partnership: partnershipInput.optional(), opKey }))
+  .handler(async ({ data }): Promise<LinkResult> => {
     await requireCan(data.tree, 'edit-person');
-    const d = (await server()).db(data.tree);
-    if (data.anchor === data.person) throw new Error('A person cannot be their own relative.');
-    for (const id of [data.anchor, data.person, data.coParent].filter(Boolean)) {
-      if (!d.prepare('SELECT id FROM person WHERE id = ?').get(id!)) throw new Error('Person not found.');
-    }
-    d.exec('BEGIN');
-    try {
-      const link = (child: string, parent: string) => {
+    const { once } = await server();
+    return once(data.tree, data.opKey, 'linkRelative', (d) => {
+      if (data.anchor === data.person) throw new Error('A person cannot be their own relative.');
+      const people = new Map<string, { given: string; born: string | null }>();
+      for (const id of [data.anchor, data.person, data.coParent].filter((x): x is string => !!x)) {
+        const r = d.prepare('SELECT given, born FROM person WHERE id = ?').get(id) as { given: string; born: string | null } | undefined;
+        if (!r) throw new Error('Person not found.');
+        people.set(id, r);
+      }
+      const parentsOf = (id: string) => (d.prepare('SELECT parent FROM parent WHERE child = ?').all(id) as { parent: string }[]).map((r) => r.parent);
+      const created: LinkResult = { person: data.person, parents: [] };
+      // All checks for every edge first, then the writes, so a refusal never leaves half a link.
+      const edges: [child: string, parent: string][] = [];
+      if (data.relation === 'parent') edges.push([data.anchor, data.person]);
+      if (data.relation === 'child') {
+        edges.push([data.person, data.anchor]);
+        if (data.coParent && data.coParent !== data.anchor) edges.push([data.person, data.coParent]);
+      }
+      if (data.relation === 'sibling') {
+        const ps = parentsOf(data.anchor);
+        if (!ps.length) throw new Error('Record a shared parent first to link siblings.');
+        if (ps.every((p) => parentsOf(data.person).includes(p))) throw new Error(`${people.get(data.person)!.given} is already their sibling.`);
+        for (const p of ps) edges.push([data.person, p]);
+      }
+      const name = (id: string) => d.prepare('SELECT given FROM person WHERE id = ?').get(id) as { given: string } | undefined;
+      const newParents = new Map<string, Set<string>>();
+      for (const [child, parent] of edges) {
         if (child === parent) throw new Error('A person cannot be their own parent.');
+        const had = parentsOf(child);
+        if (had.includes(parent)) {
+          if (data.relation === 'sibling') continue; // a shared parent they already have
+          throw new Error(`${name(parent)?.given ?? 'They'} is already ${name(child)?.given ?? 'their'}’s parent.`);
+        }
+        const all = newParents.get(child) ?? new Set(had);
+        all.add(parent);
+        newParents.set(child, all);
+        if (all.size > 2) throw new Error(`${name(child)?.given ?? 'They'} already has two parents.`);
+        const cy = yearIn((d.prepare('SELECT born FROM person WHERE id = ?').get(child) as { born: string | null }).born);
+        const py = yearIn((d.prepare('SELECT born FROM person WHERE id = ?').get(parent) as { born: string | null }).born);
+        if (cy <= py) throw new Error(`${name(child)?.given ?? 'The child'} was born before ${name(parent)?.given ?? 'the parent'}, so cannot be their child.`);
         const cycle = d.prepare('WITH RECURSIVE ancestors(id) AS (SELECT parent FROM parent WHERE child = ? UNION SELECT p.parent FROM parent p JOIN ancestors a ON p.child = a.id) SELECT id FROM ancestors WHERE id = ?').get(parent, child);
         if (cycle) throw new Error('This would create a loop in the ancestry.');
-        d.prepare('INSERT OR IGNORE INTO parent (child, parent) VALUES (?, ?)').run(child, parent);
-      };
-      if (data.relation === 'parent') link(data.anchor, data.person);
-      if (data.relation === 'child') { link(data.person, data.anchor); if (data.coParent) link(data.person, data.coParent); }
-      if (data.relation === 'sibling') {
-        const ps = d.prepare('SELECT parent FROM parent WHERE child = ?').all(data.anchor) as { parent: string }[];
-        if (!ps.length) throw new Error('Record a shared parent first to link siblings.');
-        for (const p of ps) link(data.person, p.parent);
       }
-      if (data.relation === 'partner' && !d.prepare('SELECT id FROM partnership WHERE (a = ? AND b = ?) OR (a = ? AND b = ?)').get(data.anchor, data.person, data.person, data.anchor)) {
-        d.prepare('INSERT INTO partnership (id, a, b, kind, start, place) VALUES (?, ?, ?, ?, ?, ?)').run(crypto.randomUUID(), data.anchor, data.person, data.partnership?.kind ?? 'partnership', data.partnership?.start ?? null, data.partnership?.place ?? null);
+      if (data.relation === 'partner') {
+        if (d.prepare('SELECT id FROM partnership WHERE (a = ? AND b = ?) OR (a = ? AND b = ?)').get(data.anchor, data.person, data.person, data.anchor)) {
+          throw new Error(`${people.get(data.person)!.given} is already their partner.`);
+        }
+        const id = newOpKey();
+        d.prepare('INSERT INTO partnership (id, a, b, kind, start, place) VALUES (?, ?, ?, ?, ?, ?)').run(id, data.anchor, data.person, data.partnership?.kind ?? 'partnership', data.partnership?.start ?? null, data.partnership?.place ?? null);
+        created.partnership = id;
       }
-      d.exec('COMMIT');
-    } catch (e) { d.exec('ROLLBACK'); throw e; }
-    return data.person;
+      for (const [child, parent] of edges) {
+        if (d.prepare('INSERT OR IGNORE INTO parent (child, parent) VALUES (?, ?)').run(child, parent).changes) created.parents.push({ child, parent });
+      }
+      return created;
+    });
+  });
+
+/** Undo for a link: removes exactly the edges and the partnership that link created. */
+export const unlinkRelative = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, parents: z.array(z.object({ child: z.string(), parent: z.string() })).max(4), partnership: z.string().optional() }))
+  .handler(async ({ data }) => {
+    await requireCan(data.tree, 'edit-person');
+    const { once } = await server();
+    once(data.tree, undefined, 'unlinkRelative', (d) => {
+      for (const e of data.parents) d.prepare('DELETE FROM parent WHERE child = ? AND parent = ?').run(e.child, e.parent);
+      if (data.partnership) d.prepare('DELETE FROM partnership WHERE id = ?').run(data.partnership);
+    });
   });
 
 export const updatePerson = createServerFn({ method: 'POST' })
@@ -191,6 +276,7 @@ export const patchPerson = createServerFn({ method: 'POST' })
           occupation: z.string().trim().min(1).max(200),
         })
         .partial(),
+      opKey,
     }),
   )
   .handler(async ({ data }) => {
@@ -199,7 +285,7 @@ export const patchPerson = createServerFn({ method: 'POST' })
     const set = Object.entries(data.patch).filter(([, v]) => v !== undefined && v !== '');
     if (!set.length) return;
     const sql = `UPDATE person SET ${set.map(([k]) => `${cols[k]} = ?`).join(', ')}, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`;
-    (await server()).db(data.tree).prepare(sql).run(...set.map(([, v]) => v as string), data.id);
+    (await server()).once(data.tree, data.opKey, 'patchPerson', (d) => { d.prepare(sql).run(...set.map(([, v]) => v as string), data.id); });
   });
 
 /** Takes someone out of the tree, with their links, stories, contacts and photo. */
@@ -235,18 +321,19 @@ export const addStory = createServerFn({ method: 'POST' })
       title: z.string().trim().max(200).optional(),
       body: z.string().trim().min(1).max(20_000),
       context: z.string().trim().max(300).optional(),
+      opKey,
     }),
   )
   .handler(async ({ data }) => {
     // Signed with the writer's own name from their account, never a name the browser sends.
     const { user } = await requireCan(data.tree, 'add-story');
-    const { db } = await server();
-    const d = db(data.tree);
-    if (!d.prepare('SELECT id FROM person WHERE id = ?').get(data.person)) throw new Error('Person not found.');
-    const id = crypto.randomUUID();
-    d.prepare('INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, data.person, data.kind, data.title || null, data.body, user.name, new Date().toISOString(), data.context || null);
-    return id;
+    return (await server()).once(data.tree, data.opKey, 'addStory', (d) => {
+      if (!d.prepare('SELECT id FROM person WHERE id = ?').get(data.person)) throw new Error('Person not found.');
+      const id = crypto.randomUUID();
+      d.prepare('INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(id, data.person, data.kind, data.title || null, data.body, user.name, new Date().toISOString(), data.context || null);
+      return id;
+    });
   });
 
 export const deleteStory = createServerFn({ method: 'POST' })
@@ -264,11 +351,15 @@ export const addContact = createServerFn({ method: 'POST' })
       kind: z.enum(['phone', 'email', 'address', 'web', 'messenger']),
       label: z.string().trim().max(60).optional(),
       value: z.string().trim().min(1).max(500),
+      opKey,
     }),
   )
   .handler(async ({ data }) => {
     await requireCan(data.tree, 'edit-contact');
-    (await server()).db(data.tree).prepare('INSERT INTO contact (person, kind, label, value) VALUES (?, ?, ?, ?)').run(data.person, data.kind, data.label || null, data.value);
+    return (await server()).once(data.tree, data.opKey, 'addContact', (d) => {
+      if (!d.prepare('SELECT id FROM person WHERE id = ?').get(data.person)) throw new Error('Person not found.');
+      return Number(d.prepare('INSERT INTO contact (person, kind, label, value) VALUES (?, ?, ?, ?)').run(data.person, data.kind, data.label || null, data.value).lastInsertRowid);
+    });
   });
 
 export const deleteContact = createServerFn({ method: 'POST' })
@@ -284,15 +375,16 @@ export const uploadPhoto = createServerFn({ method: 'POST' })
     const file = d.get('file');
     // Photos only (no SVG: it can carry script). The Portrait shows them with <img>.
     if (!(file instanceof File) || !/^image\/(jpeg|png|webp|gif|avif)$/.test(file.type) || file.size > 5_000_000) throw new Error('A photo (JPEG, PNG, WebP, GIF or AVIF) under 5 MB');
-    return { tree: tree.parse(d.get('tree')), id: z.string().parse(d.get('id')), file };
+    return { tree: tree.parse(d.get('tree')), id: z.string().parse(d.get('id')), file, opKey: opKey.parse(d.get('opKey') ?? undefined) };
   })
   .handler(async ({ data }) => {
     await requireCan(data.tree, 'upload-photo');
     const bytes = new Uint8Array(await data.file.arrayBuffer());
-    (await server())
-      .db(data.tree)
-      .prepare('INSERT INTO photo (person, mime, data, at) VALUES (?, ?, ?, ?) ON CONFLICT(person) DO UPDATE SET mime = excluded.mime, data = excluded.data, at = excluded.at')
-      .run(data.id, data.file.type, bytes, new Date().toISOString());
+    (await server()).once(data.tree, data.opKey, 'uploadPhoto', (d) => {
+      if (!d.prepare('SELECT id FROM person WHERE id = ?').get(data.id)) throw new Error('Person not found.');
+      d.prepare('INSERT INTO photo (person, mime, data, at) VALUES (?, ?, ?, ?) ON CONFLICT(person) DO UPDATE SET mime = excluded.mime, data = excluded.data, at = excluded.at')
+        .run(data.id, data.file.type, bytes, new Date().toISOString());
+    });
   });
 
 // ---------- places ----------
@@ -321,10 +413,10 @@ export const getPlacesIn = createServerFn({ method: 'GET' })
 
 /** Puts places on the tree's map. Existing pins stay where they are unless `move` is set. Safe to repeat. */
 export const upsertPlaces = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, places: z.array(z.object({ name: z.string().trim().min(1).max(200), lat, lng, country: z.string().regex(/^[a-z]{2}$/).optional(), move: z.boolean().optional() })).max(10) }))
+  .validator(z.object({ tree, places: z.array(z.object({ name: z.string().trim().min(1).max(200), lat, lng, country: z.string().regex(/^[a-z]{2}$/).optional(), move: z.boolean().optional() })).max(10), opKey }))
   .handler(async ({ data }) => {
     await requireCan(data.tree, 'edit-place');
-    return (await server()).upsertPlaces(data.tree, data.places);
+    return (await server()).upsertPlaces(data.tree, data.places, data.opKey);
   });
 
 // ---------- houses ----------

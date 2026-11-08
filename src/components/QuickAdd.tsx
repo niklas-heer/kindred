@@ -1,23 +1,205 @@
 // Adding a relative from the "+" marks: a tiny form, prefilled where we can guess, saved with ↵.
+// Or linking someone already in the tree: the people who can't be that relative (a third parent, a
+// child born before the parent, someone who already is that relative) are marked and can't be picked.
 import { useForm, useStore } from '@tanstack/react-form';
 import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
 import { Check } from 'lucide-react';
-import { addRelative, linkRelative } from '~/lib/api';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { addRelative, linkRelative, opKeys, unlinkRelative } from '~/lib/api';
 import { validDate } from '~/lib/dates';
-import { useId, useState } from 'react';
+import { useMeChosen } from '~/lib/family';
+import { ancestorDepths, children, descendants, displayName, parents, partnersOf, siblings, yearOf, type Family } from '~/lib/graph';
+import { useCan } from '~/lib/session';
+import { play } from '~/lib/sfx';
+import { toast } from '~/lib/toast';
+import type { AddRelation } from './Card';
+import { PersonRow, searchPeople } from './Palette';
+import { PlaceInput, placeValue, savePlacesKeyed, type PlaceValue } from './PlaceInput';
 import { Dialog } from './ui/Dialog';
 import { Select } from './ui/Select';
 import { Switch } from './ui/Switch';
-import { displayName, lifespan, partnersOf, yearOf, type Family } from '~/lib/graph';
-import type { AddRelation } from './Card';
-import { searchPeople } from './Palette';
-import { PlaceInput, placeValue, savePlaces, type PlaceValue } from './PlaceInput';
 import './quickadd.css';
+
+const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').trim();
 
 const TITLE: Record<AddRelation, string> = { parent: 'Add a parent of', child: 'Add a child of', partner: 'Add a partner of', sibling: 'Add a sibling of' };
 
-export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onCancel }: {
-  family: Family; tree: string; anchor: string; relation: AddRelation; sex?: 'm' | 'f'; onDone: (id: string, person: { given: string; sex?: string }) => void; onCancel: () => void;
+// ---------- who can be linked ----------
+
+/** Whether someone can be linked as this relative, and how likely it is. */
+export interface Verdict {
+  ok: boolean;
+  /** Why they can't be linked. */
+  why?: string;
+  /** Allowed, but worth a second look ("only 9 years older"). */
+  warn?: string;
+  /** Higher is more plausible: age fit, minus a little for a warning. */
+  fit: number;
+}
+
+/** About how many years older a parent is than their child: where the age fit is best. */
+const GENERATION = 28;
+
+/**
+ * The checks the server makes (a third parent, a child born before the parent, a loop, a link that
+ * already exists), and a few it leaves to judgement (a sibling as a child, a big age gap).
+ */
+export function linkVerdict(f: Family, anchor: string, relation: AddRelation, id: string, opts: { coParent?: string; anc?: Map<string, number>; desc?: Set<string> } = {}): Verdict {
+  const a = f.byId.get(anchor);
+  const p = f.byId.get(id);
+  if (!a || !p) return { ok: false, why: 'Not in the tree', fit: -100 };
+  const no = (why: string): Verdict => ({ ok: false, why, fit: -100 });
+  if (id === anchor) return no(`This is ${a.given}`);
+  const anc = opts.anc ?? ancestorDepths(f, anchor);
+  const desc = opts.desc ?? descendants(f, anchor);
+  const ay = yearOf(a.born);
+  const py = yearOf(p.born);
+  const older = ay - py; // how much older p is than the anchor; NaN when either is unknown
+  const known = !isNaN(older);
+  const blood = (): string | undefined =>
+    parents(f, anchor).includes(id) ? `${a.given}’s parent` : children(f, anchor).includes(id) ? `${a.given}’s child` :
+    siblings(f, anchor).includes(id) ? `${a.given}’s sibling` : anc.has(id) ? `${a.given}’s ancestor` : desc.has(id) ? `${a.given}’s descendant` : undefined;
+  let warn: string | undefined;
+  let expect = 0;
+
+  if (relation === 'parent') {
+    if (parents(f, anchor).includes(id)) return no(`Already ${a.given}’s parent`);
+    if (parents(f, anchor).length >= 2) return no(`${a.given} already has two parents`);
+    if (desc.has(id)) return no(`${a.given}’s ${children(f, anchor).includes(id) ? 'child' : 'descendant'}`);
+    if (siblings(f, anchor).includes(id)) return no(`${a.given}’s sibling`);
+    if (known && older <= 0) return no(older === 0 ? `Born the same year as ${a.given}` : `Born after ${a.given}`);
+    if (known && older < 13) warn = `Only ${older} years older`;
+    else if (known && older > 60) warn = `${older} years older`;
+    expect = GENERATION;
+  } else if (relation === 'child') {
+    if (children(f, anchor).includes(id)) return no(`Already ${a.given}’s child`);
+    if (anc.has(id)) return no(`${a.given}’s ${parents(f, anchor).includes(id) ? 'parent' : 'ancestor'}`);
+    if (siblings(f, anchor).includes(id)) return no(`${a.given}’s sibling`);
+    if (partnersOf(f, anchor).includes(id)) return no(`${a.given}’s partner`);
+    if (known && older >= 0) return no(older === 0 ? `Born the same year as ${a.given}` : `Born before ${a.given}`);
+    const co = opts.coParent && opts.coParent !== anchor ? f.byId.get(opts.coParent) : undefined;
+    if (co && !isNaN(yearOf(co.born)) && !isNaN(py) && py <= yearOf(co.born)) return no(`Born before ${co.given}`);
+    const after = new Set([...parents(f, id), anchor, ...(co ? [co.id] : [])]);
+    if (after.size > 2) return no(parents(f, id).length >= 2 ? 'Already has two parents' : `Already has another parent`);
+    if (known && -older < 13) warn = `Only ${-older} years younger`;
+    else if (known && -older > 60) warn = `${-older} years younger`;
+    expect = -GENERATION;
+  } else if (relation === 'sibling') {
+    const ps = parents(f, anchor);
+    if (!ps.length) return no(`Record ${a.given}’s parents first`);
+    if (ps.every((x) => parents(f, id).includes(x))) return no(`Already ${a.given}’s sibling`);
+    const rel = anc.has(id) || desc.has(id) ? blood() : undefined;
+    if (rel) return no(rel);
+    if (new Set([...parents(f, id), ...ps]).size > 2) return no('Has other parents');
+    const tooOld = ps.map((x) => f.byId.get(x)).find((x) => x && !isNaN(yearOf(x.born)) && !isNaN(py) && py <= yearOf(x.born));
+    if (tooOld) return no(`Born before ${tooOld.given}`);
+    if (known && Math.abs(older) > 25) warn = `${Math.abs(older)} years apart`;
+  } else {
+    if (partnersOf(f, anchor).includes(id)) return no(`Already ${a.given}’s partner`);
+    const rel = blood();
+    if (rel) return no(rel);
+    if (known && Math.abs(older) > 25) warn = `${Math.abs(older)} years apart`;
+  }
+  // Each ten years from the likely age costs a point; a warning costs two.
+  const fit = (known ? -Math.abs(older - expect) / 10 : -1) - (warn ? 2 : 0);
+  return { ok: true, warn, fit };
+}
+
+/** Who might be meant before anything is typed: a partner's children for a child, and so on. */
+function likely(f: Family, anchor: string, relation: AddRelation, coParent?: string): string[] {
+  const mine = new Set(relation === 'child' ? children(f, anchor) : relation === 'parent' ? parents(f, anchor) : relation === 'partner' ? partnersOf(f, anchor) : siblings(f, anchor));
+  const out =
+    relation === 'child' ? (coParent ? [coParent] : partnersOf(f, anchor)).flatMap((x) => children(f, x)) :
+    relation === 'parent' ? parents(f, anchor).flatMap((x) => partnersOf(f, x)) :
+    relation === 'partner' ? children(f, anchor).flatMap((c) => parents(f, c)).filter((x) => x !== anchor) :
+    parents(f, anchor).flatMap((x) => partnersOf(f, x)).flatMap((x) => children(f, x));
+  return [...new Set(out)].filter((x) => x !== anchor && !mine.has(x));
+}
+
+/**
+ * People already in the tree who could be this relative: name matches ranked by how plausible they
+ * are, the impossible ones last and disabled with the reason. Rows are the palette's person row.
+ */
+export function LinkCandidates({ f, tree, anchor, relation, query, surname, coParent, selected, onPick, limit = 8, born, prefer, label }: {
+  f: Family; tree: string; anchor: string; relation: AddRelation; query: string; coParent?: string; selected?: string;
+  onPick: (id: string) => void; limit?: number;
+  /** A surname typed beside the name: not required to match, but a match ranks first. */
+  surname?: string;
+  /** A birth year typed for a new person: only near matches count as a likely duplicate. */
+  born?: string;
+  /** The sex the slot asks for (Blaze's Father or Mother): a match of the other sex ranks lower. */
+  prefer?: 'm' | 'f';
+  label?: string;
+}) {
+  const who = useMeChosen();
+  const anc = useMemo(() => ancestorDepths(f, anchor), [f, anchor]);
+  const desc = useMemo(() => descendants(f, anchor), [f, anchor]);
+  const myAnc = useMemo(() => (who ? ancestorDepths(f, who) : undefined), [f, who]);
+  const rows = useMemo(() => {
+    const q = query.trim();
+    const pool = q ? searchPeople(f, q, 60) : likely(f, anchor, relation, coParent).map((id) => ({ id, score: 10 }));
+    const by = !born || !validDate(born) ? NaN : yearOf(born);
+    const fs = fold(surname ?? '');
+    return pool
+      .filter(({ id }) => id !== anchor && (isNaN(by) || isNaN(yearOf(f.byId.get(id)?.born)) || Math.abs(yearOf(f.byId.get(id)!.born) - by) <= 1))
+      .map(({ id, score }) => {
+        const v = linkVerdict(f, anchor, relation, id, { coParent, anc, desc });
+        const sex = f.byId.get(id)?.sex;
+        const off = prefer && sex && sex !== 'x' && sex !== prefer;
+        const same = !!fs && fold(f.byId.get(id)?.surname ?? '').startsWith(fs);
+        return { id, v: off && v.ok ? { ...v, warn: v.warn ?? (sex === 'f' ? 'Recorded as female' : 'Recorded as male'), fit: v.fit - 3 } : v, rank: score + v.fit - (off ? 3 : 0) + (same ? 6 : 0) };
+      })
+      .sort((a, b) => Number(b.v.ok) - Number(a.v.ok) || b.rank - a.rank)
+      .slice(0, limit);
+  }, [f, anchor, relation, query, surname, coParent, born, prefer, anc, desc, limit]);
+
+  if (!rows.length) return query.trim() ? <p className="subtle qa-none">Nobody by that name in the tree.</p> : null;
+  return (
+    <div className="qa-candidates" role="group" aria-label={label ?? 'People already in the tree'}>
+      {rows.map(({ id, v }) => (
+        <button
+          key={id}
+          type="button"
+          className="palette-item qa-candidate"
+          data-warn={v.warn ? true : undefined}
+          aria-pressed={selected === id}
+          aria-disabled={!v.ok || undefined}
+          title={v.why ?? v.warn}
+          onClick={() => v.ok && onPick(id)}
+        >
+          <PersonRow f={f} tree={tree} id={id} who={who} anc={myAnc} note={v.why ?? v.warn} />
+          {selected === id && <Check size={15} className="qa-tick" aria-hidden />}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The surname a new child most likely gets: the one the existing children share, else the father's. */
+function childSurname(f: Family, anchor: string, coParent: string): string {
+  const a = f.byId.get(anchor)!;
+  const shared = (ids: string[]) => {
+    const names = [...new Set(ids.map((id) => f.byId.get(id)?.surname).filter(Boolean))];
+    return ids.length && names.length === 1 ? names[0]! : undefined;
+  };
+  const kids = children(f, anchor);
+  const together = coParent ? kids.filter((c) => parents(f, c).includes(coParent)) : kids;
+  const co = coParent ? f.byId.get(coParent) : undefined;
+  const father = a.sex === 'f' && co?.sex === 'm' ? co : a.sex === 'm' ? a : undefined;
+  return shared(together) ?? shared(kids) ?? father?.surname ?? a.surname ?? '';
+}
+
+// ---------- the dialog ----------
+
+const RELATION_WORD: Record<AddRelation, string> = { parent: 'parent', child: 'child', partner: 'partner', sibling: 'sibling' };
+
+export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onLinked, onCancel }: {
+  family: Family; tree: string; anchor: string; relation: AddRelation; sex?: 'm' | 'f';
+  onDone: (id: string, person: { given: string; sex?: string }) => void;
+  /** After linking someone already in the tree: pan to them. Without it, the tree is centred on them. */
+  onLinked?: (id: string) => void;
+  onCancel: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'new' | 'existing'>('new');
@@ -27,33 +209,38 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onCan
   const [partnerKind, setPartnerKind] = useState<'marriage' | 'partnership' | 'other'>('partnership');
   const [start, setStart] = useState('');
   const [place, setPlace] = useState<PlaceValue>(placeValue());
+  // One key per attempt, kept for a retry: a save whose answer got lost is never written twice.
+  const [keys] = useState(opKeys);
+  const search = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const canUnlink = useCan('edit-person');
   const a = f.byId.get(anchor)!;
   const partners = partnersOf(f, anchor).map((id) => f.byId.get(id)!).filter(Boolean);
+  const firstCo = relation === 'child' && partners.length === 1 ? partners[0].id : '';
   const form = useForm({
     defaultValues: {
       given: '',
-      // A father usually passes on the surname; a mother's birth name is usually different.
-      surname: relation === 'child' || relation === 'sibling' || (relation === 'parent' && sex !== 'f') ? (a.surname ?? '') : '',
+      // A child takes the surname its brothers and sisters share; a father usually passes his on; a mother's birth name is usually different.
+      surname: relation === 'child' ? childSurname(f, anchor, firstCo) : relation === 'sibling' || (relation === 'parent' && sex !== 'f') ? (a.surname ?? '') : '',
       sex: (sex ?? '') as '' | 'm' | 'f' | 'x',
       born: '',
       living: a.living,
-      coParent: relation === 'child' && partners.length === 1 ? partners[0].id : '',
+      coParent: firstCo,
     },
     onSubmit: async ({ value }) => {
       setError(null);
       try {
-      if (relation === 'partner') await savePlaces(tree, place);
-      const id = await addRelative({
-        data: {
-          tree, anchor, relation,
-          partnership: relation === 'partner' ? {kind: partnerKind, start: start || undefined, place: place.name.trim() || undefined} : undefined,
+        const partnership = relation === 'partner' ? { kind: partnerKind, start: start || undefined, place: place.name.trim() || undefined } : undefined;
+        if (relation === 'partner') await savePlacesKeyed(tree, (p) => keys.for('places', p), place);
+        const data = {
+          tree, anchor, relation, partnership,
           coParent: value.coParent || undefined,
-          person: { given: value.given, surname: value.surname || undefined, sex: value.sex || undefined, born: value.born || undefined, living: value.living },
-        },
-      });
-      await qc.invalidateQueries({ queryKey: ['graph', tree] });
-      onDone(id, { given: value.given, sex: value.sex || undefined });
+          person: { given: value.given.trim(), surname: value.surname.trim() || undefined, sex: value.sex || undefined, born: value.born.trim() || undefined, living: value.living },
+        };
+        const id = await addRelative({ data: { ...data, opKey: keys.for('add', data) } });
+        await qc.invalidateQueries({ queryKey: ['graph', tree] });
+        onDone(id, { given: value.given, sex: value.sex || undefined });
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Could not add them');
       }
@@ -62,16 +249,62 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onCan
   const date = ({ value }: { value: string }) => (value === '' || validDate(value.trim()) ? undefined : 'Enter a real year, year-month or year-month-day');
   const given = useStore(form.store, (s) => s.values.given);
   const born = useStore(form.store, (s) => s.values.born);
+  const coParent = useStore(form.store, (s) => s.values.coParent);
   const dirty = useStore(form.store, (s) => s.isDirty) || !!query || !!selected || !!start || !!place.name || partnerKind !== 'partnership';
   const submitting = useStore(form.store, (s) => s.isSubmitting);
   const busy = submitting || linking;
-  const matches = searchPeople(f, mode === 'existing' ? query : given, 8).map(({id}) => f.byId.get(id)!).filter((p) => p.id !== anchor && (mode === 'existing' || !born || !p.born || Math.abs(yearOf(p.born) - yearOf(born)) <= 1));
-  const saveLink = async () => { if (!selected || busy) return; setLinking(true); setError(null); try {
-    if (relation === 'partner') await savePlaces(tree, place);
-    await linkRelative({data: {tree, anchor, relation, person: selected, coParent: form.state.values.coParent || undefined, partnership: relation === 'partner' ? {kind: partnerKind, start: start || undefined, place: place.name.trim() || undefined} : undefined}});
-    await qc.invalidateQueries({queryKey: ['graph', tree]}); onCancel();
-  } catch (e) { setError(e instanceof Error ? e.message : 'Could not link this person'); } finally { setLinking(false); } };
+
+  // Switching to "link someone" puts the cursor in the search.
+  const switched = useRef(false);
+  useEffect(() => {
+    if (!switched.current) { switched.current = true; return; }
+    if (mode === 'existing') requestAnimationFrame(() => search.current?.focus());
+  }, [mode]);
+
+  const saveLink = async () => {
+    if (!selected || busy) return;
+    const person = f.byId.get(selected);
+    const v = linkVerdict(f, anchor, relation, selected, { coParent: form.state.values.coParent || undefined });
+    if (!v.ok) return setError(v.why ?? 'They can’t be linked like this.');
+    setLinking(true);
+    setError(null);
+    try {
+      const partnership = relation === 'partner' ? { kind: partnerKind, start: start || undefined, place: place.name.trim() || undefined } : undefined;
+      if (relation === 'partner') await savePlacesKeyed(tree, (p) => keys.for('places', p), place);
+      const data = { tree, anchor, relation, person: selected, coParent: relation === 'child' ? form.state.values.coParent || undefined : undefined, partnership };
+      const made = await linkRelative({ data: { ...data, opKey: keys.for('link', data) } });
+      await qc.invalidateQueries({ queryKey: ['graph', tree] });
+      play('chime');
+      toast({
+        title: `${person?.given ?? 'They'} linked as ${a.given}’s ${RELATION_WORD[relation]}`,
+        body: 'The tree shows the new link now.',
+        person: selected,
+        ms: 9000,
+        // Linked the wrong person? Undo takes away only what this link added.
+        action: !canUnlink || (!made.parents.length && !made.partnership) ? undefined : {
+          label: 'Undo',
+          run: async () => {
+            try {
+              await unlinkRelative({ data: { tree, parents: made.parents, partnership: made.partnership } });
+              await qc.invalidateQueries({ queryKey: ['graph', tree] });
+              play('page');
+            } catch (e) {
+              toast({ title: 'Could not undo', body: e instanceof Error ? e.message : 'Change it on the tree instead.' });
+            }
+          },
+        },
+      });
+      if (onLinked) onLinked(selected);
+      else void navigate({ to: '/$tree', params: { tree }, search: (s: Record<string, unknown>) => ({ ...s, focus: selected, sel: selected }) } as never);
+      onCancel();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not link this person');
+    } finally {
+      setLinking(false);
+    }
+  };
   const formId = useId();
+  const pick = (id: string) => { setSelected(id); setMode('existing'); setQuery((q) => q || displayName(f.byId.get(id)!, f)); setError(null); };
 
   return (
     <Dialog
@@ -79,12 +312,12 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onCan
       onClose={() => { if (!busy) onCancel(); }}
       dismissible={!busy}
       variant="event"
-      width={500}
-      dirty={dirty}
+      width={520}
+      dirty={dirty && !busy}
       title={<><span className="qa-what">{TITLE[relation]}</span> {displayName(a, f)}</>}
       footer={
         <>
-          {error ? <span className="err qa-note">{error}</span> : <span className="subtle qa-note">Everything else can wait. You can add details later.</span>}
+          {error ? <span className="err qa-note" role="alert">{error}</span> : <span className="subtle qa-note">{mode === 'existing' ? 'People who can’t be this relative are greyed out.' : 'Everything else can wait. You can add details later.'}</span>}
           <button className="btn primary" form={formId} disabled={busy || (mode === 'existing' && !selected) || (!!start && !validDate(start))}><Check size={14} /> {mode === 'existing' ? 'Link person' : 'Create new'} <kbd>↵</kbd></button>
         </>
       }
@@ -94,72 +327,116 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onCan
         className="qa"
         onSubmit={(e) => { e.preventDefault(); if (busy) return; if (mode === 'existing') void saveLink(); else void form.handleSubmit(); }}
       >
-        <div className="qa-modes"><button type="button" className="btn" aria-pressed={mode === 'new'} disabled={busy} onClick={() => setMode('new')}>Create new</button><button type="button" className="btn" aria-pressed={mode === 'existing'} disabled={busy} onClick={() => setMode('existing')}>Link someone already in the tree</button></div>
+        <div className="qa-modes" role="group" aria-label="New or existing person">
+          <button type="button" className="btn" aria-pressed={mode === 'new'} disabled={busy} onClick={() => { setMode('new'); setError(null); }}>Create new</button>
+          <button type="button" className="btn" aria-pressed={mode === 'existing'} disabled={busy} onClick={() => { setMode('existing'); setError(null); }}>Link someone already in the tree</button>
+        </div>
         <fieldset disabled={busy} className="qa-fields">
-        {mode === 'existing' && <label className="field"><span>Search the tree</span><input className="input" value={query} onChange={(e) => { setQuery(e.target.value); setSelected(''); }} /></label>}
-        {(mode === 'existing' || given.trim()) && <div className="qa-matches" aria-live="polite"><span className="subtle">{mode === 'new' ? 'Already in the tree? Check before creating a duplicate.' : selected ? 'Person selected' : `${matches.length} matches`}</span>{matches.map((p) => <button className="btn" type="button" key={p.id} aria-pressed={selected === p.id} onClick={() => { setSelected(p.id); setMode('existing'); setQuery(displayName(p, f)); }}>{displayName(p, f)} · {lifespan(p)}</button>)}</div>}
-        <div className="qa-grid">
-        {mode === 'new' && <>
-
-          <form.Field name="given" validators={{ onSubmit: ({ value }) => (value.trim() ? undefined : 'A name, even a guess') }}>
-            {(field) => (
+          {mode === 'existing' && (
+            <>
               <label className="field">
-                <span>Given name</span>
-                <input aria-describedby={`${formId}-given-error`} aria-invalid={!!field.state.meta.errors.length} data-autofocus className="input" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
-                {field.state.meta.errors[0] && <em id={`${formId}-given-error`} className="err">{field.state.meta.errors[0]}</em>}
+                <span>Search the tree</span>
+                <input ref={search} data-autofocus className="input" value={query} placeholder="Name, nickname or title" onChange={(e) => { setQuery(e.target.value); setSelected(''); }} />
               </label>
-            )}
-          </form.Field>
-          <form.Field name="surname">
-            {(field) => (
-              <label className="field">
-                <span>Surname at birth</span>
-                <input className="input" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
-              </label>
-            )}
-          </form.Field>
-          <form.Field name="sex">
-            {(field) => (
-              <div className="field">
-                <span>Sex</span>
-                <Select aria-label="Sex" value={field.state.value} onChange={(v) => field.handleChange(v)} options={[{value: '', label: 'Unknown'}, {value: 'f', label: 'Female'}, {value: 'm', label: 'Male'}, {value: 'x', label: 'Other'}]} />
+              <div className="qa-matches" aria-live="polite">
+                {!query.trim() && <span className="subtle qa-hint">{likely(f, anchor, relation, coParent || undefined).length ? 'Perhaps one of these:' : 'Type a name to find them.'}</span>}
+                <LinkCandidates f={f} tree={tree} anchor={anchor} relation={relation} query={query} coParent={relation === 'child' ? coParent || undefined : undefined} selected={selected} onPick={pick} />
               </div>
-            )}
-          </form.Field>
-          <form.Field name="born" validators={{ onChange: date }}>
-            {(field) => (
-              <label className="field">
-                <span>Born</span>
-                <input aria-describedby={`${formId}-born-error`} aria-invalid={!!field.state.meta.errors.length} className="input" placeholder={tree === 'realm' ? '1120 or ~1120' : '1990 or ~1890'} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
-                {field.state.meta.errors[0] && <em id={`${formId}-born-error`} className="err">{field.state.meta.errors[0]}</em>}
-              </label>
-            )}
-          </form.Field>
-          </>}
-          {relation === 'child' && partners.length > 0 && (
-            <form.Field name="coParent">
-              {(field) => (
-                <div className="field wide">
-                  <span id={`${formId}-co`}>Other parent</span>
-                  <Select
-                    aria-labelledby={`${formId}-co`}
-                    value={field.state.value}
-                    onChange={(v) => field.handleChange(v)}
-                    options={[...partners.map((p) => ({ value: p.id, label: displayName(p, f) })), { value: '', label: 'Someone else / unknown' }]}
-                  />
-                </div>
-              )}
-            </form.Field>
+            </>
           )}
-          {mode === 'new' && <form.Field name="living">
-            {(field) => (
-              <div className="field wide">
-                <Switch checked={field.state.value} onChange={(v) => field.handleChange(v)}>Still living</Switch>
-              </div>
+          {mode === 'new' && given.trim().length >= 2 && (
+            <div className="qa-matches" aria-live="polite">
+              <span className="subtle qa-hint">Already in the tree? Pick them to link instead of creating a duplicate.</span>
+              <LinkCandidates f={f} tree={tree} anchor={anchor} relation={relation} query={given} born={born} coParent={relation === 'child' ? coParent || undefined : undefined} onPick={pick} limit={4} />
+            </div>
+          )}
+          <div className="qa-grid">
+            {mode === 'new' && <>
+              <form.Field name="given" validators={{ onSubmit: ({ value }) => (value.trim() ? undefined : 'A name, even a guess') }}>
+                {(field) => (
+                  <label className="field">
+                    <span>Given name</span>
+                    <input aria-describedby={`${formId}-given-error`} aria-invalid={!!field.state.meta.errors.length} data-autofocus className="input" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
+                    {field.state.meta.errors[0] && <em id={`${formId}-given-error`} className="err">{field.state.meta.errors[0]}</em>}
+                  </label>
+                )}
+              </form.Field>
+              <form.Field name="surname">
+                {(field) => (
+                  <label className="field">
+                    <span>Surname at birth</span>
+                    <input className="input" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
+                  </label>
+                )}
+              </form.Field>
+              <form.Field name="sex">
+                {(field) => (
+                  <div className="field">
+                    <span>Sex</span>
+                    <Select aria-label="Sex" value={field.state.value} onChange={(v) => field.handleChange(v)} options={[{ value: '', label: 'Unknown' }, { value: 'f', label: 'Female' }, { value: 'm', label: 'Male' }, { value: 'x', label: 'Other' }]} />
+                  </div>
+                )}
+              </form.Field>
+              <form.Field name="born" validators={{ onChange: date }}>
+                {(field) => (
+                  <label className="field">
+                    <span>Born</span>
+                    <input aria-describedby={`${formId}-born-error`} aria-invalid={!!field.state.meta.errors.length} className="input" placeholder={tree === 'realm' ? '1120 or ~1120' : '1990 or ~1890'} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
+                    {field.state.meta.errors[0] && <em id={`${formId}-born-error`} className="err">{field.state.meta.errors[0]}</em>}
+                  </label>
+                )}
+              </form.Field>
+            </>}
+            {relation === 'child' && partners.length > 0 && (
+              <form.Field name="coParent">
+                {(field) => (
+                  <div className="field wide">
+                    <span id={`${formId}-co`}>Other parent</span>
+                    <Select
+                      aria-labelledby={`${formId}-co`}
+                      value={field.state.value}
+                      onChange={(v) => {
+                        // The surname follows the other parent, unless it was typed by hand.
+                        const before = childSurname(f, anchor, field.state.value);
+                        field.handleChange(v);
+                        if (form.state.values.surname === before) form.setFieldValue('surname', childSurname(f, anchor, v));
+                      }}
+                      options={[...partners.map((p) => ({ value: p.id, label: displayName(p, f) })), { value: '', label: 'Someone else / unknown' }]}
+                    />
+                  </div>
+                )}
+              </form.Field>
             )}
-          </form.Field>}
-          {relation === 'partner' && <><div className="field wide"><span>Relationship type</span><Select aria-label="Relationship type" value={partnerKind} onChange={setPartnerKind} options={[{value: 'marriage', label: 'Married'}, {value: 'partnership', label: 'Partners'}, {value: 'other', label: 'Other'}]} /></div><div className="wide pi-pair"><label className="field"><span>Start date (optional)</span><input className="input" value={start} onChange={(e) => setStart(e.target.value)} aria-invalid={!!start && !validDate(start)} aria-describedby={`${formId}-start-error`} placeholder={tree === 'realm' ? '1140' : '2000-06'} />{!!start && !validDate(start) && <em id={`${formId}-start-error`} className="err">Enter a real date.</em>}</label><div className="field"><span id={`${formId}-place`}>Place (optional)</span><PlaceInput tree={tree} value={place} onChange={setPlace} aria-labelledby={`${formId}-place`} placeholder={tree === 'realm' ? 'Where they wed' : 'Town or church'} /></div></div></>}
-        </div></fieldset>
+            {mode === 'new' && (
+              <form.Field name="living">
+                {(field) => (
+                  <div className="field wide">
+                    <Switch checked={field.state.value} onChange={(v) => field.handleChange(v)}>Still living</Switch>
+                  </div>
+                )}
+              </form.Field>
+            )}
+            {relation === 'partner' && (
+              <>
+                <div className="field wide">
+                  <span>Relationship type</span>
+                  <Select aria-label="Relationship type" value={partnerKind} onChange={setPartnerKind} options={[{ value: 'marriage', label: 'Married' }, { value: 'partnership', label: 'Partners' }, { value: 'other', label: 'Other' }]} />
+                </div>
+                <div className="wide pi-pair">
+                  <label className="field">
+                    <span>Start date (optional)</span>
+                    <input className="input" value={start} onChange={(e) => setStart(e.target.value)} aria-invalid={!!start && !validDate(start)} aria-describedby={`${formId}-start-error`} placeholder={tree === 'realm' ? '1140' : '2000-06'} />
+                    {!!start && !validDate(start) && <em id={`${formId}-start-error`} className="err">Enter a real date.</em>}
+                  </label>
+                  <div className="field">
+                    <span id={`${formId}-place`}>Place (optional)</span>
+                    <PlaceInput tree={tree} value={place} onChange={setPlace} aria-labelledby={`${formId}-place`} placeholder={tree === 'realm' ? 'Where they wed' : 'Town or church'} />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </fieldset>
       </form>
     </Dialog>
   );

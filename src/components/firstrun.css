@@ -28,3 +28,16 @@
 .tour-dots { display: flex; gap: 6px; margin-right: auto; }
 .tour-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--panel-3); }
 .tour-dots i[data-on] { background: var(--accent); }
+
+/* Your own name, exactly: first in the list and marked. */
+.who { display: grid; }
+.who-item.exact { background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 2px 0 0 var(--accent); }
+.who-item > div { flex: 1; min-width: 0; }
+.who-exact {
+  flex: none; font-style: normal; font-family: var(--font-ui); font-size: 12px; color: var(--accent);
+  padding: 2px 8px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+}
+[data-theme='modern'] .who-exact { color: #8a5a14; border-color: #c9a66a; }
+.who .who-foot { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+[data-theme='codex'] .who .who-foot { border-top-color: var(--edge-soft); }
+.who-item { min-height: 50px; }

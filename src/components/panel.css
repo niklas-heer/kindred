@@ -188,3 +188,96 @@ a.pp-house { color: inherit; text-decoration: none; }
 .pp-ask { margin: 8px 0 0; font-size: 14px; line-height: 1.45; }
 p.pp-add-relative.pp-ask { margin: 0; padding: 12px 16px; }
 .pp-signed { flex: 1; min-width: 0; margin-right: auto; font-size: 13px; align-self: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- tabs: equal widths, centred labels ---------- */
+.pp-tabs.ui-tablist { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; padding: 8px 10px 0; overflow: visible; }
+.pp-tabs .ui-tab {
+  flex: none; min-width: 0; justify-content: center; text-align: center; gap: 3px; padding: 9px 2px 10px;
+  font-size: 14.5px; white-space: nowrap;
+}
+[data-theme='codex'] .pp-tabs .ui-tab { font-size: 14.5px; letter-spacing: 0.02em; }
+.pp-tabs .pp-count { margin-left: 0; font-size: 11px; font-variant: normal; letter-spacing: 0; align-self: flex-start; margin-top: -1px; }
+
+/* ---------- overview ---------- */
+.pp-overview { display: grid; gap: 4px; padding-top: 12px; }
+.pp-overview .pp-kin { margin: 0 0 6px; }
+.pp-overview .pp-gaps { margin: 14px 0 0; }
+.pp-photo-err { margin: 0 16px; }
+.pp-keyfacts { padding-top: 4px; }
+.pp-keyfacts .fact:last-child { border-bottom: 0; }
+.pp-ov-section { margin-top: 6px; }
+.pp-ov-section > .rule { margin-top: 14px; }
+.pp-upcoming { display: grid; gap: 8px; margin-top: 10px; }
+.pp-reach { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.pp-reach .btn { flex: 1 1 0; justify-content: center; text-decoration: none; min-width: max-content; }
+.pp-more { width: 100%; justify-content: center; margin-top: 2px; }
+.pp-quiet { margin: 8px 0 0; font-size: 15px; }
+.pp-inline-link {
+  padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer;
+  text-decoration: underline dotted; text-underline-offset: 3px;
+}
+.pp-inline-link:hover { color: var(--accent); }
+.pp-inline-link:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 2px; }
+.pp-loading { padding: 14px 0; }
+.pp-error.ui-state { padding: 22px 8px; }
+.pp-error .ui-state-title { font-size: 18px; }
+
+/* Countdown rows (birthday, anniversary): the theme's card, not a grey slab. */
+.pp-countdown.ui-card { padding: 10px 12px; margin-bottom: 0; background-color: var(--panel-solid); }
+[data-theme='codex'] .pp-countdown.ui-card { background: linear-gradient(180deg, #2a3243, #1b2130) padding-box, var(--card-frame) border-box; }
+.pp-countdown.ui-card b { font-weight: 600; }
+[data-theme='codex'] .pp-countdown.ui-card b { color: #f6ead0; font-weight: 500; }
+.pp-facts > .pp-countdown.ui-card + .pp-countdown.ui-card { margin-top: 4px; }
+
+/* A compact life: year, a dot on a thread, what happened. */
+.pp-timeline { list-style: none; margin: 8px 0 0; padding: 0; display: grid; }
+.pp-timeline li { display: grid; grid-template-columns: 3.1em 24px minmax(0, 1fr); align-items: start; column-gap: 8px; position: relative; padding: 3px 0; font-size: 15px; line-height: 1.35; }
+.pp-timeline li::before { content: ''; position: absolute; left: calc(3.1em + 8px + 11px); top: 0; bottom: 0; width: 2px; background: var(--border); }
+[data-theme='codex'] .pp-timeline li::before { background: var(--edge-soft); }
+.pp-timeline li:first-child::before { top: 14px; }
+.pp-timeline li:last-child::before { bottom: calc(100% - 14px); }
+.pp-timeline li[data-gap]::before { background: repeating-linear-gradient(180deg, var(--border) 0 3px, transparent 3px 7px); }
+.pp-tl-year { text-align: right; color: var(--muted); font-variant-numeric: oldstyle-nums tabular-nums; padding-top: 1px; }
+.pp-tl-dot {
+  position: relative; z-index: 1; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%;
+  color: var(--accent); background: var(--panel-solid); box-shadow: inset 0 0 0 1px var(--border); font-size: 12px; line-height: 1;
+}
+[data-theme='codex'] .pp-tl-dot { background: #171d28; box-shadow: inset 0 0 0 1px var(--edge-soft); }
+.pp-tl-text { padding-top: 2px; }
+
+/* The mini map: the PinMap's palette, drawn small. */
+.pp-map {
+  --sea: #dde8ea; --land: #fbfaf6; --land-edge: #c9bfac; --borders: #d4cab8; --label: #2b2822; --halo: #fbfaf6; --pin: #b8432f; --pin-edge: #fff;
+  padding: 0; overflow: hidden; margin-top: 10px; line-height: 0;
+}
+[data-theme='codex'] .pp-map { --sea: #2c3f3e; --land: #cdb98a; --land-edge: #7e6a43; --borders: #8f7a4e; --label: #2a1f0e; --halo: #e8d7ab; --pin: #8a1f14; --pin-edge: #f3e3b5; }
+[data-theme='night'] .pp-map { --sea: #0f1922; --land: #343c46; --land-edge: #5d6672; --borders: #4c5560; --label: #f1e9dc; --halo: #141a21; --pin: #e0a458; --pin-edge: #1a1209; }
+.pp-map svg { display: block; width: 100%; height: auto; aspect-ratio: 360 / 170; }
+.pp-map-sea { fill: var(--sea); }
+.pp-map-land { fill: var(--land); stroke: var(--land-edge); stroke-width: 0.6; }
+.pp-map-borders { fill: none; stroke: var(--borders); stroke-width: 0.6; stroke-dasharray: 3 2; }
+.pp-map-pin circle { fill: var(--pin); stroke: var(--pin-edge); stroke-width: 1.5; }
+.pp-map-pin text { font-family: var(--font-ui); font-size: 12px; font-weight: 600; fill: var(--label); paint-order: stroke; stroke: var(--halo); stroke-width: 3px; stroke-linejoin: round; }
+.pp-placelist { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; font-size: 15px; }
+.pp-placelist li { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.pp-placelist svg { color: var(--subtle); flex: none; align-self: center; }
+.pp-placelist svg.on { color: var(--accent); }
+.pp-placelist .subtle { font-size: 13px; }
+
+/* Their house, as a card that opens its page. */
+.pp-house-card { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 10px 12px; color: inherit; text-decoration: none; }
+.pp-house-card b { display: block; font-family: var(--font-body); font-weight: 500; font-size: 16px; }
+.pp-house-card i { display: block; color: var(--muted); font-size: 14px; }
+
+/* A story in the Overview: its first lines only. */
+.story.compact .story-body, .story.compact blockquote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+.story.compact .story-body :is(img, h1, h2, h3) { display: none; }
+.pp-contact-add .pp-contact-err { grid-column: 1 / -1; }
+.pp-gaps .chip { display: inline-flex; align-items: center; gap: 3px; }
+@media (max-width: 600px) {
+  .pp-tabs .ui-tab { min-height: 44px; font-size: 14px; }
+  .pp-reach .btn { min-height: 44px; }
+  .pp-timeline li { font-size: 14.5px; }
+}
+@media (prefers-reduced-motion: reduce) { .pp-house-card.interactive:hover { transform: none; } }
+.pp-keyfacts .fact { grid-template-columns: 22px minmax(92px, max-content) 1fr; column-gap: 10px; }

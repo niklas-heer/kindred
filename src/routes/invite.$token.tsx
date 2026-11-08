@@ -3,7 +3,7 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { KeyRound, MailX, Shield } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AuthCard, AuthError, PasskeyExplainer } from '~/components/AuthCard';
-import { WhoPicker } from '~/components/FirstRun';
+import { WhoChooser } from '~/components/FirstRun';
 import { Arms } from '~/components/Heraldry';
 import { ROLE_ICON } from '~/components/RoleIcon';
 import { useIsClient } from '~/components/ui';
@@ -14,6 +14,7 @@ import { BROWSING } from '~/lib/family';
 import { buildFamily } from '~/lib/graph';
 import { setPref } from '~/lib/prefs';
 import { ROLES } from '~/lib/roles';
+import { useSession } from '~/lib/session';
 
 export const Route = createFileRoute('/invite/$token')({
   loader: async ({ params }) => ({ info: await fetchInvite({ data: { token: params.token } }) }),
@@ -69,7 +70,7 @@ function Invite() {
 
   const role = ROLES.find((r) => r.id === info.role)!;
 
-  if (step === 'who') return <WhoStep tree={fam.id} familyName={fam.name} crest={crest} />;
+  if (step === 'who') return <WhoStep tree={fam.id} familyName={fam.name} crest={crest} name={name.trim() || info.signedInAs || undefined} />;
 
   if (info.alreadyMember) {
     return (
@@ -155,10 +156,11 @@ function Invite() {
   );
 }
 
-/** After joining: "Who are you in this family?", then into the tree. */
-function WhoStep({ tree, familyName, crest }: { tree: string; familyName: string; crest: ReactNode }) {
+/** After joining: "Who are you in this family?" (the same chooser stewards see in the tree), then into the tree. */
+function WhoStep({ tree, familyName, crest, name }: { tree: string; familyName: string; crest: ReactNode; name?: string }) {
   const graph = useQuery(graphQuery(tree));
   const f = useMemo(() => (graph.data ? buildFamily(graph.data) : null), [graph.data]);
+  const session = useSession();
   const [saving, setSaving] = useState(false);
   const choose = async (id: string) => {
     setSaving(true);
@@ -180,12 +182,8 @@ function WhoStep({ tree, familyName, crest }: { tree: string; familyName: string
         ) : !f ? (
           <p className="subtle">Loading the family…</p>
         ) : (
-          <WhoPicker f={f} tree={tree} onChoose={(id) => void choose(id)} autoFocus />
+          <WhoChooser f={f} tree={tree} onChoose={(id) => void choose(id)} name={name ?? session?.user?.name} autoFocus busy={saving} />
         )}
-      </div>
-      <div className="auth-who-foot">
-        <p>Not in the tree yet, or not sure? You can choose later with “This is me” on someone’s card.</p>
-        <button className="btn" onClick={() => void choose(BROWSING)} disabled={saving}>Just browsing</button>
       </div>
     </AuthCard>
   );

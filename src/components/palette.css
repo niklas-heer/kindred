@@ -15,6 +15,9 @@
 [data-theme='codex'] .palette-item[aria-selected='true'] { background: linear-gradient(90deg, #4a3d2288, #4a3d2222); box-shadow: inset 2px 0 0 var(--accent); }
 .palette-icon { width: 30px; height: 30px; display: grid; place-items: center; flex: none; color: var(--muted); }
 .palette-label { font-size: 16px; }
+/* A person's name in the results: the name face, a touch larger since the serif runs small. */
+.palette-name { font-family: var(--font-name); font-weight: var(--name-weight); font-size: 17px; }
+.palette-name small { font-family: var(--font-ui); font-weight: 400; }
 .palette-hint { margin-left: auto; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
 .palette-foot { display: flex; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--border); font-size: 12px; font-family: var(--font-ui); }
 @keyframes fade { from { opacity: 0; } }

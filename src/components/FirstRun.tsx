@@ -3,11 +3,11 @@
 // or BROWSING); the tour is remembered once seen or skipped (`tour`). Until the reader answers,
 // kinship labels stay hidden. `WhoPicker` is the same list, for the invitation page.
 import { MousePointerClick, Search, UserPlus } from 'lucide-react';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BROWSING, chooseMe, useFamily, useMeAnswered, useTreeId } from '~/lib/family';
 import { children, displayName, lifespan, parents, partnersOf, siblings, type Family } from '~/lib/graph';
 import { setPref, usePref } from '~/lib/prefs';
-import { useCan } from '~/lib/session';
+import { useCan, useSession } from '~/lib/session';
 import { searchPeople } from './Palette';
 import { Portrait } from './Portrait';
 import { Dialog } from './ui/Dialog';
@@ -92,6 +92,7 @@ export function FirstRun() {
 function WhoAreYou({ open, onChoose, onLater, familyName }: { open: boolean; onChoose: (id: string) => void; onLater: () => void; familyName: string }) {
   const f = useFamily();
   const tree = useTreeId();
+  const name = useSession()?.user?.name;
   return (
     <Dialog
       open={open}
@@ -100,29 +101,58 @@ function WhoAreYou({ open, onChoose, onLater, familyName }: { open: boolean; onC
       width={520}
       title="Who are you in this family?"
       description={<>Kindred names everyone in <b>{familyName}</b> from your point of view: “your great-aunt”, “your second cousin”.</>}
-      footer={
-        <div className="who-foot">
-          <p>You can change this any time with “This is me” on someone’s card.</p>
-          <button className="btn" onClick={() => onChoose(BROWSING)}>Just browsing</button>
-        </div>
-      }
     >
-      <WhoPicker f={f} tree={tree} onChoose={onChoose} />
+      <WhoChooser f={f} tree={tree} onChoose={onChoose} name={name} />
     </Dialog>
   );
 }
 
+const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
+/** Whether a person's name is exactly what was typed: "Kerstin Holm", "Kerstin", or their nickname. */
+function exactName(f: Family, id: string, q: string): boolean {
+  const p = f.byId.get(id);
+  const fq = fold(q);
+  if (!p || !fq) return false;
+  return [displayName(p, f), [p.given, p.surname].filter(Boolean).join(' '), p.nickname && [p.nickname, p.surname].filter(Boolean).join(' ')]
+    .some((n) => !!n && fold(n) === fq);
+}
+
+/**
+ * "Who are you?": search for yourself (prefilled with your account name, exact matches first and
+ * highlighted), or pick from the living people around the tree's starting point, or just browse.
+ * The steward's first-run dialog and the invitation page both use this.
+ */
+export function WhoChooser({ f, tree, onChoose, name, autoFocus, busy }: { f: Family; tree: string; onChoose: (id: string) => void; name?: string; autoFocus?: boolean; busy?: boolean }) {
+  return (
+    <div className="who" aria-busy={busy || undefined}>
+      <WhoPicker f={f} tree={tree} onChoose={onChoose} initialQuery={name} autoFocus={autoFocus} />
+      <div className="who-foot">
+        <p>Not in the tree yet, or not sure? You can choose later with “This is me” on someone’s card.</p>
+        <button className="btn" onClick={() => onChoose(BROWSING)} disabled={busy}>Just browsing</button>
+      </div>
+    </div>
+  );
+}
+
 /** Search for yourself, or pick from the living people around the tree's starting point. */
-export function WhoPicker({ f, tree, onChoose, autoFocus }: { f: Family; tree: string; onChoose: (id: string) => void; autoFocus?: boolean }) {
-  const [q, setQ] = useState('');
-  const results = useMemo(() => searchPeople(f, q, 8).map((r) => r.id), [f, q]);
+export function WhoPicker({ f, tree, onChoose, autoFocus, initialQuery }: { f: Family; tree: string; onChoose: (id: string) => void; autoFocus?: boolean; initialQuery?: string }) {
+  const [q, setQ] = useState(initialQuery?.trim() ?? '');
+  const results = useMemo(() => {
+    const ids = searchPeople(f, q, 8).map((r) => r.id);
+    // Your own name, exactly, goes to the top.
+    return [...ids.filter((id) => exactName(f, id, q)), ...ids.filter((id) => !exactName(f, id, q))];
+  }, [f, q]);
   // Before any typing: the living people around the tree's starting point, a likely "you".
   const suggested = useMemo(() => {
     const c = f.graph.tree.focus;
     const near = [c, ...partnersOf(f, c), ...children(f, c), ...siblings(f, c), ...parents(f, c)];
     return [...new Set(near)].filter((id) => f.byId.get(id)?.living).slice(0, 6);
   }, [f]);
-  const list = q.trim() ? results : suggested;
+  // A prefilled name nobody has: show the likely people instead of an empty list.
+  const prefilledMiss = !!initialQuery && q === initialQuery.trim() && !results.length;
+  const list = q.trim() && !prefilledMiss ? results : suggested;
+  const selectedOnce = useRef(false);
 
   return (
     <>
@@ -132,26 +162,31 @@ export function WhoPicker({ f, tree, onChoose, autoFocus }: { f: Family; tree: s
           className="input"
           value={q}
           autoFocus={autoFocus}
+          data-autofocus
           onChange={(e) => setQ(e.target.value)}
+          // The prefilled name is selected, so typing another replaces it.
+          onFocus={(e) => { if (!selectedOnce.current && initialQuery) { selectedOnce.current = true; e.target.select(); } }}
           onKeyDown={(e) => { if (e.key === 'Enter' && list[0]) { e.preventDefault(); onChoose(list[0]); } }}
           placeholder="Your name…"
           aria-label="Search for yourself by name"
           aria-controls="who-list"
         />
       </div>
-      <div className="who-label">{q.trim() ? 'Matches' : 'Perhaps you are…'}</div>
+      <div className="who-label">{prefilledMiss ? <>No one called “{q}” yet. Perhaps you are…</> : q.trim() ? 'Matches' : 'Perhaps you are…'}</div>
       <ul className="who-list" id="who-list" aria-live="polite">
         {list.length === 0 && <li className="who-empty">Nobody by that name yet. Try a nickname, or browse for now.</li>}
         {list.map((id) => {
           const p = f.byId.get(id)!;
+          const exact = !prefilledMiss && exactName(f, id, q);
           return (
             <li key={id}>
-              <button className="who-item" onClick={() => onChoose(id)}>
+              <button className={`who-item${exact ? ' exact' : ''}`} onClick={() => onChoose(id)}>
                 <Portrait person={p} tree={tree} size={38} frame={false} />
                 <div>
                   <b>{displayName(p, f)}</b>
                   <span>{lifespan(p) || (p.living ? 'living' : '')}</span>
                 </div>
+                {exact && <em className="who-exact">Your name</em>}
               </button>
             </li>
           );

@@ -1,36 +1,38 @@
-// The character window: who this is, how they're yours, their family at a glance, what the family
-// remembers about them, and the everyday things (birthday, how to reach them, what they like).
+// The character window: who this is, how they're yours, their life at a glance (the Overview), their
+// family, what the family remembers about them, and the everyday things (birthday, how to reach them).
 import { useForm, useStore } from '@tanstack/react-form';
 import { Link, useBlocker } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { geoMercator, geoPath, type GeoPermissibleObjects } from 'd3-geo';
 import {
-  Cake, Camera, Check, CookingPot, Crosshair, Crown, Gift, GitFork, Heart, Mail, MapPin, MessageCircle, MessagesSquare, Pencil,
+  Baby, BriefcaseBusiness, Cake, Camera, Check, CookingPot, Crosshair, Crown, Gift, GitFork, Heart, HeartCrack, Hourglass, Mail, MapPin, MessageCircle, MessagesSquare, Pencil,
   Phone, Plus, Quote, Route as RouteIcon, Sparkles, StickyNote, Trash2, UserRound, X,
 } from 'lucide-react';
+import { feature, mesh } from 'topojson-client';
 import { renderMarkdown } from '~/lib/markdown';
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { addContact, addStory, deleteContact, removePerson, deleteStory, personQuery, updatePerson, uploadPhoto } from '~/lib/api';
+import { addContact, addStory, deleteContact, opKeys, removePerson, deleteStory, personQuery, updatePerson, uploadPhoto } from '~/lib/api';
 import {
   ageAt, age, children, displayName, fmtDate, kinship, lifespan, parents, partnersOf, siblings, yearOf, type Family,
 } from '~/lib/graph';
 import { setPref } from '~/lib/prefs';
 import { chooseMe } from '~/lib/family';
-import { can } from '~/lib/roles';
+import { can, type Role } from '~/lib/roles';
 import { useCan, useRole, useSession } from '~/lib/session';
-import type { GPerson, PersonDetail, Story } from '~/lib/types';
+import type { GPerson, PersonDetail, Place, Story } from '~/lib/types';
 import { TRAITS } from '~/lib/traits';
 import { validDate } from '~/lib/dates';
-import { GAP_ACTION, GAP_LABEL, GAP_WHERE, gapsOf, useRequired } from '~/lib/gaps';
+import { GAP_ACTION, GAP_LABEL, GAP_WHERE, gapsOf, useRequired, type GapKey } from '~/lib/gaps';
 import { GameIcon } from './GameIcon';
 import { Arms } from './Heraldry';
 import { Portrait } from './Portrait';
-import { Dialog, Tabs, TabList, Tab as UiTab, TabPanel, Select, Switch, isOverlayOpen } from './ui';
+import { Dialog, ErrorState, Skeleton, Tabs, TabList, Tab as UiTab, TabPanel, Select, Switch, isOverlayOpen } from './ui';
 import { QuickAdd } from './QuickAdd';
-import { PlaceInput, placeValue, savePlaces, type PlaceValue } from './PlaceInput';
+import { PlaceInput, placeValue, savePlacesKeyed, type PlaceValue } from './PlaceInput';
 import type { AddRelation } from './Card';
 import './panel.css';
 
-type Tab = 'family' | 'stories' | 'everyday' | 'edit';
+type Tab = 'overview' | 'family' | 'stories' | 'everyday' | 'edit';
 
 type Draft = { dirty: boolean; busy: boolean; save: () => Promise<boolean> };
 const DraftContext = createContext<{ register: (draft: Draft | null) => void; leave: (next: () => void) => void }>({ register: () => {}, leave: (next) => next() });
@@ -57,6 +59,9 @@ interface Props {
   onClose: () => void;
 }
 
+/** The person's details (stories, contacts, places): loading, failed with a retry, or there. */
+type DetailState = { detail?: PersonDetail; failed: boolean; retry: () => void };
+
 export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPath, onDynasty, onAncestors, onClose }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [pending, setPending] = useState<(() => void) | null>(null);
@@ -78,22 +83,25 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
     return () => window.removeEventListener('keydown', escape, true);
   }, [draft, onClose]);
   const p = f.byId.get(id);
-  const [tab, setTab] = useState<Tab>('family');
+  const [tab, setTab] = useState<Tab>('overview');
   // What this reader may do here (the server checks the same; see src/lib/roles.ts).
   const role = useRole();
   const canEdit = can(role, 'edit-person');
   const canAdd = can(role, 'add-person');
   const canPhoto = can(role, 'upload-photo');
   const [required] = useRequired(tree);
-  const { data: detail } = useQuery(personQuery(tree, id));
+  const detailQ = useQuery(personQuery(tree, id));
+  const details: DetailState = { detail: detailQ.data, failed: detailQ.isError && !detailQ.data, retry: () => void detailQ.refetch() };
+  const detail = detailQ.data;
   const qc = useQueryClient();
-  const k = useMemo(() => (p && me ? kinship(f, me, id) : undefined), [f, me, id, p]);
+  const [photoKeys] = useState(opKeys);
   const photo = useMutation({
     mutationFn: (file: File) => {
       const fd = new FormData();
       fd.set('tree', tree);
       fd.set('id', id);
       fd.set('file', file);
+      fd.set('opKey', photoKeys.for('photo', [id, file.name, file.size, file.lastModified]));
       return uploadPhoto({ data: fd });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['graph', tree] }),
@@ -102,7 +110,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   if (!p) return null;
   const house = p.house ? f.house.get(p.house) : undefined;
   const a = age(p);
-
+  const fillGap = (g: GapKey) => (g === 'photo' ? photoInput.current?.click() : GAP_WHERE[g] === 'tree' ? onAncestors() : leave(() => setTab(GAP_WHERE[g] as Tab)));
 
   return (
     <DraftContext.Provider value={{ register: setDraft, leave }}><aside className="person-panel panel" key={id}>
@@ -132,27 +140,10 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
               <Arms arms={house.arms} size={22} /> <span>{house.name}</span>
             </Link>
           )}
-          {house?.motto && <div className="pp-motto">“{house.motto}”</div>}
         </div>
       </header>
 
-      {photo.isError && <p className="err" role="alert">Could not change portrait. Try an image smaller than 5 MB.</p>}
-      <div className="pp-kin">
-        {!me ? (
-          <span className="muted">Say who you are to see how you’re related</span>
-        ) : id === me ? (
-          <span className="pp-you"><UserRound size={14} /> This is you</span>
-        ) : k ? (
-          <span>Your <b>{k.label}</b></span>
-        ) : (
-          <span className="muted">Not related by blood or marriage to you</span>
-        )}
-        <span className="spacer" />
-        {id !== me && k && <button className="btn ghost" onClick={onPath} title="Highlight the line between you"><RouteIcon size={14} /> How?</button>}
-        {!me ? (
-          <button className="btn ghost" onClick={() => void chooseMe(tree, id)} title="Kinship labels will be relative to this person">This is me</button>
-        ) : id !== me && <button className="btn ghost" onClick={() => setPref(`me:${tree}`, id)} title="See everyone's relationship from this person's point of view">Be them</button>}
-      </div>
+      {photo.isError && <p className="err pp-photo-err" role="alert">Could not change portrait. Try an image smaller than 5 MB.</p>}
 
       {p.traits?.length ? (
         <div className="pp-traits">
@@ -167,33 +158,6 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
         </div>
       ) : null}
 
-      {(() => {
-        const gaps = gapsOf(f, p, required);
-        if (!gaps.length) return null;
-        return (
-          <div className="pp-gaps">
-            <span className="pp-gaps-title"><GameIcon name="quill-ink" size={14} /> Information needed</span>
-            <div>
-              {gaps.map((g) =>
-                // Only the gaps this reader may fill in are buttons; the rest are just listed.
-                !can(role, GAP_ACTION[g]) ? (
-                  <span key={g} className="chip">{GAP_LABEL[g]}</span>
-                ) : (
-                  <button
-                    key={g}
-                    className="chip"
-                    onClick={() => (g === 'photo' ? photoInput.current?.click() : GAP_WHERE[g] === 'tree' ? onAncestors() : leave(() => setTab(GAP_WHERE[g] as Tab)))}
-                    title={g === 'photo' ? 'Choose a photo' : GAP_WHERE[g] === 'tree' ? 'Open the ancestors view to fill the empty slots' : 'Fill it in'}
-                  >
-                    {GAP_LABEL[g]}
-                  </button>
-                ),
-              )}
-            </div>
-          </div>
-        );
-      })()}
-
       <div className="pp-actions">
         <button className="btn" onClick={onCenter}><Crosshair size={14} /> Centre</button>
         <button className="btn" onClick={onAncestors}><GitFork size={14} style={{ transform: 'rotate(180deg)' }} /> Ancestors</button>
@@ -204,23 +168,32 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
       <TabList className="pp-tabs">
         {(
           [
+            ['overview', 'Overview', undefined],
             ['family', 'Family', relativesCount(f, id)],
             ['stories', 'Stories', detail?.stories.length ?? p.stories],
             ['everyday', p.living ? 'Everyday' : 'Life', undefined],
             ['edit', 'Edit', undefined],
           ] as const
         ).filter(([t]) => t !== 'edit' || canEdit).map(([t, label, n]) => (
-          <UiTab key={t} value={t}>
-            {label} {n ? <span className="pp-count">{n}</span> : null}
+          <UiTab key={t} value={t} title={n ? `${label}: ${n}` : undefined}>
+            {label}{n ? <span className="pp-count">{n}</span> : null}
           </UiTab>
         ))}
       </TabList>
 
       <div className="pp-body">
+        <TabPanel value="overview">
+          <OverviewTab
+            f={f} tree={tree} p={p} me={me} details={details} role={role} gaps={gapsOf(f, p, required)}
+            onSelect={(v) => leave(() => onSelect(v))} onPath={onPath} onGap={fillGap} onTab={(t) => leave(() => setTab(t))}
+          />
+        </TabPanel>
         <TabPanel value="family"><FamilyTab f={f} tree={tree} id={id} canAdd={canAdd} onSelect={(v) => leave(() => onSelect(v))} /></TabPanel>
-        <TabPanel value="stories"><StoriesTab tree={tree} p={p} detail={detail} /></TabPanel>
-        <TabPanel value="everyday"><EverydayTab f={f} tree={tree} p={p} detail={detail} /></TabPanel>
-        <TabPanel value="edit">{canEdit && detail && <EditTab tree={tree} p={p} detail={detail} done={() => setTab('family')} onRemoved={onClose} />}</TabPanel>
+        <TabPanel value="stories"><StoriesTab tree={tree} p={p} details={details} /></TabPanel>
+        <TabPanel value="everyday"><EverydayTab f={f} tree={tree} p={p} details={details} /></TabPanel>
+        <TabPanel value="edit">
+          {canEdit && (detail ? <EditTab tree={tree} p={p} detail={detail} done={() => setTab('overview')} onRemoved={onClose} /> : <DetailFallback details={details} />)}
+        </TabPanel>
       </div></Tabs>
       {canAdd ? (
         <div className="pp-add-relative"><Select aria-label="Add relative" placeholder="Add relative" value="" onChange={(v) => { if (v) leave(() => setAdd(v as AddRelation)); }} options={['parent', 'partner', 'child', 'sibling'].map((v) => ({ value: v, label: `Add ${v}` }))} /></div>
@@ -237,9 +210,288 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   );
 }
 
+/** While the person's details load, a skeleton; when they failed, the error with Retry. Never a blank tab. */
+function DetailFallback({ details, lines = 4 }: { details: DetailState; lines?: number }) {
+  if (details.failed) return <ErrorState className="pp-error" title="Couldn’t load their details" message="Stories, places and contacts didn’t arrive. Check the connection and try again." onRetry={details.retry} />;
+  return <div className="pp-loading" aria-busy="true"><span className="sr-only">Loading…</span><Skeleton lines={lines} height={16} /></div>;
+}
 
 function relativesCount(f: Family, id: string) {
   return parents(f, id).length + partnersOf(f, id).length + children(f, id).length + siblings(f, id).length;
+}
+
+// ---------- overview ----------
+
+/** The profile at a glance: how they're yours, the key facts, their life, places, words and what's missing. */
+function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, onGap, onTab }: {
+  f: Family; tree: string; p: GPerson; me: string | null; details: DetailState; role: Role; gaps: GapKey[];
+  onSelect: (id: string) => void; onPath: () => void; onGap: (g: GapKey) => void; onTab: (t: Tab) => void;
+}) {
+  const detail = details.detail;
+  const k = useMemo(() => (me && me !== p.id ? kinship(f, me, p.id) : undefined), [f, me, p.id]);
+  const house = p.house ? f.house.get(p.house) : undefined;
+  const a = age(p);
+  const unions = f.unionsOf.get(p.id) ?? [];
+  const bornPlace = detail?.bornPlace ?? p.bornPlace;
+  const diedPlace = detail?.diedPlace ?? p.diedPlace;
+  const words = (detail?.stories ?? []).filter((s) => s.kind !== 'recipe' && s.kind !== 'note').slice(0, 2);
+
+  return (
+    <div className="pp-overview">
+      <section className="pp-kin" aria-label="How you are related">
+        {!me ? (
+          <span className="muted">Say who you are to see how you’re related</span>
+        ) : me === p.id ? (
+          <span className="pp-you"><UserRound size={14} /> This is you</span>
+        ) : k ? (
+          <span>Your <b>{k.label}</b></span>
+        ) : (
+          <span className="muted">Not related by blood or marriage to you</span>
+        )}
+        <span className="spacer" />
+        {me !== p.id && k && <button className="btn ghost" onClick={onPath} title="Highlight the line between you"><RouteIcon size={14} /> How?</button>}
+        {!me ? (
+          <button className="btn ghost" onClick={() => void chooseMe(tree, p.id)} title="Kinship labels will be relative to this person">This is me</button>
+        ) : me !== p.id && <button className="btn ghost" onClick={() => setPref(`me:${tree}`, p.id)} title="See everyone's relationship from this person's point of view">Be them</button>}
+      </section>
+
+      <div className="pp-facts pp-keyfacts">
+        <Fact icon={<Cake size={15} />} label="Born">
+          {fmtDate(p.born) ?? 'Date unknown'}{bornPlace && <> in <PlaceLink tree={tree} name={bornPlace} /></>}
+        </Fact>
+        {!p.living && (
+          <Fact icon={<span aria-hidden>✝</span>} label="Died">
+            {fmtDate(p.died) ?? 'Date unknown'}{diedPlace && <> in <PlaceLink tree={tree} name={diedPlace} /></>}
+          </Fact>
+        )}
+        {a !== undefined && <Fact icon={<Hourglass size={15} />} label="Age">{p.living ? `${a} years old` : `Died aged ${a}`}</Fact>}
+        {p.occupation && <Fact icon={<BriefcaseBusiness size={15} />} label="Occupation">{p.occupation}</Fact>}
+        {p.title && <Fact icon={<Crown size={15} />} label="Title">{p.title}</Fact>}
+        {p.nickname && <Fact icon={<UserRound size={15} />} label="Called">{p.nickname}</Fact>}
+      </div>
+
+      {p.living && <Upcoming f={f} p={p} />}
+      {p.living && (detail ? <ContactActions p={p} detail={detail} onMore={() => onTab('everyday')} /> : details.failed ? null : null)}
+
+      <LifeTimeline f={f} tree={tree} p={p} onSelect={onSelect} />
+
+      <PlacesMap f={f} tree={tree} p={p} bornPlace={bornPlace} diedPlace={diedPlace} unions={unions} />
+
+      <section className="pp-ov-section">
+        <div className="rule">In their words and ours</div>
+        {!detail ? (
+          <DetailFallback details={details} lines={2} />
+        ) : words.length ? (
+          <div className="pp-stories">
+            {words.map((s) => <StoryCard key={s.id} s={s} compact />)}
+            {detail.stories.length > words.length && <button className="btn ghost pp-more" onClick={() => onTab('stories')}>All {detail.stories.length} stories</button>}
+          </div>
+        ) : (
+          <p className="pp-quiet subtle">Nothing written down about {p.given} yet. <button className="pp-inline-link" onClick={() => onTab('stories')}>Add a memory</button></p>
+        )}
+      </section>
+
+      {house && (
+        <section className="pp-ov-section">
+          <div className="rule">House</div>
+          <Link className="pp-house-card ui-card interactive" to="/$tree/house/$house" params={{ tree, house: house.id }}>
+            <Arms arms={house.arms} size={40} />
+            <span>
+              <b>{house.name}</b>
+              {house.motto && <i>“{house.motto}”</i>}
+            </span>
+          </Link>
+        </section>
+      )}
+
+      {gaps.length > 0 && (
+        <section className="pp-gaps" aria-label="Information needed">
+          <span className="pp-gaps-title"><GameIcon name="quill-ink" size={14} /> Information needed</span>
+          <div>
+            {gaps.map((g) =>
+              // Only the gaps this reader may fill in are buttons; the rest are just listed.
+              !can(role, GAP_ACTION[g]) ? (
+                <span key={g} className="chip">{GAP_LABEL[g]}</span>
+              ) : (
+                <button key={g} className="chip" onClick={() => onGap(g)} title={g === 'photo' ? 'Choose a photo' : GAP_WHERE[g] === 'tree' ? 'Open the ancestors view to fill the empty slots' : 'Fill it in'}>
+                  <Plus size={12} aria-hidden /> {GAP_LABEL[g]}
+                </button>
+              ),
+            )}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+/** Next birthday and wedding anniversaries, as countdown cards. */
+function Upcoming({ f, p }: { f: Family; p: GPerson }) {
+  const bday = p.born ? nextOccurrence(p.born) : undefined;
+  const anniversaries = (f.unionsOf.get(p.id) ?? [])
+    .filter((u) => u.kind === 'marriage' && u.start && !u.end)
+    .map((u) => ({ u, next: nextOccurrence(u.start!), other: f.byId.get(u.a === p.id ? u.b : u.a) }))
+    .filter((x) => x.next && x.other?.living);
+  if (!bday && !anniversaries.length) return null;
+  return (
+    <div className="pp-upcoming">
+      {bday && (
+        <div className="pp-countdown ui-card">
+          <Cake size={20} />
+          <div>
+            <b>Birthday {inDays(daysUntil(bday))}</b>
+            <div className="muted">{bday.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · turns {(ageAt(p.born) ?? 0) + 1}</div>
+          </div>
+        </div>
+      )}
+      {anniversaries.map(({ u, next, other }) => (
+        <div className="pp-countdown ui-card" key={u.id}>
+          <Heart size={20} />
+          <div>
+            <b>Anniversary with {other!.given} {inDays(daysUntil(next!))}</b>
+            <div className="muted">{next!.getFullYear() - yearOf(u.start)} years · married {fmtDate(u.start)}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Call, write or find them: one button per way to reach them. */
+function ContactActions({ p, detail, onMore }: { p: GPerson; detail: PersonDetail; onMore: () => void }) {
+  const first = (k: string) => detail.contacts.find((c) => c.kind === k);
+  const phone = first('phone'), email = first('email'), address = first('address');
+  if (!phone && !email && !address) return null;
+  return (
+    <div className="pp-reach" role="group" aria-label={`Reach ${p.given}`}>
+      {phone && <a className="btn" href={contactHref('phone', phone.value)}><Phone size={14} /> Call</a>}
+      {email && <a className="btn" href={contactHref('email', email.value)}><Mail size={14} /> Email</a>}
+      {address && <a className="btn" href={contactHref('address', address.value)} target="_blank" rel="noreferrer"><MapPin size={14} /> Directions</a>}
+      {detail.contacts.length > [phone, email, address].filter(Boolean).length && <button className="btn ghost" onClick={onMore}>More</button>}
+    </div>
+  );
+}
+
+type LifeEvent = { year: number; date?: string; icon: ReactNode; text: ReactNode; key: string };
+
+/** Birth, partnerships, children's births and death, in order, from the graph. */
+function LifeTimeline({ f, tree, p, onSelect }: { f: Family; tree: string; p: GPerson; onSelect: (id: string) => void }) {
+  const [all, setAll] = useState(false);
+  const events = useMemo(() => {
+    const out: LifeEvent[] = [];
+    if (!isNaN(yearOf(p.born))) out.push({ key: 'born', year: yearOf(p.born), date: p.born, icon: <Cake size={13} />, text: <>Born{p.bornPlace && <> in <PlaceLink tree={tree} name={p.bornPlace} /></>}</> });
+    for (const u of f.unionsOf.get(p.id) ?? []) {
+      const o = f.byId.get(u.a === p.id ? u.b : u.a);
+      if (!o) continue;
+      const who = <button className="pp-inline-link" onClick={() => onSelect(o.id)}>{displayName(o, f)}</button>;
+      if (!isNaN(yearOf(u.start))) out.push({ key: `u${u.id}`, year: yearOf(u.start), date: u.start, icon: <Heart size={13} />, text: <>{u.kind === 'marriage' ? 'Married' : 'Partnered with'} {who}{u.place && <> in <PlaceLink tree={tree} name={u.place} /></>}</> });
+      if (!isNaN(yearOf(u.end)) && u.endReason && u.endReason !== 'death') out.push({ key: `e${u.id}`, year: yearOf(u.end), date: u.end, icon: <HeartCrack size={13} />, text: <>{u.endReason === 'divorce' ? 'Divorced' : 'Parted from'} {who}</> });
+    }
+    for (const c of children(f, p.id)) {
+      const kid = f.byId.get(c);
+      if (!kid || isNaN(yearOf(kid.born))) continue;
+      const word = kid.sex === 'm' ? 'A son' : kid.sex === 'f' ? 'A daughter' : 'A child';
+      out.push({ key: `c${c}`, year: yearOf(kid.born), date: kid.born, icon: <Baby size={13} />, text: <>{word}, <button className="pp-inline-link" onClick={() => onSelect(c)}>{kid.given}</button>, is born</> });
+    }
+    if (!p.living && !isNaN(yearOf(p.died))) out.push({ key: 'died', year: yearOf(p.died), date: p.died, icon: <span aria-hidden>✝</span>, text: <>Died{p.diedPlace && <> in <PlaceLink tree={tree} name={p.diedPlace} /></>}{age(p) !== undefined && <span className="muted">, aged {age(p)}</span>}</> });
+    const order = (e: LifeEvent) => (e.key === 'born' ? 0 : e.key === 'died' ? 2 : 1);
+    return out.sort((a, b) => a.year - b.year || order(a) - order(b) || (a.date ?? '').localeCompare(b.date ?? ''));
+  }, [f, tree, p, onSelect]);
+  if (events.length < 2) return null;
+  const shown = all || events.length <= 8 ? events : [...events.slice(0, 6), events[events.length - 1]];
+  return (
+    <section className="pp-ov-section">
+      <div className="rule">Life</div>
+      <ol className="pp-timeline">
+        {shown.map((e, i) => (
+          <li key={e.key} data-gap={!all && events.length > 8 && i === 6 ? true : undefined}>
+            <span className="pp-tl-year">{e.year}</span>
+            <span className="pp-tl-dot" aria-hidden>{e.icon}</span>
+            <span className="pp-tl-text">{e.text}</span>
+          </li>
+        ))}
+      </ol>
+      {!all && events.length > 8 && <button className="btn ghost pp-more" onClick={() => setAll(true)}>Show all {events.length} events</button>}
+    </section>
+  );
+}
+
+// The small world map: the 110m countries the Atlas uses too, loaded once.
+type MiniWorld = { land: GeoPermissibleObjects; borders: GeoPermissibleObjects };
+let miniWorld: Promise<MiniWorld> | null = null;
+const loadMiniWorld = () =>
+  (miniWorld ??= import('world-atlas/countries-110m.json').then((m) => {
+    const t = ((m as { default?: unknown }).default ?? m) as Parameters<typeof feature>[0] & { objects: { countries: Parameters<typeof feature>[1] } };
+    return { land: feature(t, t.objects.countries) as GeoPermissibleObjects, borders: mesh(t, t.objects.countries as never, (x, y) => x !== y) as GeoPermissibleObjects };
+  }));
+
+const MAP_W = 360, MAP_H = 170;
+
+/** Where their life happened: birth, partnerships and death on a small map, with the places listed below. */
+function PlacesMap({ f, tree, p, bornPlace, diedPlace, unions }: { f: Family; tree: string; p: GPerson; bornPlace?: string; diedPlace?: string; unions: Family['graph']['unions'] }) {
+  const [world, setWorld] = useState<MiniWorld | null>(null);
+  const places = useMemo(() => {
+    const at = new Map(f.graph.places.map((pl) => [pl.name, pl]));
+    const list: { name: string; what: string; pl?: Place }[] = [];
+    const push = (name: string | undefined, what: string) => {
+      if (!name) return;
+      const had = list.find((x) => x.name === name);
+      if (had) had.what += `, ${what.toLowerCase()}`;
+      else list.push({ name, what, pl: at.get(name) });
+    };
+    push(bornPlace, 'Born');
+    for (const u of unions) push(u.place, u.kind === 'marriage' ? 'Married' : 'Partnership');
+    if (!p.living) push(diedPlace, 'Died');
+    return list;
+  }, [f, p.living, bornPlace, diedPlace, unions]);
+  const pinned = places.filter((x) => x.pl);
+  useEffect(() => { if (pinned.length) void loadMiniWorld().then(setWorld); }, [pinned.length]);
+  const drawn = useMemo(() => {
+    if (!world || !pinned.length) return null;
+    // Fit the pins with room around them: at least a country's worth of map, so one town still has context.
+    const lngs = pinned.map((x) => x.pl!.lng), lats = pinned.map((x) => x.pl!.lat);
+    const cx = (Math.min(...lngs) + Math.max(...lngs)) / 2, cy = (Math.min(...lats) + Math.max(...lats)) / 2;
+    const hw = Math.max(7, (Math.max(...lngs) - Math.min(...lngs)) * 0.65), hh = Math.max(3.5, (Math.max(...lats) - Math.min(...lats)) * 0.75);
+    const box = { type: 'MultiPoint', coordinates: [[cx - hw, Math.max(-80, cy - hh)], [cx + hw, Math.min(80, cy + hh)]] } as GeoPermissibleObjects;
+    const proj = geoMercator().fitExtent([[16, 14], [MAP_W - 16, MAP_H - 14]], box);
+    const path = geoPath(proj);
+    return { land: path(world.land) ?? '', borders: path(world.borders) ?? '', pins: pinned.map((x) => ({ ...x, xy: proj([x.pl!.lng, x.pl!.lat]) ?? [0, 0] })) };
+  }, [world, pinned]);
+  if (!places.length) return null;
+  return (
+    <section className="pp-ov-section">
+      <div className="rule">Places</div>
+      {pinned.length > 0 && (
+        <div className="pp-map ui-card" aria-hidden>
+          <svg viewBox={`0 0 ${MAP_W} ${MAP_H}`} preserveAspectRatio="xMidYMid slice">
+            <rect width={MAP_W} height={MAP_H} className="pp-map-sea" />
+            {drawn && (
+              <>
+                <path className="pp-map-land" d={drawn.land} />
+                <path className="pp-map-borders" d={drawn.borders} />
+                {drawn.pins.map((x) => (
+                  <g key={x.name} className="pp-map-pin" transform={`translate(${x.xy[0]} ${x.xy[1]})`}>
+                    <circle r={5} />
+                    {/* Near the right edge the name goes to the left of its pin. */}
+                    <text x={x.xy[0] > MAP_W * 0.68 ? -8 : 8} y={4} textAnchor={x.xy[0] > MAP_W * 0.68 ? 'end' : 'start'}>{x.name}</text>
+                  </g>
+                ))}
+              </>
+            )}
+          </svg>
+        </div>
+      )}
+      <ul className="pp-placelist">
+        {places.map((x) => (
+          <li key={x.name}>
+            <MapPin size={14} className={x.pl ? 'on' : undefined} aria-hidden />
+            <PlaceLink tree={tree} name={x.name} />
+            <span className="subtle">{x.what}{x.pl ? '' : ' · not on the map yet'}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
 
 // ---------- family ----------
@@ -293,7 +545,8 @@ const KINDS: { id: Story['kind']; label: string; icon: ReactNode }[] = [
   { id: 'note', label: 'Note', icon: <StickyNote size={14} /> },
 ];
 
-function StoriesTab({ tree, p, detail }: { tree: string; p: GPerson; detail?: PersonDetail }) {
+function StoriesTab({ tree, p, details }: { tree: string; p: GPerson; details: DetailState }) {
+  const detail = details.detail;
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
   const canWrite = useCan('add-story');
@@ -302,39 +555,48 @@ function StoriesTab({ tree, p, detail }: { tree: string; p: GPerson; detail?: Pe
     mutationFn: (sid: string) => deleteStory({ data: { tree, id: sid } }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['person', tree, p.id] }); qc.invalidateQueries({ queryKey: ['graph', tree] }); },
   });
+  if (!detail) return <DetailFallback details={details} />;
   return (
     <>
-      {detail?.bio && <div className="pp-bio" dangerouslySetInnerHTML={{ __html: renderMarkdown(detail.bio) }} />}
+      {detail.bio && <div className="pp-bio" dangerouslySetInnerHTML={{ __html: renderMarkdown(detail.bio) }} />}
       {!canWrite ? null : adding ? (
         <StoryForm tree={tree} person={p} done={() => setAdding(false)} />
       ) : (
         <button className="btn primary pp-add-story" onClick={() => setAdding(true)}><Plus size={14} /> Add a memory, saying or recipe</button>
       )}
-      {detail && detail.stories.length === 0 && !adding && (
+      {detail.stories.length === 0 && !adding && (
         <p className="empty">Nothing written down about {p.given} yet.{canWrite ? ' What do you remember?' : ''}</p>
       )}
       {!canWrite && <p className="pp-ask subtle">Ask a steward if you’d like to add memories of your own.</p>}
       <div className="pp-stories">
-        {detail?.stories.map((s) => (
-          <article key={s.id} className={`story story-${s.kind}`}>
-            <header>
-              {KINDS.find((k) => k.id === s.kind)?.icon}
-              <span>{s.title ?? KINDS.find((k) => k.id === s.kind)?.label}</span>
-              {canDelete && <button className="btn icon ghost story-del" aria-label="Remove story" title="Remove story" onClick={() => confirm('Remove this story?') && remove.mutate(s.id)}><Trash2 size={13} /></button>}
-            </header>
-            {s.kind === 'quote' ? (
-              <blockquote>{s.body}</blockquote>
-            ) : (
-              <div className="story-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(s.body) }} />
-            )}
-            <footer>
-              {s.context && <span>{s.context} · </span>}
-              <span>added by {s.author}</span> · <time dateTime={s.at}>{new Date(s.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</time>
-            </footer>
-          </article>
+        {detail.stories.map((s) => (
+          <StoryCard key={s.id} s={s} onDelete={canDelete ? () => confirm('Remove this story?') && remove.mutate(s.id) : undefined} />
         ))}
       </div>
     </>
+  );
+}
+
+/** One story: a saying in the hand font, anything else as safe Markdown. `compact` clamps it for the Overview. */
+function StoryCard({ s, compact, onDelete }: { s: Story; compact?: boolean; onDelete?: () => void }) {
+  const kind = KINDS.find((k) => k.id === s.kind);
+  return (
+    <article className={`story story-${s.kind}${compact ? ' compact' : ''}`}>
+      <header>
+        {kind?.icon}
+        <span>{s.title ?? kind?.label}</span>
+        {onDelete && <button className="btn icon ghost story-del" aria-label="Remove story" title="Remove story" onClick={onDelete}><Trash2 size={13} /></button>}
+      </header>
+      {s.kind === 'quote' ? (
+        <blockquote>{s.body}</blockquote>
+      ) : (
+        <div className="story-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(s.body) }} />
+      )}
+      <footer>
+        {s.context && <span>{s.context} · </span>}
+        <span>added by {s.author}</span> · <time dateTime={s.at}>{new Date(s.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</time>
+      </footer>
+    </article>
   );
 }
 
@@ -344,12 +606,15 @@ function StoryForm({ tree, person, done }: { tree: string; person: GPerson; done
   const qc = useQueryClient();
   // Stories are signed with the writer's account name; the server fills it in.
   const author = useSession()?.user?.name;
+  // One key per attempt: a retry after a lost answer never adds the story twice.
+  const [keys] = useState(opKeys);
   const form = useForm({
     defaultValues: { kind: 'memory' as Story['kind'], title: '', body: '', context: '' },
     onSubmit: async ({ value }) => {
       setSaveError('');
       try {
-      await addStory({ data: { tree, person: person.id, ...value, title: value.title || undefined, context: value.context || undefined } });
+      const data = { tree, person: person.id, kind: value.kind, body: value.body.trim(), title: value.title.trim() || undefined, context: value.context.trim() || undefined };
+      await addStory({ data: { ...data, opKey: keys.for('story', data) } });
       await qc.invalidateQueries({ queryKey: ['person', tree, person.id] });
       qc.invalidateQueries({ queryKey: ['graph', tree] });
       qc.invalidateQueries({ queryKey: ['chronicle', tree] });
@@ -432,15 +697,21 @@ const CONTACT_ICON = { phone: <Phone size={14} />, email: <Mail size={14} />, ad
 const contactHref = (kind: string, v: string) =>
   kind === 'phone' ? `tel:${v.replace(/\s/g, '')}` : kind === 'email' ? `mailto:${v}` : kind === 'address' ? `https://maps.apple.com/?q=${encodeURIComponent(v)}` : kind === 'web' ? v : undefined;
 
-function EverydayTab({ f, tree, p, detail }: { f: Family; tree: string; p: GPerson; detail?: PersonDetail }) {
+function EverydayTab({ f, tree, p, details }: { f: Family; tree: string; p: GPerson; details: DetailState }) {
+  const detail = details.detail;
   const qc = useQueryClient();
   const canContact = useCan('edit-contact');
   const canEdit = useCan('edit-person');
   const [kind, setKind] = useState<'phone' | 'email' | 'address' | 'messenger'>('phone');
   const [value, setValue] = useState('');
+  // One key per attempt: a retry after a lost answer never adds the contact twice.
+  const [keys] = useState(opKeys);
   const add = useMutation({
-    mutationFn: () => addContact({ data: { tree, person: p.id, kind, value } }),
-    onSuccess: () => { setValue(''); qc.invalidateQueries({ queryKey: ['person', tree, p.id] }); qc.invalidateQueries({ queryKey: ['contacts', tree] }); },
+    mutationFn: () => {
+      const data = { tree, person: p.id, kind, value: value.trim() };
+      return addContact({ data: { ...data, opKey: keys.for('contact', data) } });
+    },
+    onSuccess: () => { keys.clear('contact'); setValue(''); qc.invalidateQueries({ queryKey: ['person', tree, p.id] }); qc.invalidateQueries({ queryKey: ['contacts', tree] }); qc.invalidateQueries({ queryKey: ['graph', tree] }); },
   });
   const del = useMutation({
     mutationFn: (cid: number) => deleteContact({ data: { tree, id: cid } }),
@@ -453,12 +724,13 @@ function EverydayTab({ f, tree, p, detail }: { f: Family; tree: string; p: GPers
     .map((u) => ({ u, next: nextOccurrence(u.start!), other: f.byId.get(u.a === p.id ? u.b : u.a) }))
     .filter((x) => x.next && x.other?.living);
 
+  if (!detail) return <DetailFallback details={details} />;
   if (!p.living) {
     const died = p.died ? nextOccurrence(p.died) : undefined;
     return (
       <div className="pp-facts">
         <Fact icon={<Cake size={15} />} label="Born">{fmtDate(p.born) ?? 'unknown'}{detail?.bornPlace && <> in <PlaceLink tree={tree} name={detail.bornPlace} /></>}</Fact>
-        <Fact icon={<span>✝</span>} label="Died">{fmtDate(p.died) ?? 'unknown'}{detail?.diedPlace && <> in {detail.diedPlace}</>}{age(p) !== undefined && <span className="muted"> · aged {age(p)}</span>}</Fact>
+        <Fact icon={<span>✝</span>} label="Died">{fmtDate(p.died) ?? 'unknown'}{detail?.diedPlace && <> in <PlaceLink tree={tree} name={detail.diedPlace} /></>}{age(p) !== undefined && <span className="muted"> · aged {age(p)}</span>}</Fact>
         {died && daysUntil(died) < 60 && <Fact icon={<Heart size={15} />} label="Remembrance">{inDays(daysUntil(died))}</Fact>}
         {p.occupation && <Fact icon={<Pencil size={15} />} label="Occupation">{p.occupation}</Fact>}
         {(f.unionsOf.get(p.id) ?? []).map((u) => {
@@ -472,7 +744,7 @@ function EverydayTab({ f, tree, p, detail }: { f: Family; tree: string; p: GPers
   return (
     <div className="pp-facts">
       {bday ? (
-        <div className="pp-countdown">
+        <div className="pp-countdown ui-card">
           <Cake size={20} />
           <div>
             <b>Birthday {inDays(daysUntil(bday))}</b>
@@ -483,7 +755,7 @@ function EverydayTab({ f, tree, p, detail }: { f: Family; tree: string; p: GPers
         <Fact icon={<Cake size={15} />} label="Born">{fmtDate(p.born) ?? (canEdit ? 'unknown, add it in Edit' : 'unknown')}</Fact>
       )}
       {anniversaries.map(({ u, next, other }) => (
-        <div className="pp-countdown" key={u.id}>
+        <div className="pp-countdown ui-card" key={u.id}>
           <Heart size={20} />
           <div>
             <b>Anniversary with {other!.given} {inDays(daysUntil(next!))}</b>
@@ -539,6 +811,7 @@ function EditTab({ tree, p, detail, done, onRemoved }: { tree: string; p: GPerso
   const medieval = tree === 'realm' || (!!p.born && yearOf(p.born) < 1500);
   const qc = useQueryClient();
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [keys] = useState(opKeys);
   const remove = useMutation({
     mutationFn: () => removePerson({ data: { tree, id: p.id } }),
     onSuccess: async () => {
@@ -556,7 +829,7 @@ function EditTab({ tree, p, detail, done, onRemoved }: { tree: string; p: GPerso
       setSaveError(null);
       try {
         // Pins first: repeating them on a retry changes nothing, and the Atlas has them as soon as the person points there.
-        await savePlaces(tree, value.bornPlace, value.living ? undefined : value.diedPlace);
+        await savePlacesKeyed(tree, (pl) => keys.for('places', pl), value.bornPlace, value.living ? undefined : value.diedPlace);
         await updatePerson({ data: { tree, id: p.id, patch: { ...value, bornPlace: value.bornPlace.name, diedPlace: value.diedPlace.name, sex: value.sex || null } } });
         await Promise.all([qc.invalidateQueries({ queryKey: ['graph', tree] }), qc.invalidateQueries({ queryKey: ['person', tree, p.id] })]);
         form.reset(value);
