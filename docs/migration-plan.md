@@ -17,10 +17,9 @@ This page is the plan. Some steps are decisions for the owner, and they are mark
    Markdown archive works with both.
 3. **The Homebrew tap and Nix flake.** They install v1. Keep them pointing at the v1 tag, or retire them when v2 ships.
    Changes to the tap go through a pull request, not a direct push to its main branch.
-4. **A production server for Node.** The Node build produces a fetch handler and nothing serves it yet (see
-   [self-host.md](self-host.md)). Either write a small runner, or document Cloudflare as the only hosted route.
-5. **The licence file.** v1 is MIT. This repository has no LICENSE file yet, so add the MIT file (copyright Niklas Heer)
-   when the code moves. The README already says so.
+4. **Self-hosting.** Done: `server/node.ts` serves the Node build, and there is a Dockerfile and compose file (see
+   [self-host.md](self-host.md)).
+5. **The licence file.** Done: v1's MIT licence (copyright Niklas Heer) is in LICENSE.
 6. **Versioning and changelog.** v1 generates its changelog from Conventional Commits with git-cliff (`cliff.toml`) and
    publishes binaries (`dist-workspace.toml`). Decide whether v2 keeps git-cliff and what the first v2
    version is called.
