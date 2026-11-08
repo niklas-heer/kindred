@@ -30,6 +30,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: 'stylesheet', href: appCss },
       { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
     ],
+    // The theme script goes through the router's head, not a <script> in the React tree: React warns when it renders a
+    // script element on the client, and the head renders it once, before first paint, on the server.
+    scripts: [{ children: themeScript }],
   }),
   shellComponent: Shell,
   component: Outlet,
@@ -41,7 +44,6 @@ function Shell({ children }: { children: ReactNode }) {
     <html lang={locale} data-theme="codex" suppressHydrationWarning>
       <head>
         <HeadContent />
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
         <I18nProvider initialLocale={locale} account={localeAccount} saveRemote={localeAccount ? (next) => setMyLocale({ data: { locale: next } }) : undefined}><div id="app">{children}</div></I18nProvider>

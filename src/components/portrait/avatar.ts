@@ -394,6 +394,21 @@ function hairline(g: Geo, fh0: number, side: number, part = 0): string {
   );
 }
 
+/**
+ * A fill for hair that sits on the whole crown: an ellipse that holds the head's top corners, with the
+ * face cut out by the hairline. A plain dome is narrower than the head at the temples, so it leaves the
+ * skin of the head showing as a thin curved line at the top of the hair. Used with fill-rule evenodd.
+ */
+function crownCap(g: Geo, fh: number): string {
+  const { cx, cy, w, h } = g;
+  const rx = w + 2;
+  const ry = h + 1.5;
+  const cyc = cy - 0.2 * h;
+  const yb = cy + 0.15 * h;
+  const xb = rx * Math.sqrt(1 - ((yb - cyc) / ry) ** 2);
+  return `M${n(cx - xb)} ${n(yb)}A${n(rx)} ${n(ry)} 0 1 1 ${n(cx + xb)} ${n(yb)}Z` + hairline(g, fh, 0.15).replace(/^L/, 'M');
+}
+
 /** A fringe swept from a parting on the right down across the forehead to the left temple. */
 function sweptLine(g: Geo, side: number, depth0: number): string {
   const { cx, cy, w, h } = g;
@@ -490,7 +505,7 @@ function hair(g: Geo, p: Paint, a: Appearance, style: HairStyle, detail: Detail)
       return {
         ...none,
         back: `<ellipse cx="${n(cx)}" cy="${n(cy - 0.2 * h)}" rx="${n(w + 7)}" ry="${n(h + 4.5)}" fill="${p.hair}"/>` + curls(ring, 5, p.hair, p.hairLine, p.sw) + `<ellipse cx="${n(cx)}" cy="${n(cy - 0.2 * h)}" rx="${n(w + 6)}" ry="${n(h + 3.5)}" fill="${p.hair}"/>`,
-        front: `<path d="${dome(g, 1.5, 0.15)}${hairline(g, 0.46, 0.15)}" fill="${p.hair}"/>` + strand(`M${n(cx - w * 0.6)} ${n(cy - 0.5 * h)}Q${n(cx)} ${n(cy - 0.62 * h)} ${n(cx + w * 0.6)} ${n(cy - 0.5 * h)}`),
+        front: `<path d="${crownCap(g, 0.46)}" fill="${p.hair}" fill-rule="evenodd"/>` + strand(`M${n(cx - w * 0.6)} ${n(cy - 0.5 * h)}Q${n(cx)} ${n(cy - 0.62 * h)} ${n(cx + w * 0.6)} ${n(cy - 0.5 * h)}`),
       };
     }
     case 'bowl': {

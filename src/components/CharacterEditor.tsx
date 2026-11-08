@@ -10,10 +10,13 @@ import { toAiLocale } from '~/lib/ai/types';
 import { useT, type Key } from '~/lib/i18n';
 import { errorText } from '~/lib/errortext';
 import { personPhotosQuery } from '~/lib/photos.functions';
+import { useCan } from '~/lib/session';
+import { portraitStatusQuery } from '~/lib/portrait.functions';
 import type { Mark } from '~/lib/seed-format';
 import type { GPerson, House, Look } from '~/lib/types';
 import { useAiStatus } from './assistant/store';
 import { AiSetupHint } from './assistant/AiSetup';
+import { PaintPortrait } from './PaintPortrait';
 import { mediaUrl } from './photos/types';
 import { Portrait } from './Portrait';
 import {
@@ -78,7 +81,12 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
   const t = useT();
   const aiAvatar = !!useAiStatus(tree)?.features.avatar;
   const [picking, setPicking] = useState(false);
-  const photos = useQuery({ ...personPhotosQuery(tree, person.id), enabled: aiAvatar && picking });
+  // The photos feed both "Make from photo" and the painted portrait, which needs them to know it has one to paint.
+  // The painted portrait is offered to editors when the feature is on for this family (its own status, not the assistant's).
+  const canEdit = useCan('edit-person');
+  const paint = useQuery({ ...portraitStatusQuery(tree), enabled: canEdit });
+  const paintOn = !!paint.data?.enabled && !!paint.data?.configured;
+  const photos = useQuery({ ...personPhotosQuery(tree, person.id), enabled: (aiAvatar && picking) || (canEdit && paintOn) });
   const fromPhoto = useMutation({
     mutationFn: (mediaKey: string) => aiAvatarFromPhoto({ data: { tree, personId: person.id, mediaKey, locale: toAiLocale(t.locale) } }),
     // Over the current look: a photo says nothing about era-driven headwear, clothing or a fixed age.
@@ -204,6 +212,7 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
           <button type="button" className="btn ghost" onClick={undo} disabled={!history.length} aria-keyshortcuts="Control+Z Meta+Z"><Undo2 size={16} aria-hidden="true" /> {t('character.undo')}</button>
           <button type="button" className="btn ghost" onClick={reset}><RotateCcw size={16} aria-hidden="true" /> {t('character.reset')}</button>
         </div>
+        {canEdit && paintOn ? <PaintPortrait tree={tree} person={person} photos={photos.data ?? []} /> : null}
         {aiAvatar && picking && (
           <div className="ce-photo-pick" id="ce-photo-pick" role="group" aria-label={t('character.make_from_photo')}>
             <p className="ce-hint">{t('character.photo_pick')}</p>

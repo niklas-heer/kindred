@@ -181,6 +181,19 @@ export const unlinkRelative = createServerFn({ method: 'POST' })
     }));
   });
 
+/** When a partnership ended, and why. Clearing the end clears the reason too. Editors only, as the link is. */
+export const setPartnershipEnd = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, id: z.string(), end: z.string().refine(validDate, 'Not a real date').nullable(), endReason: z.enum(['divorce', 'death', 'other']).nullable() }))
+  .handler(async ({ data }) => {
+    await requireCan(data.tree, 'edit-person');
+    const { once, q } = await server();
+    const reason = data.end ? data.endReason : null;
+    await once(data.tree, undefined, 'setPartnershipEnd', () => ({
+      writes: [q('UPDATE partnership SET end = ?, end_reason = ? WHERE id = ?', data.end, reason, data.id)],
+      result: undefined,
+    }));
+  });
+
 export const updatePerson = createServerFn({ method: 'POST' })
   .validator(
     z.object({

@@ -24,7 +24,9 @@
 .pe-state.warn { color: var(--danger); }
 @keyframes pe-spin { to { transform: rotate(360deg); } }
 
-/* The save bar stays at the foot of the tab while the reader scrolls it. */
+/* The save bar stays at the foot of the tab while the reader scrolls it. It sticks within its form, so the panel's
+   bottom padding must not sit below the form: the bar would stop above it and leave a strip of scrolled content. */
+.pp-body:has(.pp-edit) { padding-bottom: 0; }
 .pe-bar {
   position: sticky; bottom: 0; z-index: 4; margin-top: 18px; padding: 10px 0 calc(12px + env(safe-area-inset-bottom));
   display: flex; align-items: center; gap: 8px; min-width: 0;

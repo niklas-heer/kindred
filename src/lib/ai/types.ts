@@ -185,6 +185,9 @@ const baseProposalArgs = {
 
 // ---------- vision and generation results ----------
 
+/** A 0–10 face measure (portrait/look.ts). */
+const level = z.number().int().min(0).max(10);
+
 /** A portrait look, as stored on a person (SeedLook in seed-format.ts). Indices are palette positions (look.ts). */
 export const lookSchema = z.object({
   skin: z.number().int().min(0).max(8),
@@ -201,6 +204,20 @@ export const lookSchema = z.object({
   clothing: z.enum(['tunic', 'cotehardie', 'gown', 'doublet', 'bodice', 'ruff', 'lace-collar', 'coat', 'stays', 'frock', 'victorian', 'suit', 'blouse', 'suit-slim', 'pearls', 'shirt', 'turtleneck', 'sweater', 'tshirt', 'hoodie', 'cardigan', 'smock', 'sailor', 'pinafore', 'knit', 'stripes', 'onesie']).optional(),
   marks: z.array(z.enum(['freckles', 'mole', 'blush', 'dimples', 'scar'])).max(5).optional(),
   age: z.number().int().min(0).max(120).optional(),
+  // The face: its shape, nose, eyes, and the 0–10 measures (see portrait/look.ts). Dropped here, a path through this
+  // schema would lose them, so they are listed with the portrait's own values.
+  face: z.enum(['round', 'oval', 'square', 'long', 'heart']).optional(),
+  noseShape: z.enum(['straight', 'aquiline', 'broad', 'snub']).optional(),
+  eyeShape: z.enum(['round', 'almond', 'hooded']).optional(),
+  jaw: level.optional(),
+  noseSize: level.optional(),
+  mouthWidth: level.optional(),
+  mouthFullness: level.optional(),
+  eyeSize: level.optional(),
+  eyeSpacing: level.optional(),
+  browHeight: level.optional(),
+  earSize: level.optional(),
+  hairline: level.optional(),
 });
 
 // ---------- the family draft, photos, avatars and the fill-in proposals (see ai/family.server.ts) ----------

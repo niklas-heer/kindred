@@ -46,8 +46,29 @@ function push<K, V>(m: Map<K, V[]>, k: K, v: V) {
 const sexRank = (p?: GPerson) => (p?.sex === 'm' ? 0 : p?.sex === 'f' ? 1 : 2);
 
 export const partnersOf = (f: Family, id: string) => (f.unionsOf.get(id) ?? []).map((u) => (u.a === id ? u.b : u.a));
+/** A person's unions in the order their partners are shown: earliest first, undated last, then by id. */
+export function sortedUnions(f: Family, id: string): GUnion[] {
+  const key = (u: GUnion) => u.start?.replace(/^~/, '') ?? '9999';
+  return [...(f.unionsOf.get(id) ?? [])].sort((a, b) => key(a).localeCompare(key(b)) || a.id.localeCompare(b.id));
+}
 export const parents = (f: Family, id: string) => f.parentsOf.get(id) ?? [];
 export const children = (f: Family, id: string) => f.childrenOf.get(id) ?? [];
+/** Same two recorded parents (a full sibling of whoever it is compared with). */
+export function sameParents(f: Family, a: string, b: string): boolean {
+  const pa = new Set(parents(f, a)), pb = parents(f, b);
+  return pa.size === pb.length && pb.every((p) => pa.has(p));
+}
+/** The child of `anc` on the line from `start` up to it: the person whose parent is `anc`. */
+export function childOnLine(f: Family, start: string, anc: string): string | undefined {
+  const prev = new Map<string, string | null>([[start, null]]);
+  const q = [start];
+  while (q.length) {
+    const x = q.shift()!;
+    if (x === anc) break;
+    for (const p of parents(f, x)) if (!prev.has(p)) { prev.set(p, x); q.push(p); }
+  }
+  return prev.get(anc) ?? undefined;
+}
 export function siblings(f: Family, id: string): string[] {
   const out = new Set<string>();
   for (const p of parents(f, id)) for (const c of children(f, p)) if (c !== id) out.add(c);
@@ -251,8 +272,12 @@ export function kinship(f: Family, me: string, other: string, myAnc = ancestorDe
   }
   if (best) {
     const { a, b } = best; // a: steps from me up to the ancestor, b: steps from them up
-    // One shared ancestor who had several partners: the lines come from different marriages.
-    const half = best.via.length === 1 && a > 0 && b > 0 && partnersOf(f, best.via[0]).length > 1 ? 'half-' : '';
+    // Half: the lines reach the shared ancestor through children of different unions (their parents differ).
+    let half = '';
+    if (best.via.length === 1 && a > 0 && b > 0) {
+      const c1 = childOnLine(f, me, best.via[0]), c2 = childOnLine(f, other, best.via[0]);
+      if (c1 && c2 && !sameParents(f, c1, c2)) half = 'half-';
+    }
     let label: string;
     if (b === 0) label = a === 1 ? gendered(p, 'father', 'mother', 'parent') : `${greats(a - 2)}grand${gendered(p, 'father', 'mother', 'parent')}`;
     else if (a === 0) label = b === 1 ? gendered(p, 'son', 'daughter', 'child') : `${greats(b - 2)}grand${gendered(p, 'son', 'daughter', 'child')}`;

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { feature, mesh } from 'topojson-client';
 import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { addStory, deleteStory, newOpKey, opKeys, uploadPhoto, unlinkRelative } from '~/lib/api';
+import { addStory, deleteStory, newOpKey, opKeys, setPartnershipEnd, uploadPhoto, unlinkRelative } from '~/lib/api';
 import { addPersonField, deletePersonField, personDetailQuery, setLook } from '~/lib/person.functions';
 import { kinshipLabel, locales, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
 import { occupationText } from '~/lib/occupations';
@@ -21,6 +21,7 @@ import {
   ageAt, age, children, displayName, fmtDate, kinship, lifespan, parents, partnersOf, personDisplayName, siblings, useNameMode, yearOf, type Family,
 } from '~/lib/graph';
 import { setPref } from '~/lib/prefs';
+import { ageOn, widowedOn, type Age } from '~/lib/life';
 import { chooseMe } from '~/lib/family';
 import { useToday } from '~/lib/clock';
 import { can, type Role } from '~/lib/roles';
@@ -32,7 +33,7 @@ import { renderMarkdown } from '~/lib/markdown';
 import { GameIcon } from './GameIcon';
 import { Arms } from './Heraldry';
 import { Portrait } from './Portrait';
-import { Dialog, ErrorState, Skeleton, Tabs, TabList, Tab as UiTab, TabPanel, Select, isOverlayOpen } from './ui';
+import { DatePicker, Dialog, ErrorState, Skeleton, Tabs, TabList, Tab as UiTab, TabPanel, Select, isOverlayOpen } from './ui';
 import { QuickAdd } from './QuickAdd';
 import type { AddRelation } from './Card';
 import { DraftContext, DraftTracker, type Draft } from './fields/draft';
@@ -439,7 +440,7 @@ function ContactActions({ p, detail, onMore }: { p: GPerson; detail: PersonDetai
   );
 }
 
-type LifeEvent = { year: number; date?: string; icon: ReactNode; text: ReactNode; key: string };
+type LifeEvent = { year: number; date?: string; age?: Age; icon: ReactNode; text: ReactNode; key: string };
 
 /** Birth, partnerships, children's births and death, in order, from the graph. */
 function LifeTimeline({ f, tree, p, onSelect }: { f: Family; tree: string; p: GPerson; onSelect: (id: string) => void }) {
@@ -452,14 +453,17 @@ function LifeTimeline({ f, tree, p, onSelect }: { f: Family; tree: string; p: GP
       const o = f.byId.get(u.a === p.id ? u.b : u.a);
       if (!o) continue;
       const who = <button className="pp-inline-link" onClick={() => onSelect(o.id)}>{displayName(o, f)}</button>;
-      if (!isNaN(yearOf(u.start))) out.push({ key: `u${u.id}`, year: yearOf(u.start), date: u.start, icon: <Heart size={13} />, text: <>{u.kind === 'marriage' ? c('fact.married') : c('panel.partneredWith')} {who}{u.place && <> {c('fact.in')} <PlaceLink tree={tree} name={u.place} /></>}</> });
-      if (!isNaN(yearOf(u.end)) && u.endReason && u.endReason !== 'death') out.push({ key: `e${u.id}`, year: yearOf(u.end), date: u.end, icon: <HeartCrack size={13} />, text: <>{u.endReason === 'divorce' ? c('panel.divorced') : c('panel.partedFrom')} {who}</> });
+      if (!isNaN(yearOf(u.start))) out.push({ key: `u${u.id}`, year: yearOf(u.start), date: u.start, age: ageOn(p.born, u.start), icon: <Heart size={13} />, text: <>{u.kind === 'marriage' ? c('fact.married') : c('panel.partneredWith')} {who}{u.place && <> {c('fact.in')} <PlaceLink tree={tree} name={u.place} /></>}</> });
+      if (!isNaN(yearOf(u.end)) && u.endReason !== 'death') out.push({ key: `e${u.id}`, year: yearOf(u.end), date: u.end, age: ageOn(p.born, u.end), icon: <HeartCrack size={13} />, text: <>{u.endReason === 'divorce' ? c('panel.divorced') : c('panel.partedFrom')} {who}</> });
+      // A spouse who died while this marriage stood (see widowedOn for when that is not so).
+      const died = widowedOn(p, o, u);
+      if (died && !isNaN(yearOf(died))) out.push({ key: `w${u.id}`, year: yearOf(died), date: died, age: ageOn(p.born, died), icon: <span aria-hidden>✝</span>, text: u.kind === 'marriage' ? <>{c('panel.widowed')} {who} {c('panel.widowedDied')}</> : <>{c('panel.partnerDied')} {who}</> });
     }
     for (const kidId of children(f, p.id)) {
       const kid = f.byId.get(kidId);
       if (!kid || isNaN(yearOf(kid.born))) continue;
       const word = kid.sex === 'm' ? c('panel.childSon') : kid.sex === 'f' ? c('panel.childDaughter') : c('panel.childAny');
-      out.push({ key: `c${kidId}`, year: yearOf(kid.born), date: kid.born, icon: <Baby size={13} />, text: <>{word}, <button className="pp-inline-link" onClick={() => onSelect(kidId)}>{kid.given}</button>, {c('panel.isBorn')}</> });
+      out.push({ key: `c${kidId}`, year: yearOf(kid.born), date: kid.born, age: ageOn(p.born, kid.born), icon: <Baby size={13} />, text: <>{word}, <button className="pp-inline-link" onClick={() => onSelect(kidId)}>{kid.given}</button>, {c('panel.isBorn')}</> });
     }
     if (!p.living && !isNaN(yearOf(p.died))) out.push({ key: 'died', year: yearOf(p.died), date: p.died, icon: <span aria-hidden>✝</span>, text: <>{c('fact.died')}{p.diedPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={p.diedPlace} /></>}{age(p) !== undefined && <span className="muted">, {c('fact.agedN', { n: age(p)! })}</span>}</> });
     const order = (e: LifeEvent) => (e.key === 'born' ? 0 : e.key === 'died' ? 2 : 1);
@@ -473,7 +477,7 @@ function LifeTimeline({ f, tree, p, onSelect }: { f: Family; tree: string; p: GP
       <ol className="pp-timeline">
         {shown.map((e, i) => (
           <li key={e.key} data-gap={!all && events.length > 8 && i === 6 ? true : undefined}>
-            <span className="pp-tl-year">{e.year}</span>
+            <span className="pp-tl-year">{e.year}{e.age && <span className="pp-tl-age">{e.age.approx ? c('panel.aboutAge', { n: e.age.years }) : c('panel.ageAt', { n: e.age.years })}</span>}</span>
             <span className="pp-tl-dot" aria-hidden>{e.icon}</span>
             <span className="pp-tl-text">{e.text}</span>
           </li>
@@ -614,6 +618,7 @@ function FamilyTab({ f, tree, id, canAdd, canEdit, onSelect }: { f: Family; tree
                       {u ? <span className="pp-rel-sub">{u.kind === 'marriage' ? '⚭' : '♡'} {u.start ? yearOf(u.start) : ''}{u.end ? `–${yearOf(u.end)}` : ''}</span> : <span className="pp-rel-sub">{lifespan(rp, c.locale)}</span>}
                       {f.disputed.has(`${id}>${r}`) && <span className="pp-disputed" title={c('rel.disputed')}><GameIcon name="uncertainty" size={12} /></span>}
                     </button>
+                    {canEdit && u && <PartnershipEnd tree={tree} u={u} />}
                     {removable && (armed === key ? (
                       <span className="pp-unlink-confirm">
                         <button className="btn ghost danger" onClick={() => unlink.mutate({ kind, rid: r })} disabled={unlink.isPending}>{c('family.removeYes')}</button>
@@ -631,6 +636,34 @@ function FamilyTab({ f, tree, id, canAdd, canEdit, onSelect }: { f: Family; tree
       )}
       {unlink.isError && <p className="err" role="alert">{c('family.removeFailed')}</p>}
     </>
+  );
+}
+
+/** When a partnership ended, and why: the date and one of divorce, death or other. Editors only, as the link is. */
+function PartnershipEnd({ tree, u }: { tree: string; u: Family['graph']['unions'][number] }) {
+  const c = useT();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [end, setEnd] = useState(u.end ?? '');
+  const [reason, setReason] = useState(u.endReason ?? '');
+  const save = useMutation({
+    mutationFn: () => setPartnershipEnd({ data: { tree, id: u.id, end: end || null, endReason: end && reason ? reason as 'divorce' | 'death' | 'other' : null } }),
+    onSuccess: async () => { setOpen(false); await qc.invalidateQueries({ queryKey: ['graph', tree] }); },
+  });
+  if (!open) return <button className="btn ghost pp-end-open" onClick={() => setOpen(true)}>{c('family.endEdit')}</button>;
+  return (
+    <div className="pp-end" role="group" aria-label={c('family.endEdit')}>
+      <DatePicker label={c('family.endDate')} value={end} onChange={setEnd} />
+      <Select aria-label={c('family.endReason')} value={reason} onChange={setReason} options={[
+        { value: '', label: c('family.endNone') }, { value: 'divorce', label: c('family.endDivorce') },
+        { value: 'death', label: c('family.endDeath') }, { value: 'other', label: c('family.endOther') },
+      ]} />
+      <div className="pp-end-actions">
+        <button className="btn primary" onClick={() => save.mutate()} disabled={save.isPending}>{c('family.endSave')}</button>
+        <button className="btn ghost" onClick={() => setOpen(false)}>{c('common.cancel')}</button>
+      </div>
+      {save.isError && <p className="err" role="alert">{c('family.endFailed')}</p>}
+    </div>
   );
 }
 
