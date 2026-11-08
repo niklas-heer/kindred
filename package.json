@@ -13,7 +13,7 @@
     "dev:cf": "node scripts/cf-migrate.ts --env local && CLOUDFLARE_ENV=local vite dev",
     "build": "vite build",
     "check": "tsc --noEmit",
-    "test": "node --test src/lib/auth/*.test.ts src/lib/store/*.test.ts src/lib/*.test.ts scripts/*.test.ts",
+    "test": "node --test src/lib/auth/*.test.ts src/lib/store/*.test.ts src/lib/*.test.ts src/lib/exchange/*.test.ts scripts/*.test.ts",
     "seed": "node scripts/seed.ts",
     "preview": "vite preview",
     "deploy": "vite build && wrangler deploy"

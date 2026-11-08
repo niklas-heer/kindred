@@ -1,0 +1,472 @@
+// GEDCOM 5.5.1, read and written. Kindred writes LINEAGE-LINKED with UTF-8, one INDI per person and one
+// FAM per partnership (plus one per set of parents without one). Kindred's own facts that GEDCOM lacks ride
+// along in _KINDRED_* tags, so a file made here comes back as the same family; other programs skip them.
+//
+//   INDI  _KINDRED_ID (the person's id), _KINDRED_LIVING, NAME (GIVN, SURN; a second NAME with TYPE married
+//         for the current name), SEX, TITL, NICK, OCCU, BIRT/DEAT (DATE, PLAC), NOTE (the biography), OBJE
+//         (a portrait, by its media key), FAMC (PEDI, _KINDRED_KIND, _KINDRED_CONFIDENCE), FAMS
+//   FAM   _KINDRED_ID, _KINDRED_KIND (marriage, partnership, betrothal, other, or parents for a family with
+//         no partnership), HUSB, WIFE, CHIL, MARR (DATE, PLAC), DIV (DATE), _KINDRED_BEGAN, _KINDRED_END
+//
+// Nothing here touches storage: `writeGedcom` takes an ExTree, `readGedcom` returns what the file says.
+import { fromGedcomDate, toGedcomDate } from './dates.ts';
+import type { Confidence, ExParent, ExPerson, ExTree, ExUnion, Issue, ParentKind, Sex, UnionKind } from './model.ts';
+
+const CHUNK = 120; // characters per line, before escaping: keeps every line under GEDCOM's 255
+const UNION_KINDS: UnionKind[] = ['marriage', 'partnership', 'betrothal', 'other'];
+const PARENT_KINDS: ParentKind[] = ['biological', 'adoptive', 'foster', 'step'];
+const CONFIDENCES: Confidence[] = ['certain', 'probable', 'disputed'];
+const ID = /^[A-Za-z0-9_.-]{1,80}$/;
+
+/** Tags a Kindred file reads or writes, or that carry nothing of interest. Anything else is reported as skipped. */
+const KNOWN = new Set([
+  'HEAD', 'INDI', 'FAM', 'TRLR', 'SUBM', 'CHAR', 'GEDC', 'VERS', 'FORM', 'DATE', 'TIME', 'NAME', 'GIVN', 'SURN', 'TYPE',
+  'SEX', 'BIRT', 'DEAT', 'PLAC', 'TITL', 'NICK', 'OCCU', 'NOTE', 'OBJE', 'FILE', 'FAMC', 'FAMS', 'PEDI', 'HUSB', 'WIFE',
+  'CHIL', 'MARR', 'DIV', 'CONC', 'CONT', 'CHAN', 'REFN', 'RIN',
+  '_KINDRED_ID', '_KINDRED_KIND', '_KINDRED_CONFIDENCE', '_KINDRED_LIVING', '_KINDRED_BEGAN', '_KINDRED_END',
+  '_KINDRED_TREE', '_KINDRED_NAME',
+]);
+
+const pedi = { biological: 'birth', adoptive: 'adopted', foster: 'foster' } as const;
+
+// ---------- writing ----------
+
+const esc = (s: string) => s.replace(/@/g, '@@');
+const unesc = (s: string) => s.replace(/@@/g, '@');
+
+/** Splits a line into pieces of at most CHUNK characters (code points, so no surrogate pair is cut). */
+function chunks(s: string): string[] {
+  const cps = Array.from(s);
+  if (cps.length <= CHUNK) return [s];
+  const out: string[] = [];
+  for (let i = 0; i < cps.length; i += CHUNK) out.push(cps.slice(i, i + CHUNK).join(''));
+  return out;
+}
+
+/** Writes lines with CONT for each newline and CONC for each piece too long for one line. */
+function emitText(out: string[], level: number, tag: string, value: string) {
+  value.split(/\r?\n/).forEach((ln, i) => {
+    const lvl = i === 0 ? level : level + 1;
+    const t = i === 0 ? tag : 'CONT';
+    chunks(ln).forEach((c, j) => {
+      if (j === 0) out.push(c === '' ? `${lvl} ${t}` : `${lvl} ${t} ${esc(c)}`);
+      else out.push(`${lvl + 1} CONC ${esc(c)}`);
+    });
+  });
+}
+
+/** The Kindred date as a GEDCOM DATE sub-line pair, only when there is a date. */
+const dateLine = (out: string[], level: number, date: string | null) => {
+  if (date) out.push(`${level} DATE ${toGedcomDate(date)}`);
+};
+
+/**
+ * A tree as GEDCOM 5.5.1 text (CRLF). `losses` lists what the format cannot carry, for the export's report.
+ * People are written in id order and families in the order partnerships are; the output is deterministic.
+ */
+export function writeGedcom(tree: ExTree, now: Date = new Date()): { text: string; losses: string[] } {
+  const out: string[] = [];
+  const losses: string[] = [];
+  const byId = new Map(tree.people.map((p) => [p.id, p]));
+  const people = [...tree.people].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const xrefOf = new Map(people.map((p, i) => [p.id, `@I${i + 1}@`]));
+  const named = (id: string) => byId.get(id)?.given ?? id;
+
+  // Families: one per partnership, then one per set of parents without a partnership.
+  type Fam = { xref: string; union: ExUnion | null; spouses: string[]; children: string[]; links: Map<string, ExParent> };
+  const fams: Fam[] = [];
+  const unions = tree.unions
+    .filter((u) => u.a !== u.b && byId.has(u.a) && byId.has(u.b))
+    .sort((x, y) => (x.start ?? '').localeCompare(y.start ?? '') || x.id.localeCompare(y.id));
+  const pairKey = (ids: string[]) => [...ids].sort().join('|');
+  const unionFam = new Map<string, Fam>();
+  for (const u of unions) {
+    const f: Fam = { xref: '', union: u, spouses: [u.a, u.b], children: [], links: new Map() };
+    fams.push(f);
+    if (!unionFam.has(pairKey([u.a, u.b]))) unionFam.set(pairKey([u.a, u.b]), f);
+  }
+  // A child's parents are grouped by kind and confidence, and each group is one family for that child. So a birth
+  // parent and a step parent are two families (GEDCOM's FAMC is per child and per family), and each keeps its kind.
+  const linksOf = new Map<string, ExParent[]>();
+  for (const l of tree.parents) {
+    if (!byId.has(l.child) || !byId.has(l.parent) || l.child === l.parent) continue;
+    linksOf.set(l.child, [...(linksOf.get(l.child) ?? []), l]);
+  }
+  const parentFam = new Map<string, Fam>();
+  for (const child of [...linksOf.keys()].sort()) {
+    const groups = new Map<string, ExParent[]>();
+    for (const l of linksOf.get(child)!) {
+      const k = `${l.kind}|${l.confidence}`;
+      groups.set(k, [...(groups.get(k) ?? []), l]);
+    }
+    for (const group of groups.values()) {
+      let ps = [...new Set(group.map((l) => l.parent))].sort();
+      if (ps.length > 2) {
+        losses.push(`${named(child)} has ${ps.length} parents of one kind; a GEDCOM family holds two, so only the first two are written`);
+        ps = ps.slice(0, 2);
+      }
+      const key = pairKey(ps);
+      let f = (ps.length === 2 ? unionFam.get(key) : undefined) ?? parentFam.get(key);
+      if (!f) {
+        f = { xref: '', union: null, spouses: ps, children: [], links: new Map() };
+        fams.push(f);
+        parentFam.set(key, f);
+      }
+      if (!f.children.includes(child)) {
+        f.children.push(child);
+        f.links.set(child, group[0]);
+      }
+    }
+  }
+  fams.forEach((f, i) => (f.xref = `@F${i + 1}@`));
+
+  const famcOf = new Map<string, Fam[]>();
+  for (const f of fams) for (const c of f.children) famcOf.set(c, [...(famcOf.get(c) ?? []), f]);
+  const famsOf = new Map<string, Fam[]>();
+  for (const f of fams) for (const s of f.spouses) famsOf.set(s, [...(famsOf.get(s) ?? []), f]);
+
+  // ----- header -----
+  out.push('0 HEAD', '1 SOUR Kindred', '2 VERS 2', '2 NAME Kindred', '1 GEDC', '2 VERS 5.5.1', '2 FORM LINEAGE-LINKED', '1 CHAR UTF-8');
+  out.push(`1 DATE ${toGedcomDate(now.toISOString().slice(0, 10))}`, '1 SUBM @SUBM@');
+  out.push(`1 _KINDRED_TREE ${tree.id}`);
+  emitText(out, 1, '_KINDRED_NAME', tree.name);
+  out.push('0 @SUBM@ SUBM', '1 NAME Kindred');
+
+  // ----- people -----
+  for (const p of people) {
+    out.push(`0 ${xrefOf.get(p.id)} INDI`);
+    out.push(`1 _KINDRED_ID ${esc(p.id)}`);
+    if (p.living) out.push('1 _KINDRED_LIVING Y');
+    writeNames(out, p);
+    if (p.sex) out.push(`1 SEX ${p.sex.toUpperCase()}`);
+    if (p.title) emitText(out, 1, 'TITL', p.title);
+    if (p.nickname) emitText(out, 1, 'NICK', p.nickname);
+    if (p.occupation) emitText(out, 1, 'OCCU', p.occupation);
+    if (p.born || p.bornPlace) {
+      out.push('1 BIRT');
+      dateLine(out, 2, p.born);
+      if (p.bornPlace) emitText(out, 2, 'PLAC', p.bornPlace);
+    }
+    if (!p.living || p.died || p.diedPlace) {
+      const subs: string[] = [];
+      if (p.died) subs.push(`2 DATE ${toGedcomDate(p.died)}`);
+      if (p.diedPlace) subs.push(`2 PLAC ${esc(p.diedPlace)}`);
+      if (subs.length) out.push('1 DEAT', ...subs);
+      else out.push('1 DEAT Y');
+    }
+    if (p.bio) emitText(out, 1, 'NOTE', p.bio);
+    if (p.portrait) out.push('1 OBJE', `2 FORM ${extOf(p.portrait.mime)}`, `2 FILE ${esc(p.portrait.key)}`, '2 TITL portrait');
+    for (const f of famcOf.get(p.id) ?? []) {
+      const l = f.links.get(p.id);
+      out.push(`1 FAMC ${f.xref}`);
+      if (l && l.kind in pedi) out.push(`2 PEDI ${pedi[l.kind as keyof typeof pedi]}`);
+      if (l) out.push(`2 _KINDRED_KIND ${l.kind}`);
+      if (l && l.confidence !== 'certain') out.push(`2 _KINDRED_CONFIDENCE ${l.confidence}`);
+    }
+    for (const f of famsOf.get(p.id) ?? []) out.push(`1 FAMS ${f.xref}`);
+  }
+
+  // ----- families -----
+  for (const f of fams) {
+    const sp = f.spouses.map((id) => byId.get(id)!);
+    const husband = sp.find((p) => p.sex === 'm') ?? sp[0];
+    const wife = sp.find((p) => p !== husband);
+    out.push(`0 ${f.xref} FAM`);
+    if (f.union) out.push(`1 _KINDRED_ID ${esc(f.union.id)}`, `1 _KINDRED_KIND ${f.union.kind}`);
+    else out.push('1 _KINDRED_KIND parents');
+    out.push(`1 HUSB ${xrefOf.get(husband.id)}`);
+    if (wife) out.push(`1 WIFE ${xrefOf.get(wife.id)}`);
+    const u = f.union;
+    if (u) {
+      if (u.kind === 'marriage') {
+        out.push('1 MARR');
+        dateLine(out, 2, u.start);
+        if (u.place) emitText(out, 2, 'PLAC', u.place);
+      } else if (u.start || u.place) {
+        out.push('1 _KINDRED_BEGAN');
+        dateLine(out, 2, u.start);
+        if (u.place) emitText(out, 2, 'PLAC', u.place);
+      }
+      if (u.end) {
+        if (u.endReason === 'divorce') {
+          out.push('1 DIV', `2 DATE ${toGedcomDate(u.end)}`);
+        } else {
+          out.push(`1 _KINDRED_END ${esc(u.endReason ?? '')}`.trimEnd(), `2 DATE ${toGedcomDate(u.end)}`);
+        }
+      }
+    }
+    for (const c of f.children) out.push(`1 CHIL ${xrefOf.get(c)}`);
+  }
+  out.push('0 TRLR');
+  const text = out.join('\r\n') + '\r\n';
+
+  // ----- what the format leaves out -----
+  const lost = (n: number, what: string) => {
+    if (n) losses.push(`${n} ${what}`);
+  };
+  lost(tree.extras.stories, 'stories, memories and sayings are not exported');
+  lost(tree.extras.fields, 'contact details and other fields are not exported (they hold private data)');
+  lost(tree.extras.houses, 'houses and their arms are not exported');
+  lost(tree.extras.places, 'place coordinates are not exported; place names are');
+  lost(people.filter((p) => p.epithet).length, 'epithets are not exported');
+  lost(people.filter((p) => p.portrait).length, 'portraits are referenced by their media key only; the pictures are not included');
+  return { text, losses };
+}
+
+function writeNames(out: string[], p: ExPerson) {
+  const given = p.given.replace(/\//g, '∕');
+  const surname = (p.surname ?? '').replace(/\//g, '∕');
+  out.push(`1 NAME ${given} /${surname}/`);
+  out.push(`2 GIVN ${given}`);
+  if (surname) out.push(`2 SURN ${surname}`);
+  const cg = p.currentGiven ?? p.given;
+  const cs = p.currentSurname ?? p.surname ?? '';
+  if (cg !== p.given || cs !== (p.surname ?? '')) {
+    const g = cg.replace(/\//g, '∕');
+    const s = cs.replace(/\//g, '∕');
+    out.push(`1 NAME ${g} /${s}/`, `2 GIVN ${g}`);
+    if (s) out.push(`2 SURN ${s}`);
+    out.push('2 TYPE married');
+  }
+}
+
+const extOf = (mime: string) => ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif' })[mime] ?? 'bin';
+
+// ---------- reading ----------
+
+interface GNode {
+  level: number;
+  tag: string;
+  value: string;
+  xref: string | null;
+  children: GNode[];
+}
+
+/** A person as the file gives them. `id` is the file's own key; `preferredId` is the _KINDRED_ID, if it had one. */
+export interface IncomingPerson extends ExPerson {
+  preferredId: string | null;
+}
+
+export interface IncomingUnion extends ExUnion {
+  preferredId: string | null;
+}
+
+/** What a file says about a family: its people, parent links and partnerships, keyed by the file's own keys. */
+export interface Incoming {
+  tree: { id: string | null; name: string | null };
+  people: IncomingPerson[];
+  parents: ExParent[];
+  unions: IncomingUnion[];
+  /** Portraits the file refers to. Their pictures are not in the text, so they are only counted. */
+  pictures: number;
+  issues: Issue[];
+}
+
+const LINE = /^(\d+)(?:\s+(@[^@\s]+@))?\s+([A-Za-z_][A-Za-z0-9_]*)(?: (.*))?$/;
+
+/** Reads a GEDCOM file. Throws only when it holds no people or families at all; everything else is reported. */
+export function readGedcom(text: string): Incoming {
+  const issues: Issue[] = [];
+  const roots: GNode[] = [];
+  const stack: GNode[] = [];
+  text
+    .replace(/^﻿/, '')
+    .split(/\r?\n/)
+    .forEach((raw, i) => {
+      if (raw.trim() === '') return;
+      const m = LINE.exec(raw.trim());
+      if (!m) {
+        issues.push({ level: 'skipped', message: `Line ${i + 1} is not GEDCOM and was skipped` });
+        return;
+      }
+      const level = Number(m[1]);
+      const tag = m[3];
+      const value = m[4] ?? '';
+      if (tag === 'CONC' || tag === 'CONT') {
+        const owner = stack[level - 1];
+        if (!owner) return;
+        owner.value += tag === 'CONT' ? `\n${unesc(value)}` : unesc(value);
+        // Lines nested under this one (a CONC under a CONT) still belong to the same owner.
+        stack[level] = owner;
+        stack.length = level + 1;
+        return;
+      }
+      const isPointer = /^@[^@\s]+@$/.test(value);
+      const node: GNode = { level, tag, value: isPointer ? value : unesc(value), xref: m[2] ?? null, children: [] };
+      if (level === 0) roots.push(node);
+      else {
+        const parent = stack[level - 1];
+        if (!parent) {
+          issues.push({ level: 'skipped', message: `Line ${i + 1} sits under nothing and was skipped` });
+          return;
+        }
+        parent.children.push(node);
+      }
+      stack[level] = node;
+      stack.length = level + 1;
+    });
+
+  // Tags Kindred does not read, counted once each.
+  const skipped = new Map<string, number>();
+  const walk = (n: GNode) => {
+    for (const c of n.children) {
+      if (!KNOWN.has(c.tag)) skipped.set(c.tag, (skipped.get(c.tag) ?? 0) + 1);
+      else walk(c);
+    }
+  };
+  for (const r of roots) {
+    if (r.tag === 'HEAD') continue; // the header names the program that wrote the file; that is not data
+    if (!KNOWN.has(r.tag)) skipped.set(r.tag, (skipped.get(r.tag) ?? 0) + 1);
+    else walk(r);
+  }
+  for (const [tag, n] of skipped) issues.push({ level: 'skipped', message: `Skipped ${n}× ${tag}: Kindred does not import it` });
+
+  const head = roots.find((r) => r.tag === 'HEAD');
+  const charset = head?.children.find((c) => c.tag === 'CHAR')?.value.toUpperCase();
+  if (charset && !['UTF-8', 'UTF8', 'UNICODE', 'ASCII'].includes(charset)) {
+    issues.push({ level: 'warning', message: `The file says it uses ${charset}; it was read as UTF-8` });
+  }
+
+  const first = (n: GNode | undefined, tag: string) => n?.children.find((c) => c.tag === tag);
+  const all = (n: GNode | undefined, tag: string) => n?.children.filter((c) => c.tag === tag) ?? [];
+  const id = (s: string | undefined) => (s && ID.test(s) ? s : null);
+  const parseDate = (text: string | undefined, where: string): string | null => {
+    if (!text) return null;
+    const p = fromGedcomDate(text);
+    if (p.note) issues.push({ level: 'warning', message: `${where}: ${p.note}` });
+    return p.date;
+  };
+
+  // ----- people -----
+  const indis = roots.filter((r) => r.tag === 'INDI' && r.xref);
+  const known = new Set(indis.map((r) => r.xref!));
+  const famcKind = new Map<string, Map<string, { kind: ParentKind; confidence: Confidence }>>();
+  const people: IncomingPerson[] = indis.map((r) => {
+    const key = r.xref!;
+    const names = all(r, 'NAME');
+    const married = (n: GNode) => n.children.some((c) => c.tag === 'TYPE' && /married/i.test(c.value));
+    const birthName = names.find((n) => !married(n)) ?? names[0];
+    const currentName = names.find((n) => married(n) && n !== birthName);
+    const parseName = (n: GNode | undefined) => {
+      if (!n) return { given: '', surname: null as string | null };
+      const m = /^(.*?)\s*\/([^/]*)\/\s*(.*)$/.exec(n.value);
+      let given = (m ? m[1] : n.value).trim();
+      let surname = (m ? m[2] : '').trim();
+      const givn = first(n, 'GIVN')?.value.trim();
+      const surn = first(n, 'SURN')?.value.trim();
+      if (givn) given = givn;
+      if (surn) surname = surn;
+      return { given, surname: surname || null };
+    };
+    let { given, surname } = parseName(birthName);
+    if (!given) {
+      given = 'Unnamed';
+      issues.push({ level: 'warning', message: `${key} has no given name; it is called “Unnamed”` });
+    }
+    const cur = currentName ? parseName(currentName) : null;
+    const sexTag = first(r, 'SEX')?.value.toUpperCase();
+    const sex: Sex | null = sexTag === 'M' ? 'm' : sexTag === 'F' ? 'f' : sexTag === 'X' ? 'x' : null;
+    const birth = first(r, 'BIRT');
+    const death = first(r, 'DEAT');
+    const dead = !!death && death.value.toUpperCase() !== 'N';
+    const livingTag = first(r, '_KINDRED_LIVING')?.value.toUpperCase();
+    const bio = all(r, 'NOTE').map((n) => n.value).join('\n\n').trim();
+    for (const f of all(r, 'FAMC')) {
+      const kindTag = first(f, '_KINDRED_KIND')?.value.toLowerCase() as ParentKind | undefined;
+      const pediTag = first(f, 'PEDI')?.value.toLowerCase();
+      const conf = first(f, '_KINDRED_CONFIDENCE')?.value.toLowerCase() as Confidence | undefined;
+      const kind: ParentKind = kindTag && PARENT_KINDS.includes(kindTag) ? kindTag : pediTag === 'adopted' ? 'adoptive' : pediTag === 'foster' ? 'foster' : 'biological';
+      if (!famcKind.has(key)) famcKind.set(key, new Map());
+      famcKind.get(key)!.set(f.value, { kind, confidence: conf && CONFIDENCES.includes(conf) ? conf : 'certain' });
+    }
+    return {
+      id: key,
+      preferredId: id(first(r, '_KINDRED_ID')?.value),
+      given,
+      surname,
+      // A null current name means "the same as the birth name", as in the database.
+      currentGiven: cur && cur.given !== given ? cur.given : null,
+      currentSurname: cur && cur.surname !== surname ? cur.surname : null,
+      sex,
+      born: parseDate(first(birth, 'DATE')?.value, `${given}’s birth`),
+      bornPlace: first(birth, 'PLAC')?.value ?? null,
+      died: parseDate(first(death, 'DATE')?.value, `${given}’s death`),
+      diedPlace: first(death, 'PLAC')?.value ?? null,
+      living: livingTag ? livingTag === 'Y' : !dead,
+      title: first(r, 'TITL')?.value || null,
+      epithet: null,
+      occupation: first(r, 'OCCU')?.value || null,
+      nickname: first(r, 'NICK')?.value || null,
+      bio: bio || null,
+      portrait: null,
+    };
+  });
+  const pictures = indis.reduce((n, r) => n + all(r, 'OBJE').length, 0);
+
+  // ----- families: parent links and partnerships -----
+  const parents: ExParent[] = [];
+  const unions: IncomingUnion[] = [];
+  const seenLink = new Set<string>();
+  for (const f of roots.filter((r) => r.tag === 'FAM' && r.xref)) {
+    const xref = f.xref!;
+    const spouses = [first(f, 'HUSB')?.value, first(f, 'WIFE')?.value].filter((s): s is string => !!s && known.has(s));
+    const children = all(f, 'CHIL').map((c) => c.value).filter((c) => known.has(c));
+    for (const bad of [first(f, 'HUSB')?.value, first(f, 'WIFE')?.value, ...all(f, 'CHIL').map((c) => c.value)]) {
+      if (bad && !known.has(bad)) issues.push({ level: 'warning', message: `${xref} refers to ${bad}, who is not in the file` });
+    }
+    for (const c of children) {
+      const k = famcKind.get(c)?.get(xref) ?? { kind: 'biological' as ParentKind, confidence: 'certain' as Confidence };
+      for (const s of spouses) {
+        if (s === c || seenLink.has(`${c}|${s}`)) continue;
+        seenLink.add(`${c}|${s}`);
+        parents.push({ child: c, parent: s, kind: k.kind, confidence: k.confidence });
+      }
+    }
+
+    const marr = first(f, 'MARR');
+    const div = first(f, 'DIV');
+    const ended = first(f, '_KINDRED_END');
+    const began = first(f, '_KINDRED_BEGAN');
+    const famKind = first(f, '_KINDRED_KIND')?.value.toLowerCase();
+    let kind: UnionKind | null = null;
+    if (famKind === 'parents') kind = null;
+    else if (famKind && UNION_KINDS.includes(famKind as UnionKind)) kind = famKind as UnionKind;
+    else if (marr || div) kind = 'marriage';
+    if (!kind) continue;
+    if (spouses.length !== 2) {
+      issues.push({ level: 'warning', message: `${xref}: a marriage or partnership needs two spouses; it was not imported as one` });
+      continue;
+    }
+    const u: IncomingUnion = {
+      id: first(f, '_KINDRED_ID')?.value ?? xref,
+      preferredId: id(first(f, '_KINDRED_ID')?.value),
+      a: spouses[0],
+      b: spouses[1],
+      kind,
+      start: null,
+      end: null,
+      endReason: null,
+      place: null,
+    };
+    if (kind === 'marriage' && marr) {
+      u.start = parseDate(first(marr, 'DATE')?.value, `${xref} marriage`);
+      u.place = first(marr, 'PLAC')?.value ?? null;
+    } else if (began) {
+      u.start = parseDate(first(began, 'DATE')?.value, `${xref} start`);
+      u.place = first(began, 'PLAC')?.value ?? null;
+    }
+    if (div) {
+      u.end = parseDate(first(div, 'DATE')?.value, `${xref} divorce`);
+      u.endReason = 'divorce';
+    } else if (ended) {
+      u.end = parseDate(first(ended, 'DATE')?.value, `${xref} end`);
+      u.endReason = ended.value || null;
+    }
+    unions.push(u);
+  }
+
+  const head0 = head ? { id: first(head, '_KINDRED_TREE')?.value ?? null, name: first(head, '_KINDRED_NAME')?.value ?? null } : { id: null, name: null };
+  // A file with a header is GEDCOM even when it holds no people (an empty family is still a valid export).
+  if (!head && !people.length && !roots.some((r) => r.tag === 'FAM')) throw new Error('No people or families found: this is not a GEDCOM family file.');
+  return { tree: head0, people, parents, unions, pictures, issues };
+}

@@ -50,7 +50,7 @@ run = "tsc --noEmit"
 
 [tasks.test]
 description = "Unit tests: accounts, Access, the storage layer"
-run = "node --test src/lib/auth/*.test.ts src/lib/store/*.test.ts src/lib/*.test.ts scripts/*.test.ts"
+run = "node --test src/lib/auth/*.test.ts src/lib/store/*.test.ts src/lib/*.test.ts src/lib/exchange/*.test.ts scripts/*.test.ts"
 
 [tasks.build]
 description = "Build the Worker (dist/); KINDRED_TARGET=node builds for Node instead"

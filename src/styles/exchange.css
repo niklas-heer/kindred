@@ -1,0 +1,162 @@
+/* The import and export page (src/routes/$tree/settings.import.tsx). Colours come from the theme variables, so
+   all three themes (codex, modern, night) read the same way. One column; two columns from 800px. */
+.exchange {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  box-sizing: border-box;
+  width: 100%;
+  gap: 18px;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 16px;
+  color: var(--text);
+}
+
+.exchange-section {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.exchange-section h2 {
+  margin: 0;
+  font: 600 1.05rem/1.3 var(--font-title, var(--font-ui));
+}
+
+.exchange-text {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.exchange-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Links that look like buttons: at least 44px tall, so they are easy to press on a phone. */
+.exchange-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  color: var(--text);
+  background: var(--panel-solid, var(--panel));
+  text-decoration: none;
+  font: inherit;
+}
+
+.exchange-link:focus-visible,
+.exchange-file:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.exchange-file {
+  min-height: 44px;
+  max-width: 100%;
+  font: inherit;
+  color: var(--text);
+}
+
+.exchange-file::file-selector-button {
+  min-height: 44px;
+  margin-right: 12px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-solid, var(--panel));
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.exchange-primary {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--page-bg, #fff);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.exchange-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.exchange-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.exchange-counts li {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.exchange-list {
+  margin: 0;
+  padding-left: 1.2em;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.exchange-details summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.exchange-details[open] summary {
+  margin-bottom: 4px;
+}
+
+.exchange-allow {
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.exchange-allow p {
+  margin: 4px 0 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.exchange-done {
+  color: var(--ok, var(--text));
+  font-weight: 600;
+}
+
+@media (min-width: 800px) {
+  .exchange-split {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .exchange * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

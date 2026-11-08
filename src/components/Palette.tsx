@@ -132,7 +132,8 @@ export function Palette() {
       { key: 'v-family', icon: <Network size={16} />, label: 'View: Family (hourglass)', run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'family' }) }); close(); } },
       { key: 'v-dynasty', icon: <Crown size={16} />, label: 'View: Dynasty tree', run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'dynasty' }) }); close(); } },
       { key: 'v-anc', icon: <GitFork size={16} style={{ transform: 'rotate(180deg)' }} />, label: 'View: Ancestors', run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'ancestors' }) }); close(); } },
-      { key: 'me', icon: <UserRound size={16} />, label: who ? 'Go to me' : 'Go home', hint: displayName(f.byId.get(me)!, f), run: go(me) },
+      // An empty family has nobody to go to yet.
+      ...(f.byId.has(me) ? [{ key: 'me', icon: <UserRound size={16} />, label: who ? 'Go to me' : 'Go home', hint: displayName(f.byId.get(me)!, f), run: go(me) }] : []),
       { key: 'almanac', icon: <CalendarHeart size={16} />, label: 'Open Almanac', hint: 'birthdays & anniversaries', run: () => { navigate({ to: '/$tree/almanac', params: { tree } }); close(); } },
       { key: 'atlas', icon: <MapIcon size={16} />, label: 'Open Atlas', hint: 'where the family was born', run: () => { navigate({ to: '/$tree/atlas', params: { tree } }); close(); } },
       { key: 'contacts', icon: <Contact size={16} />, label: 'Open Contacts', run: () => { navigate({ to: '/$tree/contacts', params: { tree } }); close(); } },

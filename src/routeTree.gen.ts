@@ -28,7 +28,9 @@ import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as UiCharacterRouteImport } from './routes/ui_.character'
 import { Route as TreeHouseHouseRouteImport } from './routes/$tree/house.$house'
 import { Route as TreeSettingsAiRouteImport } from './routes/$tree/settings.ai'
+import { Route as TreeSettingsImportRouteImport } from './routes/$tree/settings.import'
 import { Route as ApiAuthActionRouteImport } from './routes/api/auth/$action'
+import { Route as ApiExportTreeRouteImport } from './routes/api/export.$tree'
 import { Route as ApiMediaTreeKeyRouteImport } from './routes/api/media.$tree.$key'
 import { Route as ApiPhotoTreeIdRouteImport } from './routes/api/photo.$tree.$id'
 
@@ -127,9 +129,19 @@ const TreeSettingsAiRoute = TreeSettingsAiRouteImport.update({
   path: '/settings/ai',
   getParentRoute: () => TreeRoute,
 } as any)
+const TreeSettingsImportRoute = TreeSettingsImportRouteImport.update({
+  id: '/settings/import',
+  path: '/settings/import',
+  getParentRoute: () => TreeRoute,
+} as any)
 const ApiAuthActionRoute = ApiAuthActionRouteImport.update({
   id: '/api/auth/$action',
   path: '/api/auth/$action',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiExportTreeRoute = ApiExportTreeRouteImport.update({
+  id: '/api/export/$tree',
+  path: '/api/export/$tree',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMediaTreeKeyRoute = ApiMediaTreeKeyRouteImport.update({
@@ -163,7 +175,9 @@ export interface FileRoutesByFullPath {
   '/$tree/': typeof TreeIndexRoute
   '/$tree/house/$house': typeof TreeHouseHouseRoute
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
+  '/$tree/settings/import': typeof TreeSettingsImportRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
+  '/api/export/$tree': typeof ApiExportTreeRoute
   '/api/media/$tree/$key': typeof ApiMediaTreeKeyRoute
   '/api/photo/$tree/$id': typeof ApiPhotoTreeIdRoute
 }
@@ -186,7 +200,9 @@ export interface FileRoutesByTo {
   '/$tree': typeof TreeIndexRoute
   '/$tree/house/$house': typeof TreeHouseHouseRoute
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
+  '/$tree/settings/import': typeof TreeSettingsImportRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
+  '/api/export/$tree': typeof ApiExportTreeRoute
   '/api/media/$tree/$key': typeof ApiMediaTreeKeyRoute
   '/api/photo/$tree/$id': typeof ApiPhotoTreeIdRoute
 }
@@ -211,7 +227,9 @@ export interface FileRoutesById {
   '/$tree/': typeof TreeIndexRoute
   '/$tree/house/$house': typeof TreeHouseHouseRoute
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
+  '/$tree/settings/import': typeof TreeSettingsImportRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
+  '/api/export/$tree': typeof ApiExportTreeRoute
   '/api/media/$tree/$key': typeof ApiMediaTreeKeyRoute
   '/api/photo/$tree/$id': typeof ApiPhotoTreeIdRoute
 }
@@ -237,7 +255,9 @@ export interface FileRouteTypes {
     | '/$tree/'
     | '/$tree/house/$house'
     | '/$tree/settings/ai'
+    | '/$tree/settings/import'
     | '/api/auth/$action'
+    | '/api/export/$tree'
     | '/api/media/$tree/$key'
     | '/api/photo/$tree/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -260,7 +280,9 @@ export interface FileRouteTypes {
     | '/$tree'
     | '/$tree/house/$house'
     | '/$tree/settings/ai'
+    | '/$tree/settings/import'
     | '/api/auth/$action'
+    | '/api/export/$tree'
     | '/api/media/$tree/$key'
     | '/api/photo/$tree/$id'
   id:
@@ -284,7 +306,9 @@ export interface FileRouteTypes {
     | '/$tree/'
     | '/$tree/house/$house'
     | '/$tree/settings/ai'
+    | '/$tree/settings/import'
     | '/api/auth/$action'
+    | '/api/export/$tree'
     | '/api/media/$tree/$key'
     | '/api/photo/$tree/$id'
   fileRoutesById: FileRoutesById
@@ -298,6 +322,7 @@ export interface RootRouteChildren {
   InviteTokenRoute: typeof InviteTokenRoute
   UiCharacterRoute: typeof UiCharacterRoute
   ApiAuthActionRoute: typeof ApiAuthActionRoute
+  ApiExportTreeRoute: typeof ApiExportTreeRoute
   ApiMediaTreeKeyRoute: typeof ApiMediaTreeKeyRoute
   ApiPhotoTreeIdRoute: typeof ApiPhotoTreeIdRoute
 }
@@ -437,11 +462,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TreeSettingsAiRouteImport
       parentRoute: typeof TreeRoute
     }
+    '/$tree/settings/import': {
+      id: '/$tree/settings/import'
+      path: '/settings/import'
+      fullPath: '/$tree/settings/import'
+      preLoaderRoute: typeof TreeSettingsImportRouteImport
+      parentRoute: typeof TreeRoute
+    }
     '/api/auth/$action': {
       id: '/api/auth/$action'
       path: '/api/auth/$action'
       fullPath: '/api/auth/$action'
       preLoaderRoute: typeof ApiAuthActionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/export/$tree': {
+      id: '/api/export/$tree'
+      path: '/api/export/$tree'
+      fullPath: '/api/export/$tree'
+      preLoaderRoute: typeof ApiExportTreeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/media/$tree/$key': {
@@ -474,6 +513,7 @@ interface TreeRouteChildren {
   TreeIndexRoute: typeof TreeIndexRoute
   TreeHouseHouseRoute: typeof TreeHouseHouseRoute
   TreeSettingsAiRoute: typeof TreeSettingsAiRoute
+  TreeSettingsImportRoute: typeof TreeSettingsImportRoute
 }
 
 const TreeRouteChildren: TreeRouteChildren = {
@@ -489,6 +529,7 @@ const TreeRouteChildren: TreeRouteChildren = {
   TreeIndexRoute: TreeIndexRoute,
   TreeHouseHouseRoute: TreeHouseHouseRoute,
   TreeSettingsAiRoute: TreeSettingsAiRoute,
+  TreeSettingsImportRoute: TreeSettingsImportRoute,
 }
 
 const TreeRouteWithChildren = TreeRoute._addFileChildren(TreeRouteChildren)
@@ -502,6 +543,7 @@ const rootRouteChildren: RootRouteChildren = {
   InviteTokenRoute: InviteTokenRoute,
   UiCharacterRoute: UiCharacterRoute,
   ApiAuthActionRoute: ApiAuthActionRoute,
+  ApiExportTreeRoute: ApiExportTreeRoute,
   ApiMediaTreeKeyRoute: ApiMediaTreeKeyRoute,
   ApiPhotoTreeIdRoute: ApiPhotoTreeIdRoute,
 }
