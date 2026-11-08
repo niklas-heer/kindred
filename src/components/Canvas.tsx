@@ -4,10 +4,11 @@
 // pointer. Cards change detail with zoom (portrait → name plate → house-coloured tile). A minimap
 // shows where you are in the whole tree; a ruler on the left names each generation and its era.
 import { Expand, Map as MapIcon, Minus, Plus } from 'lucide-react';
-import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { forwardRef, memo, useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { CARD_H, CARD_W, ROW_H, type LNode, type Layout } from '~/lib/layout';
 import type { Family } from '~/lib/graph';
-import { houseColour } from './Heraldry';
+import { houseLandmarks, type HouseLandmark, type LandmarkPerson } from '~/lib/minimap-landmarks';
+import { Arms, houseColour } from './Heraldry';
 import { useT } from '~/lib/i18n';
 import './canvas.css';
 
@@ -246,6 +247,29 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     const k = Math.min(2.2, Math.max(0.04, c.k * f));
     animateTo({ k, x: r.width / 2 - ((r.width / 2 - c.x) / c.k) * k, y: r.height / 2 - ((r.height / 2 - c.y) / c.k) * k }, 220);
   }, [animateTo]);
+
+  // Minimap clicks and drags move the view at once, keeping the zoom. Stable, so the minimap's
+  // shields are not re-rendered on every pan frame.
+  const minimapJump = useCallback((wx: number, wy: number) => {
+    const r = host.current!.getBoundingClientRect();
+    cancelAnimationFrame(anim.current);
+    moved.current?.();
+    // Into the middle of the part of the canvas no panel covers.
+    const a = area();
+    const cx = (a.l + r.width) / 2, cy = (a.t + a.b) / 2;
+    cam.current = { ...cam.current, x: cx - wx * cam.current.k, y: cy - wy * cam.current.k };
+    apply();
+  }, [apply, area]);
+
+  // A house shield glides to the house, centred as a search centres a person, and at a zoom where its people read.
+  const houseJump = useCallback((wx: number, wy: number) => {
+    if (!host.current) return;
+    moved.current?.();
+    const a = area();
+    const k = Math.max(cam.current.k, 0.55);
+    animateTo({ k, x: (a.l + a.w) / 2 - wx * k, y: a.t + (a.b - a.t) * 0.46 - wy * k });
+  }, [area, animateTo]);
+
   // The minimap is always there on wide screens; phones show it on request (see canvas.css).
   const [mapOpen, setMapOpen] = useState(false);
 
@@ -381,16 +405,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
           {controls}
           <button className="btn icon ghost map-toggle" onClick={() => setMapOpen((o) => !o)} aria-pressed={mapOpen} title={mapOpen ? t('canvas.hideMinimap') : t('canvas.showMinimap')} aria-label={t('canvas.minimap')}><MapIcon size={16} /></button>
         </div>
-        <Minimap family={family} layout={layout} view={view} focus={focus} dimmed={dimmed} onJump={(wx, wy) => {
-          const r = host.current!.getBoundingClientRect();
-          cancelAnimationFrame(anim.current);
-          userMove();
-          // Into the middle of the part of the canvas no panel covers.
-          const a = area();
-          const cx = (a.l + r.width) / 2, cy = (a.t + a.b) / 2;
-          cam.current = { ...cam.current, x: cx - wx * cam.current.k, y: cy - wy * cam.current.k };
-          apply();
-        }} />
+        <Minimap family={family} layout={layout} view={view} focus={focus} dimmed={dimmed} onJump={minimapJump} onHouse={houseJump} />
       </div>
       {overlay}
     </div>
@@ -443,10 +458,12 @@ function Ruler({ layout, view, label, active }: { layout: Layout; view: { k: num
 // ---------- minimap ----------
 
 const MM_MAX_W = 240, MM_MAX_H = 180, MM_MIN_W = 150, MM_MIN_H = 110;
+/** A house shield on the minimap, px wide (Arms draws it 5 wide to 6 tall). */
+const SHIELD_PX = 22;
 
-function Minimap({ family, layout, view, focus, dimmed, onJump }: {
+function Minimap({ family, layout, view, focus, dimmed, onJump, onHouse }: {
   family: Family; layout: Layout; view: { x0: number; y0: number; x1: number; y1: number; k: number }; focus: string;
-  dimmed?: ReadonlySet<string> | null; onJump: (wx: number, wy: number) => void;
+  dimmed?: ReadonlySet<string> | null; onJump: (wx: number, wy: number) => void; onHouse: (wx: number, wy: number) => void;
 }) {
   const cv = useRef<HTMLCanvasElement>(null);
   const b = layout.bounds;
@@ -515,20 +532,8 @@ function Minimap({ family, layout, view, focus, dimmed, onJump }: {
         g.strokeRect((n.x - CARD_W / 2) * s + ox + 0.4, n.y * s + oy + 0.4, w - 0.8, h - 0.8);
       }
     }
-    // You are here: a bright dot with a dark ring, visible on any house colour.
-    const f = layout.nodes.find((n) => n.id === focus);
-    if (f) {
-      const cx = f.x * s + ox, cy = (f.y + CARD_H / 2) * s + oy;
-      g.globalAlpha = 1;
-      g.beginPath();
-      g.arc(cx, cy, 4.5, 0, Math.PI * 2);
-      g.fillStyle = css.getPropertyValue('--accent').trim() || '#fc0';
-      g.fill();
-      g.lineWidth = 2;
-      g.strokeStyle = theme === 'modern' ? '#ffffff' : '#0b0e14';
-      g.stroke();
-    }
-  }, [layout, family, s, ox, oy, tints, focus, dimmed, MM_W, MM_H, theme]);
+    // "You are here" is a DOM dot (below), so the house shields can sit under it.
+  }, [layout, family, s, ox, oy, tints, dimmed, MM_W, MM_H, theme]);
 
   const vx = view.x0 + 260 / view.k, vy = view.y0 + 260 / view.k;
   const vw = view.x1 - view.x0 - 520 / view.k, vh = view.y1 - view.y0 - 520 / view.k;
@@ -537,9 +542,34 @@ function Minimap({ family, layout, view, focus, dimmed, onJump }: {
     onJump((e.clientX - r.left - ox) / s, (e.clientY - r.top - oy) / s);
   };
   const t = useT();
-  // Only real people count: an empty family's layout still holds a placeholder card.
-  const people = new Set(layout.nodes.filter((n) => n.role !== 'ghost' && family.byId.has(n.id)).map((n) => n.id)).size;
-  const peopleText = t('common.people', { count: people });
+  // Only real people count: an empty family's layout still holds a placeholder card. Memoised: this renders every frame of a pan.
+  const count = useMemo(
+    () => new Set(layout.nodes.filter((n) => n.role !== 'ghost' && family.byId.has(n.id)).map((n) => n.id)).size,
+    [layout, family],
+  );
+  const peopleText = t('common.people', { count });
+  // The house shields: each placed person with a house, at the middle of their card. Only the layout changes them.
+  const people = useMemo(() => {
+    const out: LandmarkPerson[] = [];
+    for (const n of layout.nodes) {
+      const p = n.role === 'ghost' ? undefined : family.byId.get(n.id);
+      if (p?.house && family.house.has(p.house)) out.push({ id: n.id, house: p.house, x: n.x, y: n.y + CARD_H / 2 });
+    }
+    return out;
+  }, [layout, family]);
+  const marks = useMemo(
+    () => houseLandmarks(people, { s, ox, oy, width: MM_W, height: MM_H }, { cardW: CARD_W, rowH: ROW_H, size: SHIELD_PX }),
+    [people, s, ox, oy, MM_W, MM_H],
+  );
+  // With a filter on (`dimmed` is the set that stays bright), a house with none of those people fades, as its dots do.
+  const faded = useMemo(() => {
+    const out = new Set<string>();
+    if (!dimmed) return out;
+    const lit = new Set(people.filter((p) => dimmed.has(p.id)).map((p) => p.house));
+    for (const m of marks) if (!lit.has(m.house)) out.add(m.house);
+    return out;
+  }, [dimmed, people, marks]);
+  const here = useMemo(() => layout.nodes.find((n) => n.id === focus), [layout, focus]);
   // Keyboard: arrows move the view a quarter screen at a time.
   const onKey = (e: React.KeyboardEvent) => {
     const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
@@ -550,26 +580,74 @@ function Minimap({ family, layout, view, focus, dimmed, onJump }: {
   };
   return (
     <div className="minimap no-pan panel">
-      <div
-        className="minimap-map"
-        role="application"
-        tabIndex={0}
-        aria-label={t('canvas.minimap_label', { people: peopleText })}
-        onKeyDown={onKey}
-        style={{ width: MM_W, height: MM_H }}
-        onPointerDown={(e) => { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); jump(e); }}
-        onPointerMove={(e) => e.buttons && jump(e)}
-      >
-        <canvas ref={cv} style={{ width: MM_W, height: MM_H }} />
-        <div className="minimap-view" style={{ left: vx * s + ox, top: vy * s + oy, width: Math.max(6, vw * s), height: Math.max(6, vh * s) }} />
+      {/* The shields sit beside the map, not inside it, so their tooltips are not clipped and their clicks never start a map drag. */}
+      <div className="minimap-stage" style={{ width: MM_W, height: MM_H }}>
+        <div
+          className="minimap-map"
+          role="application"
+          tabIndex={0}
+          aria-label={t('canvas.minimap_label', { people: peopleText })}
+          onKeyDown={onKey}
+          style={{ width: MM_W, height: MM_H }}
+          onPointerDown={(e) => { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); jump(e); }}
+          onPointerMove={(e) => e.buttons && jump(e)}
+        >
+          <canvas ref={cv} style={{ width: MM_W, height: MM_H }} />
+          <div className="minimap-view" style={{ left: vx * s + ox, top: vy * s + oy, width: Math.max(6, vw * s), height: Math.max(6, vh * s) }} />
+        </div>
+        <HouseShields marks={marks} family={family} faded={faded} onHouse={onHouse} />
+        {here ? <span className="minimap-here" aria-hidden style={{ left: here.x * s + ox, top: (here.y + CARD_H / 2) * s + oy }} /> : null}
       </div>
       <div className="minimap-foot">
         <span>{peopleText}</span>
-        <span>{t('common.generations', { count: people ? layout.rows.length : 0 })}</span>
+        <span>{t('common.generations', { count: count ? layout.rows.length : 0 })}</span>
       </div>
     </div>
   );
 }
+
+/**
+ * One house shield per landmark. Memoised on the landmarks, not the camera: a pan or zoom re-renders the minimap
+ * (its viewport box moves) but leaves these buttons alone. Each is a real button, so Tab reaches it and Enter or
+ * a click jumps the main view there; its name is "Jump to <house>", and its tooltip (shown on hover or keyboard
+ * focus) gives the people count.
+ */
+const HouseShields = memo(function HouseShields({ marks, family, faded, onHouse }: {
+  marks: HouseLandmark[]; family: Family; faded: ReadonlySet<string>; onHouse: (wx: number, wy: number) => void;
+}) {
+  const t = useT();
+  const id = useId();
+  if (!marks.length) return null;
+  return (
+    <div className="house-landmarks" role="group" aria-label={t('canvas.houses')}>
+      {marks.map((m, i) => {
+        const house = family.house.get(m.house)!;
+        const tipId = `${id}-${i}`;
+        return (
+          <button
+            key={m.house}
+            type="button"
+            className={`house-landmark${faded.has(m.house) ? ' is-faded' : ''}`}
+            data-tip={m.tip}
+            data-align={m.align}
+            style={{ left: m.x, top: m.y, width: SHIELD_PX, height: SHIELD_PX * 1.2 }}
+            aria-label={t('canvas.jumpHouse', { house: house.name })}
+            aria-describedby={tipId}
+            onClick={() => onHouse(m.wx, m.wy)}
+          >
+            <span className="house-shield" aria-hidden>
+              <Arms arms={house.arms} size={SHIELD_PX} />
+            </span>
+            <span className="house-tip" id={tipId}>
+              <b>{house.name}</b>
+              <span>{t('common.people', { count: m.people })}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+});
 
 /** The theme on <html>, kept in sync when the reader switches it. */
 function useThemeName(): string {

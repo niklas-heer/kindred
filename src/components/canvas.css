@@ -101,6 +101,49 @@
 .minimap-foot { display: flex; justify-content: space-between; gap: 12px; padding: 6px 2px 0; font-size: 12px; color: var(--muted); font-family: var(--font-ui); }
 [data-theme='codex'] .minimap-foot { font-family: var(--font-display); font-size: 11.5px; letter-spacing: 0.04em; }
 
+/* The "you are here" dot: a DOM dot above the house shields, so a shield never hides it. */
+.minimap-stage { position: relative; }
+.minimap-here {
+  position: absolute; z-index: 2; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; box-sizing: border-box;
+  border-radius: 50%; background: var(--accent); border: 2px solid #0b0e14; pointer-events: none;
+}
+[data-theme='modern'] .minimap-here { border-color: #fff; }
+
+/* ---------- house shields on the minimap: one per house, over its people's dots ---------- */
+.house-landmarks { position: absolute; inset: 0; pointer-events: none; }
+.house-landmark {
+  position: absolute; z-index: 1; display: block; padding: 0; margin: 0; border: 0; border-radius: 3px; background: none; line-height: 0;
+  transform: translate(-50%, -50%); cursor: pointer; pointer-events: auto; color: inherit;
+  transition: left 260ms cubic-bezier(.2,.8,.2,1), top 260ms cubic-bezier(.2,.8,.2,1), opacity 200ms;
+  /* Fades in once: a shield whose charge is still loading is not seen half-drawn, and it does not replay on each pan. */
+  animation: house-in 240ms ease-out both;
+}
+@keyframes house-in { from { opacity: 0; } }
+.house-shield { display: block; filter: drop-shadow(0 1px 1.5px #000b); transition: transform 160ms ease; }
+.house-landmark:hover { z-index: 3; }
+.house-landmark:hover .house-shield { transform: scale(1.14); }
+.house-landmark:focus-visible { z-index: 3; outline: 2px solid var(--accent); outline-offset: 2px; }
+.house-landmark.is-faded { opacity: 0.3; }
+.house-landmark.is-faded:hover, .house-landmark.is-faded:focus-visible { opacity: 0.9; }
+/* A finger needs more room than the shield: a 44px target, without making the shield any bigger. */
+@media (pointer: coarse) { .house-landmark::before { content: ''; position: absolute; inset: -11px; } }
+
+.house-tip {
+  position: absolute; z-index: 4; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 1px; padding: 5px 9px; white-space: nowrap; text-align: left;
+  background: var(--panel-solid); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); font-family: var(--font-ui); font-size: 12px; line-height: 1.25;
+  opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 140ms, visibility 140ms;
+}
+[data-theme='codex'] .house-tip { background: #10141cf5; border-color: #c9a24a; border-radius: 3px; }
+.house-tip b { font-family: var(--font-body); font-weight: 500; font-size: 13px; }
+.house-tip span { color: var(--muted); }
+.house-landmark[data-tip='below'] .house-tip { bottom: auto; top: calc(100% + 6px); }
+.house-landmark[data-align='start'] .house-tip { left: 0; transform: none; }
+.house-landmark[data-align='end'] .house-tip { left: auto; right: 0; transform: none; }
+@media (hover: hover) { .house-landmark:hover .house-tip { opacity: 1; visibility: visible; } }
+.house-landmark:focus-visible .house-tip { opacity: 1; visibility: visible; }
+
 /* Phones and narrow tablets: a slimmer ruler, bigger controls, and the minimap only on request. */
 @media (max-width: 900px) {
   .canvas { --ruler-w: 40px; }
@@ -117,6 +160,8 @@
   .slot { transition: none; animation: none; }
   .arrive::before, .arrive::after { animation: none; }
   .edge.lit { animation: none; stroke-dasharray: none; }
+  .house-landmark { transition: opacity 200ms; animation: none; }
+  .house-shield, .house-tip { transition: none; }
 }
 
 .union-label { fill: var(--text); font-size: 18px; font-family: var(--font-body, Georgia, serif); paint-order: stroke; stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round; }
