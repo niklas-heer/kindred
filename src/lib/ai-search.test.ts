@@ -468,3 +468,42 @@ test('a call whose reservation is more than a fifth of the budget is refused bef
   await assert.rejects(over.complete(big), (e: unknown) => e instanceof AiError && e.code === 'budget');
   assert.equal(none.length, 0);
 });
+
+// ---------- a model that searches by itself, saved before the rule; OpenRouter's reasoning blocks in the chat's loop ----------
+
+test('a saved model that searches by itself is refused on save, and again when the family\'s adapter is made', async () => {
+  makeFamily('saved-search');
+  const base = { features: { assistant: true, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: KEY };
+  await assert.rejects(
+    settings.saveSettings('saved-search', 'u1', { ...base, provider: 'openai', model: 'gpt-4o-search-preview' }),
+    (e: unknown) => e instanceof AiError && e.code === 'bad-input',
+  );
+  await settings.saveSettings('saved-search', 'u1', { ...base, provider: 'openai', model: 'gpt-5' });
+  await accounts().run('UPDATE ai_settings SET model = ? WHERE tree = ?', 'o3-deep-research', 'saved-search');
+  await assert.rejects(
+    settings.adapterForFeature('saved-search', 'assistant', 'en'),
+    (e: unknown) => e instanceof AiError && e.code === 'bad-input',
+  );
+});
+
+test('a reasoning reply\'s blocks go back with its tool calls: the chat\'s second request carries them unchanged', async () => {
+  makeFamily('reasoning');
+  await settings.saveSettings('reasoning', 'u1', {
+    provider: 'openrouter', model: 'openai/gpt-5', features: { assistant: true, faces: false, avatar: false, arms: false },
+    webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: KEY,
+  });
+  const details = [{ type: 'reasoning.encrypted', id: 'r1', format: 'anthropic-claude-v1', index: 0, data: 'SIGNED-BLOCK' }];
+  const sent = stubOpenRouter([
+    () => json({ choices: [{ finish_reason: 'tool_calls', message: { content: null, reasoning_details: details, tool_calls: [{ id: 'c1', function: { name: 'search_people', arguments: '{"query":"Anna"}' } }] } }], usage: { prompt_tokens: 50, completion_tokens: 10 } }),
+    () => json({ choices: [{ finish_reason: 'stop', message: { content: 'Anna Kramer is in the tree.' } }], usage: { prompt_tokens: 80, completion_tokens: 6 } }),
+  ]);
+  const { items } = await chat.sendMessage({ tree: 'reasoning', user: 'u1', role: 'viewer', me: null, text: 'Who is Anna?', locale: 'en' });
+  assert.equal(items.at(-1)!.text, 'Anna Kramer is in the tree.');
+  assert.equal(sent.length, 2, 'the tool call, then the answer');
+  const turn = sent[1].body.messages.find((m: { role: string }) => m.role === 'assistant');
+  assert.ok(turn, 'the second request carries the assistant turn');
+  assert.deepEqual(turn.reasoning_details, details, 'with its reasoning blocks, unchanged');
+  assert.equal(turn.tool_calls[0].id, 'c1');
+  assert.equal(sent[1].body.reasoning.effort, 'low');
+});
+

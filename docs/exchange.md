@@ -234,7 +234,7 @@ These were run on the test family `modern` (346 people, 411 parent links, 140 pa
   exactly, with their kinds, confidence, dates and places.
 - **Markdown archive → `scripts/import-kindred.ts`:** all 346 people come back, with their birth dates, birth places and living status. 400 parent links come back, because the 11 step-parent links are left out by design. All 140
   partnerships come back, with their kinds. The start dates of the 12 partnerships do not: `import-kindred.ts` reads a
-  marriage's date from its event but not a partnership's, so they are kept in the archive but not in the spike's import.
+  marriage's date from its event but not a partnership's, so they are kept in the archive but not in the import.
 
 The round trip into a second family is also covered by unit tests (`src/lib/exchange/*.test.ts`), including partial
 dates, several marriages to different people, adoptive and step links, long and escaped biographies and unknown tags.

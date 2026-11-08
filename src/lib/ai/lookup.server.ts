@@ -15,9 +15,15 @@ export const LOOKUP_SEARCHES = 2;
 const MIN_PRIVATE = 4;
 /** A nickname with fewer letters than this is ignored, for the same reason. */
 const MIN_NICKNAME = 3;
-/** The shortest given-name word and surname word that count. Shorter ones are initials and particles. */
+/** The shortest given-name word and surname word that count. Shorter ones are initials. */
 const MIN_GIVEN = 3;
 const MIN_SURNAME = 2;
+/**
+ * Name particles. They are not a surname's own word: "van" in "van der Merwe" names the Merwe family, not every van. So a
+ * query is not refused for a particle alone ("Jan van Riebeeck" is not "Jan van der Merwe"). A surname that is only particles
+ * keeps them, so "Lisa Van" is still a name.
+ */
+const PARTICLES = new Set(['van', 'von', 'vom', 'zu', 'zum', 'zur', 'de', 'der', 'den', 'des', 'del', 'della', 'di', 'da', 'do', 'dos', 'das', 'du', 'le', 'la', 'les', 'ten', 'ter', 'te', 'op', 'het', 'bin', 'ibn', 'al', 'el', 'af', 'av']);
 
 /** What the guard holds for one tree. Built once per lookup from the people and, for a reader who may see them, the private fields. */
 export interface PrivacyGuard {
@@ -65,11 +71,17 @@ export async function privacyGuard(tree: string, people: GPerson[], seePrivate: 
     const parts = wordsOf(text ?? '', false);
     return [...new Set([...parts, ...wordsOf(text ?? '', true), parts.join('')])].filter((w) => w.length >= min);
   };
+  // A surname's words without its particles, unless nothing else is left (see PARTICLES).
+  const surnameWords = (text: string | null | undefined): string[] => {
+    const all = nameWords(text, MIN_SURNAME);
+    const own = all.filter((w) => !PARTICLES.has(w));
+    return own.length ? own : all;
+  };
   for (const p of people) {
     if (!p.living) continue;
     // Current and birth names both count, and in any mix: a given name from one with the surname from the other is still a name.
     const given = new Set([...nameWords(p.given, MIN_GIVEN), ...nameWords(p.currentGiven, MIN_GIVEN)]);
-    const surname = new Set([...nameWords(p.surname, MIN_SURNAME), ...nameWords(p.currentSurname, MIN_SURNAME)]);
+    const surname = new Set([...surnameWords(p.surname), ...surnameWords(p.currentSurname)]);
     if (given.size && surname.size) living.push({ given: [...given], surname: [...surname] });
     if (p.nickname && alnum(p.nickname) >= MIN_NICKNAME) nicknames.push(wordsOf(p.nickname, false));
   }

@@ -5,9 +5,9 @@ with crowns and arms, you move through the tree with the keyboard, and the whole
 photographs and places sit in one place. Each family is its own database, on your own machine or on
 Cloudflare.
 
-This repository is the code that becomes **Kindred v2** in
-[niklas-heer/kindred](https://github.com/niklas-heer/kindred), which is the Markdown-archive project that
-Kindred v1 is. See [docs/migration-plan.md](docs/migration-plan.md) for how it moves.
+This is **Kindred v2**, developed on the `v2` branch of [niklas-heer/kindred](https://github.com/niklas-heer/kindred).
+`main` still holds Kindred v1, the Markdown-archive project that v2 succeeds, and v2 takes over `main` at release.
+See [docs/migration-plan.md](docs/migration-plan.md) for how the two meet.
 
 ## What it does
 
@@ -30,31 +30,22 @@ Kindred v1 is. See [docs/migration-plan.md](docs/migration-plan.md) for how it m
   Pictures live in media storage (`data/media/` on Node, R2 on Cloudflare).
 - **Needed.** The research to-do list, nearest relatives first. *Blaze through* asks only for what is missing,
   one person at a time.
-- **An AI assistant (optional).** Ask about the family, search people, or propose a change, which you approve
-  as yourself. Off until a steward adds a key. [docs/ai.md](docs/ai.md) says what is sent where.
+- **AI features (optional).** The assistant answers questions about the family, searches people, and proposes changes
+  that you approve as yourself. It can also suggest faces in a photo, a portrait look, and arms from a surname. A steward
+  adds a provider and a key, picks a model from the provider's list, and sets a monthly budget in dollars ($5 by
+  default). Web search is a separate switch. Everything is off until a steward turns it on.
+  [docs/ai.md](docs/ai.md) says what is sent where.
 - **Roles and privacy.** Viewer, contributor, editor and steward, enforced on the server, and private fields
   for editors and stewards. [docs/roles-and-privacy.md](docs/roles-and-privacy.md).
 - **Import and export.** GEDCOM 5.5.1 in and out, with a preview before anything is written, and a Markdown archive
   in the v1 format out. [docs/exchange.md](docs/exchange.md).
+- **Nightly archive (optional).** Each family can be copied every night, as the Markdown archive and a GEDCOM file, into
+  a private GitHub repository you name. Kindred only writes to it, and only when something changed.
+  [docs/exchange.md](docs/exchange.md#the-nightly-archive).
 - **Themes.** *Codex* (dark lacquer and gold, the default), *Paper* (light) and *Night* (a candlelit study).
   Codex plays small sound effects, and the speaker button mutes them.
-- **German and English**, with the interface in both. Names and written content are never translated.
-
-## Screenshots
-
-These are placeholders until they are captured. Each one should show the feature at desktop width (1440×900) and,
-where it matters, at phone width (390×844).
-
-- [ ] `docs/screenshots/dynasty-codex.png`: the Dynasty view of a house in the Codex theme
-- [ ] `docs/screenshots/family-paper.png`: the Family hourglass in the Paper theme
-- [ ] `docs/screenshots/minimap-zoomed-out.png`: the whole tree, zoomed out to tiles, with the minimap
-- [ ] `docs/screenshots/atlas-replay.png`: the Atlas during a replay, with the Chronicle beside it
-- [ ] `docs/screenshots/almanac.png`: the Almanac with birthdays and "on this day"
-- [ ] `docs/screenshots/houses-arms.png`: a house page with its arms, motto and line of succession
-- [ ] `docs/screenshots/gallery.png`: the gallery with an album and tagged faces
-- [ ] `docs/screenshots/needed-blaze.png`: *Blaze through* asking for one missing fact
-- [ ] `docs/screenshots/exchange.png`: the import preview, showing new people, matches and conflicts
-- [ ] `docs/screenshots/phone-person.png`: a person's panel at 390×844
+- **English, German and Afrikaans**, with the interface in all three. A flag picker switches the language. Names and
+  written content are never translated.
 
 ## Quick start (local, Node and SQLite)
 
@@ -82,17 +73,19 @@ Every task is in `mise.toml`. These are the ones you are likely to use:
 | Command | What it does |
 | --- | --- |
 | `mise run install` | `npm install` |
-| `mise run data` | Generate the test families and rebuild their databases (the real archive only if it is present) |
+| `mise run data` | Generate the test families and rebuild their databases |
 | `mise run seed` | Build any missing `data/<id>.db` from `data/seed/`; existing databases are kept |
 | `mise run gazetteer` | Download GeoNames `cities500` once and build `data/gazetteer.db` |
 | `mise run dev` | Run on Node with the SQLite files in `data/` (`vite dev`, port 4517) |
 | `mise run dev:cf` | Run the Worker in workerd with local D1 and R2, after applying migrations; `mise run cf:seed` loads the test families |
 | `mise run check` | `tsc --noEmit` |
-| `mise run test` | The unit tests for accounts, Access and the storage layer |
+| `mise run test` | Every unit test (the same list as `npm test`) |
 | `mise run build` | Build the Worker into `dist/` (`KINDRED_TARGET=node` builds for Node instead) |
 | `mise run build:node` | Build the production server for Node into `dist/` |
 | `mise run start` | Run that production server (`PORT`, `HOST`, `KINDRED_DATA_DIR`; see [docs/self-host.md](docs/self-host.md)) |
 | `mise run deploy` | Build and `wrangler deploy` (see [docs/deploy-cloudflare.md](docs/deploy-cloudflare.md)) |
+| `mise run smoke:worker` | Build the Worker into a scratch folder, run it locally and check its routes; never contacts Cloudflare |
+| `mise run vapid-keys` | Make the key pair for reminders and print its three settings |
 | `mise run clean` | Remove build output and the generated databases |
 
 ## Self-host with Docker
@@ -133,8 +126,9 @@ Optional settings, as Worker variables or in `.dev.vars` locally: `KINDRED_ORIGI
 ## Your data and export
 
 Every family is one database you can read. On Node it is `data/<family>.db`, a SQLite file; on Cloudflare it is a
-D1 database. The browser keeps a session cookie and a few preferences (theme, language, sound, how names are shown),
-and nothing else. You can take a family out at any time:
+D1 database. The browser keeps a session cookie and a few preferences (theme, language, sound, how names are shown). The accounts
+database keeps accounts and passkeys and, when reminders are on, each device's push subscription. A family's people,
+stories and pictures stay in that family's own database. You can take a family out at any time:
 
 - **GEDCOM 5.5.1** (`.ged`), which other genealogy programs read. What it cannot carry is listed before you download.
 - **A Markdown archive** (a ZIP), one note per person in the v1 format that Kindred v1 and `scripts/import-kindred.ts`
@@ -177,12 +171,12 @@ mise run test    # the unit tests
 ```
 
 Schema changes are new numbered files in `migrations/`; a file that has shipped is never edited. Translations
-live in `src/lib/i18n/en.ts` (the source) and `de.ts`.
+live in `src/lib/i18n/areas/`, one file per area, each with its English, German and Afrikaans text.
+[src/lib/i18n/README.md](src/lib/i18n/README.md) says how to add a string.
 
 ## Licence and credits
 
-Kindred is open source under the [MIT licence](https://opensource.org/licenses/MIT), as Kindred v1 is. A LICENSE
-file is added when this code moves into niklas-heer/kindred.
+Kindred is open source under the [MIT licence](LICENSE), as Kindred v1 is.
 
 Credits and their licences:
 

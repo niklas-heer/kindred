@@ -82,7 +82,9 @@ themselves. Viewers and contributors can read the same people in the app, but th
 You are the operator of your own family's data. On Node it sits in `data/` on your machine, and on Cloudflare it sits
 in your D1 and R2 resources in your account. Kindred does not send a family's records to any service of its own. The
 only outside calls are the ones you turn on: the AI assistant and image features, which send what [ai.md](ai.md)
-describes to the provider you choose, and the place search, which runs offline once the gazetteer is built.
+describes to the provider you choose; the nightly archive, which commits the family's archive to the private GitHub
+repository you name; and reminders, which send a notification to each device's browser push service. The place search
+runs offline once the gazetteer is built.
 
 To leave, export the family, or copy the database. Deleting a family means deleting its database and its media.
 

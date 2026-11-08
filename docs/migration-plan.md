@@ -1,7 +1,7 @@
 # Migration plan: this repository becomes Kindred v2
 
-This repository (the spike) becomes **Kindred v2** in [niklas-heer/kindred](https://github.com/niklas-heer/kindred), which
-is Kindred v1: a Rust CLI and browser graph over a Markdown family archive, MIT-licensed, distributed through a Homebrew
+This repository holds **Kindred v2**, on the `v2` branch of [niklas-heer/kindred](https://github.com/niklas-heer/kindred).
+That repository's `main` is Kindred v1: a Rust CLI and browser graph over a Markdown family archive, MIT-licensed, distributed through a Homebrew
 tap, Nix and GitHub Releases. v2 is a different product on the same name: a multi-user web app on Cloudflare (or Node).
 The Markdown archive stays as an export format, so nothing a v1 user has is lost.
 
@@ -9,8 +9,8 @@ This page is the plan. Some steps are decisions for the owner, and they are mark
 
 ## Decisions for the owner
 
-1. **Where v2 lives.** Recommended: v2 replaces `main` in niklas-heer/kindred, and v1 is kept on a `v1` branch and a
-   tag, so its links, its Homebrew formula and its releases keep working. The alternative is a new repository, which
+1. **Where v2 lives.** Chosen: v2 is developed on the `v2` branch of niklas-heer/kindred and replaces `main` at release.
+   v1 is kept on a `v1` branch and a tag, so its links, its Homebrew formula and its releases keep working. The alternative is a new repository, which
    keeps the history clean but splits the name.
 2. **What happens to the Rust CLI.** v1's CLI (`kindred check`, `serve`, `export`) is the v1 product. Options: keep it
    in the v1 branch only (recommended, since v2 does not depend on it); keep it on `main` beside v2; or drop it. The
@@ -24,16 +24,16 @@ This page is the plan. Some steps are decisions for the owner, and they are mark
    publishes binaries (`dist-workspace.toml`). Decide whether v2 keeps git-cliff and what the first v2
    version is called.
 
-## Before anything is pushed
+## Before the history is shared
 
-- **Check the history for private data.** This repository has no remote and holds the owner's real family in
-  `data/`, which is gitignored. Before the code is pushed anywhere, confirm that no commit contains family data, names
-  from `data/`, or `data/seed/*.json`: `git log --all --stat` and `git log -p --all -- data/` are the checks, and
-  `git grep` for a name from the real archive. If anything is there, rewrite the history before the push, not after.
+- **Check the history for private data.** The `v2` branch is already on `origin`, and `data/` holds the owner's real
+  family (gitignored). Confirm that no commit contains family data, names from `data/`, or `data/seed/*.json`:
+  `git log --all --stat` and `git log -p --all -- data/` are the checks, and `git grep` for a name from the real archive.
+  If anything is there, the owner decides how to remove it: a history rewrite changes every clone of the branch.
 - **Check the ignore rules still cover the secrets.** `.gitignore` covers `data/*.db`, `data/seed/*.json`,
   `data/secret`, `data/backups/`, `.dev.vars`, `.wrangler/` and `data/media/`.
-- **Run the checks:** `mise run check`, `mise run test`, and `mise run build` (the Worker build). The exchange tests are
-  not in `npm test` until `package.json` lists `src/lib/exchange/*.test.ts`.
+- **Run the checks:** `mise run check`, `mise run test`, and `mise run build` (the Worker build). `npm test` runs every
+  unit test, the exchange tests included.
 
 ## Step by step
 
@@ -49,8 +49,7 @@ Nothing in v1 changes after this except fixes that the owner chooses to backport
 
 ### 2. Land v2
 
-1. Create a `v2` branch in niklas-heer/kindred with this repository's history (or with a single import commit, if
-   decision 1 chose a clean start).
+1. The `v2` branch in niklas-heer/kindred holds this repository's history.
 2. Replace the v1 README with the v2 README (this repository's `README.md`), and move the v1 documentation that still
    applies (the archive format, `docs/SCHEMA.md`) into `docs/`.
 3. Open a pull request from `v2` into `main`. Merge when the checks pass. Tag the first v2 release from `main`.
@@ -96,8 +95,7 @@ page. That needs a steward, and it shows a preview before anything is written.
 ### 5. Release
 
 1. Run `mise run check`, `mise run test`, `mise run build`.
-2. Deploy to Cloudflare with `mise run deploy` (see [deploy-cloudflare.md](deploy-cloudflare.md)), or publish the Node
-   route once it exists.
+2. Deploy to Cloudflare with `mise run deploy` (see [deploy-cloudflare.md](deploy-cloudflare.md)), or run the Node build (see [self-host.md](self-host.md)).
 3. Tag the release on `main` and write the release notes (from the commits, if git-cliff is kept).
 4. Update the Homebrew tap and the Nix flake only if they point at v2 (decision 3).
 5. Record the decision in the project's decision log: v1's log is in `docs/decisions/`, and a new entry should say

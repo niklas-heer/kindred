@@ -2,7 +2,7 @@
 // relationships, dates and places, and the biography under "## Story". It is the shape Kindred's own v1 tools
 // write and read, and the one scripts/import-kindred.ts reads, so an archive goes both ways:
 //
-//   v2 → v1 or the spike:  export a Markdown archive here, open it in the v1 CLI or run import-kindred.ts on it.
+//   v2 → v1:  export a Markdown archive here, open it in the v1 CLI or run import-kindred.ts on it.
 //   v1 → v2:               run scripts/import-kindred.ts on the v1 archive, or import a GEDCOM it exported.
 //
 // Every value that is text is written as a JSON string, which YAML reads as the same text. Keys the v1 schema

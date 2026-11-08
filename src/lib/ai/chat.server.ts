@@ -106,7 +106,8 @@ export async function sendMessage(o: { tree: string; user: string; role: Role; m
       text = reply.text.trim();
       break;
     }
-    messages.push({ role: 'assistant', text: reply.text, calls: reply.calls });
+    // The reply's reasoning blocks go back with its calls, unchanged: OpenRouter needs them to continue a reasoning model's tool turn.
+    messages.push({ role: 'assistant', text: reply.text, calls: reply.calls, ...(reply.reasoningDetails && { reasoningDetails: reply.reasoningDetails }) });
     for (const call of reply.calls) {
       messages.push({ role: 'tool', callId: call.id, content: await runTool(ctx, call.name, call.args, proposals) });
     }

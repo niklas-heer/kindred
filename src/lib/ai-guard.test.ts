@@ -154,3 +154,24 @@ test('the refusal reasons name the kind of detail and never a value', async () =
     }
   }
 });
+
+test('a surname particle is not a surname: "Jan van Riebeeck" is allowed beside a living "Jan van der Merwe", and that name is still refused', async () => {
+  const PT = 'particles';
+  const f = openSqlite(join(dir, `${PT}.db`), 'tree', { create: true });
+  f.exec(`
+    INSERT INTO meta (key, value) VALUES ('id', '${PT}'), ('name', 'Particles'), ('tagline', ''), ('theme', 'codex'), ('focus', 'jm');
+    INSERT INTO person (id, given, surname, nickname, living, current_given, current_surname) VALUES
+      ('jm', 'Jan', 'van der Merwe', NULL, 1, NULL, NULL),
+      ('lv', 'Lisa', 'Van', NULL, 1, NULL, NULL);
+  `);
+  f.close();
+  const guard = await lookup.privacyGuard(PT, (await graph(PT)).people, true);
+  for (const q of ['Jan van Riebeeck', 'Jan van der Berg', 'Jan de Wet', 'Jan Riebeeck', 'Jan van der']) {
+    assert.equal(lookup.refusal(guard, q), null, JSON.stringify(q));
+  }
+  for (const q of ['Jan van der Merwe', 'Jan Merwe', 'Merwe, Jan', 'Jan vandermerwe', 'Jan van Merwe', 'Jan Van der Merwe']) {
+    assert.equal(lookup.refusal(guard, q), 'living-name', JSON.stringify(q));
+  }
+  assert.equal(lookup.refusal(guard, 'Lisa Van'), 'living-name', 'a surname that is only a particle still counts');
+});
+

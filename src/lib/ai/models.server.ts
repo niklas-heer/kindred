@@ -2,7 +2,7 @@
 // price (from the price table, or from OpenRouter's own list). The provider is called with the key that is passed in,
 // which may be one typed but not yet saved. The key is never stored, never logged, and never put in an error message.
 // Lists are cached in memory for a few minutes, keyed by a SHA-256 of the key, so the key itself is not kept.
-import { AiError } from './adapters';
+import { AiError, searchesOnItsOwn } from './adapters';
 import { tablePrice, type Price } from './prices';
 import { PROVIDER_LABEL, type ModelInfo, type Provider } from './types';
 
@@ -94,7 +94,7 @@ async function openaiModels(key: string): Promise<ModelInfo[]> {
   const out: ModelInfo[] = [];
   for (const m of (j.data ?? []) as { id?: string }[]) {
     const id = m.id;
-    if (!id || !OPENAI_CHAT.test(id) || OPENAI_NOT_CHAT.test(id)) continue;
+    if (!id || !OPENAI_CHAT.test(id) || OPENAI_NOT_CHAT.test(id) || searchesOnItsOwn('openai', id)) continue;
     const p = tablePrice('openai', id);
     out.push({
       id,
@@ -129,6 +129,8 @@ async function openrouterCatalogue(key: string): Promise<ModelInfo[]> {
   const out: ModelInfo[] = [];
   for (const m of (j.data ?? []) as OpenRouterModel[]) {
     if (!m.id) continue;
+    // A model that searches by itself is refused on save (settings.server), so it is not offered either.
+    if (searchesOnItsOwn('openrouter', m.id)) continue;
     if (m.architecture?.output_modalities && !m.architecture.output_modalities.includes('text')) continue;
     const inPerM = usdPerM(m.pricing?.prompt);
     const outPerM = usdPerM(m.pricing?.completion);

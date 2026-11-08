@@ -17,7 +17,7 @@ process.env.KINDRED_SECRET = 'ai-adapters-test-secret';
 
 const vite = await createServer({ root: process.cwd(), logLevel: 'error', server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom' });
 const load = <T>(path: string) => vite.ssrLoadModule(path) as Promise<T>;
-const { makeAdapter, AiError } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
+const { makeAdapter, AiError, chatModelId, searchesOnItsOwn } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
 const models = await load<typeof import('./ai/models.server.ts')>('/src/lib/ai/models.server.ts');
 
 test.after(async () => {
@@ -318,3 +318,57 @@ test('openrouter: the :online suffix is never sent, for a chat, a lookup or any 
   assert.equal(sent[0].body.model, 'openai/gpt-5');
   assert.equal(sent[0].body.tools, undefined, 'and no search tool is added by the suffix');
 });
+
+test('a model that searches by itself is refused by one rule on both providers, and :online is stripped wherever it sits', async () => {
+  for (const [provider, model] of [
+    ['openai', 'gpt-4o-search-preview'], ['openai', 'gpt-4o-mini-search-preview'], ['openai', 'o3-deep-research'],
+    ['openrouter', 'openai/gpt-4o-search-preview'], ['openrouter', 'openai/gpt-4o-mini-search-preview'],
+    ['openrouter', 'openai/o3-deep-research'], ['openrouter', 'perplexity/sonar'], ['openrouter', 'perplexity/sonar-pro:online'],
+  ] as const) {
+    assert.equal(searchesOnItsOwn(provider, chatModelId(provider, model)), true, `${provider} ${model}`);
+    assert.throws(() => makeAdapter(provider, KEY, model), (e: unknown) => e instanceof AiError && e.code === 'bad-input', `${provider} ${model}`);
+  }
+  for (const model of ['gpt-4o', 'openai/gpt-5', 'vendor/model']) assert.equal(searchesOnItsOwn('openrouter', model), false, model);
+  assert.equal(chatModelId('openrouter', 'openai/gpt-5:online:nitro'), 'openai/gpt-5:nitro');
+  assert.equal(chatModelId('openrouter', 'openai/gpt-5:Online'), 'openai/gpt-5');
+
+  // The suffix is stripped on the way out too: the request names the model without it, and nothing else in it searches.
+  const done = () => json({ choices: [{ finish_reason: 'stop', message: { content: 'x' } }], usage: { prompt_tokens: 1, completion_tokens: 1 } });
+  const sent = stubFetch([done()]);
+  await makeAdapter('openrouter', KEY, 'openai/gpt-5:online:nitro').complete({ system: 'S', messages: [{ role: 'user', text: 'Hi' }] });
+  assert.equal(sent[0].body.model, 'openai/gpt-5:nitro');
+  assert.ok(!sent[0].body.model.includes(':online'));
+});
+
+test('openrouter: a reply\'s reasoning_details are kept on the reply, and go back unchanged on the assistant message with its calls', async () => {
+  const details = [{ type: 'reasoning.encrypted', id: 'r1', format: 'anthropic-claude-v1', index: 0, data: 'SIGNED-BLOCK' }];
+  const sent = stubFetch([
+    json({ choices: [{ finish_reason: 'tool_calls', message: { content: null, reasoning_details: details, tool_calls: [{ id: 'c1', function: { name: 'read_person', arguments: '{"id":"anna"}' } }] } }], usage: { prompt_tokens: 10, completion_tokens: 5 } }),
+    json({ choices: [{ finish_reason: 'stop', message: { content: 'Anna.' } }], usage: { prompt_tokens: 20, completion_tokens: 2 } }),
+  ]);
+  const adapter = makeAdapter('openrouter', KEY, 'vendor/reasons', { reasoning: true });
+  const first = await adapter.complete({ system: 'S', messages: [{ role: 'user', text: 'Who is Anna?' }], tools: [{ name: 'read_person', description: 'Read one person.', parameters: { type: 'object' } }] });
+  assert.deepEqual(first.reasoningDetails, details, 'the reply keeps the blocks');
+  await adapter.complete({
+    system: 'S',
+    messages: [
+      { role: 'user', text: 'Who is Anna?' },
+      { role: 'assistant', text: first.text, calls: first.calls, reasoningDetails: first.reasoningDetails },
+      { role: 'tool', callId: 'c1', content: '{"name":"Anna"}' },
+    ],
+  });
+  // OpenRouter carries the system prompt first; the assistant turn is the one with the calls.
+  const back = sent[1].body.messages.find((m: { role: string }) => m.role === 'assistant');
+  assert.ok(back, 'the assistant turn is sent');
+  assert.deepEqual(back.reasoning_details, details, 'the second request carries them unchanged');
+  assert.equal(back.tool_calls[0].id, 'c1');
+  assert.equal(sent[1].body.reasoning.effort, 'low', 'reasoning stays on for the continuation');
+});
+
+test('openrouter: a reply without reasoning blocks carries none, and an assistant turn without them sends none', async () => {
+  const sent = stubFetch([json({ choices: [{ finish_reason: 'stop', message: { content: 'Plain.' } }], usage: { prompt_tokens: 1, completion_tokens: 1 } })]);
+  const reply = await makeAdapter('openrouter', KEY, 'vendor/plain').complete({ system: 'S', messages: [{ role: 'user', text: 'Hi' }] });
+  assert.equal(reply.reasoningDetails, undefined);
+  assert.ok(!('reasoning_details' in sent[0].body) && !JSON.stringify(sent[0].body).includes('reasoning_details'));
+});
+

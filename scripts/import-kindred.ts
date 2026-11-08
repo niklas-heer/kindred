@@ -1,14 +1,16 @@
 // Converts a Kindred Markdown archive into a SeedTree JSON file.
-//   node scripts/import-kindred.ts <archive folder> data/seed/<family id>.json
+//   node scripts/import-kindred.ts <archive folder> data/seed/<family id>.json [focus]
+// The family view opens on the person whose note is named by [focus] (the note's file name, without .md), or else on the
+// first person in the archive.
 // The output holds living people's data: data/seed/*.json is gitignored.
 import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { parse } from 'yaml';
 import type { SeedHouse, SeedPerson, SeedTree, Tincture } from '../src/lib/seed-format.ts';
 
-const [archive, out] = process.argv.slice(2);
+const [archive, out, focusFile] = process.argv.slice(2);
 if (!archive || !out) {
-  console.error('usage: node scripts/import-kindred.ts <archive folder> data/seed/<family id>.json');
+  console.error('usage: node scripts/import-kindred.ts <archive folder> data/seed/<family id>.json [focus]');
   process.exit(1);
 }
 const familyId = basename(out, '.json');
@@ -27,6 +29,10 @@ const notes: Note[] = readdirSync(dir)
 
 // Kindred links name files ("[[people/klaus-heer]]"); the app uses the note's id.
 const idByFile = new Map(notes.map((n) => [n.file, String(n.id)]));
+if (focusFile && !idByFile.has(focusFile)) {
+  console.error(`no person note named ${focusFile}.md in ${dir}`);
+  process.exit(1);
+}
 const link = (l: unknown) => {
   const file = String(l).replace(/^\[\[(?:people\/)?|\]\]$/g, '');
   const id = idByFile.get(file);
@@ -117,7 +123,7 @@ const tree: SeedTree = {
   stories: [],
   contacts: [],
   places,
-  focus: idByFile.get('niklas-heer') ?? people[0].id,
+  focus: (focusFile && idByFile.get(focusFile)) || people[0].id,
 };
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, JSON.stringify(tree, null, 2));

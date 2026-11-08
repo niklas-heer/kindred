@@ -29,7 +29,11 @@ export interface ImagePart { mime: string; base64: string }
 
 export type AiMessage =
   | { role: 'user'; text: string; images?: ImagePart[] }
-  | { role: 'assistant'; text: string; calls?: ToolCall[] }
+  | {
+      role: 'assistant'; text: string; calls?: ToolCall[];
+      /** OpenRouter's reasoning blocks from the reply that made these calls, sent back unchanged (see AiReply.reasoningDetails). */
+      reasoningDetails?: unknown[];
+    }
   | { role: 'tool'; callId: string; content: string };
 
 /** The most searches one call may run when the request does not say. The budget reserves for this many. */
@@ -62,18 +66,24 @@ export function outputCap(provider: Provider | 'fake', model: string, requested 
 
 /**
  * OpenRouter's ":online" suffix turns on its web plugin for any model: the model then searches whatever the request holds,
- * with no ceiling and outside the budget. So the suffix is removed from every model id Kindred sends. A search goes only
- * through the server tool that a search request names (isolatedSearch).
+ * with no ceiling and outside the budget. So every ":online" is removed from a model id Kindred sends, wherever it sits
+ * (":online:nitro" becomes ":nitro"). A search goes only through the server tool that a search request names (isolatedSearch).
  */
 export const chatModelId = (provider: Provider | 'fake', model: string): string =>
-  provider === 'openrouter' ? model.replace(/(:online)+$/i, '') : model;
+  provider === 'openrouter' ? model.replace(/:online/gi, '') : model;
+
+/** A model name that says it searches the web: OpenAI's search models (gpt-4o-search-preview) and its deep-research models. */
+const SEARCH_BY_NAME = /-search|deep-research/i;
+/** OpenRouter's Perplexity models, which search on every request. */
+const PERPLEXITY = /(^|\/)perplexity\//i;
 
 /**
- * Model ids that search the web by themselves, whatever a request says: OpenAI's search models, and OpenRouter's Perplexity
- * models. Kindred never sends a chat, arms or other non-search request to one of these.
+ * Whether a model searches the web by itself, whatever a request says: the one rule for OpenAI and OpenRouter alike.
+ * Kindred never sends a chat, arms or other request to such a model, so it is refused on save and when an adapter is made.
+ * Takes the model id as chatModelId leaves it.
  */
 export const searchesOnItsOwn = (provider: Provider | 'fake', model: string): boolean =>
-  (provider === 'openai' && /-search/i.test(model)) || (provider === 'openrouter' && /(^|\/)perplexity\//i.test(model));
+  (provider === 'openai' || provider === 'openrouter') && (SEARCH_BY_NAME.test(model) || PERPLEXITY.test(model));
 
 /** How many requests a call may make to the provider. A paused Anthropic search turn is continued, up to PAUSE_CONTINUATIONS times. */
 export const callRounds = (provider: Provider | 'fake', req: Pick<AiRequest, 'webSearch' | 'json'>): number =>
@@ -111,6 +121,11 @@ export interface AiReply {
   reportedCostUsd?: number;
   /** The pages a web search drew on, when the provider reports them. */
   sources?: { url: string; title?: string }[];
+  /**
+   * OpenRouter's reasoning blocks for this reply, when the model returned any. OpenRouter asks that they go back unchanged, in
+   * order, with the reply's tool calls, so a tool loop passes them on in the assistant message (AiMessage, role assistant).
+   */
+  reasoningDetails?: unknown[];
 }
 
 export interface AiAdapter {
@@ -360,6 +375,8 @@ function chatCompletions(provider: 'openai' | 'openrouter', key: string, model: 
         } else if (m.role === 'assistant') {
           const msg: Record<string, unknown> = { role: 'assistant', content: m.text || null };
           if (m.calls?.length) msg.tool_calls = m.calls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: JSON.stringify(c.args ?? {}) } }));
+          // The reasoning blocks of the reply that made these calls go back with them, unchanged (OpenRouter's contract for tool calls).
+          if (m.reasoningDetails?.length) msg.reasoning_details = m.reasoningDetails;
           messages.push(msg);
         } else {
           messages.push({ role: 'tool', tool_call_id: m.callId, content: m.content });
@@ -388,11 +405,13 @@ function chatCompletions(provider: 'openai' | 'openrouter', key: string, model: 
       const data = await post(provider, url, headers, body, key, req.timeoutMs ?? 45_000);
       const choice = data.choices?.[0] as { finish_reason?: string; message?: {
         content?: string | null;
+        reasoning_details?: unknown[];
         tool_calls?: { id: string; function: { name: string; arguments: string } }[];
         annotations?: { type: string; url_citation?: { url?: string; title?: string } }[];
       } } | undefined;
       const msg = choice?.message;
       if (!msg) throw new AiError('bad-output', `${PROVIDER_LABEL[provider]} sent back no answer.`);
+      const reasoningDetails = Array.isArray(msg.reasoning_details) && msg.reasoning_details.length ? msg.reasoning_details : undefined;
       // A reply cut off by its cap is not an answer: say so, rather than showing an empty or partial one.
       if (choice?.finish_reason === 'length') throw new AiError('bad-output', `${PROVIDER_LABEL[provider]} stopped before it finished its answer.`);
       const inputTokens = data.usage?.prompt_tokens ?? 0;
@@ -427,6 +446,7 @@ function chatCompletions(provider: 'openai' | 'openrouter', key: string, model: 
         searches: searched,
         ...reported,
         ...(sources.length ? { sources } : {}),
+        ...(reasoningDetails ? { reasoningDetails } : {}),
       };
     },
   };

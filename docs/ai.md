@@ -75,17 +75,22 @@ the web once per reply, through its `web_lookup` tool. Each lookup is a request 
 
 - **The lookup:** one request whose only input is a fixed instruction and the query the assistant wrote. No family data and no
   chat history go with it. Before it is sent, the query is checked: it is refused if it names a living person (a given name
-  with their surname, current or birth, in any order, spelling or punctuation), uses a nickname of one, carries a private detail
+  with their surname, current or birth, in either order, with umlauts and ß folded, and with punctuation ignored; a surname's
+  particles such as "van" or "de" do not count on their own), uses a nickname of one, carries a private detail
   the reader may see (street and postcode, a medical note, a phone number; a city or a country is not private), carries a web
   address or a search operator such as `site:`, or carries a long number such as a telephone number. The reader is told why,
   never what the detail was. A second lookup in the same reply is not run.
-- **Anthropic:** the server web search tool (`web_search_20250305`), with at most three searches per lookup. Anthropic runs the
+- **Anthropic:** the server web search tool (`web_search_20250305`), with at most two searches per lookup. Anthropic runs the
   searches and cites them. A search turn that pauses is continued at most twice; the budget reserves for every request that
   may be made.
 - **OpenAI:** the hosted `web_search` tool of the Responses API, with `max_tool_calls` as its ceiling.
 - **OpenRouter:** its server tool `openrouter:web_search`, with `max_tool_calls` as its ceiling. The model decides whether to
-  search. The `:online` suffix is removed from every model id, so no model searches by itself through its name, and OpenAI's
-  search models and OpenRouter's Perplexity models are refused for the assistant and the research.
+  search. Every `:online` is removed from an OpenRouter model id, wherever it sits (`:online:nitro` becomes `:nitro`), because
+  `:online` would switch on OpenRouter's web plugin for every request.
+- **Models that search by themselves** are refused on OpenAI and OpenRouter alike: a model id that contains `-search` or
+  `deep-research` (OpenAI's search and deep-research models, such as `gpt-4o-search-preview` or `o3-deep-research`), and any
+  `perplexity/` model on OpenRouter. The refusal applies when a steward saves a model and when an adapter is made, so a model
+  saved before this rule is refused too. The model list leaves these models out.
 - **Reasoning models** are capped at 8,000 tokens with a low reasoning effort. OpenRouter's list says which models reason; the
   name is the guess for the rest. A reply that runs out of room is an error, not a partial answer.
 
@@ -121,8 +126,19 @@ a suggestion: a face is never tagged to a person until someone confirms it.
 **A portrait look.** The chosen photo is sent as an image, and the provider suggests a look (skin, hair and eye colour
 from fixed lists). Nothing is saved without the reader keeping it.
 
-**Arms from a surname.** Only the surname is sent, and the country when one is recorded. Nothing else about the family
-leaves the server for this feature. The provider suggests designs, and the reader chooses whether to keep one.
+**Arms from a surname.** Arms make up to three requests, and only the first one searches the web:
+
+- **The web search** (only when web search is on) sends the provider the surname and the country, and nothing else. It is a
+  request of its own, with a fixed instruction. Its notes and the pages it cites come back to Kindred.
+- **The research** asks what the name may mean. This request has no web search, and it is where the family's own words about
+  the name go: the text typed into the arms research for what the family says the name means, if any. It also gets the
+  search notes, when there were any.
+  Without web search, this is the only research request, and it sends the surname, the country and the family's words.
+- **The designs** send the surname, the country, the family's words, and the meanings the reader chose. This request has no
+  web search.
+
+So the family's words and the chosen meanings do go to the provider, in the steps without web search. Only the web search
+step is limited to the surname and the country. The provider suggests designs, and the reader chooses whether to keep one.
 
 Kindred does not send a family's whole database, and it does not send anything on a schedule. Each call is a response
 to a reader's action.
@@ -130,8 +146,9 @@ to a reader's action.
 ## Privacy
 
 What leaves the app, per feature, is listed above and on the settings page. In short: a question, a photo, a surname, or
-the names and facts the assistant reads from the tree goes to the chosen provider, using the family's key. Web search adds
-the search queries to that list. Kindred adds nothing else. The provider keeps requests under its own terms, which apply to
+the names and facts the assistant reads from the tree goes to the chosen provider, using the family's key. For arms, the
+family's own words about a name and the meanings the reader chose go to the provider too, in the steps without web search.
+Web search adds the search queries to that list: for arms, the surname and country only. Kindred adds nothing else. The provider keeps requests under its own terms, which apply to
 those requests and not to Kindred. An editor's or steward's private fields may reach the provider when they use the
 assistant. Turn a feature off to stop it sending anything.
 
@@ -180,6 +197,8 @@ and the model lists. `src/lib/ai-prices.test.ts` checks cost calculation and pri
 - `src/lib/ai/adapters.ts`: the three providers, behind one interface (`api.anthropic.com`, `api.openai.com`,
   `openrouter.ai`), with web search for each.
 - `src/lib/ai/chat.server.ts` and `tools.server.ts`: the assistant's loop and its tools.
-- `src/lib/ai/vision.server.ts`: faces, portrait looks and arms.
+- `src/lib/ai/vision.server.ts`: faces and portrait looks.
+- `src/lib/ai/arms.server.ts`: arms from a surname, in its web search, research and design requests.
+- `src/lib/ai/lookup.server.ts`: the assistant's web lookup and the guard that checks its query.
 - `src/components/assistant/AiSettings.tsx`: the settings page, in five steps.
 - `src/lib/ai.functions.ts`: the server functions the page and the assistant call, including `aiListModels`.

@@ -152,8 +152,10 @@ export const providerOk = (p: string): p is Provider => (PROVIDERS as readonly s
 //
 // Every call to a provider is booked before it is sent: its reservation (see `estimateMicros`) is added to the month's
 // spend with one conditional UPDATE that fails when it would pass the budget, so two calls racing for the last of it
-// cannot both get it. A reservation is the most the call may cost: its input, its reply's cap, its searches, and every
-// request it may make (callRounds). One call may not reserve more than a fifth of the month's budget, unless the budget is
+// cannot both get it. A reservation is the estimate of what the call may cost: its input (estimated from the text it sends),
+// its reply's cap, its searches, and every request it may make (callRounds). It is not a hard ceiling: the input that a
+// search's results add is not reserved, so a search turn can cost more than its reservation, and the budget is then settled
+// to the real cost. One call may not reserve more than a fifth of the month's budget, unless the budget is
 // under a dollar; a call that would is refused, not run on a guess. After the call, the reservation is replaced by what the
 // call really cost: the provider's reported USD cost when it reports one (OpenRouter), else the tokens it used and its
 // searches, at the model's price. A failure is charged what its completed requests billed (AiError.billed); a failure with no
