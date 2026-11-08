@@ -12,12 +12,15 @@ const NOT_GUEST_ROOTS = new Set(['signin', 'setup', 'invite', 'ui', 'ui_', 'api'
 const GUEST_MEDIA = /^\/api\/(?:photo|portrait|media|research)\/[^/]+\/[^/]+$/;
 
 /** Whether the guest host may answer a path: an allow-list, so a route added later stays closed until it is added here. */
-export function guestHostAllows(pathname: string): boolean {
+export function guestHostAllows(rawPath: string): boolean {
+  // The router matches case-insensitively and decodes the path, so compare the way it does; anything odd is refused.
+  let pathname: string;
+  try { pathname = decodeURIComponent(rawPath).toLowerCase(); } catch { return false; }
   if (pathname === '/' || pathname === '/api/health' || pathname === '/api/stats') return true;
-  if (pathname.startsWith('/share/') || pathname.startsWith('/_serverFn/') || pathname.startsWith('/assets/')) return true;
+  if (pathname.startsWith('/share/') || pathname.startsWith('/_serverfn/') || pathname.startsWith('/assets/')) return true;
   if (GUEST_MEDIA.test(pathname)) return true;
   const [, root, section] = pathname.split('/');
   if (!root || NOT_GUEST_ROOTS.has(root) || root.startsWith('_')) return false;
-  if (!section) return /^[a-z0-9-]+$/.test(root) || /\.[a-z0-9]+$/i.test(root); // a family, or a file at the root (favicon.svg)
+  if (!section) return /^[a-z0-9-]+$/.test(root) || /\.[a-z0-9]+$/.test(root); // a family, or a file at the root (favicon.svg)
   return !NOT_GUEST_SECTIONS.has(section);
 }

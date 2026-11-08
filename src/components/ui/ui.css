@@ -23,8 +23,8 @@
 
 .ui-dialog-panel {
   position: relative; width: min(var(--dialog-w, 480px), 100%);
-  max-height: calc(100dvh - 32px); overflow: auto;
-  display: flex; flex-direction: column;
+  max-height: calc(100dvh - 32px);
+  display: flex; flex-direction: column; overflow: hidden;
   animation: ui-rise 160ms cubic-bezier(.2, .8, .2, 1);
 }
 .ui-dialog-panel:focus { outline: none; }
@@ -44,7 +44,8 @@
 .ui-dialog-title { flex: 1; margin: 0; font-family: var(--font-title); font-size: 20px; font-weight: 600; line-height: 1.2; text-wrap: balance; }
 .ui-dialog-desc { margin: 4px 18px 0; color: var(--muted); font-size: 15px; }
 .ui-dialog-close { margin-left: auto; flex: none; }
-.ui-dialog-body { padding: 14px 18px 18px; min-width: 0; }
+.ui-dialog-body { padding: 14px 18px 18px; min-width: 0; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.ui-dialog-head, .ui-dialog-desc, .ui-dialog-foot { flex: none; }
 .ui-dialog-foot {
   display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px;
   padding: 12px 18px 16px; border-top: 1px solid var(--border);

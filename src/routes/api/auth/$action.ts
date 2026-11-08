@@ -3,9 +3,9 @@ import { createFileRoute } from '@tanstack/react-router';
 // Passkey ceremonies (src/lib/auth/passkeys.server.ts): JSON in and out, POST only, never cached.
 // Each action checks its own setup code, invitation token, challenge or session, and is rate-limited.
 // Cross-site requests are refused by the CSRF middleware in src/start.ts before they reach here.
-const json = (body: unknown, status = 200, cookie?: string) => {
+const json = (body: unknown, status = 200, cookie?: string | string[]) => {
   const headers = new Headers({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  if (cookie) headers.append('Set-Cookie', cookie);
+  for (const c of cookie === undefined ? [] : [cookie].flat()) headers.append('Set-Cookie', c);
   return new Response(JSON.stringify(body), { status, headers });
 };
 
@@ -69,7 +69,7 @@ export const Route = createFileRoute('/api/auth/$action')({
               await p.finishAdd(request, await requireUser(), body.challengeId, body.response);
               return json({ ok: true });
             case 'signout':
-              return json({ ok: true }, 200, await s.endSession(request));
+              return json({ ok: true }, 200, await s.endAllSessions(request));
           }
           return json({ error: 'Not found' }, 404);
         } catch (e) {

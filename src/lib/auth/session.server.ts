@@ -85,6 +85,12 @@ export async function endGuestSession(request: Request): Promise<string> {
   return guestCookie(request, guestCookieName(request), '', 0);
 }
 
+/** Sign-out: ends the account's session and any guest visit in this browser, and forgets that it was ever a guest's.
+ *  Returns every Set-Cookie value to send. */
+export async function endAllSessions(request: Request): Promise<string[]> {
+  return [await endSession(request), await endGuestSession(request), guestCookie(request, WAS_GUEST, '', 0)];
+}
+
 async function guestOf(request: Request): Promise<GuestSession | undefined> {
   const t = guestToken(request);
   return t ? guestVisitByToken(t) : undefined;

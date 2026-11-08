@@ -456,9 +456,19 @@ test('the guest host answers only what a guest needs', () => {
   for (const ok of ['/', '/share/abc', '/_serverFn/xyz', '/assets/app.js', '/api/health', '/api/photo/fam/p1', '/api/portrait/fam/p1', '/api/media/fam/a.jpg', '/api/research/fam/a.pdf', '/fam', '/fam/atlas', '/fam/chronicle', '/fam/house/h1', '/favicon.svg']) {
     assert.equal(guestHost.guestHostAllows(ok), true, ok);
   }
-  for (const no of ['/signin', '/setup', '/invite/abc', '/ui', '/api/auth/signout', '/api/export/fam', '/api/paint/fam/a.png', '/fam/access', '/fam/settings/ai', '/fam/settings/import', '/_not', '/api/other']) {
+  for (const no of ['/signin', '/setup', '/invite/abc', '/ui', '/api/auth/signout', '/api/export/fam', '/api/paint/fam/a.png', '/fam/access', '/fam/settings/ai', '/fam/settings/import', '/_not', '/api/other', '/Invite/abc', '/API/auth/signout', '/API/export/fam', '/fam/ACCESS', '/MODERN/Settings/Feedback', '/%69nvite/abc', '/fam/%41ccess', '/%E0%A4%A']) {
     assert.equal(guestHost.guestHostAllows(no), false, no);
   }
+});
+
+test('signing out also ends a guest visit in that browser and forgets it was one', async () => {
+  const made = await makeLink();
+  const { cookie } = await openAs(made.token, made.password!);
+  assert.ok((await realSession(cookie)).guest, 'the visit is open');
+  const set = await session.endAllSessions(new Request('http://localhost/', { headers: { cookie: `${cookie}; kindred_was_guest=1` } }));
+  assert.ok(set.some((c) => c.startsWith('kindred_guest=;') && c.includes('Max-Age=0')), 'guest cookie cleared');
+  assert.ok(set.some((c) => c.startsWith('kindred_was_guest=;') && c.includes('Max-Age=0')), 'was-guest marker cleared');
+  assert.equal((await realSession(cookie)).guest, undefined, 'the visit is over on the server too');
 });
 
 test('on the guest host only a guest’s visit counts: never an account’s cookie', async () => {

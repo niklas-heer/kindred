@@ -122,7 +122,9 @@ npx wrangler secret put KINDRED_ARCHIVE_MODERN_TOKEN
 Put the variables in the dashboard or in `wrangler.jsonc` under `vars`, as the other settings above.
 
 The archive runs in the same 06:00 UTC cron as reminders and enabled background AI tasks. Use a Workers plan
-with enough CPU time and subrequests for your family's exports. A first archive writes every file; an interrupted
+with enough CPU time and subrequests for your family's exports.
+Share-link passwords are hashed with PBKDF2 at 100,000 iterations (the most Workers allow), which took about 20 ms of CPU
+in a measurement and so may exceed the Workers free plan's 10 ms CPU limit: use the Workers Paid plan for a site with share links. A first archive writes every file; an interrupted
 run logs a failure and retries on the next night. The branch changes only after the files are ready, so a failed
 run does not publish a partial archive. Node is not subject to Workers invocation limits.
 

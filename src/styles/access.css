@@ -101,6 +101,8 @@
 .share-note { margin: 8px 0 0; }
 .guest-chip { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; white-space: nowrap; }
 .guest-chip .btn { height: 30px; padding: 0 8px; }
-@media (max-width: 760px) { .guest-chip-label { display: none; } .share-actions .btn { flex: 1; justify-content: center; } }
+/* The guest's only way out must stay in view: at laptop widths the bar gives the search box's room to the chip. */
+@media (min-width: 1401px) and (max-width: 1560px) { .topbar:has(.guest-chip) .search-trigger { width: 116px; } .topbar:has(.guest-chip) .search-trigger kbd { display: none; } .topbar:has(.guest-chip) .guest-chip-label { display: none; } }
+@media (max-width: 760px) { .share-actions .btn { flex: 1; justify-content: center; } }
 .share-card h2.rule { margin-top: 0; }
 .share-message { field-sizing: content; }

@@ -39,7 +39,7 @@ export const Route = createFileRoute('/$tree')({
     }
     if (!session.memberships.some((m) => m.tree === params.tree)) throw notFound({ data: { access: false } });
     // A guest looks around; Access and the settings are not for them (the server refuses their data anyway).
-    if (session.guest?.tree === params.tree && /^\/[^/]+\/(?:access|settings)(?:\/|$)/.test(location.pathname)) throw redirect({ to: '/$tree', params: { tree: params.tree } });
+    if (session.guest?.tree === params.tree && /^\/[^/]+\/(?:access|settings)(?:\/|$)/i.test(location.pathname)) throw redirect({ to: '/$tree', params: { tree: params.tree } });
   },
   loader: async ({ context, params }) => {
     // An unknown family is a friendly "not found", never a server error with a developer hint.
