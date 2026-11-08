@@ -2,10 +2,13 @@
 // The decision (vocabulary, then the tree's cache, then a model) is in occupations.translate.ts. Here the store
 // is the tree's database and the model is the family's assistant, gated and budgeted like every other AI call.
 // The translation is only ever shown; it never replaces the text the family wrote.
+//
+// Only a text the family wrote as someone's occupation may be translated. Anything else would let a reader spend
+// the family's budget on arbitrary text and write it into the tree's cache.
 import { db } from './db.server.ts';
 import { AiError } from './ai/adapters.ts';
 import { tr } from './ai/labels.ts';
-import { adapterForFeature, spend } from './ai/settings.server.ts';
+import { adapterForFeature } from './ai/settings.server.ts';
 import type { Locale } from './i18n/types.ts';
 import { translation } from './occupations.translate.ts';
 
@@ -17,7 +20,13 @@ const REPLY_JSON = {
   additionalProperties: false,
 };
 
+/** Whether `text` is the occupation of someone in this family (compared trimmed, as the family wrote it). */
+export async function isTreeOccupation(tree: string, text: string): Promise<boolean> {
+  return !!(await db(tree).get('SELECT 1 AS found FROM person WHERE TRIM(occupation) = ? LIMIT 1', text.trim()));
+}
+
 export async function translateOccupation(tree: string, text: string, locale: Locale): Promise<{ label: string; code: string | null }> {
+  if (!(await isTreeOccupation(tree, text))) throw new AiError('bad-input', tr(locale)('ai.errNotOccupation'));
   const store = db(tree);
   const answer = await translation(
     text,
@@ -34,7 +43,8 @@ export async function translateOccupation(tree: string, text: string, locale: Lo
       },
     },
     async () => {
-      // The family's assistant switch gates text work; the AI key and the daily budget are checked there too.
+      // The family's assistant switch gates text work; the AI key and the daily budget are checked there too,
+      // and every call is booked against the budget before it is sent.
       const { adapter } = await adapterForFeature(tree, 'assistant', locale);
       const language = LANGUAGE[locale];
       const reply = await adapter.complete({
@@ -49,7 +59,6 @@ export async function translateOccupation(tree: string, text: string, locale: Lo
         maxTokens: 120,
         timeoutMs: 30_000,
       });
-      await spend(tree, reply.tokens);
       return reply.json;
     },
   );

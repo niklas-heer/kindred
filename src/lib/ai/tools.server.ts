@@ -8,10 +8,19 @@ import { matchesName } from '../search';
 import type { GPerson } from '../types';
 import { can, type Action, type Role } from '../roles';
 import { validDate } from '../dates';
-import { fieldInput, FIELD_TYPES } from '../../components/fields/model';
+import { fieldInput, FIELD_TYPES, privateByDefault } from '../../components/fields/model';
+import type { Key } from '../i18n/dictionary';
 import { tr, type Tr } from './labels';
 import type { ToolSpec } from './adapters';
 import { proposalArgs, PROPOSAL_KINDS, type AiLocale, type Proposal, type ProposalArgs, type ProposalKind } from './types';
+
+/** The fields area's word for each value key of a field (the same words the Edit tab shows). */
+const VALUE_LABEL: Record<string, Key> = {
+  number: 'input.number', address: 'input.email', street: 'input.street', postcode: 'input.postcode', city: 'input.city',
+  country: 'input.country', url: 'input.url', handle: 'input.handle', name: 'input.name', date: 'input.date', note: 'input.note',
+  school: 'input.school', place: 'input.place', from: 'input.from', to: 'input.to', title: 'input.title', employer: 'input.employer',
+  unit: 'input.unit', rank: 'input.rank', language: 'input.language', level: 'input.level', text: 'input.text', person: 'input.person',
+};
 
 export interface Ctx {
   tree: string;
@@ -238,8 +247,12 @@ async function propose(ctx: Ctx, c: Tr, byId: Map<string, GPerson>, kind: Propos
     const a = args as { person: string; type: string; label?: string; value: Record<string, string> };
     const checked = fieldInput.safeParse({ type: a.type, label: a.label ?? '', value: a.value, private: false });
     if (!checked.success) return json({ error: 'that detail does not fit its type: ' + (checked.error.issues[0]?.message ?? 'check the keys') });
-    summary = c('ai.summaryField', { field: a.label ? `${a.type} (${a.label})` : a.type, name: name(a.person) });
-    diff.push({ label: a.type, to: Object.entries(a.value).map(([k, v]) => `${k}: ${v}`).join(', ') });
+    // Set by the family's rule, not by the model: a health detail starts private. The approver can change it on the card.
+    args.private = privateByDefault(a.type);
+    const typeName = c(`type.${a.type}` as Key);
+    const valueName = (k: string) => (VALUE_LABEL[k] ? c(VALUE_LABEL[k]) : k);
+    summary = c('ai.summaryField', { field: a.label ? `${typeName} (${a.label})` : typeName, name: name(a.person) });
+    diff.push({ label: typeName, to: Object.entries(a.value).map(([k, v]) => `${valueName(k)}: ${v}`).join(', ') });
     editable = ['label'];
   }
   // Only the fields the change sets can be edited: an empty date input would otherwise be sent as a change.

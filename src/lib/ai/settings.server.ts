@@ -1,10 +1,10 @@
 // A family's AI settings, the daily budget, and turning a settings row into a ready adapter. Settings
 // live in the accounts database (migrations/accounts/0003_ai_settings.sql), one row per family.
 import { accounts } from '../auth/store.server';
-import { AiError, makeAdapter, type AiAdapter } from './adapters';
+import { AiError, makeAdapter, type AiAdapter, type AiRequest } from './adapters';
 import { fakeAdapter } from './fake';
 import { keyTail, openKey, sealKey } from './secret.server';
-import { tr } from './labels';
+import { tr, type Tr } from './labels';
 import { translate } from '../i18n/dictionary';
 import { DEFAULT_MODEL, FEATURES, PROVIDERS, type AiFeatures, type AiStatus, type Feature, type Provider } from './types';
 import type { AiLocale } from './types';
@@ -95,6 +95,11 @@ export const validModel = (m: string) => m === '' || MODEL.test(m);
 export const providerOk = (p: string): p is Provider => (PROVIDERS as readonly string[]).includes(p);
 
 // ---------- the daily budget (UTC days) ----------
+//
+// Every call to a provider is booked before it is sent: the estimate is added to the day's usage with one
+// conditional UPDATE that fails when it would pass the budget, so two calls racing for the last allowance
+// cannot both get it. After the call, the estimate is replaced by the tokens the provider reports. A call
+// that fails is charged its estimate, since the provider may have billed it.
 
 export const today = () => new Date().toISOString().slice(0, 10);
 
@@ -102,12 +107,46 @@ export async function usedToday(tree: string): Promise<number> {
   return (await accounts().get<{ tokens: number }>('SELECT tokens FROM ai_usage WHERE tree = ? AND day = ?', tree, today()))?.tokens ?? 0;
 }
 
-export async function spend(tree: string, tokens: number): Promise<void> {
-  if (tokens <= 0) return;
-  await accounts().run(
-    'INSERT INTO ai_usage (tree, day, tokens) VALUES (?, ?, ?) ON CONFLICT(tree, day) DO UPDATE SET tokens = tokens + excluded.tokens',
-    tree, today(), Math.round(tokens),
-  );
+/** Tokens a call may use, before it is sent: text at two characters a token (generous), images at a fixed allowance, and the reply's cap. */
+const IMAGE_TOKENS = 2000;
+export function estimateTokens(req: AiRequest): number {
+  const images = req.messages.reduce((n, m) => n + (m.role === 'user' ? (m.images?.length ?? 0) : 0), 0);
+  const messages = req.messages.map((m) => (m.role === 'user' ? { role: m.role, text: m.text } : m));
+  const text = JSON.stringify({ system: req.system, messages, tools: req.tools, json: req.json });
+  return Math.ceil(text.length / 2) + images * IMAGE_TOKENS + (req.maxTokens ?? 1024);
+}
+
+/** Books `amount` tokens of the day's budget, or throws `budget` when they would take it past `limit`. One statement decides, so it is atomic. */
+async function reserve(tree: string, limit: number, amount: number, c: Tr): Promise<{ day: string; amount: number }> {
+  const day = today();
+  await accounts().run('INSERT INTO ai_usage (tree, day, tokens) VALUES (?, ?, 0) ON CONFLICT (tree, day) DO NOTHING', tree, day);
+  const r = await accounts().run('UPDATE ai_usage SET tokens = tokens + ? WHERE tree = ? AND day = ? AND tokens + ? <= ?', amount, tree, day, amount, limit);
+  if (r.changes !== 1) throw new AiError('budget', c('ai.errBudget'));
+  return { day, amount };
+}
+
+/** Replaces a booking with what the call really used. */
+async function settle(tree: string, booked: { day: string; amount: number }, used: number): Promise<void> {
+  await accounts().run('UPDATE ai_usage SET tokens = tokens - ? + ? WHERE tree = ? AND day = ?', booked.amount, Math.max(0, Math.round(used)), tree, booked.day);
+}
+
+/** The adapter with every call booked against the family's budget first, and settled after. */
+export function budgeted(tree: string, limit: number, adapter: AiAdapter, c: Tr): AiAdapter {
+  return {
+    provider: adapter.provider,
+    model: adapter.model,
+    async complete(req) {
+      const booked = await reserve(tree, limit, estimateTokens(req), c);
+      let used = booked.amount;
+      try {
+        const reply = await adapter.complete(req);
+        used = reply.tokens;
+        return reply;
+      } finally {
+        await settle(tree, booked, used);
+      }
+    },
+  };
 }
 
 // ---------- adapters ----------
@@ -125,16 +164,17 @@ export async function adapterFor(tree: string, s?: Settings): Promise<AiAdapter>
 }
 
 /**
- * The adapter for one feature, after the switch and the budget are checked. Throws AiError with a
- * message in the reader's language when it can't run.
+ * The adapter for one feature, after the switch is checked. Every call it makes is booked against the
+ * family's daily budget before it is sent (see `budgeted`). Throws AiError with a message in the reader's
+ * language when it can't run.
  */
 export async function adapterForFeature(tree: string, feature: Feature, locale: AiLocale): Promise<{ adapter: AiAdapter; settings: Settings }> {
   const c = tr(locale);
   const settings = await readSettings(tree);
   if (!settings.features[feature]) throw new AiError('not-configured', c('ai.errOff'));
   if (!settings.sealed) throw new AiError('not-configured', c('ai.errNotConfigured'));
-  if (settings.dailyTokens <= 0 || (await usedToday(tree)) >= settings.dailyTokens) throw new AiError('budget', c('ai.errBudget'));
-  return { adapter: await adapterFor(tree, settings), settings };
+  if (settings.dailyTokens <= 0) throw new AiError('budget', c('ai.errBudget'));
+  return { adapter: budgeted(tree, settings.dailyTokens, await adapterFor(tree, settings), c), settings };
 }
 
 /** What the browser shows: a feature is on only when it is switched on and a readable key is saved. */

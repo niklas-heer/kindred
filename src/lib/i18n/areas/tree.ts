@@ -580,7 +580,7 @@ export const de: Record<keyof typeof en, Message> = {
   "firstrun.click": "Klick",
   "firstrun.shows_someone_in_the_side_panel_and_leaves_the_tree_where_it_is": "zeigt eine Person in der Seitenleiste. Der Stammbaum bleibt an seinem Platz.",
   "firstrun.double_click": "Klicke doppelt",
-  "firstrun.or_press": "oder drücke",
+  "firstrun.or_press": ", oder drücke",
   "firstrun.to_centre_the_tree_on_them": ", um die Person im Stammbaum zu zentrieren.",
   "firstrun.add_with_the_marks": "Personen mit + hinzufügen",
   "firstrun.dashed": "Gestrichelte",

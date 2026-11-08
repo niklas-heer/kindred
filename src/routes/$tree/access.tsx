@@ -287,7 +287,8 @@ function InviteDialog({ open, onClose, tree, familyName, onCreated }: { open: bo
             {t('acc.readyText', {
               who: made.email || t('acc.them'),
               article: t(/^[aeiou]/i.test(made.role) ? 'acc.article.an' : 'acc.article.a'),
-              role: roleLabel(t, made.role).toLowerCase(),
+              // English and Afrikaans put the role in lower case inside a sentence; German nouns keep their capital.
+              role: t.locale === 'de' ? roleLabel(t, made.role) : roleLabel(t, made.role).toLowerCase(),
               date: dateFmt.format(made.expires),
             })} {t('acc.keepsCopy')}
           </p>

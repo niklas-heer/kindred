@@ -3,6 +3,7 @@ import { useT } from '~/lib/i18n';
 // The answer is saved with the reader's membership and as the `me:<tree>` preference (a person id,
 // or BROWSING); the tour is remembered once seen or skipped (`tour`). Until the reader answers,
 // kinship labels stay hidden. `WhoPicker` is the same list, for the invitation page.
+import { useQueryClient } from '@tanstack/react-query';
 import { MousePointerClick, Search, UserPlus } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BROWSING, chooseMe, useFamily, useMeAnswered, useTreeId } from '~/lib/family';
@@ -40,6 +41,7 @@ const STEPS: { title: string; art: ReactNode; body: ReactNode; adds?: boolean }[
 ];
   const f = useFamily();
   const tree = useTreeId();
+  const qc = useQueryClient();
   const answered = useMeAnswered();
   const tourSeen = usePref('tour') !== null;
   // Closing without answering only defers the question to the next visit.
@@ -52,7 +54,8 @@ const STEPS: { title: string; art: ReactNode; body: ReactNode; adds?: boolean }[
   useEffect(() => { const reopen = () => { setStep(0); setTouring(true); }; window.addEventListener('kindred:reopen-tour', reopen); return () => window.removeEventListener('kindred:reopen-tour', reopen); }, []);
 
   const choose = (id: string) => {
-    void chooseMe(tree, id);
+    // The account's picture comes from the session's membership, so refresh the session once the link is saved.
+    void chooseMe(tree, id).then(() => qc.invalidateQueries({ queryKey: ['session'] }));
     if (!tourSeen) setTouring(true);
   };
   const endTour = () => {

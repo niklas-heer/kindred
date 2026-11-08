@@ -6,7 +6,7 @@ import { checkMediaKey } from '../store/index.ts';
 import { lookSchema, faceResultSchema, armsDesignSchema, type AiLocale, type ArmsDesign, type FaceResult } from './types';
 import { AiError, type ImagePart, type JsonSchema } from './adapters';
 import { tr } from './labels';
-import { adapterForFeature, spend } from './settings.server';
+import { adapterForFeature } from './settings.server';
 import { SKIN_LABELS, HAIR_LABELS, EYE_LABELS } from '../../components/portrait/look';
 import { translate } from '../i18n/dictionary';
 import type { Look } from '../types';
@@ -73,9 +73,10 @@ const FACES_JSON: JsonSchema = {
 
 /**
  * Finds the faces in a group photo and suggests, for each, which candidate it may be. Candidates are a
- * few people in the family who have a picture; they are shown as suggestions only.
+ * few people in the family who have a picture; they are shown as suggestions only. `references` counts
+ * those candidates: with none, nothing can be suggested and the model is not asked.
  */
-export async function findFaces(o: { tree: string; mediaKey: string; locale: AiLocale }): Promise<FaceResult> {
+export async function findFaces(o: { tree: string; mediaKey: string; locale: AiLocale }): Promise<{ faces: FaceResult['faces']; references: number }> {
   const c = tr(o.locale);
   const { adapter } = await adapterForFeature(o.tree, 'faces', o.locale);
   const photo = await photoOrThrow(o.tree, o.mediaKey, o.locale);
@@ -109,6 +110,8 @@ export async function findFaces(o: { tree: string; mediaKey: string; locale: AiL
     const where = r.x === null ? '' : ` Their face is at x ${r.x.toFixed(2)}, y ${r.y!.toFixed(2)}, width ${r.w!.toFixed(2)}, height ${r.h!.toFixed(2)} (fractions of the picture).`;
     lines.push(`Image ${parts.length} is ${[r.given, r.surname].filter(Boolean).join(' ')} (id ${r.id}).${where}`);
   }
+  // Without a confirmed tag or a profile photo there is no one to suggest: say so, and don't spend on a guess.
+  if (!ids.length) return { faces: [], references: 0 };
   const system = [
     'You find the faces in the first image, a family photo. For each face, give its box as fractions of the whole image (x, y from the top left; w, h), and suggest which candidate person it may be, from the images after it.',
     'Only suggest a candidate when the faces look alike; confidence is 0 to 1 and an honest guess. Suggestions are only suggestions. Give each reason in ' + LANG[o.locale] + ', one short sentence.',
@@ -125,7 +128,6 @@ export async function findFaces(o: { tree: string; mediaKey: string; locale: AiL
     maxTokens: 2000,
     timeoutMs: 90_000,
   });
-  await spend(o.tree, reply.tokens);
   const parsed = faceResultSchema.safeParse(reply.json);
   if (!parsed.success) throw new AiError('bad-output', c('ai.errBadOutput'));
   const known = new Set(ids);
@@ -138,7 +140,7 @@ export async function findFaces(o: { tree: string; mediaKey: string; locale: AiL
         .map((s) => ({ personId: s.personId, confidence: clamp(s.confidence), reason: s.reason.slice(0, 200) })),
     }))
     .filter((f) => f.box.w > 0 && f.box.h > 0);
-  return { faces };
+  return { faces, references: ids.length };
 }
 
 // ---------- a portrait look ----------
@@ -169,7 +171,6 @@ export async function avatarFromPhoto(o: { tree: string; personId: string; media
     maxTokens: 800,
     timeoutMs: 60_000,
   });
-  await spend(o.tree, reply.tokens);
   const parsed = lookSchema.safeParse(reply.json);
   if (!parsed.success) throw new AiError('bad-output', c('ai.errBadOutput'));
   return parsed.data as Look;
@@ -223,7 +224,6 @@ export async function armsFromName(o: { tree: string; surname: string; country?:
     maxTokens: 1200,
     timeoutMs: 60_000,
   });
-  await spend(o.tree, reply.tokens);
   const parsed = armsDesignSchema.safeParse(reply.json);
   if (!parsed.success) throw new AiError('bad-output', c('ai.errBadOutput'));
   return parsed.data.designs;

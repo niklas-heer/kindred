@@ -9,7 +9,7 @@ export interface AiFace { box: Box; suggestions: AiSuggestion[] }
 
 interface AiModule {
   aiStatus: (input: { data: { tree: string } }) => Promise<{ features?: Record<string, boolean | undefined> }>;
-  aiFindFaces: (input: { data: { tree: string; mediaKey: string; locale: string } }) => Promise<{ faces: AiFace[] }>;
+  aiFindFaces: (input: { data: { tree: string; mediaKey: string; locale: string } }) => Promise<{ faces: AiFace[]; references: number }>;
 }
 
 const modules = import.meta.glob('/src/lib/ai.functions.ts') as Record<string, () => Promise<Partial<AiModule>>>;
@@ -36,9 +36,12 @@ export async function facesOn(tree: string): Promise<boolean> {
   }
 }
 
-/** The faces the AI finds in a picture. Throws when the feature is unavailable or the search fails. */
-export async function findFaces(tree: string, mediaKey: string, locale: string): Promise<AiFace[]> {
+/**
+ * The faces the AI finds in a picture, and how many people it had to recognise them by (`references`: confirmed
+ * tags and profile photos). Throws when the feature is unavailable or the search fails.
+ */
+export async function findFaces(tree: string, mediaKey: string, locale: string): Promise<{ faces: AiFace[]; references: number }> {
   const m = await aiModule();
   if (!m) throw new Error('lb.err_faces');
-  return (await m.aiFindFaces({ data: { tree, mediaKey, locale } })).faces;
+  return m.aiFindFaces({ data: { tree, mediaKey, locale } });
 }

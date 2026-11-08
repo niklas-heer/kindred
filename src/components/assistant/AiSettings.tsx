@@ -173,6 +173,7 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
       <section className="ui-card ai-section" aria-labelledby="ai-privacy-h">
         <h2 id="ai-privacy-h">{t('ai.privacyTitle')}</h2>
         <p className="ai-privacy">{t('ai.privacy', { provider: PROVIDER_NOTE[provider] })}</p>
+        <p className="ai-privacy">{t('ai.privacyEditors', { provider: PROVIDER_NOTE[provider] })}</p>
       </section>
 
       {notice && <p className={notice.ok ? 'ai-card-state ok' : 'ai-card-error'} role={notice.ok ? 'status' : 'alert'}>{notice.text}</p>}

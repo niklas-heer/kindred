@@ -13,7 +13,7 @@ import { displayName } from '~/lib/graph';
 import { confirmPhotoTag, removeGalleryPhoto, removePhotoTag, saveGalleryPhoto, suggestPhotoTags, tagPhoto } from '~/lib/photos.functions';
 import { useCan } from '~/lib/session';
 import type { GPerson } from '~/lib/types';
-import { facesOn, findFaces, type AiFace } from './aiFaces';
+import { facesOn, findFaces } from './aiFaces';
 import { PersonPicker } from './PersonPicker';
 import { refreshPhotos } from './refresh';
 import { mediaUrl, type Album, type Box, type MediaItem } from './types';
@@ -166,7 +166,12 @@ function Photo({ tree, item, index, count, albums, onGo, onDirty }: {
     setAiBusy(true);
     setAiNote(null);
     try {
-      const faces: AiFace[] = await findFaces(tree, item.key, t.locale);
+      const { faces, references } = await findFaces(tree, item.key, t.locale);
+      // Nobody is confirmed or has a profile photo yet, so there is nothing to recognise faces by.
+      if (!references) {
+        setAiNote(g('lb.ai_no_refs'));
+        return;
+      }
       const reasons: Record<string, string> = {};
       const rows = faces.flatMap((face) =>
         face.suggestions

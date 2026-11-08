@@ -116,6 +116,8 @@ export const proposalArgs = {
     type: z.enum(FIELD_TYPES),
     label: z.string().trim().max(60).optional(),
     value: z.record(z.string(), z.string().max(5000)),
+    /** Set by the server to the type's default (privateByDefault); the approver may change it on the card. */
+    private: z.boolean().optional(),
   }),
 } as const;
 

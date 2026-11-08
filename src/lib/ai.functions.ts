@@ -91,7 +91,7 @@ export const aiChatLoad = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireMember(data.tree);
-    return (await import('./ai/chat.server')).loadChat(data.tree, m.user.id);
+    return (await import('./ai/chat.server')).loadChat(data.tree, m.user.id, m.role);
   });
 
 export const aiChatQuery = (t: string) => queryOptions({ queryKey: ['ai-chat', t], queryFn: () => aiChatLoad({ data: { tree: t } }), staleTime: 0 });
@@ -114,7 +114,7 @@ export const aiChatMark = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, itemId: z.string().max(64), proposalId: z.string().max(64), status: z.enum(['done', 'dismissed']) }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireMember(data.tree);
-    await (await import('./ai/chat.server')).markProposal(data.tree, m.user.id, data.itemId, data.proposalId, data.status);
+    await (await import('./ai/chat.server')).markProposal(data.tree, m.user.id, m.role, data.itemId, data.proposalId, data.status);
   });
 
 // ---------- suggestions from pictures and names ----------

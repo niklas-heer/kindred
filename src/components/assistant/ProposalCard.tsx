@@ -26,6 +26,8 @@ export function ProposalCard({ tree, itemId, proposal }: { tree: string; itemId:
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A new detail starts as the family's rule says (private for a health detail); the approver may change it.
+  const [isPrivate, setPrivate] = useState(proposal.args.private === true);
   // One key per card: a retry of the same approval replays the stored result rather than writing twice.
   const [keys] = useState<ApprovalKeys>(() => approvalKeys());
 
@@ -41,6 +43,7 @@ export function ProposalCard({ tree, itemId, proposal }: { tree: string; itemId:
       if (v.trim() === '') delete args[k];
       else args[k] = v.trim();
     }
+    if (proposal.kind === 'add-field') args.private = isPrivate;
     try {
       await applyProposal(tree, proposal, args, keys, qc);
       setStatus('done');
@@ -73,6 +76,12 @@ export function ProposalCard({ tree, itemId, proposal }: { tree: string; itemId:
             </div>
           ))}
         </dl>
+      )}
+      {open && proposal.kind === 'add-field' && (
+        <label className="ai-switch">
+          <input type="checkbox" role="switch" checked={isPrivate} onChange={(e) => setPrivate(e.target.checked)} />
+          <span>{t('ai.privateSwitch')}</span>
+        </label>
       )}
       {open && editing && (
         <div className="ai-card-edit">
