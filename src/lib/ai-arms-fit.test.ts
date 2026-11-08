@@ -24,7 +24,7 @@ const { openSqlite, closeAccounts } = await load<typeof import('./store/node.ts'
 const { store } = await load<typeof import('./store/index.ts')>('/src/lib/store/index.ts');
 const { startSession } = await load<typeof import('./auth/session.server.ts')>('/src/lib/auth/session.server.ts');
 const { newUser, upsertMembership } = await load<typeof import('./auth/store.server.ts')>('/src/lib/auth/store.server.ts');
-const { checkArms, describeArms, fitSystem, withFitFixture } = await load<typeof import('./ai/arms-fit.server.ts')>('/src/lib/ai/arms-fit.server.ts');
+const { checkArms, describeArms, fitSystem, fitUser, withFitFixture } = await load<typeof import('./ai/arms-fit.server.ts')>('/src/lib/ai/arms-fit.server.ts');
 const { checkArmsFit } = await load<typeof import('./ai/arms-fit.functions.ts')>('/src/lib/ai/arms-fit.functions.ts');
 const { budgeted, spentThisMonth, OFF } = await load<typeof import('./ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
 const providers = await load<typeof import('./ai/providers.server.ts')>('/src/lib/ai/providers.server.ts');
@@ -227,6 +227,15 @@ test('the prompt judges the whole design: not a checklist, and adding is not the
   assert.match(system, /good enough counts as fitting/);
   assert.match(system, /Adding more is never the default advice/);
   assert.match(system, /"reconsider" rarely/);
+});
+
+test('several chosen origins are one pool: all are shown to the check, and one represented meaning is enough', () => {
+  const m = (id: string, root: string, meaning: string) => ({ id, language: '', root, meaning, attestation: 'well-attested' as const, ideas: [], chosen: true });
+  const user = fitUser({ name: 'Heer', familyWords: '', chosen: [m('a', 'heer', 'lord'), m('b', 'hehr', 'noble')], arms: { shield: 'heater', field: { division: 'plain', tinctures: ['azure'], line: 'straight' }, layers: [] } as never, history: [] });
+  assert.match(user, /heer/);
+  assert.match(user, /hehr/);
+  assert.match(user, /possible origins[^\n]*only one of them/);
+  assert.match(fitSystem('en'), /One clear charge that speaks to one real meaning fits, even when the other meanings have no element/);
 });
 
 // ---------- the budget ----------

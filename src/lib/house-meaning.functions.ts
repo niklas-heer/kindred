@@ -4,8 +4,9 @@
 import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
+import { can } from './roles';
 import { nameMeaningSchema } from './ai/types';
-import { MAX_SAVED_MEANINGS } from './house-meaning';
+import { MAX_SAVED_MEANINGS, onlyChosen } from './house-meaning';
 
 const tree = z.string().regex(/^[a-z0-9-]{1,64}$/);
 const id = z.string().min(1).max(100);
@@ -19,8 +20,10 @@ const savedMeaning = nameMeaningSchema.extend({ chosen: z.boolean() });
 export const getHouseMeanings = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
-    await (await guard()).requireMember(data.tree);
-    return (await import('./house-meaning.server')).readMeanings(data.tree);
+    const m = await (await guard()).requireMember(data.tree);
+    const all = await (await import('./house-meaning.server')).readMeanings(data.tree);
+    // A steward gets the whole research (to change the selection); every other reader only the origins that were selected.
+    return can(m.role, 'edit-house') ? all : onlyChosen(all);
   });
 
 export const houseMeaningsQuery = (tree: string) =>
@@ -47,12 +50,12 @@ export const getCollectedMeanings = createServerFn({ method: 'GET' })
 export const collectedMeaningsQuery = (tree: string) =>
   queryOptions({ queryKey: ['collected-meanings', tree], queryFn: () => getCollectedMeanings({ data: { tree } }) });
 
-/** One click on one collected meaning: it is saved as the house's meaning, and only now may the arms be checked against it. */
+/** The steward confirms one or several collected meanings as the house's possible origins; only now may the arms be checked against them. */
 export const chooseCollectedMeaning = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, house: id, opKey, meaning: id }))
+  .validator(z.object({ tree, house: id, opKey, meanings: z.array(id).min(1).max(MAX_SAVED_MEANINGS) }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireCan(data.tree, 'edit-house');
-    return (await import('./house-meaning.server')).chooseCollected(data.tree, data.house, data.meaning, { key: data.opKey, user: m.user.id, payload: { house: data.house, meaning: data.meaning } });
+    return (await import('./house-meaning.server')).chooseCollected(data.tree, data.house, data.meanings, { key: data.opKey, user: m.user.id, payload: { house: data.house, meanings: data.meanings } });
   });
 
 /** The steward wants none of the collected meanings: they go, and the task does not collect this name again. */

@@ -95,6 +95,11 @@ export function chosenMeanings(s: Pick<SavedMeaning, 'meanings'> | undefined): S
   return s ? s.meanings.filter((m) => m.chosen) : [];
 }
 
+/** A research with only the origins the steward selected: what every reader but a steward is given. */
+export function onlyChosen(all: Record<string, SavedMeaning>): Record<string, SavedMeaning> {
+  return Object.fromEntries(Object.entries(all).map(([h, s]) => [h, { ...s, meanings: chosenMeanings(s) }]));
+}
+
 /** One line for a list: the family's words, else the first chosen meaning. Empty when nothing is saved. */
 export function meaningLine(s: SavedMeaning | undefined): string {
   if (!s) return '';

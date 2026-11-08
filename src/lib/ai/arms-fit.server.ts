@@ -81,7 +81,7 @@ export function fitUser(o: { name: string; familyWords: string; chosen: SavedMea
   return [
     `House name: ${o.name}`,
     o.familyWords ? `The family says: "${o.familyWords}"` : '',
-    'Chosen meanings:',
+    'Chosen meanings (possible origins of the name; the arms need to speak to only one of them):',
     ...o.chosen.map(meaningLine),
     'The arms:',
     describeArms(o.arms),

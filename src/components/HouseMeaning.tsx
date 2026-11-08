@@ -3,7 +3,7 @@
 // card and the badges are for stewards only: a viewer or an editor gets no query for them, and the server refuses them too.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Check, PenLine, Quote, RefreshCw, Sparkles } from 'lucide-react';
+import { Check, ChevronDown, PenLine, Quote, RefreshCw, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { useAiStatus } from './assistant/store';
 import { checkArmsFit } from '~/lib/ai/arms-fit.functions';
@@ -14,8 +14,9 @@ import { useFamily } from '~/lib/family';
 import {
   chosenMeanings, generatedArms, needsAttention, reviewBadge, type ArmsReview, type FitVerdict, type ReviewBadge, type SavedMeaning,
 } from '~/lib/house-meaning';
-import { armsReviewsQuery, collectedMeaningsQuery, dismissArmsReview, houseMeaningsQuery } from '~/lib/house-meaning.functions';
+import { armsReviewsQuery, collectedMeaningsQuery, dismissArmsReview, houseMeaningsQuery, saveHouseMeaning } from '~/lib/house-meaning.functions';
 import { locales, useT, type Key } from '~/lib/i18n';
+import type { SavedMeaningRow } from '~/lib/house-meaning';
 import { useCan } from '~/lib/session';
 import type { House } from '~/lib/types';
 import '~/styles/house.css';
@@ -63,9 +64,105 @@ export function useStewardBadges(tree: string) {
   return { canEdit, ready, badges, count: Object.keys(badges).length, meanings: meaningsQ.data };
 }
 
-/** The meaning of a house's name, shown to everyone. Nothing is shown when it is not saved, except the stewards' link to research it. */
-export function HouseMeaning({ saved, canEdit, onResearch }: { saved?: SavedMeaning; canEdit: boolean; onResearch: () => void }) {
+/** One origin as the house and the pickers show it: where the root comes from, what it means, how sure that is, and the sources. */
+export function OriginBody({ m }: { m: SavedMeaningRow }) {
   const t = useT();
+  return (
+    <>
+      <span className="hm-head">
+        {m.root && <span className="hm-root">{m.root}</span>}
+        {m.language && <small className="hm-lang">{m.language}</small>}
+        <span className={`hm-badge ${m.attestation}`}>{t(ATTEST_KEY[m.attestation])}</span>
+      </span>
+      <span className="hm-meaning">{m.meaning}</span>
+    </>
+  );
+}
+
+export function OriginSources({ m, className = 'hm-sources' }: { m: SavedMeaningRow; className?: string }) {
+  const t = useT();
+  if (!m.sources || m.sources.length === 0) return null;
+  return (
+    <p className={className}>
+      <small>{t('houses.meaning.sources')}:</small>{' '}
+      {m.sources.map((s, k) => (
+        <span key={s.url}>
+          {k > 0 && ', '}
+          <a href={s.url} target="_blank" rel="noopener noreferrer">{s.title || s.url}</a>
+        </span>
+      ))}
+    </p>
+  );
+}
+
+/** Several origins can be selected at once: each is a checkbox row, with its sources beneath. */
+export function OriginPicker({ meanings, selected, onToggle, disabled, label }: {
+  meanings: SavedMeaningRow[];
+  selected: ReadonlySet<string>;
+  onToggle: (id: string) => void;
+  disabled?: boolean;
+  label: string;
+}) {
+  return (
+    <ul className="hm-choices" aria-label={label}>
+      {meanings.map((m) => (
+        <li key={m.id}>
+          <label className={`hm-choice${selected.has(m.id) ? ' on' : ''}`}>
+            <input type="checkbox" className="hm-check" checked={selected.has(m.id)} disabled={disabled} onChange={() => onToggle(m.id)} />
+            <span className="hm-choice-body"><OriginBody m={m} /></span>
+          </label>
+          <OriginSources m={m} className="hm-sources hm-choice-sources" />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** How many origins show before "show more": a long list stays short on a phone. */
+const ORIGINS_SHOWN = 3;
+
+/**
+ * The possible origins of a house's name, shown to everyone: every origin the steward selected, each as a possibility, not
+ * one definite answer. A steward can change the selection here. Nothing is shown when nothing is saved, except the stewards'
+ * link to research it.
+ */
+export function HouseMeaning({ tree, house, aiOn = false, saved, canEdit, onResearch }: {
+  tree: string;
+  house: string;
+  aiOn?: boolean;
+  saved?: SavedMeaning;
+  canEdit: boolean;
+  onResearch: () => void;
+}) {
+  const t = useT();
+  const qc = useQueryClient();
+  const [keys] = useState(() => opKeys());
+  const [all, setAll] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+
+  const save = useMutation({
+    mutationFn: (body: NonNullable<typeof saved>) => saveHouseMeaning({
+      data: {
+        tree, house, opKey: keys.for('origins', body.meanings.map((m) => [m.id, m.chosen])),
+        name: body.name, familyWords: body.familyWords, webSearched: body.webSearched, note: body.note,
+        meanings: body.meanings.map(({ sources, ...m }) => ({ ...m, ...(sources && sources.length ? { sources } : {}) })),
+      },
+    }),
+    onSuccess: (s) => {
+      keys.clear();
+      qc.setQueryData(houseMeaningsQuery(tree).queryKey, (old: Record<string, SavedMeaning> | undefined) => ({ ...old, [s.house]: s }));
+      void qc.invalidateQueries({ queryKey: collectedMeaningsQuery(tree).queryKey });
+      setEditing(false);
+      // The selection changed, so the arms are checked against it again (the server skips a check it already has).
+      if (aiOn) {
+        void checkArmsFit({ data: { tree, house, opKey: opKeys().for('check', { house }), locale: toAiLocale(t.locale), force: false } })
+          .catch(() => undefined)
+          .finally(() => void qc.invalidateQueries({ queryKey: armsReviewsQuery(tree).queryKey }));
+      }
+    },
+  });
+
   if (!saved) {
     if (!canEdit) return null;
     return (
@@ -77,6 +174,11 @@ export function HouseMeaning({ saved, canEdit, onResearch }: { saved?: SavedMean
   // The family's own words lead; the research's copy of them is not repeated in the list.
   const chosen = chosenMeanings(saved).filter((m) => !(m.attestation === 'family' && saved.familyWords && m.meaning === saved.familyWords));
   const guesses = chosen.some((m) => m.attestation === 'speculative');
+  const visible = all ? chosen : chosen.slice(0, ORIGINS_SHOWN);
+  const hidden = chosen.length - visible.length;
+  const failure = (e: unknown) => (e instanceof Error && e.message ? errorText(e, t.locale) : t('houses.meaning.saveFailed'));
+  const startEdit = () => { setPicked(new Set(chosenMeanings(saved).map((m) => m.id))); setEditing(true); };
+  const toggle = (id: string) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   return (
     <section className="hm" aria-labelledby="hm-title">
       <h2 className="rule" id="hm-title">{t('houses.meaning.title')}</h2>
@@ -89,9 +191,10 @@ export function HouseMeaning({ saved, canEdit, onResearch }: { saved?: SavedMean
       )}
       {chosen.length > 0 && (
         <>
-          <h3 className="hm-chosen-title">{t('houses.meaning.chosen')}</h3>
+          <h3 className="hm-chosen-title">{t(chosen.length > 1 ? 'houses.meaning.origins' : 'houses.meaning.origin')}</h3>
+          {chosen.length > 1 && <p className="hm-basis subtle">{t('houses.meaning.possible', { count: chosen.length })}</p>}
           <ul className="hm-list">
-            {chosen.map((m) => (
+            {visible.map((m) => (
               <li key={m.id} className="ui-card hm-item">
                 <div className="hm-head">
                   {m.root && <span className="hm-root">{m.root}</span>}
@@ -99,27 +202,51 @@ export function HouseMeaning({ saved, canEdit, onResearch }: { saved?: SavedMean
                   <span className={`hm-badge ${m.attestation}`}>{t(ATTEST_KEY[m.attestation])}</span>
                 </div>
                 <p className="hm-meaning">{m.meaning}</p>
-                {m.sources && m.sources.length > 0 && (
-                  <p className="hm-sources">
-                    <small>{t('houses.meaning.sources')}:</small>{' '}
-                    {m.sources.map((s, k) => (
-                      <span key={s.url}>
-                        {k > 0 && ', '}
-                        <a href={s.url} target="_blank" rel="noopener noreferrer">{s.title || s.url}</a>
-                      </span>
-                    ))}
-                  </p>
-                )}
+                <OriginSources m={m} />
               </li>
             ))}
           </ul>
+          {chosen.length > ORIGINS_SHOWN && (
+            <p className="hm-quiet">
+              <button type="button" className="hm-link" aria-expanded={all} onClick={() => setAll((v) => !v)}>
+                <ChevronDown size={14} aria-hidden className={all ? 'hm-flip' : undefined} /> {t(all ? 'houses.meaning.showFewer' : 'houses.meaning.showMore', { count: hidden })}
+              </button>
+            </p>
+          )}
         </>
       )}
       <p className="hm-basis subtle">{t(saved.webSearched ? 'houses.meaning.basisWeb' : 'houses.meaning.basisKnowledge')}</p>
       {guesses && <p className="hm-basis subtle">{t('houses.meaning.guessNote')}</p>}
       {saved.note && <p className="hm-basis subtle">{saved.note}</p>}
-      {canEdit && (
+      {canEdit && editing && (
+        <div className="ui-card hm-review hm-collected" aria-busy={save.isPending || undefined}>
+          <p className="hm-reason">{t('houses.meaning.changePrompt')}</p>
+          <OriginPicker
+            meanings={saved.meanings}
+            selected={picked}
+            onToggle={toggle}
+            disabled={save.isPending}
+            label={t('houses.meaning.changeLabel')}
+          />
+          <div className="hm-review-actions">
+            <button
+              type="button"
+              className="btn primary"
+              disabled={picked.size === 0 || save.isPending}
+              onClick={() => save.mutate({ ...saved, meanings: saved.meanings.map((m) => ({ ...m, chosen: picked.has(m.id) })) })}
+            >
+              <Check size={16} aria-hidden /> {t('houses.meaning.changeSave', { count: picked.size })}
+            </button>
+            <button type="button" className="btn" disabled={save.isPending} onClick={() => setEditing(false)}>{t('houses.meaning.changeCancel')}</button>
+          </div>
+          {save.isError && !save.isPending && <p className="hp-error" role="alert">{failure(save.error)}</p>}
+        </div>
+      )}
+      {canEdit && !editing && (
         <p className="hm-quiet">
+          {saved.meanings.length > 1 && (
+            <button type="button" className="hm-link" onClick={startEdit}><PenLine size={14} aria-hidden /> {t('houses.meaning.change')}</button>
+          )}
           <button type="button" className="hm-link" onClick={onResearch}><Sparkles size={14} aria-hidden /> {t('houses.meaning.researchAgain')}</button>
           <small className="subtle"> · {t('houses.meaning.savedWhen', { when: whenText(saved.savedAt, t.locale) })}</small>
         </p>

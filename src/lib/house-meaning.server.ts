@@ -234,15 +234,16 @@ const unchosen = async (d: Db, house: string): Promise<{ row: MeaningRow; saved:
 };
 
 /**
- * One collected meaning becomes the house's saved meaning. The rest stay, unchosen, for the research panel. Refused when
+ * One or several collected meanings become the house's possible origins. The rest stay, unchosen, for the research panel. Refused when
  * the house has no collection, or someone chose from it already. Nothing else runs here: the arms are checked after this,
  * by the existing check, at the steward's request.
  */
-export function chooseCollected(tree: string, house: string, meaning: string, op: OpKey, now = Date.now()): Promise<SavedMeaning> {
+export function chooseCollected(tree: string, house: string, picked: string | string[], op: OpKey, now = Date.now()): Promise<SavedMeaning> {
   return once(tree, op, 'chooseCollectedMeaning', async (d) => {
     const { row, saved } = await unchosen(d, house);
-    if (!saved.meanings.some((m) => m.id === meaning)) throw new Error('houses.meaning.err_bad_input');
-    const meanings = saved.meanings.map((m) => ({ ...m, chosen: m.id === meaning }));
+    const ids = new Set(Array.isArray(picked) ? picked : [picked]);
+    if (ids.size === 0 || [...ids].some((id) => !saved.meanings.some((m) => m.id === id))) throw new Error('houses.meaning.err_bad_input');
+    const meanings = saved.meanings.map((m) => ({ ...m, chosen: ids.has(m.id) }));
     return {
       writes: [
         guard('(SELECT saved_at FROM house_meaning WHERE house = ?) = ?', house, row.saved_at),

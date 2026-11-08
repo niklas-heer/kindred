@@ -192,7 +192,7 @@ function HousePage() {
           </div>
         </header>
         <ArmsMeanings arms={asV2(house.arms)} label={t('heraldry.means.open')} className="hp-means" />
-        <HouseMeaning saved={savedMeaning} canEdit={canEdit} onResearch={() => { setArmsTab('name'); setArmsOpen(true); }} />
+        <HouseMeaning tree={tree} house={house.id} aiOn={aiOn} saved={savedMeaning} canEdit={canEdit} onResearch={() => { setArmsTab('name'); setArmsOpen(true); }} />
         {canEdit && <CollectedMeanings tree={tree} house={house.id} collected={collectedQ.data?.[house.id]} aiOn={aiOn} onResearch={() => { setArmsTab('name'); setArmsOpen(true); }} />}
         {canEdit && savedMeaning && (aiOn || review) && (
           <ArmsReviewCard tree={tree} house={house} review={review} aiOn={aiOn} onDesigner={(tab, revise) => { setArmsTab(tab); setArmsRevise(revise); setArmsOpen(true); }} />

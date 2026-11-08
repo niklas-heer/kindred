@@ -315,7 +315,7 @@ test('roles: only a steward reads, chooses or dismisses a collection; other read
   const editor = await memberWith(tree, 'editor');
   const steward = await memberWith(tree, 'steward');
   const status = (e: unknown) => (e as { status?: number }).status;
-  const data = { tree, house: 'h1', meaning: 'm1', opKey: 'choose-opkey-1' };
+  const data = { tree, house: 'h1', meanings: ['m1'], opKey: 'choose-opkey-1' };
   for (const cookie of [viewer, editor]) {
     await assert.rejects(asReader(cookie, () => fns.getCollectedMeanings({ data: { tree } })), (e: unknown) => status(e) === 403);
     await assert.rejects(asReader(cookie, () => fns.chooseCollectedMeaning({ data })), (e: unknown) => status(e) === 403);
@@ -327,6 +327,29 @@ test('roles: only a steward reads, chooses or dismisses a collection; other read
   const saved = await asReader(steward, () => fns.chooseCollectedMeaning({ data }));
   assert.equal(saved.meanings.filter((m) => m.chosen).length, 1);
   assert.deepEqual(Object.keys(await asReader(viewer, () => fns.getHouseMeanings({ data: { tree } }))), ['h1'], 'once chosen, every reader sees it');
+});
+
+test('several origins can be chosen at once; a viewer sees only the chosen ones, a steward sees all', async () => {
+  const tree = 'multi';
+  makeFamily(tree, ['Heer']);
+  await setupAi(tree);
+  await run(tree, stub().adapter);
+  const viewer = await memberWith(tree, 'viewer');
+  const steward = await memberWith(tree, 'steward');
+  const ids = (await asReader(steward, () => fns.getCollectedMeanings({ data: { tree } }))).h1.meanings.map((m) => m.id);
+  assert.equal(ids.length, 2);
+  await assert.rejects(asReader(steward, () => fns.chooseCollectedMeaning({ data: { tree, house: 'h1', meanings: ['nope'], opKey: 'choose-multi-0' } })));
+  const saved = await asReader(steward, () => fns.chooseCollectedMeaning({ data: { tree, house: 'h1', meanings: ids, opKey: 'choose-multi-1' } }));
+  assert.deepEqual(saved.meanings.filter((m) => m.chosen).map((m) => m.id), ids);
+  // The steward narrows the selection later: the viewer then sees just that origin.
+  await asReader(steward, () => fns.saveHouseMeaning({ data: {
+    tree, house: 'h1', opKey: 'narrow-multi-1', name: saved.name, familyWords: saved.familyWords, webSearched: saved.webSearched, note: saved.note,
+    meanings: saved.meanings.map((m) => ({ ...m, chosen: m.id === ids[1] })),
+  } }));
+  const seen = await asReader(viewer, () => fns.getHouseMeanings({ data: { tree } }));
+  assert.deepEqual(seen.h1.meanings.map((m) => m.id), [ids[1]], 'nothing unchosen reaches a viewer');
+  const all = await asReader(steward, () => fns.getHouseMeanings({ data: { tree } }));
+  assert.equal(all.h1.meanings.length, 2);
 });
 
 test('the badge: collected meanings come after an arms review and before "not researched"', () => {
