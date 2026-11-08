@@ -29,9 +29,9 @@ const HEER_MEANINGS = [
 
 /** The three designs the fake draws; each names a chosen meaning id (cycled) and uses only catalogue charges. */
 const DESIGNS = [
-  { explanation: 'Fake: a lion, for a lord’s courage', field: ['azure'], charges: [{ charge: 'lion', tincture: 'or', count: 1 }] },
+  { explanation: 'Fake: a lion, for a lord’s courage', field: ['azure'], charges: [{ charge: 'lion', tincture: 'or', count: 1 }], symbolism: [{ element: 'azure', why: 'Azure for the loyalty and truth the name stands for' }, { element: 'a lion', why: 'a lion for a lord’s courage' }] },
   { explanation: 'Fake: three stars, for honour', field: ['gules'], ordinary: { kind: 'chevron', tincture: 'argent' }, charges: [{ charge: 'mullet', tincture: 'or', count: 3 }] },
-  { explanation: 'Fake: a tower, for a steward’s house', field: ['vert'], charges: [{ charge: 'tower', tincture: 'argent', count: 1 }] },
+  { explanation: 'Fake: a tower, for a steward’s house', field: ['vert'], charges: [{ charge: 'tower', tincture: 'argent', count: 1 }], symbolism: [{ element: 'a tower', why: 'a tower for the army, Heer' }] },
 ];
 
 function fixture(name: string, prompt: string, user: string, webSearch: boolean): { json: unknown; sources?: { url: string; title?: string }[] } {

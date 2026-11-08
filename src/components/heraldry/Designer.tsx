@@ -24,13 +24,15 @@ import { Range } from '../ui/Range';
 import { Select } from '../ui/Select';
 import { Switch } from '../ui/Switch';
 import { Tab, TabList, TabPanel, Tabs } from '../ui/Tabs';
-import { chargeArtV2, glyph, loadLibrary, useLibraryReady } from './art';
+import { glyph, loadLibrary, useLibraryReady } from './art';
 import { blazonAchievement, blazonV2, chargeNoun } from './blazon';
 import { CANTING_SOURCE_NOTE, cantingArms } from './canting';
 import { CATEGORIES, CHARGE_BY_ID, CHARGES_V2, HELM_GLYPH, SUPPORTERS, type ChargeCategory } from './catalogue';
 import { asV2, storeV2 } from './convert';
 import { Flag } from './Flag';
 import { NameResearchPanel } from './NameResearch';
+import { ArmsMeanings, ChargeGlyph, useWide } from './ArmsMeanings';
+import { chargeMeaning, divisionMeaning, ordinaryMeaning, tinctureMeaning } from './meanings';
 import { arrangementsFor, COTISABLE, edge, tinctureCount, type Pt } from './geometry';
 import { PRESETS } from './presets';
 import { ArmsV2View, fieldTinctures, TinctureSwatch } from './render';
@@ -128,6 +130,8 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
   const clashes = tinctureClashesV2(a, tr);
   const shield = blazonV2(a);
   const achievementText = blazonAchievement(a.achievement);
+  // "What it means" is open on a wide screen and folded on a phone, where the pickers have no hover.
+  const wide = useWide();
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (!(e.metaKey || e.ctrlKey) || (e.target as HTMLElement).closest('input, textarea')) return;
@@ -197,6 +201,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
             <p className="ae-blazon" aria-live="polite"><span className="ae-blazon-label">{tr('heraldry.blazon')}</span> {shield}.{achievementText && <> <span className="ae-blazon-ach">{achievementText}</span></>}</p>
           </div>
         </section>
+        <ArmsMeanings arms={a} open={wide} />
         <div className="ae-meta">
           <div className="ae-rule" aria-live="polite">
             {clashes.length > 0 && (
@@ -431,17 +436,6 @@ function LayerRow({ current, onSelect, title, hint, icon, onUp, onDown, onRemove
 
 const MiniShield = ({ arms, size = 20 }: { arms: ArmsV2; size?: number }) => <ArmsV2View arms={arms} size={size} className="ae-mini" />;
 
-function ChargeGlyph({ id, size = 30 }: { id: string; size?: number }) {
-  useLibraryReady();
-  const art = chargeArtV2(id);
-  if (!art) return <span className="ae-glyph-wait" style={{ width: size, height: size }} />;
-  return (
-    <svg width={size} height={size} viewBox={art.viewBox} aria-hidden className="ae-glyph">
-      <g fill="currentColor" color="currentColor" dangerouslySetInnerHTML={{ __html: art.body }} />
-    </svg>
-  );
-}
-
 // ---------- the inspector ----------
 
 function Inspector({ arms, sel, setArms, motto, onFull }: { arms: ArmsV2; sel: Sel; setArms: (a: ArmsV2, k?: string) => void; motto: string; onFull: () => void }) {
@@ -473,7 +467,7 @@ function Inspector({ arms, sel, setArms, motto, onFull }: { arms: ArmsV2; sel: S
     return (
       <>
         <Section title={tr('heraldry.division')}>
-          <Choices label={tr('heraldry.division')} className="ae-tiles ae-tiles-shield" value={div} onChange={setDiv}
+          <Choices label={tr('heraldry.division')} className="ae-tiles ae-tiles-shield" value={div} onChange={setDiv} hint={(v) => tr(divisionMeaning(v))}
             options={DIVISIONS_V2.map((d) => ({ value: d.id, label: tr(d.label) }))}
             render={(o) => <><MiniShield arms={{ shield: arms.shield, field: { division: o.value, tinctures: tinctureCount(o.value) === 3 ? [ft[0], ft[1] ?? contrastFor([ft[0]]), ft[2] ?? 'azure'] : [ft[0], ft[1] ?? contrastFor([ft[0]])], line: 'straight' }, layers: [] }} size={34} /><small>{o.label}</small></>} />
         </Section>
@@ -507,7 +501,7 @@ function Inspector({ arms, sel, setArms, motto, onFull }: { arms: ArmsV2; sel: S
     return (
       <>
         <Section title={tr('heraldry.ordinary')}>
-          <Choices label={tr('heraldry.ordinary')} className="ae-tiles ae-tiles-shield" value={layer.kind} onChange={(kind: OrdinaryKind) => patch({ kind })}
+          <Choices label={tr('heraldry.ordinary')} className="ae-tiles ae-tiles-shield" value={layer.kind} onChange={(kind: OrdinaryKind) => patch({ kind })} hint={(v) => tr(ordinaryMeaning(v))}
             options={ORDINARIES.map((o) => ({ value: o.id, label: tr(o.label) }))}
             render={(o) => <><MiniShield arms={{ shield: arms.shield, field: { division: 'plain', tinctures: [ft[0]], line: 'straight' }, layers: [{ ...layer, kind: o.value, counterchanged: false, tincture: contrastFor([ft[0]], layer.tincture) }] }} size={34} /><small>{o.label}</small></>} />
         </Section>
@@ -667,7 +661,7 @@ function TincturePicker({ label, value, onChange, under = [], allowProper, charg
     return { value: t.id, label: `${tr(t.label)} (${tr(t.plain)})${breaks ? tr('heraldry.breaks_rule') : ''}`, group: groupOf(t.id), breaks };
   });
   return (
-    <Choices label={label} className={`ae-tinctures${compact ? ' compact' : ''}`} value={value} onChange={onChange} disabled={disabled} options={options}
+    <Choices label={label} className={`ae-tinctures${compact ? ' compact' : ''}`} value={value} onChange={onChange} disabled={disabled} options={options} hint={(v) => tr(tinctureMeaning(v))}
       groupLabel={(g) => { const k = GROUPS.find((x) => x.kind === g)?.label; return k ? tr(k) : undefined; }}
       render={(o) => (
         <>
@@ -727,10 +721,11 @@ function ChargePicker({ value, onChange, allowNone, compact }: { value: string; 
       {options.length === 0 ? (
         <p className="subtle ae-lead">{tr('heraldry.no_charge_matches', { q })}</p>
       ) : (
-        <Choices label={tr('heraldry.charge')} className="ae-tiles ae-glyphs" value={value} onChange={onChange} options={options}
+        <Choices label={tr('heraldry.charge')} className="ae-tiles ae-glyphs" value={value} onChange={onChange} options={options} hint={(v) => (v ? tr(chargeMeaning(v)) : undefined)}
           render={(o) => (o.value ? <ChargeGlyph id={o.value} size={compact ? 26 : 30} /> : <span className="ae-none" aria-hidden>—</span>)} />
       )}
       <p className="ae-charge-name subtle">{current ? <><b>{tr(current.label)}</b>{!ready && current.gi ? ` · ${tr('heraldry.loading_library')}` : ''}</> : allowNone ? tr('heraldry.no_crest') : ''}{q && ` · ${tr('heraldry.found', { count: list.length })}`}</p>
+      {current && <p className="ae-charge-meaning subtle">{tr(chargeMeaning(current.id))}</p>}
     </div>
   );
 }
@@ -748,7 +743,7 @@ interface Choice<V> {
  * Home and End jump to the ends. Each tile is labelled for screen readers.
  */
 function Choices<V extends string, C extends Choice<V> = Choice<V>>({
-  label, value, onChange, options, render, className = '', disabled, groupLabel,
+  label, value, onChange, options, render, className = '', disabled, groupLabel, hint,
 }: {
   label: string;
   value: V;
@@ -758,8 +753,11 @@ function Choices<V extends string, C extends Choice<V> = Choice<V>>({
   className?: string;
   disabled?: boolean;
   groupLabel?: (g: string) => string | undefined;
+  /** The meaning of a tile, shown in a caption under the group while the tile is hovered or focused. */
+  hint?: (v: V) => string | undefined;
 }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [peek, setPeek] = useState<string | undefined>();
   const enabled = options.map((o, i) => (o.disabled ? -1 : i)).filter((i) => i >= 0);
   const at = Math.max(0, options.findIndex((o) => o.value === value));
   const tabStop = options[at]?.disabled ? enabled[0] : at;
@@ -791,6 +789,10 @@ function Choices<V extends string, C extends Choice<V> = Choice<V>>({
       className="ae-tile"
       onClick={() => onChange(o.value)}
       onKeyDown={(e) => move(e, i)}
+      onMouseEnter={hint ? () => setPeek(hint(o.value)) : undefined}
+      onMouseLeave={hint ? () => setPeek(undefined) : undefined}
+      onFocus={hint ? () => setPeek(hint(o.value)) : undefined}
+      onBlur={hint ? () => setPeek(undefined) : undefined}
     >
       {render(o)}
     </button>
@@ -803,16 +805,19 @@ function Choices<V extends string, C extends Choice<V> = Choice<V>>({
     else groups.push({ group: o.group, items: [[o, i]] });
   });
   return (
-    <div role="radiogroup" aria-label={label} aria-disabled={disabled || undefined} className={`ae-choices ${className}`}>
-      {groupLabel
-        ? groups.map((g, k) => (
-          <span key={k} className="ae-group-box">
-            <span className="ae-group" aria-hidden>{(g.group && groupLabel(g.group)) || '\u00a0'}</span>
-            <span className="ae-group-tiles">{g.items.map(([o, i]) => tile(o, i))}</span>
-          </span>
-        ))
-        : options.map((o, i) => tile(o, i))}
-    </div>
+    <>
+      <div role="radiogroup" aria-label={label} aria-disabled={disabled || undefined} className={`ae-choices ${className}`}>
+        {groupLabel
+          ? groups.map((g, k) => (
+            <span key={k} className="ae-group-box">
+              <span className="ae-group" aria-hidden>{(g.group && groupLabel(g.group)) || '\u00a0'}</span>
+              <span className="ae-group-tiles">{g.items.map(([o, i]) => tile(o, i))}</span>
+            </span>
+          ))
+          : options.map((o, i) => tile(o, i))}
+      </div>
+      {hint && <p className="ae-peek" aria-hidden>{peek ?? ''}</p>}
+    </>
   );
 }
 

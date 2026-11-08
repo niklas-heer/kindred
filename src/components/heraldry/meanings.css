@@ -1,0 +1,89 @@
+/* What the arms mean: the folding list under the designer's preview and under the house page's arms, the caption that
+   names a picker tile's meaning under the tiles, and the symbolism lines on an AI design. Tokens are the app's own
+   (see armseditor.css); the list folds on a phone by its default state, so nothing here depends on the width. */
+
+.ae-means {
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.92rem;
+}
+
+.ae-means-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--font-title);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.ae-means-summary::-webkit-details-marker { display: none; }
+.ae-means-summary::after {
+  content: '';
+  width: 0.42em;
+  height: 0.42em;
+  margin-left: auto;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+.ae-means[open] > .ae-means-summary::after { transform: rotate(45deg); }
+.ae-means-summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: var(--radius); }
+
+.ae-means-list {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ae-means-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: start;
+}
+.ae-means-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.ae-means-icon.dark { background: #3a3a36; border-color: #3a3a36; }
+.ae-means-text { display: grid; gap: 0.1rem; min-width: 0; }
+.ae-means-kind {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.ae-means-name b { font-weight: 500; }
+.ae-means-line { color: var(--text); overflow-wrap: anywhere; }
+.ae-means-plain,
+.ae-means-note { margin: 0.5rem 0 0; font-size: 0.82rem; }
+
+/* The caption under a picker: the meaning of the tile under the pointer or the keyboard focus. */
+.ae-peek {
+  min-height: 1.4em;
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+/* The meaning of the charge chosen, under its name in the picker. */
+.ae-charge-meaning { margin: 0.2rem 0 0; font-size: 0.85rem; }
+
+/* The symbolism of an AI design, on its tile: briefly, one line each. */
+.ae-symbolism { display: grid; gap: 0.15rem; margin-top: 0.3rem; font-size: 0.82rem; }
+.ae-symbolism > span { display: block; overflow-wrap: anywhere; }
+.ae-symbolism b { font-weight: 500; }

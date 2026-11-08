@@ -263,6 +263,14 @@ export function NameResearchPanel({ tree, surname, country, onPick }: {
                 <span className="ae-card-text">
                   <small className="ae-design-draws">{t('heraldry.design_draws', { meaning: d.meaning })}</small>
                   <span className="ae-card-title">{d.explanation}</span>
+                  {d.symbolism && d.symbolism.length > 0 && (
+                    <span className="ae-symbolism">
+                      <small className="subtle">{t('heraldry.means.ai_title')}</small>
+                      {d.symbolism.slice(0, 3).map((s, k) => (
+                        <span key={k}><b>{s.element}</b> {s.why}</span>
+                      ))}
+                    </span>
+                  )}
                   <small>{blazonV2(d.arms)}</small>
                 </span>
               </button>

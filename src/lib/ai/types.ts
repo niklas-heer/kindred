@@ -222,4 +222,6 @@ export interface NameDesign {
   /** The id of the chosen meaning it draws on, and that meaning's line for display ("heer: lord, gentleman"). */
   meaningId: string;
   meaning: string;
+  /** What its colours and charges stand for, in the reader's language. Optional: an older or sparse answer has none. */
+  symbolism?: { element: string; why: string }[];
 }

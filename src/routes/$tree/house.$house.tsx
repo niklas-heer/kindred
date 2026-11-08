@@ -8,7 +8,9 @@ import { useId, useMemo, useState, type CSSProperties } from 'react';
 import { ArmsEditor } from '~/components/ArmsEditor';
 import { GameIcon } from '~/components/GameIcon';
 import { Arms, TINCTURE_HEX } from '~/components/Heraldry';
+import { asV2 } from '~/components/heraldry/convert';
 import { countryName, Flag } from '~/components/heraldry/Flag';
+import { ArmsMeanings } from '~/components/heraldry/ArmsMeanings';
 import { Portrait } from '~/components/Portrait';
 import { Dialog, ErrorState, NotFound, Select, Skeleton, type SelectOption } from '~/components/ui';
 import { chronicleQuery, graphQuery, opKeys } from '~/lib/api';
@@ -173,6 +175,7 @@ function HousePage() {
             </div>
           </div>
         </header>
+        <ArmsMeanings arms={asV2(house.arms)} label={t('heraldry.means.open')} className="hp-means" />
 
         <section className="hp-section hp-succession" aria-labelledby="hp-succession">
           <h2 className="rule" id="hp-succession">{t('houses.succession')}</h2>

@@ -4,10 +4,10 @@
 //
 // Everything goes through one JSON shape, `CantingIdea`, so a later AI provider can answer the same question
 // (`CantingRequest` in, `CantingResponse` out) and `cantingFromIdeas` turns either into drawable arms.
-import { z } from 'zod';
 import { translate, type Key, type Vars } from '~/lib/i18n/dictionary';
 import type { ArmsLayer, ArmsV2, ChargeLayer, FieldDivision, OrdinaryKind, PartitionLine, ShieldShape, TinctureV2 } from '~/lib/seed-format';
 import { CHARGE_BY_ID } from './catalogue';
+import { cantingResponseSchema, type Symbolism } from './canting-schema.ts';
 import { contrastFor } from './rules';
 import { kindOf } from './tinctures';
 
@@ -34,38 +34,15 @@ export interface CantingIdea {
   base?: 'mount' | 'water' | 'field';
   ordinary?: { kind: OrdinaryKind; tincture?: TinctureV2; line?: PartitionLine };
   charges?: { charge: string; tincture?: TinctureV2; count?: number; on?: 'field' | 'ordinary' | 'chief' }[];
+  /** What the colours and charges stand for, in the reader's words (AI only; the offline table leaves it out). */
+  symbolism?: Symbolism[];
 }
 
 export interface CantingResponse {
   suggestions: CantingIdea[];
 }
 
-const tinctureZ = z.enum([
-  'or', 'argent', 'gules', 'azure', 'vert', 'sable', 'purpure', 'murrey', 'sanguine', 'tenne', 'carnation',
-  'ermine', 'ermines', 'erminois', 'vair', 'counter-vair', 'potent', 'proper',
-]);
-/** Validates an AI provider's answer. Lenient: extra keys are dropped, and unknown charge ids are dropped later. */
-export const cantingResponseSchema = z.object({
-  suggestions: z.array(z.object({
-    explanation: z.string().min(1).max(200),
-    element: z.string().max(60).optional(),
-    meaningId: z.string().max(20).optional(),
-    field: z.array(tinctureZ).min(1).max(3).optional(),
-    division: z.enum(['plain', 'per-pale', 'per-fess', 'per-bend', 'per-bend-sinister', 'per-saltire', 'quarterly', 'per-chevron', 'per-pall', 'tierced-pale', 'tierced-fess', 'gyronny', 'paly', 'barry', 'bendy', 'bendy-sinister', 'chequy', 'lozengy', 'fusilly']).optional(),
-    base: z.enum(['mount', 'water', 'field']).optional(),
-    ordinary: z.object({
-      kind: z.enum(['chief', 'base', 'fess', 'pale', 'bend', 'bend-sinister', 'chevron', 'cross', 'saltire', 'pall', 'bordure', 'orle', 'canton', 'pile', 'quarter']),
-      tincture: tinctureZ.optional(),
-      line: z.enum(['straight', 'wavy', 'indented', 'embattled', 'engrailed', 'invected', 'nebuly', 'dancetty']).optional(),
-    }).optional(),
-    charges: z.array(z.object({
-      charge: z.string().max(40),
-      tincture: tinctureZ.optional(),
-      count: z.number().int().min(1).max(9).optional(),
-      on: z.enum(['field', 'ordinary', 'chief']).optional(),
-    })).max(3).optional(),
-  })).max(8),
-});
+export { cantingResponseSchema, symbolismItemSchema } from './canting-schema.ts';
 
 /** Where the offline suggestions come from, for the reader. */
 export const CANTING_SOURCE_NOTE: Key = 'canting.source';
@@ -79,6 +56,7 @@ export interface CantingSuggestion {
   explanation: string;
   element?: string;
   meaningId?: string;
+  symbolism?: Symbolism[];
 }
 
 // ---------- the table ----------
@@ -361,6 +339,7 @@ export function cantingFromIdeas(input: CantingResponse | unknown, req: CantingR
     explanation: idea.explanation,
     element: idea.element,
     meaningId: idea.meaningId,
+    symbolism: idea.symbolism,
   }));
 }
 

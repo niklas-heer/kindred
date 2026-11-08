@@ -199,6 +199,7 @@ function designSystem(locale: AiLocale): string {
     'You design coats of arms for a family from what its name means. The reader has chosen the meanings below, and each design must draw on one of them: give its id in "meaningId", and say in "explanation", in ' + LANG[locale] + ', one sentence on why the design follows from that meaning (the sense of the name, or how it sounds).',
     'Make three to five designs, all different. Use only the charges listed below, by their id, and at most three charges in a design. Keep the rule of tincture: metal (or, argent) on colour (gules, azure, vert, sable, purpure), never colour on colour and never metal on metal. Prefer a clear, classic shield: a field, one ordinary or one main charge, and a base only when it helps.',
     'The family\'s own meaning, when chosen, is the most important input: prefer it and never contradict it. Never say that the family bore these arms in history: they are proposals to choose from.',
+    'For each design, add "symbolism": up to three of its colours or charges, each as "element" (its name, a few words) and "why" (in ' + LANG[locale] + ', one short line on what it stands for in the meaning the design draws on, as a reader would say it, e.g. "Argent for the honour your family names" or "a tower for the army, Heer"). Leave it out when there is nothing to say.',
     'Answer only in the JSON shape you are given.',
     'Charges (id: English name; German and other words):',
     catalogue(),
@@ -240,7 +241,7 @@ export async function designArms(o: { adapter: AiAdapter; surname: string; count
       const m = d.meaningId ? chosen.get(d.meaningId) : undefined;
       if (!m || d.arms.layers.length === 0 || !armsV2Schema.safeParse(d.arms).success) continue;
       const line = m.attestation === 'family' || !m.root ? m.meaning : `${m.root}: ${m.meaning}`;
-      designs.push({ arms: d.arms, explanation: d.explanation, meaningId: m.id, meaning: line });
+      designs.push({ arms: d.arms, explanation: d.explanation, meaningId: m.id, meaning: line, symbolism: d.symbolism });
     }
     if (designs.length < MIN_DESIGNS) return undefined;
     return designs.slice(0, MAX_DESIGNS);
