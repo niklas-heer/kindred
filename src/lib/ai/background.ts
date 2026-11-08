@@ -36,7 +36,12 @@ export interface TaskSetting {
   schedule: Schedule;
   /** When the task last started (ms since the epoch), or null before its first run. */
   lastStarted: number | null;
+  /** When a scheduled check last found nothing to do (no run is recorded for it), or null. The schedule counts from the later of the two. */
+  lastChecked: number | null;
 }
+
+/** Tries an item that fails for its own reason gets before it is left alone (until it changes). */
+export const MAX_ITEM_FAILURES = 3;
 
 export interface BackgroundSettings {
   tasks: Record<Task, TaskSetting>;
@@ -49,7 +54,7 @@ export interface BackgroundSettings {
   updated: number;
 }
 
-export const defaultTask = (): TaskSetting => ({ enabled: false, schedule: 'daily', lastStarted: null });
+export const defaultTask = (): TaskSetting => ({ enabled: false, schedule: 'daily', lastStarted: null, lastChecked: null });
 
 export function defaultSettings(): BackgroundSettings {
   return {
@@ -64,6 +69,10 @@ export function defaultSettings(): BackgroundSettings {
 /** Whether a task that last started at `lastStarted` is due again at `now` (ms). A task never run is due. */
 export const isDue = (lastStarted: number | null, schedule: Schedule, now: number): boolean =>
   lastStarted === null || now - lastStarted >= SCHEDULE_GAP_MS[schedule];
+
+/** When a task last looked at its schedule's work: the later of its last start and its last idle check. */
+export const lastLooked = (t: Pick<TaskSetting, 'lastStarted' | 'lastChecked'>): number | null =>
+  t.lastStarted === null ? t.lastChecked : t.lastChecked === null ? t.lastStarted : Math.max(t.lastStarted, t.lastChecked);
 
 /** The budget a background cap allows, in micro-dollars: a share of the monthly budget, rounded down. */
 export const capMicros = (monthlyMicros: number, capShare: number): number => Math.max(0, Math.floor(monthlyMicros * capShare));

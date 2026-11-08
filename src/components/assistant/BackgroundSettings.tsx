@@ -95,7 +95,7 @@ function BackgroundForm({ tree, data }: { tree: string; data: Activity }) {
   const run = useMutation({
     mutationFn: (task: Task) => aiRunTask({ data: { tree, task } }),
     onSuccess: (out, task) => {
-      setRan({ task, text: out.status === 'done' || out.status === 'stopped' ? t('aitasks.ranOk', { done: out.done, waiting: out.waiting }) : t(`aitasks.status.${out.status}` as Key) });
+      setRan({ task, text: out.status === 'idle' ? t('aitasks.ranNothing') : out.status === 'done' || out.status === 'stopped' ? t('aitasks.ranOk', { done: out.done, waiting: out.waiting }) : t(`aitasks.status.${out.status}` as Key) });
       void refresh();
       void qc.invalidateQueries({ queryKey: ['collected-meanings', tree] });
     },

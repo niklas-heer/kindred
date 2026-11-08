@@ -63,7 +63,7 @@ function ActivityBody({ tree, data }: { tree: string; data: Activity }) {
     mutationFn: (task: Task) => aiRunTask({ data: { tree, task } }),
     onSuccess: (out, task) => {
       const ok = out.status === 'done' || out.status === 'idle' || out.status === 'stopped';
-      const text = out.status === 'done' || out.status === 'stopped' ? t('aitasks.ranOk', { done: out.done, waiting: out.waiting }) : t((STATUS[out.status] ?? 'aitasks.status.failed') as Key);
+      const text = out.status === 'idle' ? t('aitasks.ranNothing') : out.status === 'done' || out.status === 'stopped' ? t('aitasks.ranOk', { done: out.done, waiting: out.waiting }) : t((STATUS[out.status] ?? 'aitasks.status.failed') as Key);
       setRan({ task, text: out.note && !ok ? `${text} ${out.note}` : text, ok });
       void qc.invalidateQueries({ queryKey: ['ai-activity', tree] });
       void qc.invalidateQueries({ queryKey: ['collected-meanings', tree] });

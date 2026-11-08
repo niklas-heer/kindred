@@ -477,3 +477,96 @@ test('the server functions run a task for a steward and report what it did', asy
   assert.equal(runs.runs[0]?.source, 'manual');
   assert.equal(runs.runs[0]?.status, 'done');
 });
+
+// ---------- nothing to do means nothing happens ----------
+
+type Quiet = { task: 'arms' | 'occupations' | 'chronicle' | 'names'; meanings: boolean; languages: Array<'en' | 'de' | 'af'>; appear: (tree: string) => Promise<void> };
+const QUIET: Quiet[] = [
+  // Arms: no chosen meaning, so no house is checked. Work appears when a meaning is chosen.
+  { task: 'arms', meanings: false, languages: ['en'], appear: async (tree) => {
+    const d = openSqlite(join(dir, `${tree}.db`), 'tree');
+    d.exec(`INSERT INTO house_meaning (house, name, family_words, meanings, web_searched, note, saved_at, saved_by) VALUES
+      ('h1', 'Heer', '', '${JSON.stringify([MEANING('m1', 'heer', 'lord', true)])}', 0, '', ${NOW.getTime()}, 'steward-1')`);
+    d.close();
+  } },
+  // Occupations and the chronicle: no language is chosen, so there is nothing to translate into.
+  { task: 'occupations', meanings: true, languages: [], appear: async (tree) => { await bg.saveBackground(tree, 'steward-1', input({ languages: ['en'] })); } },
+  { task: 'chronicle', meanings: true, languages: [], appear: async (tree) => { await bg.saveBackground(tree, 'steward-1', input({ languages: ['en'] })); } },
+  // Names: the only house already has a row. Work appears with a new house.
+  { task: 'names', meanings: true, languages: ['en'], appear: async (tree) => {
+    const d = openSqlite(join(dir, `${tree}.db`), 'tree');
+    d.exec(`INSERT INTO house (id, name, arms) VALUES ('h2', 'House Neumann', '${JSON.stringify(ARMS)}')`);
+    d.close();
+  } },
+];
+
+for (const q of QUIET) {
+  test(`${q.task}: with nothing to do, no call, no key, no reservation and no run entry; work that appears later is done`, async () => {
+    const tree = `quiet-${q.task}`;
+    makeFamily(tree, { meanings: q.meanings });
+    // No AI is set up at all: a task with nothing to do must not even notice, so its answer is "nothing", not "not set up".
+    await bg.saveBackground(tree, 'steward-1', input({ languages: q.languages }));
+    await bg.setTaskEnabled(tree, q.task, true);
+    const stub = stubProvider();
+    const fetched = stubFetch();
+    const counts = async () => {
+      const a = accounts();
+      return {
+        runs: (await a.get<{ n: number }>('SELECT COUNT(*) AS n FROM ai_task_run WHERE tree = ?', tree))!.n,
+        background: (await a.get<{ n: number }>('SELECT COUNT(*) AS n FROM ai_background_spend WHERE tree = ?', tree))!.n,
+        total: (await a.get<{ n: number }>('SELECT COUNT(*) AS n FROM ai_spend WHERE tree = ?', tree))!.n,
+      };
+    };
+    try {
+      // Run now: said plainly, nothing recorded, and not marked as run.
+      const manual = await bg.runTask(tree, q.task, { adapter: stub.adapter, price: PRICE, source: 'manual', now: NOW });
+      assert.equal(manual.status, 'idle');
+      assert.deepEqual(await counts(), { runs: 0, background: 0, total: 0 });
+      assert.equal((await bg.readBackground(tree)).tasks[q.task].lastStarted, null, 'an idle check is not a run');
+      // The schedule: it looks, finds nothing and notes only that it looked.
+      await bg.runScheduled([tree], NOW, () => {});
+      assert.deepEqual(await counts(), { runs: 0, background: 0, total: 0 });
+      const looked = (await bg.readBackground(tree)).tasks[q.task];
+      assert.equal(looked.lastStarted, null);
+      assert.equal(looked.lastChecked, NOW.getTime());
+      const idle = await bg.activity(tree, NOW);
+      assert.equal(idle.runs.length, 0, 'the steward’s history shows nothing');
+      assert.equal(idle.tasks.find((t) => t.task === q.task)?.waiting, 0);
+      assert.equal(stub.requests.length + fetched.bodies.length, 0);
+
+      // Work appears. The task is not asked again before its next scheduled time ...
+      await setupAi(tree);
+      await q.appear(tree);
+      const soon = new Date(NOW.getTime() + 3_600_000);
+      await bg.runScheduled([tree], soon, () => {});
+      assert.equal(fetched.bodies.length, 0, 'an hour later it is not due yet');
+      assert.deepEqual(await counts(), { runs: 0, background: 0, total: 0 });
+      // ... and then it does the work, with a run entry this time.
+      const next = new Date(NOW.getTime() + SCHEDULE_GAP_MS.daily);
+      await bg.runScheduled([tree], next, () => {});
+      assert.ok(fetched.bodies.length > 0, 'the work was done at the next scheduled time');
+      const after = await counts();
+      assert.equal(after.runs, 1);
+      assert.ok((await bg.readBackground(tree)).tasks[q.task].lastStarted !== null);
+    } finally {
+      fetched.restore();
+    }
+  });
+}
+
+test('an item that keeps failing for its own reason is left alone after a few tries, until it changes', async () => {
+  const tree = 'giveup';
+  makeFamily(tree);
+  await setupAi(tree);
+  await setBackground(tree, { on: ['occupations'], languages: ['en'], capShare: 1 });
+  const broken: AiAdapter = { provider: 'anthropic', model: 'claude-haiku-5-5', async complete() { throw new AiError('bad-output', 'no answer'); } };
+  for (let i = 0; i < 6; i++) await bg.runTask(tree, 'occupations', { adapter: broken, price: PRICE, source: 'manual', now: NOW });
+  assert.equal((await pending(tree, 'occupations', ['en'])).length, 0, 'texts that cannot be answered stop waiting after three tries');
+  const stub = stubProvider();
+  assert.equal((await bg.runTask(tree, 'occupations', { adapter: stub.adapter, price: PRICE, source: 'manual', now: NOW })).status, 'idle');
+  assert.equal(stub.requests.length, 0);
+  const d = openSqlite(join(dir, `${tree}.db`), 'tree');
+  d.exec("UPDATE person SET occupation = 'Kupferschmied' WHERE id = 'ada'");
+  d.close();
+  assert.equal((await pending(tree, 'occupations', ['en'])).length, 1, 'a changed text is a new item');
+});

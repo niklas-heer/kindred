@@ -8,6 +8,7 @@
 // The lists are recomputed from the record on each run, so a run that stops early simply leaves the rest waiting: the next
 // run finds it again (resumable by construction).
 import { z } from 'zod';
+import { accounts } from '../auth/store.server';
 import { db } from '../db.server';
 import { MAX_COLLECT_FAILURES, surnameOf } from '../house-meaning.ts';
 import { noteCollectFailure, saveCollected, snapshot } from '../house-meaning.server';
@@ -20,7 +21,7 @@ import { researchName } from './arms.server';
 import { AiError, type AiAdapter, type AiReply, type AiRequest } from './adapters';
 import { tr } from './labels';
 import { fakeOn } from './settings.server';
-import type { Task } from './background';
+import { MAX_ITEM_FAILURES, type Task } from './background';
 
 export type Pending =
   | { task: 'arms'; house: string; fingerprint: string }
@@ -35,8 +36,38 @@ export async function sourceHash(title: string | null, body: string): Promise<st
   return hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([title ?? '', body])))).slice(0, 40);
 }
 
-/** Everything the task still has to do in this family, oldest-first where order matters. Reads only. */
+/** What one item is called in the give-up list: its task's key for it, including what it was made from, so a changed item is a new item. */
+export function itemKey(p: Pending): string {
+  switch (p.task) {
+    case 'arms': return `${p.house}\u0000${p.fingerprint}`;
+    case 'occupations': return `${p.locale}\u0000${p.text}`;
+    case 'chronicle': return `${p.story}\u0000${p.locale}\u0000${p.hash}`;
+    case 'names': return p.house;
+  }
+}
+
+/**
+ * Counts one failed try of an item, unless the failure says nothing about the item (the budget, the key, a busy provider)
+ * or the task keeps its own count (names). After MAX_ITEM_FAILURES tries the item is left alone until it changes.
+ */
+export async function recordFailure(tree: string, p: Pending, e: unknown): Promise<void> {
+  if (p.task === 'names' || (e instanceof AiError && NOT_THE_NAME.has(e.code))) return;
+  await accounts().run(
+    `INSERT INTO ai_task_giveup (tree, task, item, failures) VALUES (?, ?, ?, 1)
+     ON CONFLICT (tree, task, item) DO UPDATE SET failures = failures + 1`,
+    tree, p.task, itemKey(p),
+  );
+}
+
+/** Everything the task still has to do in this family, oldest-first where order matters. Reads only. Items that failed for their own reason too often are left out. */
 export async function pending(tree: string, task: Task, languages: readonly Locale[]): Promise<Pending[]> {
+  const all = await candidates(tree, task, languages);
+  if (all.length === 0 || task === 'names') return all;
+  const tired = new Set((await accounts().all<{ item: string }>('SELECT item FROM ai_task_giveup WHERE tree = ? AND task = ? AND failures >= ?', tree, task, MAX_ITEM_FAILURES)).map((r) => r.item));
+  return tired.size ? all.filter((p) => !tired.has(itemKey(p))) : all;
+}
+
+async function candidates(tree: string, task: Task, languages: readonly Locale[]): Promise<Pending[]> {
   const d = db(tree);
   if (task === 'arms') {
     const out: Pending[] = [];
