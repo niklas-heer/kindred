@@ -15,11 +15,16 @@ const csrf = createCsrfMiddleware({
   }),
 });
 
-// In code-protected mode, announce the setup code once while no account exists.
+// In code-protected mode, announce the setup code once while no account exists. Without a code, warn
+// once when that setup is open on a public address (the first visitor would become the steward).
 const setupNotice = createMiddleware().server(async ({ next, request }) => {
-  const { announceSetup } = await import('./lib/auth/setup.server');
+  const { announceSetup, warnOpenSetup } = await import('./lib/auth/setup.server');
   const { siteOrigin } = await import('./lib/auth/session.server');
-  try { announceSetup(siteOrigin(request).origin); } catch {}
+  try {
+    const origin = siteOrigin(request);
+    announceSetup(origin.origin);
+    void warnOpenSetup(origin);
+  } catch {}
   return next();
 });
 

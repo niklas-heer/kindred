@@ -195,6 +195,9 @@ function TreePage() {
     },
     [go, inLayout, refocus, focus],
   );
+  // Toasts keep the handler they were made with; this reads the current one (Undo runs seconds later).
+  const selectNow = useRef(select);
+  selectNow.current = select;
 
   // The camera follows only when asked to (panTo), or when a new layout centres on someone else.
   const prevFocus = useRef(focus);
@@ -380,10 +383,12 @@ function TreePage() {
       action: !canRemove ? undefined : {
         label: 'Undo',
         run: async () => {
+          // Back to the person they were adding to first: once the new person is gone, the page would
+          // otherwise clear the selection that pointed at them, and land on the focus instead.
+          selectNow.current(anchor);
           try {
             await removePerson({ data: { tree, id } });
             await qc.invalidateQueries({ queryKey: ['graph', tree] });
-            go({ sel: anchor === focus ? undefined : anchor });
             play('page');
           } catch (e) {
             toast({ title: 'Could not undo', body: e instanceof Error ? e.message : 'Remove them from their Edit tab instead.' });

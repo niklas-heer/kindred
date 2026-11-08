@@ -38,6 +38,42 @@ export const setupCodeRequired = () => process.env.KINDRED_SETUP_CODE === 'requi
 
 export const needsSetup = async () => (await userCount()) === 0;
 
+/** This machine: its loopback names. Anything else is a public address as far as the setup is concerned. */
+export const isLocalHost = (hostname: string) => {
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  return h === 'localhost' || h.endsWith('.localhost') || h === '::1' || /^127\./.test(h);
+};
+
+/**
+ * Whether first-account setup is open to anyone who reaches `origin`: no setup code, and a public host.
+ * The first person there becomes the steward, which is the default but should be a choice on purpose.
+ */
+export const setupOpenToPublic = (origin: URL) => !setupCodeRequired() && !isLocalHost(origin.hostname);
+
+let openWarning: 'pending' | 'shown' | 'moot' = 'pending';
+/**
+ * A loud console warning, once per process, while nobody has an account and setup is open to the public.
+ * Called on the server's first request. Never throws.
+ */
+export async function warnOpenSetup(origin: URL) {
+  try {
+    if (openWarning !== 'pending') return;
+    if (!setupOpenToPublic(origin)) return;
+    if (!(await needsSetup())) { openWarning = 'moot'; return; }
+    openWarning = 'shown';
+    console.warn(
+      `\n  ┌─ Kindred WARNING ──────────────────────────────────────────\n` +
+        `  │ Setup is open on ${origin.origin} and nobody has an account yet.\n` +
+        `  │ The first person to create an account there becomes the steward.\n` +
+        `  │ Set KINDRED_SETUP_CODE (12+ characters, or "required") to require a code,\n` +
+        `  │ or create the steward account now.\n` +
+        `  └────────────────────────────────────────────────────────────\n`,
+    );
+  } catch (e) {
+    console.error('[kindred] setup warning failed', e);
+  }
+}
+
 /**
  * Prints the setup code while nobody has an account: on the server's first request, and again when
  * someone opens /setup (at most once a minute). The only secret Kindred ever logs; a code set in

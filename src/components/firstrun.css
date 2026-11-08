@@ -11,7 +11,8 @@
 }
 .who-item:hover, .who-item:focus-visible { background: var(--panel-3); outline: none; }
 [data-theme='codex'] .who-item:hover, [data-theme='codex'] .who-item:focus-visible { background: linear-gradient(90deg, #4a3d2288, #4a3d2222); box-shadow: inset 2px 0 0 var(--accent); }
-.who-item b { display: block; font-size: 16px; font-weight: 500; }
+/* Names are set in the name face, like everywhere else in the tree. */
+.who-item b { display: block; font-family: var(--font-name); font-weight: var(--name-weight); font-size: 16px; }
 .who-item span { color: var(--muted); font-size: 13.5px; font-family: var(--font-ui); }
 .who-empty { padding: 18px 8px; color: var(--muted); }
 .who-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; width: 100%; }

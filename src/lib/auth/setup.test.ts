@@ -100,6 +100,16 @@ test('bootstrap modes, discoverable options, exclusions and proxy origin', async
       await assert.rejects(a.batch([store.q('DELETE FROM membership WHERE user = ? AND tree = ?', user.id, 'solo'), store.keepsASteward('solo')]), /kindred:guard/);
       assert.equal((await store.membership(user.id, 'solo'))!.role, 'steward');
     });
+    await t.test('setup is open to the public only off this computer and without a code', () => {
+      delete process.env.KINDRED_SETUP_CODE;
+      for (const h of ['localhost', 'app.localhost', '127.0.0.1', '[::1]']) assert.equal(setup.isLocalHost(h), true, h);
+      assert.equal(setup.isLocalHost('family.example.org'), false);
+      assert.equal(setup.setupOpenToPublic(new URL('https://family.example.org')), true);
+      assert.equal(setup.setupOpenToPublic(new URL('http://localhost:4771')), false);
+      process.env.KINDRED_SETUP_CODE = 'required';
+      assert.equal(setup.setupOpenToPublic(new URL('https://family.example.org')), false);
+      delete process.env.KINDRED_SETUP_CODE;
+    });
   } finally {
     (await import('../store/node.ts')).closeAccounts();
     process.env = saved;

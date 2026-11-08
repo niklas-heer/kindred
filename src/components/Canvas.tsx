@@ -8,6 +8,7 @@ import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayou
 import { CARD_H, CARD_W, ROW_H, type LNode, type Layout } from '~/lib/layout';
 import type { Family } from '~/lib/graph';
 import { houseColour } from './Heraldry';
+import { useT } from '~/lib/i18n';
 import './canvas.css';
 
 export type Detail = 'far' | 'mid' | 'near';
@@ -192,15 +193,18 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     const n = firstOf.get(id);
     // Along one axis: centre the tree when it fits, else centre the focus and pull the tree's edges
     // to the area's edges, so the view never shows empty space where there is more tree.
-    const place = (from: number, to: number, start: number, len: number, at: number) => {
+    const place = (from: number, to: number, start: number, len: number, at: number, topFirst = false) => {
       if (len * k <= to - from) return from + (to - from - len * k) / 2 - start * k;
+      // On a phone the top generation starts just under the toolbar, if the focus still shows above the sheet.
+      if (topFirst && from + (at + CARD_H / 2 - start) * k <= to) return from - start * k;
       const off = (from + to) / 2 - at * k;
       return Math.max(to - (start + len) * k, Math.min(from - start * k, off));
     };
+    const narrow = a.w <= 900;
     const target = {
       k,
       x: place(lo.x, hi.x, b.x, b.w, n ? n.x : b.x + b.w / 2),
-      y: place(lo.y, hi.y, b.y, b.h, n ? n.y + CARD_H / 2 : b.y + b.h / 2),
+      y: place(lo.y, hi.y, b.y, b.h, n ? n.y + CARD_H / 2 : b.y + b.h / 2, narrow),
     };
     if (opts?.animate === false) { cancelAnimationFrame(anim.current); cam.current = target; apply(); } else animateTo(target);
   }, [layout, firstOf, apply, animateTo, area]);
@@ -531,7 +535,9 @@ function Minimap({ family, layout, view, focus, dimmed, onJump }: {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     onJump((e.clientX - r.left - ox) / s, (e.clientY - r.top - oy) / s);
   };
+  const t = useT();
   const people = new Set(layout.nodes.filter((n) => n.role !== 'ghost').map((n) => n.id)).size;
+  const peopleText = t('common.people', { count: people });
   // Keyboard: arrows move the view a quarter screen at a time.
   const onKey = (e: React.KeyboardEvent) => {
     const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
@@ -546,7 +552,7 @@ function Minimap({ family, layout, view, focus, dimmed, onJump }: {
         className="minimap-map"
         role="application"
         tabIndex={0}
-        aria-label={`Minimap of ${people} people. Click to jump there, or use the arrow keys to move the view.`}
+        aria-label={t('canvas.minimap_label', { people: peopleText })}
         onKeyDown={onKey}
         style={{ width: MM_W, height: MM_H }}
         onPointerDown={(e) => { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); jump(e); }}
@@ -556,8 +562,8 @@ function Minimap({ family, layout, view, focus, dimmed, onJump }: {
         <div className="minimap-view" style={{ left: vx * s + ox, top: vy * s + oy, width: Math.max(6, vw * s), height: Math.max(6, vh * s) }} />
       </div>
       <div className="minimap-foot">
-        <span>{people.toLocaleString('en-GB')} people</span>
-        <span>{layout.rows.length} generations</span>
+        <span>{peopleText}</span>
+        <span>{t('common.generations', { count: layout.rows.length })}</span>
       </div>
     </div>
   );

@@ -21,6 +21,7 @@ import {
 } from 'react';
 import { feature, mesh } from 'topojson-client';
 import { getPlacesIn, graphQuery, placeSearchQuery, searchPlaces, upsertPlaces } from '~/lib/api';
+import { useT } from '~/lib/i18n';
 import { useCan } from '~/lib/session';
 import type { Place } from '~/lib/types';
 import { Dialog } from './ui/Dialog';
@@ -119,6 +120,7 @@ export interface PlaceInputProps {
 }
 
 export function PlaceInput({ tree, value, onChange, id, placeholder = 'Town, village or farm', disabled, inputRef, ...aria }: PlaceInputProps) {
+  const t = useT();
   const base = useId();
   const optId = (i: number) => `${base}-o${i}`;
   const [focused, setFocused] = useState(false);
@@ -321,7 +323,8 @@ export function PlaceInput({ tree, value, onChange, id, placeholder = 'Town, vil
             const fam = h.uses !== undefined;
             const heading = i === 0 && fam ? 'In this family' : !fam && (i === 0 || hits[i - 1].uses !== undefined) ? 'Towns and cities' : undefined;
             const selected = h.name === value.name && (h.lat === undefined || !far({ lat: h.lat, lng: h.lng! }, value) || (fam && value.lat === undefined));
-            const sub = fam ? (h.lat === undefined ? 'not on the map yet' : whereOf(h) || 'on the map') : [h.also, whereOf(h)].filter(Boolean).join(' · ');
+            // A town found by another spelling shows its official name first, and the spelling that matched as a hint.
+            const sub = fam ? (h.lat === undefined ? 'not on the map yet' : whereOf(h) || 'on the map') : [h.also ? t('places.also_spelled', { name: h.also }) : '', whereOf(h)].filter(Boolean).join(' · ');
             return (
               <div key={`${fam ? 'f' : 'g'}${h.name}${h.lat}`}>
                 {heading && <div className="ui-select-group" role="presentation">{heading}</div>}

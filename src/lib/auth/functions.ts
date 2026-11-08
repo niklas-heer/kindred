@@ -20,6 +20,8 @@ export interface SessionInfo {
   /** Nobody has an account yet: /setup creates the first steward. */
   needsSetup: boolean;
   setupCodeRequired: boolean;
+  /** Setup is open (no code) on a public address: /setup warns that the first visitor becomes the steward. */
+  setupOpenToPublic?: boolean;
   defaultTree?: string;
   /** Signed in through Cloudflare Access as this email, but not invited. */
   uninvitedEmail?: string;
@@ -29,13 +31,17 @@ export interface SessionInfo {
 
 /** Who is signed in, and their role and "who you are" in each family. Never cached across readers. */
 export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): Promise<SessionInfo> => {
-  const [{ currentSession }, s, { needsSetup, setupCodeRequired }, { accessLogoutUrl }] = await Promise.all([guard(), store(), import('./setup.server'), import('./access.server')]);
+  const [{ currentSession }, s, setup, { accessLogoutUrl }, { siteOrigin }, { getRequest }] = await Promise.all([
+    guard(), store(), import('./setup.server'), import('./access.server'), import('./session.server'), import('@tanstack/react-start/server'),
+  ]);
   const { user, via, uninvitedEmail } = await currentSession();
+  const needs = await setup.needsSetup();
   return {
     user: user && via ? { id: user.id, name: user.name, email: user.email, via } : null,
     memberships: user ? (await s.membershipsOf(user.id)).map((m) => ({ tree: m.tree, role: m.role, person: m.person })) : [],
-    needsSetup: await needsSetup(),
-    setupCodeRequired: setupCodeRequired(),
+    needsSetup: needs,
+    setupCodeRequired: setup.setupCodeRequired(),
+    setupOpenToPublic: needs && setup.setupOpenToPublic(siteOrigin(getRequest())),
     defaultTree: process.env.KINDRED_DEFAULT_TREE?.trim() || undefined,
     uninvitedEmail,
     accessLogout: via === 'access' || uninvitedEmail ? accessLogoutUrl() : undefined,

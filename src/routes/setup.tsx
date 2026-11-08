@@ -1,12 +1,12 @@
 import { localizeTitle, useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Crown, KeyRound } from 'lucide-react';
+import { Crown, KeyRound, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { AuthCard, AuthError, PasskeyExplainer } from '~/components/AuthCard';
 import { forgetLocalIdentity, passkeysSupported, setUpFirstSteward } from '~/lib/auth/client';
 import { sessionQuery } from '~/lib/auth/functions';
-import { useIsClient } from '~/components/ui';
+import { Notice, useIsClient } from '~/components/ui';
 import { createServerFn } from '@tanstack/react-start';
 
 // In code-protected mode, prints the code on the server's console again (at most once a minute) for whoever is setting up.
@@ -64,6 +64,7 @@ function Setup() {
       title={t("setup.become_the_first_steward")}
       lede={t("setup.nobody_has_an_account_yet_you_ll_look_after_every_family_on_this_server_invite_relatives_and_choose_what_each_of_them_may_change")}
     >
+      {session?.setupOpenToPublic && <Notice icon={<TriangleAlert size={15} />}>{t("setup.open_public_warning")}</Notice>}
       <form className="auth-form" onSubmit={submit}>
         {session?.setupCodeRequired && <>
         <label className="field">
