@@ -1,3 +1,4 @@
+import { useToday } from '~/lib/clock';
 import { PageHeader, Skeleton, ErrorState } from '~/components/ui';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
@@ -83,7 +84,9 @@ function ChroniclePage() {
   const [kind, setKind] = useRememberedState<Kind | null>(`chronicle:${tree}:kind`, null);
   const [q, setQ] = useRememberedState(`chronicle:${tree}:q`, '');
   const [limit, setLimit] = useRememberedState(`chronicle:${tree}:limit`, 30);
-  const [now] = useState(() => new Date());
+  const today = useToday();
+  const [openedAt] = useState(() => Date.now());
+  const now = useMemo(() => today ? new Date(openedAt) : undefined, [today, openedAt]);
 
   const stories = useMemo(
     () =>
@@ -120,7 +123,7 @@ function ChroniclePage() {
   const groups = useMemo(() => {
     const m = new Map<string, Story[]>();
     for (const s of recent.slice(0, limit)) {
-      const k = dayLabel(s.at, now, t);
+      const k = now ? dayLabel(s.at, now, t) : '';
       const a = m.get(k);
       if (a) a.push(s);
       else m.set(k, [s]);
@@ -184,7 +187,7 @@ function ChroniclePage() {
                 <h2 className="rule">{label}</h2>
                 <ol className="chr-feed">
                   {items.map((s) => (
-                    <FeedItem key={s.id} s={s} f={f} tree={tree} now={now.getTime()} tr={translations[s.id]} />
+                    <FeedItem key={s.id} s={s} f={f} tree={tree} now={now?.getTime()} tr={translations[s.id]} />
                   ))}
                 </ol>
               </section>
@@ -202,7 +205,7 @@ function ChroniclePage() {
             {sayings.length === 0 && (q ? <NoMatch onClear={() => setQ('')} /> : <NoSayings tree={tree} />)}
             <div className="chr-wall">
               {sayings.map((s) => (
-                <SayingCard key={s.id} s={s} f={f} tree={tree} now={now.getTime()} tr={translations[s.id]} />
+                <SayingCard key={s.id} s={s} f={f} tree={tree} now={now?.getTime()} tr={translations[s.id]} />
               ))}
             </div>
           </>
@@ -258,7 +261,7 @@ function TranslatedNote({ shown }: { shown: ReturnType<typeof useShownStory> }) 
   );
 }
 
-function FeedItem({ s, f, tree, now, tr }: { s: Story; f: Family; tree: string; now: number; tr?: StoryTranslation }) {
+function FeedItem({ s, f, tree, now, tr }: { s: Story; f: Family; tree: string; now?: number; tr?: StoryTranslation }) {
   const [open, setOpen] = useState(false);
   const t = useT();
   const p = f.byId.get(s.person);
@@ -280,8 +283,8 @@ function FeedItem({ s, f, tree, now, tr }: { s: Story; f: Family; tree: string; 
           <span className="chr-line">
             <b>{s.author}</b> {t(k.verb)} <PersonLink p={p} f={f} tree={tree} />
           </span>
-          <time dateTime={s.at} title={exact(s.at, t.locale)}>
-            {ago(s.at, now, t)}
+          <time dateTime={s.at} title={now === undefined ? undefined : exact(s.at, t.locale)}>
+            {now === undefined ? '' : ago(s.at, now, t)}
           </time>
         </header>
         {shown.title && <h3>{shown.title}</h3>}
@@ -302,7 +305,7 @@ function FeedItem({ s, f, tree, now, tr }: { s: Story; f: Family; tree: string; 
   );
 }
 
-function SayingCard({ s, f, tree, now, tr }: { s: Story; f: Family; tree: string; now: number; tr?: StoryTranslation }) {
+function SayingCard({ s, f, tree, now, tr }: { s: Story; f: Family; tree: string; now?: number; tr?: StoryTranslation }) {
   const p = f.byId.get(s.person);
   const t = useT();
   const shown = useShownStory(s, tr);
@@ -316,7 +319,7 @@ function SayingCard({ s, f, tree, now, tr }: { s: Story; f: Family; tree: string
           <PersonLink p={p} f={f} tree={tree} />
           {s.context && <em>{s.context}</em>}
           <small>
-            {t('chronicle.heard_by', { author: s.author })} · <time dateTime={s.at} title={exact(s.at, t.locale)}>{ago(s.at, now, t)}</time>
+            {t('chronicle.heard_by', { author: s.author })} · <time dateTime={s.at} title={now === undefined ? undefined : exact(s.at, t.locale)}>{now === undefined ? '' : ago(s.at, now, t)}</time>
           </small>
         </div>
       </figcaption>

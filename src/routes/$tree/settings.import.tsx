@@ -1,3 +1,4 @@
+import { issueMessage } from '~/lib/exchange/issue-message';
 // Import and export for one family. Editors and stewards can export (the file carries private fields, so no one
 // else may). Only stewards can import: the page reads a GEDCOM file, shows what it would do, and writes only when
 // the steward presses the button. A family that already has people needs the explicit "add to this family" switch.
@@ -246,7 +247,7 @@ function ImportSection({ tree, people }: { tree: string; people: number }) {
             />
           )}
           {preview.issues.length > 0 && (
-            <PreviewList title={t('exchange.import.list.issues')} rows={preview.issues.map((i) => t(i.code, i.vars))} total={preview.issueCount} />
+            <PreviewList title={t('exchange.import.list.issues')} rows={preview.issues.map((i) => issueMessage(t.locale, i))} total={preview.issueCount} />
           )}
 
           {people > 0 && (

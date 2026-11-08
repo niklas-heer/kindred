@@ -3,6 +3,14 @@
 import type { Message } from "../types.ts";
 
 export const en = {
+  "exchange.date.about": "“{shown}” read as about {value}",
+  "exchange.date.earlier": "“{shown}” read as about its earlier year",
+  "exchange.date.start": "“{shown}” read as about its start",
+  "exchange.date.noMonth": "“{shown}” has a day but no month",
+  "exchange.date.unknownMonth": "“{shown}” has an unknown month",
+  "exchange.date.invalid": "“{shown}” is not a real date",
+  "exchange.date.unsupported": "“{shown}” is not a date Kindred can store",
+
   "exchange.cycle_refused": "Nothing was imported: the file would make someone their own ancestor. Correct the file and try again.",
   "exchange.issue.line_skipped": "Line {line} is not GEDCOM and was skipped",
   "exchange.issue.line_orphan": "Line {line} sits under nothing and was skipped",
@@ -77,6 +85,14 @@ export const en = {
 };
 
 export const de: Record<keyof typeof en, Message> = {
+  "exchange.date.about": "„{shown}“ als ungefähr {value} gelesen",
+  "exchange.date.earlier": "„{shown}“ als ungefähr das frühere Jahr gelesen",
+  "exchange.date.start": "„{shown}“ als ungefähr den Beginn gelesen",
+  "exchange.date.noMonth": "„{shown}“ hat einen Tag, aber keinen Monat",
+  "exchange.date.unknownMonth": "„{shown}“ hat einen unbekannten Monat",
+  "exchange.date.invalid": "„{shown}“ ist kein gültiges Datum",
+  "exchange.date.unsupported": "„{shown}“ ist kein Datum, das Kindred speichern kann",
+
   "exchange.cycle_refused": "Nichts wurde importiert: Die Datei würde eine Person zu ihrer eigenen Vorfahrin oder ihrem eigenen Vorfahren machen. Korrigiere die Datei und versuche es erneut.",
   "exchange.issue.line_skipped": "Zeile {line} ist kein GEDCOM und wurde übersprungen",
   "exchange.issue.line_orphan": "Zeile {line} gehört zu keinem Eintrag und wurde übersprungen",
@@ -152,6 +168,14 @@ export const de: Record<keyof typeof en, Message> = {
 
 /** Afrikaans. A missing entry falls back to English at runtime; the test reports them. */
 export const af: Partial<Record<keyof typeof en, Message>> = {
+  "exchange.date.about": "“{shown}” as ongeveer {value} gelees",
+  "exchange.date.earlier": "“{shown}” as ongeveer die vroeëre jaar gelees",
+  "exchange.date.start": "“{shown}” as ongeveer die begin gelees",
+  "exchange.date.noMonth": "“{shown}” het ’n dag maar geen maand nie",
+  "exchange.date.unknownMonth": "“{shown}” het ’n onbekende maand",
+  "exchange.date.invalid": "“{shown}” is nie ’n geldige datum nie",
+  "exchange.date.unsupported": "“{shown}” is nie ’n datum wat Kindred kan stoor nie",
+
   "exchange.cycle_refused": "Niks is ingevoer nie: die lêer sou iemand se eie voorouer maak. Korrigeer die lêer en probeer weer.",
   "exchange.issue.line_skipped": "Lyn {line} is nie GEDCOM nie en is oorgeslaan",
   "exchange.issue.line_orphan": "Lyn {line} hoort onder niks nie en is oorgeslaan",

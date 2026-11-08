@@ -1,3 +1,4 @@
+import { issueMessage } from './issue-message.ts';
 // What the import preview says, in each language. Every code a file can produce has its text in German and
 // Afrikaans, with its values filled in, so a reader never meets a bare key or an English sentence in another
 // language. The file below is built to trigger every kind of note and conflict the reader can see.
@@ -117,4 +118,17 @@ test('the refusals and the loop count are translated, and the count picks the pl
 test('every exchange key has an Afrikaans entry, so the preview is complete in all three languages', () => {
   const gaps = missingKeys('af').filter((k) => k.startsWith('exchange.'));
   assert.deepEqual(gaps, [], 'no exchange key falls back to English in Afrikaans');
+});
+
+test('date notes in the import preview translate every conversion and rejection', () => {
+  for (const date of ['BEF 1900', 'AFT 1900', 'FROM 1900', 'BET 1900 AND 1910', 'FROM 1900 TO 1910', '12 1900', 'JANUARY 1900', 'XYZ 1900', '31 FEB 1900']) {
+    const issue = readGedcom(`0 @I1@ INDI\n1 NAME Test /Reader/\n1 BIRT\n2 DATE ${date}\n0 TRLR`).issues.find(i => i.code === 'exchange.issue.date_birth')!;
+    assert.ok(issue);
+    for (const locale of ['en', 'de', 'af'] as const) {
+      const message = issueMessage(locale, issue);
+      assert.ok(message.includes(date));
+      assert.doesNotMatch(message, /exchange\.date|\{\w+\}/);
+      if (locale !== 'en') assert.doesNotMatch(message, /read as|has a|is not a/);
+    }
+  }
 });

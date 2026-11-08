@@ -1,6 +1,7 @@
 // Dates between Kindred and GEDCOM. Kindred stores partial dates ("1953", "1953-08", "1953-08-08") and a
 // "~" for about ("~1953"). GEDCOM writes "1953", "AUG 1953", "8 AUG 1953", and "ABT" for about. Ranges and
 // "before"/"after" have no Kindred form: they are kept as about their nearest year, and the reader is told.
+import type { Key } from '../i18n/dictionary.ts';
 import { validDate } from '../dates.ts';
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -21,6 +22,8 @@ export interface ParsedDate {
   date: string | null;
   /** Why the date was changed or dropped, for the reader's report. */
   note?: string;
+  noteKey?: Key;
+  noteVars?: { shown: string; value: string };
 }
 
 /** A GEDCOM DATE value as a Kindred date. Calendar-invalid dates (31 FEB) are dropped with a note. */
@@ -30,6 +33,8 @@ export function fromGedcomDate(text: string): ParsedDate {
   const shown = text.trim();
   let approx = false;
   let note: string | undefined;
+  let noteKey: Key | undefined;
+  const noteVars = { shown, value: "" };
 
   const about = /^(ABT|CAL|EST)\s+(.*)$/.exec(s);
   const before = /^(BEF|AFT)\s+(.*)$/.exec(s);
@@ -41,28 +46,32 @@ export function fromGedcomDate(text: string): ParsedDate {
   } else if (before) {
     approx = true;
     note = `"${shown}" read as about ${before[2]}`;
+    noteKey = "exchange.date.about";
+    noteVars.value = before[2];
     s = before[2];
   } else if (between) {
     approx = true;
     note = `"${shown}" read as about its earlier year`;
+    noteKey = "exchange.date.earlier";
     s = between[1];
   } else if (from) {
     approx = true;
     note = `"${shown}" read as about its start`;
+    noteKey = "exchange.date.start";
     s = from[1];
   }
 
   const m = /^(?:(\d{1,2})\s)?(?:([A-Z]{3})\s)?(\d{3,4})$/.exec(s);
-  if (!m) return { date: null, note: `"${shown}" is not a date Kindred can store` };
+  if (!m) return { date: null, note: `"${shown}" is not a date Kindred can store`, noteKey: "exchange.date.unsupported", noteVars };
   const [, day, mon, year] = m;
-  if (day && !mon) return { date: null, note: `"${shown}" has a day but no month` };
+  if (day && !mon) return { date: null, note: `"${shown}" has a day but no month`, noteKey: "exchange.date.noMonth", noteVars };
   let iso = year;
   if (mon) {
     const i = MONTHS.indexOf(mon);
-    if (i < 0) return { date: null, note: `"${shown}" has an unknown month` };
+    if (i < 0) return { date: null, note: `"${shown}" has an unknown month`, noteKey: "exchange.date.unknownMonth", noteVars };
     iso += `-${String(i + 1).padStart(2, '0')}`;
   }
   if (day) iso += `-${day.padStart(2, '0')}`;
-  if (!validDate(iso)) return { date: null, note: `"${shown}" is not a real date` };
-  return note ? { date: (approx ? '~' : '') + iso, note } : { date: (approx ? '~' : '') + iso };
+  if (!validDate(iso)) return { date: null, note: `"${shown}" is not a real date`, noteKey: "exchange.date.invalid", noteVars };
+  return note ? { date: (approx ? '~' : '') + iso, note, noteKey, noteVars } : { date: (approx ? '~' : '') + iso };
 }

@@ -1,3 +1,4 @@
+import { useToday } from '~/lib/clock';
 import { PageHeader, Skeleton, ErrorState } from '~/components/ui';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
@@ -93,7 +94,7 @@ function buildHouseholds(f: Family, rows: Row[]) {
   }
 
   const households: Household[] = [...groups.entries()].map(([id, members]) => {
-    members.sort((a, b) => (ageOf(b) ?? 0) - (ageOf(a) ?? 0));
+    members.sort((a, b) => (a.born ?? '9999').replace(/^~/, '').localeCompare((b.born ?? '9999').replace(/^~/, '')));
     const seen = new Set<string>();
     const addresses: Row[] = [];
     for (const m of members)
@@ -121,11 +122,9 @@ function closeFamily(f: Family, me: string): Set<string> {
 // ---------- helpers ----------
 
 const DAY = 86_400_000;
-function nextBirthday(p: GPerson): { days: number; turns: number; date: Date } | undefined {
+function nextBirthday(p: GPerson, today: Date): { days: number; turns: number; date: Date } | undefined {
   const m = p.born && /^(\d{4})-(\d\d)-(\d\d)$/.exec(p.born);
   if (!m || !p.living) return undefined;
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   for (let y = today.getFullYear(); ; y++) {
     const leapless = +m[2] === 2 && +m[3] === 29 && !((y % 4 === 0 && y % 100 !== 0) || y % 400 === 0);
     const d = new Date(y, +m[2] - 1, leapless ? 28 : +m[3]);
@@ -418,6 +417,7 @@ function sharedHouse(h: Household, f: Family) {
 function HouseholdCard({ h, f, tree }: { h: Household; f: Family; tree: string }) {
   const t = useT();
   const house = sharedHouse(h, f);
+  const today = useToday();
   return (
     <article className="con-card ui-card" data-house={house ? true : undefined}>
       {house && (
@@ -428,9 +428,9 @@ function HouseholdCard({ h, f, tree }: { h: Household; f: Family; tree: string }
         </header>
       )}
       {h.members.map((m) => {
-        const bd = nextBirthday(m);
+        const bd = today ? nextBirthday(m, today) : undefined;
         const mine = (h.rows.get(m.id) ?? []).filter((r) => r.kind !== 'address');
-        const years = ageOf(m);
+        const years = today ? ageOf(m, today) : undefined;
         return (
           <div key={m.id} className="con-member">
             <div className="con-who">

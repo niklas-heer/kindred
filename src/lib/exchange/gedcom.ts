@@ -349,7 +349,7 @@ export function readGedcom(text: string): Incoming {
     const p = fromGedcomDate(text);
     if (p.note) {
       const { word, code } = DATE_EVENT[event];
-      issues.push({ level: 'warning', code, vars: { subject, note: p.note }, message: `${word} of ${subject}: ${p.note}` });
+      issues.push({ level: 'warning', code, vars: { subject, note: p.note, noteKey: p.noteKey!, ...p.noteVars }, message: `${word} of ${subject}: ${p.note}` });
     }
     return p.date;
   };
