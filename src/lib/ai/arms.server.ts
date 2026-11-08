@@ -30,6 +30,9 @@ import type { ArmsV2, ChargeLayer, OrdinaryLayer } from '../seed-format';
 const LANG = { en: 'English', de: 'German (du)', af: 'Afrikaans (jy)' } as const;
 const WEB_SEARCHES = 3;
 const MAX_MEANINGS = 8;
+const MAX_IDEAS = 4;
+const MAX_SOURCES = 3;
+const NOTE_MAX = 400;
 const MAX_DESIGNS = 5;
 const MIN_DESIGNS = 3;
 /** A revision gives this many refinements and this many fresh designs at most. Fewer fresh designs than the minimum is bad output; refinements may run out, because one that cannot be drawn cleanly is dropped. */
@@ -42,7 +45,11 @@ const FINDINGS_MAX = 6000;
 
 // ---------- step 1: what the name means ----------
 
-/** What the model returns for step one. Checked again, and sanitised, by `toMeanings`. */
+/**
+ * What the model returns for step one. Checked again, and sanitised, by `toMeanings`. The counts and lengths are in the
+ * descriptions and not in the schema: Anthropic's structured outputs do not take such bounds, so the model never sees them
+ * there, and a well-documented name easily goes past them. A long list is trimmed (`toMeanings`, `shortNote`), not refused.
+ */
 const modelMeaning = z.object({
   language: z.string().describe('Where this root is used, as languages and regions, e.g. "Dutch and German". Empty for the family\'s own meaning.'),
   root: z.string().describe('The root word, in its own spelling.'),
@@ -51,13 +58,13 @@ const modelMeaning = z.object({
   ideas: z.array(z.object({
     kind: z.enum(IDEA_KINDS).describe('quality: a virtue or trait; object: a thing; trade: an occupation; sound: a play on how the name sounds.'),
     idea: z.string().describe('A short phrase, e.g. "a lord\'s courage".'),
-  })).max(4).describe('Heraldic ideas that follow from this meaning. Up to four, each short.'),
-  sources: z.array(z.string()).max(3).describe('Full URLs of the pages you used for this meaning, from the list given. Empty when you did not use any.'),
+  })).describe('Heraldic ideas that follow from this meaning. At most four, each short.'),
+  sources: z.array(z.string()).describe('Full URLs of the pages you used for this meaning, from the list given. At most three, the best ones. Empty when you did not use any.'),
 });
 const modelReply = z.object({
-  meanings: z.array(modelMeaning).max(MAX_MEANINGS),
+  meanings: z.array(modelMeaning).describe('The distinct meanings, most likely first. At most eight.'),
   // Null is an honest "nothing to add", not a bad answer: it must not cost a retry.
-  note: z.string().max(400).nullish().describe('One honest sentence on what is uncertain, if anything. Empty when nothing is.'),
+  note: z.string().nullish().describe('One honest sentence on what is uncertain, if anything, under 400 characters. Empty when nothing is.'),
 });
 
 const NAME_JSON: JsonSchema = jsonOf(modelReply);
@@ -80,14 +87,14 @@ const searchPrompt = (surname: string, country?: string) => [
 
 function researchSystem(locale: AiLocale, o: { hint: boolean; findings: boolean }): string {
   return [
-    'You research what a family surname means, for a heraldic designer who makes arms that play on a name. Look across the languages and regions where the name is found, and give each distinct meaning once: no two candidates with the same root and meaning.',
+    'You research what a family surname means, for a heraldic designer who makes arms that play on a name. Look across the languages and regions where the name is found, and give each distinct meaning once, at most eight: no two candidates with the same root and meaning.',
     'For each meaning give the languages or regions, the root word in its own spelling, what it means in a few words, whether it is well attested or speculative, and up to four heraldic ideas that follow from it: a quality (a virtue such as honour or courage), an object, a trade, or a sound (a play on how the name sounds). Ideas must follow from the meaning. Keep them short.',
     'For example, the surname Heer has three candidates: Dutch and German "heer" (lord, gentleman), German "hehr" (noble, honourable) and German "Heer" (army, host). A name may have one candidate or none; do not pad the list.',
     'Be honest about what you know. Mark a meaning speculative when it is a guess, a folk etymology or one you cannot place. If you know nothing reliable, return few or no meanings and say so in "note". Never invent a historic family, an ancestor, a coat of arms, or a place the name comes from.',
     o.hint ? 'The family\'s own meaning is the most important input. Include it as a meaning with attestation "family", in the family\'s own words, with an empty language, and give it ideas too. Never contradict it or call it wrong; you may add what the dictionaries say as other candidates.' : '',
     `Write the meanings, the ideas and the note in ${LANG[locale]}. Keep roots in their own spelling.`,
     o.findings
-      ? 'The message holds research notes from a public web search for the surname, and the pages that search returned. Build the meanings from those notes. Use your own knowledge only where they say nothing, and then say so in "note". For each meaning list in "sources" the full URLs, taken from that list only, of the pages you used for it; leave it empty when you used none.'
+      ? 'The message holds research notes from a public web search for the surname, and the pages that search returned. Build the meanings from those notes. Use your own knowledge only where they say nothing, and then say so in "note". For each meaning list in "sources" the full URLs, taken from that list only, of the pages you used for it, at most three; leave it empty when you used none.'
       : 'You cannot search the web. Work from your own knowledge only, and say in "note" that the answer is from your own knowledge and not checked online. Leave "sources" empty.',
     'Answer only in the JSON shape you are given.',
   ].filter(Boolean).join('\n');
@@ -107,6 +114,13 @@ function researchUser(o: { surname: string; country?: string; familyHint?: strin
   ].filter(Boolean).join('\n');
 }
 
+/** The model's note, cut at a word when it runs past what is kept. */
+function shortNote(note: string | null | undefined): string | undefined {
+  const text = note?.trim();
+  if (!text) return undefined;
+  return text.length <= NOTE_MAX ? text : `${text.slice(0, NOTE_MAX - 1).replace(/\s+\S*$/, '')}…`;
+}
+
 /** Turns the model's candidates into the meanings the reader sees: ids, the family's own meaning first, sources only if searched. */
 function toMeanings(list: z.infer<typeof modelMeaning>[], o: { familyHint?: string; webSources: Map<string, string | undefined>; webSearched: boolean }): NameMeaning[] {
   const hint = o.familyHint?.trim() || undefined;
@@ -120,9 +134,9 @@ function toMeanings(list: z.infer<typeof modelMeaning>[], o: { familyHint?: stri
       else { family = true; meaning = hint; }
     }
     const sources = o.webSearched
-      ? m.sources.filter((u) => o.webSources.has(u)).slice(0, 3).map((u) => ({ url: u, title: o.webSources.get(u) }))
+      ? m.sources.filter((u) => o.webSources.has(u)).slice(0, MAX_SOURCES).map((u) => ({ url: u, title: o.webSources.get(u) }))
       : [];
-    return { language: attestation === 'family' ? '' : m.language.trim(), root: m.root.trim(), meaning, attestation, ideas: m.ideas, sources };
+    return { language: attestation === 'family' ? '' : m.language.trim(), root: m.root.trim(), meaning, attestation, ideas: m.ideas.slice(0, MAX_IDEAS), sources };
   });
   if (hint && !family) rows.unshift({ language: '', root: '', meaning: hint, attestation: 'family', ideas: [], sources: [] });
   // Distinct meanings (the same root and sense once), the family's own first; the rest keep the model's order.
@@ -165,7 +179,7 @@ export async function researchName(o: { adapter: AiAdapter; webSearch: boolean; 
     if (!parsed.success) return undefined;
     return {
       meanings: toMeanings(parsed.data.meanings, { familyHint: hint, webSources, webSearched }),
-      note: parsed.data.note?.trim() || undefined,
+      note: shortNote(parsed.data.note),
       webSearched,
     };
   });

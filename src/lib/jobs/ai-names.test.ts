@@ -33,7 +33,7 @@ const meanings = await load<typeof import('../house-meaning.server.ts')>('/src/l
 const fns = await load<typeof import('../house-meaning.functions.ts')>('/src/lib/house-meaning.functions.ts');
 const { checkArms } = await load<typeof import('../ai/arms-fit.server.ts')>('/src/lib/ai/arms-fit.server.ts');
 const { setUpFamilyAi } = await load<typeof import('../ai/testing.server.ts')>('/src/lib/ai/testing.server.ts');
-const { AiError } = await load<typeof import('../ai/adapters.ts')>('/src/lib/ai/adapters.ts');
+const { AiError, makeAdapter } = await load<typeof import('../ai/adapters.ts')>('/src/lib/ai/adapters.ts');
 
 type Store<T> = AsyncLocalStorage<T>;
 const registry = globalThis as unknown as Record<symbol, Store<unknown> | undefined>;
@@ -357,4 +357,69 @@ test('the badge: collected meanings come after an arms review and before "not re
   assert.equal(reviewBadge({ ...base, collected: true }), 'meanings-collected');
   assert.equal(reviewBadge({ ...base }), 'name-unresearched');
   assert.equal(reviewBadge({ ...base, collected: true, review: { house: 'h', verdict: 'reconsider', reason: '', advice: '', locale: 'en', checkedAt: 1, current: true, dismissed: false, chosen: true } }), 'arms-review');
+});
+
+test('a rich answer through the Anthropic path is kept within the limits, not thrown away', async () => {
+  const tree = 'rich';
+  makeFamily(tree, ['Holtzmeier']);
+  await setupAi(tree, { webSearch: true });
+  const urls = Array.from({ length: 12 }, (_, i) => `https://names.example.org/entry/${i}`);
+  const meaning = (i: number) => ({
+    language: 'German', root: `holt${i}`, meaning: `sense ${i}`, attestation: 'well-attested',
+    ideas: ['one', 'two', 'three', 'four', 'five'].map((idea) => ({ kind: 'quality', idea })),
+    sources: urls,
+  });
+  const bodies: Record<string, any>[] = [];
+  const usage = { input_tokens: 10, output_tokens: 10 };
+  const offline = globalThis.fetch;
+  // The shape the Messages API answers in: a search turn with its result blocks, then structured output as JSON text after thinking.
+  globalThis.fetch = (async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(init.body as string) as Record<string, any>;
+    bodies.push(body);
+    const content = body.tools
+      ? [
+          { type: 'thinking', thinking: '', signature: 'sig' },
+          { type: 'server_tool_use', id: 'srv_1', name: 'web_search', input: { query: 'Holtzmeier' } },
+          { type: 'web_search_tool_result', tool_use_id: 'srv_1', content: urls.map((url) => ({ type: 'web_search_result', url, title: 'Entry', encrypted_content: 'x' })) },
+          { type: 'text', text: 'Notes on the name.', citations: [] },
+        ]
+      : [
+          { type: 'thinking', thinking: '', signature: 'sig' },
+          { type: 'text', text: JSON.stringify({ meanings: Array.from({ length: 10 }, (_, i) => meaning(i)), note: `${'A long and careful note. '.repeat(30)}` }) },
+        ];
+    return Response.json({ content, stop_reason: 'end_turn', usage: { ...usage, server_tool_use: { web_search_requests: body.tools ? 1 : 0 } } });
+  }) as typeof fetch;
+  let out: Awaited<ReturnType<typeof run>>;
+  try {
+    out = await run(tree, makeAdapter('anthropic', 'sk-test-key-123', 'claude-haiku-5-5'));
+  } finally {
+    globalThis.fetch = offline;
+  }
+  assert.deepEqual([out.status, out.done, out.failed], ['done', 1, 0], out.note);
+  assert.equal(bodies.length, 2, 'one search and one answer: no retry');
+  assert.doesNotMatch(JSON.stringify(bodies[1].output_config.format.schema), /maxItems|maxLength/, 'these limits never reach the model as schema');
+  const d = openSqlite(join(dir, `${tree}.db`), 'tree');
+  const saved = d.prepare('SELECT meanings, note FROM house_meaning').get() as { meanings: string; note: string };
+  d.close();
+  const list = JSON.parse(saved.meanings) as { ideas: unknown[]; sources: unknown[] }[];
+  assert.equal(list.length, 8);
+  assert.ok(list.every((m) => m.ideas.length === 4 && m.sources.length === 3));
+  assert.ok(saved.note.length > 0 && saved.note.length <= 400);
+});
+
+test('a run names the names that failed, in words, and only an all-failed run is failed', async () => {
+  const down = () => new AiError('unreachable', 'ai.err_unreachable');
+  const mixed = 'mixed';
+  makeFamily(mixed, ['Bad', 'Good']);
+  await setupAi(mixed);
+  const some = await run(mixed, stub({ fail: (user) => (/Surname: Bad/.test(user) ? down() : undefined) }).adapter);
+  assert.deepEqual([some.status, some.done, some.failed], ['done', 1, 1]);
+  assert.equal(some.note, 'Bad: Could not reach the AI service. Check the connection.');
+
+  const worst = 'all-failed';
+  makeFamily(worst, ['Bad', 'Worse']);
+  await setupAi(worst);
+  const all = await run(worst, stub({ fail: down }).adapter);
+  assert.deepEqual([all.status, all.done, all.failed], ['failed', 0, 2]);
+  assert.equal(all.note, 'Bad, Worse: Could not reach the AI service. Check the connection.');
 });

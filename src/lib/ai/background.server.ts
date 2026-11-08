@@ -8,6 +8,7 @@
 // through the same path the assistant uses). Whichever runs out first stops the work.
 import { accounts } from '../auth/store.server';
 import { db } from '../db.server';
+import { errorText } from '../errortext';
 import { readReviews } from '../house-meaning.server';
 import { needsAttention } from '../house-meaning.ts';
 import { AiError, callRounds, outputCap, type AiAdapter, type AiReply, type AiRequest } from './adapters';
@@ -256,6 +257,8 @@ export async function runTask(tree: string, task: Task, o: RunOptions = {}): Pro
     let failed = 0;
     let stopped = false;
     let note = '';
+    // The names that failed, by what went wrong: a surname says more to a steward than a task's count does.
+    const failedNames = new Map<string, string[]>();
     const batch = items.slice(0, o.limit ?? BATCH);
     for (const [at, item] of batch.entries()) {
       if (o.room) {
@@ -274,9 +277,12 @@ export async function runTask(tree: string, task: Task, o: RunOptions = {}): Pro
         }
         failed++;
         await recordFailure(tree, item, e);
-        note = e instanceof AiError ? e.message : c('aitasks.errFailed');
+        const reason = e instanceof AiError ? errorText(e, bg.locale) : c('aitasks.errFailed');
+        if (item.task === 'names') failedNames.set(reason, [...(failedNames.get(reason) ?? []), item.surname]);
+        else note = reason;
       }
     }
+    note = [...[...failedNames].map(([reason, names]) => `${names.join(', ')}: ${reason}`), note].filter(Boolean).join(' ');
     const waiting = items.length - done;
     const status: TaskRun['status'] = stopped ? 'stopped' : done === 0 && failed > 0 ? 'failed' : 'done';
     const out: TaskOutcome = { status, done, failed, waiting, micros: meter.micros, calls: meter.calls, note };
@@ -284,7 +290,7 @@ export async function runTask(tree: string, task: Task, o: RunOptions = {}): Pro
     await logRun(tree, task, source, now, out);
     return out;
   } catch (e) {
-    const out: TaskOutcome = { status: 'failed', done: 0, failed: 1, waiting: 0, micros: 0, calls: 0, note: e instanceof AiError ? e.message : tr('en')('aitasks.errFailed') };
+    const out: TaskOutcome = { status: 'failed', done: 0, failed: 1, waiting: 0, micros: 0, calls: 0, note: e instanceof AiError ? errorText(e, 'en') : tr('en')('aitasks.errFailed') };
     await logRun(tree, task, source, now, out);
     return out;
   } finally {

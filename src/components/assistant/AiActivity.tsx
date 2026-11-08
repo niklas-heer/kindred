@@ -63,8 +63,11 @@ function ActivityBody({ tree, data }: { tree: string; data: Activity }) {
     mutationFn: (task: Task) => aiRunTask({ data: { tree, task } }),
     onSuccess: (out, task) => {
       const ok = out.status === 'done' || out.status === 'idle' || out.status === 'stopped';
-      const text = out.status === 'idle' ? t('aitasks.ranNothing') : out.status === 'done' || out.status === 'stopped' ? t('aitasks.ranOk', { done: out.done, waiting: out.waiting }) : t((STATUS[out.status] ?? 'aitasks.status.failed') as Key);
-      setRan({ task, text: out.note && !ok ? `${text} ${out.note}` : text, ok });
+      const counts = out.failed > 0 ? t('aitasks.ranPartial', { done: out.done, failed: out.failed, waiting: out.waiting }) : t('aitasks.ranOk', { done: out.done, waiting: out.waiting });
+      const text = out.status === 'idle' ? t('aitasks.ranNothing') : ok ? counts : t((STATUS[out.status] ?? 'aitasks.status.failed') as Key);
+      // A run that failed says why after its status; a run that partly worked keeps its counts and says which names did not.
+      const said = !out.note ? text : !ok ? t('aitasks.withReason', { status: text, reason: out.note }) : out.failed > 0 ? `${text} ${out.note}` : text;
+      setRan({ task, text: said, ok });
       void qc.invalidateQueries({ queryKey: ['ai-activity', tree] });
       void qc.invalidateQueries({ queryKey: ['collected-meanings', tree] });
     },
@@ -161,7 +164,7 @@ function ActivityBody({ tree, data }: { tree: string; data: Activity }) {
                 <span className={r.status === 'failed' ? 'aitasks-failed' : undefined}>
                   <b>{t(STATUS[r.status] ?? 'aitasks.status.failed')}</b>
                   {r.status !== 'idle' && <span className="muted"> · {t('aitasks.countsLine', { done: r.done, failed: r.failed, waiting: r.waiting })}</span>}
-                  {r.note && <span className="aitasks-note"> {r.note}</span>}
+                  {r.note && <span className="aitasks-note"> · {r.note}</span>}
                 </span>
                 <span className="aitasks-note">{r.micros > 0 ? usd(r.micros, locale) : '—'}</span>
               </li>
