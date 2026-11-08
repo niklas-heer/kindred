@@ -533,7 +533,7 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   "ai.keyErrOther": "Die verskaffer het met ’n fout geantwoord. Probeer weer.",
   "ai.errNoKey": "Plak eers ’n API-sleutel.",
   "ai.modelHint": "Kies een uit die lys, of tik enige model-ID wat die verskaffer aanbied.",
-  "ai.modelOnlineNote": "OpenRouter se “:online”-agtervoegsel word oral in die model-ID verwyder. Kindred laat nooit ’n model self soek nie: modelle wie se naam sê hulle soek (OpenAI se soek- en diepnavorsingsmodelle, Perplexity), word geweier, en webeoeke loop net deur sy eie beperkte instrument.",
+  "ai.modelOnlineNote": "OpenRouter se “:online”-agtervoegsel word oral in die model-ID verwyder. Kindred laat nooit ’n model self soek nie: modelle wie se naam sê hulle soek (OpenAI se soek- en diepnavorsingsmodelle, Perplexity), word geweier, en websoeke loop net deur sy eie beperkte instrument.",
   "ai.modelsLoading": "Modelle laai…",
   "ai.modelsFailed": "Die modellys het nie gelaai nie, so tik ’n model-ID hieronder.",
   "ai.modelsNeedKey": "Plak ’n sleutel om die beskikbare modelle te sien.",
