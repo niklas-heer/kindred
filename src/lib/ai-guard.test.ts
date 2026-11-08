@@ -162,7 +162,8 @@ test('a surname particle is not a surname: "Jan van Riebeeck" is allowed beside 
     INSERT INTO meta (key, value) VALUES ('id', '${PT}'), ('name', 'Particles'), ('tagline', ''), ('theme', 'codex'), ('focus', 'jm');
     INSERT INTO person (id, given, surname, nickname, living, current_given, current_surname) VALUES
       ('jm', 'Jan', 'van der Merwe', NULL, 1, NULL, NULL),
-      ('lv', 'Lisa', 'Van', NULL, 1, NULL, NULL);
+      ('lv', 'Lisa', 'Van', NULL, 1, NULL, NULL),
+      ('ad', 'Anna', 'De La', NULL, 1, NULL, NULL);
   `);
   f.close();
   const guard = await lookup.privacyGuard(PT, (await graph(PT)).people, true);
@@ -173,5 +174,6 @@ test('a surname particle is not a surname: "Jan van Riebeeck" is allowed beside 
     assert.equal(lookup.refusal(guard, q), 'living-name', JSON.stringify(q));
   }
   assert.equal(lookup.refusal(guard, 'Lisa Van'), 'living-name', 'a surname that is only a particle still counts');
+  assert.equal(lookup.refusal(guard, 'Anna De La'), 'living-name', 'so does one made of several particles');
 });
 

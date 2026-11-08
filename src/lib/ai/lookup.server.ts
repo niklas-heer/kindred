@@ -74,8 +74,9 @@ export async function privacyGuard(tree: string, people: GPerson[], seePrivate: 
   // A surname's words without its particles, unless nothing else is left (see PARTICLES).
   const surnameWords = (text: string | null | undefined): string[] => {
     const all = nameWords(text, MIN_SURNAME);
-    const own = all.filter((w) => !PARTICLES.has(w));
-    return own.length ? own : all;
+    // Judged on the written words: the joined form of "De La" ("dela") is not a word of its own.
+    const hasOwn = wordsOf(text ?? '', false).some((w) => w.length >= MIN_SURNAME && !PARTICLES.has(w));
+    return hasOwn ? all.filter((w) => !PARTICLES.has(w)) : all;
   };
   for (const p of people) {
     if (!p.living) continue;
