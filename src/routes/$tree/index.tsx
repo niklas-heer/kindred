@@ -4,7 +4,7 @@ import {
   HeartPulse, Keyboard, Landmark, Minus, Network, Plus, Route as RouteIcon, Shield, Users, Waypoints, X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
-import { Canvas, type CanvasHandle, type Detail } from '~/components/Canvas';
+import { Canvas, type CanvasHandle, type Detail, type Inset } from '~/components/Canvas';
 import { Card, type AddRelation } from '~/components/Card';
 import { PersonPanel } from '~/components/PersonPanel';
 import { Portrait } from '~/components/Portrait';
@@ -114,12 +114,12 @@ function TreePage() {
   const sheetH = phone && panel ? snapH(snap) : 0;
   // A closed sheet opens at peek again, so the tree stays in view.
   useEffect(() => { if (!panel) setSnap('peek'); }, [panel]);
-  // Crossing into or out of phone layout moves the free area: centre the selection in it again.
+  // Crossing into or out of phone layout (also right after hydration) moves the free area: frame again.
   const wasPhone = useRef(phone);
   useEffect(() => {
     if (wasPhone.current === phone) return;
     wasPhone.current = phone;
-    requestAnimationFrame(() => canvas.current?.centerOn(sel, { animate: false }));
+    requestAnimationFrame(() => canvas.current?.frame(sel, { animate: false }));
   }, [phone]); // eslint-disable-line react-hooks/exhaustive-deps
   // The toolbar wraps on narrow windows: measure the HUD so centring and notices clear it.
   const hud = useRef<HTMLDivElement>(null);
@@ -195,7 +195,8 @@ function TreePage() {
   useEffect(() => {
     if (prevView.current === view) return;
     prevView.current = view;
-    requestAnimationFrame(() => canvas.current?.centerOn(sel, { k: 0.75 }));
+    // A new view opens framed like the first one: as much of it as fits, readable.
+    requestAnimationFrame(() => canvas.current?.frame(sel));
   }, [view, sel]);
 
   // ---- trail: the last people you looked at ----
@@ -328,7 +329,7 @@ function TreePage() {
     if (view !== 'dynasty' || prevRoot.current === lay.root) return;
     prevRoot.current = lay.root;
     play('seal');
-    requestAnimationFrame(() => canvas.current?.fit());
+    requestAnimationFrame(() => canvas.current?.frame(sel));
   }, [lay.root, view]);
 
   /** A CK3-style notice once someone joins: "A daughter for House Valcourt". */
@@ -449,9 +450,21 @@ function TreePage() {
   const lensLabel = lensOptions.find((o) => o.value === lens)?.label ?? 'Everyone';
   const older = rootPerson ? parents(f, rootPerson.id)[0] : undefined;
 
-  const inset = phone
-    ? { left: 40, top: hudH + 16, right: 58, bottom: snap === 'full' ? 0 : sheetH } // right: the map controls
-    : { left: panel ? panelW + 56 : 56, top: hudH + 24, right: 270 };
+  // What covers the canvas, measured when the camera frames something: the HUD (toolbar, banner, lens
+  // chip) on top, the docked panel on the left, the sheet below. The canvas measures its map controls.
+  const inset = useCallback((): Inset => {
+    const h = hud.current;
+    const top = (h ? h.offsetTop + h.offsetHeight : hudH + 12) + (phone ? 8 : 12);
+    return phone
+      ? { left: 40, top, bottom: snap === 'full' ? 0 : sheetH }
+      : { left: panel ? panelW + 56 : 56, top };
+  }, [phone, snap, sheetH, panel, panelW, hudH]);
+  // When the panel opens or the sheet grows, keep the selected card in the part of the tree still showing.
+  useEffect(() => {
+    if (!panel || (phone && snap === 'full')) return;
+    const r = requestAnimationFrame(() => canvas.current?.reveal(sel));
+    return () => cancelAnimationFrame(r);
+  }, [panel, phone, snap]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Bottom sheet: drag the grip (or the peek) to resize; it settles on the nearest height.
   const drag = useRef<{ y: number; h: number; t: number; v: number; moved: boolean } | null>(null);
@@ -503,6 +516,7 @@ function TreePage() {
     <div
       ref={page}
       className={`tree-page${panel ? ' has-panel' : ''}`}
+      data-sheet={phone && panel ? snap : undefined}
       style={{ '--sheet-h': `${phone && panel && snap !== 'full' ? sheetH : 0}px` } as CSSProperties}
     >
       <Canvas

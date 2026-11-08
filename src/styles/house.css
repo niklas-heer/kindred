@@ -119,7 +119,7 @@
 [data-theme='codex'] .hp-row:hover { background: #ffffff0a; }
 .hp-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .hp-row-name { min-width: 0; display: grid; }
-.hp-row-name b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hp-row-name b { font-family: var(--font-name); font-weight: var(--name-weight); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hp-row-name b i { font-weight: 400; }
 .hp-row-name small { color: var(--subtle); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hp-row-years { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }

@@ -74,11 +74,65 @@ export function faceOptions(p: GPerson, now: number) {
   };
 }
 
-/** The lorelei drawing as a nested <svg> filling a 100 × 100 box, line work in ink. */
-export function faceSvg(options: ReturnType<typeof faceOptions>): string {
-  return createAvatar(lorelei, options)
+// The eyes are drawn in a marker colour so they can be found in the output, then inked like the rest.
+const EYE_MARK = '0b0c0d';
+const EYE_RE = new RegExp(`<g fill="#${EYE_MARK}">[\\s\\S]*?</g>|<path[^>]*fill="#${EYE_MARK}"[^>]*/>`, 'g');
+// Where lorelei's eyes sit (their common centre across the variants above, in its 980-unit box).
+const EYES_AT = [548, 516];
+
+/**
+ * Engraved shading for the face, in lorelei's own coordinates: parallel hatching clipped to the skin,
+ * fading in towards the shadow side of the face (light from the upper left), crossed where it is
+ * darkest and under the jaw. Patterns, so it costs a handful of elements, drawn once per cached image.
+ */
+function shading(skinPath: string): string {
+  const line = (id: string, angle: number) =>
+    `<pattern id="${id}" width="19" height="19" patternUnits="userSpaceOnUse" patternTransform="rotate(${angle})">` +
+    `<path d="M0 5H19" stroke="${INK}" stroke-width="4.4"/></pattern>`;
+  const ramp = (id: string, stops: [number, number][], x1: number, y1: number, x2: number, y2: number) =>
+    `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">` +
+    stops.map(([o, a]) => `<stop offset="${o}" stop-color="#fff" stop-opacity="${a}"/>`).join('') +
+    `</linearGradient>`;
+  const box = 'x="150" y="200" width="680" height="860"';
+  return (
+    `<defs><clipPath id="kd-skin"><path d="${skinPath}"/></clipPath>` +
+    line('kd-h1', -40) + line('kd-h2', 42) +
+    // Main hatch: the far cheek and jaw, and a breath along the near edge.
+    ramp('kd-r1', [[0, 0.6], [0.18, 0], [0.5, 0], [0.85, 0.9], [1, 1]], 220, 0, 720, 0) +
+    // Cross-hatch: only the deepest shadow, at the far edge.
+    ramp('kd-r2', [[0, 0], [0.66, 0], [1, 0.9]], 220, 0, 720, 0) +
+    // Under the jaw: the neck in the head's shadow.
+    ramp('kd-r3', [[0, 0], [0.55, 0], [0.7, 0.9], [1, 0.5]], 0, 500, 0, 1000) +
+    `<mask id="kd-m1" maskUnits="userSpaceOnUse" ${box}><rect ${box} fill="url(#kd-r1)"/></mask>` +
+    `<mask id="kd-m2" maskUnits="userSpaceOnUse" ${box}><rect ${box} fill="url(#kd-r2)"/><rect ${box} fill="url(#kd-r3)" opacity=".7"/></mask>` +
+    `</defs>` +
+    `<g clip-path="url(#kd-skin)" opacity=".72">` +
+    `<rect ${box} fill="url(#kd-h1)" mask="url(#kd-m1)"/>` +
+    `<rect ${box} fill="url(#kd-h2)" mask="url(#kd-m2)"/>` +
+    `</g>`
+  );
+}
+
+/**
+ * The lorelei drawing as a nested <svg> filling a 100 × 100 box, line work in ink. `engrave` adds
+ * hatched shading (for the large sizes only: at list sizes it would only grey the face).
+ */
+export function faceSvg(options: ReturnType<typeof faceOptions>, engrave = false): string {
+  const skin = options.skinColor[0];
+  let svg = createAvatar(lorelei, { ...options, eyesColor: [EYE_MARK] })
     .toString()
     .replace(/<metadata[\s\S]*?<\/metadata>/, '')
-    .replace(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/, '<svg width="100" height="100"')
+    .replace(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/, '<svg width="100" height="100"');
+  // Lorelei's eyes are large and round: the cartoon in it. An engraver draws them smaller and a
+  // little narrower, so they shrink in place around their common centre.
+  const [cx, cy] = EYES_AT;
+  svg = svg
+    .replace(EYE_RE, (m) => `<g transform="translate(${cx} ${cy}) scale(.84 .76) translate(${-cx} ${-cy})">${m}</g>`)
+    .replaceAll(`#${EYE_MARK}`, INK)
     .replace(/fill="#000(000)?"/g, `fill="${INK}"`);
+  if (engrave) {
+    // Shade over the skin, before the features are drawn on top of it.
+    svg = svg.replace(new RegExp(`<path d="([^"]+)" fill="#${skin}"\\s*/>`), (m, d: string) => m + shading(d));
+  }
+  return svg;
 }

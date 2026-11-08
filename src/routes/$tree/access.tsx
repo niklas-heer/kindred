@@ -76,7 +76,7 @@ function AccessPage() {
     if (m.person === BROWSING) return <span className="acc-person">just browsing</span>;
     const p = f.byId.get(m.person);
     if (!p) return null;
-    return <span className="acc-person"><Portrait person={p} tree={tree} size={22} frame={false} /> is <b>{displayName(p, f)}</b></span>;
+    return <span className="acc-person"><Portrait person={p} tree={tree} size={22} frame={false} /> linked to <b className="name">{displayName(p, f)}</b></span>;
   };
 
   return (
@@ -104,7 +104,7 @@ function AccessPage() {
                   <li key={m.id}>
                     <Initials name={m.name} size={40} />
                     <div className="acc-who">
-                      <span className="acc-name"><span>{m.name}</span>{m.you && <span className="chip acc-you">you</span>}</span>
+                      <span className="acc-name"><span className="name">{m.name}</span>{m.you && <span className="chip acc-you">you</span>}</span>
                       <span className="acc-sub">{m.email && <span>{m.email}</span>}{personOf(m)}</span>
                     </div>
                     <span className="acc-seen">Seen {ago(m.lastSeen)}<small>{m.passkeys} {m.passkeys === 1 ? 'passkey' : 'passkeys'}</small></span>
@@ -212,7 +212,7 @@ function InviteRow({ i, onRevoke, onRenew, busy }: { i: AccessInvite; onRevoke: 
             {copied ? <><Check size={15} /> Copied</> : <><Copy size={15} /> Copy link</>}
           </button>
         ) : (
-          <button className="btn" onClick={onRenew} disabled={busy} title="Links are shown only once. A new link replaces the old one and is copied for you.">
+          <button className="btn" onClick={onRenew} disabled={busy} title="Only the browser that made a link keeps a copy. A new link replaces the old one and is copied for you.">
             <RefreshCw size={15} /> New link
           </button>
         )}
@@ -273,7 +273,7 @@ function InviteDialog({ open, onClose, tree, familyName, onCreated }: { open: bo
       {made ? (
         <>
           <p className="acc-ready">
-            Send this link to {made.email ? <b>{made.email}</b> : 'them'}. It lets one person join as {/^[aeiou]/i.test(made.role) ? 'an' : 'a'} <b>{roleLabel(made.role).toLowerCase()}</b> until {dateFmt.format(made.expires)}. Kindred shows it only now, so copy it before you close this.
+            Send this link to {made.email ? <b>{made.email}</b> : 'them'}. It lets one person join as {/^[aeiou]/i.test(made.role) ? 'an' : 'a'} <b>{roleLabel(made.role).toLowerCase()}</b> until {dateFmt.format(made.expires)}. This browser keeps a copy under Open invitations; on another device, make a new link instead.
           </p>
           <div className="acc-link">
             <input className="input" readOnly value={made.url} aria-label="Invitation link" onFocus={(e) => e.currentTarget.select()} />

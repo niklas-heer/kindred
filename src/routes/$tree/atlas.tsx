@@ -9,7 +9,7 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { geoGraticule10, geoNaturalEarth1, geoPath, type GeoPermissibleObjects } from 'd3-geo';
 import {
-  ArrowLeft, ChevronDown, ChevronUp, Gauge, Layers, List, Map as MapIcon, Pause, Play, Route as RouteIcon, ScrollText, Shield, X,
+  ArrowLeft, ChevronDown, Expand, ChevronUp, Gauge, Layers, List, Map as MapIcon, Pause, Play, Route as RouteIcon, ScrollText, Shield, Shrink, X,
 } from 'lucide-react';
 import { PageHeader, Range, usePageHotkey } from '~/components/ui';
 import { setPref, usePref } from '~/lib/prefs';
@@ -112,6 +112,15 @@ function Atlas() {
     if (want('weddings')) for (const u of f.graph.unions) if (u.kind === 'marriage') add('weddings', u.place, yearOf(u.start), [u.a, u.b]);
     return { events: out.sort((a, b) => a.year - b.year), unplaced };
   }, [f, mode, placeBy]);
+
+  // How much happened at each place, of every kind and in every year: the map opens on where most of it was.
+  const weight = useMemo(() => {
+    const w = new Map<string, number>();
+    const add = (place?: string) => { if (place && placeBy.has(place)) w.set(place, (w.get(place) ?? 0) + 1); };
+    for (const p of f.graph.people) { add(p.bornPlace); if (!p.living) add(p.diedPlace); }
+    for (const u of f.graph.unions) if (u.kind === 'marriage') add(u.place);
+    return w;
+  }, [f, placeBy]);
 
   const [y0, y1] = events.length ? [events[0].year, events[events.length - 1].year] : [0, 0];
   const [year, setYear] = useState<number | null>(null);
@@ -369,6 +378,7 @@ function Atlas() {
       <div className="atlas-map">
         <WorldMap
           places={f.graph.places}
+          weight={weight}
           pins={pins}
           arcs={arcs}
           selected={search.place}
@@ -539,9 +549,36 @@ function textWidth(text: string, font: string) {
 /** The projection works in a fixed 1000-unit frame; the camera maps it onto the screen. */
 const FRAME = 1000;
 
-function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry, recent, playing, free, mode }: {
+/**
+ * The places that hold most of what happened: nearest first from the weighted middle of all events,
+ * until 80% of the events are in. Far-flung outliers (an emigrant's grave, one wedding abroad) are
+ * left for the "show all" view, so the busy heartland is not a pile of bubbles at world scale.
+ */
+function corePlaces(places: Place[], weight: Map<string, number>): Place[] {
+  const used = places.filter((p) => (weight.get(p.name) ?? 0) > 0);
+  const total = used.reduce((s, p) => s + weight.get(p.name)!, 0);
+  if (used.length < 4 || !total) return places;
+  const median = (key: 'lng' | 'lat') => {
+    const sorted = [...used].sort((a, b) => a[key] - b[key]);
+    let acc = 0;
+    for (const p of sorted) if ((acc += weight.get(p.name)!) >= total / 2) return p[key];
+    return sorted[sorted.length - 1][key];
+  };
+  const mx = median('lng'), my = median('lat');
+  const dist = (p: Place) => Math.hypot((p.lng - mx) * Math.cos((p.lat * Math.PI) / 180), p.lat - my);
+  const byDist = [...used].sort((a, b) => dist(a) - dist(b));
+  let acc = 0, cut = Infinity;
+  for (const p of byDist) if ((acc += weight.get(p.name)!) >= total * 0.8) { cut = dist(p); break; }
+  // Everything as close as the place that crossed 80% belongs, with a little slack for neighbours.
+  const core = byDist.filter((p) => dist(p) <= cut * 1.15 + 1);
+  return core.length >= 2 ? core : places;
+}
+
+function WorldMap({ places, weight, pins, arcs, selected, onSelect, rings, heraldry, recent, playing, free, mode }: {
   recent: ReadonlySet<string>;
   places: Place[];
+  /** Events per place, all kinds and years: the opening view frames the busiest 80%. */
+  weight: Map<string, number>;
   pins: Pin[];
   rings: boolean;
   /** When set, pins are drawn as the arms of each place's main house. */
@@ -570,21 +607,28 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry, rec
   }, []);
 
   // The projection, fitted to the family's places in a fixed frame (screen fitting is the camera's job).
-  const { projection, bounds } = useMemo(() => {
+  const { projection, bounds, coreBounds, beyond } = useMemo(() => {
     const p = geoNaturalEarth1();
     const pts = places.map((pl) => [pl.lng, pl.lat]);
     if (!pts.length) {
       p.fitSize([FRAME, FRAME / 2], { type: 'Sphere' });
-      return { projection: p, bounds: geoPath(p).bounds({ type: 'Sphere' }) };
+      const b = geoPath(p).bounds({ type: 'Sphere' });
+      return { projection: p, bounds: b, coreBounds: b, beyond: new Set<string>() };
     }
     // Every place, each with a little neighbourhood (clamped to the globe) so a tight cluster is not over-zoomed.
     const clampLng = (x: number) => Math.max(-179.9, Math.min(179.9, x));
     const clampLat = (y: number) => Math.max(-85, Math.min(85, y));
-    const around = pts.flatMap(([x, y]) => [[clampLng(x - 2.5), clampLat(y - 2)], [clampLng(x + 2.5), clampLat(y + 2)]]);
-    const shape = { type: 'MultiPoint' as const, coordinates: around };
+    const around = (ps: Place[]) => ({ type: 'MultiPoint' as const, coordinates: ps.flatMap((pl) => [[clampLng(pl.lng - 2.5), clampLat(pl.lat - 2)], [clampLng(pl.lng + 2.5), clampLat(pl.lat + 2)]]) });
+    const shape = around(places);
     p.fitExtent([[0, 0], [FRAME, FRAME]], shape);
-    return { projection: p, bounds: geoPath(p).bounds(shape) };
-  }, [places]);
+    const bounds = geoPath(p).bounds(shape);
+    const core = corePlaces(places, weight);
+    const beyond = new Set(places.filter((pl) => (weight.get(pl.name) ?? 0) > 0 && !core.includes(pl)).map((pl) => pl.name));
+    return { projection: p, bounds, coreBounds: beyond.size ? geoPath(p).bounds(around(core)) : bounds, beyond };
+  }, [places, weight]);
+  // The opening view frames where most of the family was ('core'); the reader can widen it to every place.
+  const [scope, setScope] = useState<'core' | 'all'>('core');
+  const [handled, setHandled] = useState(false);
   const path = useMemo(() => geoPath(projection), [projection]);
   const paths = useMemo(
     () => (world ? { land: path(world.land) ?? '', borders: path(world.borders) ?? '', grid: path(geoGraticule10()) ?? '', sphere: path({ type: 'Sphere' }) ?? '' } : null),
@@ -592,20 +636,24 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry, rec
   );
 
   // The camera that fits every place into the free rectangle, with room for pins and their labels.
-  const fit = useCallback((sz: { w: number; h: number }, fr: Free): Cam => {
+  const fit = useCallback((sz: { w: number; h: number }, fr: Free, which: 'core' | 'all' = scope): Cam => {
     const fw = Math.max(80, sz.w - fr.l - fr.r), fh = Math.max(80, sz.h - fr.t - fr.b);
-    const [[x0, y0], [x1, y1]] = bounds;
+    const [[x0, y0], [x1, y1]] = which === 'core' ? coreBounds : bounds;
     const padX = Math.min(70, fw * 0.12), padTop = Math.min(56, fh * 0.14), padBottom = Math.min(30, fh * 0.08);
     const k = Math.max(0.05, Math.min((fw - padX * 2) / Math.max(1, x1 - x0), (fh - padTop - padBottom) / Math.max(1, y1 - y0)));
     return { k, x: fr.l + fw / 2 - ((x0 + x1) / 2) * k, y: fr.t + padTop + (fh - padTop - padBottom) / 2 - ((y0 + y1) / 2) * k };
-  }, [bounds]);
+  }, [bounds, coreBounds, scope]);
 
   const [cam, setCamState] = useState<Cam>(() => fit({ w: 1100, h: 800 }, free));
   const camRef = useRef(cam);
   const goal = useRef<Cam | null>(null);
   const anim = useRef(0);
   const touched = useRef(false);
+  /** The reader moved the map themselves: the scope hint has done its job. */
+  const touch = () => { touched.current = true; setHandled(true); };
   const kFit = useRef(cam.k);
+  // Zooming out stops a little beyond the view of every place.
+  const kMin = useRef(cam.k * 0.5);
   const setCam = (c: Cam) => { camRef.current = c; setCamState(c); };
   const stop = () => { cancelAnimationFrame(anim.current); goal.current = null; };
   /** Move the camera smoothly (or at once, for reduced motion). */
@@ -633,9 +681,12 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry, rec
     prev.current = { size, free, projection };
     if (!size.measured) return;
     const target = fit(size, free);
-    kFit.current = target.k;
+    const core = fit(size, free, 'core');
+    kFit.current = core.k;
+    kMin.current = Math.min(core.k * 0.5, fit(size, free, 'all').k * 0.8);
     if (!was || !was.size.measured || was.projection !== projection) {
       touched.current = false;
+      setHandled(false);
       stop();
       setCam(target);
       return;
@@ -654,6 +705,14 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry, rec
     if (resized) { stop(); setCam(to); } else glide(to);
   }, [size, free, projection]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** Widen to every place, or back to where most of the family lived. */
+  const showScope = (to: 'core' | 'all') => {
+    setScope(to);
+    touched.current = false;
+    setHandled(false);
+    glide(fit(size, free, to));
+  };
+
   // Choosing a place brings it to the middle of the free map area, close enough to read its neighbours.
   // Only on a new choice: a resize keeps whatever panning happened since.
   const centred = useRef<string | undefined>(undefined);
@@ -663,7 +722,7 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry, rec
     const pin = selected && places.find((p) => p.name === selected);
     const xy = pin && projection([pin.lng, pin.lat]);
     if (!xy) return;
-    touched.current = true;
+    touch();
     const c = goal.current ?? camRef.current;
     const k = Math.max(c.k, kFit.current * 2.5);
     const fw = size.w - free.l - free.r, fh = size.h - free.t - free.b;
@@ -675,9 +734,9 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry, rec
   const moved = useRef(0);
   const zoomBy = (factor: number, sx: number, sy: number) => {
     stop();
-    touched.current = true;
+    touch();
     const c = camRef.current;
-    const k = Math.min(kFit.current * 14, Math.max(kFit.current * 0.5, c.k * factor));
+    const k = Math.min(kFit.current * 14, Math.max(kMin.current, c.k * factor));
     const f = k / c.k;
     setCam({ k, x: sx - (sx - c.x) * f, y: sy - (sy - c.y) * f });
   };
@@ -707,7 +766,7 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry, rec
     const hit = (a: Box, b: Box) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
     const inside: Box = [free.l + 6, free.t + 6, size.w - free.r - 6, size.h - free.b - 6];
     const within = (b: Box) => b[0] >= inside[0] && b[1] >= inside[1] && b[2] <= inside[2] && b[3] <= inside[3];
-    const fontFamily = typeof document === 'undefined' ? 'serif' : getComputedStyle(document.documentElement).getPropertyValue('--font-display') || 'serif';
+    const fontFamily = typeof document === 'undefined' ? 'serif' : getComputedStyle(document.documentElement).getPropertyValue('--font-title') || 'serif';
     const font = `600 ${LABEL_PX}px ${fontFamily}`;
     type Item = { name: string; body: Box | null; x: number; y: number; r: number };
     const items = pins.flatMap((p): Item[] => {
@@ -791,7 +850,7 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry, rec
         const d = drag.current;
         if (!d) return;
         moved.current += Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y);
-        touched.current = true;
+        if (moved.current > 3 && !touched.current) touch();
         const c = camRef.current;
         setCam({ ...c, x: c.x + e.clientX - d.x, y: c.y + e.clientY - d.y });
         drag.current = { x: e.clientX, y: e.clientY };
@@ -915,6 +974,20 @@ function WorldMap({ places, pins, arcs, selected, onSelect, rings, heraldry, rec
           </g>
         </g>
       </svg>
+      {paths && beyond.size > 0 && !handled && !playing && (
+        <div className="atlas-scope" style={{ left: free.l, right: free.r, top: free.t + 12 }}>
+          {scope === 'core' ? (
+            <button className="btn atlas-scope-btn" onClick={() => showScope('all')}>
+              <Expand size={15} aria-hidden />
+              {beyond.size === 1 ? '1 place' : `${beyond.size} places`} beyond this view · Show all
+            </button>
+          ) : (
+            <button className="btn atlas-scope-btn" onClick={() => showScope('core')}>
+              <Shrink size={15} aria-hidden /> Back to where most of the family lived
+            </button>
+          )}
+        </div>
+      )}
       {!paths && <div className="atlas-loading" style={{ left: free.l, right: free.r, bottom: free.b }}>Unrolling the map…</div>}
     </div>
   );

@@ -122,9 +122,29 @@ function Division({ division, a, b }: { division: House['arms']['division']; a: 
   }
 }
 
-/** A game-icons charge centred on the shield, about 55% of its width. */
-function Charge({ name, colour }: { name: ChargeIconName; colour: string }) {
-  const icon = CHARGE_ICONS[name];
+/**
+ * A mullet: the heraldic star, one five-pointed star in a 100 × 100 box. The game-icons "star"
+ * is a constellation of five, which made "a star or" read as five stars.
+ */
+export const MULLET = (() => {
+  const pts: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 ? 19.5 : 50;
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    pts.push(`${(50 + r * Math.cos(a)).toFixed(2)} ${(54 + r * Math.sin(a)).toFixed(2)}`);
+  }
+  return `M${pts.join('L')}Z`;
+})();
+
+/** A charge's drawing in its own box: the mullet is ours, the rest are game-icons glyphs. */
+export function chargeArt(charge: Exclude<House['arms']['charge'], 'none'>): { viewBox: string; body: string } {
+  if (charge === 'star') return { viewBox: '0 0 100 100', body: `<path fill="currentColor" d="${MULLET}"/>` };
+  return CHARGE_ICONS[CHARGE_NAME[charge]];
+}
+
+/** A charge centred on the shield, about 55% of its width. */
+function Charge({ charge, colour }: { charge: Exclude<House['arms']['charge'], 'none'>; colour: string }) {
+  const icon = chargeArt(charge);
   return (
     <>
       <svg x="25.8" y="31.2" width="50" height="50" viewBox={icon.viewBox} overflow="visible" color="#000" opacity=".45">
@@ -177,7 +197,7 @@ export function Arms({ arms, size = 32, title }: { arms: House['arms']; size?: n
       </defs>
       <g clipPath={`url(#${clip})`}>
         <Division division={arms.division} a={a} b={b} />
-        {arms.charge !== 'none' ? <Charge name={CHARGE_NAME[arms.charge]} colour={TINCTURE_HEX[arms.chargeTincture]} /> : null}
+        {arms.charge !== 'none' ? <Charge charge={arms.charge} colour={TINCTURE_HEX[arms.chargeTincture]} /> : null}
         <rect width="100" height="120" fill={`url(#${sheen})`} />
         <rect width="100" height="120" fill={`url(#${shade})`} />
       </g>

@@ -53,7 +53,7 @@
 [data-theme='codex'] .pin:focus-visible .pin-focus { stroke: #fff3c4; }
 .pin-n { text-anchor: middle; fill: var(--pin-text); font-family: var(--font-ui); font-weight: 700; pointer-events: none; font-variant-numeric: tabular-nums; }
 .pin-label {
-  fill: var(--label); font-family: var(--font-display); font-weight: 600; pointer-events: none;
+  fill: var(--label); font-family: var(--font-title); font-weight: 600; pointer-events: none;
   paint-order: stroke; stroke: var(--label-halo); stroke-linejoin: round;
 }
 [data-theme='night'] .pin-label { font-weight: 500; }
@@ -138,7 +138,7 @@
 .atlas-places button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .atlas-rank { font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
 .atlas-place-name { display: flex; align-items: baseline; min-width: 0; gap: 8px; }
-.atlas-place-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-body); font-weight: 500; font-size: 15px; }
+.atlas-place-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-name); font-weight: var(--name-weight); font-size: 15px; }
 [data-theme='codex'] .atlas-place-text { font-size: 16px; }
 .atlas-places b { text-align: right; font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 600; font-family: var(--font-ui); }
 .atlas-bar { height: 5px; border-radius: 3px; background: var(--panel-3); overflow: hidden; }
@@ -166,7 +166,7 @@
 .atlas-detail a:hover { background: var(--panel-2); }
 .atlas-detail a:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .atlas-detail a span { display: grid; min-width: 0; }
-.atlas-name { font-family: var(--font-body); font-weight: 500; font-size: 15px; }
+.atlas-name { font-family: var(--font-name); font-weight: var(--name-weight); font-size: 15px; }
 [data-theme='codex'] .atlas-name { font-size: 16px; }
 .atlas-detail small { font-size: 12.5px; }
 
@@ -235,7 +235,7 @@
 .feed-kind { position: absolute; right: -4px; bottom: -3px; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; background: var(--panel-solid); box-shadow: 0 0 0 1px var(--border); }
 .feed-text { font-size: 14px; line-height: 1.35; min-width: 0; }
 [data-theme='codex'] .feed-text { font-size: 15px; }
-.feed-text b { font-family: var(--font-body); font-weight: 500; }
+.feed-text b { font-family: var(--font-name); font-weight: var(--name-weight); }
 [data-theme='codex'] .feed-text b { color: #f3e7c8; }
 .feed-text i { font-style: normal; color: var(--muted); }
 
@@ -339,3 +339,14 @@ a.atlas-place-mark:focus-visible { outline: 2px solid var(--accent); outline-off
 a.atlas-house { color: inherit; text-underline-offset: 3px; }
 a.atlas-house:hover { color: var(--accent); }
 @media (prefers-reduced-motion: reduce) { a.atlas-place-mark { transition: none; } a.atlas-place-mark:hover { transform: none; } }
+
+/* The opening view frames where most of the family lived; a chip says what is left out and widens it. */
+.atlas-scope { position: absolute; z-index: 4; display: flex; justify-content: center; pointer-events: none; padding: 0 12px; }
+.atlas-scope-btn {
+  pointer-events: auto; height: 34px; padding: 0 14px; gap: 7px; border-radius: 999px; font-size: 13.5px;
+  background: var(--panel-solid); box-shadow: var(--shadow); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  animation: rise 200ms ease-out;
+}
+[data-theme='codex'] .atlas-scope-btn { border-color: var(--edge-soft); }
+@media (max-width: 600px) { .atlas-scope-btn { height: 40px; font-size: 13px; white-space: normal; text-align: left; } }
+@media (prefers-reduced-motion: reduce) { .atlas-scope-btn { animation: none; } }

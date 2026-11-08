@@ -12,6 +12,11 @@
   --font-body: 'EB Garamond Variable', Garamond, serif;
   --font-ui: 'EB Garamond Variable', Garamond, serif;
   --font-hand: 'IM Fell English', 'EB Garamond Variable', serif;
+  /* One face for people's names in every theme: the body serif at 500 (epithets italic at 400).
+     --font-title is for dialog, page and section titles; Cinzel here, never for names. */
+  --font-name: 'EB Garamond Variable', Garamond, Georgia, serif;
+  --name-weight: 500;
+  --font-title: 'Cinzel Variable', 'Trajan Pro', serif;
 
   --bg: #0f1218;
   --panel: linear-gradient(180deg, #232b3a 0%, #171d28 100%);
@@ -68,6 +73,9 @@
   --font-body: 'Inter Variable', system-ui, sans-serif;
   --font-ui: 'Inter Variable', system-ui, sans-serif;
   --font-hand: 'EB Garamond Variable', Georgia, serif;
+  --font-name: 'EB Garamond Variable', Garamond, Georgia, serif;
+  --name-weight: 500;
+  --font-title: 'Inter Variable', system-ui, sans-serif;
 
   --bg: #f4f2ee;
   --panel: #ffffff;
@@ -121,6 +129,9 @@
   --font-body: 'Inter Variable', system-ui, sans-serif;
   --font-ui: 'Inter Variable', system-ui, sans-serif;
   --font-hand: 'EB Garamond Variable', Georgia, serif;
+  --font-name: 'EB Garamond Variable', Garamond, Georgia, serif;
+  --name-weight: 500;
+  --font-title: 'EB Garamond Variable', Garamond, Georgia, serif;
 
   --bg: #13161d;
   --panel: linear-gradient(180deg, #1c2029 0%, #181b23 100%);
@@ -188,6 +199,9 @@ input, textarea, select { font: inherit; color: inherit; }
 ::selection { background: var(--accent); color: var(--accent-text); }
 
 .display { font-family: var(--font-display); letter-spacing: 0.02em; }
+/* A person's name, wherever it is set: lists, cards, panels, dialogs. */
+.name { font-family: var(--font-name); font-weight: var(--name-weight); }
+.name i, i.name-epithet { font-style: italic; font-weight: 400; }
 [data-theme='codex'] .display { font-variant: small-caps; letter-spacing: 0.06em; }
 .muted { color: var(--muted); }
 /* Tertiary text. Still readable (4.5:1); --faint itself is for decoration only. */
@@ -328,7 +342,7 @@ kbd {
 
 .page { overflow: auto; height: 100%; background: var(--page-bg); }
 .page-inner { max-width: 1100px; margin: 0 auto; padding: 28px 24px 80px; }
-.page h1 { font-family: var(--font-display); font-weight: 600; font-size: 30px; margin: 0 0 4px; }
+.page h1 { font-family: var(--font-title); font-weight: 600; font-size: 30px; margin: 0 0 4px; }
 [data-theme='codex'] .page h1 { font-variant: small-caps; color: var(--accent); }
 [data-theme='night'] .page h1 { font-weight: 500; }
 

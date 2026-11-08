@@ -419,7 +419,6 @@ function HouseholdCard({ h, f, tree }: { h: Household; f: Family; tree: string }
   const house = sharedHouse(h, f);
   return (
     <article className="con-card ui-card" data-house={house ? true : undefined}>
-      <button className="btn ghost con-download" aria-label="Download household vCards" onClick={() => download(`${tree}-${h.id}.vcf`, 'text/vcard', h.members.map((m) => vcard(m, h.rows.get(m.id) ?? [], f)).join('\r\n'))}><Download size={15} /> Save contact{h.members.length > 1 ? 's' : ''}</button>
       {house && (
         <header className="con-house">
           <Arms arms={house.arms} size={22} />
@@ -469,6 +468,16 @@ function HouseholdCard({ h, f, tree }: { h: Household; f: Family; tree: string }
           ))}
         </ul>
       )}
+      {/* The card's actions, after what they act on. */}
+      <footer className="con-actions">
+        <button
+          className="btn ghost con-download"
+          aria-label={h.members.length > 1 ? `Save ${h.members.length} contacts to your address book` : `Save ${h.members[0] ? displayName(h.members[0], f) : 'this contact'} to your address book`}
+          onClick={() => download(`${tree}-${h.id}.vcf`, 'text/vcard', h.members.map((m) => vcard(m, h.rows.get(m.id) ?? [], f)).join('\r\n'))}
+        >
+          <Download size={15} /> Save contact{h.members.length > 1 ? 's' : ''}
+        </button>
+      </footer>
     </article>
   );
 }

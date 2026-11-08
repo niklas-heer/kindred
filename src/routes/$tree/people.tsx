@@ -16,7 +16,7 @@ import { useDebouncedValue } from '@tanstack/react-pacer';
 import { useRouter, createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowDown, ArrowUp, ArrowUpDown, ScrollText, Search, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { GameIcon } from '~/components/GameIcon';
 import { Arms } from '~/components/Heraldry';
 import { Portrait } from '~/components/Portrait';
@@ -216,7 +216,7 @@ const columns = h.columns([
     header: 'To you',
     sortFn: 'basic',
     sortUndefined: 'last',
-    cell: ({ row }) => (row.original.rel === 'you' ? <b className="reg-you">you</b> : (row.original.rel ?? <span className="faint">—</span>)),
+    cell: ({ row }) => (row.original.rel === 'you' ? <b className="reg-you">you</b> : row.original.rel ? <span title={row.original.rel}>{row.original.rel}</span> : <span className="faint">—</span>),
   }),
   h.accessor((r) => r.p.stories, {
     id: 'stories',
@@ -234,6 +234,30 @@ const columns = h.columns([
       ),
   }),
 ]);
+
+/** Each column's track in the shared grid, and the least width it needs. */
+const TRACKS: Record<string, [string, number]> = {
+  portrait: ['38px', 38],
+  name: ['minmax(240px, 2.4fr)', 240],
+  traits: ['minmax(100px, 0.9fr)', 100],
+  house: ['minmax(150px, 1.3fr)', 150],
+  born: ['118px', 118],
+  died: ['118px', 118],
+  age: ['52px', 52],
+  gen: ['48px', 48],
+  role: ['minmax(150px, 1.5fr)', 150],
+  // Kinship runs long ("2× great-grandmother"): room for it, and the full label on hover.
+  rel: ['minmax(190px, 1.2fr)', 190],
+  stories: ['70px', 70],
+};
+/** Columns that only show when someone in the tree has something for them. */
+const OPTIONAL: Record<string, (r: R) => boolean> = {
+  traits: (r) => (r.p.traits ?? []).some((x) => TRAITS[x]),
+  house: (r) => !!r.house,
+  role: (r) => !!r.role,
+  rel: (r) => !!r.rel,
+  stories: (r) => r.p.stories > 0,
+};
 
 const ROW = 46;
 const HEAD = 40;
@@ -259,6 +283,12 @@ function RegisterPage() {
   const [mobileLimit, setMobileLimit] = useRememberedState(`people:${tree}:limit`, 100);
 
   const all = useMemo(() => buildRows(f, tree, me), [f, tree, me]);
+  // Hide a column nobody in the tree has anything for (no traits recorded, nobody chosen as "you").
+  // Judged on everyone, not the filtered rows, so columns don't come and go while typing.
+  const shown = useMemo(() => {
+    const ids = Object.keys(TRACKS).filter((id) => !OPTIONAL[id] || all.some(OPTIONAL[id]));
+    return { has: new Set(ids), grid: ids.map((id) => TRACKS[id][0]).join(' '), min: ids.reduce((s, id) => s + TRACKS[id][1], 0) + (ids.length - 1) * 12 + 32 };
+  }, [all]);
   const houses = useMemo(() => {
     const n = new Map<string, number>();
     for (const r of all) if (r.house) n.set(r.house.id, (n.get(r.house.id) ?? 0) + 1);
@@ -398,9 +428,9 @@ function RegisterPage() {
             tabIndex={0}
             aria-activedescendant={rows[cur] ? `reg-${rows[cur].id}` : undefined}
           >
-            <div className="reg-inner">
+            <div className="reg-inner" style={{ '--reg-cols': shown.grid, minWidth: shown.min } as CSSProperties}>
               <div className="reg-row reg-header" role="row">
-                {table.getHeaderGroups()[0]?.headers.map((hd) => {
+                {table.getHeaderGroups()[0]?.headers.filter((hd) => shown.has.has(hd.column.id)).map((hd) => {
                   const dir = hd.column.getIsSorted();
                   const can = hd.column.getCanSort();
                   return (
@@ -449,7 +479,7 @@ function RegisterPage() {
                         style={{ height: v.size, transform: `translateY(${v.start - HEAD}px)` }}
                         onClick={() => open(r.id)}
                       >
-                        {row.getAllCells().map((cell) => (
+                        {row.getAllCells().filter((cell) => shown.has.has(cell.column.id)).map((cell) => (
                           <div key={cell.id} role="gridcell" className={`reg-cell reg-c-${cell.column.id}`}>
                             <table.FlexRender cell={cell} />
                           </div>

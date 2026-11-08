@@ -184,6 +184,9 @@
   }
   [data-theme='modern'] .panel-sheet { box-shadow: 0 -6px 24px #2a22141f; }
   .panel-sheet[data-snap='peek'] { height: 150px; }
+  /* With the sheet half open the tree keeps a strip; the map controls shrink to zoom alone so they
+     stay clear of the sheet and of the selected card. */
+  .tree-page[data-sheet='half'] .map-controls > :nth-child(n + 3), .tree-page[data-sheet='half'] .minimap { display: none !important; }
   .panel-sheet[data-snap='half'] { height: 55%; }
   .panel-sheet[data-snap='full'] { height: 100%; border-radius: 0; }
 

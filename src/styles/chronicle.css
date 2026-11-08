@@ -101,7 +101,7 @@
 .chr-md pre { max-width: 100%; overflow: auto; white-space: pre-wrap; }
 .chr-md table { display: block; max-width: 100%; overflow-x: auto; }
 .chr-md img { max-width: 100%; height: auto; }
-.chr-person { font-family: var(--font-body); font-weight: 500; }
+.chr-person { font-family: var(--font-name); font-weight: var(--name-weight); }
 .chr-card[data-kind='quote'], .chr-item[data-kind='quote'] .chr-card, .chr-item[data-kind='recipe'] .chr-card, .chr-saying { background: var(--panel-2); }
 @media(max-width:600px) { .chr-search { width: 100%; flex-basis: 100%; } .chr-search .input { width: 100%; } .chr-wall { columns: auto; } .chr-card { padding: 16px; } .chr-saying { padding: 20px 18px; } .chr-card header { display: grid; gap: 6px; } .chr-md[data-clamped] { max-height: none; overflow: visible; mask-image: none; -webkit-mask-image: none; } .chr-bar .btn, .chr-tabs button { min-height: 44px; } }
 
@@ -114,6 +114,5 @@
 
 [data-theme='codex'] .chr-saying { --meta: #665335; }
 
-.chr-person { font-family: 'EB Garamond Variable', Garamond, serif; font-weight: 500; }
 
 @media(max-width:600px) { .chr .btn { min-height: 44px; } }

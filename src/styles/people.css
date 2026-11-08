@@ -29,7 +29,8 @@
 /* One grid, shared by the header and every row. */
 .reg-row {
   display: grid; align-items: center; column-gap: 12px; padding: 0 16px;
-  grid-template-columns: 38px minmax(240px, 2.4fr) minmax(100px, 0.9fr) minmax(150px, 1.3fr) 118px 118px 52px 48px minmax(150px, 1.5fr) minmax(110px, 1fr) 70px;
+  /* The page sets --reg-cols to the columns this tree has something for. */
+  grid-template-columns: var(--reg-cols, 38px minmax(240px, 2.4fr) minmax(100px, 0.9fr) minmax(150px, 1.3fr) 118px 118px 52px 48px minmax(150px, 1.5fr) minmax(190px, 1.2fr) 70px);
 }
 
 .reg-header {
@@ -108,14 +109,13 @@
 .reg-none p { margin: 0 0 6px; }
 
 .reg-mobile { display: none; }
-.reg-name a, .reg-mobile-person b { font-family: var(--font-body); font-weight: 500; }
+.reg-name a, .reg-mobile-person b { font-family: var(--font-name); font-weight: var(--name-weight); }
 .reg-trait, .reg-trait[data-kind], [data-theme='codex'] .reg-trait[data-kind] { color: var(--muted); }
 .reg-house { align-items: baseline; }
 .reg-house > svg { align-self: center; transform: translateY(2px); }
 .reg-data .faint, [data-theme='codex'] .reg-data .faint { color: var(--muted); }
 @media(max-width:900px) { .reg-table { display: none; } .reg-mobile { display: grid; gap: 8px; } .page.reg-page { overflow: auto; } .reg-page > .page-inner.reg { height: auto; display: block; padding-bottom: 24px; } .reg-mobile-person { padding: 12px; } .reg-mobile-person summary { display: flex; gap: 12px; align-items: center; cursor: pointer; min-height: 54px; list-style: none; } .reg-mobile-person summary::-webkit-details-marker { display: none; } .reg-mobile-person summary::after { content: '+'; margin-left: auto; color: var(--muted); } .reg-mobile-person[open] summary::after { content: '−'; } .reg-mobile-person summary > span { display: grid; min-width: 0; gap: 3px; } .reg-mobile-person b { font-size: 18px; overflow-wrap: anywhere; } .reg-mobile-person small { color: var(--muted); font-size: 13px; } .reg-mobile-person i { font-style: italic; color: var(--muted); } .reg-mobile-detail { margin: 12px 0 0 54px; padding-top: 12px; border-top: 1px solid var(--border); display: grid; justify-items: start; gap: 10px; } .reg-mobile-detail p { margin: 0; } .reg-tools .input { min-height: 44px; } }
 
-.reg-name a, .reg-mobile-person b { font-family: 'EB Garamond Variable', Garamond, serif; font-weight: 500; }
 
 @media(max-width:600px) { .reg .btn { min-height: 44px; } }
 

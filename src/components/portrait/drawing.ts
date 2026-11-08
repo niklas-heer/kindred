@@ -65,7 +65,7 @@ function build(p: GPerson, house: House | undefined, detail: Detail): string {
       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">` +
       `<defs>${PRINT[detail]}${detail === 'lg' ? attireDefs() : ''}</defs>` +
       `<g${PRINT[detail] ? ' filter="url(#print)"' : ''}><g transform="${PLACE[detail]}">` +
-      faceSvg(options) +
+      faceSvg(options, detail === 'lg') +
       attireSvg(era, dressOf(house, hash(`${p.id}:dress`)), detail, p.sex) +
       `</g></g>` +
       `</svg>`;

@@ -23,6 +23,13 @@ const detailFor = (k: number, prev: Detail): Detail => {
   if (k * NAME_PX.mid >= MIN_TEXT_PX - (prev !== 'far' ? keep : 0)) return 'mid';
   return 'far';
 };
+/** The smallest zoom that still shows name plates (coming from a closer level). */
+const MID_K = (MIN_TEXT_PX - 0.5) / NAME_PX.mid;
+/** When the whole tree won't fit at name plates, open at this zoom around the focus instead of shrinking it to tiles. */
+const READABLE_K = MIN_TEXT_PX / NAME_PX.mid + 0.01;
+
+/** Screen space covered by floating panels, in px from each edge of the canvas. */
+export interface Inset { left: number; top: number; right?: number; bottom?: number }
 
 interface Cam { x: number; y: number; k: number } // screen = world * k + (x, y)
 
@@ -30,6 +37,13 @@ export interface CanvasHandle {
   /** Returns whether the camera had to move noticeably. */
   centerOn(id: string, opts?: { k?: number; animate?: boolean }): boolean;
   fit(): void;
+  /**
+   * Opening view: the whole tree at the most detailed zoom that fits the free area; when even name
+   * plates won't fit, name plates around `id`, with the tree's edges pulled in so no space is wasted.
+   */
+  frame(id: string, opts?: { animate?: boolean }): void;
+  /** Pans just enough to bring a card fully into the free area (after a sheet or panel opens). */
+  reveal(id: string): boolean;
   zoomBy(f: number): void;
   /** World position of a node by person id (first placement). */
   nodeOf(id: string): LNode | undefined;
@@ -46,8 +60,12 @@ interface Props {
   /** Ruler label per generation row: a short mark ("IX") and an era ("c. 1146"). */
   rowLabel?: (row: number, year: number | undefined, index: number) => [string, string?];
   overlay?: ReactNode;
-  /** Screen space covered by floating panels: side panel left, toolbar and banner on top, minimap right, sheet below. */
-  inset?: { left: number; top: number; right?: number; bottom?: number };
+  /**
+   * Screen space covered by floating panels: side panel left, toolbar and banner on top, sheet below.
+   * A function is read each time the camera frames something, so it can measure the live layout.
+   * The map controls on the right are measured here.
+   */
+  inset?: Inset | (() => Inset);
   /** Person to greet with a brief ring, after the camera arrives at them. */
   flash?: { id: string; at: number } | null;
   /** Extra buttons for the map control stack (below zoom and fit), e.g. keyboard help. */
@@ -57,15 +75,19 @@ interface Props {
 }
 
 export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
-  { family, layout, focus, dimmed, renderCard, onBackground, rowLabel, overlay, inset = { left: 0, top: 0 }, flash, controls, onUserMove },
+  { family, layout, focus, dimmed, renderCard, onBackground, rowLabel, overlay, inset, flash, controls, onUserMove },
   ref,
 ) {
+  const insetOf = useRef(inset);
+  insetOf.current = inset;
+  const dock = useRef<HTMLDivElement>(null);
   const moved = useRef(onUserMove);
   moved.current = onUserMove;
   const userMove = () => moved.current?.();
   const host = useRef<HTMLDivElement>(null);
   const world = useRef<HTMLDivElement>(null);
   const cam = useRef<Cam>({ x: 0, y: 0, k: 0.8 });
+  const lastDetail = useRef<Detail>('near');
   const anim = useRef<number>(0);
   const [view, setView] = useState({ x0: -2000, y0: -2000, x1: 2000, y1: 2000, k: 0.8, w: 1000, h: 800, cx: 0, cy: 0 });
   const raf = useRef(0);
@@ -115,37 +137,94 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     return m;
   }, [layout]);
 
+  /** The part of the canvas no panel covers, in canvas pixels. */
+  const area = useCallback(() => {
+    const { width: w, height: h } = host.current!.getBoundingClientRect();
+    const i = typeof insetOf.current === 'function' ? insetOf.current() : insetOf.current ?? { left: 0, top: 0 };
+    const gutter = w <= 900 ? 40 : 56; // the ruler
+    // The zoom stack and minimap sit on the right; measure them rather than guess.
+    const d = dock.current;
+    let right = Math.max(i.right ?? 0, d ? w - d.offsetLeft + 8 : 0);
+    let left = Math.max(gutter, i.left);
+    let bottom = i.bottom ?? 0;
+    // A panel that leaves almost nothing is ignored, so the tree is not squeezed into a sliver.
+    if (w - left < 320) left = gutter;
+    if (w - left - right < (w < 600 ? 220 : 400)) right = 0;
+    if (h - i.top - bottom < 160) bottom = 0;
+    return { l: left, t: Math.min(i.top, h / 2), r: w - right, b: h - bottom, w, h };
+  }, []);
+
   const centerOn = useCallback((id: string, opts?: { k?: number; animate?: boolean }) => {
     const n = firstOf.get(id);
-    const el = host.current;
-    if (!n || !el) return false;
-    const { width: w, height: h } = el.getBoundingClientRect();
+    if (!n || !host.current) return false;
+    const a = area();
     const k = opts?.k ?? Math.max(cam.current.k, 0.55);
-    // Centre in the part of the canvas no panel covers (unless the panel leaves almost nothing).
-    const left = w - inset.left < 320 ? 56 : inset.left;
-    const bottom = h - inset.top - (inset.bottom ?? 0) < 200 ? 0 : inset.bottom ?? 0;
-    const cx = left + (w - left) / 2, cy = inset.top + (h - inset.top - bottom) * 0.46;
+    // Centre in the part of the canvas no panel covers (the map controls only hide a corner).
+    const cx = (a.l + a.w) / 2, cy = a.t + (a.b - a.t) * 0.46;
     const target = { k, x: cx - n.x * k, y: cy - (n.y + CARD_H / 2) * k };
     const c = cam.current;
     const moved = Math.hypot(target.x - c.x, target.y - c.y) > 24 || Math.abs(target.k - c.k) > 0.02;
     if (opts?.animate === false) { cam.current = target; apply(); } else animateTo(target);
     return moved;
-  }, [firstOf, apply, animateTo, inset.left, inset.top, inset.right, inset.bottom]);
+  }, [firstOf, apply, animateTo, area]);
+
+  const margins = (w: number) => (w < 600 ? { x: 12, y: 10 } : { x: 28, y: 18 });
 
   const fit = useCallback(() => {
-    const el = host.current;
-    if (!el) return;
-    const { width: w, height: h } = el.getBoundingClientRect();
+    if (!host.current) return;
+    const a = area();
     const b = layout.bounds;
-    const right = w - inset.left - (inset.right ?? 0) < (w < 600 ? 220 : 400) ? 0 : inset.right ?? 0;
-    const left = w - inset.left < 320 ? 56 : inset.left;
-    const bottom = h - inset.top - (inset.bottom ?? 0) < 200 ? 0 : inset.bottom ?? 0;
-    // Narrow screens get a slimmer margin, or the tree shrinks to nothing.
-    const mx = w < 600 ? 16 : 60, my = w < 600 ? 12 : 30;
-    const aw = w - left - right - 2 * mx, ah = h - inset.top - bottom - 2 * my;
+    const m = margins(a.w);
+    const aw = a.r - a.l - 2 * m.x, ah = a.b - a.t - 2 * m.y;
     const k = Math.min(1, Math.max(0.04, Math.min(aw / b.w, ah / b.h)));
-    animateTo({ k, x: left + mx + aw / 2 - (b.x + b.w / 2) * k, y: inset.top + my + ah / 2 - (b.y + b.h / 2) * k });
-  }, [layout, animateTo, inset.left, inset.top, inset.right, inset.bottom]);
+    animateTo({ k, x: a.l + m.x + aw / 2 - (b.x + b.w / 2) * k, y: a.t + m.y + ah / 2 - (b.y + b.h / 2) * k });
+  }, [layout, animateTo, area]);
+
+  const frame = useCallback((id: string, opts?: { animate?: boolean }) => {
+    if (!host.current) return;
+    const a = area();
+    const b = layout.bounds;
+    const m = margins(a.w);
+    const lo = { x: a.l + m.x, y: a.t + m.y }, hi = { x: a.r - m.x, y: a.b - m.y };
+    const fitK = Math.min((hi.x - lo.x) / b.w, (hi.y - lo.y) / b.h);
+    const k = fitK >= MID_K ? Math.min(fitK, 0.9) : READABLE_K;
+    if (k < 0.6) lastDetail.current = 'mid'; // so the hysteresis keeps name plates at the threshold
+    const n = firstOf.get(id);
+    // Along one axis: centre the tree when it fits, else centre the focus and pull the tree's edges
+    // to the area's edges, so the view never shows empty space where there is more tree.
+    const place = (from: number, to: number, start: number, len: number, at: number) => {
+      if (len * k <= to - from) return from + (to - from - len * k) / 2 - start * k;
+      const off = (from + to) / 2 - at * k;
+      return Math.max(to - (start + len) * k, Math.min(from - start * k, off));
+    };
+    const target = {
+      k,
+      x: place(lo.x, hi.x, b.x, b.w, n ? n.x : b.x + b.w / 2),
+      y: place(lo.y, hi.y, b.y, b.h, n ? n.y + CARD_H / 2 : b.y + b.h / 2),
+    };
+    if (opts?.animate === false) { cancelAnimationFrame(anim.current); cam.current = target; apply(); } else animateTo(target);
+  }, [layout, firstOf, apply, animateTo, area]);
+
+  const reveal = useCallback((id: string) => {
+    const n = firstOf.get(id);
+    if (!n || !host.current) return false;
+    const a = area();
+    if (a.b - a.t < 120) return false;
+    const c = cam.current;
+    const pad = 12;
+    const shift = (s0: number, s1: number, from: number, to: number) => {
+      if (s1 - s0 > to - from) return (from + to) / 2 - (s0 + s1) / 2;
+      if (s0 < from) return from - s0;
+      if (s1 > to) return to - s1;
+      return 0;
+    };
+    const x0 = (n.x - CARD_W / 2) * c.k + c.x, y0 = n.y * c.k + c.y;
+    const dx = shift(x0, x0 + CARD_W * c.k, a.l + pad, a.r - pad);
+    const dy = shift(y0, y0 + CARD_H * c.k, a.t + pad, a.b - pad);
+    if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return false;
+    animateTo({ k: c.k, x: c.x + dx, y: c.y + dy }, 320);
+    return true;
+  }, [firstOf, animateTo, area]);
 
   const zoomAt = useCallback((factor: number, sx: number, sy: number) => {
     cancelAnimationFrame(anim.current);
@@ -168,9 +247,11 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
   useImperativeHandle(ref, () => ({
     centerOn,
     fit,
+    frame,
+    reveal,
     zoomBy,
     nodeOf: (id) => firstOf.get(id),
-  }), [centerOn, fit, zoomBy, firstOf]);
+  }), [centerOn, fit, frame, reveal, zoomBy, firstOf]);
 
   // ---- input ----
   useEffect(() => {
@@ -249,15 +330,14 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     drag.current = null;
   };
 
-  // First paint: centre on the focus.
+  // First paint: frame the tree around the focus.
   const mounted = useRef(false);
   useLayoutEffect(() => {
     if (mounted.current) return;
     mounted.current = true;
-    centerOn(focus, { animate: false, k: 0.85 });
-  }, [centerOn, focus]);
+    frame(focus, { animate: false });
+  }, [frame, focus]);
 
-  const lastDetail = useRef<Detail>('near');
   const detail = (lastDetail.current = detailFor(view.k, lastDetail.current));
   const visible = useMemo(
     () => layout.nodes.filter((n) => n.x + CARD_W / 2 > view.x0 && n.x - CARD_W / 2 < view.x1 && n.y + CARD_H > view.y0 && n.y < view.y1),
@@ -288,7 +368,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
         ))}
       </div>
       <Ruler layout={layout} view={view} label={rowLabel} active={layout.nodes.find((n) => n.id === focus)?.row} />
-      <div className={`map-dock no-pan${mapOpen ? ' map-open' : ''}`}>
+      <div ref={dock} className={`map-dock no-pan${mapOpen ? ' map-open' : ''}`}>
         <div className="map-controls panel" role="toolbar" aria-label="Map" aria-orientation="vertical">
           <button className="btn icon ghost" onClick={() => zoomBy(1.25)} title="Zoom in (=)" aria-label="Zoom in"><Plus size={17} /></button>
           <button className="btn icon ghost" onClick={() => zoomBy(0.8)} title="Zoom out (−)" aria-label="Zoom out"><Minus size={17} /></button>
@@ -301,9 +381,8 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
           cancelAnimationFrame(anim.current);
           userMove();
           // Into the middle of the part of the canvas no panel covers.
-          const left = r.width - inset.left < 320 ? 56 : inset.left;
-          const bottom = r.height - inset.top - (inset.bottom ?? 0) < 200 ? 0 : inset.bottom ?? 0;
-          const cx = left + (r.width - left) / 2, cy = inset.top + (r.height - inset.top - bottom) / 2;
+          const a = area();
+          const cx = (a.l + r.width) / 2, cy = (a.t + a.b) / 2;
           cam.current = { ...cam.current, x: cx - wx * cam.current.k, y: cy - wy * cam.current.k };
           apply();
         }} />

@@ -50,7 +50,7 @@
 .card-name {
   /* Names: the body face at 500, epithets in italic. Size comes from Canvas (NAME_PX), which also
      picks the detail level from it, so text never renders smaller than about 9px on screen. */
-  max-width: 132px; font-family: var(--font-body); font-size: var(--name-near, 15px); line-height: 1.12; font-weight: 500;
+  max-width: 132px; font-family: var(--font-name); font-size: var(--name-near, 15px); line-height: 1.12; font-weight: var(--name-weight);
   color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   min-height: 2.24em; align-content: center; text-wrap: balance;
 }

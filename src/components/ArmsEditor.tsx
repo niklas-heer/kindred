@@ -14,9 +14,8 @@ import type { Tincture } from '~/lib/seed-format';
 import { play } from '~/lib/sfx';
 import { toast } from '~/lib/toast';
 import type { House } from '~/lib/types';
-import { CHARGE_ICONS } from './charges.gen';
 import {
-  Arms, CHARGE_NAME, CHARGES, DIVISIONS, TINCTURE_HEX, TINCTURES, isMetal, randomArms, secondOf, tinctureClashes, tinctureLabel,
+  Arms, chargeArt, CHARGES, DIVISIONS, TINCTURE_HEX, TINCTURES, isMetal, randomArms, secondOf, tinctureClashes, tinctureLabel,
 } from './Heraldry';
 import { Dialog } from './ui/Dialog';
 import './armseditor.css';
@@ -262,7 +261,7 @@ function Section({ title, note, children }: { title: string; note?: string; chil
 }
 
 function ChargeGlyph({ name }: { name: Exclude<ArmsT['charge'], 'none'> }) {
-  const icon = CHARGE_ICONS[CHARGE_NAME[name]];
+  const icon = chargeArt(name);
   return (
     <svg width="34" height="34" viewBox={icon.viewBox} aria-hidden>
       <g dangerouslySetInnerHTML={{ __html: icon.body }} />
