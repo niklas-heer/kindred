@@ -592,4 +592,7 @@ export const LIBRARY_CHARGES: ChargeDef[] = [
   { id: "crown-spiked", gi: "sharp-crown", cat: 'crowns', name: {"en":"Spiked crown","de":"Zackenkrone","af":"Puntkroon"}, keys: "crown krone kroon spiked zacken punt" },
   { id: "hospital-cross", gi: "hospital-cross", cat: 'crosses', name: {"en":"Hospital cross","de":"Johanniterkreuz","af":"Hospitaalkruis"}, keys: "cross kreuz kruis hospital spital hospitaal" },
   { id: "cross-gamepad", gi: "cross-flare", cat: 'crosses', name: {"en":"Radiant cross","de":"Strahlenkreuz","af":"Stralekruis"}, keys: "cross kreuz kruis radiant strahl straal" },
+  { id: "staff", gi: "telescopic-baton", cat: 'objects', name: {"en":"Staff of office","de":"Amtsstab","af":"Ampstaf"}, keys: "staff stab staf amtsstab ampstaf rod baton office amt amp mayor bürgermeister burgemeester judge richter regter marshal marschall maarskalk" },
+  { id: "crozier", gi: "wizard-staff", cat: 'faith', name: {"en":"Crozier","de":"Krummstab","af":"Kromstaf"}, keys: "crozier crosier krummstab bischofsstab kromstaf biskopstaf staff stab staf bishop bischof biskop abbot abt church kirche kerk" },
+  { id: "eagle-sceptre", gi: "bird-scepter", cat: 'objects', name: {"en":"Eagle sceptre","de":"Adlerzepter","af":"Arendsepter"}, keys: "sceptre scepter zepter septer eagle adler arend royal king könig koning office amt amp" },
 ];

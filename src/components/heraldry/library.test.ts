@@ -97,6 +97,41 @@ test('German and Afrikaans words find their charges, with or without accents', (
   finds('Stamboom', 'family-tree');
 });
 
+test('a whole word does not find a longer, unrelated word that only begins like it: "staff" is no easel', () => {
+  const ids = (q: string) => searchCharges(q).map((c) => c.id);
+  for (const q of ['staff', 'Stab', 'Amtsstab', 'staf', 'Ampstaf']) assert.ok(ids(q).includes('staff'), `"${q}" finds the staff`);
+  assert.equal(ids('staff').includes('easel'), false, '"staff" must not offer the easel (Staffelei)');
+  assert.equal(ids('staf').includes('easel'), false, '"staf" must not offer the easel');
+  assert.ok(ids('Staffelei').includes('easel'), 'the easel keeps its own name');
+  const ai = candidateCharges(termsOf('a key or staff of office'), 40).map((c) => c.id);
+  assert.ok(ai.includes('staff') && ai.includes('key'), `candidates: ${ai.join(' ')}`);
+  assert.equal(ai.includes('easel'), false, `the easel is no candidate for a staff: ${ai.join(' ')}`);
+  assert.equal(candidateCharges(termsOf('Staffelei'), 40).some((c) => c.id === 'staff'), false, 'and the easel offers no staff');
+});
+
+test('the stems the matcher is for still match: a half-typed word, a compound head, a stem with an ending', () => {
+  const finds = (q: string, id: string) => assert.ok(searchCharges(q).some((c) => c.id === id), `"${q}" finds ${id}`);
+  finds('stie', 'boot'); // typing "Stiefel"
+  finds('Stiefel', 'iron-boot'); // "Eisenstiefel"
+  finds('rad', 'mill-wheel'); // "Mühlrad"
+  finds('Mühl', 'mill-wheel');
+  finds('Stab', 'crozier'); // "Krummstab"
+  finds('Stab', 'stave-church'); // "Stabkirche": the rest is a word
+  const ai = (text: string) => candidateCharges(termsOf(text), 40).map((c) => c.id);
+  assert.ok(ai('Schuhmachers Zunft').includes('boot'), 'a stem with an ending ("Schuhmachers") finds the boot');
+});
+
+test('the office charges resolve, with names in three languages and their glyphs', async () => {
+  const modules = await glyphModules();
+  for (const id of ['staff', 'crozier', 'eagle-sceptre']) {
+    const c = chargeDef(id);
+    assert.ok(c, `${id} is a charge`);
+    assert.ok(modules.get(c.cat)?.[c.gi!], `${id} has its glyph`);
+    for (const lang of ['en', 'de', 'af'] as const) assert.ok(chargeLabel(c, lang).length > 0);
+  }
+  assert.equal(chargeLabel(chargeDef('staff')!, 'de'), 'Amtsstab');
+});
+
 test('the search reads every word of the query, and an empty query finds all', () => {
   assert.equal(searchCharges('').length, ALL.length);
   const both = searchCharges('wolf head').map((c) => c.id);
