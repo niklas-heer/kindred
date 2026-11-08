@@ -1,6 +1,7 @@
 // Pictures on a chat message: picked, dropped or pasted. Each is checked by its own first bytes, then scaled down in the
 // browser, so a phone photo costs little and carries no GPS or camera details (a canvas keeps no metadata). They stay on
 // this page until they are sent, and the server checks them again. Used by the assistant's composer and the family session.
+import { pastedImages } from './paste-images';
 import { ImagePlus, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 import { scaledPicture } from '~/components/photos/image';
@@ -83,9 +84,8 @@ export function useImageAttach({ active, initial = [], onError }: { active: bool
   useEffect(() => {
     if (!active) return;
     const onPaste = (e: ClipboardEvent) => {
-      const data = e.clipboardData;
-      const files = [...(data?.files ?? [])].filter((f) => f.type.startsWith('image/'));
-      if (!files.length || data?.getData('text/plain')) return;
+      const files = pastedImages(e.clipboardData);
+      if (!files.length) return;
       e.preventDefault();
       void addFiles(files);
     };
