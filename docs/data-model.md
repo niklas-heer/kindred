@@ -24,14 +24,15 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
 | `0003_person_fields.sql` | The birth name and the current name on `person`, and `person_field`: the list of a person's fields (phone, address, school, diet…). |
 | `0004_media.sql` | The gallery: `album`, `media` (pictures and their dates, places and albums) and `media_person` (face boxes). |
 | `0005_house_succession.sql` | `house_succession`: each house's head, heir, succession law and country. |
-| `0012_house_meaning.sql` | `house_meaning`: what each house's name means, as a steward researched and chose it. `house_arms_review`: the steward's latest check of the arms against it, and whether they were kept. |
 | `0006_occupation.sql` | `person.occupation_code`, and `occupation_translation`, the cache of AI-translated occupations. |
 | `0007_prefer_avatar.sql` | `person.prefer_avatar`: show the drawn portrait even when there is a photo. |
-| `0014_ai_background.sql` | `story_translation`: the background AI translations of stories, kept beside each original (see [ai.md](ai.md), "Background tasks"). |
 | `0008_drop_legacy_contact.sql` | Drops the old `contact` table and `person.favourite`, both replaced by `person_field` in 0003. |
 | `0009_person_revision.sql` | `person.revision`, bumped by triggers on person and `person_field` changes, so the Edit tab can refuse a stale save. |
 | `0010_revision_scope.sql` | Limits the person trigger to the columns the Edit tab writes, so a portrait or picture change doesn't block your own save. |
 | `0011_ancestry_revision.sql` | `ancestry_rev`, one number bumped by triggers on every change to `parent`, which the GEDCOM import guards instead of the whole list of links. |
+| `0012_house_meaning.sql` | `house_meaning`: what each house's name means, as a steward researched and chose it. `house_arms_review`: the steward's latest check of the arms against it, and whether they were kept. |
+| `0013_portrait.sql` | Painted portrait candidates and the accepted portrait; `person.prefer_portrait`. |
+| `0014_ai_background.sql` | `story_translation`: the background AI translations of stories, kept beside each original (see [ai.md](ai.md), "Background tasks"). |
 
 ### Tables
 
@@ -79,9 +80,13 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
 | `0002_guard.sql` | The `guard` view and trigger. |
 | `0003_ai_settings.sql` | The AI settings, the usage counter and the assistant's conversations. |
 | `0004_locale.sql` | `user.locale`: the reader's language, used before the cookie when the server renders. |
+| `0005_push.sql` | Device push subscriptions. |
+| `0006_push_sent.sql` | Reminder delivery bookkeeping. |
 | `0007_ai_money.sql` | The monthly budget in micro-dollars, the web-search switch and the family's own prices. |
 | `0008_ai_portrait.sql` | `ai_portrait`: the painted-portrait switch, model and OpenRouter key (or the family's reused key), kept apart from the assistant's features. |
 | `0009_ai_background.sql` | The background AI tasks: the steward's settings, each task's switch, schedule and last start, the background share of the budget, and the run log. |
+
+| `0010_ai_providers.sql` | Provider connections and a provider/model route per AI feature; migrates the previous saved keys and routes. |
 
 ### Tables
 
@@ -97,8 +102,14 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
   family (a person id, or `-` for "just browsing").
 - **`challenge`**: a passkey ceremony in progress (for setup, an invitation, adding a passkey, or signing in), with its
   expiry.
-- **`ai_settings`**: one row per family: the provider, the model, the sealed key (`key_sealed`), its last four
-  characters (`key_tail`), the features switched on (JSON), and the daily token budget.
+- **`ai_settings`**: one row per family: feature switches, web search, the monthly budget in micro-dollars and custom prices.
+  Legacy provider/model and daily token-budget columns remain for compatibility; provider connections and routes are authoritative.
+- **`ai_provider`** (0010): one connection per family and provider (`anthropic`, `openai`, `openrouter`), with a sealed key,
+  its last four characters, and who last updated it.
+- **`ai_route`** (0010): a provider and model per family and feature: assistant, arms, faces, avatar, portrait,
+  arms-review, occupations and chronicle. An absent route or null provider follows the assistant, except painting requires OpenRouter.
+- **`ai_spend`** (0007): monthly spend in micro-dollars, shared across features and providers.
+- **`push_subscription`** (0005–0006): device subscriptions; `last_sent_day` claims each device's daily reminder before sending.
 - **`ai_usage`**: tokens used per family per UTC day.
 - **`ai_conversation`**: which conversation a reader is in, per family.
 - **`ai_background`** (migration 0009): one row per family for the background AI tasks: the share of the monthly budget that
@@ -111,7 +122,8 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
 - **`ai_task_run`** (0009): the runs that did something, failed, stopped at the cap, or were asked for by hand: when, the
   task, who started it (`schedule` or `manual`), the status, the items done, failed and waiting, what it cost, and a short note.
   The newest 200 per family are kept.
-- **`ai_portrait`** (migration 0008): one row per family for painted portraits: `enabled`, the picture `model` (an OpenRouter image model), `reuse_family_key` (1 when the family's own OpenRouter key is used), the sealed key (`key_sealed`) and its last four characters. Spend is booked in `ai_spend`, against the family's monthly budget.
+- **`ai_portrait`** (migration 0008): the painted-portrait switch. Its legacy model and key columns remain after migration
+  0010; the portrait route and OpenRouter connection now select the model and key. Spend uses the family's monthly budget.
 - **`ai_chat`**: one row per message, with the message's JSON body (the text and, for an assistant reply, its proposals
   and their status).
 

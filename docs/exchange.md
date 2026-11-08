@@ -62,7 +62,7 @@ carried in `_KINDRED_*` tags, which other programs skip, so a file made here com
 
 **Dates.** Kindred's partial dates map to GEDCOM's: `1953`, `AUG 1953`, `8 AUG 1953`, and `ABT …` for an approximate
 date (Kindred's `~`). On import, `CAL` and `EST` are read as about. `BEF` and `AFT`, `BET … AND …` and `FROM … TO …` have
-no Kindred form: each is kept as about its nearest year and the report says so. A date Kindred cannot store (`31 FEB
+no Kindred form: before/after dates become approximate dates, ranges use their first date, and the report says so. A date Kindred cannot store (`31 FEB
 1900`, or free text such as "the winter of the bad harvest") is dropped and the report says why.
 
 **Text.** An `@` in text is written as `@@`, and a line break as `CONT`. A file with another character set is read as
@@ -201,8 +201,7 @@ then shows, and nothing is written yet:
 - possible duplicates, and anything the reader should know about the file.
 
 **Language.** The preview's own sentences (the counts, the conflicts, the notes and any refusal) are shown in the
-reader's language: English, German or Afrikaans. Names, dates and the file's own text are shown as they are. The notes
-about a date Kindred can keep only as near as it can (such as `BEF 1900`) are still in English.
+reader's language: English, German or Afrikaans. Names, dates and the file's own text are shown as they are. Date conversion notes (such as `BEF 1900`) are translated too.
 
 **Matching.** A person matches someone in the family when they carry the same `_KINDRED_ID`, or else when their name is
 the same and their birth years agree (or one has no birth year). A name that matches two people is not guessed at: the
@@ -225,25 +224,19 @@ The import is written in one batch. A very large family may take a while to writ
 batch size is not limited by Kindred itself; if Cloudflare D1 refuses a large batch, split the file. That limit has
 not been measured for this app.
 
-## Round trips, measured
+## Round trips
 
-These were run on the test family `modern` (346 people, 411 parent links, 140 partnerships):
-
-- **GEDCOM → a new family → compared field by field:** all 346 people match on every carried field (names, dates, places,
-  living, titles, nicknames, occupations and biographies). All 411 parent links and all 140 partnerships come back
-  exactly, with their kinds, confidence, dates and places.
-- **Markdown archive → `scripts/import-kindred.ts`:** all 346 people come back, with their birth dates, birth places and living status. 400 parent links come back, because the 11 step-parent links are left out by design. All 140
-  partnerships come back, with their kinds. The start dates of the 12 partnerships do not: `import-kindred.ts` reads a
-  marriage's date from its event but not a partnership's, so they are kept in the archive but not in the import.
-
-The round trip into a second family is also covered by unit tests (`src/lib/exchange/*.test.ts`), including partial
-dates, several marriages to different people, adoptive and step links, long and escaped biographies and unknown tags.
+GEDCOM round trips are covered by `src/lib/exchange/*.test.ts`, including partial dates, several marriages,
+adoptive and step links, long and escaped biographies and unknown tags. These tests cover the carried fields;
+they do not make either format a complete backup. Check an import's preview and compare the result with its source.
 
 ## Limits of `scripts/import-kindred.ts`
 
 It reads a v1 archive's `people/` folder only, so an archive that keeps its notes elsewhere needs them moved there first.
 It keys partnerships by the pair of people, so two unions between the same two people would be read as one. It creates
-houses from surnames, with generated arms, because v1 has no houses of its own.
+houses from surnames, with generated arms, because v1 has no houses of its own. It does not import attachments,
+current names, titles, epithets, parent confidence or partnership endings. Sex is inferred from parent roles rather
+than read from the explicit field. Check names and relationships against the original after importing.
 
 ## Where the code is
 
@@ -253,4 +246,4 @@ houses from surnames, with generated arms, because v1 has no houses of its own.
 - `src/lib/exchange/model.ts`: the family as plain data, read from a database.
 - `src/lib/exchange/plan.ts`: what an import would do. Pure.
 - `src/lib/exchange/import.server.ts`, `export.server.ts`, `exchange.functions.ts`: the server side.
-- `src/lib/exchange/copy.ts`: the page's text, in English and German.
+- `src/lib/exchange/copy.ts`: the page's text, in English, German and Afrikaans.

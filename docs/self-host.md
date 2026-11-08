@@ -43,7 +43,7 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 | `KINDRED_SECRET` | the `secret` file in the data folder | The key that seals the AI keys the stewards save. Set it here to keep it out of the data folder; it must then stay the same. |
 | `KINDRED_GAZETTEER` | `gazetteer.db` in the data folder | The offline place search. The image sets it to a file it may contain (see below). |
 | `KINDRED_VAPID_PUBLIC_KEY`, `KINDRED_VAPID_PRIVATE_JWK`, `KINDRED_VAPID_SUBJECT` | empty | Web Push reminders. Make the three with `mise run vapid-keys -- mailto:you@example.org`. Without all three the Reminders item is hidden. See [Reminders](#reminders). |
-| `KINDRED_JOBS` | empty | `off` stops the daily run at 06:00 UTC that sends the reminders. Any other value keeps it on. |
+| `KINDRED_JOBS` | empty | `off` stops the daily run at 06:00 UTC for reminders, archives and enabled background AI tasks. Any other value keeps it on. |
 | `PORT` | `4901` | The port the server listens on. Docker: the image uses 4901, and Compose maps it. |
 | `HOST` | `127.0.0.1` | The address it listens on. The image sets `0.0.0.0`, so that Docker can reach it. |
 
@@ -104,7 +104,7 @@ Everything the app keeps is in the data folder: `/data` in the container, which 
 | What | Where | Notes |
 | --- | --- | --- |
 | Each family | `<id>.db` | One SQLite file per family. The id is the file name. |
-| Accounts, passkeys, sessions, memberships, AI settings | `accounts.db` | Separate from the families. |
+| Accounts, passkeys, sessions, memberships, AI settings, provider connections and feature routes | `accounts.db` | Separate from the families. |
 | Portraits and gallery pictures | `media/<id>/` | The database holds only each picture's key. |
 | The sealing secret for saved AI keys | `secret` | Made the first time an AI key is saved, with mode 600. See below. |
 | Copies made before a migration | `backups/` | See "Upgrades". |
@@ -262,6 +262,7 @@ reminders on once here, but it needs no new keys to do so.
   refreshes it. A device is also removed when the push service says it is gone, or when its owner leaves the family.
 - A person can have reminders on up to ten devices.
 - The run logs one summary line with counts, and one line for each family that fails. Logs never contain names or device addresses.
+- The same daily run also handles configured archives and enabled background AI tasks.
 - `KINDRED_JOBS=off` stops the daily run, for example on a second server that serves the same families. The run never
   happens at startup, so a restart sends nothing early.
 

@@ -12,7 +12,7 @@ Each person has one role in each family they belong to. Roles are cumulative: ea
 | **Viewer** | Browse the tree, the Atlas, the Almanac, the Chronicle, the gallery and the houses, and read everyone's public details. |
 | **Contributor** | Viewer, plus add memories, sayings, recipes and photos. |
 | **Editor** | Contributor, plus add and edit people, parent and partner links, places and contacts, and remove people. Editors can also export the family. |
-| **Steward** | Editor, plus edit houses and their arms, manage who has access (invite, change roles, remove), and import a GEDCOM file. |
+| **Steward** | Editor, plus edit houses and their arms, delete albums, manage AI settings and who has access (invite, change roles, remove), and import a GEDCOM file. |
 
 The source of truth is `src/lib/roles.ts`. Each action has the lowest role that may do it, and the same table decides
 both what the browser shows and what the server allows.

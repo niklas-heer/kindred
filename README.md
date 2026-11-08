@@ -1,13 +1,10 @@
 # Kindred v2
 
-A family tree you can live in, inspired by grand-strategy games. Dynasties are drawn as tree-like houses
-with crowns and arms, you move through the tree with the keyboard, and the whole family's record, stories,
-photographs and places sit in one place. Each family is its own database, on your own machine or on
-Cloudflare.
+Kindred is a shared family tree with houses, photographs, stories and places. It runs on Node with SQLite,
+or on Cloudflare Workers with D1 and R2.
 
-This is **Kindred v2**, developed on the `v2` branch of [niklas-heer/kindred](https://github.com/niklas-heer/kindred).
-`main` still holds Kindred v1, the Markdown-archive project that v2 succeeds, and v2 takes over `main` at release.
-See [docs/migration-plan.md](docs/migration-plan.md) for how the two meet.
+Version 2.0.0 replaces the v1 Markdown archive application. It is a web app, not an upgrade to the Rust CLI.
+Read the [release notes](docs/releases/v2.0.0.md) and [v1 migration guide](docs/migration-plan.md) before moving an archive.
 
 ## What it does
 
@@ -18,22 +15,25 @@ See [docs/migration-plan.md](docs/migration-plan.md) for how the two meet.
   are related to you. Fold branches, or use a **lens** to dim everyone except a direct line, a house, the living,
   or the path between two people.
 - **Houses and arms.** Each house has a shield, a motto and a head of house with a line of succession. Arms are
-  drawn from a designer, and the assistant can suggest a design from a surname.
+  drawn from a designer, and the assistant can research a name's meaning, check whether the arms fit it, and suggest revised or new designs from that feedback. Heads and heirs can be of any gender; houses can have a country flag.
 - **Atlas.** A world map of where the family was born, died and married, with a replay of the family spreading
   out through time, the *Chronicle* that narrates it, arms on each place, and the moves a mother's line made.
 - **Almanac and contacts.** Upcoming birthdays, anniversaries and memorial days, with `.ics` export and "on this
   day". An address book grouped by household, with vCard export.
 - **Reminders (optional).** Browser notifications on each device for birthdays, anniversaries and memorial days, in the
   device's language. Needs three VAPID settings; [docs/self-host.md](docs/self-host.md#reminders) says how.
+- **Life.** A person's timeline includes a spouse's death and widowhood when the dates support it, with their age at each dated event.
 - **Chronicle and stories.** Memories, sayings, anecdotes and recipes on each person, and a wall of sayings.
-- **Photographs.** A gallery of the family's pictures, albums, places and dates, with faces tagged to people.
+- **Photographs.** A gallery of the family's pictures, albums, places and dates, with faces tagged to people. AI face suggestions need a person to confirm them.
   Pictures live in media storage (`data/media/` on Node, R2 on Cloudflare).
 - **Needed.** The research to-do list, nearest relatives first. *Blaze through* asks only for what is missing,
   one person at a time.
 - **AI features (optional).** The assistant answers questions about the family, searches people, and proposes changes
   that you approve as yourself. It can also suggest faces in a photo, a portrait look, and arms from a surname. A steward
-  adds a provider and a key, picks a model from the provider's list, and sets a monthly budget in dollars ($5 by
-  default). Web search is a separate switch. Everything is off until a steward turns it on.
+  connects Anthropic, OpenAI and OpenRouter, and chooses a provider and model per feature. Models come from each
+  provider's list. The family shares one monthly dollar budget ($5 by default), including background work and painted
+  portraits. Web search has its own switch. Features stay off until enabled; scheduled arms reviews and translations
+  have their own switches and run log.
   [docs/ai.md](docs/ai.md) says what is sent where.
 - **Roles and privacy.** Viewer, contributor, editor and steward, enforced on the server, and private fields
   for editors and stewards. [docs/roles-and-privacy.md](docs/roles-and-privacy.md).
@@ -61,7 +61,8 @@ mise run dev      # http://localhost:4517
 On a new install, open the site and create the first account with a passkey. The first account becomes steward
 of every family that exists, and setup closes as soon as it exists. Invite everyone else from the Access page.
 
-Your own family's files never leave `data/`, which is gitignored.
+On Node, local storage defaults to `data/`, which is gitignored. Enabled AI features send selected data to their provider;
+optional remote archives and push reminders also use external services.
 
 Passkeys need HTTPS or `localhost`. Behind a reverse proxy, set `KINDRED_ORIGIN` to the public address (see
 [docs/self-host.md](docs/self-host.md)).
@@ -78,6 +79,11 @@ Every task is in `mise.toml`. These are the ones you are likely to use:
 | `mise run gazetteer` | Download GeoNames `cities500` once and build `data/gazetteer.db` |
 | `mise run dev` | Run on Node with the SQLite files in `data/` (`vite dev`, port 4517) |
 | `mise run dev:cf` | Run the Worker in workerd with local D1 and R2, after applying migrations; `mise run cf:seed` loads the test families |
+| `mise run cf:migrate` | Apply all local D1 migrations |
+| `mise run cf:migrate:remote` | Apply all deployed D1 migrations |
+| `mise run cf:seed` | Replace local D1 test families from the generated SQLite files |
+| `mise run cf:gazetteer -- --remote` | Load the offline place database into the configured remote GAZETTEER binding |
+| `mise run ai-eval -- --dry-run` | Plan AI model evaluations without sending requests; see [AI docs](docs/ai.md) |
 | `mise run check` | `tsc --noEmit` |
 | `mise run test` | Every unit test (the same list as `npm test`) |
 | `mise run build` | Build the Worker into `dist/` (`KINDRED_TARGET=node` builds for Node instead) |
@@ -99,7 +105,7 @@ cp .env.example .env          # optional; set KINDRED_ORIGIN and KINDRED_SETUP_C
 docker compose up -d --build  # http://localhost:4901; open /setup and create the first account
 ```
 
-For HTTPS on a domain, set `KINDRED_DOMAIN` and `KINDRED_ORIGIN` to `https://` that domain, and run
+For HTTPS on a domain, set `KINDRED_DOMAIN` to your domain and `KINDRED_ORIGIN` to `https://` followed by that domain, and run
 `docker compose --profile https up -d --build` (Caddy gets the certificate). Without Docker:
 `mise run build:node && mise run start`.
 
@@ -112,7 +118,7 @@ bucket for media. Cloudflare Access is optional, in front of the site. The full 
 ```sh
 npx wrangler login
 npx wrangler d1 create kindred-accounts        # paste the id into wrangler.jsonc
-npx wrangler d1 create kindred-<family>        # one per family; add a TREE_<FAMILY> binding for it
+npx wrangler d1 create kindred-family          # matches the default TREE_FAMILY binding
 npx wrangler r2 bucket create kindred-media
 mise run cf:migrate:remote                     # the schema, for every database in wrangler.jsonc
 npx wrangler secret put KINDRED_SECRET         # seals the AI keys; keep it, and back it up
@@ -146,7 +152,7 @@ storage, and the database holds only their keys.
 - **Viewer**: browse everything, change nothing.
 - **Contributor**: also add memories, sayings, recipes and photos.
 - **Editor**: also add and edit people, links, places and contacts, and export the family.
-- **Steward**: also edit houses and arms, manage access, and import.
+- **Steward**: also edit houses and arms, delete albums, manage access and AI settings, and import.
 
 Every change is checked on the server, not just hidden in the browser. Private fields are shown to editors and
 stewards only. Details, and what the AI assistant sees, are in [docs/roles-and-privacy.md](docs/roles-and-privacy.md)

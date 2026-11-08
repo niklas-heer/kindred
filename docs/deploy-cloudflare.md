@@ -14,7 +14,7 @@ from `mise.toml`, `wrangler.jsonc` or `scripts/`.
 
 ```sh
 npx wrangler d1 create kindred-accounts
-npx wrangler d1 create kindred-<family>      # one for each family; <family> is its id, e.g. kindred-smiths
+npx wrangler d1 create kindred-family        # default TREE_FAMILY binding; repeat for additional families
 npx wrangler r2 bucket create kindred-media
 ```
 
@@ -58,9 +58,9 @@ node scripts/import-to-d1.ts <id> --remote   # copies the rows into the family's
 under `data/media/<id>/`, plus any picture stored inside the database. It reads the local file and `wrangler.jsonc`,
 and it calls neither D1 nor R2.
 
-A transfer copies all 14 tables the family's data lives in: its name and settings, houses, people, parent links,
+A transfer copies all 18 tables the family's data lives in: its name and settings, houses, people, parent links,
 partnerships, memories, map pins, portraits, the Edit tab's fields, house succession, gallery albums and pictures, the
-tags on gallery pictures, and the cached occupation translations. Three bookkeeping tables are left out on purpose.
+tags on gallery pictures, painted portraits, house meanings and arms reviews, story translations, and the cached occupation translations. Three bookkeeping tables are left out on purpose.
 `op` holds the retry keys of changes already sent; they expire after 30 days and mean nothing on another database.
 `d1_migrations` is wrangler's record of the schema the target already has. `ancestry_rev` is the counter that the GEDCOM
 import guards (migration 0011): the target's own parent rows move its counter as they are written, so the source's
@@ -72,7 +72,7 @@ It refuses a database that already holds people, or a family's details with no p
 The second case is what first-time setup leaves behind (step 7 makes the family's name and starting point before anyone
 adds a person). The check runs before anything is written, so the transfer never stops halfway through a copy. The
 choice is yours: run the transfer before anyone opens `/setup` (setup then finds the family and makes no new one), or
-pass `--replace` to overwrite what setup made with the copy. `--replace` empties the 14 copied tables, the setup's
+pass `--replace` to overwrite what setup made with the copy. `--replace` empties the 18 copied tables, the setup's
 details among them, and writes them again. It leaves `op` alone, so the target keeps its retry keys, and it leaves the
 pictures already in R2. The accounts database is not touched, so the steward's passkey still works; a reader's “who I
 am” choice may name a person the copy does not have, and they pick again. The local file is never changed.
@@ -120,14 +120,10 @@ npx wrangler secret put KINDRED_ARCHIVE_MODERN_TOKEN
 
 Put the variables in the dashboard or in `wrangler.jsonc` under `vars`, as the other settings above.
 
-The archive runs in the same 06:00 UTC cron as the reminders, so **it needs the Workers Paid plan**. The Free plan allows
-50 subrequests and 10 ms of CPU per invocation, and the archive uses a request for each file it writes, each GitHub call and
-each read. A family's first night writes every file, so on Free it stops partway for any family of more than a few dozen
-people: the error is logged (`archive failed`), nothing is committed for that family, and the next night starts again from
-the same point. The commit is one batch after all its files are written, so a cut-off night never leaves a half-written
-archive on the branch. Reminders run before the archive and are not affected, though each reminder is a request too, so on
-Free a run with many devices can run out before the last of them. On Paid, a daily cron gets 10,000 subrequests and 15 minutes
-of CPU per invocation ([limits](https://developers.cloudflare.com/workers/platform/limits/), checked 2026-11-08). Self-hosting on Node has neither limit.
+The archive runs in the same 06:00 UTC cron as reminders and enabled background AI tasks. Use a Workers plan
+with enough CPU time and subrequests for your family's exports. A first archive writes every file; an interrupted
+run logs a failure and retries on the next night. The branch changes only after the files are ready, so a failed
+run does not publish a partial archive. Node is not subject to Workers invocation limits.
 
 > **The archive holds private family data.** Every name, date, place, link and biography goes into it, and the GEDCOM
 > file has them too. The repository must be private, and the people who can read it must be the family's stewards. Kindred
@@ -151,7 +147,7 @@ private key is a secret.
 The daily run is the cron trigger in `wrangler.jsonc`, `"triggers": { "crons": ["0 6 * * *"] }`: it runs at 06:00 UTC and
 sends each device the reminders due that day, at most one message a day (`scheduled` in `src/server.ts`). The same trigger
 runs the nightly archive,
-which needs the Workers Paid plan (see above). On Workers the trigger is the switch, so
+and enabled background AI tasks. Check your Worker plan limits for these jobs (see above). On Workers the trigger is the switch, so
 remove it to stop the daily run. `KINDRED_JOBS` is read by the Node server only.
 
 Each reminder is encrypted for its device before it leaves the Worker, and only the browser's push services carry it. The
@@ -163,8 +159,7 @@ Put an Access application in front of the site's hostname. Kindred then reads th
 token, and the first verified identity can become steward automatically when setup codes are off. On an empty server
 that first sign-in makes the server's first family too, named “Our family” (or its translation in the reader's
 language), just as passkey setup does. Set
-`CF_ACCESS_TEAM_DOMAIN` to your team's domain and `CF_ACCESS_AUD` to the application's audience tag. Access is an
-extra lock, not a replacement for passkeys: people still sign in to Kindred with their own passkey.
+`CF_ACCESS_TEAM_DOMAIN` to your team's domain and `CF_ACCESS_AUD` to the application's audience tag. Verified Access identities sign in through Access; passkeys remain available as a separate sign-in method.
 
 ## Places on Workers (optional)
 
@@ -185,7 +180,7 @@ own yet. The towns are GeoNames' cities with 500 or more people. On Node they co
    ```sh
    mise run gazetteer              # once, on the machine that builds the file: ~40 MB download, ~30 MB database
    mise run cf:migrate:remote      # the schema, for every database in wrangler.jsonc, GAZETTEER included
-   mise run cf:gazetteer --remote  # copies data/gazetteer.db in files of about 5,000 rows, then checks the counts
+   mise run cf:gazetteer -- --remote  # copies data/gazetteer.db in files of about 5,000 rows, then checks the counts
    ```
 
    The load empties the three tables first, so running it again replaces the data, and a load that stops is not
@@ -234,8 +229,8 @@ mise run cf:seed   # copies data/modern.db and data/realm.db into the local D1 d
 ## Backups
 
 The data lives in D1 and R2. Take a copy of each database with wrangler (`npx wrangler d1 export --help` shows the
-options), and keep the `KINDRED_SECRET` value alongside them: a database is useless to the app without it if it holds
-AI keys. Test the restore on a scratch database before you rely on it.
+options), and keep the `KINDRED_SECRET` value alongside them: saved AI keys cannot be decrypted without it. The rest of the database remains usable. Back up R2 media separately;
+a D1 export does not contain the pictures. Test the restore on a scratch database before you rely on it.
 
 ## Troubleshooting
 
