@@ -236,6 +236,6 @@ export const ordinaryMeaning = (k: OrdinaryKind): Key => ORDINARY_MEANING[k];
 export const divisionMeaning = (d: FieldDivision): Key => DIVISION_MEANING[d];
 
 /** The line for a charge: its own when it has one, else its category's. An id the catalogue does not know gets "objects". */
-export function chargeMeaning(id: string): Key {
-  return CHARGE_MEANING[id] ?? CATEGORY_MEANING[chargeDef(id)?.cat ?? 'objects'];
+export function chargeMeaning(id: string, lookup: typeof chargeDef = chargeDef): Key {
+  return CHARGE_MEANING[id] ?? CATEGORY_MEANING[lookup(id)?.cat ?? 'objects'];
 }

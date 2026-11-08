@@ -403,7 +403,13 @@ export function ordinaryShape(o: Pick<OrdinaryLayer, 'kind' | 'line' | 'cotised'
 
 // ---------- placing charges ----------
 
-export interface Spot { x: number; y: number; s: number }
+export interface Spot {
+  x: number;
+  y: number;
+  s: number;
+  /** Degrees clockwise from upright, for charges laid across each other. Absent: drawn as it is. */
+  turn?: number;
+}
 
 const row = (n: number, y: number, x0: number, x1: number, s: number): Spot[] =>
   Array.from({ length: n }, (_, i) => ({ x: n === 1 ? (x0 + x1) / 2 : x0 + ((x1 - x0) * i) / (n - 1), y, s }));
@@ -425,6 +431,9 @@ export function arrangementsFor(count: number): ChargeArrangement[] {
   }
 }
 
+/** Two charges laid across each other on the fess point, `turn` degrees either side of the first one's line. */
+const laidAcross = (a: number, b: number): Spot[] => [{ x: 50, y: 55, s: 46, turn: a }, { x: 50, y: 55, s: 46, turn: b }];
+
 /** Charges on the open field, in an empty field 5..95 × 5..105. */
 function fieldSpots(n: number, arr: ChargeArrangement, shield: ShieldShape): Spot[] {
   const a = arr === 'auto' ? (n === 1 ? 'one' : n === 2 ? 'pale' : n === 3 ? 'two-one' : n === 4 ? 'two-two' : n === 5 ? 'saltire' : n === 6 ? 'three-two-one' : 'orle') : arr;
@@ -438,8 +447,18 @@ function fieldSpots(n: number, arr: ChargeArrangement, shield: ShieldShape): Spo
     case 'two-one': return [{ x: 29, y: 32, s }, { x: 71, y: 32, s }, { x: 50, y: 79, s }].slice(0, n);
     case 'one-two': return [{ x: 50, y: 29, s }, { x: 31, y: 73, s: s * 0.92 }, { x: 69, y: 73, s: s * 0.92 }].slice(0, n);
     case 'two-two': return [{ x: 30, y: 32, s }, { x: 70, y: 32, s }, { x: 31, y: 77, s }, { x: 69, y: 77, s }].slice(0, n);
-    case 'saltire': return [{ x: 25, y: 26, s: 24 }, { x: 75, y: 26, s: 24 }, { x: 50, y: 55, s: 24 }, { x: 30, y: 85, s: 22 }, { x: 70, y: 85, s: 22 }].slice(0, n);
-    case 'cross': return [{ x: 50, y: 22, s: 24 }, { x: 21, y: 55, s: 24 }, { x: 50, y: 55, s: 24 }, { x: 79, y: 55, s: 24 }, { x: 50, y: 89, s: 24 }].filter((_, i) => n === 5 || i !== 2).slice(0, n);
+    // Five is the full figure. Two are laid across each other, four leave the centre empty, and a count the figure
+    // has no shape for takes that count's usual arrangement rather than the first few spots of this one.
+    case 'saltire': {
+      if (n === 1 || n > 5) return fieldSpots(n, 'auto', shield);
+      if (n === 2) return laidAcross(45, -45);
+      return [{ x: 25, y: 26, s: 24 }, { x: 75, y: 26, s: 24 }, { x: 50, y: 55, s: 24 }, { x: 30, y: 85, s: 22 }, { x: 70, y: 85, s: 22 }].filter((_, i) => n !== 4 || i !== 2).slice(0, n);
+    }
+    case 'cross': {
+      if (n === 1 || n > 5) return fieldSpots(n, 'auto', shield);
+      if (n === 2) return laidAcross(0, 90);
+      return [{ x: 50, y: 22, s: 24 }, { x: 21, y: 55, s: 24 }, { x: 50, y: 55, s: 24 }, { x: 79, y: 55, s: 24 }, { x: 50, y: 89, s: 24 }].filter((_, i) => n === 5 || i !== 2).slice(0, n);
+    }
     case 'three-two-one': return [...row(3, 26, 22, 78, 21), ...row(2, 54, 35, 65, 21), { x: 50, y: 83, s: 21 }].slice(0, n);
     case 'orle': return orleSpots(n, shield, 15, n > 8 ? 11 : 13);
     default: return [{ x: 50, y: 55, s: 50 }];
@@ -658,9 +677,9 @@ export function placeCharges(layer: ChargeLayer, before: ArmsLayer[], shield: Sh
   const bottom = ords.some((o) => o.kind === 'base') ? 92 : 105;
   if (top > 5 || bottom < 105) {
     const f = (bottom - top) / 100;
-    spots = spots.map((p) => ({ x: 50 + (p.x - 50) * Math.max(f, 0.8), y: top + (p.y - 5) * f, s: p.s * Math.max(f, 0.7) }));
+    spots = spots.map((p) => ({ ...p, x: 50 + (p.x - 50) * Math.max(f, 0.8), y: top + (p.y - 5) * f, s: p.s * Math.max(f, 0.7) }));
   }
-  if (ords.some((o) => o.kind === 'bordure' || o.kind === 'orle')) spots = spots.map((p) => ({ x: 50 + (p.x - 50) * 0.84, y: 57 + (p.y - 57) * 0.84, s: p.s * 0.85 }));
+  if (ords.some((o) => o.kind === 'bordure' || o.kind === 'orle')) spots = spots.map((p) => ({ ...p, x: 50 + (p.x - 50) * 0.84, y: 57 + (p.y - 57) * 0.84, s: p.s * 0.85 }));
   if (ords.some((o) => o.kind === 'canton' || o.kind === 'quarter') && n === 1) spots = spots.map((p) => ({ ...p, x: p.x + 6, y: p.y + 8, s: p.s * 0.85 }));
   return scaled(spots);
 }

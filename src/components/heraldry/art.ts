@@ -4,6 +4,7 @@
 // waiting for, then fills in; a component that draws charges calls useLibrary with them, and re-renders as they arrive.
 import { useEffect, useSyncExternalStore } from 'react';
 import { CHARGE_ICONS } from '../charges.gen';
+import { CHARGE_BY_ID, type ChargeDef } from './catalogue';
 import { CLASSIC, CLASSIC_VIEWBOX } from './classic';
 import { addLibraryCharges, chargeDef } from './registry';
 
@@ -147,6 +148,37 @@ export function useLibrary(ids: readonly string[] = [], cats: readonly string[] 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   return libraryReady(ids, cats);
+}
+
+/** Where a renderer looks up its drawings. */
+export interface ArtSource {
+  charge: (id: string) => Art | undefined;
+  glyph: (gi: string) => Art | undefined;
+  def: (id: string) => ChargeDef | undefined;
+}
+
+const LOADED: ArtSource = { charge: chargeArtV2, glyph, def: chargeDef };
+/** The drawings in the main bundle: the same on the server and in every browser, whatever has loaded so far. */
+const BUNDLED: ArtSource = {
+  charge: (id) => {
+    const c = CHARGE_BY_ID[id];
+    if (!c?.gi) return CLASSIC[id] ? { viewBox: CLASSIC_VIEWBOX, body: CLASSIC[id] } : undefined;
+    return (CHARGE_ICONS as Record<string, Art>)[c.gi];
+  },
+  glyph: (gi) => (CHARGE_ICONS as Record<string, Art>)[gi],
+  def: (id) => CHARGE_BY_ID[id],
+};
+
+/**
+ * useLibrary for code that draws, and is rendered on the server. The library is a cache filled by whatever the page
+ * has drawn so far, so it can hold a glyph the server never had by the time a part of the page hydrates. The server's
+ * snapshot is always 0, so the server and the hydrating render both draw from the main bundle, and the library's
+ * drawings appear in the re-render React does straight after.
+ */
+export function useArt(ids: readonly string[] = [], cats: readonly string[] = []): ArtSource {
+  const seen = useSyncExternalStore(subscribe, () => version, () => 0);
+  useLibrary(ids, cats);
+  return seen === 0 ? BUNDLED : LOADED;
 }
 
 /** Re-renders the caller when the library's metadata arrives, and asks for it. For the picker, which lists every charge. */

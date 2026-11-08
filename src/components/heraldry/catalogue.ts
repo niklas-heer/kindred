@@ -352,3 +352,11 @@ export const HELM_GLYPH: Record<'esquire' | 'knight' | 'peer' | 'royal', { gi: s
 export const SUPPORTERS = ['griffin', 'wolf-rampant', 'wyvern', 'pegasus', 'deer', 'centaur', 'mermaid', 'sea-serpent'];
 /** Supporters whose glyph faces the viewer's left; the rest face right, so the dexter one already faces the shield. */
 export const FACES_LEFT: ReadonlySet<string> = new Set(['mermaid']);
+/**
+ * Long charges whose glyph is drawn on a slant, as degrees clockwise from upright. Charges laid across each other turn
+ * from upright, so these subtract their slant first. Absent: drawn upright.
+ */
+export const LEANS: Readonly<Record<string, number>> = {
+  sword: 45, 'sword-rune': 45, gladius: 45, katana: 45, stiletto: 45, glaive: 45, mace: 45, musket: 45, hammer: 45, hatchet: 45, trowel: 45, saw: 45, 'crosscut-saw': 45, pencil: 45, crozier: 45, staff: 45, torch: 45, flute: 45, trumpet: 45, 'grappling-hook': 45,
+  dagger: -45, 'dagger-sacrifice': -45, 'sword-two-handed': -45, 'arrow-broken': -45, 'spear-hook': -45, spyglass: -45, clarinet: -45, ladle: -45, 'divining-rod': -45, 'meat-hook': -45,
+};

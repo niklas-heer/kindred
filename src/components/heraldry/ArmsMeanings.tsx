@@ -4,9 +4,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useT, type Translator } from '~/lib/i18n';
 import type { ArmsV2, ChargeLayer, OrdinaryLayer, TinctureV2 } from '~/lib/seed-format';
-import { chargeArtV2, useLibrary } from './art';
+import { useArt, type ArtSource } from './art';
 import { chargeMeaning, divisionMeaning, ordinaryMeaning, tinctureMeaning } from './meanings';
-import { chargeDef, chargeName } from './registry';
+import { chargeLabel } from './registry';
 import { ArmsV2View, fieldTinctures, TinctureSwatch } from './render';
 import { HEX_V2, labelV2 } from './tinctures';
 import { divisionLabel, LINES_V2, ordinaryLabel } from './vocab';
@@ -14,8 +14,7 @@ import './meanings.css';
 
 /** A charge's drawing, one colour: `color` sets it, and the surrounding colour is kept when it is absent. */
 export function ChargeGlyph({ id, size = 30, color }: { id: string; size?: number; color?: string }) {
-  useLibrary([id]);
-  const art = chargeArtV2(id);
+  const art = useArt([id]).charge(id);
   if (!art) return <span className="ae-glyph-wait" style={{ width: size, height: size }} />;
   return (
     <svg width={size} height={size} viewBox={art.viewBox} aria-hidden className="ae-glyph" style={color ? { color } : undefined}>
@@ -25,8 +24,8 @@ export function ChargeGlyph({ id, size = 30, color }: { id: string; size?: numbe
 }
 
 /** The colour a charge is drawn in: its tincture, or its own colour when it is blazoned proper. */
-function chargeColour(t: TinctureV2, charge: string): string {
-  if (t === 'proper') return chargeDef(charge)?.proper ?? '#8a5a32';
+function chargeColour(t: TinctureV2, charge: string, source: ArtSource): string {
+  if (t === 'proper') return source.def(charge)?.proper ?? '#8a5a32';
   return HEX_V2[t];
 }
 
@@ -49,7 +48,7 @@ interface Row {
 }
 
 /** Every element of the arms, as a row a reader can take in: colours, the division, each ordinary, each charge. */
-function rowsOf(arms: ArmsV2, tr: Translator): Row[] {
+function rowsOf(arms: ArmsV2, tr: Translator, source: ArtSource): Row[] {
   const rows: Row[] = [];
   const ft = fieldTinctures(arms);
   const division = arms.field.division;
@@ -85,15 +84,17 @@ function rowsOf(arms: ArmsV2, tr: Translator): Row[] {
     const c: ChargeLayer = layer;
     const where = c.on === 'chief' ? tr('heraldry.in_chief') : c.on === 'base' ? tr('heraldry.in_base') : c.on === 'ordinary' ? tr('heraldry.on_ordinary') : '';
     const count = c.arrangement === 'seme' ? tr('heraldry.arrangement.seme') : c.count > 1 ? tr('heraldry.means.times', { count: c.count }) : '';
-    const label = chargeName(c.charge, tr.locale);
+    const def = source.def(c.charge);
+    const label = def ? chargeLabel(def, tr.locale) : c.charge;
+    const colour = chargeColour(c.tincture, c.charge, source);
     rows.push({
       key: `c-${i}`,
       kind: tr('heraldry.means.charge'),
-      icon: <ChargeGlyph id={c.charge} size={30} color={chargeColour(c.tincture, c.charge)} />,
-      dark: isLight(chargeColour(c.tincture, c.charge)),
+      icon: <ChargeGlyph id={c.charge} size={30} color={colour} />,
+      dark: isLight(colour),
       name: count ? `${label} ${count}` : label,
       detail: [where, c.counterchanged ? '' : tr(labelV2(c.tincture))].filter(Boolean).join(' · '),
-      meaning: tr(chargeMeaning(c.charge)),
+      meaning: tr(chargeMeaning(c.charge, source.def)),
     });
   });
   return rows;
@@ -125,8 +126,7 @@ export function ArmsMeanings({ arms, label, open = false, className }: {
 }) {
   const tr = useT();
   const charges = arms.layers.filter((l): l is ChargeLayer => l.type === 'charge').map((l) => l.charge);
-  useLibrary(charges);
-  const rows = rowsOf(arms, tr);
+  const rows = rowsOf(arms, tr, useArt(charges));
   const plain = !arms.layers.length;
   return (
     <details className={`ae-means${className ? ` ${className}` : ''}`} open={open}>

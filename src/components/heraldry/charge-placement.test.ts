@@ -100,3 +100,37 @@ test('a lone charge stands on the centre of the ordinary', () => {
     assert.ok(Math.abs(p.x - c[0]) < 0.01 && Math.abs(p.y - c[1]) < 3, `${kind}: ${p.x},${p.y}`);
   }
 });
+
+function onField(arrangement: 'saltire' | 'cross', count: number, before: ArmsLayer[] = []): Spot[] {
+  const layer: ChargeLayer = { type: 'charge', charge: 'sword', tincture: 'argent', count, arrangement, on: 'field' };
+  return placeCharges(layer, before, 'heater');
+}
+
+test('two charges in saltire or in cross lie across each other on the fess point', () => {
+  for (const [arrangement, turns] of [['saltire', [45, -45]], ['cross', [0, 90]]] as const) {
+    const spots = onField(arrangement, 2);
+    assert.equal(spots.length, 2, arrangement);
+    for (const p of spots) assert.deepEqual([p.x, p.y], [50, 55], `${arrangement} at ${p.x},${p.y}`);
+    assert.deepEqual(spots.map((p) => p.turn), turns, arrangement);
+  }
+});
+
+test('crossed charges stay crossed when a chief or bordure moves them', () => {
+  const under = (kind: OrdinaryKind): ArmsLayer[] => [{ type: 'ordinary', kind, tincture: 'or', line: 'straight' }];
+  for (const kind of ['chief', 'bordure'] as const) assert.deepEqual(onField('saltire', 2, under(kind)).map((p) => p.turn), [45, -45], kind);
+});
+
+test('four charges in saltire stand at the four ends, and every count is drawn in full', () => {
+  const four = onField('saltire', 4);
+  assert.equal(four.length, 4);
+  assert.ok(four.every((p) => Math.abs(p.x - 50) > 15), 'the centre stays empty');
+  assert.equal(four.filter((p) => p.y < 55).length, 2);
+  for (const arrangement of ['saltire', 'cross'] as const) for (let n = 1; n <= 9; n++) assert.equal(onField(arrangement, n).length, n, `${arrangement} ×${n}`);
+});
+
+test('a lone charge in saltire or in cross stands on the fess point', () => {
+  for (const arrangement of ['saltire', 'cross'] as const) {
+    const [p] = onField(arrangement, 1);
+    assert.deepEqual([p.x, p.y], [50, 55], arrangement);
+  }
+});

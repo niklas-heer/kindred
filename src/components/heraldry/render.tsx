@@ -1,8 +1,8 @@
 // Draws heraldry v2: the shield (field, division, ordinaries, charges) and, when asked, the full achievement.
 import { useId, type ReactNode } from 'react';
 import type { Achievement, ArmsV2, ChargeLayer, Fur, OrdinaryLayer, TinctureV2 } from '~/lib/seed-format';
-import { chargeArtV2, glyph, useLibrary, type Art } from './art';
-import { FACES_LEFT, HELM_GLYPH } from './catalogue';
+import { useArt, type Art, type ArtSource } from './art';
+import { FACES_LEFT, HELM_GLYPH, LEANS } from './catalogue';
 import { chargeDef } from './registry';
 import { divisionPaint, ordinaryShape, placeCharges, SHIELD_PATH, tinctureCount, type Spot } from './geometry';
 import { FUR_COLOURS, HEX_V2, isFur } from './tinctures';
@@ -58,14 +58,16 @@ function FurPattern({ id, fur, scale }: { id: string; fur: Fur; scale?: number }
 
 const vb = (art: Art) => art.viewBox.split(' ').map(Number);
 
-/** One glyph centred on a spot. */
-function Glyph({ art, spot, fill, mirror, dx = 0, dy = 0, opacity }: { art: Art; spot: Spot; fill: string; mirror?: boolean; dx?: number; dy?: number; opacity?: number }) {
+/** One glyph centred on a spot, turned about its centre when the spot says so. `lean` is the way the drawing already leans. */
+function Glyph({ art, spot, fill, mirror, lean = 0, dx = 0, dy = 0, opacity }: { art: Art; spot: Spot; fill: string; mirror?: boolean; lean?: number; dx?: number; dy?: number; opacity?: number }) {
   const [x0, , w] = vb(art);
-  return (
+  const glyph = (
     <svg x={spot.x - spot.s / 2 + dx} y={spot.y - spot.s / 2 + dy} width={spot.s} height={spot.s} viewBox={art.viewBox} overflow="visible" opacity={opacity}>
       <g fill={fill} color={fill} transform={mirror ? `translate(${x0 * 2 + w} 0) scale(-1 1)` : undefined} dangerouslySetInnerHTML={{ __html: art.body }} />
     </svg>
   );
+  if (spot.turn === undefined) return glyph;
+  return <g transform={`rotate(${spot.turn - lean} ${spot.x + dx} ${spot.y + dy})`}>{glyph}</g>;
 }
 
 /** The fill for a tincture: a colour, or a fur pattern. `proper` takes the charge's natural colour. */
@@ -73,27 +75,28 @@ type Painter = (t: TinctureV2, charge?: string) => string;
 
 function ChargeGroup({ art, spots, tincture, charge, paint, mirror, maskId }: { art: Art; spots: Spot[]; tincture: TinctureV2; charge: string; paint: Painter; mirror?: boolean; maskId: string }) {
   const fill = paint(tincture, charge);
+  const lean = LEANS[charge];
   if (isFur(tincture)) {
     // A pattern inside each glyph's own coordinates would shrink with it; paint the fur over the shield through
     // a mask of the glyphs instead.
     return (
       <>
         <mask id={maskId} maskUnits="userSpaceOnUse" x="-20" y="-20" width="140" height="160">
-          {spots.map((s, i) => <Glyph key={i} art={art} spot={s} fill="#fff" mirror={mirror} />)}
+          {spots.map((s, i) => <Glyph key={i} art={art} spot={s} fill="#fff" mirror={mirror} lean={lean} />)}
         </mask>
         <rect x="-10" y="-10" width="120" height="140" fill={fill} mask={`url(#${maskId})`} />
       </>
     );
   }
-  return <>{spots.map((s, i) => <Glyph key={i} art={art} spot={s} fill={fill} mirror={mirror} />)}</>;
+  return <>{spots.map((s, i) => <Glyph key={i} art={art} spot={s} fill={fill} mirror={mirror} lean={lean} />)}</>;
 }
 
-function Shadows({ art, spots, mirror }: { art: Art; spots: Spot[]; mirror?: boolean }) {
-  return <>{spots.map((s, i) => <Glyph key={i} art={art} spot={s} fill="#000" mirror={mirror} dx={(s.s / 50) * 0.8} dy={(s.s / 50) * 1.2} opacity={0.45} />)}</>;
+function Shadows({ art, spots, mirror, lean }: { art: Art; spots: Spot[]; mirror?: boolean; lean?: number }) {
+  return <>{spots.map((s, i) => <Glyph key={i} art={art} spot={s} fill="#000" mirror={mirror} lean={lean} dx={(s.s / 50) * 0.8} dy={(s.s / 50) * 1.2} opacity={0.45} />)}</>;
 }
 
 /** Everything drawn inside the shield, in the 100 × 120 box. */
-export function ShieldBody({ arms, uid, paint }: { arms: ArmsV2; uid: string; paint: Painter }) {
+export function ShieldBody({ arms, uid, paint, source }: { arms: ArmsV2; uid: string; paint: Painter; source: ArtSource }) {
   const tinctures = fieldTinctures(arms);
   const paints = divisionPaint(arms.field.division, arms.field.line, arms.field.pieces);
   const regionMask = (i: number) => `${uid}-region${i}`;
@@ -106,14 +109,14 @@ export function ShieldBody({ arms, uid, paint }: { arms: ArmsV2; uid: string; pa
       body.push(<Ordinary key={li} o={layer} arms={arms} tinctures={tinctures} paint={paint} regionMask={regionMask} />);
       return;
     }
-    const art = chargeArtV2(layer.charge);
+    const art = source.charge(layer.charge);
     if (!art) return;
     const spots = placeCharges(layer, before, arms.shield);
     const mirror = !!layer.contourne;
     const counter = layer.counterchanged && tinctures.length > 1;
     body.push(
       <g key={li}>
-        {spots[0]?.s >= 9 && <Shadows art={art} spots={spots} mirror={mirror} />}
+        {spots[0]?.s >= 9 && <Shadows art={art} spots={spots} mirror={mirror} lean={LEANS[layer.charge]} />}
         {counter ? (
           tinctures.map((_, i) => (
             <g key={i} mask={`url(#${regionMask(i)})`}>
@@ -201,7 +204,7 @@ export function ArmsV2View({ arms, size = 32, title, full, className = 'arms' }:
   const ach = full ? arms.achievement : undefined;
   const helmGi = ach && ach.helm !== 'none' ? HELM_GLYPH[ach.helm].gi : undefined;
   // The charges' drawings load by category, and the achievement's helm by the weapons category.
-  useLibrary(chargeIdsOf(arms, !!ach), helmGi ? ['weapons'] : []);
+  const source = useArt(chargeIdsOf(arms, !!ach), helmGi ? ['weapons'] : []);
 
   const used = usedTinctures(arms);
   const furId = (f: Fur) => `${uid}-fur-${f}`;
@@ -235,7 +238,7 @@ export function ArmsV2View({ arms, size = 32, title, full, className = 'arms' }:
   const shield = (
     <>
       <g clipPath={`url(#${clip})`}>
-        <ShieldBody arms={arms} uid={uid} paint={paint} />
+        <ShieldBody arms={arms} uid={uid} paint={paint} source={source} />
         <rect width="100" height="120" fill={`url(#${uid}-sheen)`} />
         <rect width="100" height="120" fill={`url(#${uid}-shade)`} />
       </g>
@@ -260,9 +263,9 @@ export function ArmsV2View({ arms, size = 32, title, full, className = 'arms' }:
     <svg className={className} width={(size * vw) / 100} height={(size * vh) / 100} viewBox={layout.viewBox.join(' ')} role={title ? 'img' : undefined} aria-label={title} aria-hidden={title ? undefined : true} data-achievement="">
       {title ? <title>{title}</title> : null}
       {defs}
-      <AchievementParts ach={ach} arms={arms} layout={layout} paint={paint} where="behind" />
+      <AchievementParts ach={ach} arms={arms} layout={layout} paint={paint} source={source} where="behind" />
       <g transform={`translate(50 ${layout.shieldTop})`}>{shield}</g>
-      <AchievementParts ach={ach} arms={arms} layout={layout} paint={paint} where="front" />
+      <AchievementParts ach={ach} arms={arms} layout={layout} paint={paint} source={source} where="front" />
       <rect x={vx} y={vy} width={vw} height={vh} fill="none" />
     </svg>
   );
@@ -340,7 +343,7 @@ function Scroll({ y, text }: { y: number; text: string }) {
   );
 }
 
-function AchievementParts({ ach, arms, layout, paint, where }: { ach: Achievement; arms: ArmsV2; layout: Layout; paint: Painter; where: 'behind' | 'front' }) {
+function AchievementParts({ ach, arms, layout, paint, source, where }: { ach: Achievement; arms: ArmsV2; layout: Layout; paint: Painter; source: ArtSource; where: 'behind' | 'front' }) {
   const tinctures = fieldTinctures(arms);
   const firstCharge = arms.layers.find((l) => l.type === 'charge')?.tincture;
   const [ma, mb] = ach.mantling ?? [tinctures.find((t) => !isFur(t) && t !== 'or' && t !== 'argent') ?? 'gules', firstCharge && (firstCharge === 'or' || firstCharge === 'argent') ? firstCharge : 'or'];
@@ -358,7 +361,7 @@ function AchievementParts({ ach, arms, layout, paint, where }: { ach: Achievemen
       parts.push(side(false), side(true));
     }
     if (ach.supporters) {
-      const art = chargeArtV2(ach.supporters.charge);
+      const art = source.charge(ach.supporters.charge);
       if (art) {
         const s = 66;
         const fill = paint(ach.supporters.tincture, ach.supporters.charge);
@@ -381,7 +384,7 @@ function AchievementParts({ ach, arms, layout, paint, where }: { ach: Achievemen
   const parts: ReactNode[] = [];
   if (ach.helm !== 'none' && layout.helmY !== undefined) {
     const h = HELM_GLYPH[ach.helm];
-    const art = glyph(h.gi);
+    const art = source.glyph(h.gi);
     if (art) {
       const spot: Spot = { x: 100, y: layout.helmY + 19, s: 40 };
       parts.push(
@@ -394,7 +397,7 @@ function AchievementParts({ ach, arms, layout, paint, where }: { ach: Achievemen
   }
   if (layout.torseY !== undefined) parts.push(<Torse key="torse" y={layout.torseY + (ach.helm !== 'none' ? 2 : 0)} a={mb} b={ma} paint={paint} />);
   if (ach.crest && layout.crestY !== undefined) {
-    const art = chargeArtV2(ach.crest.charge);
+    const art = source.charge(ach.crest.charge);
     if (art) {
       const spot: Spot = { x: 100, y: layout.crestY + 17, s: 34 };
       parts.push(
