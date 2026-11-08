@@ -9,6 +9,8 @@ test('bootstrap modes, discoverable options, exclusions and proxy origin', async
   const dir = mkdtempSync(join(tmpdir(), 'kindred-auth-test-'));
   const saved = { ...process.env };
   process.env.KINDRED_ACCOUNTS_DB = join(dir, 'accounts.db');
+  // Setup looks for existing families, so the family folder must be private too (never data/).
+  process.env.KINDRED_DATA_DIR = dir;
   delete process.env.KINDRED_SETUP_CODE;
   delete process.env.KINDRED_REQUIRE_SETUP_CODE;
   const store = await import('./store.server.ts');

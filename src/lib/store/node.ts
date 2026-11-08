@@ -6,11 +6,21 @@ import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { checkMediaKey, NOT_TREES, TREE_ID, type Db, type Driver, type MediaStore, type Param, type Query, type Result } from './db.ts';
 
-const DATA = process.env.KINDRED_DATA_DIR ? resolve(process.env.KINDRED_DATA_DIR) : resolve(process.cwd(), 'data');
+const DATA_DEFAULT = resolve(process.cwd(), 'data');
+const DATA = process.env.KINDRED_DATA_DIR ? resolve(process.env.KINDRED_DATA_DIR) : DATA_DEFAULT;
+/**
+ * The data folder, refused inside `node --test` when it is the repository's own data/: a test that forgets
+ * KINDRED_DATA_DIR would otherwise open, migrate and write the real family files.
+ */
+function dataDir(): string {
+  if (process.env.NODE_TEST_CONTEXT && DATA === DATA_DEFAULT) {
+    throw new Error('[kindred] a test reached data/; set KINDRED_DATA_DIR to a temporary folder before importing the store');
+  }
+  return DATA;
+}
 const MIGRATIONS = resolve(process.cwd(), 'migrations');
-const MEDIA = join(DATA, 'media');
-const GAZETTEER = process.env.KINDRED_GAZETTEER ? resolve(process.env.KINDRED_GAZETTEER) : join(DATA, 'gazetteer.db');
-const accountsPath = () => (process.env.KINDRED_ACCOUNTS_DB ? resolve(process.env.KINDRED_ACCOUNTS_DB) : join(DATA, 'accounts.db'));
+const gazetteerPath = () => (process.env.KINDRED_GAZETTEER ? resolve(process.env.KINDRED_GAZETTEER) : join(dataDir(), 'gazetteer.db'));
+const accountsPath = () => (process.env.KINDRED_ACCOUNTS_DB ? resolve(process.env.KINDRED_ACCOUNTS_DB) : join(dataDir(), 'accounts.db'));
 
 export type Kind = 'tree' | 'accounts';
 
@@ -145,7 +155,7 @@ export function wrap(d: DatabaseSync): Db {
 
 const mediaFile = (tree: string, key: string) => {
   checkMediaKey(tree, key);
-  return join(MEDIA, tree, key);
+  return join(dataDir(), 'media', tree, key);
 };
 
 export function putMediaSync(tree: string, key: string, bytes: Uint8Array) {
@@ -203,7 +213,7 @@ const driver: Driver = {
     if (!TREE_ID.test(id) || NOT_TREES.has(id)) throw new Error(`bad tree id ${id}`);
     let db = trees.get(id);
     if (!db) {
-      const path = join(DATA, `${id}.db`);
+      const path = join(dataDir(), `${id}.db`);
       if (!existsSync(path)) throw new Error(`no tree ${id}; run mise run seed`);
       const d = openSqlite(path, 'tree');
       open.add(d);
@@ -216,14 +226,14 @@ const driver: Driver = {
 
   ensureTree(id) {
     if (!TREE_ID.test(id) || NOT_TREES.has(id)) throw new Error(`bad tree id ${id}`);
-    const path = join(DATA, `${id}.db`);
+    const path = join(dataDir(), `${id}.db`);
     if (!trees.has(id) && !existsSync(path)) openSqlite(path, 'tree', { create: true }).close();
     return driver.tree(id);
   },
 
   treeIds() {
-    if (!existsSync(DATA)) return [];
-    return readdirSync(DATA)
+    if (!existsSync(dataDir())) return [];
+    return readdirSync(dataDir())
       .filter((f) => f.endsWith('.db'))
       .map((f) => f.slice(0, -3))
       .filter((id) => TREE_ID.test(id) && !NOT_TREES.has(id));
@@ -252,6 +262,7 @@ const driver: Driver = {
   /** The offline gazetteer (scripts/gazetteer.ts), or null until it has been built. Checked again on each call until it exists. */
   gazetteer() {
     if (gazetteerDb) return gazetteerDb;
+    const GAZETTEER = gazetteerPath();
     if (!existsSync(GAZETTEER)) return null;
     try {
       const d = new DatabaseSync(GAZETTEER, { readOnly: true });
@@ -270,9 +281,9 @@ const driver: Driver = {
   secret() {
     const fromEnv = process.env.KINDRED_SECRET?.trim();
     if (fromEnv) return fromEnv;
-    const file = join(DATA, 'secret');
+    const file = join(dataDir(), 'secret');
     if (existsSync(file)) return readFileSync(file, 'utf8').trim();
-    mkdirSync(DATA, { recursive: true });
+    mkdirSync(dataDir(), { recursive: true });
     const fresh = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64');
     try {
       writeFileSync(file, `${fresh}\n`, { mode: 0o600, flag: 'wx' });
