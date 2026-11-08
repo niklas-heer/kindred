@@ -713,6 +713,8 @@ function TreePage() {
           relation={adding.relation}
           sex={adding.sex}
           onCancel={() => setAdding(null)}
+          // Linking someone who already exists: select and pan to them quietly, without re-centring the tree.
+          onLinked={(id) => { setAdding(null); panTo.current = id; panQuiet.current = true; go({ sel: id }); }}
           onDone={(id, person) => { setAdding(null); panTo.current = id; panQuiet.current = true; go({ sel: id }); announce(id, person, adding.anchor, adding.relation); }}
         />
       )}

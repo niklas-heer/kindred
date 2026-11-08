@@ -141,7 +141,7 @@
 .pp-portrait { padding: 0; border: 0; background: transparent; color: inherit; border-radius: 8px; }
 .pp-portrait:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .pp-photo { opacity: 1; width: 32px; height: 32px; }
-.pp-id h2, .pp-rel-name { font-family: var(--font-body); font-weight: 500; }
+.pp-id h2, .pp-rel-name { font-family: var(--font-name); font-weight: var(--name-weight); }
 .pp-unsaved { grid-column: 1 / -1; color: var(--accent); font-size: 14px; font-family: var(--font-ui); }
 .pp-add-relative { padding: 8px 16px; border-top: 1px solid var(--border); }
 .pp-add-relative .ui-select { width: 100%; min-height: 44px; }
