@@ -236,3 +236,6 @@
 
 /* An unknown parent for a reader who may not add people: a quiet outline, not a button. */
 .card.ghost.readonly { cursor: default; pointer-events: none; }
+
+.card-years { white-space: nowrap; gap: 4px; }
+.card-age { margin-left: 0; padding-left: 4px; border-left: 1px solid var(--border); color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }

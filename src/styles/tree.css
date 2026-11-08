@@ -235,3 +235,7 @@
   .panel-sheet { transition: none; animation: none; }
   .trail { transition: none; }
 }
+
+.tree-display-controls { display: flex; gap: 6px; padding: 4px; max-width: 100%; }
+.tree-display-controls .ui-select { font-size: 13px; min-height: 32px; }
+@media (max-width: 900px) { .tree-display-controls .ui-select { min-height: 44px; } }

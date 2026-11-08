@@ -11,7 +11,7 @@ import { Portrait } from '~/components/Portrait';
 import { QuickAdd } from '~/components/QuickAdd';
 import { useFamily, useMe, useMeChosen } from '~/lib/family';
 import { Select, usePageHotkey, type SelectOption } from '~/components/ui';
-import { ancestorDepths, ancestorDepths as anc, descendants, displayName, kinPath, kinship, parents, children } from '~/lib/graph';
+import { ancestorDepths, ancestorDepths as anc, descendants, displayName, kinPath, kinship, parents, children, nameModeKey, type NameMode } from '~/lib/graph';
 import { layout as computeLayout, rootFor, type LNode, type View } from '~/lib/layout';
 import { treeSearch } from '~/lib/search';
 import { gapsOf, useRequired } from '~/lib/gaps';
@@ -79,6 +79,32 @@ function TreePage() {
   const up = search.up ?? 3;
   const down = search.down ?? 2;
   const lens = search.lens ?? 'none';
+
+  const [nameMode, setNameMode] = useState<NameMode>('full');
+  const [ageMode, setAgeMode] = useState<'living' | 'all' | 'off'>('living');
+  useEffect(() => {
+    const read = () => {
+      try {
+        const names = localStorage.getItem(nameModeKey(tree));
+        setNameMode(names === 'nickname' || names === 'first' ? names : 'full');
+        const ages = localStorage.getItem(`kindred:${tree}:ages`);
+        setAgeMode(ages === 'all' || ages === 'off' ? ages : 'living');
+      } catch { /* Storage can be unavailable in private browsing. */ }
+    };
+    read();
+    addEventListener('storage', read);
+    addEventListener('kindred:names', read);
+    return () => { removeEventListener('storage', read); removeEventListener('kindred:names', read); };
+  }, [tree]);
+  const changeNameMode = (mode: NameMode) => {
+    setNameMode(mode);
+    try { localStorage.setItem(nameModeKey(tree), mode); } catch {}
+    dispatchEvent(new Event('kindred:names'));
+  };
+  const changeAgeMode = (mode: 'living' | 'all' | 'off') => {
+    setAgeMode(mode);
+    try { localStorage.setItem(`kindred:${tree}:ages`, mode); } catch {}
+  };
 
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [panel, setPanel] = useState(true);
@@ -268,14 +294,15 @@ function TreePage() {
         kin={detail === 'near' ? kinOf(n.id) : undefined}
         selected={n.id === sel}
         isMe={n.id === who}
-        showSpouses={view === 'dynasty'}
+        nameMode={nameMode}
+        ageMode={ageMode}
         onSelect={(id) => select(id, 'click')}
         onOpen={refocus}
         onToggle={view === 'dynasty' || (view === 'family' && n.row > 0 && n.role === 'main') ? toggle : undefined}
         onAdd={canAdd ? (anchor, relation, sex) => setAdding({ anchor, relation, sex }) : undefined}
       />
     ),
-    [f, tree, kinOf, sel, who, view, select, refocus, toggle, canAdd],
+    [f, tree, kinOf, sel, who, view, select, refocus, toggle, canAdd, nameMode, ageMode],
   );
 
   // ---- keyboard: walk the tree ----
@@ -587,6 +614,15 @@ function TreePage() {
                 options={lensOptions}
                 onChange={(v) => go({ lens: v, to: undefined })}
               />
+            </div>
+
+            <div className="tree-display-controls panel no-pan" role="group" aria-label="Card display">
+              <Select size="sm" value={nameMode} onChange={changeNameMode} aria-label="Names" options={[
+                { value: 'nickname', label: 'Nickname' }, { value: 'first', label: 'First name' }, { value: 'full', label: 'Full name' },
+              ]} />
+              <Select size="sm" value={ageMode} onChange={changeAgeMode} aria-label="Ages" options={[
+                { value: 'living', label: 'Ages: living' }, { value: 'all', label: 'Ages: everyone' }, { value: 'off', label: 'Ages: hidden' },
+              ]} />
             </div>
 
             {view === 'dynasty' && rootPerson && (

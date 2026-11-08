@@ -1,4 +1,5 @@
 // The in-browser family graph: lookups, kinship, and date helpers. Built once per Graph payload.
+import { useSyncExternalStore } from 'react';
 import type { GPerson, GUnion, Graph, House } from './types';
 
 export interface Family {
@@ -63,6 +64,49 @@ export function displayName(p: GPerson, f?: Family): string {
   const house = p.house && f?.house.get(p.house);
   const surname = p.surname ?? (house && !house.name.startsWith('House') ? house.name : undefined);
   return [p.given, surname].filter(Boolean).join(' ') + (p.epithet ? ` ${p.epithet}` : '');
+}
+
+/** Per-tree display preference shared by tree cards and the panel subtitle. */
+export type NameMode = 'nickname' | 'first' | 'full';
+export const nameModeKey = (tree: string) => `kindred:${tree}:names`;
+/** React subscription for consumers such as the panel. Same-tab changes use kindred:names. */
+export function useNameMode(tree: string): NameMode {
+  return useSyncExternalStore(
+    (notify) => {
+      addEventListener('storage', notify);
+      addEventListener('kindred:names', notify);
+      return () => { removeEventListener('storage', notify); removeEventListener('kindred:names', notify); };
+    },
+    () => {
+      try {
+        const mode = localStorage.getItem(nameModeKey(tree));
+        return mode === 'first' || mode === 'nickname' ? mode : 'full';
+      } catch { return 'full'; }
+    },
+    () => 'full',
+  );
+}
+
+export function personDisplayName(p: GPerson, mode: NameMode = 'full', f?: Family): string {
+  if (mode === 'nickname') return p.nickname?.trim() || p.given;
+  if (mode === 'first') return p.given;
+  return displayName(p, f);
+}
+
+/** Compact age, with partial or approximate dates explicitly marked as uncertain. */
+export function cardAge(p: GPerson, now = new Date()): string | undefined {
+  const b = yearOf(p.born), end = p.living ? now.getFullYear() : yearOf(p.died);
+  if (!Number.isFinite(b) || !Number.isFinite(end)) return undefined;
+  const exactBirth = /^\d{4}-\d{2}-\d{2}$/.test(p.born ?? '');
+  const exactEnd = p.living || /^\d{4}-\d{2}-\d{2}$/.test(p.died ?? '');
+  const uncertain = !exactBirth || !exactEnd || approx(p.born) || approx(p.died);
+  let years = end - b;
+  if (exactBirth && exactEnd) {
+    const at = p.living ? now : new Date(`${p.died}T12:00:00`);
+    years = ageAt(p.born, at) ?? years;
+  }
+  if (years < 0) return undefined;
+  return `${p.living ? '' : '†'}${uncertain ? 'c. ' : ''}${years}`;
 }
 
 /** Year from a partial date: "~1153-06" -> 1153. NaN when unknown. */

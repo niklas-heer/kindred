@@ -33,6 +33,7 @@ export interface LEdge {
   key: string;
   d: string; // SVG path
   kind: 'line' | 'marriage';
+  label?: { x: number; y: number; text: string; status?: string };
   dashed?: boolean; // disputed or not biological
   ids: string[]; // people this edge connects, for highlighting
 }
@@ -64,14 +65,14 @@ interface Sub {
   right: number[];
 }
 
-function tidy(rootId: string, kids: (id: string) => string[], maxDepth: number): Sub {
+function tidy(rootId: string, kids: (id: string) => string[], maxDepth: number, extent: (id: string) => [number, number] = () => [-CARD_W / 2, CARD_W / 2]): Sub {
   const seen = new Set<string>();
-  const half = CARD_W / 2;
   const build = (id: string, depth: number): Sub => {
+    const [leftEdge, rightEdge] = extent(id);
     const dup = seen.has(id);
     seen.add(id);
     const cs = dup || depth >= maxDepth ? [] : kids(id);
-    if (!cs.length) return { items: [{ id, dx: 0, depth: 0, dup, parent: -1 }], left: [-half], right: [half] };
+    if (!cs.length) return { items: [{ id, dx: 0, depth: 0, dup, parent: -1 }], left: [leftEdge], right: [rightEdge] };
     const subs = cs.map((c) => build(c, depth + 1));
     const offsets = [0];
     let right = [...subs[0].right];
@@ -86,8 +87,8 @@ function tidy(rootId: string, kids: (id: string) => string[], maxDepth: number):
     }
     const centre = (offsets[0] + offsets[offsets.length - 1]) / 2;
     const items: Item[] = [{ id, dx: 0, depth: 0, dup, parent: -1 }];
-    const left: number[] = [-half];
-    const rightC: number[] = [half];
+    const left: number[] = [leftEdge];
+    const rightC: number[] = [rightEdge];
     subs.forEach((s, i) => {
       const o = offsets[i] - centre;
       const base = items.length;
@@ -110,10 +111,10 @@ function childIndex(items: Item[]): Map<number, number[]> {
 // ---------- edges ----------
 
 /** Orthogonal connector from one person to their children, CK3 style: down, across, down. */
-function forkDown(key: string, from: { x: number; y: number }, kids: { x: number; y: number; id: string; dashed?: boolean }[], fromId: string): LEdge[] {
+function forkDown(key: string, from: { x: number; y: number }, kids: { x: number; y: number; id: string; dashed?: boolean }[], fromId: string, lane?: number): LEdge[] {
   if (!kids.length) return [];
   const y0 = from.y + CARD_H;
-  const mid = kids[0].y - (ROW_H - CARD_H) / 2;
+  const mid = lane ?? kids[0].y - (ROW_H - CARD_H) / 2;
   const xs = kids.map((k) => k.x);
   const lo = Math.min(from.x, ...xs), hi = Math.max(from.x, ...xs);
   const solid = kids.filter((k) => !k.dashed);
@@ -209,28 +210,11 @@ function dynasty(f: Family, o: LayoutOptions): Layout {
   const house = f.byId.get(root)?.house;
   const inLine = (id: string) => o.line === 'all' || f.byId.get(id)?.house === house;
   const kids = (id: string) => (o.collapsed.has(id) ? [] : children(f, id).filter(inLine));
-  const t = tidy(root, kids, 99);
-  const nodes: LNode[] = [];
-  for (const it of t.items) {
-    const all = children(f, it.id);
-    const inside = all.filter(inLine);
-    const n: LNode = {
-      key: it.dup ? `${it.id}#dup${it.dx}` : it.id,
-      id: it.id,
-      x: it.dx,
-      y: it.depth * ROW_H,
-      row: it.depth,
-      role: it.dup ? 'dup' : 'main',
-      folded: o.collapsed.has(it.id) && !it.dup ? countDesc(f, it.id, inLine) : undefined,
-      outOfHouse: all.length - inside.length || undefined,
-      hasMore: it.depth === 0 && parents(f, it.id).length > 0,
-    };
-    nodes.push(n);
-  }
-  const edges: LEdge[] = [];
-  for (const [pi, cis] of childIndex(t.items)) {
-    const n = nodes[pi];
-    edges.push(...forkDown(n.key, n, cis.map((ci) => nodes[ci]).map((c) => ({ x: c.x, y: c.y, id: c.id, dashed: f.disputed.has(`${c.id}>${n.id}`) || f.linkKind.has(`${c.id}>${n.id}`) })), n.id));
+  const { nodes, edges } = familyUnits(f, root, kids, 99, o.collapsed);
+  for (const n of nodes.filter((n) => n.role === 'main')) {
+    if (o.collapsed.has(n.id)) n.folded = countDesc(f, n.id, inLine);
+    n.outOfHouse = children(f, n.id).filter((c) => !inLine(c)).length || undefined;
+    n.hasMore = n.row === 0 && parents(f, n.id).length > 0;
   }
   return finish(nodes, edges, f, root);
 }
@@ -331,20 +315,12 @@ function hourglass(f: Family, o: LayoutOptions): Layout {
   const focus = o.focus;
   const up = pedigree(f, focus, o.up);
   // Descendants below the focus.
-  const t = tidy(focus, (id) => (o.collapsed.has(id) ? [] : children(f, id)), o.down);
-  const down: LNode[] = t.items.slice(1).map((it) => ({
-    key: it.dup ? `${it.id}#dup${it.dx}` : it.id,
-    id: it.id,
-    x: it.dx,
-    y: it.depth * ROW_H,
-    row: it.depth,
-    role: it.dup ? 'dup' : 'main',
-    hasMore: it.depth === o.down && children(f, it.id).length > 0,
-    folded: o.collapsed.has(it.id) ? countDesc(f, it.id, () => true) : undefined,
-  }));
+  const units = familyUnits(f, focus, (id) => o.collapsed.has(id) ? [] : children(f, id), o.down, o.collapsed);
   const focusNode = up.nodes.find((n) => n.id === focus)!;
+  const unitFocus = units.nodes.find((n) => n.id === focus)!;
+  focusNode.folded = unitFocus.folded;
   focusNode.hasMore = false;
-  focusNode.folded = o.collapsed.has(focus) ? countDesc(f, focus, () => true) : undefined;
+  const down = units.nodes.filter((n) => n.key !== unitFocus.key);
 
   // Partners right of the focus, siblings outside both: older left, younger right.
   const step = CARD_W + GAP_X;
@@ -359,36 +335,88 @@ function hourglass(f: Family, o: LayoutOptions): Layout {
     return xs.length ? [Math.min(...xs), Math.max(...xs)] : [0, 0];
   };
   const [, r0] = rowExtent(0);
-  ps.forEach((p, i) => side.push({ key: `p:${p}`, id: p, x: r0 + step * (i + 1) + 12, y: 0, row: 0, role: 'partner', hasMore: true }));
-  const rightEdge = r0 + step * ps.length + 12;
+  const rightEdge = r0;
   younger.forEach((s, i) => side.push({ key: `s:${s}`, id: s, x: rightEdge + step * (i + 1) + 40, y: 0, row: 0, role: 'sibling', hasMore: children(f, s).length > 0 }));
   older.reverse().forEach((s, i) => side.push({ key: `s:${s}`, id: s, x: -step * (i + 1) - 40, y: 0, row: 0, role: 'sibling', hasMore: children(f, s).length > 0 }));
 
   // Aunts, uncles and cousins: the father's side far left, the mother's far right.
   const shown = new Set([focus, ...sibs, ...ps, ...up.nodes.map((n) => n.id)]);
-  const rowsX = [...up.nodes, ...side].filter((n) => n.row === -1 || n.row === 0);
+  const rowsX = [...up.nodes, ...down, ...side].filter((n) => n.row === -1 || n.row === 0);
   const leftEdge = Math.min(...rowsX.map((n) => n.x - CARD_W / 2));
   const rightEdgeAll = Math.max(...rowsX.map((n) => n.x + CARD_W / 2));
   const parentNodes = up.nodes.filter((n) => n.row === -1 && n.role === 'main');
-  const clusters = parentNodes.map((pn, i) => kinCluster(f, pn, i === 0 ? -1 : 1, i === 0 ? leftEdge : rightEdgeAll, shown));
+  let leftCursor = leftEdge, rightCursor = rightEdgeAll;
+  const clusters = parentNodes.map((pn, i) => {
+    const cluster = kinCluster(f, pn, i === 0 ? -1 : 1, i === 0 ? leftCursor : rightCursor, shown);
+    for (const n of cluster.nodes) {
+      leftCursor = Math.min(leftCursor, n.x - CARD_W / 2);
+      rightCursor = Math.max(rightCursor, n.x + CARD_W / 2);
+    }
+    return cluster;
+  });
 
   const nodes = [...up.nodes, ...down, ...side, ...clusters.flatMap((c) => c.nodes)];
   const edges = [...up.edges, ...clusters.flatMap((c) => c.edges)];
-  // Marriage lines from the focus to each partner.
-  for (const s of side.filter((n) => n.role === 'partner')) {
-    edges.push({ key: `m:${s.id}`, kind: 'marriage', d: `M${CARD_W / 2},${CARD_H * 0.42}H${s.x - CARD_W / 2}`, ids: [focus, s.id] });
-  }
   // Sibling lines hang from the parents' fork.
   if (sibs.length && parents(f, focus).length) {
     const mid = -(ROW_H - CARD_H) / 2;
     const xs = side.filter((n) => n.role === 'sibling').map((n) => n.x);
     edges.push({ key: 'sibs', kind: 'line', dashed: false, d: `M${Math.min(0, ...xs)},${mid}H${Math.max(0, ...xs)}` + xs.map((x) => `M${x},${mid}V0`).join(''), ids: [focus, ...sibs] });
   }
-  // Down edges from each descendant placement (index 0 is the focus).
-  const placed = [focusNode, ...down];
-  for (const [pi, cis] of childIndex(t.items)) {
-    const n = placed[pi];
-    edges.push(...forkDown(`d:${n.key}`, n, cis.map((ci) => placed[ci]).map((c) => ({ x: c.x, y: c.y, id: c.id, dashed: f.disputed.has(`${c.id}>${n.id}`) || f.linkKind.has(`${c.id}>${n.id}`) })), n.id));
-  }
+  edges.push(...units.edges);
   return finish(nodes, edges, f, focus);
+}
+
+/** Reserve the complete horizontal family unit in the contour, including every remarriage.
+ * Repeating the shared parent keeps each union and its child trunk unambiguous. */
+function familyUnits(f: Family, root: string, kids: (id: string) => string[], depth: number, collapsed: ReadonlySet<string>) {
+  const pairStep = CARD_W + 124;
+  const unitStep = pairStep + CARD_W + GAP_X;
+  const unions = (id: string) => [...(f.unionsOf.get(id) ?? [])]
+    .filter((u) => f.byId.has(u.a === id ? u.b : u.a))
+    .sort((a, b) => (a.start?.replace(/^~/, '') ?? '9999').localeCompare(b.start?.replace(/^~/, '') ?? '9999') || a.id.localeCompare(b.id));
+  const partner = (id: string, u: ReturnType<typeof unions>[number]) => u.a === id ? u.b : u.a;
+  const group = (id: string, child: string) => {
+    const us = unions(id);
+    const ps = parents(f, child);
+    const primary = us.findIndex((u) => ps.includes(partner(id, u)) && f.linkKind.get(`${child}>${partner(id, u)}`) !== 'step');
+    return primary >= 0 ? primary : us.findIndex((u) => ps.includes(partner(id, u)));
+  };
+  const t = tidy(root, (id) => [...kids(id)].sort((a, b) => {
+    const ga = group(id, a), gb = group(id, b);
+    return (ga < 0 ? Infinity : ga) - (gb < 0 ? Infinity : gb) || yearOf(f.byId.get(a)?.born) - yearOf(f.byId.get(b)?.born);
+  }), depth, (id) => [-CARD_W / 2, CARD_W / 2 + (unions(id).length ? (unions(id).length - 1) * unitStep + pairStep : 0)]);
+  const nodes: LNode[] = [];
+  const edges: LEdge[] = [];
+  const main = t.items.map((it, i): LNode => ({
+    key: `${it.id}:unit:${i}`, id: it.id, x: it.dx, y: it.depth * ROW_H, row: it.depth,
+    role: it.dup ? 'dup' : 'main',
+    folded: collapsed.has(it.id) && !it.dup ? countDesc(f, it.id, () => true) : undefined,
+    hasMore: it.depth === depth && children(f, it.id).length > 0,
+  }));
+  const index = childIndex(t.items);
+  main.forEach((n, i) => {
+    nodes.push(n);
+    const us = unions(n.id);
+    const cs = (index.get(i) ?? []).map((ci) => main[ci]);
+    us.forEach((u, j) => {
+      const x = n.x + j * unitStep;
+      if (j) nodes.push({ ...n, key: `${n.key}:repeat:${u.id}`, x, role: 'dup', folded: undefined, hasMore: false });
+      const sp = partner(n.id, u);
+      nodes.push({ key: `${n.key}:partner:${u.id}`, id: sp, x: x + pairStep, y: n.y, row: n.row, role: 'partner', hasMore: true });
+      const start = yearOf(u.start), end = yearOf(u.end);
+      const label = `${u.kind === 'marriage' ? '⚭' : '◇'}${Number.isFinite(start) ? ` ${start}` : ''}${Number.isFinite(end) ? `–${end}` : ''}`;
+      const cx = x + pairStep / 2, cy = n.y + CARD_H * .42;
+      edges.push({ key: `${n.key}:marriage:${u.id}`, kind: 'marriage', ids: [n.id, sp], dashed: !!u.end,
+        d: `M${x + CARD_W / 2},${cy}H${x + pairStep - CARD_W / 2}`,
+        label: { x: cx, y: cy - 9, text: label, status: u.endReason === 'death' ? 'widowed' : u.endReason === 'divorce' ? 'divorced' : u.endReason } });
+      const unionKids = cs.filter((c) => group(n.id, c.id) === j);
+      const branches = forkDown(`${n.key}:${u.id}`, { x: cx, y: n.y }, unionKids.map((c) => ({ ...c, dashed: f.disputed.has(`${c.id}>${n.id}`) || !!f.linkKind.get(`${c.id}>${n.id}`) || f.disputed.has(`${c.id}>${sp}`) || !!f.linkKind.get(`${c.id}>${sp}`) })), n.id, n.y + CARD_H + 28 + j * (64 / Math.max(1, us.length)));
+      if (branches.length) branches[0].d = `M${cx},${cy}V${n.y + CARD_H}` + branches[0].d;
+      branches.forEach((e) => e.ids.push(sp));
+      edges.push(...branches);
+    });
+    edges.push(...forkDown(`${n.key}:unpaired`, n, cs.filter((c) => group(n.id, c.id) < 0).map((c) => ({ ...c, dashed: f.disputed.has(`${c.id}>${n.id}`) || !!f.linkKind.get(`${c.id}>${n.id}`) })), n.id));
+  });
+  return { nodes, edges };
 }

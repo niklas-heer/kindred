@@ -1,7 +1,7 @@
 // A person on the canvas, at three levels of detail.
 import { Minus, Plus } from 'lucide-react';
 import { memo } from 'react';
-import { displayName, lifespan, partnersOf, type Family } from '~/lib/graph';
+import { personDisplayName, cardAge, lifespan, type NameMode, type Family } from '~/lib/graph';
 import type { GPerson } from '~/lib/types';
 import { GAP_ACTION, GAP_LABEL, gapsOf, useRequired } from '~/lib/gaps';
 import { can } from '~/lib/roles';
@@ -23,7 +23,8 @@ interface Props {
   kin?: string;
   selected: boolean;
   isMe: boolean;
-  showSpouses: boolean;
+  nameMode?: NameMode;
+  ageMode?: 'living' | 'all' | 'off';
   onSelect: (id: string) => void;
   /** Double-click: make this person the centre of the tree. */
   onOpen?: (id: string) => void;
@@ -31,7 +32,7 @@ interface Props {
   onAdd?: (id: string, r: AddRelation, sex?: 'm' | 'f') => void;
 }
 
-export const Card = memo(function Card({ node, detail, family: f, tree, kin, selected, isMe, showSpouses, onSelect, onOpen, onToggle, onAdd }: Props) {
+export const Card = memo(function Card({ node, detail, family: f, tree, kin, selected, isMe, nameMode = 'full', ageMode = 'living', onSelect, onOpen, onToggle, onAdd }: Props) {
   const [required] = useRequired(tree);
   const role = useRole();
   if (node.ghost) {
@@ -71,7 +72,8 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
   const p = f.byId.get(node.id);
   if (!p) return null;
   const house = p.house ? f.house.get(p.house) : undefined;
-  const name = displayName(p, f);
+  const name = personDisplayName(p, nameMode, f);
+  const ageLabel = ageMode === 'all' || (ageMode === 'living' && p.living) ? cardAge(p) : undefined;
 
   if (detail === 'far') {
     // Overview: a shield in the house colour (rich for the living, faded for the dead), a crown for
@@ -104,7 +106,6 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
     );
   }
 
-  const spouses = showSpouses ? partnersOf(f, p.id).map((id) => f.byId.get(id)!).filter(Boolean) : [];
   const roleClass = node.role === 'dup' ? ' dup' : node.role === 'partner' ? ' partner' : node.role === 'sibling' ? ' sibling' : node.role === 'kin' ? ' kin' : '';
   const ruler = /^(King|Queen|Emperor|Empress)\b/.test(p.title ?? '');
   const sub = p.title && !name.startsWith(p.title.split(' ')[0]) ? p.title : p.title ? '' : p.occupation ?? '';
@@ -146,6 +147,7 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
           {detail === 'near' && <div className="card-sub">{sub || '\u00a0'}</div>}
           <div className="card-years">
             {lifespan(p)}
+            {ageLabel && <span className="card-age" aria-label={`${p.living ? 'Age' : 'Age at death'}: ${ageLabel}`}>{ageLabel}</span>}
             {node.outOfHouse && detail === 'near' ? <span className="card-out" title={`${node.outOfHouse} children belong to other houses`}>↗{node.outOfHouse}</span> : null}
           </div>
         </div>
@@ -156,17 +158,6 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
         <span className="card-gaps" title={`Information needed: ${gaps.map((g) => GAP_LABEL[g]).join(', ')}`}>
           {gaps.length}
         </span>
-      )}
-
-      {spouses.length > 0 && detail === 'near' && (
-        <div className="card-spouses">
-          {spouses.slice(0, 2).map((s) => (
-            <button key={s.id} className="card-spouse" title={`Partner: ${displayName(s, f)}`} aria-label={`Partner: ${displayName(s, f)}`} onClick={() => onSelect(s.id)}>
-              <Portrait person={s} tree={tree} size={28} frame={false} />
-            </button>
-          ))}
-          {spouses.length > 2 && <span className="card-spouse more">+{spouses.length - 2}</span>}
-        </div>
       )}
 
       {onToggle && (node.folded || (f.childrenOf.get(p.id)?.length && node.role === 'main')) ? (

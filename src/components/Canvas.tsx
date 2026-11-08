@@ -399,11 +399,16 @@ const Edges = memo(function Edges({ layout, dimmed }: { layout: Layout; dimmed?:
       {layout.edges.map((e) => {
         const lit = dimmed ? e.ids.filter((i) => dimmed.has(i)).length >= 2 : false;
         return (
+          <g key={e.key}>
           <path
-            key={e.key}
             d={e.d}
             className={`edge ${e.kind}${e.dashed ? ' dashed' : ''}${dimmed ? (lit ? ' lit' : ' dim') : ''}`}
           />
+          {e.label && <text className={`union-label${dimmed && !lit ? ' dim' : ''}`} x={e.label.x} y={e.label.y} textAnchor="middle">
+            <tspan>{e.label.text}</tspan>
+            {e.label.status && <tspan className="union-status" x={e.label.x} dy={-16}>{e.label.status}</tspan>}
+          </text>}
+          </g>
         );
       })}
     </svg>

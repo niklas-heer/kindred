@@ -118,3 +118,8 @@
   .arrive::before, .arrive::after { animation: none; }
   .edge.lit { animation: none; stroke-dasharray: none; }
 }
+
+.union-label { fill: var(--text); font-size: 18px; font-family: var(--font-body, Georgia, serif); paint-order: stroke; stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round; }
+.union-status { fill: var(--muted); font-size: 16px; }
+.union-label.dim { opacity: .25; }
+.canvas.detail-far .union-label { display: none; }
