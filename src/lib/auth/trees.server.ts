@@ -3,7 +3,7 @@ import { NOT_TREES } from './store.server.ts';
 
 export async function families() {
   const { listTrees } = await import('../db.server');
-  return listTrees().filter((t) => !NOT_TREES.has(t.id));
+  return (await listTrees()).filter((t) => !NOT_TREES.has(t.id));
 }
 
 export async function family(tree: string) {

@@ -119,36 +119,39 @@ export const addRelative = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data }) => {
     const _m = await requireCan(data.tree, 'add-person');
-    const { once, newId } = await server();
-    return once(data.tree, opOf(_m, data), 'addRelative', (d) => {
+    const { once, newId, q, guard, sameParents } = await server();
+    return once(data.tree, opOf(_m, data), 'addRelative', async (d) => {
       const p = data.person;
       const id = newId(p.given);
-      const anchor = d.prepare('SELECT house, surname, born FROM person WHERE id = ?').get(data.anchor) as { house: string | null; surname: string | null; born: string | null } | undefined;
+      const anchor = await d.get<{ house: string | null; surname: string | null; born: string | null }>('SELECT house, surname, born FROM person WHERE id = ?', data.anchor);
       if (!anchor) throw new Error('unknown anchor');
-      const anchorParents = (d.prepare('SELECT parent FROM parent WHERE child = ?').all(data.anchor) as { parent: string }[]).map((r) => r.parent);
+      const anchorParents = (await d.all<{ parent: string }>('SELECT parent FROM parent WHERE child = ?', data.anchor)).map((r) => r.parent);
       if (data.relation === 'sibling' && !anchorParents.length) throw new Error('Record a shared parent first to add a sibling.');
       if (data.relation === 'parent' && anchorParents.length >= 2) throw new Error('They already have two parents.');
       if (data.relation === 'parent' && yearIn(p.born) >= yearIn(anchor.born)) throw new Error('A parent must be born before their child.');
       if (data.relation === 'child' && yearIn(p.born) <= yearIn(anchor.born)) throw new Error('A child must be born after their parent.');
       // Children and siblings join the anchor's house; parents and partners only if they share its surname.
       const sameHouse = data.relation === 'child' || data.relation === 'sibling' || (p.surname && p.surname === anchor.surname);
-      d.prepare('INSERT INTO person (id, given, surname, house, sex, born, died, living) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
-        id, p.given, p.surname ?? null, sameHouse ? anchor.house : null, p.sex ?? null, p.born ?? null, p.died ?? null, p.living ? 1 : 0,
-      );
-      const link = d.prepare('INSERT OR IGNORE INTO parent (child, parent) VALUES (?, ?)');
+      const writes = [
+        // What the checks above read: the anchor as it was, and their parents.
+        guard('EXISTS (SELECT 1 FROM person WHERE id = ? AND house IS ? AND surname IS ? AND born IS ?)', data.anchor, anchor.house, anchor.surname, anchor.born),
+        sameParents(data.anchor, anchorParents),
+        q('INSERT INTO person (id, given, surname, house, sex, born, died, living) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          id, p.given, p.surname ?? null, sameHouse ? anchor.house : null, p.sex ?? null, p.born ?? null, p.died ?? null, p.living ? 1 : 0),
+      ];
+      const link = (child: string, parent: string) => q('INSERT OR IGNORE INTO parent (child, parent) VALUES (?, ?)', child, parent);
       if (data.relation === 'child') {
-        link.run(id, data.anchor);
-        if (data.coParent && data.coParent !== data.anchor) link.run(id, data.coParent);
+        writes.push(link(id, data.anchor));
+        if (data.coParent && data.coParent !== data.anchor) writes.push(link(id, data.coParent));
       } else if (data.relation === 'parent') {
-        link.run(data.anchor, id);
+        writes.push(link(data.anchor, id));
       } else if (data.relation === 'sibling') {
-        for (const parent of anchorParents) link.run(id, parent);
+        for (const parent of anchorParents) writes.push(link(id, parent));
       } else {
-        d.prepare('INSERT INTO partnership (id, a, b, kind, start, place) VALUES (?, ?, ?, ?, ?, ?)').run(
-          `${data.anchor}__${id}`, data.anchor, id, data.partnership?.kind ?? 'partnership', data.partnership?.start ?? null, data.partnership?.place ?? null,
-        );
+        writes.push(q('INSERT INTO partnership (id, a, b, kind, start, place) VALUES (?, ?, ?, ?, ?, ?)',
+          `${data.anchor}__${id}`, data.anchor, id, data.partnership?.kind ?? 'partnership', data.partnership?.start ?? null, data.partnership?.place ?? null));
       }
-      return id;
+      return { writes, result: id };
     });
   });
 
@@ -163,16 +166,25 @@ export const linkRelative = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, anchor: z.string(), person: z.string(), relation: z.enum(['parent', 'child', 'sibling', 'partner']), coParent: z.string().optional(), partnership: partnershipInput.optional(), opKey }))
   .handler(async ({ data }): Promise<LinkResult> => {
     const _m = await requireCan(data.tree, 'edit-person');
-    const { once } = await server();
-    return once(data.tree, opOf(_m, data), 'linkRelative', (d) => {
+    const { once, q, guard, sameParents, sameBorn } = await server();
+    return once(data.tree, opOf(_m, data), 'linkRelative', async (d) => {
       if (data.anchor === data.person) throw new Error('A person cannot be their own relative.');
+      // Everything a check reads is guarded in the batch: birth dates, parent sets, the ancestry, partners.
+      const guards: ReturnType<typeof q>[] = [];
+      const born = new Map<string, string | null>();
       const people = new Map<string, { given: string; born: string | null }>();
       for (const id of [data.anchor, data.person, data.coParent].filter((x): x is string => !!x)) {
-        const r = d.prepare('SELECT given, born FROM person WHERE id = ?').get(id) as { given: string; born: string | null } | undefined;
+        const r = await d.get<{ given: string; born: string | null }>('SELECT given, born FROM person WHERE id = ?', id);
         if (!r) throw new Error('Person not found.');
         people.set(id, r);
+        born.set(id, r.born);
       }
-      const parentsOf = (id: string) => (d.prepare('SELECT parent FROM parent WHERE child = ?').all(id) as { parent: string }[]).map((r) => r.parent);
+      const parentSets = new Map<string, string[]>();
+      const parentsOf = async (id: string) => {
+        let ps = parentSets.get(id);
+        if (!ps) parentSets.set(id, (ps = (await d.all<{ parent: string }>('SELECT parent FROM parent WHERE child = ?', id)).map((r) => r.parent)));
+        return ps;
+      };
       const created: LinkResult = { person: data.person, parents: [] };
       // All checks for every edge first, then the writes, so a refusal never leaves half a link.
       const edges: [child: string, parent: string][] = [];
@@ -182,42 +194,57 @@ export const linkRelative = createServerFn({ method: 'POST' })
         if (data.coParent && data.coParent !== data.anchor) edges.push([data.person, data.coParent]);
       }
       if (data.relation === 'sibling') {
-        const ps = parentsOf(data.anchor);
+        const ps = await parentsOf(data.anchor);
         if (!ps.length) throw new Error('Record a shared parent first to link siblings.');
-        if (ps.every((p) => parentsOf(data.person).includes(p))) throw new Error(`${people.get(data.person)!.given} is already their sibling.`);
+        const theirs = await parentsOf(data.person);
+        if (ps.every((p) => theirs.includes(p))) throw new Error(`${people.get(data.person)!.given} is already their sibling.`);
         for (const p of ps) edges.push([data.person, p]);
       }
-      const name = (id: string) => d.prepare('SELECT given FROM person WHERE id = ?').get(id) as { given: string } | undefined;
+      const name = (id: string) => d.get<{ given: string }>('SELECT given FROM person WHERE id = ?', id);
+      const bornOf = async (id: string) => {
+        if (!born.has(id)) born.set(id, (await d.get<{ born: string | null }>('SELECT born FROM person WHERE id = ?', id))?.born ?? null);
+        return born.get(id)!;
+      };
       const newParents = new Map<string, Set<string>>();
       for (const [child, parent] of edges) {
         if (child === parent) throw new Error('A person cannot be their own parent.');
-        const had = parentsOf(child);
+        const had = await parentsOf(child);
         if (had.includes(parent)) {
           if (data.relation === 'sibling') continue; // a shared parent they already have
-          throw new Error(`${name(parent)?.given ?? 'They'} is already ${name(child)?.given ?? 'their'}’s parent.`);
+          throw new Error(`${(await name(parent))?.given ?? 'They'} is already ${(await name(child))?.given ?? 'their'}’s parent.`);
         }
         const all = newParents.get(child) ?? new Set(had);
         all.add(parent);
         newParents.set(child, all);
-        if (all.size > 2) throw new Error(`${name(child)?.given ?? 'They'} already has two parents.`);
-        const cy = yearIn((d.prepare('SELECT born FROM person WHERE id = ?').get(child) as { born: string | null }).born);
-        const py = yearIn((d.prepare('SELECT born FROM person WHERE id = ?').get(parent) as { born: string | null }).born);
-        if (cy <= py) throw new Error(`${name(child)?.given ?? 'The child'} was born before ${name(parent)?.given ?? 'the parent'}, so cannot be their child.`);
-        const cycle = d.prepare('WITH RECURSIVE ancestors(id) AS (SELECT parent FROM parent WHERE child = ? UNION SELECT p.parent FROM parent p JOIN ancestors a ON p.child = a.id) SELECT id FROM ancestors WHERE id = ?').get(parent, child);
-        if (cycle) throw new Error('This would create a loop in the ancestry.');
+        if (all.size > 2) throw new Error(`${(await name(child))?.given ?? 'They'} already has two parents.`);
+        const cy = yearIn(await bornOf(child));
+        const py = yearIn(await bornOf(parent));
+        if (cy <= py) throw new Error(`${(await name(child))?.given ?? 'The child'} was born before ${(await name(parent))?.given ?? 'the parent'}, so cannot be their child.`);
+        const ancestry = 'WITH RECURSIVE ancestors(id) AS (SELECT parent FROM parent WHERE child = ? UNION SELECT p.parent FROM parent p JOIN ancestors a ON p.child = a.id) SELECT id FROM ancestors WHERE id = ?';
+        if (await d.get(ancestry, parent, child)) throw new Error('This would create a loop in the ancestry.');
+        guards.push(guard(`NOT EXISTS (${ancestry})`, parent, child));
       }
+      for (const [id, b] of born) guards.push(sameBorn(id, b));
+      for (const [id, ps] of parentSets) guards.push(sameParents(id, ps));
+      const writes = [...guards];
       if (data.relation === 'partner') {
-        if (d.prepare('SELECT id FROM partnership WHERE (a = ? AND b = ?) OR (a = ? AND b = ?)').get(data.anchor, data.person, data.person, data.anchor)) {
+        const pair = '(a = ? AND b = ?) OR (a = ? AND b = ?)';
+        if (await d.get(`SELECT id FROM partnership WHERE ${pair}`, data.anchor, data.person, data.person, data.anchor)) {
           throw new Error(`${people.get(data.person)!.given} is already their partner.`);
         }
         const id = newOpKey();
-        d.prepare('INSERT INTO partnership (id, a, b, kind, start, place) VALUES (?, ?, ?, ?, ?, ?)').run(id, data.anchor, data.person, data.partnership?.kind ?? 'partnership', data.partnership?.start ?? null, data.partnership?.place ?? null);
+        writes.push(
+          guard(`NOT EXISTS (SELECT 1 FROM partnership WHERE ${pair})`, data.anchor, data.person, data.person, data.anchor),
+          q('INSERT INTO partnership (id, a, b, kind, start, place) VALUES (?, ?, ?, ?, ?, ?)', id, data.anchor, data.person, data.partnership?.kind ?? 'partnership', data.partnership?.start ?? null, data.partnership?.place ?? null),
+        );
         created.partnership = id;
       }
+      // The guards hold every parent set as read, so exactly the edges not already there are new.
       for (const [child, parent] of edges) {
-        if (d.prepare('INSERT OR IGNORE INTO parent (child, parent) VALUES (?, ?)').run(child, parent).changes) created.parents.push({ child, parent });
+        writes.push(q('INSERT OR IGNORE INTO parent (child, parent) VALUES (?, ?)', child, parent));
+        if (!(await parentsOf(child)).includes(parent) && !created.parents.some((e) => e.child === child && e.parent === parent)) created.parents.push({ child, parent });
       }
-      return created;
+      return { writes, result: created };
     });
   });
 
@@ -226,11 +253,14 @@ export const unlinkRelative = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, parents: z.array(z.object({ child: z.string(), parent: z.string() })).max(4), partnership: z.string().optional() }))
   .handler(async ({ data }) => {
     await requireCan(data.tree, 'edit-person');
-    const { once } = await server();
-    once(data.tree, undefined, 'unlinkRelative', (d) => {
-      for (const e of data.parents) d.prepare('DELETE FROM parent WHERE child = ? AND parent = ?').run(e.child, e.parent);
-      if (data.partnership) d.prepare('DELETE FROM partnership WHERE id = ?').run(data.partnership);
-    });
+    const { once, q } = await server();
+    await once(data.tree, undefined, 'unlinkRelative', () => ({
+      writes: [
+        ...data.parents.map((e) => q('DELETE FROM parent WHERE child = ? AND parent = ?', e.child, e.parent)),
+        ...(data.partnership ? [q('DELETE FROM partnership WHERE id = ?', data.partnership)] : []),
+      ],
+      result: undefined,
+    }));
   });
 
 export const updatePerson = createServerFn({ method: 'POST' })
@@ -261,10 +291,10 @@ export const updatePerson = createServerFn({ method: 'POST' })
     const { db } = await server();
     const p = data.patch;
     const empty = (s: string | null) => (s === null || s.trim() === '' ? null : s.trim());
-    db(data.tree)
-      .prepare(`UPDATE person SET given = ?, surname = ?, nickname = ?, sex = ?, born = ?, born_place = ?, died = ?, died_place = ?,
-        living = ?, title = ?, epithet = ?, occupation = ?, favourite = ?, bio = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`)
-      .run(p.given, empty(p.surname), empty(p.nickname), p.sex, empty(p.born), empty(p.bornPlace), empty(p.died), empty(p.diedPlace),
+    await db(data.tree)
+      .run(`UPDATE person SET given = ?, surname = ?, nickname = ?, sex = ?, born = ?, born_place = ?, died = ?, died_place = ?,
+        living = ?, title = ?, epithet = ?, occupation = ?, favourite = ?, bio = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`,
+        p.given, empty(p.surname), empty(p.nickname), p.sex, empty(p.born), empty(p.bornPlace), empty(p.died), empty(p.diedPlace),
         p.living ? 1 : 0, empty(p.title), empty(p.epithet), empty(p.occupation), empty(p.favourite), empty(p.bio), data.id);
   });
 
@@ -292,7 +322,8 @@ export const patchPerson = createServerFn({ method: 'POST' })
     const set = Object.entries(data.patch).filter(([, v]) => v !== undefined && v !== '');
     if (!set.length) return;
     const sql = `UPDATE person SET ${set.map(([k]) => `${cols[k]} = ?`).join(', ')}, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`;
-    (await server()).once(data.tree, opOf(_m, data), 'patchPerson', (d) => { d.prepare(sql).run(...set.map(([, v]) => v as string), data.id); });
+    const { once, q } = await server();
+    await once(data.tree, opOf(_m, data), 'patchPerson', () => ({ writes: [q(sql, ...set.map(([, v]) => v as string), data.id)], result: undefined }));
   });
 
 /** Takes someone out of the tree, with their links, stories, contacts and photo. */
@@ -300,23 +331,32 @@ export const removePerson = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, id: z.string() }))
   .handler(async ({ data }) => {
     await requireCan(data.tree, 'remove-person');
-    const d = (await server()).db(data.tree);
-    d.exec('PRAGMA foreign_keys = ON; BEGIN');
-    try {
+    const { once, q, guard, media } = await server();
+    return once(data.tree, undefined, 'removePerson', async (d) => {
       // The tree must keep a person to open on.
-      const focus = d.prepare("SELECT value FROM meta WHERE key = 'focus'").get() as { value: string } | undefined;
+      const focus = await d.get<{ value: string }>("SELECT value FROM meta WHERE key = 'focus'");
+      const writes = [
+        guard("(SELECT value FROM meta WHERE key = 'focus') IS ?", focus?.value ?? null),
+        // Their portrait, read in the batch, so the file deleted afterwards is the one the row pointed at.
+        q('SELECT key FROM photo WHERE person = ?', data.id),
+      ];
       if (focus?.value === data.id) {
-        const other = d.prepare('SELECT id FROM person WHERE id != ? LIMIT 1').get(data.id) as { id: string } | undefined;
+        const other = await d.get<{ id: string }>('SELECT id FROM person WHERE id != ? LIMIT 1', data.id);
         if (!other) throw new Error('The last person cannot be removed');
-        d.prepare("UPDATE meta SET value = ? WHERE key = 'focus'").run(other.id);
+        writes.push(guard('EXISTS (SELECT 1 FROM person WHERE id = ?)', other.id), q("UPDATE meta SET value = ? WHERE key = 'focus'", other.id));
       }
-      const r = d.prepare('DELETE FROM person WHERE id = ?').run(data.id);
-      d.exec('COMMIT');
-      return r.changes;
-    } catch (e) {
-      d.exec('ROLLBACK');
-      throw e;
-    }
+      // Their links, stories, contacts and photo row go with them (ON DELETE CASCADE).
+      // RETURNING counts the person alone (D1's `changes` would include the cascade).
+      writes.push(q('DELETE FROM person WHERE id = ? RETURNING id', data.id));
+      return {
+        writes,
+        result: (r) => r[r.length - 1].rows.length,
+        after: async (r) => {
+          const key = (r[1].rows[0] as { key: string | null } | undefined)?.key;
+          if (key) await media.delete(data.tree, key).catch((e) => console.error('[media] could not delete', key, e));
+        },
+      };
+    });
   });
 
 export const addStory = createServerFn({ method: 'POST' })
@@ -335,12 +375,18 @@ export const addStory = createServerFn({ method: 'POST' })
     // Signed with the writer's own name from their account, never a name the browser sends.
     const _m = await requireCan(data.tree, 'add-story');
     const { user } = _m;
-    return (await server()).once(data.tree, opOf(_m, data), 'addStory', (d) => {
-      if (!d.prepare('SELECT id FROM person WHERE id = ?').get(data.person)) throw new Error('Person not found.');
+    const { once, q, personExists } = await server();
+    return once(data.tree, opOf(_m, data), 'addStory', async (d) => {
+      if (!(await d.get('SELECT id FROM person WHERE id = ?', data.person))) throw new Error('Person not found.');
       const id = crypto.randomUUID();
-      d.prepare('INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(id, data.person, data.kind, data.title || null, data.body, user.name, new Date().toISOString(), data.context || null);
-      return id;
+      return {
+        writes: [
+          personExists(data.person),
+          q('INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            id, data.person, data.kind, data.title || null, data.body, user.name, new Date().toISOString(), data.context || null),
+        ],
+        result: id,
+      };
     });
   });
 
@@ -348,7 +394,7 @@ export const deleteStory = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, id: z.string() }))
   .handler(async ({ data }) => {
     await requireCan(data.tree, 'edit-person');
-    (await server()).db(data.tree).prepare('DELETE FROM story WHERE id = ?').run(data.id);
+    await (await server()).db(data.tree).run('DELETE FROM story WHERE id = ?', data.id);
   });
 
 export const addContact = createServerFn({ method: 'POST' })
@@ -364,9 +410,15 @@ export const addContact = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data }) => {
     const _m = await requireCan(data.tree, 'edit-contact');
-    return (await server()).once(data.tree, opOf(_m, data), 'addContact', (d) => {
-      if (!d.prepare('SELECT id FROM person WHERE id = ?').get(data.person)) throw new Error('Person not found.');
-      return Number(d.prepare('INSERT INTO contact (person, kind, label, value) VALUES (?, ?, ?, ?)').run(data.person, data.kind, data.label || null, data.value).lastInsertRowid);
+    const { once, q, personExists } = await server();
+    return once(data.tree, opOf(_m, data), 'addContact', async (d) => {
+      if (!(await d.get('SELECT id FROM person WHERE id = ?', data.person))) throw new Error('Person not found.');
+      return {
+        writes: [personExists(data.person), q('INSERT INTO contact (person, kind, label, value) VALUES (?, ?, ?, ?)', data.person, data.kind, data.label || null, data.value)],
+        // The new row's id is only known inside the batch; the retry key stores it from there.
+        result: (r) => r[1].lastRowId,
+        resultSql: 'last_insert_rowid()',
+      };
     });
   });
 
@@ -374,7 +426,7 @@ export const deleteContact = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, id: z.number().int() }))
   .handler(async ({ data }) => {
     await requireCan(data.tree, 'edit-contact');
-    (await server()).db(data.tree).prepare('DELETE FROM contact WHERE id = ?').run(data.id);
+    await (await server()).db(data.tree).run('DELETE FROM contact WHERE id = ?', data.id);
   });
 
 export const uploadPhoto = createServerFn({ method: 'POST' })
@@ -388,10 +440,26 @@ export const uploadPhoto = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const _m = await requireCan(data.tree, 'upload-photo');
     const bytes = new Uint8Array(await data.file.arrayBuffer());
-    (await server()).once(data.tree, opOf(_m, data), 'uploadPhoto', (d) => {
-      if (!d.prepare('SELECT id FROM person WHERE id = ?').get(data.id)) throw new Error('Person not found.');
-      d.prepare('INSERT INTO photo (person, mime, data, at) VALUES (?, ?, ?, ?) ON CONFLICT(person) DO UPDATE SET mime = excluded.mime, data = excluded.data, at = excluded.at')
-        .run(data.id, data.file.type, bytes, new Date().toISOString());
+    const { once, q, personExists, media, newMediaKey } = await server();
+    await once(data.tree, opOf(_m, data), 'uploadPhoto', async (d) => {
+      if (!(await d.get('SELECT id FROM person WHERE id = ?', data.id))) throw new Error('Person not found.');
+      // The picture goes to media storage first; the row points at it once the batch commits.
+      const key = newMediaKey('photo', data.file.type);
+      await media.put(data.tree, key, bytes, data.file.type);
+      return {
+        writes: [
+          personExists(data.id),
+          q('SELECT key FROM photo WHERE person = ?', data.id), // the picture this one replaces
+          q('INSERT INTO photo (person, mime, key, data, at) VALUES (?, ?, ?, NULL, ?) ON CONFLICT(person) DO UPDATE SET mime = excluded.mime, key = excluded.key, data = NULL, at = excluded.at',
+            data.id, data.file.type, key, new Date().toISOString()),
+        ],
+        result: undefined,
+        abandon: () => media.delete(data.tree, key).catch(() => {}),
+        after: async (r) => {
+          const old = (r[1].rows[0] as { key: string | null } | undefined)?.key;
+          if (old && old !== key) await media.delete(data.tree, old).catch((e) => console.error('[media] could not delete', old, e));
+        },
+      };
     });
   });
 

@@ -1,114 +1,148 @@
-import { existsSync, readdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
-import { createHash } from 'node:crypto';
-import { DatabaseSync } from 'node:sqlite';
-import { SCHEMA } from './schema';
+// A family's data: reads for the pages, and the transaction pattern every change uses. Storage is the
+// async `Db` interface (./store): node:sqlite files on Node, D1 on Cloudflare Workers.
+import { guard, isGuardError, q, store, type Db, type Query, type Result } from './store/index.ts';
 import type { GParent, GPerson, GUnion, Graph, House, PersonDetail, TreeMeta } from './types';
 
-const DATA = resolve(process.cwd(), 'data');
-const open = new Map<string, DatabaseSync>();
-/** data/gazetteer.db is the place search index and data/accounts.db the accounts store: not trees. Keep in step with NOT_TREES in auth/store.server.ts. */
-const GAZETTEER = 'gazetteer';
-const NOT_TREES = new Set([GAZETTEER, 'accounts']);
+export { guard, q, store, type Db, type Query } from './store/index.ts';
 
-export function db(tree: string): DatabaseSync {
-  if (!/^[a-z0-9-]+$/.test(tree) || NOT_TREES.has(tree)) throw new Error(`bad tree id ${tree}`);
-  let d = open.get(tree);
-  if (!d) {
-    const path = join(DATA, `${tree}.db`);
-    if (!existsSync(path)) throw new Error(`no tree ${tree}; run mise run seed`);
-    d = new DatabaseSync(path);
-    d.exec(SCHEMA);
-    // Older files have an op table without the user and fingerprint columns.
-    const cols = new Set((d.prepare('PRAGMA table_info(op)').all() as { name: string }[]).map((c) => c.name));
-    if (!cols.has('user')) d.exec('ALTER TABLE op ADD COLUMN user TEXT');
-    if (!cols.has('fingerprint')) d.exec('ALTER TABLE op ADD COLUMN fingerprint TEXT');
-    open.set(tree, d);
-  }
-  return d;
+/** A family's database. Throws for an unknown tree. */
+export function db(tree: string): Db {
+  return store.tree(tree);
 }
 
-// ---------- idempotent writes ----------
+// ---------- changes: decide on reads, write in one guarded batch ----------
+//
+// D1 has no interactive transactions, so no change may read, decide and write while holding a lock.
+// Every change is a *plan* instead: read what it needs, run its checks (throwing the reader's error
+// message), and return the writes. `commit` sends them as one atomic batch that starts with guards
+// restating what the plan relied on ("the child still has one parent", "the anchor's birth year is
+// unchanged"). If another request changed any of it in between, the batch writes nothing, and the plan
+// runs again on fresh reads: its checks now refuse with the right message, or it writes the new plan.
+// Constraints (primary keys, foreign keys, UNIQUE) back the same rules inside the database.
 
 const OP_KEEP_DAYS = 30;
+const ATTEMPTS = 4;
 let lastPrune = 0;
 
-/**
- * Runs `work` in one transaction. With an `opKey`, the result is stored in the `op` table in that same
- * transaction, and the same key arriving again (a retry after a lost response) gets the stored result back
- * instead of a second write. A key used for a different kind of change is refused.
- */
 /** A retry key, scoped to the person sending it and to exactly what they sent. */
 export interface OpKey { key: string; user: string; payload: unknown }
 
-const fingerprintOf = (fn: string, payload: unknown) =>
-  createHash('sha256')
-    .update(fn)
-    .update(JSON.stringify(payload ?? null, (_k, v) => (typeof File !== 'undefined' && v instanceof File ? { name: v.name, size: v.size, type: v.type } : v)))
-    .digest('hex');
-
-export function once<T>(tree: string, op: OpKey | undefined, fn: string, work: (d: DatabaseSync) => T): T {
-  const d = db(tree);
-  d.exec('BEGIN IMMEDIATE');
-  let replay: { fn: string; result: string; user: string | null; fingerprint: string | null } | undefined;
-  const fingerprint = op ? fingerprintOf(fn, op.payload) : null;
-  try {
-    if (op) replay = d.prepare('SELECT fn, result, user, fingerprint FROM op WHERE key = ?').get(op.key) as typeof replay;
-    if (replay) {
-      d.exec('COMMIT');
-    } else {
-      const out = work(d);
-      if (op) {
-        const now = Date.now();
-        d.prepare('INSERT INTO op (key, fn, result, at, user, fingerprint) VALUES (?, ?, ?, ?, ?, ?)').run(op.key, fn, JSON.stringify(out ?? null), new Date(now).toISOString(), op.user, fingerprint);
-        // Old keys are only kept long enough to cover a retry.
-        if (now - lastPrune > 3_600_000) {
-          lastPrune = now;
-          d.prepare('DELETE FROM op WHERE at < ?').run(new Date(now - OP_KEEP_DAYS * 86_400_000).toISOString());
-        }
-      }
-      d.exec('COMMIT');
-      return out;
-    }
-  } catch (e) {
-    if (d.isTransaction) d.exec('ROLLBACK');
-    throw e;
-  }
-  // Only the same person resending the same change gets the stored result; anything else is refused.
-  if (replay.fn !== fn || replay.user !== op!.user || replay.fingerprint !== fingerprint) {
-    throw new Error('That change was already sent as something else. Reload and try again.');
-  }
-  return JSON.parse(replay.result) as T;
+/** What a change writes, decided on reads. */
+export interface Plan<T> {
+  /** Guards first, then the writes; run as one batch with the retry key's row. */
+  writes: Query[];
+  /** What the caller gets back, and what a retry with the same key replays. */
+  result: T | ((results: Result[]) => T);
+  /** An SQL expression for a result only the batch knows (`last_insert_rowid()`), stored for replays. */
+  resultSql?: string;
+  /** Work after the batch committed, e.g. deleting a replaced picture. Not run for a replay. */
+  after?: (results: Result[]) => Promise<unknown> | unknown;
+  /** Undoes work the plan did outside the database (a stored upload) when its batch did not commit. */
+  abandon?: () => Promise<unknown> | unknown;
 }
 
-const meta = (d: DatabaseSync) =>
-  Object.fromEntries((d.prepare('SELECT key, value FROM meta').all() as { key: string; value: string }[]).map((r) => [r.key, r.value]));
+const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
+const fingerprintOf = async (fn: string, payload: unknown) =>
+  hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(fn + JSON.stringify(payload ?? null, (_k, v) => (typeof File !== 'undefined' && v instanceof File ? { name: v.name, size: v.size, type: v.type } : v)))));
 
-export function listTrees(): TreeMeta[] {
-  return readdirSync(DATA)
-    .filter((f) => f.endsWith('.db') && !NOT_TREES.has(f.slice(0, -3)))
-    .map((f): TreeMeta | null => {
-      const d = db(f.slice(0, -3));
-      const m = meta(d);
-      if (!m.id) return null; // not a tree (a half-built file): skip it rather than break the home page
-      const { n } = d.prepare('SELECT count(*) AS n FROM person').get() as { n: number };
-      const crestRow = d.prepare('SELECT h.arms FROM house h LEFT JOIN person p ON p.house = h.id GROUP BY h.id ORDER BY count(p.id) DESC, h.id LIMIT 1').get() as { arms: string } | undefined;
-      const monthDay = `${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
-      const birthdays = (d.prepare("SELECT id, given, surname FROM person WHERE living = 1 AND substr(born, 6) = ?").all(monthDay) as { id: string; given: string; surname: string | null }[]).map((p) => ({ id: p.id, name: [p.given, p.surname].filter(Boolean).join(' ') }));
-      return { id: m.id, name: m.name, tagline: m.tagline, theme: m.theme as TreeMeta['theme'], focus: m.focus, people: n, crest: crestRow ? JSON.parse(crestRow.arms) as House['arms'] : undefined, birthdays };
-    })
-    .filter((t): t is TreeMeta => t !== null)
-    .sort((a, b) => b.people - a.people);
+type OpRow = { fn: string; result: string; user: string | null; fingerprint: string | null };
+
+/**
+ * Runs a change. With an `opKey`, its result is stored in the `op` table in the same batch as the
+ * writes, and the same key arriving again (a retry after a lost response) gets the stored result back
+ * instead of a second write. Two copies racing: the key is the op table's primary key, so only one
+ * batch commits; the other fails as a whole and replays the winner's result. Only the same person
+ * resending the same change gets a replay; a key used for anything else is refused.
+ */
+export async function once<T>(tree: string, op: OpKey | undefined, fn: string, work: (d: Db) => Promise<Plan<T>> | Plan<T>): Promise<T> {
+  const d = db(tree);
+  const fingerprint = op ? await fingerprintOf(fn, op.payload) : null;
+  const replay = (r: OpRow): T => {
+    if (r.fn !== fn || r.user !== op!.user || r.fingerprint !== fingerprint) throw new Error('That change was already sent as something else. Reload and try again.');
+    return JSON.parse(r.result) as T;
+  };
+  const stored = () => (op ? d.get<OpRow>('SELECT fn, result, user, fingerprint FROM op WHERE key = ?', op.key) : Promise.resolve(undefined));
+
+  for (let attempt = 1; ; attempt++) {
+    const had = await stored();
+    if (had) return replay(had);
+    const plan = await work(d);
+    const value = (results: Result[]) => (typeof plan.result === 'function' ? (plan.result as (r: Result[]) => T)(results) : plan.result);
+    const batch = [...plan.writes];
+    if (op) {
+      const at = new Date().toISOString();
+      batch.push(
+        plan.resultSql
+          ? q(`INSERT INTO op (key, fn, result, at, user, fingerprint) VALUES (?, ?, json_quote(${plan.resultSql}), ?, ?, ?)`, op.key, fn, at, op.user, fingerprint)
+          : q('INSERT INTO op (key, fn, result, at, user, fingerprint) VALUES (?, ?, ?, ?, ?, ?)', op.key, fn, JSON.stringify(value([]) ?? null), at, op.user, fingerprint),
+      );
+    }
+    let results: Result[];
+    try {
+      results = batch.length ? await d.batch(batch) : [];
+    } catch (e) {
+      await plan.abandon?.();
+      // A copy of this request committed first: replay its result.
+      const won = await stored();
+      if (won) return replay(won);
+      // Something the plan relied on changed: decide again on fresh reads.
+      if (isGuardError(e)) {
+        if (attempt < ATTEMPTS) continue;
+        throw new Error('The family changed while this was being saved. Please try again.');
+      }
+      throw e;
+    }
+    const writes = results.slice(0, plan.writes.length);
+    // Old keys are only kept long enough to cover a retry.
+    const now = Date.now();
+    if (op && now - lastPrune > 3_600_000) {
+      lastPrune = now;
+      await d.run('DELETE FROM op WHERE at < ?', new Date(now - OP_KEEP_DAYS * 86_400_000).toISOString()).catch(() => {});
+    }
+    await plan.after?.(writes);
+    return value(writes);
+  }
+}
+
+// ---------- reads ----------
+
+const meta = async (d: Db) => Object.fromEntries((await d.all<{ key: string; value: string }>('SELECT key, value FROM meta')).map((r) => [r.key, r.value]));
+
+export async function listTrees(): Promise<TreeMeta[]> {
+  const monthDay = `${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+  const trees = await Promise.all(
+    store.treeIds().map(async (id): Promise<TreeMeta | null> => {
+      const d = db(id);
+      // An empty or half-built database is not a tree yet: skip it rather than break the home page.
+      const m = await meta(d).catch(() => ({}) as Record<string, string>);
+      if (!m.id) return null;
+      const [count, crestRow, born] = await Promise.all([
+        d.get<{ n: number }>('SELECT count(*) AS n FROM person'),
+        d.get<{ arms: string }>('SELECT h.arms FROM house h LEFT JOIN person p ON p.house = h.id GROUP BY h.id ORDER BY count(p.id) DESC, h.id LIMIT 1'),
+        d.all<{ id: string; given: string; surname: string | null }>('SELECT id, given, surname FROM person WHERE living = 1 AND substr(born, 6) = ?', monthDay),
+      ]);
+      const birthdays = born.map((p) => ({ id: p.id, name: [p.given, p.surname].filter(Boolean).join(' ') }));
+      return { id: m.id, name: m.name, tagline: m.tagline, theme: m.theme as TreeMeta['theme'], focus: m.focus, people: count?.n ?? 0, crest: crestRow ? (JSON.parse(crestRow.arms) as House['arms']) : undefined, birthdays };
+    }),
+  );
+  return trees.filter((t): t is TreeMeta => t !== null).sort((a, b) => b.people - a.people);
 }
 
 const json = <T>(s: unknown): T | undefined => (typeof s === 'string' ? JSON.parse(s) : undefined);
 const opt = <T>(v: T | null): T | undefined => (v === null ? undefined : v);
 
-export function graph(tree: string): Graph {
+export async function graph(tree: string): Promise<Graph> {
   const d = db(tree);
-  const m = meta(d);
-  const people = (d.prepare(`SELECT p.*, ph.at AS photo, (SELECT count(*) FROM story s WHERE s.person = p.id) AS stories, (SELECT count(*) FROM contact c WHERE c.person = p.id) AS contacts
-    FROM person p LEFT JOIN photo ph ON ph.person = p.id`).all() as any[]).map(
+  const [m, peopleRows, houseRows, parents, unionRows, placeRows] = await Promise.all([
+    meta(d),
+    d.all<any>(`SELECT p.*, ph.at AS photo, (SELECT count(*) FROM story s WHERE s.person = p.id) AS stories, (SELECT count(*) FROM contact c WHERE c.person = p.id) AS contacts
+      FROM person p LEFT JOIN photo ph ON ph.person = p.id`),
+    d.all<any>('SELECT * FROM house'),
+    d.all<GParent>('SELECT child, parent, kind, confidence FROM parent'),
+    d.all<any>('SELECT * FROM partnership ORDER BY start'),
+    d.all<any>('SELECT * FROM place'),
+  ]);
+  const people = peopleRows.map(
     (r): GPerson => ({
       id: r.id,
       given: r.given,
@@ -131,14 +165,11 @@ export function graph(tree: string): Graph {
       diedPlace: opt(r.died_place),
     }),
   );
-  const houses = (d.prepare('SELECT * FROM house').all() as any[]).map(
-    (r): House => ({ id: r.id, name: r.name, motto: opt(r.motto), arms: JSON.parse(r.arms), founder: opt(r.founder) }),
-  );
-  const parents = d.prepare('SELECT child, parent, kind, confidence FROM parent').all() as unknown as GParent[];
-  const unions = (d.prepare('SELECT * FROM partnership ORDER BY start').all() as any[]).map(
+  const houses = houseRows.map((r): House => ({ id: r.id, name: r.name, motto: opt(r.motto), arms: JSON.parse(r.arms), founder: opt(r.founder) }));
+  const unions = unionRows.map(
     (r): GUnion => ({ id: r.id, a: r.a, b: r.b, kind: r.kind, start: opt(r.start), end: opt(r.end), endReason: opt(r.end_reason), place: opt(r.place) }),
   );
-  const places = (d.prepare('SELECT * FROM place').all() as any[]).map((r) => ({ name: r.name, lat: r.lat, lng: r.lng, country: opt(r.country) }));
+  const places = placeRows.map((r) => ({ name: r.name, lat: r.lat, lng: r.lng, country: opt(r.country) }));
   return {
     places,
     tree: { id: m.id, name: m.name, tagline: m.tagline, theme: m.theme as TreeMeta['theme'], focus: m.focus, people: people.length },
@@ -149,9 +180,13 @@ export function graph(tree: string): Graph {
   };
 }
 
-export function person(tree: string, id: string): PersonDetail {
+export async function person(tree: string, id: string): Promise<PersonDetail> {
   const d = db(tree);
-  const r = d.prepare('SELECT bio, born_place, died_place, favourite, updated_at FROM person WHERE id = ?').get(id) as any;
+  const [r, stories, contacts] = await Promise.all([
+    d.get<any>('SELECT bio, born_place, died_place, favourite, updated_at FROM person WHERE id = ?', id),
+    d.all<any>('SELECT * FROM story WHERE person = ? ORDER BY at DESC', id),
+    d.all<any>('SELECT * FROM contact WHERE person = ? ORDER BY kind, id', id),
+  ]);
   if (!r) throw new Error(`no person ${id}`);
   return {
     id,
@@ -160,10 +195,10 @@ export function person(tree: string, id: string): PersonDetail {
     diedPlace: opt(r.died_place),
     favourite: opt(r.favourite),
     updatedAt: r.updated_at,
-    stories: (d.prepare('SELECT * FROM story WHERE person = ? ORDER BY at DESC').all(id) as any[]).map((s) => ({
+    stories: stories.map((s) => ({
       id: s.id, person: s.person, kind: s.kind, title: opt(s.title), body: s.body, author: s.author, at: s.at, context: opt(s.context),
     })),
-    contacts: (d.prepare('SELECT * FROM contact WHERE person = ? ORDER BY kind, id').all(id) as any[]).map((c) => ({
+    contacts: contacts.map((c) => ({
       id: c.id, person: c.person, kind: c.kind, label: opt(c.label), value: c.value,
     })),
   };
@@ -171,15 +206,16 @@ export function person(tree: string, id: string): PersonDetail {
 
 /** Every story in the tree, newest first: the family's "recent changes". */
 export function chronicle(tree: string, limit: number) {
-  return db(tree).prepare('SELECT * FROM story ORDER BY at DESC LIMIT ?').all(limit) as any[];
+  return db(tree).all<any>('SELECT * FROM story ORDER BY at DESC LIMIT ?', limit);
 }
 
 export function allContacts(tree: string) {
-  return db(tree).prepare('SELECT * FROM contact ORDER BY person, kind').all() as any[];
+  return db(tree).all<any>('SELECT * FROM contact ORDER BY person, kind');
 }
 
+/** A person's portrait: its type, and where it is (a media key) or, for one not yet moved out, its bytes. */
 export function photo(tree: string, id: string) {
-  return db(tree).prepare('SELECT mime, data FROM photo WHERE person = ?').get(id) as { mime: string; data: Uint8Array } | undefined;
+  return db(tree).get<{ mime: string; key: string | null; data: Uint8Array | number[] | null }>('SELECT mime, key, data FROM photo WHERE person = ?', id);
 }
 
 export const newId = (given: string) =>
@@ -197,20 +233,8 @@ export function foldPlace(s: string) {
     .trim();
 }
 
-let gazetteerDb: DatabaseSync | null = null;
-/** The offline gazetteer (scripts/gazetteer.ts), or null until it has been built. Checked again on each call until it exists. */
-function gazetteer(): DatabaseSync | null {
-  if (gazetteerDb) return gazetteerDb;
-  const path = join(DATA, `${GAZETTEER}.db`);
-  if (!existsSync(path)) return null;
-  try {
-    gazetteerDb = new DatabaseSync(path, { readOnly: true });
-    gazetteerDb.prepare('SELECT 1 FROM name LIMIT 1').get();
-  } catch {
-    gazetteerDb = null;
-  }
-  return gazetteerDb;
-}
+/** The offline gazetteer (scripts/gazetteer.ts): Node only, and null until it has been built. */
+const gazetteer = () => store.gazetteer();
 
 export interface PlaceHit {
   name: string;
@@ -227,15 +251,15 @@ export interface PlaceHit {
 }
 
 /** The tree's own places first (by use), then gazetteer towns ranked by how well they match and how big they are. */
-export function searchPlaces(tree: string, q: string, limit = 8): PlaceHit[] {
+export async function searchPlaces(tree: string, q: string, limit = 8): Promise<PlaceHit[]> {
   const d = db(tree);
   const fq = foldPlace(q);
-  const placed = new Map((d.prepare('SELECT name, lat, lng, country FROM place').all() as { name: string; lat: number; lng: number; country: string | null }[]).map((r) => [r.name, r]));
-  const used = new Map((d.prepare(`SELECT name, count(*) AS n FROM (
+  const placed = new Map((await d.all<{ name: string; lat: number; lng: number; country: string | null }>('SELECT name, lat, lng, country FROM place')).map((r) => [r.name, r]));
+  const used = new Map((await d.all<{ name: string; n: number }>(`SELECT name, count(*) AS n FROM (
       SELECT born_place AS name FROM person WHERE born_place IS NOT NULL AND born_place != ''
       UNION ALL SELECT died_place FROM person WHERE died_place IS NOT NULL AND died_place != ''
       UNION ALL SELECT place FROM partnership WHERE place IS NOT NULL AND place != ''
-    ) GROUP BY name`).all() as { name: string; n: number }[]).map((r) => [r.name, r.n]));
+    ) GROUP BY name`)).map((r) => [r.name, r.n]));
   for (const name of placed.keys()) if (!used.has(name)) used.set(name, 0);
 
   // A family place matches when any of its words starts with what was typed; a match at the very start ranks first.
@@ -255,11 +279,11 @@ export function searchPlaces(tree: string, q: string, limit = 8): PlaceHit[] {
   const range = 'n.key >= ? AND n.key < ?';
   const sql = (where: string, n: number) =>
     `SELECT p.id, p.name, p.cc, p.admin1, p.lat, p.lng, p.pop, n.alt, n.key FROM name n JOIN place p ON p.id = n.id WHERE ${where} ORDER BY p.pop DESC LIMIT ${n}`;
-  const hi = `${fq}\uffff`;
+  const hi = `${fq}￿`;
   const rows = [
-    ...(g.prepare(sql('n.key = ?', 12)).all(fq) as Row[]),
-    ...(g.prepare(sql(`${range} AND n.alt IS NULL`, 40)).all(fq, hi) as Row[]),
-    ...(g.prepare(sql(`${range} AND n.alt IS NOT NULL`, 20)).all(fq, hi) as Row[]),
+    ...(await g.all<Row>(sql('n.key = ?', 12), fq)),
+    ...(await g.all<Row>(sql(`${range} AND n.alt IS NULL`, 40), fq, hi)),
+    ...(await g.all<Row>(sql(`${range} AND n.alt IS NOT NULL`, 20), fq, hi)),
   ];
   // Size counts most; another spelling counts less than the place's own name; an exact match counts more.
   const best = new Map<number, { r: Row; score: number }>();
@@ -286,14 +310,15 @@ export function searchPlaces(tree: string, q: string, limit = 8): PlaceHit[] {
   return [...own, ...theirs, ...towns.filter((t) => t.uses === undefined)].slice(0, limit + 1);
 }
 
-/** Towns inside a box, biggest first, so a map with no tiles still shows where you are. */
-export function placesIn(box: { west: number; south: number; east: number; north: number }, limit: number) {
+/** Towns inside a box, biggest first, so a map with no tiles still shows where you are. Empty without a gazetteer (always on Workers). */
+export async function placesIn(box: { west: number; south: number; east: number; north: number }, limit: number) {
   const g = gazetteer();
   if (!g) return [];
   const wrap = box.west > box.east;
-  return g
-    .prepare(`SELECT name, cc, admin1, lat, lng, pop FROM place WHERE lat BETWEEN ? AND ? AND ${wrap ? '(lng >= ? OR lng <= ?)' : 'lng BETWEEN ? AND ?'} ORDER BY pop DESC LIMIT ?`)
-    .all(box.south, box.north, box.west, box.east, limit) as { name: string; cc: string | null; admin1: string | null; lat: number; lng: number; pop: number }[];
+  return g.all<{ name: string; cc: string | null; admin1: string | null; lat: number; lng: number; pop: number }>(
+    `SELECT name, cc, admin1, lat, lng, pop FROM place WHERE lat BETWEEN ? AND ? AND ${wrap ? '(lng >= ? OR lng <= ?)' : 'lng BETWEEN ? AND ?'} ORDER BY pop DESC LIMIT ?`,
+    box.south, box.north, box.west, box.east, limit,
+  );
 }
 
 /**
@@ -301,29 +326,65 @@ export function placesIn(box: { west: number; south: number; east: number; north
  * `move` is set (the user chose to move its pin). Returns the names whose pin was left alone.
  */
 export function upsertPlaces(tree: string, places: { name: string; lat: number; lng: number; country?: string; move?: boolean }[], op?: OpKey) {
-  return once(tree, op, 'upsertPlaces', (d) => {
+  return once(tree, op, 'upsertPlaces', async (d) => {
+    // Which pins exist decides what is kept; the guard holds that steady until the batch commits.
+    const names = [...new Set(places.map((p) => p.name))];
+    const marks = names.map(() => '?').join(', ');
+    const existing = new Set(names.length ? (await d.all<{ name: string }>(`SELECT name FROM place WHERE name IN (${marks})`, ...names)).map((r) => r.name) : []);
+    // In order, as the writes run: a pin that exists by the time its write runs is left alone.
     const kept: string[] = [];
+    const pinned = new Set(existing);
     for (const p of places) {
-      const sql = p.move
-        ? 'INSERT INTO place (name, lat, lng, country) VALUES (?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET lat = excluded.lat, lng = excluded.lng, country = coalesce(excluded.country, country)'
-        : 'INSERT INTO place (name, lat, lng, country) VALUES (?, ?, ?, ?) ON CONFLICT(name) DO NOTHING';
-      const r = d.prepare(sql).run(p.name, p.lat, p.lng, p.country ?? null);
-      if (!r.changes) kept.push(p.name);
+      if (!p.move && pinned.has(p.name)) kept.push(p.name);
+      pinned.add(p.name);
     }
-    return kept;
+    const writes: Query[] = names.length ? [guard(`(SELECT count(*) FROM place WHERE name IN (${marks})) = ?`, ...names, existing.size)] : [];
+    for (const p of places) {
+      writes.push(
+        p.move
+          ? q('INSERT INTO place (name, lat, lng, country) VALUES (?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET lat = excluded.lat, lng = excluded.lng, country = coalesce(excluded.country, country)', p.name, p.lat, p.lng, p.country ?? null)
+          : q('INSERT INTO place (name, lat, lng, country) VALUES (?, ?, ?, ?) ON CONFLICT(name) DO NOTHING', p.name, p.lat, p.lng, p.country ?? null),
+      );
+    }
+    return { writes, result: kept };
   });
 }
 
 // ---------- houses ----------
 
 /** Renames a house and changes its motto and arms. Returns the house as the graph shows it. */
-export function updateHouse(tree: string, id: string, patch: { name: string; motto: string | null; arms: House['arms'] }): House {
+export async function updateHouse(tree: string, id: string, patch: { name: string; motto: string | null; arms: House['arms'] }): Promise<House> {
   const d = db(tree);
-  const r = d.prepare('SELECT founder FROM house WHERE id = ?').get(id) as { founder: string | null } | undefined;
+  const r = await d.get<{ founder: string | null }>('SELECT founder FROM house WHERE id = ?', id);
   if (!r) throw new Error('That house is not in this family.');
   // Store only the fields the arms use: a plain field keeps no second tincture.
   const arms: House['arms'] = { field: patch.arms.field, division: patch.arms.division, charge: patch.arms.charge, chargeTincture: patch.arms.chargeTincture };
   if (patch.arms.field2 && patch.arms.division !== 'plain') arms.field2 = patch.arms.field2;
-  d.prepare('UPDATE house SET name = ?, motto = ?, arms = ? WHERE id = ?').run(patch.name, patch.motto, JSON.stringify(arms), id);
+  await d.run('UPDATE house SET name = ?, motto = ?, arms = ? WHERE id = ?', patch.name, patch.motto, JSON.stringify(arms), id);
   return { id, name: patch.name, motto: patch.motto ?? undefined, arms, founder: opt(r.founder) };
 }
+
+// ---------- media ----------
+
+export const media = store.media;
+
+const EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif' };
+/** A fresh media key for an upload: `photo/<uuid>.jpg`. */
+export const newMediaKey = (kind: string, mime: string) => `${kind}/${crypto.randomUUID()}.${EXT[mime] ?? 'bin'}`;
+
+// ---------- guards for the family's shape ----------
+
+/** Guards that `child` still has exactly the parents `had` that a check read. */
+export const sameParents = (child: string, had: string[]) =>
+  had.length
+    ? guard(
+        `(SELECT count(*) FROM parent WHERE child = ?) = ? AND (SELECT count(*) FROM parent WHERE child = ? AND parent IN (${had.map(() => '?').join(', ')})) = ?`,
+        child, had.length, child, ...had, had.length,
+      )
+    : guard('NOT EXISTS (SELECT 1 FROM parent WHERE child = ?)', child);
+
+/** Guards that a person is still there, born when a check read it. */
+export const sameBorn = (id: string, born: string | null) => guard('EXISTS (SELECT 1 FROM person WHERE id = ? AND born IS ?)', id, born);
+
+/** Guards that a person is still there. */
+export const personExists = (id: string) => guard('EXISTS (SELECT 1 FROM person WHERE id = ?)', id);

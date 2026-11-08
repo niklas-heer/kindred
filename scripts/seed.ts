@@ -5,7 +5,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { SCHEMA } from '../src/lib/schema.ts';
+import { openSqlite } from '../src/lib/store/node.ts';
 import type { SeedTree } from '../src/lib/seed-format.ts';
 
 const args = process.argv.slice(2);
@@ -33,8 +33,8 @@ for (const file of files) {
     console.log(`${path}: backed up to ${backup}`);
   }
   for (const p of [path, `${path}-wal`, `${path}-shm`]) if (existsSync(p)) rmSync(p);
-  const db = new DatabaseSync(path);
-  db.exec(SCHEMA);
+  // A new file gets the schema from migrations/ (src/lib/schema.ts).
+  const db = openSqlite(path, 'tree', { create: true });
   db.exec('BEGIN');
   const meta = db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)');
   for (const [k, v] of Object.entries({ id: t.id, name: t.name, tagline: t.tagline, theme: t.theme, focus: t.focus })) meta.run(k, v);

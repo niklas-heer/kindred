@@ -20,8 +20,7 @@ export const Route = createFileRoute('/api/auth/$action')({
         // A form or image on another site can't send JSON without a CORS preflight, which we never grant.
         if (!(request.headers.get('content-type') ?? '').startsWith('application/json')) return json({ error: 'Expected JSON' }, 415);
 
-        const [{ getRequestIP }, p, s, { allow }, { AuthError }, { families }, { requireUser }] = await Promise.all([
-          import('@tanstack/react-start/server'),
+        const [p, s, { allow, clientIP }, { AuthError }, { families }, { requireUser }] = await Promise.all([
           import('~/lib/auth/passkeys.server'),
           import('~/lib/auth/session.server'),
           import('~/lib/auth/throttle.server'),
@@ -31,7 +30,7 @@ export const Route = createFileRoute('/api/auth/$action')({
         ]);
 
         // Throttling: per address, and one global budget for guessing the setup code.
-        const ip = (process.env.CF_ACCESS_AUD && request.headers.get('cf-connecting-ip')) || getRequestIP() || 'unknown';
+        const ip = clientIP();
         const limited =
           !allow(`auth:${ip}`, 40, 60_000) ||
           (action === 'setup-options' && (!allow(`setup:${ip}`, 5, 60_000) || !allow('setup:all', 20, 10 * 60_000))) ||
@@ -49,19 +48,19 @@ export const Route = createFileRoute('/api/auth/$action')({
             case 'setup': {
               const trees = (await families()).map((t) => t.id);
               const user = await p.finishSetup(request, str(body.code), body.challengeId, body.response, trees);
-              return json({ ok: true }, 200, s.startSession(request, user));
+              return json({ ok: true }, 200, await s.startSession(request, user));
             }
             case 'invite-options':
               return json(await p.inviteOptions(request, str(body.token), body.name));
             case 'invite': {
               const user = await p.finishInvite(request, str(body.token), body.challengeId, body.response);
-              return json({ ok: true }, 200, s.startSession(request, user));
+              return json({ ok: true }, 200, await s.startSession(request, user));
             }
             case 'signin-options':
               return json(await p.signInOptions(request));
             case 'signin': {
               const user = await p.finishSignIn(request, body.challengeId, body.response);
-              return json({ ok: true }, 200, s.startSession(request, user));
+              return json({ ok: true }, 200, await s.startSession(request, user));
             }
             case 'add-options':
               return json(await p.addOptions(request, await requireUser()));
@@ -69,7 +68,7 @@ export const Route = createFileRoute('/api/auth/$action')({
               await p.finishAdd(request, await requireUser(), body.challengeId, body.response);
               return json({ ok: true });
             case 'signout':
-              return json({ ok: true }, 200, s.endSession(request));
+              return json({ ok: true }, 200, await s.endSession(request));
           }
           return json({ error: 'Not found' }, 404);
         } catch (e) {

@@ -4,9 +4,10 @@ import { setupCodeRequired } from './setup.server.ts';
 import { families } from './trees.server.ts';
 import { accessEmail } from './access.server.ts';
 import {
-  addMembership, userCount, createSession, createUser, deleteSession, now, pendingInvitesFor, sessionByToken, slideSession, touchUser, tx, useInvite,
-  userByEmail, userById, type UserRow,
+  commit, createSession, deleteSession, newUser, noUsersYet, now, pendingInvitesFor, sessionByToken, slideSession, touchUser, upsertMembership, useInvite,
+  userByEmail, userById, userCount, type UserRow,
 } from './store.server.ts';
+import type { Query } from '../store/index.ts';
 
 /** The site's own origin: KINDRED_ORIGIN when set (behind a proxy), else the request's. */
 export function siteOrigin(request: Request): URL {
@@ -39,17 +40,17 @@ function cookie(request: Request, value: string, maxAgeSeconds: number) {
  * Signs `user` in: always a brand-new session (so a session planted before sign-in is worthless),
  * and the old one, if any, is ended. Returns the Set-Cookie value.
  */
-export function startSession(request: Request, user: string): string {
+export async function startSession(request: Request, user: string): Promise<string> {
   const old = sessionToken(request);
-  if (old) deleteSession(old);
-  const { token, expires } = createSession(user);
+  if (old) await deleteSession(old);
+  const { token, expires } = await createSession(user);
   return cookie(request, token, Math.floor((expires - now()) / 1000));
 }
 
 /** Ends the request's session; returns the Set-Cookie value that clears it. */
-export function endSession(request: Request): string {
+export async function endSession(request: Request): Promise<string> {
   const t = sessionToken(request);
-  if (t) deleteSession(t);
+  if (t) await deleteSession(t);
   return cookie(request, '', 0);
 }
 
@@ -73,11 +74,11 @@ const nameFromEmail = (email: string) =>
 export async function getSession(request: Request, verifiedEmail: (r: Request) => Promise<string | undefined> = accessEmail, listFamilies: () => Promise<{ id: string }[]> = families): Promise<Session> {
   const token = sessionToken(request);
   if (token) {
-    const row = sessionByToken(token);
-    const user = row && userById(row.user);
+    const row = await sessionByToken(token);
+    const user = row && (await userById(row.user));
     if (row && user) {
-      touchUser(user.id, user.last_seen);
-      const slid = slideSession(row);
+      await touchUser(user.id, user.last_seen);
+      const slid = await slideSession(row);
       return { user, via: 'passkey', setCookie: slid ? cookie(request, token, Math.floor((slid - now()) / 1000)) : undefined };
     }
   }
@@ -86,23 +87,30 @@ export async function getSession(request: Request, verifiedEmail: (r: Request) =
   if (!email) return { user: null, via: null };
   // A verified Access identity: the account with that email, or an invitation sent to that email,
   // accepted on this first visit. Further invitations to the same email are accepted as they come.
-  const trees = userCount() === 0 && !setupCodeRequired() ? await listFamilies() : [];
-  const user = tx((d) => {
-    let u = userByEmail(email);
-    const pending = pendingInvitesFor(email);
-    if (!u && userCount() === 0 && !setupCodeRequired()) {
-      u = createUser(d, nameFromEmail(email), email);
-      for (const tree of trees) addMembership(d, u.id, tree.id, 'steward');
+  const trees = (await userCount()) === 0 && !setupCodeRequired() ? await listFamilies() : [];
+  // One batch per decision. The first account is guarded by "nobody has an account yet", a new
+  // account by the email's UNIQUE key, and each invitation by its own use; when another request got
+  // there first, the batch writes nothing and the decision is made again on fresh reads.
+  const user = await commit(async () => {
+    let u = await userByEmail(email);
+    const pending = await pendingInvitesFor(email);
+    const writes: Query[] = [];
+    if (!u && (await userCount()) === 0 && !setupCodeRequired()) {
+      const made = newUser(nameFromEmail(email), email);
+      u = made.user;
+      writes.push(noUsersYet(), made.insert, ...trees.map((tree) => upsertMembership(made.user.id, tree.id, 'steward')));
     }
-    if (!u && !pending.length) return undefined;
-    if (!u) u = createUser(d, nameFromEmail(email), email);
-    for (const inv of pending) {
-      useInvite(d, inv, u.id);
+    if (!u && !pending.length) return { writes: [], result: undefined };
+    if (!u) {
+      const made = newUser(nameFromEmail(email), email);
+      u = made.user;
+      writes.push(made.insert);
     }
-    return u;
+    for (const inv of pending) writes.push(...useInvite(inv, u.id));
+    return { writes, result: u };
   });
   if (!user) return { user: null, via: null, uninvitedEmail: email };
-  touchUser(user.id, user.last_seen);
+  await touchUser(user.id, user.last_seen);
   return { user, via: 'access' };
 }
 

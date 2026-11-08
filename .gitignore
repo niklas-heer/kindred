@@ -13,3 +13,8 @@ data/seed/realm.json
 data/seed/modern.json
 data/seed/smith-places.json
 data/backups/
+
+# Cloudflare: local workerd state (D1, R2) and local secrets; uploaded media on Node.
+.wrangler/
+.dev.vars
+data/media/

@@ -11,8 +11,8 @@ import { AuthError } from './errors.ts';
 import { siteOrigin } from './session.server.ts';
 import { checkSetupCode } from './setup.server.ts';
 import {
-  addCredential, addMembership, credentialById, credentialsOf, credentialUsed, createUser, inviteById, openInvite, saveChallenge, takeChallenge, tx,
-  useInvite, userByEmail, userById, userCount, type UserRow,
+  accounts, commit, credentialById, credentialsOf, credentialUsed, insertCredential, inviteById, inviteUsed, newUser, noUsersYet, openInvite, saveChallenge, takeChallenge,
+  upsertMembership, usable, useInvite, userByEmail, userById, userCount, type UserRow,
 } from './store.server.ts';
 
 const RP_NAME = 'Kindred';
@@ -56,27 +56,27 @@ const newHandle = () => isoBase64URL.fromBuffer(crypto.getRandomValues(new Uint8
 
 /** Options for the first steward's passkey; checks the optional setup code. */
 export async function setupOptions(request: Request, code: string, rawName: unknown) {
-  if (!checkSetupCode(code)) throw invalid(userCount() ? 'Kindred is already set up. Sign in instead.' : 'That setup code isn’t right. Check the server’s console and try again.');
+  if (!(await checkSetupCode(code))) throw invalid((await userCount()) ? 'Kindred is already set up. Sign in instead.' : 'That setup code isn’t right. Check the server’s console and try again.');
   const name = cleanName(rawName);
   const handle = newHandle();
   const options = await creationOptions(request, { name, handle, existing: [] });
-  return { options, challengeId: saveChallenge({ challenge: options.challenge, purpose: 'setup', subject: handle, name }) };
+  return { options, challengeId: await saveChallenge({ challenge: options.challenge, purpose: 'setup', subject: handle, name }) };
 }
 
 /** Options for a passkey from an invitation link. */
 export async function inviteOptions(request: Request, token: string, rawName: unknown) {
-  const invite = openInvite(token);
+  const invite = await openInvite(token);
   if (!invite) throw invalid('This invitation has expired, was already used, or was withdrawn. Ask for a new one.');
   const name = cleanName(rawName);
   const handle = newHandle();
   const options = await creationOptions(request, { name, handle, existing: [] });
-  return { options, challengeId: saveChallenge({ challenge: options.challenge, purpose: 'invite', subject: `${invite.id} ${handle}`, name }) };
+  return { options, challengeId: await saveChallenge({ challenge: options.challenge, purpose: 'invite', subject: `${invite.id} ${handle}`, name }) };
 }
 
 /** Options for another passkey of a signed-in reader (a new phone, a second laptop). */
 export async function addOptions(request: Request, user: UserRow) {
-  const options = await creationOptions(request, { name: user.name, handle: user.handle, existing: credentialsOf(user.id) });
-  return { options, challengeId: saveChallenge({ challenge: options.challenge, purpose: 'add', subject: user.id }) };
+  const options = await creationOptions(request, { name: user.name, handle: user.handle, existing: await credentialsOf(user.id) });
+  return { options, challengeId: await saveChallenge({ challenge: options.challenge, purpose: 'add', subject: user.id }) };
 }
 
 async function verifyNew(request: Request, challenge: string, response: RegistrationResponseJSON) {
@@ -89,56 +89,69 @@ async function verifyNew(request: Request, challenge: string, response: Registra
   }
   if (!result.verified) throw invalid('Your device’s passkey couldn’t be checked. Please try again.');
   const { credential, credentialBackedUp } = result.registrationInfo;
-  if (credentialById(credential.id)) throw invalid('This passkey is already saved.');
+  if (await credentialById(credential.id)) throw invalid('This passkey is already saved.');
   return { id: credential.id, publicKey: credential.publicKey, counter: credential.counter, transports: credential.transports ?? [], synced: credentialBackedUp };
 }
 
-const take = (id: unknown, purpose: string) => {
-  const c = typeof id === 'string' && id.length < 100 ? takeChallenge(id) : undefined;
+const take = async (id: unknown, purpose: string) => {
+  const c = typeof id === 'string' && id.length < 100 ? await takeChallenge(id) : undefined;
   if (!c || c.purpose !== purpose) throw invalid('That took too long. Please try again.');
   return c;
 };
 
 /** Finishes setup: the first account, a steward of every family on this server. Returns its id. */
 export async function finishSetup(request: Request, code: string, challengeId: unknown, response: RegistrationResponseJSON, trees: string[]): Promise<string> {
-  const c = take(challengeId, 'setup');
-  if (!checkSetupCode(code)) throw invalid('Kindred is already set up. Sign in instead.');
+  const c = await take(challengeId, 'setup');
+  if (!(await checkSetupCode(code))) throw invalid('Kindred is already set up. Sign in instead.');
   const cred = await verifyNew(request, c.challenge, response);
-  return tx((d) => {
-    // Inside the write lock: only one first steward, however many tabs race.
-    if ((d.prepare('SELECT count(*) AS n FROM user').get() as { n: number }).n > 0) throw invalid('Kindred is already set up. Sign in instead.');
-    const user = createUser(d, c.name!, null, c.subject!);
-    addCredential(d, { ...cred, user: user.id, device: deviceName(request) });
-    for (const t of trees) addMembership(d, user.id, t, 'steward');
-    return user.id;
-  });
+  const done = invalid('Kindred is already set up. Sign in instead.');
+  // Only one first steward, however many tabs race: the batch starts with a guard that no account
+  // exists, and batches run one at a time, so a second setup writes nothing.
+  const { user, insert } = newUser(c.name!, null, c.subject!);
+  try {
+    await accounts().batch([
+      noUsersYet(),
+      insert,
+      insertCredential({ ...cred, user: user.id, device: deviceName(request) }),
+      ...trees.map((t) => upsertMembership(user.id, t, 'steward')),
+    ]);
+  } catch (e) {
+    if ((await userCount()) > 0) throw done;
+    throw e;
+  }
+  return user.id;
 }
 
 /** Finishes an invitation: a new account with the invited role. Returns its id. */
 export async function finishInvite(request: Request, token: string, challengeId: unknown, response: RegistrationResponseJSON): Promise<string> {
-  const c = take(challengeId, 'invite');
+  const c = await take(challengeId, 'invite');
   const [inviteId, handle] = (c.subject ?? '').split(' ');
-  const invite = openInvite(token);
+  const invite = await openInvite(token);
   if (!invite || invite.id !== inviteId) throw invalid('This invitation has expired, was already used, or was withdrawn. Ask for a new one.');
   const cred = await verifyNew(request, c.challenge, response);
-  return tx((d) => {
-    const fresh = inviteById(invite.id);
+  // One batch: the account, its passkey and the invitation's use. If someone else used the invitation
+  // or took the email first, the batch writes nothing and is decided again.
+  return commit(async () => {
+    const fresh = await inviteById(invite.id);
     if (!fresh) throw invalid('This invitation was withdrawn.');
+    if (!usable(fresh)) throw inviteUsed();
     // The invited email becomes the account's (it lets Cloudflare Access recognise them too), unless taken.
-    const email = fresh.email && !userByEmail(fresh.email) ? fresh.email : null;
-    const user = createUser(d, c.name!, email, handle);
-    addCredential(d, { ...cred, user: user.id, device: deviceName(request) });
-    useInvite(d, fresh, user.id);
-    return user.id;
+    const email = fresh.email && !(await userByEmail(fresh.email)) ? fresh.email : null;
+    const { user, insert } = newUser(c.name!, email, handle);
+    return {
+      writes: [insert, insertCredential({ ...cred, user: user.id, device: deviceName(request) }), ...useInvite(fresh, user.id)],
+      result: user.id,
+      refused: inviteUsed,
+    };
   });
 }
 
 /** Saves another passkey for a signed-in reader. */
 export async function finishAdd(request: Request, user: UserRow, challengeId: unknown, response: RegistrationResponseJSON) {
-  const c = take(challengeId, 'add');
+  const c = await take(challengeId, 'add');
   if (c.subject !== user.id) throw invalid('That took too long. Please try again.');
   const cred = await verifyNew(request, c.challenge, response);
-  tx((d) => addCredential(d, { ...cred, user: user.id, device: deviceName(request) }));
+  await accounts().batch([insertCredential({ ...cred, user: user.id, device: deviceName(request) })]);
 }
 
 // ---------- signing in ----------
@@ -147,16 +160,16 @@ export async function signInOptions(request: Request) {
   const { rpID } = relyingParty(request);
   // No allowCredentials: the device offers whichever of its passkeys for this site the reader picks.
   const options = await generateAuthenticationOptions({ rpID, allowCredentials: [], userVerification: 'preferred' });
-  return { options, challengeId: saveChallenge({ challenge: options.challenge, purpose: 'login' }) };
+  return { options, challengeId: await saveChallenge({ challenge: options.challenge, purpose: 'login' }) };
 }
 
 /** Verifies a sign-in; returns the account's id. */
 export async function finishSignIn(request: Request, challengeId: unknown, response: AuthenticationResponseJSON): Promise<string> {
-  const c = take(challengeId, 'login');
+  const c = await take(challengeId, 'login');
   const unknown = invalid('This passkey isn’t one we know. If you were invited, open your invitation link first.');
-  const row = typeof response?.id === 'string' ? credentialById(response.id) : undefined;
+  const row = typeof response?.id === 'string' ? await credentialById(response.id) : undefined;
   if (!row) throw unknown;
-  const user = userById(row.user);
+  const user = await userById(row.user);
   if (!user) throw unknown;
   // The passkey names its account too; both must agree.
   const handle = response.response?.userHandle;
@@ -172,7 +185,7 @@ export async function finishSignIn(request: Request, challengeId: unknown, respo
     throw invalid('Your passkey couldn’t be checked. Please try again.');
   }
   if (!result.verified) throw invalid('Your passkey couldn’t be checked. Please try again.');
-  credentialUsed(row.id, result.authenticationInfo.newCounter);
+  await credentialUsed(row.id, result.authenticationInfo.newCounter);
   return user.id;
 }
 

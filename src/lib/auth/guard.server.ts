@@ -51,7 +51,7 @@ export interface Member { user: UserRow; role: Role; person: string | null }
 /** The signed-in reader's membership of `tree`; 401 when signed out, 403 when not a member. */
 export async function requireMember(tree: string): Promise<Member> {
   const user = await requireUser();
-  const m = membership(user.id, tree);
+  const m = await membership(user.id, tree);
   if (!m) throw fail(notMember());
   return { user, role: m.role, person: m.person };
 }

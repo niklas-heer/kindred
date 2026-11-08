@@ -33,8 +33,8 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): 
   const { user, via, uninvitedEmail } = await currentSession();
   return {
     user: user && via ? { id: user.id, name: user.name, email: user.email, via } : null,
-    memberships: user ? s.membershipsOf(user.id).map((m) => ({ tree: m.tree, role: m.role, person: m.person })) : [],
-    needsSetup: needsSetup(),
+    memberships: user ? (await s.membershipsOf(user.id)).map((m) => ({ tree: m.tree, role: m.role, person: m.person })) : [],
+    needsSetup: await needsSetup(),
     setupCodeRequired: setupCodeRequired(),
     defaultTree: process.env.KINDRED_DEFAULT_TREE?.trim() || undefined,
     uninvitedEmail,
@@ -48,9 +48,9 @@ export const fetchMyFamilies = createServerFn({ method: 'GET' }).handler(async (
   const [{ currentSession }, s, { families }] = await Promise.all([guard(), store(), import('./trees.server')]);
   const { user } = await currentSession();
   if (!user) return [];
-  const mine = new Map(s.membershipsOf(user.id).map((m) => [m.tree, m.role]));
+  const mine = new Map((await s.membershipsOf(user.id)).map((m) => [m.tree, m.role]));
   const [{ graph }, { todayEvents }] = await Promise.all([import('../db.server'), import('./today')]);
-  return (await families()).filter((t) => mine.has(t.id)).map((t) => ({ ...t, role: mine.get(t.id)!, today: todayEvents(graph(t.id)) }));
+  return Promise.all((await families()).filter((t) => mine.has(t.id)).map(async (t) => ({ ...t, role: mine.get(t.id)!, today: todayEvents(await graph(t.id)) })));
 });
 export const myFamiliesQuery = queryOptions({ queryKey: ['session', 'families'], queryFn: () => fetchMyFamilies() });
 
@@ -71,12 +71,12 @@ export interface InviteInfo {
 export const fetchInvite = createServerFn({ method: 'POST' })
   .validator(z.object({ token: z.string().max(100) }))
   .handler(async ({ data }): Promise<InviteInfo> => {
-    const [{ currentSession }, s, { family }, { hashToken }, { allow }, { getRequestIP }] = await Promise.all([
-      guard(), store(), import('./trees.server'), import('./tokens.server'), import('./throttle.server'), import('@tanstack/react-start/server'),
+    const [{ currentSession }, s, { family }, { allow, clientIP }] = await Promise.all([
+      guard(), store(), import('./trees.server'), import('./throttle.server'),
     ]);
-    if (!allow(`invite-check:${getRequestIP() ?? 'unknown'}`, 30, 10 * 60_000)) return { status: 'unknown' };
+    if (!allow(`invite-check:${clientIP()}`, 30, 10 * 60_000)) return { status: 'unknown' };
     if (!token.safeParse(data.token).success) return { status: 'unknown' };
-    const row = s.accounts().prepare('SELECT * FROM invite WHERE hash = ?').get(hashToken('invite', data.token)) as import('./store.server').InviteRow | undefined;
+    const row = await s.inviteByToken(data.token);
     if (!row) return { status: 'unknown' };
     const status = row.revoked_at ? 'revoked' : row.used_at ? 'used' : row.expires <= Date.now() ? 'expired' : 'open';
     const f = await family(row.tree);
@@ -86,10 +86,10 @@ export const fetchInvite = createServerFn({ method: 'POST' })
       status,
       family: { id: f.id, name: f.name, tagline: f.tagline, theme: f.theme, crest: f.crest, focus: f.focus },
       role: row.role,
-      inviter: row.created_by ? s.userById(row.created_by)?.name : undefined,
+      inviter: row.created_by ? (await s.userById(row.created_by))?.name : undefined,
       expires: row.expires,
       signedInAs: user?.name,
-      alreadyMember: user ? !!s.membership(user.id, row.tree) : undefined,
+      alreadyMember: user ? !!(await s.membership(user.id, row.tree)) : undefined,
     };
   });
 
@@ -99,9 +99,13 @@ export const acceptInvite = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const [{ requireUser, fail }, s, { AuthError }] = await Promise.all([guard(), store(), import('./errors')]);
     const user = await requireUser();
-    const invite = s.openInvite(data.token);
+    const invite = await s.openInvite(data.token);
     if (!invite) throw fail(new AuthError('invalid', 'This invitation has expired, was already used, or was withdrawn. Ask for a new one.'));
-    s.tx((d) => s.useInvite(d, invite, user.id));
+    await s.commit(async () => {
+      const fresh = await s.inviteById(invite.id);
+      if (!fresh || !s.usable(fresh)) throw s.inviteUsed();
+      return { writes: s.useInvite(fresh, user.id), result: undefined, refused: s.inviteUsed };
+    });
     return { tree: invite.tree };
   });
 
@@ -115,9 +119,9 @@ export const setMyPerson = createServerFn({ method: 'POST' })
     const { user } = await requireMember(data.tree);
     if (data.person && data.person !== '-') {
       const { db } = await import('../db.server');
-      if (!db(data.tree).prepare('SELECT id FROM person WHERE id = ?').get(data.person)) throw fail(new AuthError('invalid', 'That person isn’t in this family.'));
+      if (!(await db(data.tree).get('SELECT id FROM person WHERE id = ?', data.person))) throw fail(new AuthError('invalid', 'That person isn’t in this family.'));
     }
-    s.setPerson(user.id, data.tree, data.person);
+    await s.setPerson(user.id, data.tree, data.person);
   });
 
 // ---------- the reader's own account ----------
@@ -127,7 +131,7 @@ export interface Passkey { id: string; device: string | null; synced: boolean; c
 export const fetchMyPasskeys = createServerFn({ method: 'GET' }).handler(async (): Promise<Passkey[]> => {
   const [{ requireUser, fail }, s] = await Promise.all([guard(), store()]);
   const user = await requireUser();
-  return s.credentialsOf(user.id).map((c) => ({ id: c.id, device: c.device, synced: !!c.synced, created: c.created, lastUsed: c.last_used }));
+  return (await s.credentialsOf(user.id)).map((c) => ({ id: c.id, device: c.device, synced: !!c.synced, created: c.created, lastUsed: c.last_used }));
 });
 export const myPasskeysQuery = queryOptions({ queryKey: ['session', 'passkeys'], queryFn: () => fetchMyPasskeys() });
 
@@ -138,12 +142,22 @@ export const removeMyPasskey = createServerFn({ method: 'POST' })
     const [{ requireUser, currentSession, fail }, s, { AuthError }] = await Promise.all([guard(), store(), import('./errors')]);
     const user = await requireUser();
     const { via } = await currentSession();
-    s.tx((d) => {
-      const n = (d.prepare('SELECT count(*) AS n FROM credential WHERE user = ?').get(user.id) as { n: number }).n;
-      if (n <= 1 && via !== 'access') throw fail(new AuthError('invalid', 'This is your only passkey. Add another before removing it, or you won’t be able to sign in.'));
-      const r = d.prepare('DELETE FROM credential WHERE id = ? AND user = ?').run(data.id, user.id);
-      if (r.changes !== 1) throw fail(new AuthError('invalid', 'That passkey was already removed.'));
-    });
+    const onlyOne = () => fail(new AuthError('invalid', 'This is your only passkey. Add another before removing it, or you won’t be able to sign in.'));
+    const d = s.accounts();
+    const n = (await d.get<{ n: number }>('SELECT count(*) AS n FROM credential WHERE user = ?', user.id))!.n;
+    if (n <= 1 && via !== 'access') throw onlyOne();
+    // The guard after the delete keeps the rule however many removals race: never the last passkey.
+    let r;
+    try {
+      [r] = await d.batch([
+        s.q('DELETE FROM credential WHERE id = ? AND user = ?', data.id, user.id),
+        ...(via === 'access' ? [] : [s.guard('EXISTS (SELECT 1 FROM credential WHERE user = ?)', user.id)]),
+      ]);
+    } catch (e) {
+      if (s.isGuardError(e)) throw onlyOne();
+      throw e;
+    }
+    if (r.changes !== 1) throw fail(new AuthError('invalid', 'That passkey was already removed.'));
   });
 
 export const renameMe = createServerFn({ method: 'POST' })
@@ -151,7 +165,7 @@ export const renameMe = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const [{ requireUser }, s, { cleanName }] = await Promise.all([guard(), store(), import('./passkeys.server')]);
     const user = await requireUser();
-    s.renameUser(user.id, cleanName(data.name));
+    await s.renameUser(user.id, cleanName(data.name));
   });
 
 // ---------- the steward's /access page ----------
@@ -165,17 +179,17 @@ export const fetchAccess = createServerFn({ method: 'GET' })
     const [{ requireCan }, s] = await Promise.all([guard(), store()]);
     const { user } = await requireCan(data.tree, 'manage-access');
     const names = new Map<string, string>();
-    const members = s.membersOf(data.tree).map((m) => {
+    const members = (await s.membersOf(data.tree)).map((m) => {
       names.set(m.id, m.name);
       return { id: m.id, name: m.name, email: m.email, role: m.role, person: m.person, lastSeen: m.last_seen, joined: m.joined, passkeys: m.passkeys, you: m.id === user.id };
     });
-    const nameOf = (id: string | null) => (id ? names.get(id) ?? s.userById(id)?.name ?? null : null);
+    const nameOf = async (id: string | null) => (id ? names.get(id) ?? (await s.userById(id))?.name ?? null : null);
     const t = Date.now();
-    const invites = s.invitesOf(data.tree).map((i) => ({
-      id: i.id, role: i.role, email: i.email, expires: i.expires, created: i.created, inviter: nameOf(i.created_by),
+    const invites = await Promise.all((await s.invitesOf(data.tree)).map(async (i) => ({
+      id: i.id, role: i.role, email: i.email, expires: i.expires, created: i.created, inviter: await nameOf(i.created_by),
       status: i.revoked_at ? 'revoked' as const : i.used_at ? 'used' as const : i.expires <= t ? 'expired' as const : 'open' as const,
-      usedBy: nameOf(i.used_by), usedAt: i.used_at,
-    }));
+      usedBy: await nameOf(i.used_by), usedAt: i.used_at,
+    })));
     return { members, invites };
   });
 export const accessQuery = (t: string) => queryOptions({ queryKey: ['session', 'access', t], queryFn: () => fetchAccess({ data: { tree: t } }) });
@@ -187,7 +201,7 @@ export const createInvite = createServerFn({ method: 'POST' })
     const [{ requireCan, fail }, s, { family }, { AuthError }] = await Promise.all([guard(), store(), import('./trees.server'), import('./errors')]);
     const { user } = await requireCan(data.tree, 'manage-access');
     if (!(await family(data.tree))) throw fail(new AuthError('invalid', 'No such family.'));
-    const { invite, token } = s.createInvite({ tree: data.tree, role: data.role, email: data.email || null, createdBy: user.id, days: data.days });
+    const { invite, token } = await s.createInvite({ tree: data.tree, role: data.role, email: data.email || null, createdBy: user.id, days: data.days });
     return { id: invite.id, token, expires: invite.expires };
   });
 
@@ -197,9 +211,10 @@ export const renewInvite = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const [{ requireCan, fail }, s, { AuthError }] = await Promise.all([guard(), store(), import('./errors')]);
     await requireCan(data.tree, 'manage-access');
-    const i = s.inviteById(data.id);
+    const i = await s.inviteById(data.id);
     if (!i || i.tree !== data.tree || i.used_at || i.revoked_at) throw fail(new AuthError('invalid', 'That invitation can’t be renewed.'));
-    return { token: s.renewInvite(i.id), expires: s.inviteById(i.id)!.expires };
+    const renewed = await s.renewInvite(i.id);
+    return { token: renewed, expires: (await s.inviteById(i.id))!.expires };
   });
 
 export const revokeInvite = createServerFn({ method: 'POST' })
@@ -207,7 +222,7 @@ export const revokeInvite = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const [{ requireCan }, s] = await Promise.all([guard(), store()]);
     await requireCan(data.tree, 'manage-access');
-    s.accounts().prepare('UPDATE invite SET revoked_at = ? WHERE id = ? AND tree = ? AND used_at IS NULL AND revoked_at IS NULL').run(Date.now(), data.id, data.tree);
+    await s.revokeInvite(data.id, data.tree);
   });
 
 const lastSteward = 'A family always needs at least one steward. Make someone else a steward first.';
@@ -217,11 +232,16 @@ export const setMemberRole = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const [{ requireCan, fail }, s, { AuthError }] = await Promise.all([guard(), store(), import('./errors')]);
     await requireCan(data.tree, 'manage-access');
-    s.tx((d) => {
-      const m = d.prepare('SELECT role FROM membership WHERE user = ? AND tree = ?').get(data.user, data.tree) as { role: Role } | undefined;
+    // The guard after the change keeps a steward however many changes race.
+    await s.commit(async () => {
+      const m = await s.membership(data.user, data.tree);
       if (!m) throw fail(new AuthError('invalid', 'They are no longer a member.'));
-      if (m.role === 'steward' && data.role !== 'steward' && s.stewardCount(d, data.tree) <= 1) throw fail(new AuthError('invalid', lastSteward));
-      d.prepare('UPDATE membership SET role = ? WHERE user = ? AND tree = ?').run(data.role, data.user, data.tree);
+      if (m.role === 'steward' && data.role !== 'steward' && (await s.stewardCount(data.tree)) <= 1) throw fail(new AuthError('invalid', lastSteward));
+      return {
+        writes: [s.q('UPDATE membership SET role = ? WHERE user = ? AND tree = ?', data.role, data.user, data.tree), s.keepsASteward(data.tree)],
+        result: undefined,
+        refused: () => fail(new AuthError('invalid', lastSteward)),
+      };
     });
   });
 
@@ -230,10 +250,14 @@ export const removeMember = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const [{ requireCan, fail }, s, { AuthError }] = await Promise.all([guard(), store(), import('./errors')]);
     await requireCan(data.tree, 'manage-access');
-    s.tx((d) => {
-      const m = d.prepare('SELECT role FROM membership WHERE user = ? AND tree = ?').get(data.user, data.tree) as { role: Role } | undefined;
-      if (!m) return;
-      if (m.role === 'steward' && s.stewardCount(d, data.tree) <= 1) throw fail(new AuthError('invalid', lastSteward));
-      d.prepare('DELETE FROM membership WHERE user = ? AND tree = ?').run(data.user, data.tree);
+    await s.commit(async () => {
+      const m = await s.membership(data.user, data.tree);
+      if (!m) return { writes: [], result: undefined };
+      if (m.role === 'steward' && (await s.stewardCount(data.tree)) <= 1) throw fail(new AuthError('invalid', lastSteward));
+      return {
+        writes: [s.q('DELETE FROM membership WHERE user = ? AND tree = ?', data.user, data.tree), s.keepsASteward(data.tree)],
+        result: undefined,
+        refused: () => fail(new AuthError('invalid', lastSteward)),
+      };
     });
   });

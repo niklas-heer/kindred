@@ -2,12 +2,21 @@
   "name": "kindred-spike",
   "type": "module",
   "private": true,
+  "imports": {
+    "#store/driver": {
+      "workerd": "./src/lib/store/cf.ts",
+      "default": "./src/lib/store/node.ts"
+    }
+  },
   "scripts": {
     "dev": "vite dev",
+    "dev:cf": "node scripts/cf-migrate.ts --env local && CLOUDFLARE_ENV=local vite dev",
     "build": "vite build",
     "check": "tsc --noEmit",
+    "test": "node --test src/lib/auth/*.test.ts src/lib/store/*.test.ts",
     "seed": "node scripts/seed.ts",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "vite build && wrangler deploy"
   },
   "dependencies": {
     "@dicebear/collection": "^9.4.2",
@@ -40,6 +49,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.67.0",
     "@tanstack/react-query-devtools": "^5.107.1",
     "@tanstack/react-router-devtools": "^1.167.2",
     "@types/d3-geo": "^3.1.1",
@@ -51,6 +61,7 @@
     "@vitejs/plugin-react": "^6.2.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.6",
+    "wrangler": "^4.158.0",
     "yaml": "^2.9.1"
   }
 }

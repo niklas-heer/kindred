@@ -23,14 +23,43 @@ description = "Download GeoNames cities500 once and build data/gazetteer.db for 
 run = "node scripts/gazetteer.ts"
 
 [tasks.dev]
+description = "Run on Node with the SQLite files in data/ (http://localhost:4517)"
 run = "vite dev"
+
+[tasks."dev:cf"]
+description = "Run the Worker in workerd with local D1 and R2 (wrangler env `local`); `mise run cf:seed` loads the test families"
+depends = ["cf:migrate"]
+env = { CLOUDFLARE_ENV = "local" }
+run = "vite dev"
+
+[tasks."cf:migrate"]
+description = "Apply migrations/ to every local D1 database in wrangler.jsonc (env `local`)"
+run = "node scripts/cf-migrate.ts --env local"
+
+[tasks."cf:migrate:remote"]
+description = "Apply migrations/ to the deployed D1 databases (needs `wrangler login`)"
+run = "node scripts/cf-migrate.ts --remote"
+
+[tasks."cf:seed"]
+description = "Copy data/modern.db and data/realm.db into the local D1 databases (replacing what is there)"
+depends = ["cf:migrate"]
+run = "node scripts/import-to-d1.ts modern realm --env local --replace"
 
 [tasks.check]
 run = "tsc --noEmit"
 
+[tasks.test]
+description = "Unit tests: accounts, Access, the storage layer"
+run = "node --test src/lib/auth/*.test.ts src/lib/store/*.test.ts"
+
 [tasks.build]
+description = "Build the Worker (dist/); KINDRED_TARGET=node builds for Node instead"
 run = "vite build"
+
+[tasks.deploy]
+description = "Build and deploy to Cloudflare (needs `wrangler login` and the D1/R2 ids in wrangler.jsonc)"
+run = ["vite build", "npx wrangler deploy"]
 
 [tasks.clean]
 description = "Remove build output and generated databases"
-run = "rm -rf dist .output .tanstack data/*.db data/*.db-wal data/*.db-shm"
+run = "rm -rf dist .output .tanstack .wrangler data/*.db data/*.db-wal data/*.db-shm data/media"
