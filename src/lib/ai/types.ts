@@ -2,6 +2,7 @@ import { isLocale, type Locale } from '../i18n/types';
 // Types and schemas the AI features share between the server and the browser. Nothing here touches a
 // provider, a key or the database: keep it that way, since the browser imports this file.
 import { z } from 'zod';
+import { cutText, firstOf } from './trim';
 import { FIELD_TYPES } from '~/components/fields/model';
 import type { ArmsV2 } from '~/lib/seed-format';
 
@@ -281,7 +282,7 @@ export const familyPersonSchema = z.object({
   living: z.boolean(),
   occupation: z.string().trim().max(200).optional(),
   /** One memory, note or story for the person, added once they exist. */
-  story: z.object({ kind: z.enum(['note', 'quote', 'anecdote', 'recipe', 'memory']), title: z.string().trim().max(200).optional(), body: text(20_000) }).optional(),
+  story: z.object({ kind: z.enum(['note', 'quote', 'anecdote', 'recipe', 'memory']), title: z.string().trim().max(200).optional(), body: text(20_000), /** Who told it, as an id in the tree. Without one it is saved under the approver's name. */ teller: id.optional() }).optional(),
 });
 /** A relationship in a family draft: `anchor` and `person` are a new person's ref or an id in the tree. */
 export const familyLinkSchema = z.object({ anchor: id, person: id, relation: relationKind, coParent: id.optional() });
@@ -313,8 +314,8 @@ export const proposalArgs = { ...baseProposalArgs, ...fillArgs } as typeof baseP
 export const faceResultSchema = z.object({
   faces: z.array(z.object({
     box: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }),
-    suggestions: z.array(z.object({ personId: z.string(), confidence: z.number(), reason: z.string() })).max(5),
-  })).max(40),
+    suggestions: z.array(z.object({ personId: z.string(), confidence: z.number(), reason: z.string().overwrite(cutText(200)).describe('One short sentence, at most 200 characters.') })).overwrite(firstOf(5)).describe('At most five.'),
+  })).overwrite(firstOf(40)).describe('At most forty faces.'),
 });
 export type FaceResult = z.infer<typeof faceResultSchema>;
 

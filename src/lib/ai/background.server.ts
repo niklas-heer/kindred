@@ -317,20 +317,43 @@ async function logRun(tree: string, task: Task, source: 'schedule' | 'manual', n
  */
 export async function runScheduled(trees: string[], now: Date, log: (message: string) => void): Promise<void> {
   const room: CallRoom = { left: CALLS_PER_DAILY_RUN, owed: 0, item: 0 };
+  const due: { tree: string; task: Task }[] = [];
   for (const tree of trees) {
     const bg = await readBackground(tree);
     for (const task of TASKS) {
       const t: TaskSetting = bg.tasks[task];
-      if (!t.enabled || !isDue(lastLooked(t), t.schedule, now.getTime())) continue;
-      const limit = Math.min(BATCH, task === 'names' ? Math.floor(room.left / CALLS_PER_NAME) : room.left);
-      if (limit <= 0) {
-        log(`${tree}: ${task} waits for the next run (today's ${CALLS_PER_DAILY_RUN} calls are used)`);
-        continue;
-      }
-      const out = await runTask(tree, task, { source: 'schedule', now, limit, room });
-      if (out.status !== 'skipped') log(`${tree}: ${task} ${out.status}: ${out.done} done, ${out.failed} failed, ${out.waiting} waiting`);
+      if (t.enabled && isDue(lastLooked(t), t.schedule, now.getTime())) due.push({ tree, task });
     }
   }
+  // Every due task of every family gets a fair turn: the start rotates by day, and each turn takes only its share of what is left.
+  const order = rotated(due, Math.floor(now.getTime() / 86_400_000));
+  for (const [at, { tree, task }] of order.entries()) {
+    const limit = turnLimit(room.left, order.length - at, task);
+    if (limit <= 0) {
+      log(`${tree}: ${task} waits for the next run (today's ${CALLS_PER_DAILY_RUN} calls are used)`);
+      continue;
+    }
+    const out = await runTask(tree, task, { source: 'schedule', now, limit, room });
+    if (out.status !== 'skipped') log(`${tree}: ${task} ${out.status}: ${out.done} done, ${out.failed} failed, ${out.waiting} waiting`);
+  }
+}
+
+/** The list started `by` places further along, so a different task or family goes first each day. */
+export function rotated<T>(list: T[], by: number): T[] {
+  if (list.length === 0) return list;
+  const k = ((by % list.length) + list.length) % list.length;
+  return [...list.slice(k), ...list.slice(0, k)];
+}
+
+/**
+ * How many items one turn may work on: its even share of the calls left among the turns still to come (what an earlier turn
+ * left unused flows to the later ones), capped by BATCH. A name takes CALLS_PER_NAME calls, but a turn always gets at least one.
+ */
+export function turnLimit(left: number, turnsLeft: number, task: Task): number {
+  if (left <= 0) return 0;
+  const share = Math.ceil(left / Math.max(1, turnsLeft));
+  const items = task === 'names' ? Math.floor(Math.max(share, CALLS_PER_NAME) / CALLS_PER_NAME) : share;
+  return Math.min(BATCH, items, task === 'names' ? Math.floor(left / CALLS_PER_NAME) : left);
 }
 
 // ---------- what the steward sees ----------

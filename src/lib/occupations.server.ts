@@ -15,7 +15,7 @@ import { translation } from './occupations.translate.ts';
 const LANGUAGE: Record<Locale, string> = { en: 'English', de: 'German', af: 'Afrikaans' };
 const REPLY_JSON = {
   type: 'object',
-  properties: { label: { type: 'string', maxLength: 80 } },
+  properties: { label: { type: 'string', maxLength: 80, description: 'The job, a few words, at most 80 characters.' } },
   required: ['label'],
   additionalProperties: false,
 };

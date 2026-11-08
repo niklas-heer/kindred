@@ -115,7 +115,7 @@ export async function findFaces(o: { tree: string; mediaKey: string; locale: AiL
   const system = [
     'You find the faces in the first image, a family photo. For each face, give its box as fractions of the whole image (x, y from the top left; w, h), and suggest which candidate person it may be, from the images after it.',
     'Only suggest a candidate when the faces look alike; confidence is 0 to 1 and an honest guess. Suggestions are only suggestions. Give each reason in ' + LANG[o.locale] + ', one short sentence.',
-    'Do not name anyone who is not a candidate. Return an empty suggestions list when no candidate fits.',
+    'Do not name anyone who is not a candidate. Return an empty suggestions list when no candidate fits. Give at most five suggestions per face and at most forty faces.',
   ].join('\n');
   const reply = await adapter.complete({
     system,

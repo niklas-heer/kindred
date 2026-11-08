@@ -14,6 +14,7 @@ import { tr, type Tr } from './labels';
 import { translate, type Key } from '../i18n/dictionary';
 import { ATTESTATIONS, IDEA_KINDS, nameMeaningSchema, type AiLocale, type ArmsFeedback, type ArmsRevision, type DesignMeaning, type NameDesign, type NameMeaning, type NameResearch } from './types';
 import { cantingFromIdeas, cantingResponseSchema, symbolismItemSchema, type CantingRequest } from '../../components/heraldry/canting';
+import { cutText, firstOf } from './trim';
 import { tinctureZ } from '../../components/heraldry/canting-schema.ts';
 import { candidateCharges, STOCK_CHARGES, termsOf } from '../../components/heraldry/charge-search';
 import type { ChargeDef } from '../../components/heraldry/catalogue';
@@ -308,20 +309,20 @@ export async function armsDesigns(o: { tree: string; surname: string; country?: 
 
 /** One refinement: the charges to add to the arms as they are, or to put in the place of one they have, each by id, with its tincture and where it lies. */
 const refinementZ = z.object({
-  meaningId: z.string().max(20).optional(),
-  explanation: z.string().min(1).max(200),
+  meaningId: z.string().overwrite(cutText(20)).optional(),
+  explanation: z.string().trim().overwrite(cutText(200)).min(1).describe('One line on the change (at most 200 characters).'),
   charges: z.array(z.object({
-    charge: z.string().max(40),
+    charge: z.string().overwrite(cutText(40)),
     tincture: tinctureZ.optional(),
     on: z.enum(['field', 'chief', 'base']).optional(),
     // Required in what the provider compiles (see ai-schema-complexity.test.ts); a reply that leaves it out still parses.
-    replaces: z.string().max(40).default('').describe('The id of a charge already on the arms that this one takes the place of. Empty to add it.'),
-  })).min(1).max(2),
-  symbolism: z.array(symbolismItemSchema).max(4).optional().catch(undefined),
+    replaces: z.string().overwrite(cutText(40)).default('').describe('The id of a charge already on the arms that this one takes the place of. Empty to add it.'),
+  })).overwrite(firstOf(2)).min(1).describe('One or two charges. At most two.'),
+  symbolism: z.array(symbolismItemSchema).overwrite(firstOf(4)).optional().catch(undefined).describe('Up to four lines.'),
 });
 /** The answer: refinements of the arms as they are, and fresh designs drawn from the meanings (the design shape, as step two). */
 const revisionZ = z.object({
-  refinements: z.array(refinementZ).max(8),
+  refinements: z.array(refinementZ).overwrite(firstOf(8)).describe('At most eight refinements.'),
   designs: cantingResponseSchema.shape.suggestions,
 });
 const REVISION_JSON: JsonSchema = jsonOf(revisionZ);

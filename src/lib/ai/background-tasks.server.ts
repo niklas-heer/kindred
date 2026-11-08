@@ -8,6 +8,7 @@
 // The lists are recomputed from the record on each run, so a run that stops early simply leaves the rest waiting: the next
 // run finds it again (resumable by construction).
 import { z } from 'zod';
+import { cutText } from './trim';
 import { accounts } from '../auth/store.server';
 import { db } from '../db.server';
 import { MAX_COLLECT_FAILURES, surnameOf } from '../house-meaning.ts';
@@ -122,17 +123,17 @@ async function candidates(tree: string, task: Task, languages: readonly Locale[]
 
 const LANGUAGE: Record<Locale, string> = { en: 'English', de: 'German, in the informal "du" form', af: 'Afrikaans, in the informal "jy" form' };
 
-const storyReply = z.object({
+export const storyReply = z.object({
   same: z.boolean(),
-  title: z.string().max(200),
-  body: z.string().max(20_000),
+  title: z.string().overwrite(cutText(200)),
+  body: z.string().overwrite(cutText(20_000)),
 });
 const STORY_JSON = {
   type: 'object',
   properties: {
     same: { type: 'boolean', description: 'true when the story is already written in the target language' },
-    title: { type: 'string', maxLength: 200, description: 'the translated title; empty when the story has none' },
-    body: { type: 'string', maxLength: 20000, description: 'the translated body, in Markdown' },
+    title: { type: 'string', maxLength: 200, description: 'the translated title, at most 200 characters; empty when the story has none' },
+    body: { type: 'string', maxLength: 20000, description: 'the translated body, in Markdown, at most 20000 characters' },
   },
   required: ['same', 'title', 'body'],
   additionalProperties: false,

@@ -18,6 +18,7 @@ import { parseDecisions, sameArmsAndResearch, snapshot, toReview } from '../hous
 import type { ArmsV2 } from '../seed-format';
 import { AiError, type AiAdapter, type AiReply, type JsonSchema } from './adapters';
 import { tr, type Tr } from './labels';
+import { cutText } from './trim';
 import { adapterForFeature, fakeOn } from './settings.server';
 import { TASK_ROUTE, type AiLocale } from './types';
 
@@ -25,10 +26,10 @@ const LANG = { en: 'English', de: 'German (du)', af: 'Afrikaans (jy)' } as const
 const english = Object.assign((k: Key, vars?: Vars) => translate('en', k, vars), { locale: 'en' as const }) as Translator;
 
 /** What the model returns. Checked again here; a reply that does not match is asked once more. */
-const fitReply = z.object({
+export const fitReply = z.object({
   verdict: z.enum(FIT_VERDICTS).describe('"fits" when the design is good enough for the name, the usual answer; "partly" when it is sound and one small change would clearly improve it; "reconsider", rarely, only when the arms contradict the name or read badly.'),
-  reason: z.string().trim().min(1).max(400).describe('One or two sentences, in the reader\'s language, on why.'),
-  advice: z.string().trim().max(400).nullish().describe('When the verdict is not "fits": one sentence, in the reader\'s language, on the one change worth making. Empty when they fit.'),
+  reason: z.string().trim().overwrite(cutText(400)).min(1).describe('One or two sentences, in the reader\'s language, on why. At most 400 characters.'),
+  advice: z.string().trim().overwrite(cutText(400)).nullish().describe('At most 400 characters. When the verdict is not "fits": one sentence, in the reader\'s language, on the one change worth making. Empty when they fit.'),
 });
 const FIT_JSON: JsonSchema = (() => {
   const { $schema: _drop, ...rest } = z.toJSONSchema(fitReply) as Record<string, unknown>;

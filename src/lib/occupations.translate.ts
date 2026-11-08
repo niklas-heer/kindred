@@ -1,6 +1,7 @@
 // The decision behind "Translate": the vocabulary first, then the translation kept in the tree, and only then a
 // model. Pure on purpose: the store and the model are passed in, so the rule is tested without either. The
 // server wiring is in occupations.server.ts.
+import { cutText } from './ai/trim.ts';
 import { z } from 'zod';
 import type { Locale } from './i18n/types.ts';
 import { occupationForText, occupationLabel } from './occupations.ts';
@@ -12,7 +13,7 @@ export interface TranslationStore {
   put(text: string, locale: Locale, label: string): Promise<void>;
 }
 
-const REPLY = z.object({ label: z.string().trim().min(1).max(80) });
+const REPLY = z.object({ label: z.string().trim().overwrite(cutText(80)).min(1) });
 
 /**
  * The answer for one free-text occupation. `ask` is called only when neither the vocabulary nor the cache knows
