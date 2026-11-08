@@ -31,6 +31,8 @@ export interface AiRequest {
   json?: { name: string; schema: JsonSchema };
   maxTokens?: number;
   timeoutMs?: number;
+  /** Let the model search the web, when the provider can and the family has allowed it. Costs extra per search. */
+  webSearch?: { maxUses?: number };
 }
 
 export interface AiReply {
@@ -39,6 +41,8 @@ export interface AiReply {
   json?: unknown;
   /** Tokens the call used (input and output), for the family's daily budget. */
   tokens: number;
+  /** The pages a web search drew on, when the provider reports them. */
+  sources?: { url: string; title?: string }[];
 }
 
 export interface AiAdapter {
