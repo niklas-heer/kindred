@@ -22,6 +22,8 @@ const { openSqlite, closeAccounts } = await load<typeof import('./store/node.ts'
 const { accounts } = await load<typeof import('./auth/store.server.ts')>('/src/lib/auth/store.server.ts');
 const chat = await load<typeof import('./ai/chat.server.ts')>('/src/lib/ai/chat.server.ts');
 const settings = await load<typeof import('./ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
+const setup = await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts');
+const providers = await load<typeof import('./ai/providers.server.ts')>('/src/lib/ai/providers.server.ts');
 const { AiError, makeAdapter, isolatedSearch, callRounds, outputCap } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
 const lookup = await load<typeof import('./ai/lookup.server.ts')>('/src/lib/ai/lookup.server.ts');
 const { tr } = await load<typeof import('./ai/labels.ts')>('/src/lib/ai/labels.ts');
@@ -82,7 +84,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const SEARCH_USAGE = { input_tokens: 100, output_tokens: 20, server_tool_use: { web_search_requests: 1 } };
 
 async function familyFor(tree: string, monthlyMicros: number, webSearch = true, provider: 'anthropic' | 'openai' | 'openrouter' = 'anthropic') {
-  await settings.saveSettings(tree, 'u1', {
+  await setup.setUpFamilyAi(tree, 'u1', {
     provider, model: '', features: { assistant: true, faces: false, avatar: false, arms: false }, webSearch, monthlyMicros, customPrices: {}, apiKey: KEY,
   });
 }
@@ -356,11 +358,11 @@ function stubOpenRouter(replies: (() => Response)[]): Sent[] {
 
 test(':online never reaches a request: the suffix is dropped for the chat and the arms, and the lookup searches only through its own tool', async () => {
   makeFamily('online');
-  await settings.saveSettings('online', 'u1', {
+  await setup.setUpFamilyAi('online', 'u1', {
     provider: 'openrouter', model: 'openai/gpt-5:online', features: { assistant: true, faces: false, avatar: false, arms: true },
     webSearch: true, monthlyMicros: 5_000_000, customPrices: {}, apiKey: KEY,
   });
-  assert.equal((await settings.readSettings('online')).model, 'openai/gpt-5', 'the saved model has no suffix');
+  assert.equal((await providers.resolveRoute('online', 'assistant')).effective?.model, 'openai/gpt-5', 'the saved model has no suffix');
 
   const sent = stubOpenRouter([
     () => json({ choices: [{ finish_reason: 'tool_calls', message: { content: null, tool_calls: [{ id: 'c1', function: { name: 'web_lookup', arguments: '{"query":"history of bakers guild"}' } }] } }], usage: { prompt_tokens: 50, completion_tokens: 10 } }),
@@ -388,10 +390,10 @@ test(':online never reaches a request: the suffix is dropped for the chat and th
 test('a model that searches by itself is refused on save, and never used', async () => {
   makeFamily('search-model');
   const base = { features: { assistant: true, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: KEY };
-  await assert.rejects(settings.saveSettings('search-model', 'u1', { ...base, provider: 'openai', model: 'gpt-4o-search-preview' }), (e: unknown) => e instanceof AiError && e.code === 'bad-input');
-  await assert.rejects(settings.saveSettings('search-model', 'u1', { ...base, provider: 'openrouter', model: 'perplexity/sonar-pro' }), (e: unknown) => e instanceof AiError && e.code === 'bad-input');
+  await assert.rejects(setup.setUpFamilyAi('search-model', 'u1', { ...base, provider: 'openai', model: 'gpt-4o-search-preview' }), (e: unknown) => e instanceof AiError && e.code === 'bad-input');
+  await assert.rejects(setup.setUpFamilyAi('search-model', 'u1', { ...base, provider: 'openrouter', model: 'perplexity/sonar-pro' }), (e: unknown) => e instanceof AiError && e.code === 'bad-input');
   assert.throws(() => makeAdapter('openrouter', KEY, 'perplexity/sonar'), (e: unknown) => e instanceof AiError && e.code === 'bad-input');
-  assert.equal((await settings.readSettings('search-model')).sealed, null, 'nothing was saved');
+  assert.equal((await providers.providerStates('search-model')).every((p) => p.keyState === 'none'), true, 'nothing was saved, no key either');
 });
 
 // ---------- paused search turns and failed rounds ----------
@@ -478,11 +480,11 @@ test('a saved model that searches by itself is refused on save, and again when t
   makeFamily('saved-search');
   const base = { features: { assistant: true, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: KEY };
   await assert.rejects(
-    settings.saveSettings('saved-search', 'u1', { ...base, provider: 'openai', model: 'gpt-4o-search-preview' }),
+    setup.setUpFamilyAi('saved-search', 'u1', { ...base, provider: 'openai', model: 'gpt-4o-search-preview' }),
     (e: unknown) => e instanceof AiError && e.code === 'bad-input',
   );
-  await settings.saveSettings('saved-search', 'u1', { ...base, provider: 'openai', model: 'gpt-5' });
-  await accounts().run('UPDATE ai_settings SET model = ? WHERE tree = ?', 'o3-deep-research', 'saved-search');
+  await setup.setUpFamilyAi('saved-search', 'u1', { ...base, provider: 'openai', model: 'gpt-5' });
+  await accounts().run("UPDATE ai_route SET model = ? WHERE tree = ? AND route = 'assistant'", 'o3-deep-research', 'saved-search');
   await assert.rejects(
     settings.adapterForFeature('saved-search', 'assistant', 'en'),
     (e: unknown) => e instanceof AiError && e.code === 'bad-input',
@@ -491,7 +493,7 @@ test('a saved model that searches by itself is refused on save, and again when t
 
 test('a reasoning reply\'s blocks go back with its tool calls: the chat\'s second request carries them unchanged', async () => {
   makeFamily('reasoning');
-  await settings.saveSettings('reasoning', 'u1', {
+  await setup.setUpFamilyAi('reasoning', 'u1', {
     provider: 'openrouter', model: 'openai/gpt-5', features: { assistant: true, faces: false, avatar: false, arms: false },
     webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: KEY,
   });

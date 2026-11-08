@@ -23,6 +23,8 @@ const { accounts } = await load<typeof import('./auth/store.server.ts')>('/src/l
 const dbs = await load<typeof import('./db.server.ts')>('/src/lib/db.server.ts');
 const portrait = await load<typeof import('./ai/portrait.server.ts')>('/src/lib/ai/portrait.server.ts');
 const settings = await load<typeof import('./ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
+const providers = await load<typeof import('./ai/providers.server.ts')>('/src/lib/ai/providers.server.ts');
+const setup = await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts');
 const rules = await load<typeof import('./ai/portrait-rules.ts')>('/src/lib/ai/portrait-rules.ts');
 const roles = await load<typeof import('./roles.ts')>('/src/lib/roles.ts');
 const { AiError } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
@@ -84,11 +86,13 @@ async function seed(tree: string) {
 async function enable(tree: string, monthlyMicros = 5_000_000) {
   stub();
   await accounts().run('INSERT INTO user (id, name, handle, created) VALUES (?, ?, ?, ?) ON CONFLICT (id) DO NOTHING', 'u1', 'Anna', `handle-${tree}`, Date.now());
-  await settings.saveSettings(tree, 'u1', {
-    provider: 'anthropic', model: 'claude-sonnet-5-5', features: { assistant: false, faces: false, avatar: false, arms: false },
-    webSearch: false, monthlyMicros, customPrices: {}, apiKey: 'sk-ant-unrelated-key-0000',
+  await setup.setUpFamilyAi(tree, 'u1', {
+    provider: 'anthropic', model: 'claude-sonnet-5-5', apiKey: 'sk-ant-unrelated-key-0000', features: { assistant: false, faces: false, avatar: false, arms: false },
+    webSearch: false, monthlyMicros, customPrices: {},
   });
-  await portrait.savePortraitSettings(tree, 'u1', { enabled: true, model: 'openai/gpt-image-2', reuseFamilyKey: false, apiKey: KEY });
+  await providers.saveProviderKey(tree, 'u1', 'openrouter', KEY);
+  await providers.saveRoutes(tree, [{ route: 'portrait', provider: 'openrouter', model: 'openai/gpt-image-2' }]);
+  await portrait.setPortraitEnabled(tree, 'u1', true);
 }
 
 test('the roles that paint and review are editors; the settings are stewards', () => {
@@ -102,34 +106,29 @@ test('the roles that paint and review are editors; the settings are stewards', (
 test('a key is sealed, shown only as its last four characters, and needed before the feature is on', async () => {
   const tree = 'settings';
   await dbs.provisionFamily(tree, 'Settings');
-  await assert.rejects(() => portrait.savePortraitSettings(tree, 'u1', { enabled: true, model: 'openai/gpt-image-2', reuseFamilyKey: false }), (e: unknown) => e instanceof AiError && e.message === 'paint.err_no_key');
+  await assert.rejects(() => portrait.setPortraitEnabled(tree, 'u1', true), (e: unknown) => e instanceof AiError && e.message === 'paint.err_no_key');
   stub();
-  await portrait.savePortraitSettings(tree, 'u1', { enabled: false, model: 'openai/gpt-image-2', reuseFamilyKey: false, apiKey: KEY });
-  const s = await portrait.readPortraitSettings(tree);
-  assert.equal(s.keyState, 'own');
-  assert.equal(s.keyTail, KEY.slice(-4));
-  const row = await accounts().get<{ key_sealed: string }>('SELECT key_sealed FROM ai_portrait WHERE tree = ?', tree);
+  await providers.saveProviderKey(tree, 'u1', 'openrouter', KEY);
+  await providers.saveRoutes(tree, [{ route: 'portrait', provider: 'openrouter', model: 'openai/gpt-image-2' }]);
+  await portrait.setPortraitEnabled(tree, 'u1', false);
+  const or = (await providers.providerStates(tree)).find((p) => p.provider === 'openrouter');
+  assert.equal(or?.keyState, 'saved');
+  assert.equal(or?.keyTail, KEY.slice(-4));
+  const row = await accounts().get<{ key_sealed: string }>('SELECT key_sealed FROM ai_provider WHERE tree = ? AND provider = ?', tree, 'openrouter');
   assert.ok(row && !row.key_sealed.includes(KEY), 'the stored key is sealed');
 });
 
 test('a model that is not a picture model OpenRouter lists is refused', async () => {
   stub();
-  await assert.rejects(() => portrait.savePortraitSettings('settings', 'u1', { enabled: false, model: 'openai/gpt-4o', reuseFamilyKey: false }), (e: unknown) => e instanceof AiError && e.message === 'paint.err_model_unknown');
+  await assert.rejects(() => portrait.checkPaintModel('openai/gpt-4o'), (e: unknown) => e instanceof AiError && e.message === 'paint.err_model_unknown');
 });
 
-test('the family\'s OpenRouter key may be reused only when OpenRouter is the family\'s provider', async () => {
+test('painting is routed only to a provider that paints: another provider is refused, and nothing is saved', async () => {
   const tree = 'reuse';
   await dbs.provisionFamily(tree, 'Reuse');
-  await accounts().run('INSERT INTO user (id, name, handle, created) VALUES (?, ?, ?, ?) ON CONFLICT (id) DO NOTHING', 'u1', 'Anna', 'handle-reuse', Date.now());
   stub();
-  await settings.saveSettings(tree, 'u1', { provider: 'anthropic', model: 'claude-sonnet-5-5', features: { assistant: false, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: 'sk-ant-family-key-0000' });
-  await assert.rejects(() => portrait.savePortraitSettings(tree, 'u1', { enabled: false, model: 'openai/gpt-image-2', reuseFamilyKey: true }), (e: unknown) => e instanceof AiError && e.message === 'paint.err_family_not_openrouter');
-  // Now OpenRouter is the family's provider, with a key: the same key is reused, and the Anthropic key is never sent to OpenRouter.
-  await settings.saveSettings(tree, 'u1', { provider: 'openrouter', model: 'openai/gpt-4.1', features: { assistant: false, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: KEY });
-  await portrait.savePortraitSettings(tree, 'u1', { enabled: true, model: 'openai/gpt-image-2', reuseFamilyKey: true });
-  const s = await portrait.readPortraitSettings(tree);
-  assert.equal(s.keyState, 'family');
-  assert.equal(s.keyTail, KEY.slice(-4));
+  await assert.rejects(() => providers.saveRoutes(tree, [{ route: 'portrait', provider: 'anthropic', model: 'claude-sonnet-5-5' }]), (e: unknown) => e instanceof AiError && e.message === 'paint.err_provider_cannot_paint');
+  assert.equal((await providers.resolveRoute(tree, 'portrait')).effective, null, 'no route was saved');
 });
 
 test('painting makes a candidate that changes nothing until it is accepted; accepting replaces the old, and the budget and the key are right', async () => {

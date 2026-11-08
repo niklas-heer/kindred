@@ -6,18 +6,17 @@ feature is switched on separately. This page says what each feature sends, to wh
 
 ## Turning it on
 
-A steward opens the family's AI settings (`/settings/ai`). The page has five steps:
+A steward opens the family's AI settings (`/settings/ai`). The page has these parts, in order:
 
-1. **Provider.** Anthropic, OpenAI or OpenRouter, each as a card with a "Get a key" link to that provider's key page.
-2. **API key.** Paste the key. It is checked as soon as typing pauses: a key that works shows the number of models
-   the provider offers, and one that does not says why. The saved key is shown only as its last four characters.
-3. **Model.** A searchable list from the provider, recommended models first. Each row shows the price per 1M tokens,
-   capability badges (sees images, tools, web search, context size) and how many typical conversations $1 buys. You can
-   also type any model id the provider offers.
-4. **Features.** One switch each: assistant, faces, portrait, arms, and web search. Each says what it does and what it sends.
-5. **Monthly budget.** A budget in US dollars, a bar for this month's spend, and the day the budget starts again.
+1. **Providers.** One card for each of Anthropic, OpenAI and OpenRouter. Paste a provider's key and save it; each card links to that provider's key page. A connected card shows the key's last four characters, and can test the connection, replace the key, or remove it. A family may connect several providers at once. Each key is used only for its own provider.
+2. **What uses what.** One row per job: the assistant chat, name research and arms, finding people in photos, an avatar from a photo, painted portraits, and the three background tasks (arms review, occupation translations, Chronicle translations). Each row has the job's switch, its provider and its model, and a rough cost estimate. The default is **same as the assistant**, which follows the assistant's provider and model. A job may pick another connected provider and a model that provider lists, or type a model id. Painted portraits offer only providers that can paint (OpenRouter's image models, today). Web search is one switch for the family, and its privacy line names the provider the assistant uses.
+3. **Monthly budget.** A budget in US dollars, a bar for this month's spend, and the day the budget starts again. One budget covers every job, whatever provider it uses.
+4. **Privacy.** One line for each job, naming the provider it goes to, or saying that it is off and sends nothing.
+5. **Background work** (schedules, the cap for background spending, Run now) and **Painted portraits** (what a painting sends).
 
-Each family has its own settings, so one family's key is never used for another.
+Each family has its own settings, so one family's keys are never used for another.
+
+**A job whose provider is removed waits.** When a steward removes a provider, every job that uses it reports that it needs a provider, and nothing is sent. The job's choice is kept, so connecting the provider again restores it. Nothing is rerouted to another provider, and a job that follows the assistant waits for the assistant's provider in the same way. Saving a job on a provider that is not connected is refused.
 
 ## Models and prices
 
@@ -223,33 +222,18 @@ state and what it still has to do, what is waiting for a steward, the spending a
 started it, what it did, what it cost, and any failure. Viewers and contributors never see the page or the badge.
 
 ## Privacy
-
-What leaves the app, per feature, is listed above and on the settings page. In short: a question, a photo, a surname, or
-the names and facts the assistant reads from the tree goes to the chosen provider, using the family's key. A photo reaches the
-provider only when the assistant looks at it (faces on) or a drawn avatar is made from it; a photo's date, place and caption
-travel as text. A family session's transcript goes once, when the reader finishes it. Speech is turned into text by the
-browser before anything reaches Kindred, and the text goes to the provider only when the reader sends it. For arms, the
-family's own words about a name and the meanings the reader chose go to the provider too, in the steps without web search.
-Web search adds the search queries to that list: for arms, the surname and country only. Kindred adds nothing else. The provider keeps requests under its own terms, which apply to
-those requests and not to Kindred. An editor's or steward's private fields may reach the provider when they use the
-assistant. Turn a feature off to stop it sending anything.
+What leaves the app, per job, is listed above and on the settings page, and each line names the provider it goes to. In short: a question, a photo, a surname, or the names and facts the assistant reads from the tree goes to the provider that job uses, with that provider's key. A photo reaches a provider only when the assistant looks at it (faces on), a drawn avatar is made from it, or a portrait is painted from it; a photo's date, place and caption travel as text. A family session's transcript goes once, when the reader finishes it. Speech is turned into text by the browser before anything reaches Kindred, and the text goes to the provider only when the reader sends it. For arms, the family's own words about a name and the meanings the reader chose go to the provider too, in the steps without web search. Web search adds the search queries to that list: for arms, the surname and country only. Kindred adds nothing else. The provider keeps requests under its own terms, which apply to those requests and not to Kindred. An editor's or steward's private fields may reach the provider when they use the assistant. Turn a job off to stop it sending anything.
 
 ## How the key is kept
+- Each connected provider's key is stored in `accounts.db`, in table `ai_provider` (one row per family and provider), never in the family's database and never in a file in the repository.
+- It is sealed with **AES-GCM (256-bit)**. The key for sealing is derived with **HKDF-SHA-256** from the server secret `KINDRED_SECRET`, with the salt `kindred-ai-keys/v1` and the info `tree:<family id>|provider:<provider>`. So a sealed key cannot be moved to another family, and it cannot be opened as another provider's key. The stored form is `v2.<iv>.<ciphertext>`, with a fresh random 12-byte IV for each save.
+- Keys sealed before several providers existed (`v1.`, bound to the family only) still open. Migration `0010_ai_providers` moved them into their providers' rows unchanged; a key is sealed as `v2` again when it is next saved.
+- `keyFor(tree, provider)` in `src/lib/ai/providers.server.ts` is the only place a key is opened, and it opens the key of the provider it is asked for. A route never falls back to another provider's key.
+- On Node the secret comes from `KINDRED_SECRET`, or else from `data/secret`, which is made on first use with mode 600. On Cloudflare it must be set as a Worker secret (see [deploy-cloudflare.md](deploy-cloudflare.md)).
+- Changing `KINDRED_SECRET` makes the saved keys unreadable. The settings page then shows each affected provider as unreadable, and asks for its key again. Nothing else is lost.
+- A key typed on the settings page is used for the checks and the model list, and is stored only when the steward saves it. Keys are never written to logs, and the server's error messages do not include them. The settings page and its status receive each provider's state and last four characters, never the key.
 
-- The key is stored in `accounts.db` (table `ai_settings`), never in the family's database and never in a file in the
-  repository.
-- It is sealed with **AES-GCM (256-bit)**. The key for sealing is derived with **HKDF-SHA-256** from the server secret
-  `KINDRED_SECRET`, with the salt `kindred-ai-keys/v1` and the info `tree:<family id>`, so a sealed key cannot be moved
-  to another family. The stored form is `v1.<iv>.<ciphertext>`, with a fresh random 12-byte IV for each save.
-- On Node the secret comes from `KINDRED_SECRET`, or else from `data/secret`, which is made on first use with mode 600.
-  On Cloudflare it must be set as a Worker secret (see [deploy-cloudflare.md](deploy-cloudflare.md)).
-- Changing `KINDRED_SECRET` makes the saved keys unreadable. The settings page then asks for the key again. Nothing else
-  is lost.
-- A key typed on the settings page is used for the checks and the model list, and is stored only when the steward saves.
-  Keys are never written to logs, and the server's error messages do not include them.
-
-The key is the only secret the AI layer holds. Its sealed form is useless without the secret, so back up the secret
-with the database.
+The keys are the only secrets the AI layer holds. Their sealed form is useless without the secret, so back up the secret with the database.
 
 ## Limits and failures
 
@@ -276,28 +260,28 @@ originals that are never altered, a stale translation that is not shown, web sea
 fingerprint changes, and the role checks on the server functions. Its fetch is replaced by a guard, so a test that reaches a
 provider fails instead.
 
-## Where the code is
+`src/lib/ai-providers.test.ts` checks that each route's request goes to its own provider with that provider's key (the stub reads the URL and the key), that removing a provider disables its jobs without rerouting them, that the settings page, the status and a failed check carry no key, and that a viewer and an editor can't reach the settings. `src/lib/ai-migration.test.ts` runs migration 0010 on a database holding today's shape, with a family that has both keys, one with a conflicting OpenRouter pair, one whose portrait reuses the family key, and one with only a portrait key, and checks that the switches, budget, prices and spend are kept and that every moved key still opens for its family and for no other.
 
-- `src/lib/ai/settings.server.ts`: the settings, the monthly budget (reserve and settle), and the adapter for each feature.
+## Where the code is
+- `src/lib/ai/providers.server.ts`: the connected providers and their keys (`keyFor` is the only opener), the routes (which provider and model each job uses), and the route checks.
+- `src/lib/ai/page.server.ts`: what the settings page shows and what one save changes, in order; each switch is checked against its route before anything is written.
+- `src/lib/ai/settings.server.ts`: the feature switches, the monthly budget (reserve and settle), web search, each route's adapter (`routeAdapter`, `adapterForFeature`), and the status.
+- `src/lib/ai/testing.server.ts`: one call that connects a provider and sets the assistant, for the tests and the browser harness.
 - `src/lib/ai/prices.ts`: model prices, their sources and the cost calculation. Pure, so the browser can read it too.
 - `src/lib/ai/recommended.ts`: the recommended models, per provider.
 - `src/lib/ai/models.server.ts`: listing a provider's models, with a short in-memory cache.
-- `src/lib/ai/secret.server.ts`: sealing the key.
-- `src/lib/ai/adapters.ts`: the three providers, behind one interface (`api.anthropic.com`, `api.openai.com`,
-  `openrouter.ai`), with web search for each.
+- `src/lib/ai/secret.server.ts`: sealing and opening a provider's key (`v2`, and `v1` for the older form).
+- `src/lib/ai/adapters.ts`: the three providers, behind one interface (`api.anthropic.com`, `api.openai.com`, `openrouter.ai`), with web search for each.
 - `src/lib/ai/chat.server.ts` and `tools.server.ts`: the assistant's loop and its tools.
 - `src/lib/ai/family.server.ts`: the family draft's checks (duplicates, loops) and its approval, one step at a time.
 - `src/lib/ai/background.ts`: the background tasks' names, schedules, batch and call limits, and the settings' shape. Pure.
-- `src/lib/ai/background.server.ts`: a task's readiness, the background cap and its booking, the run log, the daily run
-  (`runScheduled`, called by `src/lib/jobs/ai-tasks.ts`), and the activity page's data.
+- `src/lib/ai/background.server.ts`: a task's readiness (its route, its switch, the budget), the background cap and its booking, the run log, the daily run (`runScheduled`, called by `src/lib/jobs/ai-tasks.ts`), and the activity page's data.
 - `src/lib/ai/background-tasks.server.ts`: what each task has waiting and how one item is done.
-- `src/lib/ai/background.functions.ts`: the server functions for the settings, Run now, the activity page and the badge.
-- `src/components/assistant/BackgroundSettings.tsx` and `AiActivity.tsx`: the settings section and the activity page.
-- `src/lib/relations.server.ts`: the rules for linking two people, shared by the form and the family draft.
-- `src/lib/family-batch.functions.ts`: the server function a family draft is approved through.
-- `src/components/assistant/ProposalCard.tsx`, `FamilyDraft.tsx`, `FamilySession.tsx`, `dictation.ts`: the cards, the session and the browser's speech.
+- `src/lib/ai/background.functions.ts`: the server functions for the background settings, Run now, the activity page and the badge.
+- `src/lib/ai/portrait.server.ts`: painting: the switch, the image list, one portrait's booking and call, and the candidate review. The painter's provider and model are the portrait route's.
 - `src/lib/ai/vision.server.ts`: faces and portrait looks.
 - `src/lib/ai/arms.server.ts`: arms from a surname, in its web search, research and design requests.
 - `src/lib/ai/lookup.server.ts`: the assistant's web lookup and the guard that checks its query.
-- `src/components/assistant/AiSettings.tsx`: the settings page, in five steps.
-- `src/lib/ai.functions.ts`: the server functions the page and the assistant call, including `aiListModels`.
+- `src/lib/ai.functions.ts`: the server functions the settings page and the assistant call, including `aiListModels` and `aiSaveProvider`.
+- `src/components/assistant/AiSettings.tsx`: the settings page: the providers, "What uses what", the budget, the privacy lines. `PortraitSettings.tsx` and `BackgroundSettings.tsx` hold what is specific to painting and to the background tasks.
+- `migrations/accounts/0010_ai_providers.sql`: the tables `ai_provider` and `ai_route`, and the move from the single key.

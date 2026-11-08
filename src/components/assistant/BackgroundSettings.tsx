@@ -1,7 +1,8 @@
-// Background AI tasks, in the AI settings page (stewards only; the page is). Three tasks, each with its switch (off until a
-// steward turns it on) and its schedule, a plain line on what it sends, when it last ran and what waits. "Run now" runs one
-// batch of a task. Below them: the share of the monthly budget that background work may use, and the languages the
-// translations go into. Every change is saved at once; nothing runs at save. The results are on the AI activity page.
+// Background AI tasks, in the AI settings page (stewards only; the page is). Three tasks, each with its schedule, a plain line
+// on what it sends, when it last ran and what waits. A task's on/off switch is in the "What uses what" table above (it is
+// saved with the routes); here it is shown as a state. "Run now" runs one batch of a task. Below them: the share of the monthly
+// budget that background work may use, and the languages the translations go into. Every change is saved at once; nothing
+// runs at save. The results are on the AI activity page.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { Play } from 'lucide-react';
@@ -42,9 +43,9 @@ type Draft = SaveInput;
 
 const draftOf = (s: Settings): Draft => ({
   tasks: {
-    arms: { enabled: s.tasks.arms.enabled, schedule: s.tasks.arms.schedule },
-    occupations: { enabled: s.tasks.occupations.enabled, schedule: s.tasks.occupations.schedule },
-    chronicle: { enabled: s.tasks.chronicle.enabled, schedule: s.tasks.chronicle.schedule },
+    arms: { schedule: s.tasks.arms.schedule },
+    occupations: { schedule: s.tasks.occupations.schedule },
+    chronicle: { schedule: s.tasks.chronicle.schedule },
   },
   capShare: s.capShare,
   languages: s.languages,
@@ -142,20 +143,15 @@ function BackgroundForm({ tree, data }: { tree: string; data: Activity }) {
       {TASKS.map((task) => {
         const row = data.tasks.find((x) => x.task === task);
         const setting = draft.tasks[task];
+        const on = row?.enabled === true;
         const ready = row?.state === 'ready';
-        const hint = !setting.enabled ? null : row?.state === 'ready' ? null : row?.state === 'feature-off' ? t('aitasks.need.feature', { feature: t(FEATURE_KEY[TASK_FEATURE[task]]) }) : t(`aitasks.skip.${row?.state ?? 'off'}` as Key);
+        const hint = !on ? null : row?.state === 'ready' ? null : row?.state === 'feature-off' ? t('aitasks.need.feature', { feature: t(FEATURE_KEY[TASK_FEATURE[task]]) }) : t(`aitasks.skip.${row?.state ?? 'off'}` as Key);
         const statusLine = row?.lastStarted ? t('aitasks.lastRun', { when: ago(row.lastStarted, now, locale) }) : t('aitasks.neverRun');
         return (
           <div className="aitasks-task" key={task} data-task={task}>
             <div className="aitasks-task-head">
               <h3 className="aitasks-task-name">{t(TASK_NAME[task])}</h3>
-              <Switch
-                checked={setting.enabled}
-                disabled={save.isPending}
-                onChange={(on) => change({ ...draft, tasks: { ...draft.tasks, [task]: { ...setting, enabled: on } } })}
-              >
-                {setting.enabled ? t('aitasks.on') : t('aitasks.off')}
-              </Switch>
+              <span className={`aitasks-state ${on ? 'on' : 'off'}`}>{on ? t('aitasks.on') : t('aitasks.off')}</span>
             </div>
             <p className="aitasks-task-what">{t(TASK_WHAT[task])}</p>
             <div className="aitasks-task-controls">

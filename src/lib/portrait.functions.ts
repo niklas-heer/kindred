@@ -1,8 +1,8 @@
 // Painted portraits, the server functions. Each one checks the reader's role first (requireMember for reads,
 // requireCan for changes, with the same Action the browser asks useCan() about), then calls ai/portrait.server.ts.
 //   getPortraitStatus    (member):   whether painted portraits are on here, and the model
-//   getPortraitSettings  (steward):  the switch, the model choices and the key's last four characters
-//   savePortraitSettings (steward):  the switch, the model, a key (sealed) or the family's OpenRouter key
+//   getPortraitSettings  (steward):  the switch, the painter's route and the image models it may use
+//   savePortraitSettings (steward):  the switch. The painter's provider and model are saved with the AI routes (ai.functions)
 //   aiCreatePortrait     (editor):   paint a candidate from one of the person's photos (budgeted, not yet kept)
 //   acceptPortrait / discardPortrait / removePortrait (editor): the review step and removal
 //   setPersonDisplay     (editor):   drawing, photo or the painted portrait
@@ -54,17 +54,10 @@ export const portraitSettingsQuery = (t: string) => queryOptions({ queryKey: ['p
 // ---------- settings (stewards) ----------
 
 export const savePortraitSettings = createServerFn({ method: 'POST' })
-  .validator(z.object({
-    tree,
-    enabled: z.boolean(),
-    model: z.string().max(120),
-    reuseFamilyKey: z.boolean(),
-    apiKey: z.string().max(400).optional(),
-    clearKey: z.boolean().optional(),
-  }))
+  .validator(z.object({ tree, enabled: z.boolean() }))
   .handler(async ({ data }) => {
     const m = await requireCan(data.tree, 'manage-access');
-    await (await server()).savePortraitSettings(data.tree, m.user.id, data);
+    await (await server()).setPortraitEnabled(data.tree, m.user.id, data.enabled);
   });
 
 // ---------- painting and the review step (editors) ----------

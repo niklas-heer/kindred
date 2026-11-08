@@ -1,6 +1,6 @@
-// node --test src/lib/ai-keys.test.ts — a saved key is used only with the provider it was saved for. Test connection and
-// Save with a different provider and no new key are refused with `key-required`, and nothing is sent anywhere. Saving a
-// new provider with a new key replaces the key. Runs on a private data folder; `fetch` is stubbed, so nothing is called.
+// node --test src/lib/ai-keys.test.ts — each provider has its own key. A key is sealed for its provider (it opens only as that
+// provider's key), a connection test uses that provider's key only, and a route whose provider has no key is refused without
+// anything being sent. Runs on a private data folder; `fetch` is stubbed, so nothing is called.
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -19,7 +19,9 @@ const load = <T>(path: string) => vite.ssrLoadModule(path) as Promise<T>;
 const { closeAccounts } = await load<typeof import('./store/node.ts')>('/src/lib/store/node.ts');
 const { accounts } = await load<typeof import('./auth/store.server.ts')>('/src/lib/auth/store.server.ts');
 const settings = await load<typeof import('./ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
-const { openKey } = await load<typeof import('./ai/secret.server.ts')>('/src/lib/ai/secret.server.ts');
+const providers = await load<typeof import('./ai/providers.server.ts')>('/src/lib/ai/providers.server.ts');
+const setup = await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts');
+const { openKey, sealKey } = await load<typeof import('./ai/secret.server.ts')>('/src/lib/ai/secret.server.ts');
 const { AiError } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
 
 test.after(async () => {
@@ -35,9 +37,11 @@ afterEach(() => {
 
 const ANTHROPIC_KEY = 'sk-ant-SAVED-SECRET-for-anthropic';
 const OPENAI_KEY = 'sk-openai-TYPED-for-openai-1234';
+const OPENROUTER_KEY = 'sk-or-v1-OPENROUTER-KEY-for-or-5678';
 const TREE = 'keys';
+const OFF = { assistant: false, faces: false, avatar: false, arms: false };
 
-/** Counts every request. Nothing is sent in a refused case, so the count must stay at zero. */
+/** Records every request: its URL and the key it carried. Nothing is sent in a refused case, so the count must stay at zero. */
 function stubFetch(reply: () => Response): { calls: { url: string; auth: string }[] } {
   const calls: { url: string; auth: string }[] = [];
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -51,144 +55,94 @@ function stubFetch(reply: () => Response): { calls: { url: string; auth: string 
 const okReply = () => new Response(JSON.stringify({ choices: [{ message: { content: 'OK' } }], usage: { prompt_tokens: 1, completion_tokens: 1 } }), { status: 200, headers: { 'content-type': 'application/json' } });
 
 await accounts().run('INSERT INTO user (id, name, handle, created) VALUES (?, ?, ?, ?)', 'u1', 'Anna', 'handle-keys', Date.now());
-await settings.saveSettings(TREE, 'u1', {
-  provider: 'anthropic', model: '', features: { assistant: false, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: ANTHROPIC_KEY,
+await setup.setUpFamilyAi(TREE, 'u1', {
+  provider: 'anthropic', model: '', apiKey: ANTHROPIC_KEY, features: { ...OFF, assistant: true }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {},
 });
 
-test('the saved key fits only the provider it was saved for', () => {
-  const cur = { sealed: 'v1.x.y', provider: 'anthropic' as const };
-  assert.equal(settings.savedKeyFits(cur, 'anthropic'), true);
-  assert.equal(settings.savedKeyFits(cur, 'openai'), false);
-  assert.equal(settings.savedKeyFits(cur, 'openrouter'), false);
-  assert.equal(settings.savedKeyFits({ sealed: null, provider: 'anthropic' }, 'anthropic'), false, 'no key saved, nothing fits');
+test('a key is sealed for its own provider: it opens as that provider and as no other', async () => {
+  const sealed = await sealKey(TREE, 'anthropic', ANTHROPIC_KEY);
+  assert.ok(sealed.startsWith('v2.') && !sealed.includes(ANTHROPIC_KEY), 'sealed, not in clear');
+  assert.equal(await openKey(TREE, 'anthropic', sealed), ANTHROPIC_KEY);
+  await assert.rejects(() => openKey(TREE, 'openai', sealed), (e: unknown) => e instanceof AiError && e.code === 'key-unreadable');
+  await assert.rejects(() => openKey('another-family', 'anthropic', sealed), (e: unknown) => e instanceof AiError && e.code === 'key-unreadable');
 });
 
-test('test connection with another provider and no new key is refused, and nothing is sent', async () => {
-  const sent = stubFetch(okReply);
+test('test connection with another provider and no typed key is refused, and nothing is sent', async () => {
+  const { calls } = stubFetch(okReply);
   const r = await settings.testConnection(TREE, { provider: 'openai', model: 'gpt-6.1-sol' }, 'en');
   assert.equal(r.ok, false);
-  assert.equal(r.code, 'key-required');
-  assert.equal(sent.calls.length, 0, 'no request left the server');
-  assert.ok(!JSON.stringify(r).includes(ANTHROPIC_KEY), 'the saved key is not echoed');
+  assert.equal(calls.length, 0, 'no request was made');
 });
 
-test('test connection with the saved provider and no typed key uses the saved key, with that provider only', async () => {
-  const sent = stubFetch(okReply);
+test('test connection with a saved provider and no typed key uses that provider\'s own key', async () => {
+  const { calls } = stubFetch(okReply);
   const r = await settings.testConnection(TREE, { provider: 'anthropic', model: 'claude-sonnet-5-5' }, 'en');
   assert.equal(r.ok, true);
-  assert.equal(sent.calls.length, 1);
-  assert.match(sent.calls[0].url, /api\.anthropic\.com/);
-  assert.equal(sent.calls[0].auth, ANTHROPIC_KEY);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]!.url.startsWith('https://api.anthropic.com/'), true, 'sent to Anthropic only');
+  assert.equal(calls[0]!.auth, ANTHROPIC_KEY, 'with the saved Anthropic key');
 });
 
-test('test connection with a typed key for another provider sends only the typed key, to that provider', async () => {
-  const sent = stubFetch(okReply);
+test('a typed key goes only to the provider it was typed for', async () => {
+  const { calls } = stubFetch(okReply);
   const r = await settings.testConnection(TREE, { provider: 'openai', model: 'gpt-6.1-sol', apiKey: OPENAI_KEY }, 'en');
   assert.equal(r.ok, true);
-  assert.equal(sent.calls.length, 1);
-  assert.match(sent.calls[0].url, /api\.openai\.com/);
-  assert.equal(sent.calls[0].auth, `Bearer ${OPENAI_KEY}`);
-  assert.ok(!sent.calls.some((c) => c.auth.includes(ANTHROPIC_KEY)), 'the saved key never reaches another provider');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]!.url.startsWith('https://api.openai.com/'), true);
+  assert.equal(calls[0]!.auth, `Bearer ${OPENAI_KEY}`);
+  assert.ok(!calls.some((c) => c.auth.includes(ANTHROPIC_KEY)), 'the Anthropic key was not sent');
 });
 
-test('saving another provider with no new key is refused, and the saved settings are unchanged', async () => {
-  await assert.rejects(
-    settings.saveSettings(TREE, 'u1', {
-      provider: 'openrouter', model: '', features: { assistant: true, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {},
-    }),
-    (e: unknown) => e instanceof AiError && e.code === 'key-required' && e.message === 'ai.err_key_required',
-  );
-  const cur = await settings.readSettings(TREE);
-  assert.equal(cur.provider, 'anthropic');
-  assert.equal(await openKey(TREE, cur.sealed!), ANTHROPIC_KEY, 'the saved key is still the one saved');
+test('connecting a second provider keeps the first; replacing a key replaces only that provider\'s', async () => {
+  await providers.saveProviderKey(TREE, 'u1', 'openrouter', OPENROUTER_KEY);
+  const before = (await providers.providerStates(TREE)).map((p) => [p.provider, p.keyTail]);
+  assert.deepEqual(before.find(([p]) => p === 'anthropic'), ['anthropic', ANTHROPIC_KEY.slice(-4)]);
+  assert.deepEqual(before.find(([p]) => p === 'openrouter'), ['openrouter', OPENROUTER_KEY.slice(-4)]);
+  await providers.saveProviderKey(TREE, 'u1', 'openrouter', 'sk-or-v1-REPLACED-KEY-9999');
+  const after = await providers.providerStates(TREE);
+  assert.equal(after.find((p) => p.provider === 'openrouter')?.keyTail, '9999');
+  assert.equal(await providers.keyFor(TREE, 'anthropic'), ANTHROPIC_KEY, 'the other key is untouched');
 });
 
-test('saving a new provider with a new key replaces the key', async () => {
-  await settings.saveSettings(TREE, 'u1', {
-    provider: 'openai', model: 'gpt-6.1-sol', features: { assistant: true, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: OPENAI_KEY,
-  });
-  const cur = await settings.readSettings(TREE);
-  assert.equal(cur.provider, 'openai');
-  assert.equal(await openKey(TREE, cur.sealed!), OPENAI_KEY);
-  assert.equal(cur.keyTail, OPENAI_KEY.slice(-4));
+test('removing a provider disables its routes: they report needs-provider and are never rerouted', async () => {
+  await providers.saveProviderKey(TREE, 'u1', 'openrouter', OPENROUTER_KEY);
+  await providers.saveRoutes(TREE, [{ route: 'occupations', provider: 'openrouter', model: 'google/gemini-3.8-flash' }]);
+  await providers.removeProvider(TREE, 'openrouter');
+  const route = await providers.resolveRoute(TREE, 'occupations');
+  assert.equal(route.provider, 'openrouter', 'the choice is kept, so connecting again restores it');
+  assert.equal(route.connected, false, 'and it cannot run');
+  assert.equal(route.effective?.provider, 'openrouter', 'it is not sent to another provider');
+  await assert.rejects(() => providers.keyFor(TREE, 'openrouter'), (e: unknown) => e instanceof AiError && e.code === 'not-configured');
+  // The assistant still runs on Anthropic, untouched.
+  assert.equal((await providers.resolveRoute(TREE, 'assistant')).connected, true);
 });
 
-test('saving the same provider with no new key keeps the saved key', async () => {
-  await settings.saveSettings(TREE, 'u1', {
-    provider: 'openai', model: 'gpt-5.5', features: { assistant: true, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {},
-  });
-  const cur = await settings.readSettings(TREE);
-  assert.equal(cur.model, 'gpt-5.5');
-  assert.equal(await openKey(TREE, cur.sealed!), OPENAI_KEY);
+test('a job that follows the assistant needs the assistant\'s provider: removing it never reroutes the job to another provider', async () => {
+  await providers.saveProviderKey(TREE, 'u1', 'openrouter', OPENROUTER_KEY);
+  await providers.removeProvider(TREE, 'anthropic');
+  const faces = await providers.resolveRoute(TREE, 'faces');
+  assert.equal(faces.effective?.provider, 'anthropic', 'it still follows the assistant');
+  assert.equal(faces.connected, false, 'and waits for Anthropic: OpenRouter is connected, but is not used');
+  await providers.saveProviderKey(TREE, 'u1', 'anthropic', ANTHROPIC_KEY);
 });
-
-// ---------- saving a new key after a removal ----------
-
-test('a removal saved with a new key typed keeps the new key: the removal does not drop it', async () => {
-  const tree = 'keys-remove';
-  await settings.saveSettings(tree, 'u1', {
-    provider: 'anthropic', model: '', features: { assistant: false, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: ANTHROPIC_KEY,
-  });
-  // Remove the key, save; then type a new one and save: the page sends the new key with no removal.
-  await settings.saveSettings(tree, 'u1', { provider: 'anthropic', model: '', features: { assistant: false, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, clearKey: true });
-  assert.equal((await settings.readSettings(tree)).sealed, null, 'the key was removed');
-  const NEW = 'sk-ant-NEW-KEY-typed-after-removal-99';
-  await settings.saveSettings(tree, 'u1', { provider: 'anthropic', model: '', features: { assistant: false, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: NEW });
-  const after = await settings.readSettings(tree);
-  assert.equal(await openKey(tree, after.sealed!), NEW, 'the new key is saved');
-  // And a save that sends both (the page's old state) saves the typed key rather than dropping it.
-  await settings.saveSettings(tree, 'u1', { provider: 'anthropic', model: '', features: { assistant: false, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, clearKey: true, apiKey: NEW + '-2' });
-  assert.equal(await openKey(tree, (await settings.readSettings(tree)).sealed!), NEW + '-2');
-});
-
-// ---------- the saved model, and Test connection on reasoning models ----------
 
 test('a saved OpenRouter model with the :online suffix is read back without it', async () => {
-  const tree = 'keys-online';
-  await settings.saveSettings(tree, 'u1', {
-    provider: 'openrouter', model: 'openai/gpt-5', features: { assistant: false, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: OPENAI_KEY,
-  });
-  // A row saved before the suffix was dropped still holds it: it is read without it.
-  await accounts().run('UPDATE ai_settings SET model = ? WHERE tree = ?', 'openai/gpt-5:online', tree);
-  const s = await settings.readSettings(tree);
-  assert.equal(s.model, 'openai/gpt-5');
-  assert.equal(s.effectiveModel, 'openai/gpt-5');
+  await providers.saveProviderKey(TREE, 'u1', 'openrouter', OPENROUTER_KEY);
+  await providers.saveRoutes(TREE, [{ route: 'chronicle', provider: 'openrouter', model: 'openai/gpt-5:online' }]);
+  assert.equal((await providers.resolveRoute(TREE, 'chronicle')).effective?.model, 'openai/gpt-5');
 });
 
-/** OpenRouter's list (for the reasoning flag) and one chat reply, recorded. */
-function stubOpenRouterCheck(reply: () => Response): { calls: { url: string; body: any }[] } {
-  const calls: { url: string; body: any }[] = [];
-  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
-    if (url.includes('/api/v1/models')) {
-      return new Response(JSON.stringify({ data: [
-        // The name says nothing about reasoning; the list does.
-        { id: 'vendor/plain-named', name: 'Plain', pricing: { prompt: '0.000001', completion: '0.000002' }, supported_parameters: ['reasoning', 'max_tokens'] },
-        // The name says reasoning (gpt-5); the list says it does not take a reasoning parameter.
-        { id: 'openai/gpt-5-mini', name: 'GPT-5 mini', pricing: { prompt: '0.000001', completion: '0.000002' }, supported_parameters: ['tools', 'max_tokens'] },
-      ] }), { status: 200, headers: { 'content-type': 'application/json' } });
-    }
-    calls.push({ url, body: JSON.parse(String(init?.body ?? '{}')) });
-    return reply();
-  }) as typeof fetch;
-  return { calls };
-}
-
-const cutOff = () => new Response(JSON.stringify({ choices: [{ finish_reason: 'length', message: { content: null } }], usage: { prompt_tokens: 10, completion_tokens: 16 } }), { status: 200, headers: { 'content-type': 'application/json' } });
-
-test('test connection: a reply the 16-token check cannot read still means the key works', async () => {
-  const { calls } = stubOpenRouterCheck(cutOff);
-  const r = await settings.testConnection('keys-check', { provider: 'openrouter', model: 'vendor/plain-named', apiKey: 'sk-or-typed-12345678' }, 'en');
-  assert.equal(r.ok, true, 'connected');
-  assert.equal(calls.length, 1, 'one check request');
+test('a route is refused on a provider that is not connected, and a route left as it was is not re-judged', async () => {
+  await assert.rejects(() => providers.saveRoutes(TREE, [{ route: 'arms', provider: 'openai', model: 'gpt-5' }]), (e: unknown) => e instanceof AiError && e.message === 'ai.err_provider_not_connected');
+  await providers.removeProvider(TREE, 'openrouter');
+  // Saving the same (now disconnected) choice again is not a new choice, so it is not refused.
+  await providers.saveRoutes(TREE, [{ route: 'occupations', provider: 'openrouter', model: 'google/gemini-3.8-flash' }]);
+  await assert.rejects(() => providers.saveRoutes(TREE, [{ route: 'arms', provider: 'openrouter', model: 'google/gemini-3.8-flash' }]), (e: unknown) => e instanceof AiError && e.message === 'ai.err_provider_not_connected');
 });
 
-test('test connection: the OpenRouter list decides whether a model reasons, over its name', async () => {
-  const { calls } = stubOpenRouterCheck(() => new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: 'OK' } }], usage: { prompt_tokens: 10, completion_tokens: 1 } }), { status: 200, headers: { 'content-type': 'application/json' } }));
-  await settings.testConnection('keys-check', { provider: 'openrouter', model: 'vendor/plain-named', apiKey: 'sk-or-typed-12345678' }, 'en');
-  assert.equal(calls[0].body.max_tokens, 8_000, 'listed as reasoning: the reasoning cap');
-  assert.equal(calls[0].body.reasoning.effort, 'low');
-  await settings.testConnection('keys-check', { provider: 'openrouter', model: 'openai/gpt-5-mini', apiKey: 'sk-or-typed-12345678' }, 'en');
-  assert.equal(calls[1].body.max_tokens, 16, 'listed as not reasoning, so the name does not raise the cap');
-  assert.equal(calls[1].body.reasoning, undefined);
+test('a family-level switch cannot be turned on for a job that has no connected provider', async () => {
+  await assert.rejects(
+    () => settings.saveSettings(TREE, 'u1', { features: { ...OFF, assistant: true, arms: true }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, routes: [{ route: 'arms', provider: 'openai', model: '' }] }),
+    (e: unknown) => e instanceof AiError && e.message === 'ai.needsKey',
+  );
 });

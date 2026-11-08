@@ -20,9 +20,10 @@ export const RECOMMENDED: readonly Recommendation[] = [
   { provider: 'openai', model: 'gpt-6.1-sol', role: 'balanced', provisional: true },
   { provider: 'openai', model: 'gpt-6.1-terra', role: 'cheap', provisional: true },
   { provider: 'openai', model: 'gpt-6-astra', role: 'best', provisional: true },
-  { provider: 'openrouter', model: 'anthropic/claude-sonnet-5.5', role: 'balanced', provisional: true },
-  { provider: 'openrouter', model: 'anthropic/claude-haiku-5.5', role: 'cheap', provisional: true },
-  { provider: 'openrouter', model: 'anthropic/claude-opus-5.5', role: 'best', provisional: true },
+  // Measured 2026-11-08 through OpenRouter: Gemini 3.8 Flash 98%, GPT-6.1 Terra 95%, Haiku 86% (it cited no page for web research) at the lowest cost.
+  { provider: 'openrouter', model: 'google/gemini-3.8-flash', role: 'best', provisional: false },
+  { provider: 'openrouter', model: 'openai/gpt-6.1-terra', role: 'balanced', provisional: false },
+  { provider: 'openrouter', model: 'anthropic/claude-haiku-5.5', role: 'cheap', provisional: false },
 ];
 
 export const recommendedFor = (provider: Provider): Recommendation[] => RECOMMENDED.filter((r) => r.provider === provider);

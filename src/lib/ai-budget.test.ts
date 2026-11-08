@@ -21,6 +21,7 @@ const load = <T>(path: string) => vite.ssrLoadModule(path) as Promise<T>;
 const { closeAccounts } = await load<typeof import('./store/node.ts')>('/src/lib/store/node.ts');
 const { accounts } = await load<typeof import('./auth/store.server.ts')>('/src/lib/auth/store.server.ts');
 const settings = await load<typeof import('./ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
+const setup = await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts');
 const { AiError, outputCap } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
 const { tr } = await load<typeof import('./ai/labels.ts')>('/src/lib/ai/labels.ts');
 
@@ -39,7 +40,7 @@ const price = { inPerM: 1, outPerM: 1, searchEach: 0.01 };
 
 /** A family with the assistant on, a saved key, the given monthly budget in micro-dollars, and the test price. Each test uses its own family. */
 async function family(tree: string, monthlyMicros: number) {
-  await settings.saveSettings(tree, 'u1', {
+  await setup.setUpFamilyAi(tree, 'u1', {
     provider: 'anthropic',
     model: FAKE_MODEL,
     features: { assistant: true, faces: false, avatar: false, arms: false },

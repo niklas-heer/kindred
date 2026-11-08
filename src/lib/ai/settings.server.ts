@@ -1,30 +1,24 @@
-// A family's AI settings, the monthly budget in money, and turning a settings row into a ready adapter. Settings
-// live in the accounts database (migrations/accounts/0003_ai_settings.sql and 0007_ai_money.sql), one row per family.
+// A family's AI settings: the feature switches, web search, the monthly budget in money and the family's own prices, and the
+// adapter each job gets. Settings live in the accounts database (migrations/accounts/0003, 0007 and 0010), one row per
+// family in ai_settings. Which provider and model a job uses is a route (providers.server.ts); the keys are per provider.
 import { accounts } from '../auth/store.server';
 import { AiError, DEFAULT_MAX_TOKENS, DEFAULT_SEARCH_USES, callRounds, chatModelId, makeAdapter, outputCap, searchesOnItsOwn, type AiAdapter, type AiReply, type AiRequest } from './adapters';
 import { fakeAdapter } from './fake';
 import { openRouterListed } from './models.server';
 import { costMicros, reportedMicros, resolvePrice, searchReserveMicros, type Price } from './prices';
-import { keyTail, openKey, sealKey } from './secret.server';
+import { keyFor, projectedConnected, resolveRoute, resolveRoutes, saveRoutes, type ResolvedRoute, type RouteInput } from './providers.server';
 import { tr, type Tr } from './labels';
-import { translate } from '../i18n/dictionary';
-import { DEFAULT_MODEL, FEATURES, PROVIDERS, type AiFeatures, type AiStatus, type CustomPrice, type Feature, type Provider } from './types';
-import type { AiLocale } from './types';
+import { DEFAULT_MODEL, FEATURES, type AiFeatures, type AiLocale, type AiStatus, type CustomPrice, type Feature, type Provider, type Route } from './types';
 
 export const OFF: AiFeatures = { assistant: false, faces: false, avatar: false, arms: false };
 /** $5 a month, until a steward chooses otherwise. */
 export const DEFAULT_MONTHLY_MICROS = 5_000_000;
-const MODEL = /^[A-Za-z0-9._:/-]{1,120}$/;
 
 /** The fake provider is on when KINDRED_AI_FAKE=1: every feature uses scripted answers (tests). */
 export const fakeOn = () => process.env.KINDRED_AI_FAKE === '1';
 
 interface Row {
   tree: string;
-  provider: Provider;
-  model: string;
-  key_sealed: string | null;
-  key_tail: string | null;
   features: string;
   web_search: number;
   monthly_micros: number;
@@ -33,12 +27,6 @@ interface Row {
 }
 
 export interface Settings {
-  provider: Provider;
-  model: string;
-  /** Empty means the provider's default. */
-  effectiveModel: string;
-  keyTail: string | null;
-  sealed: string | null;
   features: AiFeatures;
   webSearch: boolean;
   /** The monthly budget in micro-dollars. 0 turns AI off. */
@@ -57,6 +45,7 @@ const parseFeatures = (s: string): AiFeatures => {
 };
 
 /** Only finite, non-negative prices survive; anything else is dropped rather than booked. */
+const MODEL = /^[A-Za-z0-9._:/-]{1,120}$/;
 export function parseCustomPrices(s: string): Record<string, CustomPrice> {
   try {
     const j = JSON.parse(s) as Record<string, Partial<CustomPrice>>;
@@ -75,18 +64,9 @@ export function parseCustomPrices(s: string): Record<string, CustomPrice> {
 export async function readSettings(tree: string): Promise<Settings> {
   const r = await accounts().get<Row>('SELECT * FROM ai_settings WHERE tree = ?', tree);
   if (!r) {
-    return {
-      provider: 'anthropic', model: '', effectiveModel: DEFAULT_MODEL.anthropic, keyTail: null, sealed: null,
-      features: { ...OFF }, webSearch: false, monthlyMicros: DEFAULT_MONTHLY_MICROS, customPrices: {}, updated: 0,
-    };
+    return { features: { ...OFF }, webSearch: false, monthlyMicros: DEFAULT_MONTHLY_MICROS, customPrices: {}, updated: 0 };
   }
-  const model = chatModelId(r.provider, r.model);
   return {
-    provider: r.provider,
-    model,
-    effectiveModel: model || DEFAULT_MODEL[r.provider],
-    keyTail: r.key_tail,
-    sealed: r.key_sealed,
     features: parseFeatures(r.features),
     webSearch: r.web_search === 1,
     monthlyMicros: r.monthly_micros,
@@ -96,57 +76,38 @@ export async function readSettings(tree: string): Promise<Settings> {
 }
 
 export interface SaveInput {
-  provider: Provider;
-  model: string;
   features: AiFeatures;
   webSearch: boolean;
   monthlyMicros: number;
   customPrices: Record<string, CustomPrice>;
-  apiKey?: string;
-  clearKey?: boolean;
+  /** The routes to save. A route left out keeps its stored choice. */
+  routes?: RouteInput[];
 }
 
 /**
- * Saves the settings. A typed key is sealed and replaces the saved one; without one, the saved key stays, and `clearKey`
- * removes it. A model that searches by itself is refused, and OpenRouter's :online suffix is dropped (chatModelId).
+ * Saves the family's settings. A switch can be turned on only when its job has a connected provider (checked before anything
+ * is written). A model that searches by itself is refused, and OpenRouter's :online suffix is dropped (chatModelId).
  */
-export async function saveSettings(tree: string, by: string, input: SaveInput): Promise<void> {
-  const model = chatModelId(input.provider, input.model.trim());
-  if (searchesOnItsOwn(input.provider, model)) throw new AiError('bad-input', 'ai.err_model_search');
+export async function saveSettings(tree: string, by: string | null, input: SaveInput): Promise<void> {
   const cur = await readSettings(tree);
-  let sealed = cur.sealed;
-  let tail = cur.keyTail;
-  if (input.apiKey) {
-    sealed = await sealKey(tree, input.apiKey);
-    tail = keyTail(input.apiKey);
-  } else if (input.clearKey) {
-    sealed = null;
-    tail = null;
-  } else if (cur.sealed && !savedKeyFits(cur, input.provider)) {
-    // Switching provider keeps the old key only if it would be sent to the new provider: refused, and nothing is saved.
-    // The message is the dictionary key: the settings page shows its translated text.
-    throw new AiError('key-required', 'ai.err_key_required');
+  const routes = input.routes ?? [];
+  for (const f of FEATURES) {
+    if (!input.features[f] || cur.features[f]) continue;
+    // Switched on now: the route of that feature (assistant, faces, avatar, arms) must have a connected provider.
+    const ok = await projectedConnected(tree, f as Route, routes);
+    if (!ok) throw new AiError('not-configured', 'ai.needsKey');
   }
+  await saveRoutes(tree, routes);
   await accounts().run(
-    `INSERT INTO ai_settings (tree, provider, model, key_sealed, key_tail, features, web_search, monthly_micros, custom_prices, updated, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(tree) DO UPDATE SET provider = excluded.provider, model = excluded.model, key_sealed = excluded.key_sealed,
-       key_tail = excluded.key_tail, features = excluded.features, web_search = excluded.web_search,
+    `INSERT INTO ai_settings (tree, features, web_search, monthly_micros, custom_prices, updated, updated_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(tree) DO UPDATE SET features = excluded.features, web_search = excluded.web_search,
        monthly_micros = excluded.monthly_micros, custom_prices = excluded.custom_prices,
        updated = excluded.updated, updated_by = excluded.updated_by`,
-    tree, input.provider, model, sealed, tail, JSON.stringify(input.features), input.webSearch ? 1 : 0,
+    tree, JSON.stringify(input.features), input.webSearch ? 1 : 0,
     Math.max(0, Math.round(input.monthlyMicros)), JSON.stringify(input.customPrices), Date.now(), by,
   );
 }
-
-/**
- * A saved key may be used only with the provider it was saved for. Every path that would send it (Test connection,
- * Save, the model list, a call) asks this one rule, so a key is never sent to a provider it was not saved for.
- */
-export const savedKeyFits = (cur: Pick<Settings, 'sealed' | 'provider'>, provider: Provider): boolean => !!cur.sealed && cur.provider === provider;
-
-export const validModel = (m: string) => m === '' || MODEL.test(m);
-export const providerOk = (p: string): p is Provider => (PROVIDERS as readonly string[]).includes(p);
 
 // ---------- the monthly budget (UTC months, in micro-dollars) ----------
 //
@@ -160,6 +121,7 @@ export const providerOk = (p: string): p is Provider => (PROVIDERS as readonly s
 // call really cost: the provider's reported USD cost when it reports one (OpenRouter), else the tokens it used and its
 // searches, at the model's price. A failure is charged what its completed requests billed (AiError.billed); a failure with no
 // completed request costs nothing when the provider did not bill it, and its reservation when it may have.
+// The budget is one for the whole family, whichever provider or model a job uses: each call is priced by its own route.
 
 /** One call may reserve at most this share of the month's budget... */
 export const SINGLE_CALL_SHARE = 0.2;
@@ -267,81 +229,81 @@ export function budgeted(tree: string, limitMicros: number, adapter: AiAdapter, 
   };
 }
 
-// ---------- adapters ----------
+// ---------- adapters, one per route ----------
 
-/**
- * The adapter for a family, or the reason there is none. Throws `not-configured` when no key is saved
- * (or the key can't be opened), and `key-unreadable` for a key sealed under another secret.
- */
-export async function adapterFor(tree: string, s?: Settings): Promise<AiAdapter> {
-  const cur = s ?? (await readSettings(tree));
-  if (!cur.sealed) throw new AiError('not-configured', translate('en', 'ai.errNotConfigured'));
-  if (searchesOnItsOwn(cur.provider, cur.effectiveModel)) throw new AiError('bad-input', 'ai.err_model_search');
-  const key = await openKey(tree, cur.sealed);
-  if (fakeOn()) return fakeAdapter(cur.effectiveModel);
-  const listed = cur.provider === 'openrouter' ? await openRouterListed(cur.effectiveModel) : undefined;
-  return makeAdapter(cur.provider, key, cur.effectiveModel, { reasoning: listed?.reasoning });
+/** The reason a route cannot run, as a dictionary key: its provider is not connected, or it has no model yet. */
+export function routeBlock(r: ResolvedRoute): string | null {
+  if (!r.effective) return 'ai.errNotConfigured';
+  if (!r.connected) return 'ai.err_needs_provider';
+  if (r.needsModel) return 'paint.err_no_model';
+  return null;
 }
 
 /**
- * The adapter for one feature, after the switch is checked, and whether this family allows web search. Every call
- * the adapter makes is booked against the family's monthly budget before it is sent (see `budgeted`). Throws AiError
- * with a message in the reader's language when it can't run. `webSearch` is for the caller to pass on: only the
- * assistant does, and only when the reply can say what it searched.
+ * The raw adapter for one route (no budget): its provider's own key, its model, and the price the budget books with. Throws
+ * AiError with a message in the reader's language when the route cannot run (its provider is not connected, so nothing is
+ * sent). Does not check a feature's switch, and does not book: the caller wraps it (`budgeted`, or background's cap).
+ */
+export async function routeAdapter(tree: string, route: Route, locale: AiLocale): Promise<{ inner: AiAdapter; price: Price; settings: Settings; resolved: ResolvedRoute }> {
+  const c = tr(locale);
+  const settings = await readSettings(tree);
+  const resolved = await resolveRoute(tree, route);
+  const block = routeBlock(resolved);
+  if (block) throw new AiError('not-configured', c(block as 'ai.errNotConfigured'));
+  const { provider, model } = resolved.effective!;
+  if (searchesOnItsOwn(provider, model)) throw new AiError('bad-input', c('ai.err_model_search'));
+  // The key is the provider's own: keyFor opens nothing else.
+  const key = await keyFor(tree, provider);
+  // OpenRouter's own list prices its models and says whether they reason; the table prices the other two. Read once per adapter, never per call.
+  const listed = provider === 'openrouter' && !fakeOn() ? await openRouterListed(model) : undefined;
+  const { price } = resolvePrice(provider, model, settings.customPrices, listed?.price);
+  const inner = fakeOn() ? fakeAdapter(model) : makeAdapter(provider, key, model, { reasoning: listed?.reasoning });
+  return { inner, price, settings, resolved };
+}
+
+/**
+ * The adapter for one feature, after its switch is checked, and whether this family allows web search. Every call the adapter
+ * makes is booked against the family's monthly budget before it is sent (see `budgeted`). Throws AiError with a message in
+ * the reader's language when it can't run. `webSearch` is for the caller to pass on: only the assistant does, and only when
+ * the reply can say what it searched.
  */
 export async function adapterForFeature(tree: string, feature: Feature, locale: AiLocale): Promise<{ adapter: AiAdapter; webSearch: boolean; settings: Settings }> {
   const c = tr(locale);
   const settings = await readSettings(tree);
   if (!settings.features[feature]) throw new AiError('not-configured', c('ai.errOff'));
-  if (!settings.sealed) throw new AiError('not-configured', c('ai.errNotConfigured'));
   if (settings.monthlyMicros <= 0) throw new AiError('budget', c('ai.errBudget'));
-  const inner = await adapterFor(tree, settings);
-  if (searchesOnItsOwn(settings.provider, settings.effectiveModel)) throw new AiError('bad-input', c('ai.err_model_search'));
-  // OpenRouter's own list prices its models and says whether they reason; the table prices the other two. Read once per adapter, never per call.
-  const listed = settings.provider === 'openrouter' && !fakeOn() ? await openRouterListed(settings.effectiveModel) : undefined;
-  const { price } = resolvePrice(settings.provider, settings.effectiveModel, settings.customPrices, listed?.price);
+  const { inner, price } = await routeAdapter(tree, feature as Route, locale);
   return { adapter: budgeted(tree, settings.monthlyMicros, inner, price, c), webSearch: settings.webSearch, settings };
 }
 
-/** What the browser shows: a feature is on only when it is switched on, a readable key is saved, and the budget is above 0. */
+/** What the browser shows: the assistant is set up (its provider connected), a feature is on only when switched on and its own route runs, and the budget is above 0. */
 export async function statusFor(tree: string): Promise<AiStatus> {
   const s = await readSettings(tree);
-  let configured = false;
-  if (s.sealed) {
-    try {
-      await openKey(tree, s.sealed);
-      configured = true;
-    } catch {
-      configured = false;
-    }
-  }
-  const on = configured && s.monthlyMicros > 0;
+  const routes = await resolveRoutes(tree);
+  const assistant = routes.assistant;
+  const configured = assistant.connected;
+  const fake = fakeOn() && configured;
+  const on = s.monthlyMicros > 0;
   return {
     configured,
-    provider: fakeOn() && configured ? 'fake' : configured ? s.provider : null,
-    features: Object.fromEntries(FEATURES.map((f) => [f, on && s.features[f]])) as AiFeatures,
+    provider: fake ? 'fake' : configured ? assistant.effective!.provider : null,
+    features: Object.fromEntries(FEATURES.map((f) => [f, on && s.features[f] && routes[f as Route].connected])) as AiFeatures,
   };
 }
 
-/** A live call to the provider with the given key, for "Test connection". Never stores anything. */
+/**
+ * A live call to one provider, for "Test connection". The key is the typed one, else that provider's own saved key. Never
+ * stores anything, and never uses another provider's key.
+ */
 export async function testConnection(tree: string, input: { provider: Provider; model: string; apiKey?: string }, locale: AiLocale) {
-  const c = tr(locale);
   const model = chatModelId(input.provider, input.model.trim() || DEFAULT_MODEL[input.provider]);
   const started = Date.now();
   try {
     let adapter: AiAdapter;
-    let key = input.apiKey?.trim() ?? '';
-    if (!key) {
-      const s = await readSettings(tree);
-      // The saved key goes only to the provider it was saved for: another provider needs a key typed here.
-      if (s.sealed && !savedKeyFits(s, input.provider)) throw new AiError('key-required', c('ai.err_key_required'));
-      if (!fakeOn()) {
-        if (!s.sealed) throw new AiError('not-configured', c('ai.errNotConfigured'));
-        key = await openKey(tree, s.sealed);
-      }
-    }
+    const typed = input.apiKey?.trim() ?? '';
     if (fakeOn()) adapter = fakeAdapter(model);
     else {
+      const key = typed || (await keyFor(tree, input.provider));
       const listed = input.provider === 'openrouter' ? await openRouterListed(model) : undefined;
       adapter = makeAdapter(input.provider, key, model, { reasoning: listed?.reasoning });
     }

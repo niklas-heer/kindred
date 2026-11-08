@@ -12,12 +12,26 @@ export const PROVIDER_LABEL: Record<Provider, string> = { anthropic: 'Anthropic'
 export const DEFAULT_MODEL: Record<Provider, string> = {
   anthropic: 'claude-haiku-5-5', // the measured best value: docs/ai-model-test.md
   openai: 'gpt-6.1-sol',
-  openrouter: 'anthropic/claude-sonnet-5.5',
+  openrouter: 'google/gemini-3.8-flash', // the measured best: docs/ai-model-test-openrouter.md
 };
 
 export const FEATURES = ['assistant', 'faces', 'avatar', 'arms'] as const;
 export type Feature = (typeof FEATURES)[number];
 export type AiFeatures = Record<Feature, boolean>;
+
+/**
+ * The jobs that can each use their own provider and model (a route). The assistant's route is the base: the others
+ * follow it, unless a steward picks one. Painted portraits have their own route and only offer image-capable providers.
+ */
+export const ROUTES = ['assistant', 'arms', 'faces', 'avatar', 'portrait', 'arms-review', 'occupations', 'chronicle'] as const;
+export type Route = (typeof ROUTES)[number];
+/** Whether a route may follow the assistant's provider and model (the "same as the assistant" choice). Painting never does. */
+export const followsAssistant = (r: Route): boolean => r !== 'assistant' && r !== 'portrait';
+/** The providers that can paint a portrait: Kindred has an adapter for their image models (OpenRouter's, today). */
+export const PAINT_PROVIDERS: readonly Provider[] = ['openrouter'];
+/** The background tasks, and the route each one uses. */
+export const TASK_ROUTE = { arms: 'arms-review', occupations: 'occupations', chronicle: 'chronicle' } as const;
+export type TaskName = keyof typeof TASK_ROUTE;
 
 /** The reader's locale as the assistant speaks it. Anything else answers in English. */
 export type AiLocale = Locale;
@@ -34,14 +48,34 @@ export interface AiStatus {
 /** A price the family typed in for a model Kindred has no price for: USD per 1M tokens. */
 export interface CustomPrice { inPerM: number; outPerM: number }
 
-/** What the AI settings page reads: never the key itself, only its masked tail. Money is in micro-dollars (1 USD = 1,000,000). */
-export interface AiSettingsData {
+/** One connected provider as the settings page shows it: never the key itself, only its masked tail. */
+export interface ProviderState {
   provider: Provider;
-  model: string;
-  defaultModel: string;
   keyState: 'none' | 'saved' | 'unreadable';
   keyTail: string | null;
+  updated: number;
+}
+
+/** A route as the settings page shows it: what the steward chose, where the job goes now, and whether it can run. */
+export interface RouteState {
+  route: Route;
+  /** The steward's choice. Null provider: the same as the assistant (and its model). */
+  provider: Provider | null;
+  model: string;
+  /** The provider and model the job uses now, after "same as the assistant" is applied. Null when no provider is chosen. */
+  effective: { provider: Provider; model: string } | null;
+  /** ready: the job's switch is on and its provider is connected. needs-provider: its provider is not connected (never rerouted). */
+  state: 'off' | 'ready' | 'needs-provider' | 'needs-model';
+}
+
+/** What the AI settings page reads. Money is in micro-dollars (1 USD = 1,000,000). */
+export interface AiSettingsData {
+  providers: ProviderState[];
+  routes: RouteState[];
   features: AiFeatures;
+  /** The painted-portrait switch and each background task's switch: their routes are in `routes`. */
+  portraitEnabled: boolean;
+  tasks: Record<TaskName, boolean>;
   /** Web search for the assistant: the model may search the web, and the search queries go to the provider. */
   webSearch: boolean;
   /** The monthly budget. 0 turns AI off. */

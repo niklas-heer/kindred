@@ -1,11 +1,11 @@
 // The AI server functions: settings (stewards), the assistant (viewers ask; contributors and editors
 // get proposals), and the three suggestion features. Every handler starts with the server's role check,
 // the same one the browser asks `useCan()` about. Keys never leave the server: the settings return only
-// a masked tail.
+// each provider's state and masked tail.
 import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
-import { CHAT_MESSAGE_CHARS, DEFAULT_MODEL, FAMILY_SESSION_CHARS, PROVIDERS, FEATURES, toAiLocale, type AiFeatures, type ModelInfo, type Provider } from './ai/types';
+import { CHAT_MESSAGE_CHARS, FAMILY_SESSION_CHARS, PROVIDERS, ROUTES, toAiLocale, type AiSettingsData, type ModelInfo, type Provider } from './ai/types';
 
 /** The models a provider offers, or why they could not be listed (the page then offers a typed model id). */
 export type ModelsResult =
@@ -14,9 +14,10 @@ export type ModelsResult =
 
 const tree = z.string().regex(/^[a-z0-9-]{1,64}$/);
 const locale = z.string().max(8).optional();
-const features = z.object({ assistant: z.boolean(), faces: z.boolean(), avatar: z.boolean(), arms: z.boolean() });
 const guard = () => import('./auth/guard.server');
 const ai = () => import('./ai/settings.server');
+const page = () => import('./ai/page.server');
+const providers = () => import('./ai/providers.server');
 
 // ---------- status (what the UI may show) ----------
 
@@ -31,101 +32,106 @@ export const aiStatusQuery = (t: string) => queryOptions({ queryKey: ['ai-status
 
 // ---------- settings (stewards) ----------
 
+const routeInput = z.object({
+  route: z.enum(ROUTES),
+  /** Null: the same as the assistant (only for the routes that follow it). */
+  provider: z.enum(PROVIDERS).nullable(),
+  model: z.string().trim().max(120),
+});
+
+/** Every connected provider's state, every route, the switches, the budget and the prices. Never a key. */
 export const aiSettings = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<AiSettingsData> => {
     await (await guard()).requireCan(data.tree, 'manage-access');
-    const s = await ai();
-    const { openKey } = await import('./ai/secret.server');
-    const cur = await s.readSettings(data.tree);
-    let keyState: 'none' | 'saved' | 'unreadable' = 'none';
-    if (cur.sealed) {
-      try { await openKey(data.tree, cur.sealed); keyState = 'saved'; } catch { keyState = 'unreadable'; }
-    }
-    return {
-      provider: cur.provider,
-      model: cur.model,
-      defaultModel: DEFAULT_MODEL[cur.provider],
-      keyState,
-      keyTail: keyState === 'saved' ? cur.keyTail : null,
-      features: cur.features,
-      webSearch: cur.webSearch,
-      monthlyMicros: cur.monthlyMicros,
-      spentMicros: await s.spentThisMonth(data.tree),
-      resetsOn: s.resetsOn(),
-      customPrices: cur.customPrices,
-      updated: cur.updated,
-    };
+    return (await page()).settingsPage(data.tree);
   });
 
 export const aiSettingsQuery = (t: string) => queryOptions({ queryKey: ['ai-settings', t], queryFn: () => aiSettings({ data: { tree: t } }) });
 
+/** Saves the page: the routes, the feature switches, the budget and web search, the prices, and the portrait and task switches. */
 export const aiSaveSettings = createServerFn({ method: 'POST' })
   .validator(z.object({
     tree,
-    provider: z.enum(PROVIDERS),
-    model: z.string().trim().max(120),
-    /** Empty or absent keeps the saved key. */
-    apiKey: z.string().trim().max(400).optional(),
-    clearKey: z.boolean().optional(),
-    features,
+    /** Every route the page shows (a route left out keeps its stored choice). */
+    routes: z.array(routeInput).max(ROUTES.length),
+    features: z.object({ assistant: z.boolean(), faces: z.boolean(), avatar: z.boolean(), arms: z.boolean() }),
     /** The monthly budget in US dollars. 0 turns AI off. */
     monthlyUsd: z.number().min(0).max(10_000),
     webSearch: z.boolean(),
     /** The family's own prices, for models Kindred has no price for (USD per 1M tokens). Replaces the saved map when sent. */
     customPrices: z.record(z.string().trim().min(1).max(120), z.object({ inPerM: z.number().min(0).max(10_000), outPerM: z.number().min(0).max(10_000) })).optional(),
+    portraitEnabled: z.boolean(),
+    tasks: z.object({ arms: z.boolean(), occupations: z.boolean(), chronicle: z.boolean() }),
     locale,
   }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireCan(data.tree, 'manage-access');
-    const s = await ai();
-    const c = (await import('./ai/labels')).tr(toAiLocale(data.locale));
-    if (!s.validModel(data.model)) throw new Error('ai.err_model_chars');
-    if (data.apiKey && !/^\S{8,400}$/.test(data.apiKey)) throw new Error('ai.err_key_shape');
-    const cur = await s.readSettings(data.tree);
-    const keyWillExist = !data.clearKey && (!!data.apiKey || !!cur.sealed);
-    if (!keyWillExist && (FEATURES as readonly string[]).some((f) => data.features[f as keyof AiFeatures])) throw new Error(c('ai.needsKey'));
-    await s.saveSettings(data.tree, m.user.id, {
-      provider: data.provider,
-      model: data.model,
+    const { validModel } = await providers();
+    for (const r of data.routes) {
+      if (!validModel(r.model)) throw new Error('ai.err_model_chars');
+    }
+    const cur = await (await ai()).readSettings(data.tree);
+    await (await page()).saveSettingsPage(data.tree, m.user.id, {
       features: data.features,
       webSearch: data.webSearch,
       monthlyMicros: Math.round(data.monthlyUsd * 1_000_000),
       customPrices: data.customPrices ?? cur.customPrices,
-      apiKey: data.apiKey || undefined,
-      clearKey: data.clearKey,
+      routes: data.routes,
+      portraitEnabled: data.portraitEnabled,
+      tasks: data.tasks,
     });
   });
 
+const apiKeyShape = z.string().trim().max(400);
+
 /**
- * The models a provider offers, for the page's list. Uses the key typed on the page when one is given (checked, and
- * never stored or logged), else the family's saved key for the saved provider. Stewards only.
+ * Connects a provider with its key (replacing the saved one). The key is sealed for that provider and never returned. Stewards only.
+ * Refused when the key has the wrong shape; the connection is checked separately ("Test connection").
+ */
+export const aiSaveProvider = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, provider: z.enum(PROVIDERS), apiKey: apiKeyShape, locale }))
+  .handler(async ({ data }) => {
+    const m = await (await guard()).requireCan(data.tree, 'manage-access');
+    if (!/^\S{8,400}$/.test(data.apiKey)) throw new Error('ai.err_key_shape');
+    await (await providers()).saveProviderKey(data.tree, m.user.id, data.provider, data.apiKey);
+  });
+
+/**
+ * Disconnects a provider: its key is deleted, and every route that uses it reports "needs a provider" until it is connected
+ * again. Nothing is rerouted to another provider. Stewards only.
+ */
+export const aiRemoveProvider = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, provider: z.enum(PROVIDERS) }))
+  .handler(async ({ data }) => {
+    await (await guard()).requireCan(data.tree, 'manage-access');
+    await (await providers()).removeProvider(data.tree, data.provider);
+  });
+
+/**
+ * The models a provider offers, for the page's list. Uses the key typed on the page when one is given (checked, and never
+ * stored or logged), else that provider's own saved key. Stewards only.
  */
 export const aiListModels = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, provider: z.enum(PROVIDERS).optional(), key: z.string().trim().max(400).optional(), locale }))
+  .validator(z.object({ tree, provider: z.enum(PROVIDERS), key: z.string().trim().max(400).optional(), locale }))
   .handler(async ({ data }): Promise<ModelsResult> => {
     await (await guard()).requireCan(data.tree, 'manage-access');
-    const s = await ai();
     const c = (await import('./ai/labels')).tr(toAiLocale(data.locale));
-    const cur = await s.readSettings(data.tree);
-    const provider: Provider = data.provider ?? cur.provider;
     let key = data.key ?? '';
-    const fits = s.savedKeyFits(cur, provider);
-    if (!key && fits) {
-      const { openKey } = await import('./ai/secret.server');
+    if (!key) {
       try {
-        key = await openKey(data.tree, cur.sealed!);
-      } catch {
-        return { ok: false, code: 'key-unreadable', message: c('ai.err_key_unreadable') };
+        key = await (await providers()).keyFor(data.tree, data.provider);
+      } catch (e) {
+        const { AiError } = await import('./ai/adapters');
+        if (e instanceof AiError) return { ok: false, code: e.code, message: e.code === 'not-configured' ? c('ai.errNoKey') : c('ai.err_key_unreadable') };
+        throw e;
       }
     }
-    // The saved key is never sent to another provider: a different one needs a key typed here.
-    if (!key) return cur.sealed && !fits ? { ok: false, code: 'key-required', message: c('ai.err_key_required') } : { ok: false, code: 'not-configured', message: c('ai.errNoKey') };
     const { AiError } = await import('./ai/adapters');
     try {
       const { listModels } = await import('./ai/models.server');
-      const r = await listModels(provider, key);
-      return { ok: true, provider, models: r.models, cached: r.cached };
+      const r = await listModels(data.provider, key);
+      return { ok: true, provider: data.provider, models: r.models, cached: r.cached };
     } catch (e) {
       if (e instanceof AiError) return { ok: false, code: e.code, message: e.message };
       throw e;
@@ -136,9 +142,8 @@ export const aiTestConnection = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, provider: z.enum(PROVIDERS), model: z.string().trim().max(120), apiKey: z.string().trim().max(400).optional(), locale }))
   .handler(async ({ data }) => {
     await (await guard()).requireCan(data.tree, 'manage-access');
-    const s = await ai();
-    if (!s.validModel(data.model)) return { ok: false as const, message: 'ai.err_model_chars', model: data.model, code: 'bad-input' as const };
-    return s.testConnection(data.tree, { provider: data.provider, model: data.model, apiKey: data.apiKey || undefined }, toAiLocale(data.locale));
+    if (!(await providers()).validModel(data.model)) return { ok: false as const, message: 'ai.err_model_chars', model: data.model, code: 'bad-input' as const };
+    return (await ai()).testConnection(data.tree, { provider: data.provider, model: data.model, apiKey: data.apiKey || undefined }, toAiLocale(data.locale));
   });
 
 // ---------- the assistant (asking: viewers; proposals are offered by role) ----------

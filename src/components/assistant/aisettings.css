@@ -4,7 +4,7 @@
 .ai-settings {
   display: grid;
   gap: 16px;
-  max-width: 760px;
+  max-width: 940px;
   margin-inline: auto;
   padding-bottom: 32px;
 }
@@ -304,4 +304,124 @@
   .ai-model-price { text-align: start; }
   .ai-actions { justify-content: stretch; }
   .ai-actions .btn { flex: 1 1 auto; }
+}
+
+/* ---------- providers: one card each ---------- */
+
+.ai-provider-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.ai-provider-card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 16px;
+}
+
+.ai-provider-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ai-provider-head .ai-provider-name { margin: 0; font-size: 1.05rem; }
+
+.ai-provider-blurb { margin: 0; }
+
+.ai-provider-card .ai-key-row { flex-wrap: wrap; }
+
+/* A small state label: the same shape for a provider, a job and a background task. */
+.ai-state {
+  display: inline-block;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.ai-state.ok,
+.ai-state.ready { color: var(--ok); border-color: currentColor; }
+
+.ai-state.bad,
+.ai-state.needs-provider,
+.ai-state.needs-model { color: var(--danger); border-color: currentColor; }
+
+.ai-state.off { color: var(--faint); }
+
+/* ---------- what uses what: a table on a desktop, stacked rows on a phone ---------- */
+
+.ai-routes-wrap { overflow-x: visible; }
+
+.ai-routes {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.ai-routes th,
+.ai-routes td {
+  padding: 12px 10px;
+  border-top: 1px solid var(--line);
+  vertical-align: top;
+  text-align: start;
+}
+
+.ai-routes thead th {
+  border-top: 0;
+  padding-top: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.ai-routes th:nth-child(1), .ai-routes td:nth-child(1) { width: 32%; }
+.ai-routes th:nth-child(2), .ai-routes td:nth-child(2) { width: 22%; }
+.ai-routes th:nth-child(3), .ai-routes td:nth-child(3) { width: 28%; }
+.ai-routes th:nth-child(4), .ai-routes td:nth-child(4) { width: 18%; }
+
+.ai-route.is-off td:not(.ai-route-job) { opacity: 0.6; }
+
+.ai-route-job .ai-feature-hint { margin: 4px 0 6px; }
+
+.ai-route-custom { margin-top: 6px; width: 100%; }
+
+.ai-cost-unknown { display: grid; gap: 6px; }
+
+.ai-cost-unknown .ai-custom-grid { grid-template-columns: 1fr 1fr; }
+
+.ai-privacy-list { margin: 0 0 8px; padding-inline-start: 18px; display: grid; gap: 6px; }
+
+.aitasks-state { font-size: 0.85rem; color: var(--muted); }
+.aitasks-state.on { color: var(--ok); }
+
+@media (max-width: 720px) {
+  .ai-routes thead { display: none; }
+  .ai-routes, .ai-routes tbody, .ai-routes tr, .ai-routes td { display: block; width: 100%; }
+  .ai-routes tr {
+    display: grid;
+    gap: 8px;
+    padding: 14px 0;
+    border-top: 1px solid var(--line);
+  }
+  .ai-routes td,
+  .ai-routes td:nth-child(n) { border: 0; padding: 0; width: 100%; }
+  .ai-routes { table-layout: auto; }
+  .ai-routes td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  .ai-routes td.ai-route-job::before { content: none; }
+  .ai-provider-grid { grid-template-columns: 1fr; }
 }

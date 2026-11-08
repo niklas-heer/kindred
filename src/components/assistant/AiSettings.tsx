@@ -1,21 +1,23 @@
-// AI settings for one family, as five guided steps: the provider (cards, each with a link to its key page), the API
-// key (checked as soon as it is typed; the saved one is shown masked), the model (a searchable list from the provider,
-// recommended first, with prices and capabilities), the features (one switch each, web search included), and the
-// monthly budget in dollars with this month's spend. Stewards only; the server checks the same (manage-access) on
-// every call. Keys are sent to the server to check or save, never kept by the page.
+// AI settings for one family, as guided sections: the providers (a card each: connect with its key, test, remove), "What uses
+// what" (one row per job: on or off, which connected provider, which model, what it roughly costs), the monthly budget, the
+// privacy notes (which provider each feature sends to), then the background tasks' schedules and the painting notes. Stewards
+// only; the server checks the same (manage-access) on every call. A key is sent to the server to save or check, and never kept
+// by the page: the page only ever shows a provider's last four characters.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Sparkles } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { errorText } from '~/lib/errortext';
-import { aiListModels, aiSaveSettings, aiSettingsQuery, aiTestConnection, type ModelsResult } from '~/lib/ai.functions';
+import { aiListModels, aiRemoveProvider, aiSaveProvider, aiSaveSettings, aiSettingsQuery, aiTestConnection, type ModelsResult } from '~/lib/ai.functions';
 import { PROVIDER_NOTE } from '~/lib/ai/labels';
 import { conversationsForDollar, tablePrice, type Price } from '~/lib/ai/prices';
-import { recommendedFor, type Role } from '~/lib/ai/recommended';
-import { DEFAULT_MODEL, FEATURES, PROVIDERS, PROVIDER_LABEL, toAiLocale, type AiFeatures, type AiSettingsData, type CustomPrice, type Feature, type ModelInfo, type Provider } from '~/lib/ai/types';
+import { recommendedFor } from '~/lib/ai/recommended';
+import { DEFAULT_MODEL, PAINT_PROVIDERS, PROVIDERS, PROVIDER_LABEL, ROUTES, followsAssistant, toAiLocale, type AiFeatures, type AiSettingsData, type CustomPrice, type Feature, type ModelInfo, type Provider, type ProviderState, type Route, type TaskName } from '~/lib/ai/types';
+import type { ImageModel } from '~/lib/ai/portrait-rules';
+import { portraitSettingsQuery } from '~/lib/portrait.functions';
 import { useTreeId } from '~/lib/family';
 import { locales, translate, useT, type Key, type Locale } from '~/lib/i18n';
 import { useCan } from '~/lib/session';
-import { EmptyState, ErrorState, PageHeader, Range, Skeleton, Switch } from '~/components/ui';
+import { EmptyState, ErrorState, PageHeader, Range, Select, Skeleton, Switch, type SelectOption } from '~/components/ui';
 import { AssistantButton } from './AssistantDrawer';
 import { PortraitSettings } from './PortraitSettings';
 import { BackgroundSettings } from './BackgroundSettings';
@@ -23,8 +25,18 @@ import { treeTitle } from '~/lib/title';
 import './assistant.css';
 import './aisettings.css';
 
-const FEATURE_LABEL: Record<Feature | 'webSearch', Key> = {
-  assistant: 'ai.featureAssistant', faces: 'ai.featureFaces', avatar: 'ai.featureAvatar', arms: 'ai.featureArms', webSearch: 'ai.featureWebSearch',
+/** Where each job's provider and model are kept: the feature switches, the painting switch, and each background task's switch. */
+type Draft = { provider: Provider | null; model: string };
+type Drafts = Record<Route, Draft>;
+
+const ROUTE_LABEL: Record<Route, Key> = {
+  assistant: 'ai.routeAssistant', arms: 'ai.routeArms', faces: 'ai.routeFaces', avatar: 'ai.routeAvatar',
+  portrait: 'ai.routePortrait', 'arms-review': 'ai.routeArmsReview', occupations: 'ai.routeOccupations', chronicle: 'ai.routeChronicle',
+};
+/** What each job sends, in a line. The privacy notes say which provider it goes to. */
+const ROUTE_HINT: Record<Route, Key> = {
+  assistant: 'ai.routeAssistantHint', arms: 'ai.routeArmsHint', faces: 'ai.routeFacesHint', avatar: 'ai.routeAvatarHint',
+  portrait: 'ai.routePortraitHint', 'arms-review': 'ai.routeArmsReviewHint', occupations: 'ai.routeOccupationsHint', chronicle: 'ai.routeChronicleHint',
 };
 const FEATURE_HINT: Record<Feature | 'webSearch', Key> = {
   assistant: 'ai.featureAssistantHint', faces: 'ai.featureFacesHint', avatar: 'ai.featureAvatarHint', arms: 'ai.featureArmsHint', webSearch: 'ai.featureWebSearchHint',
@@ -35,13 +47,13 @@ const KEY_PAGE: Record<Provider, string> = {
   openai: 'https://platform.openai.com/api-keys',
   openrouter: 'https://openrouter.ai/keys',
 };
-const ROLE_LABEL: Record<Role, Key> = { balanced: 'ai.roleBalanced', cheap: 'ai.roleCheap', best: 'ai.roleBest' };
-const KEY_ERROR: Record<string, Key> = { auth: 'ai.keyErrAuth', 'rate-limited': 'ai.keyErrRate', unreachable: 'ai.keyErrNetwork', timeout: 'ai.keyErrNetwork' };
-/** Budget ticks in dollars, and how many model rows are drawn before the page asks for a search. */
+const TASK_OF_ROUTE: Partial<Record<Route, TaskName>> = { 'arms-review': 'arms', occupations: 'occupations', chronicle: 'chronicle' };
+/** Budget ticks in dollars, and how many model options are listed before the rest are left to the search. */
 const BUDGET_TICKS = [0, 5, 20, 50, 100];
-const ROW_LIMIT = 150;
+const MODEL_LIMIT = 200;
 /** The most the monthly budget may be, in dollars: the server's own limit (aiSaveSettings), checked here first. */
 const BUDGET_MAX_USD = 10_000;
+const OTHER = '__other__';
 
 /** A key is worth checking once it has the length of a real one; anything shorter is still being typed. */
 const looksLikeKey = (s: string) => /^\S{8,400}$/.test(s.trim());
@@ -78,6 +90,16 @@ export function AiSettingsPage() {
   );
 }
 
+/** One provider's model list, read with its own saved key (or nothing, when it is not connected). Cached for five minutes. */
+function useModels(tree: string, provider: Provider, enabled: boolean, locale: string) {
+  return useQuery({
+    queryKey: ['ai-models', tree, provider],
+    queryFn: () => aiListModels({ data: { tree, provider, locale } }),
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+}
+
 function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
   const t = useT();
   const locale = toAiLocale(t.locale);
@@ -85,313 +107,382 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
   const number = (n: number, digits = 0) => n.toLocaleString(locales[locale], { maximumFractionDigits: digits });
   const money = (usd: number, digits = 2) => new Intl.NumberFormat(locales[locale], { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: digits }).format(usd);
 
-  const [provider, setProvider] = useState<Provider>(data.provider);
-  const [model, setModel] = useState(data.model);
-  const [search, setSearch] = useState('');
-  const [typedKey, setTypedKey] = useState('');
-  const [checkKey, setCheckKey] = useState('');
-  const [clearKey, setClearKey] = useState(false);
+  const connected = (p: Provider) => data.providers.find((x) => x.provider === p)?.keyState === 'saved';
+  const lists: Record<Provider, ReturnType<typeof useModels>> = {
+    anthropic: useModels(tree, 'anthropic', connected('anthropic'), t.locale),
+    openai: useModels(tree, 'openai', connected('openai'), t.locale),
+    openrouter: useModels(tree, 'openrouter', connected('openrouter'), t.locale),
+  };
+  const painting = useQuery({ ...portraitSettingsQuery(tree) });
+  const choices: ImageModel[] = painting.data?.choices ?? [];
+
+  const [drafts, setDrafts] = useState<Drafts>(() => Object.fromEntries(data.routes.map((r) => [r.route, { provider: r.provider, model: r.model }])) as Drafts);
   const [features, setFeatures] = useState<AiFeatures>(data.features);
+  const [portraitOn, setPortraitOn] = useState(data.portraitEnabled);
+  const [tasks, setTasks] = useState(data.tasks);
   const [webSearch, setWebSearch] = useState(data.webSearch);
   const [budgetUsd, setBudgetUsd] = useState(data.monthlyMicros / 1_000_000);
   const [customPrices, setCustomPrices] = useState<Record<string, CustomPrice>>(data.customPrices);
-  const [draftIn, setDraftIn] = useState('');
-  const [draftOut, setDraftOut] = useState('');
+  const [otherOpen, setOtherOpen] = useState<Partial<Record<Route, boolean>>>({});
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
-  const [testing, setTesting] = useState(false);
 
-  const current = model.trim() || DEFAULT_MODEL[provider];
-  const typedValid = looksLikeKey(typedKey);
-  const typedPartial = typedKey.trim().length > 0 && !typedValid;
-  // A saved key belongs to the provider it was saved for. Another provider needs a key typed here before anything runs.
-  const providerChanged = provider !== data.provider;
-  const needsKey = providerChanged && !typedValid;
-  const hasKey = typedValid || (!clearKey && data.keyState === 'saved' && !providerChanged);
-  const overBudget = budgetUsd > BUDGET_MAX_USD;
-  // Only a saved key can belong to another provider. With none saved, the text asks for a key and names no saved one.
-  const keyNeededText = data.keyState === 'saved'
-    ? t('ai.keyNeeded', { provider: PROVIDER_LABEL[provider], saved: PROVIDER_LABEL[data.provider] })
-    : t('ai.keyNeededNone', { provider: PROVIDER_LABEL[provider] });
+  // ---------- what each job resolves to, from the drafts (the server checks the same on save) ----------
+  const effective = (route: Route): { provider: Provider; model: string } | null => {
+    const d = drafts[route];
+    if (route === 'assistant') return d.provider ? { provider: d.provider, model: d.model.trim() || DEFAULT_MODEL[d.provider] } : null;
+    if (d.provider) return { provider: d.provider, model: d.model.trim() || (route === 'portrait' ? '' : DEFAULT_MODEL[d.provider]) };
+    if (followsAssistant(route)) return effective('assistant');
+    return null;
+  };
+  const switchedOn = (route: Route): boolean => {
+    if (route === 'portrait') return portraitOn;
+    const task = TASK_OF_ROUTE[route];
+    if (task) return tasks[task];
+    return features[route as Feature];
+  };
+  const stateOf = (route: Route): 'off' | 'ready' | 'needs-provider' | 'needs-model' => {
+    if (!switchedOn(route)) return 'off';
+    const e = effective(route);
+    if (!e || !connected(e.provider)) return 'needs-provider';
+    if (route === 'portrait' && !e.model) return 'needs-model';
+    return 'ready';
+  };
+  const setDraft = (route: Route, next: Partial<Draft>) => setDrafts((cur) => ({ ...cur, [route]: { ...cur[route], ...next } }));
 
-  // The typed key is checked once typing pauses: the provider's model list comes back (or the reason it doesn't).
-  useEffect(() => {
-    const h = window.setTimeout(() => setCheckKey(typedKey.trim()), 700);
-    return () => window.clearTimeout(h);
-  }, [typedKey]);
-  const keyActive = looksLikeKey(checkKey);
-  const check = useMutation({
-    mutationFn: (v: { provider: Provider; key: string }) => aiListModels({ data: { tree, provider: v.provider, key: v.key, locale } }),
-  });
-  useEffect(() => {
-    if (keyActive) check.mutate({ provider, key: checkKey });
-    // Only a new key or a new provider starts a check.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkKey, provider]);
-  const typedResult: ModelsResult | undefined = keyActive && check.variables?.key === checkKey && check.variables.provider === provider ? check.data : undefined;
-
-  // With no typed key, the saved key lists the saved provider's models.
-  const savedEnabled = data.keyState === 'saved' && !keyActive && provider === data.provider;
-  const savedList = useQuery({
-    queryKey: ['ai-models', tree, data.provider],
-    queryFn: () => aiListModels({ data: { tree, provider: data.provider, locale } }),
-    enabled: savedEnabled,
-    staleTime: 5 * 60_000,
-  });
-  const listing: ModelsResult | undefined = typedResult ?? (savedEnabled ? savedList.data : undefined);
-  const listingLoading = keyActive ? check.isPending && !typedResult : savedEnabled && savedList.isPending;
-  const models: ModelInfo[] = listing?.ok ? listing.models : [];
-  const keyBlocked = keyActive && typedResult?.ok === false && typedResult.code === 'auth';
-  /** What a model costs here: the steward's own price first (the server books it first too), then the table, then the list. */
-  const priceOf = (id: string): Price | null => {
-    const mine = customPrices[id];
+  /** Price per 1M tokens: the steward's own first (the server books it first too), then the table, then the provider's list. */
+  const priceOf = (p: Provider, model: string): Price | null => {
+    const mine = customPrices[model];
     if (mine) return { ...mine, searchEach: 0.01 };
-    const table = tablePrice(provider, id);
+    const table = tablePrice(p, model);
     if (table) return table;
-    const info = models.find((m) => m.id === id);
+    const info = (lists[p].data?.ok ? lists[p].data.models : []).find((m) => m.id === model);
     if (info && info.inPerM != null && info.outPerM != null) return { inPerM: info.inPerM, outPerM: info.outPerM, searchEach: info.searchEach ?? 0.01 };
     return null;
   };
-  const selectedPrice = priceOf(current);
-
-  // The steward's own prices for the selected model, as typed (the draft keeps a half-typed "0." intact).
-  useEffect(() => {
-    setDraftIn(customPrices[current] ? String(customPrices[current].inPerM) : '');
-    setDraftOut(customPrices[current] ? String(customPrices[current].outPerM) : '');
-    // Re-read when the selected model changes, not on every keystroke.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current]);
-  const setCustom = (inText: string, outText: string) => {
-    setDraftIn(inText);
-    setDraftOut(outText);
+  const setCustom = (model: string, inText: string, outText: string) => {
     const i = Number(inText);
     const o = Number(outText);
     setCustomPrices((cur) => {
       const next = { ...cur };
-      if (inText.trim() !== '' && outText.trim() !== '' && Number.isFinite(i) && Number.isFinite(o) && i >= 0 && o >= 0) next[current] = { inPerM: i, outPerM: o };
-      else delete next[current];
+      if (inText.trim() !== '' && outText.trim() !== '' && Number.isFinite(i) && Number.isFinite(o) && i >= 0 && o >= 0) next[model] = { inPerM: i, outPerM: o };
+      else delete next[model];
       return next;
     });
   };
+  const draftPrice = (model: string, which: 'inPerM' | 'outPerM') => (customPrices[model] ? String(customPrices[model][which]) : '');
+  const [priceText, setPriceText] = useState<Record<string, { i: string; o: string }>>({});
 
-  const pickProvider = (p: Provider) => {
-    setProvider(p);
-    setModel('');
-    setSearch('');
+  // ---------- providers: connect, test, remove ----------
+  const [keyDrafts, setKeyDrafts] = useState<Partial<Record<Provider, string>>>({});
+  const [cardNotice, setCardNotice] = useState<Partial<Record<Provider, { ok: boolean; text: string }>>>({});
+  const [busy, setBusy] = useState<Provider | null>(null);
+  const refreshAll = async () => {
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ['ai-settings', tree] }),
+      qc.invalidateQueries({ queryKey: ['ai-status', tree] }),
+      qc.invalidateQueries({ queryKey: ['portrait-settings', tree] }),
+    ]);
   };
+  const connect = useMutation({
+    mutationFn: (p: Provider) => aiSaveProvider({ data: { tree, provider: p, apiKey: (keyDrafts[p] ?? '').trim(), locale } }),
+    onSuccess: async (_r, p) => {
+      setKeyDrafts((cur) => ({ ...cur, [p]: '' }));
+      setCardNotice((cur) => ({ ...cur, [p]: { ok: true, text: t('ai.providerSaved') } }));
+      await Promise.all([refreshAll(), qc.invalidateQueries({ queryKey: ['ai-models', tree, p] })]);
+    },
+    onError: (e, p) => setCardNotice((cur) => ({ ...cur, [p]: { ok: false, text: failureText(e, t.locale, t('ai.saveInvalid')) } })),
+  });
+  const remove = useMutation({
+    mutationFn: (p: Provider) => aiRemoveProvider({ data: { tree, provider: p } }),
+    onSuccess: async (_r, p) => {
+      setCardNotice((cur) => ({ ...cur, [p]: { ok: true, text: t('ai.providerRemoved') } }));
+      await refreshAll();
+    },
+    onError: (e, p) => setCardNotice((cur) => ({ ...cur, [p]: { ok: false, text: failureText(e, t.locale, t('ai.saveInvalid')) } })),
+  });
+  async function test(p: Provider) {
+    setBusy(p);
+    setCardNotice((cur) => ({ ...cur, [p]: undefined }));
+    const typed = (keyDrafts[p] ?? '').trim();
+    const model = effectiveFor(p);
+    try {
+      const r = await aiTestConnection({ data: { tree, provider: p, model, apiKey: looksLikeKey(typed) ? typed : undefined, locale } });
+      if (r.ok) setCardNotice((cur) => ({ ...cur, [p]: { ok: true, text: t('ai.testOk', { provider: PROVIDER_LABEL[p], model: r.model, ms: r.ms }) } }));
+      else setCardNotice((cur) => ({ ...cur, [p]: { ok: false, text: failureText(r.message, t.locale, t('ai.keyErrOther')) } }));
+    } catch (e) {
+      setCardNotice((cur) => ({ ...cur, [p]: { ok: false, text: failureText(e, t.locale, t('ai.keyErrOther')) } }));
+    } finally {
+      setBusy(null);
+    }
+  }
+  /** The model a test uses: the provider's default, or the model a job already uses with it. */
+  const effectiveFor = (p: Provider): string => ROUTES.map((r) => effective(r)).find((e) => e?.provider === p)?.model || DEFAULT_MODEL[p];
 
+  // ---------- save ----------
   const save = useMutation({
     mutationFn: () => aiSaveSettings({
       data: {
         tree,
-        provider,
-        model: model.trim(),
-        apiKey: typedValid ? typedKey.trim() : undefined,
-        // A typed key is the new key: it is saved, and the removal is not sent with it.
-        clearKey: clearKey && !typedValid,
+        routes: ROUTES.map((route) => {
+          const d = drafts[route];
+          return { route, provider: d.provider, model: d.provider ? d.model.trim() : '' };
+        }),
         features,
         webSearch,
         monthlyUsd: budgetUsd,
         customPrices,
+        portraitEnabled: portraitOn,
+        tasks,
         locale,
       },
     }),
     onSuccess: async () => {
-      // A removal is done once saved: the next key typed is saved as it is, not dropped by a stale "remove" flag.
-      setTypedKey('');
-      setClearKey(false);
       setNotice({ ok: true, text: t('ai.saved') });
-      await Promise.all([qc.invalidateQueries({ queryKey: ['ai-settings', tree] }), qc.invalidateQueries({ queryKey: ['ai-status', tree] })]);
+      await Promise.all([refreshAll(), qc.invalidateQueries({ queryKey: ['ai-activity', tree] })]);
     },
     onError: (e) => setNotice({ ok: false, text: failureText(e, t.locale, t('ai.saveInvalid')) }),
   });
 
-  async function test() {
-    setTesting(true);
-    setNotice(null);
-    try {
-      const r = await aiTestConnection({ data: { tree, provider, model: current, apiKey: typedValid ? typedKey.trim() : undefined, locale } });
-      if (r.ok) setNotice({ ok: true, text: t('ai.testOk', { provider: PROVIDER_LABEL[provider], model: r.model, ms: r.ms }) });
-      else if (r.code === 'key-required') setNotice({ ok: false, text: keyNeededText });
-      else setNotice({ ok: false, text: failureText(r.message, t.locale, t('ai.keyErrOther')) });
-    } catch (e) {
-      setNotice({ ok: false, text: failureText(e, t.locale, t('ai.keyErrOther')) });
-    } finally {
-      setTesting(false);
+  // ---------- the routing table ----------
+  const providerName = (p: Provider) => PROVIDER_LABEL[p];
+  const modelOptions = (route: Route, p: Provider): SelectOption[] => {
+    const isPaint = route === 'portrait';
+    const current = drafts[route].model.trim();
+    const opts: SelectOption[] = [];
+    if (isPaint) {
+      for (const m of choices) opts.push({ value: m.id, label: `${m.name} · ${m.labName}`, hint: t('ai.costImage', { usd: money(m.priceUsd ?? 0) }) });
+    } else {
+      opts.push({ value: '', label: t('ai.modelDefault', { model: DEFAULT_MODEL[p] }) });
+      const listing: ModelsResult | undefined = lists[p].data;
+      const list: ModelInfo[] = listing?.ok ? listing.models : [];
+      const rec = recommendedFor(p);
+      const recIds = new Set(rec.map((r) => r.model));
+      for (const r of rec) {
+        const info = list.find((m) => m.id === r.model);
+        opts.push({ value: r.model, label: info?.name ?? r.model, group: t('ai.modelRecommended'), hint: priceLabel(p, r.model) });
+      }
+      for (const m of list.filter((x) => !recIds.has(x.id)).slice(0, MODEL_LIMIT)) {
+        opts.push({ value: m.id, label: m.name, group: t('ai.modelAll'), hint: priceLabel(p, m.id) });
+      }
     }
-  }
-
-  // ---------- the key line ----------
-  let keyLine: { cls: string; text: string } | null = null;
-  if (typedKey.trim() && !typedValid) keyLine = { cls: 'subtle', text: t('ai.keyTypeHint') };
-  else if (needsKey) keyLine = { cls: 'subtle', text: keyNeededText };
-  else if (typedValid && checkKey !== typedKey.trim()) keyLine = { cls: 'subtle', text: t('ai.keyChecking') };
-  else if (keyActive && check.isPending) keyLine = { cls: 'subtle', text: t('ai.keyChecking') };
-  else if (keyActive && typedResult?.ok) keyLine = { cls: 'ai-key-status ok', text: models.length ? t('ai.keyOk', { n: number(models.length) }) : t('ai.keyOkNoList') };
-  else if (keyActive && typedResult && !typedResult.ok) keyLine = { cls: 'ai-key-status bad', text: t(KEY_ERROR[typedResult.code] ?? 'ai.keyErrOther') };
-  else if (keyActive && check.isError) keyLine = { cls: 'ai-key-status bad', text: t('ai.keyErrOther') };
-
-  // ---------- the model rows ----------
-  const q = search.trim().toLowerCase();
-  const matches = (id: string, name: string) => !q || id.toLowerCase().includes(q) || name.toLowerCase().includes(q);
-  const recs = recommendedFor(provider);
-  const recRows = recs.filter((r) => matches(r.model, models.find((m) => m.id === r.model)?.name ?? r.model));
-  const recIds = new Set(recs.map((r) => r.model));
-  const otherAll = models.filter((m) => !recIds.has(m.id) && matches(m.id, m.name));
-  const otherRows = otherAll.slice(0, ROW_LIMIT);
-
-  const row = (id: string, role?: Role) => {
-    const info = models.find((m) => m.id === id);
-    const name = info?.name ?? id;
-    const p = priceOf(id);
-    const perConversation = p ? conversationsForDollar(p) : 0;
-    const selected = current === id;
-    const badges: Key[] = [];
-    if (info?.vision === true) badges.push('ai.badgeVision');
-    if (info?.tools === true) badges.push('ai.badgeTools');
-    if (info?.webSearch === true) badges.push('ai.badgeSearch');
-    return (
-      <button
-        key={id}
-        type="button"
-        className="ai-model"
-        aria-pressed={selected}
-        onClick={() => setModel(id)}
-      >
-        <span className="ai-model-name">{name}</span>
-        {p
-          ? <span className="ai-model-price">{t('ai.priceLine', { input: money(p.inPerM), output: money(p.outPerM) })}</span>
-          : <span className="ai-model-price unknown">{t('ai.priceUnknown')}</span>}
-        {name !== id && <span className="ai-model-id">{id}</span>}
-        {(role || badges.length > 0 || info?.contextTokens) && (
-          <span className="ai-badges">
-            {role && <span className="ai-badge role">{t(ROLE_LABEL[role])}</span>}
-            {badges.map((b) => <span key={b} className="ai-badge">{t(b)}</span>)}
-            {info?.contextTokens ? <span className="ai-badge">{t('ai.badgeContext', { n: new Intl.NumberFormat(locales[locale], { notation: 'compact' }).format(info.contextTokens) })}</span> : null}
+    if (current && !opts.some((o) => o.value === current)) opts.push({ value: current, label: current });
+    opts.push({ value: OTHER, label: t('ai.modelOther') });
+    return opts;
+  };
+  const priceLabel = (p: Provider, model: string): string | undefined => {
+    const pr = priceOf(p, model);
+    return pr ? t('ai.priceLine', { input: money(pr.inPerM), output: money(pr.outPerM) }) : undefined;
+  };
+  const providerOptions = (route: Route): SelectOption[] => {
+    const allowed = route === 'portrait' ? PAINT_PROVIDERS : PROVIDERS;
+    const opts: SelectOption[] = [];
+    if (followsAssistant(route)) opts.push({ value: '', label: t('ai.sameAsAssistant') });
+    else opts.push({ value: '', label: t('ai.chooseProvider') });
+    for (const p of allowed) {
+      opts.push({ value: p, label: providerName(p), hint: connected(p) ? t('ai.providerConnected') : t('ai.providerNotConnected'), disabled: !connected(p) });
+    }
+    return opts;
+  };
+  const costCell = (route: Route, e: { provider: Provider; model: string } | null) => {
+    if (!e) return null;
+    if (route === 'portrait') {
+      const m = choices.find((x) => x.id === e.model);
+      return m ? <span className="ai-model-estimate">{t('ai.costImage', { usd: money(m.priceUsd ?? 0) })}</span> : null;
+    }
+    const pr = priceOf(e.provider, e.model);
+    if (!pr) {
+      const text = priceText[e.model] ?? { i: draftPrice(e.model, 'inPerM'), o: draftPrice(e.model, 'outPerM') };
+      return (
+        <span className="ai-cost-unknown">
+          <span className="ai-model-price unknown">{t('ai.priceUnknown')}</span>
+          <span className="ai-custom-grid">
+            <label>
+              {t('ai.customIn')}
+              <input className="input" inputMode="decimal" value={text.i} aria-label={t('ai.customIn')} onChange={(ev) => { setPriceText((cur) => ({ ...cur, [e.model]: { i: ev.target.value, o: text.o } })); setCustom(e.model, ev.target.value, text.o); }} />
+            </label>
+            <label>
+              {t('ai.customOut')}
+              <input className="input" inputMode="decimal" value={text.o} aria-label={t('ai.customOut')} onChange={(ev) => { setPriceText((cur) => ({ ...cur, [e.model]: { i: text.i, o: ev.target.value } })); setCustom(e.model, text.i, ev.target.value); }} />
+            </label>
           </span>
-        )}
-        {p && perConversation > 0 && <span className="ai-model-estimate">{t('ai.estimate', { n: number(perConversation) })}</span>}
-      </button>
+          <span className="ai-model-estimate subtle">{t('ai.costHintUnknown')}</span>
+        </span>
+      );
+    }
+    const per = conversationsForDollar(pr);
+    return <span className="ai-model-estimate">{t('ai.estimate', { n: number(per) })}</span>;
+  };
+
+  const stateChip = (route: Route) => {
+    const s = stateOf(route);
+    const label = s === 'off' ? t('ai.stateOff') : s === 'ready' ? t('ai.stateReady') : s === 'needs-provider' ? t('ai.stateNeedsProvider') : t('ai.stateNeedsModel');
+    return <span className={`ai-state ${s}`}>{label}</span>;
+  };
+
+  const row = (route: Route) => {
+    const d = drafts[route];
+    const e = effective(route);
+    const task = TASK_OF_ROUTE[route];
+    const on = switchedOn(route);
+    const toggle = (v: boolean) => {
+      if (route === 'portrait') setPortraitOn(v);
+      else if (task) setTasks((cur) => ({ ...cur, [task]: v }));
+      else setFeatures((cur) => ({ ...cur, [route]: v }));
+    };
+    const followsOnly = followsAssistant(route) && d.provider === null;
+    const options = modelOptions(route, d.provider ?? 'anthropic');
+    const modelValue = otherOpen[route] ? OTHER : d.model.trim();
+    return (
+      <tr key={route} className={`ai-route ${on ? '' : 'is-off'}`} data-route={route}>
+        <td className="ai-route-job" data-label={t('ai.routeColJob')}>
+          <Switch checked={on} onChange={toggle}>{t(ROUTE_LABEL[route])}</Switch>
+          <p className="ai-feature-hint subtle">{t(ROUTE_HINT[route])}</p>
+          {stateChip(route)}
+        </td>
+        <td data-label={t('ai.routeColProvider')}>
+          <Select
+            value={d.provider ?? ''}
+            onChange={(v) => { setDraft(route, { provider: (v || null) as Provider | null, model: '' }); setOtherOpen((cur) => ({ ...cur, [route]: false })); }}
+            options={providerOptions(route)}
+            aria-label={`${t(ROUTE_LABEL[route])}: ${t('ai.routeColProvider')}`}
+            size="sm"
+          />
+        </td>
+        <td data-label={t('ai.routeColModel')} className="ai-route-model">
+          {followsOnly
+            ? <span className="subtle">{t('ai.followsAssistant', { model: e?.model ?? '' })}</span>
+            : (
+              <>
+                <Select
+                  value={modelValue}
+                  onChange={(v) => {
+                    if (v === OTHER) setOtherOpen((cur) => ({ ...cur, [route]: true }));
+                    else { setOtherOpen((cur) => ({ ...cur, [route]: false })); setDraft(route, { model: v }); }
+                  }}
+                  options={options}
+                  aria-label={`${t(ROUTE_LABEL[route])}: ${t('ai.routeColModel')}`}
+                  size="sm"
+                />
+                {otherOpen[route] && (
+                  <input
+                    className="input ai-route-custom"
+                    value={d.model}
+                    placeholder={t('ai.modelIdPlaceholder')}
+                    aria-label={`${t(ROUTE_LABEL[route])}: ${t('ai.model')}`}
+                    spellCheck={false}
+                    autoComplete="off"
+                    onChange={(ev) => setDraft(route, { model: ev.target.value })}
+                  />
+                )}
+              </>
+            )}
+        </td>
+        <td data-label={t('ai.routeColCost')} className="ai-route-cost">
+          {on && e ? costCell(route, e) : <span className="subtle">{t('ai.routeNoCost')}</span>}
+        </td>
+      </tr>
     );
   };
 
   // ---------- budget ----------
+  const overBudget = budgetUsd > BUDGET_MAX_USD;
   const spentUsd = data.spentMicros / 1_000_000;
   const pct = budgetUsd > 0 ? Math.min(100, (spentUsd / budgetUsd) * 100) : spentUsd > 0 ? 100 : 0;
   const resets = new Date(`${data.resetsOn}T00:00:00Z`).toLocaleDateString(locales[locale], { day: 'numeric', month: 'long', timeZone: 'UTC' });
 
-  return (
-    <div className="ai-settings">
-      {/* 1 · Provider */}
-      <section className="ui-card ai-step" aria-labelledby="ai-step-provider">
-        <h2 id="ai-step-provider" className="ai-step-title">{t('ai.stepProvider')}</h2>
-        <div className="ai-providers">
-          {PROVIDERS.map((p) => (
-            <div key={p} className="ai-provider" data-active={p === provider || undefined}>
-              <button type="button" className="ai-provider-pick" aria-pressed={p === provider} onClick={() => pickProvider(p)}>
-                <span className="ai-provider-name">{PROVIDER_LABEL[p]}</span>
-                <span className="ai-provider-blurb subtle">{t(PROVIDER_BLURB[p])}</span>
-              </button>
-              <a className="ai-provider-key" href={KEY_PAGE[p]} target="_blank" rel="noreferrer">{t('ai.getKey')} ↗</a>
-            </div>
-          ))}
-        </div>
-      </section>
+  // ---------- privacy: which provider each feature goes to ----------
+  const privacyLine = (route: Route) => {
+    const on = switchedOn(route);
+    const feature = t(ROUTE_LABEL[route]);
+    if (!on) return t('ai.privacyOff', { feature });
+    const e = effective(route);
+    if (!e || !connected(e.provider) || (route === 'portrait' && !e.model)) return t('ai.privacyNeedsProvider', { feature });
+    return t('ai.privacyUse', { feature, provider: PROVIDER_LABEL[e.provider], model: e.model || DEFAULT_MODEL[e.provider], what: t(ROUTE_HINT[route]) });
+  };
 
-      {/* 2 · API key */}
-      <section className="ui-card ai-step" aria-labelledby="ai-step-key">
-        <h2 id="ai-step-key" className="ai-step-title">{t('ai.stepKey')}</h2>
-        <label htmlFor="ai-key" className="ai-label">{t('ai.apiKey')}</label>
+  const cardFor = (p: Provider, s: ProviderState) => {
+    const draft = keyDrafts[p] ?? '';
+    const valid = looksLikeKey(draft);
+    const n = cardNotice[p];
+    const status = s.keyState === 'saved' ? 'ok' : s.keyState === 'unreadable' ? 'bad' : '';
+    return (
+      <section key={p} className="ui-card ai-provider-card" data-connected={s.keyState === 'saved' || undefined} aria-labelledby={`ai-provider-${p}`}>
+        <div className="ai-provider-head">
+          <h3 id={`ai-provider-${p}`} className="ai-provider-name">{PROVIDER_LABEL[p]}</h3>
+          <span className={`ai-state ${status || 'off'}`}>
+            {s.keyState === 'saved' ? t('ai.providerConnected') : s.keyState === 'unreadable' ? t('ai.providerUnreadable') : t('ai.providerNotConnected')}
+          </span>
+        </div>
+        <p className="subtle ai-provider-blurb">{t(PROVIDER_BLURB[p])}</p>
+        {s.keyState === 'saved' && <p className="ai-key-masked">{t('ai.keyMasked', { tail: s.keyTail ?? '' })}</p>}
+        <label htmlFor={`ai-key-${p}`} className="ai-label">{s.keyState === 'saved' ? t('ai.providerKeyReplace') : t('ai.apiKey')}</label>
         <input
-          id="ai-key"
+          id={`ai-key-${p}`}
           className="input ai-key-input"
           type="password"
           autoComplete="off"
           spellCheck={false}
-          value={typedKey}
-          placeholder={t('ai.apiKeyNew')}
-          onChange={(e) => setTypedKey(e.target.value)}
-          aria-describedby="ai-key-state"
-          aria-invalid={keyActive && typedResult?.ok === false ? true : undefined}
+          value={draft}
+          placeholder={s.keyState === 'saved' ? t('ai.providerKeyReplaceHint') : t('ai.apiKeyNew')}
+          onChange={(e) => setKeyDrafts((cur) => ({ ...cur, [p]: e.target.value }))}
         />
-        <p id="ai-key-state" className={keyLine?.cls ?? 'subtle'} role={keyLine?.cls.includes('bad') ? 'alert' : 'status'}>
-          {keyLine?.text ?? (clearKey ? t('ai.apiKeyEmpty') : data.keyState === 'unreadable' ? t('ai.keyUnreadable') : data.keyState === 'none' ? t('ai.apiKeyEmpty') : '')}
-        </p>
         <div className="ai-key-row">
-          {data.keyState === 'saved' && !clearKey && !providerChanged && <span className="ai-key-masked">{t('ai.keyMasked', { tail: data.keyTail ?? '' })}</span>}
-          {data.keyState === 'saved' && !clearKey && !providerChanged && <button type="button" className="btn ghost" onClick={() => setClearKey(true)}>{t('ai.removeKey')}</button>}
-          {clearKey && <button type="button" className="btn ghost" onClick={() => setClearKey(false)}>{t('ai.keepKey')}</button>}
-          <button type="button" className="btn" onClick={test} disabled={testing || save.isPending || needsKey}>{testing ? t('ai.testing') : t('ai.test')}</button>
-        </div>
-      </section>
-
-      {/* 3 · Model */}
-      <section className="ui-card ai-step" aria-labelledby="ai-step-model">
-        <h2 id="ai-step-model" className="ai-step-title">{t('ai.stepModel')}</h2>
-        {!hasKey && !listing && <p className="subtle">{t('ai.modelsNeedKey')}</p>}
-        {listingLoading && <p className="subtle" role="status">{t('ai.modelsLoading')}</p>}
-        {listing && !listing.ok && !listingLoading && <p className="ai-key-status bad" role="alert">{t('ai.modelsFailed')}</p>}
-        <input type="search" className="input" aria-label={t('ai.modelSearch')} placeholder={t('ai.modelSearch')} value={search} onChange={(e) => setSearch(e.target.value)} />
-        <div className="ai-model-list" role="group" aria-label={t('ai.modelAll')}>
-          <h3 className="ai-model-group">{t('ai.modelRecommended')}</h3>
-          <p className="subtle ai-model-note">{t(recs.some((r) => r.provisional) ? 'ai.recommendedNote' : 'ai.recommendedMeasured')}</p>
-          {recRows.map((r) => row(r.model, r.role))}
-          {otherRows.length > 0 && <h3 className="ai-model-group">{t('ai.modelAll')}</h3>}
-          {otherRows.map((m) => row(m.id))}
-          {otherAll.length > ROW_LIMIT && <p className="subtle ai-model-more">{t('ai.modelMore', { n: number(otherAll.length - ROW_LIMIT) })}</p>}
-          {q && recRows.length === 0 && otherRows.length === 0 && <p className="subtle">{t('ai.modelNone', { q: search.trim() })}</p>}
-        </div>
-        <label htmlFor="ai-model" className="ai-label">{t('ai.model')}</label>
-        <input id="ai-model" className="input" value={model} placeholder={DEFAULT_MODEL[provider]} onChange={(e) => setModel(e.target.value)} aria-describedby="ai-model-hint" spellCheck={false} autoComplete="off" />
-        <p id="ai-model-hint" className="subtle">{t('ai.modelHint')}</p>
-        {provider === 'openrouter' && <p className="subtle">{t('ai.modelOnlineNote')}</p>}
-        <div className="ai-selected" aria-live="polite">
-          <div className="ai-selected-head">
-            <span><strong>{current}</strong></span>
-            <span className={selectedPrice ? 'subtle' : 'ai-key-status bad'}>
-              {selectedPrice ? `${t('ai.priceLine', { input: money(selectedPrice.inPerM), output: money(selectedPrice.outPerM) })}` : t('ai.priceUnknown')}
-            </span>
-          </div>
-          {/* Open while the model has no price, and whenever it has the steward's own: a half-typed number must not close it. */}
-          {(!selectedPrice || customPrices[current]) && (
-            <>
-              {!customPrices[current] && <p className="ai-privacy">{t('ai.budgetUnenforced')}</p>}
-              <p className="subtle">{t('ai.customPriceHint')}</p>
-              <div className="ai-custom-grid">
-                <label>
-                  {t('ai.customIn')}
-                  <input className="input" inputMode="decimal" value={draftIn} onChange={(e) => setCustom(e.target.value, draftOut)} aria-label={t('ai.customIn')} />
-                </label>
-                <label>
-                  {t('ai.customOut')}
-                  <input className="input" inputMode="decimal" value={draftOut} onChange={(e) => setCustom(draftIn, e.target.value)} aria-label={t('ai.customOut')} />
-                </label>
-              </div>
-            </>
+          <button type="button" className="btn primary" disabled={!valid || connect.isPending} onClick={() => connect.mutate(p)}>
+            {s.keyState === 'saved' ? t('ai.providerReplace') : t('ai.providerSave')}
+          </button>
+          <button type="button" className="btn" disabled={busy === p || (!valid && s.keyState !== 'saved')} onClick={() => test(p)}>
+            {busy === p ? t('ai.testing') : t('ai.test')}
+          </button>
+          {s.keyState !== 'none' && (
+            <button type="button" className="btn ghost" disabled={remove.isPending} onClick={() => remove.mutate(p)}>{t('ai.providerRemove')}</button>
           )}
+          <a className="ai-provider-key" href={KEY_PAGE[p]} target="_blank" rel="noreferrer">{t('ai.getKey')} ↗</a>
+        </div>
+        {draft.trim() && !valid && <p className="subtle">{t('ai.keyTypeHint')}</p>}
+        {n && <p className={n.ok ? 'ai-card-state ok' : 'ai-card-error'} role={n.ok ? 'status' : 'alert'}>{n.text}</p>}
+      </section>
+    );
+  };
+
+  return (
+    <div className="ai-settings">
+      {/* 1 · Providers */}
+      <section className="ai-step" aria-labelledby="ai-step-providers">
+        <h2 id="ai-step-providers" className="ai-step-title">{t('ai.stepProviders')}</h2>
+        <p className="subtle">{t('ai.providersHint')}</p>
+        <div className="ai-provider-grid">
+          {PROVIDERS.map((p) => cardFor(p, data.providers.find((x) => x.provider === p) ?? { provider: p, keyState: 'none', keyTail: null, updated: 0 }))}
         </div>
       </section>
 
-      {/* 4 · Features */}
-      <section className="ui-card ai-step" aria-labelledby="ai-step-features">
-        <h2 id="ai-step-features" className="ai-step-title">{t('ai.stepFeatures')}</h2>
-        {!hasKey && <p className="subtle">{t('ai.needsKey')}</p>}
-        {FEATURES.map((f) => (
-          <div key={f} className="ai-feature">
-            <Switch checked={features[f]} onChange={(on) => setFeatures((cur) => ({ ...cur, [f]: on }))} disabled={!hasKey && !features[f]}>
-              {t(FEATURE_LABEL[f])}
-            </Switch>
-            <p className="ai-feature-hint subtle">{t(FEATURE_HINT[f])}</p>
-          </div>
-        ))}
+      {/* 2 · What uses what */}
+      <section className="ui-card ai-step" aria-labelledby="ai-step-routing">
+        <h2 id="ai-step-routing" className="ai-step-title">{t('ai.stepRouting')}</h2>
+        <p className="subtle">{t('ai.routingHint')}</p>
+        <div className="ai-routes-wrap">
+          <table className="ai-routes">
+            <thead>
+              <tr>
+                <th scope="col">{t('ai.routeColJob')}</th>
+                <th scope="col">{t('ai.routeColProvider')}</th>
+                <th scope="col">{t('ai.routeColModel')}</th>
+                <th scope="col">{t('ai.routeColCost')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ROUTES.map((r) => row(r))}
+            </tbody>
+          </table>
+        </div>
         <div className="ai-feature">
-          <Switch checked={webSearch} onChange={setWebSearch} disabled={!hasKey && !webSearch}>
-            {t(FEATURE_LABEL.webSearch)}
+          <Switch checked={webSearch} onChange={setWebSearch} disabled={!webSearch && !(connected('anthropic') || connected('openai') || connected('openrouter'))}>
+            {t('ai.featureWebSearch')}
           </Switch>
-          <p className="ai-feature-hint subtle">{t('ai.featureWebSearchHint', { provider: PROVIDER_NOTE[provider] })}</p>
+          <p className="ai-feature-hint subtle">{t(FEATURE_HINT.webSearch, { provider: PROVIDER_NOTE[effective('assistant')?.provider ?? 'anthropic'] })}</p>
         </div>
       </section>
 
-      {/* 5 · Monthly budget */}
+      {/* 3 · Monthly budget */}
       <section className="ui-card ai-step" aria-labelledby="ai-step-budget">
         <h2 id="ai-step-budget" className="ai-step-title">{t('ai.stepBudget')}</h2>
         <div className="ai-budget-head">
@@ -440,28 +531,21 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
         </p>
       </section>
 
-      {/* Privacy */}
+      {/* 4 · Privacy: each feature, and the provider it goes to */}
       <section className="ui-card ai-step" aria-labelledby="ai-privacy-h">
         <h2 id="ai-privacy-h" className="ai-step-title">{t('ai.privacyTitle')}</h2>
-        <p className="ai-privacy">{t('ai.privacy', { provider: PROVIDER_NOTE[provider] })}</p>
-        <p className="ai-privacy">{t('ai.privacyEditors', { provider: PROVIDER_NOTE[provider] })}</p>
+        <ul className="ai-privacy-list">
+          {ROUTES.map((r) => <li key={r} className="ai-privacy">{privacyLine(r)}</li>)}
+        </ul>
+        <p className="ai-privacy">{t('ai.privacyEditors', { provider: PROVIDER_LABEL[effective('assistant')?.provider ?? 'anthropic'] })}</p>
       </section>
 
-      <PortraitSettings tree={tree} />
       <BackgroundSettings tree={tree} />
+      <PortraitSettings tree={tree} />
+
       {notice && <p className={notice.ok ? 'ai-card-state ok' : 'ai-card-error'} role={notice.ok ? 'status' : 'alert'}>{notice.text}</p>}
       <div className="ai-actions">
-        {(keyBlocked || typedPartial || needsKey) && (
-          <p className="ai-save-hint ai-key-status bad" role="alert">
-            {keyBlocked ? t('ai.keyErrAuth') : typedPartial ? t('ai.keyTypeHint') : keyNeededText}
-          </p>
-        )}
-        <button
-          type="button"
-          className="btn primary"
-          onClick={() => save.mutate()}
-          disabled={save.isPending || testing || keyBlocked || typedPartial || needsKey || overBudget}
-        >
+        <button type="button" className="btn primary" onClick={() => save.mutate()} disabled={save.isPending || overBudget}>
           {save.isPending ? t('ai.saving') : t('ai.save')}
         </button>
       </div>

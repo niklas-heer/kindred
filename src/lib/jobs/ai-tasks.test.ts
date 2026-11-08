@@ -32,7 +32,7 @@ const { newUser, upsertMembership, accounts } = await load<typeof import('../aut
 const bg = await load<typeof import('../ai/background.server.ts')>('/src/lib/ai/background.server.ts');
 const fns = await load<typeof import('../ai/background.functions.ts')>('/src/lib/ai/background.functions.ts');
 const { pending, storyTranslations } = await load<typeof import('../ai/background-tasks.server.ts')>('/src/lib/ai/background-tasks.server.ts');
-const { sealKey } = await load<typeof import('../ai/secret.server.ts')>('/src/lib/ai/secret.server.ts');
+const { setUpFamilyAi } = await load<typeof import('../ai/testing.server.ts')>('/src/lib/ai/testing.server.ts');
 const { AiError } = await load<typeof import('../ai/adapters.ts')>('/src/lib/ai/adapters.ts');
 
 // TanStack Start keeps each request in two AsyncLocalStorage stores; the server functions need them (see house-meaning.test.ts).
@@ -80,26 +80,30 @@ function makeFamily(id: string, { meanings = true }: { meanings?: boolean } = {}
   d.close();
 }
 
-/** The family's AI as set up: a sealed key, a monthly budget, and the features on. */
+/** The family's AI as set up: the Anthropic key, the assistant on Anthropic, a monthly budget, and the features on. */
 async function setupAi(tree: string, monthlyMicros = 1_000_000): Promise<void> {
-  const sealed = await sealKey(tree, 'sk-test-key-123');
-  await accounts().run(
-    `INSERT INTO ai_settings (tree, provider, model, key_sealed, key_tail, features, web_search, monthly_micros, custom_prices, updated, updated_by)
-     VALUES (?, 'anthropic', '', ?, '-123', '{"assistant":true,"faces":false,"avatar":false,"arms":true}', 0, ?, '{}', 0, NULL)`,
-    tree, sealed, monthlyMicros,
-  );
+  await setUpFamilyAi(tree, null, {
+    provider: 'anthropic', model: '', apiKey: 'sk-test-key-123', features: { assistant: true, faces: false, avatar: false, arms: true },
+    webSearch: false, monthlyMicros, customPrices: {},
+  });
 }
 
 const input = (over: Partial<SaveInput> & { on?: Array<'arms' | 'occupations' | 'chronicle'> } = {}): SaveInput => {
-  const on = over.on ?? [];
-  const t = (k: 'arms' | 'occupations' | 'chronicle') => ({ enabled: on.includes(k), schedule: 'daily' as const });
+  const schedule = () => ({ schedule: 'daily' as const });
   return {
-    tasks: { arms: t('arms'), occupations: t('occupations'), chronicle: t('chronicle') },
+    tasks: { arms: schedule(), occupations: schedule(), chronicle: schedule() },
     capShare: over.capShare ?? 0.2,
     languages: over.languages ?? ['en'],
     locale: 'en',
   };
 };
+
+/** The steward's background settings, as the page saves them, and each task's switch as the routes table sets it. */
+async function setBackground(tree: string, o: Parameters<typeof input>[0] = {}): Promise<void> {
+  await bg.saveBackground(tree, 'steward-1', input(o));
+  const on = o?.on ?? [];
+  for (const task of ['arms', 'occupations', 'chronicle'] as const) await bg.setTaskEnabled(tree, task, on.includes(task));
+}
 
 /** A stub provider: answers each task's question, records every request, and can report a cost per call. */
 function stubProvider(reportedUsd?: number) {
@@ -198,7 +202,7 @@ test('a run does one batch and the next run resumes where it stopped', async () 
   makeFamily(tree);
   await setupAi(tree);
   // Two stories in three languages make six items: more than one batch of BATCH (4).
-  await bg.saveBackground(tree, 'steward-1', input({ on: ['chronicle'], languages: ['en', 'de', 'af'], capShare: 1 }));
+  await setBackground(tree, { on: ['chronicle'], languages: ['en', 'de', 'af'], capShare: 1 });
   const stub = stubProvider();
   const first = await bg.runTask(tree, 'chronicle', { adapter: stub.adapter, price: PRICE, source: 'manual', now: NOW });
   assert.equal(first.status, 'done');
@@ -218,7 +222,7 @@ test('the background cap stops the work, stays stopped on the next run, and the 
   makeFamily(tree);
   await setupAi(tree, 1_000_000);
   // A fifth of $1 is $0.05 for background work; each call reports $0.03, so the second call is the last one that fits.
-  await bg.saveBackground(tree, 'steward-1', input({ on: ['occupations'], languages: ['en'], capShare: 0.05 }));
+  await setBackground(tree, { on: ['occupations'], languages: ['en'], capShare: 0.05 });
   const stub = stubProvider(0.03);
   const out = await bg.runTask(tree, 'occupations', { adapter: stub.adapter, price: PRICE, source: 'manual', now: NOW });
   assert.equal(out.status, 'stopped');
@@ -238,7 +242,7 @@ test('a budget of nothing stops the task before any call (AI off means backgroun
   const tree = 'no-budget';
   makeFamily(tree);
   await setupAi(tree, 0);
-  await bg.saveBackground(tree, 'steward-1', input({ on: ['occupations'] }));
+  await setBackground(tree, { on: ['occupations'] });
   const stub = stubProvider();
   const out = await bg.runTask(tree, 'occupations', { adapter: stub.adapter, price: PRICE, source: 'manual' });
   assert.equal(out.status, 'skipped');
@@ -252,7 +256,7 @@ test('no private field is sent: the outgoing bodies of all three tasks, from a r
   const tree = 'private';
   makeFamily(tree);
   await setupAi(tree, 5_000_000);
-  await bg.saveBackground(tree, 'steward-1', input({ on: ['arms', 'occupations', 'chronicle'], languages: ['en'], capShare: 1 }));
+  await setBackground(tree, { on: ['arms', 'occupations', 'chronicle'], languages: ['en'], capShare: 1 });
   const before = originals(tree);
   const fetched = stubFetch();
   try {
@@ -272,7 +276,7 @@ test('the originals are never altered: the story, person and house rows are the 
   const tree = 'originals';
   makeFamily(tree);
   await setupAi(tree);
-  await bg.saveBackground(tree, 'steward-1', input({ on: ['chronicle', 'occupations'], languages: ['de', 'en'] }));
+  await setBackground(tree, { on: ['chronicle', 'occupations'], languages: ['de', 'en'] });
   const before = originals(tree);
   const stub = stubProvider();
   await bg.runTask(tree, 'chronicle', { adapter: stub.adapter, price: PRICE, source: 'manual', now: NOW });
@@ -288,7 +292,7 @@ test('a story edited after it was translated is shown in its original text until
   const tree = 'stale';
   makeFamily(tree);
   await setupAi(tree);
-  await bg.saveBackground(tree, 'steward-1', input({ on: ['chronicle'], languages: ['en'], capShare: 1 }));
+  await setBackground(tree, { on: ['chronicle'], languages: ['en'], capShare: 1 });
   const stub = stubProvider();
   await bg.runTask(tree, 'chronicle', { adapter: stub.adapter, price: PRICE, source: 'manual', now: NOW });
   assert.ok((await storyTranslations(tree, 'en')).s1, 'translated');
@@ -317,7 +321,7 @@ test('the arms review runs once per fingerprint: nothing is asked again until th
   const tree = 'arms';
   makeFamily(tree);
   await setupAi(tree);
-  await bg.saveBackground(tree, 'steward-1', input({ on: ['arms'], capShare: 1 }));
+  await setBackground(tree, { on: ['arms'], capShare: 1 });
   const stub = stubProvider();
   const first = await bg.runTask(tree, 'arms', { adapter: stub.adapter, price: PRICE, source: 'manual', now: NOW });
   assert.equal(first.status, 'done');
@@ -343,7 +347,7 @@ test('the daily run skips a task that ran today, and runs it again once it is du
   const tree = 'scheduled';
   makeFamily(tree);
   await setupAi(tree);
-  await bg.saveBackground(tree, 'steward-1', input({ on: ['occupations'], capShare: 1 }));
+  await setBackground(tree, { on: ['occupations'], capShare: 1 });
   const stub = stubProvider();
   const runAt = (now: Date) => bg.runTask(tree, 'occupations', { adapter: stub.adapter, price: PRICE, source: 'schedule', now });
   const day1 = new Date(NOW);
@@ -368,7 +372,7 @@ test('the daily run makes at most its call limit across families and tasks; the 
   for (const t of trees) {
     makeFamily(t);
     await setupAi(t);
-    await bg.saveBackground(t, 'steward-1', input({ on: ['occupations', 'chronicle', 'arms'], languages: ['en', 'de', 'af'], capShare: 1 }));
+    await setBackground(t, { on: ['occupations', 'chronicle', 'arms'], languages: ['en', 'de', 'af'], capShare: 1 });
   }
   const fetched = stubFetch();
   try {
@@ -399,7 +403,7 @@ test('role checks: only a steward sees the activity, runs a task or saves the se
   const tree = 'roles';
   makeFamily(tree);
   await setupAi(tree);
-  await bg.saveBackground(tree, 'steward-1', input({ on: ['occupations'] }));
+  await setBackground(tree, { on: ['occupations'] });
   const viewer = await memberWith(tree, 'viewer');
   const editor = await memberWith(tree, 'editor');
   const steward = await memberWith(tree, 'steward');
@@ -422,7 +426,7 @@ test('the server functions run a task for a steward and report what it did', asy
   const tree = 'roles-run';
   makeFamily(tree);
   await setupAi(tree);
-  await bg.saveBackground(tree, 'steward-1', input({ on: ['arms'], capShare: 1 }));
+  await setBackground(tree, { on: ['arms'], capShare: 1 });
   const steward = await memberWith(tree, 'steward');
   // The fake-free path needs a real adapter: this family's saved key goes to the stubbed fetch.
   const fetched = stubFetch();

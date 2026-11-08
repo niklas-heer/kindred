@@ -20,6 +20,7 @@ const { openSqlite, closeAccounts } = await load<typeof import('./store/node.ts'
 const { accounts } = await load<typeof import('./auth/store.server.ts')>('/src/lib/auth/store.server.ts');
 const chat = await load<typeof import('./ai/chat.server.ts')>('/src/lib/ai/chat.server.ts');
 const settings = await load<typeof import('./ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
+const setup = await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts');
 const tools = await load<typeof import('./ai/tools.server.ts')>('/src/lib/ai/tools.server.ts');
 const { translate } = await load<typeof import('./i18n/dictionary.ts')>('/src/lib/i18n/dictionary.ts');
 const { AiError } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
@@ -44,7 +45,7 @@ test.after(async () => {
 });
 
 await accounts().run('INSERT INTO user (id, name, handle, created) VALUES (?, ?, ?, ?)', 'u1', 'Anna', 'handle-history', Date.now());
-await settings.saveSettings(TREE, 'u1', {
+await setup.setUpFamilyAi(TREE, 'u1', {
   provider: 'anthropic', model: '', features: { assistant: true, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: 'sk-test-abcdefgh1234',
 });
 
@@ -112,7 +113,7 @@ test('a demoted reader cannot change the status of a card from an editor turn', 
 
 test('a chat turn that the budget cannot cover stores nothing', async () => {
   const before = (await accounts().all('SELECT id FROM ai_chat WHERE tree = ? AND user = ?', TREE, 'u1')).length;
-  await settings.saveSettings(TREE, 'u1', {
+  await setup.setUpFamilyAi(TREE, 'u1', {
     provider: 'anthropic', model: '', features: { assistant: true, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 0, customPrices: {}, apiKey: 'sk-test-abcdefgh1234',
   });
   await assert.rejects(
@@ -123,7 +124,7 @@ test('a chat turn that the budget cannot cover stores nothing', async () => {
 });
 
 test('an add-field proposal is private by the type\'s rule, whatever the model asks for', async () => {
-  await settings.saveSettings(TREE, 'u1', {
+  await setup.setUpFamilyAi(TREE, 'u1', {
     provider: 'anthropic', model: '', features: { assistant: true, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: 'sk-test-abcdefgh1234',
   });
   const ctx = { tree: TREE, role: 'editor' as Role, me: null, locale: 'en' as const };

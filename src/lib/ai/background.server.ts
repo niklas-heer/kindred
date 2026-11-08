@@ -12,10 +12,11 @@ import { readReviews } from '../house-meaning.server';
 import { AiError, callRounds, outputCap, type AiAdapter, type AiReply, type AiRequest } from './adapters';
 import { pending, perform, type Pending } from './background-tasks.server';
 import { tr, type Tr } from './labels';
-import { budgeted, adapterFor, estimateMicros, failureMicros, fakeOn, monthNow, readSettings, replyMicros, resetsOn, spentThisMonth, type Settings } from './settings.server';
-import { openRouterListed } from './models.server';
-import { resolvePrice, type Price } from './prices';
+import { budgeted, estimateMicros, failureMicros, monthNow, readSettings, replyMicros, resetsOn, routeAdapter, spentThisMonth, type Settings } from './settings.server';
+import { resolveRoute } from './providers.server';
+import type { Price } from './prices';
 import type { Locale } from '../i18n/types';
+import { TASK_ROUTE } from './types';
 import {
   BATCH, CALLS_PER_DAILY_RUN, TASK_FEATURE, TASKS, capMicros, defaultSettings, isDue,
   type Activity, type ActivityTask, type BackgroundSettings, type Readiness, type SaveInput, type Task, type TaskRun, type TaskSetting, type WaitingReview,
@@ -42,7 +43,7 @@ function parseLanguages(s: string): Locale[] {
 
 // ---------- settings ----------
 
-/** A family's background settings. Without a saved row every task is off. */
+/** A family's background settings. Without a saved row every task is off. The switches are read here; they are saved with the routes. */
 export async function readBackground(tree: string): Promise<BackgroundSettings> {
   const row = await accounts().get<BgRow>('SELECT * FROM ai_background WHERE tree = ?', tree);
   const s = defaultSettings();
@@ -60,7 +61,10 @@ export async function readBackground(tree: string): Promise<BackgroundSettings> 
   return s;
 }
 
-/** Saves what the steward chose. `by` is the steward's account id. Nothing else is touched: the last-run times stay. */
+/**
+ * Saves what the steward chose: the cap, the languages, the locale and each task's schedule. Nothing else is touched: a
+ * task's switch is saved with the routes (setTaskEnabled), and the last-run times stay.
+ */
 export async function saveBackground(tree: string, by: string, input: SaveInput): Promise<BackgroundSettings> {
   const now = Date.now();
   await accounts().run(
@@ -70,28 +74,36 @@ export async function saveBackground(tree: string, by: string, input: SaveInput)
     tree, input.capShare, JSON.stringify([...new Set(input.languages)]), input.locale, now, by,
   );
   for (const task of TASKS) {
-    const t = input.tasks[task];
     await accounts().run(
-      `INSERT INTO ai_background_task (tree, task, enabled, schedule) VALUES (?, ?, ?, ?)
-       ON CONFLICT (tree, task) DO UPDATE SET enabled = excluded.enabled, schedule = excluded.schedule`,
-      tree, task, t.enabled ? 1 : 0, t.schedule,
+      `INSERT INTO ai_background_task (tree, task, enabled, schedule) VALUES (?, ?, 0, ?)
+       ON CONFLICT (tree, task) DO UPDATE SET schedule = excluded.schedule`,
+      tree, task, input.tasks[task].schedule,
     );
   }
   return readBackground(tree);
+}
+
+/** Switches a background task on or off. Its schedule and last run stay as they are. */
+export async function setTaskEnabled(tree: string, task: Task, enabled: boolean): Promise<void> {
+  await accounts().run(
+    `INSERT INTO ai_background_task (tree, task, enabled, schedule) VALUES (?, ?, ?, 'daily')
+     ON CONFLICT (tree, task) DO UPDATE SET enabled = excluded.enabled`,
+    tree, task, enabled ? 1 : 0,
+  );
 }
 
 // ---------- readiness ----------
 
 
 /**
- * Whether a task may run now, and why not. `off` is the steward's switch; the rest are the family's AI being unset or the
- * task's own feature switched off. Reads only.
+ * Whether a task may run now, and why not. `off` is the steward's switch; the rest are its route having no connected provider
+ * (`no-key`), the budget being 0, or the task's own feature switched off. Reads only.
  */
 export async function readiness(tree: string, task: Task, bg?: BackgroundSettings): Promise<{ state: Readiness; settings: Settings }> {
   const settings = await readSettings(tree);
   const current = bg ?? (await readBackground(tree));
   if (!current.tasks[task].enabled) return { state: 'off', settings };
-  if (!settings.sealed) return { state: 'no-key', settings };
+  if (!(await resolveRoute(tree, TASK_ROUTE[task])).connected) return { state: 'no-key', settings };
   if (settings.monthlyMicros <= 0) return { state: 'budget-off', settings };
   if (!settings.features[TASK_FEATURE[task]]) return { state: 'feature-off', settings };
   return { state: 'ready', settings };
@@ -160,11 +172,6 @@ export function backgroundAdapter(tree: string, inner: AiAdapter, o: { monthlyMi
   };
 }
 
-async function priceFor(s: Settings): Promise<Price> {
-  const listed = s.provider === 'openrouter' && !fakeOn() ? await openRouterListed(s.effectiveModel) : undefined;
-  return resolvePrice(s.provider, s.effectiveModel, s.customPrices, listed?.price).price;
-}
-
 // ---------- runs ----------
 
 export interface TaskOutcome {
@@ -214,8 +221,10 @@ export async function runTask(tree: string, task: Task, o: RunOptions = {}): Pro
     }
     const c = tr(bg.locale);
     const meter = { micros: 0 };
-    const inner = o.adapter ?? (await adapterFor(tree, ready.settings));
-    const price = o.price ?? (await priceFor(ready.settings));
+    // The task's own route: its provider's key and model. Nothing falls back to another provider.
+    const routed = await routeAdapter(tree, TASK_ROUTE[task], bg.locale);
+    const inner = o.adapter ?? routed.inner;
+    const price = o.price ?? routed.price;
     const adapter = backgroundAdapter(tree, inner, { monthlyMicros: ready.settings.monthlyMicros, capMicros: capMicros(ready.settings.monthlyMicros, bg.capShare), price, c, meter });
     const items: Pending[] = await pending(tree, task, bg.languages);
     let done = 0;

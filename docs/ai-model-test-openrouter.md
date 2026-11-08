@@ -51,3 +51,10 @@ Each cell is passed/run per task. "skipped" items were not sent because the budg
 - `google/gemini-4-argon`, vision face-box: provider: OpenRouter answered 400: Provider returned error
 - `x-ai/grok-4.7`, names Bauer: missing: farmer
 - `x-ai/grok-4.7`, names Zorbelwitz-Quabbe: 1 stated as certain
+
+## Gemini, re-tested after the JSON fallback
+
+| Model | Names | Arms | Tools | Proposals | Language | Vision | Web | Overall | Latency | Cost |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `google/gemini-3.8-flash` | 8/9 | 3/3 | 3/3 | 3/3 | 2/2 | 1/1 | 1/1 | 98% | 3744 ms | $0.097 |
+| `google/gemini-4-argon` | 6/9 | 3/3 | 3/3 | 3/3 | 2/2 | 1/1 | skipped | 94% | 13180 ms | $0.254 |

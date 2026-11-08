@@ -66,7 +66,8 @@ export const isDue = (lastStarted: number | null, schedule: Schedule, now: numbe
 /** The budget a background cap allows, in micro-dollars: a share of the monthly budget, rounded down. */
 export const capMicros = (monthlyMicros: number, capShare: number): number => Math.max(0, Math.floor(monthlyMicros * capShare));
 
-const taskSave = z.object({ enabled: z.boolean(), schedule: z.enum(SCHEDULES) });
+/** A task's schedule. Its switch is not here: it is saved with the routes (the AI settings' "What uses what" table). */
+const taskSave = z.object({ schedule: z.enum(SCHEDULES) });
 
 /** What the settings page sends. Checked on the server; nothing else is written. */
 export const saveSchema = z.object({

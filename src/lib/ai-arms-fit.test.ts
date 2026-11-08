@@ -26,7 +26,8 @@ const { startSession } = await load<typeof import('./auth/session.server.ts')>('
 const { newUser, upsertMembership } = await load<typeof import('./auth/store.server.ts')>('/src/lib/auth/store.server.ts');
 const { checkArms, describeArms, withFitFixture } = await load<typeof import('./ai/arms-fit.server.ts')>('/src/lib/ai/arms-fit.server.ts');
 const { checkArmsFit } = await load<typeof import('./ai/arms-fit.functions.ts')>('/src/lib/ai/arms-fit.functions.ts');
-const { saveSettings, budgeted, spentThisMonth, OFF } = await load<typeof import('./ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
+const { budgeted, spentThisMonth, OFF } = await load<typeof import('./ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
+const { setUpFamilyAi } = await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts');
 const { tr } = await load<typeof import('./ai/labels.ts')>('/src/lib/ai/labels.ts');
 const { AiError } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
 const { readReviews } = await load<typeof import('./house-meaning.server.ts')>('/src/lib/house-meaning.server.ts');
@@ -125,7 +126,7 @@ test('a research must exist before the arms are checked; without it nothing is a
 
 test('the check is asked once; the same arms and meanings are not asked again, a change is, and "check again" always asks', async () => {
   const steward = await memberWith('steward');
-  await saveSettings(TREE, steward.id, { provider: 'anthropic', model: '', features: { ...OFF, arms: true }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: 'sk-test-0123456789' });
+  await setUpFamilyAi(TREE, steward.id, { provider: 'anthropic', model: '', features: { ...OFF, arms: true }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: 'sk-test-0123456789' });
   await researchSaved(steward, 'fit-research-02');
   const s = stub([{ json: FITS_NOT }]);
   const run = (key: string, force = false) => checkArms({ tree: TREE, house: HOUSE, locale: 'en', force, by: steward.id, op: op(key, steward.id, force), adapter: s.adapter });
@@ -176,7 +177,7 @@ test('a fit stores no advice, and a check that fits says so', async () => {
 
 test('the check is booked against the family’s budget, and a call the budget cannot pay for is refused before it is sent', async () => {
   const steward = await memberWith('steward');
-  await saveSettings(TREE, steward.id, { provider: 'anthropic', model: '', features: { ...OFF, arms: true }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: 'sk-test-0123456789' });
+  await setUpFamilyAi(TREE, steward.id, { provider: 'anthropic', model: '', features: { ...OFF, arms: true }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: 'sk-test-0123456789' });
   const before = await spentThisMonth(TREE);
   const s = stub([{ json: FITS_NOT }]);
   const metered = budgeted(TREE, 5_000_000, s.adapter, PRICE, c);

@@ -1,16 +1,18 @@
-// Painted portraits, on the server: the portrait settings (off until a steward turns them on, with an OpenRouter key),
-// the live list of image models, painting one portrait from a photo, and the review step that keeps a candidate until
-// someone chooses it. Every change is a `once` plan (db.server.ts); every portrait call is booked against the family's
-// monthly budget before it is sent and settled to what OpenRouter reports (settings.server.ts). The key is sealed
-// (secret.server.ts), goes only to OpenRouter, and never reaches a message, a log or the browser.
+// Painted portraits, on the server. The painter is a route (providers.server.ts): its provider and model are chosen in the AI
+// settings' "What uses what" table, and only providers that paint are offered (PAINT_PROVIDERS). What is specific to portraits
+// lives here: the switch (ai_portrait.enabled, off until a steward turns it on), the live list of image models, painting one
+// portrait from a photo, and the review step that keeps a candidate until someone chooses it. Every change is a `once` plan
+// (db.server.ts); every portrait call is booked against the family's monthly budget before it is sent and settled to what
+// OpenRouter reports (settings.server.ts). The key is the painting provider's own, goes only to that provider, and never
+// reaches a message, a log or the browser.
 import { accounts } from '../auth/store.server';
 import { db, guard, media, newMediaKey, once, personExists, q } from '../db.server';
 import { AiError } from './adapters';
-import { openKey, sealKey, keyTail } from './secret.server';
-import { savedKeyFits, readSettings, reserve, settle, SINGLE_CALL_SHARE, TINY_BUDGET_MICROS, failureMicros } from './settings.server';
+import { keyFor, resolveRoute } from './providers.server';
+import { readSettings, reserve, settle, SINGLE_CALL_SHARE, TINY_BUDGET_MICROS, failureMicros } from './settings.server';
 import { reportedMicros } from './prices';
 import { tr, type Tr } from './labels';
-import { toAiLocale } from './types';
+import { PAINT_PROVIDERS, toAiLocale, type Provider } from './types';
 import {
   MAX_SOURCE_BYTES,
   OPENROUTER_IMAGE_MODELS_URL,
@@ -91,10 +93,6 @@ export async function portraitModelChoices(): Promise<ImageModel[]> {
 interface Row {
   tree: string;
   enabled: number;
-  model: string;
-  reuse_family_key: number;
-  key_sealed: string | null;
-  key_tail: string | null;
   updated: number;
   updated_by: string | null;
 }
@@ -103,113 +101,65 @@ async function row(tree: string): Promise<Row | undefined> {
   return accounts().get<Row>('SELECT * FROM ai_portrait WHERE tree = ?', tree);
 }
 
-export type PortraitKeyState = 'none' | 'own' | 'family' | 'family-missing' | 'unreadable';
-
 export interface PortraitSettings {
   enabled: boolean;
+  /** The provider that paints, from the portrait route. Null until one is chosen. */
+  provider: Provider | null;
+  /** The image model, from the portrait route. Empty until one is picked. */
   model: string;
-  reuseFamilyKey: boolean;
-  keyState: PortraitKeyState;
-  /** The last four characters of the key, the only part of it the page shows. */
-  keyTail: string | null;
-  /** The family's own provider is OpenRouter and it has a key saved: it can be reused here. */
-  familyCanReuse: boolean;
-  /** The model the page recommends, provisional until the bake-off. */
+  /** The painting provider is connected, so the route can run. */
+  connected: boolean;
+  /** The model the settings page recommends, provisional until the bake-off. */
   recommended: string;
 }
 
-/** The settings as the steward sees them. Never the key itself. */
+/** The painting settings as the steward sees them. Never a key. */
 export async function readPortraitSettings(tree: string): Promise<PortraitSettings> {
   const r = await row(tree);
-  const fam = await readSettings(tree);
-  const familyCanReuse = savedKeyFits(fam, 'openrouter');
-  const reuse = r?.reuse_family_key === 1;
-  let keyState: PortraitKeyState = 'none';
-  let tail: string | null = null;
-  const probe = async (sealed: string): Promise<PortraitKeyState> => {
-    try {
-      await openKey(tree, sealed);
-      return 'own';
-    } catch {
-      return 'unreadable';
-    }
-  };
-  if (reuse) {
-    if (familyCanReuse && fam.sealed) {
-      keyState = (await probe(fam.sealed)) === 'own' ? 'family' : 'unreadable';
-      tail = fam.keyTail;
-    } else keyState = 'family-missing';
-  } else if (r?.key_sealed) {
-    keyState = await probe(r.key_sealed);
-    tail = keyState === 'own' ? r.key_tail : null;
-  }
+  const route = await resolveRoute(tree, 'portrait');
   return {
     enabled: r?.enabled === 1,
-    model: r?.model ?? '',
-    reuseFamilyKey: reuse,
-    keyState,
-    keyTail: tail,
-    familyCanReuse,
+    provider: route.effective?.provider ?? null,
+    model: route.effective?.model ?? '',
+    connected: route.connected,
     recommended: RECOMMENDED_MODEL,
   };
 }
 
-export interface PortraitSaveInput {
-  enabled: boolean;
-  model: string;
-  reuseFamilyKey: boolean;
-  apiKey?: string;
-  clearKey?: boolean;
+/**
+ * A painting model must be one OpenRouter lists as taking an image in and giving one out. Empty is allowed: the route then
+ * waits for a model (and painting stays off until one is picked).
+ */
+export async function checkPaintModel(model: string): Promise<void> {
+  if (!model) return;
+  if (!MODEL.test(model)) throw new AiError('bad-input', 'paint.err_model_unknown');
+  const listed = (await imageModelList()).find((m) => m.id === model);
+  if (!listed || !listed.takesImage || !listed.givesImage) throw new AiError('bad-input', 'paint.err_model_unknown');
 }
 
-/**
- * Saves the portrait settings. A typed key is sealed and replaces the saved one. The model must be one OpenRouter lists
- * as taking an image in and giving one out. Turning the feature on needs a key (its own, or the family's OpenRouter key).
- */
-export async function savePortraitSettings(tree: string, by: string, input: PortraitSaveInput): Promise<void> {
-  const model = input.model.trim();
-  if (model && !MODEL.test(model)) throw new AiError('bad-input', 'paint.err_model_unknown');
-  if (input.enabled && !model) throw new AiError('bad-input', 'paint.err_model_needed');
-  if (model) {
-    const listed = (await imageModelList()).find((m) => m.id === model);
-    if (!listed || !listed.takesImage || !listed.givesImage) throw new AiError('bad-input', 'paint.err_model_unknown');
+/** Turns painting on or off. On needs a route that runs: a painting provider connected, and a model picked. */
+export async function setPortraitEnabled(tree: string, by: string, enabled: boolean): Promise<void> {
+  if (enabled) {
+    const route = await resolveRoute(tree, 'portrait');
+    if (!route.effective || !route.connected || !(PAINT_PROVIDERS as readonly string[]).includes(route.effective.provider)) throw new AiError('not-configured', 'paint.err_no_key');
+    if (!route.effective.model) throw new AiError('bad-input', 'paint.err_model_needed');
   }
-  const fam = await readSettings(tree);
-  if (input.reuseFamilyKey && !savedKeyFits(fam, 'openrouter')) throw new AiError('bad-input', 'paint.err_family_not_openrouter');
-  const cur = await row(tree);
-  let sealed = cur?.key_sealed ?? null;
-  let tail = cur?.key_tail ?? null;
-  const typed = input.apiKey?.trim();
-  if (typed) {
-    sealed = await sealKey(tree, typed);
-    tail = keyTail(typed);
-  } else if (input.clearKey) {
-    sealed = null;
-    tail = null;
-  }
-  const reuse = input.reuseFamilyKey;
-  if (input.enabled && !(reuse ? fam.sealed && savedKeyFits(fam, 'openrouter') : sealed)) throw new AiError('not-configured', 'paint.err_no_key');
   await accounts().run(
-    `INSERT INTO ai_portrait (tree, enabled, model, reuse_family_key, key_sealed, key_tail, updated, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(tree) DO UPDATE SET enabled = excluded.enabled, model = excluded.model, reuse_family_key = excluded.reuse_family_key,
-       key_sealed = excluded.key_sealed, key_tail = excluded.key_tail, updated = excluded.updated, updated_by = excluded.updated_by`,
-    tree, input.enabled ? 1 : 0, model, reuse ? 1 : 0, sealed, tail, Date.now(), by,
+    `INSERT INTO ai_portrait (tree, enabled, model, reuse_family_key, updated, updated_by) VALUES (?, ?, '', 0, ?, ?)
+     ON CONFLICT(tree) DO UPDATE SET enabled = excluded.enabled, updated = excluded.updated, updated_by = excluded.updated_by`,
+    tree, enabled ? 1 : 0, Date.now(), by,
   );
 }
 
-/** Who may paint: the key is read here, and only for OpenRouter. Throws AiError when there is none. */
+/**
+ * The key a painting uses: the portrait route's provider's own key, and only a provider that paints. Throws paint.err_no_key
+ * when the route has none, and paint.err_key_unreadable when the key cannot be opened.
+ */
 async function paintingKey(tree: string): Promise<string> {
-  const r = await row(tree);
-  const fam = await readSettings(tree);
-  let sealed: string | null = null;
-  if (r?.reuse_family_key === 1) {
-    // A family's OpenRouter key is reused only when OpenRouter is the family's provider; no other provider sees it.
-    if (savedKeyFits(fam, 'openrouter') && fam.sealed) sealed = fam.sealed;
-  } else sealed = r?.key_sealed ?? null;
-  if (!sealed) throw new AiError('not-configured', 'paint.err_no_key');
+  const route = await resolveRoute(tree, 'portrait');
+  if (!route.effective || !route.connected || !(PAINT_PROVIDERS as readonly string[]).includes(route.effective.provider)) throw new AiError('not-configured', 'paint.err_no_key');
   try {
-    return await openKey(tree, sealed);
+    return await keyFor(tree, route.effective.provider);
   } catch {
     throw new AiError('key-unreadable', 'paint.err_key_unreadable');
   }
@@ -283,8 +233,7 @@ export async function createPortrait(tree: string, o: { by: string; personId: st
   const c = tr(toAiLocale(o.locale));
   const s = await readPortraitSettings(tree);
   if (!s.enabled) throw new AiError('not-configured', 'paint.err_off');
-  const r = await row(tree);
-  const model = r?.model ?? '';
+  const model = s.model;
   if (!model) throw new AiError('not-configured', 'paint.err_no_model');
   const d = db(tree);
   if (!(await d.get('SELECT id FROM person WHERE id = ?', o.personId))) throw new Error('photos.err.person_not_found');
@@ -418,17 +367,15 @@ export async function portraitRow(tree: string, personId: string, key: string) {
 }
 
 /** What the page shows about the portrait feature to someone who may see the person: on, configured, and the model. */
-export async function portraitStatus(tree: string): Promise<{ enabled: boolean; configured: boolean; model: string; labName: string; usd: number | null; familyFallback: boolean }> {
+export async function portraitStatus(tree: string): Promise<{ enabled: boolean; configured: boolean; model: string; labName: string; usd: number | null; provider: Provider | null }> {
   const s = await readPortraitSettings(tree);
-  const configured = s.keyState === 'own' || s.keyState === 'family';
   const listed = s.model ? (await imageModelList().catch(() => [] as ImageModel[])).find((m) => m.id === s.model) : undefined;
   return {
     enabled: s.enabled,
-    configured,
+    configured: s.connected,
     model: s.model,
     labName: listed?.labName ?? '',
     usd: listed?.priceUsd ?? (s.model ? UNPRICED_USD : null),
-    familyFallback: s.keyState === 'family',
+    provider: s.provider,
   };
 }
-

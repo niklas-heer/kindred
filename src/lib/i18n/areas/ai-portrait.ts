@@ -83,6 +83,12 @@ export const en = {
   'paint.setSaved': 'Saved.',
   'paint.setNeedModel': 'Choose a model first.',
   'paint.setNeedKey': 'Type an OpenRouter key, or reuse the family’s.',
+  'paint.setWhat': 'A painted portrait is made from one photo of the person by an image model. The picture is a candidate until you keep it.',
+  'paint.setOff': 'Painting is off. Turn it on in the table above, and choose an image model.',
+  'paint.setNeedsProvider': 'Painting needs its provider connected, and an image model chosen. Until then it sends nothing.',
+  'paint.setSends': 'Painting sends the photo and the image model’s prompt to {provider}, using that provider’s key, and nothing else from the tree.',
+  'paint.err_provider_cannot_paint': 'That provider can’t paint portraits. Choose one that can.',
+  'paint.setOnWith': 'Painting is on, with {provider}.',
 };
 
 export const de = {
@@ -168,6 +174,12 @@ export const de = {
   'paint.setSaved': 'Gespeichert.',
   'paint.setNeedModel': 'Wähle zuerst ein Modell.',
   'paint.setNeedKey': 'Gib einen OpenRouter-Schlüssel ein oder verwende den der Familie.',
+  'paint.setWhat': 'Ein gemaltes Porträt entsteht aus einem Foto der Person durch ein Bildmodell. Das Bild ist ein Entwurf, bis du es behältst.',
+  'paint.setOff': 'Malen ist aus. Schalte es in der Tabelle oben ein und wähle ein Bildmodell.',
+  'paint.setNeedsProvider': 'Malen braucht seinen verbundenen Anbieter und ein gewähltes Bildmodell. Bis dahin wird nichts gesendet.',
+  'paint.setSends': 'Malen sendet das Foto und die Anweisung an das Bildmodell an {provider}, mit dessen Schlüssel, und sonst nichts aus dem Stammbaum.',
+  'paint.err_provider_cannot_paint': 'Dieser Anbieter kann keine Porträts malen. Wähle einen, der das kann.',
+  'paint.setOnWith': 'Malen ist an, mit {provider}.',
 };
 
 export const af = {
@@ -253,4 +265,10 @@ export const af = {
   'paint.setSaved': 'Gestoor.',
   'paint.setNeedModel': 'Kies eers ‘n model.',
   'paint.setNeedKey': 'Tik ‘n OpenRouter-sleutel in, of hergebruik die familie s’n.',
+  'paint.setWhat': '’n Geskilderde portret word uit een foto van die persoon deur ’n beeldmodel gemaak. Die prent is ’n kandidaat totdat jy dit hou.',
+  'paint.setOff': 'Skilder is af. Skakel dit in die tabel hierbo aan en kies ’n beeldmodel.',
+  'paint.setNeedsProvider': 'Skilder benodig sy verskaffer gekoppel en ’n beeldmodel gekies. Tot dan word niks gestuur nie.',
+  'paint.setSends': 'Skilder stuur die foto en die beeldmodel se opdrag na {provider}, met daardie verskaffer se sleutel, en niks anders uit die boom nie.',
+  'paint.err_provider_cannot_paint': 'Daardie verskaffer kan nie portrette skilder nie. Kies een wat kan.',
+  'paint.setOnWith': 'Skilder is aan, met {provider}.',
 };

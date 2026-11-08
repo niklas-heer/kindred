@@ -63,6 +63,7 @@ export interface Server {
   models: typeof import('../src/lib/ai/models.server.ts');
   settings: typeof import('../src/lib/ai/settings.server.ts');
   secret: typeof import('../src/lib/ai/secret.server.ts');
+  providers: typeof import('../src/lib/ai/providers.server.ts');
   store: typeof import('../src/lib/store/node.ts');
 }
 
@@ -352,6 +353,7 @@ export async function loadServer(): Promise<{ server: Server; close: () => Promi
     models: await load<Server['models']>('/src/lib/ai/models.server.ts'),
     settings: await load<Server['settings']>('/src/lib/ai/settings.server.ts'),
     secret: await load<Server['secret']>('/src/lib/ai/secret.server.ts'),
+    providers: await load<Server['providers']>('/src/lib/ai/providers.server.ts'),
     store: await load<Server['store']>('/src/lib/store/node.ts'),
   };
   return {
@@ -820,14 +822,16 @@ export function parseArgs(argv: string[]): CliOptions {
   };
 }
 
-/** The saved key of a family, opened with the family's own secret. Only the lead's real run uses this. */
+/**
+ * The saved key of a family for one provider, opened with the family's own secret. Only the lead's real run uses this. The
+ * family may connect several providers; the one named by --provider is used, and no other provider's key is ever read.
+ */
 async function readSavedKey(family: string, provider: Provider): Promise<string> {
   const { server, close } = await loadServer();
   try {
-    const s = await server.settings.readSettings(family);
-    if (!s.sealed) throw new UsageError(`no saved key for the family ${family}`);
-    if (s.provider !== provider) throw new UsageError(`the saved key is for ${s.provider}; pass --provider ${s.provider}`);
-    return await server.secret.openKey(family, s.sealed);
+    const key = await server.providers.keyFor(family, provider).catch(() => undefined);
+    if (!key) throw new UsageError(`no saved ${provider} key for the family ${family}; connect ${provider} in the family's AI settings`);
+    return key;
   } finally {
     await close();
   }
