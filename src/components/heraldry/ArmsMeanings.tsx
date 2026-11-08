@@ -1,15 +1,16 @@
-// What the arms mean: each colour, division, ordinary and charge of a coat of arms in plain words, with its small
+// What the arms mean: the shield's form, each colour, division, line, ordinary and charge, and the parts of the full
+// achievement, in plain words, with a small
 // swatch or drawing. The designer shows it under the preview (open on a wide screen, folded on a phone) and the house
 // page shows it quietly under the large arms. It reads the arms as they are, so it updates as the design changes.
 import { useEffect, useState, type ReactNode } from 'react';
 import { useT, type Translator } from '~/lib/i18n';
-import type { ArmsV2, ChargeLayer, OrdinaryLayer, TinctureV2 } from '~/lib/seed-format';
+import type { ArmsV2, ChargeLayer, OrdinaryLayer, PartitionLine, TinctureV2 } from '~/lib/seed-format';
 import { useArt, type ArtSource } from './art';
-import { chargeMeaning, divisionMeaning, ordinaryMeaning, tinctureMeaning } from './meanings';
+import { ACHIEVEMENT_MEANING, chargeMeaning, divisionMeaning, LINE_MEANING, ordinaryMeaning, SHIELD_MEANING, tinctureMeaning } from './meanings';
 import { chargeLabel } from './registry';
 import { ArmsV2View, fieldTinctures, TinctureSwatch } from './render';
 import { HEX_V2, labelV2 } from './tinctures';
-import { divisionLabel, LINES_V2, ordinaryLabel } from './vocab';
+import { divisionLabel, HELMS, lineLabel, ordinaryLabel, shieldLabel } from './vocab';
 import './meanings.css';
 
 /** A charge's drawing, one colour: `color` sets it, and the surrounding colour is kept when it is absent. */
@@ -47,12 +48,21 @@ interface Row {
   meaning: string;
 }
 
-/** Every element of the arms, as a row a reader can take in: colours, the division, each ordinary, each charge. */
+/** Every element of the arms, as a row a reader can take in: form, colours, division, lines, ordinaries, charges, achievement. */
 function rowsOf(arms: ArmsV2, tr: Translator, source: ArtSource): Row[] {
   const rows: Row[] = [];
   const ft = fieldTinctures(arms);
   const division = arms.field.division;
-  const lineName = (line: string) => tr(LINES_V2.find((l) => l.id === line)!.label);
+  const lineName = (line: PartitionLine) => tr(lineLabel(line));
+  const figureName = (id: string) => { const d = source.def(id); return d ? chargeLabel(d, tr.locale) : id; };
+
+  rows.push({
+    key: 'shield',
+    kind: tr('heraldry.shield_shape'),
+    icon: <ArmsV2View arms={{ shield: arms.shield, field: { division: 'plain', tinctures: [ft[0]], line: 'straight' }, layers: [] }} size={30} className="ae-mini" />,
+    name: tr(shieldLabel(arms.shield)),
+    meaning: tr(SHIELD_MEANING[arms.shield]),
+  });
 
   for (const t of [...new Set(ft)]) {
     rows.push({ key: `t-${t}`, kind: tr('heraldry.means.colour'), icon: <TinctureSwatch t={t} size={26} />, name: tr(labelV2(t)), meaning: tr(tinctureMeaning(t)) });
@@ -67,6 +77,18 @@ function rowsOf(arms: ArmsV2, tr: Translator, source: ArtSource): Row[] {
     detail: division !== 'plain' && arms.field.line !== 'straight' ? lineName(arms.field.line) : undefined,
     meaning: tr(divisionMeaning(division)),
   });
+
+  const drawn = [...(division !== 'plain' ? [arms.field.line] : []), ...arms.layers.flatMap((l) => (l.type === 'ordinary' ? [l.line] : []))];
+  for (const line of new Set(drawn)) {
+    if (line === 'straight') continue;
+    rows.push({
+      key: `l-${line}`,
+      kind: tr('heraldry.means.line'),
+      icon: <ArmsV2View arms={{ shield: arms.shield, field: { division: 'per-pale', tinctures: [ft[0], ft[0] === 'argent' ? 'sable' : 'argent'], line }, layers: [] }} size={30} className="ae-mini" />,
+      name: lineName(line),
+      meaning: tr(LINE_MEANING[line]),
+    });
+  }
 
   arms.layers.forEach((layer, i) => {
     if (layer.type === 'ordinary') {
@@ -97,6 +119,28 @@ function rowsOf(arms: ArmsV2, tr: Translator, source: ArtSource): Row[] {
       meaning: tr(chargeMeaning(c.charge, source.def)),
     });
   });
+
+  const ach = arms.achievement;
+  if (ach) {
+    const figure = (key: string, kind: string, part: { charge: string; tincture: TinctureV2 }, meaning: string) => {
+      const colour = chargeColour(part.tincture, part.charge, source);
+      rows.push({ key, kind, icon: <ChargeGlyph id={part.charge} size={30} color={colour} />, dark: isLight(colour), name: figureName(part.charge), detail: tr(labelV2(part.tincture)), meaning });
+    };
+    if (ach.helm !== 'none') {
+      rows.push({ key: 'a-helm', kind: tr('heraldry.helm'), icon: <ChargeGlyph id="helm" size={30} />, name: tr(HELMS.find((h) => h.id === ach.helm)!.label), meaning: tr(ACHIEVEMENT_MEANING.helm) });
+    }
+    if (ach.mantling) {
+      rows.push({ key: 'a-mantling', kind: tr('heraldry.mantling'), icon: <TinctureSwatch t={ach.mantling[0]} size={26} />, name: ach.mantling.map((m) => tr(labelV2(m))).join(' · '), meaning: tr(ACHIEVEMENT_MEANING.mantling) });
+    }
+    if (ach.torse) {
+      rows.push({ key: 'a-torse', kind: tr('heraldry.means.torse'), icon: <TinctureSwatch t={ach.mantling?.[1] ?? ft[0]} size={26} />, name: tr('heraldry.means.torse'), meaning: tr(ACHIEVEMENT_MEANING.torse) });
+    }
+    if (ach.crest) figure('a-crest', tr('heraldry.crest'), ach.crest, tr(ACHIEVEMENT_MEANING.crest));
+    if (ach.supporters) figure('a-supporters', tr('heraldry.supporters'), ach.supporters, tr(ACHIEVEMENT_MEANING.supporters));
+    if (ach.motto?.trim()) {
+      rows.push({ key: 'a-motto', kind: tr('heraldry.motto'), icon: <ChargeGlyph id="quill" size={30} />, name: ach.motto.trim(), meaning: tr(ACHIEVEMENT_MEANING.motto) });
+    }
+  }
   return rows;
 }
 
@@ -126,7 +170,9 @@ export function ArmsMeanings({ arms, label, open = false, className }: {
 }) {
   const tr = useT();
   const charges = arms.layers.filter((l): l is ChargeLayer => l.type === 'charge').map((l) => l.charge);
-  const rows = rowsOf(arms, tr, useArt(charges));
+  const ach = arms.achievement;
+  const parts = ach ? [ach.helm !== 'none' ? 'helm' : '', ach.crest?.charge ?? '', ach.supporters?.charge ?? '', ach.motto?.trim() ? 'quill' : ''].filter(Boolean) : [];
+  const rows = rowsOf(arms, tr, useArt([...charges, ...parts]));
   const plain = !arms.layers.length;
   return (
     <details className={`ae-means${className ? ` ${className}` : ''}`} open={open}>
@@ -148,6 +194,7 @@ export function ArmsMeanings({ arms, label, open = false, className }: {
       </ul>
       {plain && <p className="ae-means-plain">{tr('heraldry.means.none')}</p>}
       <p className="ae-means-note">{tr('heraldry.means.note')}</p>
+      {charges.length > 0 && <p className="ae-means-note">{tr('heraldry.means.composition')}</p>}
     </details>
   );
 }

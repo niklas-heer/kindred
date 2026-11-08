@@ -3,7 +3,7 @@
 import type {
   ChargeArrangement, FieldDivision, HelmRank, OrdinaryKind, PartitionLine, ShieldShape, TinctureV2,
 } from '~/lib/seed-format';
-import { TINCTURES_V2 } from './tinctures';
+import { TINCTURES_V2 } from './tinctures.ts';
 import type { Key } from '~/lib/i18n/dictionary';
 
 export const SHIELDS: { id: ShieldShape; label: Key; hint: Key }[] = [
@@ -103,3 +103,5 @@ void [_shields, _divs, _lines, _ords, _arr, _helms, _tinct];
 
 export const divisionLabel = (d: FieldDivision): Key => DIVISIONS_V2.find((x) => x.id === d)!.label;
 export const ordinaryLabel = (k: OrdinaryKind): Key => ORDINARIES.find((x) => x.id === k)!.label;
+export const shieldLabel = (s: ShieldShape): Key => SHIELDS.find((x) => x.id === s)!.label;
+export const lineLabel = (l: PartitionLine): Key => LINES_V2.find((x) => x.id === l)!.label;

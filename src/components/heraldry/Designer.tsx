@@ -176,8 +176,8 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
   const setArms = (next: ArmsV2, k?: string) => h.set({ ...draft, arms: next }, k);
   const clashes = tinctureClashesV2(a, tr);
   useLibraryMeta();
-  const shield = blazonV2(a);
-  const achievementText = blazonAchievement(a.achievement);
+  const shield = blazonV2(a, tr.locale);
+  const achievementText = blazonAchievement(a.achievement, tr.locale);
   // "What it means" is open on a wide screen and folded on a phone, where the pickers have no hover.
   const wide = useWide();
 
@@ -304,7 +304,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
                   <button key={p.id} type="button" className="ae-card" onClick={() => { fromSuggestion.current = false; setArms(structuredClone(p.arms)); setSel(p.arms.layers.length ? p.arms.layers.length - 1 : 'field'); setFull(!!p.arms.achievement); setTab('design'); play('tick'); }}>
                     <ArmsV2View arms={p.arms} size={64} />
                     <span className="ae-card-title">{tr(p.label)}</span>
-                    <small>{blazonV2(p.arms)}</small>
+                    <small>{blazonV2(p.arms, tr.locale)}</small>
                   </button>
                 ))}
               </div>
@@ -362,7 +362,7 @@ function Suggestions({ tree, house, initial, country, allowed, onPick }: { tree:
               <ArmsV2View arms={s.arms} size={72} />
               <span className="ae-card-text">
                 <span className="ae-card-title">{s.explanation}</span>
-                <small>{blazonV2(s.arms)}</small>
+                <small>{blazonV2(s.arms, t.locale)}</small>
               </span>
             </button>
           ))}

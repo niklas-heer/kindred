@@ -364,7 +364,7 @@ export function NameResearchPanel({ tree, surname, country, onPick, house }: {
                       ))}
                     </span>
                   )}
-                  <small>{blazonV2(d.arms)}</small>
+                  <small>{blazonV2(d.arms, t.locale)}</small>
                 </span>
               </button>
             ))}

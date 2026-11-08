@@ -3,10 +3,41 @@
 //
 // Be honest about the history: fixed meanings are a later tradition. Medieval heralds mostly chose a charge by how
 // it looked, or as a pun on the name. The interface says so once; these lines are for reading the arms, not proof.
-import type { FieldDivision, OrdinaryKind, TinctureV2 } from '~/lib/seed-format';
+import type { Achievement, FieldDivision, OrdinaryKind, PartitionLine, ShieldShape, TinctureV2 } from '~/lib/seed-format';
 import type { Key } from '~/lib/i18n/dictionary';
 import type { ChargeCategory } from './catalogue.ts';
 import { chargeDef } from './registry.ts';
+
+/** The shield's outline mostly follows period and region, so these lines say so instead of inventing a symbol. */
+export const SHIELD_MEANING: Record<ShieldShape, Key> = {
+  heater: 'heraldry.means.s.heater',
+  french: 'heraldry.means.s.french',
+  iberian: 'heraldry.means.s.iberian',
+  swiss: 'heraldry.means.s.swiss',
+  kite: 'heraldry.means.s.kite',
+  lozenge: 'heraldry.means.s.lozenge',
+};
+
+/** The edge of a division or ordinary. A straight line says nothing, so it has no row. */
+export const LINE_MEANING: Record<Exclude<PartitionLine, 'straight'>, Key> = {
+  wavy: 'heraldry.means.l.wavy',
+  indented: 'heraldry.means.l.indented',
+  dancetty: 'heraldry.means.l.dancetty',
+  embattled: 'heraldry.means.l.embattled',
+  engrailed: 'heraldry.means.l.engrailed',
+  invected: 'heraldry.means.l.invected',
+  nebuly: 'heraldry.means.l.nebuly',
+};
+
+/** The parts of the full achievement around the shield. */
+export const ACHIEVEMENT_MEANING: Record<keyof Achievement, Key> = {
+  helm: 'heraldry.means.a.helm',
+  mantling: 'heraldry.means.a.mantling',
+  torse: 'heraldry.means.a.torse',
+  crest: 'heraldry.means.a.crest',
+  supporters: 'heraldry.means.a.supporters',
+  motto: 'heraldry.means.a.motto',
+};
 
 /** Every tincture, stain and fur. Furs are a mark of rank in the older writers; stains are the less settled ones. */
 export const TINCTURE_MEANING: Record<TinctureV2, Key> = {

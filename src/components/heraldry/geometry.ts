@@ -1,7 +1,7 @@
 // The geometry of heraldry v2, in the v1 box: 100 wide, 120 tall, the fess point at 50,55.
 // Shapes reach past the box and are clipped by the shield, so every shield shape can share them.
 import type {
-  ArmsLayer, ChargeArrangement, ChargeLayer, FieldDivision, OrdinaryKind, OrdinaryLayer, PartitionLine, ShieldShape,
+  ArmsLayer, ArmsV2, ChargeArrangement, ChargeLayer, FieldDivision, OrdinaryKind, OrdinaryLayer, PartitionLine, ShieldShape, TinctureV2,
 } from '~/lib/seed-format';
 
 export type Pt = [number, number];
@@ -224,6 +224,15 @@ export function tinctureCount(div: FieldDivision): number {
   if (div === 'plain') return 1;
   if (div === 'per-pall' || div === 'tierced-pale' || div === 'tierced-fess') return 3;
   return 2;
+}
+
+/** The tinctures a field paints, padded to what its division takes. */
+export function fieldTinctures(a: ArmsV2): TinctureV2[] {
+  const n = tinctureCount(a.field.division);
+  const t = a.field.tinctures.slice(0, n);
+  const pad: TinctureV2[] = ['argent', 'gules', 'azure'];
+  while (t.length < n) t.push(pad.find((p) => !t.includes(p)) ?? 'argent');
+  return t;
 }
 
 /** The region right of (or below) a line through the box, as a closed path: the line, then round the far side. */

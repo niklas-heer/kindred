@@ -64,7 +64,7 @@ export function ArmsRevisions({ feedback, busy, error, revisions, onPick, onRetr
                     ))}
                   </span>
                 )}
-                <small>{blazonV2(d.arms)}</small>
+                <small>{blazonV2(d.arms, t.locale)}</small>
               </span>
             </button>
           ))}

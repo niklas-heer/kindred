@@ -4,17 +4,11 @@ import type { Achievement, ArmsV2, ChargeLayer, Fur, OrdinaryLayer, TinctureV2 }
 import { useArt, type Art, type ArtSource } from './art';
 import { FACES_LEFT, HELM_GLYPH, LEANS } from './catalogue';
 import { chargeDef } from './registry';
-import { divisionPaint, ordinaryShape, placeCharges, SHIELD_PATH, tinctureCount, type Spot } from './geometry';
+import { divisionPaint, fieldTinctures, ordinaryShape, placeCharges, SHIELD_PATH, type Spot } from './geometry';
 import { FUR_COLOURS, HEX_V2, isFur } from './tinctures';
 
 /** The tinctures a field actually uses: what is stored, padded with sensible contrasts. */
-export function fieldTinctures(a: ArmsV2): TinctureV2[] {
-  const n = tinctureCount(a.field.division);
-  const t = a.field.tinctures.slice(0, n);
-  const pad: TinctureV2[] = ['argent', 'gules', 'azure'];
-  while (t.length < n) t.push(pad.find((p) => !t.includes(p)) ?? 'argent');
-  return t;
-}
+export { fieldTinctures };
 
 // ---------- furs ----------
 
