@@ -12,19 +12,26 @@ import { AiError, isolatedSearch, type AiAdapter, type AiReply, type JsonSchema 
 import { adapterForFeature } from './settings.server';
 import { tr, type Tr } from './labels';
 import { translate, type Key } from '../i18n/dictionary';
-import { ATTESTATIONS, IDEA_KINDS, nameMeaningSchema, type AiLocale, type DesignMeaning, type NameDesign, type NameMeaning, type NameResearch } from './types';
-import { cantingFromIdeas, cantingResponseSchema, type CantingRequest } from '../../components/heraldry/canting';
+import { ATTESTATIONS, IDEA_KINDS, nameMeaningSchema, type AiLocale, type ArmsFeedback, type ArmsRevision, type DesignMeaning, type NameDesign, type NameMeaning, type NameResearch } from './types';
+import { cantingFromIdeas, cantingResponseSchema, symbolismItemSchema, type CantingRequest } from '../../components/heraldry/canting';
+import { tinctureZ } from '../../components/heraldry/canting-schema.ts';
 import { candidateCharges, STOCK_CHARGES, termsOf } from '../../components/heraldry/charge-search';
 import type { ChargeDef } from '../../components/heraldry/catalogue';
-import { chargeDef, chargeLabel } from '../../components/heraldry/registry';
+import { blazonV2 } from '../../components/heraldry/blazon';
+import { contrastFor } from '../../components/heraldry/rules';
+import { chargeDef, chargeLabel, chargeName } from '../../components/heraldry/registry';
 import './arms-library.server';
 import { armsV2Schema } from '../../components/heraldry/schema';
+import type { ArmsV2, ChargeLayer } from '../seed-format';
 
 const LANG = { en: 'English', de: 'German (du)', af: 'Afrikaans (jy)' } as const;
 const WEB_SEARCHES = 3;
 const MAX_MEANINGS = 8;
 const MAX_DESIGNS = 5;
 const MIN_DESIGNS = 3;
+/** A revision gives this many refinements and this many fresh designs at most; fewer than the minimum of either is bad output. */
+const MAX_PER_KIND = 3;
+const MIN_PER_KIND = 2;
 /** The research notes from the web are cut to this many characters before they go into the second call. */
 const FINDINGS_MAX = 6000;
 
@@ -181,19 +188,23 @@ export async function nameMeaning(o: { tree: string; surname: string; country?: 
  * The charges the model may use for these meanings: the charges whose names and words answer to the meanings' words,
  * best first, then a general stock. Not the whole library: a long list makes the model reach for the nearest look.
  */
-function chargeList(meanings: DesignMeaning[]): string {
+function chargeList(meanings: DesignMeaning[], asked: string[] = []): string {
+  // What the check asked for comes first: its words ("a key or staff of office") find the charges it names.
+  const askedFit = candidateCharges(termsOf(...asked), 16);
+  const askedIds = new Set(askedFit.map((c) => c.id));
   const terms = termsOf(...meanings.flatMap((m) => [m.root, m.meaning, ...m.ideas.map((i) => i.idea)]));
-  const fit = candidateCharges(terms, 40);
-  const fitIds = new Set(fit.map((c) => c.id));
+  const fit = candidateCharges(terms, 40).filter((c) => !askedIds.has(c.id));
+  const fitIds = new Set([...askedIds, ...fit.map((c) => c.id)]);
   const stock = STOCK_CHARGES.flatMap((id) => {
     const c = chargeDef(id);
     return c && !fitIds.has(c.id) ? [c] : [];
   });
   const line = (c: ChargeDef) => `${c.id} (${chargeLabel(c, 'en')}${c.keys ? `; ${c.keys}` : ''})`;
   return [
+    askedFit.length ? `Charges that answer to what the check asks for:\n${askedFit.map(line).join('\n')}` : '',
     fit.length ? `Charges whose names fit the chosen meanings:\n${fit.map(line).join('\n')}` : 'No charge name fits the chosen meanings.',
     `General charges, for any design: ${stock.map((c) => `${c.id} (${chargeLabel(c, 'en')})`).join(', ')}.`,
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
 const meaningLine = (m: DesignMeaning) => {
@@ -208,15 +219,22 @@ function designSystem(locale: AiLocale, charges: string): string {
   return [
     'You design coats of arms for a family from what its name means. The reader has chosen the meanings below, and each design must draw on one of them: give its id in "meaningId", and say in "explanation", in ' + LANG[locale] + ', one sentence on why the design follows from that meaning (the sense of the name, or how it sounds).',
     'Make three to five designs, all different. Use only the charges listed below, by their id, and at most three charges in a design. Keep the rule of tincture: metal (or, argent) on colour (gules, azure, vert, sable, purpure), never colour on colour and never metal on metal. Prefer a clear, classic shield: a field, one ordinary or one main charge, and a base only when it helps.',
+    ...designRules(locale),
+    'Answer only in the JSON shape you are given.',
+    'Charges (id: English name; German and other words):',
+    charges,
+  ].join('\n');
+}
+
+/** The rules a design follows whatever its count: a charge shows its meaning, narrow ordinaries, the family's words, and symbolism. */
+function designRules(locale: AiLocale): string[] {
+  return [
     'A charge must show the meaning, not only look like it or sound like the name. Use the charge that depicts the meaning when one is listed: a boot for a boot-maker, a fish for a fisher, a mill for a miller. Never use an object because it looks or sounds like the name: a boat is not a boot, and a rock is not "sturdy" while a listed charge fits better. Make a pun on the name only when the sound really is the same in that language.',
     'When no listed charge fits the chosen meaning, do not force one. Say so plainly in the explanation, and design with a tincture and an ordinary (a field, a chevron, a cross) instead.',
     'Do not put a detailed charge on a narrow ordinary (a fess, a bend, a bend sinister, a chevron or a pale): it is too small to read there. On a narrow ordinary use a plain, bold charge, or put the detailed charge on the field, in chief or in base.',
     'The family\'s own meaning, when chosen, is the most important input: prefer it and never contradict it. Never say that the family bore these arms in history: they are proposals to choose from.',
     'For each design, add "symbolism": up to three of its colours or charges, each as "element" (its name, a few words) and "why" (in ' + LANG[locale] + ', one short line on what it stands for in the meaning the design draws on, as a reader would say it, e.g. "Argent for the honour your family names" or "a tower for the army, Heer"). Leave it out when there is nothing to say.',
-    'Answer only in the JSON shape you are given.',
-    'Charges (id: English name; German and other words):',
-    charges,
-  ].join('\n');
+  ];
 }
 
 function designUser(o: { surname: string; country?: string; familyHint?: string; meanings: DesignMeaning[]; locale: AiLocale }): string {
@@ -265,6 +283,124 @@ export async function designArms(o: { adapter: AiAdapter; surname: string; count
 export async function armsDesigns(o: { tree: string; surname: string; country?: string; familyHint?: string; meanings: DesignMeaning[]; locale: AiLocale }): Promise<NameDesign[]> {
   const { adapter } = await adapterForFeature(o.tree, 'arms', o.locale);
   return designArms({ ...o, adapter });
+}
+
+// ---------- step three: new arms, from the saved meanings and what the check asked for ----------
+
+/** One refinement: the charges to add to the arms as they are, each by id, with its tincture and where it lies. */
+const refinementZ = z.object({
+  meaningId: z.string().max(20).optional(),
+  explanation: z.string().min(1).max(200),
+  charges: z.array(z.object({
+    charge: z.string().max(40),
+    tincture: tinctureZ.optional(),
+    on: z.enum(['field', 'chief', 'base']).optional(),
+  })).min(1).max(2),
+  symbolism: z.array(symbolismItemSchema).max(4).optional().catch(undefined),
+});
+/** The answer: refinements of the arms as they are, and fresh designs drawn from the meanings (the design shape, as step two). */
+const revisionZ = z.object({
+  refinements: z.array(refinementZ).max(8),
+  designs: cantingResponseSchema.shape.suggestions,
+});
+const REVISION_JSON: JsonSchema = jsonOf(revisionZ);
+
+/**
+ * The arms as they are, with the charges a refinement adds: each placed on the field, in chief or in base, and tinctured
+ * to stand clear of the field. Undefined when no charge is valid, or the result is not valid arms.
+ */
+function refine(current: ArmsV2, charges: z.infer<typeof refinementZ>['charges']): { arms: ArmsV2; added: string[] } | undefined {
+  const arms = structuredClone(current);
+  const added: ChargeLayer[] = [];
+  for (const c of charges) {
+    if (!chargeDef(c.charge) || arms.layers.length + added.length >= 12) continue;
+    added.push({ type: 'charge', charge: c.charge, tincture: contrastFor(current.field.tinctures, c.tincture), count: 1, arrangement: 'auto', on: c.on ?? 'field' });
+  }
+  if (added.length === 0) return undefined;
+  arms.layers.push(...added);
+  return armsV2Schema.safeParse(arms).success ? { arms, added: added.map((l) => l.charge) } : undefined;
+}
+
+/** The meaning line a suggestion shows: "heer: lord, gentleman", or the family's own words alone. */
+const meaningTitle = (m: DesignMeaning) => (m.attestation === 'family' || !m.root ? m.meaning : `${m.root}: ${m.meaning}`);
+
+function revisionSystem(locale: AiLocale, charges: string): string {
+  return [
+    'You help a family change its coat of arms so that it says what its name means. The steward has researched the name and chosen its meanings. A check found that the arms do not yet say them fully: its reason and what to change are in the message, with the arms as they are now.',
+    'Make two kinds of suggestion, each in its own list.',
+    '"refinements": the arms as they are, with one or two charges added to answer what the check asks for. Keep everything else. Give two or three. Each names the chosen meaning it speaks to in "meaningId", and gives each charge its tincture and where it lies: "field", "chief" or "base".',
+    '"designs": two or three new designs from the chosen meanings, all different, that also answer what the check asks for. Each draws on one chosen meaning (its id in "meaningId"), uses at most three charges, and has a field with at most one ordinary or main charge.',
+    `For every suggestion, say in "explanation", in ${LANG[locale]}, one sentence on why it says the meaning and answers the check.`,
+    'Use only the charges listed below, by their id. Keep the rule of tincture: metal (or, argent) on colour (gules, azure, vert, sable, purpure), never colour on colour and never metal on metal.',
+    ...designRules(locale),
+    'Answer only in the JSON shape you are given.',
+    'Charges (id: English name; German and other words):',
+    charges,
+  ].join('\n');
+}
+
+function revisionUser(o: { surname: string; country?: string; familyHint?: string; meanings: DesignMeaning[]; arms: ArmsV2; feedback: ArmsFeedback }): string {
+  const now = o.arms.layers.filter((l) => l.type === 'charge').map((l) => `${l.charge} (${chargeName(l.charge, 'en')})`);
+  return [
+    `Surname: ${o.surname}`,
+    o.country ? `Country (ISO code): ${o.country}` : '',
+    o.familyHint ? `The family says: "${o.familyHint}"` : '',
+    'Chosen meanings:',
+    ...o.meanings.map(meaningLine),
+    'The check said:',
+    `Reason: ${o.feedback.reason}`,
+    o.feedback.advice ? `What to change: ${o.feedback.advice}` : '',
+    'The arms as they are now (keep them, unless a refinement adds to them):',
+    `Blazon: ${blazonV2(o.arms)}`,
+    `Charges now: ${now.length ? now.join(', ') : 'none'}`,
+  ].filter((l) => l !== '').join('\n');
+}
+
+/**
+ * Suggestions for arms the check found do not fully fit their name: 2–3 refinements (the arms as they are, plus the
+ * charges the feedback asks for) and 2–3 fresh designs (from the chosen meanings). The feedback's words go into the
+ * candidate charges. Fewer than two of either kind is bad output: one retry, then AiError('bad-output').
+ */
+export async function reviseArms(o: {
+  adapter: AiAdapter; surname: string; country?: string; familyHint?: string; meanings: DesignMeaning[]; arms: ArmsV2; feedback: ArmsFeedback; locale: AiLocale;
+}): Promise<ArmsRevision[]> {
+  const c = tr(o.locale);
+  const hint = o.familyHint?.trim() || undefined;
+  const chosen = new Map(o.meanings.map((m) => [m.id, m]));
+  const req: CantingRequest = { surname: o.surname, country: o.country?.toLowerCase() };
+  return ask(c, () => o.adapter.complete({
+    system: revisionSystem(o.locale, chargeList(o.meanings, [o.feedback.advice, o.feedback.reason])),
+    messages: [{ role: 'user', text: revisionUser({ ...o, familyHint: hint }) }],
+    json: { name: 'arms_revisions', schema: REVISION_JSON },
+    maxTokens: 3000,
+    timeoutMs: 90_000,
+  }), (reply) => {
+    const parsed = revisionZ.safeParse(reply.json);
+    if (!parsed.success) return undefined;
+    const refinements: ArmsRevision[] = [];
+    for (const r of parsed.data.refinements) {
+      const m = r.meaningId ? chosen.get(r.meaningId) : undefined;
+      const made = m && refine(o.arms, r.charges);
+      if (!m || !made) continue;
+      refinements.push({ kind: 'refinement', arms: made.arms, explanation: r.explanation, meaningId: m.id, meaning: meaningTitle(m), symbolism: r.symbolism, added: made.added });
+    }
+    const designs: ArmsRevision[] = [];
+    for (const d of cantingFromIdeas({ suggestions: parsed.data.designs }, req)) {
+      const m = d.meaningId ? chosen.get(d.meaningId) : undefined;
+      if (!m || d.arms.layers.length === 0 || !armsV2Schema.safeParse(d.arms).success) continue;
+      designs.push({ kind: 'fresh', arms: d.arms, explanation: d.explanation, meaningId: m.id, meaning: meaningTitle(m), symbolism: d.symbolism });
+    }
+    if (refinements.length < MIN_PER_KIND || designs.length < MIN_PER_KIND) return undefined;
+    return [...refinements.slice(0, MAX_PER_KIND), ...designs.slice(0, MAX_PER_KIND)];
+  });
+}
+
+/** Step three for a family: the adapter, the budget and the web-search switch come from the family's settings (no web search). */
+export async function armsRevisions(o: {
+  tree: string; surname: string; country?: string; familyHint?: string; meanings: DesignMeaning[]; arms: ArmsV2; feedback: ArmsFeedback; locale: AiLocale;
+}): Promise<ArmsRevision[]> {
+  const { adapter } = await adapterForFeature(o.tree, 'arms', o.locale);
+  return reviseArms({ ...o, adapter });
 }
 
 // ---------- one call, one retry on bad output ----------

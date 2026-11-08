@@ -2,7 +2,7 @@
 // test runner can load it on its own; canting.ts re-exports everything here.
 import { z } from 'zod';
 
-const tinctureZ = z.enum([
+export const tinctureZ = z.enum([
   'or', 'argent', 'gules', 'azure', 'vert', 'sable', 'purpure', 'murrey', 'sanguine', 'tenne', 'carnation',
   'ermine', 'ermines', 'erminois', 'vair', 'counter-vair', 'potent', 'proper',
 ]);

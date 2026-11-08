@@ -364,6 +364,12 @@ export interface NameDesign {
   symbolism?: { element: string; why: string }[];
 }
 
+/** Why the arms do not yet fit their name, as the steward's check said it, and what to change. */
+export interface ArmsFeedback { reason: string; advice: string }
+/** A refinement keeps the arms as they are and adds the charges in `added`; a fresh design starts again from the meanings. */
+export type RevisionKind = 'refinement' | 'fresh';
+export interface ArmsRevision extends NameDesign { kind: RevisionKind; added?: string[] }
+
 /** The longest chat message the assistant takes. */
 export const CHAT_MESSAGE_CHARS = 4_000;
 /** The longest family session transcript sent in one go (a whole session, about an hour of talk). */

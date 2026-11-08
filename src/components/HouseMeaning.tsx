@@ -137,7 +137,8 @@ export function ArmsReviewCard({ tree, house, review, aiOn, onDesigner }: {
   review?: ArmsReview;
   /** Whether the family's arms feature is on: a check is only offered then. */
   aiOn: boolean;
-  onDesigner: (tab: 'design' | 'name') => void;
+  /** Opens the designer on a tab. With `revise`, the designer also asks for suggestions from this check, on that one click. */
+  onDesigner: (tab: 'design' | 'name', revise?: ArmsReview) => void;
 }) {
   const t = useT();
   const qc = useQueryClient();
@@ -173,6 +174,8 @@ export function ArmsReviewCard({ tree, house, review, aiOn, onDesigner }: {
 
   const bad = review.verdict !== 'fits';
   const kept = review.dismissed;
+  // New arms are suggested from this check's reason and advice, so they are offered only while the check is current.
+  const suggest = bad && aiOn && review.current;
   return (
     <section className="ui-card hm-review" data-verdict={review.verdict} aria-labelledby="hm-review-title" aria-busy={check.isPending || keep.isPending || undefined}>
       <div className="hm-review-head">
@@ -187,8 +190,13 @@ export function ArmsReviewCard({ tree, house, review, aiOn, onDesigner }: {
       {kept && <p className="hm-basis subtle">{t('houses.review.kept')}</p>}
       <p className="hm-basis subtle">{t('houses.review.checked', { when: whenText(review.checkedAt, t.locale) })}</p>
       <div className="hm-review-actions">
+        {suggest && (
+          <button type="button" className="btn primary" onClick={() => onDesigner('name', review)} aria-haspopup="dialog">
+            <Sparkles size={16} aria-hidden /> {t('houses.review.revise')}
+          </button>
+        )}
         {bad && (
-          <button type="button" className="btn primary" onClick={() => onDesigner('design')} aria-haspopup="dialog">
+          <button type="button" className={suggest ? 'btn' : 'btn primary'} onClick={() => onDesigner('design')} aria-haspopup="dialog">
             <PenLine size={16} aria-hidden /> {t('houses.review.open')}
           </button>
         )}

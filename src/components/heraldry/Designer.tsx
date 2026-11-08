@@ -1,13 +1,18 @@
 // The arms designer: a big live shield and its blazon on the left; on the right the layers (field, division,
 // ordinaries, charges, achievement) and a picker for the chosen one, plus presets and canting suggestions.
 // Loaded on demand by ArmsEditor, so the house page does not carry it.
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowDown, ArrowUp, Crown, Dices, Info, Layers, Plus, Redo2, RotateCcw, Search, Shield, Sparkles, Trash2, Undo2, Wand2,
 } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { graphQuery, updateHouse } from '~/lib/api';
+import { graphQuery, opKeys, updateHouse } from '~/lib/api';
+import { aiArmsRevisions } from '~/lib/ai/arms.functions';
+import { checkArmsFit } from '~/lib/ai/arms-fit.functions';
+import { toAiLocale, type ArmsRevision } from '~/lib/ai/types';
 import { myFamiliesQuery } from '~/lib/auth/functions';
+import { armsReviewsQuery, houseMeaningsQuery } from '~/lib/house-meaning.functions';
+import { chosenMeanings, type ArmsReview } from '~/lib/house-meaning';
 import { useT, type Key, type Translator } from '~/lib/i18n';
 import type {
   Achievement, ArmsLayer, ArmsV2, ChargeArrangement, ChargeLayer, FieldDivision, HelmRank, OrdinaryKind, OrdinaryLayer,
@@ -32,6 +37,7 @@ import { searchCharges } from './charge-search';
 import { asV2, storeV2 } from './convert';
 import { Flag } from './Flag';
 import { NameResearchPanel } from './NameResearch';
+import { ArmsRevisions } from './ArmsRevisions';
 import { ArmsMeanings, ChargeGlyph, useWide } from './ArmsMeanings';
 import { chargeMeaning, divisionMeaning, ordinaryMeaning, tinctureMeaning } from './meanings';
 import { allChargeDefs, chargeDef, chargeLabel, chargeName } from './registry';
@@ -81,8 +87,10 @@ export function surnameOf(name: string): string {
 /** The tab a designer opens on: the design itself, or the suggestions ("Suggest arms from the name"). */
 export type DesignerTab = 'design' | 'presets' | 'name';
 
-export default function Designer({ open, onClose, house, tree, initialTab = 'design' }: {
+export default function Designer({ open, onClose, house, tree, initialTab = 'design', revise }: {
   open: boolean; onClose: () => void; house: House; tree: string; initialTab?: DesignerTab;
+  /** The check the steward asked suggestions from: the name tab asks for them once, when the designer opens with it. */
+  revise?: ArmsReview;
 }) {
   const qc = useQueryClient();
   const tr = useT();
@@ -111,17 +119,50 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // What the name means, as saved. The suggestions from the check draw on it; sealing checks the arms against it again.
+  const meaningsQ = useQuery({ ...houseMeaningsQuery(tree), enabled: allowed });
+  const researched = meaningsQ.data?.[house.id];
+  const [checkKeys] = useState(() => opKeys());
+  const [revisions, setRevisions] = useState<ArmsRevision[] | null>(null);
+  const asked = useRef<ArmsReview | null>(null);
+  // Suggestions from the check: refinements of the arms as saved, and fresh designs from the chosen meanings. Only asked for on
+  // the card's click; nothing is saved, and choosing one loads it into the editor.
+  const revise$ = useMutation({
+    mutationFn: (r: ArmsReview) => {
+      if (!researched) throw new Error('houses.meaning.err_not_researched');
+      return aiArmsRevisions({ data: {
+        tree, surname: researched.name, country, familyHint: researched.familyWords || undefined, locale: toAiLocale(tr.locale),
+        meanings: chosenMeanings(researched).map(({ chosen: _chosen, sources: _sources, ...m }) => m),
+        arms: saved.arms, feedback: { reason: r.reason, advice: r.advice },
+      } });
+    },
+    onSuccess: (list) => setRevisions(list),
+  });
+  useEffect(() => {
+    if (!open) { asked.current = null; return; }
+    setRevisions(null);
+  }, [open]);
+  useEffect(() => {
+    if (!open || !revise || !researched || asked.current === revise) return;
+    asked.current = revise;
+    revise$.mutate(revise);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, revise, researched]);
+
   const save = useMutation({
     mutationFn: (d: Draft) =>
-      // A v1 house left as it was keeps its v1 arms; anything edited is stored as v2 with a v1 summary.
-      updateHouse({ data: { tree, id: house.id, name: d.name.trim(), motto: d.motto.trim() || null, arms: JSON.stringify(d.arms) === JSON.stringify(saved.arms) ? house.arms : storeV2(d.arms) } }),
+      // Saving from the designer always stores the design (v2), even when nothing changed: a v1 house saved as it was
+      // is then no longer on generated arms, so the steward's badge goes.
+      updateHouse({ data: { tree, id: house.id, name: d.name.trim(), motto: d.motto.trim() || null, arms: storeV2(d.arms) } }),
     onSuccess: async (h2, d) => {
       await Promise.all([qc.invalidateQueries({ queryKey: graphQuery(tree).queryKey }), qc.invalidateQueries({ queryKey: myFamiliesQuery.queryKey })]);
       play('seal');
-      const kept = !!h2.arms.v2 || JSON.stringify(d.arms) === JSON.stringify(saved.arms);
-      toast(kept
-        ? { title: tr('heraldry.sealed'), body: tr('heraldry.sealed_body', { name: h2.name }), icon: 'crown' }
-        : { title: tr('heraldry.sealed_simple'), body: tr('heraldry.sealed_simple_body'), icon: 'crown', ms: 9000 });
+      toast({ title: tr('heraldry.sealed'), body: tr('heraldry.sealed_body', { name: h2.name }), icon: 'crown' });
+      // The arms changed, so they are checked against the name again, as after a saved research. The card updates when that is done.
+      if (researched) {
+        void checkArmsFit({ data: { tree, house: house.id, opKey: checkKeys.for('seal', { house: house.id, at: Date.now() }), locale: toAiLocale(tr.locale), force: false } })
+          .finally(() => { void qc.invalidateQueries({ queryKey: armsReviewsQuery(tree).queryKey }); });
+      }
       onClose();
     },
   });
@@ -265,7 +306,17 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
               </div>
             </TabPanel>
             <TabPanel value="name">
-              <Suggestions tree={tree} initial={surnameOf(saved.name)} country={country} allowed={allowed} onPick={(arms) => { setArms(arms); setSel(arms.layers.length ? arms.layers.length - 1 : 'field'); setTab('design'); play('tick'); }} />
+              {revise && (
+                <ArmsRevisions
+                  feedback={{ reason: revise.reason, advice: revise.advice }}
+                  busy={revise$.isPending}
+                  error={revise$.isError ? revise$.error : undefined}
+                  revisions={revisions}
+                  onRetry={() => revise$.mutate(revise)}
+                  onPick={(arms) => { setArms(arms); setSel(arms.layers.length ? arms.layers.length - 1 : 'field'); setTab('design'); }}
+                />
+              )}
+              <Suggestions tree={tree} house={house.id} initial={surnameOf(saved.name)} country={country} allowed={allowed} onPick={(arms) => { setArms(arms); setSel(arms.layers.length ? arms.layers.length - 1 : 'field'); setTab('design'); play('tick'); }} />
             </TabPanel>
           </Tabs>
         </div>
@@ -277,7 +328,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
 // ---------- suggestions from the name ----------
 
 /** The offline ideas for a name, then (with AI arms on, for stewards) the AI's research and designs. */
-function Suggestions({ tree, initial, country, allowed, onPick }: { tree: string; initial: string; country?: string; allowed: boolean; onPick: (a: ArmsV2) => void }) {
+function Suggestions({ tree, house, initial, country, allowed, onPick }: { tree: string; house: string; initial: string; country?: string; allowed: boolean; onPick: (a: ArmsV2) => void }) {
   const t = useT();
   const aiFeature = !!useAiStatus(tree)?.features.arms;
   const aiOn = aiFeature && allowed;
@@ -313,7 +364,7 @@ function Suggestions({ tree, initial, country, allowed, onPick }: { tree: string
           ))}
         </div>
       )}
-      {aiOn && name.trim() !== '' && <NameResearchPanel tree={tree} surname={name} country={country} onPick={onPick} />}
+      {aiOn && name.trim() !== '' && <NameResearchPanel tree={tree} surname={name} country={country} onPick={onPick} house={house} />}
       {allowed && !aiFeature && name.trim() !== '' && (
         <div className="ae-ai-more">
           <AiSetupHint tree={tree} feature={t('heraldry.research_name')} />

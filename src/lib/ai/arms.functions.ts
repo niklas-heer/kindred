@@ -3,6 +3,7 @@
 // adapterForFeature. The research's sources are the only outside text that reaches the browser, and it is data.
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
+import { armsV2Schema } from '../../components/heraldry/schema';
 import { designMeaningSchema, toAiLocale } from './types';
 
 const tree = z.string().regex(/^[a-z0-9-]{1,64}$/);
@@ -37,5 +38,24 @@ export const aiArmsDesigns = createServerFn({ method: 'POST' })
     return (await import('./arms.server')).armsDesigns({
       tree: data.tree, surname: data.surname, country: data.country, familyHint: data.familyHint || undefined,
       meanings: data.meanings, locale: toAiLocale(data.locale),
+    });
+  });
+
+/**
+ * Step three: new arms from the saved meanings and what the steward's check asked for. Refinements keep the arms as they
+ * are and add what the check names; fresh designs start again from the meanings. Stewards only, no web search.
+ */
+export const aiArmsRevisions = createServerFn({ method: 'POST' })
+  .validator(z.object({
+    tree, surname, country, familyHint, locale,
+    meanings: z.array(designMeaningSchema).min(1).max(MAX_DESIGN_MEANINGS),
+    arms: armsV2Schema,
+    feedback: z.object({ reason: z.string().trim().min(1).max(400), advice: z.string().trim().max(400) }),
+  }))
+  .handler(async ({ data }) => {
+    await (await guard()).requireCan(data.tree, 'edit-house');
+    return (await import('./arms.server')).armsRevisions({
+      tree: data.tree, surname: data.surname, country: data.country, familyHint: data.familyHint || undefined,
+      meanings: data.meanings, arms: data.arms, feedback: data.feedback, locale: toAiLocale(data.locale),
     });
   });

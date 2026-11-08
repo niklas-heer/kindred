@@ -20,6 +20,7 @@ import { chronicleQuery, graphQuery, opKeys } from '~/lib/api';
 import { useFamily, useTreeId } from '~/lib/family';
 import { lifespan } from '~/lib/graph';
 import { armsReviewsQuery, houseMeaningsQuery } from '~/lib/house-meaning.functions';
+import type { ArmsReview } from '~/lib/house-meaning';
 import { houseSettingsQuery, updateHouseSettings } from '~/lib/houses.functions';
 import {
   COUNTRY_CODES, DEFAULT_HOUSE_SETTINGS, houseHistory, houseStats, houseSuccession, kinToHead, memberOrder, notables,
@@ -72,6 +73,8 @@ function HousePage() {
   const [armsOpen, setArmsOpen] = useState(false);
   // Which tab the arms designer opens on: its own design, or the suggestions from the name.
   const [armsTab, setArmsTab] = useState<'design' | 'name'>('design');
+  // Set only by "Suggest new arms from this" on the review card; cleared when the designer closes.
+  const [armsRevise, setArmsRevise] = useState<ArmsReview | undefined>(undefined);
   const [succession, setSuccession] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const s = useMemo(() => (house ? houseStats(f, house) : undefined), [f, house]);
@@ -189,7 +192,7 @@ function HousePage() {
         <ArmsMeanings arms={asV2(house.arms)} label={t('heraldry.means.open')} className="hp-means" />
         <HouseMeaning saved={savedMeaning} canEdit={canEdit} onResearch={() => { setArmsTab('name'); setArmsOpen(true); }} />
         {canEdit && savedMeaning && (aiOn || review) && (
-          <ArmsReviewCard tree={tree} house={house} review={review} aiOn={aiOn} onDesigner={(tab) => { setArmsTab(tab); setArmsOpen(true); }} />
+          <ArmsReviewCard tree={tree} house={house} review={review} aiOn={aiOn} onDesigner={(tab, revise) => { setArmsTab(tab); setArmsRevise(revise); setArmsOpen(true); }} />
         )}
 
         <section className="hp-section hp-succession" aria-labelledby="hp-succession">
@@ -227,7 +230,7 @@ function HousePage() {
       )}
       {canEdit && armsOpen && (
         // The designer reads the house's country (for its flag and its name suggestions) from the house object.
-        <ArmsEditor open onClose={() => setArmsOpen(false)} house={{ ...house, country: country ?? undefined } as House} tree={tree} initialTab={armsTab} />
+        <ArmsEditor open onClose={() => { setArmsOpen(false); setArmsRevise(undefined); }} house={{ ...house, country: country ?? undefined } as House} tree={tree} initialTab={armsTab} revise={armsRevise} />
       )}
     </div>
   );

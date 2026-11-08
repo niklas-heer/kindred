@@ -6,6 +6,7 @@
 //   {canEdit && <ArmsEditor open={open} onClose={() => setOpen(false)} house={house} tree={tree} />}
 // `initialTab="name"` opens it on the suggestions ("Suggest arms from the name"); the default is the design itself.
 import { lazy, Suspense, useEffect, useState } from 'react';
+import type { ArmsReview } from '~/lib/house-meaning';
 import type { House } from '~/lib/types';
 import { blazonV2 } from './heraldry/blazon';
 import { asV2 } from './heraldry/convert';
@@ -13,8 +14,10 @@ import type { DesignerTab } from './heraldry/Designer';
 
 const Designer = lazy(() => import('./heraldry/Designer'));
 
-export function ArmsEditor({ open, onClose, house, tree, initialTab = 'design' }: {
+export function ArmsEditor({ open, onClose, house, tree, initialTab = 'design', revise }: {
   open: boolean; onClose: () => void; house: House; tree: string; initialTab?: DesignerTab;
+  /** The check the steward asked suggestions from ("Suggest new arms from this"): the designer asks for them once. */
+  revise?: ArmsReview;
 }) {
   // Mount on first open and stay mounted, so closing can animate and reopening is instant.
   const [opened, setOpened] = useState(open);
@@ -24,7 +27,7 @@ export function ArmsEditor({ open, onClose, house, tree, initialTab = 'design' }
   if (!opened && !open) return null;
   return (
     <Suspense fallback={null}>
-      <Designer open={open} onClose={onClose} house={house} tree={tree} initialTab={initialTab} />
+      <Designer open={open} onClose={onClose} house={house} tree={tree} initialTab={initialTab} revise={revise} />
     </Suspense>
   );
 }
