@@ -19,6 +19,8 @@ export const TOUR_ROUTES = {
   import: '/$tree/settings/import',
   access: '/$tree/access',
   ai: '/$tree/settings/ai',
+  statistics: '/$tree/statistics',
+  feedback: '/$tree/settings/feedback',
 } as const;
 
 export type TourPage = keyof typeof TOUR_ROUTES;
@@ -83,6 +85,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: 'import', page: 'import', targets: [PAGE_HEADER], title: 'shell.importExport', body: 'tour.import.body', needs: 'edit-person' },
   { id: 'access', page: 'access', targets: ['.acc-list', PAGE_HEADER], title: 'shell.access', body: 'tour.access.body', needs: 'manage-access' },
   { id: 'ai', page: 'ai', targets: [PAGE_HEADER], title: 'shell.ai_settings', body: 'tour.ai.body', needs: 'manage-access' },
+  { id: 'statistics', page: 'statistics', targets: [PAGE_HEADER], title: 'stats.title', body: 'tour.statistics.body', needs: 'view-statistics' },
+  { id: 'feedback', page: 'feedback', targets: [PAGE_HEADER], title: 'feedback.inbox_title', body: 'tour.feedback.body', needs: 'manage-access' },
 
   { id: 'again', targets: ['.acct-trigger'], title: 'tour.again.title', body: 'tour.again.body' },
 ];

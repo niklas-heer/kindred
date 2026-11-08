@@ -197,7 +197,9 @@ export function DocumentDialog({ tree, project, document: doc, onClose }: { tree
         next = { file: jpeg, mime: 'image/jpeg', width: scaled.width, height: scaled.height, preview: URL.createObjectURL(scaled.blob) };
       }
       setPicked(next);
-      if (!title.trim()) setTitle(file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim());
+      // Read through the setter: the picture takes a moment to scale, and a title typed in the meantime stays.
+      const fromName = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+      setTitle((typed) => typed.trim() ? typed : fromName);
     } catch {
       setFileError(t('research.err.file_type'));
       setPicked(null);

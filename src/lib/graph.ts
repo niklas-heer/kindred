@@ -152,7 +152,7 @@ export const yearOf = (d?: string) => (d ? parseInt(d.replace(/^~/, ''), 10) : N
 export const approx = (d?: string) => !!d && d.startsWith('~');
 
 /** The life years shown on a card: "1890–1960", or "geb. 1890" for someone living. */
-export function lifespan(p: GPerson, locale: Locale = 'en'): string {
+export function lifespan(p: GPerson, locale: Locale): string {
   const b = yearOf(p.born);
   const d = yearOf(p.died);
   const bs = isNaN(b) ? '?' : `${approx(p.born) ? translate(locale, 'life.circa') : ''}${b}`;

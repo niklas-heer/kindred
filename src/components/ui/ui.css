@@ -157,6 +157,8 @@
 .ui-switch[aria-checked='true'] { background: var(--accent); border-color: transparent; }
 .ui-switch[aria-checked='true']::after { transform: translateX(16px); background: var(--accent-text); }
 .ui-switch:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* A finger needs more than the 20px the switch draws. */
+@media (pointer: coarse) { .ui-switch::before { content: ''; position: absolute; inset: -12px -6px; } }
 .ui-switch.sm { width: 30px; height: 17px; }
 .ui-switch.sm::after { width: 11px; height: 11px; }
 .ui-switch.sm[aria-checked='true']::after { transform: translateX(13px); }

@@ -256,7 +256,7 @@ function HeadCard({ house, settings, head, tree, canEdit, onChoose }: {
           </Link>
           <p className="hp-head-name"><Link className="hp-link" to="/$tree" params={{ tree }} search={{ focus: head.id }}><Name p={head} /></Link></p>
           {(head.title ?? occupationText(head, t.locale)) && <p className="hp-title">{head.title ?? occupationText(head, t.locale)}</p>}
-          {lifespan(head) && <p className="hp-years subtle hs-num">{lifespan(head)}</p>}
+          {lifespan(head, t.locale) && <p className="hp-years subtle hs-num">{lifespan(head, t.locale)}</p>}
         </>
       ) : (
         <>
@@ -372,8 +372,8 @@ function SuccessionDialog({ f, house, tree, settings, members, onClose }: {
   });
 
   const people = useMemo<SelectOption<string>[]>(
-    () => [...members].sort(memberOrder).map((p) => ({ value: p.id, label: nameOf(p), hint: lifespan(p) || undefined })),
-    [members],
+    () => [...members].sort(memberOrder).map((p) => ({ value: p.id, label: nameOf(p), hint: lifespan(p, t.locale) || undefined })),
+    [members, t.locale],
   );
   const laws = SUCCESSION_LAWS.map((law) => ({ value: law, label: t(LAW_KEY[law]) }));
   const headOptions: SelectOption<string>[] = [
@@ -456,7 +456,7 @@ function Notables({ s, tree }: { s: ReturnType<typeof houseStats>; tree: string 
               <Portrait person={p} tree={tree} size={84} house={s.house} />
               <b><Name p={p} /></b>
               {(p.title || occupationText(p, t.locale)) && <span className="hp-title">{p.title ?? occupationText(p, t.locale)}</span>}
-              {lifespan(p) && <span className="hp-years">{lifespan(p)}</span>}
+              {lifespan(p, t.locale) && <span className="hp-years">{lifespan(p, t.locale)}</span>}
               {role && <span className="hs-chip hp-role">{t(ROLE_KEY[role])}</span>}
             </Link>
           </li>
@@ -541,7 +541,7 @@ function MemberGroup({ title, people, tree }: { title: string; people: GPerson[]
                 <b><Name p={p} /></b>
                 {(p.title || occupationText(p, t.locale) || p.nickname) && <small>{p.title ?? occupationText(p, t.locale) ?? `“${p.nickname}”`}</small>}
               </span>
-              <span className="hp-row-years">{lifespan(p)}</span>
+              <span className="hp-row-years">{lifespan(p, t.locale)}</span>
             </Link>
           </li>
         ))}

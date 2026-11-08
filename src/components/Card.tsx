@@ -129,9 +129,9 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
   const canFold = !!onToggle && !!(node.folded || (f.childrenOf.get(p.id)?.length && node.role === 'main'));
   return (
     <div className={`card ${detail}${selected ? ' selected' : ''}${roleClass}${p.living ? ' living' : ' dead'}${ruler ? ' crowned' : ''}`}>
-      <button className="card-hit" onClick={() => onSelect(p.id)} onDoubleClick={() => onOpen?.(p.id)} aria-label={`${name}, ${years}`} title={t('card.clickToSelect', { name })}>
+      <button className="card-hit" onClick={() => onSelect(p.id)} onDoubleClick={() => onOpen?.(p.id)} title={t('card.clickToSelect', { name })}>
         <div className="card-portrait">
-          <Portrait person={p} tree={tree} size={detail === 'near' ? 104 : 84} />
+          <Portrait person={p} tree={tree} size={detail === 'near' ? 104 : 84} decorative />
           {house && (
             <span className="card-arms" title={house.name}>
               <Arms arms={house.arms} size={detail === 'near' ? 28 : 24} />

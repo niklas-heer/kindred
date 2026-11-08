@@ -21,7 +21,11 @@ const adjustCopy = (n: Node) => {
     const width = parseFloat(n.style.width);
     if (width) n.style.setProperty('width', `${width + 1}px`);
   }
-  if (n.style.backgroundImage.includes('feTurbulence')) n.style.backgroundImage = n.style.backgroundImage.replace(GRAIN, '').replace(/,\s*$/, '') || 'none';
+  if (n.style.backgroundImage.includes('feTurbulence')) {
+    n.style.backgroundImage = n.style.backgroundImage.replace(GRAIN, '').replace(/,\s*$/, '') || 'none';
+    // The grain was one 260px tile; the layers left must not keep its size, or a page-wide gradient repeats as bands.
+    n.style.backgroundSize = 'auto';
+  }
 };
 
 /** The visible window, at up to 2x, its longest side at most MAX_SIDE. */

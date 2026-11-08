@@ -21,6 +21,8 @@ type KindredCi {
     "!tsconfig.json",
     "!vite.config.ts",
     "!wrangler.jsonc",
+    "!e2e",
+    "!playwright.config.ts",
   ])
 
   """
@@ -42,6 +44,7 @@ type KindredCi {
     "target",
     ".ruff_cache",
     "scratch",
+    "test-results",
     ".DS_Store",
     "*.log",
   ])
@@ -107,6 +110,19 @@ type KindredCi {
   pub smoke: String! {
     withWorkerd
       .withExec(["node", "scripts/worker-smoke.ts"])
+      .stdout
+  }
+
+  """
+  The browser journeys (`e2e/`, `mise run e2e`) on Debian's Chromium: a production Node build, scratch data, the fake AI
+  provider. Not in `ci` yet: add it once a run on a container engine has shown it green.
+  """
+  pub e2e: String! {
+    installed
+      .withExec(["sh", "-c", "apt-get update && apt-get install -y --no-install-recommends chromium && rm -rf /var/lib/apt/lists/*"])
+      .withEnvVariable("KINDRED_E2E_BROWSER", "/usr/bin/chromium")
+      .withExec(["npm", "run", "build:node"])
+      .withExec(["npx", "playwright", "test"])
       .stdout
   }
 

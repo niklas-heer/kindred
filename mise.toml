@@ -64,6 +64,11 @@ run = 'node scripts/ai-eval.ts "$@"'
 description = "Unit tests, the same list CI runs (npm test, in package.json)"
 run = "npm test"
 
+[tasks.e2e]
+description = "Browser journeys: builds the Node server, then Playwright on a scratch data folder with the fake AI provider. One worker, using the installed Brave; downloads no browser (KINDRED_E2E_BROWSER names another Chromium, KINDRED_E2E_PORT the port, 5251). Prints what axe found. Pass Playwright arguments after --"
+env = { KINDRED_TARGET = "node" }
+run = ["vite build", 'playwright test "$@"']
+
 [tasks.build]
 description = "Build the Worker (dist/); KINDRED_TARGET=node builds for Node instead"
 run = "vite build"

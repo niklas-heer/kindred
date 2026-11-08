@@ -177,6 +177,39 @@ export const contractCases: Record<string, () => Promise<void>> = {
     same(await d.get('SELECT substr(?, ?, ?) AS s', 'abcdef', 2, 3), { s: 'bcd' });
   },
 
+  // D1 binds every JavaScript number as REAL, so json_quote(7) there is 7.0 and a number bound to a TEXT or untyped
+  // column can be stored as '7.0'. The family and accounts schemas have no untyped column, and every date, day, month
+  // and year is TEXT, so those are always bound as strings (the three cases below keep that true on both drivers).
+
+  'a date, day or year is bound as a string and stays the same text': async () => {
+    const d = await scratch();
+    const tag = uid('d');
+    for (const text of ['1985', '1985-06', '1985-06-14', '2026-11', String(7), `${2026}`]) await d.run('INSERT INTO contract_value (txt, u) VALUES (?, ?)', text, `${tag}${text}`);
+    const rows = await d.all<{ txt: string; t: string }>('SELECT txt, typeof(txt) AS t FROM contract_value WHERE u LIKE ? ORDER BY u', `${tag}%`);
+    same(rows.map((r) => r.txt), ['1985', '1985-06', '1985-06-14', '2026', '2026-11', '7']);
+    assert.ok(rows.every((r) => r.t === 'text'));
+    same(await d.get('SELECT count(*) AS n FROM contract_value WHERE u LIKE ? AND substr(txt, 1, 4) = ?', `${tag}%`, '1985'), { n: 3 });
+    same(await d.get('SELECT json_quote(?) AS a', '1985'), { a: '"1985"' });
+  },
+
+  'a whole number bound to an INTEGER column is stored and counted as an integer, also after arithmetic': async () => {
+    const d = await scratch();
+    const tag = uid('i');
+    const at = Date.now();
+    await d.run('INSERT INTO contract_value (txt, int) VALUES (?, ?)', tag, at);
+    await d.run('UPDATE contract_value SET int = int + ? WHERE txt = ?', 5, tag);
+    await d.run('UPDATE contract_value SET int = MAX(0, int - ? + ?) WHERE txt = ?', 2, Math.round(3.4), tag);
+    same(await d.get('SELECT int, typeof(int) AS t FROM contract_value WHERE txt = ?', tag), { int: at + 6, t: 'integer' });
+    same(await d.get('SELECT count(*) AS n FROM contract_value WHERE txt = ? AND int > ?', tag, at), { n: 1 });
+    same(await d.get('SELECT sum(int >= ?) AS n FROM contract_value WHERE txt = ?', at, tag), { n: 1 });
+  },
+
+  'a number inside a JSON document is written by JSON.stringify and stays an integer': async () => {
+    const d = await scratch();
+    const { lastRowId } = await d.run('INSERT INTO contract_value (txt) VALUES (?)', JSON.stringify({ n: 7, list: [1, 2], year: '1985' }));
+    same(await d.get("SELECT json_type(txt, '$.n') AS n, json_type(txt, '$.list[1]') AS l, json_type(txt, '$.year') AS y, json_extract(txt, '$.n') AS v FROM contract_value WHERE id = ?", lastRowId), { n: 'integer', l: 'integer', y: 'text', v: 7 });
+  },
+
   'JSON is stored as text and SQL can read inside it': async () => {
     const d = await scratch();
     const value = { name: 'Müller 👑', arms: { field: 'gules' }, list: [1, 'two', null], ok: true };

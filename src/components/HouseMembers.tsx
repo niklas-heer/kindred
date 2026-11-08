@@ -97,7 +97,7 @@ export function HouseMembersDialog({ open, onClose, tree, house, members }: {
         <Portrait person={p} tree={tree} size={32} frame={false} />
         <span className="hm-name">
           <b>{nameOf(p)}{p.epithet && <i> {p.epithet}</i>}</b>
-          {lifespan(p) && <small>{lifespan(p)}</small>}
+          {lifespan(p, t.locale) && <small>{lifespan(p, t.locale)}</small>}
         </span>
         {on && <span className="hm-mark">{label}</span>}
       </button>

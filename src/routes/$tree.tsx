@@ -44,14 +44,18 @@ export const Route = createFileRoute('/$tree')({
   loader: async ({ context, params }) => {
     // An unknown family is a friendly "not found", never a server error with a developer hint.
     const trees = await context.queryClient.ensureQueryData(myFamiliesQuery);
-    if (!trees.some((t) => t.id === params.tree)) throw notFound();
+    if (!trees.some((t) => t.id === params.tree)) throw notFound({ data: { family: false } });
     await context.queryClient.ensureQueryData(graphQuery(params.tree));
     // On the server too, so its first render shows the same AI controls as the browser's. Never fails the page.
     await context.queryClient.prefetchQuery(aiStatusQuery(params.tree));
   },
   head: (ctx) => ({ meta: [{ title: treeTitle(ctx) }] }),
-  notFoundComponent: ({ data }) =>
-    (data as { access?: boolean } | undefined)?.access === false ? <NoAccessPage /> : <NotFoundPage kind="family" id={Route.useParams().tree} />,
+  // Also catches an unknown address inside a family that exists: that is a missing page, not a missing family.
+  notFoundComponent: ({ data }) => {
+    const missing = data as { access?: boolean; family?: boolean } | undefined;
+    if (missing?.access === false) return <NoAccessPage />;
+    return missing?.family === false ? <NotFoundPage kind="family" id={Route.useParams().tree} /> : <NotFoundPage />;
+  },
   component: TreeLayout,
 });
 
@@ -126,7 +130,7 @@ function TreeLayout() {
           </Link>
         </nav>
         <span className="spacer" />
-        <button className="btn search-trigger" onClick={() => palette.open()} aria-label={t("shell.find_anyone_k")}>
+        <button className="btn search-trigger" onClick={() => palette.open()}>
           <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
             <Search size={15} /> {t("shell.find_anyone")} </span>
           <kbd>⌘K</kbd>

@@ -24,6 +24,15 @@ test('a steward gets Access and AI settings', () => {
   assert.ok(got.includes('access') && got.includes('ai'));
 });
 
+test('Statistics and Feedback are shown to stewards only', () => {
+  const got = ids(ctx({ role: 'steward' }));
+  assert.ok(got.includes('statistics') && got.includes('feedback'));
+  for (const role of ['viewer', 'contributor', 'editor'] as const) {
+    const others = ids(ctx({ role }));
+    assert.ok(!others.includes('statistics') && !others.includes('feedback'), role);
+  }
+});
+
 test('the assistant step needs the assistant to be on', () => {
   assert.ok(!ids(ctx()).includes('assistant'));
   assert.ok(ids(ctx({ assistant: true })).includes('assistant'));

@@ -48,6 +48,7 @@ export function Portrait({
   prefer,
   age,
   mourn = true,
+  decorative = false,
 }: {
   person: GPerson;
   tree: string;
@@ -63,6 +64,8 @@ export function Portrait({
   age?: number;
   /** False shows the dead in colour, as the character editor must to pick colours. */
   mourn?: boolean;
+  /** True when the name is already written beside the picture, so it is not announced twice. */
+  decorative?: boolean;
 }) {
   useEffect(ensurePortraitDefs, []);
   const house = useHouse(person, tree, givenHouse);
@@ -93,7 +96,7 @@ export function Portrait({
     <span className={cls} style={style}>
       <span className="portrait-mat">
         <span className={face}>
-          <img className={painted ? 'portrait-img is-painted' : 'portrait-img'} src={src} alt={name} loading={pictured ? 'lazy' : undefined} decoding="async" draggable={false} />
+          <img className={painted ? 'portrait-img is-painted' : 'portrait-img'} src={src} alt={decorative ? '' : name} loading={pictured ? 'lazy' : undefined} decoding="async" draggable={false} />
         </span>
       </span>
       {badge ? (

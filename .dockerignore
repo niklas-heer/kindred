@@ -3,6 +3,7 @@
 node_modules
 data
 dist
+test-results
 .output
 .tanstack
 .wrangler

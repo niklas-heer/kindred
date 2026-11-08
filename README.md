@@ -86,6 +86,7 @@ Every task is in `mise.toml`. These are the ones you are likely to use:
 | `mise run ai-eval -- --dry-run` | Plan AI model evaluations without sending requests; see [AI docs](docs/ai.md) |
 | `mise run check` | `tsc --noEmit` |
 | `mise run test` | Every unit test (the same list as `npm test`) |
+| `mise run e2e` | Browser journeys with Playwright and axe, on a production Node build and scratch data |
 | `mise run build` | Build the Worker into `dist/` (`KINDRED_TARGET=node` builds for Node instead) |
 | `mise run build:node` | Build the production server for Node into `dist/` |
 | `mise run start` | Run that production server (`PORT`, `HOST`, `KINDRED_DATA_DIR`; see [docs/self-host.md](docs/self-host.md)) |

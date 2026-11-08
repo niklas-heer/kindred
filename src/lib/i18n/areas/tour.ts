@@ -44,6 +44,8 @@ export const en = {
   "tour.import.body": "Bring in a GEDCOM file, or take the whole family out as a file or a readable archive. Your data is always yours.",
   "tour.access.body": "As a steward you decide who is in the family and what they may do: invite relatives, change roles, and see who has joined.",
   "tour.ai.body": "As a steward you choose whether the family uses AI at all: which provider, which features, and how much it may spend.",
+  "tour.statistics.body": "How Kindred is used in your family: visits, what has been added, and how the tour went. Counts only, kept in your family’s own database, and you can turn it off here.",
+  "tour.feedback.body": "What stewards have reported about Kindred, with a picture of the screen. Open a report to read it and mark it resolved.",
   "tour.again.title": "Whenever you need it",
   "tour.again.body": "That's everything. To see this again, open your account menu here and choose “Take the tour”, or find it with ⌘K.",
 };
@@ -92,6 +94,8 @@ export const de: Record<keyof typeof en, string> = {
   "tour.import.body": "Bring eine GEDCOM-Datei mit oder nimm die ganze Familie als Datei oder lesbares Archiv mit. Deine Daten bleiben deine.",
   "tour.access.body": "Als Verwalter:in bestimmst du, wer zur Familie gehört und was alle dürfen: Verwandte einladen, Rollen ändern und sehen, wer dazugekommen ist.",
   "tour.ai.body": "Als Verwalter:in entscheidest du, ob die Familie überhaupt KI nutzt: welcher Anbieter, welche Funktionen und wie viel sie kosten darf.",
+  "tour.statistics.body": "Wie Kindred in deiner Familie genutzt wird: Besuche, was dazugekommen ist und wie der Rundgang lief. Nur Zahlen, in der Datenbank deiner Familie, und du kannst es hier ausschalten.",
+  "tour.feedback.body": "Was Verwalter:innen zu Kindred gemeldet haben, mit einem Bild des Bildschirms. Öffne eine Meldung, um sie zu lesen und als erledigt zu markieren.",
   "tour.again.title": "Wann immer du es brauchst",
   "tour.again.body": "Das war alles. Um den Rundgang wieder zu sehen, öffne hier dein Kontomenü und wähle „Rundgang starten“, oder finde ihn mit ⌘K.",
 };
@@ -140,6 +144,8 @@ export const af: Partial<Record<keyof typeof en, string>> = {
   "tour.import.body": "Bring ’n GEDCOM-lêer in, of neem die hele familie uit as ’n lêer of leesbare argief. Jou data bly joune.",
   "tour.access.body": "As rentmeester besluit jy wie deel van die familie is en wat hulle mag doen: nooi familie, verander rolle en sien wie aangesluit het.",
   "tour.ai.body": "As rentmeester besluit jy of die familie hoegenaamd KI gebruik: watter verskaffer, watter funksies en hoeveel dit mag kos.",
+  "tour.statistics.body": "Hoe Kindred in jou familie gebruik word: besoeke, wat bygevoeg is en hoe die toer verloop het. Net getalle, in jou familie se eie databasis, en jy kan dit hier afskakel.",
+  "tour.feedback.body": "Wat rentmeesters oor Kindred gerapporteer het, met ’n prentjie van die skerm. Maak ’n verslag oop om dit te lees en as afgehandel te merk.",
   "tour.again.title": "Wanneer jy dit nodig het",
   "tour.again.body": "Dis alles. Om dit weer te sien, maak hier jou rekeningkieslys oop en kies “Neem die toer”, of vind dit met ⌘K.",
 };

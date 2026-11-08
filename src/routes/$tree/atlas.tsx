@@ -486,7 +486,7 @@ function PlaceDetail({ pin, f, tree, mode, onBack }: { pin: Pin; f: ReturnType<t
                   <Portrait person={p} tree={tree} size={40} />
                   <span>
                     <b className="atlas-name">{displayName(p, f)}</b>
-                    <small className="muted">{lifespan(p)}</small>
+                    <small className="muted">{lifespan(p, tr.locale)}</small>
                   </span>
                 </Link>
               </li>
