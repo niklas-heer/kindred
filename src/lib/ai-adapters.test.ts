@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test, afterEach } from 'node:test';
 import { createServer } from 'vite';
+import { z } from 'zod';
 
 const dir = mkdtempSync(join(tmpdir(), 'kindred-ai-adapters-'));
 process.env.KINDRED_DATA_DIR = dir;
@@ -17,7 +18,8 @@ process.env.KINDRED_SECRET = 'ai-adapters-test-secret';
 
 const vite = await createServer({ root: process.cwd(), logLevel: 'error', server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom' });
 const load = <T>(path: string) => vite.ssrLoadModule(path) as Promise<T>;
-const { makeAdapter, AiError, chatModelId, searchesOnItsOwn } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
+const { makeAdapter, AiError, chatModelId, searchesOnItsOwn, structuredSchema, isolatedSearch, outputCap } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
+const types = await load<typeof import('./ai/types.ts')>('/src/lib/ai/types.ts');
 const models = await load<typeof import('./ai/models.server.ts')>('/src/lib/ai/models.server.ts');
 
 test.after(async () => {
@@ -370,5 +372,157 @@ test('openrouter: a reply without reasoning blocks carries none, and an assistan
   const reply = await makeAdapter('openrouter', KEY, 'vendor/plain').complete({ system: 'S', messages: [{ role: 'user', text: 'Hi' }] });
   assert.equal(reply.reasoningDetails, undefined);
   assert.ok(!('reasoning_details' in sent[0].body) && !JSON.stringify(sent[0].body).includes('reasoning_details'));
+});
+
+// ---------- Anthropic: structured outputs, effort, the cap, refusals and thinking ----------
+
+const faceSchema: Record<string, unknown> = {
+  type: 'object',
+  properties: { faces: { type: 'array', maxItems: 5, items: { type: 'object', properties: { box: { type: 'object', properties: { x: { type: 'number', minimum: 0, maximum: 1 } } } } } } },
+  required: ['faces'],
+};
+const FORBIDDEN_IN_FORMAT = ['minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf', 'minLength', 'maxLength', 'minItems', 'maxItems', 'uniqueItems', '$schema'];
+
+/** Every keyword the format refuses is gone, and every object is closed. Throws with the path of the first breach. */
+function assertFormatSafe(node: unknown, path = 'root'): void {
+  if (Array.isArray(node)) return node.forEach((n, i) => assertFormatSafe(n, `${path}[${i}]`));
+  if (!node || typeof node !== 'object') return;
+  const o = node as Record<string, unknown>;
+  for (const k of FORBIDDEN_IN_FORMAT) assert.ok(!(k in o), `${path} still has ${k}`);
+  if (o.type === 'object' || o.properties) assert.equal(o.additionalProperties, false, `${path} is not closed`);
+  for (const [k, v] of Object.entries(o)) {
+    // The names of properties are not keywords: a property called "minimum" is kept.
+    if (k === 'properties' || k === '$defs') for (const [name, s] of Object.entries(v as Record<string, unknown>)) assertFormatSafe(s, `${path}.${k}.${name}`);
+    else if (k !== 'enum' && k !== 'required') assertFormatSafe(v, `${path}.${k}`);
+  }
+}
+
+test('anthropic: Opus 5.5 and Sonnet 5.5 send the JSON answer as structured output, with low effort and no forced tool', async () => {
+  for (const model of ['claude-opus-5-5', 'claude-sonnet-5-5']) {
+    const sent = stubFetch([json({ content: [{ type: 'text', text: '\n{"faces":[]}\n' }], stop_reason: 'end_turn', usage: { input_tokens: 10, output_tokens: 5 } })]);
+    const reply = await makeAdapter('anthropic', KEY, model).complete({ system: 'S', messages: [{ role: 'user', text: 'Find the faces' }], json: { name: 'faces', schema: faceSchema } });
+    const body = sent[0].body;
+    assert.equal(body.tool_choice, undefined, `${model}: a forced tool_choice is a 400 here`);
+    assert.equal(body.tools, undefined, `${model}: no tool stands in for the answer`);
+    assert.deepEqual(body.output_config, { effort: 'low', format: { type: 'json_schema', schema: structuredSchema(faceSchema) } });
+    assert.equal(body.max_tokens, 8_000, `${model}: the cap has the floor`);
+    for (const k of ['temperature', 'top_p', 'top_k', 'thinking']) assert.ok(!(k in body), `${model}: ${k} is not sent`);
+    assert.deepEqual(reply.json, { faces: [] }, 'the JSON in the text block is parsed');
+    assert.equal(reply.searches, 0);
+  }
+});
+
+test('anthropic: Haiku 4.5 takes the structured output without effort; an older model keeps the forced tool', async () => {
+  const haiku = stubFetch([json({ content: [{ type: 'text', text: '{"faces":[]}' }], stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 1 } })]);
+  await makeAdapter('anthropic', KEY, 'claude-haiku-4-5-20251001').complete({ system: 'S', messages: [{ role: 'user', text: 'Hi' }], json: { name: 'faces', schema: faceSchema } });
+  assert.ok(haiku[0].body.output_config.format, 'Haiku 4.5 has structured outputs');
+  assert.equal(haiku[0].body.output_config.effort, undefined, 'Haiku 4.5 does not take effort');
+
+  const older = stubFetch([json({ content: [{ type: 'tool_use', id: 't1', name: 'faces', input: { faces: [] } }], stop_reason: 'tool_use', usage: { input_tokens: 1, output_tokens: 1 } })]);
+  const reply = await makeAdapter('anthropic', KEY, 'claude-sonnet-4-6').complete({ system: 'S', messages: [{ role: 'user', text: 'Hi' }], json: { name: 'faces', schema: faceSchema } });
+  assert.deepEqual(older[0].body.tool_choice, { type: 'tool', name: 'faces' });
+  assert.equal(older[0].body.output_config, undefined, 'no structured output and no effort for an older model');
+  assert.deepEqual(reply.json, { faces: [] }, 'the forced tool input is the answer');
+});
+
+test('anthropic: the schema sent is closed, and the bounds are dropped, without touching the schema it came from', () => {
+  const before = JSON.stringify(faceSchema);
+  assert.deepEqual(structuredSchema(faceSchema), {
+    type: 'object',
+    properties: { faces: { type: 'array', items: { type: 'object', properties: { box: { type: 'object', properties: { x: { type: 'number' } }, additionalProperties: false } }, additionalProperties: false } } },
+    required: ['faces'],
+    additionalProperties: false,
+  });
+  assert.equal(JSON.stringify(faceSchema), before, 'the caller’s schema is not changed');
+  // A property named after a bound is a property, not a bound.
+  const named = structuredSchema({ type: 'object', properties: { minimum: { type: 'number', minimum: 0 }, pattern: { type: 'string', pattern: '^a' } } });
+  assert.deepEqual(named, { type: 'object', properties: { minimum: { type: 'number' }, pattern: { type: 'string', pattern: '^a' } }, additionalProperties: false });
+});
+
+test('anthropic: the zod schemas Kindred sends come out as the format takes them', () => {
+  const { $schema: _drop, ...raw } = z.toJSONSchema(types.faceResultSchema) as Record<string, unknown>;
+  const sent = structuredSchema(raw);
+  assertFormatSafe(sent);
+  assert.ok(JSON.stringify(sent).includes('"box"'), 'the shape itself is kept');
+});
+
+test('anthropic: a reply cut off by its cap is bad output, with what it billed', async () => {
+  stubFetch([json({ content: [{ type: 'thinking', thinking: 'Still thinking', signature: 'sig' }], stop_reason: 'max_tokens', usage: { input_tokens: 100, output_tokens: 8_000 } })]);
+  await assert.rejects(makeAdapter('anthropic', KEY, 'claude-opus-5-5').complete({ system: 'S', messages: [{ role: 'user', text: 'Hi' }], json: { name: 'faces', schema: faceSchema } }), (e: unknown) => {
+    assert.ok(e instanceof AiError);
+    assert.equal(e.code, 'bad-output');
+    assert.deepEqual(e.billed, { inputTokens: 100, outputTokens: 8_000, searches: 0 });
+    assert.equal(e.inFlight, false);
+    return true;
+  });
+});
+
+test('anthropic: a refusal is its own readable error, not bad output, and it keeps what it billed', async () => {
+  stubFetch([json({ content: [], stop_reason: 'refusal', usage: { input_tokens: 40, output_tokens: 3 } })]);
+  await assert.rejects(makeAdapter('anthropic', KEY, 'claude-sonnet-5-5').complete({ system: 'S', messages: [{ role: 'user', text: 'Hi' }], json: { name: 'faces', schema: faceSchema } }), (e: unknown) => {
+    assert.ok(e instanceof AiError);
+    assert.equal(e.code, 'refused');
+    assert.match(e.message, /declined/);
+    assert.deepEqual(e.billed, { inputTokens: 40, outputTokens: 3, searches: 0 });
+    return true;
+  });
+});
+
+test('anthropic: a reply with a refusal in a plain chat is refused too, before any text is read', async () => {
+  stubFetch([json({ content: [{ type: 'text', text: 'Partial words' }], stop_reason: 'refusal', usage: { input_tokens: 5, output_tokens: 2 } })]);
+  await assert.rejects(makeAdapter('anthropic', KEY, 'claude-opus-5-5').complete({ system: 'S', messages: [{ role: 'user', text: 'Hi' }] }), (e: unknown) => e instanceof AiError && e.code === 'refused');
+});
+
+test('anthropic: thinking blocks come back unchanged, first, with the tool calls they came with', async () => {
+  const thinking = { type: 'thinking', thinking: 'The tree has Ruth.', signature: 'sig-abc' };
+  const redacted = { type: 'redacted_thinking', data: 'opaque-blob' };
+  const sent = stubFetch([
+    json({
+      content: [thinking, redacted, { type: 'tool_use', id: 'tu1', name: 'lookup', input: { name: 'Ruth' } }],
+      stop_reason: 'tool_use',
+      usage: { input_tokens: 50, output_tokens: 30 },
+    }),
+    json({ content: [{ type: 'text', text: 'Ruth was born in 1952.' }], stop_reason: 'end_turn', usage: { input_tokens: 80, output_tokens: 12 } }),
+  ]);
+  const adapter = makeAdapter('anthropic', KEY, 'claude-opus-5-5');
+  const tools = [{ name: 'lookup', description: 'Look up a person', parameters: { type: 'object', properties: { name: { type: 'string' } } } }];
+  const first = await adapter.complete({ system: 'S', messages: [{ role: 'user', text: 'When was Ruth born?' }], tools });
+  assert.deepEqual(first.reasoningDetails, [thinking, redacted]);
+  assert.equal(first.calls[0]?.name, 'lookup');
+  await adapter.complete({
+    system: 'S',
+    messages: [
+      { role: 'user', text: 'When was Ruth born?' },
+      { role: 'assistant', text: first.text, calls: first.calls, reasoningDetails: first.reasoningDetails },
+      { role: 'tool', callId: 'tu1', content: '1952' },
+    ],
+    tools,
+  });
+  const turn = sent[1].body.messages as { role: string; content: unknown }[];
+  assert.deepEqual(turn[1], {
+    role: 'assistant',
+    content: [thinking, redacted, { type: 'tool_use', id: 'tu1', name: 'lookup', input: { name: 'Ruth' } }],
+  });
+  assert.deepEqual(turn[2], { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tu1', content: '1952' }] });
+});
+
+test('anthropic: a reply without thinking carries no reasoning blocks', async () => {
+  stubFetch([json({ content: [{ type: 'text', text: 'Plain.' }], stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 1 } })]);
+  const reply = await makeAdapter('anthropic', KEY, 'claude-haiku-5-5').complete({ system: 'S', messages: [{ role: 'user', text: 'Hi' }] });
+  assert.equal(reply.reasoningDetails, undefined);
+});
+
+test('anthropic: an isolated search is raised to the same floor as the reservation, and the cap is the one sent', async () => {
+  const sent = stubFetch([json({ content: [{ type: 'text', text: 'Schmidt: a smith.' }], stop_reason: 'end_turn', usage: { input_tokens: 9, output_tokens: 4, server_tool_use: { web_search_requests: 1 } } })]);
+  await isolatedSearch(makeAdapter('anthropic', KEY, 'claude-haiku-5-5'), { system: 'S', prompt: 'Surname: Schmidt', maxTokens: 800 });
+  assert.equal(sent[0].body.max_tokens, 8_000);
+  assert.equal(outputCap('anthropic', 'claude-haiku-5-5', 800), sent[0].body.max_tokens, 'the budget reserves what is sent');
+  assert.deepEqual(sent[0].body.tools, [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }]);
+});
+
+test('outputCap: an Anthropic reply is never capped below its floor, and a larger request stays as asked', () => {
+  assert.equal(outputCap('anthropic', 'claude-opus-5-5', 1200), 8_000);
+  assert.equal(outputCap('anthropic', 'claude-opus-5-5', 20_000), 20_000);
+  assert.equal(outputCap('anthropic', 'claude-opus-5-5'), 8_000);
 });
 

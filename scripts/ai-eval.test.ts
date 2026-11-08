@@ -73,6 +73,37 @@ test('a reply is checked for its language and for the informal form', () => {
   assert.equal(ev.languageOk('af', 'U kan dit by die boom vind, en u het nie vrae nie.').ok, false, 'the formal “u” fails');
 });
 
+test('a one-line answer in the language passes, and a wrong-language one says which words failed it', () => {
+  assert.equal(ev.languageOk('af', 'Ruth Weber is op 14 Maart 1952 in Pretoria gebore.').ok, true, 'one Afrikaans word is enough for a fact');
+  assert.equal(ev.languageOk('de', 'Ruth Weber, geboren 1952 in Pretoria.').ok, true);
+  const en = ev.languageOk('af', 'Ruth Weber was born in 1952 in Pretoria.');
+  assert.equal(en.ok, false);
+  assert.equal(en.reason, 'not Afrikaans: was, born', 'the reason names the English words');
+  assert.equal(ev.languageOk('af', 'Ruth Weber, 1952, Pretoria.').reason, 'not Afrikaans: no Afrikaans word');
+  assert.equal(ev.languageOk('de', 'Ruth was born in 1931.').reason, 'not German: was, born');
+});
+
+test('an arms answer that fails a check names the check; a sound set of designs passes', () => {
+  const charge = Object.keys(server.catalogue.CHARGE_BY_ID)[0]!;
+  const good = server.canting.ideaToArms({ field: ['azure'], charges: [{ charge, tincture: 'or' }] } as never, { seed: 1 });
+  const design = (arms: unknown, meaningId = 'm1') => ({ arms, explanation: 'The lord’s gold.', meaningId, meaning: 'lord' }) as never;
+  const raw = { suggestions: [] };
+  const sound = ev.scoreDesigns(server, [design(good), design(good), design(good)], ['m1'], raw);
+  assert.equal(sound.pass, true, sound.note);
+  assert.equal(sound.note, '3 designs, 0 repairs');
+
+  // The same charge on the field's own colour: the tincture rule fails, and the note says so.
+  const clash = structuredClone(good);
+  const c = clash.layers.find((l) => l.type === 'charge')!;
+  (c as { tincture: string }).tincture = 'azure';
+  const tincture = ev.scoreDesigns(server, [design(clash), design(good), design(good)], ['m1'], raw);
+  assert.equal(tincture.pass, false);
+  assert.equal(tincture.note, '3 designs, not valid: tincture rule');
+
+  assert.match(ev.scoreDesigns(server, [design(good)], ['m1'], raw).note, /not valid: fewer than three designs \(1\)/);
+  assert.match(ev.scoreDesigns(server, [design(good, 'm9'), design(good), design(good)], ['m1'], raw).note, /no chosen meaning named/);
+});
+
 test('a tool answer must name the tool, the facts, and say an unrecorded thing is not recorded, without an invented year', () => {
   const sc = fixtures.TOOL_CASES.find((c) => c.id === 'not-recorded')!;
   const years = new Set(['1948']);

@@ -22,11 +22,13 @@ const { openSqlite, closeAccounts } = await load<typeof import('./store/node.ts'
 const { accounts } = await load<typeof import('./auth/store.server.ts')>('/src/lib/auth/store.server.ts');
 const chat = await load<typeof import('./ai/chat.server.ts')>('/src/lib/ai/chat.server.ts');
 const settings = await load<typeof import('./ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
-const { AiError, makeAdapter, isolatedSearch, callRounds } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
+const { AiError, makeAdapter, isolatedSearch, callRounds, outputCap } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
 const lookup = await load<typeof import('./ai/lookup.server.ts')>('/src/lib/ai/lookup.server.ts');
 const { tr } = await load<typeof import('./ai/labels.ts')>('/src/lib/ai/labels.ts');
 const { graph } = await load<typeof import('./db.server.ts')>('/src/lib/db.server.ts');
 const { CONSERVATIVE } = await load<typeof import('./ai/prices.ts')>('/src/lib/ai/prices.ts');
+/** The reply cap an Anthropic call sends, and the budget reserves: the request's own maxTokens, raised to the floor (outputCap). */
+const anthropicCap = (maxTokens?: number) => outputCap('anthropic', 'claude-sonnet-5-5', maxTokens);
 
 test.after(async () => {
   closeAccounts();
@@ -175,7 +177,7 @@ test('a search-capped call cannot pass its reservation: three searches fit what 
   const price = { inPerM: 1, outPerM: 1, searchEach: 0.01 };
   const req = { system: 'S', messages: [{ role: 'user' as const, text: 'Heer' }], webSearch: { maxUses: 3 }, maxTokens: 200 };
   // Anthropic may continue a paused search turn, so the reservation covers every request the turn may make.
-  const reserved = settings.estimateMicros(req, price, undefined, callRounds('anthropic', req));
+  const reserved = settings.estimateMicros(req, price, anthropicCap(req.maxTokens), callRounds('anthropic', req));
   await familyFor('cap', reserved, true);
   const adapter = makeAdapter('anthropic', KEY, 'claude-sonnet-5-5');
   const booked = settings.budgeted('cap', reserved, adapter, price, tr('en'));
@@ -203,7 +205,7 @@ test('a listed search price of 0 still reserves a sane amount for each search', 
 test('a call that would need more than the budget left is refused before it is sent', async () => {
   const price = { inPerM: 1, outPerM: 1, searchEach: 0.01 };
   const req = { system: 'S', messages: [{ role: 'user' as const, text: 'Heer' }], webSearch: { maxUses: 3 }, maxTokens: 200 };
-  const reserved = settings.estimateMicros(req, price);
+  const reserved = settings.estimateMicros(req, price, anthropicCap(req.maxTokens));
   await familyFor('tight', reserved - 1, true);
   const sent = stubFetch([]);
   const booked = settings.budgeted('tight', reserved - 1, makeAdapter('anthropic', KEY, 'claude-sonnet-5-5'), price, tr('en'));
@@ -216,7 +218,7 @@ test('every lookup books its own budget: the second lookup cannot take what the 
   // A budget for about one lookup and the chat's own calls: the second lookup is refused.
   const price = { inPerM: 1, outPerM: 1, searchEach: 0.01 };
   const lookupReq = { system: lookup.LOOKUP_SYSTEM, messages: [{ role: 'user' as const, text: 'Heer' }], webSearch: { maxUses: lookup.LOOKUP_SEARCHES }, maxTokens: 600 };
-  const oneLookup = settings.estimateMicros(lookupReq, price, undefined, callRounds('anthropic', lookupReq));
+  const oneLookup = settings.estimateMicros(lookupReq, price, anthropicCap(lookupReq.maxTokens), callRounds('anthropic', lookupReq));
   await familyFor('lookups', oneLookup + 1_000, true);
   const booked = settings.budgeted('lookups', oneLookup + 1_000, makeAdapter('anthropic', KEY, 'claude-sonnet-5-5'), price, tr('en'));
   stubFetch([() => json({ content: [{ type: 'text', text: 'ok' }], stop_reason: 'end_turn', usage: SEARCH_USAGE })]);
@@ -248,7 +250,7 @@ test('a failed call costs nothing when the provider did not bill it: auth, rate 
 test('a call that may have billed keeps its reservation: a reply it could not read', async () => {
   const price = { inPerM: 1, outPerM: 1, searchEach: 0.01 };
   const req = { system: 'S', messages: [{ role: 'user' as const, text: 'Hi' }], maxTokens: 200 };
-  const reserved = settings.estimateMicros(req, price);
+  const reserved = settings.estimateMicros(req, price, anthropicCap(req.maxTokens));
   await familyFor('garbled', reserved * 2, false);
   const booked = settings.budgeted('garbled', reserved * 2, makeAdapter('anthropic', KEY, 'claude-sonnet-5-5'), price, tr('en'));
   // A 200 whose body is not JSON: the provider answered, so it may have billed.
@@ -397,7 +399,7 @@ test('a model that searches by itself is refused on save, and never used', async
 test('a paused search turn is continued at most twice, and the budget reserves for the three requests', async () => {
   const price = { inPerM: 1, outPerM: 1, searchEach: 0.01 };
   const req = { system: 'S', messages: [{ role: 'user' as const, text: 'bakers' }], webSearch: { maxUses: 2 }, maxTokens: 600 };
-  const reserved = settings.estimateMicros(req, price, undefined, callRounds('anthropic', req));
+  const reserved = settings.estimateMicros(req, price, anthropicCap(req.maxTokens), callRounds('anthropic', req));
   await familyFor('paused', reserved, true);
   const booked = settings.budgeted('paused', reserved, makeAdapter('anthropic', KEY, 'claude-sonnet-5-5'), price, tr('en'));
   const paused = () => json({ content: [{ type: 'text', text: 'part' }], stop_reason: 'pause_turn', usage: { input_tokens: 100, output_tokens: 20, server_tool_use: { web_search_requests: 1 } } });
@@ -435,7 +437,7 @@ test('a request in flight when a later round fails may have billed, so it is cha
     () => new Response('not json', { status: 200 }),
   ]);
   await assert.rejects(booked.complete(req), (e: unknown) => e instanceof AiError && e.code === 'bad-output');
-  const oneRound = settings.estimateMicros(req, price, 600, 1);
+  const oneRound = settings.estimateMicros(req, price, anthropicCap(req.maxTokens), 1);
   assert.equal(await settings.spentThisMonth('garbled-later'), (100 + 20 + 10_000) + oneRound);
 });
 
@@ -456,14 +458,15 @@ test('a call whose reservation is more than a fifth of the budget is refused bef
   stubFetch([() => json({ choices: [{ finish_reason: 'stop', message: { content: 'Hi' } }], usage: { prompt_tokens: 1, completion_tokens: 1 } })]);
   assert.equal((await priced.complete(req)).text, 'Hi');
 
-  // Under a dollar the fifth does not apply: the reservation only has to fit the budget.
-  const tiny = { inPerM: 0, outPerM: 300, searchEach: 0.01 };
+  // Under a dollar the fifth does not apply: the reservation only has to fit the budget. An Anthropic call reserves its cap,
+  // which is the 8,000-token floor (outputCap), so at $50 a million output tokens this call reserves $0.40.
+  const tiny = { inPerM: 0, outPerM: 50, searchEach: 0.01 };
   const big = { system: 'S', messages: [{ role: 'user' as const, text: 'Hi' }], maxTokens: 1000 };
   const under = settings.budgeted('share-tiny', 500_000, makeAdapter('anthropic', KEY, 'claude-sonnet-5-5'), tiny, tr('en'));
   stubFetch([() => json({ content: [{ type: 'text', text: 'ok' }], stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 1 } })]);
-  assert.equal((await under.complete(big)).text, 'ok', 'a $0.30 call fits a $0.50 budget');
-  // The same call over a $2 budget is more than a fifth of it, and is refused.
-  const over = settings.budgeted('share-over', 2_000_000, makeAdapter('anthropic', KEY, 'claude-sonnet-5-5'), { inPerM: 0, outPerM: 500, searchEach: 0.01 }, tr('en'));
+  assert.equal((await under.complete(big)).text, 'ok', 'a $0.40 reservation fits a $0.50 budget');
+  // The same call over a $1.50 budget is more than a fifth of it ($0.30), and is refused.
+  const over = settings.budgeted('share-over', 1_500_000, makeAdapter('anthropic', KEY, 'claude-sonnet-5-5'), tiny, tr('en'));
   const none = stubFetch([]);
   await assert.rejects(over.complete(big), (e: unknown) => e instanceof AiError && e.code === 'budget');
   assert.equal(none.length, 0);

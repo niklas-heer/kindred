@@ -21,7 +21,7 @@ const load = <T>(path: string) => vite.ssrLoadModule(path) as Promise<T>;
 const { closeAccounts } = await load<typeof import('./store/node.ts')>('/src/lib/store/node.ts');
 const { accounts } = await load<typeof import('./auth/store.server.ts')>('/src/lib/auth/store.server.ts');
 const settings = await load<typeof import('./ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
-const { AiError } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
+const { AiError, outputCap } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
 const { tr } = await load<typeof import('./ai/labels.ts')>('/src/lib/ai/labels.ts');
 
 test.after(async () => {
@@ -101,7 +101,8 @@ test('a failed call is charged its estimate, since the provider may have billed 
   };
   const wrapped = settings.budgeted(tree, 100_000_000, failing, price, tr('en'));
   await assert.rejects(wrapped.complete(req), (e: unknown) => e instanceof AiError && e.code === 'timeout');
-  assert.equal(await settings.spentThisMonth(tree), settings.estimateMicros(req, price));
+  // The failed call is charged the reservation it made, which reserves the cap the Anthropic adapter sends (outputCap).
+  assert.equal(await settings.spentThisMonth(tree), settings.estimateMicros(req, price, outputCap('anthropic', 'x', req.maxTokens)));
 });
 
 test('a provider that reports its own USD cost is settled to that cost', async () => {

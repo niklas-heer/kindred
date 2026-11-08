@@ -93,6 +93,10 @@ the web once per reply, through its `web_lookup` tool. Each lookup is a request 
   saved before this rule is refused too. The model list leaves these models out.
 - **Reasoning models** are capped at 8,000 tokens with a low reasoning effort. OpenRouter's list says which models reason; the
   name is the guess for the rest. A reply that runs out of room is an error, not a partial answer.
+- **Anthropic** replies are capped at 8,000 tokens too, since Claude's newer models think by default and the thinking counts
+  against the cap. Those models take low effort. A JSON answer uses Anthropic's structured outputs (the schema's unsupported
+  bounds are dropped, and zod checks them on the answer); older models keep a forced tool. A refusal is reported as a
+  refusal, not as a bad answer, and the thinking blocks of a tool turn go back to Anthropic unchanged.
 
 The sources a reply drew on come back with it (`AiReply.sources`), and the assistant stores them with the reply.
 

@@ -6,7 +6,9 @@
 import { PROVIDER_LABEL, type Provider } from './types';
 
 export type AiErrorCode =
-  | 'not-configured' | 'key-required' | 'bad-input' | 'budget' | 'auth' | 'rate-limited' | 'timeout' | 'unreachable' | 'provider' | 'bad-output' | 'key-unreadable';
+  | 'not-configured' | 'key-required' | 'bad-input' | 'budget' | 'auth' | 'rate-limited' | 'timeout' | 'unreachable' | 'provider' | 'bad-output' | 'key-unreadable'
+  /** The model declined to answer (Anthropic's stop_reason "refusal"): an answer, not a broken one. */
+  | 'refused';
 
 /** What the provider billed for requests that completed: the usage a budget settles to when a later request fails. */
 export interface Usage { inputTokens: number; outputTokens: number; searches: number }
@@ -31,7 +33,7 @@ export type AiMessage =
   | { role: 'user'; text: string; images?: ImagePart[] }
   | {
       role: 'assistant'; text: string; calls?: ToolCall[];
-      /** OpenRouter's reasoning blocks from the reply that made these calls, sent back unchanged (see AiReply.reasoningDetails). */
+      /** The reasoning blocks of the reply that made these calls, sent back unchanged (see AiReply.reasoningDetails). */
       reasoningDetails?: unknown[];
     }
   | { role: 'tool'; callId: string; content: string };
@@ -45,6 +47,11 @@ export const DEFAULT_MAX_TOKENS = 1024;
  * so a short cap would leave no room for the answer. A reply that still runs out is an error, not a partial answer.
  */
 export const REASONING_MAX_TOKENS = 8_000;
+/**
+ * An Anthropic reply is never capped below this too. Claude's newer models think before they answer by default, and the
+ * thinking counts against the cap (see REASONING_MAX_TOKENS).
+ */
+export const ANTHROPIC_MAX_TOKENS = 8_000;
 /** The continuations a paused Anthropic search turn may take. The budget reserves for exactly the first request and each of these. */
 export const PAUSE_CONTINUATIONS = 2;
 const REASONING_MODEL: Record<'openai' | 'openrouter', RegExp> = {
@@ -59,8 +66,12 @@ const REASONING_MODEL: Record<'openai' | 'openrouter', RegExp> = {
 export const isReasoningModel = (provider: Provider | 'fake', model: string, listed?: boolean): boolean =>
   listed ?? (provider === 'openai' || provider === 'openrouter' ? REASONING_MODEL[provider].test(model) : false);
 
-/** The most tokens a reply may use: the caller's request, raised for a reasoning model. Sent to the provider and reserved by the budget alike. */
+/**
+ * The most tokens a reply may use: the caller's request, raised to the provider's floor (a reasoning model's, or every
+ * Anthropic reply's, since its thinking counts against the cap). Sent to the provider and reserved by the budget alike.
+ */
 export function outputCap(provider: Provider | 'fake', model: string, requested = DEFAULT_MAX_TOKENS, listed?: boolean): number {
+  if (provider === 'anthropic') return Math.max(requested, ANTHROPIC_MAX_TOKENS);
   return isReasoningModel(provider, model, listed) ? Math.max(requested, REASONING_MAX_TOKENS) : requested;
 }
 
@@ -122,8 +133,9 @@ export interface AiReply {
   /** The pages a web search drew on, when the provider reports them. */
   sources?: { url: string; title?: string }[];
   /**
-   * OpenRouter's reasoning blocks for this reply, when the model returned any. OpenRouter asks that they go back unchanged, in
-   * order, with the reply's tool calls, so a tool loop passes them on in the assistant message (AiMessage, role assistant).
+   * The reasoning blocks for this reply, when the model returned any: OpenRouter's reasoning_details, or Anthropic's thinking
+   * blocks, as the provider sent them. Both providers ask that they go back unchanged, in order, with the reply's tool calls,
+   * so a tool loop passes them on in the assistant message (AiMessage, role assistant).
    */
   reasoningDetails?: unknown[];
 }
@@ -144,7 +156,8 @@ export function isolatedSearch(adapter: AiAdapter, o: { system: string; prompt: 
   return adapter.complete({
     system: o.system,
     messages: [{ role: 'user', text: o.prompt }],
-    maxTokens: o.maxTokens ?? 800,
+    // The same floor as every reply (outputCap), so a reasoning model's thinking cannot use up the search's answer.
+    maxTokens: outputCap(adapter.provider, adapter.model, o.maxTokens ?? 800, adapter.reasoning),
     timeoutMs: o.timeoutMs ?? 45_000,
     webSearch: { maxUses: o.maxUses ?? DEFAULT_SEARCH_USES },
   });
@@ -200,6 +213,53 @@ function addSource(list: { url: string; title?: string }[], url: unknown, title?
 
 // ---------- Anthropic Messages API ----------
 
+/** A model id without its dated suffix: claude-haiku-4-5-20251001 is claude-haiku-4-5. */
+const undated = (model: string): string => model.replace(/-\d{8}$/, '');
+/** The Claude models that take structured outputs (output_config.format). The older ones keep the forced tool. */
+const STRUCTURED_OUTPUT_MODELS = /^claude-(fable-5(-1)?|opus-(4-8|5(-5)?)|sonnet-5(-5)?|haiku-(4-5|5-5))$/;
+/** The Claude models that take output_config.effort. Sonnet 4.5 and Haiku 4.5 do not, and nor do the other older ones. */
+const EFFORT_MODELS = /^claude-(fable-5(-1)?|opus-(4-8|5(-5)?)|sonnet-5(-5)?|haiku-5-5)$/;
+/**
+ * The effort every Kindred job asks for: low. These are short answers (name meanings, arms designs, face boxes, a chat
+ * reply with its lookups), and the cap above leaves room for the thinking low effort uses. The reasoning models elsewhere
+ * (OpenAI, OpenRouter) are asked for low too, so the apps' jobs cost alike across providers.
+ */
+const ANTHROPIC_EFFORT = 'low';
+
+/** Schema keywords the structured-output format does not take: the numeric and length bounds and the array counts. */
+const UNSUPPORTED_SCHEMA_KEYWORDS = new Set(['$schema', 'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf', 'minLength', 'maxLength', 'minItems', 'maxItems', 'uniqueItems', 'minProperties', 'maxProperties', 'minContains', 'maxContains', 'contains']);
+/** Keywords whose value is a map of names to schemas, so a property that happens to be called `minimum` is kept. */
+const SCHEMA_MAPS = new Set(['properties', '$defs', 'definitions']);
+/** Keywords whose value is data, not a schema, and is sent as it is. */
+const DATA_KEYWORDS = new Set(['enum', 'const', 'default', 'examples']);
+
+function closeSchema(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(closeSchema);
+  if (!node || typeof node !== 'object') return node;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+    if (UNSUPPORTED_SCHEMA_KEYWORDS.has(k)) continue;
+    if (DATA_KEYWORDS.has(k)) out[k] = v;
+    else if (SCHEMA_MAPS.has(k) && v && typeof v === 'object' && !Array.isArray(v)) out[k] = Object.fromEntries(Object.entries(v).map(([name, s]) => [name, closeSchema(s)]));
+    else out[k] = closeSchema(v);
+  }
+  const type = out.type;
+  if (type === 'object' || (Array.isArray(type) && type.includes('object')) || out.properties) out.additionalProperties = false;
+  return out;
+}
+
+/**
+ * A JSON schema as Anthropic's structured outputs take it. The keywords it does not support are dropped, and every object is
+ * closed with additionalProperties false. The dropped bounds are checked on the client instead: every caller parses the
+ * answer with zod, the schema the bounds came from. The schema is not changed in place.
+ */
+export function structuredSchema(schema: JsonSchema): JsonSchema {
+  return closeSchema(schema) as JsonSchema;
+}
+
+/** The reasoning blocks a reply carries: thinking, and redacted thinking, which Anthropic sends back as it is. */
+const isThinking = (b: { type: string }): boolean => b.type === 'thinking' || b.type === 'redacted_thinking';
+
 function anthropic(key: string, model: string): AiAdapter {
   return {
     provider: 'anthropic',
@@ -212,7 +272,8 @@ function anthropic(key: string, model: string): AiAdapter {
           content.push({ type: 'text', text: m.text || ' ' });
           messages.push({ role: 'user', content });
         } else if (m.role === 'assistant') {
-          const content: unknown[] = [];
+          // The thinking blocks of the reply that made these calls go back first, unchanged: Anthropic needs them in a tool loop.
+          const content: unknown[] = [...(m.reasoningDetails ?? [])];
           if (m.text) content.push({ type: 'text', text: m.text });
           for (const c of m.calls ?? []) content.push({ type: 'tool_use', id: c.id, name: c.name, input: c.args ?? {} });
           if (content.length) messages.push({ role: 'assistant', content });
@@ -224,21 +285,32 @@ function anthropic(key: string, model: string): AiAdapter {
           else messages.push({ role: 'user', content: [block] });
         }
       }
-      const body: Record<string, unknown> = { model, max_tokens: req.maxTokens ?? DEFAULT_MAX_TOKENS, system: req.system, messages };
+      const structured = !!req.json && STRUCTURED_OUTPUT_MODELS.test(undated(model));
+      const body: Record<string, unknown> = { model, max_tokens: outputCap('anthropic', model, req.maxTokens), system: req.system, messages };
+      const outputConfig: Record<string, unknown> = {};
+      if (EFFORT_MODELS.test(undated(model))) outputConfig.effort = ANTHROPIC_EFFORT;
       if (req.json) {
-        body.tools = [{ name: req.json.name, description: 'Give the answer in this shape.', input_schema: req.json.schema }];
-        body.tool_choice = { type: 'tool', name: req.json.name };
+        if (structured) {
+          // Structured outputs: the answer comes back as JSON in a text block, checked against this schema.
+          outputConfig.format = { type: 'json_schema', schema: structuredSchema(req.json.schema) };
+        } else {
+          // Older models do not take structured outputs: the answer is the input of the one tool they are given.
+          body.tools = [{ name: req.json.name, description: 'Give the answer in this shape.', input_schema: req.json.schema }];
+          body.tool_choice = { type: 'tool', name: req.json.name };
+        }
       } else {
         const tools: unknown[] = (req.tools ?? []).map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters }));
         // The server tool: Anthropic runs the searches itself and cites them. max_uses is the ceiling the provider enforces.
         if (req.webSearch) tools.push({ type: 'web_search_20250305', name: 'web_search', max_uses: req.webSearch.maxUses ?? DEFAULT_SEARCH_USES });
         if (tools.length) body.tools = tools;
       }
+      if (Object.keys(outputConfig).length) body.output_config = outputConfig;
       const headers = { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' };
       const timeoutMs = req.timeoutMs ?? 45_000;
       let text = '';
       const calls: ToolCall[] = [];
       const sources: { url: string; title?: string }[] = [];
+      const reasoning: unknown[] = [];
       let inputTokens = 0;
       let outputTokens = 0;
       let searches = 0;
@@ -260,8 +332,16 @@ function anthropic(key: string, model: string): AiAdapter {
         } catch (e) {
           throw billed(e, true);
         }
+        // A refusal is the model's answer and is billed like any reply. It is checked before the content is read.
+        if (data.stop_reason === 'refusal') {
+          inputTokens += data.usage?.input_tokens ?? 0;
+          outputTokens += data.usage?.output_tokens ?? 0;
+          throw billed(new AiError('refused', 'Anthropic declined to answer this request.'), false);
+        }
         const blocks = (data.content ?? []) as { type: string; text?: string; id?: string; name?: string; input?: unknown; content?: unknown }[];
         text += blocks.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
+        // The thinking blocks go back with the tool calls, exactly as sent (see the assistant message above).
+        for (const b of blocks.filter(isThinking)) reasoning.push(b);
         for (const b of blocks.filter((x) => x.type === 'tool_use')) calls.push({ id: b.id!, name: b.name!, args: b.input });
         for (const b of blocks) {
           if (b.type !== 'web_search_tool_result' || !Array.isArray(b.content)) continue;
@@ -276,9 +356,23 @@ function anthropic(key: string, model: string): AiAdapter {
       // A reply cut off by its cap, or a search turn still paused, is not an answer: say so instead of showing part of one.
       if (data.stop_reason === 'max_tokens' || data.stop_reason === 'pause_turn') throw billed(new AiError('bad-output', 'Anthropic stopped before it finished its answer.'), false);
       if (req.json) {
-        const answer = calls.find((c) => c.name === req.json!.name);
-        if (!answer) throw billed(new AiError('bad-output', 'ai.err_shape'), false);
-        return { text, calls: [], json: answer.args, tokens: inputTokens + outputTokens, inputTokens, outputTokens, searches: 0 };
+        // Structured outputs: the answer is the JSON text. The older forced tool: the answer is that tool's input.
+        let json: unknown;
+        let found = false;
+        if (structured) {
+          try {
+            json = JSON.parse(text);
+            found = true;
+          } catch {}
+        } else {
+          const answer = calls.find((c) => c.name === req.json!.name);
+          if (answer) {
+            json = answer.args;
+            found = true;
+          }
+        }
+        if (!found) throw billed(new AiError('bad-output', 'ai.err_shape'), false);
+        return { text, calls: [], json, tokens: inputTokens + outputTokens, inputTokens, outputTokens, searches: 0 };
       }
       return {
         text,
@@ -288,6 +382,7 @@ function anthropic(key: string, model: string): AiAdapter {
         outputTokens,
         searches,
         ...(sources.length ? { sources } : {}),
+        ...(reasoning.length ? { reasoningDetails: reasoning } : {}),
       };
     },
   };

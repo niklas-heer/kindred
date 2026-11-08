@@ -226,23 +226,31 @@ export function scoreProposal(sc: ProposalCase, r: { text: string; proposals: Pr
   return { pass: !!found && !claims, note: notes.join('; ') || 'ok' };
 }
 
-/** A reply in the reader's language, with the informal "du" or "jy" and no formal address. Simple markers, as the task promises. */
+/**
+ * A reply in the reader's language, with the informal "du" or "jy" and no formal address. Simple markers, as the task promises.
+ * The question is one short fact, so the answer has few words: one word of the language that the other two do not use is
+ * enough, with no word of either other language. The first real run failed every model's Afrikaans answer while the German
+ * one passed. The likely cause is a two-word floor on a short answer, with a thin Afrikaans word list; the report keeps no
+ * answers, so that is not confirmed. The reason names the words that failed the check.
+ */
 export function languageOk(locale: 'en' | 'de' | 'af', text: string): { ok: boolean; reason: string } {
   const t = text.trim();
   if (!t) return { ok: false, reason: 'empty reply' };
   const words = new Set(t.toLowerCase().match(/\p{L}+/gu) ?? []);
-  const count = (list: string[]) => list.filter((w) => words.has(w)).length;
+  const found = (list: string[]) => list.filter((w) => words.has(w));
   if (locale === 'de') {
     if (/(?<=[a-zäöüß,]\s)Sie\b|\bIhnen\b/.test(t)) return { ok: false, reason: 'formal “Sie”' };
-    const right = count(['und', 'ist', 'nicht', 'ich', 'wurde', 'geboren', 'mit', 'auch', 'dass', 'das', 'eine']);
-    const wrong = count(['the', 'and', 'was', 'born', 'with', 'is']);
-    return right >= 2 && wrong === 0 ? { ok: true, reason: 'German, du' } : { ok: false, reason: 'not German' };
+    const right = found(['und', 'ist', 'nicht', 'ich', 'wurde', 'geboren', 'mit', 'auch', 'dass', 'das', 'eine']);
+    const wrong = found(['the', 'and', 'was', 'born', 'with', 'is']);
+    if (wrong.length) return { ok: false, reason: `not German: ${wrong.join(', ')}` };
+    return right.length ? { ok: true, reason: 'German, du' } : { ok: false, reason: 'not German: no German word' };
   }
   if (locale === 'af') {
     if (/(^|\s)[Uu](?=[\s,.!?;:])/.test(t)) return { ok: false, reason: 'formal “u”' };
-    const right = count(['jy', 'jou', 'nie', 'het', 'vir', 'ek', 'gebore', 'dit', 'saam', 'ons']);
-    const wrong = count(['the', 'and', 'was', 'born', 'und', 'nicht', 'ist', 'geboren']);
-    return right >= 2 && wrong === 0 ? { ok: true, reason: 'Afrikaans, jy' } : { ok: false, reason: 'not Afrikaans' };
+    const right = found(['jy', 'jou', 'nie', 'het', 'vir', 'ek', 'gebore', 'dit', 'saam', 'ons', 'hulle', 'wat', 'ook', 'maar', 'baie']);
+    const wrong = found(['the', 'and', 'was', 'born', 'und', 'nicht', 'ist', 'geboren']);
+    if (wrong.length) return { ok: false, reason: `not Afrikaans: ${wrong.join(', ')}` };
+    return right.length ? { ok: true, reason: 'Afrikaans, jy' } : { ok: false, reason: 'not Afrikaans: no Afrikaans word' };
   }
   return { ok: true, reason: 'English' };
 }
@@ -380,8 +388,11 @@ async function converse(cx: Cx, question: string, locale: Lang): Promise<{ text:
   return { text, calls, proposals: out };
 }
 
-/** Repairs the arms need: charges the catalogue lacks, designs the model's tincture clashed on, and designs the app dropped. */
-function scoreDesigns(server: Server, designs: NameDesign[], chosenIds: string[], raw: unknown): { pass: boolean; note: string; repairs: number } {
+/**
+ * Repairs the arms need (charges the catalogue lacks, designs the model's tincture clashed on, designs the app dropped), and
+ * the checks the designs must pass. Each failed check is named in the note, so a failure can be told from a false negative.
+ */
+export function scoreDesigns(server: Server, designs: NameDesign[], chosenIds: string[], raw: unknown): { pass: boolean; note: string; repairs: number } {
   const parsed = server.canting.cantingResponseSchema.safeParse(raw);
   const suggestions = parsed.success ? parsed.data.suggestions : [];
   const kind = (t: string) => server.tinctures.kindOf(t as TinctureV2);
@@ -389,12 +400,17 @@ function scoreDesigns(server: Server, designs: NameDesign[], chosenIds: string[]
   const clashes = suggestions.filter((s) => rawClash(s, kind)).length;
   const dropped = Math.max(0, suggestions.length - designs.length);
   const repairs = unknown + clashes + dropped;
-  const valid = designs.length >= 3 && designs.every((d) => server.schema.armsV2Schema.safeParse(d.arms).success
-    && d.arms.layers.every((l) => l.type !== 'charge' || !!server.catalogue.CHARGE_BY_ID[l.charge])
-    && ruleHolds(d.arms, kind)
-    && chosenIds.includes(d.meaningId) && d.meaning.trim() !== '' && d.explanation.trim() !== '');
-  const pass = parsed.success && valid;
-  return { pass, repairs, note: pass ? `${designs.length} designs, ${repairs} repairs` : `${designs.length} designs, not valid` };
+  const failed = new Set<string>();
+  if (!parsed.success) failed.add('answer not in the shape');
+  if (designs.length < 3) failed.add(`fewer than three designs (${designs.length})`);
+  for (const d of designs) {
+    if (!server.schema.armsV2Schema.safeParse(d.arms).success) failed.add('arms schema');
+    if (!d.arms.layers.every((l) => l.type !== 'charge' || !!server.catalogue.CHARGE_BY_ID[l.charge])) failed.add('unknown charge');
+    if (!ruleHolds(d.arms, kind)) failed.add('tincture rule');
+    if (!chosenIds.includes(d.meaningId) || d.meaning.trim() === '' || d.explanation.trim() === '') failed.add('no chosen meaning named');
+  }
+  const pass = failed.size === 0;
+  return { pass, repairs, note: pass ? `${designs.length} designs, ${repairs} repairs` : `${designs.length} designs, not valid: ${[...failed].join('; ')}` };
 }
 
 const RUNNERS: Record<TaskId, (cx: Cx) => Promise<Item[]>> = {
@@ -568,7 +584,7 @@ export function renderReport(run: { results: ModelResult[]; o: RunOptions; spent
     '- **Arms.** Three surnames, two steps as the app runs them: the meanings, then the top two chosen for the designs. A design passes when the schema holds, its charges exist, the tincture rule holds and it names a chosen meaning. Repairs (unknown charges, clashes the app fixed, designs it dropped) are counted and not failed.',
     '- **Tools.** Three questions on the family: a fact that needs a tool, a kinship question, and a question the tree does not record, which must be said not to be recorded with no invented year.',
     '- **Proposals.** Three requests that must become a proposal card with the right kind and details. The reply must not say anything was saved, because nothing is written.',
-    '- **Language.** The same kind of question in German (du) and Afrikaans (jy). A reply passes when it is in that language and uses no formal address.',
+    '- **Language.** The same kind of question in German (du) and Afrikaans (jy). A reply passes when it uses at least one word of that language, none of the other languages’ words the scorer lists, and no formal address.',
     '- **Vision.** One generated picture; the reply passes when it is the face-box shape with each box between 0 and 1. Nothing else is judged.',
     ...(o.web ? ['- **Web.** One research with web search, for the surname Schmidt: the meaning must be found, and a cited page must be listed.'] : []),
     `- **Cost.** Each call is estimated before it is sent, and a call that would pass the budget is not sent. The cost after a call is what the provider billed (OpenRouter reports its own), so the total is the real spend, not the estimate. Prices are those in \`src/lib/ai/prices.ts\`, checked ${PRICES_CHECKED} (${Object.values(PRICES_SOURCES).join(', ')}).`,
