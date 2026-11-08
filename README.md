@@ -85,6 +85,7 @@ Every task is in `mise.toml`. These are the ones you are likely to use:
 | `mise run start` | Run that production server (`PORT`, `HOST`, `KINDRED_DATA_DIR`; see [docs/self-host.md](docs/self-host.md)) |
 | `mise run deploy` | Build and `wrangler deploy` (see [docs/deploy-cloudflare.md](docs/deploy-cloudflare.md)) |
 | `mise run smoke:worker` | Build the Worker into a scratch folder, run it locally and check its routes; never contacts Cloudflare |
+| `mise run ci` | The CI pipeline in Dagger: the checks, both builds, the Worker smoke test and the Docker build. Needs a container engine, such as Colima, running |
 | `mise run vapid-keys` | Make the key pair for reminders and print its three settings |
 | `mise run clean` | Remove build output and the generated databases |
 

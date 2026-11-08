@@ -1,5 +1,7 @@
 [tools]
 node = "26"
+# The CI pipeline (.dagger/, .github/workflows/ci.yml) runs this same Dagger release, pinned in dagger.json too.
+dagger = "0.21.9"
 
 [env]
 # The project's own tools (vite, tsc, wrangler) live in node_modules/.bin, which mise run does not put on PATH.
@@ -82,3 +84,7 @@ run = "rm -rf dist .output .tanstack .wrangler data/*.db data/*.db-wal data/*.db
 [tasks."smoke:worker"]
 description = "Build the Worker into a scratch folder, run it locally (workerd, empty local D1 and R2) and check its routes; never contacts Cloudflare"
 run = "node scripts/worker-smoke.ts"
+
+[tasks.ci]
+description = "Run the CI pipeline in Dagger, as .github/workflows/ci.yml does: the checks, then the Docker build (needs a container engine: on macOS `colima start`)"
+run = ["dagger call ci", "dagger call docker"]

@@ -1,0 +1,120 @@
+"""
+Reproducible CI for Kindred v2: the type check, the unit tests, the production Node build, the Worker build, the
+Worker smoke test (workerd on local D1 and R2; it never contacts Cloudflare) and the Docker image build.
+
+`mise run ci` runs the same checks locally. It needs a container engine: on macOS, `colima start`.
+"""
+type KindredCi {
+  """
+  What the checks read, as an allowlist: local data, secrets and build output stay out of every container. data/
+  holds the family's real records and is never on this list.
+  """
+  let source: Directory! @defaultPath("/") @ignorePatterns([
+    "*",
+    "!src",
+    "!server",
+    "!scripts",
+    "!migrations",
+    "!public",
+    "!package.json",
+    "!package-lock.json",
+    "!tsconfig.json",
+    "!vite.config.ts",
+    "!wrangler.jsonc",
+  ])
+
+  """
+  The Dockerfile's own build context, so the Dockerfile and .dockerignore are in it. This is a denylist, because the
+  Dockerfile copies the whole project. Its paths are left out before upload, so data/ never reaches the engine.
+  """
+  let dockerContext: Directory! @defaultPath("/") @ignorePatterns([
+    ".git",
+    ".dagger",
+    "data",
+    "node_modules",
+    "dist",
+    ".output",
+    ".tanstack",
+    ".wrangler",
+    ".dev.vars",
+    ".env",
+    ".env.*",
+    "target",
+    ".ruff_cache",
+    "scratch",
+    ".DS_Store",
+    "*.log",
+  ])
+
+  """
+  The Node image the Dockerfile builds from (its Node version is the one in mise.toml), pinned by digest.
+  """
+  let node = "node:26-trixie-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072"
+
+  """
+  Node with the locked dependencies installed before the source is copied, so only a changed lockfile installs again.
+  The npm cache is a cache volume scoped to this project.
+  """
+  let installed = container
+    .from(node)
+    .withWorkdir("/src")
+    .withMountedCache("/root/.npm", cacheVolume("kindred-npm-cache"))
+    .withFile("package.json", source.file("package.json"))
+    .withFile("package-lock.json", source.file("package-lock.json"))
+    .withExec(["npm", "ci"])
+    .withDirectory("/src", source)
+
+  """
+  The type check: `npx tsc --noEmit`, over src, scripts and server.
+  """
+  pub typecheck: String! {
+    installed.withExec(["npx", "tsc", "--noEmit"]).stdout
+  }
+
+  """
+  The unit tests (`npm test`). Nothing here reads data/: the tests use scratch folders.
+  """
+  pub unitTests: String! {
+    installed.withExec(["npm", "test"]).stdout
+  }
+
+  """
+  The production build for Node (`npm run build:node`, the target of `mise run start`).
+  """
+  pub nodeBuild: String! {
+    installed.withExec(["npm", "run", "build:node"]).stdout
+  }
+
+  """
+  The Cloudflare Worker build (`npm run build`).
+  """
+  pub workerBuild: String! {
+    installed.withExec(["npm", "run", "build"]).stdout
+  }
+
+  """
+  The Worker smoke test (`scripts/worker-smoke.ts`): builds the Worker, runs it under workerd on empty local state and
+  checks its routes, the security headers and the CSRF check. The script removes the Cloudflare credentials and routes
+  every request through a closed proxy, so nothing leaves the container.
+  """
+  pub smoke: String! {
+    installed
+      .withExec(["sh", "-c", "apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*"])
+      .withExec(["node", "scripts/worker-smoke.ts"])
+      .stdout
+  }
+
+  """
+  The Docker image, built from the Dockerfile and not pushed. The last stage is run once (`node --version`) to show it starts.
+  """
+  pub docker: String! {
+    dockerContext.dockerBuild.withExec(["node", "--version"]).stdout
+  }
+
+  """
+  Every check CI requires. Evaluating the list runs them all, and any failing command fails the run.
+  """
+  pub ci: [String!]! {
+    [typecheck, unitTests, nodeBuild, workerBuild, smoke]
+  }
+}
