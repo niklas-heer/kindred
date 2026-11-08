@@ -41,8 +41,8 @@ export interface SessionInfo {
 
 /** Who is signed in, and their role and "who you are" in each family. Never cached across readers. */
 export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): Promise<SessionInfo> => {
-  const [{ currentSession }, s, setup, { accessLogoutUrl }, { siteOrigin, guestEnded }, { getRequest }, { onGuestHost }] = await Promise.all([
-    guard(), store(), import('./setup.server'), import('./access.server'), import('./session.server'), import('@tanstack/react-start/server'), import('./origin'),
+  const [{ currentSession }, s, setup, { accessLogoutUrl }, { siteOrigin, guestEnded }, { getRequest }, { onGuestHost }, { defaultTreeFor }] = await Promise.all([
+    guard(), store(), import('./setup.server'), import('./access.server'), import('./session.server'), import('@tanstack/react-start/server'), import('./origin'), import('./guest-host'),
   ]);
   const { user, via, uninvitedEmail, guest } = await currentSession();
   const guestHost = onGuestHost(getRequest());
@@ -60,7 +60,7 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): 
     needsFamily,
     setupCodeRequired: setup.setupCodeRequired(),
     setupOpenToPublic: needs && setup.setupOpenToPublic(siteOrigin(getRequest()), new URL(getRequest().url)),
-    defaultTree: process.env.KINDRED_DEFAULT_TREE?.trim() || undefined,
+    defaultTree: defaultTreeFor(!!user || !!guestHere),
     uninvitedEmail,
     accessLogout: via === 'access' || uninvitedEmail ? accessLogoutUrl() : undefined,
     guest: guestHere && { tree: guestHere.tree, expires: guestHere.expires },

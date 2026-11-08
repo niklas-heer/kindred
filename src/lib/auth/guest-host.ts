@@ -24,3 +24,8 @@ export function guestHostAllows(rawPath: string): boolean {
   if (!section) return /^[a-z0-9-]+$/.test(root) || /\.[a-z0-9]+$/.test(root); // a family, or a file at the root (favicon.svg)
   return GUEST_SECTIONS.has(section);
 }
+
+/** The server's default family id, for the session payload: only someone with access (a member, or a guest on a valid visit) gets it, so an anonymous visitor never sees a family id in the page data. */
+export function defaultTreeFor(hasAccess: boolean, env: string | undefined = process.env.KINDRED_DEFAULT_TREE): string | undefined {
+  return hasAccess ? env?.trim() || undefined : undefined;
+}
