@@ -4,6 +4,7 @@ import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { Cake, Shield } from 'lucide-react';
 import { AccountMenu } from '~/components/AccountMenu';
+import { LanguagePicker } from '~/components/LanguagePicker';
 import { Arms } from '~/components/Heraldry';
 import { PageHeader, EmptyState, ErrorState, Skeleton } from '~/components/ui';
 import { myFamiliesQuery, sessionQuery } from '~/lib/auth/functions';
@@ -37,7 +38,7 @@ function Home() {
     } catch {}
   }, []);
   const today = trees.flatMap((t) => (t.today ?? []).map((p) => ({ ...p, tree: t.id, family: t.name })));
-  return <main className="home"><div className="home-account"><AccountMenu /></div><div className="home-inner">
+  return <main className="home"><div className="home-account"><LanguagePicker /><AccountMenu /></div><div className="home-inner">
     <PageHeader title="Kindred" subtitle={t("index.a_family_tree_you_can_live_in_pick_a_family")}  />
     {isPending ? <div className="home-grid" aria-busy="true" aria-label={t("index.loading_families")}>{[0, 1, 2].map((i) => <div className="ui-card" key={i} style={{ padding: 24 }}><Skeleton height={84} width={84} radius="50%" /><Skeleton lines={3} /></div>)}</div>
       : isError ? <ErrorState title={t("index.could_not_load_your_families")} onRetry={() => { void refetch(); }} />

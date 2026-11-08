@@ -1,10 +1,13 @@
-import { LanguageSwitch, formatDate, formatNumber, relativeTime, useT } from '~/lib/i18n';
+import { formatDate, formatNumber, relativeTime, useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, notFound, Outlet, redirect } from '@tanstack/react-router';
 import { BookOpen, CalendarHeart, CircleHelp, Contact, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, Sparkles, Users } from 'lucide-react';
 import { AccountMenu } from '~/components/AccountMenu';
 import { AssistantButton, AssistantHost } from '~/components/assistant/AssistantDrawer';
-import { openAssistant, useAiStatus } from '~/components/assistant/store';
+import { useAiSetupNeeded } from '~/components/assistant/AiSetup';
+import { openAiSetup, openAssistant, useAiStatus } from '~/components/assistant/store';
+import { aiStatusQuery } from '~/lib/ai.functions';
+import { LanguageChoices, LanguagePicker } from '~/components/LanguagePicker';
 import { useEffect, useMemo, useState } from 'react';
 import { FirstRun } from '~/components/FirstRun';
 import { Arms } from '~/components/Heraldry';
@@ -35,6 +38,8 @@ export const Route = createFileRoute('/$tree')({
     const trees = await context.queryClient.ensureQueryData(myFamiliesQuery);
     if (!trees.some((t) => t.id === params.tree)) throw notFound();
     await context.queryClient.ensureQueryData(graphQuery(params.tree));
+    // On the server too, so its first render shows the same AI controls as the browser's. Never fails the page.
+    await context.queryClient.prefetchQuery(aiStatusQuery(params.tree));
   },
   head: (ctx) => ({ meta: [{ title: treeTitle(ctx) }] }),
   notFoundComponent: ({ data }) =>
@@ -116,6 +121,7 @@ function TreeLayout() {
           <AssistantButton tree={tree} />
           <SoundSwitch />
           <ThemeSwitch />
+          <LanguagePicker />
         </span>
         <AccountMenu familyName={f.graph.tree.name} />
       </header>
@@ -150,6 +156,8 @@ function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: 
   const steward = useCan('manage-access');
   const editor = useCan('edit-person');
   const assistant = !!useAiStatus(tree)?.features.assistant;
+  // The phone has no top bar, so a steward of a family without AI reaches "Set up AI" from here.
+  const setupNeeded = useAiSetupNeeded(tree);
   const [sound, toggleSound] = useSound();
   return (
     <Dialog open={open} onClose={onClose} title={t("shell.more")} placement="sheet" width={560}>
@@ -162,10 +170,11 @@ function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: 
         {assistant && <li><button type="button" onClick={() => { onClose(); openAssistant(); }}><Sparkles size={19} /> {t("ai.askCommand")}</button></li>}
         {editor && <li><Link to="/$tree/settings/import" params={{ tree }}><Images size={19} /> {t("shell.importExport")} <small>{t("shell.importExportHint")}</small></Link></li>}
         {steward && <li><Link to="/$tree/access" params={{ tree }}><Users size={19} /> {t("shell.access")} <small>{t("shell.members_invitations")}</small></Link></li>}
-        {steward && <li><Link to="/$tree/settings/ai" params={{ tree }}><Sparkles size={19} /> {t("shell.ai_settings")} <small>{t("shell.ai_settings_hint")}</small></Link></li>}
+        {setupNeeded && <li><button type="button" onClick={() => { onClose(); openAiSetup(); }}><Sparkles size={19} /> {t("ai.setupButton")} <small>{t("shell.ai_settings_hint")}</small></button></li>}
+        {steward && !setupNeeded && <li><Link to="/$tree/settings/ai" params={{ tree }}><Sparkles size={19} /> {t("shell.ai_settings")} <small>{t("shell.ai_settings_hint")}</small></Link></li>}
         {multiple && <li><Link to="/" search={{ families: "all" }}><Network size={19} /> {t("shell.all_families")}</Link></li>}
       </ul>
-      <div className="more-row"><LanguageSwitch /></div>
+      <div className="more-row"><LanguageChoices /></div>
       <div className="more-row">
         <span>{t("shell.theme")}</span>
         <div className="seg" role="group" aria-label={t("shell.theme")}>

@@ -91,7 +91,7 @@
 @media(max-width:600px) { .home-inner { padding: 28px 0; } .home-grid { grid-template-columns: minmax(0,1fr); } .home h1 { font-size: 38px; } }
 
 
-.home-account { position: absolute; top: 18px; right: max(4vw, 18px); }
+.home-account { position: absolute; top: 18px; right: max(4vw, 18px); display: flex; align-items: center; gap: 6px; }
 .home-account .acct-trigger-name { display: inline; }
 .home-account .acct-trigger { width: auto; padding: 4px 12px 4px 5px; min-height: 44px; }
 .home-inner { padding-top: 84px; }

@@ -1,15 +1,18 @@
-import { LanguageSwitch, translateMessage, formatDate, relativeTime, useT, type Locale } from '~/lib/i18n';
-// The signed-in reader's menu in the topbar: who they are, their role in this family, and the way to
-// their passkeys, the steward's Access page and signing out. Also `Initials`, a name's monogram.
+import { translateMessage, formatDate, relativeTime, useT, type Locale } from '~/lib/i18n';
+// The signed-in reader's menu in the topbar: who they are, their role in this family, the way to their passkeys,
+// the steward's Access page and AI assistant settings, the editor's import and export, and signing out. Also
+// `Initials`, a name's monogram.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { graphQuery } from '~/lib/api';
-import { Check, Fingerprint, KeyRound, LogOut, Plus, ShieldCheck, Trash2, Users } from 'lucide-react';
+import { Bell, Check, Fingerprint, Images, KeyRound, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users } from 'lucide-react';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { addPasskey, forgetLocalIdentity, passkeysSupported, signOutRequest } from '~/lib/auth/client';
 import { myPasskeysQuery, removeMyPasskey, renameMe, type Passkey } from '~/lib/auth/functions';
+import { fetchRemindersAvailable } from '~/lib/reminders.functions';
 import { ROLES, can } from '~/lib/roles';
 import { Portrait } from './Portrait';
+import { ReminderRefresh, RemindersDialog } from './Reminders';
 import { useMembership, useSession } from '~/lib/session';
 import { Dialog } from './ui/Dialog';
 import { isTopOverlay, useOverlayLayer } from './ui/overlay';
@@ -55,6 +58,9 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
   const m = useMembership();
   const [open, setOpen] = useState(false);
   const [passkeys, setPasskeys] = useState(false);
+  const [reminders, setReminders] = useState(false);
+  // Reminders are offered only when this server has its VAPID keys (docs/self-host.md, "Reminders").
+  const remindersOn = useQuery({ queryKey: ['reminders', 'available'], queryFn: () => fetchRemindersAvailable(), staleTime: 5 * 60_000 });
   const layer = useOverlayLayer(open);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -124,19 +130,32 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
             </p>
           )}
           <div className="acct-items">
-            <LanguageSwitch />
             {tree && m && can(m.role, 'manage-access') && (
               <Link role="menuitem" className="acct-item" to="/$tree/access" params={{ tree }} onClick={() => setOpen(false)}>
                 <Users size={17} /> {t("accountmenu.manage_access")} </Link>
             )}
+            {tree && m && can(m.role, 'manage-access') && (
+              <Link role="menuitem" className="acct-item" to="/$tree/settings/ai" params={{ tree }} onClick={() => setOpen(false)}>
+                <Sparkles size={17} /> {t("shell.ai_settings")} </Link>
+            )}
+            {tree && m && can(m.role, 'edit-person') && (
+              <Link role="menuitem" className="acct-item" to="/$tree/settings/import" params={{ tree }} onClick={() => setOpen(false)}>
+                <Images size={17} /> {t("shell.importExport")} </Link>
+            )}
             <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setPasskeys(true); }}>
               <KeyRound size={17} /> {t("accountmenu.your_name_passkeys")} </button>
+            {tree && m && remindersOn.data && (
+              <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setReminders(true); }}>
+                <Bell size={17} /> {t('reminders.menu')} </button>
+            )}
             <button role="menuitem" className="acct-item" onClick={() => void signOut(session?.accessLogout)}>
               <LogOut size={17} /> {t("accountmenu.sign_out")} </button>
           </div>
         </div>
       )}
       <PasskeysDialog open={passkeys} onClose={() => setPasskeys(false)} />
+      {tree && m && <ReminderRefresh tree={tree} />}
+      {tree && m && <RemindersDialog tree={tree} open={reminders} onClose={() => setReminders(false)} />}
     </>
   );
 }

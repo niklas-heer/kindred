@@ -78,6 +78,25 @@ const FLAGS: Record<string, Spec> = {
   },
   gb: { draw: unionJack },
   uk: { draw: unionJack },
+  // South Africa, simplified: red over blue, and the green Y with its gold and white edging and the black hoist.
+  za: {
+    draw: (w, h) => {
+      const c = w * 0.36;
+      const y = h / 2;
+      const arms = `M0 0L${c} ${y}L0 ${h}`;
+      const bar = `M${c} ${y}H${w}`;
+      return (
+        <g>
+          <rect width={w} height={h / 2} fill="#e03c31" />
+          <rect y={h / 2} width={w} height={h / 2} fill="#001489" />
+          <path d={`M0 0L${c} ${y}L0 ${h}Z`} fill="#000000" />
+          <path d={`${arms}${bar}`} fill="none" stroke={WHITE} strokeWidth={h * 0.36} strokeLinejoin="round" />
+          <path d={`${arms}${bar}`} fill="none" stroke="#ffb612" strokeWidth={h * 0.27} strokeLinejoin="round" />
+          <path d={`${arms}${bar}`} fill="none" stroke="#007a4d" strokeWidth={h * 0.18} strokeLinejoin="round" />
+        </g>
+      );
+    },
+  },
   us: {
     draw: (w, h) => (
       <g>

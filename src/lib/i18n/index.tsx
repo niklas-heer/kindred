@@ -6,7 +6,7 @@
  * server; never keep request locale in globals. See README.md.
  */
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { isLocale, LANGUAGE_NAME, LOCALES, translate, type Key, type Locale, type Vars } from "./dictionary";
+import { isLocale, translate, type Key, type Locale, type Vars } from "./dictionary";
 import { localizeTitle } from "./titles";
 
 export * from "./dictionary";
@@ -102,24 +102,4 @@ export function useT() {
 /** The type of what useT() returns, for helpers that take the translator as an argument. */
 export type Translator = ReturnType<typeof useT>;
 
-/** Three choices side by side. The account menu uses it; the palette opens the same choices in a picker. */
-export function LanguageSwitch() {
-  const t = useT();
-  return (
-    <div className="seg" role="group" aria-label={t("common.language")}>
-      {LOCALES.map((l) => (
-        <button
-          type="button"
-          className="btn"
-          style={{ minHeight: 44, minWidth: 44 }}
-          key={l}
-          aria-label={LANGUAGE_NAME[l]}
-          aria-pressed={t.locale === l}
-          onClick={() => t.setLocale(l)}
-        >
-          {l.toUpperCase()}
-        </button>
-      ))}
-    </div>
-  );
-}
+// The language picker itself (the flag in the top bar and on sign-in pages) is in components/LanguagePicker.tsx.

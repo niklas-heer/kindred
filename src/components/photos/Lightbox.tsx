@@ -13,6 +13,7 @@ import { displayName } from '~/lib/graph';
 import { confirmPhotoTag, removeGalleryPhoto, removePhotoTag, saveGalleryPhoto, suggestPhotoTags, tagPhoto } from '~/lib/photos.functions';
 import { useCan } from '~/lib/session';
 import type { GPerson } from '~/lib/types';
+import { AiSetupHint } from '~/components/assistant/AiSetup';
 import { facesOn, findFaces } from './aiFaces';
 import { PersonPicker } from './PersonPicker';
 import { refreshPhotos } from './refresh';
@@ -387,7 +388,7 @@ function Photo({ tree, item, index, count, albums, onGo, onDirty }: {
                 <button type="button" className="btn" onClick={findPeople} disabled={aiBusy}>
                   <ScanFace size={16} aria-hidden /> {aiBusy ? g('lb.ai_busy') : g('lb.ai_find')}
                 </button>
-              ) : null}
+              ) : <AiSetupHint tree={tree} feature={g('lb.ai_find')} />}
             </div>
           ) : null}
           {tagging && !pending ? <p className="subtle">{g('lb.tag_help')}</p> : null}

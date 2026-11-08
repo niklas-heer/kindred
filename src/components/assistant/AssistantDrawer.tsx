@@ -14,23 +14,31 @@ import { EmptyState, ErrorState, Notice, Skeleton } from '~/components/ui';
 import { useOverlayLayer } from '~/components/ui/overlay';
 import { ProposalCard } from './ProposalCard';
 import { closeAssistant, openAssistant, useAiStatus, useAssistantOpen } from './store';
+import { AiSetupButton, AiSetupDialog } from './AiSetup';
 import './assistant.css';
 
 const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-/** Renders the drawer while it is open, and nothing otherwise. Mount once per family, inside the tree layout. */
+/** Renders the drawer while it is open, and nothing otherwise. Mount once per family, inside the tree layout. Also the "Set up AI" panel. */
 export function AssistantHost({ tree }: { tree: string }) {
   const open = useAssistantOpen();
   const status = useAiStatus(tree);
-  if (!open || !status?.features.assistant) return null;
-  return <AssistantDrawer tree={tree} />;
+  return (
+    <>
+      <AiSetupDialog tree={tree} />
+      {open && status?.features.assistant ? <AssistantDrawer tree={tree} /> : null}
+    </>
+  );
 }
 
-/** The "Ask" button. Shown only when the assistant is switched on and configured for this family. */
+/**
+ * The "Ask" button. Shown only when the assistant is switched on and configured for this family. A steward of a
+ * family with no AI key gets "Set up AI" in its place, which opens the panel that explains it.
+ */
 export function AssistantButton({ tree, className = '' }: { tree: string; className?: string }) {
   const t = useT();
   const status = useAiStatus(tree);
-  if (!status?.features.assistant) return null;
+  if (!status?.features.assistant) return <AiSetupButton tree={tree} className={className} />;
   return (
     <button type="button" className={`btn ai-launch ${className}`} onClick={openAssistant} aria-haspopup="dialog">
       <Sparkles size={16} aria-hidden /> {t('ai.askButton')}

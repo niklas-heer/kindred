@@ -10,7 +10,8 @@ Three languages ship: **English** (`en`, the source of the key type), **German**
 | `areas/<area>.ts` | The words of one area of the app: `export const en`, `de` and `af`, each a flat object of keys. |
 | `types.ts` | `Locale`, `LOCALES`, `Message` (a string or `{one, other}`), `Vars`, `isLocale`. Safe to import anywhere. |
 | `dictionary.ts` | Merges every area, types `Key`, and holds `translate`, `formatDate`, `relativeTime`, `ordinal`, `negotiateLocale`, `translateMessage`, `missingKeys`. No React, so the test runner loads it. |
-| `index.tsx` | React: `I18nProvider`, `useT()`, `LanguageSwitch`. It re-exports `dictionary.ts`. |
+| `index.tsx` | React: `I18nProvider` and `useT()`. It re-exports `dictionary.ts`. |
+| `../../components/LanguagePicker.tsx` | The language picker (a flag and a list of native names) and `LanguageChoices`, the phone's row. |
 | `kinship.ts` | `kinshipLabel`: relation words for German and Afrikaans, from graph labels. |
 | `titles.ts` | `localizeTitle`: the section word of a page title in each language. |
 | `request.ts` | `requestLocale`: the locale for a request, for the root route to serialise. |
@@ -55,8 +56,9 @@ Placeholders are `{name}`; numbers are formatted for the locale. Keep placeholde
 - Guests keep their language in `localStorage` and a cookie (`kindred_locale_guest`).
 - A signed-in reader's choice is also saved on the account (`user.locale`, migration `accounts/0004_locale`,
   `setMyLocale`). The server renders the stored value first, then that reader's cookie, then `Accept-Language`,
-  then English. The language switch is the same three-way control in the account menu, the sign-in card and the
-  ⌘K palette ("Change language" opens the three languages).
+  then English. The language picker (a flag that opens the three native names) is in the top bar's tools, the
+  sign-in card's corner and the home page; on phones it is a row in the More sheet. The ⌘K palette's "Change
+  language" opens the same three languages.
 
 ## Occupations (`src/lib/occupations.ts`)
 

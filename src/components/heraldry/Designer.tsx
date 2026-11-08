@@ -21,6 +21,7 @@ import { play } from '~/lib/sfx';
 import { toast } from '~/lib/toast';
 import type { House } from '~/lib/types';
 import { useAiStatus } from '../assistant/store';
+import { AiSetupHint } from '../assistant/AiSetup';
 import { Dialog } from '../ui/Dialog';
 import { Range } from '../ui/Range';
 import { Select } from '../ui/Select';
@@ -329,6 +330,11 @@ function Suggestions({ tree, initial, country, onPick }: { tree: string; initial
             <Sparkles size={15} aria-hidden /> {ask.isPending ? t('arms.asking') : t('arms.ask_more')}
           </button>
           {ask.isError && <p className="err" role="alert">{t('arms.ask_more_failed')}</p>}
+        </div>
+      )}
+      {!aiOn && name.trim() !== '' && (
+        <div className="ae-ai-more">
+          <AiSetupHint tree={tree} feature={t('arms.ask_more')} />
         </div>
       )}
     </div>

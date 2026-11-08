@@ -10,7 +10,8 @@ import { useFamily, useMe, useMeChosen, useTreeId } from '~/lib/family';
 import { displayName, kinship, lifespan, ancestorDepths, type Family } from '~/lib/graph';
 import { setPref } from '~/lib/prefs';
 import { play } from '~/lib/sfx';
-import { openAssistant, useAiStatus } from './assistant/store';
+import { openAiSetup, openAssistant, useAiStatus } from './assistant/store';
+import { useAiSetupNeeded } from './assistant/AiSetup';
 import { Arms } from './Heraldry';
 import { Portrait } from './Portrait';
 import { Dialog } from './ui/Dialog';
@@ -93,6 +94,8 @@ export function Palette() {
   const who = useMeChosen();
   // The assistant is offered only when this family has it switched on (the drawer checks the same).
   const assistantOn = !!useAiStatus(tree)?.features.assistant;
+  // A steward of a family with no AI key gets the set-up command in its place (the same panel as the top bar's button).
+  const setupNeeded = useAiSetupNeeded(tree);
   const navigate = useNavigate();
   const [q, setQ] = useState('');
   const dq = useDeferredValue(q);
@@ -148,6 +151,7 @@ export function Palette() {
       { key: 'chronicle', icon: <ScrollText size={16} />, label: t('shell.cmd.chronicle'), hint: t('shell.cmd.chronicleHint'), run: () => { navigate({ to: '/$tree/chronicle', params: { tree } }); close(); } },
       { key: 'houses', icon: <Landmark size={16} />, label: t('shell.cmd.houses'), hint: t('shell.cmd.housesHint'), run: () => { navigate({ to: '/$tree/houses', params: { tree } }); close(); } },
       ...(assistantOn ? [{ key: 'assistant', icon: <Sparkles size={16} />, label: t('ai.askCommand'), run: () => { close(); openAssistant(); } }] : []),
+      ...(setupNeeded ? [{ key: 'ai-setup', icon: <Sparkles size={16} />, label: t('ai.setupCommand'), run: () => { close(); openAiSetup(); } }] : []),
       { key: 't-codex', icon: <PaletteIcon size={16} />, label: t('shell.cmd.themeCodex'), run: () => { setPref('theme', 'codex'); close(); } },
       { key: 't-paper', icon: <Sun size={16} />, label: t('shell.cmd.themePaper'), run: () => { setPref('theme', 'modern'); close(); } },
       { key: 't-night', icon: <Moon size={16} />, label: t('shell.cmd.themeNight'), run: () => { setPref('theme', 'night'); close(); } },
@@ -155,7 +159,7 @@ export function Palette() {
     const fq = fold(dq);
     const matched = fq ? cmds.filter((c) => fold(c.label).includes(fq)) : cmds;
     return fq ? [...people, ...houses, ...matched] : matched;
-  }, [f, dq, me, who, myAnc, navigate, tree, close, t, t.locale, assistantOn, mode]);
+  }, [f, dq, me, who, myAnc, navigate, tree, close, t, t.locale, assistantOn, setupNeeded, mode]);
 
   useEffect(() => setSel(0), [dq]);
   useEffect(() => {

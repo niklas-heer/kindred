@@ -12,6 +12,7 @@ import { personPhotosQuery } from '~/lib/photos.functions';
 import type { Mark } from '~/lib/seed-format';
 import type { GPerson, House, Look } from '~/lib/types';
 import { useAiStatus } from './assistant/store';
+import { AiSetupHint } from './assistant/AiSetup';
 import { mediaUrl } from './photos/types';
 import { Portrait } from './Portrait';
 import {
@@ -168,11 +169,11 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
       <div className="ce-controls">
         <div className="ce-toolbar">
           <button type="button" className="btn" onClick={randomise}><Dices size={16} aria-hidden="true" /> {t('character.randomise')}</button>
-          {aiAvatar && (
+          {aiAvatar ? (
             <button type="button" className="btn" onClick={() => setPicking((p) => !p)} aria-expanded={picking} aria-controls="ce-photo-pick">
               <Camera size={16} aria-hidden="true" /> {t('character.make_from_photo')}
             </button>
-          )}
+          ) : <AiSetupHint tree={tree} feature={t('character.make_from_photo')} />}
           <span className="ce-spacer" />
           <button type="button" className="btn ghost" onClick={undo} disabled={!history.length} aria-keyshortcuts="Control+Z Meta+Z"><Undo2 size={16} aria-hidden="true" /> {t('character.undo')}</button>
           <button type="button" className="btn ghost" onClick={reset}><RotateCcw size={16} aria-hidden="true" /> {t('character.reset')}</button>

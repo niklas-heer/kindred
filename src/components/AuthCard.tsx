@@ -1,15 +1,16 @@
-import { LanguageSwitch, translateMessage, useT } from '~/lib/i18n';
+import { translateMessage, useT } from '~/lib/i18n';
 // The frame for /signin, /setup and /invite: one card on the canvas, a crest above it, and a plain
-// explanation of passkeys for relatives who have never used one.
+// explanation of passkeys for relatives who have never used one. The language picker sits in the card's corner.
 import { AlertCircle, Fingerprint, KeyRound, Smartphone } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { LanguagePicker } from './LanguagePicker';
 import '~/styles/auth.css';
 
 export function AuthCard({ crest, kicker, title, lede, children, wide }: { crest: ReactNode; kicker?: ReactNode; title: ReactNode; lede?: ReactNode; children: ReactNode; wide?: boolean }) {
   return (
     <main className="auth-page">
       <section className={`auth-card ui-card${wide ? ' wide' : ''}`} aria-labelledby="auth-title">
-        <LanguageSwitch />
+        <div className="auth-lang"><LanguagePicker /></div>
         <div className="auth-crest" aria-hidden>{crest}</div>
         {kicker && <p className="auth-kicker">{kicker}</p>}
         <h1 id="auth-title">{title}</h1>
