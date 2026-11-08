@@ -148,9 +148,7 @@ export async function findFaces(o: { tree: string; mediaKey: string; locale: AiL
 const oneOf = (values: readonly string[]) => ({ type: 'string', enum: [...values] });
 
 /** Only what a face shows (see PHOTO_LOOK_FIELDS): headwear, clothing and age follow the person's era and stay as they were. */
-export const LOOK_JSON: JsonSchema = {
-  type: 'object',
-  properties: {
+const LOOK_PROPERTIES = {
     skin: { type: 'integer', minimum: 0, maximum: 8, description: 'Skin tone index: ' + SKIN_LABELS.map((l, i) => `${i} ${translate('en', l)}`).join(', ') },
     hair: { type: 'integer', minimum: 0, maximum: 9, description: 'Hair colour index: ' + HAIR_LABELS.map((l, i) => `${i} ${translate('en', l)}`).join(', ') },
     eyes: { type: 'integer', minimum: 0, maximum: 6, description: 'Eye colour index: ' + EYE_LABELS.map((l, i) => `${i} ${translate('en', l)}`).join(', ') },
@@ -168,9 +166,13 @@ export const LOOK_JSON: JsonSchema = {
         { type: 'integer', minimum: 0, maximum: 10, description: PHOTO_LOOK_FIELDS[k].what },
       ]),
     ),
-  },
-  required: ['skin', 'hair', 'eyes'],
 };
+
+/**
+ * Every field is required. With nineteen optional fields, Anthropic spent over two minutes compiling the schema and then
+ * refused it as too complex; required, the same fields answer in about three seconds.
+ */
+export const LOOK_JSON: JsonSchema = { type: 'object', properties: LOOK_PROPERTIES, required: Object.keys(LOOK_PROPERTIES) };
 
 /** A portrait look for a person, from a photo. Enum fields come from the portrait's own lists, and the result is `sanitizeLook`'s, so every face field the photo sets is kept. */
 export async function avatarFromPhoto(o: { tree: string; personId: string; mediaKey: string; locale: AiLocale }): Promise<Look> {
@@ -179,7 +181,7 @@ export async function avatarFromPhoto(o: { tree: string; personId: string; media
   if (!(await db(o.tree).get('SELECT id FROM person WHERE id = ?', o.personId))) throw new AiError('bad-input', c('ai.errNoPerson'));
   const photo = await photoOrThrow(o.tree, o.mediaKey, o.locale);
   const reply = await adapter.complete({
-    system: 'You describe a person’s face for a flat illustration, from a photo. Choose each value from the lists given in the schema. For the face shape, nose, eyes and the 0–10 measures, compare with an average face (5) and leave a measure out when the photo cannot show it. Never guess who the person is. Describe the person, not the day: sunglasses are not glasses (use none unless clear glasses are worn), and a hat is not hair.',
+    system: 'You describe a person’s face for a flat illustration, from a photo. Choose each value from the lists given in the schema. For the face shape, nose, eyes and the 0–10 measures, compare with an average face (5), and answer 5 for a measure the photo cannot show. Never guess who the person is. Describe the person, not the day: sunglasses are not glasses (use none unless clear glasses are worn), and a hat is not hair.',
     messages: [{ role: 'user', text: 'Describe the person in this photo.', images: [photo] }],
     json: { name: 'look', schema: LOOK_JSON },
     maxTokens: 800,
