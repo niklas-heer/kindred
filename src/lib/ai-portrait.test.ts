@@ -240,3 +240,46 @@ test('a photo the person is not tagged in cannot be painted', async () => {
   assert.equal(imageCalls.length, 0);
 });
 
+
+test('the profile photo is offered first, once, even when the gallery lists it too', async () => {
+  const { paintSources } = await load<typeof import('./paint-sources.ts')>('/src/lib/paint-sources.ts');
+  const g = [{ key: 'gallery/a.png', caption: 'A' }, { key: 'photo/p.png', caption: null }, { key: 'gallery/a.png', caption: 'A' }, { key: 'gallery/b.png', caption: null }];
+  assert.deepEqual(paintSources('photo/p.png', g).map((m) => m.key), ['photo/p.png', 'gallery/a.png', 'gallery/b.png']);
+  assert.deepEqual(paintSources(null, g.slice(0, 1)).map((m) => m.key), ['gallery/a.png']);
+  assert.deepEqual(paintSources(undefined, []), []);
+
+  const tree = 'profilekey';
+  await seed(tree);
+  assert.equal(await portrait.profilePhotoKey(tree, 'ada'), null);
+  await dbs.media.put(tree, 'photo/ada.png', PNG, 'image/png');
+  await dbs.db(tree).run("INSERT INTO photo (person, mime, key, at) VALUES ('ada', 'image/png', 'photo/ada.png', ?)", new Date().toISOString());
+  assert.equal(await portrait.profilePhotoKey(tree, 'ada'), 'photo/ada.png');
+  await enable(tree);
+  stub();
+  const c = await portrait.createPortrait(tree, { by: 'u1', personId: 'ada', mediaKey: 'photo/ada.png', locale: 'en' });
+  assert.equal(c.sourceYear, null);
+});
+
+test('an old unused draft is swept when a new paint starts; fresh drafts, other people and the accepted portrait stay', async () => {
+  const tree = 'sweep';
+  const photo = await seed(tree);
+  await enable(tree);
+  const d = dbs.db(tree);
+  const old = new Date(Date.now() - 3 * 60 * 60_000).toISOString();
+  const row = async (key: string, person: string, accepted: number, at: string) => {
+    await dbs.media.put(tree, key, PNG, 'image/png');
+    await d.run("INSERT INTO portrait (key, person, mime, source, model, created_by, created_at, accepted) VALUES (?, ?, 'image/png', ?, 'm', 'u1', ?, ?)", key, person, photo, at, accepted);
+  };
+  await row('portrait/old-draft.png', 'ada', 0, old);
+  await row('portrait/old-accepted.png', 'ada', 1, old);
+  await row('portrait/old-ben.png', 'ben', 0, old);
+  await row('portrait/fresh.png', 'ada', 0, new Date().toISOString());
+  stub();
+  const c = await portrait.createPortrait(tree, { by: 'u1', personId: 'ada', mediaKey: photo, locale: 'en' });
+  const keys = (await d.all<{ key: string }>('SELECT key FROM portrait ORDER BY key')).map((r) => r.key);
+  assert.deepEqual(keys, ['portrait/fresh.png', 'portrait/old-accepted.png', 'portrait/old-ben.png', c.key].sort());
+  assert.equal(await dbs.media.get(tree, 'portrait/old-draft.png'), undefined, 'its picture is gone');
+  for (const k of ['portrait/old-accepted.png', 'portrait/old-ben.png', 'portrait/fresh.png', c.key]) assert.ok(await dbs.media.get(tree, k), `${k} keeps its picture`);
+  assert.equal(await portrait.sweepDrafts(tree, 'ada', 0, Date.now() + 1000), 2, 'with no grace, the unused drafts go');
+  assert.ok((await d.get('SELECT key FROM portrait WHERE key = ? AND accepted = 1', 'portrait/old-accepted.png')), 'but never the accepted one');
+});

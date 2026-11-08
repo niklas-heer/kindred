@@ -228,6 +228,34 @@ async function postImages(url: string, key: string, body: Record<string, unknown
   }
 }
 
+/** The media key of a person's profile photo, when it is in media storage (older rows still hold the bytes only: not offered). */
+export async function profilePhotoKey(tree: string, personId: string): Promise<string | null> {
+  return (await db(tree).get<{ key: string | null }>('SELECT key FROM photo WHERE person = ?', personId))?.key ?? null;
+}
+
+/** A draft nobody chose in this long is taken to be abandoned (the tab was closed during review). */
+export const DRAFT_TTL_MS = 60 * 60_000;
+
+/**
+ * Deletes a person's old unused drafts and their pictures. Only rows with accepted = 0 are touched, in the same statement,
+ * so the portrait a person shows can never go. Returns how many it looked at.
+ */
+export async function sweepDrafts(tree: string, personId: string, olderThanMs = DRAFT_TTL_MS, now = Date.now()): Promise<number> {
+  const cutoff = new Date(now - olderThanMs).toISOString();
+  const old = await db(tree).all<{ key: string }>('SELECT key FROM portrait WHERE person = ? AND accepted = 0 AND created_at < ?', personId, cutoff);
+  for (const { key } of old) {
+    await once<void>(tree, undefined, 'sweepDraft', async () => ({
+      writes: [q('DELETE FROM portrait WHERE key = ? AND person = ? AND accepted = 0', key, personId)],
+      result: undefined,
+      after: async () => {
+        // The picture goes only when the row is gone (a draft accepted in the meantime keeps both).
+        if (!(await db(tree).get('SELECT key FROM portrait WHERE key = ?', key))) await media.delete(tree, key).catch((e) => console.error('paint.err_delete', key, e));
+      },
+    }));
+  }
+  return old.length;
+}
+
 /** A candidate painting, waiting for the reader's choice. */
 export interface Candidate {
   key: string;
@@ -275,6 +303,7 @@ export async function createPortrait(tree: string, o: { by: string; personId: st
     }
     return { value: img, costUsd: img.costUsd };
   });
+  await sweepDrafts(tree, o.personId).catch((e) => console.error('paint.err_sweep', e));
   const key = newMediaKey('portrait', painted.mime);
   const at = new Date().toISOString();
   return once<Candidate>(tree, undefined, 'createPortrait', async () => {

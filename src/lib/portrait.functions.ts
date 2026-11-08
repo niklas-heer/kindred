@@ -51,6 +51,16 @@ export const getPortraitSettings = createServerFn({ method: 'GET' })
   });
 export const portraitSettingsQuery = (t: string) => queryOptions({ queryKey: ['portrait-settings', t], queryFn: () => getPortraitSettings({ data: { tree: t } }) });
 
+/** The key of a person's profile photo, which can be painted from like a gallery picture; null when there is none. */
+export const getProfilePhotoKey = createServerFn({ method: 'GET' })
+  .validator(z.object({ tree, personId: id }))
+  .handler(async ({ data }) => {
+    await requireCan(data.tree, 'edit-person');
+    return (await server()).profilePhotoKey(data.tree, data.personId);
+  });
+export const profilePhotoKeyQuery = (t: string, personId: string, version?: string) =>
+  queryOptions({ queryKey: ['portrait-profile-key', t, personId, version ?? ''], queryFn: () => getProfilePhotoKey({ data: { tree: t, personId } }), staleTime: 60_000 });
+
 // ---------- settings (stewards) ----------
 
 export const savePortraitSettings = createServerFn({ method: 'POST' })

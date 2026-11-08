@@ -13,23 +13,30 @@ import { displayName } from '~/lib/graph';
 import { useFamily } from '~/lib/family';
 import { toAiLocale } from '~/lib/ai/types';
 import { locales, useT } from '~/lib/i18n';
-import { acceptPortrait, aiCreatePortrait, discardPortrait, portraitStatusQuery, removePortrait } from '~/lib/portrait.functions';
+import { acceptPortrait, aiCreatePortrait, discardPortrait, portraitStatusQuery, profilePhotoKeyQuery, removePortrait } from '~/lib/portrait.functions';
 import { useCan } from '~/lib/session';
 import type { GPerson } from '~/lib/types';
 import { refreshPhotos } from './photos/refresh';
+import { paintSources } from '~/lib/paint-sources';
 import { mediaUrl, type MediaItem } from './photos/types';
 import './paint-portrait.css';
 
 /** The dialog's picture of a painting that is waiting for a choice (editors only, see routes/api/paint). */
 const paintUrl = (tree: string, key: string) => `/api/paint/${tree}/${key.replace(/^portrait\//, '')}`;
 
-export function PaintPortrait({ tree, person, photos }: { tree: string; person: GPerson; photos: MediaItem[] }) {
+/** Where a source photo's picture is: a profile photo has its own route, a gallery picture the media route. */
+const sourceUrl = (tree: string, person: GPerson, key: string) =>
+  key.startsWith('photo/') ? `/api/photo/${tree}/${person.id}${person.photo ? `?v=${encodeURIComponent(person.photo)}` : ''}` : mediaUrl(tree, key);
+
+export function PaintPortrait({ tree, person, photos: gallery }: { tree: string; person: GPerson; photos: MediaItem[] }) {
   const t = useT();
   const f = useFamily();
   const qc = useQueryClient();
   const canEdit = useCan('edit-person');
   const steward = useCan('manage-access');
   const status = useQuery({ ...portraitStatusQuery(tree), enabled: canEdit || steward });
+  const profile = useQuery({ ...profilePhotoKeyQuery(tree, person.id, person.photo), enabled: canEdit && !!person.photo });
+  const photos = paintSources(profile.data, gallery);
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const keys = useRef(opKeys());
@@ -92,7 +99,7 @@ export function PaintPortrait({ tree, person, photos }: { tree: string; person: 
 function PaintDialog({ tree, person, photos, name, onClose }: {
   tree: string;
   person: GPerson;
-  photos: MediaItem[];
+  photos: { key: string; caption: string | null }[];
   name: string;
   onClose: (message?: string) => void;
 }) {
@@ -189,7 +196,7 @@ function PaintDialog({ tree, person, photos, name, onClose }: {
       ) : cand ? (
         <div className="paint-review">
           <figure className="paint-pic">
-            <img src={picture ? mediaUrl(tree, picture.key) : ''} alt="" />
+            <img src={picture ? sourceUrl(tree, person, picture.key) : ''} alt="" />
             <figcaption className="subtle">{t('paint.sourceHead')}</figcaption>
           </figure>
           <figure className="paint-pic is-painted">
@@ -210,7 +217,7 @@ function PaintDialog({ tree, person, photos, name, onClose }: {
                 {photos.map((m) => (
                   <li key={m.key}>
                     <button type="button" className="pp-thumb" aria-pressed={picked === m.key} aria-label={m.caption || name} onClick={() => setPicked(m.key)}>
-                      <img src={mediaUrl(tree, m.key)} alt="" loading="lazy" decoding="async" />
+                      <img src={sourceUrl(tree, person, m.key)} alt="" loading="lazy" decoding="async" />
                     </button>
                   </li>
                 ))}
