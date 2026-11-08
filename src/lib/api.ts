@@ -2,6 +2,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
+import { armsSchema } from '~/components/heraldry/schema';
 import { validDate } from './dates';
 import type { Action } from './roles';
 
@@ -497,14 +498,8 @@ export const upsertPlaces = createServerFn({ method: 'POST' })
 
 // ---------- houses ----------
 
-const tincture = z.enum(['or', 'argent', 'gules', 'azure', 'vert', 'sable', 'purpure']);
-const arms = z.object({
-  field: tincture,
-  field2: tincture.optional(),
-  division: z.enum(['plain', 'per-pale', 'per-fess', 'per-bend', 'quarterly', 'chevron', 'paly', 'bendy', 'saltire', 'cross']),
-  charge: z.enum(['none', 'lion', 'eagle', 'tower', 'star', 'crescent', 'fleur', 'key', 'rose', 'boar', 'stag', 'sword']),
-  chargeTincture: tincture,
-});
+// v1 arms plus the optional heraldry v2 design (src/components/heraldry/schema.ts).
+const arms = armsSchema;
 
 /** A steward renames a house or changes its motto and arms. */
 export const updateHouse = createServerFn({ method: 'POST' })

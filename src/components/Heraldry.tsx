@@ -2,6 +2,9 @@ import { useId } from 'react';
 import type { Tincture } from '~/lib/seed-format';
 import type { House } from '~/lib/types';
 import { CHARGE_ICONS, type ChargeIconName } from './charges.gen';
+import { Flag } from './heraldry/Flag';
+import { ArmsV2View } from './heraldry/render';
+import { HEX_V2 } from './heraldry/tinctures';
 
 export const TINCTURE_HEX: Record<Tincture, string> = {
   or: '#d4a53c',
@@ -39,7 +42,8 @@ const SHIELD = 'M5 5H95V62C95 92 77 107 50 116C23 107 5 92 5 62Z';
 
 /** The dominant tincture of a coat of arms: its primary field. Used for minimap dots and accents. */
 export function houseColour(arms: House['arms']): string {
-  return TINCTURE_HEX[arms.field];
+  const t = arms.v2?.field.tinctures[0];
+  return t ? HEX_V2[t] : TINCTURE_HEX[arms.field];
 }
 
 /** Paints the field and the division, in colours `a` (field) and `b` (field2), over the whole box. */
@@ -157,7 +161,23 @@ function Charge({ charge, colour }: { charge: Exclude<House['arms']['charge'], '
   );
 }
 
-export function Arms({ arms, size = 32, title }: { arms: House['arms']; size?: number; title?: string }) {
+/**
+ * A house's arms. v1 arms draw exactly as they always have; arms with a v2 design draw that.
+ * `full` draws the achievement (helm, mantling, crest, motto, supporters) when the design has one; leave it off
+ * wherever the shield is small. `country` (an ISO 3166 code) adds a small flag beside the shield.
+ */
+export function Arms({ arms, size = 32, title, full, country }: { arms: House['arms']; size?: number; title?: string; full?: boolean; country?: string }) {
+  const shield = arms.v2 ? <ArmsV2View arms={arms.v2} size={size} title={title} full={full} /> : <ArmsV1 arms={arms} size={size} title={title} />;
+  if (!country) return shield;
+  return (
+    <span className="arms-flagged" style={{ display: 'inline-flex', alignItems: 'flex-end', gap: Math.max(2, size * 0.06), verticalAlign: 'middle' }}>
+      {shield}
+      <Flag code={country} size={Math.max(9, Math.round(size * 0.24))} />
+    </span>
+  );
+}
+
+function ArmsV1({ arms, size = 32, title }: { arms: House['arms']; size?: number; title?: string }) {
   // useId contains characters that are awkward inside url(#…); keep only word characters.
   const id = useId().replace(/\W/g, '');
   const clip = `${id}-shield`;

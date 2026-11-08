@@ -360,6 +360,8 @@ export async function updateHouse(tree: string, id: string, patch: { name: strin
   // Store only the fields the arms use: a plain field keeps no second tincture.
   const arms: House['arms'] = { field: patch.arms.field, division: patch.arms.division, charge: patch.arms.charge, chargeTincture: patch.arms.chargeTincture };
   if (patch.arms.field2 && patch.arms.division !== 'plain') arms.field2 = patch.arms.field2;
+  // The v2 design, when there is one; the v1 fields above stay as its nearest summary for older readers.
+  if (patch.arms.v2) arms.v2 = patch.arms.v2;
   await d.run('UPDATE house SET name = ?, motto = ?, arms = ? WHERE id = ?', patch.name, patch.motto, JSON.stringify(arms), id);
   return { id, name: patch.name, motto: patch.motto ?? undefined, arms, founder: opt(r.founder) };
 }
