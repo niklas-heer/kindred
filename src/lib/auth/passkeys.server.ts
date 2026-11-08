@@ -8,7 +8,7 @@ import {
 } from '@simplewebauthn/server';
 import { isoBase64URL } from '@simplewebauthn/server/helpers';
 import { AuthError } from './errors.ts';
-import { siteOrigin } from './session.server.ts';
+import { guestChoice, siteOrigin } from './session.server.ts';
 import { checkSetupCode } from './setup.server.ts';
 import { checkCanMakeFamily, cleanFamilyName, makeFirstFamily } from './trees.server.ts';
 import {
@@ -124,7 +124,7 @@ export async function finishSetup(
   const granted = made ? [made] : trees;
   // Only one first steward, however many tabs race: the batch starts with a guard that no account
   // exists, and batches run one at a time, so a second setup writes nothing.
-  const { user, insert } = newUser(c.name!, null, c.subject!);
+  const { user, insert } = newUser(c.name!, null, c.subject!, guestChoice(request));
   try {
     await accounts().batch([
       noUsersYet(),
@@ -154,7 +154,7 @@ export async function finishInvite(request: Request, token: string, challengeId:
     if (!usable(fresh)) throw inviteUsed();
     // The invited email becomes the account's (it lets Cloudflare Access recognise them too), unless taken.
     const email = fresh.email && !(await userByEmail(fresh.email)) ? fresh.email : null;
-    const { user, insert } = newUser(c.name!, email, handle);
+    const { user, insert } = newUser(c.name!, email, handle, guestChoice(request));
     return {
       writes: [insert, insertCredential({ ...cred, user: user.id, device: deviceName(request) }), ...useInvite(fresh, user.id)],
       result: user.id,

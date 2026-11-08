@@ -149,11 +149,21 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /**
  * The export date the folder was last written with, from its marker, or null when there is none yet. Refuses a
- * folder that belongs to another family: two families in one folder would delete each other's files.
+ * folder that belongs to another family: two families in one folder would delete each other's files. Refuses a folder
+ * that has files but no marker: the archive did not write them, and a run would delete them as "no longer exported".
+ * An empty or missing folder is fine: that is where a first run starts.
  */
 async function markerDate(gh: GitHubClient, cfg: ArchiveConfig, existing: Map<string, string>): Promise<string | null> {
   const sha = existing.get(MARKER);
-  if (!sha) return null;
+  if (!sha) {
+    if (existing.size > 0) {
+      throw new Error(
+        `${cfg.folder} is not empty and has no ${MARKER} file, so the archive did not write its ${existing.size} file(s) and a run would delete them. `
+          + `Empty the folder, or choose an empty one with ${archiveEnvPrefix(cfg.tree)}_PATH`,
+      );
+    }
+    return null;
+  }
   const text = new TextDecoder().decode(await readBlob(gh, cfg.repo, sha));
   const family = /^family (.+)$/m.exec(text)?.[1]?.trim();
   if (!family) throw new Error(`${cfg.folder}/${MARKER} is not one the archive wrote; choose another folder or remove it by hand`);

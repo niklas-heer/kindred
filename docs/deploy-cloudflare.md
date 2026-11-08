@@ -120,6 +120,15 @@ npx wrangler secret put KINDRED_ARCHIVE_MODERN_TOKEN
 
 Put the variables in the dashboard or in `wrangler.jsonc` under `vars`, as the other settings above.
 
+The archive runs in the same 06:00 UTC cron as the reminders, so **it needs the Workers Paid plan**. The Free plan allows
+50 subrequests and 10 ms of CPU per invocation, and the archive uses a request for each file it writes, each GitHub call and
+each read. A family's first night writes every file, so on Free it stops partway for any family of more than a few dozen
+people: the error is logged (`archive failed`), nothing is committed for that family, and the next night starts again from
+the same point. The commit is one batch after all its files are written, so a cut-off night never leaves a half-written
+archive on the branch. Reminders run before the archive and are not affected, though each reminder is a request too, so on
+Free a run with many devices can run out before the last of them. On Paid, a daily cron gets 10,000 subrequests and 15 minutes
+of CPU per invocation ([limits](https://developers.cloudflare.com/workers/platform/limits/), checked 2026-11-08). Self-hosting on Node has neither limit.
+
 > **The archive holds private family data.** Every name, date, place, link and biography goes into it, and the GEDCOM
 > file has them too. The repository must be private, and the people who can read it must be the family's stewards. Kindred
 > refuses a public repository, but it cannot see who else has access to a private one.
@@ -140,7 +149,9 @@ Put `KINDRED_VAPID_PUBLIC_KEY` and `KINDRED_VAPID_SUBJECT` in the dashboard or i
 private key is a secret.
 
 The daily run is the cron trigger in `wrangler.jsonc`, `"triggers": { "crons": ["0 6 * * *"] }`: it runs at 06:00 UTC and
-sends each device the reminders due that day (`scheduled` in `src/server.ts`). On Workers the trigger is the switch, so
+sends each device the reminders due that day, at most one message a day (`scheduled` in `src/server.ts`). The same trigger
+runs the nightly archive,
+which needs the Workers Paid plan (see above). On Workers the trigger is the switch, so
 remove it to stop the daily run. `KINDRED_JOBS` is read by the Node server only.
 
 Each reminder is encrypted for its device before it leaves the Worker, and only the browser's push services carry it. The

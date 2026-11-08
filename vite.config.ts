@@ -11,7 +11,11 @@ export default defineConfig(({ command }) => {
   const workers = process.env.KINDRED_TARGET !== 'node' && (command === 'build' || !!process.env.CLOUDFLARE_ENV || process.env.KINDRED_TARGET === 'cloudflare');
   return {
     server: { port: 4517 },
-    resolve: { tsconfigPaths: true },
+    // One copy of React for the app and its libraries. Two copies (one pre-bundled again after a dependency was
+    // re-optimised in a running dev server) make hooks fail with "Invalid hook call".
+    resolve: { tsconfigPaths: true, dedupe: ['react', 'react-dom'] },
+    // Pre-bundled at start, so a dev server does not find it late (and re-optimise, which is when the second copy appears).
+    optimizeDeps: { include: ['@tanstack/react-virtual'] },
     // node:sqlite is built into Node; keep it out of the bundle.
     ssr: workers ? undefined : { external: ['node:sqlite'] },
     plugins: [

@@ -63,6 +63,8 @@ export interface PushRow {
   locale: Locale;
   created: number;
   last_seen: number;
+  /** The UTC day this device's reminder was last claimed for (see claimDay). */
+  last_sent_day: string | null;
 }
 
 /** The device's row for one family, if it has one. */
@@ -132,6 +134,11 @@ export async function removeRegistration(user: string, tree: string, endpoint: s
   return (await a.get<{ n: number }>('SELECT count(*) AS n FROM push_subscription WHERE user = ? AND endpoint = ?', user, endpoint))?.n ?? 0;
 }
 
+/** Signing out on this device: the account's reminders on this browser go, in every family it is in. */
+export async function forgetDevice(user: string, endpoint: string): Promise<void> {
+  await accounts().batch([q('DELETE FROM push_subscription WHERE user = ? AND endpoint = ?', user, endpoint)]);
+}
+
 /** Opening the app: the device has been seen now, so it is not paused or removed. */
 export async function touchRegistration(user: string, tree: string, endpoint: string): Promise<void> {
   await accounts().run('UPDATE push_subscription SET last_seen = ? WHERE user = ? AND tree = ? AND endpoint = ?', now(), user, tree, endpoint);
@@ -165,6 +172,23 @@ export async function sendTest(
 }
 
 export interface DailyTotals { sent: number; removed: number; failed: number; skipped: number; errors: number }
+
+/**
+ * Claims a device's reminder for `day` (UTC, YYYY-MM-DD) with one conditional UPDATE: of any number of runs that reach the
+ * device that day, in any order or process, exactly one gets the claim. False when the day is already claimed.
+ */
+async function claimDay(id: string, day: string): Promise<boolean> {
+  const { changes } = await accounts().run('UPDATE push_subscription SET last_sent_day = ? WHERE id = ? AND (last_sent_day IS NULL OR last_sent_day <> ?)', day, id, day);
+  return changes === 1;
+}
+
+/** Gives a device's claim for `day` back, so that a later run that day can send. */
+async function releaseDay(id: string, day: string): Promise<void> {
+  await accounts().run('UPDATE push_subscription SET last_sent_day = NULL WHERE id = ? AND last_sent_day = ?', id, day);
+}
+
+/** A fetch that gave up waiting (AbortSignal.timeout), as opposed to one that could not connect. */
+const isTimeout = (e: unknown) => e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError');
 
 /**
  * The daily run for the given families: every device gets the reminders due today at its chosen days (0, 1 and 7
@@ -212,19 +236,32 @@ export async function sendDailyReminders({
           totals.skipped += 1;
           continue;
         }
+        // Claim the device's day before the send: a run that finds it already claimed sends nothing (a retry, a restart
+        // or an overlapping run on the same day). The claim is given back only when nothing reached the push service.
+        if (!(await claimDay(row.id, today))) {
+          totals.skipped += 1;
+          continue;
+        }
+        let response: Response;
         try {
-          const response = await sendPush(subscriptionFrom(row), message, vapid, fetchImpl);
-          await response.body?.cancel();
-          if (response.status === 404 || response.status === 410) {
-            await accounts().batch([q('DELETE FROM push_subscription WHERE id = ?', row.id)]);
-            totals.removed += 1;
-          } else if (response.ok) {
-            totals.sent += 1;
-          } else {
-            totals.failed += 1;
-          }
-        } catch {
-          // One unreachable push service must not stop the others.
+          response = await sendPush(subscriptionFrom(row), message, vapid, fetchImpl);
+        } catch (e) {
+          // One unreachable push service must not stop the others. A refused connection never reached the service, so a
+          // later run that day may send. A timeout may have been delivered, so its claim stays: a duplicate is worse than a miss.
+          if (!isTimeout(e)) await releaseDay(row.id, today);
+          totals.failed += 1;
+          continue;
+        }
+        await response.body?.cancel();
+        if (response.status === 404 || response.status === 410) {
+          await accounts().batch([q('DELETE FROM push_subscription WHERE id = ?', row.id)]);
+          totals.removed += 1;
+        } else if (response.ok) {
+          totals.sent += 1;
+        } else {
+          // Busy or failing service (429, 5xx): not delivered, so a later run that day may send it. Any other refusal
+          // would be refused again, so the day's claim stays.
+          if (response.status === 429 || response.status >= 500) await releaseDay(row.id, today);
           totals.failed += 1;
         }
       }

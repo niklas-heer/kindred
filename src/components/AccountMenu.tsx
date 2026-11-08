@@ -12,7 +12,7 @@ import { myPasskeysQuery, removeMyPasskey, renameMe, type Passkey } from '~/lib/
 import { fetchRemindersAvailable } from '~/lib/reminders.functions';
 import { ROLES, can } from '~/lib/roles';
 import { Portrait } from './Portrait';
-import { ReminderRefresh, RemindersDialog } from './Reminders';
+import { dropThisDevice, ReminderRefresh, RemindersDialog } from './Reminders';
 import { useMembership, useSession } from '~/lib/session';
 import { Dialog } from './ui/Dialog';
 import { isTopOverlay, useOverlayLayer } from './ui/overlay';
@@ -44,8 +44,13 @@ function Avatar({ name, size }: { name: string; size: number }) {
   return <Initials name={name} size={size} />;
 }
 
-/** Signs out everywhere this browser knows about, then reloads at /signin with nothing cached. */
+/**
+ * Signs out everywhere this browser knows about, then reloads at /signin with nothing cached. First this device stops
+ * the account's reminders (server and browser). That step is bounded and its failure is ignored: it never blocks sign-out.
+ */
 export async function signOut(accessLogout?: string) {
+  const boundedDrop = Promise.race([dropThisDevice().catch(() => {}), new Promise<void>((resolve) => setTimeout(resolve, 3000))]);
+  await boundedDrop;
   try { await signOutRequest(); } catch {}
   forgetLocalIdentity();
   window.location.assign(accessLogout ?? '/signin');

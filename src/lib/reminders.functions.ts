@@ -82,6 +82,15 @@ export const removeReminders = createServerFn({ method: 'POST' })
     return { remaining: await r.removeRegistration(user.id, data.tree, data.endpoint) };
   });
 
+/** Signing out on this device: the signed-in account's reminders for this browser are removed, in every family. */
+export const forgetThisDevice = createServerFn({ method: 'POST' })
+  .validator(z.object({ endpoint }))
+  .handler(async ({ data }): Promise<void> => {
+    const [{ currentSession }, r] = await Promise.all([member(), remind()]);
+    const { user } = await currentSession();
+    if (user) await r.forgetDevice(user.id, data.endpoint);
+  });
+
 /** The app was opened on this device: its last-seen time is refreshed, so it keeps getting reminders. */
 export const touchReminders = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, endpoint }))

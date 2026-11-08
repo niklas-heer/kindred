@@ -51,10 +51,13 @@ export const userById = (id: string) => accounts().get<UserRow>('SELECT * FROM u
 export const userByEmail = (email: string) => accounts().get<UserRow>('SELECT * FROM user WHERE email = ?', email);
 export const userByHandle = (handle: string) => accounts().get<UserRow>('SELECT * FROM user WHERE handle = ?', handle);
 
-/** A new account and the statement that stores it. */
-export function newUser(name: string, email: string | null, handle = randomToken(32)): { user: UserRow; insert: Query } {
-  const user: UserRow = { id: crypto.randomUUID(), name, email, handle, created: now(), last_seen: now(), locale: null };
-  return { user, insert: q('INSERT INTO user (id, name, email, handle, created, last_seen) VALUES (?, ?, ?, ?, ?, ?)', user.id, user.name, user.email, user.handle, user.created, user.last_seen) };
+/**
+ * A new account and the statement that stores it. `locale` is the language the reader picked before they had an account
+ * (session.server.ts, guestChoice), so the account keeps it from its first visit on.
+ */
+export function newUser(name: string, email: string | null, handle = randomToken(32), locale: Locale | null = null): { user: UserRow; insert: Query } {
+  const user: UserRow = { id: crypto.randomUUID(), name, email, handle, created: now(), last_seen: now(), locale };
+  return { user, insert: q('INSERT INTO user (id, name, email, handle, created, last_seen, locale) VALUES (?, ?, ?, ?, ?, ?, ?)', user.id, user.name, user.email, user.handle, user.created, user.last_seen, user.locale) };
 }
 
 /** Guards that nobody has an account yet: what makes the first account the only first steward. */

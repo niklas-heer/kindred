@@ -4,6 +4,7 @@
 // ISO dates only (a year on its own, as protected dates often are, never matches).
 import type { Graph, GPerson } from './types';
 import { translate, type Key, type Locale } from './i18n/dictionary.ts';
+import { fitsPush } from './webpush.ts';
 
 /** Days before the occasion a device can be reminded: on the day, the day before, a week before. */
 export const OFFSETS = [0, 1, 7] as const;
@@ -118,15 +119,39 @@ export function reminderMessage(
     }
   }
   if (!lines.length || !only) return null;
-  // Lines past the limit become one count line, so the message stays inside the push service's size.
-  const shown = lines.length > MAX_LINES ? [...lines.slice(0, MAX_LINES - 1), translate(locale, 'reminders.push.more', { count: lines.length - MAX_LINES + 1 })] : lines;
-  return {
-    title: translate(locale, 'reminders.push.title'),
-    body: shown.join('\n').slice(0, 1500),
+  const lead: Occasion = only;
+  const title = translate(locale, 'reminders.push.title');
+  const message = (body: string): ReminderMessage => ({
+    title,
+    body,
     tag: `kindred-${tree}-${day}`,
     // One occasion opens its person; several open the Almanac, which lists them all.
-    url: count === 1 ? `/${tree}?sel=${encodeURIComponent(only.ids[0])}` : `/${tree}/almanac`,
+    url: count === 1 ? `/${tree}?sel=${encodeURIComponent(lead.ids[0])}` : `/${tree}/almanac`,
+  });
+  // The lines shown, then one count line for the rest. Fewer lines are shown when the message is over the push budget
+  // (measured in UTF-8 bytes of its JSON, the encryption's own overhead included); a single line that is still too long
+  // is cut between characters, never inside one.
+  const bodyOf = (shown: number) => {
+    const hidden = lines.length - shown;
+    return (hidden > 0 ? [...lines.slice(0, shown), translate(locale, 'reminders.push.more', { count: hidden })] : lines.slice(0, shown)).join('\n');
   };
+  let shown = lines.length > MAX_LINES ? MAX_LINES - 1 : lines.length;
+  while (shown > 1 && !fitsPush(message(bodyOf(shown)))) shown -= 1;
+  const full = message(bodyOf(shown));
+  return fitsPush(full) ? full : { ...full, body: longestFitting(full.body, (body) => fitsPush(message(body))) };
+}
+
+/** The longest prefix of `text` that `fits` accepts, cut between code points so that no character is split. */
+function longestFitting(text: string, fits: (candidate: string) => boolean): string {
+  const chars = Array.from(text);
+  let low = 0;
+  let high = chars.length;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (fits(chars.slice(0, mid).join(''))) low = mid;
+    else high = mid - 1;
+  }
+  return chars.slice(0, low).join('');
 }
 
 /** The message a device gets from its "Test" button: the same shape as a reminder, with nothing from the family. */
@@ -134,5 +159,9 @@ export function testMessage(tree: string, locale: Locale): ReminderMessage {
   return { title: translate(locale, 'reminders.push.title'), body: translate(locale, 'reminders.push.testBody'), tag: `kindred-test-${tree}`, url: `/${tree}` };
 }
 
-/** The UTC calendar day a run is for, as YYYY-MM-DD. Runs happen at 06:00 UTC, so the day is the same everywhere. */
+/**
+ * The UTC calendar day a run is for, as YYYY-MM-DD. Days are counted in UTC, not in each device's zone. The run is at
+ * 06:00 UTC, which is the same morning for most of the world but the evening before for a device far west of UTC: a
+ * device at UTC-10 gets "Today" for a birthday at about 20:00 the evening before its local day.
+ */
 export const dayKey = (date: Date) => date.toISOString().slice(0, 10);

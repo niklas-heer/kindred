@@ -309,3 +309,94 @@ test('a test that the push service refuses reports the status, and keeps the dev
   assert.ok(await r.subscriptionOf(alice, tree, endpoint), 'a refusal that is not gone keeps the device');
   assert.deepEqual([...OFFSETS], [0, 1, 7], 'the three days the app offers');
 });
+
+test('the daily run sends a device its reminder once a day: a repeat, a restart or an overlapping run sends nothing twice', async () => {
+  const tree = 'lindes-once';
+  const phone = await device();
+  const alice = await userWith(tree);
+  const vapid = await vapidConfig();
+  await r.saveRegistration({ user: alice, tree, subscription: { endpoint: ENDPOINT('once'), keys: phone.keys }, choices: choices([0, 1], ['birthday']), locale: 'en' });
+  const run = (fetchImpl: typeof fetch, at = NOW) => r.sendDailyReminders({ trees: [tree], now: at, vapid, fetchImpl, log: () => {}, loadGraph: async () => graph });
+  const first = fakePush();
+  assert.equal((await run(first.fetchImpl)).sent, 1);
+  const again = fakePush();
+  assert.deepEqual(await run(again.fetchImpl), { sent: 0, removed: 0, failed: 0, skipped: 1, errors: 0 }, 'the same day: already claimed');
+  assert.equal(again.sent.length, 0, 'no second push');
+  // Two runs at once (two processes on one accounts database): one claim wins.
+  const overlap = fakePush();
+  const [a, b] = await Promise.all([run(overlap.fetchImpl), run(overlap.fetchImpl)]);
+  assert.equal(a.sent + b.sent, 0, 'the day is already claimed by the first run');
+  assert.equal(overlap.sent.length, 0);
+  // The next day is a new claim.
+  const tomorrow = fakePush();
+  assert.equal((await run(tomorrow.fetchImpl, new Date(NOW.getTime() + DAY))).sent, 1, 'the next day has its own claim: Ada’s birthday is that day');
+  assert.equal(tomorrow.sent.length, 1);
+});
+
+test('two overlapping runs on a fresh day send one push between them', async () => {
+  const tree = 'lindes-race';
+  const phone = await device();
+  const alice = await userWith(tree);
+  const vapid = await vapidConfig();
+  await r.saveRegistration({ user: alice, tree, subscription: { endpoint: ENDPOINT('race'), keys: phone.keys }, choices: choices([1], ['birthday']), locale: 'en' });
+  const { sent, fetchImpl } = fakePush();
+  const run = () => r.sendDailyReminders({ trees: [tree], now: NOW, vapid, fetchImpl, log: () => {}, loadGraph: async () => graph });
+  const [a, b] = await Promise.all([run(), run()]);
+  assert.equal(a.sent + b.sent, 1);
+  assert.equal(sent.length, 1, 'exactly one POST for the device on that day');
+});
+
+test('a busy or unreachable push service gives the day back, so a later run that day sends', async () => {
+  const tree = 'lindes-retry';
+  const phone = await device();
+  const alice = await userWith(tree);
+  const vapid = await vapidConfig();
+  const busy = ENDPOINT('busy');
+  const unreachable = ENDPOINT('unreachable');
+  for (const endpoint of [busy, unreachable]) {
+    await r.saveRegistration({ user: alice, tree, subscription: { endpoint, keys: phone.keys }, choices: choices([1], ['birthday']), locale: 'en' });
+  }
+  const run = (fetchImpl: typeof fetch) => r.sendDailyReminders({ trees: [tree], now: NOW, vapid, fetchImpl, log: () => {}, loadGraph: async () => graph });
+  // The first run: one service answers 429 (busy), the other refuses the connection. Nothing was delivered.
+  const down = (async (url: string | URL | Request) => {
+    if (String(url) === unreachable) throw new TypeError('fetch failed');
+    return new Response(null, { status: 429 });
+  }) as unknown as typeof fetch;
+  assert.deepEqual(await run(down), { sent: 0, removed: 0, failed: 2, skipped: 0, errors: 0 });
+  // Later that day both are up: both devices get the reminder, once each.
+  const up = fakePush();
+  assert.deepEqual(await run(up.fetchImpl), { sent: 2, removed: 0, failed: 0, skipped: 0, errors: 0 });
+  assert.deepEqual(up.sent.map((s) => s.url).sort(), [busy, unreachable].sort());
+  assert.equal((await run(fakePush().fetchImpl)).skipped, 2, 'then once a day, as before');
+});
+
+test('a retryable failure is retried on the same day, while a timeout keeps the claim (the push may have arrived)', async () => {
+  const tree = 'lindes-timeout';
+  const phone = await device();
+  const alice = await userWith(tree);
+  const vapid = await vapidConfig();
+  await r.saveRegistration({ user: alice, tree, subscription: { endpoint: ENDPOINT('timeout'), keys: phone.keys }, choices: choices([1], ['birthday']), locale: 'en' });
+  const run = (fetchImpl: typeof fetch) => r.sendDailyReminders({ trees: [tree], now: NOW, vapid, fetchImpl, log: () => {}, loadGraph: async () => graph });
+  const timedOut = (async () => { throw new DOMException('the push timed out', 'TimeoutError'); }) as unknown as typeof fetch;
+  assert.equal((await run(timedOut)).failed, 1);
+  const later = fakePush();
+  assert.deepEqual(await run(later.fetchImpl), { sent: 0, removed: 0, failed: 0, skipped: 1, errors: 0 }, 'a timed-out send is not repeated the same day');
+  assert.equal(later.sent.length, 0);
+});
+
+test('signing out on a device removes that account’s registrations there in every family, and no one else’s', async () => {
+  const phone = await device();
+  const alice = await userWith('lindes-out-a');
+  await store.accounts().batch([store.upsertMembership(alice, 'lindes-out-b', 'viewer')]);
+  const bo = await userWith('lindes-out-a');
+  const endpoint = ENDPOINT('signed-out');
+  await r.saveRegistration({ user: alice, tree: 'lindes-out-a', subscription: { endpoint, keys: phone.keys }, choices: choices([0], ['birthday']), locale: 'en' });
+  await r.saveRegistration({ user: alice, tree: 'lindes-out-b', subscription: { endpoint, keys: phone.keys }, choices: choices([0], ['birthday']), locale: 'en' });
+  const boPhone = ENDPOINT('signed-out-bo');
+  await r.saveRegistration({ user: bo, tree: 'lindes-out-a', subscription: { endpoint: boPhone, keys: phone.keys }, choices: choices([0], ['birthday']), locale: 'en' });
+  await r.forgetDevice(alice, endpoint);
+  assert.equal(await r.subscriptionOf(alice, 'lindes-out-a', endpoint), undefined);
+  assert.equal(await r.subscriptionOf(alice, 'lindes-out-b', endpoint), undefined);
+  assert.ok(await r.subscriptionOf(bo, 'lindes-out-a', boPhone), 'another person’s device is untouched');
+  await r.forgetDevice(alice, endpoint); // a second sign-out changes nothing
+});

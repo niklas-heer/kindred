@@ -5,7 +5,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { translateMessage, useT, type Locale } from '~/lib/i18n';
-import { reminderStatus, removeReminders, saveReminders, sendTestReminder, touchReminders } from '~/lib/reminders.functions';
+import { forgetThisDevice, reminderStatus, removeReminders, saveReminders, sendTestReminder, touchReminders } from '~/lib/reminders.functions';
 import { Dialog } from './ui/Dialog';
 import { Switch } from './ui/Switch';
 import './reminders.css';
@@ -27,6 +27,20 @@ export function supportOf(): Support {
 async function currentSubscription(): Promise<PushSubscription | null> {
   const registration = await navigator.serviceWorker.getRegistration('/');
   return (await registration?.pushManager.getSubscription()) ?? null;
+}
+
+/**
+ * Signing out on this browser: the account's reminders for this device are removed on the server, and the browser's
+ * own subscription goes too, so no account's reminders reach it afterwards. Does nothing when the browser has none.
+ */
+export async function dropThisDevice(): Promise<void> {
+  const subscription = await currentSubscription().catch(() => null);
+  if (!subscription) return;
+  try {
+    await forgetThisDevice({ data: { endpoint: subscription.endpoint } });
+  } finally {
+    await subscription.unsubscribe();
+  }
 }
 
 /** The app's service worker, registered and active. */

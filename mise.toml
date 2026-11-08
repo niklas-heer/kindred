@@ -80,3 +80,7 @@ run = "node scripts/vapid-keys.ts"
 [tasks.clean]
 description = "Remove build output and generated databases"
 run = "rm -rf dist .output .tanstack .wrangler data/*.db data/*.db-wal data/*.db-shm data/media"
+
+[tasks."smoke:worker"]
+description = "Build the Worker into a scratch folder, run it locally (workerd, empty local D1 and R2) and check its routes; never contacts Cloudflare"
+run = "node scripts/worker-smoke.ts"

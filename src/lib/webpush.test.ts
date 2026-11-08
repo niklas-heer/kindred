@@ -2,7 +2,7 @@
 // example (Appendix A) and against a stubbed push service. No network: nothing here reaches a real push endpoint.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { b64url, encryptPayload, fromB64url, pushServiceAllowed, sendPush, validDeviceKey, vapidToken } from './webpush.ts';
+import { b64url, encryptPayload, ENVELOPE_BYTES, fromB64url, MAX_MESSAGE_BYTES, PUSH_BODY_BYTES, pushServiceAllowed, sendPush, utf8Bytes, validDeviceKey, vapidToken } from './webpush.ts';
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -131,4 +131,23 @@ test('sendPush posts an encrypted, signed message to the endpoint and nothing el
   assert.match(headers.Authorization, new RegExp(`^vapid t=[^ ]+, k=${vapid.publicKey}$`));
   const body = new Uint8Array(calls[0].init.body as Uint8Array);
   assert.deepEqual(JSON.parse(await decrypt(body, phone)), { title: 'Test', body: 'Hallo' });
+});
+
+test('the encrypted body is the plaintext plus a fixed envelope, and a message over the budget is refused unsent', async () => {
+  const phone = await device();
+  // Multi-byte characters: the budget counts UTF-8 bytes, not characters.
+  const frame = utf8Bytes(JSON.stringify({ title: 'T', body: '' })); // the JSON around the body
+  const most = Math.floor((MAX_MESSAGE_BYTES - frame) / 3); // three bytes a character: exactly at the budget
+  const fits = JSON.stringify({ title: 'T', body: '名'.repeat(most) });
+  const body = await encryptPayload(fits, phone.keys);
+  assert.equal(body.byteLength, utf8Bytes(fits) + ENVELOPE_BYTES);
+  assert.ok(body.byteLength <= PUSH_BODY_BYTES);
+  const over = JSON.stringify({ title: 'T', body: '名'.repeat(most + 1) });
+  assert.ok(utf8Bytes(over) > MAX_MESSAGE_BYTES);
+  const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+  const vapid = { publicKey: b64url(await crypto.subtle.exportKey('raw', pair.publicKey)), privateJwk: await crypto.subtle.exportKey('jwk', pair.privateKey), subject: 'mailto:family@example.org' };
+  let posted = 0;
+  const stub = (async () => { posted += 1; return new Response(null, { status: 201 }); }) as unknown as typeof fetch;
+  await assert.rejects(sendPush({ endpoint: 'https://web.push.apple.com/big', keys: phone.keys }, { title: 'T', body: '名'.repeat(2000) }, vapid, stub), /larger than a push service accepts/);
+  assert.equal(posted, 0, 'nothing is posted for an over-long message');
 });

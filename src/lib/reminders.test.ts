@@ -4,7 +4,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { GPerson, GUnion, Graph } from './types.ts';
 import { dayKey, fallsOn, fullDate, MAX_LINES, occasionsOn, parseChoices, reminderMessage, testMessage, type Occasion } from './reminders.ts';
+import { b64url, encryptPayload, MAX_MESSAGE_BYTES, PUSH_BODY_BYTES, utf8Bytes } from './webpush.ts';
 
+const enc = new TextEncoder();
+const strictDecode = (bytes: Uint8Array) => new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+const deviceKeys = async () => {
+  const pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  return { p256dh: b64url(await crypto.subtle.exportKey('raw', pair.publicKey)), auth: b64url(crypto.getRandomValues(new Uint8Array(16))) };
+};
 const person = (id: string, given: string, extra: Partial<GPerson> = {}): GPerson => ({ id, given, living: false, stories: 0, contacts: 0, ...extra });
 const union = (id: string, a: string, b: string, extra: Partial<GUnion> = {}): GUnion => ({ id, a, b, kind: 'marriage', ...extra });
 const graphOf = (people: GPerson[], unions: GUnion[] = []) => ({ people, unions }) as Pick<Graph, 'people' | 'unions'>;
@@ -106,4 +113,38 @@ test('the test message names no one and says reminders work', () => {
 test('occasions are plain objects, so a test can compare them directly', () => {
   const found: Occasion[] = occasionsOn(graph, new Date('2026-11-02T06:00:00Z'));
   assert.deepEqual(found, [{ kind: 'birthday', ids: ['ada'], years: 76 }, { kind: 'memorial', ids: ['gone'], years: 25 }]);
+});
+
+test('a reminder fits the push budget in UTF-8 bytes, however long the names: lines drop, and no character is split', async () => {
+  const cjk = '名'.repeat(120);
+  const emoji = '😀'.repeat(120);
+  // Six births on 2 November 1950, each with a 120-character given name and surname: 6 × 240 characters, three bytes each.
+  const long = Array.from({ length: 6 }, (_, index) => person(`long${index}`, cjk, { surname: index % 2 ? cjk : emoji, living: true, born: '1950-11-02' }));
+  const byOffset = new Map([[1, occasionsOn(graphOf(long), new Date('2026-11-02T06:00:00Z'))]]);
+  const longNames = new Map(long.map((p) => [p.id, `${p.given} ${p.surname}`]));
+  for (const locale of ['de', 'en', 'af'] as const) {
+    const message = reminderMessage({ tree: 'lindes', locale, choices: { offsets: [1], kinds: ['birthday'] }, day }, byOffset, longNames);
+    assert.ok(message);
+    assert.ok(utf8Bytes(JSON.stringify(message)) <= MAX_MESSAGE_BYTES, `${locale}: ${utf8Bytes(JSON.stringify(message))} bytes`);
+    // Decodes without a replacement character, so every character is whole.
+    assert.equal(strictDecode(enc.encode(message.body)), message.body);
+    assert.ok(message.body.includes(cjk) || message.body.includes(emoji));
+  }
+  // The whole message is sent as one encrypted body inside the 4096-byte record the push service must take.
+  const keys = await deviceKeys();
+  const body = await encryptPayload(JSON.stringify(reminderMessage({ tree: 'lindes', locale: 'de', choices: { offsets: [1], kinds: ['birthday'] }, day }, byOffset, longNames)), keys);
+  assert.ok(body.byteLength <= PUSH_BODY_BYTES, `${body.byteLength} bytes`);
+});
+
+test('a wedding with two maximal names is one line, whole, and the message still fits', () => {
+  const huge = '名'.repeat(120);
+  const couple = graphOf([person('a', huge, { surname: huge, living: true, born: '1950-01-01' }), person('b', huge, { surname: huge, living: true, born: '1950-01-01' })], [union('w', 'a', 'b', { start: '1975-11-02' })]);
+  const byOffset = new Map([[1, occasionsOn(couple, new Date('2026-11-02T06:00:00Z'))]]);
+  const names = new Map([['a', `${huge} ${huge}`], ['b', `${huge} ${huge}`]]);
+  const message = reminderMessage({ tree: 'lindes', locale: 'en', choices: { offsets: [1], kinds: ['wedding'] }, day }, byOffset, names);
+  assert.ok(message);
+  assert.equal(message.body.split('\n').length, 1);
+  assert.ok(message.body.includes(`${huge} ${huge} & ${huge} ${huge}`), 'both names stay whole');
+  assert.ok(utf8Bytes(JSON.stringify(message)) <= MAX_MESSAGE_BYTES);
+  assert.equal(strictDecode(enc.encode(message.body)), message.body);
 });

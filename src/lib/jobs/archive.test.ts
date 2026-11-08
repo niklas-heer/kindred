@@ -228,25 +228,24 @@ const SEED = { 'README.md': 'the family\n', 'other/keep.txt': 'untouched\n' };
 
 // ---------- the flow ----------
 
-test('the first night commits the archive; the same data on a later night writes nothing', async () => {
+test('the first night commits the archive into an empty folder; the same data on a later night writes nothing', async () => {
   const tree = family([
     { id: 'ada', given: 'Ada', born: '1950' },
     { id: 'grace', given: 'Grace', born: '1906' },
   ]);
   const fake = new FakeGitHub();
-  fake.seed({ ...SEED, 'archive/old.md': 'stale\n' });
+  fake.seed({ ...SEED });
   const env = settings(tree);
 
   const first = await run(tree, fake, env, '2026-11-08T03:00:00Z');
   assert.equal(first.result.status, 'committed', first.text);
-  assert.deepEqual(first.result.changes!.removed, ['old.md']);
+  assert.deepEqual(first.result.changes!.removed, []);
 
   const files = fake.files();
   assert.ok(files.has(`archive/${tree}.ged`));
   assert.ok(files.has('archive/people/ada.md'));
   assert.ok(files.has('archive/people/grace.md'));
   assert.ok(files.has(`archive/${MARKER}`));
-  assert.equal(files.has('archive/old.md'), false);
   assert.equal(files.get('README.md'), SEED['README.md'], 'nothing outside the folder is rewritten');
   assert.equal(files.get('other/keep.txt'), SEED['other/keep.txt']);
 
@@ -411,10 +410,24 @@ test('a folder that belongs to another family is refused, and nothing is deleted
   assert.equal(fake.files().get('archive/other-family.ged'), 'theirs\n');
 });
 
+test('a folder with files but no marker is refused: nothing in it is deleted, and the log says why', async () => {
+  const tree = family([{ id: 'ada', given: 'Ada' }]);
+  const fake = new FakeGitHub();
+  fake.seed({ ...SEED, 'archive/old.md': 'stale\n', 'archive/my-notes.txt': 'not ours\n' });
+  const r = await run(tree, fake, settings(tree), '2026-11-08T03:00:00Z');
+  assert.equal(r.result.status, 'failed');
+  assert.match(r.result.error!, /is not empty and has no \.kindred-archive file/);
+  assert.match(r.result.error!, /_PATH/, 'the message names the setting that moves the archive');
+  assert.equal(fake.writes().length, 0, 'no commit, no deletion');
+  assert.equal(fake.files().get('archive/old.md'), 'stale\n');
+  assert.equal(fake.files().get('archive/my-notes.txt'), 'not ours\n');
+});
+
 test('a dry run plans the change and writes nothing', async () => {
   const tree = family([{ id: 'ada', given: 'Ada' }]);
   const fake = new FakeGitHub();
-  fake.seed({ ...SEED, 'archive/old.md': 'stale\n' });
+  // A folder the archive wrote before (its marker is there), with one file it no longer exports.
+  fake.seed({ ...SEED, [`archive/${MARKER}`]: `family ${tree}\nexported 2026-11-01\n`, 'archive/old.md': 'stale\n' });
   const before = fake.head();
   const r = await run(tree, fake, settings(tree), '2026-11-08T03:00:00Z', { dryRun: true });
   assert.equal(r.result.status, 'planned');

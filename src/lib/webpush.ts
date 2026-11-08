@@ -5,7 +5,23 @@
 
 export const PUSH_TIMEOUT_MS = 10_000;
 
+/** A push service must accept an encrypted body of at least this many bytes (RFC 8030 §5.2). */
+export const PUSH_BODY_BYTES = 4096;
+/**
+ * What encryption adds to a message: the header (salt 16, record size 4, key id length 1, the sender's P-256 key 65),
+ * the 0x02 last-record delimiter and the AES-GCM tag (16).
+ */
+export const ENVELOPE_BYTES = 16 + 4 + 1 + 65 + 1 + 16;
+/** The most UTF-8 bytes the JSON of one message may take, so that its encrypted body fits PUSH_BODY_BYTES. */
+export const MAX_MESSAGE_BYTES = PUSH_BODY_BYTES - ENVELOPE_BYTES;
+
 const enc = new TextEncoder();
+
+/** The UTF-8 length of a string, in bytes (what the push service and the encryption count, not characters). */
+export const utf8Bytes = (text: string): number => enc.encode(text).byteLength;
+
+/** Whether a message, as the JSON that is encrypted, fits the budget of one push. */
+export const fitsPush = (message: unknown): boolean => utf8Bytes(JSON.stringify(message)) <= MAX_MESSAGE_BYTES;
 
 /** base64url without padding (RFC 4648 §5), as the Web Push and JWK formats use it. */
 export const b64url = (bytes: ArrayBuffer | ArrayBufferView): string => {
@@ -99,6 +115,8 @@ export async function vapidToken(endpoint: string, { privateJwk, subject }: Pick
 
 /** Sends one message to one device. The caller reads the status: 404 and 410 mean the subscription is gone. */
 export async function sendPush(subscription: PushSubscriptionLike, message: unknown, vapid: VapidConfig, fetchImpl: typeof fetch = fetch): Promise<Response> {
+  // Refused rather than sent: a body over the budget is rejected by the push service, or cannot be decrypted by the browser.
+  if (!fitsPush(message)) throw new Error('the push message is larger than a push service accepts');
   const body = await encryptPayload(JSON.stringify(message), subscription.keys);
   return fetchImpl(subscription.endpoint, {
     method: 'POST',

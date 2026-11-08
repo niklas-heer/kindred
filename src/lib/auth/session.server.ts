@@ -63,9 +63,14 @@ export interface Session {
 }
 
 /** The reader's language before they have an account: the guest cookie the app sets, else the browser's preference. */
-function guestLocale(request: Request): Locale {
+export function guestLocale(request: Request): Locale {
+  return guestChoice(request) ?? negotiateLocale(request.headers.get('accept-language') ?? '');
+}
+
+/** The language a guest picked in this browser, or null when they never picked one (then the browser's preference applies). */
+export function guestChoice(request: Request): Locale | null {
   const chosen = readCookie(request, 'kindred_locale_guest');
-  return isLocale(chosen) ? chosen : negotiateLocale(request.headers.get('accept-language') ?? '');
+  return isLocale(chosen) ? chosen : null;
 }
 
 const nameFromEmail = (email: string) =>
