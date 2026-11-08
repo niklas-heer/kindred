@@ -53,12 +53,12 @@ run = "node scripts/import-to-d1.ts modern realm --env local --replace"
 run = "tsc --noEmit"
 
 [tasks."ai-eval"]
-description = "Measure which AI models do Kindred's jobs best, on made-up data. Sends real requests and costs money: --provider, --models, --max-usd (default 1, one budget for the whole run), --web, --out, --dry-run (plans and estimates, sends nothing). Key: KINDRED_AI_EVAL_KEY or --saved-family"
+description = "Measure which AI models do Kindred's jobs best, on made-up data. Sends real requests and costs money: --provider, --models, --max-usd (default 1, one budget for the whole run), --web, --out, --dry-run (plans and estimates, sends nothing). Key: KINDRED_AI_EVAL_KEY or --saved-family. --provider cursor: a subscription through the agent CLI, no key or budget"
 run = 'node scripts/ai-eval.ts "$@"'
 
 [tasks.test]
 description = "Unit tests: accounts, Access, the storage layer"
-run = "node --test src/lib/auth/*.test.ts src/lib/store/*.test.ts src/lib/*.test.ts src/lib/exchange/*.test.ts src/lib/i18n/*.test.ts src/lib/jobs/*.test.ts scripts/*.test.ts server/*.test.ts"
+run = "node --test src/lib/auth/*.test.ts src/lib/store/*.test.ts src/lib/*.test.ts src/lib/exchange/*.test.ts src/lib/i18n/*.test.ts src/lib/jobs/*.test.ts scripts/*.test.ts scripts/lib/*.test.ts server/*.test.ts"
 
 [tasks.build]
 description = "Build the Worker (dist/); KINDRED_TARGET=node builds for Node instead"

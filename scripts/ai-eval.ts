@@ -5,6 +5,9 @@
 //
 //   node scripts/ai-eval.ts --provider anthropic --models claude-haiku-5-5,claude-sonnet-5-5 [--max-usd 1] [--web]
 //   node scripts/ai-eval.ts --provider anthropic --models claude-haiku-5-5 --dry-run   (plan and estimate; no call)
+//   node scripts/ai-eval.ts --provider cursor --models composer-2.5,gpt-5.6-luna-high [--concurrency 3]
+//     The Cursor source: models through Cursor's `agent` CLI, from a subscription. No key and no budget; cost is n/a. The
+//     models run in Cursor's own agent with its own system prompt, so this does not test Kindred's OpenAI or OpenRouter code.
 //
 // The key: KINDRED_AI_EVAL_KEY, or --saved-family <id> for the family's saved key (needs KINDRED_DATA_DIR, the family's own
 // folder). KINDRED_AI_FAKE=1 runs every task on the fake provider (nothing is sent). The synthetic family is written to a
@@ -23,11 +26,21 @@ import type { AiAdapter, AiMessage, AiReply, AiRequest } from '../src/lib/ai/ada
 import type { NameDesign, NameMeaning, Proposal, Provider, AiLocale } from '../src/lib/ai/types.ts';
 import type { TinctureV2 } from '../src/lib/seed-format.ts';
 import { ARMS_CASES, FAMILY, LANGUAGE_CASES, NAME_CASES, PROPOSAL_CASES, TOOL_CASES, TREE_ID, VISION_QUESTION, WEB_CASE, type NameCase, type ProposalCase, type ToolCase } from './ai-eval.fixtures.ts';
+import { CURSOR_PROVIDER, cursorAdapter, withEmptyFolder } from './lib/cursor-adapter.ts';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const DEFAULT_OUT = 'docs/ai-model-test.md';
-const PROVIDERS = ['anthropic', 'openai', 'openrouter'] as const;
+/** The Cursor source's report, kept apart from the paid providers' (DEFAULT_OUT is the committed report of those). */
+export const DEFAULT_CURSOR_OUT = 'docs/ai-model-test-cursor.md';
+const PROVIDERS = ['anthropic', 'openai', 'openrouter', 'cursor'] as const;
 const MAX_STEPS = 5;
+/** The Cursor source's default number of models run at once (--concurrency). */
+export const DEFAULT_CURSOR_CONCURRENCY = 3;
+const MAX_CURSOR_CONCURRENCY = 12;
+/** The Cursor source's cost is not counted: a subscription, so its price is zero and its budget never stops a call. */
+const CURSOR_PRICE: Price = { inPerM: 0, outPerM: 0, searchEach: 0 };
+/** Said at the top of the Cursor source's report and output: what its numbers do and do not measure. */
+export const CURSOR_NOTE = 'Source: Cursor. The models ran through Cursor’s own agent (the `agent` CLI), with its own system prompt, so this compares the models on these jobs. It does **not** test Kindred’s OpenAI or OpenRouter connection code.';
 /** The number of requests an Anthropic search turn may take (adapters.ts callRounds): the cost estimate counts them. */
 const ANTHROPIC_SEARCH_ROUNDS = 3;
 /** Input tokens a generated picture is taken to cost (adapters.ts IMAGE_TOKENS), and a search's results (SEARCH_TOKENS). */
@@ -67,8 +80,20 @@ export const TASKS: { id: TaskId; title: string; callsPerItem: number; webOnly?:
 export interface Item { id: string; pass: boolean; skipped?: boolean; note?: string; repairs?: number }
 export interface TaskResult { id: TaskId; items: Item[]; error?: string }
 export interface ModelResult { model: string; tasks: TaskResult[]; error?: string; spentMicros: number; latencyMs: number | null; calls: number; failures: number }
-export interface RunOptions { provider: Provider; models: string[]; maxUsd: number; web: boolean; out: string; dryRun: boolean; key?: string }
+export interface RunOptions {
+  provider: Provider | 'cursor';
+  models: string[];
+  maxUsd: number;
+  web: boolean;
+  out: string;
+  dryRun: boolean;
+  key?: string;
+  /** The Cursor source only: how many models run at once. */
+  concurrency?: number;
+}
 export interface Listed { price?: Price; reasoning?: boolean }
+/** One model's planned calls, from a dry run: per task, the items and the estimated cost of the first request. */
+interface Plan { model: string; rows: { task: TaskId; items: number; estMicros: number; callsPerItem: number }[] }
 /** What the run needs from its caller: the app's modules, an adapter for each model, the OpenRouter price list, and a log. */
 export interface Deps {
   server: Server;
@@ -529,8 +554,11 @@ function cell(r: ModelResult, id: TaskId): string {
   return `${ran.filter((i) => i.pass).length}/${ran.length}${skipped ? ` (${skipped} skipped)` : ''}`;
 }
 
+/** The cost column's text: a dollar figure, or n/a for a subscription (the Cursor source). */
+const costText = (r: ModelResult, subscription: boolean): string => (subscription ? 'n/a' : usd(r.spentMicros));
+
 /** The results as a plain-text table, one row per model. */
-export function renderTable(results: ModelResult[], web: boolean): string {
+export function renderTable(results: ModelResult[], web: boolean, subscription = false): string {
   const tasks = TASKS.filter((t) => web || !t.webOnly);
   const head = ['Model', ...tasks.map((t) => t.title), 'Overall', 'Latency', 'Cost'];
   const rows = results.map((r) => [
@@ -538,7 +566,7 @@ export function renderTable(results: ModelResult[], web: boolean): string {
     ...tasks.map((t) => cell(r, t.id)),
     r.error ? '—' : pct(overall(r.tasks)),
     r.latencyMs === null ? '—' : `${Math.round(r.latencyMs)} ms`,
-    usd(r.spentMicros),
+    costText(r, subscription),
   ]);
   const all = [head, ...rows];
   const widths = head.map((_, i) => Math.max(...all.map((row) => row[i]!.length)));
@@ -550,12 +578,13 @@ export function renderTable(results: ModelResult[], web: boolean): string {
 /** The Markdown report: the date, the models, the method and the table. No raw answers, and no key. */
 export function renderReport(run: { results: ModelResult[]; o: RunOptions; spentMicros: number; date: string }): string {
   const { results, o, date } = run;
+  const cursor = o.provider === 'cursor';
   const tasks = TASKS.filter((t) => o.web || !t.webOnly);
   const md = (row: string[]) => `| ${row.join(' | ')} |`;
   const table = [
     md(['Model', ...tasks.map((t) => t.title), 'Overall', 'Latency', 'Cost']),
     md(['---', ...tasks.map(() => '---:'), '---:', '---:', '---:']),
-    ...results.map((r) => md([`\`${r.model}\``, ...tasks.map((t) => cell(r, t.id)), r.error ? '—' : pct(overall(r.tasks)), r.latencyMs === null ? '—' : `${Math.round(r.latencyMs)} ms`, usd(r.spentMicros)])),
+    ...results.map((r) => md([`\`${r.model}\``, ...tasks.map((t) => cell(r, t.id)), r.error ? '—' : pct(overall(r.tasks)), r.latencyMs === null ? '—' : `${Math.round(r.latencyMs)} ms`, costText(r, cursor)])),
   ].join('\n');
   // Why each item failed: the scorer's short reason or the error, never the model's answer.
   const notes = results.flatMap((r) => [
@@ -566,10 +595,12 @@ export function renderReport(run: { results: ModelResult[]; o: RunOptions; spent
   return [
     '# Which models do Kindred’s AI jobs best',
     '',
+    ...(cursor ? [CURSOR_NOTE, ''] : []),
     `Measured on ${date} with \`scripts/ai-eval.ts\`. Models: ${o.models.map((m) => `\`${m}\``).join(', ')} (${o.provider}).`,
     '',
-    `The budget was ${usd(o.maxUsd * MICROS_PER_USD)} for the whole run, shared by all models. Spent: ${usd(run.spentMicros)}.`,
-    '',
+    ...(cursor
+      ? ['The Cursor source has no budget: it is a subscription, so no dollar cost is counted and no call is stopped for one.', '']
+      : [`The budget was ${usd(o.maxUsd * MICROS_PER_USD)} for the whole run, shared by all models. Spent: ${usd(run.spentMicros)}.`, '']),
     '## Results',
     '',
     table,
@@ -587,7 +618,8 @@ export function renderReport(run: { results: ModelResult[]; o: RunOptions; spent
     '- **Language.** The same kind of question in German (du) and Afrikaans (jy). A reply passes when it uses at least one word of that language, none of the other languages’ words the scorer lists, and no formal address.',
     '- **Vision.** One generated picture; the reply passes when it is the face-box shape with each box between 0 and 1. Nothing else is judged.',
     ...(o.web ? ['- **Web.** One research with web search, for the surname Schmidt: the meaning must be found, and a cited page must be listed.'] : []),
-    `- **Cost.** Each call is estimated before it is sent, and a call that would pass the budget is not sent. The cost after a call is what the provider billed (OpenRouter reports its own), so the total is the real spend, not the estimate. Prices are those in \`src/lib/ai/prices.ts\`, checked ${PRICES_CHECKED} (${Object.values(PRICES_SOURCES).join(', ')}).`,
+    ...(cursor ? ['- **Cursor source.** Each call is `agent -p --trust --mode ask --output-format json --model <id>`, run from an empty temporary folder that is removed after the run. No key is used. The prompt holds the system text and the conversation, and the JSON shape or the tool list is written into it; the reply is read from the CLI’s result, with a code fence stripped. A CLI error is retried once; a call that takes more than 120 s is not. Vision and web-search tasks are skipped for this source, and a skipped item is left out of the score.'] : [
+    `- **Cost.** Each call is estimated before it is sent, and a call that would pass the budget is not sent. The cost after a call is what the provider billed (OpenRouter reports its own), so the total is the real spend, not the estimate. Prices are those in \`src/lib/ai/prices.ts\`, checked ${PRICES_CHECKED} (${Object.values(PRICES_SOURCES).join(', ')}).`]),
     '- **Latency.** The mean time of each successful call.',
     '- **Raw answers are not kept here.** Only the scores and short notes are written.',
     ...(notes.length ? ['', '## Notes', '', ...notes] : []),
@@ -596,8 +628,9 @@ export function renderReport(run: { results: ModelResult[]; o: RunOptions; spent
 }
 
 /** The dry run's plan: per model and task, the requests and their estimated cost, from the first request each item makes. */
-export function renderPlan(plans: { model: string; rows: { task: TaskId; items: number; estMicros: number; callsPerItem: number }[] }[]): string {
+export function renderPlan(plans: Plan[], subscription = false): string {
   const lines: string[] = ['Dry run: nothing was sent. Each row is the planned requests (items × calls per item) and their estimated cost.', ''];
+  const money = (micros: number) => (subscription ? 'n/a' : `~${usd(micros)}`);
   let grand = 0;
   for (const p of plans) {
     lines.push(p.model);
@@ -606,28 +639,50 @@ export function renderPlan(plans: { model: string; rows: { task: TaskId; items: 
       const cost = r.estMicros * r.callsPerItem;
       total += cost;
       const n = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
-      lines.push(`  ${(TASKS.find((t) => t.id === r.task)?.title ?? r.task).padEnd(10)} ${n(r.items, 'item').padStart(8)} × ${n(r.callsPerItem, 'call').padEnd(7)}  ~${usd(cost)}`);
+      lines.push(`  ${(TASKS.find((t) => t.id === r.task)?.title ?? r.task).padEnd(10)} ${n(r.items, 'item').padStart(8)} × ${n(r.callsPerItem, 'call').padEnd(7)}  ${money(cost)}`);
     }
-    lines.push(`  ${'total'.padEnd(10)} ${' '.repeat(22)} ~${usd(total)}`, '');
+    lines.push(`  ${'total'.padEnd(10)} ${' '.repeat(22)} ${money(total)}`, '');
     grand += total;
   }
-  lines.push(`Estimated total for ${plans.length} model(s): ~${usd(grand)} (an upper bound per call: a loop that calls a tool takes its second request, which this counts at the first one's size).`);
+  lines.push(subscription
+    ? `Cursor is a subscription: no dollar estimate for ${plans.length} model(s). The calls above are what a run sends.`
+    : `Estimated total for ${plans.length} model(s): ~${usd(grand)} (an upper bound per call: a loop that calls a tool takes its second request, which this counts at the first one's size).`);
   return lines.join('\n') + '\n';
 }
 
 // ---------- the run ----------
 
-/** Runs every task for every model, in order, against one budget. A model that fails is reported, and the rest still run. */
+/**
+ * Runs `fn` over the items, at most `limit` at a time. The results keep the items' order. A limit of one runs them in turn.
+ */
+export async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]!);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
+/**
+ * Runs every task for every model, against one budget. A paid provider's models run one after another, so the budget holds
+ * for the whole run. The Cursor source runs `concurrency` models at a time, with no budget (its calls cost nothing here).
+ * A model that fails is reported, and the rest still run.
+ */
 export async function runEval(o: RunOptions, deps: Deps): Promise<RunOutput> {
-  const meter: Meter = { capMicros: o.dryRun ? Number.POSITIVE_INFINITY : o.maxUsd * MICROS_PER_USD, spentMicros: 0 };
-  const results: ModelResult[] = [];
-  const plans: { model: string; rows: { task: TaskId; items: number; estMicros: number; callsPerItem: number }[] }[] = [];
+  const cursor = o.provider === 'cursor';
+  const shared: Meter = { capMicros: o.dryRun ? Number.POSITIVE_INFINITY : o.maxUsd * MICROS_PER_USD, spentMicros: 0 };
   const log = (line: string) => deps.log(redact(line, o.key));
-  for (const model of o.models) {
+  const runModel = async (model: string): Promise<{ result: ModelResult; plan: Plan }> => {
     log(`${model}: starting`);
+    const meter: Meter = cursor ? { capMicros: Number.POSITIVE_INFINITY, spentMicros: 0 } : shared;
     const listed = o.provider === 'openrouter' && !o.dryRun && deps.listedFor ? await deps.listedFor(model).catch(() => undefined) : undefined;
-    const price = resolvePrice(o.provider, model, {}, listed?.price).price;
-    const cap = (req: AiRequest) => deps.server.adapters.outputCap(o.provider, model, req.maxTokens, listed?.reasoning);
+    const price = o.provider === 'cursor' ? CURSOR_PRICE : resolvePrice(o.provider, model, {}, listed?.price).price;
+    const cap = (req: AiRequest) => (o.provider === 'cursor' ? req.maxTokens ?? 0 : deps.server.adapters.outputCap(o.provider, model, req.maxTokens, listed?.reasoning));
     const stats: Stats = { started: 0, failures: 0, skipped: 0, latency: [] };
     const captured = new Map<string, unknown>();
     const planned = new Map<TaskId, { items: number; estMicros: number }>();
@@ -637,7 +692,7 @@ export async function runEval(o: RunOptions, deps: Deps): Promise<RunOutput> {
     try {
       base = o.dryRun
         ? {
-          provider: o.provider,
+          provider: o.provider === 'cursor' ? CURSOR_PROVIDER : o.provider,
           model,
           async complete(req: AiRequest): Promise<AiReply> {
             const p = planned.get(task) ?? { items: 0, estMicros: 0 };
@@ -647,8 +702,7 @@ export async function runEval(o: RunOptions, deps: Deps): Promise<RunOutput> {
         }
         : deps.adapterFor(model, listed);
     } catch (e) {
-      results.push({ model, tasks: [], error: redact(describe(e), o.key), spentMicros: 0, latencyMs: null, calls: 0, failures: 0 });
-      continue;
+      return { result: { model, tasks: [], error: redact(describe(e), o.key), spentMicros: 0, latencyMs: null, calls: 0, failures: 0 }, plan: { model, rows: [] } };
     }
     const adapter = o.dryRun ? base : metered(base, { meter, price, cap, stats, captured, now: () => Date.now() });
     const cx: Cx = { server: deps.server, adapter, captured };
@@ -656,32 +710,43 @@ export async function runEval(o: RunOptions, deps: Deps): Promise<RunOutput> {
     for (const t of TASKS) {
       if (t.webOnly && !o.web) continue;
       task = t.id;
+      // The Cursor source takes no pictures and no web search: those tasks are shown as skipped, not run.
+      if (cursor && (t.id === 'vision' || t.id === 'web')) {
+        tasks.push({ id: t.id, items: [{ id: t.id, pass: false, skipped: true, note: 'not run by the Cursor source' }] });
+        continue;
+      }
       try {
         tasks.push({ id: t.id, items: await RUNNERS[t.id](cx) });
       } catch (e) {
         tasks.push({ id: t.id, items: [], error: redact(describe(e), o.key) });
       }
     }
-    plans.push({ model, rows: [...planned.entries()].map(([id, p]) => ({ task: id, items: p.items, estMicros: p.estMicros, callsPerItem: TASKS.find((t) => t.id === id)?.callsPerItem ?? 1 })) });
+    const plan: Plan = { model, rows: [...planned.entries()].map(([id, p]) => ({ task: id, items: p.items, estMicros: p.estMicros, callsPerItem: TASKS.find((t) => t.id === id)?.callsPerItem ?? 1 })) };
     const lat = stats.latency;
-    results.push({
+    const result: ModelResult = {
       model,
       tasks,
       spentMicros: meter.spentMicros - before,
       latencyMs: lat.length ? lat.reduce((a, b) => a + b, 0) / lat.length : null,
       calls: lat.length,
       failures: stats.failures,
-    });
+    };
     log(`${model}: done, ${stats.started} call(s) sent`);
-  }
+    return { result, plan };
+  };
+  // A model that throws past its own handling is reported as a failed model: it must not stop the others.
+  const outs = await mapLimit(o.models, cursor ? (o.concurrency ?? DEFAULT_CURSOR_CONCURRENCY) : 1, (model) =>
+    runModel(model).catch((e): { result: ModelResult; plan: Plan } => ({ result: { model, tasks: [], error: redact(describe(e), o.key), spentMicros: 0, latencyMs: null, calls: 0, failures: 0 }, plan: { model, rows: [] } })));
+  const results = outs.map((x) => x.result);
+  const plans = outs.map((x) => x.plan);
   if (o.dryRun) {
-    return { results, table: '', plan: renderPlan(plans) };
+    return { results, table: '', plan: renderPlan(plans, cursor) };
   }
-  const table = renderTable(results, o.web);
+  const table = renderTable(results, o.web, cursor);
   const reportPath = resolve(o.out);
   mkdirSync(dirname(reportPath), { recursive: true });
   const date = new Date().toISOString().slice(0, 10);
-  const report = redact(renderReport({ results, o, spentMicros: meter.spentMicros, date }), o.key);
+  const report = redact(renderReport({ results, o, spentMicros: shared.spentMicros, date }), o.key);
   if (o.key && report.includes(o.key)) throw new Error('the report would contain the key; it was not written');
   writeFileSync(reportPath, report);
   return { results, table: redact(table, o.key), plan: '', reportPath };
@@ -689,26 +754,28 @@ export async function runEval(o: RunOptions, deps: Deps): Promise<RunOutput> {
 
 // ---------- the command line ----------
 
-const USAGE = `Usage: mise run ai-eval -- --provider <anthropic|openai|openrouter> --models <a,b,c> [options]
+const USAGE = `Usage: mise run ai-eval -- --provider <anthropic|openai|openrouter|cursor> --models <a,b,c> [options]
 
-  --models a,b,c       model ids, comma separated (required)
-  --provider NAME      anthropic, openai or openrouter (required)
-  --max-usd N          the hard budget for the whole run, in US dollars (default 1)
-  --web                also run one web-search task per model
-  --out PATH           the Markdown report (default ${DEFAULT_OUT})
+  --models a,b,c       model ids, comma separated (required; for cursor, ids from \`agent --list-models\`)
+  --provider NAME      anthropic, openai, openrouter or cursor (required)
+  --max-usd N          the hard budget for the whole run, in US dollars (default 1; not for cursor)
+  --concurrency N      cursor only: models run at once, 1 to ${MAX_CURSOR_CONCURRENCY} (default ${DEFAULT_CURSOR_CONCURRENCY})
+  --web                also run one web-search task per model (not for cursor)
+  --out PATH           the Markdown report (default ${DEFAULT_OUT}; ${DEFAULT_CURSOR_OUT} for cursor)
   --dry-run            print the planned calls and their estimated cost; send nothing
   --saved-family ID    use the family's saved, sealed key (needs KINDRED_DATA_DIR, the family's folder)
   --help               this text
 
-The key is KINDRED_AI_EVAL_KEY, or --saved-family. KINDRED_AI_FAKE=1 runs on the fake provider (nothing is sent).
+The key is KINDRED_AI_EVAL_KEY, or --saved-family. --provider cursor needs no key: it uses the agent CLI's own login.
+KINDRED_AI_FAKE=1 runs on the fake provider (nothing is sent).
 `;
 
 export interface CliOptions extends RunOptions { savedFamily?: string }
 
 /** The command line, checked. Throws UsageError with a message a person can act on. */
 export function parseArgs(argv: string[]): CliOptions {
-  const known = ['--provider', '--models', '--max-usd', '--out', '--saved-family', '--dry-run', '--web', '--help'];
-  const valued = ['--provider', '--models', '--max-usd', '--out', '--saved-family'];
+  const known = ['--provider', '--models', '--max-usd', '--out', '--saved-family', '--concurrency', '--dry-run', '--web', '--help'];
+  const valued = ['--provider', '--models', '--max-usd', '--out', '--saved-family', '--concurrency'];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (!a.startsWith('--')) throw new UsageError(`unexpected argument ${a}`);
@@ -724,20 +791,30 @@ export function parseArgs(argv: string[]): CliOptions {
     return i < 0 ? undefined : argv[i + 1];
   };
   const provider = get('--provider');
-  if (!provider || !(PROVIDERS as readonly string[]).includes(provider)) throw new UsageError('--provider must be anthropic, openai or openrouter');
+  if (!provider || !(PROVIDERS as readonly string[]).includes(provider)) throw new UsageError('--provider must be anthropic, openai, openrouter or cursor');
   const models = (get('--models') ?? '').split(',').map((m) => m.trim()).filter(Boolean);
   if (models.length === 0) throw new UsageError('--models needs at least one model id, comma separated');
+  const cursor = provider === 'cursor';
+  // The Cursor source is a subscription: no budget, and no key to pass. Its flags are refused, not ignored, so nothing looks enforced that is not.
+  if (cursor && argv.includes('--max-usd')) throw new UsageError('--max-usd does not apply to --provider cursor: a subscription has no budget');
+  if (cursor && argv.includes('--saved-family')) throw new UsageError('--saved-family does not apply to --provider cursor: it needs no key');
+  if (!cursor && argv.includes('--concurrency')) throw new UsageError('--concurrency applies to --provider cursor only');
+  const concurrency = get('--concurrency') === undefined ? undefined : Number(get('--concurrency'));
+  if (concurrency !== undefined && !(Number.isInteger(concurrency) && concurrency >= 1 && concurrency <= MAX_CURSOR_CONCURRENCY)) {
+    throw new UsageError(`--concurrency must be a whole number from 1 to ${MAX_CURSOR_CONCURRENCY}`);
+  }
   const maxUsd = get('--max-usd') === undefined ? 1 : Number(get('--max-usd'));
   if (!Number.isFinite(maxUsd) || maxUsd <= 0) throw new UsageError('--max-usd must be a positive number of US dollars');
   return {
-    provider: provider as Provider,
+    provider: provider as RunOptions['provider'],
     models,
     maxUsd,
     web: argv.includes('--web'),
-    out: get('--out') ?? DEFAULT_OUT,
+    out: get('--out') ?? (cursor ? DEFAULT_CURSOR_OUT : DEFAULT_OUT),
     dryRun: argv.includes('--dry-run'),
     savedFamily: get('--saved-family'),
     key: undefined,
+    concurrency,
   };
 }
 
@@ -771,7 +848,7 @@ export async function main(argv: string[] = process.argv.slice(2), env: Record<s
   }
   const fake = env.KINDRED_AI_FAKE === '1';
   let key: string | undefined;
-  if (!o.dryRun && !fake) {
+  if (!o.dryRun && !fake && o.provider !== 'cursor') {
     if (o.savedFamily) {
       if (!env.KINDRED_DATA_DIR) {
         process.stderr.write('ai-eval: --saved-family reads the family’s own folder: set KINDRED_DATA_DIR to it\n');
@@ -799,16 +876,22 @@ export async function main(argv: string[] = process.argv.slice(2), env: Record<s
     seedFamily(dataDir);
     const { server, close } = await loadServer();
     try {
-      const run = await runEval({ ...o, key }, {
+      const provider = o.provider;
+      // The Cursor source's CLI runs in an empty folder made for the run, and the folder is removed when the run ends.
+      const evalWith = (cwd: string | undefined) => runEval({ ...o, key }, {
         server,
-        adapterFor: (model, listed) => (fake
-          ? server.fake.fakeAdapter(model)
-          : server.adapters.makeAdapter(o.provider, key!, model, { reasoning: listed?.reasoning })),
-        listedFor: o.provider === 'openrouter' && !fake ? (model) => server.models.openRouterListed(model) : undefined,
+        adapterFor: (model, listed) => {
+          if (fake) return server.fake.fakeAdapter(model);
+          if (provider === 'cursor') return cursorAdapter(model, { cwd: cwd! });
+          return server.adapters.makeAdapter(provider, key!, model, { reasoning: listed?.reasoning });
+        },
+        listedFor: provider === 'openrouter' && !fake ? (model) => server.models.openRouterListed(model) : undefined,
         log: (line) => process.stderr.write(`${line}\n`),
       });
+      const run = provider === 'cursor' ? await withEmptyFolder(evalWith) : await evalWith(undefined);
       if (o.dryRun) process.stdout.write(run.plan);
       else {
+        if (provider === 'cursor') process.stdout.write(`${CURSOR_NOTE}\n\n`);
         process.stdout.write(run.table);
         process.stdout.write(`Report written to ${run.reportPath}\n`);
       }

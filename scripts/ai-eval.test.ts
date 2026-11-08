@@ -238,3 +238,105 @@ test('the pass rates leave out what the budget skipped, and a failed task counts
   assert.equal(ev.overall([{ id: 'names', items }, { id: 'arms', items: [], error: 'boom' }]), 0.25);
   assert.equal(ev.redact('key sk-SECRET-1234 here', 'sk-SECRET-1234'), 'key [key] here');
 });
+
+test('the Cursor source: the budget never stops it, its cost is n/a, and its vision and web tasks are skipped', async () => {
+  const s = stub('composer-2.5', () => plain('ok'));
+  const out = join(dir, `cursor-report-${Math.random().toString(36).slice(2)}.md`);
+  const run = await ev.runEval(opts({ provider: 'cursor', models: ['composer-2.5'], maxUsd: 0.000001, web: true, out }), { server, adapterFor: () => s, log: () => {} });
+  assert.ok(s.calls > 20, `every planned call is sent, none stopped by a budget (sent ${s.calls})`);
+  assert.equal(run.results[0]!.spentMicros, 0, 'a subscription books no cost');
+  assert.equal(run.results[0]!.error, undefined);
+  for (const id of ['vision', 'web'] as const) {
+    const t = run.results[0]!.tasks.find((x) => x.id === id)!;
+    assert.ok(t.items.every((i) => i.skipped), `${id} is skipped for this source`);
+  }
+  assert.match(run.table, /Cost/);
+  assert.match(run.table, /composer-2\.5 .*n\/a\s*$/m, 'the cost column reads n/a');
+  assert.doesNotMatch(run.table, /\$/, 'no dollar figure');
+  const report = readFileSync(out, 'utf8');
+  assert.ok(report.indexOf(ev.CURSOR_NOTE) > 0 && report.indexOf(ev.CURSOR_NOTE) < report.indexOf('## Results'), 'the honest note is at the top, before the results');
+  assert.match(report, /does \*\*not\*\* test Kindred’s OpenAI or OpenRouter connection code/);
+  assert.doesNotMatch(report, /The budget was/);
+});
+
+test('the Cursor source runs at most --concurrency models at once, keeps their order, and a failing model does not stop the rest', async () => {
+  let active = 0;
+  let peak = 0;
+  const slow = (model: string): AiAdapter => ({
+    provider: 'anthropic',
+    model,
+    async complete(): Promise<AiReply> {
+      active++;
+      peak = Math.max(peak, active);
+      await new Promise((r) => setTimeout(r, 2));
+      active--;
+      return plain('ok');
+    },
+  });
+  const models = ['m-a', 'no-such', 'm-c', 'm-d', 'm-e'];
+  const run = await ev.runEval(opts({ provider: 'cursor', models, concurrency: 2, out: join(dir, `concurrency-${Math.random().toString(36).slice(2)}.md`) }), {
+    server,
+    adapterFor: (m) => {
+      if (m === 'no-such') throw new Error('bad-input: the model is not offered');
+      return slow(m);
+    },
+    log: () => {},
+  });
+  assert.equal(peak, 2, 'two models were in flight at once, never three');
+  assert.deepEqual(run.results.map((r) => r.model), models, 'the results keep the models’ order');
+  assert.match(run.results[1]!.error ?? '', /not offered/);
+  for (const i of [0, 2, 3, 4]) assert.ok(run.results[i]!.tasks.length > 0 && !run.results[i]!.error, `${models[i]} still ran`);
+});
+
+test('a dry run of the Cursor source plans its calls, prints no dollar figure, and sends nothing', async () => {
+  const realFetch = globalThis.fetch;
+  let fetched = 0;
+  globalThis.fetch = (async () => {
+    fetched++;
+    throw new Error('fetch must not be called in a dry run');
+  }) as typeof fetch;
+  try {
+    const run = await ev.runEval(opts({ provider: 'cursor', dryRun: true, out: join(dir, 'cursor-dry.md') }), {
+      server,
+      adapterFor: () => {
+        throw new Error('adapterFor must not be called in a dry run');
+      },
+      log: () => {},
+    });
+    assert.equal(fetched, 0);
+    assert.match(run.plan, /Names\s+9 items/);
+    assert.match(run.plan, /n\/a/);
+    assert.doesNotMatch(run.plan, /~\$/);
+    assert.doesNotMatch(run.plan, /Vision|Web/, 'the tasks this source does not run are not planned');
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test('the Cursor source: its options are checked, and a flag that does not apply to it is refused, not ignored', () => {
+  const o = ev.parseArgs(['--provider', 'cursor', '--models', 'composer-2.5', '--concurrency', '2']);
+  assert.equal(o.provider, 'cursor');
+  assert.equal(o.concurrency, 2);
+  assert.equal(o.out, ev.DEFAULT_CURSOR_OUT, 'its report is kept apart from the paid providers’ committed one');
+  assert.notEqual(ev.DEFAULT_CURSOR_OUT, ev.DEFAULT_OUT);
+  assert.equal(ev.parseArgs(['--provider', 'cursor', '--models', 'composer-2.5']).concurrency, undefined, 'the run applies the default');
+  assert.throws(() => ev.parseArgs(['--provider', 'cursor', '--models', 'x', '--max-usd', '2']), ev.UsageError);
+  assert.throws(() => ev.parseArgs(['--provider', 'cursor', '--models', 'x', '--saved-family', 'abc']), ev.UsageError);
+  assert.throws(() => ev.parseArgs(['--provider', 'anthropic', '--models', 'x', '--concurrency', '2']), ev.UsageError);
+  for (const bad of ['0', '2.5', '13', 'many']) assert.throws(() => ev.parseArgs(['--provider', 'cursor', '--models', 'x', '--concurrency', bad]), ev.UsageError, bad);
+});
+
+test('mapLimit keeps the order of its results, and runs no more than its limit at once', async () => {
+  let active = 0;
+  let peak = 0;
+  const out = await ev.mapLimit([1, 2, 3, 4, 5], 2, async (n) => {
+    active++;
+    peak = Math.max(peak, active);
+    await new Promise((r) => setTimeout(r, 5 - n));
+    active--;
+    return n * 10;
+  });
+  assert.deepEqual(out, [10, 20, 30, 40, 50]);
+  assert.equal(peak, 2);
+  assert.deepEqual(await ev.mapLimit([1, 2], 1, async (n) => n), [1, 2]);
+});
