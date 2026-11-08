@@ -331,7 +331,7 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
         <input type="search" className="input" aria-label={t('ai.modelSearch')} placeholder={t('ai.modelSearch')} value={search} onChange={(e) => setSearch(e.target.value)} />
         <div className="ai-model-list" role="group" aria-label={t('ai.modelAll')}>
           <h3 className="ai-model-group">{t('ai.modelRecommended')}</h3>
-          <p className="subtle ai-model-note">{t('ai.recommendedNote')}</p>
+          <p className="subtle ai-model-note">{t(recs.some((r) => r.provisional) ? 'ai.recommendedNote' : 'ai.recommendedMeasured')}</p>
           {recRows.map((r) => row(r.model, r.role))}
           {otherRows.length > 0 && <h3 className="ai-model-group">{t('ai.modelAll')}</h3>}
           {otherRows.map((m) => row(m.id))}

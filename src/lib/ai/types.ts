@@ -10,7 +10,7 @@ export type Provider = (typeof PROVIDERS)[number];
 export const PROVIDER_LABEL: Record<Provider, string> = { anthropic: 'Anthropic', openai: 'OpenAI', openrouter: 'OpenRouter' };
 /** The default model per provider. OpenRouter takes any model id it lists, so its default is only a suggestion. */
 export const DEFAULT_MODEL: Record<Provider, string> = {
-  anthropic: 'claude-sonnet-5-5',
+  anthropic: 'claude-haiku-5-5', // the measured best value: docs/ai-model-test.md
   openai: 'gpt-6.1-sol',
   openrouter: 'anthropic/claude-sonnet-5-5',
 };

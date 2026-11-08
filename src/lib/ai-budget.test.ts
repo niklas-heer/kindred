@@ -41,7 +41,7 @@ const price = { inPerM: 1, outPerM: 1, searchEach: 0.01 };
 async function family(tree: string, monthlyMicros: number) {
   await settings.saveSettings(tree, 'u1', {
     provider: 'anthropic',
-    model: '',
+    model: FAKE_MODEL,
     features: { assistant: true, faces: false, avatar: false, arms: false },
     webSearch: false,
     monthlyMicros,

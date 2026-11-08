@@ -46,7 +46,7 @@ test('the price table has positive prices for every entry, and the search price 
 
 test('every recommended model is a known model in the price table, or an OpenRouter id', () => {
   for (const r of RECOMMENDED) {
-    assert.equal(r.provisional, true, 'every pick is provisional until the measured test');
+    assert.equal(r.provisional, r.provider !== 'anthropic', 'only what scripts/ai-eval.ts measured loses the provisional mark');
     if (r.provider !== 'openrouter') assert.ok(tablePrice(r.provider, r.model), `${r.model} has a table price`);
   }
 });
