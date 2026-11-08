@@ -1,5 +1,6 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { SCHEMA } from './schema';
 import type { GParent, GPerson, GUnion, Graph, House, PersonDetail, TreeMeta } from './types';
@@ -18,6 +19,10 @@ export function db(tree: string): DatabaseSync {
     if (!existsSync(path)) throw new Error(`no tree ${tree}; run mise run seed`);
     d = new DatabaseSync(path);
     d.exec(SCHEMA);
+    // Older files have an op table without the user and fingerprint columns.
+    const cols = new Set((d.prepare('PRAGMA table_info(op)').all() as { name: string }[]).map((c) => c.name));
+    if (!cols.has('user')) d.exec('ALTER TABLE op ADD COLUMN user TEXT');
+    if (!cols.has('fingerprint')) d.exec('ALTER TABLE op ADD COLUMN fingerprint TEXT');
     open.set(tree, d);
   }
   return d;
@@ -33,19 +38,29 @@ let lastPrune = 0;
  * transaction, and the same key arriving again (a retry after a lost response) gets the stored result back
  * instead of a second write. A key used for a different kind of change is refused.
  */
-export function once<T>(tree: string, opKey: string | undefined, fn: string, work: (d: DatabaseSync) => T): T {
+/** A retry key, scoped to the person sending it and to exactly what they sent. */
+export interface OpKey { key: string; user: string; payload: unknown }
+
+const fingerprintOf = (fn: string, payload: unknown) =>
+  createHash('sha256')
+    .update(fn)
+    .update(JSON.stringify(payload ?? null, (_k, v) => (typeof File !== 'undefined' && v instanceof File ? { name: v.name, size: v.size, type: v.type } : v)))
+    .digest('hex');
+
+export function once<T>(tree: string, op: OpKey | undefined, fn: string, work: (d: DatabaseSync) => T): T {
   const d = db(tree);
   d.exec('BEGIN IMMEDIATE');
-  let replay: { fn: string; result: string } | undefined;
+  let replay: { fn: string; result: string; user: string | null; fingerprint: string | null } | undefined;
+  const fingerprint = op ? fingerprintOf(fn, op.payload) : null;
   try {
-    if (opKey) replay = d.prepare('SELECT fn, result FROM op WHERE key = ?').get(opKey) as typeof replay;
+    if (op) replay = d.prepare('SELECT fn, result, user, fingerprint FROM op WHERE key = ?').get(op.key) as typeof replay;
     if (replay) {
       d.exec('COMMIT');
     } else {
       const out = work(d);
-      if (opKey) {
+      if (op) {
         const now = Date.now();
-        d.prepare('INSERT INTO op (key, fn, result, at) VALUES (?, ?, ?, ?)').run(opKey, fn, JSON.stringify(out ?? null), new Date(now).toISOString());
+        d.prepare('INSERT INTO op (key, fn, result, at, user, fingerprint) VALUES (?, ?, ?, ?, ?, ?)').run(op.key, fn, JSON.stringify(out ?? null), new Date(now).toISOString(), op.user, fingerprint);
         // Old keys are only kept long enough to cover a retry.
         if (now - lastPrune > 3_600_000) {
           lastPrune = now;
@@ -59,7 +74,10 @@ export function once<T>(tree: string, opKey: string | undefined, fn: string, wor
     if (d.isTransaction) d.exec('ROLLBACK');
     throw e;
   }
-  if (replay.fn !== fn) throw new Error('That change was already sent as something else. Reload and try again.');
+  // Only the same person resending the same change gets the stored result; anything else is refused.
+  if (replay.fn !== fn || replay.user !== op!.user || replay.fingerprint !== fingerprint) {
+    throw new Error('That change was already sent as something else. Reload and try again.');
+  }
   return JSON.parse(replay.result) as T;
 }
 
@@ -282,8 +300,8 @@ export function placesIn(box: { west: number; south: number; east: number; north
  * Records where places are, so the Atlas can draw them. An existing place keeps its coordinates unless
  * `move` is set (the user chose to move its pin). Returns the names whose pin was left alone.
  */
-export function upsertPlaces(tree: string, places: { name: string; lat: number; lng: number; country?: string; move?: boolean }[], opKey?: string) {
-  return once(tree, opKey, 'upsertPlaces', (d) => {
+export function upsertPlaces(tree: string, places: { name: string; lat: number; lng: number; country?: string; move?: boolean }[], op?: OpKey) {
+  return once(tree, op, 'upsertPlaces', (d) => {
     const kept: string[] = [];
     for (const p of places) {
       const sql = p.move

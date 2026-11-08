@@ -56,6 +56,13 @@ export const contactsQuery = (t: string) => queryOptions({ queryKey: ['contacts'
  */
 const opKey = z.string().regex(/^[A-Za-z0-9_-]{8,80}$/).optional();
 
+/** The retry key for a change, bound to who sends it and to everything else they sent (see `once`). */
+function opOf<D extends { opKey?: string }>(m: { user: { id: string } }, data: D) {
+  if (!data.opKey) return undefined;
+  const { opKey: key, ...payload } = data;
+  return { key, user: m.user.id, payload };
+}
+
 /** A fresh key. Works outside secure contexts too, where crypto.randomUUID is missing. */
 export function newOpKey(): string {
   const b = new Uint8Array(16);
@@ -111,9 +118,9 @@ export const addRelative = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data }) => {
-    await requireCan(data.tree, 'add-person');
+    const _m = await requireCan(data.tree, 'add-person');
     const { once, newId } = await server();
-    return once(data.tree, data.opKey, 'addRelative', (d) => {
+    return once(data.tree, opOf(_m, data), 'addRelative', (d) => {
       const p = data.person;
       const id = newId(p.given);
       const anchor = d.prepare('SELECT house, surname, born FROM person WHERE id = ?').get(data.anchor) as { house: string | null; surname: string | null; born: string | null } | undefined;
@@ -155,9 +162,9 @@ export interface LinkResult { person: string; parents: { child: string; parent: 
 export const linkRelative = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, anchor: z.string(), person: z.string(), relation: z.enum(['parent', 'child', 'sibling', 'partner']), coParent: z.string().optional(), partnership: partnershipInput.optional(), opKey }))
   .handler(async ({ data }): Promise<LinkResult> => {
-    await requireCan(data.tree, 'edit-person');
+    const _m = await requireCan(data.tree, 'edit-person');
     const { once } = await server();
-    return once(data.tree, data.opKey, 'linkRelative', (d) => {
+    return once(data.tree, opOf(_m, data), 'linkRelative', (d) => {
       if (data.anchor === data.person) throw new Error('A person cannot be their own relative.');
       const people = new Map<string, { given: string; born: string | null }>();
       for (const id of [data.anchor, data.person, data.coParent].filter((x): x is string => !!x)) {
@@ -280,12 +287,12 @@ export const patchPerson = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data }) => {
-    await requireCan(data.tree, 'edit-person');
+    const _m = await requireCan(data.tree, 'edit-person');
     const cols: Record<string, string> = { born: 'born', bornPlace: 'born_place', died: 'died', sex: 'sex', occupation: 'occupation' };
     const set = Object.entries(data.patch).filter(([, v]) => v !== undefined && v !== '');
     if (!set.length) return;
     const sql = `UPDATE person SET ${set.map(([k]) => `${cols[k]} = ?`).join(', ')}, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`;
-    (await server()).once(data.tree, data.opKey, 'patchPerson', (d) => { d.prepare(sql).run(...set.map(([, v]) => v as string), data.id); });
+    (await server()).once(data.tree, opOf(_m, data), 'patchPerson', (d) => { d.prepare(sql).run(...set.map(([, v]) => v as string), data.id); });
   });
 
 /** Takes someone out of the tree, with their links, stories, contacts and photo. */
@@ -326,8 +333,9 @@ export const addStory = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data }) => {
     // Signed with the writer's own name from their account, never a name the browser sends.
-    const { user } = await requireCan(data.tree, 'add-story');
-    return (await server()).once(data.tree, data.opKey, 'addStory', (d) => {
+    const _m = await requireCan(data.tree, 'add-story');
+    const { user } = _m;
+    return (await server()).once(data.tree, opOf(_m, data), 'addStory', (d) => {
       if (!d.prepare('SELECT id FROM person WHERE id = ?').get(data.person)) throw new Error('Person not found.');
       const id = crypto.randomUUID();
       d.prepare('INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
@@ -355,8 +363,8 @@ export const addContact = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data }) => {
-    await requireCan(data.tree, 'edit-contact');
-    return (await server()).once(data.tree, data.opKey, 'addContact', (d) => {
+    const _m = await requireCan(data.tree, 'edit-contact');
+    return (await server()).once(data.tree, opOf(_m, data), 'addContact', (d) => {
       if (!d.prepare('SELECT id FROM person WHERE id = ?').get(data.person)) throw new Error('Person not found.');
       return Number(d.prepare('INSERT INTO contact (person, kind, label, value) VALUES (?, ?, ?, ?)').run(data.person, data.kind, data.label || null, data.value).lastInsertRowid);
     });
@@ -378,9 +386,9 @@ export const uploadPhoto = createServerFn({ method: 'POST' })
     return { tree: tree.parse(d.get('tree')), id: z.string().parse(d.get('id')), file, opKey: opKey.parse(d.get('opKey') ?? undefined) };
   })
   .handler(async ({ data }) => {
-    await requireCan(data.tree, 'upload-photo');
+    const _m = await requireCan(data.tree, 'upload-photo');
     const bytes = new Uint8Array(await data.file.arrayBuffer());
-    (await server()).once(data.tree, data.opKey, 'uploadPhoto', (d) => {
+    (await server()).once(data.tree, opOf(_m, data), 'uploadPhoto', (d) => {
       if (!d.prepare('SELECT id FROM person WHERE id = ?').get(data.id)) throw new Error('Person not found.');
       d.prepare('INSERT INTO photo (person, mime, data, at) VALUES (?, ?, ?, ?) ON CONFLICT(person) DO UPDATE SET mime = excluded.mime, data = excluded.data, at = excluded.at')
         .run(data.id, data.file.type, bytes, new Date().toISOString());
@@ -415,8 +423,8 @@ export const getPlacesIn = createServerFn({ method: 'GET' })
 export const upsertPlaces = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, places: z.array(z.object({ name: z.string().trim().min(1).max(200), lat, lng, country: z.string().regex(/^[a-z]{2}$/).optional(), move: z.boolean().optional() })).max(10), opKey }))
   .handler(async ({ data }) => {
-    await requireCan(data.tree, 'edit-place');
-    return (await server()).upsertPlaces(data.tree, data.places, data.opKey);
+    const _m = await requireCan(data.tree, 'edit-place');
+    return (await server()).upsertPlaces(data.tree, data.places, opOf(_m, data));
   });
 
 // ---------- houses ----------

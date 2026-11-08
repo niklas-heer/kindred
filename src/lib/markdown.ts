@@ -5,15 +5,23 @@ import { Marked } from 'marked';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
-/** http(s), mailto and same-site addresses only; everything else (javascript:, data:, vbscript:…) is refused. */
+/**
+ * http(s), mailto and same-site addresses only; everything else (javascript:, data:, vbscript:…) is
+ * refused. Browsers strip tabs and newlines from URLs ("java\tscript:" becomes "javascript:"), so any
+ * control character or whitespace is refused outright, and the scheme is judged the way the browser
+ * will read it: by parsing the address against a placeholder base.
+ */
 function safeUrl(href: string | null | undefined, kind: 'link' | 'image'): string | null {
   const url = (href ?? '').trim();
-  if (!url) return null;
-  if (/^(https?:)?\/\//i.test(url)) return url;
-  if (kind === 'link' && /^mailto:/i.test(url)) return url;
-  // Relative to this site: "/x", "./x", "x", "#x" — anything without a scheme.
-  if (!/^[a-z][a-z0-9+.-]*:/i.test(url)) return url;
-  return null;
+  if (!url || /[\u0000-\u0020\u007f-\u009f\u2028\u2029]/.test(url)) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(url, 'https://same-site.invalid/');
+  } catch {
+    return null;
+  }
+  const allowed = kind === 'link' ? ['http:', 'https:', 'mailto:'] : ['http:', 'https:'];
+  return allowed.includes(parsed.protocol) ? url : null;
 }
 
 const md = new Marked({

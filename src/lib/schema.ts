@@ -92,6 +92,8 @@ CREATE TABLE IF NOT EXISTS op (
   key TEXT PRIMARY KEY,
   fn TEXT NOT NULL,
   result TEXT NOT NULL,
-  at TEXT NOT NULL
+  at TEXT NOT NULL,
+  user TEXT,         -- who sent it: a key only replays for the same person
+  fingerprint TEXT   -- what was sent: the same key with a different change is refused
 );
 `;
