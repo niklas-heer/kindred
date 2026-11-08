@@ -29,10 +29,12 @@ const securityHeaders = createMiddleware().server(async ({ next }) => {
 const csrf = createCsrfMiddleware({
   filter: (ctx) => ctx.handlerType === 'serverFn' || !SAFE.has(ctx.request.method),
   origin: (value, ctx) => originAllowed(value, ctx.request),
-  failureResponse: new Response(JSON.stringify({ error: 'This request came from another site and was refused.' }), {
-    status: 403,
-    headers: { 'Content-Type': 'application/json' },
-  }),
+  // A function, not a Response: workerd refuses to create a Response while the module loads, which would fail every route.
+  failureResponse: () =>
+    new Response(JSON.stringify({ error: 'This request came from another site and was refused.' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    }),
 });
 
 // In code-protected mode, announce the setup code once while no account exists. Without a code, warn
