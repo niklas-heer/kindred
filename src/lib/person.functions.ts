@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { fieldInput, isContactType, MAX_FIELDS } from '../components/fields/model';
 import { can } from './roles';
 import { validDate } from './dates';
+import { sanitizeLook } from '../components/portrait/look';
 
 const tree = z.string().regex(/^[a-z0-9-]+$/).max(64);
 const personId = z.string().min(1).max(120);
@@ -77,4 +78,22 @@ export const deletePersonField = createServerFn({ method: 'POST' })
     const row = await (await import('./db.server')).db(data.tree).get<{ type: string }>('SELECT type FROM person_field WHERE id = ?', data.id);
     if (row && isContactType(row.type)) await (await guard()).requireCan(data.tree, 'edit-contact');
     return (await import('./person.server')).deletePersonField(data.tree, data.id, opOf(m.user, data));
+  });
+
+/** The portrait's look, from the Appearance dialog. The server cleans it: unknown parts are dropped. */
+export const setLook = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, id: personId, look: z.unknown(), opKey }))
+  .handler(async ({ data }) => {
+    const m = await (await guard()).requireCan(data.tree, 'edit-person');
+    const clean = sanitizeLook(data.look);
+    if (!clean) throw new Error('That look has no parts a portrait can show.');
+    return (await import('./person.server')).setPersonLook(data.tree, data.id, clean, opOf(m.user, data));
+  });
+
+/** Death place on its own: the one fact `patchPerson` (api.ts) does not cover, so the assistant can set it. */
+export const setDiedPlace = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, id: personId, place: z.string().trim().max(200).nullable(), opKey }))
+  .handler(async ({ data }) => {
+    const m = await (await guard()).requireCan(data.tree, 'edit-person');
+    return (await import('./person.server')).setPersonDiedPlace(data.tree, data.id, data.place, opOf(m.user, data));
   });

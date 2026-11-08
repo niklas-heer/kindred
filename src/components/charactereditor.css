@@ -181,6 +181,18 @@
 }
 .ce-age-range { width: min(100%, 420px); }
 
+/* Make from photo: the person's photos to pick from, and what the AI is doing with the one picked. */
+.ce-photo-pick { display: grid; gap: 8px; margin: 0 0 12px; }
+.ce-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+.ce-photo {
+  position: relative; aspect-ratio: 1; min-height: 44px; padding: 0; overflow: hidden; cursor: pointer;
+  border: 0; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--border);
+}
+.ce-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ce-photo:hover:not(:disabled), .ce-photo:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.ce-photo:disabled { opacity: 0.5; cursor: progress; }
+.ce-err { color: var(--danger); }
+
 @media (prefers-reduced-motion: reduce) {
   .ce-swatch > span { transition: none; }
 }

@@ -6,12 +6,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { geoMercator, geoPath, type GeoPermissibleObjects } from 'd3-geo';
 import {
   Baby, BriefcaseBusiness, Cake, Camera, Check, CookingPot, Crosshair, Crown, GitFork, Heart, HeartCrack, Hourglass, Mail, MapPin, MessagesSquare, Pencil,
-  Phone, Plus, Quote, Route as RouteIcon, Sparkles, StickyNote, Trash2, UserRound, X,
+  Paintbrush, Phone, Plus, Quote, Route as RouteIcon, Sparkles, StickyNote, Trash2, UserRound, X,
 } from 'lucide-react';
 import { feature, mesh } from 'topojson-client';
 import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { addStory, deleteStory, newOpKey, opKeys, uploadPhoto, unlinkRelative } from '~/lib/api';
-import { addPersonField, deletePersonField, personDetailQuery } from '~/lib/person.functions';
+import { addPersonField, deletePersonField, personDetailQuery, setLook } from '~/lib/person.functions';
+import { useT } from '~/lib/i18n';
+import { HeadOfHouse } from '~/lib/houses';
 import {
   ageAt, age, children, displayName, fmtDate, kinship, lifespan, parents, partnersOf, personDisplayName, siblings, useNameMode, yearOf, type Family,
 } from '~/lib/graph';
@@ -19,7 +21,7 @@ import { setPref } from '~/lib/prefs';
 import { chooseMe } from '~/lib/family';
 import { can, type Role } from '~/lib/roles';
 import { useCan, useRole, useSession } from '~/lib/session';
-import type { GPerson, PersonDetail, Place, Story } from '~/lib/types';
+import type { GPerson, House, Look, PersonDetail, Place, Story } from '~/lib/types';
 import { TRAITS } from '~/lib/traits';
 import { GAP_ACTION, GAP_LABEL, GAP_WHERE, gapsOf, useRequired, type GapKey } from '~/lib/gaps';
 import { renderMarkdown } from '~/lib/markdown';
@@ -31,6 +33,7 @@ import { QuickAdd } from './QuickAdd';
 import type { AddRelation } from './Card';
 import { DraftContext, DraftTracker, type Draft } from './fields/draft';
 import { PersonEdit } from './fields/PersonEdit';
+import { CharacterEditor } from './CharacterEditor';
 import { PersonPhotos } from './photos/PersonPhotos';
 import { ContactRow, FieldGroups, contactHref, contactsOf } from './fields/FieldsView';
 import { useCopy, type Copy } from './fields/strings';
@@ -61,6 +64,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   const [pending, setPending] = useState<(() => void) | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
   const [add, setAdd] = useState<AddRelation | null>(null);
+  const [appearance, setAppearance] = useState(false);
   const photoInput = useRef<HTMLInputElement>(null);
   const leave = (next: () => void) => draft?.dirty || draft?.busy ? setPending(() => next) : next();
   const blocker = useBlocker({ shouldBlockFn: () => !!(draft?.dirty || draft?.busy), enableBeforeUnload: !!(draft?.dirty || draft?.busy), withResolver: true });
@@ -90,6 +94,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   const qc = useQueryClient();
   const c = useCopy();
   const nameMode = useNameMode(tree);
+  const t = useT();
   const [photoKeys] = useState(opKeys);
   const photo = useMutation({
     mutationFn: (file: File) => {
@@ -196,6 +201,12 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
         <TabPanel value="stories"><StoriesTab tree={tree} p={p} details={details} /></TabPanel>
         <TabPanel value="everyday"><EverydayTab f={f} tree={tree} p={p} details={details} canEdit={canEdit} onSelect={(v) => leave(() => onSelect(v))} /></TabPanel>
         <TabPanel value="edit">
+          {canEdit && (
+            <button type="button" className="pp-appearance" onClick={() => setAppearance(true)} aria-haspopup="dialog">
+              <Paintbrush size={18} aria-hidden />
+              <span><b>{t('panel.appearance')}</b><small>{t('panel.appearance_hint')}</small></span>
+            </button>
+          )}
           {canEdit && (detail ? <PersonEdit tree={tree} p={p} f={f} detail={detail} done={() => setTab('overview')} onRemoved={onClose} /> : <DetailFallback details={details} />)}
         </TabPanel>
       </div></Tabs>
@@ -210,7 +221,43 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
         <button className="btn" disabled={savingDraft || draft?.busy} onClick={proceed}>Discard</button>
         <button className="btn primary" disabled={savingDraft || draft?.busy} onClick={async () => { setSavingDraft(true); try { if (await draft?.save()) proceed(); } finally { setSavingDraft(false); } }}>Save</button>
       </>}><p>Save your draft before leaving?</p></Dialog>
+      {appearance && canEdit && <AppearanceDialog tree={tree} p={p} house={house ?? null} onClose={() => setAppearance(false)} />}
     </aside></DraftContext.Provider>
+  );
+}
+
+/**
+ * The Edit tab's "Appearance": the character editor in a dialog. Its value is saved only on Save; closing with
+ * changes asks first (the dialog's dirty guard). The save is retried with the same key until it lands.
+ */
+function AppearanceDialog({ tree, p, house, onClose }: { tree: string; p: GPerson; house: House | null; onClose: () => void }) {
+  const t = useT();
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState<Look | undefined>(p.look);
+  const [keys] = useState(opKeys);
+  const dirty = JSON.stringify(draft ?? null) !== JSON.stringify(p.look ?? null);
+  const save = useMutation({
+    mutationFn: () => setLook({ data: { tree, id: p.id, look: draft!, opKey: keys.for('look', [p.id, draft]) } }),
+    onSuccess: async () => {
+      keys.clear('look');
+      await qc.invalidateQueries({ queryKey: ['person', tree, p.id] });
+      await qc.invalidateQueries({ queryKey: ['graph', tree] });
+      onClose();
+    },
+  });
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={t('panel.appearance_title', { name: p.given })}
+      dirty={dirty}
+      width={880}
+      dismissible={!save.isPending}
+      footer={<button className="btn primary" onClick={() => save.mutate()} disabled={!dirty || !draft || save.isPending}>{t('panel.appearance_save')}</button>}
+    >
+      <CharacterEditor person={p} tree={tree} house={house} value={draft} onChange={setDraft} />
+      {save.isError && <p className="err" role="alert">{t('panel.appearance_failed')}</p>}
+    </Dialog>
   );
 }
 
@@ -244,6 +291,7 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
   return (
     <div className="pp-overview">
       <PersonPhotos tree={tree} id={p.id} />
+      <HeadOfHouse person={p.id} />
       <section className="pp-kin" aria-label="How you are related">
         {!me ? (
           <span className="muted">Say who you are to see how you’re related</span>

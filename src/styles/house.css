@@ -248,3 +248,8 @@
   .hs-arms .arms { transition: none; }
   .hs-card:hover .hs-arms .arms { transform: none; }
 }
+
+/* The arms designer's "Ask the AI for more", under the name suggestions. */
+.ae-ai-more { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+.ae-ai-more .btn { min-height: 44px; }
+.ae-ai-more .err { margin: 0; }

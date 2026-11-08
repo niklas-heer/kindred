@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import {
   ArrowDownToLine, ArrowLeft, ArrowUpToLine, ChevronUp, ChevronsDownUp, ChevronsUpDown, Crown, FileQuestion, GitFork, Glasses,
-  HeartPulse, Keyboard, Landmark, Minus, Network, Plus, Route as RouteIcon, Shield, Users, Waypoints, X,
+  HeartPulse, Keyboard, Landmark, Minus, Network, Plus, Route as RouteIcon, Shield, SlidersHorizontal, Users, Waypoints, X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
 import { Canvas, type CanvasHandle, type Detail, type Inset } from '~/components/Canvas';
@@ -10,7 +10,7 @@ import { PersonPanel } from '~/components/PersonPanel';
 import { Portrait } from '~/components/Portrait';
 import { QuickAdd } from '~/components/QuickAdd';
 import { useFamily, useMe, useMeChosen } from '~/lib/family';
-import { Select, usePageHotkey, type SelectOption } from '~/components/ui';
+import { Dialog, Select, usePageHotkey, type SelectOption } from '~/components/ui';
 import { ancestorDepths, ancestorDepths as anc, descendants, displayName, kinPath, kinship, parents, children, nameModeKey, type NameMode } from '~/lib/graph';
 import { layout as computeLayout, rootFor, type LNode, type View } from '~/lib/layout';
 import { treeSearch } from '~/lib/search';
@@ -115,6 +115,8 @@ function TreePage() {
   const panQuiet = useRef(false);
   const [flash, setFlash] = useState<{ id: string; at: number } | null>(null);
   const phone = useMedia(PHONE);
+  // Phones keep names and ages out of the toolbar row: they open from the toolbar's display button, in a sheet.
+  const [displayOpen, setDisplayOpen] = useState(false);
   // The docked panel's width (matches --panel-w in tree.css).
   const [panelW, setPanelW] = useState(400);
   useEffect(() => {
@@ -619,16 +621,25 @@ function TreePage() {
                 options={lensOptions}
                 onChange={(v) => go({ lens: v, to: undefined })}
               />
+              {phone && (
+                <button type="button" className="btn icon tb-display" onClick={() => setDisplayOpen(true)} aria-haspopup="dialog" aria-label="Names and ages" title="Names and ages">
+                  <SlidersHorizontal size={16} />
+                </button>
+              )}
             </div>
 
-            <div className="tree-display-controls panel no-pan" role="group" aria-label="Card display">
-              <Select size="sm" value={nameMode} onChange={changeNameMode} aria-label="Names" options={[
-                { value: 'nickname', label: 'Nickname' }, { value: 'first', label: 'First name' }, { value: 'full', label: 'Full name' },
-              ]} />
-              <Select size="sm" value={ageMode} onChange={changeAgeMode} aria-label="Ages" options={[
-                { value: 'living', label: 'Ages: living' }, { value: 'all', label: 'Ages: everyone' }, { value: 'off', label: 'Ages: hidden' },
-              ]} />
-            </div>
+            {!phone && (
+              <div className="tree-display-controls panel no-pan" role="group" aria-label="Card display">
+                <DisplayChoices nameMode={nameMode} onName={changeNameMode} ageMode={ageMode} onAge={changeAgeMode} />
+              </div>
+            )}
+            {phone && (
+              <Dialog open={displayOpen} onClose={() => setDisplayOpen(false)} title="Names and ages" placement="sheet" width={420}>
+                <div className="tb-display-sheet" role="group" aria-label="Card display">
+                  <DisplayChoices nameMode={nameMode} onName={changeNameMode} ageMode={ageMode} onAge={changeAgeMode} />
+                </div>
+              </Dialog>
+            )}
 
             {view === 'dynasty' && rootPerson && (
               <div key={lay.root + line} className={`house-banner no-pan${bannerBig ? '' : ' compact'}`}>
@@ -764,6 +775,22 @@ function TreePage() {
 }
 
 /** A media query, live. False on the server and during hydration. */
+type AgeMode = 'living' | 'all' | 'off';
+
+/** Names and ages on the cards: a toolbar row on desktop, the display sheet on phones. */
+function DisplayChoices({ nameMode, onName, ageMode, onAge }: { nameMode: NameMode; onName: (m: NameMode) => void; ageMode: AgeMode; onAge: (m: AgeMode) => void }) {
+  return (
+    <>
+      <Select size="sm" value={nameMode} onChange={onName} aria-label="Names" options={[
+        { value: 'nickname', label: 'Nickname' }, { value: 'first', label: 'First name' }, { value: 'full', label: 'Full name' },
+      ]} />
+      <Select size="sm" value={ageMode} onChange={onAge} aria-label="Ages" options={[
+        { value: 'living', label: 'Ages: living' }, { value: 'all', label: 'Ages: everyone' }, { value: 'off', label: 'Ages: hidden' },
+      ]} />
+    </>
+  );
+}
+
 function useMedia(q: string): boolean {
   return useSyncExternalStore(
     (cb) => {

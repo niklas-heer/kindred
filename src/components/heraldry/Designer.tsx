@@ -7,7 +7,11 @@ import {
 } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { graphQuery, updateHouse } from '~/lib/api';
+import { aiArmsFromName } from '~/lib/ai.functions';
+import type { ArmsDesign } from '~/lib/ai/types';
+import { toAiLocale } from '~/lib/ai/types';
 import { myFamiliesQuery } from '~/lib/auth/functions';
+import { useT } from '~/lib/i18n';
 import type {
   Achievement, ArmsLayer, ArmsV2, ChargeArrangement, ChargeLayer, FieldDivision, HelmRank, OrdinaryKind, OrdinaryLayer,
   PartitionLine, ShieldShape, TinctureV2,
@@ -16,6 +20,7 @@ import { useCan } from '~/lib/session';
 import { play } from '~/lib/sfx';
 import { toast } from '~/lib/toast';
 import type { House } from '~/lib/types';
+import { useAiStatus } from '../assistant/store';
 import { Dialog } from '../ui/Dialog';
 import { Range } from '../ui/Range';
 import { Select } from '../ui/Select';
@@ -70,7 +75,12 @@ export function surnameOf(name: string): string {
   return name.replace(/^(the\s+)?(house|haus|huis|hus|family|familie|clan)\s+(of\s+|von\s+)?/i, '').replace(/^the\s+/i, '').trim();
 }
 
-export default function Designer({ open, onClose, house, tree }: { open: boolean; onClose: () => void; house: House; tree: string }) {
+/** The tab a designer opens on: the design itself, or the suggestions ("Suggest arms from the name"). */
+export type DesignerTab = 'design' | 'presets' | 'name';
+
+export default function Designer({ open, onClose, house, tree, initialTab = 'design' }: {
+  open: boolean; onClose: () => void; house: House; tree: string; initialTab?: DesignerTab;
+}) {
   const qc = useQueryClient();
   const allowed = useCan('edit-house');
   const country = (house as House & { country?: string }).country;
@@ -81,16 +91,16 @@ export default function Designer({ open, onClose, house, tree }: { open: boolean
   const [rawSel, setSel] = useState<Sel>(a.layers.length ? a.layers.length - 1 : 'field');
   // After an undo the chosen layer may be gone: fall back to the field.
   const sel: Sel = typeof rawSel === 'number' && !a.layers[rawSel] ? 'field' : rawSel;
-  const [tab, setTab] = useState('design');
+  const [tab, setTab] = useState<string>(initialTab);
   const [full, setFull] = useState(!!a.achievement);
 
-  // Each opening starts from the arms as they are now, and fetches the charge library.
+  // Each opening starts from the arms as they are now, on the tab asked for, and fetches the charge library.
   useEffect(() => {
     if (!open) return;
     const d = draftOf(house);
     h.restart(d);
     setSel(d.arms.layers.length ? d.arms.layers.length - 1 : 'field');
-    setTab('design');
+    setTab(initialTab);
     setFull(!!d.arms.achievement);
     save.reset();
     void loadLibrary();
@@ -247,7 +257,7 @@ export default function Designer({ open, onClose, house, tree }: { open: boolean
               </div>
             </TabPanel>
             <TabPanel value="name">
-              <Suggestions initial={surnameOf(saved.name)} country={country} onPick={(arms) => { setArms(arms); setSel(arms.layers.length ? arms.layers.length - 1 : 'field'); setTab('design'); play('tick'); }} />
+              <Suggestions tree={tree} initial={surnameOf(saved.name)} country={country} onPick={(arms) => { setArms(arms); setSel(arms.layers.length ? arms.layers.length - 1 : 'field'); setTab('design'); play('tick'); }} />
             </TabPanel>
           </Tabs>
         </div>
@@ -258,18 +268,34 @@ export default function Designer({ open, onClose, house, tree }: { open: boolean
 
 // ---------- canting suggestions ----------
 
-function Suggestions({ initial, country, onPick }: { initial: string; country?: string; onPick: (a: ArmsV2) => void }) {
+function Suggestions({ tree, initial, country, onPick }: { tree: string; initial: string; country?: string; onPick: (a: ArmsV2) => void }) {
+  const t = useT();
+  const aiOn = !!useAiStatus(tree)?.features.arms;
   const [name, setName] = useState(initial);
   const list = useMemo(() => cantingArms(name, country), [name, country]);
+  // The AI's designs for this name, added to the list each time "Ask the AI for more" finishes. A new name starts over.
+  const [more, setMore] = useState<ArmsDesign[]>([]);
+  const ask = useMutation({
+    mutationFn: () => aiArmsFromName({
+      data: { tree, surname: name.trim(), country: country && /^[A-Z]{2}$/.test(country) ? country : undefined, locale: toAiLocale(t.locale) },
+    }),
+    onSuccess: (designs) => setMore((m) => [...m, ...designs]),
+  });
   useLibraryReady();
   return (
     <div className="ae-suggest">
       <label className="field ae-suggest-name">
         <span>Name to read</span>
-        <input className="input" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} placeholder="A family name, e.g. Müller" />
+        <input
+          className="input"
+          value={name}
+          maxLength={60}
+          onChange={(e) => { setName(e.target.value); setMore([]); ask.reset(); }}
+          placeholder="A family name, e.g. Müller"
+        />
       </label>
       <p className="subtle ae-lead">{CANTING_SOURCE_NOTE}</p>
-      {list.length === 0 ? (
+      {list.length === 0 && more.length === 0 ? (
         <p className="subtle">Type a family name to see ideas.</p>
       ) : (
         <div className="ae-gallery ae-gallery-wide">
@@ -282,6 +308,26 @@ function Suggestions({ initial, country, onPick }: { initial: string; country?: 
               </span>
             </button>
           ))}
+          {more.map((d, i) => {
+            const arms = asV2(d.arms);
+            return (
+              <button key={`ai${i}`} type="button" className="ae-card ae-card-wide" onClick={() => onPick(structuredClone(arms))}>
+                <ArmsV2View arms={arms} size={72} />
+                <span className="ae-card-text">
+                  <span className="ae-card-title">{d.meaning}</span>
+                  <small>{blazonV2(arms)}</small>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {aiOn && name.trim() !== '' && (
+        <div className="ae-ai-more">
+          <button type="button" className="btn" onClick={() => ask.mutate()} disabled={ask.isPending} aria-busy={ask.isPending || undefined}>
+            <Sparkles size={15} aria-hidden /> {ask.isPending ? t('arms.asking') : t('arms.ask_more')}
+          </button>
+          {ask.isError && <p className="err" role="alert">{t('arms.ask_more_failed')}</p>}
         </div>
       )}
     </div>

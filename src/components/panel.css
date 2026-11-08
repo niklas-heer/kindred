@@ -289,3 +289,20 @@ p.pp-add-relative.pp-ask { margin: 0; padding: 12px 16px; }
 .pp-unlink-confirm .btn { width: 100%; min-height: 44px; padding: 2px 4px; font-size: 12px; line-height: 1.2; white-space: normal; }
 /* The name a person went by at birth, after the current one. */
 .pp-nee { font-family: var(--font-name); font-style: italic; font-weight: 400; font-size: 0.68em; color: var(--muted); white-space: nowrap; }
+
+/* The Edit tab's way into the character editor: a full-width row, 44px and up, that reads as an action. */
+.pp-appearance {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; margin: 0 0 12px; padding: 10px 14px;
+  text-align: left; font: inherit; color: inherit; background: none; border: 0; border-radius: 10px; cursor: pointer;
+  box-shadow: inset 0 0 0 1px var(--edge-soft, var(--border));
+}
+.pp-appearance:hover, .pp-appearance:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
+.pp-appearance > svg { color: var(--accent); flex: none; }
+.pp-appearance span { display: grid; gap: 2px; }
+.pp-appearance b { font-weight: 600; color: var(--accent); }
+.pp-appearance small { color: var(--muted); font-size: 12.5px; }
+
+/* "Head of House X" under the Overview's photos. */
+.head-of-house { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; font-size: 14px; color: var(--accent); }
+.head-of-house.heir { color: var(--muted); }
+.head-of-house > svg { flex: none; }

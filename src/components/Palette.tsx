@@ -2,12 +2,15 @@ import { useT } from '~/lib/i18n';
 // ⌘K: jump to anyone by name, nickname, epithet, title or place; or run a command.
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useNavigate } from '@tanstack/react-router';
-import { CalendarHeart, Contact, Landmark, Map as MapIcon, Crown, GitFork, Moon, Network, Palette as PaletteIcon, ScrollText, Sun, UserRound } from 'lucide-react';
+import { CalendarHeart, Contact, Landmark, Map as MapIcon, Crown, GitFork, Moon, Network, Palette as PaletteIcon, ScrollText, Sparkles, Sun, UserRound } from 'lucide-react';
 import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { copyFor } from '~/lib/ai/copy';
+import { toAiLocale } from '~/lib/ai/types';
 import { useFamily, useMe, useMeChosen, useTreeId } from '~/lib/family';
 import { displayName, kinship, lifespan, ancestorDepths, type Family } from '~/lib/graph';
 import { setPref } from '~/lib/prefs';
 import { play } from '~/lib/sfx';
+import { openAssistant, useAiStatus } from './assistant/store';
 import { Arms } from './Heraldry';
 import { Portrait } from './Portrait';
 import { Dialog } from './ui/Dialog';
@@ -89,6 +92,8 @@ export function Palette() {
   const me = useMe();
   // Kinship hints only once the reader has said who they are.
   const who = useMeChosen();
+  // The assistant is offered only when this family has it switched on (the drawer checks the same).
+  const assistantOn = !!useAiStatus(tree)?.features.assistant;
   const navigate = useNavigate();
   const [q, setQ] = useState('');
   const dq = useDeferredValue(q);
@@ -133,6 +138,7 @@ export function Palette() {
       { key: 'contacts', icon: <Contact size={16} />, label: 'Open Contacts', run: () => { navigate({ to: '/$tree/contacts', params: { tree } }); close(); } },
       { key: 'chronicle', icon: <ScrollText size={16} />, label: 'Open Chronicle', hint: 'stories & sayings', run: () => { navigate({ to: '/$tree/chronicle', params: { tree } }); close(); } },
       { key: 'houses', icon: <Landmark size={16} />, label: 'Open Houses', hint: 'arms, mottos & members', run: () => { navigate({ to: '/$tree/houses', params: { tree } }); close(); } },
+      ...(assistantOn ? [{ key: 'assistant', icon: <Sparkles size={16} />, label: copyFor(toAiLocale(t.locale)).askCommand, run: () => { close(); openAssistant(); } }] : []),
       { key: 't-codex', icon: <PaletteIcon size={16} />, label: 'Theme: Codex', run: () => { setPref('theme', 'codex'); close(); } },
       { key: 't-paper', icon: <Sun size={16} />, label: 'Theme: Paper', run: () => { setPref('theme', 'modern'); close(); } },
       { key: 't-night', icon: <Moon size={16} />, label: 'Theme: Night', run: () => { setPref('theme', 'night'); close(); } },
@@ -140,7 +146,7 @@ export function Palette() {
     const fq = fold(dq);
     const matched = fq ? cmds.filter((c) => fold(c.label).includes(fq)) : cmds;
     return fq ? [...people, ...houses, ...matched] : matched;
-  }, [f, dq, me, who, myAnc, navigate, tree, close, t.locale]);
+  }, [f, dq, me, who, myAnc, navigate, tree, close, t.locale, assistantOn]);
 
   useEffect(() => setSel(0), [dq]);
   useEffect(() => {

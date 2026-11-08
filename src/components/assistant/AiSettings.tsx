@@ -11,7 +11,7 @@ import { useTreeId } from '~/lib/family';
 import { useT } from '~/lib/i18n';
 import { useCan } from '~/lib/session';
 import { EmptyState, ErrorState, PageHeader, Range, Select, Skeleton, Switch } from '~/components/ui';
-import { AssistantButton, AssistantHost } from './AssistantDrawer';
+import { AssistantButton } from './AssistantDrawer';
 import { sectionHead } from '~/lib/title';
 import './assistant.css';
 
@@ -44,9 +44,8 @@ export function AiSettingsPage() {
       {q.isPending && <Skeleton lines={6} />}
       {q.isError && <ErrorState title={c.settingsLoadFailed} message={messageOf(q.error)} onRetry={() => q.refetch()} />}
       {q.data && <SettingsForm key={q.data.updated} tree={tree} data={q.data} />}
-      {/* A way to try the assistant from here (the tree layout is where it is meant to mount; see the report). */}
+      {/* A way to try the assistant from here. The drawer itself is mounted once, in the tree layout. */}
       <div className="ai-actions"><AssistantButton tree={tree} /></div>
-      <AssistantHost tree={tree} />
     </main>
   );
 }

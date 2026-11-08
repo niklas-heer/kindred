@@ -1,8 +1,9 @@
 import { LanguageSwitch, formatDate, formatNumber, relativeTime, useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, notFound, Outlet, redirect } from '@tanstack/react-router';
-import { BookOpen, CalendarHeart, CircleHelp, Contact, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, Users } from 'lucide-react';
+import { BookOpen, CalendarHeart, CircleHelp, Contact, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, Sparkles, Users } from 'lucide-react';
 import { AccountMenu } from '~/components/AccountMenu';
+import { AssistantButton, AssistantHost } from '~/components/assistant/AssistantDrawer';
 import { useEffect, useMemo, useState } from 'react';
 import { FirstRun } from '~/components/FirstRun';
 import { Arms } from '~/components/Heraldry';
@@ -100,6 +101,9 @@ function TreeLayout() {
           <Link to="/$tree/chronicle" params={{ tree }} title={t("shell.chronicle")}>
             <ScrollText size={16} /> <span className="nav-label">{t("shell.chronicle")}</span>
           </Link>
+          <Link to="/$tree/gallery" params={{ tree }} title={t("shell.gallery")}>
+            <Images size={16} /> <span className="nav-label">{t("shell.gallery")}</span>
+          </Link>
         </nav>
         <span className="spacer" />
         <button className="btn search-trigger" onClick={() => palette.open()} aria-label={t("shell.find_anyone_k")}>
@@ -108,6 +112,7 @@ function TreeLayout() {
           <kbd>⌘K</kbd>
         </button>
         <span className="topbar-tools">
+          <AssistantButton tree={tree} />
           <SoundSwitch />
           <ThemeSwitch />
         </span>
@@ -129,6 +134,8 @@ function TreeLayout() {
       </nav>
       <MoreSheet open={more} onClose={() => setMore(false)} tree={tree} multiple={multiple} />
       <Palette />
+      {/* The one assistant drawer for this family; it draws itself only when the button opened it. */}
+      <AssistantHost tree={tree} />
       <FirstRun />
       <Toasts />
     </div>
@@ -148,7 +155,9 @@ function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: 
         <li><Link to="/$tree/people" params={{ tree }}><BookOpen size={19} /> {t("shell.register")} <small>{t("shell.everyone_as_a_table")}</small></Link></li>
         <li><Link to="/$tree/houses" params={{ tree }}><Landmark size={19} /> {t("shell.houses")} <small>{t("shell.arms_mottos_members")}</small></Link></li>
         <li><Link to="/$tree/chronicle" params={{ tree }}><ScrollText size={19} /> {t("shell.chronicle")} <small>{t("shell.stories_sayings")}</small></Link></li>
+        <li><Link to="/$tree/gallery" params={{ tree }}><Images size={19} /> {t("shell.gallery")} <small>{t("shell.gallery_hint")}</small></Link></li>
         {steward && <li><Link to="/$tree/access" params={{ tree }}><Users size={19} /> {t("shell.access")} <small>{t("shell.members_invitations")}</small></Link></li>}
+        {steward && <li><Link to="/$tree/settings/ai" params={{ tree }}><Sparkles size={19} /> {t("shell.ai_settings")} <small>{t("shell.ai_settings_hint")}</small></Link></li>}
         {multiple && <li><Link to="/" search={{ families: "all" }}><Network size={19} /> {t("shell.all_families")}</Link></li>}
       </ul>
       <div className="more-row"><LanguageSwitch /></div>

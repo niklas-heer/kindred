@@ -2,10 +2,17 @@
 // designer. A controlled component: it shows `value` and reports every change through `onChange`,
 // so the caller decides when to save. Each part is picked from tiles that show this person wearing
 // it, at the age being previewed.
-import { Dices, RotateCcw, Sparkles, Undo2 } from 'lucide-react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { Camera, Dices, RotateCcw, Sparkles, Undo2 } from 'lucide-react';
 import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { aiAvatarFromPhoto } from '~/lib/ai.functions';
+import { toAiLocale } from '~/lib/ai/types';
+import { useT } from '~/lib/i18n';
+import { personPhotosQuery } from '~/lib/photos.functions';
 import type { Mark } from '~/lib/seed-format';
 import type { GPerson, House, Look } from '~/lib/types';
+import { useAiStatus } from './assistant/store';
+import { mediaUrl } from './photos/types';
 import { Portrait } from './Portrait';
 import {
   BEARDS, BROWS, CLOTHING, EYE_LABELS, EYES, GLASSES, HAIR, HAIR_LABELS, HAIR_ORDER, HAIR_STYLES, HEADWEAR, MARKS,
@@ -61,6 +68,16 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
     else next[key] = v;
     commit(next);
   };
+  // "Make from photo": the AI reads one of the person's photos and the result loads here for review. Nothing is saved
+  // until the caller saves the editor's value, and it counts as one undo step.
+  const t = useT();
+  const aiAvatar = !!useAiStatus(tree)?.features.avatar;
+  const [picking, setPicking] = useState(false);
+  const photos = useQuery({ ...personPhotosQuery(tree, person.id), enabled: aiAvatar && picking });
+  const fromPhoto = useMutation({
+    mutationFn: (mediaKey: string) => aiAvatarFromPhoto({ data: { tree, personId: person.id, mediaKey, locale: toAiLocale(t.locale) } }),
+    onSuccess: (next) => commit(next),
+  });
   const undo = () => {
     if (!history.length) return;
     const prev = history[history.length - 1];
@@ -151,10 +168,34 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
       <div className="ce-controls">
         <div className="ce-toolbar">
           <button type="button" className="btn" onClick={randomise}><Dices size={16} aria-hidden="true" /> Randomise</button>
+          {aiAvatar && (
+            <button type="button" className="btn" onClick={() => setPicking((p) => !p)} aria-expanded={picking} aria-controls="ce-photo-pick">
+              <Camera size={16} aria-hidden="true" /> {t('character.make_from_photo')}
+            </button>
+          )}
           <span className="ce-spacer" />
           <button type="button" className="btn ghost" onClick={undo} disabled={!history.length} aria-keyshortcuts="Control+Z Meta+Z"><Undo2 size={16} aria-hidden="true" /> Undo</button>
           <button type="button" className="btn ghost" onClick={reset}><RotateCcw size={16} aria-hidden="true" /> Reset</button>
         </div>
+        {aiAvatar && picking && (
+          <div className="ce-photo-pick" id="ce-photo-pick" role="group" aria-label={t('character.make_from_photo')}>
+            <p className="ce-hint">{t('character.photo_pick')}</p>
+            {photos.data?.length ? (
+              <div className="ce-photo-grid">
+                {photos.data.map((m) => (
+                  <button key={m.key} type="button" className="ce-photo" disabled={fromPhoto.isPending} onClick={() => fromPhoto.mutate(m.key)}>
+                    <img src={mediaUrl(tree, m.key)} alt="" loading="lazy" />
+                  </button>
+                ))}
+              </div>
+            ) : photos.data ? (
+              <p className="ce-hint">{t('character.no_photos')}</p>
+            ) : null}
+            {fromPhoto.isPending && <p className="ce-hint" role="status" aria-busy="true">{t('character.photo_loading')}</p>}
+            {fromPhoto.isError && <p className="ce-hint ce-err" role="alert">{t('character.photo_failed')}</p>}
+            {fromPhoto.isSuccess && !fromPhoto.isPending && <p className="ce-hint" role="status">{t('character.photo_loaded')}</p>}
+          </div>
+        )}
         <Tabs value={tab} onChange={setTab} label="Appearance">
           <TabList>
             <Tab value="face">Face</Tab>

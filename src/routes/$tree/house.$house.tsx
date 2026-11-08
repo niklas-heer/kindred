@@ -62,6 +62,8 @@ function HousePage() {
   const canEdit = useCan('edit-house');
   const settingsQ = useHouseSettings(tree);
   const [armsOpen, setArmsOpen] = useState(false);
+  // Which tab the arms designer opens on: its own design, or the suggestions from the name.
+  const [armsTab, setArmsTab] = useState<'design' | 'name'>('design');
   const [succession, setSuccession] = useState(false);
   const s = useMemo(() => (house ? houseStats(f, house) : undefined), [f, house]);
   const settings: HouseSettings = (house && settingsQ.data?.[house.id]) || DEFAULT_HOUSE_SETTINGS;
@@ -93,7 +95,7 @@ function HousePage() {
 
         <header className="ui-card hp-head" style={{ '--house': TINCTURE_HEX[house.arms.field] } as CSSProperties}>
           <div className="hp-shield">
-            <Arms arms={house.arms} size={176} country={country ?? undefined} title={t('houses.armsOf', { name: house.name })} />
+            <Arms arms={house.arms} size={176} full country={country ?? undefined} title={t('houses.armsOf', { name: house.name })} />
           </div>
           <div className="hp-text">
             <h1>{house.name}</h1>
@@ -156,10 +158,10 @@ function HousePage() {
                   <button type="button" className="btn" onClick={() => setSuccession(true)} aria-haspopup="dialog">
                     <ListOrdered size={16} /> {t('houses.editSuccession')}
                   </button>
-                  <button type="button" className="btn" onClick={() => setArmsOpen(true)} aria-haspopup="dialog">
+                  <button type="button" className="btn" onClick={() => { setArmsTab('name'); setArmsOpen(true); }} aria-haspopup="dialog">
                     <Sparkles size={16} /> {t('houses.suggestArms')}
                   </button>
-                  <button type="button" className="btn" onClick={() => setArmsOpen(true)} aria-haspopup="dialog">
+                  <button type="button" className="btn" onClick={() => { setArmsTab('design'); setArmsOpen(true); }} aria-haspopup="dialog">
                     <PenLine size={16} /> {t('houses.editArms')}
                   </button>
                 </>
@@ -202,7 +204,7 @@ function HousePage() {
       )}
       {canEdit && armsOpen && (
         // The designer reads the house's country (for its flag and its name suggestions) from the house object.
-        <ArmsEditor open onClose={() => setArmsOpen(false)} house={{ ...house, country: country ?? undefined } as House} tree={tree} />
+        <ArmsEditor open onClose={() => setArmsOpen(false)} house={{ ...house, country: country ?? undefined } as House} tree={tree} initialTab={armsTab} />
       )}
     </div>
   );

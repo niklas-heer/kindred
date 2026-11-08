@@ -105,6 +105,7 @@ export function I18nProvider({
         "atlas",
         "chronicle",
         "contacts",
+        "gallery",
         "houses",
         "needed",
         "people",
@@ -376,6 +377,7 @@ const titleWords: Record<string, string> = {
   Houses: "Häuser",
   Needed: "Gesucht",
   Chronicle: "Chronik",
+  Gallery: "Galerie",
   Access: "Zugang",
   Tree: "Stammbaum",
 };

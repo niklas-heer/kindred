@@ -3,6 +3,7 @@
 // transaction, so a retried or racing request never writes twice or half-way (see db.server.ts).
 import { guard, once, personExists, q, type OpKey, type Query } from './db.server.ts';
 import { canBePrivate, MAX_FIELDS, storedValue, type FieldInput, type FieldType } from '../components/fields/model.ts';
+import type { Look } from './types.ts';
 
 /** The scalar details of a person, as the Edit tab saves them. Names: a null current name means "same as birth". */
 export interface PersonDetails {
@@ -119,6 +120,32 @@ export function deletePersonField(tree: string, id: string, op: OpKey | undefine
       writes: [
         guard('EXISTS (SELECT 1 FROM person_field WHERE id = ? AND person = ? AND type = ?)', id, row.person, row.type),
         q('DELETE FROM person_field WHERE id = ?', id),
+      ],
+      result: undefined,
+    };
+  });
+}
+
+/** Saves the portrait's look (the Appearance dialog). The caller has cleaned it with `sanitizeLook`. */
+export function setPersonLook(tree: string, id: string, look: Look, op: OpKey | undefined) {
+  return once(tree, op, 'setPersonLook', async (d) => {
+    if (!(await d.get('SELECT id FROM person WHERE id = ?', id))) throw new Error('Person not found.');
+    return {
+      writes: [personExists(id), q('UPDATE person SET look = ?, updated_at = ? WHERE id = ?', JSON.stringify(look), nowIso(), id)],
+      result: undefined,
+    };
+  });
+}
+
+/** Sets only the death place, for the assistant and the quick fixes. Blank clears it. */
+export function setPersonDiedPlace(tree: string, id: string, place: string | null, op: OpKey | undefined) {
+  return once(tree, op, 'setPersonDiedPlace', async (d) => {
+    const row = await d.get<{ died_place: string | null }>('SELECT died_place FROM person WHERE id = ?', id);
+    if (!row) throw new Error('Person not found.');
+    return {
+      writes: [
+        guard('EXISTS (SELECT 1 FROM person WHERE id = ? AND died_place IS ?)', id, row.died_place),
+        q('UPDATE person SET died_place = ?, updated_at = ? WHERE id = ?', empty(place), nowIso(), id),
       ],
       result: undefined,
     };
