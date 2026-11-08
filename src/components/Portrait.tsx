@@ -32,9 +32,10 @@ function useHouse(person: GPerson, tree: string, given: House | null | undefined
 }
 
 /**
- * A woodcut cameo: the person drawn in ink on a roundel of their house's tincture, dressed for
- * their era. Uploaded photos sit in the same roundel. The dead are printed in the theme's
- * mourning duotone (sepia in Codex). Detail drops at list sizes.
+ * A person's portrait: their photo, or a generated likeness (portrait/avatar.ts) aged and dressed for
+ * the moment shown, on a roundel of their house's tincture. Photo and drawing share the frame, and
+ * the dead of both are printed in the theme's mourning duotone (sepia in Codex). Detail drops at
+ * list sizes.
  */
 export function Portrait({
   person,
@@ -42,6 +43,9 @@ export function Portrait({
   size = 96,
   frame = true,
   house: givenHouse,
+  prefer = 'photo',
+  age,
+  mourn = true,
 }: {
   person: GPerson;
   tree: string;
@@ -49,26 +53,34 @@ export function Portrait({
   frame?: boolean;
   /** The person's house, when the caller has it to hand; otherwise looked up from the tree. */
   house?: House | null;
+  /** 'avatar' draws the likeness even when a photo exists, e.g. beside the photo it stands in for. */
+  prefer?: 'photo' | 'avatar';
+  /** Shows the drawing at this age (a life stage, a chronicle entry) instead of the look's own. */
+  age?: number;
+  /** False shows the dead in colour, as the character editor must to pick colours. */
+  mourn?: boolean;
 }) {
   useEffect(ensurePortraitDefs, []);
   const house = useHouse(person, tree, givenHouse);
   const detail = detailOf(size);
   const headwear = person.look?.headwear;
-  const badge = headwear && HEADWEAR_ICON[headwear] ? CHARGE_ICONS[HEADWEAR_ICON[headwear]] : null;
-  const src = person.photo
-    ? `/api/photo/${tree}/${person.id}?v=${encodeURIComponent(person.photo)}`
-    : drawingUri(person, house, detail);
+  const photo = !!person.photo && prefer === 'photo';
+  // A drawing wears its crown on its head; a photo gets the badge on the frame instead.
+  const badge = photo && headwear && HEADWEAR_ICON[headwear] ? CHARGE_ICONS[HEADWEAR_ICON[headwear]] : null;
+  const src = photo
+    ? `/api/photo/${tree}/${person.id}?v=${encodeURIComponent(person.photo!)}`
+    : drawingUri(person, house, detail, age);
   const name = [person.given, person.surname].filter(Boolean).join(' ');
 
   const cls = ['portrait', frame ? 'is-framed' : 'is-bare', `is-${detail}`].join(' ');
-  const face = ['portrait-face', person.photo ? 'is-photo' : 'is-drawn', person.living ? '' : 'is-dead'].filter(Boolean).join(' ');
+  const face = ['portrait-face', photo ? 'is-photo' : 'is-drawn', person.living || !mourn ? '' : 'is-dead'].filter(Boolean).join(' ');
   const style = { width: size, height: size, '--house': house ? TINCTURE_HEX[house.arms.field] : undefined } as CSSProperties;
 
   return (
     <span className={cls} style={style}>
       <span className="portrait-mat">
         <span className={face}>
-          <img className="portrait-img" src={src} alt={name} loading={person.photo ? 'lazy' : undefined} decoding="async" draggable={false} />
+          <img className="portrait-img" src={src} alt={name} loading={photo ? 'lazy' : undefined} decoding="async" draggable={false} />
         </span>
       </span>
       {badge ? (

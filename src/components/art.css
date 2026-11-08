@@ -7,11 +7,11 @@
   filter: drop-shadow(0 1px 1px #0006);
 }
 
-/* ---------- Portraits: a woodcut cameo ----------
+/* ---------- Portraits: a cameo ----------
    .portrait          the frame: gold in Codex, a hairline with a soft shadow in Paper and Night
    .portrait-mat      the ground between frame and roundel
    .portrait-face     the roundel in the house's tincture (--house, set inline), drawing or photo
-   The drawing itself is ink on a warm wash; theme colour comes only from these tokens. */
+   The drawing (portrait/avatar.ts) is theme-neutral; theme colour comes only from these tokens. */
 
 :root,
 [data-theme='codex'] {
@@ -25,7 +25,6 @@
   --roundel-e-with: #07090d;
   --portrait-ring: inset 0 0 0 1px #0b0e13, inset 0 0 0 2px #e2c47a66, inset 0 4px 9px #000a, inset 0 -3px 8px #0007;
   --portrait-ring-sm: inset 0 0 0 1px #0b0e13cc, inset 0 2px 4px #0009;
-  --portrait-hatch: #0000002e;
   --portrait-mourn-ink: #2b1b0d;
   --portrait-mourn-paper: #e6cf9c;
   --portrait-mourn-fallback: grayscale(1) sepia(0.7) brightness(0.92);
@@ -42,7 +41,6 @@
   --roundel-e-with: #a8987c;
   --portrait-ring: inset 0 0 0 1px #2a221426, inset 0 3px 8px #2a22141f, inset 0 -2px 6px #2a221414;
   --portrait-ring-sm: inset 0 0 0 1px #2a221426;
-  --portrait-hatch: #2a22141a;
   --portrait-mourn-ink: color-mix(in oklab, var(--text) 80%, #5b3d22);
   --portrait-mourn-paper: #f3ecde;
   --portrait-mourn-fallback: grayscale(1) contrast(0.9) brightness(1.05);
@@ -59,7 +57,6 @@
   --roundel-e-with: #0b0f19;
   --portrait-ring: inset 0 0 0 1px #0008, inset 0 3px 9px #0009, inset 0 -3px 8px #0006;
   --portrait-ring-sm: inset 0 0 0 1px #0008, inset 0 2px 4px #0008;
-  --portrait-hatch: #00000033;
   --portrait-mourn-ink: color-mix(in oklab, var(--bg) 70%, #000);
   --portrait-mourn-paper: color-mix(in oklab, var(--text) 86%, var(--accent));
   --portrait-mourn-fallback: grayscale(1) brightness(0.8);
@@ -103,17 +100,6 @@
   border-radius: inherit;
   box-shadow: var(--portrait-ring);
   pointer-events: none;
-}
-/* Engraved backdrop: fine diagonal hatching behind the bust, dropped at list sizes. */
-.portrait:not(.is-sm) .portrait-face.is-drawn {
-  background-image:
-    repeating-linear-gradient(-45deg, transparent 0 2px, var(--portrait-hatch) 2px 2.7px),
-    radial-gradient(
-      circle at 50% 36%,
-      color-mix(in oklab, var(--h) var(--roundel-c), var(--roundel-c-with)) 0%,
-      color-mix(in oklab, var(--h) var(--roundel-b), var(--roundel-b-with)) 58%,
-      color-mix(in oklab, var(--h) var(--roundel-e), var(--roundel-e-with)) 100%
-    );
 }
 .portrait.is-sm .portrait-face::after {
   box-shadow: var(--portrait-ring-sm);
