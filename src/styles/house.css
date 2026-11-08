@@ -36,6 +36,7 @@
 .hs-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .hs-facts dd b { font-weight: 600; }
 .hs-person { font-weight: 500; }
+.hs-facts .hs-person { overflow-wrap: break-word; }
 .hs-person i { font-weight: 400; }
 .hs-spark { grid-column: 2; display: grid; gap: 2px; margin-top: 10px; }
 .hs-spark small { font-family: var(--font-ui); font-size: 12px; color: var(--subtle); }
@@ -143,6 +144,74 @@
 .hp-story time { color: var(--subtle); }
 .hp-feed-foot { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
 
+/* Succession: the head, the heir and the next in line, then the heads through history. */
+.hp-country { display: inline-flex; align-items: center; gap: 6px; }
+/* A house's flag sits on the corner of its shield, not in the row beside it. */
+.hp-shield .arms-flagged, .hs-arms .arms-flagged { position: relative; }
+.hp-shield .arms-flagged > .flag, .hs-arms .arms-flagged > .flag {
+  position: absolute; right: -10px; bottom: 6px; border-radius: 2px; box-shadow: 0 1px 3px #0008;
+}
+.hs-arms .arms-flagged > .flag { right: -6px; bottom: 2px; }
+.hp-succession-grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 18px; align-items: stretch; }
+.hp-card { display: grid; gap: 8px; align-content: start; justify-items: start; padding: 20px 22px; min-width: 0; }
+.hp-eyebrow {
+  margin: 0; display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-ui); font-size: 12px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--subtle);
+}
+[data-theme='codex'] .hp-eyebrow { font-family: var(--font-display); font-variant: small-caps; font-size: 15px; letter-spacing: 0.04em; text-transform: none; font-weight: 500; color: var(--accent); }
+[data-theme='night'] .hp-eyebrow { text-transform: none; letter-spacing: 0.02em; font-size: 13px; }
+.hp-head-card { justify-items: center; text-align: center; }
+.hp-head-card .hp-eyebrow { justify-content: center; }
+.hp-seal {
+  position: relative; display: inline-grid; margin: 10px 0 4px; padding: 5px; border-radius: 50%; text-decoration: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--house) 26%, transparent), transparent 72%);
+  box-shadow: 0 0 0 2px var(--accent), 0 0 0 4px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.hp-seal:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.hp-seal-crown { position: absolute; left: 50%; top: -6px; transform: translateX(-50%); color: var(--accent); filter: drop-shadow(0 1px 2px #0008); }
+.hp-head-name { margin: 6px 0 0; font-size: 22px; line-height: 1.2; }
+.hp-head-name a { font-family: var(--font-name); font-weight: var(--name-weight); }
+.hp-card .hp-title { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.3; }
+.hp-card .hp-years { margin: 0; font-size: 14px; font-variant-numeric: tabular-nums; }
+.hp-law { margin: 6px 0 0; font-size: 14px; }
+.hp-heir-card .hp-none { padding: 8px 0; text-align: left; }
+.hp-heir-main { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 14px; align-items: center; width: 100%; text-decoration: none; color: var(--text); border-radius: var(--radius); }
+.hp-heir-main:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.hp-heir-text { display: grid; gap: 3px; min-width: 0; }
+.hp-heir-text b { font-family: var(--font-name); font-weight: var(--name-weight); font-size: 19px; line-height: 1.2; overflow-wrap: anywhere; }
+.hp-kin { font-size: 14.5px; color: var(--muted); }
+.hp-line { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; width: 100%; }
+.hp-line-row {
+  display: grid; grid-template-columns: 22px 40px minmax(0, 1fr); gap: 10px; align-items: center; min-height: 52px; padding: 4px 8px;
+  border-radius: var(--radius); text-decoration: none; color: var(--text);
+}
+.hp-line-row:hover { background: var(--panel-2); }
+.hp-line-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.hp-line-n { font-family: var(--font-ui); font-size: 13px; color: var(--subtle); text-align: center; font-variant-numeric: tabular-nums; }
+.hp-line .hp-row-name small { white-space: normal; }
+.hp-heads { margin-top: 18px; display: grid; gap: 10px; }
+.hp-timeline { list-style: none; margin: 0; padding: 14px; display: flex; flex-wrap: wrap; gap: 8px 10px; }
+.hp-timeline li { flex: 1 1 240px; min-width: 0; max-width: 100%; }
+.hp-tl-link {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; align-items: center; min-height: 52px; padding: 4px 12px 4px 4px;
+  border-radius: 999px; text-decoration: none; color: var(--text);
+}
+.hp-tl-link:hover { background: var(--panel-2); }
+.hp-tl-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.hp-timeline li.current .hp-tl-link { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.hp-tl-text { display: grid; min-width: 0; }
+.hp-tl-text b { font-family: var(--font-name); font-weight: var(--name-weight); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hp-tl-text small { color: var(--subtle); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+/* Steward dialogs: settings and arms suggestions. */
+.hp-form { display: grid; gap: 14px; }
+.hp-field { display: grid; gap: 6px; min-width: 0; }
+.hp-field > span { font-family: var(--font-ui); font-size: 14px; color: var(--muted); }
+.hp-error { margin: 10px 0 0; color: var(--danger, #b3261e); font-size: 14px; }
+.hp-ideas { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.hp-idea { display: grid; justify-items: center; gap: 8px; text-align: center; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.hp-idea p { margin: 0; font-size: 14.5px; line-height: 1.4; }
+
 /* ---- phone ---- */
 @media (max-width: 900px) {
   .hp-cols { grid-template-columns: minmax(0, 1fr); gap: 0; }
@@ -168,6 +237,12 @@
   .hp-filter .input { height: 44px; }
   .hp-row { min-height: 56px; }
   .hp-row-name b { white-space: normal; }
+  .hp-succession-grid { grid-template-columns: minmax(0, 1fr); }
+  .hp-card { padding: 16px; }
+  .hp-heir-main { grid-template-columns: 72px minmax(0, 1fr); }
+  .hp-line-row { min-height: 56px; }
+  .hp-tl-link { min-height: 56px; }
+  .hp-seal { margin-top: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .hs-arms .arms { transition: none; }

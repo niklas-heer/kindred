@@ -1,12 +1,13 @@
-// The roll of houses: every house of the family as a card with its arms, motto, size, founder, years
-// and a sparkline of members per generation. Each card opens the house's page.
+// The roll of houses: every house of the family as a card with its arms and country, motto, size, founder,
+// the head today, years and a sparkline of members per generation. Each card opens the house's page.
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Shield } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Arms } from '~/components/Heraldry';
-import { EmptyState, PageHeader, Select } from '~/components/ui';
+import { EmptyState, ErrorState, PageHeader, Select } from '~/components/ui';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
-import { GenSpark, houseStats, maxGeneration, spanLabel, type HouseStats } from '~/lib/houses';
+import { GenSpark, houseStats, houseSuccession, maxGeneration, spanLabel, useHouseSettings, type HouseStats } from '~/lib/houses';
+import { useT } from '~/lib/i18n';
 import { sectionHead } from '~/lib/title';
 import '~/styles/house.css';
 
@@ -16,12 +17,13 @@ export const Route = createFileRoute('/$tree/houses')({
 });
 
 type Sort = 'size' | 'living' | 'oldest' | 'name';
-const SORTS: { value: Sort; label: string }[] = [
-  { value: 'size', label: 'Largest first' },
-  { value: 'living', label: 'Most living' },
-  { value: 'oldest', label: 'Oldest first' },
-  { value: 'name', label: 'By name' },
-];
+const SORTS: Sort[] = ['size', 'living', 'oldest', 'name'];
+const SORT_KEY: Record<Sort, 'houses.sort.size' | 'houses.sort.living' | 'houses.sort.oldest' | 'houses.sort.name'> = {
+  size: 'houses.sort.size',
+  living: 'houses.sort.living',
+  oldest: 'houses.sort.oldest',
+  name: 'houses.sort.name',
+};
 const sortName = (s: HouseStats) => s.house.name.replace(/^House (of )?/i, '');
 const COMPARE: Record<Sort, (a: HouseStats, b: HouseStats) => number> = {
   size: (a, b) => b.members.length - a.members.length,
@@ -31,10 +33,13 @@ const COMPARE: Record<Sort, (a: HouseStats, b: HouseStats) => number> = {
 };
 
 function HousesPage() {
+  const t = useT();
   const f = useFamily();
   const tree = useTreeId();
   const me = useMeChosen();
   const [sort, setSort] = useSort(tree);
+  const settingsQ = useHouseSettings(tree);
+  const settings = settingsQ.data;
 
   const stats = useMemo(() => {
     const max = maxGeneration(f);
@@ -48,36 +53,42 @@ function HousesPage() {
     <div className="page">
       <div className="page-inner">
         <PageHeader
-          title="Houses"
+          title={t('shell.houses')}
           icon={<Shield size={24} />}
           subtitle={
             stats.length
-              ? `${stats.length} ${stats.length === 1 ? 'house' : 'houses'}, ${inHouses.toLocaleString('en-GB')} of ${f.graph.people.length.toLocaleString('en-GB')} people`
-              : 'The family’s houses and their arms'
+              ? t('houses.listSubtitle', { houses: t('houses.houseCount', { count: stats.length }), inHouses, total: f.graph.people.length })
+              : t('houses.listSubtitleNone')
           }
           actions={
             stats.length > 1 ? (
               <div className="hs-toolbar">
-                <span id="hs-sort-label" className="sr-only">Sort houses</span>
-                <Select aria-labelledby="hs-sort-label" value={sort} onChange={setSort} options={SORTS} menuWidth={180} />
+                <span id="hs-sort-label" className="sr-only">{t('houses.sortLabel')}</span>
+                <Select aria-labelledby="hs-sort-label" value={sort} onChange={setSort} options={SORTS.map((value) => ({ value, label: t(SORT_KEY[value]) }))} menuWidth={180} />
               </div>
             ) : undefined
           }
         />
+        {settingsQ.isError && (
+          <ErrorState title={t('houses.listErrorTitle')} message={t('houses.listErrorText')} onRetry={() => { void settingsQ.refetch(); }} error={settingsQ.error} />
+        )}
         {stats.length === 0 ? (
           <EmptyState
             icon={<Shield size={28} />}
-            title="No houses yet"
-            text="This family has no houses recorded. Houses gather a line under one name and one coat of arms."
-            action={<Link className="btn primary" to="/$tree" params={{ tree }}>Open the tree</Link>}
+            title={t('houses.emptyTitle')}
+            text={t('houses.emptyText')}
+            action={<Link className="btn primary" to="/$tree" params={{ tree }}>{t('houses.openTree')}</Link>}
           />
         ) : (
           <ul className="hs-grid">
-            {sorted.map((s) => (
-              <li key={s.house.id}>
-                <HouseCard s={s} tree={tree} mine={s.house.id === myHouse} />
-              </li>
-            ))}
+            {sorted.map((s) => {
+              const succ = houseSuccession(f, s.house, settings?.[s.house.id]);
+              return (
+                <li key={s.house.id}>
+                  <HouseCard s={s} tree={tree} mine={s.house.id === myHouse} country={settings?.[s.house.id]?.country ?? null} head={succ.head?.id} />
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -85,27 +96,39 @@ function HousesPage() {
   );
 }
 
-function HouseCard({ s, tree, mine }: { s: HouseStats; tree: string; mine: boolean }) {
-  const span = spanLabel(s);
+function HouseCard({ s, tree, mine, country, head }: { s: HouseStats; tree: string; mine: boolean; country: string | null; head?: string }) {
+  const t = useT();
+  const f = useFamily();
+  const span = spanLabel(s, t('houses.present'));
   const total = s.members.length;
+  const headName = head ? f.byId.get(head) : undefined;
   return (
     <Link to="/$tree/house/$house" params={{ tree, house: s.house.id }} className="ui-card interactive hs-card">
       <div className="hs-arms">
-        <Arms arms={s.house.arms} size={96} />
+        <Arms arms={s.house.arms} size={96} country={country ?? undefined} />
       </div>
       <div className="hs-main">
         <h2 className="hs-name">{s.house.name}</h2>
         {s.house.motto && <p className="hs-motto">“{s.house.motto}”</p>}
-        {mine && <span className="hs-chip" style={{ justifySelf: 'start', marginTop: 4 }}>Your house</span>}
+        {mine && <span className="hs-chip" style={{ justifySelf: 'start', marginTop: 4 }}>{t('houses.yourHouse')}</span>}
         <dl className="hs-facts">
-          <dt>Members</dt>
+          <dt>{t('houses.membersHeading')}</dt>
           <dd className="hs-num">
-            <b>{total.toLocaleString('en-GB')}</b>
-            {s.living > 0 && <span className="muted"> · {s.living.toLocaleString('en-GB')} living</span>}
+            <b>{total.toLocaleString(t.locale === 'de' ? 'de-DE' : 'en-GB')}</b>
+            {s.living > 0 && <span className="muted"> · {t('houses.livingCount', { count: s.living })}</span>}
           </dd>
+          {headName && (
+            <>
+              <dt>{t('houses.headShort')}</dt>
+              <dd className="hs-person">
+                {[headName.given, headName.surname].filter(Boolean).join(' ')}
+                {headName.epithet && <i> {headName.epithet}</i>}
+              </dd>
+            </>
+          )}
           {s.founder && (
             <>
-              <dt>Founder</dt>
+              <dt>{t('houses.founder')}</dt>
               <dd className="hs-person">
                 {[s.founder.given, s.founder.surname].filter(Boolean).join(' ')}
                 {s.founder.epithet && <i> {s.founder.epithet}</i>}
@@ -114,7 +137,7 @@ function HouseCard({ s, tree, mine }: { s: HouseStats; tree: string; mine: boole
           )}
           {span && (
             <>
-              <dt>Years</dt>
+              <dt>{t('houses.years')}</dt>
               <dd className="hs-num">{span}</dd>
             </>
           )}
@@ -122,8 +145,11 @@ function HouseCard({ s, tree, mine }: { s: HouseStats; tree: string; mine: boole
       </div>
       {total > 0 && (
         <div className="hs-spark">
-          <GenSpark perGen={s.perGen} label={`${s.house.name}: members per generation, across ${s.generations} ${s.generations === 1 ? 'generation' : 'generations'}`} />
-          <small>Members per generation</small>
+          <GenSpark
+            perGen={s.perGen}
+            label={t('houses.sparkLabel', { name: s.house.name, generations: t('houses.generations', { count: s.generations }) })}
+          />
+          <small>{t('houses.perGeneration')}</small>
         </div>
       )}
     </Link>

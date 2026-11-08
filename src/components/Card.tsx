@@ -6,6 +6,8 @@ import type { GPerson } from '~/lib/types';
 import { GAP_ACTION, GAP_LABEL, gapsOf, useRequired } from '~/lib/gaps';
 import { can } from '~/lib/roles';
 import { useRole } from '~/lib/session';
+import { bareHouseName, useHouseRole } from '~/lib/houses';
+import { useT } from '~/lib/i18n';
 import type { LNode } from '~/lib/layout';
 import type { Detail } from './Canvas';
 import { GameIcon } from './GameIcon';
@@ -35,6 +37,8 @@ interface Props {
 export const Card = memo(function Card({ node, detail, family: f, tree, kin, selected, isMe, nameMode = 'full', ageMode = 'living', onSelect, onOpen, onToggle, onAdd }: Props) {
   const [required] = useRequired(tree);
   const role = useRole();
+  const t = useT();
+  const houseRole = useHouseRole(tree, f, node.id);
   if (node.ghost) {
     // An unknown parent: an open slot that invites filling in.
     const { child, as } = node.ghost;
@@ -125,6 +129,12 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
             <span className="card-arms" title={house.name}>
               <Arms arms={house.arms} size={detail === 'near' ? 28 : 24} />
             </span>
+          )}
+          {houseRole?.role === 'head' && detail === 'near' && (
+            <span className="card-badge card-crown" title={t('houses.headOf', { name: bareHouseName(houseRole.house) })}><GameIcon name="crown" size={13} /></span>
+          )}
+          {houseRole?.role === 'heir' && detail === 'near' && (
+            <span className="card-heir" title={t('houses.heirOf', { name: bareHouseName(houseRole.house) })}>{t('houses.heirRibbon')}</span>
           )}
           {p.stories > 0 && detail === 'near' && (
             <span className="card-badge card-stories" title={`${p.stories} ${p.stories === 1 ? 'story' : 'stories'}`}>

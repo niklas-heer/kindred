@@ -96,6 +96,14 @@
 [data-theme='modern'] .card-kin, [data-theme='night'] .card-kin { top: 100px; }
 
 .card.dup { opacity: 0.6; }
+
+/* Houses: a crown on each head, and a ribbon for the heir, at near zoom. */
+.card-badge.card-crown { right: auto; top: -7px; left: -7px; bottom: auto; min-width: 22px; height: 22px; padding: 0; color: #d6b25e; }
+.card-heir {
+  position: absolute; left: 50%; top: -9px; transform: translateX(-50%); z-index: 2; height: 16px; padding: 0 7px;
+  font-size: 10px; line-height: 16px; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; font-family: var(--font-display);
+  border-radius: 2px; background: var(--accent); color: var(--accent-text); box-shadow: 0 1px 2px #0007;
+}
 .card-dup {
   position: absolute; left: 50%; top: 46px; transform: translateX(-50%) rotate(-6deg);
   font-family: var(--font-display); font-size: 11px; padding: 2px 6px; border-radius: 3px;
