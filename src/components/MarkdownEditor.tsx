@@ -5,7 +5,7 @@ import { Bold, Heading2, Italic, Link2, List, Quote, UserRound } from 'lucide-re
 import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useFamily } from '~/lib/family';
 import { displayName, type Family } from '~/lib/graph';
-import { useCopy } from './fields/strings';
+import { useT } from '~/lib/i18n';
 import { renderMarkdown } from '~/lib/markdown';
 import './fields/markdown.css';
 
@@ -21,7 +21,7 @@ interface Props {
 }
 
 export function MarkdownEditor({ id, tree, value, onChange, label, rows = 8, placeholder }: Props) {
-  const c = useCopy();
+  const c = useT();
   const fam = useFamily();
   const ta = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<'write' | 'preview'>('write');

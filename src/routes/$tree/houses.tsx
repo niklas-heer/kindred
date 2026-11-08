@@ -7,7 +7,7 @@ import { Arms } from '~/components/Heraldry';
 import { EmptyState, ErrorState, PageHeader, Select } from '~/components/ui';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
 import { GenSpark, houseStats, houseSuccession, maxGeneration, spanLabel, useHouseSettings, type HouseStats } from '~/lib/houses';
-import { useT } from '~/lib/i18n';
+import { locales, useT } from '~/lib/i18n';
 import { sectionHead } from '~/lib/title';
 import '~/styles/house.css';
 
@@ -114,7 +114,7 @@ function HouseCard({ s, tree, mine, country, head }: { s: HouseStats; tree: stri
         <dl className="hs-facts">
           <dt>{t('houses.membersHeading')}</dt>
           <dd className="hs-num">
-            <b>{total.toLocaleString(t.locale === 'de' ? 'de-DE' : 'en-GB')}</b>
+            <b>{total.toLocaleString(locales[t.locale])}</b>
             {s.living > 0 && <span className="muted"> · {t('houses.livingCount', { count: s.living })}</span>}
           </dd>
           {headName && (

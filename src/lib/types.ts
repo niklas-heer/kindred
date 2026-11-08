@@ -30,6 +30,8 @@ export interface GPerson {
   epithet?: string;
   title?: string;
   occupation?: string;
+  /** The occupation vocabulary id (src/lib/occupations.ts), when the text names one. */
+  occupationCode?: string;
   nickname?: string;
   traits?: string[];
   look?: Look;

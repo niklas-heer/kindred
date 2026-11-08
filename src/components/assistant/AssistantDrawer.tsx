@@ -5,7 +5,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { MessageSquarePlus, Send, Sparkles, X } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { aiChatNew, aiChatQuery, aiChatSend } from '~/lib/ai.functions';
-import { copyFor } from '~/lib/ai/copy';
 import { toAiLocale } from '~/lib/ai/types';
 import { useT } from '~/lib/i18n';
 import { renderMarkdown } from '~/lib/markdown';
@@ -30,12 +29,11 @@ export function AssistantHost({ tree }: { tree: string }) {
 /** The "Ask" button. Shown only when the assistant is switched on and configured for this family. */
 export function AssistantButton({ tree, className = '' }: { tree: string; className?: string }) {
   const t = useT();
-  const c = copyFor(toAiLocale(t.locale));
   const status = useAiStatus(tree);
   if (!status?.features.assistant) return null;
   return (
     <button type="button" className={`btn ai-launch ${className}`} onClick={openAssistant} aria-haspopup="dialog">
-      <Sparkles size={16} aria-hidden /> {c.askButton}
+      <Sparkles size={16} aria-hidden /> {t('ai.askButton')}
     </button>
   );
 }
@@ -43,7 +41,6 @@ export function AssistantButton({ tree, className = '' }: { tree: string; classN
 function AssistantDrawer({ tree }: { tree: string }) {
   const t = useT();
   const locale = toAiLocale(t.locale);
-  const c = copyFor(locale);
   const qc = useQueryClient();
   const canPropose = useCan('add-story');
   const chat = useQuery(aiChatQuery(tree));
@@ -110,14 +107,14 @@ function AssistantDrawer({ tree }: { tree: string }) {
   }
 
   return (
-    <aside className="ai-drawer" role="dialog" aria-label={c.title} onKeyDown={onKey}>
+    <aside className="ai-drawer" role="dialog" aria-label={t('ai.title')} onKeyDown={onKey}>
       <header className="ai-drawer-head">
-        <h2 className="ai-drawer-title"><Sparkles size={16} aria-hidden /> {c.title}</h2>
+        <h2 className="ai-drawer-title"><Sparkles size={16} aria-hidden /> {t('ai.title')}</h2>
         <div className="ai-drawer-tools">
           <button type="button" className="btn ghost ai-touch" onClick={newConversation} disabled={busy}>
-            <MessageSquarePlus size={15} aria-hidden /> {c.newConversation}
+            <MessageSquarePlus size={15} aria-hidden /> {t('ai.newConversation')}
           </button>
-          <button type="button" className="btn ghost ai-touch ai-icon" onClick={closeAssistant} aria-label={c.close} title={c.close}>
+          <button type="button" className="btn ghost ai-touch ai-icon" onClick={closeAssistant} aria-label={t('ai.close')} title={t('ai.close')}>
             <X size={17} aria-hidden />
           </button>
         </div>
@@ -125,8 +122,8 @@ function AssistantDrawer({ tree }: { tree: string }) {
 
       <div className="ai-log" ref={logRef} role="log" aria-live="polite">
         {chat.isPending && <Skeleton lines={3} />}
-        {chat.isError && <ErrorState title={c.loadFailed} message={messageOf(chat.error)} onRetry={() => chat.refetch()} />}
-        {chat.isSuccess && items.length === 0 && !pending && <EmptyState title={c.title} text={c.empty} />}
+        {chat.isError && <ErrorState title={t('ai.loadFailed')} message={messageOf(chat.error)} onRetry={() => chat.refetch()} />}
+        {chat.isSuccess && items.length === 0 && !pending && <EmptyState title={t('ai.title')} text={t('ai.empty')} />}
         {items.map((m) =>
           m.role === 'user' ? (
             <div key={m.id} className="ai-msg ai-msg-user"><p>{m.text}</p></div>
@@ -138,28 +135,28 @@ function AssistantDrawer({ tree }: { tree: string }) {
           ),
         )}
         {pending && <div className="ai-msg ai-msg-user"><p>{pending}</p></div>}
-        {busy && <p className="ai-thinking subtle">{c.sending}</p>}
-        {error && <Notice onDismiss={() => setError(null)}>{c.sendFailed} <span className="subtle">{error}</span></Notice>}
+        {busy && <p className="ai-thinking subtle">{t('ai.sending')}</p>}
+        {error && <Notice onDismiss={() => setError(null)}>{t('ai.sendFailed')} <span className="subtle">{error}</span></Notice>}
       </div>
 
       <form className="ai-composer" onSubmit={send}>
-        <label className="ai-sr" htmlFor="ai-input">{c.placeholder}</label>
+        <label className="ai-sr" htmlFor="ai-input">{t('ai.placeholder')}</label>
         <textarea
           id="ai-input"
           ref={areaRef}
           rows={2}
           maxLength={4000}
-          placeholder={c.placeholder}
+          placeholder={t('ai.placeholder')}
           value={text}
           disabled={busy}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onInputKey}
         />
         <button type="submit" className="btn primary ai-touch" disabled={busy || !text.trim()}>
-          <Send size={15} aria-hidden /> {c.send}
+          <Send size={15} aria-hidden /> {t('ai.send')}
         </button>
       </form>
-      {!canPropose && <p className="ai-foot subtle">{c.viewerNote}</p>}
+      {!canPropose && <p className="ai-foot subtle">{t('ai.viewerNote')}</p>}
     </aside>
   );
 }

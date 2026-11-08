@@ -21,6 +21,8 @@ import { GameIcon } from '~/components/GameIcon';
 import { Arms } from '~/components/Heraldry';
 import { Portrait } from '~/components/Portrait';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
+import { useT, type Locale } from '~/lib/i18n';
+import { occupationSearchText, occupationText } from '~/lib/occupations';
 import { TRAITS } from '~/lib/traits';
 import { age as ageOf, ancestorDepths, displayName, kinship, partnersOf, type Family } from '~/lib/graph';
 import type { GPerson, House } from '~/lib/types';
@@ -89,7 +91,7 @@ function safeKinship(f: Family, me: string, id: string, myAnc: Map<string, numbe
   }
 }
 
-function buildRows(f: Family & { gen: Map<string, number> }, tree: string, me: string | null): R[] {
+function buildRows(f: Family & { gen: Map<string, number> }, tree: string, me: string | null, locale: Locale): R[] {
   const myAnc = me ? ancestorDepths(f, me) : new Map<string, number>();
   const myPartners = new Set(me ? partnersOf(f, me) : []);
   return f.graph.people.map((p) => {
@@ -116,12 +118,12 @@ function buildRows(f: Family & { gen: Map<string, number> }, tree: string, me: s
       house,
       base,
       sortName: `${p.surname ?? ''} ${p.given} ${p.born ?? ''}`.toLowerCase(),
-      search: [dn, p.given, p.surname, p.nickname, p.title, p.occupation, house?.name, label, short(p.born), short(p.died)].filter(Boolean).join(' ').toLowerCase(),
+      search: [dn, p.given, p.surname, p.nickname, p.title, p.occupation, occupationSearchText(p.occupationCode), house?.name, label, short(p.born), short(p.died)].filter(Boolean).join(' ').toLowerCase(),
       bornKey: dateKey(p.born),
       diedKey: dateKey(p.died),
       age: ageOf(p),
       gen: f.gen.get(p.id) ?? 0,
-      role: [p.title, p.occupation].filter(Boolean).join(' · '),
+      role: [p.title, occupationText(p, locale)].filter(Boolean).join(' · '),
       rel: label,
       relRank,
     };
@@ -282,7 +284,8 @@ function RegisterPage() {
   const [sel, setSel] = useState(0);
   const [mobileLimit, setMobileLimit] = useRememberedState(`people:${tree}:limit`, 100);
 
-  const all = useMemo(() => buildRows(f, tree, me), [f, tree, me]);
+  const { locale } = useT();
+  const all = useMemo(() => buildRows(f, tree, me, locale), [f, tree, me, locale]);
   // Hide a column nobody in the tree has anything for (no traits recorded, nobody chosen as "you").
   // Judged on everyone, not the filtered rows, so columns don't come and go while typing.
   const shown = useMemo(() => {

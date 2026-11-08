@@ -4,7 +4,8 @@ import { accounts } from '../auth/store.server';
 import { AiError, makeAdapter, type AiAdapter } from './adapters';
 import { fakeAdapter } from './fake';
 import { keyTail, openKey, sealKey } from './secret.server';
-import { COPY, copyFor } from './copy';
+import { tr } from './labels';
+import { translate } from '../i18n/dictionary';
 import { DEFAULT_MODEL, FEATURES, PROVIDERS, type AiFeatures, type AiStatus, type Feature, type Provider } from './types';
 import type { AiLocale } from './types';
 
@@ -117,7 +118,7 @@ export async function spend(tree: string, tokens: number): Promise<void> {
  */
 export async function adapterFor(tree: string, s?: Settings): Promise<AiAdapter> {
   const cur = s ?? (await readSettings(tree));
-  if (!cur.sealed) throw new AiError('not-configured', COPY.en.errNotConfigured);
+  if (!cur.sealed) throw new AiError('not-configured', translate('en', 'ai.errNotConfigured'));
   const key = await openKey(tree, cur.sealed);
   if (fakeOn()) return fakeAdapter(cur.effectiveModel);
   return makeAdapter(cur.provider, key, cur.effectiveModel);
@@ -128,11 +129,11 @@ export async function adapterFor(tree: string, s?: Settings): Promise<AiAdapter>
  * message in the reader's language when it can't run.
  */
 export async function adapterForFeature(tree: string, feature: Feature, locale: AiLocale): Promise<{ adapter: AiAdapter; settings: Settings }> {
-  const c = copyFor(locale);
+  const c = tr(locale);
   const settings = await readSettings(tree);
-  if (!settings.features[feature]) throw new AiError('not-configured', c.errOff);
-  if (!settings.sealed) throw new AiError('not-configured', c.errNotConfigured);
-  if (settings.dailyTokens <= 0 || (await usedToday(tree)) >= settings.dailyTokens) throw new AiError('budget', c.errBudget);
+  if (!settings.features[feature]) throw new AiError('not-configured', c('ai.errOff'));
+  if (!settings.sealed) throw new AiError('not-configured', c('ai.errNotConfigured'));
+  if (settings.dailyTokens <= 0 || (await usedToday(tree)) >= settings.dailyTokens) throw new AiError('budget', c('ai.errBudget'));
   return { adapter: await adapterFor(tree, settings), settings };
 }
 
@@ -158,7 +159,7 @@ export async function statusFor(tree: string): Promise<AiStatus> {
 
 /** A live call to the provider with the given key, for "Test connection". Never stores anything. */
 export async function testConnection(tree: string, input: { provider: Provider; model: string; apiKey?: string }, locale: AiLocale) {
-  const c = copyFor(locale);
+  const c = tr(locale);
   const model = input.model.trim() || DEFAULT_MODEL[input.provider];
   const started = Date.now();
   try {
@@ -168,7 +169,7 @@ export async function testConnection(tree: string, input: { provider: Provider; 
       let key = input.apiKey?.trim() ?? '';
       if (!key) {
         const s = await readSettings(tree);
-        if (!s.sealed) throw new AiError('not-configured', c.errNotConfigured);
+        if (!s.sealed) throw new AiError('not-configured', c('ai.errNotConfigured'));
         key = await openKey(tree, s.sealed);
       }
       adapter = makeAdapter(input.provider, key, model);

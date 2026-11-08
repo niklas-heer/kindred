@@ -67,12 +67,12 @@ export const aiSaveSettings = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const m = await (await guard()).requireCan(data.tree, 'manage-access');
     const s = await ai();
-    const c = (await import('./ai/copy')).copyFor(toAiLocale(data.locale));
+    const c = (await import('./ai/labels')).tr(toAiLocale(data.locale));
     if (!s.validModel(data.model)) throw new Error('That model id has characters no provider uses.');
     if (data.apiKey && !/^\S{8,400}$/.test(data.apiKey)) throw new Error('That doesn’t look like an API key.');
     const cur = await s.readSettings(data.tree);
     const keyWillExist = !data.clearKey && (!!data.apiKey || !!cur.sealed);
-    if (!keyWillExist && (FEATURES as readonly string[]).some((f) => data.features[f as keyof AiFeatures])) throw new Error(c.needsKey);
+    if (!keyWillExist && (FEATURES as readonly string[]).some((f) => data.features[f as keyof AiFeatures])) throw new Error(c('ai.needsKey'));
     await s.saveSettings(data.tree, m.user.id, { provider: data.provider, model: data.model, features: data.features, dailyTokens: data.dailyTokens, apiKey: data.apiKey || undefined, clearKey: data.clearKey });
   });
 

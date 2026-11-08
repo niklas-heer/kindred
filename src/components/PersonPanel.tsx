@@ -12,7 +12,10 @@ import { feature, mesh } from 'topojson-client';
 import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { addStory, deleteStory, newOpKey, opKeys, uploadPhoto, unlinkRelative } from '~/lib/api';
 import { addPersonField, deletePersonField, personDetailQuery, setLook } from '~/lib/person.functions';
-import { useT } from '~/lib/i18n';
+import { locales, useT, type Translator } from '~/lib/i18n';
+import { occupationText } from '~/lib/occupations';
+import { translateOccupation } from '~/lib/occupations.functions';
+import { useAiStatus } from './assistant/store';
 import { HeadOfHouse } from '~/lib/houses';
 import {
   ageAt, age, children, displayName, fmtDate, kinship, lifespan, parents, partnersOf, personDisplayName, siblings, useNameMode, yearOf, type Family,
@@ -36,7 +39,6 @@ import { PersonEdit } from './fields/PersonEdit';
 import { CharacterEditor } from './CharacterEditor';
 import { PersonPhotos } from './photos/PersonPhotos';
 import { ContactRow, FieldGroups, contactHref, contactsOf } from './fields/FieldsView';
-import { useCopy, type Copy } from './fields/strings';
 import { DEFAULT_LABEL } from './fields/model';
 import './panel.css';
 
@@ -92,7 +94,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   const details: DetailState = { detail: detailQ.data, failed: detailQ.isError && !detailQ.data, retry: () => void detailQ.refetch() };
   const detail = detailQ.data;
   const qc = useQueryClient();
-  const c = useCopy();
+  const c = useT();
   const nameMode = useNameMode(tree);
   const t = useT();
   const [photoKeys] = useState(opKeys);
@@ -286,7 +288,7 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
   const bornPlace = detail?.bornPlace ?? p.bornPlace;
   const diedPlace = detail?.diedPlace ?? p.diedPlace;
   const words = (detail?.stories ?? []).filter((s) => s.kind !== 'recipe' && s.kind !== 'note').slice(0, 2);
-  const c = useCopy();
+  const c = useT();
 
   return (
     <div className="pp-overview">
@@ -319,7 +321,7 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
           </Fact>
         )}
         {a !== undefined && <Fact icon={<Hourglass size={15} />} label="Age">{p.living ? `${a} years old` : `Died aged ${a}`}</Fact>}
-        {p.occupation && <Fact icon={<BriefcaseBusiness size={15} />} label="Occupation">{p.occupation}</Fact>}
+        <OccupationFact tree={tree} p={p} icon={<BriefcaseBusiness size={15} />} label={c('fact.occupation')} />
         {p.title && <Fact icon={<Crown size={15} />} label="Title">{p.title}</Fact>}
         {p.nickname && <Fact icon={<UserRound size={15} />} label="Called">{p.nickname}</Fact>}
       </div>
@@ -381,7 +383,7 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
 
 /** Next birthday and wedding anniversaries, as countdown cards. */
 function Upcoming({ f, p }: { f: Family; p: GPerson }) {
-  const c = useCopy();
+  const c = useT();
   const bday = p.born ? nextOccurrence(p.born) : undefined;
   const anniversaries = (f.unionsOf.get(p.id) ?? [])
     .filter((u) => u.kind === 'marriage' && u.start && !u.end)
@@ -395,7 +397,7 @@ function Upcoming({ f, p }: { f: Family; p: GPerson }) {
           <Cake size={20} />
           <div>
             <b>{c('fact.birthdayIn', { when: inDays(daysUntil(bday), c) })}</b>
-            <div className="muted">{bday.toLocaleDateString(c.locale === 'de' ? 'de-DE' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · {c('fact.turns', { n: (ageAt(p.born) ?? 0) + 1 })}</div>
+            <div className="muted">{bday.toLocaleDateString(locales[c.locale], { weekday: 'long', day: 'numeric', month: 'long' })} · {c('fact.turns', { n: (ageAt(p.born) ?? 0) + 1 })}</div>
           </div>
         </div>
       )}
@@ -414,7 +416,7 @@ function Upcoming({ f, p }: { f: Family; p: GPerson }) {
 
 /** Call, write or find them: one button per way to reach them. */
 function ContactActions({ p, detail, onMore }: { p: GPerson; detail: PersonDetail; onMore: () => void }) {
-  const c = useCopy();
+  const c = useT();
   const list = contactsOf(detail.fields);
   const first = (k: string) => list.find((x) => x.type === k);
   const phone = first('phone'), email = first('email'), address = first('address');
@@ -557,7 +559,7 @@ type RelKind = 'parents' | 'partners' | 'children' | 'siblings' | 'grandparents'
 
 /** The family as links: parents, partners, children, siblings and grandparents. Editors may take out a direct link. */
 function FamilyTab({ f, tree, id, canAdd, canEdit, onSelect }: { f: Family; tree: string; id: string; canAdd: boolean; canEdit: boolean; onSelect: (id: string) => void }) {
-  const c = useCopy();
+  const c = useT();
   const qc = useQueryClient();
   const gps = [...new Set(parents(f, id).flatMap((p) => parents(f, p)))];
   const unions = f.unionsOf.get(id) ?? [];
@@ -634,7 +636,7 @@ const KINDS: { id: Story['kind']; label: string; icon: ReactNode }[] = [
 
 function StoriesTab({ tree, p, details }: { tree: string; p: GPerson; details: DetailState }) {
   const detail = details.detail;
-  const c = useCopy();
+  const c = useT();
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
   const canWrite = useCan('add-story');
@@ -781,7 +783,7 @@ function nextOccurrence(date: string, from = new Date()): Date | undefined {
   return next;
 }
 const daysUntil = (d: Date) => Math.round((d.getTime() - new Date(new Date().toDateString()).getTime()) / 86_400_000);
-const inDays = (n: number, c: Copy) => (n === 0 ? c('when.today') : n === 1 ? c('when.tomorrow') : c('when.inDays', { n }));
+const inDays = (n: number, c: Translator) => (n === 0 ? c('when.today') : n === 1 ? c('when.tomorrow') : c('when.inDays', { n }));
 
 /** The kinds a contact can be quickly added as, from the Everyday tab. */
 const QUICK_KINDS = ['phone', 'email', 'address', 'website'] as const;
@@ -792,7 +794,7 @@ const QUICK_KEY: Record<QuickKind, string> = { phone: 'number', email: 'address'
 function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tree: string; p: GPerson; details: DetailState; canEdit: boolean; onSelect: (id: string) => void }) {
   const detail = details.detail;
   const qc = useQueryClient();
-  const c = useCopy();
+  const c = useT();
   const canContact = useCan('edit-contact');
   const [kind, setKind] = useState<QuickKind>('phone');
   const [value, setValue] = useState('');
@@ -831,7 +833,7 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
           <Fact icon={<Cake size={15} />} label={c('fact.born')}>{fmtDate(p.born) ?? c('fact.unknown')}{detail?.bornPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={detail.bornPlace} /></>}</Fact>
           <Fact icon={<span>✝</span>} label={c('fact.died')}>{fmtDate(p.died) ?? c('fact.unknown')}{detail?.diedPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={detail.diedPlace} /></>}{age(p) !== undefined && <span className="muted"> · {c('fact.agedN', { n: age(p)! })}</span>}</Fact>
           {died && daysUntil(died) < 60 && <Fact icon={<Heart size={15} />} label={c('fact.remembrance')}>{inDays(daysUntil(died), c)}</Fact>}
-          {p.occupation && <Fact icon={<Pencil size={15} />} label={c('fact.occupation')}>{p.occupation}</Fact>}
+          <OccupationFact tree={tree} p={p} icon={<Pencil size={15} />} label={c('fact.occupation')} />
           {(f.unionsOf.get(p.id) ?? []).map((u) => {
             const o = f.byId.get(u.a === p.id ? u.b : u.a);
             return o ? <Fact key={u.id} icon={<Heart size={15} />} label={u.kind === 'marriage' ? c('fact.married') : c('fact.partner')}>{displayName(o, f)}{u.start && <> · {fmtDate(u.start)}</>}{u.place && <> · {u.place}</>}{u.endReason && u.endReason !== 'death' && <span className="muted"> ({u.endReason})</span>}</Fact> : null;
@@ -850,7 +852,7 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
             <Cake size={20} />
             <div>
               <b>{c('fact.birthdayIn', { when: inDays(daysUntil(bday), c) })}</b>
-              <div className="muted">{bday.toLocaleDateString(c.locale === 'de' ? 'de-DE' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · {c('fact.turns', { n: (ageAt(p.born) ?? 0) + 1 })}</div>
+              <div className="muted">{bday.toLocaleDateString(locales[c.locale], { weekday: 'long', day: 'numeric', month: 'long' })} · {c('fact.turns', { n: (ageAt(p.born) ?? 0) + 1 })}</div>
             </div>
           </div>
         ) : (
@@ -867,7 +869,7 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
         ))}
         {p.nickname && <Fact icon={<UserRound size={15} />} label={c('fact.called')}>{p.nickname}</Fact>}
         {detail?.bornPlace && <Fact icon={<MapPin size={15} />} label={c('fact.bornIn')}><PlaceLink tree={tree} name={detail.bornPlace} /></Fact>}
-        {p.occupation && <Fact icon={<Pencil size={15} />} label={c('fact.does')}>{p.occupation}</Fact>}
+        <OccupationFact tree={tree} p={p} icon={<Pencil size={15} />} label={c('fact.does')} />
       </div>
 
       <div className="rule">{c('reach.heading', { name: p.given })}</div>
@@ -888,6 +890,37 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
 /** A place name that opens the Atlas there. */
 function PlaceLink({ tree, name }: { tree: string; name: string }) {
   return <Link to="/$tree/atlas" params={{ tree }} search={{ place: name }} className="pp-place">{name}</Link>;
+}
+
+/**
+ * The occupation fact: the vocabulary label in the reader's language, or the text as written. Without a code,
+ * an AI translation can be asked for when the family's assistant is on. It is shown beside the text, never in
+ * place of it, and the translation is cached in the tree.
+ */
+function OccupationFact({ tree, p, icon, label }: { tree: string; p: GPerson; icon: ReactNode; label: string }) {
+  const t = useT();
+  const status = useAiStatus(tree);
+  const shown = occupationText(p, t.locale);
+  const translate = useMutation({
+    mutationFn: () => translateOccupation({ data: { tree, text: p.occupation ?? '', locale: t.locale } }),
+  });
+  if (!shown) return null;
+  const canTranslate = !p.occupationCode && !!p.occupation && !!status?.features.assistant;
+  return (
+    <Fact icon={icon} label={label}>
+      {shown}
+      {canTranslate && !translate.data && (
+        <>
+          {' '}
+          <button type="button" className="btn ghost occ-translate" disabled={translate.isPending} onClick={() => translate.mutate()}>
+            {translate.isPending ? t('panel.occupation.translating') : t('panel.occupation.translate')}
+          </button>
+        </>
+      )}
+      {translate.data && translate.data.label !== shown && <span className="subtle"> · {t('panel.occupation.translatedAs', { label: translate.data.label })}</span>}
+      {translate.isError && <span className="ai-card-error" role="alert"> {t('panel.occupation.translateFailed')}</span>}
+    </Fact>
+  );
 }
 
 function Fact({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {

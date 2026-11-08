@@ -6,6 +6,7 @@ import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import type { Role } from '../roles';
 import type { TreeMeta } from '../types';
+import { LOCALES } from '../i18n/types';
 
 const tree = z.string().regex(/^[a-z0-9-]+$/).max(64);
 const role = z.enum(['viewer', 'contributor', 'editor', 'steward']);
@@ -15,7 +16,7 @@ const guard = () => import('./guard.server');
 const store = () => import('./store.server');
 
 export interface SessionInfo {
-  user: { id: string; name: string; email: string | null; via: 'passkey' | 'access' } | null;
+  user: { id: string; name: string; email: string | null; via: 'passkey' | 'access'; locale: (typeof LOCALES)[number] | null } | null;
   memberships: { tree: string; role: Role; person: string | null }[];
   /** Nobody has an account yet: /setup creates the first steward. */
   needsSetup: boolean;
@@ -37,7 +38,7 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): 
   const { user, via, uninvitedEmail } = await currentSession();
   const needs = await setup.needsSetup();
   return {
-    user: user && via ? { id: user.id, name: user.name, email: user.email, via } : null,
+    user: user && via ? { id: user.id, name: user.name, email: user.email, via, locale: user.locale } : null,
     memberships: user ? (await s.membershipsOf(user.id)).map((m) => ({ tree: m.tree, role: m.role, person: m.person })) : [],
     needsSetup: needs,
     setupCodeRequired: setup.setupCodeRequired(),
@@ -172,6 +173,15 @@ export const renameMe = createServerFn({ method: 'POST' })
     const [{ requireUser }, s, { cleanName }] = await Promise.all([guard(), store(), import('./passkeys.server')]);
     const user = await requireUser();
     await s.renameUser(user.id, cleanName(data.name));
+  });
+
+/** The reader's own language. Saved on the account, so the next visit renders in it before any cookie. */
+export const setMyLocale = createServerFn({ method: 'POST' })
+  .validator(z.object({ locale: z.enum(LOCALES) }))
+  .handler(async ({ data }) => {
+    const [{ requireUser }, s] = await Promise.all([guard(), store()]);
+    const user = await requireUser();
+    await s.setUserLocale(user.id, data.locale);
   });
 
 // ---------- the steward's /access page ----------

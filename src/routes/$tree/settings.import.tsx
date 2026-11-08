@@ -6,7 +6,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { EmptyState, ErrorState, Notice, PageHeader, Skeleton, Switch } from '~/components/ui';
 import { opKeys } from '~/lib/api';
-import { ex, type Locale } from '~/lib/exchange/copy';
 import { applyImportFile, exchangeContext, exportReport, previewImportFile } from '~/lib/exchange/exchange.functions';
 import { useT } from '~/lib/i18n';
 import { sectionHead } from '~/lib/title';
@@ -26,23 +25,22 @@ const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 function ExchangePage() {
   const { tree } = Route.useParams();
   const t = useT();
-  const L: Locale = t.locale === 'de' ? 'de' : 'en';
   const context = useQuery({ queryKey: ['exchange-context', tree], queryFn: () => exchangeContext({ data: { tree } }) });
 
   return (
     <main className="exchange">
-      <PageHeader title={ex(L, 'page.title')} subtitle={ex(L, 'page.subtitle')} />
+      <PageHeader title={t('exchange.page.title')} subtitle={t('exchange.page.subtitle')} />
       {context.isPending ? (
         <Skeleton lines={3} />
       ) : context.isError ? (
-        <ErrorState title={ex(L, 'state.failed')} error={context.error} onRetry={() => context.refetch()} />
+        <ErrorState title={t('exchange.state.failed')} error={context.error} onRetry={() => context.refetch()} />
       ) : (
         <>
-          {context.data.canExport ? <ExportSection tree={tree} L={L} /> : <EmptyState title={ex(L, 'export.heading')} text={ex(L, 'export.text')} />}
+          {context.data.canExport ? <ExportSection tree={tree} /> : <EmptyState title={t('exchange.export.heading')} text={t('exchange.export.text')} />}
           {context.data.canImport ? (
-            <ImportSection tree={tree} L={L} people={context.data.people} />
+            <ImportSection tree={tree} people={context.data.people} />
           ) : (
-            <Notice>{ex(L, 'import.notSteward')}</Notice>
+            <Notice>{t('exchange.import.notSteward')}</Notice>
           )}
         </>
       )}
@@ -52,34 +50,36 @@ function ExchangePage() {
 
 // ---------- export ----------
 
-function ExportSection({ tree, L }: { tree: string; L: Locale }) {
+function ExportSection({ tree }: { tree: string }) {
+  const t = useT();
   return (
     <section className="exchange-section" aria-labelledby="export-heading">
-      <h2 id="export-heading">{ex(L, 'export.heading')}</h2>
-      <p className="exchange-text">{ex(L, 'export.text')}</p>
+      <h2 id="export-heading">{t('exchange.export.heading')}</h2>
+      <p className="exchange-text">{t('exchange.export.text')}</p>
       <div className="exchange-actions">
         <a className="exchange-link" href={`/api/export/${tree}?format=gedcom`} download>
-          {ex(L, 'export.gedcom')}
+          {t('exchange.export.gedcom')}
         </a>
         <a className="exchange-link" href={`/api/export/${tree}?format=markdown`} download>
-          {ex(L, 'export.markdown')}
+          {t('exchange.export.markdown')}
         </a>
       </div>
       <details className="exchange-details">
-        <summary>{ex(L, 'export.losses')}</summary>
-        <LossList tree={tree} format="gedcom" L={L} label="GEDCOM" />
-        <LossList tree={tree} format="markdown" L={L} label="Markdown" />
+        <summary>{t('exchange.export.losses')}</summary>
+        <LossList tree={tree} format="gedcom" label="GEDCOM" />
+        <LossList tree={tree} format="markdown" label="Markdown" />
       </details>
     </section>
   );
 }
 
 /** What one format leaves out. Its own loading, failure and empty states. */
-function LossList({ tree, format, L, label }: { tree: string; format: 'gedcom' | 'markdown'; L: Locale; label: string }) {
+function LossList({ tree, format, label }: { tree: string; format: 'gedcom' | 'markdown'; label: string }) {
+  const t = useT();
   const q = useQuery({ queryKey: ['exchange-losses', tree, format], queryFn: () => exportReport({ data: { tree, format } }) });
   if (q.isPending) return <Skeleton lines={2} />;
-  if (q.isError) return <ErrorState title={ex(L, 'state.failed')} error={q.error} onRetry={() => q.refetch()} />;
-  if (!q.data.length) return <p className="exchange-text">{label}: {ex(L, 'export.noLosses')}</p>;
+  if (q.isError) return <ErrorState title={t('exchange.state.failed')} error={q.error} onRetry={() => q.refetch()} />;
+  if (!q.data.length) return <p className="exchange-text">{label}: {t('exchange.export.noLosses')}</p>;
   return (
     <>
       <p className="exchange-text">{label}</p>
@@ -94,7 +94,8 @@ function LossList({ tree, format, L, label }: { tree: string; format: 'gedcom' |
 
 // ---------- import ----------
 
-function ImportSection({ tree, L, people }: { tree: string; L: Locale; people: number }) {
+function ImportSection({ tree, people }: { tree: string; people: number }) {
+  const t = useT();
   const qc = useQueryClient();
   const [file, setFile] = useState<{ name: string; text: string } | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -113,7 +114,7 @@ function ImportSection({ tree, L, people }: { tree: string; L: Locale; people: n
     if (!f) return setFile(null);
     if (f.size > MAX_BYTES) {
       setFile(null);
-      return setError(ex(L, 'import.tooBig'));
+      return setError(t('exchange.import.tooBig'));
     }
     setFile({ name: f.name, text: await f.text() });
   }
@@ -127,7 +128,7 @@ function ImportSection({ tree, L, people }: { tree: string; L: Locale; people: n
       setPreview(await previewImportFile({ data: { tree, text: file.text } }));
     } catch (e) {
       setPreview(null);
-      setError(/GEDCOM/i.test(messageOf(e)) ? ex(L, 'import.notGedcom') : `${ex(L, 'state.failed')} ${messageOf(e)}`);
+      setError(/GEDCOM/i.test(messageOf(e)) ? t('exchange.import.notGedcom') : `${t('exchange.state.failed')} ${messageOf(e)}`);
     } finally {
       setBusy(null);
     }
@@ -148,7 +149,7 @@ function ImportSection({ tree, L, people }: { tree: string; L: Locale; people: n
       qc.invalidateQueries({ queryKey: ['exchange-context', tree] });
     } catch (e) {
       // Nothing was written: the same key is kept, so pressing again is a safe retry.
-      setError(`${ex(L, 'import.failed')} ${messageOf(e)}`);
+      setError(`${t('exchange.import.failed')} ${messageOf(e)}`);
     } finally {
       setBusy(null);
     }
@@ -159,18 +160,18 @@ function ImportSection({ tree, L, people }: { tree: string; L: Locale; people: n
 
   return (
     <section className="exchange-section" aria-labelledby="import-heading">
-      <h2 id="import-heading">{ex(L, 'import.heading')}</h2>
-      <p className="exchange-text">{ex(L, 'import.text')}</p>
+      <h2 id="import-heading">{t('exchange.import.heading')}</h2>
+      <p className="exchange-text">{t('exchange.import.text')}</p>
       <div className="exchange-actions">
         <input
           type="file"
           accept=".ged,.gedcom,text/plain"
           className="exchange-file"
-          aria-label={ex(L, 'import.pick')}
+          aria-label={t('exchange.import.pick')}
           onChange={(e) => pick(e.target.files?.[0])}
         />
         <button type="button" className="exchange-primary" disabled={!file || busy !== null} onClick={runPreview}>
-          {busy === 'preview' ? ex(L, 'import.previewing') : ex(L, 'import.preview')}
+          {busy === 'preview' ? t('exchange.import.previewing') : t('exchange.import.preview')}
         </button>
       </div>
 
@@ -182,58 +183,57 @@ function ImportSection({ tree, L, people }: { tree: string; L: Locale; people: n
 
       {applied && (
         <p className="exchange-done" role="status">
-          {ex(L, 'import.done', { people: applied.people, parents: applied.parents, unions: applied.unions })}
+          {t('exchange.import.done', { people: applied.people, parents: applied.parents, unions: applied.unions })}
         </p>
       )}
 
       {preview && (
         <>
           <p className="exchange-text">
-            {ex(L, 'import.family', { name: preview.fileName ?? file?.name ?? '' })}
+            {t('exchange.import.family', { name: preview.fileName ?? file?.name ?? '' })}
           </p>
           {nothingToAdd ? (
-            <Notice>{ex(L, 'import.noChange')}</Notice>
+            <Notice>{t('exchange.import.noChange')}</Notice>
           ) : (
             <ul className="exchange-counts">
-              <li>{ex(L, 'import.summary.new', { count: preview.addCount })}</li>
-              <li>{ex(L, 'import.summary.matched', { count: preview.matchCount })}</li>
-              <li>{ex(L, 'import.summary.conflicts', { count: preview.conflictCount })}</li>
-              <li>{ex(L, 'import.summary.parents', { count: preview.parents })}</li>
-              <li>{ex(L, 'import.summary.unions', { count: preview.unions })}</li>
-              <li>{ex(L, 'import.summary.dupes', { count: preview.duplicateParents + preview.duplicateUnions })}</li>
-              {preview.ambiguous.length > 0 && <li>{ex(L, 'import.summary.ambiguous', { count: preview.ambiguous.length })}</li>}
-              {preview.pictures > 0 && <li>{ex(L, 'import.summary.pictures', { count: preview.pictures })}</li>}
-              {preview.unlinked > 0 && <li>{ex(L, 'import.summary.unlinked', { count: preview.unlinked })}</li>}
+              <li>{t('exchange.import.summary.new', { count: preview.addCount })}</li>
+              <li>{t('exchange.import.summary.matched', { count: preview.matchCount })}</li>
+              <li>{t('exchange.import.summary.conflicts', { count: preview.conflictCount })}</li>
+              <li>{t('exchange.import.summary.parents', { count: preview.parents })}</li>
+              <li>{t('exchange.import.summary.unions', { count: preview.unions })}</li>
+              <li>{t('exchange.import.summary.dupes', { count: preview.duplicateParents + preview.duplicateUnions })}</li>
+              {preview.ambiguous.length > 0 && <li>{t('exchange.import.summary.ambiguous', { count: preview.ambiguous.length })}</li>}
+              {preview.pictures > 0 && <li>{t('exchange.import.summary.pictures', { count: preview.pictures })}</li>}
+              {preview.unlinked > 0 && <li>{t('exchange.import.summary.unlinked', { count: preview.unlinked })}</li>}
             </ul>
           )}
 
-          <PreviewList L={L} title={ex(L, 'import.list.add')} rows={preview.add.map((a) => a.name)} total={preview.addCount} />
-          <PreviewList L={L} title={ex(L, 'import.list.matched')} rows={preview.matched.map((m) => m.name)} total={preview.matchCount} />
+          <PreviewList title={t('exchange.import.list.add')} rows={preview.add.map((a) => a.name)} total={preview.addCount} />
+          <PreviewList title={t('exchange.import.list.matched')} rows={preview.matched.map((m) => m.name)} total={preview.matchCount} />
           {preview.conflicts.length > 0 && (
             <PreviewList
-              L={L}
-              title={ex(L, 'import.list.conflicts')}
+              title={t('exchange.import.list.conflicts')}
               rows={preview.conflicts.map((c) => `${c.name}: ${c.field} ${c.existing} → ${c.incoming}`)}
               total={preview.conflictCount}
             />
           )}
           {preview.issues.length > 0 && (
-            <PreviewList L={L} title={ex(L, 'import.list.issues')} rows={preview.issues.map((i) => i.message)} total={preview.issueCount} />
+            <PreviewList title={t('exchange.import.list.issues')} rows={preview.issues.map((i) => i.message)} total={preview.issueCount} />
           )}
 
           {people > 0 && (
             <div className="exchange-allow">
               <Switch checked={allow} onChange={setAllow}>
-                {ex(L, 'import.allow')}
+                {t('exchange.import.allow')}
               </Switch>
-              <p>{ex(L, 'import.allowHint')}</p>
+              <p>{t('exchange.import.allowHint')}</p>
             </div>
           )}
-          {needsAllow && <Notice>{ex(L, 'import.needAllow', { count: people })}</Notice>}
+          {needsAllow && <Notice>{t('exchange.import.needAllow', { count: people })}</Notice>}
 
           <div className="exchange-actions">
             <button type="button" className="exchange-primary" disabled={needsAllow || nothingToAdd || busy !== null} onClick={apply}>
-              {busy === 'apply' ? ex(L, 'import.applying') : ex(L, 'import.apply')}
+              {busy === 'apply' ? t('exchange.import.applying') : t('exchange.import.apply')}
             </button>
           </div>
         </>
@@ -243,7 +243,8 @@ function ImportSection({ tree, L, people }: { tree: string; L: Locale; people: n
 }
 
 /** A list of names or lines, cut at LIST with the true count. Empty lists are not drawn. */
-function PreviewList({ L, title, rows, total }: { L: Locale; title: string; rows: string[]; total: number }) {
+function PreviewList({ title, rows, total }: { title: string; rows: string[]; total: number }) {
+  const t = useT();
   if (!total) return null;
   return (
     <>
@@ -254,7 +255,7 @@ function PreviewList({ L, title, rows, total }: { L: Locale; title: string; rows
         {rows.map((r, i) => (
           <li key={`${i}-${r}`}>{r}</li>
         ))}
-        {total > rows.length && <li>{ex(L, 'import.more', { count: total - rows.length })}</li>}
+        {total > rows.length && <li>{t('exchange.import.more', { count: total - rows.length })}</li>}
       </ul>
     </>
   );

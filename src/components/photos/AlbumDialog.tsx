@@ -5,7 +5,7 @@ import { Dialog, Notice } from '~/components/ui';
 import { opKeys } from '~/lib/api';
 import { deleteAlbum, saveAlbum } from '~/lib/photos.functions';
 import { refreshPhotos } from './refresh';
-import { useG } from './strings';
+import { useT } from '~/lib/i18n';
 import '~/styles/gallery.css';
 
 export function AlbumDialog({ tree, id, name, onClose, onSaved }: {
@@ -16,7 +16,7 @@ export function AlbumDialog({ tree, id, name, onClose, onSaved }: {
   onClose: () => void;
   onSaved: (id: string) => void;
 }) {
-  const g = useG();
+  const g = useT();
   const qc = useQueryClient();
   const [value, setValue] = useState(name ?? '');
   const keys = useRef(opKeys());
@@ -67,7 +67,7 @@ export function DeleteAlbumDialog({ tree, id, name, onClose, onDeleted }: {
   onClose: () => void;
   onDeleted: () => void;
 }) {
-  const g = useG();
+  const g = useT();
   const qc = useQueryClient();
   const keys = useRef(opKeys());
   const del = useMutation({

@@ -1,0 +1,16 @@
+/* The occupation box in the person editor: the text field and the list of vocabulary suggestions under it. */
+.occ-field { position: relative; }
+.occ-box { position: relative; }
+.occ-list {
+  position: absolute; left: 0; right: 0; top: 100%; z-index: 5; margin: 4px 0 0; padding: 4px;
+  list-style: none; max-height: 280px; overflow: auto;
+  background: var(--surface, var(--bg, #fff)); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+.occ-option {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; min-height: 44px; padding: 8px 10px;
+  border-radius: var(--radius); cursor: pointer;
+}
+.occ-option.on, .occ-option:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.occ-option small { color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) { .occ-list { transition: opacity 0.12s ease; } }

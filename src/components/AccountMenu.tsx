@@ -1,4 +1,4 @@
-import { LanguageSwitch, translateMessage, formatDate, relativeTime, useT } from '~/lib/i18n';
+import { LanguageSwitch, translateMessage, formatDate, relativeTime, useT, type Locale } from '~/lib/i18n';
 // The signed-in reader's menu in the topbar: who they are, their role in this family, and the way to
 // their passkeys, the steward's Access page and signing out. Also `Initials`, a name's monogram.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -141,7 +141,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
   );
 }
 
-export const ago = (ms: number | null, locale: 'en' | 'de' = 'en') => relativeTime(ms, locale);
+export const ago = (ms: number | null, locale: Locale = 'en') => relativeTime(ms, locale);
 
 /** "Your name & passkeys": rename yourself, add a passkey on this device, remove an old one. */
 export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () => void }) {

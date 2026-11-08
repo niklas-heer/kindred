@@ -157,6 +157,7 @@ export async function graph(tree: string): Promise<Graph> {
       epithet: opt(r.epithet),
       title: opt(r.title),
       occupation: opt(r.occupation),
+      occupationCode: opt(r.occupation_code),
       nickname: opt(r.nickname),
       traits: json(r.traits),
       look: json(r.look),

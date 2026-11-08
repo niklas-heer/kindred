@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { FolderPlus, ImagePlus, Images, Pencil, Tag as TagIcon, Trash2 } from 'lucide-react';
 import { useMemo, useState, type DragEvent } from 'react';
-import { AlbumDialog, DeleteAlbumDialog, Lightbox, PersonPhotos, UploadDialog, mediaUrl, useG, type Album, type MediaItem } from '~/components/photos';
+import { AlbumDialog, DeleteAlbumDialog, Lightbox, PersonPhotos, UploadDialog, mediaUrl, type Album, type MediaItem } from '~/components/photos';
 import { EmptyState, ErrorState, PageHeader, Select, Skeleton, Switch } from '~/components/ui';
 import { formatDate, useT } from '~/lib/i18n';
 import { useFamily, useTreeId } from '~/lib/family';
@@ -27,7 +27,7 @@ const decadeOf = (taken: string | null) => (taken && /^\d{4}/.test(taken) ? Math
 function GalleryPage() {
   const tree = useTreeId();
   const f = useFamily();
-  const g = useG();
+  const g = useT();
   const t = useT();
   const canAdd = useCan('upload-photo');
   const canDeleteAlbum = useCan('delete-album');

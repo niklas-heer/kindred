@@ -8,6 +8,7 @@ import { can } from '~/lib/roles';
 import { useRole } from '~/lib/session';
 import { bareHouseName, useHouseRole } from '~/lib/houses';
 import { useT } from '~/lib/i18n';
+import { occupationText } from '~/lib/occupations';
 import type { LNode } from '~/lib/layout';
 import type { Detail } from './Canvas';
 import { GameIcon } from './GameIcon';
@@ -112,7 +113,7 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
 
   const roleClass = node.role === 'dup' ? ' dup' : node.role === 'partner' ? ' partner' : node.role === 'sibling' ? ' sibling' : node.role === 'kin' ? ' kin' : '';
   const ruler = /^(King|Queen|Emperor|Empress)\b/.test(p.title ?? '');
-  const sub = p.title && !name.startsWith(p.title.split(' ')[0]) ? p.title : p.title ? '' : p.occupation ?? '';
+  const sub = p.title && !name.startsWith(p.title.split(' ')[0]) ? p.title : p.title ? '' : occupationText(p, t.locale) ?? '';
   const soon = birthdaySoon(p);
   const disputed = (f.parentsOf.get(p.id) ?? []).some((q) => f.disputed.has(`${p.id}>${q}`));
   // Only gaps this reader could fill: a viewer gets no to-do badges they can do nothing about.

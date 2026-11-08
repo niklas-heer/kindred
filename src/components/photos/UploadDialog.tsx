@@ -9,7 +9,7 @@ import { validDate } from '~/lib/dates';
 import { addGalleryPhoto } from '~/lib/photos.functions';
 import { exifDate, scaledPicture } from './image';
 import { refreshPhotos } from './refresh';
-import { useG } from './strings';
+import { useT } from '~/lib/i18n';
 import type { Album } from './types';
 import '~/styles/gallery.css';
 
@@ -43,7 +43,7 @@ export function UploadDialog({ tree, albums, initialAlbum, files, onClose }: {
   files?: File[];
   onClose: () => void;
 }) {
-  const g = useG();
+  const g = useT();
   const qc = useQueryClient();
   const [items, setItems] = useState<Item[]>([]);
   const [album, setAlbum] = useState(initialAlbum ?? '');

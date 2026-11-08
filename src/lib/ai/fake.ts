@@ -3,7 +3,7 @@
 //   - chat: "/tool <name> <json>" as a message makes the model call that tool with those arguments;
 //     after a tool result it answers with a summary; anything else gets an echo.
 //   - faces: the first candidate in the "CANDIDATES:" line (if any) matches the one face it finds.
-//   - look (a portrait) and arms: fixed answers that pass the same validation as real ones.
+//   - look (a portrait), arms and an occupation's translation: fixed answers that pass the same validation as real ones.
 import type { AiAdapter, AiMessage, AiReply, AiRequest } from './adapters';
 
 const lastUser = (ms: AiMessage[]) => [...ms].reverse().find((m): m is Extract<AiMessage, { role: 'user' }> => m.role === 'user')?.text ?? '';
@@ -26,6 +26,7 @@ function fixture(name: string, prompt: string): unknown {
     });
     return { designs: [design('Fake: a lion for courage', 'azure', 'lion'), design('Fake: a star for guidance', 'gules', 'star'), design('Fake: a tower for the home', 'vert', 'tower')] };
   }
+  if (name === 'occupation') return { label: 'Fake translation' };
   return {};
 }
 

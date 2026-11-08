@@ -6,6 +6,7 @@
 // statements below that build a change return a `Query` to put in a batch, and rules that used to
 // rely on the lock are guards in that batch (see `guard` in ../store/db.ts), backed by UNIQUE keys.
 import type { Role } from '../roles';
+import type { Locale } from '../i18n/types';
 import { guard, isGuardError, isUniqueError, NOT_TREES as NOT_TREE_FILES, q, store, type Db, type Query } from '../store/index.ts';
 import { hashToken, randomToken } from './tokens.server.ts';
 
@@ -43,7 +44,7 @@ const CHALLENGE_MS = 5 * 60_000;
 
 // ---------- users ----------
 
-export interface UserRow { id: string; name: string; email: string | null; handle: string; created: number; last_seen: number | null }
+export interface UserRow { id: string; name: string; email: string | null; handle: string; created: number; last_seen: number | null; locale: Locale | null }
 
 export const userCount = async () => (await accounts().get<{ n: number }>('SELECT count(*) AS n FROM user'))!.n;
 export const userById = (id: string) => accounts().get<UserRow>('SELECT * FROM user WHERE id = ?', id);
@@ -52,7 +53,7 @@ export const userByHandle = (handle: string) => accounts().get<UserRow>('SELECT 
 
 /** A new account and the statement that stores it. */
 export function newUser(name: string, email: string | null, handle = randomToken(32)): { user: UserRow; insert: Query } {
-  const user: UserRow = { id: crypto.randomUUID(), name, email, handle, created: now(), last_seen: now() };
+  const user: UserRow = { id: crypto.randomUUID(), name, email, handle, created: now(), last_seen: now(), locale: null };
   return { user, insert: q('INSERT INTO user (id, name, email, handle, created, last_seen) VALUES (?, ?, ?, ?, ?, ?)', user.id, user.name, user.email, user.handle, user.created, user.last_seen) };
 }
 
@@ -60,6 +61,8 @@ export function newUser(name: string, email: string | null, handle = randomToken
 export const noUsersYet = () => guard('NOT EXISTS (SELECT 1 FROM user)');
 
 export const renameUser = (id: string, name: string) => accounts().run('UPDATE user SET name = ? WHERE id = ?', name, id);
+/** The reader's own language, saved on the account. null clears it. */
+export const setUserLocale = (id: string, locale: Locale | null) => accounts().run('UPDATE user SET locale = ? WHERE id = ?', locale, id);
 
 /** At most every five minutes, so reading the tree doesn't write on every request. */
 export async function touchUser(id: string, lastSeen: number | null) {

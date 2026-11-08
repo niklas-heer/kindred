@@ -6,7 +6,8 @@ import { fullName } from '../graph';
 import { accounts } from '../auth/store.server';
 import type { Role } from '../roles';
 import type { AiMessage } from './adapters';
-import { copyFor, systemPrompt } from './copy';
+import { tr } from './labels';
+import { systemPrompt } from './prompt';
 import { adapterForFeature, spend } from './settings.server';
 import { runTool, toolsFor } from './tools.server';
 import { toAiLocale, type AiLocale, type ChatItem, type Proposal } from './types';
@@ -57,7 +58,7 @@ export async function markProposal(tree: string, user: string, itemId: string, p
 /** One message from the reader, and the assistant's reply to it. */
 export async function sendMessage(o: { tree: string; user: string; role: Role; me: string | null; text: string; locale: string }): Promise<{ items: ChatItem[] }> {
   const locale: AiLocale = toAiLocale(o.locale);
-  const c = copyFor(locale);
+  const c = tr(locale);
   const { adapter } = await adapterForFeature(o.tree, 'assistant', locale);
   const conv = await currentConv(o.tree, o.user);
 
@@ -93,7 +94,7 @@ export async function sendMessage(o: { tree: string; user: string; role: Role; m
         messages.push({ role: 'tool', callId: call.id, content: await runTool(ctx, call.name, call.args, proposals) });
       }
     }
-    if (!text) text = proposals.length ? '' : c.notRecorded;
+    if (!text) text = proposals.length ? '' : c('ai.notRecorded');
     const body = JSON.stringify({ text, ...(proposals.length && { proposals }) });
     const reply: ChatRow = { id: id(), role: 'assistant', body, at: Date.now() };
     await accounts().run('INSERT INTO ai_chat (id, tree, user, conv, role, body, at) VALUES (?, ?, ?, ?, ?, ?, ?)', reply.id, o.tree, o.user, conv, reply.role, reply.body, reply.at);

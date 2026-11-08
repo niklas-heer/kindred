@@ -5,7 +5,7 @@ import { db, media } from '../db.server';
 import { checkMediaKey } from '../store/index.ts';
 import { lookSchema, faceResultSchema, armsDesignSchema, type AiLocale, type ArmsDesign, type FaceResult } from './types';
 import { AiError, type ImagePart, type JsonSchema } from './adapters';
-import { copyFor } from './copy';
+import { tr } from './labels';
 import { adapterForFeature, spend } from './settings.server';
 import { SKIN_LABELS, HAIR_LABELS, EYE_LABELS } from '../../components/portrait/look';
 import type { Look } from '../types';
@@ -33,19 +33,19 @@ function b64(bytes: Uint8Array): string {
 
 /** Reads a photo the reader names, or says why it can't be used. */
 async function photoOrThrow(tree: string, key: string, locale: AiLocale) {
-  const c = copyFor(locale);
+  const c = tr(locale);
   let img: Awaited<ReturnType<typeof readImage>>;
   try {
     img = await readImage(tree, key);
   } catch {
-    throw new AiError('bad-input', c.errNoPhoto);
+    throw new AiError('bad-input', c('ai.errNoPhoto'));
   }
-  if (!img) throw new AiError('bad-input', c.errBadPhoto);
-  if (img.bytes.length > MAX_PHOTO) throw new AiError('bad-input', c.errBadPhoto);
+  if (!img) throw new AiError('bad-input', c('ai.errBadPhoto'));
+  if (img.bytes.length > MAX_PHOTO) throw new AiError('bad-input', c('ai.errBadPhoto'));
   return img;
 }
 
-const LANG = { en: 'English', de: 'German (du)' } as const;
+const LANG = { en: 'English', de: 'German (du)', af: 'Afrikaans (jy)' } as const;
 
 // ---------- faces ----------
 
@@ -75,7 +75,7 @@ const FACES_JSON: JsonSchema = {
  * few people in the family who have a picture; they are shown as suggestions only.
  */
 export async function findFaces(o: { tree: string; mediaKey: string; locale: AiLocale }): Promise<FaceResult> {
-  const c = copyFor(o.locale);
+  const c = tr(o.locale);
   const { adapter } = await adapterForFeature(o.tree, 'faces', o.locale);
   const photo = await photoOrThrow(o.tree, o.mediaKey, o.locale);
 
@@ -126,7 +126,7 @@ export async function findFaces(o: { tree: string; mediaKey: string; locale: AiL
   });
   await spend(o.tree, reply.tokens);
   const parsed = faceResultSchema.safeParse(reply.json);
-  if (!parsed.success) throw new AiError('bad-output', c.errBadOutput);
+  if (!parsed.success) throw new AiError('bad-output', c('ai.errBadOutput'));
   const known = new Set(ids);
   const clamp = (n: number) => Math.min(1, Math.max(0, n));
   const faces = parsed.data.faces
@@ -157,9 +157,9 @@ const LOOK_JSON: JsonSchema = {
 
 /** A portrait look for a person, from a photo. The style fields must come from the portrait's own lists (lookSchema). */
 export async function avatarFromPhoto(o: { tree: string; personId: string; mediaKey: string; locale: AiLocale }): Promise<Look> {
-  const c = copyFor(o.locale);
+  const c = tr(o.locale);
   const { adapter } = await adapterForFeature(o.tree, 'avatar', o.locale);
-  if (!(await db(o.tree).get('SELECT id FROM person WHERE id = ?', o.personId))) throw new AiError('bad-input', c.errNoPerson);
+  if (!(await db(o.tree).get('SELECT id FROM person WHERE id = ?', o.personId))) throw new AiError('bad-input', c('ai.errNoPerson'));
   const photo = await photoOrThrow(o.tree, o.mediaKey, o.locale);
   const reply = await adapter.complete({
     system: 'You describe a person’s look for a flat illustration, from a photo. Choose each value from the lists given in the schema; leave out what you cannot see; never guess who the person is.',
@@ -170,7 +170,7 @@ export async function avatarFromPhoto(o: { tree: string; personId: string; media
   });
   await spend(o.tree, reply.tokens);
   const parsed = lookSchema.safeParse(reply.json);
-  if (!parsed.success) throw new AiError('bad-output', c.errBadOutput);
+  if (!parsed.success) throw new AiError('bad-output', c('ai.errBadOutput'));
   return parsed.data as Look;
 }
 
@@ -209,7 +209,7 @@ const ARMS_JSON: JsonSchema = {
 
 /** Three to five coats of arms for a surname, each with what it may mean. They are the v1 arms shape the house editor stores. */
 export async function armsFromName(o: { tree: string; surname: string; country?: string; locale: AiLocale }): Promise<ArmsDesign[]> {
-  const c = copyFor(o.locale);
+  const c = tr(o.locale);
   const { adapter } = await adapterForFeature(o.tree, 'arms', o.locale);
   const reply = await adapter.complete({
     system: [
@@ -224,6 +224,6 @@ export async function armsFromName(o: { tree: string; surname: string; country?:
   });
   await spend(o.tree, reply.tokens);
   const parsed = armsDesignSchema.safeParse(reply.json);
-  if (!parsed.success) throw new AiError('bad-output', c.errBadOutput);
+  if (!parsed.success) throw new AiError('bad-output', c('ai.errBadOutput'));
   return parsed.data.designs;
 }

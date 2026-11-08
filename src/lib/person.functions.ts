@@ -46,6 +46,7 @@ const details = z.object({
   title: z.string().trim().max(200).nullable(),
   epithet: z.string().trim().max(120).nullable(),
   occupation: z.string().trim().max(200).nullable(),
+  occupationCode: z.string().max(80).nullish(),
   bio: z.string().max(20_000).nullable(),
 });
 

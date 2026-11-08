@@ -14,12 +14,12 @@ import { personPhotosQuery, setPersonPortrait, setPreferAvatar } from '~/lib/pho
 import { useCan } from '~/lib/session';
 import { squareCrop } from './image';
 import { refreshPhotos } from './refresh';
-import { useG } from './strings';
+import { useT } from '~/lib/i18n';
 import { mediaUrl, type MediaItem } from './types';
 import '~/styles/gallery.css';
 
 export function PersonPhotos({ tree, id }: { tree: string; id: string }) {
-  const g = useG();
+  const g = useT();
   const f = useFamily();
   const qc = useQueryClient();
   const canEdit = useCan('edit-person');
@@ -146,7 +146,7 @@ function CropDialog({ tree, personId, item, onClose, onDone }: {
   onClose: () => void;
   onDone: () => void;
 }) {
-  const g = useG();
+  const g = useT();
   const qc = useQueryClient();
   const keys = useRef(opKeys());
   const img = useRef<HTMLImageElement>(null);

@@ -16,7 +16,6 @@ import type { GPerson } from '~/lib/types';
 import { facesOn, findFaces, type AiFace } from './aiFaces';
 import { PersonPicker } from './PersonPicker';
 import { refreshPhotos } from './refresh';
-import { useG } from './strings';
 import { mediaUrl, type Album, type Box, type MediaItem } from './types';
 import '~/styles/gallery.css';
 
@@ -37,7 +36,7 @@ export function Lightbox({ tree, items, index, albums, onIndex, onClose }: {
   onIndex: (i: number) => void;
   onClose: () => void;
 }) {
-  const g = useG();
+  const g = useT();
   const [dirty, setDirty] = useState(false);
   const count = items.length;
   const go = (d: number) => {
@@ -80,7 +79,7 @@ function Photo({ tree, item, index, count, albums, onGo, onDirty }: {
   onGo: (d: number) => void;
   onDirty: (dirty: boolean) => void;
 }) {
-  const g = useG();
+  const g = useT();
   const t = useT();
   const f = useFamily();
   const qc = useQueryClient();

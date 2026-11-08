@@ -4,21 +4,20 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Check, Pencil, X } from 'lucide-react';
 import { useState } from 'react';
 import { aiChatMark } from '~/lib/ai.functions';
-import { copyFor, PROPOSAL_KIND_LABEL, type Copy } from '~/lib/ai/copy';
-import { toAiLocale, type Proposal, type ProposalArgs } from '~/lib/ai/types';
-import { useT } from '~/lib/i18n';
+import { PROPOSAL_KIND_KEY } from '~/lib/ai/labels';
+import type { Proposal, ProposalArgs } from '~/lib/ai/types';
+import { useT, type Key } from '~/lib/i18n';
 import { applyProposal, approvalKeys, type ApprovalKeys } from './apply';
 
-const FIELD: Record<string, keyof Copy> = {
-  given: 'fieldName', surname: 'fieldSurname', born: 'fieldBorn', died: 'fieldDied', bornPlace: 'fieldBornPlace',
-  title: 'fieldName', body: 'fieldStory', label: 'fieldLabel',
+const FIELD: Record<string, Key> = {
+  given: 'ai.fieldName', surname: 'ai.fieldSurname', born: 'ai.fieldBorn', died: 'ai.fieldDied', bornPlace: 'ai.fieldBornPlace',
+  title: 'ai.fieldName', body: 'ai.fieldStory', label: 'ai.fieldLabel',
 };
 
 const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export function ProposalCard({ tree, itemId, proposal }: { tree: string; itemId: string; proposal: Proposal }) {
   const t = useT();
-  const c = copyFor(toAiLocale(t.locale));
   const qc = useQueryClient();
   const [status, setStatus] = useState(proposal.status);
   const [editing, setEditing] = useState(false);
@@ -59,8 +58,8 @@ export function ProposalCard({ tree, itemId, proposal }: { tree: string; itemId:
   }
 
   return (
-    <article className={`ai-card ai-card-${status}`} aria-label={c.proposalHeading}>
-      <p className="ai-card-kind">{c[PROPOSAL_KIND_LABEL[proposal.kind]] as string}</p>
+    <article className={`ai-card ai-card-${status}`} aria-label={t('ai.proposalHeading')}>
+      <p className="ai-card-kind">{t(PROPOSAL_KIND_KEY[proposal.kind])}</p>
       <p className="ai-card-summary">{proposal.summary}</p>
       {proposal.diff.length > 0 && (
         <dl className="ai-diff">
@@ -78,7 +77,7 @@ export function ProposalCard({ tree, itemId, proposal }: { tree: string; itemId:
       {open && editing && (
         <div className="ai-card-edit">
           {proposal.editable.map((k) => {
-            const label = c[FIELD[k] ?? 'fieldValue'] as string;
+            const label = t(FIELD[k] ?? 'ai.fieldValue');
             const multi = k === 'body';
             const id = `ai-${proposal.id}-${k}`;
             return (
@@ -97,21 +96,21 @@ export function ProposalCard({ tree, itemId, proposal }: { tree: string; itemId:
       {open && (
         <div className="ai-card-actions">
           <button type="button" className="btn primary" onClick={approve} disabled={busy}>
-            <Check size={15} aria-hidden /> {busy ? c.approving : c.approve}
+            <Check size={15} aria-hidden /> {busy ? t('ai.approving') : t('ai.approve')}
           </button>
           {proposal.editable.length > 0 && (
             <button type="button" className="btn ghost" onClick={() => setEditing(!editing)} aria-expanded={editing}>
-              <Pencil size={14} aria-hidden /> {c.edit}
+              <Pencil size={14} aria-hidden /> {t('ai.edit')}
             </button>
           )}
           <button type="button" className="btn ghost" onClick={dismiss} disabled={busy}>
-            <X size={14} aria-hidden /> {c.dismiss}
+            <X size={14} aria-hidden /> {t('ai.dismiss')}
           </button>
         </div>
       )}
-      {status === 'done' && <p className="ai-card-state ok">{c.done}</p>}
-      {status === 'dismissed' && <p className="ai-card-state subtle">{c.dismissed}</p>}
-      {error && <p className="ai-card-error" role="alert">{c.approveFailed}{error}</p>}
+      {status === 'done' && <p className="ai-card-state ok">{t('ai.done')}</p>}
+      {status === 'dismissed' && <p className="ai-card-state subtle">{t('ai.dismissed')}</p>}
+      {error && <p className="ai-card-error" role="alert">{t('ai.approveFailed')}{error}</p>}
     </article>
   );
 }

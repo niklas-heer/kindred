@@ -20,6 +20,7 @@ import {
   SUCCESSION_LAWS, spanLabel, useHouseSettings, type HouseSettings, type HouseTenure, type Succession, type SuccessionLaw,
 } from '~/lib/houses';
 import { kinshipLabel, locales, useT, type Key } from '~/lib/i18n';
+import { occupationText } from '~/lib/occupations';
 import { useCan } from '~/lib/session';
 import { toast } from '~/lib/toast';
 import { treeTitle } from '~/lib/title';
@@ -226,7 +227,7 @@ function HeadCard({ house, settings, head, tree, canEdit, onChoose }: {
             <span className="hp-seal-crown" aria-hidden><GameIcon name="crown" size={22} /></span>
           </Link>
           <p className="hp-head-name"><Link className="hp-link" to="/$tree" params={{ tree }} search={{ focus: head.id }}><Name p={head} /></Link></p>
-          {(head.title ?? head.occupation) && <p className="hp-title">{head.title ?? head.occupation}</p>}
+          {(head.title ?? occupationText(head, t.locale)) && <p className="hp-title">{head.title ?? occupationText(head, t.locale)}</p>}
           {lifespan(head) && <p className="hp-years subtle hs-num">{lifespan(head)}</p>}
         </>
       ) : (
@@ -426,7 +427,7 @@ function Notables({ s, tree }: { s: ReturnType<typeof houseStats>; tree: string 
             <Link to="/$tree" params={{ tree }} search={{ focus: p.id }} className="ui-card interactive hp-notable">
               <Portrait person={p} tree={tree} size={84} house={s.house} />
               <b><Name p={p} /></b>
-              {(p.title || p.occupation) && <span className="hp-title">{p.title ?? p.occupation}</span>}
+              {(p.title || occupationText(p, t.locale)) && <span className="hp-title">{p.title ?? occupationText(p, t.locale)}</span>}
               {lifespan(p) && <span className="hp-years">{lifespan(p)}</span>}
               {role && <span className="hs-chip hp-role">{t(ROLE_KEY[role])}</span>}
             </Link>
@@ -494,6 +495,7 @@ function Members({ members, tree }: { members: GPerson[]; tree: string }) {
 }
 
 function MemberGroup({ title, people, tree }: { title: string; people: GPerson[]; tree: string }) {
+  const t = useT();
   return (
     <>
       <h3 className="hp-group">{title}</h3>
@@ -504,7 +506,7 @@ function MemberGroup({ title, people, tree }: { title: string; people: GPerson[]
               <Portrait person={p} tree={tree} size={40} />
               <span className="hp-row-name">
                 <b><Name p={p} /></b>
-                {(p.title || p.occupation || p.nickname) && <small>{p.title ?? p.occupation ?? `“${p.nickname}”`}</small>}
+                {(p.title || occupationText(p, t.locale) || p.nickname) && <small>{p.title ?? occupationText(p, t.locale) ?? `“${p.nickname}”`}</small>}
               </span>
               <span className="hp-row-years">{lifespan(p)}</span>
             </Link>

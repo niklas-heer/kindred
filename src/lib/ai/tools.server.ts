@@ -9,7 +9,7 @@ import type { GPerson } from '../types';
 import { can, type Action, type Role } from '../roles';
 import { validDate } from '../dates';
 import { fieldInput, FIELD_TYPES } from '../../components/fields/model';
-import { copyFor, fill, type Copy } from './copy';
+import { tr, type Tr } from './labels';
 import type { ToolSpec } from './adapters';
 import { proposalArgs, PROPOSAL_KINDS, type AiLocale, type Proposal, type ProposalArgs, type ProposalKind } from './types';
 
@@ -124,7 +124,7 @@ export async function runTool(ctx: Ctx, name: string, input: unknown, out: Propo
   const g = await graph(ctx.tree);
   const byId = new Map(g.people.map((p) => [p.id, p]));
   const houses = new Map(g.houses.map((h) => [h.id, h.name]));
-  const c = copyFor(ctx.locale);
+  const c = tr(ctx.locale);
   const name_ = (id: string) => (byId.get(id) ? fullName(byId.get(id)!) : id);
   try {
     if (name === 'search_people') {
@@ -186,7 +186,7 @@ async function readPerson(ctx: Ctx, p: GPerson, houses: Map<string, string>) {
 }
 
 /** Checks a proposed change against the tree and describes it for the card. */
-async function propose(ctx: Ctx, c: Copy, byId: Map<string, GPerson>, kind: ProposalKind, input: unknown, out: Proposal[]): Promise<string> {
+async function propose(ctx: Ctx, c: Tr, byId: Map<string, GPerson>, kind: ProposalKind, input: unknown, out: Proposal[]): Promise<string> {
   if (!PROPOSAL_KINDS.includes(kind)) return json({ error: 'unknown kind' });
   if (!can(ctx.role, ACTION_OF[kind])) return json({ error: 'this reader may not make that change; say a contributor or editor must' });
   const parsed = proposalArgs[kind].safeParse(input);
@@ -199,9 +199,9 @@ async function propose(ctx: Ctx, c: Copy, byId: Map<string, GPerson>, kind: Prop
     if (typeof args[k] === 'string' && !byId.has(args[k] as string)) return json({ error: `${k} is not a person in this tree; search for them first` });
   }
   const name = (id: string) => fullName(byId.get(id)!);
-  const rel = (r: string) => (r === 'child' ? c.relChild : r === 'parent' ? c.relParent : r === 'partner' ? c.relPartner : c.relSibling);
+  const rel = (r: string) => (r === 'child' ? c('ai.relChild') : r === 'parent' ? c('ai.relParent') : r === 'partner' ? c('ai.relPartner') : c('ai.relSibling'));
   const storyKind = (k: string) => (c as unknown as Record<string, string>)[`storyKind${k[0].toUpperCase()}${k.slice(1)}`] ?? k;
-  const show = (v: unknown) => (v === undefined || v === null || v === '' ? c.fieldNone : String(v));
+  const show = (v: unknown) => (v === undefined || v === null || v === '' ? c('ai.fieldNone') : String(v));
   const diff: Proposal['diff'] = [];
   let summary: string;
   let editable: string[] = [];
@@ -209,35 +209,35 @@ async function propose(ctx: Ctx, c: Copy, byId: Map<string, GPerson>, kind: Prop
   if (kind === 'add-person') {
     const a = args as z.infer<typeof proposalArgs['add-person']>;
     const who = [a.given, a.surname].filter(Boolean).join(' ');
-    summary = fill(c.summaryAddPerson, { name: who, rel: rel(a.relation), anchor: name(a.anchor) });
-    diff.push({ label: c.fieldName, to: who }, { label: c.fieldRelation, to: `${rel(a.relation)} ${name(a.anchor)}` });
-    if (a.born) diff.push({ label: c.fieldBorn, to: a.born });
-    if (a.died) diff.push({ label: c.fieldDied, to: a.died });
+    summary = c('ai.summaryAddPerson', { name: who, rel: rel(a.relation), anchor: name(a.anchor) });
+    diff.push({ label: c('ai.fieldName'), to: who }, { label: c('ai.fieldRelation'), to: `${rel(a.relation)} ${name(a.anchor)}` });
+    if (a.born) diff.push({ label: c('ai.fieldBorn'), to: a.born });
+    if (a.died) diff.push({ label: c('ai.fieldDied'), to: a.died });
     editable = ['given', 'surname', 'born', 'died'];
   } else if (kind === 'link-relative') {
     const a = args as { anchor: string; person: string; relation: string };
-    summary = fill(c.summaryLink, { name: name(a.person), rel: rel(a.relation), anchor: name(a.anchor) });
-    diff.push({ label: c.fieldRelation, to: `${name(a.person)}: ${rel(a.relation)} ${name(a.anchor)}` });
+    summary = c('ai.summaryLink', { name: name(a.person), rel: rel(a.relation), anchor: name(a.anchor) });
+    diff.push({ label: c('ai.fieldRelation'), to: `${name(a.person)}: ${rel(a.relation)} ${name(a.anchor)}` });
   } else if (kind === 'set-dates') {
     const a = args as { person: string } & Record<string, string | undefined>;
     const cur = byId.get(a.person)!;
-    summary = fill(c.summaryDates, { name: name(a.person) });
+    summary = c('ai.summaryDates', { name: name(a.person) });
     const rows: [string, 'born' | 'bornPlace' | 'died', string | undefined][] = [
-      [c.fieldBorn, 'born', cur.born], [c.fieldBornPlace, 'bornPlace', cur.bornPlace], [c.fieldDied, 'died', cur.died],
+      [c('ai.fieldBorn'), 'born', cur.born], [c('ai.fieldBornPlace'), 'bornPlace', cur.bornPlace], [c('ai.fieldDied'), 'died', cur.died],
     ];
     for (const [label, k, was] of rows) if (a[k] !== undefined) diff.push({ label, from: show(was), to: String(a[k]) });
     editable = ['born', 'bornPlace', 'died'];
   } else if (kind === 'add-story') {
     const a = args as { person: string; kind: string; title?: string; body: string };
-    summary = fill(c.summaryStory, { kind: storyKind(a.kind), name: name(a.person) });
-    if (a.title) diff.push({ label: c.fieldName, to: a.title });
-    diff.push({ label: c.fieldStory, to: clip(a.body, 240) });
+    summary = c('ai.summaryStory', { kind: storyKind(a.kind), name: name(a.person) });
+    if (a.title) diff.push({ label: c('ai.fieldName'), to: a.title });
+    diff.push({ label: c('ai.fieldStory'), to: clip(a.body, 240) });
     editable = ['title', 'body'];
   } else {
     const a = args as { person: string; type: string; label?: string; value: Record<string, string> };
     const checked = fieldInput.safeParse({ type: a.type, label: a.label ?? '', value: a.value, private: false });
     if (!checked.success) return json({ error: 'that detail does not fit its type: ' + (checked.error.issues[0]?.message ?? 'check the keys') });
-    summary = fill(c.summaryField, { field: a.label ? `${a.type} (${a.label})` : a.type, name: name(a.person) });
+    summary = c('ai.summaryField', { field: a.label ? `${a.type} (${a.label})` : a.type, name: name(a.person) });
     diff.push({ label: a.type, to: Object.entries(a.value).map(([k, v]) => `${k}: ${v}`).join(', ') });
     editable = ['label'];
   }

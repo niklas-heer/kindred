@@ -5,11 +5,11 @@ import {
   Phone, Shield, Star, StickyNote, TriangleAlert, Users, IdCard, Tag,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { formatDate } from '~/lib/i18n';
+import { formatDate, useT, type Key, type Translator } from '~/lib/i18n';
 import { displayName, type Family } from '~/lib/graph';
 import type { PersonField } from '~/lib/types';
 import { fieldText, isContactType, type FieldType } from './model';
-import { presetLabel, useCopy, type Copy, type CopyKey } from './strings';
+import { presetLabel } from './presets';
 import './fields.css';
 
 export const TYPE_ICON: Record<FieldType, ReactNode> = {
@@ -21,7 +21,7 @@ export const TYPE_ICON: Record<FieldType, ReactNode> = {
 };
 
 /** The groups the details page shows, in order. Contacts are left out: they are shown as reach buttons and a list. */
-export const GROUPS: { id: string; title: CopyKey; types: FieldType[] }[] = [
+export const GROUPS: { id: string; title: Key; types: FieldType[] }[] = [
   { id: 'names', title: 'group.names', types: ['names'] },
   { id: 'life', title: 'group.life', types: ['dates', 'education', 'occupation', 'military'] },
   { id: 'background', title: 'group.background', types: ['religion', 'nationality', 'languages'] },
@@ -44,7 +44,7 @@ export function contactHref(f: PersonField): string | undefined {
 }
 
 /** "1985–1990", "from 1985", "until 1990": the years a line spans. */
-function years(c: Copy, from?: string, to?: string) {
+function years(c: Translator, from?: string, to?: string) {
   if (from && to) return `${from}–${to}`;
   if (from) return c('years.from', { year: from });
   if (to) return c('years.until', { year: to });
@@ -53,7 +53,7 @@ function years(c: Copy, from?: string, to?: string) {
 
 /** One field's value, in the shape its type has. */
 function FieldValue({ f, fam, onSelect }: { f: PersonField; fam?: Family; onSelect?: (id: string) => void }) {
-  const c = useCopy();
+  const c = useT();
   const v = f.value;
   const link = contactHref(f);
   switch (f.type) {
@@ -90,8 +90,8 @@ function FieldValue({ f, fam, onSelect }: { f: PersonField; fam?: Family; onSele
 
 /** One row: its label, then its value. The label is the family's word for it, or the type's name. */
 export function FieldRow({ f, fam, onSelect }: { f: PersonField; fam?: Family; onSelect?: (id: string) => void }) {
-  const c = useCopy();
-  const name = f.label ? presetLabel(f.label, c.locale) : c(`type.${f.type}` as CopyKey);
+  const c = useT();
+  const name = f.label ? presetLabel(f.label, c) : c(`type.${f.type}` as Key);
   return (
     <div className={`fv-row${f.private ? ' is-private' : ''}`}>
       <span className="fv-icon" aria-hidden>{TYPE_ICON[f.type]}</span>
@@ -103,7 +103,7 @@ export function FieldRow({ f, fam, onSelect }: { f: PersonField; fam?: Family; o
 
 /** The non-contact fields, under their group headings. Nothing renders when there are none. */
 export function FieldGroups({ fields, fam, onSelect }: { fields: PersonField[]; fam?: Family; onSelect?: (id: string) => void }) {
-  const c = useCopy();
+  const c = useT();
   const groups = GROUPS.map((g) => ({ ...g, items: fields.filter((x) => g.types.includes(x.type)) })).filter((g) => g.items.length);
   if (!groups.length) return null;
   return (
@@ -120,9 +120,9 @@ export function FieldGroups({ fields, fam, onSelect }: { fields: PersonField[]; 
 
 /** A contact line for the Reach section: the icon, the label and the value, with its link. */
 export function ContactRow({ f, actions }: { f: PersonField; actions?: ReactNode }) {
-  const c = useCopy();
+  const c = useT();
   const link = contactHref(f);
-  const name = f.label ? presetLabel(f.label, c.locale) : c(`type.${f.type}` as CopyKey);
+  const name = f.label ? presetLabel(f.label, c) : c(`type.${f.type}` as Key);
   const text = fieldText(f.type, f.value);
   return (
     <div className="pp-contact">

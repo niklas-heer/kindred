@@ -1,3 +1,4 @@
+import { isLocale, type Locale } from '../i18n/types';
 // Types and schemas the AI features share between the server and the browser. Nothing here touches a
 // provider, a key or the database: keep it that way, since the browser imports this file.
 import { z } from 'zod';
@@ -19,8 +20,9 @@ export type Feature = (typeof FEATURES)[number];
 export type AiFeatures = Record<Feature, boolean>;
 
 /** The reader's locale as the assistant speaks it. Anything else answers in English. */
-export type AiLocale = 'en' | 'de';
-export const toAiLocale = (l: string | undefined): AiLocale => (l === 'de' ? 'de' : 'en');
+export type AiLocale = Locale;
+/** Any locale the app ships; anything else answers in English. */
+export const toAiLocale = (l: string | undefined): AiLocale => (isLocale(l) ? l : 'en');
 
 /** What the browser needs to decide which AI controls to show: a feature is on only when switched on and configured. */
 export interface AiStatus {

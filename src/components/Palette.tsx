@@ -1,11 +1,10 @@
-import { useT } from '~/lib/i18n';
+import { LANGUAGE_NAME, LOCALES, useT, type Translator } from '~/lib/i18n';
+import { occupationSearchText } from '~/lib/occupations';
 // ⌘K: jump to anyone by name, nickname, epithet, title or place; or run a command.
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useNavigate } from '@tanstack/react-router';
 import { CalendarHeart, Contact, Landmark, Map as MapIcon, Crown, GitFork, Moon, Network, Palette as PaletteIcon, ScrollText, Sparkles, Sun, UserRound } from 'lucide-react';
 import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { copyFor } from '~/lib/ai/copy';
-import { toAiLocale } from '~/lib/ai/types';
 import { useFamily, useMe, useMeChosen, useTreeId } from '~/lib/family';
 import { displayName, kinship, lifespan, ancestorDepths, type Family } from '~/lib/graph';
 import { setPref } from '~/lib/prefs';
@@ -44,7 +43,7 @@ export function searchPeople(f: Family, q: string, limit = 40): { id: string; sc
   const out: { id: string; score: number }[] = [];
   for (const p of f.graph.people) {
     const name = fold([p.given, p.surname, p.nickname].filter(Boolean).join(' '));
-    const extra = fold([p.epithet, p.title, p.occupation, f.house.get(p.house ?? '')?.name].filter(Boolean).join(' '));
+    const extra = fold([p.epithet, p.title, p.occupation, occupationSearchText(p.occupationCode), f.house.get(p.house ?? '')?.name].filter(Boolean).join(' '));
     let score = 0;
     for (const t of terms) {
       if (name.split(' ').some((w) => w.startsWith(t))) score += 10;
@@ -82,7 +81,7 @@ export function PersonRow({ f, tree, id, who, anc, note }: { f: Family; tree: st
   );
 }
 
-const groupOf = (it: Item) => it.group ?? (it.person ? 'People' : 'Commands');
+const groupOf = (it: Item, t: Translator) => it.group ?? (it.person ? t('shell.palette.people') : t('shell.palette.commands'));
 
 export function Palette() {
   const t = useT();
@@ -98,6 +97,8 @@ export function Palette() {
   const [q, setQ] = useState('');
   const dq = useDeferredValue(q);
   const [sel, setSel] = useState(0);
+  // 'find' lists people and commands; 'language' lists the three languages, opened by "Change language".
+  const [mode, setMode] = useState<'find' | 'language'>('find');
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
 
@@ -108,11 +109,18 @@ export function Palette() {
     if (isOpen) {
       setQ('');
       setSel(0);
+      setMode('find');
     }
   }, [isOpen]);
 
   const myAnc = useMemo(() => (who ? ancestorDepths(f, who) : new Map<string, number>()), [f, who]);
   const items: Item[] = useMemo(() => {
+    if (mode === 'language') {
+      return LOCALES.map((l) => ({
+        key: `lang-${l}`, label: LANGUAGE_NAME[l], hint: l === t.locale ? t('shell.palette.current') : undefined,
+        run: () => { t.setLocale(l); close(); },
+      }));
+    }
     const go = (focus: string) => () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, focus, sel: undefined, root: undefined }) }); close(); };
     const people = searchPeople(f, dq).map(({ id }) => {
       const p = f.byId.get(id)!;
@@ -122,32 +130,32 @@ export function Palette() {
     const fqh = fold(dq.trim());
     const houses: Item[] = fqh
       ? f.graph.houses.filter((h) => fold(h.name).includes(fqh)).slice(0, 5).map((h) => ({
-          key: `house:${h.id}`, group: 'Houses', icon: <Arms arms={h.arms} size={22} />, label: h.name, hint: 'house page',
+          key: `house:${h.id}`, group: t('shell.palette.houses'), icon: <Arms arms={h.arms} size={22} />, label: h.name, hint: t('shell.palette.house'),
           run: () => { navigate({ to: '/$tree/house/$house', params: { tree, house: h.id } }); close(); },
         }))
       : [];
     const cmds: Item[] = [
-      { key: 'language', label: t('common.changeLanguage'), run: () => { t.setLocale(t.locale === 'en' ? 'de' : 'en'); close(); } },
-      { key: 'tour', icon: <UserRound size={16} />, label: 'Reopen first-run tour', hint: 'Learn how to explore the tree', run: () => { close(); reopenTour(); } },
-      { key: 'v-family', icon: <Network size={16} />, label: 'View: Family (hourglass)', run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'family' }) }); close(); } },
-      { key: 'v-dynasty', icon: <Crown size={16} />, label: 'View: Dynasty tree', run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'dynasty' }) }); close(); } },
-      { key: 'v-anc', icon: <GitFork size={16} style={{ transform: 'rotate(180deg)' }} />, label: 'View: Ancestors', run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'ancestors' }) }); close(); } },
+      { key: 'language', label: t('common.changeLanguage'), hint: LANGUAGE_NAME[t.locale], run: () => { setMode('language'); setQ(''); setSel(0); } },
+      { key: 'tour', icon: <UserRound size={16} />, label: t('shell.cmd.tour'), hint: t('shell.cmd.tourHint'), run: () => { close(); reopenTour(); } },
+      { key: 'v-family', icon: <Network size={16} />, label: t('shell.cmd.viewFamily'), run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'family' }) }); close(); } },
+      { key: 'v-dynasty', icon: <Crown size={16} />, label: t('shell.cmd.viewDynasty'), run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'dynasty' }) }); close(); } },
+      { key: 'v-anc', icon: <GitFork size={16} style={{ transform: 'rotate(180deg)' }} />, label: t('shell.cmd.viewAncestors'), run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'ancestors' }) }); close(); } },
       // An empty family has nobody to go to yet.
-      ...(f.byId.has(me) ? [{ key: 'me', icon: <UserRound size={16} />, label: who ? 'Go to me' : 'Go home', hint: displayName(f.byId.get(me)!, f), run: go(me) }] : []),
-      { key: 'almanac', icon: <CalendarHeart size={16} />, label: 'Open Almanac', hint: 'birthdays & anniversaries', run: () => { navigate({ to: '/$tree/almanac', params: { tree } }); close(); } },
-      { key: 'atlas', icon: <MapIcon size={16} />, label: 'Open Atlas', hint: 'where the family was born', run: () => { navigate({ to: '/$tree/atlas', params: { tree } }); close(); } },
-      { key: 'contacts', icon: <Contact size={16} />, label: 'Open Contacts', run: () => { navigate({ to: '/$tree/contacts', params: { tree } }); close(); } },
-      { key: 'chronicle', icon: <ScrollText size={16} />, label: 'Open Chronicle', hint: 'stories & sayings', run: () => { navigate({ to: '/$tree/chronicle', params: { tree } }); close(); } },
-      { key: 'houses', icon: <Landmark size={16} />, label: 'Open Houses', hint: 'arms, mottos & members', run: () => { navigate({ to: '/$tree/houses', params: { tree } }); close(); } },
-      ...(assistantOn ? [{ key: 'assistant', icon: <Sparkles size={16} />, label: copyFor(toAiLocale(t.locale)).askCommand, run: () => { close(); openAssistant(); } }] : []),
-      { key: 't-codex', icon: <PaletteIcon size={16} />, label: 'Theme: Codex', run: () => { setPref('theme', 'codex'); close(); } },
-      { key: 't-paper', icon: <Sun size={16} />, label: 'Theme: Paper', run: () => { setPref('theme', 'modern'); close(); } },
-      { key: 't-night', icon: <Moon size={16} />, label: 'Theme: Night', run: () => { setPref('theme', 'night'); close(); } },
+      ...(f.byId.has(me) ? [{ key: 'me', icon: <UserRound size={16} />, label: who ? t('shell.cmd.goMe') : t('shell.cmd.goHome'), hint: displayName(f.byId.get(me)!, f), run: go(me) }] : []),
+      { key: 'almanac', icon: <CalendarHeart size={16} />, label: t('shell.cmd.almanac'), hint: t('shell.cmd.almanacHint'), run: () => { navigate({ to: '/$tree/almanac', params: { tree } }); close(); } },
+      { key: 'atlas', icon: <MapIcon size={16} />, label: t('shell.cmd.atlas'), hint: t('shell.cmd.atlasHint'), run: () => { navigate({ to: '/$tree/atlas', params: { tree } }); close(); } },
+      { key: 'contacts', icon: <Contact size={16} />, label: t('shell.cmd.contacts'), run: () => { navigate({ to: '/$tree/contacts', params: { tree } }); close(); } },
+      { key: 'chronicle', icon: <ScrollText size={16} />, label: t('shell.cmd.chronicle'), hint: t('shell.cmd.chronicleHint'), run: () => { navigate({ to: '/$tree/chronicle', params: { tree } }); close(); } },
+      { key: 'houses', icon: <Landmark size={16} />, label: t('shell.cmd.houses'), hint: t('shell.cmd.housesHint'), run: () => { navigate({ to: '/$tree/houses', params: { tree } }); close(); } },
+      ...(assistantOn ? [{ key: 'assistant', icon: <Sparkles size={16} />, label: t('ai.askCommand'), run: () => { close(); openAssistant(); } }] : []),
+      { key: 't-codex', icon: <PaletteIcon size={16} />, label: t('shell.cmd.themeCodex'), run: () => { setPref('theme', 'codex'); close(); } },
+      { key: 't-paper', icon: <Sun size={16} />, label: t('shell.cmd.themePaper'), run: () => { setPref('theme', 'modern'); close(); } },
+      { key: 't-night', icon: <Moon size={16} />, label: t('shell.cmd.themeNight'), run: () => { setPref('theme', 'night'); close(); } },
     ];
     const fq = fold(dq);
     const matched = fq ? cmds.filter((c) => fold(c.label).includes(fq)) : cmds;
     return fq ? [...people, ...houses, ...matched] : matched;
-  }, [f, dq, me, who, myAnc, navigate, tree, close, t.locale, assistantOn]);
+  }, [f, dq, me, who, myAnc, navigate, tree, close, t, t.locale, assistantOn, mode]);
 
   useEffect(() => setSel(0), [dq]);
   useEffect(() => {
@@ -155,12 +163,12 @@ export function Palette() {
   }, [sel]);
 
   return (
-    <Dialog open={isOpen} onClose={close} label="Find anyone" placement="top" width={640} bare className="palette" initialFocus={input}>
+    <Dialog open={isOpen} onClose={close} label={t('shell.palette.label')} placement="top" width={640} bare className="palette" initialFocus={input}>
         <input
           ref={input}
           className="palette-input"
-          placeholder="Find anyone — name, nickname, title, house…"
-          aria-label="Find anyone"
+          placeholder={mode === 'language' ? t('shell.palette.language') : t('shell.palette.placeholder')}
+          aria-label={t('shell.palette.label')}
           role="combobox"
           aria-expanded={isOpen}
           aria-autocomplete="list"
@@ -180,7 +188,7 @@ export function Palette() {
           {items.length === 0 && <div className="empty">Nobody by that name. Yet.</div>}
           {items.map((it, i) => (
             <Fragment key={it.key}>
-            {(i === 0 || groupOf(items[i - 1]) !== groupOf(it)) && <div className="palette-group">{groupOf(it)}</div>}
+            {(i === 0 || groupOf(items[i - 1], t) !== groupOf(it, t)) && <div className="palette-group">{groupOf(it, t)}</div>}
             <button data-i={i} id={`palette-i${i}`} role="option" tabIndex={-1} className="palette-item" aria-selected={i === sel} onMouseMove={() => setSel(i)} onClick={it.run}>
               {it.person ? <PersonRow f={f} tree={tree} id={it.person} who={who} anc={myAnc} /> : (
                 <>
@@ -194,10 +202,10 @@ export function Palette() {
           ))}
         </div>
         <div className="palette-foot muted">
-          <span id="palette-count" role="status" aria-live="polite">{items.length ? `${items.length} results` : 'No results. Try a different name or command.'}</span>
-          <span><kbd>↑</kbd> <kbd>↓</kbd> move</span>
-          <span><kbd>↵</kbd> go</span>
-          <span><kbd>esc</kbd> close</span>
+          <span id="palette-count" role="status" aria-live="polite">{items.length ? t('shell.palette.count', { count: items.length }) : t('shell.palette.none')}</span>
+          <span><kbd>↑</kbd> <kbd>↓</kbd> {t('shell.palette.move')}</span>
+          <span><kbd>↵</kbd> {t('shell.palette.go')}</span>
+          <span><kbd>esc</kbd> {t('shell.palette.close')}</span>
           <span style={{ marginLeft: 'auto' }}>{f.graph.people.length.toLocaleString('en-GB')} people</span>
         </div>
     </Dialog>

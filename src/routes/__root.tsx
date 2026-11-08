@@ -1,6 +1,6 @@
 import { I18nProvider } from '~/lib/i18n';
 import { requestLocale } from '~/lib/i18n/request';
-import { sessionQuery } from '~/lib/auth/functions';
+import { sessionQuery, setMyLocale } from '~/lib/auth/functions';
 import '@fontsource-variable/cinzel';
 import '@fontsource-variable/eb-garamond';
 import '@fontsource-variable/inter';
@@ -44,7 +44,7 @@ function Shell({ children }: { children: ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
-        <I18nProvider initialLocale={locale} account={localeAccount}><div id="app">{children}</div></I18nProvider>
+        <I18nProvider initialLocale={locale} account={localeAccount} saveRemote={localeAccount ? (next) => setMyLocale({ data: { locale: next } }) : undefined}><div id="app">{children}</div></I18nProvider>
         <Scripts />
       </body>
     </html>

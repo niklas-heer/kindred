@@ -4,7 +4,7 @@ import { useFamily } from '~/lib/family';
 import { displayName } from '~/lib/graph';
 import { matchesName } from '~/lib/search';
 import type { GPerson } from '~/lib/types';
-import { useG } from './strings';
+import { useT } from '~/lib/i18n';
 import '~/styles/gallery.css';
 
 /** The birth year, to tell two people with the same name apart. */
@@ -12,7 +12,7 @@ const yearOf = (p: GPerson) => p.born?.match(/\d{4}/)?.[0] ?? null;
 
 export function PersonPicker({ onPick, label }: { onPick: (person: GPerson) => void; label: string }) {
   const f = useFamily();
-  const g = useG();
+  const g = useT();
   const [q, setQ] = useState('');
   const matches = useMemo(() => {
     // Birth and current names both count, so a married name finds the person as well as the birth name.

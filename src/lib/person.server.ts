@@ -4,6 +4,7 @@
 import { guard, once, personExists, q, type OpKey, type Query } from './db.server.ts';
 import { canBePrivate, MAX_FIELDS, storedValue, type FieldInput, type FieldType } from '../components/fields/model.ts';
 import type { Look } from './types.ts';
+import { occupationCodeFor } from './occupations.ts';
 
 /** The scalar details of a person, as the Edit tab saves them. Names: a null current name means "same as birth". */
 export interface PersonDetails {
@@ -21,6 +22,8 @@ export interface PersonDetails {
   title: string | null;
   epithet: string | null;
   occupation: string | null;
+  /** The vocabulary entry chosen in the editor, if any. The text is what decides when it is not. */
+  occupationCode?: string | null;
   bio: string | null;
 }
 
@@ -78,9 +81,10 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
     const s = details;
     writes.push(q(
       `UPDATE person SET given = ?, surname = ?, current_given = ?, current_surname = ?, nickname = ?, sex = ?, born = ?, born_place = ?,
-        died = ?, died_place = ?, living = ?, title = ?, epithet = ?, occupation = ?, bio = ?, updated_at = ? WHERE id = ?`,
+        died = ?, died_place = ?, living = ?, title = ?, epithet = ?, occupation = ?, occupation_code = ?, bio = ?, updated_at = ? WHERE id = ?`,
       s.given.trim(), empty(s.surname), empty(s.currentGiven), empty(s.currentSurname), empty(s.nickname), s.sex, empty(s.born),
       empty(s.bornPlace), empty(s.died), empty(s.diedPlace), s.living ? 1 : 0, empty(s.title), empty(s.epithet), empty(s.occupation),
+      empty(s.occupation) ? occupationCodeFor(empty(s.occupation), s.occupationCode) : null,
       empty(s.bio), nowIso(), id,
     ));
     return { writes, result: undefined };

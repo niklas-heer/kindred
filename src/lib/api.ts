@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { armsSchema } from '~/components/heraldry/schema';
 import { validDate } from './dates';
 import type { Action } from './roles';
+import { occupationCodeFor } from './occupations.ts';
 
 const tree = z.string().regex(/^[a-z0-9-]+$/).max(64);
 const date = z.string().refine(validDate, 'Not a real date').optional();
@@ -285,9 +286,9 @@ export const updatePerson = createServerFn({ method: 'POST' })
     const empty = (s: string | null) => (s === null || s.trim() === '' ? null : s.trim());
     await db(data.tree)
       .run(`UPDATE person SET given = ?, surname = ?, nickname = ?, sex = ?, born = ?, born_place = ?, died = ?, died_place = ?,
-        living = ?, title = ?, epithet = ?, occupation = ?, bio = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`,
+        living = ?, title = ?, epithet = ?, occupation = ?, occupation_code = ?, bio = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`,
         p.given, empty(p.surname), empty(p.nickname), p.sex, empty(p.born), empty(p.bornPlace), empty(p.died), empty(p.diedPlace),
-        p.living ? 1 : 0, empty(p.title), empty(p.epithet), empty(p.occupation), empty(p.bio), data.id);
+        p.living ? 1 : 0, empty(p.title), empty(p.epithet), empty(p.occupation), occupationCodeFor(empty(p.occupation)), empty(p.bio), data.id);
   });
 
 /** Fills in only the fields given: the Needed page saves exactly what was missing. */
@@ -313,9 +314,13 @@ export const patchPerson = createServerFn({ method: 'POST' })
     const cols: Record<string, string> = { born: 'born', bornPlace: 'born_place', died: 'died', sex: 'sex', occupation: 'occupation' };
     const set = Object.entries(data.patch).filter(([, v]) => v !== undefined && v !== '');
     if (!set.length) return;
-    const sql = `UPDATE person SET ${set.map(([k]) => `${cols[k]} = ?`).join(', ')}, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`;
+    // Typing an occupation here also sets its vocabulary code, so the Needed page and the editor agree.
+    const assigns = set.map(([k]) => `${cols[k]} = ?`);
+    const values: (string | null)[] = set.map(([, v]) => v as string);
+    if (data.patch.occupation) { assigns.push('occupation_code = ?'); values.push(occupationCodeFor(data.patch.occupation)); }
+    const sql = `UPDATE person SET ${assigns.join(', ')}, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`;
     const { once, q } = await server();
-    await once(data.tree, opOf(_m, data), 'patchPerson', () => ({ writes: [q(sql, ...set.map(([, v]) => v as string), data.id)], result: undefined }));
+    await once(data.tree, opOf(_m, data), 'patchPerson', () => ({ writes: [q(sql, ...values, data.id)], result: undefined }));
   });
 
 /** Takes someone out of the tree, with their links, stories, contacts and photo. */

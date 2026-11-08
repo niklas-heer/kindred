@@ -8,7 +8,8 @@ import { displayName } from '~/lib/graph';
 import { Select, Switch } from '../ui';
 import { TYPE_ICON } from './FieldsView';
 import { blankValue, canBePrivate, DEFAULT_LABEL, fieldIssue, MAX_FIELDS, PRESETS, type FieldType, type FieldValue } from './model';
-import { presetLabel, useCopy, type CopyKey } from './strings';
+import { presetLabel } from './presets';
+import { useT, type Key } from '~/lib/i18n';
 
 /** A field while it is being edited. `key` is for React; `id` is set once the family has saved it. */
 export interface DraftField {
@@ -27,7 +28,7 @@ export const draftOf = (f: { id: string; type: FieldType; label: string; value: 
 const newKey = () => `n${Math.random().toString(36).slice(2, 10)}`;
 
 /** The groups the add menu shows, in order. */
-const ADD_GROUPS: { title: CopyKey; types: FieldType[] }[] = [
+const ADD_GROUPS: { title: Key; types: FieldType[] }[] = [
   { title: 'group.contact', types: ['phone', 'email', 'address', 'website', 'social'] },
   { title: 'group.names', types: ['names'] },
   { title: 'group.life', types: ['dates', 'education', 'occupation', 'military'] },
@@ -38,7 +39,7 @@ const ADD_GROUPS: { title: CopyKey; types: FieldType[] }[] = [
 ];
 
 /** One input for a value key: its label, and how it is typed. */
-interface Input { key: string; label: CopyKey; wide?: boolean; multi?: boolean; type?: string; placeholder?: string; select?: boolean }
+interface Input { key: string; label: Key; wide?: boolean; multi?: boolean; type?: string; placeholder?: string; select?: boolean }
 const from: Input = { key: 'from', label: 'input.from', placeholder: '1985' };
 const to: Input = { key: 'to', label: 'input.to', placeholder: '1990' };
 const note: Input = { key: 'note', label: 'input.note', wide: true };
@@ -76,7 +77,7 @@ const INPUTS: Record<FieldType, Input[]> = {
 
 /** The list, with add, reorder and remove. `fam` names the people a related field may link to. */
 export function FieldEditor({ value, onChange, fam, self }: { value: DraftField[]; onChange: (next: DraftField[]) => void; fam: Family; self: string }) {
-  const c = useCopy();
+  const c = useT();
   const [adding, setAdding] = useState(false);
   const full = value.length >= MAX_FIELDS;
   const add = (type: FieldType) => {
@@ -113,7 +114,7 @@ export function FieldEditor({ value, onChange, fam, self }: { value: DraftField[
               <span className="subtle">{c(g.title)}</span>
               <div className="fe-menu-items">
                 {g.types.map((t) => (
-                  <button type="button" className="btn fe-type" key={t} onClick={() => add(t)}>{TYPE_ICON[t]} {c(`type.${t}` as CopyKey)}</button>
+                  <button type="button" className="btn fe-type" key={t} onClick={() => add(t)}>{TYPE_ICON[t]} {c(`type.${t}` as Key)}</button>
                 ))}
               </div>
             </div>
@@ -134,17 +135,17 @@ function FieldRowEditor({ f, index, count, fam, self, onChange, onMove, onRemove
   f: DraftField; index: number; count: number; fam: Family; self: string;
   onChange: (patch: Partial<DraftField>) => void; onMove: (d: -1 | 1) => void; onRemove: () => void;
 }) {
-  const c = useCopy();
+  const c = useT();
   const id = useId();
   const presets = PRESETS[f.type];
   // A label the family typed (not one of the offered words) keeps the box open for typing.
   const [typing, setTyping] = useState(!!f.label && !presets.includes(f.label) && presets.length > 0);
-  const typeName = c(`type.${f.type}` as CopyKey);
+  const typeName = c(`type.${f.type}` as Key);
   const issue = fieldIssue(f.type, f.value, f.private);
   const issueText = issue ? c(`issue.${issue}`) : undefined;
   const labelOptions = [
     { value: '__none', label: c('label.none') },
-    ...presets.map((p) => ({ value: p, label: presetLabel(p, c.locale) })),
+    ...presets.map((p) => ({ value: p, label: presetLabel(p, c) })),
     { value: '__custom', label: c('label.custom') },
   ];
   const selectValue = typing ? '__custom' : f.label || '__none';

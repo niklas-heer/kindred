@@ -17,7 +17,8 @@ import { Select, Switch } from '../ui';
 import { DraftContext, DraftTracker } from './draft';
 import { draftOf, FieldEditor, type DraftField } from './FieldEditor';
 import { fieldIssue } from './model';
-import { useCopy } from './strings';
+import { useT } from '~/lib/i18n';
+import { OccupationField } from './OccupationField';
 
 interface Props {
   tree: string;
@@ -32,13 +33,13 @@ interface Values {
   given: string; surname: string; sameName: boolean; currentGiven: string; currentSurname: string;
   nickname: string; sex: '' | 'm' | 'f' | 'x';
   born: string; bornPlace: PlaceValue; died: string; diedPlace: PlaceValue; living: boolean;
-  title: string; epithet: string; occupation: string; bio: string;
+  title: string; epithet: string; occupation: string; occupationCode: string; bio: string;
   fields: DraftField[];
 }
 
 export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
   const { leave } = useContext(DraftContext);
-  const c = useCopy();
+  const c = useT();
   const canRemove = useCan('remove-person');
   const medieval = tree === 'realm' || (!!p.born && yearOf(p.born) < 1500);
   const qc = useQueryClient();
@@ -59,7 +60,7 @@ export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
       currentGiven: p.currentGiven ?? p.given, currentSurname: p.currentSurname ?? p.surname ?? '',
       nickname: p.nickname ?? '', sex: (p.sex ?? '') as '' | 'm' | 'f' | 'x',
       born: p.born ?? '', bornPlace: placeValue(detail.bornPlace), died: p.died ?? '', diedPlace: placeValue(detail.diedPlace), living: p.living,
-      title: p.title ?? '', epithet: p.epithet ?? '', occupation: p.occupation ?? '', bio: detail.bio ?? '',
+      title: p.title ?? '', epithet: p.epithet ?? '', occupation: p.occupation ?? '', occupationCode: p.occupationCode ?? '', bio: detail.bio ?? '',
       fields: detail.fields.map(draftOf),
     } as Values,
     onSubmit: async ({ value }) => {
@@ -71,7 +72,7 @@ export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
           given: value.given, surname: value.surname, nickname: value.nickname, sex: value.sex || null,
           currentGiven: value.sameName ? null : value.currentGiven, currentSurname: value.sameName ? null : value.currentSurname,
           born: value.born, bornPlace: value.bornPlace.name, died: value.died, diedPlace: value.diedPlace.name, living: value.living,
-          title: value.title, epithet: value.epithet, occupation: value.occupation, bio: value.bio,
+          title: value.title, epithet: value.epithet, occupation: value.occupation, occupationCode: value.occupationCode || null, bio: value.bio,
         };
         const fields = value.fields.map((x) => ({ id: x.id, type: x.type, label: x.label, value: x.value, private: x.private }));
         const body = { tree, id: p.id, details, fields };
@@ -175,7 +176,25 @@ export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
       </form.Subscribe>
       {text('title', c('edit.title'), { placeholder: medieval ? 'Duchess of Brennac' : c('edit.titlePlaceholder') })}
       {text('epithet', c('edit.epithet'), { placeholder: 'the Bold' })}
-      {text('occupation', c('edit.occupation'), { wide: true })}
+      <form.Subscribe selector={(s) => s.values.sex}>
+        {(sex) => (
+          <form.Field name="occupation">
+            {(field: any) => (
+              <form.Field name="occupationCode">
+                {(code: any) => (
+                  <OccupationField
+                    label={c('edit.occupation')}
+                    text={field.state.value}
+                    code={code.state.value}
+                    sex={(sex || undefined) as 'm' | 'f' | 'x' | undefined}
+                    onChange={(next) => { field.handleChange(next.text); code.handleChange(next.code); }}
+                  />
+                )}
+              </form.Field>
+            )}
+          </form.Field>
+        )}
+      </form.Subscribe>
 
       <div className="rule wide">{c('edit.biography')}</div>
       <form.Field name="bio">

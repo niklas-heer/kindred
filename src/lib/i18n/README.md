@@ -1,51 +1,81 @@
-# Contributing translations
+# Translations
 
-English (`en.ts`) is the typed source of truth; German (`de.ts`) may be partial. Missing German
-entries fall back to English and warn once per key in development. German consistently uses **du**.
-Translate interface copy, never names, notes, occupations or other family-authored content.
+Three languages ship: **English** (`en`, the source of the key type), **German** (`de`, always "du") and
+**Afrikaans** (`af`, always "jy"). Names, notes and other family-written text are never translated.
 
-```tsx
-import { useT, formatDate, formatNumber, relativeTime, kinshipLabel } from '~/lib/i18n';
-const t = useT(); // callable, with t.locale and t.setLocale('de')
-t('common.people', { count: 3 }); // 3 people / 3 Personen
-formatDate('2026-11-08', t.locale); // 8 November 2026 / 8. November 2026
-relativeTime(timestamp, t.locale); // 3 days ago / vor 3 Tagen
-kinshipLabel(kinship(f, me, id), t.locale); // accepts graph.ts's unchanged return type
-```
+## Where things live
 
-Add a meaningful `surface.snake_case_key` to both dictionaries. Share `common.*` keys where suitable.
-Messages interpolate `{name}` variables; numeric variables use locale-aware formatting. Plural entries
-use `{one, other}` selected by `Intl.PluralRules` from numeric `count`. `ordinal` gives English ordinal
-words (then numeric suffixes) or German `2.`; `ordinalWord` gives `second` / `zweite`.
-Pure `translate(locale, key, vars)` supports SSR and non-React callers. Always pass a request-specific
-locale to server formatters. There is no process-global current language.
+| File | What it is |
+| --- | --- |
+| `areas/<area>.ts` | The words of one area of the app: `export const en`, `de` and `af`, each a flat object of keys. |
+| `types.ts` | `Locale`, `LOCALES`, `Message` (a string or `{one, other}`), `Vars`, `isLocale`. Safe to import anywhere. |
+| `dictionary.ts` | Merges every area, types `Key`, and holds `translate`, `formatDate`, `relativeTime`, `ordinal`, `negotiateLocale`, `translateMessage`, `missingKeys`. No React, so the test runner loads it. |
+| `index.tsx` | React: `I18nProvider`, `useT()`, `LanguageSwitch`. It re-exports `dictionary.ts`. |
+| `kinship.ts` | `kinshipLabel`: relation words for German and Afrikaans, from graph labels. |
+| `titles.ts` | `localizeTitle`: the section word of a page title in each language. |
+| `request.ts` | `requestLocale`: the locale for a request, for the root route to serialise. |
+| `i18n.test.ts` | Every area has the same keys in `en` and `de`; no key is in two areas; the Afrikaans coverage is reported. |
 
-The root route resolves each request's account cookie, then Accept-Language, then English, and
-serializes that value for hydration. Browser choices are stored as `kindred:locale:<account-id>` in
-localStorage and `kindred_locale_<account-id>` cookies (guest uses `guest`). The provider reconciles
-localStorage after hydration, then keeps the document language and section titles current. A switch
-updates React immediately without reloading. `LanguageSwitch` is shared by auth, Account and More;
-the palette has one toggle command.
+## Adding or changing a string
 
-## Wave 2
+1. Pick the area that owns the screen (table below). Add the key to that file, in **all three** objects:
+   `en` (English), `de` (German, du) and `af` (Afrikaans, jy). `de` is typed over every `en` key, so
+   `npx tsc --noEmit` fails until it is there. `af` may lag: a missing Afrikaans entry falls back to English,
+   and the test prints it.
+2. Name the key `area.snake_case_name` (existing keys keep their names). Keys are unique across the whole app.
+3. In components: `const t = useT();` then `t('shell.tree')`, `t('common.people', { count: 3 })`.
+   In server code: `translate(locale, 'ai.errBudget', vars)` with the request's own locale. Never keep a
+   locale in a global.
+4. Run `npm test` (the area test catches a key missing from `de` or present in two areas).
 
-Add nullable `locale TEXT CHECK(locale IN ('en','de'))` to the **account/user**, never tree membership.
-Expose locale in `SessionInfo.user`, and provide an authenticated `setMyLocale({locale})` server
-function. Server preference should override cookie/browser; save optimistically on switch, retain
-localStorage/cookie for first render and signed-out use. No data-layer files were changed here.
-Auth error codes should map to message keys; `translateMessage` temporarily translates known legacy
-errors and leaves unknown diagnostic messages intact.
+Plurals are `{ one: '…{count}…', other: '…{count}…' }`, chosen by `Intl.PluralRules` for each language.
+Placeholders are `{name}`; numbers are formatted for the locale. Keep placeholders identical in every language.
 
-## Later translation sweep
+## Areas
 
-- `src/routes/$tree/{index,access,almanac,atlas,chronicle,contacts,houses,house.$house,needed,people}.tsx`
-- `src/components/{Canvas,Card,PersonPanel,QuickAdd,PlaceInput,ArmsEditor,ThemeSwitch,Toasts}.tsx`
-- `src/components/Palette.tsx`: remaining commands, headings, search hints and person kinship hints
-- `src/lib/{graph,dates,gaps,roles,traits}.ts`, `src/lib/auth/{today,client,errors}.ts` and server
-  validation/auth errors: replace generated English strings and hard-coded date formatters at callers
-- `src/routes/ui.tsx` and `src/routes/ui_.character.tsx` if the design-system demos are user-facing
+| Area | Owns |
+| --- | --- |
+| `common` | Buttons, states, units and generic labels shared by all screens (`ui.*`, `common.*`) |
+| `shell` | Navigation, the home page of families, the ⌘K palette and its commands (`shell.*`, `index.*`) |
+| `tree` | The family tree canvas, its minimap and the first-run tour (`canvas.*`, `firstrun.*`) |
+| `panel` | The person panel: facts, relatives, contact details, memories (`panel.*`, `fact.*`) |
+| `fields` | The person editor and detail fields, labels, inputs, the Markdown editor, validation |
+| `photos` | The gallery, albums, the lightbox, uploads and profile photos (`gallery.*`, `lb.*`, `up.*`) |
+| `ai` | The assistant, AI settings, proposals, portrait and arms suggestions (`ai.*`) |
+| `exchange` | Import and export: GEDCOM and the Markdown archive (`exchange.*`) |
+| `houses` | Houses, succession, arms and their chronicle |
+| `heraldry` | Coats of arms and the heraldry designer |
+| `portrait` | The character editor and drawn portraits |
+| `access` | Sign-in, passkeys, invitations, roles, the account menu, not-found and no-access states |
+| `setup` | First-time setup of a server |
+| `atlas`, `almanac`, `chronicle`, `contacts`, `needed` | Empty until the translation sweep moves those pages' text here |
 
-Shell navigation, More, account/passkeys, home, sign-in, setup, invitations, first run, access/not-found
-states and shared UI defaults are covered. Home's `today[].label` is still server-generated English
-and belongs to the `auth/today.ts` sweep. Graph's existing `label` remains backward compatible; callers
-must use `kinshipLabel(k, t.locale)` to show German kinship.
+## Language choice
+
+- Guests keep their language in `localStorage` and a cookie (`kindred_locale_guest`).
+- A signed-in reader's choice is also saved on the account (`user.locale`, migration `accounts/0004_locale`,
+  `setMyLocale`). The server renders the stored value first, then that reader's cookie, then `Accept-Language`,
+  then English. The language switch is the same three-way control in the account menu, the sign-in card and the
+  ⌘K palette ("Change language" opens the three languages).
+
+## Occupations (`src/lib/occupations.ts`)
+
+Each occupation has a stable `id`, an English label, German masculine and feminine forms (`de.m`, `de.f`), an
+Afrikaans label and search keywords. A person keeps the text the family typed in `person.occupation` and, when it
+names a vocabulary entry, the entry's id in `person.occupation_code` (tree migration `0006_occupation`).
+
+- With a code, every reader sees the entry in their language. German uses the form for the person's sex: "Bäcker"
+  for `m`, "Bäckerin" for `f`, and "Bäcker:in" for `x` or unknown.
+- Without a code, the text is shown exactly as written. The editor suggests entries as you type, in any language.
+- `scripts/map-occupations.ts` gives codes to existing text, once, after the migration. It is a one-off script rather
+  than migration-on-open, because the matching needs the vocabulary's labels and the migrations are SQL that runs on
+  both SQLite and D1. It never changes the text.
+- "Translate" (shown when the family's assistant is on and the occupation has no code) asks the model once per text
+  and locale, then keeps the answer in `occupation_translation`. The translation is shown beside the text, never in
+  its place.
+
+## Testing note
+
+`npm test` runs `.ts` files directly with Node's type stripping. Code that a test imports must therefore avoid JSX,
+TypeScript parameter properties and enums, and must import relative modules with an explicit `.ts` extension. That is
+why the dictionary, the formatters and the occupation rules live in `.ts` files and the React code in `index.tsx`.
