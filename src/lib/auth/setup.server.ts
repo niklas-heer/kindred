@@ -178,7 +178,10 @@ export function logOriginMismatch(configured: string | undefined, request: URL, 
 export async function announceSetup(origin?: string, force = false) {
   try {
     if (!setupCodeRequired() || !(await needsSetup())) return;
-    if (lockedBySetupCode()) return;
+    if (lockedBySetupCode()) {
+      if (force) console.warn('[kindred] Setup is locked: KINDRED_SETUP_CODE has a value Kindred cannot use (docs/self-host.md). The value is not logged.');
+      return;
+    }
     const where = origin ? `${origin}/setup` : '/setup';
     if (fixedCode()) {
       if (!force) return;

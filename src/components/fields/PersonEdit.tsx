@@ -398,7 +398,7 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
           </button>
         )}
         <span className="spacer" />
-        {conflicts.length > 0 && <span className="subtle" id="edit-choose-first">{c('edit.chooseFirst')}</span>}
+        {conflicts.length > 0 && <span className="subtle edit-choose-first" id="edit-choose-first">{c('edit.chooseFirst')}</span>}
         <button type="button" className="btn ghost" onClick={() => leave(done)}>{c('edit.cancel')}</button>
         <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>
           {([ok, busy]) => (

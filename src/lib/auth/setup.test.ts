@@ -186,12 +186,15 @@ test('bootstrap modes, discoverable options, exclusions and proxy origin', async
         assert.equal(setup.setupOpenToPublic(new URL('https://family.example.org')), false);
         assert.equal(await setup.checkSetupCode('family2026'), false, 'locked: even the value itself does not open setup');
         assert.equal(await setup.checkSetupCode(''), false);
-        await setup.announceSetup(undefined, true);
-        assert.equal(logs.length, 0, 'no code is printed while locked');
-        assert.equal(warnings.length, 1, 'one warning, however many calls');
+        assert.equal(warnings.length, 1, 'one warning, however many checks');
         assert.match(warnings[0], /KINDRED_SETUP_CODE/);
         assert.match(warnings[0], /LOCKED/);
-        assert.equal(warnings[0].includes('family2026'), false, 'the value is not logged');
+        // Opening /setup ("print it again") repeats why nothing is printed, and still prints no code.
+        await setup.announceSetup(undefined, true);
+        assert.equal(logs.length, 0, 'no code is printed while locked');
+        assert.equal(warnings.length, 2, 'the reprint request says setup is locked');
+        assert.match(warnings[1], /locked/i);
+        assert.equal(warnings.some((w) => w.includes('family2026')), false, 'the value is never logged');
         // Fixed fully: a usable code works again, with its own spacing and case.
         process.env.KINDRED_SETUP_CODE = ' family-2026-abcd ';
         assert.equal(await setup.checkSetupCode('FAMILY 2026 ABCD'), true);

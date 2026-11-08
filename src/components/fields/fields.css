@@ -55,3 +55,7 @@
 .edit-conflict > span { font-size: 14px; color: var(--muted); }
 .edit-conflict-choices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .edit-conflict-choices .btn { min-height: 44px; }
+
+/* The action row wraps, so the "choose for each conflict first" hint sits on its own line above the buttons. */
+.pp-edit-actions { flex-wrap: wrap; }
+.pp-edit-actions .edit-choose-first { flex: 1 0 100%; order: -1; text-align: end; }

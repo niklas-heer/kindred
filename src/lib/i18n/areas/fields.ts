@@ -346,7 +346,7 @@ export const de: Record<keyof typeof en, Message> = {
   "preset.home": "Zuhause",
   "preset.work": "Arbeit",
   "preset.other": "Sonstiges",
-  "preset.personal": "Privat",
+  "preset.personal": "Persönlich",
   "preset.holiday": "Urlaub",
   "preset.home_page": "Startseite",
   "preset.blog": "Blog",
