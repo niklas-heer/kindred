@@ -357,3 +357,26 @@ test('without web search the fake answers from its own knowledge, with no source
   assert.ok(research.meanings.every((m) => (m.sources ?? []).length === 0));
   assert.match(research.note ?? '', /own knowledge/);
 });
+
+test('suggested arms keep the rule of tincture on divided fields, whatever the idea asked for', async () => {
+  const canting = await load<typeof import('../components/heraldry/canting')>('/src/components/heraldry/canting.ts');
+  const rules = await load<typeof import('../components/heraldry/rules')>('/src/components/heraldry/rules.ts');
+  const t = ((key: string) => key) as never;
+  const fields = [['azure', 'or'], ['gules', 'argent'], ['or', 'argent'], ['vert', 'sable']] as const;
+  for (const field of fields) {
+    for (const base of ['water', 'field', 'mount', undefined] as const) {
+      for (const tincture of ['or', 'argent', 'gules', 'azure'] as const) {
+        const arms = canting.ideaToArms({
+          explanation: 'x',
+          division: 'per-pale',
+          field: [...field],
+          base,
+          ordinary: { kind: 'fess', tincture },
+          charges: [{ charge: 'lion', tincture }, { charge: 'mullet', tincture, on: 'chief', count: 3 }],
+        } as never);
+        const clashes = rules.tinctureClashesV2(arms, t).filter((c) => c.layer >= 0);
+        assert.deepEqual(clashes, [], JSON.stringify({ field, base, tincture }));
+      }
+    }
+  }
+});

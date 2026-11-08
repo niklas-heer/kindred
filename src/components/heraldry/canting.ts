@@ -8,7 +8,7 @@ import { translate, type Key, type Vars } from '~/lib/i18n/dictionary';
 import type { ArmsLayer, ArmsV2, ChargeLayer, FieldDivision, OrdinaryKind, PartitionLine, ShieldShape, TinctureV2 } from '~/lib/seed-format';
 import { CHARGE_BY_ID } from './catalogue';
 import { cantingResponseSchema, type Symbolism } from './canting-schema.ts';
-import { contrastFor } from './rules';
+import { contrastFor, underOf } from './rules';
 import { kindOf } from './tinctures';
 
 // ---------- the JSON shape ----------
@@ -324,7 +324,23 @@ export function ideaToArms(idea: CantingIdea, opts: { country?: string; seed?: n
   });
   // The landscape first, then the ordinaries, then the charges.
   layers.sort((a, b) => order(a) - order(b));
-  return { shield, field: { division, tinctures, line: 'straight' }, layers };
+  const arms: ArmsV2 = { shield, field: { division, tinctures, line: 'straight' }, layers };
+  // Last, whatever the idea asked for: bottom layer first, because repairing a layer changes what lies under the next.
+  // On a divided field one part may be metal and the other colour, so a layer has to contrast with every part it covers.
+  layers.forEach((l, i) => {
+    if (l.tincture === 'proper') return;
+    const under = underOf(arms, i);
+    if (!clash(l.tincture, under)) return;
+    if (new Set(under.map(kindOf).filter((k) => k === 'metal' || k === 'colour')).size < 2) {
+      l.tincture = contrastFor(under, l.tincture);
+    } else if (under.length === field.length && under.every((u, k) => u === field[k])) {
+      // Across metal and colour no single tincture contrasts: the classic answer is to counterchange it.
+      l.counterchanged = true;
+    } else {
+      l.tincture = 'ermine'; // over the field and an ordinary at once: furs are free of the rule
+    }
+  });
+  return arms;
 }
 const CHARGEABLE_KINDS = ['chief', 'base', 'fess', 'pale', 'bend', 'bend-sinister', 'chevron', 'cross', 'saltire', 'pall', 'bordure', 'orle', 'canton', 'pile', 'quarter'] as const;
 const clash = (t: TinctureV2, under: TinctureV2[]) => under.some((u) => kindOf(u) === kindOf(t) && (kindOf(t) === 'metal' || kindOf(t) === 'colour'));
