@@ -1,4 +1,4 @@
-// The assistant: a side drawer for one family. Questions are answered from the tree's own records;
+// The assistant: a chat window for one family (a full-height sheet on a phone). Questions are answered from the tree's own records;
 // proposed changes arrive as cards that wait for the reader's approval. Mount <AssistantHost /> once in
 // the tree layout (see the report); open it with <AssistantButton /> or openAssistant().
 //
@@ -9,7 +9,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { errorText } from '~/lib/errortext';
 import { ArrowDown, Mic, MicOff, MessageSquarePlus, Pencil, RotateCw, Send, Sparkles, Users, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
-import { aiChatImageQuery, aiChatNew, aiChatQuery, aiChatSend, aiStatusQuery } from '~/lib/ai.functions';
+import { aiChatContinue, aiChatImageQuery, aiChatNew, aiChatQuery, aiChatSend, aiStatusQuery } from '~/lib/ai.functions';
 import { graphQuery } from '~/lib/api';
 import { toAiLocale, type ChatItem } from '~/lib/ai/types';
 import { useT, type Key } from '~/lib/i18n';
@@ -18,9 +18,10 @@ import { fullName } from '~/lib/graph';
 import { useMeChosen } from '~/lib/family';
 import { useCan } from '~/lib/session';
 import { ErrorState, Notice, Skeleton } from '~/components/ui';
-import { useOverlayLayer } from '~/components/ui/overlay';
-import { ProposalCard } from './ProposalCard';
-import { closeAssistant, openAssistant, useAiStatus, useAssistantOpen } from './store';
+import { isTopOverlay, useOverlayLayer } from '~/components/ui/overlay';
+import { ProposalCard, type OnDecided } from './ProposalCard';
+import { ASSISTANT_FOCUS, closeAssistant, openAssistant, useAiStatus, useAssistantOpen } from './store';
+import { ResizeEdges, useChatWindow, WindowControls } from './useChatWindow';
 import { AiSetupButton, AiSetupDialog } from './AiSetup';
 import { AttachButton, DropVeil, ImageTray, useImageAttach, type Attached } from './attachments';
 import { useDictation } from './dictation';
@@ -130,17 +131,88 @@ function AssistantDrawer({ tree }: { tree: string }) {
   const asideRef = useRef<HTMLElement>(null);
   const stick = useRef(true);
   const returnTo = useRef<Element | null>(document.activeElement);
+  const win = useChatWindow(asideRef);
+  // Whether the reader is working in the window. It is not modal: while they are on the page behind it, the page's keys are the page's.
+  const [inside, setInside] = useState(true);
+  const insideRef = useRef(true);
+  const busyRef = useRef(false);
+  busyRef.current = busy;
+  // Decisions are told once, in one reply. One decided while a reply is on its way waits here for that reply to end.
+  const wantContinue = useRef(false);
+  const unrecorded = useRef<Parameters<OnDecided>[0][]>([]);
+  const [continueError, setContinueError] = useState<string | null>(null);
   const dictation = useDictation({ locale, onFinal: (s) => setText((prev) => joined(prev, s)) });
   // Pictures need the same role as a family session. The composer shows nothing of them to anyone else.
   const attach = useImageAttach({ active: canDraft && !session.open, initial: draftImages.get(tree), onError: setImageError });
 
-  // Page hotkeys stay quiet while the drawer is up (ui/overlay.ts).
-  useOverlayLayer(true);
+  // Page hotkeys stay quiet while the reader is in the window, and always on a phone, where the sheet covers the page (ui/overlay.ts).
+  const layer = useOverlayLayer(win.phone || inside);
+  const layerRef = useRef(layer);
+  layerRef.current = layer;
   useEffect(() => {
     areaRef.current?.focus();
     const back = returnTo.current as HTMLElement | null;
-    return () => back?.focus?.();
+    // Focus goes back only if it was in the window: a reader who has moved on to the page keeps their place.
+    return () => { if (insideRef.current || document.activeElement === document.body) back?.focus?.(); };
   }, []);
+  // Follows where the reader is working, by focus and by pointer (a click on empty page moves no focus).
+  useEffect(() => {
+    const track = (e: Event) => {
+      const now = !!asideRef.current?.contains(e.target as Node);
+      insideRef.current = now;
+      setInside(now);
+    };
+    const enter = () => {
+      insideRef.current = true;
+      setInside(true);
+      areaRef.current?.focus();
+    };
+    // Esc closes from anywhere in the window, a popover inside it first. F6 moves between the window and the page.
+    const onKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.isComposing && !e.defaultPrevented && insideRef.current && isTopOverlay(layerRef.current)) {
+        e.preventDefault();
+        dictation.stop();
+        closeAssistant();
+      } else if (e.key === 'F6' && !e.defaultPrevented) {
+        e.preventDefault();
+        if (!insideRef.current) return enter();
+        insideRef.current = false;
+        setInside(false);
+        const back = returnTo.current as HTMLElement | null;
+        if (back && back !== document.body && back.isConnected) back.focus();
+        else (document.activeElement as HTMLElement | null)?.blur?.();
+      }
+    };
+    document.addEventListener('focusin', track);
+    document.addEventListener('pointerdown', track, true);
+    document.addEventListener('keydown', onKeyDown);
+    window.addEventListener(ASSISTANT_FOCUS, enter);
+    return () => {
+      document.removeEventListener('focusin', track);
+      document.removeEventListener('pointerdown', track, true);
+      document.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener(ASSISTANT_FOCUS, enter);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Resizing the window keeps the newest message in view, unless the reader has scrolled up.
+  useEffect(() => {
+    const el = logRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => { if (stick.current) el.scrollTop = el.scrollHeight; });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  // When a reply has ended: a continuation that had to wait starts, and a reader still in the window gets the box back
+  // (the box was disabled while waiting, which dropped its focus).
+  useEffect(() => {
+    if (busy) return;
+    if (wantContinue.current) {
+      wantContinue.current = false;
+      void carryOn();
+    } else if (insideRef.current && document.activeElement === document.body) {
+      areaRef.current?.focus();
+    }
+  }, [busy]); // eslint-disable-line react-hooks/exhaustive-deps
   // Stops listening when the drawer closes, whatever it was doing.
   useEffect(() => () => dictation.stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { drafts.set(tree, text); if (!text) drafts.delete(tree); }, [tree, text]);
@@ -298,21 +370,62 @@ function AssistantDrawer({ tree }: { tree: string }) {
     areaRef.current?.focus();
   }
 
+  /** The assistant carries on after the reader's decisions. Its reply is stored like any other; if it fails, the decisions are safe and Retry asks again. */
+  async function carryOn() {
+    if (busyRef.current) {
+      wantContinue.current = true;
+      return;
+    }
+    busyRef.current = true;
+    stick.current = true;
+    setContinueError(null);
+    setBusy(true);
+    try {
+      await aiChatContinue({ data: { tree, locale } });
+      await qc.invalidateQueries({ queryKey: ['ai-chat', tree] });
+    } catch (err) {
+      setContinueError(errorText(err, t.locale));
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+
+  /** A card was decided: records it, and carries on when it was the last one waiting. */
+  const onDecided: OnDecided = (mark) => {
+    void mark().then(
+      (r) => { if (r.due) void carryOn(); },
+      (err) => {
+        unrecorded.current.push(mark);
+        setContinueError(errorText(err, t.locale));
+      },
+    );
+  };
+
+  /** Retry: records whatever could not be recorded, then asks the assistant to carry on. */
+  async function retryContinue() {
+    setContinueError(null);
+    for (const mark of unrecorded.current.splice(0)) {
+      try {
+        await mark();
+      } catch (err) {
+        unrecorded.current.push(mark);
+        setContinueError(errorText(err, t.locale));
+        return;
+      }
+    }
+    await carryOn();
+  }
+
   async function newConversation() {
     setError(null);
     setUnsent([]);
+    setContinueError(null);
+    unrecorded.current = [];
     await aiChatNew({ data: { tree } });
     await qc.invalidateQueries({ queryKey: ['ai-chat', tree] });
     stick.current = true;
     areaRef.current?.focus();
-  }
-
-  function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
-      e.stopPropagation();
-      dictation.stop();
-      closeAssistant();
-    }
   }
 
   /** Enter sends; Shift+Enter makes a new line. Nothing is sent while a reply is on its way. */
@@ -346,10 +459,12 @@ function AssistantDrawer({ tree }: { tree: string }) {
   const empty = chat.isSuccess && items.length === 0 && unsent.length === 0 && pending === null;
 
   return (
-    <aside ref={asideRef} className="ai-drawer" role="dialog" aria-label={t('ai.title')} onKeyDown={onKey}>
-      <header className="ai-drawer-head">
+    <aside ref={asideRef} className={`ai-drawer${win.docked ? ' ai-docked' : ''}`} role="dialog" aria-label={t('ai.title')}>
+      <ResizeEdges win={win} />
+      <header className="ai-drawer-head" onPointerDown={win.onHeaderPointerDown}>
         <div className="ai-drawer-bar">
-          <h2 className="ai-drawer-title"><Sparkles size={16} aria-hidden /> {t('ai.title')}</h2>
+          <h2 className="ai-drawer-title"><Sparkles size={16} aria-hidden /> <span>{t('ai.title')}</span></h2>
+          <WindowControls win={win} />
           <button type="button" className="btn ghost ai-touch ai-icon ai-drawer-close" onClick={() => { dictation.stop(); closeAssistant(); }} aria-label={t('ai.close')} title={t('ai.close')}>
             <X size={17} aria-hidden />
           </button>
@@ -419,7 +534,7 @@ function AssistantDrawer({ tree }: { tree: string }) {
                 </div>
               </div>
             )}
-            {items.map((m) => (m.role === 'user' ? <UserTurn key={m.id} tree={tree} item={m} /> : <AssistantTurn key={m.id} tree={tree} item={m} people={people} places={places} />))}
+            {items.map((m) => (m.role === 'user' ? <UserTurn key={m.id} tree={tree} item={m} /> : <AssistantTurn key={m.id} tree={tree} item={m} people={people} places={places} onDecided={onDecided} />))}
             {(pending !== null) && (
               <div className="ai-turn ai-turn-user ai-turn-pending">
                 <AttachedThumbs images={pendingImages} />
@@ -455,6 +570,21 @@ function AssistantDrawer({ tree }: { tree: string }) {
                 </div>
               </div>
             ))}
+            {!busy && !session.open && (continueError !== null || chat.data?.continueDue) && (
+              <div className="ai-turn ai-turn-assistant">
+                <span className="ai-mark" aria-hidden><Sparkles size={13} /></span>
+                <div className="ai-turn-body">
+                  <p className="ai-unsent-line" role={continueError !== null ? 'alert' : undefined}>
+                    {t(continueError !== null ? 'ai.continueFailed' : 'ai.continueDue')}{continueError && <span className="subtle"> {continueError}</span>}
+                  </p>
+                  <div className="ai-unsent-actions ai-continue-actions">
+                    <button type="button" className="btn ai-touch ai-retry" onClick={() => void retryContinue()}>
+                      <RotateCw size={14} aria-hidden /> {t(continueError !== null ? 'ai.retryNow' : 'ai.continueNow')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           {away && (
             <button type="button" className="ai-jump" onClick={jumpLatest}>
@@ -559,7 +689,7 @@ function KeptImage({ tree, id, n }: { tree: string; id: string; n: number }) {
 }
 
 /** The assistant's turn: its text as Markdown, names and places as links, its proposals as cards, and the pages it drew on. */
-function AssistantTurn({ tree, item, people, places }: { tree: string; item: ChatItem; people: { id: string; name: string }[]; places: string[] }) {
+function AssistantTurn({ tree, item, people, places, onDecided }: { tree: string; item: ChatItem; people: { id: string; name: string }[]; places: string[]; onDecided: OnDecided }) {
   const t = useT();
   const sources = (item.sources ?? []).filter((s) => webUrl(s.url));
   return (
@@ -570,7 +700,7 @@ function AssistantTurn({ tree, item, people, places }: { tree: string; item: Cha
         {item.text && (
           <div className="ai-text" dangerouslySetInnerHTML={{ __html: renderMarkdown(linkMentions(item.text, { tree, people, places }), { images: 'text' }) }} />
         )}
-        {item.proposals?.map((p) => <ProposalCard key={p.id} tree={tree} itemId={item.id} proposal={p} />)}
+        {item.proposals?.map((p) => <ProposalCard key={p.id} tree={tree} itemId={item.id} proposal={p} onDecided={onDecided} />)}
         {sources.length > 0 && (
           <div className="ai-sources">
             <p className="ai-sources-title">{t('ai.sourcesTitle')}</p>

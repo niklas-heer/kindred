@@ -119,16 +119,18 @@ export function partitionSoon<T>(items: T[], days: (item: T) => number): { soon:
 export const FOLD_KEYS = ['life', 'places', 'photos', 'research', 'dates', 'missing'] as const;
 export type FoldKey = (typeof FOLD_KEYS)[number];
 export const FOLD_PREF = 'overview-open';
-const DEFAULT_OPEN: FoldKey[] = ['life'];
+/** The full-page profile keeps its own: there is room there for every section, so they all start open. */
+export const PROFILE_FOLD_PREF = 'profile-open';
+const DEFAULT_OPEN: readonly FoldKey[] = ['life'];
 
-/** The Overview sections open in this browser, from their saved value. Nothing saved, or anything unreadable, gives the default. */
-export function openFolds(raw: string | null): FoldKey[] {
-  if (raw === null) return DEFAULT_OPEN;
+/** The Overview sections open in this browser, from their saved value. Nothing saved, or anything unreadable, gives the fallback. */
+export function openFolds(raw: string | null, fallback: readonly FoldKey[] = DEFAULT_OPEN): FoldKey[] {
+  if (raw === null) return [...fallback];
   try {
     const list: unknown = JSON.parse(raw);
-    return Array.isArray(list) ? FOLD_KEYS.filter((k) => list.includes(k)) : DEFAULT_OPEN;
+    return Array.isArray(list) ? FOLD_KEYS.filter((k) => list.includes(k)) : [...fallback];
   } catch {
-    return DEFAULT_OPEN;
+    return [...fallback];
   }
 }
 

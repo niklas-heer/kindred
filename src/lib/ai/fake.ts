@@ -107,6 +107,12 @@ export function fakeAdapter(model = 'fake-model'): AiAdapter {
         return { text: '', calls: [], json: f.json, ...split(50), ...(f.sources ? { sources: f.sources, searches: req.webSearch ? 1 : 0 } : {}) };
       }
       const last = req.messages.at(-1);
+      // A continuation (continuation.ts): a card whose summary says "FAKE-REPEAT <tool> {json}" makes the fake propose that again; otherwise it echoes all it was told.
+      if (last?.role === 'user' && last.text.startsWith('[Kindred status report]')) {
+        const again = /FAKE-REPEAT (\S+) (\{.*?\})”/.exec(last.text);
+        if (again) return { text: 'Fake: proposing that again', calls: [{ id: `fake-repeat-${req.messages.length}`, name: again[1], args: JSON.parse(again[2]) }], ...split(30) };
+        return { text: `Fake continuation: ${last.text}`, calls: [], ...split(20) };
+      }
       if (last?.role === 'tool') return { text: `Fake summary: ${last.content.slice(0, 300)}`, calls: [], ...split(40) };
       // A family session (its transcript): a line "FAKE-FAMILY {json}" is the draft the fake proposes, so a test can script one.
       const family = /FAKE-FAMILY (\{.*\})/.exec(user);

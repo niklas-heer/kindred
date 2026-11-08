@@ -5,18 +5,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { Crop } from 'lucide-react';
 import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
-import { Portrait } from '~/components/Portrait';
 import { Dialog, EmptyState, Range, Skeleton } from '~/components/ui';
 import { opKeys } from '~/lib/api';
 import { useFamily } from '~/lib/family';
 import { displayName } from '~/lib/graph';
-import { personPhotosQuery, setPersonPortrait } from '~/lib/photos.functions';
+import { galleryQuery, personPhotosQuery, setPersonPortrait } from '~/lib/photos.functions';
 import { setPersonDisplay } from '~/lib/portrait.functions';
 import { PaintPortrait } from '~/components/PaintPortrait';
 import { portraitFits } from '~/lib/portrait-face';
 import { shownAge } from '~/components/portrait/look';
 import { useCan } from '~/lib/session';
 import { squareCrop } from './image';
+import { Lightbox } from './Lightbox';
+import { PortraitZoom } from './PortraitZoom';
 import { refreshPhotos } from './refresh';
 import { useT, type Key } from '~/lib/i18n';
 import { mediaUrl, type MediaItem } from './types';
@@ -35,6 +36,8 @@ export function PersonPhotos({ tree, id, bare }: { tree: string; id: string; bar
   const person = f.byId.get(id);
   const q = useQuery(personPhotosQuery(tree, id));
   const [selected, setSelected] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<string | null>(null);
+  const albums = useQuery({ ...galleryQuery(tree), enabled: viewing !== null }).data?.albums ?? [];
   const [cropping, setCropping] = useState<MediaItem | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const keys = useRef(opKeys());
@@ -67,7 +70,7 @@ export function PersonPhotos({ tree, id, bare }: { tree: string; id: string; bar
         <div className="pp-portraits">
           {person.photo ? (
             <figure className="pp-portrait">
-              <Portrait person={person} tree={tree} size={88} prefer="photo" />
+              <PortraitZoom person={person} tree={tree} size={88} prefer="photo" />
               <figcaption>
                 {g('pp.photo')} {shownNow === 'photo' ? <span className="pp-badge">{g('pp.in_use')}</span> : null}
               </figcaption>
@@ -75,14 +78,14 @@ export function PersonPhotos({ tree, id, bare }: { tree: string; id: string; bar
           ) : null}
           {person.portrait ? (
             <figure className="pp-portrait">
-              <Portrait person={person} tree={tree} size={88} prefer="portrait" />
+              <PortraitZoom person={person} tree={tree} size={88} prefer="portrait" />
               <figcaption>
                 {g('paint.showPainted')} {shownNow === 'portrait' && paintedFits ? <span className="pp-badge">{g('pp.in_use')}</span> : null}
               </figcaption>
             </figure>
           ) : null}
           <figure className="pp-portrait">
-            <Portrait person={person} tree={tree} size={88} prefer="avatar" />
+            <PortraitZoom person={person} tree={tree} size={88} prefer="avatar" />
             <figcaption>
               {g('pp.drawn')} {shownNow === 'drawing' ? <span className="pp-badge">{g('pp.in_use')}</span> : null}
             </figcaption>
@@ -112,7 +115,7 @@ export function PersonPhotos({ tree, id, bare }: { tree: string; id: string; bar
                 className="pp-thumb"
                 aria-pressed={selected === m.key}
                 aria-label={m.caption || g('common.photo_of', { name })}
-                onClick={() => setSelected(m.key)}
+                onClick={() => { setSelected(m.key); setViewing(m.key); }}
               >
                 <img src={mediaUrl(tree, m.key)} alt="" loading="lazy" decoding="async" />
               </button>
@@ -145,6 +148,17 @@ export function PersonPhotos({ tree, id, bare }: { tree: string; id: string; bar
       ) : null}
       <PaintPortrait tree={tree} person={person} photos={photos} />
       {notice ? <p className="subtle pp-notice" role="status">{notice}</p> : null}
+
+      {viewing !== null && photos.length ? (
+        <Lightbox
+          tree={tree}
+          items={photos}
+          index={Math.max(0, photos.findIndex((m) => m.key === viewing))}
+          albums={albums}
+          onIndex={(i) => { setViewing(photos[i]?.key ?? null); setSelected(photos[i]?.key ?? null); }}
+          onClose={() => setViewing(null)}
+        />
+      ) : null}
 
       {cropping ? (
         <CropDialog

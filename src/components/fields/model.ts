@@ -37,7 +37,7 @@ export interface PersonField {
 /** Ways to reach someone. Changing these needs `edit-contact`; the rest need `edit-person`. */
 export const CONTACT_TYPES: readonly FieldType[] = ['phone', 'email', 'address', 'website', 'social'];
 /** These start at the editors' level, in the Edit tab and in the assistant's proposals alike: they are sensitive by nature. */
-export const RESTRICTED_BY_DEFAULT: readonly FieldType[] = ['address', 'medical', 'allergies'];
+export const RESTRICTED_BY_DEFAULT: readonly FieldType[] = ['address', 'medical', 'allergies', 'religion'];
 
 export const isContactType = (t: string) => (CONTACT_TYPES as readonly string[]).includes(t);
 /** The level a new field of this type starts at. */
@@ -63,7 +63,7 @@ export const PRESETS: Record<FieldType, readonly string[]> = {
   languages: ['mother tongue', 'spoken', 'learning'],
   medical: ['condition', 'medication', 'surgery', 'other'],
   allergies: ['food', 'medicine', 'other'],
-  favourites: ['food', 'drink', 'music', 'film', 'hobby', 'other'],
+  favourites: ['colour', 'food', 'drink', 'music', 'book', 'film', 'sport', 'flower', 'place', 'hobby', 'other'],
   gifts: ['food', 'book', 'hobby', 'other'],
   notes: ['general', 'other'],
   related: ['friend', 'godparent', 'neighbour', 'colleague', 'carer', 'other'],
@@ -90,7 +90,8 @@ export const VALUE = {
   education: z.object({ school: need(200), place: text(120), from: when, to: when, note: text(300) }),
   occupation: z.object({ title: need(200), employer: text(200), from: when, to: when, note: text(300) }),
   military: z.object({ unit: need(200), rank: text(120), from: when, to: when }),
-  religion: z.object({ name: need(120) }),
+  // `left` is '1' when they have left this church or faith; `leftOn` when, as far as anyone knows.
+  religion: z.object({ name: need(120), left: text(1), leftOn: when }),
   nationality: z.object({ country: need(120) }),
   languages: z.object({ language: need(120), level: text(120) }),
   medical: z.object({ note: need(2000) }),

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildFamily } from './graph.ts';
-import { closestFamily, lifeGlance, openFolds, partitionSoon, toggleFold } from './person-overview.ts';
+import { closestFamily, FOLD_KEYS, lifeGlance, openFolds, partitionSoon, toggleFold } from './person-overview.ts';
 import type { GPerson, GUnion, Graph } from './types.ts';
 
 const person = (id: string, more: Partial<GPerson> = {}) => ({ id, given: id, surname: 'Test', living: true, stories: 0, ...more }) as GPerson;
@@ -92,4 +92,11 @@ test('open sections survive bad saved values and toggle cleanly', () => {
   assert.deepEqual(openFolds('[]'), []);
   assert.deepEqual(toggleFold(['life'], 'places'), ['life', 'places']);
   assert.deepEqual(toggleFold(['life', 'places'], 'life'), ['places']);
+});
+
+test('the profile starts with every section open, and keeps what the reader folded', () => {
+  assert.deepEqual(openFolds(null, FOLD_KEYS), [...FOLD_KEYS]);
+  assert.deepEqual(openFolds('not json', FOLD_KEYS), [...FOLD_KEYS]);
+  assert.deepEqual(openFolds('["photos"]', FOLD_KEYS), ['photos']);
+  assert.deepEqual(openFolds(null), ['life']);
 });

@@ -126,3 +126,8 @@
 .edit-conflict-choices .btn { min-height: 44px; }
 @media (max-width: 600px) { .edit-conflict-choices .btn { min-height: 44px; } }
 .pp-edit-actions .edit-choose-first { flex: 1 0 100%; order: -1; text-align: end; }
+
+/* Further given names: one row each, with a remove button beside the input. */
+.pe-further { display: grid; gap: 8px; min-width: 0; }
+.pe-further-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; min-width: 0; }
+.pe-further-add { justify-self: start; display: inline-flex; align-items: center; gap: 6px; }

@@ -8,10 +8,12 @@ import { useId, useMemo, useState } from 'react';
 import { formatAddress, parseAddress, type AddressParts } from '~/lib/address';
 import { countrySuggestions, languageSuggestions, wordSuggestions, type Used } from '~/lib/field-suggest';
 import { familyWordsQuery, type FamilyWords } from '~/lib/field-suggest.functions';
+import { faithSuggestions } from '~/lib/faiths';
+import { COLOURS, favouriteWords, isColourLabel, parseColours, toggleColour } from '~/lib/favourites';
 import type { Family } from '~/lib/graph';
 import { displayName } from '~/lib/graph';
 import { locales, useT, type Key } from '~/lib/i18n';
-import { DatePicker, Select } from '../ui';
+import { DatePicker, Select, Switch } from '../ui';
 import { PlaceInput, type PlaceValue } from '../PlaceInput';
 import { AddressFinder } from './AddressFinder';
 import { TYPE_ICON } from './FieldsView';
@@ -59,7 +61,7 @@ const ADD_GROUPS: { title: Key; types: FieldType[] }[] = [
  * (the picker, year first), a place (the place picker, which suggests the family's own places), plain text, or text
  * with suggestions (see WordInput).
  */
-type WordKind = 'language' | 'level' | 'country' | 'nationality' | 'religion';
+type WordKind = 'language' | 'level' | 'country' | 'nationality' | 'religion' | 'favourite' | 'gift';
 interface Input { key: string; label: Key; wide?: boolean; multi?: boolean; type?: string; placeholder?: string; kind?: 'date' | 'period' | 'place' | WordKind }
 const from: Input = { key: 'from', label: 'input.from', kind: 'period' };
 const to: Input = { key: 'to', label: 'input.to', kind: 'period' };
@@ -85,8 +87,8 @@ const INPUTS: Record<FieldType, Input[]> = {
   languages: [{ key: 'language', label: 'input.language', kind: 'language' }, { key: 'level', label: 'input.level', kind: 'level' }],
   medical: [{ key: 'note', label: 'input.note', wide: true, multi: true }],
   allergies: [{ key: 'note', label: 'input.note', wide: true, multi: true }],
-  favourites: [{ key: 'text', label: 'input.text', wide: true }],
-  gifts: [{ key: 'text', label: 'input.text', wide: true }],
+  favourites: [{ key: 'text', label: 'input.text', wide: true, kind: 'favourite' }],
+  gifts: [{ key: 'text', label: 'input.text', wide: true, kind: 'gift' }],
   notes: [{ key: 'text', label: 'input.text', wide: true, multi: true }],
   related: [
     { key: 'person', label: 'input.person', wide: true },
@@ -97,14 +99,10 @@ const INPUTS: Record<FieldType, Input[]> = {
 };
 
 const LEVELS: readonly Key[] = ['suggest.level.native', 'suggest.level.fluent', 'suggest.level.good', 'suggest.level.basic'];
-const RELIGIONS: readonly Key[] = [
-  'suggest.religion.catholic', 'suggest.religion.protestant', 'suggest.religion.lutheran', 'suggest.religion.reformed', 'suggest.religion.orthodox',
-  'suggest.religion.anglican', 'suggest.religion.jewish', 'suggest.religion.muslim', 'suggest.religion.buddhist', 'suggest.religion.hindu',
-];
 const FAMILY_WORD: Partial<Record<WordKind, keyof FamilyWords>> = { language: 'language', level: 'level', nationality: 'nationality', religion: 'religion' };
 
 /** A text input that suggests words of its kind, what this family already uses first. Anything else can be typed. */
-function WordInput({ tree, kind, value, onChange, labelledBy }: { tree: string; kind: WordKind; value: string; onChange: (text: string) => void; labelledBy: string }) {
+function WordInput({ tree, kind, value, onChange, labelledBy, fieldLabel }: { tree: string; kind: WordKind; value: string; onChange: (text: string) => void; labelledBy: string; fieldLabel: string }) {
   const c = useT();
   const { data } = useQuery(familyWordsQuery(tree));
   const key = FAMILY_WORD[kind];
@@ -113,9 +111,41 @@ function WordInput({ tree, kind, value, onChange, labelledBy }: { tree: string; 
     const tag = locales[c.locale];
     if (kind === 'language') return languageSuggestions(value, tag, used);
     if (kind === 'country' || kind === 'nationality') return countrySuggestions(value, tag, used);
-    return wordSuggestions(value, (kind === 'level' ? LEVELS : RELIGIONS).map((k) => c(k)), used);
-  }, [kind, value, used, c]);
+    if (kind === 'religion') return faithSuggestions(value, c.locale, used);
+    if (kind === 'gift') return wordSuggestions(value, favouriteWords('gift', c.locale));
+    if (kind === 'favourite') return wordSuggestions(value, favouriteWords(fieldLabel, c.locale));
+    return wordSuggestions(value, LEVELS.map((k) => c(k)), used);
+  }, [kind, value, used, c, fieldLabel]);
   return <SuggestInput value={value} onChange={onChange} options={options} labelledBy={labelledBy} />;
+}
+
+/** The colour favourite: a text box for any words, and a swatch for each named colour. Several can be chosen. */
+function ColourInput({ value, onChange, labelledBy }: { value: string; onChange: (text: string) => void; labelledBy: string }) {
+  const c = useT();
+  const chosen = new Set(parseColours(value).map((t) => t.colour?.id));
+  return (
+    <>
+      <input className="input" aria-labelledby={labelledBy} value={value} onChange={(e) => onChange(e.target.value)} />
+      <div className="fe-swatches" role="group" aria-labelledby={labelledBy}>
+        {COLOURS.map((col) => (
+          <button type="button" key={col.id} className="fe-swatch" aria-pressed={chosen.has(col.id)} aria-label={col[c.locale]} title={col[c.locale]} onClick={() => onChange(toggleColour(value, col, c.locale))}>
+            <i style={{ background: col.hex }} />
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/** Whether they have left this church or faith, and, if anyone knows, when. */
+function LeftFaith({ value, onChange }: { value: FieldValue; onChange: (v: FieldValue) => void }) {
+  const c = useT();
+  return (
+    <div className="wide fe-left">
+      <Switch size="sm" checked={!!value.left} onChange={(on) => onChange({ ...value, left: on ? '1' : '', leftOn: on ? value.leftOn ?? '' : '' })}>{c('faith.leftAsk')}</Switch>
+      {value.left && <DatePicker label={c('faith.leftWhen')} value={value.leftOn ?? ''} onChange={(leftOn) => onChange({ ...value, leftOn })} precisions={['year', 'month', 'day']} defaultPrecision="year" />}
+    </div>
+  );
 }
 
 /** The address card's one box: a picked place or address fills the parts below it. */
@@ -319,7 +349,9 @@ function FieldRowEditor({ tree, f, index, count, fam, self, onChange, onMove, on
             return (
               <div className={cls} key={inp.key}>
                 <span id={`${id}-${inp.key}`}>{label}</span>
-                <WordInput tree={tree} kind={inp.kind} value={v} onChange={setV} labelledBy={`${id}-${inp.key}`} />
+                {inp.kind === 'favourite' && isColourLabel(f.label)
+                  ? <ColourInput value={v} onChange={setV} labelledBy={`${id}-${inp.key}`} />
+                  : <WordInput tree={tree} kind={inp.kind} value={v} onChange={setV} labelledBy={`${id}-${inp.key}`} fieldLabel={f.label} />}
               </div>
             );
           }
@@ -355,6 +387,7 @@ function FieldRowEditor({ tree, f, index, count, fam, self, onChange, onMove, on
             </label>
           );
         })}
+        {f.type === 'religion' && <LeftFaith value={f.value} onChange={(value) => onChange({ value })} />}
       </div>
 
       <VisibilityPicker value={f.visibility} onChange={(visibility) => onChange({ visibility })} />

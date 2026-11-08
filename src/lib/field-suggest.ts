@@ -10,6 +10,8 @@ export interface Suggestion {
   hint?: string;
   /** Already used in this family. */
   used?: boolean;
+  /** The heading it is listed under. */
+  group?: string;
 }
 export interface Used { value: string; n: number }
 interface Item { value: string; aliases?: readonly string[]; common?: boolean }

@@ -1,6 +1,7 @@
 import { isLocale, type Locale } from '../i18n/types';
 // Types and schemas the AI features share between the server and the browser. Nothing here touches a
 // provider, a key or the database: keep it that way, since the browser imports this file.
+import { MAX_FURTHER } from '../further-given';
 import { z } from 'zod';
 import { cutText, firstOf } from './trim';
 import { FIELD_TYPES } from '~/components/fields/model';
@@ -192,6 +193,7 @@ const baseProposalArgs = {
     relation: z.enum(['child', 'parent', 'partner', 'sibling']),
     coParent: id.optional(),
     given: text(120),
+    furtherGiven: z.array(text(120)).max(MAX_FURTHER).optional(),
     surname: z.string().trim().max(120).optional(),
     sex: sex.optional(),
     born: iso.optional(),
@@ -280,10 +282,15 @@ const photoItem = z.object({
   album: z.string().max(64).nullable().optional(),
 });
 
+/** The field types a draft may carry from a picture. Medical and allergy notes are left out on purpose. */
+export const DRAFT_DETAIL_TYPES = ['phone', 'email', 'address', 'website', 'names', 'dates', 'education', 'occupation', 'military', 'religion', 'nationality', 'languages'] as const;
+
 /** One person in a family draft. A new person has a temporary `ref`; an approximate date is written with a leading ~. */
 export const familyPersonSchema = z.object({
   ref: z.string().regex(NEW_REF),
   given: text(120),
+  /** Second name, third name, and so on, in order. */
+  furtherGiven: z.array(text(120)).max(MAX_FURTHER).optional(),
   surname: z.string().trim().max(120).optional(),
   sex: sex.optional(),
   born: iso.optional(),
@@ -296,6 +303,10 @@ export const familyPersonSchema = z.object({
   story: z.object({ kind: z.enum(['note', 'quote', 'anecdote', 'recipe', 'memory']), title: z.string().trim().max(200).optional(), body: text(20_000), /** Who told it, as an id in the tree. Without one it is saved under the approver's name. */ teller: id.optional() }).optional(),
   /** Social profiles to save on the person: the network's name, and the handle without its @. */
   social: z.array(z.object({ network: text(40), handle: text(300) })).max(5).optional(),
+  /** Other facts read from a document or picture, each as the person page's field of that type (value keys as in components/fields/model.ts). The server gives each the level its type starts at. */
+  details: z.array(z.object({ type: z.enum(DRAFT_DETAIL_TYPES), label: z.string().trim().overwrite(cutText(60)).optional(), value: z.record(z.string(), z.string().overwrite(cutText(500))) })).overwrite(firstOf(8)).optional(),
+  /** What was hard to read or is a guess (handwriting, an old script, a smudge, an age instead of a date), one short line each, naming the field. Shown on the card and kept with the person. */
+  unsure: z.array(z.string().trim().min(1).overwrite(cutText(200))).overwrite(firstOf(8)).optional(),
 });
 /** A relationship in a family draft: `anchor` and `person` are a new person's ref or an id in the tree. */
 export const familyLinkSchema = z.object({ anchor: id, person: id, relation: relationKind, coParent: id.optional() });

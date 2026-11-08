@@ -5,6 +5,7 @@
 import type { ExPerson, ExTree } from './model.ts';
 
 const base = (p: Partial<ExPerson> & Pick<ExPerson, 'id' | 'given'>): ExPerson => ({
+  furtherGiven: [],
   surname: null,
   currentGiven: null,
   currentSurname: null,
@@ -38,7 +39,7 @@ export function fixtureTree(): ExTree {
       base({ id: 'karl', given: 'Karl', surname: 'Linden', sex: 'm', born: '1898', occupation: 'Miller' }),
       base({ id: 'greta', given: 'Greta', surname: 'Berg', currentSurname: 'Linden', sex: 'f', born: '1925-03-08', living: true }),
       base({ id: 'otto', given: 'Otto', surname: 'Linden', sex: 'm', born: '1924-11', died: '1990' }),
-      base({ id: 'hanna', given: 'Hanna', surname: 'Linden', sex: 'f', born: '1950', nickname: 'Hanni', living: true }),
+      base({ id: 'hanna', given: 'Hanna', furtherGiven: ['Marie', 'Luise'], surname: 'Linden', sex: 'f', born: '1950', nickname: 'Hanni', living: true }),
       base({ id: 'pim', given: 'Pim', surname: 'Linden', sex: 'x', born: '1952', living: false, died: '2001' }),
       base({ id: 'lea', given: 'Lea', surname: 'Berg', sex: 'f', born: '2001-01-01', living: true }),
       base({ id: 'jonas', given: 'Jonas', surname: 'Kern', sex: 'm', born: '1948-07-30', title: 'Dr.', living: true }),

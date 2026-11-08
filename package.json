@@ -15,7 +15,7 @@
     "build:node": "KINDRED_TARGET=node vite build",
     "start": "node server/node.ts",
     "check": "tsc --noEmit",
-    "test": "node --test src/lib/auth/*.test.ts src/lib/store/*.test.ts src/lib/*.test.ts src/lib/exchange/*.test.ts src/lib/i18n/*.test.ts src/lib/jobs/*.test.ts scripts/*.test.ts scripts/lib/*.test.ts server/*.test.ts src/components/heraldry/*.test.ts src/components/assistant/*.test.ts src/components/tour/*.test.ts",
+    "test": "node --test src/lib/auth/*.test.ts src/lib/store/*.test.ts src/lib/*.test.ts src/lib/exchange/*.test.ts src/lib/i18n/*.test.ts src/lib/jobs/*.test.ts scripts/*.test.ts scripts/lib/*.test.ts server/*.test.ts src/components/heraldry/*.test.ts src/components/assistant/*.test.ts src/components/tour/*.test.ts src/components/statistics/*.test.ts",
     "seed": "node scripts/seed.ts",
     "preview": "vite preview",
     "deploy": "vite build && node scripts/cf-migrate.ts --remote && wrangler deploy"

@@ -121,16 +121,13 @@ function Report({ o, t, tree, view, setView }: { o: Overview; t: Translator; tre
         <p className="st-caption">{t('stats.reception_limit')}</p>
       </section>
 
-      <div className="st-grid-2">
-        <Card title={t('stats.chart.views')}>
-          <TimeChart mode="area" days={days} dayLabel={dayLabel} locale={t.locale} label={t('stats.chart.views')}
-            series={[{ label: t('stats.tile.views'), color: 'var(--st-line)', values: s.series.map((p) => p.views) }]} />
-        </Card>
-        <Card title={t('stats.chart.active')}>
-          <TimeChart mode="bars" days={days} dayLabel={dayLabel} locale={t.locale} label={t('stats.chart.active')}
-            series={[{ label: t('stats.tile.active'), color: 'var(--st-1)', values: s.series.map((p) => p.active) }]} />
-        </Card>
-      </div>
+      <Card title={t('stats.chart.both')} note={t('stats.chart.both_note')}>
+        <TimeChart mode="lines" days={days} dayLabel={dayLabel} locale={t.locale} label={t('stats.chart.both')} height={170}
+          series={[
+            { label: t('stats.tile.views'), color: 'var(--st-1)', values: s.series.map((p) => p.views) },
+            { label: t('stats.tile.active'), color: 'var(--st-2)', values: s.series.map((p) => p.active) },
+          ]} />
+      </Card>
 
       <Card title={t('stats.chart.changes')} note={t('stats.chart.changes_note')}>
         <ul className="st-legend">

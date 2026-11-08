@@ -14,8 +14,9 @@ import { occupationCodeFor } from '../occupations';
 import { linkPlan } from '../relations.server';
 import { addPersonField } from '../person.server';
 import { socialLink } from '../social';
-import { defaultVisibility, fieldInput, PRESETS } from '../../components/fields/model';
+import { DEFAULT_LABEL, defaultVisibility, fieldInput, PRESETS, storedValue } from '../../components/fields/model';
 import { tr } from './labels';
+import { storeFurther } from '../further-given';
 import { NEW_REF, toAiLocale, type FamilyLink, type FamilyPerson } from './types';
 
 /** Refusals and failures that the reader sees in their own language (translation keys, see errortext.ts). */
@@ -173,6 +174,7 @@ export function matchesFor(g: Graph, row: FamilyPerson, profiles: ReadonlyMap<st
 function personFields(row: FamilyRow) {
   return {
     given: row.given.trim(),
+    furtherGiven: row.furtherGiven?.map((x) => x.trim()).filter(Boolean) ?? [],
     surname: row.surname?.trim() || null,
     sex: row.sex ?? null,
     born: row.born ?? null,
@@ -235,8 +237,8 @@ export async function applyFamilyBatch(o: { tree: string; user: string; author: 
         const newPersonId = newId(f.given);
         return {
           writes: [q(
-            'INSERT INTO person (id, given, surname, sex, born, born_place, died, died_place, living, occupation, occupation_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            newPersonId, f.given, f.surname, f.sex, f.born, f.bornPlace, f.died, f.diedPlace, f.living ? 1 : 0, f.occupation, occupationCodeFor(f.occupation),
+            'INSERT INTO person (id, given, further_given, surname, sex, born, born_place, died, died_place, living, occupation, occupation_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            newPersonId, f.given, storeFurther(f.furtherGiven), f.surname, f.sex, f.born, f.bornPlace, f.died, f.diedPlace, f.living ? 1 : 0, f.occupation, occupationCodeFor(f.occupation),
           )],
           result: newPersonId,
         };
@@ -250,9 +252,25 @@ export async function applyFamilyBatch(o: { tree: string; user: string; author: 
         await addPersonField(tree, id, field, { key: `${row.key}f${i}`, user, payload: { person: id, ...s } }, o.author, { account: o.user, role: o.role, guest: false });
         have.add(profileKey(s.network, s.handle));
       }
+      // Other facts read from a picture, each at the level its type starts at (defaultVisibility: addresses and religion at editors). One that does not
+      // fit its type (a misread email, say) is skipped and named in the person's note below, so it never blocks the person.
+      const skipped: string[] = [];
+      for (const [i, d] of (row.details ?? []).entries()) {
+        const field = fieldInput.safeParse({ type: d.type, label: d.label ?? DEFAULT_LABEL[d.type] ?? d.type, value: d.value, visibility: defaultVisibility(d.type) });
+        if (!field.success) {
+          skipped.push(d.type); // the type only: a misread contact detail is not copied into a note anyone can read
+          continue;
+        }
+        const stored = storedValue(field.data.type, field.data.value);
+        await addPersonField(tree, id, field.data, { key: `${row.key}d${i}`, user, payload: { person: id, type: d.type, value: stored } }, o.author, { account: o.user, role: o.role, guest: false });
+      }
       people.push({ ref: row.ref, id });
-      if (row.story) {
-        const s = row.story;
+      const unsure = [...(row.unsure ?? []).map((x) => x.trim()), ...skipped].filter(Boolean);
+      // The doubts stay with the person as a note (added to their story when there is one), if the approver may add stories.
+      const note = unsure.length ? c('ai.famUnsureNote', { items: unsure.join('; ') }) : '';
+      const story = row.story ? { ...row.story, body: [row.story.body, note].filter(Boolean).join('\n\n') } : note && can(role, 'add-story') ? { kind: 'note' as const, title: undefined, body: note, teller: undefined } : undefined;
+      if (story) {
+        const s = story;
         const author = teller ? [teller.given, teller.surname].filter(Boolean).join(' ') : o.author;
         const context = teller ? c('ai.famStoryContext', { name: o.author }) : null;
         await once(tree, { key: `${row.key}s`, user, payload: { person: id, ...s } }, 'aiFamilyStory', () => ({

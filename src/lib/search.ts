@@ -1,6 +1,7 @@
 // The tree canvas's state lives in the URL, so every view is a link: back/forward walk your
 // trail, and a view can be shared.
 import { z } from 'zod';
+import { allGiven } from './further-given.ts';
 import type { GPerson } from './types';
 
 export const treeSearch = z.object({
@@ -35,7 +36,8 @@ export const foldName = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '')
 export function personNames(p: GPerson): string[] {
   const now = { given: p.currentGiven ?? p.given, surname: p.currentSurname ?? p.surname };
   const join = (...parts: (string | undefined)[]) => parts.filter(Boolean).join(' ');
-  return [join(p.given, p.surname), join(now.given, now.surname), p.given, now.given, p.nickname, p.surname, now.surname]
+  const further = p.furtherGiven ?? [];
+  return [join(allGiven(p.given, further), p.surname), join(p.given, p.surname), join(now.given, now.surname), p.given, now.given, ...further, p.nickname, p.surname, now.surname]
     .filter((s): s is string => !!s)
     .map(foldName);
 }

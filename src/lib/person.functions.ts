@@ -4,6 +4,7 @@ import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { fieldInput, isContactType, MAX_FIELDS } from '../components/fields/model';
+import { MAX_FURTHER, MAX_FURTHER_LENGTH } from './further-given';
 import { audienceOf } from './visibility';
 import { validDate } from './dates';
 import { sanitizeLook } from '../components/portrait/look';
@@ -44,6 +45,7 @@ export const getEditSnapshot = createServerFn({ method: 'GET' })
 
 const details = z.object({
   given: z.string().trim().min(1, 'A given name is needed').max(120),
+  furtherGiven: z.array(z.string().trim().min(1).max(MAX_FURTHER_LENGTH)).max(MAX_FURTHER).optional(),
   surname: z.string().trim().max(120).nullable(),
   currentGiven: z.string().trim().min(1).max(120).nullable(),
   currentSurname: z.string().trim().max(120).nullable(),

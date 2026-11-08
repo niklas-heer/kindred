@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import { db, graph, person } from '../db.server';
 import { buildFamily, children, fullName, kinship, parents, partnersOf, siblings } from '../graph';
+import { allGiven } from '../further-given';
 import { matchesName } from '../search';
 import type { GPerson, Graph } from '../types';
 import { can, type Action, type Role } from '../roles';
@@ -107,16 +108,19 @@ const relation = { type: 'string', enum: ['child', 'parent', 'partner', 'sibling
 const date = { type: 'string', description: 'YYYY, YYYY-MM or YYYY-MM-DD. A leading ~ marks an approximate date (about 1938 is ~1938). Never guess a date.' };
 const newRef = { type: 'string', description: 'For a person who is not in the tree yet: a temporary id such as n1, n2 (unique in this draft). Use the same id wherever that person is named.' };
 const personOrRef = { type: 'string', description: 'A person id from the tree, or the temporary id (n1, n2…) of a new person in this draft.' };
+const furtherSpec = { type: 'array', maxItems: 10, items: { type: 'string' }, description: 'Second name, third name and so on, in order, when the person has more than one given name. `given` is the first name only; never put a surname here.' };
 const familyPersonSpec = {
   type: 'object',
   properties: {
     ref: newRef,
-    given: { type: 'string' }, surname: { type: 'string' }, sex: { type: 'string', enum: ['m', 'f', 'x'] },
+    given: { type: 'string' }, furtherGiven: furtherSpec, surname: { type: 'string' }, sex: { type: 'string', enum: ['m', 'f', 'x'] },
     born: date, bornPlace: { type: 'string' }, died: date, diedPlace: { type: 'string' },
     living: { type: 'boolean', description: 'True for someone who is alive.' },
     occupation: { type: 'string' },
     story: { type: 'object', description: 'A memory, note or anecdote about the person.', properties: { kind: { type: 'string', enum: ['note', 'quote', 'anecdote', 'recipe', 'memory'] }, title: { type: 'string' }, body: { type: 'string' }, teller: { type: 'string', description: 'In a family session: the id of the speaker whose line this memory came from.' } }, required: ['kind', 'body'] },
     social: { type: 'array', maxItems: 5, description: 'Social profiles the reader showed or named.', items: { type: 'object', properties: { network: { type: 'string', description: 'For example Instagram, Facebook, TikTok.' }, handle: { type: 'string', description: 'The username, without its @.' } }, required: ['network', 'handle'] } },
+    details: { type: 'array', maxItems: 8, description: 'Other facts read from the picture that have no field above: phone, email, address, website, names (maiden or birth name, alias), dates (baptism, marriage, anniversary: value {date, note}), education, occupation (a further job: {title, employer}), military, religion, nationality, languages. value has that type’s keys: phone {number}, email {address}, address {street, city, postcode, country}, website {url}, names {name}, education {school, place}, military {unit, rank}, religion {name}, nationality {country}, languages {language}.', items: { type: 'object', properties: { type: { type: 'string', enum: ['phone', 'email', 'address', 'website', 'names', 'dates', 'education', 'occupation', 'military', 'religion', 'nationality', 'languages'] }, label: { type: 'string' }, value: { type: 'object', additionalProperties: { type: 'string' } } }, required: ['type', 'value'] } },
+    unsure: { type: 'array', maxItems: 8, items: { type: 'string' }, description: 'One short line for everything on this person that you could not read with certainty or that is a guess (handwriting, an old script, a smudge, a faded date, an age instead of a date), naming the field, e.g. "born: handwritten, could be 1894 or 1884".' },
   },
   required: ['ref', 'given', 'living'],
 };
@@ -133,7 +137,7 @@ const PROPOSE: { spec: ToolSpec; kind: ProposalKind; action: Action; feature?: '
         type: 'object',
         properties: {
           anchor: idParam, relation, coParent: { ...idParam, description: 'For a child: the anchor’s partner who is the other parent.' },
-          given: { type: 'string' }, surname: { type: 'string' }, sex: { type: 'string', enum: ['m', 'f', 'x'] },
+          given: { type: 'string' }, furtherGiven: furtherSpec, surname: { type: 'string' }, sex: { type: 'string', enum: ['m', 'f', 'x'] },
           born: date, died: date, living: { type: 'boolean' },
         },
         required: ['anchor', 'relation', 'given', 'living'],
@@ -333,7 +337,7 @@ export async function runTool(ctx: Ctx, name: string, input: unknown, out: Propo
         .filter((p) => matchesName(p, a.query))
         .slice(0, a.limit ?? 15)
         .map((p) => {
-          const birth = [p.given, p.surname].filter(Boolean).join(' ');
+          const birth = [allGiven(p.given, p.furtherGiven), p.surname].filter(Boolean).join(' ');
           return { id: p.id, name: fullName(p), ...(birth !== fullName(p) && { birthName: birth }), born: p.born, died: p.died, living: p.living, house: p.house ? houses.get(p.house) : undefined };
         });
       return json({ people: hits, count: hits.length });
@@ -505,7 +509,7 @@ async function propose(ctx: Ctx, c: Tr, byId: Map<string, GPerson>, kind: Propos
 
   if (kind === 'add-person') {
     const a = args as z.infer<typeof proposalArgs['add-person']>;
-    const who = [a.given, a.surname].filter(Boolean).join(' ');
+    const who = [allGiven(a.given, a.furtherGiven), a.surname].filter(Boolean).join(' ');
     summary = c('ai.summaryAddPerson', { name: who, rel: rel(a.relation), anchor: name(a.anchor) });
     diff.push({ label: c('ai.fieldName'), to: who }, { label: c('ai.fieldRelation'), to: `${rel(a.relation)} ${name(a.anchor)}` });
     if (a.born) diff.push({ label: c('ai.fieldBorn'), to: a.born });
@@ -570,7 +574,14 @@ async function proposeNew(ctx: Ctx, c: Tr, g: Graph, byId: Map<string, GPerson>,
     let people = parsed.data.people.map((p) => {
       // A handle a network could not have is left off: it was misread, and a card should not offer it.
       const social = p.social?.flatMap((s) => cleanSocial(s) ?? []);
-      const row = { ...p, ...(p.social ? { social } : {}) };
+      // A detail that does not fit its type (a misread email, say) is not offered; the card says it could not be read.
+      const unsure = [...(p.unsure ?? [])];
+      const details = p.details?.filter((d) => {
+        const ok = fieldInput.safeParse({ type: d.type, label: d.label ?? d.type, value: d.value, visibility: defaultVisibility(d.type) }).success;
+        if (!ok) unsure.push(`${d.type}: not readable as a ${d.type}`);
+        return ok;
+      });
+      const row = { ...p, ...(p.social ? { social } : {}), ...(details ? { details } : {}), ...(unsure.length ? { unsure: unsure.slice(0, 8) } : {}) };
       if (!p.story) return row;
       const named = p.story.teller && byId.has(p.story.teller) ? p.story.teller : undefined;
       const speaker = ctx.session && ctx.me && byId.has(ctx.me) ? ctx.me : undefined;

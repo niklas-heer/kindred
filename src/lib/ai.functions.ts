@@ -203,11 +203,30 @@ export const aiChatImage = createServerFn({ method: 'GET' })
 
 export const aiChatImageQuery = (t: string, id: string) => queryOptions({ queryKey: ['ai-chat-image', t, id], queryFn: () => aiChatImage({ data: { tree: t, id } }), staleTime: Infinity });
 
+const decisionOutcome = z.object({
+  edited: z.boolean().optional(),
+  removed: z.number().int().min(0).max(1000).optional(),
+  added: z.array(z.string().max(64)).max(200).optional(),
+  failed: z.array(z.string().max(64)).max(200).optional(),
+  linksAdded: z.number().int().min(0).max(1000).optional(),
+  linksFailed: z.number().int().min(0).max(1000).optional(),
+  error: z.string().max(240).optional(),
+});
+
+/** Records a card's outcome, and says whether the assistant should now carry on. */
 export const aiChatMark = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, itemId: z.string().max(64), proposalId: z.string().max(64), status: z.enum(['done', 'dismissed']) }))
+  .validator(z.object({ tree, itemId: z.string().max(64), proposalId: z.string().max(64), status: z.enum(['done', 'dismissed', 'failed']), outcome: decisionOutcome.optional() }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireMember(data.tree);
-    await (await import('./ai/chat.server')).markProposal(data.tree, m.user.id, m.role, data.itemId, data.proposalId, data.status);
+    return (await import('./ai/chat.server')).markProposal(data.tree, m.user.id, m.role, data.itemId, data.proposalId, data.status, data.outcome);
+  });
+
+/** The assistant carries on after the reader's decisions. The same member check as a message; the server decides whether anything is due. */
+export const aiChatContinue = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, locale }))
+  .handler(async ({ data }) => {
+    const m = await (await guard()).requireMember(data.tree);
+    return (await import('./ai/chat.server')).continueAfterDecisions({ tree: data.tree, user: m.user.id, role: m.role, me: m.person, locale: data.locale ?? 'en' });
   });
 
 // ---------- suggestions from pictures and names ----------

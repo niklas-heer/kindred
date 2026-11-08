@@ -20,13 +20,14 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type Keyboard
 import { GameIcon } from '~/components/GameIcon';
 import { Arms } from '~/components/Heraldry';
 import { Portrait } from '~/components/Portrait';
+import { PortraitZoom } from '~/components/photos/PortraitZoom';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
 import { useCan } from '~/lib/session';
 import { formatNumber, kinshipLabel, locales, translate, useT, type Locale, type Translator } from '~/lib/i18n';
 import { occupationSearchText, occupationText } from '~/lib/occupations';
 import { TRAITS } from '~/lib/traits';
 import { useToday } from '~/lib/clock';
-import { age as ageOf, ancestorDepths, displayName, kinship, partnersOf, type Family } from '~/lib/graph';
+import { age as ageOf, ancestorDepths, displayName, fullName, kinship, partnersOf, type Family } from '~/lib/graph';
 import type { GPerson, House } from '~/lib/types';
 import '~/styles/people.css';
 import { sectionHead } from '~/lib/title';
@@ -120,7 +121,7 @@ function buildRows(f: Family & { gen: Map<string, number> }, tree: string, me: s
       house,
       base,
       sortName: `${p.surname ?? ''} ${p.given} ${p.born ?? ''}`.toLowerCase(),
-      search: [dn, p.given, p.surname, p.nickname, p.title, p.occupation, occupationSearchText(p.occupationCode), house?.name, label, short(p.born, locale), short(p.died, locale)].filter(Boolean).join(' ').toLowerCase(),
+      search: [dn, fullName(p), p.given, ...(p.furtherGiven ?? []), p.surname, p.nickname, p.title, p.occupation, occupationSearchText(p.occupationCode), house?.name, label, short(p.born, locale), short(p.died, locale)].filter(Boolean).join(' ').toLowerCase(),
       bornKey: dateKey(p.born),
       diedKey: dateKey(p.died),
       age: ageOf(p, today),
@@ -157,7 +158,7 @@ const h = createColumnHelper<typeof features, R>();
 function buildColumns(t: Translator) {
   const locale = t.locale;
   return h.columns([
-  h.display({ id: 'portrait', header: '', enableSorting: false, cell: ({ row }) => <Portrait person={row.original.p} tree={row.original.tree} size={34} /> }),
+  h.display({ id: 'portrait', header: '', enableSorting: false, cell: ({ row }) => <PortraitZoom person={row.original.p} tree={row.original.tree} size={34} /> }),
   h.accessor((r) => r.sortName, {
     id: 'name',
     header: t('people.col.name'),
@@ -167,7 +168,7 @@ function buildColumns(t: Translator) {
       return (
         <span className="reg-name">
           {r.p.living ? <span className="reg-dot" title={t('panel.living')} role="img" aria-label={t('panel.living')} /> : <span className="reg-dot" data-off aria-hidden />}
-          <Link to="/$tree" params={{ tree: r.tree }} search={{ focus: r.id }} onClick={(e) => e.stopPropagation()} tabIndex={-1}>
+          <Link to="/$tree/person/$id" params={{ tree: r.tree, id: r.id }} onClick={(e) => e.stopPropagation()} tabIndex={-1}>
             {r.base}
           </Link>
           {r.p.epithet && <i>{r.p.epithet}</i>}
@@ -345,7 +346,7 @@ function RegisterPage() {
     scrollPaddingStart: HEAD,
   });
 
-  const open = (id: string) => navigate({ to: '/$tree', params: { tree }, search: { focus: id } });
+  const open = (id: string) => navigate({ to: '/$tree/person/$id', params: { tree, id } });
   const move = (to: number) => {
     const i = Math.max(0, Math.min(rows.length - 1, to));
     setSel(i);

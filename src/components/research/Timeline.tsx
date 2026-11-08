@@ -21,7 +21,7 @@ export function Timeline({ tree, view, onDocument, onNote, onPicture }: {
   };
 
   const personLink = (id: string | undefined, text: string) =>
-    id && f.byId.has(id) ? <Link to="/$tree" params={{ tree }} search={{ focus: id }}>{text}</Link> : <>{text}</>;
+    id && f.byId.has(id) ? <Link to="/$tree/person/$id" params={{ tree, id }}>{text}</Link> : <>{text}</>;
 
   const label = (e: TimelineEntry) => {
     const who = name(e.person);

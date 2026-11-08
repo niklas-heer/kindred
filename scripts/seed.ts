@@ -8,6 +8,7 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync 
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { openSqlite } from '../src/lib/store/node.ts';
+import { storeFurther } from '../src/lib/further-given.ts';
 import type { SeedTree } from '../src/lib/seed-format.ts';
 
 const DATA = process.env.KINDRED_DATA_DIR ? resolve(process.env.KINDRED_DATA_DIR) : resolve('data');
@@ -58,12 +59,12 @@ for (const file of files) {
   for (const h of t.houses) house.run(h.id, h.name, h.motto ?? null, JSON.stringify(h.arms), h.founder ?? null);
 
   const person = db.prepare(`INSERT INTO person (id, given, surname, house, sex, born, born_place, died, died_place, living,
-    epithet, title, occupation, bio, traits, look, nickname, current_given, current_surname) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    epithet, title, occupation, bio, traits, look, nickname, current_given, current_surname, further_given) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   for (const p of t.people) {
     person.run(p.id, p.given, p.surname ?? null, p.house ?? null, p.sex ?? null, p.born ?? null, p.bornPlace ?? null,
       p.died ?? null, p.diedPlace ?? null, p.living ? 1 : 0, p.epithet ?? null, p.title ?? null, p.occupation ?? null,
       p.bio ?? null, p.traits ? JSON.stringify(p.traits) : null, p.look ? JSON.stringify(p.look) : null,
-      p.nickname ?? null, p.currentGiven ?? null, p.currentSurname ?? null);
+      p.nickname ?? null, p.currentGiven ?? null, p.currentSurname ?? null, storeFurther(p.furtherGiven));
   }
   const parent = db.prepare('INSERT OR IGNORE INTO parent (child, parent, kind, confidence) VALUES (?, ?, ?, ?)');
   for (const r of t.parents) parent.run(r.child, r.parent, r.kind ?? 'biological', r.confidence ?? 'certain');

@@ -20,6 +20,7 @@ import * as neededArea from "./areas/needed.ts";
 import * as panelArea from "./areas/panel.ts";
 import * as photosArea from "./areas/photos.ts";
 import * as portraitArea from "./areas/portrait.ts";
+import * as profileArea from "./areas/profile.ts";
 import * as remindersArea from "./areas/reminders.ts";
 import * as researchArea from "./areas/research.ts";
 import * as setupArea from "./areas/setup.ts";
@@ -49,6 +50,7 @@ const AREAS = [
   housesArea,
   heraldryArea,
   portraitArea,
+  profileArea,
   atlasArea,
   almanacArea,
   chronicleArea,

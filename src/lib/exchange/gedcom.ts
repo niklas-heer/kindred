@@ -9,6 +9,7 @@
 //         no partnership), HUSB, WIFE, CHIL, MARR (DATE, PLAC), DIV (DATE), _KINDRED_BEGAN, _KINDRED_END
 //
 // Nothing here touches storage: `writeGedcom` takes an ExTree, `readGedcom` returns what the file says.
+import { allGiven } from '../further-given.ts';
 import { fromGedcomDate, toGedcomDate } from './dates.ts';
 import type { Confidence, ExParent, ExPerson, ExTree, ExUnion, Issue, IssueCode, ParentKind, Sex, UnionKind } from './model.ts';
 
@@ -226,10 +227,14 @@ export function writeGedcom(tree: ExTree, now: Date = new Date()): { text: strin
 }
 
 function writeNames(out: string[], p: ExPerson) {
-  const given = p.given.replace(/\//g, '∕');
-  const surname = (p.surname ?? '').replace(/\//g, '∕');
-  out.push(`1 NAME ${given} /${surname}/`);
-  out.push(`2 GIVN ${given}`);
+  const clean = (s: string) => s.replace(/\//g, '∕');
+  const given = clean(p.given);
+  const surname = clean(p.surname ?? '');
+  // Further given names read as one name in the NAME line; GIVN lists them separated by commas (GEDCOM 5.5.1), which is
+  // how the reader tells them from a single given name that holds several words, which stays whole.
+  const further = p.furtherGiven.map(clean);
+  out.push(`1 NAME ${[given, ...further].join(' ')} /${surname}/`);
+  out.push(`2 GIVN ${[given, ...further].join(further.length ? ', ' : ' ')}`);
   if (surname) out.push(`2 SURN ${surname}`);
   const cg = p.currentGiven ?? p.given;
   const cs = p.currentSurname ?? p.surname ?? '';
@@ -366,7 +371,7 @@ export function readGedcom(text: string): Incoming {
     const birthName = names.find((n) => !married(n)) ?? names[0];
     const currentName = names.find((n) => married(n) && n !== birthName);
     const parseName = (n: GNode | undefined) => {
-      if (!n) return { given: '', surname: null as string | null };
+      if (!n) return { given: '', further: [] as string[], surname: null as string | null };
       const m = /^(.*?)\s*\/([^/]*)\/\s*(.*)$/.exec(n.value);
       let given = (m ? m[1] : n.value).trim();
       let surname = (m ? m[2] : '').trim();
@@ -374,9 +379,11 @@ export function readGedcom(text: string): Incoming {
       const surn = first(n, 'SURN')?.value.trim();
       if (givn) given = givn;
       if (surn) surname = surn;
-      return { given, surname: surname || null };
+      // A comma-separated GIVN is a list of given names: the first is the given name, the others are further ones.
+      const names = givn?.includes(',') ? givn.split(',').map((x) => x.trim()).filter(Boolean) : [given];
+      return { given: names[0] ?? given, further: names.slice(1), surname: surname || null };
     };
-    let { given, surname } = parseName(birthName);
+    let { given, further, surname } = parseName(birthName);
     if (!given) {
       given = 'Unnamed';
       issues.push({ level: 'warning', code: 'exchange.issue.no_given_name', vars: { id: key }, message: `${key} has no given name; it is called “Unnamed”` });
@@ -401,9 +408,10 @@ export function readGedcom(text: string): Incoming {
       id: key,
       preferredId: id(first(r, '_KINDRED_ID')?.value),
       given,
+      furtherGiven: further,
       surname,
       // A null current name means "the same as the birth name", as in the database.
-      currentGiven: cur && cur.given !== given ? cur.given : null,
+      currentGiven: cur && allGiven(cur.given, cur.further) !== allGiven(given, further) ? allGiven(cur.given, cur.further) : null,
       currentSurname: cur && cur.surname !== surname ? cur.surname : null,
       sex,
       born: parseDate(first(birth, 'DATE')?.value, 'birth', given),

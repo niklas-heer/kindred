@@ -130,7 +130,7 @@ export function Palette() {
     const go = (focus: string) => () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, focus, sel: undefined, root: undefined }) }); close(); };
     const people = searchPeople(f, dq).map(({ id }) => {
       const p = f.byId.get(id)!;
-      return { key: id, person: id, label: displayName(p, f), hint: personHint(f, id, who, myAnc, t), run: go(id) };
+      return { key: id, person: id, label: displayName(p, f), hint: personHint(f, id, who, myAnc, t), run: () => { navigate({ to: '/$tree/person/$id', params: { tree, id } }); close(); } };
     });
     // Houses by name: straight to the house's page.
     const fqh = fold(dq.trim());

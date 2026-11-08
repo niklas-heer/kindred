@@ -5,11 +5,11 @@ import { Link, useBlocker } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { geoMercator, geoPath, type GeoPermissibleObjects } from 'd3-geo';
 import {
-  Baby, BriefcaseBusiness, Cake, Camera, Check, ChevronDown, CookingPot, Crosshair, Crown, GitFork, Heart, HeartCrack, Mail, MapPin, MessagesSquare, Pencil,
+  Baby, BriefcaseBusiness, Cake, Camera, Check, ChevronDown, CookingPot, Crosshair, Crown, GitFork, Heart, HeartCrack, Mail, MapPin, Maximize2, MessagesSquare, Network, Pencil,
   Paintbrush, Phone, Plus, Quote, Route as RouteIcon, Sparkles, StickyNote, Trash2, UserRound, X,
 } from 'lucide-react';
 import { feature, mesh } from 'topojson-client';
-import { useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { addStory, deleteStory, newOpKey, opKeys, setPartnershipEnd, uploadPhoto, unlinkRelative } from '~/lib/api';
 import { addPersonField, deletePersonField, personDetailQuery, setLook } from '~/lib/person.functions';
 import { kinshipLabel, locales, ordinal, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
@@ -18,10 +18,10 @@ import { translateOccupation } from '~/lib/occupations.functions';
 import { useAiStatus } from './assistant/store';
 import { HeadOfHouse } from '~/lib/houses';
 import {
-  ageAt, age, children, displayName, fmtDate, kinship, lifespan, parents, partnersOf, personDisplayName, siblings, useNameMode, yearOf, type Family,
+  ageAt, age, children, displayName, fmtDate, fullName, kinship, lifespan, parents, partnersOf, personDisplayName, siblings, useNameMode, yearOf, type Family,
 } from '~/lib/graph';
 import { setPref, usePref } from '~/lib/prefs';
-import { closestFamily, FOLD_PREF, lifeGlance, openFolds, partitionSoon, toggleFold, type CloseRelative, type FoldKey, type GlanceItem } from '~/lib/person-overview';
+import { closestFamily, FOLD_KEYS, FOLD_PREF, lifeGlance, openFolds, partitionSoon, PROFILE_FOLD_PREF, toggleFold, type CloseRelative, type FoldKey, type GlanceItem } from '~/lib/person-overview';
 import { meaningLine } from '~/lib/house-meaning';
 import { houseMeaningsQuery, houseTranslationsQuery } from '~/lib/house-meaning.functions';
 import { translateSaved } from '~/lib/house-translation';
@@ -47,6 +47,7 @@ import { DraftContext, DraftTracker, type Draft } from './fields/draft';
 import { PersonEdit } from './fields/PersonEdit';
 import { CharacterEditor } from './CharacterEditor';
 import { PersonPhotos } from './photos/PersonPhotos';
+import { PortraitZoom } from './photos/PortraitZoom';
 import { mediaUrl } from './photos/types';
 import { PersonResearch } from './research/PersonResearch';
 import { ContactRow, FieldGroups, contactHref, contactsOf } from './fields/FieldsView';
@@ -55,6 +56,7 @@ import { AddressFinder } from './fields/AddressFinder';
 import { formatAddress, parseAddress, type AddressParts } from '~/lib/address';
 import { DEFAULT_LABEL, defaultVisibility } from './fields/model';
 import './panel.css';
+import './profile.css';
 
 type Tab = 'overview' | 'family' | 'stories' | 'everyday' | 'edit';
 
@@ -70,12 +72,17 @@ interface Props {
   onDynasty: () => void;
   onAncestors: () => void;
   onClose: () => void;
+  /** The full-page profile instead of the tree's side panel: the same content, laid out for the whole screen. */
+  page?: boolean;
 }
+
+/** True inside the full-page profile. */
+const PageLayout = createContext(false);
 
 /** The person's details (stories, contacts, places): loading, failed with a retry, or there. */
 type DetailState = { detail?: PersonDetail; failed: boolean; retry: () => void };
 
-export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPath, onDynasty, onAncestors, onClose }: Props) {
+export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPath, onDynasty, onAncestors, onClose, page = false }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [pending, setPending] = useState<(() => void) | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
@@ -89,13 +96,13 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   const proceed = () => { setPending(null); guarded?.(); };
   useEffect(() => {
     const escape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && (draft?.dirty || draft?.busy) && !isOverlayOpen()) {
+      if (e.key === 'Escape' && !page && (draft?.dirty || draft?.busy) && !isOverlayOpen()) {
         e.preventDefault(); e.stopImmediatePropagation(); setPending(() => onClose);
       }
     };
     window.addEventListener('keydown', escape, true);
     return () => window.removeEventListener('keydown', escape, true);
-  }, [draft, onClose]);
+  }, [draft, onClose, page]);
   const p = f.byId.get(id);
   const [tab, setTab] = useState<Tab>('overview');
   // What this reader may do here (the server checks the same; see src/lib/roles.ts).
@@ -134,27 +141,39 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   const current = { ...p, given: p.currentGiven ?? p.given, surname: p.currentSurname ?? p.surname };
   const nee = p.currentSurname != null && p.currentSurname !== p.surname && p.surname ? p.surname : undefined;
   const shown = personDisplayName(current, nameMode, f);
+  const Heading = page ? 'h1' : 'h2';
+  // Who they are, what there is to read, and the dialogs: a docked column in the tree, a page of their own in the profile.
+  const shell = (identity: ReactNode, main: ReactNode, dialogs: ReactNode) => page ? (
+    <article className="person-profile" key={id}>
+      <div className="pf-identity">{identity}</div>
+      <div className="pf-main">{main}</div>
+      {dialogs}
+    </article>
+  ) : (
+    <aside className="person-panel panel" key={id}>
+      <button className="btn icon ghost panel-close" onClick={() => leave(onClose)} aria-label={t('panel.closeAria')} title={t('panel.closeTitle')}><X size={16} /></button>
+      {identity}{main}{dialogs}
+    </aside>
+  );
 
   return (
-    <DraftContext.Provider value={{ register: setDraft, leave }}><aside className="person-panel panel" key={id}>
-      <button className="btn icon ghost panel-close" onClick={() => leave(onClose)} aria-label={t('panel.closeAria')} title={t('panel.closeTitle')}><X size={16} /></button>
+    <DraftContext.Provider value={{ register: setDraft, leave }}><PageLayout.Provider value={page}>
+    {shell(<>
       <header className="pp-head">
-        {canPhoto ? (
-          <>
-            <button type="button" disabled={photo.isPending} className="pp-portrait" aria-label={t('panel.changePortrait')} onClick={() => photoInput.current?.click()}>
-              <Portrait person={p} tree={tree} size={124} />
-              <span className="pp-photo"><Camera size={14} /></span>
-            </button>
-            <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" aria-label={t('panel.portraitImage')} hidden onChange={(e) => e.target.files?.[0] && photo.mutate(e.target.files[0])} />
-          </>
-        ) : (
-          <span className="pp-portrait readonly"><Portrait person={p} tree={tree} size={124} /></span>
-        )}
+        <span className="pp-portrait-slot">
+          <PortraitZoom className="pp-portrait" person={p} tree={tree} size={page ? 320 : 124} />
+          {canPhoto && (
+            <>
+              <button type="button" className="pp-photo" disabled={photo.isPending} aria-label={t('panel.changePortrait')} title={t('panel.changePortrait')} onClick={() => photoInput.current?.click()}><Camera size={14} aria-hidden /></button>
+              <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" aria-label={t('panel.portraitImage')} hidden onChange={(e) => e.target.files?.[0] && photo.mutate(e.target.files[0])} />
+            </>
+          )}
+        </span>
         <div className="pp-id">
-          <h2 className="display">
-            {shown}
+          <Heading className="display">
+            {page ? shown : <Link className="pp-name-link" to="/$tree/person/$id" params={{ tree, id }}>{shown}</Link>}
             {nee && nameMode === 'full' && <span className="pp-nee"> {c('panel.nee', { name: nee })}</span>}
-          </h2>
+          </Heading>
           {p.title && <div className="pp-title">{p.title}</div>}
           <div className="pp-life">
             {p.living && <span className="pp-living" title={t('panel.living')}>●</span>}
@@ -166,6 +185,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
               <Arms arms={house.arms} size={22} /> <span>{house.name}</span>
             </Link>
           )}
+          {!page && <Link className="pp-open-profile" to="/$tree/person/$id" params={{ tree, id }} title={t('profile.openTitle', { name: shown })}><Maximize2 size={13} aria-hidden /> {t('profile.open')}</Link>}
         </div>
       </header>
 
@@ -186,11 +206,13 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
       ) : null}
 
       <div className="pp-actions">
-        <button className="btn" onClick={onCenter}><Crosshair size={14} /> {t('panel.centre')}</button>
+        {page
+          ? <button className="btn primary" onClick={onCenter}><Network size={15} aria-hidden /> {t('profile.showInTree')}</button>
+          : <button className="btn" onClick={onCenter}><Crosshair size={14} /> {t('panel.centre')}</button>}
         <button className="btn" onClick={onAncestors}><GitFork size={14} style={{ transform: 'rotate(180deg)' }} /> {t('panel.ancestors')}</button>
         <button className="btn" onClick={onDynasty}><Crown size={14} /> {t('panel.dynasty')}</button>
       </div>
-
+    </>, <>
       <Tabs value={tab} onChange={(v) => leave(() => setTab(v as Tab))} label={t('panel.tabsLabel')}>
       <TabList className="pp-tabs">
         {(
@@ -233,6 +255,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
       ) : (
         <p className="pp-add-relative pp-ask subtle">{c('ask.editor')}</p>
       )}
+    </>, <>
       {add && canAdd && <QuickAdd family={f} tree={tree} anchor={id} relation={add} onCancel={() => setAdd(null)} onDone={() => setAdd(null)} />}
       <Dialog open={!!guarded} onClose={keep} title={t('panel.unsavedTitle')} dismissible={!savingDraft && !draft?.busy} footer={<>
         <button className="btn ghost" disabled={savingDraft || draft?.busy} onClick={keep}>{t('panel.keepEditing')}</button>
@@ -240,7 +263,8 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
         <button className="btn primary" disabled={savingDraft || draft?.busy} onClick={async () => { setSavingDraft(true); try { if (await draft?.save()) proceed(); } finally { setSavingDraft(false); } }}>{t('panel.save')}</button>
       </>}><p>{t('panel.unsavedBody')}</p></Dialog>
       {appearance && canEdit && <AppearanceDialog tree={tree} p={p} house={house ?? null} onClose={() => setAppearance(false)} />}
-    </aside></DraftContext.Provider>
+    </>)}
+    </PageLayout.Provider></DraftContext.Provider>
   );
 }
 
@@ -309,9 +333,10 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
   const latest = (detail?.stories ?? []).find((s) => s.kind !== 'recipe' && s.kind !== 'note');
   const c = useT();
   const { soon, later } = partitionSoon(p.living && today ? upcomingDates(f, p, today, c) : [], (d) => d.days);
+  const wide = useContext(PageLayout);
 
-  return (
-    <div className="pp-overview">
+  const lead = (
+    <>
       <HeadOfHouse person={p.id} />
       <section className="pp-kin" aria-label={c('panel.howRelated')}>
         {!me ? (
@@ -344,6 +369,7 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
           </Fact>
         )}
         <OccupationFact tree={tree} p={p} icon={<BriefcaseBusiness size={15} />} label={c('fact.occupation')} />
+        {p.furtherGiven?.length ? <Fact icon={<UserRound size={15} />} label={c('fact.fullName')}>{fullName(p)}</Fact> : null}
         {p.nickname && <Fact icon={<UserRound size={15} />} label={c('fact.called')}>{p.nickname}</Fact>}
       </div>
 
@@ -367,7 +393,12 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
       )}
 
       {house && <HouseSection tree={tree} house={house} />}
+    </>
+  );
 
+  return (
+    <div className="pp-overview">
+      {wide ? <div className="pp-ov-main">{lead}</div> : lead}
       <div className="pp-folds">
         <LifeTimeline f={f} tree={tree} p={p} onSelect={onSelect} />
         <PlacesMap f={f} tree={tree} p={p} bornPlace={bornPlace} diedPlace={diedPlace} unions={unions} />
@@ -401,14 +432,22 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
   );
 }
 
+/** Which Overview sections are open here, and how to change that. The panel and the profile each remember their own. */
+function useFolds() {
+  const wide = useContext(PageLayout);
+  const pref = wide ? PROFILE_FOLD_PREF : FOLD_PREF;
+  const open = openFolds(usePref(pref), wide ? FOLD_KEYS : undefined);
+  return { open, toggle: (id: FoldKey) => setPref(pref, JSON.stringify(toggleFold(open, id))) };
+}
+
 /** A section of the Overview that can be folded away. Which ones are open is kept in this browser, for everyone it shows. */
 function Fold({ id, title, hint, peek, children }: { id: FoldKey; title: string; hint?: string; peek?: ReactNode; children: ReactNode }) {
-  const open = openFolds(usePref(FOLD_PREF));
+  const { open, toggle } = useFolds();
   const isOpen = open.includes(id);
   const bodyId = useId();
   return (
     <section className="pp-fold">
-      <button type="button" className="pp-fold-head" aria-expanded={isOpen} aria-controls={bodyId} onClick={() => setPref(FOLD_PREF, JSON.stringify(toggleFold(open, id)))}>
+      <button type="button" className="pp-fold-head" aria-expanded={isOpen} aria-controls={bodyId} onClick={() => toggle(id)}>
         <span className="pp-fold-title">{title}</span>
         {hint && <span className="pp-fold-hint">{hint}</span>}
         <ChevronDown size={16} className="pp-fold-chevron" aria-hidden />
@@ -655,7 +694,7 @@ function PlacesMap({ f, tree, p, bornPlace, diedPlace, unions }: { f: Family; tr
     return list;
   }, [f, p.living, bornPlace, diedPlace, unions, c]);
   const pinned = places.filter((x) => x.pl);
-  const mapOpen = openFolds(usePref(FOLD_PREF)).includes('places');
+  const mapOpen = useFolds().open.includes('places');
   useEffect(() => { if (mapOpen && pinned.length) void loadMiniWorld().then(setWorld); }, [mapOpen, pinned.length]);
   const drawn = useMemo(() => {
     if (!world || !pinned.length) return null;
@@ -1053,6 +1092,7 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
             </div>
           </div>
         ))}
+        {p.furtherGiven?.length ? <Fact icon={<UserRound size={15} />} label={c('fact.fullName')}>{fullName(p)}</Fact> : null}
         {p.nickname && <Fact icon={<UserRound size={15} />} label={c('fact.called')}>{p.nickname}</Fact>}
         {detail?.bornPlace && <Fact icon={<MapPin size={15} />} label={c('fact.bornIn')}><PlaceLink tree={tree} name={detail.bornPlace} /></Fact>}
         <OccupationFact tree={tree} p={p} icon={<Pencil size={15} />} label={c('fact.does')} />

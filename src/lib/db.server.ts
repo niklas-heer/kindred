@@ -2,6 +2,7 @@
 // async `Db` interface (./store): node:sqlite files on Node, D1 on Cloudflare Workers.
 import { guard, isGuardError, q, store, type Db, type Query, type Result } from './store/index.ts';
 import type { GParent, GPerson, GUnion, Graph, House, PersonDetail, TreeMeta } from './types';
+import { parseFurther } from './further-given.ts';
 import { photoAge } from './portrait-face.ts';
 import { fieldText, type FieldType, type FieldValue, type PersonField } from '../components/fields/model.ts';
 import { fieldsVisibleTo, PLAIN_MEMBER, type Audience, type Visibility } from './visibility.ts';
@@ -192,6 +193,7 @@ export async function graph(tree: string, reader: Audience = PLAIN_MEMBER): Prom
       bornPlace: opt(r.born_place),
       diedPlace: opt(r.died_place),
       currentGiven: opt(r.current_given),
+      furtherGiven: parseFurther(r.further_given).length ? parseFurther(r.further_given) : undefined,
       currentSurname: opt(r.current_surname),
       preferAvatar: r.prefer_avatar === 1,
       preferPortrait: r.prefer_portrait === 1,

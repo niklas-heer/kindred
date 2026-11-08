@@ -7,6 +7,7 @@ import { renderMarkdown } from '~/lib/markdown';
 import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { GameIcon } from '~/components/GameIcon';
 import { Portrait } from '~/components/Portrait';
+import { PortraitZoom } from '~/components/photos/PortraitZoom';
 import { chronicleQuery } from '~/lib/api';
 import { useFamily, useTreeId } from '~/lib/family';
 import { displayName, type Family } from '~/lib/graph';
@@ -222,7 +223,7 @@ function PersonLink({ p, f, tree }: { p?: GPerson; f: Family; tree: string }) {
   const t = useT();
   if (!p) return <>{t('chronicle.someone')}</>;
   return (
-    <Link to="/$tree" params={{ tree }} search={{ focus: p.id }} className="chr-person">
+    <Link to="/$tree/person/$id" params={{ tree, id: p.id }} className="chr-person">
       {displayName(p, f)}
     </Link>
   );
@@ -271,9 +272,7 @@ function FeedItem({ s, f, tree, now, tr }: { s: Story; f: Family; tree: string; 
   return (
     <li className="chr-item" data-kind={s.kind}>
       {p && (
-        <Link to="/$tree" params={{ tree }} search={{ focus: p.id }} className="chr-face" aria-label={displayName(p, f)}>
-          <Portrait person={p} tree={tree} size={50} />
-        </Link>
+        <PortraitZoom person={p} tree={tree} size={50} className="chr-face" />
       )}
       <article className="chr-card ui-card">
         <header>

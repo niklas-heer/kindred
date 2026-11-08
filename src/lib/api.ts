@@ -4,6 +4,7 @@ import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { armsSchema } from '~/components/heraldry/schema';
 import { validDate } from './dates';
+import { MAX_FURTHER, MAX_FURTHER_LENGTH, storeFurther } from './further-given';
 import type { Action } from './roles';
 import { occupationCodeFor } from './occupations.ts';
 import { audienceOf } from './visibility';
@@ -87,6 +88,7 @@ export function opKeys() {
 
 const newPerson = z.object({
   given: z.string().trim().min(1).max(120),
+  furtherGiven: z.array(z.string().trim().min(1).max(MAX_FURTHER_LENGTH)).max(MAX_FURTHER).optional(),
   surname: z.string().trim().max(120).optional(),
   sex: z.enum(['m', 'f', 'x']).optional(),
   born: date,
@@ -132,8 +134,8 @@ export const addRelative = createServerFn({ method: 'POST' })
         // What the checks above read: the anchor as it was, and their parents.
         guard('EXISTS (SELECT 1 FROM person WHERE id = ? AND house IS ? AND surname IS ? AND born IS ?)', data.anchor, anchor.house, anchor.surname, anchor.born),
         sameParents(data.anchor, anchorParents),
-        q('INSERT INTO person (id, given, surname, house, sex, born, died, living) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-          id, p.given, p.surname ?? null, sameHouse ? anchor.house : null, p.sex ?? null, p.born ?? null, p.died ?? null, p.living ? 1 : 0),
+        q('INSERT INTO person (id, given, further_given, surname, house, sex, born, died, living) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          id, p.given, storeFurther(p.furtherGiven), p.surname ?? null, sameHouse ? anchor.house : null, p.sex ?? null, p.born ?? null, p.died ?? null, p.living ? 1 : 0),
       ];
       const link = (child: string, parent: string) => q('INSERT OR IGNORE INTO parent (child, parent) VALUES (?, ?)', child, parent);
       if (data.relation === 'child') {

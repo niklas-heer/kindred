@@ -43,7 +43,7 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
 - **`house`**: a house (`id`, `name`, `motto`, `arms` as JSON, `founder`).
 - **`person`**: a person. `given`, `surname`, `house`, `sex` (`m`, `f`, `x` or null), `born` and `died` as partial dates
   (`1953`, `1953-08`, `1953-08-08`, with `~` for about), their places, `living`, `epithet`, `title`, `occupation`,
-  `bio`, `traits` (JSON), `look` (JSON, the portrait's seed), `nickname`, `current_given` and `current_surname` (null means "the same as
+  `bio`, `traits` (JSON), `look` (JSON, the portrait's seed), `nickname`, `further_given` (a JSON list of the second, third … given names; null means none), `current_given` and `current_surname` (null means "the same as
   the birth name"), `occupation_code` (an entry in the occupation vocabulary, 0006) and `prefer_avatar` (0007). `updated_at` is set on each change.
 - **`parent`**: a parent link from `child` to `parent`, with `kind` (`biological`, `adoptive`, `foster`, `step`) and
   `confidence` (`certain`, `probable`, `disputed`). The key is the pair.

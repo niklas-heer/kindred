@@ -7,6 +7,7 @@ import {
 import type { ReactNode } from 'react';
 import { formatDate, useT, type Key, type Translator } from '~/lib/i18n';
 import { displayName, type Family } from '~/lib/graph';
+import { isColourLabel, parseColours } from '~/lib/favourites';
 import { socialLink } from '~/lib/social';
 import type { PersonField } from '~/lib/types';
 import { fieldText, isContactType, type FieldType } from './model';
@@ -84,7 +85,14 @@ function FieldValue({ f, fam, onSelect }: { f: PersonField; fam?: Family; onSele
         </span>
       );
     }
-    case 'notes': case 'medical': case 'allergies': case 'favourites': case 'gifts': case 'custom':
+    case 'religion':
+      return <span>{v.name}{v.left && <span className="subtle"> · {v.leftOn ? c('faith.leftOn', { date: formatDate(v.leftOn, c.locale) }) : c('faith.left')}</span>}</span>;
+    case 'favourites':
+      if (isColourLabel(f.label)) {
+        return <span className="fv-colours">{parseColours(v.text ?? '').map((t, i) => <span className="fv-colour" key={i}>{t.colour && <i aria-hidden style={{ background: t.colour.hex }} />}{t.text}</span>)}</span>;
+      }
+      return <span className="fv-text">{fieldText(f.type, v)}</span>;
+    case 'notes': case 'medical': case 'allergies': case 'gifts': case 'custom':
       return <span className="fv-text">{fieldText(f.type, v)}</span>;
     default:
       return <span>{fieldText(f.type, v)}</span>;

@@ -1,6 +1,7 @@
 // The in-browser family graph: lookups, kinship, and date helpers. Built once per Graph payload.
 import { useSyncExternalStore } from 'react';
 import type { GPerson, GUnion, Graph, House } from './types';
+import { allGiven } from './further-given.ts';
 import { translate, type Locale } from './i18n/dictionary.ts';
 
 export interface Family {
@@ -84,9 +85,14 @@ export function siblings(f: Family, id: string): string[] {
 export const nowNames = (p: GPerson): GPerson =>
   p.currentGiven === undefined && p.currentSurname === undefined ? p : { ...p, given: p.currentGiven ?? p.given, surname: p.currentSurname ?? p.surname };
 
+/**
+ * The whole name: every given name, then the surname. The further given names belong to the birth name, so they are
+ * left out once a current given name is recorded. The tree card and the short forms (displayName) stay short.
+ */
 export const fullName = (p: GPerson) => {
   const n = nowNames(p);
-  return [n.given, n.surname].filter(Boolean).join(' ');
+  const given = p.currentGiven === undefined ? allGiven(n.given, p.furtherGiven) : n.given;
+  return [given, n.surname].filter(Boolean).join(' ');
 };
 export function displayName(p: GPerson, f?: Family): string {
   const n = nowNames(p);

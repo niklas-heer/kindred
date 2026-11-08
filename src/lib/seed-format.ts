@@ -158,6 +158,8 @@ export interface SeedPerson {
   /** The name the person goes by now, when it differs from the birth name. Absent means "same as birth". */
   currentGiven?: string;
   currentSurname?: string;
+  /** Further given names in order after `given` (second name, third name, ...). */
+  furtherGiven?: string[];
 }
 
 /**

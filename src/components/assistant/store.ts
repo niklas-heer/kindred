@@ -4,6 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useSyncExternalStore } from 'react';
 import { aiStatusQuery } from '~/lib/ai.functions';
 
+/** Sent when the assistant is asked for while it is already open. */
+export const ASSISTANT_FOCUS = 'kindred:assistant-focus';
+
 let open = false;
 let setupOpen = false;
 const listeners = new Set<() => void>();
@@ -18,6 +21,9 @@ export function openAssistant() {
   if (!open) {
     open = true;
     emit();
+  } else if (typeof window !== 'undefined') {
+    // It is a window now, and may be sitting behind what the reader is doing: asking again goes back to it.
+    window.dispatchEvent(new Event(ASSISTANT_FOCUS));
   }
 }
 

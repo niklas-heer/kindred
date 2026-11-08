@@ -5,6 +5,7 @@
 import { db, fieldOf, guard, newId, once, personExists, q, type OpKey, type Query } from './db.server.ts';
 import { CHANGED_SINCE_OPENED, MAX_FIELDS, storedValue, type FieldInput, type FieldType, type FieldValue, type PersonField } from '../components/fields/model.ts';
 import type { Look } from './types.ts';
+import { parseFurther, storeFurther } from './further-given.ts';
 import { occupationCodeFor } from './occupations.ts';
 import { translate } from './i18n/dictionary.ts';
 import { fieldsVisibleTo, maySee, type Audience, type Visibility } from './visibility.ts';
@@ -15,6 +16,8 @@ export { CHANGED_SINCE_OPENED };
 /** The scalar details of a person, as the Edit tab saves them. Names: a null current name means "same as birth". */
 export interface PersonDetails {
   given: string;
+  /** Further given names in order (second name, third name, ...). Left out, the stored ones stay as they are. */
+  furtherGiven?: string[];
   surname: string | null;
   currentGiven: string | null;
   currentSurname: string | null;
@@ -42,6 +45,7 @@ export interface EditSnapshot {
   id: string;
   revision: number;
   given: string;
+  furtherGiven: string[];
   surname: string | null;
   currentGiven: string | null;
   currentSurname: string | null;
@@ -62,14 +66,14 @@ export interface EditSnapshot {
 
 /** The person's columns the Edit tab writes. Each one moves the revision (migration 0010). */
 const EDIT_COLUMNS = [
-  'given', 'surname', 'current_given', 'current_surname', 'nickname', 'sex', 'born', 'born_place', 'died', 'died_place',
+  'given', 'further_given', 'surname', 'current_given', 'current_surname', 'nickname', 'sex', 'born', 'born_place', 'died', 'died_place',
   'living', 'title', 'epithet', 'occupation', 'occupation_code', 'bio',
 ] as const;
 type EditColumn = (typeof EDIT_COLUMNS)[number];
 type Cell = string | number | null;
 /** The row as the database gives it (see `EDIT_COLUMNS`). */
 interface EditRow {
-  given: string; surname: string | null; current_given: string | null; current_surname: string | null; nickname: string | null;
+  given: string; further_given: string | null; surname: string | null; current_given: string | null; current_surname: string | null; nickname: string | null;
   sex: 'm' | 'f' | 'x' | null; born: string | null; born_place: string | null; died: string | null; died_place: string | null;
   living: number; title: string | null; epithet: string | null; occupation: string | null; occupation_code: string | null; bio: string | null;
 }
@@ -113,6 +117,7 @@ export async function editSnapshot(tree: string, id: string, reader: Audience): 
         id,
         revision: r.revision,
         given: r.given,
+        furtherGiven: parseFurther(r.further_given),
         surname: r.surname,
         currentGiven: r.current_given,
         currentSurname: r.current_surname,
@@ -199,7 +204,7 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
     const s = details;
     const occupation = empty(s.occupation);
     const next: Record<EditColumn, Cell> = {
-      given: s.given.trim(), surname: empty(s.surname), current_given: empty(s.currentGiven), current_surname: empty(s.currentSurname),
+      given: s.given.trim(), further_given: s.furtherGiven === undefined ? now.further_given : storeFurther(s.furtherGiven), surname: empty(s.surname), current_given: empty(s.currentGiven), current_surname: empty(s.currentSurname),
       nickname: empty(s.nickname), sex: s.sex, born: empty(s.born), born_place: empty(s.bornPlace), died: empty(s.died),
       died_place: empty(s.diedPlace), living: s.living ? 1 : 0, title: empty(s.title), epithet: empty(s.epithet),
       occupation, occupation_code: occupation ? occupationCodeFor(occupation, s.occupationCode) : null, bio: empty(s.bio),

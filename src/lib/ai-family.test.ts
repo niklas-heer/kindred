@@ -230,10 +230,94 @@ test('the card shows the words it asks you to approve, and who they will be save
     args: { people: [{ ref: 'n1', given: 'Tilda', living: false, story: { kind: 'memory', body: 'Sie sang im Chor.', teller: 'hans' } }, { ref: 'n2', given: 'Ulla', living: false, story: { kind: 'note', body: 'Eine Notiz.' } }], links: [] },
     view: { names: { hans: 'Hans Braun' } },
   } as unknown as import('./ai/types.ts').Proposal;
-  const html = renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(FamilyDraft, { tree: TREE, itemId: 'i1', proposal })));
+  const html = renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(FamilyDraft, { tree: TREE, itemId: 'i1', proposal , onDecided: () => {} })));
   assert.match(html, /Sie sang im Chor\./, 'the memory itself is on the card');
   assert.match(html, /Told by Hans Braun/);
   assert.match(html, /Will be saved under your name/, 'a memory with no teller says so');
+});
+
+test('the uncertain lines show on the person they belong to, marked as uncertain, with a way to leave them out', async () => {
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { createElement } = await import('react');
+  const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');
+  const { FamilyDraft } = await load<typeof import('../components/assistant/FamilyDraft.tsx')>('/src/components/assistant/FamilyDraft.tsx');
+  const proposal = {
+    id: 'p1', kind: 'family', summary: 'Add 2', status: 'open', editable: [], diff: [],
+    args: {
+      people: [
+        { ref: 'n1', given: 'Tilda', living: false, unsure: ['Birth year is smudged', 'Surname may be Beck'], details: [{ type: 'phone', value: { number: '1' } }] },
+        { ref: 'n2', given: 'Ulla', living: false, unsure: ['Age read as 40'] },
+        { ref: 'n3', given: 'Vera', living: false },
+      ],
+      links: [],
+    },
+  } as unknown as import('./ai/types.ts').Proposal;
+  const html = renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(FamilyDraft, { tree: TREE, itemId: 'i1', proposal, onDecided: () => {} })));
+  const row = (given: string, next: string) => html.slice(html.indexOf(given), next ? html.indexOf(next) : undefined);
+  assert.match(row('Tilda', 'Ulla'), /Not certain[\s\S]*Birth year is smudged[\s\S]*Surname may be Beck/);
+  assert.match(row('Tilda', 'Ulla'), /aria-label="Leave these and the other details out"/);
+  assert.match(row('Ulla', 'Vera'), /Age read as 40/);
+  assert.match(row('Ulla', 'Vera'), /aria-label="Leave these out"/, 'with no other details, the button says only what it removes');
+  assert.doesNotMatch(row('Vera', ''), /Not certain/, 'a person with nothing uncertain has no such block');
+});
+
+test('the card lists each detail as it will be saved, with its label and level', async () => {
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { createElement } = await import('react');
+  const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');
+  const { FamilyDraft } = await load<typeof import('../components/assistant/FamilyDraft.tsx')>('/src/components/assistant/FamilyDraft.tsx');
+  const proposal = {
+    id: 'p1', kind: 'family', summary: 'Add 1', status: 'open', editable: [], diff: [],
+    args: {
+      people: [{
+        ref: 'n1', given: 'Tilda', living: false,
+        details: [
+          { type: 'phone', value: { number: ' +49 555 ', stray: 'NOT_A_PART' } },
+          { type: 'address', label: 'holiday', value: { street: 'Mühlweg 3', city: 'Ulm' } },
+          { type: 'email', value: { address: 'not-an-address' } },
+        ],
+      }],
+      links: [],
+    },
+  } as unknown as import('./ai/types.ts').Proposal;
+  const html = renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(FamilyDraft, { tree: TREE, itemId: 'i1', proposal, onDecided: () => {} })));
+  const [phone, address, email] = html.split('class="ai-fam-detail"').slice(1);
+  assert.match(phone, /Phone/);
+  assert.match(phone, /Mobile/, 'with no label of its own, the label the server will give it');
+  assert.match(phone, />\+49 555</, 'one part reads as just its value, trimmed');
+  assert.match(phone, /fv-vis-family/);
+  assert.doesNotMatch(html, /NOT_A_PART/, 'a part the type does not keep is not shown as if it were saved');
+  assert.match(address, /Holiday/);
+  assert.match(address, /Street: Mühlweg 3 · [^<:]+: Ulm/);
+  assert.match(address, /fv-vis-editors/, 'an address starts at the editors level');
+  assert.match(address, /aria-label="Remove Address"/);
+  assert.match(email, /Not an email address\./);
+  assert.match(email, /will not be saved/, 'a detail the server would skip says so');
+});
+
+test('editing or removing one detail changes what is sent, and only that detail', async () => {
+  const { cleanPerson, patchDetail, dropDetail, detailPreview, detailKeys } = await load<typeof import('../components/assistant/family-draft.ts')>('/src/components/assistant/family-draft.ts');
+  const details: import('../components/assistant/family-draft.ts').DraftDetail[] = [
+    { type: 'phone', label: 'home', value: { number: '111' } },
+    { type: 'occupation', value: { title: 'Miller', employer: 'The mill' } },
+  ];
+  const person = { ref: 'n1', given: 'Tilda', living: false, unsure: ['Birth year is smudged'] };
+
+  const edited = patchDetail(patchDetail(details, 0, { key: 'number', value: ' 222 ' }), 0, { label: 'work' });
+  assert.deepEqual(cleanPerson({ ...person, details: edited }).details, [
+    { type: 'phone', label: 'work', value: { number: '222' } },
+    { type: 'occupation', label: undefined, value: { title: 'Miller', employer: 'The mill' } },
+  ]);
+  assert.equal(details[0].value.number, '111', 'the draft as proposed is not changed in place');
+
+  const removed = cleanPerson({ ...person, details: dropDetail(details, 0) });
+  assert.deepEqual(removed.details?.map((d) => d.type), ['occupation']);
+  assert.deepEqual(removed.unsure, person.unsure, 'removing one detail leaves the uncertain lines alone');
+
+  assert.equal(detailPreview(details[1]).label, 'job', 'a blank label is the type’s own, as the server stores it');
+  assert.deepEqual(detailPreview({ type: 'phone', label: '  ', value: { number: '1' } }).label, 'mobile');
+  assert.deepEqual(detailKeys({ type: 'religion', value: {} }), ['name', 'leftOn'], 'the left-this-faith flag is not a text box');
+  assert.equal(detailPreview({ type: 'dates', value: { date: 'soon' } }).issue, 'date');
 });
 
 test('a failed link keeps the card open and retryable, and a link left out is neither sent nor counted', async () => {

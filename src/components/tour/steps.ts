@@ -3,9 +3,10 @@
 import type { Key } from '../../lib/i18n/dictionary.ts';
 import { can, type Action, type Role } from '../../lib/roles.ts';
 
-/** Where a step happens. `$house` is filled with the family's first house. */
+/** Where a step happens. `$house` is filled with the family's first house, `$id` with the reader or the family's focus. */
 export const TOUR_ROUTES = {
   tree: '/$tree',
+  profile: '/$tree/person/$id',
   almanac: '/$tree/almanac',
   atlas: '/$tree/atlas',
   contacts: '/$tree/contacts',
@@ -63,6 +64,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: 'add', page: 'tree', targets: ['.card.selected', '.canvas'], title: 'tour.add.title', body: 'tour.add.body', requires: 'people', needs: 'add-person' },
   { id: 'panel', page: 'tree', targets: ['.person-panel'], title: 'tour.panel.title', body: 'tour.panel.body', requires: 'people', prepare: 'panel' },
   { id: 'edit', page: 'tree', targets: ['.pp-tabs [role="tab"]:last-child'], title: 'panel.tab.edit', body: 'tour.edit.body', requires: 'people', needs: 'edit-person', prepare: 'panel' },
+  { id: 'profile', page: 'profile', targets: ['.pf-identity'], title: 'tour.profile.title', body: 'tour.profile.body', requires: 'people' },
 
   // The top bar. On phones, language and theme are behind More.
   { id: 'find', targets: ['.search-trigger'], title: 'tour.find.title', body: 'tour.find.body' },

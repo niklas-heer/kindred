@@ -1,0 +1,68 @@
+/* A face that opens large, and the picture it opens. */
+.portrait-zoom { display: inline-block; padding: 0; border: 0; background: none; color: inherit; line-height: 0; border-radius: 8px; cursor: zoom-in; }
+.portrait-zoom:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.portrait-zoom-host { display: contents; }
+.ui-dialog-panel.lb-dialog.lb-picture { --dialog-w: min(760px, 100vw - 24px); }
+.lb-pic { display: grid; gap: 10px; justify-items: center; margin: 0; padding: 8px 0 0; }
+.lb-pic img { display: block; width: 100%; max-height: calc(100dvh - 130px); object-fit: contain; border-radius: 6px; }
+.lb-pic figcaption { font-family: var(--font-name); font-size: 16px; color: var(--muted); text-align: center; }
+
+/* In the side panel: the camera beside the face, and the way to the profile. */
+.pp-portrait-slot { position: relative; flex: none; align-self: flex-start; }
+button.pp-photo { border: 0; padding: 0; cursor: pointer; }
+button.pp-photo::after { content: ''; position: absolute; inset: -6px; }
+button.pp-photo:disabled { opacity: .55; cursor: default; }
+.pp-name-link { color: inherit; text-decoration: none; }
+.pp-name-link:hover { color: var(--accent); }
+.pp-open-profile { display: inline-flex; align-items: center; gap: 5px; width: fit-content; min-height: 26px; font-size: 13.5px; color: var(--accent); text-decoration: none; }
+.pp-open-profile:hover { text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 600px) { .pp-open-profile { min-height: 44px; } }
+@media (max-width: 900px) { .panel-sheet[data-snap='peek'] :is(.pp-open-profile, button.pp-photo) { display: none; } }
+
+/* The full-page profile: who it is stays in view on the left, everything else uses the rest of the screen. */
+.person-profile { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 40px; align-items: start; max-width: 1500px; margin: 0 auto; padding: 32px 32px 96px; }
+.pf-identity { position: sticky; top: 24px; display: grid; gap: 14px; min-width: 0; }
+.pf-main { min-width: 0; }
+.person-profile .pp-head { flex-direction: column; gap: 18px; padding: 0; }
+.person-profile .pp-portrait-slot { align-self: stretch; }
+.person-profile .pp-portrait { display: block; }
+.person-profile button.pp-photo { right: 8px; bottom: 8px; width: 36px; height: 36px; }
+.person-profile .pp-id { gap: 5px; padding: 0; }
+.page .person-profile .pp-id h1 { margin: 0; padding: 0; font-family: var(--font-name); font-weight: var(--name-weight); font-variant: normal; font-size: 36px; line-height: 1.12; overflow-wrap: break-word; color: var(--text); }
+[data-theme='codex'] .page .person-profile .pp-id h1 { color: #f6ead0; font-weight: 500; }
+.person-profile .pp-life { font-size: 16px; }
+.person-profile .pp-traits { padding: 0; }
+.person-profile .pp-actions { flex-wrap: wrap; padding: 0; }
+.person-profile .pp-actions .btn { flex: 1 1 40%; height: 40px; }
+.person-profile .pp-actions .btn.primary { flex-basis: 100%; }
+.person-profile .pp-photo-err { margin: 0; }
+.person-profile .pp-tabs.ui-tablist { padding: 0; }
+.person-profile .pp-body { flex: none; overflow: visible; padding: 8px 0 0; }
+.person-profile .pp-add-relative { max-width: 320px; margin-top: 24px; padding: 0; border-top: 0; }
+.person-profile p.pp-add-relative.pp-ask { max-width: none; padding: 0; }
+.person-profile .pp-ov-main { display: grid; gap: 4px; min-width: 0; align-content: start; }
+.person-profile .pp-folds { margin-top: 16px; }
+.person-profile .pp-glance dd { font-size: 22px; }
+.person-profile .pp-bio { max-width: 72ch; }
+.person-profile .pp-stories { grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); align-items: start; }
+.person-profile .pp-map svg { max-height: 300px; }
+@media (min-width: 1220px) {
+  .person-profile .pp-overview { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 40px; align-items: start; }
+  .person-profile .pp-folds { margin-top: 12px; }
+}
+@media (max-width: 1000px) {
+  .person-profile { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 20px 16px 96px; }
+  .pf-identity { position: static; justify-items: center; }
+  .person-profile .pp-head { align-items: center; text-align: center; }
+  .person-profile .pp-portrait-slot { align-self: center; }
+  .person-profile .pp-portrait > .portrait { width: 220px !important; height: 220px !important; }
+  .person-profile .pp-id { align-items: center; }
+  .person-profile .pp-traits { justify-content: center; }
+  .person-profile .pp-actions { width: 100%; max-width: 520px; }
+}
+@media (max-width: 600px) {
+  .person-profile .pp-portrait > .portrait { width: 176px !important; height: 176px !important; }
+  .page .person-profile .pp-id h1 { font-size: 28px; }
+  .person-profile .pp-actions .btn { height: auto; min-height: 44px; }
+  .person-profile .pp-body { padding-inline: 0; }
+}

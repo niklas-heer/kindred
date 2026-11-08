@@ -25,6 +25,7 @@ import { formatNumber, locales, useT, type Locale } from '~/lib/i18n';
 import { useCan } from '~/lib/session';
 import type { Place } from '~/lib/types';
 import { Dialog } from './ui/Dialog';
+import { useAnchoredPop } from './ui/anchoredPop';
 import { isTopOverlay, useOverlayLayer } from './ui/overlay';
 import './placeinput.css';
 
@@ -155,42 +156,7 @@ export function PlaceInput({ tree, value, onChange, id, placeholder, disabled, i
 
   useEffect(() => setActive(-1), [search.data]);
 
-  // Anchored to the field: below it, or above when there is more room there, and never over it. Placed
-  // straight on the element every frame while open, so it follows the field through scrolling, a panel
-  // sliding in, a note appearing above or a phone keyboard opening, without re-rendering.
-  const place = useCallback(() => {
-    const b = box.current?.getBoundingClientRect();
-    const el = pop.current;
-    if (!b || !el) return;
-    const vv = window.visualViewport;
-    const top0 = vv ? vv.offsetTop : 0, bottom0 = vv ? vv.offsetTop + vv.height : innerHeight;
-    const gap = 4, margin = 8;
-    const below = bottom0 - b.bottom - gap - margin, above = b.top - top0 - gap - margin;
-    const want = Math.min(380, el.scrollHeight || 380);
-    const up = below < Math.min(want, 220) && above > below;
-    // The list may be no taller than the room on its side; above the field it hangs from its bottom
-    // edge, so however tall the content grows it never reaches down over the field.
-    const room = Math.floor(Math.max(48, Math.min(380, up ? above : below)));
-    const width = Math.min(Math.max(b.width, 300), innerWidth - 16);
-    const left = Math.max(8, Math.min(b.left, innerWidth - width - 8));
-    const next: Record<'top' | 'bottom' | 'left' | 'width' | 'maxHeight', string> = {
-      top: up ? 'auto' : `${Math.round(b.bottom + gap)}px`,
-      bottom: up ? `${Math.round(innerHeight - b.top + gap)}px` : 'auto',
-      left: `${Math.round(left)}px`, width: `${Math.round(width)}px`, maxHeight: `${room}px`,
-    };
-    for (const [k, v] of Object.entries(next) as [keyof typeof next, string][]) if (el.style[k] !== v) el.style[k] = v;
-    el.dataset.side = up ? 'above' : 'below';
-  }, []);
-  // In the top layer, like the Select popover, so a dialog never clips it.
-  useLayoutEffect(() => {
-    const el = pop.current;
-    if (!shown || !el) return;
-    try { if (!el.matches(':popover-open')) el.showPopover(); } catch {}
-    place();
-    let raf = requestAnimationFrame(function follow() { place(); raf = requestAnimationFrame(follow); });
-    return () => { cancelAnimationFrame(raf); try { el.hidePopover(); } catch {} };
-  }, [shown, place]);
-  useLayoutEffect(() => { if (shown) place(); }, [shown, hits, place]);
+  useAnchoredPop(shown, box, pop);
   useEffect(() => {
     if (shown && active >= 0) pop.current?.querySelector(`#${CSS.escape(optId(active))}`)?.scrollIntoView({ block: 'nearest' });
   }, [shown, active]); // eslint-disable-line react-hooks/exhaustive-deps

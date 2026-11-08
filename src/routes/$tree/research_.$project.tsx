@@ -190,7 +190,7 @@ function ProjectBody({ tree, project, view, back }: { tree: string; project: str
                     const died = p.died?.match(/\d{4}/)?.[0];
                     return (
                       <li key={l.person} className="rs-person">
-                        <Link to="/$tree" params={{ tree }} search={{ focus: p.id }} className="rs-person-link">
+                        <Link to="/$tree/person/$id" params={{ tree, id: p.id }} className="rs-person-link">
                           <Portrait person={p} tree={tree} size={36} frame={false} />
                           <span className="rs-person-text">
                             <span className="name">{displayName(p, f)}</span>

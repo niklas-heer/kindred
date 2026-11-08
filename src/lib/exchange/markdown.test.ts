@@ -117,3 +117,12 @@ test('the v1 importer reads a Kindred archive back into the same people, dates a
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('a note names a person with every given name, and lists the given names only when there is more than one', () => {
+  const { files } = markdownArchive(fixtureTree());
+  const note = (id: string) => frontMatter(files.find((f) => f.path === `people/${id}.md`)!.data as string);
+  assert.equal(note('hanna').name, 'Hanna Marie Luise Linden');
+  assert.deepEqual(note('hanna').given_names, ['Hanna', 'Marie', 'Luise']);
+  assert.equal(note('karl').name, 'Karl Linden');
+  assert.equal('given_names' in note('karl'), false);
+});

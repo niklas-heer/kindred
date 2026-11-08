@@ -33,6 +33,7 @@ import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
 import { Route as UiCharacterRouteImport } from './routes/ui_.character'
 import { Route as TreeHouseHouseRouteImport } from './routes/$tree/house.$house'
+import { Route as TreePersonIdRouteImport } from './routes/$tree/person.$id'
 import { Route as TreeResearchProjectRouteImport } from './routes/$tree/research_.$project'
 import { Route as TreeSettingsActivityRouteImport } from './routes/$tree/settings.activity'
 import { Route as TreeSettingsAiRouteImport } from './routes/$tree/settings.ai'
@@ -167,6 +168,11 @@ const TreeHouseHouseRoute = TreeHouseHouseRouteImport.update({
   path: '/house/$house',
   getParentRoute: () => TreeRoute,
 } as any)
+const TreePersonIdRoute = TreePersonIdRouteImport.update({
+  id: '/person/$id',
+  path: '/person/$id',
+  getParentRoute: () => TreeRoute,
+} as any)
 const TreeResearchProjectRoute = TreeResearchProjectRouteImport.update({
   id: '/research_/$project',
   path: '/research/$project',
@@ -258,6 +264,7 @@ export interface FileRoutesByFullPath {
   '/ui/character': typeof UiCharacterRoute
   '/$tree/': typeof TreeIndexRoute
   '/$tree/house/$house': typeof TreeHouseHouseRoute
+  '/$tree/person/$id': typeof TreePersonIdRoute
   '/$tree/research/$project': typeof TreeResearchProjectRoute
   '/$tree/settings/activity': typeof TreeSettingsActivityRoute
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
@@ -296,6 +303,7 @@ export interface FileRoutesByTo {
   '/ui/character': typeof UiCharacterRoute
   '/$tree': typeof TreeIndexRoute
   '/$tree/house/$house': typeof TreeHouseHouseRoute
+  '/$tree/person/$id': typeof TreePersonIdRoute
   '/$tree/research/$project': typeof TreeResearchProjectRoute
   '/$tree/settings/activity': typeof TreeSettingsActivityRoute
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
@@ -336,6 +344,7 @@ export interface FileRoutesById {
   '/ui_/character': typeof UiCharacterRoute
   '/$tree/': typeof TreeIndexRoute
   '/$tree/house/$house': typeof TreeHouseHouseRoute
+  '/$tree/person/$id': typeof TreePersonIdRoute
   '/$tree/research_/$project': typeof TreeResearchProjectRoute
   '/$tree/settings/activity': typeof TreeSettingsActivityRoute
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
@@ -377,6 +386,7 @@ export interface FileRouteTypes {
     | '/ui/character'
     | '/$tree/'
     | '/$tree/house/$house'
+    | '/$tree/person/$id'
     | '/$tree/research/$project'
     | '/$tree/settings/activity'
     | '/$tree/settings/ai'
@@ -415,6 +425,7 @@ export interface FileRouteTypes {
     | '/ui/character'
     | '/$tree'
     | '/$tree/house/$house'
+    | '/$tree/person/$id'
     | '/$tree/research/$project'
     | '/$tree/settings/activity'
     | '/$tree/settings/ai'
@@ -454,6 +465,7 @@ export interface FileRouteTypes {
     | '/ui_/character'
     | '/$tree/'
     | '/$tree/house/$house'
+    | '/$tree/person/$id'
     | '/$tree/research_/$project'
     | '/$tree/settings/activity'
     | '/$tree/settings/ai'
@@ -661,6 +673,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TreeHouseHouseRouteImport
       parentRoute: typeof TreeRoute
     }
+    '/$tree/person/$id': {
+      id: '/$tree/person/$id'
+      path: '/person/$id'
+      fullPath: '/$tree/person/$id'
+      preLoaderRoute: typeof TreePersonIdRouteImport
+      parentRoute: typeof TreeRoute
+    }
     '/$tree/research_/$project': {
       id: '/$tree/research_/$project'
       path: '/research/$project'
@@ -769,6 +788,7 @@ interface TreeRouteChildren {
   TreeStatisticsRoute: typeof TreeStatisticsRoute
   TreeIndexRoute: typeof TreeIndexRoute
   TreeHouseHouseRoute: typeof TreeHouseHouseRoute
+  TreePersonIdRoute: typeof TreePersonIdRoute
   TreeResearchProjectRoute: typeof TreeResearchProjectRoute
   TreeSettingsActivityRoute: typeof TreeSettingsActivityRoute
   TreeSettingsAiRoute: typeof TreeSettingsAiRoute
@@ -790,6 +810,7 @@ const TreeRouteChildren: TreeRouteChildren = {
   TreeStatisticsRoute: TreeStatisticsRoute,
   TreeIndexRoute: TreeIndexRoute,
   TreeHouseHouseRoute: TreeHouseHouseRoute,
+  TreePersonIdRoute: TreePersonIdRoute,
   TreeResearchProjectRoute: TreeResearchProjectRoute,
   TreeSettingsActivityRoute: TreeSettingsActivityRoute,
   TreeSettingsAiRoute: TreeSettingsAiRoute,

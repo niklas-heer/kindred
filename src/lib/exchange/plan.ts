@@ -165,6 +165,7 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
     add.push({
       id,
       given: p.given,
+      furtherGiven: p.furtherGiven,
       surname: p.surname,
       currentGiven: p.currentGiven,
       currentSurname: p.currentSurname,

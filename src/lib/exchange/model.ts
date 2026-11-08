@@ -2,6 +2,7 @@
 // a GEDCOM or Markdown file. Pure: it imports nothing from storage at runtime, so the Node scripts, the
 // Worker and the unit tests all share it. Dates are Kindred's partial dates ("1953", "1953-08",
 // "1953-08-08"), with "~" in front of an approximate one.
+import { parseFurther } from '../further-given.ts';
 import type { Key } from '../i18n/dictionary.ts';
 import type { Vars } from '../i18n/types.ts';
 import type { Db } from '../store/db.ts';
@@ -14,6 +15,8 @@ export type UnionKind = 'marriage' | 'partnership' | 'betrothal' | 'other';
 export interface ExPerson {
   id: string;
   given: string;
+  /** Further given names in order after `given` (second name, third name, ...). */
+  furtherGiven: string[];
   surname: string | null;
   /** The name the person goes by now, when it differs from the birth name. */
   currentGiven: string | null;
@@ -79,6 +82,7 @@ export interface Issue {
 interface PersonRow {
   id: string;
   given: string;
+  further_given: string | null;
   surname: string | null;
   current_given: string | null;
   current_surname: string | null;
@@ -102,7 +106,7 @@ const or = <T>(v: T | null | undefined): T | null => (v === undefined || v === n
 /** A family's whole exchangeable record, read through the same `Db` the app uses. */
 export async function readTree(d: Db): Promise<ExTree> {
   const meta = Object.fromEntries((await d.all<{ key: string; value: string }>('SELECT key, value FROM meta')).map((r) => [r.key, r.value]));
-  const people = await d.all<PersonRow>(`SELECT p.id, p.given, p.surname, p.current_given, p.current_surname, p.sex, p.born, p.born_place,
+  const people = await d.all<PersonRow>(`SELECT p.id, p.given, p.further_given, p.surname, p.current_given, p.current_surname, p.sex, p.born, p.born_place,
       p.died, p.died_place, p.living, p.title, p.epithet, p.occupation, p.nickname, p.bio,
       ph.key AS portrait_key, ph.mime AS portrait_mime
     FROM person p LEFT JOIN photo ph ON ph.person = p.id ORDER BY p.id`);
@@ -119,6 +123,7 @@ export async function readTree(d: Db): Promise<ExTree> {
     people: people.map((r) => ({
       id: r.id,
       given: r.given,
+      furtherGiven: parseFurther(r.further_given),
       surname: or(r.surname),
       currentGiven: or(r.current_given),
       currentSurname: or(r.current_surname),

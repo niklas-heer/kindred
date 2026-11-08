@@ -6,7 +6,7 @@
 // an account's session or an Access login (session.server.ts). Plain code, with no server-only imports.
 
 /** The sections under a family that a guest may open. Anything not listed (a new route, access, settings) stays closed. */
-const GUEST_SECTIONS = new Set(['almanac', 'atlas', 'chronicle', 'gallery', 'house', 'houses', 'needed', 'people', 'research']);
+const GUEST_SECTIONS = new Set(['almanac', 'atlas', 'chronicle', 'gallery', 'house', 'houses', 'needed', 'people', 'person', 'research']);
 /** First path segments that are not families and that a guest must not reach: the routes for accounts and setup. */
 const NOT_GUEST_ROOTS = new Set(['signin', 'setup', 'invite', 'ui', 'ui_', 'api']);
 const GUEST_MEDIA = /^\/api\/(?:photo|portrait|media|research)\/[^/]+\/[^/]+$/;

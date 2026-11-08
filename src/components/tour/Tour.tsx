@@ -6,7 +6,7 @@
 import { useRouter } from '@tanstack/react-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { closeAssistant, useAiStatus } from '~/components/assistant/store';
-import { useFamily, useTreeId } from '~/lib/family';
+import { useFamily, useMe, useTreeId } from '~/lib/family';
 import { useT } from '~/lib/i18n';
 import { useRole } from '~/lib/session';
 import { useOverlayLayer } from '../ui/overlay';
@@ -70,6 +70,7 @@ function TourRun() {
   // The script is fixed when the tour starts, so a change behind the scenes can't renumber it mid-way.
   const [steps] = useState(() => stepsFor({ role, assistant, people: f.graph.people.length, houses: f.graph.houses.length }));
   const house = f.graph.houses[0]?.id;
+  const person = useMe();
 
   const [index, setIndex] = useState(-1);
   const [missing, setMissing] = useState<ReadonlySet<string>>(new Set());
@@ -95,7 +96,7 @@ function TourRun() {
     let wait = WAIT_IN_PLACE;
     if (s.page) {
       const to = TOUR_ROUTES[s.page];
-      const params = { tree, house: house ?? '' };
+      const params = { tree, house: house ?? '', id: person };
       if (router.buildLocation({ to, params } as never).pathname !== router.state.location.pathname) {
         // Replacing, so the browser's Back still goes to where the reader was before the tour.
         await router.navigate({ to, params, replace: true } as never);
@@ -108,7 +109,7 @@ function TourRun() {
     const el = await waitFor(() => pickTarget(s.targets!), wait, isAlive);
     target.current = el;
     return !!el;
-  }, [house, router, tree]);
+  }, [house, person, router, tree]);
 
   const move = useCallback(async (from: number, dir: 1 | -1) => {
     if (busy.current) return;

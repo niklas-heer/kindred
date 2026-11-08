@@ -24,6 +24,50 @@
 }
 .ai-drawer [hidden] { display: none !important; }
 
+/* On a desktop it is a window: useChatWindow sets where, through these variables, and keeps it on screen. */
+@media (min-width: 641px) {
+  .ai-drawer {
+    top: var(--ai-y, 8px);
+    left: var(--ai-x, auto);
+    right: auto;
+    bottom: auto;
+    width: var(--ai-w, 440px);
+    height: var(--ai-h, min(640px, calc(100dvh - 16px)));
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+  }
+  .ai-drawer.ai-docked { border-width: 0 0 0 1px; border-radius: 0; }
+  .ai-drawer:not(.ai-docked) .ai-drawer-head { cursor: grab; touch-action: none; }
+  .ai-drawer.ai-dragging { user-select: none; }
+  .ai-drawer.ai-dragging:not(.ai-docked) .ai-drawer-head { cursor: grabbing; }
+}
+
+/* The edges and corners that resize the window. Inside it, over the content, thin enough not to get in the way. */
+.ai-rz { position: absolute; z-index: 8; touch-action: none; }
+.ai-rz-n, .ai-rz-s { left: 14px; right: 14px; height: 6px; cursor: ns-resize; }
+.ai-rz-e, .ai-rz-w { top: 14px; bottom: 14px; width: 6px; cursor: ew-resize; }
+.ai-rz-n { top: 0; }
+.ai-rz-s { bottom: 0; }
+.ai-rz-e { right: 0; }
+.ai-rz-w { left: 0; }
+.ai-rz-ne, .ai-rz-nw, .ai-rz-se, .ai-rz-sw { width: 14px; height: 14px; }
+.ai-rz-ne { top: 0; right: 0; cursor: nesw-resize; }
+.ai-rz-sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.ai-rz-nw { top: 0; left: 0; cursor: nwse-resize; }
+.ai-rz-se { bottom: 0; right: 0; cursor: nwse-resize; }
+.ai-docked .ai-rz:not(.ai-rz-w) { display: none; }
+.ai-docked .ai-win-grip:not(:focus-visible) { color: var(--muted); }
+
+.ai-win-controls { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.ai-win-control { min-width: 32px; min-height: 32px; color: var(--muted); }
+.ai-win-control:hover { color: var(--text); }
+.ai-win-grip { cursor: move; }
+@media (pointer: coarse) { .ai-win-control { min-width: 44px; min-height: 44px; } }
+@media (max-width: 640px) {
+  .ai-rz, .ai-win-controls { display: none; }
+}
+.ai-continue-actions { justify-content: flex-start; }
+
 .ai-drawer-head {
   display: flex;
   flex-direction: column;
@@ -32,7 +76,7 @@
   border-bottom: 1px solid var(--border);
   background: linear-gradient(to bottom, color-mix(in srgb, var(--accent) 8%, transparent), transparent);
 }
-.ai-drawer-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ai-drawer-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
 .ai-drawer-title {
   display: flex;
   align-items: center;
@@ -43,7 +87,9 @@
   font-weight: 600;
   letter-spacing: 0.03em;
   color: var(--text);
+  min-width: 0;
 }
+.ai-drawer-title > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ai-drawer-title svg { color: var(--accent); flex: 0 0 auto; }
 .ai-drawer-close { margin-right: -10px; }
 .ai-drawer-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-left: -8px; }
@@ -423,6 +469,19 @@
 .ai-fam-dup { margin: 4px 0 0; font-size: 0.85rem; color: var(--accent); }
 .ai-fam-story { margin-top: 6px; padding-left: 10px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
 .ai-fam-story p { margin: 0; }
+/* What approving saves for this person beyond the main facts: each detail with its label and who can see it. */
+.ai-fam-details { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.88rem; }
+.ai-fam-detail { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
+.ai-fam-detail-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.ai-fam-detail-text p { margin: 0; }
+.ai-fam-detail-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.ai-fam-detail-head b { font-weight: 600; }
+.ai-fam-detail-edit { display: grid; grid-template-columns: inherit; gap: inherit; min-width: 0; margin: 0; padding: 6px 0 0; border: 0; border-top: 1px solid var(--border); }
+.ai-fam-detail-edit legend { padding: 0 6px 0 0; font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+/* What was hard to read or is a guess: dashed and labelled, so it never reads as a fact. */
+.ai-fam-unsure { margin-top: 6px; padding: 4px 8px 6px 10px; border-left: 2px dashed var(--accent); font-size: 0.85rem; overflow-wrap: anywhere; }
+.ai-fam-unsure-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 0; font-size: 0.8rem; font-weight: 600; color: var(--accent); }
+.ai-fam-unsure ul { margin: 0; padding-left: 16px; font-style: italic; }
 .ai-fam-story-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 0.8rem; color: var(--muted); overflow-wrap: anywhere; }
 .ai-fam-story-body { font-size: 0.95rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ai-fam-story-by { font-size: 0.8rem; }

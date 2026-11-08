@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { GameIcon } from '~/components/GameIcon';
 import { Arms } from '~/components/Heraldry';
 import { Portrait } from '~/components/Portrait';
+import { PortraitZoom } from '~/components/photos/PortraitZoom';
 import { contactsQuery } from '~/lib/api';
 import { VisibilityMark } from '~/components/fields/VisibilityMark';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
@@ -372,9 +373,9 @@ function HouseholdCard({ h, f, tree }: { h: Household; f: Family; tree: string }
         return (
           <div key={m.id} className="con-member">
             <div className="con-who">
-              <Portrait person={m} tree={tree} size={50} />
+              <PortraitZoom person={m} tree={tree} size={50} />
               <div className="con-id">
-                <Link to="/$tree" params={{ tree }} search={{ focus: m.id }} className="con-name">
+                <Link to="/$tree/person/$id" params={{ tree, id: m.id }} className="con-name">
                   {displayName(m, f)}
                 </Link>
                 <div className="con-sub">

@@ -2,6 +2,7 @@
 // same plan, written as one guarded batch through `once`, so a retry or a second copy cannot write twice).
 // Server-only: it uses the family's database. The steward's permission is checked by the server function that
 // calls this (exchange.functions.ts), before anything here runs.
+import { storeFurther } from '../further-given.ts';
 import { db, newId, once, type Db, type OpKey } from '../db.server.ts';
 import { gazetteer, locatePlaces, type Located } from '../gazetteer.server.ts';
 import { guard, q, type Query } from '../store/index.ts';
@@ -157,8 +158,8 @@ export function applyImport(tree: string, text: string, op: OpKey | undefined, a
     for (const p of plan.add) {
       writes.push(
         q(
-          `INSERT INTO person (id, given, surname, sex, born, born_place, died, died_place, living, title, epithet, occupation, nickname, bio, current_given, current_surname)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO person (id, given, surname, sex, born, born_place, died, died_place, living, title, epithet, occupation, nickname, bio, current_given, current_surname, further_given)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           p.id,
           p.given,
           p.surname,
@@ -175,6 +176,7 @@ export function applyImport(tree: string, text: string, op: OpKey | undefined, a
           p.bio,
           p.currentGiven,
           p.currentSurname,
+          storeFurther(p.furtherGiven),
         ),
       );
     }

@@ -42,6 +42,8 @@ export interface GPerson {
   diedPlace?: string;
   /** The name a person goes by now, when it differs from the birth name. Absent means "same as birth". */
   currentGiven?: string;
+  /** Further given names, in order after `given` (second name, third name, ...). Absent means none. Part of the birth name. */
+  furtherGiven?: string[];
   currentSurname?: string;
   /** Show the drawn avatar even though a photo is kept (person.prefer_avatar). Absent means false. */
   preferAvatar?: boolean;

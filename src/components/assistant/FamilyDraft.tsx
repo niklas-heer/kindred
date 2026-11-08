@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { aiChatMark } from '~/lib/ai.functions';
 import { applyFamilyBatch } from '~/lib/family-batch.functions';
 import { opKeys } from '~/lib/api';
+import { allGiven, MAX_FURTHER } from '~/lib/further-given';
 import { type FamilyLink, type FamilyPerson, type Proposal } from '~/lib/ai/types';
 import { useT, type Key } from '~/lib/i18n';
 import { PROPOSAL_KIND_KEY, STORY_KIND_KEY } from '~/lib/ai/labels';
@@ -17,7 +18,11 @@ import { socialLink } from '~/lib/social';
 import type { Locale } from '~/lib/i18n/types';
 import { Select } from '~/components/ui';
 import { CardHead } from './CardHead';
-import { cleanPerson, draftProgress, linksToSend, type DraftLink as LinkRow, type DraftRow as Row, type Status } from './family-draft';
+import type { OnDecided } from './ProposalCard';
+import type { DecisionOutcome } from '~/lib/ai/continuation';
+import { VisibilityMark } from '../fields/VisibilityMark';
+import { presetLabel } from '../fields/presets';
+import { cleanPerson, detailKeys, detailPreview, draftProgress, dropDetail, linksToSend, patchDetail, type DraftLink as LinkRow, type DraftRow as Row, type Status } from './family-draft';
 
 type Translate = ReturnType<typeof useT>;
 type Story = NonNullable<FamilyPerson['story']>;
@@ -28,10 +33,17 @@ const REL_KEY: Record<FamilyLink['relation'], Key> = {
 /** The same relation said from the other person's end: a child's parent is someone whose child they are. */
 const INVERSE: Record<FamilyLink['relation'], FamilyLink['relation']> = { child: 'parent', parent: 'child', partner: 'partner', sibling: 'sibling' };
 
+/** What the editor calls each part of a detail's value (fields/FieldEditor.tsx). */
+const PART_LABEL: Record<string, Key> = {
+  number: 'input.number', address: 'input.email', street: 'input.street', postcode: 'input.postcode', city: 'input.city', country: 'input.country', url: 'input.url',
+  name: 'input.name', date: 'input.date', note: 'input.note', school: 'input.school', place: 'input.place', from: 'input.from', to: 'input.to', title: 'input.title',
+  employer: 'input.employer', unit: 'input.unit', rank: 'input.rank', language: 'input.language', level: 'input.level', left: 'faith.left', leftOn: 'faith.leftWhen',
+};
+
 /** A date for the card: "~1938" reads as "about 1938". */
 const dateText = (t: Translate, d: string) => (d.startsWith('~') ? t('ai.famAboutDate', { date: d.slice(1) }) : d);
 
-export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: string; proposal: Proposal }) {
+export function FamilyDraft({ tree, itemId, proposal, onDecided }: { tree: string; itemId: string; proposal: Proposal; onDecided: OnDecided }) {
   const t = useT();
   const qc = useQueryClient();
   const seed = proposal.args as unknown as { people: FamilyPerson[]; links: FamilyLink[] };
@@ -51,7 +63,7 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
   const [status, setStatus] = useState(proposal.status);
   const locale = t.locale as Locale;
 
-  const nameOfRow = (r: Row) => [r.given, r.surname].filter(Boolean).join(' ');
+  const nameOfRow = (r: Row) => [allGiven(r.given, r.furtherGiven), r.surname].filter(Boolean).join(' ');
   const refName = (ref: string) => {
     const r = rows.find((x) => x.ref === ref);
     return r ? nameOfRow(r) : (view.names?.[ref] ?? ref);
@@ -101,19 +113,42 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
       : r)));
   }
 
+  /** Changes or removes one detail. The row is sent again with new content. */
+  function changeDetails(ref: string, next: (d: Row['details']) => Row['details']) {
+    setRows((rs) => rs.map((r) => (r.ref === ref ? { ...r, details: next(r.details), status: r.status === 'failed' ? 'todo' : r.status, error: undefined } : r)));
+  }
+
+  /** Leaves out what was read for this person beyond the main facts: the uncertain lines, and the details that came with them. The row is sent again with new content. */
+  function leaveOutDetails(ref: string) {
+    setRows((rs) => rs.map((r) => (r.ref === ref ? { ...r, details: undefined, unsure: undefined, status: r.status === 'failed' ? 'todo' : r.status, error: undefined } : r)));
+  }
+
   /** Takes rows or links off the card. When that leaves only what was already added, the card is finished. */
   function applyRemoval(nextRows: Row[], nextLinks: LinkRow[]) {
     setRows(nextRows);
     setLinks(nextLinks);
-    if (draftProgress(nextRows, nextLinks, loopUids).settled) void finish('done');
+    if (draftProgress(nextRows, nextLinks, loopUids).settled) finish('done', nextRows, nextLinks);
   }
 
   const removeRow = (ref: string) => applyRemoval(rows.filter((r) => r.ref !== ref), links.filter((l) => l.anchor !== ref && l.person !== ref && l.coParent !== ref));
   const removeLink = (uid: string) => applyRemoval(rows, links.filter((l) => l.uid !== uid));
 
-  async function finish(next: 'done' | 'dismissed') {
+  /** What became of the rows and links, for the assistant to carry on from. */
+  const outcomeOf = (rs: Row[], ls: LinkRow[]): DecisionOutcome => ({
+    added: rs.filter((r) => r.status === 'done').map((r) => r.ref),
+    failed: rs.filter((r) => r.status === 'failed').map((r) => r.ref),
+    linksAdded: ls.filter((l) => l.status === 'done').length,
+    linksFailed: ls.filter((l) => l.status === 'failed').length,
+  });
+
+  function finish(next: 'done' | 'dismissed', rs: Row[] = rows, ls: LinkRow[] = links) {
     setStatus(next);
-    await aiChatMark({ data: { tree, itemId, proposalId: proposal.id, status: next } }).catch(() => {});
+    onDecided(() => aiChatMark({ data: { tree, itemId, proposalId: proposal.id, status: next, ...(next === 'done' && { outcome: outcomeOf(rs, ls) }) } }));
+  }
+
+  /** "Add all" did not fully work. The card stays open to retry, and the assistant hears what happened. */
+  function reportFailure(outcome: DecisionOutcome) {
+    onDecided(() => aiChatMark({ data: { tree, itemId, proposalId: proposal.id, status: 'failed', outcome } }));
   }
 
   /** Sends the chosen rows (all, or one), and every link whose two ends are known by then. */
@@ -151,9 +186,13 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
         qc.invalidateQueries({ queryKey: ['graph', tree] }),
         qc.invalidateQueries({ queryKey: ['chronicle', tree] }),
       ]);
-      if (draftProgress(newRows, newLinks, loopUids).settled) await finish('done');
+      const after = draftProgress(newRows, newLinks, loopUids);
+      if (after.settled) finish('done', newRows, newLinks);
+      else if (!only && after.failed) reportFailure(outcomeOf(newRows, newLinks));
     } catch (e) {
-      setNotice(errorText(e, locale));
+      const message = errorText(e, locale);
+      setNotice(message);
+      if (!only) reportFailure({ ...outcomeOf(rows, links), error: message.slice(0, 240) });
     } finally {
       setBusy(false);
     }
@@ -277,6 +316,43 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
                       <p className="ai-fam-story-by subtle">{r.story.teller ? t('ai.famToldBy', { name: refName(r.story.teller) }) : t('ai.famToldByYou')}</p>
                     </div>
                   )}
+                  {r.details && r.details.length > 0 && (
+                    <ul className="ai-fam-details">
+                      {r.details.map((d, i) => {
+                        const p = detailPreview(d);
+                        const typeName = t(`type.${d.type}` as Key);
+                        return (
+                          <li key={i} className="ai-fam-detail">
+                            <div className="ai-fam-detail-text">
+                              <p className="ai-fam-detail-head"><b>{typeName}</b> <span className="subtle">· {presetLabel(p.label, t)}</span> <VisibilityMark level={p.level} /></p>
+                              <p className="ai-fam-detail-value">
+                                {p.parts.map(([k, v]) => (k === 'left' ? t('faith.left') : p.parts.length > 1 ? `${t(PART_LABEL[k])}: ${v}` : v)).join(' · ')}
+                              </p>
+                              {p.issue && <p className="ai-card-error" role="note">{t(`issue.${p.issue}` as Key)} {t('ai.famDetailSkipped')}</p>}
+                            </div>
+                            {!locked && (
+                              <button type="button" className="btn ghost ai-touch ai-link-remove" onClick={() => changeDetails(r.ref, (ds) => dropDetail(ds, i))} disabled={busy} aria-label={t('fields.remove', { name: typeName })} title={t('fields.remove', { name: typeName })}>
+                                <X size={13} aria-hidden />
+                              </button>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                  {r.unsure && r.unsure.length > 0 && (
+                    <div className="ai-fam-unsure">
+                      <p className="ai-fam-unsure-head">
+                        <span>{t('ai.famUnsureLabel')}</span>
+                        {!locked && (
+                          <button type="button" className="btn ghost ai-touch ai-link-remove" onClick={() => leaveOutDetails(r.ref)} disabled={busy} aria-label={t(r.details?.length ? 'ai.famUnsureLeaveAll' : 'ai.famUnsureLeave')} title={t(r.details?.length ? 'ai.famUnsureLeaveAll' : 'ai.famUnsureLeave')}>
+                            <X size={13} aria-hidden />
+                          </button>
+                        )}
+                      </p>
+                      <ul>{r.unsure.map((line, i) => <li key={i}>{line}</li>)}</ul>
+                    </div>
+                  )}
                   {dup && !locked && matches.length === 0 && <p className="ai-fam-dup" role="note">{t('ai.famDuplicate', { name: dup.name })}</p>}
                   {locked && <p className="ai-card-state ok">{t('ai.famDone')}</p>}
                   {r.status === 'failed' && <p className="ai-card-error" role="alert">{r.error}</p>}
@@ -305,6 +381,15 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
                         <input value={(r[field] as string | undefined) ?? ''} onChange={(e) => edit(r.ref, field, e.target.value)} />
                       </label>
                     ))}
+                    {!r.existing && (
+                      <label className="ai-field">
+                        <span>{t('ai.fieldFurtherGiven')}</span>
+                        <input
+                          value={(r.furtherGiven ?? []).join(', ')}
+                          onChange={(e) => setRows((rs) => rs.map((x) => (x.ref === r.ref ? { ...x, furtherGiven: e.target.value.split(',').map((n) => n.trim()).filter(Boolean).slice(0, MAX_FURTHER), status: x.status === 'failed' ? 'todo' : x.status, error: undefined } : x)))}
+                        />
+                      </label>
+                    )}
                     {r.social?.map((s, i) => (
                       <div key={i} className="ai-field ai-fam-wide ai-fam-social-edit">
                         <label htmlFor={`${r.ref}-social-${i}`}>{t('ai.famSocialLabel', { network: s.network })}</label>
@@ -315,6 +400,21 @@ export function FamilyDraft({ tree, itemId, proposal }: { tree: string; itemId: 
                           </button>
                         </div>
                       </div>
+                    ))}
+                    {r.details?.map((d, i) => (
+                      <fieldset key={i} className="ai-fam-wide ai-fam-detail-edit">
+                        <legend>{t(`type.${d.type}` as Key)}</legend>
+                        <label className="ai-field">
+                          <span>{t('fields.label')}</span>
+                          <input value={d.label ?? ''} maxLength={60} placeholder={presetLabel(detailPreview(d).label, t)} onChange={(e) => changeDetails(r.ref, (ds) => patchDetail(ds, i, { label: e.target.value }))} />
+                        </label>
+                        {detailKeys(d).map((k) => (
+                          <label key={k} className="ai-field">
+                            <span>{t(PART_LABEL[k])}</span>
+                            <input value={d.value[k] ?? ''} maxLength={500} onChange={(e) => changeDetails(r.ref, (ds) => patchDetail(ds, i, { key: k, value: e.target.value }))} />
+                          </label>
+                        ))}
+                      </fieldset>
                     ))}
                     {r.story && (
                       <>

@@ -5,9 +5,9 @@ import type { GPerson, Graph, House, Look } from '~/lib/types';
 import { CHARGE_ICONS, type ChargeIconName } from './charges.gen';
 import { TINCTURE_HEX } from './Heraldry';
 import { ensurePortraitDefs } from './portrait/defs';
-import { detailOf, drawingUri } from './portrait/drawing';
+import { detailOf, drawingUri, type Detail } from './portrait/drawing';
 import { shownAge } from './portrait/look';
-import { chooseFace, portraitFits } from '~/lib/portrait-face';
+import { chooseFace, portraitFits, type Face } from '~/lib/portrait-face';
 
 const HEADWEAR_ICON: Partial<Record<NonNullable<Look['headwear']>, ChargeIconName>> = {
   crown: 'crown',
@@ -19,7 +19,7 @@ const housesOf = new WeakMap<Graph, Map<string, House>>();
 
 /** The person's house, read from the tree's graph if the caller did not pass it. No subscription:
  *  the graph is loaded before any portrait renders, and hundreds of portraits share it. */
-function useHouse(person: GPerson, tree: string, given: House | null | undefined): House | undefined {
+export function useHouse(person: GPerson, tree: string, given: House | null | undefined): House | undefined {
   const qc = useQueryClient();
   if (given !== undefined) return given ?? undefined;
   if (!person.house) return undefined;
@@ -31,6 +31,23 @@ function useHouse(person: GPerson, tree: string, given: House | null | undefined
     housesOf.set(graph, byId);
   }
   return byId.get(person.house);
+}
+
+type Prefer = 'photo' | 'avatar' | 'portrait';
+
+/** Which face someone shows: what a caller asks for, else their own choice; a painting only where it fits the age shown. */
+export function faceOf(person: GPerson, prefer?: Prefer, age?: number): Face {
+  const shown = shownAge(person, new Date().getFullYear(), age);
+  const fits = !!person.portrait && portraitFits({ born: person.born, shown, photoAge: person.portraitAge ?? null });
+  const shownAs = prefer ?? (person.preferAvatar ? 'avatar' : person.preferPortrait ? 'portrait' : 'photo');
+  return chooseFace({ shownAs, hasPhoto: !!person.photo, hasPortrait: !!person.portrait, fits });
+}
+
+/** The address of that face: the server's picture, or the generated drawing. */
+export function faceSrc(person: GPerson, tree: string, house: House | undefined, face: Face, detail: Detail, age?: number): string {
+  if (face === 'photo') return `/api/photo/${tree}/${person.id}?v=${encodeURIComponent(person.photo!)}`;
+  if (face === 'portrait') return `/api/portrait/${tree}/${person.id}?v=${encodeURIComponent(person.portrait!)}`;
+  return drawingUri(person, house, detail, age);
 }
 
 /**
@@ -59,7 +76,7 @@ export function Portrait({
   /** 'avatar' draws the likeness even when a photo exists, e.g. beside the photo it stands in for; 'portrait' shows the
    *  painted portrait where it fits the age shown, else the drawing. Absent: the person's own choice (`preferAvatar`, then
    *  `preferPortrait`), so callers need not pass it. An explicit value always wins. */
-  prefer?: 'photo' | 'avatar' | 'portrait';
+  prefer?: Prefer;
   /** Shows the drawing at this age (a life stage, a chronicle entry) instead of the look's own. */
   age?: number;
   /** False shows the dead in colour, as the character editor must to pick colours. */
@@ -71,21 +88,13 @@ export function Portrait({
   const house = useHouse(person, tree, givenHouse);
   const detail = detailOf(size);
   const headwear = person.look?.headwear;
-  // A painted portrait stands in only where it fits the age shown: near the age in its photo, and in its era (portraitFits).
-  const shown = shownAge(person, new Date().getFullYear(), age);
-  const fits = !!person.portrait && portraitFits({ born: person.born, shown, photoAge: person.portraitAge ?? null });
-  const shownAs = prefer ?? (person.preferAvatar ? 'avatar' : person.preferPortrait ? 'portrait' : 'photo');
-  const which = chooseFace({ shownAs, hasPhoto: !!person.photo, hasPortrait: !!person.portrait, fits });
+  const which = faceOf(person, prefer, age);
   const photo = which === 'photo';
   const painted = which === 'portrait';
   const pictured = photo || painted;
   // A drawing wears its crown on its head; a photo or a painting gets the badge on the frame instead.
   const badge = pictured && headwear && HEADWEAR_ICON[headwear] ? CHARGE_ICONS[HEADWEAR_ICON[headwear]] : null;
-  const src = photo
-    ? `/api/photo/${tree}/${person.id}?v=${encodeURIComponent(person.photo!)}`
-    : painted
-      ? `/api/portrait/${tree}/${person.id}?v=${encodeURIComponent(person.portrait!)}`
-      : drawingUri(person, house, detail, age);
+  const src = faceSrc(person, tree, house, which, detail, age);
   const name = [person.given, person.surname].filter(Boolean).join(' ');
 
   const cls = ['portrait', frame ? 'is-framed' : 'is-bare', `is-${detail}`].join(' ');

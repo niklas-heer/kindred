@@ -81,7 +81,7 @@ export async function privacyGuard(tree: string, people: GPerson[], seePrivate: 
   for (const p of people) {
     if (!p.living) continue;
     // Current and birth names both count, and in any mix: a given name from one with the surname from the other is still a name.
-    const given = new Set([...nameWords(p.given, MIN_GIVEN), ...nameWords(p.currentGiven, MIN_GIVEN)]);
+    const given = new Set([...nameWords(p.given, MIN_GIVEN), ...nameWords(p.currentGiven, MIN_GIVEN), ...(p.furtherGiven ?? []).flatMap((n) => nameWords(n, MIN_GIVEN))]);
     const surname = new Set([...surnameWords(p.surname), ...surnameWords(p.currentSurname)]);
     if (given.size && surname.size) living.push({ given: [...given], surname: [...surname] });
     if (p.nickname && alnum(p.nickname) >= MIN_NICKNAME) nicknames.push(wordsOf(p.nickname, false));

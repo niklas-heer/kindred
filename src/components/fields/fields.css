@@ -10,6 +10,9 @@
 .fv-value { min-width: 0; overflow-wrap: anywhere; }
 .fv-lines { display: grid; }
 .fv-text { white-space: pre-wrap; }
+.fv-colours { display: flex; flex-wrap: wrap; gap: 2px 12px; }
+.fv-colour { display: inline-flex; align-items: center; gap: 6px; overflow-wrap: normal; }
+.fv-colour i { flex: none; width: 13px; height: 13px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--text) 35%, transparent); }
 
 /* A contact: the value, then its tags. They share a line while they fit, and the tags drop under the value when they do not. */
 .pp-contact-body { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }

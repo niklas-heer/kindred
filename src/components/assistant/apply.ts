@@ -23,7 +23,7 @@ export async function applyProposal(tree: string, p: Proposal, args: ProposalArg
   const opKey = keys.for(p.kind, args);
 
   if (p.kind === 'add-person') {
-    await addRelative({ data: { tree, anchor: a.anchor, relation: a.relation, coParent: a.coParent, person: { given: a.given, surname: a.surname || undefined, sex: a.sex, born: a.born || undefined, died: a.died || undefined, living: a.living }, opKey } });
+    await addRelative({ data: { tree, anchor: a.anchor, relation: a.relation, coParent: a.coParent, person: { given: a.given, furtherGiven: a.furtherGiven?.length ? a.furtherGiven : undefined, surname: a.surname || undefined, sex: a.sex, born: a.born || undefined, died: a.died || undefined, living: a.living }, opKey } });
   } else if (p.kind === 'link-relative') {
     await linkRelative({ data: { tree, anchor: a.anchor, person: a.person, relation: a.relation, coParent: a.coParent, opKey } });
   } else if (p.kind === 'add-story') {

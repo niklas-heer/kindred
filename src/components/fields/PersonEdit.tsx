@@ -5,7 +5,7 @@
 // so the draft never mixes values from one moment with a revision from another.
 import { useForm } from '@tanstack/react-form';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, Trash2 } from 'lucide-react';
+import { Check, Plus, Trash2, X } from 'lucide-react';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { opKeys, removePerson } from '~/lib/api';
 import { getEditSnapshot, savePersonEdit } from '~/lib/person.functions';
@@ -23,6 +23,7 @@ import { draftOf, FieldEditor, type DraftField } from './FieldEditor';
 import { CHANGED_SINCE_OPENED, fieldIssue, fieldText } from './model';
 import { rebaseDraft, takeTheirs, type Conflict } from './rebase';
 import { translateMessage, useT, type Key } from '~/lib/i18n';
+import { MAX_FURTHER, MAX_FURTHER_LENGTH } from '~/lib/further-given';
 import { OccupationField } from './OccupationField';
 import { presetLabel } from './presets';
 import './editor.css';
@@ -38,7 +39,7 @@ interface Props {
 }
 
 interface Values {
-  given: string; surname: string; sameName: boolean; currentGiven: string; currentSurname: string;
+  given: string; furtherGiven: string[]; surname: string; sameName: boolean; currentGiven: string; currentSurname: string;
   nickname: string; sex: '' | 'm' | 'f' | 'x';
   born: string; bornPlace: PlaceValue; died: string; diedPlace: PlaceValue; living: boolean;
   title: string; epithet: string; occupation: string; occupationCode: string; bio: string;
@@ -50,7 +51,7 @@ function valuesOf(s: EditSnapshot): Values {
   // Names: a null current name means "same as birth", so the switch starts on when both are unset.
   const sameName = s.currentGiven == null && s.currentSurname == null;
   return {
-    given: s.given, surname: s.surname ?? '', sameName,
+    given: s.given, furtherGiven: s.furtherGiven, surname: s.surname ?? '', sameName,
     currentGiven: s.currentGiven ?? s.given, currentSurname: s.currentSurname ?? s.surname ?? '',
     nickname: s.nickname ?? '', sex: (s.sex ?? '') as '' | 'm' | 'f' | 'x',
     born: s.born ?? '', bornPlace: placeValue(s.bornPlace), died: s.died ?? '', diedPlace: placeValue(s.diedPlace), living: s.living,
@@ -61,7 +62,7 @@ function valuesOf(s: EditSnapshot): Values {
 
 /** The reader's words for the scalar a conflict names (a unit names its first key). */
 const LABEL: Record<string, Key> = {
-  given: 'edit.givenAtBirth', surname: 'edit.surnameAtBirth', sameName: 'edit.sameName', currentGiven: 'edit.currentGiven',
+  given: 'edit.givenAtBirth', furtherGiven: 'edit.furtherGiven', surname: 'edit.surnameAtBirth', sameName: 'edit.sameName', currentGiven: 'edit.currentGiven',
   currentSurname: 'edit.currentSurname', nickname: 'edit.nickname', sex: 'edit.sex', born: 'edit.born', bornPlace: 'edit.birthplace',
   died: 'edit.died', diedPlace: 'edit.diedPlace', living: 'edit.living', title: 'edit.title', epithet: 'edit.epithet',
   occupation: 'edit.occupation', bio: 'edit.biography',
@@ -163,7 +164,7 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
         // Pins first: repeating them on a retry changes nothing.
         await savePlacesKeyed(tree, (pl) => keys.for('places', pl), value.bornPlace, value.living ? undefined : value.diedPlace);
         const details = {
-          given: value.given, surname: value.surname, nickname: value.nickname, sex: value.sex || null,
+          given: value.given, furtherGiven: value.furtherGiven.map((x) => x.trim()).filter(Boolean), surname: value.surname, nickname: value.nickname, sex: value.sex || null,
           currentGiven: value.sameName ? null : value.currentGiven, currentSurname: value.sameName ? null : value.currentSurname,
           born: value.born, bornPlace: value.bornPlace.name, died: value.died, diedPlace: value.diedPlace.name, living: value.living,
           title: value.title, epithet: value.epithet, occupation: value.occupation, occupationCode: value.occupationCode || null, bio: value.bio,
@@ -239,6 +240,7 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
   const shown = (key: string, v: unknown): string => {
     if (key === 'bornPlace' || key === 'diedPlace') return (v as PlaceValue | undefined)?.name || c('edit.empty');
     if (key === 'sex') return c(v ? (`sex.${v}` as Key) : 'sex.unknown');
+    if (Array.isArray(v)) return v.filter(Boolean).join(', ') || c('edit.empty');
     if (typeof v === 'boolean') return c(v ? 'edit.yes' : 'edit.no');
     return typeof v === 'string' && v !== '' ? v : c('edit.empty');
   };
@@ -294,6 +296,40 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
       <div className="pe-grid">
         {text('given', c('edit.givenAtBirth'))}
         {text('surname', c('edit.surnameAtBirth'))}
+        <form.Field name="furtherGiven">
+          {(field) => (
+            <div className="field wide pe-further">
+              {field.state.value.map((name, i) => (
+                <div key={i} className="pe-further-row">
+                  <label className="field">
+                    <span>{c('edit.furtherGivenRow', { n: i + 2 })}</span>
+                    <input
+                      className="input"
+                      value={name}
+                      autoComplete="off"
+                      maxLength={MAX_FURTHER_LENGTH}
+                      onChange={(e) => field.handleChange(field.state.value.map((x, j) => (j === i ? e.target.value : x)))}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    aria-label={c('edit.removeGiven', { n: i + 2 })}
+                    title={c('edit.removeGiven', { n: i + 2 })}
+                    onClick={() => field.handleChange(field.state.value.filter((_, j) => j !== i))}
+                  >
+                    <X size={14} aria-hidden />
+                  </button>
+                </div>
+              ))}
+              {field.state.value.length < MAX_FURTHER && (
+                <button type="button" className="btn ghost pe-further-add" onClick={() => field.handleChange([...field.state.value, ''])}>
+                  <Plus size={14} aria-hidden /> {c('edit.addGiven')}
+                </button>
+              )}
+            </div>
+          )}
+        </form.Field>
         <form.Field name="sameName">
           {(field) => (
             <div className="field check wide">

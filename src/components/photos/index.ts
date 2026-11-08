@@ -1,6 +1,7 @@
 // The gallery and the photo features that other screens use: import from '~/components/photos'.
 export { AlbumDialog, DeleteAlbumDialog } from './AlbumDialog';
-export { Lightbox, clampBox } from './Lightbox';
+export { Lightbox, PictureLightbox, clampBox } from './Lightbox';
+export { PortraitZoom } from './PortraitZoom';
 export { PersonPhotos } from './PersonPhotos';
 export { PersonPicker } from './PersonPicker';
 export { UploadDialog } from './UploadDialog';

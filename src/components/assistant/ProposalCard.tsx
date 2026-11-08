@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { aiChatMark } from '~/lib/ai.functions';
 import { graphQuery } from '~/lib/api';
 import { PROPOSAL_KIND_KEY } from '~/lib/ai/labels';
+import type { DecisionOutcome } from '~/lib/ai/continuation';
 import type { Proposal, ProposalArgs } from '~/lib/ai/types';
 import { useT, type Key } from '~/lib/i18n';
 import { errorText } from '~/lib/errortext';
@@ -33,11 +34,14 @@ function summaryWithLabel(proposal: Proposal, t: ReturnType<typeof useT>): strin
   return withPresetLabel(proposal.summary, raw, t);
 }
 
-export function ProposalCard({ tree, itemId, proposal }: { tree: string; itemId: string; proposal: Proposal }) {
+/** Hands a card's decision to the drawer, which records it and lets the assistant carry on. A retry calls the same function again. */
+export type OnDecided = (mark: () => Promise<{ due: boolean }>) => void;
+
+export function ProposalCard({ tree, itemId, proposal, onDecided }: { tree: string; itemId: string; proposal: Proposal; onDecided: OnDecided }) {
   const t = useT();
   // A family draft is its own card (it has rows that are added one by one), so it draws its own head and state.
-  if (proposal.kind === 'family') return <FamilyDraft tree={tree} itemId={itemId} proposal={proposal} />;
-  return <GenericCard tree={tree} itemId={itemId} proposal={proposal} />;
+  if (proposal.kind === 'family') return <FamilyDraft tree={tree} itemId={itemId} proposal={proposal} onDecided={onDecided} />;
+  return <GenericCard tree={tree} itemId={itemId} proposal={proposal} onDecided={onDecided} />;
 }
 
 type Pic = { key: string; taken?: string | null; place?: string | null; caption?: string | null; album?: string | null };
@@ -113,7 +117,7 @@ function AvatarPreview({ tree, proposal, t }: { tree: string; proposal: Proposal
   );
 }
 
-function GenericCard({ tree, itemId, proposal }: { tree: string; itemId: string; proposal: Proposal }) {
+function GenericCard({ tree, itemId, proposal, onDecided }: { tree: string; itemId: string; proposal: Proposal; onDecided: OnDecided }) {
   const t = useT();
   const qc = useQueryClient();
   const [status, setStatus] = useState(proposal.status);
@@ -131,7 +135,7 @@ function GenericCard({ tree, itemId, proposal }: { tree: string; itemId: string;
   const [keys] = useState<ApprovalKeys>(() => approvalKeys());
 
   const open = status === 'open';
-  const mark = (s: 'done' | 'dismissed') => aiChatMark({ data: { tree, itemId, proposalId: proposal.id, status: s } });
+  const mark = (status: 'done' | 'dismissed' | 'failed', outcome?: DecisionOutcome) => () => aiChatMark({ data: { tree, itemId, proposalId: proposal.id, status, outcome } });
   const photoKind = proposal.kind === 'photo-details' || proposal.kind === 'photo-album' || proposal.kind === 'photo-tags';
   const remaining = photoKind ? ((proposal.kind === 'photo-tags' ? proposal.args.people : proposal.args.items) as unknown[] ?? []).length - dropped.length : 1;
 
@@ -150,9 +154,12 @@ function GenericCard({ tree, itemId, proposal }: { tree: string; itemId: string;
     try {
       await applyProposal(tree, { ...proposal, args }, args, keys, qc);
       setStatus('done');
-      await mark('done').catch(() => {});
+      const edited = Object.entries(edits).some(([k, v]) => v.trim() !== String(proposal.args[k] ?? '').trim());
+      onDecided(mark('done', { ...(edited && { edited }), ...(dropped.length && { removed: dropped.length }) }));
     } catch (e) {
-      setError(errorText(e, t.locale));
+      const message = errorText(e, t.locale);
+      setError(message);
+      onDecided(mark('failed', { error: message.slice(0, 240) }));
     } finally {
       setBusy(false);
     }
@@ -160,7 +167,7 @@ function GenericCard({ tree, itemId, proposal }: { tree: string; itemId: string;
 
   async function dismiss() {
     setStatus('dismissed');
-    await mark('dismissed').catch(() => {});
+    onDecided(mark('dismissed'));
   }
 
   return (

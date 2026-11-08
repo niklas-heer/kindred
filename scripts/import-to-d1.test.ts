@@ -69,9 +69,9 @@ function populatedFamily(name: string): DatabaseSync {
   d.exec(`
     INSERT INTO meta (key, value) VALUES ('id', 'v2'), ('name', 'Ruff''s family'), ('tagline', 'a test'), ('theme', 'codex'), ('focus', 'ada');
     INSERT INTO house (id, name, motto, arms, founder) VALUES ('h1', 'House O''Neill', NULL, '{"field":"gules"}', 'ada');
-    INSERT INTO person (id, given, surname, house, sex, born, living, look, updated_at) VALUES
-      ('ada', 'Ada', 'Lovelace', 'h1', 'f', '1815', 0, '{"hair":1}', '${now}'),
-      ('ben', 'Ben', 'O''Brien', 'h1', 'm', '1840', 0, NULL, '${now}');
+    INSERT INTO person (id, given, further_given, surname, house, sex, born, living, look, updated_at) VALUES
+      ('ada', 'Ada', '["Augusta","Byron"]', 'Lovelace', 'h1', 'f', '1815', 0, '{"hair":1}', '${now}'),
+      ('ben', 'Ben', NULL, 'O''Brien', 'h1', 'm', '1840', 0, NULL, '${now}');
     INSERT INTO parent (child, parent, kind, confidence) VALUES ('ben', 'ada', 'biological', 'certain');
     INSERT INTO partnership (id, a, b, kind, start, end, end_reason, place) VALUES ('u1', 'ada', 'ben', 'marriage', '1835', NULL, NULL, 'Lindby');
     INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES ('s1', 'ada', 'memory', 'A ''quoted'' title', 'Body text', 'Ben', '${now}', NULL);
@@ -126,6 +126,7 @@ test('a populated family written with the transfer’s own SQL lands in an empty
   assert.equal((target.prepare('SELECT rev FROM ancestry_rev WHERE id = 1').get() as { rev: number }).rev, sent.parent, 'the target counts its own link changes');
   assert.equal((target.prepare("SELECT value FROM meta WHERE key = 'name'").get() as { value: string }).value, "Ruff's family");
   assert.equal((target.prepare("SELECT surname FROM person WHERE id = 'ben'").get() as { surname: string }).surname, "O'Brien", 'quotes survive');
+  assert.equal((target.prepare("SELECT further_given FROM person WHERE id = 'ada'").get() as { further_given: string }).further_given, '["Augusta","Byron"]', 'the further given names are copied');
   target.close();
 });
 

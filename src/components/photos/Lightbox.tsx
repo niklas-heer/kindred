@@ -72,6 +72,18 @@ export function Lightbox({ tree, items, index, albums, onIndex, onClose }: {
   );
 }
 
+/** One picture that is not in the gallery, such as a person's portrait: only the picture, large, in the same frame. */
+export function PictureLightbox({ src, alt, caption, onClose }: { src: string; alt: string; caption?: string; onClose: () => void }) {
+  return (
+    <Dialog open onClose={onClose} label={alt} closeButton className="lb-dialog lb-picture">
+      <figure className="lb-pic">
+        <img src={src} alt={alt} decoding="async" draggable={false} />
+        {caption ? <figcaption>{caption}</figcaption> : null}
+      </figure>
+    </Dialog>
+  );
+}
+
 function Photo({ tree, item, index, count, albums, onGo, onDirty }: {
   tree: string;
   item: MediaItem;

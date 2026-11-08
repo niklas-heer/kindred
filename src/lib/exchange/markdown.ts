@@ -8,6 +8,7 @@
 // Every value that is text is written as a JSON string, which YAML reads as the same text. Keys the v1 schema
 // does not name (sex, title, epithet, current name, the end of a partnership) are extra properties, which
 // v1 retains; import-kindred ignores them.
+import { allGiven } from '../further-given.ts';
 import type { ExParent, ExPerson, ExTree, ExUnion } from './model.ts';
 
 export interface ArchiveFile {
@@ -71,7 +72,8 @@ export function markdownArchive(tree: ExTree, portraits: Set<string> = new Set()
   }
 
   for (const p of tree.people) {
-    const lines: string[] = ['---', 'version: 1', `id: ${str(p.id)}`, 'type: person', `name: ${str([p.given, p.surname].filter(Boolean).join(' '))}`];
+    const lines: string[] = ['---', 'version: 1', `id: ${str(p.id)}`, 'type: person', `name: ${str([allGiven(p.given, p.furtherGiven), p.surname].filter(Boolean).join(' '))}`];
+    if (p.furtherGiven.length) lines.push(`given_names: [${[p.given, ...p.furtherGiven].map(str).join(', ')}]`);
     lines.push(`living: ${p.living ? 'true' : 'false'}`);
     if (p.sex) lines.push(`sex: ${str(p.sex)}`);
     if (p.born) lines.push(`born: ${str(v1Date(p.born)!)}`);

@@ -195,3 +195,20 @@ test('an empty family writes a valid file and reads back with nothing', () => {
   assert.equal(back.people.length, 0);
   assert.equal(back.tree.id, 'scratch');
 });
+
+test('further given names go to GIVN as a list and come back in order; a given name of several words stays whole', () => {
+  const tree = fixtureTree();
+  const { text } = writeGedcom(tree, new Date('2026-11-08T12:00:00Z'));
+  assert.match(text, /1 NAME Hanna Marie Luise \/Linden\/\r\n2 GIVN Hanna, Marie, Luise\r\n/);
+  const hanna = readGedcom(text).people.find((p) => p.given === 'Hanna')!;
+  assert.equal(hanna.given, 'Hanna');
+  assert.deepEqual(hanna.furtherGiven, ['Marie', 'Luise']);
+
+  // A file from elsewhere: GIVN with spaces only is one given name, not split.
+  const foreign = readGedcom(['0 HEAD', '1 CHAR UTF-8', '0 @I1@ INDI', '1 NAME Hans Peter /Weber/', '2 GIVN Hans Peter', '0 TRLR', ''].join('\r\n'));
+  assert.equal(foreign.people[0]!.given, 'Hans Peter');
+  assert.deepEqual(foreign.people[0]!.furtherGiven, []);
+
+  // A person with no further names is written exactly as before.
+  assert.match(text, /1 NAME Karl \/Linden\/\r\n2 GIVN Karl\r\n/);
+});
