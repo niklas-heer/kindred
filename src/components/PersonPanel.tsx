@@ -283,6 +283,7 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
   onSelect: (id: string) => void; onPath: () => void; onGap: (g: GapKey) => void; onTab: (t: Tab) => void;
 }) {
   const detail = details.detail;
+  const qc = useQueryClient();
   const k = useMemo(() => (me && me !== p.id ? kinship(f, me, p.id) : undefined), [f, me, p.id]);
   const house = p.house ? f.house.get(p.house) : undefined;
   const a = age(p);
@@ -309,7 +310,7 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
         <span className="spacer" />
         {me !== p.id && k && <button className="btn ghost" onClick={onPath} title={c('panel.howTitle')}><RouteIcon size={14} /> {c('panel.how')}</button>}
         {!me ? (
-          <button className="btn ghost" onClick={() => void chooseMe(tree, p.id)} title={c('panel.thisIsMeTitle')}>{c('panel.thisIsMe')}</button>
+          <button className="btn ghost" onClick={() => void chooseMe(tree, p.id).then(() => qc.invalidateQueries({ queryKey: ['session'] }))} title={c('panel.thisIsMeTitle')}>{c('panel.thisIsMe')}</button>
         ) : me !== p.id && <button className="btn ghost" onClick={() => setPref(`me:${tree}`, p.id)} title={c('panel.beThemTitle')}>{c('panel.beThem')}</button>}
       </section>
 
@@ -908,12 +909,14 @@ function PlaceLink({ tree, name }: { tree: string; name: string }) {
 function OccupationFact({ tree, p, icon, label }: { tree: string; p: GPerson; icon: ReactNode; label: string }) {
   const t = useT();
   const status = useAiStatus(tree);
+  // The server translates only for contributors and up, so viewers don't get the button.
+  const mayTranslate = useCan('add-story');
   const shown = occupationText(p, t.locale);
   const translate = useMutation({
     mutationFn: () => translateOccupation({ data: { tree, text: p.occupation ?? '', locale: t.locale } }),
   });
   if (!shown) return null;
-  const canTranslate = !p.occupationCode && !!p.occupation && !!status?.features.assistant;
+  const canTranslate = mayTranslate && !p.occupationCode && !!p.occupation && !!status?.features.assistant;
   return (
     <Fact icon={icon} label={label}>
       {shown}
