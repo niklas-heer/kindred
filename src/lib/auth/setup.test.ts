@@ -135,6 +135,39 @@ test('bootstrap modes, discoverable options, exclusions and proxy origin', async
       assert.equal(lines.length, 1);
       assert.match(lines[0], /other\.example\.net.*family\.example\.org/);
     });
+    await t.test('KINDRED_REQUIRE_SETUP_CODE takes 1, true, yes or required in any case; other values leave it off, warn once and are not repeated', () => {
+      const saved = console.warn;
+      const warnings: string[] = [];
+      console.warn = (m: unknown) => { warnings.push(String(m)); };
+      try {
+        delete process.env.KINDRED_SETUP_CODE;
+        for (const v of ['1', 'true', 'TRUE', 'True', ' yes ', 'Yes', 'YES', 'required', 'Required']) {
+          process.env.KINDRED_REQUIRE_SETUP_CODE = v;
+          assert.equal(setup.setupCodeRequired(), true, JSON.stringify(v));
+        }
+        assert.equal(warnings.length, 0, 'the accepted values do not warn');
+        // A pasted setup code in this variable must not be echoed into the log.
+        for (const v of ['0', 'false', 'no', 'on', 'y', '2', 'ABCD-EFGH-JKMN-PQRS']) {
+          process.env.KINDRED_REQUIRE_SETUP_CODE = v;
+          assert.equal(setup.setupCodeRequired(), false, JSON.stringify(v));
+        }
+        assert.equal(warnings.length, 1, 'one warning, however many values or calls');
+        assert.match(warnings[0], /KINDRED_REQUIRE_SETUP_CODE/);
+        assert.equal(warnings[0].includes('ABCD'), false, 'the value is not logged');
+        process.env.KINDRED_REQUIRE_SETUP_CODE = '';
+        assert.equal(setup.setupCodeRequired(), false, 'empty is simply unset');
+      } finally {
+        console.warn = saved;
+        delete process.env.KINDRED_REQUIRE_SETUP_CODE;
+      }
+    });
+    await t.test('behind a TLS proxy the address a request arrived at uses X-Forwarded-Proto; only http and https count', () => {
+      assert.equal(setup.arrivedAt(new Request('http://family.example.org:8080/setup?x=1')).href, 'http://family.example.org:8080/setup?x=1');
+      const behind = setup.arrivedAt(new Request('http://family.example.org/setup', { headers: { 'x-forwarded-proto': 'https, http' } }));
+      assert.equal(behind.origin, 'https://family.example.org');
+      assert.equal(behind.pathname, '/setup');
+      assert.equal(setup.arrivedAt(new Request('http://family.example.org/', { headers: { 'x-forwarded-proto': 'ftp' } })).origin, 'http://family.example.org');
+    });
   } finally {
     (await import('../store/node.ts')).closeAccounts();
     process.env = saved;

@@ -29,6 +29,7 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
 | `0008_drop_legacy_contact.sql` | Drops the old `contact` table and `person.favourite`, both replaced by `person_field` in 0003. |
 | `0009_person_revision.sql` | `person.revision`, bumped by triggers on person and `person_field` changes, so the Edit tab can refuse a stale save. |
 | `0010_revision_scope.sql` | Limits the person trigger to the columns the Edit tab writes, so a portrait or picture change doesn't block your own save. |
+| `0011_ancestry_revision.sql` | `ancestry_rev`, one number bumped by triggers on every change to `parent`, which the GEDCOM import guards instead of the whole list of links. |
 
 ### Tables
 
@@ -55,6 +56,7 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
   suggestion, which is never shown as a tag).
 - **`house_succession`**: a house's `law` (`absolute-primogeniture`, `seniority` or `elective`), and optional `head`,
   `heir` and `country`. A house with no row uses absolute primogeniture and derives its head from the family graph.
+- **`ancestry_rev`**: a single row (`id` = 1) with `rev`, the ancestry revision. Triggers on `parent` add one on every insert, update and delete, so `rev` moves with any change to who is whose parent, whatever the size of the family. The GEDCOM import reads it while planning and guards `rev = ?` inside its batch, so a change to the links in between makes the import plan again. The D1 transfer leaves it out (see `LEFT_OUT_TABLES` in `scripts/lib/d1-transfer.ts`): the target's links bump the target's own counter as they are written, and the counter is only ever compared with itself.
 - **`op`**: the retry keys. A change sent with a key records its result in the same batch as the change (see below).
 - **`guard`**: a view with a trigger, used to abort a batch (see below).
 - **`d1_migrations`**: which migration files have run, kept by Node and by D1 alike.

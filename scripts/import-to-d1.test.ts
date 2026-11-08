@@ -32,7 +32,7 @@ test('every table the current schema has is decided: copied, or left out on purp
   const present = tablesOf(d);
   const plan = T.planTables(present);
   assert.deepEqual(plan.copy, [...T.COPIED_TABLES], 'the copy list, in order');
-  assert.deepEqual(plan.leftOut, ['d1_migrations', 'op'], 'bookkeeping is left out on purpose');
+  assert.deepEqual(plan.leftOut, ['ancestry_rev', 'd1_migrations', 'op'], 'bookkeeping is left out on purpose');
   for (const t of ['person_field', 'house_succession', 'album', 'media', 'media_person', 'occupation_translation']) {
     assert.ok(plan.copy.includes(t), `${t} is copied`);
   }
@@ -111,6 +111,8 @@ test('a populated family written with the transfer’s own SQL lands in an empty
   target.exec(sql.join('\n'));
   const held = target.prepare(T.countSql(plan.copy)).get() as Record<string, number>;
   assert.deepEqual(T.countMismatches(sent, held), [], 'every table holds what was sent');
+  // The ancestry revision is not copied: the target's own counter (seeded at 0) moved once per parent row written.
+  assert.equal((target.prepare('SELECT rev FROM ancestry_rev WHERE id = 1').get() as { rev: number }).rev, sent.parent, 'the target counts its own link changes');
   assert.equal((target.prepare("SELECT value FROM meta WHERE key = 'name'").get() as { value: string }).value, "Ruff's family");
   assert.equal((target.prepare("SELECT surname FROM person WHERE id = 'ben'").get() as { surname: string }).surname, "O'Brien", 'quotes survive');
   target.close();

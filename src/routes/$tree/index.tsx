@@ -1,21 +1,22 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import {
   ArrowDownToLine, ArrowLeft, ArrowUpToLine, ChevronUp, ChevronsDownUp, ChevronsUpDown, Crown, FileQuestion, GitFork, Glasses,
-  HeartPulse, Keyboard, Landmark, Minus, Network, Plus, Route as RouteIcon, Shield, SlidersHorizontal, Users, Waypoints, X,
+  HeartPulse, Keyboard, Landmark, Minus, Network, Plus, Route as RouteIcon, Shield, SlidersHorizontal, Users, UserPlus, Waypoints, X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { Canvas, type CanvasHandle, type Detail, type Inset } from '~/components/Canvas';
 import { Card, type AddRelation } from '~/components/Card';
 import { PersonPanel } from '~/components/PersonPanel';
 import { Portrait } from '~/components/Portrait';
 import { QuickAdd } from '~/components/QuickAdd';
-import { useFamily, useMe, useMeChosen } from '~/lib/family';
-import { Dialog, Select, usePageHotkey, type SelectOption } from '~/components/ui';
+import { chooseMe, useFamily, useMe, useMeChosen } from '~/lib/family';
+import { Dialog, EmptyState, Select, usePageHotkey, type SelectOption } from '~/components/ui';
 import { ancestorDepths, ancestorDepths as anc, descendants, displayName, kinPath, kinship, parents, children, nameModeKey, type NameMode } from '~/lib/graph';
 import { layout as computeLayout, rootFor, type LNode, type View } from '~/lib/layout';
 import { treeSearch } from '~/lib/search';
 import { gapsOf, useRequired } from '~/lib/gaps';
-import { removePerson } from '~/lib/api';
+import { opKeys, removePerson } from '~/lib/api';
+import { addSelfToFamily } from '~/lib/person.functions';
 import { useQueryClient } from '@tanstack/react-query';
 import { play } from '~/lib/sfx';
 import { toast } from '~/lib/toast';
@@ -549,6 +550,9 @@ function TreePage() {
     setSnap((s) => (s === 'peek' ? 'half' : s === 'half' ? 'full' : 'peek'));
   };
 
+  // An empty family has no tree to draw: the first person is added here (or, without the right to add, nobody is said).
+  if (!f.graph.people.length) return <EmptyTree tree={tree} canAdd={canAdd} />;
+
   return (
     <div
       ref={page}
@@ -855,6 +859,82 @@ function HelpCard({ onClose }: { onClose: () => void }) {
         <div key={k} className="help-row"><span>{k.split(' ').map((x) => <kbd key={x}>{x}</kbd>)}</span><span>{t(v)}</span></div>
       ))}
       <p className="faint">{t('tp.canvasHint')}</p>
+    </div>
+  );
+}
+
+/**
+ * An empty family: a card to start the tree. Someone who may add people adds themselves (the first-run step's form, the
+ * same server call) or somebody else; everyone else is told that nobody has been added yet.
+ */
+function EmptyTree({ tree, canAdd }: { tree: string; canAdd: boolean }) {
+  const t = useT();
+  const qc = useQueryClient();
+  const [keys] = useState(opKeys);
+  const [mode, setMode] = useState<'me' | 'other'>('me');
+  const [given, setGiven] = useState('');
+  const [surname, setSurname] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!canAdd) {
+    return (
+      <div className="page">
+        <div className="page-inner">
+          <EmptyState icon={<Users size={28} />} title={t('tree.nobodyYet')} text={t('tree.nobodyYetText')} />
+        </div>
+      </div>
+    );
+  }
+
+  const self = mode === 'me';
+  const add = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const body = { tree, given: given.trim(), surname: surname.trim() };
+      const id = await addSelfToFamily({ data: { ...body, opKey: keys.for(mode, body) } });
+      keys.clear(mode);
+      // The steward's own card is their "me"; a person added for someone else leaves the reader's answer as it was.
+      if (self) await chooseMe(tree, id);
+      await qc.invalidateQueries({ queryKey: ['graph', tree] });
+      await qc.invalidateQueries({ queryKey: ['session'] });
+    } catch (err) {
+      setError(err instanceof Error ? translateMessage(err.message, t.locale) : t(self ? 'setup.family_add_failed' : 'tree.start.failed'));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="page">
+      <div className="page-inner">
+        <section className="panel tree-start" aria-labelledby="tree-start-title" style={{ maxWidth: 480, margin: '48px auto', padding: 24 }}>
+          <h2 id="tree-start-title" className="display">{self ? t('tree.start.title') : t('tree.start.otherTitle')}</h2>
+          <p className="muted">{self ? t('tree.start.lede') : t('tree.start.otherLede')}</p>
+          <form onSubmit={add} style={{ display: 'grid', gap: 12 }}>
+            <label className="field">
+              <span>{t('setup.given_name')}</span>
+              <input className="input" value={given} onChange={(e) => setGiven(e.target.value)} autoComplete="given-name" required maxLength={120} autoFocus />
+            </label>
+            <label className="field">
+              <span>{t('setup.surname')}</span>
+              <input className="input" value={surname} onChange={(e) => setSurname(e.target.value)} autoComplete="family-name" maxLength={120} />
+            </label>
+            {error && <p role="alert" className="muted">{error}</p>}
+            <button className="btn primary" disabled={busy || !given.trim()}>
+              <UserPlus size={17} /> {self ? t('setup.add_me') : t('tree.start.addOther')}
+            </button>
+          </form>
+          <p style={{ marginTop: 16 }}>
+            {self ? (
+              <button type="button" className="btn ghost" onClick={() => { setMode('other'); setError(null); }}>{t('tree.start.other')}</button>
+            ) : (
+              <button type="button" className="btn ghost" onClick={() => { setMode('me'); setError(null); }}>{t('tree.start.back')}</button>
+            )}
+          </p>
+        </section>
+      </div>
     </div>
   );
 }

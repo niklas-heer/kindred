@@ -158,3 +158,63 @@ test('a parent link another editor replaces between the plan and the write is ca
   assert.deepEqual(links, [{ child: 'ben', parent: 'cat' }], 'the other editor’s link is kept and the import wrote no loop');
   assert.equal((await r.get<{ n: number }>('SELECT count(*) AS n FROM person'))!.n, 3, 'and no person was added');
 });
+
+/**
+ * A family with about 30,000 parent links: 2,000 people with UUID ids, each with up to 15 parents among the people
+ * before them. The old guard put every link in one JSON parameter, about 2.4 MB here, over D1's 2 MB limit.
+ */
+function manyLinksFamily(id: string) {
+  const d = openSqlite(join(dir, `${id}.db`), 'tree', { create: true });
+  d.exec(`INSERT INTO meta (key, value) VALUES ('id', '${id}'), ('name', 'Many ${id}'), ('tagline', 'test'), ('theme', 'modern'), ('focus', '')`);
+  const ids = Array.from({ length: 2000 }, () => crypto.randomUUID());
+  const sql = ['BEGIN;'];
+  ids.forEach((pid, i) => sql.push(`INSERT INTO person (id, given, surname, living) VALUES ('${pid}', 'P${i}', 'Many', 1);`));
+  ids.forEach((pid, i) => {
+    for (let k = 1; k <= 15 && k <= i; k++) sql.push(`INSERT INTO parent (child, parent) VALUES ('${pid}', '${ids[i - k]}');`);
+  });
+  sql.push('COMMIT;');
+  d.exec(sql.join('\n'));
+  d.close();
+  return ids;
+}
+
+test('a small import into a family with about 30,000 parent links is written: the guard is one number, not the links', async () => {
+  manyLinksFamily('many');
+  const links = (await db('many').get<{ n: number }>('SELECT count(*) AS n FROM parent'))!.n;
+  assert.ok(links > 29_000, `the family has ${links} links`);
+  const result = await applyImport('many', text, undefined, true);
+  assert.deepEqual(result, { people: 8, parents: 8, unions: 3, matched: 0 });
+  assert.equal((await db('many').get<{ n: number }>('SELECT count(*) AS n FROM parent'))!.n, links + 8);
+});
+
+test('another editor replacing one of those links, one for one, between the plan and the write makes the import plan again', async () => {
+  const ids = manyLinksFamily('many-race');
+  const r = db('many-race');
+  // The other editor moves one link from the person 15 places back to the first person: the count stays the same.
+  const realTree = store.tree;
+  let raced = false;
+  store.tree = (id: string): Db => {
+    const inner = realTree(id);
+    if (id !== 'many-race') return inner;
+    return {
+      ...inner,
+      batch: async (qs) => {
+        if (!raced) {
+          raced = true;
+          await inner.run('DELETE FROM parent WHERE child = ? AND parent = ?', ids[1500], ids[1485]);
+          await inner.run('INSERT INTO parent (child, parent) VALUES (?, ?)', ids[1500], ids[0]);
+        }
+        return inner.batch(qs);
+      },
+    } as Db;
+  };
+  try {
+    const result = await applyImport('many-race', text, undefined, true);
+    assert.deepEqual(result, { people: 8, parents: 8, unions: 3, matched: 0 });
+  } finally {
+    store.tree = realTree;
+  }
+  assert.ok(raced, 'the replacement was made before the first write');
+  const kept = await r.get<{ n: number }>('SELECT count(*) AS n FROM parent WHERE child = ? AND parent = ?', ids[1500], ids[0]);
+  assert.equal(kept!.n, 1, 'the other editor’s link is kept');
+});

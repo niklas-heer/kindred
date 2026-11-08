@@ -34,6 +34,10 @@ export const COPIED_TABLES: readonly string[] = [
 export const LEFT_OUT_TABLES: Record<string, string> = {
   op: 'retry keys of changes already sent; they expire after 30 days',
   d1_migrations: "wrangler's record of the migrations applied to the target",
+  // The ancestry revision (migration 0011) counts changes to parent links on whichever database holds them. The copy's
+  // parent rows bump the target's own counter as they are written, and the import guards only that the number it read
+  // is still the one in the batch, so the target keeps its own (seeded at 0) rather than receiving the source's.
+  ancestry_rev: 'the ancestry revision counts changes on the database that holds the links; the target keeps its own',
 };
 
 export interface TablePlan {

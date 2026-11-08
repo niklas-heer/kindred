@@ -3,6 +3,17 @@
 import type { Message } from "../types.ts";
 
 export const en = {
+  "tree.nobodyYet": "Nobody has been added yet",
+  "tree.nobodyYetText": "The tree appears here once someone adds the first person.",
+  "tree.start.title": "Start your family tree: add yourself",
+  "tree.start.lede": "Everyone else is linked to you from the tree, one card at a time. Only a given name is needed.",
+  "tree.start.other": "or add someone else",
+  "tree.start.otherTitle": "Start your family tree with someone else",
+  "tree.start.otherLede": "You can add yourself later, from the tree. Only a given name is needed.",
+  "tree.start.addOther": "Add this person",
+  "tree.start.back": "Add yourself instead",
+  "tree.start.failed": "Could not add them. Try again.",
+  "tree.start.open": "Start the family tree",
   "tp.canvasHint": "Drag or scroll to pan · pinch or ⌘-scroll to zoom · click the minimap to jump",
   "tp.toastStale": "That person isn’t in this tree",
   "tp.toastStaleBody": "The link may be old. Showing the family from the start instead.",
@@ -306,6 +317,17 @@ export const en = {
 };
 
 export const de: Record<keyof typeof en, Message> = {
+  "tree.nobodyYet": "Noch niemand eingetragen",
+  "tree.nobodyYetText": "Der Stammbaum erscheint hier, sobald jemand die erste Person hinzufügt.",
+  "tree.start.title": "Starte deinen Stammbaum: füge dich selbst hinzu",
+  "tree.start.lede": "Alle anderen verknüpfst du danach im Baum, Karte für Karte. Nur ein Vorname ist nötig.",
+  "tree.start.other": "oder füge jemand anderen hinzu",
+  "tree.start.otherTitle": "Starte deinen Stammbaum mit jemand anderem",
+  "tree.start.otherLede": "Dich selbst fügst du später im Baum hinzu. Nur ein Vorname ist nötig.",
+  "tree.start.addOther": "Diese Person hinzufügen",
+  "tree.start.back": "Stattdessen dich selbst hinzufügen",
+  "tree.start.failed": "Die Person konnte nicht hinzugefügt werden. Versuch es erneut.",
+  "tree.start.open": "Stammbaum beginnen",
   "tp.canvasHint": "Ziehen oder scrollen zum Verschieben · Kneifen oder ⌘-Scrollen zum Zoomen · Minikarte anklicken zum Springen",
   "tp.toastStale": "Diese Person ist nicht in diesem Baum",
   "tp.toastStaleBody": "Der Link ist vielleicht veraltet. Stattdessen wird die Familie von Anfang an gezeigt.",
@@ -610,6 +632,17 @@ export const de: Record<keyof typeof en, Message> = {
 
 /** Afrikaans. A missing entry falls back to English at runtime; the test reports them. */
 export const af: Partial<Record<keyof typeof en, Message>> = {
+  "tree.nobodyYet": "Niemand is nog bygevoeg nie",
+  "tree.nobodyYetText": "Die stamboom verskyn hier sodra iemand die eerste persoon byvoeg.",
+  "tree.start.title": "Begin jou familieboom: voeg jouself by",
+  "tree.start.lede": "Almal anders word vanaf die boom aan jou gekoppel, een kaart op ’n slag. Net ’n voornaam is nodig.",
+  "tree.start.other": "of voeg iemand anders by",
+  "tree.start.otherTitle": "Begin jou familieboom met iemand anders",
+  "tree.start.otherLede": "Jouself kan later vanaf die boom bygevoeg word. Net ’n voornaam is nodig.",
+  "tree.start.addOther": "Voeg hierdie persoon by",
+  "tree.start.back": "Voeg eerder jouself by",
+  "tree.start.failed": "Kon nie die persoon byvoeg nie. Probeer weer.",
+  "tree.start.open": "Begin die familieboom",
   "tp.canvasHint": "Sleep of rol om te skuif · knyp of ⌘-rol om te zoem · klik op die minikaart om te spring",
   "tp.toastStale": "Daardie persoon is nie in hierdie boom nie",
   "tp.toastStaleBody": "Die skakel is dalk oud. Ons wys eerder die familie vanaf die begin.",

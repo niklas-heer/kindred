@@ -36,6 +36,7 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 | --- | --- | --- |
 | `KINDRED_ORIGIN` | `http://localhost:4901` in Compose; otherwise the address the request came in on | The public address, such as `https://family.example.org`. Passkeys are bound to its host name, sessions use its scheme for the cookie's `Secure` flag, and the setup warning uses it. Set it before the first sign-in. |
 | `KINDRED_SETUP_CODE` | empty | Who may create the first account. Empty: anyone who reaches `/setup` first. `required`: a one-time code is printed in the log at each start, until the first account exists. Or a code of your own, 12 characters or more, which stays the same. |
+| `KINDRED_REQUIRE_SETUP_CODE` | empty | `1`, `true`, `yes` or `required` (any case) does the same as `KINDRED_SETUP_CODE=required`. Any other non-empty value does not require the code, and the log says so once. |
 | `KINDRED_DEFAULT_TREE` | `family` | The family that `/` opens directly, for its members. Lower-case letters, digits and dashes. |
 | `KINDRED_DATA_DIR` | `/data` in the image, `data/` otherwise | Where the families, pictures, accounts and the secret are kept. Docker: fixed at `/data`. |
 | `KINDRED_SECRET` | the `secret` file in the data folder | The key that seals the AI keys the stewards save. Set it here to keep it out of the data folder; it must then stay the same. |
@@ -45,7 +46,7 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 
 The Docker build also takes `WITH_GAZETTEER=1`, set in `.env` or on the command line (see below).
 
-`KINDRED_SETUP_CODE=required` can be replaced by `KINDRED_REQUIRE_SETUP_CODE=1`, which means the same thing.
+`KINDRED_SETUP_CODE=required` can be replaced by `KINDRED_REQUIRE_SETUP_CODE=1` (or `true`, `yes` or `required`), which means the same thing. Check the log after you change it: a value Kindred does not understand leaves the code off, and it says so.
 
 ### The setup code and a public address
 
@@ -86,7 +87,8 @@ Why these two must match: a passkey is registered for the host name it was creat
 person has to register a new passkey. Choose the name once.
 
 If you already run a reverse proxy, skip the Caddy service. Point the proxy at the app's port (set the `ports` line in
-`compose.yaml` to `"4901:4901"` if the proxy is on another machine), and set `KINDRED_ORIGIN` to the public `https://` address.
+`compose.yaml` to `"4901:4901"` if the proxy is on another machine), and set `KINDRED_ORIGIN` to the public `https://` address. The proxy should send `X-Forwarded-Proto` (Caddy does): without it,
+the setup warning would name `http://` for a site that is served over TLS.
 
 ## Your data
 

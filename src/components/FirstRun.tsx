@@ -92,7 +92,8 @@ const STEPS: { title: string; art: ReactNode; body: ReactNode; adds?: boolean }[
     );
   }
 
-  return <WhoAreYou open={!answered && !later} onChoose={choose} onLater={() => setLater(true)} familyName={f.graph.tree.name} />;
+  // An empty family has nobody to choose from: the start card in the tree is the first thing to do there.
+  return <WhoAreYou open={!answered && !later && f.graph.people.length > 0} onChoose={choose} onLater={() => setLater(true)} familyName={f.graph.tree.name} />;
 }
 
 function WhoAreYou({ open, onChoose, onLater, familyName }: { open: boolean; onChoose: (id: string) => void; onLater: () => void; familyName: string }) {

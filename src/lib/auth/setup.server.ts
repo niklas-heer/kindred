@@ -34,9 +34,42 @@ function state() {
   return g.__kindredSetup;
 }
 
-export const setupCodeRequired = () => process.env.KINDRED_SETUP_CODE === 'required' || process.env.KINDRED_REQUIRE_SETUP_CODE === '1' || !!fixedCode();
+/** The values that turn KINDRED_REQUIRE_SETUP_CODE on, in any case. */
+const REQUIRE_ON = new Set(['1', 'true', 'yes', 'required']);
+let warnedRequireFlag = false;
+
+/**
+ * KINDRED_REQUIRE_SETUP_CODE: 1, true, yes or required (any case) require the code. Any other non-empty value does not,
+ * and the server says so once. It fails open, as the other switches here do not: the warning is the only guard against a
+ * typo. The value itself is never logged, because someone may have pasted the setup code there by mistake.
+ */
+function requireFlagOn(): boolean {
+  const raw = process.env.KINDRED_REQUIRE_SETUP_CODE?.trim();
+  if (!raw) return false;
+  if (REQUIRE_ON.has(raw.toLowerCase())) return true;
+  if (!warnedRequireFlag) {
+    warnedRequireFlag = true;
+    console.warn(
+      '[kindred] KINDRED_REQUIRE_SETUP_CODE has a value Kindred does not understand, so the setup code is NOT required. ' +
+        'Use 1, true, yes or required (docs/self-host.md).',
+    );
+  }
+  return false;
+}
+
+export const setupCodeRequired = () => process.env.KINDRED_SETUP_CODE === 'required' || requireFlagOn() || !!fixedCode();
 
 export const needsSetup = async () => (await userCount()) === 0;
+
+/**
+ * The address a request arrived at, as the browser named it. Behind a TLS proxy the request's own scheme is http, so
+ * X-Forwarded-Proto (the scheme the browser used, when the proxy sends it) is used instead. Only http and https count.
+ */
+export function arrivedAt(request: Request): URL {
+  const url = new URL(request.url);
+  const proto = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim().toLowerCase();
+  return proto === 'http' || proto === 'https' ? new URL(`${proto}://${url.host}${url.pathname}${url.search}`) : url;
+}
 
 /** This machine: its loopback names. Anything else is a public address as far as the setup is concerned. */
 export const isLocalHost = (hostname: string) => {
@@ -98,8 +131,8 @@ export function logOriginMismatch(configured: string | undefined, request: URL, 
   if (origin.host === request.host) return false;
   originLogged = true;
   log(
-    `[kindred] Requests arrive at ${request.host}, but KINDRED_ORIGIN is ${origin.host}. ` +
-      `Passkeys and sign-in cookies follow KINDRED_ORIGIN. If ${request.host} is your address, set KINDRED_ORIGIN to it (docs/self-host.md).`,
+    `[kindred] Requests arrive at ${request.origin}, but KINDRED_ORIGIN is ${origin.origin}. ` +
+      `Passkeys and sign-in cookies follow KINDRED_ORIGIN. If ${request.origin} is your address, set KINDRED_ORIGIN to it (docs/self-host.md).`,
   );
   return true;
 }

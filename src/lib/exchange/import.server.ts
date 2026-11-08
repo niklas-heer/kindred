@@ -78,12 +78,16 @@ export interface ApplyResult {
 /**
  * Writes the import. A family that already has people needs `allowExisting`: adding a file to a family is
  * never the default. The batch restates what the plan read, so if anyone else changed the family in between,
- * nothing is written and the import is planned again on fresh reads (see `once`). The parent links are guarded
- * as a set, not a count: another editor can replace one link with a different one and leave the count the same,
- * and the loop check above only holds for the links it read.
+ * nothing is written and the import is planned again on fresh reads (see `once`). The parent links are guarded by
+ * the ancestry revision (migration 0011), which every change to a link bumps: one number, the same size for a
+ * family of any size, and it moves even when another editor replaces one link with a different one and leaves the
+ * count the same. The loop check above only holds for the links it read.
  */
 export function applyImport(tree: string, text: string, op: OpKey | undefined, allowExisting: boolean): Promise<ApplyResult> {
   return once<ApplyResult>(tree, op, 'importExchange', async (d) => {
+    // The revision is read before the links: a change between the two reads makes the guard fail, never pass.
+    const rev = await d.get<{ rev: number }>('SELECT rev FROM ancestry_rev WHERE id = 1');
+    if (!rev) throw new Error('The family database is missing its ancestry revision: run its migrations.');
     const existing = await readTree(d);
     if (existing.people.length && !allowExisting) {
       throw new Error('exchange.import.needAllow');
@@ -95,12 +99,7 @@ export function applyImport(tree: string, text: string, op: OpKey | undefined, a
     const writes: Query[] = [
       guard('(SELECT count(*) FROM person) = ?', existing.people.length),
       guard('(SELECT count(*) FROM parent) = ?', existing.parents.length),
-      // Every link the plan read is still there (with the count above, that makes the set the same).
-      guard(
-        '(SELECT count(*) FROM parent WHERE (child, parent) IN (SELECT json_extract(value, \'$[0]\'), json_extract(value, \'$[1]\') FROM json_each(?))) = ?',
-        JSON.stringify(existing.parents.map((l) => [l.child, l.parent])),
-        existing.parents.length,
-      ),
+      guard('(SELECT rev FROM ancestry_rev WHERE id = 1) = ?', rev.rev),
       guard('(SELECT count(*) FROM partnership) = ?', existing.unions.length),
     ];
     for (const p of plan.add) {

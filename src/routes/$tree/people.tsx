@@ -15,12 +15,13 @@ import {
 import { useDebouncedValue } from '@tanstack/react-pacer';
 import { useRouter, createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ArrowDown, ArrowUp, ArrowUpDown, ScrollText, Search, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ScrollText, Search, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { GameIcon } from '~/components/GameIcon';
 import { Arms } from '~/components/Heraldry';
 import { Portrait } from '~/components/Portrait';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
+import { useCan } from '~/lib/session';
 import { formatNumber, kinshipLabel, locales, translate, useT, type Locale, type Translator } from '~/lib/i18n';
 import { occupationSearchText, occupationText } from '~/lib/occupations';
 import { TRAITS } from '~/lib/traits';
@@ -273,6 +274,7 @@ type Scope = 'all' | 'living' | 'deceased';
 
 function RegisterPage() {
   const f = useFamily();
+  const canAdd = useCan('add-person');
   // Kinship only once the reader has said who they are.
   const me = useMeChosen();
   const tree = useTreeId();
@@ -368,6 +370,8 @@ function RegisterPage() {
   };
 
   const filtered = scope !== 'all' || withStories || !!house || dq.trim() !== '';
+  // Nobody in the family at all is not the same as nobody matching the filters.
+  const none = all.length === 0;
   const reset = () => {
     setQ('');
     setScope('all');
@@ -419,7 +423,7 @@ function RegisterPage() {
         </div>
 
         <div className="reg-mobile">
-          {rows.length === 0 && <EmptyState title={all.length ? t('con.noMatchTitle') : t('needed.noPeople')} text={all.length ? t('people.tryFewer') : t('people.addFirst')} action={filtered ? <button className="btn" onClick={reset}>{t('con.clearFilters')}</button> : undefined} />}
+          {rows.length === 0 && (none ? <NoPeopleYet tree={tree} canAdd={canAdd} /> : <EmptyState title={t('con.noMatchTitle')} text={t('people.tryFewer')} action={<button className="btn" onClick={reset}>{t('con.clearFilters')}</button>} />)}
           {rows.slice(0, mobileLimit).map(({ original: r }) => <details className="reg-mobile-person ui-card" key={r.id}>
             <summary><Portrait person={r.p} tree={tree} size={42} /><span><b>{r.base}</b>{r.p.epithet && <i>{r.p.epithet}</i>}<small>{short(r.p.born, locale) || t('people.birthUnknown')} · {r.p.living ? t('panel.living') : short(r.p.died, locale) || t('people.deathUnknown')}</small>{r.rel && <small>{r.rel === 'you' ? t('people.youCap') : t('panel.yourKin', { kin: kinshipLabel({ label: r.rel, via: [] }, locale) })}</small>}</span></summary>
             <div className="reg-mobile-detail">{r.house && <Link className="reg-house" to="/$tree/house/$house" params={{ tree, house: r.house.id }}><Arms arms={r.house.arms} size={18} /><span>{r.house.name}</span></Link>}{r.role && <p>{r.role}</p>}<Link className="btn" to="/$tree" params={{ tree }} search={{ focus: r.id }}>{t('people.openPerson')}</Link></div>
@@ -461,14 +465,16 @@ function RegisterPage() {
                 })}
               </div>
               {rows.length === 0 ? (
-                <div className="reg-none">
-                  <Search size={24} />
-                  <h2 className="display">{all.length ? t('con.noMatchTitle') : t('needed.noPeople')}</h2>
-                  <p className="muted">{t('people.tryFewer')}</p>
-                  <button className="btn" onClick={reset}>
-                    {t('con.clearFilters')}
-                  </button>
-                </div>
+                none ? <NoPeopleYet tree={tree} canAdd={canAdd} /> : (
+                  <div className="reg-none">
+                    <Search size={24} />
+                    <h2 className="display">{t('con.noMatchTitle')}</h2>
+                    <p className="muted">{t('people.tryFewer')}</p>
+                    <button className="btn" onClick={reset}>
+                      {t('con.clearFilters')}
+                    </button>
+                  </div>
+                )
               ) : (
                 <div className="reg-body" style={{ height: virt.getTotalSize() - HEAD }}>
                   {virt.getVirtualItems().map((v) => {
@@ -560,4 +566,14 @@ function usePageTrail(page: string, tree: string) {
     document.addEventListener('click', click, true);
     return () => { clearTimeout(timer); document.removeEventListener('scroll', scroll, true); document.removeEventListener('click', click, true); };
   }, [page, tree]);
+}
+
+/** The family has nobody in it yet: editors are shown how to start the tree, everyone else that nobody has been added. */
+function NoPeopleYet({ tree, canAdd }: { tree: string; canAdd: boolean }) {
+  const t = useT();
+  return canAdd ? (
+    <EmptyState icon={<Users size={28} />} title={t('needed.noPeople')} text={t('people.addFirst')} action={<Link className="btn" to="/$tree" params={{ tree }}>{t('tree.start.open')}</Link>} />
+  ) : (
+    <EmptyState icon={<Users size={28} />} title={t('tree.nobodyYet')} text={t('tree.nobodyYetText')} />
+  );
 }

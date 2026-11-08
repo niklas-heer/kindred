@@ -42,10 +42,10 @@ const csrf = createCsrfMiddleware({
 // The health check (/api/health) is left alone: it must not open the accounts database.
 const setupNotice = createMiddleware().server(async ({ next, request }) => {
   if (new URL(request.url).pathname === '/api/health') return next();
-  const { announceSetup, logOriginMismatch, warnOpenSetup } = await import('./lib/auth/setup.server');
+  const { announceSetup, arrivedAt, logOriginMismatch, warnOpenSetup } = await import('./lib/auth/setup.server');
   const { siteOrigin } = await import('./lib/auth/session.server');
   try {
-    const arrived = new URL(request.url);
+    const arrived = arrivedAt(request);
     logOriginMismatch(process.env.KINDRED_ORIGIN, arrived);
     const origin = siteOrigin(request);
     announceSetup(origin.origin);
