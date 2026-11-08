@@ -91,7 +91,7 @@ async function setupAi(tree: string, monthlyMicros = 1_000_000): Promise<void> {
 const input = (over: Partial<SaveInput> & { on?: Array<'arms' | 'occupations' | 'chronicle'> } = {}): SaveInput => {
   const schedule = () => ({ schedule: 'daily' as const });
   return {
-    tasks: { arms: schedule(), occupations: schedule(), chronicle: schedule() },
+    tasks: { arms: schedule(), occupations: schedule(), chronicle: schedule(), names: schedule() },
     capShare: over.capShare ?? 0.2,
     languages: over.languages ?? ['en'],
     locale: 'en',
@@ -331,9 +331,13 @@ test('the arms review runs once per fingerprint: nothing is asked again until th
   assert.equal(second.status, 'idle', 'the same arms and meanings are not asked again');
   assert.equal(stub.requests.length, 1);
   const waiting = await bg.activity(tree, NOW);
-  assert.equal(waiting.waiting.length, 1, 'a suggestion that does not fit waits for a steward');
-  assert.equal(waiting.waiting[0].verdict, 'partly');
+  assert.equal(waiting.waiting.length, 0, 'a "partly" is a quiet idea: nothing waits for a steward');
+  assert.equal(await bg.attention(tree, NOW), 0);
   const d = openSqlite(join(dir, `${tree}.db`), 'tree');
+  d.exec("UPDATE house_arms_review SET verdict = 'reconsider' WHERE house = 'h1'");
+  const flagged = await bg.activity(tree, NOW);
+  assert.equal(flagged.waiting.length, 1, 'a real problem waits for a steward');
+  assert.equal(flagged.waiting[0].verdict, 'reconsider');
   d.exec("UPDATE house SET arms = '{\"field\":\"azure\",\"division\":\"plain\",\"charge\":\"none\",\"chargeTincture\":\"or\"}' WHERE id = 'h1'");
   d.close();
   const third = await bg.runTask(tree, 'arms', { adapter: stub.adapter, price: PRICE, source: 'manual', now: NOW });
@@ -415,7 +419,7 @@ test('role checks: only a steward sees the activity, runs a task or saves the se
   }
   await assert.rejects(asReader(undefined, () => fns.aiActivity({ data: { tree } })), (e: unknown) => status(e) === 401);
   assert.equal(await asReader(viewer, () => fns.aiAttention({ data: { tree } })), 0, 'a viewer gets no badge');
-  assert.equal((await asReader(steward, () => fns.aiActivity({ data: { tree } }))).tasks.length, 3, 'a steward sees the three tasks');
+  assert.equal((await asReader(steward, () => fns.aiActivity({ data: { tree } }))).tasks.length, 4, 'a steward sees the four tasks');
   assert.ok(await asReader(viewer, () => fns.storyTranslations({ data: { tree, locale: 'en' } })) !== undefined, 'a viewer reads the translated stories');
   assert.equal(can('viewer', 'manage-access'), false);
   assert.equal(can('editor', 'manage-access'), false);

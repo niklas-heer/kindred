@@ -238,14 +238,17 @@ test('a retry of a dismissal with its key replays the stored result, and does no
 
 // ---------- the badge rules, on plain values ----------
 
-const review = (over: Partial<ArmsReview> = {}): ArmsReview => ({ house: HOUSE, verdict: 'partly', reason: '', advice: '', locale: 'en', checkedAt: 1, current: true, dismissed: false, ...over });
+const review = (over: Partial<ArmsReview> = {}): ArmsReview => ({ house: HOUSE, verdict: 'partly', reason: '', advice: '', locale: 'en', checkedAt: 1, current: true, dismissed: false, chosen: false, ...over });
 
 test('the badge a steward sees: one per house, the arms to review first', () => {
-  assert.equal(reviewBadge({ aiOn: true, researched: true, generated: false, review: review() }), 'arms-review');
-  assert.equal(reviewBadge({ aiOn: true, researched: true, generated: false, review: review({ dismissed: true }) }), null);
-  assert.equal(reviewBadge({ aiOn: true, researched: true, generated: false, review: review({ current: false }) }), null, 'out of date: no badge');
+  const problem = { verdict: 'reconsider' as const };
+  assert.equal(reviewBadge({ aiOn: true, researched: true, generated: false, review: review(problem) }), 'arms-review');
+  assert.equal(reviewBadge({ aiOn: true, researched: true, generated: false, review: review() }), null, 'a "partly" is a quiet idea, old stored ones too');
+  assert.equal(reviewBadge({ aiOn: true, researched: true, generated: true, review: review() }), null, 'and it settles generated arms, as a fit does');
+  assert.equal(reviewBadge({ aiOn: true, researched: true, generated: false, review: review({ ...problem, dismissed: true }) }), null);
+  assert.equal(reviewBadge({ aiOn: true, researched: true, generated: false, review: review({ ...problem, current: false }) }), null, 'out of date: no badge');
   assert.equal(reviewBadge({ aiOn: true, researched: true, generated: false, review: review({ verdict: 'fits' }) }), null);
-  assert.equal(reviewBadge({ aiOn: true, researched: false, generated: true, review: review() }), 'arms-review', 'arms to review beat the name');
+  assert.equal(reviewBadge({ aiOn: true, researched: false, generated: true, review: review(problem) }), 'arms-review', 'arms to review beat the name');
 });
 
 test('the name badge needs the arms feature (it is the only way to research); generated arms show until a check settles them', () => {

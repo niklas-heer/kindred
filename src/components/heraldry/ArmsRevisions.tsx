@@ -48,6 +48,9 @@ export function ArmsRevisions({ feedback, busy, error, revisions, onPick, onRetr
               <ArmsV2View arms={d.arms} size={72} />
               <span className="ae-card-text">
                 <span className={`ae-kind ${d.kind}`}>{t(d.kind === 'refinement' ? 'heraldry.revise_refinement' : 'heraldry.revise_fresh')}</span>
+                {d.replaced?.map((r) => (
+                  <small key={r.from} className="ae-design-draws">{t('heraldry.revise_replaces', { from: chargeName(r.from, t.locale), to: chargeName(r.to, t.locale) })}</small>
+                ))}
                 {d.added && d.added.length > 0 && (
                   <small className="ae-design-draws">{t('heraldry.revise_adds', { what: d.added.map((id) => chargeName(id, t.locale)).join(', ') })}</small>
                 )}

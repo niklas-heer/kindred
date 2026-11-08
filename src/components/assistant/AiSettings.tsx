@@ -31,12 +31,12 @@ type Drafts = Record<Route, Draft>;
 
 const ROUTE_LABEL: Record<Route, Key> = {
   assistant: 'ai.routeAssistant', arms: 'ai.routeArms', faces: 'ai.routeFaces', avatar: 'ai.routeAvatar',
-  portrait: 'ai.routePortrait', 'arms-review': 'ai.routeArmsReview', occupations: 'ai.routeOccupations', chronicle: 'ai.routeChronicle',
+  portrait: 'ai.routePortrait', 'arms-review': 'ai.routeArmsReview', occupations: 'ai.routeOccupations', chronicle: 'ai.routeChronicle', names: 'ai.routeNames',
 };
 /** What each job sends, in a line. The privacy notes say which provider it goes to. */
 const ROUTE_HINT: Record<Route, Key> = {
   assistant: 'ai.routeAssistantHint', arms: 'ai.routeArmsHint', faces: 'ai.routeFacesHint', avatar: 'ai.routeAvatarHint',
-  portrait: 'ai.routePortraitHint', 'arms-review': 'ai.routeArmsReviewHint', occupations: 'ai.routeOccupationsHint', chronicle: 'ai.routeChronicleHint',
+  portrait: 'ai.routePortraitHint', 'arms-review': 'ai.routeArmsReviewHint', occupations: 'ai.routeOccupationsHint', chronicle: 'ai.routeChronicleHint', names: 'ai.routeNamesHint',
 };
 /** Why a recommended painter is recommended, and the mark it carries in the model list. */
 const PORTRAIT_REASON: Partial<Record<Role, Key>> = { best: 'ai.paintWhyBest', cheap: 'ai.paintWhyBudget' };
@@ -50,7 +50,7 @@ const KEY_PAGE: Record<Provider, string> = {
   openai: 'https://platform.openai.com/api-keys',
   openrouter: 'https://openrouter.ai/keys',
 };
-const TASK_OF_ROUTE: Partial<Record<Route, TaskName>> = { 'arms-review': 'arms', occupations: 'occupations', chronicle: 'chronicle' };
+const TASK_OF_ROUTE: Partial<Record<Route, TaskName>> = { 'arms-review': 'arms', occupations: 'occupations', chronicle: 'chronicle', names: 'names' };
 /** Budget ticks in dollars, and how many model options are listed before the rest are left to the search. */
 const BUDGET_TICKS = [0, 5, 20, 50, 100];
 const MODEL_LIMIT = 200;

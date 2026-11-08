@@ -9,6 +9,7 @@
 import { accounts } from '../auth/store.server';
 import { db } from '../db.server';
 import { readReviews } from '../house-meaning.server';
+import { needsAttention } from '../house-meaning.ts';
 import { AiError, callRounds, outputCap, type AiAdapter, type AiReply, type AiRequest } from './adapters';
 import { pending, perform, type Pending } from './background-tasks.server';
 import { tr, type Tr } from './labels';
@@ -18,7 +19,7 @@ import type { Price } from './prices';
 import type { Locale } from '../i18n/types';
 import { TASK_ROUTE } from './types';
 import {
-  BATCH, CALLS_PER_DAILY_RUN, TASK_FEATURE, TASKS, capMicros, defaultSettings, isDue,
+  BATCH, CALLS_PER_DAILY_RUN, CALLS_PER_NAME, TASK_FEATURE, TASKS, capMicros, defaultSettings, isDue,
   type Activity, type ActivityTask, type BackgroundSettings, type Readiness, type SaveInput, type Task, type TaskRun, type TaskSetting, type WaitingReview,
 } from './background';
 
@@ -137,18 +138,18 @@ export async function backgroundSpentThisMonth(tree: string): Promise<number> {
 }
 
 /**
- * The adapter a background task calls through: refuses a web search (background work never searches the web), books each
+ * The adapter a background task calls through: refuses a web search unless `allowSearch` says otherwise (only the name research, when the family has web search on), books each
  * call against the background cap and then against the whole budget, and settles both to what the call really cost. `meter`
  * collects what the run spent, for the run log.
  */
-export function backgroundAdapter(tree: string, inner: AiAdapter, o: { monthlyMicros: number; capMicros: number; price: Price; c: Tr; meter: { micros: number } }): AiAdapter {
+export function backgroundAdapter(tree: string, inner: AiAdapter, o: { monthlyMicros: number; capMicros: number; price: Price; c: Tr; meter: { micros: number; calls?: number }; allowSearch?: boolean }): AiAdapter {
   const total = budgeted(tree, o.monthlyMicros, inner, o.price, o.c);
   return {
     provider: inner.provider,
     model: inner.model,
     reasoning: inner.reasoning,
     async complete(req: AiRequest): Promise<AiReply> {
-      if (req.webSearch) throw new AiError('bad-input', o.c('aitasks.errSearch'));
+      if (req.webSearch && !o.allowSearch) throw new AiError('bad-input', o.c('aitasks.errSearch'));
       const cap = outputCap(inner.provider, inner.model, req.maxTokens, inner.reasoning);
       const estimate = estimateMicros(req, o.price, cap, callRounds(inner.provider, req));
       const booked = await reserveBackground(tree, o.capMicros, estimate, o.c);
@@ -156,8 +157,10 @@ export function backgroundAdapter(tree: string, inner: AiAdapter, o: { monthlyMi
       try {
         const reply = await total.complete(req);
         actual = replyMicros(reply, o.price);
+        o.meter.calls = (o.meter.calls ?? 0) + 1;
         return reply;
       } catch (e) {
+        if (!(e instanceof AiError && e.code === 'budget')) o.meter.calls = (o.meter.calls ?? 0) + 1;
         // The same rule the budget applies to a failed call: what its completed requests billed, plus a request in flight
         // that may have billed, else nothing when the provider did not bill it.
         actual = e instanceof AiError && e.billed
@@ -180,7 +183,7 @@ export interface TaskOutcome {
   failed: number;
   waiting: number;
   micros: number;
-  /** Provider calls made (done plus failed): what the daily run's limit counts. */
+  /** Provider calls made: what the daily run's limit counts. */
   calls: number;
   note: string;
 }
@@ -220,12 +223,12 @@ export async function runTask(tree: string, task: Task, o: RunOptions = {}): Pro
       return out;
     }
     const c = tr(bg.locale);
-    const meter = { micros: 0 };
+    const meter = { micros: 0, calls: 0 };
     // The task's own route: its provider's key and model. Nothing falls back to another provider.
     const routed = await routeAdapter(tree, TASK_ROUTE[task], bg.locale);
     const inner = o.adapter ?? routed.inner;
     const price = o.price ?? routed.price;
-    const adapter = backgroundAdapter(tree, inner, { monthlyMicros: ready.settings.monthlyMicros, capMicros: capMicros(ready.settings.monthlyMicros, bg.capShare), price, c, meter });
+    const adapter = backgroundAdapter(tree, inner, { monthlyMicros: ready.settings.monthlyMicros, capMicros: capMicros(ready.settings.monthlyMicros, bg.capShare), price, c, meter, allowSearch: task === 'names' && ready.settings.webSearch });
     const items: Pending[] = await pending(tree, task, bg.languages);
     let done = 0;
     let failed = 0;
@@ -233,7 +236,7 @@ export async function runTask(tree: string, task: Task, o: RunOptions = {}): Pro
     let note = '';
     for (const item of items.slice(0, o.limit ?? BATCH)) {
       try {
-        await perform(tree, item, { adapter, locale: bg.locale, now });
+        await perform(tree, item, { adapter, locale: bg.locale, now, webSearch: ready.settings.webSearch });
         done++;
       } catch (e) {
         if (e instanceof AiError && e.code === 'budget') {
@@ -247,7 +250,7 @@ export async function runTask(tree: string, task: Task, o: RunOptions = {}): Pro
     }
     const waiting = items.length - done;
     const status: TaskRun['status'] = stopped ? 'stopped' : items.length === 0 ? 'idle' : done === 0 && failed > 0 ? 'failed' : 'done';
-    const out: TaskOutcome = { status, done, failed, waiting, micros: meter.micros, calls: done + failed, note: status === 'idle' ? '' : note };
+    const out: TaskOutcome = { status, done, failed, waiting, micros: meter.micros, calls: meter.calls, note: status === 'idle' ? '' : note };
     if (status !== 'idle' || source === 'manual') {
       await accounts().run('UPDATE ai_background_task SET last_started = ? WHERE tree = ? AND task = ?', now.getTime(), tree, task);
     }
@@ -287,11 +290,12 @@ export async function runScheduled(trees: string[], now: Date, log: (message: st
       const t: TaskSetting = bg.tasks[task];
       if (!t.enabled || !isDue(t.lastStarted, t.schedule, now.getTime())) continue;
       const room = CALLS_PER_DAILY_RUN - calls;
-      if (room <= 0) {
+      const limit = Math.min(BATCH, task === 'names' ? Math.floor(room / CALLS_PER_NAME) : room);
+      if (limit <= 0) {
         log(`${tree}: ${task} waits for the next run (today's ${CALLS_PER_DAILY_RUN} calls are used)`);
         continue;
       }
-      const out = await runTask(tree, task, { source: 'schedule', now, limit: Math.min(BATCH, room) });
+      const out = await runTask(tree, task, { source: 'schedule', now, limit });
       calls += out.calls;
       if (out.status !== 'skipped') log(`${tree}: ${task} ${out.status}: ${out.done} done, ${out.failed} failed, ${out.waiting} waiting`);
     }
@@ -322,7 +326,7 @@ export async function activity(tree: string, now = new Date()): Promise<Activity
   const names = new Map((await db(tree).all<{ id: string; name: string }>('SELECT id, name FROM house')).map((h) => [h.id, h.name]));
   const waiting: WaitingReview[] = [];
   for (const [house, r] of Object.entries(await readReviews(tree))) {
-    if (!r.current || r.dismissed || r.verdict === 'fits') continue;
+    if (!needsAttention(r)) continue;
     waiting.push({ house, name: names.get(house) ?? house, verdict: r.verdict as 'partly' | 'reconsider', reason: r.reason, advice: r.advice, checkedAt: r.checkedAt });
   }
   const weekAgo = now.getTime() - 7 * 86_400_000;
@@ -355,7 +359,7 @@ export async function activity(tree: string, now = new Date()): Promise<Activity
 /** The number on the quiet badge: arms suggestions waiting for a steward, and failed runs in the last week. Reads only. */
 export async function attention(tree: string, now = new Date()): Promise<number> {
   let n = 0;
-  for (const r of Object.values(await readReviews(tree))) if (r.current && !r.dismissed && r.verdict !== 'fits') n++;
+  for (const r of Object.values(await readReviews(tree))) if (needsAttention(r)) n++;
   const weekAgo = now.getTime() - 7 * 86_400_000;
   n += (await accounts().get<{ n: number }>("SELECT COUNT(*) AS n FROM ai_task_run WHERE tree = ? AND status = 'failed' AND started > ?", tree, weekAgo))?.n ?? 0;
   return n;

@@ -24,13 +24,14 @@ const { openSqlite, closeAccounts } = await load<typeof import('./store/node.ts'
 const { store } = await load<typeof import('./store/index.ts')>('/src/lib/store/index.ts');
 const { startSession } = await load<typeof import('./auth/session.server.ts')>('/src/lib/auth/session.server.ts');
 const { newUser, upsertMembership } = await load<typeof import('./auth/store.server.ts')>('/src/lib/auth/store.server.ts');
-const { checkArms, describeArms, withFitFixture } = await load<typeof import('./ai/arms-fit.server.ts')>('/src/lib/ai/arms-fit.server.ts');
+const { checkArms, describeArms, fitSystem, withFitFixture } = await load<typeof import('./ai/arms-fit.server.ts')>('/src/lib/ai/arms-fit.server.ts');
 const { checkArmsFit } = await load<typeof import('./ai/arms-fit.functions.ts')>('/src/lib/ai/arms-fit.functions.ts');
 const { budgeted, spentThisMonth, OFF } = await load<typeof import('./ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
 const { setUpFamilyAi } = await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts');
 const { tr } = await load<typeof import('./ai/labels.ts')>('/src/lib/ai/labels.ts');
 const { AiError } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
-const { readReviews } = await load<typeof import('./house-meaning.server.ts')>('/src/lib/house-meaning.server.ts');
+const { readReviews, settleReview } = await load<typeof import('./house-meaning.server.ts')>('/src/lib/house-meaning.server.ts');
+const { dismissArmsReview } = await load<typeof import('./house-meaning.functions.ts')>('/src/lib/house-meaning.functions.ts');
 const { PRESETS } = await load<typeof import('../components/heraldry/presets.ts')>('/src/components/heraldry/presets.ts');
 /** A real design, stored as the designer stores one (`v2`): the arms the steward drew. */
 const DESIGNED = PRESETS[0].arms;
@@ -173,6 +174,60 @@ test('a fit stores no advice, and a check that fits says so', async () => {
   assert.deepEqual({ ...row }, { advice: '', verdict: 'fits', checked_by: steward.id });
 });
 
+// ---------- a decision settles it ----------
+
+test('sealing a suggestion settles the check: not asked again, and the card shows the steward’s choice, not the old advice', async () => {
+  const steward = await memberWith('steward');
+  const s = stub([{ json: FITS_NOT }]);
+  const run = (key: string, force = false) => checkArms({ tree: TREE, house: HOUSE, locale: 'en', force, by: steward.id, op: op(key, steward.id, force), adapter: s.adapter });
+  await run('settle-check-0001', true);
+  await store.tree(TREE).run('UPDATE house SET arms = ? WHERE id = ?', JSON.stringify({ ...ARMS, v2: PRESETS[1].arms }), HOUSE);
+  assert.equal((await readReviews(TREE))[HOUSE].current, false, 'the old check no longer speaks for the sealed arms');
+
+  const settled = await settleReview(TREE, HOUSE, { key: 'settle-seal-00001', user: steward.id, payload: { house: HOUSE } });
+  assert.deepEqual({ current: settled.current, dismissed: settled.dismissed, chosen: settled.chosen }, { current: true, dismissed: true, chosen: true });
+  assert.deepEqual((await readReviews(TREE))[HOUSE], settled, 'and it stays that way after a reload');
+
+  const calls = s.count();
+  const again = await run('settle-after-0001');
+  assert.equal(s.count(), calls, 'a check that is not forced asks nothing');
+  assert.equal(again.chosen, true);
+});
+
+test('"check again" tells the model what was advised and what the steward chose, and may flag the arms again', async () => {
+  const steward = await memberWith('steward');
+  const texts: string[] = [];
+  const adapter = { provider: 'anthropic', model: 'stub', complete: async (req: { messages: { text: string }[] }) => {
+    texts.push(req.messages[0].text);
+    return { text: '', calls: [], json: { verdict: 'reconsider', reason: 'It reads badly.', advice: 'Take one away.' }, tokens: 1, inputTokens: 1, outputTokens: 0, searches: 0 };
+  } } as never;
+  const forced = await checkArms({ tree: TREE, house: HOUSE, locale: 'en', force: true, by: steward.id, op: op('settle-force-0001', steward.id, true), adapter });
+  assert.match(texts[0], /What the steward already decided:\n- The check advised: "Add a charge for the trade the name comes from\."\. The steward then chose these arms from the suggestions: /);
+  assert.deepEqual({ dismissed: forced.dismissed, chosen: forced.chosen, verdict: forced.verdict }, { dismissed: false, chosen: false, verdict: 'reconsider' });
+});
+
+test('a dismissed check is remembered too, and comes back only when the arms change', async () => {
+  const steward = await memberWith('steward');
+  await asReader(steward.cookie, () => dismissArmsReview({ data: { tree: TREE, house: HOUSE, opKey: 'settle-keep-00001' } }));
+  const kept = (await readReviews(TREE))[HOUSE];
+  assert.deepEqual({ dismissed: kept.dismissed, chosen: kept.chosen }, { dismissed: true, chosen: false });
+  let text = '';
+  const adapter = { provider: 'anthropic', model: 'stub', complete: async (req: { messages: { text: string }[] }) => {
+    text = req.messages[0].text;
+    return { text: '', calls: [], json: { verdict: 'fits', reason: 'Good.' }, tokens: 1, inputTokens: 1, outputTokens: 0, searches: 0 };
+  } } as never;
+  await checkArms({ tree: TREE, house: HOUSE, locale: 'en', force: true, by: steward.id, op: op('settle-kept-00001', steward.id, true), adapter });
+  assert.match(text, /The check advised: "Take one away\."\. The steward then kept the arms as they were: /);
+});
+
+test('the prompt judges the whole design: not a checklist, and adding is not the default', () => {
+  const system = fitSystem('en');
+  assert.match(system, /do not each need a symbol/);
+  assert.match(system, /good enough counts as fitting/);
+  assert.match(system, /Adding more is never the default advice/);
+  assert.match(system, /"reconsider" rarely/);
+});
+
 // ---------- the budget ----------
 
 test('the check is booked against the family’s budget, and a call the budget cannot pay for is refused before it is sent', async () => {
@@ -218,6 +273,7 @@ test('the arms are described as a blazon and as what each colour and charge stan
   assert.match(text, /^Blazon: /m);
   assert.match(text, /lion/);
   assert.match(text, /azure \(/);
+  assert.match(text, /^As drawn: 1 group of charges, 1 charges in all, 0 ordinaries; no charges overlap; the rule of tincture is kept\.$/m);
 });
 
 test('the fixture answers the fit check when the fake provider is on, and passes every other call through', async () => {

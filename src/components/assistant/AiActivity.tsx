@@ -18,7 +18,7 @@ import { EmptyState, ErrorState, PageHeader, Skeleton } from '~/components/ui';
 import { ago, usd } from './BackgroundSettings';
 import './ai-tasks.css';
 
-const TASK_NAME: Record<Task, Key> = { arms: 'aitasks.arms.name', occupations: 'aitasks.occupations.name', chronicle: 'aitasks.chronicle.name' };
+const TASK_NAME: Record<Task, Key> = { arms: 'aitasks.arms.name', occupations: 'aitasks.occupations.name', chronicle: 'aitasks.chronicle.name', names: 'aitasks.names.name' };
 const VERDICT: Record<'partly' | 'reconsider', Key> = { partly: 'aitasks.verdict.partly', reconsider: 'aitasks.verdict.reconsider' };
 const STATUS: Record<string, Key> = {
   done: 'aitasks.status.done', idle: 'aitasks.status.idle', stopped: 'aitasks.status.stopped', failed: 'aitasks.status.failed', skipped: 'aitasks.status.skipped',
@@ -66,6 +66,7 @@ function ActivityBody({ tree, data }: { tree: string; data: Activity }) {
       const text = out.status === 'done' || out.status === 'stopped' ? t('aitasks.ranOk', { done: out.done, waiting: out.waiting }) : t((STATUS[out.status] ?? 'aitasks.status.failed') as Key);
       setRan({ task, text: out.note && !ok ? `${text} ${out.note}` : text, ok });
       void qc.invalidateQueries({ queryKey: ['ai-activity', tree] });
+      void qc.invalidateQueries({ queryKey: ['collected-meanings', tree] });
     },
     onError: (e, task) => setRan({ task, text: errorText(e, locale), ok: false }),
   });

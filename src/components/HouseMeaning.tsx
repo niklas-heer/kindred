@@ -12,9 +12,9 @@ import { opKeys } from '~/lib/api';
 import { errorText } from '~/lib/errortext';
 import { useFamily } from '~/lib/family';
 import {
-  chosenMeanings, generatedArms, reviewBadge, type ArmsReview, type FitVerdict, type ReviewBadge, type SavedMeaning,
+  chosenMeanings, generatedArms, needsAttention, reviewBadge, type ArmsReview, type FitVerdict, type ReviewBadge, type SavedMeaning,
 } from '~/lib/house-meaning';
-import { armsReviewsQuery, dismissArmsReview, houseMeaningsQuery } from '~/lib/house-meaning.functions';
+import { armsReviewsQuery, collectedMeaningsQuery, dismissArmsReview, houseMeaningsQuery } from '~/lib/house-meaning.functions';
 import { locales, useT, type Key } from '~/lib/i18n';
 import { useCan } from '~/lib/session';
 import type { House } from '~/lib/types';
@@ -22,7 +22,7 @@ import '~/styles/house.css';
 
 const ATTEST_KEY = { 'well-attested': 'houses.meaning.attested', speculative: 'houses.meaning.speculative', family: 'houses.meaning.family' } as const satisfies Record<string, Key>;
 const VERDICT_KEY: Record<FitVerdict, Key> = { fits: 'houses.review.fits', partly: 'houses.review.partly', reconsider: 'houses.review.reconsider' };
-const BADGE_KEY: Record<ReviewBadge, Key> = { 'arms-review': 'houses.review.arms', 'name-unresearched': 'houses.review.name', 'generated-arms': 'houses.review.generated' };
+const BADGE_KEY: Record<ReviewBadge, Key> = { 'arms-review': 'houses.review.arms', 'meanings-collected': 'houses.review.collected', 'name-unresearched': 'houses.review.name', 'generated-arms': 'houses.review.generated' };
 
 /** A date for the reader, in their language. */
 export const whenText = (ms: number, locale: keyof typeof locales) =>
@@ -43,15 +43,17 @@ export function useStewardBadges(tree: string) {
   const canEdit = useCan('edit-house');
   const meaningsQ = useQuery(houseMeaningsQuery(tree));
   const reviewsQ = useQuery({ ...armsReviewsQuery(tree), enabled: canEdit });
+  const collectedQ = useQuery({ ...collectedMeaningsQuery(tree), enabled: canEdit });
   const status = useAiStatus(tree);
   const aiOn = !!status?.features.arms;
-  const ready = meaningsQ.isSuccess && (!canEdit || (reviewsQ.isSuccess && status !== undefined));
+  const ready = meaningsQ.isSuccess && (!canEdit || (reviewsQ.isSuccess && collectedQ.isSuccess && status !== undefined));
   const badges: Record<string, ReviewBadge> = {};
   if (canEdit && ready) {
     for (const h of f.graph.houses) {
       const badge = reviewBadge({
         aiOn,
         researched: !!meaningsQ.data?.[h.id],
+        collected: !!collectedQ.data?.[h.id],
         generated: generatedArms(h.arms),
         review: reviewsQ.data?.[h.id],
       });
@@ -172,32 +174,42 @@ export function ArmsReviewCard({ tree, house, review, aiOn, onDesigner }: {
     );
   }
 
-  const bad = review.verdict !== 'fits';
-  const kept = review.dismissed;
-  // New arms are suggested from this check's reason and advice, so they are offered only while the check is current.
-  const suggest = bad && aiOn && review.current;
+  // Only a real problem asks anything of the steward. A "partly" is an idea they may ignore; a check that no longer matches the arms says nothing about them.
+  const attention = needsAttention(review);
+  const idea = review.current && review.verdict === 'partly' && !review.dismissed;
+  const stale = !review.current;
+  const chosen = review.chosen;
+  const kept = review.dismissed && !chosen;
   return (
-    <section className="ui-card hm-review" data-verdict={review.verdict} aria-labelledby="hm-review-title" aria-busy={check.isPending || keep.isPending || undefined}>
+    <section className="ui-card hm-review" data-verdict={stale ? undefined : chosen ? 'fits' : review.verdict} aria-labelledby="hm-review-title" aria-busy={check.isPending || keep.isPending || undefined}>
       <div className="hm-review-head">
         <h3 className="hp-eyebrow" id="hm-review-title">{t('houses.review.title')}</h3>
-        <span className={`hm-verdict ${review.verdict}`}>{t(VERDICT_KEY[review.verdict])}</span>
+        {!stale && <span className={`hm-verdict ${chosen ? 'fits' : review.verdict}`}>{t(chosen ? 'houses.review.yours' : VERDICT_KEY[review.verdict])}</span>}
       </div>
-      <p className="hm-reason">{review.reason}</p>
-      {bad && review.advice && (
+      {chosen ? <p className="hm-reason">{t('houses.review.chosen')}</p> : !stale && <p className="hm-reason">{review.reason}</p>}
+      {attention && review.advice && (
         <p className="hm-advice"><small>{t('houses.review.advice')}</small> {review.advice}</p>
       )}
-      {!review.current && <p className="hm-basis subtle">{t('houses.review.stale')}</p>}
+      {idea && review.advice && (
+        <p className="hm-advice"><small>{t('houses.review.idea')}</small> {review.advice}</p>
+      )}
+      {stale && <p className="hm-basis subtle">{t('houses.review.stale')}</p>}
       {kept && <p className="hm-basis subtle">{t('houses.review.kept')}</p>}
-      <p className="hm-basis subtle">{t('houses.review.checked', { when: whenText(review.checkedAt, t.locale) })}</p>
+      {!stale && !chosen && <p className="hm-basis subtle">{t('houses.review.checked', { when: whenText(review.checkedAt, t.locale) })}</p>}
       <div className="hm-review-actions">
-        {suggest && (
+        {attention && aiOn && (
           <button type="button" className="btn primary" onClick={() => onDesigner('name', review)} aria-haspopup="dialog">
             <Sparkles size={16} aria-hidden /> {t('houses.review.revise')}
           </button>
         )}
-        {bad && (
-          <button type="button" className={suggest ? 'btn' : 'btn primary'} onClick={() => onDesigner('design')} aria-haspopup="dialog">
+        {attention && (
+          <button type="button" className={aiOn ? 'btn' : 'btn primary'} onClick={() => onDesigner('design')} aria-haspopup="dialog">
             <PenLine size={16} aria-hidden /> {t('houses.review.open')}
+          </button>
+        )}
+        {idea && aiOn && (
+          <button type="button" className="btn ghost" onClick={() => onDesigner('name', review)} aria-haspopup="dialog">
+            <Sparkles size={16} aria-hidden /> {t('houses.review.ideas')}
           </button>
         )}
         {aiOn && (
@@ -205,7 +217,7 @@ export function ArmsReviewCard({ tree, house, review, aiOn, onDesigner }: {
             <RefreshCw size={16} aria-hidden /> {t('houses.review.again')}
           </button>
         )}
-        {bad && review.current && !kept && (
+        {attention && (
           <button type="button" className="btn" disabled={keep.isPending} onClick={() => keep.mutate()}>
             {t('houses.review.keep')}
           </button>

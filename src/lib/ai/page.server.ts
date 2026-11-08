@@ -29,7 +29,7 @@ export async function settingsPage(tree: string): Promise<AiSettingsData> {
     readBackground(tree),
     readPortraitSettings(tree),
   ]);
-  const tasks = { arms: bg.tasks.arms.enabled, occupations: bg.tasks.occupations.enabled, chronicle: bg.tasks.chronicle.enabled };
+  const tasks = { arms: bg.tasks.arms.enabled, occupations: bg.tasks.occupations.enabled, chronicle: bg.tasks.chronicle.enabled, names: bg.tasks.names.enabled };
   const switched: Record<Route, boolean> = {
     assistant: s.features.assistant,
     arms: s.features.arms,
@@ -39,6 +39,7 @@ export async function settingsPage(tree: string): Promise<AiSettingsData> {
     'arms-review': tasks.arms,
     occupations: tasks.occupations,
     chronicle: tasks.chronicle,
+    names: tasks.names,
   };
   const rows: RouteState[] = ROUTES.map((route) => {
     const r = routes[route];

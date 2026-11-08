@@ -9,6 +9,35 @@ export const FIT_VERDICTS = ['fits', 'partly', 'reconsider'] as const;
 /** A researched meaning as it was saved: the research's fields, and whether the steward chose it. */
 export type SavedMeaningRow = NameMeaning & { chosen: boolean };
 
+/** The most meanings one research keeps. The research itself returns at most eight, and the family's own words count as one. */
+export const MAX_SAVED_MEANINGS = 12;
+
+/** How many times the background task tries a name that keeps failing, before it leaves it for a steward to research by hand. */
+export const MAX_COLLECT_FAILURES = 3;
+
+/** The surname in a house's name: "House of Heer" is Heer. What the name research is asked about. */
+export function surnameOf(name: string): string {
+  return name.replace(/^(the\s+)?(house|haus|huis|hus|family|familie|clan)\s+(of\s+|von\s+)?/i, '').replace(/^the\s+/i, '').trim();
+}
+
+/**
+ * What a steward's save keeps of an earlier background collection nobody chose from: `saved` as sent, then every collected
+ * meaning it does not already have, unchosen, under an id of its own. Up to the number one research may hold.
+ */
+export function keepCollected(saved: SavedMeaningRow[], collected: SavedMeaningRow[]): SavedMeaningRow[] {
+  if (collected.some((m) => m.chosen)) return saved;
+  const key = (m: SavedMeaningRow) => `${m.root}|${m.meaning}`.toLowerCase();
+  const seen = new Set(saved.map(key));
+  const kept = [...saved];
+  for (const m of collected) {
+    if (kept.length >= MAX_SAVED_MEANINGS) break;
+    if (seen.has(key(m))) continue;
+    seen.add(key(m));
+    kept.push({ ...m, id: `col${kept.length + 1}`, chosen: false });
+  }
+  return kept;
+}
+
 /** What a house's name means, as saved by a steward. Every house that has one is listed to every reader. */
 export interface SavedMeaning {
   house: string;
@@ -37,10 +66,29 @@ export interface ArmsReview {
   current: boolean;
   /** The steward kept these arms; this stays true only while `current`, so a change brings the check back. */
   dismissed: boolean;
+  /** The steward sealed these arms from the suggestions: the reason and advice are about the arms before them, so they are not shown. */
+  chosen: boolean;
 }
 
+/** What a steward did after a check. A later check reads these, so it cannot give the same advice again. */
+export interface ArmsDecision {
+  decision: 'chose' | 'kept';
+  /** What the check had advised. Empty when it advised nothing, or no check had run. */
+  advice: string;
+  /** The arms the steward settled on. */
+  blazon: string;
+  fingerprint: string;
+  at: number;
+}
+
+/**
+ * Whether a check asks anything of a steward. Only a real problem does: arms that contradict the name or read badly. A
+ * "partly" is a quiet idea, and a decision (a kept check, a chosen suggestion) stands until the arms or the meanings change.
+ */
+export const needsAttention = (r: ArmsReview | undefined): boolean => !!r && r.current && r.verdict === 'reconsider' && !r.dismissed;
+
 /** The one badge a house shows a steward. A house gets at most one, so the list stays quiet. */
-export type ReviewBadge = 'arms-review' | 'name-unresearched' | 'generated-arms';
+export type ReviewBadge = 'arms-review' | 'meanings-collected' | 'name-unresearched' | 'generated-arms';
 
 /** The meanings a steward chose, in the order the research gave them (the family's own first). */
 export function chosenMeanings(s: Pick<SavedMeaning, 'meanings'> | undefined): SavedMeaningRow[] {
@@ -63,16 +111,17 @@ export function generatedArms(arms: object): boolean {
 
 /**
  * The badge a steward sees for one house, or none:
- *  - "Arms to review": the latest check of the current arms and meanings says they only partly fit, or do not, and the
- *    steward has not kept them;
+ *  - "Arms to review": the latest check of the current arms and meanings found a real problem (needsAttention);
+ *  - "Meanings to choose": the background task collected meanings for this name and nobody has chosen from them;
  *  - "Name not researched": the name has no saved research (only once the arms feature is on: it is the only way to research);
  *  - "Using generated arms": the arms were never drawn, and no check has settled them (a fit or a kept check does).
  */
-export function reviewBadge(o: { aiOn: boolean; researched: boolean; generated: boolean; review?: ArmsReview }): ReviewBadge | null {
+export function reviewBadge(o: { aiOn: boolean; researched: boolean; collected?: boolean; generated: boolean; review?: ArmsReview }): ReviewBadge | null {
   const r = o.review;
-  if (r && r.current && r.verdict !== 'fits' && !r.dismissed) return 'arms-review';
+  if (needsAttention(r)) return 'arms-review';
+  if (o.collected) return 'meanings-collected';
   if (o.aiOn && !o.researched) return 'name-unresearched';
-  const settled = !!r && r.current && (r.verdict === 'fits' || r.dismissed);
+  const settled = !!r && r.current && (r.verdict !== 'reconsider' || r.dismissed);
   if (o.generated && !settled) return 'generated-arms';
   return null;
 }

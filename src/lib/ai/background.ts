@@ -4,14 +4,14 @@ import { z } from 'zod';
 import { LOCALES, type Locale } from '../i18n/types.ts';
 
 /** The tasks, in the order they are listed. Adding one means a new entry here, its work in background-tasks.server.ts. */
-export const TASKS = ['arms', 'occupations', 'chronicle'] as const;
+export const TASKS = ['arms', 'occupations', 'chronicle', 'names'] as const;
 export type Task = (typeof TASKS)[number];
 
 export const SCHEDULES = ['daily', 'weekly'] as const;
 export type Schedule = (typeof SCHEDULES)[number];
 
-/** The family's own AI switch a task needs: the arms review uses the arms feature; the two translations use the assistant's. */
-export const TASK_FEATURE: Record<Task, 'arms' | 'assistant'> = { arms: 'arms', occupations: 'assistant', chronicle: 'assistant' };
+/** The family's own AI switch a task needs: the arms review and the name meanings use the arms feature; the two translations use the assistant's. */
+export const TASK_FEATURE: Record<Task, 'arms' | 'assistant'> = { arms: 'arms', occupations: 'assistant', chronicle: 'assistant', names: 'arms' };
 
 /**
  * The least time since a task last started before its schedule runs it again. A little under a day or a week, so a daily
@@ -26,6 +26,8 @@ export const CAP_SHARE_MAX = 1;
 
 /** Items a task works on per run: at most this many provider calls for one task in one run (Run now and the schedule alike). */
 export const BATCH = 4;
+/** Provider calls one name may take in a daily run: its web search, when the family has that on, and the research itself. */
+export const CALLS_PER_NAME = 2;
 /** All tasks of all families in one daily run: a cap that keeps a Cloudflare Free plan's subrequest limit safe. Work left over waits for the next run. */
 export const CALLS_PER_DAILY_RUN = 8;
 
@@ -51,7 +53,7 @@ export const defaultTask = (): TaskSetting => ({ enabled: false, schedule: 'dail
 
 export function defaultSettings(): BackgroundSettings {
   return {
-    tasks: { arms: defaultTask(), occupations: defaultTask(), chronicle: defaultTask() },
+    tasks: { arms: defaultTask(), occupations: defaultTask(), chronicle: defaultTask(), names: defaultTask() },
     capShare: DEFAULT_CAP_SHARE,
     languages: [...LOCALES],
     locale: 'en',
@@ -71,7 +73,7 @@ const taskSave = z.object({ schedule: z.enum(SCHEDULES) });
 
 /** What the settings page sends. Checked on the server; nothing else is written. */
 export const saveSchema = z.object({
-  tasks: z.object({ arms: taskSave, occupations: taskSave, chronicle: taskSave }),
+  tasks: z.object({ arms: taskSave, occupations: taskSave, chronicle: taskSave, names: taskSave }),
   capShare: z.number().min(CAP_SHARE_MIN).max(CAP_SHARE_MAX),
   languages: z.array(z.enum(LOCALES)).max(LOCALES.length),
   locale: z.enum(LOCALES),

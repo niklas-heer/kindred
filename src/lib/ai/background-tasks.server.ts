@@ -1,18 +1,22 @@
-// The three background tasks: what is still waiting in a family's record, and how one item of it is done. An item is at
-// most one model call. The only things written are the arms review (house_arms_review, through checkArms), the occupation
-// cache (occupation_translation) and the chronicle translations (story_translation, beside the story). No task reads a
-// private field (person_field), sends a web search, or changes a story, a person or a house.
+// The background tasks: what is still waiting in a family's record, and how one item of it is done. An item is one model
+// call, or for a name its research (a web search first when the family has that on). The only things written are the arms
+// review (house_arms_review, through checkArms), the occupation cache (occupation_translation), the chronicle translations
+// (story_translation, beside the story) and collected, unchosen name meanings (house_meaning). No task reads a private
+// field (person_field) or changes a story, a person or a house. Only the name research may search the web, and only the
+// surname and the house's country go out.
 //
 // The lists are recomputed from the record on each run, so a run that stops early simply leaves the rest waiting: the next
 // run finds it again (resumable by construction).
 import { z } from 'zod';
 import { db } from '../db.server';
-import { snapshot } from '../house-meaning.server';
+import { MAX_COLLECT_FAILURES, surnameOf } from '../house-meaning.ts';
+import { noteCollectFailure, saveCollected, snapshot } from '../house-meaning.server';
 import { occupationForText } from '../occupations';
 import { askForOccupation } from '../occupations.server';
 import { translation } from '../occupations.translate';
 import type { Locale } from '../i18n/types';
 import { checkArms, withFitFixture } from './arms-fit.server';
+import { researchName } from './arms.server';
 import { AiError, type AiAdapter, type AiReply, type AiRequest } from './adapters';
 import { tr } from './labels';
 import { fakeOn } from './settings.server';
@@ -21,7 +25,8 @@ import type { Task } from './background';
 export type Pending =
   | { task: 'arms'; house: string; fingerprint: string }
   | { task: 'occupations'; text: string; locale: Locale }
-  | { task: 'chronicle'; story: string; title: string | null; body: string; locale: Locale; hash: string };
+  | { task: 'chronicle'; story: string; title: string | null; body: string; locale: Locale; hash: string }
+  | { task: 'names'; house: string; surname: string; country?: string };
 
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
 
@@ -43,6 +48,22 @@ export async function pending(tree: string, task: Task, languages: readonly Loca
       out.push({ task: 'arms', house, fingerprint: s.fingerprint });
     }
     return out;
+  }
+  if (task === 'names') {
+    // A house with no row at all, or with only failed tries: new names first, so a name that fails cannot hold the others up.
+    const rows = await d.all<{ id: string; name: string; country: string | null }>(
+      `SELECT h.id, h.name, s.country FROM house h
+         LEFT JOIN house_meaning m ON m.house = h.id
+         LEFT JOIN house_succession s ON s.house = h.id
+        WHERE m.house IS NULL OR (m.meanings = '[]' AND m.collect_failures BETWEEN 1 AND ?)
+        ORDER BY COALESCE(m.collect_failures, 0), h.name, h.id`,
+      MAX_COLLECT_FAILURES - 1,
+    );
+    return rows.flatMap((r) => {
+      const surname = surnameOf(r.name);
+      const country = r.country && /^[A-Z]{2}$/.test(r.country) ? r.country : undefined;
+      return surname ? [{ task: 'names' as const, house: r.id, surname, country }] : [];
+    });
   }
   if (task === 'occupations') {
     const out: Pending[] = [];
@@ -107,12 +128,25 @@ export function withStoryFixture(a: AiAdapter, locale: Locale): AiAdapter {
   };
 }
 
+/** Failures that say nothing about the name: the same name would have the same trouble, so they do not count against it. */
+const NOT_THE_NAME: ReadonlySet<AiError['code']> = new Set(['budget', 'auth', 'key-unreadable', 'not-configured', 'rate-limited']);
+
 /**
- * Does one item: one model call at most. `adapter` is budgeted (see background.server.ts), so a call past the cap throws
+ * Does one item: one model call at most (a name: its research, with a web search first when the family has that on). `adapter` is budgeted (see background.server.ts), so a call past the cap throws
  * AiError('budget') and nothing is written. Any other failure throws too, and the caller counts it.
  */
-export async function perform(tree: string, p: Pending, o: { adapter: AiAdapter; locale: Locale; now: Date }): Promise<void> {
+export async function perform(tree: string, p: Pending, o: { adapter: AiAdapter; locale: Locale; now: Date; webSearch?: boolean }): Promise<void> {
   const c = tr(o.locale);
+  if (p.task === 'names') {
+    try {
+      const research = await researchName({ adapter: o.adapter, webSearch: o.webSearch === true, surname: p.surname, country: p.country, locale: o.locale });
+      await saveCollected(tree, p.house, { name: p.surname, research, now: o.now.getTime() });
+    } catch (e) {
+      if (!(e instanceof AiError && NOT_THE_NAME.has(e.code))) await noteCollectFailure(tree, p.house, p.surname, o.now.getTime()).catch(() => undefined);
+      throw e;
+    }
+    return;
+  }
   if (p.task === 'arms') {
     // The same check the steward runs, with its own retry key: a fingerprint that changes again is checked again, not replayed.
     await checkArms({

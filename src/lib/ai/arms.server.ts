@@ -18,20 +18,25 @@ import { tinctureZ } from '../../components/heraldry/canting-schema.ts';
 import { candidateCharges, STOCK_CHARGES, termsOf } from '../../components/heraldry/charge-search';
 import type { ChargeDef } from '../../components/heraldry/catalogue';
 import { blazonV2 } from '../../components/heraldry/blazon';
-import { contrastFor } from '../../components/heraldry/rules';
+import { contrastFor, underOf } from '../../components/heraldry/rules';
+import { chargeGroups, chargesOverlap } from '../../components/heraldry/clear-layout';
+import { CENTRAL } from '../../components/heraldry/geometry';
+import { kindOf } from '../../components/heraldry/tinctures';
 import { chargeDef, chargeLabel, chargeName } from '../../components/heraldry/registry';
 import './arms-library.server';
 import { armsV2Schema } from '../../components/heraldry/schema';
-import type { ArmsV2, ChargeLayer } from '../seed-format';
+import type { ArmsV2, ChargeLayer, OrdinaryLayer } from '../seed-format';
 
 const LANG = { en: 'English', de: 'German (du)', af: 'Afrikaans (jy)' } as const;
 const WEB_SEARCHES = 3;
 const MAX_MEANINGS = 8;
 const MAX_DESIGNS = 5;
 const MIN_DESIGNS = 3;
-/** A revision gives this many refinements and this many fresh designs at most; fewer than the minimum of either is bad output. */
+/** A revision gives this many refinements and this many fresh designs at most. Fewer fresh designs than the minimum is bad output; refinements may run out, because one that cannot be drawn cleanly is dropped. */
 const MAX_PER_KIND = 3;
-const MIN_PER_KIND = 2;
+const MIN_FRESH = 2;
+/** The most charge groups a refinement leaves on a shield. */
+const MAX_CHARGE_GROUPS = 2;
 /** The research notes from the web are cut to this many characters before they go into the second call. */
 const FINDINGS_MAX = 6000;
 
@@ -218,7 +223,7 @@ const meaningLine = (m: DesignMeaning) => {
 function designSystem(locale: AiLocale, charges: string): string {
   return [
     'You design coats of arms for a family from what its name means. The reader has chosen the meanings below, and each design must draw on one of them: give its id in "meaningId", and say in "explanation", in ' + LANG[locale] + ', one sentence on why the design follows from that meaning (the sense of the name, or how it sounds).',
-    'Make three to five designs, all different. Use only the charges listed below, by their id, and at most three charges in a design. Keep the rule of tincture: metal (or, argent) on colour (gules, azure, vert, sable, purpure), never colour on colour and never metal on metal. Prefer a clear, classic shield: a field, one ordinary or one main charge, and a base only when it helps.',
+    'Make three to five designs, all different. Use only the charges listed below, by their id, and at most two charges in a design; one clear charge on a plain field is often the best design. Keep the rule of tincture: metal (or, argent) on colour (gules, azure, vert, sable, purpure), never colour on colour and never metal on metal. Prefer a clear, classic shield: a field, one ordinary or one main charge, and a base only when it helps. Give every charge its own space: never put two charges on the field, and a second charge goes in chief.',
     ...designRules(locale),
     'Answer only in the JSON shape you are given.',
     'Charges (id: English name; German and other words):',
@@ -270,7 +275,7 @@ export async function designArms(o: { adapter: AiAdapter; surname: string; count
     const designs: NameDesign[] = [];
     for (const d of cantingFromIdeas(parsed.data, req)) {
       const m = d.meaningId ? chosen.get(d.meaningId) : undefined;
-      if (!m || d.arms.layers.length === 0 || !armsV2Schema.safeParse(d.arms).success) continue;
+      if (!m || d.arms.layers.length === 0 || !armsV2Schema.safeParse(d.arms).success || chargesOverlap(d.arms)) continue;
       const line = m.attestation === 'family' || !m.root ? m.meaning : `${m.root}: ${m.meaning}`;
       designs.push({ arms: d.arms, explanation: d.explanation, meaningId: m.id, meaning: line, symbolism: d.symbolism });
     }
@@ -287,7 +292,7 @@ export async function armsDesigns(o: { tree: string; surname: string; country?: 
 
 // ---------- step three: new arms, from the saved meanings and what the check asked for ----------
 
-/** One refinement: the charges to add to the arms as they are, each by id, with its tincture and where it lies. */
+/** One refinement: the charges to add to the arms as they are, or to put in the place of one they have, each by id, with its tincture and where it lies. */
 const refinementZ = z.object({
   meaningId: z.string().max(20).optional(),
   explanation: z.string().min(1).max(200),
@@ -295,6 +300,8 @@ const refinementZ = z.object({
     charge: z.string().max(40),
     tincture: tinctureZ.optional(),
     on: z.enum(['field', 'chief', 'base']).optional(),
+    // Required in what the provider compiles (see ai-schema-complexity.test.ts); a reply that leaves it out still parses.
+    replaces: z.string().max(40).default('').describe('The id of a charge already on the arms that this one takes the place of. Empty to add it.'),
   })).min(1).max(2),
   symbolism: z.array(symbolismItemSchema).max(4).optional().catch(undefined),
 });
@@ -305,20 +312,72 @@ const revisionZ = z.object({
 });
 const REVISION_JSON: JsonSchema = jsonOf(revisionZ);
 
+type RefinedCharge = z.infer<typeof refinementZ>['charges'][number];
+
+/** Ordinaries a charge in chief would lie across. */
+const BLOCKS_CHIEF: ReadonlySet<OrdinaryLayer['kind']> = new Set(['pale', 'cross', 'canton', 'quarter']);
+/** The only ordinaries that leave the base of the shield open. */
+const LEAVES_BASE: ReadonlySet<OrdinaryLayer['kind']> = new Set(['chief', 'bordure', 'orle']);
+const ordinariesOf = (a: ArmsV2) => a.layers.filter((l): l is OrdinaryLayer => l.type === 'ordinary');
+
 /**
- * The arms as they are, with the charges a refinement adds: each placed on the field, in chief or in base, and tinctured
- * to stand clear of the field. Undefined when no charge is valid, or the result is not valid arms.
+ * The arms with a chief to hold a new charge: the one they have, or a new one lowest of all, so the field's charges move
+ * down to make room and a charge resting on another ordinary stays on it. Undefined when something crosses that space.
  */
-function refine(current: ArmsV2, charges: z.infer<typeof refinementZ>['charges']): { arms: ArmsV2; added: string[] } | undefined {
-  const arms = structuredClone(current);
-  const added: ChargeLayer[] = [];
-  for (const c of charges) {
-    if (!chargeDef(c.charge) || arms.layers.length + added.length >= 12) continue;
-    added.push({ type: 'charge', charge: c.charge, tincture: contrastFor(current.field.tinctures, c.tincture), count: 1, arrangement: 'auto', on: c.on ?? 'field' });
+function withChief(arms: ArmsV2): ArmsV2 | undefined {
+  const ords = ordinariesOf(arms);
+  if (ords.some((o) => BLOCKS_CHIEF.has(o.kind))) return undefined;
+  if (ords.some((o) => o.kind === 'chief')) return arms;
+  const field = arms.field.tinctures;
+  const mixed = new Set(field.map(kindOf)).size > 1;
+  const tincture = mixed ? 'ermine' : contrastFor(field, kindOf(field[0]) === 'metal' ? 'azure' : 'or');
+  return { ...arms, layers: [{ type: 'ordinary', kind: 'chief', tincture, line: 'straight' }, ...arms.layers] };
+}
+
+/** The arms with one more charge where it has space of its own: where the model asked, else in chief. Undefined when there is none. */
+function addCharge(arms: ArmsV2, c: RefinedCharge): ArmsV2 | undefined {
+  const asked = c.on ?? 'field';
+  for (const on of new Set([asked, 'chief'] as const)) {
+    const ords = ordinariesOf(arms);
+    if (on === 'field' && ords.some((o) => CENTRAL.has(o.kind))) continue;
+    if (on === 'base' && !ords.every((o) => LEAVES_BASE.has(o.kind))) continue;
+    const base = on === 'chief' ? withChief(arms) : arms;
+    if (!base) continue;
+    const layer: ChargeLayer = { type: 'charge', charge: c.charge, tincture: 'or', count: 1, arrangement: 'auto', on };
+    const next: ArmsV2 = { ...base, layers: [...base.layers, layer] };
+    layer.tincture = contrastFor(underOf(next, next.layers.length - 1), c.tincture);
+    if (!chargesOverlap(next)) return next;
   }
-  if (added.length === 0) return undefined;
-  arms.layers.push(...added);
-  return armsV2Schema.safeParse(arms).success ? { arms, added: added.map((l) => l.charge) } : undefined;
+  return undefined;
+}
+
+/**
+ * The arms as they are, with what a refinement changes: a charge added where it has its own space, or put in the place of
+ * one already there. Undefined, so the refinement is not shown, when it cannot be drawn cleanly: no room, more than two
+ * groups of charges, charges on top of each other, or not valid arms.
+ */
+function refine(current: ArmsV2, charges: RefinedCharge[]): { arms: ArmsV2; added: string[]; replaced: { from: string; to: string }[] } | undefined {
+  let arms = structuredClone(current);
+  const added: string[] = [];
+  const replaced: { from: string; to: string }[] = [];
+  for (const c of charges) {
+    if (!chargeDef(c.charge)) continue;
+    if (c.replaces) {
+      const i = arms.layers.findIndex((l) => l.type === 'charge' && l.charge === c.replaces);
+      if (i < 0) return undefined;
+      (arms.layers[i] as ChargeLayer).charge = c.charge;
+      (arms.layers[i] as ChargeLayer).tincture = contrastFor(underOf(arms, i), c.tincture);
+      replaced.push({ from: c.replaces, to: c.charge });
+      continue;
+    }
+    if (chargeGroups(arms).length >= MAX_CHARGE_GROUPS) return undefined;
+    const next = addCharge(arms, c);
+    if (!next) return undefined;
+    arms = next;
+    added.push(c.charge);
+  }
+  if (added.length + replaced.length === 0 || chargeGroups(arms).length > MAX_CHARGE_GROUPS || chargesOverlap(arms)) return undefined;
+  return armsV2Schema.safeParse(arms).success ? { arms, added, replaced } : undefined;
 }
 
 /** The meaning line a suggestion shows: "heer: lord, gentleman", or the family's own words alone. */
@@ -326,10 +385,11 @@ const meaningTitle = (m: DesignMeaning) => (m.attestation === 'family' || !m.roo
 
 function revisionSystem(locale: AiLocale, charges: string): string {
   return [
-    'You help a family change its coat of arms so that it says what its name means. The steward has researched the name and chosen its meanings. A check found that the arms do not yet say them fully: its reason and what to change are in the message, with the arms as they are now.',
+    'You help a family improve its coat of arms. The steward has researched the name and chosen its meanings. A check has offered a thought on the arms: its reason and advice are in the message, with the arms as they are now. Good arms are simple, and a name\'s several meanings do not each need a symbol.',
     'Make two kinds of suggestion, each in its own list.',
-    '"refinements": the arms as they are, with one or two charges added to answer what the check asks for. Keep everything else. Give two or three. Each names the chosen meaning it speaks to in "meaningId", and gives each charge its tincture and where it lies: "field", "chief" or "base".',
-    '"designs": two or three new designs from the chosen meanings, all different, that also answer what the check asks for. Each draws on one chosen meaning (its id in "meaningId"), uses at most three charges, and has a field with at most one ordinary or main charge.',
+    '"refinements": the arms as they are, changed as little as possible to answer the check. Keep everything else. Give up to three, and an empty list when no refinement would look good. Each names the chosen meaning it speaks to in "meaningId", and gives each charge its tincture and where it lies: "field", "chief" or "base".',
+    'A refinement must look good. Charges never overlap, and each has its own space: when the field already holds a charge, a new one goes in "chief", never on the field. At most two groups of charges on the shield in all. When the arms already have two, or a new charge has no room, put it in the place of one they have, by giving that charge\'s id in "replaces", instead of adding it.',
+    '"designs": two or three new designs from the chosen meanings, all different, that also answer the check. Keep them simple: one clear charge on a plain field is often best, at most two charges, and an ordinary or a base only when it says something about the name. Each draws on one chosen meaning (its id in "meaningId") and lists its charges in "charges": a design with no charge is thrown away. A second charge goes in chief, never on the field beside the first.',
     `For every suggestion, say in "explanation", in ${LANG[locale]}, one sentence on why it says the meaning and answers the check.`,
     'Use only the charges listed below, by their id. Keep the rule of tincture: metal (or, argent) on colour (gules, azure, vert, sable, purpure), never colour on colour and never metal on metal.',
     ...designRules(locale),
@@ -357,9 +417,9 @@ function revisionUser(o: { surname: string; country?: string; familyHint?: strin
 }
 
 /**
- * Suggestions for arms the check found do not fully fit their name: 2–3 refinements (the arms as they are, plus the
- * charges the feedback asks for) and 2–3 fresh designs (from the chosen meanings). The feedback's words go into the
- * candidate charges. Fewer than two of either kind is bad output: one retry, then AiError('bad-output').
+ * Suggestions from a check: up to three refinements (the arms as they are, changed only where it can be drawn cleanly) and
+ * 2–3 fresh designs (from the chosen meanings). The feedback's words go into the candidate charges. Fewer than two fresh
+ * designs is bad output: one retry, then AiError('bad-output'). Refinements that cannot be drawn cleanly are simply left out.
  */
 export async function reviseArms(o: {
   adapter: AiAdapter; surname: string; country?: string; familyHint?: string; meanings: DesignMeaning[]; arms: ArmsV2; feedback: ArmsFeedback; locale: AiLocale;
@@ -378,19 +438,23 @@ export async function reviseArms(o: {
     const parsed = revisionZ.safeParse(reply.json);
     if (!parsed.success) return undefined;
     const refinements: ArmsRevision[] = [];
+    const seen = new Set<string>();
     for (const r of parsed.data.refinements) {
       const m = r.meaningId ? chosen.get(r.meaningId) : undefined;
       const made = m && refine(o.arms, r.charges);
       if (!m || !made) continue;
-      refinements.push({ kind: 'refinement', arms: made.arms, explanation: r.explanation, meaningId: m.id, meaning: meaningTitle(m), symbolism: r.symbolism, added: made.added });
+      const shape = JSON.stringify(made.arms.layers);
+      if (seen.has(shape)) continue;
+      seen.add(shape);
+      refinements.push({ kind: 'refinement', arms: made.arms, explanation: r.explanation, meaningId: m.id, meaning: meaningTitle(m), symbolism: r.symbolism, added: made.added, replaced: made.replaced });
     }
     const designs: ArmsRevision[] = [];
     for (const d of cantingFromIdeas({ suggestions: parsed.data.designs }, req)) {
       const m = d.meaningId ? chosen.get(d.meaningId) : undefined;
-      if (!m || d.arms.layers.length === 0 || !armsV2Schema.safeParse(d.arms).success) continue;
+      if (!m || d.arms.layers.length === 0 || !armsV2Schema.safeParse(d.arms).success || chargesOverlap(d.arms)) continue;
       designs.push({ kind: 'fresh', arms: d.arms, explanation: d.explanation, meaningId: m.id, meaning: meaningTitle(m), symbolism: d.symbolism });
     }
-    if (refinements.length < MIN_PER_KIND || designs.length < MIN_PER_KIND) return undefined;
+    if (designs.length < MIN_FRESH) return undefined;
     return [...refinements.slice(0, MAX_PER_KIND), ...designs.slice(0, MAX_PER_KIND)];
   });
 }

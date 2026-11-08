@@ -1,4 +1,4 @@
-// The background AI tasks, once a day: the arms review, and the occupation and chronicle translations, for each family that
+// The background AI tasks, once a day: the arms review, the occupation and chronicle translations and the name meanings, for each family that
 // switched one on (src/lib/ai/background.server.ts). Off by default, and a family without its AI set up is skipped quietly.
 // The run is capped in calls (CALLS_PER_DAILY_RUN) and each task works in small batches, so work left over waits for the next day.
 import type { DailyJob } from './types.ts';

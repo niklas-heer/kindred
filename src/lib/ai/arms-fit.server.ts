@@ -1,17 +1,20 @@
-// Does a house's coat of arms still fit what its name means? One call to the family's model, with no web search: the
-// saved meanings (the family's own words first) and the arms, described as a blazon and as what each colour and charge
-// stands for. The answer is "fits", "partly" or "reconsider", a reason in the reader's language, and, when the arms do not
-// fit, what to change. It is stored with a fingerprint of the arms and the chosen meanings, so the same pair is never asked
+// Is a house's coat of arms a good design for what its name means? One call to the family's model, with no web search: the
+// saved meanings (the family's own words first), the arms as a blazon with what each colour and charge stands for, and what
+// the steward already decided after earlier checks. The answer is "fits" (good enough counts), "partly" (a quiet idea) or,
+// rarely, "reconsider" (the arms contradict the name or read badly), with a reason in the reader's language. It is stored with a fingerprint of the arms and the chosen meanings, so the same pair is never asked
 // twice; the caller decides when to ask (a steward saves research, or asks again). Nothing runs on a page view.
 import { z } from 'zod';
 import { blazonV2 } from '../../components/heraldry/blazon';
 import './arms-library.server';
 import { asV2 } from '../../components/heraldry/convert';
 import { chargeMeaning, ordinaryMeaning, tinctureMeaning } from '../../components/heraldry/meanings';
-import { translate, type Key } from '../i18n/dictionary';
+import { translate, type Key, type Vars } from '../i18n/dictionary';
+import type { Translator } from '../i18n';
 import { db, once, q, type OpKey } from '../db.server';
-import { FIT_VERDICTS, type ArmsReview, type SavedMeaningRow } from '../house-meaning.ts';
-import { sameArmsAndResearch, snapshot, toReview } from '../house-meaning.server';
+import { chargeGroups, chargesOverlap } from '../../components/heraldry/clear-layout';
+import { tinctureClashesV2 } from '../../components/heraldry/rules';
+import { FIT_VERDICTS, type ArmsDecision, type ArmsReview, type SavedMeaningRow } from '../house-meaning.ts';
+import { parseDecisions, sameArmsAndResearch, snapshot, toReview } from '../house-meaning.server';
 import type { ArmsV2 } from '../seed-format';
 import { AiError, type AiAdapter, type AiReply, type JsonSchema } from './adapters';
 import { tr, type Tr } from './labels';
@@ -19,23 +22,30 @@ import { adapterForFeature, fakeOn } from './settings.server';
 import type { AiLocale } from './types';
 
 const LANG = { en: 'English', de: 'German (du)', af: 'Afrikaans (jy)' } as const;
+const english = Object.assign((k: Key, vars?: Vars) => translate('en', k, vars), { locale: 'en' as const }) as Translator;
 
 /** What the model returns. Checked again here; a reply that does not match is asked once more. */
 const fitReply = z.object({
-  verdict: z.enum(FIT_VERDICTS).describe('"fits" when the arms express the chosen meanings; "partly" when some do and some have no element; "reconsider" when no element speaks to the name.'),
+  verdict: z.enum(FIT_VERDICTS).describe('"fits" when the design is good enough for the name, the usual answer; "partly" when it is sound and one small change would clearly improve it; "reconsider", rarely, only when the arms contradict the name or read badly.'),
   reason: z.string().trim().min(1).max(400).describe('One or two sentences, in the reader\'s language, on why.'),
-  advice: z.string().trim().max(400).nullish().describe('When the verdict is not "fits": one sentence on what to change in the arms, in the reader\'s language. Empty when they fit.'),
+  advice: z.string().trim().max(400).nullish().describe('When the verdict is not "fits": one sentence, in the reader\'s language, on the one change worth making. Empty when they fit.'),
 });
 const FIT_JSON: JsonSchema = (() => {
   const { $schema: _drop, ...rest } = z.toJSONSchema(fitReply) as Record<string, unknown>;
   return rest;
 })();
 
-function fitSystem(locale: AiLocale): string {
+export function fitSystem(locale: AiLocale): string {
   return [
-    'You check whether a family\'s coat of arms still fits what the family\'s name means. The steward has researched the name and chosen its meanings. Each design element stands for something, and a fit means the arms say what the chosen meanings say.',
-    'Answer "fits" when the arms express the chosen meanings. Answer "partly" when some of them do and others have no element. Answer "reconsider" when no element speaks to the name\'s meaning at all.',
-    `Write the reason, and any advice, in ${LANG[locale]}. In the reason, say why in one or two sentences. Name the element that matters, by what it stands for. When the answer is not "fits", the advice says in one sentence what to change, for example "no element speaks to the trade the name comes from", and what kind of charge or tincture would.`,
+    'You are a herald with good taste. You judge whether a family\'s coat of arms is a good design for the family\'s name. The steward has researched the name and chosen its meanings.',
+    'Judge the whole design: does it speak to a real meaning of the name, is it simple, can it be read at a glance, do its tinctures stand clear of each other, is it free of clutter. The best arms are simple: one clear charge on a plain field is as good as heraldry gets.',
+    'The chosen meanings are a pool to draw on, not a checklist. A name\'s several meanings do not each need a symbol. One clear charge that speaks to one real meaning fits, even when the other meanings have no element. Never mark arms down for leaving a meaning out.',
+    'Answer "fits" when the design is good enough. This is the usual answer: good enough counts as fitting, and when you are torn between "fits" and "partly", answer "fits".',
+    'Answer "partly" only when the design is sound but says little about the name, or is a little busy, and one small change would clearly make it better.',
+    'Answer "reconsider" rarely, and only when the arms contradict what the name means (they say the opposite of it) or read badly (crowded, too many charges to take in, tinctures that do not stand apart). Arms that are merely plain are never "reconsider".',
+    'Adding more is never the default advice, because more charges rarely make arms better. When arms are busy, advise taking something away. Advise adding a charge only when nothing in the arms speaks to any meaning of the name and the shield has clear room for it.',
+    'If the message says what the steward already decided, that decision stands. Judge the arms as they are now. Never give the same advice again, or a new version of it. Unless these arms contradict the name or read badly, answer "fits".',
+    `Write the reason, and any advice, in ${LANG[locale]}. In the reason, say why in one or two sentences. Name the element that matters, by what it stands for. When the answer is not "fits", the advice says in one sentence the one change worth making.`,
     'The family\'s own words, when they gave some, are the most important input: never contradict them. Use only the facts given. Invent no history, no ancestor and no coat of arms the family bore.',
     'Answer only in the JSON shape you are given.',
   ].join('\n');
@@ -51,15 +61,23 @@ const meaningLine = (m: SavedMeaningRow) =>
 export function describeArms(arms: ArmsV2): string {
   const en = (k: Key) => translate('en', k);
   const tints = [...new Set([...arms.field.tinctures, ...arms.layers.map((l) => l.tincture)])];
+  const groups = chargeGroups(arms);
   const charges = arms.layers.map((l) => (l.type === 'charge' ? `${l.charge} (${en(chargeMeaning(l.charge))})` : `${l.kind} (${en(ordinaryMeaning(l.kind))})`));
   return [
     `Blazon: ${blazonV2(arms)}`,
     `Tinctures and what they stand for: ${tints.map((t) => `${t} (${en(tinctureMeaning(t))})`).join('; ')}`,
     `Charges and what they stand for: ${charges.length ? charges.join('; ') : 'none'}`,
+    `As drawn: ${groups.length} group${groups.length === 1 ? '' : 's'} of charges, ${groups.reduce((n, g) => n + (g.arrangement === 'seme' ? 20 : g.count), 0)} charges in all, ${arms.layers.length - groups.length} ordinar${arms.layers.length - groups.length === 1 ? 'y' : 'ies'}; ${chargesOverlap(arms) ? 'some charges lie on top of each other' : 'no charges overlap'}; the rule of tincture is ${tinctureClashesV2(arms, english).length ? 'broken' : 'kept'}.`,
   ].join('\n');
 }
 
-function fitUser(o: { name: string; familyWords: string; chosen: SavedMeaningRow[]; arms: ArmsV2 }): string {
+/** What the steward already did after earlier checks, as one line each, so the model cannot repeat itself. */
+const decisionLine = (d: ArmsDecision) => {
+  const advised = d.advice ? `The check advised: "${d.advice}". ` : '';
+  return `- ${advised}The steward then ${d.decision === 'chose' ? 'chose these arms from the suggestions' : 'kept the arms as they were'}: ${d.blazon}.`;
+};
+
+export function fitUser(o: { name: string; familyWords: string; chosen: SavedMeaningRow[]; arms: ArmsV2; history: ArmsDecision[] }): string {
   return [
     `House name: ${o.name}`,
     o.familyWords ? `The family says: "${o.familyWords}"` : '',
@@ -67,6 +85,7 @@ function fitUser(o: { name: string; familyWords: string; chosen: SavedMeaningRow
     ...o.chosen.map(meaningLine),
     'The arms:',
     describeArms(o.arms),
+    ...(o.history.length ? ['What the steward already decided:', ...o.history.map(decisionLine)] : []),
   ].filter((l) => l !== '').join('\n');
 }
 
@@ -140,7 +159,7 @@ export async function checkArms(o: FitInput): Promise<ArmsReview> {
     const run = !o.adapter && fakeOn() ? withFitFixture(adapter) : adapter;
     const fit = await ask(c, () => run.complete({
       system: fitSystem(o.locale),
-      messages: [{ role: 'user', text: fitUser({ name: s.saved.name, familyWords: s.saved.familyWords, chosen: s.chosen, arms: asV2(JSON.parse(s.armsText)) }) }],
+      messages: [{ role: 'user', text: fitUser({ name: s.saved.name, familyWords: s.saved.familyWords, chosen: s.chosen, arms: asV2(JSON.parse(s.armsText)), history: parseDecisions(s.review?.history) }) }],
       json: { name: 'arms_fit', schema: FIT_JSON },
       maxTokens: 700,
       timeoutMs: 60_000,
@@ -154,16 +173,18 @@ export async function checkArms(o: FitInput): Promise<ArmsReview> {
       writes: [
         ...sameArmsAndResearch(o.house, s),
         q(
+          // A new answer replaces any decision on the old one: a check the steward asked for again may flag the arms again.
           `INSERT INTO house_arms_review (house, fingerprint, verdict, reason, advice, locale, checked_at, checked_by, dismissed_fingerprint)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, '')
            ON CONFLICT(house) DO UPDATE SET fingerprint = excluded.fingerprint, verdict = excluded.verdict, reason = excluded.reason,
-             advice = excluded.advice, locale = excluded.locale, checked_at = excluded.checked_at, checked_by = excluded.checked_by`,
+             advice = excluded.advice, locale = excluded.locale, checked_at = excluded.checked_at, checked_by = excluded.checked_by,
+             dismissed_fingerprint = ''`,
           o.house, s.fingerprint, fit.verdict, fit.reason, advice, o.locale, now, o.by,
         ),
       ],
       result: toReview({
         house: o.house, fingerprint: s.fingerprint, verdict: fit.verdict, reason: fit.reason, advice, locale: o.locale,
-        checked_at: now, checked_by: o.by, dismissed_fingerprint: s.review?.dismissed_fingerprint ?? '',
+        checked_at: now, checked_by: o.by, dismissed_fingerprint: '', history: s.review?.history ?? '[]',
       }, s.fingerprint),
     };
   });

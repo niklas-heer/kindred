@@ -13,7 +13,7 @@ import { MAX_DESIGN_MEANINGS, aiArmsDesigns, aiNameMeaning } from '~/lib/ai/arms
 import { toAiLocale, type Attestation, type DesignMeaning, type IdeaKind, type NameDesign, type NameMeaning, type NameResearch } from '~/lib/ai/types';
 import { opKeys } from '~/lib/api';
 import { errorText } from '~/lib/errortext';
-import { armsReviewsQuery, houseMeaningsQuery, saveHouseMeaning } from '~/lib/house-meaning.functions';
+import { armsReviewsQuery, collectedMeaningsQuery, houseMeaningsQuery, saveHouseMeaning } from '~/lib/house-meaning.functions';
 import type { SavedMeaning } from '~/lib/house-meaning';
 import { locales, useT, type Key } from '~/lib/i18n';
 import { play } from '~/lib/sfx';
@@ -75,7 +75,9 @@ export function NameResearchPanel({ tree, surname, country, onPick, house }: {
 
   // The saved research for this house, when it is for the name being typed now.
   const meanings = useQuery({ ...houseMeaningsQuery(tree), enabled: !!houseId });
-  const savedRow = houseId ? meanings.data?.[houseId] : undefined;
+  // What the background task collected and nobody chose from yet starts the panel off the same way, with nothing picked.
+  const collected = useQuery({ ...collectedMeaningsQuery(tree), enabled: !!houseId });
+  const savedRow = houseId ? meanings.data?.[houseId] ?? collected.data?.[houseId] : undefined;
   const saved = savedRow && savedRow.name === name ? savedRow : undefined;
 
   /** A failed call's line: the server's own message when it is a readable one, never raw validation JSON. */
@@ -130,6 +132,7 @@ export function NameResearchPanel({ tree, surname, country, onPick, house }: {
     onSuccess: (s) => {
       qc.setQueryData(houseMeaningsQuery(tree).queryKey, (old: Record<string, SavedMeaning> | undefined) => ({ ...old, [s.house]: s }));
       keys.clear();
+      void qc.invalidateQueries({ queryKey: collectedMeaningsQuery(tree).queryKey });
       toast({ title: t('houses.meaning.saved'), body: name, icon: 'crown' });
       // The arms are checked against the name the moment its meanings are saved.
       check.mutate(false);
@@ -228,7 +231,7 @@ export function NameResearchPanel({ tree, surname, country, onPick, house }: {
 
       {current && !research.isPending && (
         <div className="ae-meanings">
-          {usingSaved && saved && <p className="subtle ae-basis">{t('houses.meaning.savedWhen', { when: when(saved.savedAt) })}</p>}
+          {usingSaved && saved && <p className="subtle ae-basis">{t(saved.meanings.some((m) => m.chosen) ? 'houses.meaning.savedWhen' : 'houses.collected.when', { when: when(saved.savedAt) })}</p>}
           <p className="subtle ae-basis">{t(current.webSearched ? 'heraldry.basis_web' : 'heraldry.basis_knowledge')}</p>
           {current.note && <p className="subtle ae-basis">{current.note}</p>}
 

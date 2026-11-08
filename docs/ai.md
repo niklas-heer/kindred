@@ -9,7 +9,7 @@ feature is switched on separately. This page says what each feature sends, to wh
 A steward opens the family's AI settings (`/settings/ai`). The page has these parts, in order:
 
 1. **Providers.** One card for each of Anthropic, OpenAI and OpenRouter. Paste a provider's key and save it; each card links to that provider's key page. A connected card shows the key's last four characters, and can test the connection, replace the key, or remove it. A family may connect several providers at once. Each key is used only for its own provider.
-2. **What uses what.** One row per job: the assistant chat, name research and arms, finding people in photos, an avatar from a photo, painted portraits, and the three background tasks (arms review, occupation translations, Chronicle translations). Each row has the job's switch, its provider and its model, and a rough cost estimate. The default is **same as the assistant**, which follows the assistant's provider and model. A job may pick another connected provider and a model that provider lists, or type a model id. Painted portraits offer only providers that can paint (OpenRouter's image models, today). Web search is one switch for the family, and its privacy line names the provider the assistant uses.
+2. **What uses what.** One row per job: the assistant chat, name research and arms, finding people in photos, an avatar from a photo, painted portraits, and the four background tasks (arms review, occupation translations, Chronicle translations, name meanings). Each row has the job's switch, its provider and its model, and a rough cost estimate. The default is **same as the assistant**, which follows the assistant's provider and model. A job may pick another connected provider and a model that provider lists, or type a model id. Painted portraits offer only providers that can paint (OpenRouter's image models, today). Web search is one switch for the family, and its privacy line names the provider the assistant uses.
 3. **Monthly budget.** A budget in US dollars, a bar for this month's spend, and the day the budget starts again. One budget covers every job, whatever provider it uses.
 4. **Privacy.** One line for each job, naming the provider it goes to, or saying that it is off and sends nothing.
 5. **Background work** (schedules, the cap for background spending, Run now) and **Painted portraits** (what a painting sends).
@@ -197,15 +197,16 @@ off by default**, and each one says on its settings line what it sends.
   `story_translation`. The original is never changed. A story edited since it was translated is shown in its original text
   until the next run translates it again. The Chronicle shows a translation in the reader's language with the label
   "Translated by AI", and the original one click away. Needs the assistant on.
+- **Collect name meanings.** Up to four house names per run that have no collected or saved meanings. Sends only the surname and the house's country, through the same research step a steward uses, with its web search only when the family has web search on. Results are stored as collected, with nothing chosen (`house_meaning`, unchosen rows): no saved meaning and no arms check until a steward chooses. Only stewards see them, on the house page, where one click on one meaning saves it and the arms check follows; the steward can pick more in the research panel or dismiss them all. A name that fails is tried three times at most, and a problem that is not the name's (the budget, the key, a rate limit) does not count. Needs the arms feature on.
 
 What background work never does:
 
 - **It never changes the family's record by itself.** It fills the caches and the translations, and it raises suggestions.
   An arms review that suggests a change is listed on the AI activity page under "Waiting for a steward", and it changes
   nothing until a steward acts on it (or keeps the arms, which is the existing "Keep these arms").
-- **It never sends a private field.** The three tasks do not read `person_field` at all. A test sends every task through a
+- **It never sends a private field.** The background tasks do not read `person_field` at all. A test sends every task through a
   real adapter behind a stubbed `fetch` and checks that a private value is not in any request body.
-- **It never searches the web.** A background call that asks for a search is refused before it is sent.
+- **It searches the web only for name meanings.** That task may, and only when the family has web search on; any other background call that asks for a search is refused before it is sent.
 
 How the work is done: each task works through its items in batches of four provider calls per run, and the lists are
 recomputed from the record each time, so a run that stops early leaves the rest for the next run (nothing is done twice).

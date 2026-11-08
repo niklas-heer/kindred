@@ -271,6 +271,7 @@
 .hm-badge-chip.arms-review { background: color-mix(in srgb, var(--hm-warn) 18%, transparent); border-color: color-mix(in srgb, var(--hm-warn) 55%, transparent); }
 .hm-badge-chip.name-unresearched { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .hm-badge-chip.generated-arms { color: var(--muted); background: transparent; border-style: dashed; }
+.hm-badge-chip.meanings-collected { background: color-mix(in srgb, var(--accent) 24%, transparent); border-color: var(--accent); }
 .hs-review-count {
   display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; border-radius: 999px; text-decoration: none;
   font-family: var(--font-ui); font-size: 14px; color: var(--text);
@@ -315,20 +316,37 @@
 
 /* The stewards' review card: the verdict, the reason, what to change, and the actions. */
 .hm-review { display: grid; gap: 10px; align-content: start; padding: 18px 20px; margin-top: 18px; border-left: 3px solid var(--accent); }
-.hm-review[data-verdict='partly'] { border-left-color: var(--hm-warn); }
+.hm-review[data-verdict='partly'] { border-left-color: var(--hm-ok); }
 .hm-review[data-verdict='reconsider'] { border-left-color: var(--hm-bad); }
 .hm-review[data-verdict='fits'] { border-left-color: var(--hm-ok); }
 .hm-review-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; }
 .hm-review-head .hp-eyebrow { margin: 0; }
 .hm-verdict { display: inline-flex; align-items: center; min-height: 26px; padding: 0 10px; border-radius: 999px; font-family: var(--font-ui); font-size: 13.5px; font-weight: 600; border: 1px solid currentColor; }
 .hm-verdict.fits { color: var(--hm-ok); }
-.hm-verdict.partly { color: var(--hm-warn); }
+.hm-verdict.partly { color: var(--hm-ok); }
 .hm-verdict.reconsider { color: var(--hm-bad); }
 .hm-reason { margin: 0; font-size: 17px; line-height: 1.45; max-width: 68ch; overflow-wrap: anywhere; }
 .hm-advice { margin: 0; font-size: 15.5px; line-height: 1.45; max-width: 68ch; overflow-wrap: anywhere; }
 .hm-advice small { display: block; font-family: var(--font-ui); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--subtle); }
 .hm-review-actions { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
 .hm-review-actions .btn { min-height: 40px; }
+
+/* The meanings the background task collected: one click on one of them saves it. */
+.hm-choices { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 0; }
+.hm-choices > li { display: grid; gap: 4px; min-width: 0; }
+.hm-choice {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 56px; padding: 10px 14px;
+  font: inherit; text-align: left; color: var(--text); background: transparent; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius: 10px;
+}
+.hm-choice:hover:not(:disabled) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.hm-choice:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.hm-choice:disabled { opacity: 0.6; cursor: default; }
+.hm-choice-body { display: grid; gap: 4px; min-width: 0; }
+.hm-choice-body .hm-meaning { display: block; }
+.hm-choice-go { flex: none; font-family: var(--font-ui); font-size: 14px; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.hm-choice-sources { padding: 0 14px; }
+.hm-after-choice { margin: 14px 0 0; }
 
 /* The Information needed page: the houses to review, each a link. */
 .hm-needed { margin-top: 22px; display: grid; gap: 10px; }
@@ -343,6 +361,7 @@
   .hm-link { min-height: 44px; }
   .hm-review-actions .btn { min-height: 44px; }
   .hm-list { grid-template-columns: minmax(0, 1fr); }
+  .hm-choice { padding: 10px 12px; }
   .hm-family { padding-left: 30px; }
   .hm-needed-item { min-height: 56px; }
 }

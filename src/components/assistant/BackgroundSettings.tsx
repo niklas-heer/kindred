@@ -15,8 +15,8 @@ import { toAiLocale } from '~/lib/ai/types';
 import { ErrorState, Range, Select, Skeleton, Switch } from '~/components/ui';
 import './ai-tasks.css';
 
-const TASK_NAME: Record<Task, Key> = { arms: 'aitasks.arms.name', occupations: 'aitasks.occupations.name', chronicle: 'aitasks.chronicle.name' };
-const TASK_WHAT: Record<Task, Key> = { arms: 'aitasks.arms.what', occupations: 'aitasks.occupations.what', chronicle: 'aitasks.chronicle.what' };
+const TASK_NAME: Record<Task, Key> = { arms: 'aitasks.arms.name', occupations: 'aitasks.occupations.name', chronicle: 'aitasks.chronicle.name', names: 'aitasks.names.name' };
+const TASK_WHAT: Record<Task, Key> = { arms: 'aitasks.arms.what', occupations: 'aitasks.occupations.what', chronicle: 'aitasks.chronicle.what', names: 'aitasks.names.what' };
 const FEATURE_KEY: Record<'arms' | 'assistant', Key> = { arms: 'ai.featureArms', assistant: 'ai.featureAssistant' };
 const LANGUAGE_NAME: Record<Locale, string> = { en: 'English', de: 'Deutsch', af: 'Afrikaans' };
 const CAP_TICKS = [5, 20, 50, 100];
@@ -46,6 +46,7 @@ const draftOf = (s: Settings): Draft => ({
     arms: { schedule: s.tasks.arms.schedule },
     occupations: { schedule: s.tasks.occupations.schedule },
     chronicle: { schedule: s.tasks.chronicle.schedule },
+    names: { schedule: s.tasks.names.schedule },
   },
   capShare: s.capShare,
   languages: s.languages,
@@ -96,6 +97,7 @@ function BackgroundForm({ tree, data }: { tree: string; data: Activity }) {
     onSuccess: (out, task) => {
       setRan({ task, text: out.status === 'done' || out.status === 'stopped' ? t('aitasks.ranOk', { done: out.done, waiting: out.waiting }) : t(`aitasks.status.${out.status}` as Key) });
       void refresh();
+      void qc.invalidateQueries({ queryKey: ['collected-meanings', tree] });
     },
     onError: (e, task) => setRan({ task, text: errorText(e, locale) }),
   });

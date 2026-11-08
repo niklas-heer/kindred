@@ -11,8 +11,8 @@ import { aiArmsRevisions } from '~/lib/ai/arms.functions';
 import { checkArmsFit } from '~/lib/ai/arms-fit.functions';
 import { toAiLocale, type ArmsRevision } from '~/lib/ai/types';
 import { myFamiliesQuery } from '~/lib/auth/functions';
-import { armsReviewsQuery, houseMeaningsQuery } from '~/lib/house-meaning.functions';
-import { chosenMeanings, type ArmsReview } from '~/lib/house-meaning';
+import { armsReviewsQuery, houseMeaningsQuery, settleArmsReview } from '~/lib/house-meaning.functions';
+import { chosenMeanings, surnameOf, type ArmsReview } from '~/lib/house-meaning';
 import { useT, type Key, type Translator } from '~/lib/i18n';
 import type {
   Achievement, ArmsLayer, ArmsV2, ChargeArrangement, ChargeLayer, FieldDivision, HelmRank, OrdinaryKind, OrdinaryLayer,
@@ -79,11 +79,6 @@ function useHistory(initial: Draft) {
   };
 }
 
-/** "House Valcourt" → "Valcourt": the part of a house name a herald would pun on. */
-export function surnameOf(name: string): string {
-  return name.replace(/^(the\s+)?(house|haus|huis|hus|family|familie|clan)\s+(of\s+|von\s+)?/i, '').replace(/^the\s+/i, '').trim();
-}
-
 /** The tab a designer opens on: the design itself, or the suggestions ("Suggest arms from the name"). */
 export type DesignerTab = 'design' | 'presets' | 'name';
 
@@ -125,6 +120,8 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
   const [checkKeys] = useState(() => opKeys());
   const [revisions, setRevisions] = useState<ArmsRevision[] | null>(null);
   const asked = useRef<ArmsReview | null>(null);
+  // Whether the draft comes from a suggestion. Sealing it is the steward's decision, so it settles the check instead of asking again.
+  const fromSuggestion = useRef(false);
   // Suggestions from the check: refinements of the arms as saved, and fresh designs from the chosen meanings. Only asked for on
   // the card's click; nothing is saved, and choosing one loads it into the editor.
   const revise$ = useMutation({
@@ -140,6 +137,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
   });
   useEffect(() => {
     if (!open) { asked.current = null; return; }
+    fromSuggestion.current = false;
     setRevisions(null);
   }, [open]);
   useEffect(() => {
@@ -158,10 +156,16 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
       await Promise.all([qc.invalidateQueries({ queryKey: graphQuery(tree).queryKey }), qc.invalidateQueries({ queryKey: myFamiliesQuery.queryKey })]);
       play('seal');
       toast({ title: tr('heraldry.sealed'), body: tr('heraldry.sealed_body', { name: h2.name }), icon: 'crown' });
-      // The arms changed, so they are checked against the name again, as after a saved research. The card updates when that is done.
+      // The review on screen is about the arms just replaced: read it again now, so the card stops speaking for them at once.
+      const reviews = () => qc.invalidateQueries({ queryKey: armsReviewsQuery(tree).queryKey });
+      void reviews();
+      // A design picked from the suggestions settles the check. Arms drawn by hand are checked against the name, as after a saved research.
       if (researched) {
-        void checkArmsFit({ data: { tree, house: house.id, opKey: checkKeys.for('seal', { house: house.id, at: Date.now() }), locale: toAiLocale(tr.locale), force: false } })
-          .finally(() => { void qc.invalidateQueries({ queryKey: armsReviewsQuery(tree).queryKey }); });
+        const opKey = checkKeys.for('seal', { house: house.id, at: Date.now() });
+        void (fromSuggestion.current
+          ? settleArmsReview({ data: { tree, house: house.id, opKey } })
+          : checkArmsFit({ data: { tree, house: house.id, opKey, locale: toAiLocale(tr.locale), force: false } })
+        ).finally(() => { void reviews(); });
       }
       onClose();
     },
@@ -202,7 +206,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
       footer={
         <div className="ae-foot">
           <div className="ae-tools">
-            <button type="button" className="btn" onClick={() => { setArms(randomArmsV2()); setSel('field'); play('tick'); }}>
+            <button type="button" className="btn" onClick={() => { fromSuggestion.current = false; setArms(randomArmsV2()); setSel('field'); play('tick'); }}>
               <Dices size={16} aria-hidden /> {tr('heraldry.randomise')}
             </button>
             <button type="button" className="btn ghost" onClick={h.undo} disabled={!h.canUndo} aria-keyshortcuts="Meta+Z Control+Z" title={tr('heraldry.undo_title')}>
@@ -211,7 +215,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
             <button type="button" className="btn ghost" onClick={h.redo} disabled={!h.canRedo} aria-keyshortcuts="Meta+Shift+Z Control+Y" title={tr('heraldry.redo_title')}>
               <Redo2 size={16} aria-hidden /> <span className="ae-tool-label">{tr('heraldry.redo')}</span>
             </button>
-            <button type="button" className="btn ghost" onClick={() => h.set(draftOf(house))} disabled={!dirty}>
+            <button type="button" className="btn ghost" onClick={() => { fromSuggestion.current = false; h.set(draftOf(house)); }} disabled={!dirty}>
               <RotateCcw size={16} aria-hidden /> <span className="ae-tool-label">{tr('heraldry.reset')}</span>
             </button>
           </div>
@@ -297,7 +301,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
               <p className="subtle ae-lead">{tr('heraldry.presets_lead')}</p>
               <div className="ae-gallery">
                 {PRESETS.map((p) => (
-                  <button key={p.id} type="button" className="ae-card" onClick={() => { setArms(structuredClone(p.arms)); setSel(p.arms.layers.length ? p.arms.layers.length - 1 : 'field'); setFull(!!p.arms.achievement); setTab('design'); play('tick'); }}>
+                  <button key={p.id} type="button" className="ae-card" onClick={() => { fromSuggestion.current = false; setArms(structuredClone(p.arms)); setSel(p.arms.layers.length ? p.arms.layers.length - 1 : 'field'); setFull(!!p.arms.achievement); setTab('design'); play('tick'); }}>
                     <ArmsV2View arms={p.arms} size={64} />
                     <span className="ae-card-title">{tr(p.label)}</span>
                     <small>{blazonV2(p.arms)}</small>
@@ -313,10 +317,10 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
                   error={revise$.isError ? revise$.error : undefined}
                   revisions={revisions}
                   onRetry={() => revise$.mutate(revise)}
-                  onPick={(arms) => { setArms(arms); setSel(arms.layers.length ? arms.layers.length - 1 : 'field'); setTab('design'); }}
+                  onPick={(arms) => { fromSuggestion.current = true; setArms(arms); setSel(arms.layers.length ? arms.layers.length - 1 : 'field'); setTab('design'); }}
                 />
               )}
-              <Suggestions tree={tree} house={house.id} initial={surnameOf(saved.name)} country={country} allowed={allowed} onPick={(arms) => { setArms(arms); setSel(arms.layers.length ? arms.layers.length - 1 : 'field'); setTab('design'); play('tick'); }} />
+              <Suggestions tree={tree} house={house.id} initial={surnameOf(saved.name)} country={country} allowed={allowed} onPick={(arms) => { fromSuggestion.current = true; setArms(arms); setSel(arms.layers.length ? arms.layers.length - 1 : 'field'); setTab('design'); play('tick'); }} />
             </TabPanel>
           </Tabs>
         </div>

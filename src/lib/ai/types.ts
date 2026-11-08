@@ -23,14 +23,14 @@ export type AiFeatures = Record<Feature, boolean>;
  * The jobs that can each use their own provider and model (a route). The assistant's route is the base: the others
  * follow it, unless a steward picks one. Painted portraits have their own route and only offer image-capable providers.
  */
-export const ROUTES = ['assistant', 'arms', 'faces', 'avatar', 'portrait', 'arms-review', 'occupations', 'chronicle'] as const;
+export const ROUTES = ['assistant', 'arms', 'faces', 'avatar', 'portrait', 'arms-review', 'occupations', 'chronicle', 'names'] as const;
 export type Route = (typeof ROUTES)[number];
 /** Whether a route may follow the assistant's provider and model (the "same as the assistant" choice). Painting never does. */
 export const followsAssistant = (r: Route): boolean => r !== 'assistant' && r !== 'portrait';
 /** The providers that can paint a portrait: Kindred has an adapter for their image models (OpenRouter's, today). */
 export const PAINT_PROVIDERS: readonly Provider[] = ['openrouter'];
 /** The background tasks, and the route each one uses. */
-export const TASK_ROUTE = { arms: 'arms-review', occupations: 'occupations', chronicle: 'chronicle' } as const;
+export const TASK_ROUTE = { arms: 'arms-review', occupations: 'occupations', chronicle: 'chronicle', names: 'names' } as const;
 export type TaskName = keyof typeof TASK_ROUTE;
 
 /** The reader's locale as the assistant speaks it. Anything else answers in English. */
@@ -366,9 +366,9 @@ export interface NameDesign {
 
 /** Why the arms do not yet fit their name, as the steward's check said it, and what to change. */
 export interface ArmsFeedback { reason: string; advice: string }
-/** A refinement keeps the arms as they are and adds the charges in `added`; a fresh design starts again from the meanings. */
+/** A refinement keeps the arms as they are and adds the charges in `added` or swaps those in `replaced`; a fresh design starts again from the meanings. */
 export type RevisionKind = 'refinement' | 'fresh';
-export interface ArmsRevision extends NameDesign { kind: RevisionKind; added?: string[] }
+export interface ArmsRevision extends NameDesign { kind: RevisionKind; added?: string[]; replaced?: { from: string; to: string }[] }
 
 /** The longest chat message the assistant takes. */
 export const CHAT_MESSAGE_CHARS = 4_000;

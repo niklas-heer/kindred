@@ -66,14 +66,14 @@ function fixture(name: string, prompt: string, user: string, webSearch: boolean)
     return { json: { suggestions: DESIGNS.map((d, i) => ({ ...d, meaningId: id(i) })) } };
   }
   if (name === 'arms_revisions') {
-    // Refinements add a key (the check's words) to the arms as they are; the fresh designs are the three above.
+    // Refinements add a key in chief, and a garb asked for on the field (which has to find room of its own); the fresh designs are the three above.
     const ids = [...user.matchAll(/^([\w-]+): /gm)].map((m) => m[1]).filter((x) => /^(m|own)/.test(x));
     const id = (i: number) => ids[i % Math.max(ids.length, 1)] ?? 'm1';
     return {
       json: {
         refinements: [
           { meaningId: id(0), explanation: 'Fake: a key, for the steward’s office, beside the house charge', charges: [{ charge: 'key', tincture: 'or', on: 'chief' }], symbolism: [{ element: 'a key', why: 'a key for the steward’s office' }] },
-          { meaningId: id(1), explanation: 'Fake: a key on the field, for the manager of the farm', charges: [{ charge: 'key', tincture: 'argent', on: 'field' }] },
+          { meaningId: id(1), explanation: 'Fake: a garb on the field, for the manor farm', charges: [{ charge: 'garb', tincture: 'or', on: 'field' }] },
         ],
         designs: DESIGNS.map((d, i) => ({ ...d, meaningId: id(i) })),
       },

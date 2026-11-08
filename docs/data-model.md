@@ -33,6 +33,7 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
 | `0012_house_meaning.sql` | `house_meaning`: what each house's name means, as a steward researched and chose it. `house_arms_review`: the steward's latest check of the arms against it, and whether they were kept. |
 | `0013_portrait.sql` | Painted portrait candidates and the accepted portrait; `person.prefer_portrait`. |
 | `0014_ai_background.sql` | `story_translation`: the background AI translations of stories, kept beside each original (see [ai.md](ai.md), "Background tasks"). |
+| `0015_collected_meanings.sql` | `house_meaning.collect_failures`: failed tries of the background name research for a house. |
 
 ### Tables
 
@@ -65,7 +66,7 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
 - **`portrait`** (migration 0013): a painted portrait made from one of a person's photos. `key` is the picture in media storage (`portrait/<uuid>.<ext>`), `person`, `mime`, `source` (the photo it was painted from: `gallery/…` or `photo/…`), `source_year` (the photo's year, when it has a date), `model` (the OpenRouter model), `created_by`, `created_at`, and `accepted`. A row with `accepted = 0` is a candidate waiting for a choice; at most one row per person is accepted ("Use this portrait"), and that is the one the person can show. Accepting deletes the one it replaces; discarding a candidate, or removing the accepted one, deletes its picture too. `person.prefer_portrait` (0013) is the person's choice of the painted portrait: `prefer_avatar` (the drawing) and `prefer_portrait` are never both 1, and neither is 1 when the photo is shown.
 - **`house_succession`**: a house's `law` (`absolute-primogeniture`, `seniority` or `elective`), and optional `head`,
   `heir` and `country`. A house with no row uses absolute primogeniture and derives its head from the family graph.
-- **`house_meaning`**: one row per house with a saved research: the `name` researched, `family_words` (the family's own words, may be empty), `meanings` (JSON: every meaning the research returned, each with `chosen` for the ones the steward kept), `web_searched`, `note`, and `saved_at` and `saved_by` (the steward's user id). Saved again in place.
+- **`house_meaning`**: one row per house with a saved research: the `name` researched, `family_words` (the family's own words, may be empty), `meanings` (JSON: every meaning the research returned, each with `chosen` for the ones the steward kept), `web_searched`, `note`, and `saved_at` and `saved_by` (the steward's user id). Saved again in place. A row with no chosen meaning is not saved research: it is what the background task collected (`saved_by` is `ai-background`), a dismissed collection, or failed tries (`collect_failures`), and only stewards can read it.
 - **`house_arms_review`**: one row per house with a check of its arms: `fingerprint` (a hash of the arms, the family's words and the chosen meanings the check read), `verdict` (`fits`, `partly` or `reconsider`), `reason` and `advice` in the reader's language of the check, `checked_at`, `checked_by`, and `dismissed_fingerprint` (set when the steward keeps the arms; it counts only while it matches the current fingerprint). A check is out of date when the fingerprint no longer matches.
 - **`ancestry_rev`**: a single row (`id` = 1) with `rev`, the ancestry revision. Triggers on `parent` add one on every insert, update and delete, so `rev` moves with any change to who is whose parent, whatever the size of the family. The GEDCOM import reads it while planning and guards `rev = ?` inside its batch, so a change to the links in between makes the import plan again. The D1 transfer leaves it out (see `LEFT_OUT_TABLES` in `scripts/lib/d1-transfer.ts`): the target's links bump the target's own counter as they are written, and the counter is only ever compared with itself.
 - **`op`**: the retry keys. A change sent with a key records its result in the same batch as the change (see below).
@@ -87,6 +88,7 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
 | `0009_ai_background.sql` | The background AI tasks: the steward's settings, each task's switch, schedule and last start, the background share of the budget, and the run log. |
 
 | `0010_ai_providers.sql` | Provider connections and a provider/model route per AI feature; migrates the previous saved keys and routes. |
+| `0011_names_task.sql` | Adds the `names` background task and route to the lists the task, run and route tables allow. |
 
 ### Tables
 

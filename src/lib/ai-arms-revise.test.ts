@@ -33,6 +33,8 @@ const { saveProviderKey } = await load<typeof import('./ai/providers.server.ts')
 const { tr } = await load<typeof import('./ai/labels.ts')>('/src/lib/ai/labels.ts');
 const { AiError } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
 const { armsV2Schema } = await load<typeof import('../components/heraldry/schema.ts')>('/src/components/heraldry/schema.ts');
+const { chargesOverlap } = await load<typeof import('../components/heraldry/clear-layout.ts')>('/src/components/heraldry/clear-layout.ts');
+const { blazonV2 } = await load<typeof import('../components/heraldry/blazon.ts')>('/src/components/heraldry/blazon.ts');
 
 // The family's tree, with its house as it is: the budget and the steward's settings live with it.
 const family = openSqlite(join(dir, `${TREE}.db`), 'tree', { create: true });
@@ -92,10 +94,10 @@ function stub(answers: Answer[]) {
 }
 
 const REFINE_KEY = { meaningId: 'm1', explanation: 'A key beside the lion, for the steward’s office.', charges: [{ charge: 'key', tincture: 'or', on: 'chief' }] };
-const REFINE_KEY_2 = { meaningId: 'm2', explanation: 'A key on the field, for the manager.', charges: [{ charge: 'key', tincture: 'argent', on: 'field' }] };
+const REFINE_GARB = { meaningId: 'm2', explanation: 'A garb on the field, for the manor farm.', charges: [{ charge: 'garb', tincture: 'argent', on: 'field' }] };
 const DESIGN = (explanation: string, meaningId: string, charge: string) => ({ explanation, meaningId, field: ['azure'], charges: [{ charge, tincture: 'or', count: 1 }] });
 const GOOD = {
-  refinements: [REFINE_KEY, REFINE_KEY_2],
+  refinements: [REFINE_KEY, REFINE_GARB],
   designs: [DESIGN('A lion for the lord', 'm1', 'lion'), DESIGN('A tower for the house', 'm2', 'tower'), DESIGN('A key for the office', 'm1', 'key')],
 };
 const REQ = { surname: 'Heer', country: 'NL', meanings: CHOSEN, arms: HOUSE_ARMS, feedback: FEEDBACK, locale: 'en' as const };
@@ -150,25 +152,23 @@ test('a refinement keeps the arms as they are and adds the charge the check asks
   assert.equal(refinements.length, 2);
   const [first] = refinements;
   assert.deepEqual(first.arms.field, HOUSE_ARMS.field, 'the field is kept');
-  assert.deepEqual(first.arms.layers.slice(0, 1), HOUSE_ARMS.layers, 'the house charge is kept, unchanged');
-  assert.equal(first.arms.layers.length, 2);
-  assert.equal(first.arms.layers[1].type === 'charge' && first.arms.layers[1].charge, 'key');
+  assert.ok(first.arms.layers.some((l) => JSON.stringify(l) === JSON.stringify(HOUSE_ARMS.layers[0])), 'the house charge is kept, unchanged');
+  const last = first.arms.layers.at(-1)!;
+  assert.equal(last.type === 'charge' && last.charge, 'key');
   assert.deepEqual(first.added, ['key']);
   assert.equal(first.meaningId, 'm1');
   assert.equal(first.meaning, 'heer: lord, gentleman');
-  // The second refinement is argent on an azure field: a metal on a colour, so it stands clear.
-  const second = refinements[1];
-  assert.equal(second.arms.layers[1].type === 'charge' && second.arms.layers[1].tincture, 'argent');
   assert.ok(armsV2Schema.safeParse(first.arms).success);
 });
 
 test('a refinement that would break the rule of tincture is repaired, not sent as it was asked', async () => {
   // Gold asked for on a gold-on-azure field is fine; a colour asked on the blue field is not: it is moved to the metal.
   const clash = { ...REFINE_KEY, charges: [{ charge: 'key', tincture: 'azure', on: 'field' }] };
-  const s = stub([{ json: { refinements: [clash, REFINE_KEY_2], designs: GOOD.designs } }]);
+  const s = stub([{ json: { refinements: [clash, REFINE_GARB], designs: GOOD.designs } }]);
   const out = await arms.reviseArms({ adapter: s.adapter, ...REQ });
   const repaired = out.find((r) => r.kind === 'refinement')!;
-  assert.notEqual(repaired.arms.layers[1].type === 'charge' && repaired.arms.layers[1].tincture, 'azure');
+  const under = repaired.arms.layers.find((l) => l.type === 'ordinary' && l.kind === 'chief')!;
+  assert.notEqual(repaired.arms.layers.at(-1)!.tincture, under.tincture, 'it stands clear of the chief it lies on');
 });
 
 test('fresh designs draw on a chosen meaning and are valid arms, labelled as fresh', async () => {
@@ -187,14 +187,63 @@ test('fresh designs draw on a chosen meaning and are valid arms, labelled as fre
 
 test('a refinement that names no chosen meaning is left out', async () => {
   const unknown = { ...REFINE_KEY, meaningId: 'm9' };
-  const s = stub([{ json: { refinements: [unknown, REFINE_KEY_2], designs: GOOD.designs } }, { json: GOOD }]);
+  const s = stub([{ json: { refinements: [unknown, REFINE_GARB], designs: GOOD.designs } }]);
   const out = await arms.reviseArms({ adapter: s.adapter, ...REQ });
-  assert.equal(s.calls.length, 2, 'one kind short of its minimum is asked again');
-  assert.equal(out.filter((r) => r.kind === 'refinement').length, 2);
+  assert.equal(s.calls.length, 1);
+  assert.deepEqual(out.filter((r) => r.kind === 'refinement').map((r) => r.added), [['garb']]);
 });
 
-test('fewer than two of either kind is bad output: asked once more, then refused in the reader’s language', async () => {
-  const short = { refinements: [REFINE_KEY], designs: GOOD.designs };
+// ---------- a refinement must look good ----------
+
+const KEY_ON_SABLE: ArmsV2 = { shield: 'heater', field: { division: 'plain', tinctures: ['sable'], line: 'straight' }, layers: [{ type: 'charge', charge: 'key', tincture: 'or', count: 1, arrangement: 'auto', on: 'field' }] };
+const refined = async (armsNow: ArmsV2, refinements: unknown[]) => {
+  const s = stub([{ json: { refinements, designs: GOOD.designs } }]);
+  const out = await arms.reviseArms({ adapter: s.adapter, ...REQ, arms: armsNow });
+  return { list: out.filter((r) => r.kind === 'refinement'), fresh: out.filter((r) => r.kind === 'fresh') };
+};
+const groupsOf = (a: ArmsV2) => a.layers.filter((l) => l.type === 'charge');
+
+test('a garb asked for on top of the key gets a chief of its own, and the key stays clear of it', async () => {
+  const { list } = await refined(KEY_ON_SABLE, [{ meaningId: 'm1', explanation: 'A golden sheaf for the manor farm.', charges: [{ charge: 'garb', tincture: 'or', on: 'field' }] }]);
+  assert.equal(list.length, 1);
+  const [{ arms: a }] = list;
+  assert.equal(chargesOverlap(a), false);
+  assert.deepEqual(a.layers.filter((l) => l.type === 'ordinary').map((l) => l.kind), ['chief']);
+  assert.deepEqual(groupsOf(a).map((l) => [l.charge, l.on]), [['key', 'field'], ['garb', 'chief']]);
+  assert.match(blazonV2(a), /chief/);
+});
+
+test('without somewhere clear to go, a refinement is dropped, and the fresh designs still come', async () => {
+  // A cross runs through the chief and the field alike, so a new charge has no space of its own.
+  const crossed: ArmsV2 = { ...KEY_ON_SABLE, layers: [{ type: 'ordinary', kind: 'cross', tincture: 'argent', line: 'straight' }] };
+  const { list, fresh } = await refined(crossed, [{ meaningId: 'm1', explanation: 'A garb.', charges: [{ charge: 'garb', on: 'field' }] }]);
+  assert.deepEqual(list, []);
+  assert.equal(fresh.length, 3);
+});
+
+test('two groups of charges are the most a refinement leaves: a third is dropped, a replacement is not', async () => {
+  const two: ArmsV2 = { ...KEY_ON_SABLE, layers: [{ type: 'ordinary', kind: 'chief', tincture: 'or', line: 'straight' }, ...KEY_ON_SABLE.layers, { type: 'charge', charge: 'garb', tincture: 'sable', count: 1, arrangement: 'auto', on: 'chief' }] };
+  const added = await refined(two, [{ meaningId: 'm1', explanation: 'A third.', charges: [{ charge: 'lion', on: 'base' }] }]);
+  assert.deepEqual(added.list, []);
+  const swapped = await refined(two, [{ meaningId: 'm1', explanation: 'A plough for the garb.', charges: [{ charge: 'plough', tincture: 'sable', replaces: 'garb' }] }]);
+  assert.equal(swapped.list.length, 1);
+  assert.deepEqual(swapped.list[0].replaced, [{ from: 'garb', to: 'plough' }]);
+  assert.deepEqual(groupsOf(swapped.list[0].arms).map((l) => l.charge), ['key', 'plough']);
+});
+
+test('the same refinement asked for twice is shown once', async () => {
+  const { list } = await refined(KEY_ON_SABLE, [REFINE_KEY, { ...REFINE_KEY, explanation: 'Again.' }]);
+  assert.equal(list.length, 1);
+});
+
+test('the check for a clean drawing sees charges on top of each other, and a lone charge as clear', () => {
+  const stacked: ArmsV2 = { ...KEY_ON_SABLE, layers: [...KEY_ON_SABLE.layers, { type: 'charge', charge: 'garb', tincture: 'or', count: 1, arrangement: 'auto', on: 'field' }] };
+  assert.equal(chargesOverlap(stacked), true);
+  assert.equal(chargesOverlap(KEY_ON_SABLE), false);
+});
+
+test('fewer than two fresh designs is bad output: asked once more, then refused in the reader’s language', async () => {
+  const short = { refinements: [REFINE_KEY], designs: GOOD.designs.slice(0, 1) };
   const good = stub([{ json: short }, { json: GOOD }]);
   const out = await arms.reviseArms({ adapter: good.adapter, ...REQ });
   assert.equal(good.calls.length, 2);

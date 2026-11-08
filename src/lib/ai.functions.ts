@@ -62,7 +62,7 @@ export const aiSaveSettings = createServerFn({ method: 'POST' })
     /** The family's own prices, for models Kindred has no price for (USD per 1M tokens). Replaces the saved map when sent. */
     customPrices: z.record(z.string().trim().min(1).max(120), z.object({ inPerM: z.number().min(0).max(10_000), outPerM: z.number().min(0).max(10_000) })).optional(),
     portraitEnabled: z.boolean(),
-    tasks: z.object({ arms: z.boolean(), occupations: z.boolean(), chronicle: z.boolean() }),
+    tasks: z.object({ arms: z.boolean(), occupations: z.boolean(), chronicle: z.boolean(), names: z.boolean() }),
     locale,
   }))
   .handler(async ({ data }) => {

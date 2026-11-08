@@ -11,6 +11,7 @@ import { Arms, TINCTURE_HEX } from '~/components/Heraldry';
 import { asV2 } from '~/components/heraldry/convert';
 import { countryName, Flag } from '~/components/heraldry/Flag';
 import { ArmsMeanings } from '~/components/heraldry/ArmsMeanings';
+import { CollectedMeanings } from '~/components/CollectedMeanings';
 import { ArmsReviewCard, HouseMeaning } from '~/components/HouseMeaning';
 import { HouseMembersDialog } from '~/components/HouseMembers';
 import { useAiStatus } from '~/components/assistant/store';
@@ -19,7 +20,7 @@ import { Dialog, ErrorState, NotFound, Select, Skeleton, type SelectOption } fro
 import { chronicleQuery, graphQuery, opKeys } from '~/lib/api';
 import { useFamily, useTreeId } from '~/lib/family';
 import { lifespan } from '~/lib/graph';
-import { armsReviewsQuery, houseMeaningsQuery } from '~/lib/house-meaning.functions';
+import { armsReviewsQuery, collectedMeaningsQuery, houseMeaningsQuery } from '~/lib/house-meaning.functions';
 import type { ArmsReview } from '~/lib/house-meaning';
 import { houseSettingsQuery, updateHouseSettings } from '~/lib/houses.functions';
 import {
@@ -85,6 +86,7 @@ function HousePage() {
   const meaningsQ = useQuery(houseMeaningsQuery(tree));
   const savedMeaning = house ? meaningsQ.data?.[house.id] : undefined;
   const reviewsQ = useQuery({ ...armsReviewsQuery(tree), enabled: canEdit });
+  const collectedQ = useQuery({ ...collectedMeaningsQuery(tree), enabled: canEdit });
   const aiOn = !!useAiStatus(tree)?.features.arms;
   const review = house ? reviewsQ.data?.[house.id] : undefined;
 
@@ -191,6 +193,7 @@ function HousePage() {
         </header>
         <ArmsMeanings arms={asV2(house.arms)} label={t('heraldry.means.open')} className="hp-means" />
         <HouseMeaning saved={savedMeaning} canEdit={canEdit} onResearch={() => { setArmsTab('name'); setArmsOpen(true); }} />
+        {canEdit && <CollectedMeanings tree={tree} house={house.id} collected={collectedQ.data?.[house.id]} aiOn={aiOn} onResearch={() => { setArmsTab('name'); setArmsOpen(true); }} />}
         {canEdit && savedMeaning && (aiOn || review) && (
           <ArmsReviewCard tree={tree} house={house} review={review} aiOn={aiOn} onDesigner={(tab, revise) => { setArmsTab(tab); setArmsRevise(revise); setArmsOpen(true); }} />
         )}
