@@ -2,13 +2,12 @@
 // run through `once`: it reads what it decides on, guards those facts in the batch, and writes in one
 // transaction, so a retried or racing request never writes twice or half-way (see db.server.ts).
 import { guard, newId, once, personExists, q, type OpKey, type Query } from './db.server.ts';
-import { MAX_FIELDS, storedValue, type FieldInput, type FieldType } from '../components/fields/model.ts';
+import { CHANGED_SINCE_OPENED, MAX_FIELDS, storedValue, type FieldInput, type FieldType } from '../components/fields/model.ts';
 import type { Look } from './types.ts';
 import { occupationCodeFor } from './occupations.ts';
-import { translate } from './i18n/dictionary.ts';
 
 /** The message a save gets when the person changed after the draft was opened (the reader sees it in their language). */
-export const CHANGED_SINCE_OPENED = translate('en', 'fields.changed_since_opened');
+export { CHANGED_SINCE_OPENED };
 
 /** The scalar details of a person, as the Edit tab saves them. Names: a null current name means "same as birth". */
 export interface PersonDetails {
@@ -166,16 +165,19 @@ export function setPersonDiedPlace(tree: string, id: string, place: string | nul
 }
 
 /**
- * The first person of a family: the steward adds themselves from the first-run step. Sets the family's
- * starting point (meta `focus`) to them when it has none yet. Returns the new person's id.
+ * The first person of a family: the steward adds themselves from the first-run step. Stored with the given name and
+ * surname apart (the setup splits the name it was given). Sets the family's starting point (meta `focus`) to them when
+ * it has none yet. Returns the new person's id.
  */
-export function addFirstPerson(tree: string, given: string, op: OpKey | undefined) {
+export function addFirstPerson(tree: string, name: { given: string; surname: string }, op: OpKey | undefined) {
   return once(tree, op, 'addFirstPerson', async (d) => {
+    const given = name.given.trim();
+    if (!given) throw new Error('A given name is needed.');
     const focus = await d.get<{ value: string }>("SELECT value FROM meta WHERE key = 'focus'");
     const id = newId(given);
     const writes: Query[] = [
       guard("(SELECT value FROM meta WHERE key = 'focus') IS ?", focus?.value ?? null),
-      q('INSERT INTO person (id, given, living, updated_at) VALUES (?, ?, 1, ?)', id, given, nowIso()),
+      q('INSERT INTO person (id, given, surname, living, updated_at) VALUES (?, ?, ?, 1, ?)', id, given, empty(name.surname), nowIso()),
     ];
     if (focus && focus.value === '') writes.push(q("UPDATE meta SET value = ? WHERE key = 'focus'", id));
     return { writes, result: id };

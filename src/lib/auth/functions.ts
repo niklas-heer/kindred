@@ -46,7 +46,7 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): 
     needsSetup: needs,
     needsFamily,
     setupCodeRequired: setup.setupCodeRequired(),
-    setupOpenToPublic: needs && setup.setupOpenToPublic(siteOrigin(getRequest())),
+    setupOpenToPublic: needs && setup.setupOpenToPublic(siteOrigin(getRequest()), new URL(getRequest().url)),
     defaultTree: process.env.KINDRED_DEFAULT_TREE?.trim() || undefined,
     uninvitedEmail,
     accessLogout: via === 'access' || uninvitedEmail ? accessLogoutUrl() : undefined,

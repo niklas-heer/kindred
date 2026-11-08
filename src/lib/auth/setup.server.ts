@@ -45,25 +45,30 @@ export const isLocalHost = (hostname: string) => {
 };
 
 /**
- * Whether first-account setup is open to anyone who reaches `origin`: no setup code, and a public host.
- * The first person there becomes the steward, which is the default but should be a choice on purpose.
+ * Whether first-account setup is open to anyone who can reach the server: no setup code, and a public address.
+ * `origin` is the site's configured address (KINDRED_ORIGIN, or the request's own when it is not set); `host` is
+ * the address the request actually arrived at. Either one being public makes setup public: a proxy can forward a
+ * public name to a server whose KINDRED_ORIGIN is still the local one. The first person there becomes the
+ * steward, which is the default but should be a choice on purpose.
  */
-export const setupOpenToPublic = (origin: URL) => !setupCodeRequired() && !isLocalHost(origin.hostname);
+export const setupOpenToPublic = (origin: URL, host?: URL) =>
+  !setupCodeRequired() && (!isLocalHost(origin.hostname) || (!!host && !isLocalHost(host.hostname)));
 
 let openWarning: 'pending' | 'shown' | 'moot' = 'pending';
 /**
  * A loud console warning, once per process, while nobody has an account and setup is open to the public.
  * Called on the server's first request. Never throws.
  */
-export async function warnOpenSetup(origin: URL) {
+export async function warnOpenSetup(origin: URL, host?: URL) {
   try {
     if (openWarning !== 'pending') return;
-    if (!setupOpenToPublic(origin)) return;
+    if (!setupOpenToPublic(origin, host)) return;
     if (!(await needsSetup())) { openWarning = 'moot'; return; }
     openWarning = 'shown';
+    const where = host && !isLocalHost(host.hostname) ? host.origin : origin.origin;
     console.warn(
       `\n  ┌─ Kindred WARNING ──────────────────────────────────────────\n` +
-        `  │ Setup is open on ${origin.origin} and nobody has an account yet.\n` +
+        `  │ Setup is open on ${where} and nobody has an account yet.\n` +
         `  │ The first person to create an account there becomes the steward.\n` +
         `  │ Set KINDRED_SETUP_CODE (12+ characters, or "required") to require a code,\n` +
         `  │ or create the steward account now.\n` +
@@ -72,6 +77,31 @@ export async function warnOpenSetup(origin: URL) {
   } catch (e) {
     console.error('[kindred] setup warning failed', e);
   }
+}
+
+let originLogged = false;
+/**
+ * Logs once per process when a request arrives at a public host other than KINDRED_ORIGIN's. Passkeys and sign-in
+ * cookies follow KINDRED_ORIGIN, so a different name in the request is worth a line in the log. Only the host is
+ * compared: a proxy that ends TLS makes the request's scheme differ from KINDRED_ORIGIN's, which is normal. A loopback
+ * arrival is the server itself (its start-up check of its own address) or someone on the machine, so it is not logged,
+ * and does not use up the one line. Returns whether it logged.
+ */
+export function logOriginMismatch(configured: string | undefined, request: URL, log: (message: string) => void = console.warn): boolean {
+  if (originLogged || !configured || isLocalHost(request.hostname)) return false;
+  let origin: URL;
+  try {
+    origin = new URL(configured);
+  } catch {
+    return false;
+  }
+  if (origin.host === request.host) return false;
+  originLogged = true;
+  log(
+    `[kindred] Requests arrive at ${request.host}, but KINDRED_ORIGIN is ${origin.host}. ` +
+      `Passkeys and sign-in cookies follow KINDRED_ORIGIN. If ${request.host} is your address, set KINDRED_ORIGIN to it (docs/self-host.md).`,
+  );
+  return true;
 }
 
 /**

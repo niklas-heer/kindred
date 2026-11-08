@@ -66,9 +66,14 @@ tags on gallery pictures, and the cached occupation translations. Two bookkeepin
 each table's count back from D1 and compares it with what it sent. A mismatch stops the run before any picture is
 uploaded.
 
-It refuses a database that already holds people unless you pass `--replace`. `--replace` empties the 14 copied tables
-and writes them again. It leaves `op` alone, so the target keeps its retry keys, and it leaves the pictures already in
-R2. The local file is never changed.
+It refuses a database that already holds people, or a family's details with no people, unless you pass `--replace`.
+The second case is what first-time setup leaves behind (step 7 makes the family's name and starting point before anyone
+adds a person). The check runs before anything is written, so the transfer never stops halfway through a copy. The
+choice is yours: run the transfer before anyone opens `/setup` (setup then finds the family and makes no new one), or
+pass `--replace` to overwrite what setup made with the copy. `--replace` empties the 14 copied tables, the setup's
+details among them, and writes them again. It leaves `op` alone, so the target keeps its retry keys, and it leaves the
+pictures already in R2. The accounts database is not touched, so the steward's passkey still works; a reader's “who I
+am” choice may name a person the copy does not have, and they pick again. The local file is never changed.
 
 Accounts are not copied: passkeys belong to a host name, so the first person to open the deployed site sets it up and
 invites the others.
@@ -94,7 +99,9 @@ which the repository does not set today. Locally they go in `.dev.vars`, which i
 ## 6. Cloudflare Access (optional)
 
 Put an Access application in front of the site's hostname. Kindred then reads the signed-in identity from the Access
-token, and the first verified identity can become steward automatically when setup codes are off. Set
+token, and the first verified identity can become steward automatically when setup codes are off. On an empty server
+that first sign-in makes the server's first family too, named “Our family” (or its translation in the reader's
+language), just as passkey setup does. Set
 `CF_ACCESS_TEAM_DOMAIN` to your team's domain and `CF_ACCESS_AUD` to the application's audience tag. Access is an
 extra lock, not a replacement for passkeys: people still sign in to Kindred with their own passkey.
 
@@ -135,6 +142,8 @@ AI keys. Test the restore on a scratch database before you rely on it.
 ## Troubleshooting
 
 - **A family is missing from the site**: its `TREE_<ID>` binding is absent or misspelt, or the id is not lower case.
+- **The transfer says the database already has a family's details**: first-time setup made them. Pass `--replace` to
+  overwrite them with the copy (step 4), or send the copy to a database that has none.
 - **Setup stops before the passkey**: the family it would make has no `TREE_<ID>` binding, or its database has no
   schema yet. Add the binding (step 2) and run `mise run cf:migrate:remote` (step 3), then open `/setup` again.
 - **Passkey errors on a custom domain**: set `KINDRED_ORIGIN` to the public address. Changing the host name later

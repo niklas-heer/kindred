@@ -17,13 +17,14 @@
 //
 // Options: --env <name> (a wrangler environment), --remote (default: local), --replace (empty the copied tables
 // of a D1 database that already holds a family first; its old pictures stay in R2), --from <file.db>,
-// --plan (print what would be copied and uploaded, and change nothing in Cloudflare).
+// --plan (print what would be copied and uploaded, and change nothing in Cloudflare). A database that already has
+// the family's details but no people (setup made them) is refused without --replace, up front (see existingFamilyProblem).
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { movePhotosOut, openSqlite } from '../src/lib/store/node.ts';
-import { countMismatches, countSql, deleteSql, foreignKeyOrderErrors, insertSql, listFiles, planMedia, planTables, type MediaFile } from './lib/d1-transfer.ts';
+import { countMismatches, countSql, deleteSql, existingFamilyProblem, foreignKeyOrderErrors, insertSql, listFiles, planMedia, planTables, type MediaFile } from './lib/d1-transfer.ts';
 import { treeBinding, where, wrangler, wranglerBindings } from './lib/wrangler.ts';
 
 const args = process.argv.slice(2);
@@ -102,9 +103,10 @@ for (const tree of trees) {
 
     // The target's schema comes from the same migrations.
     wrangler(['d1', 'migrations', 'apply', target!.database_name, ...where(remote, env)]);
-    const out = wrangler(['d1', 'execute', target!.database_name, ...where(remote, env), '--json', '--command', 'SELECT count(*) AS n FROM person'], { quiet: true });
-    const had = (JSON.parse(out) as { results: { n: number }[] }[])[0]?.results[0]?.n ?? 0;
-    if (had && !replace) throw new Error(`${target!.database_name} already holds ${had} people; pass --replace to overwrite it`);
+    const out = wrangler(['d1', 'execute', target!.database_name, ...where(remote, env), '--json', '--command', 'SELECT (SELECT count(*) FROM person) AS people, (SELECT count(*) FROM meta) AS meta'], { quiet: true });
+    const before = ((JSON.parse(out) as { results: { people: number; meta: number }[] }[])[0]?.results[0] ?? { people: 0, meta: 0 });
+    const problem = existingFamilyProblem({ people: before.people ?? 0, meta: before.meta ?? 0 }, target!.database_name, replace);
+    if (problem) throw new Error(problem);
 
     const sql: string[] = [...(replace ? deleteSql(tables.copy) : [])];
     for (const t of tables.copy) sql.push(...insertSql(t, columns.get(t)!, rows.get(t)!));

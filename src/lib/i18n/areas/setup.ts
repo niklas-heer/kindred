@@ -4,7 +4,7 @@ import type { Message } from "../types.ts";
 
 export const en = {
   "setup.family_name": "Family name",
-  "setup.family_name_hint": "How relatives will see the family. You can change it later.",
+  "setup.family_name_hint": "How relatives will see the family.",
   "setup.family_default": "Our family",
   "setup.family_ready_title": "{name} is ready",
   "setup.family_ready_lede": "Start with yourself. Once you are in the tree, add your relatives and invite the family to join.",
@@ -26,6 +26,8 @@ export const en = {
   "setup.the_server_printed_it_in_its_terminal_when_it_started_look_for_kindred_setup": "The server printed it in its terminal when it started (look for “Kindred setup”).",
   "setup.print_it_again": "Print it again",
   "setup.your_name": "Your name",
+  "setup.given_name": "Given name",
+  "setup.surname": "Surname",
   "setup.as_the_family_calls_you": "As the family calls you",
   "setup.this_browser_can_t_use_passkeys_try_the_newest_safari_chrome_edge_or_firefox": "This browser can’t use passkeys. Try the newest Safari, Chrome, Edge or Firefox.",
   "setup.waiting_for_your_device": "Waiting for your device…",
@@ -35,7 +37,7 @@ export const en = {
 
 export const de: Record<keyof typeof en, Message> = {
   "setup.family_name": "Name der Familie",
-  "setup.family_name_hint": "So sehen Verwandte die Familie. Du kannst ihn später ändern.",
+  "setup.family_name_hint": "So sehen Verwandte die Familie.",
   "setup.family_default": "Unsere Familie",
   "setup.family_ready_title": "{name} ist bereit",
   "setup.family_ready_lede": "Fang mit dir selbst an. Sobald du im Stammbaum bist, kannst du Verwandte hinzufügen und die Familie einladen.",
@@ -57,6 +59,8 @@ export const de: Record<keyof typeof en, Message> = {
   "setup.the_server_printed_it_in_its_terminal_when_it_started_look_for_kindred_setup": "Du findest ihn im Terminal des Servers beim Start unter „Kindred setup“.",
   "setup.print_it_again": "Erneut anzeigen",
   "setup.your_name": "Dein Name",
+  "setup.given_name": "Vorname",
+  "setup.surname": "Nachname",
   "setup.as_the_family_calls_you": "Wie dich deine Familie nennt",
   "setup.this_browser_can_t_use_passkeys_try_the_newest_safari_chrome_edge_or_firefox": "Dieser Browser unterstützt keine Passkeys. Versuche es mit einem aktuellen Safari, Chrome, Edge oder Firefox.",
   "setup.waiting_for_your_device": "Warte auf dein Gerät…",
@@ -67,7 +71,7 @@ export const de: Record<keyof typeof en, Message> = {
 /** Afrikaans. A missing entry falls back to English at runtime; the test reports them. */
 export const af: Partial<Record<keyof typeof en, Message>> = {
   "setup.family_name": "Familienaam",
-  "setup.family_name_hint": "Hoe familielede die familie sal sien. Jy kan dit later verander.",
+  "setup.family_name_hint": "Hoe familielede die familie sal sien.",
   "setup.family_default": "Ons familie",
   "setup.family_ready_title": "{name} is gereed",
   "setup.family_ready_lede": "Begin met jouself. Wanneer jy in die stamboom is, voeg familie by en nooi hulle uit.",
@@ -89,6 +93,8 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   "setup.the_server_printed_it_in_its_terminal_when_it_started_look_for_kindred_setup": "Die bediener het dit in sy terminaal gedruk toe dit begin het (soek na “Kindred setup”).",
   "setup.print_it_again": "Druk dit weer uit",
   "setup.your_name": "Jou naam",
+  "setup.given_name": "Voornaam",
+  "setup.surname": "Van",
   "setup.as_the_family_calls_you": "Soos die familie jou noem",
   "setup.this_browser_can_t_use_passkeys_try_the_newest_safari_chrome_edge_or_firefox": "Hierdie blaaier kan nie passkeys gebruik nie. Probeer die nuutste Safari, Chrome, Edge of Firefox.",
   "setup.waiting_for_your_device": "Wag vir jou toestel…",

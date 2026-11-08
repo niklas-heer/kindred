@@ -62,12 +62,12 @@ export const savePersonEdit = createServerFn({ method: 'POST' })
     return (await import('./person.server')).savePersonEdit(data.tree, data.id, data.details, data.fields, data.revision, opOf(m.user, data), m.user.name);
   });
 
-/** The first-run step after setup: the steward adds themselves to the new family. Returns their person id. */
+/** The first-run step after setup: the steward adds themselves to the new family, with their given name and surname apart. Returns their person id. */
 export const addSelfToFamily = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, name: z.string().trim().min(1, 'A name is needed').max(120), opKey }))
+  .validator(z.object({ tree, given: z.string().trim().min(1, 'A name is needed').max(120), surname: z.string().trim().max(120), opKey }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireCan(data.tree, 'edit-person');
-    return (await import('./person.server')).addFirstPerson(data.tree, data.name, opOf(m.user, data));
+    return (await import('./person.server')).addFirstPerson(data.tree, { given: data.given, surname: data.surname }, opOf(m.user, data));
   });
 
 /** Adds one field to the end of the list: a contact from the Everyday tab. */

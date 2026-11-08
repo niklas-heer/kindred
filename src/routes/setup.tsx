@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { AuthCard, AuthError, PasskeyExplainer } from '~/components/AuthCard';
 import { forgetLocalIdentity, passkeysSupported, setUpFirstSteward } from '~/lib/auth/client';
 import { sessionQuery } from '~/lib/auth/functions';
+import { splitName } from '~/lib/auth/name';
 import { chooseMe } from '~/lib/family';
 import { opKeys } from '~/lib/api';
 import { addSelfToFamily } from '~/lib/person.functions';
@@ -130,7 +131,10 @@ function Setup() {
 function FirstRunStep({ tree, family, steward }: MadeFamily) {
   const t = useT();
   const [keys] = useState(opKeys);
-  const [who, setWho] = useState(steward);
+  // The name typed in setup, taken apart at its last space: the steward checks both parts before saving.
+  const [parts] = useState(() => splitName(steward));
+  const [given, setGiven] = useState(parts.given);
+  const [surname, setSurname] = useState(parts.surname);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -139,7 +143,7 @@ function FirstRunStep({ tree, family, steward }: MadeFamily) {
     setBusy(true);
     setError(null);
     try {
-      const body = { tree, name: who.trim() };
+      const body = { tree, given: given.trim(), surname: surname.trim() };
       const id = await addSelfToFamily({ data: { ...body, opKey: keys.for('self', body) } });
       keys.clear('self');
       await chooseMe(tree, id);
@@ -154,11 +158,15 @@ function FirstRunStep({ tree, family, steward }: MadeFamily) {
     <AuthCard crest={<Crown size={44} />} kicker={family} title={t('setup.family_ready_title', { name: family })} lede={t('setup.family_ready_lede')}>
       <form className="auth-form" onSubmit={addMe}>
         <label className="field">
-          <span>{t('setup.your_name')}</span>
-          <input className="input" value={who} onChange={(e) => setWho(e.target.value)} required maxLength={120} autoFocus />
+          <span>{t('setup.given_name')}</span>
+          <input className="input" value={given} onChange={(e) => setGiven(e.target.value)} autoComplete="given-name" required maxLength={120} autoFocus />
+        </label>
+        <label className="field">
+          <span>{t('setup.surname')}</span>
+          <input className="input" value={surname} onChange={(e) => setSurname(e.target.value)} autoComplete="family-name" maxLength={120} />
         </label>
         <AuthError>{error}</AuthError>
-        <button className="btn primary auth-go" disabled={busy || !who.trim()}>
+        <button className="btn primary auth-go" disabled={busy || !given.trim()}>
           <UserPlus size={19} /> {t('setup.add_me')}
         </button>
       </form>

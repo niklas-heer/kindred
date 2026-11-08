@@ -112,6 +112,29 @@ test('bootstrap modes, discoverable options, exclusions and proxy origin', async
       assert.equal(setup.setupOpenToPublic(new URL('https://family.example.org')), false);
       delete process.env.KINDRED_SETUP_CODE;
     });
+    await t.test('a public address the request arrives at makes setup public, even when KINDRED_ORIGIN is local', () => {
+      delete process.env.KINDRED_SETUP_CODE;
+      const local = new URL('http://localhost:4901');
+      assert.equal(setup.setupOpenToPublic(local, local), false, 'local origin, local host');
+      assert.equal(setup.setupOpenToPublic(local, new URL('https://family.example.org')), true, 'the proxy forwards a public name');
+      assert.equal(setup.setupOpenToPublic(new URL('https://family.example.org'), local), true, 'the configured origin is public');
+      process.env.KINDRED_SETUP_CODE = 'required';
+      assert.equal(setup.setupOpenToPublic(local, new URL('https://family.example.org')), false, 'a code is required: not open');
+      delete process.env.KINDRED_SETUP_CODE;
+    });
+    await t.test('a public host other than KINDRED_ORIGIN’s is logged once; the same host, the scheme, and loopback are not', () => {
+      const lines: string[] = [];
+      const log = (m: string) => lines.push(m);
+      assert.equal(setup.logOriginMismatch(undefined, new URL('https://other.example.net/'), log), false, 'nothing configured');
+      assert.equal(setup.logOriginMismatch('https://family.example.org/', new URL('https://family.example.org/x'), log), false, 'the scheme differs behind a proxy: normal');
+      assert.equal(setup.logOriginMismatch('http://localhost:4901', new URL('http://localhost:4901/'), log), false, 'the same host');
+      assert.equal(setup.logOriginMismatch('https://family.example.org', new URL('http://127.0.0.1:4901/'), log), false, 'the server checking its own address');
+      assert.equal(lines.length, 0);
+      assert.equal(setup.logOriginMismatch('https://family.example.org', new URL('https://other.example.net/api'), log), true);
+      assert.equal(setup.logOriginMismatch('https://family.example.org', new URL('https://other.example.net/api'), log), false, 'once per process');
+      assert.equal(lines.length, 1);
+      assert.match(lines[0], /other\.example\.net.*family\.example\.org/);
+    });
   } finally {
     (await import('../store/node.ts')).closeAccounts();
     process.env = saved;

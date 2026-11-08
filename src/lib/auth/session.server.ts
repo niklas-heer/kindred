@@ -1,19 +1,17 @@
 // Who is asking: a session cookie from a passkey sign-in, or else (behind Cloudflare Access) a
 // verified Access identity. The cookie holds a random token; the store keeps only its hash.
 import { setupCodeRequired } from './setup.server.ts';
-import { families } from './trees.server.ts';
+import { families, makeFirstFamily } from './trees.server.ts';
 import { accessEmail } from './access.server.ts';
+import { isLocale, negotiateLocale, translate, type Locale } from '../i18n/dictionary.ts';
 import {
   commit, createSession, deleteSession, newUser, noUsersYet, now, pendingInvitesFor, sessionByToken, slideSession, touchUser, upsertMembership, useInvite,
   userByEmail, userById, userCount, type UserRow,
 } from './store.server.ts';
 import type { Query } from '../store/index.ts';
 
-/** The site's own origin: KINDRED_ORIGIN when set (behind a proxy), else the request's. */
-export function siteOrigin(request: Request): URL {
-  const configured = process.env.KINDRED_ORIGIN?.trim();
-  return new URL(configured ? new URL(configured).origin : new URL(request.url).origin);
-}
+import { siteOrigin } from './origin.ts';
+export { siteOrigin };
 
 const secure = (request: Request) => siteOrigin(request).protocol === 'https:';
 // `__Host-` makes the browser refuse the cookie unless it is Secure, host-only and for the whole site.
@@ -64,6 +62,12 @@ export interface Session {
   setCookie?: string;
 }
 
+/** The reader's language before they have an account: the guest cookie the app sets, else the browser's preference. */
+function guestLocale(request: Request): Locale {
+  const chosen = readCookie(request, 'kindred_locale_guest');
+  return isLocale(chosen) ? chosen : negotiateLocale(request.headers.get('accept-language') ?? '');
+}
+
 const nameFromEmail = (email: string) =>
   email.split('@')[0].split(/[._-]+/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ').slice(0, 80) || email;
 
@@ -87,7 +91,19 @@ export async function getSession(request: Request, verifiedEmail: (r: Request) =
   if (!email) return { user: null, via: null };
   // A verified Access identity: the account with that email, or an invitation sent to that email,
   // accepted on this first visit. Further invitations to the same email are accepted as they come.
-  const trees = (await userCount()) === 0 && !setupCodeRequired() ? await listFamilies() : [];
+  // The first account (no setup code) is the steward of the server's families. A server with none
+  // makes its first one here, exactly as passkey setup does (makeFirstFamily), so that account has a family.
+  const firstAccount = (await userCount()) === 0 && !setupCodeRequired();
+  let trees: { id: string }[] = firstAccount ? await listFamilies() : [];
+  if (firstAccount && !trees.length) {
+    try {
+      trees = [{ id: await makeFirstFamily(translate(guestLocale(request), 'setup.family_default')) }];
+    } catch (e) {
+      // Nothing is signed in and no account is made: the reader gets /setup, whose passkey step names the same problem.
+      console.error('[kindred] no first family for this Access sign-in:', e instanceof Error ? e.message : e);
+      return { user: null, via: null };
+    }
+  }
   // One batch per decision. The first account is guarded by "nobody has an account yet", a new
   // account by the email's UNIQUE key, and each invitation by its own use; when another request got
   // there first, the batch writes nothing and the decision is made again on fresh reads.

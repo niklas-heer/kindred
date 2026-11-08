@@ -69,3 +69,12 @@ export function presetLabel(stored: string, t: Translator): string {
   const key = OFFERED.get(stored);
   return key ? t(key) : stored;
 }
+
+/**
+ * A summary line with a field's stored label in it, as the reader sees it: "Allergies (food)" reads "Allergies (Essen)"
+ * in German, the same word the Edit tab shows. Text without the label is returned as it is.
+ */
+export function withPresetLabel(summary: string, stored: string, t: Translator): string {
+  if (!stored) return summary;
+  return summary.replace(`(${stored})`, `(${presetLabel(stored, t)})`);
+}

@@ -15,6 +15,8 @@ const { writeGedcom } = await import('./gedcom.ts');
 const { fixtureTree } = await import('./fixture.ts');
 const { readTree } = await import('./model.ts');
 const { db } = await import('../db.server.ts');
+const { store } = await import('../store/index.ts');
+import type { Db } from '../store/index.ts';
 const { applyImport, previewImport } = await import('./import.server.ts');
 
 /** An empty family database with the tree schema, as the app creates one. */
@@ -116,4 +118,43 @@ test('a file that would make someone their own ancestor previews the loop as a c
   await assert.rejects(applyImport('loops', loop, undefined, false), { message: 'exchange.cycle_refused' });
   assert.equal((await db('loops').get<{ n: number }>('SELECT count(*) AS n FROM person'))!.n, 0, 'nothing was written');
   assert.equal((await db('loops').get<{ n: number }>('SELECT count(*) AS n FROM parent'))!.n, 0);
+});
+
+test('a parent link another editor replaces between the plan and the write is caught: the import plans again and refuses the loop', async () => {
+  emptyFamily('race');
+  const r = db('race');
+  await r.run("INSERT INTO person (id, given, surname, living) VALUES ('ann', 'Ann', 'Race', 1), ('ben', 'Ben', 'Race', 1), ('cat', 'Cat', 'Race', 1)");
+  await r.run("INSERT INTO parent (child, parent) VALUES ('ben', 'ann')");
+  // The file says Ben is Cat's parent. Alone, that is fine: Ann is Ben's parent, and nothing above Cat is Ben.
+  const file = ['0 HEAD', '0 @ben@ INDI', '1 NAME Ben /Race/', '0 @cat@ INDI', '1 NAME Cat /Race/', '0 @F1@ FAM', '1 HUSB @ben@', '1 CHIL @cat@', '0 TRLR'].join('\n') + '\n';
+  assert.equal((await previewImport('race', file)).conflictCount, 0, 'the file alone is fine');
+
+  // Between the plan and the batch, another editor removes Ann → Ben and makes Cat → Ben: still one parent link, so the
+  // count the import used to guard does not move, and the new link closes a loop with the one the import would add.
+  const realTree = store.tree;
+  let raced = false;
+  store.tree = (id: string): Db => {
+    const inner = realTree(id);
+    if (id !== 'race') return inner;
+    return {
+      ...inner,
+      batch: async (qs) => {
+        if (!raced) {
+          raced = true;
+          await inner.run("DELETE FROM parent WHERE child = 'ben' AND parent = 'ann'");
+          await inner.run("INSERT INTO parent (child, parent) VALUES ('ben', 'cat')");
+        }
+        return inner.batch(qs);
+      },
+    } as Db;
+  };
+  try {
+    await assert.rejects(applyImport('race', file, undefined, true), { message: 'exchange.cycle_refused' });
+  } finally {
+    store.tree = realTree;
+  }
+  assert.ok(raced, 'the race was injected before the write');
+  const links = (await r.all<{ child: string; parent: string }>('SELECT child, parent FROM parent ORDER BY child, parent')).map((l) => ({ ...l }));
+  assert.deepEqual(links, [{ child: 'ben', parent: 'cat' }], 'the other editor’s link is kept and the import wrote no loop');
+  assert.equal((await r.get<{ n: number }>('SELECT count(*) AS n FROM person'))!.n, 3, 'and no person was added');
 });

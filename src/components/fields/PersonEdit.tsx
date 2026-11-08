@@ -4,10 +4,10 @@
 import { useForm } from '@tanstack/react-form';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, Trash2 } from 'lucide-react';
-import { useContext, useState } from 'react';
-import { opKeys, removePerson } from '~/lib/api';
-import { savePersonEdit } from '~/lib/person.functions';
-import { yearOf, type Family } from '~/lib/graph';
+import { useContext, useRef, useState } from 'react';
+import { graphQuery, opKeys, removePerson } from '~/lib/api';
+import { personDetailQuery, savePersonEdit } from '~/lib/person.functions';
+import { buildFamily, yearOf, type Family } from '~/lib/graph';
 import { validDate } from '~/lib/dates';
 import { useCan } from '~/lib/session';
 import type { GPerson, PersonDetail } from '~/lib/types';
@@ -16,7 +16,8 @@ import { MarkdownEditor } from '../MarkdownEditor';
 import { Select, Switch } from '../ui';
 import { DraftContext, DraftTracker } from './draft';
 import { draftOf, FieldEditor, type DraftField } from './FieldEditor';
-import { fieldIssue } from './model';
+import { CHANGED_SINCE_OPENED, fieldIssue } from './model';
+import { rebaseDraft } from './rebase';
 import { translateMessage, useT } from '~/lib/i18n';
 import { OccupationField } from './OccupationField';
 
@@ -37,6 +38,20 @@ interface Values {
   fields: DraftField[];
 }
 
+/** The form's values for a person as the server has them: the same for the first draft and for a rebase. */
+function valuesOf(p: GPerson, detail: PersonDetail): Values {
+  // Names: a null current name means "same as birth", so the switch starts on when both are unset.
+  const sameName = p.currentGiven == null && p.currentSurname == null;
+  return {
+    given: p.given, surname: p.surname ?? '', sameName,
+    currentGiven: p.currentGiven ?? p.given, currentSurname: p.currentSurname ?? p.surname ?? '',
+    nickname: p.nickname ?? '', sex: (p.sex ?? '') as '' | 'm' | 'f' | 'x',
+    born: p.born ?? '', bornPlace: placeValue(detail.bornPlace), died: p.died ?? '', diedPlace: placeValue(detail.diedPlace), living: p.living,
+    title: p.title ?? '', epithet: p.epithet ?? '', occupation: p.occupation ?? '', occupationCode: p.occupationCode ?? '', bio: detail.bio ?? '',
+    fields: detail.fields.map(draftOf),
+  };
+}
+
 export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
   const { leave } = useContext(DraftContext);
   const c = useT();
@@ -44,9 +59,17 @@ export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
   const medieval = tree === 'realm' || (!!p.born && yearOf(p.born) < 1500);
   const qc = useQueryClient();
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Set when the save was refused because the person changed: the reader may load the latest and keep their changes.
+  const [stale, setStale] = useState(false);
+  const [rebasing, setRebasing] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [keys] = useState(opKeys);
-  // The revision the draft was opened at. Read once: a refetch must not re-base the draft on newer data.
-  const [revision] = useState(detail.revision ?? 0);
+  // What the draft was opened on, read once: a refetch must not re-base the draft on newer data by accident. After a
+  // rebase these are the latest values, so the next rebase compares the reader's changes with what they last saw.
+  const [start] = useState(() => valuesOf(p, detail));
+  const base = useRef<Values>(start);
+  // The revision the draft was opened at; a rebase moves it to the latest one the reader has loaded.
+  const revision = useRef(detail.revision ?? 0);
   const remove = useMutation({
     mutationFn: () => removePerson({ data: { tree, id: p.id } }),
     onSuccess: async () => {
@@ -54,19 +77,12 @@ export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
       onRemoved();
     },
   });
-  // Names: a null current name means "same as birth", so the switch starts on when both are unset.
-  const sameName = p.currentGiven == null && p.currentSurname == null;
   const form = useForm({
-    defaultValues: {
-      given: p.given, surname: p.surname ?? '', sameName,
-      currentGiven: p.currentGiven ?? p.given, currentSurname: p.currentSurname ?? p.surname ?? '',
-      nickname: p.nickname ?? '', sex: (p.sex ?? '') as '' | 'm' | 'f' | 'x',
-      born: p.born ?? '', bornPlace: placeValue(detail.bornPlace), died: p.died ?? '', diedPlace: placeValue(detail.diedPlace), living: p.living,
-      title: p.title ?? '', epithet: p.epithet ?? '', occupation: p.occupation ?? '', occupationCode: p.occupationCode ?? '', bio: detail.bio ?? '',
-      fields: detail.fields.map(draftOf),
-    } as Values,
+    defaultValues: start,
     onSubmit: async ({ value }) => {
       setSaveError(null);
+      setStale(false);
+      setNotice(null);
       try {
         // Pins first: repeating them on a retry changes nothing.
         await savePlacesKeyed(tree, (pl) => keys.for('places', pl), value.bornPlace, value.living ? undefined : value.diedPlace);
@@ -77,7 +93,7 @@ export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
           title: value.title, epithet: value.epithet, occupation: value.occupation, occupationCode: value.occupationCode || null, bio: value.bio,
         };
         const fields = value.fields.map((x) => ({ id: x.id, type: x.type, label: x.label, value: x.value, private: x.private }));
-        const body = { tree, id: p.id, details, fields, revision };
+        const body = { tree, id: p.id, details, fields, revision: revision.current };
         await savePersonEdit({ data: { ...body, opKey: keys.for('edit', body) } });
         keys.clear('edit');
         await Promise.all([
@@ -92,9 +108,38 @@ export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
         const msg = e instanceof Error ? e.message : '';
         // A server message that is one of ours (in person.server.ts) is shown in the reader's language.
         setSaveError(!msg ? c('edit.saveFailed') : msg.startsWith('[') ? c('edit.checkFields') : translateMessage(msg, c.locale));
+        setStale(msg === CHANGED_SINCE_OPENED);
       }
     },
   });
+
+  /**
+   * Loads the person as it is now, and rebases the draft onto it: what the reader changed stays changed, the rest
+   * takes the latest values, and the revision moves on. The reader then checks it and saves again.
+   */
+  async function loadLatest() {
+    setRebasing(true);
+    setSaveError(null);
+    try {
+      const [graph, latestDetail] = await Promise.all([
+        qc.fetchQuery({ ...graphQuery(tree), staleTime: 0 }),
+        qc.fetchQuery({ ...personDetailQuery(tree, p.id), staleTime: 0 }),
+      ]);
+      const now = buildFamily(graph).byId.get(p.id);
+      if (!now) throw new Error('gone');
+      const latest = valuesOf(now, latestDetail);
+      const rebased = rebaseDraft(base.current, form.state.values as Values, latest);
+      base.current = latest;
+      revision.current = latestDetail.revision ?? revision.current;
+      for (const k of Object.keys(rebased) as (keyof Values)[]) form.setFieldValue(k, rebased[k] as never);
+      setStale(false);
+      setNotice(c('edit.rebased'));
+    } catch {
+      setSaveError(c('edit.saveFailed'));
+    } finally {
+      setRebasing(false);
+    }
+  }
 
   const date = ({ value }: { value: string }) => (value === '' || validDate(value.trim()) ? undefined : c('edit.dateHint'));
   const text = (name: keyof Values, label: string, opts: { placeholder?: string; validate?: typeof date; wide?: boolean } = {}) => (
@@ -221,6 +266,12 @@ export function PersonEdit({ tree, p, f, detail, done, onRemoved }: Props) {
       </form.Field>
 
       {saveError && <em role="alert" className="err wide">{saveError}</em>}
+      {stale && (
+        <div className="wide">
+          <button type="button" className="btn" onClick={() => void loadLatest()} disabled={rebasing}>{c('edit.loadLatest')}</button>
+        </div>
+      )}
+      {notice && <p role="status" className="wide subtle">{notice}</p>}
       <div className="row end wide pp-edit-actions">
         {canRemove && (
           <button

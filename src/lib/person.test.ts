@@ -99,12 +99,21 @@ test('a draft opened at the current revision, with the fields it shows, still sa
 });
 
 test('the first person of a new family is the steward, and sets the starting point once', async () => {
-  const id = await addFirstPerson(TREE, 'Niklas', undefined);
+  const id = await addFirstPerson(TREE, { given: 'Niklas', surname: '' }, undefined);
   assert.match(id, /^niklas_/);
   const focus = (await db(TREE).get<{ value: string }>("SELECT value FROM meta WHERE key = 'focus'"))!.value;
   assert.equal(focus, id, 'the new family starts at its first person');
-  const second = await addFirstPerson(TREE, 'Someone', undefined);
+  const second = await addFirstPerson(TREE, { given: 'Someone', surname: '' }, undefined);
   const still = (await db(TREE).get<{ value: string }>("SELECT value FROM meta WHERE key = 'focus'"))!.value;
   assert.equal(still, id, 'a later person does not move the starting point');
   assert.notEqual(second, id);
+});
+
+test('the first person keeps the given name and the surname apart, as the steward gave them', async () => {
+  const id = await addFirstPerson(TREE, { given: 'Paula', surname: 'Probe' }, undefined);
+  const row = await db(TREE).get<{ given: string; surname: string | null }>('SELECT given, surname FROM person WHERE id = ?', id);
+  assert.deepEqual({ given: row!.given, surname: row!.surname }, { given: 'Paula', surname: 'Probe' });
+  const blank = await addFirstPerson(TREE, { given: 'Anna', surname: '  ' }, undefined);
+  assert.equal((await db(TREE).get<{ surname: string | null }>('SELECT surname FROM person WHERE id = ?', blank))!.surname, null, 'a blank surname is none');
+  await assert.rejects(addFirstPerson(TREE, { given: '  ', surname: 'Probe' }, undefined), /given name/);
 });

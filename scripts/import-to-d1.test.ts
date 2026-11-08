@@ -169,3 +169,14 @@ test('emptying a target deletes the copied tables children first', () => {
   const sql = T.deleteSql(['meta', 'person', 'media_person']);
   assert.deepEqual(sql, ['DELETE FROM media_person;', 'DELETE FROM person;', 'DELETE FROM meta;']);
 });
+
+test('a D1 database that already holds the family’s details is refused up front, unless --replace is given', () => {
+  const empty = { people: 0, meta: 0 };
+  assert.equal(T.existingFamilyProblem(empty, 'modern', false), null, 'a new database takes the copy');
+  const people = T.existingFamilyProblem({ people: 3, meta: 1 }, 'modern', false);
+  assert.match(people ?? '', /already holds 3 people; pass --replace/);
+  const setup = T.existingFamilyProblem({ people: 0, meta: 6 }, 'family', false);
+  assert.match(setup ?? '', /setup made them.*--replace/, 'the setup case names --replace too');
+  assert.equal(T.existingFamilyProblem({ people: 3, meta: 6 }, 'modern', true), null, '--replace takes the copy, and empties the copied tables first');
+  assert.deepEqual(T.deleteSql(T.COPIED_TABLES).at(-1), 'DELETE FROM meta;', 'meta is one of the tables --replace empties');
+});

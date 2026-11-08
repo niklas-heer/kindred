@@ -108,6 +108,19 @@ export function planMedia(referencedKeys: string[], offered: MediaFile[]): Media
   return [...byKey.values()].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 }
 
+/**
+ * What a D1 database that already holds data means for the transfer, decided before anything is written. `people` and
+ * `meta` are what the target holds now. Setup makes a family's details (its meta rows) on Workers before any copy, so a
+ * database can hold a family with no people: the copy would then clash with those rows partway through. Without
+ * `--replace` the transfer is refused here, up front; with it, the copied tables are emptied first, meta included.
+ * Null when the transfer may go ahead.
+ */
+export function existingFamilyProblem(held: { people: number; meta: number }, database: string, replace: boolean): string | null {
+  if (replace || (held.people === 0 && held.meta === 0)) return null;
+  if (held.people > 0) return `${database} already holds ${held.people} people; pass --replace to overwrite it`;
+  return `${database} already has a family's details (setup made them) and no people; pass --replace to overwrite them, or the copy's rows would clash with them`;
+}
+
 /** An SQL literal for one value of a row. */
 export function literal(v: unknown): string {
   if (v === null || v === undefined) return 'NULL';

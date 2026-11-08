@@ -4,6 +4,7 @@
 // check them.
 import { z } from 'zod';
 import { validDate } from '../../lib/dates.ts';
+import { translate } from '../../lib/i18n/dictionary.ts';
 
 export const FIELD_TYPES = [
   'phone', 'email', 'address', 'website', 'social', 'names', 'dates', 'education', 'occupation', 'military',
@@ -15,6 +16,9 @@ export type FieldValue = Record<string, string>;
 
 /** The most fields one person can have. */
 export const MAX_FIELDS = 200;
+
+/** The refusal of a save made on a version of the person that has since changed (English; the reader sees their language). */
+export const CHANGED_SINCE_OPENED = translate('en', 'fields.changed_since_opened');
 
 /** One entry in a person's list of fields, as the browser receives it. */
 export interface PersonField {

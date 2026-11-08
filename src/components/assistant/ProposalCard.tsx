@@ -8,6 +8,7 @@ import { PROPOSAL_KIND_KEY } from '~/lib/ai/labels';
 import type { Proposal, ProposalArgs } from '~/lib/ai/types';
 import { useT, type Key } from '~/lib/i18n';
 import { errorText } from '~/lib/errortext';
+import { withPresetLabel } from '../fields/presets';
 import { applyProposal, approvalKeys, type ApprovalKeys } from './apply';
 
 const FIELD: Record<string, Key> = {
@@ -15,6 +16,15 @@ const FIELD: Record<string, Key> = {
   title: 'ai.fieldName', body: 'ai.fieldStory', label: 'ai.fieldLabel',
 };
 
+
+/**
+ * The server words the summary with the label as stored ("Allergien (food)"). The Edit tab shows the reader's word
+ * for a stored label from the field presets ("Essen"), so the card does the same for the one place it appears.
+ */
+function summaryWithLabel(proposal: Proposal, t: ReturnType<typeof useT>): string {
+  const raw = proposal.kind === 'add-field' && typeof proposal.args.label === 'string' ? proposal.args.label : '';
+  return withPresetLabel(proposal.summary, raw, t);
+}
 
 export function ProposalCard({ tree, itemId, proposal }: { tree: string; itemId: string; proposal: Proposal }) {
   const t = useT();
@@ -63,7 +73,7 @@ export function ProposalCard({ tree, itemId, proposal }: { tree: string; itemId:
   return (
     <article className={`ai-card ai-card-${status}`} aria-label={t('ai.proposalHeading')}>
       <p className="ai-card-kind">{t(PROPOSAL_KIND_KEY[proposal.kind])}</p>
-      <p className="ai-card-summary">{proposal.summary}</p>
+      <p className="ai-card-summary">{summaryWithLabel(proposal, t)}</p>
       {proposal.diff.length > 0 && (
         <dl className="ai-diff">
           {proposal.diff.map((d, i) => (

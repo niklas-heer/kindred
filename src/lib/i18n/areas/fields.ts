@@ -4,7 +4,7 @@ import type { Message } from "../types.ts";
 
 export const en = {
   "draft.unsaved": "Unsaved changes",
-  "fields.changed_since_opened": "Someone changed this person since you opened it — reload.",
+  "fields.changed_since_opened": "Someone changed this person since you opened it.",
   "type.phone": "Phone",
   "type.email": "Email",
   "type.address": "Address",
@@ -117,6 +117,8 @@ export const en = {
   "edit.dateHint": "Enter a year, year-month or year-month-day; use ~ for an approximate year",
   "edit.save": "Save",
   "edit.cancel": "Cancel",
+  "edit.loadLatest": "Load the latest and keep my changes",
+  "edit.rebased": "Loaded the latest version. Your changes are still here: check them, then save again.",
   "edit.remove": "Remove from tree",
   "edit.removeConfirm": "Remove {name} from the tree? Their family links, stories, details and photo go too.",
   "edit.saveFailed": "Could not save",
@@ -195,7 +197,7 @@ export const en = {
 
 export const de: Record<keyof typeof en, Message> = {
   "draft.unsaved": "Ungespeicherte Änderungen",
-  "fields.changed_since_opened": "Jemand hat diese Person geändert, seit du sie geöffnet hast — lade neu.",
+  "fields.changed_since_opened": "Jemand hat diese Person geändert, seit du sie geöffnet hast.",
   "type.phone": "Telefon",
   "type.email": "E-Mail",
   "type.address": "Adresse",
@@ -308,6 +310,8 @@ export const de: Record<keyof typeof en, Message> = {
   "edit.dateHint": "Gib ein Jahr, Jahr-Monat oder Jahr-Monat-Tag ein; ~ steht für ein ungefähres Jahr",
   "edit.save": "Speichern",
   "edit.cancel": "Abbrechen",
+  "edit.loadLatest": "Neueste Fassung laden und meine Änderungen behalten",
+  "edit.rebased": "Die neueste Fassung ist geladen. Deine Änderungen sind noch da: Prüf sie und speicher noch einmal.",
   "edit.remove": "Aus dem Stammbaum entfernen",
   "edit.removeConfirm": "{name} aus dem Stammbaum entfernen? Die Verwandtschaftsverbindungen, Geschichten, Angaben und das Foto gehen mit.",
   "edit.saveFailed": "Konnte nicht gespeichert werden",
@@ -387,7 +391,7 @@ export const de: Record<keyof typeof en, Message> = {
 /** Afrikaans. A missing entry falls back to English at runtime; the test reports them. */
 export const af: Partial<Record<keyof typeof en, Message>> = {
   "draft.unsaved": "Ongestoorde veranderinge",
-  "fields.changed_since_opened": "Iemand het hierdie persoon verander sedert jy dit oopgemaak het — laai weer.",
+  "fields.changed_since_opened": "Iemand het hierdie persoon verander sedert jy dit oopgemaak het.",
   "type.phone": "Telefoon",
   "type.email": "E-pos",
   "type.address": "Adres",
@@ -500,6 +504,8 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   "edit.dateHint": "Tik ’n jaar, jaar-maand of jaar-maand-dag in; gebruik ~ vir ’n benaderde jaar",
   "edit.save": "Stoor",
   "edit.cancel": "Kanselleer",
+  "edit.loadLatest": "Laai die nuutste weergawe en hou my veranderinge",
+  "edit.rebased": "Die nuutste weergawe is gelaai. Jou veranderinge is nog hier: kontroleer hulle en stoor weer.",
   "edit.remove": "Verwyder uit die boom",
   "edit.removeConfirm": "Verwyder {name} uit die boom? Hul familieskakels, verhale, besonderhede en foto gaan ook.",
   "edit.saveFailed": "Kon nie stoor nie",

@@ -23,18 +23,24 @@ do not work on a plain address other than `localhost`.
 
 ## Settings
 
-Compose reads `.env` for the settings below, and passes them into the container. Without Docker, set them as environment
-variables for the server.
+Compose reads `.env` for the settings below, and passes the ones the app reads into the container: `KINDRED_ORIGIN`,
+`KINDRED_SETUP_CODE`, `KINDRED_REQUIRE_SETUP_CODE`, `KINDRED_DEFAULT_TREE` and `KINDRED_SECRET`. `KINDRED_DOMAIN` goes to
+Caddy, and `WITH_GAZETTEER` to the build. An empty value is the same as an unset one, so the defaults still apply. Without
+Docker, set them as environment variables for the server.
+
+The image fixes four things that Compose cannot change without breaking the setup: the data is the `/data` volume
+(`KINDRED_DATA_DIR`), the app listens on port 4901 inside the container (`PORT`, and `HOST` is `0.0.0.0`), and the
+gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running without Docker.
 
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `KINDRED_ORIGIN` | `http://localhost:4901` in Compose; otherwise the address the request came in on | The public address, such as `https://family.example.org`. Passkeys are bound to its host name, sessions use its scheme for the cookie's `Secure` flag, and the setup warning uses it. Set it before the first sign-in. |
 | `KINDRED_SETUP_CODE` | empty | Who may create the first account. Empty: anyone who reaches `/setup` first. `required`: a one-time code is printed in the log at each start, until the first account exists. Or a code of your own, 12 characters or more, which stays the same. |
-| `KINDRED_DEFAULT_TREE` | none | The family that `/` opens directly, for its members. |
-| `KINDRED_DATA_DIR` | `/data` in the image, `data/` otherwise | Where the families, pictures, accounts and the secret are kept. |
-| `KINDRED_SECRET` | the `secret` file in the data folder | The key that seals saved AI keys. Set it here to keep it out of the data folder. |
+| `KINDRED_DEFAULT_TREE` | `family` | The family that `/` opens directly, for its members. Lower-case letters, digits and dashes. |
+| `KINDRED_DATA_DIR` | `/data` in the image, `data/` otherwise | Where the families, pictures, accounts and the secret are kept. Docker: fixed at `/data`. |
+| `KINDRED_SECRET` | the `secret` file in the data folder | The key that seals the AI keys the stewards save. Set it here to keep it out of the data folder; it must then stay the same. |
 | `KINDRED_GAZETTEER` | `gazetteer.db` in the data folder | The offline place search. The image sets it to a file it may contain (see below). |
-| `PORT` | `4901` | The port the server listens on. |
+| `PORT` | `4901` | The port the server listens on. Docker: the image uses 4901, and Compose maps it. |
 | `HOST` | `127.0.0.1` | The address it listens on. The image sets `0.0.0.0`, so that Docker can reach it. |
 
 The Docker build also takes `WITH_GAZETTEER=1`, set in `.env` or on the command line (see below).
@@ -98,6 +104,15 @@ Everything the app keeps is in the data folder: `/data` in the container, which 
 SQLite runs in WAL mode, so you will see `-wal` and `-shm` files next to each database while the app runs. They belong to the
 database: leave them in place, and never copy a live `.db` file with `cp`. Use the online backup below.
 
+The volume belongs to uid 1000, the image's `node` user, which runs the app. If you replace the volume with a folder on the
+host (a bind mount at `/data`), that folder must belong to uid 1000 before the first start, or the app cannot write its files:
+
+```sh
+sudo chown -R 1000:1000 ./kindred-data   # the folder you bind-mount at /data
+```
+
+A folder owned by root makes the app's first write fail with `EACCES` (permission denied).
+
 The place search file (`gazetteer.db`) is not in the volume. In the image it is at `/app/gazetteer/gazetteer.db`, built in
 when `WITH_GAZETTEER=1`, and it is rebuilt from GeoNames, so it does not need a backup.
 
@@ -112,11 +127,13 @@ Nothing else is affected. If you set `KINDRED_SECRET`, that value is used instea
 Back up three things: the family and account databases, the pictures, and the `secret` file.
 
 **While the app runs (no downtime), with Docker.** The image has no `sqlite3` command, but it has Node's own online backup,
-which copies a live database the same way `.backup` does. It writes into `./backups` on this machine:
+which copies a live database the same way `.backup` does. It writes into `./backups` on this machine. The one-off containers
+below run as `root`, not as the image's `node` user (uid 1000): a `backups` folder made by a root shell on the host is owned
+by root, and uid 1000 cannot write into it. `root` writes there, and the app keeps running as `node`.
 
 ```sh
 mkdir -p backups
-docker compose run --rm --no-deps --entrypoint node -v "$PWD/backups:/backup" app -e "
+docker compose run --rm --no-deps --user root --entrypoint node -v "$PWD/backups:/backup" app -e "
   const { backup, DatabaseSync } = require('node:sqlite');
   const fs = require('node:fs');
   (async () => {
@@ -146,14 +163,17 @@ cp data/secret "$dest/" 2>/dev/null || true
 
 ```sh
 docker compose stop app
-docker run --rm -v kindred_kindred-data:/data -v "$PWD/backups:/backup" kindred:local \
+docker run --rm --user root -v kindred_kindred-data:/data -v "$PWD/backups:/backup" kindred:local \
   tar -czf "/backup/kindred-data-$(date +%F).tar.gz" -C /data .
 docker compose start app
 ```
 
+The archive is written as `root` into `backups/`, and it is readable by anyone who can read that folder.
+
 The volume is called `kindred_kindred-data` because Compose names it after the project (`kindred`). `docker volume ls` shows the name.
 
-**Restoring** replaces everything in the volume: stop the app, unpack a copy into the volume, and start it again.
+**Restoring** replaces everything in the volume: stop the app, unpack a copy into the volume, and start it again. It runs as
+the image's `node` user, which owns the volume, and only reads the archive from `backups/`.
 
 ```sh
 docker compose stop app

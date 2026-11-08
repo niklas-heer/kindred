@@ -77,8 +77,10 @@ export interface ApplyResult {
 
 /**
  * Writes the import. A family that already has people needs `allowExisting`: adding a file to a family is
- * never the default. The batch restates the counts the plan read, so if anyone else changed the family in
- * between, nothing is written and the import is planned again on fresh reads (see `once`).
+ * never the default. The batch restates what the plan read, so if anyone else changed the family in between,
+ * nothing is written and the import is planned again on fresh reads (see `once`). The parent links are guarded
+ * as a set, not a count: another editor can replace one link with a different one and leave the count the same,
+ * and the loop check above only holds for the links it read.
  */
 export function applyImport(tree: string, text: string, op: OpKey | undefined, allowExisting: boolean): Promise<ApplyResult> {
   return once<ApplyResult>(tree, op, 'importExchange', async (d) => {
@@ -93,6 +95,12 @@ export function applyImport(tree: string, text: string, op: OpKey | undefined, a
     const writes: Query[] = [
       guard('(SELECT count(*) FROM person) = ?', existing.people.length),
       guard('(SELECT count(*) FROM parent) = ?', existing.parents.length),
+      // Every link the plan read is still there (with the count above, that makes the set the same).
+      guard(
+        '(SELECT count(*) FROM parent WHERE (child, parent) IN (SELECT json_extract(value, \'$[0]\'), json_extract(value, \'$[1]\') FROM json_each(?))) = ?',
+        JSON.stringify(existing.parents.map((l) => [l.child, l.parent])),
+        existing.parents.length,
+      ),
       guard('(SELECT count(*) FROM partnership) = ?', existing.unions.length),
     ];
     for (const p of plan.add) {
