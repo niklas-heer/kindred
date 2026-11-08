@@ -58,7 +58,10 @@ shared by the family. A budget of 0 turns the AI off.
 - **The booking is settled to the real cost.** When the provider answers, the booking is replaced by what the call
   cost: OpenRouter's reported USD cost when it reports one; otherwise the tokens the call used and its web searches, at
   the model's price. The estimate covers the input, the reply's maximum length and the searches the call may run.
-- **A failed call is charged its estimate**, since the provider may have billed it.
+- **A failed call is charged for what it billed.** Its completed requests are charged at their real cost. A request that timed
+  out or gave an unreadable reply is charged its estimate, since the provider may have billed it. A refused or unbilled failure costs nothing.
+- **One call may not take more than a fifth of the budget.** A call whose estimate is more than 20% of the month's budget is
+  refused with a message, not run on a guess. The rule does not apply below a $1 budget. Enter the model's prices, or raise the budget.
 
 Spend is stored in `ai_spend` (micro-dollars, one row per family per UTC month). Each family's custom prices and budget are
 in `ai_settings` (migration `migrations/accounts/0007_ai_money.sql`). The older `ai_usage` table (tokens per day) is no
@@ -66,15 +69,25 @@ longer written.
 
 ## Web search
 
-**Web search is off by default.** A steward turns it on in step 4. When it is on, the assistant may search the web while
-it answers, and each search costs extra (see above).
+**Web search is off by default.** A steward turns it on in step 4. When it is on, the assistant may look up a general fact on
+the web once per reply, through its `web_lookup` tool. Each lookup is a request of its own, and each search costs extra
+(see above). The chat's own requests never enable a provider's search.
 
-- **Anthropic:** the server web search tool (`web_search_20250305`), with at most three searches per reply. Anthropic runs the
-  searches and cites them. A search turn that pauses is continued.
-- **OpenAI:** the hosted `web_search` tool of the Responses API. A reply that uses web search is sent through the
-  Responses API; other calls stay on Chat Completions.
-- **OpenRouter:** the web plugin (`plugins: [{ "id": "web" }]`), which searches for any model it lists. Its cost comes back
-  in the reply.
+- **The lookup:** one request whose only input is a fixed instruction and the query the assistant wrote. No family data and no
+  chat history go with it. Before it is sent, the query is checked: it is refused if it names a living person (a given name
+  with their surname, current or birth, in any order, spelling or punctuation), uses a nickname of one, carries a private detail
+  the reader may see (street and postcode, a medical note, a phone number; a city or a country is not private), carries a web
+  address or a search operator such as `site:`, or carries a long number such as a telephone number. The reader is told why,
+  never what the detail was. A second lookup in the same reply is not run.
+- **Anthropic:** the server web search tool (`web_search_20250305`), with at most three searches per lookup. Anthropic runs the
+  searches and cites them. A search turn that pauses is continued at most twice; the budget reserves for every request that
+  may be made.
+- **OpenAI:** the hosted `web_search` tool of the Responses API, with `max_tool_calls` as its ceiling.
+- **OpenRouter:** its server tool `openrouter:web_search`, with `max_tool_calls` as its ceiling. The model decides whether to
+  search. The `:online` suffix is removed from every model id, so no model searches by itself through its name, and OpenAI's
+  search models and OpenRouter's Perplexity models are refused for the assistant and the research.
+- **Reasoning models** are capped at 8,000 tokens with a low reasoning effort. OpenRouter's list says which models reason; the
+  name is the guess for the rest. A reply that runs out of room is an error, not a partial answer.
 
 The sources a reply drew on come back with it (`AiReply.sources`), and the assistant stores them with the reply.
 
@@ -95,8 +108,8 @@ Every provider call is made by the server. The browser never talks to a provider
   the reader is allowed to see: names, dates, places, occupation, the biography (cut to 1,500 characters), up to 40
   fields, and family links. **Private fields are included only for editors and stewards**, the same rule the rest of the
   app follows, and the reader's role decides what is returned.
-- with web search on, the search queries the model writes. These go to the provider's search, and are never meant to
-  name a living person or carry a private detail.
+- with web search on, the query of each web lookup the assistant writes. It goes to the provider's search alone, after the
+  guard above has checked it for names, private details, addresses and long numbers.
 
 The propose tools (add a person, link relatives, set dates, add a memory, add a field) write nothing. Each proposal
 appears as a card for the reader to approve, and approving it calls the same server function the reader would use by

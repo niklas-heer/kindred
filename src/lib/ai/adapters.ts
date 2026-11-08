@@ -8,7 +8,14 @@ import { PROVIDER_LABEL, type Provider } from './types';
 export type AiErrorCode =
   | 'not-configured' | 'key-required' | 'bad-input' | 'budget' | 'auth' | 'rate-limited' | 'timeout' | 'unreachable' | 'provider' | 'bad-output' | 'key-unreadable';
 
+/** What the provider billed for requests that completed: the usage a budget settles to when a later request fails. */
+export interface Usage { inputTokens: number; outputTokens: number; searches: number }
+
 export class AiError extends Error {
+  /** The usage of the requests that completed before this error (a paused search turn's earlier rounds), when there were any. */
+  billed?: Usage;
+  /** Set when the request that failed was sent and may have billed (its reply never came, or could not be read). */
+  inFlight?: boolean;
   constructor(readonly code: AiErrorCode, message: string, readonly retryAfter?: number) {
     super(message);
     this.name = 'AiError';
@@ -30,23 +37,47 @@ export const DEFAULT_SEARCH_USES = 3;
 /** The reply length a call asks for when the request does not say. */
 export const DEFAULT_MAX_TOKENS = 1024;
 /**
- * OpenAI's guidance for reasoning models: reserve at least 25,000 tokens for reasoning and the answer together, since
- * reasoning tokens count against max_output_tokens. A reasoning model's reply is never capped below this.
+ * A reasoning model's reply is never capped below this, with reasoning effort low: reasoning tokens count against the cap,
+ * so a short cap would leave no room for the answer. A reply that still runs out is an error, not a partial answer.
  */
-export const REASONING_MAX_TOKENS = 25_000;
+export const REASONING_MAX_TOKENS = 8_000;
+/** The continuations a paused Anthropic search turn may take. The budget reserves for exactly the first request and each of these. */
+export const PAUSE_CONTINUATIONS = 2;
 const REASONING_MODEL: Record<'openai' | 'openrouter', RegExp> = {
   openai: /^(o\d|gpt-5|gpt-6)/,
   openrouter: /(^|\/)(o\d|gpt-5|gpt-6)/,
 };
 
-/** Whether a model reasons before it answers (so it needs the larger cap, and takes a reasoning effort). */
-export const isReasoningModel = (provider: Provider | 'fake', model: string): boolean =>
-  provider === 'openai' || provider === 'openrouter' ? REASONING_MODEL[provider].test(model) : false;
+/**
+ * Whether a model reasons before it answers (so it needs the larger cap, and takes a reasoning effort). OpenRouter's list
+ * says so for the models it lists (the adapter's `reasoning` option); the model's name is the guess for the rest.
+ */
+export const isReasoningModel = (provider: Provider | 'fake', model: string, listed?: boolean): boolean =>
+  listed ?? (provider === 'openai' || provider === 'openrouter' ? REASONING_MODEL[provider].test(model) : false);
 
 /** The most tokens a reply may use: the caller's request, raised for a reasoning model. Sent to the provider and reserved by the budget alike. */
-export function outputCap(provider: Provider | 'fake', model: string, requested = DEFAULT_MAX_TOKENS): number {
-  return isReasoningModel(provider, model) ? Math.max(requested, REASONING_MAX_TOKENS) : requested;
+export function outputCap(provider: Provider | 'fake', model: string, requested = DEFAULT_MAX_TOKENS, listed?: boolean): number {
+  return isReasoningModel(provider, model, listed) ? Math.max(requested, REASONING_MAX_TOKENS) : requested;
 }
+
+/**
+ * OpenRouter's ":online" suffix turns on its web plugin for any model: the model then searches whatever the request holds,
+ * with no ceiling and outside the budget. So the suffix is removed from every model id Kindred sends. A search goes only
+ * through the server tool that a search request names (isolatedSearch).
+ */
+export const chatModelId = (provider: Provider | 'fake', model: string): string =>
+  provider === 'openrouter' ? model.replace(/(:online)+$/i, '') : model;
+
+/**
+ * Model ids that search the web by themselves, whatever a request says: OpenAI's search models, and OpenRouter's Perplexity
+ * models. Kindred never sends a chat, arms or other non-search request to one of these.
+ */
+export const searchesOnItsOwn = (provider: Provider | 'fake', model: string): boolean =>
+  (provider === 'openai' && /-search/i.test(model)) || (provider === 'openrouter' && /(^|\/)perplexity\//i.test(model));
+
+/** How many requests a call may make to the provider. A paused Anthropic search turn is continued, up to PAUSE_CONTINUATIONS times. */
+export const callRounds = (provider: Provider | 'fake', req: Pick<AiRequest, 'webSearch' | 'json'>): number =>
+  provider === 'anthropic' && req.webSearch && !req.json ? PAUSE_CONTINUATIONS + 1 : 1;
 
 export interface AiRequest {
   system: string;
@@ -85,6 +116,8 @@ export interface AiReply {
 export interface AiAdapter {
   readonly provider: Provider | 'fake';
   readonly model: string;
+  /** Whether the model reasons before it answers, when the provider's list says so. Undefined: the model's name decides. */
+  readonly reasoning?: boolean;
   complete(req: AiRequest): Promise<AiReply>;
 }
 
@@ -195,9 +228,23 @@ function anthropic(key: string, model: string): AiAdapter {
       let outputTokens = 0;
       let searches = 0;
       let data: any;
-      // A long search turn can pause (stop_reason pause_turn): send the paused message back unchanged to continue it.
+      // A failure must still report the usage of the rounds that completed before it: they billed. `inFlight` says whether
+      // the failing request itself was sent, which only a request in flight can leave unknown.
+      const billed = (e: unknown, inFlight: boolean): unknown => {
+        if (e instanceof AiError) {
+          if (inputTokens || outputTokens) e.billed = { inputTokens, outputTokens, searches };
+          e.inFlight = inFlight;
+        }
+        return e;
+      };
+      // A long search turn can pause (stop_reason pause_turn): send the paused message back unchanged to continue it, up to
+      // PAUSE_CONTINUATIONS times. The budget reserves for exactly that many requests (callRounds).
       for (let round = 0; ; round++) {
-        data = await post('anthropic', 'https://api.anthropic.com/v1/messages', headers, body, key, timeoutMs);
+        try {
+          data = await post('anthropic', 'https://api.anthropic.com/v1/messages', headers, body, key, timeoutMs);
+        } catch (e) {
+          throw billed(e, true);
+        }
         const blocks = (data.content ?? []) as { type: string; text?: string; id?: string; name?: string; input?: unknown; content?: unknown }[];
         text += blocks.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
         for (const b of blocks.filter((x) => x.type === 'tool_use')) calls.push({ id: b.id!, name: b.name!, args: b.input });
@@ -208,14 +255,14 @@ function anthropic(key: string, model: string): AiAdapter {
         inputTokens += data.usage?.input_tokens ?? 0;
         outputTokens += data.usage?.output_tokens ?? 0;
         searches += data.usage?.server_tool_use?.web_search_requests ?? blocks.filter((b) => b.type === 'server_tool_use' && b.name === 'web_search').length;
-        if (data.stop_reason !== 'pause_turn' || round >= 3) break;
+        if (data.stop_reason !== 'pause_turn' || round >= PAUSE_CONTINUATIONS) break;
         body.messages = [...(body.messages as unknown[]), { role: 'assistant', content: data.content }];
       }
       // A reply cut off by its cap, or a search turn still paused, is not an answer: say so instead of showing part of one.
-      if (data.stop_reason === 'max_tokens' || data.stop_reason === 'pause_turn') throw new AiError('bad-output', 'Anthropic stopped before it finished its answer.');
+      if (data.stop_reason === 'max_tokens' || data.stop_reason === 'pause_turn') throw billed(new AiError('bad-output', 'Anthropic stopped before it finished its answer.'), false);
       if (req.json) {
         const answer = calls.find((c) => c.name === req.json!.name);
-        if (!answer) throw new AiError('bad-output', 'ai.err_shape');
+        if (!answer) throw billed(new AiError('bad-output', 'ai.err_shape'), false);
         return { text, calls: [], json: answer.args, tokens: inputTokens + outputTokens, inputTokens, outputTokens, searches: 0 };
       }
       return {
@@ -292,7 +339,7 @@ async function openaiResponses(key: string, model: string, req: AiRequest): Prom
 
 // ---------- OpenAI Chat Completions, and OpenRouter, which is the same shape ----------
 
-function chatCompletions(provider: 'openai' | 'openrouter', key: string, model: string): AiAdapter {
+function chatCompletions(provider: 'openai' | 'openrouter', key: string, model: string, listedReasoning?: boolean): AiAdapter {
   const url = provider === 'openai' ? 'https://api.openai.com/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions';
   const headers: Record<string, string> = { 'content-type': 'application/json', authorization: `Bearer ${key}` };
   // OpenRouter identifies the app, never the reader: no email, no account id.
@@ -300,6 +347,7 @@ function chatCompletions(provider: 'openai' | 'openrouter', key: string, model: 
   return {
     provider,
     model,
+    reasoning: listedReasoning,
     async complete(req) {
       // OpenAI's web search is the Responses API's hosted tool. Structured output keeps the Chat Completions path.
       if (provider === 'openai' && req.webSearch && !req.json) return openaiResponses(key, model, req);
@@ -318,8 +366,8 @@ function chatCompletions(provider: 'openai' | 'openrouter', key: string, model: 
         }
       }
       const body: Record<string, unknown> = { model, messages };
-      const cap = outputCap(provider, model, req.maxTokens);
-      const reasoning = isReasoningModel(provider, model);
+      const cap = outputCap(provider, model, req.maxTokens, listedReasoning);
+      const reasoning = isReasoningModel(provider, model, listedReasoning);
       // OpenAI's reasoning models take max_completion_tokens; OpenRouter's normalised API takes max_tokens.
       if (provider === 'openai') {
         body.max_completion_tokens = cap;
@@ -384,8 +432,14 @@ function chatCompletions(provider: 'openai' | 'openrouter', key: string, model: 
   };
 }
 
-/** The adapter for a provider and key. `fetch` is the platform's, so this works on Workers. */
-export function makeAdapter(provider: Provider, key: string, model: string): AiAdapter {
-  if (provider === 'anthropic') return anthropic(key, model);
-  return chatCompletions(provider, key, model);
+/**
+ * The adapter for a provider and key. `fetch` is the platform's, so this works on Workers. The model id is sent as
+ * chatModelId gives it, and a model that searches by itself is refused (bad-input). `reasoning` is OpenRouter's list's
+ * answer on whether the model reasons, when it gave one.
+ */
+export function makeAdapter(provider: Provider, key: string, model: string, opts: { reasoning?: boolean } = {}): AiAdapter {
+  const id = chatModelId(provider, model);
+  if (searchesOnItsOwn(provider, id)) throw new AiError('bad-input', 'ai.err_model_search');
+  if (provider === 'anthropic') return anthropic(key, id);
+  return chatCompletions(provider, key, id, opts.reasoning);
 }

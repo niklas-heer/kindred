@@ -30,7 +30,7 @@ export interface Ctx {
   me: string | null;
   locale: AiLocale;
   /** Set when the family allows web lookups: the family's budgeted adapter, and where a lookup's sources are collected. */
-  search?: { adapter: AiAdapter; sources: { url: string; title?: string }[] };
+  search?: { adapter: AiAdapter; sources: { url: string; title?: string }[]; lookups: number };
 }
 
 const RESULT_LIMIT = 6000;
@@ -174,10 +174,12 @@ export async function runTool(ctx: Ctx, name: string, input: unknown, out: Propo
     }
     if (name === 'web_lookup') {
       const a = z.object({ query: z.string().trim().min(2).max(160) }).parse(input);
-      // The guard runs before anything is sent. A refusal says why, not what the private detail was.
-      const why = refusal(await privacyGuard(ctx.tree, g.people), a.query);
-      if (why) return json({ refused: true, reason: REFUSAL_REASON[why], note: 'Not sent to the web. Ask a general question instead, without names or private details.' });
       if (!ctx.search) return json({ error: 'web lookups are off for this family' });
+      // One lookup per reply. A second call is not run, and a refused first one counts too: a reply cannot keep rewording a name.
+      if (ctx.search.lookups++ >= 1) return json({ error: 'Only one web lookup is allowed per reply, and this one was not run. Answer with what you have.' });
+      // The guard runs before anything is sent. It checks only what this reader may see. A refusal says why, not what the detail was.
+      const why = refusal(await privacyGuard(ctx.tree, g.people, can(ctx.role, 'edit-person')), a.query);
+      if (why) return json({ refused: true, reason: REFUSAL_REASON[why], note: 'Not sent to the web. Ask a general question instead, without names or private details.' });
       const r = await isolatedLookup(ctx.search.adapter, a.query);
       for (const s of r.sources) if (!ctx.search.sources.some((x) => x.url === s.url)) ctx.search.sources.push(s);
       return json({ summary: r.text, sources: r.sources, searches: r.searches });

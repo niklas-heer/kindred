@@ -22,10 +22,11 @@ const { openSqlite, closeAccounts } = await load<typeof import('./store/node.ts'
 const { accounts } = await load<typeof import('./auth/store.server.ts')>('/src/lib/auth/store.server.ts');
 const chat = await load<typeof import('./ai/chat.server.ts')>('/src/lib/ai/chat.server.ts');
 const settings = await load<typeof import('./ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
-const { AiError, makeAdapter, isolatedSearch } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
+const { AiError, makeAdapter, isolatedSearch, callRounds } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
 const lookup = await load<typeof import('./ai/lookup.server.ts')>('/src/lib/ai/lookup.server.ts');
 const { tr } = await load<typeof import('./ai/labels.ts')>('/src/lib/ai/labels.ts');
 const { graph } = await load<typeof import('./db.server.ts')>('/src/lib/db.server.ts');
+const { CONSERVATIVE } = await load<typeof import('./ai/prices.ts')>('/src/lib/ai/prices.ts');
 
 test.after(async () => {
   closeAccounts();
@@ -144,7 +145,7 @@ test('a lookup whose query names a living person is refused before anything is s
 
 test('the guard refuses a living person’s full name (current or birth), a nickname and a private value; a surname alone is allowed', async () => {
   const g = await graph(TREE);
-  const guard = await lookup.privacyGuard(TREE, g.people);
+  const guard = await lookup.privacyGuard(TREE, g.people, true);
   const refused = (q: string) => lookup.refusal(guard, q);
   assert.equal(refused('Anna Kramer'), 'living-name', 'birth name');
   assert.equal(refused('anna brandt'), 'living-name', 'current name, case-insensitive');
@@ -160,7 +161,7 @@ test('the guard refuses a living person’s full name (current or birth), a nick
 
 test('a refusal says why, without echoing the private data', async () => {
   const g = await graph(TREE);
-  const guard = await lookup.privacyGuard(TREE, g.people);
+  const guard = await lookup.privacyGuard(TREE, g.people, true);
   const why = lookup.refusal(guard, `Anna Kramer and ${PRIVATE}`)!;
   assert.ok(why);
   const reason = lookup.REFUSAL_REASON[why];
@@ -173,7 +174,8 @@ test('a refusal says why, without echoing the private data', async () => {
 test('a search-capped call cannot pass its reservation: three searches fit what was booked for them', async () => {
   const price = { inPerM: 1, outPerM: 1, searchEach: 0.01 };
   const req = { system: 'S', messages: [{ role: 'user' as const, text: 'Heer' }], webSearch: { maxUses: 3 }, maxTokens: 200 };
-  const reserved = settings.estimateMicros(req, price);
+  // Anthropic may continue a paused search turn, so the reservation covers every request the turn may make.
+  const reserved = settings.estimateMicros(req, price, undefined, callRounds('anthropic', req));
   await familyFor('cap', reserved, true);
   const adapter = makeAdapter('anthropic', KEY, 'claude-sonnet-5-5');
   const booked = settings.budgeted('cap', reserved, adapter, price, tr('en'));
@@ -213,7 +215,8 @@ test('a call that would need more than the budget left is refused before it is s
 test('every lookup books its own budget: the second lookup cannot take what the first reserved', async () => {
   // A budget for about one lookup and the chat's own calls: the second lookup is refused.
   const price = { inPerM: 1, outPerM: 1, searchEach: 0.01 };
-  const oneLookup = settings.estimateMicros({ system: lookup.LOOKUP_SYSTEM, messages: [{ role: 'user', text: 'Heer' }], webSearch: { maxUses: lookup.LOOKUP_SEARCHES }, maxTokens: 600 }, price);
+  const lookupReq = { system: lookup.LOOKUP_SYSTEM, messages: [{ role: 'user' as const, text: 'Heer' }], webSearch: { maxUses: lookup.LOOKUP_SEARCHES }, maxTokens: 600 };
+  const oneLookup = settings.estimateMicros(lookupReq, price, undefined, callRounds('anthropic', lookupReq));
   await familyFor('lookups', oneLookup + 1_000, true);
   const booked = settings.budgeted('lookups', oneLookup + 1_000, makeAdapter('anthropic', KEY, 'claude-sonnet-5-5'), price, tr('en'));
   stubFetch([() => json({ content: [{ type: 'text', text: 'ok' }], stop_reason: 'end_turn', usage: SEARCH_USAGE })]);
@@ -288,4 +291,180 @@ test('isolatedSearch sends the given system and prompt, the search ceiling, and 
   assert.equal(sent[0].body.system, 'Fixed.');
   assert.deepEqual(sent[0].body.messages, [{ role: 'user', content: [{ type: 'text', text: 'Query only.' }] }]);
   assert.equal(sent[0].body.tools[0].max_uses, 2);
+});
+
+// ---------- one lookup per reply ----------
+
+/** A family with one living person, so the chat can load a graph for the tree. */
+function makeFamily(tree: string): void {
+  const f = openSqlite(join(dir, `${tree}.db`), 'tree', { create: true });
+  f.exec(`
+    INSERT INTO meta (key, value) VALUES ('id', '${tree}'), ('name', 'Family ${tree}'), ('tagline', ''), ('theme', 'codex'), ('focus', 'anna');
+    INSERT INTO person (id, given, surname, nickname, living, current_given, current_surname) VALUES ('anna', 'Anna', 'Kramer', 'Annie', 1, 'Anna', 'Brandt');
+  `);
+  f.close();
+}
+
+test('a reply runs one web lookup: a second call is not run, and the model is told so', async () => {
+  makeFamily('once');
+  await familyFor('once', 5_000_000);
+  const sent = stubFetch([
+    () => json({ content: [{ type: 'tool_use', id: 't1', name: 'web_lookup', input: { query: 'history of bakers guild' } }], stop_reason: 'tool_use', usage: { input_tokens: 50, output_tokens: 10 } }),
+    () => json({ content: [{ type: 'text', text: 'Bakers guilds began in the Middle Ages.' }], stop_reason: 'end_turn', usage: SEARCH_USAGE }),
+    () => json({ content: [{ type: 'tool_use', id: 't2', name: 'web_lookup', input: { query: 'bakers guild in Stellenbosch' } }], stop_reason: 'tool_use', usage: { input_tokens: 50, output_tokens: 10 } }),
+    () => json({ content: [{ type: 'text', text: 'Answered from the first lookup.' }], stop_reason: 'end_turn', usage: { input_tokens: 80, output_tokens: 12 } }),
+  ]);
+  await chat.sendMessage({ tree: 'once', user: 'u1', role: 'viewer', me: null, text: 'Tell me about bakers guilds', locale: 'en' });
+  assert.equal(sent.filter((s) => s.body.system === lookup.LOOKUP_SYSTEM).length, 1, 'one lookup went to the web');
+  assert.equal(sent.length, 4);
+  assert.ok(sent[3].text.includes('Only one web lookup is allowed per reply'), 'the second call got a result that says so');
+});
+
+test('a lookup the guard refuses still uses up the reply’s one lookup', async () => {
+  makeFamily('refused-first');
+  await familyFor('refused-first', 5_000_000);
+  const sent = stubFetch([
+    () => json({ content: [{ type: 'tool_use', id: 't1', name: 'web_lookup', input: { query: 'Anna Kramer history' } }], stop_reason: 'tool_use', usage: { input_tokens: 50, output_tokens: 10 } }),
+    () => json({ content: [{ type: 'tool_use', id: 't2', name: 'web_lookup', input: { query: 'history of bakers guild' } }], stop_reason: 'tool_use', usage: { input_tokens: 50, output_tokens: 10 } }),
+    () => json({ content: [{ type: 'text', text: 'No lookup.' }], stop_reason: 'end_turn', usage: { input_tokens: 80, output_tokens: 3 } }),
+  ]);
+  await chat.sendMessage({ tree: 'refused-first', user: 'u1', role: 'viewer', me: null, text: 'Look up Anna Kramer', locale: 'en' });
+  assert.equal(sent.filter((s) => s.body.system === lookup.LOOKUP_SYSTEM).length, 0, 'nothing was sent to the web');
+  assert.ok(sent[2].text.includes('Only one web lookup is allowed per reply'), 'a rephrased second query is not run');
+});
+
+// ---------- OpenRouter's :online suffix ----------
+
+/** Replies to OpenRouter's model list from a fixed catalogue, and takes the rest from the script, recording each request. */
+function stubOpenRouter(replies: (() => Response)[]): Sent[] {
+  const sent: Sent[] = [];
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (url.includes('/api/v1/models')) {
+      return json({ data: [{ id: 'openai/gpt-5', name: 'GPT-5', pricing: { prompt: '0.00000125', completion: '0.00001' }, supported_parameters: ['reasoning', 'tools'] }] });
+    }
+    const text = String(init?.body ?? '');
+    sent.push({ url, body: text ? JSON.parse(text) : undefined, text });
+    const next = replies.shift();
+    if (!next) throw new Error(`unexpected fetch to ${url}`);
+    return next();
+  }) as typeof fetch;
+  return sent;
+}
+
+test(':online never reaches a request: the suffix is dropped for the chat and the arms, and the lookup searches only through its own tool', async () => {
+  makeFamily('online');
+  await settings.saveSettings('online', 'u1', {
+    provider: 'openrouter', model: 'openai/gpt-5:online', features: { assistant: true, faces: false, avatar: false, arms: true },
+    webSearch: true, monthlyMicros: 5_000_000, customPrices: {}, apiKey: KEY,
+  });
+  assert.equal((await settings.readSettings('online')).model, 'openai/gpt-5', 'the saved model has no suffix');
+
+  const sent = stubOpenRouter([
+    () => json({ choices: [{ finish_reason: 'tool_calls', message: { content: null, tool_calls: [{ id: 'c1', function: { name: 'web_lookup', arguments: '{"query":"history of bakers guild"}' } }] } }], usage: { prompt_tokens: 50, completion_tokens: 10 } }),
+    () => json({ choices: [{ finish_reason: 'stop', message: { content: 'Bakers guilds formed in the Middle Ages.', annotations: [{ type: 'url_citation', url_citation: { url: 'https://en.wikipedia.org/wiki/Guild', title: 'Guild' } }] } }], usage: { prompt_tokens: 20, completion_tokens: 9, server_tool_use_details: { web_search_requests: 1 } } }),
+    () => json({ choices: [{ finish_reason: 'stop', message: { content: 'Done.' } }], usage: { prompt_tokens: 80, completion_tokens: 4 } }),
+    () => json({ choices: [{ finish_reason: 'stop', message: { content: 'arms' } }], usage: { prompt_tokens: 5, completion_tokens: 1 } }),
+  ]);
+  await chat.sendMessage({ tree: 'online', user: 'u1', role: 'viewer', me: null, text: 'What is a bakers guild?', locale: 'en' });
+  const { adapter } = await settings.adapterForFeature('online', 'arms', 'en');
+  await adapter.complete({ system: 'arms', messages: [{ role: 'user', text: 'Surname: Heer' }] });
+
+  assert.ok(sent.length >= 4, 'chat, lookup, chat, arms');
+  assert.ok(sent.every((s) => !s.text.includes(':online')), 'no request carries the suffix');
+  assert.ok(sent.every((s) => s.body.model === 'openai/gpt-5'), 'every request uses the model without the suffix');
+  // OpenRouter carries the system prompt as the first message. The lookup is the one request that starts with its fixed instruction.
+  const isolated = sent.find((s) => s.body.messages?.[0]?.content === lookup.LOOKUP_SYSTEM);
+  assert.ok(isolated, 'the lookup went out');
+  assert.deepEqual(isolated!.body.messages.map((m: { content: string }) => m.content), [lookup.LOOKUP_SYSTEM, 'history of bakers guild'], 'with its query only');
+  for (const r of sent) if (r !== isolated) assert.ok(!JSON.stringify(r.body.tools ?? []).includes('openrouter:web_search'), 'the chat and arms never get the search tool');
+  assert.ok(JSON.stringify(isolated!.body.tools).includes('openrouter:web_search'), 'the lookup searches through the server tool');
+  assert.equal(isolated!.body.max_tool_calls, lookup.LOOKUP_SEARCHES, 'and the ceiling is the lookup’s');
+  assert.equal(isolated!.body.plugins, undefined, 'no plugin is added');
+});
+
+test('a model that searches by itself is refused on save, and never used', async () => {
+  makeFamily('search-model');
+  const base = { features: { assistant: true, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: KEY };
+  await assert.rejects(settings.saveSettings('search-model', 'u1', { ...base, provider: 'openai', model: 'gpt-4o-search-preview' }), (e: unknown) => e instanceof AiError && e.code === 'bad-input');
+  await assert.rejects(settings.saveSettings('search-model', 'u1', { ...base, provider: 'openrouter', model: 'perplexity/sonar-pro' }), (e: unknown) => e instanceof AiError && e.code === 'bad-input');
+  assert.throws(() => makeAdapter('openrouter', KEY, 'perplexity/sonar'), (e: unknown) => e instanceof AiError && e.code === 'bad-input');
+  assert.equal((await settings.readSettings('search-model')).sealed, null, 'nothing was saved');
+});
+
+// ---------- paused search turns and failed rounds ----------
+
+test('a paused search turn is continued at most twice, and the budget reserves for the three requests', async () => {
+  const price = { inPerM: 1, outPerM: 1, searchEach: 0.01 };
+  const req = { system: 'S', messages: [{ role: 'user' as const, text: 'bakers' }], webSearch: { maxUses: 2 }, maxTokens: 600 };
+  const reserved = settings.estimateMicros(req, price, undefined, callRounds('anthropic', req));
+  await familyFor('paused', reserved, true);
+  const booked = settings.budgeted('paused', reserved, makeAdapter('anthropic', KEY, 'claude-sonnet-5-5'), price, tr('en'));
+  const paused = () => json({ content: [{ type: 'text', text: 'part' }], stop_reason: 'pause_turn', usage: { input_tokens: 100, output_tokens: 20, server_tool_use: { web_search_requests: 1 } } });
+  const sent = stubFetch([paused, paused, paused, paused]);
+  await assert.rejects(booked.complete(req), (e: unknown) => e instanceof AiError && e.code === 'bad-output');
+  assert.equal(sent.length, 3, 'the first request and two continuations, no more');
+  assert.equal(sent[0].body.tools.at(-1).max_uses, 2, 'each request is told the search ceiling');
+  const spent = await settings.spentThisMonth('paused');
+  assert.equal(spent, 3 * 100 + 3 * 20 + 3 * 10_000, 'settled to what the three requests billed');
+  assert.ok(spent <= reserved, `spent ${spent} is within the reservation ${reserved}`);
+});
+
+test('a failure in a later round keeps the usage the earlier rounds billed', async () => {
+  const price = { inPerM: 1, outPerM: 1, searchEach: 0.01 };
+  const req = { system: 'S', messages: [{ role: 'user' as const, text: 'bakers' }], webSearch: { maxUses: 2 }, maxTokens: 600 };
+  await familyFor('later', 100_000_000, true);
+  const booked = settings.budgeted('later', 100_000_000, makeAdapter('anthropic', KEY, 'claude-sonnet-5-5'), price, tr('en'));
+  stubFetch([
+    () => json({ content: [{ type: 'text', text: 'part' }], stop_reason: 'pause_turn', usage: { input_tokens: 100, output_tokens: 20, server_tool_use: { web_search_requests: 1 } } }),
+    () => json({ error: { message: 'bad key' } }, 401),
+  ]);
+  const err = await booked.complete(req).catch((e: unknown) => e);
+  assert.ok(err instanceof AiError && err.code === 'auth');
+  assert.deepEqual(err.billed, { inputTokens: 100, outputTokens: 20, searches: 1 }, 'the error carries what was billed before it');
+  assert.equal(await settings.spentThisMonth('later'), 100 + 20 + 10_000, 'the rejected round is not charged, the first one is');
+});
+
+test('a request in flight when a later round fails may have billed, so it is charged as one more request', async () => {
+  const price = { inPerM: 1, outPerM: 1, searchEach: 0.01 };
+  const req = { system: 'S', messages: [{ role: 'user' as const, text: 'bakers' }], webSearch: { maxUses: 2 }, maxTokens: 600 };
+  await familyFor('garbled-later', 100_000_000, true);
+  const booked = settings.budgeted('garbled-later', 100_000_000, makeAdapter('anthropic', KEY, 'claude-sonnet-5-5'), price, tr('en'));
+  stubFetch([
+    () => json({ content: [{ type: 'text', text: 'part' }], stop_reason: 'pause_turn', usage: { input_tokens: 100, output_tokens: 20, server_tool_use: { web_search_requests: 1 } } }),
+    () => new Response('not json', { status: 200 }),
+  ]);
+  await assert.rejects(booked.complete(req), (e: unknown) => e instanceof AiError && e.code === 'bad-output');
+  const oneRound = settings.estimateMicros(req, price, 600, 1);
+  assert.equal(await settings.spentThisMonth('garbled-later'), (100 + 20 + 10_000) + oneRound);
+});
+
+// ---------- the single-call share of the budget ----------
+
+test('a call whose reservation is more than a fifth of the budget is refused before it is sent, unless the budget is under a dollar', async () => {
+  const req = { system: 'S', messages: [{ role: 'user' as const, text: 'Hi' }], maxTokens: 1200 };
+  // An unknown model's conservative price, with a reasoning model's cap of 8,000 tokens, reserves about $1.44 of a $5 budget.
+  const unknown = settings.budgeted('share', 5_000_000, makeAdapter('openai', KEY, 'gpt-5.5-pro'), CONSERVATIVE, tr('en'));
+  const sent = stubFetch([]);
+  await assert.rejects(unknown.complete(req), (e: unknown) => e instanceof AiError && e.code === 'budget');
+  assert.equal(sent.length, 0, 'nothing is sent');
+  assert.equal(await settings.spentThisMonth('share'), 0, 'nothing is booked');
+
+  // A priced model whose reservation fits its fifth is run.
+  await familyFor('share-ok', 2_000_000, false, 'openai');
+  const priced = settings.budgeted('share-ok', 2_000_000, makeAdapter('openai', KEY, 'gpt-6.1-sol'), { inPerM: 2, outPerM: 10, searchEach: 0.01 }, tr('en'));
+  stubFetch([() => json({ choices: [{ finish_reason: 'stop', message: { content: 'Hi' } }], usage: { prompt_tokens: 1, completion_tokens: 1 } })]);
+  assert.equal((await priced.complete(req)).text, 'Hi');
+
+  // Under a dollar the fifth does not apply: the reservation only has to fit the budget.
+  const tiny = { inPerM: 0, outPerM: 300, searchEach: 0.01 };
+  const big = { system: 'S', messages: [{ role: 'user' as const, text: 'Hi' }], maxTokens: 1000 };
+  const under = settings.budgeted('share-tiny', 500_000, makeAdapter('anthropic', KEY, 'claude-sonnet-5-5'), tiny, tr('en'));
+  stubFetch([() => json({ content: [{ type: 'text', text: 'ok' }], stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 1 } })]);
+  assert.equal((await under.complete(big)).text, 'ok', 'a $0.30 call fits a $0.50 budget');
+  // The same call over a $2 budget is more than a fifth of it, and is refused.
+  const over = settings.budgeted('share-over', 2_000_000, makeAdapter('anthropic', KEY, 'claude-sonnet-5-5'), { inPerM: 0, outPerM: 500, searchEach: 0.01 }, tr('en'));
+  const none = stubFetch([]);
+  await assert.rejects(over.complete(big), (e: unknown) => e instanceof AiError && e.code === 'budget');
+  assert.equal(none.length, 0);
 });

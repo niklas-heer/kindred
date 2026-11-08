@@ -162,7 +162,7 @@ test('openai: without web search the Chat Completions API is used; a reasoning m
   })]);
   const reply = await makeAdapter('openai', KEY, 'gpt-6.1-sol').complete({ system: 'S', messages: [{ role: 'user', text: 'Hi' }], maxTokens: 50 });
   assert.equal(sent[0].url, 'https://api.openai.com/v1/chat/completions');
-  assert.equal(sent[0].body.max_completion_tokens, 25_000, 'reasoning tokens count against the cap, so a reasoning model is never capped low');
+  assert.equal(sent[0].body.max_completion_tokens, 8_000, 'reasoning tokens count against the cap, so a reasoning model is never capped low');
   assert.equal(sent[0].body.reasoning_effort, 'low');
   assert.equal(sent[0].body.tools, undefined);
   assert.equal(reply.text, 'Hi there');
@@ -296,4 +296,25 @@ test('a model list that fails names the problem without the key', async () => {
     assert.ok(!e.message.includes(KEY));
     return true;
   });
+});
+
+// ---------- OpenRouter: the list's reasoning flag, and the :online suffix ----------
+
+test('openrouter: a model the list says reasons gets the reasoning cap and effort, whatever its name; the list can say it does not', async () => {
+  const done = () => json({ choices: [{ finish_reason: 'stop', message: { content: 'x' } }], usage: { prompt_tokens: 1, completion_tokens: 1 } });
+  const sent = stubFetch([done(), done()]);
+  await makeAdapter('openrouter', KEY, 'vendor/plain', { reasoning: true }).complete({ system: 'S', messages: [{ role: 'user', text: 'Hi' }], maxTokens: 50 });
+  assert.equal(sent[0].body.max_tokens, 8_000, 'the reasoning cap');
+  assert.equal(sent[0].body.reasoning.effort, 'low');
+  await makeAdapter('openrouter', KEY, 'openai/gpt-5', { reasoning: false }).complete({ system: 'S', messages: [{ role: 'user', text: 'Hi' }], maxTokens: 50 });
+  assert.equal(sent[1].body.max_tokens, 50, 'the list says no, so the name does not raise the cap');
+  assert.equal(sent[1].body.reasoning, undefined);
+});
+
+test('openrouter: the :online suffix is never sent, for a chat, a lookup or any other request', async () => {
+  const done = () => json({ choices: [{ finish_reason: 'stop', message: { content: 'x' } }], usage: { prompt_tokens: 1, completion_tokens: 1 } });
+  const sent = stubFetch([done()]);
+  await makeAdapter('openrouter', KEY, 'openai/gpt-5:online').complete({ system: 'S', messages: [{ role: 'user', text: 'Hi' }] });
+  assert.equal(sent[0].body.model, 'openai/gpt-5');
+  assert.equal(sent[0].body.tools, undefined, 'and no search tool is added by the suffix');
 });

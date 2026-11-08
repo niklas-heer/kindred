@@ -137,7 +137,8 @@ function AssistantDrawer({ tree }: { tree: string }) {
             <div key={m.id} className="ai-msg ai-msg-user"><p>{m.text}</p></div>
           ) : (
             <div key={m.id} className="ai-msg ai-msg-assistant">
-              {m.text && <div className="ai-text" dangerouslySetInnerHTML={{ __html: renderMarkdown(m.text) }} />}
+              {/* The model's text: an image in it shows its alt text only, so nothing loads from an address the model chose. */}
+              {m.text && <div className="ai-text" dangerouslySetInnerHTML={{ __html: renderMarkdown(m.text, { images: 'text' }) }} />}
               {m.proposals?.map((p) => <ProposalCard key={p.id} tree={tree} itemId={m.id} proposal={p} />)}
             </div>
           ),

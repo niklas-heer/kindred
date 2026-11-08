@@ -121,3 +121,74 @@ test('saving the same provider with no new key keeps the saved key', async () =>
   assert.equal(cur.model, 'gpt-5.5');
   assert.equal(await openKey(TREE, cur.sealed!), OPENAI_KEY);
 });
+
+// ---------- saving a new key after a removal ----------
+
+test('a removal saved with a new key typed keeps the new key: the removal does not drop it', async () => {
+  const tree = 'keys-remove';
+  await settings.saveSettings(tree, 'u1', {
+    provider: 'anthropic', model: '', features: { assistant: false, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: ANTHROPIC_KEY,
+  });
+  // Remove the key, save; then type a new one and save: the page sends the new key with no removal.
+  await settings.saveSettings(tree, 'u1', { provider: 'anthropic', model: '', features: { assistant: false, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, clearKey: true });
+  assert.equal((await settings.readSettings(tree)).sealed, null, 'the key was removed');
+  const NEW = 'sk-ant-NEW-KEY-typed-after-removal-99';
+  await settings.saveSettings(tree, 'u1', { provider: 'anthropic', model: '', features: { assistant: false, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: NEW });
+  const after = await settings.readSettings(tree);
+  assert.equal(await openKey(tree, after.sealed!), NEW, 'the new key is saved');
+  // And a save that sends both (the page's old state) saves the typed key rather than dropping it.
+  await settings.saveSettings(tree, 'u1', { provider: 'anthropic', model: '', features: { assistant: false, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, clearKey: true, apiKey: NEW + '-2' });
+  assert.equal(await openKey(tree, (await settings.readSettings(tree)).sealed!), NEW + '-2');
+});
+
+// ---------- the saved model, and Test connection on reasoning models ----------
+
+test('a saved OpenRouter model with the :online suffix is read back without it', async () => {
+  const tree = 'keys-online';
+  await settings.saveSettings(tree, 'u1', {
+    provider: 'openrouter', model: 'openai/gpt-5', features: { assistant: false, faces: false, avatar: false, arms: false }, webSearch: false, monthlyMicros: 5_000_000, customPrices: {}, apiKey: OPENAI_KEY,
+  });
+  // A row saved before the suffix was dropped still holds it: it is read without it.
+  await accounts().run('UPDATE ai_settings SET model = ? WHERE tree = ?', 'openai/gpt-5:online', tree);
+  const s = await settings.readSettings(tree);
+  assert.equal(s.model, 'openai/gpt-5');
+  assert.equal(s.effectiveModel, 'openai/gpt-5');
+});
+
+/** OpenRouter's list (for the reasoning flag) and one chat reply, recorded. */
+function stubOpenRouterCheck(reply: () => Response): { calls: { url: string; body: any }[] } {
+  const calls: { url: string; body: any }[] = [];
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (url.includes('/api/v1/models')) {
+      return new Response(JSON.stringify({ data: [
+        // The name says nothing about reasoning; the list does.
+        { id: 'vendor/plain-named', name: 'Plain', pricing: { prompt: '0.000001', completion: '0.000002' }, supported_parameters: ['reasoning', 'max_tokens'] },
+        // The name says reasoning (gpt-5); the list says it does not take a reasoning parameter.
+        { id: 'openai/gpt-5-mini', name: 'GPT-5 mini', pricing: { prompt: '0.000001', completion: '0.000002' }, supported_parameters: ['tools', 'max_tokens'] },
+      ] }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    calls.push({ url, body: JSON.parse(String(init?.body ?? '{}')) });
+    return reply();
+  }) as typeof fetch;
+  return { calls };
+}
+
+const cutOff = () => new Response(JSON.stringify({ choices: [{ finish_reason: 'length', message: { content: null } }], usage: { prompt_tokens: 10, completion_tokens: 16 } }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+test('test connection: a reply the 16-token check cannot read still means the key works', async () => {
+  const { calls } = stubOpenRouterCheck(cutOff);
+  const r = await settings.testConnection('keys-check', { provider: 'openrouter', model: 'vendor/plain-named', apiKey: 'sk-or-typed-12345678' }, 'en');
+  assert.equal(r.ok, true, 'connected');
+  assert.equal(calls.length, 1, 'one check request');
+});
+
+test('test connection: the OpenRouter list decides whether a model reasons, over its name', async () => {
+  const { calls } = stubOpenRouterCheck(() => new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: 'OK' } }], usage: { prompt_tokens: 10, completion_tokens: 1 } }), { status: 200, headers: { 'content-type': 'application/json' } }));
+  await settings.testConnection('keys-check', { provider: 'openrouter', model: 'vendor/plain-named', apiKey: 'sk-or-typed-12345678' }, 'en');
+  assert.equal(calls[0].body.max_tokens, 8_000, 'listed as reasoning: the reasoning cap');
+  assert.equal(calls[0].body.reasoning.effort, 'low');
+  await settings.testConnection('keys-check', { provider: 'openrouter', model: 'openai/gpt-5-mini', apiKey: 'sk-or-typed-12345678' }, 'en');
+  assert.equal(calls[1].body.max_tokens, 16, 'listed as not reasoning, so the name does not raise the cap');
+  assert.equal(calls[1].body.reasoning, undefined);
+});

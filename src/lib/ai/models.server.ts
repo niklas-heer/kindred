@@ -142,7 +142,9 @@ async function openrouterCatalogue(key: string): Promise<ModelInfo[]> {
       searchEach: Number.isFinite(webSearchUsd) && webSearchUsd >= 0 ? webSearchUsd : null,
       vision: m.architecture?.input_modalities ? m.architecture.input_modalities.includes('image') : null,
       tools: m.supported_parameters ? m.supported_parameters.includes('tools') : null,
-      // OpenRouter's web plugin works with every model it lists.
+      // A model that reasons takes a reasoning parameter; the list says which ones do, so the name is only a guess for the rest.
+      ...(m.supported_parameters && { reasoning: m.supported_parameters.includes('reasoning') || m.supported_parameters.includes('include_reasoning') }),
+      // OpenRouter's server search tool (openrouter:web_search) works with every model it lists.
       webSearch: true,
     });
   }
@@ -157,12 +159,16 @@ async function catalogue(): Promise<ModelInfo[]> {
   return models;
 }
 
-/** The price OpenRouter lists for a model, for booking a call. Undefined when the list cannot be read or has no such model. */
-export async function openRouterListedPrice(model: string): Promise<Price | undefined> {
+/**
+ * What OpenRouter's list says about a model: the price a call is booked at until the call reports its cost, and whether the
+ * model reasons (from its supported parameters). Undefined when the list cannot be read or has no such model.
+ */
+export async function openRouterListed(model: string): Promise<{ price?: Price; reasoning?: boolean } | undefined> {
   try {
     const m = (await catalogue()).find((x) => x.id === model);
-    if (!m || m.inPerM == null || m.outPerM == null) return undefined;
-    return { inPerM: m.inPerM, outPerM: m.outPerM, searchEach: m.searchEach ?? 0.01 };
+    if (!m) return undefined;
+    const price = m.inPerM != null && m.outPerM != null ? { inPerM: m.inPerM, outPerM: m.outPerM, searchEach: m.searchEach ?? 0.01 } : undefined;
+    return { price, reasoning: m.reasoning };
   } catch {
     return undefined;
   }

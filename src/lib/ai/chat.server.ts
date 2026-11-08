@@ -95,7 +95,7 @@ export async function sendMessage(o: { tree: string; user: string; role: Role; m
   });
   // The sources of the web lookups this turn ran. The chat's own requests never search: a lookup is its own request.
   const sources: { url: string; title?: string }[] = [];
-  const ctx = { tree: o.tree, role: o.role, me: me?.id ?? null, locale, search: webSearch ? { adapter, sources } : undefined };
+  const ctx = { tree: o.tree, role: o.role, me: me?.id ?? null, locale, search: webSearch ? { adapter, sources, lookups: 0 } : undefined };
   const messages: AiMessage[] = [...past, { role: 'user', text: o.text }];
   const proposals: Proposal[] = [];
   let text = '';

@@ -106,7 +106,10 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
   const needsKey = providerChanged && !typedValid;
   const hasKey = typedValid || (!clearKey && data.keyState === 'saved' && !providerChanged);
   const overBudget = budgetUsd > BUDGET_MAX_USD;
-  const keyNeededText = t('ai.keyNeeded', { provider: PROVIDER_LABEL[provider], saved: PROVIDER_LABEL[data.provider] });
+  // Only a saved key can belong to another provider. With none saved, the text asks for a key and names no saved one.
+  const keyNeededText = data.keyState === 'saved'
+    ? t('ai.keyNeeded', { provider: PROVIDER_LABEL[provider], saved: PROVIDER_LABEL[data.provider] })
+    : t('ai.keyNeededNone', { provider: PROVIDER_LABEL[provider] });
 
   // The typed key is checked once typing pauses: the provider's model list comes back (or the reason it doesn't).
   useEffect(() => {
@@ -181,7 +184,8 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
         provider,
         model: model.trim(),
         apiKey: typedValid ? typedKey.trim() : undefined,
-        clearKey,
+        // A typed key is the new key: it is saved, and the removal is not sent with it.
+        clearKey: clearKey && !typedValid,
         features,
         webSearch,
         monthlyUsd: budgetUsd,
@@ -190,7 +194,9 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
       },
     }),
     onSuccess: async () => {
+      // A removal is done once saved: the next key typed is saved as it is, not dropped by a stale "remove" flag.
       setTypedKey('');
+      setClearKey(false);
       setNotice({ ok: true, text: t('ai.saved') });
       await Promise.all([qc.invalidateQueries({ queryKey: ['ai-settings', tree] }), qc.invalidateQueries({ queryKey: ['ai-status', tree] })]);
     },
@@ -335,6 +341,7 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
         <label htmlFor="ai-model" className="ai-label">{t('ai.model')}</label>
         <input id="ai-model" className="input" value={model} placeholder={DEFAULT_MODEL[provider]} onChange={(e) => setModel(e.target.value)} aria-describedby="ai-model-hint" spellCheck={false} autoComplete="off" />
         <p id="ai-model-hint" className="subtle">{t('ai.modelHint')}</p>
+        {provider === 'openrouter' && <p className="subtle">{t('ai.modelOnlineNote')}</p>}
         <div className="ai-selected" aria-live="polite">
           <div className="ai-selected-head">
             <span><strong>{current}</strong></span>

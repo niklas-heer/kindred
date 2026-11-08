@@ -1,9 +1,9 @@
 // A family's AI settings, the monthly budget in money, and turning a settings row into a ready adapter. Settings
 // live in the accounts database (migrations/accounts/0003_ai_settings.sql and 0007_ai_money.sql), one row per family.
 import { accounts } from '../auth/store.server';
-import { AiError, DEFAULT_MAX_TOKENS, DEFAULT_SEARCH_USES, makeAdapter, outputCap, type AiAdapter, type AiReply, type AiRequest } from './adapters';
+import { AiError, DEFAULT_MAX_TOKENS, DEFAULT_SEARCH_USES, callRounds, chatModelId, makeAdapter, outputCap, searchesOnItsOwn, type AiAdapter, type AiReply, type AiRequest } from './adapters';
 import { fakeAdapter } from './fake';
-import { openRouterListedPrice } from './models.server';
+import { openRouterListed } from './models.server';
 import { costMicros, reportedMicros, resolvePrice, searchReserveMicros, type Price } from './prices';
 import { keyTail, openKey, sealKey } from './secret.server';
 import { tr, type Tr } from './labels';
@@ -80,10 +80,11 @@ export async function readSettings(tree: string): Promise<Settings> {
       features: { ...OFF }, webSearch: false, monthlyMicros: DEFAULT_MONTHLY_MICROS, customPrices: {}, updated: 0,
     };
   }
+  const model = chatModelId(r.provider, r.model);
   return {
     provider: r.provider,
-    model: r.model,
-    effectiveModel: r.model || DEFAULT_MODEL[r.provider],
+    model,
+    effectiveModel: model || DEFAULT_MODEL[r.provider],
     keyTail: r.key_tail,
     sealed: r.key_sealed,
     features: parseFeatures(r.features),
@@ -105,17 +106,22 @@ export interface SaveInput {
   clearKey?: boolean;
 }
 
-/** Saves the settings. A key is sealed when given; without one, the saved key stays. `clearKey` removes it. */
+/**
+ * Saves the settings. A typed key is sealed and replaces the saved one; without one, the saved key stays, and `clearKey`
+ * removes it. A model that searches by itself is refused, and OpenRouter's :online suffix is dropped (chatModelId).
+ */
 export async function saveSettings(tree: string, by: string, input: SaveInput): Promise<void> {
+  const model = chatModelId(input.provider, input.model.trim());
+  if (searchesOnItsOwn(input.provider, model)) throw new AiError('bad-input', 'ai.err_model_search');
   const cur = await readSettings(tree);
   let sealed = cur.sealed;
   let tail = cur.keyTail;
-  if (input.clearKey) {
-    sealed = null;
-    tail = null;
-  } else if (input.apiKey) {
+  if (input.apiKey) {
     sealed = await sealKey(tree, input.apiKey);
     tail = keyTail(input.apiKey);
+  } else if (input.clearKey) {
+    sealed = null;
+    tail = null;
   } else if (cur.sealed && !savedKeyFits(cur, input.provider)) {
     // Switching provider keeps the old key only if it would be sent to the new provider: refused, and nothing is saved.
     // The message is the dictionary key: the settings page shows its translated text.
@@ -128,7 +134,7 @@ export async function saveSettings(tree: string, by: string, input: SaveInput): 
        key_tail = excluded.key_tail, features = excluded.features, web_search = excluded.web_search,
        monthly_micros = excluded.monthly_micros, custom_prices = excluded.custom_prices,
        updated = excluded.updated, updated_by = excluded.updated_by`,
-    tree, input.provider, input.model.trim(), sealed, tail, JSON.stringify(input.features), input.webSearch ? 1 : 0,
+    tree, input.provider, model, sealed, tail, JSON.stringify(input.features), input.webSearch ? 1 : 0,
     Math.max(0, Math.round(input.monthlyMicros)), JSON.stringify(input.customPrices), Date.now(), by,
   );
 }
@@ -144,11 +150,19 @@ export const providerOk = (p: string): p is Provider => (PROVIDERS as readonly s
 
 // ---------- the monthly budget (UTC months, in micro-dollars) ----------
 //
-// Every call to a provider is booked before it is sent: its estimated cost (see `estimateMicros`) is added to the
-// month's spend with one conditional UPDATE that fails when it would pass the budget, so two calls racing for the
-// last of it cannot both get it. After the call, the estimate is replaced by what the call really cost: the
-// provider's reported USD cost when it reports one (OpenRouter), else the tokens it used and its searches, at the
-// model's price. A call that fails is charged its estimate, since the provider may have billed it.
+// Every call to a provider is booked before it is sent: its reservation (see `estimateMicros`) is added to the month's
+// spend with one conditional UPDATE that fails when it would pass the budget, so two calls racing for the last of it
+// cannot both get it. A reservation is the most the call may cost: its input, its reply's cap, its searches, and every
+// request it may make (callRounds). One call may not reserve more than a fifth of the month's budget, unless the budget is
+// under a dollar; a call that would is refused, not run on a guess. After the call, the reservation is replaced by what the
+// call really cost: the provider's reported USD cost when it reports one (OpenRouter), else the tokens it used and its
+// searches, at the model's price. A failure is charged what its completed requests billed (AiError.billed); a failure with no
+// completed request costs nothing when the provider did not bill it, and its reservation when it may have.
+
+/** One call may reserve at most this share of the month's budget... */
+export const SINGLE_CALL_SHARE = 0.2;
+/** ...unless the budget is below this, where a fifth of it is too little for any call. */
+export const TINY_BUDGET_MICROS = 1_000_000;
 
 /** The UTC month, YYYY-MM. */
 export const monthNow = (now = new Date()) => now.toISOString().slice(0, 7);
@@ -176,19 +190,21 @@ export function estimateInputTokens(req: AiRequest): number {
 }
 
 /**
- * Micro-dollars a call may cost, before it is sent: its estimated input, its reply's cap, and the searches it may run.
+ * Micro-dollars a call may cost, before it is sent: its estimated input, its reply's cap, and the searches it may run, over
+ * `rounds` requests (callRounds). A continuation re-sends the reply before it, so each round's input grows by one reply.
  * Each search is reserved at its listed price with a margin (see searchReserveMicros), so a call that runs no more
  * searches than it was allowed cannot book more than it reserved.
  */
-export function estimateMicros(req: AiRequest, price: Price, outputTokens = req.maxTokens ?? DEFAULT_MAX_TOKENS): number {
+export function estimateMicros(req: AiRequest, price: Price, outputTokens = req.maxTokens ?? DEFAULT_MAX_TOKENS, rounds = 1): number {
   const searches = req.webSearch && !req.json ? (req.webSearch.maxUses ?? DEFAULT_SEARCH_USES) : 0;
-  return costMicros({ inputTokens: estimateInputTokens(req), outputTokens, searches: 0 }, price) + searchReserveMicros(searches, price);
+  const inputTokens = rounds * estimateInputTokens(req) + outputTokens * ((rounds * (rounds - 1)) / 2);
+  return costMicros({ inputTokens, outputTokens: rounds * outputTokens, searches: 0 }, price) + searchReserveMicros(searches, price);
 }
 
 /**
- * What a failed call costs. A refusal, a rate limit, a key the provider does not take, a network error or a 5xx did
- * not bill, so nothing is charged. A timeout, or a reply that could not be read (or was cut off), may have billed,
- * so the reservation stays. A failure that is not a typed AiError is charged its reservation, to be safe.
+ * What a failed call costs, when no request of it completed. A refusal, a rate limit, a key the provider does not take, a
+ * network error or a 5xx did not bill, so nothing is charged. A timeout, or a reply that could not be read (or was cut
+ * off), may have billed, so the reservation stays. A failure that is not a typed AiError is charged its reservation, to be safe.
  */
 export function failureMicros(e: unknown, reserved: number): number {
   if (e instanceof AiError && e.code !== 'timeout' && e.code !== 'bad-output') return 0;
@@ -223,16 +239,24 @@ export function budgeted(tree: string, limitMicros: number, adapter: AiAdapter, 
   return {
     provider: adapter.provider,
     model: adapter.model,
+    reasoning: adapter.reasoning,
     async complete(req) {
       // The reservation prices the reply cap the adapter will send (a reasoning model's is raised), so they agree.
-      const booked = await reserve(tree, limitMicros, estimateMicros(req, price, outputCap(adapter.provider, adapter.model, req.maxTokens)), c);
+      const cap = outputCap(adapter.provider, adapter.model, req.maxTokens, adapter.reasoning);
+      const estimate = estimateMicros(req, price, cap, callRounds(adapter.provider, req));
+      if (limitMicros >= TINY_BUDGET_MICROS && estimate > limitMicros * SINGLE_CALL_SHARE) throw new AiError('budget', c('ai.errBudgetShare'));
+      const booked = await reserve(tree, limitMicros, estimate, c);
       let actual = booked.amount;
       try {
         const reply = await adapter.complete(req);
         actual = replyMicros(reply, price);
         return reply;
       } catch (e) {
-        actual = failureMicros(e, booked.amount);
+        // A failure after completed requests keeps what they billed. The request that was in flight when it failed may have
+        // billed too (it timed out, or its reply could not be read): it is charged as one more request, to be safe.
+        actual = e instanceof AiError && e.billed
+          ? replyMicros(e.billed, price) + (e.inFlight && (e.code === 'timeout' || e.code === 'bad-output') ? estimateMicros(req, price, cap, 1) : 0)
+          : failureMicros(e, booked.amount);
         throw e;
       } finally {
         await settle(tree, booked, actual);
@@ -250,9 +274,11 @@ export function budgeted(tree: string, limitMicros: number, adapter: AiAdapter, 
 export async function adapterFor(tree: string, s?: Settings): Promise<AiAdapter> {
   const cur = s ?? (await readSettings(tree));
   if (!cur.sealed) throw new AiError('not-configured', translate('en', 'ai.errNotConfigured'));
+  if (searchesOnItsOwn(cur.provider, cur.effectiveModel)) throw new AiError('bad-input', 'ai.err_model_search');
   const key = await openKey(tree, cur.sealed);
   if (fakeOn()) return fakeAdapter(cur.effectiveModel);
-  return makeAdapter(cur.provider, key, cur.effectiveModel);
+  const listed = cur.provider === 'openrouter' ? await openRouterListed(cur.effectiveModel) : undefined;
+  return makeAdapter(cur.provider, key, cur.effectiveModel, { reasoning: listed?.reasoning });
 }
 
 /**
@@ -268,9 +294,10 @@ export async function adapterForFeature(tree: string, feature: Feature, locale: 
   if (!settings.sealed) throw new AiError('not-configured', c('ai.errNotConfigured'));
   if (settings.monthlyMicros <= 0) throw new AiError('budget', c('ai.errBudget'));
   const inner = await adapterFor(tree, settings);
-  // OpenRouter's own list prices its models; the table prices the other two. Read once per adapter, never per call.
-  const listed = settings.provider === 'openrouter' && !fakeOn() ? await openRouterListedPrice(settings.effectiveModel) : undefined;
-  const { price } = resolvePrice(settings.provider, settings.effectiveModel, settings.customPrices, listed);
+  if (searchesOnItsOwn(settings.provider, settings.effectiveModel)) throw new AiError('bad-input', c('ai.err_model_search'));
+  // OpenRouter's own list prices its models and says whether they reason; the table prices the other two. Read once per adapter, never per call.
+  const listed = settings.provider === 'openrouter' && !fakeOn() ? await openRouterListed(settings.effectiveModel) : undefined;
+  const { price } = resolvePrice(settings.provider, settings.effectiveModel, settings.customPrices, listed?.price);
   return { adapter: budgeted(tree, settings.monthlyMicros, inner, price, c), webSearch: settings.webSearch, settings };
 }
 
@@ -297,7 +324,7 @@ export async function statusFor(tree: string): Promise<AiStatus> {
 /** A live call to the provider with the given key, for "Test connection". Never stores anything. */
 export async function testConnection(tree: string, input: { provider: Provider; model: string; apiKey?: string }, locale: AiLocale) {
   const c = tr(locale);
-  const model = input.model.trim() || DEFAULT_MODEL[input.provider];
+  const model = chatModelId(input.provider, input.model.trim() || DEFAULT_MODEL[input.provider]);
   const started = Date.now();
   try {
     let adapter: AiAdapter;
@@ -312,10 +339,16 @@ export async function testConnection(tree: string, input: { provider: Provider; 
       }
     }
     if (fakeOn()) adapter = fakeAdapter(model);
-    else adapter = makeAdapter(input.provider, key, model);
+    else {
+      const listed = input.provider === 'openrouter' ? await openRouterListed(model) : undefined;
+      adapter = makeAdapter(input.provider, key, model, { reasoning: listed?.reasoning });
+    }
     await adapter.complete({ system: 'You check a connection. Reply with the single word OK.', messages: [{ role: 'user', text: 'Ping' }], maxTokens: 16, timeoutMs: 15_000 });
     return { ok: true as const, provider: adapter.provider, model, ms: Date.now() - started };
   } catch (e) {
+    // The provider answered, so the key works. A reply this check could not read (a reasoning model cut off by its 16-token
+    // cap, say) is still a connection; anything else is reported.
+    if (e instanceof AiError && e.code === 'bad-output') return { ok: true as const, provider: input.provider, model, ms: Date.now() - started };
     if (e instanceof AiError) return { ok: false as const, message: e.message, model, code: e.code };
     throw e;
   }

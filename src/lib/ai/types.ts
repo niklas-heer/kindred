@@ -69,6 +69,8 @@ export interface ModelInfo {
   vision: boolean | null;
   tools: boolean | null;
   webSearch: boolean | null;
+  /** Whether the model reasons before it answers, when the provider's list says so (OpenRouter). Absent: unknown. */
+  reasoning?: boolean;
 }
 
 export const PROPOSAL_KINDS = ['add-person', 'link-relative', 'set-dates', 'add-story', 'add-field'] as const;
