@@ -31,7 +31,8 @@ export type Action =
   | 'edit-place'
   | 'edit-house'
   | 'delete-album'
-  | 'manage-access';
+  | 'manage-access'
+  | 'view-statistics';
 
 const RANK: Record<Role, number> = { viewer: 0, contributor: 1, editor: 2, steward: 3 };
 
@@ -49,6 +50,7 @@ const NEEDS: Record<Action, Role> = {
   'edit-house': 'steward',
   'delete-album': 'steward',
   'manage-access': 'steward',
+  'view-statistics': 'steward',
 };
 
 export function can(role: Role | null | undefined, action: Action): boolean {

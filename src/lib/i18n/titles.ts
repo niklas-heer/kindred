@@ -10,9 +10,11 @@ const TITLE_WORDS: Record<string, { de: string; af: string }> = {
   Register: { de: "Verzeichnis", af: "Register" },
   Houses: { de: "Häuser", af: "Huise" },
   Needed: { de: "Gesucht", af: "Benodig" },
+  "Information needed": { de: "Gesuchte Angaben", af: "Inligting benodig" },
   Chronicle: { de: "Chronik", af: "Kroniek" },
   Gallery: { de: "Galerie", af: "Galery" },
   Access: { de: "Zugang", af: "Toegang" },
+  Statistics: { de: "Statistik", af: "Statistiek" },
   Tree: { de: "Stammbaum", af: "Stamboom" },
 };
 

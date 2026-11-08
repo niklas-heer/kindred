@@ -13,7 +13,8 @@ import { MAX_DESIGN_MEANINGS, aiArmsDesigns, aiNameMeaning } from '~/lib/ai/arms
 import { toAiLocale, type Attestation, type DesignMeaning, type IdeaKind, type NameDesign, type NameMeaning, type NameResearch } from '~/lib/ai/types';
 import { opKeys } from '~/lib/api';
 import { errorText } from '~/lib/errortext';
-import { armsReviewsQuery, collectedMeaningsQuery, houseMeaningsQuery, saveHouseMeaning } from '~/lib/house-meaning.functions';
+import { armsReviewsQuery, collectedMeaningsQuery, houseMeaningsQuery, houseTranslationsQuery, saveHouseMeaning } from '~/lib/house-meaning.functions';
+import { translateNote, translateRow } from '~/lib/house-translation';
 import type { SavedMeaning } from '~/lib/house-meaning';
 import { locales, useT, type Key } from '~/lib/i18n';
 import { play } from '~/lib/sfx';
@@ -77,6 +78,7 @@ export function NameResearchPanel({ tree, surname, country, onPick, house }: {
   const meanings = useQuery({ ...houseMeaningsQuery(tree), enabled: !!houseId });
   // What the background task collected and nobody chose from yet starts the panel off the same way, with nothing picked.
   const collected = useQuery({ ...collectedMeaningsQuery(tree), enabled: !!houseId });
+  const translations = useQuery({ ...houseTranslationsQuery(tree, t.locale), enabled: !!houseId }).data;
   const savedRow = houseId ? meanings.data?.[houseId] ?? collected.data?.[houseId] : undefined;
   const saved = savedRow && savedRow.name === name ? savedRow : undefined;
 
@@ -144,6 +146,8 @@ export function NameResearchPanel({ tree, surname, country, onPick, house }: {
   const usingSaved = !fresh && !!saved;
   const current: NameResearch | undefined = fresh ?? (saved ? asResearch(saved) : undefined);
   const shown: NameMeaning[] = current ? [...current.meanings, ...own] : [];
+  // A saved research reads in the reader's language; a fresh one is already in it. `shown` stays the original: it is what is saved and designed from.
+  const translation = usingSaved && houseId ? translations?.meanings[houseId] : undefined;
   const chosen = shown.filter((m) => picked.has(m.id));
   const liveDesigns = designs && designs.surname === name ? designs.list : null;
   const familyHint = hint.trim();
@@ -233,7 +237,7 @@ export function NameResearchPanel({ tree, surname, country, onPick, house }: {
         <div className="ae-meanings">
           {usingSaved && saved && <p className="subtle ae-basis">{t(saved.meanings.some((m) => m.chosen) ? 'houses.meaning.savedWhen' : 'houses.collected.when', { when: when(saved.savedAt) })}</p>}
           <p className="subtle ae-basis">{t(current.webSearched ? 'heraldry.basis_web' : 'heraldry.basis_knowledge')}</p>
-          {current.note && <p className="subtle ae-basis">{current.note}</p>}
+          {current.note && <p className="subtle ae-basis">{translateNote(current.note, translation)}</p>}
 
           {shown.length === 0 ? (
             <EmptyState
@@ -242,7 +246,8 @@ export function NameResearchPanel({ tree, surname, country, onPick, house }: {
             />
           ) : (
             <ul className="ae-meaning-list" aria-label={t('heraldry.meanings_title')}>
-              {shown.map((m) => {
+              {shown.map((original) => {
+                const m = translateRow(original, translation);
                 const on = picked.has(m.id);
                 const byReader = m.id.startsWith('own');
                 return (

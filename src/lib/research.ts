@@ -1,5 +1,6 @@
 // The Research page's pure rules, shared by the browser and the server: what a role may do with research, what a family
 // may upload as a document, and how a project's timeline is derived. No React and no database, so the test runner loads it.
+import { formatDate } from './i18n/dictionary.ts';
 import { can, type Role } from './roles.ts';
 
 // ---------- what the browser receives ----------
@@ -182,6 +183,8 @@ export interface TimelineEntry {
   /** The partner in a union, when the event is one. */
   other?: string;
   unionKind?: string;
+  /** Why a union ended: 'death', 'divorce' or 'other'. */
+  endReason?: string;
   /** The document's id, the note's id, or the picture's key. */
   ref?: string;
   /** A document's or note's title, or a picture's caption. */
@@ -190,7 +193,7 @@ export interface TimelineEntry {
 
 interface TimelineFamily {
   byId: Map<string, { born?: string; died?: string }>;
-  unionsOf: Map<string, { id: string; a: string; b: string; kind: string; start?: string; end?: string }[]>;
+  unionsOf: Map<string, { id: string; a: string; b: string; kind: string; start?: string; end?: string; endReason?: string }[]>;
 }
 
 /** Sorts a partial date by what is known: a bare year sits before the dated events of that year. */
@@ -225,7 +228,7 @@ export function researchTimeline(view: Pick<ProjectView, 'documents' | 'notes' |
       const a = linked.has(u.a) ? u.a : u.b;
       const other = a === u.a ? u.b : u.a;
       if (u.start) entries.push({ id: `union:${u.id}`, date: u.start, kind: 'union', person: a, other, unionKind: u.kind });
-      if (u.end) entries.push({ id: `union-end:${u.id}`, date: u.end, kind: 'union-end', person: a, other, unionKind: u.kind });
+      if (u.end) entries.push({ id: `union-end:${u.id}`, date: u.end, kind: 'union-end', person: a, other, unionKind: u.kind, endReason: u.endReason });
     }
   }
   return entries.sort((a, b) => {
@@ -234,6 +237,13 @@ export function researchTimeline(view: Pick<ProjectView, 'documents' | 'notes' |
     return ay - by || am - bm || ad - bd || KIND_RANK[a.kind] - KIND_RANK[b.kind] || a.id.localeCompare(b.id);
   });
 }
+
+/** The text key for a union's end, by why it ended: a death is not a separation. */
+export const unionEndKey = (reason?: string | null) =>
+  reason === 'death' ? 'research.tl_union_end_death' as const : reason === 'divorce' ? 'research.tl_union_end_divorce' as const : 'research.tl_union_end' as const;
+
+/** A date as the reader's language says it. An approximate date carries one marker ("ca. 1931"), from formatDate. */
+export const dateText = (date: string | null | undefined, locale: Parameters<typeof formatDate>[1]) => formatDate(date, locale);
 
 // ---------- reading a document ----------
 

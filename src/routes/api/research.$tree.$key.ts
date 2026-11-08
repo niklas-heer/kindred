@@ -11,10 +11,10 @@ export const Route = createFileRoute('/api/research/$tree/$key')({
       GET: async ({ params, request }) => {
         const text = (body: string, status: number) => new Response(body, { status, headers: { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' } });
         if (!/^[a-z0-9-]{1,64}$/.test(params.tree) || !/^[a-z0-9-]{1,80}\.(?:pdf|jpg|png|webp)$/.test(params.key)) return text('not found', 404);
-        const [{ requireMember }, { AuthError }] = await Promise.all([import('~/lib/auth/guard.server'), import('~/lib/auth/errors')]);
+        const [{ requireReader }, { AuthError }] = await Promise.all([import('~/lib/auth/guard.server'), import('~/lib/auth/errors')]);
         let role;
         try {
-          role = (await requireMember(params.tree)).role;
+          role = (await requireReader(params.tree)).role;
         } catch (e) {
           if (e instanceof AuthError) return text(e.message, e.status);
           throw e;

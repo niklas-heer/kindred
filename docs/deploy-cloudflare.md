@@ -42,8 +42,8 @@ The first family that first-time setup makes (step 7) needs its binding too. Its
 mise run cf:migrate:remote    # node scripts/cf-migrate.ts --remote: every D1 in wrangler.jsonc, in migration order
 ```
 
-Run it again after each release that adds a file to `migrations/`. The migrations are the same files the Node
-driver applies, so both targets keep one schema.
+`mise run deploy` (step 7) applies new migrations itself, so later releases need no separate run. The migrations are
+the same files the Node driver applies, so both targets keep one schema.
 
 ## 4. Bring a family in (optional)
 
@@ -87,6 +87,7 @@ invites the others.
 | `KINDRED_SECRET` | secret | Seals each family's AI key (AES-GCM under a key derived from this secret and the family's id). Set it before you save an AI key. Changing it makes the saved keys unreadable, so the settings page asks for them again. Back it up. |
 | `KINDRED_SETUP_CODE` | secret | A fixed code of at least 12 letters or digits, asked for by `/setup`. On Workers every isolate would make its own random code, so use a fixed one; do not use `required` there. Any other value locks setup. |
 | `KINDRED_ORIGIN` | variable | The public address, e.g. `https://family.example.org`. Passkeys are tied to it. Set it when the address is not the one the Worker sees. |
+| `KINDRED_GUEST_ORIGIN` | variable | The guest host for family share links, e.g. `https://guests.family.example.org`. Needed only behind Cloudflare Access. See step 6, [Guests behind Access](#guests-behind-access). |
 | `KINDRED_DEFAULT_TREE` | variable | The family `/` opens directly, for its members. Without it, two or more families show the chooser. |
 | `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` | variable | Cloudflare Access. The team domain and the application's audience tag. See step 6. |
 | `KINDRED_VAPID_PUBLIC_KEY`, `KINDRED_VAPID_SUBJECT` | variable | Web Push reminders: the public VAPID key and a contact (`mailto:` or `https:`). Reminders stay hidden without them. See Reminders below. |
@@ -161,6 +162,38 @@ that first sign-in makes the server's first family too, named “Our family” (
 language), just as passkey setup does. Set
 `CF_ACCESS_TEAM_DOMAIN` to your team's domain and `CF_ACCESS_AUD` to the application's audience tag. Verified Access identities sign in through Access; passkeys remain available as a separate sign-in method.
 
+### Guests behind Access
+
+A family share link (Access page, **Share with a link**) lets a relative look around without an account, with a link and a
+password (see [roles-and-privacy.md](roles-and-privacy.md)). Without Access in front of the site, it needs no setup. With Access,
+it needs one thing, because Access stops anyone without a login before Kindred ever sees them.
+
+**A path policy is not enough.** A Bypass on `/share/*` lets a guest see the password page and nothing after it: the next page
+is `/<family>`, and the app reads through `/_serverFn/*` and `/api/photo/*`, `/api/portrait/*`, `/api/media/*`. Bypassing those paths
+would take Access away from your members too. So guests come in on a **second host name**, and the policy on your members' host
+stays exactly as it is:
+
+1. Add a custom domain for guests to the same Worker: in the dashboard, Workers & Pages → `kindred` → Settings → Domains &
+   Routes → Add → Custom domain, for example `guests.family.example.org`. In `wrangler.jsonc` the equivalent is
+   `"routes": [{ "pattern": "guests.family.example.org", "custom_domain": true }]`.
+2. Set `KINDRED_GUEST_ORIGIN` to that address (`https://guests.family.example.org`). Share links then point at it.
+3. Check that **no Access application covers that host name**. A wildcard application such as `*.family.example.org` would. If you have
+   one, add an application for exactly `guests.family.example.org`, with one policy: action **Bypass**, include **Everyone**.
+   Add nothing to the application on your members' host.
+
+The guest host is open to the internet, so Kindred locks it down itself (`src/lib/auth/guest-host.ts`):
+
+- It answers only a guest's own paths: `/share/*`, a family's pages (not its Access or settings pages), the app's server functions and
+  assets, and pictures (`/api/photo/*`, `/api/portrait/*`, `/api/media/*`, `/api/research/*`). Everything else is a 404: `/signin`, `/setup`,
+  `/invite/*`, `/api/auth/*`, exports.
+- It honours only a guest's visit. An account's session cookie and an Access identity are ignored there, so a stolen member
+  cookie opens nothing, and setup never runs there. A server function reached through it refuses a guest
+  for anything but the reads a viewer has.
+- A member's own site is unchanged: Access, passkeys and every policy stay as they are, and a share link is still made there.
+
+Without `KINDRED_GUEST_ORIGIN`, a site behind Access (`CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` set) can't make a link: the card says so
+and the server refuses, rather than handing a relative a link that Access would stop. The same setting works on Node behind Access.
+
 ## Places on Workers (optional)
 
 Assisted place entry suggests towns as you type a place, and the Atlas can draw towns that have no pin of the family's
@@ -201,8 +234,22 @@ on D1 the time is mostly the round trip, and the name reads of a search wait for
 ## 7. Deploy
 
 ```sh
-mise run deploy    # vite build, then npx wrangler deploy
+mise run deploy    # vite build, then cf:migrate:remote, then npx wrangler deploy
 ```
+
+The steps run in that order, and the first one that fails stops the rest, so new code never goes live on an old schema:
+
+- **The build fails:** nothing has changed on Cloudflare.
+- **A migration fails:** the new Worker is not deployed and the current one keeps serving. Each file applies as a unit and
+  is recorded only when it succeeds, so the failed file left nothing behind. Files and databases before it stay migrated,
+  because migrations only go forward. Fix the cause and run `mise run deploy` again: it continues from the first file
+  not yet applied. To undo a migration that succeeded but was wrong, restore that database with
+  `npx wrangler d1 time-travel restore`.
+- **`wrangler deploy` fails:** the schema is new and the previous Worker keeps serving on it. Run `mise run deploy` again.
+
+Because the migrations run first, the previous Worker serves on the new schema for a moment even when all goes well.
+A migration must therefore not break the release before it: to remove or rename something the running code uses, stop
+using it in one release and change the schema in the next.
 
 The first account claims stewardship when it is made, and setup makes the server's first family too. Open the site and
 go through `/setup` (with the setup code, if you set one). Type the family's name and your own name, then create the

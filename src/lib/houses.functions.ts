@@ -10,7 +10,7 @@ const id = z.string().min(1).max(100);
 export const getHouseSettings = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
-    await (await import('./auth/guard.server')).requireMember(data.tree);
+    await (await import('./auth/guard.server')).requireReader(data.tree);
     return (await import('./houses.server')).readHouseSettings(data.tree);
   });
 

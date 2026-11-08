@@ -1,17 +1,30 @@
 import { QueryClient } from '@tanstack/react-query';
 import { createRouter, useRouter, type ErrorComponentProps } from '@tanstack/react-router';
 import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query';
+import { getGlobalStartContext } from '@tanstack/react-start';
 import { NotFoundPage } from './components/NotFoundPage';
 import { ErrorState, PageSkeleton } from './components/ui/states';
+import { useT } from './lib/i18n';
 import { routeTree } from './routeTree.gen';
 
+/** This request's nonce for the page's inline scripts (src/start.ts). The browser reads it back from a meta tag itself. */
+function cspNonce(): string | undefined {
+  try {
+    return (getGlobalStartContext() as { cspNonce?: string } | undefined)?.cspNonce;
+  } catch {
+    return undefined; // Start also makes a router outside the request middleware, for a redirect: that renders no page.
+  }
+}
+
 export function getRouter() {
+  const nonce = cspNonce();
   const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } });
   const router = createRouter({
     routeTree,
     context: { queryClient },
     defaultPreload: 'intent',
     scrollRestoration: true,
+    ssr: nonce ? { nonce } : undefined,
     // A skeleton only for loads slower than 300 ms, and then for at least 300 ms, so it never flickers.
     defaultPendingMs: 300,
     defaultPendingMinMs: 300,
@@ -28,10 +41,11 @@ export function getRouter() {
 
 function RouteError({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
+  const t = useT();
   return (
     <main className="page ui-notfound-page">
       <ErrorState
-        message="This page couldn’t be loaded. Your family’s data is safe; try again in a moment."
+        message={t('common.page_load_failed')}
         error={error}
         onRetry={() => { reset(); router.invalidate(); }}
       />

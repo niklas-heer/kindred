@@ -4,6 +4,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
+import { LOCALES, type Locale } from './i18n/types';
 import { can } from './roles';
 import { nameMeaningSchema } from './ai/types';
 import { MAX_SAVED_MEANINGS, onlyChosen } from './house-meaning';
@@ -20,7 +21,7 @@ const savedMeaning = nameMeaningSchema.extend({ chosen: z.boolean() });
 export const getHouseMeanings = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
-    const m = await (await guard()).requireMember(data.tree);
+    const m = await (await guard()).requireReader(data.tree);
     const all = await (await import('./house-meaning.server')).readMeanings(data.tree);
     // A steward gets the whole research (to change the selection); every other reader only the origins that were selected.
     return can(m.role, 'edit-house') ? all : onlyChosen(all);
@@ -28,6 +29,17 @@ export const getHouseMeanings = createServerFn({ method: 'GET' })
 
 export const houseMeaningsQuery = (tree: string) =>
   queryOptions({ queryKey: ['house-meanings', tree], queryFn: () => getHouseMeanings({ data: { tree } }) });
+
+/** The research and the arms checks in one reader's language, as far as they are translated. Each reader gets only what they may read of the originals. */
+export const getHouseTranslations = createServerFn({ method: 'GET' })
+  .validator(z.object({ tree, locale: z.enum(LOCALES) }))
+  .handler(async ({ data }) => {
+    const m = await (await guard()).requireReader(data.tree);
+    return (await import('./ai/house-translation.server')).readHouseTranslations(data.tree, data.locale, can(m.role, 'edit-house'));
+  });
+
+export const houseTranslationsQuery = (tree: string, locale: Locale) =>
+  queryOptions({ queryKey: ['house-translations', tree, locale], queryFn: () => getHouseTranslations({ data: { tree, locale } }), staleTime: 60_000 });
 
 export const getArmsReviews = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))

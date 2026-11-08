@@ -4,11 +4,12 @@ import { occupationSearchText } from '~/lib/occupations';
 // ⌘K: jump to anyone by name, nickname, epithet, title or place; or run a command.
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useNavigate } from '@tanstack/react-router';
-import { CalendarHeart, Contact, Landmark, Map as MapIcon, Crown, GitFork, Moon, Network, Palette as PaletteIcon, ScrollText, Sparkles, Sun, UserRound, FolderSearch } from 'lucide-react';
+import { CalendarHeart, Contact, Landmark, Map as MapIcon, Crown, GitFork, Moon, Network, Palette as PaletteIcon, ScrollText, Sparkles, Sun, UserRound, FolderSearch, Inbox, MessageSquarePlus } from 'lucide-react';
 import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useFamily, useMe, useMeChosen, useTreeId } from '~/lib/family';
 import { displayName, kinship, lifespan, ancestorDepths, type Family } from '~/lib/graph';
 import { setPref } from '~/lib/prefs';
+import { useCan } from '~/lib/session';
 import { play } from '~/lib/sfx';
 import { openAiSetup, openAssistant, useAiStatus } from './assistant/store';
 import { useAiSetupNeeded } from './assistant/AiSetup';
@@ -16,6 +17,7 @@ import { Arms } from './Heraldry';
 import { Portrait } from './Portrait';
 import { Dialog } from './ui/Dialog';
 import { reopenTour } from './FirstRun';
+import { openFeedback } from './feedback/FeedbackHost';
 import './palette.css';
 
 let isOpen = false;
@@ -96,6 +98,7 @@ export function Palette() {
   const assistantOn = !!useAiStatus(tree)?.features.assistant;
   // A steward of a family with no AI key gets the set-up command in its place (the same panel as the top bar's button).
   const setupNeeded = useAiSetupNeeded(tree);
+  const steward = useCan('manage-access');
   const navigate = useNavigate();
   const [q, setQ] = useState('');
   const dq = useDeferredValue(q);
@@ -153,6 +156,10 @@ export function Palette() {
       { key: 'houses', icon: <Landmark size={16} />, label: t('shell.cmd.houses'), hint: t('shell.cmd.housesHint'), run: () => { navigate({ to: '/$tree/houses', params: { tree } }); close(); } },
       ...(assistantOn ? [{ key: 'assistant', icon: <Sparkles size={16} />, label: t('ai.askCommand'), run: () => { close(); openAssistant(); } }] : []),
       ...(setupNeeded ? [{ key: 'ai-setup', icon: <Sparkles size={16} />, label: t('ai.setupCommand'), run: () => { close(); openAiSetup(); } }] : []),
+      ...(steward ? [
+        { key: 'feedback', icon: <MessageSquarePlus size={16} />, label: t('feedback.menu'), hint: t('feedback.command_hint'), run: () => { close(); openFeedback(); } },
+        { key: 'feedback-inbox', icon: <Inbox size={16} />, label: t('feedback.inbox'), hint: t('feedback.inbox_hint'), run: () => { navigate({ to: '/$tree/settings/feedback', params: { tree } }); close(); } },
+      ] : []),
       { key: 't-codex', icon: <PaletteIcon size={16} />, label: t('shell.cmd.themeCodex'), run: () => { setPref('theme', 'codex'); close(); } },
       { key: 't-paper', icon: <Sun size={16} />, label: t('shell.cmd.themePaper'), run: () => { setPref('theme', 'modern'); close(); } },
       { key: 't-night', icon: <Moon size={16} />, label: t('shell.cmd.themeNight'), run: () => { setPref('theme', 'night'); close(); } },
@@ -160,7 +167,7 @@ export function Palette() {
     const fq = fold(dq);
     const matched = fq ? cmds.filter((c) => fold(c.label).includes(fq)) : cmds;
     return fq ? [...people, ...houses, ...matched] : matched;
-  }, [f, dq, me, who, myAnc, navigate, tree, close, t, t.locale, assistantOn, setupNeeded, mode]);
+  }, [f, dq, me, who, myAnc, navigate, tree, close, t, t.locale, assistantOn, setupNeeded, steward, mode]);
 
   useEffect(() => setSel(0), [dq]);
   useEffect(() => {

@@ -5,7 +5,7 @@ import { translateMessage, formatDate, relativeTime, useT, type Locale } from '~
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { graphQuery } from '~/lib/api';
-import { Activity, Bell, Check, Fingerprint, Images, KeyRound, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users } from 'lucide-react';
+import { Activity, BarChart3, Bell, Check, CircleHelp, Fingerprint, Images, KeyRound, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Inbox, MessageSquarePlus } from 'lucide-react';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import '~/components/assistant/ai-tasks.css';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
@@ -13,7 +13,9 @@ import { addPasskey, forgetLocalIdentity, passkeysSupported, signOutRequest } fr
 import { myPasskeysQuery, removeMyPasskey, renameMe, type Passkey } from '~/lib/auth/functions';
 import { fetchRemindersAvailable } from '~/lib/reminders.functions';
 import { ROLES, can } from '~/lib/roles';
+import { openFeedback } from './feedback/FeedbackHost';
 import { Portrait } from './Portrait';
+import { startTour } from './tour/store';
 import { dropThisDevice, ReminderRefresh, RemindersDialog } from './Reminders';
 import { useMembership, useSession } from '~/lib/session';
 import { Dialog } from './ui/Dialog';
@@ -144,6 +146,10 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
               <Link role="menuitem" className="acct-item" to="/$tree/access" params={{ tree }} onClick={() => setOpen(false)}>
                 <Users size={17} /> {t("accountmenu.manage_access")} </Link>
             )}
+            {tree && m && can(m.role, 'view-statistics') && (
+              <Link role="menuitem" className="acct-item" to="/$tree/statistics" params={{ tree }} onClick={() => setOpen(false)}>
+                <BarChart3 size={17} /> {t("stats.menu")} </Link>
+            )}
             {tree && m && can(m.role, 'manage-access') && (
               <Link role="menuitem" className="acct-item" to="/$tree/settings/ai" params={{ tree }} onClick={() => setOpen(false)}>
                 <Sparkles size={17} /> {t("shell.ai_settings")} </Link>
@@ -151,6 +157,14 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
             {tree && m && can(m.role, 'manage-access') && (
               <Link role="menuitem" className="acct-item" to="/$tree/settings/activity" params={{ tree }} onClick={() => setOpen(false)}>
                 <Activity size={17} /> {t("aitasks.menu")} {attention.data ? <span className="aitasks-count">{attention.data}</span> : null} </Link>
+            )}
+            {tree && m && can(m.role, 'manage-access') && (
+              <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); openFeedback(); }}>
+                <MessageSquarePlus size={17} /> {t("feedback.menu")} <kbd className="acct-kbd">⌘⇧F</kbd> </button>
+            )}
+            {tree && m && can(m.role, 'manage-access') && (
+              <Link role="menuitem" className="acct-item" to="/$tree/settings/feedback" params={{ tree }} onClick={() => setOpen(false)}>
+                <Inbox size={17} /> {t("feedback.inbox")} </Link>
             )}
             {tree && m && can(m.role, 'edit-person') && (
               <Link role="menuitem" className="acct-item" to="/$tree/settings/import" params={{ tree }} onClick={() => setOpen(false)}>
@@ -161,6 +175,10 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
             {tree && m && remindersOn.data && (
               <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setReminders(true); }}>
                 <Bell size={17} /> {t('reminders.menu')} </button>
+            )}
+            {tree && m && (
+              <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); startTour(); }}>
+                <CircleHelp size={17} /> {t('tour.menu')} </button>
             )}
             <button role="menuitem" className="acct-item" onClick={() => void signOut(session?.accessLogout)}>
               <LogOut size={17} /> {t("accountmenu.sign_out")} </button>

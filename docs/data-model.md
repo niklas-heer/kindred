@@ -56,6 +56,9 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
   was translated: a translation is shown only while it still matches the story. `same` is 1 when the story was already in
   that language, so nothing is shown and the story is not asked again. The story row itself is never changed. Copied with the
   family, after its story.
+- **`house_translation`** (migration 0019): an AI translation of a house's researched meanings or its arms check (`kind`) into one
+  language (`locale`). `content` is JSON; `source_hash` works as for `story_translation`, so editing or researching a name again
+  replaces it. The original rows are never changed. Copied with the family, after its house.
 - **`place`**: a place name with coordinates and a country, for the Atlas.
 - **`photo`**: each person's portrait: `person`, `mime`, `key` (where the picture is in media storage) and, only for
   pictures saved before media storage, `data`.
@@ -92,9 +95,12 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
 
 | `0010_ai_providers.sql` | Provider connections and a provider/model route per AI feature; migrates the previous saved keys and routes. |
 | `0011_names_task.sql` | Adds the `names` background task and route to the lists the task, run and route tables allow. |
+| `0019_house_translation.sql` | `house_translation`: the background AI translations of a house's researched name meanings and its arms check. |
+| `0017_feedback.sql` | `feedback`: what stewards report about Kindred itself, kept in this installation (the picture of the screen is in the family's media storage). |
 
 ### Tables
 
+- **`feedback`** (migration 0017): one report: `tree`, `kind` (`bug`, `idea`, `confusing`), `status` (`new`, `in-progress`, `resolved`), `body`, `context` (JSON: the page, the element's selector, language, theme, screen size, browser, app version and recent client errors, nothing else), `picture` (`feedback/<uuid>.jpg` in media storage, null when it was left out), `user` and `user_name` (the name at the time), `created_at`, `updated_at`. Stewards only.
 - **`user`**: a person with an account: `name`, an optional `email`, a random `handle` (the passkey's user handle, so a
   passkey reveals nothing about the account), `locale`, `created` and `last_seen`.
 - **`credential`**: a passkey: its id, public key, counter, transports, a device name, whether it is synced, and when it
@@ -103,6 +109,11 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
   `refreshed`, and it slides forward as the user is active.
 - **`invite`**: an invitation to a family with a `role`, an optional `email`, an `expires`, who created it and who used
   it, and `revoked_at`. Only a hash of the link's token is stored.
+- **`share_link`** (0015): a family's share link, at most one per family: a hash of its token, a PBKDF2 hash of its password (or none),
+  a `generation` that goes up when it is replaced, and an optional `expires`. A guest is not a user.
+- **`share_session`** (0015): a guest's short-lived visit: the SHA-256 hash of the cookie's token, the link and the generation it belongs
+  to, and `expires`. It is deleted when the link is replaced or turned off.
+- **`share_attempt`** (0015): tries against a link in the current 15-minute window, per link and per link and hashed address.
 - **`membership`**: a user's role in a family (`viewer`, `contributor`, `editor`, `steward`), and who they are in that
   family (a person id, or `-` for "just browsing").
 - **`challenge`**: a passkey ceremony in progress (for setup, an invitation, adding a passkey, or signing in), with its

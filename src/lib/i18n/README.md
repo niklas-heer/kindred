@@ -15,19 +15,20 @@ Three languages ship: **English** (`en`, the source of the key type), **German**
 | `kinship.ts` | `kinshipLabel`: relation words for German and Afrikaans, from graph labels. |
 | `titles.ts` | `localizeTitle`: the section word of a page title in each language. |
 | `request.ts` | `requestLocale`: the locale for a request, for the root route to serialise. |
-| `i18n.test.ts` | Every area has the same keys in `en` and `de`; no key is in two areas; the Afrikaans coverage is reported. |
+| `i18n.test.ts` | Every area has the same keys in `en` and `de`; no key is in two areas. |
+| `no-hardcoded.test.ts`, `hardcoded-scan.ts` | The guard: no English written into a screen, no thrown sentence the dictionary lacks, no key missing in `de` or `af`, no entry still in English, du and jy throughout. Its short allowlists hold the genuine exceptions. |
 
 ## Adding or changing a string
 
 1. Pick the area that owns the screen (table below). Add the key to that file, in **all three** objects:
    `en` (English), `de` (German, du) and `af` (Afrikaans, jy). `de` is typed over every `en` key, so
-   `npx tsc --noEmit` fails until it is there. `af` may lag: a missing Afrikaans entry falls back to English,
-   and the test prints it.
+   `npx tsc --noEmit` fails until it is there. `npm test` fails when an `af` entry is missing.
 2. Name the key `area.snake_case_name` (existing keys keep their names). Keys are unique across the whole app.
 3. In components: `const t = useT();` then `t('shell.tree')`, `t('common.people', { count: 3 })`.
    In server code: `translate(locale, 'ai.errBudget', vars)` with the request's own locale. Never keep a
    locale in a global.
-4. Run `npm test` (the area test catches a key missing from `de` or present in two areas).
+4. Run `npm test` (it catches a key missing from `de` or `af`, present in two areas, or text left in the code).
+5. A sentence thrown on the server is English with a key of the same text, and the client shows it through `translateMessage`. Lower-case messages are codes, which the UI maps.
 
 Plurals are `{ one: '…{count}…', other: '…{count}…' }`, chosen by `Intl.PluralRules` for each language.
 Placeholders are `{name}`; numbers are formatted for the locale. Keep placeholders identical in every language.
@@ -38,7 +39,7 @@ Placeholders are `{name}`; numbers are formatted for the locale. Keep placeholde
 | --- | --- |
 | `common` | Buttons, states, units and generic labels shared by all screens (`ui.*`, `common.*`) |
 | `shell` | Navigation, the home page of families, the ⌘K palette and its commands (`shell.*`, `index.*`) |
-| `tree` | The family tree canvas, its minimap and the first-run tour (`canvas.*`, `firstrun.*`) |
+| `tree` | The family tree canvas, its minimap and the first-run question (`canvas.*`, `firstrun.*`) |
 | `panel` | The person panel: facts, relatives, contact details, memories (`panel.*`, `fact.*`) |
 | `fields` | The person editor and detail fields, labels, inputs, the Markdown editor, validation |
 | `photos` | The gallery, albums, the lightbox, uploads and profile photos (`gallery.*`, `lb.*`, `up.*`) |
@@ -49,6 +50,7 @@ Placeholders are `{name}`; numbers are formatted for the locale. Keep placeholde
 | `portrait` | The character editor and drawn portraits |
 | `access` | Sign-in, passkeys, invitations, roles, the account menu, not-found and no-access states |
 | `setup` | First-time setup of a server |
+| `tour` | The guided tour: the first-run offer, the card's buttons and each step's words (`tour.*`) |
 | `atlas`, `almanac`, `chronicle`, `contacts`, `needed` | Empty until the translation sweep moves those pages' text here |
 
 ## Language choice

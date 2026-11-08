@@ -184,8 +184,8 @@ test('what the format cannot carry is listed for the report', () => {
   const all = losses.join('\n');
   assert.match(all, /3 stories, memories and sayings are not exported/);
   assert.match(all, /2 contact details and other fields are not exported/);
-  assert.match(all, /1 houses and their arms are not exported/);
-  assert.match(all, /1 portraits are referenced by their media key only/);
+  assert.match(all, /1 house and its arms are not exported/);
+  assert.match(all, /1 portrait is referenced by its media key only/);
 });
 
 test('an empty family writes a valid file and reads back with nothing', () => {

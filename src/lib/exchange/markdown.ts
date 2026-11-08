@@ -49,10 +49,10 @@ export function markdownArchive(tree: ExTree, portraits: Set<string> = new Set()
   const names = noteNames(tree.people);
   const losses: string[] = [];
   const steps = tree.parents.filter((l) => l.kind === 'step').length;
-  if (steps) losses.push(`${steps} step-parent links are not written: the v1 format has no step relation`);
-  if (tree.extras.stories) losses.push(`${tree.extras.stories} stories, memories and sayings are not in the archive (biographies are)`);
-  if (tree.extras.fields) losses.push(`${tree.extras.fields} contact details and other fields are not in the archive`);
-  if (tree.extras.houses) losses.push(`${tree.extras.houses} houses and their arms are not in the archive`);
+  if (steps) losses.push(`${steps} step-parent ${steps === 1 ? 'link is' : 'links are'} not written: the v1 format has no step relation`);
+  if (tree.extras.stories) losses.push(`${tree.extras.stories} ${tree.extras.stories === 1 ? 'story, memory or saying is' : 'stories, memories and sayings are'} not in the archive (biographies are)`);
+  if (tree.extras.fields) losses.push(`${tree.extras.fields} ${tree.extras.fields === 1 ? 'contact detail or other field is' : 'contact details and other fields are'} not in the archive`);
+  if (tree.extras.houses) losses.push(`${tree.extras.houses} ${tree.extras.houses === 1 ? 'house and its arms are' : 'houses and their arms are'} not in the archive`);
   const byId = new Map(tree.people.map((p) => [p.id, p]));
   const link = (id: string) => `[[people/${names.get(id)}]]`;
   const files: ArchiveFile[] = [];

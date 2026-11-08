@@ -6,22 +6,33 @@
 //   GAZETTEER      D1, optional: the GeoNames towns for assisted place entry, read-only (migrations/gazetteer,
 //                  loaded by `mise run cf:gazetteer`). Without it the place picker offers the family's own places.
 import { env } from 'cloudflare:workers';
-import { checkMediaKey, NOT_TREES, TREE_ID, type Db, type Driver, type Param, type Query, type Result } from './db.ts';
+import { checkMediaKey, checkStatement, NOT_TREES, TREE_ID, type Db, type Driver, type Param, type Query, type Result } from './db.ts';
 
 const isD1 = (v: unknown): v is D1Database => !!v && typeof (v as D1Database).prepare === 'function' && typeof (v as D1Database).batch === 'function';
 
 /** The binding that holds a tree: `my-family` → TREE_MY_FAMILY. */
 export const treeBinding = (tree: string) => `TREE_${tree.toUpperCase().replace(/-/g, '_')}`;
 
+/** D1 returns a BLOB as an array of numbers; every other value in a row is a scalar, so an array can only be a BLOB. */
+function row<R>(r: R): R {
+  const values = r as Record<string, unknown>;
+  for (const k in values) if (Array.isArray(values[k])) values[k] = Uint8Array.from(values[k] as number[]);
+  return r;
+}
+
 function wrap(d1: D1Database): Db {
-  const stmt = (sql: string, params: Param[]) => d1.prepare(sql).bind(...params);
-  const result = (r: D1Result): Result => ({ rows: r.results ?? [], changes: r.meta?.changes ?? 0, lastRowId: r.meta?.last_row_id ?? 0 });
+  const stmt = (sql: string, params: Param[]) => {
+    checkStatement(sql, params);
+    return d1.prepare(sql).bind(...params);
+  };
+  const result = (r: D1Result): Result => ({ rows: (r.results ?? []).map(row), changes: r.meta?.changes ?? 0, lastRowId: r.meta?.last_row_id ?? 0 });
   return {
     async all<R>(sql: string, ...params: Param[]) {
-      return (await stmt(sql, params).all<R>()).results;
+      return (await stmt(sql, params).all<R>()).results.map(row);
     },
     async get<R>(sql: string, ...params: Param[]) {
-      return (await stmt(sql, params).first<R>()) ?? undefined;
+      const r = await stmt(sql, params).first<R>();
+      return r ? row(r) : undefined;
     },
     async run(sql: string, ...params: Param[]) {
       return result(await stmt(sql, params).run());

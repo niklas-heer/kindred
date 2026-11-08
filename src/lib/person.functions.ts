@@ -24,7 +24,7 @@ const opOf = (user: { id: string }, data: { opKey: string }) => {
 export const getPersonDetail = createServerFn({ method: 'GET' })
   .validator(z.object({ tree, id: personId }))
   .handler(async ({ data }) => {
-    const m = await (await guard()).requireMember(data.tree);
+    const m = await (await guard()).requireReader(data.tree);
     return (await import('./db.server')).person(data.tree, data.id, can(m.role, 'edit-person'));
   });
 

@@ -12,6 +12,7 @@ import * as chronicleArea from "./areas/chronicle.ts";
 import * as commonArea from "./areas/common.ts";
 import * as contactsArea from "./areas/contacts.ts";
 import * as exchangeArea from "./areas/exchange.ts";
+import * as feedbackArea from "./areas/feedback.ts";
 import * as fieldsArea from "./areas/fields.ts";
 import * as heraldryArea from "./areas/heraldry.ts";
 import * as housesArea from "./areas/houses.ts";
@@ -22,7 +23,10 @@ import * as portraitArea from "./areas/portrait.ts";
 import * as remindersArea from "./areas/reminders.ts";
 import * as researchArea from "./areas/research.ts";
 import * as setupArea from "./areas/setup.ts";
+import * as shareArea from "./areas/share.ts";
 import * as shellArea from "./areas/shell.ts";
+import * as statisticsArea from "./areas/statistics.ts";
+import * as tourArea from "./areas/tour.ts";
 import * as treeArea from "./areas/tree.ts";
 import { LOCALES, type Locale, type Message, type Vars } from "./types.ts";
 
@@ -51,9 +55,13 @@ const AREAS = [
   contactsArea,
   neededArea,
   accessArea,
+  shareArea,
   setupArea,
   remindersArea,
   researchArea,
+  tourArea,
+  feedbackArea,
+  statisticsArea,
 ] as const;
 
 type AreaModule = (typeof AREAS)[number];
@@ -128,7 +136,8 @@ export function translate(locale: Locale, key: Key, vars: Vars = {}): string {
       ? entry
       : entry[new Intl.PluralRules(locales[locale]).select(Number(vars.count ?? 0)) === "one" ? "one" : "other"];
   return text.replace(/\{(\w+)\}/g, (all, k) =>
-    vars[k] === undefined ? all : typeof vars[k] === "number" ? formatNumber(vars[k] as number, locale) : String(vars[k]),
+    // A year is a name for a time, not a quantity: "1985", never "1,985" or "1.985".
+    vars[k] === undefined ? all : typeof vars[k] === "number" && !/year|decade/i.test(k) ? formatNumber(vars[k] as number, locale) : String(vars[k]),
   );
 }
 
@@ -137,14 +146,36 @@ export function translate(locale: Locale, key: Key, vars: Vars = {}): string {
  * has {placeholders} matches the text with those parts filled in ("Birthday · 3 years" in any language).
  */
 export function translateMessage(message: string, locale: Locale): string {
+  const found = matchMessage(message);
+  return found ? translate(locale, found.key, found.vars) : message;
+}
+
+/** Whether a thrown message is one written for readers: a key of the dictionary, or the English of one, filled in or not. */
+export function isKnownMessage(message: string): boolean {
+  return Object.hasOwn(tables.en, message) || matchMessage(message) !== null;
+}
+
+function matchMessage(message: string): { key: Key; vars?: Vars } | null {
   const key = KEYS.find((k) => tables.en[k] === message);
-  if (key) return translate(locale, key);
+  if (key) return { key };
   for (const k of KEYS) {
     const english = tables.en[k];
-    if (typeof english !== "string" || !english.includes("{")) continue;
+    if (english === undefined) continue;
+    // A plural entry is matched by either form, so "1 house …" and "3 houses …" both find their key.
+    for (const form of typeof english === "string" ? [english] : [english.one, english.other]) {
+      if (!form.includes("{")) continue;
+      const matched = fillTemplate(form, message);
+      if (matched) return { key: k, vars: matched };
+    }
+  }
+  return null;
+}
+
+/** The placeholder values when `message` is the English `template` with its parts filled in, else null. */
+function fillTemplate(template: string, message: string): Vars | null {
     const names: string[] = [];
     let literal = 0;
-    const pattern = english
+    const pattern = template
       .split(/(\{\w+\})/)
       .map((part) => {
         const named = /^\{(\w+)\}$/.exec(part);
@@ -157,11 +188,9 @@ export function translateMessage(message: string, locale: Locale): string {
       })
       .join("");
     // Templates with only a little fixed text would match too much; leave those alone.
-    if (literal < 8) continue;
+    if (literal < 8) return null;
     const match = new RegExp(`^${pattern}$`, "s").exec(message);
-    if (match) return translate(locale, k, Object.fromEntries(names.map((n, i) => [n, match[i + 1]])));
-  }
-  return message;
+    return match ? Object.fromEntries(names.map((n, i) => [n, match[i + 1]])) : null;
 }
 
 export function formatNumber(value: number, locale: Locale = "en", options?: Intl.NumberFormatOptions) {

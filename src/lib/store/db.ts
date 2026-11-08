@@ -26,6 +26,20 @@ export interface Db {
   batch(queries: Query[]): Promise<Result[]>;
 }
 
+/** D1's limits on one statement, also inside a batch (developers.cloudflare.com/d1/platform/limits). */
+export const MAX_BOUND_PARAMS = 100;
+export const MAX_SQL_LENGTH = 100_000;
+
+/**
+ * Both drivers refuse a statement D1 would refuse, because local D1 and node:sqlite accept more and a query that only
+ * fails once deployed is found by a family, not a test. For a list of any length, bind one JSON parameter:
+ * `WHERE id IN (SELECT value FROM json_each(?))`.
+ */
+export function checkStatement(sql: string, params: Param[]) {
+  if (params.length > MAX_BOUND_PARAMS) throw new Error(`A statement has ${params.length} bound parameters; D1 allows ${MAX_BOUND_PARAMS}: ${sql.slice(0, 120)}`);
+  if (sql.length > MAX_SQL_LENGTH) throw new Error(`A statement is ${sql.length} characters long; D1 allows ${MAX_SQL_LENGTH}: ${sql.slice(0, 120)}`);
+}
+
 // ---------- guards ----------
 //
 // A guard is a statement in a batch that aborts the whole batch unless a condition holds:

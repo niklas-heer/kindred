@@ -7,7 +7,7 @@
 // check, the tests and the build all passed), so they go beyond the health check:
 //   /api/health        200, "ok", with the security headers
 //   /                  a redirect to /setup while no account exists
-//   /setup             200 HTML; /signin redirects to /setup while no account exists
+//   /setup             200 HTML, every inline script carrying the Content-Security-Policy nonce; /signin redirects to /setup while no account exists
 //   POST /api/auth/signout from another site   403, refused by the CSRF check
 //   POST /api/auth/signout from this site      not 403 (the control: the check refuses cross-site only)
 // Exit status 0 when every check passes; 1 otherwise, with the Worker's own log tail on stderr. WORKER_SMOKE_LOG=1 prints
@@ -17,27 +17,19 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { wranglerBindings } from './lib/wrangler.ts';
+import { offlineEnv, wranglerBindings } from './lib/wrangler.ts';
 
 const root = join(import.meta.dirname, '..');
 process.chdir(root); // wrangler.jsonc and the migrations are read relative to the repository
 const work = mkdtempSync(join(tmpdir(), 'kindred-worker-smoke-'));
 const built = join(work, 'dist');
 const state = join(work, 'state');
-const DEAD_PROXY = 'http://127.0.0.1:9';
 // The project's own tools, by path: the scratch folder has no node_modules, and `npx` there would download a copy.
 const wranglerBin = join(root, 'node_modules/wrangler/bin/wrangler.js');
 const viteBin = join(root, 'node_modules/vite/bin/vite.js');
 
 /** The environment for every child: no Cloudflare credentials, no telemetry, and no route to the network. */
-function childEnv(): NodeJS.ProcessEnv {
-  // Miniflare would otherwise fetch the request.cf placeholder from workers.cloudflare.com; with this set it uses its own.
-  const env: NodeJS.ProcessEnv = { ...process.env, CI: 'true', WRANGLER_SEND_METRICS: 'false', NODE_USE_ENV_PROXY: '1', CLOUDFLARE_CF_FETCH_ENABLED: 'false' };
-  for (const name of ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_KEY', 'CLOUDFLARE_EMAIL', 'KINDRED_TARGET', 'CLOUDFLARE_ENV']) delete env[name];
-  for (const name of ['HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY', 'https_proxy', 'http_proxy', 'all_proxy']) env[name] = DEAD_PROXY;
-  env.NO_PROXY = env.no_proxy = '127.0.0.1,localhost';
-  return env;
-}
+const childEnv = offlineEnv;
 
 const failures: string[] = [];
 const check = (ok: boolean, what: string) => {
@@ -136,8 +128,13 @@ async function main(): Promise<boolean> {
     // /setup renders; /signin has no account to sign in to yet, so it sends the visitor to /setup (both are page renders).
     const setup = await fetch(`http://127.0.0.1:${port}/setup`, { redirect: 'manual' });
     const setupType = setup.headers.get('content-type') ?? '';
-    await setup.body?.cancel();
+    const setupHtml = await setup.text();
     check(setup.status === 200 && setupType.startsWith('text/html'), `/setup renders (200 text/html, got ${setup.status} ${setupType.split(';')[0]})`);
+    // The policy's nonce has to reach the inline scripts on Workers too, or the page would stop working once it is enforced.
+    const policy = setup.headers.get('content-security-policy-report-only') ?? '';
+    const nonce = /'nonce-([^']+)'/.exec(policy)?.[1];
+    const inlineScripts = [...setupHtml.matchAll(/<script\b([^>]*)>/g)].filter(([, attrs]) => !/\bsrc=/.test(attrs));
+    check(!!nonce && inlineScripts.length > 0 && inlineScripts.every(([, attrs]) => attrs.includes(`nonce="${nonce}"`)), `every inline script on /setup carries the policy's nonce (${inlineScripts.length} scripts)`);
     const signin = await fetch(`http://127.0.0.1:${port}/signin`, { redirect: 'manual' });
     await signin.body?.cancel();
     check([301, 302, 307, 308].includes(signin.status) && (signin.headers.get('location') ?? '').endsWith('/setup'), `/signin sends a visitor with no account to /setup (got ${signin.status})`);

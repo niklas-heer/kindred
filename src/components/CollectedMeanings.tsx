@@ -2,7 +2,7 @@
 // or those that fit. Several can be selected and confirmed with one action, and only then the existing check of the arms follows. The component stays mounted after
 // the choice, so the check that follows can say what it is doing. Other readers get nothing from here: the collection is not
 // in what they can read, and this component is only rendered for those who may edit the house.
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Sparkles, X } from 'lucide-react';
 import { useState } from 'react';
 import { checkArmsFit } from '~/lib/ai/arms-fit.functions';
@@ -10,7 +10,8 @@ import { toAiLocale } from '~/lib/ai/types';
 import { opKeys } from '~/lib/api';
 import { errorText } from '~/lib/errortext';
 import type { SavedMeaning } from '~/lib/house-meaning';
-import { armsReviewsQuery, chooseCollectedMeaning, collectedMeaningsQuery, dismissCollectedMeanings, houseMeaningsQuery } from '~/lib/house-meaning.functions';
+import { armsReviewsQuery, chooseCollectedMeaning, collectedMeaningsQuery, dismissCollectedMeanings, houseMeaningsQuery, houseTranslationsQuery } from '~/lib/house-meaning.functions';
+import { translateSaved } from '~/lib/house-translation';
 import { useT } from '~/lib/i18n';
 import { OriginPicker, whenText } from './HouseMeaning';
 import '~/styles/house.css';
@@ -29,6 +30,7 @@ export function CollectedMeanings({ tree, house, collected, aiOn, onResearch }: 
   const t = useT();
   const qc = useQueryClient();
   const [keys] = useState(() => opKeys());
+  const translations = useQuery(houseTranslationsQuery(tree, t.locale)).data;
   /** The origins ticked so far; with a single collected meaning it is ticked already, so choosing it stays one click. */
   const [picked, setPicked] = useState<Set<string> | null>(null);
   const selected = picked ?? new Set(collected && collected.meanings.length === 1 ? [collected.meanings[0].id] : []);
@@ -75,15 +77,16 @@ export function CollectedMeanings({ tree, house, collected, aiOn, onResearch }: 
   }
 
   const busy = choose.isPending || dismiss.isPending;
+  const shown = translateSaved(collected, translations?.meanings[house]);
   return (
     <section className="ui-card hm-review hm-collected" aria-labelledby="hm-collected-title" aria-busy={busy || undefined}>
       <h3 className="hp-eyebrow" id="hm-collected-title">{t('houses.collected.title')}</h3>
       <p className="hm-reason">{t('houses.collected.prompt', { name: collected.name })}</p>
-      <OriginPicker meanings={collected.meanings} selected={selected} onToggle={toggle} disabled={busy} label={t('houses.collected.title')} />
+      <OriginPicker meanings={shown.meanings} selected={selected} onToggle={toggle} disabled={busy} label={t('houses.collected.title')} />
       <p className="hm-basis subtle">
         {t(collected.webSearched ? 'houses.meaning.basisWeb' : 'houses.meaning.basisKnowledge')} {t('houses.collected.when', { when: whenText(collected.savedAt, t.locale) })}
       </p>
-      {collected.note && <p className="hm-basis subtle">{collected.note}</p>}
+      {shown.note && <p className="hm-basis subtle">{shown.note}</p>}
       <div className="hm-review-actions">
         <button type="button" className="btn primary" disabled={busy || selected.size === 0} onClick={() => choose.mutate(collected.meanings.filter((m) => selected.has(m.id)).map((m) => m.id))}>
           <Check size={16} aria-hidden /> {t('houses.collected.confirm', { count: selected.size })}

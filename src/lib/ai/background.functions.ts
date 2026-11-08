@@ -54,7 +54,7 @@ export const aiAttentionQuery = (t: string) => queryOptions({ queryKey: ['ai-att
 export const storyTranslations = createServerFn({ method: 'GET' })
   .validator(z.object({ tree, locale: z.enum(LOCALES) }))
   .handler(async ({ data }) => {
-    await (await guard()).requireMember(data.tree);
+    await (await guard()).requireReader(data.tree);
     return (await tasks()).storyTranslations(data.tree, data.locale);
   });
 

@@ -301,6 +301,7 @@ function PaintDialog({ tree, person, photos, name, start, cost, onChanged, onClo
       description={name}
       width="min(620px, 100vw - 24px)"
       dismissible={!busy && !drafts.length}
+      bodyClassName="paint-body"
       footer={
         cand ? (
           <div className="paint-actions">

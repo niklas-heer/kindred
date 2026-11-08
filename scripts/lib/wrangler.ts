@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
 export interface D1Binding { binding: string; database_name: string; database_id: string; migrations_dir?: string }
-interface Config { d1_databases?: D1Binding[]; r2_buckets?: { binding: string; bucket_name: string }[]; env?: Record<string, Config> }
+interface Config { compatibility_date?: string; compatibility_flags?: string[]; d1_databases?: D1Binding[]; r2_buckets?: { binding: string; bucket_name: string }[]; env?: Record<string, Config> }
 
 /** JSON with comments: drops // and /* *\/ comments outside strings, and trailing commas. */
 function parseJsonc(text: string): unknown {
@@ -31,6 +31,23 @@ export function wranglerBindings(env?: string) {
   const scope = env ? config.env?.[env] : config;
   if (!scope) throw new Error(`wrangler.jsonc has no environment "${env}"`);
   return { d1: scope.d1_databases ?? [], r2: scope.r2_buckets ?? [] };
+}
+
+/** The workerd settings the deployed Worker runs with. */
+export function workerRuntime() {
+  const config = parseJsonc(readFileSync('wrangler.jsonc', 'utf8')) as Config;
+  return { compatibilityDate: config.compatibility_date, compatibilityFlags: config.compatibility_flags };
+}
+
+/** An environment for local wrangler runs: no Cloudflare credentials, no telemetry, and no route to the network. */
+export function offlineEnv(): NodeJS.ProcessEnv {
+  const deadProxy = 'http://127.0.0.1:9';
+  // Miniflare would otherwise fetch the request.cf placeholder from workers.cloudflare.com; with this set it uses its own.
+  const env: NodeJS.ProcessEnv = { ...process.env, CI: 'true', WRANGLER_SEND_METRICS: 'false', NODE_USE_ENV_PROXY: '1', CLOUDFLARE_CF_FETCH_ENABLED: 'false' };
+  for (const name of ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_KEY', 'CLOUDFLARE_EMAIL', 'KINDRED_TARGET', 'CLOUDFLARE_ENV']) delete env[name];
+  for (const name of ['HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY', 'https_proxy', 'http_proxy', 'all_proxy']) env[name] = deadProxy;
+  env.NO_PROXY = env.no_proxy = '127.0.0.1,localhost';
+  return env;
 }
 
 /** The D1 binding that serves a tree: `my-family` → TREE_MY_FAMILY (as src/lib/store/cf.ts). */

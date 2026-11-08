@@ -5,7 +5,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
-import { CHAT_MESSAGE_CHARS, FAMILY_SESSION_CHARS, PROVIDERS, ROUTES, toAiLocale, type AiSettingsData, type ModelInfo, type Provider } from './ai/types';
+import { CHAT_MESSAGE_CHARS, FAMILY_SESSION_CHARS, FEATURES, PROVIDERS, ROUTES, toAiLocale, type AiFeatures, type AiSettingsData, type ModelInfo, type Provider } from './ai/types';
 
 /** The models a provider offers, or why they could not be listed (the page then offers a typed model id). */
 export type ModelsResult =
@@ -24,7 +24,8 @@ const providers = () => import('./ai/providers.server');
 export const aiStatus = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
-    await (await guard()).requireMember(data.tree);
+    // A guest gets no AI at all: every feature is off for them, whatever the family has set up.
+    if ((await (await guard()).requireReader(data.tree)).guest) return { configured: false, provider: null, features: Object.fromEntries(FEATURES.map((f) => [f, false])) as AiFeatures };
     return (await ai()).statusFor(data.tree);
   });
 
@@ -179,10 +180,12 @@ export const aiChatSend = createServerFn({ method: 'POST' })
     // A message is short; a family session is a whole transcript, up to its own limit. Past that, the reader splits it.
     if (!data.session && data.text.length > CHAT_MESSAGE_CHARS) throw new Error('ai.err_message_long');
     if (data.session && data.text.length > FAMILY_SESSION_CHARS) throw new Error('ai.err_session_long');
-    return (await import('./ai/chat.server')).sendMessage({
+    const reply = await (await import('./ai/chat.server')).sendMessage({
       tree: data.tree, user: m.user.id, role: m.role, me: m.person, text: data.text, locale: data.locale ?? 'en',
       session: data.session, speaker: data.speaker ?? null,
     });
+    await (await import('./stats/store.server')).countFeature(data.tree, m.user.id, 'assistant.asked');
+    return reply;
   });
 
 export const aiChatMark = createServerFn({ method: 'POST' })

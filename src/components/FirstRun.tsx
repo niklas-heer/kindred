@@ -1,99 +1,87 @@
 import { useT } from '~/lib/i18n';
-// First visit to a tree: "Who are you in this family?", then an optional three-step tour.
+// First visit to a tree: "Who are you in this family?", then, once and on its own, the offer of the guided tour.
 // The answer is saved with the reader's membership and as the `me:<tree>` preference (a person id,
-// or BROWSING); the tour is remembered once seen or skipped (`tour`). Until the reader answers,
+// or BROWSING); the offer is remembered once answered (`tour`). Until the reader answers,
 // kinship labels stay hidden. `WhoPicker` is the same list, for the invitation page.
 import { useQueryClient } from '@tanstack/react-query';
-import { MousePointerClick, Search, UserPlus } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Search } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BROWSING, chooseMe, useFamily, useMeAnswered, useTreeId } from '~/lib/family';
 import { children, displayName, lifespan, parents, partnersOf, siblings, type Family } from '~/lib/graph';
-import { setPref, usePref } from '~/lib/prefs';
-import { useCan, useSession } from '~/lib/session';
+import { usePref } from '~/lib/prefs';
+import { useSession } from '~/lib/session';
 import { searchPeople } from './Palette';
 import { Portrait } from './Portrait';
+import { Tour } from './tour/Tour';
+import { markTourSeen, startTour, TOUR_SEEN_PREF } from './tour/store';
 import { Dialog } from './ui/Dialog';
+import { useOverlayOpen } from './ui/overlay';
 import './firstrun.css';
 
+/** Starts the guided tour; the ⌘K palette's command. */
+export const reopenTour = startTour;
 
-
-export function reopenTour() { window.dispatchEvent(new Event('kindred:reopen-tour')); }
+/** How long the page settles before the tour is offered, so the offer never lands on top of another dialog. */
+const OFFER_DELAY = 700;
 
 export function FirstRun() {
-  const t = useT();
-const STEPS: { title: string; art: ReactNode; body: ReactNode; adds?: boolean }[] = [
-  {
-    title: t("firstrun.select_then_centre"),
-    art: <MousePointerClick size={38} />,
-    body: <>{t("firstrun.a")} <b>{t("firstrun.click")}</b> {t("firstrun.shows_someone_in_the_side_panel_and_leaves_the_tree_where_it_is")} <b>{t("firstrun.double_click")}</b>{t("firstrun.or_press")} <kbd>↵</kbd>{t("firstrun.to_centre_the_tree_on_them")}</>,
-  },
-  {
-    title: t("firstrun.add_with_the_marks"),
-    adds: true,
-    art: <UserPlus size={38} />,
-    body: <>{t("firstrun.dashed")} <b>+</b> {t("firstrun.marks_surround_the_selected_card_a_parent_above_a_child_below_a_partner_to_the_right_a_sibling_to_the_left_only_a_name_is_needed")}</>,
-  },
-  {
-    title: t("firstrun.find_anyone"),
-    art: <Search size={38} />,
-    body: <>{t("firstrun.press")} <kbd>⌘K</kbd> {t("firstrun.or")} <kbd>/</kbd> {t("firstrun.and_type_a_name_nickname_title_or_house_it_also_switches_views_and_themes")}</>,
-  },
-];
   const f = useFamily();
   const tree = useTreeId();
   const qc = useQueryClient();
   const answered = useMeAnswered();
-  const tourSeen = usePref('tour') !== null;
   // Closing without answering only defers the question to the next visit.
   const [later, setLater] = useState(false);
-  const [touring, setTouring] = useState(false);
-  const [step, setStep] = useState(0);
-  // Readers who can't add people skip the step about the + marks: they don't see them.
-  const canAdd = useCan('add-person');
-  const steps = canAdd ? STEPS : STEPS.filter((s) => !s.adds);
-  useEffect(() => { const reopen = () => { setStep(0); setTouring(true); }; window.addEventListener('kindred:reopen-tour', reopen); return () => window.removeEventListener('kindred:reopen-tour', reopen); }, []);
 
   const choose = (id: string) => {
     // The account's picture comes from the session's membership, so refresh the session once the link is saved.
     void chooseMe(tree, id).then(() => qc.invalidateQueries({ queryKey: ['session'] }));
-    if (!tourSeen) setTouring(true);
   };
-  const endTour = () => {
-    setPref('tour', 'seen');
-    setTouring(false);
-  };
-
-  if (touring) {
-    const s = steps[Math.min(step, steps.length - 1)];
-    const last = step >= steps.length - 1;
-    return (
-      <Dialog
-        open
-        onClose={endTour}
-        variant="event"
-        width={460}
-        title={s.title}
-        footer={
-          <>
-            <span className="tour-dots" aria-label={t('common.step', {step:step+1,count:steps.length})}>
-              {steps.map((_, i) => <i key={i} data-on={i === step || undefined} />)}
-            </span>
-            {!last && <button className="btn ghost" onClick={endTour}>{t("firstrun.skip_tour")}</button>}
-            {step > 0 && <button className="btn" onClick={() => setStep(step - 1)}>{t("firstrun.back")}</button>}
-            <button className="btn primary" data-autofocus onClick={() => (last ? endTour() : setStep(step + 1))}>{last ? t("firstrun.start_exploring") : t("firstrun.next")}</button>
-          </>
-        }
-      >
-        <div className="tour" key={step}>
-          <span className="tour-art" aria-hidden>{s.art}</span>
-          <p>{s.body}</p>
-        </div>
-      </Dialog>
-    );
-  }
 
   // An empty family has nobody to choose from: the start card in the tree is the first thing to do there.
-  return <WhoAreYou open={!answered && !later && f.graph.people.length > 0} onChoose={choose} onLater={() => setLater(true)} familyName={f.graph.tree.name} />;
+  return (
+    <>
+      <WhoAreYou open={!answered && !later && f.graph.people.length > 0} onChoose={choose} onLater={() => setLater(true)} familyName={f.graph.tree.name} />
+      <TourOffer eligible={answered && f.graph.people.length > 0} />
+      <Tour />
+    </>
+  );
+}
+
+/** Offers the tour once, after the reader has said who they are, and only while no other dialog is open. */
+function TourOffer({ eligible }: { eligible: boolean }) {
+  const t = useT();
+  const seen = usePref(TOUR_SEEN_PREF) !== null;
+  const busy = useOverlayOpen();
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!eligible || seen || busy || open) return;
+    const timer = setTimeout(() => setOpen(true), OFFER_DELAY);
+    return () => clearTimeout(timer);
+  }, [eligible, seen, busy, open]);
+
+  const answer = (start: boolean) => {
+    setOpen(false);
+    if (start) startTour();
+    else markTourSeen();
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={() => answer(false)}
+      variant="event"
+      width={460}
+      title={t('tour.offer.title')}
+      footer={
+        <>
+          <button className="btn ghost" onClick={() => answer(false)}>{t('tour.offer.no')}</button>
+          <button className="btn primary" data-autofocus onClick={() => answer(true)}>{t('tour.offer.yes')}</button>
+        </>
+      }
+    >
+      <p className="tour-offer">{t('tour.offer.body')}</p>
+    </Dialog>
+  );
 }
 
 function WhoAreYou({ open, onChoose, onLater, familyName }: { open: boolean; onChoose: (id: string) => void; onLater: () => void; familyName: string }) {

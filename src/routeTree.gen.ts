@@ -25,16 +25,22 @@ import { Route as TreeHousesRouteImport } from './routes/$tree/houses'
 import { Route as TreeNeededRouteImport } from './routes/$tree/needed'
 import { Route as TreePeopleRouteImport } from './routes/$tree/people'
 import { Route as TreeResearchRouteImport } from './routes/$tree/research'
+import { Route as TreeStatisticsRouteImport } from './routes/$tree/statistics'
+import { Route as ApiCspReportRouteImport } from './routes/api/csp-report'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiStatsRouteImport } from './routes/api/stats'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
+import { Route as ShareTokenRouteImport } from './routes/share.$token'
 import { Route as UiCharacterRouteImport } from './routes/ui_.character'
 import { Route as TreeHouseHouseRouteImport } from './routes/$tree/house.$house'
 import { Route as TreeResearchProjectRouteImport } from './routes/$tree/research_.$project'
 import { Route as TreeSettingsActivityRouteImport } from './routes/$tree/settings.activity'
 import { Route as TreeSettingsAiRouteImport } from './routes/$tree/settings.ai'
+import { Route as TreeSettingsFeedbackRouteImport } from './routes/$tree/settings.feedback'
 import { Route as TreeSettingsImportRouteImport } from './routes/$tree/settings.import'
 import { Route as ApiAuthActionRouteImport } from './routes/api/auth/$action'
 import { Route as ApiExportTreeRouteImport } from './routes/api/export.$tree'
+import { Route as ApiFeedbackTreeKeyRouteImport } from './routes/api/feedback.$tree.$key'
 import { Route as ApiMediaTreeKeyRouteImport } from './routes/api/media.$tree.$key'
 import { Route as ApiPaintTreeKeyRouteImport } from './routes/api/paint.$tree.$key'
 import { Route as ApiPhotoTreeIdRouteImport } from './routes/api/photo.$tree.$id'
@@ -121,14 +127,34 @@ const TreeResearchRoute = TreeResearchRouteImport.update({
   path: '/research',
   getParentRoute: () => TreeRoute,
 } as any)
+const TreeStatisticsRoute = TreeStatisticsRouteImport.update({
+  id: '/statistics',
+  path: '/statistics',
+  getParentRoute: () => TreeRoute,
+} as any)
+const ApiCspReportRoute = ApiCspReportRouteImport.update({
+  id: '/api/csp-report',
+  path: '/api/csp-report',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiStatsRoute = ApiStatsRouteImport.update({
+  id: '/api/stats',
+  path: '/api/stats',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
   id: '/invite/$token',
   path: '/invite/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShareTokenRoute = ShareTokenRouteImport.update({
+  id: '/share/$token',
+  path: '/share/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UiCharacterRoute = UiCharacterRouteImport.update({
@@ -156,6 +182,11 @@ const TreeSettingsAiRoute = TreeSettingsAiRouteImport.update({
   path: '/settings/ai',
   getParentRoute: () => TreeRoute,
 } as any)
+const TreeSettingsFeedbackRoute = TreeSettingsFeedbackRouteImport.update({
+  id: '/settings/feedback',
+  path: '/settings/feedback',
+  getParentRoute: () => TreeRoute,
+} as any)
 const TreeSettingsImportRoute = TreeSettingsImportRouteImport.update({
   id: '/settings/import',
   path: '/settings/import',
@@ -169,6 +200,11 @@ const ApiAuthActionRoute = ApiAuthActionRouteImport.update({
 const ApiExportTreeRoute = ApiExportTreeRouteImport.update({
   id: '/api/export/$tree',
   path: '/api/export/$tree',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFeedbackTreeKeyRoute = ApiFeedbackTreeKeyRouteImport.update({
+  id: '/api/feedback/$tree/$key',
+  path: '/api/feedback/$tree/$key',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMediaTreeKeyRoute = ApiMediaTreeKeyRouteImport.update({
@@ -213,17 +249,23 @@ export interface FileRoutesByFullPath {
   '/$tree/needed': typeof TreeNeededRoute
   '/$tree/people': typeof TreePeopleRoute
   '/$tree/research': typeof TreeResearchRoute
+  '/$tree/statistics': typeof TreeStatisticsRoute
+  '/api/csp-report': typeof ApiCspReportRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/stats': typeof ApiStatsRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/share/$token': typeof ShareTokenRoute
   '/ui/character': typeof UiCharacterRoute
   '/$tree/': typeof TreeIndexRoute
   '/$tree/house/$house': typeof TreeHouseHouseRoute
   '/$tree/research/$project': typeof TreeResearchProjectRoute
   '/$tree/settings/activity': typeof TreeSettingsActivityRoute
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
+  '/$tree/settings/feedback': typeof TreeSettingsFeedbackRoute
   '/$tree/settings/import': typeof TreeSettingsImportRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
   '/api/export/$tree': typeof ApiExportTreeRoute
+  '/api/feedback/$tree/$key': typeof ApiFeedbackTreeKeyRoute
   '/api/media/$tree/$key': typeof ApiMediaTreeKeyRoute
   '/api/paint/$tree/$key': typeof ApiPaintTreeKeyRoute
   '/api/photo/$tree/$id': typeof ApiPhotoTreeIdRoute
@@ -245,17 +287,23 @@ export interface FileRoutesByTo {
   '/$tree/needed': typeof TreeNeededRoute
   '/$tree/people': typeof TreePeopleRoute
   '/$tree/research': typeof TreeResearchRoute
+  '/$tree/statistics': typeof TreeStatisticsRoute
+  '/api/csp-report': typeof ApiCspReportRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/stats': typeof ApiStatsRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/share/$token': typeof ShareTokenRoute
   '/ui/character': typeof UiCharacterRoute
   '/$tree': typeof TreeIndexRoute
   '/$tree/house/$house': typeof TreeHouseHouseRoute
   '/$tree/research/$project': typeof TreeResearchProjectRoute
   '/$tree/settings/activity': typeof TreeSettingsActivityRoute
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
+  '/$tree/settings/feedback': typeof TreeSettingsFeedbackRoute
   '/$tree/settings/import': typeof TreeSettingsImportRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
   '/api/export/$tree': typeof ApiExportTreeRoute
+  '/api/feedback/$tree/$key': typeof ApiFeedbackTreeKeyRoute
   '/api/media/$tree/$key': typeof ApiMediaTreeKeyRoute
   '/api/paint/$tree/$key': typeof ApiPaintTreeKeyRoute
   '/api/photo/$tree/$id': typeof ApiPhotoTreeIdRoute
@@ -279,17 +327,23 @@ export interface FileRoutesById {
   '/$tree/needed': typeof TreeNeededRoute
   '/$tree/people': typeof TreePeopleRoute
   '/$tree/research': typeof TreeResearchRoute
+  '/$tree/statistics': typeof TreeStatisticsRoute
+  '/api/csp-report': typeof ApiCspReportRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/stats': typeof ApiStatsRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/share/$token': typeof ShareTokenRoute
   '/ui_/character': typeof UiCharacterRoute
   '/$tree/': typeof TreeIndexRoute
   '/$tree/house/$house': typeof TreeHouseHouseRoute
   '/$tree/research_/$project': typeof TreeResearchProjectRoute
   '/$tree/settings/activity': typeof TreeSettingsActivityRoute
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
+  '/$tree/settings/feedback': typeof TreeSettingsFeedbackRoute
   '/$tree/settings/import': typeof TreeSettingsImportRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
   '/api/export/$tree': typeof ApiExportTreeRoute
+  '/api/feedback/$tree/$key': typeof ApiFeedbackTreeKeyRoute
   '/api/media/$tree/$key': typeof ApiMediaTreeKeyRoute
   '/api/paint/$tree/$key': typeof ApiPaintTreeKeyRoute
   '/api/photo/$tree/$id': typeof ApiPhotoTreeIdRoute
@@ -314,17 +368,23 @@ export interface FileRouteTypes {
     | '/$tree/needed'
     | '/$tree/people'
     | '/$tree/research'
+    | '/$tree/statistics'
+    | '/api/csp-report'
     | '/api/health'
+    | '/api/stats'
     | '/invite/$token'
+    | '/share/$token'
     | '/ui/character'
     | '/$tree/'
     | '/$tree/house/$house'
     | '/$tree/research/$project'
     | '/$tree/settings/activity'
     | '/$tree/settings/ai'
+    | '/$tree/settings/feedback'
     | '/$tree/settings/import'
     | '/api/auth/$action'
     | '/api/export/$tree'
+    | '/api/feedback/$tree/$key'
     | '/api/media/$tree/$key'
     | '/api/paint/$tree/$key'
     | '/api/photo/$tree/$id'
@@ -346,17 +406,23 @@ export interface FileRouteTypes {
     | '/$tree/needed'
     | '/$tree/people'
     | '/$tree/research'
+    | '/$tree/statistics'
+    | '/api/csp-report'
     | '/api/health'
+    | '/api/stats'
     | '/invite/$token'
+    | '/share/$token'
     | '/ui/character'
     | '/$tree'
     | '/$tree/house/$house'
     | '/$tree/research/$project'
     | '/$tree/settings/activity'
     | '/$tree/settings/ai'
+    | '/$tree/settings/feedback'
     | '/$tree/settings/import'
     | '/api/auth/$action'
     | '/api/export/$tree'
+    | '/api/feedback/$tree/$key'
     | '/api/media/$tree/$key'
     | '/api/paint/$tree/$key'
     | '/api/photo/$tree/$id'
@@ -379,17 +445,23 @@ export interface FileRouteTypes {
     | '/$tree/needed'
     | '/$tree/people'
     | '/$tree/research'
+    | '/$tree/statistics'
+    | '/api/csp-report'
     | '/api/health'
+    | '/api/stats'
     | '/invite/$token'
+    | '/share/$token'
     | '/ui_/character'
     | '/$tree/'
     | '/$tree/house/$house'
     | '/$tree/research_/$project'
     | '/$tree/settings/activity'
     | '/$tree/settings/ai'
+    | '/$tree/settings/feedback'
     | '/$tree/settings/import'
     | '/api/auth/$action'
     | '/api/export/$tree'
+    | '/api/feedback/$tree/$key'
     | '/api/media/$tree/$key'
     | '/api/paint/$tree/$key'
     | '/api/photo/$tree/$id'
@@ -403,11 +475,15 @@ export interface RootRouteChildren {
   SetupRoute: typeof SetupRoute
   SigninRoute: typeof SigninRoute
   UiRoute: typeof UiRoute
+  ApiCspReportRoute: typeof ApiCspReportRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiStatsRoute: typeof ApiStatsRoute
   InviteTokenRoute: typeof InviteTokenRoute
+  ShareTokenRoute: typeof ShareTokenRoute
   UiCharacterRoute: typeof UiCharacterRoute
   ApiAuthActionRoute: typeof ApiAuthActionRoute
   ApiExportTreeRoute: typeof ApiExportTreeRoute
+  ApiFeedbackTreeKeyRoute: typeof ApiFeedbackTreeKeyRoute
   ApiMediaTreeKeyRoute: typeof ApiMediaTreeKeyRoute
   ApiPaintTreeKeyRoute: typeof ApiPaintTreeKeyRoute
   ApiPhotoTreeIdRoute: typeof ApiPhotoTreeIdRoute
@@ -529,6 +605,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TreeResearchRouteImport
       parentRoute: typeof TreeRoute
     }
+    '/$tree/statistics': {
+      id: '/$tree/statistics'
+      path: '/statistics'
+      fullPath: '/$tree/statistics'
+      preLoaderRoute: typeof TreeStatisticsRouteImport
+      parentRoute: typeof TreeRoute
+    }
+    '/api/csp-report': {
+      id: '/api/csp-report'
+      path: '/api/csp-report'
+      fullPath: '/api/csp-report'
+      preLoaderRoute: typeof ApiCspReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/health': {
       id: '/api/health'
       path: '/api/health'
@@ -536,11 +626,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/stats': {
+      id: '/api/stats'
+      path: '/api/stats'
+      fullPath: '/api/stats'
+      preLoaderRoute: typeof ApiStatsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/invite/$token': {
       id: '/invite/$token'
       path: '/invite/$token'
       fullPath: '/invite/$token'
       preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/share/$token': {
+      id: '/share/$token'
+      path: '/share/$token'
+      fullPath: '/share/$token'
+      preLoaderRoute: typeof ShareTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ui_/character': {
@@ -578,6 +682,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TreeSettingsAiRouteImport
       parentRoute: typeof TreeRoute
     }
+    '/$tree/settings/feedback': {
+      id: '/$tree/settings/feedback'
+      path: '/settings/feedback'
+      fullPath: '/$tree/settings/feedback'
+      preLoaderRoute: typeof TreeSettingsFeedbackRouteImport
+      parentRoute: typeof TreeRoute
+    }
     '/$tree/settings/import': {
       id: '/$tree/settings/import'
       path: '/settings/import'
@@ -597,6 +708,13 @@ declare module '@tanstack/react-router' {
       path: '/api/export/$tree'
       fullPath: '/api/export/$tree'
       preLoaderRoute: typeof ApiExportTreeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/feedback/$tree/$key': {
+      id: '/api/feedback/$tree/$key'
+      path: '/api/feedback/$tree/$key'
+      fullPath: '/api/feedback/$tree/$key'
+      preLoaderRoute: typeof ApiFeedbackTreeKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/media/$tree/$key': {
@@ -648,11 +766,13 @@ interface TreeRouteChildren {
   TreeNeededRoute: typeof TreeNeededRoute
   TreePeopleRoute: typeof TreePeopleRoute
   TreeResearchRoute: typeof TreeResearchRoute
+  TreeStatisticsRoute: typeof TreeStatisticsRoute
   TreeIndexRoute: typeof TreeIndexRoute
   TreeHouseHouseRoute: typeof TreeHouseHouseRoute
   TreeResearchProjectRoute: typeof TreeResearchProjectRoute
   TreeSettingsActivityRoute: typeof TreeSettingsActivityRoute
   TreeSettingsAiRoute: typeof TreeSettingsAiRoute
+  TreeSettingsFeedbackRoute: typeof TreeSettingsFeedbackRoute
   TreeSettingsImportRoute: typeof TreeSettingsImportRoute
 }
 
@@ -667,11 +787,13 @@ const TreeRouteChildren: TreeRouteChildren = {
   TreeNeededRoute: TreeNeededRoute,
   TreePeopleRoute: TreePeopleRoute,
   TreeResearchRoute: TreeResearchRoute,
+  TreeStatisticsRoute: TreeStatisticsRoute,
   TreeIndexRoute: TreeIndexRoute,
   TreeHouseHouseRoute: TreeHouseHouseRoute,
   TreeResearchProjectRoute: TreeResearchProjectRoute,
   TreeSettingsActivityRoute: TreeSettingsActivityRoute,
   TreeSettingsAiRoute: TreeSettingsAiRoute,
+  TreeSettingsFeedbackRoute: TreeSettingsFeedbackRoute,
   TreeSettingsImportRoute: TreeSettingsImportRoute,
 }
 
@@ -683,11 +805,15 @@ const rootRouteChildren: RootRouteChildren = {
   SetupRoute: SetupRoute,
   SigninRoute: SigninRoute,
   UiRoute: UiRoute,
+  ApiCspReportRoute: ApiCspReportRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ApiStatsRoute: ApiStatsRoute,
   InviteTokenRoute: InviteTokenRoute,
+  ShareTokenRoute: ShareTokenRoute,
   UiCharacterRoute: UiCharacterRoute,
   ApiAuthActionRoute: ApiAuthActionRoute,
   ApiExportTreeRoute: ApiExportTreeRoute,
+  ApiFeedbackTreeKeyRoute: ApiFeedbackTreeKeyRoute,
   ApiMediaTreeKeyRoute: ApiMediaTreeKeyRoute,
   ApiPaintTreeKeyRoute: ApiPaintTreeKeyRoute,
   ApiPhotoTreeIdRoute: ApiPhotoTreeIdRoute,

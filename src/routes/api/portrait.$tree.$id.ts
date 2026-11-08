@@ -9,9 +9,9 @@ export const Route = createFileRoute('/api/portrait/$tree/$id')({
       GET: async ({ params }) => {
         const text = (body: string, status: number) => new Response(body, { status, headers: { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' } });
         if (!/^[a-z0-9-]{1,64}$/.test(params.tree)) return text('not found', 404);
-        const [{ requireMember }, { AuthError }] = await Promise.all([import('~/lib/auth/guard.server'), import('~/lib/auth/errors')]);
+        const [{ requireReader }, { AuthError }] = await Promise.all([import('~/lib/auth/guard.server'), import('~/lib/auth/errors')]);
         try {
-          await requireMember(params.tree);
+          await requireReader(params.tree);
         } catch (e) {
           if (e instanceof AuthError) return text(e.message, e.status);
           throw e;

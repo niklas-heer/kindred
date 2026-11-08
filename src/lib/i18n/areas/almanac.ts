@@ -207,5 +207,5 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   "almanac.wedding.emerald": "smaragd",
   "almanac.wedding.diamond": "diamant",
   "almanac.wedding.blue_sapphire": "blou saffier",
-  "almanac.wedding.platinum": "platinum",
+  "almanac.wedding.platinum": "platina",
 };

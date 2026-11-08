@@ -419,7 +419,7 @@ function Blaze({ queue, only, f, tree, me, role, required, onClose }: { queue: s
           {gaps.includes('occupation') && (
             <label className="field">
               <span>{t(GAP_LABEL.occupation)}</span>
-              <input ref={firstRef()} className="input" value={v.occupation ?? ''} onChange={set('occupation')} placeholder="Weaver, Lehrerin…" />
+              <input ref={firstRef()} className="input" value={v.occupation ?? ''} onChange={set('occupation')} placeholder={t('needed.occupationHint')} />
             </label>
           )}
           {gaps.includes('sex') && (

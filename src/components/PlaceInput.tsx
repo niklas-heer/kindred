@@ -21,7 +21,7 @@ import {
 } from 'react';
 import { feature, mesh } from 'topojson-client';
 import { getPlacesIn, graphQuery, placeSearchQuery, searchPlaces, upsertPlaces } from '~/lib/api';
-import { locales, useT, type Locale } from '~/lib/i18n';
+import { formatNumber, locales, useT, type Locale } from '~/lib/i18n';
 import { useCan } from '~/lib/session';
 import type { Place } from '~/lib/types';
 import { Dialog } from './ui/Dialog';
@@ -617,7 +617,8 @@ function PinMap({ tree, name, start, family, onClose, onSave }: {
   };
   const typed = coords.trim() ? parse(coords) : null;
   const dirty = !!pin && (!start || far(start, pin));
-  const at = pin ? `${pin.lat.toFixed(4)}°, ${pin.lng.toFixed(4)}°` : '';
+  const coord = (n: number) => formatNumber(n, t.locale, { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+  const at = pin ? `${coord(pin.lat)}°, ${coord(pin.lng)}°` : '';
 
   return (
     <Dialog

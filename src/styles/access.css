@@ -88,3 +88,19 @@
   .acc-roles { grid-template-columns: 1fr; }
   .acc-link { flex-direction: column; }
 }
+
+/* The family share link */
+.share-card p { color: var(--muted); line-height: 1.5; margin-top: 0; }
+.share-status { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 12px; }
+.share-status .chip[data-ended] { color: var(--danger); }
+.share-shown { display: grid; gap: 12px; }
+.share-shown label > span:first-child { display: block; font-size: 13px; color: var(--subtle); margin-bottom: 4px; }
+.share-message { width: 100%; height: auto; min-height: 96px; resize: vertical; line-height: 1.45; padding: 10px 12px; font-family: var(--font-ui); box-sizing: border-box; }
+.share-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.share-actions .btn { height: 40px; }
+.share-note { margin: 8px 0 0; }
+.guest-chip { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.guest-chip .btn { height: 30px; padding: 0 8px; }
+@media (max-width: 760px) { .guest-chip-label { display: none; } .share-actions .btn { flex: 1; justify-content: center; } }
+.share-card h2.rule { margin-top: 0; }
+.share-message { field-sizing: content; }

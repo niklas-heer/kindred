@@ -5,3 +5,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+  # The app's packages, in one weekly pull request; a security update still arrives on its own.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      npm:
+        patterns: ["*"]

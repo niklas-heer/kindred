@@ -1,7 +1,8 @@
 // The background tasks: what is still waiting in a family's record, and how one item of it is done. An item is one model
 // call, or for a name its research (a web search first when the family has that on). The only things written are the arms
 // review (house_arms_review, through checkArms), the occupation cache (occupation_translation), the chronicle translations
-// (story_translation, beside the story) and collected, unchosen name meanings (house_meaning). No task reads a private
+// (story_translation, beside the story), the house translations (house_translation) and collected, unchosen name meanings
+// (house_meaning). No task reads a private
 // field (person_field) or changes a story, a person or a house. Only the name research may search the web, and only the
 // surname and the house's country go out.
 //
@@ -19,6 +20,7 @@ import { translation } from '../occupations.translate';
 import type { Locale } from '../i18n/types';
 import { checkArms, withFitFixture } from './arms-fit.server';
 import { researchName } from './arms.server';
+import { houseItemKey, housePending, translateHouseItem, type HouseItem } from './house-translation.server';
 import { AiError, type AiAdapter, type AiReply, type AiRequest } from './adapters';
 import { tr } from './labels';
 import { fakeOn } from './settings.server';
@@ -28,7 +30,8 @@ export type Pending =
   | { task: 'arms'; house: string; fingerprint: string }
   | { task: 'occupations'; text: string; locale: Locale }
   | { task: 'chronicle'; story: string; title: string | null; body: string; locale: Locale; hash: string }
-  | { task: 'names'; house: string; surname: string; country?: string };
+  | { task: 'names'; house: string; surname: string; country?: string }
+  | HouseItem;
 
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
 
@@ -39,6 +42,7 @@ export async function sourceHash(title: string | null, body: string): Promise<st
 
 /** What one item is called in the give-up list: its task's key for it, including what it was made from, so a changed item is a new item. */
 export function itemKey(p: Pending): string {
+  if ('kind' in p) return houseItemKey(p);
   switch (p.task) {
     case 'arms': return `${p.house}\u0000${p.fingerprint}`;
     case 'occupations': return `${p.locale}\u0000${p.text}`;
@@ -98,7 +102,8 @@ async function candidates(tree: string, task: Task, languages: readonly Locale[]
     });
   }
   if (task === 'occupations') {
-    const out: Pending[] = [];
+    // Houses first: they are few, and they are what a reader sees in the wrong language on the arms screen.
+    const out: Pending[] = await housePending(tree, languages);
     const rows = await d.all<{ text: string }>("SELECT DISTINCT TRIM(occupation) AS text FROM person WHERE TRIM(COALESCE(occupation, '')) <> '' ORDER BY text");
     const have = new Set((await d.all<{ text: string; locale: string }>('SELECT text, locale FROM occupation_translation')).map((r) => `${r.locale}\u0000${r.text}`));
     for (const { text } of rows) {
@@ -168,6 +173,10 @@ const NOT_THE_NAME: ReadonlySet<AiError['code']> = new Set(['budget', 'auth', 'k
  * AiError('budget') and nothing is written. Any other failure throws too, and the caller counts it.
  */
 export async function perform(tree: string, p: Pending, o: { adapter: AiAdapter; locale: Locale; now: Date; webSearch?: boolean }): Promise<void> {
+  if ('kind' in p) {
+    await translateHouseItem(tree, p, { adapter: o.adapter, locale: o.locale, now: o.now });
+    return;
+  }
   const c = tr(o.locale);
   if (p.task === 'names') {
     try {

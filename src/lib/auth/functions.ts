@@ -31,19 +31,31 @@ export interface SessionInfo {
   uninvitedEmail?: string;
   /** Where "Sign out" must also go when signed in through Access. */
   accessLogout?: string;
+  /** A guest's visit through a family share link. `memberships` then holds that family, as a viewer. */
+  guest?: { tree: string; expires: number };
+  /** No session, and a guest's visit has ended: they get that page, not the passkey sign-in. */
+  guestEnded?: boolean;
+  /** This request came in on the guest host (docs/deploy-cloudflare.md). */
+  guestHost?: boolean;
 }
 
 /** Who is signed in, and their role and "who you are" in each family. Never cached across readers. */
 export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): Promise<SessionInfo> => {
-  const [{ currentSession }, s, setup, { accessLogoutUrl }, { siteOrigin }, { getRequest }] = await Promise.all([
-    guard(), store(), import('./setup.server'), import('./access.server'), import('./session.server'), import('@tanstack/react-start/server'),
+  const [{ currentSession }, s, setup, { accessLogoutUrl }, { siteOrigin, guestEnded }, { getRequest }, { onGuestHost }] = await Promise.all([
+    guard(), store(), import('./setup.server'), import('./access.server'), import('./session.server'), import('@tanstack/react-start/server'), import('./origin'),
   ]);
-  const { user, via, uninvitedEmail } = await currentSession();
-  const needs = await setup.needsSetup();
+  const { user, via, uninvitedEmail, guest } = await currentSession();
+  const guestHost = onGuestHost(getRequest());
+  // First-time setup is no business of the guest host, which is open to the internet.
+  const needs = guestHost ? false : await setup.needsSetup();
   const needsFamily = needs && !(await (await import('./trees.server')).families()).length;
+  const memberships = user ? (await s.membershipsOf(user.id)).map((m) => ({ tree: m.tree, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed })) : [];
+  // A member of that family is simply a member: only someone who isn't gets the guest's view of it.
+  const guestHere = guest && !memberships.some((m) => m.tree === guest.tree) ? guest : undefined;
+  if (guestHere) memberships.push({ tree: guestHere.tree, role: 'viewer', person: null, personConfirmed: false });
   return {
     user: user && via ? { id: user.id, name: user.name, email: user.email, via, locale: user.locale } : null,
-    memberships: user ? (await s.membershipsOf(user.id)).map((m) => ({ tree: m.tree, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed })) : [],
+    memberships,
     needsSetup: needs,
     needsFamily,
     setupCodeRequired: setup.setupCodeRequired(),
@@ -51,6 +63,9 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): 
     defaultTree: process.env.KINDRED_DEFAULT_TREE?.trim() || undefined,
     uninvitedEmail,
     accessLogout: via === 'access' || uninvitedEmail ? accessLogoutUrl() : undefined,
+    guest: guestHere && { tree: guestHere.tree, expires: guestHere.expires },
+    guestEnded: !user && !guestHere && guestEnded(getRequest()),
+    guestHost,
   };
 });
 export const sessionQuery = queryOptions({ queryKey: ['session'], queryFn: () => fetchSession(), staleTime: 60_000 });
@@ -58,9 +73,10 @@ export const sessionQuery = queryOptions({ queryKey: ['session'], queryFn: () =>
 /** The families the signed-in reader belongs to, with their role in each. Empty when signed out. */
 export const fetchMyFamilies = createServerFn({ method: 'GET' }).handler(async (): Promise<(TreeMeta & { role: Role; today: import('./today').TodayEvent[] })[]> => {
   const [{ currentSession }, s, { families }] = await Promise.all([guard(), store(), import('./trees.server')]);
-  const { user } = await currentSession();
-  if (!user) return [];
-  const mine = new Map((await s.membershipsOf(user.id)).map((m) => [m.tree, m.role]));
+  const { user, guest } = await currentSession();
+  if (!user && !guest) return [];
+  const mine = new Map(user ? (await s.membershipsOf(user.id)).map((m) => [m.tree, m.role]) : []);
+  if (guest && !mine.has(guest.tree)) mine.set(guest.tree, 'viewer');
   const [{ graph }, { todayEvents }] = await Promise.all([import('../db.server'), import('./today')]);
   return Promise.all((await families()).filter((t) => mine.has(t.id)).map(async (t) => ({ ...t, role: mine.get(t.id)!, today: todayEvents(await graph(t.id)) })));
 });

@@ -4,11 +4,16 @@
 //   Node                 dist/server/server.js, which server/node.ts imports. Its daily timer (06:00 UTC) calls `runJobs`.
 // Jobs run once a day for every family (src/lib/jobs). KINDRED_JOBS=off turns them off on Node (docs/self-host.md).
 import startEntry from '@tanstack/react-start/server-entry';
+import { guestHostAllows } from './lib/auth/guest-host.ts';
+import { onGuestHost } from './lib/auth/origin.ts';
 import { runJobs, workerSetting } from './lib/jobs/run.server.ts';
 
 export default {
-  // The TanStack Start request handler, unchanged.
-  fetch: startEntry.fetch,
+  // The TanStack Start request handler. The guest host answers only what a guest needs (src/lib/auth/guest-host.ts).
+  fetch(request: Request, ...rest: unknown[]) {
+    if (onGuestHost(request) && !guestHostAllows(new URL(request.url).pathname)) return new Response('Not found', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
+    return (startEntry.fetch as (r: Request, ...a: unknown[]) => Response | Promise<Response>)(request, ...rest);
+  },
 
   /** Cloudflare's cron trigger. The run continues after the response, so the cron is not held open by it. */
   scheduled(controller: { scheduledTime: number }, env: unknown, ctx: { waitUntil(promise: Promise<unknown>): void }) {

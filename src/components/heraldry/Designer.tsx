@@ -11,7 +11,8 @@ import { aiArmsRevisions } from '~/lib/ai/arms.functions';
 import { checkArmsFit } from '~/lib/ai/arms-fit.functions';
 import { toAiLocale, type ArmsRevision } from '~/lib/ai/types';
 import { myFamiliesQuery } from '~/lib/auth/functions';
-import { armsReviewsQuery, houseMeaningsQuery, settleArmsReview } from '~/lib/house-meaning.functions';
+import { armsReviewsQuery, houseMeaningsQuery, houseTranslationsQuery, settleArmsReview } from '~/lib/house-meaning.functions';
+import { translateReview } from '~/lib/house-translation';
 import { chosenMeanings, surnameOf, type ArmsReview } from '~/lib/house-meaning';
 import { useT, type Key, type Translator } from '~/lib/i18n';
 import type {
@@ -117,6 +118,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
   // What the name means, as saved. The suggestions from the check draw on it; sealing checks the arms against it again.
   const meaningsQ = useQuery({ ...houseMeaningsQuery(tree), enabled: allowed });
   const researched = meaningsQ.data?.[house.id];
+  const translations = useQuery({ ...houseTranslationsQuery(tree, tr.locale), enabled: allowed }).data;
   const [checkKeys] = useState(() => opKeys());
   const [revisions, setRevisions] = useState<ArmsRevision[] | null>(null);
   const asked = useRef<ArmsReview | null>(null);
@@ -312,7 +314,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
             <TabPanel value="name">
               {revise && (
                 <ArmsRevisions
-                  feedback={{ reason: revise.reason, advice: revise.advice }}
+                  feedback={translateReview({ reason: revise.reason, advice: revise.advice }, translations?.reviews[house.id])}
                   busy={revise$.isPending}
                   error={revise$.isError ? revise$.error : undefined}
                   revisions={revisions}

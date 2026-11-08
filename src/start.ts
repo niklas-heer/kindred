@@ -1,22 +1,26 @@
 // Global middleware for every request Start handles: pages, server routes and server functions.
 import { createCsrfMiddleware, createMiddleware, createStart } from '@tanstack/react-start';
 import { originAllowed } from './lib/auth/origin';
-import { addSecurityHeaders } from './lib/auth/security-headers';
+import { addSecurityHeaders, newCspNonce } from './lib/auth/security-headers';
+import { publicError } from './lib/server-errors';
 
 const SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 // Security headers (src/lib/auth/security-headers.ts) on every response Start returns, Node and Workers alike. Added
 // only where a route has not set its own header, so the media route's Content-Security-Policy stays as it is. Placed
-// first, so it also sees the 403 that the CSRF check below returns.
-const securityHeaders = createMiddleware().server(async ({ next }) => {
-  const result = await next();
+// first, so it also sees the 403 that the CSRF check below returns. A production build also gets a nonce per request:
+// src/router.tsx reads it from this context and puts it on every inline script. (The dev server's own inline scripts have none.)
+const securityHeaders = createMiddleware().server(async ({ next, request }) => {
+  const cspNonce = import.meta.env.PROD ? newCspNonce() : undefined;
+  const result = await next({ context: { cspNonce } });
+  const options = { cspNonce, requestUrl: request.url };
   try {
-    addSecurityHeaders(result.response.headers);
+    addSecurityHeaders(result.response.headers, options);
     return result;
   } catch {
     // Some responses have immutable headers: send an equivalent response that can take them.
     const headers = new Headers(result.response.headers);
-    addSecurityHeaders(headers);
+    addSecurityHeaders(headers, options);
     return { ...result, response: new Response(result.response.body, { status: result.response.status, statusText: result.response.statusText, headers }) };
   }
 });
@@ -44,6 +48,8 @@ const csrf = createCsrfMiddleware({
 // The health check (/api/health) is left alone: it must not open the accounts database.
 const setupNotice = createMiddleware().server(async ({ next, request }) => {
   if (new URL(request.url).pathname === '/api/health') return next();
+  const { onGuestHost } = await import('./lib/auth/origin');
+  if (onGuestHost(request)) return next();
   const { announceSetup, arrivedAt, logOriginMismatch, warnOpenSetup } = await import('./lib/auth/setup.server');
   const { siteOrigin } = await import('./lib/auth/session.server');
   try {
@@ -56,6 +62,17 @@ const setupNotice = createMiddleware().server(async ({ next, request }) => {
   return next();
 });
 
+// Every server function, first in line so it also sees a failed validator: Start sends a thrown error's message to the
+// browser and logs nothing, so an internal failure is logged here and replaced before it leaves (src/lib/server-errors.ts).
+const serverFunctionErrors = createMiddleware({ type: 'function' }).server(async ({ next, serverFnMeta, data }) => {
+  try {
+    return await next();
+  } catch (e) {
+    throw publicError(e, { fn: serverFnMeta.name, data });
+  }
+});
+
 export const startInstance = createStart(() => ({
   requestMiddleware: [securityHeaders, csrf, setupNotice],
+  functionMiddleware: [serverFunctionErrors],
 }));

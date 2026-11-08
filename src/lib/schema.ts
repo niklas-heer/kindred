@@ -10,8 +10,9 @@
 //
 // To change the schema, add the next numbered file; never edit one that has shipped. It must run on
 // both SQLite and D1: plain SQL, no PRAGMA, no BEGIN/COMMIT (each migration is its own transaction),
-// and a column with NOT NULL needs a DEFAULT. Then apply it on Cloudflare with `mise run cf:migrate`
-// (local) or `mise run cf:migrate:remote`.
+// and a column with NOT NULL needs a DEFAULT. `mise run cf:migrate` applies it to local D1; `mise run deploy`
+// applies it to the deployed databases before the new Worker goes live, so the Worker still serving at that
+// moment runs on the new schema for a short while: a migration must not break the release before it.
 
 /** The migration folders, by kind of database. */
 export const MIGRATION_DIRS = { tree: 'migrations/tree', accounts: 'migrations/accounts' } as const;

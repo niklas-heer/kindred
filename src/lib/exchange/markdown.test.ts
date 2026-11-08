@@ -60,7 +60,7 @@ test('parents carry relation, kind, role and status, and step-parent links are l
   assert.ok(parents.every((p) => p.relation === 'biological_parent' && p.status === 'accepted'));
   const lea = frontMatter(files.find((f) => f.path === 'people/lea.md')!.data as string);
   assert.deepEqual((lea.parents as { person: string; kind: string }[]).map((p) => [p.person, p.kind]), [['[[people/jonas]]', 'biological']], 'the step link is not written; the birth parent is');
-  assert.ok(losses.some((l) => /1 step-parent links are not written/.test(l)));
+  assert.ok(losses.some((l) => /1 step-parent link is not written/.test(l)));
   const pim = frontMatter(files.find((f) => f.path === 'people/pim.md')!.data as string);
   assert.ok((pim.parents as { relation: string }[]).every((p) => p.relation === 'adoptive_parent'));
 });

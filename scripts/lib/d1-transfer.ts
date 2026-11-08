@@ -23,6 +23,7 @@ export const COPIED_TABLES: readonly string[] = [
   'house_succession', // who heads each house, its heir and its country
   'house_meaning', // what each house's name means, as the steward researched and chose it (migration 0012)
   'house_arms_review', // the steward's latest check of each house's arms against its name (migration 0012)
+  'house_translation', // AI translations of the name meanings and the arms check, kept beside them (migration 0019): asked for once, so copied after their house
   'album', // gallery albums
   'media', // gallery pictures: the row keeps a media key, the picture is in R2
   'media_person', // face boxes and the people tagged in gallery pictures

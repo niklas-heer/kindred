@@ -11,6 +11,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+# The commit shown in a steward's feedback report; the build context has no .git (docker build --build-arg KINDRED_COMMIT=…).
+ARG KINDRED_COMMIT=unknown
 RUN npm run build:node
 
 # The place gazetteer (scripts/gazetteer.ts, GeoNames cities500) is optional. It is built only when

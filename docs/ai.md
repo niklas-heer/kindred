@@ -194,9 +194,12 @@ off by default**, and each one says on its settings line what it sends.
 - **Arms review.** For each house whose chosen meanings are saved, the same check the steward runs by hand, when the arms or
   the chosen meanings have changed since the last check. It sends what that check sends (see "Does the arms still fit the
   name?" above) and nothing else. Needs the arms feature on.
-- **Occupation translations.** Each occupation the family wrote that the vocabulary does not know, into the languages the
+- **Occupations and name meanings.** Each occupation the family wrote that the vocabulary does not know, into the languages the
   steward chose. It sends the occupation's text as written, and the answer is kept in `occupation_translation`, as for "Translate".
-  Needs the assistant on.
+  The same task translates researched name meanings (their text, language labels, ideas and note) and the arms check's reason and
+  advice, into `house_translation`. It sends only those words: root words, the surname, source links, the family's own words and
+  anything about a person stay out. Until a text is translated the reader sees the original, and a text edited or researched
+  again is translated afresh. Needs the assistant on.
 - **Chronicle translations.** Each story, into the chosen languages. The translation is stored beside the original in
   `story_translation`. The original is never changed. A story edited since it was translated is shown in its original text
   until the next run translates it again. The Chronicle shows a translation in the reader's language with the label

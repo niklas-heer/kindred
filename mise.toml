@@ -61,8 +61,8 @@ description = "Measure which AI models do Kindred's jobs best, on made-up data. 
 run = 'node scripts/ai-eval.ts "$@"'
 
 [tasks.test]
-description = "Unit tests: accounts, Access, the storage layer"
-run = "node --test src/lib/auth/*.test.ts src/lib/store/*.test.ts src/lib/*.test.ts src/lib/exchange/*.test.ts src/lib/i18n/*.test.ts src/lib/jobs/*.test.ts scripts/*.test.ts scripts/lib/*.test.ts server/*.test.ts"
+description = "Unit tests, the same list CI runs (npm test, in package.json)"
+run = "npm test"
 
 [tasks.build]
 description = "Build the Worker (dist/); KINDRED_TARGET=node builds for Node instead"
@@ -78,8 +78,8 @@ description = "Run the production Node server from dist/ (build it first): PORT 
 run = "node server/node.ts"
 
 [tasks.deploy]
-description = "Build and deploy to Cloudflare (needs `wrangler login` and the D1/R2 ids in wrangler.jsonc)"
-run = ["vite build", "npx wrangler deploy"]
+description = "Build, apply migrations/ to the deployed D1 databases, then deploy to Cloudflare; any step that fails stops the rest (needs `wrangler login` and the D1/R2 ids in wrangler.jsonc)"
+run = ["vite build", "node scripts/cf-migrate.ts --remote", "npx wrangler deploy"]
 
 [tasks."vapid-keys"]
 description = "Make the VAPID key pair for Web Push reminders and print its three settings (docs/self-host.md, Reminders)"

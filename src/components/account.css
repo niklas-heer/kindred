@@ -68,3 +68,5 @@
 .acct-error { color: var(--danger); margin: 8px 0; font-size: 15px; }
 .acct-ok { color: var(--ok); display: flex; align-items: center; gap: 6px; margin: 8px 0 0; font-size: 15px; }
 .btn.acct-danger, [data-theme] .btn.acct-danger { background: var(--danger); color: #fff; box-shadow: none; }
+
+.acct-kbd { margin-left: auto; font-size: 0.72rem; color: var(--muted); }

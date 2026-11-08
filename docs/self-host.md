@@ -35,6 +35,7 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 
 | Setting | Default | What it does |
 | --- | --- | --- |
+| `KINDRED_GUEST_ORIGIN` | unset | The guest host for family share links, needed only behind Cloudflare Access (see [deploy-cloudflare.md](deploy-cloudflare.md#guests-behind-access)). |
 | `KINDRED_ORIGIN` | `http://localhost:4901` in Compose; otherwise the address the request came in on | The public address, such as `https://family.example.org`. Passkeys are bound to its host name, sessions use its scheme for the cookie's `Secure` flag, and the setup warning uses it. Set it before the first sign-in. |
 | `KINDRED_SETUP_CODE` | empty | Who may create the first account. Empty: anyone who reaches `/setup` first. `required` (any case): a one-time code is printed in the log at each start, until the first account exists. Or a code of your own, 12 or more letters or digits, which stays the same. Any other value locks setup: nobody can create the first account until the value is fixed, and the log says so once. |
 | `KINDRED_REQUIRE_SETUP_CODE` | empty | `1`, `true`, `yes` or `required` (any case) does the same as `KINDRED_SETUP_CODE=required`; `0`, `false`, `no` or `off` does not. Any other value requires the code, to be safe, and the log says so once. |

@@ -233,3 +233,13 @@
     transition: none;
   }
 }
+
+/* The review is taller than a laptop screen: the picture area scrolls and the actions stay in view. */
+.ui-dialog-body.paint-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.ui-dialog-panel:has(.paint-body) {
+  overflow: hidden;
+}

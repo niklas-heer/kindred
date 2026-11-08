@@ -3,5 +3,12 @@
 # in .env must be the same address with https://, because passkeys are bound to it.
 {$KINDRED_DOMAIN:localhost} {
 	encode zstd gzip
+	# Browsers stay on https for a year. Not for localhost: it would stick to every other local project.
+	@public not host localhost 127.0.0.1
+	header @public Strict-Transport-Security "max-age=31536000"
+	# The largest legitimate upload is a 25 MB research document; a little over that for the form around it.
+	request_body {
+		max_size 32MB
+	}
 	reverse_proxy app:4901
 }

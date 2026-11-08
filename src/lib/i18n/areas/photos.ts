@@ -244,7 +244,7 @@ export const de: Record<keyof typeof en, Message> = {
   "al.save": "Speichern",
   "pp.title": "Fotos",
   "pp.none": "Noch keine Fotos von {name}.",
-  "pp.none_hint": "Markier {name} in der Galerie, dann erscheinen die Fotos hier.",
+  "pp.none_hint": "Markiere die Person in der Galerie, dann erscheinen ihre Fotos hier.",
   "pp.open": "Zur Galerie",
   "pp.set": "Als Profilbild festlegen",
   "pp.use_drawn": "Stattdessen gezeichneten Avatar verwenden",

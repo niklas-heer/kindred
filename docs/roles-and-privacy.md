@@ -28,6 +28,7 @@ both what the browser shows and what the server allows.
 | Edit a house and its arms | Steward |
 | Manage access | Steward |
 | Import a GEDCOM file | Steward |
+| See the family's usage statistics, and turn them off | Steward |
 
 Hiding a button is never the only protection. Every server function and server route calls `requireMember` or
 `requireCan` before it reads or writes, and answers 401 when signed out and 403 when the role is too low.
@@ -43,6 +44,34 @@ Hiding a button is never the only protection. Every server function and server r
   as "your aunt" work. It takes effect at once. A member may also paint their own portrait through it, but only after a
   steward confirms the link on the Access page (declining unlinks them, and changing the link asks again). Editors and
   stewards can paint anyway, so their own links need no confirmation.
+
+## Guests (a family share link)
+
+A steward can share the family with relatives who don't want an account: on the Access page, **Share with a link** makes one
+URL for the family and, by default, a password. The steward can copy the link, the password, or a short ready message holding both,
+and paste it into a chat or an email. A guest is not a member and is not an account: they don't appear in the members list,
+and they have no name, no "who you are" and no settings.
+
+A guest sees what a viewer sees, which includes the public contact details: **nothing private, no editing, no AI, no money
+spent, no export, no Access or settings pages.** The server enforces this: a guest can only reach the reads named in
+`requireReader` (`src/lib/auth/guard.server.ts`), and those return exactly what a viewer gets, so private fields and private
+research are held back by the same rule. Every other server function refuses a guest, because the checks it uses need an
+account. A guest's pictures go through the same checks, and they need the guest's visit too.
+
+- **The link.** The token is 256 random bits and only its hash is stored. Without a password, the URL alone opens the
+  family, so a password is the default and a steward has to choose otherwise. There is one link per family. Before the
+  password, a page says only that a family tree was shared; it does not name the family.
+- **The password.** Kindred makes it: twelve letters and digits that can't be misread. Only a PBKDF2 hash is stored. The server
+  can never show it again, so the browser that made the link keeps a copy to paste later; to share from another browser, make a new link.
+- **The limit on guessing.** Each try is counted before the password is hashed: 8 per link and address, and 40 per link across all
+  addresses, every 15 minutes. The count is in the database, so it holds across Workers and across restarts.
+- **The visit.** A guest's cookie lasts 12 hours and never outlives the link; then the password is asked for again.
+  Replacing or turning off the link ends every visit at once, and so does the link's own expiry.
+- **Revoke or replace at any time.** Turning a link off ends it. Replacing it makes a new URL and password; the old ones stop
+  working. The expiry can be 1 day, a week, 30 or 90 days, or none.
+
+Before you share a link, decide what a viewer should read, as above: anyone who has the link and the password can read
+everything that isn't private, for as long as the link works, and can pass it on.
 
 ## What is private
 
@@ -92,7 +121,23 @@ describes to the provider you choose; the nightly archive, which commits the fam
 repository you name; and reminders, which send a notification to each device's browser push service. The place search
 runs offline once the gazetteer is built.
 
+**Usage statistics** stay in the same place and go nowhere else: no third-party service is involved. See [Usage statistics](#usage-statistics).
+
 To leave, export the family, or copy the database. Deleting a family means deleting its database and its media.
+
+## Usage statistics
+
+A steward can see how the family uses Kindred on the family's Statistics page, and can turn collection off there. It is on until a steward turns it off.
+
+**What is counted, per family and per day:** page views by section (Almanac, Atlas, "a house's page"), visits, how many members were active, and the use of a few features (asked the assistant, designed arms, added research, finished or skipped the tour). A guest from a share link counts as one anonymous visit, and nothing else about them is kept. The changes on the page (people, photos, stories, research) and the number of feedback reports are read from what the family already holds, so they add no new data. A person counts on the day they were last edited.
+
+**What is never stored:** names, anything anyone wrote, which person, house or project was opened, search terms, or IP addresses. The browser turns an address into its section before reporting it, and the server keeps only section and feature names from a fixed list.
+
+**The one thing tied to a member** is a marker saying which day they were last seen, plus a note that they have been counted for the tour, so "active in the last 30 days" and "finished the tour" count each member once. Each is stored under a one-way pseudonym that differs per family, never the account id. The page shows only totals, never who. Markers are deleted 100 days after a member was last seen.
+
+**How long:** the browser sends a small report about every 30 seconds and when the page is left. There is no log of individual events, only daily counters, which are deleted after three years.
+
+**Off and opt-out:** turning collection off stops all counting and deletes the markers at once; the anonymous daily totals stay. A browser set to Do Not Track or Global Privacy Control is not counted at all.
 
 ## The AI assistant and privacy
 

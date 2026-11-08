@@ -3,6 +3,7 @@
 import { aiTasksJob } from './ai-tasks.ts';
 import { archiveJob } from './archive.ts';
 import { remindersJob } from './reminders.ts';
+import { statsJob } from './stats.ts';
 import type { DailyJob, JobContext } from './types.ts';
 
 export type { DailyJob, JobContext } from './types.ts';
@@ -12,6 +13,7 @@ export const DAILY_JOBS: readonly DailyJob[] = [
   remindersJob,
   archiveJob,
   aiTasksJob,
+  statsJob,
 ];
 
 /**

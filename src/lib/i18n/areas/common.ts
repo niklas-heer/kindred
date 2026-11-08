@@ -78,6 +78,8 @@ export const en = {
   "common.find_person": "Find a person by name",
   "common.no_match": "No one matches. Try another spelling.",
   "common.err_network": "Couldn’t reach Kindred. Check your connection and try again.",
+  "common.err_unexpected": "Something went wrong on the server. Try again in a moment. If it keeps happening, tell your family’s steward the reference {reference}.",
+  "common.page_load_failed": "This page couldn’t be loaded. Your family’s data is safe; try again in a moment.",
   "common.photo_of": "Photograph of {name}",
   "common.photo_undated": "Photograph, date unknown",
 };
@@ -155,9 +157,11 @@ export const de: Record<keyof typeof en, Message> = {
   "common.edit": "Bearbeiten",
   "common.close": "Schließen",
   "common.name": "Name",
-  "common.find_person": "Find a person by name",
+  "common.find_person": "Person nach Namen suchen",
   "common.no_match": "Niemand passt. Probiere eine andere Schreibweise.",
   "common.err_network": "Kindred ist gerade nicht erreichbar. Prüfe deine Verbindung und versuche es noch einmal.",
+  "common.err_unexpected": "Auf dem Server ist etwas schiefgelaufen. Versuche es gleich noch einmal. Wenn es wieder passiert, nenne einer:m Verwalter:in die Referenz {reference}.",
+  "common.page_load_failed": "Diese Seite konnte nicht geladen werden. Die Daten deiner Familie sind sicher. Versuche es gleich noch einmal.",
   "common.photo_of": "Foto von {name}",
   "common.photo_undated": "Foto, Datum unbekannt",
 };
@@ -239,6 +243,8 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   "common.find_person": "Soek ’n persoon op naam",
   "common.no_match": "Niemand pas nie. Probeer ’n ander spelling.",
   "common.err_network": "Kindred kon nie bereik word nie. Kyk jou verbinding en probeer weer.",
+  "common.err_unexpected": "Iets het op die bediener verkeerd gegaan. Probeer weer oor ’n oomblik. As dit aanhou gebeur, gee die verwysing {reference} aan ’n rentmeester.",
+  "common.page_load_failed": "Hierdie bladsy kon nie laai nie. Jou familie se data is veilig; probeer netnou weer.",
   "common.photo_of": "Foto van {name}",
   "common.photo_undated": "Foto, datum onbekend",
 };

@@ -91,6 +91,7 @@ function populatedFamily(name: string): DatabaseSync {
     INSERT INTO portrait (key, person, mime, source, source_year, model, created_by, created_at, accepted) VALUES ('portrait/ada-1.png', 'ada', 'image/png', 'gallery/g1.jpg', 1941, 'openai/gpt-image-2', 'Ben', '${now}', 1);
     INSERT INTO occupation_translation (text, locale, label) VALUES ('Baker', 'de', 'Bäcker');
     INSERT INTO story_translation (story, locale, source_hash, title, body, same, translated_at) SELECT id, 'de', 'h1', NULL, 'Eine Geschichte.', 0, '${now}' FROM story LIMIT 1;
+    INSERT INTO house_translation (house, kind, locale, source_hash, content, same, translated_at) VALUES ('h1', 'review', 'de', 'h1', '{}', 0, '${now}');
     INSERT INTO research_project (id, title, summary, private, created_by, created_by_name, created_at, updated_at) VALUES ('rp1', 'Where the line began', '', 0, 'u1', 'Ben', '${now}', '${now}');
     INSERT INTO research_document (id, project, key, mime, size, title, date, source, notes, private, created_by, created_by_name, created_at, updated_at) VALUES ('rd1', 'rp1', 'research/d1.pdf', 'application/pdf', 1200, 'Baptism record', '1815-12', 'Parish book', '', 0, 'u1', 'Ben', '${now}', '${now}');
     INSERT INTO research_note (id, project, title, body, date, private, created_by, created_by_name, created_at, updated_at) VALUES ('rn1', 'rp1', 'First lead', 'Body', NULL, 0, 'u1', 'Ben', '${now}', '${now}');

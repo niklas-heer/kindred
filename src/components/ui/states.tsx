@@ -1,3 +1,4 @@
+import { errorText } from '~/lib/errortext';
 import { useT } from '~/lib/i18n';
 // Loading, empty, error and not-found states, so no screen is ever blank or shows a developer hint.
 //
@@ -108,7 +109,7 @@ export interface ErrorStateProps {
 
 export function ErrorState({ title, message, onRetry, error, action, className = '' }: ErrorStateProps) {
   const t = useT();
-  const detail = error instanceof Error ? error.message : typeof error === 'string' ? error : undefined;
+  const detail = error instanceof Error || typeof error === 'string' ? errorText(error, t.locale) : undefined;
   return (
     <div className={`ui-state error ${className}`} role="alert">
       <span className="ui-state-icon" aria-hidden><AlertTriangle size={28} /></span>

@@ -34,11 +34,13 @@ export const aiArmsDesigns = createServerFn({ method: 'POST' })
     meanings: z.array(designMeaningSchema).min(1).max(MAX_DESIGN_MEANINGS),
   }))
   .handler(async ({ data }) => {
-    await (await guard()).requireCan(data.tree, 'edit-house');
-    return (await import('./arms.server')).armsDesigns({
+    const m = await (await guard()).requireCan(data.tree, 'edit-house');
+    const designs = await (await import('./arms.server')).armsDesigns({
       tree: data.tree, surname: data.surname, country: data.country, familyHint: data.familyHint || undefined,
       meanings: data.meanings, locale: toAiLocale(data.locale),
     });
+    await (await import('../stats/store.server')).countFeature(data.tree, m.user.id, 'arms.designed');
+    return designs;
   });
 
 /**

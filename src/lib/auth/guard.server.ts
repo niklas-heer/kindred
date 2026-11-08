@@ -6,6 +6,10 @@
 //
 // They throw a 401 (`signed-out`) without a session, and a 403 (`not-member`, `forbidden`) when the
 // reader isn't in that family or their role is too low.
+//
+// A guest (a family share link) has no account, so all of these refuse them. Only `requireReader`, used by the reads that are
+// safe for someone who is not a member, lets a guest through, and then with exactly a viewer's role. Anything new is closed to
+// guests until it says otherwise.
 import { appendResponseHeader, getRequest, setResponseStatus } from '@tanstack/react-start/server';
 import { can, needs, type Action, type Role } from '../roles';
 import { forbidden, notMember, signedOut, type AuthError } from './errors';
@@ -54,6 +58,21 @@ export async function requireMember(tree: string): Promise<Member> {
   const m = await membership(user.id, tree);
   if (!m) throw fail(notMember());
   return { user, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed };
+}
+
+/** Someone reading a family: a member, or a guest with a viewer's role. A guest gets no person and no account. */
+export interface Reader { user: UserRow | null; role: Role; person: string | null; personConfirmed: boolean; guest: boolean }
+
+/**
+ * Like `requireMember`, and a guest of this family counts too, as a viewer. Use it only for reads a guest may have: the role
+ * it returns is what keeps private fields and private research back, exactly as for a viewer.
+ */
+export async function requireReader(tree: string): Promise<Reader> {
+  const { user, guest } = await currentSession();
+  const m = user && (await membership(user.id, tree));
+  if (user && m) return { user, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed, guest: false };
+  if (guest?.tree === tree) return { user: null, role: 'viewer', person: null, personConfirmed: false, guest: true };
+  throw fail(user ? notMember() : signedOut());
 }
 
 /** Like `requireMember`, and the reader's role must allow `action` (403 otherwise). */

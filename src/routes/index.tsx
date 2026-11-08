@@ -15,7 +15,11 @@ export const Route = createFileRoute('/')({
   beforeLoad: async ({ context, search }) => {
     const session = await context.queryClient.ensureQueryData(sessionQuery);
     if (session.needsSetup) throw redirect({ to: '/setup' });
-    if (!session.user) throw redirect({ to: '/signin' });
+    if (!session.user) {
+      if (session.guest) throw redirect({ to: '/$tree', params: { tree: session.guest.tree } });
+      if (session.guestEnded) throw redirect({ to: '/share/$token', params: { token: 'left' } });
+      throw redirect({ to: '/signin' });
+    }
     const trees = await context.queryClient.ensureQueryData(myFamiliesQuery);
     const target = trees.find((t) => t.id === session.defaultTree) ?? (trees.length === 1 ? trees[0] : undefined);
     if (target && search.families !== 'all') throw redirect({ to: '/$tree', params: { tree: target.id } });

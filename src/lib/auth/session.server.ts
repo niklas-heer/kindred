@@ -8,9 +8,10 @@ import {
   commit, createSession, deleteSession, newUser, noUsersYet, now, pendingInvitesFor, sessionByToken, slideSession, touchUser, upsertMembership, useInvite,
   userByEmail, userById, userCount, type UserRow,
 } from './store.server.ts';
+import { endGuestVisit, guestVisitByToken, type GuestSession } from './share.server.ts';
 import type { Query } from '../store/index.ts';
 
-import { siteOrigin } from './origin.ts';
+import { onGuestHost, publicOrigin, siteOrigin } from './origin.ts';
 export { siteOrigin };
 
 const secure = (request: Request) => siteOrigin(request).protocol === 'https:';
@@ -52,7 +53,49 @@ export async function endSession(request: Request): Promise<string> {
   return cookie(request, '', 0);
 }
 
+// ---------- a guest's visit (a family share link) ----------
+
+const GUEST_TOKEN = /^[A-Za-z0-9_-]{43}$/;
+const guestSecure = (request: Request) => publicOrigin(request).protocol === 'https:';
+const guestCookieName = (request: Request) => (guestSecure(request) ? '__Host-kindred_guest' : 'kindred_guest');
+/** Set once someone has visited as a guest: a visit that ended goes to its own page instead of the passkey sign-in. Holds nothing. */
+const WAS_GUEST = 'kindred_was_guest';
+
+function guestCookie(request: Request, name: string, value: string, maxAgeSeconds: number) {
+  return [`${name}=${value}`, 'Path=/', `Max-Age=${maxAgeSeconds}`, 'HttpOnly', 'SameSite=Lax', ...(guestSecure(request) ? ['Secure'] : [])].join('; ');
+}
+
+/** The Set-Cookie values that start a guest's visit. */
+export function guestCookies(request: Request, token: string, expires: number): string[] {
+  return [
+    guestCookie(request, guestCookieName(request), token, Math.max(1, Math.floor((expires - now()) / 1000))),
+    guestCookie(request, WAS_GUEST, '1', 30 * 86_400),
+  ];
+}
+
+const guestToken = (request: Request) => {
+  const t = readCookie(request, guestCookieName(request));
+  return t && GUEST_TOKEN.test(t) ? t : undefined;
+};
+
+/** Ends the request's guest visit; returns the Set-Cookie value that clears it. */
+export async function endGuestSession(request: Request): Promise<string> {
+  const t = guestToken(request);
+  if (t) await endGuestVisit(t);
+  return guestCookie(request, guestCookieName(request), '', 0);
+}
+
+async function guestOf(request: Request): Promise<GuestSession | undefined> {
+  const t = guestToken(request);
+  return t ? guestVisitByToken(t) : undefined;
+}
+
+/** Whether someone with no session should get "your visit has ended" rather than the passkey sign-in. */
+export const guestEnded = (request: Request) => onGuestHost(request) || readCookie(request, WAS_GUEST) === '1';
+
 export interface Session {
+  /** A guest's visit through a family share link. Never an account: the guard lets it reach only the reads that allow guests. */
+  guest?: GuestSession;
   user: UserRow | null;
   /** How they are signed in. */
   via: 'passkey' | 'access' | null;
@@ -79,8 +122,17 @@ const nameFromEmail = (email: string) =>
 /**
  * Resolves who is making `request`. Never throws for a stranger: `user` is then null.
  * `verifiedEmail` is the Cloudflare Access check; tests pass their own.
+ *
+ * The guest host (guest-host.ts) is open to the internet and has no Access in front of it, so it honours only a guest's visit:
+ * never an account's session cookie, and never an Access identity.
  */
 export async function getSession(request: Request, verifiedEmail: (r: Request) => Promise<string | undefined> = accessEmail, listFamilies: () => Promise<{ id: string }[]> = families): Promise<Session> {
+  const guest = await guestOf(request);
+  if (onGuestHost(request)) return { user: null, via: null, guest };
+  return { ...(await accountSession(request, verifiedEmail, listFamilies)), guest };
+}
+
+async function accountSession(request: Request, verifiedEmail: (r: Request) => Promise<string | undefined>, listFamilies: () => Promise<{ id: string }[]>): Promise<Session> {
   const token = sessionToken(request);
   if (token) {
     const row = await sessionByToken(token);

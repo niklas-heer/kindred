@@ -1,5 +1,6 @@
 // The roll of houses: every house of the family as a card with its arms and country, motto, size, founder,
 // the head today, years and a sparkline of members per generation. Each card opens the house's page.
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Plus, Shield, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -10,6 +11,8 @@ import { EmptyState, ErrorState, PageHeader, Select } from '~/components/ui';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
 import { useCan } from '~/lib/session';
 import { meaningLine, type ReviewBadge, type SavedMeaning } from '~/lib/house-meaning';
+import { houseTranslationsQuery } from '~/lib/house-meaning.functions';
+import { translateSaved } from '~/lib/house-translation';
 import { GenSpark, houseStats, houseSuccession, maxGeneration, spanLabel, useHouseSettings, type HouseStats } from '~/lib/houses';
 import { locales, translate, useT, type Locale } from '~/lib/i18n';
 import { treeTitle } from '~/lib/title';
@@ -161,7 +164,8 @@ function HouseCard({ s, tree, mine, country, head, meaning, badge }: {
   const span = spanLabel(s, t('houses.present'));
   const total = s.members.length;
   const headName = head ? f.byId.get(head) : undefined;
-  const line = meaningLine(meaning);
+  const translations = useQuery(houseTranslationsQuery(tree, t.locale)).data;
+  const line = meaningLine(meaning && translateSaved(meaning, translations?.meanings[s.house.id]));
   return (
     <Link to="/$tree/house/$house" params={{ tree, house: s.house.id }} className="ui-card interactive hs-card">
       <div className="hs-arms">

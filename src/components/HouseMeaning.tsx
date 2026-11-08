@@ -14,7 +14,8 @@ import { useFamily } from '~/lib/family';
 import {
   chosenMeanings, generatedArms, needsAttention, reviewBadge, type ArmsReview, type FitVerdict, type ReviewBadge, type SavedMeaning,
 } from '~/lib/house-meaning';
-import { armsReviewsQuery, collectedMeaningsQuery, dismissArmsReview, houseMeaningsQuery, saveHouseMeaning } from '~/lib/house-meaning.functions';
+import { armsReviewsQuery, collectedMeaningsQuery, dismissArmsReview, houseMeaningsQuery, houseTranslationsQuery, saveHouseMeaning } from '~/lib/house-meaning.functions';
+import { translateReview, translateSaved } from '~/lib/house-translation';
 import { locales, useT, type Key } from '~/lib/i18n';
 import type { SavedMeaningRow } from '~/lib/house-meaning';
 import { useCan } from '~/lib/session';
@@ -140,6 +141,7 @@ export function HouseMeaning({ tree, house, aiOn = false, saved, canEdit, onRese
   const [all, setAll] = useState(false);
   const [editing, setEditing] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const translations = useQuery(houseTranslationsQuery(tree, t.locale)).data;
 
   const save = useMutation({
     mutationFn: (body: NonNullable<typeof saved>) => saveHouseMeaning({
@@ -171,8 +173,10 @@ export function HouseMeaning({ tree, house, aiOn = false, saved, canEdit, onRese
       </p>
     );
   }
+  // What is shown is in the reader's language where a translation exists. What is saved below always comes from `saved`, the original.
+  const shown = translateSaved(saved, translations?.meanings[house]);
   // The family's own words lead; the research's copy of them is not repeated in the list.
-  const chosen = chosenMeanings(saved).filter((m) => !(m.attestation === 'family' && saved.familyWords && m.meaning === saved.familyWords));
+  const chosen = chosenMeanings(shown).filter((m) => !(m.attestation === 'family' && saved.familyWords && m.meaning === saved.familyWords));
   const guesses = chosen.some((m) => m.attestation === 'speculative');
   const visible = all ? chosen : chosen.slice(0, ORIGINS_SHOWN);
   const hidden = chosen.length - visible.length;
@@ -217,12 +221,12 @@ export function HouseMeaning({ tree, house, aiOn = false, saved, canEdit, onRese
       )}
       <p className="hm-basis subtle">{t(saved.webSearched ? 'houses.meaning.basisWeb' : 'houses.meaning.basisKnowledge')}</p>
       {guesses && <p className="hm-basis subtle">{t('houses.meaning.guessNote')}</p>}
-      {saved.note && <p className="hm-basis subtle">{saved.note}</p>}
+      {shown.note && <p className="hm-basis subtle">{shown.note}</p>}
       {canEdit && editing && (
         <div className="ui-card hm-review hm-collected" aria-busy={save.isPending || undefined}>
           <p className="hm-reason">{t('houses.meaning.changePrompt')}</p>
           <OriginPicker
-            meanings={saved.meanings}
+            meanings={shown.meanings}
             selected={picked}
             onToggle={toggle}
             disabled={save.isPending}
@@ -272,6 +276,7 @@ export function ArmsReviewCard({ tree, house, review, aiOn, onDesigner }: {
   const t = useT();
   const qc = useQueryClient();
   const [keys] = useState(() => opKeys());
+  const translations = useQuery(houseTranslationsQuery(tree, t.locale)).data;
   const refresh = () => { keys.clear(); void qc.invalidateQueries({ queryKey: armsReviewsQuery(tree).queryKey }); };
   const check = useMutation({
     mutationFn: (force: boolean) => checkArmsFit({
@@ -307,18 +312,20 @@ export function ArmsReviewCard({ tree, house, review, aiOn, onDesigner }: {
   const stale = !review.current;
   const chosen = review.chosen;
   const kept = review.dismissed && !chosen;
+  // Shown in the reader's language; the buttons below hand the designer the original.
+  const text = translateReview({ reason: review.reason, advice: review.advice }, translations?.reviews[house.id]);
   return (
     <section className="ui-card hm-review" data-verdict={stale ? undefined : chosen ? 'fits' : review.verdict} aria-labelledby="hm-review-title" aria-busy={check.isPending || keep.isPending || undefined}>
       <div className="hm-review-head">
         <h3 className="hp-eyebrow" id="hm-review-title">{t('houses.review.title')}</h3>
         {!stale && <span className={`hm-verdict ${chosen ? 'fits' : review.verdict}`}>{t(chosen ? 'houses.review.yours' : VERDICT_KEY[review.verdict])}</span>}
       </div>
-      {chosen ? <p className="hm-reason">{t('houses.review.chosen')}</p> : !stale && <p className="hm-reason">{review.reason}</p>}
+      {chosen ? <p className="hm-reason">{t('houses.review.chosen')}</p> : !stale && <p className="hm-reason">{text.reason}</p>}
       {attention && review.advice && (
-        <p className="hm-advice"><small>{t('houses.review.advice')}</small> {review.advice}</p>
+        <p className="hm-advice"><small>{t('houses.review.advice')}</small> {text.advice}</p>
       )}
       {idea && review.advice && (
-        <p className="hm-advice"><small>{t('houses.review.idea')}</small> {review.advice}</p>
+        <p className="hm-advice"><small>{t('houses.review.idea')}</small> {text.advice}</p>
       )}
       {stale && <p className="hm-basis subtle">{t('houses.review.stale')}</p>}
       {kept && <p className="hm-basis subtle">{t('houses.review.kept')}</p>}

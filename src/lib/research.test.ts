@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { can } from './roles.ts';
-import { checkDocument, dateOrder, documentFileName, mayChangeResearch, MAX_DOCUMENT_BYTES, pdfHasActiveContent, researchTimeline, seesPrivateResearch, sniffDocument } from './research.ts';
+import { checkDocument, dateOrder, dateText, documentFileName, mayChangeResearch, MAX_DOCUMENT_BYTES, pdfHasActiveContent, researchTimeline, seesPrivateResearch, sniffDocument, unionEndKey } from './research.ts';
 
 const encode = (s: string) => new TextEncoder().encode(s);
 const PDF = (body = '') => encode(`%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n${body}\nxref\n0 1\ntrailer\n<<>>\nstartxref\n9\n%%EOF\n`);
@@ -133,4 +133,24 @@ test('a person the reader may not see adds no events: the view holds only their 
 test('a saved file gets a safe name with the right extension', () => {
   assert.equal(documentFileName('Taufschein: "Lindholm" / 1890', 'application/pdf'), 'Taufschein Lindholm 1890.pdf');
   assert.equal(documentFileName('***', 'image/png'), 'document.png');
+});
+
+test('an approximate date carries one marker, in each language', () => {
+  assert.equal(dateText('~1931', 'en'), 'c. 1931');
+  assert.equal(dateText('~1931', 'de'), 'ca. 1931');
+  assert.equal(dateText('~1931', 'af'), 'ong. 1931');
+  assert.equal(dateText('1931', 'de'), '1931');
+  assert.equal(dateText(null, 'en'), '');
+  assert.ok(!dateText('~1931-05', 'de').includes('~'));
+});
+
+test('a union end says why it ended: a death is not a separation', () => {
+  const fam = family();
+  fam.unionsOf.get('tobias')![0] = { ...fam.unionsOf.get('tobias')![0], endReason: 'death' } as never;
+  const end = researchTimeline({ ...empty, people: [person('tobias')] }, fam).find((e) => e.kind === 'union-end')!;
+  assert.equal(end.endReason, 'death');
+  assert.equal(unionEndKey('death'), 'research.tl_union_end_death');
+  assert.equal(unionEndKey('divorce'), 'research.tl_union_end_divorce');
+  assert.equal(unionEndKey('other'), 'research.tl_union_end');
+  assert.equal(unionEndKey(undefined), 'research.tl_union_end');
 });

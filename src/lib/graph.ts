@@ -185,7 +185,7 @@ export const fmtDate = (d?: string, locale = 'en-GB') => {
     : m
       ? new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' })
       : String(y);
-  return a ? `c. ${s}` : s;
+  return a ? `${locale.startsWith('de') ? 'ca.' : locale.startsWith('af') ? 'ong.' : 'c.'} ${s}` : s;
 };
 
 // ---------- generations ----------

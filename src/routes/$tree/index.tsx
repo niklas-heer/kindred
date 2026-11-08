@@ -350,7 +350,7 @@ function TreePage() {
 
   const rowLabel = (row: number, year: number | undefined, i: number): [string, string?] => {
     const mark = view === 'dynasty' ? (codex ? ROMAN[i] ?? String(i + 1) : String(i + 1)) : row === 0 ? '●' : row < 0 ? `↑${-row}` : `↓${row}`;
-    const era = year === undefined ? undefined : codex ? `c. ${year}` : `${Math.floor(year / 10) * 10}s`;
+    const era = year === undefined ? undefined : codex ? `${t('life.circa')}${year}` : t('tp.decade', { decade: Math.floor(year / 10) * 10 });
     return [mark, era];
   };
 
@@ -621,8 +621,8 @@ function TreePage() {
               <Select
                 className={`tb-lens${lens !== 'none' ? ' on' : ''}`}
                 size="sm"
-                aria-label={`Lens: ${lensLabel}`}
-                title={`Lens: ${lensLabel}`}
+                aria-label={t('tp.lensLabel', { lens: lensLabel })}
+                title={t('tp.lensLabel', { lens: lensLabel })}
                 menuWidth={250}
                 value={lens}
                 options={lensOptions}

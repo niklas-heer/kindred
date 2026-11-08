@@ -1,7 +1,7 @@
 // Houses: their stored settings (succession law, optional head and heir, country), and the changes a steward makes to
 // the houses themselves: making one, making one per surname, and adding or removing members. Reads are for the house
 // pages and the tree's badges. Every write goes through `once` with guards for everything its check read.
-import { db, guard, newId, once, q, type Db, type OpKey, type Query } from './db.server';
+import { db, guard, newId, once, q, type Db, type OpKey, type Query } from './db.server.ts';
 import type { HouseSettings } from './houses';
 
 export async function readHouseSettings(tree: string): Promise<Record<string, HouseSettings>> {
@@ -124,7 +124,7 @@ export function setHouseMembers(tree: string, house: string, change: { add: stri
     if (!await d.get('SELECT id FROM house WHERE id = ?', house)) throw new Error('houses.err.not_found');
     const ids = [...new Set([...add, ...remove])];
     const rows = ids.length
-      ? await d.all<{ id: string; house: string | null }>(`SELECT id, house FROM person WHERE id IN (${ids.map(() => '?').join(', ')})`, ...ids)
+      ? await d.all<{ id: string; house: string | null }>('SELECT id, house FROM person WHERE id IN (SELECT value FROM json_each(?))', JSON.stringify(ids))
       : [];
     const at = new Map(rows.map((r) => [r.id, r.house]));
     if (ids.some((id) => !at.has(id))) throw new Error('houses.err.not_person');

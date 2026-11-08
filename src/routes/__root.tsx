@@ -12,10 +12,15 @@ import appCss from '~/styles/app.css?url';
 import '~/components/art.css';
 
 // Apply the saved theme before first paint, so codex never flashes as paper, and keep the browser's
-// theme-color (address bar, task switcher) in step with whatever theme is applied later.
-const themeScript = `(function(){var d=document.documentElement;try{var t=localStorage.getItem('kindred:theme');if(t)d.dataset.theme=t}catch(e){}
+// theme-color (address bar, task switcher) in step with whatever theme is applied later. Under a Content-Security-Policy
+// the router cannot recognise this script after hydration (browsers hide its nonce) and adds it again, so it runs once.
+const themeScript = `(function(){if(window.__kindredTheme)return;window.__kindredTheme=1;var d=document.documentElement;try{var t=localStorage.getItem('kindred:theme');if(t)d.dataset.theme=t}catch(e){}
 var c={codex:'#171d28',modern:'#ffffff',night:'#181b23'},m=document.createElement('meta');m.name='theme-color';document.head.appendChild(m);
 var u=function(){m.content=c[d.dataset.theme]||c.codex};u();new MutationObserver(u).observe(d,{attributes:true,attributeFilter:['data-theme']})})()`;
+
+// Before any bundle loads: Zod would otherwise try `new Function` to compile its validators, and the policy reports that
+// even though the failure is caught. Validators are nowhere near hot enough to need it.
+const zodConfigScript = 'globalThis.__zod_globalConfig={jitless:true}';
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   beforeLoad: async ({context}) => { const [locale, session] = await Promise.all([requestLocale(), context.queryClient.ensureQueryData(sessionQuery)]); return {locale, localeAccount: session.user?.id}; },
@@ -32,7 +37,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     // The theme script goes through the router's head, not a <script> in the React tree: React warns when it renders a
     // script element on the client, and the head renders it once, before first paint, on the server.
-    scripts: [{ children: themeScript }],
+    scripts: [{ children: zodConfigScript }, { children: themeScript }],
   }),
   shellComponent: Shell,
   component: Outlet,
@@ -46,7 +51,7 @@ function Shell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <I18nProvider initialLocale={locale} account={localeAccount} saveRemote={localeAccount ? (next) => setMyLocale({ data: { locale: next } }) : undefined}><div id="app">{children}</div></I18nProvider>
+        <I18nProvider initialLocale={locale ?? 'en'} account={localeAccount} saveRemote={localeAccount ? (next) => setMyLocale({ data: { locale: next } }) : undefined}><div id="app">{children}</div></I18nProvider>
         <Scripts />
       </body>
     </html>

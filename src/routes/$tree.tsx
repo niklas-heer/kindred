@@ -1,7 +1,7 @@
 import { formatDate, formatNumber, relativeTime, useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, notFound, Outlet, redirect } from '@tanstack/react-router';
-import { BookOpen, CalendarHeart, CircleHelp, Contact, FolderSearch, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, Sparkles, Users } from 'lucide-react';
+import { BarChart3, BookOpen, CalendarHeart, CircleHelp, Contact, FolderSearch, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, Sparkles, Users, Inbox, MessageSquarePlus } from 'lucide-react';
 import { AccountMenu } from '~/components/AccountMenu';
 import { AssistantButton, AssistantHost } from '~/components/assistant/AssistantDrawer';
 import { useAiSetupNeeded } from '~/components/assistant/AiSetup';
@@ -10,6 +10,8 @@ import { aiStatusQuery } from '~/lib/ai.functions';
 import { LanguageChoices, LanguagePicker } from '~/components/LanguagePicker';
 import { useEffect, useMemo, useState } from 'react';
 import { FirstRun } from '~/components/FirstRun';
+import { GuestChip } from '~/components/GuestChip';
+import { FeedbackHost, openFeedback } from '~/components/feedback/FeedbackHost';
 import { Arms } from '~/components/Heraldry';
 import { NotFoundPage } from '~/components/NotFoundPage';
 import { Palette, usePalette } from '~/components/Palette';
@@ -20,8 +22,9 @@ import { Switch } from '~/components/ui/Switch';
 import { graphQuery } from '~/lib/api';
 import { myFamiliesQuery, sessionQuery } from '~/lib/auth/functions';
 import { NoAccessPage } from '~/components/NoAccess';
-import { useCan } from '~/lib/session';
+import { useCan, useSession } from '~/lib/session';
 import { useFamily } from '~/lib/family';
+import { useStatsBeacon } from '~/lib/stats/beacon';
 import { setPref, THEMES, usePref } from '~/lib/prefs';
 import { treeTitle } from '~/lib/title';
 
@@ -30,8 +33,13 @@ export const Route = createFileRoute('/$tree')({
   beforeLoad: async ({ context, params, location }) => {
     const session = await context.queryClient.ensureQueryData(sessionQuery);
     if (session.needsSetup) throw redirect({ to: '/setup' });
-    if (!session.user) throw redirect({ to: '/signin', search: { next: location.href } });
+    if (!session.user && session.guest?.tree !== params.tree) {
+      if (session.guestEnded) throw redirect({ to: '/share/$token', params: { token: 'left' } });
+      throw redirect({ to: '/signin', search: { next: location.href } });
+    }
     if (!session.memberships.some((m) => m.tree === params.tree)) throw notFound({ data: { access: false } });
+    // A guest looks around; Access and the settings are not for them (the server refuses their data anyway).
+    if (session.guest?.tree === params.tree && /^\/[^/]+\/(?:access|settings)(?:\/|$)/.test(location.pathname)) throw redirect({ to: '/$tree', params: { tree: params.tree } });
   },
   loader: async ({ context, params }) => {
     // An unknown family is a friendly "not found", never a server error with a developer hint.
@@ -56,6 +64,9 @@ function TreeLayout() {
   const { data: families = [] } = useQuery(myFamiliesQuery);
   const multiple = families.length >= 2;
   const [more, setMore] = useState(false);
+  // A guest has no "who are you" to save and no tour of adding people.
+  const guest = useSession()?.guest?.tree === tree;
+  useStatsBeacon(tree);
 
   // Each tree opens in its own theme unless the reader picked one.
   useEffect(() => {
@@ -127,6 +138,7 @@ function TreeLayout() {
           <LanguagePicker />
         </span>
         <AccountMenu familyName={f.graph.tree.name} />
+        <GuestChip />
       </header>
       <Outlet />
       {/* Phones: the sections move to a bar along the bottom edge. */}
@@ -146,7 +158,8 @@ function TreeLayout() {
       <Palette />
       {/* The one assistant drawer for this family; it draws itself only when the button opened it. */}
       <AssistantHost tree={tree} />
-      <FirstRun />
+      {!guest && <FirstRun />}
+      <FeedbackHost tree={tree} />
       <Toasts />
     </div>
   );
@@ -174,8 +187,11 @@ function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: 
         {assistant && <li><button type="button" onClick={() => { onClose(); openAssistant(); }}><Sparkles size={19} /> {t("ai.askCommand")}</button></li>}
         {editor && <li><Link to="/$tree/settings/import" params={{ tree }}><Images size={19} /> {t("shell.importExport")} <small>{t("shell.importExportHint")}</small></Link></li>}
         {steward && <li><Link to="/$tree/access" params={{ tree }}><Users size={19} /> {t("shell.access")} <small>{t("shell.members_invitations")}</small></Link></li>}
+        {steward && <li><Link to="/$tree/statistics" params={{ tree }}><BarChart3 size={19} /> {t("stats.menu")} <small>{t("stats.menu_hint")}</small></Link></li>}
         {setupNeeded && <li><button type="button" onClick={() => { onClose(); openAiSetup(); }}><Sparkles size={19} /> {t("ai.setupButton")} <small>{t("shell.ai_settings_hint")}</small></button></li>}
         {steward && !setupNeeded && <li><Link to="/$tree/settings/ai" params={{ tree }}><Sparkles size={19} /> {t("shell.ai_settings")} <small>{t("shell.ai_settings_hint")}</small></Link></li>}
+        {steward && <li><button type="button" onClick={() => { onClose(); openFeedback(); }}><MessageSquarePlus size={19} /> {t("feedback.menu")} <small>{t("feedback.command_hint")}</small></button></li>}
+        {steward && <li><Link to="/$tree/settings/feedback" params={{ tree }}><Inbox size={19} /> {t("feedback.inbox")} <small>{t("feedback.inbox_hint")}</small></Link></li>}
         {multiple && <li><Link to="/" search={{ families: "all" }}><Network size={19} /> {t("shell.all_families")}</Link></li>}
       </ul>
       <div className="more-row"><LanguageChoices /></div>

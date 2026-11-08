@@ -65,6 +65,12 @@ type KindredCi {
     .withDirectory("/src", source)
 
   """
+  The installed project with the CA certificates workerd needs to start, for the steps that run it.
+  """
+  let withWorkerd = installed
+    .withExec(["sh", "-c", "apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*"])
+
+  """
   The type check: `npx tsc --noEmit`, over src, scripts and server.
   """
   pub typecheck: String! {
@@ -72,10 +78,11 @@ type KindredCi {
   }
 
   """
-  The unit tests (`npm test`). Nothing here reads data/: the tests use scratch folders.
+  The unit tests (`npm test`), including the database contract on local D1 in workerd. Nothing here reads data/ or
+  contacts Cloudflare: the tests use scratch folders.
   """
   pub unitTests: String! {
-    installed.withExec(["npm", "test"]).stdout
+    withWorkerd.withExec(["npm", "test"]).stdout
   }
 
   """
@@ -98,8 +105,7 @@ type KindredCi {
   every request through a closed proxy, so nothing leaves the container.
   """
   pub smoke: String! {
-    installed
-      .withExec(["sh", "-c", "apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*"])
+    withWorkerd
       .withExec(["node", "scripts/worker-smoke.ts"])
       .stdout
   }

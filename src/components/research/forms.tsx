@@ -8,11 +8,11 @@ import { DatePicker, Dialog, Notice, Switch } from '~/components/ui';
 import { opKeys } from '~/lib/api';
 import { validDate } from '~/lib/dates';
 import { errorText } from '~/lib/errortext';
-import { formatDate, useT, type Key } from '~/lib/i18n';
+import { formatNumber, useT, type Key, type Locale } from '~/lib/i18n';
 import {
   addResearchDocument, removeResearchDocument, removeResearchNote, removeResearchProject, saveResearchDocument, saveResearchNote, saveResearchProject,
 } from '~/lib/research.functions';
-import { checkDocument, DOCUMENT_ACCEPT, isPdf, type DocumentMime, type ResearchDocument, type ResearchNote } from '~/lib/research';
+import { checkDocument, dateText, DOCUMENT_ACCEPT, isPdf, type DocumentMime, type ResearchDocument, type ResearchNote } from '~/lib/research';
 import { useCan } from '~/lib/session';
 import '~/styles/research.css';
 
@@ -153,7 +153,7 @@ export function NoteDialog({ tree, project, note, onClose }: { tree: string; pro
 
 // ---------- a document ----------
 
-const byteSize = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1000))} KB`);
+const byteSize = (n: number, locale: Locale) => (n >= 1_000_000 ? `${formatNumber(n / 1_000_000, locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB` : `${formatNumber(Math.max(1, Math.round(n / 1000)), locale)} KB`);
 
 interface Picked { file: File; mime: DocumentMime; width: number; height: number; preview?: string }
 
@@ -262,7 +262,7 @@ export function DocumentDialog({ tree, project, document: doc, onClose }: { tree
               onDrop={onDrop}
             >
               {picked?.preview ? <img className="rs-drop-preview" src={picked.preview} alt="" /> : picked ? <FileText size={34} aria-hidden /> : null}
-              {picked ? <span className="rs-drop-name">{picked.file.name} · {byteSize(picked.file.size)}</span> : null}
+              {picked ? <span className="rs-drop-name">{picked.file.name} · {byteSize(picked.file.size, t.locale)}</span> : null}
               <button type="button" className="btn" onClick={() => inputRef.current?.click()} disabled={preparing}>
                 {t('research.choose_file')}
               </button>
@@ -342,5 +342,5 @@ export function useResearchRemove(tree: string) {
   };
 }
 
-export const dateText = (date: string | null | undefined, locale: Parameters<typeof formatDate>[1]) => (date ? `${date.startsWith('~') ? '~ ' : ''}${formatDate(date, locale)}` : '');
+export { dateText };
 export type { Key };

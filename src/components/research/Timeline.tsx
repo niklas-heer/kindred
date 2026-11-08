@@ -4,7 +4,7 @@ import { Cake, FileText, Heart, HeartOff, Image, NotebookPen, Skull, type Lucide
 import { useFamily } from '~/lib/family';
 import { displayName } from '~/lib/graph';
 import { useT } from '~/lib/i18n';
-import { researchTimeline, type ProjectView, type TimelineEntry, type TimelineKind } from '~/lib/research';
+import { researchTimeline, unionEndKey, type ProjectView, type TimelineEntry, type TimelineKind } from '~/lib/research';
 import { dateText } from './forms';
 
 const ICON: Record<TimelineKind, LucideIcon> = { birth: Cake, death: Skull, union: Heart, 'union-end': HeartOff, document: FileText, note: NotebookPen, picture: Image };
@@ -30,7 +30,7 @@ export function Timeline({ tree, view, onDocument, onNote, onPicture }: {
       case 'birth': return <span>{personLink(e.person, t('research.tl_birth', { name: who }))}</span>;
       case 'death': return <span>{personLink(e.person, t('research.tl_death', { name: who }))}</span>;
       case 'union': return <span>{personLink(e.person, t(e.unionKind === 'marriage' ? 'research.tl_marriage' : 'research.tl_union', { name: who, other: other || '—' }))}</span>;
-      case 'union-end': return <span>{personLink(e.person, t('research.tl_union_end', { name: who, other: other || '—' }))}</span>;
+      case 'union-end': return <span>{personLink(e.person, t(unionEndKey(e.endReason), { name: who, other: other || '—' }))}</span>;
       case 'document': return <button type="button" className="rs-tl-link" onClick={() => onDocument(e.ref!)}>{e.title}</button>;
       case 'note': return <button type="button" className="rs-tl-link" onClick={() => onNote(e.ref!)}>{e.title}</button>;
       case 'picture': return <button type="button" className="rs-tl-link" onClick={() => onPicture(e.ref!)}>{e.title || t('research.tl_picture')}</button>;

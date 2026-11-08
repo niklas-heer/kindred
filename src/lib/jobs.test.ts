@@ -26,8 +26,8 @@ const ctxFor = (logs: string[], env: (name: string) => string | undefined = () =
   log: (message: string) => logs.push(message),
 });
 
-test('the registry runs the reminders, the archive and the background AI job, in that order', () => {
-  assert.deepEqual(DAILY_JOBS.map((job) => job.name), ['reminders', 'archive', 'ai-tasks']);
+test('the registry runs the reminders, the archive, the background AI job and the statistics clean-up, in that order', () => {
+  assert.deepEqual(DAILY_JOBS.map((job) => job.name), ['reminders', 'archive', 'ai-tasks', 'stats']);
 });
 
 test('a job that throws is logged with its name, and the jobs after it still run', async () => {

@@ -10,7 +10,7 @@ import { EmptyState, ErrorState, Notice, PageHeader, Skeleton, Switch } from '~/
 import { opKeys } from '~/lib/api';
 import { applyImportFile, exchangeContext, exportReport, previewImportFile } from '~/lib/exchange/exchange.functions';
 import { errorText } from '~/lib/errortext';
-import { translate, useT, type Locale, type Translator } from '~/lib/i18n';
+import { translate, translateMessage, useT, type Locale, type Translator } from '~/lib/i18n';
 import { treeTitle } from '~/lib/title';
 import '~/styles/exchange.css';
 
@@ -94,7 +94,7 @@ function LossList({ tree, format, label }: { tree: string; format: 'gedcom' | 'm
       <p className="exchange-text">{label}</p>
       <ul className="exchange-list">
         {q.data.map((l) => (
-          <li key={l}>{l}</li>
+          <li key={l}>{translateMessage(l, t.locale)}</li>
         ))}
       </ul>
     </>

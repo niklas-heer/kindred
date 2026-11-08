@@ -12,7 +12,7 @@ import type { Action } from './roles';
 const tree = z.string().regex(/^[a-z0-9-]+$/).max(64);
 const server = () => import('./photos.server');
 const guard = () => import('./auth/guard.server');
-const requireMember = async (t: string) => (await guard()).requireMember(t);
+const requireReader = async (t: string) => (await guard()).requireReader(t);
 const requireCan = async (t: string, action: Action) => (await guard()).requireCan(t, action);
 
 /** A media key as the server makes it: gallery/<uuid>.<ext>. Anything else is refused before it reaches storage. */
@@ -60,7 +60,7 @@ const field = (d: FormData, name: string) => {
 export const getGallery = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
-    await requireMember(data.tree);
+    await requireReader(data.tree);
     return (await server()).gallery(data.tree);
   });
 export const galleryQuery = (t: string) => queryOptions({ queryKey: ['gallery', t], queryFn: () => getGallery({ data: { tree: t } }) });
@@ -68,7 +68,7 @@ export const galleryQuery = (t: string) => queryOptions({ queryKey: ['gallery', 
 export const getPersonPhotos = createServerFn({ method: 'GET' })
   .validator(z.object({ tree, id: z.string().min(1).max(120) }))
   .handler(async ({ data }) => {
-    await requireMember(data.tree);
+    await requireReader(data.tree);
     return (await server()).personMedia(data.tree, data.id);
   });
 export const personPhotosQuery = (t: string, id: string) =>

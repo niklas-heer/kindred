@@ -17,13 +17,14 @@ const server = () => import('./db.server');
 // protection. They answer 401 when signed out and 403 for a non-member or a role that is too low.
 const guard = () => import('./auth/guard.server');
 const requireMember = async (t: string) => (await guard()).requireMember(t);
+const requireReader = async (t: string) => (await guard()).requireReader(t);
 const requireCan = async (t: string, action: Action) => (await guard()).requireCan(t, action);
 // The families list lives in src/lib/auth/functions.ts (`fetchMyFamilies`): only the reader's own.
 
 export const getGraph = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
-    await requireMember(data.tree);
+    await requireReader(data.tree);
     return (await server()).graph(data.tree);
   });
 export const graphQuery = (t: string) => queryOptions({ queryKey: ['graph', t], queryFn: () => getGraph({ data: { tree: t } }), staleTime: Infinity });
@@ -31,7 +32,7 @@ export const graphQuery = (t: string) => queryOptions({ queryKey: ['graph', t], 
 export const getChronicle = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
-    await requireMember(data.tree);
+    await requireReader(data.tree);
     return (await server()).chronicle(data.tree, 300);
   });
 export const chronicleQuery = (t: string) => queryOptions({ queryKey: ['chronicle', t], queryFn: () => getChronicle({ data: { tree: t } }) });
@@ -39,7 +40,7 @@ export const chronicleQuery = (t: string) => queryOptions({ queryKey: ['chronicl
 export const getContacts = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
-    await requireMember(data.tree);
+    await requireReader(data.tree);
     return (await server()).allContacts(data.tree);
   });
 export const contactsQuery = (t: string) => queryOptions({ queryKey: ['contacts', t], queryFn: () => getContacts({ data: { tree: t } }) });

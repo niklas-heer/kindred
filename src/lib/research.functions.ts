@@ -6,7 +6,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
-import type { Member } from './auth/guard.server';
+import type { Member, Reader } from './auth/guard.server';
 import { validDate } from './dates';
 import { checkDocument } from './research.ts';
 import type { Who } from './research.server';
@@ -15,6 +15,7 @@ const tree = z.string().regex(/^[a-z0-9-]+$/).max(64);
 const server = () => import('./research.server');
 const guard = () => import('./auth/guard.server');
 const requireMember = async (t: string) => (await guard()).requireMember(t);
+const requireReader = async (t: string) => (await guard()).requireReader(t);
 const requireCan = async (t: string, action: 'add-research') => (await guard()).requireCan(t, action);
 
 const id = z.string().min(1).max(120);
@@ -24,7 +25,7 @@ const partialDate = z.string().max(11).refine((s) => s === '' || validDate(s), '
 const text = (max: number) => z.string().trim().max(max);
 const title = z.string().trim().min(1, 'research.err.title_required').max(200);
 
-const whoOf = (m: Member): Who => ({ id: m.user.id, name: m.user.name, role: m.role });
+const whoOf = (m: Member | Reader): Who => ({ id: m.user?.id ?? '', name: m.user?.name ?? '', role: m.role });
 
 /** The retry key for a change, bound to who sends it and to everything else they sent (see db.server.ts `once`). */
 function opOf<D extends { opKey?: string }>(m: Member, data: D) {
@@ -38,7 +39,7 @@ function opOf<D extends { opKey?: string }>(m: Member, data: D) {
 export const getResearchProjects = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
-    const m = await requireMember(data.tree);
+    const m = await requireReader(data.tree);
     return (await server()).listProjects(data.tree, whoOf(m));
   });
 export const researchProjectsQuery = (t: string) => queryOptions({ queryKey: ['research', t, 'list'], queryFn: () => getResearchProjects({ data: { tree: t } }) });
@@ -46,7 +47,7 @@ export const researchProjectsQuery = (t: string) => queryOptions({ queryKey: ['r
 export const getResearchProject = createServerFn({ method: 'GET' })
   .validator(z.object({ tree, id }))
   .handler(async ({ data }) => {
-    const m = await requireMember(data.tree);
+    const m = await requireReader(data.tree);
     return ((await server()).projectView(data.tree, data.id, whoOf(m))).then((v) => v ?? null);
   });
 export const researchProjectQuery = (t: string, p: string) => queryOptions({ queryKey: ['research', t, 'project', p], queryFn: () => getResearchProject({ data: { tree: t, id: p } }) });
@@ -54,7 +55,7 @@ export const researchProjectQuery = (t: string, p: string) => queryOptions({ que
 export const getPersonResearch = createServerFn({ method: 'GET' })
   .validator(z.object({ tree, person: id }))
   .handler(async ({ data }) => {
-    const m = await requireMember(data.tree);
+    const m = await requireReader(data.tree);
     return (await server()).personResearch(data.tree, data.person, whoOf(m));
   });
 export const personResearchQuery = (t: string, person: string) => queryOptions({ queryKey: ['research', t, 'person', person], queryFn: () => getPersonResearch({ data: { tree: t, person } }) });
@@ -66,7 +67,9 @@ export const saveResearchProject = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const m = await requireCan(data.tree, 'add-research');
     const { tree: t, opKey: _k, ...p } = data;
-    return (await server()).saveProject(t, whoOf(m), p, opOf(m, data));
+    const saved = await (await server()).saveProject(t, whoOf(m), p, opOf(m, data));
+    if (!data.id) await (await import('./stats/store.server')).countFeature(t, m.user.id, 'research.added');
+    return saved;
   });
 
 export const removeResearchProject = createServerFn({ method: 'POST' })
@@ -114,7 +117,9 @@ export const addResearchDocument = createServerFn({ method: 'POST' })
     const checked = checkDocument(bytes, file.type);
     if ('refused' in checked) throw new Error(checked.refused);
     const op = k ? { key: k, user: m.user.id, payload: { tree: t, project, file, width, height, ...details } } : undefined;
-    return (await server()).addDocument(t, whoOf(m), project, bytes, checked.mime, { width, height }, details, op);
+    const added = await (await server()).addDocument(t, whoOf(m), project, bytes, checked.mime, { width, height }, details, op);
+    await (await import('./stats/store.server')).countFeature(t, m.user.id, 'research.added');
+    return added;
   });
 
 export const saveResearchDocument = createServerFn({ method: 'POST' })

@@ -4,7 +4,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
-import { checkMediaKey, NOT_TREES, TREE_ID, type Db, type Driver, type MediaStore, type Param, type Query, type Result } from './db.ts';
+import { checkMediaKey, checkStatement, NOT_TREES, TREE_ID, type Db, type Driver, type MediaStore, type Param, type Query, type Result } from './db.ts';
 
 const DATA_DEFAULT = resolve(process.cwd(), 'data');
 const DATA = process.env.KINDRED_DATA_DIR ? resolve(process.env.KINDRED_DATA_DIR) : DATA_DEFAULT;
@@ -113,8 +113,12 @@ export function wrap(d: DatabaseSync): Db {
     return s;
   };
   const args = (params: Param[]) => params as SQLInputValue[];
+  const checked = (sql: string, params: Param[]) => {
+    checkStatement(sql, params);
+    return prepare(sql);
+  };
   const exec = (sql: string, params: Param[]): Result => {
-    const s = prepare(sql);
+    const s = checked(sql, params);
     if (s.columns().length) {
       // A SELECT, or a write with RETURNING.
       const rows = s.all(...args(params)) as Record<string, unknown>[];
@@ -127,10 +131,10 @@ export function wrap(d: DatabaseSync): Db {
   };
   return {
     async all<R>(sql: string, ...params: Param[]) {
-      return prepare(sql).all(...args(params)) as R[];
+      return checked(sql, params).all(...args(params)) as R[];
     },
     async get<R>(sql: string, ...params: Param[]) {
-      return prepare(sql).get(...args(params)) as R | undefined;
+      return checked(sql, params).get(...args(params)) as R | undefined;
     },
     async run(sql: string, ...params: Param[]) {
       return exec(sql, params);

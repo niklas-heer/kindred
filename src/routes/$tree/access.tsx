@@ -4,6 +4,7 @@ import { Check, Copy, KeyRound, Mail, RefreshCw, Share2, Trash2, UserPlus, Users
 import { useState } from 'react';
 import { ago, Initials } from '~/components/AccountMenu';
 import { Portrait } from '~/components/Portrait';
+import { ShareLinkCard } from '~/components/ShareLinkCard';
 import { ROLE_ICON } from '~/components/RoleIcon';
 import { Dialog, EmptyState, ErrorState, Notice, PageHeader, Select, Skeleton } from '~/components/ui';
 import { accessQuery, answerPersonLink, createInvite, removeMember, renewInvite, revokeInvite, setMemberRole, type AccessInvite, type AccessMember } from '~/lib/auth/functions';
@@ -106,6 +107,8 @@ function AccessPage() {
         {error && <Notice onDismiss={() => setError(null)} className="acc-notice">{error}</Notice>}
 
         <FamilyDetails tree={tree} name={f.graph.tree.name} tagline={f.graph.tree.tagline} />
+
+        <ShareLinkCard tree={tree} familyName={f.graph.tree.name} />
 
         {access.isPending ? (
           <div className="ui-card" aria-busy="true" aria-label={t('acc.loadingMembers')}><Skeleton lines={4} /></div>

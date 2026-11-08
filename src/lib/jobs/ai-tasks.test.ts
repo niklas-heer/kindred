@@ -116,6 +116,7 @@ function stubProvider(reportedUsd?: number) {
       const user = [...req.messages].reverse().map((m) => (m.role === 'user' ? m.text : '')).find((t) => !!t) ?? '';
       const json = req.json?.name === 'occupation' ? { label: `EN ${user}` }
         : req.json?.name === 'story_translation' ? { same: false, title: '', body: `EN ${user}` }
+        : req.json?.name === 'house_meanings_translation' ? { same: true, note: '', meanings: [] }
         : req.json?.name === 'arms_fit' ? { verdict: 'partly', reason: 'Only courage is spoken for.', advice: 'Add a charge for the trade.' }
         : undefined;
       if (!json) throw new AiError('bad-output', 'no answer');
@@ -136,6 +137,7 @@ function stubFetch() {
     const system = body.system ?? '';
     const answer = system.includes('translate one occupation') ? { label: 'EN occupation' }
       : system.includes('translate one story') ? { same: false, title: '', body: 'EN story' }
+      : system.includes('where a surname may come from') ? { same: true, note: '', meanings: [] }
       : { verdict: 'partly', reason: 'Only courage.', advice: 'Add a trade charge.' };
     const toolName = body.tools?.[0]?.name;
     const content = [{ type: 'text', text: JSON.stringify(answer) }, ...(toolName ? [{ type: 'tool_use', id: 'tu1', name: toolName, input: answer }] : [])];
@@ -219,7 +221,7 @@ test('a run does one batch and the next run resumes where it stopped', async () 
 
 test('the background cap stops the work, stays stopped on the next run, and the whole budget still counts it', async () => {
   const tree = 'cap';
-  makeFamily(tree);
+  makeFamily(tree, { meanings: false });
   await setupAi(tree, 1_000_000);
   // A fifth of $1 is $0.05 for background work; each call reports $0.03, so the second call is the last one that fits.
   await setBackground(tree, { on: ['occupations'], languages: ['en'], capShare: 0.05 });
@@ -265,7 +267,7 @@ test('no private field is sent: the outgoing bodies of all three tasks, from a r
     fetched.restore();
   }
   assert.ok(fetched.bodies.length >= 3, 'every task sent something');
-  assert.ok(fetched.bodies.some((b) => b.includes('Scherenschleifer')), 'an occupation was sent');
+  assert.ok(fetched.bodies.some((b) => b.includes('Brunnenbauer')), 'an occupation was sent');
   assert.ok(fetched.bodies.some((b) => b.includes('We mended kettles')), 'a story was sent');
   assert.ok(fetched.bodies.some((b) => b.includes('House Heer') || b.includes('lord, gentleman')), 'the arms review was sent');
   for (const body of fetched.bodies) assert.ok(!body.includes('SECRET-PHONE-0123'), 'a private field never leaves the server');
@@ -349,7 +351,7 @@ test('the arms review runs once per fingerprint: nothing is asked again until th
 
 test('the daily run skips a task that ran today, and runs it again once it is due', async () => {
   const tree = 'scheduled';
-  makeFamily(tree);
+  makeFamily(tree, { meanings: false });
   await setupAi(tree);
   await setBackground(tree, { on: ['occupations'], capShare: 1 });
   const stub = stubProvider();

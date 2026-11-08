@@ -9,6 +9,8 @@ import { useState } from 'react';
 import { aiActivityQuery, aiRunTask } from '~/lib/ai/background.functions';
 import { TASKS, type Activity, type Task } from '~/lib/ai/background';
 import { errorText } from '~/lib/errortext';
+import { houseTranslationsQuery } from '~/lib/house-meaning.functions';
+import { translateReview } from '~/lib/house-translation';
 import { locales, translate, useT, type Key, type Locale } from '~/lib/i18n';
 import { toAiLocale } from '~/lib/ai/types';
 import { treeTitle } from '~/lib/title';
@@ -61,6 +63,7 @@ function ActivityBody({ tree, data }: { tree: string; data: Activity }) {
   const qc = useQueryClient();
   const [now] = useState(() => Date.now());
   const [ran, setRan] = useState<{ task: Task; text: string; ok: boolean } | null>(null);
+  const translations = useQuery(houseTranslationsQuery(tree, t.locale)).data;
   const run = useMutation({
     mutationFn: (task: Task) => aiRunTask({ data: { tree, task } }),
     onSuccess: (out, task) => {
@@ -72,6 +75,7 @@ function ActivityBody({ tree, data }: { tree: string; data: Activity }) {
       setRan({ task, text: said, ok });
       void qc.invalidateQueries({ queryKey: ['ai-activity', tree] });
       void qc.invalidateQueries({ queryKey: ['collected-meanings', tree] });
+      void qc.invalidateQueries({ queryKey: ['house-translations', tree] });
     },
     onError: (e, task) => setRan({ task, text: errorText(e, locale), ok: false }),
   });
@@ -105,7 +109,9 @@ function ActivityBody({ tree, data }: { tree: string; data: Activity }) {
           <>
             <p className="muted">{t('aitasks.waitingText')}</p>
             <ul className="aitasks-waiting">
-              {data.waiting.map((w) => (
+              {data.waiting.map((original) => {
+                const w = translateReview(original, translations?.reviews[original.house]);
+                return (
                 <li key={w.house}>
                   <span className="aitasks-verdict">{t(VERDICT[w.verdict])}</span>
                   <b>{w.name}</b>
@@ -115,7 +121,8 @@ function ActivityBody({ tree, data }: { tree: string; data: Activity }) {
                     <Link to="/$tree/house/$house" params={{ tree, house: w.house }} className="btn ghost">{t('aitasks.openHouse')}</Link>
                   </span>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </>
         )}

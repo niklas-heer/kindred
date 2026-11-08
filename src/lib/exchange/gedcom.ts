@@ -212,15 +212,16 @@ export function writeGedcom(tree: ExTree, now: Date = new Date()): { text: strin
   const text = out.join('\r\n') + '\r\n';
 
   // ----- what the format leaves out -----
-  const lost = (n: number, what: string) => {
-    if (n) losses.push(`${n} ${what}`);
+  // English sentences that the export report translates: each has a key in i18n/areas/exchange.ts.
+  const lost = (n: number, one: string, other: string) => {
+    if (n) losses.push(`${n} ${n === 1 ? one : other}`);
   };
-  lost(tree.extras.stories, 'stories, memories and sayings are not exported');
-  lost(tree.extras.fields, 'contact details and other fields are not exported (they hold private data)');
-  lost(tree.extras.houses, 'houses and their arms are not exported');
-  lost(tree.extras.places, 'place coordinates are not exported; place names are');
-  lost(people.filter((p) => p.epithet).length, 'epithets are not exported');
-  lost(people.filter((p) => p.portrait).length, 'portraits are referenced by their media key only; the pictures are not included');
+  lost(tree.extras.stories, 'story, memory or saying is not exported', 'stories, memories and sayings are not exported');
+  lost(tree.extras.fields, 'contact detail or other field is not exported (they hold private data)', 'contact details and other fields are not exported (they hold private data)');
+  lost(tree.extras.houses, 'house and its arms are not exported', 'houses and their arms are not exported');
+  lost(tree.extras.places, 'place coordinate is not exported; place names are', 'place coordinates are not exported; place names are');
+  lost(people.filter((p) => p.epithet).length, 'epithet is not exported', 'epithets are not exported');
+  lost(people.filter((p) => p.portrait).length, 'portrait is referenced by its media key only; the picture is not included', 'portraits are referenced by their media key only; the pictures are not included');
   return { text, losses };
 }
 
