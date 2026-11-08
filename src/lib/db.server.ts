@@ -2,6 +2,7 @@
 // async `Db` interface (./store): node:sqlite files on Node, D1 on Cloudflare Workers.
 import { guard, isGuardError, q, store, type Db, type Query, type Result } from './store/index.ts';
 import type { GParent, GPerson, GUnion, Graph, House, PersonDetail, TreeMeta } from './types';
+import { fieldText, type FieldType, type FieldValue, type PersonField } from '../components/fields/model.ts';
 
 export { guard, q, store, type Db, type Query } from './store/index.ts';
 
@@ -135,7 +136,8 @@ export async function graph(tree: string): Promise<Graph> {
   const d = db(tree);
   const [m, peopleRows, houseRows, parents, unionRows, placeRows] = await Promise.all([
     meta(d),
-    d.all<any>(`SELECT p.*, ph.at AS photo, (SELECT count(*) FROM story s WHERE s.person = p.id) AS stories, (SELECT count(*) FROM contact c WHERE c.person = p.id) AS contacts
+    d.all<any>(`SELECT p.*, ph.at AS photo, (SELECT count(*) FROM story s WHERE s.person = p.id) AS stories,
+      (SELECT count(*) FROM person_field f WHERE f.person = p.id AND f.private = 0 AND f.type IN ('phone', 'email', 'address', 'website', 'social')) AS contacts
       FROM person p LEFT JOIN photo ph ON ph.person = p.id`),
     d.all<any>('SELECT * FROM house'),
     d.all<GParent>('SELECT child, parent, kind, confidence FROM parent'),
@@ -163,6 +165,8 @@ export async function graph(tree: string): Promise<Graph> {
       contacts: r.contacts,
       bornPlace: opt(r.born_place),
       diedPlace: opt(r.died_place),
+      currentGiven: opt(r.current_given),
+      currentSurname: opt(r.current_surname),
     }),
   );
   const houses = houseRows.map((r): House => ({ id: r.id, name: r.name, motto: opt(r.motto), arms: JSON.parse(r.arms), founder: opt(r.founder) }));
@@ -180,12 +184,24 @@ export async function graph(tree: string): Promise<Graph> {
   };
 }
 
-export async function person(tree: string, id: string): Promise<PersonDetail> {
+/** A person_field row as the browser gets it. */
+export const fieldOf = (r: any): PersonField => ({
+  id: r.id,
+  type: r.type as FieldType,
+  label: r.label,
+  value: JSON.parse(r.value) as FieldValue,
+  ord: r.ord,
+  private: r.private === 1,
+  updatedAt: r.updated_at,
+  updatedBy: r.updated_by,
+});
+
+export async function person(tree: string, id: string, canSee = false): Promise<PersonDetail> {
   const d = db(tree);
-  const [r, stories, contacts] = await Promise.all([
-    d.get<any>('SELECT bio, born_place, died_place, favourite, updated_at FROM person WHERE id = ?', id),
+  const [r, stories, fields] = await Promise.all([
+    d.get<any>('SELECT bio, born_place, died_place, updated_at FROM person WHERE id = ?', id),
     d.all<any>('SELECT * FROM story WHERE person = ? ORDER BY at DESC', id),
-    d.all<any>('SELECT * FROM contact WHERE person = ? ORDER BY kind, id', id),
+    d.all<any>(`SELECT * FROM person_field WHERE person = ? ${canSee ? '' : 'AND private = 0'} ORDER BY ord, id`, id),
   ]);
   if (!r) throw new Error(`no person ${id}`);
   return {
@@ -193,14 +209,11 @@ export async function person(tree: string, id: string): Promise<PersonDetail> {
     bio: opt(r.bio),
     bornPlace: opt(r.born_place),
     diedPlace: opt(r.died_place),
-    favourite: opt(r.favourite),
     updatedAt: r.updated_at,
     stories: stories.map((s) => ({
       id: s.id, person: s.person, kind: s.kind, title: opt(s.title), body: s.body, author: s.author, at: s.at, context: opt(s.context),
     })),
-    contacts: contacts.map((c) => ({
-      id: c.id, person: c.person, kind: c.kind, label: opt(c.label), value: c.value,
-    })),
+    fields: fields.map(fieldOf),
   };
 }
 
@@ -209,8 +222,21 @@ export function chronicle(tree: string, limit: number) {
   return db(tree).all<any>('SELECT * FROM story ORDER BY at DESC LIMIT ?', limit);
 }
 
-export function allContacts(tree: string) {
-  return db(tree).all<any>('SELECT * FROM contact ORDER BY person, kind');
+// The contacts page and its vCards speak in the older kinds; these map the fields onto them. Only fields
+// everyone may see are listed.
+const CONTACT_KIND: Record<string, string> = { phone: 'phone', email: 'email', address: 'address', website: 'web', social: 'messenger' };
+
+export async function allContacts(tree: string) {
+  const rows = await db(tree).all<any>(
+    "SELECT id, person, type, label, value FROM person_field WHERE private = 0 AND type IN ('phone', 'email', 'address', 'website', 'social') ORDER BY person, ord, id",
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    person: r.person,
+    kind: CONTACT_KIND[r.type],
+    label: r.label || null,
+    value: fieldText(r.type as FieldType, JSON.parse(r.value)),
+  }));
 }
 
 /** A person's portrait: its type, and where it is (a media key) or, for one not yet moved out, its bytes. */
@@ -244,7 +270,7 @@ export interface PlaceHit {
   country?: string;
   /** State or province, from the gazetteer. */
   region?: string;
-  /** The gazetteer's own name when the hit matched another spelling ("Munich" for München). */
+  /** The spelling that matched, when the hit matched an alternate of the gazetteer's name ("Munich" for München). */
   also?: string;
   /** How many records in this tree use the name; set only for the tree's own places. */
   uses?: number;
@@ -300,7 +326,8 @@ export async function searchPlaces(tree: string, q: string, limit = 8): Promise<
     .map(({ r }): PlaceHit => {
       const theirs = pinned.find((pl) => (foldPlace(pl.name) === foldPlace(r.alt ?? r.name) && near(pl, r)) || (Math.abs(pl.lat - r.lat) < 0.03 && Math.abs(pl.lng - r.lng) < 0.03));
       if (theirs) return { name: theirs.name, lat: theirs.lat, lng: theirs.lng, country: theirs.country ?? r.cc ?? undefined, region: r.admin1 ?? undefined, uses: used.get(theirs.name) ?? 0 };
-      return { name: r.alt ?? r.name, also: r.alt ? r.name : undefined, lat: r.lat, lng: r.lng, country: r.cc ?? undefined, region: r.admin1 ?? undefined };
+      // The official name first; the spelling that matched (alt is set only for an alternate) is the hint.
+      return { name: r.name, also: r.alt ?? undefined, lat: r.lat, lng: r.lng, country: r.cc ?? undefined, region: r.admin1 ?? undefined };
     })
     // Drop only true repeats; a town that shares a name with a family place elsewhere stays, so it can be told apart.
     .filter((t, i, all) => !(t.uses !== undefined && own.some((o) => o.name === t.name)) && all.findIndex((x) => x.name === t.name && x.lat === t.lat) === i)

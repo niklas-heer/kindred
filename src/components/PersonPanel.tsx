@@ -1,19 +1,19 @@
 // The character window: who this is, how they're yours, their life at a glance (the Overview), their
 // family, what the family remembers about them, and the everyday things (birthday, how to reach them).
-import { useForm, useStore } from '@tanstack/react-form';
+import { useForm } from '@tanstack/react-form';
 import { Link, useBlocker } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { geoMercator, geoPath, type GeoPermissibleObjects } from 'd3-geo';
 import {
-  Baby, BriefcaseBusiness, Cake, Camera, Check, CookingPot, Crosshair, Crown, Gift, GitFork, Heart, HeartCrack, Hourglass, Mail, MapPin, MessageCircle, MessagesSquare, Pencil,
+  Baby, BriefcaseBusiness, Cake, Camera, Check, CookingPot, Crosshair, Crown, GitFork, Heart, HeartCrack, Hourglass, Mail, MapPin, MessagesSquare, Pencil,
   Phone, Plus, Quote, Route as RouteIcon, Sparkles, StickyNote, Trash2, UserRound, X,
 } from 'lucide-react';
 import { feature, mesh } from 'topojson-client';
-import { renderMarkdown } from '~/lib/markdown';
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { addContact, addStory, deleteContact, opKeys, removePerson, deleteStory, personQuery, updatePerson, uploadPhoto } from '~/lib/api';
+import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { addStory, deleteStory, newOpKey, opKeys, uploadPhoto, unlinkRelative } from '~/lib/api';
+import { addPersonField, deletePersonField, personDetailQuery } from '~/lib/person.functions';
 import {
-  ageAt, age, children, displayName, fmtDate, kinship, lifespan, parents, partnersOf, siblings, yearOf, type Family,
+  ageAt, age, children, displayName, fmtDate, kinship, lifespan, parents, partnersOf, personDisplayName, siblings, useNameMode, yearOf, type Family,
 } from '~/lib/graph';
 import { setPref } from '~/lib/prefs';
 import { chooseMe } from '~/lib/family';
@@ -21,29 +21,23 @@ import { can, type Role } from '~/lib/roles';
 import { useCan, useRole, useSession } from '~/lib/session';
 import type { GPerson, PersonDetail, Place, Story } from '~/lib/types';
 import { TRAITS } from '~/lib/traits';
-import { validDate } from '~/lib/dates';
 import { GAP_ACTION, GAP_LABEL, GAP_WHERE, gapsOf, useRequired, type GapKey } from '~/lib/gaps';
+import { renderMarkdown } from '~/lib/markdown';
 import { GameIcon } from './GameIcon';
 import { Arms } from './Heraldry';
 import { Portrait } from './Portrait';
-import { Dialog, ErrorState, Skeleton, Tabs, TabList, Tab as UiTab, TabPanel, Select, Switch, isOverlayOpen } from './ui';
+import { Dialog, ErrorState, Skeleton, Tabs, TabList, Tab as UiTab, TabPanel, Select, isOverlayOpen } from './ui';
 import { QuickAdd } from './QuickAdd';
-import { PlaceInput, placeValue, savePlacesKeyed, type PlaceValue } from './PlaceInput';
 import type { AddRelation } from './Card';
+import { DraftContext, DraftTracker, type Draft } from './fields/draft';
+import { PersonEdit } from './fields/PersonEdit';
+import { PersonPhotos } from './photos/PersonPhotos';
+import { ContactRow, FieldGroups, contactHref, contactsOf } from './fields/FieldsView';
+import { useCopy, type Copy } from './fields/strings';
+import { DEFAULT_LABEL } from './fields/model';
 import './panel.css';
 
 type Tab = 'overview' | 'family' | 'stories' | 'everyday' | 'edit';
-
-type Draft = { dirty: boolean; busy: boolean; save: () => Promise<boolean> };
-const DraftContext = createContext<{ register: (draft: Draft | null) => void; leave: (next: () => void) => void }>({ register: () => {}, leave: (next) => next() });
-function DraftTracker({ form }: { form: any }) {
-  const { register } = useContext(DraftContext);
-  const dirty = useStore(form.store, (s: any) => s.isDirty) as boolean;
-  const busy = useStore(form.store, (s: any) => s.isSubmitting) as boolean;
-  useEffect(() => { register({ dirty, busy, save: async () => { await form.handleSubmit(); return !form.state.isDirty; } }); }, [dirty, busy, form, register]);
-  useEffect(() => () => register(null), [register]);
-  return dirty ? <span className="pp-unsaved" role="status">Unsaved changes</span> : null;
-}
 
 interface Props {
   family: Family;
@@ -90,10 +84,12 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   const canAdd = can(role, 'add-person');
   const canPhoto = can(role, 'upload-photo');
   const [required] = useRequired(tree);
-  const detailQ = useQuery(personQuery(tree, id));
+  const detailQ = useQuery(personDetailQuery(tree, id));
   const details: DetailState = { detail: detailQ.data, failed: detailQ.isError && !detailQ.data, retry: () => void detailQ.refetch() };
   const detail = detailQ.data;
   const qc = useQueryClient();
+  const c = useCopy();
+  const nameMode = useNameMode(tree);
   const [photoKeys] = useState(opKeys);
   const photo = useMutation({
     mutationFn: (file: File) => {
@@ -104,13 +100,18 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
       fd.set('opKey', photoKeys.for('photo', [id, file.name, file.size, file.lastModified]));
       return uploadPhoto({ data: fd });
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['graph', tree] }),
+    // A finished upload's key is spent: the next upload, even of the same file, is a new change.
+    onSuccess: () => { photoKeys.clear('photo'); qc.invalidateQueries({ queryKey: ['graph', tree] }); },
   });
 
   if (!p) return null;
   const house = p.house ? f.house.get(p.house) : undefined;
   const a = age(p);
   const fillGap = (g: GapKey) => (g === 'photo' ? photoInput.current?.click() : GAP_WHERE[g] === 'tree' ? onAncestors() : leave(() => setTab(GAP_WHERE[g] as Tab)));
+  // The name a person goes by now, and the birth surname when it differs ("née").
+  const current = { ...p, given: p.currentGiven ?? p.given, surname: p.currentSurname ?? p.surname };
+  const nee = p.currentSurname != null && p.currentSurname !== p.surname && p.surname ? p.surname : undefined;
+  const shown = personDisplayName(current, nameMode, f);
 
   return (
     <DraftContext.Provider value={{ register: setDraft, leave }}><aside className="person-panel panel" key={id}>
@@ -128,7 +129,10 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
           <span className="pp-portrait readonly"><Portrait person={p} tree={tree} size={124} /></span>
         )}
         <div className="pp-id">
-          <h2 className="display">{displayName(p, f)}</h2>
+          <h2 className="display">
+            {shown}
+            {nee && nameMode === 'full' && <span className="pp-nee"> {c('panel.nee', { name: nee })}</span>}
+          </h2>
           {p.title && <div className="pp-title">{p.title}</div>}
           <div className="pp-life">
             {p.living && <span className="pp-living" title="Living">●</span>}
@@ -188,17 +192,17 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
             onSelect={(v) => leave(() => onSelect(v))} onPath={onPath} onGap={fillGap} onTab={(t) => leave(() => setTab(t))}
           />
         </TabPanel>
-        <TabPanel value="family"><FamilyTab f={f} tree={tree} id={id} canAdd={canAdd} onSelect={(v) => leave(() => onSelect(v))} /></TabPanel>
+        <TabPanel value="family"><FamilyTab f={f} tree={tree} id={id} canAdd={canAdd} canEdit={canEdit} onSelect={(v) => leave(() => onSelect(v))} /></TabPanel>
         <TabPanel value="stories"><StoriesTab tree={tree} p={p} details={details} /></TabPanel>
-        <TabPanel value="everyday"><EverydayTab f={f} tree={tree} p={p} details={details} /></TabPanel>
+        <TabPanel value="everyday"><EverydayTab f={f} tree={tree} p={p} details={details} canEdit={canEdit} onSelect={(v) => leave(() => onSelect(v))} /></TabPanel>
         <TabPanel value="edit">
-          {canEdit && (detail ? <EditTab tree={tree} p={p} detail={detail} done={() => setTab('overview')} onRemoved={onClose} /> : <DetailFallback details={details} />)}
+          {canEdit && (detail ? <PersonEdit tree={tree} p={p} f={f} detail={detail} done={() => setTab('overview')} onRemoved={onClose} /> : <DetailFallback details={details} />)}
         </TabPanel>
       </div></Tabs>
       {canAdd ? (
         <div className="pp-add-relative"><Select aria-label="Add relative" placeholder="Add relative" value="" onChange={(v) => { if (v) leave(() => setAdd(v as AddRelation)); }} options={['parent', 'partner', 'child', 'sibling'].map((v) => ({ value: v, label: `Add ${v}` }))} /></div>
       ) : (
-        <p className="pp-add-relative pp-ask subtle">Ask an editor to add people or change details.</p>
+        <p className="pp-add-relative pp-ask subtle">{c('ask.editor')}</p>
       )}
       {add && canAdd && <QuickAdd family={f} tree={tree} anchor={id} relation={add} onCancel={() => setAdd(null)} onDone={() => setAdd(null)} />}
       <Dialog open={!!guarded} onClose={keep} title="Unsaved changes" dismissible={!savingDraft && !draft?.busy} footer={<>
@@ -235,9 +239,11 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
   const bornPlace = detail?.bornPlace ?? p.bornPlace;
   const diedPlace = detail?.diedPlace ?? p.diedPlace;
   const words = (detail?.stories ?? []).filter((s) => s.kind !== 'recipe' && s.kind !== 'note').slice(0, 2);
+  const c = useCopy();
 
   return (
     <div className="pp-overview">
+      <PersonPhotos tree={tree} id={p.id} />
       <section className="pp-kin" aria-label="How you are related">
         {!me ? (
           <span className="muted">Say who you are to see how you’re related</span>
@@ -271,7 +277,7 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
       </div>
 
       {p.living && <Upcoming f={f} p={p} />}
-      {p.living && (detail ? <ContactActions p={p} detail={detail} onMore={() => onTab('everyday')} /> : details.failed ? null : null)}
+      {p.living && detail && <ContactActions p={p} detail={detail} onMore={() => onTab('everyday')} />}
 
       <LifeTimeline f={f} tree={tree} p={p} onSelect={onSelect} />
 
@@ -287,7 +293,7 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
             {detail.stories.length > words.length && <button className="btn ghost pp-more" onClick={() => onTab('stories')}>All {detail.stories.length} stories</button>}
           </div>
         ) : (
-          <p className="pp-quiet subtle">Nothing written down about {p.given} yet. <button className="pp-inline-link" onClick={() => onTab('stories')}>Add a memory</button></p>
+          <p className="pp-quiet subtle">{c('panel.nothingWritten', { name: p.given })}{can(role, 'add-story') && <> <button className="pp-inline-link" onClick={() => onTab('stories')}>{c('panel.addMemory')}</button></>}</p>
         )}
       </section>
 
@@ -327,6 +333,7 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
 
 /** Next birthday and wedding anniversaries, as countdown cards. */
 function Upcoming({ f, p }: { f: Family; p: GPerson }) {
+  const c = useCopy();
   const bday = p.born ? nextOccurrence(p.born) : undefined;
   const anniversaries = (f.unionsOf.get(p.id) ?? [])
     .filter((u) => u.kind === 'marriage' && u.start && !u.end)
@@ -339,8 +346,8 @@ function Upcoming({ f, p }: { f: Family; p: GPerson }) {
         <div className="pp-countdown ui-card">
           <Cake size={20} />
           <div>
-            <b>Birthday {inDays(daysUntil(bday))}</b>
-            <div className="muted">{bday.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · turns {(ageAt(p.born) ?? 0) + 1}</div>
+            <b>{c('fact.birthdayIn', { when: inDays(daysUntil(bday), c) })}</b>
+            <div className="muted">{bday.toLocaleDateString(c.locale === 'de' ? 'de-DE' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · {c('fact.turns', { n: (ageAt(p.born) ?? 0) + 1 })}</div>
           </div>
         </div>
       )}
@@ -348,8 +355,8 @@ function Upcoming({ f, p }: { f: Family; p: GPerson }) {
         <div className="pp-countdown ui-card" key={u.id}>
           <Heart size={20} />
           <div>
-            <b>Anniversary with {other!.given} {inDays(daysUntil(next!))}</b>
-            <div className="muted">{next!.getFullYear() - yearOf(u.start)} years · married {fmtDate(u.start)}</div>
+            <b>{c('fact.anniversaryWith', { name: other!.given, when: inDays(daysUntil(next!), c) })}</b>
+            <div className="muted">{c('fact.years', { n: next!.getFullYear() - yearOf(u.start) })} · {c('fact.marriedOn', { date: fmtDate(u.start) ?? '' })}</div>
           </div>
         </div>
       ))}
@@ -359,15 +366,17 @@ function Upcoming({ f, p }: { f: Family; p: GPerson }) {
 
 /** Call, write or find them: one button per way to reach them. */
 function ContactActions({ p, detail, onMore }: { p: GPerson; detail: PersonDetail; onMore: () => void }) {
-  const first = (k: string) => detail.contacts.find((c) => c.kind === k);
+  const c = useCopy();
+  const list = contactsOf(detail.fields);
+  const first = (k: string) => list.find((x) => x.type === k);
   const phone = first('phone'), email = first('email'), address = first('address');
   if (!phone && !email && !address) return null;
   return (
-    <div className="pp-reach" role="group" aria-label={`Reach ${p.given}`}>
-      {phone && <a className="btn" href={contactHref('phone', phone.value)}><Phone size={14} /> Call</a>}
-      {email && <a className="btn" href={contactHref('email', email.value)}><Mail size={14} /> Email</a>}
-      {address && <a className="btn" href={contactHref('address', address.value)} target="_blank" rel="noreferrer"><MapPin size={14} /> Directions</a>}
-      {detail.contacts.length > [phone, email, address].filter(Boolean).length && <button className="btn ghost" onClick={onMore}>More</button>}
+    <div className="pp-reach" role="group" aria-label={c('reach.group', { name: p.given })}>
+      {phone && <a className="btn" href={contactHref(phone)}><Phone size={14} /> {c('reach.call')}</a>}
+      {email && <a className="btn" href={contactHref(email)}><Mail size={14} /> {c('reach.email')}</a>}
+      {address && <a className="btn" href={contactHref(address)} target="_blank" rel="noreferrer"><MapPin size={14} /> {c('reach.directions')}</a>}
+      {list.length > [phone, email, address].filter(Boolean).length && <button className="btn ghost" onClick={onMore}>{c('reach.more')}</button>}
     </div>
   );
 }
@@ -496,41 +505,71 @@ function PlacesMap({ f, tree, p, bornPlace, diedPlace, unions }: { f: Family; tr
 
 // ---------- family ----------
 
-function FamilyTab({ f, tree, id, canAdd, onSelect }: { f: Family; tree: string; id: string; canAdd: boolean; onSelect: (id: string) => void }) {
+type RelKind = 'parents' | 'partners' | 'children' | 'siblings' | 'grandparents';
+
+/** The family as links: parents, partners, children, siblings and grandparents. Editors may take out a direct link. */
+function FamilyTab({ f, tree, id, canAdd, canEdit, onSelect }: { f: Family; tree: string; id: string; canAdd: boolean; canEdit: boolean; onSelect: (id: string) => void }) {
+  const c = useCopy();
+  const qc = useQueryClient();
   const gps = [...new Set(parents(f, id).flatMap((p) => parents(f, p)))];
   const unions = f.unionsOf.get(id) ?? [];
-  const groups: [string, string[]][] = [
-    ['Parents', parents(f, id)],
-    ['Partners', partnersOf(f, id)],
-    ['Children', children(f, id)],
-    ['Siblings', siblings(f, id)],
-    ['Grandparents', gps],
+  const groups: [RelKind, string[]][] = [
+    ['parents', parents(f, id)],
+    ['partners', partnersOf(f, id)],
+    ['children', children(f, id)],
+    ['siblings', siblings(f, id)],
+    ['grandparents', gps],
   ];
+  // The link waiting for its second click: "kind:id".
+  const [armed, setArmed] = useState<string | null>(null);
+  const unlink = useMutation({
+    mutationFn: ({ kind, rid }: { kind: RelKind; rid: string }) => {
+      if (kind === 'parents') return unlinkRelative({ data: { tree, parents: [{ child: id, parent: rid }] } });
+      if (kind === 'children') return unlinkRelative({ data: { tree, parents: [{ child: rid, parent: id }] } });
+      // A partnership is removed as one; the parents of their children stay.
+      const u = unions.find((x) => x.a === rid || x.b === rid);
+      return unlinkRelative({ data: { tree, parents: [], partnership: u?.id } });
+    },
+    onSuccess: async () => { setArmed(null); await qc.invalidateQueries({ queryKey: ['graph', tree] }); },
+  });
   const any = groups.some(([, ids]) => ids.length);
-  if (!any) return <p className="empty">No relatives recorded yet.{canAdd && <> Use the <Plus size={12} /> marks around the card to add some.</>}</p>;
+  if (!any) return <p className="empty">{c('family.empty')}{canAdd && <> {c('family.addHint')}</>}</p>;
   return (
     <>
-      {groups.map(([label, ids]) =>
+      {groups.map(([kind, ids]) =>
         ids.length ? (
-          <section key={label}>
-            <div className="rule">{label} <span className="faint">{ids.length}</span></div>
+          <section key={kind}>
+            <div className="rule">{c(`rel.${kind}`)} <span className="faint">{ids.length}</span></div>
             <div className="pp-grid">
               {ids.map((r) => {
                 const rp = f.byId.get(r)!;
-                const u = label === 'Partners' ? unions.find((u) => u.a === r || u.b === r) : undefined;
+                const u = kind === 'partners' ? unions.find((u) => u.a === r || u.b === r) : undefined;
+                const key = `${kind}:${r}`;
+                const removable = canEdit && kind !== 'siblings' && kind !== 'grandparents';
                 return (
-                  <button key={r} className="pp-rel" onClick={() => onSelect(r)} title={`${displayName(rp, f)} · ${lifespan(rp)}`}>
-                    <Portrait person={rp} tree={tree} size={58} frame />
-                    <span className="pp-rel-name">{rp.given}</span>
-                    {u ? <span className="pp-rel-sub">{u.kind === 'marriage' ? '⚭' : '♡'} {u.start ? yearOf(u.start) : ''}{u.end ? `–${yearOf(u.end)}` : ''}</span> : <span className="pp-rel-sub">{lifespan(rp)}</span>}
-                    {f.disputed.has(`${id}>${r}`) && <span className="pp-disputed" title="Parentage disputed"><GameIcon name="uncertainty" size={12} /></span>}
-                  </button>
+                  <div className="pp-rel-cell" key={r}>
+                    <button className="pp-rel" onClick={() => onSelect(r)} title={`${displayName(rp, f)} · ${lifespan(rp)}`}>
+                      <Portrait person={rp} tree={tree} size={58} frame />
+                      <span className="pp-rel-name">{rp.given}</span>
+                      {u ? <span className="pp-rel-sub">{u.kind === 'marriage' ? '⚭' : '♡'} {u.start ? yearOf(u.start) : ''}{u.end ? `–${yearOf(u.end)}` : ''}</span> : <span className="pp-rel-sub">{lifespan(rp)}</span>}
+                      {f.disputed.has(`${id}>${r}`) && <span className="pp-disputed" title={c('rel.disputed')}><GameIcon name="uncertainty" size={12} /></span>}
+                    </button>
+                    {removable && (armed === key ? (
+                      <span className="pp-unlink-confirm">
+                        <button className="btn ghost danger" onClick={() => unlink.mutate({ kind, rid: r })} disabled={unlink.isPending}>{c('family.removeYes')}</button>
+                        <button className="btn ghost" onClick={() => setArmed(null)}>{c('common.cancel')}</button>
+                      </span>
+                    ) : (
+                      <button className="btn ghost pp-unlink" onClick={() => setArmed(key)}>{c('family.removeLink')}</button>
+                    ))}
+                  </div>
                 );
               })}
             </div>
           </section>
         ) : null,
       )}
+      {unlink.isError && <p className="err" role="alert">{c('family.removeFailed')}</p>}
     </>
   );
 }
@@ -547,6 +586,7 @@ const KINDS: { id: Story['kind']; label: string; icon: ReactNode }[] = [
 
 function StoriesTab({ tree, p, details }: { tree: string; p: GPerson; details: DetailState }) {
   const detail = details.detail;
+  const c = useCopy();
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
   const canWrite = useCan('add-story');
@@ -567,7 +607,7 @@ function StoriesTab({ tree, p, details }: { tree: string; p: GPerson; details: D
       {detail.stories.length === 0 && !adding && (
         <p className="empty">Nothing written down about {p.given} yet.{canWrite ? ' What do you remember?' : ''}</p>
       )}
-      {!canWrite && <p className="pp-ask subtle">Ask a steward if you’d like to add memories of your own.</p>}
+      {!canWrite && <p className="pp-ask subtle">{c('ask.editor')}</p>}
       <div className="pp-stories">
         {detail.stories.map((s) => (
           <StoryCard key={s.id} s={s} onDelete={canDelete ? () => confirm('Remove this story?') && remove.mutate(s.id) : undefined} />
@@ -615,6 +655,8 @@ function StoryForm({ tree, person, done }: { tree: string; person: GPerson; done
       try {
       const data = { tree, person: person.id, kind: value.kind, body: value.body.trim(), title: value.title.trim() || undefined, context: value.context.trim() || undefined };
       await addStory({ data: { ...data, opKey: keys.for('story', data) } });
+      // Saved: the next memory is a new change, even if it reads the same.
+      keys.clear('story');
       await qc.invalidateQueries({ queryKey: ['person', tree, person.id] });
       qc.invalidateQueries({ queryKey: ['graph', tree] });
       qc.invalidateQueries({ queryKey: ['chronicle', tree] });
@@ -691,31 +733,33 @@ function nextOccurrence(date: string, from = new Date()): Date | undefined {
   return next;
 }
 const daysUntil = (d: Date) => Math.round((d.getTime() - new Date(new Date().toDateString()).getTime()) / 86_400_000);
-const inDays = (n: number) => (n === 0 ? 'today' : n === 1 ? 'tomorrow' : `in ${n} days`);
+const inDays = (n: number, c: Copy) => (n === 0 ? c('when.today') : n === 1 ? c('when.tomorrow') : c('when.inDays', { n }));
 
-const CONTACT_ICON = { phone: <Phone size={14} />, email: <Mail size={14} />, address: <MapPin size={14} />, web: <MessageCircle size={14} />, messenger: <MessageCircle size={14} /> };
-const contactHref = (kind: string, v: string) =>
-  kind === 'phone' ? `tel:${v.replace(/\s/g, '')}` : kind === 'email' ? `mailto:${v}` : kind === 'address' ? `https://maps.apple.com/?q=${encodeURIComponent(v)}` : kind === 'web' ? v : undefined;
+/** The kinds a contact can be quickly added as, from the Everyday tab. */
+const QUICK_KINDS = ['phone', 'email', 'address', 'website'] as const;
+type QuickKind = (typeof QUICK_KINDS)[number];
+/** The value key each quick kind keeps its text under (see fields/model.ts). */
+const QUICK_KEY: Record<QuickKind, string> = { phone: 'number', email: 'address', address: 'street', website: 'url' };
 
-function EverydayTab({ f, tree, p, details }: { f: Family; tree: string; p: GPerson; details: DetailState }) {
+function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tree: string; p: GPerson; details: DetailState; canEdit: boolean; onSelect: (id: string) => void }) {
   const detail = details.detail;
   const qc = useQueryClient();
+  const c = useCopy();
   const canContact = useCan('edit-contact');
-  const canEdit = useCan('edit-person');
-  const [kind, setKind] = useState<'phone' | 'email' | 'address' | 'messenger'>('phone');
+  const [kind, setKind] = useState<QuickKind>('phone');
   const [value, setValue] = useState('');
   // One key per attempt: a retry after a lost answer never adds the contact twice.
   const [keys] = useState(opKeys);
   const add = useMutation({
     mutationFn: () => {
-      const data = { tree, person: p.id, kind, value: value.trim() };
-      return addContact({ data: { ...data, opKey: keys.for('contact', data) } });
+      const data = { tree, person: p.id, field: { type: kind, label: DEFAULT_LABEL[kind] ?? '', value: { [QUICK_KEY[kind]]: value.trim() }, private: false } };
+      return addPersonField({ data: { ...data, opKey: keys.for('contact', data) } });
     },
     onSuccess: () => { keys.clear('contact'); setValue(''); qc.invalidateQueries({ queryKey: ['person', tree, p.id] }); qc.invalidateQueries({ queryKey: ['contacts', tree] }); qc.invalidateQueries({ queryKey: ['graph', tree] }); },
   });
   const del = useMutation({
-    mutationFn: (cid: number) => deleteContact({ data: { tree, id: cid } }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['person', tree, p.id] }); qc.invalidateQueries({ queryKey: ['contacts', tree] }); },
+    mutationFn: (fid: string) => deletePersonField({ data: { tree, id: fid, opKey: newOpKey() } }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['person', tree, p.id] }); qc.invalidateQueries({ queryKey: ['contacts', tree] }); qc.invalidateQueries({ queryKey: ['graph', tree] }); },
   });
 
   const bday = p.born ? nextOccurrence(p.born) : undefined;
@@ -725,66 +769,71 @@ function EverydayTab({ f, tree, p, details }: { f: Family; tree: string; p: GPer
     .filter((x) => x.next && x.other?.living);
 
   if (!detail) return <DetailFallback details={details} />;
+  const contacts = contactsOf(detail.fields);
+  const removeContact = (fid: string) => (
+    <button className="btn icon ghost" aria-label={c('reach.remove')} title={c('reach.remove')} onClick={() => del.mutate(fid)} disabled={del.isPending}><Trash2 size={13} /></button>
+  );
+  const fieldsBlock = <FieldGroups fields={detail.fields} fam={f} onSelect={onSelect} />;
+
   if (!p.living) {
     const died = p.died ? nextOccurrence(p.died) : undefined;
     return (
-      <div className="pp-facts">
-        <Fact icon={<Cake size={15} />} label="Born">{fmtDate(p.born) ?? 'unknown'}{detail?.bornPlace && <> in <PlaceLink tree={tree} name={detail.bornPlace} /></>}</Fact>
-        <Fact icon={<span>✝</span>} label="Died">{fmtDate(p.died) ?? 'unknown'}{detail?.diedPlace && <> in <PlaceLink tree={tree} name={detail.diedPlace} /></>}{age(p) !== undefined && <span className="muted"> · aged {age(p)}</span>}</Fact>
-        {died && daysUntil(died) < 60 && <Fact icon={<Heart size={15} />} label="Remembrance">{inDays(daysUntil(died))}</Fact>}
-        {p.occupation && <Fact icon={<Pencil size={15} />} label="Occupation">{p.occupation}</Fact>}
-        {(f.unionsOf.get(p.id) ?? []).map((u) => {
-          const o = f.byId.get(u.a === p.id ? u.b : u.a);
-          return o ? <Fact key={u.id} icon={<Heart size={15} />} label={u.kind === 'marriage' ? 'Married' : 'Partner'}>{displayName(o, f)}{u.start && <> · {fmtDate(u.start)}</>}{u.place && <> · {u.place}</>}{u.endReason && u.endReason !== 'death' && <span className="muted"> ({u.endReason})</span>}</Fact> : null;
-        })}
-      </div>
+      <>
+        <div className="pp-facts">
+          <Fact icon={<Cake size={15} />} label={c('fact.born')}>{fmtDate(p.born) ?? c('fact.unknown')}{detail?.bornPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={detail.bornPlace} /></>}</Fact>
+          <Fact icon={<span>✝</span>} label={c('fact.died')}>{fmtDate(p.died) ?? c('fact.unknown')}{detail?.diedPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={detail.diedPlace} /></>}{age(p) !== undefined && <span className="muted"> · {c('fact.agedN', { n: age(p)! })}</span>}</Fact>
+          {died && daysUntil(died) < 60 && <Fact icon={<Heart size={15} />} label={c('fact.remembrance')}>{inDays(daysUntil(died), c)}</Fact>}
+          {p.occupation && <Fact icon={<Pencil size={15} />} label={c('fact.occupation')}>{p.occupation}</Fact>}
+          {(f.unionsOf.get(p.id) ?? []).map((u) => {
+            const o = f.byId.get(u.a === p.id ? u.b : u.a);
+            return o ? <Fact key={u.id} icon={<Heart size={15} />} label={u.kind === 'marriage' ? c('fact.married') : c('fact.partner')}>{displayName(o, f)}{u.start && <> · {fmtDate(u.start)}</>}{u.place && <> · {u.place}</>}{u.endReason && u.endReason !== 'death' && <span className="muted"> ({u.endReason})</span>}</Fact> : null;
+          })}
+        </div>
+        {fieldsBlock}
+      </>
     );
   }
 
   return (
-    <div className="pp-facts">
-      {bday ? (
-        <div className="pp-countdown ui-card">
-          <Cake size={20} />
-          <div>
-            <b>Birthday {inDays(daysUntil(bday))}</b>
-            <div className="muted">{bday.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · turns {(ageAt(p.born) ?? 0) + 1}</div>
+    <>
+      <div className="pp-facts">
+        {bday ? (
+          <div className="pp-countdown ui-card">
+            <Cake size={20} />
+            <div>
+              <b>{c('fact.birthdayIn', { when: inDays(daysUntil(bday), c) })}</b>
+              <div className="muted">{bday.toLocaleDateString(c.locale === 'de' ? 'de-DE' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · {c('fact.turns', { n: (ageAt(p.born) ?? 0) + 1 })}</div>
+            </div>
           </div>
-        </div>
-      ) : (
-        <Fact icon={<Cake size={15} />} label="Born">{fmtDate(p.born) ?? (canEdit ? 'unknown, add it in Edit' : 'unknown')}</Fact>
-      )}
-      {anniversaries.map(({ u, next, other }) => (
-        <div className="pp-countdown ui-card" key={u.id}>
-          <Heart size={20} />
-          <div>
-            <b>Anniversary with {other!.given} {inDays(daysUntil(next!))}</b>
-            <div className="muted">{next!.getFullYear() - yearOf(u.start)} years · married {fmtDate(u.start)}</div>
+        ) : (
+          <Fact icon={<Cake size={15} />} label={c('fact.born')}>{fmtDate(p.born) ?? (canEdit ? c('fact.unknownAdd') : c('fact.unknown'))}</Fact>
+        )}
+        {anniversaries.map(({ u, next, other }) => (
+          <div className="pp-countdown ui-card" key={u.id}>
+            <Heart size={20} />
+            <div>
+              <b>{c('fact.anniversaryWith', { name: other!.given, when: inDays(daysUntil(next!), c) })}</b>
+              <div className="muted">{c('fact.years', { n: next!.getFullYear() - yearOf(u.start) })} · {c('fact.marriedOn', { date: fmtDate(u.start) ?? '' })}</div>
+            </div>
           </div>
-        </div>
-      ))}
-      {p.nickname && <Fact icon={<UserRound size={15} />} label="Called">{p.nickname}</Fact>}
-      {detail?.bornPlace && <Fact icon={<MapPin size={15} />} label="Born in"><PlaceLink tree={tree} name={detail.bornPlace} /></Fact>}
-      {p.occupation && <Fact icon={<Pencil size={15} />} label="Does">{p.occupation}</Fact>}
-      {(detail?.favourite || canEdit) && <Fact icon={<Gift size={15} />} label="Likes">{detail?.favourite ?? <span className="subtle">Gift ideas, favourite food, music… add them in Edit</span>}</Fact>}
+        ))}
+        {p.nickname && <Fact icon={<UserRound size={15} />} label={c('fact.called')}>{p.nickname}</Fact>}
+        {detail?.bornPlace && <Fact icon={<MapPin size={15} />} label={c('fact.bornIn')}><PlaceLink tree={tree} name={detail.bornPlace} /></Fact>}
+        {p.occupation && <Fact icon={<Pencil size={15} />} label={c('fact.does')}>{p.occupation}</Fact>}
+      </div>
 
-      <div className="rule">Reach {p.given}</div>
-      {detail?.contacts.map((c) => (
-        <div key={c.id} className="pp-contact">
-          {CONTACT_ICON[c.kind]}
-          {contactHref(c.kind, c.value) ? <a href={contactHref(c.kind, c.value)} target={c.kind === 'address' ? '_blank' : undefined} rel="noreferrer">{c.value}</a> : <span>{c.value}</span>}
-          {c.label && <span className="chip">{c.label}</span>}
-          {canContact && <button className="btn icon ghost" aria-label="Remove contact" title="Remove contact" onClick={() => del.mutate(c.id)}><Trash2 size={13} /></button>}
-        </div>
-      ))}
-      {!canContact ? (
-        detail && !detail.contacts.length ? <p className="pp-ask subtle">No contact details yet. Ask an editor to add them.</p> : null
-      ) : <form className="pp-contact-add" onSubmit={(e) => { e.preventDefault(); value.trim() && add.mutate(); }}>
-        <Select aria-label="Contact kind" value={kind} onChange={setKind} options={(['phone', 'email', 'address', 'messenger'] as const).map((value) => ({value, label: value[0].toUpperCase() + value.slice(1)}))} />
-        <input aria-label="Contact details" className="input" value={value} onChange={(e) => setValue(e.target.value)} placeholder={kind === 'address' ? 'Street, town' : kind === 'email' ? 'name@example.com' : '+49 …'} />
-        <button aria-label="Add contact" className="btn" disabled={!value.trim() || add.isPending}><Plus size={14} /></button>
-      </form>}
-    </div>
+      <div className="rule">{c('reach.heading', { name: p.given })}</div>
+      {contacts.map((x) => <ContactRow key={x.id} f={x} actions={canContact ? removeContact(x.id) : undefined} />)}
+      {!contacts.length && !canContact && <p className="pp-ask subtle">{c('reach.none')}</p>}
+      {canContact && (
+        <form className="pp-contact-add" onSubmit={(e) => { e.preventDefault(); value.trim() && add.mutate(); }}>
+          <Select aria-label={c('reach.kind')} value={kind} onChange={(v) => setKind(v as QuickKind)} options={QUICK_KINDS.map((k) => ({ value: k, label: c(`type.${k}`) }))} />
+          <input aria-label={c('reach.details')} className="input" value={value} onChange={(e) => setValue(e.target.value)} placeholder={c(`reach.placeholder.${kind}`)} />
+          <button aria-label={c('reach.add')} className="btn" disabled={!value.trim() || add.isPending}><Plus size={14} /></button>
+        </form>
+      )}
+      {fieldsBlock}
+    </>
   );
 }
 
@@ -802,124 +851,3 @@ function Fact({ icon, label, children }: { icon: ReactNode; label: string; child
     </div>
   );
 }
-
-// ---------- edit ----------
-
-function EditTab({ tree, p, detail, done, onRemoved }: { tree: string; p: GPerson; detail: PersonDetail; done: () => void; onRemoved: () => void }) {
-  const { leave } = useContext(DraftContext);
-  const canRemove = useCan('remove-person');
-  const medieval = tree === 'realm' || (!!p.born && yearOf(p.born) < 1500);
-  const qc = useQueryClient();
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [keys] = useState(opKeys);
-  const remove = useMutation({
-    mutationFn: () => removePerson({ data: { tree, id: p.id } }),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ['graph', tree] });
-      onRemoved();
-    },
-  });
-  const form = useForm({
-    defaultValues: {
-      given: p.given, surname: p.surname ?? '', nickname: p.nickname ?? '', sex: (p.sex ?? '') as '' | 'm' | 'f' | 'x',
-      born: p.born ?? '', bornPlace: placeValue(detail.bornPlace), died: p.died ?? '', diedPlace: placeValue(detail.diedPlace), living: p.living,
-      title: p.title ?? '', epithet: p.epithet ?? '', occupation: p.occupation ?? '', favourite: detail.favourite ?? '', bio: detail.bio ?? '',
-    },
-    onSubmit: async ({ value }) => {
-      setSaveError(null);
-      try {
-        // Pins first: repeating them on a retry changes nothing, and the Atlas has them as soon as the person points there.
-        await savePlacesKeyed(tree, (pl) => keys.for('places', pl), value.bornPlace, value.living ? undefined : value.diedPlace);
-        await updatePerson({ data: { tree, id: p.id, patch: { ...value, bornPlace: value.bornPlace.name, diedPlace: value.diedPlace.name, sex: value.sex || null } } });
-        await Promise.all([qc.invalidateQueries({ queryKey: ['graph', tree] }), qc.invalidateQueries({ queryKey: ['person', tree, p.id] })]);
-        form.reset(value);
-        done();
-      } catch (e) {
-        setSaveError(e instanceof Error ? e.message : 'Could not save');
-      }
-    },
-  });
-  const date = ({ value }: { value: string }) => (value === '' || validDate(value.trim()) ? undefined : 'Enter a year, year-month or year-month-day; use ~ for an approximate year');
-  const text = (name: any, label: string, opts: { placeholder?: string; validate?: typeof date; wide?: boolean } = {}) => (
-    <form.Field name={name} validators={opts.validate ? { onChange: opts.validate } : undefined}>
-      {(field: any) => (
-        <label className={`field${opts.wide ? ' wide' : ''}`}>
-          <span>{label}</span>
-          <input aria-invalid={!!field.state.meta.errors.length} aria-describedby={`edit-${name}-error`} className="input" value={field.state.value} placeholder={opts.placeholder} onChange={(e) => field.handleChange(e.target.value)} />
-          {field.state.meta.errors.length ? <em id={`edit-${name}-error`} className="err">{field.state.meta.errors[0]}</em> : null}
-        </label>
-      )}
-    </form.Field>
-  );
-  const place = (name: 'bornPlace' | 'diedPlace', label: string) => (
-    <form.Field name={name}>
-      {(field) => (
-        <div className="field">
-          <span id={`edit-${name}-label`}>{label}</span>
-          <PlaceInput tree={tree} value={field.state.value} onChange={(v: PlaceValue) => field.handleChange(v)} aria-labelledby={`edit-${name}-label`} />
-        </div>
-      )}
-    </form.Field>
-  );
-  return (
-    <form className="pp-edit" onSubmit={(e) => { e.preventDefault(); form.handleSubmit(); }}>
-      <DraftTracker form={form} />
-      {text('given', 'Given name')}
-      {text('surname', 'Surname at birth')}
-      {text('nickname', 'Called', { placeholder: medieval ? 'A familiar name or byname' : 'Ellie, Grandpa Joe' })}
-      <form.Field name="sex">
-        {(field) => (
-          <label className="field">
-            <span>Sex</span>
-            <Select aria-label="Sex" value={field.state.value} onChange={(v) => field.handleChange(v)} options={[{value: '', label: 'Unknown'}, {value: 'f', label: 'Female'}, {value: 'm', label: 'Male'}, {value: 'x', label: 'Other'}]} />
-          </label>
-        )}
-      </form.Field>
-      <div className="wide pi-pair">
-        {text('born', 'Born', { placeholder: medieval ? '1120 or ~1120' : '1953 or 1953-08-08', validate: date })}
-        {place('bornPlace', 'Birthplace')}
-      </div>
-      <form.Field name="living">
-        {(field) => (
-          <label className="field check wide">
-            <Switch checked={field.state.value} onChange={(v) => field.handleChange(v)}>Living</Switch>
-          </label>
-        )}
-      </form.Field>
-      <form.Subscribe selector={(s) => s.values.living}>
-        {(living) => (living ? null : <div className="wide pi-pair">{text('died', 'Died', { validate: date })}{place('diedPlace', 'Place of death')}</div>)}
-      </form.Subscribe>
-      {text('title', 'Title', { placeholder: medieval ? 'Duchess of Brennac' : 'Title, if any' })}
-      {text('epithet', 'Epithet', { placeholder: 'the Bold' })}
-      {text('occupation', 'Occupation', { wide: true })}
-      {text('favourite', 'Likes & gift ideas', { wide: true, placeholder: medieval ? 'Honey cakes, falconry, music' : 'Liquorice, music, sailing' })}
-      <form.Field name="bio">
-        {(field) => (
-          <label className="field wide">
-            <span>Biography <small className="subtle">Markdown supported</small></span>
-            <textarea className="input" rows={6} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
-          </label>
-        )}
-      </form.Field>
-      {saveError && <em role="alert" className="err wide">{saveError}</em>}
-      <div className="row end wide">
-        {canRemove && (
-          <button
-            type="button"
-            className="btn ghost danger"
-            disabled={remove.isPending}
-            onClick={() => confirm(`Remove ${p.given} from the tree? Their family links, stories, contacts and photo go too.`) && remove.mutate()}
-          >
-            <Trash2 size={14} /> Remove from tree
-          </button>
-        )}
-        <span className="spacer" />
-        <button type="button" className="btn ghost" onClick={() => leave(done)}>Cancel</button>
-        <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>
-          {([ok, busy]) => <button className="btn primary" disabled={!ok || busy}><Check size={14} /> Save</button>}
-        </form.Subscribe>
-      </div>
-    </form>
-  );
-}
-

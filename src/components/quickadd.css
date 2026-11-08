@@ -34,3 +34,6 @@
 .qa-candidate[aria-disabled] .palette-label { color: var(--muted); }
 .qa-tick { flex: none; color: var(--accent); }
 @media (max-width: 600px) { .qa-candidate .palette-hint { margin-left: 38px; } }
+
+/* The submit button, while nothing can be sent yet ("Link person" with nobody picked): it reads as off, not as a dud. */
+.btn.qa-submit:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; filter: saturate(0.4); }

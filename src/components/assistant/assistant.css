@@ -1,0 +1,153 @@
+/* The assistant drawer, its proposal cards, and the AI settings page. Colours and type come from the
+   theme tokens in styles/app.css, so the three themes (codex, modern, night) all apply. */
+
+.ai-launch { gap: 6px; }
+
+.ai-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  width: min(440px, 100vw);
+  background: var(--panel-solid);
+  color: var(--text);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  font-family: var(--font-body);
+}
+.ai-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.ai-drawer-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.ai-drawer-tools { display: flex; align-items: center; gap: 6px; }
+.ai-touch { min-height: 44px; min-width: 44px; }
+.ai-icon { padding: 0; justify-content: center; }
+.ai-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.ai-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overscroll-behavior: contain;
+}
+.ai-msg { max-width: 100%; }
+.ai-msg p { margin: 0; }
+.ai-msg-user {
+  align-self: flex-end;
+  max-width: 88%;
+  padding: 8px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--chip);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.ai-msg-assistant { align-self: stretch; display: flex; flex-direction: column; gap: 10px; }
+.ai-text { line-height: 1.5; overflow-wrap: anywhere; }
+.ai-text p { margin: 0 0 0.5em; }
+.ai-text p:last-child { margin-bottom: 0; }
+.ai-text a { color: var(--accent-text); }
+.ai-thinking { margin: 0; font-style: italic; }
+
+.ai-composer {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: end;
+  padding: 10px 14px 6px;
+  border-top: 1px solid var(--border);
+}
+.ai-composer textarea {
+  resize: none;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.4;
+}
+.ai-composer textarea:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.ai-foot { margin: 0; padding: 0 14px 12px; font-size: 0.85rem; }
+
+/* Proposal cards */
+.ai-card {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--card-bg);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ai-card-dismissed { opacity: 0.7; border-left-color: var(--line); }
+.ai-card-kind { margin: 0; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.ai-card-summary { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+.ai-diff { margin: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.92rem; }
+.ai-diff-row { display: grid; grid-template-columns: minmax(64px, auto) 1fr; gap: 8px; }
+.ai-diff dt { color: var(--muted); }
+.ai-diff dd { margin: 0; overflow-wrap: anywhere; }
+.ai-diff s { text-decoration-thickness: 1px; }
+.ai-card-edit { display: flex; flex-direction: column; gap: 8px; }
+.ai-field { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; }
+.ai-field input,
+.ai-field textarea {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+  min-height: 44px;
+}
+.ai-field textarea { min-height: 96px; resize: vertical; }
+.ai-card-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.ai-card-actions .btn { min-height: 44px; }
+.ai-card-state { margin: 0; font-size: 0.9rem; }
+.ai-card-state.ok { color: var(--ok); }
+.ai-card-error { margin: 0; color: var(--danger); font-size: 0.9rem; overflow-wrap: anywhere; }
+
+/* Settings page */
+.ai-settings { display: flex; flex-direction: column; gap: 16px; max-width: 760px; }
+.ai-section { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.ai-section h2 { margin: 0; font-family: var(--font-title); font-size: 1rem; letter-spacing: 0.03em; }
+.ai-row { display: flex; flex-direction: column; gap: 6px; }
+.ai-row > label,
+.ai-row > .ai-label { font-weight: 500; }
+.ai-key-state { margin: 0; font-size: 0.9rem; }
+.ai-feature { display: flex; flex-direction: column; gap: 2px; }
+.ai-feature-hint { margin: 0 0 0 2.6em; font-size: 0.88rem; }
+.ai-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ai-actions .btn { min-height: 44px; }
+.ai-privacy { margin: 0; font-size: 0.92rem; line-height: 1.5; }
+.ai-usage { margin: 0; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 640px) {
+  .ai-drawer { width: 100vw; }
+  .ai-composer { grid-template-columns: 1fr; }
+  .ai-composer .btn { width: 100%; justify-content: center; }
+  .ai-feature-hint { margin-left: 0; }
+}

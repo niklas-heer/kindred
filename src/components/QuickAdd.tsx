@@ -318,7 +318,7 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onLin
       footer={
         <>
           {error ? <span className="err qa-note" role="alert">{error}</span> : <span className="subtle qa-note">{mode === 'existing' ? 'People who can’t be this relative are greyed out.' : 'Everything else can wait. You can add details later.'}</span>}
-          <button className="btn primary" form={formId} disabled={busy || (mode === 'existing' && !selected) || (!!start && !validDate(start))}><Check size={14} /> {mode === 'existing' ? 'Link person' : 'Create new'} <kbd>↵</kbd></button>
+          <button className="btn primary qa-submit" form={formId} disabled={busy || (mode === 'existing' && !selected) || (!!start && !validDate(start))}><Check size={14} /> {mode === 'existing' ? 'Link person' : 'Create new'} <kbd>↵</kbd></button>
         </>
       }
     >

@@ -411,23 +411,18 @@ export const addContact = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data }) => {
     const _m = await requireCan(data.tree, 'edit-contact');
-    const { once, q, personExists } = await server();
-    return once(data.tree, opOf(_m, data), 'addContact', async (d) => {
-      if (!(await d.get('SELECT id FROM person WHERE id = ?', data.person))) throw new Error('Person not found.');
-      return {
-        writes: [personExists(data.person), q('INSERT INTO contact (person, kind, label, value) VALUES (?, ?, ?, ?)', data.person, data.kind, data.label || null, data.value)],
-        // The new row's id is only known inside the batch; the retry key stores it from there.
-        result: (r) => r[1].lastRowId,
-        resultSql: 'last_insert_rowid()',
-      };
-    });
+    // Contacts are person fields now (src/lib/person.server.ts): the old kinds map onto their field types.
+    const [type, key] = LEGACY_CONTACT[data.kind];
+    return (await import('./person.server')).addPersonField(data.tree, data.person, { type, label: data.label ?? '', value: { [key]: data.value }, private: false }, opOf(_m, data), _m.user.name);
   });
 
+const LEGACY_CONTACT = { phone: ['phone', 'number'], email: ['email', 'address'], address: ['address', 'street'], web: ['website', 'url'], messenger: ['social', 'handle'] } as const;
+
 export const deleteContact = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, id: z.number().int() }))
+  .validator(z.object({ tree, id: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/) }))
   .handler(async ({ data }) => {
     await requireCan(data.tree, 'edit-contact');
-    await (await server()).db(data.tree).run('DELETE FROM contact WHERE id = ?', data.id);
+    await (await server()).db(data.tree).run("DELETE FROM person_field WHERE id = ? AND type IN ('phone', 'email', 'address', 'website', 'social')", data.id);
   });
 
 export const uploadPhoto = createServerFn({ method: 'POST' })

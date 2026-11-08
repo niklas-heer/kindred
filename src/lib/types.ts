@@ -1,6 +1,7 @@
 // What the browser receives. The whole graph of a tree comes in one request (a few hundred KB for
 // 1,500 people) so layout, search, kinship and the minimap all run locally and instantly.
 import type { SeedHouse, SeedPerson, SeedStory, SeedContact } from './seed-format';
+import type { PersonField } from '../components/fields/model';
 
 export type House = SeedHouse;
 export type Look = NonNullable<SeedPerson['look']>;
@@ -37,6 +38,9 @@ export interface GPerson {
   contacts: number;
   bornPlace?: string;
   diedPlace?: string;
+  /** The name a person goes by now, when it differs from the birth name. Absent means "same as birth". */
+  currentGiven?: string;
+  currentSurname?: string;
 }
 
 export interface Place {
@@ -76,13 +80,16 @@ export interface Graph {
 export type Story = SeedStory;
 export type Contact = SeedContact & { id: number };
 
+/** The details of one person: the biography, stories and the list of fields the reader may see. */
 export interface PersonDetail {
   id: string;
   bio?: string;
   bornPlace?: string;
   diedPlace?: string;
-  favourite?: string;
   updatedAt: string;
   stories: Story[];
-  contacts: Contact[];
+  /** In the order the family keeps them. Private fields are only here for editors and stewards. */
+  fields: PersonField[];
 }
+
+export type { PersonField } from '../components/fields/model';

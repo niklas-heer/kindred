@@ -1,13 +1,15 @@
-import { LanguageSwitch, translateMessage, formatDate, formatNumber, relativeTime, useT } from '~/lib/i18n';
+import { LanguageSwitch, translateMessage, formatDate, relativeTime, useT } from '~/lib/i18n';
 // The signed-in reader's menu in the topbar: who they are, their role in this family, and the way to
 // their passkeys, the steward's Access page and signing out. Also `Initials`, a name's monogram.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
+import { graphQuery } from '~/lib/api';
 import { Check, Fingerprint, KeyRound, LogOut, Plus, ShieldCheck, Trash2, Users } from 'lucide-react';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { addPasskey, forgetLocalIdentity, passkeysSupported, signOutRequest } from '~/lib/auth/client';
 import { myPasskeysQuery, removeMyPasskey, renameMe, type Passkey } from '~/lib/auth/functions';
 import { ROLES, can } from '~/lib/roles';
+import { Portrait } from './Portrait';
 import { useMembership, useSession } from '~/lib/session';
 import { Dialog } from './ui/Dialog';
 import { isTopOverlay, useOverlayLayer } from './ui/overlay';
@@ -25,6 +27,19 @@ export function Initials({ name, size = 32 }: { name: string; size?: number }) {
 }
 
 const roleOf = (id: string) => ROLES.find((r) => r.id === id);
+
+/**
+ * The account's picture: the portrait of the person the account is linked to in this family, when there is
+ * one (and the family's graph is loaded); the initials otherwise.
+ */
+function Avatar({ name, size }: { name: string; size: number }) {
+  const tree = useParams({ strict: false }).tree as string | undefined;
+  const linked = useMembership()?.person ?? null;
+  const graph = useQuery({ ...graphQuery(tree ?? ''), enabled: !!tree && !!linked });
+  const person = linked && tree ? graph.data?.people.find((p) => p.id === linked) : undefined;
+  if (person && tree) return <Portrait person={person} tree={tree} size={size} frame={false} />;
+  return <Initials name={name} size={size} />;
+}
 
 /** Signs out everywhere this browser knows about, then reloads at /signin with nothing cached. */
 export async function signOut(accessLogout?: string) {
@@ -91,13 +106,13 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
         aria-controls={open ? id : undefined}
         title={t('account.trigger', {name:user.name})}
       >
-        <Initials name={user.name} size={30} />
+        <Avatar name={user.name} size={30} />
         <span className="acct-trigger-name">{user.name}</span>
       </button>
       {open && (
         <div className="acct-menu panel" id={id} ref={menu} role="menu" aria-label={t("accountmenu.your_account")} onKeyDown={onKeyDown} style={pos ?? undefined}>
           <div className="acct-head">
-            <Initials name={user.name} size={44} />
+            <Avatar name={user.name} size={44} />
             <div>
               <b className="acct-name">{user.name}</b>
               <span className="acct-sub">{user.via === 'access' ? t('account.signedIn', {email:user.email ?? ''}) : user.email ?? t("accountmenu.signed_in_with_a_passkey")}</span>
