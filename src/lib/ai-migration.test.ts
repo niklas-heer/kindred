@@ -128,11 +128,13 @@ test('migration 0010 moves today\'s single-key settings into providers and route
   assert.equal(d.prepare("SELECT enabled, last_started FROM ai_background_task WHERE tree = 'mig-a'").get()!.enabled, 1, 'a background task keeps its switch');
   assert.equal((d.prepare("SELECT micros FROM ai_spend WHERE tree = 'mig-a'").get() as { micros: number }).micros, 42, 'spend is kept');
 
-  // B: both keys are OpenRouter's and differ. The assistant's key is the connection; the portrait's key is not dropped: it stays where it was.
+  // B: both keys are OpenRouter's and differ. The assistant's key is the connection; the portrait's key, which no connection
+  //    can hold and nothing reads, is deleted rather than left behind sealed and unused.
   assert.deepEqual(providers('mig-b').map((p) => [p.provider, p.key_tail]), [['openrouter', '3333']]);
   assert.equal(await v1Open('mig-b', providers('mig-b')[0]!.key_sealed), OR_B_FAMILY);
-  assert.equal(portrait('mig-b').key_sealed, seal.bPortrait, 'the second OpenRouter key is kept in place, not dropped');
-  assert.equal(await v1Open('mig-b', portrait('mig-b').key_sealed!), OR_B_PORTRAIT);
+  assert.equal(portrait('mig-b').key_sealed, null, 'the second OpenRouter key is not kept unused');
+  assert.equal((d.prepare("SELECT key_tail FROM ai_portrait WHERE tree = 'mig-b'").get() as { key_tail: string | null }).key_tail, null);
+  assert.equal(portrait('mig-b').enabled, 1, 'painting stays on, with the family\'s OpenRouter connection');
   assert.deepEqual(routes('mig-b').map((r) => [r.route, r.provider, r.model]), [['assistant', 'openrouter', 'google/gemini-3.8-flash'], ['portrait', 'openrouter', 'openai/gpt-image-2']]);
   assert.equal(settings('mig-b').monthly_micros, 5_000_000);
 
@@ -151,6 +153,24 @@ test('migration 0010 moves today\'s single-key settings into providers and route
   // E: nothing was created for a family with no AI rows.
   assert.equal(providers('mig-e').length, 0);
   assert.equal(routes('mig-e').length, 0);
+
+  // No sealed key is left anywhere but in a connection, for any family: the old columns hold nothing.
+  const stray = () => d.prepare(`SELECT tree FROM ai_settings WHERE key_sealed IS NOT NULL OR key_tail IS NOT NULL
+                                 UNION ALL SELECT tree FROM ai_portrait WHERE key_sealed IS NOT NULL OR key_tail IS NOT NULL`).all();
+  assert.deepEqual(stray(), [], 'no key outside ai_provider');
+  const everyKey = (d.prepare('SELECT key_sealed FROM ai_provider').all() as { key_sealed: string }[]).map((r) => r.key_sealed);
+  assert.ok(!everyKey.includes(seal.bPortrait), 'family B\'s portrait key is nowhere');
+
+  // Removing OpenRouter then leaves no sealed key of it behind.
+  const { createServer } = await import('vite');
+  const vite = await createServer({ root: process.cwd(), logLevel: 'error', server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom' });
+  const { removeProvider } = (await vite.ssrLoadModule('/src/lib/ai/providers.server.ts')) as typeof import('./ai/providers.server.ts');
+  await removeProvider('mig-b', 'openrouter');
+  await removeProvider('mig-a', 'openrouter');
+  assert.deepEqual(providers('mig-b'), [], 'family B holds no key after OpenRouter is removed');
+  assert.deepEqual(providers('mig-a').map((p) => p.provider), ['anthropic']);
+  assert.deepEqual(stray(), []);
+  await vite.close();
 
   d.close();
 });

@@ -87,7 +87,9 @@ export function Select<V extends string = string>({
     const up = below < Math.min(want, 200) && above > below;
     const maxHeight = Math.max(120, Math.min(want, up ? above - 4 : below - 4));
     const width = Math.max(b.width, menuWidth ?? 0);
-    const left = Math.max(8, Math.min(b.left, innerWidth - width - 8));
+    // The list may be wider than the button (long options): keep what is really shown on the screen.
+    const shown = Math.min(Math.max(width, pop.current?.offsetWidth ?? 0), innerWidth - 16);
+    const left = Math.max(8, Math.min(b.left, innerWidth - shown - 8));
     const h = Math.min(maxHeight, pop.current?.scrollHeight ?? maxHeight);
     setPos({ top: up ? b.top - 4 - h : b.bottom + 4, left, width, maxHeight });
   }, [menuWidth]);

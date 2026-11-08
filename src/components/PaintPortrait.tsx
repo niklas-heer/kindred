@@ -48,7 +48,7 @@ export function PaintPortrait({ tree, person, photos }: { tree: string; person: 
   const st = status.data;
   const ready = !!st && st.enabled && st.configured;
   const costs = st && st.usd !== null && st.usd !== undefined
-    ? new Intl.NumberFormat(locales[toAiLocale(t.locale)], { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(st.usd)
+    ? new Intl.NumberFormat(locales[toAiLocale(t.locale)], { style: 'currency', currency: 'USD', maximumFractionDigits: 3 }).format(st.usd)
     : null;
 
   return (
@@ -127,6 +127,7 @@ function PaintDialog({ tree, person, photos, name, onClose }: {
   async function tryAgain() {
     if (!cand || !picked) return;
     const old = cand.key;
+    setWorking(true); // Before the candidate goes, so the photo picker does not flash up while the old one is deleted.
     setCand(null);
     await throwAway(old);
     await paint(picked);
@@ -159,7 +160,8 @@ function PaintDialog({ tree, person, photos, name, onClose }: {
   return (
     <Dialog
       open
-      onClose={() => void discard()}
+      onClose={() => { if (!busy) void discard(); }}
+      closeButton={!busy}
       title={t('paint.dialogTitle')}
       description={name}
       width="min(620px, 100vw - 24px)"

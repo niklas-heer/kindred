@@ -33,6 +33,7 @@ logged by the listing. If a list cannot be read, the page says why and you can s
 
 **Recommended models** are in `src/lib/ai/recommended.ts`: one balanced, one cheap and one best-quality model per provider.
 They are provisional. The choices are first picks, not yet measured on real family questions. A measured test comes later.
+**Recommended painters** are there too, from a bake-off of 21 image models: GPT Image 2.6 Flare is the best and the portrait route's default when no model is chosen (about $0.048 a portrait), and FLUX 3 Image Klein is the budget pick (about $0.009); one OpenRouter no longer lists is not offered.
 
 **Prices** are in `src/lib/ai/prices.ts`, with the date they were checked and the source of each provider's prices.
 Anthropic and OpenAI prices are in a table there (USD per 1M tokens, input and output). OpenRouter has no table: its

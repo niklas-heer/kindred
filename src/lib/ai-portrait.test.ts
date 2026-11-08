@@ -240,7 +240,3 @@ test('a photo the person is not tagged in cannot be painted', async () => {
   assert.equal(imageCalls.length, 0);
 });
 
-test('the settings page offers the recommended model, from the live list', () => {
-  const choices = rules.pickableImageModels(rules.imageModels(LIST.data as never));
-  assert.ok(choices.some((m) => m.id === rules.RECOMMENDED_MODEL), 'the recommended model is in the list');
-});

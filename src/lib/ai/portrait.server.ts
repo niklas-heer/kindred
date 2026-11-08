@@ -13,10 +13,10 @@ import { readSettings, reserve, settle, SINGLE_CALL_SHARE, TINY_BUDGET_MICROS, f
 import { reportedMicros } from './prices';
 import { tr, type Tr } from './labels';
 import { PAINT_PROVIDERS, toAiLocale, type Provider } from './types';
+import { RECOMMENDED_PORTRAIT } from './recommended';
 import {
   MAX_SOURCE_BYTES,
   OPENROUTER_IMAGE_MODELS_URL,
-  RECOMMENDED_MODEL,
   UNPRICED_USD,
   imageModels,
   ReplyError,
@@ -38,6 +38,20 @@ const LIST_TTL = 60 * 60_000;
 const IMAGE_TIMEOUT_MS = 150_000;
 
 const FAKE_MODELS: ImageModel[] = imageModels([
+  {
+    id: 'openai/gpt-image-2.6-flare',
+    name: 'GPT Image 2.6 Flare (test)',
+    created: 3,
+    architecture: { input_modalities: ['text', 'image'], output_modalities: ['image'] },
+    pricing: { prompt: '0.000008', image_output: '0.00003' },
+  },
+  {
+    id: 'black-forest-labs/flux-3-image-klein',
+    name: 'FLUX 3 Image Klein (test)',
+    created: 4,
+    architecture: { input_modalities: ['text', 'image'], output_modalities: ['image'] },
+    pricing: { image: '0.015' },
+  },
   {
     id: 'openai/gpt-image-2',
     name: 'GPT Image 2 (test)',
@@ -109,8 +123,6 @@ export interface PortraitSettings {
   model: string;
   /** The painting provider is connected, so the route can run. */
   connected: boolean;
-  /** The model the settings page recommends, provisional until the bake-off. */
-  recommended: string;
 }
 
 /** The painting settings as the steward sees them. Never a key. */
@@ -122,7 +134,6 @@ export async function readPortraitSettings(tree: string): Promise<PortraitSettin
     provider: route.effective?.provider ?? null,
     model: route.effective?.model ?? '',
     connected: route.connected,
-    recommended: RECOMMENDED_MODEL,
   };
 }
 
@@ -375,7 +386,7 @@ export async function portraitStatus(tree: string): Promise<{ enabled: boolean; 
     configured: s.connected,
     model: s.model,
     labName: listed?.labName ?? '',
-    usd: listed?.priceUsd ?? (s.model ? UNPRICED_USD : null),
+    usd: RECOMMENDED_PORTRAIT.find((r) => r.model === s.model)?.usd ?? listed?.priceUsd ?? (s.model ? UNPRICED_USD : null),
     provider: s.provider,
   };
 }

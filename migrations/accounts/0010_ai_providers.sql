@@ -8,12 +8,13 @@
 -- This migration moves the old single-key settings into that shape and keeps everything else:
 --   * the family's key (ai_settings) becomes the connection of its provider, and its model becomes the assistant's route;
 --   * the portrait's own key (ai_portrait, when not reused from the family) becomes the OpenRouter connection, unless the
---     family already has an OpenRouter connection. Then the portrait's key stays where it was in ai_portrait.key_sealed,
---     unused, rather than being dropped (a second OpenRouter key cannot share the one connection);
+--     family already has an OpenRouter connection. Then that second OpenRouter key is deleted: one connection holds one
+--     key, nothing reads ai_portrait.key_sealed any more, and a sealed key nobody uses must not linger. The portrait then
+--     paints with the family's OpenRouter connection;
 --   * the portrait's model becomes the portrait's route (OpenRouter, the only provider that paints);
 --   * the switches (ai_settings.features, ai_portrait.enabled, ai_background_task.enabled), the monthly budget, the web-search
 --     switch, the custom prices and every spend row are untouched.
--- The key columns the new code no longer reads are cleared after their keys were copied, so a key sits in one place.
+-- The key columns the new code no longer reads are cleared, so a key sits in one place and only where it is used.
 -- Written to run on SQLite and on D1: no PRAGMA, no BEGIN, defaults on new NOT NULL columns.
 
 CREATE TABLE IF NOT EXISTS ai_provider (
@@ -58,9 +59,8 @@ SELECT tree, 'assistant', provider, COALESCE(model, ''), updated FROM ai_setting
 INSERT INTO ai_route (tree, route, provider, model, updated)
 SELECT tree, 'portrait', 'openrouter', COALESCE(model, ''), updated FROM ai_portrait;
 
--- 4. Clear the copies of keys that moved. A portrait key that stayed (see 2) is left where it was.
-UPDATE ai_settings SET key_sealed = NULL, key_tail = NULL WHERE key_sealed IS NOT NULL;
+-- 4. Clear the key columns nothing reads any more. Every portrait key either moved (see 2) or was a second OpenRouter key
+--    that no connection can hold, so none is left behind.
+UPDATE ai_settings SET key_sealed = NULL, key_tail = NULL WHERE key_sealed IS NOT NULL OR key_tail IS NOT NULL;
 
-UPDATE ai_portrait SET key_sealed = NULL, key_tail = NULL
-WHERE key_sealed IS NOT NULL
-  AND EXISTS (SELECT 1 FROM ai_provider a WHERE a.tree = ai_portrait.tree AND a.provider = 'openrouter' AND a.key_sealed = ai_portrait.key_sealed);
+UPDATE ai_portrait SET key_sealed = NULL, key_tail = NULL WHERE key_sealed IS NOT NULL OR key_tail IS NOT NULL;

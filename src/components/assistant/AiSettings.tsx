@@ -10,7 +10,7 @@ import { errorText } from '~/lib/errortext';
 import { aiListModels, aiRemoveProvider, aiSaveProvider, aiSaveSettings, aiSettingsQuery, aiTestConnection, type ModelsResult } from '~/lib/ai.functions';
 import { PROVIDER_NOTE } from '~/lib/ai/labels';
 import { conversationsForDollar, tablePrice, type Price } from '~/lib/ai/prices';
-import { recommendedFor } from '~/lib/ai/recommended';
+import { RECOMMENDED_PORTRAIT, portraitModelOr, portraitPicks, recommendedFor, type Role } from '~/lib/ai/recommended';
 import { DEFAULT_MODEL, PAINT_PROVIDERS, PROVIDERS, PROVIDER_LABEL, ROUTES, followsAssistant, toAiLocale, type AiFeatures, type AiSettingsData, type CustomPrice, type Feature, type ModelInfo, type Provider, type ProviderState, type Route, type TaskName } from '~/lib/ai/types';
 import type { ImageModel } from '~/lib/ai/portrait-rules';
 import { portraitSettingsQuery } from '~/lib/portrait.functions';
@@ -38,6 +38,9 @@ const ROUTE_HINT: Record<Route, Key> = {
   assistant: 'ai.routeAssistantHint', arms: 'ai.routeArmsHint', faces: 'ai.routeFacesHint', avatar: 'ai.routeAvatarHint',
   portrait: 'ai.routePortraitHint', 'arms-review': 'ai.routeArmsReviewHint', occupations: 'ai.routeOccupationsHint', chronicle: 'ai.routeChronicleHint',
 };
+/** Why a recommended painter is recommended, and the mark it carries in the model list. */
+const PORTRAIT_REASON: Partial<Record<Role, Key>> = { best: 'ai.paintWhyBest', cheap: 'ai.paintWhyBudget' };
+const PORTRAIT_MARK: Partial<Record<Role, Key>> = { best: 'ai.modelRecommended', cheap: 'ai.modelBudget' };
 const FEATURE_HINT: Record<Feature | 'webSearch', Key> = {
   assistant: 'ai.featureAssistantHint', faces: 'ai.featureFacesHint', avatar: 'ai.featureAvatarHint', arms: 'ai.featureArmsHint', webSearch: 'ai.featureWebSearchHint',
 };
@@ -130,7 +133,7 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
   const effective = (route: Route): { provider: Provider; model: string } | null => {
     const d = drafts[route];
     if (route === 'assistant') return d.provider ? { provider: d.provider, model: d.model.trim() || DEFAULT_MODEL[d.provider] } : null;
-    if (d.provider) return { provider: d.provider, model: d.model.trim() || (route === 'portrait' ? '' : DEFAULT_MODEL[d.provider]) };
+    if (d.provider) return { provider: d.provider, model: route === 'portrait' ? portraitModelOr(d.model, choices) : d.model.trim() || DEFAULT_MODEL[d.provider] };
     if (followsAssistant(route)) return effective('assistant');
     return null;
   };
@@ -223,9 +226,12 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
     mutationFn: () => aiSaveSettings({
       data: {
         tree,
-        routes: ROUTES.map((route) => {
+        // A job with no provider chosen that cannot follow the assistant (the assistant itself, painting) is not set yet:
+        // it is left out, so a family that uses only some jobs can still save the rest.
+        routes: ROUTES.filter((route) => drafts[route].provider !== null || followsAssistant(route)).map((route) => {
           const d = drafts[route];
-          return { route, provider: d.provider, model: d.provider ? d.model.trim() : '' };
+          // A portrait route with no model yet takes the default here, so a saved choice is never replaced.
+          return { route, provider: d.provider, model: !d.provider ? '' : route === 'portrait' ? portraitModelOr(d.model, choices) : d.model.trim() };
         }),
         features,
         webSearch,
@@ -250,7 +256,14 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
     const current = drafts[route].model.trim();
     const opts: SelectOption[] = [];
     if (isPaint) {
-      for (const m of choices) opts.push({ value: m.id, label: `${m.name} · ${m.labName}`, hint: t('ai.costImage', { usd: money(m.priceUsd ?? 0) }) });
+      const picks = portraitPicks(choices);
+      for (const r of picks) {
+        const m = choices.find((x) => x.id === r.model)!;
+        opts.push({ value: m.id, label: `${m.name} · ${m.labName}`, group: t('ai.modelRecommended'), hint: `${t(PORTRAIT_MARK[r.role]!)} · ${t('ai.costImage', { usd: money(r.usd, 3) })}` });
+      }
+      for (const m of choices.filter((x) => !picks.some((r) => r.model === x.id))) {
+        opts.push({ value: m.id, label: `${m.name} · ${m.labName}`, group: picks.length ? t('ai.modelAll') : undefined, hint: t('ai.costImage', { usd: money(m.priceUsd ?? 0) }) });
+      }
     } else {
       opts.push({ value: '', label: t('ai.modelDefault', { model: DEFAULT_MODEL[p] }) });
       const listing: ModelsResult | undefined = lists[p].data;
@@ -287,7 +300,8 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
     if (!e) return null;
     if (route === 'portrait') {
       const m = choices.find((x) => x.id === e.model);
-      return m ? <span className="ai-model-estimate">{t('ai.costImage', { usd: money(m.priceUsd ?? 0) })}</span> : null;
+      const measured = RECOMMENDED_PORTRAIT.find((r) => r.model === e.model)?.usd;
+      return m ? <span className="ai-model-estimate">{t('ai.costImage', { usd: measured !== undefined ? money(measured, 3) : money(m.priceUsd ?? 0) })}</span> : null;
     }
     const pr = priceOf(e.provider, e.model);
     if (!pr) {
@@ -331,7 +345,8 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
     };
     const followsOnly = followsAssistant(route) && d.provider === null;
     const options = modelOptions(route, d.provider ?? 'anthropic');
-    const modelValue = otherOpen[route] ? OTHER : d.model.trim();
+    const modelValue = otherOpen[route] ? OTHER : route === 'portrait' && d.provider ? portraitModelOr(d.model, choices) : d.model.trim();
+    const pick = route === 'portrait' && d.provider ? portraitPicks(choices).find((r) => r.model === modelValue) : undefined;
     return (
       <tr key={route} className={`ai-route ${on ? '' : 'is-off'}`} data-route={route}>
         <td className="ai-route-job" data-label={t('ai.routeColJob')}>
@@ -363,6 +378,7 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
                   aria-label={`${t(ROUTE_LABEL[route])}: ${t('ai.routeColModel')}`}
                   size="sm"
                 />
+                {pick && PORTRAIT_REASON[pick.role] && <p className="ai-route-reason subtle">{t(PORTRAIT_REASON[pick.role]!)}</p>}
                 {otherOpen[route] && (
                   <input
                     className="input ai-route-custom"
@@ -511,6 +527,7 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
           ticks={BUDGET_TICKS.map((v) => ({ value: v, label: v === 0 ? t('ai.budgetOff') : money(v, 0) }))}
           format={(v) => t('ai.budgetValue', { amount: money(v) })}
           aria-label={t('ai.budget')}
+          className="ai-budget-range"
         />
         <p className="subtle">{t('ai.budgetHint')}</p>
         <div

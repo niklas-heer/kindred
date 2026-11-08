@@ -4,10 +4,22 @@
 .ai-settings {
   display: grid;
   gap: 16px;
+  /* The page has no .page-inner, so this column keeps its own gutter on narrow screens. */
+  width: min(940px, 100% - 32px);
   max-width: 940px;
   margin-inline: auto;
   padding-bottom: 32px;
 }
+
+/* The title and the button under the form sit on the same column as the cards. */
+.ai-settings-page > .ui-page-header,
+.ai-settings-page > .ai-actions {
+  width: min(940px, 100% - 32px);
+  margin-inline: auto;
+}
+
+.ai-settings-page > .ui-page-header { padding-top: 22px; }
+.ai-settings-page > .ai-actions { padding-bottom: 28px; }
 
 .ai-step {
   display: grid;
@@ -24,6 +36,10 @@
 }
 
 .ai-step > p { margin: 0; }
+.ai-step > p.subtle { font-size: 0.92rem; line-height: 1.5; }
+
+/* The providers are cards themselves: their section adds no second inset, so their edges line up with the cards below. */
+.ai-step:not(.ui-card) { padding-inline: 0; }
 
 .ai-label {
   font-weight: 600;
@@ -94,6 +110,7 @@
 /* ---------- 2. key ---------- */
 
 .ai-key-input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.ai-key-input::placeholder { font-family: var(--font-body); }
 
 .ai-key-status { margin: 0; font-size: 0.92rem; min-height: 1.4em; }
 .ai-key-status.ok { color: var(--ok); }
@@ -107,7 +124,9 @@
 }
 
 .ai-key-masked {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin: 0;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
   padding: 6px 10px;
   border: 1px dashed var(--line);
   border-radius: var(--radius);
@@ -303,7 +322,9 @@
   .ai-model { grid-template-columns: 1fr; }
   .ai-model-price { text-align: start; }
   .ai-actions { justify-content: stretch; }
-  .ai-actions .btn { flex: 1 1 auto; }
+  .ai-actions .btn { flex: 1 1 auto; justify-content: center; }
+  /* "Off" and the first amount sit too close to both carry a label on a phone. The tick stays. */
+  .ai-budget-range .ui-range-ticks span:nth-child(2) { font-size: 0; }
 }
 
 /* ---------- providers: one card each ---------- */
@@ -334,6 +355,14 @@
 .ai-provider-blurb { margin: 0; }
 
 .ai-provider-card .ai-key-row { flex-wrap: wrap; }
+
+/* In a row of cards the link lines up with the buttons, not indented as it was on the old provider picker. */
+.ai-provider-card .ai-provider-key { margin: 0; padding: 0; }
+
+/* Two lines of blurb, so the keys and buttons of cards side by side start at the same height. */
+@media (min-width: 721px) {
+  .ai-provider-card .ai-provider-blurb { min-height: 2.8em; }
+}
 
 /* A small state label: the same shape for a provider, a job and a background task. */
 .ai-state {
@@ -383,18 +412,27 @@
   font-weight: 600;
 }
 
-.ai-routes th:nth-child(1), .ai-routes td:nth-child(1) { width: 32%; }
-.ai-routes th:nth-child(2), .ai-routes td:nth-child(2) { width: 22%; }
-.ai-routes th:nth-child(3), .ai-routes td:nth-child(3) { width: 28%; }
-.ai-routes th:nth-child(4), .ai-routes td:nth-child(4) { width: 18%; }
+.ai-routes th:nth-child(1), .ai-routes td:nth-child(1) { width: 30%; }
+.ai-routes th:nth-child(2), .ai-routes td:nth-child(2) { width: 20%; }
+.ai-routes th:nth-child(3), .ai-routes td:nth-child(3) { width: 25%; }
+.ai-routes th:nth-child(4), .ai-routes td:nth-child(4) { width: 25%; }
 
-.ai-route.is-off td:not(.ai-route-job) { opacity: 0.6; }
+/* The cell's contents, not the cell: a dimmed cell would dim its share of the row's rule too. */
+.ai-route.is-off td:not(.ai-route-job) > * { opacity: 0.6; }
+
+.ai-routes .ui-select { width: 100%; }
+
+.ai-route-model .subtle { font-size: 0.88rem; line-height: 1.4; overflow-wrap: anywhere; }
 
 .ai-route-job .ai-feature-hint { margin: 4px 0 6px; }
 
 .ai-route-custom { margin-top: 6px; width: 100%; }
 
+.ai-route-reason { margin: 6px 0 0; font-size: 0.85rem; line-height: 1.4; }
+
 .ai-cost-unknown { display: grid; gap: 6px; }
+
+.ai-cost-unknown .ai-model-price { text-align: start; }
 
 .ai-cost-unknown .ai-custom-grid { grid-template-columns: 1fr 1fr; }
 
@@ -423,5 +461,6 @@
     font-size: 0.8rem;
   }
   .ai-routes td.ai-route-job::before { content: none; }
+  .ai-routes .ui-select { min-height: 44px; }
   .ai-provider-grid { grid-template-columns: 1fr; }
 }

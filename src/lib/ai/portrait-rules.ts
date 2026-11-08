@@ -29,8 +29,6 @@ export const OPENROUTER_IMAGES_URL = 'https://openrouter.ai/api/v1/images';
 /** The public list of image-output models. It needs no key. */
 export const OPENROUTER_IMAGE_MODELS_URL = 'https://openrouter.ai/api/v1/models?output_modalities=image';
 
-/** The model the settings page recommends. Provisional: the owner's bake-off decides it. */
-export const RECOMMENDED_MODEL = 'openai/gpt-image-2';
 
 export const MAX_SOURCE_BYTES = 12_000_000;
 export const MAX_IMAGE_BYTES = 8_000_000;
