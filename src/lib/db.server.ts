@@ -61,6 +61,10 @@ const fingerprintOf = async (fn: string, payload: unknown) =>
 
 type OpRow = { fn: string; result: string; user: string | null; fingerprint: string | null };
 
+/** Whether the database itself turned the batch down (a guard or a constraint), so the batch certainly wrote nothing. */
+const refusedByDatabase = (e: unknown) =>
+  isGuardError(e) || (e instanceof Error && /constraint failed/i.test(`${e.message} ${String((e as { cause?: unknown }).cause ?? '')}`));
+
 /**
  * Runs a change. With an `opKey`, its result is stored in the `op` table in the same batch as the
  * writes, and the same key arriving again (a retry after a lost response) gets the stored result back
@@ -95,10 +99,13 @@ export async function once<T>(tree: string, op: OpKey | undefined, fn: string, w
     try {
       results = batch.length ? await d.batch(batch) : [];
     } catch (e) {
-      await plan.abandon?.();
-      // A copy of this request committed first: replay its result.
+      // This batch, or a copy of this request, committed: replay its result. The upload stays, as a row may point at it.
       const won = await stored();
       if (won) return replay(won);
+      // The upload is given back only when the batch surely wrote nothing: its retry key's row, written in the same
+      // batch, is not there, or the database refused it. Any other failure (D1 can report a lost connection after the
+      // transaction committed) keeps the file: a stray file costs space, a row whose file is gone is a broken picture.
+      if (op || refusedByDatabase(e)) await plan.abandon?.();
       // Something the plan relied on changed: decide again on fresh reads.
       if (isGuardError(e)) {
         if (attempt < ATTEMPTS) continue;
