@@ -283,6 +283,9 @@ p.pp-add-relative.pp-ask { margin: 0; padding: 12px 16px; }
 .pp-timeline li:first-child::before { top: 14px; }
 .pp-timeline li:last-child::before { bottom: calc(100% - 14px); }
 .pp-timeline li[data-gap]::before { background: repeating-linear-gradient(180deg, var(--border) 0 3px, transparent 3px 7px); }
+/* The Life tab of someone who has died: every moment, with a little more air than the Overview's fold. */
+.pp-timeline-full { margin: 4px 0 14px; }
+.pp-timeline-full li { padding: 5px 0; }
 .pp-tl-year { text-align: right; color: var(--muted); font-variant-numeric: oldstyle-nums tabular-nums; padding-top: 1px; }
 .pp-tl-age { display: block; font-size: var(--fs-1, 12px); line-height: 1.25; color: color-mix(in srgb, var(--text) 74%, var(--panel)); white-space: nowrap; font-variant-numeric: lining-nums tabular-nums; }
 .pp-tl-dot {

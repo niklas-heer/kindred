@@ -695,10 +695,9 @@ function ContactActions({ p, detail, onMore }: { p: GPerson; detail: PersonDetai
 type LifeEvent = { year: number; date?: string; age?: Age; icon: ReactNode; text: ReactNode; key: string };
 
 /** Birth, partnerships, children's births and death, in order, from the graph. */
-function LifeTimeline({ f, tree, p, onSelect }: { f: Family; tree: string; p: GPerson; onSelect: (id: string) => void }) {
+function useLifeEvents(f: Family, tree: string, p: GPerson, onSelect: (id: string) => void): LifeEvent[] {
   const c = useT();
-  const [all, setAll] = useState(false);
-  const events = useMemo(() => {
+  return useMemo(() => {
     const out: LifeEvent[] = [];
     if (!isNaN(yearOf(p.born))) out.push({ key: 'born', year: yearOf(p.born), date: p.born, icon: <Cake size={13} />, text: <>{c('fact.born')}{p.bornPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={p.bornPlace} /></>}</> });
     for (const u of f.unionsOf.get(p.id) ?? []) {
@@ -721,18 +720,30 @@ function LifeTimeline({ f, tree, p, onSelect }: { f: Family; tree: string; p: GP
     const order = (e: LifeEvent) => (e.key === 'born' ? 0 : e.key === 'died' ? 2 : 1);
     return out.sort((a, b) => a.year - b.year || order(a) - order(b) || (a.date ?? '').localeCompare(b.date ?? ''));
   }, [f, tree, p, onSelect, c]);
+}
+
+/**
+ * A life as a timeline. On the Overview it is a fold that shows the first moments and the last; `full` is the Life tab
+ * of someone who has died, where every moment is listed.
+ */
+function LifeTimeline({ f, tree, p, onSelect, full }: { f: Family; tree: string; p: GPerson; onSelect: (id: string) => void; full?: boolean }) {
+  const c = useT();
+  const [all, setAll] = useState(false);
+  const events = useLifeEvents(f, tree, p, onSelect);
   if (events.length < 2) return null;
+  const row = (e: LifeEvent, gap?: boolean) => (
+    <li key={e.key} data-gap={gap || undefined}>
+      <span className="pp-tl-year">{e.year}{e.age && <span className="pp-tl-age">{e.age.approx ? c('panel.aboutAge', { n: e.age.years }) : c('panel.ageAt', { n: e.age.years })}</span>}</span>
+      <span className="pp-tl-dot" aria-hidden>{e.icon}</span>
+      <span className="pp-tl-text">{e.text}</span>
+    </li>
+  );
+  if (full) return <ol className="pp-timeline pp-timeline-full" aria-label={c('panel.tab.life')}>{events.map((e) => row(e))}</ol>;
   const shown = all || events.length <= 8 ? events : [...events.slice(0, 6), events[events.length - 1]];
   return (
     <Fold id="life" title={c('panel.tab.life')} hint={c('panel.ov_moments', { count: events.length })}>
       <ol className="pp-timeline">
-        {shown.map((e, i) => (
-          <li key={e.key} data-gap={!all && events.length > 8 && i === 6 ? true : undefined}>
-            <span className="pp-tl-year">{e.year}{e.age && <span className="pp-tl-age">{e.age.approx ? c('panel.aboutAge', { n: e.age.years }) : c('panel.ageAt', { n: e.age.years })}</span>}</span>
-            <span className="pp-tl-dot" aria-hidden>{e.icon}</span>
-            <span className="pp-tl-text">{e.text}</span>
-          </li>
-        ))}
+        {shown.map((e, i) => row(e, !all && events.length > 8 && i === 6))}
       </ol>
       {!all && events.length > 8 && <button className="btn ghost pp-more" onClick={() => setAll(true)}>{c('panel.showAll', { count: events.length })}</button>}
     </Fold>
@@ -1200,6 +1211,9 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
     .map((u) => ({ u, next: nextOccurrence(u.start!, today), other: f.byId.get(u.a === p.id ? u.b : u.a) }))
     .filter((x) => x.next && x.other?.living) : [];
 
+  // With fewer than two dated moments there is no timeline, and the plain facts stand in for it.
+  const timeline = useLifeEvents(f, tree, p, onSelect).length >= 2;
+
   if (!detail) return <DetailFallback details={details} />;
   const contacts = contactsOf(detail.fields);
   const removeContact = (fid: string) => (
@@ -1223,12 +1237,16 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
     const died = p.died && today ? nextOccurrence(p.died, today) : undefined;
     return (
       <>
+        {/* The whole life, moment by moment. The Overview shows the same facts in short, so they are not repeated here. */}
+        <LifeTimeline full f={f} tree={tree} p={p} onSelect={onSelect} />
         <div className="pp-facts">
-          <Fact icon={<Cake size={15} />} label={c('fact.born')}>{fmtDate(p.born, locales[c.locale]) ?? c('fact.unknown')}{detail?.bornPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={detail.bornPlace} /></>}</Fact>
-          <Fact icon={<span>✝</span>} label={c('fact.died')}>{fmtDate(p.died, locales[c.locale]) ?? c('fact.unknown')}{detail?.diedPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={detail.diedPlace} /></>}{age(p) !== undefined && <span className="muted"> · {c('fact.agedN', { n: age(p)! })}</span>}</Fact>
+          {!timeline && <Fact icon={<Cake size={15} />} label={c('fact.born')}>{fmtDate(p.born, locales[c.locale]) ?? c('fact.unknown')}{detail?.bornPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={detail.bornPlace} /></>}</Fact>}
+          {!timeline && <Fact icon={<span>✝</span>} label={c('fact.died')}>{fmtDate(p.died, locales[c.locale]) ?? c('fact.unknown')}{detail?.diedPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={detail.diedPlace} /></>}{age(p) !== undefined && <span className="muted"> · {c('fact.agedN', { n: age(p)! })}</span>}</Fact>}
           {died && today && daysUntil(died, today) < 60 && <Fact icon={<Heart size={15} />} label={c('fact.remembrance')}>{inDays(daysUntil(died, today), c)}</Fact>}
+          {p.furtherGiven?.length ? <Fact icon={<UserRound size={15} />} label={c('fact.fullName')}>{fullName(p)}</Fact> : null}
+          {p.nickname && <Fact icon={<UserRound size={15} />} label={c('fact.called')}>{p.nickname}</Fact>}
           <OccupationFact tree={tree} p={p} icon={<Pencil size={15} />} label={c('fact.occupation')} />
-          {(f.unionsOf.get(p.id) ?? []).map((u) => {
+          {!timeline && (f.unionsOf.get(p.id) ?? []).map((u) => {
             const o = f.byId.get(u.a === p.id ? u.b : u.a);
             return o ? <Fact key={u.id} icon={<Heart size={15} />} label={u.kind === 'marriage' ? c('fact.married') : c('fact.partner')}>{displayName(o, f)}{u.start && <> · {fmtDate(u.start, locales[c.locale])}</>}{u.place && <> · {u.place}</>}{u.endReason && u.endReason !== 'death' && <span className="muted"> ({u.endReason})</span>}</Fact> : null;
           })}
