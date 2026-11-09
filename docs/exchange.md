@@ -50,7 +50,7 @@ carried in `_KINDRED_*` tags, which other programs skip, so a file made here com
 | Title, nickname, occupation | `TITL`, `NICK`, `OCCU` | |
 | Birth | `BIRT` with `DATE`, `PLAC` | |
 | Death | `DEAT` with `DATE`, `PLAC`; `DEAT Y` when only death is known | `DEAT N` means "not dead" and does not make a person dead. |
-| Biography | `NOTE` | Long text is split across `CONC` and `CONT` lines, under 255 characters each. |
+| Biography | `NOTE` | Long text is split across `CONC` and `CONT` lines, under 255 characters each. It comes back character for character, spaces and blank lines included. |
 | Portrait | `OBJE` with `FILE` (the media key) and `FORM` | The reference only. The picture is not in the file. |
 | Parent link | `FAMC` on the child, with `PEDI` (`birth`, `adopted`, `foster`) and `_KINDRED_KIND` (`biological`, `adoptive`, `foster`, `step`), and `_KINDRED_CONFIDENCE` | |
 | Partnership | `FAM` with `HUSB`, `WIFE`, `_KINDRED_ID` and `_KINDRED_KIND` | `_KINDRED_KIND` is `marriage`, `partnership`, `betrothal`, `other`, or `parents` for a family with no partnership. |
@@ -65,7 +65,13 @@ date (Kindred's `~`). On import, `CAL` and `EST` are read as about. `BEF` and `A
 no Kindred form: before/after dates become approximate dates, ranges use their first date, and the report says so. A date Kindred cannot store (`31 FEB
 1900`, or free text such as "the winter of the bad harvest") is dropped and the report says why.
 
-**Text.** An `@` in text is written as `@@`, and a line break as `CONT`. A file with another character set is read as
+**Text.** An `@` in text is written as `@@`, and a line break as `CONT`, in every value: a line break in a place or a
+title cannot break the file. A line too long for one GEDCOM line goes on in `CONC` lines, and, as GEDCOM 5.5.1 asks, it
+is never cut next to a space (other programs trim the spaces around a value, which would glue two words together), nor
+inside a character outside the BMP. On import, the spaces at the end of a line are kept, so a Markdown hard break (two
+trailing spaces) survives; a biography (`NOTE`) keeps every character, and every other value loses only the spaces
+around it. A `/` in a name is written as `∕` (U+2215) in `NAME`, where `/` marks the surname, as it is in `GIVN` and
+`SURN`, and comes back as `/`. A line break in a name becomes a space. A file with another character set is read as
 UTF-8, and the report says so.
 
 **Unknown tags** are never fatal. Anything Kindred does not read is counted and listed as skipped, once per tag, so a

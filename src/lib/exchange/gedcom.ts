@@ -46,18 +46,31 @@ const pedi = { biological: 'birth', adoptive: 'adopted', foster: 'foster' } as c
 const esc = (s: string) => s.replace(/@/g, '@@');
 const unesc = (s: string) => s.replace(/@@/g, '@');
 
-/** Splits a line into pieces of at most CHUNK characters (code points, so no surrogate pair is cut). */
+/**
+ * Splits a line into pieces of at most CHUNK characters (code points, so no surrogate pair is cut). GEDCOM 5.5.1 asks
+ * for CONC to be split at a non-space, because many readers trim the spaces around a value: a cut is moved back until
+ * neither side of it is whitespace. Only a run of whitespace longer than a whole piece is cut inside it.
+ */
 function chunks(s: string): string[] {
   const cps = Array.from(s);
   if (cps.length <= CHUNK) return [s];
   const out: string[] = [];
-  for (let i = 0; i < cps.length; i += CHUNK) out.push(cps.slice(i, i + CHUNK).join(''));
+  const space = (c: string | undefined) => c !== undefined && /\s/.test(c);
+  let i = 0;
+  while (cps.length - i > CHUNK) {
+    let end = i + CHUNK;
+    while (end > i + 1 && (space(cps[end - 1]) || space(cps[end]))) end--;
+    if (end === i + 1 && (space(cps[end - 1]) || space(cps[end]))) end = i + CHUNK;
+    out.push(cps.slice(i, end).join(''));
+    i = end;
+  }
+  out.push(cps.slice(i).join(''));
   return out;
 }
 
 /** Writes lines with CONT for each newline and CONC for each piece too long for one line. */
 function emitText(out: string[], level: number, tag: string, value: string) {
-  value.split(/\r?\n/).forEach((ln, i) => {
+  value.split(/\r\n|\r|\n/).forEach((ln, i) => {
     const lvl = i === 0 ? level : level + 1;
     const t = i === 0 ? tag : 'CONT';
     chunks(ln).forEach((c, j) => {
@@ -160,11 +173,11 @@ export function writeGedcom(tree: ExTree, now: Date = new Date()): { text: strin
       if (p.bornPlace) emitText(out, 2, 'PLAC', p.bornPlace);
     }
     if (!p.living || p.died || p.diedPlace) {
-      const subs: string[] = [];
-      if (p.died) subs.push(`2 DATE ${toGedcomDate(p.died)}`);
-      if (p.diedPlace) subs.push(`2 PLAC ${esc(p.diedPlace)}`);
-      if (subs.length) out.push('1 DEAT', ...subs);
-      else out.push('1 DEAT Y');
+      if (p.died || p.diedPlace) {
+        out.push('1 DEAT');
+        dateLine(out, 2, p.died);
+        if (p.diedPlace) emitText(out, 2, 'PLAC', p.diedPlace);
+      } else out.push('1 DEAT Y');
     }
     if (p.bio) emitText(out, 1, 'NOTE', p.bio);
     if (p.portrait) out.push('1 OBJE', `2 FORM ${extOf(p.portrait.mime)}`, `2 FILE ${esc(p.portrait.key)}`, '2 TITL portrait');
@@ -203,7 +216,8 @@ export function writeGedcom(tree: ExTree, now: Date = new Date()): { text: strin
         if (u.endReason === 'divorce') {
           out.push('1 DIV', `2 DATE ${toGedcomDate(u.end)}`);
         } else {
-          out.push(`1 _KINDRED_END ${esc(u.endReason ?? '')}`.trimEnd(), `2 DATE ${toGedcomDate(u.end)}`);
+          emitText(out, 1, '_KINDRED_END', u.endReason ?? '');
+          out.push(`2 DATE ${toGedcomDate(u.end)}`);
         }
       }
     }
@@ -227,22 +241,23 @@ export function writeGedcom(tree: ExTree, now: Date = new Date()): { text: strin
 }
 
 function writeNames(out: string[], p: ExPerson) {
-  const clean = (s: string) => s.replace(/\//g, '∕');
-  const given = clean(p.given);
-  const surname = clean(p.surname ?? '');
+  // A name is one line. In NAME a "/" would end the surname, so it is written as "∕" (U+2215) there and read back as
+  // "/"; GIVN and SURN have no such marker and carry the name as it is.
+  const line = (s: string) => s.replace(/\s*[\r\n]+\s*/g, ' ');
+  const inName = (s: string) => line(s).replace(/\//g, '∕');
+  const given = line(p.given);
+  const surname = line(p.surname ?? '');
   // Further given names read as one name in the NAME line; GIVN lists them separated by commas (GEDCOM 5.5.1), which is
   // how the reader tells them from a single given name that holds several words, which stays whole.
-  const further = p.furtherGiven.map(clean);
-  out.push(`1 NAME ${[given, ...further].join(' ')} /${surname}/`);
-  out.push(`2 GIVN ${[given, ...further].join(further.length ? ', ' : ' ')}`);
-  if (surname) out.push(`2 SURN ${surname}`);
-  const cg = p.currentGiven ?? p.given;
-  const cs = p.currentSurname ?? p.surname ?? '';
-  if (cg !== p.given || cs !== (p.surname ?? '')) {
-    const g = cg.replace(/\//g, '∕');
-    const s = cs.replace(/\//g, '∕');
-    out.push(`1 NAME ${g} /${s}/`, `2 GIVN ${g}`);
-    if (s) out.push(`2 SURN ${s}`);
+  const further = p.furtherGiven.map(line);
+  out.push(`1 NAME ${esc([given, ...further].map(inName).join(' '))} /${esc(inName(surname))}/`);
+  out.push(`2 GIVN ${esc([given, ...further].join(further.length ? ', ' : ' '))}`);
+  if (surname) out.push(`2 SURN ${esc(surname)}`);
+  const cg = line(p.currentGiven ?? p.given);
+  const cs = line(p.currentSurname ?? p.surname ?? '');
+  if (cg !== given || cs !== surname) {
+    out.push(`1 NAME ${esc(inName(cg))} /${esc(inName(cs))}/`, `2 GIVN ${esc(cg)}`);
+    if (cs) out.push(`2 SURN ${esc(cs)}`);
     out.push('2 TYPE married');
   }
 }
@@ -288,10 +303,12 @@ export function readGedcom(text: string): Incoming {
   const stack: GNode[] = [];
   text
     .replace(/^﻿/, '')
-    .split(/\r?\n/)
+    .split(/\r\n|\r|\n/)
     .forEach((raw, i) => {
       if (raw.trim() === '') return;
-      const m = LINE.exec(raw.trim());
+      // Only the indentation before the level goes: the spaces at the end of a value are part of it (a CONC or CONT
+      // line can end with the space before the next word, or with a Markdown hard break).
+      const m = LINE.exec(raw.replace(/^\s+/, ''));
       if (!m) {
         issues.push({ level: 'skipped', code: 'exchange.issue.line_skipped', vars: { line: i + 1 }, message: `Line ${i + 1} is not GEDCOM and was skipped` });
         return;
@@ -322,6 +339,14 @@ export function readGedcom(text: string): Incoming {
       stack[level] = node;
       stack.length = level + 1;
     });
+
+  // Every value but a NOTE is one short fact (a name, a date, a place, a pointer), so the spaces around it are not part
+  // of it. A NOTE is a biography and keeps every character.
+  const tidy = (n: GNode) => {
+    if (n.tag !== 'NOTE') n.value = n.value.trim();
+    n.children.forEach(tidy);
+  };
+  roots.forEach(tidy);
 
   // Tags Kindred does not read, counted once each.
   const skipped = new Map<string, number>();
@@ -373,8 +398,10 @@ export function readGedcom(text: string): Incoming {
     const parseName = (n: GNode | undefined) => {
       if (!n) return { given: '', further: [] as string[], surname: null as string | null };
       const m = /^(.*?)\s*\/([^/]*)\/\s*(.*)$/.exec(n.value);
-      let given = (m ? m[1] : n.value).trim();
-      let surname = (m ? m[2] : '').trim();
+      // Kindred writes a "/" inside a name as "∕" in NAME, where "/" marks the surname (GIVN and SURN carry it as it is).
+      const slash = (s: string) => s.replace(/∕/g, '/');
+      let given = slash(m ? m[1] : n.value).trim();
+      let surname = slash(m ? m[2] : '').trim();
       const givn = first(n, 'GIVN')?.value.trim();
       const surn = first(n, 'SURN')?.value.trim();
       if (givn) given = givn;
@@ -395,7 +422,9 @@ export function readGedcom(text: string): Incoming {
     const death = first(r, 'DEAT');
     const dead = !!death && death.value.toUpperCase() !== 'N';
     const livingTag = first(r, '_KINDRED_LIVING')?.value.toUpperCase();
-    const bio = all(r, 'NOTE').map((n) => n.value).join('\n\n').trim();
+    // One NOTE is the biography exactly as written; several are joined as paragraphs.
+    const notes = all(r, 'NOTE').map((n) => n.value);
+    const bio = notes.length === 1 ? notes[0] : notes.map((n) => n.trim()).filter(Boolean).join('\n\n');
     for (const f of all(r, 'FAMC')) {
       const kindTag = first(f, '_KINDRED_KIND')?.value.toLowerCase() as ParentKind | undefined;
       const pediTag = first(f, 'PEDI')?.value.toLowerCase();
@@ -423,7 +452,7 @@ export function readGedcom(text: string): Incoming {
       epithet: null,
       occupation: first(r, 'OCCU')?.value || null,
       nickname: first(r, 'NICK')?.value || null,
-      bio: bio || null,
+      bio: bio.trim() ? bio : null,
       portrait: null,
     };
   });
