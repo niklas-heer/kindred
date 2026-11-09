@@ -15,12 +15,19 @@ const MAX_W = 240, MAX_H = 180, MIN_W = 150, MIN_H = 72, PAD = 16;
 /** Widest a card is ever drawn, so a family of three is a few shields rather than three posters. */
 const MAX_CARD_PX = 30;
 
-/** The map takes the tree's shape, within limits, so a tall dynasty is not a sliver in a wide box. */
-export function minimapFrame(b: { x: number; y: number; w: number; h: number }, cardW: number): MinimapFrame {
-  const cap = MAX_CARD_PX / cardW;
-  const fit = Math.min((MAX_W - PAD) / b.w, (MAX_H - PAD) / b.h, cap);
-  const width = Math.round(Math.max(MIN_W, b.w * fit + PAD));
-  const height = Math.round(Math.max(MIN_H, b.h * fit + PAD));
+/** How much smaller the map is drawn where the canvas is short of room (a laptop with the person panel open). */
+const SMALL = 0.75;
+
+/**
+ * The map takes the tree's shape, within limits, so a tall dynasty is not a sliver in a wide box.
+ * `small` shrinks those limits by a quarter, so the map covers less of a narrow canvas.
+ */
+export function minimapFrame(b: { x: number; y: number; w: number; h: number }, cardW: number, small = false): MinimapFrame {
+  const z = small ? SMALL : 1;
+  const cap = (MAX_CARD_PX * z) / cardW;
+  const fit = Math.min((MAX_W * z - PAD) / b.w, (MAX_H * z - PAD) / b.h, cap);
+  const width = Math.round(Math.max(MIN_W * z, b.w * fit + PAD));
+  const height = Math.round(Math.max(MIN_H * z, b.h * fit + PAD));
   const s = Math.min((width - PAD) / b.w, (height - PAD) / b.h, cap);
   return { width, height, s, ox: (width - b.w * s) / 2 - b.x * s, oy: (height - b.h * s) / 2 - b.y * s };
 }

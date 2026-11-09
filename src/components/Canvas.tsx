@@ -68,10 +68,12 @@ interface Props {
   controls?: ReactNode;
   /** Called once when the reader starts moving the camera themselves (drag, wheel, pinch, minimap). */
   onUserMove?: () => void;
+  /** A smaller minimap, for when panels leave the tree little room. */
+  smallMap?: boolean;
 }
 
 export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
-  { family, layout, focus, dimmed, renderCard, onBackground, rowLabel, overlay, inset, flash, controls, onUserMove },
+  { family, layout, focus, dimmed, renderCard, onBackground, rowLabel, overlay, inset, flash, controls, onUserMove, smallMap },
   ref,
 ) {
   const t = useT();
@@ -438,7 +440,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
           {controls}
           <button className="btn icon ghost map-toggle" onClick={() => setMapOpen((o) => !o)} aria-pressed={mapOpen} title={mapOpen ? t('canvas.hideMinimap') : t('canvas.showMinimap')} aria-label={t('canvas.minimap')}><MapIcon size={16} /></button>
         </div>
-        <Minimap family={family} layout={layout} view={view} focus={focus} here={firstOf.get(focus)} dimmed={dimmed} onJump={minimapJump} />
+        <Minimap family={family} layout={layout} view={view} focus={focus} here={firstOf.get(focus)} dimmed={dimmed} small={smallMap} onJump={minimapJump} />
       </div>
       {overlay}
     </div>

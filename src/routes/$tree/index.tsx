@@ -132,8 +132,9 @@ function TreePage() {
   const [displayOpen, setDisplayOpen] = useState(false);
   // The docked panel's width (matches --panel-w in tree.css).
   const [panelW, setPanelW] = useState(400);
+  const [winW, setWinW] = useState(1440);
   useEffect(() => {
-    const on = () => setPanelW(Math.min(400, window.innerWidth - 120));
+    const on = () => { setPanelW(Math.min(400, window.innerWidth - 120)); setWinW(window.innerWidth); };
     on();
     addEventListener('resize', on);
     return () => removeEventListener('resize', on);
@@ -730,6 +731,8 @@ function TreePage() {
         inset={inset}
         onBackground={() => {}}
         onUserMove={onUserMove}
+        // Under about 960px of free canvas (a 1280px laptop with the panel open) the map is drawn a quarter smaller.
+        smallMap={winW - (panel && !phone ? panelW + 56 : 56) < 960}
         controls={
           <button className="btn icon ghost map-keys" onClick={() => setHelp((h) => !h)} title={t('tp.keysTitle')} aria-label={t('tp.keys')} aria-pressed={help}><Keyboard size={16} /></button>
         }

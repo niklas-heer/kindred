@@ -101,6 +101,9 @@
   box-shadow: 0 0 0 9999px #00000052; pointer-events: none;
 }
 [data-theme='modern'] .minimap-view { border-color: var(--accent); box-shadow: 0 0 0 9999px #0000001f; }
+/* Drawn smaller where the canvas is short of room: the two counts stack so neither is cut. */
+.minimap.small { padding: 6px; }
+.minimap.small .minimap-foot { flex-wrap: wrap; gap: 0 10px; padding-top: 4px; }
 .minimap-foot { display: flex; justify-content: space-between; gap: 12px; padding: 6px 2px 0; font-size: var(--fs-1, 12px); color: var(--muted); font-family: var(--font-ui); }
 [data-theme='codex'] .minimap-foot { font-family: var(--font-display); letter-spacing: 0.03em; }
 

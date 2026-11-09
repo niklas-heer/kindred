@@ -431,6 +431,12 @@ kbd {
   .topbar-prefs { display: none; }
 }
 @media (min-width: 761px) and (max-width: 1400px) { .topbar-stacked .search-trigger { width: 150px; } }
+/* Short of room on a laptop, the search gives way before the family's name does: it shrinks to its icon and shortcut
+   (and drops its words once they no longer fit) so "The Lindqvist–Ashworth family" is not cut to make room for it. */
+@media (min-width: 901px) {
+  .topbar-stacked .search-trigger, .topbar-compact .search-trigger { flex: 0 1000 auto; min-width: 76px; container-type: inline-size; }
+  @container (max-width: 118px) { .search-trigger > span:first-child { font-size: 0; gap: 0; } }
+}
 /* Narrower still, the search keeps its icon and shortcut so the name and the account button stay. */
 @media (min-width: 761px) and (max-width: 1180px) {
   .topbar-compact .search-trigger, .topbar-stacked .search-trigger { width: auto; }

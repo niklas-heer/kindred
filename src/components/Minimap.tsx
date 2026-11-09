@@ -19,7 +19,7 @@ const FOCUS_MIN_PX = 9;
 
 interface View { x0: number; y0: number; x1: number; y1: number; k: number }
 
-export function Minimap({ family, layout, view, focus, here, dimmed, onJump }: {
+export function Minimap({ family, layout, view, focus, here, dimmed, small, onJump }: {
   family: Family;
   layout: Layout;
   view: View;
@@ -27,11 +27,13 @@ export function Minimap({ family, layout, view, focus, here, dimmed, onJump }: {
   /** Where the focused person stands, when they are in this layout. */
   here?: LNode;
   dimmed?: ReadonlySet<string> | null;
+  /** Drawn a quarter smaller, where the canvas is short of room. */
+  small?: boolean;
   onJump: (wx: number, wy: number) => void;
 }) {
   const t = useT();
   const cv = useRef<HTMLCanvasElement>(null);
-  const frame = useMemo(() => minimapFrame(layout.bounds, CARD_W), [layout.bounds]);
+  const frame = useMemo(() => minimapFrame(layout.bounds, CARD_W, small), [layout.bounds, small]);
   const theme = useThemeName();
   const fonts = useFontsReady();
 
@@ -62,7 +64,7 @@ export function Minimap({ family, layout, view, focus, here, dimmed, onJump }: {
     onJump(vx + vw / 2 + (step[0] * vw) / 4, vy + vh / 2 + (step[1] * vh) / 4);
   };
   return (
-    <div className="minimap no-pan panel">
+    <div className={`minimap no-pan panel${small ? ' small' : ''}`}>
       <div
         className="minimap-map"
         role="application"

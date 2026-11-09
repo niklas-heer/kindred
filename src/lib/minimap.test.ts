@@ -99,3 +99,13 @@ test('a black house still shows at dot size on a dark ground', () => {
   const sum = [1, 3, 5].reduce((n, i) => n + parseInt(dot.slice(i, i + 2), 16), 0);
   assert.ok(sum > 200, `${dot} is too dark`);
 });
+
+test('the small map is a quarter smaller and still holds the whole tree', () => {
+  const b = { x: -3000, y: 0, w: 9000, h: 3600 };
+  const full = minimapFrame(b, CARD_W), small = minimapFrame(b, CARD_W, true);
+  assert.equal(full.width, 240);
+  assert.equal(small.width, 180);
+  assert.ok(small.height < full.height);
+  const a = worldToMap(small, b.x, b.y), z = worldToMap(small, b.x + b.w, b.y + b.h);
+  assert.ok(a.x >= 0 && a.y >= 0 && z.x <= small.width && z.y <= small.height);
+});
