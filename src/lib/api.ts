@@ -313,7 +313,10 @@ export const uploadPhoto = createServerFn({ method: 'POST' })
   })
   .handler(async ({ data }) => {
     const _m = await requireCan(data.tree, 'upload-photo');
-    const bytes = new Uint8Array(await data.file.arrayBuffer());
+    // JPEG, PNG and WebP lose their EXIF, GPS and XMP (src/lib/strip-metadata.ts); GIF and AVIF are stored as sent.
+    const cleaned = (await import('./strip-metadata')).stripMetadata(new Uint8Array(await data.file.arrayBuffer()), data.file.type);
+    if (!cleaned) throw new Error('A photo (JPEG, PNG, WebP, GIF or AVIF) under 5 MB');
+    const bytes = cleaned;
     const { once, q, personExists, media, newMediaKey } = await server();
     await once(data.tree, opOf(_m, data), 'uploadPhoto', async (d) => {
       if (!(await d.get('SELECT id FROM person WHERE id = ?', data.id))) throw new Error('Person not found.');

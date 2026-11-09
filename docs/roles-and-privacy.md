@@ -118,6 +118,13 @@ out of the family.
 So before you invite relatives, decide what a viewer should read. The safest place for a detail is the Personal level,
 then the Editors level; a family that wants nothing hidden from members needs no changes.
 
+**Pictures lose what the camera wrote about them.** A photo, a profile picture or a picture added to research is
+stored without its EXIF, GPS position, XMP and IPTC details. The browser drops them when it scales the picture, and the
+server drops them again for an upload that did not come through the browser (JPEG, PNG and WebP; a JPEG keeps only which
+way up it was taken). A picture too damaged to clean is refused. The date a camera wrote is read in the browser before
+that, and offered as the photo's date. PDFs are stored as they are, so their author and title fields stay: print a PDF to
+a new one first if they say more than the family should read.
+
 ## What an export contains
 
 An export is a copy of everything the family holds that its format can carry, and an editor or steward can make one.

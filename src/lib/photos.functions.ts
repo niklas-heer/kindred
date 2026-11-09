@@ -35,13 +35,19 @@ function opOf<D extends { opKey?: string }>(user: string, data: D) {
   return { key, user, payload };
 }
 
-/** The picture in a form, checked by its first bytes as well as its declared type. */
+/**
+ * The picture in a form, checked by its first bytes as well as its declared type, and without its metadata: the browser
+ * has dropped EXIF and GPS already, and src/lib/strip-metadata.ts drops them again for an upload that did not come
+ * through the browser's code. A picture too damaged to clean is refused.
+ */
 async function pictureIn(form: FormData, max: number) {
   const file = form.get('file');
   if (!(file instanceof File) || !/^image\/(jpeg|png|webp)$/.test(file.type) || file.size > max) throw new Error('photos.err.picture_type');
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const { sniff } = await server();
-  if (sniff(bytes) !== file.type) throw new Error('photos.err.not_picture');
+  const [{ sniff }, { stripMetadata }] = await Promise.all([server(), import('./strip-metadata')]);
+  const raw = new Uint8Array(await file.arrayBuffer());
+  if (sniff(raw) !== file.type) throw new Error('photos.err.not_picture');
+  const bytes = stripMetadata(raw, file.type);
+  if (!bytes) throw new Error('photos.err.not_picture');
   return { file, bytes, mime: file.type };
 }
 
@@ -76,7 +82,7 @@ export const personPhotosQuery = (t: string, id: string) =>
 
 // ---------- photos ----------
 
-/** Adds one picture. The browser has already scaled it down and dropped its EXIF and GPS. */
+/** Adds one picture. The browser has already scaled it down and dropped its EXIF and GPS; pictureIn drops them again. */
 export const addGalleryPhoto = createServerFn({ method: 'POST' })
   .validator((d: unknown) => {
     if (!(d instanceof FormData)) throw new Error('expected form data');
