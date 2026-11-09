@@ -54,7 +54,7 @@ export function AddMemory({ tree, onClose }: { tree: string; onClose: () => void
               <span className="subtle">{t('chronicle.add_about')}</span>
               <b>{displayName(about, f)}</b>
             </div>
-            <button type="button" className="btn ghost sm" onClick={() => setAbout(null)}>{t('chronicle.add_change')}</button>
+            <button type="button" className="btn ghost" onClick={() => setAbout(null)}>{t('chronicle.add_change')}</button>
           </div>
           <DraftContext.Provider value={draft}>
             <StoryForm

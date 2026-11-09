@@ -1,5 +1,6 @@
-// Adding photographs: choose or drop several at once, check the date each one was taken, then send them
-// one by one. Each picture is scaled down and stripped of its location data in the browser first.
+// Adding photographs: choose or drop several at once, give them one date, place and album if you like, then send them
+// one by one. A date is never required; a photograph can still be given its own. Each picture is scaled down and
+// stripped of its location data in the browser first.
 import { useQueryClient } from '@tanstack/react-query';
 import { ImagePlus, Trash, Upload } from 'lucide-react';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
@@ -10,7 +11,8 @@ import { isoOfDate } from '~/lib/partial-date';
 import { addGalleryPhoto } from '~/lib/photos.functions';
 import { exifDate, scaledPicture } from './image';
 import { refreshPhotos } from './refresh';
-import { useT } from '~/lib/i18n';
+import { formatDate, useT } from '~/lib/i18n';
+import { toast } from '~/lib/toast';
 import { errorText } from '~/lib/errortext';
 import type { Album } from './types';
 import '~/styles/gallery.css';
@@ -32,6 +34,9 @@ interface Item {
   preview?: string;
   /** The date the camera wrote, if it wrote one. */
   fromPhoto: string | null;
+  /** The reader gave this photograph a date of its own: it no longer follows the date for all. */
+  own: boolean;
+  /** Its own date, used while `own` is set. */
   taken: string;
   caption: string;
   error?: string;
@@ -50,6 +55,9 @@ export function UploadDialog({ tree, albums, initialAlbum, files, onClose }: {
   const [items, setItems] = useState<Item[]>([]);
   const [album, setAlbum] = useState(initialAlbum ?? '');
   const [place, setPlace] = useState('');
+  // One date for the batch. A photograph's own date comes first, then this, then the date the camera wrote.
+  const [dateAll, setDateAll] = useState('');
+  const dateOf = (it: Item) => (it.own ? it.taken : dateAll || it.fromPhoto || '');
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(0);
   const [over, setOver] = useState(false);
@@ -76,7 +84,7 @@ export function UploadDialog({ tree, albums, initialAlbum, files, onClose }: {
       const scaled = await scaledPicture(file);
       const preview = URL.createObjectURL(scaled.blob);
       previews.current.push(preview);
-      update(it.id, { status: 'ready', blob: scaled.blob, width: scaled.width, height: scaled.height, preview, fromPhoto, taken: fromPhoto ?? '' });
+      update(it.id, { status: 'ready', blob: scaled.blob, width: scaled.width, height: scaled.height, preview, fromPhoto });
     } catch {
       update(it.id, { status: 'failed', error: g('up.unreadable') });
     }
@@ -93,6 +101,7 @@ export function UploadDialog({ tree, albums, initialAlbum, files, onClose }: {
         modified: file.lastModified,
         status: ACCEPT.includes(file.type) ? 'preparing' : 'failed',
         fromPhoto: null,
+        own: false,
         taken: '',
         caption: '',
         error: ACCEPT.includes(file.type) ? undefined : g('up.unreadable'),
@@ -108,8 +117,9 @@ export function UploadDialog({ tree, albums, initialAlbum, files, onClose }: {
   async function submit() {
     const batch = items.filter((it) => (it.status === 'ready' || it.status === 'failed') && it.blob);
     if (!batch.length) return;
-    if (batch.some((it) => it.taken && !validDate(it.taken))) {
-      setItems((list) => list.map((it) => (it.taken && !validDate(it.taken) ? { ...it, status: 'failed', error: g('lb.date_invalid') } : it)));
+    const badDate = (it: Item) => !!dateOf(it) && !validDate(dateOf(it));
+    if (batch.some(badDate)) {
+      setItems((list) => list.map((it) => (badDate(it) ? { ...it, status: 'failed', error: g('lb.date_invalid') } : it)));
       return;
     }
     setRunning(true);
@@ -125,11 +135,11 @@ export function UploadDialog({ tree, albums, initialAlbum, files, onClose }: {
         fd.set('file', new File([it.blob!], `${it.name.replace(/\.[^.]+$/, '') || 'photo'}.jpg`, { type: 'image/jpeg' }));
         fd.set('width', String(it.width));
         fd.set('height', String(it.height));
-        fd.set('taken', it.taken);
+        fd.set('taken', dateOf(it));
         fd.set('place', place);
         fd.set('caption', it.caption);
         fd.set('album', album);
-        fd.set('opKey', keys.current.for(it.id, [it.name, it.size, it.modified, it.taken, it.caption, place, album]));
+        fd.set('opKey', keys.current.for(it.id, [it.name, it.size, it.modified, dateOf(it), it.caption, place, album]));
         await addGalleryPhoto({ data: fd });
         keys.current.clear(it.id);
         update(it.id, { status: 'added' });
@@ -141,7 +151,13 @@ export function UploadDialog({ tree, albums, initialAlbum, files, onClose }: {
     }
     await refreshPhotos(qc, tree);
     setRunning(false);
-    setNotice(failed ? g('up.partial') : g('up.done'));
+    // Everything went in: the dialog has done its job, so it closes and the gallery says what was added.
+    if (!failed) {
+      toast({ title: g('up.added_toast', { count: batch.length }), body: g('up.added_toast_body') });
+      onClose();
+      return;
+    }
+    setNotice(g('up.partial'));
   }
 
   const ready = items.filter((it) => (it.status === 'ready' || it.status === 'failed') && it.blob);
@@ -208,19 +224,32 @@ export function UploadDialog({ tree, albums, initialAlbum, files, onClose }: {
 
       {items.length ? (
         <>
-          <div className="gal-batch">
-            <Select
-              aria-label={g('up.album_all')}
-              value={album}
-              onChange={setAlbum}
-              options={[{ value: '', label: g('gallery.no_album') }, ...albums.map((a) => ({ value: a.id, label: a.name }))]}
-              disabled={running}
-            />
+          <fieldset className="gal-batch" disabled={running}>
+            <legend>{g('up.for_all')}</legend>
+            <div className="gal-field">
+              <span>{g('up.album_all')}</span>
+              <Select
+                aria-label={g('up.album_all')}
+                value={album}
+                onChange={setAlbum}
+                options={[{ value: '', label: g('gallery.no_album') }, ...albums.map((a) => ({ value: a.id, label: a.name }))]}
+                disabled={running}
+              />
+            </div>
             <label className="gal-field">
               <span>{g('up.place_all')}</span>
               <input className="input" value={place} onChange={(e) => setPlace(e.target.value)} maxLength={200} disabled={running} />
             </label>
-          </div>
+            <DatePicker
+              className="gal-field gal-batch-date"
+              label={g('up.date_all')}
+              value={dateAll}
+              onChange={setDateAll}
+              notAfter={isoOfDate(new Date())}
+              hint={g('up.date_all_hint')}
+              disabled={running}
+            />
+          </fieldset>
           <ul className="gal-queue">
             {items.map((it) => (
               <li key={it.id} className={`gal-item is-${it.status}`}>
@@ -229,14 +258,28 @@ export function UploadDialog({ tree, albums, initialAlbum, files, onClose }: {
                 </div>
                 <div className="gal-item-fields">
                   <p className="gal-item-name" title={it.name}>{it.name}</p>
-                  <DatePicker
-                    className="gal-field"
-                    label={<>{g('lb.date')}{it.fromPhoto && it.taken === it.fromPhoto ? <em className="subtle"> · {g('up.from_photo')}</em> : null}</>}
-                    value={it.taken}
-                    onChange={(next) => update(it.id, { taken: next })}
-                    notAfter={isoOfDate(new Date())}
-                    disabled={it.status === 'adding' || it.status === 'added'}
-                  />
+                  {/* The date this photograph will get, in one line; its own date picker only when asked for. */}
+                  <p className="gal-item-date">
+                    <span>
+                      {dateOf(it) && validDate(dateOf(it)) ? g('up.date_is', { date: formatDate(dateOf(it), g.locale) }) : g('up.no_date')}
+                      {!it.own && dateOf(it) ? <em className="subtle"> · {dateAll ? g('up.date_for_all_mark') : g('up.from_photo')}</em> : null}
+                    </span>
+                    {it.status !== 'adding' && it.status !== 'added' ? (
+                      <button type="button" className="btn ghost" onClick={() => update(it.id, it.own ? { own: false } : { own: true, taken: dateOf(it) })}>
+                        {it.own ? g('up.date_same') : g('up.date_own')}
+                      </button>
+                    ) : null}
+                  </p>
+                  {it.own ? (
+                    <DatePicker
+                      className="gal-field"
+                      label={g('lb.date')}
+                      value={it.taken}
+                      onChange={(next) => update(it.id, { taken: next })}
+                      notAfter={isoOfDate(new Date())}
+                      disabled={it.status === 'adding' || it.status === 'added'}
+                    />
+                  ) : null}
                   <label className="gal-field">
                     <span>{g('lb.caption')}</span>
                     <input

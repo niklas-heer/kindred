@@ -154,9 +154,17 @@
 }
 .gal-drop.is-over { border-color: var(--accent); background: var(--panel-3); }
 .gal-drop .btn { min-height: 44px; }
-.gal-drop svg { color: var(--accent); }
+.gal-drop > svg { color: var(--accent); } /* the picture mark only: the button's own icon keeps the button's colour */
 .gal-formats { margin: 0; max-width: 52ch; font-size: var(--fs-2); }
-.gal-batch { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: end; }
+/* What applies to every photograph in the batch: album, place and one optional date. */
+.gal-batch {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start;
+  margin: 0; padding: 12px; min-width: 0; border: 1px solid var(--edge-soft); border-radius: 10px;
+}
+.gal-batch legend { padding: 0 6px; font-family: var(--font-ui); font-size: var(--fs-2); color: var(--muted); }
+.gal-batch-date { grid-column: 1 / -1; }
+.gal-item-date { margin: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; font-size: var(--fs-3); color: var(--text); }
+.gal-item-date em { font-style: normal; }
 .gal-queue { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; max-height: 46dvh; overflow: auto; }
 .gal-item {
   display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: 12px; align-items: start;
