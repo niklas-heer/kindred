@@ -1,4 +1,4 @@
-# Not part of the image: local data, dependencies, build output, secrets and documentation.
+# Not part of the image: local data, dependencies, build output, secrets, documentation and the tools around the build.
 # Dependencies are installed inside the image (npm ci), and data/ is the volume at /data.
 node_modules
 data
@@ -14,3 +14,11 @@ test-results
 .DS_Store
 *.log
 docs
+*.md
+target
+.ruff_cache
+scratch
+.github
+.dagger
+e2e
+playwright.config.ts

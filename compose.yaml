@@ -47,7 +47,7 @@ services:
       - kindred-data:/data
 
   caddy:
-    image: caddy:2
+    image: caddy:2.11
     profiles: ["https"]
     restart: unless-stopped
     depends_on:

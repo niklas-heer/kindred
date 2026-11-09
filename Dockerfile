@@ -2,8 +2,9 @@
 #   docker compose up -d --build                    the app, with its data in a named volume
 #   docker build --build-arg WITH_GAZETTEER=1 .     also the offline place search (downloads GeoNames)
 
-# The Node version is the one in mise.toml.
-ARG NODE_IMAGE=node:26-trixie-slim
+# The Node version is the one in mise.toml. Pinned by digest, as .dagger/main.dang pins it: keep the two the same, and move
+# them together (the digest is the multi-arch index of node:26-trixie-slim).
+ARG NODE_IMAGE=node:26-trixie-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072
 
 # Everything needed to build: all dependencies, the sources, then the Node target into dist/.
 FROM ${NODE_IMAGE} AS build
