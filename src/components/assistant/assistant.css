@@ -781,3 +781,18 @@
 .ai-answer-tag { margin: 0; color: var(--muted); font-family: var(--font-ui); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
 .ai-turn-alternate { padding-left: 10px; border-left: 2px solid var(--edge-soft); }
 .ai-stop { flex: none; min-height: 30px; padding: 0 8px; font-size: 0.82rem; }
+
+/* A narrow window, phone or a desktop window dragged small: Speak becomes its icon, and the picker takes the space that is left
+   and shortens its name. The row may wrap rather than let a control overlap Send. The picker's menu then opens from the composer,
+   because the picker itself sits too far left for the menu to fit beside it. */
+@container ai-window (max-width: 440px) {
+  .ai-composer { position: relative; margin-inline: 8px; }
+  .ai-composer-row { flex-wrap: wrap; row-gap: 6px; }
+  .ai-composer .ai-mic { padding-inline: 0; justify-content: center; }
+  .ai-composer .ai-mic-label { display: none; }
+  .ai-composer .ai-pick-composer { position: static; flex: 1 1 64px; margin-left: 0; }
+  .ai-composer .ai-pick-button { justify-content: flex-end; width: 100%; max-width: 100%; }
+  .ai-composer .ai-pick-current { min-width: 0; }
+  .ai-composer .ai-pick-cost { display: none; }
+  .ai-composer .ai-pick-pop { right: 8px; }
+}

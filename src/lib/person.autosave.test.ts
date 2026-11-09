@@ -17,7 +17,8 @@ const { editSnapshot, savePersonEdit, CHANGED_SINCE_OPENED } = await import('./p
 const {
   classifyFailure, clearJournal, createAutosaver, journalKey, JOURNAL_KEEP_MS, nextAfter, readJournal, undoStep, writeJournal,
 } = await import('../components/fields/autosave.ts');
-const { isBlankNew, sendable, signatureOf, storedForm } = await import('../components/fields/edit-values.ts');
+const { isBlankNew, keepShared, offersPersonal, sendable, signatureOf, storedForm } = await import('../components/fields/edit-values.ts');
+const { forgetLocalIdentity } = await import('./auth/client.ts');
 const { rebaseDraft, rebaseFields } = await import('../components/fields/rebase.ts');
 import type { Outcome, SaveState, Timers } from '../components/fields/autosave.ts';
 import type { EditValues } from '../components/fields/edit-values.ts';
@@ -34,6 +35,38 @@ const TREE = 'autosave';
   d.close();
 }
 test.after(() => rmSync(dir, { recursive: true, force: true }));
+
+test('Undo and the picker follow the server: Personal for its author and a new field, and not for a field someone else added', () => {
+  const field = (id: string, visibility: DraftField['visibility'], authored?: boolean) => ({ key: id, id, type: 'notes', label: '', value: { text: id }, visibility, authored }) as DraftField;
+  const values = (...fields: DraftField[]) => ({ fields }) as EditValues;
+  assert.equal(offersPersonal(field('mine', 'family', true)), true);
+  assert.equal(offersPersonal(field('theirs', 'family', false)), false);
+  assert.equal(offersPersonal(field('older', 'family')), false);
+  assert.equal(offersPersonal({ visibility: 'family' }), true, 'not saved yet');
+  assert.equal(offersPersonal(field('own-older', 'personal')), true, 'already their own');
+  const saved = values(field('a', 'family'), field('b', 'personal'), field('mine', 'family', true));
+  const asked = values(field('a', 'personal'), field('b', 'personal'), field('mine', 'personal', true), { ...field('new', 'personal'), id: undefined });
+  const kept = keepShared(asked, saved);
+  assert.deepEqual(kept.fields.map((f) => f.visibility), ['family', 'personal', 'personal', 'personal']);
+  const fine = values(field('b', 'personal'));
+  assert.equal(keepShared(fine, saved), fine, 'nothing to change gives the same draft back');
+});
+
+test('a new field whose save answer was lost learns it is the reader’s from the latest version', () => {
+  const draft = { key: 'k', type: 'notes', label: '', value: { text: 'x' }, visibility: 'family' } as DraftField;
+  const [out] = rebaseFields([], [draft], [{ ...draft, key: 'server', id: 'f1', authored: true }]);
+  assert.equal(out.id, 'f1');
+  assert.equal(out.authored, true);
+});
+
+test('signing out clears the drafts kept on this device', () => {
+  const kept = new Map([[journalKey('u', 'fam', 'ada'), '{"draft":"a private note"}'], ['kindred.theme', 'night']]);
+  const local = { removeItem: (k: string) => kept.delete(k) };
+  for (const k of kept.keys()) Object.defineProperty(local, k, { enumerable: true, value: '' });
+  (globalThis as { localStorage?: unknown }).localStorage = local;
+  try { forgetLocalIdentity(); } finally { delete (globalThis as { localStorage?: unknown }).localStorage; }
+  assert.deepEqual([...kept.keys()], ['kindred.theme']);
+});
 
 /** Timers the test moves by hand. */
 function clock() {

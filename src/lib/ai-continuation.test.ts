@@ -199,3 +199,16 @@ test('what a continuation was told goes back to the model in place of a message'
   const stored = await accounts().all<{ body: string }>('SELECT body FROM ai_chat WHERE role = ? ORDER BY at DESC, rowid DESC LIMIT 1', 'assistant');
   assert.match((JSON.parse(stored[0].body) as { continuation: { note: string } }).continuation.note, /Story about the mill/);
 });
+
+test('two tabs deciding one card at once: the first decision stands, and is told once', async () => {
+  const item = await replyWith([card('a', 'add-story', 'Story A')]);
+  await Promise.all([mark(item, 'a', 'done'), mark(item, 'a', 'dismissed'), mark(item, 'a', 'failed', { error: 'late' })]);
+  const row = await accounts().get<{ body: string }>('SELECT body FROM ai_chat WHERE id = ?', item);
+  const stored = (JSON.parse(row!.body) as { proposals: { status: string; outcome?: unknown; untold?: boolean }[] }).proposals[0];
+  assert.equal(stored.status, 'done', 'a saved card is not recorded as dismissed');
+  assert.equal(stored.outcome, undefined, 'the losing mark leaves nothing behind');
+  assert.equal(stored.untold, true);
+  assert.equal((await chat.continueAfterDecisions(ids)).items.length, 1);
+  await mark(item, 'a', 'done');
+  assert.deepEqual((await chat.continueAfterDecisions(ids)).items, [], 'a late duplicate mark raises nothing again');
+});

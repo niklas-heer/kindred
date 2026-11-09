@@ -15,6 +15,8 @@ export interface RebaseField {
   label: string;
   value: Record<string, string>;
   visibility: Visibility;
+  /** Whether the reader created it: not part of what a rebase compares, since only the server sets it. */
+  authored?: boolean;
 }
 
 /** Scalars saved as one unit: the occupation text and its vocabulary code, so a save never stores one with the other's partner. */
@@ -53,7 +55,7 @@ export function rebaseFields<F extends RebaseField>(base: F[], draft: F[], lates
       // Its save got through but the answer was lost: the field is already there, so it takes that id and is not added twice.
       const twin = latest.find((l) => l.id && !baseById.has(l.id) && !draftIds.has(l.id) && !claimed.has(l.id) && sameField(l, d));
       if (twin) claimed.add(twin.id!);
-      out.push(twin ? { ...d, id: twin.id } : d);
+      out.push(twin ? { ...d, id: twin.id, authored: twin.authored } : d);
       continue;
     }
     const was = baseById.get(d.id);

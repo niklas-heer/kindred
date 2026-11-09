@@ -104,7 +104,7 @@ export async function countFeature(tree: string, user: string, name: EventName, 
 
 /**
  * Counts that a member saved a change (a person, a photo, a story, research), by the role the permission check has just confirmed.
- * Called from `requireCan`; never throws, honours Do Not Track like every other count.
+ * Called once a write has reached the database (`onChangeCommitted` in auth/guard.server.ts); never throws, honours Do Not Track like every other count.
  */
 export async function countChange(tree: string, user: string, role: Role, action: Action, now = Date.now()): Promise<void> {
   const kind = CHANGE_OF_ACTION[action];

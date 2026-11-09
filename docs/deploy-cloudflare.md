@@ -159,6 +159,10 @@ subscriptions are rows of the `push_subscription` table in the `ACCOUNTS` databa
 
 ## 6. Cloudflare Access (optional)
 
+> **Upgrading a site that already uses Access: set `KINDRED_AUTH` to `cloudflare-access` before you deploy.** With
+> `CF_ACCESS_TEAM_DOMAIN` or `CF_ACCESS_AUD` set and no `KINDRED_AUTH`, every page of the members' site answers 503 and nobody can
+> sign in until the variable is set and deployed.
+
 Each installation has exactly one sign-in method. Leave `KINDRED_AUTH` unset, or set it to `kindred`, for Kindred's own accounts and
 passkeys. Then this step has nothing for you: put no Access application on the members' host name, or people will sign in twice.
 Self-hosting has the trade-offs and what happens to accounts: [Choosing how people sign in](self-host.md#choosing-how-people-sign-in).

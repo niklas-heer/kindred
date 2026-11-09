@@ -30,6 +30,8 @@ export interface PersonField {
   ord: number;
   /** Who may see it (src/lib/visibility.ts). A reader only ever receives what their level allows. */
   visibility: Visibility;
+  /** Only on the Edit tab's read: whether the reader created this field, which decides if they may make it personal. */
+  authored?: boolean;
   updatedAt: string;
   updatedBy: string;
 }

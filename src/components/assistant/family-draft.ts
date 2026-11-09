@@ -72,6 +72,16 @@ export function linksToSend(rows: DraftRow[], links: DraftLink[], leftOut: Reado
   return out;
 }
 
+/**
+ * What makes a link the same link in every session. `linksToSend` swaps a reference for a real id once its row is added, and that
+ * differs between a tab that added the row and one that did not, so the key is built from the draft's own references instead. Which
+ * person a row stands for is part of it: pointing a row at someone already in the tree makes it another link.
+ */
+export function linkIdentity(rows: DraftRow[], l: DraftLink) {
+  const end = (ref?: string) => ref && { ref, existing: rows.find((r) => r.ref === ref)?.existing };
+  return { anchor: end(l.anchor), person: end(l.person), coParent: end(l.coParent), relation: l.relation };
+}
+
 /** Where the card stands. `unfinished` is what a retry could still send; `settled` means something was added and nothing is left to send. */
 export function draftProgress(rows: DraftRow[], links: DraftLink[], leftOut: ReadonlySet<string>) {
   const counted = links.filter((l) => !leftOut.has(l.uid));

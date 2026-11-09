@@ -56,6 +56,10 @@ export interface Ctx {
   avatar?: boolean;
   /** Pictures a tool asked the model to look at; the chat loop sends them with the next step. */
   images?: ImagePart[];
+  /** Pictures looked at so far in this reply. `images` is emptied after each step, so it cannot count them. */
+  looks?: number;
+  /** Ends the turn: a tool that calls a provider stops with it. */
+  signal?: AbortSignal;
 }
 
 const RESULT_LIMIT = 6000;
@@ -404,7 +408,7 @@ export async function runTool(ctx: Ctx, name: string, input: unknown, out: Propo
       // The guard runs before anything is sent. It checks only what this reader may see. A refusal says why, not what the detail was.
       const why = refusal(await privacyGuard(ctx.tree, g.people, can(ctx.role, 'edit-person')), a.query);
       if (why) return json({ refused: true, reason: REFUSAL_REASON[why], note: 'Not sent to the web. Ask a general question instead, without names or private details.' });
-      const r = await isolatedLookup(ctx.search.adapter, a.query);
+      const r = await isolatedLookup(ctx.search.adapter, a.query, ctx.signal);
       for (const s of r.sources) if (!ctx.search.sources.some((x) => x.url === s.url)) ctx.search.sources.push(s);
       return json({ summary: r.text, sources: r.sources, searches: r.searches });
     }
@@ -514,12 +518,13 @@ async function describePhoto(ctx: Ctx, input: unknown): Promise<string> {
   const row = await db(ctx.tree).get<{ key: string; mime: string }>('SELECT key, mime FROM media WHERE key = ?', key);
   if (!row) return json({ error: 'not a photo in this family' });
   if (!ctx.faces || !ctx.images) return json({ note: 'Looking at pictures is off for this family, so work from the details alone.' });
-  if (ctx.images.length >= 2) return json({ error: 'Only two pictures can be looked at in one reply.' });
+  if ((ctx.looks ?? 0) >= 2) return json({ error: 'Only two pictures can be looked at in one reply.' });
   const { media } = await import('../db.server');
   const obj = await media.get(ctx.tree, key);
   if (!obj) return json({ error: 'the picture is missing from storage' });
   const body = obj.body instanceof Uint8Array ? obj.body : new Uint8Array(await new Response(obj.body).arrayBuffer());
   ctx.images.push({ mime: row.mime, base64: base64(body) });
+  ctx.looks = (ctx.looks ?? 0) + 1;
   return json({ shown: true, note: 'The picture is attached to your next step. Describe only what you can see.' });
 }
 
@@ -750,7 +755,7 @@ async function proposeNew(ctx: Ctx, c: Tr, g: Graph, byId: Map<string, GPerson>,
     const { AiError } = await import('./adapters');
     let look;
     try {
-      look = await avatarFromPhoto({ tree: ctx.tree, personId: a.person, mediaKey: a.key, locale: ctx.locale });
+      look = await avatarFromPhoto({ tree: ctx.tree, personId: a.person, mediaKey: a.key, locale: ctx.locale, signal: ctx.signal });
     } catch (e) {
       if (e instanceof AiError) return bad(e.message);
       throw e;

@@ -175,7 +175,7 @@ const LOOK_PROPERTIES = {
 export const LOOK_JSON: JsonSchema = { type: 'object', properties: LOOK_PROPERTIES, required: Object.keys(LOOK_PROPERTIES) };
 
 /** A portrait look for a person, from a photo. Enum fields come from the portrait's own lists, and the result is `sanitizeLook`'s, so every face field the photo sets is kept. */
-export async function avatarFromPhoto(o: { tree: string; personId: string; mediaKey: string; locale: AiLocale }): Promise<Look> {
+export async function avatarFromPhoto(o: { tree: string; personId: string; mediaKey: string; locale: AiLocale; signal?: AbortSignal }): Promise<Look> {
   const c = tr(o.locale);
   const { adapter } = await adapterForFeature(o.tree, 'avatar', o.locale);
   if (!(await db(o.tree).get('SELECT id FROM person WHERE id = ?', o.personId))) throw new AiError('bad-input', c('ai.errNoPerson'));
@@ -186,6 +186,7 @@ export async function avatarFromPhoto(o: { tree: string; personId: string; media
     json: { name: 'look', schema: LOOK_JSON },
     maxTokens: 800,
     timeoutMs: 60_000,
+    ...(o.signal && { signal: o.signal }),
   });
   // One odd value must not cost the whole portrait: keep what is valid and let the rest stay automatic.
   // The colours are required; `sanitizeLook` keeps every field the portrait knows, so nothing is lost here

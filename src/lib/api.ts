@@ -222,14 +222,15 @@ export const updatePerson = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data }) => {
     await requireCan(data.tree, 'edit-person');
-    const { db } = await server();
+    const { db, changeCommitted } = await server();
     const p = data.patch;
     const empty = (s: string | null) => (s === null || s.trim() === '' ? null : s.trim());
-    await db(data.tree)
+    const wrote = await db(data.tree)
       .run(`UPDATE person SET given = ?, surname = ?, nickname = ?, sex = ?, born = ?, born_place = ?, died = ?, died_place = ?,
         living = ?, title = ?, epithet = ?, occupation = ?, occupation_code = ?, bio = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`,
         p.given, empty(p.surname), empty(p.nickname), p.sex, empty(p.born), empty(p.bornPlace), empty(p.died), empty(p.diedPlace),
         p.living ? 1 : 0, empty(p.title), empty(p.epithet), empty(p.occupation), occupationCodeFor(empty(p.occupation)), empty(p.bio), data.id);
+    if (wrote.changes) await changeCommitted(data.tree);
   });
 
 /** Fills in only the fields given: the Needed page saves exactly what was missing. */
@@ -309,7 +310,9 @@ export const deleteStory = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, id: z.string() }))
   .handler(async ({ data }) => {
     await requireCan(data.tree, 'edit-person');
-    await (await server()).db(data.tree).run('DELETE FROM story WHERE id = ?', data.id);
+    const { db, changeCommitted } = await server();
+    const gone = await db(data.tree).run('DELETE FROM story WHERE id = ?', data.id);
+    if (gone.changes) await changeCommitted(data.tree);
   });
 
 export const addContact = createServerFn({ method: 'POST' })

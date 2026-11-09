@@ -22,7 +22,7 @@ import { MarkdownEditor } from '../MarkdownEditor';
 import { DatePicker, Segmented, Switch } from '../ui';
 import { classifyFailure, clearJournal, createAutosaver, journalKey, MAX_UNDO, nextAfter, readJournal, undoStep, writeJournal, type Journal, type Outcome, type SaveState, type UndoStep } from './autosave';
 import { DraftContext } from './draft';
-import { sendable, signatureOf, storedForm, wireOf, type EditValues } from './edit-values';
+import { keepShared, sendable, signatureOf, storedForm, wireOf, type EditValues } from './edit-values';
 import { draftOf, FieldEditor, type DraftField } from './FieldEditor';
 import { fieldText } from './model';
 import { rebaseDraft, takeTheirs, type Conflict } from './rebase';
@@ -218,7 +218,8 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only }: Omit<Props, 'deta
       const body = { tree, id: p.id, ...wireOf(sent), revision: revision.current };
       const saved = await savePersonEdit({ data: { ...body, opKey: keys.for('edit', body) } });
       keys.clear('edit');
-      const written = storedForm({ ...sent, fields: sent.fields.map((x, i) => ({ ...x, id: saved.fieldIds[i] ?? x.id })) });
+      // A field this save added is the reader's: the server recorded them as its author.
+      const written = storedForm({ ...sent, fields: sent.fields.map((x, i) => ({ ...x, id: saved.fieldIds[i] ?? x.id, authored: x.authored || !x.id })) });
       if (undoing.current) {
         undoing.current = false;
       } else {
@@ -230,7 +231,7 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only }: Omit<Props, 'deta
       touched.current = true;
       // A new field learns its id, so the next save updates it instead of adding it again.
       const ids = new Map(sent.fields.flatMap((x, i) => (!x.id && saved.fieldIds[i] ? [[x.key, saved.fieldIds[i]!] as const] : [])));
-      if (ids.size) form.setFieldValue('fields', (list: DraftField[]) => list.map((x) => (!x.id && ids.has(x.key) ? { ...x, id: ids.get(x.key) } : x)));
+      if (ids.size) form.setFieldValue('fields', (list: DraftField[]) => list.map((x) => (!x.id && ids.has(x.key) ? { ...x, id: ids.get(x.key), authored: true } : x)));
       return 'saved';
     } catch (e) {
       const message = e instanceof Error ? e.message : '';
@@ -372,7 +373,9 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only }: Omit<Props, 'deta
     history.current = history.current.slice(0, -1);
     setUndoCount(history.current.length);
     undoing.current = true;
-    const { values, conflicts: found } = undoStep<Values, DraftField>(step, current());
+    const { values: undone, conflicts: found } = undoStep<Values, DraftField>(step, current());
+    const values = keepShared(undone, base.current);
+    if (values !== undone) toast({ title: words.current('field.vis.staysShared'), ms: 6000 });
     applyValues(values);
     if (found.length) { undoing.current = false; setConflicts(found); return; }
     void saver.flush().then((ok) => { if (ok) undoing.current = false; });

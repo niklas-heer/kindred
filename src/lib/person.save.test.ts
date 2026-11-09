@@ -29,7 +29,7 @@ const SEEN = '2026-01-01T00:00:00Z';
   // from the JSON) and a note. Every field was last written by "Seed".
   for (const p of ['nick', 'same', 'label', 'added', 'text']) {
     d.exec(`INSERT INTO person (id, given, born, living) VALUES ('${p}', 'Ada', '1950', 1)`);
-    d.exec(`INSERT INTO person_field (id, person, type, label, value, ord, visibility, created_by, created_at, updated_by, updated_at) VALUES
+    d.exec(`INSERT INTO person_field (id, person, type, label, value, ord, visibility, created_by_name, created_at, updated_by, updated_at) VALUES
       ('${p}-street', '${p}', 'address', 'home', '{"street":"Main St"}', 0, 'family', 'Seed', '${SEEN}', 'Seed', '${SEEN}'),
       ('${p}-note', '${p}', 'notes', 'General', '{"text":"Hello"}', 1, 'family', 'Seed', '${SEEN}', 'Seed', '${SEEN}')`);
   }

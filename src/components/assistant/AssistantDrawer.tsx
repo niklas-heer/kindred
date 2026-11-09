@@ -35,7 +35,7 @@ import { ChatList, ChatTabs, chatName } from './ChatList';
 import { finishRun, forgetRun, getRun, patchRun, setFrontChat, useRun, useRunSummary } from './chat-runs';
 import { closeTab, forgetChat, getTabs, openTab, updateTabs, withDraft } from './chat-tabs';
 import { modelName, ModelPicker, RetryModelMenu, type PickedModel } from './ModelPicker';
-import { carryOn, restoreInterrupted, transmit, useChatStream } from './useChatStream';
+import { carryOn, forgetInterrupted, restoreInterrupted, transmit, useChatStream } from './useChatStream';
 import { AiSetupButton, AiSetupDialog } from './AiSetup';
 import { AttachButton, DropVeil, ImageTray, useImageAttach, type Attached } from './attachments';
 import { useDictation } from './dictation';
@@ -477,6 +477,7 @@ function AssistantDrawer({ tree }: { tree: string }) {
   function editUnsent(u: (typeof unsent)[number]) {
     if (!conv) return;
     patchRun(conv, (r) => ({ unsent: r.unsent.filter((x) => x.id !== u.id) }));
+    forgetInterrupted(tree, u.id);
     const now = areaRef.current?.value ?? '';
     setComposer(now.trim() ? `${now}\n${u.text}` : u.text);
     if (u.images?.length) attach.replace(u.images);

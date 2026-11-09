@@ -14,7 +14,8 @@ import { errorText } from '~/lib/errortext';
 import type { Look } from '~/lib/types';
 import { Portrait } from '~/components/Portrait';
 import { withPresetLabel } from '../fields/presets';
-import { applyProposal, approvalKeys, type ApprovalKeys } from './apply';
+import { applyProposal } from './apply';
+import { approvalKeys } from './approval-keys';
 import { FamilyDraft } from './FamilyDraft';
 import { CardHead } from './CardHead';
 import { VisibilityPicker } from '../fields/VisibilityMark';
@@ -142,8 +143,8 @@ function GenericCard({ tree, conv, itemId, proposal, onDecided, register }: { tr
   const [level, setLevel] = useState<Visibility>((proposal.args.visibility as Visibility | undefined) ?? (proposal.args.private === true ? 'editors' : 'family'));
   // Photos the reader took off the card (a row's remove button): they are not sent on approval.
   const [dropped, setDropped] = useState<string[]>([]);
-  // One key per card: a retry of the same approval replays the stored result rather than writing twice.
-  const [keys] = useState<ApprovalKeys>(() => approvalKeys());
+  // Keys that come from the card: a retry, another tab, another device or a reload sends the same one, and replays the stored result.
+  const keys = approvalKeys(proposal.id);
 
   const open = status === 'open';
   const mark = (status: 'done' | 'dismissed' | 'failed', outcome?: DecisionOutcome) => () => aiChatMark({ data: { tree, conv, itemId, proposalId: proposal.id, status, outcome } });

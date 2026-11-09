@@ -8,7 +8,8 @@
 // editor turns, private details included.
 import { graph } from '../db.server';
 import { fullName } from '../graph';
-import { accounts, q } from '../auth/store.server';
+import { accounts, isGuardError, q } from '../auth/store.server';
+import type { Query } from '../store';
 import { can, type Role } from '../roles';
 import { AiError, type AiMessage, type ImagePart } from './adapters';
 import { checkChatImages } from './chat-images';
@@ -34,6 +35,7 @@ const replyIdFor = (turnId: string) => `${turnId}-r`;
 /** Ends a turn whose reader has stopped or left, or that has run past its limit, before anything more is spent. */
 function throwIfEnded(signal: AbortSignal | undefined): void {
   if (!signal?.aborted) return;
+  if (signal.reason instanceof AiError) throw signal.reason;
   throw (signal.reason as Error | undefined)?.name === 'TimeoutError' ? new AiError('timeout', 'ai.errTurnTimeout') : new AiError('aborted', 'ai.stopped');
 }
 
@@ -43,8 +45,21 @@ async function holdingChat<T>(conv: string, run: (lease: TurnLease) => Promise<T
   if (!lease) throw new AiError('busy', 'ai.errTurnBusy');
   try {
     return await run(lease);
+  } catch (e) {
+    // A provider call cut off by a lost lease reads as stopped. It was not: another turn has the chat.
+    throw lease.signal.aborted ? lease.signal.reason : e;
   } finally {
     await lease.release().catch(() => {});
+  }
+}
+
+/** Stores what a turn produced, as one batch, only while the turn still holds its chat. */
+async function storeTurn(lease: TurnLease, writes: Query[]): Promise<void> {
+  try {
+    await accounts().batch([lease.fence(), ...writes]);
+  } catch (e) {
+    if (isGuardError(e) && !(await lease.held())) throw new AiError('busy', 'ai.errTurnBusy');
+    throw e;
   }
 }
 
@@ -74,14 +89,20 @@ export async function markProposal(tree: string, user: string, role: Role, conv:
   if (card.status === 'open') {
     const at = `$.proposals[${i}]`;
     const clean = cleanOutcome(card, outcome);
+    // The statement itself checks the card is still open: the read above may be out of date when another tab decides at the same moment.
+    const stillOpen = `id = ? AND json_extract(body, '${at}.status') = 'open'`;
     if (status === 'failed') {
       // A card that keeps failing is reported once. It is reported again only when the reader settles it.
-      const raise = card.failureTold ? '' : `, '${at}.untold', json('true')`;
-      await accounts().run(`UPDATE ai_chat SET body = json_set(body, '${at}.outcome', json(?)${raise}) WHERE id = ?`, JSON.stringify(clean ?? {}), itemId);
+      const noted = `json_set(body, '${at}.outcome', json(?))`;
+      const value = JSON.stringify(clean ?? {});
+      await accounts().run(
+        `UPDATE ai_chat SET body = CASE WHEN json_extract(body, '${at}.failureTold') IS NULL THEN json_set(${noted}, '${at}.untold', json('true')) ELSE ${noted} END WHERE ${stillOpen}`,
+        value, value, itemId,
+      );
     } else {
       const keep = clean ? `, '${at}.outcome', json(?)` : '';
       await accounts().run(
-        `UPDATE ai_chat SET body = json_set(json_remove(body, '${at}.outcome', '${at}.failureTold'), '${at}.status', ?, '${at}.untold', json('true')${keep}) WHERE id = ?`,
+        `UPDATE ai_chat SET body = json_set(json_remove(body, '${at}.outcome', '${at}.failureTold'), '${at}.status', ?, '${at}.untold', json('true')${keep}) WHERE ${stillOpen}`,
         ...(clean ? [status, JSON.stringify(clean), itemId] : [status, itemId]),
       );
     }
@@ -155,7 +176,10 @@ async function modelTurn(o: {
   const sources: { url: string; title?: string }[] = [];
   const images: ImagePart[] = [];
   const blocks: ChatBlock[] = [];
-  const ctx: Ctx = { tree: o.tree, role: o.role, me: me?.id ?? null, user: o.user, blocks, session: o.session, pictures: attached.length > 0, locale: o.locale, faces, avatar, images, search: webSearch ? { adapter, sources, lookups: 0 } : undefined };
+  // The turn ends when its reader stops or its limit passes, and when another turn has taken the chat.
+  const ended = [o.sink?.signal, o.lease?.signal].filter((s): s is AbortSignal => !!s);
+  const signal = ended.length > 1 ? AbortSignal.any(ended) : ended[0];
+  const ctx: Ctx = { tree: o.tree, role: o.role, me: me?.id ?? null, user: o.user, blocks, session: o.session, pictures: attached.length > 0, locale: o.locale, faces, avatar, images, signal, search: webSearch ? { adapter, sources, lookups: 0 } : undefined };
   const messages: AiMessage[] = [...o.past, { role: 'user', text: o.text, ...(attached.length && { images: attached }) }];
   const proposals: Proposal[] = [];
   let text = '';
@@ -163,13 +187,10 @@ async function modelTurn(o: {
   const maxTokens = o.session || attached.length ? 4000 : 1200;
   for (let step = 0; ; step++) {
     // Each call is booked against the family's budget by the adapter, so a loop cannot outspend it.
-    throwIfEnded(o.sink?.signal);
     await o.lease?.beat();
-    const onDelta = o.sink && ((piece: string) => {
-      o.sink!.emit({ type: 'delta', text: piece });
-      void o.lease?.beat().catch(() => {});
-    });
-    const reply = await adapter.complete({ system, messages, tools, maxTokens, timeoutMs: 60_000, ...(onDelta && { onDelta, signal: o.sink!.signal }) });
+    throwIfEnded(signal);
+    const onDelta = o.sink && ((piece: string) => o.sink!.emit({ type: 'delta', text: piece }));
+    const reply = await adapter.complete({ system, messages, tools, maxTokens, timeoutMs: 60_000, ...(onDelta && { onDelta }), ...(signal && { signal }) });
     if (!reply.calls.length || step >= MAX_STEPS) {
       text = reply.text.trim();
       break;
@@ -179,8 +200,8 @@ async function modelTurn(o: {
     // The reply's reasoning blocks go back with its calls, unchanged: OpenRouter needs them to continue a reasoning model's tool turn.
     messages.push({ role: 'assistant', text: reply.text, calls: reply.calls, ...(reply.reasoningDetails && { reasoningDetails: reply.reasoningDetails }) });
     for (const call of reply.calls) {
-      throwIfEnded(o.sink?.signal);
       await o.lease?.beat();
+      throwIfEnded(signal);
       messages.push({ role: 'tool', callId: call.id, content: await runTool(ctx, call.name, call.args, proposals) });
     }
     // Pictures a tool asked for (describe_photo) go to the model as the next message, after its tool results.
@@ -258,7 +279,7 @@ async function runMessage(o: SendInput, lease: TurnLease): Promise<{ items: Chat
   // Both turns or neither: a message is never stored without its answer, and a failed turn leaves nothing to resend.
   const insert = (r: ChatRow) => q('INSERT INTO ai_chat (id, tree, user, conv, role, body, at) VALUES (?, ?, ?, ?, ?, ?, ?)', r.id, o.tree, o.user, conv, r.role, r.body, r.at);
   const keptRows = keep.map((k) => q('INSERT INTO ai_chat_image (id, item, tree, user, mime, data, at) VALUES (?, ?, ?, ?, ?, ?, ?)', k.id, userRow.id, o.tree, o.user, k.img.mime, k.img.base64, started));
-  await accounts().batch([threadExists(o.tree, o.user, conv), insert(userRow), insert(reply), ...keptRows, ...toldStatements(decided), touchThread(o.tree, o.user, conv, reply.at)]);
+  await storeTurn(lease, [threadExists(o.tree, o.user, conv), insert(userRow), insert(reply), ...keptRows, ...toldStatements(decided), touchThread(o.tree, o.user, conv, reply.at)]);
   return { items: [toItem(userRow, o.role), toItem(reply, o.role)] };
 }
 
@@ -273,6 +294,10 @@ export async function continueAfterDecisions(o: ContinueInput): Promise<{ items:
   if (!lease) return { items: [] };
   try {
     return await runContinuation(o, lease);
+  } catch (e) {
+    // Another turn took the chat, and it will be told about these decisions.
+    if (lease.signal.aborted || (e instanceof AiError && e.code === 'busy')) return { items: [] };
+    throw e;
   } finally {
     await lease.release().catch(() => {});
   }
@@ -316,7 +341,7 @@ async function runContinuation(o: ContinueInput, lease: TurnLease): Promise<{ it
       id: id(), role: 'assistant', at: Date.now(),
       body: JSON.stringify({ text, ...(kept.length && { proposals: kept }), ...(turn.blocks.length && { blocks: turn.blocks }), ...(turn.sources.length && { sources: turn.sources }), tier, continuation: { note }, model: turn.model }),
     };
-    await accounts().batch([
+    await storeTurn(lease, [
       threadExists(o.tree, o.user, conv),
       q('INSERT INTO ai_chat (id, tree, user, conv, role, body, at) VALUES (?, ?, ?, ?, ?, ?, ?)', reply.id, o.tree, o.user, conv, reply.role, reply.body, reply.at),
       ...toldStatements(state.untold, first.claimItem),
@@ -363,7 +388,7 @@ async function runRetry(o: RetryInput, lease: TurnLease): Promise<{ items: ChatI
     id: id(), role: 'assistant', at: Date.now(),
     body: JSON.stringify({ text, ...(kept.length && { proposals: kept }), ...(turn.blocks.length && { blocks: turn.blocks }), ...(turn.sources.length && { sources: turn.sources }), tier: tierForRole(o.role), model: turn.model, alternateOf: baseId }),
   };
-  await accounts().batch([
+  await storeTurn(lease, [
     threadExists(o.tree, o.user, o.conv),
     q('INSERT INTO ai_chat (id, tree, user, conv, role, body, at) VALUES (?, ?, ?, ?, ?, ?, ?)', reply.id, o.tree, o.user, o.conv, reply.role, reply.body, reply.at),
     touchThread(o.tree, o.user, o.conv, reply.at),

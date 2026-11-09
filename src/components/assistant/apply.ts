@@ -3,7 +3,7 @@
 // here writes on its own; the server checks the role and the family's rules again on every call. A family draft is
 // approved row by row by FamilyDraft.tsx, which calls applyFamilyBatch (family-batch.functions.ts).
 import type { QueryClient } from '@tanstack/react-query';
-import { addRelative, addStory, deleteStory, graphQuery, linkRelative, opKeys, patchPerson, removePerson, setPartnershipEnd, unlinkRelative, updateHouse, upsertPlaces } from '~/lib/api';
+import { addRelative, addStory, deleteStory, graphQuery, linkRelative, patchPerson, removePerson, setPartnershipEnd, unlinkRelative, updateHouse, upsertPlaces } from '~/lib/api';
 import { addPersonField, deletePersonField, getEditSnapshot, savePersonEdit, setDiedPlace, setLook } from '~/lib/person.functions';
 import { deleteAlbum, removeGalleryPhoto, removePhotoTag, saveAlbum, saveGalleryPhoto, tagPhoto } from '~/lib/photos.functions';
 import { createHouseFn, setHouseMembersFn, updateHouseSettings } from '~/lib/houses.functions';
@@ -15,10 +15,7 @@ import { setPartnershipDetails } from '~/lib/partnership.functions';
 import { CHANGED_SINCE_OPENED, defaultVisibility, fieldInput } from '~/components/fields/model';
 import { detailsOf, fieldsOf, mergeEdit, mergeField } from './apply-merge';
 import { proposalArgs, type Proposal, type ProposalArgs } from '~/lib/ai/types';
-
-/** A form's retry keys: the same approval sent twice reuses its key, so a lost reply can't write twice. */
-export type ApprovalKeys = ReturnType<typeof opKeys>;
-export const approvalKeys = () => opKeys();
+import type { ApprovalKeys } from './approval-keys';
 
 /** Sends one approved proposal. Throws the server's message when the family or the reader's role refuses it. */
 export async function applyProposal(tree: string, p: Proposal, args: ProposalArgs, keys: ApprovalKeys, qc: QueryClient): Promise<void> {

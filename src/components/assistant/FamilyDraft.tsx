@@ -1,14 +1,13 @@
 // A family draft as a readable card: each new person on a row, with their relationships in plain words, and the links
 // whose person is already in the tree listed under "Connections". Warnings show where a person may already be in the
 // tree or a link would loop. Rows can be edited or removed until they are added. "Add all", or each row's own "Add",
-// sends the rows to applyFamilyBatch; every step has its own retry key, so a row that failed can be sent again, and a
-// row that worked is never written twice. A memory is shown in full, because approving it puts those words in the Chronicle.
+// sends the rows to applyFamilyBatch; every step's retry key comes from the card, so a row that failed can be sent again, and a
+// row that worked is never written twice, from this tab or another. A memory is shown in full, because approving it puts those words in the Chronicle.
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, Pencil, RotateCw, X } from 'lucide-react';
 import { useState } from 'react';
 import { aiChatMark } from '~/lib/ai.functions';
 import { applyFamilyBatch } from '~/lib/family-batch.functions';
-import { opKeys } from '~/lib/api';
 import { allGiven, MAX_FURTHER } from '~/lib/further-given';
 import { type FamilyLink, type FamilyPerson, type Proposal } from '~/lib/ai/types';
 import { useT, type Key } from '~/lib/i18n';
@@ -22,7 +21,8 @@ import type { OnDecided } from './ProposalCard';
 import type { DecisionOutcome } from '~/lib/ai/continuation';
 import { VisibilityMark } from '../fields/VisibilityMark';
 import { presetLabel } from '../fields/presets';
-import { cleanPerson, detailKeys, detailPreview, draftProgress, dropDetail, linksToSend, patchDetail, type DraftLink as LinkRow, type DraftRow as Row, type Status } from './family-draft';
+import { approvalKeys } from './approval-keys';
+import { cleanPerson, detailKeys, detailPreview, draftProgress, dropDetail, linkIdentity, linksToSend, patchDetail, type DraftLink as LinkRow, type DraftRow as Row, type Status } from './family-draft';
 
 type Translate = ReturnType<typeof useT>;
 type Story = NonNullable<FamilyPerson['story']>;
@@ -56,8 +56,8 @@ export function FamilyDraft({ tree, conv, itemId, proposal, onDecided }: { tree:
   // A list read from a picture may hold strangers, so nobody is on the way in until the reader ticks them.
   const pick = !!view.pick;
   const [chosen, setChosen] = useState<ReadonlySet<string>>(() => new Set());
-  // One key per step, kept for the card's life: a retry of the same row or link replays what it did, and an edited row gets a new key.
-  const [keys] = useState(() => opKeys());
+  // Keys that come from the card and each step's content: a retry, another tab, another device or a reload replays what the step did, and an edited row gets a new key.
+  const keys = approvalKeys(proposal.id);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [status, setStatus] = useState(proposal.status);
@@ -164,7 +164,7 @@ export function FamilyDraft({ tree, conv, itemId, proposal, onDecided }: { tree:
     });
     const uidOfKey = new Map<string, string>();
     const linkBody = sendLinks.map((l) => {
-      const key = keys.for(`link:${l.uid}`, l.payload);
+      const key = keys.for(`link:${l.uid}`, linkIdentity(rows, links.find((x) => x.uid === l.uid)!));
       uidOfKey.set(key, l.uid);
       return { ...l.payload, key };
     });

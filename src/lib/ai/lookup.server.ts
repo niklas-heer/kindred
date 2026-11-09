@@ -133,7 +133,7 @@ export const REFUSAL_REASON: Record<Refusal, string> = {
 };
 
 /** One lookup: the query alone, under the fixed instruction, with the family's own budget reserved for it. */
-export async function isolatedLookup(adapter: AiAdapter, query: string): Promise<{ text: string; sources: { url: string; title?: string }[]; searches: number }> {
-  const r = await isolatedSearch(adapter, { system: LOOKUP_SYSTEM, prompt: query, maxUses: LOOKUP_SEARCHES, maxTokens: 600 });
+export async function isolatedLookup(adapter: AiAdapter, query: string, signal?: AbortSignal): Promise<{ text: string; sources: { url: string; title?: string }[]; searches: number }> {
+  const r = await isolatedSearch(adapter, { system: LOOKUP_SYSTEM, prompt: query, maxUses: LOOKUP_SEARCHES, maxTokens: 600, signal });
   return { text: r.text.trim(), sources: r.sources ?? [], searches: r.searches };
 }

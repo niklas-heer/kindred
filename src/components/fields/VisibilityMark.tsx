@@ -20,8 +20,8 @@ export function VisibilityMark({ level }: { level: Visibility }) {
   return <span className={`fv-vis fv-vis-${level}`} role="img" aria-label={c(LABEL[level])} title={`${c(LABEL[level])}: ${c(HINT[level])}`}><Icon size={12} aria-hidden /></span>;
 }
 
-/** The choice of level, with what the chosen one means. */
-export function VisibilityPicker({ value, onChange }: { value: Visibility; onChange: (v: Visibility) => void }) {
+/** The choice of level, with what the chosen one means. Personal is left out when the server would refuse it (visibility.ts). */
+export function VisibilityPicker({ value, onChange, personal = true }: { value: Visibility; onChange: (v: Visibility) => void; personal?: boolean }) {
   const c = useT();
   return (
     <div className="fv-vis-picker">
@@ -30,12 +30,12 @@ export function VisibilityPicker({ value, onChange }: { value: Visibility; onCha
         aria-label={c('field.vis.label')}
         value={value}
         onChange={onChange}
-        options={VISIBILITIES.map((v) => {
+        options={VISIBILITIES.filter((v) => personal || v !== 'personal').map((v) => {
           const Icon = ICON[v];
           return { value: v, label: c(LABEL[v]), icon: <Icon size={13} aria-hidden /> };
         })}
       />
-      <span className="subtle">{c(HINT[value])}</span>
+      <span className="subtle">{c(HINT[value])}{!personal && ` ${c('field.vis.onlyAuthor')}`}</span>
     </div>
   );
 }

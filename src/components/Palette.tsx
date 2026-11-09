@@ -9,7 +9,7 @@ import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, useSy
 import { useFamily, useMe, useMeChosen, useTreeId } from '~/lib/family';
 import { displayName, kinship, lifespan, ancestorDepths, type Family } from '~/lib/graph';
 import { setPref } from '~/lib/prefs';
-import { useCan } from '~/lib/session';
+import { useCan, useSession } from '~/lib/session';
 import { play } from '~/lib/sfx';
 import { openAiSetup, openAssistant, useAiStatus } from './assistant/store';
 import { useAiSetupNeeded } from './assistant/AiSetup';
@@ -86,6 +86,9 @@ export function PersonRow({ f, tree, id, who, anc, note }: { f: Family; tree: st
 
 const groupOf = (it: Item, t: Translator) => it.group ?? (it.person ? t('shell.palette.people') : t('shell.palette.commands'));
 
+/** The commands this reader can use. A guest has no Contacts: the shell hides it and the guest host refuses it. */
+export const commandsForReader = <T extends { key: string }>(cmds: T[], guest: boolean): T[] => (guest ? cmds.filter((c) => c.key !== 'contacts') : cmds);
+
 export function Palette() {
   const t = useT();
   const { isOpen, open, close } = usePalette();
@@ -99,6 +102,7 @@ export function Palette() {
   // A steward of a family with no AI key gets the set-up command in its place (the same panel as the top bar's button).
   const setupNeeded = useAiSetupNeeded(tree);
   const steward = useCan('manage-access');
+  const guest = useSession()?.guest?.tree === tree;
   const navigate = useNavigate();
   const [q, setQ] = useState('');
   const dq = useDeferredValue(q);
@@ -140,7 +144,7 @@ export function Palette() {
           run: () => { navigate({ to: '/$tree/house/$house', params: { tree, house: h.id } }); close(); },
         }))
       : [];
-    const cmds: Item[] = [
+    const cmds = commandsForReader<Item>([
       { key: 'language', label: t('common.changeLanguage'), hint: LANGUAGE_NAME[t.locale], run: () => { setMode('language'); setQ(''); setSel(0); } },
       { key: 'tour', icon: <UserRound size={16} />, label: t('shell.cmd.tour'), hint: t('shell.cmd.tourHint'), run: () => { close(); reopenTour(); } },
       { key: 'v-family', icon: <Network size={16} />, label: t('shell.cmd.viewFamily'), run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'family' }) }); close(); } },
@@ -163,11 +167,11 @@ export function Palette() {
       { key: 't-codex', icon: <PaletteIcon size={16} />, label: t('shell.cmd.themeCodex'), run: () => { setPref('theme', 'codex'); close(); } },
       { key: 't-paper', icon: <Sun size={16} />, label: t('shell.cmd.themePaper'), run: () => { setPref('theme', 'modern'); close(); } },
       { key: 't-night', icon: <Moon size={16} />, label: t('shell.cmd.themeNight'), run: () => { setPref('theme', 'night'); close(); } },
-    ];
+    ], guest);
     const fq = fold(dq);
     const matched = fq ? cmds.filter((c) => fold(c.label).includes(fq)) : cmds;
     return fq ? [...people, ...houses, ...matched] : matched;
-  }, [f, dq, me, who, myAnc, navigate, tree, close, t, t.locale, assistantOn, setupNeeded, steward, mode]);
+  }, [f, dq, me, who, myAnc, navigate, tree, close, t, t.locale, assistantOn, setupNeeded, steward, guest, mode]);
 
   useEffect(() => setSel(0), [dq]);
   useEffect(() => {

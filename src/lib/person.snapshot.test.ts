@@ -29,7 +29,7 @@ const TREE = 'snapshot';
   const d = openSqlite(join(dir, `${TREE}.db`), 'tree', { create: true });
   d.exec(`INSERT INTO meta (key, value) VALUES ('id', '${TREE}'), ('name', 'Snapshot'), ('tagline', ''), ('theme', 'codex'), ('focus', '')`);
   d.exec(`INSERT INTO person (id, given, born, living) VALUES ('ada', 'Ada', '1950', 1)`);
-  d.exec(`INSERT INTO person_field (id, person, type, label, value, ord, visibility, created_by, created_at, updated_by, updated_at) VALUES
+  d.exec(`INSERT INTO person_field (id, person, type, label, value, ord, visibility, created_by_name, created_at, updated_by, updated_at) VALUES
     ('pub', 'ada', 'notes', 'General', '{"text":"Public"}', 0, 'family', 'Seed', '2026-01-01T00:00:00Z', 'Seed', '2026-01-01T00:00:00Z'),
     ('priv', 'ada', 'medical', 'Condition', '{"note":"Private"}', 1, 'editors', 'Seed', '2026-01-01T00:00:00Z', 'Seed', '2026-01-01T00:00:00Z')`);
   d.close();

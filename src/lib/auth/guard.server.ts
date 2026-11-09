@@ -12,6 +12,7 @@
 // guests until it says otherwise.
 import { appendResponseHeader, getRequest, setResponseStatus } from '@tanstack/react-start/server';
 import { CHANGE_OF_ACTION } from '../stats/shared';
+import { onChangeCommitted } from '../db.server';
 import { can, needs, type Action, type Role } from '../roles';
 import { forbidden, notMember, signedOut, type AuthError } from './errors';
 import { getSession, type Session } from './session.server';
@@ -80,7 +81,22 @@ export async function requireReader(tree: string): Promise<Reader> {
 export async function requireCan(tree: string, action: Action): Promise<Member> {
   const m = await requireMember(tree);
   if (!can(m.role, action)) throw fail(forbidden(action, needs(action)));
-  // Counts a change under the role just confirmed, for the statistics by category; it never throws. Awaited, so a Worker does not end the request before it is written.
-  if (CHANGE_OF_ACTION[action]) await import('../stats/store.server').then((s) => s.countChange(tree, m.user.id, m.role, action)).catch(() => {});
+  if (CHANGE_OF_ACTION[action]) {
+    const request = getRequest();
+    if (!allowedChange.has(request)) allowedChange.set(request, { tree, user: m.user.id, role: m.role, action });
+  }
   return m;
 }
+
+// The change a request has been allowed to make, under the role just confirmed. The statistics count it once, when a write of it
+// reaches the database: a permission alone is not a change, whether the request only reads or its save is refused.
+const allowedChange = new WeakMap<Request, { tree: string; user: string; role: Role; action: Action }>();
+
+onChangeCommitted(async (tree) => {
+  const request = getRequest();
+  const change = allowedChange.get(request);
+  if (change?.tree !== tree) return;
+  allowedChange.delete(request);
+  // Awaited, so a Worker does not end the request before it is written.
+  await (await import('../stats/store.server')).countChange(tree, change.user, change.role, change.action);
+});

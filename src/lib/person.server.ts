@@ -8,7 +8,7 @@ import type { Look } from './types.ts';
 import { parseFurther, storeFurther } from './further-given.ts';
 import { occupationCodeFor } from './occupations.ts';
 import { translate } from './i18n/dictionary.ts';
-import { fieldsVisibleTo, maySee, type Audience, type Visibility } from './visibility.ts';
+import { fieldsVisibleTo, mayBePersonal, maySee, type Audience, type Visibility } from './visibility.ts';
 
 /** The message a save gets when the person changed after the draft was opened (the reader sees it in their language). */
 export { CHANGED_SINCE_OPENED };
@@ -84,7 +84,14 @@ const SNAPSHOT_ATTEMPTS = 3;
 const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 const empty = (s: string | null) => (s === null || s.trim() === '' ? null : s.trim());
 
-interface Existing { id: string; type: string; label: string; value: string; visibility: Visibility; owner: string | null; ord: number }
+interface Existing { id: string; type: string; label: string; value: string; visibility: Visibility; owner: string | null; ord: number; created_by: string | null; updated_by: string | null; updated_at: string | null }
+
+/**
+ * Saves this close together are one change for the statistics: an autosave writes at every pause in typing. Decided from when
+ * and by whom each row says it was last written, so counting this keeps nothing new about anyone.
+ */
+const ONE_CHANGE_MS = 10 * 60_000;
+const justWritten = (at: string | null) => at !== null && Date.now() - Date.parse(at) < ONE_CHANGE_MS;
 
 /** The owner a field at this level has: the person saving it when it is personal, nobody otherwise. */
 function ownerFor(visibility: Visibility, who: Audience): string | null {
@@ -133,7 +140,8 @@ export async function editSnapshot(tree: string, id: string, reader: Audience): 
         occupation: r.occupation,
         occupationCode: r.occupation_code,
         bio: r.bio,
-        fields: fields.map(fieldOf),
+        // Whether this reader created each field, so the picker offers Personal when the save would take it. Never the account itself.
+        fields: fields.map((row) => ({ ...fieldOf(row), authored: !!reader.account && row.created_by === reader.account })),
       };
     }
     if (attempt >= SNAPSHOT_ATTEMPTS) throw new Error('The family changed while this was loaded. Please try again.');
@@ -160,20 +168,23 @@ export interface SavedEdit { revision: number; fieldIds: string[] }
  * revision once per row, so a save of one nickname makes one step, not several.
  *
  * `who` is the person saving. The list only ever covers what they may see: someone else's personal field is not in their
- * draft, so it is neither removed nor changed, and an id naming one is refused as any unknown field is.
+ * draft, so it is neither removed nor changed, and an id naming one is refused as any unknown field is. Only the
+ * account that created a field may make it personal (visibility.ts); `created_by` is written when a field is added and never again.
  */
 export function savePersonEdit(tree: string, id: string, details: PersonDetails, fields: FieldInput[], revision: number, op: OpKey | undefined, by: string, who: Audience) {
   return once(tree, op, 'savePersonEdit', async (d) => {
-    const now = await d.get<EditRow & { revision: number }>(`SELECT revision, ${EDIT_COLUMNS.join(', ')} FROM person WHERE id = ?`, id);
+    const now = await d.get<EditRow & { revision: number; updated_at: string | null }>(`SELECT revision, updated_at, ${EDIT_COLUMNS.join(', ')} FROM person WHERE id = ?`, id);
     if (!now) throw new Error('Person not found.');
     if (now.revision !== revision) throw new Error(CHANGED_SINCE_OPENED);
     const seen = fieldsVisibleTo(who);
-    const had = await d.all<Existing>(`SELECT id, type, label, value, visibility, owner, ord FROM person_field WHERE person = ? AND ${seen.sql}`, id, ...seen.params);
+    const had = await d.all<Existing>(`SELECT id, type, label, value, visibility, owner, ord, created_by, updated_by, updated_at FROM person_field WHERE person = ? AND ${seen.sql}`, id, ...seen.params);
     const hadById = new Map(had.map((r) => [r.id, r]));
     const kept = new Set<string>();
     const fieldIds: string[] = [];
     // How far this batch moves the revision: the triggers count one step per written row (see the note above).
     let steps = 0;
+    // Whether every row written here was just written by this editor: then this is the same change going on (see `ONE_CHANGE_MS`).
+    let continues = true;
     // What the plan read: the person at this revision (every change bumps it, see migration 0009), and the fields.
     // Every decision below rests on that revision, so the guard covers the person's columns as well.
     const writes: Query[] = [
@@ -192,6 +203,7 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
       if (f.id) {
         const before = hadById.get(f.id);
         if (!before || before.type !== f.type) throw new Error('That field is not on this person.');
+        if (f.visibility === 'personal' && !mayBePersonal(who, before)) throw new Error(translate('en', 'field.vis.onlyAuthor'));
         kept.add(f.id);
         writes.push(guard('EXISTS (SELECT 1 FROM person_field WHERE id = ? AND person = ?)', f.id, id));
         const sameText = sameContent(before.value, value);
@@ -199,6 +211,7 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
         fieldIds.push(f.id);
         if (!same) {
           steps += 1;
+          continues &&= before.updated_by === by && justWritten(before.updated_at);
           writes.push(q(
             'UPDATE person_field SET label = ?, value = ?, visibility = ?, owner = ?, ord = ?, updated_by = ?, updated_at = ? WHERE id = ? AND person = ?',
             f.label, sameText ? before.value : JSON.stringify(value), f.visibility, owner, ord, by, nowIso(), f.id, id,
@@ -208,15 +221,17 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
         const fresh = crypto.randomUUID();
         fieldIds.push(fresh);
         steps += 1;
+        continues = false;
         writes.push(q(
-          'INSERT INTO person_field (id, person, type, label, value, ord, visibility, owner, created_by, created_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          fresh, id, f.type, f.label, JSON.stringify(value), ord, f.visibility, owner, by, nowIso(), by, nowIso(),
+          'INSERT INTO person_field (id, person, type, label, value, ord, visibility, owner, created_by, created_by_name, created_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          fresh, id, f.type, f.label, JSON.stringify(value), ord, f.visibility, owner, who.account, by, nowIso(), by, nowIso(),
         ));
       }
     }
     for (const r of had) {
       if (kept.has(r.id)) continue;
       steps += 1;
+      continues = false;
       writes.push(q('DELETE FROM person_field WHERE id = ? AND person = ?', r.id, id));
     }
 
@@ -231,12 +246,14 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
     const changed = EDIT_COLUMNS.filter((c) => next[c] !== now[c]);
     if (changed.length) {
       steps += 1;
+      // The person's row names no editor, so its time alone says whether this is the same bout of editing.
+      continues &&= justWritten(now.updated_at);
       writes.push(q(
         `UPDATE person SET ${changed.map((c) => `${c} = ?`).join(', ')}, updated_at = ? WHERE id = ?`,
         ...changed.map((c) => next[c]), nowIso(), id,
       ));
     }
-    return { writes, result: { revision: revision + steps, fieldIds } satisfies SavedEdit };
+    return { writes, continues, result: { revision: revision + steps, fieldIds } satisfies SavedEdit };
   });
 }
 
@@ -257,8 +274,8 @@ export function addPersonField(tree: string, person: string, f: FieldInput, op: 
       writes: [
         personExists(person),
         guard('(SELECT count(*) FROM person_field WHERE person = ?) = ?', person, at?.n ?? 0),
-        q('INSERT INTO person_field (id, person, type, label, value, ord, visibility, owner, created_by, created_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          fid, person, f.type, f.label, JSON.stringify(storedValue(f.type, f.value)), (at?.last ?? -1) + 1, f.visibility, owner, by, now, by, now),
+        q('INSERT INTO person_field (id, person, type, label, value, ord, visibility, owner, created_by, created_by_name, created_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          fid, person, f.type, f.label, JSON.stringify(storedValue(f.type, f.value)), (at?.last ?? -1) + 1, f.visibility, owner, who.account, by, now, by, now),
       ],
       result: fid,
     };

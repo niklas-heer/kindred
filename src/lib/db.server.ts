@@ -1,6 +1,6 @@
 // A family's data: reads for the pages, and the transaction pattern every change uses. Storage is the
 // async `Db` interface (./store): node:sqlite files on Node, D1 on Cloudflare Workers.
-import { guard, isGuardError, q, store, type Db, type Query, type Result } from './store/index.ts';
+import { guard, isGuard, isGuardError, q, store, type Db, type Query, type Result } from './store/index.ts';
 import type { GParent, GPerson, GUnion, Graph, House, PersonDetail, TreeMeta } from './types';
 import { parseFurther } from './further-given.ts';
 import { photoAge } from './portrait-face.ts';
@@ -43,6 +43,16 @@ export interface Plan<T> {
   after?: (results: Result[]) => Promise<unknown> | unknown;
   /** Undoes work the plan did outside the database (a stored upload) when its batch did not commit. */
   abandon?: () => Promise<unknown> | unknown;
+  /** These writes carry on a change the statistics already counted (an autosave after the last pause), so they do not count again. */
+  continues?: boolean;
+}
+
+let changeListener: ((tree: string) => Promise<unknown> | unknown) | undefined;
+/** Set by the permission checks (auth/guard.server.ts), which know who is changing what. */
+export const onChangeCommitted = (fn: (tree: string) => Promise<unknown> | unknown) => { changeListener = fn; };
+/** A member's write has reached the database: the moment the statistics count it. Never throws. */
+export async function changeCommitted(tree: string): Promise<void> {
+  try { await changeListener?.(tree); } catch {}
 }
 
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
@@ -97,6 +107,8 @@ export async function once<T>(tree: string, op: OpKey | undefined, fn: string, w
       throw e;
     }
     const writes = results.slice(0, plan.writes.length);
+    // Not reached by a replay or a refusal, and a plan with only guards changed nothing.
+    if (!plan.continues && plan.writes.some((w) => !isGuard(w))) await changeCommitted(tree);
     // Old keys are only kept long enough to cover a retry.
     const now = Date.now();
     if (op && now - lastPrune > 3_600_000) {

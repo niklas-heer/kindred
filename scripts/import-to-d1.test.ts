@@ -77,7 +77,7 @@ function populatedFamily(name: string): DatabaseSync {
     INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES ('s1', 'ada', 'memory', 'A ''quoted'' title', 'Body text', 'Ben', '${now}', NULL);
     INSERT INTO place (name, lat, lng, country) VALUES ('Lindby', 54.1, 9.8, 'de');
     INSERT INTO photo (person, mime, key, at) VALUES ('ada', 'image/jpeg', 'photo/ada-1.jpg', '${now}');
-    INSERT INTO person_field (id, person, type, label, value, ord, visibility, created_by, created_at, updated_by, updated_at) VALUES
+    INSERT INTO person_field (id, person, type, label, value, ord, visibility, created_by_name, created_at, updated_by, updated_at) VALUES
       ('f1', 'ada', 'phone', 'mobile', '{"number":"+49 1"}', 0, 'family', 'Ben', '${now}', 'Ben', '${now}'),
       ('f2', 'ada', 'medical', '', '{"text":"Keep private"}', 1, 'editors', 'Ben', '${now}', 'Ben', '${now}');
     INSERT INTO house_succession (house, law, head, heir, country) VALUES ('h1', 'seniority', 'ada', 'ben', 'DE');

@@ -168,7 +168,7 @@ export interface AiAdapter {
  * One search, in a request of its own: the only input is a fixed system prompt and one prompt (the query). No history,
  * no tools, no family data: the caller builds `system` and `prompt` from nothing else. Booked like any call.
  */
-export function isolatedSearch(adapter: AiAdapter, o: { system: string; prompt: string; maxUses?: number; maxTokens?: number; timeoutMs?: number }): Promise<AiReply> {
+export function isolatedSearch(adapter: AiAdapter, o: { system: string; prompt: string; maxUses?: number; maxTokens?: number; timeoutMs?: number; signal?: AbortSignal }): Promise<AiReply> {
   return adapter.complete({
     system: o.system,
     messages: [{ role: 'user', text: o.prompt }],
@@ -176,6 +176,7 @@ export function isolatedSearch(adapter: AiAdapter, o: { system: string; prompt: 
     maxTokens: outputCap(adapter.provider, adapter.model, o.maxTokens ?? 800, adapter.reasoning),
     timeoutMs: o.timeoutMs ?? 45_000,
     webSearch: { maxUses: o.maxUses ?? DEFAULT_SEARCH_USES },
+    ...(o.signal && { signal: o.signal }),
   });
 }
 

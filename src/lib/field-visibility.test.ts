@@ -317,6 +317,149 @@ test('removing a member deletes their personal items and nothing else', async ()
   assert.ok(await has('cid-fam'));
 });
 
+test('removing a member deletes their assistant chats and kept pictures in that family, and nobody else’s', async () => {
+  const gone = id(8);
+  const accounts = store.accounts();
+  await accounts.run('INSERT INTO user (id, name, handle, created) VALUES (?, ?, ?, ?)', gone, gone, 'h-gone', Date.now());
+  await accounts.run('INSERT INTO membership (user, tree, role, created) VALUES (?, ?, ?, ?)', gone, TREE, 'editor', Date.now());
+  for (const [chat, user] of [['chat-gone', gone], ['chat-kept', AUTHOR]] as const) {
+    await accounts.run('INSERT INTO ai_chat (id, tree, user, conv, role, body, at) VALUES (?, ?, ?, ?, ?, ?, ?)', chat, TREE, user, 'c', 'user', '{}', 1);
+    await accounts.run('INSERT INTO ai_chat_image (id, item, tree, user, mime, data, at) VALUES (?, ?, ?, ?, ?, ?, ?)', `img-${chat}`, chat, TREE, user, 'image/png', 'AA', 1);
+    await accounts.run('INSERT INTO ai_thread (tree, user, conv, created, updated) VALUES (?, ?, ?, ?, ?)', TREE, user, 'c', 1, 1);
+  }
+  as(STEWARD);
+  await authFns.removeMember({ data: { tree: TREE, user: gone } });
+  for (const table of ['ai_chat', 'ai_chat_image', 'ai_thread']) {
+    const left = await accounts.all<{ user: string }>(`SELECT user FROM ${table} WHERE tree = ?`, TREE);
+    assert.deepEqual(left.map((r) => r.user), [AUTHOR], table);
+  }
+});
+
+test('a field with no recorded author cannot be made personal by anyone: the save is refused and the field stays where it was', async () => {
+  await addRow('sh-fam', 'dee', 'notes', { text: 'her number' }, 'family');
+  await addRow('sh-ed', 'dee', 'medical', { note: 'allergy' }, 'editors');
+  as(OTHER_EDITOR);
+  const snap = await fns.getEditSnapshot({ data: { tree: TREE, id: 'dee' } });
+  for (const target of ['sh-fam', 'sh-ed']) {
+    await assert.rejects(
+      fns.savePersonEdit({ data: { tree: TREE, id: 'dee', details: details(snap), fields: inputs(snap).map((f) => (f.id === target ? { ...f, visibility: 'personal' as const } : f)), revision: snap.revision, opKey: opKey() } }),
+      /Only the person who added/,
+    );
+  }
+  const row = (fid: string) => dbs.db(TREE).get<{ visibility: string; owner: string | null }>('SELECT visibility, owner FROM person_field WHERE id = ?', fid);
+  assert.deepEqual({ ...(await row('sh-fam')) }, { visibility: 'family', owner: null });
+  assert.deepEqual({ ...(await row('sh-ed')) }, { visibility: 'editors', owner: null });
+});
+
+test('a new field may start personal, and its author can go on editing it at that level', async () => {
+  as(OTHER_EDITOR);
+  let snap = await fns.getEditSnapshot({ data: { tree: TREE, id: 'dee' } });
+  const saved = await fns.savePersonEdit({ data: { tree: TREE, id: 'dee', details: details(snap), fields: [...inputs(snap), { type: 'notes', label: '', value: { text: 'mine' }, visibility: 'personal' as const }], revision: snap.revision, opKey: opKey() } });
+  const fid = saved.fieldIds.at(-1)!;
+  snap = await fns.getEditSnapshot({ data: { tree: TREE, id: 'dee' } });
+  await fns.savePersonEdit({ data: { tree: TREE, id: 'dee', details: details(snap), fields: inputs(snap).map((f) => (f.id === fid ? { ...f, value: { text: 'mine, longer' } } : f)), revision: snap.revision, opKey: opKey() } });
+  assert.deepEqual({ ...(await dbs.db(TREE).get('SELECT visibility, owner, value FROM person_field WHERE id = ?', fid)) }, { visibility: 'personal', owner: OTHER_EDITOR, value: '{"text":"mine, longer"}' });
+  await fns.deletePersonField({ data: { tree: TREE, id: fid, opKey: opKey() } });
+});
+
+const levelOf = (fid: string) => dbs.db(TREE).get<{ visibility: string; owner: string | null; created_by: string | null }>('SELECT visibility, owner, created_by FROM person_field WHERE id = ?', fid);
+const saveLevel = async (person: string, fid: string, visibility: 'personal' | 'editors' | 'family', text?: string) => {
+  const snap = await fns.getEditSnapshot({ data: { tree: TREE, id: person } });
+  return fns.savePersonEdit({ data: { tree: TREE, id: person, details: details(snap), fields: inputs(snap).map((f) => (f.id === fid ? { ...f, visibility, value: text ? { text } : f.value } : f)), revision: snap.revision, opKey: opKey() } });
+};
+const addShared = async (person: string, text: string) => {
+  const snap = await fns.getEditSnapshot({ data: { tree: TREE, id: person } });
+  const saved = await fns.savePersonEdit({ data: { tree: TREE, id: person, details: details(snap), fields: [...inputs(snap), { type: 'notes' as const, label: '', value: { text }, visibility: 'family' as const }], revision: snap.revision, opKey: opKey() } });
+  return saved.fieldIds.at(-1)!;
+};
+const ONLY_AUTHOR = /Only the person who added/;
+
+test('a new field auto-saved at the default level can still be made personal by its author, and the read says so without naming them', async () => {
+  as(AUTHOR);
+  g.__signedIn = { id: AUTHOR, name: 'Anna Author' };
+  const fid = await addShared('eli', 'typed before the lock');
+  const snap = await fns.getEditSnapshot({ data: { tree: TREE, id: 'eli' } });
+  assert.equal(snap.fields.find((f) => f.id === fid)?.authored, true);
+  assert.equal(JSON.stringify(snap.fields.find((f) => f.id === fid)).includes(AUTHOR), false, 'the account itself is never sent');
+  await saveLevel('eli', fid, 'personal');
+  assert.deepEqual({ ...(await levelOf(fid)) }, { visibility: 'personal', owner: AUTHOR, created_by: AUTHOR });
+  await fns.deletePersonField({ data: { tree: TREE, id: fid, opKey: opKey() } });
+});
+
+test('its author can share a personal field and lock it again, and the author is never rewritten', async () => {
+  as(AUTHOR);
+  const snap = await fns.getEditSnapshot({ data: { tree: TREE, id: 'eli' } });
+  const saved = await fns.savePersonEdit({ data: { tree: TREE, id: 'eli', details: details(snap), fields: [...inputs(snap), { type: 'notes' as const, label: '', value: { text: 'mine' }, visibility: 'personal' as const }], revision: snap.revision, opKey: opKey() } });
+  const fid = saved.fieldIds.at(-1)!;
+  await saveLevel('eli', fid, 'family');
+  assert.deepEqual({ ...(await levelOf(fid)) }, { visibility: 'family', owner: null, created_by: AUTHOR });
+  await saveLevel('eli', fid, 'personal');
+  assert.deepEqual({ ...(await levelOf(fid)) }, { visibility: 'personal', owner: AUTHOR, created_by: AUTHOR });
+  await fns.deletePersonField({ data: { tree: TREE, id: fid, opKey: opKey() } });
+});
+
+test('re-saving someone else’s field grants nothing: that editor is refused Personal and the author stays', async () => {
+  as(AUTHOR);
+  const fid = await addShared('eli', 'theirs');
+  as(OTHER_EDITOR);
+  await saveLevel('eli', fid, 'family', 'theirs, corrected');
+  const snap = await fns.getEditSnapshot({ data: { tree: TREE, id: 'eli' } });
+  assert.equal(snap.fields.find((f) => f.id === fid)?.authored, false);
+  await assert.rejects(saveLevel('eli', fid, 'personal'), ONLY_AUTHOR);
+  assert.deepEqual({ ...(await levelOf(fid)) }, { visibility: 'family', owner: null, created_by: AUTHOR });
+  as(STEWARD);
+  await assert.rejects(saveLevel('eli', fid, 'personal'), ONLY_AUTHOR, 'a steward does not take it over either');
+  as(AUTHOR);
+  await fns.deletePersonField({ data: { tree: TREE, id: fid, opKey: opKey() } });
+});
+
+test('an older personal field with no recorded author stays its owner’s, and once shared it cannot be locked again', async () => {
+  await addRow('old-own', 'eli', 'notes', { text: 'older' }, 'personal', OTHER_EDITOR);
+  as(OTHER_EDITOR);
+  await saveLevel('eli', 'old-own', 'personal', 'older, edited');
+  await saveLevel('eli', 'old-own', 'family');
+  assert.deepEqual({ ...(await levelOf('old-own')) }, { visibility: 'family', owner: null, created_by: null });
+  await assert.rejects(saveLevel('eli', 'old-own', 'personal'), ONLY_AUTHOR);
+  await fns.deletePersonField({ data: { tree: TREE, id: 'old-own', opKey: opKey() } });
+});
+
+test('removing a member deletes only what they created: a personal row naming someone else as its author stays', async () => {
+  const gone = id(9);
+  await store.accounts().run('INSERT INTO user (id, name, handle, created) VALUES (?, ?, ?, ?)', gone, gone, 'h-gone9', Date.now());
+  await store.accounts().run('INSERT INTO membership (user, tree, role, created) VALUES (?, ?, ?, ?)', gone, TREE, 'editor', Date.now());
+  as(gone);
+  const shared = await addShared('cid', 'they shared this');
+  await dbs.db(TREE).run("INSERT INTO person_field (id, person, type, label, value, visibility, owner, created_by) VALUES ('not-theirs', 'cid', 'notes', '', '{}', 'personal', ?, ?)", gone, AUTHOR);
+  await dbs.db(TREE).run("INSERT INTO person_field (id, person, type, label, value, visibility, owner, created_by) VALUES ('theirs', 'cid', 'notes', '', '{}', 'personal', ?, ?)", gone, gone);
+  as(STEWARD);
+  await authFns.removeMember({ data: { tree: TREE, user: gone } });
+  assert.equal(await has('theirs'), false);
+  assert.ok(await has('not-theirs'), 'someone else created it');
+  assert.ok(await has(shared), 'a shared field outlives its author');
+  await dbs.db(TREE).run("DELETE FROM person_field WHERE id = 'not-theirs'");
+});
+
+test('the level picker offers Personal only where the server takes it, and says why', async () => {
+  const { renderToString } = await import('react-dom/server');
+  const { createElement } = await import('react');
+  const { VisibilityPicker } = await load<typeof import('../components/fields/VisibilityMark.tsx')>('/src/components/fields/VisibilityMark.tsx');
+  const onChange = () => {};
+  const radios = (html: string) => html.split('role="radio"').length - 1;
+  const saved = renderToString(createElement(VisibilityPicker, { value: 'family', onChange, personal: false }));
+  assert.equal(radios(saved), 2);
+  assert.match(saved, /Only the person who added/);
+  const fresh = renderToString(createElement(VisibilityPicker, { value: 'family', onChange }));
+  assert.equal(radios(fresh), 3);
+  assert.doesNotMatch(fresh, /Only the person who added/);
+});
+
+test('the command palette does not offer a guest Contacts', async () => {
+  const { commandsForReader } = await load<typeof import('../components/Palette.tsx')>('/src/components/Palette.tsx');
+  const cmds = [{ key: 'atlas' }, { key: 'contacts' }];
+  assert.deepEqual(commandsForReader(cmds, true), [{ key: 'atlas' }]);
+  assert.deepEqual(commandsForReader(cmds, false), cmds);
+});
+
 test('the database refuses a personal row without an owner', async () => {
   await assert.rejects(addRow('bad', 'ada', 'notes', { text: 'x' }, 'personal', null));
   await assert.rejects(addRow('bad2', 'ada', 'notes', { text: 'x' }, 'family', AUTHOR));

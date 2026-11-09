@@ -81,7 +81,7 @@ for (const file of files) {
   for (const p of t.places ?? []) place.run(p.name, p.lat, p.lng, p.country ?? null);
 
   // Person fields: the contacts in the family's order, then the favourite things after them (as migration 0003 laid them out).
-  const field = db.prepare('INSERT INTO person_field (id, person, type, label, value, ord, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  const field = db.prepare('INSERT INTO person_field (id, person, type, label, value, ord, created_by_name, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
   const ords = new Map<string, number>();
   let fields = 0;
   for (const c of t.contacts) {

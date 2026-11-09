@@ -32,7 +32,7 @@ export const FAMILY_ERR = {
 } as const;
 
 export interface FamilyRow extends FamilyPerson {
-  /** The retry key of this person's step (a random id per row, kept until the row changes). */
+  /** The retry key of this person's step (from the card and the row's content, so every session sends the same one). */
   key: string;
   /** Someone already in the tree: no one is created, and this row's new details go on them. */
   existing?: string;
@@ -287,7 +287,8 @@ export async function applyFamilyBatch(o: { tree: string; user: string; author: 
         const s = story;
         const author = teller ? [teller.given, teller.surname].filter(Boolean).join(' ') : o.author;
         const context = teller ? c('ai.famStoryContext', { name: o.author }) : null;
-        await once(tree, { key: `${row.key}s`, user, payload: { person: id, ...s } }, 'aiFamilyStory', () => ({
+        // The fingerprint is what was approved, not the note worded in this reader's language: the same approval from a device in another language is a replay.
+        await once(tree, { key: `${row.key}s`, user, payload: { person: id, story: row.story ?? null, unsure } }, 'aiFamilyStory', () => ({
           writes: [q('INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             crypto.randomUUID(), id, s.kind, s.title || null, s.body, author, new Date().toISOString(), context)],
           result: undefined,

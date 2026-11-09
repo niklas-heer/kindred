@@ -416,4 +416,63 @@ test('photos: a details card changes only what it says, an album card keeps each
 
   const noLook = await tools.runTool(ctx, 'describe_photo', { key: 'gallery/p1.jpg' }, out);
   assert.match(noLook, /Looking at pictures is off/, 'without the faces feature the assistant works from the details only');
+  const third = await tools.runTool({ ...ctx, faces: true, images: [], looks: 2 }, 'describe_photo', { key: 'gallery/p1.jpg' }, out);
+  assert.match(third, /Only two pictures/, 'the limit is per reply: the list of pictures is emptied after every step, the count is not');
+});
+
+test('one draft approved from two sessions, even in two languages, writes once', async () => {
+  const { approvalKeys } = await load<typeof import('../components/assistant/approval-keys.ts')>('/src/components/assistant/approval-keys.ts');
+  const { once } = await load<typeof import('./db.server.ts')>('/src/lib/db.server.ts');
+  const proposalId = crypto.randomUUID();
+  const row = { ref: 'n1', given: 'Mina', surname: 'Twice', born: '1950', living: true, story: { kind: 'memory' as const, title: 'Pier', body: 'She fished.' }, unsure: ['maybe a Vogel'] };
+  const link = { anchor: 'ingrid', person: 'n1', relation: 'sibling' as const };
+  // Each session has its own freshly mounted card: nothing is shared between them except the stored proposal.
+  const session = () => {
+    const keys = approvalKeys(proposalId);
+    return { people: [{ ...row, key: keys.for('person:n1', row) }], links: [{ ...link, key: keys.for('link:l0', link) }] };
+  };
+  const run = (locale: string) => family.applyFamilyBatch({ tree: TREE, user: 'u-twice', author: 'Anna', role: 'editor', locale, batch: session() });
+  const people = await countPeople();
+  const count = async (sql: string) => (await db(TREE).get<{ n: number }>(sql))!.n;
+  const stories = () => count("SELECT count(*) AS n FROM story WHERE body LIKE 'She fished.%'");
+  const first = await run('en');
+  const second = await run('de');
+  assert.ok(first.people[0].id, JSON.stringify(first));
+  assert.equal(second.people[0].error, undefined, 'the second session replays rather than being refused');
+  assert.equal(second.people[0].id, first.people[0].id);
+  assert.ok(second.links[0].ok, JSON.stringify(second.links));
+  assert.equal(await countPeople(), people + 1, 'one person');
+  assert.equal(await stories(), 1, 'one memory');
+
+  // A card that is not a family draft: the same args from two sessions are one change.
+  const args = { person: 'hans', kind: 'memory', body: 'One card, two tabs.' };
+  let wrote = 0;
+  const approve = () => once(TREE, { key: approvalKeys(proposalId).for('add-story', args), user: 'u-twice', payload: args }, 'addStory', () => {
+    wrote++;
+    return { writes: [], result: 'stored' };
+  });
+  assert.equal(await approve(), 'stored');
+  assert.equal(await approve(), 'stored');
+  assert.equal(wrote, 1, 'the second session replays the first');
+});
+
+test('a field the assistant adds from a family draft records the editor who approved it as its author', async () => {
+  const out = await family.applyFamilyBatch({
+    tree: TREE, user: 'u-approver', author: 'Anna', role: 'editor',
+    batch: { people: [{ key: key('field-author'), ref: 'n1', given: 'Berta', surname: 'Braun', living: true, social: [{ network: 'Mastodon', handle: 'berta_b' }] }], links: [] },
+  });
+  const row = await db(TREE).get<{ created_by: string | null; created_by_name: string }>('SELECT created_by, created_by_name FROM person_field WHERE person = ?', out.people[0].id!);
+  assert.deepEqual({ ...row }, { created_by: 'u-approver', created_by_name: 'Anna' });
+});
+
+test('a link is the same link whether or not this tab has already added its row', async () => {
+  const { linkIdentity, linksToSend } = await load<typeof import('../components/assistant/family-draft.ts')>('/src/components/assistant/family-draft.ts');
+  const row = (ref: string, extra: object = {}) => ({ ref, given: ref, living: true, status: 'todo' as const, ...extra });
+  const link = { uid: 'l0', anchor: 'n1', person: 'n2', relation: 'partner' as const, status: 'todo' as const };
+  const addedHere = [row('n1', { status: 'done', id: 'real-id' }), row('n2')];
+  const notAddedHere = [row('n1'), row('n2')];
+  const sent = (rows: typeof addedHere, sending: string[]) => linksToSend(rows as never, [link] as never, new Set(), new Set(sending))[0].payload;
+  assert.notDeepEqual(sent(addedHere, ['n2']), sent(notAddedHere, ['n1', 'n2']), 'what is sent differs between the two tabs');
+  assert.deepEqual(linkIdentity(addedHere as never, link as never), linkIdentity(notAddedHere as never, link as never), 'the identity behind the key does not');
+  assert.notDeepEqual(linkIdentity([row('n1', { existing: 'ada' }), row('n2')] as never, link as never), linkIdentity(notAddedHere as never, link as never), 'pointing a row at someone in the tree is another link');
 });

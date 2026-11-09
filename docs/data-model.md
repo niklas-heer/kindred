@@ -62,7 +62,7 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
 - **`place`**: a place name with coordinates and a country, for the Atlas.
 - **`photo`**: each person's portrait: `person`, `mime`, `key` (where the picture is in media storage) and, only for
   pictures saved before media storage, `data`.
-- **`person_field`**: one row per field: `type` (phone, email, address, website, social, names, dates, education,
+- **`person_field`**: one row per field, with `created_by` (the account that created it, which alone may make it personal; NULL before migration 0022) and `created_by_name` (the name shown): `type` (phone, email, address, website, social, names, dates, education,
   occupation, military, religion, nationality, languages, medical, allergies, favourites, gifts, notes, related, custom),
   `label`, `value` (JSON, the shape depends on the type), `ord`, and `private` (1 for editors and stewards only).
 - **`album`**, **`media`**, **`media_person`**: the gallery. `media.key` is the picture's key in media storage, `taken` is

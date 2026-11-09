@@ -87,6 +87,8 @@ Kindred separates three things, and they behave differently.
 | **Editors** (a pen) | Editors and stewards. This is what "private" used to mean, and addresses, medical notes and allergies start here. |
 | **Family** (two people) | Every member of the family, including viewers and contributors. Not a guest with a share link. |
 
+Only the account that created a field can make it Personal, or make it Personal again after sharing it. Nobody can take over a field someone else created, because it would vanish for everyone else and be deleted when that member is removed. Fields from before authors were recorded (migration 0022) can't be made Personal.
+
 The rule is one file, `src/lib/visibility.ts`, and the server applies it on every read. Fields that were private before became
 Editors; the others became Family.
 
@@ -97,7 +99,7 @@ web lookup guard, GEDCOM and Markdown exports with their counts, the nightly arc
 seeing their personal items and may remove them, but cannot change them until they can edit again.
 
 **When a member is removed, their personal items are deleted**, and the Access page says so before you confirm. Nobody else could ever read or remove them, so keeping them would leave
-data in the family that no one can reach. Removing a person from the tree removes all their fields, personal ones included.
+data in the family that no one can reach. Their assistant chats in that family, with any pictures kept in them, are deleted at the same time, so inviting them back does not bring those back. Removing a person from the tree removes all their fields, personal ones included.
 
 Personal does not mean encrypted. Whoever runs the server can read it in a copy of the database: **a database backup contains personal items**. The move to
 Cloudflare with `scripts/import-to-d1.ts` leaves them behind, because accounts are not copied and the target would have no one to show them to.

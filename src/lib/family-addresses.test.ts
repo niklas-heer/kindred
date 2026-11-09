@@ -30,7 +30,7 @@ const TREE = 'share';
   d.exec(`INSERT INTO partnership (id, a, b, kind, end, end_reason) VALUES ('u2', 'ex', 'me', 'marriage', '2001', 'divorce')`);
   d.exec(`INSERT INTO parent (child, parent) VALUES ('me', 'mum'), ('sis', 'mum'), ('gone', 'mum'), ('kid', 'me')`);
   const add = (id: string, who: string, street: string, level = 'family', type = 'address', owner: string | null = null) =>
-    d.exec(`INSERT INTO person_field (id, person, type, label, value, ord, visibility, owner, created_by, updated_by) VALUES ('${id}', '${who}', '${type}', 'home', '${JSON.stringify(type === 'address' ? { street, postcode: '1000', city: 'Town', country: '' } : { number: street })}', 0, '${level}', ${owner ? `'${owner}'` : 'NULL'}, 'Seed', 'Seed')`);
+    d.exec(`INSERT INTO person_field (id, person, type, label, value, ord, visibility, owner, created_by_name, updated_by) VALUES ('${id}', '${who}', '${type}', 'home', '${JSON.stringify(type === 'address' ? { street, postcode: '1000', city: 'Town', country: '' } : { number: street })}', 0, '${level}', ${owner ? `'${owner}'` : 'NULL'}, 'Seed', 'Seed')`);
   add('a1', 'wife', 'Open Lane 1');
   add('a2', 'kid', 'Open Lane 1');
   add('a3', 'mum', 'Secret Road 2', 'editors');

@@ -83,6 +83,7 @@ async function runTurn(conv: string, tree: string, body: unknown): Promise<TurnO
 
 interface Interrupted { conv: string; id: string; text: string; keep?: boolean }
 const storeKey = (tree: string) => `kindred.ai.inflight.${tree}`;
+export const interruptedKey = storeKey;
 function readInterrupted(tree: string): Interrupted[] {
   try {
     return JSON.parse(sessionStorage.getItem(storeKey(tree)) ?? '[]') as Interrupted[];
@@ -97,6 +98,8 @@ function writeInterrupted(tree: string, list: Interrupted[]) {
 }
 const remember = (tree: string, entry: Interrupted) => writeInterrupted(tree, [...readInterrupted(tree).filter((x) => x.id !== entry.id), entry]);
 const forget = (tree: string, id: string) => writeInterrupted(tree, readInterrupted(tree).filter((x) => x.id !== id));
+/** The reader took this message back to change it, so a reload must not offer the old text again. */
+export const forgetInterrupted = forget;
 
 /** After a reload: what was being written when the page went away comes back as a message to retry. Pictures do not survive it. */
 export function restoreInterrupted(tree: string, locale: Locale): void {

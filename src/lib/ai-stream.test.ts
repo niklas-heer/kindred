@@ -17,7 +17,7 @@ process.env.KINDRED_SECRET = 'ai-stream-test-secret';
 const vite = await createServer({ root: process.cwd(), logLevel: 'error', server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom' });
 const load = <T>(path: string) => vite.ssrLoadModule(path) as Promise<T>;
 const { openSqlite, closeAccounts } = await load<typeof import('./store/node.ts')>('/src/lib/store/node.ts');
-const { accounts } = await load<typeof import('./auth/store.server.ts')>('/src/lib/auth/store.server.ts');
+const { accounts, q } = await load<typeof import('./auth/store.server.ts')>('/src/lib/auth/store.server.ts');
 const { makeAdapter, AiError } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
 const settings = await load<typeof import('./ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
 const chat = await load<typeof import('./ai/chat.server.ts')>('/src/lib/ai/chat.server.ts');
@@ -26,7 +26,7 @@ const setup = await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/t
 const { chatEventStream } = await load<typeof import('./ai/chat-stream.server.ts')>('/src/lib/ai/chat-stream.server.ts');
 const { claimTurn, TURN_LEASE_MS } = await load<typeof import('./ai/turn-lease.server.ts')>('/src/lib/ai/turn-lease.server.ts');
 const { encodeEvent, KEEP_ALIVE, sseData, stepLabel } = await load<typeof import('./ai/stream.ts')>('/src/lib/ai/stream.ts');
-const { readTurn } = await load<typeof import('../components/assistant/useChatStream.ts')>('/src/components/assistant/useChatStream.ts');
+const { forgetInterrupted, interruptedKey, readTurn } = await load<typeof import('../components/assistant/useChatStream.ts')>('/src/components/assistant/useChatStream.ts');
 const { tr } = await load<typeof import('./ai/labels.ts')>('/src/lib/ai/labels.ts');
 
 const PRICE = { inPerM: 1, outPerM: 1, searchEach: 0.01 };
@@ -338,4 +338,70 @@ test('a continuation streams, and one stopped leaves the decisions to be told ag
   assert.equal(seen.at(-1).type, 'done');
   assert.ok(seen.some((e) => e.type === 'delta'), 'the continuation streams');
   assert.match(seen.at(-1).items[0].text, /Fake continuation/);
+});
+
+const leaseAt = async (conv: string) => (await accounts().get<{ at: number }>('SELECT at FROM ai_turn WHERE conv = ?', conv))?.at;
+const until = async (ok: () => boolean | Promise<boolean>) => {
+  for (let i = 0; i < 100 && !(await ok()); i++) await new Promise((d) => setTimeout(d, 10));
+};
+
+test('a turn that lost its lease is stopped and stores nothing: only the holder stores', async () => {
+  const conv = await threads.newThread(TREE, USER);
+  const stalled = collect(send(conv, 'FAKE-SLOW the first turn, which stalls'));
+  await new Promise((d) => setTimeout(d, 60));
+  // The first turn has gone quiet past the lease, so a message from another tab is admitted.
+  await accounts().run('UPDATE ai_turn SET at = ? WHERE conv = ?', Date.now() - TURN_LEASE_MS - 1, conv);
+  const holder = await collect(send(conv, 'the second turn'));
+  assert.equal(holder.at(-1).type, 'done');
+  const first = await stalled;
+  assert.equal(first.at(-1).type, 'error');
+  assert.equal(first.at(-1).code, 'busy', 'the turn that lost the chat is told so');
+  const rows = await accounts().all<{ role: string; body: string }>('SELECT role, body FROM ai_chat WHERE conv = ? ORDER BY at, rowid', conv);
+  assert.equal(rows.length, 2, 'the stale turn stored nothing');
+  assert.equal((JSON.parse(rows[0].body) as { text: string }).text, 'the second turn');
+});
+
+test('a batch fenced by a lease is refused once another turn holds the chat', async () => {
+  const conv = uuid();
+  const lease = (await claimTurn(conv))!;
+  await accounts().batch([lease.fence(), q('INSERT INTO ai_turn (conv, claim, at) VALUES (?, ?, ?)', `${conv}-held`, 'x', 1)]);
+  assert.equal(await leaseAt(`${conv}-held`), 1, 'the holder stores');
+  await accounts().run('UPDATE ai_turn SET claim = ? WHERE conv = ?', 'another turn', conv);
+  await assert.rejects(accounts().batch([lease.fence(), q('INSERT INTO ai_turn (conv, claim, at) VALUES (?, ?, ?)', `${conv}-stale`, 'x', 1)]), /kindred:guard/);
+  assert.equal(await leaseAt(`${conv}-stale`), undefined, 'a stale turn stores nothing');
+  assert.equal(await lease.held(), false);
+});
+
+test('a lease renews by itself while a turn is silent, and stops when released', async () => {
+  const conv = uuid();
+  const lease = (await claimTurn(conv, Date.now(), 5))!;
+  await accounts().run('UPDATE ai_turn SET at = 1 WHERE conv = ?', conv);
+  await until(async () => (await leaseAt(conv)) !== 1);
+  assert.notEqual(await leaseAt(conv), 1, 'no text and no tool result is needed for it to stay alive');
+  await lease.release();
+  assert.equal(await leaseAt(conv), undefined);
+});
+
+test('a heartbeat that finds another claim stops its turn', async () => {
+  const conv = uuid();
+  const lease = (await claimTurn(conv, Date.now(), 5))!;
+  await accounts().run('UPDATE ai_turn SET claim = ? WHERE conv = ?', 'another turn', conv);
+  await until(() => lease.signal.aborted);
+  assert.ok(lease.signal.aborted, 'the zero-row update was noticed');
+  assert.equal((lease.signal.reason as InstanceType<typeof AiError>).code, 'busy');
+  await lease.release();
+  assert.equal(await leaseAt(conv) !== undefined, true, 'releasing a lost lease leaves the new holder alone');
+});
+
+test('Edit on an interrupted message drops its record, so a reload does not bring the old text back', () => {
+  const data = new Map<string, string>();
+  (globalThis as any).sessionStorage = { getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => data.set(k, v), removeItem: (k: string) => data.delete(k) };
+  try {
+    const key = interruptedKey(TREE);
+    data.set(key, JSON.stringify([{ conv: 'c', id: 'edited', text: 'old text', keep: false }, { conv: 'c', id: 'other', text: 'kept', keep: false }]));
+    forgetInterrupted(TREE, 'edited');
+    assert.deepEqual((JSON.parse(data.get(key)!) as { id: string }[]).map((x) => x.id), ['other']);
+  } finally {
+    delete (globalThis as any).sessionStorage;
+  }
 });

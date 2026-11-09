@@ -43,6 +43,21 @@ export function sendable(v: EditValues, saved: EditValues, today: string): { val
   return { values: out, held };
 }
 
+/** Whether Personal can be chosen for a field: the browser's side of `mayBePersonal` (visibility.ts). A field not saved yet will be the reader's own. */
+export const offersPersonal = (f: Pick<DraftField, 'id' | 'authored' | 'visibility'>) => !f.id || !!f.authored || f.visibility === 'personal';
+
+/**
+ * The draft with no saved field asking to be personal when the server would refuse it. Undo can ask for it by taking back the
+ * sharing of a field with no recorded author. Such a field keeps the level it has now. Returns `v` itself if nothing changes.
+ */
+export function keepShared(v: EditValues, saved: EditValues): EditValues {
+  const held = new Map(saved.fields.flatMap((f) => (f.id ? [[f.id, f] as const] : [])));
+  const heldBy = (f: DraftField) => (f.id ? held.get(f.id) : undefined);
+  const refused = (f: DraftField) => { const was = heldBy(f); return f.visibility === 'personal' && !!was && !offersPersonal(was); };
+  if (!v.fields.some(refused)) return v;
+  return { ...v, fields: v.fields.map((f) => (refused(f) ? { ...f, visibility: heldBy(f)!.visibility } : f)) };
+}
+
 /** The scalars and the fields as the server's save takes them. */
 export function wireOf(v: EditValues) {
   return {

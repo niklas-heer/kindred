@@ -4,6 +4,8 @@
 import assert from 'node:assert/strict';
 import { db, once } from '../db.server.ts';
 import { setHouseMembers } from '../houses.server.ts';
+import { addPersonField, editSnapshot, savePersonEdit } from '../person.server.ts';
+import type { Audience } from '../visibility.ts';
 import { guard, isGuardError, isUniqueError, MAX_BOUND_PARAMS, q, store, type Db, type Param } from './index.ts';
 
 export const TREE = 'modern';
@@ -34,6 +36,36 @@ async function failure(work: () => Promise<unknown>): Promise<unknown> {
 }
 
 export const contractCases: Record<string, () => Promise<void>> = {
+  // ---------- who created a field (migration 0022) ----------
+
+  'a field keeps the account that created it through every save, and only that account can make it personal': async () => {
+    const person = uid('p');
+    await tree().batch([addPerson(person)]);
+    const anna: Audience = { account: 'acct-anna', role: 'editor', guest: false };
+    const ben: Audience = { account: 'acct-ben', role: 'editor', guest: false };
+    const fid = await addPersonField(TREE, person, { type: 'notes', label: '', value: { text: 'x' }, visibility: 'family' }, undefined, 'Anna', anna);
+    const save = async (who: Audience, by: string, visibility: 'personal' | 'family', text: string) => {
+      const s = await editSnapshot(TREE, person, who);
+      await savePersonEdit(TREE, person, s, [{ id: fid, type: 'notes', label: '', value: { text }, visibility }], s.revision, undefined, by, who);
+    };
+    const row = () => tree().get('SELECT created_by, created_by_name, updated_by, visibility, owner FROM person_field WHERE id = ?', fid);
+    await save(ben, 'Ben', 'family', 'y');
+    same(await row(), { created_by: 'acct-anna', created_by_name: 'Anna', updated_by: 'Ben', visibility: 'family', owner: null });
+    await assert.rejects(save(ben, 'Ben', 'personal', 'z'), /Only the person who added/);
+    await save(anna, 'Anna', 'personal', 'z');
+    same(await row(), { created_by: 'acct-anna', created_by_name: 'Anna', updated_by: 'Anna', visibility: 'personal', owner: 'acct-anna' });
+  },
+
+  'a field from before authors were recorded has none, and cannot be made personal': async () => {
+    const person = uid('p');
+    const fid = uid('f');
+    await tree().batch([addPerson(person), q("INSERT INTO person_field (id, person, type, label, value, created_by_name) VALUES (?, ?, 'notes', '', '{\"text\":\"x\"}', 'Someone')", fid, person)]);
+    same(await tree().get('SELECT created_by FROM person_field WHERE id = ?', fid), { created_by: null });
+    const who: Audience = { account: 'acct-anna', role: 'editor', guest: false };
+    const s = await editSnapshot(TREE, person, who);
+    await assert.rejects(savePersonEdit(TREE, person, s, [{ id: fid, type: 'notes', label: '', value: { text: 'x' }, visibility: 'personal' }], s.revision, undefined, 'Anna', who), /Only the person who added/);
+  },
+
   // ---------- batches and guards ----------
 
   'a batch whose guards hold runs in order and returns one result per statement': async () => {

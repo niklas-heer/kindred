@@ -75,7 +75,7 @@ test('a change that lands between the check and the write is caught by the batch
         reads++;
         if (!injected) {
           injected = true;
-          await inner.run("INSERT INTO person_field (id, person, type, label, value, ord, visibility, created_by, created_at, updated_by, updated_at) VALUES ('race', 'ada', 'notes', 'Raced', '{\"text\":\"late\"}', 5, 'family', 'Other', '2026-11-08T00:00:00Z', 'Other', '2026-11-08T00:00:00Z')");
+          await inner.run("INSERT INTO person_field (id, person, type, label, value, ord, visibility, created_by_name, created_at, updated_by, updated_at) VALUES ('race', 'ada', 'notes', 'Raced', '{\"text\":\"late\"}', 5, 'family', 'Other', '2026-11-08T00:00:00Z', 'Other', '2026-11-08T00:00:00Z')");
         }
       }
       return row;

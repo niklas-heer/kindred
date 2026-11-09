@@ -18,6 +18,7 @@ import { DatePicker, Select, Switch } from '../ui';
 import { PlaceInput, type PlaceValue } from '../PlaceInput';
 import { AddressFinder } from './AddressFinder';
 import { TYPE_ICON } from './FieldsView';
+import { offersPersonal } from './edit-values';
 import { VisibilityPicker } from './VisibilityMark';
 import type { Visibility } from '~/lib/visibility';
 import { isBlankNew } from './edit-values';
@@ -34,11 +35,13 @@ export interface DraftField {
   label: string;
   value: FieldValue;
   visibility: Visibility;
+  /** The reader created this field (the server's word, or they have just added it). */
+  authored?: boolean;
 }
 
 /** A saved field as a draft: every key of its type present, so the inputs are all controlled. */
-export const draftOf = (f: { id: string; type: FieldType; label: string; value: FieldValue; visibility: Visibility }): DraftField =>
-  ({ key: f.id, id: f.id, type: f.type, label: f.label, value: { ...blankValue(f.type), ...f.value }, visibility: f.visibility });
+export const draftOf = (f: { id: string; type: FieldType; label: string; value: FieldValue; visibility: Visibility; authored?: boolean }): DraftField =>
+  ({ key: f.id, id: f.id, type: f.type, label: f.label, value: { ...blankValue(f.type), ...f.value }, visibility: f.visibility, authored: f.authored });
 
 const newKey = () => `n${Math.random().toString(36).slice(2, 10)}`;
 
@@ -434,7 +437,7 @@ function FieldRowEditor({ tree, f, index, count, fam, self, fixed, focusFirst, o
         {f.type === 'religion' && <LeftFaith value={f.value} onChange={(value) => onChange({ value })} />}
       </div>
 
-      <VisibilityPicker value={f.visibility} onChange={(visibility) => onChange({ visibility })} />
+      <VisibilityPicker value={f.visibility} onChange={(visibility) => onChange({ visibility })} personal={offersPersonal(f)} />
       {issueText && <em className="err fe-issue" role="status">{issueText}</em>}
     </li>
   );

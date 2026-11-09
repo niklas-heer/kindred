@@ -1,4 +1,5 @@
 // The browser's side of passkeys (see passkeys.server.ts and routes/api/auth/$action.ts).
+import { JOURNAL_PREFIX } from '../../components/fields/autosave.ts';
 import type { PublicKeyCredentialCreationOptionsJSON, PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser';
 
 export class AuthRequestError extends Error {
@@ -71,7 +72,7 @@ export const signOutRequest = () => post('signout');
 /** Forgets per-reader state in this browser (who you are in each family), so the next reader starts fresh. */
 export function forgetLocalIdentity() {
   try {
-    for (const k of Object.keys(localStorage)) if (k.startsWith('kindred:me:') || k === 'kindred:last-visit' || k.startsWith('kindred:invite-link:')) localStorage.removeItem(k);
+    for (const k of Object.keys(localStorage)) if (k.startsWith('kindred:me:') || k === 'kindred:last-visit' || k.startsWith('kindred:invite-link:') || k.startsWith('kindred:assistant-tabs:') || k === 'kindred:assistant-unread' || k.startsWith(JOURNAL_PREFIX)) localStorage.removeItem(k);
   } catch {}
 }
 

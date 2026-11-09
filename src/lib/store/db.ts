@@ -55,6 +55,9 @@ export const GUARD_MESSAGE = 'kindred:guard';
 /** A batch statement that aborts the batch unless `condition` (an SQL expression) is true. */
 export const guard = (condition: string, ...params: Param[]): Query => q(`INSERT INTO guard (ok) SELECT CASE WHEN (${condition}) THEN 1 ELSE 0 END`, ...params);
 
+/** Whether a statement of a batch is a guard, which checks something and writes nothing. */
+export const isGuard = (query: Query) => query.sql.startsWith('INSERT INTO guard ');
+
 /** Whether a failed batch was stopped by a guard. */
 export const isGuardError = (e: unknown) => e instanceof Error && (e.message.includes(GUARD_MESSAGE) || String((e as { cause?: unknown }).cause ?? '').includes(GUARD_MESSAGE));
 

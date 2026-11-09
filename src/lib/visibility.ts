@@ -4,6 +4,10 @@
 //   personal  only the account that added it. Not a steward, not the assistant, not an export.
 //   editors   editors and stewards.
 //   family    every member of the family. A share-link guest is not a member and sees no field at all.
+//
+// Only the account that created a field may make it personal, or personal again after sharing it (`mayBePersonal`): a personal
+// field has one reader and goes when that account is removed, so nobody can take over someone else's. A field with no recorded
+// author (from before authors were recorded) cannot be made personal.
 import { can, type Role } from './roles.ts';
 
 export const VISIBILITIES = ['personal', 'editors', 'family'] as const;
@@ -48,3 +52,10 @@ export function maySee(a: Audience, f: { visibility: string; owner: string | nul
   if (f.visibility === 'editors') return can(a.role, 'edit-person');
   return f.visibility === 'personal' && !!a.account && f.owner === a.account;
 }
+
+/**
+ * Whether a field already stored may be saved as personal: when this reader created it, or it is already their own personal
+ * field (one from before authors were recorded). `created_by` is set when the field is created and never changes.
+ */
+export const mayBePersonal = (a: Audience, f: { visibility: string; owner: string | null; created_by: string | null }): boolean =>
+  !!a.account && (f.created_by === a.account || (f.visibility === 'personal' && f.owner === a.account));

@@ -353,9 +353,9 @@ from there. The Reminders dialog says so when it is needed.
 
 ## Upgrades
 
-If you have Cloudflare Access settings (`CF_ACCESS_TEAM_DOMAIN` or `CF_ACCESS_AUD`) from before `KINDRED_AUTH` existed, set `KINDRED_AUTH`
-before or as you upgrade: the site asks you to choose and signs nobody in until you do. See
-[Choosing how people sign in](#choosing-how-people-sign-in). Without those settings there is nothing to do.
+> **If you use Cloudflare Access, set `KINDRED_AUTH=cloudflare-access` before you upgrade.** With `CF_ACCESS_TEAM_DOMAIN` or
+> `CF_ACCESS_AUD` set and no `KINDRED_AUTH`, Kindred refuses to guess: every page of the members' site answers 503 and nobody can
+> sign in until you set it. See [Choosing how people sign in](#choosing-how-people-sign-in). Without those settings there is nothing to do.
 
 With Docker, update the code (`git pull`, or the new release), then rebuild:
 
