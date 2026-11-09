@@ -1,6 +1,7 @@
 // The assistant: a chat window for one family (a full-height sheet on a phone). Questions are answered from the tree's own records;
 // proposed changes arrive as cards that wait for the reader's approval. Mount <AssistantHost /> once in
-// the tree layout (see the report); open it with <AssistantButton /> or openAssistant().
+// the tree layout (Launcher.tsx, which loads this module when the window first opens); open it with <AssistantButton />
+// or openAssistant().
 //
 // A message appears at once and is replaced by the stored turn when the reply comes back. One that does not
 // go stays in the thread with Retry and Edit, and a draft or an unsent message survives closing the drawer.
@@ -30,54 +31,17 @@ import { usePageContext } from './page-context';
 import './widgets/widgets.css';
 import { ASSISTANT_FOCUS, closeAssistant, openAssistant, takeFocusRequest, useAiStatus, useAssistantMinimized, useAssistantOpen } from './store';
 import { ResizeEdges, useChatWindow, useIsPhone, WindowControls } from './useChatWindow';
-import { ChatDock, useTabs } from './ChatDock';
+import { useTabs } from './ChatDock';
 import { ChatList, ChatTabs, chatName } from './ChatList';
 import { finishRun, forgetRun, getRun, patchRun, setFrontChat, useRun, useRunSummary } from './chat-runs';
 import { closeTab, forgetChat, getTabs, openTab, updateTabs, withDraft } from './chat-tabs';
 import { modelName, ModelPicker, RetryModelMenu, type PickedModel } from './ModelPicker';
 import { carryOn, forgetInterrupted, restoreInterrupted, transmit, useChatStream } from './useChatStream';
-import { AiSetupButton, AiSetupDialog } from './AiSetup';
 import { AttachButton, DropVeil, ImageTray, useImageAttach, type Attached } from './attachments';
 import { useDictation } from './dictation';
 import { FamilySession } from './FamilySession';
 import { linkMentions } from './mentions';
 import './assistant.css';
-
-/** Renders the drawer while it is open, and nothing otherwise. Mount once per family, inside the tree layout. Also the "Set up AI" panel. */
-export function AssistantHost({ tree }: { tree: string }) {
-  const open = useAssistantOpen();
-  const minimized = useAssistantMinimized();
-  const phone = useIsPhone();
-  const status = useAiStatus(tree);
-  return (
-    <>
-      <AiSetupDialog tree={tree} />
-      {open && status?.features.assistant ? <AssistantDrawer tree={tree} /> : null}
-      {minimized && !phone && status?.features.assistant ? <ChatDock tree={tree} /> : null}
-    </>
-  );
-}
-
-/**
- * The "Ask" button. Shown only when the assistant is switched on and configured for this family. A steward of a
- * family with no AI key gets "Set up AI" in its place, which opens the panel that explains it.
- */
-export function AssistantButton({ tree, className = '' }: { tree: string; className?: string }) {
-  const t = useT();
-  const status = useAiStatus(tree);
-  const tabs = useTabs(tree);
-  const runs = useRunSummary();
-  if (!status?.features.assistant) return <AiSetupButton tree={tree} className={className} />;
-  // A reply still running, or one waiting to be read, shows on the button: on a phone it is the only place it can.
-  const working = tabs.tabs.some((c) => runs.busy.has(c));
-  const waiting = tabs.tabs.some((c) => runs.unread.has(c));
-  return (
-    <button type="button" className={`btn ai-launch ${className}`} onClick={openAssistant} aria-haspopup="dialog">
-      <Sparkles size={16} aria-hidden /> {t('ai.askButton')}
-      {(working || waiting) && <span className={`ai-run-mark ${working ? 'ai-run-busy' : 'ai-run-unread'}`} role="img" aria-label={t(working ? 'ai.chatRunning' : 'ai.chatUnread')} />}
-    </button>
-  );
-}
 
 /** Joins what was typed and what was heard, with one space between. */
 const joined = (a: string, b: string) => (a.trim() ? `${a.replace(/\s+$/, '')} ${b}` : b);
@@ -109,7 +73,8 @@ const hostOf = (url: string): string => {
   }
 };
 
-function AssistantDrawer({ tree }: { tree: string }) {
+/** The window itself. Loaded on demand by Launcher.tsx, so a page carries none of it until the reader asks. */
+export function AssistantDrawer({ tree }: { tree: string }) {
   const t = useT();
   const locale = toAiLocale(t.locale);
   const navigate = useNavigate();

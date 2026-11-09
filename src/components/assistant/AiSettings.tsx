@@ -18,7 +18,7 @@ import { useTreeId } from '~/lib/family';
 import { locales, translate, useT, type Key, type Locale } from '~/lib/i18n';
 import { useCan } from '~/lib/session';
 import { EmptyState, ErrorState, PageHeader, Range, Select, Skeleton, Switch, type SelectOption } from '~/components/ui';
-import { AssistantButton } from './AssistantDrawer';
+import { AssistantButton } from './Launcher';
 import { PortraitSettings } from './PortraitSettings';
 import { formChanged, formOf, isOn, routeChanged, TASK_OF_ROUTE, type Draft, type FormState } from './settings-form';
 import { BackgroundSettings } from './BackgroundSettings';

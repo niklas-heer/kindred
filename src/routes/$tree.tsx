@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, notFound, Outlet, redirect } from '@tanstack/react-router';
 import { ArrowLeftRight, BarChart3, BookOpen, CalendarHeart, CircleHelp, Contact, FolderSearch, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, SlidersHorizontal, Sparkles, Users, Inbox, MessageSquarePlus } from 'lucide-react';
 import { AccountMenu } from '~/components/AccountMenu';
-import { AssistantButton, AssistantHost } from '~/components/assistant/AssistantDrawer';
+import { AssistantButton, AssistantHost } from '~/components/assistant/Launcher';
 import { useAiSetupNeeded } from '~/components/assistant/AiSetup';
 import { openAiSetup, openAssistant, useAiStatus } from '~/components/assistant/store';
 import { aiStatusQuery } from '~/lib/ai.functions';
