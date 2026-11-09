@@ -207,6 +207,8 @@ function TreePage() {
     (id: string) => {
       setPanel(true);
       panTo.current = id;
+      // Centring from a card (Enter on it) draws the tree again: the focus goes to the same person's new card, not to nowhere.
+      if (document.activeElement?.closest('.world')) focusNext.current = id;
       if (view === 'dynasty' && inLayout(id)) go({ sel: id, focus: id, root: lay.root });
       else go({ focus: id, sel: undefined, root: undefined });
     },
@@ -220,10 +222,13 @@ function TreePage() {
       if (how !== 'click') panTo.current = id;
       panQuiet.current = how === 'key';
       if (how !== 'jump') play('tick', { pitch: how === 'key' ? 0.96 + Math.random() * 0.08 : 1 });
+      if (how === 'key') walkedTo.current(id);
       go({ sel: id === focus ? undefined : id });
     },
     [go, inLayout, refocus, focus],
   );
+  /** Set below, once kinship labels exist: what happens when a key moves the selection to someone. */
+  const walkedTo = useRef<(id: string) => void>(() => {});
   // Toasts keep the handler they were made with; this reads the current one (Undo runs seconds later).
   const selectNow = useRef(select);
   selectNow.current = select;
@@ -355,6 +360,37 @@ function TreePage() {
     ),
     [f, tree, kinOf, sel, who, view, select, refocus, toggle, canAdd, nameMode, ageMode],
   );
+
+  // ---- keyboard: walking the tree is said aloud, and focus goes with the selection ----
+  const [said, setSaid] = useState('');
+  walkedTo.current = (id: string) => {
+    const p = f.byId.get(id);
+    if (!p) return;
+    // To the reader when they have said who they are ("your aunt"), else to the person the selection came from ("mother of Ada").
+    const from = f.byId.get(sel);
+    const step = !who && from && from.id !== id ? kinship(f, from.id, id) : undefined;
+    const kin = id === who ? t('common.you')
+      : who ? (kinOf(id) ? t('shell.palette.yourKin', { kin: kinOf(id)! }) : undefined)
+      : step && step.label !== 'you' ? t('tp.kinOf', { kin: kinshipLabel(step, t.locale), name: from!.given }) : undefined;
+    setSaid(selectionAnnouncement({ name: displayName(p, f), years: lifespan(p, t.locale), kin }));
+    // Focus follows only from the page itself or from another card: arrow keys inside the panel's tabs stay there.
+    const at = document.activeElement;
+    if (!at || at === document.body || at.closest('.world')) focusNext.current = id;
+  };
+  useEffect(() => {
+    const id = focusNext.current;
+    if (!id || id !== sel) return;
+    // The card may be drawn only once the camera has travelled to it: look for it for as long as that flight takes.
+    let frames = 0, raf = 0;
+    const look = () => {
+      const el = page.current?.querySelector<HTMLElement>(`.world [data-person="${CSS.escape(id)}"]`);
+      if (el) { focusNext.current = null; el.focus({ preventScroll: true }); }
+      else if (++frames < 45) raf = requestAnimationFrame(look);
+      else focusNext.current = null;
+    };
+    look();
+    return () => cancelAnimationFrame(raf);
+  }, [sel, lay]);
 
   // ---- keyboard: walk the tree ----
   const spatial = (dir: 'left' | 'right') => {
@@ -834,6 +870,7 @@ function TreePage() {
           </>
         }
       />
+      <div className="sr-only" role="status" aria-live="polite">{said}</div>
       {panel && (
         <div
           ref={sheet}
