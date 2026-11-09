@@ -176,8 +176,8 @@ function ContactsPage() {
                 : noData
                   ? t('con.noneYet')
                   : `${t('con.households', { count: households.length })} · ${t('con.peopleWithDetails', { count: households.reduce((n, h) => n + h.members.length, 0) })}`}
-            </>} actions={<><button className="btn" onClick={downloadAll} disabled={!shown.length} title={t('con.downloadTitle')}>
-            <Download size={16} /> {t('con.downloadVcard')}{shown.length ? ` (${people})` : ''}
+            </>} actions={<><button className="btn" data-keep-label onClick={downloadAll} disabled={!shown.length} title={t('con.downloadTitle')}>
+            <Download size={16} /> <span className="btn-word-long">{t('con.downloadVcard')}</span><span className="btn-word-short">{t('con.downloadVcardShort')}</span>{shown.length ? ` (${people})` : ''}
           </button></>} />
 
         {isPending && <div className="page-loading" aria-busy="true" aria-label={t('con.loadingAria')}>{Array.from({ length: 4 }, (_, i) => <div className="ui-card" key={i} style={{ padding: 20, marginBottom: 12 }}><Skeleton width={48} height={48} radius="50%" /><Skeleton lines={3} /></div>)}</div>}

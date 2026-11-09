@@ -12,7 +12,7 @@
 [data-theme='codex'] .pi-box:focus-within { box-shadow: inset 0 0 0 1px #b8954f2a, var(--focus-ring); }
 .pi-input {
   flex: 1; min-width: 0; height: 100%; padding: 0 6px 0 2px; border: 0; background: none; outline: none;
-  color: var(--text); font-family: var(--font-ui); font-size: 15px;
+  color: var(--text); font-family: var(--font-ui); font-size: var(--fs-3);
 }
 .pi-input::placeholder { color: var(--subtle); }
 .pi-input::-webkit-search-cancel-button { display: none; }
@@ -27,7 +27,7 @@
 .pi-pin[data-placed='true'] svg { fill: color-mix(in srgb, var(--accent) 22%, transparent); }
 .pi-where {
   flex: none; display: inline-flex; align-items: center; gap: 5px; max-width: 45%; padding-right: 9px;
-  color: var(--muted); font-family: var(--font-ui); font-size: 12.5px; white-space: nowrap; overflow: hidden;
+  color: var(--muted); font-family: var(--font-ui); font-size: var(--fs-1); white-space: nowrap; overflow: hidden;
 }
 .pi-where > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .pi-flag { font-size: 14px; line-height: 1; font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; }
@@ -35,7 +35,7 @@
 /* The line under the field: a gentle nudge, never an error. */
 .pi-note {
   display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-height: 22px;
-  color: var(--subtle); font-family: var(--font-ui); font-size: 13px; line-height: 1.35;
+  color: var(--subtle); font-family: var(--font-ui); font-size: var(--fs-2); line-height: 1.35;
 }
 .pi-note > span { margin-right: 2px; }
 .pi-link {
@@ -64,13 +64,13 @@
 .pi-pop .ui-option { white-space: normal; align-items: center; min-height: 40px; }
 .pi-pop .ui-option-icon { width: 22px; font-size: 15px; }
 .pi-pop .ui-option-label { display: grid; line-height: 1.25; }
-.pi-pop .ui-option-label small { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pi-pop .ui-option-label small { color: var(--muted); font-size: var(--fs-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pi-pop .pi-hl { font-weight: 600; }
 .pi-pop .ui-option-hint { white-space: nowrap; }
 .pi-pop .pi-icon-placed { color: var(--accent); }
 .pi-pop .pi-icon-placed svg { fill: color-mix(in srgb, var(--accent) 22%, transparent); }
 .pi-pop .pi-icon-loose { color: var(--subtle); }
-.pi-pop .pi-foot { padding: 6px 10px 4px; color: var(--subtle); font-size: 12px; border-top: 1px solid var(--border); margin-top: 4px; }
+.pi-pop .pi-foot { padding: 6px 10px 4px; color: var(--subtle); font-size: var(--fs-1); border-top: 1px solid var(--border); margin-top: 4px; }
 @media (pointer: coarse) { .pi-pop .ui-option { min-height: 44px; } }
 
 /* ---------- the pin map ---------- */
@@ -116,11 +116,11 @@
 .pm-hint {
   position: absolute; left: 10px; bottom: 10px; max-width: calc(100% - 20px); padding: 4px 10px; border-radius: 999px;
   background: color-mix(in srgb, var(--panel-solid, var(--panel)) 88%, transparent); color: var(--muted);
-  font-family: var(--font-ui); font-size: 12.5px; pointer-events: none;
+  font-family: var(--font-ui); font-size: var(--fs-1); pointer-events: none;
 }
-.pm-attr { position: absolute; right: 8px; bottom: 6px; font-family: var(--font-ui); font-size: 10.5px; color: var(--label); opacity: 0.7; pointer-events: none; }
+.pm-attr { position: absolute; right: 8px; bottom: 6px; font-family: var(--font-ui); font-size: var(--fs-1); color: var(--label); opacity: 0.7; pointer-events: none; }
 .pm-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; }
-.pm-foot .pm-at { margin-right: auto; color: var(--muted); font-family: var(--font-ui); font-size: 13px; font-variant-numeric: tabular-nums; }
+.pm-foot .pm-at { margin-right: auto; color: var(--muted); font-family: var(--font-ui); font-size: var(--fs-2); font-variant-numeric: tabular-nums; }
 @media (max-width: 520px) {
   .pm-map { height: 46vh; }
   .pm-zoom .btn { width: 44px; height: 44px; }

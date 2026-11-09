@@ -81,11 +81,16 @@
 .card.selected .card-portrait { transform: translateY(-2px) scale(1.04); }
 .card.selected .card-portrait::after {
   content: ''; position: absolute; inset: -5px; border-radius: calc(var(--radius) + 5px); pointer-events: none;
-  box-shadow: 0 0 0 2px var(--accent), 0 0 18px 2px color-mix(in srgb, var(--accent) 45%, transparent);
+  /* Screen-constant, so the rim is as clear on name plates as on full cards. */
+  box-shadow: 0 0 0 calc(2px / var(--k, 1)) var(--accent), 0 0 calc(22px / var(--k, 1)) color-mix(in srgb, var(--accent) 40%, transparent);
   animation: settle 260ms cubic-bezier(.2,.8,.2,1);
 }
 @keyframes settle { from { opacity: 0; scale: 1.12; } }
 .slot.is-focus { z-index: 2; }
+/* The person the tree is about is its largest card. Choosing someone else hands the size over. A card is
+   148 wide with 44 between neighbours, so the 9px it gains on each side stays clear of them. */
+.card:is(.near, .mid):not(.ghost) { transform-origin: 50% 60%; transition: scale var(--dur-3, 320ms) var(--ease-out, cubic-bezier(.2,.8,.2,1)); }
+.slot.is-focus .card:is(.near, .mid):not(.ghost) { scale: 1.12; }
 
 /* Paper and Night: the whole card is a tile. */
 [data-theme='modern'] .card.near .card-hit, [data-theme='night'] .card.near .card-hit,
@@ -173,6 +178,9 @@
 .card.mid .card-name, [data-theme='codex'] .card.mid .card-name { font-size: var(--name-mid, 22px); line-height: 1.05; min-height: 2.1em; max-width: 138px; }
 .card.mid .card-plate { width: 146px; padding: 5px 3px 4px; }
 .card.mid .card-years { font-size: 22px; }
+/* Paper and Night: a name outweighs its dates. Garamond at 600 a size up, the dates in Inter a size down. */
+[data-theme='modern'] .card.mid .card-name, [data-theme='night'] .card.mid .card-name { font-size: calc(var(--name-mid, 24px) + 1px); font-weight: 600; }
+[data-theme='modern'] .card.mid .card-years, [data-theme='night'] .card.mid .card-years { font-size: 20.5px; letter-spacing: 0; color: var(--muted); }
 
 /* Far: a shield in the house colour. */
 .card.far {
@@ -234,6 +242,7 @@
 @media (prefers-reduced-motion: reduce) {
   .card-bday.today, .card.selected .card-portrait::after, .add { animation: none; }
   .card-portrait { transition: none; }
+  .card:is(.near, .mid):not(.ghost) { transition: none; }
 }
 
 /* Information needed: a small dashed seal on the plate's corner, counting the gaps. */

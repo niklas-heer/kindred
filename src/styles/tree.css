@@ -5,8 +5,10 @@
 }
 
 /* ---------- HUD: one toolbar row, the house strip attached under it, then the lens chip ---------- */
+/* The toolbar hangs from the top bar with no gap, so no strip of a card can show above it: cards pass
+   behind it as they pass behind the top bar. */
 .hud {
-  position: absolute; top: 12px; left: 72px; right: 16px; z-index: 7;
+  position: absolute; top: 0; left: 72px; right: 16px; z-index: 7;
   display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; transition: left var(--dur-2, 200ms);
   /* The toolbar compacts by the room it has, not by the window: the docked panel takes 400px. */
   container: hud / inline-size;
@@ -23,8 +25,10 @@
   max-width: 100%; min-width: 0;
   display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; padding: 6px;
   box-shadow: var(--shadow);
+  border-top: 0; border-top-left-radius: 0; border-top-right-radius: 0;
 }
-[data-theme='codex'] .tree-toolbar { box-shadow: inset 0 0 0 1px var(--edge-soft), 0 6px 16px #0008; }
+/* The gilt runs down the sides and along the foot; the top edge belongs to the top bar. */
+[data-theme='codex'] .tree-toolbar { box-shadow: inset 1px 0 0 var(--edge-soft), inset -1px 0 0 var(--edge-soft), inset 0 -1px 0 var(--edge-soft), 0 6px 16px #0008; }
 .tree-toolbar .seg { display: flex; flex-wrap: nowrap; gap: 2px; flex: none; }
 .tree-toolbar .btn { height: var(--ctl-sm, 32px); font-size: var(--fs-3, 14px); flex: none; }
 .tree-toolbar .ui-select { height: var(--ctl-sm, 32px); font-size: var(--fs-3, 14px); }
@@ -94,6 +98,11 @@
 .banner-id:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .banner-text { display: flex; align-items: baseline; gap: 8px; min-width: 0; line-height: 1.2; }
 .banner-text > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* "Descendants of Miriam Brandt": short of room, the words before the name wrap onto a line of their own,
+   which the one-line box hides (the lines pack to its foot). The name itself is never the part that goes. */
+.banner-text:has(> .banner-of) { align-items: center; }
+.house-banner .banner-of { display: flex; flex-wrap: wrap; align-content: flex-end; column-gap: 0.28em; height: 1.2em; min-width: 0; }
+.banner-of > span { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .house-banner b { flex: 0 1 auto; font-size: var(--fs-3, 14px); font-weight: 600; }
 [data-theme='codex'] .house-banner b { color: var(--accent); font-weight: 500; }
 .house-banner .faint { flex: 0 10 auto; min-width: 0; font-size: var(--fs-2, 13px); }
@@ -149,7 +158,7 @@
 
 /* ---------- phones and narrow tablets: a bottom sheet over the tree ---------- */
 @media (max-width: 900px) {
-  .hud, .hud.with-panel { left: 8px; right: 8px; top: 8px; gap: 6px; }
+  .hud, .hud.with-panel { left: 8px; right: 8px; top: 0; gap: 6px; }
   .tb-sep { display: none; }
   .tb-stack { width: 100%; }
   /* The phone's row: the view as three named segments, the lens, and Display. Everything is 44px tall. The
@@ -191,8 +200,8 @@
   }
   [data-theme='modern'] .panel-sheet { box-shadow: 0 -6px 24px #2a22141f; }
   .panel-sheet[data-snap='peek'] { height: 76px; }
-  /* With the sheet half open the zoom stack stays above the sheet, with zoom in, zoom out and Fit. The
-     minimap is hidden there, so its toggle and the shortcuts button go too. */
+  /* With the sheet half open the map controls stay above the sheet with Fit (and, for a mouse, zoom in and
+     out). The minimap is hidden there, so its toggle and the shortcuts button go too. */
   .tree-page[data-sheet='half'] .map-controls > :is(.map-keys, .map-toggle), .tree-page[data-sheet='half'] .minimap { display: none !important; }
   .panel-sheet[data-snap='half'] { height: 55%; }
   .panel-sheet[data-snap='full'] { height: 100%; border-radius: 0; }

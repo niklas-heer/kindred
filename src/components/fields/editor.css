@@ -169,3 +169,16 @@
 .pp-contact-add.pp-contact-quick { grid-template-columns: minmax(0, 1fr) 44px; }
 .pp-contact-add.pp-contact-quick .ui-seg { grid-column: 1 / -1; min-width: 0; }
 @media (max-width: 600px) { .fv-tap { min-height: 28px; } .fv-pencil { width: 44px; height: 44px; } }
+
+/* ---- the edit form reads as text ---- */
+/* A label and its help are what you read to fill in a field: the body face, upright, in the text colour and at a size to
+   read. Small caps stay for the section headings ("Names", "Contact") and the field cards' titles. */
+[data-theme] .pe .field > span, [data-theme] .pe .fe-sub, [data-theme] .pe .field.check .ui-switch-wrap > span {
+  font-family: var(--font-body); font-variant: normal; text-transform: none; letter-spacing: 0;
+  font-size: var(--fs-3); font-weight: 500; line-height: var(--lh-ui, 1.35); color: color-mix(in srgb, var(--text) 88%, var(--muted));
+}
+[data-theme] .pe :is(small.subtle, span.subtle, .md-hint, .dp-age, .af-copy small, .af-family-title) { font-size: var(--fs-2); color: var(--muted); }
+@media (pointer: coarse) {
+  [data-theme] .pe .field > span, [data-theme] .pe .fe-sub, [data-theme] .pe .field.check .ui-switch-wrap > span { font-size: max(16px, var(--fs-3)); }
+  [data-theme] .pe :is(small.subtle, span.subtle, .md-hint, .dp-age, .af-copy small, .af-family-title) { font-size: max(15px, var(--fs-2)); }
+}

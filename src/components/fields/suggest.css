@@ -3,7 +3,7 @@
 .sg > .input { width: 100%; }
 .sg-list { overflow: auto; overflow-wrap: normal; }
 .sg-option { min-height: 44px; cursor: pointer; }
-.sg-option small { display: block; color: var(--muted); font-size: 12.5px; }
+.sg-option small { display: block; color: var(--muted); font-size: var(--fs-1); }
 .sg-gap { height: 1px; margin: 4px 6px; background: var(--border); }
 
 /* The colour favourite: one round swatch per colour, chosen ones ringed. The text box above them takes anything else. */
@@ -19,23 +19,23 @@
 .af-tools { display: grid; gap: 6px; min-width: 0; }
 .af-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
 .af-lookup { min-height: 40px; }
-.af-where { font-size: 13px; }
-.af-note { margin: 0; font-size: 14px; }
+.af-where { font-size: var(--fs-2); }
+.af-note { margin: 0; font-size: var(--fs-3); }
 .af-results { display: grid; gap: 4px; min-width: 0; }
 .af-result {
-  min-height: 44px; padding: 6px 10px; text-align: start; cursor: pointer; font-family: var(--font-ui); font-size: 15px;
+  min-height: 44px; padding: 6px 10px; text-align: start; cursor: pointer; font-family: var(--font-ui); font-size: var(--fs-3);
   border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); color: var(--text);
 }
 .af-result:hover { border-color: var(--edge); background: var(--panel-3); }
 .af-result:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.af-attr { font-size: 12px; }
+.af-attr { font-size: var(--fs-1); }
 .af-family { display: grid; gap: 4px; min-width: 0; }
-.af-family-title { font-size: 13px; color: var(--muted); font-family: var(--font-ui); }
+.af-family-title { font-size: var(--fs-2); color: var(--muted); font-family: var(--font-ui); }
 .af-copy { display: flex; align-items: center; gap: 10px; }
 .af-copy > svg { flex: none; color: var(--accent); }
 .af-copy > span { min-width: 0; }
 .af-copy b { display: block; font-weight: 500; }
-.af-copy small { display: block; color: var(--muted); font-size: 13px; }
+.af-copy small { display: block; color: var(--muted); font-size: var(--fs-2); }
 
 /* In the Everyday tab's add row: the box takes the row's middle cell, and the lookup goes on its own line beneath. */
 .pp-contact-add .af { display: contents; }

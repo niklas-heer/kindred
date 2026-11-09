@@ -21,16 +21,18 @@
 .who-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; width: 100%; }
 .who-foot p { margin: 0; font-size: var(--fs-2); line-height: var(--lh-ui); color: var(--subtle); flex: 1 1 200px; }
 
-/* The offer of the tour docks in the bottom-left corner, out of the tree's way. */
+/* The offer of the tour: a small card that leaves the tree usable. */
 .tour-offer { position: fixed; left: 16px; bottom: 16px; z-index: 70; width: min(360px, calc(100vw - 32px)); box-sizing: border-box; padding: 16px 18px; display: grid; gap: 8px; animation: ui-rise var(--dur-3) var(--ease-out); }
 .tour-offer h2 { margin: 0; font-family: var(--font-title); font-size: var(--fs-5); font-weight: 600; line-height: 1.25; }
 [data-theme='codex'] .tour-offer h2 { font-variant: small-caps; color: var(--accent); letter-spacing: 0.03em; }
 .tour-offer p { margin: 0; color: var(--muted); font-size: var(--fs-3); line-height: 1.45; text-wrap: pretty; }
 .tour-offer > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
-/* On the tree it clears the generation ruler, and the person panel when that is docked (--panel-w in tree.css). */
+/* On a wide screen it docks top right, under the tree's toolbar and above the zoom rail: the middle of the canvas
+   belongs to the person you came for and their children, and the person panel docks on the left. */
 @media (min-width: 761px) {
-  .shell:has(.tree-page) .tour-offer { left: 72px; }
-  .shell:has(.tree-page.has-panel) .tour-offer { left: calc(min(400px, 100vw - 120px) + 72px); }
+  .tour-offer { top: 114px; right: 16px; left: auto; bottom: auto; }
+  /* The top bar is 8px lower with icons alone, and the canvas is small then: sit closer and a little tighter. */
+  .shell:has(> .topbar-compact) .tour-offer { top: 104px; padding: 12px 16px; gap: 6px; }
 }
 /* On a phone it sits just above the tab bar, where the thumb already is. */
 @media (max-width: 760px) {

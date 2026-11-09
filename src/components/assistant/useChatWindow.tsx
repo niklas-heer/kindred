@@ -31,6 +31,10 @@ function loadLayout(): WindowLayout {
   const { vw, vh } = viewport();
   return parseLayout(raw) ?? defaultLayout(vw, vh);
 }
+/** Whether the reader has put the window somewhere of their own: moved, resized or docked it. */
+function hasOwnLayout(): boolean {
+  try { return parseLayout(window.localStorage.getItem(STORAGE_KEY)) !== null; } catch { return false; }
+}
 function saveLayout(l: WindowLayout | null) {
   try {
     if (l) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(l));
@@ -43,6 +47,8 @@ export function useChatWindow(windowRef: RefObject<HTMLElement | null>) {
   const layout = useRef<WindowLayout>(loadLayout());
   const [docked, setDocked] = useState(layout.current.docked);
   const [said, setSaid] = useState('');
+  // "Reset" is offered only once there is something to reset.
+  const [changed, setChanged] = useState(hasOwnLayout);
 
   /** Draws the layout, clamped to the screen as it is now. What is remembered stays as the reader left it, so a viewport that grows back restores it. */
   function draw() {
@@ -86,6 +92,7 @@ export function useChatWindow(windowRef: RefObject<HTMLElement | null>) {
       el.removeEventListener('pointercancel', end);
       windowRef.current?.classList.remove('ai-dragging');
       saveLayout(layout.current);
+      setChanged(true);
     };
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', end);
@@ -107,6 +114,7 @@ export function useChatWindow(windowRef: RefObject<HTMLElement | null>) {
   function setDock(next: boolean) {
     layout.current = { ...layout.current, docked: next };
     saveLayout(layout.current);
+    setChanged(true);
     setDocked(next);
     draw();
   }
@@ -115,6 +123,7 @@ export function useChatWindow(windowRef: RefObject<HTMLElement | null>) {
     const { vw, vh } = viewport();
     layout.current = defaultLayout(vw, vh);
     saveLayout(null);
+    setChanged(false);
     setDocked(false);
     draw();
   }
@@ -133,11 +142,12 @@ export function useChatWindow(windowRef: RefObject<HTMLElement | null>) {
     const next = e.shiftKey ? resizeRect(start, isDocked ? 'w' : 'se', dx, dy, vw, vh) : moveRect(start, dx, dy, vw, vh);
     layout.current = { ...next, docked: isDocked };
     saveLayout(layout.current);
+    setChanged(true);
     draw();
     setSaid(placed(visibleRect(layout.current, vw, vh)));
   }
 
-  return { phone, docked, said, setDock, reset, onHeaderPointerDown, onEdgePointerDown, onGripKey };
+  return { phone, docked, said, changed, setDock, reset, onHeaderPointerDown, onEdgePointerDown, onGripKey };
 }
 
 export type ChatWindow = ReturnType<typeof useChatWindow>;
@@ -158,9 +168,18 @@ export function WindowControls({ win }: { win: ChatWindow }) {
       <button type="button" className="btn ghost ai-icon ai-win-control" onClick={() => win.setDock(!win.docked)} aria-label={dockLabel} title={dockLabel}>
         {win.docked ? <PictureInPicture2 size={15} aria-hidden /> : <PanelRight size={15} aria-hidden />}
       </button>
-      <button type="button" className="btn ghost ai-icon ai-win-control" onClick={win.reset} aria-label={t('ai.winReset')} title={t('ai.winReset')}>
-        <RotateCcw size={15} aria-hidden />
-      </button>
+      {win.changed && (
+        <button
+          type="button"
+          className="btn ghost ai-icon ai-win-control ai-win-reset"
+          // The button leaves with the reset: focus goes to the control beside it, not to the page.
+          onClick={(e) => { const beside = e.currentTarget.previousElementSibling as HTMLElement | null; win.reset(); beside?.focus(); }}
+          aria-label={t('ai.winReset')}
+          title={t('ai.winReset')}
+        >
+          <RotateCcw size={15} aria-hidden />
+        </button>
+      )}
       <p className="ai-sr" role="status">{win.said}</p>
     </div>
   );

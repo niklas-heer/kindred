@@ -167,10 +167,11 @@ function TreePage() {
     const el = hud.current;
     if (!el) return;
     const ro = new ResizeObserver(() => {
-      const { height: h, width: w } = el.getBoundingClientRect();
+      const { height: h, width: w, bottom } = el.getBoundingClientRect();
       setHudH(h);
       setHudW(w);
-      document.documentElement.style.setProperty('--hud-bottom', `${Math.round(h + 64)}px`);
+      // Notices open just under the HUD, wherever the top bar puts it.
+      document.documentElement.style.setProperty('--hud-bottom', `${Math.round(bottom + 8)}px`);
       if (hudSeen.current !== null && Math.abs(h - hudSeen.current) > 3 && !camMoved.current) {
         requestAnimationFrame(() => canvas.current?.frame(selNow.current, { animate: false }));
       }
@@ -374,6 +375,8 @@ function TreePage() {
   const rootPerson = root ? f.byId.get(root) : undefined;
   const rootHouse = rootPerson?.house ? f.house.get(rootPerson.house) : undefined;
   const members = useMemo(() => new Set(lay.nodes.filter((n) => n.role !== 'ghost').map((n) => n.id)).size, [lay]);
+  // "Descendants of {name}", as the words before and after the name, in whatever order the language puts them.
+  const descOf = t('tp.descendantsOf', { name: '\u0001' }).split('\u0001').map((w) => w.trim());
   const prevRoot = useRef(lay.root);
   useEffect(() => {
     if (view !== 'dynasty' || prevRoot.current === lay.root) return;
@@ -569,7 +572,7 @@ function TreePage() {
   const inset = useCallback((): Inset => {
     const h = hud.current;
     // The canvas adds its own margin (12px, 10px on a phone) below this.
-    const top = h ? h.offsetTop + h.offsetHeight : hudH + 12;
+    const top = h ? h.offsetTop + h.offsetHeight : hudH;
     return phone
       ? { left: 44, top, bottom: snap === 'full' ? 0 : sheetH }
       : { left: panel ? panelW + 56 : 56, top };
@@ -709,14 +712,22 @@ function TreePage() {
                 >
                   {line === 'house' && rootHouse ? <Arms arms={rootHouse.arms} size={20} /> : <Users size={16} />}
                   <span className="banner-text">
-                    <b className="display">{line === 'house' && rootHouse ? rootHouse.name : t('tp.descendantsOf', { name: displayName(rootPerson, f) })}</b>
-                    {bannerBig ? (
+                    {line === 'house' && rootHouse ? <b className="display">{rootHouse.name}</b> : (
+                      // The name once. Short of room, the words around it go first (tree.css, .banner-of).
+                      <b className="display banner-of">
+                        {descOf[0] && <span>{descOf[0]}</span>}
+                        <span className="banner-name">{displayName(rootPerson, f)}{descOf[1] ? ` ${descOf[1]}` : ''}</span>
+                      </b>
+                    )}
+                    {line === 'house' && rootHouse ? (bannerBig ? (
                       <span className="faint banner-more">
-                        {t(line === 'house' ? 'tp.memberCount' : 'tp.descCount', { count: members })} · {t('tp.from', { name: displayName(rootPerson, f) })}
-                        {rootHouse?.motto && line === 'house' ? <> · <i>“{rootHouse.motto}”</i></> : null}
+                        {t('tp.memberCount', { count: members })} · {t('tp.from', { name: displayName(rootPerson, f) })}
+                        {rootHouse.motto ? <> · <i>“{rootHouse.motto}”</i></> : null}
                       </span>
                     ) : (
                       <span className="faint banner-count">{formatNumber(members, t.locale)}</span>
+                    )) : (
+                      <span className="faint banner-count">· {formatNumber(members, t.locale)}</span>
                     )}
                   </span>
                 </button>

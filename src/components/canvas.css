@@ -114,6 +114,11 @@
   .map-toggle { display: inline-flex !important; }
   .map-dock:not(.map-open) .minimap { display: none; }
 }
+/* A phone zooms with two fingers: the rail keeps Fit and the minimap and stays off the cards beside it.
+   Zoom in and out remain for a mouse and for the keyboard. */
+@media (pointer: coarse) and (max-width: 760px) {
+  .map-controls .map-zoom { display: none; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .map-dock { transition: none; }

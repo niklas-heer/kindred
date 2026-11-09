@@ -6,7 +6,7 @@
   margin-top: 0.75rem;
   padding-top: 0.5rem;
   border-top: 1px solid var(--border);
-  font-size: 0.92rem;
+  font-size: var(--fs-3);
 }
 
 .ae-means-summary {
@@ -17,7 +17,7 @@
   cursor: pointer;
   list-style: none;
   font-family: var(--font-title);
-  font-size: 0.8rem;
+  font-size: var(--fs-2);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text);
@@ -62,7 +62,7 @@
 .ae-means-icon.dark { background: #3a3a36; border-color: #3a3a36; }
 .ae-means-text { display: grid; gap: 0.1rem; min-width: 0; }
 .ae-means-kind {
-  font-size: 0.7rem;
+  font-size: var(--fs-1);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -70,20 +70,22 @@
 .ae-means-name b { font-weight: 500; }
 .ae-means-line { color: var(--text); overflow-wrap: anywhere; }
 .ae-means-plain,
-.ae-means-note { margin: 0.5rem 0 0; font-size: 0.82rem; }
+.ae-means-note { margin: 0.5rem 0 0; font-size: var(--fs-2); }
 
 /* The caption under a picker: the meaning of the tile under the pointer or the keyboard focus. */
 .ae-peek {
   min-height: 1.4em;
   margin: 0.35rem 0 0;
-  font-size: 0.85rem;
+  font-size: var(--fs-2);
   color: var(--text);
 }
 
 /* The meaning of the charge chosen, under its name in the picker. */
-.ae-charge-meaning { margin: 0.2rem 0 0; font-size: 0.85rem; }
+.ae-charge-meaning { margin: 0.2rem 0 0; font-size: var(--fs-2); }
 
 /* The symbolism of an AI design, on its tile: briefly, one line each. */
-.ae-symbolism { display: grid; gap: 0.15rem; margin-top: 0.3rem; font-size: 0.82rem; }
+.ae-symbolism { display: grid; gap: 0.15rem; margin-top: 0.3rem; font-size: var(--fs-2); }
 .ae-symbolism > span { display: block; overflow-wrap: anywhere; }
 .ae-symbolism b { font-weight: 500; }
+.ae-means-name small { font-size: var(--fs-1); }
+[data-theme='codex'] .ae-means-kind { font-size: 14px; }

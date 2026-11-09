@@ -64,6 +64,8 @@
   --line-hl: #ffe08a;
 
   --card-frame: linear-gradient(160deg, #e9cf86, #8a6a2c 45%, #d9b766 70%, #6e5221);
+  /* The same gilt in shadow, for ordinary cards: bright gold is kept for what is selected, focused or the main action. */
+  --card-frame-quiet: linear-gradient(160deg, #8d7743, #4a3b1d 45%, #7c6736 70%, #3d2f16);
   --card-bg: #1d2533;
   --card-dead: grayscale(0.92) sepia(0.25) brightness(0.82);
   --card-name-size: 15px;
@@ -125,6 +127,7 @@
   --line-hl: #2f6f5e;
 
   --card-frame: #ffffff;
+  --card-frame-quiet: #ffffff;
   --card-bg: #ffffff;
   --card-dead: grayscale(1) contrast(0.9) brightness(1.05);
   --card-name-size: 14px;
@@ -183,6 +186,7 @@
   --line-hl: #e0a458;
 
   --card-frame: linear-gradient(160deg, #8a7048, #3a3122 50%, #6b5636);
+  --card-frame-quiet: linear-gradient(160deg, #5c4c33, #2e2a22 50%, #4a3d29);
   --card-bg: #1d222c;
   --card-dead: grayscale(1) brightness(0.75);
   --card-name-size: 15px;
@@ -254,8 +258,13 @@ h1, h2, h3, h4 { text-wrap: balance; }
 [data-theme='night'] .ui-card { background: var(--panel-solid); border-color: #2e3442; box-shadow: inset 0 0 0 1px #6b563633, inset 0 1px 0 #ffffff08, var(--shadow); }
 [data-theme='codex'] .ui-card {
   border: 2px solid transparent; border-radius: 4px;
+  background: linear-gradient(180deg, #222a39, #171d28) padding-box, var(--card-frame-quiet) border-box;
+  box-shadow: inset 0 0 0 1px #0a0d12, inset 0 1px 0 #f0d58f14, 0 6px 18px #0009, 0 1px 3px #000a;
+}
+/* A card you can open answers the pointer and the keyboard with the full gilt. */
+[data-theme='codex'] .ui-card.interactive:hover, [data-theme='codex'] .ui-card.interactive:focus-visible,
+[data-theme='codex'] .ui-card[aria-selected='true'], [data-theme='codex'] .ui-card[aria-current]:not([aria-current='false']) {
   background: linear-gradient(180deg, #222a39, #171d28) padding-box, var(--card-frame) border-box;
-  box-shadow: inset 0 0 0 1px #0a0d12, inset 0 1px 0 #f0d58f22, 0 6px 18px #0009, 0 1px 3px #000a;
 }
 .ui-card.interactive { cursor: pointer; transition: transform var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out); }
 .ui-card.interactive:hover { transform: translateY(-2px); }
@@ -355,6 +364,9 @@ kbd {
   background: var(--panel); border-bottom: 1px solid var(--border);
   position: relative; z-index: 20;
 }
+/* The account and language menus live in the bar, so they can only be as high as the bar is: while one is open the bar
+   rises above the chat window (60) and its launcher. Only then, so a full-screen chat on a phone still covers the bar. */
+.topbar:has(.acct-menu, .lang-pop) { z-index: 95; }
 [data-theme='codex'] .topbar { border-bottom: 1px solid #0a0d12; box-shadow: inset 0 -1px 0 var(--edge-soft), 0 2px 12px #0008; }
 [data-theme='night'] .topbar { box-shadow: inset 0 -1px 0 #6b563640, 0 2px 12px #0006; }
 /* The sections come in three states, measured in useTopbarFit: labels beside the icons when they fit next to the family's
@@ -380,7 +392,9 @@ kbd {
 .search-trigger { width: 260px; flex: none; justify-content: space-between; color: var(--muted); }
 .search-trigger > span:first-child { display: inline-flex; gap: 8px; align-items: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
-.page { overflow: auto; height: 100%; background: var(--page-bg); }
+/* Positioned, so that what is absolutely placed inside (a visually hidden heading, say) scrolls with the page. Left
+   static, such an element is laid out against the document and lets the whole app scroll away under the top bar. */
+.page { position: relative; overflow: auto; height: 100%; background: var(--page-bg); }
 .page-inner { max-width: 1100px; margin: 0 auto; padding: 28px var(--gutter) 80px; }
 .page h1 { font-family: var(--font-title); font-weight: 600; font-size: var(--fs-8); line-height: var(--lh-tight); margin: 0 0 4px; }
 [data-theme='codex'] .page h1 { font-variant: small-caps; color: var(--accent); }

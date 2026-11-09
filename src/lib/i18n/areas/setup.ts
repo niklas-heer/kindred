@@ -4,9 +4,8 @@ import type { Message } from "../types.ts";
 
 export const en = {
   "auth.method_title": "Sign-in method",
-  "auth.method_kindred": "Kindred accounts and passkeys.",
-  "auth.method_cloudflare": "Cloudflare Access.",
-  "auth.method_change": "Chosen by the server’s KINDRED_AUTH setting, not on this page: see “Choosing how people sign in” in docs/self-host.md.",
+  "auth.method_kindred": "Everyone signs in here with a passkey kept on their own phone or computer, as set up by whoever runs this server.",
+  "auth.method_cloudflare": "Everyone signs in here through Cloudflare Access, the sign-in page in front of this site, as set up by whoever runs this server.",
   "auth.your_name": "Your name",
   "auth.signin_title": "Sign in through Cloudflare Access",
   "auth.no_identity_text": "This Kindred signs in through Cloudflare Access, and this visit came without a verified Access sign-in. Open the site at its usual address. If that doesn’t help, ask the person who runs it.",
@@ -59,9 +58,8 @@ export const en = {
 
 export const de: Record<keyof typeof en, Message> = {
   "auth.method_title": "Anmeldemethode",
-  "auth.method_kindred": "Kindred-Konten und Passkeys.",
-  "auth.method_cloudflare": "Cloudflare Access als einzige Anmeldung.",
-  "auth.method_change": "Wird über die Servereinstellung KINDRED_AUTH festgelegt, nicht auf dieser Seite: siehe „Choosing how people sign in“ in docs/self-host.md.",
+  "auth.method_kindred": "Hier melden sich alle mit einem Passkey an, der auf dem eigenen Handy oder Computer liegt; so hat es eingerichtet, wer diesen Server betreibt.",
+  "auth.method_cloudflare": "Hier melden sich alle über Cloudflare Access an, die Anmeldeseite vor dieser Website; so hat es eingerichtet, wer diesen Server betreibt.",
   "auth.your_name": "Dein Name",
   "auth.signin_title": "Anmeldung über Cloudflare Access",
   "auth.no_identity_text": "Dieses Kindred meldet dich über Cloudflare Access an, und dieser Besuch kam ohne bestätigte Access-Anmeldung. Öffne die Seite unter ihrer üblichen Adresse. Wenn das nicht hilft, frag die Person, die sie betreibt.",
@@ -115,9 +113,8 @@ export const de: Record<keyof typeof en, Message> = {
 /** Afrikaans. A missing entry falls back to English at runtime; the test reports them. */
 export const af: Partial<Record<keyof typeof en, Message>> = {
   "auth.method_title": "Aanmeldmetode",
-  "auth.method_kindred": "Kindred-rekeninge en passkeys.",
-  "auth.method_cloudflare": "Slegs Cloudflare Access.",
-  "auth.method_change": "Word deur die bediener se KINDRED_AUTH-instelling gekies, nie op hierdie bladsy nie: sien “Choosing how people sign in” in docs/self-host.md.",
+  "auth.method_kindred": "Almal meld hier aan met ’n passkey op hul eie foon of rekenaar; so het die persoon wat hierdie bediener bestuur dit opgestel.",
+  "auth.method_cloudflare": "Almal meld hier aan deur Cloudflare Access, die aanmeldblad voor hierdie werf; so het die persoon wat hierdie bediener bestuur dit opgestel.",
   "auth.your_name": "Jou naam",
   "auth.signin_title": "Meld aan deur Cloudflare Access",
   "auth.no_identity_text": "Hierdie Kindred meld jou aan deur Cloudflare Access, en hierdie besoek het sonder ’n bevestigde Access-aanmelding gekom. Maak die webwerf by sy gewone adres oop. As dit nie help nie, vra die persoon wat dit bestuur.",

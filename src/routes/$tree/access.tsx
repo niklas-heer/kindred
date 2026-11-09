@@ -114,7 +114,7 @@ function AccessPage() {
         {signInMethod && (
           <>
             <h2 className="rule">{t('auth.method_title')}</h2>
-            <p className="acc-hint"><b>{signInMethod === 'kindred' ? t('auth.method_kindred') : t('auth.method_cloudflare')}</b> {t('auth.method_change')}</p>
+            <p className="acc-hint">{signInMethod === 'kindred' ? t('auth.method_kindred') : t('auth.method_cloudflare')}</p>
           </>
         )}
 

@@ -1,6 +1,7 @@
 // PageHeader: a page's title block. Cinzel and centred under a fleuron rule in Codex; left-aligned
 // with actions on the right in Paper and Night. On a phone the header is compact: actions that are all buttons with
-// an icon become icon buttons on the title's row (their words stay as the accessible name).
+// an icon go on the title's row. Secondary ones become icon buttons (their words stay as the accessible name); the
+// page's main action keeps its words: a `.btn.primary`, or any button marked `data-keep-label`.
 //
 // Usage:
 //   <PageHeader title="Almanac" subtitle="Birthdays, anniversaries and memorial days"
@@ -29,6 +30,8 @@ export function PageHeader({ title, subtitle, actions, icon, className = '', id 
     const icons = kids.length > 0 && kids.every((k) => k.classList.contains('btn') && !!k.querySelector('svg'));
     if (icons) { el?.setAttribute('data-icon-actions', String(kids.length)); el?.style.setProperty('--ph-icons', String(kids.length)); }
     else { el?.removeAttribute('data-icon-actions'); el?.style.removeProperty('--ph-icons'); }
+    // A main action keeps its words on a phone, and the header lays itself out for a wide button.
+    el?.toggleAttribute('data-worded-action', icons && kids.some((k) => k.matches('.primary, [data-keep-label]')));
   });
   return (
     <header ref={header} className={`ui-page-header ${className}`}>

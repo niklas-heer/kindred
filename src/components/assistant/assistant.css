@@ -60,6 +60,9 @@
 
 .ai-win-controls { display: flex; flex: none; align-items: center; gap: 2px; margin-left: 4px; padding-left: 4px; border-left: 1px solid var(--border); }
 .ai-win-grip { cursor: move; }
+/* The grip is the keyboard's handle (a pointer drags the header itself), so it shows only when the keyboard reaches it.
+   One icon fewer beside the title, and the title has room for its German. */
+.ai-drawer-bar .btn.ai-win-grip:not(:focus-visible) { position: absolute; width: 1px; min-width: 0; height: 1px; min-height: 0; overflow: hidden; clip-path: inset(50%); }
 @media (max-width: 640px) {
   .ai-rz, .ai-win-controls { display: none; }
 }
@@ -854,3 +857,23 @@
 /* One shape per theme: Codex is square, so what is a pill in Paper and Night is a small plate there. */
 :root { --ai-pill: 999px; --ai-pill-lg: 999px; }
 [data-theme='codex'] { --ai-pill: var(--radius); --ai-pill-lg: var(--radius-lg); }
+
+/* ---- a clearer field, calmer controls ---- */
+/* The field is the one place to type, so its edge is firm at rest and ringed in focus. The model tab shares that edge and is
+   large enough to read and to press. */
+.ai-composer, .ai-pick-button { --ai-field-edge: color-mix(in srgb, var(--text) 30%, var(--border)); }
+[data-theme='codex'] .ai-composer, [data-theme='codex'] .ai-pick-button { --ai-field-edge: var(--edge-soft); }
+.ai-composer { border-color: var(--ai-field-edge); transition: border-color var(--dur-1) ease, box-shadow var(--dur-1) ease; }
+.ai-composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.ai-pick-button { min-height: 28px; padding: 0 10px; font-size: var(--fs-2); border-color: var(--ai-field-edge); border-bottom-color: var(--panel-2); }
+@media (pointer: coarse) {
+  .ai-pick-button { min-height: 32px; }
+  .ai-pick-button::after { inset: -8px -6px -4px; }
+}
+/* The narrowest window (320px): the placeholder is set smaller so its whole sentence shows in all three languages. */
+@container ai-window (max-width: 360px) {
+  .ai-composer { padding: 5px; }
+  .ai-composer textarea { padding-inline: 3px; }
+  .ai-composer textarea::placeholder { font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .ai-composer { transition: none; } }

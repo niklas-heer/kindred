@@ -135,6 +135,10 @@
   .alm-strip {
     grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: calc((100% - 30px) / 6);
     margin-inline: -16px; padding: 2px 16px; overflow-x: auto; scroll-snap-type: x proximity; scroll-padding-inline: 16px; scrollbar-width: none;
+    mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+    mask-repeat: no-repeat; mask-size: calc(100% + 80px) 100%; mask-position: -40px 0;
+    animation: row-fade linear both; animation-timeline: scroll(self inline);
   }
   .alm-strip::-webkit-scrollbar { display: none; }
   .alm-tile { scroll-snap-align: start; }
@@ -198,3 +202,13 @@
 
 
 @media(max-width:600px) { .alm .btn { min-height: 44px; } }
+
+/* A row that scrolls sideways dissolves at whichever edge has more to show: nothing at rest, so a row that fits is whole. */
+@keyframes row-fade {
+  0% { mask-size: calc(100% + 40px) 100%; mask-position: -40px 0; }
+  10%, 90% { mask-size: 100% 100%; mask-position: 0 0; }
+  100% { mask-size: calc(100% + 40px) 100%; mask-position: 0 0; }
+}
+@supports not (animation-timeline: scroll()) {
+  .alm-strip { mask-size: calc(100% + 40px) 100%; }
+}

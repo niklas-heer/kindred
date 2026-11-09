@@ -5,7 +5,7 @@
 // shows where you are in the whole tree; a ruler on the left names each generation and its era.
 import { Expand, Map as MapIcon, Minus, Plus } from 'lucide-react';
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { CARD_H, CARD_W, type LNode, type Layout } from '~/lib/layout';
+import { CARD_H, CARD_W, ROW_H, type LNode, type Layout } from '~/lib/layout';
 import type { Family } from '~/lib/graph';
 import { Minimap } from './Minimap';
 import { useT } from '~/lib/i18n';
@@ -42,8 +42,8 @@ export interface CanvasHandle {
   fit(): void;
   /**
    * Opening view: the whole tree at the most detailed zoom that fits the free area; when even name
-   * plates won't fit, readable name plates around `id`: a generation starts right under the toolbar and
-   * the rest runs off the edge, which also shows that the canvas scrolls.
+   * plates won't fit, readable name plates around `id`: a generation starts right under the toolbar, `id`
+   * sits near the middle with the generations before and after it, and the rest runs off the edge.
    */
   frame(id: string, opts?: { animate?: boolean }): void;
   /** Pans just enough to bring a card fully into the free area (after a sheet or panel opens). */
@@ -194,7 +194,10 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     const fitK = Math.min((hi.x - lo.x) / b.w, (hi.y - lo.y) / b.h);
     // Full cards when the tree fits at them, or so nearly that a row or column just runs off the edge; else
     // name plates as large as fit; else readable name plates around the focus.
-    const k = fitK >= NEAR_K * 0.86 ? Math.min(Math.max(fitK, NEAR_K), 1) : fitK >= MID_K ? fitK : READABLE_K;
+    // A phone holds few cards across at any zoom, so it spends its height on type instead: as large as
+    // still shows three generations whole (parents, the focus, children), up to a fifth above readable.
+    const roomy = a.w < 600 ? Math.max(READABLE_K, Math.min(READABLE_K * 1.2, (hi.y - lo.y) / (2 * ROW_H + CARD_H))) : READABLE_K;
+    const k = fitK >= NEAR_K * 0.86 ? Math.min(Math.max(fitK, NEAR_K), 1) : fitK >= MID_K ? fitK : roomy;
     lastDetail.current = k * NAME_PX.near < MIN_TEXT_PX ? 'mid' : 'near'; // so the hysteresis keeps the level at its threshold
     const n = firstOf.get(id);
     // Across: centre the tree when it fits, else centre the focus and pull the tree's edges to the area's
@@ -205,12 +208,20 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
       return Math.max(to - (start + len) * k, Math.min(from - start * k, off));
     };
     // Down: centre the tree when it fits. Else a generation starts right under the toolbar, never half a
-    // card behind it: the earliest one that still shows the focus whole. Later ones run off the bottom.
+    // card behind it. Of the generations that can start there with the focus whole, the one that puts the
+    // focus nearest the middle (45% down), so its parents show above it and its children below. A start
+    // that would leave room for another whole card under the last generation is passed over; when every
+    // start does (Ancestors, a focus with no descendants), the earliest one, which leaves the least.
     const down = (from: number, to: number) => {
       if (b.h * k <= to - from) return from + (to - from - b.h * k) / 2 - b.y * k;
       const fy = n ? n.y : b.y;
       const tops = layout.rows.map((r) => r.y).sort((p, q) => p - q);
-      const top = tops.find((y) => y <= fy && (fy + CARD_H - y) * k <= to - from) ?? fy;
+      const whole = tops.filter((y) => y <= fy && (fy + CARD_H - y) * k <= to - from);
+      if (!whole.length) return from - fy * k;
+      const last = tops[tops.length - 1] + CARD_H;
+      const full = whole.filter((y) => to - from - (last - y) * k <= CARD_H * k);
+      const off = (y: number) => Math.abs((fy + CARD_H / 2 - y) * k - (to - from) * 0.45);
+      const top = full.length ? full.reduce((best, y) => (off(y) < off(best) ? y : best)) : whole[0];
       return from - top * k;
     };
     const target = { k, x: across(lo.x, hi.x, b.x, b.w, n ? n.x : b.x + b.w / 2), y: down(lo.y, hi.y) };
@@ -411,8 +422,8 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
       <Ruler layout={layout} view={view} label={rowLabel} active={layout.nodes.find((n) => n.id === focus)?.row} />
       <div ref={dock} className={`map-dock no-pan${mapOpen ? ' map-open' : ''}`}>
         <div className="map-controls panel" role="toolbar" aria-label={t('canvas.map')} aria-orientation="vertical">
-          <button className="btn icon ghost" onClick={() => { userMove(); zoomBy(1.25); }} title={t('canvas.zoomInTitle')} aria-label={t('canvas.zoomIn')}><Plus size={17} /></button>
-          <button className="btn icon ghost" onClick={() => { userMove(); zoomBy(0.8); }} title={t('canvas.zoomOutTitle')} aria-label={t('canvas.zoomOut')}><Minus size={17} /></button>
+          <button className="btn icon ghost map-zoom" onClick={() => { userMove(); zoomBy(1.25); }} title={t('canvas.zoomInTitle')} aria-label={t('canvas.zoomIn')}><Plus size={17} /></button>
+          <button className="btn icon ghost map-zoom" onClick={() => { userMove(); zoomBy(0.8); }} title={t('canvas.zoomOutTitle')} aria-label={t('canvas.zoomOut')}><Minus size={17} /></button>
           <button className="btn icon ghost" onClick={() => { userMove(); fit(); }} title={t('canvas.fitTitle')} aria-label={t('canvas.fit')}><Expand size={16} /></button>
           {controls}
           <button className="btn icon ghost map-toggle" onClick={() => setMapOpen((o) => !o)} aria-pressed={mapOpen} title={mapOpen ? t('canvas.hideMinimap') : t('canvas.showMinimap')} aria-label={t('canvas.minimap')}><MapIcon size={16} /></button>

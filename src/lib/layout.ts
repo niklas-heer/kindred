@@ -182,8 +182,8 @@ function forkUp(key: string, from: { x: number; y: number }, ps: { x: number; y:
   return edges;
 }
 
-/** How far apart the lines of a couple who married more than once are stacked. */
-const REMARRIED_STEP = 36;
+/** How far apart the lines of a couple who married more than once are stacked: clear of a two-line plate (41 tall). */
+const REMARRIED_STEP = 48;
 
 /** The marriage line between two cards on one row, labelled with the years it lasted. `lift` raises a repeat union. */
 function marriageEdge(key: string, u: GUnion, lx: number, rx: number, y: number, ids: string[], lift = 0): LEdge {

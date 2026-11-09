@@ -272,6 +272,9 @@
   background: linear-gradient(90deg, var(--edge), var(--edge) 40%, transparent);
 }
 
+/* A button may carry a shorter word for the phone's title row (see the phone rule below). */
+.btn-word-short { display: none; }
+
 /* The rule draws: once per arrival the hairlines grow out from the ornament, which fades in last. */
 @keyframes ui-rule-draw { from { transform: scaleX(0); } }
 @keyframes ui-rule-gem { from { opacity: 0; transform: scale(0.6); } }
@@ -283,21 +286,36 @@
   [data-theme='codex'] .ui-page-header-rule svg { animation: ui-rule-gem var(--dur-3) var(--ease-out) calc(var(--dur-4) - var(--dur-2)) both; }
 }
 
-/* A phone gives the screen back: the whole header in 96px or less. Title, a one-line subtitle, a slim rule; actions
-   that are buttons with an icon become 44px icon buttons on the title's row (their words stay as the accessible name). */
+/* A phone gives the screen back: the whole header in about 96px. Title, a subtitle that may take a second line to finish
+   its sentence, a slim rule. Actions that are buttons with an icon go on the title's row: secondary ones as 44px icon
+   buttons (their words stay as the accessible name), while the page's main action (.primary, or data-keep-label)
+   keeps its words. */
 @media (max-width: 760px) {
   .ui-page-header { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 0 8px; margin-bottom: 14px; }
   .ui-page-header-text { grid-column: 1; }
   .ui-page-header h1 { font-size: var(--fs-7); min-height: 44px; gap: 8px; }
   .ui-page-header-icon svg { width: 22px; height: 22px; }
-  .ui-page-header p { margin-top: 0; font-size: var(--fs-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-wrap: nowrap; }
+  .ui-page-header p {
+    margin-top: 0; font-size: var(--fs-2); line-height: 1.3; white-space: normal; text-wrap: balance;
+    /* Two lines hold nearly every subtitle; the third is for the longest sentence in German and Afrikaans (Needed). */
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden;
+  }
   .ui-page-header-rule, [data-theme='codex'] .ui-page-header-rule { grid-column: 1 / -1; height: 12px; margin: 8px 0; }
   .ui-page-header-actions { grid-column: 1 / -1; grid-row: 3; margin-top: 4px; gap: 4px; }
   [data-theme='codex'] .ui-page-header-actions { grid-row: 4; }
   /* Only icon buttons (PageHeader marks the header): beside the title. */
   [data-icon-actions] > .ui-page-header-actions { grid-column: 2; grid-row: 1; margin: 0; flex-wrap: nowrap; }
-  [data-icon-actions] > .ui-page-header-actions > .btn { width: 44px; height: 44px; padding: 0; gap: 0; justify-content: center; font-size: 0; flex: none; }
-  [data-icon-actions] > .ui-page-header-actions > .btn svg { width: 20px; height: 20px; }
+  [data-icon-actions] > .ui-page-header-actions > .btn { height: 44px; flex: none; }
+  [data-icon-actions] > .ui-page-header-actions > .btn:not(.primary, [data-keep-label]) { width: 44px; padding: 0; gap: 0; justify-content: center; font-size: 0; }
+  [data-icon-actions] > .ui-page-header-actions > .btn:not(.primary, [data-keep-label]) svg { width: 20px; height: 20px; }
+  [data-icon-actions] > .ui-page-header-actions > .btn:is(.primary, [data-keep-label]) { padding: 0 12px; font-size: var(--fs-2); }
+  /* A worded action is wide, so the title starts at the left and the subtitle runs under both, the full width. */
+  [data-worded-action] > .ui-page-header-text { display: contents; }
+  [data-worded-action] h1 { grid-column: 1; grid-row: 1; min-width: 0; }
+  [data-worded-action] p { grid-column: 1 / -1; grid-row: 2; }
+  [data-worded-action] > .ui-page-header-rule, [data-theme='codex'] [data-worded-action] > .ui-page-header-rule { grid-row: 3; }
+  [data-worded-action] .btn-word-long { display: none; }
+  [data-worded-action] .btn-word-short { display: inline; }
   /* Codex keeps its centred title: the buttons sit at the title row's right end, and the title clears them on both sides
      (with two or more it gives up the centre and starts at the left). */
   [data-theme='codex'] .ui-page-header { grid-template-columns: minmax(0, 1fr); }
@@ -305,6 +323,10 @@
   [data-theme='codex'] [data-icon-actions] h1 { padding-inline: 48px; }
   [data-theme='codex'] [data-icon-actions]:not([data-icon-actions='1']) h1 { padding-inline: 0 calc(var(--ph-icons) * 48px); justify-content: flex-start; }
   [data-theme='codex'] [data-icon-actions]:not([data-icon-actions='1']) .ui-page-header-text { text-align: left; }
+  [data-theme='codex'] .ui-page-header[data-worded-action] { grid-template-columns: minmax(0, 1fr) auto; text-align: left; }
+  [data-theme='codex'] [data-worded-action] > .ui-page-header-actions { position: static; grid-column: 2; }
+  [data-theme='codex'] [data-worded-action] h1 { padding-inline: 0; justify-content: flex-start; }
+  [data-theme='codex'] [data-worded-action] p { margin-inline: 0; }
   [data-theme='modern'] .ui-page-header, [data-theme='night'] .ui-page-header { padding-bottom: 10px; }
 }
 

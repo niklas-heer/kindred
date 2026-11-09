@@ -120,8 +120,10 @@
   .chr-strip {
     flex-wrap: nowrap; align-items: center; gap: 6px; margin-inline: -16px; padding: 0 16px 2px; overflow-x: auto;
     scroll-snap-type: x proximity; scroll-padding-inline: 16px; scrollbar-width: none; border-bottom: 1px solid var(--border);
-    mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
-    -webkit-mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+    mask-repeat: no-repeat; mask-size: calc(100% + 80px) 100%; mask-position: -40px 0;
+    animation: row-fade linear both; animation-timeline: scroll(self inline);
   }
   .chr-strip::-webkit-scrollbar { display: none; }
   .chr-kinds { flex: none; flex-wrap: nowrap; padding-bottom: 0; }
@@ -141,3 +143,16 @@
 
 
 @media(max-width:600px) { .chr .btn { min-height: 44px; } }
+
+/* A row that scrolls sideways dissolves at whichever edge has more to show: nothing at rest, so a row that fits is whole. */
+@keyframes row-fade {
+  0% { mask-size: calc(100% + 40px) 100%; mask-position: -40px 0; }
+  10%, 90% { mask-size: 100% 100%; mask-position: 0 0; }
+  100% { mask-size: calc(100% + 40px) 100%; mask-position: 0 0; }
+}
+@supports not (animation-timeline: scroll()) {
+  .chr-strip { mask-size: calc(100% + 40px) 100%; }
+}
+/* Paper and Night: the serif only from 16px up. A name inside a line of UI type takes the UI face. */
+:is([data-theme='modern'], [data-theme='night']) .chr-person { font-family: var(--font-ui); font-weight: 500; }
+:is([data-theme='modern'], [data-theme='night']) .chr-saying .chr-person { font-weight: 600; }

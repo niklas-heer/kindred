@@ -379,6 +379,13 @@ function relativesCount(f: Family, id: string) {
 
 // ---------- overview ----------
 
+/** A position in figures, "2nd" and not "Second", so a glance tile stays on one line. German and Afrikaans already write figures. */
+function shortOrdinal(n: number, locale: Parameters<typeof ordinal>[1]): string {
+  if (locale !== 'en' && locale !== undefined) return ordinal(n, locale);
+  const tens = n % 100;
+  return `${n}${tens >= 11 && tens <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')}`;
+}
+
 /** The profile at a glance: how they're yours, the key facts, their life, places, words and what's missing. */
 function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, onGap, onTab }: {
   f: Family; tree: string; p: GPerson; me: string | null; details: DetailState; role: Role; gaps: GapKey[];
@@ -531,7 +538,7 @@ function LifeGlance({ f, p, today }: { f: Family; p: GPerson; today?: Date }) {
   const tile = (i: GlanceItem): [string, string] => {
     switch (i.key) {
       case 'together': return [c(i.married ? 'panel.ov_married' : 'panel.ov_together'), c(i.approx ? 'panel.ov_years_about' : 'panel.ov_years', { count: i.years })];
-      case 'order': return [c('panel.ov_order'), c('panel.ov_order_value', { pos: ordinal(i.position, c.locale), total: i.of })];
+      case 'order': return [c('panel.ov_order'), c('panel.ov_order_value', { pos: shortOrdinal(i.position, c.locale), total: i.of })];
       case 'children': return [c('rel.children'), String(i.n)];
       case 'siblings': return [c('rel.siblings'), String(i.n)];
       case 'grandchildren': return [c('panel.ov_grandchildren'), String(i.n)];

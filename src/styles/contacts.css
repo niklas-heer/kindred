@@ -132,11 +132,25 @@ a.con-value:focus-visible { outline: none; box-shadow: var(--focus-ring); border
   .con-filters {
     flex: 1 1 100%; flex-wrap: nowrap; margin-inline: -16px; padding: 0 16px; overflow-x: auto;
     scroll-snap-type: x proximity; scroll-padding-inline: 16px; scrollbar-width: none;
-    mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
-    -webkit-mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+    mask-repeat: no-repeat; mask-size: calc(100% + 80px) 100%; mask-position: -40px 0;
+    animation: row-fade linear both; animation-timeline: scroll(self inline);
   }
   .con-filters::-webkit-scrollbar { display: none; }
   .con-filters .btn { flex: none; scroll-snap-align: start; }
   .con-letter { font-size: var(--fs-7); }
   .con-letter-row { gap: 4px; margin-bottom: 14px; }
 }
+
+/* A row that scrolls sideways dissolves at whichever edge has more to show: nothing at rest, so a row that fits is whole. */
+@keyframes row-fade {
+  0% { mask-size: calc(100% + 40px) 100%; mask-position: -40px 0; }
+  10%, 90% { mask-size: 100% 100%; mask-position: 0 0; }
+  100% { mask-size: calc(100% + 40px) 100%; mask-position: 0 0; }
+}
+@supports not (animation-timeline: scroll()) {
+  .con-filters { mask-size: calc(100% + 40px) 100%; }
+}
+/* Paper and Night: the serif only from 16px up, so a nickname beside the name takes the UI face. */
+:is([data-theme='modern'], [data-theme='night']) .con-nick { font-family: var(--font-ui); font-style: normal; font-weight: 500; color: var(--muted); }
