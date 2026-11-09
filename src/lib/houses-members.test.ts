@@ -169,7 +169,7 @@ test('the family name and tagline are checked, and a steward renames the family'
   assert.throws(() => cleanFamilyDetails({ name: '   ', tagline: '' }), /acc\.family_name_required/);
   assert.throws(() => cleanFamilyDetails({ name: 'x'.repeat(81), tagline: '' }), /acc\.family_name_long/);
   assert.throws(() => cleanFamilyDetails({ name: 'Ok', tagline: 'y'.repeat(141) }), /acc\.family_tagline_long/);
-  assert.deepEqual(cleanFamilyDetails({ name: '  The   Hofmanns ', tagline: ' Since 1820 ' }), { name: 'The Hofmanns', tagline: 'Since 1820' });
+  assert.deepEqual(cleanFamilyDetails({ name: '  The   Ashworths ', tagline: ' Since 1820 ' }), { name: 'The Ashworths', tagline: 'Since 1820' });
 
   const viewer = await memberWith('viewer');
   await assert.rejects(asRequest(viewer, () => family.updateFamilyDetails({ data: { tree: TREE, opKey: 'rename-viewer', name: 'Nope', tagline: '' } })), forbidden);
