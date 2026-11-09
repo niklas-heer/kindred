@@ -122,6 +122,18 @@
 @media (pointer: coarse) and (max-width: 760px) {
   .map-controls .map-zoom { display: none; }
 }
+/* A phone's canvas is two cards wide, and a rail on its right edge stood on one of them. Here the controls sit at the
+   foot of the ruler's gutter instead, which is as wide as they are: they cover a generation's mark at most, never a
+   person. The minimap, shown on request, opens beside them. */
+@media (max-width: 600px) {
+  .map-dock { left: 0; right: auto; bottom: calc(var(--sheet-h, 0px) + 4px); flex-direction: row; align-items: flex-end; gap: 6px; }
+  /* The gutter's own colour, so a generation's mark behind the buttons does not show through them. */
+  .map-controls, [data-theme] .map-controls {
+    width: var(--ruler-w); padding: 4px 0 0; gap: 0; border: 0; border-top: 1px solid var(--border); border-radius: 0;
+    background: var(--panel-solid); box-shadow: none; backdrop-filter: none;
+  }
+  [data-theme='codex'] .map-controls { background: #141a24; border-top-color: var(--edge-soft); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .map-dock { transition: none; }

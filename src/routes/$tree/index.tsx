@@ -284,6 +284,7 @@ function TreePage() {
   // ---- trail: the last people you looked at ----
   const [trail, setTrail] = useState<string[]>([]);
   useEffect(() => setTrail((t) => [sel, ...t.filter((x) => x !== sel)].slice(0, 9)), [sel]);
+  const lastSeen = trail[1] ? f.byId.get(trail[1]) : undefined;
 
   // ---- lenses ----
   const myAnc = useMemo(() => (who ? ancestorDepths(f, who) : new Map<string, number>()), [f, who]);
@@ -734,7 +735,15 @@ function TreePage() {
         // Under about 960px of free canvas (a 1280px laptop with the panel open) the map is drawn a quarter smaller.
         smallMap={winW - (panel && !phone ? panelW + 56 : 56) < 960}
         controls={
-          <button className="btn icon ghost map-keys" onClick={() => setHelp((h) => !h)} title={t('tp.keysTitle')} aria-label={t('tp.keys')} aria-pressed={help}><Keyboard size={16} /></button>
+          <>
+            <button className="btn icon ghost map-keys" onClick={() => setHelp((h) => !h)} title={t('tp.keysTitle')} aria-label={t('tp.keys')} aria-pressed={help}><Keyboard size={16} /></button>
+            {/* A phone has no room for the row of recent people over the tree: the last one is a button here, and the browser's Back walks the rest. */}
+            {phone && lastSeen && (
+              <button className="btn icon ghost trail-back" onClick={() => select(lastSeen.id)} title={displayName(lastSeen, f)} aria-label={t('tp.backTo', { name: displayName(lastSeen, f) })}>
+                <Portrait person={lastSeen} tree={tree} size={32} frame={false} />
+              </button>
+            )}
+          </>
         }
         overlay={
           <>
@@ -868,7 +877,7 @@ function TreePage() {
 
             </div>
 
-            {trail.length > 1 && (
+            {trail.length > 1 && !phone && (
               <nav className={`trail no-pan panel${panel ? ' with-panel' : ''}`} aria-label={t('tp.recent')}>
                 <span className="faint">{t('tp.trail')}</span>
                 {trail.slice(1).map((id) => {

@@ -122,6 +122,10 @@
 .lens-banner .btn:hover { background: color-mix(in srgb, var(--accent-text) 12%, transparent); }
 .lens-count { opacity: 0.85; font-size: var(--fs-2, 13px); white-space: nowrap; }
 
+/* A phone's trail: the last person looked at, as one button among the map controls. */
+.map-controls .btn.trail-back { padding: 0; }
+.trail-back > * { border-radius: 50%; overflow: hidden; }
+
 /* ---------- trail ---------- */
 .trail {
   position: absolute; left: 72px; bottom: 16px; z-index: 6; display: flex; align-items: center; gap: 6px; padding: 6px 10px;

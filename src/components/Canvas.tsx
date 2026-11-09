@@ -147,7 +147,8 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     const gutter = w <= 900 ? 44 : 56; // the ruler
     // The zoom stack and minimap sit on the right; measure them rather than guess.
     const d = dock.current;
-    let right = Math.max(i.right ?? 0, d ? w - d.offsetLeft + 8 : 0);
+    // A phone keeps them in the ruler's gutter on the left (canvas.css), where they cover no part of the tree.
+    let right = Math.max(i.right ?? 0, d && d.offsetLeft > w / 2 ? w - d.offsetLeft + 8 : 0);
     let left = Math.max(gutter, i.left);
     let bottom = i.bottom ?? 0;
     // A panel that leaves almost nothing is ignored, so the tree is not squeezed into a sliver.
