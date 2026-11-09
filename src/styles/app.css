@@ -210,6 +210,8 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
+/* The page reaches under the notch and the rounded corners (viewport-fit=cover), so the sides keep clear of them in landscape. */
+body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
 body {
   background: var(--bg);
   color: var(--text);
@@ -356,6 +358,10 @@ kbd {
 /* ---------- app shell ---------- */
 
 .shell { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100vh; height: 100dvh; overflow: hidden; }
+/* Under the status bar of an installed app the top bar's colour carries on, and the bar itself starts below it. */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .shell { padding-top: env(safe-area-inset-top); background: linear-gradient(var(--panel), var(--panel)) top / 100% env(safe-area-inset-top) no-repeat; }
+}
 /* Grid children must be allowed to shrink, or one wide table pushes the whole page sideways. */
 .shell > * { min-width: 0; min-height: 0; }
 .topbar {

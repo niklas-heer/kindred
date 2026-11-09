@@ -29,13 +29,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: (ctx) => ({
     meta: [
       { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+      { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
       { title: 'Kindred' },
       { name: 'description', content: translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'common.appDescription') },
     ],
     links: [
       { rel: 'stylesheet', href: appCss },
       { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
+      { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+      { rel: 'manifest', href: '/manifest.webmanifest' },
     ],
     // The theme script goes through the router's head, not a <script> in the React tree: React warns when it renders a
     // script element on the client, and the head renders it once, before first paint, on the server.

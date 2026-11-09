@@ -358,7 +358,7 @@
 .ai-composer:has(textarea:focus:placeholder-shown) + .ai-composer-hint { opacity: 1; }
 
 @media (max-width: 640px) {
-  .ai-drawer { width: 100vw; border-left: 0; }
+  .ai-drawer { width: 100vw; border-left: 0; padding-top: env(safe-area-inset-top); } /* the full-screen chat starts below the status bar */
   .ai-turn-user .ai-bubble { max-width: 90%; }
   .ai-composer { margin: 0 8px; }
   .ai-composer-meta { margin-inline: 18px; }
