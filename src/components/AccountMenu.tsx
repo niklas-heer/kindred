@@ -181,7 +181,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
                 )}
               </div>
             )}
-            <div className="acct-group" role="group" aria-labelledby={`${id}-you`}>
+            <div className="acct-group" role="group" aria-labelledby={tree && (steward || editor) ? `${id}-you` : undefined}>
               {tree && (steward || editor) && <span className="acct-group-h" id={`${id}-you`}>{t('accountmenu.group_you')}</span>}
               <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setPasskeys(true); }}>
                 <KeyRound size={17} /> {session?.auth === 'cloudflare-access' ? t('auth.your_name') : t("accountmenu.your_name_passkeys")} </button>
