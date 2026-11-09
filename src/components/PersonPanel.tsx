@@ -143,6 +143,8 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   const role = useRole();
   const canEdit = can(role, 'edit-person');
   const canAdd = can(role, 'add-person');
+  // A contributor is told what she can do herself, not sent to someone else for it.
+  const canWriteStory = can(role, 'add-story');
   const canPhoto = can(role, 'upload-photo');
   const [required] = useRequired(tree);
   const detailQ = useQuery(personDetailQuery(tree, id));
@@ -306,7 +308,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
       {canAdd ? (
         <div className="pp-add-relative"><Select aria-label={t('panel.addRelative')} placeholder={t('panel.addRelative')} value="" onChange={(v) => { if (v) leave(() => setAdd(v as AddRelation)); }} options={(['parent', 'partner', 'child', 'sibling'] as const).map((v) => ({ value: v, label: t(`card.add${v[0].toUpperCase()}${v.slice(1)}` as Key) }))} /></div>
       ) : (
-        <p className="pp-add-relative pp-ask subtle">{c('ask.editor')}</p>
+        <p className="pp-add-relative pp-ask subtle">{c(canWriteStory ? 'ask.editor.contributor' : 'ask.editor')}</p>
       )}
     </>, <>
       {add && canAdd && <QuickAdd family={f} tree={tree} anchor={id} relation={add} onCancel={() => setAdd(null)} onDone={() => setAdd(null)} />}
