@@ -3,6 +3,7 @@
 // never link what the form would refuse. A plan reads what it needs and guards every fact it read (db.server.ts `once`).
 import { guard, media, q, sameBorn, sameParents, type Db, type Plan } from './db.server';
 import type { LinkResult } from './api';
+import { bornBeforeParent, MAX_PARENTS } from './parent-rules';
 
 export interface LinkInput {
   anchor: string;
@@ -12,8 +13,6 @@ export interface LinkInput {
   coParent?: string;
   partnership?: { kind: 'marriage' | 'partnership' | 'other'; start?: string; place?: string };
 }
-
-const yearIn = (d: string | null | undefined) => (d ? parseInt(d.replace(/^~/, ''), 10) : NaN);
 
 /** A random id for a partnership row, as the form makes it. */
 function partnershipId(): string {
@@ -75,10 +74,8 @@ export async function linkPlan(d: Db, data: LinkInput): Promise<Plan<LinkResult>
     const all = newParents.get(child) ?? new Set(had);
     all.add(parent);
     newParents.set(child, all);
-    if (all.size > 2) throw new Error(`${(await name(child))?.given ?? 'They'} already has two parents.`);
-    const cy = yearIn(await bornOf(child));
-    const py = yearIn(await bornOf(parent));
-    if (cy <= py) throw new Error(`${(await name(child))?.given ?? 'The child'} was born before ${(await name(parent))?.given ?? 'the parent'}, so cannot be their child.`);
+    if (all.size > MAX_PARENTS) throw new Error(`${(await name(child))?.given ?? 'They'} already has two parents.`);
+    if (bornBeforeParent(await bornOf(child), await bornOf(parent))) throw new Error(`${(await name(child))?.given ?? 'The child'} was born before ${(await name(parent))?.given ?? 'the parent'}, so cannot be their child.`);
     const ancestry = 'WITH RECURSIVE ancestors(id) AS (SELECT parent FROM parent WHERE child = ? UNION SELECT p.parent FROM parent p JOIN ancestors a ON p.child = a.id) SELECT id FROM ancestors WHERE id = ?';
     if (await d.get(ancestry, parent, child)) throw new Error('This would create a loop in the ancestry.');
     guards.push(guard(`NOT EXISTS (${ancestry})`, parent, child));

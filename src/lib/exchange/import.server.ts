@@ -3,11 +3,11 @@
 // Server-only: it uses the family's database. The steward's permission is checked by the server function that
 // calls this (exchange.functions.ts), before anything here runs.
 import { storeFurther } from '../further-given.ts';
-import { db, newId, once, type Db, type OpKey } from '../db.server.ts';
+import { db, newId, once, sameBorn, type Db, type OpKey } from '../db.server.ts';
 import { gazetteer, locatePlaces, type Located } from '../gazetteer.server.ts';
 import { guard, q, type Query } from '../store/index.ts';
 import { readGedcom } from './gedcom.ts';
-import { planImport, type ConflictCode, type ImportPlan } from './plan.ts';
+import { planImport, type Conflict, type ConflictCode, type ImportPlan } from './plan.ts';
 import type { Vars } from '../i18n/types.ts';
 import { readTree, type ExTree, type IssueCode } from './model.ts';
 
@@ -70,7 +70,7 @@ export interface ImportPreview {
   matched: { name: string; by: 'id' | 'name' }[];
   matchCount: number;
   ambiguous: string[];
-  conflicts: { name: string; field: string; code: ConflictCode; kind: 'value' | 'cycle'; existing: string; incoming: string; vars: Vars }[];
+  conflicts: { name: string; field: string; code: ConflictCode; kind: Conflict['kind']; existing: string; incoming: string; vars: Vars }[];
   conflictCount: number;
   parents: number;
   duplicateParents: number;
@@ -155,6 +155,8 @@ export function applyImport(tree: string, text: string, op: OpKey | undefined, a
       guard('(SELECT rev FROM ancestry_rev WHERE id = 1) = ?', rev.rev),
       guard('(SELECT count(*) FROM partnership) = ?', existing.unions.length),
     ];
+    // The parent rules read these birth dates: a date changed in between makes the import plan again.
+    for (const [id, born] of plan.bornRead) writes.push(sameBorn(id, born));
     for (const p of plan.add) {
       writes.push(
         q(

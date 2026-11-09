@@ -8,12 +8,16 @@
 //     difference is listed as a conflict for the steward to settle by hand.
 //   - New people are added, with the id the file gives when that id is free, otherwise a new one.
 //   - Parent links and partnerships are added when they are new; one already in the tree is counted, not repeated.
+//   - A new parent link keeps the link form's rules (parent-rules.ts), also when it joins people already in the tree:
+//     no third parent of one kind, and no birth or adoptive parent born after (or with) the child. A link that breaks
+//     one is a conflict, and is not added; the rest of the file still is.
 //   - A parent link that would make someone their own ancestor (directly or through others, in the tree or in the
 //     file) is a conflict, and is not added. `applyImport` refuses the whole file while there are any.
 import type { Key } from '../i18n/dictionary.ts';
+import { bornBeforeParent, MAX_PARENTS } from '../parent-rules.ts';
 import type { Vars } from '../i18n/types.ts';
 import type { Incoming, IncomingPerson } from './gedcom.ts';
-import type { ExParent, ExPerson, ExTree, ExUnion, Issue, IssueCode } from './model.ts';
+import type { ExParent, ExPerson, ExTree, ExUnion, Issue, IssueCode, ParentKind } from './model.ts';
 
 type ConflictField = 'born' | 'died' | 'born place' | 'died place' | 'parent';
 export type ConflictCode = Extract<Key, `exchange.conflict.field.${string}`>;
@@ -34,8 +38,12 @@ export interface Conflict {
   field: ConflictField;
   /** The field's name in the reader's language. */
   code: ConflictCode;
-  /** `value`: one fact differs between the file and the family. `cycle`: a parent link that would make a loop. */
-  kind: 'value' | 'cycle';
+  /**
+   * `value`: one fact differs between the file and the family. `cycle`: a parent link that would make a loop.
+   * `parents`: a parent link that would give the child a third parent of one kind. `order`: a birth or adoptive parent
+   * born after (or in the same year as) the child.
+   */
+  kind: 'value' | 'cycle' | 'parents' | 'order';
   existing: string;
   incoming: string;
   /** What the translated sentence needs: `exchange.conflict.value` or `exchange.conflict.cycle`. */
@@ -60,6 +68,11 @@ export interface ImportPlan {
   conflicts: Conflict[];
   /** Parent links refused because they would make someone their own ancestor (also listed in `conflicts`). */
   cycles: Cycle[];
+  /**
+   * The birth dates of people already in the family that the accepted parent links were checked against, so the write
+   * can guard them: a date changed in between makes the import plan again.
+   */
+  bornRead: Map<string, string | null>;
   /** New parent links (ids of the tree), and how many were already there. */
   parents: ExParent[];
   duplicateParents: number;
@@ -184,14 +197,23 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
     });
   }
 
-  // Parent links. Each new link is checked against the ancestry as it stands: the family's, plus the links
-  // accepted so far in this file. A link that would make a person their own ancestor is refused, not written.
+  // Parent links. Each new link is checked against the family as it stands plus the links accepted so far in this
+  // file: the ancestry (a link that would make a person their own ancestor is refused, and refuses the file), and the
+  // link form's rules (a third parent of one kind, or a parent born after the child, is refused on its own).
   const existingLinks = new Set(existing.parents.map((l) => `${l.child}|${l.parent}`));
   const parentsOf = new Map<string, Set<string>>();
-  for (const l of existing.parents) addParent(parentsOf, l.child, l.parent);
+  const kindCount = new Map<string, number>();
+  const countKey = (child: string, kind: ParentKind) => `${child}|${kind}`;
+  for (const l of existing.parents) {
+    addParent(parentsOf, l.child, l.parent);
+    kindCount.set(countKey(l.child, l.kind), (kindCount.get(countKey(l.child, l.kind)) ?? 0) + 1);
+  }
   const nameById = new Map([...existing.people, ...add].map((p) => [p.id, nameOf(p)]));
+  const bornById = new Map([...existing.people, ...add].map((p) => [p.id, p.born]));
+  const bornRead = new Map<string, string | null>();
   const parents: ExParent[] = [];
   const cycles: Cycle[] = [];
+  let refused = 0;
   let duplicateParents = 0;
   let unlinked = 0;
   for (const l of incoming.parents) {
@@ -206,25 +228,55 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
       duplicateParents++;
       continue;
     }
+    const childName = nameById.get(child) ?? child;
+    const parentName = nameById.get(parent) ?? parent;
     // Adding child→parent closes a cycle exactly when the child is already an ancestor of (or the same as) the parent.
     if (isAncestorOf(parentsOf, child, parent)) {
-      const cycle = { child, parent, childName: nameById.get(child) ?? child, parentName: nameById.get(parent) ?? parent };
+      const cycle = { child, parent, childName, parentName };
       cycles.push(cycle);
       conflicts.push({
-        name: cycle.childName,
+        name: childName,
         id: child,
         field: 'parent',
         code: FIELD_CODE.parent,
         kind: 'cycle',
-        existing: `${cycle.parentName} is a descendant`,
-        incoming: `${cycle.parentName} as a parent`,
-        vars: { name: cycle.childName, parent: cycle.parentName },
+        existing: `${parentName} is a descendant`,
+        incoming: `${parentName} as a parent`,
+        vars: { name: childName, parent: parentName },
       });
       continue;
     }
+    // A step or foster parent can be younger than the child; a birth or adoptive parent cannot.
+    const ordered = l.kind === 'biological' || l.kind === 'adoptive';
+    const tooYoung = ordered && bornBeforeParent(bornById.get(child), bornById.get(parent));
+    const tooMany = (kindCount.get(countKey(child, l.kind)) ?? 0) >= MAX_PARENTS;
+    if (tooYoung || tooMany) {
+      refused++;
+      conflicts.push({
+        name: childName,
+        id: child,
+        field: 'parent',
+        code: FIELD_CODE.parent,
+        kind: tooYoung ? 'order' : 'parents',
+        existing: tooYoung ? `${childName} born ${bornById.get(child)}` : `${MAX_PARENTS} ${l.kind} parents`,
+        incoming: `${parentName}${tooYoung ? ` born ${bornById.get(parent)}` : ''} as a parent`,
+        vars: { name: childName, parent: parentName },
+      });
+      continue;
+    }
+    for (const id of [child, parent]) if (byId.has(id)) bornRead.set(id, byId.get(id)!.born);
     existingLinks.add(k);
     addParent(parentsOf, child, parent);
+    kindCount.set(countKey(child, l.kind), (kindCount.get(countKey(child, l.kind)) ?? 0) + 1);
     parents.push({ child, parent, kind: l.kind, confidence: l.confidence });
+  }
+  if (refused) {
+    issues.push({
+      level: 'loss',
+      code: 'exchange.issue.parents_refused',
+      vars: { count: refused },
+      message: `${refused} parent link${refused === 1 ? '' : 's'} would give someone a third parent of one kind, or a parent born after them, and ${refused === 1 ? 'is' : 'are'} not imported`,
+    });
   }
   if (cycles.length) {
     const code: IssueCode = 'exchange.issue.cycles';
@@ -259,7 +311,7 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
     unions.push({ id, a, b, kind: u.kind, start: u.start, end: u.end, endReason: u.endReason, place: u.place });
   }
 
-  return { add, matched, ambiguous, conflicts, cycles, parents, duplicateParents, unions, duplicateUnions, unlinked, issues };
+  return { add, matched, ambiguous, conflicts, cycles, bornRead, parents, duplicateParents, unions, duplicateUnions, unlinked, issues };
 }
 
 const addParent = (parentsOf: Map<string, Set<string>>, child: string, parent: string) => {

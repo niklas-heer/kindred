@@ -38,7 +38,7 @@ export function fixtureTree(): ExTree {
       base({ id: 'anna', given: 'Anna', surname: 'Linden', sex: 'f', born: '~1900', bornPlace: 'Lindenby', died: '1971-06-14', diedPlace: 'Ulm', bio: LONG_BIO, occupation: 'Baker', portrait: { key: 'photo/0f3c.jpg', mime: 'image/jpeg' } }),
       base({ id: 'karl', given: 'Karl', surname: 'Linden', sex: 'm', born: '1898', occupation: 'Miller' }),
       base({ id: 'greta', given: 'Greta', surname: 'Berg', currentSurname: 'Linden', sex: 'f', born: '1925-03-08', living: true }),
-      base({ id: 'otto', given: 'Otto', surname: 'Linden', sex: 'm', born: '1924-11', died: '1990' }),
+      base({ id: 'otto', given: 'Otto', surname: 'Linden', sex: 'm', born: '1944-11', died: '1990' }),
       base({ id: 'hanna', given: 'Hanna', furtherGiven: ['Marie', 'Luise'], surname: 'Linden', sex: 'f', born: '1950', nickname: 'Hanni', living: true }),
       base({ id: 'pim', given: 'Pim', surname: 'Linden', sex: 'x', born: '1952', living: false, died: '2001' }),
       base({ id: 'lea', given: 'Lea', surname: 'Berg', sex: 'f', born: '2001-01-01', living: true }),

@@ -206,7 +206,8 @@ On the **Import and export** page, a steward chooses a `.ged` file (up to 5 MB) 
 then shows, and nothing is written yet:
 
 - the people the file would add, and the people it matches to the family already;
-- conflicts, where a matched person has a different birth or death date or place in the file;
+- conflicts, where a matched person has a different birth or death date or place in the file, and parent links that
+  are refused (see below);
 - the parent links and partnerships that would be new, and how many were already there;
 - possible duplicates, and anything the reader should know about the file.
 
@@ -219,8 +220,20 @@ person is added as new, and the preview says so. A second person in the file wit
 
 **What an import changes.** It only adds: new people, new parent links and new partnerships. It never changes a person
 who is already in the family, and it never removes anything. A conflict is listed for the steward to settle by hand.
-A parent link that would make someone their own ancestor is listed as a conflict and is not added. While the file holds
-any such link, the whole import is refused, and nothing is written until the file is corrected.
+
+**Parent links keep the link form's rules**, for new people and for people already in the family alike (so an older
+backup cannot put back parents that were corrected since):
+
+- A child has at most two parents of one kind. A link that would add a third birth parent (or a third adoptive, foster
+  or step parent) is listed as a conflict and is not added; the first two in the family or the file are kept.
+- A birth or adoptive parent is born before the child, in an earlier year. A link to a parent born later, or in the same
+  year, is listed as a conflict and is not added. A step or foster parent may be younger, and a missing birth year on
+  either side is no reason to refuse.
+- A parent link that would make someone their own ancestor is listed as a conflict and is not added. While the file
+  holds any such link, the whole import is refused, and nothing is written until the file is corrected.
+
+The other two kinds of refused link do not stop the rest of the file: the preview counts them, and the write leaves out
+exactly the links the preview listed.
 
 **A family that already has people** needs an explicit choice. The page asks the steward to turn on "Add to this
 family", and the server refuses the import without it. The same goes for a family with no new people to add: the

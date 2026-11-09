@@ -26,9 +26,12 @@ type Applied = Awaited<ReturnType<typeof applyImportFile>>;
 type Conflict = Preview['conflicts'][number];
 const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-/** A conflict in the reader's language: one fact that differs, or a parent link that would make a loop. */
+/** A conflict in the reader's language: one fact that differs, or a parent link that is refused, and why. */
 function conflictText(t: Translator, c: Conflict) {
-  return c.kind === 'cycle' ? t('exchange.conflict.cycle', c.vars) : t('exchange.conflict.value', { ...c.vars, field: t(c.code) });
+  if (c.kind === 'cycle') return t('exchange.conflict.cycle', c.vars);
+  if (c.kind === 'parents') return t('exchange.conflict.parents', c.vars);
+  if (c.kind === 'order') return t('exchange.conflict.order', c.vars);
+  return t('exchange.conflict.value', { ...c.vars, field: t(c.code) });
 }
 
 function ExchangePage() {

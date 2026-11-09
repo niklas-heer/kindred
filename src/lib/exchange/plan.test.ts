@@ -172,3 +172,90 @@ test('a family with two parents, and the diamond above it, is not a loop', () =>
   assert.equal(plan.cycles.length, 0);
   assert.equal(plan.conflicts.filter((c) => c.field === 'parent').length, 0);
 });
+
+// ---------- the link form's parent rules ----------
+
+/** A file with people (id, birth year) and FAM records (parents, children), each child's link of the given kind. */
+function familyFile(people: [id: string, born: string | null][], fams: { parents: string[]; children: string[]; kind?: string }[]): string {
+  const famcOf = new Map<string, string[]>();
+  fams.forEach((f, i) => f.children.forEach((c) => famcOf.set(c, [...(famcOf.get(c) ?? []), `F${i}`])));
+  const lines = ['0 HEAD'];
+  for (const [id, born] of people) {
+    lines.push(`0 @${id}@ INDI`, `1 _KINDRED_ID ${id}`, `1 NAME ${id.toUpperCase()} /Test/`);
+    if (born) lines.push('1 BIRT', `2 DATE ${born}`);
+    for (const f of famcOf.get(id) ?? []) {
+      lines.push(`1 FAMC @${f}@`);
+      const kind = fams[Number(f.slice(1))].kind;
+      if (kind) lines.push(`2 _KINDRED_KIND ${kind}`);
+    }
+  }
+  fams.forEach((f, i) => {
+    lines.push(`0 @F${i}@ FAM`, '1 _KINDRED_KIND parents');
+    const [h, w] = f.parents;
+    if (h) lines.push(`1 HUSB @${h}@`);
+    if (w) lines.push(`1 WIFE @${w}@`);
+    for (const c of f.children) lines.push(`1 CHIL @${c}@`);
+  });
+  lines.push('0 TRLR');
+  return lines.join('\n') + '\n';
+}
+
+test('a third birth parent for someone already in the family is a conflict, and is not added', () => {
+  // The family has Hanna with her two birth parents, Anna and Karl. An older file says Greta and Otto are her parents.
+  const tree = fixtureTree();
+  const text = familyFile(
+    [['hanna', '1950'], ['greta', '1925-03-08'], ['otto', '1944-11']],
+    [{ parents: ['otto', 'greta'], children: ['hanna'] }],
+  );
+  const plan = planImport(readGedcom(text), tree, makeId);
+  assert.equal(plan.matched.length, 3);
+  assert.deepEqual(plan.parents, [], 'no link is written');
+  const refused = plan.conflicts.filter((c) => c.kind === 'parents');
+  assert.equal(refused.length, 2);
+  assert.ok(refused.every((c) => c.id === 'hanna' && c.field === 'parent'));
+  assert.deepEqual(refused.map((c) => c.vars.parent).sort(), ['Greta Berg', 'Otto Linden']);
+  assert.ok(plan.issues.some((i) => i.code === 'exchange.issue.parents_refused' && i.vars.count === 2));
+  assert.equal(plan.cycles.length, 0, 'these do not refuse the whole file');
+});
+
+test('a parent of another kind is not a third parent: a step parent beside two birth parents is added', () => {
+  const tree = fixtureTree();
+  const text = familyFile([['hanna', '1950'], ['jonas', '1948-07-30']], [{ parents: ['jonas'], children: ['hanna'], kind: 'step' }]);
+  const plan = planImport(readGedcom(text), tree, makeId);
+  assert.deepEqual(plan.parents.map((l) => `${l.child}<${l.parent}:${l.kind}`), ['hanna<jonas:step']);
+  assert.deepEqual(plan.conflicts, []);
+});
+
+test('a parent born after (or in the same year as) the child is a conflict, and is not added', () => {
+  const text = familyFile(
+    [['kid', '1900'], ['young', '1910'], ['same', '1900'], ['old', '1870']],
+    [{ parents: ['young', 'old'], children: ['kid'] }, { parents: ['same'], children: ['kid'], kind: 'adoptive' }],
+  );
+  const plan = planImport(readGedcom(text), emptyTree(), makeId);
+  assert.deepEqual(plan.parents.map((l) => `${l.child}<${l.parent}`), ['kid<old']);
+  const order = plan.conflicts.filter((c) => c.kind === 'order');
+  assert.deepEqual(order.map((c) => c.vars.parent).sort(), ['SAME Test', 'YOUNG Test']);
+  assert.ok(order.every((c) => c.vars.name === 'KID Test'));
+});
+
+test('a step or foster parent may be younger than the child', () => {
+  const text = familyFile([['kid', '1900'], ['step', '1905']], [{ parents: ['step'], children: ['kid'], kind: 'step' }]);
+  const plan = planImport(readGedcom(text), emptyTree(), makeId);
+  assert.equal(plan.parents.length, 1);
+  assert.deepEqual(plan.conflicts, []);
+});
+
+test('three birth parents in the file alone: the first two are added and the third is a conflict', () => {
+  const text = familyFile(
+    [['kid', '1900'], ['a', '1870'], ['b', '1871'], ['c', '1872']],
+    [{ parents: ['a', 'b'], children: ['kid'] }, { parents: ['c'], children: ['kid'] }],
+  );
+  const plan = planImport(readGedcom(text), emptyTree(), makeId);
+  assert.deepEqual(plan.parents.map((l) => l.parent), ['a', 'b']);
+  assert.deepEqual(plan.conflicts.map((c) => [c.kind, c.vars.parent]), [['parents', 'C Test']]);
+});
+
+test('a link with an unknown birth year on either side passes the birth-order rule, as in the link form', () => {
+  const text = familyFile([['kid', null], ['p', '1990']], [{ parents: ['p'], children: ['kid'] }]);
+  assert.equal(planImport(readGedcom(text), emptyTree(), makeId).parents.length, 1);
+});

@@ -218,3 +218,20 @@ test('another editor replacing one of those links, one for one, between the plan
   const kept = await r.get<{ n: number }>('SELECT count(*) AS n FROM parent WHERE child = ? AND parent = ?', ids[1500], ids[0]);
   assert.equal(kept!.n, 1, 'the other editor’s link is kept');
 });
+
+test('re-importing an older export after a child’s parents were corrected puts no third parent back', async () => {
+  emptyFamily('parents');
+  await applyImport('parents', text, undefined, false);
+  const r = db('parents');
+  // A steward corrects Hanna's parents: Karl and Jonas, not Anna and Karl.
+  await r.run("DELETE FROM parent WHERE child = 'hanna'");
+  await r.run("INSERT INTO parent (child, parent, kind) VALUES ('hanna', 'jonas', 'biological'), ('hanna', 'karl', 'biological')");
+  const preview = await previewImport('parents', text);
+  const refused = preview.conflicts.filter((c) => c.kind === 'parents');
+  assert.deepEqual(refused.map((c) => c.vars.parent), ['Anna Linden']);
+  assert.equal(preview.parents, 0, 'the preview promises no new link');
+  const result = await applyImport('parents', text, undefined, true);
+  assert.equal(result.parents, preview.parents, 'the write does what the preview said');
+  const now = (await r.all<{ parent: string }>("SELECT parent FROM parent WHERE child = 'hanna' ORDER BY parent")).map((l) => l.parent);
+  assert.deepEqual(now, ['jonas', 'karl']);
+});
