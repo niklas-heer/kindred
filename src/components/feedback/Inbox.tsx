@@ -50,7 +50,7 @@ export function FeedbackInbox() {
         {header}
         {q.isPending && <Skeleton lines={6} />}
         {q.isError && <ErrorState message={errorText(q.error, t.locale)} onRetry={() => q.refetch()} />}
-        {q.data && reports.length === 0 && <EmptyState icon={<InboxIcon size={28} />} title={t('feedback.empty_title')} text={t('feedback.empty_text')} />}
+        {q.data && reports.length === 0 && <EmptyState icon={<InboxIcon size={28} />} title={t('feedback.empty_title')} text={<>{t('feedback.empty_text')} <kbd>{t('feedback.key_mod')}</kbd> <kbd>{t('feedback.key_shift')}</kbd> <kbd>F</kbd></>} />}
         {reports.length > 0 && (
           <div className="fb-inbox" data-open={current ? '' : undefined}>
             <div className="fb-list-col">

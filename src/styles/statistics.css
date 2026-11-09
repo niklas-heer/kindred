@@ -1,40 +1,26 @@
-/* The Statistics page. The four series colours were checked for colour-blind separation and contrast against each theme's panel. */
+/* The Statistics page. Every chart colour comes from the theme: lines are accent and muted (the second is dashed too), and the
+   four stacked kinds alternate warm and cool so neighbours stay apart. Paper's accent and --ok are both green, so it reorders. */
 .st {
   --st-surface: var(--panel-solid);
   --st-line: var(--accent);
-  --st-1: #3987e5;
-  --st-2: #d95926;
-  --st-3: #199e70;
-  --st-4: #c98500;
+  --st-line-2: var(--muted);
+  --st-1: var(--accent);
+  --st-2: var(--ok);
+  --st-3: var(--muted);
+  --st-4: var(--danger);
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 [data-theme='modern'] .st {
-  --st-1: #2a78d6;
-  --st-2: #d9562a;
-  --st-3: #17966a;
-  --st-4: #b07a00;
+  --st-2: var(--danger);
+  --st-3: #a67c2e;
+  --st-4: var(--muted);
 }
 .st .page-header, .st > header { margin-bottom: 4px; }
 
-.st-card {
-  background: var(--st-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px 18px;
-  min-width: 0;
-}
-.st-card h2 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 12px;
-  font-family: var(--font-ui);
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text);
-}
+.st-card { min-width: 0; }
+.st-card > h2.rule { margin: 0 0 12px; }
 .st-caption { margin: -6px 0 12px; font-family: var(--font-ui); font-size: 14px; color: var(--subtle); }
 .st-none { margin: 0; font-family: var(--font-ui); font-size: 15px; color: var(--muted); }
 

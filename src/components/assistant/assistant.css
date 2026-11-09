@@ -398,7 +398,7 @@
 .ai-card-done { border-left-color: var(--ok); }
 
 /* Settings page */
-.ai-settings { display: flex; flex-direction: column; gap: 16px; max-width: 760px; }
+.ai-settings { display: flex; flex-direction: column; gap: 16px; }
 .ai-section { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .ai-section h2 { margin: 0; font-family: var(--font-title); font-size: 1rem; letter-spacing: 0.03em; }
 .ai-row { display: flex; flex-direction: column; gap: 6px; }

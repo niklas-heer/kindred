@@ -126,3 +126,5 @@
 .union-status { fill: var(--muted); font-size: 16px; }
 .union-label.dim { opacity: .25; }
 .canvas.detail-far .union-label { display: none; }
+/* Name plates are the zoomed-out level: at their smallest zoom (about 0.48) these still land near 10px on screen. */
+.canvas.detail-mid .union-label, .canvas.detail-mid .union-status { font-size: 20px; }

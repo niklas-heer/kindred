@@ -356,8 +356,10 @@
 .hm-needed { margin-top: 22px; display: grid; gap: 10px; }
 .hm-needed > .rule { margin: 0; }
 .hm-needed-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
-.hm-needed-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 52px; padding: 10px 14px; text-decoration: none; color: var(--text); }
-.hm-needed-item b { font-family: var(--font-name); font-weight: var(--name-weight); overflow-wrap: anywhere; }
+.hm-needed-intro { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.hm-needed-intro > p { margin: 0; flex: 1 1 24ch; }
+.hm-needed-item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; min-height: 52px; padding: 10px 14px; text-decoration: none; color: var(--text); }
+.hm-needed-item b { font-family: var(--font-name); font-weight: var(--name-weight); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .hm-needed-item:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 @media (max-width: 640px) {

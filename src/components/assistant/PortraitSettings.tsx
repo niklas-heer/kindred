@@ -33,7 +33,7 @@ export function PortraitSettings({ tree }: { tree: string }) {
   const tooLong = value.trim().length > MAX_STYLE_CHARS;
   return (
     <section className="ui-card ai-step" aria-labelledby="paint-settings-h">
-      <h2 id="paint-settings-h" className="ai-step-title">{t('paint.setTitle')}</h2>
+      <h2 id="paint-settings-h" className="rule ai-step-title">{t('paint.setTitle')}</h2>
       <p className="subtle">{t('paint.setWhat')}</p>
       {s && s.enabled && s.connected && provider && <p className="ai-card-state ok" role="status">{t('paint.setOnWith', { provider: PROVIDER_LABEL[provider] })}</p>}
       {s && !s.enabled && <p className="subtle">{t('paint.setOff')}</p>}

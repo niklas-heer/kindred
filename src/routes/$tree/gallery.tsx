@@ -102,7 +102,7 @@ function GalleryPage() {
   return (
     <div className="page">
     <div className={`page-inner gallery${dragging ? ' is-dragging' : ''}`} onDragOver={onDragOver} onDragLeave={(e) => { if (e.currentTarget === e.target) setDragging(false); }} onDrop={onDrop}>
-      <PageHeader title={g('gallery.title')} subtitle={g('gallery.subtitle')} icon={<Images size={26} />} actions={addButton} />
+      <PageHeader title={g('gallery.title')} subtitle={g('gallery.subtitle')} icon={<Images size={26} />} actions={!q.isPending && !q.isError && media.length === 0 ? undefined : addButton} />
 
       {dragging ? <div className="gal-dropzone" aria-hidden>{g('gallery.drop')}</div> : null}
 

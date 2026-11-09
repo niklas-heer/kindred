@@ -33,7 +33,7 @@ function ResearchPage() {
   return (
     <div className="page">
       <div className="page-inner research">
-        <PageHeader title={t('research.title')} subtitle={t('research.subtitle')} icon={<FolderSearch size={26} />} actions={addButton} />
+        <PageHeader title={t('research.title')} subtitle={t('research.subtitle')} icon={<FolderSearch size={26} />} actions={!q.isPending && !q.isError && projects.length === 0 ? undefined : addButton} />
         {q.isPending ? (
           <div className="rs-grid" aria-busy="true">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} height={132} radius={8} />)}</div>
         ) : q.isError ? (

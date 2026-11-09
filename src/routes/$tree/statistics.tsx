@@ -76,9 +76,12 @@ function Report({ o, t, tree, view, setView }: { o: Overview; t: Translator; tre
   const dayLabel = (day: string) => short.format(Date.parse(`${day}T00:00:00Z`));
   const days = s.series.map((p) => p.day);
   const rangeActive = o.days === 7 ? s.active.d7 : o.days === 30 ? s.active.d30 : s.active.d90;
-  const nothing = !o.since && o.slices.all.totals.changes === 0;
+  // Until a first day of use has been counted there is nothing to compare or read, even when the family's own records have dates.
+  const nothing = !o.since;
   const guest = view === 'guest';
   const category = (CATEGORIES as readonly string[]).includes(view);
+  // Nothing to report yet: one sentence and the switch, not a page of noughts.
+  if (nothing) return <><Notice>{t(o.collecting ? 'stats.empty_notice' : 'stats.off_notice')}</Notice><Collection on={o.collecting} tree={tree} t={t} /></>;
 
   const delta = (now: number, before: number) => {
     const p = percentChange(now, before);
@@ -88,7 +91,6 @@ function Report({ o, t, tree, view, setView }: { o: Overview; t: Translator; tre
   return (
     <>
       {!o.collecting && <Notice>{t('stats.off_notice')}</Notice>}
-      {nothing && o.collecting && <Notice>{t('stats.empty_notice')}</Notice>}
 
       <div className="st-view">
         <Segmented aria-label={t('stats.view.label')} value={view} onChange={setView} size="sm"
@@ -105,13 +107,13 @@ function Report({ o, t, tree, view, setView }: { o: Overview; t: Translator; tre
 
       <section className="st-tiles" aria-label={t('stats.summary')} aria-describedby="st-scope">
         {!guest && <Tile label={t('stats.tile.views')} value={count(s.totals.views)} note={delta(s.totals.views, s.previous.views)} />}
-        {!guest && <Tile label={t('stats.tile.active')} value={count(rangeActive)} note={t('stats.of_members', { count: s.members })} />}
+        {!guest && <Tile label={t('stats.tile.active')} value={count(rangeActive)} note={s.members > 0 ? t('stats.of_members', { count: s.members }) : undefined} />}
         <Tile label={t('stats.tile.visits')} value={count(s.totals.visits + s.totals.guests)} note={guest ? delta(s.totals.guests, s.previous.guests) : t('stats.guests', { count: s.totals.guests })} />
         {!guest && <Tile label={t('stats.tile.changes')} value={count(s.totals.changes)} note={s.changesKnown ? delta(s.totals.changes, s.previous.changes) : o.categorized ? t('stats.changes_since', { day: dayLabel(o.categorized) }) : t('stats.no_comparison')} />}
       </section>
 
-      <section className="st-card st-reception" data-verdict={s.reception.verdict}>
-        <h2>{t('stats.reception_title')}</h2>
+      <section className="ui-card st-card st-reception" data-verdict={s.reception.verdict}>
+        <h2 className="rule">{t('stats.reception_title')}</h2>
         <p className="st-verdict">{t(`stats.verdict.${s.reception.verdict}` as Key)}</p>
         <ul>
           {s.reception.points.map((p) => (
@@ -124,8 +126,8 @@ function Report({ o, t, tree, view, setView }: { o: Overview; t: Translator; tre
       <Card title={t('stats.chart.both')} note={t('stats.chart.both_note')}>
         <TimeChart mode="lines" days={days} dayLabel={dayLabel} locale={t.locale} label={t('stats.chart.both')} height={170}
           series={[
-            { label: t('stats.tile.views'), color: 'var(--st-1)', values: s.series.map((p) => p.views) },
-            { label: t('stats.tile.active'), color: 'var(--st-2)', values: s.series.map((p) => p.active) },
+            { label: t('stats.tile.views'), color: 'var(--st-line)', values: s.series.map((p) => p.views) },
+            { label: t('stats.tile.active'), color: 'var(--st-line-2)', values: s.series.map((p) => p.active) },
           ]} />
       </Card>
 
@@ -139,7 +141,7 @@ function Report({ o, t, tree, view, setView }: { o: Overview; t: Translator; tre
 
       <Who o={o} t={t} count={count} />
 
-      <details className="st-card st-table">
+      <details className="ui-card st-card st-table">
         <summary>{t('stats.show_table')}</summary>
         <div className="st-table-scroll" tabIndex={0}>
           <table>
@@ -233,8 +235,8 @@ function Collection({ on, tree, t }: { on: boolean; tree: string; t: Translator 
     onSettled: () => qc.invalidateQueries({ queryKey: ['statistics', tree] }),
   });
   return (
-    <section className="st-card st-privacy">
-      <h2><ShieldCheck size={18} /> {t('stats.privacy_title')}</h2>
+    <section className="ui-card st-card st-privacy">
+      <h2 className="rule"><ShieldCheck size={18} /> {t('stats.privacy_title')}</h2>
       <Switch checked={on} disabled={change.isPending} onChange={(next) => change.mutate(next)}>{t('stats.collect_switch')}</Switch>
       {change.isError && <Notice>{errorText(change.error, t.locale)}</Notice>}
       <p>{t('stats.privacy_counted')}</p>
@@ -244,12 +246,12 @@ function Collection({ on, tree, t }: { on: boolean; tree: string; t: Translator 
   );
 }
 
-function Tile({ label, value, note }: { label: string; value: string; note: string }) {
-  return <div className="st-card st-tile"><span>{label}</span><b>{value}</b><small>{note}</small></div>;
+function Tile({ label, value, note }: { label: string; value: string; note?: string }) {
+  return <div className="ui-card st-card st-tile"><span>{label}</span><b>{value}</b>{note && <small>{note}</small>}</div>;
 }
 
 function Card({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
-  return <section className="st-card"><h2>{title}</h2>{note && <p className="st-caption">{note}</p>}{children}</section>;
+  return <section className="ui-card st-card"><h2 className="rule">{title}</h2>{note && <p className="st-caption">{note}</p>}{children}</section>;
 }
 
 function Ranked({ rows, empty, count }: { rows: { id: string; label: string; n: number }[]; empty: string; count: (n: number) => string }) {

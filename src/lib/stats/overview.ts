@@ -189,6 +189,7 @@ export function readReception(o: Pick<Slice, 'totals' | 'previous' | 'active' | 
   // Guests are anonymous visits, so there is nothing about people to read.
   if (o.guestsOnly) return { verdict: 'early', points: [{ tone: 'neutral', key: 'stats.rc.guests_only' }] };
   const counted = daysCounted(o.since, o.today);
+  if (counted === 0) return { verdict: 'early', points: [{ tone: 'neutral', key: 'stats.empty_notice' }] };
   if (counted < 7 || o.totals.views < 20) {
     return { verdict: 'early', points: [{ tone: 'neutral', key: 'stats.rc.early', vars: { count: counted } }] };
   }

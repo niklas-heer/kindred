@@ -34,14 +34,14 @@ export function AiActivityPage() {
   const q = useQuery({ ...aiActivityQuery(tree), enabled: steward });
   if (!steward) {
     return (
-      <main className="page ai-activity-page">
+      <main className="page"><div className="page-inner ai-activity-page">
         <PageHeader title={t('aitasks.activityTitle')} subtitle={t('aitasks.activitySubtitle')} icon={<ActivityIcon size={22} />} />
         <EmptyState title={t('aitasks.stewardsOnly')} text="" />
-      </main>
+      </div></main>
     );
   }
   return (
-    <main className="page ai-activity-page">
+    <main className="page"><div className="page-inner ai-activity-page">
       <PageHeader
         title={t('aitasks.activityTitle')}
         subtitle={t('aitasks.activitySubtitle')}
@@ -52,7 +52,7 @@ export function AiActivityPage() {
       {q.isPending && <Skeleton lines={6} />}
       {q.isError && <ErrorState title={t('ai.settingsLoadFailed')} message={errorText(q.error, t.locale)} onRetry={() => q.refetch()} />}
       {q.data && <ActivityBody tree={tree} data={q.data} />}
-    </main>
+    </div></main>
   );
 }
 
@@ -86,7 +86,7 @@ function ActivityBody({ tree, data }: { tree: string; data: Activity }) {
   return (
     <>
       <section className="ui-card aitasks-section" aria-labelledby="aitasks-waiting-h">
-        <h2 id="aitasks-waiting-h">{t('aitasks.waitingTitle')}</h2>
+        <h2 id="aitasks-waiting-h" className="rule">{t('aitasks.waitingTitle')}</h2>
         {data.waiting.length === 0 && data.waitingLinks.length === 0 && <p className="muted">{t('aitasks.waitingNone')}</p>}
         {data.waitingLinks.length > 0 && (
           <ul className="aitasks-waiting">
@@ -129,7 +129,7 @@ function ActivityBody({ tree, data }: { tree: string; data: Activity }) {
       </section>
 
       <section className="ui-card aitasks-section" aria-labelledby="aitasks-tasks-h">
-        <h2 id="aitasks-tasks-h">{t('aitasks.tasksTitle')}</h2>
+        <h2 id="aitasks-tasks-h" className="rule">{t('aitasks.tasksTitle')}</h2>
         <ul className="aitasks-tasks">
           {TASKS.map((task) => {
             const row = data.tasks.find((x) => x.task === task);
@@ -160,7 +160,7 @@ function ActivityBody({ tree, data }: { tree: string; data: Activity }) {
       </section>
 
       <section className="ui-card aitasks-section" aria-labelledby="aitasks-spend-h">
-        <h2 id="aitasks-spend-h">{t('aitasks.spendTitle')}</h2>
+        <h2 id="aitasks-spend-h" className="rule">{t('aitasks.spendTitle')}</h2>
         <p className="muted">
           {t('aitasks.spendLine', {
             spent: usd(data.backgroundSpentMicros, locale),
@@ -174,7 +174,7 @@ function ActivityBody({ tree, data }: { tree: string; data: Activity }) {
       </section>
 
       <section className="ui-card aitasks-section" aria-labelledby="aitasks-runs-h">
-        <h2 id="aitasks-runs-h">{t('aitasks.runsTitle')}</h2>
+        <h2 id="aitasks-runs-h" className="rule">{t('aitasks.runsTitle')}</h2>
         {data.runs.length === 0 ? (
           <p className="muted">{t('aitasks.runsNone')}</p>
         ) : (

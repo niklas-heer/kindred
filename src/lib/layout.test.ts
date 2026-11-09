@@ -218,25 +218,51 @@ test("a child's line starts on their own parents' marriage line", () => {
   }
 });
 
+/** No connector passes through a marriage line, and no two connectors of different families touch. */
+function assertNoCrossings(l: Layout, label: string) {
+  const lines = l.edges.filter((e) => e.kind === 'line').flatMap((e) => segments(e.d).map((s) => ({ e, s })));
+  const marriages = l.edges.filter((e) => e.kind === 'marriage').map((e) => ({ e, s: segments(e.d)[0] }));
+  // A bar may only be met by its own family's lines: a marriage line is crossed if passed through, a bar even if touched.
+  const crosses = (h: number[], v: number[], touch: boolean) => {
+    const [hx0, hx1] = [Math.min(h[0], h[2]), Math.max(h[0], h[2])], [vy0, vy1] = [Math.min(v[1], v[3]), Math.max(v[1], v[3])];
+    const slack = touch ? -0.5 : 0.5;
+    return v[0] > hx0 + 0.5 && v[0] < hx1 - 0.5 && h[1] > vy0 + slack && h[1] < vy1 - slack;
+  };
+  const across = [...lines, ...marriages].filter(({ s }) => s[1] === s[3]);
+  const downs = lines.filter(({ s }) => s[0] === s[2]);
+  for (const a of across) for (const d of downs) {
+    if (a.e.key === d.e.key || startX(a.e.d) === startX(d.e.d)) continue;
+    assert.ok(!crosses(a.s, d.s, a.e.kind === 'line'), `${label}: ${a.e.key} meets ${d.e.key}`);
+  }
+}
+
 test('no line of descent runs across a marriage line, or across another line of descent', () => {
   const f = family(true);
-  for (const focus of ['lotte', 'egon']) {
-    const l = family_(f, focus);
-    const lines = l.edges.filter((e) => e.kind === 'line').flatMap((e) => segments(e.d).map((s) => ({ e, s })));
-    const marriages = l.edges.filter((e) => e.kind === 'marriage').map((e) => ({ e, s: segments(e.d)[0] }));
-    // A bar may only be met by its own family's lines: a marriage line is crossed if passed through, a bar even if touched.
-    const crosses = (h: number[], v: number[], touch: boolean) => {
-      const [hx0, hx1] = [Math.min(h[0], h[2]), Math.max(h[0], h[2])], [vy0, vy1] = [Math.min(v[1], v[3]), Math.max(v[1], v[3])];
-      const slack = touch ? -0.5 : 0.5;
-      return v[0] > hx0 + 0.5 && v[0] < hx1 - 0.5 && h[1] > vy0 + slack && h[1] < vy1 - slack;
-    };
-    const across = [...lines, ...marriages].filter(({ s }) => s[1] === s[3]);
-    const downs = lines.filter(({ s }) => s[0] === s[2]);
-    for (const a of across) for (const d of downs) {
-      if (a.e.key === d.e.key || startX(a.e.d) === startX(d.e.d)) continue;
-      assert.ok(!crosses(a.s, d.s, a.e.kind === 'line'), `${focus}: ${a.e.key} meets ${d.e.key}`);
-    }
+  for (const focus of ['lotte', 'egon']) assertNoCrossings(family_(f, focus), focus);
+});
+
+test('when both spouses of an ancestor couple married again, every child line stays clear', () => {
+  // Both of the father's parents and both of the mother's parents have another marriage with a child.
+  const couples = [['gpa', 'gma', 'dad'], ['opa', 'oma', 'mum']];
+  const people: GPerson[] = [person('kid', 'Kid', 'f', '1990'), person('dad', 'Dad', 'm', '1960'), person('mum', 'Mum', 'f', '1962')];
+  const links: [string, string][] = [['kid', 'dad'], ['kid', 'mum']];
+  const unions: GUnion[] = [{ id: 'u-p', a: 'dad', b: 'mum', kind: 'marriage', start: '1985' }];
+  for (const [a, b, child] of couples) {
+    people.push(person(a, a, 'm', '1930'), person(b, b, 'f', '1932'), person(`${a}2`, `${a}2`, 'f', '1934'), person(`${b}2`, `${b}2`, 'm', '1931'), person(`${a}k`, `${a}k`, 'f', '1965'), person(`${b}k`, `${b}k`, 'm', '1966'));
+    links.push([child, a], [child, b], [`${a}k`, a], [`${a}k`, `${a}2`], [`${b}k`, b], [`${b}k`, `${b}2`]);
+    unions.push({ id: `u-${a}`, a, b, kind: 'marriage', start: '1955' }, { id: `u-${a}2`, a, b: `${a}2`, kind: 'marriage', start: '1964' }, { id: `u-${b}2`, a: b, b: `${b}2`, kind: 'marriage', start: '1965' });
   }
+  const f = buildFamily({
+    tree: { id: 't', name: 'T', tagline: '', theme: 'modern', focus: 'kid', people: people.length }, houses: [], places: [], people,
+    parents: links.map(([child, parent]) => ({ child, parent, kind: 'biological', confidence: 'certain' }) as GParent), unions,
+  });
+  const l = family_(f, 'kid');
+  assertNoCrossings(l, 'kid');
+  // The inner spouse keeps their place on the line and is repeated beside their other marriage.
+  for (const id of ['gma', 'opa']) assert.equal(l.nodes.filter((n) => n.id === id && n.role === 'dup').length, 1, `${id} is repeated once`);
+  for (const id of ['gpa2', 'gma2', 'opa2', 'oma2', 'gpak', 'gmak', 'opak', 'omak']) assert.ok(l.nodes.some((n) => n.id === id), `${id} is drawn`);
+  const ids = l.nodes.filter((n) => n.row === -2);
+  for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) assert.ok(Math.abs(ids[i].x - ids[j].x) >= CARD_W, `${ids[i].key} and ${ids[j].key} do not overlap`);
 });
 
 function manyPartners(count: number): Family {

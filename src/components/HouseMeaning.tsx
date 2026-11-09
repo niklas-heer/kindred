@@ -371,16 +371,21 @@ export function HousesToReview({ tree }: { tree: string }) {
   const { canEdit, ready, badges } = useStewardBadges(tree);
   const list = canEdit && ready ? f.graph.houses.filter((h) => badges[h.id]) : [];
   if (list.length === 0) return null;
+  // When every house waits for the same thing, the label is said once and not on every card.
+  const shared = list.every((h) => badges[h.id] === badges[list[0].id]) ? badges[list[0].id] : null;
   return (
     <section className="hm-needed" aria-labelledby="hm-needed-title">
       <h2 className="rule" id="hm-needed-title">{t('houses.review.neededTitle')} <span className="subtle hs-num">{list.length}</span></h2>
-      <p className="subtle">{t('houses.review.neededText')}</p>
+      <div className="hm-needed-intro">
+        <p className="subtle">{t('houses.review.neededText')}</p>
+        {shared && <ReviewBadgeChip badge={shared} />}
+      </div>
       <ul className="hm-needed-list">
         {list.map((h) => (
           <li key={h.id}>
             <Link to="/$tree/house/$house" params={{ tree, house: h.id }} className="ui-card interactive hm-needed-item">
               <b>{h.name}</b>
-              <ReviewBadgeChip badge={badges[h.id]} />
+              {!shared && <ReviewBadgeChip badge={badges[h.id]} />}
             </Link>
           </li>
         ))}

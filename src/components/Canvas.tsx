@@ -15,7 +15,7 @@ export type Detail = 'far' | 'mid' | 'near';
 /** Card name sizes in world pixels at each level (card.css reads them as --name-near / --name-mid). */
 export const NAME_PX = { near: 15, mid: 24 } as const;
 /** Smallest name on screen we accept before dropping to a simpler level. */
-const MIN_TEXT_PX = 9.5;
+const MIN_TEXT_PX = 12;
 // Detail follows the size names actually reach on screen (zoom × font size), not fixed zoom steps.
 // With a little hysteresis, so cards don't flicker between levels while zooming near a threshold.
 const detailFor = (k: number, prev: Detail): Detail => {
@@ -190,7 +190,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     const lo = { x: a.l + m.x, y: a.t + m.y }, hi = { x: a.r - m.x, y: a.b - m.y };
     const fitK = Math.min((hi.x - lo.x) / b.w, (hi.y - lo.y) / b.h);
     const k = fitK >= MID_K ? Math.min(fitK, 0.9) : READABLE_K;
-    if (k < 0.6) lastDetail.current = 'mid'; // so the hysteresis keeps name plates at the threshold
+    if (k * NAME_PX.near < MIN_TEXT_PX) lastDetail.current = 'mid'; // so the hysteresis keeps name plates at the threshold
     const n = firstOf.get(id);
     // Along one axis: centre the tree when it fits, else centre the focus and pull the tree's edges
     // to the area's edges, so the view never shows empty space where there is more tree.

@@ -1,5 +1,6 @@
 .needed > p { margin: 4px 0 18px; }
-.needed-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+.needed-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 18px; }
+.needed .hm-needed { margin-top: 32px; }
 .needed-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .needed-more { margin: 16px auto 0; display: flex; }
 

@@ -101,8 +101,6 @@ function Needed() {
             )}
           </div>} />
 
-        <HousesToReview tree={tree} />
-
         {shown.length > 0 && queue.length === 0 && (
           <p className="needed-ask subtle" role="note">
             {role === 'viewer'
@@ -170,6 +168,9 @@ function Needed() {
           </ol>
         )}
         {shown.length > limit && <button className="btn needed-more" onClick={() => setLimit((l) => l + 200)}>{t('needed.showMore', { count: Math.min(200, shown.length - limit) })}</button>}
+
+        {/* A steward's chore, after the page's own list. */}
+        <HousesToReview tree={tree} />
       </div>
       {blaze && <Blaze queue={blaze} only={blazeOnly} f={f} tree={tree} me={who} role={role} required={required} onClose={() => setBlaze(null)} />}
     </div>

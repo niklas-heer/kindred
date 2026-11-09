@@ -5,7 +5,7 @@ import type { Message } from "../types.ts";
 export const en = {
   "research.title": "Research",
   "research.subtitle": "Your questions about the family, and everything you have found to answer them",
-  "research.nav_hint": "documents & questions",
+  "research.nav_hint": "Documents & questions",
   "research.cmd_hint": "Documents, notes and timelines around one question",
 
   "research.new": "New project",
@@ -257,7 +257,7 @@ export const de: Record<keyof typeof en, Message> = {
 export const af: Partial<Record<keyof typeof en, Message>> = {
   "research.title": "Navorsing",
   "research.subtitle": "Jou vrae oor die familie, en alles wat jy gevind het om hulle te beantwoord",
-  "research.nav_hint": "dokumente en vrae",
+  "research.nav_hint": "Dokumente en vrae",
   "research.cmd_hint": "Dokumente, notas en tydlyne rondom een vraag",
 
   "research.new": "Nuwe projek",

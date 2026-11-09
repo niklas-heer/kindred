@@ -58,7 +58,7 @@ export function BackgroundSettings({ tree }: { tree: string }) {
   const q = useQuery(aiActivityQuery(tree));
   return (
     <section className="ui-card ai-step aitasks" aria-labelledby="aitasks-h">
-      <h2 id="aitasks-h" className="ai-step-title">{t('aitasks.title')}</h2>
+      <h2 id="aitasks-h" className="rule ai-step-title">{t('aitasks.title')}</h2>
       {q.isPending && <Skeleton lines={5} />}
       {q.isError && <ErrorState title={t('ai.settingsLoadFailed')} message={errorText(q.error, t.locale)} onRetry={() => q.refetch()} />}
       {q.data && <BackgroundForm tree={tree} data={q.data} />}

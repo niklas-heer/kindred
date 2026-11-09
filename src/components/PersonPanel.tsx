@@ -74,6 +74,8 @@ interface Props {
   onClose: () => void;
   /** The full-page profile instead of the tree's side panel: the same content, laid out for the whole screen. */
   page?: boolean;
+  /** The Edit tab was opened: on a phone the sheet around this panel makes room for the fields. */
+  onEditOpen?: () => void;
 }
 
 /** True inside the full-page profile. */
@@ -82,7 +84,7 @@ const PageLayout = createContext(false);
 /** The person's details (stories, contacts, places): loading, failed with a retry, or there. */
 type DetailState = { detail?: PersonDetail; failed: boolean; retry: () => void };
 
-export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPath, onDynasty, onAncestors, onClose, page = false }: Props) {
+export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPath, onDynasty, onAncestors, onClose, page = false, onEditOpen }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [pending, setPending] = useState<(() => void) | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
@@ -105,6 +107,8 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   }, [draft, onClose, page]);
   const p = f.byId.get(id);
   const [tab, setTab] = useState<Tab>('overview');
+  // Only when the tab changes: the callback is a new function on every render of the tree.
+  useEffect(() => { if (tab === 'edit') onEditOpen?.(); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
   // What this reader may do here (the server checks the same; see src/lib/roles.ts).
   const role = useRole();
   const canEdit = can(role, 'edit-person');
@@ -144,13 +148,13 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   const Heading = page ? 'h1' : 'h2';
   // Who they are, what there is to read, and the dialogs: a docked column in the tree, a page of their own in the profile.
   const shell = (identity: ReactNode, main: ReactNode, dialogs: ReactNode) => page ? (
-    <article className="person-profile" key={id}>
+    <article className={`person-profile${tab === 'edit' ? ' pp-editing' : ''}`} key={id}>
       <div className="pf-identity">{identity}</div>
       <div className="pf-main">{main}</div>
       {dialogs}
     </article>
   ) : (
-    <aside className="person-panel panel" key={id}>
+    <aside className={`person-panel panel${tab === 'edit' ? ' pp-editing' : ''}`} key={id}>
       <button className="btn icon ghost panel-close" onClick={() => leave(onClose)} aria-label={t('panel.closeAria')} title={t('panel.closeTitle')}><X size={16} /></button>
       {identity}{main}{dialogs}
     </aside>

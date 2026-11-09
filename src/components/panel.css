@@ -357,3 +357,20 @@ p.pp-add-relative.pp-ask { margin: 0; padding: 12px 16px; }
 .pp-glance dd { font-size: 18px; text-wrap: balance; }
 .pp-glance-tile { padding-inline: 3px; }
 .pp-glance dt { overflow-wrap: normal; hyphens: auto; }
+
+/* ---------- editing: the fields get the room ---------- */
+/* One line of who this is; the tree buttons and "Add relative" come back with the other tabs. On the wide profile page the identity column doesn't compete with the form. */
+.person-panel.pp-editing :is(.pp-actions, .pp-traits, .pp-add-relative, .pp-title, .pp-life, .pp-house, .pp-open-profile, button.pp-photo) { display: none; }
+.person-panel.pp-editing .pp-head { align-items: center; gap: 10px; padding: 10px 52px 6px 14px; }
+.person-panel.pp-editing .pp-portrait > .portrait { width: 36px !important; height: 36px !important; }
+.person-panel.pp-editing .pp-id { padding-top: 0; }
+.person-panel.pp-editing .pp-id h2 { font-size: 19px; padding-right: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.person-panel.pp-editing .pe-bar { margin-inline: -16px; padding-inline: 16px; }
+@media (max-width: 1000px) {
+  .person-profile.pp-editing :is(.pp-actions, .pp-traits, .pp-add-relative, .pp-title, .pp-life, .pp-house, button.pp-photo) { display: none; }
+  .person-profile.pp-editing .pp-head { flex-direction: row; align-items: center; gap: 10px; }
+  .person-profile.pp-editing .pp-portrait-slot { align-self: center; }
+  .person-profile.pp-editing .pp-portrait > .portrait { width: 44px !important; height: 44px !important; }
+  .page .person-profile.pp-editing .pp-id h1 { font-size: 22px; }
+}
+@media (max-width: 600px) { .person-panel.pp-editing .pe-bar { margin-inline: -12px; padding-inline: 12px; } }

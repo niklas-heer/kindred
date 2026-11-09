@@ -64,8 +64,8 @@
 .acc-form .input { height: 40px; }
 .acc-form .ui-select { width: 100%; }
 .acc-hint { margin: -8px 0 0; font-size: 14px; color: var(--subtle); line-height: 1.4; }
-.acc-link { display: flex; gap: 8px; }
-.acc-link .input { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13px; height: 42px; }
+.acc-link { display: flex; gap: 8px; min-width: 0; }
+.acc-link .input { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13px; height: 42px; min-width: 0; width: 100%; }
 .acc-link .btn { height: 42px; flex: none; }
 .acc-share { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .acc-share .btn { height: 40px; }
@@ -93,7 +93,9 @@
 .share-card p { color: var(--muted); line-height: 1.5; margin-top: 0; }
 .share-status { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 12px; }
 .share-status .chip[data-ended] { color: var(--danger); }
-.share-shown { display: grid; gap: 12px; }
+/* The link and the message are long: they scroll inside their own fields and never widen the page. */
+.share-shown { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.share-shown label { min-width: 0; }
 .share-shown label > span:first-child { display: block; font-size: 13px; color: var(--subtle); margin-bottom: 4px; }
 .share-message { width: 100%; height: auto; min-height: 96px; resize: vertical; line-height: 1.45; padding: 10px 12px; font-family: var(--font-ui); box-sizing: border-box; }
 .share-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }

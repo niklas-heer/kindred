@@ -753,6 +753,7 @@ function TreePage() {
             id={sel}
             me={who}
             onSelect={(id) => select(id)}
+            onEditOpen={() => { if (phone) setSnap('full'); }}
             onCenter={() => { if (phone) setSnap('peek'); refocus(sel); }}
             onPath={() => { if (phone) setSnap('peek'); go({ lens: 'path', to: sel }); }}
             onDynasty={() => { if (phone) setSnap('peek'); go({ view: 'dynasty', root: undefined, focus: sel, sel: undefined }); }}

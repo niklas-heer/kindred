@@ -1,10 +1,11 @@
-/* First run: "Who are you in this family?" and the offer of the guided tour. */
+/* First run: "Who are you in this family?" and the small offer of the guided tour. */
 .who-search { position: relative; margin: 2px 0 10px; }
 .who-search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
 .who-search .input { height: 42px; padding-left: 36px; font-size: 16px; }
 .who-label { margin: 10px 2px 4px; font-family: var(--font-ui); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--subtle); }
 [data-theme='codex'] .who-label { font-family: var(--font-display); text-transform: none; font-variant: small-caps; font-size: 14px; color: var(--accent); }
 .who-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; min-height: 120px; }
+.who-list:empty { min-height: 0; }
 .who-item {
   width: 100%; display: flex; align-items: center; gap: 12px; padding: 6px 8px; text-align: left;
   border: 0; border-radius: var(--radius); background: transparent; cursor: pointer;
@@ -18,7 +19,16 @@
 .who-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; width: 100%; }
 .who-foot p { margin: 0; font-size: 13.5px; color: var(--subtle); flex: 1 1 200px; }
 
-.tour-offer { margin: 0; color: var(--muted); line-height: 1.5; text-wrap: pretty; }
+.tour-offer { position: fixed; top: var(--hud-bottom, 116px); right: 16px; z-index: 70; width: min(340px, calc(100vw - 32px)); box-sizing: border-box; padding: 16px 18px; display: grid; gap: 8px; }
+.tour-offer h2 { margin: 0; font-family: var(--font-display); font-size: 18px; font-weight: 600; line-height: 1.25; }
+[data-theme='codex'] .tour-offer h2 { font-variant: small-caps; color: var(--accent); letter-spacing: 0.03em; }
+.tour-offer p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.45; text-wrap: pretty; }
+.tour-offer > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+/* On a phone it sits just above the tab bar, where the thumb already is. */
+@media (max-width: 760px) {
+  .tour-offer { top: auto; bottom: calc(68px + env(safe-area-inset-bottom)); left: 16px; right: 16px; width: auto; }
+  .tour-offer > div .btn { flex: 1; justify-content: center; }
+}
 
 /* Your own name, exactly: first in the list and marked. */
 .who { display: grid; }

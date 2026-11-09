@@ -161,14 +161,15 @@
 .add:focus-visible::before { box-shadow: 0 0 0 calc(3px / var(--k, 1)) color-mix(in srgb, var(--accent) 45%, transparent); }
 .add-parent { left: 50%; top: -24px; }
 .add-child { left: 50%; top: calc(100% + 52px); animation-delay: 40ms; }
-.add-partner { left: calc(100% + 30px); top: 56px; animation-delay: 80ms; }
-.add-sibling { left: -30px; top: 56px; animation-delay: 120ms; }
+/* Below the marriage line (82px down the card), so the mark never sits on the ⚭ and date above that line. */
+.add-partner { left: calc(100% + 30px); top: calc(88px + 15px / var(--k, 1)); animation-delay: 80ms; }
+.add-sibling { left: -30px; top: calc(88px + 15px / var(--k, 1)); animation-delay: 120ms; }
 @keyframes pop { from { transform: scale(0.4); opacity: 0; } }
 
 /* Mid detail: a smaller portrait and much bigger type, so names stay readable zoomed out. */
 .card.mid .card-name, [data-theme='codex'] .card.mid .card-name { font-size: var(--name-mid, 22px); line-height: 1.05; min-height: 2.1em; max-width: 138px; }
 .card.mid .card-plate { width: 146px; padding: 5px 3px 4px; }
-.card.mid .card-years { font-size: 16px; }
+.card.mid .card-years { font-size: 20px; }
 
 /* Far: a shield in the house colour. */
 .card.far {

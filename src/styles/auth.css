@@ -1,7 +1,8 @@
 /* Sign in, first setup and invitations: one framed card on the tree's canvas, like the home page. */
 .auth-page {
   min-height: 100vh; min-height: 100dvh; display: grid; place-items: center;
-  padding: 72px 16px 40px; box-sizing: border-box;
+  /* The crest stands 52px above the card: 32px of clear space beyond it, and the same below. */
+  padding: 84px 16px 32px; box-sizing: border-box;
   background: var(--canvas-texture), var(--canvas);
 }
 .auth-card { position: relative; width: min(480px, 100%); box-sizing: border-box; padding: 30px 30px 24px; text-align: left; }
@@ -85,7 +86,7 @@
 .auth-who-foot p { margin: 0; color: var(--subtle); font-size: 14px; flex: 1 1 200px; }
 
 @media (max-width: 520px) {
-  .auth-page { padding: 64px 12px 24px; align-items: start; }
+  .auth-page { padding: 90px 12px 32px; }
   .auth-card { padding: 24px 18px 20px; }
   .auth-card h1 { font-size: 24px; }
   .auth-lede { font-size: 16px; }

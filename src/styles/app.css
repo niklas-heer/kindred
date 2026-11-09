@@ -324,10 +324,11 @@ kbd {
 }
 [data-theme='codex'] .topbar { border-bottom: 1px solid #0a0d12; box-shadow: inset 0 -1px 0 var(--edge-soft), 0 2px 12px #0008; }
 [data-theme='night'] .topbar { box-shadow: inset 0 -1px 0 #6b563640, 0 2px 12px #0006; }
+/* With labels the family's name keeps its width and the nav absorbs the squeeze; topbar-compact is set when it can't (see useTopbarFit). */
 .topbar .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; min-width: 0; flex: none; }
 .topbar .brand b { font-family: var(--font-display); font-size: 18px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32ch; }
 [data-theme='night'] .topbar .brand b { font-size: 20px; font-weight: 500; }
-.topbar nav { display: flex; gap: 2px; margin-left: 12px; min-width: 0; }
+.topbar nav { display: flex; gap: 2px; margin-left: 12px; min-width: 0; flex: 0 1 auto; }
 .topbar nav a {
   padding: 6px 12px; border-radius: var(--radius); text-decoration: none; color: var(--muted);
   font-family: var(--font-ui); font-size: 15px; display: inline-flex; gap: 6px; align-items: center;
@@ -338,7 +339,7 @@ kbd {
 .topbar .spacer { flex: 1; }
 .topbar-tools { display: flex; gap: 2px; }
 .topbar-menu { display: none; }
-.search-trigger { width: 260px; justify-content: space-between; color: var(--muted); }
+.search-trigger { width: 260px; flex: none; justify-content: space-between; color: var(--muted); }
 
 .page { overflow: auto; height: 100%; background: var(--page-bg); }
 .page-inner { max-width: 1100px; margin: 0 auto; padding: 28px 24px 80px; }
@@ -351,10 +352,18 @@ kbd {
 /* Scrollbars that fit */
 * { scrollbar-width: thin; scrollbar-color: var(--panel-3) transparent; }
 
-/* Narrow windows: the nav keeps its icons, titles explain them. */
-@media (max-width: 1400px) { .topbar nav .nav-label { display: none; } .topbar nav a { padding: 6px 10px; } .search-trigger { width: 200px; } }
-/* Eight sections (with Houses) keep their labels down to 1400px: a little less padding and a narrower search. */
-@media (min-width: 1401px) and (max-width: 1680px) { .topbar nav a { padding: 6px 7px; gap: 5px; } .search-trigger { width: 168px; } }
+/* No room for every label beside the whole name: the nav keeps its icons, titles explain them. */
+@media (min-width: 761px) {
+  .topbar-compact nav { flex: none; }
+  .topbar-compact nav .nav-label { display: none; }
+  .topbar-compact nav a { padding: 6px 10px; }
+  .topbar-compact .search-trigger { width: 200px; }
+}
+@media (min-width: 901px) { .topbar-compact .brand { flex: 0 1 auto; min-width: calc(18ch + 38px); } }
+/* Before giving up the labels: a little less padding and a narrower search. */
+@media (min-width: 761px) and (max-width: 1680px) { .topbar:not(.topbar-compact) nav a { padding: 6px 7px; gap: 5px; } .topbar:not(.topbar-compact) .search-trigger { width: 168px; } }
+/* Narrower still, the search keeps its icon and shortcut so the name and the account button stay. */
+@media (min-width: 761px) and (max-width: 1180px) { .topbar-compact .search-trigger { width: auto; } .topbar-compact .search-trigger > span:first-child { font-size: 0; } }
 @media (max-width: 900px) { .topbar .brand b { display: none; } .search-trigger { width: auto; } .search-trigger > span:first-child { font-size: 0; } }
 
 /* ---------- phone: a bottom tab bar ---------- */

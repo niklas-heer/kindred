@@ -1,9 +1,11 @@
 import { useT } from '~/lib/i18n';
-// First visit to a tree: "Who are you in this family?", then, once and on its own, the offer of the guided tour.
+// First visit to a tree: "Who are you in this family?", asked on the tree page only (someone sent a link to one page reads that
+// page; "This is me" is there when they want it). Afterwards, once, a small offer of the guided tour in the corner.
 // The answer is saved with the reader's membership and as the `me:<tree>` preference (a person id,
 // or BROWSING); the offer is remembered once answered (`tour`). Until the reader answers,
 // kinship labels stay hidden. `WhoPicker` is the same list, for the invitation page.
 import { useQueryClient } from '@tanstack/react-query';
+import { useRouterState } from '@tanstack/react-router';
 import { Search } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BROWSING, chooseMe, useFamily, useMeAnswered, useTreeId } from '~/lib/family';
@@ -24,6 +26,14 @@ export const reopenTour = startTour;
 /** How long the page settles before the tour is offered, so the offer never lands on top of another dialog. */
 const OFFER_DELAY = 700;
 
+/** The tree page itself: /<family>, not one of the pages under it. */
+const TREE_PAGE = /^\/[^/]+\/?$/;
+
+/** Whether the address names one person on the tree, which is a link someone was sent rather than a first arrival. */
+function namesAPerson(search: { focus?: unknown; sel?: unknown; root?: unknown; to?: unknown }): boolean {
+  return !!(search.focus || search.sel || search.root || search.to);
+}
+
 export function FirstRun() {
   const f = useFamily();
   const tree = useTreeId();
@@ -31,6 +41,8 @@ export function FirstRun() {
   const answered = useMeAnswered();
   // Closing without answering only defers the question to the next visit.
   const [later, setLater] = useState(false);
+  const onTree = useRouterState({ select: (s) => TREE_PAGE.test(s.location.pathname) });
+  const arrived = useRouterState({ select: (s) => TREE_PAGE.test(s.location.pathname) && !namesAPerson(s.location.search) });
 
   const choose = (id: string) => {
     // The account's picture comes from the session's membership, so refresh the session once the link is saved.
@@ -40,14 +52,17 @@ export function FirstRun() {
   // An empty family has nobody to choose from: the start card in the tree is the first thing to do there.
   return (
     <>
-      <WhoAreYou open={!answered && !later && f.graph.people.length > 0} onChoose={choose} onLater={() => setLater(true)} familyName={f.graph.tree.name} />
-      <TourOffer eligible={answered && f.graph.people.length > 0} />
+      <WhoAreYou open={arrived && !answered && !later && f.graph.people.length > 0} onChoose={choose} onLater={() => setLater(true)} familyName={f.graph.tree.name} />
+      <TourOffer eligible={onTree && answered && f.graph.people.length > 0} />
       <Tour />
     </>
   );
 }
 
-/** Offers the tour once, after the reader has said who they are, and only while no other dialog is open. */
+/**
+ * Offers the tour once, after the reader has said who they are: a small card in the corner that leaves the tree usable.
+ * Showing it counts as offering it, so a reader who ignores it is not asked again; the account menu still has the tour.
+ */
 function TourOffer({ eligible }: { eligible: boolean }) {
   const t = useT();
   const seen = usePref(TOUR_SEEN_PREF) !== null;
@@ -55,32 +70,20 @@ function TourOffer({ eligible }: { eligible: boolean }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (!eligible || seen || busy || open) return;
-    const timer = setTimeout(() => setOpen(true), OFFER_DELAY);
+    const timer = setTimeout(() => { setOpen(true); markTourSeen(); }, OFFER_DELAY);
     return () => clearTimeout(timer);
   }, [eligible, seen, busy, open]);
 
-  const answer = (start: boolean) => {
-    setOpen(false);
-    if (start) startTour();
-    else markTourSeen();
-  };
-
+  if (!open || !eligible || busy) return null;
   return (
-    <Dialog
-      open={open}
-      onClose={() => answer(false)}
-      variant="event"
-      width={460}
-      title={t('tour.offer.title')}
-      footer={
-        <>
-          <button className="btn ghost" onClick={() => answer(false)}>{t('tour.offer.no')}</button>
-          <button className="btn primary" data-autofocus onClick={() => answer(true)}>{t('tour.offer.yes')}</button>
-        </>
-      }
-    >
-      <p className="tour-offer">{t('tour.offer.body')}</p>
-    </Dialog>
+    <aside className="ui-card tour-offer" aria-labelledby="tour-offer-title">
+      <h2 id="tour-offer-title">{t('tour.offer.title')}</h2>
+      <p>{t('tour.offer.body')}</p>
+      <div>
+        <button className="btn ghost" onClick={() => setOpen(false)}>{t('tour.offer.no')}</button>
+        <button className="btn primary" onClick={() => { setOpen(false); startTour(); }}>{t('tour.offer.yes')}</button>
+      </div>
+    </aside>
   );
 }
 
@@ -147,9 +150,8 @@ export function WhoPicker({ f, tree, onChoose, autoFocus, initialQuery }: { f: F
     const near = [c, ...partnersOf(f, c), ...children(f, c), ...siblings(f, c), ...parents(f, c)];
     return [...new Set(near)].filter((id) => f.byId.get(id)?.living).slice(0, 6);
   }, [f]);
-  // A prefilled name nobody has: show the likely people instead of an empty list.
-  const prefilledMiss = !!initialQuery && q === initialQuery.trim() && !results.length;
-  const list = q.trim() && !prefilledMiss ? results : suggested;
+  const searching = !!q.trim();
+  const list = searching ? results : suggested;
   const selectedOnce = useRef(false);
 
   return (
@@ -170,12 +172,12 @@ export function WhoPicker({ f, tree, onChoose, autoFocus, initialQuery }: { f: F
           aria-controls="who-list"
         />
       </div>
-      <div className="who-label">{prefilledMiss ? <>{t("firstrun.no_one_called")}{q}{t("firstrun.yet_perhaps_you_are")}</> : q.trim() ? t("firstrun.matches") : t("firstrun.perhaps_you_are")}</div>
+      {list.length > 0 && <div className="who-label">{searching ? t("firstrun.matches") : t("firstrun.near_the_centre")}</div>}
       <ul className="who-list" id="who-list" aria-live="polite">
-        {list.length === 0 && <li className="who-empty">{t("firstrun.nobody_by_that_name_yet_try_a_nickname_or_browse_for_now")}</li>}
+        {searching && list.length === 0 && <li className="who-empty">{t("firstrun.nobody_by_that_name_yet_try_a_nickname_or_browse_for_now")}</li>}
         {list.map((id) => {
           const p = f.byId.get(id)!;
-          const exact = !prefilledMiss && exactName(f, id, q);
+          const exact = exactName(f, id, q);
           return (
             <li key={id}>
               <button className={`who-item${exact ? ' exact' : ''}`} onClick={() => onChoose(id)}>

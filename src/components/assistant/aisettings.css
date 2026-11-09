@@ -3,23 +3,12 @@
 
 .ai-settings {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
-  /* The page has no .page-inner, so this column keeps its own gutter on narrow screens. */
-  width: min(940px, 100% - 32px);
-  max-width: 940px;
-  margin-inline: auto;
-  padding-bottom: 32px;
+  min-width: 0;
 }
 
-/* The title and the button under the form sit on the same column as the cards. */
-.ai-settings-page > .ui-page-header,
-.ai-settings-page > .ai-actions {
-  width: min(940px, 100% - 32px);
-  margin-inline: auto;
-}
-
-.ai-settings-page > .ui-page-header { padding-top: 28px; }
-.ai-settings-page > .ai-actions { padding-bottom: 28px; }
+.ai-settings-page > .ai-actions { margin-top: 16px; }
 
 .ai-step {
   display: grid;
@@ -30,9 +19,6 @@
 
 .ai-step-title {
   margin: 0;
-  font-family: var(--font-title);
-  font-size: 1.05rem;
-  letter-spacing: 0.04em;
 }
 
 .ai-step > p { margin: 0; }
@@ -322,6 +308,8 @@
   .ai-model { grid-template-columns: 1fr; }
   .ai-model-price { text-align: start; }
   .ai-actions { justify-content: stretch; }
+  .ai-savebar .btn { min-height: 44px; flex: 1 1 auto; justify-content: center; }
+  .ai-savebar-status { flex-basis: 100%; }
   .ai-actions .btn { flex: 1 1 auto; justify-content: center; }
   /* "Off" and the first amount sit too close to both carry a label on a phone. The tick stays. */
   .ai-budget-range .ui-range-ticks span:nth-child(2) { font-size: 0; }
@@ -385,6 +373,22 @@
 
 .ai-state.off { color: var(--faint); }
 
+.ai-state.unsaved { color: var(--accent); border-color: currentColor; border-style: dashed; }
+
+/* Unsaved changes: pinned to the foot of the window while there is something to save, like the person editor's bar. */
+.ai-savebar {
+  position: sticky; bottom: 0; z-index: 4;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--panel-solid); box-shadow: var(--shadow);
+}
+[data-theme='codex'] .ai-savebar { border-color: var(--edge-soft); background: linear-gradient(180deg, #1a2130, #151b27); box-shadow: 0 -10px 16px -12px #000b; }
+[data-theme='night'] .ai-savebar { background: #1c2029; border-color: #6b563655; }
+.ai-savebar-status { flex: 1 1 12em; min-width: 0; margin: 0; color: var(--accent); font-family: var(--font-ui); font-size: 15px; overflow-wrap: anywhere; }
+.ai-savebar-status.ai-card-error { color: var(--danger); }
+.ai-savebar .btn { min-height: 40px; }
+
 /* ---------- what uses what: a table on a desktop, stacked rows on a phone ---------- */
 
 .ai-routes-wrap { overflow-x: visible; }
@@ -412,15 +416,20 @@
   font-weight: 600;
 }
 
-.ai-routes th:nth-child(1), .ai-routes td:nth-child(1) { width: 30%; }
-.ai-routes th:nth-child(2), .ai-routes td:nth-child(2) { width: 20%; }
-.ai-routes th:nth-child(3), .ai-routes td:nth-child(3) { width: 25%; }
-.ai-routes th:nth-child(4), .ai-routes td:nth-child(4) { width: 25%; }
+.ai-routes th:nth-child(1), .ai-routes td:nth-child(1) { width: 28%; }
+.ai-routes th:nth-child(2), .ai-routes td:nth-child(2) { width: 22%; }
+.ai-routes th:nth-child(3), .ai-routes td:nth-child(3) { width: 32%; }
+.ai-routes th:nth-child(4), .ai-routes td:nth-child(4) { width: 18%; }
 
 /* The cell's contents, not the cell: a dimmed cell would dim its share of the row's rule too. */
 .ai-route.is-off td:not(.ai-route-job) > * { opacity: 0.6; }
 
 .ai-routes .ui-select { width: 100%; }
+
+/* A select here shows its whole value: a long provider or model name wraps instead of being cut. */
+.ai-settings .ui-select { height: auto; min-height: 32px; padding-block: 4px; }
+.ai-settings .ui-select-value { white-space: normal; text-align: start; }
+.ai-settings .ui-select-value > span { overflow: visible; overflow-wrap: anywhere; line-height: 1.25; }
 
 .ai-route-model .subtle { font-size: 0.88rem; line-height: 1.4; overflow-wrap: anywhere; }
 

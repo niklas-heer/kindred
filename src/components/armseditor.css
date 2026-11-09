@@ -269,6 +269,9 @@
   .ae-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   /* The shield stays in view while you edit. */
   .ae-left { display: contents; }
+  /* The designer starts right under the shield; the name, motto and meanings wait below it. */
+  .ae-work { order: 1; }
+  .ae-left > :not(.ae-preview) { order: 2; }
   .ae-preview {
     position: sticky; top: -1px; z-index: 2; grid-template-columns: auto minmax(0, 1fr); justify-items: start; text-align: left; align-items: center; gap: 4px 14px;
     padding: 8px 0 10px; background: var(--panel-solid, var(--panel)); border-bottom: 1px solid var(--border);

@@ -41,7 +41,7 @@ const SAME_IN_EVERY_LANGUAGE = new Set([
 /** A value may equal the English when it is more than one word only for these. Single words are usually cognates. */
 const SAME_AS_ENGLISH: Record<'de' | 'af', ReadonlySet<string>> = {
   de: new Set(['houses.mottoLabel', 'look.beard.vandyke']), // "Motto (optional)"; a beard named after a painter
-  af: new Set(['gallery.album_count', 'needed.stopEsc', 'look.beard.vandyke']), // "{count} in album"; "Stop (Esc)"
+  af: new Set(['gallery.album_count', 'needed.stopEsc', 'look.beard.vandyke', 'feedback.key_mod']), // "{count} in album"; "Stop (Esc)"; "Cmd/Ctrl", the names on the keys
 };
 
 /** Everyday interface words that are never the same in German or Afrikaans, so one word is enough to fail. */

@@ -357,7 +357,18 @@ function pedigree(f: Family, focus: string, up: number, opts: { slots?: boolean;
   const spouseOnLine = (parent: string, idx: number) => (idx < 2 ? parentsOf(parent)[1 - idx] : undefined);
   const outward = (id: string, parent: string | undefined, idx: number): Unit[] => {
     if (!withPartners || parent === undefined || isGhost(id)) return [];
-    return others(id, spouseOnLine(parent, idx));
+    const spouse = spouseOnLine(parent, idx);
+    const own = others(id, spouse);
+    const side = half.get(parent);
+    if (!side || spouse === undefined) return own;
+    // Both spouses married again. An inner spouse's other marriages would open towards the middle, and their children,
+    // placed outward, would cross this couple's own line of descent. So they go past the outer spouse's, beside a repeat.
+    const outerIdx = side < 0 ? 0 : 1;
+    const theirs = others(spouse, id);
+    if (idx !== outerIdx) return own.length && theirs.length ? [] : own;
+    if (!own.length) return own;
+    const drawn = new Set(own.map((u) => u.union.id));
+    return [...own, ...theirs.filter((u) => !drawn.has(u.union.id))];
   };
   const t = tidy(focus, parentsOf, up, (id, parent, idx, dup) => {
     const units = dup ? [] : outward(id, parent, idx);

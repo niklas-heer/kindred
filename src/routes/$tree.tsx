@@ -1,14 +1,14 @@
 import { formatDate, formatNumber, relativeTime, useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, notFound, Outlet, redirect } from '@tanstack/react-router';
-import { BarChart3, BookOpen, CalendarHeart, CircleHelp, Contact, FolderSearch, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, Sparkles, Users, Inbox, MessageSquarePlus } from 'lucide-react';
+import { ArrowLeftRight, BarChart3, BookOpen, CalendarHeart, CircleHelp, Contact, FolderSearch, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, SlidersHorizontal, Sparkles, Users, Inbox, MessageSquarePlus } from 'lucide-react';
 import { AccountMenu } from '~/components/AccountMenu';
 import { AssistantButton, AssistantHost } from '~/components/assistant/AssistantDrawer';
 import { useAiSetupNeeded } from '~/components/assistant/AiSetup';
 import { openAiSetup, openAssistant, useAiStatus } from '~/components/assistant/store';
 import { aiStatusQuery } from '~/lib/ai.functions';
 import { LanguageChoices, LanguagePicker } from '~/components/LanguagePicker';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FirstRun } from '~/components/FirstRun';
 import { GuestChip } from '~/components/GuestChip';
 import { FeedbackHost, openFeedback } from '~/components/feedback/FeedbackHost';
@@ -59,6 +59,35 @@ export const Route = createFileRoute('/$tree')({
   component: TreeLayout,
 });
 
+/**
+ * Section labels show only when they fit beside the family's whole name. Which words fit depends on the language, the
+ * reader's sections and the name itself, so it is measured. Starts compact (the server can't measure); the class is
+ * only ever set here, so React's renders leave it alone.
+ */
+function useTopbarFit() {
+  const bar = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const el = bar.current;
+    const nav = el?.querySelector('nav');
+    if (!el || !nav) return;
+    const fit = () => {
+      el.classList.remove('topbar-compact');
+      el.classList.toggle('topbar-compact', nav.scrollWidth > nav.clientWidth + 1);
+    };
+    fit();
+    const size = new ResizeObserver(fit);
+    size.observe(el);
+    // Language changes, the Ask button arriving, the account menu loading: none of them resize the bar itself.
+    const content = new MutationObserver(fit);
+    content.observe(el, { subtree: true, childList: true, characterData: true });
+    // Each theme sets its own fonts, so the same words take a different width.
+    content.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'lang'] });
+    void document.fonts?.ready.then(fit);
+    return () => { size.disconnect(); content.disconnect(); };
+  }, []);
+  return bar;
+}
+
 function TreeLayout() {
   const t = useT();
   const { tree } = Route.useParams();
@@ -71,6 +100,7 @@ function TreeLayout() {
   // A guest has no "who are you" to save and no tour of adding people.
   const guest = useSession()?.guest?.tree === tree;
   useStatsBeacon(tree);
+  const topbar = useTopbarFit();
 
   // Each tree opens in its own theme unless the reader picked one.
   useEffect(() => {
@@ -92,12 +122,12 @@ function TreeLayout() {
 
   return (
     <div className="shell">
-      <header className="topbar">
-        <Link to={multiple ? "/" : "/$tree"} params={{ tree }} search={multiple ? { families: "all" } : {}} className="brand" style={{flexShrink: 1}} title={multiple ? t("shell.all_families") : t("shell.family_tree")}>
+      <header className="topbar topbar-compact" ref={topbar}>
+        <Link to={multiple ? "/" : "/$tree"} params={{ tree }} search={multiple ? { families: "all" } : {}} className="brand" title={multiple ? t("shell.all_families") : t("shell.family_tree")}>
           {crest ? <Arms arms={crest.arms} size={28} /> : null}
           <b>{f.graph.tree.name}</b>
         </Link>
-        <nav aria-label={t("shell.sections")} style={{flexShrink: 0}}>
+        <nav aria-label={t("shell.sections")}>
           <Link to="/$tree" params={{ tree }} activeOptions={{ exact: true, includeSearch: false }} title={t("shell.tree")}>
             <Network size={16} /> <span className="nav-label">{t("shell.tree")}</span>
           </Link>
@@ -192,11 +222,11 @@ function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: 
         <li><Link to="/$tree/gallery" params={{ tree }}><Images size={19} /> {t("shell.gallery")} <small>{t("shell.gallery_hint")}</small></Link></li>
         <li><Link to="/$tree/research" params={{ tree }}><FolderSearch size={19} /> {t("research.title")} <small>{t("research.nav_hint")}</small></Link></li>
         {assistant && <li><button type="button" onClick={() => { onClose(); openAssistant(); }}><Sparkles size={19} /> {t("ai.askCommand")}</button></li>}
-        {editor && <li><Link to="/$tree/settings/import" params={{ tree }}><Images size={19} /> {t("shell.importExport")} <small>{t("shell.importExportHint")}</small></Link></li>}
+        {editor && <li><Link to="/$tree/settings/import" params={{ tree }}><ArrowLeftRight size={19} /> {t("shell.importExport")} <small>{t("shell.importExportHint")}</small></Link></li>}
         {steward && <li><Link to="/$tree/access" params={{ tree }}><Users size={19} /> {t("shell.access")} <small>{t("shell.members_invitations")}</small></Link></li>}
         {steward && <li><Link to="/$tree/statistics" params={{ tree }}><BarChart3 size={19} /> {t("stats.menu")} <small>{t("stats.menu_hint")}</small></Link></li>}
         {setupNeeded && <li><button type="button" onClick={() => { onClose(); openAiSetup(); }}><Sparkles size={19} /> {t("ai.setupButton")} <small>{t("shell.ai_settings_hint")}</small></button></li>}
-        {steward && !setupNeeded && <li><Link to="/$tree/settings/ai" params={{ tree }}><Sparkles size={19} /> {t("shell.ai_settings")} <small>{t("shell.ai_settings_hint")}</small></Link></li>}
+        {steward && !setupNeeded && <li><Link to="/$tree/settings/ai" params={{ tree }}><SlidersHorizontal size={19} /> {t("shell.ai_settings")} <small>{t("shell.ai_settings_hint")}</small></Link></li>}
         {steward && <li><button type="button" onClick={() => { onClose(); openFeedback(); }}><MessageSquarePlus size={19} /> {t("feedback.menu")} <small>{t("feedback.command_hint")}</small></button></li>}
         {steward && <li><Link to="/$tree/settings/feedback" params={{ tree }}><Inbox size={19} /> {t("feedback.inbox")} <small>{t("feedback.inbox_hint")}</small></Link></li>}
         {multiple && <li><Link to="/" search={{ families: "all" }}><Network size={19} /> {t("shell.all_families")}</Link></li>}

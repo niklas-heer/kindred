@@ -5,7 +5,7 @@ import { translateMessage, formatDate, relativeTime, useT, type Locale } from '~
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { graphQuery } from '~/lib/api';
-import { Activity, BarChart3, Bell, Check, CircleHelp, Fingerprint, Images, KeyRound, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Inbox, MessageSquarePlus } from 'lucide-react';
+import { Activity, ArrowLeftRight, BarChart3, Bell, Check, CircleHelp, Fingerprint, KeyRound, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Inbox, MessageSquarePlus } from 'lucide-react';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import '~/components/assistant/ai-tasks.css';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
@@ -168,7 +168,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
             )}
             {tree && m && can(m.role, 'edit-person') && (
               <Link role="menuitem" className="acct-item" to="/$tree/settings/import" params={{ tree }} onClick={() => setOpen(false)}>
-                <Images size={17} /> {t("shell.importExport")} </Link>
+                <ArrowLeftRight size={17} /> {t("shell.importExport")} </Link>
             )}
             <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setPasskeys(true); }}>
               <KeyRound size={17} /> {t("accountmenu.your_name_passkeys")} </button>

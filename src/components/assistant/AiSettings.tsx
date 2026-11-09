@@ -5,7 +5,7 @@
 // by the page: the page only ever shows a provider's last four characters.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Sparkles } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { errorText } from '~/lib/errortext';
 import { aiListModels, aiRemoveProvider, aiSaveProvider, aiSaveSettings, aiSettingsQuery, aiTestConnection, type ModelsResult } from '~/lib/ai.functions';
 import { PROVIDER_NOTE } from '~/lib/ai/labels';
@@ -20,13 +20,12 @@ import { useCan } from '~/lib/session';
 import { EmptyState, ErrorState, PageHeader, Range, Select, Skeleton, Switch, type SelectOption } from '~/components/ui';
 import { AssistantButton } from './AssistantDrawer';
 import { PortraitSettings } from './PortraitSettings';
+import { formChanged, formOf, isOn, routeChanged, TASK_OF_ROUTE, type Draft, type FormState } from './settings-form';
 import { BackgroundSettings } from './BackgroundSettings';
 import { treeTitle } from '~/lib/title';
 import './assistant.css';
 import './aisettings.css';
 
-/** Where each job's provider and model are kept: the feature switches, the painting switch, and each background task's switch. */
-type Draft = { provider: Provider | null; model: string };
 type Drafts = Record<Route, Draft>;
 
 const ROUTE_LABEL: Record<Route, Key> = {
@@ -50,7 +49,6 @@ const KEY_PAGE: Record<Provider, string> = {
   openai: 'https://platform.openai.com/api-keys',
   openrouter: 'https://openrouter.ai/keys',
 };
-const TASK_OF_ROUTE: Partial<Record<Route, TaskName>> = { 'arms-review': 'arms', occupations: 'occupations', chronicle: 'chronicle', names: 'names' };
 /** Budget ticks in dollars, and how many model options are listed before the rest are left to the search. */
 const BUDGET_TICKS = [0, 5, 20, 50, 100];
 const MODEL_LIMIT = 200;
@@ -74,14 +72,14 @@ export function AiSettingsPage() {
   const q = useQuery({ ...aiSettingsQuery(tree), enabled: steward });
   if (!steward) {
     return (
-      <main className="page ai-settings-page">
+      <main className="page"><div className="page-inner ai-settings-page">
         <PageHeader title={t('ai.settingsTitle')} subtitle={t('ai.settingsSubtitle')} icon={<Sparkles size={22} />} />
         <EmptyState title={t('ai.stewardsOnly')} text="" />
-      </main>
+      </div></main>
     );
   }
   return (
-    <main className="page ai-settings-page">
+    <main className="page"><div className="page-inner ai-settings-page">
       <PageHeader title={t('ai.settingsTitle')} subtitle={t('ai.settingsSubtitle')} icon={<Sparkles size={22} />} />
       {q.isPending && <Skeleton lines={6} />}
       {q.isError && <ErrorState title={t('ai.settingsLoadFailed')} message={errorText(q.error, t.locale)} onRetry={() => q.refetch()} />}
@@ -89,7 +87,7 @@ export function AiSettingsPage() {
       {q.data && <SettingsForm tree={tree} data={q.data} />}
       {/* A way to try the assistant from here. The drawer itself is mounted once, in the tree layout. */}
       <div className="ai-actions"><AssistantButton tree={tree} /></div>
-    </main>
+    </div></main>
   );
 }
 
@@ -129,26 +127,52 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
   const [otherOpen, setOtherOpen] = useState<Partial<Record<Route, boolean>>>({});
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
-  // ---------- what each job resolves to, from the drafts (the server checks the same on save) ----------
-  const effective = (route: Route): { provider: Provider; model: string } | null => {
-    const d = drafts[route];
+  // ---------- what is on screen, and what is saved ----------
+  const form: FormState = { routes: drafts, features, portraitEnabled: portraitOn, tasks, webSearch, budgetUsd, customPrices };
+  const saved = useMemo(() => formOf(data), [data]);
+  const dirty = formChanged(form, saved);
+  const latest = useRef(form);
+  latest.current = form;
+  const load = (next: FormState) => {
+    setDrafts(next.routes);
+    setFeatures(next.features);
+    setPortraitOn(next.portraitEnabled);
+    setTasks(next.tasks);
+    setWebSearch(next.webSearch);
+    setBudgetUsd(next.budgetUsd);
+    setCustomPrices(next.customPrices);
+    setPriceText({});
+    setOtherOpen({});
+  };
+  // "Saved." has done its job after a moment; a failure stays until the next try.
+  useEffect(() => {
+    if (!notice?.ok) return;
+    const timer = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  // ---------- what each job resolves to, in a given state of the form (the server checks the same on save) ----------
+  const effectiveIn = (state: FormState, route: Route): { provider: Provider; model: string } | null => {
+    const d = state.routes[route];
     if (route === 'assistant') return d.provider ? { provider: d.provider, model: d.model.trim() || DEFAULT_MODEL[d.provider] } : null;
     if (d.provider) return { provider: d.provider, model: route === 'portrait' ? portraitModelOr(d.model, choices) : d.model.trim() || DEFAULT_MODEL[d.provider] };
-    if (followsAssistant(route)) return effective('assistant');
+    if (followsAssistant(route)) return effectiveIn(state, 'assistant');
     return null;
   };
-  const switchedOn = (route: Route): boolean => {
-    if (route === 'portrait') return portraitOn;
-    const task = TASK_OF_ROUTE[route];
-    if (task) return tasks[task];
-    return features[route as Feature];
-  };
-  const stateOf = (route: Route): 'off' | 'ready' | 'needs-provider' | 'needs-model' => {
-    if (!switchedOn(route)) return 'off';
-    const e = effective(route);
+  const effective = (route: Route) => effectiveIn(form, route);
+  const switchedOn = (route: Route) => isOn(form, route);
+  const stateIn = (state: FormState, route: Route): 'off' | 'ready' | 'needs-provider' | 'needs-model' => {
+    if (!isOn(state, route)) return 'off';
+    const e = effectiveIn(state, route);
     if (!e || !connected(e.provider)) return 'needs-provider';
     if (route === 'portrait' && !e.model) return 'needs-model';
     return 'ready';
+  };
+  /** A row reports what is saved. A row with a change waiting says so, unless the change cannot work as it stands. */
+  const stateOf = (route: Route): 'off' | 'ready' | 'needs-provider' | 'needs-model' | 'unsaved' => {
+    if (!routeChanged(form, saved, route)) return stateIn(saved, route);
+    const now = stateIn(form, route);
+    return now === 'needs-provider' || now === 'needs-model' ? now : 'unsaved';
   };
   const setDraft = (route: Route, next: Partial<Draft>) => setDrafts((cur) => ({ ...cur, [route]: { ...cur[route], ...next } }));
 
@@ -221,15 +245,16 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
   /** The model a test uses: the provider's default, or the model a job already uses with it. */
   // The steps that search the web, each with its own route's provider: the assistant, arms research and name research.
   const webSearchVars = (() => {
-    const of = (route: Route) => PROVIDER_NOTE[effective(route)?.provider ?? 'anthropic'];
+    const of = (route: Route) => PROVIDER_NOTE[effectiveIn(saved, route)?.provider ?? 'anthropic'];
     const searchers = [...new Set((['assistant', 'arms', 'names'] as const).map(of))];
     return { provider: of('arms'), searchers: new Intl.ListFormat(t.locale, { style: 'long', type: 'conjunction' }).format(searchers) };
   })();
   const effectiveFor = (p: Provider): string => ROUTES.map((r) => effective(r)).find((e) => e?.provider === p)?.model || DEFAULT_MODEL[p];
 
   // ---------- save ----------
+  const sent = useRef(form);
   const save = useMutation({
-    mutationFn: () => aiSaveSettings({
+    mutationFn: () => { sent.current = form; return aiSaveSettings({
       data: {
         tree,
         // A job with no provider chosen that cannot follow the assistant (the assistant itself, painting) is not set yet:
@@ -247,10 +272,13 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
         tasks,
         locale,
       },
-    }),
+    }); },
     onSuccess: async () => {
       setNotice({ ok: true, text: t('ai.saved') });
       await Promise.all([refreshAll(), qc.invalidateQueries({ queryKey: ['ai-activity', tree] })]);
+      // The page now shows what the server kept, unless the steward has already changed something else while it saved.
+      const stored = qc.getQueryState<AiSettingsData>(aiSettingsQuery(tree).queryKey);
+      if (stored?.status === 'success' && stored.data && !formChanged(latest.current, sent.current)) load(formOf(stored.data));
     },
     onError: (e) => setNotice({ ok: false, text: failureText(e, t.locale, t('ai.saveInvalid')) }),
   });
@@ -335,7 +363,7 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
 
   const stateChip = (route: Route) => {
     const s = stateOf(route);
-    const label = s === 'off' ? t('ai.stateOff') : s === 'ready' ? t('ai.stateReady') : s === 'needs-provider' ? t('ai.stateNeedsProvider') : t('ai.stateNeedsModel');
+    const label = s === 'off' ? t('ai.stateOff') : s === 'ready' ? t('ai.stateReady') : s === 'unsaved' ? t('ai.stateUnsaved') : s === 'needs-provider' ? t('ai.stateNeedsProvider') : t('ai.stateNeedsModel');
     return <span className={`ai-state ${s}`}>{label}</span>;
   };
 
@@ -409,15 +437,15 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
   // ---------- budget ----------
   const overBudget = budgetUsd > BUDGET_MAX_USD;
   const spentUsd = data.spentMicros / 1_000_000;
-  const pct = budgetUsd > 0 ? Math.min(100, (spentUsd / budgetUsd) * 100) : spentUsd > 0 ? 100 : 0;
+  const pct = saved.budgetUsd > 0 ? Math.min(100, (spentUsd / saved.budgetUsd) * 100) : spentUsd > 0 ? 100 : 0;
   const resets = new Date(`${data.resetsOn}T00:00:00Z`).toLocaleDateString(locales[locale], { day: 'numeric', month: 'long', timeZone: 'UTC' });
 
   // ---------- privacy: which provider each feature goes to ----------
   const privacyLine = (route: Route) => {
-    const on = switchedOn(route);
+    const on = isOn(saved, route);
     const feature = t(ROUTE_LABEL[route]);
     if (!on) return t('ai.privacyOff', { feature });
-    const e = effective(route);
+    const e = effectiveIn(saved, route);
     if (!e || !connected(e.provider) || (route === 'portrait' && !e.model)) return t('ai.privacyNeedsProvider', { feature });
     return t('ai.privacyUse', { feature, provider: PROVIDER_LABEL[e.provider], model: e.model || DEFAULT_MODEL[e.provider], what: t(ROUTE_HINT[route]) });
   };
@@ -470,7 +498,7 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
     <div className="ai-settings">
       {/* 1 · Providers */}
       <section className="ai-step" aria-labelledby="ai-step-providers">
-        <h2 id="ai-step-providers" className="ai-step-title">{t('ai.stepProviders')}</h2>
+        <h2 id="ai-step-providers" className="rule ai-step-title">{t('ai.stepProviders')}</h2>
         <p className="subtle">{t('ai.providersHint')}</p>
         <div className="ai-provider-grid">
           {PROVIDERS.map((p) => cardFor(p, data.providers.find((x) => x.provider === p) ?? { provider: p, keyState: 'none', keyTail: null, updated: 0 }))}
@@ -479,7 +507,7 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
 
       {/* 2 · What uses what */}
       <section className="ui-card ai-step" aria-labelledby="ai-step-routing">
-        <h2 id="ai-step-routing" className="ai-step-title">{t('ai.stepRouting')}</h2>
+        <h2 id="ai-step-routing" className="rule ai-step-title">{t('ai.stepRouting')}</h2>
         <p className="subtle">{t('ai.routingHint')}</p>
         <div className="ai-routes-wrap">
           <table className="ai-routes">
@@ -506,7 +534,7 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
 
       {/* 3 · Monthly budget */}
       <section className="ui-card ai-step" aria-labelledby="ai-step-budget">
-        <h2 id="ai-step-budget" className="ai-step-title">{t('ai.stepBudget')}</h2>
+        <h2 id="ai-step-budget" className="rule ai-step-title">{t('ai.stepBudget')}</h2>
         <div className="ai-budget-head">
           <label htmlFor="ai-budget-usd" className="ai-label">{t('ai.budget')}</label>
           <input
@@ -541,14 +569,14 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
           role="meter"
           aria-label={t('ai.budget')}
           aria-valuemin={0}
-          aria-valuemax={Math.max(budgetUsd, spentUsd, 0.01)}
+          aria-valuemax={Math.max(saved.budgetUsd, spentUsd, 0.01)}
           aria-valuenow={spentUsd}
-          aria-valuetext={t('ai.budgetSpent', { spent: money(spentUsd), limit: money(budgetUsd) })}
+          aria-valuetext={t('ai.budgetSpent', { spent: money(spentUsd), limit: money(saved.budgetUsd) })}
         >
           <span style={{ width: `${pct}%` }} />
         </div>
         <p className="ai-usage">
-          {t('ai.budgetSpent', { spent: money(spentUsd), limit: money(budgetUsd) })}
+          {t('ai.budgetSpent', { spent: money(spentUsd), limit: money(saved.budgetUsd) })}
           {' · '}
           {t('ai.budgetResets', { date: resets })}
         </p>
@@ -556,22 +584,29 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
 
       {/* 4 · Privacy: each feature, and the provider it goes to */}
       <section className="ui-card ai-step" aria-labelledby="ai-privacy-h">
-        <h2 id="ai-privacy-h" className="ai-step-title">{t('ai.privacyTitle')}</h2>
+        <h2 id="ai-privacy-h" className="rule ai-step-title">{t('ai.privacyTitle')}</h2>
         <ul className="ai-privacy-list">
           {ROUTES.map((r) => <li key={r} className="ai-privacy">{privacyLine(r)}</li>)}
         </ul>
-        <p className="ai-privacy">{t('ai.privacyEditors', { provider: PROVIDER_LABEL[effective('assistant')?.provider ?? 'anthropic'] })}</p>
+        <p className="ai-privacy">{t('ai.privacyEditors', { provider: PROVIDER_LABEL[effectiveIn(saved, 'assistant')?.provider ?? 'anthropic'] })}</p>
       </section>
 
       <BackgroundSettings tree={tree} />
       <PortraitSettings tree={tree} />
 
-      {notice && <p className={notice.ok ? 'ai-card-state ok' : 'ai-card-error'} role={notice.ok ? 'status' : 'alert'}>{notice.text}</p>}
-      <div className="ai-actions">
-        <button type="button" className="btn primary" onClick={() => save.mutate()} disabled={save.isPending || overBudget}>
-          {save.isPending ? t('ai.saving') : t('ai.save')}
-        </button>
-      </div>
+      {(dirty || save.isPending || notice) && (
+        <div className="ai-savebar" role="group" aria-label={t('edit.barLabel')}>
+          {notice && !notice.ok && !save.isPending
+            ? <p className="ai-savebar-status ai-card-error" role="alert">{notice.text}</p>
+            : <p className="ai-savebar-status" role="status">{save.isPending ? t('ai.saving') : dirty ? (overBudget ? t('ai.budgetTooHigh', { max: money(BUDGET_MAX_USD, 0) }) : t('draft.unsaved')) : notice?.text}</p>}
+          {(dirty || save.isPending) && (
+            <>
+              <button type="button" className="btn" onClick={() => { load(saved); setNotice(null); }} disabled={save.isPending}>{t('common.cancel')}</button>
+              <button type="button" className="btn primary" onClick={() => { setNotice(null); save.mutate(); }} disabled={save.isPending || overBudget}>{t('ai.save')}</button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

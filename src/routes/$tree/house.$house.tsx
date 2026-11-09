@@ -209,10 +209,14 @@ function HousePage() {
             <ErrorState title={t('houses.succession')} message={t('houses.succeedFailed')} onRetry={() => { void settingsQ.refetch(); }} error={settingsQ.error} />
           ) : (
             <>
-              <div className="hp-succession-grid">
-                <HeadCard house={house} settings={settings} head={succ.head} tree={tree} canEdit={canEdit} onChoose={() => setSuccession(true)} />
-                <HeirCard f={f} house={house} tree={tree} succ={succ} />
-              </div>
+              {s.living === 0 && !succ.head && !succ.heir ? (
+                <p className="ui-card hp-none">{t('houses.headNone')}</p>
+              ) : (
+                <div className="hp-succession-grid">
+                  <HeadCard house={house} settings={settings} head={succ.head} tree={tree} canEdit={canEdit} onChoose={() => setSuccession(true)} />
+                  <HeirCard f={f} house={house} tree={tree} succ={succ} />
+                </div>
+              )}
               <HeadsHistory house={house} tree={tree} history={history} succ={succ} />
             </>
           )}
