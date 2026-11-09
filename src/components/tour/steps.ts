@@ -36,6 +36,8 @@ export interface TourStep {
   body: Key;
   /** Only for readers who may do this. */
   needs?: Action;
+  /** Only for readers who may not do this: the reading version of a step whose other version is about writing. */
+  lacks?: Action;
   /** Only when this is switched on for the family. */
   feature?: 'assistant';
   /** Only when the family has any of these. */
@@ -54,42 +56,23 @@ export interface TourContext {
 
 const PAGE_HEADER = '.ui-page-header';
 
+/**
+ * The tour is short on purpose: what a relative who has just been invited needs on the first day. The tree, one person,
+ * finding someone, where to add a memory, and where the birthdays are. Editors also see how a relative is added and
+ * stewards how one is invited. The other pages have a line of their own under their titles; the last step says so.
+ */
 export const TOUR_STEPS: readonly TourStep[] = [
   { id: 'welcome', title: 'tour.welcome.title', body: 'tour.welcome.body' },
-
-  // The tree.
   { id: 'tree', page: 'tree', targets: ['.card.selected', '.canvas'], title: 'shell.tree', body: 'tour.tree.body', requires: 'people' },
   { id: 'views', page: 'tree', targets: ['.tree-toolbar'], title: 'tour.views.title', body: 'tour.views.body', requires: 'people' },
-  { id: 'minimap', page: 'tree', targets: ['.minimap', '.map-toggle'], title: 'tour.minimap.title', body: 'tour.minimap.body', requires: 'people' },
   { id: 'add', page: 'tree', targets: ['.card.selected', '.canvas'], title: 'tour.add.title', body: 'tour.add.body', requires: 'people', needs: 'add-person' },
   { id: 'panel', page: 'tree', targets: ['.person-panel'], title: 'tour.panel.title', body: 'tour.panel.body', requires: 'people', prepare: 'panel' },
-  { id: 'edit', page: 'tree', targets: ['.pp-tabs [role="tab"]:last-child'], title: 'panel.tab.edit', body: 'tour.edit.body', requires: 'people', needs: 'edit-person', prepare: 'panel' },
-  { id: 'profile', page: 'profile', targets: ['.pf-identity'], title: 'tour.profile.title', body: 'tour.profile.body', requires: 'people' },
-
-  // The top bar. On phones, language and theme are behind More.
   { id: 'find', targets: ['.search-trigger'], title: 'tour.find.title', body: 'tour.find.body' },
-  { id: 'assistant', targets: ['.ai-launch:not(.ai-setup)', '.tabbar button'], title: 'tour.assistant.title', body: 'tour.assistant.body', feature: 'assistant' },
-  { id: 'language', targets: ['.topbar-tools', '.tabbar button'], title: 'tour.language.title', body: 'tour.language.body' },
-
-  // The other pages.
+  // The Chronicle: for anyone who may write, the step is about adding a memory; a viewer is shown where to read them.
+  { id: 'memory', page: 'chronicle', targets: ['.ui-page-header-actions .btn', PAGE_HEADER], title: 'tour.memory.title', body: 'tour.memory.body', needs: 'add-story' },
+  { id: 'chronicle', page: 'chronicle', targets: ['.chr-bar', PAGE_HEADER], title: 'shell.chronicle', body: 'tour.chronicle.body', lacks: 'add-story' },
   { id: 'almanac', page: 'almanac', targets: ['.alm-strip-wrap', PAGE_HEADER], title: 'shell.almanac', body: 'tour.almanac.body' },
-  { id: 'atlas', page: 'atlas', targets: ['.atlas-time', '.atlas-map'], title: 'shell.atlas', body: 'tour.atlas.body' },
-  { id: 'contacts', page: 'contacts', targets: ['.con-tools', PAGE_HEADER], title: 'shell.contacts', body: 'tour.contacts.body' },
-  { id: 'register', page: 'register', targets: ['.reg-tools', PAGE_HEADER], title: 'shell.register', body: 'tour.register.body' },
-  { id: 'houses', page: 'houses', targets: ['.hs-grid', PAGE_HEADER], title: 'shell.houses', body: 'tour.houses.body' },
-  { id: 'arms', page: 'house', targets: ['.hp-shield'], title: 'tour.arms.title', body: 'tour.arms.body', requires: 'house' },
-  { id: 'needed', page: 'needed', targets: ['.needed-list', PAGE_HEADER], title: 'shell.needed', body: 'tour.needed.body' },
-  { id: 'chronicle', page: 'chronicle', targets: ['.chr-bar', PAGE_HEADER], title: 'shell.chronicle', body: 'tour.chronicle.body' },
-  { id: 'gallery', page: 'gallery', targets: [PAGE_HEADER], title: 'shell.gallery', body: 'tour.gallery.body' },
-  { id: 'research', page: 'research', targets: [PAGE_HEADER], title: 'research.title', body: 'tour.research.body' },
-
-  // Keeping the family's records, and running the family.
-  { id: 'import', page: 'import', targets: [PAGE_HEADER], title: 'shell.importExport', body: 'tour.import.body', needs: 'edit-person' },
-  { id: 'access', page: 'access', targets: ['.acc-list', PAGE_HEADER], title: 'shell.access', body: 'tour.access.body', needs: 'manage-access' },
-  { id: 'ai', page: 'ai', targets: [PAGE_HEADER], title: 'shell.ai_settings', body: 'tour.ai.body', needs: 'manage-access' },
-  { id: 'statistics', page: 'statistics', targets: [PAGE_HEADER], title: 'stats.title', body: 'tour.statistics.body', needs: 'view-statistics' },
-  { id: 'feedback', page: 'feedback', targets: [PAGE_HEADER], title: 'feedback.inbox_title', body: 'tour.feedback.body', needs: 'manage-access' },
-
+  { id: 'access', page: 'access', targets: ['.ui-page-header-actions .btn', '.acc-list', PAGE_HEADER], title: 'shell.access', body: 'tour.access.body', needs: 'manage-access' },
   { id: 'again', targets: ['.acct-trigger'], title: 'tour.again.title', body: 'tour.again.body' },
 ];
 
@@ -97,6 +80,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
 export function stepsFor(ctx: TourContext, steps: readonly TourStep[] = TOUR_STEPS): TourStep[] {
   return steps.filter((s) => {
     if (s.needs && !can(ctx.role, s.needs)) return false;
+    if (s.lacks && can(ctx.role, s.lacks)) return false;
     if (s.feature === 'assistant' && !ctx.assistant) return false;
     if (s.requires === 'people' && ctx.people === 0) return false;
     if (s.requires === 'house' && ctx.houses === 0) return false;

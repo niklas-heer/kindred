@@ -3,7 +3,7 @@
 export const en = {
   "tour.menu": "Take the tour",
   "tour.offer.title": "Would you like a quick tour?",
-  "tour.offer.body": "A few minutes through the tree and everything around it, shown on your own family. You can start it again any time from your account menu.",
+  "tour.offer.body": "A minute or two: the tree, one person, how to find someone, and where memories and birthdays live. It is shown on your own family, and you can start it again any time from your account menu.",
   "tour.offer.yes": "Show me around",
   "tour.offer.no": "Not now",
   "tour.progress": "{step} of {count}",
@@ -41,6 +41,8 @@ export const en = {
   "tour.arms.body": "Each house can bear its own arms. Here you see them with their meaning, the house's succession and its notable people.",
   "tour.needed.body": "What is still unknown: missing dates, places and photos. A good list to take to the next family gathering.",
   "tour.chronicle.body": "The family's stories, sayings and recipes in one place, and what changed recently.",
+  "tour.memory.title": "Add what you remember",
+  "tour.memory.body": "The Chronicle keeps the family’s stories, sayings and recipes. Choose “Add a memory”, say who it is about, and write it down. It is the best thing you can add here.",
   "tour.gallery.body": "The family's photos and albums, with the people in them.",
   "tour.research.body": "Open questions and sources: documents, leads and what they prove about someone.",
   "tour.import.body": "Bring in a GEDCOM file, or take the whole family out as a file or a readable archive. Your data is always yours.",
@@ -49,13 +51,13 @@ export const en = {
   "tour.statistics.body": "How Kindred is used in your family: visits, what has been added, and how the tour went. Counts only, kept in your family’s own database, and you can turn it off here.",
   "tour.feedback.body": "What stewards have reported about Kindred, with a picture of the screen. Open a report to read it and mark it resolved.",
   "tour.again.title": "Whenever you need it",
-  "tour.again.body": "That's everything. To see this again, open your account menu here and choose “Take the tour”, or find it with ⌘K.",
+  "tour.again.body": "That is the heart of it. The Atlas, the Houses, the Gallery and the other pages sit beside the Tree in the menu, and each explains itself. To see this again, open your account menu here and choose “Take the tour”, or find it with ⌘K.",
 };
 
 export const de: Record<keyof typeof en, string> = {
   "tour.menu": "Rundgang starten",
   "tour.offer.title": "Möchtest du einen kurzen Rundgang?",
-  "tour.offer.body": "In ein paar Minuten durch den Stammbaum und alles darum herum, gezeigt an deiner eigenen Familie. Du kannst ihn jederzeit über dein Kontomenü neu starten.",
+  "tour.offer.body": "Ein, zwei Minuten: der Stammbaum, eine Person, wie du jemanden findest und wo Erinnerungen und Geburtstage stehen. Gezeigt wird alles an deiner eigenen Familie, und du kannst den Rundgang jederzeit über dein Kontomenü neu starten.",
   "tour.offer.yes": "Zeig mir alles",
   "tour.offer.no": "Jetzt nicht",
   "tour.progress": "{step} von {count}",
@@ -93,6 +95,8 @@ export const de: Record<keyof typeof en, string> = {
   "tour.arms.body": "Jedes Haus kann ein eigenes Wappen führen. Hier siehst du es mit seiner Bedeutung, der Nachfolge des Hauses und seinen bekannten Mitgliedern.",
   "tour.needed.body": "Was noch unbekannt ist: fehlende Daten, Orte und Fotos. Eine gute Liste für das nächste Familientreffen.",
   "tour.chronicle.body": "Die Geschichten, Sprüche und Rezepte der Familie an einem Ort, und was sich zuletzt geändert hat.",
+  "tour.memory.title": "Halte fest, woran du dich erinnerst",
+  "tour.memory.body": "Die Chronik bewahrt die Geschichten, Sprüche und Rezepte der Familie. Wähle „Erinnerung hinzufügen“, sage, um wen es geht, und schreibe es auf. Etwas Besseres kannst du hier nicht beitragen.",
   "tour.gallery.body": "Die Fotos und Alben der Familie, mit den Menschen darauf.",
   "tour.research.body": "Offene Fragen und Quellen: Dokumente, Spuren und was sie über jemanden belegen.",
   "tour.import.body": "Bring eine GEDCOM-Datei mit oder nimm die ganze Familie als Datei oder lesbares Archiv mit. Deine Daten bleiben deine.",
@@ -101,13 +105,13 @@ export const de: Record<keyof typeof en, string> = {
   "tour.statistics.body": "Wie Kindred in deiner Familie genutzt wird: Besuche, was dazugekommen ist und wie der Rundgang lief. Nur Zahlen, in der Datenbank deiner Familie, und du kannst es hier ausschalten.",
   "tour.feedback.body": "Was Verwalter:innen zu Kindred gemeldet haben, mit einem Bild des Bildschirms. Öffne eine Meldung, um sie zu lesen und als erledigt zu markieren.",
   "tour.again.title": "Wann immer du es brauchst",
-  "tour.again.body": "Das war alles. Um den Rundgang wieder zu sehen, öffne hier dein Kontomenü und wähle „Rundgang starten“, oder finde ihn mit ⌘K.",
+  "tour.again.body": "Das ist das Wichtigste. Atlas, Häuser, Galerie und die anderen Seiten stehen im Menü neben dem Stammbaum, und jede erklärt sich selbst. Um den Rundgang wieder zu sehen, öffne hier dein Kontomenü und wähle „Rundgang starten“, oder finde ihn mit ⌘K.",
 };
 
 export const af: Partial<Record<keyof typeof en, string>> = {
   "tour.menu": "Neem die toer",
   "tour.offer.title": "Wil jy ’n kort toer hê?",
-  "tour.offer.body": "’n Paar minute deur die boom en alles daar rondom, gewys op jou eie familie. Jy kan dit enige tyd weer van jou rekeningkieslys af begin.",
+  "tour.offer.body": "’n Minuut of twee: die boom, een persoon, hoe om iemand te vind, en waar herinneringe en verjaardae bly. Dit word op jou eie familie gewys, en jy kan dit enige tyd weer van jou rekeningkieslys af begin.",
   "tour.offer.yes": "Wys my rond",
   "tour.offer.no": "Nie nou nie",
   "tour.progress": "{step} van {count}",
@@ -145,6 +149,8 @@ export const af: Partial<Record<keyof typeof en, string>> = {
   "tour.arms.body": "Elke huis kan sy eie wapen dra. Hier sien jy dit met sy betekenis, die huis se opvolging en sy bekende lede.",
   "tour.needed.body": "Wat nog onbekend is: ontbrekende datums, plekke en foto’s. ’n Goeie lys vir die volgende familiebyeenkoms.",
   "tour.chronicle.body": "Die familie se stories, sêgoed en resepte op een plek, en wat onlangs verander het.",
+  "tour.memory.title": "Voeg by wat jy onthou",
+  "tour.memory.body": "Die Kroniek bewaar die familie se stories, sêgoed en resepte. Kies “Voeg ’n herinnering by”, sê oor wie dit gaan, en skryf dit neer. Dis die beste ding wat jy hier kan byvoeg.",
   "tour.gallery.body": "Die familie se foto’s en albums, met die mense daarop.",
   "tour.research.body": "Oop vrae en bronne: dokumente, leidrade en wat hulle oor iemand bewys.",
   "tour.import.body": "Bring ’n GEDCOM-lêer in, of neem die hele familie uit as ’n lêer of leesbare argief. Jou data bly joune.",
@@ -153,5 +159,5 @@ export const af: Partial<Record<keyof typeof en, string>> = {
   "tour.statistics.body": "Hoe Kindred in jou familie gebruik word: besoeke, wat bygevoeg is en hoe die toer verloop het. Net getalle, in jou familie se eie databasis, en jy kan dit hier afskakel.",
   "tour.feedback.body": "Wat rentmeesters oor Kindred gerapporteer het, met ’n prentjie van die skerm. Maak ’n verslag oop om dit te lees en as afgehandel te merk.",
   "tour.again.title": "Wanneer jy dit nodig het",
-  "tour.again.body": "Dis alles. Om dit weer te sien, maak hier jou rekeningkieslys oop en kies “Neem die toer”, of vind dit met ⌘K.",
+  "tour.again.body": "Dis die kern daarvan. Die Atlas, die Huise, die Galery en die ander bladsye staan langs die Boom in die kieslys, en elkeen verduidelik homself. Om dit weer te sien, maak hier jou rekeningkieslys oop en kies “Neem die toer”, of vind dit met ⌘K.",
 };

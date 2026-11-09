@@ -2,47 +2,59 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { findStep, placeCard, stepsFor, TOUR_STEPS, type TourContext } from './steps.ts';
+import { findStep, placeCard, stepsFor, TOUR_STEPS, type TourContext, type TourStep } from './steps.ts';
 
 const ctx = (over: Partial<TourContext> = {}): TourContext => ({ role: 'viewer', assistant: false, people: 10, houses: 2, ...over });
 const ids = (c: TourContext) => stepsFor(c).map((s) => s.id);
 
 test('a viewer gets no editing or steward steps', () => {
   const got = ids(ctx());
-  for (const hidden of ['add', 'edit', 'import', 'access', 'ai']) assert.ok(!got.includes(hidden), hidden);
-  for (const shown of ['welcome', 'tree', 'panel', 'atlas', 'almanac', 'gallery', 'again']) assert.ok(got.includes(shown), shown);
+  for (const hidden of ['add', 'memory', 'access']) assert.ok(!got.includes(hidden), hidden);
+  for (const shown of ['welcome', 'tree', 'panel', 'find', 'chronicle', 'almanac', 'again']) assert.ok(got.includes(shown), shown);
 });
 
-test('an editor can edit but gets no steward steps', () => {
-  const got = ids(ctx({ role: 'editor' }));
-  assert.ok(got.includes('edit') && got.includes('add') && got.includes('import'));
-  assert.ok(!got.includes('access') && !got.includes('ai'));
+test('the tour is short: eight steps for a new relative, a few more for those who run the family', () => {
+  assert.equal(ids(ctx()).length, 8);
+  assert.equal(ids(ctx({ role: 'contributor' })).length, 8);
+  assert.equal(ids(ctx({ role: 'editor' })).length, 9);
+  assert.equal(ids(ctx({ role: 'steward' })).length, 10);
 });
 
-test('a steward gets Access and AI settings', () => {
-  const got = ids(ctx({ role: 'steward' }));
-  assert.ok(got.includes('access') && got.includes('ai'));
-});
-
-test('Statistics and Feedback are shown to stewards only', () => {
-  const got = ids(ctx({ role: 'steward' }));
-  assert.ok(got.includes('statistics') && got.includes('feedback'));
-  for (const role of ['viewer', 'contributor', 'editor'] as const) {
-    const others = ids(ctx({ role }));
-    assert.ok(!others.includes('statistics') && !others.includes('feedback'), role);
+test('whoever may write is shown how to add a memory; a viewer is shown where to read them', () => {
+  for (const role of ['contributor', 'editor', 'steward'] as const) {
+    const got = ids(ctx({ role }));
+    assert.ok(got.includes('memory') && !got.includes('chronicle'), role);
   }
+  const viewer = ids(ctx());
+  assert.ok(viewer.includes('chronicle') && !viewer.includes('memory'));
 });
 
-test('the assistant step needs the assistant to be on', () => {
-  assert.ok(!ids(ctx()).includes('assistant'));
-  assert.ok(ids(ctx({ assistant: true })).includes('assistant'));
+test('an editor is shown how to add a relative but gets no steward steps', () => {
+  const got = ids(ctx({ role: 'editor' }));
+  assert.ok(got.includes('add'));
+  assert.ok(!got.includes('access'));
+});
+
+test('a steward is shown how to invite the family', () => {
+  assert.ok(ids(ctx({ role: 'steward' })).includes('access'));
+});
+
+// The rules below are kept for steps that may come back; no step in today's short tour uses them.
+const step = (id: string, over: Partial<TourStep>): TourStep => ({ id, title: 'tour.welcome.title', body: 'tour.welcome.body', ...over });
+
+test('a step for the assistant needs the assistant to be on', () => {
+  const steps = [step('assistant', { feature: 'assistant' })];
+  assert.equal(stepsFor(ctx(), steps).length, 0);
+  assert.equal(stepsFor(ctx({ assistant: true }), steps).length, 1);
 });
 
 test('a family with nobody in it, or no houses, skips what it does not have', () => {
   const empty = ids(ctx({ role: 'steward', people: 0, houses: 0 }));
-  for (const hidden of ['tree', 'views', 'minimap', 'panel', 'edit', 'arms']) assert.ok(!empty.includes(hidden), hidden);
+  for (const hidden of ['tree', 'views', 'add', 'panel']) assert.ok(!empty.includes(hidden), hidden);
   assert.ok(empty.includes('welcome') && empty.includes('access'));
-  assert.ok(!ids(ctx({ houses: 0 })).includes('arms'));
+  const steps = [step('arms', { requires: 'house' })];
+  assert.equal(stepsFor(ctx({ houses: 0 }), steps).length, 0);
+  assert.equal(stepsFor(ctx(), steps).length, 1);
 });
 
 test('every step begins and ends the same way for every role', () => {
