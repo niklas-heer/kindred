@@ -122,6 +122,10 @@ function TreePage() {
   const canvas = useRef<CanvasHandle>(null);
   const panTo = useRef<string | null>(null);
   const panQuiet = useRef(false);
+  // Whose card takes the keyboard focus once it is drawn (the arrow keys, Enter on a card).
+  const focusNext = useRef<string | null>(null);
+  // Someone just added: shown where they land, next to the person they were added to, once the tree has drawn them.
+  const landing = useRef<{ id: string; beside: string; at: number } | null>(null);
   const [flash, setFlash] = useState<{ id: string; at: number } | null>(null);
   const phone = useMedia(PHONE);
   // Phones keep names and ages out of the toolbar row: they open from the toolbar's display button, in a sheet.
@@ -233,6 +237,14 @@ function TreePage() {
     prevFocus.current = focus;
     panTo.current = null;
     panQuiet.current = false;
+    // A new person reaches the layout a moment after they are selected (the graph is fetched again), so this waits
+    // for the layout that holds them, and gives up after a few seconds if none does (a parent beyond the generations shown).
+    const land = landing.current;
+    if (land && !inLayout(land.id) && Date.now() - land.at > 5000) landing.current = null;
+    if (land && inLayout(land.id)) {
+      const raf = requestAnimationFrame(() => { landing.current = null; canvas.current?.reveal(land.id, land.beside); });
+      return () => cancelAnimationFrame(raf);
+    }
     if (!target) return;
     let t1 = 0, t2 = 0;
     const raf = requestAnimationFrame(() => {
@@ -874,8 +886,8 @@ function TreePage() {
           sex={adding.sex}
           onCancel={() => setAdding(null)}
           // Linking someone who already exists: select and pan to them quietly, without re-centring the tree.
-          onLinked={(id) => { setAdding(null); panTo.current = id; panQuiet.current = true; go({ sel: id }); }}
-          onDone={(id, person) => { setAdding(null); panTo.current = id; panQuiet.current = true; go({ sel: id }); announce(id, person, adding.anchor, adding.relation); }}
+          onLinked={(id) => { setAdding(null); landing.current = { id, beside: adding.anchor, at: Date.now() }; go({ sel: id }); }}
+          onDone={(id, person) => { setAdding(null); landing.current = { id, beside: adding.anchor, at: Date.now() }; go({ sel: id }); announce(id, person, adding.anchor, adding.relation); }}
         />
       )}
     </div>

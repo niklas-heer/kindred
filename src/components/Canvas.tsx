@@ -35,8 +35,11 @@ export interface CanvasHandle {
    * sits near the middle with the generations before and after it, and the rest runs off the edge.
    */
   frame(id: string, opts?: { animate?: boolean }): void;
-  /** Pans just enough to bring a card fully into the free area (after a sheet or panel opens). */
-  reveal(id: string): boolean;
+  /**
+   * Pans just enough to bring a card fully into the free area (after a sheet or panel opens). With `beside`, that
+   * person's card too when both fit at the current zoom: someone just added is shown next to whom they were added to.
+   */
+  reveal(id: string, beside?: string): boolean;
   zoomBy(f: number): void;
   /** World position of a node by person id (first placement). */
   nodeOf(id: string): LNode | undefined;
@@ -207,23 +210,26 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     // focus nearest the middle (45% down), so its parents show above it and its children below. A start
     // that would leave room for another whole card under the last generation is passed over; when every
     // start does (Ancestors, a focus with no descendants), the earliest one, which leaves the least.
+    // When the focus itself is the generation under the toolbar, on full cards, it starts a little lower: the
+    // focus card is drawn an eighth larger and carries the "+" for a parent above it, and both would sit behind the toolbar.
+    const head = opens === 'near' ? FOCUS_HEADROOM * k : 0;
     const down = (from: number, to: number) => {
       if (b.h * k <= to - from) return from + (to - from - b.h * k) / 2 - b.y * k;
       const fy = n ? n.y : b.y;
       const tops = layout.rows.map((r) => r.y).sort((p, q) => p - q);
       const whole = tops.filter((y) => y <= fy && (fy + CARD_H - y) * k <= to - from);
-      if (!whole.length) return from - fy * k;
+      if (!whole.length) return from + head - fy * k;
       const last = tops[tops.length - 1] + CARD_H;
       const full = whole.filter((y) => to - from - (last - y) * k <= CARD_H * k);
       const off = (y: number) => Math.abs((fy + CARD_H / 2 - y) * k - (to - from) * 0.45);
       const top = full.length ? full.reduce((best, y) => (off(y) < off(best) ? y : best)) : whole[0];
-      return from - top * k;
+      return from + (top === fy ? head : 0) - top * k;
     };
     const target = { k, x: across(lo.x, hi.x, b.x, b.w, n ? n.x : b.x + b.w / 2), y: down(lo.y, hi.y) };
     if (opts?.animate === false) { cancelAnimationFrame(anim.current); cam.current = target; lastDetail.current = opens; apply(); } else animateTo(target, 420, opens);
   }, [layout, firstOf, apply, animateTo, area]);
 
-  const reveal = useCallback((id: string) => {
+  const reveal = useCallback((id: string, beside?: string) => {
     const n = firstOf.get(id);
     if (!n || !host.current) return false;
     const a = area();
@@ -236,9 +242,16 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
       if (s1 > to) return to - s1;
       return 0;
     };
-    const x0 = (n.x - CARD_W / 2) * c.k + c.x, y0 = n.y * c.k + c.y;
-    const dx = shift(x0, x0 + CARD_W * c.k, a.l + pad, a.r - pad);
-    const dy = shift(y0, y0 + CARD_H * c.k, a.t + pad, a.b - pad);
+    // The box to bring into view: the card, widened to the second card when the two fit the free area together.
+    // On full cards the card revealed is the selected one, drawn larger with a "+" above it: that is part of what must show.
+    let wx0 = n.x - CARD_W / 2, wx1 = n.x + CARD_W / 2, wy0 = n.y - (lastDetail.current === 'near' ? FOCUS_HEADROOM : 0), wy1 = n.y + CARD_H;
+    const m = beside ? firstOf.get(beside) : undefined;
+    if (m) {
+      const bx0 = Math.min(wx0, m.x - CARD_W / 2), bx1 = Math.max(wx1, m.x + CARD_W / 2), by0 = Math.min(wy0, m.y), by1 = Math.max(wy1, m.y + CARD_H);
+      if ((bx1 - bx0) * c.k <= a.r - a.l - 2 * pad && (by1 - by0) * c.k <= a.b - a.t - 2 * pad) { wx0 = bx0; wx1 = bx1; wy0 = by0; wy1 = by1; }
+    }
+    const dx = shift(wx0 * c.k + c.x, wx1 * c.k + c.x, a.l + pad, a.r - pad);
+    const dy = shift(wy0 * c.k + c.y, wy1 * c.k + c.y, a.t + pad, a.b - pad);
     if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return false;
     animateTo({ k: c.k, x: c.x + dx, y: c.y + dy }, 320);
     return true;

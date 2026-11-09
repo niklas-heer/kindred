@@ -169,9 +169,11 @@
 .add:focus-visible::before { box-shadow: 0 0 0 calc(3px / var(--k, 1)) color-mix(in srgb, var(--accent) 45%, transparent); }
 .add-parent { left: 50%; top: -24px; }
 .add-child { left: 50%; top: calc(100% + 52px); animation-delay: 40ms; }
-/* Below the marriage line (82px down the card), so the mark never sits on the ⚭ and date above that line. */
-.add-partner { left: calc(100% + 30px); top: calc(88px + 15px / var(--k, 1)); animation-delay: 80ms; }
-.add-sibling { left: -30px; top: calc(88px + 15px / var(--k, 1)); animation-delay: 120ms; }
+/* Beside the portrait's shoulder, above the marriage line (82px down the card): the plate with the wedding years
+   and "widowed" is centred on that line on either side, and a mark at its height covered it. Up here it stays
+   clear of the plate at every zoom that shows the marks, and of the badges, which sit inside the card's width. */
+.add-partner { left: calc(100% + 22px); top: calc(46px - 19px / var(--k, 1)); animation-delay: 80ms; }
+.add-sibling { left: -22px; top: calc(46px - 19px / var(--k, 1)); animation-delay: 120ms; }
 @keyframes pop { from { transform: scale(0.4); opacity: 0; } }
 
 /* Mid detail: a smaller portrait and much bigger type, so names stay readable zoomed out. */
