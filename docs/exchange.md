@@ -274,7 +274,8 @@ not been measured for this app.
 ## Round trips
 
 GEDCOM round trips are covered by `src/lib/exchange/*.test.ts`, including partial dates, several marriages,
-adoptive and step links, long and escaped biographies and unknown tags. These tests cover the carried fields;
+adoptive and step links, long and escaped biographies and unknown tags, and a property test over awkward text (long
+words, a space where a line is cut, trailing spaces, blank lines, characters outside the BMP, a leading `@`). These tests cover the carried fields;
 they do not make either format a complete backup. Check an import's preview and compare the result with its source.
 
 ## Limits of `scripts/import-kindred.ts`
@@ -294,4 +295,6 @@ than read from the explicit field. Check names and relationships against the ori
 - `src/lib/exchange/model.ts`: the family as plain data, read from a database.
 - `src/lib/exchange/plan.ts`: what an import would do. Pure.
 - `src/lib/exchange/import.server.ts`, `export.server.ts`, `exchange.functions.ts`: the server side.
-- `src/lib/exchange/copy.ts`: the page's text, in English, German and Afrikaans.
+- `src/lib/parent-rules.ts`: the rules a parent link keeps, shared by the import plan and the link form.
+- `src/lib/i18n/areas/exchange.ts`: the page's text and the preview's sentences, in English, German and Afrikaans.
+- `src/routes/$tree/settings.import.tsx`: the Import and export page.
