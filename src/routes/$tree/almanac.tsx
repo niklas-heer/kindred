@@ -519,7 +519,7 @@ function EventRow({ ev, f, tree, me, myAnc }: { ev: Ev; f: Family; tree: string;
       ? t('almanac.turns', { count: ev.n })
       : ev.kind === 'anniversary'
         ? ev.note
-          ? t('almanac.anniversary_note', { ord: ordOf(ev.n, t.locale), note: t(ev.note) })
+          ? t('almanac.anniversary_note', { ord: ordOf(ev.n, t.locale), name: t(ev.note) })
           : t('almanac.anniversary', { ord: ordOf(ev.n, t.locale) })
         : t('almanac.years_since', { count: ev.n });
   return (

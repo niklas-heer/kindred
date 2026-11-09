@@ -2,7 +2,7 @@
 // sorting, whole anniversary names and sentence templates. Names are invented.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { compareText, ordinal, ordinalWord } from './dictionary.ts';
+import { KEYS, compareText, ordinal, ordinalWord, translate, type Key } from './dictionary.ts';
 
 test('Afrikaans ordinals: -ste for 1, 8 and from 20 up, the last two digits past a hundred', () => {
   const af = (n: number) => ordinal(n, 'af');
@@ -19,4 +19,18 @@ test('names sort the way the reader’s language sorts them', () => {
   assert.deepEqual([...names].sort(compareText('de')), ['Anna 2', 'Anna 10', 'Ärmel', 'Berg', 'Müller', 'Muzzy', 'Öberg', 'Zimmer']);
   assert.deepEqual([...names].sort(compareText('en')).slice(0, 3), ['Anna 2', 'Anna 10', 'Ärmel']);
   assert.ok(compareText('af')('Öberg', 'Zimmer') < 0);
+});
+
+test('a wedding anniversary carries its whole name in each language', () => {
+  const name = (l: 'en' | 'de' | 'af', k: string, n: string) =>
+    translate(l, 'almanac.anniversary_note', { ord: n, name: translate(l, `almanac.wedding.${k}` as Key) });
+  assert.equal(name('de', 'golden', '50.'), '50. Hochzeitstag · Goldene Hochzeit');
+  assert.equal(name('de', 'coral', '35.'), '35. Hochzeitstag · Leinwandhochzeit');
+  assert.equal(name('de', 'diamond', '60.'), '60. Hochzeitstag · Diamantene Hochzeit');
+  assert.equal(name('af', 'golden', '50ste'), '50ste trouherdenking · goue bruilof');
+  assert.equal(name('en', 'silver', '25th'), '25th anniversary · silver wedding');
+  for (const k of KEYS.filter((k) => k.startsWith('almanac.wedding.'))) {
+    assert.match(translate('de', k), /^[A-ZÄÖÜ].*(hochzeit| Hochzeit)$/, `${k} is a whole German name`);
+    assert.match(translate('af', k), /bruilof$/, `${k} is a whole Afrikaans name`);
+  }
 });
