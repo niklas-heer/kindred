@@ -13,7 +13,8 @@ database, and you can take it with you whenever you like.
 
 The tree opens on one person and the people around them. **Family** is an hourglass of ancestors and descendants,
 **Dynasty** follows a house down the generations, and **Ancestors** looks straight back. Zoom out and the cards become name
-plates, then small shields, and a **minimap** always shows the whole family and where you are in it.
+plates, then shields that keep each person's name, then shields alone, and a **minimap** always shows the whole family and
+where you are in it.
 
 Press ⌘K or `/` to find anyone by name, nickname, title or house, and each result says how they are related to you. A lens
 dims everyone except a direct line, a house, the living, or the path between two people.
