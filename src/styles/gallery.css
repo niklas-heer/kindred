@@ -118,7 +118,16 @@
 .lb-suggest { display: grid; gap: 6px; }
 .lb-tools { display: flex; flex-wrap: wrap; gap: 8px; }
 .lb-tools .btn { min-height: 44px; }
-.lb-who { display: grid; gap: 8px; padding: 12px; border: 1px dashed var(--edge); border-radius: 10px; }
+/* "Who is in the box?": a popover beside the drawn box (besidePop.ts places it), so it is never below the fold. */
+.lb-who {
+  position: fixed; inset: auto; margin: 0; width: min(300px, 100vw - 16px); max-height: calc(100dvh - 16px); overflow: auto;
+  display: none; gap: 8px; padding: 12px; color: var(--text);
+  background: var(--panel-solid); border: 1px solid var(--edge); border-radius: 10px; box-shadow: var(--shadow);
+}
+.lb-who:popover-open { display: grid; }
+[data-theme='codex'] .lb-who { border-color: #0a0d12; box-shadow: inset 0 0 0 1px var(--edge-soft), var(--shadow); }
+.lb-who .gal-picker-list { max-height: 216px; }
+.lb-who .gal-picker-item { align-items: center; gap: 8px; }
 .lb-picked { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .lb-picked .name { font-family: var(--font-name); font-weight: var(--name-weight, 500); font-size: var(--fs-4); margin-right: auto; }
 

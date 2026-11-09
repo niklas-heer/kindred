@@ -3,19 +3,22 @@
 // which checks the role again.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, ScanFace, Tag as TagIcon, Trash, X } from 'lucide-react';
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { DatePicker, Dialog, Notice, Select } from '~/components/ui';
 import { opKeys } from '~/lib/api';
 import { formatDate, useT } from '~/lib/i18n';
 import { validDate } from '~/lib/dates';
 import { isoOfDate } from '~/lib/partial-date';
-import { useFamily } from '~/lib/family';
+import { useFamily, useMeChosen } from '~/lib/family';
 import { displayName } from '~/lib/graph';
-import { confirmPhotoTag, removeGalleryPhoto, removePhotoTag, saveGalleryPhoto, suggestPhotoTags, tagPhoto } from '~/lib/photos.functions';
+import { confirmPhotoTag, galleryQuery, removeGalleryPhoto, removePhotoTag, saveGalleryPhoto, suggestPhotoTags, tagPhoto } from '~/lib/photos.functions';
 import { useCan } from '~/lib/session';
 import type { GPerson } from '~/lib/types';
 import { AiSetupHint } from '~/components/assistant/AiSetup';
 import { facesOn, findFaces } from './aiFaces';
+import { closestFamily } from '~/lib/person-overview';
+import { photoSuggestions } from '~/lib/photo-suggest';
+import { useBesidePop } from './besidePop';
 import { PersonPicker } from './PersonPicker';
 import { refreshPhotos } from './refresh';
 import { mediaUrl, type Album, type Box, type MediaItem } from './types';
@@ -27,6 +30,8 @@ export function clampBox(b: Box): Box {
   const x = clamp(b.x), y = clamp(b.y);
   return { x, y, w: clamp(b.w, 0.005, 1 - x), h: clamp(b.h, 0.005, 1 - y) };
 }
+/** The side of the box a plain click drops, in screen pixels: about a face in a group picture. */
+const CLICK_BOX_PX = 110;
 const isTyping = (el: EventTarget | null) => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement;
 
 export function Lightbox({ tree, items, index, albums, onIndex, onClose }: {
@@ -140,13 +145,30 @@ function Photo({ tree, item, index, count, albums, onGo, onDirty }: {
     const b = boxBetween(drag.current, point(e));
     drag.current = null;
     setDraft(null);
-    // A tap or a sliver is not a face.
-    if (b.w >= 0.02 && b.h >= 0.02) {
-      setPending(b);
-      setPicked(null);
-      setTagError(null);
-    }
+    // A drag draws the box. A plain click drops one of a face's usual size where it landed, so clicking a face works too.
+    const r = frame.current!.getBoundingClientRect();
+    const side = Math.min(0.5, CLICK_BOX_PX / Math.min(r.width, r.height));
+    const w = Math.min(1, side * Math.min(r.width, r.height) / r.width), h = Math.min(1, side * Math.min(r.width, r.height) / r.height);
+    setPending(b.w >= 0.02 && b.h >= 0.02 ? b : { x: clamp(b.x - w / 2, 0, 1 - w), y: clamp(b.y - h / 2, 0, 1 - h), w, h });
+    setPicked(null);
+    setTagError(null);
   }
+
+  // ---------- who is in the box ----------
+  // The question opens beside the box, inside the window, with the keyboard in its search field.
+  const pendingBox = useRef<HTMLDivElement>(null);
+  const who = useRef<HTMLDivElement>(null);
+  useBesidePop(canAdd && !!pending, pendingBox, who);
+  useEffect(() => {
+    if (pending && !picked) who.current?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true });
+  }, [pending, picked]);
+  const cancelPending = () => { setPending(null); setPicked(null); stage.current?.focus({ preventScroll: true }); };
+  const me = useMeChosen();
+  const gallery = useQuery({ ...galleryQuery(tree), enabled: canAdd && !!pending }).data;
+  const likely = useMemo(
+    () => (pending ? photoSuggestions(item, gallery?.media ?? [item], f.graph.people, me ? [me, ...closestFamily(f, me, 8).shown.map((r) => r.id)] : []) : []),
+    [pending, item, gallery, f, me],
+  );
 
   const tag = useMutation({
     mutationFn: (args: { person: string; box: Box }) =>
@@ -304,7 +326,7 @@ function Photo({ tree, item, index, count, albums, onGo, onDirty }: {
                 <span className="lb-box-name">{name(tg.person)}</span>
               </div>
             ))}
-            {pending ? <div className="lb-box is-pending" style={{ left: `${pending.x * 100}%`, top: `${pending.y * 100}%`, width: `${pending.w * 100}%`, height: `${pending.h * 100}%` }} /> : null}
+            {pending ? <div ref={pendingBox} className="lb-box is-pending" style={{ left: `${pending.x * 100}%`, top: `${pending.y * 100}%`, width: `${pending.w * 100}%`, height: `${pending.h * 100}%` }} /> : null}
             {draft ? <div className="lb-box is-pending" style={{ left: `${draft.x * 100}%`, top: `${draft.y * 100}%`, width: `${draft.w * 100}%`, height: `${draft.h * 100}%` }} /> : null}
             {tagging ? (
               <div
@@ -408,20 +430,28 @@ function Photo({ tree, item, index, count, albums, onGo, onDirty }: {
           {aiNote ? <p className="subtle" role="status">{aiNote}</p> : null}
 
           {canAdd && pending ? (
-            <div className="lb-who">
+            <div
+              ref={who}
+              popover="manual"
+              className="lb-who"
+              role="group"
+              aria-label={g('lb.who')}
+              // Escape here gives up this box only; the photograph stays open.
+              onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancelPending(); } }}
+            >
               <h4 className="lb-h2">{g('lb.who')}</h4>
               {picked ? (
                 <div className="lb-picked">
                   <span className="name">{displayName(picked, f)}</span>
-                  <button type="button" className="btn primary" onClick={() => tag.mutate({ person: picked.id, box: pending })} disabled={tag.isPending}>
+                  <button type="button" className="btn primary" autoFocus onClick={() => tag.mutate({ person: picked.id, box: pending })} disabled={tag.isPending}>
                     {g('lb.confirm')}
                   </button>
-                  <button type="button" className="btn ghost" onClick={() => setPicked(null)}>{g('lb.cancel')}</button>
+                  <button type="button" className="btn ghost" onClick={() => setPicked(null)}>{g('lb.back')}</button>
                 </div>
               ) : (
-                <PersonPicker label={g('lb.who')} onPick={setPicked} />
+                <PersonPicker label={g('lb.who')} onPick={setPicked} suggested={likely} portraits={tree} />
               )}
-              <button type="button" className="btn ghost" onClick={() => { setPending(null); setPicked(null); }}>{g('lb.cancel')}</button>
+              <button type="button" className="btn ghost" onClick={cancelPending}>{g('lb.cancel')}</button>
               {tagError ? <Notice>{tagError}</Notice> : null}
             </div>
           ) : null}
