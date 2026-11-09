@@ -2,9 +2,10 @@ import { useToday } from '~/lib/clock';
 import { PageHeader, Skeleton, ErrorState, EmptyState } from '~/components/ui';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { ChefHat, Clock, Quote, Search, Sparkles, StickyNote } from 'lucide-react';
+import { ChefHat, Clock, Plus, Quote, Search, Sparkles, StickyNote } from 'lucide-react';
 import { renderMarkdown } from '~/lib/markdown';
 import { useEffect, useMemo, useState, type ComponentType } from 'react';
+import { AddMemory } from '~/components/AddMemory';
 import { GameIcon } from '~/components/GameIcon';
 import { Portrait } from '~/components/Portrait';
 import { PortraitZoom } from '~/components/photos/PortraitZoom';
@@ -15,6 +16,7 @@ import { locales, translate, useT, type Key, type Locale, type Translator } from
 import type { GPerson, Story } from '~/lib/types';
 import '~/styles/chronicle.css';
 import { useDealt } from '~/lib/dealt';
+import { useCan } from '~/lib/session';
 import { treeTitle } from '~/lib/title';
 import { storyTranslationsQuery } from '~/lib/ai/background.functions';
 import '~/components/assistant/ai-tasks.css';
@@ -135,6 +137,10 @@ function ChroniclePage() {
   }, [recent, limit, now, t.locale]);
 
   const dealt = useDealt(!isPending);
+  // Anyone whose role may write a memory can start one here, without finding the person on the tree first.
+  const canWrite = useCan('add-story');
+  const [adding, setAdding] = useState(false);
+  const write = canWrite ? () => setAdding(true) : undefined;
   const pick = (t: Tab) => {
     setTab(t);
     setLimit(30);
@@ -149,7 +155,8 @@ function ChroniclePage() {
                 : stories.length
                   ? t('chronicle.contributions', { count: stories.length, voices: t('chronicle.voices', { count: authors }) })
                   : t('chronicle.subtitle')}
-            </>} />
+            </>}
+          actions={write && <button type="button" className="btn primary" onClick={write}><Plus size={15} /> {t('chronicle.add')}</button>} />
 
         {isPending && <div className="page-loading" aria-busy="true" aria-label={t('chronicle.loading')}>{Array.from({ length: 4 }, (_, i) => <div className="ui-card" key={i} style={{ padding: 20, marginBottom: 12 }}><Skeleton width={48} height={48} radius="50%" /><Skeleton lines={3} /></div>)}</div>}
         {isError && <ErrorState title={t('chronicle.error')} message={t('chronicle.error_text')} onRetry={() => { void refetch(); }} />}
@@ -184,7 +191,7 @@ function ChroniclePage() {
           </label>
         </div>
 
-        {!isPending && stories.length === 0 && <Empty tree={tree} />}
+        {!isPending && stories.length === 0 && <Empty tree={tree} write={write} />}
 
         {stories.length > 0 && tab === 'recent' && (
           <>
@@ -209,7 +216,7 @@ function ChroniclePage() {
 
         {stories.length > 0 && tab === 'sayings' && (
           <>
-            {sayings.length === 0 && (q ? <NoMatch onClear={() => setQ('')} /> : <NoSayings tree={tree} />)}
+            {sayings.length === 0 && (q ? <NoMatch onClear={() => setQ('')} /> : <NoSayings tree={tree} write={write} />)}
             <div className={`chr-wall ${dealt}`}>
               {sayings.map((s) => (
                 <SayingCard key={s.id} s={s} f={f} tree={tree} now={now?.getTime()} tr={translations[s.id]} />
@@ -218,6 +225,7 @@ function ChroniclePage() {
           </>
         )}
         </>}
+        {adding && <AddMemory tree={tree} onClose={() => setAdding(false)} />}
       </div>
     </div>
   );
@@ -334,26 +342,31 @@ function SayingCard({ s, f, tree, now, tr }: { s: Story; f: Family; tree: string
   );
 }
 
-function Empty({ tree }: { tree: string }) {
+/** `write` is there for a reader whose role may add a memory: they are offered that, not a walk to the tree. */
+function Empty({ tree, write }: { tree: string; write?: () => void }) {
   const t = useT();
   return (
     <EmptyState
       icon={<GameIcon name="quill-ink" size={34} />}
       title={t('chronicle.empty_title')}
-      text={t('chronicle.empty_text')}
-      action={<Link className="btn primary" to="/$tree" params={{ tree }}>{t('chronicle.open_tree')}</Link>}
+      text={t(write ? 'chronicle.empty_text_write' : 'chronicle.empty_text')}
+      action={write
+        ? <button type="button" className="btn primary" onClick={write}><Plus size={15} /> {t('chronicle.add_first')}</button>
+        : <Link className="btn primary" to="/$tree" params={{ tree }}>{t('chronicle.open_tree')}</Link>}
     />
   );
 }
 
-function NoSayings({ tree }: { tree: string }) {
+function NoSayings({ tree, write }: { tree: string; write?: () => void }) {
   const t = useT();
   return (
     <EmptyState
       icon={<Quote size={30} />}
       title={t('chronicle.no_sayings')}
-      text={t('chronicle.no_sayings_text')}
-      action={<Link className="btn primary" to="/$tree" params={{ tree }}>{t('chronicle.open_tree')}</Link>}
+      text={t(write ? 'chronicle.no_sayings_text_write' : 'chronicle.no_sayings_text')}
+      action={write
+        ? <button type="button" className="btn primary" onClick={write}><Plus size={15} /> {t('chronicle.add_saying')}</button>
+        : <Link className="btn primary" to="/$tree" params={{ tree }}>{t('chronicle.open_tree')}</Link>}
     />
   );
 }

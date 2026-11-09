@@ -1046,7 +1046,8 @@ function StoryCard({ s, compact, onDelete }: { s: Story; compact?: boolean; onDe
   );
 }
 
-function StoryForm({ tree, person, done }: { tree: string; person: GPerson; done: () => void }) {
+/** The form a memory is written in. The person panel shows it on the Stories tab; the Chronicle opens it in a window. */
+export function StoryForm({ tree, person, done, saved }: { tree: string; person: GPerson; done: () => void; /** Called once the memory is kept, before `done`. */ saved?: () => void }) {
   const t = useT();
   const { leave } = useContext(DraftContext);
   const [saveError, setSaveError] = useState('');
@@ -1068,6 +1069,7 @@ function StoryForm({ tree, person, done }: { tree: string; person: GPerson; done
       qc.invalidateQueries({ queryKey: ['graph', tree] });
       qc.invalidateQueries({ queryKey: ['chronicle', tree] });
       form.reset(value);
+      saved?.();
       done();
       } catch (e) { setSaveError(e instanceof Error ? translateMessage(e.message, t.locale) : t('panel.storySaveFailed')); }
     },

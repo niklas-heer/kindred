@@ -86,3 +86,15 @@ export function searchPeople(f: Family, q: string, limit = 40, near?: ReadonlyMa
     .slice(0, limit)
     .map(({ id, score }) => ({ id, score }));
 }
+
+/**
+ * The people a picker lists for what was typed: those named in `suggested` first, in that order, then everyone else in
+ * the family's own order. With nothing typed and nobody suggested, that is simply the first few of the family.
+ */
+export function pickList(people: GPerson[], query: string, suggested: readonly string[] = [], limit = 8): GPerson[] {
+  const matches = people.filter((p) => matchesName(p, query));
+  if (!suggested.length) return matches.slice(0, limit);
+  const rank = new Map(suggested.map((id, i) => [id, i]));
+  const first = matches.filter((p) => rank.has(p.id)).sort((a, b) => rank.get(a.id)! - rank.get(b.id)!);
+  return [...first, ...matches.filter((p) => !rank.has(p.id))].slice(0, limit);
+}

@@ -156,3 +156,17 @@
 /* Paper and Night: the serif only from 16px up. A name inside a line of UI type takes the UI face. */
 :is([data-theme='modern'], [data-theme='night']) .chr-person { font-family: var(--font-ui); font-weight: 500; }
 :is([data-theme='modern'], [data-theme='night']) .chr-saying .chr-person { font-weight: 600; }
+
+/* "Add a memory" from the Chronicle: who it is about, then the form the person panel uses. */
+.chr-add { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.chr-add-q { margin: 0; font-family: var(--font-title); font-size: var(--fs-4); font-weight: 600; }
+.chr-add .gal-picker-item { align-items: center; gap: 10px; }
+.chr-add-about { display: flex; align-items: center; gap: 12px; }
+.chr-add-about > div { display: grid; flex: 1; min-width: 0; line-height: 1.25; }
+.chr-add-about b { font-family: var(--font-name); font-weight: var(--name-weight, 500); font-size: var(--fs-5); overflow-wrap: anywhere; }
+.chr-add-about .btn { flex: none; }
+.chr-add .story-form { margin: 0; }
+/* On a phone the signature takes its own line, so Cancel and Save are never pushed off the edge. */
+.chr-add .story-form .row.end { flex-wrap: wrap; }
+.chr-add .story-form .pp-signed { flex: 1 1 100%; }
+@media (min-width: 520px) { .chr-add .story-form .pp-signed { flex: 1 1 auto; } }

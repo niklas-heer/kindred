@@ -2,22 +2,30 @@
 import { useMemo, useState } from 'react';
 import { useFamily } from '~/lib/family';
 import { displayName } from '~/lib/graph';
-import { matchesName } from '~/lib/search';
+import { pickList } from '~/lib/search';
 import type { GPerson } from '~/lib/types';
 import { useT } from '~/lib/i18n';
+import { Portrait } from '../Portrait';
 import '~/styles/gallery.css';
 
 /** The birth year, to tell two people with the same name apart. */
 const yearOf = (p: GPerson) => p.born?.match(/\d{4}/)?.[0] ?? null;
 
-export function PersonPicker({ onPick, label }: { onPick: (person: GPerson) => void; label: string }) {
+export function PersonPicker({ onPick, label, suggested, portraits }: {
+  onPick: (person: GPerson) => void;
+  label: string;
+  /** People to list first, most likely first: the reader's own family, or those already in the album. */
+  suggested?: readonly string[];
+  /** The tree's id, to show each person's portrait beside their name. */
+  portraits?: string;
+}) {
   const f = useFamily();
   const g = useT();
   const [q, setQ] = useState('');
   const matches = useMemo(() => {
     // Birth and current names both count, so a married name finds the person as well as the birth name.
-    return f.graph.people.filter((p) => matchesName(p, q)).slice(0, 8);
-  }, [f, q]);
+    return pickList(f.graph.people, q, suggested);
+  }, [f, q, suggested]);
 
   return (
     <div className="gal-picker">
@@ -35,6 +43,7 @@ export function PersonPicker({ onPick, label }: { onPick: (person: GPerson) => v
         {matches.map((p) => (
           <li key={p.id}>
             <button type="button" className="gal-picker-item" onClick={() => onPick(p)}>
+              {portraits ? <Portrait person={p} tree={portraits} size={30} decorative /> : null}
               <span className="name">{displayName(p, f)}</span>
               {yearOf(p) ? <span className="subtle">{yearOf(p)}</span> : null}
             </button>

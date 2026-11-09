@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { displayName, fullName, personDisplayName } from './graph.ts';
-import { matchesName } from './search.ts';
+import { matchesName, pickList } from './search.ts';
 import type { GPerson } from './types.ts';
 
 const ann: GPerson = { id: 'ann', given: 'Anna', surname: 'Müller', currentSurname: 'Schmidt', nickname: 'Ann', living: true, stories: 0, contacts: 0 };
@@ -33,4 +33,31 @@ test('a search finds a person by the birth name or the current one, in any order
   assert.ok(matchesName(cy, ''));
   assert.ok(!matchesName(ann, 'Bob'));
   assert.ok(!matchesName(cy, 'Schmidt'));
+});
+
+// ---------- who a person picker lists, and in what order ----------
+
+const person = (id: string, given: string, surname: string): GPerson => ({ id, given, surname, living: true, stories: 0, contacts: 0 });
+const people = [
+  person('a', 'Kjell', 'Lindqvist'), person('b', 'Claire', 'Ashworth'), person('c', 'Sven', 'Lindqvist'),
+  person('d', 'Rachel', 'Ashworth'), person('e', 'Margit', 'Ashworth'), person('f', 'Kerstin', 'Holm'),
+];
+const ids = (list: GPerson[]) => list.map((p) => p.id).join('');
+
+test('with nobody suggested, the family’s own order is kept', () => {
+  assert.equal(ids(pickList(people, '')), 'abcdef');
+  assert.equal(ids(pickList(people, 'ashworth')), 'bde');
+});
+
+test('suggested people come first, in the order they were suggested', () => {
+  assert.equal(ids(pickList(people, '', ['f', 'd'])), 'fdabce');
+});
+
+test('what was typed still decides who is listed; a suggestion only moves a match up', () => {
+  assert.equal(ids(pickList(people, 'ashworth', ['e', 'f'])), 'ebd');
+  assert.equal(ids(pickList(people, 'zzz', ['e'])), '');
+});
+
+test('the list stops at the limit, and someone who has left the family is not invented', () => {
+  assert.equal(ids(pickList(people, '', ['f', 'gone'], 3)), 'fab');
 });
