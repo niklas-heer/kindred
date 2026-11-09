@@ -1,5 +1,5 @@
 // The models Kindred recommends, per provider. Typed, so a typo fails the build. A `provisional` pick is a reasoned first
-// choice; the others were measured with scripts/ai-eval.ts (docs/ai-model-test.md). The page shows the list first and says which.
+// choice; the others were measured with scripts/ai-eval.ts (docs/evals/models.md). The page shows the list first and says which.
 import type { Provider } from './types';
 
 export type Role = 'balanced' | 'cheap' | 'best';

@@ -29,9 +29,9 @@ import { ARMS_CASES, FAMILY, LANGUAGE_CASES, NAME_CASES, PROPOSAL_CASES, TOOL_CA
 import { CURSOR_PROVIDER, cursorAdapter, withEmptyFolder } from './lib/cursor-adapter.ts';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-export const DEFAULT_OUT = 'docs/ai-model-test.md';
+export const DEFAULT_OUT = 'docs/evals/models.md';
 /** The Cursor source's report, kept apart from the paid providers' (DEFAULT_OUT is the committed report of those). */
-export const DEFAULT_CURSOR_OUT = 'docs/ai-model-test-cursor.md';
+export const DEFAULT_CURSOR_OUT = 'docs/evals/cursor.md';
 const PROVIDERS = ['anthropic', 'openai', 'openrouter', 'cursor'] as const;
 const MAX_STEPS = 5;
 /** The Cursor source's default number of models run at once (--concurrency). */

@@ -32,7 +32,12 @@ A list is cached in memory for five minutes, per provider and key. The key is ha
 logged by the listing. If a list cannot be read, the page says why and you can still type a model id.
 
 **Recommended models** are in `src/lib/ai/recommended.ts`: one balanced, one cheap and one best-quality model per provider.
-They are provisional. The choices are first picks, not yet measured on real family questions. A measured test comes later.
+**How they were chosen.** The Anthropic and OpenRouter picks were measured on 2026-11-08 with `scripts/ai-eval.ts`, on made-up
+family data: names research, arms, tool use, proposals, languages, photo questions and web research. The default model per provider
+(`DEFAULT_MODEL` in `src/lib/ai/types.ts`) is Anthropic `claude-haiku-5-5` (it passed every check at about a twelfth of Sonnet's cost),
+OpenAI `gpt-6.1-sol`, and OpenRouter `google/gemini-3.8-flash`. The OpenAI picks are still provisional, first picks that no one has
+measured; the settings page marks which is which. The tables are in [evals/](evals/README.md), with how to run them again
+(`mise run ai-eval`; a real run costs money). They test made-up data, not your family, so they are a start, not a promise.
 **Recommended painters** are there too, from a bake-off of 21 image models: GPT Image 2.6 Flare is the best and the portrait route's default when no model is chosen (about $0.048 a portrait), and FLUX 3 Image Klein is the budget pick (about $0.009); one OpenRouter no longer lists is not offered.
 
 **The family's portrait style.** A steward sets it in Painted portraits, in AI settings, with a Reset to default; it is bounded to 800 characters. Every portrait in the family uses it, so they stay uniform, and the text goes to the painter as style only. Framing, likeness and a gentle touch-up are fixed rules the style cannot change: a square head-and-shoulders portrait with room above the hair, the whole head inside the app's circle even from a tightly cropped photo, the person kept as they are at their apparent age. Requests ask for `aspect_ratio: 1:1`, because some models refuse pixel sizes.
