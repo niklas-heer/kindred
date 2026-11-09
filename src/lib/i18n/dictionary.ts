@@ -150,6 +150,19 @@ export function translate(locale: Locale, key: Key, vars: Vars = {}): string {
 }
 
 /**
+ * A whole sentence split around the parts a screen fills in itself, so each language keeps its own word order:
+ * "{author} hat einen Spruch von {subject} festgehalten" gives ["", {slot:"author"}, " hat einen Spruch von ", …].
+ */
+export function translateParts(locale: Locale, key: Key, slots: readonly string[], vars: Vars = {}): (string | { slot: string })[] {
+  const marked: Vars = { ...vars };
+  for (const s of slots) marked[s] = `\u0000${s}\u0000`;
+  return translate(locale, key, marked)
+    .split("\u0000")
+    .map((part, i) => (i % 2 ? { slot: part } : part))
+    .filter((part) => part !== "");
+}
+
+/**
  * Translates a message the server threw as English text. An exact English match wins; otherwise a key whose English
  * has {placeholders} matches the text with those parts filled in ("Birthday · 3 years" in any language).
  */

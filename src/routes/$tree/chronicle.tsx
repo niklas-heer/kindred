@@ -12,7 +12,7 @@ import { PortraitZoom } from '~/components/photos/PortraitZoom';
 import { chronicleQuery } from '~/lib/api';
 import { useFamily, useTreeId } from '~/lib/family';
 import { displayName, type Family } from '~/lib/graph';
-import { locales, translate, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
+import { locales, richText, translate, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
 import type { GPerson, Story } from '~/lib/types';
 import '~/styles/chronicle.css';
 import { useDealt } from '~/lib/dealt';
@@ -37,12 +37,12 @@ const render = renderMarkdown;
 type Kind = Story['kind'];
 /** Stories are written with a quill; the rest keep their line icons. */
 const Quill = ({ size = 14 }: { size?: number }) => <GameIcon name="quill-ink" size={size} />;
-const KINDS: { id: Kind; label: Key; plural: Key; verb: Key; icon: ComponentType<{ size?: number }> }[] = [
-  { id: 'note', label: 'chronicle.kind.note', plural: 'chronicle.kind.note_plural', verb: 'chronicle.verb.note', icon: StickyNote },
-  { id: 'quote', label: 'chronicle.kind.quote', plural: 'chronicle.kind.quote_plural', verb: 'chronicle.verb.quote', icon: Quote },
-  { id: 'anecdote', label: 'chronicle.kind.anecdote', plural: 'chronicle.kind.anecdote_plural', verb: 'chronicle.verb.anecdote', icon: Quill },
-  { id: 'recipe', label: 'chronicle.kind.recipe', plural: 'chronicle.kind.recipe_plural', verb: 'chronicle.verb.recipe', icon: ChefHat },
-  { id: 'memory', label: 'chronicle.kind.memory', plural: 'chronicle.kind.memory_plural', verb: 'chronicle.verb.memory', icon: Sparkles },
+const KINDS: { id: Kind; label: Key; plural: Key; line: Key; icon: ComponentType<{ size?: number }> }[] = [
+  { id: 'note', label: 'chronicle.kind.note', plural: 'chronicle.kind.note_plural', line: 'chronicle.line.note', icon: StickyNote },
+  { id: 'quote', label: 'chronicle.kind.quote', plural: 'chronicle.kind.quote_plural', line: 'chronicle.line.quote', icon: Quote },
+  { id: 'anecdote', label: 'chronicle.kind.anecdote', plural: 'chronicle.kind.anecdote_plural', line: 'chronicle.line.anecdote', icon: Quill },
+  { id: 'recipe', label: 'chronicle.kind.recipe', plural: 'chronicle.kind.recipe_plural', line: 'chronicle.line.recipe', icon: ChefHat },
+  { id: 'memory', label: 'chronicle.kind.memory', plural: 'chronicle.kind.memory_plural', line: 'chronicle.line.memory', icon: Sparkles },
 ];
 const KIND = Object.fromEntries(KINDS.map((k) => [k.id, k])) as Record<Kind, (typeof KINDS)[number]>;
 
@@ -299,7 +299,7 @@ function FeedItem({ s, f, tree, now, tr }: { s: Story; f: Family; tree: string; 
             <k.icon size={14} /> {t(k.label)}
           </span>
           <span className="chr-line">
-            <b>{s.author}</b> {t(k.verb)} <PersonLink p={p} f={f} tree={tree} />
+            {richText(t, k.line, { author: <b>{s.author}</b>, subject: <PersonLink p={p} f={f} tree={tree} /> })}
           </span>
           <time dateTime={s.at} title={now === undefined ? undefined : exact(s.at, t.locale)}>
             {now === undefined ? '' : ago(s.at, now, t)}

@@ -2,7 +2,7 @@
 // sorting, whole anniversary names and sentence templates. Names are invented.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { KEYS, compareText, ordinal, ordinalWord, translate, type Key } from './dictionary.ts';
+import { KEYS, compareText, ordinal, ordinalWord, translate, translateParts, type Key } from './dictionary.ts';
 
 test('Afrikaans ordinals: -ste for 1, 8 and from 20 up, the last two digits past a hundred', () => {
   const af = (n: number) => ordinal(n, 'af');
@@ -33,4 +33,17 @@ test('a wedding anniversary carries its whole name in each language', () => {
     assert.match(translate('de', k), /^[A-ZÄÖÜ].*(hochzeit| Hochzeit)$/, `${k} is a whole German name`);
     assert.match(translate('af', k), /bruilof$/, `${k} is a whole Afrikaans name`);
   }
+});
+
+test('a chronicle line is one sentence per language, with the parts where each language puts them', () => {
+  const line = (l: 'en' | 'de' | 'af', kind: string) =>
+    translateParts(l, `chronicle.line.${kind}` as Key, ['author', 'subject'])
+      .map((p) => (typeof p === 'string' ? p : p.slot === 'author' ? 'Linnea Reyes' : 'Sven Ström'))
+      .join('');
+  assert.equal(line('de', 'quote'), 'Linnea Reyes hat einen Spruch von Sven Ström festgehalten');
+  assert.equal(line('de', 'anecdote'), 'Linnea Reyes hat eine Geschichte über Sven Ström erzählt');
+  assert.equal(line('af', 'quote'), 'Linnea Reyes het ’n gesegde van Sven Ström aangeteken');
+  assert.equal(line('af', 'memory'), 'Linnea Reyes onthou Sven Ström');
+  assert.equal(line('en', 'recipe'), 'Linnea Reyes shared a recipe from Sven Ström');
+  assert.deepEqual(translateParts('de', 'chronicle.line.memory', ['author', 'subject']), [{ slot: 'author' }, ' erinnert sich an ', { slot: 'subject' }]);
 });

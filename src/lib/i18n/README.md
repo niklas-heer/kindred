@@ -32,6 +32,9 @@ Three languages ship: **English** (`en`, the source of the key type), **German**
 
 Plurals are `{ one: '…{count}…', other: '…{count}…' }`, chosen by `Intl.PluralRules` for each language.
 Placeholders are `{name}`; numbers are formatted for the locale. Keep placeholders identical in every language.
+A sentence with a link or a bold name inside is still one key: `"{author} hat einen Spruch von {subject} festgehalten"`,
+rendered with `richText(t, key, { author: <b>…</b>, subject: <PersonLink … /> })`. Never glue a sentence from a subject,
+a verb key and an object: German puts the participle last.
 
 ## Areas
 

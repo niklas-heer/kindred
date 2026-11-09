@@ -5,8 +5,8 @@
  * Never translate names or user-written archive content. Pass locale explicitly to pure formatters on the
  * server; never keep request locale in globals. See README.md.
  */
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { isLocale, translate, type Key, type Locale, type Vars } from "./dictionary";
+import { createContext, Fragment, useContext, useEffect, useState, type ReactNode } from "react";
+import { isLocale, translate, translateParts, type Key, type Locale, type Vars } from "./dictionary";
 import { localizeTitle } from "./titles";
 
 export * from "./dictionary";
@@ -101,5 +101,15 @@ export function useT() {
 
 /** The type of what useT() returns, for helpers that take the translator as an argument. */
 export type Translator = ReturnType<typeof useT>;
+
+/**
+ * A whole sentence with React parts placed where the language puts them:
+ * richText(t, 'chronicle.line.quote', { author: <b>…</b>, subject: <PersonLink … /> }).
+ */
+export function richText(t: Translator, key: Key, parts: Record<string, ReactNode>, vars?: Vars): ReactNode {
+  return translateParts(t.locale, key, Object.keys(parts), vars).map((part, i) =>
+    typeof part === "string" ? part : <Fragment key={i}>{parts[part.slot]}</Fragment>,
+  );
+}
 
 // The language picker itself (the flag in the top bar and on sign-in pages) is in components/LanguagePicker.tsx.
