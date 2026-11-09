@@ -188,6 +188,7 @@ export function UploadDialog({ tree, albums, initialAlbum, files, onClose }: {
       dirty={dirty && !running}
       dismissible={!running}
       className="gal-upload"
+      bodyClassName="gal-upload-body"
       footer={
         <div className="gal-upload-foot">
           {running ? (

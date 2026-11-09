@@ -147,7 +147,8 @@
 
 /* ---------- uploading ---------- */
 
-.gal-upload, .ui-dialog-panel.gal-upload { display: grid; gap: 14px; }
+/* The grid goes on the body, not on the panel: the panel is the dialog's flex column, and as a grid its body no longer shrinks, which pushed the footer off a phone screen. */
+.gal-upload-body { display: grid; gap: 14px; align-content: start; }
 .gal-drop {
   display: grid; justify-items: center; gap: 8px; padding: 22px 16px; text-align: center;
   border: 1.5px dashed var(--edge); border-radius: 12px; background: var(--panel-2);
