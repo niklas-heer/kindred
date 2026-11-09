@@ -20,7 +20,7 @@ const load = <T>(path: string) => vite.ssrLoadModule(path) as Promise<T>;
 const { openSqlite, closeAccounts } = await load<typeof import('./store/node.ts')>('/src/lib/store/node.ts');
 const { accounts } = await load<typeof import('./auth/store.server.ts')>('/src/lib/auth/store.server.ts');
 const { db } = await load<typeof import('./db.server.ts')>('/src/lib/db.server.ts');
-const chat = await load<typeof import('./ai/chat.server.ts')>('/src/lib/ai/chat.server.ts');
+const chat = (await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts')).withLatestChat(await load<typeof import('./ai/chat.server.ts')>('/src/lib/ai/chat.server.ts'));
 const family = await load<typeof import('./ai/family.server.ts')>('/src/lib/ai/family.server.ts');
 const settings = await load<typeof import('./ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
 const setup = await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts');
@@ -110,8 +110,8 @@ test('pictures make a call dearer before it is sent, so a small budget refuses i
   const req = { system: 's', maxTokens: 100, messages: [{ role: 'user' as const, text: 'hi' }] };
   const withPictures = { ...req, messages: [{ role: 'user' as const, text: 'hi', images: [{ mime: 'image/png', base64: PNG }, { mime: 'image/png', base64: PNG }] }] };
   assert.ok(settings.estimateMicros(withPictures, price) - settings.estimateMicros(req, price) >= 2 * 2000 * price.inPerM, 'priced per picture, not by its text');
-  // What is left of the month holds a text message (about 900 micro-dollars here) and not six pictures (about 3,500).
-  await configure(await settings.spentThisMonth(TREE) + 2000);
+  // What is left of the month holds a text message (about 2,300 micro-dollars here, with the tools the assistant now has) and not six pictures (about 4,900).
+  await configure(await settings.spentThisMonth(TREE) + 3500);
   await send({ text: 'Text alone still fits.' });
   await assert.rejects(send({ images: Array.from({ length: 6 }, () => ({ base64: PNG })) }), (e: Error) => e.name === 'AiError');
   await configure(5_000_000);

@@ -367,7 +367,7 @@ test('a guest gets no AI: every feature is off, and the assistant is closed', as
   const status = await ai.aiStatus({ data: { tree: TREE } });
   assert.equal(status.configured, false);
   assert.ok(Object.values(status.features).every((on) => !on));
-  await assert.rejects(ai.aiChatSend({ data: { tree: TREE, text: 'hello', locale: 'en' } }), (e: Error & { status?: number }) => e.status === 401);
+  await assert.rejects(ai.aiChatSend({ data: { tree: TREE, conv: '11111111-1111-4111-8111-111111111111', text: 'hello', locale: 'en' } }), (e: Error & { status?: number }) => e.status === 401);
 });
 
 test('a guest reads what a viewer reads: never a private field', async () => {

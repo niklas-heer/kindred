@@ -39,6 +39,7 @@ import { Route as TreeSettingsActivityRouteImport } from './routes/$tree/setting
 import { Route as TreeSettingsAiRouteImport } from './routes/$tree/settings.ai'
 import { Route as TreeSettingsFeedbackRouteImport } from './routes/$tree/settings.feedback'
 import { Route as TreeSettingsImportRouteImport } from './routes/$tree/settings.import'
+import { Route as ApiAiChatTreeRouteImport } from './routes/api/ai-chat.$tree'
 import { Route as ApiAuthActionRouteImport } from './routes/api/auth/$action'
 import { Route as ApiExportTreeRouteImport } from './routes/api/export.$tree'
 import { Route as ApiFeedbackTreeKeyRouteImport } from './routes/api/feedback.$tree.$key'
@@ -198,6 +199,11 @@ const TreeSettingsImportRoute = TreeSettingsImportRouteImport.update({
   path: '/settings/import',
   getParentRoute: () => TreeRoute,
 } as any)
+const ApiAiChatTreeRoute = ApiAiChatTreeRouteImport.update({
+  id: '/api/ai-chat/$tree',
+  path: '/api/ai-chat/$tree',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthActionRoute = ApiAuthActionRouteImport.update({
   id: '/api/auth/$action',
   path: '/api/auth/$action',
@@ -270,6 +276,7 @@ export interface FileRoutesByFullPath {
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
   '/$tree/settings/feedback': typeof TreeSettingsFeedbackRoute
   '/$tree/settings/import': typeof TreeSettingsImportRoute
+  '/api/ai-chat/$tree': typeof ApiAiChatTreeRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
   '/api/export/$tree': typeof ApiExportTreeRoute
   '/api/feedback/$tree/$key': typeof ApiFeedbackTreeKeyRoute
@@ -309,6 +316,7 @@ export interface FileRoutesByTo {
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
   '/$tree/settings/feedback': typeof TreeSettingsFeedbackRoute
   '/$tree/settings/import': typeof TreeSettingsImportRoute
+  '/api/ai-chat/$tree': typeof ApiAiChatTreeRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
   '/api/export/$tree': typeof ApiExportTreeRoute
   '/api/feedback/$tree/$key': typeof ApiFeedbackTreeKeyRoute
@@ -350,6 +358,7 @@ export interface FileRoutesById {
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
   '/$tree/settings/feedback': typeof TreeSettingsFeedbackRoute
   '/$tree/settings/import': typeof TreeSettingsImportRoute
+  '/api/ai-chat/$tree': typeof ApiAiChatTreeRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
   '/api/export/$tree': typeof ApiExportTreeRoute
   '/api/feedback/$tree/$key': typeof ApiFeedbackTreeKeyRoute
@@ -392,6 +401,7 @@ export interface FileRouteTypes {
     | '/$tree/settings/ai'
     | '/$tree/settings/feedback'
     | '/$tree/settings/import'
+    | '/api/ai-chat/$tree'
     | '/api/auth/$action'
     | '/api/export/$tree'
     | '/api/feedback/$tree/$key'
@@ -431,6 +441,7 @@ export interface FileRouteTypes {
     | '/$tree/settings/ai'
     | '/$tree/settings/feedback'
     | '/$tree/settings/import'
+    | '/api/ai-chat/$tree'
     | '/api/auth/$action'
     | '/api/export/$tree'
     | '/api/feedback/$tree/$key'
@@ -471,6 +482,7 @@ export interface FileRouteTypes {
     | '/$tree/settings/ai'
     | '/$tree/settings/feedback'
     | '/$tree/settings/import'
+    | '/api/ai-chat/$tree'
     | '/api/auth/$action'
     | '/api/export/$tree'
     | '/api/feedback/$tree/$key'
@@ -493,6 +505,7 @@ export interface RootRouteChildren {
   InviteTokenRoute: typeof InviteTokenRoute
   ShareTokenRoute: typeof ShareTokenRoute
   UiCharacterRoute: typeof UiCharacterRoute
+  ApiAiChatTreeRoute: typeof ApiAiChatTreeRoute
   ApiAuthActionRoute: typeof ApiAuthActionRoute
   ApiExportTreeRoute: typeof ApiExportTreeRoute
   ApiFeedbackTreeKeyRoute: typeof ApiFeedbackTreeKeyRoute
@@ -715,6 +728,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TreeSettingsImportRouteImport
       parentRoute: typeof TreeRoute
     }
+    '/api/ai-chat/$tree': {
+      id: '/api/ai-chat/$tree'
+      path: '/api/ai-chat/$tree'
+      fullPath: '/api/ai-chat/$tree'
+      preLoaderRoute: typeof ApiAiChatTreeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$action': {
       id: '/api/auth/$action'
       path: '/api/auth/$action'
@@ -832,6 +852,7 @@ const rootRouteChildren: RootRouteChildren = {
   InviteTokenRoute: InviteTokenRoute,
   ShareTokenRoute: ShareTokenRoute,
   UiCharacterRoute: UiCharacterRoute,
+  ApiAiChatTreeRoute: ApiAiChatTreeRoute,
   ApiAuthActionRoute: ApiAuthActionRoute,
   ApiExportTreeRoute: ApiExportTreeRoute,
   ApiFeedbackTreeKeyRoute: ApiFeedbackTreeKeyRoute,

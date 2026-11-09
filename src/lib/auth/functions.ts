@@ -17,6 +17,8 @@ const guard = () => import('./guard.server');
 const store = () => import('./store.server');
 
 export interface SessionInfo {
+  /** The installation's one sign-in method (KINDRED_AUTH). Decides which sign-in screens exist at all. */
+  auth: 'kindred' | 'cloudflare-access';
   user: { id: string; name: string; email: string | null; via: 'passkey' | 'access'; locale: (typeof LOCALES)[number] | null } | null;
   memberships: { tree: string; role: Role; person: string | null; personConfirmed: boolean }[];
   /** Nobody has an account yet: /setup creates the first steward. */
@@ -27,9 +29,9 @@ export interface SessionInfo {
   /** Setup is open (no code) on a public address: /setup warns that the first visitor becomes the steward. */
   setupOpenToPublic?: boolean;
   defaultTree?: string;
-  /** Signed in through Cloudflare Access as this email, but not invited. */
+  /** A verified Cloudflare Access identity with no account here: not invited, or setup still needs its code. */
   uninvitedEmail?: string;
-  /** Where "Sign out" must also go when signed in through Access. */
+  /** Cloudflare Access's own sign-out, when that is the method. */
   accessLogout?: string;
   /** A guest's visit through a family share link. `memberships` then holds that family, as a viewer. */
   guest?: { tree: string; expires: number };
@@ -41,9 +43,11 @@ export interface SessionInfo {
 
 /** Who is signed in, and their role and "who you are" in each family. Never cached across readers. */
 export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): Promise<SessionInfo> => {
-  const [{ currentSession }, s, setup, { accessLogoutUrl }, { siteOrigin, guestEnded }, { getRequest }, { onGuestHost }, { defaultTreeFor }] = await Promise.all([
-    guard(), store(), import('./setup.server'), import('./access.server'), import('./session.server'), import('@tanstack/react-start/server'), import('./origin'), import('./guest-host'),
+  const [{ currentSession }, s, setup, { accessLogoutUrl, authMethod }, { siteOrigin, guestEnded }, { getRequest }, { onGuestHost }, { defaultTreeFor }] = await Promise.all([
+    guard(), store(), import('./setup.server'), import('./method.server'), import('./session.server'), import('@tanstack/react-start/server'), import('./origin'), import('./guest-host'),
   ]);
+  // The refused setting never reaches here off the guest host (src/start.ts), and the guest host has no sign-in to choose.
+  const auth = authMethod() ?? 'kindred';
   const { user, via, uninvitedEmail, guest } = await currentSession();
   const guestHost = onGuestHost(getRequest());
   // First-time setup is no business of the guest host, which is open to the internet.
@@ -54,15 +58,17 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): 
   const guestHere = guest && !memberships.some((m) => m.tree === guest.tree) ? guest : undefined;
   if (guestHere) memberships.push({ tree: guestHere.tree, role: 'viewer', person: null, personConfirmed: false });
   return {
+    auth,
     user: user && via ? { id: user.id, name: user.name, email: user.email, via, locale: user.locale } : null,
     memberships,
     needsSetup: needs,
     needsFamily,
     setupCodeRequired: setup.setupCodeRequired(),
-    setupOpenToPublic: needs && setup.setupOpenToPublic(siteOrigin(getRequest()), new URL(getRequest().url)),
+    // Behind Access, only someone Access let through can reach setup at all, and the Access policy says who that is.
+    setupOpenToPublic: auth === 'kindred' && needs && setup.setupOpenToPublic(siteOrigin(getRequest()), new URL(getRequest().url)),
     defaultTree: defaultTreeFor(!!user || !!guestHere),
     uninvitedEmail,
-    accessLogout: via === 'access' || uninvitedEmail ? accessLogoutUrl() : undefined,
+    accessLogout: accessLogoutUrl(),
     guest: guestHere && { tree: guestHere.tree, expires: guestHere.expires },
     guestEnded: !user && !guestHere && guestEnded(getRequest()),
     guestHost,
@@ -137,6 +143,33 @@ export const acceptInvite = createServerFn({ method: 'POST' })
     return { tree: invite.tree };
   });
 
+const verifiedNewcomer = async () => {
+  const [{ currentSession, fail }, { signedOut }, { guestChoice }, { getRequest }] = await Promise.all([guard(), import('./errors'), import('./session.server'), import('@tanstack/react-start/server')]);
+  const { uninvitedEmail } = await currentSession();
+  if (!uninvitedEmail) throw fail(signedOut());
+  return { email: uninvitedEmail, locale: guestChoice(getRequest()), fail };
+};
+
+/** Cloudflare Access only: a verified identity with no account takes an invitation link. */
+export const joinWithAccess = createServerFn({ method: 'POST' })
+  .validator(z.object({ token, name: z.string().max(200) }))
+  .handler(async ({ data }) => {
+    const [{ email, locale, fail }, { joinWithInvite }, { AuthError }, { allow, clientIP }] = await Promise.all([verifiedNewcomer(), import('./access-join.server'), import('./errors'), import('./throttle.server')]);
+    if (!allow(`invite:${clientIP()}`, 20, 10 * 60_000)) throw fail(new AuthError('invalid', 'Too many attempts. Please wait a minute and try again.'));
+    await joinWithInvite(email, data.token, data.name, locale).catch((e) => { throw e instanceof AuthError ? fail(e) : e; });
+  });
+
+/** Cloudflare Access only: a verified identity enters the setup code and becomes the first steward. */
+export const setupWithAccess = createServerFn({ method: 'POST' })
+  .validator(z.object({ code: z.string().max(200), name: z.string().max(200), familyName: z.string().max(200).optional() }))
+  .handler(async ({ data }): Promise<{ tree: string | null }> => {
+    const [{ email, locale, fail }, { claimFirstSteward }, { AuthError }, { allow, clientIP }] = await Promise.all([verifiedNewcomer(), import('./access-join.server'), import('./errors'), import('./throttle.server')]);
+    const ip = clientIP();
+    if (!allow(`setup:${ip}`, 5, 60_000) || !allow('setup:all', 20, 10 * 60_000)) throw fail(new AuthError('invalid', 'Too many attempts. Please wait a minute and try again.'));
+    const { tree } = await claimFirstSteward(email, data.code, data.name, data.familyName, locale).catch((e) => { throw e instanceof AuthError ? fail(e) : e; });
+    return { tree };
+  });
+
 // ---------- "who you are" ----------
 
 /**
@@ -171,7 +204,7 @@ export const answerPersonLink = createServerFn({ method: 'POST' })
 export interface Passkey { id: string; device: string | null; synced: boolean; created: number; lastUsed: number | null }
 
 export const fetchMyPasskeys = createServerFn({ method: 'GET' }).handler(async (): Promise<Passkey[]> => {
-  const [{ requireUser, fail }, s] = await Promise.all([guard(), store()]);
+  const [{ requireUser }, s] = await Promise.all([guard(), store()]);
   const user = await requireUser();
   return (await s.credentialsOf(user.id)).map((c) => ({ id: c.id, device: c.device, synced: !!c.synced, created: c.created, lastUsed: c.last_used }));
 });
@@ -181,19 +214,19 @@ export const myPasskeysQuery = queryOptions({ queryKey: ['session', 'passkeys'],
 export const removeMyPasskey = createServerFn({ method: 'POST' })
   .validator(z.object({ id: z.string().min(1).max(1024) }))
   .handler(async ({ data }) => {
-    const [{ requireUser, currentSession, fail }, s, { AuthError }] = await Promise.all([guard(), store(), import('./errors')]);
+    const [{ requireUser, fail }, s, { AuthError }, { authMethod }] = await Promise.all([guard(), store(), import('./errors'), import('./method.server')]);
     const user = await requireUser();
-    const { via } = await currentSession();
+    if (authMethod() !== 'kindred') throw fail(new AuthError('invalid', 'auth.passkeys_off'));
     const onlyOne = () => fail(new AuthError('invalid', 'This is your only passkey. Add another before removing it, or you won’t be able to sign in.'));
     const d = s.accounts();
     const n = (await d.get<{ n: number }>('SELECT count(*) AS n FROM credential WHERE user = ?', user.id))!.n;
-    if (n <= 1 && via !== 'access') throw onlyOne();
+    if (n <= 1) throw onlyOne();
     // The guard after the delete keeps the rule however many removals race: never the last passkey.
     let r;
     try {
       [r] = await d.batch([
         s.q('DELETE FROM credential WHERE id = ? AND user = ?', data.id, user.id),
-        ...(via === 'access' ? [] : [s.guard('EXISTS (SELECT 1 FROM credential WHERE user = ?)', user.id)]),
+        s.guard('EXISTS (SELECT 1 FROM credential WHERE user = ?)', user.id),
       ]);
     } catch (e) {
       if (s.isGuardError(e)) throw onlyOne();

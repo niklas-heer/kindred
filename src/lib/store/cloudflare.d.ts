@@ -2,6 +2,7 @@
 // Response and friends globally, which clashes with the DOM types the rest of the app checks against.
 declare module 'cloudflare:workers' {
   export const env: Record<string, unknown>;
+  export function waitUntil(promise: Promise<unknown>): void;
 }
 
 interface D1Meta { changes: number; last_row_id: number }

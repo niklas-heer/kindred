@@ -7,6 +7,7 @@ import { cutText, firstOf } from './trim';
 import { FIELD_TYPES } from '~/components/fields/model';
 import { VISIBILITIES } from '../visibility';
 import type { ArmsV2 } from '~/lib/seed-format';
+import type { ChatBlock } from './blocks';
 
 export const PROVIDERS = ['anthropic', 'openai', 'openrouter'] as const;
 export type Provider = (typeof PROVIDERS)[number];
@@ -113,6 +114,10 @@ export interface ModelInfo {
 export const PROPOSAL_KINDS = [
   'add-person', 'link-relative', 'set-dates', 'add-story', 'add-field',
   'family', 'photo-details', 'photo-album', 'photo-tags', 'avatar', 'set-occupation', 'house-settings',
+  // Everything else a reader can change by hand (see ai/edits.server.ts).
+  'edit-person', 'update-field', 'remove-field', 'remove-story', 'unlink', 'partnership', 'partnership-end', 'remove-person',
+  'house-details', 'house-create', 'house-members', 'house-words', 'album-rename', 'album-delete', 'photo-remove', 'photo-untag',
+  'person-display', 'place-pin', 'research-project', 'research-note', 'research-document', 'research-link', 'research-remove', 'family-details',
 ] as const;
 export type ProposalKind = (typeof PROPOSAL_KINDS)[number];
 
@@ -154,11 +159,13 @@ export interface Proposal {
   /** One line, in the reader's language. */
   summary: string;
   /** What changes, for the card: "Born — → 3 May 1902". Display only. */
-  diff: { label: string; from?: string; to: string }[];
+  diff: { label: string; from?: string; to: string; removed?: boolean }[];
   /** The arguments approval sends to the existing server function. Text fields listed in `editable` may be changed first. */
   args: ProposalArgs;
   editable: string[];
   status: 'open' | 'done' | 'dismissed';
+  /** The whole card takes something away: it is drawn as a removal, and says so. Set by the server. */
+  removal?: boolean;
   /** Display-only data for the card (see ProposalView). Never sent on approval. */
   view?: ProposalView;
 }
@@ -177,7 +184,25 @@ export interface ChatItem {
   proposals?: Proposal[];
   /** The pages a web search drew on for this reply, when the family allowed web search. */
   sources?: { url: string; title?: string }[];
+  /** A question for the reader and the widgets of this reply (see ai/blocks.ts). */
+  blocks?: ChatBlock[];
   at: number;
+  /** A reply to the reader's decisions rather than to a message. */
+  continuation?: boolean;
+  /** A second answer to the same question, from another model: the reply it stands beside. */
+  alternateOf?: string;
+  /** Which model wrote this reply. Sent to stewards only. */
+  model?: { provider: string; model: string };
+}
+
+/** One chat in the reader's list. `untitled` says what to call a chat with no words to name it after. */
+export interface ThreadSummary {
+  conv: string;
+  title: string;
+  renamed: boolean;
+  untitled?: 'session' | 'pictures' | 'chat';
+  created: number;
+  updated: number;
 }
 
 // ---------- what the assistant may propose (validated on the server, and again by the server function approval calls) ----------
@@ -186,6 +211,8 @@ const iso = z.string().trim().min(4).max(10);
 const sex = z.enum(['m', 'f', 'x']);
 const id = z.string().min(1).max(100);
 const text = (max: number) => z.string().trim().min(1).max(max);
+/** How a couple is recorded when they are joined: the same choices as the form. */
+const partnershipArg = z.object({ kind: z.enum(['marriage', 'partnership', 'other']), start: iso.optional(), place: z.string().trim().max(200).optional() });
 
 const baseProposalArgs = {
   'add-person': z.object({
@@ -199,12 +226,14 @@ const baseProposalArgs = {
     born: iso.optional(),
     died: iso.optional(),
     living: z.boolean(),
+    partnership: partnershipArg.optional(),
   }),
   'link-relative': z.object({
     anchor: id,
     person: id,
     relation: z.enum(['child', 'parent', 'partner', 'sibling']),
     coParent: id.optional(),
+    partnership: partnershipArg.optional(),
   }),
   'set-dates': z.object({
     person: id,
@@ -333,7 +362,76 @@ const fillArgs = {
   }),
 };
 
-export const proposalArgs = { ...baseProposalArgs, ...fillArgs } as typeof baseProposalArgs & typeof fillArgs;
+/** What a person's details may have emptied, as a list on the card. A given name is required, so it is not here. */
+export const CLEARABLE = ['furtherGiven', 'surname', 'currentGiven', 'currentSurname', 'nickname', 'title', 'epithet', 'sex', 'bio', 'born', 'bornPlace', 'died', 'diedPlace', 'occupation'] as const;
+export type Clearable = (typeof CLEARABLE)[number];
+
+const nullableIso = iso.nullable();
+const visibleLevel = z.enum(['editors', 'family']);
+
+/** The rest of what can be changed by hand. `before` is what the card showed: approving refuses if the record has moved on (apply.ts). */
+const editArgs = {
+  'edit-person': z.object({
+    person: id,
+    given: text(120).optional(),
+    furtherGiven: z.array(text(120)).max(MAX_FURTHER).optional(),
+    surname: text(120).optional(),
+    currentGiven: text(120).optional(),
+    currentSurname: text(120).optional(),
+    nickname: text(120).optional(),
+    title: text(200).optional(),
+    epithet: text(120).optional(),
+    sex: sex.optional(),
+    living: z.boolean().optional(),
+    bio: text(20_000).optional(),
+    clear: z.array(z.enum(CLEARABLE)).max(CLEARABLE.length).optional(),
+    before: z.record(z.string(), z.unknown()),
+  }),
+  'update-field': z.object({
+    person: id,
+    field: id,
+    type: z.enum(FIELD_TYPES),
+    label: z.string().trim().max(60),
+    value: z.record(z.string(), z.string().max(5000)),
+    visibility: visibleLevel,
+    before: z.object({ label: z.string(), value: z.record(z.string(), z.string()), visibility: z.string() }),
+  }),
+  'remove-field': z.object({ person: id, field: id }),
+  'remove-story': z.object({ person: id, story: id }),
+  unlink: z.object({
+    person: id,
+    relative: id,
+    relation: z.enum(['parent', 'child', 'partner']),
+    parents: z.array(z.object({ child: id, parent: id })).max(4),
+    partnership: id.optional(),
+  }),
+  partnership: z.object({
+    partnership: id,
+    kind: z.enum(['marriage', 'partnership', 'betrothal', 'other']),
+    start: iso.nullable(),
+    place: z.string().trim().max(200).nullable(),
+  }),
+  'partnership-end': z.object({ partnership: id, end: nullableIso, endReason: z.enum(['divorce', 'death', 'other']).nullable() }),
+  'remove-person': z.object({ person: id }),
+  'house-details': z.object({ house: id, name: text(80), motto: z.string().trim().max(160).nullable(), before: z.object({ name: z.string(), motto: z.string().nullable() }) }),
+  'house-create': z.object({ name: text(80), motto: z.string().trim().max(160).nullable(), country: z.string().regex(/^[A-Z]{2}$/).nullable() }),
+  'house-members': z.object({ house: id, add: z.array(id).max(200), remove: z.array(id).max(200) }),
+  'house-words': z.object({ house: id, familyWords: z.string().trim().max(200) }),
+  'album-rename': z.object({ album: id, name: text(80) }),
+  'album-delete': z.object({ album: id }),
+  'photo-remove': z.object({ key: mediaKey }),
+  'photo-untag': z.object({ key: mediaKey, tag: z.number().int().positive(), person: id }),
+  'person-display': z.object({ person: id, display: z.enum(['drawing', 'photo', 'portrait']) }),
+  'place-pin': z.object({ name: text(200), lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180), country: z.string().regex(/^[a-z]{2}$/).optional(), move: z.boolean() }),
+  'research-project': z.object({ id: id.optional(), title: text(200), summary: z.string().trim().max(2000), private: z.boolean() }),
+  'research-note': z.object({ id: id.optional(), project: id, title: text(200), body: text(20_000), date: z.string().max(11).nullable(), private: z.boolean() }),
+  'research-document': z.object({ id, title: text(200), date: z.string().max(11).nullable(), source: z.string().trim().max(300).nullable(), notes: z.string().trim().max(4000), private: z.boolean() }),
+  'research-link': z.object({ project: id, kind: z.enum(['person', 'place', 'picture']), target: z.string().min(1).max(250), remove: z.boolean() }),
+  'research-remove': z.object({ what: z.enum(['project', 'note', 'document']), id, project: id.optional() }),
+  'family-details': z.object({ name: text(400), tagline: z.string().trim().max(400) }),
+};
+
+export const proposalArgs = { ...baseProposalArgs, ...fillArgs, ...editArgs } as typeof baseProposalArgs & typeof fillArgs & typeof editArgs;
 
 export const faceResultSchema = z.object({
   faces: z.array(z.object({

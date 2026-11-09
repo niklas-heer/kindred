@@ -20,7 +20,7 @@ const vite = await createServer({ root: process.cwd(), logLevel: 'error', server
 const load = <T>(path: string) => vite.ssrLoadModule(path) as Promise<T>;
 const { openSqlite, closeAccounts } = await load<typeof import('./store/node.ts')>('/src/lib/store/node.ts');
 const { accounts } = await load<typeof import('./auth/store.server.ts')>('/src/lib/auth/store.server.ts');
-const chat = await load<typeof import('./ai/chat.server.ts')>('/src/lib/ai/chat.server.ts');
+const chat = (await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts')).withLatestChat(await load<typeof import('./ai/chat.server.ts')>('/src/lib/ai/chat.server.ts'));
 const settings = await load<typeof import('./ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
 const setup = await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts');
 const providers = await load<typeof import('./ai/providers.server.ts')>('/src/lib/ai/providers.server.ts');

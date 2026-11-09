@@ -17,7 +17,7 @@ const vite = await createServer({ root: process.cwd(), logLevel: 'error', server
 const load = <T>(path: string) => vite.ssrLoadModule(path) as Promise<T>;
 const { openSqlite, closeAccounts } = await load<typeof import('./store/node.ts')>('/src/lib/store/node.ts');
 const { accounts } = await load<typeof import('./auth/store.server.ts')>('/src/lib/auth/store.server.ts');
-const chat = await load<typeof import('./ai/chat.server.ts')>('/src/lib/ai/chat.server.ts');
+const chat = (await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts')).withLatestChat(await load<typeof import('./ai/chat.server.ts')>('/src/lib/ai/chat.server.ts'));
 const setup = await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts');
 const rules = await load<typeof import('./ai/continuation.ts')>('/src/lib/ai/continuation.ts');
 const { AiError } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
@@ -53,7 +53,7 @@ const assistantRows = async () => (await accounts().get<{ n: number }>("SELECT c
 async function replyWith(cards: object[], itemId = crypto.randomUUID()) {
   await chat.newConversation(TREE, USER);
   await chat.loadChat(TREE, USER, 'editor');
-  const conv = (await accounts().get<{ conv: string }>('SELECT conv FROM ai_conversation WHERE tree = ? AND user = ?', TREE, USER))!.conv;
+  const conv = (await accounts().get<{ conv: string }>('SELECT conv FROM ai_thread WHERE tree = ? AND user = ? ORDER BY created DESC, rowid DESC LIMIT 1', TREE, USER))!.conv;
   await accounts().run('INSERT INTO ai_chat (id, tree, user, conv, role, body, at) VALUES (?, ?, ?, ?, ?, ?, ?)', itemId, TREE, USER, conv, 'assistant', JSON.stringify({ text: 'Two cards', proposals: cards, tier: 'editor' }), Date.now());
   return itemId;
 }

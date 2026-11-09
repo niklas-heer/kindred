@@ -12,6 +12,9 @@ const dir = mkdtempSync(join(tmpdir(), 'kindred-access-bare-'));
 process.env.KINDRED_DATA_DIR = dir;
 process.env.KINDRED_ACCOUNTS_DB = join(dir, 'accounts.db');
 process.env.KINDRED_DEFAULT_TREE = 'house-bare';
+process.env.KINDRED_AUTH = 'cloudflare-access';
+process.env.CF_ACCESS_TEAM_DOMAIN = 'family.cloudflareaccess.com';
+process.env.CF_ACCESS_AUD = 'aud-bare';
 for (const k of ['KINDRED_SETUP_CODE', 'KINDRED_REQUIRE_SETUP_CODE', 'KINDRED_ORIGIN']) delete process.env[k];
 
 const { openSqlite, closeAccounts } = await import('../store/node.ts');

@@ -15,14 +15,14 @@
 //   npx wrangler r2 bucket create kindred-media
 //   mise run cf:migrate:remote                  → the schema
 //   node scripts/import-to-d1.ts family --remote    → a family you already run locally (data/family.db)
-//   npx wrangler secret put KINDRED_SETUP_CODE  → a long code for /setup (or put Cloudflare Access in front)
+//   npx wrangler secret put KINDRED_SETUP_CODE  → a long code for /setup (or use KINDRED_AUTH=cloudflare-access)
 // Add a family: another TREE_<ID> database with migrations_dir migrations/tree, then migrate and import it.
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"name": "kindred",
 	"main": "src/server.ts",
 	"compatibility_date": "2026-10-12",
-	// nodejs_compat: process.env carries vars and secrets (KINDRED_ORIGIN, CF_ACCESS_*, KINDRED_SETUP_CODE).
+	// nodejs_compat: process.env carries vars and secrets (KINDRED_ORIGIN, KINDRED_AUTH, CF_ACCESS_*, KINDRED_SETUP_CODE).
 	"compatibility_flags": ["nodejs_compat"],
 	"observability": { "enabled": true },
 	"upload_source_maps": true,
@@ -37,7 +37,7 @@
 	],
 	"r2_buckets": [{ "binding": "MEDIA", "bucket_name": "kindred-media" }],
 	// Optional vars: KINDRED_ORIGIN (the public origin, if not the request's), KINDRED_DEFAULT_TREE,
-	// CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD (Cloudflare Access). Locally in .dev.vars.
+	// KINDRED_AUTH (kindred, the default, or cloudflare-access) with CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD. Locally in .dev.vars.
 
 	"env": {
 		// `mise run dev:cf`: the two test families in local-only D1 databases (never deployed).

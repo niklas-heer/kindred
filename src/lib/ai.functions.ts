@@ -149,25 +149,93 @@ export const aiTestConnection = createServerFn({ method: 'POST' })
 
 // ---------- the assistant (asking: viewers; proposals are offered by role) ----------
 
+/** A chat's id. The server still checks that it is this reader's, on every path. */
+const conv = z.string().uuid();
+const chats = () => import('./ai/conversations.server');
+const pickedModel = z.object({ provider: z.enum(PROVIDERS), model: z.string().trim().min(1).max(120) });
+
 export const aiChatLoad = createServerFn({ method: 'GET' })
-  .validator(z.object({ tree }))
+  .validator(z.object({ tree, conv }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireMember(data.tree);
-    return (await import('./ai/chat.server')).loadChat(data.tree, m.user.id, m.role);
+    return (await chats()).loadChat(data.tree, m.user.id, m.role, data.conv);
   });
 
-export const aiChatQuery = (t: string) => queryOptions({ queryKey: ['ai-chat', t], queryFn: () => aiChatLoad({ data: { tree: t } }), staleTime: 0 });
+export const aiChatQuery = (t: string, c: string) => queryOptions({ queryKey: ['ai-chat', t, c], queryFn: () => aiChatLoad({ data: { tree: t, conv: c } }), staleTime: 0, retry: (n, e) => n < 2 && !String(e?.message).includes('ai.err_no_chat') });
 
+/** A new, empty chat for this reader. It is listed once something has been said in it. */
 export const aiChatNew = createServerFn({ method: 'POST' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireMember(data.tree);
-    await (await import('./ai/chat.server')).newConversation(data.tree, m.user.id);
+    return { conv: await (await chats()).newThread(data.tree, m.user.id) };
+  });
+
+/** Every chat this reader has something to read in, newest first. */
+export const aiThreadList = createServerFn({ method: 'GET' })
+  .validator(z.object({ tree }))
+  .handler(async ({ data }) => {
+    const m = await (await guard()).requireMember(data.tree);
+    return (await chats()).listThreads(data.tree, m.user.id, m.role);
+  });
+
+export const aiThreadsQuery = (t: string) => queryOptions({ queryKey: ['ai-threads', t], queryFn: () => aiThreadList({ data: { tree: t } }), staleTime: 0 });
+
+export const aiThreadSearch = createServerFn({ method: 'GET' })
+  .validator(z.object({ tree, query: z.string().trim().max(200) }))
+  .handler(async ({ data }) => {
+    const m = await (await guard()).requireMember(data.tree);
+    return (await chats()).searchThreads(data.tree, m.user.id, m.role, data.query);
+  });
+
+export const aiThreadSearchQuery = (t: string, query: string) => queryOptions({ queryKey: ['ai-threads', t, 'search', query], queryFn: () => aiThreadSearch({ data: { tree: t, query } }), staleTime: 0, enabled: !!query.trim() });
+
+export const aiThreadRename = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, conv, title: z.string().max(200) }))
+  .handler(async ({ data }) => {
+    const m = await (await guard()).requireMember(data.tree);
+    await (await chats()).renameThread(data.tree, m.user.id, m.role, data.conv, data.title);
+  });
+
+export const aiThreadDelete = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, conv }))
+  .handler(async ({ data }) => {
+    const m = await (await guard()).requireMember(data.tree);
+    await (await chats()).deleteThread(data.tree, m.user.id, data.conv);
+  });
+
+/** A steward's choice of model for one chat, or null to go back to the family's. */
+export const aiThreadSetModel = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, conv, model: pickedModel.nullable() }))
+  .handler(async ({ data }) => {
+    const m = await (await guard()).requireMember(data.tree);
+    await (await chats()).setThreadModel(data.tree, m.user.id, m.role, data.conv, data.model);
+  });
+
+/** What a steward can choose from. */
+export const aiChatModels = createServerFn({ method: 'GET' })
+  .validator(z.object({ tree }))
+  .handler(async ({ data }) => {
+    const m = await (await guard()).requireMember(data.tree);
+    return (await chats()).modelChoices(data.tree, m.role);
+  });
+
+export const aiChatModelsQuery = (t: string, enabled: boolean) => queryOptions({ queryKey: ['ai-chat-models', t], queryFn: () => aiChatModels({ data: { tree: t } }), staleTime: 5 * 60_000, enabled });
+
+/** Asks the same question again on another model, and keeps both answers. Stewards only: the server refuses anyone else. */
+export const aiChatRetry = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, conv, itemId: z.string().max(64), model: pickedModel, locale }))
+  .handler(async ({ data }) => {
+    const m = await (await guard()).requireMember(data.tree);
+    return (await import('./ai/chat.server')).retryWithModel({ tree: data.tree, user: m.user.id, role: m.role, me: m.person, locale: data.locale ?? 'en', conv: data.conv, itemId: data.itemId, modelOverride: data.model });
   });
 
 export const aiChatSend = createServerFn({ method: 'POST' })
   .validator(z.object({
     tree,
+    conv,
+    /** A steward's choice of model for this one message. The server refuses it from anyone else. */
+    model: pickedModel.optional(),
     // Empty only when pictures come with it; the server says so if neither does.
     text: z.string().trim().max(FAMILY_SESSION_CHARS),
     locale,
@@ -179,6 +247,8 @@ export const aiChatSend = createServerFn({ method: 'POST' })
     session: z.boolean().optional(),
     /** The person speaking in the session (a person id in this tree). */
     speaker: z.string().max(120).nullable().optional(),
+    /** What the reader is looking at. The server checks the person is in this family. */
+    page: z.object({ path: z.string().max(300), personId: z.string().max(120).optional() }).nullable().optional(),
   }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireMember(data.tree);
@@ -186,8 +256,8 @@ export const aiChatSend = createServerFn({ method: 'POST' })
     if (!data.session && data.text.length > CHAT_MESSAGE_CHARS) throw new Error('ai.err_message_long');
     if (data.session && data.text.length > FAMILY_SESSION_CHARS) throw new Error('ai.err_session_long');
     const reply = await (await import('./ai/chat.server')).sendMessage({
-      tree: data.tree, user: m.user.id, role: m.role, me: m.person, text: data.text, locale: data.locale ?? 'en',
-      session: data.session, speaker: data.speaker ?? null, images: data.images, keepImages: data.keepImages,
+      tree: data.tree, user: m.user.id, role: m.role, me: m.person, text: data.text, locale: data.locale ?? 'en', conv: data.conv, modelOverride: data.model,
+      session: data.session, speaker: data.speaker ?? null, images: data.images, keepImages: data.keepImages, page: data.page,
     });
     await (await import('./stats/store.server')).countFeature(data.tree, m.user.id, 'assistant.asked');
     return reply;
@@ -198,7 +268,7 @@ export const aiChatImage = createServerFn({ method: 'GET' })
   .validator(z.object({ tree, id: z.string().uuid() }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireMember(data.tree);
-    return (await import('./ai/chat.server')).loadChatImage(data.tree, m.user.id, m.role, data.id);
+    return (await chats()).loadChatImage(data.tree, m.user.id, m.role, data.id);
   });
 
 export const aiChatImageQuery = (t: string, id: string) => queryOptions({ queryKey: ['ai-chat-image', t, id], queryFn: () => aiChatImage({ data: { tree: t, id } }), staleTime: Infinity });
@@ -215,18 +285,18 @@ const decisionOutcome = z.object({
 
 /** Records a card's outcome, and says whether the assistant should now carry on. */
 export const aiChatMark = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, itemId: z.string().max(64), proposalId: z.string().max(64), status: z.enum(['done', 'dismissed', 'failed']), outcome: decisionOutcome.optional() }))
+  .validator(z.object({ tree, conv, itemId: z.string().max(64), proposalId: z.string().max(64), status: z.enum(['done', 'dismissed', 'failed']), outcome: decisionOutcome.optional() }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireMember(data.tree);
-    return (await import('./ai/chat.server')).markProposal(data.tree, m.user.id, m.role, data.itemId, data.proposalId, data.status, data.outcome);
+    return (await import('./ai/chat.server')).markProposal(data.tree, m.user.id, m.role, data.conv, data.itemId, data.proposalId, data.status, data.outcome);
   });
 
 /** The assistant carries on after the reader's decisions. The same member check as a message; the server decides whether anything is due. */
 export const aiChatContinue = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, locale }))
+  .validator(z.object({ tree, conv, locale }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireMember(data.tree);
-    return (await import('./ai/chat.server')).continueAfterDecisions({ tree: data.tree, user: m.user.id, role: m.role, me: m.person, locale: data.locale ?? 'en' });
+    return (await import('./ai/chat.server')).continueAfterDecisions({ tree: data.tree, user: m.user.id, role: m.role, me: m.person, locale: data.locale ?? 'en', conv: data.conv });
   });
 
 // ---------- suggestions from pictures and names ----------

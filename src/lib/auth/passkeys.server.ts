@@ -8,6 +8,7 @@ import {
 } from '@simplewebauthn/server';
 import { isoBase64URL } from '@simplewebauthn/server/helpers';
 import { AuthError } from './errors.ts';
+import { authMethod } from './method.server.ts';
 import { guestChoice, siteOrigin } from './session.server.ts';
 import { checkSetupCode } from './setup.server.ts';
 import { checkCanMakeFamily, cleanFamilyName, makeFirstFamily } from './trees.server.ts';
@@ -25,6 +26,11 @@ export function relyingParty(request: Request) {
 }
 
 const invalid = (message: string) => new AuthError('invalid', message);
+
+/** Passkeys exist only under the `kindred` method. Every ceremony starts with options or finishes with `take`, and both check this. */
+function needPasskeys() {
+  if (authMethod() !== 'kindred') throw invalid('auth.passkeys_off');
+}
 
 /** A display name: trimmed, 1–60 characters, no control characters. */
 export function cleanName(name: unknown): string {
@@ -60,6 +66,7 @@ const newHandle = () => isoBase64URL.fromBuffer(crypto.getRandomValues(new Uint8
  * able to make one (on Workers its database must be bound), so a missing binding is refused here, before a passkey.
  */
 export async function setupOptions(request: Request, code: string, rawName: unknown, rawFamily?: unknown) {
+  needPasskeys();
   if (!(await checkSetupCode(code))) throw invalid((await userCount()) ? 'Kindred is already set up. Sign in instead.' : 'That setup code isn’t right. Check the server’s console and try again.');
   const name = cleanName(rawName);
   cleanFamilyName(rawFamily);
@@ -71,6 +78,7 @@ export async function setupOptions(request: Request, code: string, rawName: unkn
 
 /** Options for a passkey from an invitation link. */
 export async function inviteOptions(request: Request, token: string, rawName: unknown) {
+  needPasskeys();
   const invite = await openInvite(token);
   if (!invite) throw invalid('This invitation has expired, was already used, or was withdrawn. Ask for a new one.');
   const name = cleanName(rawName);
@@ -81,6 +89,7 @@ export async function inviteOptions(request: Request, token: string, rawName: un
 
 /** Options for another passkey of a signed-in reader (a new phone, a second laptop). */
 export async function addOptions(request: Request, user: UserRow) {
+  needPasskeys();
   const options = await creationOptions(request, { name: user.name, handle: user.handle, existing: await credentialsOf(user.id) });
   return { options, challengeId: await saveChallenge({ challenge: options.challenge, purpose: 'add', subject: user.id }) };
 }
@@ -100,6 +109,7 @@ async function verifyNew(request: Request, challenge: string, response: Registra
 }
 
 const take = async (id: unknown, purpose: string) => {
+  needPasskeys();
   const c = typeof id === 'string' && id.length < 100 ? await takeChallenge(id) : undefined;
   if (!c || c.purpose !== purpose) throw invalid('That took too long. Please try again.');
   return c;
@@ -152,7 +162,7 @@ export async function finishInvite(request: Request, token: string, challengeId:
     const fresh = await inviteById(invite.id);
     if (!fresh) throw invalid('This invitation was withdrawn.');
     if (!usable(fresh)) throw inviteUsed();
-    // The invited email becomes the account's (it lets Cloudflare Access recognise them too), unless taken.
+    // The invited email becomes the account's, unless taken: it is what a later move to Cloudflare Access would recognise.
     const email = fresh.email && !(await userByEmail(fresh.email)) ? fresh.email : null;
     const { user, insert } = newUser(c.name!, email, handle, guestChoice(request));
     return {
@@ -174,6 +184,7 @@ export async function finishAdd(request: Request, user: UserRow, challengeId: un
 // ---------- signing in ----------
 
 export async function signInOptions(request: Request) {
+  needPasskeys();
   const { rpID } = relyingParty(request);
   // No allowCredentials: the device offers whichever of its passkeys for this site the reader picks.
   const options = await generateAuthenticationOptions({ rpID, allowCredentials: [], userVerification: 'preferred' });

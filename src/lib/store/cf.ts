@@ -5,7 +5,7 @@
 //   MEDIA          R2, uploaded files under <tree>/<key>
 //   GAZETTEER      D1, optional: the GeoNames towns for assisted place entry, read-only (migrations/gazetteer,
 //                  loaded by `mise run cf:gazetteer`). Without it the place picker offers the family's own places.
-import { env } from 'cloudflare:workers';
+import { env, waitUntil } from 'cloudflare:workers';
 import { checkMediaKey, checkStatement, NOT_TREES, TREE_ID, type Db, type Driver, type Param, type Query, type Result } from './db.ts';
 
 const isD1 = (v: unknown): v is D1Database => !!v && typeof (v as D1Database).prepare === 'function' && typeof (v as D1Database).batch === 'function';
@@ -94,6 +94,10 @@ const driver: Driver = {
       throw new Error('The gazetteer is read-only');
     };
     return { all: d.all.bind(d), get: d.get.bind(d), run: refuse, batch: refuse };
+  },
+
+  keepAlive(work) {
+    waitUntil(work);
   },
 
   secret() {

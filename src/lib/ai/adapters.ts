@@ -3,12 +3,17 @@
 // server tool, web_search_20250305); OpenAI's Chat Completions API, and for a call with web search its Responses API
 // (the hosted web_search tool); OpenRouter, which speaks the Chat Completions shape and searches through its server
 // tool openrouter:web_search. Never logs the key, and never puts it in an error message.
+import { sseData } from './stream';
 import { PROVIDER_LABEL, type Provider } from './types';
 
 export type AiErrorCode =
   | 'not-configured' | 'key-required' | 'bad-input' | 'budget' | 'auth' | 'rate-limited' | 'timeout' | 'unreachable' | 'provider' | 'bad-output' | 'key-unreadable'
   /** The model declined to answer (Anthropic's stop_reason "refusal"): an answer, not a broken one. */
-  | 'refused';
+  | 'refused'
+  /** The reader stopped the reply, or left. Nothing failed. */
+  | 'aborted'
+  /** Another reply is already running in this chat. */
+  | 'busy';
 
 /** What the provider billed for requests that completed: the usage a budget settles to when a later request fails. */
 export interface Usage { inputTokens: number; outputTokens: number; searches: number }
@@ -18,6 +23,8 @@ export class AiError extends Error {
   billed?: Usage;
   /** Set when the request that failed was sent and may have billed (its reply never came, or could not be read). */
   inFlight?: boolean;
+  /** The reply had begun streaming when this happened, so the provider may have billed for it. */
+  midStream?: boolean;
   constructor(readonly code: AiErrorCode, message: string, readonly retryAfter?: number) {
     super(message);
     this.name = 'AiError';
@@ -114,6 +121,13 @@ export interface AiRequest {
    * The chat never sets this: its web lookups run as their own requests (see isolatedSearch).
    */
   webSearch?: { maxUses?: number };
+  /**
+   * Stream the reply: each piece of its text is passed here as it is written, and the call still resolves with the whole
+   * reply, usage and all, so booking and the tool loop are the same as without it. Not used with `json` or `webSearch`.
+   */
+  onDelta?: (text: string) => void;
+  /** Stops the call. It rejects with AiError `aborted` (or `timeout`, when the signal's reason is a timeout). */
+  signal?: AbortSignal;
 }
 
 export interface AiReply {
@@ -138,6 +152,8 @@ export interface AiReply {
    * so a tool loop passes them on in the assistant message (AiMessage, role assistant).
    */
   reasoningDetails?: unknown[];
+  /** The stream ended without saying what it used. The budget then keeps the call's whole reservation. */
+  usageUnknown?: boolean;
 }
 
 export interface AiAdapter {
@@ -168,30 +184,62 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Strips the key from anything that might echo it, and keeps the message short. */
 const scrub = (s: string, key: string) => (key ? s.split(key).join('…') : s).slice(0, 300);
 
+/** A watchdog for one streaming call: it aborts when nothing has arrived for `ms`, or when `outer` aborts, and can say which. */
+function watchdog(ms: number, outer?: AbortSignal) {
+  const ac = new AbortController();
+  let idle = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const onOuter = () => ac.abort();
+  const touch = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      idle = true;
+      ac.abort();
+    }, ms);
+  };
+  if (outer?.aborted) ac.abort();
+  else outer?.addEventListener('abort', onOuter, { once: true });
+  touch();
+  return {
+    signal: ac.signal,
+    touch,
+    timedOut: () => idle || isDeadline(outer),
+    done() {
+      clearTimeout(timer);
+      outer?.removeEventListener('abort', onOuter);
+    },
+  };
+}
+type Watchdog = ReturnType<typeof watchdog>;
+
+/** Whether a signal was aborted by a deadline rather than by the reader. */
+const isDeadline = (signal?: AbortSignal): boolean => !!signal?.aborted && (signal.reason as Error | undefined)?.name === 'TimeoutError';
+const stopped = () => new AiError('aborted', 'ai.stopped');
+const lateError = (label: Provider) => new AiError('timeout', `${PROVIDER_LABEL[label]} did not answer in time. Try again.`);
+
 /**
  * One POST with the failure handling every provider shares: a timeout, a single retry for a 429 or 5xx
- * (after the provider's Retry-After, at most five seconds), and plain messages for the rest.
+ * (after the provider's Retry-After, at most five seconds), and plain messages for the rest. Resolves with the OK response.
+ * A streaming call passes its watchdog, which is the only timer it has; any other call gets `timeoutMs` for the whole request.
  */
-async function post(label: Provider, url: string, headers: Record<string, string>, body: unknown, key: string, timeoutMs: number): Promise<any> {
+async function send(label: Provider, url: string, headers: Record<string, string>, body: unknown, key: string, timeoutMs: number, outer?: AbortSignal, watch?: Watchdog): Promise<Response> {
   const name = PROVIDER_LABEL[label];
   for (let attempt = 1; ; attempt++) {
+    if (outer?.aborted) throw isDeadline(outer) ? lateError(label) : stopped();
     let res: Response;
     try {
-      res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) });
+      const signal = watch?.signal ?? (outer ? AbortSignal.any([AbortSignal.timeout(timeoutMs), outer]) : AbortSignal.timeout(timeoutMs));
+      res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal });
     } catch (e) {
+      if (outer?.aborted && !isDeadline(outer)) throw stopped();
       if (e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')) throw new AiError('timeout', `${name} did not answer in time. Try again.`);
       throw new AiError('unreachable', 'ai.err_unreachable');
     }
-    if (res.ok) {
-      try {
-        return await res.json();
-      } catch {
-        throw new AiError('bad-output', `${name} sent back something unreadable.`);
-      }
-    }
+    if (res.ok) return res;
     const retryAfter = Number(res.headers.get('retry-after')) || undefined;
     if ((res.status === 429 || res.status >= 500) && attempt === 1) {
       await sleep(Math.min(retryAfter ?? 1, 5) * 1000);
+      watch?.touch();
       continue;
     }
     if (res.status === 429) throw new AiError('rate-limited', `${name} is rate-limiting this key. Try again in a minute.`, retryAfter);
@@ -203,6 +251,124 @@ async function post(label: Provider, url: string, headers: Record<string, string
     } catch {}
     throw new AiError('provider', `${name} answered ${res.status}${detail ? `: ${scrub(detail, key)}` : '.'}`);
   }
+}
+
+async function post(label: Provider, url: string, headers: Record<string, string>, body: unknown, key: string, timeoutMs: number, signal?: AbortSignal): Promise<any> {
+  const res = await send(label, url, headers, body, key, timeoutMs, signal);
+  try {
+    return await res.json();
+  } catch {
+    throw new AiError('bad-output', `${PROVIDER_LABEL[label]} sent back something unreadable.`);
+  }
+}
+
+// ---------- streaming: the reply as it is written, put back together in the shape the non-streaming API returns ----------
+
+/** Runs a stream reader. Whatever goes wrong in it happened after the reply began, so the provider may have billed. */
+async function collecting<T>(label: Provider, watch: Watchdog, outer: AbortSignal | undefined, read: () => Promise<T>): Promise<T> {
+  try {
+    return await read();
+  } catch (e) {
+    const err = e instanceof AiError ? e : watch.timedOut() ? lateError(label) : outer?.aborted ? stopped() : new AiError('unreachable', 'ai.err_unreachable');
+    err.midStream = true;
+    throw err;
+  } finally {
+    watch.done();
+  }
+}
+
+/** Reasoning blocks arrive in pieces that share an index: their text is joined, and the other fields keep their latest value. */
+export function mergeReasoning(list: Record<string, unknown>[], piece: Record<string, unknown>): void {
+  const same = typeof piece.index === 'number' ? list.find((x) => x.index === piece.index && x.type === piece.type) : undefined;
+  if (!same) {
+    list.push({ ...piece });
+    return;
+  }
+  for (const [k, v] of Object.entries(piece)) {
+    if (v === null || v === undefined) continue;
+    if ((k === 'text' || k === 'summary' || k === 'data') && typeof v === 'string') same[k] = `${typeof same[k] === 'string' ? same[k] : ''}${v}`;
+    else same[k] = v;
+  }
+}
+
+/** An Anthropic reply read from its event stream, in the shape of a non-streaming response. */
+export async function readAnthropicStream(events: AsyncIterable<any>, onDelta: (text: string) => void, label = 'Anthropic'): Promise<any> {
+  const content: (Record<string, any> | undefined)[] = [];
+  const usage: { input_tokens?: number; output_tokens?: number } = {};
+  let stopReason: string | undefined;
+  for await (const e of events) {
+    if (e.type === 'error') {
+      const overloaded = e.error?.type === 'overloaded_error' || e.error?.type === 'rate_limit_error';
+      throw new AiError(overloaded ? 'rate-limited' : 'provider', `${label} stopped with an error: ${String(e.error?.message ?? e.error?.type ?? 'unknown').slice(0, 200)}`);
+    } else if (e.type === 'message_start') {
+      Object.assign(usage, e.message?.usage);
+    } else if (e.type === 'content_block_start') {
+      content[e.index] = { ...e.content_block };
+    } else if (e.type === 'content_block_delta') {
+      const block = content[e.index];
+      if (!block) continue;
+      const d = e.delta ?? {};
+      if (d.type === 'text_delta') {
+        block.text = `${block.text ?? ''}${d.text ?? ''}`;
+        if (d.text) onDelta(d.text);
+      } else if (d.type === 'thinking_delta') block.thinking = `${block.thinking ?? ''}${d.thinking ?? ''}`;
+      else if (d.type === 'signature_delta') block.signature = d.signature;
+      else if (d.type === 'input_json_delta') block.json = `${block.json ?? ''}${d.partial_json ?? ''}`;
+    } else if (e.type === 'content_block_stop') {
+      const block = content[e.index];
+      if (block?.type !== 'tool_use') continue;
+      try {
+        block.input = JSON.parse(block.json || '{}');
+      } catch {
+        block.input = {};
+      }
+      delete block.json;
+    } else if (e.type === 'message_delta') {
+      stopReason = e.delta?.stop_reason ?? stopReason;
+      Object.assign(usage, Object.fromEntries(Object.entries(e.usage ?? {}).filter(([, v]) => v !== null && v !== undefined)));
+    }
+  }
+  // No stop reason: the stream was cut off, and what came is not an answer.
+  if (!stopReason) throw new AiError('bad-output', `${label} stopped before it finished its answer.`);
+  return { content: content.filter(Boolean), usage, stop_reason: stopReason };
+}
+
+/** A Chat Completions reply read from its event stream, in the shape of a non-streaming response. Says when no usage came. */
+export async function readChatStream(events: AsyncIterable<any>, onDelta: (text: string) => void, label: string): Promise<any> {
+  let content = '';
+  let usage: Record<string, unknown> | undefined;
+  let finish: string | undefined;
+  const reasoning: Record<string, unknown>[] = [];
+  const annotations: unknown[] = [];
+  const calls: { id: string; function: { name: string; arguments: string } }[] = [];
+  for await (const chunk of events) {
+    // OpenRouter reports a failure part way through in the stream, under a 200.
+    if (chunk.error) throw new AiError('provider', `${label} stopped with an error: ${String(chunk.error.message ?? chunk.error.code ?? 'unknown').slice(0, 200)}`);
+    if (chunk.usage) usage = chunk.usage;
+    const choice = chunk.choices?.[0];
+    if (!choice) continue;
+    finish = choice.finish_reason ?? finish;
+    const delta = choice.delta ?? {};
+    if (typeof delta.content === 'string' && delta.content) {
+      content += delta.content;
+      onDelta(delta.content);
+    }
+    for (const piece of delta.reasoning_details ?? []) mergeReasoning(reasoning, piece);
+    for (const a of delta.annotations ?? []) annotations.push(a);
+    for (const c of delta.tool_calls ?? []) {
+      const at = (calls[c.index] ??= { id: '', function: { name: '', arguments: '' } });
+      if (c.id) at.id = c.id;
+      if (c.function?.name) at.function.name += c.function.name;
+      if (c.function?.arguments) at.function.arguments += c.function.arguments;
+    }
+  }
+  if (!finish) throw new AiError('bad-output', `${label} stopped before it finished its answer.`);
+  const tool_calls = calls.filter(Boolean);
+  return {
+    usage,
+    usageUnknown: !usage,
+    choices: [{ finish_reason: finish, message: { content, ...(reasoning.length && { reasoning_details: reasoning }), ...(annotations.length && { annotations }), ...(tool_calls.length && { tool_calls }) } }],
+  };
 }
 
 /** A URL citation or search result, de-duplicated by URL, in the order the provider gave them. */
@@ -307,6 +473,20 @@ function anthropic(key: string, model: string): AiAdapter {
       if (Object.keys(outputConfig).length) body.output_config = outputConfig;
       const headers = { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' };
       const timeoutMs = req.timeoutMs ?? 45_000;
+      const onDelta = !req.json && !req.webSearch ? req.onDelta : undefined;
+      if (onDelta) body.stream = true;
+      const request = async () => {
+        if (!onDelta) return post('anthropic', 'https://api.anthropic.com/v1/messages', headers, body, key, timeoutMs, req.signal);
+        const watch = watchdog(timeoutMs, req.signal);
+        let res: Response;
+        try {
+          res = await send('anthropic', 'https://api.anthropic.com/v1/messages', headers, body, key, timeoutMs, req.signal, watch);
+        } catch (e) {
+          watch.done();
+          throw e;
+        }
+        return collecting('anthropic', watch, req.signal, () => readAnthropicStream(sseData(res.body!, watch.touch), onDelta));
+      };
       let text = '';
       const calls: ToolCall[] = [];
       const sources: { url: string; title?: string }[] = [];
@@ -328,7 +508,7 @@ function anthropic(key: string, model: string): AiAdapter {
       // PAUSE_CONTINUATIONS times. The budget reserves for exactly that many requests (callRounds).
       for (let round = 0; ; round++) {
         try {
-          data = await post('anthropic', 'https://api.anthropic.com/v1/messages', headers, body, key, timeoutMs);
+          data = await request();
         } catch (e) {
           throw billed(e, true);
         }
@@ -497,16 +677,33 @@ function chatCompletions(provider: 'openai' | 'openrouter', key: string, model: 
         body.max_tool_calls = maxUses;
       }
       if (tools.length) body.tools = tools;
+      const timeoutMs = req.timeoutMs ?? 45_000;
+      const onDelta = !req.json && !req.webSearch ? req.onDelta : undefined;
+      if (onDelta) {
+        body.stream = true;
+        // Without this a stream never says what it used.
+        body.stream_options = { include_usage: true };
+      }
       let data;
       try {
-        data = await post(provider, url, headers, body, key, req.timeoutMs ?? 45_000);
+        if (onDelta) {
+          const watch = watchdog(timeoutMs, req.signal);
+          let res: Response;
+          try {
+            res = await send(provider, url, headers, body, key, timeoutMs, req.signal, watch);
+          } catch (e) {
+            watch.done();
+            throw e;
+          }
+          data = await collecting(provider, watch, req.signal, () => readChatStream(sseData(res.body!, watch.touch), onDelta, PROVIDER_LABEL[provider]));
+        } else data = await post(provider, url, headers, body, key, timeoutMs, req.signal);
       } catch (e) {
         // Some models behind OpenRouter refuse a schema they can't express (Google answers "invalid argument"). A refused
         // request isn't billed, so ask once more in plain JSON mode; the caller validates the answer against the schema anyway.
         if (!(provider === 'openrouter' && req.json && e instanceof AiError && e.code === 'provider' && /answered 400/.test(e.message))) throw e;
         body.response_format = { type: 'json_object' };
         (body.messages as { role: string; content: unknown }[]).unshift({ role: 'system', content: `Answer with one JSON object and nothing else. It must match this JSON schema: ${JSON.stringify(req.json.schema)}` });
-        data = await post(provider, url, headers, body, key, req.timeoutMs ?? 45_000);
+        data = await post(provider, url, headers, body, key, timeoutMs, req.signal);
       }
       const choice = data.choices?.[0] as { finish_reason?: string; message?: {
         content?: string | null;
@@ -553,6 +750,7 @@ function chatCompletions(provider: 'openai' | 'openrouter', key: string, model: 
         ...reported,
         ...(sources.length ? { sources } : {}),
         ...(reasoningDetails ? { reasoningDetails } : {}),
+        ...(data.usageUnknown ? { usageUnknown: true } : {}),
       };
     },
   };

@@ -18,7 +18,7 @@ const vite = await createServer({ root: process.cwd(), logLevel: 'error', server
 const load = <T>(path: string) => vite.ssrLoadModule(path) as Promise<T>;
 const { openSqlite, closeAccounts } = await load<typeof import('./store/node.ts')>('/src/lib/store/node.ts');
 const { accounts } = await load<typeof import('./auth/store.server.ts')>('/src/lib/auth/store.server.ts');
-const chat = await load<typeof import('./ai/chat.server.ts')>('/src/lib/ai/chat.server.ts');
+const chat = (await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts')).withLatestChat(await load<typeof import('./ai/chat.server.ts')>('/src/lib/ai/chat.server.ts'));
 const settings = await load<typeof import('./ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
 const setup = await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts');
 const tools = await load<typeof import('./ai/tools.server.ts')>('/src/lib/ai/tools.server.ts');
@@ -77,7 +77,7 @@ test('an editor turn is marked as needing the editor tier; a viewer turn is not'
 });
 
 test('a turn stored before tiers existed is hidden from a reader below editor', async () => {
-  const conv = (await accounts().get<{ conv: string }>('SELECT conv FROM ai_conversation WHERE tree = ? AND user = ?', TREE, 'u1'))!.conv;
+  const conv = (await accounts().get<{ conv: string }>('SELECT conv FROM ai_thread WHERE tree = ? AND user = ? ORDER BY created DESC, rowid DESC LIMIT 1', TREE, 'u1'))!.conv;
   await accounts().run(
     'INSERT INTO ai_chat (id, tree, user, conv, role, body, at) VALUES (?, ?, ?, ?, ?, ?, ?)',
     'legacy-1', TREE, 'u1', conv, 'assistant', JSON.stringify({ text: `legacy ${MARKER}` }), Date.now(),
@@ -103,7 +103,7 @@ test('a demoted reader cannot change the status of a card from an editor turn', 
   const proposal = { id: 'p-1', kind: 'add-story', summary: 's', diff: [], args: {}, editable: [], status: 'open' };
   await accounts().run(
     'INSERT INTO ai_chat (id, tree, user, conv, role, body, at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    'card-1', TREE, 'u1', (await accounts().get<{ conv: string }>('SELECT conv FROM ai_conversation WHERE tree = ? AND user = ?', TREE, 'u1'))!.conv,
+    'card-1', TREE, 'u1', (await accounts().get<{ conv: string }>('SELECT conv FROM ai_thread WHERE tree = ? AND user = ? ORDER BY created DESC, rowid DESC LIMIT 1', TREE, 'u1'))!.conv,
     'assistant', JSON.stringify({ text: 'card', proposals: [proposal], tier: 'editor' }), Date.now(),
   );
   await chat.markProposal(TREE, 'u1', 'viewer', 'card-1', 'p-1', 'dismissed');

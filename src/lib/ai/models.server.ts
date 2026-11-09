@@ -180,6 +180,7 @@ export async function openRouterListed(model: string): Promise<{ price?: Price; 
 
 const FAKE_MODELS: ModelInfo[] = [
   { id: 'fake-model', name: 'Fake model (tests)', contextTokens: 200_000, inPerM: 1, outPerM: 1, searchEach: 0.01, vision: true, tools: true, webSearch: true },
+  { id: 'fake-model-strong', name: 'Fake strong model (tests)', contextTokens: 200_000, inPerM: 8, outPerM: 40, searchEach: 0.01, vision: true, tools: true, webSearch: true },
   { id: 'fake-model-unpriced', name: 'Fake model without a price', contextTokens: null, inPerM: null, outPerM: null, searchEach: null, vision: null, tools: true, webSearch: null },
 ];
 

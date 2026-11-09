@@ -212,6 +212,7 @@ const open = new Set<DatabaseSync>();
 
 const driver: Driver = {
   name: 'node',
+  keepAlive() {},
 
   tree(id) {
     if (!TREE_ID.test(id) || NOT_TREES.has(id)) throw new Error(`bad tree id ${id}`);

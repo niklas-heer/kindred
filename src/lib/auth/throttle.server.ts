@@ -3,6 +3,7 @@
 // isolate keeps its own window, so the limits are per isolate there: a brake, not a wall.
 import { getRequest, getRequestIP } from '@tanstack/react-start/server';
 import { onWorkers } from '../store/index.ts';
+import { authMethod } from './method.server.ts';
 
 const g = globalThis as unknown as { __kindredThrottle?: Map<string, number[]> };
 const hits: Map<string, number[]> = (g.__kindredThrottle ??= new Map());
@@ -27,12 +28,12 @@ export const resetThrottle = () => hits.clear();
 
 /**
  * The client's address for throttling. Cloudflare sets CF-Connecting-IP and a Worker can trust it; on
- * Node it is trusted only behind Cloudflare Access (CF_ACCESS_AUD), else the socket's address is used.
+ * Node it is trusted only when Cloudflare Access is the sign-in method, else the socket's address is used.
  */
 export function clientIP(): string {
   let request: Request | undefined;
   try { request = getRequest(); } catch {}
   const cf = request?.headers.get('cf-connecting-ip');
-  if (cf && (onWorkers || process.env.CF_ACCESS_AUD)) return cf;
+  if (cf && (onWorkers || authMethod() === 'cloudflare-access')) return cf;
   try { return getRequestIP() || 'unknown'; } catch { return 'unknown'; }
 }

@@ -97,6 +97,8 @@ export interface Driver {
    * when a Worker has none.
    */
   secret(): string;
+  /** Lets `work` finish after the response has ended or the client has gone. Workers stop a request's work when its client disconnects; Node does not, so there it does nothing. */
+  keepAlive(work: Promise<unknown>): void;
 }
 
 /** Tree ids are URL segments and database names: lower-case letters, digits and dashes. */

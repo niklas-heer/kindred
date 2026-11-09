@@ -55,7 +55,7 @@ budget, $5 by default. [docs/ai.md](docs/ai.md) says exactly what is sent where.
 
 ## Who sees what
 
-Everyone signs in with a **passkey**, so there are no passwords to forget, and you can put Cloudflare Access in front as well.
+Everyone signs in with a **passkey**, so there are no passwords to forget. If you already manage people in Cloudflare, you can make Cloudflare Access the only sign-in instead: one method per installation, [your choice](docs/self-host.md#choosing-how-people-sign-in).
 A member is a viewer, contributor, editor or steward, and the server checks every change. A person's fields and notes have three levels: personal (only the
 account that added them), editors, or the whole family. A relative who doesn't want an account can have a read-only **share link**, protected by a password by default.
 
@@ -79,6 +79,9 @@ Open the site and create the first account with a passkey. The first account bec
 and you invite everyone else from the Access page. Passkeys need HTTPS or `localhost`.
 
 ## Running it for your family
+
+Pick how people sign in with `KINDRED_AUTH`. `kindred` (the default) is Kindred's own accounts and passkeys, and needs nothing more than HTTPS.
+`cloudflare-access` hands sign-in to a Cloudflare Access policy you manage. It suits people who already run one.
 
 - **Docker**, on your own machine or server: `docker compose up -d --build`, then open <http://localhost:4901/setup>. Each family is a SQLite file. See [docs/self-host.md](docs/self-host.md), which also covers HTTPS, backups and reminders.
 - **Node**, without a container: `mise run build:node && mise run start`, on Node 26.

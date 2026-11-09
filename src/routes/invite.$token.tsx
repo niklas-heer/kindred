@@ -3,14 +3,14 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { KeyRound, MailX, Shield } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { AuthCard, AuthError, PasskeyExplainer } from '~/components/AuthCard';
+import { AuthCard, AuthError, NoAccessIdentity, PasskeyExplainer } from '~/components/AuthCard';
 import { WhoChooser } from '~/components/FirstRun';
 import { Arms } from '~/components/Heraldry';
 import { ROLE_ICON } from '~/components/RoleIcon';
 import { useIsClient } from '~/components/ui';
 import { graphQuery } from '~/lib/api';
 import { acceptWithPasskey, forgetLocalIdentity, passkeysSupported, signOutRequest } from '~/lib/auth/client';
-import { acceptInvite, fetchInvite, setMyPerson } from '~/lib/auth/functions';
+import { acceptInvite, fetchInvite, joinWithAccess, sessionQuery, setMyPerson } from '~/lib/auth/functions';
 import { BROWSING } from '~/lib/family';
 import { buildFamily } from '~/lib/graph';
 import { setPref } from '~/lib/prefs';
@@ -18,7 +18,11 @@ import { ROLES } from '~/lib/roles';
 import { useSession } from '~/lib/session';
 
 export const Route = createFileRoute('/invite/$token')({
-  loader: async ({ params }) => ({ info: await fetchInvite({ data: { token: params.token } }) }),
+  // The session too, so a Cloudflare Access site's first paint never shows a passkey form.
+  loader: async ({ params, context }) => {
+    await context.queryClient.ensureQueryData(sessionQuery);
+    return { info: await fetchInvite({ data: { token: params.token } }) };
+  },
   // The link is a secret: never send it to another site as a Referer.
   head: ({ loaderData, match }) => ({
     meta: [
@@ -42,6 +46,8 @@ function Invite() {
   const client = useIsClient();
   const supported = !client || passkeysSupported();
   const fam = info.family;
+  const session = useSession();
+  const access = session?.auth === 'cloudflare-access';
 
   // The family's own theme, unless the reader chose one.
   useEffect(() => {
@@ -56,14 +62,16 @@ function Invite() {
   if (!fam || info.status !== 'open') {
     const copy = {
       expired: [t("invitetoken.this_invitation_has_expired"), <>{t("invitetoken.invitations_last_two_weeks_ask")} {info.inviter ?? t("invitetoken.whoever_sent_it")} {t("invitetoken.for_a_new_link")}</>],
-      used: [t("invitetoken.this_invitation_was_already_used"), t("invitetoken.if_it_was_you_sign_in_with_your_passkey_each_link_works_once_for_one_person")],
+      used: [t("invitetoken.this_invitation_was_already_used"), access ? t('auth.invite_used_access') : t("invitetoken.if_it_was_you_sign_in_with_your_passkey_each_link_works_once_for_one_person")],
       revoked: [t("invitetoken.this_invitation_was_withdrawn"), t("invitetoken.the_steward_who_sent_it_has_cancelled_it_ask_them_if_you_should_have_a_new_one")],
       unknown: [t("invitetoken.this_invitation_link_isn_t_valid"), t("invitetoken.check_that_you_copied_the_whole_link_or_ask_for_a_new_one")],
       open: ['', ''],
     }[info.status];
     return (
       <AuthCard crest={fam ? crest : <MailX size={44} />} kicker={fam?.name ?? 'Kindred'} title={copy[0]} lede={copy[1]}>
-        <Link className="btn primary auth-go" to="/signin" search={fam ? { next: `/${fam.id}` } : {}}>{t("invitetoken.sign_in")}</Link>
+        {access
+          ? <Link className="btn primary auth-go" to="/">{t('auth.go_to_kindred')}</Link>
+          : <Link className="btn primary auth-go" to="/signin" search={fam ? { next: `/${fam.id}` } : {}}>{t("invitetoken.sign_in")}</Link>}
       </AuthCard>
     );
   }
@@ -80,12 +88,15 @@ function Invite() {
     );
   }
 
-  const createPasskey = async (e: React.FormEvent) => {
+  if (access && !info.signedInAs && !session?.uninvitedEmail) return <NoAccessIdentity />;
+
+  const createAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      await acceptWithPasskey(token, name);
+      if (access) await joinWithAccess({ data: { token, name } });
+      else await acceptWithPasskey(token, name);
       forgetLocalIdentity();
       setStep('who');
     } catch (err) {
@@ -129,27 +140,31 @@ function Invite() {
           </button>
           <div className="auth-alt">
             <span>{t("invitetoken.not")} {info.signedInAs}?</span>
-            <button className="auth-link" onClick={() => void signOutRequest().finally(() => { forgetLocalIdentity(); window.location.reload(); })}>{t("invitetoken.sign_out")}</button>
+            {session?.accessLogout
+              ? <a className="auth-link" href={session.accessLogout}>{t("invitetoken.sign_out")}</a>
+              : <button className="auth-link" onClick={() => void signOutRequest().finally(() => { forgetLocalIdentity(); window.location.reload(); })}>{t("invitetoken.sign_out")}</button>}
           </div>
         </div>
       ) : (
         <>
-          <form className="auth-form" onSubmit={createPasskey}>
+          <form className="auth-form" onSubmit={createAccount}>
             <label className="field">
               <span>{t("invitetoken.what_should_the_family_call_you")}</span>
               <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required maxLength={60} placeholder={t("invitetoken.your_name")} />
             </label>
             <AuthError>{error}</AuthError>
-            {!supported && <AuthError>{t("invitetoken.this_browser_can_t_use_passkeys_open_the_link_in_the_newest_safari_chrome_edge_or_firefox_or_on_your_phone")}</AuthError>}
-            <button className="btn primary auth-go" disabled={busy || !supported || !name.trim()}>
-              <KeyRound size={19} /> {busy ? t("invitetoken.waiting_for_your_device") : t("invitetoken.create_your_passkey")}
+            {!access && !supported && <AuthError>{t("invitetoken.this_browser_can_t_use_passkeys_open_the_link_in_the_newest_safari_chrome_edge_or_firefox_or_on_your_phone")}</AuthError>}
+            <button className="btn primary auth-go" disabled={busy || (!access && !supported) || !name.trim()}>
+              {access ? t('auth.join_as', { email: session?.uninvitedEmail ?? '' }) : <><KeyRound size={19} /> {busy ? t("invitetoken.waiting_for_your_device") : t("invitetoken.create_your_passkey")}</>}
             </button>
           </form>
-          <div className="auth-alt">
-            <span>{t("invitetoken.already_use_kindred")}</span>
-            <Link className="auth-link" to="/signin" search={{ next: `/invite/${token}` }}>{t("invitetoken.sign_in_first")}</Link>
-          </div>
-          <PasskeyExplainer creating />
+          {!access && <>
+            <div className="auth-alt">
+              <span>{t("invitetoken.already_use_kindred")}</span>
+              <Link className="auth-link" to="/signin" search={{ next: `/invite/${token}` }}>{t("invitetoken.sign_in_first")}</Link>
+            </div>
+            <PasskeyExplainer creating />
+          </>}
         </>
       )}
     </AuthCard>

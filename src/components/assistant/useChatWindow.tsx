@@ -3,9 +3,10 @@
 //
 // While a pointer is down the position goes straight to CSS variables on the window, so a long conversation is not
 // rendered again on every pixel of a drag.
-import { Move, PanelRight, PictureInPicture2, RotateCcw } from 'lucide-react';
+import { Minus, Move, PanelRight, PictureInPicture2, RotateCcw } from 'lucide-react';
 import { useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type PointerEvent, type RefObject } from 'react';
 import { useT } from '~/lib/i18n';
+import { minimizeAssistant } from './store';
 import { defaultLayout, moveRect, parseLayout, resizeRect, STORAGE_KEY, visibleRect, type Edge, type Rect, type WindowLayout } from './chat-window';
 
 const PHONE = '(max-width: 640px)';
@@ -148,6 +149,9 @@ export function WindowControls({ win }: { win: ChatWindow }) {
   const dockLabel = t(win.docked ? 'ai.winFloat' : 'ai.winDock');
   return (
     <div className="ai-win-controls">
+      <button type="button" className="btn ghost ai-icon ai-win-control ai-win-minimize" onClick={minimizeAssistant} aria-label={t('ai.winMinimize')} title={t('ai.winMinimize')}>
+        <Minus size={15} aria-hidden />
+      </button>
       <button type="button" className="btn ghost ai-icon ai-win-control ai-win-grip" onKeyDown={(e) => win.onGripKey(e, placed)} aria-label={t('ai.winMove')} title={t('ai.winMove')} aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Shift+ArrowUp Shift+ArrowDown Shift+ArrowLeft Shift+ArrowRight">
         <Move size={15} aria-hidden />
       </button>

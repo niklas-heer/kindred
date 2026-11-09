@@ -1,13 +1,19 @@
 // Approving a proposal: the card's arguments go to the existing server functions (api.ts, person.functions.ts,
-// photos.functions.ts, houses.functions.ts), exactly as the forms send them, under the reader's own role. Nothing
+// photos.functions.ts, houses.functions.ts, research.functions.ts and the rest), exactly as the forms send them, under the reader's own role. Nothing
 // here writes on its own; the server checks the role and the family's rules again on every call. A family draft is
 // approved row by row by FamilyDraft.tsx, which calls applyFamilyBatch (family-batch.functions.ts).
 import type { QueryClient } from '@tanstack/react-query';
-import { addRelative, addStory, linkRelative, opKeys, patchPerson } from '~/lib/api';
-import { addPersonField, setDiedPlace, setLook } from '~/lib/person.functions';
-import { saveAlbum, saveGalleryPhoto, tagPhoto } from '~/lib/photos.functions';
-import { updateHouseSettings } from '~/lib/houses.functions';
-import { defaultVisibility, fieldInput } from '~/components/fields/model';
+import { addRelative, addStory, deleteStory, graphQuery, linkRelative, opKeys, patchPerson, removePerson, setPartnershipEnd, unlinkRelative, updateHouse, upsertPlaces } from '~/lib/api';
+import { addPersonField, deletePersonField, getEditSnapshot, savePersonEdit, setDiedPlace, setLook } from '~/lib/person.functions';
+import { deleteAlbum, removeGalleryPhoto, removePhotoTag, saveAlbum, saveGalleryPhoto, tagPhoto } from '~/lib/photos.functions';
+import { createHouseFn, setHouseMembersFn, updateHouseSettings } from '~/lib/houses.functions';
+import { getHouseMeanings, saveHouseMeaning } from '~/lib/house-meaning.functions';
+import { setPersonDisplay } from '~/lib/portrait.functions';
+import { addResearchLink, removeResearchDocument, removeResearchLink, removeResearchNote, removeResearchProject, saveResearchDocument, saveResearchNote, saveResearchProject } from '~/lib/research.functions';
+import { updateFamilyDetails } from '~/lib/family-details.functions';
+import { setPartnershipDetails } from '~/lib/partnership.functions';
+import { CHANGED_SINCE_OPENED, defaultVisibility, fieldInput } from '~/components/fields/model';
+import { detailsOf, fieldsOf, mergeEdit, mergeField } from './apply-merge';
 import { proposalArgs, type Proposal, type ProposalArgs } from '~/lib/ai/types';
 
 /** A form's retry keys: the same approval sent twice reuses its key, so a lost reply can't write twice. */
@@ -23,9 +29,9 @@ export async function applyProposal(tree: string, p: Proposal, args: ProposalArg
   const opKey = keys.for(p.kind, args);
 
   if (p.kind === 'add-person') {
-    await addRelative({ data: { tree, anchor: a.anchor, relation: a.relation, coParent: a.coParent, person: { given: a.given, furtherGiven: a.furtherGiven?.length ? a.furtherGiven : undefined, surname: a.surname || undefined, sex: a.sex, born: a.born || undefined, died: a.died || undefined, living: a.living }, opKey } });
+    await addRelative({ data: { tree, anchor: a.anchor, relation: a.relation, coParent: a.coParent, person: { given: a.given, furtherGiven: a.furtherGiven?.length ? a.furtherGiven : undefined, surname: a.surname || undefined, sex: a.sex, born: a.born || undefined, died: a.died || undefined, living: a.living }, partnership: a.partnership, opKey } });
   } else if (p.kind === 'link-relative') {
-    await linkRelative({ data: { tree, anchor: a.anchor, person: a.person, relation: a.relation, coParent: a.coParent, opKey } });
+    await linkRelative({ data: { tree, anchor: a.anchor, person: a.person, relation: a.relation, coParent: a.coParent, partnership: a.partnership, opKey } });
   } else if (p.kind === 'add-story') {
     await addStory({ data: { tree, person: a.person, kind: a.kind, title: a.title || undefined, body: a.body, opKey } });
   } else if (p.kind === 'set-dates') {
@@ -60,6 +66,69 @@ export async function applyProposal(tree: string, p: Proposal, args: ProposalArg
     for (const t of a.people as { person: string; box: { x: number; y: number; w: number; h: number } }[]) {
       await tagPhoto({ data: { tree, key: a.key, person: t.person, box: t.box, opKey: keys.for(`tag:${t.person}`, { key: a.key, ...t }) } });
     }
+  } else if (p.kind === 'edit-person') {
+    // The Edit tab's own save, at the revision just read: another change landing in between is refused by the server.
+    const snap = await getEditSnapshot({ data: { tree, id: a.person } });
+    const details = mergeEdit(snap, a);
+    if (details) await savePersonEdit({ data: { tree, id: a.person, details, fields: fieldsOf(snap), revision: snap.revision, opKey: keys.for('edit-person', { ...args, revision: snap.revision }) } });
+  } else if (p.kind === 'update-field') {
+    const snap = await getEditSnapshot({ data: { tree, id: a.person } });
+    const fields = mergeField(snap, a as Parameters<typeof mergeField>[1]);
+    if (fields) await savePersonEdit({ data: { tree, id: a.person, details: detailsOf(snap), fields, revision: snap.revision, opKey: keys.for('update-field', { ...args, revision: snap.revision }) } });
+  } else if (p.kind === 'remove-field') {
+    await deletePersonField({ data: { tree, id: a.field, opKey } });
+  } else if (p.kind === 'remove-story') {
+    await deleteStory({ data: { tree, id: a.story } });
+  } else if (p.kind === 'unlink') {
+    await unlinkRelative({ data: { tree, parents: a.parents, partnership: a.partnership } });
+  } else if (p.kind === 'partnership') {
+    await setPartnershipDetails({ data: { tree, id: a.partnership, kind: a.kind, start: a.start, place: a.place, opKey } });
+  } else if (p.kind === 'partnership-end') {
+    await setPartnershipEnd({ data: { tree, id: a.partnership, end: a.end, endReason: a.endReason } });
+  } else if (p.kind === 'remove-person') {
+    await removePerson({ data: { tree, id: a.person } });
+  } else if (p.kind === 'house-details') {
+    // The designer saves a house's name, motto and arms together, so the arms go back as they are.
+    const graph = await qc.fetchQuery({ ...graphQuery(tree), staleTime: 0 });
+    const house = graph.houses.find((h) => h.id === a.house);
+    if (!house) throw new Error('houses.err.not_found');
+    if (house.name !== a.before.name || (house.motto ?? null) !== a.before.motto) throw new Error(CHANGED_SINCE_OPENED);
+    await updateHouse({ data: { tree, id: a.house, name: a.name, motto: a.motto, arms: house.arms } });
+  } else if (p.kind === 'house-create') {
+    await createHouseFn({ data: { tree, opKey, name: a.name, motto: a.motto, country: a.country } });
+  } else if (p.kind === 'house-members') {
+    await setHouseMembersFn({ data: { tree, opKey, id: a.house, add: a.add, remove: a.remove } });
+  } else if (p.kind === 'house-words') {
+    const saved = (await getHouseMeanings({ data: { tree } }))[a.house];
+    if (!saved) throw new Error('houses.err.not_found');
+    await saveHouseMeaning({ data: { tree, house: a.house, opKey, name: saved.name, familyWords: a.familyWords, webSearched: saved.webSearched, note: saved.note, meanings: saved.meanings } });
+  } else if (p.kind === 'album-rename') {
+    await saveAlbum({ data: { tree, id: a.album, name: a.name, opKey } });
+  } else if (p.kind === 'album-delete') {
+    await deleteAlbum({ data: { tree, id: a.album, opKey } });
+  } else if (p.kind === 'photo-remove') {
+    await removeGalleryPhoto({ data: { tree, key: a.key, opKey } });
+  } else if (p.kind === 'photo-untag') {
+    await removePhotoTag({ data: { tree, id: a.tag, opKey } });
+  } else if (p.kind === 'person-display') {
+    await setPersonDisplay({ data: { tree, id: a.person, display: a.display, opKey } });
+  } else if (p.kind === 'place-pin') {
+    await upsertPlaces({ data: { tree, places: [{ name: a.name, lat: a.lat, lng: a.lng, country: a.country, move: a.move }], opKey } });
+  } else if (p.kind === 'research-project') {
+    await saveResearchProject({ data: { tree, id: a.id, title: a.title, summary: a.summary, private: a.private, opKey } });
+  } else if (p.kind === 'research-note') {
+    await saveResearchNote({ data: { tree, id: a.id, project: a.project, title: a.title, body: a.body, date: a.date ?? '', private: a.private, opKey } });
+  } else if (p.kind === 'research-document') {
+    await saveResearchDocument({ data: { tree, id: a.id, title: a.title, date: a.date ?? '', source: a.source ?? '', notes: a.notes, private: a.private, opKey } });
+  } else if (p.kind === 'research-link') {
+    const link = { tree, project: a.project, kind: a.kind, target: a.target, opKey };
+    await (a.remove ? removeResearchLink({ data: link }) : addResearchLink({ data: link }));
+  } else if (p.kind === 'research-remove') {
+    if (a.what === 'project') await removeResearchProject({ data: { tree, id: a.id, opKey } });
+    else if (a.what === 'note') await removeResearchNote({ data: { tree, project: a.project, id: a.id, opKey } });
+    else await removeResearchDocument({ data: { tree, id: a.id, opKey } });
+  } else if (p.kind === 'family-details') {
+    await updateFamilyDetails({ data: { tree, opKey, name: a.name, tagline: a.tagline } });
   }
   await Promise.all([
     qc.invalidateQueries({ queryKey: ['graph', tree] }),
@@ -68,5 +137,9 @@ export async function applyProposal(tree: string, p: Proposal, args: ProposalArg
     qc.invalidateQueries({ queryKey: ['gallery', tree] }),
     qc.invalidateQueries({ queryKey: ['person-photos', tree] }),
     qc.invalidateQueries({ queryKey: ['house-settings', tree] }),
+    qc.invalidateQueries({ queryKey: ['house-meanings', tree] }),
+    qc.invalidateQueries({ queryKey: ['research', tree] }),
+    // The widgets in the chat are built from the tree, so they follow what was just changed.
+    qc.invalidateQueries({ queryKey: ['ai-widget', tree] }),
   ]);
 }

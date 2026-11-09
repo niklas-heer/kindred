@@ -1,7 +1,7 @@
 // The assistant's tools. Reads return only what the reader's role may see, and only a capped number of rows. Proposals
 // describe a change and are checked against the family, but nothing is written here: the card goes to the reader, and
 // approving it calls the existing server function under their own role (components/assistant/apply.ts), or, for a
-// family draft, applyFamilyBatch (ai/family.server.ts). Nothing here deletes, manages access, or touches AI settings.
+// family draft, applyFamilyBatch (ai/family.server.ts). Removals are proposals too (ai/edits.server.ts). Nothing here manages access or touches AI settings.
 import { z } from 'zod';
 import { db, graph, person } from '../db.server';
 import { buildFamily, children, fullName, kinship, parents, partnersOf, siblings } from '../graph';
@@ -22,6 +22,9 @@ import { isolatedLookup, privacyGuard, refusal, REFUSAL_REASON } from './lookup.
 import { checkFamily, cleanSocial, matchesFor, profileKey, profilesInTree } from './family.server';
 import { readHouseSettings } from '../houses.server';
 import { proposalArgs, PROPOSAL_KINDS, NEW_REF, type AiLocale, type Proposal, type ProposalArgs, type ProposalKind, type ProposalView } from './types';
+import type { ChatBlock } from './blocks';
+import { ASK_TOOL, findRelatives, isBlockTool, KIN_TOOL, runBlockTool, SHOW_TOOLS } from './blocks.server';
+import { EDITS, researchList, researchRead, runEdit } from './edits.server';
 
 /** The fields area's word for each value key of a field (the same words the Edit tab shows). */
 const VALUE_LABEL: Record<string, Key> = {
@@ -36,6 +39,10 @@ export interface Ctx {
   role: Role;
   /** The reader's own person in this family, when they have chosen one (or the speaker of a family session). */
   me: string | null;
+  /** The reader's account, to tell their own research from anyone else's. */
+  user?: string;
+  /** This reply's question and widgets (see ai/blocks.ts). The chat loop stores them with the reply. */
+  blocks?: ChatBlock[];
   /** This turn is a family session: a memory with no named teller came from its speaker. */
   session?: boolean;
   /** The reader attached pictures to this message: a draft from it may hold strangers. */
@@ -78,8 +85,18 @@ export const READ_TOOLS: ToolSpec[] = [
     parameters: { type: 'object', properties: { person: idParam, limit: { type: 'integer', minimum: 1, maximum: 12 } } },
   },
   {
+    name: 'list_research',
+    description: 'The family’s research projects, with their ids. At most 30.',
+    parameters: { type: 'object', properties: {} },
+  },
+  {
+    name: 'read_research',
+    description: 'One research project: its notes, documents, people, places and pictures, with ids.',
+    parameters: { type: 'object', properties: { project: { type: 'string' } }, required: ['project'] },
+  },
+  {
     name: 'list_houses',
-    description: 'The family’s houses, with each one’s succession law, head, heir and country, so a steward can be offered a change. At most 30.',
+    description: 'The family’s houses, with each one’s motto, succession law, head, heir and country, so a steward can be offered a change. At most 30.',
     parameters: { type: 'object', properties: {} },
   },
   {
@@ -125,7 +142,8 @@ const familyPersonSpec = {
   required: ['ref', 'given', 'living'],
 };
 
-const photoDetail = { type: 'object', properties: { key: photoParam, taken: { type: 'string', description: 'YYYY, YYYY-MM or YYYY-MM-DD; ~ for about.' }, place: { type: 'string' }, caption: { type: 'string' } }, required: ['key'] };
+const photoDetail = { type: 'object', properties: { key: photoParam, taken: { type: 'string', description: 'YYYY, YYYY-MM or YYYY-MM-DD; ~ for about.' }, place: { type: 'string' }, caption: { type: 'string' }, clear: { type: 'array', maxItems: 3, items: { type: 'string', enum: ['taken', 'place', 'caption'] }, description: 'Only what the reader asked to remove.' } }, required: ['key'] };
+const partnershipSpec = { type: 'object', description: 'For a partner: what kind of union it is, and when and where it began, if known.', properties: { kind: { type: 'string', enum: ['marriage', 'partnership', 'other'] }, start: date, place: { type: 'string' } }, required: ['kind'] };
 
 const PROPOSE: { spec: ToolSpec; kind: ProposalKind; action: Action; feature?: 'avatar' }[] = [
   {
@@ -138,7 +156,7 @@ const PROPOSE: { spec: ToolSpec; kind: ProposalKind; action: Action; feature?: '
         properties: {
           anchor: idParam, relation, coParent: { ...idParam, description: 'For a child: the anchor’s partner who is the other parent.' },
           given: { type: 'string' }, furtherGiven: furtherSpec, surname: { type: 'string' }, sex: { type: 'string', enum: ['m', 'f', 'x'] },
-          born: date, died: date, living: { type: 'boolean' },
+          born: date, died: date, living: { type: 'boolean' }, partnership: partnershipSpec,
         },
         required: ['anchor', 'relation', 'given', 'living'],
       },
@@ -173,7 +191,7 @@ const PROPOSE: { spec: ToolSpec; kind: ProposalKind; action: Action; feature?: '
     spec: {
       name: 'propose_link_relative',
       description: 'Propose connecting two people who are already in the tree.',
-      parameters: { type: 'object', properties: { anchor: idParam, person: idParam, relation, coParent: idParam }, required: ['anchor', 'person', 'relation'] },
+      parameters: { type: 'object', properties: { anchor: idParam, person: idParam, relation, coParent: idParam, partnership: partnershipSpec }, required: ['anchor', 'person', 'relation'] },
     },
   },
   {
@@ -208,7 +226,7 @@ const PROPOSE: { spec: ToolSpec; kind: ProposalKind; action: Action; feature?: '
     kind: 'add-field', action: 'edit-person',
     spec: {
       name: 'propose_add_field',
-      description: 'Propose adding a detail to a person: a phone, email, address, occupation, education, favourites, notes and so on. The value is text keys: phone {number}, email {address}, occupation {title, employer, from, to, note}, address {street, city, postcode, country}, favourites {food, drink, music, film, hobby, other}. Dates are YYYY, YYYY-MM or YYYY-MM-DD.',
+      description: 'Propose adding a detail to a person. The value is text keys: phone {number}, email {address}, website {url}, social {handle}, address {street, city, postcode, country}, names {name}, dates {date, note}, education {school, place, from, to, note}, occupation {title, employer, from, to, note}, military {unit, rank, from, to}, religion (faith) {name, left, leftOn}, nationality {country}, languages {language, level}, favourites {text} with label colour, food, drink, music, book, film, sport, flower, place or hobby, gifts {text}, notes {text}, related {person or name, note}, custom {text}. Dates are YYYY, YYYY-MM or YYYY-MM-DD.',
       parameters: {
         type: 'object',
         properties: {
@@ -301,15 +319,16 @@ export interface ToolOptions {
 
 /**
  * The tools this reader may use: reads for everyone, a proposal only where their role may make that change, a feature's
- * tool only while the family has it on. Stewards alone see the house proposal; nobody is offered a delete, an access or a settings tool.
+ * tool only while the family has it on. Stewards alone see the house proposals; nobody is offered an access or a settings tool.
  */
 export function toolsFor(role: Role, o: ToolOptions = {}): { tools: ToolSpec[]; proposals: boolean } {
   const proposing = PROPOSE.filter((p) => can(role, p.action) && (!p.feature || (p.feature === 'avatar' && o.avatar)));
-  const reads = [...READ_TOOLS, ...(o.faces ? [LOOK_TOOL] : []), ...(o.web ? [WEB_TOOL] : [])];
-  return { tools: [...reads, ...proposing.map((p) => p.spec)], proposals: proposing.length > 0 };
+  const editing = EDITS.filter((e) => can(role, e.action));
+  const reads = [...READ_TOOLS, KIN_TOOL, ...(o.faces ? [LOOK_TOOL] : []), ...(o.web ? [WEB_TOOL] : []), ASK_TOOL, ...SHOW_TOOLS];
+  return { tools: [...reads, ...proposing.map((p) => p.spec), ...editing.map((e) => e.spec)], proposals: proposing.length + editing.length > 0 };
 }
 
-const ACTION_OF = Object.fromEntries(PROPOSE.map((p) => [p.kind, p.action])) as Record<ProposalKind, Action>;
+const ACTION_OF = Object.fromEntries([...PROPOSE, ...EDITS].map((p) => [p.kind, p.action])) as Record<ProposalKind, Action>;
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
 const json = (v: unknown) => clip(JSON.stringify(v), RESULT_LIMIT);
@@ -354,15 +373,23 @@ export async function runTool(ctx: Ctx, name: string, input: unknown, out: Propo
       const f = buildFamily(g);
       const names = (ids: string[]) => ids.map((x) => ({ id: x, name: name_(x) }));
       const kin = ctx.me && ctx.me !== id && byId.has(ctx.me) ? kinship(f, ctx.me, id)?.label ?? null : null;
-      return json({ parents: names(parents(f, id)), children: names(children(f, id)), partners: names(partnersOf(f, id)), siblings: names(siblings(f, id)), relatedToReader: kin });
+      const partnerships = (f.unionsOf.get(id) ?? []).map((u) => ({ id: u.id, with: name_(u.a === id ? u.b : u.a), kind: u.kind, start: u.start, end: u.end, endReason: u.endReason, place: u.place }));
+      return json({ parents: names(parents(f, id)), children: names(children(f, id)), partners: names(partnersOf(f, id)), siblings: names(siblings(f, id)), partnerships, relatedToReader: kin });
     }
+    if (name === 'find_relatives') return json(findRelatives(buildFamily(g), ctx.me, input));
+    if (name === 'list_research') return json(await researchList(ctx));
+    if (name === 'read_research') {
+      const { project } = z.object({ project: z.string().min(1).max(120) }).parse(input);
+      return json(await researchRead(ctx, byId, project));
+    }
+    if (isBlockTool(name)) return await runBlockTool({ tree: ctx.tree, role: ctx.role, me: ctx.me, blocks: (ctx.blocks ??= []), byId }, name, input);
     if (name === 'missing_info') return json(missingInfo(c, g, byId, input));
     if (name === 'list_houses') {
       const settings = await readHouseSettings(ctx.tree);
       return json({
         houses: g.houses.slice(0, 30).map((h) => {
           const s = settings[h.id];
-          return { id: h.id, name: h.name, law: s?.law ?? null, head: s?.head ? name_(s.head) : null, heir: s?.heir ? name_(s.heir) : null, country: s?.country ?? null };
+          return { id: h.id, name: h.name, motto: h.motto ?? null, law: s?.law ?? null, head: s?.head ? name_(s.head) : null, heir: s?.heir ? name_(s.heir) : null, country: s?.country ?? null };
         }),
         count: g.houses.length,
       });
@@ -380,6 +407,11 @@ export async function runTool(ctx: Ctx, name: string, input: unknown, out: Propo
       const r = await isolatedLookup(ctx.search.adapter, a.query);
       for (const s of r.sources) if (!ctx.search.sources.some((x) => x.url === s.url)) ctx.search.sources.push(s);
       return json({ summary: r.text, sources: r.sources, searches: r.searches });
+    }
+    const edit = EDITS.find((x) => x.spec.name === name);
+    if (edit) {
+      if (!can(ctx.role, edit.action)) return refused(ctx.role, edit.action);
+      return await runEdit({ ctx, c, g, byId }, edit, input, out);
     }
     const p = PROPOSE.find((x) => x.spec.name === name);
     if (p) {
@@ -403,6 +435,11 @@ async function readPerson(ctx: Ctx, p: GPerson, houses: Map<string, string>) {
   return {
     id: p.id,
     name: fullName(p),
+    given: p.given,
+    furtherGiven: p.furtherGiven,
+    surname: p.surname,
+    currentGiven: p.currentGiven,
+    currentSurname: p.currentSurname,
     nickname: p.nickname,
     sex: p.sex,
     born: p.born,
@@ -415,8 +452,8 @@ async function readPerson(ctx: Ctx, p: GPerson, houses: Map<string, string>) {
     occupation: p.occupation,
     house: p.house ? houses.get(p.house) : undefined,
     bio: d.bio ? clip(d.bio, 1500) : undefined,
-    fields: d.fields.slice(0, 40).map((f) => ({ type: f.type, label: f.label, value: f.value, private: f.visibility !== 'family' })),
-    stories: d.stories.slice(0, 8).map((s) => ({ kind: s.kind, title: s.title, body: clip(s.body, 800), author: s.author, at: s.at.slice(0, 10) })),
+    fields: d.fields.slice(0, 40).map((f) => ({ id: f.id, type: f.type, label: f.label, value: f.value, private: f.visibility !== 'family' })),
+    stories: d.stories.slice(0, 8).map((s) => ({ id: s.id, kind: s.kind, title: s.title, body: clip(s.body, 800), author: s.author, at: s.at.slice(0, 10) })),
   };
 }
 
@@ -496,6 +533,8 @@ async function propose(ctx: Ctx, c: Tr, byId: Map<string, GPerson>, kind: Propos
   for (const k of ['born', 'died'] as const) {
     if (typeof args[k] === 'string' && !validDate(args[k] as string)) return json({ error: `${k} is not a real date; use YYYY, YYYY-MM or YYYY-MM-DD` });
   }
+  const union = args.partnership as { start?: string } | undefined;
+  if (union?.start && !validDate(union.start)) return json({ error: 'the start of the partnership is not a real date; use YYYY, YYYY-MM or YYYY-MM-DD' });
   for (const k of ['anchor', 'person', 'coParent'] as const) {
     if (typeof args[k] === 'string' && !byId.has(args[k] as string)) return json({ error: `${k} is not a person in this tree; search for them first` });
   }
@@ -514,11 +553,15 @@ async function propose(ctx: Ctx, c: Tr, byId: Map<string, GPerson>, kind: Propos
     diff.push({ label: c('ai.fieldName'), to: who }, { label: c('ai.fieldRelation'), to: `${rel(a.relation)} ${name(a.anchor)}` });
     if (a.born) diff.push({ label: c('ai.fieldBorn'), to: a.born });
     if (a.died) diff.push({ label: c('ai.fieldDied'), to: a.died });
+    if (a.partnership?.start) diff.push({ label: c('chat.field.unionStart'), to: a.partnership.start });
+    if (a.partnership?.place) diff.push({ label: c('ai.fieldPlace'), to: a.partnership.place });
     editable = ['given', 'surname', 'born', 'died'];
   } else if (kind === 'link-relative') {
-    const a = args as { anchor: string; person: string; relation: string };
+    const a = args as { anchor: string; person: string; relation: string; partnership?: { start?: string; place?: string } };
     summary = c('ai.summaryLink', { name: name(a.person), rel: rel(a.relation), anchor: name(a.anchor) });
     diff.push({ label: c('ai.fieldRelation'), to: `${name(a.person)}: ${rel(a.relation)} ${name(a.anchor)}` });
+    if (a.partnership?.start) diff.push({ label: c('chat.field.unionStart'), to: a.partnership.start });
+    if (a.partnership?.place) diff.push({ label: c('ai.fieldPlace'), to: a.partnership.place });
   } else if (kind === 'set-dates') {
     const a = args as { person: string } & Record<string, string | undefined>;
     const cur = byId.get(a.person)!;
@@ -637,7 +680,7 @@ async function proposeNew(ctx: Ctx, c: Tr, g: Graph, byId: Map<string, GPerson>,
   }
 
   if (kind === 'photo-details') {
-    const a = z.object({ items: z.array(z.object({ key: z.string(), taken: z.string().max(10).optional(), place: z.string().trim().max(200).optional(), caption: z.string().trim().max(1000).optional() })).min(1).max(25) }).parse(input);
+    const a = z.object({ items: z.array(z.object({ key: z.string(), taken: z.string().max(10).optional(), place: z.string().trim().max(200).optional(), caption: z.string().trim().max(1000).optional(), clear: z.array(z.enum(['taken', 'place', 'caption'])).max(3).optional() })).min(1).max(25) }).parse(input);
     const media = (await gal()).media;
     const before: NonNullable<ProposalView['before']> = {};
     const items = [];
@@ -647,7 +690,8 @@ async function proposeNew(ctx: Ctx, c: Tr, g: Graph, byId: Map<string, GPerson>,
       if (it.taken && !validDate(it.taken)) return bad(`${it.taken} is not a real date; use YYYY, YYYY-MM or YYYY-MM-DD, with ~ for about`);
       before[it.key] = { taken: cur.taken, place: cur.place, caption: cur.caption, album: cur.album };
       // The gallery saves all four details at once, so the card keeps what is not being changed.
-      items.push({ key: it.key, taken: it.taken ?? cur.taken ?? null, place: it.place ?? cur.place ?? null, caption: it.caption ?? cur.caption ?? null, album: cur.album ?? null });
+      const gone = new Set(it.clear ?? []);
+      items.push({ key: it.key, taken: gone.has('taken') ? null : it.taken ?? cur.taken ?? null, place: gone.has('place') ? null : it.place ?? cur.place ?? null, caption: gone.has('caption') ? null : it.caption ?? cur.caption ?? null, album: cur.album ?? null });
     }
     const parsed = proposalArgs['photo-details'].safeParse({ items });
     if (!parsed.success) return bad('the arguments did not fit the tool');

@@ -41,6 +41,14 @@ const csrf = createCsrfMiddleware({
     }),
 });
 
+// A sign-in setting Kindred cannot use (src/lib/auth/method.server.ts) replaces the site with a page that says which one, before
+// anything else runs. The health check stays up: it says the server answers, and the log says what to fix.
+const authSettingGate = createMiddleware().server(async ({ next, request }) => {
+  if (new URL(request.url).pathname === '/api/health') return next();
+  const { authRefusal } = await import('./lib/auth/method.server');
+  return authRefusal(request) ?? next();
+});
+
 // In code-protected mode, announce the setup code once while no account exists. Without a code, warn
 // once when that setup is open on a public address (the first visitor would become the steward).
 // Setup counts as public when either the configured origin or the address the request arrived at is public.
@@ -73,6 +81,6 @@ const serverFunctionErrors = createMiddleware({ type: 'function' }).server(async
 });
 
 export const startInstance = createStart(() => ({
-  requestMiddleware: [securityHeaders, csrf, setupNotice],
+  requestMiddleware: [securityHeaders, authSettingGate, csrf, setupNotice],
   functionMiddleware: [serverFunctionErrors],
 }));

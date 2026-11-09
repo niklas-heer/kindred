@@ -3,9 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Crown, KeyRound, TriangleAlert, UserPlus } from 'lucide-react';
 import { useState } from 'react';
-import { AuthCard, AuthError, PasskeyExplainer } from '~/components/AuthCard';
+import { AuthCard, AuthError, NoAccessIdentity, PasskeyExplainer } from '~/components/AuthCard';
 import { forgetLocalIdentity, passkeysSupported, setUpFirstSteward } from '~/lib/auth/client';
-import { sessionQuery } from '~/lib/auth/functions';
+import { sessionQuery, setupWithAccess } from '~/lib/auth/functions';
 import { splitName } from '~/lib/auth/name';
 import { chooseMe } from '~/lib/family';
 import { opKeys } from '~/lib/api';
@@ -42,9 +42,18 @@ function Setup() {
   const [error, setError] = useState<string | null>(null);
   const [made, setMade] = useState<MadeFamily | null>(null);
   const client = useIsClient();
-  const supported = !client || passkeysSupported();
+  const access = session?.auth === 'cloudflare-access';
+  const supported = access || !client || passkeysSupported();
 
   if (made) return <FirstRunStep {...made} />;
+
+  if (session && !session.needsSetup && access) {
+    return (
+      <AuthCard crest={<Crown size={44} />} kicker="Kindred" title={t("setup.already_set_up")} lede={t('auth.already_set_up_access')}>
+        <Link className="btn primary auth-go" to="/">{t('auth.go_to_kindred')}</Link>
+      </AuthCard>
+    );
+  }
 
   if (session && !session.needsSetup) {
     return (
@@ -54,12 +63,14 @@ function Setup() {
     );
   }
 
+  if (access && !session?.uninvitedEmail) return <NoAccessIdentity />;
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const result = await setUpFirstSteward(code, name, familyName);
+      const result = access ? await setupWithAccess({ data: { code, name, familyName } }) : await setUpFirstSteward(code, name, familyName);
       forgetLocalIdentity();
       if (result.tree) {
         setMade({ tree: result.tree, family: familyName.trim() || t('setup.family_default'), steward: name.trim() });
@@ -78,7 +89,7 @@ function Setup() {
       crest={<Crown size={44} />}
       kicker={t("setup.first_time_setup")}
       title={t("setup.become_the_first_steward")}
-      lede={t("setup.nobody_has_an_account_yet_you_ll_look_after_every_family_on_this_server_invite_relatives_and_choose_what_each_of_them_may_change")}
+      lede={access ? t('auth.setup_access_lede', { email: session?.uninvitedEmail ?? '' }) : t("setup.nobody_has_an_account_yet_you_ll_look_after_every_family_on_this_server_invite_relatives_and_choose_what_each_of_them_may_change")}
     >
       {session?.setupOpenToPublic && <Notice icon={<TriangleAlert size={15} />}>{t("setup.open_public_warning")}</Notice>}
       <form className="auth-form" onSubmit={submit}>
@@ -115,11 +126,11 @@ function Setup() {
         <AuthError>{error}</AuthError>
         {!supported && <AuthError>{t("setup.this_browser_can_t_use_passkeys_try_the_newest_safari_chrome_edge_or_firefox")}</AuthError>}
         <button className="btn primary auth-go" disabled={busy || !supported || (session?.setupCodeRequired && !code.trim()) || !name.trim() || (session?.needsFamily && !familyName.trim())}>
-          <KeyRound size={19} /> {busy ? t("setup.waiting_for_your_device") : t("setup.create_your_passkey")}
+          {access ? <><Crown size={19} /> {t('auth.setup_access_button')}</> : <><KeyRound size={19} /> {busy ? t("setup.waiting_for_your_device") : t("setup.create_your_passkey")}</>}
         </button>
       </form>
-      <p className="auth-device-hint">{t("setup.save_your_passkey_in_1password_icloud_keychain_google_password_manager_or_a_security_key")}</p>
-      <PasskeyExplainer creating />
+      {!access && <p className="auth-device-hint">{t("setup.save_your_passkey_in_1password_icloud_keychain_google_password_manager_or_a_security_key")}</p>}
+      {!access && <PasskeyExplainer creating />}
     </AuthCard>
   );
 }

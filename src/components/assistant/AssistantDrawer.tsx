@@ -7,11 +7,13 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { errorText } from '~/lib/errortext';
-import { ArrowDown, Mic, MicOff, MessageSquarePlus, Pencil, RotateCw, Send, Sparkles, Users, X } from 'lucide-react';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
-import { aiChatContinue, aiChatImageQuery, aiChatNew, aiChatQuery, aiChatSend, aiStatusQuery } from '~/lib/ai.functions';
+import { ArrowDown, Mic, MicOff, MessageSquarePlus, PanelLeft, Pencil, RotateCw, Send, Sparkles, Square, Users, X } from 'lucide-react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import { aiChatImageQuery, aiChatModelsQuery, aiChatNew, aiChatQuery, aiChatRetry, aiChatSend, aiStatusQuery, aiThreadSetModel, aiThreadsQuery } from '~/lib/ai.functions';
+import { nextStronger, type ModelChoices } from '~/lib/ai/model-choice';
+import { threadTitle } from '~/lib/ai/thread-title';
 import { graphQuery } from '~/lib/api';
-import { toAiLocale, type ChatItem } from '~/lib/ai/types';
+import { toAiLocale, type ChatItem, type Provider } from '~/lib/ai/types';
 import { useT, type Key } from '~/lib/i18n';
 import { renderMarkdown } from '~/lib/markdown';
 import { fullName } from '~/lib/graph';
@@ -19,9 +21,21 @@ import { useMeChosen } from '~/lib/family';
 import { useCan } from '~/lib/session';
 import { ErrorState, Notice, Skeleton } from '~/components/ui';
 import { isTopOverlay, useOverlayLayer } from '~/components/ui/overlay';
-import { ProposalCard, type OnDecided } from './ProposalCard';
-import { ASSISTANT_FOCUS, closeAssistant, openAssistant, useAiStatus, useAssistantOpen } from './store';
-import { ResizeEdges, useChatWindow, WindowControls } from './useChatWindow';
+import type { OnDecided } from './ProposalCard';
+import { ProposalGroup } from './widgets/ProposalGroup';
+import { Widget } from './widgets/Widget';
+import { QuestionCard } from './widgets/QuestionCard';
+import { chipsFor } from './widgets/chips';
+import { usePageContext } from './page-context';
+import './widgets/widgets.css';
+import { ASSISTANT_FOCUS, closeAssistant, openAssistant, takeFocusRequest, useAiStatus, useAssistantMinimized, useAssistantOpen } from './store';
+import { ResizeEdges, useChatWindow, useIsPhone, WindowControls } from './useChatWindow';
+import { ChatDock, useTabs } from './ChatDock';
+import { ChatList, ChatTabs, chatName } from './ChatList';
+import { finishRun, forgetRun, getRun, patchRun, setFrontChat, useRun, useRunSummary } from './chat-runs';
+import { closeTab, forgetChat, getTabs, openTab, updateTabs, withDraft } from './chat-tabs';
+import { modelName, ModelPicker, RetryModelMenu, type PickedModel } from './ModelPicker';
+import { carryOn, restoreInterrupted, transmit, useChatStream } from './useChatStream';
 import { AiSetupButton, AiSetupDialog } from './AiSetup';
 import { AttachButton, DropVeil, ImageTray, useImageAttach, type Attached } from './attachments';
 import { useDictation } from './dictation';
@@ -32,11 +46,14 @@ import './assistant.css';
 /** Renders the drawer while it is open, and nothing otherwise. Mount once per family, inside the tree layout. Also the "Set up AI" panel. */
 export function AssistantHost({ tree }: { tree: string }) {
   const open = useAssistantOpen();
+  const minimized = useAssistantMinimized();
+  const phone = useIsPhone();
   const status = useAiStatus(tree);
   return (
     <>
       <AiSetupDialog tree={tree} />
       {open && status?.features.assistant ? <AssistantDrawer tree={tree} /> : null}
+      {minimized && !phone && status?.features.assistant ? <ChatDock tree={tree} /> : null}
     </>
   );
 }
@@ -48,10 +65,16 @@ export function AssistantHost({ tree }: { tree: string }) {
 export function AssistantButton({ tree, className = '' }: { tree: string; className?: string }) {
   const t = useT();
   const status = useAiStatus(tree);
+  const tabs = useTabs(tree);
+  const runs = useRunSummary();
   if (!status?.features.assistant) return <AiSetupButton tree={tree} className={className} />;
+  // A reply still running, or one waiting to be read, shows on the button: on a phone it is the only place it can.
+  const working = tabs.tabs.some((c) => runs.busy.has(c));
+  const waiting = tabs.tabs.some((c) => runs.unread.has(c));
   return (
     <button type="button" className={`btn ai-launch ${className}`} onClick={openAssistant} aria-haspopup="dialog">
       <Sparkles size={16} aria-hidden /> {t('ai.askButton')}
+      {(working || waiting) && <span className={`ai-run-mark ${working ? 'ai-run-busy' : 'ai-run-unread'}`} role="img" aria-label={t(working ? 'ai.chatRunning' : 'ai.chatUnread')} />}
     </button>
   );
 }
@@ -59,15 +82,12 @@ export function AssistantButton({ tree, className = '' }: { tree: string; classN
 /** Joins what was typed and what was heard, with one space between. */
 const joined = (a: string, b: string) => (a.trim() ? `${a.replace(/\s+$/, '')} ${b}` : b);
 
-/** A message that did not go: its text, why it failed, and the id Retry and Edit work from. */
-interface Unsent { id: string; text: string; error: string; images?: Attached[]; keep?: boolean }
-
-// Kept for the page's life, not across a reload: a family's draft and its unsent messages survive closing the drawer.
-const drafts = new Map<string, string>();
-const unsentByTree = new Map<string, Unsent[]>();
+// Pictures waiting to be sent, per chat, for the page's life: they are too large to keep across a reload, unlike a draft's words.
 const draftImages = new Map<string, Attached[]>();
-let seq = 0;
-const newId = () => `u${Date.now().toString(36)}${(seq++).toString(36)}`;
+const restoredInterrupted = new Set<string>();
+
+/** From this wide, the list of chats sits beside the thread; below it, it slides over (the same width as the CSS container query). */
+const LIST_BESIDE_WIDTH = 720;
 
 /** A link a reader can follow: http(s) only. The model's own sources are shown as links, so nothing else is. */
 const webUrl = (url: string): boolean => {
@@ -95,6 +115,7 @@ function AssistantDrawer({ tree }: { tree: string }) {
   const canDraft = useCan('add-person');
   const canPhotos = useCan('upload-photo');
   const canHouse = useCan('edit-house');
+  const steward = useCan('manage-access');
   const status = useQuery(aiStatusQuery(tree)).data;
   const graph = useQuery(graphQuery(tree));
   const me = useMeChosen();
@@ -111,19 +132,28 @@ function AssistantDrawer({ tree }: { tree: string }) {
     }
     return [...set];
   }, [graph.data]);
-  const chat = useQuery(aiChatQuery(tree));
-  const items = chat.data?.items ?? [];
 
-  const [text, setText] = useState(() => drafts.get(tree) ?? '');
-  const [pending, setPending] = useState<string | null>(null);
-  const [pendingImages, setPendingImages] = useState<Attached[]>([]);
-  const [busy, setBusy] = useState(false);
+  // Which chats are open, and which is in front. Everything below is about the one in front; a reply in any of them runs on its own (chat-runs.ts).
+  const tabState = useTabs(tree);
+  const conv = tabState.active;
+  const convRef = useRef(conv);
+  convRef.current = conv;
+  const threads = useQuery(aiThreadsQuery(tree));
+  const chat = useQuery({ ...aiChatQuery(tree, conv ?? ''), enabled: !!conv });
+  const items = conv ? (chat.data?.items ?? []) : [];
+  const run = useRun(conv);
+  const { busy, pending, pendingImages, unsent, error, continueError } = run;
+  const stream = useChatStream(conv ?? '', conv ? chat.data?.items : undefined);
+  const models = useQuery(aiChatModelsQuery(tree, steward)).data;
+
+  // The box is not a controlled field: Wispr Flow and other dictation apps write into it from outside (paste, the accessibility API, a value set
+  // and an input event), and nothing the app draws may put old text back over what they wrote. `text` follows the box, for the Send button and its size.
+  const [text, setText] = useState('');
   const [slow, setSlow] = useState(false);
-  const [unsent, setUnsent] = useState<Unsent[]>(() => unsentByTree.get(tree) ?? []);
-  const [error, setError] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [keepImages, setKeepImages] = useState(false);
   const [session, setSession] = useState<{ open: boolean; used: boolean }>({ open: false, used: false });
+  const [tabsFull, setTabsFull] = useState(false);
   // Whether the reader has scrolled away from the newest message; then new content waits behind "Jump to latest".
   const [away, setAway] = useState(false);
   const areaRef = useRef<HTMLTextAreaElement>(null);
@@ -135,26 +165,83 @@ function AssistantDrawer({ tree }: { tree: string }) {
   // Whether the reader is working in the window. It is not modal: while they are on the page behind it, the page's keys are the page's.
   const [inside, setInside] = useState(true);
   const insideRef = useRef(true);
-  const busyRef = useRef(false);
-  busyRef.current = busy;
-  // Decisions are told once, in one reply. One decided while a reply is on its way waits here for that reply to end.
-  const wantContinue = useRef(false);
-  const unrecorded = useRef<Parameters<OnDecided>[0][]>([]);
-  const [continueError, setContinueError] = useState<string | null>(null);
-  const dictation = useDictation({ locale, onFinal: (s) => setText((prev) => joined(prev, s)) });
+  const listOpen = tabState.listOpen;
+  const listOpenRef = useRef(listOpen);
+  listOpenRef.current = listOpen;
+  const page = usePageContext(tree);
+  const pageRef = useRef(page);
+  pageRef.current = page;
+  const ctx = (c: string) => ({ conv: c, tree, locale: t.locale, qc, page: pageRef.current });
+
+  /** What the reader wrote: remembered for this chat. Every way of writing in the box comes through here. */
+  const noteText = useCallback((value: string) => {
+    setText(value);
+    const c = convRef.current;
+    if (c) updateTabs(tree, (s) => withDraft(s, c, value, Date.now()), true);
+  }, [tree]);
+
+  /** Sets the box from the app's side: a reply's Edit, an example, dictation, or clearing it after sending. */
+  function setComposer(value: string) {
+    const el = areaRef.current;
+    if (el && el.value !== value) el.value = value;
+    noteText(value);
+  }
+
+  const dictation = useDictation({ locale, onFinal: (s) => setComposer(joined(areaRef.current?.value ?? '', s)) });
   // Pictures need the same role as a family session. The composer shows nothing of them to anyone else.
-  const attach = useImageAttach({ active: canDraft && !session.open, initial: draftImages.get(tree), onError: setImageError });
+  const attach = useImageAttach({ active: canDraft && !session.open, onError: setImageError });
 
   // Page hotkeys stay quiet while the reader is in the window, and always on a phone, where the sheet covers the page (ui/overlay.ts).
   const layer = useOverlayLayer(win.phone || inside);
   const layerRef = useRef(layer);
   layerRef.current = layer;
   useEffect(() => {
-    areaRef.current?.focus();
+    // A window that a reload put back leaves the focus where it is.
+    if (takeFocusRequest()) areaRef.current?.focus();
     const back = returnTo.current as HTMLElement | null;
     // Focus goes back only if it was in the window: a reader who has moved on to the page keeps their place.
     return () => { if (insideRef.current || document.activeElement === document.body) back?.focus?.(); };
   }, []);
+  // Once per page: a window minimized and restored must not read a reply still running as one the reload interrupted.
+  useEffect(() => {
+    if (restoredInterrupted.has(tree)) return;
+    restoredInterrupted.add(tree);
+    restoreInterrupted(tree, t.locale);
+  }, [tree]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The reader is looking at this chat, so a reply in it is not news. Nothing is in front while the window is minimized or closed.
+  useEffect(() => {
+    setFrontChat(conv);
+    return () => setFrontChat(null);
+  }, [conv]);
+  // Text from outside the app arrives as a native input event. Listened to directly, because React skips one when the value was set by script.
+  useEffect(() => {
+    const el = areaRef.current;
+    if (!el) return;
+    const onInput = () => noteText(el.value);
+    el.addEventListener('input', onInput);
+    return () => el.removeEventListener('input', onInput);
+  }, [noteText]);
+  // A window with nothing open starts on the newest chat, or a new one. Closing the last tab starts a new one.
+  const firstLook = useRef(true);
+  const starting = useRef(false);
+  useEffect(() => {
+    if (tabState.tabs.length > 0 || starting.current || (firstLook.current && threads.isPending)) return;
+    const newest = firstLook.current ? threads.data?.[0]?.conv : undefined;
+    firstLook.current = false;
+    if (newest) {
+      updateTabs(tree, (s) => openTab(s, newest) ?? s);
+      return;
+    }
+    starting.current = true;
+    void aiChatNew({ data: { tree } }).then(({ conv: c }) => updateTabs(tree, (s) => openTab(s, c) ?? s)).finally(() => { starting.current = false; });
+  }, [tabState.tabs.length, threads.isPending, threads.data, tree]);
+  // A chat that is gone (deleted on another device, or another account's tab in this browser) leaves its tab.
+  useEffect(() => {
+    if (conv && chat.error && String(chat.error.message).includes('ai.err_no_chat')) {
+      forgetRun(conv);
+      updateTabs(tree, (s) => forgetChat(s, conv));
+    }
+  }, [conv, chat.error, tree]);
   // Follows where the reader is working, by focus and by pointer (a click on empty page moves no focus).
   useEffect(() => {
     const track = (e: Event) => {
@@ -167,10 +254,14 @@ function AssistantDrawer({ tree }: { tree: string }) {
       setInside(true);
       areaRef.current?.focus();
     };
-    // Esc closes from anywhere in the window, a popover inside it first. F6 moves between the window and the page.
+    // Esc closes from anywhere in the window, the list of chats and a popover inside it first. F6 moves between the window and the page.
     const onKeyDown = (e: globalThis.KeyboardEvent) => {
       if (e.key === 'Escape' && !e.isComposing && !e.defaultPrevented && insideRef.current && isTopOverlay(layerRef.current)) {
         e.preventDefault();
+        if (listOpenRef.current && listOverlays()) {
+          closeList();
+          return;
+        }
         dictation.stop();
         closeAssistant();
       } else if (e.key === 'F6' && !e.defaultPrevented) {
@@ -202,31 +293,34 @@ function AssistantDrawer({ tree }: { tree: string }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  // When a reply has ended: a continuation that had to wait starts, and a reader still in the window gets the box back
-  // (the box was disabled while waiting, which dropped its focus).
-  useEffect(() => {
-    if (busy) return;
-    if (wantContinue.current) {
-      wantContinue.current = false;
-      void carryOn();
-    } else if (insideRef.current && document.activeElement === document.body) {
-      areaRef.current?.focus();
-    }
-  }, [busy]); // eslint-disable-line react-hooks/exhaustive-deps
   // Stops listening when the drawer closes, whatever it was doing.
   useEffect(() => () => dictation.stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { drafts.set(tree, text); if (!text) drafts.delete(tree); }, [tree, text]);
-  useEffect(() => { unsentByTree.set(tree, unsent); }, [tree, unsent]);
-  useEffect(() => { draftImages.set(tree, attach.images); }, [tree, attach.images]);
+  // Switching chats brings that chat's own draft and pictures into the same box, so the focus never moves.
+  const shownConv = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const el = areaRef.current;
+    const before = shownConv.current;
+    shownConv.current = conv;
+    if (!el || !conv) return;
+    // Words written while the very first chat was being made belong to it.
+    if (before === null && el.value) noteText(el.value);
+    else {
+      el.value = getTabs(tree).drafts[conv]?.text ?? '';
+      setText(el.value);
+    }
+    if (before) draftImages.set(before, attach.images);
+    attach.replace(draftImages.get(conv) ?? []);
+    setImageError(null);
+    setKeepImages(false);
+  }, [conv, tree]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (conv) draftImages.set(conv, attach.images); }, [conv, attach.images]);
   // The typing line says more after a while: a lookup can take long, and the reader should know it has not stalled.
   useEffect(() => {
-    if (!busy) {
-      setSlow(false);
-      return;
-    }
+    setSlow(false);
+    if (!busy) return;
     const id = window.setTimeout(() => setSlow(true), 8000);
     return () => window.clearTimeout(id);
-  }, [busy]);
+  }, [busy, conv]);
   // The box grows with its text, up to about eight lines, then scrolls.
   useLayoutEffect(() => {
     const el = areaRef.current;
@@ -257,21 +351,36 @@ function AssistantDrawer({ tree }: { tree: string }) {
     };
   }, []);
 
+  // Each chat comes back where the reader left it, once its messages are here.
+  const placedConv = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const el = logRef.current;
+    if (!el || !conv || !chat.isSuccess || placedConv.current === conv) return;
+    placedConv.current = conv;
+    const spot = getTabs(tree).scroll[conv];
+    stick.current = !spot || spot.atEnd;
+    setAway(false);
+    el.scrollTop = stick.current ? el.scrollHeight : spot.y;
+  }, [conv, chat.isSuccess, tree]);
+
   // New content keeps the reader at the newest message, unless they have scrolled up to read; then it waits.
+  const live = stream.live;
   useLayoutEffect(() => {
     const el = logRef.current;
     if (!el || session.open) return;
     // Instant, not smooth: a reply that lands mid-animation would leave the thread short of its newest message.
     if (stick.current) el.scrollTop = el.scrollHeight;
     else setAway(true);
-  }, [items.length, pending, busy, unsent.length, session.open]);
+  }, [items.length, pending, busy, unsent.length, session.open, live?.text]);
 
   function onLogScroll() {
     const el = logRef.current;
-    if (!el) return;
+    const c = convRef.current;
+    if (!el || !c) return;
     const near = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
     stick.current = near;
     if (near) setAway(false);
+    updateTabs(tree, (s) => ({ ...s, scroll: { ...s.scroll, [c]: { y: el.scrollTop, atEnd: near } } }), true);
   }
 
   /** An instant jump: a smooth one can be cut short by the reply landing, and the reader would be left in the middle. */
@@ -282,8 +391,62 @@ function AssistantDrawer({ tree }: { tree: string }) {
     if (el) el.scrollTop = el.scrollHeight;
   }
 
+  // ---------- tabs and the list of chats ----------
+
+  const listOverlays = () => (asideRef.current?.clientWidth ?? 0) < LIST_BESIDE_WIDTH;
+  const closeList = () => updateTabs(tree, (s) => ({ ...s, listOpen: false }));
+  const toggleList = () => updateTabs(tree, (s) => ({ ...s, listOpen: !s.listOpen }));
+  const focusBox = () => requestAnimationFrame(() => areaRef.current?.focus());
+
+  /** The name a tab shows, before the chat has a stored message too. */
+  const tabName = (c: string) => {
+    const waitingText = getRun(c).pending;
+    return chatName(t, threads.data?.find((x) => x.conv === c), waitingText ? threadTitle(waitingText) : t('ai.chatNew'));
+  };
+
+  function showChat(c: string) {
+    const next = openTab(getTabs(tree), c, (x) => getRun(x).busy);
+    if (!next) return setTabsFull(true);
+    setTabsFull(false);
+    updateTabs(tree, () => next);
+    if (listOverlays()) closeList();
+    focusBox();
+  }
+
+  function switchTab(c: string) {
+    updateTabs(tree, (s) => ({ ...s, active: c }));
+    focusBox();
+  }
+
+  function closeChatTab(c: string) {
+    setTabsFull(false);
+    updateTabs(tree, (s) => closeTab(s, c));
+    focusBox();
+  }
+
+  /** A new chat. An empty tab that is already open is used instead of making another. */
+  async function newChat() {
+    const empty = getTabs(tree).tabs.find((c) => !threads.data?.some((x) => x.conv === c) && !getRun(c).busy && !getRun(c).unsent.length && !getRun(c).pending);
+    if (empty) return showChat(empty);
+    const { conv: c } = await aiChatNew({ data: { tree } });
+    showChat(c);
+  }
+
+  function onChatDeleted(c: string) {
+    forgetRun(c);
+    draftImages.delete(c);
+    updateTabs(tree, (s) => forgetChat(s, c));
+    qc.removeQueries({ queryKey: ['ai-chat', tree, c] });
+  }
+
+  // ---------- messages ----------
+
   /** The example prompts that suit this reader's role and the family's features (the first is the one nobody else needs). */
-  const examples: { key: Key; open?: boolean }[] = [
+  const viewed = page.personId ? graph.data?.people.find((p) => p.id === page.personId) : undefined;
+  const examples: { key: Key; open?: boolean; name?: string }[] = [
+    ...(viewed
+      ? (['chat.start.who', 'chat.start.family', 'chat.start.timeline', 'chat.start.gaps', ...(me && me !== viewed.id ? ['chat.start.relation'] : [])] as Key[]).map((key) => ({ key, name: fullName(viewed) }))
+      : [{ key: 'chat.start.birthdays' as Key }]),
     ...(canDraft ? [{ key: 'ai.exFamily' as Key, open: true }] : []),
     { key: 'ai.exPhotos' },
     { key: 'ai.exMissing' },
@@ -293,45 +456,29 @@ function AssistantDrawer({ tree }: { tree: string }) {
     ...(canHouse ? [{ key: 'ai.exHouse' as Key }] : []),
   ];
 
-  /** One message, from the composer or a Retry. Its text stays in the thread until it is stored, or until Edit or Retry takes it. */
-  async function transmit(msg: string, images: Attached[], keep: boolean, retryId?: string) {
-    stick.current = true;
-    setBusy(true);
-    setError(null);
-    setPending(msg);
-    setPendingImages(images);
-    if (retryId) setUnsent((u) => u.filter((x) => x.id !== retryId));
-    try {
-      await aiChatSend({ data: { tree, text: msg, locale, ...(images.length && { images: images.map((i) => ({ base64: i.base64 })), keepImages: keep }) } });
-      await qc.invalidateQueries({ queryKey: ['ai-chat', tree] });
-    } catch (err) {
-      const id = retryId ?? newId();
-      setUnsent((u) => [...u.filter((x) => x.id !== id), { id, text: msg, error: errorText(err, t.locale), images, keep }]);
-    } finally {
-      setPending(null);
-      setPendingImages([]);
-      setBusy(false);
-      areaRef.current?.focus();
-    }
-  }
-
+  /** Sends what is in the box. While this chat is waiting for its reply nothing is sent, and the words stay where they are. */
   function send(e?: FormEvent) {
     e?.preventDefault();
-    const msg = text.trim();
+    const c = conv;
+    const msg = (areaRef.current?.value ?? text).trim();
     const images = attach.images;
-    if ((!msg && !images.length) || busy || attach.reading) return;
-    setText('');
+    if (!c || (!msg && !images.length) || getRun(c).busy || attach.reading) return;
+    setComposer('');
     attach.replace([]);
     setImageError(null);
     const keep = keepImages;
     setKeepImages(false);
-    void transmit(msg, images, keep);
+    stick.current = true;
+    void transmit(ctx(c), msg, images, keep);
+    areaRef.current?.focus();
   }
 
   /** Puts an unsent message back in the box to change it. A draft already typed stays above it. */
-  function editUnsent(u: Unsent) {
-    setUnsent((list) => list.filter((x) => x.id !== u.id));
-    setText((prev) => (prev.trim() ? `${prev}\n${u.text}` : u.text));
+  function editUnsent(u: (typeof unsent)[number]) {
+    if (!conv) return;
+    patchRun(conv, (r) => ({ unsent: r.unsent.filter((x) => x.id !== u.id) }));
+    const now = areaRef.current?.value ?? '';
+    setComposer(now.trim() ? `${now}\n${u.text}` : u.text);
     if (u.images?.length) attach.replace(u.images);
     setKeepImages(!!u.keep);
     areaRef.current?.focus();
@@ -339,24 +486,56 @@ function AssistantDrawer({ tree }: { tree: string }) {
 
   /** A family session's transcript, sent once. Resolves true when the draft was made. */
   async function draftFamily(transcript: string, speaker: string, images: Attached[], keep: boolean): Promise<boolean> {
+    const c = conv;
+    if (!c) return false;
     stick.current = true;
-    setBusy(true);
-    setError(null);
-    setPending(transcript ? t('ai.sessionMessage', { count: transcript.split('\n').length }) : t('ai.imagesSent', { count: images.length }));
-    setPendingImages(images);
+    patchRun(c, { busy: true, error: null, pending: transcript ? t('ai.sessionMessage', { count: transcript.split('\n').length }) : t('ai.imagesSent', { count: images.length }), pendingImages: images });
     try {
-      await aiChatSend({ data: { tree, text: transcript, locale, session: true, speaker, ...(images.length && { images: images.map((i) => ({ base64: i.base64 })), keepImages: keep }) } });
-      await qc.invalidateQueries({ queryKey: ['ai-chat', tree] });
+      await aiChatSend({ data: { tree, conv: c, text: transcript, locale, session: true, speaker, ...(images.length && { images: images.map((i) => ({ base64: i.base64 })), keepImages: keep }) } });
+      await Promise.all([qc.invalidateQueries({ queryKey: ['ai-chat', tree, c] }), qc.invalidateQueries({ queryKey: ['ai-threads', tree] })]);
       setSession({ open: false, used: true });
       return true;
     } catch (err) {
-      setError(errorText(err, t.locale));
+      patchRun(c, { error: errorText(err, t.locale) });
       return false;
     } finally {
-      setPending(null);
-      setPendingImages([]);
-      setBusy(false);
+      patchRun(c, { pending: null, pendingImages: [], busy: false });
+      finishRun(c);
     }
+  }
+
+  /** "Try with a stronger model": the same question on another model. Both answers stay; nothing new from the reader is stored. */
+  async function retryAnswer(c: string, itemId: string, model: PickedModel) {
+    if (getRun(c).busy) return;
+    patchRun(c, { busy: true, error: null, stream: null });
+    try {
+      await aiChatRetry({ data: { tree, conv: c, itemId, model, locale } });
+      await Promise.all([qc.invalidateQueries({ queryKey: ['ai-chat', tree, c] }), qc.invalidateQueries({ queryKey: ['ai-threads', tree] })]);
+    } catch (err) {
+      patchRun(c, { error: errorText(err, t.locale) });
+    } finally {
+      patchRun(c, { busy: false });
+      finishRun(c);
+    }
+  }
+
+  async function chooseModel(c: string, model: PickedModel | null) {
+    try {
+      await aiThreadSetModel({ data: { tree, conv: c, model } });
+      await qc.invalidateQueries({ queryKey: ['ai-chat', tree, c] });
+    } catch (err) {
+      patchRun(c, { error: errorText(err, t.locale) });
+    }
+  }
+
+  /** Whether an answer can be asked again: it answers a message in words, not a decision, a family session or pictures that were not kept. */
+  function retryable(i: number): boolean {
+    const m = items[i];
+    if (m.role !== 'assistant' || m.continuation) return false;
+    const before = items.slice(0, i).reverse().find((x) => !x.alternateOf);
+    const base = m.alternateOf ? items.find((x) => x.id === m.alternateOf) : m;
+    const question = base ? items[items.indexOf(base) - 1] : before;
+    return !!question && question.role === 'user' && !question.session && !question.images;
   }
 
   function openSession() {
@@ -370,62 +549,31 @@ function AssistantDrawer({ tree }: { tree: string }) {
     areaRef.current?.focus();
   }
 
-  /** The assistant carries on after the reader's decisions. Its reply is stored like any other; if it fails, the decisions are safe and Retry asks again. */
-  async function carryOn() {
-    if (busyRef.current) {
-      wantContinue.current = true;
-      return;
-    }
-    busyRef.current = true;
-    stick.current = true;
-    setContinueError(null);
-    setBusy(true);
-    try {
-      await aiChatContinue({ data: { tree, locale } });
-      await qc.invalidateQueries({ queryKey: ['ai-chat', tree] });
-    } catch (err) {
-      setContinueError(errorText(err, t.locale));
-    } finally {
-      busyRef.current = false;
-      setBusy(false);
-    }
-  }
-
   /** A card was decided: records it, and carries on when it was the last one waiting. */
   const onDecided: OnDecided = (mark) => {
+    const c = conv;
+    if (!c) return;
     void mark().then(
-      (r) => { if (r.due) void carryOn(); },
-      (err) => {
-        unrecorded.current.push(mark);
-        setContinueError(errorText(err, t.locale));
-      },
+      (r) => { if (r.due) void carryOn(ctx(c)); },
+      (err) => patchRun(c, (x) => ({ unrecorded: [...x.unrecorded, mark], continueError: errorText(err, t.locale) })),
     );
   };
 
   /** Retry: records whatever could not be recorded, then asks the assistant to carry on. */
   async function retryContinue() {
-    setContinueError(null);
-    for (const mark of unrecorded.current.splice(0)) {
+    const c = conv;
+    if (!c) return;
+    patchRun(c, { continueError: null });
+    for (const mark of getRun(c).unrecorded) {
       try {
         await mark();
+        patchRun(c, (x) => ({ unrecorded: x.unrecorded.filter((m) => m !== mark) }));
       } catch (err) {
-        unrecorded.current.push(mark);
-        setContinueError(errorText(err, t.locale));
+        patchRun(c, { continueError: errorText(err, t.locale) });
         return;
       }
     }
-    await carryOn();
-  }
-
-  async function newConversation() {
-    setError(null);
-    setUnsent([]);
-    setContinueError(null);
-    unrecorded.current = [];
-    await aiChatNew({ data: { tree } });
-    await qc.invalidateQueries({ queryKey: ['ai-chat', tree] });
-    stick.current = true;
-    areaRef.current?.focus();
+    await carryOn(ctx(c));
   }
 
   /** Enter sends; Shift+Enter makes a new line. Nothing is sent while a reply is on its way. */
@@ -445,6 +593,9 @@ function AssistantDrawer({ tree }: { tree: string }) {
     closeAssistant();
     if (url.pathname === `/${tree}/atlas`) {
       navigate({ to: '/$tree/atlas', params: { tree }, search: { place: url.searchParams.get('place') ?? undefined } });
+    } else if (url.pathname !== `/${tree}` && url.pathname !== `/${tree}/`) {
+      // A page the assistant pointed to, such as the Access page.
+      navigate({ href: url.pathname + url.search });
     } else {
       navigate({ to: '/$tree', params: { tree }, search: { focus: url.searchParams.get('focus') ?? undefined } });
     }
@@ -456,14 +607,22 @@ function AssistantDrawer({ tree }: { tree: string }) {
   }
 
   const listening = dictation.state === 'listening';
-  const empty = chat.isSuccess && items.length === 0 && unsent.length === 0 && pending === null;
+  const empty = !!conv && chat.isSuccess && items.length === 0 && unsent.length === 0 && pending === null;
+  const summary = useRunSummary();
+  const elsewhere = tabState.tabs.some((c) => c !== conv && summary.unread.has(c));
 
   return (
     <aside ref={asideRef} className={`ai-drawer${win.docked ? ' ai-docked' : ''}`} role="dialog" aria-label={t('ai.title')}>
       <ResizeEdges win={win} />
       <header className="ai-drawer-head" onPointerDown={win.onHeaderPointerDown}>
         <div className="ai-drawer-bar">
-          <h2 className="ai-drawer-title"><Sparkles size={16} aria-hidden /> <span>{t('ai.title')}</span></h2>
+          {!session.open && (
+            <button type="button" className="btn ghost ai-touch ai-icon ai-chats-toggle" onClick={toggleList} aria-expanded={listOpen} aria-label={t(listOpen ? 'ai.chatsClose' : 'ai.chatsOpen')} title={t(listOpen ? 'ai.chatsClose' : 'ai.chatsOpen')}>
+              <PanelLeft size={16} aria-hidden />
+              {elsewhere && <span className="ai-run-mark ai-run-unread ai-chats-toggle-mark" aria-hidden />}
+            </button>
+          )}
+          <h2 className="ai-drawer-title"><Sparkles size={16} aria-hidden /> <span>{win.phone && conv ? tabName(conv) : t('ai.title')}</span></h2>
           <WindowControls win={win} />
           <button type="button" className="btn ghost ai-touch ai-icon ai-drawer-close" onClick={() => { dictation.stop(); closeAssistant(); }} aria-label={t('ai.close')} title={t('ai.close')}>
             <X size={17} aria-hidden />
@@ -476,14 +635,18 @@ function AssistantDrawer({ tree }: { tree: string }) {
             </button>
           )}
           {!session.open && (
-            <button type="button" className="btn ghost ai-touch ai-tool" onClick={newConversation} disabled={busy}>
-              <MessageSquarePlus size={15} aria-hidden /> {t('ai.newConversation')}
+            <button type="button" className="btn ghost ai-touch ai-tool ai-tool-new" onClick={() => void newChat()}>
+              <MessageSquarePlus size={15} aria-hidden /> {t('ai.chatNew')}
             </button>
           )}
         </div>
+        {!session.open && !win.phone && tabState.tabs.length > 0 && (
+          <ChatTabs tabs={tabState.tabs} active={conv} names={tabName} onSwitch={switchTab} onClose={closeChatTab} onNew={() => void newChat()} />
+        )}
       </header>
 
-      {error && <Notice onDismiss={() => setError(null)}>{t('ai.sendFailed')} <span className="subtle">{error}</span></Notice>}
+      {tabsFull && <Notice onDismiss={() => setTabsFull(false)}>{t('ai.tabsFull')}</Notice>}
+      {error && <Notice onDismiss={() => conv && patchRun(conv, { error: null })}>{t('ai.sendFailed')} <span className="subtle">{error}</span></Notice>}
 
       {session.used && (
         <div className="ai-body" hidden={!session.open}>
@@ -500,139 +663,150 @@ function AssistantDrawer({ tree }: { tree: string }) {
         </div>
       )}
 
-      <div className="ai-body ai-drop-zone" hidden={session.open} {...(canDraft ? attach.dropProps : {})}>
-        <DropVeil show={attach.dragging} />
-        <div className="ai-thread">
-          <div className="ai-log" ref={logRef} role="log" aria-live="polite" aria-label={t('ai.title')} onScroll={onLogScroll} onClick={onLogClick}>
-            {chat.isPending && <Skeleton lines={3} />}
-            {chat.isError && <ErrorState title={t('ai.loadFailed')} message={errorText(chat.error, t.locale)} onRetry={() => chat.refetch()} />}
-            {empty && (
-              <div className="ai-empty">
-                <div className="ai-welcome">
-                  <span className="ai-mark" aria-hidden><Sparkles size={16} /></span>
-                  <p className="ai-welcome-text">{t('ai.empty')}</p>
-                </div>
-                <p className="ai-examples-title">{t('ai.examplesTitle')}</p>
-                <div className="ai-examples">
-                  {examples.map((ex) => (
-                    <button
-                      key={ex.key}
-                      type="button"
-                      className={`ai-example${ex.open ? ' ai-example-primary' : ''}`}
-                      onClick={() => {
-                        if (ex.open) openSession();
-                        else {
-                          setText(t(ex.key));
-                          areaRef.current?.focus();
-                        }
-                      }}
-                    >
-                      {ex.open && <Users size={14} aria-hidden />}
-                      {t(ex.key)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {items.map((m) => (m.role === 'user' ? <UserTurn key={m.id} tree={tree} item={m} /> : <AssistantTurn key={m.id} tree={tree} item={m} people={people} places={places} onDecided={onDecided} />))}
-            {(pending !== null) && (
-              <div className="ai-turn ai-turn-user ai-turn-pending">
-                <AttachedThumbs images={pendingImages} />
-                {pending && <div className="ai-bubble">{pending}</div>}
-              </div>
-            )}
-            {busy && !session.open && (
-              <div className="ai-turn ai-turn-assistant ai-turn-typing" aria-hidden="true">
-                <span className="ai-mark"><Sparkles size={13} /></span>
-                <div className="ai-typing-body">
-                  <span className="ai-dots"><i /><i /><i /></span>
-                  <span className="subtle">{t('ai.sending')}</span>
-                  {slow && <span className="subtle ai-slow">{t('ai.stillWorking')}</span>}
-                </div>
-              </div>
-            )}
-            {unsent.map((u) => (
-              <div key={u.id} className="ai-turn ai-turn-user ai-turn-unsent">
-                <AttachedThumbs images={u.images ?? []} />
-                {u.text && <div className="ai-bubble">{u.text}</div>}
-                <div className="ai-unsent">
-                  <p className="ai-unsent-line" role="alert">
-                    <strong>{t('ai.notSent')}</strong> <span className="subtle">{u.error}</span>
-                  </p>
-                  <div className="ai-unsent-actions">
-                    <button type="button" className="btn ai-touch ai-retry" onClick={() => !busy && void transmit(u.text, u.images ?? [], !!u.keep, u.id)} disabled={busy}>
-                      <RotateCw size={14} aria-hidden /> {t('ai.retryNow')}
-                    </button>
-                    <button type="button" className="btn ghost ai-touch" onClick={() => editUnsent(u)} disabled={busy}>
-                      <Pencil size={14} aria-hidden /> {t('ai.edit')}
-                    </button>
+      <div className="ai-main" hidden={session.open}>
+        <ChatList tree={tree} active={conv} tabs={tabState.tabs} open={listOpen} onPick={showChat} onNew={() => void newChat()} onClose={closeList} onDeleted={onChatDeleted} />
+        <div className="ai-body ai-drop-zone" {...(canDraft ? attach.dropProps : {})}>
+          <DropVeil show={attach.dragging} />
+          <div className="ai-thread">
+            <div className="ai-log" ref={logRef} role="log" aria-live="polite" aria-label={t('ai.title')} onScroll={onLogScroll} onClick={onLogClick}>
+              {(!conv || chat.isPending) && <Skeleton lines={3} />}
+              {chat.isError && !String(chat.error.message).includes('ai.err_no_chat') && <ErrorState title={t('ai.loadFailed')} message={errorText(chat.error, t.locale)} onRetry={() => chat.refetch()} />}
+              {empty && (
+                <div className="ai-empty">
+                  <div className="ai-welcome">
+                    <span className="ai-mark" aria-hidden><Sparkles size={16} /></span>
+                    <p className="ai-welcome-text">{t('ai.empty')}</p>
+                  </div>
+                  <p className="ai-examples-title">{t('ai.examplesTitle')}</p>
+                  <div className="ai-examples">
+                    {examples.map((ex) => (
+                      <button
+                        key={ex.key}
+                        type="button"
+                        className={`ai-example${ex.open ? ' ai-example-primary' : ''}`}
+                        onClick={() => {
+                          if (ex.open) openSession();
+                          else {
+                            setComposer(t(ex.key, { name: ex.name ?? '' }));
+                            areaRef.current?.focus();
+                          }
+                        }}
+                      >
+                        {ex.open && <Users size={14} aria-hidden />}
+                        {t(ex.key, { name: ex.name ?? '' })}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              </div>
-            ))}
-            {!busy && !session.open && (continueError !== null || chat.data?.continueDue) && (
-              <div className="ai-turn ai-turn-assistant">
-                <span className="ai-mark" aria-hidden><Sparkles size={13} /></span>
-                <div className="ai-turn-body">
-                  <p className="ai-unsent-line" role={continueError !== null ? 'alert' : undefined}>
-                    {t(continueError !== null ? 'ai.continueFailed' : 'ai.continueDue')}{continueError && <span className="subtle"> {continueError}</span>}
-                  </p>
-                  <div className="ai-unsent-actions ai-continue-actions">
-                    <button type="button" className="btn ai-touch ai-retry" onClick={() => void retryContinue()}>
-                      <RotateCw size={14} aria-hidden /> {t(continueError !== null ? 'ai.retryNow' : 'ai.continueNow')}
-                    </button>
+              )}
+              {conv && items.map((m, i) => (m.role === 'user' ? <UserTurn key={m.id} tree={tree} item={m} /> : <AssistantTurn key={m.id} tree={tree} conv={conv} item={m} people={people} places={places} onDecided={onDecided} steward={steward} models={models} canRetry={!busy && retryable(i)} onRetry={(id, model) => void retryAnswer(conv, id, model)} last={i === items.length - 1} busy={busy} onSay={(words) => { if (!getRun(conv).busy) void transmit(ctx(conv), words, [], false); }} pagePerson={viewed && { id: viewed.id, given: fullName(viewed) }} />))}
+              {pending !== null && (
+                <div className="ai-turn ai-turn-user ai-turn-pending">
+                  <AttachedThumbs images={pendingImages} />
+                  {pending && <div className="ai-bubble">{pending}</div>}
+                </div>
+              )}
+              {busy && !session.open && (
+                <div className="ai-turn ai-turn-assistant ai-turn-live">
+                  <span className="ai-mark" aria-hidden><Sparkles size={13} /></span>
+                  <div className="ai-turn-body">
+                    {/* Hidden from screen readers while it is written: the log announces the finished reply, once, when it is stored. */}
+                    <div aria-hidden="true">
+                      {live?.text
+                        ? <div className="ai-text ai-text-live" dangerouslySetInnerHTML={{ __html: renderMarkdown(live.text, { images: 'text' }) }} />
+                        : (
+                          <div className="ai-live-status">
+                            <span className="ai-dots"><i /><i /><i /></span>
+                            <span className="subtle">{t(live?.step ?? 'ai.sending')}</span>
+                            {slow && <span className="subtle ai-slow">{t('ai.stillWorking')}</span>}
+                          </div>
+                        )}
+                    </div>
+                    <button type="button" className="btn ghost ai-touch ai-stop" onClick={stream.stop}><Square size={13} aria-hidden /> {t('ai.stop')}</button>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
-          {away && (
-            <button type="button" className="ai-jump" onClick={jumpLatest}>
-              <ArrowDown size={14} aria-hidden /> {t('ai.jumpLatest')}
-            </button>
-          )}
-        </div>
-        <p className="ai-sr" role="status">{busy && !session.open ? t('ai.sending') : ''}</p>
-
-        <form className="ai-composer" onSubmit={send}>
-          <label className="ai-sr" htmlFor="ai-input">{t('ai.placeholder')}</label>
-          {canDraft && <ImageTray attach={attach} provider={status?.provider} keep={keepImages} onKeep={setKeepImages} disabled={busy} />}
-          {listening && (
-            <p className="ai-rec" role="status">
-              <span className="ai-rec-dot" aria-hidden /> {t('ai.micRecording')}
-              {dictation.interim && <em className="subtle"> {dictation.interim}</em>}
-            </p>
-          )}
-          <textarea
-            id="ai-input"
-            ref={areaRef}
-            rows={1}
-            maxLength={4000}
-            placeholder={t('ai.placeholder')}
-            value={text}
-            disabled={busy}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={onInputKey}
-          />
-          <div className="ai-composer-row">
-            {canDraft && <AttachButton attach={attach} disabled={busy} />}
-            {dictation.supported && (
-              <button type="button" className={`btn ai-touch ai-mic${listening ? ' ai-mic-on' : ''}`} onClick={toggleMic} disabled={busy} aria-pressed={listening} aria-label={listening ? t('ai.micStop') : t('ai.mic')} title={listening ? t('ai.micStop') : t('ai.mic')}>
-                {listening ? <MicOff size={16} aria-hidden /> : <Mic size={16} aria-hidden />}
-                <span className="ai-mic-label">{listening ? t('ai.micStop') : t('ai.mic')}</span>
+              )}
+              {unsent.map((u) => (
+                <div key={u.id} className="ai-turn ai-turn-user ai-turn-unsent">
+                  <AttachedThumbs images={u.images ?? []} />
+                  {u.text && <div className="ai-bubble">{u.text}</div>}
+                  <div className="ai-unsent">
+                    <p className="ai-unsent-line" role="alert">
+                      <strong>{t('ai.notSent')}</strong> <span className="subtle">{u.error}</span>
+                    </p>
+                    <div className="ai-unsent-actions">
+                      <button type="button" className="btn ai-touch ai-retry" onClick={() => { if (conv && !getRun(conv).busy) void transmit(ctx(conv), u.text, u.images ?? [], !!u.keep, { retryId: u.id }); }} disabled={busy}>
+                        <RotateCw size={14} aria-hidden /> {t('ai.retryNow')}
+                      </button>
+                      <button type="button" className="btn ghost ai-touch" onClick={() => editUnsent(u)} disabled={busy}>
+                        <Pencil size={14} aria-hidden /> {t('ai.edit')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {conv && !busy && !session.open && (continueError !== null || chat.data?.continueDue) && (
+                <div className="ai-turn ai-turn-assistant">
+                  <span className="ai-mark" aria-hidden><Sparkles size={13} /></span>
+                  <div className="ai-turn-body">
+                    <p className="ai-unsent-line" role={continueError !== null ? 'alert' : undefined}>
+                      {t(continueError !== null ? 'ai.continueFailed' : 'ai.continueDue')}{continueError && <span className="subtle"> {continueError}</span>}
+                    </p>
+                    <div className="ai-unsent-actions ai-continue-actions">
+                      <button type="button" className="btn ai-touch ai-retry" onClick={() => void retryContinue()}>
+                        <RotateCw size={14} aria-hidden /> {t(continueError !== null ? 'ai.retryNow' : 'ai.continueNow')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            {away && (
+              <button type="button" className="ai-jump" onClick={jumpLatest}>
+                <ArrowDown size={14} aria-hidden /> {t('ai.jumpLatest')}
               </button>
             )}
-            <button type="submit" className="btn primary ai-touch ai-send" disabled={busy || attach.reading || (!text.trim() && !attach.images.length)}>
-              <Send size={15} aria-hidden /> {t('ai.send')}
-            </button>
           </div>
-        </form>
-        {imageError && <p className="ai-foot ai-card-error" role="alert">{t(imageError as Key)}</p>}
-        <p className="ai-composer-hint subtle">{t(canDraft ? 'ai.composerHintImages' : 'ai.composerHint')}</p>
-        {dictation.state === 'denied' && <p className="ai-foot subtle" role="status">{t('ai.micDenied')}</p>}
-        {dictation.state === 'error' && <p className="ai-foot subtle" role="status">{t('ai.micFailed')}</p>}
-        {!dictation.supported && <p className="ai-foot subtle">{t('ai.micUnsupported')}</p>}
-        {!canPropose && <p className="ai-foot subtle">{t('ai.viewerNote')}</p>}
+          <p className="ai-sr" role="status">{busy && !session.open ? t(live?.step ?? 'ai.sending') : ''}</p>
+
+          <form className="ai-composer" onSubmit={send}>
+            <label className="ai-sr" htmlFor="ai-input">{t('ai.placeholder')}</label>
+            {canDraft && <ImageTray attach={attach} provider={status?.provider} keep={keepImages} onKeep={setKeepImages} />}
+            {listening && (
+              <p className="ai-rec" role="status">
+                <span className="ai-rec-dot" aria-hidden /> {t('ai.micRecording')}
+                {dictation.interim && <em className="subtle"> {dictation.interim}</em>}
+              </p>
+            )}
+            <textarea
+              id="ai-input"
+              ref={areaRef}
+              rows={1}
+              maxLength={4000}
+              placeholder={t('ai.placeholder')}
+              onKeyDown={onInputKey}
+            />
+            <div className="ai-composer-row">
+              {canDraft && <AttachButton attach={attach} />}
+              {dictation.supported && (
+                <button type="button" className={`btn ai-touch ai-mic${listening ? ' ai-mic-on' : ''}`} onClick={toggleMic} aria-pressed={listening} aria-label={listening ? t('ai.micStop') : t('ai.mic')} title={listening ? t('ai.micStop') : t('ai.mic')}>
+                  {listening ? <MicOff size={16} aria-hidden /> : <Mic size={16} aria-hidden />}
+                  <span className="ai-mic-label">{listening ? t('ai.micStop') : t('ai.mic')}</span>
+                </button>
+              )}
+              {steward && models && conv && <ModelPicker choices={models} override={chat.data?.override ?? null} onChange={(m) => void chooseModel(conv, m)} />}
+              <button type="submit" className="btn primary ai-touch ai-send" disabled={busy || !conv || attach.reading || (!text.trim() && !attach.images.length)} title={busy ? t('ai.waitForReply') : undefined}>
+                <Send size={15} aria-hidden /> {t('ai.send')}
+              </button>
+            </div>
+          </form>
+          {imageError && <p className="ai-foot ai-card-error" role="alert">{t(imageError as Key)}</p>}
+          <p className="ai-composer-hint subtle">{t(canDraft ? 'ai.composerHintImages' : 'ai.composerHint')}</p>
+          {dictation.state === 'denied' && <p className="ai-foot subtle" role="status">{t('ai.micDenied')}</p>}
+          {dictation.state === 'error' && <p className="ai-foot subtle" role="status">{t('ai.micFailed')}</p>}
+          {!dictation.supported && <p className="ai-foot subtle">{t('ai.micUnsupported')}</p>}
+          {!canPropose && <p className="ai-foot subtle">{t('ai.viewerNote')}</p>}
+        </div>
       </div>
     </aside>
   );
@@ -689,18 +863,28 @@ function KeptImage({ tree, id, n }: { tree: string; id: string; n: number }) {
 }
 
 /** The assistant's turn: its text as Markdown, names and places as links, its proposals as cards, and the pages it drew on. */
-function AssistantTurn({ tree, item, people, places, onDecided }: { tree: string; item: ChatItem; people: { id: string; name: string }[]; places: string[]; onDecided: OnDecided }) {
+function AssistantTurn({ tree, conv, item, people, places, onDecided, steward, models, canRetry, onRetry, last, busy, onSay, pagePerson }: {
+  tree: string; conv: string; item: ChatItem; people: { id: string; name: string }[]; places: string[]; onDecided: OnDecided;
+  /** The newest turn: only it can take an answer, and only it offers quick replies. */
+  last: boolean; busy: boolean; onSay: (text: string) => void; pagePerson: { id: string; given: string } | undefined;
+  steward: boolean; models: ModelChoices | undefined; canRetry: boolean; onRetry: (itemId: string, model: PickedModel) => void;
+}) {
   const t = useT();
+  const stronger = steward && item.model && models ? nextStronger(item.model as { provider: Provider | 'fake'; model: string }, models.models) : null;
   const sources = (item.sources ?? []).filter((s) => webUrl(s.url));
+  const chips = last && !busy ? chipsFor(item, pagePerson, (id) => people.find((p) => p.id === id)?.name) : [];
   return (
-    <div className="ai-turn ai-turn-assistant">
+    <div className={`ai-turn ai-turn-assistant${item.alternateOf ? ' ai-turn-alternate' : ''}`}>
       <span className="ai-mark" aria-hidden><Sparkles size={13} /></span>
       <div className="ai-turn-body">
+        {item.alternateOf && <p className="ai-answer-tag">{t('ai.answerAlternate')}</p>}
         {/* The model's text: an image in it shows its alt text only, so nothing loads from an address the model chose. */}
         {item.text && (
           <div className="ai-text" dangerouslySetInnerHTML={{ __html: renderMarkdown(linkMentions(item.text, { tree, people, places }), { images: 'text' }) }} />
         )}
-        {item.proposals?.map((p) => <ProposalCard key={p.id} tree={tree} itemId={item.id} proposal={p} onDecided={onDecided} />)}
+        {item.blocks?.map((b) => (b.type === 'widget' ? <Widget key={b.id} tree={tree} conv={conv} itemId={item.id} block={b} /> : null))}
+        {item.proposals?.length ? <ProposalGroup tree={tree} conv={conv} itemId={item.id} proposals={item.proposals} onDecided={onDecided} /> : null}
+        {item.blocks?.map((b) => (b.type === 'question' ? <QuestionCard key={b.id} tree={tree} conv={conv} itemId={item.id} block={b} last={last} busy={busy} onSend={onSay} /> : null))}
         {sources.length > 0 && (
           <div className="ai-sources">
             <p className="ai-sources-title">{t('ai.sourcesTitle')}</p>
@@ -711,6 +895,21 @@ function AssistantTurn({ tree, item, people, places, onDecided }: { tree: string
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+        {steward && item.model && (
+          <div className="ai-answer-foot">
+            <span>{t('ai.modelWrote', { model: modelName(models, item.model.model) })}</span>
+            {canRetry && stronger && <button type="button" className="ai-answer-link" onClick={() => onRetry(item.id, { provider: stronger.provider, model: stronger.id })}>{t('ai.retryStronger')}</button>}
+            {canRetry && models && <RetryModelMenu choices={models} onPick={(m) => onRetry(item.id, m)} label={t(stronger ? 'ai.retryPick' : 'ai.retryAnother')} />}
+          </div>
+        )}
+        {chips.length > 0 && (
+          <div className="aw-chips" role="group" aria-label={t('ai.examplesTitle')}>
+            {chips.map((chip) => {
+              const words = t(chip.key, { name: chip.name ?? '' });
+              return <button key={chip.key} type="button" className="aw-chip" onClick={() => onSay(words)}>{words}</button>;
+            })}
           </div>
         )}
       </div>

@@ -1,7 +1,7 @@
 import { translateMessage, useT } from '~/lib/i18n';
 // The frame for /signin, /setup and /invite: one card on the canvas, a crest above it, and a plain
 // explanation of passkeys for relatives who have never used one. The language picker sits in the card's corner.
-import { AlertCircle, Fingerprint, KeyRound, Smartphone } from 'lucide-react';
+import { AlertCircle, Fingerprint, KeyRound, ShieldQuestion, Smartphone } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { LanguagePicker } from './LanguagePicker';
 import '~/styles/auth.css';
@@ -24,6 +24,16 @@ export function AuthCard({ crest, kicker, title, lede, children, wide }: { crest
 export function AuthError({ children }: { children: ReactNode }) {
   const t = useT();
   return children ? <p className="auth-error" role="alert"><AlertCircle size={18} />{typeof children === 'string' ? translateMessage(children,t.locale) : children}</p> : null;
+}
+
+/** Behind Cloudflare Access, a visit with no verified identity: Kindred has nothing of its own to offer instead. */
+export function NoAccessIdentity() {
+  const t = useT();
+  return (
+    <AuthCard crest={<ShieldQuestion size={44} />} kicker="Kindred" title={t('auth.signin_title')} lede={t('auth.no_identity_text')}>
+      <button className="btn primary auth-go" onClick={() => window.location.reload()}>{t('auth.try_again')}</button>
+    </AuthCard>
+  );
 }
 
 /** "What's a passkey?" in three plain steps. `creating` words it for making one. */

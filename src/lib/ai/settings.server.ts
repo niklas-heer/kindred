@@ -167,11 +167,12 @@ export function estimateMicros(req: AiRequest, price: Price, outputTokens = req.
 
 /**
  * What a failed call costs, when no request of it completed. A refusal, a rate limit, a key the provider does not take, a
- * network error or a 5xx did not bill, so nothing is charged. A timeout, or a reply that could not be read (or was cut
- * off), may have billed, so the reservation stays. A failure that is not a typed AiError is charged its reservation, to be safe.
+ * network error or a 5xx did not bill, so nothing is charged. A timeout, a reply that could not be read (or was cut
+ * off), a reply the reader stopped, and anything that went wrong once a reply had begun streaming may have billed, so the
+ * reservation stays. A failure that is not a typed AiError is charged its reservation, to be safe.
  */
 export function failureMicros(e: unknown, reserved: number): number {
-  if (e instanceof AiError && e.code !== 'timeout' && e.code !== 'bad-output') return 0;
+  if (e instanceof AiError && !e.midStream && e.code !== 'timeout' && e.code !== 'bad-output' && e.code !== 'aborted') return 0;
   return reserved;
 }
 
@@ -205,6 +206,8 @@ export function budgeted(tree: string, limitMicros: number, adapter: AiAdapter, 
     model: adapter.model,
     reasoning: adapter.reasoning,
     async complete(req) {
+      // A reply stopped before this call began costs nothing, and books nothing.
+      if (req.signal?.aborted && (req.signal.reason as Error | undefined)?.name !== 'TimeoutError') throw new AiError('aborted', 'ai.stopped');
       // The reservation prices the reply cap the adapter will send (a reasoning model's is raised), so they agree.
       const cap = outputCap(adapter.provider, adapter.model, req.maxTokens, adapter.reasoning);
       const estimate = estimateMicros(req, price, cap, callRounds(adapter.provider, req));
@@ -213,7 +216,8 @@ export function budgeted(tree: string, limitMicros: number, adapter: AiAdapter, 
       let actual = booked.amount;
       try {
         const reply = await adapter.complete(req);
-        actual = replyMicros(reply, price);
+        // A stream that never said what it used keeps its reservation: it was a real call, and its size is not known.
+        actual = reply.usageUnknown ? booked.amount : replyMicros(reply, price);
         return reply;
       } catch (e) {
         // A failure after completed requests keeps what they billed. The request that was in flight when it failed may have
@@ -244,10 +248,11 @@ export function routeBlock(r: ResolvedRoute): string | null {
  * AiError with a message in the reader's language when the route cannot run (its provider is not connected, so nothing is
  * sent). Does not check a feature's switch, and does not book: the caller wraps it (`budgeted`, or background's cap).
  */
-export async function routeAdapter(tree: string, route: Route, locale: AiLocale): Promise<{ inner: AiAdapter; price: Price; settings: Settings; resolved: ResolvedRoute }> {
+export async function routeAdapter(tree: string, route: Route, locale: AiLocale, override?: { provider: Provider; model: string } | null): Promise<{ inner: AiAdapter; price: Price; settings: Settings; resolved: ResolvedRoute }> {
   const c = tr(locale);
   const settings = await readSettings(tree);
-  const resolved = await resolveRoute(tree, route);
+  // A steward's choice for one chat, already checked: it goes to that provider's own key, like any route.
+  const resolved: ResolvedRoute = override ? { route, provider: override.provider, model: override.model, effective: override, connected: true, needsModel: false } : await resolveRoute(tree, route);
   const block = routeBlock(resolved);
   if (block) throw new AiError('not-configured', c(block as 'ai.errNotConfigured'));
   const { provider, model } = resolved.effective!;
@@ -267,12 +272,12 @@ export async function routeAdapter(tree: string, route: Route, locale: AiLocale)
  * the reader's language when it can't run. `route` is the route whose provider and model run it (the feature's own by default). `webSearch` is for the caller to pass on: only the assistant does, and only when
  * the reply can say what it searched.
  */
-export async function adapterForFeature(tree: string, feature: Feature, locale: AiLocale, route: Route = feature as Route): Promise<{ adapter: AiAdapter; webSearch: boolean; settings: Settings }> {
+export async function adapterForFeature(tree: string, feature: Feature, locale: AiLocale, route: Route = feature as Route, override?: { provider: Provider; model: string } | null): Promise<{ adapter: AiAdapter; webSearch: boolean; settings: Settings }> {
   const c = tr(locale);
   const settings = await readSettings(tree);
   if (!settings.features[feature]) throw new AiError('not-configured', c('ai.errOff'));
   if (settings.monthlyMicros <= 0) throw new AiError('budget', c('ai.errBudget'));
-  const { inner, price } = await routeAdapter(tree, route, locale);
+  const { inner, price } = await routeAdapter(tree, route, locale, override);
   return { adapter: budgeted(tree, settings.monthlyMicros, inner, price, c), webSearch: settings.webSearch, settings };
 }
 

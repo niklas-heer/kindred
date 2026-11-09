@@ -11,6 +11,9 @@ import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from 'jose';
 const dir = mkdtempSync(join(tmpdir(), 'kindred-access-bootstrap-'));
 process.env.KINDRED_DATA_DIR = dir;
 process.env.KINDRED_ACCOUNTS_DB = join(dir, 'accounts.db');
+process.env.KINDRED_AUTH = 'cloudflare-access';
+process.env.CF_ACCESS_TEAM_DOMAIN = 'family.cloudflareaccess.com';
+process.env.CF_ACCESS_AUD = 'aud-bootstrap';
 for (const k of ['KINDRED_SETUP_CODE', 'KINDRED_REQUIRE_SETUP_CODE', 'KINDRED_DEFAULT_TREE', 'KINDRED_ORIGIN']) delete process.env[k];
 
 const { accessConfig, verifyAccessToken } = await import('./access.server.ts');

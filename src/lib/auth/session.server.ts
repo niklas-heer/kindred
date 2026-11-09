@@ -1,8 +1,8 @@
-// Who is asking: a session cookie from a passkey sign-in, or else (behind Cloudflare Access) a
-// verified Access identity. The cookie holds a random token; the store keeps only its hash.
+// Who is asking, by the installation's one sign-in method (method.server.ts): a session cookie from a passkey sign-in, or a
+// verified Cloudflare Access identity. Never both. The cookie holds a random token; the store keeps only its hash.
 import { setupCodeRequired } from './setup.server.ts';
 import { families, makeFirstFamily } from './trees.server.ts';
-import { accessEmail } from './access.server.ts';
+import { accessEmail, authMethod } from './method.server.ts';
 import { isLocale, negotiateLocale, translate, type Locale } from '../i18n/dictionary.ts';
 import {
   commit, createSession, deleteSession, newUser, noUsersYet, now, pendingInvitesFor, sessionByToken, slideSession, touchUser, upsertMembership, useInvite,
@@ -130,15 +130,18 @@ const nameFromEmail = (email: string) =>
  * `verifiedEmail` is the Cloudflare Access check; tests pass their own.
  *
  * The guest host (guest-host.ts) is open to the internet and has no Access in front of it, so it honours only a guest's visit:
- * never an account's session cookie, and never an Access identity.
+ * never an account's session cookie, and never an Access identity. A guest's visit has its own token, so it works under either
+ * method. While the sign-in setting is refused (method.server.ts), nobody is an account: not by cookie, not by token.
  */
 export async function getSession(request: Request, verifiedEmail: (r: Request) => Promise<string | undefined> = accessEmail, listFamilies: () => Promise<{ id: string }[]> = families): Promise<Session> {
   const guest = await guestOf(request);
-  if (onGuestHost(request)) return { user: null, via: null, guest };
-  return { ...(await accountSession(request, verifiedEmail, listFamilies)), guest };
+  const method = authMethod();
+  if (onGuestHost(request) || !method) return { user: null, via: null, guest };
+  return { ...(await (method === 'kindred' ? passkeySession(request) : accessSession(request, verifiedEmail, listFamilies))), guest };
 }
 
-async function accountSession(request: Request, verifiedEmail: (r: Request) => Promise<string | undefined>, listFamilies: () => Promise<{ id: string }[]>): Promise<Session> {
+/** `kindred`: the session cookie, and nothing else. An Access token on the request is not looked at. */
+async function passkeySession(request: Request): Promise<Session> {
   const token = sessionToken(request);
   if (token) {
     const row = await sessionByToken(token);
@@ -149,7 +152,11 @@ async function accountSession(request: Request, verifiedEmail: (r: Request) => P
       return { user, via: 'passkey', setCookie: slid ? cookie(request, token, Math.floor((slid - now()) / 1000)) : undefined };
     }
   }
+  return { user: null, via: null };
+}
 
+/** `cloudflare-access`: the verified token, and nothing else. A session cookie left from earlier is not looked at. */
+async function accessSession(request: Request, verifiedEmail: (r: Request) => Promise<string | undefined>, listFamilies: () => Promise<{ id: string }[]>): Promise<Session> {
   const email = await verifiedEmail(request);
   if (!email) return { user: null, via: null };
   // A verified Access identity: the account with that email, or an invitation sent to that email,
@@ -162,9 +169,9 @@ async function accountSession(request: Request, verifiedEmail: (r: Request) => P
     try {
       trees = [{ id: await makeFirstFamily(translate(guestLocale(request), 'setup.family_default')) }];
     } catch (e) {
-      // Nothing is signed in and no account is made: the reader gets /setup, whose passkey step names the same problem.
+      // Nothing is signed in and no account is made: the reader gets /setup, which names the same problem when they try it.
       console.error('[kindred] no first family for this Access sign-in:', e instanceof Error ? e.message : e);
-      return { user: null, via: null };
+      return { user: null, via: null, uninvitedEmail: email };
     }
   }
   // One batch per decision. The first account is guarded by "nobody has an account yet", a new

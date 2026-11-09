@@ -171,7 +171,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
                 <ArrowLeftRight size={17} /> {t("shell.importExport")} </Link>
             )}
             <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setPasskeys(true); }}>
-              <KeyRound size={17} /> {t("accountmenu.your_name_passkeys")} </button>
+              <KeyRound size={17} /> {session?.auth === 'cloudflare-access' ? t('auth.your_name') : t("accountmenu.your_name_passkeys")} </button>
             {tree && m && remindersOn.data && (
               <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setReminders(true); }}>
                 <Bell size={17} /> {t('reminders.menu')} </button>
@@ -199,7 +199,9 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
   const t = useT();
   const session = useSession();
   const qc = useQueryClient();
-  const keys = useQuery({ ...myPasskeysQuery, enabled: open });
+  // Passkeys exist only under Kindred's own sign-in. Behind Cloudflare Access this dialog is just the name.
+  const passkeysOn = session?.auth !== 'cloudflare-access';
+  const keys = useQuery({ ...myPasskeysQuery, enabled: open && passkeysOn });
   const [name, setName] = useState(session?.user?.name ?? '');
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<Passkey | null>(null);
@@ -214,11 +216,10 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
   });
   const rename = useMutation({ mutationFn: () => renameMe({ data: { name } }), onSuccess: refresh, onError: (e) => setError(e.message) });
   const list = keys.data ?? [];
-  const accessOnly = session?.user?.via === 'access';
 
   return (
     <>
-      <Dialog open={open} onClose={onClose} title={t("accountmenu.your_name_passkeys")} width={520} bodyClassName="acct-dialog">
+      <Dialog open={open} onClose={onClose} title={passkeysOn ? t("accountmenu.your_name_passkeys") : t('auth.your_name')} width={520} bodyClassName="acct-dialog">
         <form className="acct-rename" onSubmit={(e) => { e.preventDefault(); setError(null); rename.mutate(); }}>
           <label className="field">
             <span>{t("accountmenu.your_name_as_the_family_sees_it")}</span>
@@ -229,10 +230,11 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
           </button>
         </form>
 
-        <h3 className="acct-h">{t("accountmenu.passkeys")}</h3>
-        <p className="acct-help"> {t("accountmenu.a_passkey_lets_this_device_sign_you_in_with_your_face_fingerprint_or_screen_lock_nothing_to_remember_add_one_on_each_phone_or_computer_you_use")}{accessOnly ? t("accountmenu.or_keep_signing_in_through_your_organisation_s_login") : ''}.
-        </p>
         {error && <p className="acct-error" role="alert">{translateMessage(error,t.locale)}</p>}
+        {passkeysOn && <>
+        <h3 className="acct-h">{t("accountmenu.passkeys")}</h3>
+        <p className="acct-help"> {t("accountmenu.a_passkey_lets_this_device_sign_you_in_with_your_face_fingerprint_or_screen_lock_nothing_to_remember_add_one_on_each_phone_or_computer_you_use")}.
+        </p>
         {keys.isPending ? (
           <p className="subtle">{t("accountmenu.loading_your_passkeys")}</p>
         ) : keys.isError ? (
@@ -253,8 +255,8 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
                 <button
                   className="btn ghost icon acct-key-remove"
                   aria-label={t('account.removeKey', {device:k.device ?? t('accountmenu.this_device')})}
-                  title={list.length <= 1 && !accessOnly ? t("accountmenu.your_only_passkey_add_another_first") : t("accountmenu.remove")}
-                  disabled={list.length <= 1 && !accessOnly}
+                  title={list.length <= 1 ? t("accountmenu.your_only_passkey_add_another_first") : t("accountmenu.remove")}
+                  disabled={list.length <= 1}
                   onClick={() => setConfirm(k)}
                 >
                   <Trash2 size={16} />
@@ -269,6 +271,7 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
           </button>
         )}
         {add.isSuccess && <p className="acct-ok" role="status"><Check size={15} /> {t("accountmenu.passkey_added")}</p>}
+        </>}
       </Dialog>
       <Dialog
         open={!!confirm}

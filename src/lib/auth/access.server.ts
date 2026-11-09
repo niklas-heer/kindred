@@ -3,8 +3,8 @@
 // keys (RS256), names our application (aud) and team (iss), and hasn't expired. A plain email header
 // (`Cf-Access-Authenticated-User-Email`) is never trusted: anyone who reaches the server directly can set it.
 //
-// Configure with CF_ACCESS_TEAM_DOMAIN (e.g. `myfamily.cloudflareaccess.com`) and CF_ACCESS_AUD (the
-// application's Audience tag). Without both, Access is ignored and passkeys are the only way in.
+// Used only when KINDRED_AUTH is `cloudflare-access` (method.server.ts), with CF_ACCESS_TEAM_DOMAIN
+// (e.g. `myfamily.cloudflareaccess.com`) and CF_ACCESS_AUD (the application's Audience tag).
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose';
 
 export interface AccessConfig { team: string; aud: string }
@@ -51,13 +51,3 @@ export async function verifyAccessToken(token: string | null | undefined, config
     return undefined;
   }
 }
-
-/** The verified Access email for a request, when Access is configured. */
-export async function accessEmail(request: Request): Promise<string | undefined> {
-  const config = accessConfig();
-  if (!config) return undefined;
-  return verifyAccessToken(request.headers.get('cf-access-jwt-assertion'), config);
-}
-
-/** Where to send someone to sign out of Access too. */
-export const accessLogoutUrl = () => (accessConfig() ? '/cdn-cgi/access/logout' : undefined);

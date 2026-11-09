@@ -78,6 +78,9 @@ test('bootstrap modes, discoverable options, exclusions and proxy origin', async
       await store.accounts().run('DELETE FROM user');
       const { getSession } = await import('./session.server.ts');
       const families = async () => [{id:'modern'}, {id:'realm'}];
+      process.env.KINDRED_AUTH = 'cloudflare-access';
+      process.env.CF_ACCESS_TEAM_DOMAIN = 'family.cloudflareaccess.com';
+      process.env.CF_ACCESS_AUD = 'aud-setup';
       process.env.KINDRED_SETUP_CODE = 'required';
       assert.equal((await getSession(request, async () => 'first@example.org', families)).user, null);
       delete process.env.KINDRED_SETUP_CODE;
@@ -90,6 +93,7 @@ test('bootstrap modes, discoverable options, exclusions and proxy origin', async
       assert.equal(await store.userCount(), 1);
       const winner = results.find((s) => s.user)!.user!;
       assert.deepEqual((await store.membershipsOf(winner.id)).map((m) => m.role), ['steward','steward']);
+      for (const k of ['KINDRED_AUTH', 'CF_ACCESS_TEAM_DOMAIN', 'CF_ACCESS_AUD']) delete process.env[k];
     });
     await t.test('a membership keeps the higher role; a family keeps a steward', async () => {
       const a = store.accounts();

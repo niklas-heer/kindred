@@ -1,13 +1,16 @@
 // The fake provider, for tests: KINDRED_AI_FAKE=1 makes every AI feature use it instead of a real
 // provider, so nothing ever calls an API. It answers from fixed fixtures:
 //   - chat: "/tool <name> <json>" as a message makes the model call that tool with those arguments;
-//     after a tool result it answers with a summary; anything else gets an echo.
+//     after a tool result it answers with a summary; anything else gets an echo. In a streamed reply, FAKE-SLOW in the
+//     message takes its time and FAKE-FAIL breaks off halfway.
+//   - chat abilities: the FAKE-ASK, FAKE-WIDGET, FAKE-APPLY and similar phrases (fake-abilities.ts).
 //   - faces: the first candidate in the "CANDIDATES:" line (if any) matches the one face it finds.
 //   - look (a portrait) and an occupation's translation: fixed answers that pass the same validation as real ones.
 //   - arms from a name: step one (name_meaning) answers a Heer-like example with web sources when web search is
 //     on, and one generic meaning for any other surname; step two (arms_designs) draws three designs on the
 //     meaning ids the reader chose (the "m1", "own1" … lines of its prompt).
-import type { AiAdapter, AiMessage, AiReply, AiRequest } from './adapters';
+import { abilityStep } from './fake-abilities';
+import { AiError, type AiAdapter, type AiMessage, type AiReply, type AiRequest } from './adapters';
 
 /** The usage a fake call reports: `n` tokens, half sent and half generated, and no search unless the call asked for one. */
 const split = (n: number) => ({ tokens: n, inputTokens: Math.ceil(n / 2), outputTokens: Math.floor(n / 2), searches: 0 });
@@ -93,7 +96,50 @@ function fixture(name: string, prompt: string, user: string, webSearch: boolean)
   return { json: {} };
 }
 
+/** Waits, or stops when the reply is stopped, as a provider's stream would. */
+function pause(ms: number, signal?: AbortSignal): Promise<void> {
+  const stop = () => ((signal?.reason as Error | undefined)?.name === 'TimeoutError' ? new AiError('timeout', 'The fake did not answer in time.') : new AiError('aborted', 'ai.stopped'));
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(stop());
+    const t = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => {
+      clearTimeout(t);
+      reject(stop());
+    }, { once: true });
+  });
+}
+
+/** A streamed reply, written out in small pieces. FAKE-SLOW takes its time, so a test can press Stop or reload; FAKE-FAIL breaks off halfway. */
+async function writeOut(reply: AiReply, req: AiRequest): Promise<void> {
+  const said = lastUser(req.messages);
+  const gap = /FAKE-SLOW/.test(said) ? 250 : 12;
+  // A step that only calls tools: long enough to see the status line.
+  if (!reply.text && reply.calls.length) await pause(350, req.signal);
+  const size = 6;
+  for (let at = 0; at < reply.text.length; at += size) {
+    await pause(gap, req.signal);
+    if (/FAKE-FAIL/.test(said) && at * 2 >= reply.text.length) {
+      const e = new AiError('provider', 'Fake: the provider broke off.');
+      e.midStream = true;
+      throw e;
+    }
+    req.onDelta?.(reply.text.slice(at, at + size));
+  }
+}
+
 export function fakeAdapter(model = 'fake-model'): AiAdapter {
+  const scripted = scriptedAdapter(model);
+  return {
+    ...scripted,
+    async complete(req) {
+      const reply = await scripted.complete(req);
+      if (req.onDelta && !req.json && !req.webSearch) await writeOut(reply, req);
+      return reply;
+    },
+  };
+}
+
+function scriptedAdapter(model: string): AiAdapter {
   return {
     provider: 'fake',
     model,
@@ -113,6 +159,8 @@ export function fakeAdapter(model = 'fake-model'): AiAdapter {
         if (again) return { text: 'Fake: proposing that again', calls: [{ id: `fake-repeat-${req.messages.length}`, name: again[1], args: JSON.parse(again[2]) }], ...split(30) };
         return { text: `Fake continuation: ${last.text}`, calls: [], ...split(20) };
       }
+      const ability = abilityStep(req, user);
+      if (ability) return { ...ability, ...split(30) };
       if (last?.role === 'tool') return { text: `Fake summary: ${last.content.slice(0, 300)}`, calls: [], ...split(40) };
       // A family session (its transcript): a line "FAKE-FAMILY {json}" is the draft the fake proposes, so a test can script one.
       const family = /FAKE-FAMILY (\{.*\})/.exec(user);
@@ -146,7 +194,10 @@ export function fakeAdapter(model = 'fake-model'): AiAdapter {
       if (req.webSearch) {
         return { text: `Fake reply, searched: ${user.slice(0, 200)}`, calls: [], ...split(20), searches: 1, sources: [{ url: 'https://en.wikipedia.org/wiki/Fake_source', title: 'Fake source' }] };
       }
-      return { text: `Fake reply: ${user.slice(0, 200)}`, calls: [], ...split(20) };
+      // A line "FAKE-SLOW 2000" holds the reply back, so a reply still running can be watched in a browser.
+      const slow = /FAKE-SLOW (\d{1,5})/.exec(user);
+      if (slow) await new Promise((r) => setTimeout(r, Number(slow[1])));
+      return { text: `Fake reply${model === 'fake-model' ? '' : ` from ${model}`}: ${user.slice(0, 200)}`, calls: [], ...split(20) };
     },
   };
 }

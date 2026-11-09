@@ -14,3 +14,6 @@ test('an image offered only through clipboard items is attached', () => {
 });
 test('real writing stays text, even with a picture beside it', () => assert.deepEqual(pastedImages(clip('Hello from the family', [png])), []));
 test('nothing to attach', () => { assert.deepEqual(pastedImages(clip('')), []); assert.deepEqual(pastedImages(null), []); });
+test('dictated text is never taken as a picture, even when it reads like a file name', () => {
+  for (const text of ['Hello there, this came from dictation.', 'shot.png', '/Users/someone/notes']) assert.deepEqual(pastedImages(clip(text)), []);
+});

@@ -86,6 +86,27 @@ export const contractCases: Record<string, () => Promise<void>> = {
     same(await tree().all('SELECT child FROM parent WHERE child = ?', child), []);
   },
 
+  'a chat row goes with its user, and a guard on it stops a batch for a chat that is gone': async () => {
+    const d = store.accounts();
+    const user = uid('u');
+    const conv = uid('c');
+    await d.run('INSERT INTO user (id, name, handle, created) VALUES (?, ?, ?, ?)', user, 'Contract', uid('h'), 1);
+    await d.run('INSERT INTO ai_thread (tree, user, conv, created, updated) VALUES (?, ?, ?, ?, ?)', TREE, user, conv, 1, 2);
+    const inThread = guard('EXISTS (SELECT 1 FROM ai_thread WHERE tree = ? AND user = ? AND conv = ?)', TREE, user, conv);
+    const add = (id: string) => q('INSERT INTO ai_chat (id, tree, user, conv, role, body, at) VALUES (?, ?, ?, ?, ?, ?, ?)', id, TREE, user, conv, 'user', '{"text":"hi","tier":"member","images":{"count":2}}', 3);
+    const first = uid('m');
+    await d.batch([inThread, add(first), q('UPDATE ai_thread SET updated = ? WHERE tree = ? AND user = ? AND conv = ?', 9, TREE, user, conv)]);
+    same(await d.all('SELECT updated, title, title_tier, provider FROM ai_thread WHERE conv = ?', conv), [{ updated: 9, title: '', title_tier: 'member', provider: null }]);
+    same(await d.all("SELECT json_extract(body, '$.tier') AS tier, json_extract(body, '$.images.count') AS pictures, substr(json_extract(body, '$.text'), 1, 400) AS text FROM ai_chat WHERE id = ?", first), [{ tier: 'member', pictures: 2, text: 'hi' }]);
+    await d.batch([q('DELETE FROM ai_chat WHERE conv = ?', conv), q('DELETE FROM ai_thread WHERE conv = ?', conv)]);
+    const e = await failure(() => d.batch([inThread, add(uid('m'))]));
+    assert.ok(isGuardError(e), `not read as a guard failure: ${String(e)}`);
+    same(await d.all('SELECT id FROM ai_chat WHERE conv = ?', conv), []);
+    await d.run('INSERT INTO ai_thread (tree, user, conv, created, updated) VALUES (?, ?, ?, ?, ?)', TREE, user, conv, 1, 2);
+    await d.run('DELETE FROM user WHERE id = ?', user);
+    same(await d.all('SELECT conv FROM ai_thread WHERE conv = ?', conv), []);
+  },
+
   'an empty batch does nothing and returns nothing': async () => {
     same(await tree().batch([]), []);
   },

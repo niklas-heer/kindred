@@ -20,12 +20,12 @@ export interface ShareState {
 export const fetchShareState = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }): Promise<ShareState> => {
-    const [{ requireCan }, s, { accessConfig }, { guestOrigin }] = await Promise.all([guard(), share(), import('./access.server'), import('./origin')]);
+    const [{ requireCan }, s, { authMethod }, { guestOrigin }] = await Promise.all([guard(), share(), import('./method.server'), import('./origin')]);
     await requireCan(data.tree, 'manage-access');
     const link = await s.shareLinkOf(data.tree);
     return {
       link: link ? { id: link.id, generation: link.generation, hasPassword: link.password_hash !== null, expires: link.expires, created: link.created, ended: !s.linkOpen(link) } : null,
-      behindAccess: !!accessConfig() && !guestOrigin(),
+      behindAccess: authMethod() === 'cloudflare-access' && !guestOrigin(),
     };
   });
 export const shareStateQuery = (t: string) => queryOptions({ queryKey: ['session', 'share', t], queryFn: () => fetchShareState({ data: { tree: t } }) });
@@ -34,12 +34,12 @@ export const shareStateQuery = (t: string) => queryOptions({ queryKey: ['session
 export const makeShareLink = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, password: z.boolean(), days: z.union([z.literal(1), z.literal(7), z.literal(30), z.literal(90), z.null()]) }))
   .handler(async ({ data }) => {
-    const [{ requireCan, fail }, s, { family }, { AuthError }, { accessConfig }, { guestOrigin, siteOrigin }, { getRequest }] = await Promise.all([
-      guard(), share(), import('./trees.server'), import('./errors'), import('./access.server'), import('./origin'), import('@tanstack/react-start/server'),
+    const [{ requireCan, fail }, s, { family }, { AuthError }, { authMethod }, { guestOrigin, siteOrigin }, { getRequest }] = await Promise.all([
+      guard(), share(), import('./trees.server'), import('./errors'), import('./method.server'), import('./origin'), import('@tanstack/react-start/server'),
     ]);
     const { user } = await requireCan(data.tree, 'manage-access');
     if (!(await family(data.tree))) throw fail(new AuthError('invalid', 'No such family.'));
-    if (accessConfig() && !guestOrigin()) throw fail(new AuthError('invalid', 'share.err_behind_access'));
+    if (authMethod() === 'cloudflare-access' && !guestOrigin()) throw fail(new AuthError('invalid', 'share.err_behind_access'));
     const made = await s.makeShareLink({ tree: data.tree, password: data.password, days: data.days, createdBy: user.id });
     const origin = guestOrigin() ?? siteOrigin(getRequest());
     return { id: made.id, generation: made.generation, url: `${origin.origin}/share/${made.token}`, password: made.password, expires: made.expires };

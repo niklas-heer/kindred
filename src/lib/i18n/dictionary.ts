@@ -4,7 +4,10 @@
  */
 import * as accessArea from "./areas/access.ts";
 import * as aiArea from "./areas/ai.ts";
+import * as aiChatArea from "./areas/ai-chat.ts";
 import * as aiPortraitArea from "./areas/ai-portrait.ts";
+import * as aiStreamArea from "./areas/ai-stream.ts";
+import * as aiThreadsArea from "./areas/ai-threads.ts";
 import * as aiTasksArea from "./areas/ai-tasks.ts";
 import * as almanacArea from "./areas/almanac.ts";
 import * as atlasArea from "./areas/atlas.ts";
@@ -44,7 +47,10 @@ const AREAS = [
   fieldsArea,
   photosArea,
   aiArea,
+  aiChatArea,
   aiPortraitArea,
+  aiStreamArea,
+  aiThreadsArea,
   aiTasksArea,
   exchangeArea,
   housesArea,

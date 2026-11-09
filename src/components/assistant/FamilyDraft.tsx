@@ -43,7 +43,7 @@ const PART_LABEL: Record<string, Key> = {
 /** A date for the card: "~1938" reads as "about 1938". */
 const dateText = (t: Translate, d: string) => (d.startsWith('~') ? t('ai.famAboutDate', { date: d.slice(1) }) : d);
 
-export function FamilyDraft({ tree, itemId, proposal, onDecided }: { tree: string; itemId: string; proposal: Proposal; onDecided: OnDecided }) {
+export function FamilyDraft({ tree, conv, itemId, proposal, onDecided }: { tree: string; conv: string; itemId: string; proposal: Proposal; onDecided: OnDecided }) {
   const t = useT();
   const qc = useQueryClient();
   const seed = proposal.args as unknown as { people: FamilyPerson[]; links: FamilyLink[] };
@@ -143,12 +143,12 @@ export function FamilyDraft({ tree, itemId, proposal, onDecided }: { tree: strin
 
   function finish(next: 'done' | 'dismissed', rs: Row[] = rows, ls: LinkRow[] = links) {
     setStatus(next);
-    onDecided(() => aiChatMark({ data: { tree, itemId, proposalId: proposal.id, status: next, ...(next === 'done' && { outcome: outcomeOf(rs, ls) }) } }));
+    onDecided(() => aiChatMark({ data: { tree, conv, itemId, proposalId: proposal.id, status: next, ...(next === 'done' && { outcome: outcomeOf(rs, ls) }) } }));
   }
 
   /** "Add all" did not fully work. The card stays open to retry, and the assistant hears what happened. */
   function reportFailure(outcome: DecisionOutcome) {
-    onDecided(() => aiChatMark({ data: { tree, itemId, proposalId: proposal.id, status: 'failed', outcome } }));
+    onDecided(() => aiChatMark({ data: { tree, conv, itemId, proposalId: proposal.id, status: 'failed', outcome } }));
   }
 
   /** Sends the chosen rows (all, or one), and every link whose two ends are known by then. */

@@ -1,7 +1,7 @@
 # Deploying Kindred on Cloudflare
 
 Kindred runs as a Cloudflare Worker. Its data sits in D1 (SQLite in the cloud): one database for accounts, and one
-per family. Pictures sit in R2. Cloudflare Access can go in front of the site as well. Every command below is one
+per family. Pictures sit in R2. People sign in with Kindred's passkeys or through Cloudflare Access, one or the other (step 6). Every command below is one
 from `mise.toml`, `wrangler.jsonc` or `scripts/`.
 
 ## What you need
@@ -87,9 +87,10 @@ invites the others.
 | `KINDRED_SECRET` | secret | Seals each family's AI key (AES-GCM under a key derived from this secret and the family's id). Set it before you save an AI key. Changing it makes the saved keys unreadable, so the settings page asks for them again. Back it up. |
 | `KINDRED_SETUP_CODE` | secret | A fixed code of at least 12 letters or digits, asked for by `/setup`. On Workers every isolate would make its own random code, so use a fixed one; do not use `required` there. Any other value locks setup. |
 | `KINDRED_ORIGIN` | variable | The public address, e.g. `https://family.example.org`. Passkeys are tied to it. Set it when the address is not the one the Worker sees. |
-| `KINDRED_GUEST_ORIGIN` | variable | The guest host for family share links, e.g. `https://guests.family.example.org`. Needed only behind Cloudflare Access. See step 6, [Guests behind Access](#guests-behind-access). |
+| `KINDRED_GUEST_ORIGIN` | variable | The guest host for family share links, e.g. `https://guests.family.example.org`. Needed only with `KINDRED_AUTH=cloudflare-access`. See step 6, [Guests behind Access](#guests-behind-access). |
 | `KINDRED_DEFAULT_TREE` | variable | The family `/` opens directly, for its members. Without it, two or more families show the chooser. |
-| `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` | variable | Cloudflare Access. The team domain and the application's audience tag. See step 6. |
+| `KINDRED_AUTH` | variable | The one sign-in method: `kindred` (the default) or `cloudflare-access`. See step 6. |
+| `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` | variable | Used only with `KINDRED_AUTH=cloudflare-access`. The team domain and the application's audience tag. See step 6. |
 | `KINDRED_VAPID_PUBLIC_KEY`, `KINDRED_VAPID_SUBJECT` | variable | Web Push reminders: the public VAPID key and a contact (`mailto:` or `https:`). Reminders stay hidden without them. See Reminders below. |
 | `KINDRED_VAPID_PRIVATE_JWK` | secret | Web Push reminders: the private VAPID key as JWK JSON. Keep it secret. |
 
@@ -158,17 +159,26 @@ subscriptions are rows of the `push_subscription` table in the `ACCOUNTS` databa
 
 ## 6. Cloudflare Access (optional)
 
-Put an Access application in front of the site's hostname. Kindred then reads the signed-in identity from the Access
-token, and the first verified identity can become steward automatically when setup codes are off. On an empty server
-that first sign-in makes the server's first family too, named “Our family” (or its translation in the reader's
-language), just as passkey setup does. Set
-`CF_ACCESS_TEAM_DOMAIN` to your team's domain and `CF_ACCESS_AUD` to the application's audience tag. Verified Access identities sign in through Access; passkeys remain available as a separate sign-in method.
+Each installation has exactly one sign-in method. Leave `KINDRED_AUTH` unset, or set it to `kindred`, for Kindred's own accounts and
+passkeys. Then this step has nothing for you: put no Access application on the members' host name, or people will sign in twice.
+Self-hosting has the trade-offs and what happens to accounts: [Choosing how people sign in](self-host.md#choosing-how-people-sign-in).
+
+To make Cloudflare Access the only sign-in:
+
+1. Put an Access application in front of the site's hostname, with a policy that lets in your relatives. Until you have signed in,
+   limit it to yourself: the first verified identity on an empty server becomes the steward.
+2. Set `KINDRED_AUTH` to `cloudflare-access`, `CF_ACCESS_TEAM_DOMAIN` to your team's domain and `CF_ACCESS_AUD` to the application's
+   audience tag. Without both values the site refuses to sign anyone in, and says why.
+3. Deploy, then open the site. That first sign-in makes the server's first family, named “Our family” (or its translation in the
+   reader's language). If `KINDRED_SETUP_CODE` is set, `/setup` asks for the code first, and for the family's name.
+
+Kindred reads the identity only from the verified Access token. Its passkeys and its own sign-in screens are off.
 
 ### Guests behind Access
 
 A family share link (Access page, **Share with a link**) lets a relative look around without an account, with a link and a
 password (see [roles-and-privacy.md](roles-and-privacy.md)). Without Access in front of the site, it needs no setup. With Access,
-it needs one thing, because Access stops anyone without a login before Kindred ever sees them.
+it needs one thing, because Access stops anyone without a login before Kindred ever sees them. (With `KINDRED_AUTH=kindred` and no Access application, none of this applies.)
 
 **A path policy is not enough.** A Bypass on `/share/*` lets a guest see the password page and nothing after it: the next page
 is `/<family>`, and the app reads through `/_serverFn/*` and `/api/photo/*`, `/api/portrait/*`, `/api/media/*`. Bypassing those paths
@@ -191,9 +201,9 @@ The guest host is open to the internet, so Kindred locks it down itself (`src/li
 - It honours only a guest's visit. An account's session cookie and an Access identity are ignored there, so a stolen member
   cookie opens nothing, and setup never runs there. A server function reached through it refuses a guest
   for anything but the reads a viewer has.
-- A member's own site is unchanged: Access, passkeys and every policy stay as they are, and a share link is still made there.
+- A member's own site is unchanged: Access and every policy stay as they are, and a share link is still made there.
 
-Without `KINDRED_GUEST_ORIGIN`, a site behind Access (`CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` set) can't make a link: the card says so
+Without `KINDRED_GUEST_ORIGIN`, a site with `KINDRED_AUTH=cloudflare-access` can't make a link: the card says so
 and the server refuses, rather than handing a relative a link that Access would stop. The same setting works on Node behind Access.
 
 ## Places on Workers (optional)

@@ -1,10 +1,10 @@
 import { localizeTitle, useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, redirect } from '@tanstack/react-router';
-import { Info, KeyRound, LogOut } from 'lucide-react';
+import { KeyRound, LogOut } from 'lucide-react';
 import { useState } from 'react';
-import { AuthCard, AuthError, PasskeyExplainer } from '~/components/AuthCard';
-import { forgetLocalIdentity, passkeysSupported, safeNext, signInWithPasskey, signOutRequest } from '~/lib/auth/client';
+import { AuthCard, AuthError, NoAccessIdentity, PasskeyExplainer } from '~/components/AuthCard';
+import { forgetLocalIdentity, passkeysSupported, safeNext, signInWithPasskey } from '~/lib/auth/client';
 import { sessionQuery } from '~/lib/auth/functions';
 import { useIsClient } from '~/components/ui';
 
@@ -20,9 +20,29 @@ export const Route = createFileRoute('/signin')({
 });
 
 function SignIn() {
+  const { data: session } = useQuery(sessionQuery);
+  return session?.auth === 'cloudflare-access' ? <AccessSignIn uninvited={session.uninvitedEmail} logout={session.accessLogout} /> : <PasskeySignIn />;
+}
+
+/** Cloudflare Access is the only sign-in: nothing to do here but say why this person isn't in. */
+function AccessSignIn({ uninvited, logout }: { uninvited?: string; logout?: string }) {
+  const t = useT();
+  if (!uninvited) return <NoAccessIdentity />;
+  return (
+    <AuthCard
+      crest={<KeyRound size={44} />}
+      kicker="Kindred"
+      title={t('auth.uninvited_title')}
+      lede={<>{t("signin.you_re_signed_in_as")} <b>{uninvited}</b>{t("signin.but_nobody_has_invited_that_address_to_a_family_yet_ask_a_steward_of_your_family_to_invite_you")}</>}
+    >
+      {logout && <a className="btn auth-go" href={logout}><LogOut size={16} /> {t("signin.use_another_account")}</a>}
+    </AuthCard>
+  );
+}
+
+function PasskeySignIn() {
   const t = useT();
   const { next } = Route.useSearch();
-  const { data: session } = useQuery(sessionQuery);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const client = useIsClient();
@@ -49,13 +69,6 @@ function SignIn() {
       title={t("signin.welcome_back")}
       lede={t("signin.sign_in_to_see_your_family_s_tree_stories_and_birthdays")}
     >
-      {session?.uninvitedEmail && (
-        <p className="auth-note" role="status">
-          <Info size={18} />
-          <span> {t("signin.you_re_signed_in_as")} <b>{session.uninvitedEmail}</b>{t("signin.but_nobody_has_invited_that_address_to_a_family_yet_ask_a_steward_of_your_family_to_invite_you")} {session.accessLogout && <> <a className="auth-link" href={session.accessLogout}>{t("signin.use_another_account")}</a></>}
-          </span>
-        </p>
-      )}
       <div className="auth-form">
         <AuthError>{error}</AuthError>
         {!supported && <AuthError>{t("signin.this_browser_can_t_use_passkeys_try_the_newest_safari_chrome_edge_or_firefox_or_your_phone")}</AuthError>}
@@ -65,11 +78,6 @@ function SignIn() {
       </div>
       <p className="auth-device-hint"><b>{t("signin.use_a_passkey_from_another_device")}</b><br />{t("signin.in_the_passkey_prompt_choose_another_device_or_a_phone_then_scan_the_qr_code_you_can_also_choose_1password_or_your_password_manager")}</p>
       <PasskeyExplainer />
-      {session?.uninvitedEmail && session.accessLogout && (
-        <div className="auth-alt">
-          <button className="auth-link" onClick={() => void signOutRequest().finally(() => window.location.assign(session.accessLogout!))}><LogOut size={14} /> {t("signin.sign_out")}</button>
-        </div>
-      )}
     </AuthCard>
   );
 }

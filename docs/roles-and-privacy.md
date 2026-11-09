@@ -37,7 +37,7 @@ Hiding a button is never the only protection. Every server function and server r
 
 - **The first account** is steward of every family that exists at setup.
 - **An invitation** names the family, the role and, optionally, an email address, and it expires. The invited person
-  makes a passkey and joins with that role. An invitation can be revoked before it is used.
+  makes a passkey (or, on a Cloudflare Access installation, signs in there) and joins with that role. An invitation can be revoked before it is used.
 - **Access** (the family's Access page) shows the members and their roles. Stewards can change a role or remove a
   member. A family always keeps at least one steward: the last one cannot be removed or demoted.
 - **"Who you are"** is a separate choice: the person in the tree a member stands for, which makes kinship labels such
@@ -125,13 +125,15 @@ themselves. The Markdown archive carries research that isn't private, with its d
 
 ## Sign-in and sessions
 
-- Accounts use passkeys. Kindred stores no passwords.
+- Each installation has one sign-in method, chosen when it is deployed: Kindred's passkeys, or Cloudflare Access. Kindred stores no
+  passwords either way. See [Choosing how people sign in](self-host.md#choosing-how-people-sign-in).
 - A session is a random token in an HttpOnly cookie (SameSite=Lax, and `Secure` on HTTPS). The server keeps only a
   SHA-256 hash of the token, so a copy of the database does not contain a working session.
 - Sign-in endpoints are rate-limited. The limit is kept in memory: it resets when the server restarts, and on
   Cloudflare each isolate keeps its own count. It is a brake against guessing, not a wall.
-- Behind Cloudflare Access, Kindred also accepts a verified Access identity, so the first person through Access can
-  become steward when setup codes are off. See [deploy-cloudflare.md](deploy-cloudflare.md).
+- With Cloudflare Access as the method, Kindred accepts only a verified Access identity, so the first person through Access can
+  become steward when setup codes are off. With passkeys as the method, Access tokens are ignored. See
+  [deploy-cloudflare.md](deploy-cloudflare.md).
 
 ## Your data
 

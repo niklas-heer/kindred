@@ -1,7 +1,7 @@
 // node --test src/lib/ai-family.test.ts — the assistant's family drafts and what each role may be offered. A batch of new
 // people applies in one go and links to each other and to people in the tree; a retry replays instead of writing twice;
 // a loop is reported and the rest applied; an approximate date stays approximate; a viewer or contributor is offered no
-// more than their role allows and the server refuses the rest; no tool deletes or manages access or AI settings.
+// more than their role allows and the server refuses the rest; no tool manages access or AI settings.
 // Runs on a private data folder with the fake provider, never on data/.
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -230,7 +230,7 @@ test('the card shows the words it asks you to approve, and who they will be save
     args: { people: [{ ref: 'n1', given: 'Tilda', living: false, story: { kind: 'memory', body: 'Sie sang im Chor.', teller: 'hans' } }, { ref: 'n2', given: 'Ulla', living: false, story: { kind: 'note', body: 'Eine Notiz.' } }], links: [] },
     view: { names: { hans: 'Hans Braun' } },
   } as unknown as import('./ai/types.ts').Proposal;
-  const html = renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(FamilyDraft, { tree: TREE, itemId: 'i1', proposal , onDecided: () => {} })));
+  const html = renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(FamilyDraft, { tree: TREE, conv: 'c1', itemId: 'i1', proposal , onDecided: () => {} })));
   assert.match(html, /Sie sang im Chor\./, 'the memory itself is on the card');
   assert.match(html, /Told by Hans Braun/);
   assert.match(html, /Will be saved under your name/, 'a memory with no teller says so');
@@ -252,7 +252,7 @@ test('the uncertain lines show on the person they belong to, marked as uncertain
       links: [],
     },
   } as unknown as import('./ai/types.ts').Proposal;
-  const html = renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(FamilyDraft, { tree: TREE, itemId: 'i1', proposal, onDecided: () => {} })));
+  const html = renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(FamilyDraft, { tree: TREE, conv: 'c1', itemId: 'i1', proposal, onDecided: () => {} })));
   const row = (given: string, next: string) => html.slice(html.indexOf(given), next ? html.indexOf(next) : undefined);
   assert.match(row('Tilda', 'Ulla'), /Not certain[\s\S]*Birth year is smudged[\s\S]*Surname may be Beck/);
   assert.match(row('Tilda', 'Ulla'), /aria-label="Leave these and the other details out"/);
@@ -280,7 +280,7 @@ test('the card lists each detail as it will be saved, with its label and level',
       links: [],
     },
   } as unknown as import('./ai/types.ts').Proposal;
-  const html = renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(FamilyDraft, { tree: TREE, itemId: 'i1', proposal, onDecided: () => {} })));
+  const html = renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(FamilyDraft, { tree: TREE, conv: 'c1', itemId: 'i1', proposal, onDecided: () => {} })));
   const [phone, address, email] = html.split('class="ai-fam-detail"').slice(1);
   assert.match(phone, /Phone/);
   assert.match(phone, /Mobile/, 'with no label of its own, the label the server will give it');
@@ -351,7 +351,7 @@ test('a failed link keeps the card open and retryable, and a link left out is ne
 
 test('a family session is refused before any spend for a role that could not apply its draft', async () => {
   const { accounts } = await load<typeof import('./auth/store.server.ts')>('/src/lib/auth/store.server.ts');
-  const chat = await load<typeof import('./ai/chat.server.ts')>('/src/lib/ai/chat.server.ts');
+  const chat = (await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts')).withLatestChat(await load<typeof import('./ai/chat.server.ts')>('/src/lib/ai/chat.server.ts'));
   const rows = async () => (await accounts().get<{ n: number }>('SELECT count(*) AS n FROM ai_chat'))!.n;
   const before = await rows();
   for (const role of ['viewer', 'contributor'] as Role[]) {
@@ -360,12 +360,12 @@ test('a family session is refused before any spend for a role that could not app
   assert.equal(await rows(), before, 'nothing was recorded, so nothing was spent');
 });
 
-test('no tool deletes, manages access or invitations, or changes AI settings or keys', async () => {
+test('no tool manages access or invitations, or changes AI settings or keys', async () => {
   const offered = tools.toolsFor('steward', { web: true, faces: true, avatar: true }).tools.map((t) => t.name);
   for (const name of offered) {
-    assert.doesNotMatch(name, /delete|remove|invite|access|member|token|secret|api_?key|ai_?setting|grant/i, `${name} must not manage data, access or AI settings`);
+    assert.doesNotMatch(name, /invite|access|token|secret|api_?key|ai_?setting|grant/i, `${name} must not manage access or AI settings`);
   }
-  assert.ok(!PROPOSAL_KINDS.some((k) => /delete|remove|access|invite|key|setting/.test(k) && !k.includes('house')), 'no proposal kind deletes or manages access');
+  assert.ok(!PROPOSAL_KINDS.some((k) => /access|invite|key|setting/.test(k) && !k.includes('house')), 'no proposal kind manages access');
 });
 
 test('a draft with a date that does not exist is refused before it is shown', async () => {

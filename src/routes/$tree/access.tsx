@@ -17,7 +17,7 @@ import { locales, translateMessage, useT, type Key, type Locale, type Translator
 import { toast } from '~/lib/toast';
 import '~/styles/manage.css';
 import { ROLES, type Role } from '~/lib/roles';
-import { useCan } from '~/lib/session';
+import { useCan, useSession } from '~/lib/session';
 import { sectionHead } from '~/lib/title';
 import '~/styles/access.css';
 
@@ -47,6 +47,7 @@ function AccessPage() {
   const tree = useTreeId();
   const f = useFamily();
   const steward = useCan('manage-access');
+  const signInMethod = useSession()?.auth;
   const access = useQuery({ ...accessQuery(tree), enabled: steward });
   const qc = useQueryClient();
   const [inviting, setInviting] = useState(false);
@@ -110,6 +111,13 @@ function AccessPage() {
 
         <ShareLinkCard tree={tree} familyName={f.graph.tree.name} />
 
+        {signInMethod && (
+          <>
+            <h2 className="rule">{t('auth.method_title')}</h2>
+            <p className="acc-hint"><b>{signInMethod === 'kindred' ? t('auth.method_kindred') : t('auth.method_cloudflare')}</b> {t('auth.method_change')}</p>
+          </>
+        )}
+
         {access.isPending ? (
           <div className="ui-card" aria-busy="true" aria-label={t('acc.loadingMembers')}><Skeleton lines={4} /></div>
         ) : access.isError ? (
@@ -153,7 +161,7 @@ function AccessPage() {
                       <span className="acc-name"><span className="name">{m.name}</span>{m.you && <span className="chip acc-you">{t('common.you')}</span>}</span>
                       <span className="acc-sub">{m.email && <span>{m.email}</span>}{personOf(m)}</span>
                     </div>
-                    <span className="acc-seen">{t('acc.seen', { when: ago(m.lastSeen, t.locale) })}<small>{t('acc.passkeys', { count: m.passkeys })}</small></span>
+                    <span className="acc-seen">{t('acc.seen', { when: ago(m.lastSeen, t.locale) })}{signInMethod !== 'cloudflare-access' && <small>{t('acc.passkeys', { count: m.passkeys })}</small>}</span>
                     <div className="acc-role-select">
                       <Select<Role>
                         value={m.role}

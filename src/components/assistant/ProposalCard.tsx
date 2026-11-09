@@ -2,8 +2,8 @@
 // the card's arguments (after any edits or removed rows) to the existing server function. A family draft has its own
 // card (FamilyDraft.tsx); a photo or a drawn avatar shows its pictures before anything is kept.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Pencil, X } from 'lucide-react';
-import { useState } from 'react';
+import { Check, Pencil, Trash2, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { aiChatMark } from '~/lib/ai.functions';
 import { graphQuery } from '~/lib/api';
 import { PROPOSAL_KIND_KEY } from '~/lib/ai/labels';
@@ -20,7 +20,14 @@ import { CardHead } from './CardHead';
 import { VisibilityPicker } from '../fields/VisibilityMark';
 import type { Visibility } from '~/lib/visibility';
 
+/** A card's fields as an edit-person card names them: its `title` is a person's style, not a story's heading. */
+const PERSON_FIELD: Record<string, Key> = {
+  given: 'chat.field.given', surname: 'chat.field.surname', currentGiven: 'chat.field.currentGiven', currentSurname: 'chat.field.currentSurname',
+  nickname: 'chat.field.nickname', title: 'chat.field.title', epithet: 'chat.field.epithet', bio: 'chat.field.bio',
+};
+
 const FIELD: Record<string, Key> = {
+  summary: 'chat.field.summary', tagline: 'chat.field.tagline',
   given: 'ai.fieldName', surname: 'ai.fieldSurname', born: 'ai.fieldBorn', died: 'ai.fieldDied', bornPlace: 'ai.fieldBornPlace', diedPlace: 'ai.fieldDiedPlace',
   title: 'ai.fieldName', body: 'ai.fieldStory', label: 'ai.fieldLabel', name: 'ai.fieldName', occupation: 'ai.fieldOccupation',
 };
@@ -37,11 +44,15 @@ function summaryWithLabel(proposal: Proposal, t: ReturnType<typeof useT>): strin
 /** Hands a card's decision to the drawer, which records it and lets the assistant carry on. A retry calls the same function again. */
 export type OnDecided = (mark: () => Promise<{ due: boolean }>) => void;
 
-export function ProposalCard({ tree, itemId, proposal, onDecided }: { tree: string; itemId: string; proposal: Proposal; onDecided: OnDecided }) {
+/** What a group of cards can ask of one of them: Apply all approves each in turn. */
+export interface CardControl { approve: () => Promise<boolean>; open: () => boolean }
+export type RegisterCard = (id: string, control: CardControl | null) => void;
+
+export function ProposalCard({ tree, conv, itemId, proposal, onDecided, register }: { tree: string; conv: string; itemId: string; proposal: Proposal; onDecided: OnDecided; register?: RegisterCard }) {
   const t = useT();
   // A family draft is its own card (it has rows that are added one by one), so it draws its own head and state.
-  if (proposal.kind === 'family') return <FamilyDraft tree={tree} itemId={itemId} proposal={proposal} onDecided={onDecided} />;
-  return <GenericCard tree={tree} itemId={itemId} proposal={proposal} onDecided={onDecided} />;
+  if (proposal.kind === 'family') return <FamilyDraft tree={tree} conv={conv} itemId={itemId} proposal={proposal} onDecided={onDecided} />;
+  return <GenericCard tree={tree} conv={conv} itemId={itemId} proposal={proposal} onDecided={onDecided} register={register} />;
 }
 
 type Pic = { key: string; taken?: string | null; place?: string | null; caption?: string | null; album?: string | null };
@@ -117,7 +128,7 @@ function AvatarPreview({ tree, proposal, t }: { tree: string; proposal: Proposal
   );
 }
 
-function GenericCard({ tree, itemId, proposal, onDecided }: { tree: string; itemId: string; proposal: Proposal; onDecided: OnDecided }) {
+function GenericCard({ tree, conv, itemId, proposal, onDecided, register }: { tree: string; conv: string; itemId: string; proposal: Proposal; onDecided: OnDecided; register?: RegisterCard }) {
   const t = useT();
   const qc = useQueryClient();
   const [status, setStatus] = useState(proposal.status);
@@ -135,11 +146,11 @@ function GenericCard({ tree, itemId, proposal, onDecided }: { tree: string; item
   const [keys] = useState<ApprovalKeys>(() => approvalKeys());
 
   const open = status === 'open';
-  const mark = (status: 'done' | 'dismissed' | 'failed', outcome?: DecisionOutcome) => () => aiChatMark({ data: { tree, itemId, proposalId: proposal.id, status, outcome } });
+  const mark = (status: 'done' | 'dismissed' | 'failed', outcome?: DecisionOutcome) => () => aiChatMark({ data: { tree, conv, itemId, proposalId: proposal.id, status, outcome } });
   const photoKind = proposal.kind === 'photo-details' || proposal.kind === 'photo-album' || proposal.kind === 'photo-tags';
   const remaining = photoKind ? ((proposal.kind === 'photo-tags' ? proposal.args.people : proposal.args.items) as unknown[] ?? []).length - dropped.length : 1;
 
-  async function approve() {
+  async function approve(): Promise<boolean> {
     setBusy(true);
     setError(null);
     // Edited fields go in as typed; a cleared optional field is left out.
@@ -156,14 +167,25 @@ function GenericCard({ tree, itemId, proposal, onDecided }: { tree: string; item
       setStatus('done');
       const edited = Object.entries(edits).some(([k, v]) => v.trim() !== String(proposal.args[k] ?? '').trim());
       onDecided(mark('done', { ...(edited && { edited }), ...(dropped.length && { removed: dropped.length }) }));
+      return true;
     } catch (e) {
       const message = errorText(e, t.locale);
       setError(message);
       onDecided(mark('failed', { error: message.slice(0, 240) }));
+      return false;
     } finally {
       setBusy(false);
     }
   }
+
+  // Apply all reaches each card through this. The ref keeps it pointing at the current state of the card.
+  const latest = useRef({ approve, status });
+  latest.current = { approve, status };
+  useEffect(() => {
+    if (!register) return;
+    register(proposal.id, { approve: () => latest.current.approve(), open: () => latest.current.status === 'open' });
+    return () => register(proposal.id, null);
+  }, [register, proposal.id]);
 
   async function dismiss() {
     setStatus('dismissed');
@@ -171,15 +193,16 @@ function GenericCard({ tree, itemId, proposal, onDecided }: { tree: string; item
   }
 
   return (
-    <article className={`ai-card ai-card-${status}`} aria-label={t('ai.proposalHeading')}>
+    <article className={`ai-card ai-card-${status}${proposal.removal ? ' ai-card-removal' : ''}`} aria-label={t(proposal.removal ? 'chat.removalHeading' : 'ai.proposalHeading')}>
       <CardHead kind={t(PROPOSAL_KIND_KEY[proposal.kind])} state={status} />
+      {proposal.removal && <p className="ai-card-removing"><Trash2 size={13} aria-hidden /> {t(proposal.kind === 'remove-person' ? 'chat.removalPerson' : 'chat.removal')}</p>}
       <p className="ai-card-summary">{summaryWithLabel(proposal, t)}</p>
       {photoKind && open && <PhotoRows proposal={proposal} dropped={dropped} onDrop={(k) => setDropped((d) => [...d, k])} t={t} />}
       {proposal.kind === 'avatar' && <AvatarPreview tree={tree} proposal={proposal} t={t} />}
       {proposal.diff.length > 0 && (
         <dl className="ai-diff">
           {proposal.diff.map((d, i) => (
-            <div key={i} className="ai-diff-row">
+            <div key={i} className={`ai-diff-row${d.removed ? ' ai-diff-removed' : ''}`}>
               <dt>{d.label}</dt>
               <dd>
                 {d.from !== undefined && <><s className="subtle">{d.from}</s> <span aria-hidden>→</span> </>}
@@ -195,8 +218,8 @@ function GenericCard({ tree, itemId, proposal, onDecided }: { tree: string; item
       {open && editing && (
         <div className="ai-card-edit">
           {proposal.editable.map((k) => {
-            const label = t(FIELD[k] ?? 'ai.fieldValue');
-            const multi = k === 'body';
+            const label = t((proposal.kind === 'edit-person' ? PERSON_FIELD[k] : undefined) ?? FIELD[k] ?? 'ai.fieldValue');
+            const multi = k === 'body' || k === 'bio' || k === 'summary';
             const id = `ai-${proposal.id}-${k}`;
             return (
               <label key={k} className="ai-field" htmlFor={id}>
@@ -213,8 +236,8 @@ function GenericCard({ tree, itemId, proposal, onDecided }: { tree: string; item
       )}
       {open && (
         <div className="ai-card-actions">
-          <button type="button" className="btn primary" onClick={approve} disabled={busy || (photoKind && remaining <= 0)}>
-            <Check size={15} aria-hidden /> {busy ? t('ai.approving') : t('ai.approve')}
+          <button type="button" className={`btn primary${proposal.removal ? ' danger' : ''}`} onClick={() => void approve()} disabled={busy || (photoKind && remaining <= 0)}>
+            {proposal.removal ? <Trash2 size={14} aria-hidden /> : <Check size={15} aria-hidden />} {busy ? t('ai.approving') : t(proposal.removal ? 'chat.approveRemoval' : 'ai.approve')}
           </button>
           {proposal.editable.length > 0 && (
             <button type="button" className="btn ghost" onClick={() => setEditing(!editing)} aria-expanded={editing}>

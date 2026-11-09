@@ -21,10 +21,67 @@ the first account exists. Invite everyone else from the Access page.
 The app listens only on this machine (`127.0.0.1`). To reach it from other devices, use HTTPS (below): passkeys
 do not work on a plain address other than `localhost`.
 
+## Choosing how people sign in
+
+Each installation uses exactly one sign-in method, set by `KINDRED_AUTH`. It is a deployment setting, not a switch inside
+Kindred, because choosing wrongly can lock people out or open the site.
+
+| | `kindred` (the default) | `cloudflare-access` |
+| --- | --- | --- |
+| **How people sign in** | A passkey on their phone or computer | Whatever your Cloudflare Access policy allows: an email code, Google, your company login |
+| **Who looks after logins** | Kindred, with nothing more to run | You, in Cloudflare Zero Trust |
+| **Choose it when** | You want Kindred to work by itself, anywhere it runs | You already manage people in Cloudflare and want one place to add or remove them |
+| **What it costs** | HTTPS and a host name that stays the same. A relative who loses every device needs a new invitation | A Cloudflare account and an Access application whose policy lets in every relative. Guests need a second host name |
+
+With `kindred`, Cloudflare Access tokens are ignored completely, even valid ones. If you still have an Access application in
+front of the site, people will sign in twice: remove the application from the members' host name.
+
+With `cloudflare-access`, set three things (`KINDRED_AUTH`, `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`, see
+[deploy-cloudflare.md](deploy-cloudflare.md#6-cloudflare-access-optional)):
+
+- **Identity** comes only from a token that verifies against your team's public keys. A plain email header is never believed.
+- **Accounts** are the verified email address. **Roles** stay in Kindred: Access decides who may reach the site, and the
+  family's Access page decides what they may do there.
+- **The first steward** is the first verified identity to open an empty server, and that visit makes the first family. Limit the
+  Access policy to yourself until you have signed in, or set `KINDRED_SETUP_CODE`: `/setup` then asks for the code.
+- **Everyone else** needs an invitation, and the Access policy must let them in too. An invitation to their address takes effect on
+  their first visit. With an invitation link they open it and say what the family should call them. Anyone else Access lets through
+  sees that they have not been invited.
+- **Kindred's own sign-in is off**: no passkeys, no sign-in page, and any old session cookie is ignored. "Sign out" goes to Cloudflare
+  Access's own sign-out.
+- **Guests** need the guest host, `KINDRED_GUEST_ORIGIN` ([Guests behind Access](deploy-cloudflare.md#guests-behind-access)).
+
+Stewards can see the active method on the family's Access page. It is read-only there.
+
+### When the setting is wrong
+
+Kindred never guesses and never falls back to something more open. Until the setting is fixed, the members' site shows a
+page naming the problem, nobody can sign in, and the log says the same once. The guest host and `/api/health` stay up.
+
+| Situation | What to do |
+| --- | --- |
+| `KINDRED_AUTH` is empty and `CF_ACCESS_TEAM_DOMAIN` or `CF_ACCESS_AUD` is set | Choose: set `KINDRED_AUTH` |
+| `KINDRED_AUTH` is anything but the two values | Correct the value |
+| `KINDRED_AUTH=cloudflare-access` without both Access values | Set both |
+| `CF_ACCESS_TEAM_DOMAIN` is not a host name | Use the form `myfamily.cloudflareaccess.com` |
+
+### Changing method later
+
+Accounts are not touched by the setting: the same people, roles and families are there afterwards. What changes is who can prove
+they are that account.
+
+- **To `kindred`**: anyone with a passkey signs in as before, as long as the host name stays the same. Someone whose account was made
+  through Access and who never added a passkey cannot sign in. The Access page shows each member's passkeys while the site is on
+  `kindred`. Kindred has no way to add a passkey while `cloudflare-access` is active, so that person needs a new invitation, which
+  makes a new account. Setting the value back brings them in again.
+- **To `cloudflare-access`**: accounts are matched by email, and accounts made with a passkey may not have one (the first steward's
+  never does). Give each one its address first, in the accounts database: `UPDATE user SET email = 'name@example.org' WHERE id = '…';`.
+  Addresses are lower-case. An account without a match sees "not invited" until it has one.
+
 ## Settings
 
 Compose reads `.env` for the settings below, and passes the ones the app reads into the container: `KINDRED_ORIGIN`,
-`KINDRED_SETUP_CODE`, `KINDRED_REQUIRE_SETUP_CODE`, `KINDRED_DEFAULT_TREE`, `KINDRED_SECRET`, the three `KINDRED_VAPID_*` reminder
+`KINDRED_AUTH`, `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `KINDRED_SETUP_CODE`, `KINDRED_REQUIRE_SETUP_CODE`, `KINDRED_DEFAULT_TREE`, `KINDRED_SECRET`, the three `KINDRED_VAPID_*` reminder
 settings and `KINDRED_JOBS`. `KINDRED_DOMAIN` goes to
 Caddy, and `WITH_GAZETTEER` to the build. An empty value is the same as an unset one, so the defaults still apply. Without
 Docker, set them as environment variables for the server.
@@ -35,7 +92,9 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `KINDRED_GUEST_ORIGIN` | unset | The guest host for family share links, needed only behind Cloudflare Access (see [deploy-cloudflare.md](deploy-cloudflare.md#guests-behind-access)). |
+| `KINDRED_AUTH` | `kindred` | The installation's one sign-in method: `kindred` or `cloudflare-access`. See [Choosing how people sign in](#choosing-how-people-sign-in). |
+| `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` | unset | Used only with `KINDRED_AUTH=cloudflare-access`: your team domain and the Access application's audience tag. |
+| `KINDRED_GUEST_ORIGIN` | unset | The guest host for family share links, needed only with `KINDRED_AUTH=cloudflare-access` (see [deploy-cloudflare.md](deploy-cloudflare.md#guests-behind-access)). |
 | `KINDRED_ORIGIN` | `http://localhost:4901` in Compose; otherwise the address the request came in on | The public address, such as `https://family.example.org`. Passkeys are bound to its host name, sessions use its scheme for the cookie's `Secure` flag, and the setup warning uses it. Set it before the first sign-in. |
 | `KINDRED_SETUP_CODE` | empty | Who may create the first account. Empty: anyone who reaches `/setup` first. `required` (any case): a one-time code is printed in the log at each start, until the first account exists. Or a code of your own, 12 or more letters or digits, which stays the same. Any other value locks setup: nobody can create the first account until the value is fixed, and the log says so once. |
 | `KINDRED_REQUIRE_SETUP_CODE` | empty | `1`, `true`, `yes` or `required` (any case) does the same as `KINDRED_SETUP_CODE=required`; `0`, `false`, `no` or `off` does not. Any other value requires the code, to be safe, and the log says so once. |
@@ -293,6 +352,10 @@ from there. The Reminders dialog says so when it is needed.
 - **"This device's reminders have expired.":** the push service no longer knows the device. Turn reminders on again.
 
 ## Upgrades
+
+If you have Cloudflare Access settings (`CF_ACCESS_TEAM_DOMAIN` or `CF_ACCESS_AUD`) from before `KINDRED_AUTH` existed, set `KINDRED_AUTH`
+before or as you upgrade: the site asks you to choose and signs nobody in until you do. See
+[Choosing how people sign in](#choosing-how-people-sign-in). Without those settings there is nothing to do.
 
 With Docker, update the code (`git pull`, or the new release), then rebuild:
 
