@@ -92,7 +92,7 @@
 /* Notable members: a row of framed portraits. */
 .hp-notables { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(156px, 1fr)); gap: 14px; }
 .hp-notable {
-  display: grid; justify-items: center; gap: 4px; text-align: center; padding: 18px 10px 14px; height: 100%;
+  display: grid; justify-items: center; align-content: start; gap: 4px; text-align: center; padding: 18px 10px 14px; height: 100%;
   text-decoration: none; color: var(--text);
 }
 .hp-notable .portrait { margin-bottom: 6px; }
@@ -192,17 +192,19 @@
 .hp-line-n { font-family: var(--font-ui); font-size: var(--fs-2); color: var(--subtle); text-align: center; font-variant-numeric: tabular-nums; }
 .hp-line .hp-row-name small { white-space: normal; }
 .hp-heads { margin-top: 18px; display: grid; gap: 10px; }
-.hp-timeline { list-style: none; margin: 0; padding: 14px; display: flex; flex-wrap: wrap; gap: 8px 10px; }
-.hp-timeline li { flex: 1 1 240px; min-width: 0; max-width: 100%; }
+/* A fixed grid, so a short last row keeps the columns of the rows above it. */
+.hp-timeline { list-style: none; margin: 0; padding: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px 10px; }
+.hp-timeline li { min-width: 0; }
 .hp-tl-link {
   display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; align-items: center; min-height: 52px; padding: 4px 12px 4px 4px;
-  border-radius: 999px; text-decoration: none; color: var(--text);
+  border-radius: 28px; text-decoration: none; color: var(--text);
 }
 .hp-tl-link:hover { background: var(--panel-2); }
 .hp-tl-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .hp-timeline li.current .hp-tl-link { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .hp-tl-text { display: grid; min-width: 0; }
-.hp-tl-text b { font-family: var(--font-name); font-weight: var(--name-weight); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The names are what this list is for: a long one takes a second line, and an epithet is never cut. */
+.hp-tl-text b { font-family: var(--font-name); font-weight: var(--name-weight); line-height: 1.2; overflow-wrap: anywhere; text-wrap: balance; }
 .hp-tl-text small { color: var(--subtle); font-size: var(--fs-2); font-variant-numeric: tabular-nums; }
 
 /* Steward dialogs: settings and arms suggestions. */
