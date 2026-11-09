@@ -182,10 +182,13 @@ function forkUp(key: string, from: { x: number; y: number }, ps: { x: number; y:
   return edges;
 }
 
-/** The marriage line between two cards on one row, labelled with the years it lasted. */
-function marriageEdge(key: string, u: GUnion, lx: number, rx: number, y: number, ids: string[]): LEdge {
+/** How far apart the lines of a couple who married more than once are stacked. */
+const REMARRIED_STEP = 36;
+
+/** The marriage line between two cards on one row, labelled with the years it lasted. `lift` raises a repeat union. */
+function marriageEdge(key: string, u: GUnion, lx: number, rx: number, y: number, ids: string[], lift = 0): LEdge {
   const start = yearOf(u.start), end = yearOf(u.end);
-  const cy = y + CARD_H * 0.42;
+  const cy = y + CARD_H * 0.42 - lift;
   return {
     key: `${key}:marriage:${u.id}`,
     kind: 'marriage',
@@ -301,6 +304,9 @@ function parentSlots(f: Family, id: string, slots: boolean): string[] {
   return [father ?? `${GHOST}${id}:father`, mother ?? `${GHOST}${id}:mother`, ...rest];
 }
 
+/** Every union between two people, oldest first (a couple can marry, part and marry again). */
+const unionsBetween = (f: Family, a: string, b: string) => sortedUnions(f, a).filter((u) => u.a === b || u.b === b);
+
 /** A node's place in the drawn tree: where its unions are, and what each union joins. */
 interface Joined { a: string; b: string; x: number; row: number }
 
@@ -320,16 +326,45 @@ interface Top {
 function pedigree(f: Family, focus: string, up: number, opts: { slots?: boolean; partners?: boolean } = {}): Top {
   const slots = !!opts.slots;
   const withPartners = !!opts.partners;
+  const others = (id: string, spouse: string | undefined) =>
+    unitsOf(f, id, new Set(spouse ? unionsBetween(f, id, spouse).map((u) => u.id) : []), new Set([focus, ...(spouse ? [spouse] : [])]));
+  // Which half of the tree each ancestor is on: their other marriages should open away from the middle.
+  const half = new Map<string, -1 | 1>();
+  if (withPartners) {
+    const walk = (id: string, side: -1 | 1) => {
+      if (half.has(id)) return;
+      half.set(id, side);
+      for (const p of parents(f, id)) walk(p, side);
+    };
+    parents(f, focus).forEach((p, i) => walk(p, i === 0 ? -1 : 1));
+  }
+  // A couple's other marriages open sideways from each spouse, so the spouse with others takes the outer place:
+  // the connector to those children then runs outward and never crosses this couple's own line of descent.
+  const ordered = new Map<string, string[]>();
+  const parentsOf = (id: string): string[] => {
+    let ps = ordered.get(id);
+    if (ps) return ps;
+    ps = parentSlots(f, id, slots);
+    const side = half.get(id);
+    if (withPartners && side && ps.length >= 2) {
+      const [inner, outer] = side < 0 ? [ps[1], ps[0]] : [ps[0], ps[1]];
+      if (others(inner, outer).length && !others(outer, inner).length) ps = [ps[1], ps[0], ...ps.slice(2)];
+    }
+    ordered.set(id, ps);
+    return ps;
+  };
   // The marriage an ancestor has with the other parent of their child stays on the line; the rest go outward.
+  const spouseOnLine = (parent: string, idx: number) => (idx < 2 ? parentsOf(parent)[1 - idx] : undefined);
   const outward = (id: string, parent: string | undefined, idx: number): Unit[] => {
     if (!withPartners || parent === undefined || isGhost(id)) return [];
-    const bar = idx < 2 ? parentSlots(f, parent, slots)[1 - idx] : undefined;
-    const barUnion = bar ? sortedUnions(f, id).filter((u) => u.a === bar || u.b === bar).map((u) => u.id) : [];
-    return unitsOf(f, id, new Set(barUnion), new Set([focus, ...(bar ? [bar] : [])]));
+    return others(id, spouseOnLine(parent, idx));
   };
-  const t = tidy(focus, (id) => parentSlots(f, id, slots), up, (id, parent, idx, dup) => {
+  const t = tidy(focus, parentsOf, up, (id, parent, idx, dup) => {
     const units = dup ? [] : outward(id, parent, idx);
-    return units.length ? besideSpan(units, idx === 0 ? -1 : 1) : [-CARD_W / 2, CARD_W / 2];
+    const [l, r]: [number, number] = units.length ? besideSpan(units, idx === 0 ? -1 : 1) : [-CARD_W / 2, CARD_W / 2];
+    // Leave room for the marriage line between the two parents.
+    const married = withPartners && parent !== undefined && idx === 0 && unionsBetween(f, id, spouseOnLine(parent, 0) ?? '').length > 0;
+    return [l, married ? r + PAIR_W - CARD_W - GAP_X : r];
   });
   const nodes: LNode[] = [];
   const edges: LEdge[] = [];
@@ -373,12 +408,23 @@ function pedigree(f: Family, focus: string, up: number, opts: { slots?: boolean;
   for (const pis of childIndex(t.items).values()) {
     if (pis.length < 2) continue;
     const [a, b] = [nodes[pis[0]], nodes[pis[1]]];
-    const u = sortedUnions(f, a.id).find((x) => x.a === b.id || x.b === b.id);
-    if (u && !unions.has(u.id)) unions.set(u.id, { a: a.id, b: b.id, x: (a.x + b.x) / 2, row: a.row });
+    for (const u of unionsBetween(f, a.id, b.id)) if (!unions.has(u.id)) unions.set(u.id, { a: a.id, b: b.id, x: (a.x + b.x) / 2, row: a.row });
   }
   for (const [ci, pis] of childIndex(t.items)) {
     const n = nodes[ci];
-    edges.push(...forkUp(n.key, n, pis.map((pi) => nodes[pi]).map((p) => ({ x: p.x, y: p.y, id: p.id, dashed: p.role === 'ghost' || f.disputed.has(`${n.id}>${p.id}`) })), n.id));
+    let ps = pis.map((pi) => nodes[pi]);
+    const couple = withPartners && ps.length >= 2 ? unionsBetween(f, ps[0].id, ps[1].id) : [];
+    if (couple.length) {
+      // The family view: the parents' marriage is drawn, and the child hangs from the middle of it.
+      const [a, b] = ps;
+      couple.forEach((u, k) => edges.push(marriageEdge(n.key, u, a.x, b.x, a.y, [a.id, b.id], k * REMARRIED_STEP)));
+      const dashed = [a, b].some((p) => f.disputed.has(`${n.id}>${p.id}`) || f.linkKind.has(`${n.id}>${p.id}`));
+      const trunk = forkDown(`${n.key}:couple`, { x: (a.x + b.x) / 2, y: a.y + CARD_H * 0.42 - CARD_H }, [{ x: n.x, y: n.y, id: n.id, dashed }], a.id, n.y - (ROW_H - CARD_H) / 2);
+      trunk.forEach((e) => e.ids.push(b.id));
+      edges.push(...trunk);
+      ps = ps.slice(2);
+    }
+    edges.push(...forkUp(n.key, n, ps.map((p) => ({ x: p.x, y: p.y, id: p.id, dashed: p.role === 'ghost' || f.disputed.has(`${n.id}>${p.id}`) })), n.id));
   }
   return { nodes, edges, unions, ids };
 }
@@ -525,14 +571,24 @@ function hourglass(f: Family, o: LayoutOptions): Layout {
       [...older, ...younger].forEach((s) => claimed.add(s));
     }
   }
-  // Half-siblings hang on a bar of their own, above the full siblings' bar, so the two families never share a line.
-  const HALF_LANE = -ROW_H + CARD_H + 28;
-  groups.push(...kinGroups(f, top, claimed, new Set(sibs)).map((g) => (g.row === -1 ? { ...g, lane: HALF_LANE } : g)));
+  groups.push(...kinGroups(f, top, claimed, new Set(sibs)));
 
   // Nearest groups first, so each one is placed beyond the ones before it on its side.
+  groups.sort((a, b) => Math.abs(a.anchorX) - Math.abs(b.anchorX));
+  // Each marriage's children get a bar of their own. The farther out a group starts, the higher its bar, so its
+  // trunk stops above the bars of the nearer groups and its children, placed beyond theirs, are never crossed.
+  const fans = new Map<string, KinGroup[]>();
+  for (const g of groups) {
+    const fan = `${g.row}:${g.side ?? (g.anchorX < 0 ? -1 : 1)}`;
+    (fans.get(fan) ?? fans.set(fan, []).get(fan)!).push(g);
+  }
+  for (const fan of fans.values()) {
+    const step = Math.min(32, 48 / Math.max(1, fan.length - 1));
+    fan.forEach((g, k) => { if (k) g.lane = g.row * ROW_H + CARD_H + 60 - k * step; });
+  }
   const placed: LNode[] = [...top.nodes, ...down];
   const kin = { nodes: [] as LNode[], edges: [] as LEdge[] };
-  for (const g of groups.sort((a, b) => Math.abs(a.anchorX) - Math.abs(b.anchorX))) {
+  for (const g of groups) {
     const r = placeKin(f, g, placed, claimed, o.collapsed);
     kin.nodes.push(...r.nodes);
     placed.push(...r.nodes);

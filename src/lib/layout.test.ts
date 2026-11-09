@@ -172,3 +172,117 @@ test('a full sibling and their partner sit beside the focus; the half-sibling ha
   assert.notEqual(barY(fullBar!.d), barY(halfBar!.d), "the two families' bars are on different lanes");
   assert.ok(!halfBar!.ids.includes('egon'), "Konrad's connector does not carry Egon");
 });
+
+// ---------- every marriage has its own line and date ----------
+
+const yearLabel = (l: Layout, a: string, b: string) => l.edges.filter((e) => e.kind === 'marriage' && e.ids.includes(a) && e.ids.includes(b));
+/** The path's horizontal run: [y, x from, x to]. */
+const runOf = (d: string) => {
+  const m = /^M(-?[\d.]+),(-?[\d.]+)H(-?[\d.]+)$/.exec(d)!;
+  return [parseFloat(m[2]), parseFloat(m[1]), parseFloat(m[3])];
+};
+/** Every straight segment of a path, as [x1, y1, x2, y2]. */
+function segments(d: string): [number, number, number, number][] {
+  const out: [number, number, number, number][] = [];
+  let x = 0, y = 0;
+  for (const [, c, v] of d.matchAll(/([MHV])(-?[\d.]+(?:,-?[\d.]+)?)/g)) {
+    if (c === 'M') [x, y] = v.split(',').map(Number);
+    else if (c === 'H') { out.push([x, y, Number(v), y]); x = Number(v); }
+    else { out.push([x, y, x, Number(v)]); y = Number(v); }
+  }
+  return out;
+}
+
+test('both marriages of a man show their own line and date', () => {
+  const l = family_(family(), 'lotte');
+  for (const [partner, text] of [['ottilie', '⚭ 1953–1962'], ['theda', '⚭ 1965']] as const) {
+    const edges = yearLabel(l, 'edmund', partner);
+    assert.equal(edges.length, 1, `Edmund and ${partner} have exactly one marriage line`);
+    assert.equal(edges[0].label?.text, text);
+    const [, from, to] = runOf(edges[0].d);
+    assert.ok(to - from > 80, `the line to ${partner} is visible between the cards, ${to - from}px long`);
+  }
+  assert.ok(yearLabel(l, 'edmund', 'ottilie')[0].dashed, 'the ended marriage keeps its dashed style');
+  assert.ok(!yearLabel(l, 'edmund', 'theda')[0].dashed);
+});
+
+test("a child's line starts on their own parents' marriage line", () => {
+  const l = family_(family(true), 'lotte');
+  for (const [child, a, b] of [['lotte', 'arno', 'cosima'], ['cosima', 'edmund', 'ottilie']] as const) {
+    const line = yearLabel(l, a, b)[0];
+    const [y, from, to] = runOf(line.d);
+    const edge = l.edges.find((e) => e.kind === 'line' && e.ids.includes(child) && e.ids.includes(a) && e.ids.includes(b));
+    assert.ok(edge, `${child} has a connector from ${a} and ${b}`);
+    assert.equal(edge!.d.indexOf(`M${(from + to) / 2},`), 0, `${child}'s connector starts in the middle of the line`);
+    assert.equal(parseFloat(/^M[^,]*,(-?[\d.]+)/.exec(edge!.d)![1]), y, `${child}'s connector starts at the height of the line`);
+  }
+});
+
+test('no line of descent runs across a marriage line, or across another line of descent', () => {
+  const f = family(true);
+  for (const focus of ['lotte', 'egon']) {
+    const l = family_(f, focus);
+    const lines = l.edges.filter((e) => e.kind === 'line').flatMap((e) => segments(e.d).map((s) => ({ e, s })));
+    const marriages = l.edges.filter((e) => e.kind === 'marriage').map((e) => ({ e, s: segments(e.d)[0] }));
+    // A bar may only be met by its own family's lines: a marriage line is crossed if passed through, a bar even if touched.
+    const crosses = (h: number[], v: number[], touch: boolean) => {
+      const [hx0, hx1] = [Math.min(h[0], h[2]), Math.max(h[0], h[2])], [vy0, vy1] = [Math.min(v[1], v[3]), Math.max(v[1], v[3])];
+      const slack = touch ? -0.5 : 0.5;
+      return v[0] > hx0 + 0.5 && v[0] < hx1 - 0.5 && h[1] > vy0 + slack && h[1] < vy1 - slack;
+    };
+    const across = [...lines, ...marriages].filter(({ s }) => s[1] === s[3]);
+    const downs = lines.filter(({ s }) => s[0] === s[2]);
+    for (const a of across) for (const d of downs) {
+      if (a.e.key === d.e.key || startX(a.e.d) === startX(d.e.d)) continue;
+      assert.ok(!crosses(a.s, d.s, a.e.kind === 'line'), `${focus}: ${a.e.key} meets ${d.e.key}`);
+    }
+  }
+});
+
+function manyPartners(count: number): Family {
+  const wives = Array.from({ length: count }, (_, i) => `w${i}`);
+  const people: GPerson[] = [
+    person('kid', 'Kid', 'f', '1990'), person('father', 'Father', 'm', '1950'),
+    ...wives.map((w, i) => person(w, `Wife${i}`, 'f', `${1950 + i}`)),
+  ];
+  const links: [string, string][] = [['kid', 'father'], ['kid', 'w0'], ...wives.slice(1).map((w) => [`c-${w}`, w] as [string, string]), ...wives.slice(1).map((w) => [`c-${w}`, 'father'] as [string, string])];
+  people.push(...wives.slice(1).map((w) => person(`c-${w}`, `Child${w}`, 'm', '1985')));
+  const unions: GUnion[] = wives.map((w, i) => ({
+    id: `u-${i}`, a: 'father', b: w, kind: 'marriage', start: `${1970 + i * 3}-01-01`, ...(i < count - 1 ? { end: `${1971 + i * 3}-01-01`, endReason: 'death' as const } : {}),
+  }));
+  return buildFamily({
+    tree: { id: 't', name: 'T', tagline: '', theme: 'modern', focus: 'kid', people: people.length }, houses: [], places: [], people,
+    parents: links.map(([child, parent]) => ({ child, parent, kind: 'biological', confidence: 'certain' }) as GParent), unions,
+  });
+}
+
+test('however many partners a person has, each marriage shows its line and date', () => {
+  for (const count of [2, 3, 4]) {
+    const f = manyPartners(count);
+    for (const focus of ['kid', 'father']) {
+      const l = family_(f, focus);
+      for (let i = 0; i < count; i++) {
+        const edges = yearLabel(l, 'father', `w${i}`);
+        assert.equal(edges.length, 1, `${focus}: one line for the marriage to w${i}`);
+        assert.ok(edges[0].label?.text.includes(String(1970 + i * 3)), `${focus}: the date of the marriage to w${i}`);
+      }
+      assertNoOverlap(l, `${count} partners, focus ${focus}`);
+    }
+  }
+});
+
+test('a couple who married twice shows both marriages', () => {
+  const graph: Graph = {
+    tree: { id: 't', name: 'T', tagline: '', theme: 'modern', focus: 'kid', people: 3 }, houses: [], places: [],
+    people: [person('kid', 'Kid', 'f', '1990'), person('a', 'A', 'm', '1950'), person('b', 'B', 'f', '1952')],
+    parents: [['kid', 'a'], ['kid', 'b']].map(([child, parent]) => ({ child, parent, kind: 'biological', confidence: 'certain' }) as GParent),
+    unions: [
+      { id: 'u1', a: 'a', b: 'b', kind: 'marriage', start: '1975', end: '1980', endReason: 'divorce' },
+      { id: 'u2', a: 'a', b: 'b', kind: 'marriage', start: '1985' },
+    ],
+  };
+  const l = family_(buildFamily(graph), 'kid');
+  const lines = yearLabel(l, 'a', 'b');
+  assert.deepEqual(lines.map((e) => e.label?.text).sort(), ['⚭ 1975–1980', '⚭ 1985']);
+  assert.notEqual(runOf(lines[0].d)[0], runOf(lines[1].d)[0], 'their lines do not lie on top of each other');
+});
