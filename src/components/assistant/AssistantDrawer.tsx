@@ -86,6 +86,9 @@ const joined = (a: string, b: string) => (a.trim() ? `${a.replace(/\s+$/, '')} $
 const draftImages = new Map<string, Attached[]>();
 const restoredInterrupted = new Set<string>();
 
+/** The composer's tallest: five lines of its text and its padding (the same number as max-height in assistant.css). */
+const COMPOSER_MAX = 136;
+
 /** From this wide, the list of chats sits beside the thread; below it, it slides over (the same width as the CSS container query). */
 const LIST_BESIDE_WIDTH = 720;
 
@@ -154,6 +157,7 @@ function AssistantDrawer({ tree }: { tree: string }) {
   const [keepImages, setKeepImages] = useState(false);
   const [session, setSession] = useState<{ open: boolean; used: boolean }>({ open: false, used: false });
   const [tabsFull, setTabsFull] = useState(false);
+  const [moreExamples, setMoreExamples] = useState(false);
   // Whether the reader has scrolled away from the newest message; then new content waits behind "Jump to latest".
   const [away, setAway] = useState(false);
   const areaRef = useRef<HTMLTextAreaElement>(null);
@@ -321,12 +325,12 @@ function AssistantDrawer({ tree }: { tree: string }) {
     const id = window.setTimeout(() => setSlow(true), 8000);
     return () => window.clearTimeout(id);
   }, [busy, conv]);
-  // The box grows with its text, up to about eight lines, then scrolls.
+  // The box grows with its text, up to five lines, then scrolls.
   useLayoutEffect(() => {
     const el = areaRef.current;
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, COMPOSER_MAX)}px`;
   }, [text, session.open]);
   // On a phone the sheet follows the visible part of the screen, so the composer stays above the on-screen keyboard.
   useEffect(() => {
@@ -369,7 +373,8 @@ function AssistantDrawer({ tree }: { tree: string }) {
     const el = logRef.current;
     if (!el || session.open) return;
     // Instant, not smooth: a reply that lands mid-animation would leave the thread short of its newest message.
-    if (stick.current) el.scrollTop = el.scrollHeight;
+    if (items.length === 0 && pending === null && !busy && unsent.length === 0) el.scrollTop = 0;
+    else if (stick.current) el.scrollTop = el.scrollHeight;
     else setAway(true);
   }, [items.length, pending, busy, unsent.length, session.open, live?.text]);
 
@@ -445,9 +450,13 @@ function AssistantDrawer({ tree }: { tree: string }) {
   const viewed = page.personId ? graph.data?.people.find((p) => p.id === page.personId) : undefined;
   const examples: { key: Key; open?: boolean; name?: string }[] = [
     ...(viewed
-      ? (['chat.start.who', 'chat.start.family', 'chat.start.timeline', 'chat.start.gaps', ...(me && me !== viewed.id ? ['chat.start.relation'] : [])] as Key[]).map((key) => ({ key, name: fullName(viewed) }))
+      ? (['chat.start.who', 'chat.start.family'] as Key[]).map((key) => ({ key, name: fullName(viewed) }))
       : [{ key: 'chat.start.birthdays' as Key }]),
+    // Among the first four whatever page the reader is on: the rest wait behind "More".
     ...(canDraft ? [{ key: 'ai.exFamily' as Key, open: true }] : []),
+    ...(viewed
+      ? (['chat.start.timeline', 'chat.start.gaps', ...(me && me !== viewed.id ? ['chat.start.relation'] : [])] as Key[]).map((key) => ({ key, name: fullName(viewed) }))
+      : []),
     { key: 'ai.exPhotos' },
     { key: 'ai.exMissing' },
     { key: 'ai.exRelated' },
@@ -624,22 +633,22 @@ function AssistantDrawer({ tree }: { tree: string }) {
             </button>
           )}
           <h2 className="ai-drawer-title"><Sparkles size={16} aria-hidden /> <span>{win.phone && conv ? tabName(conv) : t('ai.title')}</span></h2>
+          <div className="ai-drawer-tools">
+            {canDraft && !session.open && (
+              <button type="button" className="btn ghost ai-touch ai-icon ai-tool" onClick={openSession} disabled={busy} aria-label={t('ai.sessionStart')} title={t('ai.sessionStart')}>
+                <Users size={16} aria-hidden />
+              </button>
+            )}
+            {!session.open && (
+              <button type="button" className="btn ghost ai-touch ai-icon ai-tool ai-tool-new" onClick={() => void newChat()} aria-label={t('ai.chatNew')} title={t('ai.chatNew')}>
+                <MessageSquarePlus size={16} aria-hidden />
+              </button>
+            )}
+          </div>
           <WindowControls win={win} />
           <button type="button" className="btn ghost ai-touch ai-icon ai-drawer-close" onClick={() => { dictation.stop(); closeAssistant(); }} aria-label={t('ai.close')} title={t('ai.close')}>
             <X size={17} aria-hidden />
           </button>
-        </div>
-        <div className="ai-drawer-tools">
-          {canDraft && !session.open && (
-            <button type="button" className="btn ghost ai-touch ai-tool" onClick={openSession} disabled={busy}>
-              <Users size={15} aria-hidden /> {t('ai.sessionStart')}
-            </button>
-          )}
-          {!session.open && (
-            <button type="button" className="btn ghost ai-touch ai-tool ai-tool-new" onClick={() => void newChat()}>
-              <MessageSquarePlus size={15} aria-hidden /> {t('ai.chatNew')}
-            </button>
-          )}
         </div>
         {!session.open && !win.phone && tabState.tabs.length > 0 && (
           <ChatTabs tabs={tabState.tabs} active={conv} names={tabName} onSwitch={switchTab} onClose={closeChatTab} onNew={() => void newChat()} />
@@ -680,7 +689,7 @@ function AssistantDrawer({ tree }: { tree: string }) {
                   </div>
                   <p className="ai-examples-title">{t('ai.examplesTitle')}</p>
                   <div className="ai-examples">
-                    {examples.map((ex) => (
+                    {(moreExamples ? examples : examples.slice(0, 4)).map((ex) => (
                       <button
                         key={ex.key}
                         type="button"
@@ -697,6 +706,9 @@ function AssistantDrawer({ tree }: { tree: string }) {
                         {t(ex.key, { name: ex.name ?? '' })}
                       </button>
                     ))}
+                    {!moreExamples && examples.length > 4 && (
+                      <button type="button" className="btn ghost ai-touch ai-examples-more" onClick={() => setMoreExamples(true)}>{t('shell.more')}</button>
+                    )}
                   </div>
                 </div>
               )}
@@ -770,6 +782,11 @@ function AssistantDrawer({ tree }: { tree: string }) {
           </div>
           <p className="ai-sr" role="status">{busy && !session.open ? t(live?.step ?? 'ai.sending') : ''}</p>
 
+          {steward && models && conv && (
+            <div className="ai-composer-meta">
+              <ModelPicker choices={models} override={chat.data?.override ?? null} onChange={(m) => void chooseModel(conv, m)} />
+            </div>
+          )}
           <form className="ai-composer" onSubmit={send}>
             <label className="ai-sr" htmlFor="ai-input">{t('ai.placeholder')}</label>
             {canDraft && <ImageTray attach={attach} provider={status?.provider} keep={keepImages} onKeep={setKeepImages} />}
@@ -779,30 +796,28 @@ function AssistantDrawer({ tree }: { tree: string }) {
                 {dictation.interim && <em className="subtle"> {dictation.interim}</em>}
               </p>
             )}
-            <textarea
-              id="ai-input"
-              ref={areaRef}
-              rows={1}
-              maxLength={4000}
-              placeholder={t('ai.placeholder')}
-              onKeyDown={onInputKey}
-            />
             <div className="ai-composer-row">
               {canDraft && <AttachButton attach={attach} />}
               {dictation.supported && (
-                <button type="button" className={`btn ai-touch ai-mic${listening ? ' ai-mic-on' : ''}`} onClick={toggleMic} aria-pressed={listening} aria-label={listening ? t('ai.micStop') : t('ai.mic')} title={listening ? t('ai.micStop') : t('ai.mic')}>
-                  {listening ? <MicOff size={16} aria-hidden /> : <Mic size={16} aria-hidden />}
-                  <span className="ai-mic-label">{listening ? t('ai.micStop') : t('ai.mic')}</span>
+                <button type="button" className={`btn ghost ai-touch ai-icon ai-mic${listening ? ' ai-mic-on' : ''}`} onClick={toggleMic} aria-pressed={listening} aria-label={listening ? t('ai.micStop') : t('ai.mic')} title={listening ? t('ai.micStop') : t('ai.mic')}>
+                  {listening ? <MicOff size={17} aria-hidden /> : <Mic size={17} aria-hidden />}
                 </button>
               )}
-              {steward && models && conv && <ModelPicker choices={models} override={chat.data?.override ?? null} onChange={(m) => void chooseModel(conv, m)} />}
-              <button type="submit" className="btn primary ai-touch ai-send" disabled={busy || !conv || attach.reading || (!text.trim() && !attach.images.length)} title={busy ? t('ai.waitForReply') : undefined}>
-                <Send size={15} aria-hidden /> {t('ai.send')}
+              <textarea
+                id="ai-input"
+                ref={areaRef}
+                rows={1}
+                maxLength={4000}
+                placeholder={t('ai.placeholder')}
+                onKeyDown={onInputKey}
+              />
+              <button type="submit" className="btn primary ai-touch ai-icon ai-send" disabled={busy || !conv || attach.reading || (!text.trim() && !attach.images.length)} aria-label={t('ai.send')} title={busy ? t('ai.waitForReply') : t('ai.send')}>
+                <Send size={17} aria-hidden />
               </button>
             </div>
           </form>
+          <p className="ai-composer-hint subtle" aria-hidden={text ? true : undefined}>{t(canDraft ? 'ai.composerHintImages' : 'ai.composerHint')}</p>
           {imageError && <p className="ai-foot ai-card-error" role="alert">{t(imageError as Key)}</p>}
-          <p className="ai-composer-hint subtle">{t(canDraft ? 'ai.composerHintImages' : 'ai.composerHint')}</p>
           {dictation.state === 'denied' && <p className="ai-foot subtle" role="status">{t('ai.micDenied')}</p>}
           {dictation.state === 'error' && <p className="ai-foot subtle" role="status">{t('ai.micFailed')}</p>}
           {!dictation.supported && <p className="ai-foot subtle">{t('ai.micUnsupported')}</p>}
@@ -875,7 +890,7 @@ function AssistantTurn({ tree, conv, item, people, places, onDecided, steward, m
   const sources = (item.sources ?? []).filter((s) => webUrl(s.url));
   const chips = last && !busy ? chipsFor(item, pagePerson, (id) => people.find((p) => p.id === id)?.name) : [];
   return (
-    <div className={`ai-turn ai-turn-assistant${item.alternateOf ? ' ai-turn-alternate' : ''}`}>
+    <div className={`ai-turn ai-turn-assistant${item.alternateOf ? ' ai-turn-alternate' : ''}${last ? ' ai-turn-last' : ''}`}>
       <span className="ai-mark" aria-hidden><Sparkles size={13} /></span>
       <div className="ai-turn-body">
         {item.alternateOf && <p className="ai-answer-tag">{t('ai.answerAlternate')}</p>}
@@ -900,16 +915,22 @@ function AssistantTurn({ tree, conv, item, people, places, onDecided, steward, m
         )}
         {steward && item.model && (
           <div className="ai-answer-foot">
-            <span>{t('ai.modelWrote', { model: modelName(models, item.model.model) })}</span>
-            {canRetry && stronger && <button type="button" className="ai-answer-link" onClick={() => onRetry(item.id, { provider: stronger.provider, model: stronger.id })}>{t('ai.retryStronger')}</button>}
-            {canRetry && models && <RetryModelMenu choices={models} onPick={(m) => onRetry(item.id, m)} label={t(stronger ? 'ai.retryPick' : 'ai.retryAnother')} />}
+            <span className="ai-answer-model">{t('ai.modelWrote', { model: modelName(models, item.model.model) })}</span>
+            {canRetry && models && (
+              <RetryModelMenu
+                choices={models}
+                onPick={(m) => onRetry(item.id, m)}
+                label={t('ai.retryAnother')}
+                stronger={stronger ? { label: t('ai.retryStronger'), name: stronger.name, onPick: () => onRetry(item.id, { provider: stronger.provider, model: stronger.id }) } : undefined}
+              />
+            )}
           </div>
         )}
         {chips.length > 0 && (
           <div className="aw-chips" role="group" aria-label={t('ai.examplesTitle')}>
             {chips.map((chip) => {
               const words = t(chip.key, { name: chip.name ?? '' });
-              return <button key={chip.key} type="button" className="aw-chip" onClick={() => onSay(words)}>{words}</button>;
+              return <button key={chip.key} type="button" className="btn aw-chip" onClick={() => onSay(words)}>{words}</button>;
             })}
           </div>
         )}

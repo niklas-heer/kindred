@@ -1,10 +1,11 @@
 // PageHeader: a page's title block. Cinzel and centred under a fleuron rule in Codex; left-aligned
-// with actions on the right in Paper and Night.
+// with actions on the right in Paper and Night. On a phone the header is compact: actions that are all buttons with
+// an icon become icon buttons on the title's row (their words stay as the accessible name).
 //
 // Usage:
 //   <PageHeader title="Almanac" subtitle="Birthdays, anniversaries and memorial days"
 //     icon={<CalendarHeart size={26} />} actions={<button className="btn">Export .ics</button>} />
-import type { ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import './ui.css';
 
 export interface PageHeaderProps {
@@ -20,8 +21,17 @@ export interface PageHeaderProps {
 }
 
 export function PageHeader({ title, subtitle, actions, icon, className = '', id }: PageHeaderProps) {
+  // "Only icon buttons" can't be said in CSS (:has() does not nest), so the header is marked here, after every render.
+  const header = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const el = header.current;
+    const kids = [...(el?.querySelector('.ui-page-header-actions')?.children ?? [])];
+    const icons = kids.length > 0 && kids.every((k) => k.classList.contains('btn') && !!k.querySelector('svg'));
+    if (icons) { el?.setAttribute('data-icon-actions', String(kids.length)); el?.style.setProperty('--ph-icons', String(kids.length)); }
+    else { el?.removeAttribute('data-icon-actions'); el?.style.removeProperty('--ph-icons'); }
+  });
   return (
-    <header className={`ui-page-header ${className}`}>
+    <header ref={header} className={`ui-page-header ${className}`}>
       <div className="ui-page-header-text">
         <h1 id={id}>
           {icon && <span className="ui-page-header-icon" aria-hidden>{icon}</span>}

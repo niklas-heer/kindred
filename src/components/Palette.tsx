@@ -4,7 +4,7 @@ import { occupationSearchText } from '~/lib/occupations';
 // ⌘K: jump to anyone by name, nickname, epithet, title or place; or run a command.
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useNavigate } from '@tanstack/react-router';
-import { CalendarHeart, Contact, Landmark, Map as MapIcon, Crown, GitFork, Moon, Network, Palette as PaletteIcon, ScrollText, Sparkles, Sun, UserRound, FolderSearch, Inbox, MessageSquarePlus } from 'lucide-react';
+import { CalendarHeart, CircleHelp, Contact, Landmark, Languages, Map as MapIcon, Crown, GitFork, Moon, Network, ScrollText, Shield, Sparkles, Sun, UserRound, FolderSearch, Inbox, MessageSquarePlus } from 'lucide-react';
 import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useFamily, useMe, useMeChosen, useTreeId } from '~/lib/family';
 import { displayName, kinship, lifespan, ancestorDepths, type Family } from '~/lib/graph';
@@ -14,6 +14,8 @@ import { play } from '~/lib/sfx';
 import { openAiSetup, openAssistant, useAiStatus } from './assistant/store';
 import { useAiSetupNeeded } from './assistant/AiSetup';
 import { Arms } from './Heraldry';
+import { Flag } from './heraldry/Flag';
+import { LANGUAGE_FLAG } from './LanguagePicker';
 import { Portrait } from './Portrait';
 import { Dialog } from './ui/Dialog';
 import { reopenTour } from './FirstRun';
@@ -127,7 +129,7 @@ export function Palette() {
   const items: Item[] = useMemo(() => {
     if (mode === 'language') {
       return LOCALES.map((l) => ({
-        key: `lang-${l}`, label: LANGUAGE_NAME[l], hint: l === t.locale ? t('shell.palette.current') : undefined,
+        key: `lang-${l}`, icon: <Flag code={LANGUAGE_FLAG[l]} size={18} />, label: LANGUAGE_NAME[l], hint: l === t.locale ? t('shell.palette.current') : undefined,
         run: () => { t.setLocale(l); close(); },
       }));
     }
@@ -145,8 +147,7 @@ export function Palette() {
         }))
       : [];
     const cmds = commandsForReader<Item>([
-      { key: 'language', label: t('common.changeLanguage'), hint: LANGUAGE_NAME[t.locale], run: () => { setMode('language'); setQ(''); setSel(0); } },
-      { key: 'tour', icon: <UserRound size={16} />, label: t('shell.cmd.tour'), hint: t('shell.cmd.tourHint'), run: () => { close(); reopenTour(); } },
+      // Views first, then pages, then what you do rarely: settings, the tour, feedback.
       { key: 'v-family', icon: <Network size={16} />, label: t('shell.cmd.viewFamily'), run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'family' }) }); close(); } },
       { key: 'v-dynasty', icon: <Crown size={16} />, label: t('shell.cmd.viewDynasty'), run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'dynasty' }) }); close(); } },
       { key: 'v-anc', icon: <GitFork size={16} style={{ transform: 'rotate(180deg)' }} />, label: t('shell.cmd.viewAncestors'), run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'ancestors' }) }); close(); } },
@@ -160,13 +161,15 @@ export function Palette() {
       { key: 'houses', icon: <Landmark size={16} />, label: t('shell.cmd.houses'), hint: t('shell.cmd.housesHint'), run: () => { navigate({ to: '/$tree/houses', params: { tree } }); close(); } },
       ...(assistantOn ? [{ key: 'assistant', icon: <Sparkles size={16} />, label: t('ai.askCommand'), run: () => { close(); openAssistant(); } }] : []),
       ...(setupNeeded ? [{ key: 'ai-setup', icon: <Sparkles size={16} />, label: t('ai.setupCommand'), run: () => { close(); openAiSetup(); } }] : []),
+      { key: 'language', icon: <Languages size={16} />, label: t('common.changeLanguage'), hint: LANGUAGE_NAME[t.locale], run: () => { setMode('language'); setQ(''); setSel(0); } },
+      { key: 't-codex', icon: <Shield size={16} />, label: t('shell.cmd.themeCodex'), run: () => { setPref('theme', 'codex'); close(); } },
+      { key: 't-paper', icon: <Sun size={16} />, label: t('shell.cmd.themePaper'), run: () => { setPref('theme', 'modern'); close(); } },
+      { key: 't-night', icon: <Moon size={16} />, label: t('shell.cmd.themeNight'), run: () => { setPref('theme', 'night'); close(); } },
+      { key: 'tour', icon: <CircleHelp size={16} />, label: t('shell.cmd.tour'), hint: t('shell.cmd.tourHint'), run: () => { close(); reopenTour(); } },
       ...(steward ? [
         { key: 'feedback', icon: <MessageSquarePlus size={16} />, label: t('feedback.menu'), hint: t('feedback.command_hint'), run: () => { close(); openFeedback(); } },
         { key: 'feedback-inbox', icon: <Inbox size={16} />, label: t('feedback.inbox'), hint: t('feedback.inbox_hint'), run: () => { navigate({ to: '/$tree/settings/feedback', params: { tree } }); close(); } },
       ] : []),
-      { key: 't-codex', icon: <PaletteIcon size={16} />, label: t('shell.cmd.themeCodex'), run: () => { setPref('theme', 'codex'); close(); } },
-      { key: 't-paper', icon: <Sun size={16} />, label: t('shell.cmd.themePaper'), run: () => { setPref('theme', 'modern'); close(); } },
-      { key: 't-night', icon: <Moon size={16} />, label: t('shell.cmd.themeNight'), run: () => { setPref('theme', 'night'); close(); } },
     ], guest);
     const fq = fold(dq);
     const matched = fq ? cmds.filter((c) => fold(c.label).includes(fq)) : cmds;

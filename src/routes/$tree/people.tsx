@@ -30,6 +30,7 @@ import { useToday } from '~/lib/clock';
 import { age as ageOf, ancestorDepths, displayName, fullName, kinship, partnersOf, type Family } from '~/lib/graph';
 import type { GPerson, House } from '~/lib/types';
 import '~/styles/people.css';
+import { useDealt } from '~/lib/dealt';
 import { sectionHead } from '~/lib/title';
 
 export const Route = createFileRoute('/$tree/people')({
@@ -290,6 +291,7 @@ function RegisterPage() {
   const [house, setHouse] = useRememberedState(`people:${tree}:house`, '');
   const [sel, setSel] = useState(0);
   const [mobileLimit, setMobileLimit] = useRememberedState(`people:${tree}:limit`, 100);
+  const dealt = useDealt();
 
   const t = useT();
   const { locale } = t;
@@ -406,6 +408,8 @@ function RegisterPage() {
               aria-label={t('people.searchAria')}
             />
           </label>
+          {/* On a phone the filters are one row that scrolls sideways under the search. */}
+          <div className="reg-filters">
           <div className="reg-seg" role="group" aria-label={t('people.livingOrDeceased')}>
             {(['all', 'living', 'deceased'] as const).map((s) => (
               <button key={s} className="btn" aria-pressed={scope === s} onClick={() => setScope(s)}>
@@ -424,9 +428,10 @@ function RegisterPage() {
               <X size={14} /> {t('people.clear')}
             </button>
           )}
+          </div>
         </div>
 
-        <div className="reg-mobile">
+        <div className={`reg-mobile ${dealt}`}>
           {rows.length === 0 && (none ? <NoPeopleYet tree={tree} canAdd={canAdd} /> : <EmptyState title={t('con.noMatchTitle')} text={t('people.tryFewer')} action={<button className="btn" onClick={reset}>{t('con.clearFilters')}</button>} />)}
           {rows.slice(0, mobileLimit).map(({ original: r }) => <details className="reg-mobile-person ui-card" key={r.id}>
             <summary><Portrait person={r.p} tree={tree} size={42} /><span><b>{r.base}</b>{r.p.epithet && <i>{r.p.epithet}</i>}<small>{short(r.p.born, locale) || t('people.birthUnknown')} · {r.p.living ? t('panel.living') : short(r.p.died, locale) || t('people.deathUnknown')}</small>{r.rel && <small>{r.rel === 'you' ? t('people.youCap') : t('panel.yourKin', { kin: kinshipLabel({ label: r.rel, via: [] }, locale) })}</small>}</span></summary>

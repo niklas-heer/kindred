@@ -24,8 +24,11 @@ test('switching language and theme', async ({ page }) => {
 
   await expect(html).toHaveAttribute('data-theme', 'codex');
   await checkAxe(page, 'tree with person panel (codex)');
-  for (const [from, to, theme] of [['Codex', 'Paper', 'modern'], ['Paper', 'Night', 'night'], ['Night', 'Codex', 'codex']] as const) {
-    await page.getByRole('button', { name: `Theme: ${from}. Switch to ${to}` }).click();
+  // At this width the top bar has no room for the theme button: the choice is in the account menu.
+  for (const [to, theme] of [['Paper', 'modern'], ['Night', 'night'], ['Codex', 'codex']] as const) {
+    await page.locator('.acct-trigger').click();
+    await page.getByRole('menuitemradio', { name: to }).click();
+    await page.keyboard.press('Escape');
     await expect(html).toHaveAttribute('data-theme', theme);
     await page.reload();
     await settled(page);

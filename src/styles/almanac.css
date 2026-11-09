@@ -1,7 +1,7 @@
 /* Almanac: what is coming up in the family. Tokens only; all three themes. */
 
 .alm-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
-.alm-head p { margin: 0; font-size: 17px; }
+.alm-head p { margin: 0; font-size: var(--fs-4); }
 
 /* ---- the year strip: twelve calendar leaves; a thin gauge shows how full each month is ---- */
 .alm-strip-wrap { margin-bottom: 26px; }
@@ -21,8 +21,8 @@
 .alm-tile:hover { transform: translateY(-2px); border-color: var(--edge); background: var(--panel-3); }
 .alm-tile:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .alm-tile[aria-pressed='true'] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.alm-tile-m { font-family: var(--font-display); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
-.alm-tile-n { font-size: 21px; line-height: 1.15; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; font-family: var(--font-display); }
+.alm-tile-m { font-family: var(--font-display); font-size: var(--fs-1); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.alm-tile-n { font-size: var(--fs-5); line-height: 1.15; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; font-family: var(--font-display); }
 .alm-tile-gauge {
   position: absolute; left: 0; bottom: 0; height: 3px; width: calc(var(--heat) * 100%);
   background: var(--accent); opacity: 0.75;
@@ -39,7 +39,7 @@
 [data-theme='codex'] .alm-tile:hover { background: linear-gradient(180deg, #2c3648, #222a3a); }
 [data-theme='codex'] .alm-tile[aria-pressed='true'] { box-shadow: inset 0 0 0 1px var(--accent); }
 [data-theme='codex'] .alm-tile[data-current] { box-shadow: inset 0 0 0 1px var(--edge); }
-.alm-strip-cap { margin: 8px 0 0; font-size: 14px; display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.alm-strip-cap { margin: 8px 0 0; font-size: var(--fs-2); display: flex; align-items: center; gap: 8px; min-height: 32px; }
 
 /* ---- layout ---- */
 .alm-cols { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 28px; align-items: start; }
@@ -77,8 +77,8 @@
   background: var(--panel-2); border: 1px solid var(--border);
   line-height: 1;
 }
-.alm-leaf i { font-style: normal; font-size: 11px; color: var(--muted); font-family: var(--font-ui); text-transform: uppercase; letter-spacing: 0.1em; }
-.alm-leaf b { font-family: var(--font-display); font-size: 22px; font-weight: 600; margin-top: 3px; }
+.alm-leaf i { font-style: normal; font-size: var(--fs-1); color: var(--muted); font-family: var(--font-ui); text-transform: uppercase; letter-spacing: 0.1em; }
+.alm-leaf b { font-family: var(--font-display); font-size: var(--fs-6); font-weight: 600; margin-top: 3px; }
 .alm-row[data-today] .alm-leaf { background: var(--accent); border-color: transparent; color: var(--accent-text); }
 .alm-row[data-today] .alm-leaf i { color: var(--accent-text); }
 
@@ -87,13 +87,13 @@
 .alm-faces > * { box-shadow: 0 0 0 2px var(--panel-solid); }
 
 .alm-text { min-width: 0; display: grid; gap: 3px; }
-.alm-who { font-size: 18px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; }
+.alm-who { font-size: var(--fs-4); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; }
 .alm-name { text-decoration: none; }
 .alm-name:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 .alm-name:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 3px; }
-.alm-what { display: flex; align-items: center; gap: 8px; color: var(--muted); font-family: var(--font-ui); font-size: 15px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.alm-what { display: flex; align-items: center; gap: 8px; color: var(--muted); font-family: var(--font-ui); font-size: var(--fs-3); flex-wrap: wrap; font-variant-numeric: tabular-nums; }
 .alm-row[data-milestone] .alm-what-text { color: var(--text); font-weight: 600; }
-.alm-star { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-size: 13px; font-weight: 600; }
+.alm-star { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-size: var(--fs-2); font-weight: 600; }
 
 /* ---- the seal: a small round medallion, tinted by kind ---- */
 .alm-row { --kind: var(--accent); }
@@ -110,12 +110,12 @@
 [data-theme='codex'] .alm-row[data-today] .alm-seal { background: linear-gradient(160deg, #f0cf83, #b8913f); box-shadow: inset 0 1px 0 #fff6, 0 1px 3px #000a; }
 
 .alm-meta { display: grid; justify-items: end; gap: 3px; text-align: right; }
-.alm-away { font-family: var(--font-ui); font-size: 14px; font-weight: 600; }
+.alm-away { font-family: var(--font-ui); font-size: var(--fs-2); font-weight: 600; }
 .alm-row[data-today] .alm-away { color: var(--accent); }
 /* "Today" ribbon: a gold tab with a swallow-tail, carrying a wax seal. */
 .alm-ribbon {
   display: inline-flex; align-items: center; gap: 6px; padding: 5px 16px 5px 9px; margin-right: -16px;
-  font-family: var(--font-display); font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  font-family: var(--font-display); font-size: var(--fs-2); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--accent-text); background: var(--accent);
   clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 50%, 100% 100%, 0 100%);
 }
@@ -124,36 +124,42 @@
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
 }
-.alm-rel { font-size: 14px; color: var(--muted); font-style: italic; }
+.alm-rel { font-size: var(--fs-2); color: var(--muted); font-style: italic; }
 
 @media (max-width: 640px) {
   .alm-row { grid-template-columns: 46px 34px minmax(0, 1fr); gap: 10px; }
   .alm-faces { display: none; }
   .alm-meta { grid-column: 2 / -1; justify-items: start; text-align: left; display: flex; gap: 10px; }
   .alm-ribbon { margin-right: 0; }
-  .alm-strip { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  /* The year ahead as one row that scrolls sideways, six months in view, starting at this month. */
+  .alm-strip {
+    grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: calc((100% - 30px) / 6);
+    margin-inline: -16px; padding: 2px 16px; overflow-x: auto; scroll-snap-type: x proximity; scroll-padding-inline: 16px; scrollbar-width: none;
+  }
+  .alm-strip::-webkit-scrollbar { display: none; }
+  .alm-tile { scroll-snap-align: start; }
 }
 
 /* ---- empty ---- */
 .alm-empty { padding: 36px 28px; text-align: center; display: grid; gap: 6px; justify-items: center; }
 .alm-empty svg { color: var(--accent); }
-.alm-empty h2 { margin: 6px 0 0; font-size: 22px; font-weight: 600; }
+.alm-empty h2 { margin: 6px 0 0; font-size: var(--fs-6); font-weight: 600; }
 .alm-empty p { margin: 0; }
 .alm-quiet { padding: 4px 2px; }
 
 /* ---- on this day ---- */
 .alm-today { padding: 18px 20px 14px; }
 .alm-today header { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
-.alm-today h2 { margin: 0; font-size: 22px; font-weight: 600; }
+.alm-today h2 { margin: 0; font-size: var(--fs-6); font-weight: 600; }
 [data-theme='codex'] .alm-today h2 { color: var(--accent); }
-.alm-today header p { margin: 2px 0 0; font-size: 15px; }
+.alm-today header p { margin: 2px 0 0; font-size: var(--fs-3); }
 .alm-today-date {
   display: grid; place-items: center; flex: none; width: 64px; height: 68px; line-height: 1;
   border-radius: var(--radius); border: 1px solid var(--edge);
   background: var(--panel-2);
 }
 .alm-today-date b { font-family: var(--font-display); font-size: 30px; font-weight: 600; color: var(--accent); }
-.alm-today-date i { font-style: normal; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-family: var(--font-ui); margin-top: -8px; }
+.alm-today-date i { font-style: normal; font-size: var(--fs-1); text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-family: var(--font-ui); margin-top: -8px; }
 
 .alm-hist { list-style: none; margin: 0; padding: 0; display: grid; }
 .alm-hrow {
@@ -162,12 +168,12 @@
 }
 .alm-hrow[data-day] { grid-template-columns: 26px 62px 32px minmax(0, 1fr); }
 .alm-hist > .alm-hrow:first-child { border-top: 0; }
-.alm-hyear { font-size: 16px; color: var(--accent); text-align: right; font-variant-numeric: tabular-nums; }
-.alm-hday { text-align: right; color: var(--subtle); font-family: var(--font-ui); font-size: 13px; font-variant-numeric: tabular-nums; }
-.alm-htext { font-size: 16px; line-height: 1.3; }
-.alm-htext small { font-size: 13px; font-family: var(--font-ui); display: block; }
+.alm-hyear { font-size: var(--fs-3); color: var(--accent); text-align: right; font-variant-numeric: tabular-nums; }
+.alm-hday { text-align: right; color: var(--subtle); font-family: var(--font-ui); font-size: var(--fs-2); font-variant-numeric: tabular-nums; }
+.alm-htext { font-size: var(--fs-3); line-height: 1.3; }
+.alm-htext small { font-size: var(--fs-2); font-family: var(--font-ui); display: block; }
 .alm-next-hist { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); display: grid; gap: 4px; }
-.alm-next-hist > span { font-size: 13px; font-family: var(--font-ui); }
+.alm-next-hist > span { font-size: var(--fs-2); font-family: var(--font-ui); }
 .alm-month-hist { margin-top: 6px; }
 .alm-month-hist .btn { margin-top: 6px; }
 
@@ -182,7 +188,7 @@
 .alm-seal svg { width: 15px; height: 15px; }
 .alm-tile { min-height: 94px; justify-content: space-between; padding: 12px 3px 14px; }
 .alm-tile-n { font: 13px var(--font-ui); }
-.alm-tile-n small { display: block; font-size: 10px; color: var(--muted); }
+.alm-tile-n small { display: block; font-size: var(--fs-1); color: var(--muted); }
 .alm-tile-gauge { left: 8%; width: 84%; height: calc(4px + var(--heat) * 18px); opacity: .65; bottom: 0; }
 .alm-tile-n { z-index: 1; padding-bottom: 16px; }
 .alm-who { overflow: visible; overflow-wrap: anywhere; font-family: var(--font-name); font-weight: var(--name-weight); }

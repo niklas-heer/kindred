@@ -5,7 +5,7 @@
 .ui-dialog-panel.lb-dialog.lb-picture { --dialog-w: min(760px, 100vw - 24px); }
 .lb-pic { display: grid; gap: 10px; justify-items: center; margin: 0; padding: 8px 0 0; }
 .lb-pic img { display: block; width: 100%; max-height: calc(100dvh - 130px); object-fit: contain; border-radius: 6px; }
-.lb-pic figcaption { font-family: var(--font-name); font-size: 16px; color: var(--muted); text-align: center; }
+.lb-pic figcaption { font-family: var(--font-name); font-size: var(--fs-4, 16px); color: var(--muted); text-align: center; }
 
 /* In the side panel: the camera beside the face, and the way to the profile. */
 .pp-portrait-slot { position: relative; flex: none; align-self: flex-start; }
@@ -14,7 +14,7 @@ button.pp-photo::after { content: ''; position: absolute; inset: -6px; }
 button.pp-photo:disabled { opacity: .55; cursor: default; }
 .pp-name-link { color: inherit; text-decoration: none; }
 .pp-name-link:hover { color: var(--accent); }
-.pp-open-profile { display: inline-flex; align-items: center; gap: 5px; width: fit-content; min-height: 26px; font-size: 13.5px; color: var(--accent); text-decoration: none; }
+.pp-open-profile { display: inline-flex; align-items: center; gap: 5px; width: fit-content; min-height: 26px; font-size: var(--fs-2, 13px); color: var(--accent); text-decoration: none; }
 .pp-open-profile:hover { text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 600px) { .pp-open-profile { min-height: 44px; } }
 @media (max-width: 900px) { .panel-sheet[data-snap='peek'] :is(.pp-open-profile, button.pp-photo) { display: none; } }
@@ -30,7 +30,7 @@ button.pp-photo:disabled { opacity: .55; cursor: default; }
 .person-profile .pp-id { gap: 5px; padding: 0; }
 .page .person-profile .pp-id h1 { margin: 0; padding: 0; font-family: var(--font-name); font-weight: var(--name-weight); font-variant: normal; font-size: 36px; line-height: 1.12; overflow-wrap: break-word; color: var(--text); }
 [data-theme='codex'] .page .person-profile .pp-id h1 { color: #f6ead0; font-weight: 500; }
-.person-profile .pp-life { font-size: 16px; }
+.person-profile .pp-life { font-size: var(--fs-4, 16px); }
 .person-profile .pp-traits { padding: 0; }
 .person-profile .pp-actions { flex-wrap: wrap; padding: 0; }
 .person-profile .pp-actions .btn { flex: 1 1 40%; height: 40px; }
@@ -42,7 +42,7 @@ button.pp-photo:disabled { opacity: .55; cursor: default; }
 .person-profile p.pp-add-relative.pp-ask { max-width: none; padding: 0; }
 .person-profile .pp-ov-main { display: grid; gap: 4px; min-width: 0; align-content: start; }
 .person-profile .pp-folds { margin-top: 16px; }
-.person-profile .pp-glance dd { font-size: 22px; }
+.person-profile .pp-glance dd { font-size: var(--fs-6, 22px); }
 .person-profile .pp-bio { max-width: 72ch; }
 .person-profile .pp-stories { grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); align-items: start; }
 .person-profile .pp-map svg { max-height: 300px; }
@@ -62,7 +62,35 @@ button.pp-photo:disabled { opacity: .55; cursor: default; }
 }
 @media (max-width: 600px) {
   .person-profile .pp-portrait > .portrait { width: 176px !important; height: 176px !important; }
-  .page .person-profile .pp-id h1 { font-size: 28px; }
+  .page .person-profile .pp-id h1 { font-size: var(--fs-7, 28px); }
   .person-profile .pp-actions .btn { height: auto; min-height: 44px; }
   .person-profile .pp-body { padding-inline: 0; }
+}
+
+/* ---------- the profile's header steps aside (one column: phones and narrow windows) ---------- */
+/* Wide screens keep who it is in view in the left column. In one column the full header would stand above every
+   tab, so only the Overview keeps it: the other tabs get the one-line header, and once the name has scrolled
+   out of view a pinned copy holds the top, with the tabs under it. */
+.person-profile > .pp-mini { display: none; }
+@media (max-width: 1000px) {
+  .person-profile { --pp-mini-h: 56px; --pp-bar: var(--panel-solid); }
+  .person-profile > .pp-mini { display: block; margin: -20px -16px 0; z-index: 6; }
+  .person-profile .pp-mini-bar { padding: 0 16px; box-shadow: 0 1px 0 var(--border), 0 6px 14px -8px #0008; }
+  [data-theme='codex'] .person-profile .pp-mini-bar { box-shadow: 0 1px 0 var(--edge-soft), 0 6px 14px -8px #000c; }
+  .person-profile.pp-stuck .pp-tabs.ui-tablist { position: sticky; top: var(--pp-mini-h); z-index: 5; margin-inline: -16px; padding-inline: 16px; background: var(--pp-bar); }
+  .person-profile.pp-compact { gap: 12px; }
+  .person-profile.pp-compact .pf-identity { justify-items: stretch; gap: 10px; }
+  .person-profile.pp-compact .pp-head { flex-direction: row; align-items: center; gap: 12px; text-align: start; }
+  .person-profile.pp-compact .pp-portrait-slot { align-self: center; line-height: 0; }
+  .person-profile.pp-compact .pp-portrait > .portrait { width: 44px !important; height: 44px !important; }
+  .person-profile.pp-compact .pp-id { align-items: flex-start; gap: 0; }
+  .page .person-profile.pp-compact .pp-id h1 { font-size: var(--fs-6, 22px); }
+  .person-profile.pp-compact .pp-life { font-size: var(--fs-2, 13px); }
+  .person-profile.pp-compact :is(.pp-title, .pp-house, .pp-traits, button.pp-photo) { display: none; }
+  /* The tree buttons in one row, so the tab's content starts within the first third of a phone screen. */
+  .person-profile.pp-compact .pp-actions { flex-wrap: nowrap; max-width: none; }
+  .person-profile.pp-compact .pp-actions .btn, .person-profile.pp-compact .pp-actions .btn.primary { flex: 1 1 0; min-width: 0; height: 44px; min-height: 44px; padding-inline: 6px; overflow: hidden; white-space: nowrap; }
+  /* The main button keeps its whole label ("Im Stammbaum zeigen"); the other two share what is left. */
+  .person-profile.pp-compact .pp-actions .btn.primary { flex: 0 0 auto; padding-inline: 8px; }
+  .person-profile.pp-compact .pp-actions .btn svg { display: none; }
 }

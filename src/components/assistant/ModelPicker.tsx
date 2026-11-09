@@ -1,6 +1,6 @@
 // A steward's choice of model: a compact control in the composer for the chat, and the same menu for asking one answer
 // again on another model. Nobody else sees either, and the server refuses a choice from anyone else.
-import { Check, ChevronDown, Star } from 'lucide-react';
+import { ArrowUpCircle, Check, ChevronDown, Star } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { ModelChoice, ModelChoices } from '~/lib/ai/model-choice';
 import { PROVIDER_LABEL, type Provider } from '~/lib/ai/types';
@@ -40,7 +40,12 @@ function Menu({ className, label, button, children }: { className?: string; labe
   );
 }
 
-function ModelList({ choices, current, familyRow, onPick }: { choices: ModelChoices; current: string | null; familyRow?: { active: boolean; onPick: () => void }; onPick: (m: ModelChoice) => void }) {
+function ModelList({ choices, current, familyRow, firstRow, onPick }: {
+  choices: ModelChoices; current: string | null; familyRow?: { active: boolean; onPick: () => void };
+  /** A shortcut above the list: "Try with a stronger model", with that model's name. */
+  firstRow?: { label: string; name: string; onPick: () => void };
+  onPick: (m: ModelChoice) => void;
+}) {
   const t = useT();
   const [filter, setFilter] = useState('');
   const shown = useMemo(() => {
@@ -54,6 +59,13 @@ function ModelList({ choices, current, familyRow, onPick }: { choices: ModelChoi
     <>
       {choices.models.length > 8 && <input className="ai-pick-filter" type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('ai.modelFilter')} aria-label={t('ai.modelFilter')} autoFocus />}
       <div className="ai-pick-list">
+        {firstRow && (
+          <button type="button" className="ai-pick-row ai-pick-first" onClick={firstRow.onPick}>
+            <span className="ai-pick-star"><ArrowUpCircle size={14} aria-hidden /></span>
+            <span className="ai-pick-name">{firstRow.label}</span>
+            <span className="ai-pick-meta subtle">{firstRow.name}</span>
+          </button>
+        )}
         {familyRow && (
           <button type="button" className="ai-pick-row" aria-pressed={familyRow.active} onClick={familyRow.onPick}>
             <span className="ai-pick-name">{t('ai.modelFamily')}</span>
@@ -91,7 +103,7 @@ export function ModelPicker({ choices, override, onChange, disabled }: { choices
       className="ai-pick-composer"
       label={t('ai.modelChoose')}
       button={({ open, toggle, id }) => (
-        <button type="button" className="btn ghost ai-touch ai-pick-button" onClick={toggle} disabled={disabled} aria-expanded={open} aria-controls={open ? id : undefined} title={t('ai.modelChoose')} aria-label={`${t('ai.modelChoose')}: ${name}`}>
+        <button type="button" className="ai-pick-button" onClick={toggle} disabled={disabled} aria-expanded={open} aria-controls={open ? id : undefined} title={t('ai.modelChoose')} aria-label={`${t('ai.modelChoose')}: ${name}`}>
           <span className="ai-pick-current">{name}</span>
           {cost && <span className="ai-pick-cost">{cost}</span>}
           <ChevronDown size={13} aria-hidden />
@@ -110,8 +122,8 @@ export function ModelPicker({ choices, override, onChange, disabled }: { choices
   );
 }
 
-/** "Or pick one": choosing a model to ask this question on. */
-export function RetryModelMenu({ choices, onPick, label }: { choices: ModelChoices; onPick: (m: PickedModel) => void; label: string }) {
+/** "Try another model": choosing a model to ask this question on. The next stronger one, when there is one, is the first row. */
+export function RetryModelMenu({ choices, onPick, label, stronger }: { choices: ModelChoices; onPick: (m: PickedModel) => void; label: string; stronger?: { label: string; name: string; onPick: () => void } }) {
   return (
     <Menu
       className="ai-pick-retry"
@@ -120,7 +132,7 @@ export function RetryModelMenu({ choices, onPick, label }: { choices: ModelChoic
         <button type="button" className="ai-answer-link" onClick={toggle} aria-expanded={open} aria-controls={open ? id : undefined}>{label}</button>
       )}
     >
-      {(close) => <ModelList choices={choices} current={null} onPick={(m) => { onPick({ provider: m.provider, model: m.id }); close(); }} />}
+      {(close) => <ModelList choices={choices} current={null} firstRow={stronger && { ...stronger, onPick: () => { stronger.onPick(); close(); } }} onPick={(m) => { onPick({ provider: m.provider, model: m.id }); close(); }} />}
     </Menu>
   );
 }

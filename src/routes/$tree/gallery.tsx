@@ -12,6 +12,7 @@ import { translate, type Locale } from '~/lib/i18n';
 import { treeTitle } from '~/lib/title';
 import { useCan } from '~/lib/session';
 import '~/styles/gallery.css';
+import { useDealt } from '~/lib/dealt';
 
 export const Route = createFileRoute('/$tree/gallery')({
   head: (ctx) => ({ meta: [{ title: treeTitle(ctx, translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'gallery.title')) }] }),
@@ -33,6 +34,7 @@ function GalleryPage() {
   const canAdd = useCan('upload-photo');
   const canDeleteAlbum = useCan('delete-album');
   const q = useQuery(galleryQuery(tree));
+  const dealt = useDealt(!q.isPending);
   const [album, setAlbum] = useState<AlbumScope>('all');
   const [person, setPerson] = useState('all');
   const [decade, setDecade] = useState('all');
@@ -191,7 +193,7 @@ function GalleryPage() {
           {filtered.length === 0 ? (
             <EmptyState title={g('gallery.nomatch_title')} text={g('gallery.nomatch_text')} action={<button type="button" className="btn" onClick={clear}>{g('gallery.clear')}</button>} />
           ) : (
-            <ul className="gal-grid">
+            <ul className={`gal-grid ${dealt}`}>
               {filtered.map((m) => {
                 const when = m.taken ? formatDate(m.taken, t.locale) : null;
                 const label = m.caption || (when ? g('common.photo_of', { name: when }) : g('common.photo_undated'));

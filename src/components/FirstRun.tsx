@@ -12,6 +12,7 @@ import { BROWSING, chooseMe, useFamily, useMeAnswered, useTreeId } from '~/lib/f
 import { children, displayName, lifespan, parents, partnersOf, siblings, type Family } from '~/lib/graph';
 import { usePref } from '~/lib/prefs';
 import { useSession } from '~/lib/session';
+import { Arms } from './Heraldry';
 import { searchPeople } from './Palette';
 import { Portrait } from './Portrait';
 import { Tour } from './tour/Tour';
@@ -92,13 +93,22 @@ function WhoAreYou({ open, onChoose, onLater, familyName }: { open: boolean; onC
   const f = useFamily();
   const tree = useTreeId();
   const name = useSession()?.user?.name;
+  // The family's shield, as in the top bar: the focus person's house, else the largest house.
+  const crest = useMemo(() => {
+    const own = f.house.get(f.byId.get(f.graph.tree.focus)?.house ?? '');
+    if (own) return own;
+    const n = new Map<string, number>();
+    for (const p of f.graph.people) if (p.house) n.set(p.house, (n.get(p.house) ?? 0) + 1);
+    const top = [...n].sort((a, b) => b[1] - a[1])[0]?.[0];
+    return top ? f.house.get(top) : undefined;
+  }, [f]);
   return (
     <Dialog
       open={open}
       onClose={onLater}
       variant="event"
       width={520}
-      title={t("firstrun.who_are_you_in_this_family")}
+      title={<>{crest && <span className="who-crest" aria-hidden><Arms arms={crest.arms} size={56} /></span>}<span className="who-title">{t("firstrun.who_are_you_in_this_family")}</span></>}
       description={<>{t("firstrun.kindred_names_everyone_in")} <b>{familyName}</b> {t("firstrun.from_your_point_of_view_your_great_aunt_your_second_cousin")}</>}
     >
       <WhoChooser f={f} tree={tree} onChoose={onChoose} name={name} />

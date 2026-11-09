@@ -17,6 +17,7 @@ import { GenSpark, houseStats, houseSuccession, maxGeneration, spanLabel, useHou
 import { locales, translate, useT, type Locale } from '~/lib/i18n';
 import { treeTitle } from '~/lib/title';
 import '~/styles/house.css';
+import { useDealt } from '~/lib/dealt';
 
 export const Route = createFileRoute('/$tree/houses')({
   head: (ctx) => ({ meta: [{ title: treeTitle(ctx, translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'houses.title')) }] }),
@@ -56,6 +57,11 @@ function HousesPage() {
   }, [f]);
   const sorted = useMemo(() => [...stats].sort((a, b) => COMPARE[sort](a, b) || sortName(a).localeCompare(sortName(b))), [stats, sort]);
   const inHouses = stats.reduce((n, s) => n + s.members.length, 0);
+  // While every house waits for the same review, the count in the header says so once. A card carries its badge only when
+  // it is an exception: once some houses are reviewed, or when they wait for different things.
+  const badgeKinds = new Set<string>(stats.map((s) => steward.badges[s.house.id] ?? ''));
+  const sameForAll = stats.length > 1 && steward.count > 0 && badgeKinds.size === 1 && !badgeKinds.has('');
+  const dealt = useDealt();
   const myHouse = me ? f.byId.get(me)?.house : undefined;
   // Making houses is for stewards. "From surnames" needs someone without a house to gather.
   const canEdit = useCan('edit-house');
@@ -130,7 +136,7 @@ function HousesPage() {
             }
           />
         ) : (
-          <ul className="hs-grid">
+          <ul className={`hs-grid ${dealt}`}>
             {sorted.map((s) => {
               const succ = houseSuccession(f, s.house, settings?.[s.house.id]);
               return (
@@ -142,7 +148,7 @@ function HousesPage() {
                     country={settings?.[s.house.id]?.country ?? null}
                     head={succ.head?.id}
                     meaning={steward.meanings?.[s.house.id]}
-                    badge={steward.badges[s.house.id]}
+                    badge={sameForAll ? undefined : steward.badges[s.house.id]}
                   />
                 </li>
               );
@@ -169,7 +175,7 @@ function HouseCard({ s, tree, mine, country, head, meaning, badge }: {
   return (
     <Link to="/$tree/house/$house" params={{ tree, house: s.house.id }} className="ui-card interactive hs-card">
       <div className="hs-arms">
-        <Arms arms={s.house.arms} size={96} country={country ?? undefined} />
+        <Arms arms={s.house.arms} size={120} country={country ?? undefined} />
       </div>
       <div className="hs-main">
         <h2 className="hs-name">{s.house.name}</h2>

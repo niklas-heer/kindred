@@ -1,5 +1,5 @@
 import { useToday } from '~/lib/clock';
-import { PageHeader, Skeleton, ErrorState } from '~/components/ui';
+import { PageHeader, Skeleton, ErrorState, EmptyState } from '~/components/ui';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ChefHat, Clock, Quote, Search, Sparkles, StickyNote } from 'lucide-react';
@@ -14,6 +14,7 @@ import { displayName, type Family } from '~/lib/graph';
 import { locales, translate, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
 import type { GPerson, Story } from '~/lib/types';
 import '~/styles/chronicle.css';
+import { useDealt } from '~/lib/dealt';
 import { treeTitle } from '~/lib/title';
 import { storyTranslationsQuery } from '~/lib/ai/background.functions';
 import '~/components/assistant/ai-tasks.css';
@@ -133,6 +134,7 @@ function ChroniclePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recent, limit, now, t.locale]);
 
+  const dealt = useDealt(!isPending);
   const pick = (t: Tab) => {
     setTab(t);
     setLimit(30);
@@ -147,15 +149,14 @@ function ChroniclePage() {
                 : stories.length
                   ? t('chronicle.contributions', { count: stories.length, voices: t('chronicle.voices', { count: authors }) })
                   : t('chronicle.subtitle')}
-            </>} actions={<><label className="chr-search">
-            <Search size={16} />
-            <input className="input" type="search" placeholder={t('chronicle.search')} value={q} onChange={(e) => setQ(e.target.value)} aria-label={t('chronicle.search_label')} />
-          </label></>} />
+            </>} />
 
         {isPending && <div className="page-loading" aria-busy="true" aria-label={t('chronicle.loading')}>{Array.from({ length: 4 }, (_, i) => <div className="ui-card" key={i} style={{ padding: 20, marginBottom: 12 }}><Skeleton width={48} height={48} radius="50%" /><Skeleton lines={3} /></div>)}</div>}
         {isError && <ErrorState title={t('chronicle.error')} message={t('chronicle.error_text')} onRetry={() => { void refetch(); }} />}
         {!isPending && !isError && <>
         <div className="chr-bar">
+          {/* One row: the two views, then the kinds. On a phone it scrolls sideways instead of wrapping. */}
+          <div className="chr-strip">
           <div className="chr-tabs" role="tablist">
             <button role="tab" aria-selected={tab === 'recent'} onClick={() => pick('recent')}>
               <Clock size={15} /> {t('chronicle.tab_recent')} <span>{stories.length}</span>
@@ -176,6 +177,11 @@ function ChroniclePage() {
               ))}
             </div>
           )}
+          </div>
+          <label className="chr-search">
+            <Search size={16} />
+            <input className="input" type="search" placeholder={t('chronicle.search')} value={q} onChange={(e) => setQ(e.target.value)} aria-label={t('chronicle.search_label')} />
+          </label>
         </div>
 
         {!isPending && stories.length === 0 && <Empty tree={tree} />}
@@ -183,10 +189,10 @@ function ChroniclePage() {
         {stories.length > 0 && tab === 'recent' && (
           <>
             {recent.length === 0 && <NoMatch onClear={() => { setQ(''); setKind(null); }} />}
-            {groups.map(([label, items]) => (
+            {groups.map(([label, items], gi) => (
               <section key={label} className="chr-day">
                 <h2 className="rule">{label}</h2>
-                <ol className="chr-feed">
+                <ol className={`chr-feed ${gi === 0 ? dealt : ''}`}>
                   {items.map((s) => (
                     <FeedItem key={s.id} s={s} f={f} tree={tree} now={now?.getTime()} tr={translations[s.id]} />
                   ))}
@@ -204,7 +210,7 @@ function ChroniclePage() {
         {stories.length > 0 && tab === 'sayings' && (
           <>
             {sayings.length === 0 && (q ? <NoMatch onClear={() => setQ('')} /> : <NoSayings tree={tree} />)}
-            <div className="chr-wall">
+            <div className={`chr-wall ${dealt}`}>
               {sayings.map((s) => (
                 <SayingCard key={s.id} s={s} f={f} tree={tree} now={now?.getTime()} tr={translations[s.id]} />
               ))}
@@ -276,6 +282,8 @@ function FeedItem({ s, f, tree, now, tr }: { s: Story; f: Family; tree: string; 
       )}
       <article className="chr-card ui-card">
         <header>
+          {/* On a phone the face sits in the card's first line; the column beside the card is for wider screens. */}
+          {p && <span className="chr-face-in"><Portrait person={p} tree={tree} size={28} decorative /></span>}
           <span className="chr-kind">
             <k.icon size={14} /> {t(k.label)}
           </span>
@@ -329,44 +337,36 @@ function SayingCard({ s, f, tree, now, tr }: { s: Story; f: Family; tree: string
 function Empty({ tree }: { tree: string }) {
   const t = useT();
   return (
-    <div className="chr-empty ui-card">
-      <GameIcon name="quill-ink" size={34} />
-      <h2 className="display">{t('chronicle.empty_title')}</h2>
-      <p className="muted">
-        {t('chronicle.empty_text')}
-      </p>
-      <Link className="btn primary" to="/$tree" params={{ tree }}>
-        {t('chronicle.open_tree')}
-      </Link>
-    </div>
+    <EmptyState
+      icon={<GameIcon name="quill-ink" size={34} />}
+      title={t('chronicle.empty_title')}
+      text={t('chronicle.empty_text')}
+      action={<Link className="btn primary" to="/$tree" params={{ tree }}>{t('chronicle.open_tree')}</Link>}
+    />
   );
 }
 
 function NoSayings({ tree }: { tree: string }) {
   const t = useT();
   return (
-    <div className="chr-empty ui-card">
-      <Quote size={30} />
-      <h2 className="display">{t('chronicle.no_sayings')}</h2>
-      <p className="muted">{t('chronicle.no_sayings_text')}</p>
-      <Link className="btn primary" to="/$tree" params={{ tree }}>
-        {t('chronicle.open_tree')}
-      </Link>
-    </div>
+    <EmptyState
+      icon={<Quote size={30} />}
+      title={t('chronicle.no_sayings')}
+      text={t('chronicle.no_sayings_text')}
+      action={<Link className="btn primary" to="/$tree" params={{ tree }}>{t('chronicle.open_tree')}</Link>}
+    />
   );
 }
 
 function NoMatch({ onClear }: { onClear: () => void }) {
   const t = useT();
   return (
-    <div className="chr-empty ui-card">
-      <Search size={26} />
-      <h2 className="display">{t('chronicle.no_match')}</h2>
-      <p className="muted">{t('chronicle.no_match_text')}</p>
-      <button className="btn" onClick={onClear}>
-        {t('chronicle.clear_filters')}
-      </button>
-    </div>
+    <EmptyState
+      icon={<Search size={26} />}
+      title={t('chronicle.no_match')}
+      text={t('chronicle.no_match_text')}
+      action={<button className="btn" onClick={onClear}>{t('chronicle.clear_filters')}</button>}
+    />
   );
 }
 

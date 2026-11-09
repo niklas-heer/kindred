@@ -5,7 +5,7 @@ import { translateMessage, formatDate, relativeTime, useT, type Locale } from '~
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { graphQuery } from '~/lib/api';
-import { Activity, ArrowLeftRight, BarChart3, Bell, Check, CircleHelp, Fingerprint, KeyRound, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Inbox, MessageSquarePlus } from 'lucide-react';
+import { Activity, ArrowLeftRight, BarChart3, Bell, Check, CircleHelp, Fingerprint, KeyRound, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus } from 'lucide-react';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import '~/components/assistant/ai-tasks.css';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
@@ -13,9 +13,11 @@ import { addPasskey, forgetLocalIdentity, passkeysSupported, signOutRequest } fr
 import { appCommit, appVersion, releaseUrl } from '~/lib/version';
 import { myPasskeysQuery, removeMyPasskey, renameMe, type Passkey } from '~/lib/auth/functions';
 import { fetchRemindersAvailable } from '~/lib/reminders.functions';
+import { setPref, THEMES } from '~/lib/prefs';
 import { ROLES, can } from '~/lib/roles';
 import { openFeedback } from './feedback/FeedbackHost';
 import { Portrait } from './Portrait';
+import { THEME_ICONS, THEME_LABEL, useSound, useTheme } from './ThemeSwitch';
 import { startTour } from './tour/store';
 import { dropThisDevice, ReminderRefresh, RemindersDialog } from './Reminders';
 import { useMembership, useSession } from '~/lib/session';
@@ -77,6 +79,8 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const id = useId();
+  const theme = useTheme();
+  const [sound, toggleSound] = useSound();
 
   // Close on Escape (only when this is the top layer) or a press outside; focus moves into the menu.
   useEffect(() => {
@@ -107,7 +111,8 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
   // Arrow keys move between the menu's items.
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-    const items = [...(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+    // Rows hidden by CSS (the theme and sound rows on a wide screen) take no part.
+    const items = [...(menu.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])].filter((el) => el.offsetParent !== null);
     const i = items.indexOf(document.activeElement as HTMLElement);
     items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
     e.preventDefault();
@@ -183,6 +188,26 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
             )}
             <button role="menuitem" className="acct-item" onClick={() => void signOut(session?.accessLogout)}>
               <LogOut size={17} /> {t("accountmenu.sign_out")} </button>
+            {/* Below 1680px the top bar has no room for the theme and sound buttons: they live here (app.css hides them there). */}
+            <div className="acct-prefs">
+              <div className="acct-pref" role="group" aria-label={t('shell.theme')}>
+                <span id={`${id}-theme`}>{t('shell.theme')}</span>
+                <div className="acct-themes">
+                  {THEMES.map((th) => {
+                    const Icon = THEME_ICONS[th.id];
+                    return (
+                      <button key={th.id} role="menuitemradio" aria-checked={theme === th.id} className="btn" onClick={() => setPref('theme', th.id)}>
+                        <Icon size={14} aria-hidden /> {t(THEME_LABEL[th.id])}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <button role="menuitemcheckbox" aria-checked={sound} className="acct-item" onClick={toggleSound}>
+                {sound ? <Volume2 size={17} /> : <VolumeX size={17} />} {t('shell.sound_effects')}
+                <span className="acct-check" aria-hidden>{sound ? <Check size={16} /> : null}</span>
+              </button>
+            </div>
             {appVersion() && (
               <a className="acct-version" role="menuitem" href={releaseUrl(appVersion()!)} target="_blank" rel="noopener noreferrer" title={t('accountmenu.releaseNotes')}>
                 {t('accountmenu.version', { version: appVersion()! })}{appCommit() && <span> · {appCommit()}</span>}

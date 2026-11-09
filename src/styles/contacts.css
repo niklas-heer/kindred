@@ -1,13 +1,14 @@
 /* Contacts: an address book of households. */
 
 .con-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
-.con-head p { margin: 0; font-size: 17px; }
+.con-head p { margin: 0; font-size: var(--fs-4); }
 
 .con-tools { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin-bottom: 22px; }
 .con-search { position: relative; flex: 1 1 280px; max-width: 420px; display: block; }
 .con-search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
-.con-search .input { padding-left: 34px; height: 36px; }
+.con-search .input { width: 100%; padding-left: 34px; height: var(--ctl); }
 .con-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.con-filters .btn { white-space: nowrap; }
 
 /* ---- the A–Z margin ---- */
 .con-letter-row { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; margin-bottom: 18px; }
@@ -15,15 +16,14 @@
   position: sticky; top: 8px; align-self: start;
   font-size: 34px; line-height: 1; color: var(--accent); padding-top: 10px; text-align: center;
 }
-.con-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; align-items: start; }
 @media (max-width: 560px) {
   .con-letter-row { grid-template-columns: 1fr; }
   .con-letter { position: static; text-align: left; padding: 0; }
-  .con-grid { grid-template-columns: 1fr; }
+  .con-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ---- a household: a compact plate; in codex, dark lacquer with a thin gold hairline set in from the edge ---- */
-.con-card { padding: 2px 14px 6px; display: grid; position: relative; }
+.con-card { padding: 2px 16px 6px; position: relative; }
 [data-theme='codex'] .con-card {
   background: linear-gradient(180deg, #212837 0%, #161b26 100%);
   box-shadow: inset 0 0 0 1px #0a0d12, 0 6px 16px #0007;
@@ -34,41 +34,45 @@
 }
 .con-house {
   display: flex; align-items: center; gap: 9px; padding: 9px 0 7px;
-  border-bottom: 1px solid var(--border); font-size: 15px;
+  border-bottom: 1px solid var(--border); font-size: var(--fs-2);
 }
 [data-theme='codex'] .con-house { border-bottom-color: transparent; background: linear-gradient(90deg, var(--edge-soft), transparent 70%) bottom / 100% 1px no-repeat; }
-.con-house .display { color: var(--muted); font-size: 15px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-[data-theme='codex'] .con-house .display { color: var(--accent); font-size: 16px; }
-.con-house-n { margin-left: auto; font-size: 12px; color: var(--muted); font-family: var(--font-ui); padding: 0 7px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel-2); font-variant-numeric: tabular-nums; }
+.con-house .display { color: var(--muted); font-size: var(--fs-2); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-theme='codex'] .con-house .display { color: var(--accent); font-size: var(--fs-3); }
+.con-house-n { margin-left: auto; font-size: var(--fs-1); color: var(--muted); font-family: var(--font-ui); padding: 0 7px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel-2); font-variant-numeric: tabular-nums; }
 .con-member { padding: 10px 0; display: grid; gap: 6px; }
 .con-member + .con-member { border-top: 1px solid var(--border); }
 .con-who { display: flex; align-items: center; gap: 12px; }
 .con-who > .btn { margin-left: auto; align-self: flex-start; opacity: 0.55; }
 .con-who > .btn:hover, .con-who > .btn:focus-visible { opacity: 1; }
 .con-id { min-width: 0; display: grid; gap: 1px; }
-.con-name { font-size: 19px; line-height: 1.15; text-decoration: none; }
+.con-name { font-size: var(--fs-5); line-height: var(--lh-tight); text-decoration: none; }
 .con-name:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 .con-name:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 3px; }
-.con-sub { display: flex; flex-wrap: wrap; gap: 0 12px; font-size: 14px; color: var(--muted); font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
-.con-nick { font-family: var(--font-hand); font-style: italic; font-size: 15px; color: var(--text); }
+.con-sub { display: flex; flex-wrap: wrap; gap: 0 12px; font-size: var(--fs-2); color: var(--muted); font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
+.con-nick { font-family: var(--font-hand); font-style: italic; font-size: var(--fs-2); color: var(--text); }
 .con-bday { display: inline-flex; align-items: center; gap: 4px; }
 .con-bday[data-soon] { color: var(--accent); font-weight: 600; }
 
 .con-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
-.con-home { margin-top: 2px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.con-home { margin-top: 2px; padding-top: 6px; border-top: 1px dashed var(--border); }
+/* One 48px row per detail: its icon, the value (the thing to tap), what kind it is, and copy at the right. */
 .con-line {
-  display: grid; grid-template-columns: 18px auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px;
-  font-family: var(--font-ui); font-size: 15px; min-height: 28px; font-variant-numeric: tabular-nums;
+  display: flex; align-items: center; gap: 12px; min-height: 48px;
+  font-family: var(--font-ui); font-size: var(--fs-4); line-height: var(--lh-ui); font-variant-numeric: tabular-nums;
 }
-.con-line > svg { color: var(--faint); }
+.con-line > svg { flex: none; color: var(--muted); }
 [data-theme='codex'] .con-line > svg { color: var(--edge); }
-.con-label { font-size: 12px; color: var(--muted); padding: 0 7px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel-2); }
-.con-line:not(:has(.con-label)) { grid-template-columns: 18px minmax(0, 1fr) auto auto; }
-.con-value { min-width: 0; overflow-wrap: anywhere; text-decoration: none; }
+.con-main { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: center; gap: 0 12px; min-width: 0; padding: 4px 0; }
+.con-value { flex: 0 1 auto; min-width: 0; padding: 2px 0; overflow-wrap: anywhere; text-decoration: none; }
 a.con-value:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 a.con-value:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 3px; }
-.con-copy { height: 26px; width: 26px; color: var(--muted); opacity: 0.55; }
-.con-line:hover .con-copy, .con-copy:focus-visible, .con-copy[data-done] { opacity: 1; }
+.con-meta { display: inline-flex; flex: none; align-items: center; gap: 6px; color: var(--muted); }
+.con-label { font-size: var(--fs-1); line-height: 1.5; color: var(--muted); padding: 0 7px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel-2); white-space: nowrap; }
+[data-theme='codex'] .con-label { border-radius: var(--radius); }
+.con-line .con-copy { flex: none; margin-right: -6px; }
+.con-line .con-copy + .con-copy { margin-left: -10px; }
+.con-copy { height: 36px; width: 36px; color: var(--muted); opacity: 0; pointer-events: none; transition: opacity var(--dur-1) ease; }
 /* Copied: the glyph is a check for 1.2 s, in the "ok" colour, with a small pop. */
 .con-copy[data-done] { color: var(--ok); }
 .con-copy[data-done] svg { animation: con-pop 0.22s ease-out; }
@@ -79,15 +83,9 @@ a.con-value:focus-visible { outline: none; box-shadow: var(--focus-ring); border
   .con-copy[data-done] svg { animation: none; }
 }
 
-/* ---- empty ---- */
-.con-empty { padding: 40px 28px; display: grid; justify-items: center; gap: 8px; text-align: center; max-width: 560px; margin: 24px auto; }
-.con-empty svg { color: var(--accent); }
-.con-empty h2 { font-size: 22px; font-weight: 600; margin: 4px 0 0; }
-.con-empty p { margin: 0 0 6px; }
-
 /* ---- people with nothing on file ---- */
 .con-nodetails { margin-top: 30px; opacity: 0.92; }
-.con-nod-note { margin: 0 0 10px; font-size: 15px; }
+.con-nod-note { margin: 0 0 10px; font-size: var(--fs-2); }
 .con-nod-list {
   list-style: none; margin: 0 0 12px; padding: 0;
   display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 14px;
@@ -101,28 +99,44 @@ a.con-value:focus-visible { outline: none; box-shadow: var(--focus-ring); border
 .con-nod-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .con-nod-list .btn { height: 28px; }
 
-.con-grid { display: block; columns: 340px; column-gap: 16px; }
-.con-card { break-inside: avoid; margin-bottom: 16px; padding-top: 12px; }
+/* Cards in a row share its height, and each card's action sits at its foot, so the rows line up. */
+.con-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; align-items: stretch; }
+.con-card { display: flex; flex-direction: column; padding-top: 12px; }
+.con-card > .con-actions { margin-top: auto; }
 /* The action row at the foot of a card: saving the household's vCards. */
 .con-actions { display: flex; justify-content: flex-end; gap: 6px; margin: 0 -6px; padding: 4px 0 2px; border-top: 1px solid var(--border); }
 [data-theme='codex'] .con-actions { border-top-color: var(--edge-soft); }
-.con-download { font-size: 13px; min-height: 36px; color: var(--muted); }
+.con-download { font-size: var(--fs-2); min-height: 36px; color: var(--muted); }
 .con-download:hover, .con-download:focus-visible { color: var(--text); }
-.con-copy { opacity: 0; pointer-events: none; height: 36px; width: 36px; }
 .con-line:hover .con-copy, .con-line:focus-within .con-copy, .con-copy[data-done] { opacity: 1; pointer-events: auto; }
-.con-line > svg { color: var(--muted); }
 .con-name, .con-nod-name { font-family: var(--font-name); font-weight: var(--name-weight); }
-.con-line { min-height: 40px; gap: 6px; }
 .con-search { min-width: 0; }
 @media(hover:none), (pointer:coarse) { .con-copy { opacity: 1; pointer-events: auto; min-height: 44px; min-width: 44px; } }
-@media(max-width:600px) { .con-grid { columns: auto; } .con-letter-row { grid-template-columns: minmax(0,1fr); } .con-letter { position: static; text-align: left; } .con-search { max-width: none; } .con-line { grid-template-columns: 16px minmax(0,1fr) auto auto; } .con-label { grid-column: 2; justify-self: start; } .con-line:has(.con-label) .con-value { grid-column: 2; } .con-line > svg { grid-row: 1 / span 2; } .con-copy { opacity: 1; pointer-events: auto; min-width: 44px; min-height: 44px; grid-row: 1 / span 2; } .con-nod-list { grid-template-columns: minmax(0,1fr); } }
+@media(max-width:600px) { .con-grid { grid-template-columns: minmax(0, 1fr); } .con-letter-row { grid-template-columns: minmax(0,1fr); } .con-letter { position: static; text-align: left; } .con-search { max-width: none; } .con-copy { opacity: 1; pointer-events: auto; min-width: 44px; min-height: 44px; } .con-nod-list { grid-template-columns: minmax(0,1fr); } }
 
 
 @media(max-width:600px) { .con .btn { min-height: 44px; } }
 
 /* An optional grouping, folded away until asked for. */
 .con-kids { margin: 18px 0 6px; padding: 2px 0; }
-.con-kids summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--muted); font-size: 14px; }
+.con-kids summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--muted); font-size: var(--fs-2); }
 .con-kids summary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius); }
 .con-kids-opt { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
-.con-kids p { margin: 0 0 8px; font-size: 13px; max-width: 60ch; }
+.con-kids p { margin: 0 0 8px; font-size: var(--fs-2); max-width: 60ch; }
+
+/* A phone: the search full width, then the filters in one row that scrolls sideways instead of wrapping. */
+@media (max-width: 600px) {
+  .con-tools { gap: 8px; margin-bottom: 14px; }
+  .con-search { flex: 1 1 100%; }
+  .con-search .input { height: 44px; font-size: max(16px, var(--fs-3)); }
+  .con-filters {
+    flex: 1 1 100%; flex-wrap: nowrap; margin-inline: -16px; padding: 0 16px; overflow-x: auto;
+    scroll-snap-type: x proximity; scroll-padding-inline: 16px; scrollbar-width: none;
+    mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+  }
+  .con-filters::-webkit-scrollbar { display: none; }
+  .con-filters .btn { flex: none; scroll-snap-align: start; }
+  .con-letter { font-size: var(--fs-7); }
+  .con-letter-row { gap: 4px; margin-bottom: 14px; }
+}

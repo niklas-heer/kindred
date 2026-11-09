@@ -10,7 +10,7 @@
 .tour-spot {
   position: fixed; border-radius: var(--radius); pointer-events: none;
   box-shadow: 0 0 0 2px var(--accent), 0 0 0 200vmax #000000a6;
-  transition: left .28s ease, top .28s ease, width .28s ease, height .28s ease;
+  transition: left var(--dur-3) var(--ease-out), top var(--dur-3) var(--ease-out), width var(--dur-3) var(--ease-out), height var(--dur-3) var(--ease-out);
 }
 [data-theme='modern'] .tour-spot { box-shadow: 0 0 0 2px var(--accent), 0 0 0 200vmax #2a1f1096; }
 .tour-scrim { position: fixed; inset: 0; background: #000000a6; }
@@ -19,21 +19,23 @@
 .tour-card {
   position: absolute; width: min(380px, calc(100vw - 24px)); max-height: calc(100% - 24px); overflow: auto;
   padding: 0 18px 14px; display: grid; gap: 10px; box-shadow: var(--shadow-lg, 0 18px 50px #0007);
-  transition: left .28s ease, top .28s ease;
+  transition: left var(--dur-3) var(--ease-out), top var(--dur-3) var(--ease-out);
 }
 .tour-card[aria-busy] { cursor: progress; }
 [data-theme='codex'] .tour-card { border-color: var(--accent); }
 
 .tour-meter { margin: 0 -18px; height: 3px; background: var(--panel-3); }
-.tour-meter i { display: block; height: 100%; background: var(--accent); transition: width .28s ease; }
+.tour-meter i { display: block; height: 100%; background: var(--accent); transition: width var(--dur-3) var(--ease-out); }
 
-.tour-count { display: flex; align-items: center; justify-content: space-between; margin: 8px 0 2px; font-family: var(--font-ui); font-size: 12.5px; color: var(--subtle); font-variant-numeric: tabular-nums; }
-.tour-title { margin: 0 0 6px; font-size: 21px; line-height: 1.2; color: var(--text); }
-.tour-body { margin: 0; color: var(--muted); line-height: 1.5; text-wrap: pretty; }
+.tour-count { display: flex; align-items: center; justify-content: space-between; margin: 8px 0 2px; font-family: var(--font-ui); font-size: var(--fs-2); color: var(--subtle); font-variant-numeric: tabular-nums; }
+.tour-title { margin: 0 0 6px; font-family: var(--font-title); font-size: var(--fs-6); font-weight: 600; line-height: var(--lh-tight); color: var(--text); }
+[data-theme='codex'] .tour-title { font-variant: small-caps; letter-spacing: 0.03em; color: var(--accent); font-weight: 500; }
+[data-theme='night'] .tour-title { font-weight: 500; }
+.tour-body { margin: 0; color: var(--muted); font-size: var(--fs-4); line-height: var(--lh-body); text-wrap: pretty; }
 
 .tour-foot { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
 .tour-skip { margin-right: auto; }
-.tour-keys { display: inline-flex; gap: 3px; color: var(--subtle); font-size: 11px; }
+.tour-keys { display: inline-flex; gap: 3px; color: var(--subtle); font-size: 12px; }
 .tour-card .btn { min-height: 38px; }
 
 /* Touch screens have no arrow keys to mention; the buttons take the full reach of a thumb. */

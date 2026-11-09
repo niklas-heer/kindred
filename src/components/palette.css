@@ -1,7 +1,7 @@
 .palette { overflow: hidden; }
 .palette-input {
   width: 100%; height: 56px; padding: 0 20px; border: 0; outline: none;
-  background: transparent; font-size: 19px; font-family: var(--font-body);
+  background: transparent; font-size: var(--fs-5); font-family: var(--font-body);
   border-bottom: 1px solid var(--border);
 }
 [data-theme='codex'] .palette-input { border-bottom-color: var(--edge-soft); }
@@ -11,22 +11,24 @@
   padding: 7px 10px; border: 0; background: transparent; text-align: left;
   border-radius: var(--radius); cursor: pointer;
 }
+.palette-item:active { transform: translateY(1px); }
 .palette-item[aria-selected='true'] { background: var(--panel-3); }
 [data-theme='codex'] .palette-item[aria-selected='true'] { background: linear-gradient(90deg, #4a3d2288, #4a3d2222); box-shadow: inset 2px 0 0 var(--accent); }
 .palette-icon { width: 30px; height: 30px; display: grid; place-items: center; flex: none; color: var(--muted); }
-.palette-label { font-size: 16px; }
+.palette-item[aria-selected='true'] .palette-icon { color: var(--accent); }
+.palette-label { font-size: var(--fs-4); line-height: var(--lh-ui); }
 /* A person's name in the results: the name face, a touch larger since the serif runs small. */
-.palette-name { font-family: var(--font-name); font-weight: var(--name-weight); font-size: 17px; }
+.palette-name { font-family: var(--font-name); font-weight: var(--name-weight); font-size: var(--fs-5); }
 .palette-name small { font-family: var(--font-ui); font-weight: 400; }
-.palette-hint { margin-left: auto; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
-.palette-foot { display: flex; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--border); font-size: 12px; font-family: var(--font-ui); }
+.palette-hint { margin-left: auto; color: var(--muted); font-size: var(--fs-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+.palette-foot { display: flex; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--border); font-size: var(--fs-1); font-family: var(--font-ui); }
 @keyframes fade { from { opacity: 0; } }
 @keyframes rise { from { opacity: 0; transform: translateY(-8px) scale(0.99); } }
-.palette-group { padding: 8px 10px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--subtle); font-family: var(--font-ui); }
-[data-theme='codex'] .palette-group { font-family: var(--font-display); text-transform: none; font-variant: small-caps; font-size: 13px; color: var(--accent); }
-[data-theme='codex'] .palette-hint { font-variant: small-caps; letter-spacing: 0.03em; }
+.palette-group { padding: 10px 10px 4px; font-size: var(--fs-1); text-transform: uppercase; letter-spacing: 0.12em; color: var(--subtle); font-family: var(--font-ui); }
+[data-theme='codex'] .palette-group { font-family: var(--font-display); text-transform: none; font-variant: small-caps; font-size: 14px; color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .palette-item:active { transform: none; } }
 
 .palette-item { min-height: 44px; }
 .palette-foot { flex-wrap: wrap; gap: 8px 12px; }
 .palette-label { min-width: 0; overflow-wrap: anywhere; }
-@media (max-width: 600px) { .palette-item { gap: 8px; flex-wrap: wrap; } .palette-hint { max-width: 100%; margin-left: 38px; white-space: normal; } .palette-input { font-size: 16px; padding-inline: 12px; } }
+@media (max-width: 600px) { .palette-item { gap: 8px; flex-wrap: wrap; } .palette-hint { max-width: 100%; margin-left: 38px; white-space: normal; } .palette-input { font-size: max(16px, var(--fs-4)); padding-inline: 12px; } }

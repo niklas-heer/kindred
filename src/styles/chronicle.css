@@ -1,25 +1,28 @@
 /* Chronicle: recent changes, and a wall of sayings. */
 
 .chr-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
-.chr-head p { margin: 0; font-size: 17px; }
-.chr-search { position: relative; flex: 0 1 320px; display: block; }
-.chr-search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
-.chr-search .input { padding-left: 34px; height: 36px; }
+.chr-head p { margin: 0; font-size: var(--fs-4); }
+.chr-search { position: relative; flex: 0 1 220px; display: block; margin-left: auto; padding-bottom: 6px; }
+.chr-search svg { position: absolute; left: 11px; top: calc(50% - 3px); transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.chr-search .input { width: 100%; padding-left: 34px; height: var(--ctl); }
 
-.chr-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; margin-bottom: 8px; border-bottom: 1px solid var(--border); }
-.chr-tabs { display: flex; gap: 2px; }
+/* One block under the title: the two views, the kinds, and the search at the right. */
+.chr-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 20px; margin-bottom: 8px; border-bottom: 1px solid var(--border); }
+.chr-strip { display: flex; flex: 1 1 320px; flex-wrap: wrap; align-items: flex-end; gap: 0 20px; min-width: 0; }
+.chr-tabs { display: flex; flex: none; gap: 2px; }
 .chr-tabs button {
   display: inline-flex; align-items: center; gap: 7px; padding: 10px 14px 9px; margin-bottom: -1px;
   background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer;
-  font-family: var(--font-ui); font-size: 16px; color: var(--muted);
+  font-family: var(--font-ui); font-size: var(--fs-3); color: var(--muted); white-space: nowrap;
+  transition: color var(--dur-1) ease, border-color var(--dur-1) ease;
 }
-.chr-tabs button span { font-size: 12px; padding: 0 7px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); }
+.chr-tabs button span { font-size: var(--fs-1); padding: 0 7px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); }
 .chr-tabs button:hover { color: var(--text); }
 .chr-tabs button:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius); }
 .chr-tabs button[aria-selected='true'] { color: var(--text); border-bottom-color: var(--accent); }
 .chr-tabs button[aria-selected='true'] svg { color: var(--accent); }
-.chr-kinds { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 8px; }
-.chr-kinds .btn { height: 28px; font-size: 13px; }
+.chr-kinds { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 6px; }
+.chr-kinds .btn { height: var(--ctl-sm); font-size: var(--fs-2); white-space: nowrap; }
 
 /* ---- the feed ---- */
 .chr-day .rule { margin-top: 22px; }
@@ -27,29 +30,30 @@
 .chr-item { display: grid; grid-template-columns: 50px minmax(0, 1fr); gap: 14px; align-items: start; }
 .chr-face { margin-top: 4px; display: block; border-radius: var(--radius); }
 .chr-face:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.chr-face-in { display: none; flex: none; line-height: 0; }
 .chr-card { padding: 12px 18px 12px; display: grid; gap: 6px; min-width: 0; }
 .chr-card { --meta: var(--muted); }
 [data-theme='codex'] .chr-card { --meta: #bdb195; }
-.chr-card header { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; font-family: var(--font-ui); font-size: 14px; color: var(--meta); }
+.chr-card header { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; font-family: var(--font-ui); font-size: var(--fs-2); color: var(--meta); }
 .chr-kind { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 600; }
 .chr-line { flex: 1 1 auto; min-width: 0; }
 .chr-line b { color: var(--text); font-weight: 600; }
-.chr-card time { font-size: 14px; white-space: nowrap; color: var(--meta); font-variant-numeric: tabular-nums; }
+.chr-card time { font-size: var(--fs-2); white-space: nowrap; color: var(--meta); font-variant-numeric: tabular-nums; }
 .chr-person { color: var(--text); text-decoration: underline; text-decoration-color: var(--edge-soft); text-underline-offset: 3px; }
 .chr-person:hover { color: var(--accent); text-decoration-color: var(--accent); }
 .chr-person:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 3px; }
-.chr-card h3 { margin: 2px 0 0; font-family: var(--font-display); font-size: 20px; font-weight: 600; line-height: 1.25; }
+.chr-card h3 { margin: 2px 0 0; font-family: var(--font-display); font-size: var(--fs-5); font-weight: 600; line-height: var(--lh-tight); }
 [data-theme='codex'] .chr-card h3 { font-variant: small-caps; letter-spacing: 0.03em; }
-.chr-ctx { margin: 0; font-size: 15px; font-style: italic; color: var(--meta); }
-.chr-toggle { justify-self: start; height: 28px; margin-left: -8px; color: var(--accent); }
+.chr-ctx { margin: 0; font-size: var(--fs-2); font-style: italic; color: var(--meta); }
+.chr-toggle { justify-self: start; height: var(--ctl-sm); margin-left: -8px; color: var(--accent); }
 
 /* Markdown body, shared by feed and wall */
-.chr-md, .chr-inline-quote, .chr-saying blockquote { line-height: 1.55; font-size: 17px; overflow-wrap: anywhere; }
+.chr-md, .chr-inline-quote, .chr-saying blockquote { line-height: var(--lh-body); font-size: var(--fs-4); overflow-wrap: anywhere; }
 .chr-md > :first-child, .chr-inline-quote > :first-child, .chr-saying blockquote > :first-child { margin-top: 0; }
 .chr-md > :last-child, .chr-inline-quote > :last-child, .chr-saying blockquote > :last-child { margin-bottom: 0; }
 .chr-md p, .chr-md ul, .chr-md ol { margin: 0 0 0.7em; }
 .chr-md ul, .chr-md ol { padding-left: 1.3em; }
-.chr-md h1, .chr-md h2, .chr-md h3, .chr-md h4 { font-family: var(--font-display); font-size: 17px; margin: 0.8em 0 0.3em; }
+.chr-md h1, .chr-md h2, .chr-md h3, .chr-md h4 { font-family: var(--font-display); font-size: var(--fs-4); margin: 0.8em 0 0.3em; }
 .chr-md a, .chr-saying a { color: var(--accent); }
 .chr-md blockquote { margin: 0.5em 0; padding-left: 12px; border-left: 2px solid var(--edge); color: var(--muted); }
 .chr-md code { font-size: 0.9em; background: var(--panel-2); padding: 1px 4px; border-radius: 3px; }
@@ -80,20 +84,20 @@
 .chr-saying:nth-child(3n + 2) blockquote { font-size: 27px; }
 .chr-saying:nth-child(5n) blockquote { font-size: 21px; }
 .chr-saying figcaption { display: flex; align-items: center; gap: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
-.chr-saying figcaption > div { display: grid; gap: 1px; min-width: 0; font-family: var(--font-ui); font-size: 15px; }
-.chr-saying figcaption em { font-size: 15px; color: var(--meta); font-style: italic; }
-.chr-saying figcaption small { font-size: 13.5px; color: var(--meta); text-wrap: balance; }
+.chr-saying figcaption > div { display: grid; gap: 1px; min-width: 0; font-family: var(--font-ui); font-size: var(--fs-2); }
+.chr-saying figcaption em { font-size: var(--fs-2); color: var(--meta); font-style: italic; }
+.chr-saying figcaption small { font-size: var(--fs-1); color: var(--meta); text-wrap: balance; }
 .chr-saying .chr-person { text-decoration: none; font-weight: 600; }
 
-/* ---- empty ---- */
-.chr-empty { padding: 44px 28px; display: grid; justify-items: center; gap: 8px; text-align: center; max-width: 560px; margin: 28px auto; }
-.chr-empty svg { color: var(--accent); }
-.chr-empty h2 { font-size: 22px; font-weight: 600; margin: 4px 0 0; }
-.chr-empty p { margin: 0 0 8px; }
-
+/* A phone: no column beside the card. The face is in the card's first line, before the kind, with the time at the right
+   and who wrote what on the line below. */
 @media (max-width: 560px) {
-  .chr-item { grid-template-columns: 1fr; }
-  .chr-face { display: none; }
+  .chr-item { grid-template-columns: minmax(0, 1fr); }
+  .chr-item > .chr-face, .chr-item > :not(.chr-card) { display: none; }
+  .chr-face-in { display: inline-block; }
+  .chr-card header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+  .chr-card time { order: 1; margin-left: auto; }
+  .chr-line { order: 2; flex-basis: 100%; }
 }
 
 .chr-md, .chr-inline-quote { max-width: 68ch; }
@@ -103,7 +107,28 @@
 .chr-md img { max-width: 100%; height: auto; }
 .chr-person { font-family: var(--font-name); font-weight: var(--name-weight); }
 .chr-card[data-kind='quote'], .chr-item[data-kind='quote'] .chr-card, .chr-item[data-kind='recipe'] .chr-card, .chr-saying { background: var(--panel-2); }
-@media(max-width:600px) { .chr-search { width: 100%; flex-basis: 100%; } .chr-search .input { width: 100%; } .chr-wall { columns: auto; } .chr-card { padding: 16px; } .chr-saying { padding: 20px 18px; } .chr-card header { display: grid; gap: 6px; } .chr-md[data-clamped] { max-height: none; overflow: visible; mask-image: none; -webkit-mask-image: none; } .chr-bar .btn, .chr-tabs button { min-height: 44px; } }
+@media (max-width: 600px) {
+  .chr-wall { columns: auto; }
+  .chr-card { padding: 12px 16px 14px; }
+  .chr-saying { padding: 20px 18px; }
+  .chr-md[data-clamped] { max-height: none; overflow: visible; mask-image: none; -webkit-mask-image: none; }
+  /* The search first, full width; then the views and the kinds in one row that scrolls sideways, fading at its edges. */
+  .chr-bar { gap: 8px; border-bottom: 0; }
+  .chr-search { order: -1; flex: 1 1 100%; margin: 0; padding: 0; }
+  .chr-search svg { top: 50%; }
+  .chr-search .input { height: 44px; font-size: max(16px, var(--fs-3)); }
+  .chr-strip {
+    flex-wrap: nowrap; align-items: center; gap: 6px; margin-inline: -16px; padding: 0 16px 2px; overflow-x: auto;
+    scroll-snap-type: x proximity; scroll-padding-inline: 16px; scrollbar-width: none; border-bottom: 1px solid var(--border);
+    mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+  }
+  .chr-strip::-webkit-scrollbar { display: none; }
+  .chr-kinds { flex: none; flex-wrap: nowrap; padding-bottom: 0; }
+  .chr-kinds .btn, .chr-tabs button { flex: none; min-height: 44px; scroll-snap-align: start; }
+  .chr-tabs { margin-right: 6px; }
+}
+@media (prefers-reduced-motion: reduce) { .chr-tabs button { transition: none; } }
 
 /* Match the story sheets in the person panel, with ink colours on parchment. */
 .chr-item[data-kind='quote'] .chr-card, .chr-item[data-kind='recipe'] .chr-card, .chr-saying {

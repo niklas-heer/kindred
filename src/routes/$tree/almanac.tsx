@@ -10,6 +10,7 @@ import { ancestorDepths, displayName, kinship, partnersOf, type Family, type Kin
 import { kinshipLabel, locales, ordinal, translate, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
 import type { GPerson } from '~/lib/types';
 import '~/styles/almanac.css';
+import { useDealt } from '~/lib/dealt';
 import { treeTitle } from '~/lib/title';
 import { useToday } from '~/lib/clock';
 
@@ -236,6 +237,7 @@ function AlmanacPage() {
 }
 
 function AlmanacView({ today: startDay }: { today: Date }) {
+  const dealt = useDealt();
   const f = useFamily();
   // Kinship ("your aunt's birthday") only once the reader has said who they are.
   const me = useMeChosen();
@@ -390,13 +392,13 @@ function AlmanacView({ today: startDay }: { today: Date }) {
                   )}
                 </div>
               ) : (
-                groups.map(([id, g]) => (
+                groups.map(([id, g], gi) => (
                   <section key={id} className="alm-group" data-group={id}>
                     <h2 className="rule">
                       {g.label}
                       <span className="chip">{g.events.length}</span>
                     </h2>
-                    <ul className="alm-list">
+                    <ul className={`alm-list ${gi === 0 ? dealt : ''}`}>
                       {g.events.map((e) => (
                         <EventRow key={e.key} ev={e} f={f} tree={tree} me={me} myAnc={myAnc} />
                       ))}

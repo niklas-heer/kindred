@@ -15,14 +15,14 @@
 }
 .card-hit { position: relative; }
 .card.far:focus-visible, .card.ghost:focus-visible { outline: none; }
-.card-portrait { position: relative; margin-top: 4px; transition: transform 140ms cubic-bezier(.2,.8,.2,1); }
+.card-portrait { position: relative; margin-top: 4px; transition: transform var(--dur-1, 120ms) var(--ease-out, cubic-bezier(.2,.8,.2,1)); }
 .card-hit:hover .card-portrait { transform: translateY(-2px); }
 .card-hit:active .card-portrait { transform: scale(0.97); }
 .card-arms { position: absolute; left: -11px; bottom: -8px; filter: drop-shadow(0 2px 2px #0009); z-index: 1; }
 
 .card-badge {
   position: absolute; display: inline-flex; align-items: center; justify-content: center; gap: 2px;
-  min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; font-size: 11px; font-family: var(--font-ui);
+  min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; font-size: 12px; font-family: var(--font-ui);
   background: var(--chip); color: var(--chip-text); box-shadow: 0 1px 3px #0007; font-variant-numeric: tabular-nums;
 }
 [data-theme='codex'] .card-badge { background: #141922; color: #ecd9a8; box-shadow: inset 0 0 0 1px #b8954f88, 0 1px 3px #0009; }
@@ -49,7 +49,8 @@
 [data-theme='codex'] .card.selected .card-plate { border-color: #e2bd6b; box-shadow: inset 0 1px 0 #f0d58f, 0 0 0 1px #e2bd6b55, 0 3px 10px #0008; }
 .card-name {
   /* Names: the body face at 500, epithets in italic. Size comes from Canvas (NAME_PX), which also
-     picks the detail level from it, so text never renders smaller than about 9px on screen. */
+     picks the detail level from it, so a name never renders smaller than 14px on screen and a date
+     never smaller than 12px. */
   max-width: 132px; font-family: var(--font-name); font-size: var(--name-near, 15px); line-height: 1.12; font-weight: var(--name-weight);
   color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   min-height: 2.24em; align-content: center; text-wrap: balance;
@@ -58,11 +59,11 @@
 [data-theme='codex'] .card-name { color: #f3e7c8; font-size: calc(var(--name-near, 15px) + 1px); }
 [data-theme='codex'] .card-epithet { color: #e6d6ad; }
 .card-sub {
-  max-width: 132px; font-size: 12.5px; font-style: italic; color: var(--muted);
+  max-width: 132px; font-size: 13px; font-style: italic; color: var(--muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.card-years { display: inline-flex; gap: 6px; align-items: baseline; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.card-out { font-size: 11px; color: var(--accent); font-style: normal; }
+.card-years { display: inline-flex; gap: 6px; align-items: baseline; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.card-out { font-size: 12px; color: var(--accent); font-style: normal; }
 
 /* Kinship to you: a tab on the plate's top edge. */
 .card-kin {
@@ -94,6 +95,8 @@
 }
 [data-theme='modern'] .card.selected .card-hit, [data-theme='night'] .card.selected .card-hit { border-color: var(--accent); }
 [data-theme='modern'] .card-kin, [data-theme='night'] .card-kin { top: 100px; }
+/* The tile's own padding pushes the plate down 8px: take that back above the name, so the dates stay inside the tile. */
+[data-theme='modern'] .card.near .card-plate, [data-theme='night'] .card.near .card-plate { margin-top: 3px; padding-top: 2px; }
 
 .card.dup { opacity: 0.6; }
 
@@ -101,12 +104,12 @@
 .card-badge.card-crown { right: auto; top: -7px; left: -7px; bottom: auto; min-width: 22px; height: 22px; padding: 0; color: #d6b25e; }
 .card-heir {
   position: absolute; left: 50%; top: -9px; transform: translateX(-50%); z-index: 2; height: 16px; padding: 0 7px;
-  font-size: 10px; line-height: 16px; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; font-family: var(--font-display);
+  font-size: 11px; line-height: 16px; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; font-family: var(--font-display);
   border-radius: 2px; background: var(--accent); color: var(--accent-text); box-shadow: 0 1px 2px #0007;
 }
 .card-dup {
   position: absolute; left: 50%; top: 46px; transform: translateX(-50%) rotate(-6deg);
-  font-family: var(--font-display); font-size: 11px; padding: 2px 6px; border-radius: 3px;
+  font-family: var(--font-display); font-size: 12px; padding: 2px 6px; border-radius: 3px;
   background: var(--chip); color: var(--chip-text); border: 1px dashed var(--edge); white-space: nowrap;
 }
 
@@ -119,7 +122,7 @@
 .card-spouse > * { border-radius: 50%; overflow: hidden; }
 .card-spouse:hover { box-shadow: 0 0 0 2px var(--accent), 0 2px 6px #000a; }
 .card-spouse:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent), 0 0 0 calc(5px / var(--k, 1)) color-mix(in srgb, var(--accent) 45%, transparent); }
-.card-spouse.more { display: grid; place-items: center; font-size: 11px; background: var(--chip); color: var(--chip-text); }
+.card-spouse.more { display: grid; place-items: center; font-size: 12px; background: var(--chip); color: var(--chip-text); }
 
 /* Fold: a small gold-ringed disc on the line to the children. Never smaller than 20px on screen,
    with an invisible 44px touch target around it. */
@@ -169,7 +172,7 @@
 /* Mid detail: a smaller portrait and much bigger type, so names stay readable zoomed out. */
 .card.mid .card-name, [data-theme='codex'] .card.mid .card-name { font-size: var(--name-mid, 22px); line-height: 1.05; min-height: 2.1em; max-width: 138px; }
 .card.mid .card-plate { width: 146px; padding: 5px 3px 4px; }
-.card.mid .card-years { font-size: 20px; }
+.card.mid .card-years { font-size: 22px; }
 
 /* Far: a shield in the house colour. */
 .card.far {
@@ -226,7 +229,7 @@
 .ghost-plus { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; border: 1.5px solid currentColor; }
 .ghost-label { font-family: var(--font-display); font-size: 15px; text-shadow: var(--canvas-shadow); }
 [data-theme='codex'] .card.ghost { color: var(--canvas-ink); background: #00000026; }
-.ghost-sub { font-size: 12px; font-style: italic; opacity: 0.8; }
+.ghost-sub { font-size: 13px; font-style: italic; opacity: 0.8; }
 
 @media (prefers-reduced-motion: reduce) {
   .card-bday.today, .card.selected .card-portrait::after, .add { animation: none; }
@@ -237,7 +240,7 @@
 .card-gaps {
   position: absolute; right: -4px; top: 108px; z-index: 2; pointer-events: auto; cursor: help;
   min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px; display: grid; place-items: center;
-  font-size: 10.5px; font-family: var(--font-ui); font-weight: 700; font-variant-numeric: tabular-nums;
+  font-size: 11.5px; font-family: var(--font-ui); font-weight: 700; font-variant-numeric: tabular-nums;
   color: #f0b25a; background: #2a1f10; border: 1.5px dashed #f0b25a99;
 }
 [data-theme='modern'] .card-gaps { color: #a0621a; background: #fff6e8; border-color: #d9a25a; top: 100px; }

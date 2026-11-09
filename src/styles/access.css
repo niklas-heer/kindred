@@ -1,7 +1,7 @@
 /* /$tree/access: members, invitations and roles. */
 .acc { display: grid; gap: 8px; }
 .acc h2.rule { margin-top: 26px; }
-.acc h2.rule small { font-family: var(--font-ui); font-size: 13px; color: var(--subtle); letter-spacing: 0; text-transform: none; font-variant: normal; }
+.acc h2.rule small { font-family: var(--font-ui); font-size: var(--fs-2); color: var(--subtle); letter-spacing: 0; text-transform: none; font-variant: normal; }
 
 .acc-list { list-style: none; margin: 0; padding: 4px 0; }
 .acc-list > li {
@@ -11,20 +11,20 @@
 .acc-list > li:first-child { border-top: 0; }
 [data-theme='codex'] .acc-list > li { border-top-color: #b8954f22; }
 .acc-who { min-width: 0; display: grid; gap: 1px; }
-.acc-name { font-family: var(--font-body); font-weight: 500; font-size: 17px; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.acc-name { font-family: var(--font-body); font-weight: 500; font-size: var(--fs-4); display: flex; align-items: center; gap: 8px; min-width: 0; }
 .acc-name > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.acc-sub { font-family: var(--font-ui); font-size: 14px; color: var(--subtle); display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; min-width: 0; }
+.acc-sub { font-family: var(--font-ui); font-size: var(--fs-2); color: var(--subtle); display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; min-width: 0; }
 .acc-sub > span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .acc-person { color: var(--muted); }
 .acc-person b { font-weight: 500; color: var(--text); }
-.acc-seen { font-family: var(--font-ui); font-size: 14px; color: var(--muted); }
-.acc-seen small { display: block; font-size: 12.5px; color: var(--subtle); }
-.acc-you { font-size: 12px; }
+.acc-seen { font-family: var(--font-ui); font-size: var(--fs-2); color: var(--muted); }
+.acc-seen small { display: block; font-size: var(--fs-1); color: var(--subtle); }
+.acc-you { font-size: var(--fs-1); }
 .acc-list .ui-select { width: 100%; }
 .acc-remove { width: 40px !important; height: 40px !important; color: var(--muted); }
 .acc-remove:hover:not(:disabled) { color: var(--danger); }
 .acc-remove:disabled { opacity: 0.35; cursor: not-allowed; }
-.acc-only { font-family: var(--font-ui); font-size: 13px; color: var(--subtle); }
+.acc-only { font-family: var(--font-ui); font-size: var(--fs-2); color: var(--subtle); }
 
 /* Invitations */
 .acc-inv > li { grid-template-columns: 40px minmax(0, 1fr) auto; }
@@ -35,7 +35,7 @@
 }
 [data-theme='codex'] .acc-role-icon { background: radial-gradient(circle at 50% 35%, #2e384b, #141922); box-shadow: inset 0 0 0 1px var(--edge-soft); }
 .acc-empty { padding: 18px; color: var(--muted); margin: 0; }
-.acc-history { margin-top: 6px; font-size: 15px; color: var(--muted); }
+.acc-history { margin-top: 6px; font-size: var(--fs-3); color: var(--muted); }
 .acc-history summary { cursor: pointer; min-height: 40px; display: flex; align-items: center; gap: 6px; }
 .acc-history summary::-webkit-details-marker { display: none; }
 .acc-history summary::before {
@@ -45,27 +45,27 @@
 .acc-history[open] summary::before { transform: rotate(45deg); }
 @media (prefers-reduced-motion: reduce) { .acc-history summary::before { transition: none; } }
 .acc-history ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
-.acc-history li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; padding: 6px 10px; border-radius: var(--radius); background: var(--panel-2); font-size: 14.5px; }
-.acc-status { font-family: var(--font-ui); font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+.acc-history li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; padding: 6px 10px; border-radius: var(--radius); background: var(--panel-2); font-size: var(--fs-2); }
+.acc-status { font-family: var(--font-ui); font-size: var(--fs-1); padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
 .acc-status[data-s='used'] { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
 .acc-status[data-s='revoked'] { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 50%, transparent); }
 
 /* Roles */
 .acc-roles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .acc-roles > div { display: grid; gap: 6px; align-content: start; }
-.acc-roles h3 { margin: 0; display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 600; font-size: 17px; }
+.acc-roles h3 { margin: 0; display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 600; font-size: var(--fs-4); }
 [data-theme='codex'] .acc-roles h3 { font-variant: small-caps; color: var(--accent); letter-spacing: 0.04em; }
 .acc-roles h3 .acc-role-icon { width: 34px; height: 34px; }
-.acc-roles p { margin: 0; color: var(--muted); line-height: 1.4; font-size: 15px; }
-.acc-roles small { font-family: var(--font-ui); color: var(--subtle); font-size: 13px; }
+.acc-roles p { margin: 0; color: var(--muted); line-height: 1.4; font-size: var(--fs-3); }
+.acc-roles small { font-family: var(--font-ui); color: var(--subtle); font-size: var(--fs-2); }
 
 /* The invite dialog */
 .acc-form { display: grid; gap: 14px; }
 .acc-form .input { height: 40px; }
 .acc-form .ui-select { width: 100%; }
-.acc-hint { margin: -8px 0 0; font-size: 14px; color: var(--subtle); line-height: 1.4; }
+.acc-hint { margin: -8px 0 0; font-size: var(--fs-2); color: var(--subtle); line-height: 1.4; }
 .acc-link { display: flex; gap: 8px; min-width: 0; }
-.acc-link .input { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13px; height: 42px; min-width: 0; width: 100%; }
+.acc-link .input { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: var(--fs-2); height: 42px; min-width: 0; width: 100%; }
 .acc-link .btn { height: 42px; flex: none; }
 .acc-share { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .acc-share .btn { height: 40px; }
@@ -96,12 +96,12 @@
 /* The link and the message are long: they scroll inside their own fields and never widen the page. */
 .share-shown { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .share-shown label { min-width: 0; }
-.share-shown label > span:first-child { display: block; font-size: 13px; color: var(--subtle); margin-bottom: 4px; }
+.share-shown label > span:first-child { display: block; font-size: var(--fs-2); color: var(--subtle); margin-bottom: 4px; }
 .share-message { width: 100%; height: auto; min-height: 96px; resize: vertical; line-height: 1.45; padding: 10px 12px; font-family: var(--font-ui); box-sizing: border-box; }
 .share-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .share-actions .btn { height: 40px; }
 .share-note { margin: 8px 0 0; }
-.guest-chip { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.guest-chip { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--fs-2); white-space: nowrap; }
 .guest-chip .btn { height: 30px; padding: 0 8px; }
 /* The guest's only way out must stay in view: at laptop widths the bar gives the search box's room to the chip. */
 @media (min-width: 1401px) and (max-width: 1560px) { .topbar:has(.guest-chip) .search-trigger { width: 36px; padding: 0; justify-content: center; } .topbar:has(.guest-chip) .search-trigger > span:first-child { font-size: 0; } .topbar:has(.guest-chip) .search-trigger kbd { display: none; } .topbar:has(.guest-chip) .guest-chip-label { display: none; } }

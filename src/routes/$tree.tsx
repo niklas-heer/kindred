@@ -60,9 +60,10 @@ export const Route = createFileRoute('/$tree')({
 });
 
 /**
- * Section labels show only when they fit beside the family's whole name. Which words fit depends on the language, the
- * reader's sections and the name itself, so it is measured. Starts compact (the server can't measure); the class is
- * only ever set here, so React's renders leave it alone.
+ * The sections have three states. Labels beside the icons when they fit next to the family's whole name; else icon over
+ * label (`topbar-stacked`), so every section keeps its name on a laptop; else icons alone (`topbar-compact`). Which fits
+ * depends on the language, the reader's sections and the name itself, so it is measured. Starts stacked (the server can't
+ * measure, and most screens end there); the classes are only ever set here, so React's renders leave them alone.
  */
 function useTopbarFit() {
   const bar = useRef<HTMLElement>(null);
@@ -71,8 +72,12 @@ function useTopbarFit() {
     const nav = el?.querySelector('nav');
     if (!el || !nav) return;
     const fit = () => {
-      el.classList.remove('topbar-compact');
-      el.classList.toggle('topbar-compact', nav.scrollWidth > nav.clientWidth + 1);
+      el.classList.remove('topbar-compact', 'topbar-stacked');
+      if (nav.scrollWidth <= nav.clientWidth + 1) return;
+      // Stacked, the nav no longer shrinks: the bar itself overflows when even that is too wide.
+      el.classList.add('topbar-stacked');
+      if (el.scrollWidth <= el.clientWidth + 1) return;
+      el.classList.replace('topbar-stacked', 'topbar-compact');
     };
     fit();
     const size = new ResizeObserver(fit);
@@ -83,7 +88,9 @@ function useTopbarFit() {
     // Each theme sets its own fonts, so the same words take a different width.
     content.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'lang'] });
     void document.fonts?.ready.then(fit);
-    return () => { size.disconnect(); content.disconnect(); };
+    // A theme's face may arrive only after the theme is chosen; the words change width when it does.
+    document.fonts?.addEventListener?.('loadingdone', fit);
+    return () => { size.disconnect(); content.disconnect(); document.fonts?.removeEventListener?.('loadingdone', fit); };
   }, []);
   return bar;
 }
@@ -122,55 +129,57 @@ function TreeLayout() {
 
   return (
     <div className="shell">
-      <header className="topbar topbar-compact" ref={topbar}>
+      <header className="topbar topbar-stacked" ref={topbar}>
         <Link to={multiple ? "/" : "/$tree"} params={{ tree }} search={multiple ? { families: "all" } : {}} className="brand" title={multiple ? t("shell.all_families") : t("shell.family_tree")}>
           {crest ? <Arms arms={crest.arms} size={28} /> : null}
           <b>{f.graph.tree.name}</b>
         </Link>
         <nav aria-label={t("shell.sections")}>
           <Link to="/$tree" params={{ tree }} activeOptions={{ exact: true, includeSearch: false }} title={t("shell.tree")}>
-            <Network size={16} /> <span className="nav-label">{t("shell.tree")}</span>
+            <Network size={16} /><span className="nav-label">{t("shell.tree")}</span>
           </Link>
           <Link to="/$tree/almanac" params={{ tree }} title={t("shell.almanac")}>
-            <CalendarHeart size={16} /> <span className="nav-label">{t("shell.almanac")}</span>
+            <CalendarHeart size={16} /><span className="nav-label">{t("shell.almanac")}</span>
           </Link>
           <Link to="/$tree/atlas" params={{ tree }} title={t("shell.atlas")}>
-            <MapIcon size={16} /> <span className="nav-label">{t("shell.atlas")}</span>
+            <MapIcon size={16} /><span className="nav-label">{t("shell.atlas")}</span>
           </Link>
           {!guest && (
             <Link to="/$tree/contacts" params={{ tree }} title={t("shell.contacts")}>
-              <Contact size={16} /> <span className="nav-label">{t("shell.contacts")}</span>
+              <Contact size={16} /><span className="nav-label">{t("shell.contacts")}</span>
             </Link>
           )}
           <Link to="/$tree/people" params={{ tree }} title={t("shell.register")}>
-            <BookOpen size={16} /> <span className="nav-label">{t("shell.register")}</span>
+            <BookOpen size={16} /><span className="nav-label">{t("shell.register")}</span>
           </Link>
           <Link to="/$tree/houses" params={{ tree }} title={t("shell.houses")} activeOptions={{ exact: false }}>
-            <Landmark size={16} /> <span className="nav-label">{t("shell.houses")}</span>
+            <Landmark size={16} /><span className="nav-label">{t("shell.houses")}</span>
           </Link>
           <Link to="/$tree/needed" params={{ tree }} title={t("shell.information_needed")}>
-            <CircleHelp size={16} /> <span className="nav-label">{t("shell.needed")}</span>
+            <CircleHelp size={16} /><span className="nav-label">{t("shell.needed")}</span>
           </Link>
           <Link to="/$tree/chronicle" params={{ tree }} title={t("shell.chronicle")}>
-            <ScrollText size={16} /> <span className="nav-label">{t("shell.chronicle")}</span>
+            <ScrollText size={16} /><span className="nav-label">{t("shell.chronicle")}</span>
           </Link>
           <Link to="/$tree/gallery" params={{ tree }} title={t("shell.gallery")}>
-            <Images size={16} /> <span className="nav-label">{t("shell.gallery")}</span>
+            <Images size={16} /><span className="nav-label">{t("shell.gallery")}</span>
           </Link>
           <Link to="/$tree/research" params={{ tree }} title={t("research.title")} activeOptions={{ exact: false }}>
-            <FolderSearch size={16} /> <span className="nav-label">{t("research.title")}</span>
+            <FolderSearch size={16} /><span className="nav-label">{t("research.title")}</span>
           </Link>
         </nav>
         <span className="spacer" />
         <button className="btn search-trigger" onClick={() => palette.open()}>
-          <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-            <Search size={15} /> {t("shell.find_anyone")} </span>
+          <span><Search size={16} /> {t("shell.find_anyone")}</span>
           <kbd>⌘K</kbd>
         </button>
         <span className="topbar-tools">
-          <AssistantButton tree={tree} />
-          <SoundSwitch />
-          <ThemeSwitch />
+          {/* On a phone only Ask stays in the bar (as an icon); sound, theme and language are in More. */}
+          <AssistantButton tree={tree} className="topbar-ask" />
+          <span className="topbar-prefs">
+            <SoundSwitch />
+            <ThemeSwitch />
+          </span>
           <LanguagePicker />
         </span>
         <AccountMenu familyName={f.graph.tree.name} />
@@ -180,15 +189,16 @@ function TreeLayout() {
       {/* Phones: the sections move to a bar along the bottom edge. */}
       <nav className="tabbar" aria-label={t("shell.sections")}>
         <Link to="/$tree" params={{ tree }} activeOptions={{ exact: true, includeSearch: false }}>
-          <Network size={20} /> {t("shell.tree")} </Link>
+          <Network size={21} /><span>{t("shell.tree")}</span></Link>
         <Link to="/$tree/almanac" params={{ tree }}>
-          <CalendarHeart size={20} /> {t("shell.almanac")} </Link>
+          <CalendarHeart size={21} /><span>{t("shell.almanac")}</span></Link>
+        {/* Stories bring a family back; the to-do list ("Needed") is first in More. */}
+        <Link to="/$tree/chronicle" params={{ tree }}>
+          <ScrollText size={21} /><span>{t("shell.chronicle")}</span></Link>
         <Link to="/$tree/atlas" params={{ tree }}>
-          <MapIcon size={20} /> {t("shell.atlas")} </Link>
-        <Link to="/$tree/needed" params={{ tree }}>
-          <CircleHelp size={20} /> {t("shell.needed")} </Link>
+          <MapIcon size={21} /><span>{t("shell.atlas")}</span></Link>
         <button type="button" onClick={() => setMore(true)} aria-expanded={more} aria-haspopup="dialog">
-          <MoreHorizontal size={20} /> {t("shell.more")} </button>
+          <MoreHorizontal size={21} /><span>{t("shell.more")}</span></button>
       </nav>
       <MoreSheet open={more} onClose={() => setMore(false)} tree={tree} multiple={multiple} />
       <Palette />
@@ -201,7 +211,7 @@ function TreeLayout() {
   );
 }
 
-/** Contacts, Register and Chronicle, plus theme and sound: what the phone's tab bar has no room for. */
+/** Needed, Contacts, Register and the rest, plus theme and sound: what the phone's tab bar has no room for. */
 function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: () => void; tree: string; multiple: boolean }) {
   const guest = useSession()?.guest?.tree === tree;
   const t = useT();
@@ -215,10 +225,10 @@ function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: 
   return (
     <Dialog open={open} onClose={onClose} title={t("shell.more")} placement="sheet" width={560}>
       <ul className="more-list" onClick={(e) => (e.target as HTMLElement).closest('a') && onClose()}>
+        <li><Link to="/$tree/needed" params={{ tree }}><CircleHelp size={19} /> {t("shell.needed")} <small>{t("shell.information_needed")}</small></Link></li>
         {!guest && <li><Link to="/$tree/contacts" params={{ tree }}><Contact size={19} /> {t("shell.contacts")} <small>{t("shell.addresses_phones")}</small></Link></li>}
         <li><Link to="/$tree/people" params={{ tree }}><BookOpen size={19} /> {t("shell.register")} <small>{t("shell.everyone_as_a_table")}</small></Link></li>
         <li><Link to="/$tree/houses" params={{ tree }}><Landmark size={19} /> {t("shell.houses")} <small>{t("shell.arms_mottos_members")}</small></Link></li>
-        <li><Link to="/$tree/chronicle" params={{ tree }}><ScrollText size={19} /> {t("shell.chronicle")} <small>{t("shell.stories_sayings")}</small></Link></li>
         <li><Link to="/$tree/gallery" params={{ tree }}><Images size={19} /> {t("shell.gallery")} <small>{t("shell.gallery_hint")}</small></Link></li>
         <li><Link to="/$tree/research" params={{ tree }}><FolderSearch size={19} /> {t("research.title")} <small>{t("research.nav_hint")}</small></Link></li>
         {assistant && <li><button type="button" onClick={() => { onClose(); openAssistant(); }}><Sparkles size={19} /> {t("ai.askCommand")}</button></li>}

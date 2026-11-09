@@ -1,6 +1,6 @@
 import { socialLink } from '~/lib/social';
 import { useToday } from '~/lib/clock';
-import { PageHeader, Skeleton, ErrorState } from '~/components/ui';
+import { PageHeader, Skeleton, ErrorState, EmptyState } from '~/components/ui';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useDebouncedValue } from '@tanstack/react-pacer';
@@ -19,6 +19,7 @@ import { age as ageOf, ageAt, children, displayName, partnersOf, parents, siblin
 import type { GPerson } from '~/lib/types';
 import { buildHouseholds, type Household, type Row } from '~/lib/contact-households';
 import '~/styles/contacts.css';
+import { useDealt } from '~/lib/dealt';
 import { sectionHead } from '~/lib/title';
 
 export const Route = createFileRoute('/$tree/contacts')({
@@ -164,6 +165,7 @@ function ContactsPage() {
     setOnlyClose(false);
   };
   const noData = !isPending && !isError && households.length === 0;
+  const dealt = useDealt(!isPending);
 
   return (
     <div className="page">
@@ -212,26 +214,17 @@ function ContactsPage() {
         </div>
 
         {noData && (
-          <div className="con-empty ui-card">
-            <BookUser size={28} />
-            <h2 className="display">{t('con.emptyTitle')}</h2>
-            <p className="muted">{t('con.emptyText')}</p>
-          </div>
+          <EmptyState icon={<BookUser size={28} />} title={t('con.emptyTitle')} text={t('con.emptyText')} />
         )}
 
         {!noData && shown.length === 0 && shownNoDetails.length === 0 && (
-          <div className="con-empty ui-card">
-            <Search size={26} />
-            <h2 className="display">{t('con.noMatchTitle')}</h2>
-            <p className="muted">{t('con.noMatchText')}</p>
-            <button className="btn" onClick={clear}>{t('con.clearFilters')}</button>
-          </div>
+          <EmptyState icon={<Search size={26} />} title={t('con.noMatchTitle')} text={t('con.noMatchText')} action={<button className="btn" onClick={clear}>{t('con.clearFilters')}</button>} />
         )}
 
-        {letters.map(([letter, hs]) => (
+        {letters.map(([letter, hs], li) => (
           <section key={letter} className="con-letter-row">
             <div className="con-letter display" aria-hidden>{letter}</div>
-            <div className="con-grid">
+            <div className={`con-grid ${li === 0 ? dealt : ''}`}>
               {hs.map((h) => (
                 <HouseholdCard key={h.id} h={h} f={f} tree={tree} />
               ))}
@@ -323,18 +316,23 @@ function ContactLine({ r }: { r: Row }) {
   const map = r.kind === 'address' ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(r.value)}` : undefined;
   return (
     <li className="con-line" data-kind={r.kind}>
-      <Icon size={15} />
-      {r.label && !social && <span className="con-label">{r.label}</span>}
-      <VisibilityMark level={r.visibility} />
-      {social ? (
-        <a href={social.href} className="con-value" target="_blank" rel="noopener noreferrer">{social.network} · {social.handle}</a>
-      ) : href ? (
-        <a href={href} className="con-value" {...(r.kind === 'web' ? { target: '_blank', rel: 'noreferrer noopener' } : {})}>
-          {r.value}
-        </a>
-      ) : (
-        <span className="con-value">{r.value}</span>
-      )}
+      <Icon size={16} />
+      {/* One row per detail: the value right after its icon, then what kind it is and who can see it; the actions at the right. */}
+      <span className="con-main">
+        {social ? (
+          <a href={social.href} className="con-value" target="_blank" rel="noopener noreferrer">{social.network} · {social.handle}</a>
+        ) : href ? (
+          <a href={href} className="con-value" {...(r.kind === 'web' ? { target: '_blank', rel: 'noreferrer noopener' } : {})}>
+            {r.value}
+          </a>
+        ) : (
+          <span className="con-value">{r.value}</span>
+        )}
+        <span className="con-meta">
+          {r.label && !social && <span className="con-label">{r.label}</span>}
+          <VisibilityMark level={r.visibility} />
+        </span>
+      </span>
       {map && (
         <a className="btn ghost icon con-copy" href={map} target="_blank" rel="noreferrer noopener" aria-label={t('con.openMap')} title={t('con.openMap')}>
           <MapPin size={14} />

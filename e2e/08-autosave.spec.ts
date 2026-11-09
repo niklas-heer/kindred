@@ -12,10 +12,17 @@ const bar = (page: Page) => page.getByRole('group', { name: 'Saving' });
 const status = (page: Page) => bar(page).getByRole('status');
 const box = (page: Page, name: string) => page.getByRole('textbox', { name, exact: true });
 
+/** On a phone the person starts as a slim peek: tapping it opens the sheet with its tabs. */
+async function openEditTab(page: Page) {
+  const more = page.getByRole('button', { name: /^More about / });
+  if (await more.isVisible()) await more.click();
+  await page.getByRole('tab', { name: 'Edit' }).click();
+}
+
 async function openEdit(page: Page) {
   await openFamily(page);
   await page.getByRole('button', { name: new RegExp(`^${FULL}`) }).nth(1).click();
-  await page.getByRole('tab', { name: 'Edit' }).click();
+  await openEditTab(page);
   await expect(box(page, 'Called')).toBeVisible();
 }
 
@@ -43,7 +50,7 @@ test('a change saves itself, and Undo takes it back', async ({ page }) => {
 
   await page.reload();
   await settled(page);
-  await page.getByRole('tab', { name: 'Edit' }).click();
+  await openEditTab(page);
   await expect(box(page, 'Called')).toHaveValue('');
 });
 
@@ -69,7 +76,7 @@ test('Next goes to the next box, and a new phone number is one tap and a number 
 
   await page.reload();
   await settled(page);
-  await page.getByRole('tab', { name: 'Edit' }).click();
+  await openEditTab(page);
   await expect(box(page, 'Number')).toHaveValue('+49 151 1234567');
   await expect(box(page, 'Number')).toHaveCount(1);
   await expect(page.getByRole('radiogroup', { name: 'Who can see this' }).getByRole('radio', { name: 'Editors' })).toHaveAttribute('aria-checked', 'true');
@@ -104,7 +111,7 @@ test('a failed save tries again and keeps what was typed', async ({ page, issues
 
   await page.reload();
   await settled(page);
-  await page.getByRole('tab', { name: 'Edit' }).click();
+  await openEditTab(page);
   await expect(box(page, 'Epithet')).toHaveValue('the Stubborn');
 });
 
@@ -121,7 +128,7 @@ test('a draft the server never got is there again after the page goes away', asy
 
   await page.reload();
   await settled(page);
-  await page.getByRole('tab', { name: 'Edit' }).click();
+  await openEditTab(page);
   await expect(box(page, 'Epithet')).toHaveValue('the Unsaved');
   await expect(status(page)).toHaveText('All saved');
 });
@@ -146,7 +153,7 @@ test('two people editing: separate changes are merged, the same change is shown 
   // The same box: the save stops, both versions are on screen, and the first person's stays until someone chooses.
   await other.reload();
   await settled(other);
-  await other.getByRole('tab', { name: 'Edit' }).click();
+  await openEditTab(other);
   await saved(other, 'Called', 'Theirs');
   await box(page, 'Called').fill('Mine');
   await expect(status(page)).toHaveText('Choose for each conflict first');
@@ -157,7 +164,7 @@ test('two people editing: separate changes are merged, the same change is shown 
   // Not chosen yet, and the page goes away: it comes back as the same question, and nothing has been written over theirs.
   await page.reload();
   await settled(page);
-  await page.getByRole('tab', { name: 'Edit' }).click();
+  await openEditTab(page);
   await expect(status(page)).toHaveText('Choose for each conflict first');
   await expect(page.getByText('Someone else’s: Theirs')).toBeVisible();
 
@@ -166,7 +173,7 @@ test('two people editing: separate changes are merged, the same change is shown 
   await expect(status(page)).toHaveText('All saved');
   await page.reload();
   await settled(page);
-  await page.getByRole('tab', { name: 'Edit' }).click();
+  await openEditTab(page);
   await expect(box(page, 'Called')).toHaveValue('Theirs');
 });
 

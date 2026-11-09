@@ -60,7 +60,7 @@
   color: var(--muted);
 }
 .ruler-row b { font-family: var(--font-display); font-weight: 600; font-size: 17px; line-height: 1; }
-.ruler-row span { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ruler-row span { font-size: var(--fs-1, 12px); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* The current generation: a 2px accent bar and the faintest tint, not a selection slab. */
 .ruler-row.active { color: var(--text); box-shadow: inset 2px 0 0 var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .ruler-row.active b { color: var(--accent); }
@@ -70,7 +70,7 @@
 .map-dock {
   position: absolute; right: 16px; bottom: calc(var(--sheet-h, 0px) + 16px); z-index: 6;
   display: flex; flex-direction: column; align-items: flex-end; gap: 10px; cursor: default;
-  transition: bottom 220ms cubic-bezier(.2,.8,.2,1);
+  transition: bottom var(--dur-2, 200ms) var(--ease-out, cubic-bezier(.2,.8,.2,1));
 }
 .map-controls { display: flex; flex-direction: column; gap: 2px; padding: 4px; }
 .map-controls .btn { width: 36px; height: 36px; color: var(--text); }
@@ -101,14 +101,14 @@
   box-shadow: 0 0 0 9999px #00000052; pointer-events: none;
 }
 [data-theme='modern'] .minimap-view { border-color: var(--accent); box-shadow: 0 0 0 9999px #0000001f; }
-.minimap-foot { display: flex; justify-content: space-between; gap: 12px; padding: 6px 2px 0; font-size: 12px; color: var(--muted); font-family: var(--font-ui); }
-[data-theme='codex'] .minimap-foot { font-family: var(--font-display); font-size: 11.5px; letter-spacing: 0.04em; }
+.minimap-foot { display: flex; justify-content: space-between; gap: 12px; padding: 6px 2px 0; font-size: var(--fs-1, 12px); color: var(--muted); font-family: var(--font-ui); }
+[data-theme='codex'] .minimap-foot { font-family: var(--font-display); letter-spacing: 0.03em; }
 
 /* Phones and narrow tablets: a slimmer ruler, bigger controls, and the minimap only on request. */
 @media (max-width: 900px) {
-  .canvas { --ruler-w: 40px; }
+  .canvas { --ruler-w: 44px; }
   .ruler-row b { font-size: 15px; }
-  .ruler-row span { font-size: 10px; }
+  .ruler-row span { font-size: 12px; letter-spacing: -0.01em; }
   .map-dock { right: 10px; bottom: calc(var(--sheet-h, 0px) + 10px); gap: 8px; }
   .map-controls .btn { width: 44px; height: 44px; }
   .map-toggle { display: inline-flex !important; }
@@ -122,9 +122,21 @@
   .edge.lit { animation: none; stroke-dasharray: none; }
 }
 
-.union-label { fill: var(--text); font-size: 18px; font-family: var(--font-body, Georgia, serif); paint-order: stroke; stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round; }
-.union-status { fill: var(--muted); font-size: 16px; }
+/* ---------- marriage labels: a small plate centred on the union line ---------- */
+/* World pixels, like the cards: name plates (mid) open at a zoom of 0.56 or more, so 22px lands at 12px or
+   more on screen; full cards start at 0.93, so 15px and 13px land at 14px and 12px. Tiles hide the label. */
+.union-label {
+  position: absolute; z-index: 1; translate: -50% -50%; pointer-events: none;
+  display: grid; justify-items: center; gap: 0; padding: 0.2em 0.5em; white-space: nowrap;
+  font-family: var(--font-body, Georgia, serif); font-size: 15px; line-height: 1.2; font-variant-numeric: lining-nums tabular-nums;
+  color: var(--chip-text); background: var(--chip); border: calc(1px / var(--k, 1)) solid var(--edge-soft, var(--border)); border-radius: 2px;
+  box-shadow: 0 calc(1px / var(--k, 1)) calc(3px / var(--k, 1)) #0005;
+  transition: opacity var(--dur-2, 200ms);
+}
+[data-theme='modern'] .union-label { box-shadow: 0 1px 2px #2a22141f; }
+.union-status { font-size: 13px; color: color-mix(in srgb, var(--chip-text) 78%, transparent); }
 .union-label.dim { opacity: .25; }
 .canvas.detail-far .union-label { display: none; }
-/* Name plates are the zoomed-out level: at their smallest zoom (about 0.48) these still land near 10px on screen. */
-.canvas.detail-mid .union-label, .canvas.detail-mid .union-status { font-size: 20px; }
+.canvas.detail-mid .union-label { font-size: 22px; }
+.canvas.detail-mid :is(.union-ended, .union-status) { display: none; }
+@media (prefers-reduced-motion: reduce) { .union-label { transition: none; } }

@@ -15,7 +15,7 @@ export type Detail = 'far' | 'mid' | 'near';
 /** Card name sizes in world pixels at each level (card.css reads them as --name-near / --name-mid). */
 export const NAME_PX = { near: 15, mid: 24 } as const;
 /** Smallest name on screen we accept before dropping to a simpler level. */
-const MIN_TEXT_PX = 12;
+const MIN_TEXT_PX = 14;
 // Detail follows the size names actually reach on screen (zoom × font size), not fixed zoom steps.
 // With a little hysteresis, so cards don't flicker between levels while zooming near a threshold.
 const detailFor = (k: number, prev: Detail): Detail => {
@@ -28,6 +28,8 @@ const detailFor = (k: number, prev: Detail): Detail => {
 const MID_K = (MIN_TEXT_PX - 0.5) / NAME_PX.mid;
 /** When the whole tree won't fit at name plates, open at this zoom around the focus instead of shrinking it to tiles. */
 const READABLE_K = MIN_TEXT_PX / NAME_PX.mid + 0.01;
+/** The smallest zoom that shows portraits and full cards. A tree that nearly fits at it opens there, not a level simpler. */
+const NEAR_K = MIN_TEXT_PX / NAME_PX.near + 0.005;
 
 /** Screen space covered by floating panels, in px from each edge of the canvas. */
 export interface Inset { left: number; top: number; right?: number; bottom?: number }
@@ -40,7 +42,8 @@ export interface CanvasHandle {
   fit(): void;
   /**
    * Opening view: the whole tree at the most detailed zoom that fits the free area; when even name
-   * plates won't fit, name plates around `id`, with the tree's edges pulled in so no space is wasted.
+   * plates won't fit, readable name plates around `id`: a generation starts right under the toolbar and
+   * the rest runs off the edge, which also shows that the canvas scrolls.
    */
   frame(id: string, opts?: { animate?: boolean }): void;
   /** Pans just enough to bring a card fully into the free area (after a sheet or panel opens). */
@@ -143,7 +146,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
   const area = useCallback(() => {
     const { width: w, height: h } = host.current!.getBoundingClientRect();
     const i = typeof insetOf.current === 'function' ? insetOf.current() : insetOf.current ?? { left: 0, top: 0 };
-    const gutter = w <= 900 ? 40 : 56; // the ruler
+    const gutter = w <= 900 ? 44 : 56; // the ruler
     // The zoom stack and minimap sit on the right; measure them rather than guess.
     const d = dock.current;
     let right = Math.max(i.right ?? 0, d ? w - d.offsetLeft + 8 : 0);
@@ -160,7 +163,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     const n = firstOf.get(id);
     if (!n || !host.current) return false;
     const a = area();
-    const k = opts?.k ?? Math.max(cam.current.k, 0.55);
+    const k = opts?.k ?? Math.max(cam.current.k, READABLE_K);
     // Centre in the part of the canvas no panel covers (the map controls only hide a corner).
     const cx = (a.l + a.w) / 2, cy = a.t + (a.b - a.t) * 0.46;
     const target = { k, x: cx - n.x * k, y: cy - (n.y + CARD_H / 2) * k };
@@ -170,7 +173,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     return moved;
   }, [firstOf, apply, animateTo, area]);
 
-  const margins = (w: number) => (w < 600 ? { x: 12, y: 10 } : { x: 28, y: 18 });
+  const margins = (w: number) => (w < 600 ? { x: 12, y: 10 } : { x: 28, y: 12 });
 
   const fit = useCallback(() => {
     if (!host.current) return;
@@ -189,24 +192,28 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     const m = margins(a.w);
     const lo = { x: a.l + m.x, y: a.t + m.y }, hi = { x: a.r - m.x, y: a.b - m.y };
     const fitK = Math.min((hi.x - lo.x) / b.w, (hi.y - lo.y) / b.h);
-    const k = fitK >= MID_K ? Math.min(fitK, 0.9) : READABLE_K;
-    if (k * NAME_PX.near < MIN_TEXT_PX) lastDetail.current = 'mid'; // so the hysteresis keeps name plates at the threshold
+    // Full cards when the tree fits at them, or so nearly that a row or column just runs off the edge; else
+    // name plates as large as fit; else readable name plates around the focus.
+    const k = fitK >= NEAR_K * 0.86 ? Math.min(Math.max(fitK, NEAR_K), 1) : fitK >= MID_K ? fitK : READABLE_K;
+    lastDetail.current = k * NAME_PX.near < MIN_TEXT_PX ? 'mid' : 'near'; // so the hysteresis keeps the level at its threshold
     const n = firstOf.get(id);
-    // Along one axis: centre the tree when it fits, else centre the focus and pull the tree's edges
-    // to the area's edges, so the view never shows empty space where there is more tree.
-    const place = (from: number, to: number, start: number, len: number, at: number, topFirst = false) => {
+    // Across: centre the tree when it fits, else centre the focus and pull the tree's edges to the area's
+    // edges, so the view never shows empty space where there is more tree.
+    const across = (from: number, to: number, start: number, len: number, at: number) => {
       if (len * k <= to - from) return from + (to - from - len * k) / 2 - start * k;
-      // On a phone the top generation starts just under the toolbar, if the focus still shows above the sheet.
-      if (topFirst && from + (at + CARD_H / 2 - start) * k <= to) return from - start * k;
       const off = (from + to) / 2 - at * k;
       return Math.max(to - (start + len) * k, Math.min(from - start * k, off));
     };
-    const narrow = a.w <= 900;
-    const target = {
-      k,
-      x: place(lo.x, hi.x, b.x, b.w, n ? n.x : b.x + b.w / 2),
-      y: place(lo.y, hi.y, b.y, b.h, n ? n.y + CARD_H / 2 : b.y + b.h / 2, narrow),
+    // Down: centre the tree when it fits. Else a generation starts right under the toolbar, never half a
+    // card behind it: the earliest one that still shows the focus whole. Later ones run off the bottom.
+    const down = (from: number, to: number) => {
+      if (b.h * k <= to - from) return from + (to - from - b.h * k) / 2 - b.y * k;
+      const fy = n ? n.y : b.y;
+      const tops = layout.rows.map((r) => r.y).sort((p, q) => p - q);
+      const top = tops.find((y) => y <= fy && (fy + CARD_H - y) * k <= to - from) ?? fy;
+      return from - top * k;
     };
+    const target = { k, x: across(lo.x, hi.x, b.x, b.w, n ? n.x : b.x + b.w / 2), y: down(lo.y, hi.y) };
     if (opts?.animate === false) { cancelAnimationFrame(anim.current); cam.current = target; apply(); } else animateTo(target);
   }, [layout, firstOf, apply, animateTo, area]);
 
@@ -261,6 +268,21 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
 
   // The minimap is always there on wide screens; phones show it on request (see canvas.css).
   const [mapOpen, setMapOpen] = useState(false);
+  // While the minimap shows, things docked in the window's bottom right corner (the minimized chat) stand clear of it.
+  useEffect(() => {
+    const d = dock.current;
+    if (!d) return;
+    const root = document.documentElement;
+    const measure = () => {
+      const map = d.querySelector<HTMLElement>('.minimap');
+      if (map && map.offsetWidth > 0) root.style.setProperty('--dock-inset-right', `${map.offsetWidth + 16}px`);
+      else root.style.removeProperty('--dock-inset-right');
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(d);
+    return () => { ro.disconnect(); root.style.removeProperty('--dock-inset-right'); };
+  }, [mapOpen]);
 
   useImperativeHandle(ref, () => ({
     centerOn,
@@ -374,6 +396,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     >
       <div ref={world} className="world">
         <Edges layout={layout} dimmed={dimmed} />
+        <UnionLabels layout={layout} dimmed={dimmed} />
         {visible.map((n) => (
           <div
             key={n.key}
@@ -388,9 +411,9 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
       <Ruler layout={layout} view={view} label={rowLabel} active={layout.nodes.find((n) => n.id === focus)?.row} />
       <div ref={dock} className={`map-dock no-pan${mapOpen ? ' map-open' : ''}`}>
         <div className="map-controls panel" role="toolbar" aria-label={t('canvas.map')} aria-orientation="vertical">
-          <button className="btn icon ghost" onClick={() => zoomBy(1.25)} title={t('canvas.zoomInTitle')} aria-label={t('canvas.zoomIn')}><Plus size={17} /></button>
-          <button className="btn icon ghost" onClick={() => zoomBy(0.8)} title={t('canvas.zoomOutTitle')} aria-label={t('canvas.zoomOut')}><Minus size={17} /></button>
-          <button className="btn icon ghost" onClick={fit} title={t('canvas.fitTitle')} aria-label={t('canvas.fit')}><Expand size={16} /></button>
+          <button className="btn icon ghost" onClick={() => { userMove(); zoomBy(1.25); }} title={t('canvas.zoomInTitle')} aria-label={t('canvas.zoomIn')}><Plus size={17} /></button>
+          <button className="btn icon ghost" onClick={() => { userMove(); zoomBy(0.8); }} title={t('canvas.zoomOutTitle')} aria-label={t('canvas.zoomOut')}><Minus size={17} /></button>
+          <button className="btn icon ghost" onClick={() => { userMove(); fit(); }} title={t('canvas.fitTitle')} aria-label={t('canvas.fit')}><Expand size={16} /></button>
           {controls}
           <button className="btn icon ghost map-toggle" onClick={() => setMapOpen((o) => !o)} aria-pressed={mapOpen} title={mapOpen ? t('canvas.hideMinimap') : t('canvas.showMinimap')} aria-label={t('canvas.minimap')}><MapIcon size={16} /></button>
         </div>
@@ -402,7 +425,6 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
 });
 
 const Edges = memo(function Edges({ layout, dimmed }: { layout: Layout; dimmed?: ReadonlySet<string> | null }) {
-  const t = useT();
   const b = layout.bounds;
   return (
     <svg className="edges" style={{ left: b.x - 40, top: b.y - 40, width: b.w + 80, height: b.h + 80 }} viewBox={`${b.x - 40} ${b.y - 40} ${b.w + 80} ${b.h + 80}`}>
@@ -414,14 +436,37 @@ const Edges = memo(function Edges({ layout, dimmed }: { layout: Layout; dimmed?:
             d={e.d}
             className={`edge ${e.kind}${e.dashed ? ' dashed' : ''}${dimmed ? (lit ? ' lit' : ' dim') : ''}`}
           />
-          {e.label && <text className={`union-label${dimmed && !lit ? ' dim' : ''}`} x={e.label.x} y={e.label.y} textAnchor="middle">
-            <tspan>{e.label.text}</tspan>
-            {e.label.status && <tspan className="union-status" x={e.label.x} dy={-16}>{t(`union.${e.label.status as 'widowed' | 'divorced' | 'ended'}`)}</tspan>}
-          </text>}
           </g>
         );
       })}
     </svg>
+  );
+});
+
+/**
+ * When two people married, on a small plate centred on their line. Name plates (mid) show the ring and the
+ * year it began; full cards add the year it ended and, on a second line, how. The type is sized so that it
+ * never lands under 11px on screen at the levels that show it (canvas.css); tiles hide it.
+ */
+const UnionLabels = memo(function UnionLabels({ layout, dimmed }: { layout: Layout; dimmed?: ReadonlySet<string> | null }) {
+  const t = useT();
+  return (
+    <>
+      {layout.edges.map((e) => {
+        if (!e.label) return null;
+        const lit = dimmed ? e.ids.filter((i) => dimmed.has(i)).length >= 2 : false;
+        // "⚭ 1957–1997": the part up to the dash is what name plates show.
+        const cut = e.label.text.indexOf('–');
+        const began = cut < 0 ? e.label.text : e.label.text.slice(0, cut);
+        const ended = cut < 0 ? '' : e.label.text.slice(cut);
+        return (
+          <div key={e.key} className={`union-label${dimmed && !lit ? ' dim' : ''}`} style={{ left: e.label.x, top: e.label.y + 9 }}>
+            <span className="union-years">{began}{ended && <span className="union-ended">{ended}</span>}</span>
+            {e.label.status && <span className="union-status">{t(`union.${e.label.status as 'widowed' | 'divorced' | 'ended'}`)}</span>}
+          </div>
+        );
+      })}
+    </>
   );
 });
 

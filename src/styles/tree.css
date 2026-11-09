@@ -4,40 +4,49 @@
   --panel-w: min(400px, calc(100vw - 120px));
 }
 
-/* ---------- HUD: toolbar, house banner and lens chip, stacked in one column ---------- */
+/* ---------- HUD: one toolbar row, the house strip attached under it, then the lens chip ---------- */
 .hud {
   position: absolute; top: 12px; left: 72px; right: 16px; z-index: 7;
-  display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; transition: left 200ms;
+  display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; transition: left var(--dur-2, 200ms);
   /* The toolbar compacts by the room it has, not by the window: the docked panel takes 400px. */
   container: hud / inline-size;
 }
 .hud > * { pointer-events: auto; }
 .hud.with-panel { left: calc(var(--panel-w) + 72px); }
+/* The toolbar and what hangs under it are one object, as wide as the toolbar. */
+.tb-stack { display: flex; flex-direction: column; align-items: stretch; width: fit-content; max-width: 100%; min-width: 0; }
 
+/* One row, always: nothing of the toolbar ever sits over a card. With room, names and ages join the row; with
+   less, the view buttons drop their names (.is-tight), then names and ages open from the Display button. The page
+   measures the row to decide (index.tsx, `tight`), so this holds in every language and typeface. */
 .tree-toolbar {
-  width: fit-content; max-width: 100%;
+  max-width: 100%; min-width: 0;
   display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; padding: 6px;
   box-shadow: var(--shadow);
 }
 [data-theme='codex'] .tree-toolbar { box-shadow: inset 0 0 0 1px var(--edge-soft), 0 6px 16px #0008; }
-.tree-toolbar .seg { display: flex; gap: 2px; flex: none; }
-.tree-toolbar .btn { height: 30px; font-size: 13.5px; flex: none; }
-.tree-toolbar .ui-select { height: 30px; font-size: 13.5px; }
+.tree-toolbar .seg { display: flex; flex-wrap: nowrap; gap: 2px; flex: none; }
+.tree-toolbar .btn { height: var(--ctl-sm, 32px); font-size: var(--fs-3, 14px); flex: none; }
+.tree-toolbar .ui-select { height: var(--ctl-sm, 32px); font-size: var(--fs-3, 14px); }
 .tb-sep { width: 1px; height: 22px; background: var(--border); margin: 0 2px; flex: none; }
 [data-theme='codex'] .tb-sep { background: var(--edge-soft); }
 /* Inter runs wider than Garamond: tighter buttons keep the toolbar on one row. */
-[data-theme='modern'] .tree-toolbar .btn, [data-theme='night'] .tree-toolbar .btn { padding: 0 9px; font-size: 13px; }
+[data-theme='modern'] .tree-toolbar .btn, [data-theme='night'] .tree-toolbar .btn { padding: 0 9px; }
 [data-theme='modern'] .tree-toolbar .btn.icon, [data-theme='night'] .tree-toolbar .btn.icon { padding: 0; }
 
 .tb-icon { display: none; }
+.tb-view-icon { display: inline-grid; }
 .tb-view-select { display: none !important; }
+.tb-display-row { display: flex; gap: 6px; flex: none; }
+.tb-display-row .ui-select { flex: none; }
 
-.stepper { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; flex: none; }
+.stepper { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-3, 14px); flex: none; }
 .stepper .btn { position: relative; width: 26px; height: 26px; }
 .stepper b { min-width: 14px; text-align: center; font-variant-numeric: tabular-nums; }
+@media (pointer: coarse) { .stepper .btn { width: 36px; height: 36px; } }
 
 /* House: a select with each house's shield. */
-.tb-house { min-width: 0; width: auto; max-width: 230px; flex: 0 1 auto; }
+.tb-house { min-width: 120px; width: auto; max-width: 230px; flex: 0 1 auto; }
 .tb-house .arms { flex: none; }
 
 /* Lens: an icon button; the list says what each lens does. */
@@ -48,72 +57,66 @@
 .tb-lens.on .ui-select-value { color: var(--accent); }
 [data-theme='codex'] .tb-lens.on { box-shadow: inset 0 0 0 1px var(--accent); }
 
-/* Less room: labels give way to icons, then the view buttons fold into one select. */
-@container hud (max-width: 860px) {
-  .tb-views .tb-label, .tb-fold .tb-label { display: none; }
-  .tb-views .btn, .tb-fold { width: 32px; padding: 0; justify-content: center; }
-}
+/* Less room: labels give way to icons, then the view buttons fold into one select. (A phone has its own row, below.) */
+.tree-toolbar.is-tight :is(.tb-views, .tb-fold) .tb-label { display: none; }
+.tree-toolbar.is-tight :is(.tb-views .btn, .tb-fold) { width: var(--ctl-sm, 32px); padding: 0; justify-content: center; }
 @container hud (max-width: 600px) {
-  .tb-views { display: none !important; }
-  .tb-view-select { display: inline-flex !important; flex: none; padding: 0 6px 0 8px; gap: 4px; }
-  .tb-view-select .ui-select-value > span:last-child { display: none; }
-  .stepper .tb-label { display: none; }
-  .stepper .tb-icon { display: inline-grid; }
-  .tree-toolbar { gap: 4px; padding: 5px; }
+  .tree-toolbar:not(.is-phone) .tb-views { display: none !important; }
+  .tree-toolbar:not(.is-phone) .tb-view-select { display: inline-flex !important; flex: none; padding: 0 6px 0 8px; gap: 4px; }
+  .tree-toolbar:not(.is-phone) .tb-view-select .ui-select-value > span:last-child { display: none; }
+  .tree-toolbar:not(.is-phone) .stepper .tb-label { display: none; }
+  .tree-toolbar:not(.is-phone) .stepper .tb-icon { display: inline-grid; }
+  .tree-toolbar:not(.is-phone) .tb-display .tb-label { display: none; }
+  .tree-toolbar:not(.is-phone) { gap: 4px; padding: 5px; }
   .tb-sep { margin: 0; }
   .tb-house { max-width: 170px; }
 }
 
-/* ---------- house banner: a title card that folds into a pill ---------- */
+/* ---------- house strip: who this dynasty is, attached under the toolbar ---------- */
+/* One 32px line, as wide as the toolbar. Tapping the name unfolds the head count, the founder and the motto in
+   the same line, so the strip never grows over the top generation. */
+.tb-stack:has(> .house-banner) > .tree-toolbar { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .house-banner {
-  width: fit-content; max-width: 100%; display: flex; align-items: center; gap: 6px; padding: 5px 6px 5px 6px;
-  background: var(--panel-solid); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow);
-  animation: banner-in 300ms cubic-bezier(.2,.8,.2,1);
-  transition: padding 220ms, border-radius 220ms;
+  display: flex; align-items: center; gap: 2px; height: 32px; min-width: 0; padding: 0 4px;
+  background: var(--panel-solid); border: 1px solid var(--border); border-top: 0;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg); box-shadow: var(--shadow);
+  animation: banner-in var(--dur-3, 320ms) var(--ease-out, cubic-bezier(.2,.8,.2,1));
 }
 [data-theme='codex'] .house-banner {
-  background: linear-gradient(180deg, #2a3446, #1a202c); border-color: #0a0d12; border-radius: 3px;
-  box-shadow: inset 0 0 0 1px #b8954f66, inset 0 1px 0 #f0d58f44, 0 8px 18px #0009;
+  background: linear-gradient(180deg, #232c3c, #1a202c); border-color: #0a0d12;
+  box-shadow: inset 0 0 0 1px #b8954f44, 0 8px 18px #0009;
 }
 .banner-id {
-  display: flex; align-items: center; gap: 12px; min-width: 0; padding: 2px 8px 2px 6px; border: 0; border-radius: var(--radius);
+  flex: 1 1 auto; display: flex; align-items: center; gap: 8px; min-width: 0; height: 26px; padding: 0 8px 0 4px; border: 0; border-radius: var(--radius);
   background: none; color: inherit; text-align: left; cursor: pointer;
 }
 .banner-id:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
 .banner-id:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.banner-text { display: grid; line-height: 1.2; min-width: 0; }
+.banner-text { display: flex; align-items: baseline; gap: 8px; min-width: 0; line-height: 1.2; }
 .banner-text > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.house-banner b { font-size: 18px; font-weight: 600; }
+.house-banner b { flex: 0 1 auto; font-size: var(--fs-3, 14px); font-weight: 600; }
 [data-theme='codex'] .house-banner b { color: var(--accent); font-weight: 500; }
-.house-banner .faint { font-size: 13px; }
-.house-banner .btn { height: 28px; font-size: 13px; }
-.house-banner .arms { flex: none; animation: arms-in 420ms cubic-bezier(.3,1.5,.5,1); }
-/* Folded: one line, shield, name and head count. */
-.house-banner.compact { padding: 2px 3px; border-radius: 999px; }
-[data-theme='codex'] .house-banner.compact { border-radius: 999px; }
-.house-banner.compact .banner-id { gap: 7px; padding: 2px 8px 2px 4px; border-radius: 999px; }
-.house-banner.compact .banner-text { display: flex; align-items: baseline; gap: 8px; }
-.house-banner.compact b { font-size: 14.5px; }
-.house-banner.compact .banner-count { font-size: 12.5px; font-variant-numeric: tabular-nums; }
-.house-banner.compact .btn { width: 26px; height: 26px; border-radius: 999px; }
-.house-banner.compact .arms { animation: none; }
-@keyframes banner-in { from { opacity: 0; transform: translateY(-12px); } }
-@keyframes arms-in { from { scale: 0.6; opacity: 0; } }
+.house-banner .faint { flex: 0 10 auto; min-width: 0; font-size: var(--fs-2, 13px); }
+.house-banner .banner-count { flex: none; font-variant-numeric: tabular-nums; }
+.house-banner .btn { flex: none; height: 26px; min-width: 26px; padding: 0 6px; gap: 4px; font-size: var(--fs-2, 13px); }
+.house-banner .arms { flex: none; }
+@keyframes banner-in { from { opacity: 0; transform: translateY(-6px); } }
+@container hud (max-width: 600px) { .banner-btn-label { display: none; } }
 
 .lens-banner {
   width: fit-content; max-width: 100%; display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 14px; border-radius: 999px;
-  background: var(--accent); color: var(--accent-text); box-shadow: var(--shadow); font-size: 14.5px;
+  background: var(--accent); color: var(--accent-text); box-shadow: var(--shadow); font-size: var(--fs-3, 14px);
   animation: rise 160ms ease-out;
 }
 .lens-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lens-banner .btn { color: inherit; width: 26px; height: 26px; flex: none; }
 .lens-banner .btn:hover { background: color-mix(in srgb, var(--accent-text) 12%, transparent); }
-.lens-count { opacity: 0.8; font-size: 12.5px; white-space: nowrap; }
+.lens-count { opacity: 0.85; font-size: var(--fs-2, 13px); white-space: nowrap; }
 
 /* ---------- trail ---------- */
 .trail {
   position: absolute; left: 72px; bottom: 16px; z-index: 6; display: flex; align-items: center; gap: 6px; padding: 6px 10px;
-  font-size: 12px; transition: left 200ms;
+  font-size: var(--fs-1, 12px); transition: left var(--dur-2, 200ms);
 }
 .trail.with-panel { left: calc(var(--panel-w) + 72px); }
 .trail-item { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 50%; width: 30px; height: 30px; transition: transform 120ms; flex: none; }
@@ -125,13 +128,13 @@
 
 /* ---------- keyboard help, beside the map controls ---------- */
 .help-card {
-  position: absolute; right: 76px; bottom: 16px; z-index: 9; width: 320px; padding: 12px 14px; font-size: 14px;
+  position: absolute; right: 76px; bottom: 16px; z-index: 9; width: 320px; padding: 12px 14px; font-size: var(--fs-3, 14px);
   animation: rise 140ms ease-out;
 }
-.help-card header { display: flex; justify-content: space-between; align-items: center; font-size: 17px; margin-bottom: 6px; }
+.help-card header { display: flex; justify-content: space-between; align-items: center; font-size: var(--fs-5, 18px); margin-bottom: 6px; }
 .help-row { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--border); }
 .help-row span:first-child { display: inline-flex; gap: 3px; }
-.help-card p { margin: 10px 0 0; font-size: 12.5px; }
+.help-card p { margin: 10px 0 0; font-size: var(--fs-2, 13px); }
 @media (hover: none), (max-width: 900px) { .map-keys { display: none !important; } }
 
 /* ---------- the person panel: docked on the left on wide screens ---------- */
@@ -142,27 +145,31 @@
   .tree-page.has-panel .ruler { left: var(--panel-w); }
 }
 
-@media (prefers-reduced-motion: reduce) { .house-banner, .house-banner .arms { animation: none; transition: none; } }
+@media (prefers-reduced-motion: reduce) { .house-banner { animation: none; } .hud, .trail { transition: none; } }
 
 /* ---------- phones and narrow tablets: a bottom sheet over the tree ---------- */
 @media (max-width: 900px) {
   .hud, .hud.with-panel { left: 8px; right: 8px; top: 8px; gap: 6px; }
   .tb-sep { display: none; }
-  .tree-toolbar { max-width: 100%; }
-  /* Touch: every toolbar control gets a 44px target, drawn smaller than it reaches. */
-  .tree-toolbar .btn, .tree-toolbar .ui-select { height: 36px; position: relative; }
-  .tree-toolbar .btn.icon, .tb-views .btn, .tb-fold { width: 36px; }
-  .tree-toolbar .btn::after, .tree-toolbar .ui-select::after { content: ''; position: absolute; inset: -4px; }
-  .stepper .btn { width: 28px; height: 28px; }
-  .stepper .btn::after { inset: -8px; }
-  .stepper { gap: 3px; }
-  .house-banner .btn { position: relative; }
-  .house-banner .btn::after, .lens-banner .btn::after, .banner-id::after { content: ''; position: absolute; inset: -8px; }
-  .banner-id { position: relative; }
+  .tb-stack { width: 100%; }
+  /* The phone's row: the view as three named segments, the lens, and Display. Everything is 44px tall. The
+     generation steppers, the house, folding, names and ages open from Display, each with its name. */
+  .tree-toolbar.is-phone { gap: 4px; padding: 4px; }
+  .is-phone .tb-views { flex: 1 1 0; min-width: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; }
+  .is-phone .tb-views .btn { height: 44px; min-width: 0; padding: 0 4px; justify-content: center; font-size: 14px; }
+  [data-theme='codex'] .is-phone .tb-views .btn { font-size: 15px; }
+  .is-phone .tb-view-icon { display: none; }
+  .is-phone .tb-views .tb-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .is-phone .tb-lens, .is-phone .tb-display { height: 44px; min-width: 44px; justify-content: center; }
+  .is-phone .tb-display { padding: 0 10px; }
+  .is-phone .tb-display .tb-label { display: none; }
+  .house-banner { height: 40px; }
+  .house-banner .btn { position: relative; height: 32px; min-width: 32px; }
+  .house-banner .btn::after, .lens-banner .btn::after { content: ''; position: absolute; inset: -6px; }
+  .banner-id { height: 32px; }
   .lens-banner .btn { position: relative; }
-  .lens-banner { font-size: 13.5px; }
 
-  .trail, .trail.with-panel { left: 48px; bottom: calc(var(--sheet-h, 0px) + 10px); padding: 4px 8px; gap: 8px; transition: bottom 220ms cubic-bezier(.2,.8,.2,1); }
+  .trail, .trail.with-panel { left: 52px; bottom: calc(var(--sheet-h, 0px) + 10px); padding: 4px 8px; gap: 8px; transition: bottom 220ms cubic-bezier(.2,.8,.2,1); }
   .trail > .faint { display: none; }
   .trail-item { width: 36px; height: 36px; }
   .trail-item > * { width: 36px !important; height: 36px !important; }
@@ -174,8 +181,8 @@
     height: 55%; max-height: 100%;
     background: var(--panel-solid); border-top: 1px solid var(--border);
     border-radius: 16px 16px 0 0; box-shadow: 0 -8px 28px #0006;
-    transition: height 260ms cubic-bezier(.2,.8,.2,1), border-radius 200ms;
-    animation: sheet-in 260ms cubic-bezier(.2,.8,.2,1);
+    transition: height var(--dur-3, 320ms) var(--ease-out, cubic-bezier(.2,.8,.2,1)), border-radius var(--dur-2, 200ms);
+    animation: sheet-in var(--dur-3, 320ms) var(--ease-out, cubic-bezier(.2,.8,.2,1));
     overscroll-behavior: contain;
   }
   [data-theme='codex'] .panel-sheet {
@@ -183,7 +190,7 @@
     border-top: 1px solid #b8954f88; box-shadow: 0 -1px 0 #0a0d12, 0 -10px 30px #000a;
   }
   [data-theme='modern'] .panel-sheet { box-shadow: 0 -6px 24px #2a22141f; }
-  .panel-sheet[data-snap='peek'] { height: 150px; }
+  .panel-sheet[data-snap='peek'] { height: 76px; }
   /* With the sheet half open the zoom stack stays above the sheet, with zoom in, zoom out and Fit. The
      minimap is hidden there, so its toggle and the shortcuts button go too. */
   .tree-page[data-sheet='half'] .map-controls > :is(.map-keys, .map-toggle), .tree-page[data-sheet='half'] .minimap { display: none !important; }
@@ -203,30 +210,40 @@
   .sheet-grip > span { width: 40px; height: 5px; border-radius: 999px; background: color-mix(in srgb, var(--text) 30%, transparent); }
   .sheet-grip:focus-visible { outline: none; }
   .sheet-grip:focus-visible > span { box-shadow: var(--focus-ring); }
-  .sheet-back { position: absolute; left: 6px; top: 50%; translate: 0 -50%; height: 44px; font-size: 15px; color: var(--text); }
+  .sheet-back { position: absolute; left: 6px; top: 50%; translate: 0 -50%; height: 44px; font-size: var(--fs-3, 15px); color: var(--text); }
   [data-theme='codex'] .sheet-back { color: var(--accent); }
 
-  /* The panel fills the sheet and scrolls as one. */
+  /* The panel fills the sheet and scrolls as one, so "Add relative" ends the content and takes no room at the
+     foot. The one-line header, the tabs and the close button hold the top (see panel.css). */
   .panel-sheet .person-panel {
     position: relative; inset: auto; width: auto; height: auto; flex: 1; min-height: 0;
+    /* No layer of its own: at peek the tap target over the name (.sheet-peek-hit) must be on top of it. */
+    z-index: auto;
     border: 0; border-radius: 0; box-shadow: none; background: none; animation: none;
     overflow: auto; overscroll-behavior: contain;
+    --pp-bar: var(--panel-solid);
   }
-  .panel-sheet .person-panel > * { flex-shrink: 0; }
-  .panel-sheet .person-panel .pp-body { flex: none; overflow: visible; }
+  [data-theme='codex'] .panel-sheet .person-panel { --pp-bar: #232b3a; }
+  .panel-sheet .pp-scroll { display: contents; }
+  .panel-sheet .person-panel > *, .panel-sheet .pp-scroll > * { flex-shrink: 0; }
   .panel-sheet .pp-head { padding-top: 4px; }
-  .panel-sheet .panel-close { top: 0; right: 4px; width: 44px; height: 44px; }
+  .panel-sheet .panel-close { position: sticky; top: 0; right: auto; align-self: flex-end; margin: 0 4px -44px 0; width: 44px; height: 44px; }
 
-  /* Peek: name and kinship only, with a small portrait. Tapping or dragging opens the sheet. */
+  /* Peek: 76px. A small portrait, the name, the life dates and a chevron; tapping or dragging opens the sheet,
+     where the tree buttons (Centre, Ancestors, Dynasty) are. */
+  .panel-sheet[data-snap='peek'] .sheet-bar { height: 16px; }
+  .panel-sheet[data-snap='peek'] .sheet-grip { margin: -14px 0; }
   .panel-sheet[data-snap='peek'] .person-panel { overflow: hidden; }
-  .panel-sheet[data-snap='peek'] .pp-portrait { zoom: 0.5; }
-  .panel-sheet[data-snap='peek'] .pp-head { gap: 12px; padding-bottom: 8px; }
-  .panel-sheet[data-snap='peek'] .pp-id { padding-top: 0; gap: 1px; }
-  .panel-sheet[data-snap='peek'] .pp-id h2 { font-size: 20px; }
-  .panel-sheet[data-snap='peek'] :is(.pp-title, .pp-house, .pp-motto, .pp-kin ~ *) { display: none; }
+  .panel-sheet[data-snap='peek'] .pp-head { position: static; align-items: center; gap: 12px; min-height: 0; padding: 2px 96px 0 12px; background: none; box-shadow: none; transition: none; }
+  .panel-sheet[data-snap='peek'] .pp-portrait-slot { align-self: center; line-height: 0; }
+  .panel-sheet[data-snap='peek'] .pp-portrait > .portrait { width: 44px !important; height: 44px !important; transition: none; }
+  .panel-sheet[data-snap='peek'] .pp-id { padding-top: 0; gap: 0; }
+  .panel-sheet[data-snap='peek'] .pp-id h2 { font-size: var(--fs-5, 18px); padding-right: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .panel-sheet[data-snap='peek'] .pp-life { font-size: var(--fs-2, 13px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .panel-sheet[data-snap='peek'] :is(.pp-title, .pp-house, .pp-motto, .pp-mini, .pp-head ~ *, .pp-add-relative) { display: none; }
   .sheet-peek-hit {
-    display: block; position: absolute; left: 0; right: 52px; top: 28px; bottom: 0; z-index: 3;
-    border: 0; padding: 0; background: none; cursor: pointer; touch-action: none;
+    display: flex; align-items: center; justify-content: flex-end; position: absolute; left: 0; right: 48px; top: 0; bottom: 0; z-index: 3;
+    border: 0; padding: 0 6px 0 0; background: none; color: var(--muted); cursor: pointer; touch-action: none;
   }
   .sheet-peek-hit:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
 }
@@ -236,10 +253,16 @@
   .trail { transition: none; }
 }
 
-.tree-display-controls { display: flex; gap: 6px; padding: 4px; max-width: 100%; }
-.tree-display-controls .ui-select { font-size: 13px; min-height: 32px; }
-@media (max-width: 900px) { .tree-display-controls .ui-select { min-height: 44px; } }
-
-/* Phones: names and ages sit in a sheet from the toolbar's display button, not in a row of their own. */
-.tb-display-sheet { display: grid; gap: 10px; padding: 4px 2px 8px; }
-.tb-display-sheet .ui-select { min-height: 44px; width: 100%; }
+/* ---------- the Display sheet: what the toolbar's row has no room for, each control under its name ---------- */
+.tb-display-sheet, .tb-sheet-group { display: grid; gap: 16px; }
+.tb-display-sheet { padding: 4px 2px 8px; }
+.tb-sheet-field { display: grid; gap: 6px; min-width: 0; }
+.tb-sheet-field > span { font-size: 14px; color: var(--muted); font-family: var(--font-ui); }
+[data-theme='codex'] .tb-sheet-field > span { font-family: var(--font-display); font-variant: small-caps; letter-spacing: 0.06em; font-size: 15px; }
+.tb-display-sheet .ui-select { width: 100%; max-width: none; min-height: 44px; font-size: max(16px, var(--fs-3, 14px)); }
+.tb-sheet-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.tb-sheet-actions .btn { flex: 1 1 0; min-height: 44px; justify-content: center; white-space: nowrap; }
+.stepper.full { display: flex; gap: 10px; font-size: var(--fs-4, 16px); }
+.stepper.full .tb-label { flex: 1; min-width: 0; }
+.stepper.full .btn { width: 44px; height: 44px; }
+.stepper.full b { min-width: 28px; font-size: var(--fs-5, 18px); }

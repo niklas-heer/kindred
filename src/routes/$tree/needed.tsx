@@ -23,6 +23,7 @@ import { can, type Role } from '~/lib/roles';
 import { useRole } from '~/lib/session';
 import { play } from '~/lib/sfx';
 import '~/styles/needed.css';
+import { useDealt } from '~/lib/dealt';
 import { sectionHead } from '~/lib/title';
 
 export const Route = createFileRoute('/$tree/needed')({
@@ -41,6 +42,7 @@ function Needed() {
   const [required, setRequired] = useRequired(tree);
   const [only, setOnlyRaw] = useRememberedState<GapKey | null>(`needed:${tree}:only`, null);
   const [limit, setLimit] = useRememberedState(`needed:${tree}:limit`, 120);
+  const dealt = useDealt();
   const setOnly = (g: GapKey | null) => { setOnlyRaw(g); setLimit(120); };
   const [blaze, setBlaze] = useState<string[] | null>(null);
   // A filtered run asks only for that kind of gap; "Fill in" on a row asks for everything.
@@ -133,7 +135,7 @@ function Needed() {
         {shown.length === 0 ? (
           <EmptyState icon={<GameIcon name="wax-seal" size={28} />} title={only ? t('needed.noOneGap') : f.graph.people.length ? t('needed.allComplete') : t('needed.noPeople')} text={only ? t('needed.tryAnother') : t('needed.chooseWhatCounts')} action={only ? <button className="btn" onClick={() => setOnly(null)}>{t('needed.clearFilter')}</button> : undefined} />
         ) : (
-          <ol className={`needed-list${queue.length ? '' : ' readonly'}`}>
+          <ol className={`needed-list${queue.length ? '' : ' readonly'} ${dealt}`}>
             {shown.slice(0, limit).map(({ p, gaps }) => {
               const k = !who ? undefined : p.id === who ? 'you' : safeRelation(f, who, p.id, myAnc);
               const filled = required.size ? (required.size - gaps.length) / required.size : 1;

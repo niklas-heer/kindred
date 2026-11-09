@@ -1,32 +1,40 @@
 /* First run: "Who are you in this family?" and the small offer of the guided tour. */
 .who-search { position: relative; margin: 2px 0 10px; }
 .who-search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
-.who-search .input { height: 42px; padding-left: 36px; font-size: 16px; }
-.who-label { margin: 10px 2px 4px; font-family: var(--font-ui); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--subtle); }
+.who-search .input { height: var(--ctl-lg); padding-left: 36px; font-size: max(16px, var(--fs-4)); }
+.who-label { margin: 10px 2px 4px; font-family: var(--font-ui); font-size: var(--fs-1); letter-spacing: 0.08em; text-transform: uppercase; color: var(--subtle); }
 [data-theme='codex'] .who-label { font-family: var(--font-display); text-transform: none; font-variant: small-caps; font-size: 14px; color: var(--accent); }
 .who-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; min-height: 120px; }
 .who-list:empty { min-height: 0; }
 .who-item {
   width: 100%; display: flex; align-items: center; gap: 12px; padding: 6px 8px; text-align: left;
   border: 0; border-radius: var(--radius); background: transparent; cursor: pointer;
+  transition: background-color var(--dur-1);
 }
+.who-item:active { transform: translateY(1px); }
 .who-item:hover, .who-item:focus-visible { background: var(--panel-3); outline: none; }
 [data-theme='codex'] .who-item:hover, [data-theme='codex'] .who-item:focus-visible { background: linear-gradient(90deg, #4a3d2288, #4a3d2222); box-shadow: inset 2px 0 0 var(--accent); }
 /* Names are set in the name face, like everywhere else in the tree. */
-.who-item b { display: block; font-family: var(--font-name); font-weight: var(--name-weight); font-size: 16px; }
-.who-item span { color: var(--muted); font-size: 13.5px; font-family: var(--font-ui); }
+.who-item b { display: block; font-family: var(--font-name); font-weight: var(--name-weight); font-size: var(--fs-5); line-height: var(--lh-tight); }
+.who-item span { color: var(--muted); font-size: var(--fs-2); font-family: var(--font-ui); }
 .who-empty { padding: 18px 8px; color: var(--muted); }
 .who-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; width: 100%; }
-.who-foot p { margin: 0; font-size: 13.5px; color: var(--subtle); flex: 1 1 200px; }
+.who-foot p { margin: 0; font-size: var(--fs-2); line-height: var(--lh-ui); color: var(--subtle); flex: 1 1 200px; }
 
-.tour-offer { position: fixed; top: var(--hud-bottom, 116px); right: 16px; z-index: 70; width: min(340px, calc(100vw - 32px)); box-sizing: border-box; padding: 16px 18px; display: grid; gap: 8px; }
-.tour-offer h2 { margin: 0; font-family: var(--font-display); font-size: 18px; font-weight: 600; line-height: 1.25; }
+/* The offer of the tour docks in the bottom-left corner, out of the tree's way. */
+.tour-offer { position: fixed; left: 16px; bottom: 16px; z-index: 70; width: min(360px, calc(100vw - 32px)); box-sizing: border-box; padding: 16px 18px; display: grid; gap: 8px; animation: ui-rise var(--dur-3) var(--ease-out); }
+.tour-offer h2 { margin: 0; font-family: var(--font-title); font-size: var(--fs-5); font-weight: 600; line-height: 1.25; }
 [data-theme='codex'] .tour-offer h2 { font-variant: small-caps; color: var(--accent); letter-spacing: 0.03em; }
-.tour-offer p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.45; text-wrap: pretty; }
+.tour-offer p { margin: 0; color: var(--muted); font-size: var(--fs-3); line-height: 1.45; text-wrap: pretty; }
 .tour-offer > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+/* On the tree it clears the generation ruler, and the person panel when that is docked (--panel-w in tree.css). */
+@media (min-width: 761px) {
+  .shell:has(.tree-page) .tour-offer { left: 72px; }
+  .shell:has(.tree-page.has-panel) .tour-offer { left: calc(min(400px, 100vw - 120px) + 72px); }
+}
 /* On a phone it sits just above the tab bar, where the thumb already is. */
 @media (max-width: 760px) {
-  .tour-offer { top: auto; bottom: calc(68px + env(safe-area-inset-bottom)); left: 16px; right: 16px; width: auto; }
+  .tour-offer { bottom: calc(70px + env(safe-area-inset-bottom)); right: 16px; width: auto; }
   .tour-offer > div .btn { flex: 1; justify-content: center; }
 }
 
@@ -35,10 +43,16 @@
 .who-item.exact { background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 2px 0 0 var(--accent); }
 .who-item > div { flex: 1; min-width: 0; }
 .who-exact {
-  flex: none; font-style: normal; font-family: var(--font-ui); font-size: 12px; color: var(--accent);
+  flex: none; font-style: normal; font-family: var(--font-ui); font-size: var(--fs-1); color: var(--accent);
   padding: 2px 8px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
 }
 [data-theme='modern'] .who-exact { color: #8a5a14; border-color: #c9a66a; }
 .who .who-foot { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
 [data-theme='codex'] .who .who-foot { border-top-color: var(--edge-soft); }
-.who-item { min-height: 50px; }
+.who-item { min-height: 52px; }
+
+/* The family's shield above the question: the dialog belongs to this family in every theme. */
+.who-crest { display: grid; place-items: center; margin: 0 auto 10px; filter: drop-shadow(0 2px 4px #0006); }
+[data-theme='modern'] .who-crest { filter: drop-shadow(0 1px 2px #2a221433); }
+.who-title { display: block; }
+@media (prefers-reduced-motion: reduce) { .tour-offer { animation: none; } .who-item { transition: none; } .who-item:active { transform: none; } }

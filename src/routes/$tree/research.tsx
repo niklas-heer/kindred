@@ -11,6 +11,7 @@ import type { ProjectSummary } from '~/lib/research';
 import { useCan } from '~/lib/session';
 import { treeTitle } from '~/lib/title';
 import '~/styles/research.css';
+import { useDealt } from '~/lib/dealt';
 
 export const Route = createFileRoute('/$tree/research')({
   head: (ctx) => ({ meta: [{ title: treeTitle(ctx, translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'research.title')) }] }),
@@ -23,6 +24,7 @@ function ResearchPage() {
   const canAdd = useCan('add-research');
   const navigate = useNavigate();
   const q = useQuery(researchProjectsQuery(tree));
+  const dealt = useDealt(!q.isPending);
   const [creating, setCreating] = useState(false);
   const projects = q.data ?? [];
 
@@ -41,7 +43,7 @@ function ResearchPage() {
         ) : projects.length === 0 ? (
           <EmptyState icon={<FolderSearch size={28} />} title={t('research.empty_title')} text={canAdd ? t('research.empty_text') : t('research.empty_viewer')} action={addButton} />
         ) : (
-          <ul className="rs-grid">{projects.map((p) => <ProjectCard key={p.id} tree={tree} project={p} />)}</ul>
+          <ul className={`rs-grid ${dealt}`}>{projects.map((p) => <ProjectCard key={p.id} tree={tree} project={p} />)}</ul>
         )}
       </div>
       {creating ? <ProjectDialog tree={tree} onClose={() => setCreating(false)} onSaved={(id) => void navigate({ to: '/$tree/research/$project', params: { tree, project: id } })} /> : null}

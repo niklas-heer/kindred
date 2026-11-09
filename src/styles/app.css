@@ -18,6 +18,21 @@
   --name-weight: 500;
   --font-title: 'Cinzel Variable', 'Trajan Pro', serif;
 
+  /* Type scale. Garamond and Cinzel small caps sit lower than Inter, so Codex runs about two sizes up.
+     1 badges, key caps · 2 captions · 3 controls, labels · 4 body, rows · 5 names, card titles ·
+     6 section and dialog titles · 7 page title on a phone · 8 page title on desktop.
+     Nothing on a page is set below --fs-1; small caps never below 14px. */
+  --fs-1: 13px; --fs-2: 15px; --fs-3: 16px; --fs-4: 18px; --fs-5: 20px; --fs-6: 24px; --fs-7: 28px; --fs-8: 34px;
+  --lh-tight: 1.2; --lh-ui: 1.35; --lh-body: 1.5;
+  /* Controls: heights you can touch. Raised under (pointer: coarse), below. */
+  --ctl-sm: 32px; --ctl: 36px; --ctl-lg: 44px;
+  /* Spacing on a 4px scale; --gutter is the page's side padding. */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px; --sp-7: 48px; --sp-8: 64px;
+  --gutter: 24px;
+  /* Motion: 1 hover and press · 2 menus, dialogs, tabs · 3 panels, sheets, camera · 4 ceremony. */
+  --dur-1: 120ms; --dur-2: 200ms; --dur-3: 320ms; --dur-4: 560ms;
+  --ease-out: cubic-bezier(.2, .8, .2, 1); --ease-spring: cubic-bezier(.3, 1.5, .5, 1);
+
   --bg: #0f1218;
   --panel: linear-gradient(180deg, #232b3a 0%, #171d28 100%);
   --panel-solid: #1c2331;
@@ -75,7 +90,9 @@
   --font-hand: 'EB Garamond Variable', Georgia, serif;
   --font-name: 'EB Garamond Variable', Garamond, Georgia, serif;
   --name-weight: 500;
-  --font-title: 'Inter Variable', system-ui, sans-serif;
+  /* Titles in ink: page, dialog and section titles share the names' serif; body and controls stay Inter. */
+  --font-title: 'EB Garamond Variable', Garamond, Georgia, serif;
+  --fs-1: 12px; --fs-2: 13px; --fs-3: 14px; --fs-4: 16px; --fs-5: 18px; --fs-6: 22px; --fs-7: 26px; --fs-8: 30px;
 
   --bg: #f4f2ee;
   --panel: #ffffff;
@@ -132,6 +149,7 @@
   --font-name: 'EB Garamond Variable', Garamond, Georgia, serif;
   --name-weight: 500;
   --font-title: 'EB Garamond Variable', Garamond, Georgia, serif;
+  --fs-1: 12px; --fs-2: 13px; --fs-3: 14px; --fs-4: 16px; --fs-5: 20px; --fs-6: 24px; --fs-7: 28px; --fs-8: 32px;
 
   --bg: #13161d;
   --panel: linear-gradient(180deg, #1c2029 0%, #181b23 100%);
@@ -181,6 +199,9 @@
   color-scheme: dark;
 }
 
+@media (pointer: coarse) { :root { --ctl-sm: 40px; --ctl: 44px; --ctl-lg: 48px; } }
+@media (max-width: 760px) { :root { --gutter: 16px; } }
+
 /* ---------- base ---------- */
 
 * { box-sizing: border-box; }
@@ -189,7 +210,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
-  font-size: 16px;
+  font-size: var(--fs-4);
   -webkit-font-smoothing: antialiased;
 }
 #app { height: 100%; }
@@ -236,35 +257,43 @@ h1, h2, h3, h4 { text-wrap: balance; }
   background: linear-gradient(180deg, #222a39, #171d28) padding-box, var(--card-frame) border-box;
   box-shadow: inset 0 0 0 1px #0a0d12, inset 0 1px 0 #f0d58f22, 0 6px 18px #0009, 0 1px 3px #000a;
 }
-.ui-card.interactive { cursor: pointer; transition: transform 140ms ease, box-shadow 140ms ease; }
+.ui-card.interactive { cursor: pointer; transition: transform var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out); }
 .ui-card.interactive:hover { transform: translateY(-2px); }
+.ui-card.interactive:active { transform: translateY(1px); }
 .ui-card.interactive:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 .btn {
   display: inline-flex; align-items: center; gap: 6px;
-  height: 32px; padding: 0 12px;
+  height: var(--ctl-sm); padding: 0 12px;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   background: var(--panel-2);
   color: var(--text);
   font-family: var(--font-ui);
-  font-size: 14px;
+  font-size: var(--fs-3); line-height: var(--lh-tight);
   cursor: pointer;
   white-space: nowrap;
   text-decoration: none;
+  transition: background-color var(--dur-1), box-shadow var(--dur-1), filter var(--dur-1), transform var(--dur-1);
 }
+/* Things press: a button, tab or card gives by a pixel under the finger. */
+.btn:active:not(:disabled) { transform: translateY(1px); }
 .btn:hover { background: var(--panel-3); }
 .btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .btn.primary { background: var(--accent); color: var(--accent-text); border-color: transparent; font-weight: 600; }
 .btn.primary:hover { filter: brightness(1.08); }
 .btn.ghost { background: transparent; border-color: transparent; }
 .btn.ghost:hover { background: var(--panel-2); }
-.btn.icon { width: 32px; padding: 0; justify-content: center; }
+.btn.icon { width: var(--ctl-sm); padding: 0; justify-content: center; flex: none; }
 .btn[aria-pressed='true'] { background: var(--panel-3); border-color: var(--edge); }
 [data-theme='codex'] .btn { border-color: #0b0e13; box-shadow: inset 0 0 0 1px #b8954f33; background: linear-gradient(180deg, #2e384b, #222a39); }
 [data-theme='codex'] .btn:hover { background: linear-gradient(180deg, #3a4660, #2a3447); }
 [data-theme='codex'] .btn.primary { background: linear-gradient(180deg, #f0cf83, #b8913f); color: #1a1408; box-shadow: inset 0 1px 0 #fff6, 0 1px 2px #0008; }
 [data-theme='codex'] .btn[aria-pressed='true'] { background: linear-gradient(180deg, #4a3d22, #352b17); box-shadow: inset 0 0 0 1px var(--edge); }
+/* Pressed in Codex: the lacquer darkens and the primary's top highlight goes out. */
+[data-theme='codex'] .btn:active:not(:disabled):not(.ghost):not(.primary) { background: linear-gradient(180deg, #222a39, #1c2331); box-shadow: inset 0 0 0 1px #b8954f33, inset 0 2px 4px #0009; }
+[data-theme='codex'] .btn.primary:active:not(:disabled) { background: linear-gradient(180deg, #d9b666, #a37d33); box-shadow: inset 0 2px 3px #0005; }
+.btn.primary:active:not(:disabled) { filter: brightness(0.94); }
 /* Ghost buttons stay ghosts in every theme, pressed or not; a pressed ghost only tints its icon. */
 .btn.ghost, [data-theme='codex'] .btn.ghost { background: transparent; border-color: transparent; box-shadow: none; }
 .btn.ghost:hover, [data-theme='codex'] .btn.ghost:hover { background: var(--panel-2); }
@@ -277,26 +306,30 @@ h1, h2, h3, h4 { text-wrap: balance; }
 [data-theme='night'] .btn.primary { background: linear-gradient(180deg, #ebb46c, #d49446); }
 
 .input {
-  height: 34px; padding: 0 10px; width: 100%;
+  height: var(--ctl); padding: 0 10px; width: 100%;
   background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius);
-  color: var(--text); font-family: var(--font-ui); font-size: 15px;
+  color: var(--text); font-family: var(--font-ui); font-size: var(--fs-3);
+  transition: box-shadow var(--dur-1), border-color var(--dur-1);
 }
-textarea.input { height: auto; min-height: 88px; padding: 8px 10px; line-height: 1.45; resize: vertical; }
+textarea.input { height: auto; min-height: 88px; padding: 8px 10px; line-height: var(--lh-body); resize: vertical; }
+/* Under a finger: 44px tall (through --ctl), and never under 16px, or Safari on an iPhone zooms the page on focus. */
+@media (pointer: coarse) { .input { font-size: max(16px, var(--fs-3)); } }
 .input:focus { outline: none; box-shadow: var(--focus-ring); }
 [data-theme='codex'] .input { background: #121722; border-color: #0b0e13; box-shadow: inset 0 0 0 1px #b8954f2a; }
 .field { display: grid; gap: 4px; }
-.field > span { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--font-ui); }
-[data-theme='night'] .field > span { text-transform: none; letter-spacing: 0.02em; font-size: 13px; }
-[data-theme='codex'] .field > span { font-family: var(--font-display); text-transform: none; font-variant: small-caps; letter-spacing: 0.08em; font-size: 13px; }
+.field > span { font-size: var(--fs-1); color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--font-ui); }
+[data-theme='night'] .field > span { text-transform: none; letter-spacing: 0.02em; font-size: var(--fs-2); }
+[data-theme='codex'] .field > span { font-family: var(--font-display); text-transform: none; font-variant: small-caps; letter-spacing: 0.08em; font-size: 14px; }
+@media (pointer: coarse) { .field { gap: 6px; } .field > span, [data-theme] .field > span { font-size: 14px; } }
 
 .chip {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 1px 8px; border-radius: 999px;
   background: var(--panel-2); border: 1px solid var(--border);
-  font-size: 12px; color: var(--muted); font-family: var(--font-ui);
+  font-size: var(--fs-1); color: var(--muted); font-family: var(--font-ui);
 }
 kbd {
-  font-family: ui-monospace, monospace; font-size: 11px;
+  font-family: ui-monospace, monospace; font-size: 12px;
   padding: 1px 5px; border-radius: 4px;
   border: 1px solid var(--border); border-bottom-width: 2px;
   background: var(--panel-2); color: var(--muted);
@@ -305,11 +338,11 @@ kbd {
 /* Section header with a gold rule, like CK3's "Family 12" tabs. */
 .rule {
   display: flex; align-items: center; gap: 10px;
-  font-family: var(--font-display); color: var(--muted); font-size: 13px;
+  font-family: var(--font-display); color: var(--muted); font-size: var(--fs-2);
   text-transform: uppercase; letter-spacing: 0.12em; margin: 18px 0 8px;
 }
 .rule::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--edge), transparent); }
-[data-theme='codex'] .rule { text-transform: none; font-variant: small-caps; font-size: 15px; color: var(--accent); }
+[data-theme='codex'] .rule { text-transform: none; font-variant: small-caps; font-size: var(--fs-3); color: var(--accent); }
 
 /* ---------- app shell ---------- */
 
@@ -324,26 +357,32 @@ kbd {
 }
 [data-theme='codex'] .topbar { border-bottom: 1px solid #0a0d12; box-shadow: inset 0 -1px 0 var(--edge-soft), 0 2px 12px #0008; }
 [data-theme='night'] .topbar { box-shadow: inset 0 -1px 0 #6b563640, 0 2px 12px #0006; }
-/* With labels the family's name keeps its width and the nav absorbs the squeeze; topbar-compact is set when it can't (see useTopbarFit). */
+/* The sections come in three states, measured in useTopbarFit: labels beside the icons when they fit next to the family's
+   whole name; else icon over label (topbar-stacked); else icons alone, with titles (topbar-compact). */
 .topbar .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; min-width: 0; flex: none; }
-.topbar .brand b { font-family: var(--font-display); font-size: 18px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32ch; }
+.topbar .brand b { font-family: var(--font-display); font-size: 18px; font-weight: 600; line-height: var(--lh-tight); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32ch; }
 [data-theme='night'] .topbar .brand b { font-size: 20px; font-weight: 500; }
 .topbar nav { display: flex; gap: 2px; margin-left: 12px; min-width: 0; flex: 0 1 auto; }
 .topbar nav a {
-  padding: 6px 12px; border-radius: var(--radius); text-decoration: none; color: var(--muted);
-  font-family: var(--font-ui); font-size: 15px; display: inline-flex; gap: 6px; align-items: center;
+  padding: 6px 12px; border-radius: var(--radius); text-decoration: none; color: var(--muted); white-space: nowrap;
+  font-family: var(--font-ui); font-size: var(--fs-3); line-height: var(--lh-tight); display: inline-flex; gap: 6px; align-items: center;
+  transition: color var(--dur-1), background-color var(--dur-1);
 }
+.topbar nav a svg { flex: none; }
 .topbar nav a:hover { color: var(--text); background: var(--panel-2); }
 .topbar nav a[data-status='active'] { color: var(--text); background: var(--panel-2); box-shadow: inset 0 -2px 0 var(--accent); }
+.topbar nav a:active { transform: translateY(1px); }
 .topbar nav a:focus-visible, .topbar .brand:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius); }
 .topbar .spacer { flex: 1; }
 .topbar-tools { display: flex; gap: 2px; }
+.topbar-prefs { display: contents; }
 .topbar-menu { display: none; }
 .search-trigger { width: 260px; flex: none; justify-content: space-between; color: var(--muted); }
+.search-trigger > span:first-child { display: inline-flex; gap: 8px; align-items: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 .page { overflow: auto; height: 100%; background: var(--page-bg); }
-.page-inner { max-width: 1100px; margin: 0 auto; padding: 28px 24px 80px; }
-.page h1 { font-family: var(--font-title); font-weight: 600; font-size: 30px; margin: 0 0 4px; }
+.page-inner { max-width: 1100px; margin: 0 auto; padding: 28px var(--gutter) 80px; }
+.page h1 { font-family: var(--font-title); font-weight: 600; font-size: var(--fs-8); line-height: var(--lh-tight); margin: 0 0 4px; }
 [data-theme='codex'] .page h1 { font-variant: small-caps; color: var(--accent); }
 [data-theme='night'] .page h1 { font-weight: 500; }
 
@@ -352,50 +391,83 @@ kbd {
 /* Scrollbars that fit */
 * { scrollbar-width: thin; scrollbar-color: var(--panel-3) transparent; }
 
-/* No room for every label beside the whole name: the nav keeps its icons, titles explain them. */
 @media (min-width: 761px) {
+  /* Icon over label: every section keeps its name on a laptop. The bar grows to 60px to hold the two lines. */
+  .topbar-stacked { height: 60px; }
+  .topbar-stacked nav { flex: none; align-self: stretch; gap: 0; margin-left: 8px; }
+  .topbar-stacked nav a {
+    flex-direction: column; justify-content: center; gap: 3px; min-width: 52px; padding: 2px 6px 0;
+    font-size: var(--fs-1); line-height: 1.15; letter-spacing: 0.01em; border-radius: 0;
+  }
+  .topbar-stacked nav a svg { width: 18px; height: 18px; }
+  .topbar-stacked nav a:focus-visible { border-radius: var(--radius); }
+  .topbar-stacked .search-trigger { width: 200px; }
+  /* No room even for that: the nav keeps its icons, titles explain them. */
   .topbar-compact nav { flex: none; }
   .topbar-compact nav .nav-label { display: none; }
   .topbar-compact nav a { padding: 6px 10px; }
   .topbar-compact .search-trigger { width: 200px; }
 }
-@media (min-width: 901px) { .topbar-compact .brand { flex: 0 1 auto; min-width: calc(18ch + 38px); } }
-/* Before giving up the labels: a little less padding and a narrower search. */
-@media (min-width: 761px) and (max-width: 1680px) { .topbar:not(.topbar-compact) nav a { padding: 6px 7px; gap: 5px; } .topbar:not(.topbar-compact) .search-trigger { width: 168px; } }
+@media (min-width: 901px) { .topbar-compact .brand, .topbar-stacked .brand { flex: 0 1 auto; min-width: calc(18ch + 38px); } }
+/* Before giving up the inline labels: a little less padding and a narrower search. */
+@media (min-width: 761px) and (max-width: 1680px) {
+  .topbar:not(.topbar-compact):not(.topbar-stacked) nav a { padding: 6px 7px; gap: 5px; }
+  .topbar:not(.topbar-compact):not(.topbar-stacked) .search-trigger { width: 168px; }
+  /* Sound and theme move into the account menu (account.css shows them there at the same width). */
+  .topbar-prefs { display: none; }
+}
+@media (min-width: 761px) and (max-width: 1400px) { .topbar-stacked .search-trigger { width: 150px; } }
 /* Narrower still, the search keeps its icon and shortcut so the name and the account button stay. */
-@media (min-width: 761px) and (max-width: 1180px) { .topbar-compact .search-trigger { width: auto; } .topbar-compact .search-trigger > span:first-child { font-size: 0; } }
-@media (max-width: 900px) { .topbar .brand b { display: none; } .search-trigger { width: auto; } .search-trigger > span:first-child { font-size: 0; } }
+@media (min-width: 761px) and (max-width: 1180px) {
+  .topbar-compact .search-trigger, .topbar-stacked .search-trigger { width: auto; }
+  .topbar-compact .search-trigger > span:first-child, .topbar-stacked .search-trigger > span:first-child { font-size: 0; gap: 0; }
+}
+@media (max-width: 900px) { .topbar .brand b { display: none; } .search-trigger { width: auto; } .search-trigger > span:first-child { font-size: 0; gap: 0; } }
 
 /* ---------- phone: a bottom tab bar ---------- */
 
 .tabbar { display: none; }
 @media (max-width: 760px) {
-  .topbar { gap: 6px; padding: 0 8px 0 12px; }
-  .topbar nav, .topbar-tools { display: none; }
-  .topbar .brand b { display: block; font-size: 16px; max-width: 100%; }
-  .topbar .brand { flex: 0 1 auto; }
+  .topbar { gap: 4px; padding: 0 6px 0 12px; }
+  .topbar nav, .topbar-tools > :not(.topbar-ask) { display: none; }
+  .topbar .brand b { display: block; font-size: 17px; max-width: 100%; }
+  .topbar .brand { flex: 0 1 auto; margin-right: 4px; }
   .topbar-menu { display: inline-flex; }
-  .search-trigger { width: 36px; height: 36px; padding: 0; justify-content: center; }
+  /* Search and Ask: 44px squares, icons only; their words stay as the accessible names. */
+  .topbar .search-trigger, .topbar .topbar-ask { width: 44px; height: 44px; padding: 0; justify-content: center; gap: 0; font-size: 0; position: relative; }
+  .topbar .topbar-ask .ai-run-mark { position: absolute; top: 9px; right: 9px; margin: 0; }
+  .topbar .topbar-ask.ai-setup { display: none; } /* "Set up AI" is in More on a phone */
   .search-trigger kbd { display: none; }
-  .search-trigger > span:first-child { font-size: 0; }
+  .search-trigger > span:first-child { font-size: 0; gap: 0; }
+  .page h1 { font-size: var(--fs-7); }
+  .page-inner { padding-top: 16px; }
 
   .tabbar {
-    display: grid; grid-template-columns: repeat(5, 1fr); align-items: stretch;
+    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: stretch;
     padding: 0 4px env(safe-area-inset-bottom); position: relative; z-index: 20;
     background: var(--panel); border-top: 1px solid var(--border);
   }
   [data-theme='codex'] .tabbar { border-top-color: #0a0d12; box-shadow: inset 0 1px 0 var(--edge-soft), 0 -2px 12px #0008; }
   .tabbar a, .tabbar button {
-    display: grid; justify-items: center; align-content: center; gap: 3px; height: 56px; padding: 0;
-    border: 0; background: none; color: var(--muted); text-decoration: none; cursor: pointer;
-    font-family: var(--font-ui); font-size: 11.5px; letter-spacing: 0.01em; position: relative;
+    display: grid; justify-items: center; align-content: center; gap: 3px; height: 58px; padding: 0 2px; min-width: 0;
+    border: 0; background: none; color: color-mix(in srgb, var(--text) 80%, transparent); text-decoration: none; cursor: pointer;
+    font-family: var(--font-ui); font-size: 12px; line-height: 1.15; letter-spacing: 0.01em; position: relative;
     -webkit-tap-highlight-color: transparent;
+    transition: color var(--dur-1), background-color var(--dur-1);
   }
-  [data-theme='codex'] .tabbar a, [data-theme='codex'] .tabbar button { font-family: var(--font-display); font-variant: small-caps; font-size: 12.5px; letter-spacing: 0.04em; }
-  .tabbar a[data-status='active'], .tabbar button[aria-expanded='true'] { color: var(--accent); }
+  .tabbar a > span, .tabbar button > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tabbar a svg, .tabbar button svg { transition: transform var(--dur-2) var(--ease-spring); }
+  [data-theme='codex'] .tabbar a, [data-theme='codex'] .tabbar button { font-family: var(--font-display); font-variant: small-caps; font-size: 13.5px; letter-spacing: 0.02em; }
+  /* The tab you are on: accent ink, a tick on the bar's top edge, and a soft wash rising behind it. */
+  .tabbar a[data-status='active'], .tabbar button[aria-expanded='true'] {
+    color: var(--accent);
+    background: linear-gradient(0deg, color-mix(in srgb, var(--accent) 14%, transparent), transparent);
+  }
   .tabbar a[data-status='active']::before {
-    content: ''; position: absolute; top: -1px; left: 28%; right: 28%; height: 2px; border-radius: 0 0 2px 2px; background: var(--accent);
+    content: ''; position: absolute; top: -1px; left: calc(50% - 14px); width: 28px; height: 3px; border-radius: 0 0 2px 2px; background: var(--accent);
   }
+  .tabbar a[data-status='active'] svg { transform: translateY(-1px); }
+  .tabbar a:active svg, .tabbar button:active svg { transform: scale(0.9); }
   .tabbar a:focus-visible, .tabbar button:focus-visible { outline: none; box-shadow: inset var(--focus-ring); border-radius: var(--radius); }
 }
 
@@ -403,21 +475,25 @@ kbd {
 .more-list { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 2px; }
 .more-list a {
   display: flex; align-items: center; gap: 14px; padding: 12px 10px; border-radius: var(--radius);
-  text-decoration: none; font-family: var(--font-ui); font-size: 16px;
+  text-decoration: none; font-family: var(--font-ui); font-size: var(--fs-4); min-height: var(--ctl-lg);
 }
 .more-list a svg { color: var(--muted); }
 .more-list a:hover, .more-list a[data-status='active'] { background: var(--panel-2); }
 .more-list a[data-status='active'] svg { color: var(--accent); }
 .more-list a:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.more-list a small { margin-left: auto; color: var(--subtle); font-size: 13px; }
+/* One line per row: the name keeps its width, the hint gives way. (ai-setup.css draws the rows that are buttons.) */
+.more-list a, .more-list button { white-space: nowrap; }
+.more-list a small, .more-list button small { margin-left: auto; color: var(--subtle); font-size: var(--fs-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.more-list a:active, .more-list button:active { transform: translateY(1px); }
 .more-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border-top: 1px solid var(--border); font-family: var(--font-ui); }
 [data-theme='codex'] .more-row { border-top-color: var(--edge-soft); }
 .more-row .seg { display: flex; gap: 4px; }
 
 /* ---------- page transitions ---------- */
 
-::view-transition-old(root), ::view-transition-new(root) { animation-duration: 160ms; animation-timing-function: ease-out; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--dur-2); animation-timing-function: var(--ease-out); }
 @media (prefers-reduced-motion: reduce) {
+  .btn, .btn:active, .ui-card.interactive, .ui-card.interactive:hover, .ui-card.interactive:active, .topbar nav a, .tabbar a, .tabbar button, .tabbar svg { transition: none !important; transform: none !important; }
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
 .more-row .ui-switch-wrap { width: 100%; justify-content: space-between; }

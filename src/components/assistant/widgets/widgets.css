@@ -1,33 +1,33 @@
 /* Widgets, question cards and chips in the chat. Colours are the theme's own variables, so they follow Codex, Paper and Night. */
-.aw-card { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: var(--card, var(--panel)); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
-.aw-title { margin: 0; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
-.aw-line { margin: 0; font-size: 0.92rem; overflow-wrap: anywhere; }
+.aw-card { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: var(--card, var(--panel)); border: 1px solid var(--line); border-radius: var(--radius-lg); min-width: 0; }
+.aw-title { margin: 0; font-size: var(--fs-1); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.aw-line { margin: 0; font-size: var(--fs-3); overflow-wrap: anywhere; }
 .aw-faint, .aw-sub { color: var(--muted); }
-.aw-sub { font-size: 0.82rem; }
-.aw-empty { margin: 0; color: var(--muted); font-size: 0.92rem; }
-.aw-person { display: inline-flex; align-items: center; gap: 8px; min-width: 0; min-height: 44px; color: inherit; text-decoration: none; border-radius: 8px; }
+.aw-sub { font-size: var(--fs-2); }
+.aw-empty { margin: 0; color: var(--muted); font-size: var(--fs-3); }
+.aw-person { display: inline-flex; align-items: center; gap: 8px; min-width: 0; min-height: 44px; color: inherit; text-decoration: none; border-radius: var(--radius); }
 .aw-person:hover .aw-name { text-decoration: underline; }
 .aw-person:focus-visible, .aw-more:focus-visible, .aw-card a:focus-visible, .aw-chip:focus-visible, .aw-starter:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .aw-person-text { display: flex; flex-direction: column; min-width: 0; }
 .aw-name { font-weight: 500; overflow-wrap: anywhere; }
 .aw-face { flex: 0 0 auto; border-radius: 50%; background: var(--chip); }
 .aw-group { display: flex; flex-direction: column; gap: 2px; }
-.aw-group h4 { margin: 0; font-size: 0.78rem; font-weight: 600; color: var(--muted); }
+.aw-group h4 { margin: 0; font-size: var(--fs-1); font-weight: 600; color: var(--muted); }
 .aw-focus { padding: 2px 6px; border-left: 2px solid var(--accent); }
 .aw-people { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0 10px; }
-.aw-more { font-size: 0.88rem; min-height: 32px; display: inline-flex; align-items: center; }
+.aw-more { font-size: var(--fs-2); min-height: 32px; display: inline-flex; align-items: center; }
 .aw-path { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: center; }
 .aw-path li { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .aw-arrow { color: var(--muted); flex: 0 0 auto; }
 .aw-timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; border-left: 2px solid var(--line); }
-.aw-timeline li { display: grid; grid-template-columns: minmax(84px, auto) 1fr; gap: 8px; padding-left: 10px; font-size: 0.92rem; }
+.aw-timeline li { display: grid; grid-template-columns: minmax(84px, auto) 1fr; gap: 8px; padding-left: 10px; font-size: var(--fs-3); }
 .aw-when { color: var(--muted); font-variant-numeric: tabular-nums; }
 .aw-what { overflow-wrap: anywhere; min-width: 0; }
 .aw-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .aw-rows > li { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
-.aw-date { display: flex; flex-direction: column; align-items: flex-end; font-size: 0.9rem; }
+.aw-date { display: flex; flex-direction: column; align-items: flex-end; font-size: var(--fs-2); }
 .aw-gap-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
-.aw-gap-list li { font-size: 0.8rem; padding: 1px 8px; background: var(--chip); border-radius: 999px; }
+.aw-gap-list li { font-size: var(--fs-1); padding: 1px 8px; background: var(--chip); border-radius: var(--ai-pill); }
 .aw-question { gap: 10px; border-left: 3px solid var(--accent); }
 .aw-q { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
 .aw-a { margin: 0; display: inline-flex; gap: 6px; align-items: center; color: var(--ok); overflow-wrap: anywhere; }
@@ -39,17 +39,17 @@
 .aw-question textarea, .aw-question input[type='search'] { width: 100%; min-height: 44px; }
 .aw-applyall { display: flex; flex-direction: column; gap: 6px; }
 .aw-applyall .btn { align-self: flex-start; min-height: 44px; }
-.aw-applyall-note { margin: 0; font-size: 0.86rem; color: var(--danger); }
-.aw-applyall-result { margin: 0; font-size: 0.9rem; }
-.aw-applyall-failed { margin: 4px 0 0; padding-left: 18px; color: var(--danger); font-size: 0.86rem; overflow-wrap: anywhere; }
-.aw-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 0 28px; }
-.aw-chip { padding: 6px 12px; min-height: 36px; border: 1px solid var(--line); background: transparent; color: inherit; border-radius: 999px; cursor: pointer; font: inherit; font-size: 0.88rem; }
-.aw-chip:hover { border-color: var(--accent); background: var(--chip); }
+.aw-applyall-note { margin: 0; font-size: var(--fs-2); color: var(--danger); }
+.aw-applyall-result { margin: 0; font-size: var(--fs-2); }
+.aw-applyall-failed { margin: 4px 0 0; padding-left: 18px; color: var(--danger); font-size: var(--fs-2); overflow-wrap: anywhere; }
+.aw-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 0; }
+/* Quick replies: the theme's own button, square in Codex and a pill in Paper and Night. */
+.btn.aw-chip { height: auto; min-height: 34px; padding: 5px 12px; border-radius: var(--ai-pill); font-size: var(--fs-2); line-height: var(--lh-ui); text-align: left; white-space: normal; }
+@media (pointer: coarse) { .btn.aw-chip { min-height: 44px; } }
 .ai-card-removal { border-left-color: var(--danger); }
-.ai-card-removing { margin: 0; display: inline-flex; align-items: center; gap: 6px; color: var(--danger); font-size: 0.85rem; font-weight: 600; }
+.ai-card-removing { margin: 0; display: inline-flex; align-items: center; gap: 6px; color: var(--danger); font-size: var(--fs-2); font-weight: 600; }
 .ai-diff-removed dd span { color: var(--danger); font-weight: 500; }
 @media (max-width: 640px) {
-  .aw-chips { margin-left: 0; }
   .aw-people { grid-template-columns: 1fr; }
   .aw-timeline li { grid-template-columns: 1fr; gap: 0; }
   .aw-date { align-items: flex-start; }

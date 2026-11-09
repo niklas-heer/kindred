@@ -5,11 +5,11 @@ import { Link, useBlocker } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { geoMercator, geoPath, type GeoPermissibleObjects } from 'd3-geo';
 import {
-  Baby, BriefcaseBusiness, Cake, Camera, Check, ChevronDown, CookingPot, Crosshair, Crown, GitFork, Heart, HeartCrack, Mail, MapPin, Maximize2, MessagesSquare, Network, Pencil,
-  Paintbrush, Phone, Plus, Quote, Route as RouteIcon, Sparkles, StickyNote, Trash2, UserRound, X,
+  Baby, BriefcaseBusiness, Cake, CalendarOff, Camera, Check, ChevronDown, CookingPot, Crosshair, Crown, GitFork, Heart, HeartCrack, Mail, MapPin, Maximize2, MessagesSquare, Network, Pencil,
+  Paintbrush, Phone, Plus, Quote, Route as RouteIcon, Sparkles, StickyNote, Trash2, Unlink, UserRound, X,
 } from 'lucide-react';
 import { feature, mesh } from 'topojson-client';
-import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type InputHTMLAttributes, type ReactNode } from 'react';
 import { addStory, deleteStory, newOpKey, opKeys, setPartnershipEnd, uploadPhoto, unlinkRelative } from '~/lib/api';
 import { addPersonField, deletePersonField, personDetailQuery, setLook } from '~/lib/person.functions';
 import { kinshipLabel, locales, ordinal, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
@@ -109,6 +109,35 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   const [tab, setTab] = useState<Tab>('overview');
   // Only when the tab changes: the callback is a new function on every render of the tree.
   useEffect(() => { if (tab === 'edit') onEditOpen?.(); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The header steps aside. The Overview keeps the full one until its name scrolls out of view; then, and on
+  // every other tab, a one-line header (small portrait, name, life dates) holds the top and the tabs stick under it.
+  const scroller = useRef<HTMLDivElement>(null);
+  const nameEl = useRef<HTMLHeadingElement>(null);
+  // What scrolls: the panel's own scroll box; in the phone's sheet that box steps aside (display: contents, tree.css)
+  // and the whole panel scrolls, so "Add relative" ends the content instead of taking room at the foot; on the profile, the page.
+  const sheet = useSheetLayout();
+  const scrollBox = (): Element | null => {
+    const el = scroller.current;
+    if (!el) return nameEl.current?.closest('.page') ?? null;
+    return getComputedStyle(el).display === 'contents' ? el.parentElement : el;
+  };
+  const [stuck, setStuck] = useState(false);
+  const compact = tab !== 'overview';
+  // In the panel the one-line header is the real one, pinned; on the profile page it scrolls and the pinned copy takes over.
+  const mini = page || !compact;
+  useEffect(() => {
+    const el = nameEl.current;
+    if (!mini || !el || typeof IntersectionObserver === 'undefined') { setStuck(false); return; }
+    const root = scrollBox();
+    const io = new IntersectionObserver(
+      ([e]) => setStuck(!e.isIntersecting && e.boundingClientRect.top < (e.rootBounds?.top ?? 0) + 1),
+      { root },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [id, mini, page, sheet]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A new tab starts at its top (the panel scrolls as one under the header).
+  useEffect(() => { if (!page) scrollBox()?.scrollTo({ top: 0 }); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
   // What this reader may do here (the server checks the same; see src/lib/roles.ts).
   const role = useRole();
   const canEdit = can(role, 'edit-person');
@@ -146,17 +175,33 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   const nee = p.currentSurname != null && p.currentSurname !== p.surname && p.surname ? p.surname : undefined;
   const shown = personDisplayName(current, nameMode, f);
   const Heading = page ? 'h1' : 'h2';
+  const mode = `${compact ? ' pp-compact' : ''}${tab === 'edit' ? ' pp-editing' : ''}${mini && stuck ? ' pp-stuck' : ''}`;
+  // The pinned one-line header. A copy for the eye only: the heading above it is the one that is read out.
+  const miniBar = mini && (
+    <div className="pp-mini" aria-hidden>
+      <div className="pp-mini-bar" onClick={() => scrollBox()?.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })}>
+        <Portrait person={p} tree={tree} size={40} frame={false} />
+        <span className="pp-mini-id">
+          <b>{shown}</b>
+          <span>{lifespan(p, t.locale)}</span>
+        </span>
+      </div>
+    </div>
+  );
   // Who they are, what there is to read, and the dialogs: a docked column in the tree, a page of their own in the profile.
-  const shell = (identity: ReactNode, main: ReactNode, dialogs: ReactNode) => page ? (
-    <article className={`person-profile${tab === 'edit' ? ' pp-editing' : ''}`} key={id}>
-      <div className="pf-identity">{identity}</div>
-      <div className="pf-main">{main}</div>
+  // In the panel everything between the header and "Add relative" scrolls as one, so the tree buttons scroll away with the content.
+  const shell = (head: ReactNode, extras: ReactNode, tabs: ReactNode, foot: ReactNode, dialogs: ReactNode) => page ? (
+    <article className={`person-profile${mode}`} key={id}>
+      {miniBar}
+      <div className="pf-identity">{head}{extras}</div>
+      <div className="pf-main">{tabs}{foot}</div>
       {dialogs}
     </article>
   ) : (
-    <aside className={`person-panel panel${tab === 'edit' ? ' pp-editing' : ''}`} key={id}>
+    <aside className={`person-panel panel${mode}`} key={id}>
       <button className="btn icon ghost panel-close" onClick={() => leave(onClose)} aria-label={t('panel.closeAria')} title={t('panel.closeTitle')}><X size={16} /></button>
-      {identity}{main}{dialogs}
+      <div className="pp-scroll" ref={scroller}>{miniBar}{head}{extras}{tabs}</div>
+      {foot}{dialogs}
     </aside>
   );
 
@@ -174,7 +219,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
           )}
         </span>
         <div className="pp-id">
-          <Heading className="display">
+          <Heading className="display" ref={nameEl}>
             {page ? shown : <Link className="pp-name-link" to="/$tree/person/$id" params={{ tree, id }}>{shown}</Link>}
             {nee && nameMode === 'full' && <span className="pp-nee"> {c('panel.nee', { name: nee })}</span>}
           </Heading>
@@ -192,7 +237,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
           {!page && <Link className="pp-open-profile" to="/$tree/person/$id" params={{ tree, id }} title={t('profile.openTitle', { name: shown })}><Maximize2 size={13} aria-hidden /> {t('profile.open')}</Link>}
         </div>
       </header>
-
+    </>, <>
       {photo.isError && <p className="err pp-photo-err" role="alert">{t('panel.photoError')}</p>}
 
       {p.traits?.length ? (
@@ -254,6 +299,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
           {canEdit && (detail ? <PersonEdit tree={tree} p={p} f={f} detail={detail} done={() => setTab('overview')} onRemoved={onClose} /> : <DetailFallback details={details} />)}
         </TabPanel>
       </div></Tabs>
+    </>, <>
       {canAdd ? (
         <div className="pp-add-relative"><Select aria-label={t('panel.addRelative')} placeholder={t('panel.addRelative')} value="" onChange={(v) => { if (v) leave(() => setAdd(v as AddRelation)); }} options={(['parent', 'partner', 'child', 'sibling'] as const).map((v) => ({ value: v, label: t(`card.add${v[0].toUpperCase()}${v.slice(1)}` as Key) }))} /></div>
       ) : (
@@ -269,6 +315,19 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
       {appearance && canEdit && <AppearanceDialog tree={tree} p={p} house={house ?? null} onClose={() => setAppearance(false)} />}
     </>)}
     </PageLayout.Provider></DraftContext.Provider>
+  );
+}
+
+/** True while the tree shows this panel as a bottom sheet (phones and narrow tablets, as tree.css lays it out). */
+function useSheetLayout(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      const m = matchMedia('(max-width: 900px)');
+      m.addEventListener('change', cb);
+      return () => m.removeEventListener('change', cb);
+    },
+    () => matchMedia('(max-width: 900px)').matches,
+    () => false,
   );
 }
 
@@ -798,15 +857,21 @@ function FamilyTab({ f, tree, id, canAdd, canEdit, onSelect }: { f: Family; tree
                       {u ? <span className="pp-rel-sub">{u.kind === 'marriage' ? '⚭' : '♡'} {u.start ? yearOf(u.start) : ''}{u.end ? `–${yearOf(u.end)}` : ''}</span> : <span className="pp-rel-sub">{lifespan(rp, c.locale)}</span>}
                       {f.disputed.has(`${id}>${r}`) && <span className="pp-disputed" title={c('rel.disputed')}><GameIcon name="uncertainty" size={12} /></span>}
                     </button>
-                    {canEdit && u && <PartnershipEnd tree={tree} u={u} />}
-                    {removable && (armed === key ? (
+                    {/* The chores (take the link out, say when a partnership ended) are small icons in the tile's corner, so the list reads as family. */}
+                    {(removable || (canEdit && u)) && (
+                      <span className="pp-rel-tools">
+                        {removable && armed !== key && (
+                          <button className="btn icon ghost pp-unlink" onClick={() => setArmed(key)} aria-label={`${c('family.removeLink')}: ${displayName(rp, f)}`} title={c('family.removeLink')}><Unlink size={14} aria-hidden /></button>
+                        )}
+                        {canEdit && u && <PartnershipEnd tree={tree} u={u} name={displayName(rp, f)} />}
+                      </span>
+                    )}
+                    {removable && armed === key && (
                       <span className="pp-unlink-confirm">
                         <button className="btn ghost danger" onClick={() => unlink.mutate({ kind, rid: r })} disabled={unlink.isPending}>{c('family.removeYes')}</button>
                         <button className="btn ghost" onClick={() => setArmed(null)}>{c('common.cancel')}</button>
                       </span>
-                    ) : (
-                      <button className="btn ghost pp-unlink" onClick={() => setArmed(key)}>{c('family.removeLink')}</button>
-                    ))}
+                    )}
                   </div>
                 );
               })}
@@ -820,7 +885,7 @@ function FamilyTab({ f, tree, id, canAdd, canEdit, onSelect }: { f: Family; tree
 }
 
 /** When a partnership ended, and why: the date and one of divorce, death or other. Editors only, as the link is. */
-function PartnershipEnd({ tree, u }: { tree: string; u: Family['graph']['unions'][number] }) {
+function PartnershipEnd({ tree, u, name }: { tree: string; u: Family['graph']['unions'][number]; name: string }) {
   const c = useT();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -830,7 +895,8 @@ function PartnershipEnd({ tree, u }: { tree: string; u: Family['graph']['unions'
     mutationFn: () => setPartnershipEnd({ data: { tree, id: u.id, end: end || null, endReason: end && reason ? reason as 'divorce' | 'death' | 'other' : null } }),
     onSuccess: async () => { setOpen(false); await qc.invalidateQueries({ queryKey: ['graph', tree] }); },
   });
-  if (!open) return <button className="btn ghost pp-end-open" onClick={() => setOpen(true)}>{c(u.end || u.endReason ? 'family.endChange' : 'family.endEdit')}</button>;
+  const what = c(u.end || u.endReason ? 'family.endChange' : 'family.endEdit');
+  if (!open) return <button className="btn icon ghost pp-end-open" onClick={() => setOpen(true)} aria-label={`${what}: ${name}`} title={what}><CalendarOff size={14} aria-hidden /></button>;
   return (
     <div className="pp-end" role="group" aria-label={c('family.endEdit')}>
       <DatePicker label={c('family.endDate')} value={end} onChange={setEnd} />
