@@ -2,6 +2,7 @@
 // the Julian calendar or with a dual year. Every name here is invented.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { fromGedcomDate } from './dates.ts';
 import { decodeGedcom } from './encoding.ts';
 import { readGedcom } from './gedcom.ts';
 
@@ -134,4 +135,39 @@ test('a character set Kindred cannot read is read as UTF-8, and the reader is to
   const got = nameIn(legacy('IBMPC', 'Ann /Berg/'));
   assert.equal(got.name, 'Ann Berg');
   assert.deepEqual(got.issues, ['exchange.issue.charset']);
+});
+
+// ---------- Julian and dual-year dates ----------
+
+test('a Julian or dual-year date is kept as about its (later) year, and the note quotes the original', () => {
+  const cases: [string, string][] = [
+    ['@#DJULIAN@ 1 FEB 1700/01', '~1701'],
+    ['1 FEB 1699/00', '~1700'],
+    ['MAR 1999/00', '~2000'],
+    ['@#DJULIAN@ 29 FEB 1700', '~1700'], // a real day in the Julian calendar, not in the Gregorian one
+    ['@#DJULIAN@ 1750', '~1750'],
+    ['ABT @#DJULIAN@ 1750', '~1750'],
+    ['BEF @#DJULIAN@ 3 MAR 1650/51', '~1651'],
+  ];
+  for (const [text, want] of cases) {
+    const p = fromGedcomDate(text);
+    assert.equal(p.date, want, text);
+    assert.equal(p.noteKey, 'exchange.date.about', text);
+    assert.equal(p.noteVars?.shown, text);
+    assert.equal(p.noteVars?.value, want.slice(1));
+  }
+});
+
+test('a Gregorian escape is read as the date it is, and another calendar is still dropped with a reason', () => {
+  assert.deepEqual(fromGedcomDate('@#DGREGORIAN@ 8 AUG 1953'), { date: '1953-08-08' });
+  const hebrew = fromGedcomDate('@#DHEBREW@ 1 TSH 5700');
+  assert.equal(hebrew.date, null);
+  assert.equal(hebrew.noteKey, 'exchange.date.unsupported');
+});
+
+test('a person born on a Julian dual-year date is imported with that year, and the report says so', () => {
+  const back = readGedcom(file('0 @I1@ INDI', '1 NAME René /Dupont/', '1 BIRT', '2 DATE @#DJULIAN@ 1 FEB 1700/01'), NOW);
+  assert.equal(back.people[0].born, '~1701');
+  const issue = back.issues.find((i) => i.code === 'exchange.issue.date_birth');
+  assert.match(issue?.message ?? '', /"@#DJULIAN@ 1 FEB 1700\/01" read as about 1701/);
 });

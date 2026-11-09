@@ -62,8 +62,12 @@ carried in `_KINDRED_*` tags, which other programs skip, so a file made here com
 
 **Dates.** Kindred's partial dates map to GEDCOM's: `1953`, `AUG 1953`, `8 AUG 1953`, and `ABT …` for an approximate
 date (Kindred's `~`). On import, `CAL` and `EST` are read as about. `BEF` and `AFT`, `BET … AND …` and `FROM … TO …` have
-no Kindred form: before/after dates become approximate dates, ranges use their first date, and the report says so. A date Kindred cannot store (`31 FEB
-1900`, or free text such as "the winter of the bad harvest") is dropped and the report says why.
+no Kindred form: before/after dates become approximate dates, ranges use their first date, and the report says so.
+Kindred's dates are Gregorian: a Julian date (`@#DJULIAN@ 1 FEB 1700`) or a dual year (`1 FEB 1700/01`, from when the year
+began in March) is kept as about its year, the later one of a dual year (`~1701`). Its day and month are dropped, because
+they belong to the other calendar, and the report quotes the original date; a person has no field to keep that text in.
+`@#DGREGORIAN@` is read as the date it marks. A date Kindred cannot store (`31 FEB 1900`, a Hebrew or French Republican
+date, or free text such as "the winter of the bad harvest") is dropped and the report says why.
 
 **Who is living.** A Kindred file says it for everyone. A file from another program often has no death record for an
 old ancestor, so a person with neither a death record nor `_KINDRED_LIVING` is imported as living only when that is

@@ -1,6 +1,9 @@
 // Dates between Kindred and GEDCOM. Kindred stores partial dates ("1953", "1953-08", "1953-08-08") and a
 // "~" for about ("~1953"). GEDCOM writes "1953", "AUG 1953", "8 AUG 1953", and "ABT" for about. Ranges and
-// "before"/"after" have no Kindred form: they are kept as about their nearest year, and the reader is told.
+// "before"/"after" have no Kindred form: they are kept as about their nearest year, and the reader is told. So are
+// Julian dates (`@#DJULIAN@`) and dual years ("1700/01", from when the year began in March): Kindred's dates are
+// Gregorian, so such a date is kept as about its year (the later one of a dual year), and the note quotes the original.
+// Other calendars (Hebrew, French Republican) cannot be stored.
 import type { Key } from '../i18n/dictionary.ts';
 import { validDate } from '../dates.ts';
 
@@ -36,6 +39,23 @@ export function fromGedcomDate(text: string): ParsedDate {
   let noteKey: Key | undefined;
   const noteVars = { shown, value: "" };
 
+  // A calendar escape can stand before any date, also inside a range. Gregorian is what Kindred stores anyway.
+  let oldStyle = false;
+  for (const [, calendar] of s.matchAll(/@#D([A-Z ]+?)@/g)) {
+    if (calendar.trim() === 'JULIAN') oldStyle = true;
+    else if (calendar.trim() !== 'GREGORIAN') return { date: null, note: `"${shown}" is not a date Kindred can store`, noteKey: "exchange.date.unsupported", noteVars };
+  }
+  s = s.replace(/@#D[A-Z ]+?@/g, ' ').replace(/\s+/g, ' ').trim();
+  // "1700/01": the later year is the one the date falls in by today's reckoning.
+  s = s.replace(/\b(\d{3,4})\/(\d{1,2})\b/g, (_, y: string, yy: string) => {
+    oldStyle = true;
+    const year = Number(y);
+    const unit = 10 ** yy.length;
+    let later = year - (year % unit) + Number(yy);
+    if (later < year) later += unit;
+    return String(later);
+  });
+
   const about = /^(ABT|CAL|EST)\s+(.*)$/.exec(s);
   const before = /^(BEF|AFT)\s+(.*)$/.exec(s);
   const between = /^BET\s+(.+?)\s+AND\s+(.+)$/.exec(s);
@@ -64,6 +84,11 @@ export function fromGedcomDate(text: string): ParsedDate {
   const m = /^(?:(\d{1,2})\s)?(?:([A-Z]{3})\s)?(\d{3,4})$/.exec(s);
   if (!m) return { date: null, note: `"${shown}" is not a date Kindred can store`, noteKey: "exchange.date.unsupported", noteVars };
   const [, day, mon, year] = m;
+  if (oldStyle) {
+    // Its day and month are in another calendar, so only the year is kept, as about.
+    const y = year.padStart(4, '0');
+    return { date: `~${y}`, note: `"${shown}" read as about ${y}`, noteKey: "exchange.date.about", noteVars: { shown, value: y } };
+  }
   if (day && !mon) return { date: null, note: `"${shown}" has a day but no month`, noteKey: "exchange.date.noMonth", noteVars };
   let iso = year;
   if (mon) {
