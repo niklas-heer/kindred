@@ -12,14 +12,14 @@ import { useContext, useEffect, useMemo, useRef, useState, type FocusEvent, type
 import { opKeys, removePerson } from '~/lib/api';
 import { getEditSnapshot, savePersonEdit } from '~/lib/person.functions';
 import type { EditSnapshot } from '~/lib/person.server';
-import { yearOf, type Family } from '~/lib/graph';
+import { fullName, yearOf, type Family } from '~/lib/graph';
 import { isoOfDate, periodOf, storedIssue } from '~/lib/partial-date';
 import { useCan, useSession } from '~/lib/session';
 import { toast } from '~/lib/toast';
 import type { GPerson, PersonDetail } from '~/lib/types';
 import { PlaceInput, placeValue, savePlacesKeyed, type PlaceValue } from '../PlaceInput';
 import { MarkdownEditor } from '../MarkdownEditor';
-import { DatePicker, Segmented, Switch } from '../ui';
+import { ConfirmDialog, DatePicker, Segmented, Switch } from '../ui';
 import { classifyFailure, clearJournal, createAutosaver, journalKey, MAX_UNDO, nextAfter, readJournal, undoStep, writeJournal, type Journal, type Outcome, type SaveState, type UndoStep } from './autosave';
 import { DraftContext } from './draft';
 import { keepShared, sendable, signatureOf, storedForm, wireOf, type EditValues } from './edit-values';
@@ -179,6 +179,15 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only }: Omit<Props, 'deta
       onRemoved();
     },
   });
+  const [askRemove, setAskRemove] = useState(false);
+  // What leaves the tree with this person, counted, so the question names it instead of hinting at it.
+  const links = (f.parentsOf.get(p.id)?.length ?? 0) + (f.childrenOf.get(p.id)?.length ?? 0) + (f.unionsOf.get(p.id)?.length ?? 0);
+  const goes = [
+    links ? c('edit.removeLinks', { count: links }) : '',
+    p.stories ? c('edit.removeStories', { count: p.stories }) : '',
+    snap.fields.length ? c('edit.removeDetails', { count: snap.fields.length }) : '',
+    p.photo || p.portrait ? c('edit.removePhoto') : '',
+  ].filter(Boolean);
   const form = useForm({ defaultValues: opened.start });
   const current = () => form.state.values as Values;
   const canWrite = (v: Values) => sendable(v, base.current, today);
@@ -701,10 +710,28 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only }: Omit<Props, 'deta
             type="button"
             className="btn ghost danger"
             disabled={remove.isPending}
-            onClick={() => confirm(c('edit.removeConfirm', { name: p.given })) && remove.mutate()}
+            onClick={() => { remove.reset(); setAskRemove(true); }}
           >
             <Trash2 size={14} /> {c('edit.remove')}
           </button>
+          <ConfirmDialog
+            open={askRemove}
+            onClose={() => setAskRemove(false)}
+            onConfirm={() => remove.mutate()}
+            title={c('edit.removeTitle', { name: fullName(p) })}
+            confirmLabel={c('edit.removeYes', { name: p.given })}
+            busy={remove.isPending}
+            error={remove.isError ? c('edit.removeFailed') : undefined}
+          >
+            {goes.length ? (
+              <>
+                <p>{c('edit.removeGoes')}</p>
+                <ul>{goes.map((line) => <li key={line}>{line}</li>)}</ul>
+              </>
+            ) : null}
+            <p>{c('edit.removeStays')}</p>
+            <p className="subtle">{c('edit.removeForGood')}</p>
+          </ConfirmDialog>
         </div>
       )}
 

@@ -8,7 +8,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
-import { Dialog, Segmented, Skeleton } from '~/components/ui';
+import { ConfirmDialog, Dialog, Segmented, Skeleton } from '~/components/ui';
 import { opKeys } from '~/lib/api';
 import { errorText } from '~/lib/errortext';
 import { displayName } from '~/lib/graph';
@@ -76,11 +76,14 @@ export function PaintPortrait({ tree, person, photos: gallery }: { tree: string;
     mutationFn: (key: string) => discardPortrait({ data: { tree, personId: person.id, key, opKey: keys.current.for('drop', [key]) } }),
     onSuccess: async () => {
       keys.current.clear('drop');
+      setDropping(null);
       setNotice(t('paint.versionDeleted'));
       await refresh();
     },
     onError: (e) => setNotice(errorText(e, t.locale)),
   });
+  // The portrait the reader was asked about, by its key.
+  const [dropping, setDropping] = useState<string | null>(null);
 
   if (!canPaint && !steward && !awaiting) return null;
   const st = status.data;
@@ -124,13 +127,25 @@ export function PaintPortrait({ tree, person, photos: gallery }: { tree: string;
                 )}
                 {ready ? <button type="button" className="btn ghost sm" onClick={() => setOpen({ source: v.source, tweak: v.tweak })} disabled={changing || !photos.length}>{t('paint.versionTweak')}</button> : null}
                 {!v.shown ? (
-                  <button type="button" className="btn ghost sm" onClick={() => { if (window.confirm(t('paint.versionDeleteConfirm'))) drop.mutate(v.key); }} disabled={changing}>{t('paint.versionDelete')}</button>
+                  <button type="button" className="btn ghost sm" onClick={() => { drop.reset(); setDropping(v.key); }} disabled={changing}>{t('paint.versionDelete')}</button>
                 ) : null}
               </li>
             ))}
           </ul>
         </section>
       ) : null}
+      <ConfirmDialog
+        open={!!dropping}
+        onClose={() => setDropping(null)}
+        onConfirm={() => dropping && drop.mutate(dropping)}
+        title={t('paint.versionDeleteTitle', { name })}
+        confirmLabel={t('paint.versionDeleteYes')}
+        busy={drop.isPending}
+        error={drop.isError ? errorText(drop.error, t.locale) : undefined}
+      >
+        {dropping ? <img className="paint-confirm-img" src={paintUrl(tree, dropping)} alt={name} /> : null}
+        <p>{t('paint.versionDeleteBody')}</p>
+      </ConfirmDialog>
       {canPaint && person.portrait ? (
         <button type="button" className="btn ghost paint-remove" onClick={() => remove.mutate()} disabled={remove.isPending}>{t('paint.remove')}</button>
       ) : null}

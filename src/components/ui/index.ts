@@ -2,6 +2,7 @@
 // Each file starts with a usage note; app.css holds the theme tokens and shared classes
 // (.btn, .input, .panel, .ui-card, .chip, .muted, .subtle).
 export { Dialog, useIsClient, type DialogProps } from './Dialog';
+export { ConfirmDialog, type ConfirmDialogProps } from './ConfirmDialog';
 export { Select, type SelectOption, type SelectProps } from './Select';
 export { Switch, type SwitchProps } from './Switch';
 export { Segmented, type SegmentedProps, type SegmentedOption } from './Segmented';

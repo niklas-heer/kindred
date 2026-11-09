@@ -243,3 +243,14 @@
 .ui-dialog-panel:has(.paint-body) {
   overflow: hidden;
 }
+
+/* The portrait a reader is asked about before it is deleted. */
+.paint-confirm-img {
+  width: 7rem;
+  height: 7rem;
+  object-fit: cover;
+  object-position: 50% 8%;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  justify-self: center;
+}

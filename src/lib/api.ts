@@ -266,13 +266,20 @@ export const addStory = createServerFn({ method: 'POST' })
     });
   });
 
+/** Removes a story. Sent with a key, the removal can be undone by the person who made it (`restoreStory`). */
 export const deleteStory = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, id: z.string() }))
+  .validator(z.object({ tree, id: z.string(), opKey }))
   .handler(async ({ data }) => {
-    await requireCan(data.tree, 'edit-person');
-    const { db, changeCommitted } = await server();
-    const gone = await db(data.tree).run('DELETE FROM story WHERE id = ?', data.id);
-    if (gone.changes) await changeCommitted(data.tree);
+    const _m = await requireCan(data.tree, 'edit-person');
+    return (await import('./story.server')).removeStory(data.tree, data.id, opOf(_m, data));
+  });
+
+/** Undo for a removed story: puts back the one the removal with this key took away, as the server kept it. */
+export const restoreStory = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, removal: z.string().regex(/^[A-Za-z0-9_-]{8,80}$/) }))
+  .handler(async ({ data }) => {
+    const m = await requireCan(data.tree, 'edit-person');
+    return (await import('./story.server')).restoreStory(data.tree, data.removal, m.user.id);
   });
 
 export const addContact = createServerFn({ method: 'POST' })

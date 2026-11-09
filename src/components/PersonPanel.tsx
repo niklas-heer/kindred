@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { feature, mesh } from 'topojson-client';
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type InputHTMLAttributes, type ReactNode } from 'react';
-import { addStory, deleteStory, newOpKey, opKeys, setPartnershipEnd, uploadPhoto, unlinkRelative } from '~/lib/api';
+import { addStory, deleteStory, newOpKey, opKeys, restoreStory, setPartnershipEnd, uploadPhoto, unlinkRelative } from '~/lib/api';
 import { addPersonField, deletePersonField, personDetailQuery, setLook } from '~/lib/person.functions';
 import { kinshipLabel, locales, ordinal, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
 import { occupationText } from '~/lib/occupations';
@@ -33,6 +33,7 @@ import { chooseMe } from '~/lib/family';
 import { useToday } from '~/lib/clock';
 import { can, type Role } from '~/lib/roles';
 import { useCan, useMembership, useRole, useSession } from '~/lib/session';
+import { toast } from '~/lib/toast';
 import type { GPerson, House, Look, PersonDetail, PersonField, Place, Story } from '~/lib/types';
 import { TRAITS } from '~/lib/traits';
 import { GAP_ACTION, GAP_LABEL, GAP_WHERE, gapsOf, useRequired, type GapKey } from '~/lib/gaps';
@@ -40,7 +41,7 @@ import { renderMarkdown } from '~/lib/markdown';
 import { GameIcon } from './GameIcon';
 import { Arms } from './Heraldry';
 import { Portrait } from './Portrait';
-import { DatePicker, Dialog, ErrorState, Segmented, Skeleton, Tabs, TabList, Tab as UiTab, TabPanel, Select, isOverlayOpen } from './ui';
+import { ConfirmDialog, DatePicker, Dialog, ErrorState, Segmented, Skeleton, Tabs, TabList, Tab as UiTab, TabPanel, Select, isOverlayOpen } from './ui';
 import { QuickAdd } from './QuickAdd';
 import type { AddRelation } from './Card';
 import { DraftContext, DraftTracker, type Draft } from './fields/draft';
@@ -940,11 +941,44 @@ function StoriesTab({ tree, p, details }: { tree: string; p: GPerson; details: D
   const [adding, setAdding] = useState(false);
   const canWrite = useCan('add-story');
   const canDelete = useCan('edit-person');
+  // The story the reader was asked about: nothing goes until they have seen exactly which one.
+  const [asking, setAsking] = useState<Story | null>(null);
+  const refresh = () => Promise.all([
+    qc.invalidateQueries({ queryKey: ['person', tree, p.id] }),
+    qc.invalidateQueries({ queryKey: ['graph', tree] }),
+    qc.invalidateQueries({ queryKey: ['chronicle', tree] }),
+  ]);
   const remove = useMutation({
-    mutationFn: (sid: string) => deleteStory({ data: { tree, id: sid } }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['person', tree, p.id] }); qc.invalidateQueries({ queryKey: ['graph', tree] }); },
+    mutationFn: async (s: Story) => {
+      const removal = newOpKey();
+      await deleteStory({ data: { tree, id: s.id, opKey: removal } });
+      return { s, removal };
+    },
+    onSuccess: ({ s, removal }) => {
+      setAsking(null);
+      void refresh();
+      toast({
+        title: c('panel.storyRemoved', { name: p.given }),
+        body: excerpt(s),
+        person: p.id,
+        icon: 'quill-ink',
+        // Removed the wrong one? The server kept it with this removal and puts it back as it was.
+        action: {
+          label: c('quick.undo'),
+          run: async () => {
+            try {
+              await restoreStory({ data: { tree, removal } });
+              await refresh();
+            } catch (e) {
+              toast({ title: c('quick.undoFailed'), body: e instanceof Error ? translateMessage(e.message, c.locale) : undefined });
+            }
+          },
+        },
+      });
+    },
   });
   if (!detail) return <DetailFallback details={details} />;
+  const askingKind = asking ? KINDS.find((k) => k.id === asking.kind) : undefined;
   return (
     <>
       {detail.bio && <div className="pp-bio" dangerouslySetInnerHTML={{ __html: renderMarkdown(detail.bio) }} />}
@@ -959,14 +993,34 @@ function StoriesTab({ tree, p, details }: { tree: string; p: GPerson; details: D
       {!canWrite && <p className="pp-ask subtle">{c('ask.editor')}</p>}
       <div className="pp-stories">
         {detail.stories.map((s) => (
-          <StoryCard key={s.id} s={s} onDelete={canDelete ? () => confirmed(c('panel.removeStoryConfirm')) && remove.mutate(s.id) : undefined} />
+          <StoryCard key={s.id} s={s} onDelete={canDelete ? () => { remove.reset(); setAsking(s); } : undefined} />
         ))}
       </div>
+      <ConfirmDialog
+        open={!!asking}
+        onClose={() => setAsking(null)}
+        onConfirm={() => asking && remove.mutate(asking)}
+        title={c('panel.removeStoryTitle')}
+        confirmLabel={c('panel.removeStoryYes')}
+        busy={remove.isPending}
+        error={remove.isError ? c('panel.removeStoryFailed') : undefined}
+      >
+        {asking && (
+          <blockquote className="ui-confirm-quote">
+            {excerpt(asking)}
+            <small>{askingKind ? `${c(askingKind.label)} · ` : ''}{c('panel.addedBy', { name: asking.author })}</small>
+          </blockquote>
+        )}
+      </ConfirmDialog>
     </>
   );
 }
 
-const confirmed = (question: string) => window.confirm(question);
+/** The start of a story, short enough for a notice: its title when it has one, else its first words. */
+const excerpt = (s: Story) => {
+  const text = (s.title ?? s.body).replace(/\s+/g, ' ').trim();
+  return text.length > 120 ? `${text.slice(0, 117).trimEnd()}…` : text;
+};
 
 /** One story: a saying in the hand font, anything else as safe Markdown. `compact` clamps it for the Overview. */
 function StoryCard({ s, compact, onDelete }: { s: Story; compact?: boolean; onDelete?: () => void }) {
@@ -1088,6 +1142,9 @@ function nextOccurrence(date: string, from: Date): Date | undefined {
 const daysUntil = (d: Date, today: Date) => Math.round((d.getTime() - today.getTime()) / 86_400_000);
 const inDays = (n: number, c: Translator) => (n === 0 ? c('when.today') : n === 1 ? c('when.tomorrow') : c('when.inDays', { n }));
 
+/** A field's text, for the question asked before a member removes their own. */
+const fieldWords = (x?: PersonField) => (x ? fieldText(x.type, x.value) : undefined);
+
 /** The kinds a contact can be quickly added as, from the Everyday tab. */
 const QUICK_KINDS = ['phone', 'email', 'address', 'website'] as const;
 type QuickKind = (typeof QUICK_KINDS)[number];
@@ -1144,7 +1201,7 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
   const removeContact = (fid: string) => (
     <button className="btn icon ghost" aria-label={c('reach.remove')} title={c('reach.remove')} onClick={() => del.mutate(fid)} disabled={del.isPending}><Trash2 size={13} /></button>
   );
-  const fieldsBlock = <FieldGroups fields={detail.fields} fam={f} onSelect={onSelect} removeOwn={canEdit ? undefined : (id) => <RemoveOwnField tree={tree} person={p.id} id={id} />} onEdit={canEdit ? startEditing : undefined} editor={canEdit ? editorFor : undefined} />;
+  const fieldsBlock = <FieldGroups fields={detail.fields} fam={f} onSelect={onSelect} removeOwn={canEdit ? undefined : (id) => <RemoveOwnField tree={tree} person={p.id} id={id} what={fieldWords(detail.fields.find((x) => x.id === id))} />} onEdit={canEdit ? startEditing : undefined} editor={canEdit ? editorFor : undefined} />;
   /** Adds what is in the box. Leaving the box adds it too, but only quietly: half a phone number just stays there. */
   const submitContact = (quiet: boolean) => {
     if (!value.trim() || add.isPending) return;
@@ -1207,7 +1264,7 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
       </div>
 
       <div className="rule">{c('reach.heading', { name: p.given })}</div>
-      {contacts.map((x) => editorFor(x.id) ?? <ContactRow key={x.id} f={x} actions={<>{editContact(x)}{canContact ? removeContact(x.id) : x.visibility === 'personal' ? <RemoveOwnField tree={tree} person={p.id} id={x.id} /> : null}</>} />)}
+      {contacts.map((x) => editorFor(x.id) ?? <ContactRow key={x.id} f={x} actions={<>{editContact(x)}{canContact ? removeContact(x.id) : x.visibility === 'personal' ? <RemoveOwnField tree={tree} person={p.id} id={x.id} what={fieldWords(x)} /> : null}</>} />)}
       {!contacts.length && !canContact && <p className="pp-ask subtle">{c('reach.none')}</p>}
       {canContact && (
         <form ref={addRow} className="pp-contact-add pp-contact-quick" noValidate onBlur={(e) => leftAddRow(e.relatedTarget)} onSubmit={(e) => { e.preventDefault(); submitContact(false); }}>
