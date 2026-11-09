@@ -6,7 +6,8 @@ import { Link, useRouter, createFileRoute } from '@tanstack/react-router';
 import { Camera, Check, Flame, Link2, SkipForward, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { GameIcon } from '~/components/GameIcon';
-import { kinshipLabel, translateMessage, useT, type Translator } from '~/lib/i18n';
+import { kinshipLabel, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
+import type { GapField } from '~/lib/person.server';
 import { Dialog } from '~/components/ui/Dialog';
 import { Portrait } from '~/components/Portrait';
 import { PlaceInput, savePlacesKeyed, type PlaceValue } from '~/components/PlaceInput';
@@ -25,6 +26,9 @@ import { play } from '~/lib/sfx';
 import '~/styles/needed.css';
 import { useDealt } from '~/lib/dealt';
 import { sectionHead } from '~/lib/title';
+
+/** The word for each value the Needed page fills in, to say which ones someone else entered first. */
+const KEPT_LABEL: Record<GapField, Key> = { born: 'needed.gap.born', bornPlace: 'needed.gap.birthplace', died: 'needed.gap.died', sex: 'needed.gap.sex', occupation: 'needed.gap.occupation' };
 
 export const Route = createFileRoute('/$tree/needed')({
   pendingComponent: PageSkeleton,
@@ -197,6 +201,8 @@ function Blaze({ queue, only, f, tree, me, role, required, onClose }: { queue: s
   const [stamped, setStamped] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Values someone else entered first, said on the next person's card so the save is not mistaken for a full one.
+  const [notice, setNotice] = useState<string | null>(null);
   const [v, setV] = useState<Values>({});
   // Leaving with something typed asks first: the ✕, Skip, Escape and a press outside all come here.
   const [confirm, setConfirm] = useState<null | 'close' | 'skip'>(null);
@@ -237,6 +243,7 @@ function Blaze({ queue, only, f, tree, me, role, required, onClose }: { queue: s
 
   const set = (k: keyof Values) => (e: { target: { value: string } }) => setV((x) => ({ ...x, [k]: e.target.value }));
   const next = (saved: boolean) => {
+    setNotice(null);
     if (saved) setFilled((n) => n + 1);
     else setSkipped((n) => n + 1);
     setI((x) => x + 1);
@@ -263,14 +270,18 @@ function Blaze({ queue, only, f, tree, me, role, required, onClose }: { queue: s
     // a step whose answer was lost is sent again with the same key, and the server replays it.
     const rest: Values = { ...v };
     let did = false;
+    let keptByOthers = '';
     try {
       const patch = { born, bornPlace: v.bornPlace?.trim() || undefined, died, sex: v.sex, occupation: v.occupation?.trim() || undefined };
       if (Object.values(patch).some(Boolean)) {
         // The pin first: repeating it on a retry changes nothing, and the Atlas has it as soon as the person points there.
         if (patch.bornPlace) await savePlacesKeyed(tree, (pl) => key('places', pl), { ...v.bornPin, name: patch.bornPlace });
-        await patchPerson({ data: { tree, id: p.id, patch, opKey: key('patch', patch) } });
+        // What the page showed: a value someone else entered since then is kept, and the answer names it.
+        const seen = { born: p.born, bornPlace: p.bornPlace, died: p.died, sex: p.sex, occupation: p.occupation };
+        const { kept } = await patchPerson({ data: { tree, id: p.id, patch, seen, opKey: key('patch', patch) } });
         did = true;
         for (const k of ['born', 'bornPlace', 'bornPin', 'died', 'sex', 'occupation'] as const) delete rest[k];
+        if (kept.length) keptByOthers = t('needed.keptByOthers', { name: p.given, fields: kept.map((k) => t(KEPT_LABEL[k])).join(', ') });
       }
       const slots = parentSlots(f, p.id, gaps);
       for (const [as, gk, sk, lk] of [['m', 'fatherGiven', 'fatherSurname', 'fatherLink'], ['f', 'motherGiven', 'motherSurname', 'motherLink']] as const) {
@@ -315,6 +326,7 @@ function Blaze({ queue, only, f, tree, me, role, required, onClose }: { queue: s
       }
       if (did) { play('seal'); setStamped(true); setTimeout(() => setStamped(false), 900); }
       next(did);
+      if (keptByOthers) setNotice(keptByOthers);
     } catch (e) {
       setV(rest);
       setError(`${did ? `${t('needed.partlySaved')} ` : ''}${e instanceof Error ? translateMessage(e.message, t.locale) : t('needed.couldNotSave')}`);
@@ -492,6 +504,7 @@ function Blaze({ queue, only, f, tree, me, role, required, onClose }: { queue: s
               <textarea ref={firstRef<HTMLTextAreaElement>()} className="input" rows={3} value={v.story ?? ''} onChange={set('story')} placeholder={t('needed.phStory', { name: p.given })} />
             </label>
           )}
+          {notice && <p className="subtle wide" role="status">{notice}</p>}
           {error && <em className="err wide" role="alert">{error}</em>}
         </fieldset>
         <div className="blaze-foot">

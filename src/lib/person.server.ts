@@ -314,6 +314,43 @@ export function setPersonLook(tree: string, id: string, look: Look, op: OpKey | 
   });
 }
 
+/** The details the Needed page fills in, and the column each one is. */
+const GAP_COLUMNS = { born: 'born', bornPlace: 'born_place', died: 'died', sex: 'sex', occupation: 'occupation' } as const;
+export type GapField = keyof typeof GAP_COLUMNS;
+/** What a fill left alone: values someone else entered after the page was loaded, which stay as they are. */
+export interface FilledGaps { kept: GapField[] }
+
+/**
+ * Fills in the details the Needed page asked for. `seen` is each value as the page showed it (left out: empty), so a
+ * value is written only while the person still has exactly that: a gap someone else filled in meanwhile is not
+ * overwritten, and the answer names it so the page can say so. A value already there as typed counts as written.
+ * Typing an occupation here also sets its vocabulary code, so the Needed page and the editor agree.
+ */
+export function fillGaps(tree: string, id: string, patch: Partial<Record<GapField, string>>, seen: Partial<Record<GapField, string | null>>, op: OpKey | undefined) {
+  return once(tree, op, 'patchPerson', async (d) => {
+    const now = await d.get<Record<string, string | null>>(`SELECT ${Object.values(GAP_COLUMNS).join(', ')} FROM person WHERE id = ?`, id);
+    if (!now) throw new Error('Person not found.');
+    const kept: GapField[] = [];
+    const writes: Query[] = [];
+    const assigns: string[] = [];
+    const values: (string | null)[] = [];
+    for (const [k, v] of Object.entries(patch) as [GapField, string | undefined][]) {
+      if (v === undefined || v === '') continue;
+      const col = GAP_COLUMNS[k];
+      const stored = now[col] || null;
+      if (stored === v) continue;
+      if (stored !== (seen[k] || null)) { kept.push(k); continue; }
+      // The value as read, restated in the batch: a change that lands in between makes the plan decide again.
+      writes.push(guard(`EXISTS (SELECT 1 FROM person WHERE id = ? AND coalesce(${col}, '') = ?)`, id, stored ?? ''));
+      assigns.push(`${col} = ?`);
+      values.push(v);
+      if (k === 'occupation') { assigns.push('occupation_code = ?'); values.push(occupationCodeFor(v)); }
+    }
+    if (assigns.length) writes.push(q(`UPDATE person SET ${assigns.join(', ')}, updated_at = ? WHERE id = ?`, ...values, nowIso(), id));
+    return { writes, result: { kept } satisfies FilledGaps };
+  });
+}
+
 /** Sets only the death place, for the assistant and the quick fixes. Blank clears it. */
 export function setPersonDiedPlace(tree: string, id: string, place: string | null, op: OpKey | undefined) {
   return once(tree, op, 'setPersonDiedPlace', async (d) => {

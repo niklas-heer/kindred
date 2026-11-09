@@ -233,7 +233,10 @@ export const updatePerson = createServerFn({ method: 'POST' })
     if (wrote.changes) await changeCommitted(data.tree);
   });
 
-/** Fills in only the fields given: the Needed page saves exactly what was missing. */
+/**
+ * Fills in only the fields given: the Needed page saves exactly what was missing. `seen` is each value as the page
+ * showed it; a value someone else entered since is kept, and the answer lists it (person.server.ts `fillGaps`).
+ */
 export const patchPerson = createServerFn({ method: 'POST' })
   .validator(
     z.object({
@@ -248,21 +251,14 @@ export const patchPerson = createServerFn({ method: 'POST' })
           occupation: z.string().trim().min(1).max(200),
         })
         .partial(),
+      seen: z.object({ born: z.string().max(40), bornPlace: z.string().max(200), died: z.string().max(40), sex: z.enum(['m', 'f', 'x']), occupation: z.string().max(200) }).partial().optional(),
       opKey,
     }),
   )
   .handler(async ({ data }) => {
     const _m = await requireCan(data.tree, 'edit-person');
-    const cols: Record<string, string> = { born: 'born', bornPlace: 'born_place', died: 'died', sex: 'sex', occupation: 'occupation' };
-    const set = Object.entries(data.patch).filter(([, v]) => v !== undefined && v !== '');
-    if (!set.length) return;
-    // Typing an occupation here also sets its vocabulary code, so the Needed page and the editor agree.
-    const assigns = set.map(([k]) => `${cols[k]} = ?`);
-    const values: (string | null)[] = set.map(([, v]) => v as string);
-    if (data.patch.occupation) { assigns.push('occupation_code = ?'); values.push(occupationCodeFor(data.patch.occupation)); }
-    const sql = `UPDATE person SET ${assigns.join(', ')}, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`;
-    const { once, q } = await server();
-    await once(data.tree, opOf(_m, data), 'patchPerson', () => ({ writes: [q(sql, ...values, data.id)], result: undefined }));
+    const { fillGaps } = await import('./person.server');
+    return fillGaps(data.tree, data.id, data.patch, data.seen ?? {}, opOf(_m, data));
   });
 
 /** Takes someone out of the tree, with their links, stories, contacts and photo. */
