@@ -141,6 +141,13 @@ export async function editSnapshot(tree: string, id: string, reader: Audience): 
 }
 
 /**
+ * What a save leaves the draft with: the revision it moved the person to, known exactly because the batch is guarded on the
+ * revision it started from, and the id of each field in the list, in the list's order. An autosaving draft goes on from
+ * these, so its next save neither looks stale to itself nor adds a new field a second time.
+ */
+export interface SavedEdit { revision: number; fieldIds: string[] }
+
+/**
  * Saves the details and the whole list of fields in one batch. `fields` is the list in its new order: a field with an
  * `id` is updated, one without is added, and any field of this person not in the list is removed. `revision` is the
  * person's revision when the draft was opened: if anything about the person has changed since (a field added elsewhere,
@@ -164,6 +171,9 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
     const had = await d.all<Existing>(`SELECT id, type, label, value, visibility, owner, ord FROM person_field WHERE person = ? AND ${seen.sql}`, id, ...seen.params);
     const hadById = new Map(had.map((r) => [r.id, r]));
     const kept = new Set<string>();
+    const fieldIds: string[] = [];
+    // How far this batch moves the revision: the triggers count one step per written row (see the note above).
+    let steps = 0;
     // What the plan read: the person at this revision (every change bumps it, see migration 0009), and the fields.
     // Every decision below rests on that revision, so the guard covers the person's columns as well.
     const writes: Query[] = [
@@ -186,20 +196,29 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
         writes.push(guard('EXISTS (SELECT 1 FROM person_field WHERE id = ? AND person = ?)', f.id, id));
         const sameText = sameContent(before.value, value);
         const same = before.label === f.label && before.visibility === f.visibility && before.owner === owner && before.ord === ord && sameText;
+        fieldIds.push(f.id);
         if (!same) {
+          steps += 1;
           writes.push(q(
             'UPDATE person_field SET label = ?, value = ?, visibility = ?, owner = ?, ord = ?, updated_by = ?, updated_at = ? WHERE id = ? AND person = ?',
             f.label, sameText ? before.value : JSON.stringify(value), f.visibility, owner, ord, by, nowIso(), f.id, id,
           ));
         }
       } else {
+        const fresh = crypto.randomUUID();
+        fieldIds.push(fresh);
+        steps += 1;
         writes.push(q(
           'INSERT INTO person_field (id, person, type, label, value, ord, visibility, owner, created_by, created_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          crypto.randomUUID(), id, f.type, f.label, JSON.stringify(value), ord, f.visibility, owner, by, nowIso(), by, nowIso(),
+          fresh, id, f.type, f.label, JSON.stringify(value), ord, f.visibility, owner, by, nowIso(), by, nowIso(),
         ));
       }
     }
-    for (const r of had) if (!kept.has(r.id)) writes.push(q('DELETE FROM person_field WHERE id = ? AND person = ?', r.id, id));
+    for (const r of had) {
+      if (kept.has(r.id)) continue;
+      steps += 1;
+      writes.push(q('DELETE FROM person_field WHERE id = ? AND person = ?', r.id, id));
+    }
 
     const s = details;
     const occupation = empty(s.occupation);
@@ -211,12 +230,13 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
     };
     const changed = EDIT_COLUMNS.filter((c) => next[c] !== now[c]);
     if (changed.length) {
+      steps += 1;
       writes.push(q(
         `UPDATE person SET ${changed.map((c) => `${c} = ?`).join(', ')}, updated_at = ? WHERE id = ?`,
         ...changed.map((c) => next[c]), nowIso(), id,
       ));
     }
-    return { writes, result: undefined };
+    return { writes, result: { revision: revision + steps, fieldIds } satisfies SavedEdit };
   });
 }
 

@@ -1,4 +1,5 @@
-// Rebasing an Edit draft onto the person's latest version, after a save was refused because the person changed.
+// Rebasing an Edit draft onto the person's latest version, after a save was refused because the person changed, or when a
+// draft left on this device is opened again.
 // What the reader changed stays changed; what they did not touch takes the latest value, so the rebase never writes
 // back an old copy of something someone else has since changed. Where the reader and someone else both changed the
 // same thing to different values, the reader's version stays in the draft and the case comes back as a conflict, so
@@ -45,10 +46,14 @@ export function rebaseFields<F extends RebaseField>(base: F[], draft: F[], lates
   const baseById = byId(base);
   const latestById = byId(latest);
   const draftIds = new Set(draft.flatMap((f) => (f.id ? [f.id] : [])));
+  const claimed = new Set<string>();
   const out: F[] = [];
   for (const d of draft) {
     if (!d.id) {
-      out.push(d);
+      // Its save got through but the answer was lost: the field is already there, so it takes that id and is not added twice.
+      const twin = latest.find((l) => l.id && !baseById.has(l.id) && !draftIds.has(l.id) && !claimed.has(l.id) && sameField(l, d));
+      if (twin) claimed.add(twin.id!);
+      out.push(twin ? { ...d, id: twin.id } : d);
       continue;
     }
     const was = baseById.get(d.id);
@@ -57,7 +62,7 @@ export function rebaseFields<F extends RebaseField>(base: F[], draft: F[], lates
     if (now) out.push(changed ? d : now);
     else if (changed) out.push({ ...d, id: undefined });
   }
-  for (const l of latest) if (l.id && !baseById.has(l.id) && !draftIds.has(l.id)) out.push(l);
+  for (const l of latest) if (l.id && !baseById.has(l.id) && !draftIds.has(l.id) && !claimed.has(l.id)) out.push(l);
   return out;
 }
 

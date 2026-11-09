@@ -1,28 +1,33 @@
 // The Edit tab: the names, the life dates and places, the contact details, the biography and the rest of the fields.
-// One Save writes all of it, with the places pinned first (the Atlas has them as soon as the person points at them).
-// The save bar is sticky at the foot of the tab and says what state the form is in. The dirty guard in the panel covers
-// the whole tab. The draft and "Load the latest" both start from one consistent snapshot of the person (`editSnapshot`),
-// so the draft never mixes values from one moment with a revision from another.
+// Every change saves itself, after a short pause or on leaving the field, through the same revision-guarded save as ever
+// (see autosave.ts for how and edit-values.ts for what). The line at the foot says how that is going and offers Undo. If
+// someone else changed the person meanwhile, the draft is rebased on their version: what doesn't clash goes through by
+// itself, and what does is shown for the reader to choose, with nothing written until they have. The draft and each rebase
+// start from one consistent snapshot of the person (`editSnapshot`), so the draft never mixes values from one moment with a
+// revision from another. With `only` set, the same form edits that one field in place on the Everyday tab.
 import { useForm } from '@tanstack/react-form';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, Plus, Trash2, X } from 'lucide-react';
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Plus, RotateCw, Trash2, Undo2, X } from 'lucide-react';
+import { useContext, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react';
 import { opKeys, removePerson } from '~/lib/api';
 import { getEditSnapshot, savePersonEdit } from '~/lib/person.functions';
 import type { EditSnapshot } from '~/lib/person.server';
 import { yearOf, type Family } from '~/lib/graph';
 import { isoOfDate, periodOf, storedIssue } from '~/lib/partial-date';
-import { useCan } from '~/lib/session';
+import { useCan, useSession } from '~/lib/session';
 import { toast } from '~/lib/toast';
 import type { GPerson, PersonDetail } from '~/lib/types';
 import { PlaceInput, placeValue, savePlacesKeyed, type PlaceValue } from '../PlaceInput';
 import { MarkdownEditor } from '../MarkdownEditor';
 import { DatePicker, Segmented, Switch } from '../ui';
-import { DraftContext, DraftTracker } from './draft';
+import { classifyFailure, clearJournal, createAutosaver, journalKey, MAX_UNDO, nextAfter, readJournal, undoStep, writeJournal, type Journal, type Outcome, type SaveState, type UndoStep } from './autosave';
+import { DraftContext } from './draft';
+import { sendable, signatureOf, storedForm, wireOf, type EditValues } from './edit-values';
 import { draftOf, FieldEditor, type DraftField } from './FieldEditor';
-import { CHANGED_SINCE_OPENED, fieldIssue, fieldText } from './model';
+import { fieldText } from './model';
 import { rebaseDraft, takeTheirs, type Conflict } from './rebase';
 import { translateMessage, useT, type Key } from '~/lib/i18n';
+import { isKnownMessage } from '~/lib/i18n/dictionary';
 import { MAX_FURTHER, MAX_FURTHER_LENGTH } from '~/lib/further-given';
 import { OccupationField } from './OccupationField';
 import { presetLabel } from './presets';
@@ -36,15 +41,11 @@ interface Props {
   detail: PersonDetail;
   done: () => void;
   onRemoved: () => void;
+  /** A field's id: edit just that field, in place. */
+  only?: string;
 }
 
-interface Values {
-  given: string; furtherGiven: string[]; surname: string; sameName: boolean; currentGiven: string; currentSurname: string;
-  nickname: string; sex: '' | 'm' | 'f' | 'x';
-  born: string; bornPlace: PlaceValue; died: string; diedPlace: PlaceValue; living: boolean;
-  title: string; epithet: string; occupation: string; occupationCode: string; bio: string;
-  fields: DraftField[];
-}
+type Values = EditValues;
 
 /** The form's values for a person as the server has them: the same for the first draft and for a rebase. */
 function valuesOf(s: EditSnapshot): Values {
@@ -111,109 +112,270 @@ function earliestCentury(f: Family): number {
   return Math.max(100, Math.floor((Number.isFinite(min) ? min : 1800) / 100) * 100);
 }
 
-/** A date problem that stops a save: a birth after today, a date that is not real, or a death before the birth. */
-function datesBlocked(born: string, died: string, living: boolean, today: string): boolean {
-  if (storedIssue(born, { notAfter: today })) return true;
-  return !living && !!storedIssue(died, { notBefore: periodOf(born)?.from });
+/** Next and Done on the phone's keyboard, in the order the reader sees the fields. A textarea keeps its Enter for a new line. */
+const TEXT_ENTRIES = 'input:not([type=hidden],[type=checkbox],[type=radio],[type=search],[type=file],[disabled],[readonly]),textarea:not([disabled],[readonly])';
+const textEntries = (root: HTMLElement) => [...root.querySelectorAll<HTMLElement>(TEXT_ENTRIES)].filter((el) => el.offsetParent !== null);
+
+const deviceStore = () => { try { return window.localStorage; } catch { return undefined; } };
+
+/** The form's first values: the server's, with any draft left on this device rebased onto them. */
+function openDraft(snap: EditSnapshot, left: Journal<Values> | null) {
+  const latest = valuesOf(snap);
+  if (!left) return { start: latest, base: latest, conflicts: [] as Conflict<DraftField>[], restored: false, unchosen: null };
+  const { values, conflicts } = rebaseDraft<Values, DraftField>(left.base, left.draft, latest);
+  return { start: values, base: latest, conflicts, restored: signatureOf(values) !== signatureOf(latest), unchosen: conflicts.length ? left.base : null };
 }
 
-function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> & { snap: EditSnapshot }) {
-  const { leave } = useContext(DraftContext);
+function EditForm({ tree, p, f, snap, done, onRemoved, only }: Omit<Props, 'detail'> & { snap: EditSnapshot }) {
+  const { leave, register } = useContext(DraftContext);
   const c = useT();
+  const words = useRef(c);
+  words.current = c;
   const canRemove = useCan('remove-person');
   const medieval = tree === 'realm' || (!!snap.born && yearOf(snap.born) < 1500);
   const qc = useQueryClient();
   const today = isoOfDate(new Date());
   const thisYear = Number(today.slice(0, 4));
   const minYear = useMemo(() => earliestCentury(f), [f]);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  // Set when the save was refused because the person changed: the reader may load the latest and keep their changes.
-  const [stale, setStale] = useState(false);
-  const [rebasing, setRebasing] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const account = useSession()?.user?.id ?? 'anonymous';
+  const [draftKey] = useState(() => journalKey(account, tree, p.id));
+  const [opened] = useState(() => openDraft(snap, readJournal<Values>(deviceStore(), draftKey, Date.now())));
+  const [state, setState] = useState<SaveState>('saved');
+  // Set once anything has been saved or is on its way, so the line stops explaining itself.
+  const [edited, setEdited] = useState(opened.restored);
+  // Something typed that cannot be written yet: it stays in the form with its red mark.
+  const [held, setHeld] = useState(false);
+  // The server's own words for a refused write (translated when shown).
+  const [refusal, setRefusal] = useState<string | null>(null);
   // Where the reader and someone else changed the same thing: each is shown, and the reader picks one.
-  const [conflicts, setConflicts] = useState<Conflict<DraftField>[]>([]);
-  // Read by the submit handler: Save is disabled while a conflict is open, but Enter in a field also submits.
-  const openConflicts = useRef(0);
-  openConflicts.current = conflicts.length;
+  const [conflicts, setConflicts] = useState<Conflict<DraftField>[]>(opened.conflicts);
+  const [undoCount, setUndoCount] = useState(0);
+  const [focusKey, setFocusKey] = useState<string | null>(() => (only ? opened.start.fields.find((x) => x.id === only)?.key ?? null : null));
   const [keys] = useState(opKeys);
-  // What the draft was opened on, read once: a refetch must not re-base the draft on newer data by accident. After a
-  // rebase these are the latest values, so the next rebase compares the reader's changes with what they last saw.
-  const [start] = useState(() => valuesOf(snap));
-  const base = useRef<Values>(start);
-  // The revision the draft was opened at; a rebase moves it to the latest one the reader has loaded.
+  const root = useRef<HTMLFormElement>(null);
+  const conflictList = useRef<HTMLDivElement>(null);
+  // What the server holds, as far as this draft knows, and the revision that is at. Each save moves both on, and so does
+  // a rebase: it compares the reader's changes with what they last saw.
+  const base = useRef<Values>(opened.base);
   const revision = useRef(snap.revision);
+  // While a conflict is open, the version from before it. The draft on this device is kept against this one and not the
+  // latest: otherwise, opened again, the reader's unchosen version would look like a plain edit and be written over theirs.
+  const unchosen = useRef<Values | null>(opened.unchosen);
+  const history = useRef<UndoStep<Values>[]>([]);
+  // The write now owed comes from Undo, so it is not itself a change that can be undone.
+  const undoing = useRef(false);
+  const closing = useRef(false);
+  const discarded = useRef(false);
+  // The rest of the app reads the person afresh once the reader pauses, and not after every write.
+  const touched = useRef(false);
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const remove = useMutation({
     mutationFn: () => removePerson({ data: { tree, id: p.id } }),
     onSuccess: async () => {
+      discarded.current = true;
+      saver.pause();
+      clearJournal(deviceStore(), draftKey);
       await qc.invalidateQueries({ queryKey: ['graph', tree] });
       onRemoved();
     },
   });
-  const form = useForm({
-    defaultValues: start,
-    onSubmit: async ({ value }) => {
-      // Nothing is saved while a conflict is open. The choices stay on screen until a save succeeds, so a refused or
-      // failed save never drops them. Nor is anything saved with a date the picker has refused.
-      if (openConflicts.current > 0) return;
-      if (datesBlocked(value.born, value.died, value.living, today)) return;
-      setSaveError(null);
-      setStale(false);
-      setNotice(null);
-      try {
-        // Pins first: repeating them on a retry changes nothing.
-        await savePlacesKeyed(tree, (pl) => keys.for('places', pl), value.bornPlace, value.living ? undefined : value.diedPlace);
-        const details = {
-          given: value.given, furtherGiven: value.furtherGiven.map((x) => x.trim()).filter(Boolean), surname: value.surname, nickname: value.nickname, sex: value.sex || null,
-          currentGiven: value.sameName ? null : value.currentGiven, currentSurname: value.sameName ? null : value.currentSurname,
-          born: value.born, bornPlace: value.bornPlace.name, died: value.died, diedPlace: value.diedPlace.name, living: value.living,
-          title: value.title, epithet: value.epithet, occupation: value.occupation, occupationCode: value.occupationCode || null, bio: value.bio,
-        };
-        const fields = value.fields.map((x) => ({ id: x.id, type: x.type, label: x.label, value: x.value, visibility: x.visibility }));
-        const body = { tree, id: p.id, details, fields, revision: revision.current };
-        await savePersonEdit({ data: { ...body, opKey: keys.for('edit', body) } });
-        keys.clear('edit');
-        await Promise.all([
-          qc.invalidateQueries({ queryKey: ['graph', tree] }),
-          qc.invalidateQueries({ queryKey: ['person', tree, p.id] }),
-          qc.invalidateQueries({ queryKey: ['contacts', tree] }),
-        ]);
-        form.reset(value);
-        toast({ title: c('edit.savedTitle'), body: c('edit.savedBody', { name: p.given }), ms: 3500 });
-        done();
-      } catch (e) {
-        // A refused field comes back as the validator's JSON; the reader gets a sentence instead.
-        const msg = e instanceof Error ? e.message : '';
-        // A server message that is one of ours (in person.server.ts) is shown in the reader's language.
-        setSaveError(!msg ? c('edit.saveFailed') : msg.startsWith('[') ? c('edit.checkFields') : translateMessage(msg, c.locale));
-        setStale(msg === CHANGED_SINCE_OPENED);
+  const form = useForm({ defaultValues: opened.start });
+  const current = () => form.state.values as Values;
+  const canWrite = (v: Values) => sendable(v, base.current, today);
+
+  /** Puts a rebased or undone draft in the form: only the parts that differ, so the rest keep their state. */
+  function applyValues(next: Values) {
+    const now = current();
+    for (const k of Object.keys(next) as (keyof Values)[]) {
+      if (JSON.stringify(next[k]) !== JSON.stringify(now[k])) form.setFieldValue(k, next[k] as never);
+    }
+  }
+
+  function refresh() {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = null;
+    if (!touched.current) return;
+    touched.current = false;
+    void qc.invalidateQueries({ queryKey: ['graph', tree] });
+    void qc.invalidateQueries({ queryKey: ['person', tree, p.id] });
+    void qc.invalidateQueries({ queryKey: ['contacts', tree] });
+  }
+
+  /** Keeps the draft on this device until the server has it, so a sleeping phone or a killed page loses nothing. */
+  function remember(saver: { state: SaveState }) {
+    if (discarded.current) return;
+    if (saver.state === 'saved' && !canWrite(current()).held) clearJournal(deviceStore(), draftKey);
+    else writeJournal(deviceStore(), draftKey, { at: Date.now(), revision: revision.current, base: unchosen.current ?? base.current, draft: current() });
+  }
+
+  async function write(v: Values): Promise<Outcome> {
+    const sent = canWrite(v).values;
+    setRefusal(null);
+    try {
+      // Pins first, and only a place that changed: repeating one on a retry changes nothing.
+      const pin = (now: PlaceValue, was: PlaceValue) => (JSON.stringify(now) === JSON.stringify(was) ? undefined : now);
+      await savePlacesKeyed(tree, (pl) => keys.for('places', pl), pin(sent.bornPlace, base.current.bornPlace), sent.living ? undefined : pin(sent.diedPlace, base.current.diedPlace));
+      const body = { tree, id: p.id, ...wireOf(sent), revision: revision.current };
+      const saved = await savePersonEdit({ data: { ...body, opKey: keys.for('edit', body) } });
+      keys.clear('edit');
+      const written = storedForm({ ...sent, fields: sent.fields.map((x, i) => ({ ...x, id: saved.fieldIds[i] ?? x.id })) });
+      if (undoing.current) {
+        undoing.current = false;
+      } else {
+        history.current = [...history.current.slice(1 - MAX_UNDO), { before: base.current, after: written }];
+        setUndoCount(history.current.length);
       }
-    },
-  });
+      base.current = written;
+      revision.current = saved.revision;
+      touched.current = true;
+      // A new field learns its id, so the next save updates it instead of adding it again.
+      const ids = new Map(sent.fields.flatMap((x, i) => (!x.id && saved.fieldIds[i] ? [[x.key, saved.fieldIds[i]!] as const] : [])));
+      if (ids.size) form.setFieldValue('fields', (list: DraftField[]) => list.map((x) => (!x.id && ids.has(x.key) ? { ...x, id: ids.get(x.key) } : x)));
+      return 'saved';
+    } catch (e) {
+      const message = e instanceof Error ? e.message : '';
+      const failure = classifyFailure(message, isKnownMessage);
+      if (failure === 'stale') return reconcile();
+      if (failure === 'refused') { setRefusal(message); return 'refused'; }
+      throw e;
+    }
+  }
 
   /**
-   * Loads the person as it is now, and rebases the draft onto it: what the reader changed stays changed, the rest
-   * takes the latest values, and the revision moves on. Where someone else changed the same thing, the reader's version
-   * stays and both are listed for the reader to choose. The reader then checks it and saves again.
+   * Someone else changed the person: loads them as they are now and rebases the draft. What the reader changed stays
+   * changed, the rest takes the latest values, and where both changed the same thing the writing stops and both are listed.
    */
-  async function loadLatest() {
-    setRebasing(true);
-    setSaveError(null);
-    try {
-      const latest = await getEditSnapshot({ data: { tree, id: p.id } });
-      const latestValues = valuesOf(latest);
-      const { values, conflicts: found } = rebaseDraft<Values, DraftField>(base.current, form.state.values as Values, latestValues);
-      base.current = latestValues;
-      revision.current = latest.revision;
-      for (const k of Object.keys(values) as (keyof Values)[]) form.setFieldValue(k, values[k] as never);
-      setConflicts(found);
-      setStale(false);
-      setNotice(c('edit.rebased'));
-    } catch {
-      setSaveError(c('edit.saveFailed'));
-    } finally {
-      setRebasing(false);
-    }
+  async function reconcile(): Promise<Outcome> {
+    // The form has gone: the draft on this device carries it to the next time the person is opened.
+    if (closing.current) return 'conflict';
+    const snapshot = await getEditSnapshot({ data: { tree, id: p.id } });
+    const latest = valuesOf(snapshot);
+    const { values, conflicts: found } = rebaseDraft<Values, DraftField>(base.current, current(), latest);
+    if (found.length) unchosen.current = base.current;
+    base.current = latest;
+    revision.current = snapshot.revision;
+    saver.baseline(latest);
+    applyValues(values);
+    setConflicts(found);
+    if (!found.length) toast({ title: words.current('edit.rebased'), ms: 5000 });
+    return found.length ? 'conflict' : 'again';
+  }
+  const [saver] = useState(() => createAutosaver<Values>({
+    initial: opened.base,
+    signature: (v) => signatureOf(canWrite(v).values),
+    send: write,
+    onState: (next) => {
+      setState(next);
+      if (next !== 'saved') setEdited(true);
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+      refreshTimer.current = next === 'saved' ? setTimeout(refresh, 1200) : null;
+      remember(saver);
+    },
+  }));
+
+  // Every change in the form, from the first (a draft brought back from this device) on, goes to the saver.
+  useEffect(() => {
+    closing.current = false;
+    saver.open();
+    let seen: unknown;
+    const push = () => {
+      const values = current();
+      if (values === seen) return;
+      seen = values;
+      setHeld(canWrite(values).held);
+      saver.change(values);
+      remember(saver);
+      if (only && !values.fields.some((x) => x.id === only || x.key === focusKey)) done();
+    };
+    if (opened.conflicts.length) saver.pause();
+    push();
+    const sub = form.store.subscribe(push);
+    if (opened.restored) toast({ title: words.current('edit.restored'), ms: 5000 });
+    // The phone going to sleep or the page going away is a reason to write now; coming back is a reason to try again.
+    const hidden = () => { if (document.visibilityState === 'hidden') void saver.flush(); else saver.wake(); };
+    const leaving = () => void saver.flush();
+    const online = () => saver.wake();
+    document.addEventListener('visibilitychange', hidden);
+    window.addEventListener('pagehide', leaving);
+    window.addEventListener('online', online);
+    return () => {
+      sub.unsubscribe();
+      document.removeEventListener('visibilitychange', hidden);
+      window.removeEventListener('pagehide', leaving);
+      window.removeEventListener('online', online);
+      closing.current = true;
+      if (discarded.current) return;
+      // The form closes mid-save: the write finishes on its own, and if it can't, the draft on this device is still there.
+      void saver.close().finally(refresh);
+    };
+    // Once for the form's life: the saver, the form and the refs do not change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // A conflict stops the writing; the last choice starts it again.
+  useEffect(() => {
+    if (conflicts.length) { saver.pause(); return; }
+    unchosen.current = null;
+    if (saver.state === 'paused') saver.resume();
+  }, [conflicts.length, saver]);
+
+  const unresolved = conflicts.length > 0 || state === 'failed' || held;
+  useEffect(() => {
+    register({
+      dirty: unresolved,
+      busy: false,
+      save: async () => (await saver.flush()) && !canWrite(current()).held,
+      discard: () => { discarded.current = true; saver.pause(); clearJournal(deviceStore(), draftKey); },
+    });
+    // canWrite and current read refs; only `unresolved` changes what the panel is told.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unresolved, register, saver, draftKey]);
+  useEffect(() => () => register(null), [register]);
+
+  // The phone's keyboard offers Next, and Done on the last field. Set here because the date picker and the place box are
+  // shared with forms that have no next field.
+  useEffect(() => {
+    const form = root.current;
+    if (!form) return;
+    const stamp = () => {
+      const all = textEntries(form);
+      all.forEach((el, i) => { if (el.tagName === 'INPUT') el.setAttribute('enterkeyhint', i === all.length - 1 ? 'done' : 'next'); });
+    };
+    stamp();
+    const watch = new MutationObserver(stamp);
+    watch.observe(form, { childList: true, subtree: true });
+    return () => watch.disconnect();
+  }, []);
+
+  /** Next on the keyboard: the field after this one. A popup that took the Enter has already called preventDefault. */
+  function onKeyDown(e: KeyboardEvent<HTMLFormElement>) {
+    if (e.key !== 'Enter' || e.defaultPrevented || e.shiftKey || e.nativeEvent.isComposing) return;
+    const from = e.target as HTMLElement;
+    // A popup drawn outside the form (the map pin's box) still bubbles here; its Enter is its own.
+    if (from.tagName !== 'INPUT' || !from.matches(TEXT_ENTRIES) || !root.current?.contains(from)) return;
+    e.preventDefault();
+    const next = root.current && nextAfter(textEntries(root.current), from);
+    if (next) next.focus(); else from.blur();
+  }
+
+  /** Leaving a field writes it. The date picker's own parts count as one field, so a half-typed date is not a change yet. */
+  function onLeaveField(e: FocusEvent<HTMLFormElement>) {
+    const picker = (e.target as Element).closest('.dp');
+    if (picker && picker.contains(e.relatedTarget as Node | null)) return;
+    void saver.flush();
+  }
+
+  /** Takes back the last saved change. Disabled while a write is owed, so it always means the change the reader last saw saved. */
+  function undo() {
+    const step = history.current[history.current.length - 1];
+    if (!step || saver.state !== 'saved') return;
+    history.current = history.current.slice(0, -1);
+    setUndoCount(history.current.length);
+    undoing.current = true;
+    const { values, conflicts: found } = undoStep<Values, DraftField>(step, current());
+    applyValues(values);
+    if (found.length) { undoing.current = false; setConflicts(found); return; }
+    void saver.flush().then((ok) => { if (ok) undoing.current = false; });
   }
 
   /** Settles one conflict: "mine" keeps the draft's version (already there); "theirs" takes the other person's. */
@@ -259,7 +421,7 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
   const yoursOf = (k: Conflict<DraftField>) => (k.kind === 'value' ? shown(k.keys[0] ?? 'bio', k.mine[k.keys[0] ?? 'bio']) : fieldShown(k.mine));
   const theirsOf = (k: Conflict<DraftField>) => (k.kind === 'value' ? shown(k.keys[0] ?? 'bio', k.theirs[k.keys[0] ?? 'bio']) : fieldShown(k.theirs));
 
-  const text = (name: keyof Values, label: string, opts: { placeholder?: string; wide?: boolean; autoComplete?: string } = {}) => (
+  const text = (name: keyof Values, label: string, opts: { placeholder?: string; wide?: boolean; autoComplete?: string; words?: boolean; required?: boolean } = {}) => (
     <form.Field name={name as never}>
       {(field: any) => (
         <label className={`field${opts.wide ? ' wide' : ''}`}>
@@ -269,8 +431,10 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
             value={field.state.value}
             placeholder={opts.placeholder}
             autoComplete={opts.autoComplete ?? 'off'}
+            autoCapitalize={opts.words ? 'words' : undefined}
             onChange={(e) => field.handleChange(e.target.value)}
           />
+          {opts.required && !field.state.value.trim() && <em className="err fe-issue" role="status">{c('issue.required')}</em>}
         </label>
       )}
     </form.Field>
@@ -288,14 +452,67 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
   /** A date the picker writes: the picker checks its own segments, and the form refuses the save while one is wrong. */
   const dateChecks = { onChange: ({ value }: { value: string }) => (storedIssue(value, { notAfter: today }) ? c('date.err.invalid') : undefined) };
 
+  const conflictBlock = conflicts.length > 0 && (
+    <div className="wide edit-conflicts" role="group" aria-label={c('edit.conflictsIntro')} ref={conflictList}>
+      <p className="subtle">{c('edit.conflictsIntro')}</p>
+      <div className="edit-conflict-choices">
+        <button type="button" className="btn" onClick={() => settleAll('mine')}>{c('edit.keepAllMine')}</button>
+        <button type="button" className="btn" onClick={() => settleAll('theirs')}>{c('edit.useAllTheirs')}</button>
+      </div>
+      {conflicts.map((k) => (
+        <div className="edit-conflict" key={k.kind === 'field' ? `field-${k.id}` : `value-${k.keys.join('+')}`}>
+          <strong>{titleOf(k)}</strong>
+          <span>{c('edit.yours', { value: yoursOf(k) })}</span>
+          {k.kind === 'field' && k.mine && <span>{fieldMeta(k.mine)}</span>}
+          <span>{c('edit.theirs', { value: theirsOf(k) })}</span>
+          {k.kind === 'field' && k.theirs && <span>{fieldMeta(k.theirs)}</span>}
+          <span className="edit-conflict-choices">
+            <button type="button" className="btn" onClick={() => settle(k, 'mine')}>{c('edit.keepMine')}</button>
+            <button type="button" className="btn" onClick={() => settle(k, 'theirs')}>{c('edit.useTheirs')}</button>
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+
+  const statusText = conflicts.length > 0 ? <span className="pe-state warn">{c('edit.chooseFirst')}</span>
+    : state === 'failed' ? <span className="pe-state warn">{refusal ? (refusal.startsWith('[') ? c('edit.checkFields') : translateMessage(refusal, c.locale)) : c('edit.saveStuck')}</span>
+    : state === 'retrying' ? <span className="pe-state warn">{c('edit.retrying')}</span>
+    : state === 'saving' || state === 'waiting' ? <span className="pe-state busy">{c('edit.saving')}</span>
+    : held ? <span className="pe-state warn">{c('edit.fixFields')}</span>
+    : edited ? <span className="pe-state clean">{c('edit.allSaved')}</span>
+    : <span className="pe-state hint">{c('edit.autosaveHint')}</span>;
+
+  const statusLine = (
+    <div className="pe-bar wide" role="group" aria-label={c('edit.barLabel')}>
+      <div className="pe-status" role="status" aria-live="polite">{statusText}</div>
+      {conflicts.length > 0 && <button type="button" className="btn ghost" onClick={() => conflictList.current?.scrollIntoView({ block: 'center' })}>{c('edit.showConflicts')}</button>}
+      {state === 'failed' && <button type="button" className="btn ghost" onClick={() => void saver.retry()}><RotateCw size={14} aria-hidden /> {c('ui.retry')}</button>}
+      {undoCount > 0 && !conflicts.length && <button type="button" className="btn ghost" disabled={state !== 'saved'} onClick={undo}><Undo2 size={14} aria-hidden /> {c('edit.undo')}</button>}
+      {only && <button type="button" className="btn" onClick={() => leave(done)}>{c('edit.done')}</button>}
+    </div>
+  );
+
+  const formProps = { ref: root, noValidate: true, onSubmit: (e: { preventDefault: () => void }) => { e.preventDefault(); void saver.flush(); }, onKeyDown, onBlur: onLeaveField };
+
+  if (only) {
+    return (
+      <form className="pp-edit pe pe-inline" {...formProps}>
+        <form.Field name="fields">
+          {(field) => <FieldEditor tree={tree} group="more" only={only} focusKey={focusKey} value={field.state.value} onChange={(v) => field.handleChange(v)} fam={f} self={p.id} />}
+        </form.Field>
+        {conflictBlock}
+        {statusLine}
+      </form>
+    );
+  }
+
   return (
-    <form className="pp-edit pe" onSubmit={(e) => { e.preventDefault(); form.handleSubmit(); }}>
-      {/* Always mounted: it registers the draft with the panel's guard. Its own text is shown in the save bar instead. */}
-      <span hidden><DraftTracker form={form} /></span>
+    <form className="pp-edit pe" {...formProps}>
       <div className="rule">{c('edit.names')}</div>
       <div className="pe-grid">
-        {text('given', c('edit.givenAtBirth'))}
-        {text('surname', c('edit.surnameAtBirth'))}
+        {text('given', c('edit.givenAtBirth'), { words: true, required: true })}
+        {text('surname', c('edit.surnameAtBirth'), { words: true })}
         <form.Field name="furtherGiven">
           {(field) => (
             <div className="field wide pe-further">
@@ -307,6 +524,7 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
                       className="input"
                       value={name}
                       autoComplete="off"
+                      autoCapitalize="words"
                       maxLength={MAX_FURTHER_LENGTH}
                       onChange={(e) => field.handleChange(field.state.value.map((x, j) => (j === i ? e.target.value : x)))}
                     />
@@ -349,12 +567,12 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
         <form.Subscribe selector={(s) => s.values.sameName}>
           {(same) => same ? null : (
             <>
-              {text('currentGiven', c('edit.currentGiven'))}
-              {text('currentSurname', c('edit.currentSurname'))}
+              {text('currentGiven', c('edit.currentGiven'), { words: true, required: true })}
+              {text('currentSurname', c('edit.currentSurname'), { words: true })}
             </>
           )}
         </form.Subscribe>
-        {text('nickname', c('edit.nickname'), { placeholder: medieval ? c('edit.nicknameMedieval') : c('edit.nicknamePlaceholder'), wide: true })}
+        {text('nickname', c('edit.nickname'), { placeholder: medieval ? c('edit.nicknameMedieval') : c('edit.nicknamePlaceholder'), wide: true, words: true })}
         <form.Field name="sex">
           {(field) => (
             <div className="field wide">
@@ -446,12 +664,12 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
         </form.Subscribe>
       </div>
       <form.Field name="fields">
-        {(field) => <FieldEditor tree={tree} group="life" value={field.state.value} onChange={(v) => field.handleChange(v)} fam={f} self={p.id} />}
+        {(field) => <FieldEditor tree={tree} group="life" focusKey={focusKey} value={field.state.value} onChange={(v) => field.handleChange(v)} fam={f} self={p.id} />}
       </form.Field>
 
       <div className="rule">{c('group.contact')}</div>
       <form.Field name="fields">
-        {(field) => <FieldEditor tree={tree} group="contact" value={field.state.value} onChange={(v) => field.handleChange(v)} fam={f} self={p.id} />}
+        {(field) => <FieldEditor tree={tree} group="contact" focusKey={focusKey} value={field.state.value} onChange={(v) => field.handleChange(v)} fam={f} self={p.id} />}
       </form.Field>
 
       <div className="rule">{c('edit.biography')}</div>
@@ -464,47 +682,15 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
       </form.Field>
 
       <div className="rule">{c('edit.more')}</div>
-      <form.Field
-        name="fields"
-        validators={{ onSubmit: ({ value }: { value: DraftField[] }) => (value.some((x) => fieldIssue(x.type, x.value)) ? c('edit.fixFields') : undefined) }}
-      >
+      <form.Field name="fields">
         {(field) => (
           <div className="wide">
-            <FieldEditor tree={tree} group="more" addMenu value={field.state.value} onChange={(v) => field.handleChange(v)} fam={f} self={p.id} />
-            {field.state.meta.errors.length ? <em className="err" role="alert">{field.state.meta.errors[0]}</em> : null}
+            <FieldEditor tree={tree} group="more" addMenu focusKey={focusKey} onAdded={setFocusKey} value={field.state.value} onChange={(v) => field.handleChange(v)} fam={f} self={p.id} />
           </div>
         )}
       </form.Field>
 
-      {saveError && <em role="alert" className="err wide">{saveError}</em>}
-      {stale && (
-        <div className="wide">
-          <button type="button" className="btn" onClick={() => void loadLatest()} disabled={rebasing}>{c('edit.loadLatest')}</button>
-        </div>
-      )}
-      {notice && <p role="status" className="wide subtle">{notice}</p>}
-      {conflicts.length > 0 && (
-        <div className="wide edit-conflicts" role="group" aria-label={c('edit.conflictsIntro')}>
-          <p className="subtle">{c('edit.conflictsIntro')}</p>
-          <div className="edit-conflict-choices">
-            <button type="button" className="btn" onClick={() => settleAll('mine')}>{c('edit.keepAllMine')}</button>
-            <button type="button" className="btn" onClick={() => settleAll('theirs')}>{c('edit.useAllTheirs')}</button>
-          </div>
-          {conflicts.map((k) => (
-            <div className="edit-conflict" key={k.kind === 'field' ? `field-${k.id}` : `value-${k.keys.join('+')}`}>
-              <strong>{titleOf(k)}</strong>
-              <span>{c('edit.yours', { value: yoursOf(k) })}</span>
-              {k.kind === 'field' && k.mine && <span>{fieldMeta(k.mine)}</span>}
-              <span>{c('edit.theirs', { value: theirsOf(k) })}</span>
-              {k.kind === 'field' && k.theirs && <span>{fieldMeta(k.theirs)}</span>}
-              <span className="edit-conflict-choices">
-                <button type="button" className="btn" onClick={() => settle(k, 'mine')}>{c('edit.keepMine')}</button>
-                <button type="button" className="btn" onClick={() => settle(k, 'theirs')}>{c('edit.useTheirs')}</button>
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+      {conflictBlock}
 
       {canRemove && (
         <div className="wide pe-remove">
@@ -519,31 +705,7 @@ function EditForm({ tree, p, f, snap, done, onRemoved }: Omit<Props, 'detail'> &
         </div>
       )}
 
-      <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting, s.isDirty, s.values.born, s.values.died, s.values.living] as const}>
-        {([ok, busy, dirty, born, died, living]) => (
-          <div className="pe-bar wide" role="group" aria-label={c('edit.barLabel')}>
-            <div className="pe-status" role="status" aria-live="polite">
-              {conflicts.length > 0 ? (
-                <span id="edit-choose-first" className="pe-state warn">{c('edit.chooseFirst')}</span>
-              ) : busy ? (
-                <span className="pe-state busy">{c('edit.saving')}</span>
-              ) : dirty ? (
-                <span className="pe-state dirty">{c('draft.unsaved')}</span>
-              ) : (
-                <span className="pe-state clean">{c('edit.allSaved')}</span>
-              )}
-            </div>
-            <button type="button" className="btn ghost" onClick={() => leave(done)}>{c('edit.cancel')}</button>
-            <button
-              className="btn primary"
-              disabled={!ok || busy || conflicts.length > 0 || datesBlocked(born, died, living, today)}
-              aria-describedby={conflicts.length > 0 ? 'edit-choose-first' : undefined}
-            >
-              <Check size={14} /> {c('edit.save')}
-            </button>
-          </div>
-        )}
-      </form.Subscribe>
+      {statusLine}
     </form>
   );
 }

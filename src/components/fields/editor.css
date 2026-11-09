@@ -1,5 +1,5 @@
 /* The Edit tab. Sections with gold rules, two columns for names and one for everything with a date or a place, field
-   cards that read like a contact card, a grouped and searchable add menu, and a sticky save bar. Tokens only. */
+   cards that read like a contact card, a grouped and searchable add menu, and a quiet sticky line that says how saving is going. Tokens only. */
 
 .pp-edit.pe { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; padding-top: 4px; min-width: 0; }
 .pe > .rule { margin: 22px 0 12px; }
@@ -22,11 +22,13 @@
 .pe-state.clean { color: var(--muted); }
 .pe-state.clean::before { background: var(--ok); }
 .pe-state.warn { color: var(--danger); }
+.pe-state.hint { color: var(--muted); }
+.pe-state.hint::before { display: none; }
 @keyframes pe-spin { to { transform: rotate(360deg); } }
 
-/* The save bar stays at the foot of the tab while the reader scrolls it. It sticks within its form, so the panel's
+/* The status line stays at the foot of the tab while the reader scrolls it. It sticks within its form, so the panel's
    bottom padding must not sit below the form: the bar would stop above it and leave a strip of scrolled content. */
-.pp-body:has(.pp-edit) { padding-bottom: 0; }
+.pp-body:has(.pp-edit:not(.pe-inline)) { padding-bottom: 0; }
 .pe-bar {
   position: sticky; bottom: 0; z-index: 4; margin-top: 18px; padding: 10px 0 calc(12px + env(safe-area-inset-bottom));
   display: flex; align-items: center; gap: 8px; min-width: 0;
@@ -35,8 +37,8 @@
 [data-theme='codex'] .pe-bar { border-top-color: var(--edge-soft); background: linear-gradient(180deg, #1a2130, #151b27); box-shadow: 0 -10px 16px -12px #000b; }
 [data-theme='night'] .pe-bar { background: #1c2029; border-top-color: #6b563655; }
 .pe-status { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
-.pe-bar .btn.primary { min-width: 96px; justify-content: center; }
-.pe-bar .btn.primary:disabled { opacity: 0.5; }
+.pe-bar .btn { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+.pe-bar .btn:disabled { opacity: 0.5; }
 .pe-remove { display: flex; justify-content: flex-start; margin-top: 18px; padding-top: 12px; border-top: 1px dotted var(--border); }
 
 /* Field cards: one per field, a header with its kind and its moves, then the inputs and the privacy switch. */
@@ -97,6 +99,9 @@
   width: 28px; height: 28px; border-radius: 8px; background: var(--panel-3); color: var(--accent);
 }
 .fe-nomatch { margin: 0; }
+/* The usual kinds, one tap each, with the menu for the rest beside them. */
+.fe-quick { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.fe-quick .fe-add { justify-self: stretch; justify-content: center; margin-top: 0; min-height: 44px; }
 
 @media (max-width: 600px) {
   .pe-grid { grid-template-columns: minmax(0, 1fr); }
@@ -104,14 +109,15 @@
   .fe-inputs { grid-template-columns: minmax(0, 1fr); }
   .fe-labelrow .ui-select { min-width: 0; width: 100%; }
   .fe-labelrow > .field { flex-basis: 100%; }
-  .fe-menu-items { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .fe-menu-items, .fe-quick { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .fe-quick .fe-type { min-height: 48px; }
+  .fe-quick .fe-add { grid-column: 1 / -1; }
   .fe-menu-head .btn.icon, .fe-head .btn.icon.fe-move, .fe-head .btn.icon.fe-remove { width: 44px; height: 44px; }
   .fe-menu-items .fe-type { min-height: 48px; }
   .pe-bar .btn { min-height: 44px; }
   .pe .field.check .ui-switch-wrap, .dp-foot .ui-switch-wrap { min-height: 44px; }
   .pe .pi-pin { min-width: 44px; min-height: 44px; }
   .pe-remove .btn { min-height: 44px; }
-  .pe-bar .btn.primary { min-width: 120px; }
 }
 @media (prefers-reduced-motion: reduce) { .pe-state.busy::before { animation: none; } }
 
@@ -131,3 +137,16 @@
 .pe-further { display: grid; gap: 8px; min-width: 0; }
 .pe-further-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; min-width: 0; }
 .pe-further-add { justify-self: start; display: inline-flex; align-items: center; gap: 6px; }
+
+/* One field edited where it is shown, on the Everyday tab. */
+.pp-edit.pe.pe-inline { padding-top: 0; margin: 6px 0; }
+.pe-inline .pe-bar { position: static; margin-top: 8px; padding: 0; border-top: 0; background: none; box-shadow: none; }
+/* A value that can be tapped: it reads as the text it is, and only the cursor and the focus ring say more. */
+.fv-tap { display: block; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: start; cursor: text; border-radius: 4px; min-width: 0; overflow-wrap: anywhere; }
+.fv-tap:hover { color: var(--accent); }
+.fv-tap:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.fv-pencil { margin-inline-start: 4px; }
+/* The Everyday tab's add row: the kinds side by side, the box and its button below. */
+.pp-contact-add.pp-contact-quick { grid-template-columns: minmax(0, 1fr) 44px; }
+.pp-contact-add.pp-contact-quick .ui-seg { grid-column: 1 / -1; min-width: 0; }
+@media (max-width: 600px) { .fv-tap { min-height: 28px; } .fv-pencil { width: 44px; height: 44px; } }

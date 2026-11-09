@@ -1,10 +1,11 @@
 // The Edit tab's fields, shaped like a contact card: each field is a card with its kind, its label and its inputs.
 // The list is shown in three groups (contact, life, more), and the whole list is one array, so the order that is
-// saved is the order the cards were added in. Fields are added from one searchable menu, grouped by kind, and put in
-// order with the arrows (within their group), given a level (personal, editors, family), and removed.
+// saved is the order the cards were added in. The usual kinds are one tap, the rest are in a searchable menu grouped by
+// kind; a new card opens with its first box in focus. Cards are put in order with the arrows (within their group), given a
+// level (personal, editors, family), and removed.
 import { ArrowDown, ArrowUp, Plus, Search, Trash2, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { useId, useMemo, useState } from 'react';
+import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { formatAddress, parseAddress, type AddressParts } from '~/lib/address';
 import { countrySuggestions, languageSuggestions, wordSuggestions, type Used } from '~/lib/field-suggest';
 import { familyWordsQuery, type FamilyWords } from '~/lib/field-suggest.functions';
@@ -19,6 +20,7 @@ import { AddressFinder } from './AddressFinder';
 import { TYPE_ICON } from './FieldsView';
 import { VisibilityPicker } from './VisibilityMark';
 import type { Visibility } from '~/lib/visibility';
+import { isBlankNew } from './edit-values';
 import { blankValue, DEFAULT_LABEL, fieldIssue, isContactType, MAX_FIELDS, PRESETS, defaultVisibility, type FieldType, type FieldValue } from './model';
 import { presetLabel } from './presets';
 import { SuggestInput } from './SuggestInput';
@@ -62,22 +64,30 @@ const ADD_GROUPS: { title: Key; types: FieldType[] }[] = [
  * with suggestions (see WordInput).
  */
 type WordKind = 'language' | 'level' | 'country' | 'nationality' | 'religion' | 'favourite' | 'gift';
-interface Input { key: string; label: Key; wide?: boolean; multi?: boolean; type?: string; placeholder?: string; kind?: 'date' | 'period' | 'place' | WordKind }
+interface Input {
+  key: string; label: Key; wide?: boolean; multi?: boolean; type?: string; placeholder?: string; kind?: 'date' | 'period' | 'place' | WordKind;
+  /** The keyboard and the phone's autofill for this box. Left out: ordinary text, and no autofill of the reader's own details. */
+  inputMode?: 'tel' | 'email' | 'url' | 'numeric'; autoComplete?: string;
+  /** Typed exactly as it is: no capitals, no corrections. */
+  verbatim?: boolean;
+  /** A name: capitals on each word. */
+  name?: boolean;
+}
 const from: Input = { key: 'from', label: 'input.from', kind: 'period' };
 const to: Input = { key: 'to', label: 'input.to', kind: 'period' };
 const note: Input = { key: 'note', label: 'input.note', wide: true };
 const INPUTS: Record<FieldType, Input[]> = {
-  phone: [{ key: 'number', label: 'input.number', type: 'tel', wide: true, placeholder: '+49 …' }],
-  email: [{ key: 'address', label: 'input.email', type: 'email', wide: true, placeholder: 'name@example.com' }],
+  phone: [{ key: 'number', label: 'input.number', type: 'tel', wide: true, placeholder: '+49 …', inputMode: 'tel', autoComplete: 'tel' }],
+  email: [{ key: 'address', label: 'input.email', type: 'email', wide: true, placeholder: 'name@example.com', inputMode: 'email', autoComplete: 'email', verbatim: true }],
   address: [
-    { key: 'street', label: 'input.street', wide: true },
-    { key: 'postcode', label: 'input.postcode' },
-    { key: 'city', label: 'input.city' },
+    { key: 'street', label: 'input.street', wide: true, autoComplete: 'street-address' },
+    { key: 'postcode', label: 'input.postcode', autoComplete: 'postal-code' },
+    { key: 'city', label: 'input.city', autoComplete: 'address-level2' },
     { key: 'country', label: 'input.country', wide: true, kind: 'country' },
   ],
-  website: [{ key: 'url', label: 'input.url', type: 'url', wide: true, placeholder: 'example.org' }],
-  social: [{ key: 'handle', label: 'input.handle', wide: true, placeholder: '@name' }],
-  names: [{ key: 'name', label: 'input.name', wide: true }],
+  website: [{ key: 'url', label: 'input.url', type: 'url', wide: true, placeholder: 'example.org', inputMode: 'url', autoComplete: 'url', verbatim: true }],
+  social: [{ key: 'handle', label: 'input.handle', wide: true, placeholder: '@name', verbatim: true }],
+  names: [{ key: 'name', label: 'input.name', wide: true, name: true }],
   dates: [{ key: 'date', label: 'input.date', wide: true, kind: 'date' }, note],
   education: [{ key: 'school', label: 'input.school', wide: true }, { key: 'place', label: 'input.place', wide: true, kind: 'place' }, from, to, note],
   occupation: [{ key: 'title', label: 'input.title', wide: true }, { key: 'employer', label: 'input.employer', wide: true }, from, to, note],
@@ -92,7 +102,7 @@ const INPUTS: Record<FieldType, Input[]> = {
   notes: [{ key: 'text', label: 'input.text', wide: true, multi: true }],
   related: [
     { key: 'person', label: 'input.person', wide: true },
-    { key: 'name', label: 'input.nameOutside', wide: true },
+    { key: 'name', label: 'input.nameOutside', wide: true, name: true },
     note,
   ],
   custom: [{ key: 'text', label: 'input.text', wide: true, multi: true }],
@@ -178,18 +188,27 @@ function AddressCardFinder({ tree, f, onChange, id, fam, self }: { tree: string;
 /** Accent- and case-insensitive, so a search for "geburt" also finds "Gebürt". */
 const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
 
-/** The list (one group of it), with add, reorder and remove. `value` is the whole list; `group` picks what this shows. */
-export function FieldEditor({ tree, value, onChange, fam, self, group, addMenu = false }: {
+/** One tap to add, without opening the menu: what people add most. */
+const QUICK_ADD: readonly FieldType[] = ['phone', 'email', 'address', 'notes'];
+
+/**
+ * The list (one group of it), with add, reorder and remove. `value` is the whole list; `group` picks what this shows, and
+ * `only` (a field's id or key) narrows it to one card that cannot be moved. `focusKey` is the card whose first box gets
+ * the focus; `onAdded` reports a new card's key, so the parent can pass it back here even when another group shows it.
+ */
+export function FieldEditor({ tree, value, onChange, fam, self, group, addMenu = false, only, focusKey, onAdded }: {
   tree: string; value: DraftField[]; onChange: (next: DraftField[]) => void; fam: Family; self: string;
-  group: FieldGroup; addMenu?: boolean;
+  group: FieldGroup; addMenu?: boolean; only?: string; focusKey?: string | null; onAdded?: (key: string) => void;
 }) {
   const c = useT();
   const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState('');
   const full = value.length >= MAX_FIELDS;
-  const rows = value.map((f, i) => ({ f, i })).filter(({ f }) => groupOf(f.type) === group);
+  const rows = value.map((f, i) => ({ f, i })).filter(({ f }) => (only ? f.id === only || f.key === only : groupOf(f.type) === group));
   const add = (type: FieldType) => {
-    onChange([...value, { key: newKey(), type, label: DEFAULT_LABEL[type] ?? '', value: blankValue(type), visibility: defaultVisibility(type) }]);
+    const key = newKey();
+    onChange([...value, { key, type, label: DEFAULT_LABEL[type] ?? '', value: blankValue(type), visibility: defaultVisibility(type) }]);
+    onAdded?.(key);
     setAdding(false);
     setQuery('');
   };
@@ -215,7 +234,7 @@ export function FieldEditor({ tree, value, onChange, fam, self, group, addMenu =
         <ol className="fe-list">
           {rows.map(({ f, i }, k) => (
             <FieldRowEditor
-              key={f.key} tree={tree} f={f} index={k} count={rows.length} fam={fam} self={self}
+              key={f.key} tree={tree} f={f} index={k} count={rows.length} fam={fam} self={self} fixed={!!only} focusFirst={f.key === focusKey}
               onChange={(patch) => update(i, patch)} onMove={(d) => move(i, d)} onRemove={() => remove(i)}
             />
           ))}
@@ -260,17 +279,25 @@ export function FieldEditor({ tree, value, onChange, fam, self, group, addMenu =
           {!anyMatch && <p className="subtle fe-nomatch" role="status">{c('fields.noMatch', { query: query.trim() })}</p>}
         </div>
       ) : (
-        <button type="button" className="btn fe-add" onClick={() => setAdding(true)} disabled={full} aria-expanded={false}>
-          <Plus size={14} /> {c('fields.add')}
-        </button>
+        <div className="fe-quick" role="group" aria-label={c('fields.addMenu')}>
+          {QUICK_ADD.map((t) => (
+            <button type="button" className="fe-type" key={t} onClick={() => add(t)} disabled={full}>
+              <span className="fe-type-icon" aria-hidden>{TYPE_ICON[t]}</span>
+              <span>{c(`type.${t}` as Key)}</span>
+            </button>
+          ))}
+          <button type="button" className="btn fe-add" onClick={() => setAdding(true)} disabled={full} aria-expanded={false}>
+            <Plus size={14} /> {c('fields.add')}
+          </button>
+        </div>
       ))}
       {addMenu && full && <p className="subtle">{c('fields.full', { max: MAX_FIELDS })}</p>}
     </div>
   );
 }
 
-function FieldRowEditor({ tree, f, index, count, fam, self, onChange, onMove, onRemove }: {
-  tree: string; f: DraftField; index: number; count: number; fam: Family; self: string;
+function FieldRowEditor({ tree, f, index, count, fam, self, fixed, focusFirst, onChange, onMove, onRemove }: {
+  tree: string; f: DraftField; index: number; count: number; fam: Family; self: string; fixed: boolean; focusFirst: boolean;
   onChange: (patch: Partial<DraftField>) => void; onMove: (d: -1 | 1) => void; onRemove: () => void;
 }) {
   const c = useT();
@@ -279,8 +306,14 @@ function FieldRowEditor({ tree, f, index, count, fam, self, onChange, onMove, on
   // A label the family typed (not one of the offered words) keeps the box open for typing.
   const [typing, setTyping] = useState(!!f.label && !presets.includes(f.label) && presets.length > 0);
   const typeName = c(`type.${f.type}` as Key);
-  const issue = fieldIssue(f.type, f.value);
+  // A card nobody has written in yet has nothing wrong with it.
+  const issue = isBlankNew(f) ? undefined : fieldIssue(f.type, f.value);
   const issueText = issue ? c(`issue.${issue}`) : undefined;
+  const card = useRef<HTMLLIElement>(null);
+  // In the commit of the tap that made the card, so the phone still opens the keyboard for it.
+  useLayoutEffect(() => {
+    if (focusFirst) card.current?.querySelector<HTMLElement>('.fe-inputs input:not([type=search]), .fe-inputs textarea')?.focus();
+  }, [focusFirst]);
   const labelOptions = [
     { value: '__none', label: c('label.none') },
     ...presets.map((p) => ({ value: p, label: presetLabel(p, c) })),
@@ -289,13 +322,13 @@ function FieldRowEditor({ tree, f, index, count, fam, self, onChange, onMove, on
   const selectValue = typing ? '__custom' : f.label || '__none';
 
   return (
-    <li className={`fe-row fe-row-${f.type}`} aria-labelledby={`${id}-name`}>
+    <li ref={card} className={`fe-row fe-row-${f.type}`} aria-labelledby={`${id}-name`}>
       <div className="fe-head">
         <span className="fe-icon" aria-hidden>{TYPE_ICON[f.type]}</span>
         <b id={`${id}-name`} className="fe-name">{typeName}</b>
         <span className="spacer" />
-        <button type="button" className="btn icon ghost fe-move" onClick={() => onMove(-1)} disabled={index === 0} aria-label={c('fields.moveUp', { name: typeName })} title={c('fields.moveUp', { name: typeName })}><ArrowUp size={15} /></button>
-        <button type="button" className="btn icon ghost fe-move" onClick={() => onMove(1)} disabled={index === count - 1} aria-label={c('fields.moveDown', { name: typeName })} title={c('fields.moveDown', { name: typeName })}><ArrowDown size={15} /></button>
+        {!fixed && <button type="button" className="btn icon ghost fe-move" onClick={() => onMove(-1)} disabled={index === 0} aria-label={c('fields.moveUp', { name: typeName })} title={c('fields.moveUp', { name: typeName })}><ArrowUp size={15} /></button>}
+        {!fixed && <button type="button" className="btn icon ghost fe-move" onClick={() => onMove(1)} disabled={index === count - 1} aria-label={c('fields.moveDown', { name: typeName })} title={c('fields.moveDown', { name: typeName })}><ArrowDown size={15} /></button>}
         <button type="button" className="btn icon ghost fe-remove" onClick={onRemove} aria-label={c('fields.remove', { name: typeName })} title={c('fields.remove', { name: typeName })}><Trash2 size={15} /></button>
       </div>
 
@@ -383,7 +416,18 @@ function FieldRowEditor({ tree, f, index, count, fam, self, onChange, onMove, on
           return (
             <label className={cls} key={inp.key}>
               <span>{label}</span>
-              <input className="input" type={inp.type ?? 'text'} value={v} placeholder={inp.placeholder} onChange={(e) => setV(e.target.value)} />
+              <input
+                className="input"
+                type={inp.type ?? 'text'}
+                value={v}
+                placeholder={inp.placeholder}
+                inputMode={inp.inputMode}
+                autoComplete={inp.autoComplete ?? 'off'}
+                autoCapitalize={inp.verbatim ? 'none' : inp.name ? 'words' : undefined}
+                autoCorrect={inp.verbatim ? 'off' : undefined}
+                spellCheck={inp.verbatim ? false : undefined}
+                onChange={(e) => setV(e.target.value)}
+              />
             </label>
           );
         })}

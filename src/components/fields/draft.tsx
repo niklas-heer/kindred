@@ -4,7 +4,8 @@ import { useStore } from '@tanstack/react-form';
 import { createContext, useContext, useEffect } from 'react';
 import { useT } from '~/lib/i18n';
 
-export type Draft = { dirty: boolean; busy: boolean; save: () => Promise<boolean> };
+/** `discard` is for a form that keeps a copy of itself: leaving without saving has to drop that too. */
+export type Draft = { dirty: boolean; busy: boolean; save: () => Promise<boolean>; discard?: () => void };
 
 export const DraftContext = createContext<{ register: (draft: Draft | null) => void; leave: (next: () => void) => void }>({
   register: () => {},

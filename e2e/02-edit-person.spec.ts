@@ -29,7 +29,12 @@ test('editing a person, with a partnership and a date', async ({ page }) => {
   await born.getByRole('combobox', { name: 'Month' }).click();
   await page.getByRole('option', { name: 'March' }).click();
   await born.getByRole('textbox', { name: 'Year' }).fill('1950');
-  await page.getByRole('group', { name: 'Save changes' }).getByRole('button', { name: 'Save' }).click();
+  // It saves on its own: there is no Save button to find, and the status line says when it is done.
+  const status = page.getByRole('group', { name: 'Saving' }).getByRole('status');
+  await expect(status).toHaveText('All saved');
+  const undo = page.getByRole('group', { name: 'Saving' }).getByRole('button', { name: 'Undo' });
+  await expect(undo).toBeEnabled();
+  await page.getByRole('tab', { name: 'Overview' }).click();
   await expect(page.getByRole('complementary').getByText(/12 March 1950/)).toBeVisible();
 
   await page.reload();

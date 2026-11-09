@@ -9,7 +9,7 @@ import {
   Paintbrush, Phone, Plus, Quote, Route as RouteIcon, Sparkles, StickyNote, Trash2, UserRound, X,
 } from 'lucide-react';
 import { feature, mesh } from 'topojson-client';
-import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react';
 import { addStory, deleteStory, newOpKey, opKeys, setPartnershipEnd, uploadPhoto, unlinkRelative } from '~/lib/api';
 import { addPersonField, deletePersonField, personDetailQuery, setLook } from '~/lib/person.functions';
 import { kinshipLabel, locales, ordinal, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
@@ -33,14 +33,14 @@ import { chooseMe } from '~/lib/family';
 import { useToday } from '~/lib/clock';
 import { can, type Role } from '~/lib/roles';
 import { useCan, useMembership, useRole, useSession } from '~/lib/session';
-import type { GPerson, House, Look, PersonDetail, Place, Story } from '~/lib/types';
+import type { GPerson, House, Look, PersonDetail, PersonField, Place, Story } from '~/lib/types';
 import { TRAITS } from '~/lib/traits';
 import { GAP_ACTION, GAP_LABEL, GAP_WHERE, gapsOf, useRequired, type GapKey } from '~/lib/gaps';
 import { renderMarkdown } from '~/lib/markdown';
 import { GameIcon } from './GameIcon';
 import { Arms } from './Heraldry';
 import { Portrait } from './Portrait';
-import { DatePicker, Dialog, ErrorState, Skeleton, Tabs, TabList, Tab as UiTab, TabPanel, Select, isOverlayOpen } from './ui';
+import { DatePicker, Dialog, ErrorState, Segmented, Skeleton, Tabs, TabList, Tab as UiTab, TabPanel, Select, isOverlayOpen } from './ui';
 import { QuickAdd } from './QuickAdd';
 import type { AddRelation } from './Card';
 import { DraftContext, DraftTracker, type Draft } from './fields/draft';
@@ -54,7 +54,7 @@ import { ContactRow, FieldGroups, contactHref, contactsOf } from './fields/Field
 import { RemoveOwnField, VisibilityMark } from './fields/VisibilityMark';
 import { AddressFinder } from './fields/AddressFinder';
 import { formatAddress, parseAddress, type AddressParts } from '~/lib/address';
-import { DEFAULT_LABEL, defaultVisibility } from './fields/model';
+import { DEFAULT_LABEL, defaultVisibility, fieldIssue, fieldText, type IssueCode } from './fields/model';
 import './panel.css';
 import './profile.css';
 
@@ -259,7 +259,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
       {add && canAdd && <QuickAdd family={f} tree={tree} anchor={id} relation={add} onCancel={() => setAdd(null)} onDone={() => setAdd(null)} />}
       <Dialog open={!!guarded} onClose={keep} title={t('panel.unsavedTitle')} dismissible={!savingDraft && !draft?.busy} footer={<>
         <button className="btn ghost" disabled={savingDraft || draft?.busy} onClick={keep}>{t('panel.keepEditing')}</button>
-        <button className="btn" disabled={savingDraft || draft?.busy} onClick={proceed}>{t('panel.discard')}</button>
+        <button className="btn" disabled={savingDraft || draft?.busy} onClick={() => { draft?.discard?.(); proceed(); }}>{t('panel.discard')}</button>
         <button className="btn primary" disabled={savingDraft || draft?.busy} onClick={async () => { setSavingDraft(true); try { if (await draft?.save()) proceed(); } finally { setSavingDraft(false); } }}>{t('panel.save')}</button>
       </>}><p>{t('panel.unsavedBody')}</p></Dialog>
       {appearance && canEdit && <AppearanceDialog tree={tree} p={p} house={house ?? null} onClose={() => setAppearance(false)} />}
@@ -1013,6 +1013,13 @@ const QUICK_KINDS = ['phone', 'email', 'address', 'website'] as const;
 type QuickKind = (typeof QUICK_KINDS)[number];
 /** The value key each quick kind keeps its text under (see fields/model.ts). */
 const QUICK_KEY: Record<QuickKind, string> = { phone: 'number', email: 'address', address: 'street', website: 'url' };
+/** The keyboard and the phone's autofill for each kind. */
+const VERBATIM = { autoCapitalize: 'none', autoCorrect: 'off', spellCheck: false } as const;
+const QUICK_INPUT: Record<Exclude<QuickKind, 'address'>, InputHTMLAttributes<HTMLInputElement>> = {
+  phone: { type: 'tel', inputMode: 'tel', autoComplete: 'tel' },
+  email: { type: 'email', inputMode: 'email', autoComplete: 'email', ...VERBATIM },
+  website: { type: 'url', inputMode: 'url', autoComplete: 'url', ...VERBATIM },
+};
 
 function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tree: string; p: GPerson; details: DetailState; canEdit: boolean; onSelect: (id: string) => void }) {
   const detail = details.detail;
@@ -1022,12 +1029,21 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
   const today = useToday();
   const [kind, setKind] = useState<QuickKind>('phone');
   const [value, setValue] = useState('');
+  const [issue, setIssue] = useState<IssueCode | null>(null);
+  const addBox = useRef<HTMLInputElement>(null);
+  const addRow = useRef<HTMLFormElement>(null);
+  const { leave } = useContext(DraftContext);
+  // The contact or field being edited in place, by its id.
+  const [editing, setEditing] = useState<string | null>(null);
+  const startEditing = (fid: string) => leave(() => setEditing(fid));
+  const editorFor = (fid: string) => detail && editing === fid ? <PersonEdit key={fid} tree={tree} p={p} f={f} detail={detail} only={fid} done={() => setEditing(null)} onRemoved={() => setEditing(null)} /> : null;
   // One key per attempt: a retry after a lost answer never adds the contact twice.
   const [keys] = useState(opKeys);
+  const quickValue = (copied?: AddressParts): Record<string, string> => kind === 'address' ? { ...(copied ?? parseAddress(value)) } : { [QUICK_KEY[kind]]: value.trim() };
   const add = useMutation({
     // `copied` is a relative's address: it becomes this person's own field, at the restricted default.
     mutationFn: (copied?: AddressParts) => {
-      const data = { tree, person: p.id, field: { type: kind, label: DEFAULT_LABEL[kind] ?? '', value: kind === 'address' ? { ...(copied ?? parseAddress(value)) } : { [QUICK_KEY[kind]]: value.trim() }, visibility: defaultVisibility(kind) } };
+      const data = { tree, person: p.id, field: { type: kind, label: DEFAULT_LABEL[kind] ?? '', value: quickValue(copied), visibility: defaultVisibility(kind) } };
       return addPersonField({ data: { ...data, opKey: keys.for('contact', data) } });
     },
     onSuccess: () => { keys.clear('contact'); setValue(''); qc.invalidateQueries({ queryKey: ['family-addresses', tree, p.id] }); qc.invalidateQueries({ queryKey: ['person', tree, p.id] }); qc.invalidateQueries({ queryKey: ['contacts', tree] }); qc.invalidateQueries({ queryKey: ['graph', tree] }); },
@@ -1048,7 +1064,19 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
   const removeContact = (fid: string) => (
     <button className="btn icon ghost" aria-label={c('reach.remove')} title={c('reach.remove')} onClick={() => del.mutate(fid)} disabled={del.isPending}><Trash2 size={13} /></button>
   );
-  const fieldsBlock = <FieldGroups fields={detail.fields} fam={f} onSelect={onSelect} removeOwn={canEdit ? undefined : (id) => <RemoveOwnField tree={tree} person={p.id} id={id} />} />;
+  const fieldsBlock = <FieldGroups fields={detail.fields} fam={f} onSelect={onSelect} removeOwn={canEdit ? undefined : (id) => <RemoveOwnField tree={tree} person={p.id} id={id} />} onEdit={canEdit ? startEditing : undefined} editor={canEdit ? editorFor : undefined} />;
+  /** Adds what is in the box. Leaving the box adds it too, but only quietly: half a phone number just stays there. */
+  const submitContact = (quiet: boolean) => {
+    if (!value.trim() || add.isPending) return;
+    const wrong = fieldIssue(kind, quickValue());
+    if (wrong) { if (!quiet) setIssue(wrong); return; }
+    add.mutate(undefined);
+  };
+  /** Not when the focus only moved within the row (to the kinds, the add button or a suggestion). */
+  const leftAddRow = (next: EventTarget | null) => { if (!addRow.current?.contains(next as Node | null)) submitContact(true); };
+  const editContact = (x: PersonField) => canEdit && (
+    <button className="btn icon ghost" aria-label={`${c('fields.editValue', { name: c(`type.${x.type}` as Key) })}: ${fieldText(x.type, x.value)}`} title={c('fields.editValue', { name: c(`type.${x.type}` as Key) })} onClick={() => startEditing(x.id)}><Pencil size={13} /></button>
+  );
 
   if (!p.living) {
     const died = p.died && today ? nextOccurrence(p.died, today) : undefined;
@@ -1099,15 +1127,17 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
       </div>
 
       <div className="rule">{c('reach.heading', { name: p.given })}</div>
-      {contacts.map((x) => <ContactRow key={x.id} f={x} actions={canContact ? removeContact(x.id) : x.visibility === 'personal' ? <RemoveOwnField tree={tree} person={p.id} id={x.id} /> : undefined} />)}
+      {contacts.map((x) => editorFor(x.id) ?? <ContactRow key={x.id} f={x} actions={<>{editContact(x)}{canContact ? removeContact(x.id) : x.visibility === 'personal' ? <RemoveOwnField tree={tree} person={p.id} id={x.id} /> : null}</>} />)}
       {!contacts.length && !canContact && <p className="pp-ask subtle">{c('reach.none')}</p>}
       {canContact && (
-        <form className="pp-contact-add" onSubmit={(e) => { e.preventDefault(); if (value.trim()) add.mutate(undefined); }}>
-          <Select aria-label={c('reach.kind')} value={kind} onChange={(v) => setKind(v as QuickKind)} options={QUICK_KINDS.map((k) => ({ value: k, label: c(`type.${k}`) }))} />
+        <form ref={addRow} className="pp-contact-add pp-contact-quick" noValidate onBlur={(e) => leftAddRow(e.relatedTarget)} onSubmit={(e) => { e.preventDefault(); submitContact(false); }}>
+          <Segmented aria-label={c('reach.kind')} block value={kind} onChange={(v) => { setKind(v); setIssue(null); addBox.current?.focus(); }} options={QUICK_KINDS.map((k) => ({ value: k, label: c(`type.${k}`) }))} />
           {kind === 'address'
-            ? <AddressFinder tree={tree} value={value} onChange={setValue} onPick={(parts) => setValue(formatAddress(parts))} family={{ person: p.id, fam: f, onCopy: (parts) => add.mutate(parts) }} label={c('reach.details')} placeholder={c('reach.placeholder.address')} />
-            : <input aria-label={c('reach.details')} className="input" value={value} onChange={(e) => setValue(e.target.value)} placeholder={c(`reach.placeholder.${kind}`)} />}
+            ? <AddressFinder tree={tree} value={value} onChange={(v) => { setValue(v); setIssue(null); }} onPick={(parts) => setValue(formatAddress(parts))} family={{ person: p.id, fam: f, onCopy: (parts) => add.mutate(parts) }} label={c('reach.details')} placeholder={c('reach.placeholder.address')} />
+            : <input ref={addBox} aria-label={c('reach.details')} className="input" enterKeyHint="done" {...QUICK_INPUT[kind]} value={value} onChange={(e) => { setValue(e.target.value); setIssue(null); }} placeholder={c(`reach.placeholder.${kind}`)} />}
           <button aria-label={c('reach.add')} className="btn" disabled={!value.trim() || add.isPending}><Plus size={14} /></button>
+          {issue && <em className="err pp-contact-err" role="status">{c(`issue.${issue}`)}</em>}
+          {add.isError && <em className="err pp-contact-err" role="alert">{c('edit.saveStuck')}</em>}
         </form>
       )}
       {fieldsBlock}

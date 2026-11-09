@@ -2,7 +2,7 @@
 // are shown separately (they have buttons: call, write, find); the rest is the details page.
 import {
   AtSign, BriefcaseBusiness, CalendarHeart, Church, Flag, GraduationCap, Gift, Globe, HeartPulse, Languages, Mail, MapPin,
-  Phone, Shield, Star, StickyNote, TriangleAlert, Users, IdCard, Tag,
+  Pencil, Phone, Shield, Star, StickyNote, TriangleAlert, Users, IdCard, Tag,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { formatDate, useT, type Key, type Translator } from '~/lib/i18n';
@@ -100,20 +100,32 @@ function FieldValue({ f, fam, onSelect }: { f: PersonField; fam?: Family; onSele
 }
 
 /** One row: its label, then its value. The label is the family's word for it, or the type's name. */
-export function FieldRow({ f, fam, onSelect, removeOwn }: { f: PersonField; fam?: Family; onSelect?: (id: string) => void; removeOwn?: (id: string) => ReactNode }) {
+export function FieldRow({ f, fam, onSelect, removeOwn, onEdit }: { f: PersonField; fam?: Family; onSelect?: (id: string) => void; removeOwn?: (id: string) => ReactNode; onEdit?: () => void }) {
   const c = useT();
   const name = f.label ? presetLabel(f.label, c) : c(`type.${f.type}` as Key);
+  // A related person's name is already a button (it opens them), so that row has a pencil instead of a tappable value.
+  const opensSomeone = f.type === 'related' && !!f.value.person;
+  const editAria = `${c('fields.editValue', { name })}: ${fieldText(f.type, f.value)}`;
   return (
     <div className="fv-row">
       <span className="fv-icon" aria-hidden>{TYPE_ICON[f.type]}</span>
-      <span className="fv-label"><span>{name}</span><VisibilityMark level={f.visibility} />{removeOwn && f.visibility === 'personal' && removeOwn(f.id)}</span>
-      <span className="fv-value"><FieldValue f={f} fam={fam} onSelect={onSelect} /></span>
+      <span className="fv-label">
+        <span>{name}</span><VisibilityMark level={f.visibility} />{removeOwn && f.visibility === 'personal' && removeOwn(f.id)}
+        {onEdit && opensSomeone && <button type="button" className="btn icon ghost fv-pencil" aria-label={editAria} title={c('fields.editValue', { name })} onClick={onEdit}><Pencil size={13} /></button>}
+      </span>
+      {onEdit && !opensSomeone
+        ? <button type="button" className="fv-value fv-tap" aria-label={editAria} onClick={onEdit}><FieldValue f={f} fam={fam} onSelect={onSelect} /></button>
+        : <span className="fv-value"><FieldValue f={f} fam={fam} onSelect={onSelect} /></span>}
     </div>
   );
 }
 
 /** The non-contact fields, under their group headings. Nothing renders when there are none. */
-export function FieldGroups({ fields, fam, onSelect, removeOwn }: { fields: PersonField[]; fam?: Family; onSelect?: (id: string) => void; removeOwn?: (id: string) => ReactNode }) {
+export function FieldGroups({ fields, fam, onSelect, removeOwn, onEdit, editor }: {
+  fields: PersonField[]; fam?: Family; onSelect?: (id: string) => void; removeOwn?: (id: string) => ReactNode;
+  /** Tapping a value edits it: `editor` returns the in-place editor for the field being edited, and null for the rest. */
+  onEdit?: (id: string) => void; editor?: (id: string) => ReactNode;
+}) {
   const c = useT();
   const groups = GROUPS.map((g) => ({ ...g, items: fields.filter((x) => g.types.includes(x.type)) })).filter((g) => g.items.length);
   if (!groups.length) return null;
@@ -122,7 +134,7 @@ export function FieldGroups({ fields, fam, onSelect, removeOwn }: { fields: Pers
       {groups.map((g) => (
         <section className="fv-group" key={g.id} aria-label={c(g.title)}>
           <div className="rule">{c(g.title)}</div>
-          {g.items.map((f) => <FieldRow key={f.id} f={f} fam={fam} onSelect={onSelect} removeOwn={removeOwn} />)}
+          {g.items.map((f) => editor?.(f.id) ?? <FieldRow key={f.id} f={f} fam={fam} onSelect={onSelect} removeOwn={removeOwn} onEdit={onEdit && (() => onEdit(f.id))} />)}
         </section>
       ))}
     </>

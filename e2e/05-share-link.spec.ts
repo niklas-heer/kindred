@@ -33,10 +33,10 @@ test('share link: create, guest signs in, viewer only, writes refused', async ({
   await settled(page);
   await page.getByRole('button', { name: new RegExp(`^${STEWARD.given} ${STEWARD.surname}`) }).nth(1).click();
   await page.getByRole('tab', { name: 'Edit' }).click();
-  await page.getByRole('textbox', { name: 'Epithet' }).fill('the Guarded');
+  // Filling the box is the whole act: the form saves it after a moment.
   const [write] = await Promise.all([
     page.waitForRequest((r) => r.method() === 'POST' && (r.postData() ?? '').includes('the Guarded')),
-    page.getByRole('group', { name: 'Save changes' }).getByRole('button', { name: 'Save' }).click(),
+    page.getByRole('textbox', { name: 'Epithet' }).fill('the Guarded'),
   ]);
   await expect(page.getByRole('complementary').getByRole('heading', { name: `${STEWARD.given} ${STEWARD.surname} the Guarded`, exact: true })).toBeVisible();
 
