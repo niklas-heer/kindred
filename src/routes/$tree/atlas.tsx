@@ -478,7 +478,7 @@ function PlaceDetail({ pin, f, tree, mode, onBack }: { pin: Pin; f: ReturnType<t
       </div>
       {groups.map(([k, people]) => (
         <section key={k}>
-          <h3 className={`rule k-${k}`}><GameIcon name={ICON[k]} size={14} /> {WHAT[k]} <span className="subtle">{people.length}</span></h3>
+          <h3 className={`rule k-${k}`}><GameIcon name={ICON[k]} size={14} /> {tr(WHAT[k])} <span className="subtle">{people.length}</span></h3>
           <ul>
             {people.map((p) => (
               <li key={p.id}>
