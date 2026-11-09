@@ -300,18 +300,19 @@ export async function widgetFor(o: { tree: string; user: string; role: Role; me:
 export const KIN_RELATIONS = ['parent', 'child', 'sibling', 'partner', 'grandparent', 'grandchild', 'aunt_uncle', 'niece_nephew', 'cousin', 'in_law', 'ancestor', 'descendant'] as const;
 export type KinRelation = (typeof KIN_RELATIONS)[number];
 const KIN_MATCH: Record<KinRelation, RegExp> = {
-  parent: /^(father|mother|parent)$/,
-  child: /^(son|daughter|child)$/,
+  parent: /^(adoptive )?(father|mother|parent)$/,
+  child: /^(adopted )?(son|daughter|child)$/,
   sibling: /^(half-)?(brother|sister|sibling)$/,
   partner: /^(husband|wife|partner)$/,
   grandparent: /^grand(father|mother|parent)$/,
   grandchild: /^grand(son|daughter|child)$/,
   aunt_uncle: /^(half-)?(aunt|uncle|pibling)$|^(great-|\d+× great-)(half-)?(aunt|uncle|pibling)$/,
   niece_nephew: /^(half-)?(niece|nephew|nibling)$|^(great-|\d+× great-)(half-)?(niece|nephew|nibling)$/,
-  cousin: /cousin/,
-  in_law: /-in-law$/,
-  ancestor: /grand(father|mother|parent)$|^(father|mother|parent)$/,
-  descendant: /grand(son|daughter|child)$|^(son|daughter|child)$/,
+  // Anchored, so a tie through a marriage ("wife's first cousin") is an in-law, not a cousin or an ancestor.
+  cousin: /^[^']*cousin[^']*$/,
+  in_law: /-in-law$|'s /,
+  ancestor: /^[^']*grand(father|mother|parent)$|^(adoptive )?(father|mother|parent)$/,
+  descendant: /^[^']*grand(son|daughter|child)$|^(adopted )?(son|daughter|child)$/,
 };
 
 export const KIN_TOOL: ToolSpec = {

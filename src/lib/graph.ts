@@ -59,17 +59,6 @@ export function sameParents(f: Family, a: string, b: string): boolean {
   const pa = new Set(parents(f, a)), pb = parents(f, b);
   return pa.size === pb.length && pb.every((p) => pa.has(p));
 }
-/** The child of `anc` on the line from `start` up to it: the person whose parent is `anc`. */
-export function childOnLine(f: Family, start: string, anc: string): string | undefined {
-  const prev = new Map<string, string | null>([[start, null]]);
-  const q = [start];
-  while (q.length) {
-    const x = q.shift()!;
-    if (x === anc) break;
-    for (const p of parents(f, x)) if (!prev.has(p)) { prev.set(p, x); q.push(p); }
-  }
-  return prev.get(anc) ?? undefined;
-}
 export function siblings(f: Family, id: string): string[] {
   const out = new Set<string>();
   for (const p of parents(f, id)) for (const c of children(f, p)) if (c !== id) out.add(c);
@@ -223,14 +212,27 @@ export function generations(f: Family): Map<string, number> {
 
 // ---------- kinship ----------
 
-/** Ancestors of id with their distance (1 = parent). Keeps the shortest distance per ancestor. */
-export function ancestorDepths(f: Family, id: string): Map<string, number> {
+/**
+ * Links that make kin by descent. Biological and adoptive links do, as for succession (houses.tsx); a step or
+ * foster link ties a household, not a line, so it is named as such and never read as blood.
+ */
+const NOT_BLOOD = new Set(['step', 'foster']);
+const kindOf = (f: Family, child: string, parent: string) => f.linkKind.get(`${child}>${parent}`) ?? 'biological';
+/** A person's parents by descent: biological and adoptive links only. */
+export const bloodParents = (f: Family, id: string) => parents(f, id).filter((p) => !NOT_BLOOD.has(kindOf(f, id, p)));
+
+/**
+ * Ancestors of id with their distance (1 = parent). Keeps the shortest distance per ancestor. Every link counts unless
+ * `blood` is set, then only biological and adoptive ones (what kinship walks).
+ */
+export function ancestorDepths(f: Family, id: string, blood = false): Map<string, number> {
+  const up = blood ? bloodParents : parents;
   const out = new Map<string, number>([[id, 0]]);
   const queue = [id];
   while (queue.length) {
     const x = queue.shift()!;
     const d = out.get(x)!;
-    for (const p of parents(f, x)) {
+    for (const p of up(f, x)) {
       if (!out.has(p)) {
         out.set(p, d + 1);
         queue.push(p);
@@ -256,19 +258,47 @@ function gendered(p: GPerson | undefined, m: string, w: string, x: string) {
 }
 
 export interface Kinship {
-  label: string; // "great-aunt", "second cousin once removed", "husband"
+  label: string; // "great-aunt", "second cousin once removed", "husband", "stepmother", "wife's cousin"
   /** The common ancestor(s) the relationship goes through. */
   via: string[];
+  /** For a tie through a marriage or a step or foster link: the people from the first person to the second. */
+  path?: string[];
 }
 
+/** Whether a family has any step or foster link, so depths over every link may differ from depths over blood. */
+const householdLinks = new WeakMap<Family, boolean>();
+function hasHouseholdLinks(f: Family): boolean {
+  let has = householdLinks.get(f);
+  if (has === undefined) householdLinks.set(f, (has = [...f.linkKind.values()].some((k) => NOT_BLOOD.has(k))));
+  return has;
+}
 /**
- * How `other` is related to `me`, in English: "your great-aunt". Blood relationships go through the
- * closest common ancestor; otherwise spouses and in-laws one step out.
+ * Blood ancestor depths for kinship. Callers pass `ancestorDepths(f, me)` as a cache; it is the same over blood links
+ * unless the family has a step or foster link, and then it is worked out again.
  */
-export function kinship(f: Family, me: string, other: string, myAnc = ancestorDepths(f, me), inLaws = true): Kinship | undefined {
-  if (me === other) return { label: 'you', via: [] };
+const bloodDepths = (f: Family, id: string, given?: Map<string, number>) => (given && !hasHouseholdLinks(f) ? given : ancestorDepths(f, id, true));
+
+/** The child of `anc` on the blood line from `start` up to it: the person whose parent is `anc`. */
+export function childOnLine(f: Family, start: string, anc: string): string | undefined {
+  const prev = new Map<string, string | null>([[start, null]]);
+  const q = [start];
+  while (q.length) {
+    const x = q.shift()!;
+    if (x === anc) break;
+    for (const p of bloodParents(f, x)) if (!prev.has(p)) { prev.set(p, x); q.push(p); }
+  }
+  return prev.get(anc) ?? undefined;
+}
+/** Same parents by descent: a full sibling of whoever it is compared with. */
+function sameBloodParents(f: Family, a: string, b: string): boolean {
+  const pa = new Set(bloodParents(f, a)), pb = bloodParents(f, b);
+  return pa.size === pb.length && pb.every((p) => pa.has(p));
+}
+
+/** A relation by descent through the closest common ancestor, or none. */
+function bloodKinship(f: Family, me: string, other: string, myAnc: Map<string, number>): Kinship | undefined {
   const p = f.byId.get(other);
-  const theirs = ancestorDepths(f, other);
+  const theirs = ancestorDepths(f, other, true);
   let best: { a: number; b: number; via: string[] } | undefined;
   for (const [anc, a] of myAnc) {
     const b = theirs.get(anc);
@@ -276,68 +306,128 @@ export function kinship(f: Family, me: string, other: string, myAnc = ancestorDe
     if (!best || a + b < best.a + best.b) best = { a, b, via: [anc] };
     else if (a + b === best.a + best.b && a === best.a) best.via.push(anc);
   }
-  if (best) {
-    const { a, b } = best; // a: steps from me up to the ancestor, b: steps from them up
-    // Half: the lines reach the shared ancestor through children of different unions (their parents differ).
-    let half = '';
-    if (best.via.length === 1 && a > 0 && b > 0) {
-      const c1 = childOnLine(f, me, best.via[0]), c2 = childOnLine(f, other, best.via[0]);
-      if (c1 && c2 && !sameParents(f, c1, c2)) half = 'half-';
-    }
-    let label: string;
-    if (b === 0) label = a === 1 ? gendered(p, 'father', 'mother', 'parent') : `${greats(a - 2)}grand${gendered(p, 'father', 'mother', 'parent')}`;
-    else if (a === 0) label = b === 1 ? gendered(p, 'son', 'daughter', 'child') : `${greats(b - 2)}grand${gendered(p, 'son', 'daughter', 'child')}`;
-    else if (a === 1 && b === 1) label = `${half}${gendered(p, 'brother', 'sister', 'sibling')}`;
-    else if (a === 1) label = `${greats(b - 2)}${half}${gendered(p, 'nephew', 'niece', 'nibling')}`;
-    else if (b === 1) label = `${greats(a - 2)}${half}${gendered(p, 'uncle', 'aunt', 'pibling')}`;
-    else {
-      const degree = Math.min(a, b) - 1;
-      const removed = Math.abs(a - b);
-      const nth = half && degree === 1 ? '' : `${ordinal(degree)} `;
-      label = `${half}${nth}cousin${removed ? ` ${times(removed)} removed` : ''}`;
-    }
-    return { label, via: best.via };
+  if (!best) return undefined;
+  const { a, b } = best; // a: steps from me up to the ancestor, b: steps from them up
+  // Half: the lines reach the shared ancestor through children of different unions (their parents differ).
+  let half = '';
+  if (best.via.length === 1 && a > 0 && b > 0) {
+    const c1 = childOnLine(f, me, best.via[0]), c2 = childOnLine(f, other, best.via[0]);
+    if (c1 && c2 && !sameBloodParents(f, c1, c2)) half = 'half-';
   }
-  // Spouse and in-laws: one step through a marriage, never more (that way lies recursion).
-  if (!inLaws) return undefined;
-  if (partnersOf(f, me).includes(other)) return { label: gendered(p, 'husband', 'wife', 'partner'), via: [] };
-  for (const sp of partnersOf(f, me)) {
-    const k = kinship(f, sp, other, undefined, false);
-    if (k && k.via.length && !/cousin|great/.test(k.label)) return { label: `${k.label}-in-law`, via: k.via };
+  let label: string;
+  // A parent or child by adoption is named so; further out an adoptive line reads as any other.
+  if (b === 0 && a === 1) label = `${kindOf(f, me, other) === 'adoptive' ? 'adoptive ' : ''}${gendered(p, 'father', 'mother', 'parent')}`;
+  else if (a === 0 && b === 1) label = `${kindOf(f, other, me) === 'adoptive' ? 'adopted ' : ''}${gendered(p, 'son', 'daughter', 'child')}`;
+  else if (b === 0) label = `${greats(a - 2)}grand${gendered(p, 'father', 'mother', 'parent')}`;
+  else if (a === 0) label = `${greats(b - 2)}grand${gendered(p, 'son', 'daughter', 'child')}`;
+  else if (a === 1 && b === 1) label = `${half}${gendered(p, 'brother', 'sister', 'sibling')}`;
+  else if (a === 1) label = `${greats(b - 2)}${half}${gendered(p, 'nephew', 'niece', 'nibling')}`;
+  else if (b === 1) label = `${greats(a - 2)}${half}${gendered(p, 'uncle', 'aunt', 'pibling')}`;
+  else {
+    const degree = Math.min(a, b) - 1;
+    const removed = Math.abs(a - b);
+    const nth = half && degree === 1 ? '' : `${ordinal(degree)} `;
+    label = `${half}${nth}cousin${removed ? ` ${times(removed)} removed` : ''}`;
   }
-  for (const sp of partnersOf(f, other)) {
-    const k = kinship(f, me, sp, myAnc, false);
-    if (k && k.via.length && !/cousin|great/.test(k.label)) {
-      const base = k.label.replace(/^(half-)?/, '');
-      if (/brother|sister|sibling/.test(base)) return { label: `${gendered(p, 'brother', 'sister', 'sibling')}-in-law`, via: k.via };
-      if (/son|daughter|child/.test(base) && !base.startsWith('grand')) return { label: `${gendered(p, 'son', 'daughter', 'child')}-in-law`, via: k.via };
-      return { label: `${base}'s ${gendered(p, 'husband', 'wife', 'partner')}`, via: k.via };
+  return { label, via: best.via };
+}
+
+/**
+ * The people who raise or raised `id` without being their parent by descent: a step or foster parent on record, and
+ * a parent's partner who is not their parent. Each with the way to them and whether the tie is fostering.
+ */
+function householdParents(f: Family, id: string): { id: string; path: string[]; foster: boolean }[] {
+  const out: { id: string; path: string[]; foster: boolean }[] = [];
+  const blood = bloodParents(f, id);
+  for (const p of parents(f, id)) if (!blood.includes(p)) out.push({ id: p, path: [id, p], foster: kindOf(f, id, p) === 'foster' });
+  for (const bp of blood) {
+    for (const sp of partnersOf(f, bp)) {
+      if (sp !== id && !parents(f, id).includes(sp) && !out.some((o) => o.id === sp)) out.push({ id: sp, path: [id, bp, sp], foster: false });
     }
+  }
+  return out;
+}
+
+/** A step or foster parent, child or sibling: a household tie that is not one of descent. */
+function householdKinship(f: Family, me: string, other: string): Kinship | undefined {
+  const p = f.byId.get(other);
+  const word = (foster: boolean, m: string, w: string, x: string) => `${foster ? 'foster ' : 'step'}${gendered(p, m, w, x)}`;
+  const mine = householdParents(f, me);
+  const up = mine.find((h) => h.id === other);
+  if (up) return { label: word(up.foster, 'father', 'mother', 'parent'), via: [], path: up.path };
+  const down = householdParents(f, other).find((h) => h.id === me);
+  if (down) return { label: word(down.foster, 'son', 'daughter', 'child'), via: [], path: [...down.path].reverse() };
+  // Siblings: someone who raises or raised one of them is a parent (by descent or not) of the other.
+  const figures = (id: string) => [
+    ...bloodParents(f, id).map((bp) => ({ id: bp, path: [id, bp], foster: false, blood: true })),
+    ...householdParents(f, id).map((h) => ({ ...h, blood: false })),
+  ];
+  const theirs = figures(other);
+  for (const m of figures(me)) {
+    const t = theirs.find((x) => x.id === m.id && !(x.blood && m.blood));
+    if (t) return { label: word(m.foster || t.foster, 'brother', 'sister', 'sibling'), via: [], path: [...m.path, ...[...t.path].reverse().slice(1)] };
   }
   return undefined;
 }
 
-/** The chain of people between two relatives, through their closest common ancestor. */
-export function kinPath(f: Family, from: string, to: string): string[] {
-  const k = kinship(f, from, to);
-  if (!k?.via.length) {
-    if (partnersOf(f, from).includes(to)) return [from, to];
-    return [];
-  }
-  const up = (start: string, target: string): string[] => {
+/** The chain of people from `from` up to the common ancestor `anc` and down to `to`, by descent. */
+function bloodPath(f: Family, from: string, to: string, anc: string): string[] {
+  const up = (start: string): string[] => {
     // BFS upward, then walk back.
     const prev = new Map<string, string | null>([[start, null]]);
     const q = [start];
     while (q.length) {
       const x = q.shift()!;
-      if (x === target) break;
-      for (const p of parents(f, x)) if (!prev.has(p)) { prev.set(p, x); q.push(p); }
+      if (x === anc) break;
+      for (const p of bloodParents(f, x)) if (!prev.has(p)) { prev.set(p, x); q.push(p); }
     }
     const path: string[] = [];
-    for (let x: string | null | undefined = target; x; x = prev.get(x)) path.push(x);
+    for (let x: string | null | undefined = anc; x; x = prev.get(x)) path.push(x);
     return path.reverse();
   };
-  const a = up(from, k.via[0]);
-  const b = up(to, k.via[0]);
-  return [...a, ...b.reverse().slice(1)];
+  return [...up(from), ...up(to).reverse().slice(1)];
+}
+
+/**
+ * How `other` is related to `me`, in English: "your great-aunt". Blood relationships (biological and adoptive links)
+ * go through the closest common ancestor; then step and foster ties; then one marriage: a spouse, the spouse of
+ * any blood relative ("great-uncle's wife"), and any blood relative of a spouse ("wife's cousin"). Never more than
+ * one marriage (that way lies recursion). `inLaws` false asks for blood alone.
+ */
+export function kinship(f: Family, me: string, other: string, myAnc?: Map<string, number>, inLaws = true): Kinship | undefined {
+  if (me === other) return { label: 'you', via: [] };
+  const mine = bloodDepths(f, me, myAnc);
+  const blood = bloodKinship(f, me, other, mine);
+  if (blood || !inLaws) return blood;
+  const household = householdKinship(f, me, other);
+  if (household) return household;
+  const p = f.byId.get(other);
+  if (partnersOf(f, me).includes(other)) return { label: gendered(p, 'husband', 'wife', 'partner'), via: [], path: [me, other] };
+  // A blood relative of my partner: the close ones are "-in-law", the rest "wife's cousin".
+  for (const sp of partnersOf(f, me)) {
+    const k = bloodKinship(f, sp, other, ancestorDepths(f, sp, true));
+    if (!k) continue;
+    const path = [me, ...bloodPath(f, sp, other, k.via[0])];
+    if (!/cousin|great|adopt/.test(k.label)) return { label: `${k.label}-in-law`, via: k.via, path };
+    return { label: `${gendered(f.byId.get(sp), 'husband', 'wife', 'partner')}'s ${k.label}`, via: k.via, path };
+  }
+  // The partner of a blood relative of mine: "sister-in-law", "son-in-law", "great-uncle's wife".
+  for (const sp of partnersOf(f, other)) {
+    const k = bloodKinship(f, me, sp, mine);
+    if (!k) continue;
+    const path = [...bloodPath(f, me, sp, k.via[0]), other];
+    const base = k.label.replace(/^(half-|adopted |adoptive )?/, '');
+    if (/^(brother|sister|sibling)$/.test(base)) return { label: `${gendered(p, 'brother', 'sister', 'sibling')}-in-law`, via: k.via, path };
+    if (/^(son|daughter|child)$/.test(base)) return { label: `${gendered(p, 'son', 'daughter', 'child')}-in-law`, via: k.via, path };
+    return { label: `${k.label}'s ${gendered(p, 'husband', 'wife', 'partner')}`, via: k.via, path };
+  }
+  return undefined;
+}
+
+/** The chain of people between two relatives: through their closest common ancestor, or through the marriage or household that ties them. */
+export function kinPath(f: Family, from: string, to: string): string[] {
+  const k = kinship(f, from, to);
+  if (k?.path) return k.path;
+  if (!k?.via.length) return [];
+  return bloodPath(f, from, to, k.via[0]);
 }

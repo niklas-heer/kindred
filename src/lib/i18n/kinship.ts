@@ -37,6 +37,30 @@ const DE_WORDS: Record<string, string> = {
   "brother-in-law": "Schwager",
   "sister-in-law": "Schwägerin",
   "sibling-in-law": "Schwager/Schwägerin",
+  stepfather: "Stiefvater",
+  stepmother: "Stiefmutter",
+  stepparent: "Stiefelternteil",
+  stepson: "Stiefsohn",
+  stepdaughter: "Stieftochter",
+  stepchild: "Stiefkind",
+  stepbrother: "Stiefbruder",
+  stepsister: "Stiefschwester",
+  stepsibling: "Stiefgeschwister",
+  "foster father": "Pflegevater",
+  "foster mother": "Pflegemutter",
+  "foster parent": "Pflegeelternteil",
+  "foster son": "Pflegesohn",
+  "foster daughter": "Pflegetochter",
+  "foster child": "Pflegekind",
+  "foster brother": "Pflegebruder",
+  "foster sister": "Pflegeschwester",
+  "foster sibling": "Pflegegeschwister",
+  "adoptive father": "Adoptivvater",
+  "adoptive mother": "Adoptivmutter",
+  "adoptive parent": "Adoptivelternteil",
+  "adopted son": "Adoptivsohn",
+  "adopted daughter": "Adoptivtochter",
+  "adopted child": "Adoptivkind",
 };
 
 /**
@@ -79,6 +103,30 @@ const AF_WORDS: Record<string, string> = {
   "brother-in-law": "swaer",
   "sister-in-law": "skoonsuster",
   "sibling-in-law": "skoonbroer/skoonsuster",
+  stepfather: "stiefpa",
+  stepmother: "stiefma",
+  stepparent: "stiefouer",
+  stepson: "stiefseun",
+  stepdaughter: "stiefdogter",
+  stepchild: "stiefkind",
+  stepbrother: "stiefbroer",
+  stepsister: "stiefsuster",
+  stepsibling: "stiefbroer/stiefsuster",
+  "foster father": "pleegpa",
+  "foster mother": "pleegma",
+  "foster parent": "pleegouer",
+  "foster son": "pleegseun",
+  "foster daughter": "pleegdogter",
+  "foster child": "pleegkind",
+  "foster brother": "pleegbroer",
+  "foster sister": "pleegsuster",
+  "foster sibling": "pleegbroer/pleegsuster",
+  "adoptive father": "aanneempa",
+  "adoptive mother": "aanneemma",
+  "adoptive parent": "aanneemouer",
+  "adopted son": "aangenome seun",
+  "adopted daughter": "aangenome dogter",
+  "adopted child": "aangenome kind",
 };
 
 const AF_ORDINALS = ["nulde", "eerste", "tweede", "derde", "vierde", "vyfde", "sesde", "sewende", "agste", "negende", "tiende"];
@@ -95,6 +143,11 @@ function renderDe(label: string): string {
   const ordinals = ["", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
   const render = (label: string): string => {
     if (words[label]) return words[label];
+    // A tie through a marriage first, so "great-uncle's wife" is not read as a "great-" word.
+    const spouse = label.match(/^(.+)'s (husband|wife|partner)$/);
+    if (spouse) return `${render(spouse[2])} von ${render(spouse[1])}`;
+    const theirs = label.match(/^(husband|wife|partner)'s (.+)$/);
+    if (theirs) return `${render(theirs[2])} von ${render(theirs[1])}`;
     const cousin = label.match(/^(half-)?(?:(\w+|\d+th) )?cousin(?: (once|twice|\d+ times) removed)?$/);
     if (cousin) {
       const degree = cousin[2]
@@ -114,8 +167,6 @@ function renderDe(label: string): string {
     }
     if (label.startsWith("half-")) return `Halb${render(label.slice(5)).toLowerCase()}`;
     if (label.endsWith("-in-law")) return `${render(label.slice(0, -7))} (angeheiratet)`;
-    const spouse = label.match(/^(.+)'s (husband|wife|partner)$/);
-    if (spouse) return `${render(spouse[2])} von ${render(spouse[1])}`;
     return label;
   };
   return render(label);
@@ -124,6 +175,9 @@ function renderDe(label: string): string {
 function renderAf(label: string): string {
   const render = (label: string): string => {
     if (AF_WORDS[label]) return AF_WORDS[label];
+    // A tie through a marriage first, with the possessive "se": "grootoom se vrou", "vrou se neef/niggie".
+    const spouse = label.match(/^(.+)'s (husband|wife|partner)$/) ?? label.match(/^(husband|wife|partner)'s (.+)$/);
+    if (spouse) return `${render(spouse[1])} se ${render(spouse[2])}`;
     const cousin = label.match(/^(half-)?(?:(\w+|\d+th) )?cousin(?: (once|twice|\d+ times) removed)?$/);
     if (cousin) {
       const english = ["", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
@@ -149,8 +203,6 @@ function renderAf(label: string): string {
     }
     if (label.startsWith("half-")) return `half${render(label.slice(5))}`;
     if (label.endsWith("-in-law")) return `${render(label.slice(0, -7))} (skoon)`;
-    const spouse = label.match(/^(.+)'s (husband|wife|partner)$/);
-    if (spouse) return `${render(spouse[2])} van ${render(spouse[1])}`;
     return label;
   };
   return render(label);
