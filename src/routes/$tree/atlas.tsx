@@ -522,8 +522,9 @@ function TokenBody({ r, stroke = 1.5 }: { r: number; stroke?: number }) {
 
 type World = { land: GeoPermissibleObjects; borders: GeoPermissibleObjects };
 let worldCache: Promise<World> | null = null;
+// Only the browser draws it (in an effect), so the server's bundle leaves the map out.
 const loadWorld = () =>
-  (worldCache ??= import('world-atlas/countries-110m.json').then((m) => {
+  (worldCache ??= (import.meta.env.SSR ? new Promise<never>(() => {}) : import('world-atlas/countries-110m.json')).then((m) => {
     const topo = (m as { default?: unknown }).default ?? m;
     const t = topo as Parameters<typeof feature>[0] & { objects: { countries: Parameters<typeof feature>[1]; land?: unknown } };
     return { land: feature(t, t.objects.countries) as GeoPermissibleObjects, borders: mesh(t, t.objects.countries as never, (a, b) => a !== b) as GeoPermissibleObjects };

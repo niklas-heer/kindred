@@ -353,8 +353,9 @@ const FRAME = 1000;
 // Mercator in a fixed 1000-unit frame; the camera maps the frame onto the screen.
 const projection = geoMercator().scale(FRAME / (2 * Math.PI)).translate([FRAME / 2, FRAME / 2]).precision(0.2);
 let worldCache: Promise<World> | null = null;
+// Only the browser draws the map (in an effect). On the server the import is left out, so the 1 MB map is not in its bundle.
 const loadWorld = () =>
-  (worldCache ??= import('world-atlas/countries-50m.json').then((m) => {
+  (worldCache ??= (import.meta.env.SSR ? new Promise<never>(() => {}) : import('world-atlas/countries-50m.json')).then((m) => {
     const t = ((m as { default?: unknown }).default ?? m) as Parameters<typeof feature>[0] & { objects: { countries: Parameters<typeof feature>[1] } };
     const path = geoPath(projection);
     return {

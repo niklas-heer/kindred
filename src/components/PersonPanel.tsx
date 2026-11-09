@@ -737,8 +737,9 @@ function LifeTimeline({ f, tree, p, onSelect }: { f: Family; tree: string; p: GP
 // The small world map: the 110m countries the Atlas uses too, loaded once.
 type MiniWorld = { land: GeoPermissibleObjects; borders: GeoPermissibleObjects };
 let miniWorld: Promise<MiniWorld> | null = null;
+// Only the browser draws it (in an effect), so the server's bundle leaves the map out.
 const loadMiniWorld = () =>
-  (miniWorld ??= import('world-atlas/countries-110m.json').then((m) => {
+  (miniWorld ??= (import.meta.env.SSR ? new Promise<never>(() => {}) : import('world-atlas/countries-110m.json')).then((m) => {
     const t = ((m as { default?: unknown }).default ?? m) as Parameters<typeof feature>[0] & { objects: { countries: Parameters<typeof feature>[1] } };
     return { land: feature(t, t.objects.countries) as GeoPermissibleObjects, borders: mesh(t, t.objects.countries as never, (x, y) => x !== y) as GeoPermissibleObjects };
   }));
