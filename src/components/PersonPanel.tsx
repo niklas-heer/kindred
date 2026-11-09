@@ -9,7 +9,7 @@ import {
   Paintbrush, Phone, Plus, Quote, Route as RouteIcon, Sparkles, StickyNote, Trash2, Unlink, UserRound, X,
 } from 'lucide-react';
 import { feature, mesh } from 'topojson-client';
-import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type InputHTMLAttributes, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type InputHTMLAttributes, type ReactNode } from 'react';
 import { addStory, deleteStory, newOpKey, opKeys, setPartnershipEnd, uploadPhoto, unlinkRelative } from '~/lib/api';
 import { addPersonField, deletePersonField, personDetailQuery, setLook } from '~/lib/person.functions';
 import { kinshipLabel, locales, ordinal, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
@@ -546,10 +546,10 @@ function LifeGlance({ f, p, today }: { f: Family; p: GPerson; today?: Date }) {
     }
   };
   return (
-    <dl className="pp-glance" aria-label={c('panel.ov_glance')}>
+    <dl className="pp-glance" data-n={items.length} aria-label={c('panel.ov_glance')}>
       {items.map((i) => {
         const [label, value] = tile(i);
-        return <div key={i.key} className="pp-glance-tile"><dd>{value}</dd><dt>{label}</dt></div>;
+        return <div key={i.key} className="pp-glance-tile"><dd style={{ '--len': value.length } as CSSProperties}>{value}</dd><dt>{label}</dt></div>;
       })}
     </dl>
   );

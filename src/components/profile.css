@@ -42,7 +42,7 @@ button.pp-photo:disabled { opacity: .55; cursor: default; }
 .person-profile p.pp-add-relative.pp-ask { max-width: none; padding: 0; }
 .person-profile .pp-ov-main { display: grid; gap: 4px; min-width: 0; align-content: start; }
 .person-profile .pp-folds { margin-top: 16px; }
-.person-profile .pp-glance dd { font-size: var(--fs-6, 22px); }
+.person-profile .pp-glance { --glance-fs: var(--fs-6, 22px); }
 .person-profile .pp-bio { max-width: 72ch; }
 .person-profile .pp-stories { grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); align-items: start; }
 .person-profile .pp-map svg { max-height: 300px; }
