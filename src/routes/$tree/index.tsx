@@ -13,7 +13,8 @@ import { chooseMe, useFamily, useMe, useMeChosen } from '~/lib/family';
 import { Dialog, EmptyState, Select, usePageHotkey, type SelectOption } from '~/components/ui';
 import { ancestorDepths, ancestorDepths as anc, descendants, displayName, kinPath, kinship, parents, children, nameModeKey, type NameMode } from '~/lib/graph';
 import { layout as computeLayout, rootFor, type LNode, type View } from '~/lib/layout';
-import { treeSearch } from '~/lib/search';
+import { setPref, usePref } from '~/lib/prefs';
+import { openingView, treeSearch } from '~/lib/search';
 import { gapsOf, useRequired } from '~/lib/gaps';
 import { opKeys, removePerson } from '~/lib/api';
 import { addSelfToFamily } from '~/lib/person.functions';
@@ -77,8 +78,12 @@ function TreePage() {
     told.current = key;
     if (unseen) toast({ title: t('tp.toastStale'), body: t('tp.toastStaleBody'), ms: 6000 });
   }, [search.focus, search.sel, search.root, search.to, f]); // eslint-disable-line react-hooks/exhaustive-deps
-  const view: View = search.view ?? (codex ? 'dynasty' : 'family');
-  const line = search.line ?? (codex ? 'house' : 'all');
+  // The opening view follows the reader and the family, never the theme: the view this reader last chose here, else
+  // Family, which suits one person as well as a thousand. A link that names a view wins over both.
+  const lastView = usePref(`view:${tree}`);
+  const view: View = search.view ?? openingView(lastView);
+  // A dynasty follows the house of the person it is about; someone without a house gets every descendant.
+  const line = search.line ?? (f.byId.get(focus)?.house ? 'house' : 'all');
   const up = search.up ?? 3;
   const down = search.down ?? 2;
   const lens = search.lens ?? 'none';
@@ -238,15 +243,24 @@ function TreePage() {
       t2 = window.setTimeout(() => setFlash(null), 1400);
     });
     return () => { cancelAnimationFrame(raf); clearTimeout(t1); clearTimeout(t2); };
-  }, [focus, sel, view, lay]);
-  const prevView = useRef(view);
+  }, [focus, sel, view, lay]); // eslint-disable-line react-hooks/exhaustive-deps
+  const prevView = useRef({ view, asked: search.view });
   useEffect(() => {
-    if (prevView.current === view) return;
-    prevView.current = view;
+    if (prevView.current.view === view) return;
+    // The remembered view is read from this browser only after hydration: it takes the place of the first frame, without a flight.
+    const remembered = !search.view && !prevView.current.asked;
+    prevView.current = { view, asked: search.view };
     camMoved.current = false;
     // A new view opens framed like the first one: as much of it as fits, readable.
-    requestAnimationFrame(() => canvas.current?.frame(sel));
-  }, [view, sel]);
+    requestAnimationFrame(() => canvas.current?.frame(sel, { animate: !remembered }));
+  }, [view, sel, search.view]);
+  // A view the reader went to (the toolbar, a key, the palette, a button on a person's page) is where this family opens for them next time.
+  useEffect(() => {
+    if (!search.view || search.view === lastView) return;
+    try { setPref(`view:${tree}`, search.view); } catch { /* Storage can be unavailable in private browsing. */ }
+  }, [search.view, lastView, tree]);
+  const viewPatch = (v: View): Partial<typeof search> =>
+    v === 'dynasty' ? { view: v, root: undefined, focus: sel, sel: undefined } : { view: v, focus: sel, sel: undefined };
 
   // ---- trail: the last people you looked at ----
   const [trail, setTrail] = useState<string[]>([]);
@@ -350,9 +364,9 @@ function TreePage() {
   usePageHotkey('F', () => { camMoved.current = true; canvas.current?.fit(); }, { enabled: live });
   usePageHotkey('C', () => { camMoved.current = true; canvas.current?.centerOn(sel); }, { enabled: live });
   usePageHotkey('H', () => refocus(me), { enabled: live });
-  usePageHotkey('1', () => go({ view: 'family', focus: sel, sel: undefined }), { enabled: live });
-  usePageHotkey('2', () => go({ view: 'dynasty', root: undefined, focus: sel, sel: undefined }), { enabled: live });
-  usePageHotkey('3', () => go({ view: 'ancestors', focus: sel, sel: undefined }), { enabled: live });
+  usePageHotkey('1', () => go(viewPatch('family')), { enabled: live });
+  usePageHotkey('2', () => go(viewPatch('dynasty')), { enabled: live });
+  usePageHotkey('3', () => go(viewPatch('ancestors')), { enabled: live });
   usePageHotkey('L', () => go({ lens: lens === 'line' ? 'none' : 'line' }), { enabled: live });
   usePageHotkey('=', () => { camMoved.current = true; canvas.current?.zoomBy(1.25); }, { enabled: live });
   usePageHotkey('-', () => { camMoved.current = true; canvas.current?.zoomBy(0.8); }, { enabled: live });
@@ -481,7 +495,7 @@ function TreePage() {
   }, [f]);
   const house = focusPerson?.house ? f.house.get(focusPerson.house) : undefined;
 
-  const setView = (v: View) => go(v === 'dynasty' ? { view: v, root: undefined, focus: sel, sel: undefined } : { view: v, focus: sel, sel: undefined });
+  const setView = (v: View) => go(viewPatch(v));
   const viewOptions: (SelectOption<View> & { title: string })[] = [
     { value: 'family', label: t('tp.view.family'), icon: <Network size={15} />, title: t('tp.viewTitle.family') },
     { value: 'dynasty', label: t('tp.view.dynasty'), icon: <Crown size={15} />, title: t('tp.viewTitle.dynasty') },
@@ -838,8 +852,8 @@ function TreePage() {
             onEditOpen={() => { if (phone) setSnap('full'); }}
             onCenter={() => { if (phone) setSnap('peek'); refocus(sel); }}
             onPath={() => { if (phone) setSnap('peek'); go({ lens: 'path', to: sel }); }}
-            onDynasty={() => { if (phone) setSnap('peek'); go({ view: 'dynasty', root: undefined, focus: sel, sel: undefined }); }}
-            onAncestors={() => { if (phone) setSnap('peek'); go({ view: 'ancestors', focus: sel, sel: undefined }); }}
+            onDynasty={() => { if (phone) setSnap('peek'); go(viewPatch('dynasty')); }}
+            onAncestors={() => { if (phone) setSnap('peek'); go(viewPatch('ancestors')); }}
             onClose={() => setPanel(false)}
           />
           {snap === 'peek' && (

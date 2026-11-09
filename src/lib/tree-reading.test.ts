@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { cardExtras, selectionAnnouncement } from './card-label.ts';
 import { buildFamily, stepsFrom, type Family } from './graph.ts';
-import { searchPeople } from './search.ts';
+import { openingView, searchPeople } from './search.ts';
 import type { GParent, GPerson, GUnion, Graph, House } from './types.ts';
 
 const person = (id: string, given: string, surname: string, extra: Partial<GPerson> = {}): GPerson => ({
@@ -30,6 +30,15 @@ function family(): Family {
   const graph: Graph = { tree: { id: 't', name: 'T', tagline: '', theme: 'codex', focus: 'ida', people: people.length }, houses, places: [], people, parents, unions };
   return buildFamily(graph);
 }
+
+test('a family opens on Family unless the reader chose another view there', () => {
+  assert.equal(openingView(null), 'family');
+  assert.equal(openingView(undefined), 'family');
+  assert.equal(openingView('dynasty'), 'dynasty');
+  assert.equal(openingView('ancestors'), 'ancestors');
+  // Whatever else is in storage is not a view.
+  assert.equal(openingView('codex'), 'family');
+});
 
 test('steps from a person count parents, children and partners alike', () => {
   const steps = stepsFrom(family(), 'ida');

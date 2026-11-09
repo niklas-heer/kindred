@@ -25,6 +25,14 @@ export const treeSearch = z.object({
 });
 export type TreeSearch = z.infer<typeof treeSearch>;
 
+/**
+ * The view a family's tree opens in when the link names none: the one this reader last chose there, else Family.
+ * Family shows one person or a thousand equally well; a dynasty with its house banner is a choice, not a default.
+ */
+export function openingView(remembered: string | null | undefined): NonNullable<TreeSearch['view']> {
+  return remembered === 'dynasty' || remembered === 'ancestors' || remembered === 'family' ? remembered : 'family';
+}
+
 // ---------- finding people by name ----------
 
 /** Lower case, no accents: what a name search compares. */
