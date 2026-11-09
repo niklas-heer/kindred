@@ -11,7 +11,8 @@ import { Portrait } from '~/components/Portrait';
 import { QuickAdd } from '~/components/QuickAdd';
 import { chooseMe, useFamily, useMe, useMeChosen } from '~/lib/family';
 import { Dialog, EmptyState, Select, usePageHotkey, type SelectOption } from '~/components/ui';
-import { ancestorDepths, ancestorDepths as anc, descendants, displayName, kinPath, kinship, parents, children, nameModeKey, type NameMode } from '~/lib/graph';
+import { ancestorDepths, ancestorDepths as anc, descendants, displayName, houseMembers, kinPath, kinship, lifespan, parents, children, nameModeKey, type NameMode } from '~/lib/graph';
+import { selectionAnnouncement } from '~/lib/card-label';
 import { layout as computeLayout, rootFor, type LNode, type View } from '~/lib/layout';
 import { setPref, usePref } from '~/lib/prefs';
 import { openingView, treeSearch } from '~/lib/search';
@@ -389,7 +390,10 @@ function TreePage() {
   const focusPerson = f.byId.get(sel);
   const rootPerson = root ? f.byId.get(root) : undefined;
   const rootHouse = rootPerson?.house ? f.house.get(rootPerson.house) : undefined;
-  const members = useMemo(() => new Set(lay.nodes.filter((n) => n.role !== 'ghost').map((n) => n.id)).size, [lay]);
+  // The house line's banner counts the house as its page does (houseMembers); the tree also draws the people who
+  // married in, and the minimap counts those as "people". Every descendant has no such list, so that banner counts who is drawn.
+  const shown = useMemo(() => new Set(lay.nodes.filter((n) => n.role !== 'ghost').map((n) => n.id)).size, [lay]);
+  const members = line === 'house' && rootHouse ? houseMembers(f, rootHouse.id).length : shown;
   // "Descendants of {name}", as the words before and after the name, in whatever order the language puts them.
   const descOf = t('tp.descendantsOf', { name: '\u0001' }).split('\u0001').map((w) => w.trim());
   const prevRoot = useRef(lay.root);
@@ -489,9 +493,7 @@ function TreePage() {
   const onUserMove = useCallback(() => { camMoved.current = true; setBannerBig(false); }, []);
 
   const houses = useMemo(() => {
-    const n = new Map<string, number>();
-    for (const p of f.graph.people) if (p.house) n.set(p.house, (n.get(p.house) ?? 0) + 1);
-    return f.graph.houses.map((h) => [h, n.get(h.id) ?? 0] as const).filter(([, c]) => c > 1).sort((a, b) => b[1] - a[1]);
+    return f.graph.houses.map((h) => [h, houseMembers(f, h.id).length] as const).filter(([, c]) => c > 1).sort((a, b) => b[1] - a[1]);
   }, [f]);
   const house = focusPerson?.house ? f.house.get(focusPerson.house) : undefined;
 

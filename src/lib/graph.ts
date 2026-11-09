@@ -52,6 +52,12 @@ export function sortedUnions(f: Family, id: string): GUnion[] {
   const key = (u: GUnion) => u.start?.replace(/^~/, '') ?? '9999';
   return [...(f.unionsOf.get(id) ?? [])].sort((a, b) => key(a).localeCompare(key(b)) || a.id.localeCompare(b.id));
 }
+/**
+ * The members of a house: the people recorded as belonging to it. This is the one definition every count of a
+ * house uses (its page, the houses list, the tree's banner and house menu). A wife or husband from another house
+ * is drawn in the house's dynasty tree but is not a member of it.
+ */
+export const houseMembers = (f: Family, house: string) => f.graph.people.filter((p) => p.house === house);
 export const parents = (f: Family, id: string) => f.parentsOf.get(id) ?? [];
 export const children = (f: Family, id: string) => f.childrenOf.get(id) ?? [];
 /** Same two recorded parents (a full sibling of whoever it is compared with). */

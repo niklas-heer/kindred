@@ -4,7 +4,7 @@ import { useFamily, useTreeId } from './family';
 import { houseSettingsQuery } from './houses.functions';
 // What the house pages show about a house: its members, founder, years, seats and notables. All of it
 // is derived from the graph already in the browser, so the pages need no extra request.
-import { kinship, parents, yearOf, type Family, type Kinship } from './graph';
+import { houseMembers, kinship, parents, yearOf, type Family, type Kinship } from './graph';
 import { useT } from './i18n';
 import type { GPerson, House } from './types';
 
@@ -36,7 +36,7 @@ export function maxGeneration(f: Family & { gen: Map<string, number> }): number 
 }
 
 export function houseStats(f: Family & { gen: Map<string, number> }, house: House, maxGen = maxGeneration(f)): HouseStats {
-  const members = f.graph.people.filter((p) => p.house === house.id);
+  const members = houseMembers(f, house.id);
   const living = members.filter((p) => p.living).length;
   // The recorded founder, else the earliest member whose parents are outside the house.
   const founder =
@@ -203,7 +203,7 @@ export interface Succession {
  * Visited sets make duplicate ancestry and malformed cycles safe.
  */
 export function houseSuccession(f: Family, house: House, settings = DEFAULT_HOUSE_SETTINGS, year?: number): Succession {
-  const members = f.graph.people.filter((p) => p.house === house.id);
+  const members = houseMembers(f, house.id);
   const byId = new Map(members.map((p) => [p.id, p]));
   const children = new Map<string, GPerson[]>();
   const hasParent = new Set<string>();
@@ -247,7 +247,7 @@ export interface HouseTenure { person: GPerson; from: number; to?: number }
  * date, so they are left out rather than projected into earlier centuries. The last tenure has no `to`.
  */
 export function houseHistory(f: Family, house: House, settings = DEFAULT_HOUSE_SETTINGS): HouseTenure[] {
-  const members = f.graph.people.filter((p) => p.house === house.id);
+  const members = houseMembers(f, house.id);
   const now = new Date().getFullYear();
   const years = [...new Set(members.flatMap((p) => [yearOf(p.born), yearOf(p.died)]).filter((y) => Number.isFinite(y) && y <= now))].sort((a, b) => a - b);
   const history: HouseTenure[] = [];

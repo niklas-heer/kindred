@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { cardExtras, selectionAnnouncement } from './card-label.ts';
-import { buildFamily, stepsFrom, type Family } from './graph.ts';
+import { buildFamily, houseMembers, stepsFrom, type Family } from './graph.ts';
 import { openingView, searchPeople } from './search.ts';
 import type { GParent, GPerson, GUnion, Graph, House } from './types.ts';
 
@@ -38,6 +38,14 @@ test('a family opens on Family unless the reader chose another view there', () =
   assert.equal(openingView('ancestors'), 'ancestors');
   // Whatever else is in storage is not a view.
   assert.equal(openingView('codex'), 'family');
+});
+
+test('a house has one count: the people recorded in it, not the partners drawn beside them', () => {
+  const f = family();
+  assert.deepEqual(houseMembers(f, 'ash').map((p) => p.id), ['maud', 'edith', 'greta']);
+  // Greta married Karl Holm and stands in the Holm dynasty tree; she is not a member of House Holm.
+  assert.deepEqual(houseMembers(f, 'holm').map((p) => p.id), ['ida', 'karl']);
+  assert.equal(houseMembers(f, 'nobody').length, 0);
 });
 
 test('steps from a person count parents, children and partners alike', () => {
