@@ -1,5 +1,9 @@
 # Kindred
 
+[![CI](https://github.com/niklas-heer/kindred/actions/workflows/ci.yml/badge.svg)](https://github.com/niklas-heer/kindred/actions/workflows/ci.yml)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/niklas-heer/kindred)](https://github.com/niklas-heer/kindred/releases)
+
 A family tree your whole family can share, with the stories, photographs and places that go with it.
 
 ![The Dynasty view of an invented family: generations of cards under house shields, with a minimap of the whole tree.](docs/images/tree.webp)
@@ -68,23 +72,34 @@ German and Afrikaans, in the Codex, Paper and Night themes.
 
 ## Try it
 
-You need [mise](https://mise.jdx.dev), which installs the right version of Node.
+With Docker, from a copy of this repository, there is nothing else to install:
 
 ```sh
-mise install && npm install
-mise run data   # optional: two invented families to explore
-mise run dev    # http://localhost:4517
+git clone https://github.com/niklas-heer/kindred && cd kindred
+docker compose up -d --build   # then open http://localhost:4901/setup
 ```
 
-Open the site and create the first account with a passkey. The first account becomes steward of every family that exists,
-and you invite everyone else from the Access page. Passkeys need HTTPS or `localhost`.
+Create the first account with a passkey. The first account becomes steward of every family that exists, and you invite
+everyone else from the Access page. Passkeys need HTTPS or `localhost`. From the next release, a ready-made image
+(`ghcr.io/niklas-heer/kindred`) skips the build: see [docs/self-host.md](docs/self-host.md).
+
+To work on Kindred, or to run it from source, you need [mise](https://mise.jdx.dev), which installs the right version of Node:
+
+```sh
+mise install && mise run install   # `mise run install` is npm install, run with that Node
+mise run data                      # optional: two invented families to explore
+mise run dev                       # http://localhost:4517
+```
+
+If mise is not activated in your shell, run every command as `mise run <task>`, so the right Node is used. The invented
+families from `mise run data` appear after you create the first account.
 
 ## Running it for your family
 
 Pick how people sign in with `KINDRED_AUTH`. `kindred` (the default) is Kindred's own accounts and passkeys, and needs nothing more than HTTPS.
 `cloudflare-access` hands sign-in to a Cloudflare Access policy you manage. It suits people who already run one.
 
-- **Docker**, on your own machine or server: `docker compose up -d --build`, then open <http://localhost:4901/setup>. Each family is a SQLite file. See [docs/self-host.md](docs/self-host.md), which also covers HTTPS, backups and reminders.
+- **Docker**, on your own machine or server: `docker compose up -d --build` (or, from the next release, a published image), then open <http://localhost:4901/setup>. Each family is a SQLite file. See [docs/self-host.md](docs/self-host.md), which also covers HTTPS, backups and reminders.
 - **Node**, without a container: `mise run build:node && mise run start`, on Node 26.
 - **Cloudflare**, with Workers, D1 and R2 and no server to look after: see [docs/deploy-cloudflare.md](docs/deploy-cloudflare.md).
 
@@ -104,7 +119,8 @@ Exports leave some things out, so back up the databases and pictures as well.
 - [Roles and privacy](docs/roles-and-privacy.md)
 - [GEDCOM and the Markdown archive](docs/exchange.md)
 - [The data model](docs/data-model.md)
-- [Release notes for 2.0.0](docs/releases/v2.0.0.md) and [moving from v1](docs/migration-plan.md)
+- [Changelog](CHANGELOG.md), [release notes for 2.0.0](docs/releases/v2.0.0.md) and [moving from v1](docs/migration-plan.md)
+- [The model evaluations](docs/evals/README.md) behind the AI recommendations
 
 Version 2 is a web app that replaces the earlier Rust CLI and its Markdown archive. It is a migration, not an upgrade.
 
@@ -119,7 +135,7 @@ mise run test    # the unit tests
 mise run e2e     # browser journeys, on scratch data
 ```
 
-Schema changes are new numbered files in `migrations/`, and a file that has shipped is never edited. Text lives in
+[CONTRIBUTING.md](CONTRIBUTING.md) says how to send a change, and [AGENTS.md](AGENTS.md) holds the conventions. Schema changes are new numbered files in `migrations/`, and a file that has shipped is never edited. Text lives in
 `src/lib/i18n/areas/`, in all three languages; [src/lib/i18n/README.md](src/lib/i18n/README.md) says how to add a string.
 
 ## Licence and credits
