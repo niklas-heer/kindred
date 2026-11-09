@@ -381,7 +381,7 @@ mise run start           # http://127.0.0.1:4901
 ```
 
 `mise run start` is `node server/node.ts`. It serves the built client and the server bundle in `dist/`, with the
-environment variables above. Keep the data folder out of the repository for a real server:
+environment variables above. It runs as production (`NODE_ENV=production`) unless `NODE_ENV` says otherwise. Keep the data folder out of the repository for a real server:
 
 ```sh
 KINDRED_DATA_DIR=/var/lib/kindred HOST=0.0.0.0 KINDRED_ORIGIN=https://family.example.org mise run start

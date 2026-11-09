@@ -6,6 +6,7 @@
 //   KINDRED_ORIGIN    the public address, e.g. https://family.example.org (passkeys and cookies depend on it)
 //   KINDRED_DATA_DIR  the families, media, accounts and secret (default: data/ in this folder)
 //   KINDRED_JOBS      the daily jobs (reminders) run at 06:00 UTC; "off" turns them off
+//   NODE_ENV          production, unless set otherwise
 // SIGTERM and SIGINT stop new connections, let requests in progress finish, close the SQLite files and exit.
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -14,6 +15,10 @@ import { serve } from 'srvx/node';
 import { scheduleDailyJobs } from './jobs.ts';
 import { compressResponse } from './compress.ts';
 import { staticResponse } from './static.ts';
+
+// This is the production server: without NODE_ENV, React would load its development build, which is about 10% slower
+// to render and warns in the log. Set before the bundle is imported below, so React reads it; a value given is kept.
+if (!process.env.NODE_ENV) process.env.NODE_ENV = 'production';
 
 // migrations/ and the default data/ folder resolve from the app folder, wherever this is started from.
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
