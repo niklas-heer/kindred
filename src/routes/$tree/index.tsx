@@ -11,7 +11,7 @@ import { Portrait } from '~/components/Portrait';
 import { QuickAdd } from '~/components/QuickAdd';
 import { chooseMe, useFamily, useMe, useMeChosen } from '~/lib/family';
 import { Dialog, EmptyState, Select, usePageHotkey, type SelectOption } from '~/components/ui';
-import { ancestorDepths, ancestorDepths as anc, descendants, displayName, houseMembers, kinPath, kinship, lifespan, parents, children, nameModeKey, type NameMode } from '~/lib/graph';
+import { ancestorDepths, ancestorDepths as anc, descendants, displayName, houseMembers, kinPath, kinship, lifespan, parents, children, nameModeKey, type Kinship, type NameMode } from '~/lib/graph';
 import { selectionAnnouncement } from '~/lib/card-label';
 import { layout as computeLayout, rootFor, type LNode, type View } from '~/lib/layout';
 import { setPref, usePref } from '~/lib/prefs';
@@ -22,7 +22,7 @@ import { addSelfToFamily } from '~/lib/person.functions';
 import { useQueryClient } from '@tanstack/react-query';
 import { play } from '~/lib/sfx';
 import { toast } from '~/lib/toast';
-import { formatNumber, kinshipLabel, translateMessage, useT, type Key } from '~/lib/i18n';
+import { formatNumber, kinshipLabel, yourKinship, translateMessage, useT, type Key, type Vars } from '~/lib/i18n';
 import { Arms } from '~/components/Heraldry';
 import { personName, treeTitle } from '~/lib/title';
 import { useCan } from '~/lib/session';
@@ -311,17 +311,24 @@ function TreePage() {
   }, [dimmed, lay]);
 
   // ---- kinship labels, computed lazily for the cards on screen ----
-  const kinCache = useMemo(() => new Map<string, string | undefined>(), [f, who]);
-  const kinOf = useCallback(
+  const kinCache = useMemo(() => new Map<string, Kinship | undefined>(), [f, who]);
+  const kinFor = useCallback(
     (id: string) => {
       if (!who) return undefined;
       if (!kinCache.has(id)) {
-        const k = kinship(f, who, id, myAnc)?.label;
-        kinCache.set(id, k && k !== 'you' ? kinshipLabel({ label: k, via: [] }, t.locale) : undefined);
+        const k = kinship(f, who, id, myAnc);
+        kinCache.set(id, k && k.label !== 'you' ? k : undefined);
       }
       return kinCache.get(id);
     },
     [kinCache, f, who, myAnc],
+  );
+  const kinOf = useCallback(
+    (id: string) => {
+      const k = kinFor(id);
+      return k ? kinshipLabel(k, t.locale) : undefined;
+    },
+    [kinFor, t.locale],
   );
 
   const toggle = useCallback((id: string) => (play('page'), setCollapsed((c) => {
@@ -459,12 +466,12 @@ function TreePage() {
     const a = f.byId.get(anchor);
     const h = a?.house ? f.house.get(a.house) : undefined;
     const fam = h ? (h.name.startsWith('House') ? h.name : t('tp.famNamed', { name: h.name })) : t('tp.famFallback');
-    const word = (m: Key, w: Key, x: Key) => t(person.sex === 'm' ? m : person.sex === 'f' ? w : x);
+    const word = (m: Key, w: Key, x: Key, vars?: Vars) => t(person.sex === 'm' ? m : person.sex === 'f' ? w : x, vars);
     const title =
       relation === 'child' ? t('tp.annChild', { word: word('tp.new.son', 'tp.new.daughter', 'tp.new.child'), family: fam }) :
       relation === 'partner' ? t('tp.annPartner', { name: person.given, family: fam }) :
       relation === 'sibling' ? t('tp.annSibling', { word: word('tp.new.brother', 'tp.new.sister', 'tp.new.sibling'), name: a?.given ?? t('tp.theirs') }) :
-      t('tp.annParent', { who: a?.given ?? t('tp.theirs'), rel: word('tp.rel.father', 'tp.rel.mother', 'tp.rel.parent') });
+      word('tp.annFather', 'tp.annMother', 'tp.annParent', { who: a?.given ?? t('tp.theirs') });
     play('chime');
     toast({
       title,
@@ -517,7 +524,7 @@ function TreePage() {
       for (const p of who.slice(0, 2)) {
         toast({
           title: t('tp.birthdayToast', { name: displayName(p, f), n: today.getFullYear() - parseInt(p.born!, 10) }),
-          body: kinOf(p.id) ? `${t('panel.yourKin', { kin: kinOf(p.id)! })}. ${t('tp.callDay')}` : t('tp.goodDay'),
+          body: kinFor(p.id) ? `${yourKinship(kinFor(p.id)!, t.locale, { capital: true })}. ${t('tp.callDay')}` : t('tp.goodDay'),
           person: p.id,
           icon: 'cake-slice',
           ms: 9000,

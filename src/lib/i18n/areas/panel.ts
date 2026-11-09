@@ -3,7 +3,6 @@
 import type { Message } from "../types.ts";
 
 export const en = {
-  "panel.yourWord": "Your",
   "panel.openHouse": "Open the page of {name}",
   "panel.detailsFailedTitle": "Couldn’t load their details",
   "panel.detailsFailedText": "Stories, places and contacts didn’t arrive. Check the connection and try again.",
@@ -35,7 +34,6 @@ export const en = {
   "panel.howRelated": "How you are related",
   "panel.sayWho": "Say who you are to see how you’re related",
   "panel.thisIsYou": "This is you",
-  "panel.yourKin": "Your {kin}",
   "panel.notRelated": "Not related by blood or marriage to you",
   "panel.howTitle": "Highlight the line between you",
   "panel.how": "How?",
@@ -223,7 +221,6 @@ export const en = {
 };
 
 export const de: Record<keyof typeof en, Message> = {
-  "panel.yourWord": "Dein:e",
   "panel.openHouse": "Die Seite von {name} öffnen",
   "panel.detailsFailedTitle": "Die Details konnten nicht geladen werden",
   "panel.detailsFailedText": "Erinnerungen, Orte und Kontakte kamen nicht an. Prüfe die Verbindung und versuche es noch einmal.",
@@ -255,7 +252,6 @@ export const de: Record<keyof typeof en, Message> = {
   "panel.howRelated": "Wie ihr miteinander verwandt seid",
   "panel.sayWho": "Sag, wer du bist, um die Verwandtschaft zu sehen",
   "panel.thisIsYou": "Das bist du",
-  "panel.yourKin": "Dein:e {kin}",
   "panel.notRelated": "Nicht blutsverwandt oder verheiratet mit dir",
   "panel.howTitle": "Die Verbindung zwischen dir und dieser Person hervorheben",
   "panel.how": "Wie?",
@@ -444,7 +440,6 @@ export const de: Record<keyof typeof en, Message> = {
 
 /** Afrikaans. A missing entry falls back to English at runtime; the test reports them. */
 export const af: Partial<Record<keyof typeof en, Message>> = {
-  "panel.yourWord": "Jou",
   "panel.openHouse": "Maak die bladsy van {name} oop",
   "panel.detailsFailedTitle": "Kon nie die besonderhede laai nie",
   "panel.detailsFailedText": "Verhale, plekke en kontakte het nie aangekom nie. Kontroleer die verbinding en probeer weer.",
@@ -476,7 +471,6 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   "panel.howRelated": "Hoe julle verwant is",
   "panel.sayWho": "Sê wie jy is om te sien hoe julle verwant is",
   "panel.thisIsYou": "Dit is jy",
-  "panel.yourKin": "Jou {kin}",
   "panel.notRelated": "Nie deur bloed of huwelik aan jou verwant nie",
   "panel.howTitle": "Beklemtoon die lyn tussen jou en hierdie persoon",
   "panel.how": "Hoe?",

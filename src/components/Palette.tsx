@@ -1,4 +1,4 @@
-import { kinshipLabel, LANGUAGE_NAME, LOCALES, useT, type Translator } from '~/lib/i18n';
+import { yourKinship, LANGUAGE_NAME, LOCALES, useT, type Translator } from '~/lib/i18n';
 import { searchPeople } from '~/lib/search';
 // ⌘K: jump to anyone by name, nickname, epithet, title or place; or run a command.
 import { useHotkey } from '@tanstack/react-hotkeys';
@@ -47,7 +47,7 @@ export function personHint(f: Family, id: string, who: string | null, anc: Map<s
   const p = f.byId.get(id);
   if (!p) return '';
   const k = who ? kinship(f, who, id, anc) : undefined;
-  const kin = !k ? '' : k.label === 'you' ? t('common.you') : t('shell.palette.yourKin', { kin: kinshipLabel(k, t.locale) });
+  const kin = !k ? '' : k.label === 'you' ? t('common.you') : yourKinship(k, t.locale);
   return [lifespan(p, t.locale), kin].filter(Boolean).join(' · ');
 }
 

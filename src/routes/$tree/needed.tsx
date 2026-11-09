@@ -6,7 +6,7 @@ import { Link, useRouter, createFileRoute } from '@tanstack/react-router';
 import { Camera, Check, Flame, Link2, SkipForward, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { GameIcon } from '~/components/GameIcon';
-import { compareText, kinshipLabel, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
+import { compareText, yourKinship, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
 import type { GapField } from '~/lib/person.server';
 import { Dialog } from '~/components/ui/Dialog';
 import { Portrait } from '~/components/Portrait';
@@ -19,7 +19,7 @@ import { fullDate, validDate } from '~/lib/dates';
 import { isoOfDate } from '~/lib/partial-date';
 import { useFamily, useMe, useMeChosen, useTreeId } from '~/lib/family';
 import { ALL_GAPS, GAP_ACTION, GAP_HINT, GAP_LABEL, gapsOf, useRequired, type GapKey } from '~/lib/gaps';
-import { ancestorDepths, children, displayName, kinship, lifespan, parents, partnersOf, type Family } from '~/lib/graph';
+import { ancestorDepths, children, displayName, kinship, lifespan, parents, partnersOf, type Family, type Kinship } from '~/lib/graph';
 import { can, type Role } from '~/lib/roles';
 import { useRole } from '~/lib/session';
 import { play } from '~/lib/sfx';
@@ -531,8 +531,8 @@ function Blaze({ queue, only, f, tree, me, role, required, onClose }: { queue: s
 
 
 /** "you", or "your aunt": a kinship label in the reader's language. */
-function kinText(t: Translator, k: string): string {
-  return k === 'you' ? t('common.you') : t('shell.palette.yourKin', { kin: kinshipLabel({ label: k, via: [] }, t.locale) });
+function kinText(t: Translator, k: Kinship | 'you'): string {
+  return k === 'you' ? t('common.you') : yourKinship(k, t.locale);
 }
 
 /**
@@ -600,5 +600,5 @@ function usePageTrail(page: string, tree: string) {
 }
 
 function safeRelation(f: Family, me: string, id: string, ancestors?: Map<string, number>) {
-  try { return kinship(f, me, id, ancestors)?.label; } catch { return undefined; }
+  try { return kinship(f, me, id, ancestors); } catch { return undefined; }
 }

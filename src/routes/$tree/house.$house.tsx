@@ -278,7 +278,7 @@ function HeirCard({ f, house, tree, succ }: { f: ReturnType<typeof useFamily>; h
   const next = succ.line.slice(1, 6);
   const kin = (p: GPerson) => {
     const k = kinToHead(f, succ.head, p);
-    return k ? t('houses.kinToHead', { kin: kinshipLabel(k, t.locale) }) : t('houses.kinNone');
+    return k ? t('houses.kinToHead', { kin: kinshipLabel(k, t.locale, 'them') }) : t('houses.kinNone');
   };
   const heir = succ.heir;
   return (

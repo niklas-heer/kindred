@@ -284,7 +284,17 @@ export interface Kinship {
   via: string[];
   /** For a tie through a marriage or a step or foster link: the people from the first person to the second. */
   path?: string[];
+  /**
+   * What the English word "cousin" leaves open and other languages say: the cousin's sex, and how many generations
+   * above (positive) or below (negative) the first person they stand ("Onkel 2. Grades", "Neffe 2. Grades"). In a tie
+   * through a marriage it describes the cousin in the label ("wife's cousin", "cousin's husband").
+   */
+  cousin?: { sex?: 'm' | 'f'; up: number };
+  /** The sex of the first person's partner an "-in-law" tie runs through ("Onkel deiner Frau"). */
+  spouse?: 'm' | 'f';
 }
+
+const knownSex = (p: GPerson | undefined) => (p?.sex === 'm' || p?.sex === 'f' ? p.sex : undefined);
 
 /** Whether a family has any step or foster link, so depths over every link may differ from depths over blood. */
 const householdLinks = new WeakMap<Family, boolean>();
@@ -349,6 +359,7 @@ function bloodKinship(f: Family, me: string, other: string, myAnc: Map<string, n
     const removed = Math.abs(a - b);
     const nth = half && degree === 1 ? '' : `${ordinal(degree)} `;
     label = `${half}${nth}cousin${removed ? ` ${times(removed)} removed` : ''}`;
+    return { label, via: best.via, cousin: { sex: knownSex(p), up: a - b } };
   }
   return { label, via: best.via };
 }
@@ -429,8 +440,9 @@ export function kinship(f: Family, me: string, other: string, myAnc?: Map<string
     const k = bloodKinship(f, sp, other, ancestorDepths(f, sp, true));
     if (!k) continue;
     const path = [me, ...bloodPath(f, sp, other, k.via[0])];
-    if (!/cousin|great|adopt/.test(k.label)) return { label: `${k.label}-in-law`, via: k.via, path };
-    return { label: `${gendered(f.byId.get(sp), 'husband', 'wife', 'partner')}'s ${k.label}`, via: k.via, path };
+    const spouse = knownSex(f.byId.get(sp));
+    if (!/cousin|great|adopt/.test(k.label)) return { label: `${k.label}-in-law`, via: k.via, path, ...(spouse && { spouse }) };
+    return { label: `${gendered(f.byId.get(sp), 'husband', 'wife', 'partner')}'s ${k.label}`, via: k.via, path, ...(k.cousin && { cousin: k.cousin }) };
   }
   // The partner of a blood relative of mine: "sister-in-law", "son-in-law", "great-uncle's wife".
   for (const sp of partnersOf(f, other)) {
@@ -440,7 +452,7 @@ export function kinship(f: Family, me: string, other: string, myAnc?: Map<string
     const base = k.label.replace(/^(half-|adopted |adoptive )?/, '');
     if (/^(brother|sister|sibling)$/.test(base)) return { label: `${gendered(p, 'brother', 'sister', 'sibling')}-in-law`, via: k.via, path };
     if (/^(son|daughter|child)$/.test(base)) return { label: `${gendered(p, 'son', 'daughter', 'child')}-in-law`, via: k.via, path };
-    return { label: `${k.label}'s ${gendered(p, 'husband', 'wife', 'partner')}`, via: k.via, path };
+    return { label: `${k.label}'s ${gendered(p, 'husband', 'wife', 'partner')}`, via: k.via, path, ...(k.cousin && { cousin: k.cousin }) };
   }
   return undefined;
 }

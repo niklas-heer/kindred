@@ -12,7 +12,7 @@ Three languages ship: **English** (`en`, the source of the key type), **German**
 | `dictionary.ts` | Merges every area, types `Key`, and holds `translate`, `formatDate`, `relativeTime`, `ordinal`, `negotiateLocale`, `translateMessage`, `missingKeys`. No React, so the test runner loads it. |
 | `index.tsx` | React: `I18nProvider` and `useT()`. It re-exports `dictionary.ts`. |
 | `../../components/LanguagePicker.tsx` | The language picker (a flag and a list of native names) and `LanguageChoices`, the phone's row. |
-| `kinship.ts` | `kinshipLabel`: relation words for German and Afrikaans, from graph labels. |
+| `kinship.ts` | `kinshipLabel`, `yourKinship`, `yourKinshipParts`: relation words for German and Afrikaans from graph labels, and "your …" with the possessive agreeing with the word ("dein Vater", "deine Cousine", "die Ehefrau deines Cousins"). Never build "your {kin}" from a key. |
 | `titles.ts` | `localizeTitle`: the section word of a page title in each language. |
 | `request.ts` | `requestLocale`: the locale for a request, for the root route to serialise. |
 | `i18n.test.ts` | Every area has the same keys in `en` and `de`; no key is in two areas. |

@@ -7,7 +7,7 @@ import { Portrait } from '~/components/Portrait';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
 import { play } from '~/lib/sfx';
 import { ancestorDepths, displayName, kinship, partnersOf, type Family, type Kinship } from '~/lib/graph';
-import { kinshipLabel, locales, ordinal, translate, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
+import { yourKinship, locales, ordinal, translate, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
 import type { GPerson } from '~/lib/types';
 import '~/styles/almanac.css';
 import { useDealt } from '~/lib/dealt';
@@ -502,10 +502,8 @@ function EventNames({ ev, f, tree }: { ev: Ev; f: Family; tree: string }) {
 function relation(ev: Ev, f: Family, me: string | null, myAnc: Map<string, number>, t: Translator): string | undefined {
   if (!me) return undefined;
   if (ev.ids.includes(me)) return ev.kind === 'birthday' ? t('almanac.rel_birthday') : ev.kind === 'anniversary' ? t('almanac.rel_anniversary') : t('almanac.rel_you');
-  const labels = ev.ids.map((id) => safeKinship(f, me, id, myAnc)).filter((x): x is Kinship => !!x).map((k) => kinshipLabel(k, t.locale));
-  if (!labels.length) return undefined;
-  const uniq = [...new Set(labels)];
-  return t('shell.palette.yourKin', { kin: uniq.join(' & ') });
+  const kin = ev.ids.map((id) => safeKinship(f, me, id, myAnc)).filter((x): x is Kinship => !!x);
+  return kin.length ? yourKinship(kin, t.locale) : undefined;
 }
 
 function EventRow({ ev, f, tree, me, myAnc }: { ev: Ev; f: Family; tree: string; me: string | null; myAnc: Map<string, number> }) {

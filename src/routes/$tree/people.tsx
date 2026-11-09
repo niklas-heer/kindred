@@ -23,11 +23,11 @@ import { Portrait } from '~/components/Portrait';
 import { PortraitZoom } from '~/components/photos/PortraitZoom';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
 import { useCan } from '~/lib/session';
-import { compareText, formatNumber, kinshipLabel, locales, translate, useT, type Locale, type Translator } from '~/lib/i18n';
+import { compareText, formatNumber, kinshipLabel, yourKinship, locales, translate, useT, type Locale, type Translator } from '~/lib/i18n';
 import { occupationSearchText, occupationText } from '~/lib/occupations';
 import { TRAITS } from '~/lib/traits';
 import { useToday } from '~/lib/clock';
-import { age as ageOf, ancestorDepths, displayName, fullName, kinship, partnersOf, type Family } from '~/lib/graph';
+import { age as ageOf, ancestorDepths, displayName, fullName, kinship, partnersOf, type Family, type Kinship } from '~/lib/graph';
 import type { GPerson, House } from '~/lib/types';
 import '~/styles/people.css';
 import { useDealt } from '~/lib/dealt';
@@ -57,6 +57,7 @@ interface R {
   gen: number;
   role: string;
   rel?: string;
+  kin?: Kinship;
   relRank?: number;
 }
 
@@ -82,14 +83,14 @@ function relatedTo(f: Family, anc: Map<string, number>, id: string) {
   for (const a of ancestorDepths(f, id).keys()) if (anc.has(a)) return true;
   return false;
 }
-function safeKinship(f: Family, me: string, id: string, myAnc: Map<string, number>): string | undefined {
+function safeKinship(f: Family, me: string, id: string, myAnc: Map<string, number>): Kinship | undefined {
   const tied =
     relatedTo(f, myAnc, id) ||
     partnersOf(f, me).some((s) => relatedTo(f, ancestorDepths(f, s), id)) ||
     partnersOf(f, id).some((s) => relatedTo(f, myAnc, s));
   if (!tied) return undefined;
   try {
-    return kinship(f, me, id, myAnc)?.label;
+    return kinship(f, me, id, myAnc);
   } catch {
     return undefined;
   }
@@ -102,7 +103,8 @@ function buildRows(f: Family & { gen: Map<string, number> }, tree: string, me: s
     const dn = displayName(p, f);
     const base = p.epithet && dn.endsWith(p.epithet) ? dn.slice(0, -p.epithet.length).trim() : dn;
     const house = p.house ? f.house.get(p.house) : undefined;
-    const label = me ? safeKinship(f, me, p.id, myAnc) : undefined;
+    const kin = me ? safeKinship(f, me, p.id, myAnc) : undefined;
+    const label = kin?.label;
     let relRank: number | undefined;
     if (label) {
       if (p.id === me) relRank = 0;
@@ -129,6 +131,7 @@ function buildRows(f: Family & { gen: Map<string, number> }, tree: string, me: s
       gen: f.gen.get(p.id) ?? 0,
       role: [p.title, occupationText(p, locale)].filter(Boolean).join(' · '),
       rel: label,
+      kin,
       relRank,
     };
   });
@@ -227,7 +230,7 @@ function buildColumns(t: Translator) {
     header: t('people.col.toYou'),
     sortFn: 'basic',
     sortUndefined: 'last',
-    cell: ({ row }) => (row.original.rel === 'you' ? <b className="reg-you">{t('common.you')}</b> : row.original.rel ? <span title={kinshipLabel({ label: row.original.rel, via: [] }, locale)}>{kinshipLabel({ label: row.original.rel, via: [] }, locale)}</span> : <span className="faint">—</span>),
+    cell: ({ row }) => (row.original.rel === 'you' ? <b className="reg-you">{t('common.you')}</b> : row.original.kin ? <span title={kinshipLabel(row.original.kin, locale)}>{kinshipLabel(row.original.kin, locale)}</span> : <span className="faint">—</span>),
   }),
   h.accessor((r) => r.p.stories, {
     id: 'stories',
@@ -437,7 +440,7 @@ function RegisterPage() {
         <div className={`reg-mobile ${dealt}`}>
           {rows.length === 0 && (none ? <NoPeopleYet tree={tree} canAdd={canAdd} /> : <EmptyState title={t('con.noMatchTitle')} text={t('people.tryFewer')} action={<button className="btn" onClick={reset}>{t('con.clearFilters')}</button>} />)}
           {rows.slice(0, mobileLimit).map(({ original: r }) => <details className="reg-mobile-person ui-card" key={r.id}>
-            <summary><Portrait person={r.p} tree={tree} size={42} /><span><b>{r.base}</b>{r.p.epithet && <i>{r.p.epithet}</i>}<small>{short(r.p.born, locale) || t('people.birthUnknown')} · {r.p.living ? t('panel.living') : short(r.p.died, locale) || t('people.deathUnknown')}</small>{r.rel && <small>{r.rel === 'you' ? t('people.youCap') : t('panel.yourKin', { kin: kinshipLabel({ label: r.rel, via: [] }, locale) })}</small>}</span></summary>
+            <summary><Portrait person={r.p} tree={tree} size={42} /><span><b>{r.base}</b>{r.p.epithet && <i>{r.p.epithet}</i>}<small>{short(r.p.born, locale) || t('people.birthUnknown')} · {r.p.living ? t('panel.living') : short(r.p.died, locale) || t('people.deathUnknown')}</small>{r.rel && <small>{r.rel === 'you' ? t('people.youCap') : r.kin && yourKinship(r.kin, locale, { capital: true })}</small>}</span></summary>
             <div className="reg-mobile-detail">{r.house && <Link className="reg-house" to="/$tree/house/$house" params={{ tree, house: r.house.id }}><Arms arms={r.house.arms} size={18} /><span>{r.house.name}</span></Link>}{r.role && <p>{r.role}</p>}<Link className="btn" to="/$tree" params={{ tree }} search={{ focus: r.id }}>{t('people.openPerson')}</Link></div>
           </details>)}
           {rows.length > mobileLimit && <button className="btn" onClick={() => setMobileLimit((n) => n + 100)}>{t('people.showMorePeople', { count: Math.min(100, rows.length - mobileLimit) })}</button>}

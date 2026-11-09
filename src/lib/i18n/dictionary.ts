@@ -35,7 +35,7 @@ import * as treeArea from "./areas/tree.ts";
 import { LOCALES, type Locale, type Message, type Vars } from "./types.ts";
 
 export { LOCALES, isLocale, type Locale, type Message, type Vars } from "./types.ts";
-export { kinshipLabel } from "./kinship.ts";
+export { kinshipLabel, yourKinship, yourKinshipParts, type KinshipView } from "./kinship.ts";
 export { localizeTitle } from "./titles.ts";
 
 /** Every area module. Adding an area means adding it here once; keys go in the area files. */

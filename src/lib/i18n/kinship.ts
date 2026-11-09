@@ -1,66 +1,67 @@
 import type { Kinship } from "../graph";
 import type { Locale } from "./types.ts";
 
-/** German kinship words, rendered from graph.kinship()'s English labels. */
-const DE_WORDS: Record<string, string> = {
-  you: "du",
-  father: "Vater",
-  mother: "Mutter",
-  parent: "Elternteil",
-  son: "Sohn",
-  daughter: "Tochter",
-  child: "Kind",
-  grandfather: "Großvater",
-  grandmother: "Großmutter",
-  grandparent: "Großelternteil",
-  grandson: "Enkel",
-  granddaughter: "Enkelin",
-  grandchild: "Enkelkind",
-  brother: "Bruder",
-  sister: "Schwester",
-  sibling: "Geschwister",
-  uncle: "Onkel",
-  aunt: "Tante",
-  pibling: "Onkel/Tante",
-  nephew: "Neffe",
-  niece: "Nichte",
-  nibling: "Neffe/Nichte",
-  husband: "Ehemann",
-  wife: "Ehefrau",
-  partner: "Partner/Partnerin",
-  "father-in-law": "Schwiegervater",
-  "mother-in-law": "Schwiegermutter",
-  "parent-in-law": "Schwiegerelternteil",
-  "son-in-law": "Schwiegersohn",
-  "daughter-in-law": "Schwiegertochter",
-  "child-in-law": "Schwiegerkind",
-  "brother-in-law": "Schwager",
-  "sister-in-law": "Schwägerin",
-  "sibling-in-law": "Schwager/Schwägerin",
-  stepfather: "Stiefvater",
-  stepmother: "Stiefmutter",
-  stepparent: "Stiefelternteil",
-  stepson: "Stiefsohn",
-  stepdaughter: "Stieftochter",
-  stepchild: "Stiefkind",
-  stepbrother: "Stiefbruder",
-  stepsister: "Stiefschwester",
-  stepsibling: "Stiefgeschwister",
-  "foster father": "Pflegevater",
-  "foster mother": "Pflegemutter",
-  "foster parent": "Pflegeelternteil",
-  "foster son": "Pflegesohn",
-  "foster daughter": "Pflegetochter",
-  "foster child": "Pflegekind",
-  "foster brother": "Pflegebruder",
-  "foster sister": "Pflegeschwester",
-  "foster sibling": "Pflegegeschwister",
-  "adoptive father": "Adoptivvater",
-  "adoptive mother": "Adoptivmutter",
-  "adoptive parent": "Adoptivelternteil",
-  "adopted son": "Adoptivsohn",
-  "adopted daughter": "Adoptivtochter",
-  "adopted child": "Adoptivkind",
+type Gender = "m" | "f" | "n";
+
+/** German kinship nouns with their grammatical gender, from graph.kinship()'s English labels. Two when the sex is open. */
+const DE_WORDS: Record<string, [string, Gender][]> = {
+  father: [["Vater", "m"]],
+  mother: [["Mutter", "f"]],
+  parent: [["Elternteil", "n"]],
+  son: [["Sohn", "m"]],
+  daughter: [["Tochter", "f"]],
+  child: [["Kind", "n"]],
+  grandfather: [["Großvater", "m"]],
+  grandmother: [["Großmutter", "f"]],
+  grandparent: [["Großelternteil", "n"]],
+  grandson: [["Enkel", "m"]],
+  granddaughter: [["Enkelin", "f"]],
+  grandchild: [["Enkelkind", "n"]],
+  brother: [["Bruder", "m"]],
+  sister: [["Schwester", "f"]],
+  sibling: [["Bruder", "m"], ["Schwester", "f"]],
+  uncle: [["Onkel", "m"]],
+  aunt: [["Tante", "f"]],
+  pibling: [["Onkel", "m"], ["Tante", "f"]],
+  nephew: [["Neffe", "m"]],
+  niece: [["Nichte", "f"]],
+  nibling: [["Neffe", "m"], ["Nichte", "f"]],
+  husband: [["Ehemann", "m"]],
+  wife: [["Ehefrau", "f"]],
+  partner: [["Partner", "m"], ["Partnerin", "f"]],
+  "father-in-law": [["Schwiegervater", "m"]],
+  "mother-in-law": [["Schwiegermutter", "f"]],
+  "parent-in-law": [["Schwiegerelternteil", "n"]],
+  "son-in-law": [["Schwiegersohn", "m"]],
+  "daughter-in-law": [["Schwiegertochter", "f"]],
+  "child-in-law": [["Schwiegerkind", "n"]],
+  "brother-in-law": [["Schwager", "m"]],
+  "sister-in-law": [["Schwägerin", "f"]],
+  "sibling-in-law": [["Schwager", "m"], ["Schwägerin", "f"]],
+  stepfather: [["Stiefvater", "m"]],
+  stepmother: [["Stiefmutter", "f"]],
+  stepparent: [["Stiefelternteil", "n"]],
+  stepson: [["Stiefsohn", "m"]],
+  stepdaughter: [["Stieftochter", "f"]],
+  stepchild: [["Stiefkind", "n"]],
+  stepbrother: [["Stiefbruder", "m"]],
+  stepsister: [["Stiefschwester", "f"]],
+  stepsibling: [["Stiefbruder", "m"], ["Stiefschwester", "f"]],
+  "foster father": [["Pflegevater", "m"]],
+  "foster mother": [["Pflegemutter", "f"]],
+  "foster parent": [["Pflegeelternteil", "n"]],
+  "foster son": [["Pflegesohn", "m"]],
+  "foster daughter": [["Pflegetochter", "f"]],
+  "foster child": [["Pflegekind", "n"]],
+  "foster brother": [["Pflegebruder", "m"]],
+  "foster sister": [["Pflegeschwester", "f"]],
+  "foster sibling": [["Pflegebruder", "m"], ["Pflegeschwester", "f"]],
+  "adoptive father": [["Adoptivvater", "m"]],
+  "adoptive mother": [["Adoptivmutter", "f"]],
+  "adoptive parent": [["Adoptivelternteil", "n"]],
+  "adopted son": [["Adoptivsohn", "m"]],
+  "adopted daughter": [["Adoptivtochter", "f"]],
+  "adopted child": [["Adoptivkind", "n"]],
 };
 
 /**
@@ -130,80 +131,213 @@ const AF_WORDS: Record<string, string> = {
 };
 
 const AF_ORDINALS = ["nulde", "eerste", "tweede", "derde", "vierde", "vyfde", "sesde", "sewende", "agste", "negende", "tiende"];
+const EN_ORDINALS = ["", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
 
-/** Accepts graph.kinship() without changing its backwards-compatible English label. */
-export function kinshipLabel(k: Kinship | undefined | null, locale: Locale = "en"): string {
+/**
+ * Who a relation is seen from. "you": the reader, so German says "Ehefrau deines Cousins". "them": a person named
+ * beside it ("{kin} des Oberhaupts", "{a}: {rel} von {b}"), so German says "Ehefrau des Cousins".
+ */
+export type KinshipView = "you" | "them";
+
+/** The English label of graph.kinship() in the reader's language: "Großtante", "Cousine 2. Grades", "oupagrootjie". */
+export function kinshipLabel(k: Kinship | undefined | null, locale: Locale = "en", view: KinshipView = "you"): string {
   if (!k) return "";
+  if (k.label === "you") return locale === "de" ? "du" : locale === "af" ? "jy" : "you";
   if (locale === "en") return k.label;
-  return locale === "de" ? renderDe(k.label) : renderAf(k.label);
+  if (locale === "af") return renderAf(k);
+  const kin = renderDe(k, view);
+  return kin.alts.map((n) => n.word).join(" oder ") + kin.tail;
 }
 
-function renderDe(label: string): string {
-  const words = DE_WORDS;
-  const ordinals = ["", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
-  const render = (label: string): string => {
-    if (words[label]) return words[label];
+/**
+ * "your father", "deine Großmutter", "dein Großonkel", "die Ehefrau deines Cousins", "jou oupagrootjie": the relation
+ * with the reader's possessive, which in German agrees with each word. Several relations (a couple's anniversary)
+ * are joined with " & ". `capital` starts a sentence: "Deine Großmutter".
+ */
+export function yourKinship(k: Kinship | readonly Kinship[], locale: Locale = "en", opts: { capital?: boolean } = {}): string {
+  const list = Array.isArray(k) ? (k as readonly Kinship[]) : [k as Kinship];
+  let text: string;
+  if (locale === "de") {
+    const phrase = (x: Kinship) => yourKinshipParts(x, "de").map((p) => p.text).join("");
+    text = [...new Set(list.map((x) => (x.label === "you" ? "du" : phrase(x).charAt(0).toLowerCase() + phrase(x).slice(1))))].join(" & ");
+  } else {
+    const words = [...new Set(list.map((x) => kinshipLabel(x, locale)))].join(" & ");
+    text = list.every((x) => x.label === "you") ? words : `${locale === "af" ? "jou" : "your"} ${words}`;
+  }
+  return opts.capital ? capitalise(text) : text;
+}
+
+/**
+ * yourKinship() in parts, the relation words marked, for a screen that sets them in bold: "Deine <b>Großmutter</b>",
+ * "Dein <b>Onkel</b> oder deine <b>Tante</b>". Starts with a capital.
+ */
+export function yourKinshipParts(k: Kinship, locale: Locale = "en"): { text: string; kin?: boolean }[] {
+  if (k.label === "you") return [{ text: capitalise(kinshipLabel(k, locale)), kin: true }];
+  if (locale !== "de") return [{ text: locale === "af" ? "Jou " : "Your " }, { text: kinshipLabel(k, locale), kin: true }];
+  const kin = renderDe(k, "you");
+  const parts: { text: string; kin?: boolean }[] = [];
+  kin.alts.forEach((n, i) => {
+    const lead = (kin.through ? ARTICLE : POSSESSIVE)[n.g];
+    parts.push({ text: `${i ? " oder " : ""}${i ? lead : capitalise(lead)} ` }, { text: n.word, kin: true });
+  });
+  if (kin.tail) parts.push({ text: kin.tail, kin: true });
+  return parts;
+}
+
+const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// ---------- German ----------
+
+/** One German noun: the word, its grammatical gender and its genitive ("Neffe", m, "Neffen"). */
+interface Noun {
+  word: string;
+  g: Gender;
+  gen: string;
+}
+/**
+ * A German relation: one noun, or two when the sex is open ("Onkel oder Tante"), then words that follow both
+ * (" 2. Grades", " deiner Ehefrau"). `through` names someone by way of another person ("Ehefrau deines Cousins"),
+ * which takes the article ("die Ehefrau …") where a plain word takes the possessive ("deine Großtante").
+ */
+interface DeKin {
+  alts: Noun[];
+  tail: string;
+  through?: boolean;
+}
+
+const POSSESSIVE: Record<Gender, string> = { m: "dein", f: "deine", n: "dein" };
+const ARTICLE: Record<Gender, string> = { m: "der", f: "die", n: "das" };
+
+function genitive(word: string, g: Gender): string {
+  if (g === "f") return word;
+  if (g === "m" && word.endsWith("e")) return `${word}n`; // Neffe → des Neffen
+  if (/[sßxz]$/.test(word) || word.endsWith("kind")) return `${word}es`; // des Enkelkindes
+  return `${word}s`;
+}
+const noun = (word: string, g: Gender): Noun => ({ word, g, gen: genitive(word, g) });
+const one = (alts: Noun[], tail = ""): DeKin => ({ alts, tail });
+/** The same relation with each word rewritten ("Onkel" → "Großonkel"); the genitive follows. */
+const reword = (kin: DeKin, f: (w: string) => string): DeKin => ({
+  ...kin,
+  alts: kin.alts.map((n) => ({ word: f(n.word), g: n.g, gen: f(n.gen) })),
+});
+/** Prefixes such as "Halb", "Urgroß": "Halb" + "Bruder" is "Halbbruder". */
+const prefixed = (kin: DeKin, pre: string) => (pre ? reword(kin, (w) => capitalise(pre.toLowerCase() + w.toLowerCase())) : kin);
+/** Groß-, Urgroß-, Ururgroß- for an uncle or aunt `levels` generations further out. */
+const collateral = (levels: number) => (levels <= 0 ? "" : `${"ur".repeat(levels - 1)}groß`);
+const cousinDegree = (word: string | undefined) =>
+  !word ? 1 : EN_ORDINALS.indexOf(word) > 0 ? EN_ORDINALS.indexOf(word) : parseInt(word, 10);
+const removedCount = (word: string | undefined) =>
+  !word ? 0 : word === "once" ? 1 : word === "twice" ? 2 : parseInt(word, 10);
+
+function renderDe(k: Kinship, view: KinshipView): DeKin {
+  const words = (label: string) => DE_WORDS[label] && one(DE_WORDS[label].map(([w, g]) => noun(w, g)));
+  /** "deines Cousins oder deiner Cousine 2. Grades": a relation as the owner in a genitive. */
+  const of = (owner: DeKin) =>
+    owner.alts.map((n) => `${view === "you" ? (n.g === "f" ? "deiner" : "deines") : n.g === "f" ? "der" : "des"} ${n.gen}`).join(" oder ") +
+    owner.tail;
+  const spouseWord = (sex: "m" | "f" | undefined) => words(sex === "m" ? "husband" : sex === "f" ? "wife" : "partner")!;
+  const by = (spouses: DeKin, sex: (g: Gender) => string) => one(spouses.alts.map((n) => noun(sex(n.g), n.g)));
+
+  const render = (label: string): DeKin => {
+    const word = words(label);
+    if (word) return word;
     // A tie through a marriage first, so "great-uncle's wife" is not read as a "great-" word.
     const spouse = label.match(/^(.+)'s (husband|wife|partner)$/);
-    if (spouse) return `${render(spouse[2])} von ${render(spouse[1])}`;
+    if (spouse) {
+      const spouses = render(spouse[2]);
+      const rel = spouse[1].replace(/half-/g, "");
+      // The husband of an aunt is an uncle by marriage: "angeheirateter Großonkel".
+      const pibling = rel.match(/^(?:(\d+)× )?(great-)?(?:uncle|aunt|pibling)$/);
+      if (pibling) {
+        const pre = collateral(pibling[2] ? Number(pibling[1] ?? 1) : 0);
+        return by(spouses, (g) => (g === "f" ? `angeheiratete ${capitalise(pre + "tante")}` : `angeheirateter ${capitalise(pre + "onkel")}`));
+      }
+      // A grandmother's husband who is not your grandfather is your step-grandfather.
+      const grand = rel.match(/^(?:(\d+)× )?(great-)?grand(?:father|mother|parent)$/);
+      if (grand) {
+        const pre = "ur".repeat(grand[2] ? Number(grand[1] ?? 1) : 0);
+        return by(spouses, (g) => `Stief${pre}${g === "f" ? "großmutter" : "großvater"}`);
+      }
+      return { alts: spouses.alts, tail: ` ${of(render(spouse[1]))}`, through: true };
+    }
     const theirs = label.match(/^(husband|wife|partner)'s (.+)$/);
-    if (theirs) return `${render(theirs[2])} von ${render(theirs[1])}`;
+    if (theirs) {
+      const rel = render(theirs[2]);
+      return { alts: rel.alts, tail: `${rel.tail} ${of(render(theirs[1]))}`, through: true };
+    }
     const cousin = label.match(/^(half-)?(?:(\w+|\d+th) )?cousin(?: (once|twice|\d+ times) removed)?$/);
     if (cousin) {
-      const degree = cousin[2]
-        ? ordinals.indexOf(cousin[2]) > 0
-          ? ordinals.indexOf(cousin[2])
-          : parseInt(cousin[2])
-        : 1;
-      return `${cousin[1] ? "Halb-" : ""}Cousin/Cousine${degree > 1 ? ` ${degree}. Grades` : ""}${cousin[3] ? `, ${cousin[3] === "once" ? "einmal" : cousin[3] === "twice" ? "zweimal" : `${parseInt(cousin[3])}-mal`} entfernt` : ""}`;
+      const degree = cousinDegree(cousin[2]);
+      const removed = removedCount(cousin[3]);
+      const sex = k.cousin?.sex;
+      const up = k.cousin?.up;
+      const pick = (m: string, f: string) => one(sex === "m" ? [noun(m, "m")] : sex === "f" ? [noun(f, "f")] : [noun(m, "m"), noun(f, "f")]);
+      let kin: DeKin;
+      if (removed && up) {
+        // A parent's cousin is an uncle or aunt of the next degree, a cousin's child a nephew or niece of it;
+        // each further generation adds Groß-, Urgroß-.
+        kin = prefixed(up > 0 ? pick("Onkel", "Tante") : pick("Neffe", "Nichte"), collateral(removed - 1));
+        kin.tail = ` ${degree + 1}. Grades`;
+      } else {
+        kin = pick("Cousin", "Cousine");
+        kin.tail = `${degree > 1 ? ` ${degree}. Grades` : ""}${removed ? `, ${removed === 1 ? "eine Generation" : `${removed} Generationen`} versetzt` : ""}`;
+      }
+      return cousin[1] ? prefixed(kin, "Halb") : kin;
     }
-    const great = label.match(/^(?:(\d+)× )?great-(.+)$/);
+    const great = label.match(/^(?:(\d+)× )?great-(half-)?(.+)$/);
     if (great) {
       const n = Number(great[1] ?? 1);
-      const base = render(great[2]);
-      const collateral = /^(half-)?(uncle|aunt|pibling|nephew|niece|nibling)$/.test(great[2]);
-      const count = collateral ? n - 1 : n;
-      return `${count ? "Ur" + "ur".repeat(count - 1) : ""}${collateral ? (count ? "groß" : "Groß") : ""}${base.toLowerCase()}`;
+      const side = /^(uncle|aunt|pibling|nephew|niece|nibling)$/.test(great[3]);
+      return prefixed(render(great[3]), `${great[2] ? "halb" : ""}${side ? collateral(n) : "ur".repeat(n)}`);
     }
-    if (label.startsWith("half-")) return `Halb${render(label.slice(5)).toLowerCase()}`;
-    if (label.endsWith("-in-law")) return `${render(label.slice(0, -7))} (angeheiratet)`;
-    return label;
+    if (label.startsWith("half-")) return prefixed(render(label.slice(5)), "Halb");
+    // Any other relative of your partner: "Großvater deiner Ehefrau".
+    if (label.endsWith("-in-law")) {
+      const rel = render(label.slice(0, -7));
+      return { alts: rel.alts, tail: `${rel.tail} ${of(spouseWord(k.spouse))}`, through: true };
+    }
+    return one([noun(label, "m")]);
   };
-  return render(label);
+  return render(k.label);
 }
 
-function renderAf(label: string): string {
+// ---------- Afrikaans ----------
+
+function renderAf(k: Kinship): string {
+  const pick = (m: string, f: string) => (k.cousin?.sex === "m" ? m : k.cousin?.sex === "f" ? f : `${m}/${f}`);
   const render = (label: string): string => {
     if (AF_WORDS[label]) return AF_WORDS[label];
-    // A tie through a marriage first, with the possessive "se": "grootoom se vrou", "vrou se neef/niggie".
+    // A tie through a marriage first, with the possessive "se": "grootoom se vrou", "vrou se niggie".
     const spouse = label.match(/^(.+)'s (husband|wife|partner)$/) ?? label.match(/^(husband|wife|partner)'s (.+)$/);
     if (spouse) return `${render(spouse[1])} se ${render(spouse[2])}`;
     const cousin = label.match(/^(half-)?(?:(\w+|\d+th) )?cousin(?: (once|twice|\d+ times) removed)?$/);
     if (cousin) {
-      const english = ["", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
-      const degree = cousin[2] ? (english.indexOf(cousin[2]) > 0 ? english.indexOf(cousin[2]) : parseInt(cousin[2])) : 1;
-      const base = cousin[1] ? "halfneef/halfniggie" : "neef/niggie";
+      const degree = cousinDegree(cousin[2]);
+      const removed = removedCount(cousin[3]);
+      const base = cousin[1] ? pick("halfneef", "halfniggie") : pick("neef", "niggie");
       const lead = degree > 1 ? `${AF_ORDINALS[degree] ?? `${degree}de`} ${base}` : base;
-      const removed = cousin[3]
-        ? ` ${cousin[3] === "once" ? "een keer" : cousin[3] === "twice" ? "twee keer" : `${parseInt(cousin[3])} keer`} verwyder`
-        : "";
-      return `${lead}${removed}`;
+      return `${lead}${removed ? ` ${removed === 1 ? "een keer" : removed === 2 ? "twee keer" : `${removed} keer`} verwyder` : ""}`;
     }
-    const great = label.match(/^(?:(\d+)× )?great-(.+)$/);
+    const great = label.match(/^(?:(\d+)× )?great-(half-)?(.+)$/);
     if (great) {
-      const base = great[2];
-      if (base === "grandmother") return "agterouma";
-      if (base === "grandfather") return "agteroupa";
-      if (base === "grandparent") return "agterouer";
-      if (base === "aunt") return "groottante";
-      if (base === "uncle") return "grootoom";
-      if (base === "niece" || base === "nephew" || base === "nibling") return "kleinneef/kleinniggie";
-      if (base === "child" || base === "son" || base === "daughter" || base === "grandchild") return "agterkleinkind";
-      return `agter${render(base)}`;
+      // One generation: oupagrootjie, grootoom, agterkleinkind. Each further one repeats "oor-" upwards and
+      // "agter-" downwards, so a great-great-grandfather is never the same word as a great-grandfather.
+      const n = Number(great[1] ?? 1);
+      const half = great[2] ? "half" : "";
+      const sex = (m: string, f: string, x: string) => (great[3].match(/father|uncle|nephew|son$/) ? m : great[3].match(/mother|aunt|niece|daughter/) ? f : x);
+      const up = (word: string) => `${"oor-".repeat(n - 1)}${half}${word}`;
+      const down = (word: string) => `${"agter-".repeat(n - 1)}${half}${word}`;
+      if (/^grand(father|mother|parent)$/.test(great[3])) return up(sex("oupagrootjie", "oumagrootjie", "oorgrootouer"));
+      if (/^(uncle|aunt|pibling)$/.test(great[3])) return up(sex("grootoom", "groottante", "grootoom/groottante"));
+      if (/^(nephew|niece|nibling)$/.test(great[3])) return down(sex("kleinneef", "kleinniggie", "kleinneef/kleinniggie"));
+      if (/^grand(son|daughter|child)$/.test(great[3])) return down(sex("agterkleinseun", "agterkleindogter", "agterkleinkind"));
+      return `agter${half}${render(great[3])}`;
     }
     if (label.startsWith("half-")) return `half${render(label.slice(5))}`;
-    if (label.endsWith("-in-law")) return `${render(label.slice(0, -7))} (skoon)`;
+    // Any other relative of your partner: "vrou se oupa".
+    if (label.endsWith("-in-law")) return `${k.spouse === "m" ? "man" : k.spouse === "f" ? "vrou" : "lewensmaat"} se ${render(label.slice(0, -7))}`;
     return label;
   };
-  return render(label);
+  return render(k.label);
 }

@@ -12,7 +12,7 @@ import { feature, mesh } from 'topojson-client';
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type InputHTMLAttributes, type ReactNode } from 'react';
 import { addStory, deleteStory, newOpKey, opKeys, restoreStory, setPartnershipEnd, uploadPhoto, unlinkRelative } from '~/lib/api';
 import { addPersonField, deletePersonField, personDetailQuery, setLook } from '~/lib/person.functions';
-import { kinshipLabel, locales, ordinal, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
+import { kinshipLabel, yourKinshipParts, locales, ordinal, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
 import { occupationText } from '~/lib/occupations';
 import { translateOccupation } from '~/lib/occupations.functions';
 import { useAiStatus } from './assistant/store';
@@ -419,7 +419,7 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
         ) : me === p.id ? (
           <span className="pp-you"><UserRound size={14} /> {c('panel.thisIsYou')}</span>
         ) : k ? (
-          <span>{c('panel.yourWord')} <b>{kinshipLabel(k, c.locale)}</b></span>
+          <span>{yourKinshipParts(k, c.locale).map((part, i) => (part.kin ? <b key={i}>{part.text}</b> : part.text))}</span>
         ) : (
           <span className="muted">{c('panel.notRelated')}</span>
         )}

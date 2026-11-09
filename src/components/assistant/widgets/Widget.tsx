@@ -72,7 +72,7 @@ function Body({ tree, data }: { tree: string; data: WidgetData }): ReactNode {
     if (!data.steps.length) return <p className="aw-empty">{t('chat.widget.noPath', { a: data.from.name, b: data.to.name })}</p>;
     return (
       <>
-        {data.kin && <p className="aw-line">{t('chat.widget.pathIs', { a: data.to.name, rel: kinshipLabel(data.kin, t.locale), b: data.from.name })}</p>}
+        {data.kin && <p className="aw-line">{t('chat.widget.pathIs', { a: data.to.name, rel: kinshipLabel(data.kin, t.locale, 'them'), b: data.from.name })}</p>}
         <ol className="aw-path">
           {data.steps.map((p, i) => (
             <li key={p.id}>
