@@ -6,6 +6,7 @@ import { parseFurther } from './further-given.ts';
 import { photoAge } from './portrait-face.ts';
 import { fieldText, type FieldType, type FieldValue, type PersonField } from '../components/fields/model.ts';
 import { fieldsVisibleTo, PLAIN_MEMBER, type Audience, type Visibility } from './visibility.ts';
+import { translate } from './i18n/dictionary.ts';
 
 export { guard, q, store, type Db, type Query } from './store/index.ts';
 
@@ -437,18 +438,42 @@ export function upsertPlaces(tree: string, places: { name: string; lat: number; 
 
 // ---------- houses ----------
 
-/** Renames a house and changes its motto and arms. Returns the house as the graph shows it. */
-export async function updateHouse(tree: string, id: string, patch: { name: string; motto: string | null; arms: House['arms'] }): Promise<House> {
-  const d = db(tree);
-  const r = await d.get<{ founder: string | null }>('SELECT founder FROM house WHERE id = ?', id);
-  if (!r) throw new Error('That house is not in this family.');
-  // Store only the fields the arms use: a plain field keeps no second tincture.
-  const arms: House['arms'] = { field: patch.arms.field, division: patch.arms.division, charge: patch.arms.charge, chargeTincture: patch.arms.chargeTincture };
-  if (patch.arms.field2 && patch.arms.division !== 'plain') arms.field2 = patch.arms.field2;
-  // The v2 design, when there is one; the v1 fields above stay as its nearest summary for older readers.
-  if (patch.arms.v2) arms.v2 = patch.arms.v2;
-  await d.run('UPDATE house SET name = ?, motto = ?, arms = ? WHERE id = ?', patch.name, patch.motto, JSON.stringify(arms), id);
-  return { id, name: patch.name, motto: patch.motto ?? undefined, arms, founder: opt(r.founder) };
+/** The message a house save gets when someone else changed the house after the designer opened it. */
+export const HOUSE_CHANGED = translate('en', 'houses.err.changed_since_opened');
+
+/** A value's JSON with its keys in order, so the same arms compare equal however their keys were sent. */
+const canonical = (v: unknown): string =>
+  Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
+    : v && typeof v === 'object' ? `{${Object.keys(v).filter((k) => (v as Record<string, unknown>)[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${canonical((v as Record<string, unknown>)[k])}`).join(',')}}`
+    : JSON.stringify(v ?? null);
+
+/** A house's name, motto and arms as the designer showed them when it opened. */
+export interface HouseSeen { name: string; motto: string | null; arms: unknown }
+
+/**
+ * Renames a house and changes its motto and arms. Returns the house as the graph shows it. Houses have no revision, so
+ * `before` (the name, motto and arms the designer was opened with) stands in for one: if any of them is no longer what
+ * is stored, someone else saved the house meanwhile and this save is refused rather than replacing their change.
+ */
+export function updateHouse(tree: string, id: string, patch: { name: string; motto: string | null; arms: House['arms'] }, before: HouseSeen, op?: OpKey): Promise<House> {
+  return once(tree, op, 'updateHouse', async (d) => {
+    const r = await d.get<{ name: string; motto: string | null; arms: string; founder: string | null }>('SELECT name, motto, arms, founder FROM house WHERE id = ?', id);
+    if (!r) throw new Error('That house is not in this family.');
+    if (r.name !== before.name || (r.motto ?? null) !== (before.motto ?? null) || canonical(JSON.parse(r.arms)) !== canonical(before.arms)) throw new Error(HOUSE_CHANGED);
+    // Store only the fields the arms use: a plain field keeps no second tincture.
+    const arms: House['arms'] = { field: patch.arms.field, division: patch.arms.division, charge: patch.arms.charge, chargeTincture: patch.arms.chargeTincture };
+    if (patch.arms.field2 && patch.arms.division !== 'plain') arms.field2 = patch.arms.field2;
+    // The v2 design, when there is one; the v1 fields above stay as its nearest summary for older readers.
+    if (patch.arms.v2) arms.v2 = patch.arms.v2;
+    return {
+      writes: [
+        // The row exactly as read, so a save landing in between makes this plan decide again (and then refuse).
+        guard('EXISTS (SELECT 1 FROM house WHERE id = ? AND name = ? AND motto IS ? AND arms = ?)', id, r.name, r.motto, r.arms),
+        q('UPDATE house SET name = ?, motto = ?, arms = ? WHERE id = ?', patch.name, patch.motto, JSON.stringify(arms), id),
+      ],
+      result: { id, name: patch.name, motto: patch.motto ?? undefined, arms, founder: opt(r.founder) },
+    };
+  });
 }
 
 // ---------- media ----------

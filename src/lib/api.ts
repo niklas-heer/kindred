@@ -6,7 +6,6 @@ import { armsSchema } from '~/components/heraldry/schema';
 import { validDate } from './dates';
 import { MAX_FURTHER, MAX_FURTHER_LENGTH, storeFurther } from './further-given';
 import type { Action } from './roles';
-import { occupationCodeFor } from './occupations.ts';
 import { audienceOf } from './visibility';
 
 const tree = z.string().regex(/^[a-z0-9-]+$/).max(64);
@@ -198,41 +197,6 @@ export const setPartnershipEnd = createServerFn({ method: 'POST' })
     }));
   });
 
-export const updatePerson = createServerFn({ method: 'POST' })
-  .validator(
-    z.object({
-      tree,
-      id: z.string(),
-      patch: z.object({
-        given: z.string().trim().min(1).max(120),
-        surname: z.string().trim().max(120).nullable(),
-        nickname: z.string().trim().max(120).nullable(),
-        sex: z.enum(['m', 'f', 'x']).nullable(),
-        born: z.string().refine((d) => d.trim() === '' || validDate(d.trim()), 'Not a real date').nullable(),
-        bornPlace: z.string().trim().max(200).nullable(),
-        died: z.string().refine((d) => d.trim() === '' || validDate(d.trim()), 'Not a real date').nullable(),
-        diedPlace: z.string().trim().max(200).nullable(),
-        living: z.boolean(),
-        title: z.string().trim().max(200).nullable(),
-        epithet: z.string().trim().max(120).nullable(),
-        occupation: z.string().trim().max(200).nullable(),
-        bio: z.string().max(20_000).nullable(),
-      }),
-    }),
-  )
-  .handler(async ({ data }) => {
-    await requireCan(data.tree, 'edit-person');
-    const { db, changeCommitted } = await server();
-    const p = data.patch;
-    const empty = (s: string | null) => (s === null || s.trim() === '' ? null : s.trim());
-    const wrote = await db(data.tree)
-      .run(`UPDATE person SET given = ?, surname = ?, nickname = ?, sex = ?, born = ?, born_place = ?, died = ?, died_place = ?,
-        living = ?, title = ?, epithet = ?, occupation = ?, occupation_code = ?, bio = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`,
-        p.given, empty(p.surname), empty(p.nickname), p.sex, empty(p.born), empty(p.bornPlace), empty(p.died), empty(p.diedPlace),
-        p.living ? 1 : 0, empty(p.title), empty(p.epithet), empty(p.occupation), occupationCodeFor(empty(p.occupation)), empty(p.bio), data.id);
-    if (wrote.changes) await changeCommitted(data.tree);
-  });
-
 /**
  * Fills in only the fields given: the Needed page saves exactly what was missing. `seen` is each value as the page
  * showed it; a value someone else entered since is kept, and the answer lists it (person.server.ts `fillGaps`).
@@ -410,7 +374,7 @@ export const upsertPlaces = createServerFn({ method: 'POST' })
 // v1 arms plus the optional heraldry v2 design (src/components/heraldry/schema.ts).
 const arms = armsSchema;
 
-/** A steward renames a house or changes its motto and arms. */
+/** A steward renames a house or changes its motto and arms, over the house as they opened it. */
 export const updateHouse = createServerFn({ method: 'POST' })
   .validator(
     z.object({
@@ -419,9 +383,11 @@ export const updateHouse = createServerFn({ method: 'POST' })
       name: z.string().trim().min(1, 'A house needs a name').max(80),
       motto: z.string().trim().max(160).nullable(),
       arms,
+      // The house as it was opened: a save over someone else's newer change is refused (db.server.ts `updateHouse`).
+      before: z.object({ name: z.string().max(200), motto: z.string().max(400).nullable(), arms: z.unknown() }),
     }),
   )
   .handler(async ({ data }) => {
     await requireCan(data.tree, 'edit-house');
-    return (await server()).updateHouse(data.tree, data.id, { name: data.name, motto: data.motto || null, arms: data.arms });
+    return (await server()).updateHouse(data.tree, data.id, { name: data.name, motto: data.motto || null, arms: data.arms }, data.before);
   });

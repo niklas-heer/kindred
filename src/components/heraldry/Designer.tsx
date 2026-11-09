@@ -14,7 +14,7 @@ import { myFamiliesQuery } from '~/lib/auth/functions';
 import { armsReviewsQuery, houseMeaningsQuery, houseTranslationsQuery, settleArmsReview } from '~/lib/house-meaning.functions';
 import { translateReview } from '~/lib/house-translation';
 import { chosenMeanings, surnameOf, type ArmsReview } from '~/lib/house-meaning';
-import { useT, type Key, type Translator } from '~/lib/i18n';
+import { translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
 import type {
   Achievement, ArmsLayer, ArmsV2, ChargeArrangement, ChargeLayer, FieldDivision, HelmRank, OrdinaryKind, OrdinaryLayer,
   PartitionLine, ShieldShape, TinctureV2,
@@ -153,7 +153,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
     mutationFn: (d: Draft) =>
       // Saving from the designer always stores the design (v2), even when nothing changed: a v1 house saved as it was
       // is then no longer on generated arms, so the steward's badge goes.
-      updateHouse({ data: { tree, id: house.id, name: d.name.trim(), motto: d.motto.trim() || null, arms: storeV2(d.arms) } }),
+      updateHouse({ data: { tree, id: house.id, name: d.name.trim(), motto: d.motto.trim() || null, arms: storeV2(d.arms), before: { name: house.name, motto: house.motto ?? null, arms: house.arms } } }),
     onSuccess: async (h2, d) => {
       await Promise.all([qc.invalidateQueries({ queryKey: graphQuery(tree).queryKey }), qc.invalidateQueries({ queryKey: myFamiliesQuery.queryKey })]);
       play('seal');
@@ -223,7 +223,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
           </div>
           {save.isError && (
             <p className="ae-error" role="alert">
-              {save.error instanceof Error && save.error.message ? save.error.message : tr('heraldry.save_failed')} {tr('heraldry.save_failed_hint')}
+              {save.error instanceof Error && save.error.message ? translateMessage(save.error.message, tr.locale) : tr('heraldry.save_failed')} {tr('heraldry.save_failed_hint')}
             </p>
           )}
           <div className="ae-actions">

@@ -90,7 +90,8 @@ export async function applyProposal(tree: string, p: Proposal, args: ProposalArg
     const house = graph.houses.find((h) => h.id === a.house);
     if (!house) throw new Error('houses.err.not_found');
     if (house.name !== a.before.name || (house.motto ?? null) !== a.before.motto) throw new Error(CHANGED_SINCE_OPENED);
-    await updateHouse({ data: { tree, id: a.house, name: a.name, motto: a.motto, arms: house.arms } });
+    // The server restates what was read here, so a change landing in between is refused too.
+    await updateHouse({ data: { tree, id: a.house, name: a.name, motto: a.motto, arms: house.arms, before: { name: a.before.name, motto: a.before.motto, arms: house.arms } } });
   } else if (p.kind === 'house-create') {
     await createHouseFn({ data: { tree, opKey, name: a.name, motto: a.motto, country: a.country } });
   } else if (p.kind === 'house-members') {
