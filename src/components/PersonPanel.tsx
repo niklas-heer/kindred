@@ -175,6 +175,8 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   const nee = p.currentSurname != null && p.currentSurname !== p.surname && p.surname ? p.surname : undefined;
   const shown = personDisplayName(current, nameMode, f);
   const Heading = page ? 'h1' : 'h2';
+  // The docked panel and the phone's sheet are a landmark named after the person they show.
+  const headId = useId();
   const mode = `${compact ? ' pp-compact' : ''}${tab === 'edit' ? ' pp-editing' : ''}${mini && stuck ? ' pp-stuck' : ''}`;
   // The pinned one-line header. A copy for the eye only: the heading above it is the one that is read out.
   const miniBar = mini && (
@@ -198,7 +200,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
       {dialogs}
     </article>
   ) : (
-    <aside className={`person-panel panel${mode}`} key={id}>
+    <aside className={`person-panel panel${mode}`} key={id} aria-labelledby={headId}>
       <button className="btn icon ghost panel-close" onClick={() => leave(onClose)} aria-label={t('panel.closeAria')} title={t('panel.closeTitle')}><X size={16} /></button>
       <div className="pp-scroll" ref={scroller}>{miniBar}{head}{extras}{tabs}</div>
       {foot}{dialogs}
@@ -219,7 +221,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
           )}
         </span>
         <div className="pp-id">
-          <Heading className="display" ref={nameEl}>
+          <Heading className="display" ref={nameEl} id={headId}>
             {page ? shown : <Link className="pp-name-link" to="/$tree/person/$id" params={{ tree, id }}>{shown}</Link>}
             {nee && nameMode === 'full' && <span className="pp-nee"> {c('panel.nee', { name: nee })}</span>}
           </Heading>

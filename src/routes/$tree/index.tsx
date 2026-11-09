@@ -690,6 +690,19 @@ function TreePage() {
     if (h < PEEK_H * 0.55) setPanel(false);
     else setSnap(best);
   };
+  const sheetDialog = phone && panel && snap === 'full';
+  const wasDialog = useRef(false);
+  useEffect(() => {
+    if (sheetDialog === wasDialog.current) return;
+    wasDialog.current = sheetDialog;
+    if (sheetDialog) {
+      // Unless something inside already has it (the editor focuses its first field).
+      if (!sheet.current?.contains(document.activeElement)) sheet.current?.focus({ preventScroll: true });
+    } else if (!document.activeElement || document.activeElement === document.body) {
+      // Back on the tree: to the card the sheet was about, when focus was left nowhere.
+      page.current?.querySelector<HTMLElement>(`.world [data-person="${CSS.escape(sel)}"]`)?.focus({ preventScroll: true });
+    }
+  }, [sheetDialog]); // eslint-disable-line react-hooks/exhaustive-deps
   const cycle = () => {
     if (justDragged.current) return;
     setSnap((s) => (s === 'peek' ? 'half' : s === 'half' ? 'full' : 'peek'));
@@ -876,6 +889,10 @@ function TreePage() {
           ref={sheet}
           className="panel-sheet"
           data-snap={snap}
+          // Opened fully on a phone it covers the page: a dialog named after the person, which takes focus and gives it back.
+          role={sheetDialog ? 'dialog' : undefined}
+          aria-label={sheetDialog && focusPerson ? displayName(focusPerson, f) : undefined}
+          tabIndex={sheetDialog ? -1 : undefined}
           onPointerDown={sheetDown}
           onPointerMove={sheetMove}
           onPointerUp={sheetUp}
