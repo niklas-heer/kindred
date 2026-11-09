@@ -143,3 +143,27 @@ test('a contributor can add the people but not the contact details; the doubts a
   const out = await apply(draftOf(items), 'contributor');
   assert.ok(out.people[0].error || out.people[0].id, 'it reports, never throws');
 });
+
+test('a draft does not make the long dead living: an old birth or a death settles it, and the prompt says not to assume', async () => {
+  const year = new Date().getUTCFullYear();
+  const { people } = await apply({ links: [], people: [
+    { ref: 'n1', given: 'Oldest', born: `${year - 120}`, living: true },
+    { ref: 'n2', given: 'Roughly', born: `~${year - 111}`, living: true },
+    { ref: 'n3', given: 'Recent', born: `${year - 109}`, living: true },
+    { ref: 'n4', given: 'Buried', born: '1990', died: '2020', living: true },
+    { ref: 'n5', given: 'Undated', living: true },
+    { ref: 'n6', given: 'Unshown', born: '1990', living: false },
+  ] });
+  const living = async (i: number) => (await db(TREE).get<{ living: number }>('SELECT living FROM person WHERE id = ?', people[i].id!))!.living;
+  assert.equal(await living(0), 0, 'born over 110 years ago is never living');
+  assert.equal(await living(1), 0, 'an approximate old birth counts');
+  assert.equal(await living(2), 1, 'within the span the model decides');
+  assert.equal(await living(3), 0, 'a death date is never living');
+  assert.equal(await living(4), 1);
+  assert.equal(await living(5), 0, 'not shown stays not marked as living');
+  const { systemPrompt } = await load<typeof import('./ai/prompt.ts')>('/src/lib/ai/prompt.ts');
+  const prompt = systemPrompt({ locale: 'en', family: 'F', readerName: null, kinToReader: null, canPropose: true, role: 'editor', pictures: 1 });
+  assert.match(prompt, /more than about 110 years ago is never living/);
+  assert.match(prompt, /no death on it says nothing/);
+  assert.doesNotMatch(prompt, /otherwise leave it true/);
+});

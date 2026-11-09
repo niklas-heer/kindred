@@ -170,6 +170,20 @@ export function matchesFor(g: Graph, row: FamilyPerson, profiles: ReadonlyMap<st
   return out.sort((a, b) => Number(b.sure) - Number(a.sure)).slice(0, 4);
 }
 
+/** Born longer ago than this, nobody is taken to be alive, whatever a draft says. */
+const OLDEST_LIVING_AGE = 110;
+
+/**
+ * Whether a drafted person is stored as living. The tree has no "unknown" (the column is 0 or 1, and 0 only means not marked as
+ * living), so a known death or an impossible age settles it here and the model's own value counts only for the rest.
+ */
+function draftLiving(row: FamilyRow): boolean {
+  if (row.died) return false;
+  const born = yearOf(row.born);
+  if (!Number.isNaN(born) && new Date().getUTCFullYear() - born > OLDEST_LIVING_AGE) return false;
+  return row.living;
+}
+
 /** The person's own fields, as the plan stores them. Dates are checked on the calendar; an approximate one keeps its ~. */
 function personFields(row: FamilyRow) {
   return {
@@ -181,7 +195,7 @@ function personFields(row: FamilyRow) {
     bornPlace: row.bornPlace?.trim() || null,
     died: row.died ?? null,
     diedPlace: row.diedPlace?.trim() || null,
-    living: row.living,
+    living: draftLiving(row),
     occupation: row.occupation?.trim() || null,
   };
 }
