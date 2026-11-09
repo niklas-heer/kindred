@@ -273,7 +273,12 @@ const AF_ORDINAL_WORDS = ["nulde", "eerste", "tweede", "derde", "vierde", "vyfde
 
 export function ordinal(n: number, locale: Locale = "en"): string {
   if (locale === "de") return `${n}.`;
-  if (locale === "af") return n === 1 || n === 8 ? `${n}ste` : `${n}de`;
+  if (locale === "af") {
+    // Afrikaans: eerste, agste and everything from twintigste up take -ste; past a hundred the last two digits
+    // decide ("honderd-en-eerste", "honderd-en-tweede"), and a round hundred is "honderdste".
+    const r = n >= 100 ? n % 100 : n;
+    return `${n}${(n >= 100 && r === 0) || r === 1 || r === 8 || r >= 20 ? "ste" : "de"}`;
+  }
   return (
     EN_ORDINALS[n] ??
     `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : (({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th")}`
@@ -284,5 +289,5 @@ export const ordinalWord = (n: number, locale: Locale = "en") =>
   locale === "de"
     ? (DE_ORDINAL_WORDS[n] ?? `${n}.`)
     : locale === "af"
-      ? (AF_ORDINAL_WORDS[n] ?? `${n}de`)
+      ? (AF_ORDINAL_WORDS[n] ?? ordinal(n, locale))
       : ordinal(n, locale);
