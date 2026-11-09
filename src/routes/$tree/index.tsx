@@ -764,7 +764,10 @@ function TreePage() {
               <div className="lens-banner no-pan" role="status">
                 <span className="lens-text">
                 {lens === 'path' ? (
-                  who
+                  // The path needs two people: with only one in view, ask for the other (or, unsaid, who the reader is).
+                  (search.to ?? sel) === (who ?? me)
+                    ? <>{who ? t('tp.bannerPathPick') : t('tp.bannerPathPickStart', { me: displayName(f.byId.get(me)!, f) })}</>
+                    : who
                     ? <>{t('tp.bannerPathYou', { name: displayName(f.byId.get(search.to ?? sel)!, f), rel: kinshipLabel(kinship(f, who, search.to ?? sel), t.locale) || t('tp.relative') })}</>
                     : <>{t('tp.bannerPathRelated', { name: displayName(f.byId.get(search.to ?? sel)!, f), me: displayName(f.byId.get(me)!, f) })}</>
                 ) : lens === 'line' ? (
