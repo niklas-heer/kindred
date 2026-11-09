@@ -126,8 +126,10 @@ Schema changes are new numbered files in `migrations/`, and a file that has ship
 
 Kindred is open source under the [MIT licence](LICENSE).
 
-- Heraldic charges come from [game-icons.net](https://game-icons.net), under **CC BY 3.0**. Attribution: "Game-icons.net, CC BY 3.0".
-- Portraits use DiceBear Lorelei, under CC0.
+- Heraldic charges come from [game-icons.net](https://game-icons.net), under **CC BY 3.0**, by Lorc, Delapouite and contributors.
+- Portraits are Kindred's own drawing, built from parts in `src/components/portrait/`. Painted portraits, if a steward turns them on, are made by the image model they choose.
 - Place names for the offline gazetteer come from [GeoNames](https://www.geonames.org), under **CC BY 4.0**.
 - Typefaces come from Fontsource: Cinzel, EB Garamond, Inter and IM Fell English, under the SIL Open Font License.
 - The Atlas draws its map from `world-atlas`, which is built from Natural Earth data.
+
+[NOTICE.md](NOTICE.md) lists every third-party licence and the credit each one asks for.
