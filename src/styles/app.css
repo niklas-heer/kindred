@@ -425,7 +425,10 @@ kbd {
   /* No room even for that: the nav keeps its icons, titles explain them. */
   .topbar-compact nav { flex: none; }
   .topbar-compact nav .nav-label { display: none; }
+  /* A touch screen has no tooltips, so the section you are in keeps its name beside its icon. */
+  .topbar-compact nav a[data-status='active'] .nav-label { display: inline; }
   .topbar-compact nav a { padding: 6px 10px; }
+  @media (pointer: coarse) { .topbar-compact nav a { min-height: 44px; min-width: 44px; justify-content: center; } }
   .topbar-compact .search-trigger { width: 200px; }
 }
 @media (min-width: 901px) { .topbar-compact .brand, .topbar-stacked .brand { flex: 0 1 auto; min-width: calc(18ch + 38px); } }

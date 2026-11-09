@@ -135,36 +135,36 @@ function TreeLayout() {
           <b>{f.graph.tree.name}</b>
         </Link>
         <nav aria-label={t("shell.sections")}>
-          <Link to="/$tree" params={{ tree }} activeOptions={{ exact: true, includeSearch: false }} title={t("shell.tree")}>
+          <Link to="/$tree" params={{ tree }} activeOptions={{ exact: true, includeSearch: false }} title={t("shell.tree")} aria-label={t("shell.tree")}>
             <Network size={16} /><span className="nav-label">{t("shell.tree")}</span>
           </Link>
-          <Link to="/$tree/almanac" params={{ tree }} title={t("shell.almanac")}>
+          <Link to="/$tree/almanac" params={{ tree }} title={t("shell.almanac")} aria-label={t("shell.almanac")}>
             <CalendarHeart size={16} /><span className="nav-label">{t("shell.almanac")}</span>
           </Link>
-          <Link to="/$tree/atlas" params={{ tree }} title={t("shell.atlas")}>
+          <Link to="/$tree/atlas" params={{ tree }} title={t("shell.atlas")} aria-label={t("shell.atlas")}>
             <MapIcon size={16} /><span className="nav-label">{t("shell.atlas")}</span>
           </Link>
           {!guest && (
-            <Link to="/$tree/contacts" params={{ tree }} title={t("shell.contacts")}>
+            <Link to="/$tree/contacts" params={{ tree }} title={t("shell.contacts")} aria-label={t("shell.contacts")}>
               <Contact size={16} /><span className="nav-label">{t("shell.contacts")}</span>
             </Link>
           )}
-          <Link to="/$tree/people" params={{ tree }} title={t("shell.register")}>
+          <Link to="/$tree/people" params={{ tree }} title={t("shell.register")} aria-label={t("shell.register")}>
             <BookOpen size={16} /><span className="nav-label">{t("shell.register")}</span>
           </Link>
-          <Link to="/$tree/houses" params={{ tree }} title={t("shell.houses")} activeOptions={{ exact: false }}>
+          <Link to="/$tree/houses" params={{ tree }} title={t("shell.houses")} aria-label={t("shell.houses")} activeOptions={{ exact: false }}>
             <Landmark size={16} /><span className="nav-label">{t("shell.houses")}</span>
           </Link>
-          <Link to="/$tree/needed" params={{ tree }} title={t("shell.information_needed")}>
+          <Link to="/$tree/needed" params={{ tree }} title={t("shell.information_needed")} aria-label={t("shell.information_needed")}>
             <CircleHelp size={16} /><span className="nav-label">{t("shell.needed")}</span>
           </Link>
-          <Link to="/$tree/chronicle" params={{ tree }} title={t("shell.chronicle")}>
+          <Link to="/$tree/chronicle" params={{ tree }} title={t("shell.chronicle")} aria-label={t("shell.chronicle")}>
             <ScrollText size={16} /><span className="nav-label">{t("shell.chronicle")}</span>
           </Link>
-          <Link to="/$tree/gallery" params={{ tree }} title={t("shell.gallery")}>
+          <Link to="/$tree/gallery" params={{ tree }} title={t("shell.gallery")} aria-label={t("shell.gallery")}>
             <Images size={16} /><span className="nav-label">{t("shell.gallery")}</span>
           </Link>
-          <Link to="/$tree/research" params={{ tree }} title={t("research.title")} activeOptions={{ exact: false }}>
+          <Link to="/$tree/research" params={{ tree }} title={t("research.title")} aria-label={t("research.title")} activeOptions={{ exact: false }}>
             <FolderSearch size={16} /><span className="nav-label">{t("research.title")}</span>
           </Link>
         </nav>
