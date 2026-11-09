@@ -106,40 +106,202 @@ function indexOfWord(bytes: Uint8Array, word: string, from: number): number {
   return -1;
 }
 
+const isWhite = (b: number | undefined) => b === 0x20 || b === 0x0a || b === 0x0d || b === 0x09 || b === 0x0c || b === 0x00;
 const isDelimiter = (b: number | undefined) => b === undefined || b <= 0x20 || '()<>[]{}/%'.includes(String.fromCharCode(b));
-/** PDF names that run code or carry files inside a document. Written as hex escapes (/J#61vaScript) they are the same name. */
-const ACTIVE_NAMES = new Set(['JavaScript', 'JS', 'Launch', 'EmbeddedFile', 'EmbeddedFiles', 'RichMedia']);
+const isHex = (b: number) => (b >= 0x30 && b <= 0x39) || (b >= 0x41 && b <= 0x46) || (b >= 0x61 && b <= 0x66);
+/** PDF names that run code, act on their own or carry files inside a document. Written as hex escapes (/J#61vaScript) they are the same name. */
+const ACTIVE_NAMES = new Set(['JavaScript', 'JS', 'Launch', 'EmbeddedFile', 'EmbeddedFiles', 'RichMedia', 'AA']);
+/** Filters an object stream may use and still be read here: only Flate, which DecompressionStream inflates on every runtime. */
+const OTHER_FILTERS = new Set(['ASCIIHexDecode', 'AHx', 'ASCII85Decode', 'A85', 'LZWDecode', 'LZW', 'RunLengthDecode', 'RL', 'CCITTFaxDecode', 'JBIG2Decode', 'DCTDecode', 'JPXDecode', 'Crypt']);
+/** At most this much inflated object-stream text per file, so a small file cannot unpack into gigabytes. */
+const MAX_INFLATED_BYTES = 64_000_000;
+
+export type PdfProblem = 'active' | 'broken';
+
+/** Inflates a FlateDecode body; null when it is not one, or would be larger than `limit`. */
+async function inflate(body: Uint8Array, limit: number): Promise<Uint8Array | null> {
+  try {
+    const reader = new Blob([body as BlobPart]).stream().pipeThrough(new DecompressionStream('deflate')).getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.length;
+      if (total > limit) {
+        await reader.cancel().catch(() => {});
+        return null;
+      }
+      chunks.push(value);
+    }
+    const out = new Uint8Array(total);
+    let at = 0;
+    for (const c of chunks) { out.set(c, at); at += c.length; }
+    return out;
+  } catch {
+    return null;
+  }
+}
 
 /**
- * Whether a PDF's objects name active content. Stream bodies are skipped (they are compressed bytes, and a chance /JS in
- * them would refuse a good scan), so this is a first filter, not a proof: what really keeps a file harmless is how the
- * route serves it (src/routes/api/research.$tree.$key.ts).
+ * Whether a PDF names active content ('active'), or cannot be read far enough to tell ('broken'); null when it is clean.
+ * A small lexer, enough to agree with a PDF reader about what is an object and what is not:
+ *   - a comment (% to the end of the line) and a string ((…) with its nesting and escapes, <hex>) are not objects, so a
+ *     `stream` written in either starts nothing; names inside them are still checked, which can only refuse more.
+ *   - a stream body is skipped (it is compressed bytes, and a chance /JS in it would refuse a good scan), but only when
+ *     `stream` follows a dictionary's `>>` and ends where a reader ends it. A stream that never ends is refused.
+ *   - an object stream (/Type /ObjStm, how PDF 1.5 and later pack their objects) is inflated and its objects are checked
+ *     the same way. One that is not Flate, or does not inflate, is refused: it would hide what it holds.
+ *   - /OpenAction with a page to open at ([…]) is ordinary; any other /OpenAction is an action, and refused.
+ * A first filter, not a proof: what really keeps a file harmless is how the route serves it (src/routes/api/research.$tree.$key.ts).
  */
-export function pdfHasActiveContent(bytes: Uint8Array): boolean {
+export async function pdfContentProblem(bytes: Uint8Array): Promise<PdfProblem | null> {
+  const budget = { inflated: 0 };
+  return scanPdf(bytes, budget, false);
+}
+
+async function scanPdf(bytes: Uint8Array, budget: { inflated: number }, inObjectStream: boolean): Promise<PdfProblem | null> {
+  // The last two significant bytes outside comments and strings: `stream` starts a body only right after `>>`.
+  let prev1 = 0;
+  let prev2 = 0;
+  // The names of the current object's dictionary (since the last `obj`), and its direct /Length, to know what a stream is.
+  let names: string[] = [];
+  let length: number | null = null;
+  let afterLength = false;
+  const note = (b: number) => { prev2 = prev1; prev1 = b; };
+
   for (let i = 0; i < bytes.length; i++) {
     const b = bytes[i];
-    if (b === 0x73 /* s */ && ascii(bytes, i, i + 6) === 'stream' && isDelimiter(bytes[i + 6]) && (bytes[i - 1] !== 0x64 /* the d of endstream */)) {
-      const end = indexOfWord(bytes, 'endstream', i + 6);
-      if (end === -1) return false;
-      i = end + 8;
+    if (isWhite(b)) continue;
+    if (b === 0x25 /* % */) {
+      // A comment runs to the end of the line. Its names are checked anyway; nothing in it starts a string or a stream.
+      let j = i + 1;
+      while (j < bytes.length && bytes[j] !== 0x0a && bytes[j] !== 0x0d) j++;
+      if (activeName(bytes, i + 1, j)) return 'active';
+      i = j;
       continue;
     }
-    if (b !== 0x2f /* / */) continue;
-    let name = '';
-    let j = i + 1;
-    for (; j < bytes.length && name.length < 40 && !isDelimiter(bytes[j]); j++) {
-      if (bytes[j] === 0x23 && j + 2 < bytes.length) {
-        const hex = Number.parseInt(ascii(bytes, j + 1, j + 3), 16);
-        if (!Number.isNaN(hex)) {
-          name += String.fromCharCode(hex);
-          j += 2;
-          continue;
+    if (b === 0x28 /* ( */) {
+      let depth = 1;
+      let j = i + 1;
+      for (; j < bytes.length && depth > 0; j++) {
+        if (bytes[j] === 0x5c /* \ */) j++;
+        else if (bytes[j] === 0x28) depth++;
+        else if (bytes[j] === 0x29) depth--;
+      }
+      if (depth > 0) return 'broken';
+      if (activeName(bytes, i + 1, j - 1)) return 'active';
+      i = j - 1;
+      note(0x29);
+      afterLength = false;
+      continue;
+    }
+    if (b === 0x3c /* < */ && bytes[i + 1] !== 0x3c) {
+      // A hex string, when it is one: only hex digits and white space up to `>`. Anything else is read on as it comes.
+      let j = i + 1;
+      while (j < bytes.length && (isHex(bytes[j]) || isWhite(bytes[j]))) j++;
+      if (bytes[j] === 0x3e) {
+        i = j;
+        note(0x29);
+        continue;
+      }
+    }
+    if (b === 0x2f /* / */) {
+      let name = '';
+      let j = i + 1;
+      for (; j < bytes.length && name.length < 40 && !isDelimiter(bytes[j]); j++) {
+        if (bytes[j] === 0x23 && j + 2 < bytes.length) {
+          const hex = Number.parseInt(ascii(bytes, j + 1, j + 3), 16);
+          if (!Number.isNaN(hex)) {
+            name += String.fromCharCode(hex);
+            j += 2;
+            continue;
+          }
         }
+        name += String.fromCharCode(bytes[j]);
+      }
+      if (ACTIVE_NAMES.has(name)) return 'active';
+      if (name === 'OpenAction') {
+        let k = j;
+        while (k < bytes.length && isWhite(bytes[k])) k++;
+        if (bytes[k] !== 0x5b /* [ */) return 'active';
+      }
+      names.push(name);
+      afterLength = name === 'Length';
+      i = j - 1;
+      note(0x2f);
+      continue;
+    }
+    if (isDelimiter(b)) {
+      note(b);
+      afterLength = false;
+      continue;
+    }
+    // A regular word: a number, `obj`, `stream`, `R`, `true`…
+    let j = i;
+    while (j < bytes.length && !isDelimiter(bytes[j])) j++;
+    const word = ascii(bytes, i, j);
+    if (word === 'obj') {
+      names = [];
+      length = null;
+    } else if (afterLength && /^\d+$/.test(word)) {
+      length = Number(word);
+      // `/Length 5 0 R` names another object, not a length: the next word being a number says so.
+      let k = j;
+      while (k < bytes.length && isWhite(bytes[k])) k++;
+      if (bytes[k] >= 0x30 && bytes[k] <= 0x39) length = null;
+    } else if (word === 'stream' && prev1 === 0x3e && prev2 === 0x3e) {
+      // The body starts after the end of this line.
+      let from = j;
+      if (bytes[from] === 0x0d) from++;
+      if (bytes[from] === 0x0a) from++;
+      const found = indexOfWord(bytes, 'endstream', from);
+      if (found === -1) return 'broken';
+      // A reader ends the body at its /Length when `endstream` is there; else at the first `endstream`. Take whichever is
+      // earlier, so a wrong /Length can never hide more than a reader would see as the body.
+      let to = found;
+      if (length !== null && from + length <= found) {
+        let k = from + length;
+        while (k < bytes.length && isWhite(bytes[k])) k++;
+        if (k === found) to = from + length;
+      }
+      if (to === found) while (to > from && (bytes[to - 1] === 0x0a || bytes[to - 1] === 0x0d)) to--;
+      if (names.includes('ObjStm')) {
+        if (inObjectStream) return 'broken';
+        if (names.includes('DecodeParms') || names.some((n) => OTHER_FILTERS.has(n))) return 'broken';
+        const body = bytes.subarray(from, to);
+        const inner = names.includes('FlateDecode') || names.includes('Fl') ? await inflate(body, MAX_INFLATED_BYTES - budget.inflated) : body;
+        if (!inner) return 'broken';
+        budget.inflated += inner.length;
+        const problem = await scanPdf(inner, budget, true);
+        if (problem) return problem;
+      }
+      i = found + 8;
+      names = [];
+      length = null;
+      note(0x6d /* the m of endstream */);
+      afterLength = false;
+      continue;
+    }
+    if (!/^[-+.\d]+$/.test(word)) afterLength = false;
+    i = j - 1;
+    note(bytes[j - 1]);
+  }
+  return null;
+}
+
+/** Whether a name in `bytes[from, to)` is an active one, for text that is not an object (a comment, a string). */
+function activeName(bytes: Uint8Array, from: number, to: number): boolean {
+  for (let i = bytes.indexOf(0x2f, from); i !== -1 && i < to; i = bytes.indexOf(0x2f, i + 1)) {
+    let name = '';
+    for (let j = i + 1; j < to && name.length < 40 && !isDelimiter(bytes[j]); j++) {
+      if (bytes[j] === 0x23 && j + 2 < to) {
+        const hex = Number.parseInt(ascii(bytes, j + 1, j + 3), 16);
+        if (!Number.isNaN(hex)) { name += String.fromCharCode(hex); j += 2; continue; }
       }
       name += String.fromCharCode(bytes[j]);
     }
-    if (ACTIVE_NAMES.has(name)) return true;
-    i = j - 1;
+    if (ACTIVE_NAMES.has(name) || name === 'OpenAction') return true;
   }
   return false;
 }
@@ -157,14 +319,15 @@ export type DocumentRefusal = 'research.err.file_empty' | 'research.err.file_lar
  * Checks an upload by its content. `declared` is the type the browser sent (empty for an unknown one); a file whose bytes
  * disagree with it is refused too, so a picture renamed .pdf, or a script renamed anything, never gets a stored type it isn't.
  */
-export function checkDocument(bytes: Uint8Array, declared: string): { mime: DocumentMime } | { refused: DocumentRefusal } {
+export async function checkDocument(bytes: Uint8Array, declared: string): Promise<{ mime: DocumentMime } | { refused: DocumentRefusal }> {
   if (bytes.length === 0) return { refused: 'research.err.file_empty' };
   if (bytes.length > MAX_DOCUMENT_BYTES) return { refused: 'research.err.file_large' };
   const mime = sniffDocument(bytes);
   if (!mime || (declared && declared !== mime)) return { refused: 'research.err.file_type' };
   if (mime === 'application/pdf') {
     if (!pdfEndsLikeOne(bytes)) return { refused: 'research.err.pdf_broken' };
-    if (pdfHasActiveContent(bytes)) return { refused: 'research.err.pdf_active' };
+    const problem = await pdfContentProblem(bytes);
+    if (problem) return { refused: problem === 'active' ? 'research.err.pdf_active' : 'research.err.pdf_broken' };
   }
   return { mime };
 }

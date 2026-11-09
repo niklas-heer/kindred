@@ -114,7 +114,7 @@ export const addResearchDocument = createServerFn({ method: 'POST' })
     const file = form.get('file');
     if (!(file instanceof File)) throw new Error('research.err.file_type');
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const checked = checkDocument(bytes, file.type);
+    const checked = await checkDocument(bytes, file.type);
     if ('refused' in checked) throw new Error(checked.refused);
     const op = k ? { key: k, user: m.user.id, payload: { tree: t, project, file, width, height, ...details } } : undefined;
     const added = await (await server()).addDocument(t, whoOf(m), project, bytes, checked.mime, { width, height }, details, op);

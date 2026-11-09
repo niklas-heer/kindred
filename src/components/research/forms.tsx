@@ -183,7 +183,7 @@ export function DocumentDialog({ tree, project, document: doc, onClose }: { tree
     setPreparing(true);
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const checked = checkDocument(bytes, file.type);
+      const checked = await checkDocument(bytes, file.type);
       if ('refused' in checked) {
         setFileError(t(checked.refused));
         setPicked(null);
