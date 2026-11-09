@@ -138,7 +138,7 @@ export const de = {
   'aitasks.verdict.partly': 'Passt teilweise',
   'aitasks.verdict.reconsider': 'Wappen überdenken',
   'aitasks.openHouse': 'Haus öffnen',
-  'aitasks.linkClaim': 'Sagt, wer sie sind',
+  'aitasks.linkClaim': 'Zuordnung im Stammbaum',
   'aitasks.linkClaimText': 'gibt an, {person} zu sein',
   'aitasks.openAccess': 'Auf der Zugang-Seite beantworten',
   'aitasks.tasksTitle': 'Aufgaben',

@@ -177,7 +177,7 @@ export const de: Record<keyof typeof en, Message> = {
   "stats.rc.mostly_reading": { one: "Bisher wird vor allem gelesen, mit {count} Änderung in diesem Zeitraum.", other: "Bisher wird vor allem gelesen, mit {count} Änderungen in diesem Zeitraum." },
   "stats.rc.tour_good": "{finished} von {total}, denen die Tour angeboten wurde, haben sie beendet.",
   "stats.rc.tour_skipped": "Nur {finished} von {total}, denen die Tour angeboten wurde, haben sie beendet.",
-  "stats.rc.feedback": { one: "{count} Rückmeldung ist eingegangen. Ihre Worte zählen mehr als diese Diagramme.", other: "{count} Rückmeldungen sind eingegangen. Ihre Worte zählen mehr als diese Diagramme." },
+  "stats.rc.feedback": { one: "{count} Rückmeldung ist eingegangen. Was darin steht, zählt mehr als diese Diagramme.", other: "{count} Rückmeldungen sind eingegangen. Was darin steht, zählt mehr als diese Diagramme." },
   "stats.rc.no_feedback": "Bisher gibt es keine Rückmeldungen.",
   "stats.chart.both": "Seitenaufrufe und aktive Mitglieder pro Tag",
   "stats.chart.both_note": "Ist eine Zahl viel kleiner, hat sie ihre eigene Skala, damit keine von beiden flach gedrückt wird.",

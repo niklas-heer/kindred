@@ -102,7 +102,7 @@ export const de: Record<keyof typeof en, Message> = {
   "chronicle.show_less": "Weniger zeigen",
   "chronicle.read_more": "Mehr lesen",
   "chronicle.empty_title": "Noch nichts geschrieben",
-  "chronicle.empty_text": "Öffne jemanden im Stammbaum und füge eine Notiz, ein Rezept, eine Erinnerung oder etwas hinzu, das er oft gesagt hat. Was die Familie hinzufügt, erscheint hier, das Neueste zuerst.",
+  "chronicle.empty_text": "Öffne jemanden im Stammbaum und füge eine Notiz, ein Rezept, eine Erinnerung oder einen Satz hinzu, den die Person oft gesagt hat. Was die Familie hinzufügt, erscheint hier, das Neueste zuerst.",
   "chronicle.open_tree": "Stammbaum öffnen",
   "chronicle.no_sayings": "Noch keine Sprüche",
   "chronicle.no_sayings_text": "Was Menschen immer sagen, ist es wert, bewahrt zu werden. Öffne jemanden im Stammbaum und füge einen Spruch hinzu.",

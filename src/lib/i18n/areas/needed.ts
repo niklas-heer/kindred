@@ -174,7 +174,7 @@ export const de: Record<keyof typeof en, Message> = {
   "needed.hint.sex": "Das Geschlecht ist erfasst, für Verwandtschaftswörter wie Tante oder Onkel",
   "needed.hint.photo": "Alle haben ein echtes Foto statt eines gezeichneten Porträts",
   "needed.hint.contact": "Lebende Erwachsene haben Telefon, E-Mail oder Adresse",
-  "needed.hint.occupation": "Was sie beruflich tun oder getan haben",
+  "needed.hint.occupation": "Der Beruf, heute oder früher",
   "needed.hint.story": "Mindestens eine Erinnerung, ein Spruch oder eine Anekdote",
 };
 

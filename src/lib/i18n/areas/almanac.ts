@@ -178,7 +178,7 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   "almanac.turns": "word {count}",
   "almanac.anniversary": "{ord} trouherdenking",
   "almanac.anniversary_note": "{ord} trouherdenking · {name}",
-  "almanac.years_since": { one: "{count} jaar sedert hul heengaan", other: "{count} jaar sedert hul heengaan" },
+  "almanac.years_since": { one: "{count} jaar sedert die heengaan", other: "{count} jaar sedert die heengaan" },
   "almanac.was_born": "is gebore",
   "almanac.died": "is oorlede",
   "almanac.married": "het getrou met",
