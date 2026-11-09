@@ -31,12 +31,12 @@
 .pp-body:has(.pp-edit:not(.pe-inline)) { padding-bottom: 0; }
 .pe-bar {
   position: sticky; bottom: 0; z-index: 4; margin-top: 18px; padding: 10px 0 calc(12px + env(safe-area-inset-bottom));
-  display: flex; align-items: center; gap: 8px; min-width: 0;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0;
   border-top: 1px solid var(--border); background: var(--panel-solid);
 }
 [data-theme='codex'] .pe-bar { border-top-color: var(--edge-soft); background: linear-gradient(180deg, #1a2130, #151b27); box-shadow: 0 -10px 16px -12px #000b; }
 [data-theme='night'] .pe-bar { background: #1c2029; border-top-color: #6b563655; }
-.pe-status { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.pe-status { flex: 1 1 12em; min-width: 0; overflow-wrap: anywhere; }
 .pe-bar .btn { flex: none; display: inline-flex; align-items: center; gap: 6px; }
 .pe-bar .btn:disabled { opacity: 0.5; }
 .pe-remove { display: flex; justify-content: flex-start; margin-top: 18px; padding-top: 12px; border-top: 1px dotted var(--border); }

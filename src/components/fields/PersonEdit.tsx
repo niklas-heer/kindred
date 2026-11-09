@@ -300,7 +300,12 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only }: Omit<Props, 'deta
     if (opened.conflicts.length) saver.pause();
     push();
     const sub = form.store.subscribe(push);
-    if (opened.restored) toast({ title: words.current('edit.restored'), ms: 5000 });
+    if (opened.restored) {
+      // A draft brought back with something in it that cannot be saved: say so, and bring that field into view.
+      const stuck = canWrite(current()).held;
+      toast({ title: words.current('edit.restored'), body: words.current(stuck ? 'edit.restoredFix' : 'edit.restoredBody'), ms: 8000 });
+      if (stuck) requestAnimationFrame(() => requestAnimationFrame(() => showIssue(false)));
+    }
     // The phone going to sleep or the page going away is a reason to write now; coming back is a reason to try again.
     const hidden = () => { if (document.visibilityState === 'hidden') void saver.flush(); else saver.wake(); };
     const leaving = () => void saver.flush();
@@ -373,6 +378,19 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only }: Omit<Props, 'deta
     const picker = (e.target as Element).closest('.dp');
     if (picker && picker.contains(e.relatedTarget as Node | null)) return;
     void saver.flush();
+  }
+
+  /** Brings the first field marked in red into view, so "check the fields marked in red" never means a search. */
+  function showIssue(focus = true) {
+    const mark = root.current?.querySelector<HTMLElement>('[aria-invalid="true"], .err');
+    if (!mark) return;
+    mark.scrollIntoView({ block: 'center' });
+    if (focus) (mark.matches('input, textarea') ? mark : mark.closest('.field, .dp')?.querySelector<HTMLElement>('input, textarea'))?.focus({ preventScroll: true });
+  }
+
+  /** The way out of a value that cannot be saved: the form goes back to what the server has. Saved changes stay. */
+  function dropUnsaved() {
+    applyValues(base.current);
   }
 
   /** Takes back the last saved change. Disabled while a write is owed, so it always means the change the reader last saw saved. */
@@ -499,6 +517,8 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only }: Omit<Props, 'deta
     <div className="pe-bar wide" role="group" aria-label={c('edit.barLabel')}>
       <div className="pe-status" role="status" aria-live="polite">{statusText}</div>
       {conflicts.length > 0 && <button type="button" className="btn ghost" onClick={() => conflictList.current?.scrollIntoView({ block: 'center' })}>{c('edit.showConflicts')}</button>}
+      {held && !conflicts.length && <button type="button" className="btn ghost" onClick={() => showIssue()}>{c('edit.showIssue')}</button>}
+      {held && !conflicts.length && <button type="button" className="btn ghost" onClick={dropUnsaved}><Undo2 size={14} aria-hidden /> {c('edit.dropUnsaved')}</button>}
       {state === 'failed' && <button type="button" className="btn ghost" onClick={() => void saver.retry()}><RotateCw size={14} aria-hidden /> {c('ui.retry')}</button>}
       {undoCount > 0 && !conflicts.length && <button type="button" className="btn ghost" disabled={state !== 'saved'} onClick={undo}><Undo2 size={14} aria-hidden /> {c('edit.undo')}</button>}
       {only && <button type="button" className="btn" onClick={() => leave(done)}>{c('edit.done')}</button>}
