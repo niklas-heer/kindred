@@ -21,6 +21,35 @@ the first account exists. Invite everyone else from the Access page.
 The app listens only on this machine (`127.0.0.1`). To reach it from other devices, use HTTPS (below): passkeys
 do not work on a plain address other than `localhost`.
 
+### With a published image (from the next release)
+
+From the next release, each version tag publishes a ready-made image for amd64 and arm64 to
+`ghcr.io/niklas-heer/kindred`, tagged with the version (`2.1.0`, without the `v`) and `latest`. Until then, no image exists
+there and you build from source as above. The image is built without the offline place search (see below). With it you need no
+checkout and no build tools. Save this as `compose.yaml` next to a `.env` made from [`.env.example`](../.env.example), and put
+the version you chose in place of `<version>`:
+
+```yaml
+services:
+  app:
+    image: ghcr.io/niklas-heer/kindred:<version>
+    restart: unless-stopped
+    stop_grace_period: 20s
+    env_file: .env
+    environment:
+      KINDRED_ORIGIN: ${KINDRED_ORIGIN:-http://localhost:4901}
+    ports:
+      - "127.0.0.1:4901:4901"
+    volumes:
+      - kindred-data:/data
+volumes:
+  kindred-data:
+```
+
+Then `docker compose up -d`. To upgrade, change the tag and run `docker compose pull && docker compose up -d` (read the
+changelog first, see "Upgrades"). Use the repository's own `compose.yaml` instead if you want the HTTPS profile with Caddy.
+This file was written from the repository's `compose.yaml` and could not be run before the first image exists.
+
 ## What it needs
 
 - **One small machine.** Kindred is one Node process (Node 26, which the image has) with SQLite files. There is no database
