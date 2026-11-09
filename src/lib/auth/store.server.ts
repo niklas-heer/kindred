@@ -88,16 +88,19 @@ export const credentialUsed = (id: string, counter: number) => accounts().run('U
 
 // ---------- sessions ----------
 
-export interface SessionRow { hash: string; user: string; created: number; expires: number; refreshed: number }
+export interface SessionRow { hash: string; user: string; created: number; expires: number; refreshed: number; credential: string | null }
 
-/** A new session for `user`; returns the cookie's token (only its hash is stored). */
-export async function createSession(user: string): Promise<{ token: string; expires: number }> {
+/**
+ * A new session for `user`; returns the cookie's token (only its hash is stored). `credential` is the passkey that
+ * started it, so removing that passkey ends this session too (removeCredential).
+ */
+export async function createSession(user: string, credential: string | null = null): Promise<{ token: string; expires: number }> {
   const token = randomToken(32);
   const t = now();
   const expires = t + SESSION_DAYS * DAY;
   await accounts().batch([
     q('DELETE FROM session WHERE expires < ?', t),
-    q('INSERT INTO session (hash, user, created, expires, refreshed) VALUES (?, ?, ?, ?, ?)', await hashToken('session', token), user, t, expires, t),
+    q('INSERT INTO session (hash, user, created, expires, refreshed, credential) VALUES (?, ?, ?, ?, ?, ?)', await hashToken('session', token), user, t, expires, t, credential),
   ]);
   return { token, expires };
 }
@@ -118,6 +121,31 @@ export async function slideSession(row: SessionRow): Promise<number | undefined>
 }
 
 export const deleteSession = async (token: string) => accounts().run('DELETE FROM session WHERE hash = ?', await hashToken('session', token));
+
+/** "Sign out everywhere else": ends every session of `user` but the one whose cookie holds `keep`. Returns how many ended. */
+export async function endOtherSessions(user: string, keep: string): Promise<number> {
+  return (await accounts().run('DELETE FROM session WHERE user = ? AND hash <> ?', user, await hashToken('session', keep))).changes;
+}
+
+/**
+ * Removes one of `user`'s passkeys and ends every session it started, so a lost device is signed out with it. Never the
+ * last passkey: the guard after the delete keeps that rule however many removals race. Sessions from before migration
+ * 0022 name no passkey and are left alone; "sign out everywhere else" ends those.
+ */
+export async function removeCredential(user: string, id: string): Promise<'removed' | 'already-removed' | 'last'> {
+  let r;
+  try {
+    [r] = await accounts().batch([
+      q('DELETE FROM credential WHERE id = ? AND user = ?', id, user),
+      guard('EXISTS (SELECT 1 FROM credential WHERE user = ?)', user),
+      q('DELETE FROM session WHERE credential = ? AND user = ?', id, user),
+    ]);
+  } catch (e) {
+    if (isGuardError(e)) return 'last';
+    throw e;
+  }
+  return r.changes === 1 ? 'removed' : 'already-removed';
+}
 
 // ---------- memberships ----------
 

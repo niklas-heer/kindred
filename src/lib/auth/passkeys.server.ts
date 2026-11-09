@@ -122,7 +122,7 @@ const take = async (id: unknown, purpose: string) => {
  */
 export async function finishSetup(
   request: Request, code: string, challengeId: unknown, response: RegistrationResponseJSON, trees: string[], familyName?: unknown,
-): Promise<{ user: string; tree: string | null }> {
+): Promise<{ user: string; tree: string | null; credential: string }> {
   const c = await take(challengeId, 'setup');
   if (!(await checkSetupCode(code))) throw invalid('Kindred is already set up. Sign in instead.');
   const cred = await verifyNew(request, c.challenge, response);
@@ -146,11 +146,11 @@ export async function finishSetup(
     if ((await userCount()) > 0) throw done;
     throw e;
   }
-  return { user: user.id, tree: made };
+  return { user: user.id, tree: made, credential: cred.id };
 }
 
-/** Finishes an invitation: a new account with the invited role. Returns its id. */
-export async function finishInvite(request: Request, token: string, challengeId: unknown, response: RegistrationResponseJSON): Promise<string> {
+/** Finishes an invitation: a new account with the invited role. Returns its id and the new passkey's. */
+export async function finishInvite(request: Request, token: string, challengeId: unknown, response: RegistrationResponseJSON): Promise<{ user: string; credential: string }> {
   const c = await take(challengeId, 'invite');
   const [inviteId, handle] = (c.subject ?? '').split(' ');
   const invite = await openInvite(token);
@@ -167,7 +167,7 @@ export async function finishInvite(request: Request, token: string, challengeId:
     const { user, insert } = newUser(c.name!, email, handle, guestChoice(request));
     return {
       writes: [insert, insertCredential({ ...cred, user: user.id, device: deviceName(request) }), ...useInvite(fresh, user.id)],
-      result: user.id,
+      result: { user: user.id, credential: cred.id },
       refused: inviteUsed,
     };
   });
@@ -191,8 +191,8 @@ export async function signInOptions(request: Request) {
   return { options, challengeId: await saveChallenge({ challenge: options.challenge, purpose: 'login' }) };
 }
 
-/** Verifies a sign-in; returns the account's id. */
-export async function finishSignIn(request: Request, challengeId: unknown, response: AuthenticationResponseJSON): Promise<string> {
+/** Verifies a sign-in; returns the account's id and the passkey that signed in. */
+export async function finishSignIn(request: Request, challengeId: unknown, response: AuthenticationResponseJSON): Promise<{ user: string; credential: string }> {
   const c = await take(challengeId, 'login');
   const unknown = invalid('This passkey isn’t one we know. If you were invited, open your invitation link first.');
   const row = typeof response?.id === 'string' ? await credentialById(response.id) : undefined;
@@ -214,7 +214,7 @@ export async function finishSignIn(request: Request, challengeId: unknown, respo
   }
   if (!result.verified) throw invalid('Your passkey couldn’t be checked. Please try again.');
   await credentialUsed(row.id, result.authenticationInfo.newCounter);
-  return user.id;
+  return { user: user.id, credential: row.id };
 }
 
 /** "iPhone", "Mac", "Android"…: a label for the list of someone's passkeys. */

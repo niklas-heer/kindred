@@ -47,21 +47,21 @@ export const Route = createFileRoute('/api/auth/$action')({
               return json(await p.setupOptions(request, str(body.code), body.name, body.familyName));
             case 'setup': {
               const trees = (await families()).map((t) => t.id);
-              const { user, tree } = await p.finishSetup(request, str(body.code), body.challengeId, body.response, trees, body.familyName);
+              const { user, tree, credential } = await p.finishSetup(request, str(body.code), body.challengeId, body.response, trees, body.familyName);
               // `tree` is the family made for a new server, so the first-run step can add the steward to it.
-              return json({ ok: true, tree }, 200, await s.startSession(request, user));
+              return json({ ok: true, tree }, 200, await s.startSession(request, user, credential));
             }
             case 'invite-options':
               return json(await p.inviteOptions(request, str(body.token), body.name));
             case 'invite': {
-              const user = await p.finishInvite(request, str(body.token), body.challengeId, body.response);
-              return json({ ok: true }, 200, await s.startSession(request, user));
+              const { user, credential } = await p.finishInvite(request, str(body.token), body.challengeId, body.response);
+              return json({ ok: true }, 200, await s.startSession(request, user, credential));
             }
             case 'signin-options':
               return json(await p.signInOptions(request));
             case 'signin': {
-              const user = await p.finishSignIn(request, body.challengeId, body.response);
-              return json({ ok: true }, 200, await s.startSession(request, user));
+              const { user, credential } = await p.finishSignIn(request, body.challengeId, body.response);
+              return json({ ok: true }, 200, await s.startSession(request, user, credential));
             }
             case 'add-options':
               return json(await p.addOptions(request, await requireUser()));

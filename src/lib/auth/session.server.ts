@@ -5,7 +5,7 @@ import { families, makeFirstFamily } from './trees.server.ts';
 import { accessEmail, authMethod } from './method.server.ts';
 import { isLocale, negotiateLocale, translate, type Locale } from '../i18n/dictionary.ts';
 import {
-  commit, createSession, deleteSession, newUser, noUsersYet, now, pendingInvitesFor, sessionByToken, slideSession, touchUser, upsertMembership, useInvite,
+  commit, createSession, deleteSession, endOtherSessions, newUser, noUsersYet, now, pendingInvitesFor, sessionByToken, slideSession, touchUser, upsertMembership, useInvite,
   userByEmail, userById, userCount, type UserRow,
 } from './store.server.ts';
 import { endGuestVisit, guestVisitByToken, type GuestSession } from './share.server.ts';
@@ -37,13 +37,27 @@ function cookie(request: Request, value: string, maxAgeSeconds: number) {
 
 /**
  * Signs `user` in: always a brand-new session (so a session planted before sign-in is worthless),
- * and the old one, if any, is ended. Returns the Set-Cookie value.
+ * and the old one, if any, is ended. `credential` is the passkey used, so removing it later signs this session out.
+ * Returns the Set-Cookie value.
  */
-export async function startSession(request: Request, user: string): Promise<string> {
+export async function startSession(request: Request, user: string, credential: string | null = null): Promise<string> {
   const old = sessionToken(request);
   if (old) await deleteSession(old);
-  const { token, expires } = await createSession(user);
+  const { token, expires } = await createSession(user, credential);
   return cookie(request, token, Math.floor((expires - now()) / 1000));
+}
+
+/** Ends every other session of `user`, keeping the request's own. Returns how many ended. */
+export async function endOtherSessionsOf(request: Request, user: string): Promise<number> {
+  const keep = sessionToken(request);
+  // Without a cookie of its own the request is not a passkey session (Access has none to end), so nothing is ended.
+  return keep ? endOtherSessions(user, keep) : 0;
+}
+
+/** Whether the request's session cookie still names a live session, such as after removing the passkey that started it. */
+export async function sessionStillOpen(request: Request): Promise<boolean> {
+  const t = sessionToken(request);
+  return !!t && !!(await sessionByToken(t));
 }
 
 /** Ends the request's session; returns the Set-Cookie value that clears it. */

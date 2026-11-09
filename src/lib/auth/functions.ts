@@ -210,30 +210,34 @@ export const fetchMyPasskeys = createServerFn({ method: 'GET' }).handler(async (
 });
 export const myPasskeysQuery = queryOptions({ queryKey: ['session', 'passkeys'], queryFn: () => fetchMyPasskeys() });
 
-/** Removes one of the reader's passkeys; never the last one (they would be locked out). */
+/**
+ * Removes one of the reader's passkeys; never the last one (they would be locked out). Every session that passkey started
+ * ends with it, so removing a lost device's passkey signs that device out. `signedOut` says the request's own session was
+ * one of them (the reader removed the passkey they signed in with here).
+ */
 export const removeMyPasskey = createServerFn({ method: 'POST' })
   .validator(z.object({ id: z.string().min(1).max(1024) }))
-  .handler(async ({ data }) => {
-    const [{ requireUser, fail }, s, { AuthError }, { authMethod }] = await Promise.all([guard(), store(), import('./errors'), import('./method.server')]);
+  .handler(async ({ data }): Promise<{ signedOut: boolean }> => {
+    const [{ requireUser, fail }, s, { AuthError }, { authMethod }, { sessionStillOpen }, { getRequest }] = await Promise.all([
+      guard(), store(), import('./errors'), import('./method.server'), import('./session.server'), import('@tanstack/react-start/server'),
+    ]);
     const user = await requireUser();
     if (authMethod() !== 'kindred') throw fail(new AuthError('invalid', 'auth.passkeys_off'));
-    const onlyOne = () => fail(new AuthError('invalid', 'This is your only passkey. Add another before removing it, or you won’t be able to sign in.'));
-    const d = s.accounts();
-    const n = (await d.get<{ n: number }>('SELECT count(*) AS n FROM credential WHERE user = ?', user.id))!.n;
-    if (n <= 1) throw onlyOne();
-    // The guard after the delete keeps the rule however many removals race: never the last passkey.
-    let r;
-    try {
-      [r] = await d.batch([
-        s.q('DELETE FROM credential WHERE id = ? AND user = ?', data.id, user.id),
-        s.guard('EXISTS (SELECT 1 FROM credential WHERE user = ?)', user.id),
-      ]);
-    } catch (e) {
-      if (s.isGuardError(e)) throw onlyOne();
-      throw e;
-    }
-    if (r.changes !== 1) throw fail(new AuthError('invalid', 'That passkey was already removed.'));
+    const outcome = await s.removeCredential(user.id, data.id);
+    if (outcome === 'last') throw fail(new AuthError('invalid', 'This is your only passkey. Add another before removing it, or you won’t be able to sign in.'));
+    if (outcome === 'already-removed') throw fail(new AuthError('invalid', 'That passkey was already removed.'));
+    return { signedOut: !(await sessionStillOpen(getRequest())) };
   });
+
+/** "Sign out everywhere else": ends every session of the reader except this one. Returns how many ended. */
+export const signOutElsewhere = createServerFn({ method: 'POST' }).handler(async (): Promise<{ ended: number }> => {
+  const [{ requireUser, fail }, { AuthError }, { authMethod }, { endOtherSessionsOf }, { getRequest }] = await Promise.all([
+    guard(), import('./errors'), import('./method.server'), import('./session.server'), import('@tanstack/react-start/server'),
+  ]);
+  const user = await requireUser();
+  if (authMethod() !== 'kindred') throw fail(new AuthError('invalid', 'auth.passkeys_off'));
+  return { ended: await endOtherSessionsOf(getRequest(), user.id) };
+});
 
 export const renameMe = createServerFn({ method: 'POST' })
   .validator(z.object({ name: z.string().max(200) }))

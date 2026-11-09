@@ -131,6 +131,10 @@ themselves. The Markdown archive carries research that isn't private, with its d
   passwords either way. See [Choosing how people sign in](self-host.md#choosing-how-people-sign-in).
 - A session is a random token in an HttpOnly cookie (SameSite=Lax, and `Secure` on HTTPS). The server keeps only a
   SHA-256 hash of the token, so a copy of the database does not contain a working session.
+- A session remembers which passkey started it. Removing a passkey ("Your name & passkeys" in the account menu) signs out
+  every browser that signed in with it, so a lost phone loses its access with its passkey. The same dialog has "Sign out
+  everywhere else", which ends every session of yours except the one you are using. Sessions started before Kindred
+  recorded this (accounts migration 0022) name no passkey; only "Sign out everywhere else" or their expiry ends those.
 - Sign-in endpoints are rate-limited. The limit is kept in memory: it resets when the server restarts, and on
   Cloudflare each isolate keeps its own count. It is a brake against guessing, not a wall.
 - With Cloudflare Access as the method, Kindred accepts only a verified Access identity, so the first person through Access can

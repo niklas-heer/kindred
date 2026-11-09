@@ -11,7 +11,7 @@ import '~/components/assistant/ai-tasks.css';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { addPasskey, forgetLocalIdentity, passkeysSupported, signOutRequest } from '~/lib/auth/client';
 import { appCommit, appVersion, releaseUrl } from '~/lib/version';
-import { myPasskeysQuery, removeMyPasskey, renameMe, type Passkey } from '~/lib/auth/functions';
+import { myPasskeysQuery, removeMyPasskey, renameMe, signOutElsewhere, type Passkey } from '~/lib/auth/functions';
 import { fetchRemindersAvailable } from '~/lib/reminders.functions';
 import { setPref, THEMES } from '~/lib/prefs';
 import { ROLES, can } from '~/lib/roles';
@@ -242,9 +242,21 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
   const add = useMutation({ mutationFn: addPasskey, onSuccess: refresh, onError: (e) => setError(e.message) });
   const remove = useMutation({
     mutationFn: (id: string) => removeMyPasskey({ data: { id } }),
-    onSuccess: () => { setConfirm(null); return refresh(); },
+    onSuccess: ({ signedOut }) => {
+      setConfirm(null);
+      // The passkey this browser signed in with: its session ended with it, so this browser goes to the sign-in page.
+      if (signedOut) { forgetLocalIdentity(); window.location.assign('/signin'); return; }
+      return refresh();
+    },
     onError: (e) => { setConfirm(null); setError(e.message); },
   });
+  const [confirmElsewhere, setConfirmElsewhere] = useState(false);
+  const elsewhere = useMutation({
+    mutationFn: () => signOutElsewhere(),
+    onSuccess: () => setConfirmElsewhere(false),
+    onError: (e) => { setConfirmElsewhere(false); setError(e.message); },
+  });
+  useEffect(() => { if (open) elsewhere.reset(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const rename = useMutation({ mutationFn: () => renameMe({ data: { name } }), onSuccess: refresh, onError: (e) => setError(e.message) });
   const list = keys.data ?? [];
 
@@ -302,6 +314,16 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
           </button>
         )}
         {add.isSuccess && <p className="acct-ok" role="status"><Check size={15} /> {t("accountmenu.passkey_added")}</p>}
+        <h3 className="acct-h">{t("accountmenu.other_sign_ins")}</h3>
+        <p className="acct-help">{t("accountmenu.sign_out_everywhere_else_help")}</p>
+        <button className="btn acct-add" onClick={() => { setError(null); elsewhere.reset(); setConfirmElsewhere(true); }} disabled={elsewhere.isPending}>
+          <LogOut size={16} /> {t("accountmenu.sign_out_everywhere_else")}
+        </button>
+        {elsewhere.isSuccess && (
+          <p className="acct-ok" role="status">
+            <Check size={15} /> {elsewhere.data.ended ? t("accountmenu.signed_out_elsewhere", { count: elsewhere.data.ended }) : t("accountmenu.no_other_sign_ins")}
+          </p>
+        )}
         </>}
       </Dialog>
       <Dialog
@@ -309,11 +331,24 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
         onClose={() => setConfirm(null)}
         title={t("accountmenu.remove_this_passkey")}
         width={420}
-        description={<>{t("accountmenu.the_passkey_on")} <b>{confirm?.device ? translateMessage(confirm.device, t.locale) : t("accountmenu.that_device")}</b> {t("accountmenu.will_no_longer_sign_you_in_you_can_add_it_again_later")}</>}
+        description={<>{t("accountmenu.the_passkey_on")} <b>{confirm?.device ? translateMessage(confirm.device, t.locale) : t("accountmenu.that_device")}</b> {t("accountmenu.will_no_longer_sign_you_in_you_can_add_it_again_later")} {t("accountmenu.anything_signed_in_with_it_is_signed_out_too")}</>}
         footer={
           <>
             <button className="btn" data-autofocus onClick={() => setConfirm(null)}>{t("accountmenu.keep_it")}</button>
             <button className="btn primary acct-danger" onClick={() => confirm && remove.mutate(confirm.id)} disabled={remove.isPending}>{t("accountmenu.remove")}</button>
+          </>
+        }
+      />
+      <Dialog
+        open={confirmElsewhere}
+        onClose={() => setConfirmElsewhere(false)}
+        title={t("accountmenu.sign_out_everywhere_else_q")}
+        width={420}
+        description={t("accountmenu.sign_out_everywhere_else_desc")}
+        footer={
+          <>
+            <button className="btn" data-autofocus onClick={() => setConfirmElsewhere(false)}>{t("common.cancel")}</button>
+            <button className="btn primary acct-danger" onClick={() => elsewhere.mutate()} disabled={elsewhere.isPending}>{t("accountmenu.sign_out_everywhere_else")}</button>
           </>
         }
       />

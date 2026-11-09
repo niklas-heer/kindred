@@ -97,6 +97,7 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
 | `0011_names_task.sql` | Adds the `names` background task and route to the lists the task, run and route tables allow. |
 | `0019_house_translation.sql` | `house_translation`: the background AI translations of a house's researched name meanings and its arms check. |
 | `0017_feedback.sql` | `feedback`: what stewards report about Kindred itself, kept in this installation (the picture of the screen is in the family's media storage). |
+| `0022_session_credential.sql` | `session.credential`: the passkey that started a session, so removing that passkey signs its device out (null for older sessions). |
 
 ### Tables
 
