@@ -21,6 +21,8 @@
   flex: none; display: grid; place-items: center; width: 32px; height: 100%; padding: 0; border: 0; background: none;
   color: var(--subtle); cursor: pointer; border-radius: var(--radius) 0 0 var(--radius);
 }
+/* A finger needs a 44px row and a 16px font, or iOS zooms the page on focus. */
+@media (pointer: coarse) { .pi-box { height: 44px; } .pi-input { font-size: max(16px, var(--fs-3)); } }
 .pi-pin:hover { color: var(--accent); }
 .pi-pin:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
 .pi-pin[data-placed='true'] { color: var(--accent); }

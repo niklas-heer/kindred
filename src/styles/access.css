@@ -66,6 +66,7 @@
 .acc-hint { margin: -8px 0 0; font-size: var(--fs-2); color: var(--subtle); line-height: 1.4; }
 .acc-link { display: flex; gap: 8px; min-width: 0; }
 .acc-link .input { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: var(--fs-2); height: 42px; min-width: 0; width: 100%; }
+@media (pointer: coarse) { .acc-link .input { font-size: 16px; } }
 .acc-link .btn { height: 42px; flex: none; }
 .acc-share { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .acc-share .btn { height: 40px; }
