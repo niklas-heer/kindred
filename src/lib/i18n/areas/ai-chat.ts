@@ -208,7 +208,7 @@ export const de: Record<keyof typeof en, Message> = {
   "chat.field.picture": "Bild",
   "chat.field.tagline": "Untertitel",
   "chat.vis.family": "die Familie",
-  "chat.vis.editors": "Bearbeiter und Verwalter",
+  "chat.vis.editors": "alle mit Bearbeitungs- oder Verwaltungsrecht",
   "chat.union.marriage": "Ehe",
   "chat.union.partnership": "Partnerschaft",
   "chat.union.betrothal": "Verlobung",

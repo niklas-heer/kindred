@@ -133,7 +133,7 @@ function Invite() {
       <div className="auth-role">
         <span aria-hidden>{ROLE_ICON[role.id]}</span>
         <div>
-          <b>{info.inviter ? t('invite.invited', {name:info.inviter}) : t("invitetoken.you_ve_been_invited")} {t("invitetoken.as")} {t(`role.${role.id}`)}</b>
+          <b>{info.inviter ? t('invite.invitedAs', {name:info.inviter, role:t(`role.${role.id}`)}) : t('invite.invitedAsAnon', {role:t(`role.${role.id}`)})}</b>
           <small>{t(`role.${role.id}Description`)}. {info.expires ? t('invite.expires', {date:formatDate(info.expires,t.locale)}) : ''}</small>
         </div>
       </div>

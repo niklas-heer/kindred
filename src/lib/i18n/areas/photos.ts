@@ -179,7 +179,7 @@ export const de: Record<keyof typeof en, Message> = {
   },
   "gallery.empty_title": "Noch keine Fotos",
   "gallery.empty_text": "Füge die ersten Fotos hinzu. Sie werden im eigenen Speicher dieser Familie aufbewahrt.",
-  "gallery.empty_viewer": "Ein Mitwirkender kann die ersten Fotos hinzufügen.",
+  "gallery.empty_viewer": "Wer mitwirken darf, kann die ersten Fotos hinzufügen.",
   "gallery.nomatch_title": "Keine Fotos passen zu diesen Filtern",
   "gallery.nomatch_text": "Probiere eine andere Person, ein anderes Jahrzehnt oder ein anderes Album.",
   "gallery.load_failed": "Die Galerie konnte nicht geladen werden.",

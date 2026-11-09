@@ -74,7 +74,7 @@ export const en = {
 };
 
 export const de: Record<keyof typeof en, Message> = {
-  "almanac.title": "Almanach",
+  "almanac.title": "Kalender",
   "almanac.error": "Diese Seite konnte nicht geladen werden.",
   "almanac.on_this_day": "An diesem Tag",
   "almanac.otd_things": { one: "{count} Begebenheit ist am {day}. {month} in der Familiengeschichte geschehen", other: "{count} Begebenheiten sind am {day}. {month} in der Familiengeschichte geschehen" },
@@ -159,11 +159,11 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   "almanac.strip_events": "Geboortes, sterwes en troues deur die jaar",
   "almanac.back_today": "Terug na vandag",
   "almanac.no_events_title": "Nog geen familiegebeure nie",
-  "almanac.no_events_text": "Voeg mense en datums van die familieboom by om jou kalender te begin.",
+  "almanac.no_events_text": "Voeg mense en datums van die stamboom by om jou kalender te begin.",
   "almanac.quiet_title": "’n Stil tydperk",
   "almanac.nothing_in": "Niks in {month} nie",
-  "almanac.quiet_text": "Geen verjaardae, herdenkings of gedenkdae in die volgende 60 dae nie.",
-  "almanac.quiet_month_text": "Geen verjaardae of herdenkings val in {month} nie.",
+  "almanac.quiet_text": "Geen verjaarsdae, herdenkings of gedenkdae in die volgende 60 dae nie.",
+  "almanac.quiet_month_text": "Geen verjaarsdae of herdenkings val in {month} nie.",
   "almanac.next_up": "Volgende:",
   "almanac.someone": "iemand",
   "almanac.round_number": "’n Ronde getal",

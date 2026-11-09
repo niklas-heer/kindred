@@ -18,7 +18,7 @@ test('switching language and theme', async ({ page }) => {
   };
   await language('English', 'Deutsch', 'Stammbaum', 'de');
   await checkAxe(page, 'tree (de)');
-  await language('Deutsch', 'Afrikaans', 'Boom', 'af');
+  await language('Deutsch', 'Afrikaans', 'Stamboom', 'af');
   await checkAxe(page, 'tree (af)');
   await language('Afrikaans', 'English', 'Tree', 'en');
 

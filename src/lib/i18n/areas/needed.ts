@@ -167,7 +167,7 @@ export const de: Record<keyof typeof en, Message> = {
   "needed.gap.occupation": "Beruf",
   "needed.gap.story": "Eine Erinnerung",
   "needed.hint.born": "Alle haben mindestens ein Geburtsjahr",
-  "needed.hint.birthday": "Lebende haben ein volles Datum, damit der Almanach sie erinnern kann",
+  "needed.hint.birthday": "Lebende haben ein volles Datum, damit der Kalender an sie erinnern kann",
   "needed.hint.birthplace": "Alle haben einen Geburtsort, für den Atlas",
   "needed.hint.parents": "Beide Eltern sind bekannt",
   "needed.hint.died": "Verstorbene haben ein Sterbedatum",
@@ -180,7 +180,7 @@ export const de: Record<keyof typeof en, Message> = {
 
 /** Afrikaans. A missing entry falls back to English at runtime; the test reports them. */
 export const af: Partial<Record<keyof typeof en, Message>> = {
-  "needed.title": "Inligting benodig",
+  "needed.title": "Inligting nodig",
   "needed.loadFailed": "Hierdie bladsy kon nie gelaai word nie.",
   "needed.summary": { one: "By {shown} van {total} persoon is daar nog iets om uit te vind.", other: "By {shown} van {total} mense is daar nog iets om uit te vind." },
   "needed.complete": { one: "{count} is volledig.", other: "{count} is volledig." },
@@ -242,11 +242,11 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   "needed.couldNotSave": "Kon nie stoor nie",
   "needed.errBorn": "Gebore: gebruik ’n werklike datum — 1953, 1953-08 of 1953-08-08 (~1953 vir omtrent)",
   "needed.errDied": "Gesterf: gebruik ’n werklike datum — 1999, 1999-03 of 1999-03-02",
-  "needed.errBirthday": "’n Volle verjaardag lyk soos 1988-05-17",
+  "needed.errBirthday": "’n Volle verjaarsdag lyk soos 1988-05-17",
   "needed.errPhoto": "Die foto moet ’n beeld onder 5 MB wees",
   "needed.errSameParent": "Dieselfde persoon kan nie albei ouers wees nie.",
   "needed.gap.born": "Geboortejaar",
-  "needed.gap.birthday": "Volle verjaardag",
+  "needed.gap.birthday": "Volle verjaarsdag",
   "needed.gap.birthplace": "Geboorteplek",
   "needed.gap.parents": "Ouers",
   "needed.gap.died": "Sterfdatum",

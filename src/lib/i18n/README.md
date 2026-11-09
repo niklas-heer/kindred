@@ -36,6 +36,15 @@ A sentence with a link or a bold name inside is still one key: `"{author} hat ei
 rendered with `richText(t, key, { author: <b>…</b>, subject: <PersonLink … /> })`. Never glue a sentence from a subject,
 a verb key and an object: German puts the participle last.
 
+## German: naming people by role
+
+- Name the task or the group, not the person: roles are „Lesen“, „Mitwirken“, „Bearbeiten“, „Verwalten“; groups are „die Familienverwaltung“, „alle mit Bearbeitungsrecht“, „Lesende“, „Mitwirkende“ (neutral in the plural).
+- Where one person must be named, write both forms in full („eine Verwalterin oder ein Verwalter“, „Partner oder Partnerin“): no colon, slash or generic masculine. The one exception is an occupation of a person whose sex is `x` or unknown („Lehrer:in“, below).
+
+One feature, one name in every place (menu, heading, page title, tour): German Kalender, Fehlende Angaben, Verzeichnis, Filter,
+Minikarte, Darstellung, Stammbaum (the phone tab says „Baum“); Afrikaans Almanak, Inligting nodig, Register, lens, minikaart, tema,
+Stamboom (the phone tab says „Boom“).
+
 ## Areas
 
 | Area | Owns |

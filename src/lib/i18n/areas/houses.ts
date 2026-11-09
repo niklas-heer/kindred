@@ -285,7 +285,7 @@ export const de: Record<keyof typeof en, Message> = {
   "houses.createCount": { one: "{count} Haus anlegen", other: "{count} Häuser anlegen" },
   "houses.emptyHow": "Lege ein Haus von Hand an oder je eins für jeden Nachnamen. Wer schon zu einem Haus gehört, bleibt dort.",
   "houses.emptyNoPeople": "Füge zuerst Personen zur Familie hinzu. Dann kannst du ein Haus von Hand anlegen oder je eins für jeden Nachnamen.",
-  "houses.emptyViewer": "Verwalter:innen können hier Häuser anlegen.",
+  "houses.emptyViewer": "Die Familienverwaltung kann hier Häuser anlegen.",
   "houses.manageMembers": "Mitglieder verwalten",
   "houses.membersTitle": "Mitglieder von {name}",
   "houses.membersText": "Füge Personen aus der Familie hinzu oder nimm sie aus diesem Haus heraus. Wer herausgenommen wird, ist auch nicht mehr Oberhaupt oder Erbe.",
@@ -362,7 +362,7 @@ export const de: Record<keyof typeof en, Message> = {
   "houses.notSet": "Nicht festgelegt",
   "houses.notable": "Bemerkenswerte Mitglieder",
   "houses.of": "von",
-  "houses.onlySteward": "Nur eine Verwalterin oder ein Verwalter kann Wappen und Thronfolge ändern",
+  "houses.onlySteward": "Wappen und Thronfolge ändert nur die Familienverwaltung",
   "houses.openTree": "Stammbaum öffnen",
   "houses.perGeneration": "Mitglieder je Generation",
   "houses.present": "heute",
@@ -471,7 +471,7 @@ export const de: Record<keyof typeof en, Message> = {
   "houses.review.none": "Nichts zu prüfen.",
   "houses.review.count": { one: "{count} Haus zu prüfen", other: "{count} Häuser zu prüfen" },
   "houses.review.neededTitle": "Häuser zu prüfen",
-  "houses.review.neededText": "Nur Verwalter:innen sehen das. Ein Haus steht hier, solange sein Name nicht erforscht ist, seine Wappen einen Blick brauchen oder es noch generierte Wappen trägt.",
+  "houses.review.neededText": "Nur die Familienverwaltung sieht das. Ein Haus steht hier, solange sein Name nicht erforscht ist, seine Wappen einen Blick brauchen oder es noch generierte Wappen trägt.",
 };
 
 /** Afrikaans. A missing entry falls back to English at runtime; the test reports them. */

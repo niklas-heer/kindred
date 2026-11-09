@@ -246,7 +246,7 @@ export const de: Record<keyof typeof en, Message> = {
   "character.section.clothing": "Kleidung",
   "character.section.age": "Gezeigtes Alter",
   "character.greys": "Wird mit dem Alter grau",
-  "character.hint.beard_young": "Als Erwachsene:r gezeigt: Ein Bart erscheint erst ab zwanzig.",
+  "character.hint.beard_young": "Als erwachsene Person gezeigt: Ein Bart erscheint erst ab zwanzig.",
   "character.hint.beard_men": "Automatisch gibt nur Männern einen Bart. Wähle hier einen, um einen hinzuzufügen.",
   "character.hint.clothes": "Automatisch kleidet nach Epoche und Alter. Eine Wahl hier gilt in jedem Alter außer als Baby.",
   "character.age_auto_today": "Automatisch: das heutige Alter.",

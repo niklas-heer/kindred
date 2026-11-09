@@ -189,7 +189,7 @@ function TreeLayout() {
       {/* Phones: the sections move to a bar along the bottom edge. */}
       <nav className="tabbar" aria-label={t("shell.sections")}>
         <Link to="/$tree" params={{ tree }} activeOptions={{ exact: true, includeSearch: false }}>
-          <Network size={21} /><span>{t("shell.tree")}</span></Link>
+          <Network size={21} /><span>{t("shell.tree_tab")}</span></Link>
         <Link to="/$tree/almanac" params={{ tree }}>
           <CalendarHeart size={21} /><span>{t("shell.almanac")}</span></Link>
         {/* Stories bring a family back; the to-do list ("Needed") is first in More. */}

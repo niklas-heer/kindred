@@ -86,7 +86,7 @@ export const de = {
   "ai.retrySameCards": "Das andere Modell schlägt dieselben Änderungen vor. Sie stehen auf den Karten oben.",
   "ai.answerAlternate": "Zweite Antwort",
   "ai.err_no_chat": "Dieses Gespräch gibt es nicht mehr.",
-  "ai.err_model_steward": "Nur Verwalter:innen können das Modell wählen.",
+  "ai.err_model_steward": "Nur die Familienverwaltung kann das Modell wählen.",
   "ai.err_retry_turn": "Diese Antwort lässt sich nicht noch einmal anfragen.",
 } satisfies Record<keyof typeof en, Message>;
 
