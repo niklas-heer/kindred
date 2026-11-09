@@ -59,10 +59,21 @@ function Invite() {
 
   const crest = fam?.crest ? <Arms arms={fam.crest} size={74} /> : <Shield size={44} />;
 
+  // A member who opens their own old link again (people click the link in the email for weeks) is told what is true:
+  // they are in, and here is the way. Whatever became of the link itself no longer matters to them.
+  if (fam && info.alreadyMember && step === 'welcome') {
+    return (
+      <AuthCard crest={crest} kicker={fam.name} title={t("invitetoken.you_re_already_in_this_family")} lede={<>{t("invitetoken.you_re_signed_in_as")} <b>{info.signedInAs}</b> {t("invitetoken.and_you_already_belong_to")} {fam.name}.</>}>
+        <a className="btn primary auth-go" href={`/${fam.id}`} data-autofocus>{t("invitetoken.open")} {fam.name}</a>
+      </AuthCard>
+    );
+  }
+
   if (!fam || info.status !== 'open') {
     const copy = {
       expired: [t("invitetoken.this_invitation_has_expired"), <>{t("invitetoken.invitations_last_two_weeks_ask")} {info.inviter ?? t("invitetoken.whoever_sent_it")} {t("invitetoken.for_a_new_link")}</>],
-      used: [t("invitetoken.this_invitation_was_already_used"), access ? t('auth.invite_used_access') : t("invitetoken.if_it_was_you_sign_in_with_your_passkey_each_link_works_once_for_one_person")],
+      // Someone signed in is never told to sign in: the link was used by another person.
+      used: [t("invitetoken.this_invitation_was_already_used"), access ? t('auth.invite_used_access') : info.signedInAs ? t('invitetoken.used_signed_in', { name: info.signedInAs }) : t("invitetoken.if_it_was_you_sign_in_with_your_passkey_each_link_works_once_for_one_person")],
       revoked: [t("invitetoken.this_invitation_was_withdrawn"), t("invitetoken.the_steward_who_sent_it_has_cancelled_it_ask_them_if_you_should_have_a_new_one")],
       unknown: [t("invitetoken.this_invitation_link_isn_t_valid"), t("invitetoken.check_that_you_copied_the_whole_link_or_ask_for_a_new_one")],
       open: ['', ''],
@@ -71,6 +82,8 @@ function Invite() {
       <AuthCard crest={fam ? crest : <MailX size={44} />} kicker={fam?.name ?? 'Kindred'} title={copy[0]} lede={copy[1]}>
         {access
           ? <Link className="btn primary auth-go" to="/">{t('auth.go_to_kindred')}</Link>
+          : info.signedInAs
+          ? <Link className="btn primary auth-go" to="/" search={{ families: 'all' }}>{t('invitetoken.to_your_families')}</Link>
           : <Link className="btn primary auth-go" to="/signin" search={fam ? { next: `/${fam.id}` } : {}}>{t("invitetoken.sign_in")}</Link>}
       </AuthCard>
     );
@@ -79,14 +92,6 @@ function Invite() {
   const role = ROLES.find((r) => r.id === info.role)!;
 
   if (step === 'who') return <WhoStep tree={fam.id} familyName={fam.name} crest={crest} name={name.trim() || info.signedInAs || undefined} />;
-
-  if (info.alreadyMember) {
-    return (
-      <AuthCard crest={crest} kicker={fam.name} title={t("invitetoken.you_re_already_in_this_family")} lede={<>{t("invitetoken.you_re_signed_in_as")} <b>{info.signedInAs}</b> {t("invitetoken.and_you_already_belong_to")} {fam.name}.</>}>
-        <a className="btn primary auth-go" href={`/${fam.id}`}>{t("invitetoken.open")} {fam.name}</a>
-      </AuthCard>
-    );
-  }
 
   if (access && !info.signedInAs && !session?.uninvitedEmail) return <NoAccessIdentity />;
 
