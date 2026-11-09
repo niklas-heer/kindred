@@ -392,6 +392,12 @@ progress, closes the SQLite files and exits. That is what `docker stop` sends, t
 
 HTTPS is not part of the server. Put a reverse proxy in front of it, as above.
 
+Compression is part of the server, so a proxy is not needed for it. The build writes brotli and gzip copies of the built
+scripts and styles, and the server sends whichever the browser takes. Pages and server-function answers are compressed as
+they are sent (brotli at a moderate level, or gzip), so a large family's tree page is about 150 kB on the wire instead of
+1.6 MB. The assistant's streamed replies, small answers and pictures are sent as they are. A proxy that compresses too,
+such as Caddy's `encode`, leaves an answer that is already compressed alone.
+
 ### Bun
 
 Bun is not supported. Kindred's storage uses Node's `node:sqlite`, and Bun does not provide it. The production build starts under

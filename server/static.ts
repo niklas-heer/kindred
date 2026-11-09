@@ -1,9 +1,11 @@
 // The built client (dist/client) for the Node server. Vite names everything under assets/ by its content,
-// so those files can be cached for a year; the rest (favicon.svg and the like) for an hour.
+// so those files can be cached for a year; the rest (favicon.svg and the like) for an hour. Text files are sent as the
+// brotli or gzip copy the build wrote beside them (server/compress.ts), whichever the browser takes.
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { extname, relative, resolve, sep } from 'node:path';
 import { Readable } from 'node:stream';
+import { accepted, compressibleType, precompressed, varyOnEncoding } from './compress.ts';
 
 const TYPES: Record<string, string> = {
   '.js': 'text/javascript; charset=utf-8',
@@ -55,12 +57,27 @@ export async function staticResponse(clientDir: string, req: Request): Promise<R
   const file = await staticFile(clientDir, new URL(req.url).pathname);
   if (!file) return undefined;
   const hashed = relative(resolve(clientDir), file).startsWith(`assets${sep}`);
+  const type = TYPES[extname(file).toLowerCase()] ?? 'application/octet-stream';
+  let body = { path: file, size: (await stat(file)).size };
+  let encoding: string | undefined;
+  if (compressibleType(type) && !req.headers.has('Range')) {
+    for (const e of accepted(req.headers.get('Accept-Encoding'))) {
+      const variant = await precompressed(file, e);
+      if (variant) {
+        body = variant;
+        encoding = e;
+        break;
+      }
+    }
+  }
   const headers = new Headers({
-    'Content-Type': TYPES[extname(file).toLowerCase()] ?? 'application/octet-stream',
-    'Content-Length': String((await stat(file)).size),
+    'Content-Type': type,
+    'Content-Length': String(body.size),
     'Cache-Control': hashed ? 'public, max-age=31536000, immutable' : 'public, max-age=3600',
     'X-Content-Type-Options': 'nosniff',
   });
+  if (compressibleType(type)) varyOnEncoding(headers);
+  if (encoding) headers.set('Content-Encoding', encoding);
   if (req.method === 'HEAD') return new Response(null, { headers });
-  return new Response(Readable.toWeb(createReadStream(file)) as unknown as ReadableStream, { headers });
+  return new Response(Readable.toWeb(createReadStream(body.path)) as unknown as ReadableStream, { headers });
 }

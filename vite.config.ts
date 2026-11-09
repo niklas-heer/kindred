@@ -3,7 +3,8 @@ import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
+import { precompress } from './server/compress.ts';
 
 /** The commit this build is made from: KINDRED_COMMIT (the Docker build has no .git), else git, else 'unknown'. Shown in a steward's feedback report. */
 function buildCommit(): string {
@@ -15,6 +16,19 @@ function buildCommit(): string {
 //   Node + SQLite        `vite dev` (mise run dev), or `KINDRED_TARGET=node vite build`
 //   Cloudflare Workers   `vite build` (mise run build/deploy), and `CLOUDFLARE_ENV=local vite dev`
 //                        (mise run dev:cf: workerd with local D1 and R2, see wrangler.jsonc)
+/**
+ * For the Node target: brotli and gzip copies of the built client's text files, which server/static.ts serves. Workers
+ * need none (Cloudflare compresses), and they would only be uploaded as more static files.
+ */
+const precompressClient = (): Plugin => ({
+  name: 'kindred:precompress',
+  apply: 'build',
+  applyToEnvironment: (environment) => environment.name === 'client',
+  async writeBundle(options) {
+    if (options.dir) await precompress(options.dir);
+  },
+});
+
 export default defineConfig(({ command }) => {
   const workers = process.env.KINDRED_TARGET !== 'node' && (command === 'build' || !!process.env.CLOUDFLARE_ENV || process.env.KINDRED_TARGET === 'cloudflare');
   return {
@@ -34,6 +48,7 @@ export default defineConfig(({ command }) => {
       ...(workers ? [cloudflare({ viteEnvironment: { name: 'ssr' }, inspectorPort: false })] : []),
       tanstackStart(),
       viteReact(),
+      ...(workers ? [] : [precompressClient()]),
     ],
   };
 });

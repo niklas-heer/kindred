@@ -2,6 +2,8 @@
 # Let's Encrypt, which needs ports 80 and 443 reachable from the internet. The app's own KINDRED_ORIGIN
 # in .env must be the same address with https://, because passkeys are bound to it.
 {$KINDRED_DOMAIN:localhost} {
+	# The app compresses its own answers (brotli or gzip); this covers anything it sends as it is, and skips what it
+	# already compressed, so nothing is compressed twice.
 	encode zstd gzip
 	# Browsers stay on https for a year. Not for localhost: it would stick to every other local project.
 	@public not host localhost 127.0.0.1

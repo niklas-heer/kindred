@@ -12,6 +12,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { serve } from 'srvx/node';
 import { scheduleDailyJobs } from './jobs.ts';
+import { compressResponse } from './compress.ts';
 import { staticResponse } from './static.ts';
 
 // migrations/ and the default data/ folder resolve from the app folder, wherever this is started from.
@@ -58,7 +59,8 @@ const server = serve({
   port,
   hostname,
   silent: true,
-  fetch: async (req: Request) => (await staticResponse(clientDir, req)) ?? app.fetch(req),
+  // Built files come compressed from the build; the application's answers are compressed as they stream (server/compress.ts).
+  fetch: async (req: Request) => (await staticResponse(clientDir, req)) ?? compressResponse(req, await app.fetch(req)),
 });
 await server.ready();
 
