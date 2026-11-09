@@ -6,7 +6,7 @@
  * server; never keep request locale in globals. See README.md.
  */
 import { createContext, Fragment, useContext, useEffect, useState, type ReactNode } from "react";
-import { isLocale, translate, translateParts, type Key, type Locale, type Vars } from "./dictionary";
+import { isLocale, loadLocale, translate, translateParts, type Key, type Locale, type Vars } from "./dictionary";
 import { localizeTitle } from "./titles";
 
 export * from "./dictionary";
@@ -49,10 +49,23 @@ export function I18nProvider({
     try {
       saved = localStorage.getItem(key);
     } catch {}
-    if (isLocale(saved)) {
-      update(saved);
-      persist(saved);
-    } else update(initialLocale);
+    if (!isLocale(saved)) {
+      update(initialLocale);
+      return;
+    }
+    // The page was hydrated in initialLocale; another saved language has to arrive before the switch.
+    let current = true;
+    loadLocale(saved).then(
+      () => {
+        if (!current) return;
+        update(saved);
+        persist(saved);
+      },
+      (error: unknown) => console.warn(`[i18n] The ${saved} words did not load`, error),
+    );
+    return () => {
+      current = false;
+    };
   }, [key, initialLocale, account]);
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -83,9 +96,16 @@ export function I18nProvider({
       value={{
         locale,
         setLocale(next) {
-          persist(next);
-          update(next);
-          saveRemote?.(next).catch((error) => console.warn("[i18n] The language did not save to the account", error));
+          // The browser holds English and the language it was rendered in; any other is fetched before switching,
+          // so the page never shows a mix of two languages.
+          loadLocale(next).then(
+            () => {
+              persist(next);
+              update(next);
+              saveRemote?.(next).catch((error) => console.warn("[i18n] The language did not save to the account", error));
+            },
+            (error: unknown) => console.warn(`[i18n] The ${next} words did not load`, error),
+          );
         },
       }}
     >

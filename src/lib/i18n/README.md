@@ -10,6 +10,8 @@ Three languages ship: **English** (`en`, the source of the key type), **German**
 | `areas/<area>.ts` | The words of one area of the app: `export const en`, `de` and `af`, each a flat object of keys. |
 | `types.ts` | `Locale`, `LOCALES`, `Message` (a string or `{one, other}`), `Vars`, `isLocale`. Safe to import anywhere. |
 | `dictionary.ts` | Merges every area, types `Key`, and holds `translate`, `formatDate`, `relativeTime`, `ordinal`, `negotiateLocale`, `translateMessage`, `missingKeys`. No React, so the test runner loads it. |
+| `catalog.ts` | The list of area modules (`AREAS`): every language, for the server and the test runner. Adding an area means adding it here. |
+| `catalog.client.ts`, `browser-tables.ts` | The browser's catalog. `vite.config.ts` puts it in place of `catalog.ts` in the client build: English ships with the app, and German or Afrikaans is one generated table that `loadLocale` fetches before hydration (`src/router.tsx`) and before the picker switches. |
 | `index.tsx` | React: `I18nProvider` and `useT()`. It re-exports `dictionary.ts`. |
 | `../../components/LanguagePicker.tsx` | The language picker (a flag and a list of native names) and `LanguageChoices`, the phone's row. |
 | `kinship.ts` | `kinshipLabel`, `yourKinship`, `yourKinshipParts`: relation words for German and Afrikaans from graph labels, and "your …" with the possessive agreeing with the word ("dein Vater", "deine Cousine", "die Ehefrau deines Cousins"). Never build "your {kin}" from a key. |
@@ -73,6 +75,14 @@ Stamboom (the phone tab says „Boom“).
   then English. The language picker (a flag that opens the three native names) is in the top bar's tools, the
   sign-in card's corner and the home page; on phones it is a row in the More sheet. The ⌘K palette's "Change
   language" opens the same three languages.
+
+## What the browser downloads
+
+All three languages together are about 210 kB gzipped, so the browser does not get them all. It always has English: the
+fallback for a missing entry, and the language of server errors (`translateMessage`), the blazon and canting. German or
+Afrikaans comes as one more chunk (about 78 kB gzipped) when the page was rendered in it or the reader picks it.
+`translate()` stays synchronous everywhere; in the browser, a language not loaded yet falls back to English, so call
+`loadLocale(locale)` first wherever a new language appears (the root route, the router's `hydrate`, `setLocale`).
 
 ## Occupations (`src/lib/occupations.ts`)
 

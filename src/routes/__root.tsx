@@ -1,4 +1,4 @@
-import { I18nProvider, translate, type Locale } from '~/lib/i18n';
+import { I18nProvider, loadLocale, translate, type Locale } from '~/lib/i18n';
 import { requestLocale } from '~/lib/i18n/request';
 import { sessionQuery, setMyLocale } from '~/lib/auth/functions';
 import '@fontsource-variable/cinzel';
@@ -23,7 +23,9 @@ var u=function(){m.content=c[d.dataset.theme]||c.codex};u();new MutationObserver
 const zodConfigScript = 'globalThis.__zod_globalConfig={jitless:true}';
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  beforeLoad: async ({context}) => { const [locale, session] = await Promise.all([requestLocale(), context.queryClient.ensureQueryData(sessionQuery)]); return {locale, localeAccount: session.user?.id}; },
+  // The browser has only English until it fetches another language (catalog.client.ts), so a navigation that finds the
+  // reader's language changed (another tab) waits for its words. On the server, and for a language already here, at once.
+  beforeLoad: async ({context}) => { const [locale, session] = await Promise.all([requestLocale(), context.queryClient.ensureQueryData(sessionQuery)]); await loadLocale(locale); return {locale, localeAccount: session.user?.id}; },
   head: (ctx) => ({
     meta: [
       { charSet: 'utf-8' },

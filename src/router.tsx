@@ -4,7 +4,7 @@ import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query
 import { getGlobalStartContext } from '@tanstack/react-start';
 import { NotFoundPage } from './components/NotFoundPage';
 import { ErrorState, PageSkeleton } from './components/ui/states';
-import { useT } from './lib/i18n';
+import { isLocale, loadLocale, useT } from './lib/i18n';
 import { routeTree } from './routeTree.gen';
 
 /** This request's nonce for the page's inline scripts (src/start.ts). The browser reads it back from a meta tag itself. */
@@ -34,6 +34,12 @@ export function getRouter() {
     // A short crossfade between pages (app.css: 160 ms, none with reduced motion). Search-only changes,
     // like selecting someone on the tree, never fade.
     defaultViewTransition: { types: ({ pathChanged }) => (pathChanged ? ['page'] : false) },
+    // Before hydration, in the browser: fetch the language the server rendered in (the root sets it as <html lang>),
+    // so the first client render has the same words and hydration matches. The browser ships only English.
+    hydrate: async () => {
+      const lang = document.documentElement.lang;
+      if (isLocale(lang)) await loadLocale(lang);
+    },
   });
   setupRouterSsrQueryIntegration({ router, queryClient });
   return router;

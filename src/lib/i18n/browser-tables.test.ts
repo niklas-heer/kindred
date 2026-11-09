@@ -1,0 +1,41 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
+import { browserTable, localeOfId, tableModule } from './browser-tables.ts';
+import { hasLocale, KEYS, LOCALES, loadLocale, translate } from './dictionary.ts';
+
+const areas = fileURLToPath(new URL('./areas/', import.meta.url));
+
+test('each browser table holds exactly the words the server translates with', async () => {
+  for (const locale of LOCALES) {
+    const table = await browserTable(areas, locale);
+    // Every area file is part of the catalog, and nothing else: the browser and the server know the same keys.
+    assert.deepEqual(Object.keys(table).sort(), [...KEYS].sort(), `${locale}: the same keys as the catalog`);
+    for (const key of KEYS) {
+      const entry = table[key];
+      const text = typeof entry === 'string' ? entry : entry.other;
+      assert.equal(translate(locale, key, { count: 2 }).length > 0, true);
+      if (!/\{/.test(text)) assert.equal(translate(locale, key, { count: 2 }), text, `${locale}: ${key}`);
+    }
+  }
+});
+
+test('a table module evaluates to its table', async () => {
+  const table = { 'a.b': 'It\'s "quoted"   and </script>', 'a.c': { one: '{count} thing', other: '{count} things' } };
+  const url = `data:text/javascript,${encodeURIComponent(tableModule(table))}`;
+  assert.deepEqual((await import(url)).default, table);
+});
+
+test('only the three languages are virtual table ids', () => {
+  assert.equal(localeOfId('virtual:kindred-locale/de'), 'de');
+  assert.equal(localeOfId('\0virtual:kindred-locale/af'), 'af');
+  assert.equal(localeOfId('virtual:kindred-locale/fr'), null);
+  assert.equal(localeOfId('./catalog.ts'), null);
+});
+
+test('the server has every language at once, so loading one resolves without fetching', async () => {
+  for (const locale of LOCALES) {
+    assert.equal(hasLocale(locale), true);
+    await loadLocale(locale);
+  }
+});

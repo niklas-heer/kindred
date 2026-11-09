@@ -3,8 +3,10 @@ import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import { precompress } from './server/compress.ts';
+import { areaFiles, browserTable, localeOfId, tableModule } from './src/lib/i18n/browser-tables.ts';
 
 /** The commit this build is made from: KINDRED_COMMIT (the Docker build has no .git), else git, else 'unknown'. Shown in a steward's feedback report. */
 function buildCommit(): string {
@@ -29,6 +31,30 @@ const precompressClient = (): Plugin => ({
   },
 });
 
+/**
+ * The browser gets one language at a time (finding 3 of the performance review): in the client build the dictionary's
+ * catalog of every area in every language becomes catalog.client.ts, which ships English and imports the reader's other
+ * language as a generated table. The server and the test runner keep the full catalog.ts.
+ */
+const i18nTables = (): Plugin => {
+  const dir = fileURLToPath(new URL('./src/lib/i18n/', import.meta.url));
+  return {
+    name: 'kindred:i18n-tables',
+    enforce: 'pre',
+    applyToEnvironment: (environment) => environment.config.consumer === 'client',
+    resolveId(source, importer) {
+      if (localeOfId(source)) return `\0${source}`;
+      if (source === './catalog.ts' && importer?.split('?')[0].endsWith('/src/lib/i18n/dictionary.ts')) return `${dir}catalog.client.ts`;
+    },
+    async load(id) {
+      const locale = localeOfId(id);
+      if (!locale || !id.startsWith('\0')) return;
+      for (const file of areaFiles(`${dir}areas`)) this.addWatchFile(file);
+      return tableModule(await browserTable(`${dir}areas`, locale));
+    },
+  };
+};
+
 export default defineConfig(({ command }) => {
   const workers = process.env.KINDRED_TARGET !== 'node' && (command === 'build' || !!process.env.CLOUDFLARE_ENV || process.env.KINDRED_TARGET === 'cloudflare');
   return {
@@ -46,6 +72,7 @@ export default defineConfig(({ command }) => {
     ssr: workers ? undefined : { external: ['node:sqlite'] },
     plugins: [
       ...(workers ? [cloudflare({ viteEnvironment: { name: 'ssr' }, inspectorPort: false })] : []),
+      i18nTables(),
       tanstackStart(),
       viteReact(),
       ...(workers ? [] : [precompressClient()]),

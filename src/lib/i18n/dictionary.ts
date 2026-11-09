@@ -2,75 +2,12 @@
  * The dictionary: every area's en, de and af tables merged, the typed key, translate() and the pure formatters.
  * No JSX and no React here, so the node test runner can load it. index.tsx re-exports all of it.
  */
-import * as accessArea from "./areas/access.ts";
-import * as aiArea from "./areas/ai.ts";
-import * as aiChatArea from "./areas/ai-chat.ts";
-import * as aiPortraitArea from "./areas/ai-portrait.ts";
-import * as aiStreamArea from "./areas/ai-stream.ts";
-import * as aiThreadsArea from "./areas/ai-threads.ts";
-import * as aiTasksArea from "./areas/ai-tasks.ts";
-import * as almanacArea from "./areas/almanac.ts";
-import * as atlasArea from "./areas/atlas.ts";
-import * as chronicleArea from "./areas/chronicle.ts";
-import * as commonArea from "./areas/common.ts";
-import * as contactsArea from "./areas/contacts.ts";
-import * as exchangeArea from "./areas/exchange.ts";
-import * as feedbackArea from "./areas/feedback.ts";
-import * as fieldsArea from "./areas/fields.ts";
-import * as heraldryArea from "./areas/heraldry.ts";
-import * as housesArea from "./areas/houses.ts";
-import * as neededArea from "./areas/needed.ts";
-import * as panelArea from "./areas/panel.ts";
-import * as photosArea from "./areas/photos.ts";
-import * as portraitArea from "./areas/portrait.ts";
-import * as profileArea from "./areas/profile.ts";
-import * as remindersArea from "./areas/reminders.ts";
-import * as researchArea from "./areas/research.ts";
-import * as setupArea from "./areas/setup.ts";
-import * as shareArea from "./areas/share.ts";
-import * as shellArea from "./areas/shell.ts";
-import * as statisticsArea from "./areas/statistics.ts";
-import * as tourArea from "./areas/tour.ts";
-import * as treeArea from "./areas/tree.ts";
+import { AREAS, PRELOADED, loadTable } from "./catalog.ts";
 import { LOCALES, type Locale, type Message, type Vars } from "./types.ts";
 
 export { LOCALES, isLocale, type Locale, type Message, type Vars } from "./types.ts";
 export { kinshipLabel, yourKinship, yourKinshipParts, type KinshipView } from "./kinship.ts";
 export { localizeTitle } from "./titles.ts";
-
-/** Every area module. Adding an area means adding it here once; keys go in the area files. */
-const AREAS = [
-  commonArea,
-  shellArea,
-  treeArea,
-  panelArea,
-  fieldsArea,
-  photosArea,
-  aiArea,
-  aiChatArea,
-  aiPortraitArea,
-  aiStreamArea,
-  aiThreadsArea,
-  aiTasksArea,
-  exchangeArea,
-  housesArea,
-  heraldryArea,
-  portraitArea,
-  profileArea,
-  atlasArea,
-  almanacArea,
-  chronicleArea,
-  contactsArea,
-  neededArea,
-  accessArea,
-  shareArea,
-  setupArea,
-  remindersArea,
-  researchArea,
-  tourArea,
-  feedbackArea,
-  statisticsArea,
-] as const;
 
 type AreaModule = (typeof AREAS)[number];
 type KeysOf<T> = T extends { en: infer E } ? keyof E : never;
@@ -93,8 +30,42 @@ for (const area of AREAS) {
   }
 }
 
-/** The English keys, in area order. */
-export const KEYS = [...seen] as Key[];
+// The browser starts with English only (catalog.client.ts) and loads its own language before it hydrates.
+for (const [locale, table] of Object.entries(PRELOADED) as [Locale, Table][]) tables[locale] = table;
+const ready = new Set<Locale>(LOCALES.filter((locale) => Object.keys(tables[locale]).length > 0));
+const loading = new Map<Locale, Promise<void>>();
+
+/** Whether a language's words are here, so translate() gives them rather than English. Always true on the server. */
+export function hasLocale(locale: Locale): boolean {
+  return ready.has(locale);
+}
+
+/**
+ * Makes a language's words available. The server has every language from the start, so this resolves at once; the
+ * browser fetches the language's chunk the first time. Await it before rendering in that language.
+ */
+export function loadLocale(locale: Locale): Promise<void> {
+  if (ready.has(locale)) return Promise.resolve();
+  let pending = loading.get(locale);
+  if (!pending) {
+    pending = loadTable(locale).then(
+      (table) => {
+        tables[locale] = table;
+        ready.add(locale);
+      },
+      (error: unknown) => {
+        // A failed chunk (offline, a deploy replaced it) may be retried on the next attempt.
+        loading.delete(locale);
+        throw error;
+      },
+    );
+    loading.set(locale, pending);
+  }
+  return pending;
+}
+
+/** The English keys, in area order. In the browser, the keys of the English table it ships. */
+export const KEYS = (seen.size ? [...seen] : Object.keys(tables.en)) as Key[];
 /** Keys that appear in more than one area. Must be empty; the test checks it. */
 export const DUPLICATE_KEYS: readonly string[] = duplicates;
 
@@ -130,7 +101,7 @@ const DEV = typeof import.meta.env !== "undefined" && import.meta.env.DEV === tr
 function messageFor(locale: Locale, key: Key): Message {
   const entry = tables[locale][key];
   if (entry !== undefined) return entry;
-  if (DEV && locale !== "en" && !warned.has(`${locale}:${key}`)) {
+  if (DEV && locale !== "en" && ready.has(locale) && !warned.has(`${locale}:${key}`)) {
     warned.add(`${locale}:${key}`);
     console.warn(`[i18n] Missing ${locale} key: ${key}`);
   }
