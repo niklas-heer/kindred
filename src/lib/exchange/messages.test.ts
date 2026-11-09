@@ -23,7 +23,7 @@ function existing(): ExTree {
 const messy = [
   '0 HEAD',
   '2 DATE 1900', // sits under nothing
-  '1 CHAR ISO-8859-1', // a charset that is not UTF-8
+  '1 CHAR IBMPC', // a charset Kindred cannot decode
   'this line is not GEDCOM', // skipped
   '0 @I1@ INDI',
   '1 _KINDRED_ID same',
@@ -41,6 +41,14 @@ const messy = [
   '2 PLAC Hamburg',
   '0 @I4@ INDI',
   '1 NAME Karl /Linden/', // matches two people in the family
+  '0 @I5@ INDI',
+  '1 NAME Old /M\uFFFDller/', // a character that could not be read
+  '1 BIRT',
+  '2 DATE 1700', // no death record, but far too old to be living
+  '0 @I6@ INDI',
+  '1 NAME Young /Parent/',
+  '1 BIRT',
+  '2 DATE 2000',
   '0 @F1@ FAM',
   '1 HUSB @I1@',
   '1 WIFE @I9@', // not in the file
@@ -51,6 +59,9 @@ const messy = [
   '0 @F3@ FAM',
   '1 HUSB @I2@',
   '1 CHIL @I1@', // closes a loop: I1 is I2's parent, so I2 cannot be I1's
+  '0 @F4@ FAM',
+  '1 HUSB @I6@',
+  '1 CHIL @I3@', // a parent born after the child
   '0 TRLR',
 ].join('\n');
 
@@ -75,6 +86,9 @@ test('every line the preview shows for a messy file has its text in German and A
     'exchange.issue.ambiguous',
     'exchange.issue.cycles',
     'exchange.issue.date_birth',
+    'exchange.issue.unreadable',
+    'exchange.issue.presumed_dead',
+    'exchange.issue.parents_refused',
     'exchange.conflict.field.born_place',
     'exchange.conflict.field.parent',
   ];

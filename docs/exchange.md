@@ -77,8 +77,15 @@ is never cut next to a space (other programs trim the spaces around a value, whi
 inside a character outside the BMP. On import, the spaces at the end of a line are kept, so a Markdown hard break (two
 trailing spaces) survives; a biography (`NOTE`) keeps every character, and every other value loses only the spaces
 around it. A `/` in a name is written as `∕` (U+2215) in `NAME`, where `/` marks the surname, as it is in `GIVN` and
-`SURN`, and comes back as `/`. A line break in a name becomes a space. A file with another character set is read as
-UTF-8, and the report says so.
+`SURN`, and comes back as `/`. A line break in a name becomes a space.
+
+**Character sets.** The import page decodes the file before it is sent: by its byte order mark first (UTF-8, UTF-16
+little- or big-endian), then UTF-16 without a mark, then the header's `1 CHAR` line. `UTF-8`, `ASCII` and `UNICODE`
+without UTF-16 bytes are read as UTF-8; `ANSI`, `WINDOWS-1252` and `ISO-8859-1` as Windows-1252; `MACINTOSH` as Mac
+Roman; and `ANSEL`, GEDCOM 5.5.1's default, by a table of its letters and combining accents (which ANSEL puts before
+the letter and Unicode after), composed so a name reads as typed. A byte the character set does not have becomes
+`�`, and the report says how many there are. A file with another character set (such as `IBMPC`) is read as UTF-8, and
+the report says so.
 
 **Unknown tags** are never fatal. Anything Kindred does not read is counted and listed as skipped, once per tag, so a
 file from another program still imports what it can. The header's `SOUR` names the program that wrote the file, and
@@ -277,6 +284,7 @@ than read from the explicit field. Check names and relationships against the ori
 ## Where the code is
 
 - `src/lib/exchange/gedcom.ts`: GEDCOM, written and read.
+- `src/lib/exchange/encoding.ts`: a file's bytes as text, by its byte order mark and `CHAR` line.
 - `src/lib/exchange/dates.ts`: partial dates in both directions.
 - `src/lib/exchange/markdown.ts`, `zip.ts`: the v1 archive, and the ZIP it downloads in.
 - `src/lib/exchange/model.ts`: the family as plain data, read from a database.

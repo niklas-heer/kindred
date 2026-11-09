@@ -2,6 +2,7 @@
 // the Julian calendar or with a dual year. Every name here is invented.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { decodeGedcom } from './encoding.ts';
 import { readGedcom } from './gedcom.ts';
 
 const NOW = new Date('2026-11-09T12:00:00Z');
@@ -58,4 +59,79 @@ test('a family with a loop in the file does not hang the reader', () => {
     '0 @F2@ FAM', '1 HUSB @B@', '1 CHIL @A@',
   );
   assert.deepEqual(living(text), { A: false, B: false });
+});
+
+// ---------- character sets ----------
+
+/** A file's bytes: ASCII text, with `{xx}` standing for one raw byte. */
+function bytes(text: string): Uint8Array {
+  const out: number[] = [];
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '{') {
+      out.push(parseInt(text.slice(i + 1, i + 3), 16));
+      i += 3;
+    } else out.push(text.charCodeAt(i));
+  }
+  return new Uint8Array(out);
+}
+const legacy = (charset: string, name: string) => bytes(['0 HEAD', `1 CHAR ${charset}`, '0 @I1@ INDI', `1 NAME ${name}`, '0 TRLR', ''].join('\r\n'));
+const nameIn = (b: Uint8Array) => {
+  const back = readGedcom(decodeGedcom(b), NOW);
+  const p = back.people[0];
+  return { name: `${p.given} ${p.surname}`, issues: back.issues.map((i) => i.code) };
+};
+
+test('UTF-8 is read with and without a byte order mark', () => {
+  const utf8 = new TextEncoder().encode(file('0 @I1@ INDI', '1 NAME Jürgen /Weiß/'));
+  assert.equal(nameIn(utf8).name, 'Jürgen Weiß');
+  assert.equal(nameIn(new Uint8Array([0xef, 0xbb, 0xbf, ...utf8])).name, 'Jürgen Weiß');
+});
+
+test('UTF-16 is read in either byte order, with a byte order mark or without one', () => {
+  const text = ['0 HEAD', '1 CHAR UNICODE', '0 @I1@ INDI', '1 NAME Zoë /Ærø 😀/', '0 TRLR', ''].join('\r\n');
+  const le = new Uint8Array(text.length * 2);
+  const be = new Uint8Array(text.length * 2);
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    le[2 * i] = c & 0xff;
+    le[2 * i + 1] = c >> 8;
+    be[2 * i] = c >> 8;
+    be[2 * i + 1] = c & 0xff;
+  }
+  for (const b of [new Uint8Array([0xff, 0xfe, ...le]), new Uint8Array([0xfe, 0xff, ...be]), le, be]) {
+    const got = nameIn(b);
+    assert.equal(got.name, 'Zoë Ærø 😀');
+    assert.deepEqual(got.issues, []);
+  }
+});
+
+test('ANSI, Windows-1252 and ISO-8859-1 files are read as Windows-1252, with no warning', () => {
+  for (const charset of ['ANSI', 'WINDOWS-1252', 'ISO-8859-1', 'CP1252']) {
+    const got = nameIn(legacy(charset, 'J{fc}rgen /M{fc}ller {80}/'));
+    assert.equal(got.name, 'Jürgen Müller €', charset);
+    assert.deepEqual(got.issues, [], charset);
+  }
+});
+
+test('ANSEL: a combining mark before its letter becomes the accented letter, and the special letters are read', () => {
+  // E8 is the diaeresis, E2 the acute, F0 the cedilla; A2 is Ø, CF is ß.
+  const got = nameIn(legacy('ANSEL', 'Ren{e2}e /M{e8}uller-Fran{f0}cois {a2}rsted Stra{cf}e/'));
+  assert.equal(got.name, 'René Müller-François Ørsted Straße');
+  assert.equal(got.name.normalize('NFC'), got.name, 'composed, as typed text is');
+  assert.deepEqual(got.issues, []);
+});
+
+test('bytes a character set does not have become U+FFFD, and the reader is told once how many', () => {
+  const got = nameIn(legacy('ANSEL', 'Ann{bb} /B{ff}rg{fc}/'));
+  assert.equal(got.name, 'Ann� B�rg�');
+  const back = readGedcom(decodeGedcom(legacy('ANSEL', 'Ann{bb} /B{ff}rg{fc}/')), NOW);
+  const unreadable = back.issues.filter((i) => i.code === 'exchange.issue.unreadable');
+  assert.equal(unreadable.length, 1);
+  assert.equal(unreadable[0].vars.count, 3);
+});
+
+test('a character set Kindred cannot read is read as UTF-8, and the reader is told', () => {
+  const got = nameIn(legacy('IBMPC', 'Ann /Berg/'));
+  assert.equal(got.name, 'Ann Berg');
+  assert.deepEqual(got.issues, ['exchange.issue.charset']);
 });

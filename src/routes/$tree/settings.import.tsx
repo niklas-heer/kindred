@@ -9,6 +9,7 @@ import { SurnameHousesDialog } from '~/components/HouseCreate';
 import { EmptyState, ErrorState, Notice, PageHeader, Skeleton, Switch } from '~/components/ui';
 import { opKeys } from '~/lib/api';
 import { applyImportFile, exchangeContext, exportReport, previewImportFile } from '~/lib/exchange/exchange.functions';
+import { decodeGedcom } from '~/lib/exchange/encoding';
 import { errorText } from '~/lib/errortext';
 import { translate, translateMessage, useT, type Locale, type Translator } from '~/lib/i18n';
 import { treeTitle } from '~/lib/title';
@@ -134,7 +135,8 @@ function ImportSection({ tree, people }: { tree: string; people: number }) {
       setFile(null);
       return setError(t('exchange.import.tooBig'));
     }
-    setFile({ name: f.name, text: await f.text() });
+    // Decoded here by the file's byte order mark or CHAR line (UTF-16, ANSI and ANSEL files are common), not as UTF-8.
+    setFile({ name: f.name, text: decodeGedcom(new Uint8Array(await f.arrayBuffer())) });
   }
 
   async function runPreview() {

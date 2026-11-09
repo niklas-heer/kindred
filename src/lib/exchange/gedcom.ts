@@ -12,6 +12,7 @@
 import { allGiven } from '../further-given.ts';
 import { yearIn } from '../parent-rules.ts';
 import { fromGedcomDate, toGedcomDate } from './dates.ts';
+import { charsetOf } from './encoding.ts';
 import type { Confidence, ExParent, ExPerson, ExTree, ExUnion, Issue, IssueCode, ParentKind, Sex, UnionKind } from './model.ts';
 
 /** The date facts a file can hold, and the words that name them in the report. */
@@ -375,8 +376,19 @@ export function readGedcom(text: string, now: Date = new Date()): Incoming {
 
   const head = roots.find((r) => r.tag === 'HEAD');
   const charset = head?.children.find((c) => c.tag === 'CHAR')?.value.toUpperCase();
-  if (charset && !['UTF-8', 'UTF8', 'UNICODE', 'ASCII'].includes(charset)) {
+  // The import page decodes the file by its CHAR line before it gets here (encoding.ts); only a character set that
+  // decoding does not know was read as UTF-8.
+  if (charset && !charsetOf(charset)) {
     issues.push({ level: 'warning', code: 'exchange.issue.charset', vars: { charset }, message: `The file says it uses ${charset}; it was read as UTF-8` });
+  }
+  const unreadable = text.match(/\uFFFD/g)?.length ?? 0;
+  if (unreadable) {
+    issues.push({
+      level: 'warning',
+      code: 'exchange.issue.unreadable',
+      vars: { count: unreadable },
+      message: `${unreadable} character${unreadable === 1 ? '' : 's'} could not be read and ${unreadable === 1 ? 'is' : 'are'} shown as �`,
+    });
   }
 
   const first = (n: GNode | undefined, tag: string) => n?.children.find((c) => c.tag === tag);
