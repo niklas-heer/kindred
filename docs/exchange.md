@@ -43,7 +43,7 @@ carried in `_KINDRED_*` tags, which other programs skip, so a file made here com
 | In Kindred | In GEDCOM | Notes |
 | --- | --- | --- |
 | The person's id | `INDI` `_KINDRED_ID` | Used to match people on import. |
-| Living | `_KINDRED_LIVING Y` | A person who is not living has `DEAT` instead. |
+| Living | `_KINDRED_LIVING Y` | A person who is not living has `DEAT` instead. On import, see "Who is living" below. |
 | Given name, surname | `NAME` with `GIVN`, `SURN` | The birth name. |
 | Current name | a second `NAME` with `TYPE married` | Only when it differs from the birth name. |
 | Sex | `SEX M`, `F`, `X` | `U` (unknown) is read as no sex. |
@@ -64,6 +64,12 @@ carried in `_KINDRED_*` tags, which other programs skip, so a file made here com
 date (Kindred's `~`). On import, `CAL` and `EST` are read as about. `BEF` and `AFT`, `BET … AND …` and `FROM … TO …` have
 no Kindred form: before/after dates become approximate dates, ranges use their first date, and the report says so. A date Kindred cannot store (`31 FEB
 1900`, or free text such as "the winter of the bad harvest") is dropped and the report says why.
+
+**Who is living.** A Kindred file says it for everyone. A file from another program often has no death record for an
+old ancestor, so a person with neither a death record nor `_KINDRED_LIVING` is imported as living only when that is
+possible: someone who would be over 110 today, by their own birth date or by the dates of their children, grandchildren
+or partnerships (a parent or partner is taken to be at least 12), is imported as died, date unknown (not living, with no
+death date), and the report counts them. A death record, `DEAT N` and `_KINDRED_LIVING` are always taken as they are.
 
 **Text.** An `@` in text is written as `@@`, and a line break as `CONT`, in every value: a line break in a place or a
 title cannot break the file. A line too long for one GEDCOM line goes on in `CONC` lines, and, as GEDCOM 5.5.1 asks, it

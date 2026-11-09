@@ -10,6 +10,7 @@
 //
 // Nothing here touches storage: `writeGedcom` takes an ExTree, `readGedcom` returns what the file says.
 import { allGiven } from '../further-given.ts';
+import { yearIn } from '../parent-rules.ts';
 import { fromGedcomDate, toGedcomDate } from './dates.ts';
 import type { Confidence, ExParent, ExPerson, ExTree, ExUnion, Issue, IssueCode, ParentKind, Sex, UnionKind } from './model.ts';
 
@@ -25,6 +26,10 @@ const DATE_EVENT: Record<DateEvent, { word: string; code: IssueCode }> = {
 };
 
 const CHUNK = 120; // characters per line, before escaping: keeps every line under GEDCOM's 255
+/** Nobody without a death record is taken as living who would be older than this. */
+const MAX_AGE = 110;
+/** The youngest a parent or a partner is assumed to be, to date a person from their children and partnerships. */
+const MIN_PARENT_AGE = 12;
 const UNION_KINDS: UnionKind[] = ['marriage', 'partnership', 'betrothal', 'other'];
 const PARENT_KINDS: ParentKind[] = ['biological', 'adoptive', 'foster', 'step'];
 const CONFIDENCES: Confidence[] = ['certain', 'probable', 'disputed'];
@@ -296,8 +301,11 @@ export interface Incoming {
 
 const LINE = /^(\d+)(?:\s+(@[^@\s]+@))?\s+([A-Za-z_][A-Za-z0-9_]*)(?: (.*))?$/;
 
-/** Reads a GEDCOM file. Throws only when it holds no people or families at all; everything else is reported. */
-export function readGedcom(text: string): Incoming {
+/**
+ * Reads a GEDCOM file. Throws only when it holds no people or families at all; everything else is reported. `now` is
+ * the day the file is read, to tell who cannot be living any more.
+ */
+export function readGedcom(text: string, now: Date = new Date()): Incoming {
   const issues: Issue[] = [];
   const roots: GNode[] = [];
   const stack: GNode[] = [];
@@ -389,6 +397,8 @@ export function readGedcom(text: string): Incoming {
   const indis = roots.filter((r) => r.tag === 'INDI' && r.xref);
   const known = new Set(indis.map((r) => r.xref!));
   const famcKind = new Map<string, Map<string, { kind: ParentKind; confidence: Confidence }>>();
+  // People the file says nothing about being alive or dead: no death record and no Kindred living mark.
+  const unstated = new Set<string>();
   const people: IncomingPerson[] = indis.map((r) => {
     const key = r.xref!;
     const names = all(r, 'NAME');
@@ -422,6 +432,7 @@ export function readGedcom(text: string): Incoming {
     const death = first(r, 'DEAT');
     const dead = !!death && death.value.toUpperCase() !== 'N';
     const livingTag = first(r, '_KINDRED_LIVING')?.value.toUpperCase();
+    if (!livingTag && !death) unstated.add(key);
     // One NOTE is the biography exactly as written; several are joined as paragraphs.
     const notes = all(r, 'NOTE').map((n) => n.value);
     const bio = notes.length === 1 ? notes[0] : notes.map((n) => n.trim()).filter(Boolean).join('\n\n');
@@ -525,6 +536,48 @@ export function readGedcom(text: string): Incoming {
       u.endReason = ended.value || null;
     }
     unions.push(u);
+  }
+
+  // Other programs often write no death record for an old ancestor. Someone who would be over MAX_AGE now, by their
+  // own dates or by their children's, grandchildren's or partnerships' (a parent or partner is at least MIN_PARENT_AGE),
+  // is taken as having died on a date not known, which is how Kindred holds that: not living, and no death date.
+  const childrenOf = new Map<string, string[]>();
+  for (const l of parents) childrenOf.set(l.parent, [...(childrenOf.get(l.parent) ?? []), l.child]);
+  const ownYears = new Map<string, number[]>();
+  const noteYear = (key: string, y: number) => {
+    if (!isNaN(y)) ownYears.set(key, [...(ownYears.get(key) ?? []), y]);
+  };
+  for (const p of people) [p.born, p.died].forEach((d) => noteYear(p.id, yearIn(d)));
+  for (const u of unions) for (const d of [u.start, u.end]) for (const k of [u.a, u.b]) noteYear(k, yearIn(d) - MIN_PARENT_AGE);
+  /** The latest year a person can have been born in, by what the file says; NaN when nothing says. */
+  const bornBy = new Map<string, number>();
+  const latestBirth = (key: string, path: Set<string>): number => {
+    if (bornBy.has(key)) return bornBy.get(key)!;
+    if (path.has(key)) return NaN; // a loop in the file: the reader reports it elsewhere
+    path.add(key);
+    const years = [...(ownYears.get(key) ?? [])];
+    for (const c of childrenOf.get(key) ?? []) years.push(latestBirth(c, path) - MIN_PARENT_AGE);
+    path.delete(key);
+    const known = years.filter((y) => !isNaN(y));
+    const y = known.length ? Math.min(...known) : NaN;
+    bornBy.set(key, y);
+    return y;
+  };
+  let presumedDead = 0;
+  for (const p of people) {
+    if (!unstated.has(p.id)) continue;
+    if (latestBirth(p.id, new Set()) < now.getUTCFullYear() - MAX_AGE) {
+      p.living = false;
+      presumedDead++;
+    }
+  }
+  if (presumedDead) {
+    issues.push({
+      level: 'warning',
+      code: 'exchange.issue.presumed_dead',
+      vars: { count: presumedDead, years: MAX_AGE },
+      message: `${presumedDead} ${presumedDead === 1 ? 'person has' : 'people have'} no death record but would be over ${MAX_AGE} now, so ${presumedDead === 1 ? 'is' : 'are'} imported as died, date unknown`,
+    });
   }
 
   const head0 = head ? { id: first(head, '_KINDRED_TREE')?.value ?? null, name: first(head, '_KINDRED_NAME')?.value ?? null } : { id: null, name: null };
