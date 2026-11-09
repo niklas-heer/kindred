@@ -357,6 +357,7 @@ function TreePage() {
         tree={tree}
         // The shields alone can be the whole dynasty at once: kinship is worked out for the levels that show fewer.
         kin={detail === 'far' ? undefined : kinOf(n.id)}
+        kinSpoken={detail === 'far' || !kinFor(n.id) ? undefined : yourKinship(kinFor(n.id)!, t.locale)}
         selected={n.id === sel}
         isMe={n.id === who}
         nameMode={nameMode}
@@ -367,7 +368,7 @@ function TreePage() {
         onAdd={canAdd ? (anchor, relation, sex) => setAdding({ anchor, relation, sex }) : undefined}
       />
     ),
-    [f, tree, kinOf, sel, who, view, select, refocus, toggle, canAdd, nameMode, ageMode],
+    [f, tree, kinOf, kinFor, t.locale, sel, who, view, select, refocus, toggle, canAdd, nameMode, ageMode],
   );
 
   // ---- keyboard: walking the tree is said aloud, and focus goes with the selection ----
@@ -379,7 +380,7 @@ function TreePage() {
     const from = f.byId.get(sel);
     const step = !who && from && from.id !== id ? kinship(f, from.id, id) : undefined;
     const kin = id === who ? t('common.you')
-      : who ? (kinOf(id) ? t('shell.palette.yourKin', { kin: kinOf(id)! }) : undefined)
+      : who ? (kinFor(id) ? yourKinship(kinFor(id)!, t.locale) : undefined)
       : step && step.label !== 'you' ? t('tp.kinOf', { kin: kinshipLabel(step, t.locale), name: from!.given }) : undefined;
     setSaid(selectionAnnouncement({ name: displayName(p, f), years: lifespan(p, t.locale), kin }));
     // Focus follows only from the page itself or from another card: arrow keys inside the panel's tabs stay there.

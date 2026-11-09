@@ -27,6 +27,8 @@ interface Props {
   tree: string;
   /** How this person is related to the reader ("aunt"). Shown as a tab on a full card, and read out at every level. */
   kin?: string;
+  /** The same relation as a screen reader hears it, with the possessive each language needs: "your aunt", "deine Tante". */
+  kinSpoken?: string;
   selected: boolean;
   isMe: boolean;
   nameMode?: NameMode;
@@ -38,7 +40,7 @@ interface Props {
   onAdd?: (id: string, r: AddRelation, sex?: 'm' | 'f') => void;
 }
 
-export const Card = memo(function Card({ node, detail, family: f, tree, kin, selected, isMe, nameMode = 'full', ageMode = 'living', onSelect, onOpen, onToggle, onAdd }: Props) {
+export const Card = memo(function Card({ node, detail, family: f, tree, kin, kinSpoken, selected, isMe, nameMode = 'full', ageMode = 'living', onSelect, onOpen, onToggle, onAdd }: Props) {
   const [required] = useRequired(tree);
   const role = useRole();
   const t = useT();
@@ -95,7 +97,7 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
   const disputed = (f.parentsOf.get(p.id) ?? []).some((q) => f.disputed.has(`${p.id}>${q}`));
   const extras = cardExtras({
     you: isMe ? t('common.you') : undefined,
-    kin: !isMe && kin ? t('shell.palette.yourKin', { kin }) : undefined,
+    kin: !isMe ? kinSpoken : undefined,
     again: node.role === 'dup' ? t('card.appearsAgain') : undefined,
     stories: p.stories > 0 ? t('card.stories', { count: p.stories }) : undefined,
     birthday: soon === undefined ? undefined : soon === 0 ? t('card.birthdayToday') : t('card.birthdayIn', { count: soon }),
