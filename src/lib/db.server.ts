@@ -4,6 +4,7 @@ import { guard, isGuard, isGuardError, q, store, type Db, type Query, type Resul
 import type { GParent, GPerson, GUnion, Graph, House, PersonDetail, TreeMeta } from './types';
 import { parseFurther } from './further-given.ts';
 import { photoAge } from './portrait-face.ts';
+import { todayEvents, type TodayEvent } from './auth/today.ts';
 import { fieldText, type FieldType, type FieldValue, type PersonField } from '../components/fields/model.ts';
 import { fieldsVisibleTo, PLAIN_MEMBER, type Audience, type Visibility } from './visibility.ts';
 import { translate } from './i18n/dictionary.ts';
@@ -132,10 +133,13 @@ export async function once<T>(tree: string, op: OpKey | undefined, fn: string, w
 
 const meta = async (d: Db) => Object.fromEntries((await d.all<{ key: string; value: string }>('SELECT key, value FROM meta')).map((r) => [r.key, r.value]));
 
-export async function listTrees(): Promise<TreeMeta[]> {
+/** The families on this server, largest first. With `only`, just those of them: a reader's list never opens anyone else's. */
+export async function listTrees(only?: Iterable<string>): Promise<TreeMeta[]> {
   const monthDay = `${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+  const wanted = only && new Set(only);
+  const ids = wanted ? store.treeIds().filter((id) => wanted.has(id)) : store.treeIds();
   const trees = await Promise.all(
-    store.treeIds().map(async (id): Promise<TreeMeta | null> => {
+    ids.map(async (id): Promise<TreeMeta | null> => {
       const d = db(id);
       // An empty or half-built database is not a tree yet: skip it rather than break the home page.
       const m = await meta(d).catch(() => ({}) as Record<string, string>);
@@ -150,6 +154,29 @@ export async function listTrees(): Promise<TreeMeta[]> {
     }),
   );
   return trees.filter((t): t is TreeMeta => t !== null).sort((a, b) => b.people - a.people);
+}
+
+/**
+ * What today brings in one family (todayEvents in ./auth/today.ts), read narrowly: only the people and partnerships
+ * whose dates fall on today's month and day, rather than the whole family. The families list asks this of every
+ * family on every page. todayEvents reads names, dates and `living`, which every member's graph carries (field
+ * visibility only governs person_field), so the result is the same as todayEvents(await graph(tree)).
+ */
+export async function todayIn(tree: string, today = new Date()): Promise<TodayEvent[]> {
+  const d = db(tree);
+  const md = `${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  // In the graph's order (rowid, and partnerships by start), so the events come out in the order the full read gives.
+  const [peopleRows, unionRows] = await Promise.all([
+    d.all<any>(
+      `SELECT id, given, surname, born, died, living FROM person WHERE substr(born, 6) = ? OR substr(died, 6) = ?
+        OR id IN (SELECT a FROM partnership WHERE substr(start, 6) = ? UNION SELECT b FROM partnership WHERE substr(start, 6) = ?) ORDER BY rowid`,
+      md, md, md, md,
+    ),
+    d.all<any>('SELECT id, a, b, kind, start, end FROM partnership WHERE substr(start, 6) = ? ORDER BY start', md),
+  ]);
+  const people = peopleRows.map((r) => ({ id: r.id, given: r.given, surname: opt(r.surname), born: opt(r.born), died: opt(r.died), living: r.living === 1 }));
+  const unions = unionRows.map((r) => ({ id: r.id, a: r.a, b: r.b, kind: r.kind, start: opt(r.start), end: opt(r.end) }));
+  return todayEvents({ people, unions } as Graph, today);
 }
 
 // ---------- creating a family ----------

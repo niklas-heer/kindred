@@ -5,12 +5,13 @@ import { translate } from '../i18n/dictionary.ts';
 import { NOT_TREES, onWorkers, store, TREE_ID } from '../store/index.ts';
 import { AuthError } from './errors.ts';
 
-export async function families() {
-  return (await listTrees()).filter((t) => !NOT_TREES.has(t.id));
+/** Every family on this server, or with `only`, just those of them (a reader's own: nobody else's database is opened). */
+export async function families(only?: Iterable<string>) {
+  return (await listTrees(only)).filter((t) => !NOT_TREES.has(t.id));
 }
 
 export async function family(tree: string) {
-  return (await families()).find((t) => t.id === tree);
+  return (await families([tree])).find((t) => t.id === tree);
 }
 
 export const DEFAULT_FAMILY_NAME = 'Our family';

@@ -83,8 +83,9 @@ export const fetchMyFamilies = createServerFn({ method: 'GET' }).handler(async (
   if (!user && !guest) return [];
   const mine = new Map(user ? (await s.membershipsOf(user.id)).map((m) => [m.tree, m.role]) : []);
   if (guest && !mine.has(guest.tree)) mine.set(guest.tree, 'viewer');
-  const [{ graph }, { todayEvents }] = await Promise.all([import('../db.server'), import('./today')]);
-  return Promise.all((await families()).filter((t) => mine.has(t.id)).map(async (t) => ({ ...t, role: mine.get(t.id)!, today: todayEvents(await graph(t.id)) })));
+  // Only the reader's families are opened, and "today" is a narrow read, not the whole family: this runs on every page.
+  const { todayIn } = await import('../db.server');
+  return Promise.all((await families(mine.keys())).map(async (t) => ({ ...t, role: mine.get(t.id)!, today: await todayIn(t.id) })));
 });
 export const myFamiliesQuery = queryOptions({ queryKey: ['session', 'families'], queryFn: () => fetchMyFamilies() });
 
