@@ -49,3 +49,51 @@ test('removing a person deletes their photo and every portrait file, and only th
 test('the last person still cannot be removed', async () => {
   await assert.rejects(dbs.once(TREE, undefined, 'removePerson', (d) => removePlan(d, TREE, 'ada')), /last person/);
 });
+
+test('a field that named a removed person keeps their name as text, and the person it is on can still be saved', async () => {
+  const { editSnapshot, savePersonEdit } = await load<typeof import('./person.server.ts')>('/src/lib/person.server.ts');
+  const who = { account: 'steward-account', role: 'steward', guest: false } as const;
+  const d = dbs.db(TREE);
+  await d.run("INSERT INTO person (id, given, surname, current_surname, living) VALUES ('cleo', 'Cleo', 'Rm', 'Vale', 1), ('dora', 'Dora', 'Rm', NULL, 1)");
+  const detailsOf = (s: Awaited<ReturnType<typeof editSnapshot>>) => ({
+    given: s.given, furtherGiven: s.furtherGiven, surname: s.surname, currentGiven: s.currentGiven, currentSurname: s.currentSurname,
+    nickname: s.nickname, sex: s.sex, born: s.born, bornPlace: s.bornPlace, died: s.died, diedPlace: s.diedPlace, living: s.living,
+    title: s.title, epithet: s.epithet, occupation: s.occupation, occupationCode: s.occupationCode, bio: s.bio,
+  });
+  const fieldsOf = (s: Awaited<ReturnType<typeof editSnapshot>>) => s.fields.map((f) => ({ id: f.id, type: f.type, label: f.label, value: f.value, visibility: f.visibility }));
+  let s = await editSnapshot(TREE, 'dora', who);
+  await savePersonEdit(TREE, 'dora', detailsOf(s), [{ type: 'related', label: 'godparent', value: { person: 'cleo' }, visibility: 'family' }], s.revision, undefined, 'Tester', who);
+
+  await dbs.once(TREE, undefined, 'removePerson', (d) => removePlan(d, TREE, 'cleo'));
+
+  s = await editSnapshot(TREE, 'dora', who);
+  const related = s.fields.find((f) => f.type === 'related');
+  assert.equal(related?.value.person ?? '', '', 'the link to the removed person is gone');
+  assert.equal(related?.value.name, 'Cleo Vale', 'the name they had is kept as text');
+  // An unrelated change on the person whose field named them saves as usual.
+  await savePersonEdit(TREE, 'dora', { ...detailsOf(s), nickname: 'Dodo' }, fieldsOf(s), s.revision, undefined, 'Tester', who);
+  assert.equal((await editSnapshot(TREE, 'dora', who)).nickname, 'Dodo');
+});
+
+test('a related field naming someone already gone does not stop the other changes from saving', async () => {
+  const { editSnapshot, savePersonEdit } = await load<typeof import('./person.server.ts')>('/src/lib/person.server.ts');
+  const who = { account: 'steward-account', role: 'steward', guest: false } as const;
+  const d = dbs.db(TREE);
+  // A link left behind by an older version, which removed people without rewriting the fields that named them.
+  await d.run("INSERT INTO person (id, given, living) VALUES ('emil', 'Emil', 1)");
+  await d.run(`INSERT INTO person_field (id, person, type, label, value, ord, visibility) VALUES ('stale', 'emil', 'related', 'friend', '{"person":"nobody","name":"","note":""}', 0, 'family')`);
+  const s = await editSnapshot(TREE, 'emil', who);
+  const fields = s.fields.map((f) => ({ id: f.id, type: f.type, label: f.label, value: f.value, visibility: f.visibility }));
+  await savePersonEdit(TREE, 'emil', {
+    given: s.given, furtherGiven: s.furtherGiven, surname: s.surname, currentGiven: s.currentGiven, currentSurname: s.currentSurname,
+    nickname: 'Em', sex: s.sex, born: s.born, bornPlace: s.bornPlace, died: s.died, diedPlace: s.diedPlace, living: s.living,
+    title: s.title, epithet: s.epithet, occupation: s.occupation, occupationCode: s.occupationCode, bio: s.bio,
+  }, fields, s.revision, undefined, 'Tester', who);
+  // Pointing an untouched field at someone who is not there is still refused.
+  const again = await editSnapshot(TREE, 'emil', who);
+  await assert.rejects(savePersonEdit(TREE, 'emil', {
+    given: again.given, furtherGiven: again.furtherGiven, surname: again.surname, currentGiven: again.currentGiven, currentSurname: again.currentSurname,
+    nickname: again.nickname, sex: again.sex, born: again.born, bornPlace: again.bornPlace, died: again.died, diedPlace: again.diedPlace, living: again.living,
+    title: again.title, epithet: again.epithet, occupation: again.occupation, occupationCode: again.occupationCode, bio: again.bio,
+  }, [...fields, { type: 'related', label: 'friend', value: { person: 'nobody-else' }, visibility: 'family' }], again.revision, undefined, 'Tester', who), /not in this family/);
+});

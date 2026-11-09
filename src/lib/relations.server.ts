@@ -121,6 +121,18 @@ export async function removePlan(d: Db, tree: string, id: string): Promise<Plan<
     if (!other) throw new Error('The last person cannot be removed');
     writes.push(guard('EXISTS (SELECT 1 FROM person WHERE id = ?)', other.id), q("UPDATE meta SET value = ? WHERE key = 'focus'", other.id));
   }
+  // A field on someone else that named this person keeps the name they had, as plain text, so it still reads and the
+  // person it is on can be saved again (a link to someone not in the family is refused). A name typed there is kept.
+  const gone = await d.get<{ given: string; surname: string | null; current_given: string | null; current_surname: string | null }>(
+    'SELECT given, surname, current_given, current_surname FROM person WHERE id = ?', id);
+  if (gone) {
+    const name = [gone.current_given ?? gone.given, gone.current_surname ?? gone.surname].filter(Boolean).join(' ');
+    writes.push(q(
+      `UPDATE person_field SET value = json_set(value, '$.person', '', '$.name', CASE WHEN coalesce(json_extract(value, '$.name'), '') = '' THEN ? ELSE json_extract(value, '$.name') END)
+       WHERE type = 'related' AND json_extract(value, '$.person') = ?`,
+      name, id,
+    ));
+  }
   // RETURNING counts the person alone (D1's `changes` would include the cascade).
   writes.push(q('DELETE FROM person WHERE id = ? RETURNING id', id));
   return {

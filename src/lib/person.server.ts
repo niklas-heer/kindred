@@ -195,7 +195,10 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
     for (const [ord, f] of fields.entries()) {
       const owner = ownerFor(f.visibility, who);
       const value = storedValue(f.type as FieldType, f.value);
-      if (f.type === 'related' && value.person) {
+      const stored = f.id ? hadById.get(f.id) : undefined;
+      // Only a link this save makes is checked: a field left as it was may name someone removed meanwhile, and refusing it
+      // would stop every other change to this person.
+      if (f.type === 'related' && value.person && !(stored && sameContent(stored.value, value))) {
         if (!(await d.get('SELECT id FROM person WHERE id = ?', value.person))) throw new Error('That person is not in this family.');
         if (value.person === id) throw new Error('A person cannot be their own relative.');
         writes.push(guard('EXISTS (SELECT 1 FROM person WHERE id = ?)', value.person));
