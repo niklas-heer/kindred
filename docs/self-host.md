@@ -21,6 +21,19 @@ the first account exists. Invite everyone else from the Access page.
 The app listens only on this machine (`127.0.0.1`). To reach it from other devices, use HTTPS (below): passkeys
 do not work on a plain address other than `localhost`.
 
+## What it needs
+
+- **One small machine.** Kindred is one Node process (Node 26, which the image has) with SQLite files. There is no database
+  server and no queue. Any home server, NAS that runs Docker, small VPS or Raspberry Pi 4 class board that runs Docker should
+  do. We have not measured memory use, so watch it for a day with `docker stats` before you decide what size to rent.
+- **Disk.** A family's database is small: about 1 MB for an invented family of 1,627 people with 400 stories and no pictures.
+  Pictures are the weight: each photograph, portrait and research document is a file in `media/<id>/`. Plan for the pictures,
+  and for the backups next to them (a copy of everything, once per backup you keep). The place search file adds about 40 MB if
+  you build it in.
+- **Building the image** (`docker compose up -d --build`) runs `npm ci` with all the development tools, so it wants a few
+  minutes, a few hundred megabytes of free disk and the network. A published image (below) needs none of that.
+- **HTTPS and a host name** that stays the same, for anything other than this machine (see "HTTPS with Caddy").
+
 ## Choosing how people sign in
 
 Each installation uses exactly one sign-in method, set by `KINDRED_AUTH`. It is a deployment setting, not a switch inside
@@ -81,9 +94,9 @@ they are that account.
 ## Settings
 
 Compose reads `.env` for the settings below, and passes the ones the app reads into the container: `KINDRED_ORIGIN`,
-`KINDRED_AUTH`, `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `KINDRED_SETUP_CODE`, `KINDRED_REQUIRE_SETUP_CODE`, `KINDRED_DEFAULT_TREE`, `KINDRED_SECRET`, the three `KINDRED_VAPID_*` reminder
+`KINDRED_AUTH`, `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `KINDRED_GUEST_ORIGIN`, `KINDRED_SETUP_CODE`, `KINDRED_REQUIRE_SETUP_CODE`, `KINDRED_DEFAULT_TREE`, `KINDRED_SECRET`, the three `KINDRED_VAPID_*` reminder
 settings, `KINDRED_JOBS` and `KINDRED_TRUSTED_PROXIES`. `KINDRED_DOMAIN` goes to
-Caddy, and `WITH_GAZETTEER` to the build. An empty value is the same as an unset one, so the defaults still apply. Without
+Caddy, and `WITH_GAZETTEER` and `KINDRED_COMMIT` to the build. An empty value is the same as an unset one, so the defaults still apply. Without
 Docker, set them as environment variables for the server.
 
 The image fixes four things that Compose cannot change without breaking the setup: the data is the `/data` volume
@@ -101,6 +114,7 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 | `KINDRED_DEFAULT_TREE` | `family` | The family that `/` opens directly, for its members. Lower-case letters, digits and dashes. |
 | `KINDRED_DATA_DIR` | `/data` in the image, `data/` otherwise | Where the families, pictures, accounts and the secret are kept. Docker: fixed at `/data`. |
 | `KINDRED_SECRET` | the `secret` file in the data folder | The key that seals the AI keys the stewards save. Set it here to keep it out of the data folder; it must then stay the same. |
+| `KINDRED_ACCOUNTS_DB` | `accounts.db` in the data folder | Advanced: a different path for the accounts database. The tests use it. Compose does not pass it, and the image has no use for it: leave it unset. |
 | `KINDRED_GAZETTEER` | `gazetteer.db` in the data folder | The offline place search. The image sets it to a file it may contain (see below). |
 | `KINDRED_VAPID_PUBLIC_KEY`, `KINDRED_VAPID_PRIVATE_JWK`, `KINDRED_VAPID_SUBJECT` | empty | Web Push reminders. Make the three with `mise run vapid-keys -- mailto:you@example.org`. Without all three the Reminders item is hidden. See [Reminders](#reminders). |
 | `KINDRED_JOBS` | empty | `off` stops the daily run at 06:00 UTC for reminders, archives and enabled background AI tasks. Any other value keeps it on. |
@@ -108,7 +122,7 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 | `PORT` | `4901` | The port the server listens on. Docker: the image uses 4901, and Compose maps it. |
 | `HOST` | `127.0.0.1` | The address it listens on. The image sets `0.0.0.0`, so that Docker can reach it. |
 
-The Docker build also takes `WITH_GAZETTEER=1`, set in `.env` or on the command line (see below).
+The Docker build also takes `WITH_GAZETTEER=1` (see below) and `KINDRED_COMMIT`, the commit a steward's feedback report names. The build has no `.git`, so without it the report says `unknown`: `KINDRED_COMMIT=$(git rev-parse --short HEAD) docker compose up -d --build`.
 
 `KINDRED_SETUP_CODE=required` can be replaced by `KINDRED_REQUIRE_SETUP_CODE=1` (or `true`, `yes` or `required`), which means the same thing. Check the log after you change either variable. A value Kindred does not understand never leaves setup open: in `KINDRED_REQUIRE_SETUP_CODE` it requires the code, and in `KINDRED_SETUP_CODE` it locks setup. Either way the log says so, and never prints the value.
 
@@ -259,8 +273,65 @@ docker run --rm -v kindred_kindred-data:/data -v "$PWD/backups:/backup" kindred:
 docker compose start app
 ```
 
+### Restoring the other backups
+
+Every restore is the same in three steps: stop the app, put the files back, start the app. Replace a database's files
+together: delete the `-wal` and `-shm` files next to a database you replace, because leftovers of the old one do not
+belong to the new file.
+
+**From the online backup** (`backups/*.db`, `backups/media/`, `backups/secret`, made by the first or second method above).
+This puts back every family and the accounts. The folder holds what the backup holds, and nothing else is deleted:
+
+```sh
+docker compose stop app
+docker compose run --rm --no-deps --user root --entrypoint sh -v "$PWD/backups:/backup:ro" app -c '
+  rm -f /data/*.db-wal /data/*.db-shm
+  cp /backup/*.db /data/
+  [ -d /backup/media ] && mkdir -p /data/media && cp -R /backup/media/. /data/media/
+  [ -f /backup/secret ] && cp /backup/secret /data/secret
+  chown -R node:node /data'
+docker compose start app
+```
+
+**One family.** Put back only that family's `<id>.db` and `media/<id>/`; the accounts stay as they are. A family's database
+belongs with the accounts database of its time: members and roles live in `accounts.db`, so a restored family whose
+members have since changed shows the roles as they are now.
+
+**Without Docker.** Stop the server, copy the files from the backup into the data folder (`data/`, or `KINDRED_DATA_DIR`),
+remove the `-wal` and `-shm` files of the databases you replaced, and start the server again.
+
+**Copies made before an upgrade** are in `backups/` inside the data folder; restore one by copying it over the file it was
+made from, as above (see "Upgrades").
+
+These steps were written from the commands above and from how the app reads its data folder. They were not run against a
+live installation for this guide: try a restore on a scratch volume before you need it.
+
 A GEDCOM or Markdown export ([exchange.md](exchange.md)) is readable, but it is not a backup: it leaves out stories, contacts,
 houses, and the pictures.
+
+## Moving between Docker, Node and Cloudflare
+
+The same files serve Docker and plain Node: a data folder moves between them as it is (stop the app, copy the folder, set
+`KINDRED_DATA_DIR`). Cloudflare is different, because the data is in D1 and R2 rather than files.
+
+**Docker to Cloudflare.** `scripts/import-to-d1.ts` reads a family's database and pictures and writes them to D1 and R2 (the
+whole procedure is [step 4 of the Cloudflare guide](deploy-cloudflare.md#4-bring-a-family-in-optional)). From Docker:
+
+1. Make an online backup (see "Backups"). It gives you `backups/<id>.db` and `backups/media/<id>/`.
+2. In a checkout of the repository, put the pictures where the script looks for them (always `data/media/<id>/`, whatever
+   `--from` says): `mkdir -p data/media && cp -R backups/media/<id> data/media/`.
+3. Check, then send: `node scripts/import-to-d1.ts <id> --from backups/<id>.db --plan`, then the same with `--remote`.
+
+Accounts do not move: passkeys belong to a host name. The first person to open the new site sets up, and invites the others.
+Fields a member made **Personal** stay behind, because only their owner's account can read them; the script prints how many.
+
+**Cloudflare to Docker or Node.** There is no tool for it. D1 is SQLite and Node reads the same schema, so it should be
+possible by hand: `npx wrangler d1 export kindred-family --remote --output family.sql`, load the file into a new SQLite file
+named `<id>.db` in the data folder (for example with the `sqlite3` command), and download the pictures from R2 into
+`media/<id>/` under their keys. Nobody has done this with Kindred yet, so treat it as an outline, not a recipe. Accounts do not
+move either. What does work today is the readable route: a steward exports GEDCOM or the Markdown archive from **Import and
+export** and imports it on the new server ([exchange.md](exchange.md) says what each keeps and drops), then adds the pictures
+again.
 
 ## The nightly archive (optional)
 
@@ -366,11 +437,25 @@ from there. The Reminders dialog says so when it is needed.
 > `CF_ACCESS_AUD` set and no `KINDRED_AUTH`, Kindred refuses to guess: every page of the members' site answers 503 and nobody can
 > sign in until you set it. See [Choosing how people sign in](#choosing-how-people-sign-in). Without those settings there is nothing to do.
 
-With Docker, update the code (`git pull`, or the new release), then rebuild:
+Upgrade to a release, not to whatever `main` holds today. Releases are tags (`v2.0.0`, ...): the
+[releases page](https://github.com/niklas-heer/kindred/releases) and [CHANGELOG.md](../CHANGELOG.md) list them. Do this each time:
 
-```sh
-docker compose up -d --build
-```
+1. **Read the changelog** for every release between yours and the new one. A release that needs something from you says so at the top
+   of its section (for example a new setting, or a migration).
+2. **Back up** (see "Backups"). Migrations run on their own and cannot be undone.
+3. **Get the new version and rebuild:**
+
+   ```sh
+   git fetch --tags
+   git checkout v2.0.0          # the release you chose
+   KINDRED_COMMIT=$(git rev-parse --short HEAD) docker compose up -d --build
+   ```
+
+   Without Docker: check out the tag, then `mise install && npm install && mise run build:node`, and restart `mise run start`.
+4. **Check** that `docker compose ps` shows "healthy" and that people can sign in.
+
+From the next release, a prebuilt image is published for each tag. With it, step 3 is to set the new tag in your compose file
+(see "Quick start with Docker") and run `docker compose pull && docker compose up -d`. Until you do, the image you run does not change.
 
 Schema changes are migrations in `migrations/`, and they run when a file is opened. The app opens a family's file, and
 `accounts.db`, on first use after the upgrade. Before the first pending migration, it copies the file to `backups/`

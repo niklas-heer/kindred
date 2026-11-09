@@ -12,6 +12,9 @@ services:
       context: .
       args:
         WITH_GAZETTEER: ${WITH_GAZETTEER:-0}
+        # The commit shown in a steward's feedback report. The build has no .git, so set it:
+        #   KINDRED_COMMIT=$(git rev-parse --short HEAD) docker compose up -d --build
+        KINDRED_COMMIT: ${KINDRED_COMMIT:-unknown}
     image: kindred:local
     restart: unless-stopped
     # Time for in-flight requests to finish and the databases to close after `docker stop`.
@@ -25,6 +28,8 @@ services:
       KINDRED_AUTH: ${KINDRED_AUTH:-}
       CF_ACCESS_TEAM_DOMAIN: ${CF_ACCESS_TEAM_DOMAIN:-}
       CF_ACCESS_AUD: ${CF_ACCESS_AUD:-}
+      # With Cloudflare Access: the guest host that share links point at (docs/deploy-cloudflare.md, "Guests behind Access").
+      KINDRED_GUEST_ORIGIN: ${KINDRED_GUEST_ORIGIN:-}
       KINDRED_DEFAULT_TREE: ${KINDRED_DEFAULT_TREE:-}
       KINDRED_SECRET: ${KINDRED_SECRET:-}
       KINDRED_VAPID_PUBLIC_KEY: ${KINDRED_VAPID_PUBLIC_KEY:-}

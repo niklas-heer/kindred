@@ -300,9 +300,59 @@ mise run cf:seed   # copies data/modern.db and data/realm.db into the local D1 d
 
 ## Backups
 
-The data lives in D1 and R2. Take a copy of each database with wrangler (`npx wrangler d1 export --help` shows the
-options), and keep the `KINDRED_SECRET` value alongside them: saved AI keys cannot be decrypted without it. The rest of the database remains usable. Back up R2 media separately;
-a D1 export does not contain the pictures. Test the restore on a scratch database before you rely on it.
+The data lives in D1 and R2, and the sealing key is a setting: back up all three. Keep the `KINDRED_SECRET` value with
+them, because saved AI keys cannot be decrypted without it (the rest of the database stays usable).
+
+**D1: export each database to a file.** The names are the `database_name` values in `wrangler.jsonc` (`kindred-accounts`,
+`kindred-family`, and one for each family you bound):
+
+```sh
+mkdir -p backups
+npx wrangler d1 export kindred-accounts --remote --output backups/accounts.sql
+npx wrangler d1 export kindred-family   --remote --output backups/family.sql
+```
+
+`wrangler d1 export --help` shows the flags used here (`--remote`, `--output`; `--no-data` and `--no-schema` are there too).
+Repeat the second line for every family. Kindred ships no backup script of its own for Cloudflare.
+
+**D1: Time Travel.** D1 also keeps its own point-in-time history, which `--timestamp` can reach back 30 days into (wrangler's help says so).
+`npx wrangler d1 time-travel info kindred-family` shows the restore points, and
+`npx wrangler d1 time-travel restore kindred-family --timestamp <time>` puts the same database back to one of them. It is the
+quickest way to undo a bad change; it is not a substitute for a file you hold.
+
+**R2: the pictures.** A D1 export does not contain them. `npx wrangler r2 object get kindred-media/<family>/<key> --remote --file <path>`
+fetches one object, and wrangler has no command for the whole bucket. To copy the bucket, use R2's S3-compatible API with a
+tool such as `rclone` or the `aws` CLI (Cloudflare's R2 documentation describes the endpoint and the access keys). The keys
+are in the family's database (`photo`, `media`, `portrait` and `research_document` rows).
+
+**Restoring.** Restore into a new, empty database and check it before you switch to it:
+
+```sh
+npx wrangler d1 create kindred-family-restored
+npx wrangler d1 execute kindred-family-restored --remote --file backups/family.sql
+```
+
+Then point the family's `TREE_<ID>` binding in `wrangler.jsonc` at it (its `database_name` and `database_id`), and run
+`mise run deploy`. For the pictures, copy the objects back into the bucket under the same keys. The export holds the schema
+and the `d1_migrations` record, so the migrations see the restored database as up to date.
+
+None of these commands was run against a live Cloudflare account for this guide. They come from wrangler's own help and from
+how `scripts/` uses wrangler. Rehearse the whole cycle on a scratch database first.
+
+## Moving from Docker
+
+A family in a Docker or Node installation goes to Cloudflare with `scripts/import-to-d1.ts` (step 4). From Docker, make an
+online backup and use it as the source: [Moving between Docker, Node and Cloudflare](self-host.md#moving-between-docker-node-and-cloudflare)
+has the steps. Going back from Cloudflare to Docker has no tool; that section says what is possible by hand.
+
+## Upgrading
+
+1. Read [CHANGELOG.md](../CHANGELOG.md) for every release between yours and the one you are moving to.
+2. Back up (above).
+3. `git fetch --tags`, then `git checkout <tag>` for the release you chose (for example `v2.0.0`), then `npm install`.
+4. `mise run deploy`: it builds, applies the new migrations to the deployed databases and then deploys (step 7).
+5. Open the site and check you can sign in. If the Worker is wrong but the data is fine, check out the previous tag and
+   run `mise run deploy` again; migrations only go forward, so a migration that shipped stays (step 7 says how to undo one).
 
 ## Troubleshooting
 
