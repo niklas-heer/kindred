@@ -9,6 +9,15 @@ from `mise.toml`, `wrangler.jsonc` or `scripts/`.
 - A Cloudflare account, and [mise](https://mise.jdx.dev) with the Node version from `mise.toml`.
 - `npm install` in the repository (wrangler is a dev dependency).
 - `npx wrangler login`, once per machine.
+- **The Workers Paid plan.** The free plan allows 10 ms of CPU time per request, and drawing a family's pages takes more:
+  20 to 78 ms per page in a measurement (on Node, for invented families of 346 and 1,627 people; the people list and
+  house pages are the heaviest). On the free plan most page loads would be cut off. Share-link passwords need it too (see
+  [the nightly archive](#the-nightly-archive-optional)).
+
+`wrangler.jsonc` turns on [Smart Placement](https://developers.cloudflare.com/workers/configuration/smart-placement/).
+A page reads D1 in several steps, one after the other (the session, then the reader's families, then the family itself),
+so a Worker that runs near the reader would cross the distance to the databases at every step. Smart Placement moves it
+next to them once it has seen enough requests. Remove the `placement` line to run it near the reader instead.
 
 ## 1. Create the databases and the bucket
 
@@ -125,7 +134,7 @@ Put the variables in the dashboard or in `wrangler.jsonc` under `vars`, as the o
 The archive runs in the same 06:00 UTC cron as reminders and enabled background AI tasks. Use a Workers plan
 with enough CPU time and subrequests for your family's exports.
 Share-link passwords are hashed with PBKDF2 at 100,000 iterations (the most Workers allow), which took about 20 ms of CPU
-in a measurement and so may exceed the Workers free plan's 10 ms CPU limit: use the Workers Paid plan for a site with share links. A first archive writes every file; an interrupted
+in a measurement: like every page, more than the Workers free plan's 10 ms CPU limit (see [What you need](#what-you-need)). A first archive writes every file; an interrupted
 run logs a failure and retries on the next night. The branch changes only after the files are ready, so a failed
 run does not publish a partial archive. Node is not subject to Workers invocation limits.
 

@@ -25,6 +25,8 @@
 	// nodejs_compat: process.env carries vars and secrets (KINDRED_ORIGIN, KINDRED_AUTH, CF_ACCESS_*, KINDRED_SETUP_CODE).
 	"compatibility_flags": ["nodejs_compat"],
 	"observability": { "enabled": true },
+	// A page reads D1 in several steps one after another; run the Worker near the databases, not near each reader.
+	"placement": { "mode": "smart" },
 	"upload_source_maps": true,
 	// The daily jobs (src/lib/jobs: Web Push reminders) run at 06:00 UTC: src/server.ts → scheduled.
 	"triggers": { "crons": ["0 6 * * *"] },
