@@ -8,13 +8,13 @@
 }
 .card-hit:focus-visible { outline: none; }
 /* Keyboard focus: a ring of screen-constant width around the whole card. */
-.card-hit:focus-visible::after, .card.far:focus-visible::after, .card.ghost:focus-visible::after {
+.card-hit:focus-visible::after, .card.far:focus-visible::after, .card.ghost:focus-visible::after, .seal:focus-visible::after {
   content: ''; position: absolute; inset: calc(-5px / var(--k, 1)); pointer-events: none;
   border-radius: calc(var(--radius-lg) + 4px);
   box-shadow: 0 0 0 calc(3px / var(--k, 1)) var(--accent), 0 0 0 calc(5px / var(--k, 1)) color-mix(in srgb, var(--bg) 70%, transparent);
 }
 .card-hit { position: relative; }
-.card.far:focus-visible, .card.ghost:focus-visible { outline: none; }
+.card.far:focus-visible, .card.ghost:focus-visible, .seal:focus-visible { outline: none; }
 .card-portrait { position: relative; margin-top: 4px; transition: transform var(--dur-1, 120ms) var(--ease-out, cubic-bezier(.2,.8,.2,1)); }
 .card-hit:hover .card-portrait { transform: translateY(-2px); }
 .card-hit:active .card-portrait { transform: scale(0.97); }
@@ -223,6 +223,30 @@
 .card.far.crowned { overflow: visible; }
 .card.far.crowned .far-crown { position: absolute; top: -46px; left: 50%; translate: -50% 0; }
 .far-fold { font-size: 46px; font-weight: 700; color: #fff; text-shadow: 0 2px 6px #000a; font-family: var(--font-display); }
+
+/* One step out from the name plates: the same shield at three quarters, with the name they go by on a plate under
+   it. Canvas keeps this level while that name is 11px or more on screen (NAME_PX.seal); farther out the shields
+   stand alone. A name wider than its card runs a little into the 44px between neighbours, then is cut with an ellipsis. */
+.seal {
+  position: relative; display: flex; flex-direction: column; align-items: center; width: 148px; height: 196px;
+  padding: 0; border: 0; background: none; cursor: pointer; font: inherit; color: inherit;
+}
+.seal.dup { opacity: 0.6; }
+/* Room for a crown above the shield; the shield itself is drawn by the .card.far rules and scaled as a whole. */
+.seal-shield { flex: none; width: 148px; height: 150px; display: grid; justify-items: center; align-items: start; pointer-events: none; }
+.seal-shield > .card.far { margin-top: 12px; scale: 0.75; transform-origin: 50% 0; }
+.seal-name {
+  flex: none; margin-top: 4px; max-width: 184px; padding: 1px 10px 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-name); font-size: var(--name-seal, 32px); line-height: 1.15; font-weight: var(--name-weight); color: var(--text);
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
+}
+[data-theme='codex'] .seal-name {
+  color: #f3e7c8; background: linear-gradient(180deg, #232b39f2, #161b25f2);
+  border-color: #0b0e13; border-radius: 3px; box-shadow: inset 0 1px 0 #b8954f66, 0 3px 8px #0006;
+}
+[data-theme='modern'] .seal-name, [data-theme='night'] .seal-name { font-weight: 600; }
+.seal.selected .seal-name { border-color: var(--accent); }
+[data-theme='codex'] .seal.selected .seal-name { border-color: #e2bd6b; box-shadow: inset 0 1px 0 #f0d58f, 0 0 0 1px #e2bd6b55, 0 3px 10px #0008; }
 
 /* An unknown ancestor: a dashed, empty slot. */
 .card.ghost {

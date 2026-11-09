@@ -1,35 +1,24 @@
 // The tree canvas: pan and zoom over a laid-out tree, drawing only what is on screen.
 //
 // Feel: drag or two-finger scroll pans; pinch, ⌘/ctrl+wheel or a mouse wheel zooms around the
-// pointer. Cards change detail with zoom (portrait → name plate → house-coloured tile). A minimap
+// pointer. Cards change detail with zoom (portrait → name plate → shield with a name → shield). A minimap
 // shows where you are in the whole tree; a ruler on the left names each generation and its era.
 import { Expand, Map as MapIcon, Minus, Plus } from 'lucide-react';
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { CARD_H, CARD_W, ROW_H, type LNode, type Layout } from '~/lib/layout';
+import { CARD_H, CARD_W, type LNode, type Layout } from '~/lib/layout';
+import { MAX_K, NAME_PX, READABLE_K, detailFor, minZoom, openingZoom, type Detail } from '~/lib/camera';
 import type { Family } from '~/lib/graph';
 import { Minimap } from './Minimap';
 import { useT } from '~/lib/i18n';
 import './canvas.css';
 
-export type Detail = 'far' | 'mid' | 'near';
-/** Card name sizes in world pixels at each level (card.css reads them as --name-near / --name-mid). */
-export const NAME_PX = { near: 15, mid: 24 } as const;
-/** Smallest name on screen we accept before dropping to a simpler level. */
-const MIN_TEXT_PX = 14;
-// Detail follows the size names actually reach on screen (zoom × font size), not fixed zoom steps.
-// With a little hysteresis, so cards don't flicker between levels while zooming near a threshold.
-const detailFor = (k: number, prev: Detail): Detail => {
-  const keep = 0.5; // px of slack before leaving the current level
-  if (k * NAME_PX.near >= MIN_TEXT_PX - (prev === 'near' ? keep : 0)) return 'near';
-  if (k * NAME_PX.mid >= MIN_TEXT_PX - (prev !== 'far' ? keep : 0)) return 'mid';
-  return 'far';
-};
-/** The smallest zoom that still shows name plates (coming from a closer level). */
-const MID_K = (MIN_TEXT_PX - 0.5) / NAME_PX.mid;
-/** When the whole tree won't fit at name plates, open at this zoom around the focus instead of shrinking it to tiles. */
-const READABLE_K = MIN_TEXT_PX / NAME_PX.mid + 0.01;
-/** The smallest zoom that shows portraits and full cards. A tree that nearly fits at it opens there, not a level simpler. */
-const NEAR_K = MIN_TEXT_PX / NAME_PX.near + 0.005;
+export { NAME_PX, type Detail };
+
+/**
+ * World pixels the focus card needs above its slot on full cards: it is drawn 12% larger from a point 60% down
+ * (card.css), which lifts its top by 14px and puts the "+" for a parent, with its ring, 57px above the slot.
+ */
+const FOCUS_HEADROOM = 58;
 
 /** Screen space covered by floating panels, in px from each edge of the canvas. */
 export interface Inset { left: number; top: number; right?: number; bottom?: number }
@@ -114,11 +103,14 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     });
   }, []);
 
-  const animateTo = useCallback((to: Cam, ms = 420) => {
+  // `settle`: the level to show on arrival. A flight from farther out would otherwise end one level simpler than
+  // the same zoom reached from closer in (the hysteresis), and an opening view must not depend on where it came from.
+  const animateTo = useCallback((to: Cam, ms = 420, settle?: Detail) => {
     cancelAnimationFrame(anim.current);
     // Reduced motion: no flying, just arrive.
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
       cam.current = to;
+      if (settle) lastDetail.current = settle;
       apply();
       return;
     }
@@ -130,6 +122,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
       // Zoom interpolates geometrically so it feels even.
       const k = from.k * Math.pow(to.k / from.k, e);
       cam.current = { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e, k };
+      if (p >= 1 && settle) lastDetail.current = settle;
       apply();
       if (p < 1) anim.current = requestAnimationFrame(step);
     };
@@ -175,6 +168,13 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
 
   const margins = (w: number) => (w < 600 ? { x: 12, y: 10 } : { x: 28, y: 12 });
 
+  /** The farthest out a gesture or the zoom buttons go: a little past the whole tree in view. */
+  const floor = useCallback(() => {
+    const a = area();
+    const m = margins(a.w);
+    return minZoom(Math.min((a.r - a.l - 2 * m.x) / layout.bounds.w, (a.b - a.t - 2 * m.y) / layout.bounds.h));
+  }, [layout, area]);
+
   const fit = useCallback(() => {
     if (!host.current) return;
     const a = area();
@@ -191,14 +191,9 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     const b = layout.bounds;
     const m = margins(a.w);
     const lo = { x: a.l + m.x, y: a.t + m.y }, hi = { x: a.r - m.x, y: a.b - m.y };
-    const fitK = Math.min((hi.x - lo.x) / b.w, (hi.y - lo.y) / b.h);
-    // Full cards when the tree fits at them, or so nearly that a row or column just runs off the edge; else
-    // name plates as large as fit; else readable name plates around the focus.
-    // A phone holds few cards across at any zoom, so it spends its height on type instead: as large as
-    // still shows three generations whole (parents, the focus, children), up to a fifth above readable.
-    const roomy = a.w < 600 ? Math.max(READABLE_K, Math.min(READABLE_K * 1.2, (hi.y - lo.y) / (2 * ROW_H + CARD_H))) : READABLE_K;
-    const k = fitK >= NEAR_K * 0.86 ? Math.min(Math.max(fitK, NEAR_K), 1) : fitK >= MID_K ? fitK : roomy;
-    lastDetail.current = k * NAME_PX.near < MIN_TEXT_PX ? 'mid' : 'near'; // so the hysteresis keeps the level at its threshold
+    // Full cards for a small tree, readable name plates around the focus for a large one (see openingZoom).
+    const k = openingZoom((hi.x - lo.x) / b.w, (hi.y - lo.y) / b.h, a.w, hi.y - lo.y);
+    const opens = detailFor(k, 'near'); // coming from closer in, so the hysteresis keeps the level at its threshold
     const n = firstOf.get(id);
     // Across: centre the tree when it fits, else centre the focus and pull the tree's edges to the area's
     // edges, so the view never shows empty space where there is more tree.
@@ -225,7 +220,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
       return from - top * k;
     };
     const target = { k, x: across(lo.x, hi.x, b.x, b.w, n ? n.x : b.x + b.w / 2), y: down(lo.y, hi.y) };
-    if (opts?.animate === false) { cancelAnimationFrame(anim.current); cam.current = target; apply(); } else animateTo(target);
+    if (opts?.animate === false) { cancelAnimationFrame(anim.current); cam.current = target; lastDetail.current = opens; apply(); } else animateTo(target, 420, opens);
   }, [layout, firstOf, apply, animateTo, area]);
 
   const reveal = useCallback((id: string) => {
@@ -252,18 +247,19 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
   const zoomAt = useCallback((factor: number, sx: number, sy: number) => {
     cancelAnimationFrame(anim.current);
     const c = cam.current;
-    const k = Math.min(2.2, Math.max(0.04, c.k * factor));
+    // Zooming out stops at the floor; a camera already past it (the tree grew smaller under it) is not pulled in.
+    const k = Math.min(MAX_K, Math.max(Math.min(c.k, floor()), c.k * factor));
     const f = k / c.k;
     cam.current = { k, x: sx - (sx - c.x) * f, y: sy - (sy - c.y) * f };
     apply();
-  }, [apply]);
+  }, [apply, floor]);
 
   const zoomBy = useCallback((f: number) => {
     const r = host.current!.getBoundingClientRect();
     const c = cam.current;
-    const k = Math.min(2.2, Math.max(0.04, c.k * f));
+    const k = Math.min(MAX_K, Math.max(Math.min(c.k, floor()), c.k * f));
     animateTo({ k, x: r.width / 2 - ((r.width / 2 - c.x) / c.k) * k, y: r.height / 2 - ((r.height / 2 - c.y) / c.k) * k }, 220);
-  }, [animateTo]);
+  }, [animateTo, floor]);
 
   // Minimap clicks and drags move the view at once, keeping the zoom.
   const minimapJump = useCallback((wx: number, wy: number) => {
@@ -389,7 +385,8 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     frame(focus, { animate: false });
   }, [frame, focus]);
 
-  const detail = (lastDetail.current = detailFor(view.k, lastDetail.current));
+  // From the camera itself, not from `view`, which is a frame behind it: a render in between must not undo the level frame() chose.
+  const detail = (lastDetail.current = detailFor(cam.current.k, lastDetail.current));
   const visible = useMemo(
     () => layout.nodes.filter((n) => n.x + CARD_W / 2 > view.x0 && n.x - CARD_W / 2 < view.x1 && n.y + CARD_H > view.y0 && n.y < view.y1),
     [layout, view.x0, view.x1, view.y0, view.y1],
@@ -399,7 +396,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     <div
       ref={host}
       className={`canvas detail-${detail}`}
-      style={{ '--name-near': `${NAME_PX.near}px`, '--name-mid': `${NAME_PX.mid}px` } as CSSProperties}
+      style={{ '--name-near': `${NAME_PX.near}px`, '--name-mid': `${NAME_PX.mid}px`, '--name-seal': `${NAME_PX.seal}px` } as CSSProperties}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

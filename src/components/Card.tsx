@@ -1,7 +1,8 @@
-// A person on the canvas, at three levels of detail.
+// A person on the canvas, at four levels of detail: a full card, a name plate, a shield with a name, a shield.
 import { Minus, Plus } from 'lucide-react';
-import { memo } from 'react';
+import { memo, type KeyboardEvent } from 'react';
 import { personDisplayName, cardAge, lifespan, type NameMode, type Family } from '~/lib/graph';
+import { cardExtras } from '~/lib/card-label';
 import type { GPerson } from '~/lib/types';
 import { GAP_ACTION, GAP_LABEL, gapsOf, useRequired } from '~/lib/gaps';
 import { can } from '~/lib/roles';
@@ -24,6 +25,7 @@ interface Props {
   detail: Detail;
   family: Family;
   tree: string;
+  /** How this person is related to the reader ("aunt"). Shown as a tab on a full card, and read out at every level. */
   kin?: string;
   selected: boolean;
   isMe: boolean;
@@ -44,8 +46,9 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
   const today = useToday();
   const houseRole = useHouseRole(tree, f, node.id);
   if (node.ghost) {
-    // An unknown parent: an open slot that invites filling in.
+    // An unknown parent: an open slot that invites filling in. Under a named shield it is the same empty shield as farther out.
     const { child, as } = node.ghost;
+    if (detail === 'seal') detail = 'far';
     const of = f.byId.get(child);
     const who = of?.given ?? t('card.theirs');
     const rel = t(as === 'father' ? 'card.father' : 'card.mother');
@@ -87,22 +90,42 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
   const years = lifespan(p, t.locale);
   const ageLabel = ageMode === 'all' || (ageMode === 'living' && p.living) ? cardAge(p, today, t.locale) : undefined;
 
-  if (detail === 'far') {
+  // What a screen reader hears after the name and years: who they are to the reader, and what the badges say.
+  const soon = today ? birthdaySoon(p, today) : undefined;
+  const disputed = (f.parentsOf.get(p.id) ?? []).some((q) => f.disputed.has(`${p.id}>${q}`));
+  const extras = cardExtras({
+    you: isMe ? t('common.you') : undefined,
+    kin: !isMe && kin ? t('shell.palette.yourKin', { kin }) : undefined,
+    again: node.role === 'dup' ? t('card.appearsAgain') : undefined,
+    stories: p.stories > 0 ? t('card.stories', { count: p.stories }) : undefined,
+    birthday: soon === undefined ? undefined : soon === 0 ? t('card.birthdayToday') : t('card.birthdayIn', { count: soon }),
+    disputed: disputed ? t('rel.disputed') : undefined,
+  });
+  // The arrow keys move the selection and the focus with it: the page finds the card to focus by this (index.tsx).
+  const mark = {
+    'data-person': node.role === 'dup' ? undefined : p.id,
+    'aria-current': selected ? ('true' as const) : undefined,
+    // Enter on a focused card centres the tree there, as a double-click does; Space selects, as a click does. Kept from
+    // the page's own Enter key, which centres on the selected person and may be someone else when Tab moved the focus.
+    onKeyDown: (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || !onOpen) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onOpen(p.id);
+    },
+  };
+
+  if (detail === 'far' || detail === 'seal') {
     // Overview: a shield in the house colour (rich for the living, faded for the dead), a crown for
     // rulers, and the house's arms on its founder.
     const ruler = /^(King|Queen|Emperor|Empress)\b/.test(p.title ?? '');
     const founder = house?.founder === p.id;
     const founderText = founder ? t('card.founderOf', { house: house!.name }) : '';
     const farColour = shieldColours(house?.arms);
-    return (
-      <button
-        className={`card far${selected ? ' selected' : ''}${p.living ? ' living' : ' dead'}${isMe ? ' me' : ''}${ruler ? ' crowned' : ''}${founder ? ' founder' : ''}`}
-        style={{ ['--house' as string]: farColour.house, ['--house-ink' as string]: farColour.ink }}
-        onClick={() => onSelect(p.id)}
-        onDoubleClick={() => onOpen?.(p.id)}
-        title={[name, years, founder ? founderText : ''].filter(Boolean).join(' · ')}
-        aria-label={[`${name}`, years, founder ? founderText : ''].filter(Boolean).join(', ')}
-      >
+    const shieldClass = `card far${selected ? ' selected' : ''}${p.living ? ' living' : ' dead'}${isMe ? ' me' : ''}${ruler ? ' crowned' : ''}${founder ? ' founder' : ''}`;
+    const shieldStyle = { ['--house' as string]: farColour.house, ['--house-ink' as string]: farColour.ink };
+    const face = (
+      <>
         {ruler && <GameIcon name="crown" size={84} className="far-crown" />}
         {node.folded ? (
           <span className="far-fold">+{node.folded}</span>
@@ -112,6 +135,38 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
           // A seal with the initial, so a wall of shields still has faces to tell apart.
           <span className="far-initial" aria-hidden>{p.given.slice(0, 1)}</span>
         )}
+      </>
+    );
+    const spoken = [name, years, founderText, extras].filter(Boolean).join(', ');
+    if (detail === 'seal') {
+      // One step out from the name plates: the same shield, smaller, with the name they go by under it, so a row
+      // still reads as people and not as a string of initials.
+      const short = personDisplayName(p, nameMode === 'nickname' ? 'nickname' : 'first', f);
+      return (
+        <button
+          className={`seal${selected ? ' selected' : ''}${node.role === 'dup' ? ' dup' : ''}`}
+          onClick={() => onSelect(p.id)}
+          onDoubleClick={() => onOpen?.(p.id)}
+          title={[name, years, founderText].filter(Boolean).join(' · ')}
+          {...mark}
+        >
+          <span className="seal-shield" aria-hidden><span className={shieldClass} style={shieldStyle}>{face}</span></span>
+          <span className="seal-name">{short}</span>
+          <span className="sr-only">, {spoken}</span>
+        </button>
+      );
+    }
+    return (
+      <button
+        className={shieldClass}
+        style={shieldStyle}
+        onClick={() => onSelect(p.id)}
+        onDoubleClick={() => onOpen?.(p.id)}
+        title={[name, years, founder ? founderText : ''].filter(Boolean).join(' · ')}
+        aria-label={spoken}
+        {...mark}
+      >
+        {face}
       </button>
     );
   }
@@ -119,8 +174,6 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
   const roleClass = node.role === 'dup' ? ' dup' : node.role === 'partner' ? ' partner' : node.role === 'sibling' ? ' sibling' : node.role === 'kin' ? ' kin' : '';
   const ruler = /^(King|Queen|Emperor|Empress)\b/.test(p.title ?? '');
   const sub = p.title && !name.startsWith(p.title.split(' ')[0]) ? p.title : p.title ? '' : occupationText(p, t.locale) ?? '';
-  const soon = today ? birthdaySoon(p, today) : undefined;
-  const disputed = (f.parentsOf.get(p.id) ?? []).some((q) => f.disputed.has(`${p.id}>${q}`));
   // Only gaps this reader could fill: a viewer gets no to-do badges they can do nothing about.
   const gaps = detail === 'near' && node.role !== 'dup' ? gapsOf(f, p, required).filter((g) => can(role, GAP_ACTION[g])) : [];
   // The epithet ("the Pious") is set in italic; mid detail drops it so the name stays large.
@@ -129,7 +182,7 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
   const canFold = !!onToggle && !!(node.folded || (f.childrenOf.get(p.id)?.length && node.role === 'main'));
   return (
     <div className={`card ${detail}${selected ? ' selected' : ''}${roleClass}${p.living ? ' living' : ' dead'}${ruler ? ' crowned' : ''}`}>
-      <button className="card-hit" onClick={() => onSelect(p.id)} onDoubleClick={() => onOpen?.(p.id)} title={t('card.clickToSelect', { name })}>
+      <button className="card-hit" onClick={() => onSelect(p.id)} onDoubleClick={() => onOpen?.(p.id)} title={t('card.clickToSelect', { name })} {...mark}>
         <div className="card-portrait">
           <Portrait person={p} tree={tree} size={detail === 'near' ? 104 : 84} decorative />
           {house && (
@@ -168,9 +221,12 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, sel
             {node.outOfHouse && detail === 'near' ? <span className="card-out" title={t('card.outOfHouse', { count: node.outOfHouse })}>↗{node.outOfHouse}</span> : null}
           </div>
         </div>
+        {/* The name and years above are the start of the card's spoken name; this is the rest of it. */}
+        {extras && <span className="sr-only">, {extras}</span>}
       </button>
-      {detail !== 'near' ? null : isMe ? <span className="card-kin me">{t('common.you')}</span> : kin ? <span className="card-kin">{kin}</span> : null}
-      {node.role === 'dup' && <span className="card-dup">{t('card.appearsAgain')}</span>}
+      {/* Said in the button's own name already, so these two are for the eye only. */}
+      {detail !== 'near' ? null : isMe ? <span className="card-kin me" aria-hidden>{t('common.you')}</span> : kin ? <span className="card-kin" aria-hidden>{kin}</span> : null}
+      {node.role === 'dup' && <span className="card-dup" aria-hidden>{t('card.appearsAgain')}</span>}
       {gaps.length > 0 && (
         <span className="card-gaps" title={t('card.gapsTitle', { list: gaps.map((g) => t(GAP_LABEL[g])).join(', ') })}>
           {gaps.length}

@@ -2,6 +2,7 @@
 // counts as a member of a house, whom a search lists first, and what a card says to a screen reader.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { cardExtras, selectionAnnouncement } from './card-label.ts';
 import { buildFamily, stepsFrom, type Family } from './graph.ts';
 import { searchPeople } from './search.ts';
 import type { GParent, GPerson, GUnion, Graph, House } from './types.ts';
@@ -58,3 +59,13 @@ test('a search still finds people by title, and keeps names above such matches',
   assert.deepEqual(searchPeople(f, '   '), []);
 });
 
+test('a card says who the person is to the reader before what its badges show', () => {
+  assert.equal(cardExtras({}), '');
+  assert.equal(cardExtras({ kin: 'your aunt', stories: '2 stories', birthday: 'Birthday today' }), 'your aunt, Birthday today, 2 stories');
+  assert.equal(cardExtras({ you: 'you', disputed: 'Parentage disputed' }), 'you, Parentage disputed');
+});
+
+test('walking the tree announces the person, their years and the relation', () => {
+  assert.equal(selectionAnnouncement({ name: 'Kjell Holm', years: 'b. 1958', kin: 'your father' }), 'Kjell Holm, b. 1958, your father');
+  assert.equal(selectionAnnouncement({ name: 'Kjell Holm', years: '' }), 'Kjell Holm');
+});

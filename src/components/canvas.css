@@ -129,7 +129,7 @@
 
 /* ---------- marriage labels: a small plate centred on the union line ---------- */
 /* World pixels, like the cards: name plates (mid) open at a zoom of 0.56 or more, so 22px lands at 12px or
-   more on screen; full cards start at 0.93, so 15px and 13px land at 14px and 12px. Tiles hide the label. */
+   more on screen; full cards start at 0.93, so 15px and 13px land at 14px and 12px. Shields hide the label. */
 .union-label {
   position: absolute; z-index: 1; translate: -50% -50%; pointer-events: none;
   display: grid; justify-items: center; gap: 0; padding: 0.2em 0.5em; white-space: nowrap;
@@ -141,7 +141,7 @@
 [data-theme='modern'] .union-label { box-shadow: 0 1px 2px #2a22141f; }
 .union-status { font-size: 13px; color: color-mix(in srgb, var(--chip-text) 78%, transparent); }
 .union-label.dim { opacity: .25; }
-.canvas.detail-far .union-label { display: none; }
+.canvas:is(.detail-far, .detail-seal) .union-label { display: none; }
 .canvas.detail-mid .union-label { font-size: 22px; }
 .canvas.detail-mid :is(.union-ended, .union-status) { display: none; }
 @media (prefers-reduced-motion: reduce) { .union-label { transition: none; } }

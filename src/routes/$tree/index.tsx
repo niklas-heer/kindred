@@ -314,7 +314,8 @@ function TreePage() {
         detail={detail}
         family={f}
         tree={tree}
-        kin={detail === 'near' ? kinOf(n.id) : undefined}
+        // The shields alone can be the whole dynasty at once: kinship is worked out for the levels that show fewer.
+        kin={detail === 'far' ? undefined : kinOf(n.id)}
         selected={n.id === sel}
         isMe={n.id === who}
         nameMode={nameMode}
