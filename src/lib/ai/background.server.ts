@@ -412,11 +412,20 @@ export async function activity(tree: string, now = new Date()): Promise<Activity
   };
 }
 
-/** The number on the quiet badge: arms suggestions and links waiting for a steward, and failed runs in the last week. Reads only. */
-export async function attention(tree: string, now = new Date()): Promise<number> {
-  let n = (await linksWaiting(tree)).length;
-  for (const r of Object.values(await readReviews(tree))) if (needsAttention(r)) n++;
+/**
+ * What waits for a steward, by where it is answered: members' "this is me" links on the Access page; arms suggestions
+ * and failed runs in the last week on AI activity. Reads only.
+ */
+export async function attentionParts(tree: string, now = new Date()): Promise<{ access: number; ai: number }> {
+  let ai = 0;
+  for (const r of Object.values(await readReviews(tree))) if (needsAttention(r)) ai++;
   const weekAgo = now.getTime() - 7 * 86_400_000;
-  n += (await accounts().get<{ n: number }>("SELECT COUNT(*) AS n FROM ai_task_run WHERE tree = ? AND status = 'failed' AND started > ?", tree, weekAgo))?.n ?? 0;
-  return n;
+  ai += (await accounts().get<{ n: number }>("SELECT COUNT(*) AS n FROM ai_task_run WHERE tree = ? AND status = 'failed' AND started > ?", tree, weekAgo))?.n ?? 0;
+  return { access: (await linksWaiting(tree)).length, ai };
+}
+
+/** The number on the quiet badge: everything that waits for a steward. */
+export async function attention(tree: string, now = new Date()): Promise<number> {
+  const parts = await attentionParts(tree, now);
+  return parts.access + parts.ai;
 }

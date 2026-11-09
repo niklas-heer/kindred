@@ -38,14 +38,17 @@ export const aiRunTask = createServerFn({ method: 'POST' })
     return (await bg()).runTask(data.tree, data.task, { source: 'manual' });
   });
 
-/** The quiet badge: how many things want a steward's attention. Zero for members who are not stewards (they see no badge). */
+/**
+ * The quiet badge: how many things want a steward's attention, split by the page that answers them (Access for a
+ * member's "this is me", AI activity for the rest). Zeros for members who are not stewards (they see no badge).
+ */
 export const aiAttention = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
     const { can } = await import('../roles');
     const m = await (await guard()).requireMember(data.tree);
-    if (!can(m.role, 'manage-access')) return 0;
-    return (await bg()).attention(data.tree);
+    if (!can(m.role, 'manage-access')) return { access: 0, ai: 0 };
+    return (await bg()).attentionParts(data.tree);
   });
 
 export const aiAttentionQuery = (t: string) => queryOptions({ queryKey: ['ai-attention', t], queryFn: () => aiAttention({ data: { tree: t } }), staleTime: 60_000 });

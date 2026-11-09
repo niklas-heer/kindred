@@ -52,7 +52,7 @@ const { linksWaiting } = await load<typeof import('./links.server.ts')>('/src/li
 const auth = await load<typeof import('./functions.ts')>('/src/lib/auth/functions.ts');
 const portrait = await load<typeof import('../portrait.functions.ts')>('/src/lib/portrait.functions.ts');
 const { Route } = await load<typeof import('../../routes/api/paint.$tree.$key.ts')>('/src/routes/api/paint.$tree.$key.ts');
-const { attention } = await load<typeof import('../ai/background.server.ts')>('/src/lib/ai/background.server.ts');
+const { attention, attentionParts } = await load<typeof import('../ai/background.server.ts')>('/src/lib/ai/background.server.ts');
 
 const TREE = 'links';
 const USERS = {
@@ -111,6 +111,7 @@ test('linking works at once and waits for a steward; an unconfirmed member is re
   assert.equal(m.person_confirmed, 0);
   assert.deepEqual(await linksWaiting(TREE), [{ user: USERS.viewer, name: 'viewer', person: 'ada' }]);
   assert.equal(await attention(TREE), 1, 'it counts among what waits for a steward');
+  assert.deepEqual(await attentionParts(TREE), { access: 1, ai: 0 }, 'and it is answered on the Access page, not in AI activity');
   signIn('viewer');
   for (const [name, call] of PATHS) {
     await assert.rejects(call, (e: Error & { code?: string; status?: number }) => {

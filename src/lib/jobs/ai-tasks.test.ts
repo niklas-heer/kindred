@@ -454,7 +454,7 @@ test('role checks: only a steward sees the activity, runs a task or saves the se
     await assert.rejects(asReader(cookie, () => fns.aiSaveBackground({ data: { tree, input: input() } })), (e: unknown) => status(e) === 403);
   }
   await assert.rejects(asReader(undefined, () => fns.aiActivity({ data: { tree } })), (e: unknown) => status(e) === 401);
-  assert.equal(await asReader(viewer, () => fns.aiAttention({ data: { tree } })), 0, 'a viewer gets no badge');
+  assert.deepEqual(await asReader(viewer, () => fns.aiAttention({ data: { tree } })), { access: 0, ai: 0 }, 'a viewer gets no badge');
   assert.equal((await asReader(steward, () => fns.aiActivity({ data: { tree } }))).tasks.length, 4, 'a steward sees the four tasks');
   assert.ok(await asReader(viewer, () => fns.storyTranslations({ data: { tree, locale: 'en' } })) !== undefined, 'a viewer reads the translated stories');
   assert.equal(can('viewer', 'manage-access'), false);

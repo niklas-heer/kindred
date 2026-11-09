@@ -107,17 +107,6 @@ function AccessPage() {
         />
         {error && <Notice onDismiss={() => setError(null)} className="acc-notice">{error}</Notice>}
 
-        <FamilyDetails tree={tree} name={f.graph.tree.name} tagline={f.graph.tree.tagline} />
-
-        <ShareLinkCard tree={tree} familyName={f.graph.tree.name} />
-
-        {signInMethod && (
-          <>
-            <h2 className="rule">{t('auth.method_title')}</h2>
-            <p className="acc-hint">{signInMethod === 'kindred' ? t('auth.method_kindred') : t('auth.method_cloudflare')}</p>
-          </>
-        )}
-
         {access.isPending ? (
           <div className="ui-card" aria-busy="true" aria-label={t('acc.loadingMembers')}><Skeleton lines={4} /></div>
         ) : access.isError ? (
@@ -226,6 +215,18 @@ function AccessPage() {
             );
           })}
         </div>
+
+        {/* People first: who is here and who is invited. What is changed once, or rarely, comes after. */}
+        <ShareLinkCard tree={tree} familyName={f.graph.tree.name} />
+
+        {signInMethod && (
+          <>
+            <h2 className="rule">{t('auth.method_title')}</h2>
+            <p className="acc-hint">{signInMethod === 'kindred' ? t('auth.method_kindred') : t('auth.method_cloudflare')}</p>
+          </>
+        )}
+
+        <FamilyDetails tree={tree} name={f.graph.tree.name} tagline={f.graph.tree.tagline} />
       </div>
 
       <InviteDialog open={inviting} onClose={() => setInviting(false)} tree={tree} familyName={f.graph.tree.name} onCreated={refresh} />

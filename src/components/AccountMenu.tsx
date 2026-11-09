@@ -5,7 +5,7 @@ import { translateMessage, formatDate, relativeTime, useT, type Locale } from '~
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { graphQuery } from '~/lib/api';
-import { Activity, ArrowLeftRight, BarChart3, Bell, Check, CircleHelp, Fingerprint, KeyRound, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus } from 'lucide-react';
+import { Activity, ArrowLeftRight, BarChart3, Bell, Check, CircleHelp, Fingerprint, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus } from 'lucide-react';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import '~/components/assistant/ai-tasks.css';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
@@ -73,7 +73,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
   const [reminders, setReminders] = useState(false);
   // Reminders are offered only when this server has its VAPID keys (docs/self-host.md, "Reminders").
   const remindersOn = useQuery({ queryKey: ['reminders', 'available'], queryFn: () => fetchRemindersAvailable(), staleTime: 5 * 60_000 });
-  // The quiet badge: what in AI activity wants a steward (zero for everyone else, who see no badge).
+  // The quiet badge: what waits for a steward, on the Access page and in AI activity (zero for everyone else).
   const attention = useQuery({ ...aiAttentionQuery(tree ?? ''), enabled: !!tree && !!m && can(m.role, 'manage-access') });
   const layer = useOverlayLayer(open);
   const button = useRef<HTMLButtonElement>(null);
@@ -107,6 +107,9 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
   const user = session?.user;
   if (!user) return null;
   const role = m ? roleOf(m.role) : undefined;
+  const waiting = (attention.data?.access ?? 0) + (attention.data?.ai ?? 0);
+  const steward = !!tree && !!m && can(m.role, 'manage-access');
+  const editor = !!tree && !!m && can(m.role, 'edit-person');
 
   // Arrow keys move between the menu's items.
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -130,7 +133,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
         title={t('account.trigger', {name:user.name})}
       >
         <Avatar name={user.name} size={30} />
-        {attention.data ? <span className="aitasks-dot" aria-label={t('aitasks.attention')}>{attention.data}</span> : null}
+        {waiting ? <span className="aitasks-dot" aria-label={t('aitasks.attention')}>{waiting}</span> : null}
         <span className="acct-trigger-name">{user.name}</span>
       </button>
       {open && (
@@ -148,46 +151,59 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
             </p>
           )}
           <div className="acct-items">
-            {tree && m && can(m.role, 'manage-access') && (
-              <Link role="menuitem" className="acct-item" to="/$tree/access" params={{ tree }} onClick={() => setOpen(false)}>
-                <Users size={17} /> {t("accountmenu.manage_access")} </Link>
+            {/* Two groups, so ten rows are not one list: what belongs to this family, then what belongs to the reader. */}
+            {tree && (steward || editor) && (
+              <div className="acct-group" role="group" aria-labelledby={`${id}-family`}>
+                <span className="acct-group-h" id={`${id}-family`}>{t('accountmenu.group_family')}</span>
+                {steward && (
+                  <Link role="menuitem" className="acct-item" to="/$tree/access" params={{ tree }} onClick={() => setOpen(false)}>
+                    <Users size={17} /> {t("accountmenu.manage_access")} {attention.data?.access ? <span className="aitasks-count">{attention.data.access}</span> : null} </Link>
+                )}
+                {m && can(m.role, 'view-statistics') && (
+                  <Link role="menuitem" className="acct-item" to="/$tree/statistics" params={{ tree }} onClick={() => setOpen(false)}>
+                    <BarChart3 size={17} /> {t("stats.menu")} </Link>
+                )}
+                {editor && (
+                  <Link role="menuitem" className="acct-item" to="/$tree/settings/import" params={{ tree }} onClick={() => setOpen(false)}>
+                    <ArrowLeftRight size={17} /> {t("shell.importExport")} </Link>
+                )}
+                {steward && (
+                  <Link role="menuitem" className="acct-item" to="/$tree/settings/ai" params={{ tree }} onClick={() => setOpen(false)}>
+                    <Sparkles size={17} /> {t("shell.ai_settings")} </Link>
+                )}
+                {steward && (
+                  <Link role="menuitem" className="acct-item" to="/$tree/settings/activity" params={{ tree }} onClick={() => setOpen(false)}>
+                    <Activity size={17} /> {t("aitasks.menu")} {attention.data?.ai ? <span className="aitasks-count">{attention.data.ai}</span> : null} </Link>
+                )}
+                {steward && (
+                  <Link role="menuitem" className="acct-item" to="/$tree/settings/feedback" params={{ tree }} onClick={() => setOpen(false)}>
+                    <Inbox size={17} /> {t("feedback.inbox")} </Link>
+                )}
+              </div>
             )}
-            {tree && m && can(m.role, 'view-statistics') && (
-              <Link role="menuitem" className="acct-item" to="/$tree/statistics" params={{ tree }} onClick={() => setOpen(false)}>
-                <BarChart3 size={17} /> {t("stats.menu")} </Link>
-            )}
-            {tree && m && can(m.role, 'manage-access') && (
-              <Link role="menuitem" className="acct-item" to="/$tree/settings/ai" params={{ tree }} onClick={() => setOpen(false)}>
-                <Sparkles size={17} /> {t("shell.ai_settings")} </Link>
-            )}
-            {tree && m && can(m.role, 'manage-access') && (
-              <Link role="menuitem" className="acct-item" to="/$tree/settings/activity" params={{ tree }} onClick={() => setOpen(false)}>
-                <Activity size={17} /> {t("aitasks.menu")} {attention.data ? <span className="aitasks-count">{attention.data}</span> : null} </Link>
-            )}
-            {tree && m && can(m.role, 'manage-access') && (
-              <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); openFeedback(); }}>
-                <MessageSquarePlus size={17} /> {t("feedback.menu")} <kbd className="acct-kbd">⌘⇧F</kbd> </button>
-            )}
-            {tree && m && can(m.role, 'manage-access') && (
-              <Link role="menuitem" className="acct-item" to="/$tree/settings/feedback" params={{ tree }} onClick={() => setOpen(false)}>
-                <Inbox size={17} /> {t("feedback.inbox")} </Link>
-            )}
-            {tree && m && can(m.role, 'edit-person') && (
-              <Link role="menuitem" className="acct-item" to="/$tree/settings/import" params={{ tree }} onClick={() => setOpen(false)}>
-                <ArrowLeftRight size={17} /> {t("shell.importExport")} </Link>
-            )}
-            <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setPasskeys(true); }}>
-              <KeyRound size={17} /> {session?.auth === 'cloudflare-access' ? t('auth.your_name') : t("accountmenu.your_name_passkeys")} </button>
-            {tree && m && remindersOn.data && (
-              <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setReminders(true); }}>
-                <Bell size={17} /> {t('reminders.menu')} </button>
-            )}
-            {tree && m && (
-              <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); startTour(); }}>
-                <CircleHelp size={17} /> {t('tour.menu')} </button>
-            )}
-            <button role="menuitem" className="acct-item" onClick={() => void signOut(session?.accessLogout)}>
-              <LogOut size={17} /> {t("accountmenu.sign_out")} </button>
+            <div className="acct-group" role="group" aria-labelledby={`${id}-you`}>
+              {tree && (steward || editor) && <span className="acct-group-h" id={`${id}-you`}>{t('accountmenu.group_you')}</span>}
+              <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setPasskeys(true); }}>
+                <KeyRound size={17} /> {session?.auth === 'cloudflare-access' ? t('auth.your_name') : t("accountmenu.your_name_passkeys")} </button>
+              {tree && m && remindersOn.data && (
+                <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setReminders(true); }}>
+                  <Bell size={17} /> {t('reminders.menu')} </button>
+              )}
+              {tree && m && (
+                <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); startTour(); }}>
+                  <CircleHelp size={17} /> {t('tour.menu')} </button>
+              )}
+              {steward && (
+                <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); openFeedback(); }}>
+                  <MessageSquarePlus size={17} /> {t("feedback.menu")} <kbd className="acct-kbd">⌘⇧F</kbd> </button>
+              )}
+              {tree && (
+                <Link role="menuitem" className="acct-item" to="/" search={{ families: 'all' }} onClick={() => setOpen(false)}>
+                  <LayoutGrid size={17} /> {t('accountmenu.all_families')} </Link>
+              )}
+              <button role="menuitem" className="acct-item" onClick={() => void signOut(session?.accessLogout)}>
+                <LogOut size={17} /> {t("accountmenu.sign_out")} </button>
+            </div>
             {/* Below 1680px the top bar has no room for the theme and sound buttons: they live here (app.css hides them there). */}
             <div className="acct-prefs">
               <div className="acct-pref" role="group" aria-label={t('shell.theme')}>

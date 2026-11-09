@@ -87,24 +87,7 @@ function ActivityBody({ tree, data }: { tree: string; data: Activity }) {
     <>
       <section className="ui-card aitasks-section" aria-labelledby="aitasks-waiting-h">
         <h2 id="aitasks-waiting-h" className="rule">{t('aitasks.waitingTitle')}</h2>
-        {data.waiting.length === 0 && data.waitingLinks.length === 0 && <p className="muted">{t('aitasks.waitingNone')}</p>}
-        {data.waitingLinks.length > 0 && (
-          <ul className="aitasks-waiting">
-            {data.waitingLinks.map((l) => {
-              const person = f.byId.get(l.person);
-              return (
-                <li key={l.user}>
-                  <span className="aitasks-verdict">{t('aitasks.linkClaim')}</span>
-                  <b>{l.name}</b>
-                  <span>{t('aitasks.linkClaimText', { person: person ? displayName(person, f) : l.person })}</span>
-                  <span>
-                    <Link to="/$tree/access" params={{ tree }} className="btn ghost">{t('aitasks.openAccess')}</Link>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        {data.waiting.length === 0 && <p className="muted">{t('aitasks.waitingNone')}</p>}
         {data.waiting.length > 0 && (
           <>
             <p className="muted">{t('aitasks.waitingText')}</p>
