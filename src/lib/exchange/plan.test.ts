@@ -259,3 +259,50 @@ test('a link with an unknown birth year on either side passes the birth-order ru
   const text = familyFile([['kid', null], ['p', '1990']], [{ parents: ['p'], children: ['kid'] }]);
   assert.equal(planImport(readGedcom(text), emptyTree(), makeId).parents.length, 1);
 });
+
+// ---------- partnerships already in the family ----------
+
+test('re-importing after a marriage date was corrected matches the marriage and lists the difference, adding nothing', () => {
+  const tree = fixtureTree();
+  const file = readGedcom(writeGedcom(tree).text);
+  // The date is corrected in the family after the file was made.
+  tree.unions = tree.unions.map((u) => (u.id === 'u-anna-karl' ? { ...u, start: '1921-05-02' } : u));
+  const plan = planImport(file, tree, makeId);
+  assert.deepEqual(plan.unions, [], 'no second marriage');
+  assert.equal(plan.duplicateUnions, tree.unions.length);
+  assert.deepEqual(
+    plan.conflicts.map((c) => [c.field, c.existing, c.incoming, c.vars.name]),
+    [['union start', '1921-05-02', '1920-05-02', 'Anna Linden & Karl Linden']],
+  );
+});
+
+test('a changed kind, end or place of a partnership is a conflict, never a second partnership', () => {
+  const tree = fixtureTree();
+  const file = readGedcom(writeGedcom(tree).text);
+  tree.unions = tree.unions.map((u) =>
+    u.id === 'u-hanna-jonas' ? { ...u, kind: 'marriage' as const } : u.id === 'u-karl-greta' ? { ...u, end: '1961', place: 'Ulm' } : u,
+  );
+  const plan = planImport(file, tree, makeId);
+  assert.deepEqual(plan.unions, []);
+  assert.deepEqual(plan.conflicts.map((c) => `${c.field}:${c.existing}->${c.incoming}`).sort(), [
+    'union end:1961->1960',
+    'union kind:marriage->partnership',
+  ]);
+  assert.ok(plan.conflicts.every((c) => c.kind === 'value'));
+});
+
+test('a partnership id that is already taken is not reused for a different couple', () => {
+  const tree = fixtureTree();
+  // A file with a new couple whose partnership carries an id the family already uses.
+  const text = [
+    '0 HEAD',
+    '0 @a@ INDI', '1 NAME Ida /Neu/',
+    '0 @b@ INDI', '1 NAME Ole /Neu/',
+    '0 @F1@ FAM', '1 _KINDRED_ID u-anna-karl', '1 _KINDRED_KIND marriage', '1 HUSB @b@', '1 WIFE @a@',
+    '0 TRLR',
+  ].join('\n');
+  const plan = planImport(readGedcom(text), tree, makeId);
+  assert.equal(plan.unions.length, 1);
+  assert.notEqual(plan.unions[0].id, 'u-anna-karl');
+  assert.match(plan.unions[0].id, /^union_new/);
+});

@@ -235,3 +235,17 @@ test('re-importing an older export after a child’s parents were corrected puts
   const now = (await r.all<{ parent: string }>("SELECT parent FROM parent WHERE child = 'hanna' ORDER BY parent")).map((l) => l.parent);
   assert.deepEqual(now, ['jonas', 'karl']);
 });
+
+test('re-importing a family’s own export after a marriage date was corrected writes nothing twice and does not fail', async () => {
+  emptyFamily('reimport');
+  await applyImport('reimport', text, undefined, false);
+  const r = db('reimport');
+  await r.run("UPDATE partnership SET start = '1921-05-02' WHERE id = 'u-anna-karl'");
+  const preview = await previewImport('reimport', text);
+  assert.equal(preview.unions, 0, 'the preview promises no new partnership');
+  assert.deepEqual(preview.conflicts.map((c) => [c.field, c.existing, c.incoming]), [['union start', '1921-05-02', '1920-05-02']]);
+  const result = await applyImport('reimport', text, undefined, true);
+  assert.equal(result.unions, preview.unions, 'the write does what the preview said');
+  assert.equal((await r.get<{ n: number }>('SELECT count(*) AS n FROM partnership'))!.n, 3);
+  assert.equal((await r.get<{ start: string }>("SELECT start FROM partnership WHERE id = 'u-anna-karl'"))!.start, '1921-05-02', 'the family’s date is kept');
+});

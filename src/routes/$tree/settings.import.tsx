@@ -31,6 +31,11 @@ function conflictText(t: Translator, c: Conflict) {
   if (c.kind === 'cycle') return t('exchange.conflict.cycle', c.vars);
   if (c.kind === 'parents') return t('exchange.conflict.parents', c.vars);
   if (c.kind === 'order') return t('exchange.conflict.order', c.vars);
+  // A partnership's kind is a word of the app, not of the family, so it is said in the reader's language.
+  if (c.code === 'exchange.conflict.field.union_kind') {
+    const kind = (k: unknown) => t(`chat.union.${k as 'marriage' | 'partnership' | 'betrothal' | 'other'}`);
+    return t('exchange.conflict.value', { ...c.vars, field: t(c.code), existing: kind(c.vars.existing), incoming: kind(c.vars.incoming) });
+  }
   return t('exchange.conflict.value', { ...c.vars, field: t(c.code) });
 }
 

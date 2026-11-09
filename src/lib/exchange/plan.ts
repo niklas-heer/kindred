@@ -8,6 +8,9 @@
 //     difference is listed as a conflict for the steward to settle by hand.
 //   - New people are added, with the id the file gives when that id is free, otherwise a new one.
 //   - Parent links and partnerships are added when they are new; one already in the tree is counted, not repeated.
+//     A partnership in the file between two people who already have one in the tree is that partnership: where its
+//     kind, dates or place differ, the difference is a conflict, as for people. A couple is never given a second one.
+//     A partnership id the tree already uses is never reused for a new one.
 //   - A new parent link keeps the link form's rules (parent-rules.ts), also when it joins people already in the tree:
 //     no third parent of one kind, and no birth or adoptive parent born after (or with) the child. A link that breaks
 //     one is a conflict, and is not added; the rest of the file still is.
@@ -19,7 +22,7 @@ import type { Vars } from '../i18n/types.ts';
 import type { Incoming, IncomingPerson } from './gedcom.ts';
 import type { ExParent, ExPerson, ExTree, ExUnion, Issue, IssueCode, ParentKind } from './model.ts';
 
-type ConflictField = 'born' | 'died' | 'born place' | 'died place' | 'parent';
+type ConflictField = 'born' | 'died' | 'born place' | 'died place' | 'parent' | 'union start' | 'union end' | 'union kind' | 'union place';
 export type ConflictCode = Extract<Key, `exchange.conflict.field.${string}`>;
 
 /** The field's translation key, for each raw field word. */
@@ -29,6 +32,10 @@ const FIELD_CODE: Record<ConflictField, ConflictCode> = {
   'born place': 'exchange.conflict.field.born_place',
   'died place': 'exchange.conflict.field.died_place',
   parent: 'exchange.conflict.field.parent',
+  'union start': 'exchange.conflict.field.union_start',
+  'union end': 'exchange.conflict.field.union_end',
+  'union kind': 'exchange.conflict.field.union_kind',
+  'union place': 'exchange.conflict.field.union_place',
 };
 
 export interface Conflict {
@@ -288,10 +295,22 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
     });
   }
 
-  // Partnerships.
-  const existingUnions = new Set(existing.unions.map((u) => unionKey(u.a, u.b, u.kind, u.start, u.end)));
+  // Partnerships. One that is in the tree as it is, is counted. One between two people who already have a partnership
+  // in the tree is matched to it (the one with its id first, then one of the same kind, then any), and where they
+  // differ, that is a conflict for the steward: a re-imported backup must not marry a couple twice.
+  const unionIds = new Set(existing.unions.map((u) => u.id));
+  const exact = new Map<string, ExUnion[]>();
+  const byCouple = new Map<string, ExUnion[]>();
+  const couple = (a: string, b: string) => [a, b].sort().join('|');
+  for (const u of existing.unions) {
+    const k = unionKey(u.a, u.b, u.kind, u.start, u.end);
+    exact.set(k, [...(exact.get(k) ?? []), u]);
+    byCouple.set(couple(u.a, u.b), [...(byCouple.get(couple(u.a, u.b)) ?? []), u]);
+  }
+  const usedUnions = new Set<ExUnion>();
   const unions: ExUnion[] = [];
   let duplicateUnions = 0;
+  const pending: { u: (typeof incoming.unions)[number]; a: string; b: string }[] = [];
   for (const u of incoming.unions) {
     const a = keyToId.get(u.a);
     const b = keyToId.get(u.b);
@@ -299,15 +318,36 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
       unlinked++;
       continue;
     }
-    const k = unionKey(a, b, u.kind, u.start, u.end);
-    if (existingUnions.has(k)) {
+    // Exact copies first, so a couple married twice keeps each marriage matched to its own.
+    const same = (exact.get(unionKey(a, b, u.kind, u.start, u.end)) ?? []).find((e) => !usedUnions.has(e));
+    if (same) {
+      usedUnions.add(same);
       duplicateUnions++;
       continue;
     }
-    existingUnions.add(k);
-    const preferred = u.preferredId && !taken.has(u.preferredId) ? u.preferredId : null;
+    pending.push({ u, a, b });
+  }
+  for (const { u, a, b } of pending) {
+    const candidates = (byCouple.get(couple(a, b)) ?? []).filter((e) => !usedUnions.has(e));
+    const hit = candidates.find((e) => e.id === u.preferredId) ?? candidates.find((e) => e.kind === u.kind) ?? candidates[0];
+    if (hit) {
+      usedUnions.add(hit);
+      duplicateUnions++;
+      const name = `${nameById.get(hit.a) ?? hit.a} & ${nameById.get(hit.b) ?? hit.b}`;
+      const check = (field: ConflictField, x: string | null, y: string | null) => {
+        if (x && y && fold(x) !== fold(y)) {
+          conflicts.push({ name, id: hit.id, field, code: FIELD_CODE[field], kind: 'value', existing: x, incoming: y, vars: { name, existing: x, incoming: y } });
+        }
+      };
+      check('union kind', hit.kind, u.kind);
+      check('union start', hit.start, u.start);
+      check('union end', hit.end, u.end);
+      check('union place', hit.place, u.place);
+      continue;
+    }
+    const preferred = u.preferredId && !unionIds.has(u.preferredId) ? u.preferredId : null;
     const id = preferred ?? makeId('union');
-    taken.add(id);
+    unionIds.add(id);
     unions.push({ id, a, b, kind: u.kind, start: u.start, end: u.end, endReason: u.endReason, place: u.place });
   }
 

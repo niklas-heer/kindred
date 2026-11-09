@@ -206,8 +206,8 @@ On the **Import and export** page, a steward chooses a `.ged` file (up to 5 MB) 
 then shows, and nothing is written yet:
 
 - the people the file would add, and the people it matches to the family already;
-- conflicts, where a matched person has a different birth or death date or place in the file, and parent links that
-  are refused (see below);
+- conflicts, where a matched person has a different birth or death date or place in the file, or a matched partnership
+  a different kind, date or place, and parent links that are refused (see below);
 - the parent links and partnerships that would be new, and how many were already there;
 - possible duplicates, and anything the reader should know about the file.
 
@@ -219,7 +219,14 @@ the same and their birth years agree (or one has no birth year). A name that mat
 person is added as new, and the preview says so. A second person in the file with the same id is reported too.
 
 **What an import changes.** It only adds: new people, new parent links and new partnerships. It never changes a person
-who is already in the family, and it never removes anything. A conflict is listed for the steward to settle by hand.
+or a partnership that is already in the family, and it never removes anything. A conflict is listed for the steward to
+settle by hand.
+
+**Partnerships.** A partnership in the file between two people who already have one in the family is that partnership,
+even when its date, end, kind or place was changed in the family since the file was made: it is matched (first an
+identical one, then the one with the same `_KINDRED_ID`, then one of the same kind, then any), and each difference is
+listed as a conflict. A couple is never given a second partnership by an import, and a partnership id the family already
+uses is never reused for a new one. So a family can re-import its own export at any time.
 
 **Parent links keep the link form's rules**, for new people and for people already in the family alike (so an older
 backup cannot put back parents that were corrected since):
