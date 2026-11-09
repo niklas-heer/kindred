@@ -142,6 +142,21 @@ export function cardAge(p: GPerson, now?: Date, locale: Locale = 'en'): string |
   return `${p.living ? '' : '†'}${uncertain ? translate(locale, 'life.circa') : ''}${years}`;
 }
 
+/**
+ * How many steps each person is from `id`, walking through parents, children and partners: 1 for a parent, a child
+ * or a spouse, 2 for a grandparent, a sibling or a parent-in-law. People with no tie to `id` are absent. This is the
+ * closeness that orders a list "nearest to you first".
+ */
+export function stepsFrom(f: Family, id: string): Map<string, number> {
+  const d = new Map<string, number>([[id, 0]]);
+  const q = [id];
+  for (let i = 0; i < q.length; i++) {
+    const x = q[i];
+    for (const y of [...parents(f, x), ...children(f, x), ...partnersOf(f, x)]) if (!d.has(y)) { d.set(y, d.get(x)! + 1); q.push(y); }
+  }
+  return d;
+}
+
 /** Year from a partial date: "~1153-06" -> 1153. NaN when unknown. */
 export const yearOf = (d?: string) => (d ? parseInt(d.replace(/^~/, ''), 10) : NaN);
 export const approx = (d?: string) => !!d && d.startsWith('~');

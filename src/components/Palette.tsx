@@ -1,13 +1,12 @@
 import { kinshipLabel, LANGUAGE_NAME, LOCALES, useT, type Translator } from '~/lib/i18n';
-import { matchesName } from '~/lib/search';
-import { occupationSearchText } from '~/lib/occupations';
+import { searchPeople } from '~/lib/search';
 // ⌘K: jump to anyone by name, nickname, epithet, title or place; or run a command.
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useNavigate } from '@tanstack/react-router';
 import { CalendarHeart, CircleHelp, Contact, Landmark, Languages, Map as MapIcon, Crown, GitFork, Moon, Network, ScrollText, Shield, Sparkles, Sun, UserRound, FolderSearch, Inbox, MessageSquarePlus } from 'lucide-react';
 import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useFamily, useMe, useMeChosen, useTreeId } from '~/lib/family';
-import { displayName, kinship, lifespan, ancestorDepths, type Family } from '~/lib/graph';
+import { displayName, kinship, lifespan, ancestorDepths, stepsFrom, type Family } from '~/lib/graph';
 import { setPref } from '~/lib/prefs';
 import { useCan, useSession } from '~/lib/session';
 import { play } from '~/lib/sfx';
@@ -43,22 +42,6 @@ interface Item {
   run: () => void;
 }
 
-export function searchPeople(f: Family, q: string, limit = 40): { id: string; score: number }[] {
-  const terms = fold(q).split(/\s+/).filter(Boolean);
-  if (!terms.length) return [];
-  const out: { id: string; score: number }[] = [];
-  for (const p of f.graph.people) {
-    // Names first (any known name, in any order); the epithet, title, occupation and house also find someone.
-    const named = matchesName(p, q);
-    const name = fold([p.given, p.surname, p.nickname].filter(Boolean).join(' '));
-    const extra = fold([p.epithet, p.title, p.occupation, occupationSearchText(p.occupationCode), f.house.get(p.house ?? '')?.name].filter(Boolean).join(' '));
-    if (!named && !terms.every((t) => extra.includes(t))) continue;
-    const score = named ? 10 + terms.filter((t) => name.split(' ').some((w) => w.startsWith(t))).length * 5 : 2;
-    out.push({ id: p.id, score: score + (p.living ? 1 : 0) + Math.min(p.stories, 5) * 0.2 + (p.title ? 0.5 : 0) });
-  }
-  return out.sort((a, b) => b.score - a.score).slice(0, limit);
-}
-
 /** "1890–1960 · your great-uncle": life years, and kinship once the reader has said who they are. */
 export function personHint(f: Family, id: string, who: string | null, anc: Map<string, number> | undefined, t: Translator): string {
   const p = f.byId.get(id);
@@ -90,6 +73,9 @@ const groupOf = (it: Item, t: Translator) => it.group ?? (it.person ? t('shell.p
 
 /** The commands this reader can use. A guest has no Contacts: the shell hides it and the guest host refuses it. */
 export const commandsForReader = <T extends { key: string }>(cmds: T[], guest: boolean): T[] => (guest ? cmds.filter((c) => c.key !== 'contacts') : cmds);
+
+// The search itself lives in ~/lib/search; other pickers import it from here.
+export { searchPeople };
 
 export function Palette() {
   const t = useT();
@@ -126,6 +112,8 @@ export function Palette() {
   }, [isOpen]);
 
   const myAnc = useMemo(() => (who ? ancestorDepths(f, who) : new Map<string, number>()), [f, who]);
+  // Once the reader has said who they are, their nearest relatives come first among equal matches.
+  const near = useMemo(() => (who ? stepsFrom(f, who) : undefined), [f, who]);
   const items: Item[] = useMemo(() => {
     if (mode === 'language') {
       return LOCALES.map((l) => ({
@@ -134,7 +122,7 @@ export function Palette() {
       }));
     }
     const go = (focus: string) => () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, focus, sel: undefined, root: undefined }) }); close(); };
-    const people = searchPeople(f, dq).map(({ id }) => {
+    const people = searchPeople(f, dq, 40, near).map(({ id }) => {
       const p = f.byId.get(id)!;
       return { key: id, person: id, label: displayName(p, f), hint: personHint(f, id, who, myAnc, t), run: () => { navigate({ to: '/$tree/person/$id', params: { tree, id } }); close(); } };
     });
@@ -174,7 +162,7 @@ export function Palette() {
     const fq = fold(dq);
     const matched = fq ? cmds.filter((c) => fold(c.label).includes(fq)) : cmds;
     return fq ? [...people, ...houses, ...matched] : matched;
-  }, [f, dq, me, who, myAnc, navigate, tree, close, t, t.locale, assistantOn, setupNeeded, steward, guest, mode]);
+  }, [f, dq, me, who, myAnc, near, navigate, tree, close, t, t.locale, assistantOn, setupNeeded, steward, guest, mode]);
 
   useEffect(() => setSel(0), [dq]);
   useEffect(() => {

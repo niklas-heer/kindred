@@ -2,6 +2,8 @@
 // trail, and a view can be shared.
 import { z } from 'zod';
 import { allGiven } from './further-given.ts';
+import type { Family } from './graph.ts';
+import { occupationSearchText } from './occupations.ts';
 import type { GPerson } from './types';
 
 export const treeSearch = z.object({
@@ -48,4 +50,31 @@ export function matchesName(p: GPerson, query: string): boolean {
   if (!words.length) return true;
   const names = personNames(p);
   return words.every((w) => names.some((n) => n.includes(w)));
+}
+
+/**
+ * People matching a typed search, best first. A name ranks above a match in the epithet, title, occupation or house,
+ * and a word that starts one of the names above one found inside it. Among people who match the words equally well,
+ * `near` (steps from the reader, see `stepsFrom`) puts the reader's closest relatives first, so "ashw" lists your
+ * great-grandmother before a namesake you are not related to; then the living, the storied and the titled.
+ * `score` is the match without the closeness, for callers that add their own weights.
+ */
+export function searchPeople(f: Family, q: string, limit = 40, near?: ReadonlyMap<string, number>): { id: string; score: number }[] {
+  const terms = foldName(q).split(/\s+/).filter(Boolean);
+  if (!terms.length) return [];
+  const out: { id: string; score: number; text: number; steps: number }[] = [];
+  for (const p of f.graph.people) {
+    // Names first (any known name, in any order); the epithet, title, occupation and house also find someone.
+    const named = matchesName(p, q);
+    const name = foldName([p.given, p.surname, p.nickname].filter(Boolean).join(' '));
+    const extra = foldName([p.epithet, p.title, p.occupation, occupationSearchText(p.occupationCode), f.house.get(p.house ?? '')?.name].filter(Boolean).join(' '));
+    if (!named && !terms.every((t) => extra.includes(t))) continue;
+    const text = named ? 10 + terms.filter((t) => name.split(' ').some((w) => w.startsWith(t))).length * 5 : 2;
+    const score = text + (p.living ? 1 : 0) + Math.min(p.stories, 5) * 0.2 + (p.title ? 0.5 : 0);
+    out.push({ id: p.id, score, text, steps: near?.get(p.id) ?? Infinity });
+  }
+  return out
+    .sort((a, b) => b.text - a.text || (a.steps === b.steps ? 0 : a.steps < b.steps ? -1 : 1) || b.score - a.score)
+    .slice(0, limit)
+    .map(({ id, score }) => ({ id, score }));
 }
