@@ -4,7 +4,7 @@ import { FolderPlus, ImagePlus, Images, Pencil, Tag as TagIcon, Trash2 } from 'l
 import { useMemo, useState, type DragEvent } from 'react';
 import { AlbumDialog, DeleteAlbumDialog, Lightbox, PersonPhotos, UploadDialog, mediaUrl, type Album, type MediaItem } from '~/components/photos';
 import { EmptyState, ErrorState, PageHeader, Select, Skeleton, Switch } from '~/components/ui';
-import { formatDate, useT } from '~/lib/i18n';
+import { compareText, formatDate, useT } from '~/lib/i18n';
 import { useFamily, useTreeId } from '~/lib/family';
 import { displayName } from '~/lib/graph';
 import { galleryQuery } from '~/lib/photos.functions';
@@ -57,7 +57,7 @@ function GalleryPage() {
     return [...ids]
       .map((id) => f.byId.get(id))
       .filter((p): p is NonNullable<typeof p> => !!p)
-      .sort((a, b) => displayName(a, f).localeCompare(displayName(b, f), t.locale));
+      .sort((a, b) => compareText(t.locale)(displayName(a, f), displayName(b, f)));
   }, [media, f, t.locale]);
 
   const filtered = media.filter(inScope);

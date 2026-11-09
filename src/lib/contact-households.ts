@@ -1,6 +1,8 @@
 // Who shares a contact card. Couples with a shared address do; a child under 18 joins a parent's card only when asked to.
 import { ageAt, displayName, parents, type Family } from './graph.ts';
 import type { GPerson } from './types.ts';
+import { compareText } from './i18n/dictionary.ts';
+import type { Locale } from './i18n/types.ts';
 
 import type { Visibility } from './visibility';
 
@@ -24,7 +26,8 @@ export interface Household {
 
 const norm = (s: string) => s.toLowerCase().replace(/[\s,.\-/]+/g, '');
 
-export function buildHouseholds(f: Family, rows: Row[], opts: { childrenWithParent?: boolean } = {}) {
+export function buildHouseholds(f: Family, rows: Row[], opts: { childrenWithParent?: boolean; locale?: Locale } = {}) {
+  const cmp = compareText(opts.locale);
   const by = new Map<string, Row[]>();
   for (const r of rows) {
     if (!f.byId.get(r.person)?.living) continue;
@@ -87,8 +90,8 @@ export function buildHouseholds(f: Family, rows: Row[], opts: { childrenWithPare
     const lead = members[0];
     return { id, members, rows: by, addresses, sortKey: `${lead.surname ?? lead.given} ${lead.given}`.toLowerCase() };
   });
-  households.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
-  noDetails.sort((a, b) => displayName(a, f).localeCompare(displayName(b, f)));
+  households.sort((a, b) => cmp(a.sortKey, b.sortKey));
+  noDetails.sort((a, b) => cmp(displayName(a, f), displayName(b, f)));
   return { households, noDetails };
 }
 

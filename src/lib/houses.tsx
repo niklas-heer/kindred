@@ -5,7 +5,7 @@ import { houseSettingsQuery } from './houses.functions';
 // What the house pages show about a house: its members, founder, years, seats and notables. All of it
 // is derived from the graph already in the browser, so the pages need no extra request.
 import { houseMembers, kinship, parents, yearOf, type Family, type Kinship } from './graph';
-import { useT } from './i18n';
+import { compareText, useT } from './i18n';
 import type { GPerson, House } from './types';
 
 export interface HouseStats {
@@ -26,7 +26,7 @@ export interface HouseStats {
 }
 
 const birth = (p: GPerson) => yearOf(p.born);
-const byBirth = (a: GPerson, b: GPerson) => (birth(a) || 99999) - (birth(b) || 99999) || a.given.localeCompare(b.given);
+const byBirth = (a: GPerson, b: GPerson) => (birth(a) || 99999) - (birth(b) || 99999) || compareText()(a.given, b.given);
 
 /** The tree's deepest generation number, for a shared sparkline axis. */
 export function maxGeneration(f: Family & { gen: Map<string, number> }): number {
@@ -57,7 +57,7 @@ export function houseStats(f: Family & { gen: Map<string, number> }, house: Hous
 
   const places = new Map<string, number>();
   for (const p of members) if (p.bornPlace) places.set(p.bornPlace, (places.get(p.bornPlace) ?? 0) + 1);
-  const seats = [...places].map(([place, n]) => ({ place, n })).sort((a, b) => b.n - a.n || a.place.localeCompare(b.place));
+  const seats = [...places].map(([place, n]) => ({ place, n })).sort((a, b) => b.n - a.n || compareText()(a.place, b.place));
 
   return { house, members, living, founder, from, to, perGen, generations, seats };
 }

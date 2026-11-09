@@ -17,7 +17,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { feature, mesh } from 'topojson-client';
 import { z } from 'zod';
 import { GameIcon } from '~/components/GameIcon';
-import { translate, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
+import { compareText, translate, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
 import { Arms } from '~/components/Heraldry';
 import type { House } from '~/lib/types';
 import { Portrait } from '~/components/Portrait';
@@ -913,7 +913,7 @@ function WorldMap({ places, weight, pins, arcs, selected, onSelect, rings, heral
             })}
           </g>
           {/* Stable order (first appearance): reordering would move DOM nodes and restart their animation. */}
-          {[...pins].sort((a, b) => a.first - b.first || a.place.name.localeCompare(b.place.name)).map((p) => {
+          {[...pins].sort((a, b) => a.first - b.first || compareText(tr.locale)(a.place.name, b.place.name)).map((p) => {
             const xy = projection([p.place.lng, p.place.lat]);
             if (!xy) return null;
             const r = radius(p.n);

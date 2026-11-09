@@ -100,10 +100,10 @@ function ContactsPage() {
   const [kidsWithParent, setKidsWithParent] = useRememberedState(`contacts:${tree}:kidsWithParent`, false);
   const built = useMemo(() => {
     const rows = (data ?? []) as Row[];
-    const base = buildHouseholds(f, rows);
-    const withKids = buildHouseholds(f, rows, { childrenWithParent: true });
+    const base = buildHouseholds(f, rows, { locale: t.locale });
+    const withKids = buildHouseholds(f, rows, { childrenWithParent: true, locale: t.locale });
     return { base, withKids, kids: base.noDetails.length - withKids.noDetails.length };
-  }, [f, data]);
+  }, [f, data, t.locale]);
   const { households, noDetails } = kidsWithParent ? built.withKids : built.base;
   const close = useMemo(() => (onlyClose && me ? closeFamily(f, me) : null), [f, me, onlyClose]);
 

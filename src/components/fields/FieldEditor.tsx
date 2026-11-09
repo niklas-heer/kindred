@@ -13,7 +13,7 @@ import { faithSuggestions } from '~/lib/faiths';
 import { COLOURS, favouriteWords, isColourLabel, parseColours, toggleColour } from '~/lib/favourites';
 import type { Family } from '~/lib/graph';
 import { displayName } from '~/lib/graph';
-import { locales, useT, type Key } from '~/lib/i18n';
+import { compareText, locales, useT, type Key } from '~/lib/i18n';
 import { DatePicker, Select, Switch } from '../ui';
 import { PlaceInput, type PlaceValue } from '../PlaceInput';
 import { AddressFinder } from './AddressFinder';
@@ -395,7 +395,7 @@ function FieldRowEditor({ tree, f, index, count, fam, self, fixed, focusFirst, o
             const people = fam.graph.people
               .filter((p) => p.id !== self)
               .map((p) => ({ p, name: displayName(p, fam) }))
-              .sort((a, b) => a.name.localeCompare(b.name, c.locale));
+              .sort((a, b) => compareText(c.locale)(a.name, b.name));
             return (
               <div className={cls} key={inp.key}>
                 <span>{label}</span>

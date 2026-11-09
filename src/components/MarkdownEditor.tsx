@@ -5,7 +5,7 @@ import { Bold, Heading2, Italic, Link2, List, Quote, UserRound } from 'lucide-re
 import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useFamily } from '~/lib/family';
 import { displayName, type Family } from '~/lib/graph';
-import { useT } from '~/lib/i18n';
+import { compareText, useT, type Locale } from '~/lib/i18n';
 import { renderMarkdown } from '~/lib/markdown';
 import './fields/markdown.css';
 
@@ -84,7 +84,7 @@ export function MarkdownEditor({ id, tree, value, onChange, label, rows = 8, pla
     else if (k === 'i') { e.preventDefault(); wrap('*', '*', c('md.italic')); }
   };
 
-  const matches = mentioning ? matchPeople(fam, query).slice(0, 8) : [];
+  const matches = mentioning ? matchPeople(fam, query, c.locale).slice(0, 8) : [];
 
   return (
     <div className="md-editor">
@@ -146,9 +146,10 @@ function Tool({ label, shortcut, icon, onClick, disabled, pressed }: { label: st
 }
 
 /** People whose name starts with (or contains) what was typed, the closest first. */
-function matchPeople(fam: Family, q: string) {
+function matchPeople(fam: Family, q: string, locale: Locale) {
+  const cmp = compareText(locale);
   const needle = q.trim().toLowerCase();
   const all = fam.graph.people.map((p) => ({ p, name: displayName(p, fam) }));
   const hit = needle ? all.filter((x) => x.name.toLowerCase().includes(needle)) : all;
-  return hit.sort((a, b) => Number(!a.name.toLowerCase().startsWith(needle)) - Number(!b.name.toLowerCase().startsWith(needle)) || a.name.localeCompare(b.name)).map((x) => x.p);
+  return hit.sort((a, b) => Number(!a.name.toLowerCase().startsWith(needle)) - Number(!b.name.toLowerCase().startsWith(needle)) || cmp(a.name, b.name)).map((x) => x.p);
 }

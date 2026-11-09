@@ -11,7 +11,7 @@ import { opKeys } from '~/lib/api';
 import { COUNTRY_CODES } from '~/lib/houses';
 import { createHouseFn, createHousesFromSurnamesFn, surnameGroupsQuery } from '~/lib/houses.functions';
 import { errorText } from '~/lib/errortext';
-import { locales, useT, type Locale } from '~/lib/i18n';
+import { compareText, useT, type Locale } from '~/lib/i18n';
 import { toast } from '~/lib/toast';
 import '~/styles/house.css';
 import '~/styles/manage.css';
@@ -19,7 +19,7 @@ import '~/styles/manage.css';
 /** The countries a house can have, by their names in the reader's language, with the "no country" choice first. */
 function countryOptions(locale: Locale, none: string): SelectOption<string>[] {
   const rest = COUNTRY_CODES.map((code) => ({ value: code, label: countryName(code, locale), icon: <Flag code={code} size={16} /> }))
-    .sort((a, b) => a.label.localeCompare(b.label, locales[locale]));
+    .sort((a, b) => compareText(locale)(a.label, b.label));
   return [{ value: '', label: none }, ...rest];
 }
 

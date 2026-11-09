@@ -201,6 +201,17 @@ function fillTemplate(template: string, message: string): Vars | null {
     return match ? Object.fromEntries(names.map((n, i) => [n, match[i + 1]])) : null;
 }
 
+const collators = new Map<Locale, Intl.Collator>();
+/**
+ * Compares two names or places the way the reader's language sorts them: "Öberg" with the Os, "Müller" before
+ * "Muzzy", "Anna 2" before "Anna 10". Use it for every list sorted for display.
+ */
+export function compareText(locale: Locale = "en"): (a: string, b: string) => number {
+  let c = collators.get(locale);
+  if (!c) collators.set(locale, (c = new Intl.Collator(locales[locale], { numeric: true })));
+  return c.compare;
+}
+
 export function formatNumber(value: number, locale: Locale = "en", options?: Intl.NumberFormatOptions) {
   return new Intl.NumberFormat(locales[locale], options).format(value);
 }

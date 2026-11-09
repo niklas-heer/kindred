@@ -27,7 +27,7 @@ import {
   COUNTRY_CODES, DEFAULT_HOUSE_SETTINGS, houseHistory, houseStats, houseSuccession, kinToHead, memberOrder, notables,
   SUCCESSION_LAWS, spanLabel, useHouseSettings, type HouseSettings, type HouseTenure, type Succession, type SuccessionLaw,
 } from '~/lib/houses';
-import { kinshipLabel, locales, translate, useT, type Key, type Locale } from '~/lib/i18n';
+import { compareText, kinshipLabel, locales, translate, useT, type Key, type Locale } from '~/lib/i18n';
 import { occupationText } from '~/lib/occupations';
 import { useCan } from '~/lib/session';
 import { toast } from '~/lib/toast';
@@ -392,7 +392,7 @@ function SuccessionDialog({ f, house, tree, settings, members, onClose }: {
     () => [
       { value: '', label: t('houses.countryNone') },
       ...COUNTRY_CODES.map((code) => ({ value: code, label: countryName(code, t.locale), icon: <Flag code={code} size={16} /> }))
-        .sort((a, b) => a.label.localeCompare(b.label, locales[t.locale])),
+        .sort((a, b) => compareText(t.locale)(a.label, b.label)),
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [t.locale],

@@ -14,7 +14,7 @@ import { nextStronger, type ModelChoices } from '~/lib/ai/model-choice';
 import { threadTitle } from '~/lib/ai/thread-title';
 import { graphQuery } from '~/lib/api';
 import { toAiLocale, type ChatItem, type Provider } from '~/lib/ai/types';
-import { useT, type Key } from '~/lib/i18n';
+import { compareText, useT, type Key } from '~/lib/i18n';
 import { renderMarkdown } from '~/lib/markdown';
 import { fullName } from '~/lib/graph';
 import { useMeChosen } from '~/lib/family';
@@ -123,7 +123,7 @@ function AssistantDrawer({ tree }: { tree: string }) {
   const graph = useQuery(graphQuery(tree));
   const me = useMeChosen();
   const people = useMemo(
-    () => (graph.data?.people ?? []).map((p) => ({ id: p.id, name: fullName(p) })).sort((a, b) => a.name.localeCompare(b.name, locale)),
+    () => (graph.data?.people ?? []).map((p) => ({ id: p.id, name: fullName(p) })).sort((a, b) => compareText(locale)(a.name, b.name)),
     [graph.data, locale],
   );
   // Places from the tree's records, so a place the model names can link to the atlas.

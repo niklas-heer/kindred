@@ -6,7 +6,7 @@ import { Link, useRouter, createFileRoute } from '@tanstack/react-router';
 import { Camera, Check, Flame, Link2, SkipForward, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { GameIcon } from '~/components/GameIcon';
-import { kinshipLabel, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
+import { compareText, kinshipLabel, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
 import type { GapField } from '~/lib/person.server';
 import { Dialog } from '~/components/ui/Dialog';
 import { Portrait } from '~/components/Portrait';
@@ -70,8 +70,8 @@ function Needed() {
       f.graph.people
         .map((p) => ({ p, gaps: gapsOf(f, p, required), hop: hops.get(p.id) ?? 99 }))
         .filter((r) => r.gaps.length)
-        .sort((a, b) => a.hop - b.hop || b.gaps.length - a.gaps.length || a.p.given.localeCompare(b.p.given)),
-    [f, hops, required],
+        .sort((a, b) => a.hop - b.hop || b.gaps.length - a.gaps.length || compareText(t.locale)(a.p.given, b.p.given)),
+    [f, hops, required, t.locale],
   );
   const counts = useMemo(() => {
     const c = new Map<GapKey, number>();

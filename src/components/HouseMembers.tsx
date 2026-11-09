@@ -12,7 +12,7 @@ import { lifespan } from '~/lib/graph';
 import { memberOrder } from '~/lib/houses';
 import { setHouseMembersFn } from '~/lib/houses.functions';
 import { errorText } from '~/lib/errortext';
-import { useT } from '~/lib/i18n';
+import { compareText, useT, type Locale } from '~/lib/i18n';
 import { toast } from '~/lib/toast';
 import type { GPerson, House } from '~/lib/types';
 import '~/styles/house.css';
@@ -30,14 +30,15 @@ const flip = (set: Set<string>, id: string) => {
 };
 
 /** People grouped by surname, most people first: a chip can take everyone with that surname at once. */
-function bySurname(people: GPerson[]) {
+function bySurname(people: GPerson[], locale: Locale) {
+  const cmp = compareText(locale);
   const groups = new Map<string, GPerson[]>();
   for (const p of people) {
     const s = p.surname?.trim();
     if (!s) continue;
     groups.set(s, [...(groups.get(s) ?? []), p]);
   }
-  return [...groups].map(([surname, ps]) => ({ surname, people: ps })).sort((a, b) => b.people.length - a.people.length || a.surname.localeCompare(b.surname));
+  return [...groups].map(([surname, ps]) => ({ surname, people: ps })).sort((a, b) => b.people.length - a.people.length || cmp(a.surname, b.surname));
 }
 
 export function HouseMembersDialog({ open, onClose, tree, house, members }: {
@@ -62,10 +63,10 @@ export function HouseMembersDialog({ open, onClose, tree, house, members }: {
   );
   const shown = found.slice(0, SHOWN);
   // Surnames to take in bulk: those of the search results, or of everyone outside the house when nothing is searched.
-  const outsideBySurname = useMemo(() => bySurname(outside), [outside]);
+  const outsideBySurname = useMemo(() => bySurname(outside, t.locale), [outside, t.locale]);
   const chosenSurnames = new Set((tokens.length ? found : outside).map((p) => p.surname?.trim()).filter(Boolean));
   const surnameChips = outsideBySurname.filter((g) => chosenSurnames.has(g.surname)).slice(0, CHIPS);
-  const memberChips = bySurname(members).slice(0, CHIPS);
+  const memberChips = bySurname(members, t.locale).slice(0, CHIPS);
   const sortedMembers = [...members].sort(memberOrder);
 
   const dirty = add.size + remove.size > 0;

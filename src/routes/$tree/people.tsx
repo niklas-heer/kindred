@@ -7,10 +7,10 @@ import {
   globalFilteringFeature,
   rowSortingFeature,
   sortFn_basic,
-  sortFn_text,
   tableFeatures,
   useTable,
   type FilterFn,
+  type SortFn,
 } from '@tanstack/react-table';
 import { useDebouncedValue } from '@tanstack/react-pacer';
 import { useRouter, createFileRoute, Link, useNavigate } from '@tanstack/react-router';
@@ -23,7 +23,7 @@ import { Portrait } from '~/components/Portrait';
 import { PortraitZoom } from '~/components/photos/PortraitZoom';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
 import { useCan } from '~/lib/session';
-import { formatNumber, kinshipLabel, locales, translate, useT, type Locale, type Translator } from '~/lib/i18n';
+import { compareText, formatNumber, kinshipLabel, locales, translate, useT, type Locale, type Translator } from '~/lib/i18n';
 import { occupationSearchText, occupationText } from '~/lib/occupations';
 import { TRAITS } from '~/lib/traits';
 import { useToday } from '~/lib/clock';
@@ -142,7 +142,7 @@ const features = tableFeatures({
   rowSortingFeature,
   filteredRowModel: createFilteredRowModel(),
   sortedRowModel: createSortedRowModel(),
-  sortFns: { basic: sortFn_basic, text: sortFn_text },
+  sortFns: { basic: sortFn_basic },
 });
 
 /** Every word typed has to appear somewhere in the person's searchable text. */
@@ -158,12 +158,15 @@ const searchFn: FilterFn<typeof features, R> = (row, _col, value: string) => {
 const h = createColumnHelper<typeof features, R>();
 function buildColumns(t: Translator) {
   const locale = t.locale;
+  // Text columns sort as the reader's language does, so "Öberg" stands with the Os.
+  const cmp = compareText(locale);
+  const text: SortFn<typeof features, R> = (a, b, id) => cmp(String(a.getValue(id) ?? ''), String(b.getValue(id) ?? ''));
   return h.columns([
   h.display({ id: 'portrait', header: '', enableSorting: false, cell: ({ row }) => <PortraitZoom person={row.original.p} tree={row.original.tree} size={34} /> }),
   h.accessor((r) => r.sortName, {
     id: 'name',
     header: t('people.col.name'),
-    sortFn: 'text',
+    sortFn: text,
     cell: ({ row }) => {
       const r = row.original;
       return (
@@ -198,7 +201,7 @@ function buildColumns(t: Translator) {
   h.accessor((r) => r.house?.name, {
     id: 'house',
     header: t('people.col.house'),
-    sortFn: 'text',
+    sortFn: text,
     sortUndefined: 'last',
     cell: ({ row }) =>
       row.original.house ? (
@@ -218,7 +221,7 @@ function buildColumns(t: Translator) {
   }),
   h.accessor((r) => r.age, { id: 'age', sortDescFirst: false, header: t('panel.age'), sortFn: 'basic', sortUndefined: 'last', cell: ({ row }) => row.original.age ?? <span className="faint">—</span> }),
   h.accessor((r) => r.gen, { id: 'gen', sortDescFirst: false, header: t('people.col.gen'), sortFn: 'basic', cell: ({ row }) => row.original.gen + 1 }),
-  h.accessor((r) => r.role, { id: 'role', header: t('people.col.work'), sortFn: 'text', sortUndefined: 'last', cell: ({ row }) => row.original.role || <span className="faint">—</span> }),
+  h.accessor((r) => r.role, { id: 'role', header: t('people.col.work'), sortFn: text, sortUndefined: 'last', cell: ({ row }) => row.original.role || <span className="faint">—</span> }),
   h.accessor((r) => r.relRank, {
     id: 'rel', sortDescFirst: false,
     header: t('people.col.toYou'),
@@ -308,8 +311,8 @@ function RegisterPage() {
   const houses = useMemo(() => {
     const n = new Map<string, number>();
     for (const r of all) if (r.house) n.set(r.house.id, (n.get(r.house.id) ?? 0) + 1);
-    return f.graph.houses.filter((x) => n.has(x.id)).map((x) => ({ ...x, n: n.get(x.id)! })).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
-  }, [all, f]);
+    return f.graph.houses.filter((x) => n.has(x.id)).map((x) => ({ ...x, n: n.get(x.id)! })).sort((a, b) => b.n - a.n || compareText(locale)(a.name, b.name));
+  }, [all, f, locale]);
   const data = useMemo(
     () =>
       all.filter(

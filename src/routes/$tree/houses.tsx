@@ -14,7 +14,7 @@ import { meaningLine, type ReviewBadge, type SavedMeaning } from '~/lib/house-me
 import { houseTranslationsQuery } from '~/lib/house-meaning.functions';
 import { translateSaved } from '~/lib/house-translation';
 import { GenSpark, houseStats, houseSuccession, maxGeneration, spanLabel, useHouseSettings, type HouseStats } from '~/lib/houses';
-import { locales, translate, useT, type Locale } from '~/lib/i18n';
+import { compareText, locales, translate, useT, type Locale } from '~/lib/i18n';
 import { treeTitle } from '~/lib/title';
 import '~/styles/house.css';
 import { useDealt } from '~/lib/dealt';
@@ -33,11 +33,12 @@ const SORT_KEY: Record<Sort, 'houses.sort.size' | 'houses.sort.living' | 'houses
   name: 'houses.sort.name',
 };
 const sortName = (s: HouseStats) => s.house.name.replace(/^House (of )?/i, '');
-const COMPARE: Record<Sort, (a: HouseStats, b: HouseStats) => number> = {
+const byName = (locale: Locale) => (a: HouseStats, b: HouseStats) => compareText(locale)(sortName(a), sortName(b));
+const COMPARE: Record<Sort, (a: HouseStats, b: HouseStats, locale: Locale) => number> = {
   size: (a, b) => b.members.length - a.members.length,
   living: (a, b) => b.living - a.living || b.members.length - a.members.length,
   oldest: (a, b) => (a.from ?? 1e9) - (b.from ?? 1e9),
-  name: (a, b) => sortName(a).localeCompare(sortName(b)),
+  name: (a, b, locale) => byName(locale)(a, b),
 };
 
 function HousesPage() {
@@ -55,7 +56,7 @@ function HousesPage() {
     const max = maxGeneration(f);
     return f.graph.houses.map((h) => houseStats(f, h, max));
   }, [f]);
-  const sorted = useMemo(() => [...stats].sort((a, b) => COMPARE[sort](a, b) || sortName(a).localeCompare(sortName(b))), [stats, sort]);
+  const sorted = useMemo(() => [...stats].sort((a, b) => COMPARE[sort](a, b, t.locale) || byName(t.locale)(a, b)), [stats, sort, t.locale]);
   const inHouses = stats.reduce((n, s) => n + s.members.length, 0);
   // While every house waits for the same review, the count in the header says so once. A card carries its badge only when
   // it is an exception: once some houses are reviewed, or when they wait for different things.
