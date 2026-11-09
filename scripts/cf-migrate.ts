@@ -1,5 +1,5 @@
 // Applies migrations/ to every D1 database in wrangler.jsonc: the same files the Node driver applies to
-// data/*.db when it opens them (src/lib/schema.ts).
+// data/*.db when it opens them (src/lib/store/node.ts).
 //   node scripts/cf-migrate.ts --env local     the local D1 databases `mise run dev:cf` uses
 //   node scripts/cf-migrate.ts --remote        the deployed ones (needs `wrangler login`)
 import { where, wrangler, wranglerBindings } from './lib/wrangler.ts';

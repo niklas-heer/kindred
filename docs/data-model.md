@@ -13,7 +13,10 @@ Migrations are plain SQL files named `NNNN_name.sql`. They run in order, on Node
 has shipped is never edited: a change is a new file. A migration must run on SQLite and on D1, so it has no `PRAGMA`,
 no `BEGIN` and no `COMMIT`, and a new `NOT NULL` column has a default.
 
-The schema is defined in `src/lib/schema.ts`, which also explains the rules above.
+The schema is the sum of the files in the `migrations/` folders. On Node, `src/lib/store/node.ts` applies the pending ones
+when it opens a file and backs the file up first. A migration runs while the Worker that is still serving is on the old
+code (`mise run deploy` migrates before it deploys), so it must not break the release before it. There are three folders:
+`tree`, `accounts` and `gazetteer` (see the end).
 
 ## The family database (`migrations/tree`)
 
@@ -36,6 +39,11 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
 | `0015_collected_meanings.sql` | `house_meaning.collect_failures`: failed tries of the background name research for a house. |
 | `0016_arms_review_history.sql` | `house_arms_review.history`: what each arms check advised and what the steward decided, oldest first. |
 | `0017_research.sql` | The Research page: `research_project`, `research_document`, `research_note`, `research_picture`, `research_person`, `research_place`. |
+| `0018_portrait_versions.sql` | `portrait.kept` and `portrait.tweak`: a person keeps several painted portraits, and their small adjustments. |
+| `0019_house_translation.sql` | `house_translation`: the background AI translations of a house's researched name meanings and its arms check. |
+| `0020_field_visibility.sql` | `person_field.visibility` (`personal`, `editors`, `family`) and `owner`, in place of the single `private` flag, which it drops. |
+| `0021_further_given_names.sql` | `person.further_given`, and the person revision trigger recreated to count it. |
+| `0022_field_author.sql` | `person_field.created_by` now holds the author's account id; the old display name column is renamed `created_by_name`. |
 
 ### Tables
 
@@ -64,11 +72,11 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
   pictures saved before media storage, `data`.
 - **`person_field`**: one row per field, with `created_by` (the account that created it, which alone may make it personal; NULL before migration 0022) and `created_by_name` (the name shown): `type` (phone, email, address, website, social, names, dates, education,
   occupation, military, religion, nationality, languages, medical, allergies, favourites, gifts, notes, related, custom),
-  `label`, `value` (JSON, the shape depends on the type), `ord`, and `private` (1 for editors and stewards only).
+  `label`, `value` (JSON, the shape depends on the type), `ord`, `visibility` (migration 0020: `family` for every member, `editors` for editors and stewards, `personal` for the account in `owner` alone, never an export or the assistant) and `owner` (the account id, set exactly when the field is personal).
 - **`album`**, **`media`**, **`media_person`**: the gallery. `media.key` is the picture's key in media storage, `taken` is
   a partial date, and each `media_person` row is a face box (`x`, `y`, `w`, `h` between 0 and 1) with `confirmed` (0 for a
   suggestion, which is never shown as a tag).
-- **`portrait`** (migration 0013): a painted portrait made from one of a person's photos. `key` is the picture in media storage (`portrait/<uuid>.<ext>`), `person`, `mime`, `source` (the photo it was painted from: `gallery/…` or `photo/…`), `source_year` (the photo's year, when it has a date), `model` (the OpenRouter model), `created_by`, `created_at`, and `accepted`. A row with `accepted = 0` is a candidate waiting for a choice; at most one row per person is accepted ("Use this portrait"), and that is the one the person can show. Accepting deletes the one it replaces; discarding a candidate, or removing the accepted one, deletes its picture too. `person.prefer_portrait` (0013) is the person's choice of the painted portrait: `prefer_avatar` (the drawing) and `prefer_portrait` are never both 1, and neither is 1 when the photo is shown.
+- **`portrait`** (migration 0013): a painted portrait made from one of a person's photos. `key` is the picture in media storage (`portrait/<uuid>.<ext>`), `person`, `mime`, `source` (the photo it was painted from: `gallery/…` or `photo/…`), `source_year` (the photo's year, when it has a date), `model` (the OpenRouter model), `created_by`, `created_at`, `accepted`, and (migration 0018) `kept` and `tweak` (the person's own small adjustments, JSON). A row with `accepted = 0` and `kept = 0` is a draft, swept when abandoned; a kept version is one the person chose to keep; `accepted = 0` otherwise means a candidate waiting for a choice; at most one row per person is accepted ("Use this portrait"), and that is the one the person can show. Accepting deletes the one it replaces; discarding a candidate, or removing the accepted one, deletes its picture too. `person.prefer_portrait` (0013) is the person's choice of the painted portrait: `prefer_avatar` (the drawing) and `prefer_portrait` are never both 1, and neither is 1 when the photo is shown.
 - **`house_succession`**: a house's `law` (`absolute-primogeniture`, `seniority` or `elective`), and optional `head`,
   `heir` and `country`. A house with no row uses absolute primogeniture and derives its head from the family graph.
 - **`house_meaning`**: one row per house with a saved research: the `name` researched, `family_words` (the family's own words, may be empty), `meanings` (JSON: every meaning the research returned, each with `chosen` for the ones the steward kept), `web_searched`, `note`, and `saved_at` and `saved_by` (the steward's user id). Saved again in place. A row with no chosen meaning is not saved research: it is what the background task collected (`saved_by` is `ai-background`), a dismissed collection, or failed tries (`collect_failures`), and only stewards can read it.
@@ -92,22 +100,35 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
 | `0007_ai_money.sql` | The monthly budget in micro-dollars, the web-search switch and the family's own prices. |
 | `0008_ai_portrait.sql` | `ai_portrait`: the painted-portrait switch, model and OpenRouter key (or the family's reused key), kept apart from the assistant's features. |
 | `0009_ai_background.sql` | The background AI tasks: the steward's settings, each task's switch, schedule and last start, the background share of the budget, and the run log. |
-
 | `0010_ai_providers.sql` | Provider connections and a provider/model route per AI feature; migrates the previous saved keys and routes. |
 | `0011_names_task.sql` | Adds the `names` background task and route to the lists the task, run and route tables allow. |
-| `0019_house_translation.sql` | `house_translation`: the background AI translations of a house's researched name meanings and its arms check. |
+| `0012_background_idle.sql` | `ai_background_task.last_checked`, and `ai_task_giveup`: how often one item failed, so an item that can never succeed stops being asked. |
+| `0013_portrait_style.sql` | `ai_portrait.style`: a family's own portrait style (empty means the default). |
+| `0014_person_confirmed.sql` | `membership.person_confirmed`: whether a steward has confirmed who a member says they are. |
+| `0015_share_link.sql` | `share_link`, `share_session` and `share_attempt`: the guest link. |
+| `0016_statistics.sql` | `stats_setting`, `stats_daily`, `stats_member` and `stats_once`: the stewards' usage counters. |
 | `0017_feedback.sql` | `feedback`: what stewards report about Kindred itself, kept in this installation (the picture of the screen is in the family's media storage). |
+| `0018_ai_chat_image.sql` | `ai_chat_image`: a picture a reader chose to keep with an assistant message. |
+| `0019_statistics_categories.sql` | The counters carry the reader's category (`cat`) and a `change` kind; `stats_member.cat`. Older counters become `legacy`. |
+| `0020_ai_threads.sql` | `ai_thread`: one row per assistant chat, with its title and an optional provider and model. |
+| `0021_ai_turn.sql` | `ai_turn`: one running reply per chat, as a lease. |
 | `0022_session_credential.sql` | `session.credential`: the passkey that started a session, so removing that passkey signs its device out (null for older sessions). |
 
 ### Tables
 
+- **`ai_task_giveup`** (0012): per family, task and item, how many tries failed for a reason of the item's own; after a few, the item is no longer asked until it changes.
+- **`ai_chat_image`** (0018): a picture kept with one assistant message (`item` is the `ai_chat` row, `data` is base64). It goes with its message and its user, and is read only through the same check as the message.
+- **`ai_thread`** (0020): one row per family, reader and chat (`conv`): the `title` the reader chose, the `title_tier` that name needs (`member` or `editor`), and an optional `provider` and `model` a steward chose for this chat. Messages stay in `ai_chat`.
+- **`ai_turn`** (0021): one row per chat while a reply runs (`conv`, `claim`, `at`). It is deleted at the end; a row older than the lease stops counting, so a chat cannot stay locked.
+- **`stats_setting`**, **`stats_daily`**, **`stats_member`**, **`stats_once`** (0016, 0019): the stewards' usage counters, see [roles-and-privacy.md](roles-and-privacy.md). `stats_daily` has one counter per family, day, `kind` (`view`, `visit`, `event`, `active`, `change`), reader category `cat` and `name` from a fixed list, so it never holds a person's id or anything a reader typed (it is kept three years). `stats_member` is one pseudonymous marker per member (a one-way hash, never an account id) with the day last seen and the category, dropped 100 days after the last visit; `stats_once` records what a member was counted for once (finishing the tour). `stats_setting` is a steward's off switch; turning collection off deletes the markers at once.
 - **`feedback`** (migration 0017): one report: `tree`, `kind` (`bug`, `idea`, `confusing`), `status` (`new`, `in-progress`, `resolved`), `body`, `context` (JSON: the page, the element's selector, language, theme, screen size, browser, app version and recent client errors, nothing else), `picture` (`feedback/<uuid>.jpg` in media storage, null when it was left out), `user` and `user_name` (the name at the time), `created_at`, `updated_at`. Stewards only.
 - **`user`**: a person with an account: `name`, an optional `email`, a random `handle` (the passkey's user handle, so a
   passkey reveals nothing about the account), `locale`, `created` and `last_seen`.
 - **`credential`**: a passkey: its id, public key, counter, transports, a device name, whether it is synced, and when it
   was last used. Each user has one or more.
 - **`session`**: a sign-in. Its key is the SHA-256 hash of the cookie's token, never the token; it has `expires` and
-  `refreshed`, and it slides forward as the user is active.
+  `refreshed`, and it slides forward as the user is active. `credential` (0022) is the passkey that started it; removing
+  that passkey deletes the session.
 - **`invite`**: an invitation to a family with a `role`, an optional `email`, an `expires`, who created it and who used
   it, and `revoked_at`. Only a hash of the link's token is stored.
 - **`share_link`** (0015): a family's share link, at most one per family: a hash of its token, a PBKDF2 hash of its password (or none),
@@ -116,7 +137,7 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
   to, and `expires`. It is deleted when the link is replaced or turned off.
 - **`share_attempt`** (0015): tries against a link in the current 15-minute window, per link and per link and hashed address.
 - **`membership`**: a user's role in a family (`viewer`, `contributor`, `editor`, `steward`), and who they are in that
-  family (a person id, or `-` for "just browsing").
+  family (a person id, or `-` for "just browsing"). `person_confirmed` (0014) is 1 once a steward has confirmed the link.
 - **`challenge`**: a passkey ceremony in progress (for setup, an invitation, adding a passkey, or signing in), with its
   expiry.
 - **`ai_settings`**: one row per family: feature switches, web search, the monthly budget in micro-dollars and custom prices.
@@ -124,7 +145,7 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
 - **`ai_provider`** (0010): one connection per family and provider (`anthropic`, `openai`, `openrouter`), with a sealed key,
   its last four characters, and who last updated it.
 - **`ai_route`** (0010): a provider and model per family and feature: assistant, arms, faces, avatar, portrait,
-  arms-review, occupations and chronicle. An absent route or null provider follows the assistant, except painting requires OpenRouter.
+  arms-review, occupations, chronicle and names. An absent route or null provider follows the assistant, except painting requires OpenRouter.
 - **`ai_spend`** (0007): monthly spend in micro-dollars, shared across features and providers.
 - **`push_subscription`** (0005–0006): device subscriptions; `last_sent_day` claims each device's daily reminder before sending.
 - **`ai_usage`**: tokens used per family per UTC day.
@@ -132,17 +153,28 @@ The schema is defined in `src/lib/schema.ts`, which also explains the rules abov
 - **`ai_background`** (migration 0009): one row per family for the background AI tasks: the share of the monthly budget that
   background work may use (`cap_share`), the languages the translations go into (`languages`, JSON), the steward's language
   for the review texts (`locale`), and when it was last changed and by whom.
-- **`ai_background_task`** (0009): one row per family and task (`arms`, `occupations`, `chronicle`): `enabled` (off by default),
-  `schedule` (`daily` or `weekly`) and `last_started`, which the daily run uses to tell when a task is due.
+- **`ai_background_task`** (0009): one row per family and task (`arms`, `occupations`, `chronicle`, `names`): `enabled` (off by default),
+  `schedule` (`daily` or `weekly`), `last_started` (when it last did something) and `last_checked` (migration 0012: when it last looked and found nothing), which the daily run uses to tell when a task is due.
 - **`ai_background_spend`** (0009): micro-dollars that background work has booked per family per UTC month, against its share.
   The whole month's spend stays in `ai_spend`, which background calls book against as well.
 - **`ai_task_run`** (0009): the runs that did something, failed, stopped at the cap, or were asked for by hand: when, the
   task, who started it (`schedule` or `manual`), the status, the items done, failed and waiting, what it cost, and a short note.
   The newest 200 per family are kept.
-- **`ai_portrait`** (migration 0008): the painted-portrait switch. Its legacy model and key columns remain after migration
+- **`ai_portrait`** (migration 0008): the painted-portrait switch and (0013) the family's own `style`. Its legacy model and key columns remain after migration
   0010; the portrait route and OpenRouter connection now select the model and key. Spend uses the family's monthly budget.
 - **`ai_chat`**: one row per message, with the message's JSON body (the text and, for an assistant reply, its proposals
   and their status).
+
+## The gazetteer database (`migrations/gazetteer`)
+
+Optional, read-only for the app, and the same on both targets: offline place search from GeoNames cities500 (CC BY 4.0).
+On Node it is `data/gazetteer.db`, built by `mise run gazetteer` (or into the Docker image with `WITH_GAZETTEER=1`); on
+Cloudflare it is the `GAZETTEER` D1 binding, with its rows loaded by `mise run cf:gazetteer`. Without it, place search offers
+the family's own places.
+
+| Migration | What it adds |
+| --- | --- |
+| `0001_gazetteer.sql` | `meta` (key and value), `place` (`id`, `name`, `cc`, `admin1`, `lat`, `lng`, `pop`, with an index on `lat`) and `name` (one row per searchable folded spelling: `key`, `id`, and `alt`, the spelling to show when it differs). |
 
 ## Rules every change follows
 

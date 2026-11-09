@@ -49,7 +49,7 @@ for (const file of files) {
     console.log(`${path}: backed up to ${backup}`);
   }
   for (const p of [path, `${path}-wal`, `${path}-shm`]) if (existsSync(p)) rmSync(p);
-  // A new file gets the schema from migrations/ (src/lib/schema.ts).
+  // A new file gets the schema from migrations/ (src/lib/store/node.ts).
   const db = openSqlite(path, 'tree', { create: true });
   db.exec('BEGIN');
   const meta = db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)');
