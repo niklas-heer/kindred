@@ -1,0 +1,24 @@
+name: Feature request
+description: Suggest something Kindred could do.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: Please use invented examples, never real family details.
+  - type: textarea
+    id: need
+    attributes:
+      label: What are you trying to do?
+      description: Describe the situation first, then what is hard about it today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: Your idea, if you have one. Other ways you thought of are welcome too.
+  - type: textarea
+    id: who
+    attributes:
+      label: Who would use it
+      description: Which roles (viewer, contributor, editor, steward), and how often.

@@ -1,0 +1,50 @@
+name: Bug report
+description: Something in Kindred does not work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not paste real family data.** No real names, dates, photographs, or screenshots of real relatives, no keys, setup codes or passkeys. Reproduce the problem on the invented families (`mise run data`) or with made-up people, and blur or crop anything real. For a security problem, do not use this form: use the private report on the Security tab.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Open ...\n2. Press ...\n3. See ..."
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: The version number, or the commit shown in the feedback report (a steward can open it from the app).
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: How you run it
+      options: [Docker, Node (mise run start), Cloudflare Workers, Development server (mise run dev), Other]
+    validations:
+      required: true
+  - type: dropdown
+    id: auth
+    attributes:
+      label: How people sign in
+      options: [Kindred's own accounts (passkeys), Cloudflare Access, Not sure]
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and device
+      placeholder: Safari on an iPhone, Firefox on Linux, ...
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or errors
+      description: Anything from `docker compose logs app` or the browser console. Remove names, keys and addresses first.
+      render: text
