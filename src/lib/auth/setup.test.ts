@@ -76,6 +76,7 @@ test('bootstrap modes, discoverable options, exclusions and proxy origin', async
     });
     await t.test('only the first verified Access identity can claim stewardship; code mode blocks it', async () => {
       await store.accounts().run('DELETE FROM user');
+      setup.forgetAccountExists(); // needsSetup keeps "an account exists" for the life of the process
       const { getSession } = await import('./session.server.ts');
       const families = async () => [{id:'modern'}, {id:'realm'}];
       process.env.KINDRED_AUTH = 'cloudflare-access';
@@ -179,6 +180,7 @@ test('bootstrap modes, discoverable options, exclusions and proxy origin', async
       console.log = (m: unknown) => { logs.push(String(m)); };
       try {
         await store.accounts().run('DELETE FROM user');
+        setup.forgetAccountExists(); // needsSetup keeps "an account exists" for the life of the process
         delete process.env.KINDRED_REQUIRE_SETUP_CODE;
         process.env.KINDRED_SETUP_CODE = ' Required ';
         assert.equal(setup.setupCodeRequired(), true);

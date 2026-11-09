@@ -51,7 +51,7 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): 
   const { user, via, uninvitedEmail, guest } = await currentSession();
   const guestHost = onGuestHost(getRequest());
   // First-time setup is no business of the guest host, which is open to the internet.
-  const needs = guestHost ? false : await setup.needsSetup();
+  const needs = guestHost ? false : await setup.needsSetup(getRequest());
   const needsFamily = needs && !(await (await import('./trees.server')).families()).length;
   const memberships = user ? (await s.membershipsOf(user.id)).map((m) => ({ tree: m.tree, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed })) : [];
   // A member of that family is simply a member: only someone who isn't gets the guest's view of it.

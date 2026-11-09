@@ -64,8 +64,9 @@ const setupNotice = createMiddleware().server(async ({ next, request }) => {
     const arrived = arrivedAt(request);
     logOriginMismatch(process.env.KINDRED_ORIGIN, arrived);
     const origin = siteOrigin(request);
-    announceSetup(origin.origin);
-    void warnOpenSetup(origin, arrived);
+    // The request is passed along so that, before the first account exists, it asks the accounts database only once.
+    announceSetup(origin.origin, false, request);
+    void warnOpenSetup(origin, arrived, request);
   } catch {}
   return next();
 });

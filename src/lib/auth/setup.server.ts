@@ -92,7 +92,23 @@ export const setupCodeRequired = () => {
   return locked || isRequiredWord(setupValue()) || flag || !!fixedCode();
 };
 
-export const needsSetup = async () => (await userCount()) === 0;
+/**
+ * Once an account exists it stays: Kindred never deletes the last one. So the answer is kept for the life of the process
+ * (or Worker isolate) once it is "no", and this costs no query on the requests after that. Before then, the answer for
+ * one request is asked once, however many parts of that request want it (the setup notice, the session).
+ */
+let accountExists = false;
+const perRequest = new WeakMap<Request, Promise<boolean>>();
+export async function needsSetup(request?: Request): Promise<boolean> {
+  if (accountExists) return false;
+  const asked = request && perRequest.get(request);
+  const answer = asked ?? userCount().then((n) => n === 0);
+  if (request && !asked) perRequest.set(request, answer);
+  if (!(await answer)) accountExists = true;
+  return !accountExists;
+}
+/** For tests that empty the accounts database, which the application itself never does. */
+export const forgetAccountExists = () => { accountExists = false; };
 
 /**
  * The address a request arrived at, as the browser named it. Behind a TLS proxy the request's own scheme is http, so
@@ -125,11 +141,11 @@ let openWarning: 'pending' | 'shown' | 'moot' = 'pending';
  * A loud console warning, once per process, while nobody has an account and setup is open to the public.
  * Called on the server's first request. Never throws.
  */
-export async function warnOpenSetup(origin: URL, host?: URL) {
+export async function warnOpenSetup(origin: URL, host?: URL, request?: Request) {
   try {
     if (openWarning !== 'pending') return;
     if (!setupOpenToPublic(origin, host)) return;
-    if (!(await needsSetup())) { openWarning = 'moot'; return; }
+    if (!(await needsSetup(request))) { openWarning = 'moot'; return; }
     openWarning = 'shown';
     const where = host && !isLocalHost(host.hostname) ? host.origin : origin.origin;
     console.warn(
@@ -175,9 +191,9 @@ export function logOriginMismatch(configured: string | undefined, request: URL, 
  * someone opens /setup (at most once a minute). The only secret Kindred ever logs; a code set in
  * KINDRED_SETUP_CODE is never printed. Never throws.
  */
-export async function announceSetup(origin?: string, force = false) {
+export async function announceSetup(origin?: string, force = false, request?: Request) {
   try {
-    if (!setupCodeRequired() || !(await needsSetup())) return;
+    if (!setupCodeRequired() || !(await needsSetup(request))) return;
     if (lockedBySetupCode()) {
       if (force) console.warn('[kindred] Setup is locked: KINDRED_SETUP_CODE has a value Kindred cannot use (docs/self-host.md). The value is not logged.');
       return;
