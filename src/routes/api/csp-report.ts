@@ -1,7 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router';
 
-// Where browsers report a Content-Security-Policy violation (src/lib/auth/security-headers.ts). One log line each, so a
-// steward can tell the policy is safe to enforce. Anyone can post here, so the size and the rate of logging are capped.
+// Where browsers report a Content-Security-Policy violation (src/lib/auth/security-headers.ts). One log line each, so an
+// operator sees what the policy blocked: an injection attempt, or something of Kindred's own the policy forgot. Anyone can
+// post here, so the size and the rate of logging are capped.
 const MAX_BYTES = 8192;
 const MAX_LINES_PER_MINUTE = 30;
 const LINE_TEXT = /[^\x20-\x7e]/g;
@@ -23,7 +24,7 @@ export const Route = createFileRoute('/api/csp-report')({
         if (++lines > MAX_LINES_PER_MINUTE) return empty();
         try {
           const report = (JSON.parse(text) as { 'csp-report'?: Record<string, unknown> })['csp-report'];
-          if (report) console.warn(`[kindred] content policy would block: ${short(report['effective-directive'] ?? report['violated-directive'])} ${short(report['blocked-uri'])} on ${short(report['source-file'])}`);
+          if (report) console.warn(`[kindred] content policy blocked: ${short(report['effective-directive'] ?? report['violated-directive'])} ${short(report['blocked-uri'])} on ${short(report['source-file'])}`);
         } catch {}
         return empty();
       },

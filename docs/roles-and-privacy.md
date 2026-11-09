@@ -135,6 +135,9 @@ themselves. The Markdown archive carries research that isn't private, with its d
   every browser that signed in with it, so a lost phone loses its access with its passkey. The same dialog has "Sign out
   everywhere else", which ends every session of yours except the one you are using. Sessions started before Kindred
   recorded this (accounts migration 0022) name no passkey; only "Sign out everywhere else" or their expiry ends those.
+- Pages and data are sent with `Cache-Control: private, no-store`, so after signing out on a shared computer the family's
+  pages are not left in the browser's cache, and no shared cache keeps one member's page for another. Pages also carry an
+  enforced Content-Security-Policy (see [self-host.md](self-host.md#security-headers-and-caching)).
 - Sign-in endpoints are rate-limited. The limit is kept in memory: it resets when the server restarts, and on
   Cloudflare each isolate keeps its own count. It is a brake against guessing, not a wall.
 - With Cloudflare Access as the method, Kindred accepts only a verified Access identity, so the first person through Access can

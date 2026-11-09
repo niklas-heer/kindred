@@ -7,7 +7,7 @@
 // check, the tests and the build all passed), so they go beyond the health check:
 //   /api/health        200, "ok", with the security headers
 //   /                  a redirect to /setup while no account exists
-//   /setup             200 HTML, every inline script carrying the Content-Security-Policy nonce; /signin redirects to /setup while no account exists
+//   /setup             200 HTML under an enforced Content-Security-Policy, never cached, every inline script carrying its nonce; /signin redirects to /setup while no account exists
 //   POST /api/auth/signout from another site   403, refused by the CSRF check
 //   POST /api/auth/signout from this site      not 403 (the control: the check refuses cross-site only)
 //   POST /api/ai-chat/<family>                 403 cross-site, 401 signed out; signed in (a session and a family written into
@@ -195,7 +195,10 @@ async function main(): Promise<boolean> {
     const setupHtml = await setup.text();
     check(setup.status === 200 && setupType.startsWith('text/html'), `/setup renders (200 text/html, got ${setup.status} ${setupType.split(';')[0]})`);
     // The policy's nonce has to reach the inline scripts on Workers too, or the page would stop working once it is enforced.
-    const policy = setup.headers.get('content-security-policy-report-only') ?? '';
+    const policy = setup.headers.get('content-security-policy') ?? '';
+    check(setup.headers.get('content-security-policy-report-only') === null && /script-src 'self' 'nonce-/.test(policy), '/setup sends an enforced Content-Security-Policy');
+    check(setup.headers.get('cache-control') === 'private, no-store', `/setup is never stored by a cache (got ${setup.headers.get('cache-control')})`);
+    check(setup.headers.get('cross-origin-opener-policy') === 'same-origin' && !!setup.headers.get('permissions-policy'), '/setup sends Cross-Origin-Opener-Policy and Permissions-Policy');
     const nonce = /'nonce-([^']+)'/.exec(policy)?.[1];
     const inlineScripts = [...setupHtml.matchAll(/<script\b([^>]*)>/g)].filter(([, attrs]) => !/\bsrc=/.test(attrs));
     check(!!nonce && inlineScripts.length > 0 && inlineScripts.every(([, attrs]) => attrs.includes(`nonce="${nonce}"`)), `every inline script on /setup carries the policy's nonce (${inlineScripts.length} scripts)`);

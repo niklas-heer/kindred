@@ -403,6 +403,15 @@ with `No such built-in module: node:sqlite` in the log. Kindred does not have a 
 `GET /api/health` returns `ok` with status 200 while the server answers. It reads no data. The image's `HEALTHCHECK` uses it, so
 `docker compose ps` shows the state, and a load balancer can use the same path.
 
+## Security headers and caching
+
+Every page carries an enforced Content-Security-Policy: scripts only from the server itself and with the page's own nonce,
+connections only to the server itself, and no framing by other sites. A blocked script, frame or connection is reported to
+`/api/csp-report`, which logs one `[kindred] content policy blocked: …` line for each. Pages, server functions and API answers
+are sent with `Cache-Control: private, no-store`; pictures may stay in the member's own browser (`private`); the built
+`assets/` files are public and cached for a year. A caching proxy or CDN in front of Kindred must not override this: a "cache
+everything" rule would hand one member's family pages to the next visitor.
+
 ## The offline place search
 
 Place suggestions come from the family's own places and, when the file exists, from the GeoNames gazetteer (about 40 MB, every
