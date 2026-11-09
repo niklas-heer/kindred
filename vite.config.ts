@@ -2,6 +2,7 @@ import { cloudflare } from '@cloudflare/vite-plugin';
 import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 
 /** The commit this build is made from: KINDRED_COMMIT (the Docker build has no .git), else git, else 'unknown'. Shown in a steward's feedback report. */
@@ -18,7 +19,10 @@ export default defineConfig(({ command }) => {
   const workers = process.env.KINDRED_TARGET !== 'node' && (command === 'build' || !!process.env.CLOUDFLARE_ENV || process.env.KINDRED_TARGET === 'cloudflare');
   return {
     server: { port: 4517 },
-    define: { __KINDRED_COMMIT__: JSON.stringify(buildCommit()) },
+    define: {
+      __KINDRED_COMMIT__: JSON.stringify(buildCommit()),
+      __KINDRED_VERSION__: JSON.stringify((JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }).version),
+    },
     // One copy of React for the app and its libraries. Two copies (one pre-bundled again after a dependency was
     // re-optimised in a running dev server) make hooks fail with "Invalid hook call".
     resolve: { tsconfigPaths: true, dedupe: ['react', 'react-dom'] },

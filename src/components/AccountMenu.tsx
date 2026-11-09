@@ -10,6 +10,7 @@ import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import '~/components/assistant/ai-tasks.css';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { addPasskey, forgetLocalIdentity, passkeysSupported, signOutRequest } from '~/lib/auth/client';
+import { appCommit, appVersion, releaseUrl } from '~/lib/version';
 import { myPasskeysQuery, removeMyPasskey, renameMe, type Passkey } from '~/lib/auth/functions';
 import { fetchRemindersAvailable } from '~/lib/reminders.functions';
 import { ROLES, can } from '~/lib/roles';
@@ -182,6 +183,11 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
             )}
             <button role="menuitem" className="acct-item" onClick={() => void signOut(session?.accessLogout)}>
               <LogOut size={17} /> {t("accountmenu.sign_out")} </button>
+            {appVersion() && (
+              <a className="acct-version" role="menuitem" href={releaseUrl(appVersion()!)} target="_blank" rel="noopener noreferrer" title={t('accountmenu.releaseNotes')}>
+                {t('accountmenu.version', { version: appVersion()! })}{appCommit() && <span> · {appCommit()}</span>}
+              </a>
+            )}
           </div>
         </div>
       )}

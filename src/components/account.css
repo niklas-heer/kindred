@@ -70,3 +70,7 @@
 .btn.acct-danger, [data-theme] .btn.acct-danger { background: var(--danger); color: #fff; box-shadow: none; }
 
 .acct-kbd { margin-left: auto; font-size: 0.72rem; color: var(--muted); }
+
+/* Which version this is: the quiet last line of the account menu. */
+.acct-version { display: block; padding: 8px 12px 4px; margin-top: 4px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; text-decoration: none; font-variant-numeric: tabular-nums; }
+.acct-version:hover, .acct-version:focus-visible { color: var(--text); text-decoration: underline; }
