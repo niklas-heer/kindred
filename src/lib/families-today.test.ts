@@ -1,5 +1,6 @@
 // node --test src/lib/families-today.test.ts — the families list every page loads: "today" read narrowly gives exactly
-// what the whole family's graph gave, and a reader's list opens only their own families. Runs on a scratch data folder.
+// what the whole family's graph gave, a reader's list opens only their own families, and the graph sends no empty keys.
+// Runs on a scratch data folder.
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -55,4 +56,14 @@ test("a reader's families list opens only their own families", async () => {
   assert.deepEqual((await families(['tolland'])).map((f) => f.id), ['tolland']);
   assert.deepEqual((await families(['tolland', 'not-here'])).map((f) => f.id), ['tolland'], 'an unknown family is simply not there');
   assert.deepEqual(await families([]), []);
+});
+
+test('the graph leaves absent fields out rather than sending them as undefined', async () => {
+  const g = await s.graph('marsh');
+  const undefinedKeys = [...g.people, ...g.unions, ...g.houses, ...g.places].flatMap((o) => Object.entries(o).filter(([, v]) => v === undefined).map(([k]) => k));
+  assert.deepEqual(undefinedKeys, []);
+  const wenna = g.people.find((p) => p.id === 'p3')!;
+  assert.equal('surname' in wenna, false);
+  assert.equal(wenna.died, '2010-07-02');
+  assert.equal(wenna.living, false, 'a false flag is a value, and stays');
 });

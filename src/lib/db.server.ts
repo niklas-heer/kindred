@@ -201,6 +201,11 @@ export async function provisionFamily(id: string, name: string, theme = 'codex')
 
 const json = <T>(s: unknown): T | undefined => (typeof s === 'string' ? JSON.parse(s) : undefined);
 const opt = <T>(v: T | null): T | undefined => (v === null ? undefined : v);
+/**
+ * The object without its undefined keys. The whole family is serialized into every page and every refetch, where an
+ * absent optional field written as `key: undefined` costs bytes for nothing (about 0.44 MB on a family of 1600).
+ */
+const defined = <T extends object>(o: T): T => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
 
 /** The family as one reader's page needs it. `contacts` counts the ways to reach someone that this reader may see. */
 export async function graph(tree: string, reader: Audience = PLAIN_MEMBER): Promise<Graph> {
@@ -218,7 +223,7 @@ export async function graph(tree: string, reader: Audience = PLAIN_MEMBER): Prom
     d.all<any>('SELECT * FROM place'),
   ]);
   const people = peopleRows.map(
-    (r): GPerson => ({
+    (r): GPerson => defined({
       id: r.id,
       given: r.given,
       surname: opt(r.surname),
@@ -248,11 +253,11 @@ export async function graph(tree: string, reader: Audience = PLAIN_MEMBER): Prom
       portraitAge: r.portrait ? photoAge(opt(r.born), r.portrait_year) : undefined,
     }),
   );
-  const houses = houseRows.map((r): House => ({ id: r.id, name: r.name, motto: opt(r.motto), arms: JSON.parse(r.arms), founder: opt(r.founder) }));
+  const houses = houseRows.map((r): House => defined({ id: r.id, name: r.name, motto: opt(r.motto), arms: JSON.parse(r.arms), founder: opt(r.founder) }));
   const unions = unionRows.map(
-    (r): GUnion => ({ id: r.id, a: r.a, b: r.b, kind: r.kind, start: opt(r.start), end: opt(r.end), endReason: opt(r.end_reason), place: opt(r.place) }),
+    (r): GUnion => defined({ id: r.id, a: r.a, b: r.b, kind: r.kind, start: opt(r.start), end: opt(r.end), endReason: opt(r.end_reason), place: opt(r.place) }),
   );
-  const places = placeRows.map((r) => ({ name: r.name, lat: r.lat, lng: r.lng, country: opt(r.country) }));
+  const places = placeRows.map((r) => defined({ name: r.name, lat: r.lat, lng: r.lng, country: opt(r.country) }));
   return {
     places,
     tree: { id: m.id, name: m.name, tagline: m.tagline, theme: m.theme as TreeMeta['theme'], focus: m.focus, people: people.length },
