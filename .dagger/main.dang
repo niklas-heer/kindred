@@ -1,6 +1,6 @@
 """
 Reproducible CI for Kindred v2: the type check, the unit tests, the production Node build, the Worker build, the
-Worker smoke test (workerd on local D1 and R2; it never contacts Cloudflare) and the Docker image build.
+Worker smoke test (workerd on local D1 and R2; it never contacts Cloudflare) and the Docker image build, started and asked for /api/health.
 
 `mise run ci` runs the same checks locally. It needs a container engine: on macOS, `colima start`.
 """
@@ -127,10 +127,16 @@ type KindredCi {
   }
 
   """
-  The Docker image, built from the Dockerfile and not pushed. The last stage is run once (`node --version`) to show it starts.
+  The Docker image, built from the Dockerfile and not pushed. It is started as a service on its own port, and a second
+  container asks it for /api/health: the run fails unless the server answers 200 and `ok`. A server that cannot start
+  (a missing file in the image, a build that left something out) fails here, which `node --version` would not show.
   """
   pub docker: String! {
-    dockerContext.dockerBuild.withExec(["node", "--version"]).stdout
+    container
+      .from(node)
+      .withServiceBinding("kindred", dockerContext.dockerBuild.withExposedPort(4901).asService)
+      .withExec(["node", "-e", "fetch('http://kindred:4901/api/health').then(async (r) => { const t = await r.text(); console.log(r.status, t); process.exit(r.ok && t.trim() === 'ok' ? 0 : 1); }, (e) => { console.error(e); process.exit(1); })"])
+      .stdout
   }
 
   """
