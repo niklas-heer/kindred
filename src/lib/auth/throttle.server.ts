@@ -3,6 +3,7 @@
 // isolate keeps its own window, so the limits are per isolate there: a brake, not a wall.
 import { getRequest, getRequestIP } from '@tanstack/react-start/server';
 import { onWorkers } from '../store/index.ts';
+import { clientAddress, trustedProxies } from './client-address.ts';
 import { authMethod } from './method.server.ts';
 
 const g = globalThis as unknown as { __kindredThrottle?: Map<string, number[]> };
@@ -27,13 +28,16 @@ export function allow(key: string, limit: number, windowMs: number): boolean {
 export const resetThrottle = () => hits.clear();
 
 /**
- * The client's address for throttling. Cloudflare sets CF-Connecting-IP and a Worker can trust it; on
- * Node it is trusted only when Cloudflare Access is the sign-in method, else the socket's address is used.
+ * The client's address for throttling (./client-address.ts). Cloudflare sets CF-Connecting-IP and a Worker can trust it;
+ * on Node it is trusted only when Cloudflare Access is the sign-in method. Behind KINDRED_TRUSTED_PROXIES reverse proxies,
+ * the address the outermost one saw; otherwise the socket's address.
  */
 export function clientIP(): string {
   let request: Request | undefined;
   try { request = getRequest(); } catch {}
-  const cf = request?.headers.get('cf-connecting-ip');
-  if (cf && (onWorkers || authMethod() === 'cloudflare-access')) return cf;
-  try { return getRequestIP() || 'unknown'; } catch { return 'unknown'; }
+  let peer: string | undefined;
+  try { peer = getRequestIP(); } catch {}
+  // A bad value stops the Node server at start (server/node.ts); a dev server that got this far trusts nothing.
+  const hops = trustedProxies(process.env.KINDRED_TRUSTED_PROXIES) ?? 0;
+  return clientAddress(request, peer, { workers: onWorkers, access: authMethod() === 'cloudflare-access', hops });
 }

@@ -7,6 +7,7 @@
 //   KINDRED_DATA_DIR  the families, media, accounts and secret (default: data/ in this folder)
 //   KINDRED_JOBS      the daily jobs (reminders) run at 06:00 UTC; "off" turns them off
 //   NODE_ENV          production, unless set otherwise
+//   KINDRED_TRUSTED_PROXIES  how many reverse proxies stand in front (Caddy alone: 1), so rate limits count each visitor
 // SIGTERM and SIGINT stop new connections, let requests in progress finish, close the SQLite files and exit.
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -53,6 +54,29 @@ if (configuredOrigin) {
   }
 }
 
+// The same rule as trustedProxies() in src/lib/auth/client-address.ts, which the bundle uses (and which trusts nothing
+// for a bad value); checked here so a typo stops the server at start. src/ is not in the Docker image, so not imported.
+const trustedProxiesSetting = process.env.KINDRED_TRUSTED_PROXIES?.trim() ?? '';
+if (trustedProxiesSetting && !/^[0-5]$/.test(trustedProxiesSetting)) {
+  console.error(`[kindred] KINDRED_TRUSTED_PROXIES must be the number of reverse proxies in front of the server, 0 to 5, not "${trustedProxiesSetting}"`);
+  process.exit(1);
+}
+const trustsProxies = Number(trustedProxiesSetting || 0) > 0;
+const behindAccess = process.env.KINDRED_AUTH?.trim().toLowerCase() === 'cloudflare-access';
+let warnedForwarded = false;
+/** Requests that came through a proxy the server was not told about share one rate limit: say so, once. */
+function noticeForwarded(req: Request) {
+  if (warnedForwarded || trustsProxies || !req.headers.has('x-forwarded-for')) return;
+  // Behind Cloudflare Access the limits already use Cloudflare's own header.
+  if (behindAccess && req.headers.has('cf-connecting-ip')) return;
+  warnedForwarded = true;
+  console.warn(
+    '[kindred] Requests arrive through a reverse proxy (they carry X-Forwarded-For), but KINDRED_TRUSTED_PROXIES is not set, ' +
+      'so every visitor counts as the proxy and shares one rate limit for signing in and share links. Set it to the number ' +
+      'of proxies in front (1 for Caddy alone). See docs/self-host.md.',
+  );
+}
+
 // The server bundle registers its close function under this name (src/lib/store/node.ts).
 const CLOSE_DATABASES = Symbol.for('kindred.closeDatabases');
 const closeDatabases = () => (globalThis as unknown as Record<symbol, (() => void) | undefined>)[CLOSE_DATABASES]?.();
@@ -65,7 +89,10 @@ const server = serve({
   hostname,
   silent: true,
   // Built files come compressed from the build; the application's answers are compressed as they stream (server/compress.ts).
-  fetch: async (req: Request) => (await staticResponse(clientDir, req)) ?? compressResponse(req, await app.fetch(req)),
+  fetch: async (req: Request) => {
+    noticeForwarded(req);
+    return (await staticResponse(clientDir, req)) ?? compressResponse(req, await app.fetch(req));
+  },
 });
 await server.ready();
 

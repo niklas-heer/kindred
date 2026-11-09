@@ -109,8 +109,9 @@ export const fetchInvite = createServerFn({ method: 'POST' })
     const [{ currentSession }, s, { family }, { allow, clientIP }] = await Promise.all([
       guard(), store(), import('./trees.server'), import('./throttle.server'),
     ]);
-    if (!allow(`invite-check:${clientIP()}`, 30, 10 * 60_000)) return { status: 'unknown' };
+    // A malformed token is refused before it is counted, so junk cannot use up the limit a real invitee needs.
     if (!token.safeParse(data.token).success) return { status: 'unknown' };
+    if (!allow(`invite-check:${clientIP()}`, 30, 10 * 60_000)) return { status: 'unknown' };
     const row = await s.inviteByToken(data.token);
     if (!row) return { status: 'unknown' };
     const status = row.revoked_at ? 'revoked' : row.used_at ? 'used' : row.expires <= Date.now() ? 'expired' : 'open';

@@ -68,7 +68,8 @@ export const fetchShareEntry = createServerFn({ method: 'POST' })
   .validator(z.object({ token }))
   .handler(async ({ data }): Promise<ShareEntry> => {
     const [{ currentSession }, s, { allow, clientIP }] = await Promise.all([guard(), share(), import('./throttle.server')]);
-    if (!allow(`share-entry:${clientIP()}`, 60, 10 * 60_000) || !WELL_FORMED.test(data.token)) return { status: 'closed' };
+    // A malformed token is refused before it is counted, so junk cannot use up the limit a relative's real link needs.
+    if (!WELL_FORMED.test(data.token) || !allow(`share-entry:${clientIP()}`, 60, 10 * 60_000)) return { status: 'closed' };
     const link = await s.shareLinkByToken(data.token);
     if (!link || !s.linkOpen(link)) return { status: 'closed' };
     const { guest } = await currentSession();
@@ -85,8 +86,9 @@ export const openShareLink = createServerFn({ method: 'POST' })
     const [s, { allow, clientIP }, session, { appendResponseHeader, getRequest }] = await Promise.all([
       share(), import('./throttle.server'), import('./session.server'), import('@tanstack/react-start/server'),
     ]);
-    if (!allow(`share-open:${clientIP()}`, 60, 10 * 60_000)) return { status: 'slow' };
+    // A malformed token is refused before it is counted, so junk cannot use up the limit a relative's real link needs.
     if (!WELL_FORMED.test(data.token)) return { status: 'closed' };
+    if (!allow(`share-open:${clientIP()}`, 60, 10 * 60_000)) return { status: 'slow' };
     const link = await s.shareLinkByToken(data.token);
     if (!link || !s.linkOpen(link)) return { status: 'closed' };
     const ip = clientIP();

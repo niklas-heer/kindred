@@ -12,5 +12,7 @@
 	request_body {
 		max_size 32MB
 	}
+	# Caddy passes on the visitor's address as the last X-Forwarded-For entry, which the app believes with
+	# KINDRED_TRUSTED_PROXIES=1 (.env), so its rate limits count each visitor rather than Caddy.
 	reverse_proxy app:4901
 }

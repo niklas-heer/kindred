@@ -501,3 +501,81 @@ test('the migration runs by itself on a fresh database', () => {
   assert.throws(() => d.prepare("INSERT INTO share_link (id, tree, token_hash, created) VALUES ('b', 't', 'y', 1)").run(), /UNIQUE/, 'one link per family');
   d.close();
 });
+
+// ---------- the limits behind a reverse proxy, and junk that must not spend them ----------
+
+const PROXY = '172.18.0.3';
+const resetLimits = () => (globalThis as unknown as { __kindredThrottle?: Map<string, number[]> }).__kindredThrottle?.clear();
+/** A request that came through the proxy, which wrote `forwardedFor`. */
+const viaProxy = (forwardedFor: string) => {
+  g.__ip = PROXY;
+  g.__request = new Request('http://localhost/', { headers: { 'x-forwarded-for': forwardedFor } });
+};
+/** A token in the right shape that is no link and no invitation. */
+const unknownToken = () => tokens.randomToken(32);
+
+test('behind a proxy that is not declared, one stranger uses up the limit for everyone (why the setting exists)', async () => {
+  resetLimits();
+  delete process.env.KINDRED_TRUSTED_PROXIES;
+  const made = await makeLink();
+  try {
+    asNobody();
+    viaProxy('198.51.100.66');
+    for (let i = 0; i < 60; i++) await fns.openShareLink({ data: { token: unknownToken() } });
+    viaProxy('192.0.2.10');
+    assert.deepEqual((await fns.openShareLink({ data: { token: made.token, password: made.password! } })), { status: 'slow' }, 'a relative is stopped by the stranger');
+  } finally {
+    g.__request = undefined;
+  }
+});
+
+test('with KINDRED_TRUSTED_PROXIES, each visitor has their own limit, and the address a visitor writes is not believed', async () => {
+  resetLimits();
+  process.env.KINDRED_TRUSTED_PROXIES = '1';
+  const made = await makeLink();
+  try {
+    asNobody();
+    // The stranger varies what they write themselves; the proxy appends their real address on the right.
+    for (let i = 0; i < 60; i++) {
+      viaProxy(`10.9.${i}.1, 198.51.100.66`);
+      await fns.openShareLink({ data: { token: unknownToken() } });
+    }
+    viaProxy('10.9.99.1, 198.51.100.66');
+    assert.deepEqual(await fns.openShareLink({ data: { token: made.token, password: made.password! } }), { status: 'slow' }, 'the stranger is limited');
+    viaProxy('192.0.2.10');
+    g.__setCookies = [];
+    assert.equal((await fns.openShareLink({ data: { token: made.token, password: made.password! } })).status, 'ok', 'a relative is not');
+  } finally {
+    delete process.env.KINDRED_TRUSTED_PROXIES;
+    g.__request = undefined;
+  }
+});
+
+test('malformed tokens are refused before they count; tokens in the right shape still count', async () => {
+  resetLimits();
+  const made = await makeLink();
+  asNobody();
+  g.__ip = '198.51.100.70';
+  for (let i = 0; i < 70; i++) {
+    assert.deepEqual(await fns.openShareLink({ data: { token: 'junk' } }), { status: 'closed' });
+    assert.deepEqual(await fns.fetchShareEntry({ data: { token: 'junk' } }), { status: 'closed' });
+  }
+  assert.deepEqual(await fns.fetchShareEntry({ data: { token: made.token } }), { status: 'open', password: true });
+  g.__setCookies = [];
+  assert.equal((await fns.openShareLink({ data: { token: made.token, password: made.password! } })).status, 'ok');
+  resetLimits();
+  for (let i = 0; i < 60; i++) await fns.fetchShareEntry({ data: { token: unknownToken() } });
+  assert.deepEqual(await fns.fetchShareEntry({ data: { token: made.token } }), { status: 'closed' }, 'guessing in the right shape is limited');
+});
+
+test('malformed invitation tokens do not use up the limit an invitee needs; guesses in the right shape do', async () => {
+  resetLimits();
+  asNobody();
+  g.__ip = '198.51.100.71';
+  const { token } = await store.createInvite({ tree: TREE, role: 'viewer', email: null, createdBy: STEWARD });
+  for (let i = 0; i < 40; i++) assert.equal((await authFns.fetchInvite({ data: { token: 'not-a-token' } })).status, 'unknown');
+  assert.equal((await authFns.fetchInvite({ data: { token } })).status, 'open');
+  resetLimits();
+  for (let i = 0; i < 30; i++) await authFns.fetchInvite({ data: { token: unknownToken() } });
+  assert.equal((await authFns.fetchInvite({ data: { token } })).status, 'unknown', 'guessing in the right shape is limited');
+});

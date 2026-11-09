@@ -82,7 +82,7 @@ they are that account.
 
 Compose reads `.env` for the settings below, and passes the ones the app reads into the container: `KINDRED_ORIGIN`,
 `KINDRED_AUTH`, `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `KINDRED_SETUP_CODE`, `KINDRED_REQUIRE_SETUP_CODE`, `KINDRED_DEFAULT_TREE`, `KINDRED_SECRET`, the three `KINDRED_VAPID_*` reminder
-settings and `KINDRED_JOBS`. `KINDRED_DOMAIN` goes to
+settings, `KINDRED_JOBS` and `KINDRED_TRUSTED_PROXIES`. `KINDRED_DOMAIN` goes to
 Caddy, and `WITH_GAZETTEER` to the build. An empty value is the same as an unset one, so the defaults still apply. Without
 Docker, set them as environment variables for the server.
 
@@ -104,6 +104,7 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 | `KINDRED_GAZETTEER` | `gazetteer.db` in the data folder | The offline place search. The image sets it to a file it may contain (see below). |
 | `KINDRED_VAPID_PUBLIC_KEY`, `KINDRED_VAPID_PRIVATE_JWK`, `KINDRED_VAPID_SUBJECT` | empty | Web Push reminders. Make the three with `mise run vapid-keys -- mailto:you@example.org`. Without all three the Reminders item is hidden. See [Reminders](#reminders). |
 | `KINDRED_JOBS` | empty | `off` stops the daily run at 06:00 UTC for reminders, archives and enabled background AI tasks. Any other value keeps it on. |
+| `KINDRED_TRUSTED_PROXIES` | empty (0) | How many reverse proxies stand in front of the server: `1` for Caddy alone, as in [HTTPS with Caddy](#https-with-caddy). The limits on signing in, share links and invitations then count the visitor's address that the proxy passes on (X-Forwarded-For, counted from the right, so a visitor cannot write their own). Empty or `0`: the header is never believed. Set it only when every request reaches the server through that many proxies. Not used on Cloudflare. |
 | `PORT` | `4901` | The port the server listens on. Docker: the image uses 4901, and Compose maps it. |
 | `HOST` | `127.0.0.1` | The address it listens on. The image sets `0.0.0.0`, so that Docker can reach it. |
 
@@ -136,12 +137,17 @@ gets a certificate from Let's Encrypt and passes requests to the app. Caddy's co
 
 1. Point a DNS record for your host name (for example `family.example.org`) at the server.
 2. Open ports 80 and 443 on the server. Caddy needs port 80 for the certificate challenge.
-3. In `.env`, set both values to that name:
+3. In `.env`, set both values to that name, and say that Caddy is the one proxy in front of the app:
 
    ```sh
    KINDRED_ORIGIN=https://family.example.org
    KINDRED_DOMAIN=family.example.org
+   KINDRED_TRUSTED_PROXIES=1
    ```
+
+   Without `KINDRED_TRUSTED_PROXIES`, every request seems to come from Caddy, so the limits on signing in and on share
+   links become one limit for the whole site, and a stranger could use it up for everyone. The server logs a warning
+   when it sees requests from a proxy and the setting is missing.
 
 4. Start the app with the `https` profile:
 
@@ -154,7 +160,10 @@ person has to register a new passkey. Choose the name once.
 
 If you already run a reverse proxy, skip the Caddy service. Point the proxy at the app's port (set the `ports` line in
 `compose.yaml` to `"4901:4901"` if the proxy is on another machine), and set `KINDRED_ORIGIN` to the public `https://` address. The proxy should send `X-Forwarded-Proto` (Caddy does): without it,
-the setup warning would name `http://` for a site that is served over TLS.
+the setup warning would name `http://` for a site that is served over TLS. It should also add the visitor's address to
+`X-Forwarded-For` (Caddy, nginx's `proxy_add_x_forwarded_for` and most others do); set `KINDRED_TRUSTED_PROXIES` to the
+number of proxies a request passes through. With the app's port open to others as well, anyone reaching it directly
+could claim any address, so keep the port private to the proxy.
 
 ## Your data
 
