@@ -41,7 +41,7 @@ export const en = {
   "panel.how": "How?",
   "panel.thisIsMe": "This is me",
   "panel.thisIsMeTitle": "Kinship labels will be relative to this person",
-  "panel.beThem": "Be them",
+  "panel.beThem": "See from their side",
   "panel.beThemTitle": "See everyone’s relationship from this person’s point of view",
   "panel.dateUnknown": "Date unknown",
   "panel.age": "Age",

@@ -87,6 +87,8 @@ function ChroniclePage() {
   const [tab, setTab] = useRememberedState<Tab>(`chronicle:${tree}:tab`, 'recent');
   const [kind, setKind] = useRememberedState<Kind | null>(`chronicle:${tree}:kind`, null);
   const [q, setQ] = useRememberedState(`chronicle:${tree}:q`, '');
+  // A filter remembered from before sayings left the row of kinds: without its chip it could not be switched off.
+  useEffect(() => { if (kind === 'quote') setKind(null); }, [kind, setKind]);
   const [limit, setLimit] = useRememberedState(`chronicle:${tree}:limit`, 30);
   const today = useToday();
   const [openedAt] = useState(() => Date.now());
@@ -177,7 +179,8 @@ function ChroniclePage() {
               <button className="btn" aria-pressed={kind === null} onClick={() => setKind(null)}>
                 {t('chronicle.all')}
               </button>
-              {KINDS.filter((k) => counts[k.id]).map((k) => (
+              {/* Sayings have their own view beside "Recent", so they are not offered a second time as a kind here. */}
+              {KINDS.filter((k) => counts[k.id] && k.id !== 'quote').map((k) => (
                 <button key={k.id} className="btn" aria-pressed={kind === k.id} onClick={() => setKind(kind === k.id ? null : k.id)}>
                   <k.icon size={14} /> {t(k.plural)} <span className="muted">{counts[k.id]}</span>
                 </button>

@@ -96,7 +96,7 @@ function Needed() {
     <div className="page">
       <div className="page-inner needed">
         <PageHeader title={t('needed.title')} subtitle={<>
-              {t('needed.summary', { shown: rows.length, total: f.graph.people.length })}
+              {t('needed.summary', { shown: rows.length, total: f.graph.people.length, count: f.graph.people.length })}
               {' '}{complete > 0 && t('needed.complete', { count: complete })} {t('needed.closestFirst')}
             </>} actions={<div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" aria-pressed={settings} onClick={() => setSettings((s) => !s)}>{t('needed.whatCounts')}</button>

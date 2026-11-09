@@ -5,12 +5,12 @@ import type { Message } from "../types.ts";
 export const en = {
   "needed.title": "Information needed",
   "needed.loadFailed": "This page could not be loaded.",
-  "needed.summary": "{shown} of {total} people have something still to find out.",
+  "needed.summary": { one: "{shown} of {total} person has something still to find out.", other: "{shown} of {total} people have something still to find out." },
   "needed.complete": { one: "{count} is complete.", other: "{count} are complete." },
   "needed.closestFirst": "Closest relatives first: they are the easiest to ask.",
   "needed.whatCounts": "What counts?",
   "needed.blazeTitle": "One person at a time, only what is missing: ↵ saves and moves on",
-  "needed.blaze": "Blaze through {what}",
+  "needed.blaze": "Go through {what}, one at a time",
   "needed.everything": "everything",
   "needed.allFilter": "Everything",
   "needed.viewerNote": "You can browse what’s missing; ask an editor to fill it in.",
@@ -93,7 +93,7 @@ export const en = {
 export const de: Record<keyof typeof en, Message> = {
   "needed.title": "Fehlende Angaben",
   "needed.loadFailed": "Diese Seite konnte nicht geladen werden.",
-  "needed.summary": "Bei {shown} von {total} Personen gibt es noch etwas herauszufinden.",
+  "needed.summary": { one: "Bei {shown} von {total} Person gibt es noch etwas herauszufinden.", other: "Bei {shown} von {total} Personen gibt es noch etwas herauszufinden." },
   "needed.complete": { one: "{count} ist vollständig.", other: "{count} sind vollständig." },
   "needed.closestFirst": "Die nächsten Verwandten zuerst: Sie sind am leichtesten zu fragen.",
   "needed.whatCounts": "Was zählt?",
@@ -182,7 +182,7 @@ export const de: Record<keyof typeof en, Message> = {
 export const af: Partial<Record<keyof typeof en, Message>> = {
   "needed.title": "Inligting benodig",
   "needed.loadFailed": "Hierdie bladsy kon nie gelaai word nie.",
-  "needed.summary": "By {shown} van {total} mense is daar nog iets om uit te vind.",
+  "needed.summary": { one: "By {shown} van {total} persoon is daar nog iets om uit te vind.", other: "By {shown} van {total} mense is daar nog iets om uit te vind." },
   "needed.complete": { one: "{count} is volledig.", other: "{count} is volledig." },
   "needed.closestFirst": "Die naaste familielede eerste: hulle is die maklikste om te vra.",
   "needed.whatCounts": "Wat tel?",
