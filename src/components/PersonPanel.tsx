@@ -667,7 +667,7 @@ function upcomingDates(f: Family, p: GPerson, today: Date, c: Translator): { day
         <Heart size={20} />
         <div>
           <b>{c('fact.anniversaryWith', { name: other.given, when: inDays(daysUntil(next, today), c) })}</b>
-          <div className="muted">{c('fact.years', { n: next.getFullYear() - yearOf(u.start) })} · {c('fact.marriedOn', { date: fmtDate(u.start, locales[c.locale]) ?? '' })}</div>
+          <div className="muted">{c('fact.years', { count: next.getFullYear() - yearOf(u.start) })} · {c('fact.marriedOn', { date: fmtDate(u.start, locales[c.locale]) ?? '' })}</div>
         </div>
       </div>
     ) });
@@ -1275,7 +1275,7 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
             <Heart size={20} />
             <div>
               <b>{c('fact.anniversaryWith', { name: other!.given, when: inDays(daysUntil(next!, today), c) })}</b>
-              <div className="muted">{c('fact.years', { n: next!.getFullYear() - yearOf(u.start) })} · {c('fact.marriedOn', { date: fmtDate(u.start, locales[c.locale]) ?? '' })}</div>
+              <div className="muted">{c('fact.years', { count: next!.getFullYear() - yearOf(u.start) })} · {c('fact.marriedOn', { date: fmtDate(u.start, locales[c.locale]) ?? '' })}</div>
             </div>
           </div>
         ))}

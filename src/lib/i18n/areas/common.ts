@@ -117,7 +117,7 @@ export const de: Record<keyof typeof en, Message> = {
   "date.err.future": "Dieses Datum liegt in der Zukunft.",
   "date.err.before": "Das liegt vor {what} ({date}).",
   "date.err.invalid": "Das ist kein gültiges Datum.",
-  "common.appDescription": "Ein Stammbaum, in dem du wohnen kannst.",
+  "common.appDescription": "Ein Stammbaum voller Leben.",
   "common.you": "du",
   "life.born": "geb. {year}",
   "life.circa": "ca. ",

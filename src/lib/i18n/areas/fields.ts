@@ -459,7 +459,7 @@ export const de: Record<keyof typeof en, Message> = {
   "preset.other": "Sonstiges",
   "preset.personal": "Persönlich",
   "preset.holiday": "Urlaub",
-  "preset.home_page": "Startseite",
+  "preset.home_page": "Homepage",
   "preset.blog": "Blog",
   "preset.instagram": "Instagram",
   "preset.facebook": "Facebook",
