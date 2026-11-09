@@ -104,8 +104,9 @@
 .story-body p { margin: 6px 0; }
 .story footer { font-size: var(--fs-1, 12px); color: var(--muted); font-family: var(--font-ui); }
 
-.story-form { display: grid; gap: 8px; margin: 14px 0; padding: 12px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--border); }
+.story-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 14px 0; padding: 12px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--border); }
 .seg { display: flex; flex-wrap: wrap; gap: 4px; }
+.story-form .row.end { flex-wrap: wrap; } /* the signature, Cancel and Save wrap rather than set the form's width */
 .seg .btn { height: 28px; padding: 0 8px; font-size: var(--fs-2, 13px); }
 .quote-input { font-family: var(--font-hand); font-size: 18px; }
 .row { display: flex; gap: 8px; align-items: end; }
