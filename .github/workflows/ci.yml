@@ -3,9 +3,9 @@ name: CI
 # Both jobs run the Dagger module in .dagger/ (`mise run ci` runs the same two locally).
 on:
   push:
-    branches: [main, v2]
+    branches: [main]
   pull_request:
-    branches: [main, v2]
+    branches: [main]
 
 permissions:
   contents: read
