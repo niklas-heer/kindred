@@ -324,9 +324,11 @@ export interface FilledGaps { kept: GapField[] }
  * Fills in the details the Needed page asked for. `seen` is each value as the page showed it (left out: empty), so a
  * value is written only while the person still has exactly that: a gap someone else filled in meanwhile is not
  * overwritten, and the answer names it so the page can say so. A value already there as typed counts as written.
+ * With no `seen` at all the caller is replacing values it was shown itself, as an approved change from the assistant
+ * does (and as a page loaded before this check existed does): then every value given is written.
  * Typing an occupation here also sets its vocabulary code, so the Needed page and the editor agree.
  */
-export function fillGaps(tree: string, id: string, patch: Partial<Record<GapField, string>>, seen: Partial<Record<GapField, string | null>>, op: OpKey | undefined) {
+export function fillGaps(tree: string, id: string, patch: Partial<Record<GapField, string>>, seen: Partial<Record<GapField, string | null>> | undefined, op: OpKey | undefined) {
   return once(tree, op, 'patchPerson', async (d) => {
     const now = await d.get<Record<string, string | null>>(`SELECT ${Object.values(GAP_COLUMNS).join(', ')} FROM person WHERE id = ?`, id);
     if (!now) throw new Error('Person not found.');
@@ -339,7 +341,7 @@ export function fillGaps(tree: string, id: string, patch: Partial<Record<GapFiel
       const col = GAP_COLUMNS[k];
       const stored = now[col] || null;
       if (stored === v) continue;
-      if (stored !== (seen[k] || null)) { kept.push(k); continue; }
+      if (seen && stored !== (seen[k] || null)) { kept.push(k); continue; }
       // The value as read, restated in the batch: a change that lands in between makes the plan decide again.
       writes.push(guard(`EXISTS (SELECT 1 FROM person WHERE id = ? AND coalesce(${col}, '') = ?)`, id, stored ?? ''));
       assigns.push(`${col} = ?`);

@@ -59,3 +59,8 @@ test('a birth year the page showed may become a full birthday, but not one chang
   assert.deepEqual(await fillGaps(TREE, 'jan', { born: '1961-09-09' }, { born: '1961' }, undefined), { kept: ['born'] });
   assert.equal((await row('jan'))?.born, '1961-04-02');
 });
+
+test('with no seen values at all, an approved change replaces what is there', async () => {
+  // The assistant's card shows the old value beside the new one and the reader approves the change.
+  assert.deepEqual(await fillGaps(TREE, 'jan', { born: '1961-12-24', occupation: 'Weaver' }, undefined, undefined), { kept: [] });
+});

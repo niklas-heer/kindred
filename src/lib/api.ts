@@ -223,7 +223,7 @@ export const patchPerson = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const _m = await requireCan(data.tree, 'edit-person');
     const { fillGaps } = await import('./person.server');
-    return fillGaps(data.tree, data.id, data.patch, data.seen ?? {}, opOf(_m, data));
+    return fillGaps(data.tree, data.id, data.patch, data.seen, opOf(_m, data));
   });
 
 /** Takes someone out of the tree, with their links, stories, contacts and photo. */
