@@ -199,10 +199,7 @@ export interface JournalStore { getItem: (k: string) => string | null; setItem: 
 /** A draft older than this is not brought back: it would surprise more than it helps. */
 export const JOURNAL_KEEP_MS = 14 * 86_400_000;
 
-/** Every kept draft's storage key starts with this, so signing out can clear them all. */
-export const JOURNAL_PREFIX = 'kindred.edit-draft.';
-
-export const journalKey = (user: string, tree: string, person: string) => `${JOURNAL_PREFIX}${user}.${tree}.${person}`;
+export { JOURNAL_PREFIX, journalKey } from './journal-key.ts';
 
 /** Storage can be missing, full or blocked (a private window): the form works without it. */
 export function readJournal<V>(store: JournalStore | undefined, key: string, now: number): Journal<V> | null {

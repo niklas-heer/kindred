@@ -15,7 +15,7 @@ import { ancestorDepths, ancestorDepths as anc, descendants, displayName, houseM
 import { selectionAnnouncement } from '~/lib/card-label';
 import { layout as computeLayout, rootFor, type LNode, type View } from '~/lib/layout';
 import { setPref, usePref } from '~/lib/prefs';
-import { openingView, treeSearch } from '~/lib/search';
+import { openingView, treeSearch } from '~/lib/tree-search';
 import { gapsOf, useRequired } from '~/lib/gaps';
 import { opKeys, removePerson } from '~/lib/api';
 import { addSelfToFamily } from '~/lib/person.functions';

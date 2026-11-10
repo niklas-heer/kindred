@@ -11,9 +11,8 @@ import { TASKS, type Activity, type Task } from '~/lib/ai/background';
 import { errorText } from '~/lib/errortext';
 import { houseTranslationsQuery } from '~/lib/house-meaning.functions';
 import { translateReview } from '~/lib/house-translation';
-import { locales, translate, useT, type Key, type Locale } from '~/lib/i18n';
+import { locales, useT, type Key } from '~/lib/i18n';
 import { toAiLocale } from '~/lib/ai/types';
-import { treeTitle } from '~/lib/title';
 import { useFamily, useTreeId } from '~/lib/family';
 import { displayName } from '~/lib/graph';
 import { useCan } from '~/lib/session';
@@ -185,4 +184,3 @@ function ActivityBody({ tree, data }: { tree: string; data: Activity }) {
 }
 
 /** The page's title, in the reader's language. */
-export const aiActivityHead = (ctx: Parameters<typeof treeTitle>[0]) => ({ meta: [{ title: treeTitle(ctx, translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'aitasks.activityTitle')) }] });

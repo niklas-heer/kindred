@@ -15,14 +15,13 @@ import { DEFAULT_MODEL, PAINT_PROVIDERS, PROVIDERS, PROVIDER_LABEL, ROUTES, foll
 import type { ImageModel } from '~/lib/ai/portrait-rules';
 import { portraitSettingsQuery } from '~/lib/portrait.functions';
 import { useTreeId } from '~/lib/family';
-import { locales, translate, useT, type Key, type Locale } from '~/lib/i18n';
+import { locales, useT, type Key, type Locale } from '~/lib/i18n';
 import { useCan } from '~/lib/session';
 import { EmptyState, ErrorState, PageHeader, Range, Select, Skeleton, Switch, type SelectOption } from '~/components/ui';
 import { AssistantButton } from './Launcher';
 import { PortraitSettings } from './PortraitSettings';
 import { formChanged, formOf, isOn, routeChanged, TASK_OF_ROUTE, type Draft, type FormState } from './settings-form';
 import { BackgroundSettings } from './BackgroundSettings';
-import { treeTitle } from '~/lib/title';
 import './assistant.css';
 import './aisettings.css';
 
@@ -612,4 +611,3 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
 }
 
 /** The settings page title, in the reader's language. */
-export const aiSettingsHead = (ctx: Parameters<typeof treeTitle>[0]) => ({ meta: [{ title: treeTitle(ctx, translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'ai.settings_title')) }] });

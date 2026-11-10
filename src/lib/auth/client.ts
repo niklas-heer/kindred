@@ -1,5 +1,5 @@
 // The browser's side of passkeys (see passkeys.server.ts and routes/api/auth/$action.ts).
-import { JOURNAL_PREFIX } from '../../components/fields/autosave.ts';
+import { JOURNAL_PREFIX } from '../../components/fields/journal-key.ts';
 import type { PublicKeyCredentialCreationOptionsJSON, PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser';
 
 export class AuthRequestError extends Error {

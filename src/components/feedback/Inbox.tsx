@@ -9,9 +9,8 @@ import { errorText } from '~/lib/errortext';
 import { FEEDBACK_STATUSES, reportMarkdown, type FeedbackKind, type FeedbackReport, type FeedbackStatus } from '~/lib/feedback';
 import { feedbackQuery, removeFeedback, updateFeedbackStatus } from '~/lib/feedback.functions';
 import { useTreeId } from '~/lib/family';
-import { formatDate, LANGUAGE_NAME, relativeTime, translate, useT, type Key, type Locale } from '~/lib/i18n';
+import { formatDate, LANGUAGE_NAME, relativeTime, useT, type Key } from '~/lib/i18n';
 import { useCan } from '~/lib/session';
-import { treeTitle } from '~/lib/title';
 import { toast } from '~/lib/toast';
 import { openFeedback } from './FeedbackHost';
 import './feedback.css';
@@ -22,8 +21,6 @@ const KIND: Record<FeedbackKind, { label: Key; icon: typeof Bug }> = {
   confusing: { label: 'feedback.kind_confusing', icon: HelpCircle },
 };
 const STATUS: Record<FeedbackStatus, Key> = { new: 'feedback.status_new', 'in-progress': 'feedback.status_in_progress', resolved: 'feedback.status_resolved' };
-
-export const feedbackHead = (ctx: Parameters<typeof treeTitle>[0]) => ({ meta: [{ title: treeTitle(ctx, translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'feedback.inbox_title')) }] });
 
 export function FeedbackInbox() {
   const tree = useTreeId();
