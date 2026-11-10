@@ -323,3 +323,25 @@ test('new people and partnerships never share an id, even when the id maker repe
   assert.equal(unions.length, 2);
   assert.equal(new Set(unions).size, 2, `partnerships: ${unions.join(', ')}`);
 });
+
+test('new sources, events and citations never share an id: a file with 20,000 events, as newId makes them', () => {
+  // newId's six hex digits: among 20,000 new ids a dozen pairs are alike, on average.
+  const newIdLike = (given: string) => `${given}_${crypto.randomUUID().slice(0, 6)}`;
+  const N = 20_000;
+  const lines = ['0 HEAD', '1 GEDC', '2 VERS 5.5.1', '1 CHAR UTF-8', '0 @I1@ INDI', '1 NAME Ada /Testfield/'];
+  for (let i = 0; i < N; i++) lines.push('1 EVEN', `2 TYPE Thing ${i}`, `2 DATE ${1000 + (i % 900)}`, `2 SOUR @S${i % 5000}@`, `3 PAGE p${i}`);
+  for (let i = 0; i < 5000; i++) lines.push(`0 @S${i}@ SOUR`, `1 TITL Source ${i}`);
+  lines.push('0 TRLR', '');
+  const plan = planImport(readGedcom(lines.join('\n')), emptyTree(), newIdLike);
+  const distinct = (ids: string[]) => new Set(ids).size;
+  assert.equal(plan.events.length, N);
+  assert.equal(distinct(plan.events.map((e) => e.id)), N, 'events');
+  assert.equal(distinct(plan.sources.map((x) => x.id)), plan.sources.length, 'sources');
+  assert.equal(plan.citations.length, N);
+  assert.equal(distinct(plan.citations.map((c) => c.id)), N, 'citations');
+  // An id maker that always says the same still gives each its own.
+  const small = planImport(readGedcom(lines.slice(0, 6 + 5 * 3).concat('0 @S0@ SOUR', '1 TITL A', '0 @S1@ SOUR', '1 TITL B', '0 @S2@ SOUR', '1 TITL C', '0 TRLR', '').join('\n')), emptyTree(), (given) => `${given}_same`);
+  assert.equal(distinct(small.events.map((e) => e.id)), 3);
+  assert.equal(distinct(small.sources.map((x) => x.id)), 3);
+  assert.equal(distinct(small.citations.map((c) => c.id)), 3);
+});

@@ -119,7 +119,8 @@ const unionKey = (a: string, b: string, kind: string, start: string | null, end:
  * given "union") whose file id is missing or taken.
  */
 /**
- * A new id that nothing in `taken` has. `makeId` is random but short (newId: six hex digits, so a few thousand partnerships
+ * A new id that nothing in `taken` has. `makeId` is random but short (newId: six hex digits, so a few thousand partnerships,
+ * events, sources or citations
  * in one file already meet twice), so it is asked again on a collision, and a counter settles one that keeps coming back.
  */
 function freshId(makeId: (given: string) => string, given: string, taken: ReadonlySet<string>): string {
@@ -398,7 +399,7 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
       duplicateSources++;
       continue;
     }
-    const id = x.preferredId && !sourceIds.has(x.preferredId) ? x.preferredId : makeId('source');
+    const id = x.preferredId && !sourceIds.has(x.preferredId) ? x.preferredId : freshId(makeId, 'source', sourceIds);
     sourceIds.add(id);
     sourceOfKey.set(x.key, id);
     byTitle.set(sourceName(x), id);
@@ -425,7 +426,7 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
       duplicateEvents++;
       continue;
     }
-    const id = e.preferredId && !eventIds.has(e.preferredId) ? e.preferredId : makeId('event');
+    const id = e.preferredId && !eventIds.has(e.preferredId) ? e.preferredId : freshId(makeId, 'event', eventIds);
     eventIds.add(id);
     eventOfKey.set(e.key, id);
     const ord = (ordOf.get(person) ?? -1) + 1;
@@ -460,7 +461,7 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
       continue;
     }
     citedAlready.add(sig);
-    const id = c.preferredId && !citationIds.has(c.preferredId) ? c.preferredId : makeId('citation');
+    const id = c.preferredId && !citationIds.has(c.preferredId) ? c.preferredId : freshId(makeId, 'citation', citationIds);
     citationIds.add(id);
     citations.push({ id, source, target, page: c.page, quality: c.quality, transcription: c.transcription });
   }
