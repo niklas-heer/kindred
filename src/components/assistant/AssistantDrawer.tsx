@@ -8,35 +8,37 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { errorText } from '~/lib/errortext';
-import { ArrowDown, Mic, MicOff, MessageSquarePlus, PanelLeft, Pencil, RotateCw, Send, Sparkles, Square, Users, X } from 'lucide-react';
+import { ArrowDown } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { aiChatModelsQuery, aiChatNew, aiChatQuery, aiChatRetry, aiChatSend, aiStatusQuery, aiThreadSetModel, aiThreadsQuery } from '~/lib/ai.functions';
 import { threadTitle } from '~/lib/ai/thread-title';
 import { retryable } from '~/lib/ai/chat-turns';
 import { graphQuery } from '~/lib/api';
 import { toAiLocale } from '~/lib/ai/types';
-import { compareText, useT, type Key } from '~/lib/i18n';
-import { renderMarkdown } from '~/lib/markdown';
+import { compareText, useT } from '~/lib/i18n';
 import { fullName } from '~/lib/graph';
 import { useMeChosen } from '~/lib/family';
 import { useCan } from '~/lib/session';
 import { ErrorState, Notice, Skeleton } from '~/components/ui';
 import { isTopOverlay, useOverlayLayer } from '~/components/ui/overlay';
 import type { OnDecided } from './ProposalCard';
-import { AssistantTurn, AttachedThumbs, UserTurn } from './ChatTurns';
+import { AssistantTurn, UserTurn } from './ChatTurns';
 import { ChatWelcome } from './ChatWelcome';
+import { Composer } from './Composer';
+import { DrawerHeader } from './DrawerHeader';
+import { ContinueTurn, LiveTurn, SendingTurn, UnsentTurn } from './WaitingTurns';
 import { chatExamples } from './examples';
 import { usePageContext } from './page-context';
 import './widgets/widgets.css';
 import { ASSISTANT_FOCUS, closeAssistant, takeFocusRequest } from './store';
-import { ResizeEdges, useChatWindow, WindowControls } from './useChatWindow';
+import { ResizeEdges, useChatWindow } from './useChatWindow';
 import { useTabs } from './ChatDock';
-import { ChatList, ChatTabs, chatName } from './ChatList';
+import { ChatList, chatName } from './ChatList';
 import { finishRun, forgetRun, getRun, patchRun, setFrontChat, useRun, useRunSummary } from './chat-runs';
 import { closeTab, forgetChat, getTabs, openTab, updateTabs, withDraft } from './chat-tabs';
 import { ModelPicker, type PickedModel } from './ModelPicker';
 import { carryOn, forgetInterrupted, restoreInterrupted, transmit, useChatStream } from './useChatStream';
-import { AttachButton, DropVeil, ImageTray, useImageAttach, type Attached } from './attachments';
+import { DropVeil, useImageAttach, type Attached } from './attachments';
 import { useDictation } from './dictation';
 import { FamilySession } from './FamilySession';
 import './assistant.css';
@@ -546,7 +548,6 @@ export function AssistantDrawer({ tree }: { tree: string }) {
     else dictation.start();
   }
 
-  const listening = dictation.state === 'listening';
   const empty = !!conv && chat.isSuccess && items.length === 0 && unsent.length === 0 && pending === null;
   const summary = useRunSummary();
   const elsewhere = tabState.tabs.some((c) => c !== conv && summary.unread.has(c));
@@ -554,36 +555,24 @@ export function AssistantDrawer({ tree }: { tree: string }) {
   return (
     <aside ref={asideRef} className={`ai-drawer${win.docked ? ' ai-docked' : ''}`} role="dialog" aria-label={t('ai.title')}>
       <ResizeEdges win={win} />
-      <header className="ai-drawer-head" onPointerDown={win.onHeaderPointerDown}>
-        <div className="ai-drawer-bar">
-          {!session.open && (
-            <button type="button" className="btn ghost ai-touch ai-icon ai-chats-toggle" onClick={toggleList} aria-expanded={listOpen} aria-label={t(listOpen ? 'ai.chatsClose' : 'ai.chatsOpen')} title={t(listOpen ? 'ai.chatsClose' : 'ai.chatsOpen')}>
-              <PanelLeft size={16} aria-hidden />
-              {elsewhere && <span className="ai-run-mark ai-run-unread ai-chats-toggle-mark" aria-hidden />}
-            </button>
-          )}
-          <h2 className="ai-drawer-title"><Sparkles size={16} aria-hidden /> <span>{win.phone && conv ? tabName(conv) : t('ai.title')}</span></h2>
-          <div className="ai-drawer-tools">
-            {canDraft && !session.open && (
-              <button type="button" className="btn ghost ai-touch ai-icon ai-tool" onClick={openSession} disabled={busy} aria-label={t('ai.sessionStart')} title={t('ai.sessionStart')}>
-                <Users size={16} aria-hidden />
-              </button>
-            )}
-            {!session.open && (
-              <button type="button" className="btn ghost ai-touch ai-icon ai-tool ai-tool-new" onClick={() => void newChat()} aria-label={t('ai.chatNew')} title={t('ai.chatNew')}>
-                <MessageSquarePlus size={16} aria-hidden />
-              </button>
-            )}
-          </div>
-          <WindowControls win={win} />
-          <button type="button" className="btn ghost ai-touch ai-icon ai-drawer-close" onClick={() => { dictation.stop(); closeAssistant(); }} aria-label={t('ai.close')} title={t('ai.close')}>
-            <X size={17} aria-hidden />
-          </button>
-        </div>
-        {!session.open && !win.phone && tabState.tabs.length > 0 && (
-          <ChatTabs tabs={tabState.tabs} active={conv} names={tabName} onSwitch={switchTab} onClose={closeChatTab} onNew={() => void newChat()} />
-        )}
-      </header>
+      <DrawerHeader
+        win={win}
+        session={session.open}
+        listOpen={listOpen}
+        elsewhere={elsewhere}
+        title={win.phone && conv ? tabName(conv) : t('ai.title')}
+        canDraft={canDraft}
+        busy={busy}
+        tabs={tabState.tabs}
+        active={conv}
+        tabName={tabName}
+        onToggleList={toggleList}
+        onSession={openSession}
+        onNew={() => void newChat()}
+        onClose={() => { dictation.stop(); closeAssistant(); }}
+        onSwitch={switchTab}
+        onCloseTab={closeChatTab}
+      />
 
       {tabsFull && <Notice onDismiss={() => setTabsFull(false)}>{t('ai.tabsFull')}</Notice>}
       {error && <Notice onDismiss={() => conv && patchRun(conv, { error: null })}>{t('ai.sendFailed')} <span className="subtle">{error}</span></Notice>}
@@ -626,65 +615,19 @@ export function AssistantDrawer({ tree }: { tree: string }) {
                 />
               )}
               {conv && items.map((m, i) => (m.role === 'user' ? <UserTurn key={m.id} tree={tree} item={m} /> : <AssistantTurn key={m.id} tree={tree} conv={conv} item={m} people={people} places={places} onDecided={onDecided} steward={steward} models={models} canRetry={!busy && retryable(items, i)} onRetry={(id, model) => void retryAnswer(conv, id, model)} last={i === items.length - 1} busy={busy} onSay={(words) => { if (!getRun(conv).busy) void transmit(ctx(conv), words, [], false); }} pagePerson={viewed && { id: viewed.id, given: fullName(viewed) }} />))}
-              {pending !== null && (
-                <div className="ai-turn ai-turn-user ai-turn-pending">
-                  <AttachedThumbs images={pendingImages} />
-                  {pending && <div className="ai-bubble">{pending}</div>}
-                </div>
-              )}
-              {busy && !session.open && (
-                <div className="ai-turn ai-turn-assistant ai-turn-live">
-                  <span className="ai-mark" aria-hidden><Sparkles size={13} /></span>
-                  <div className="ai-turn-body">
-                    {/* Hidden from screen readers while it is written: the log announces the finished reply, once, when it is stored. */}
-                    <div aria-hidden="true">
-                      {live?.text
-                        ? <div className="ai-text ai-text-live" dangerouslySetInnerHTML={{ __html: renderMarkdown(live.text, { images: 'text' }) }} />
-                        : (
-                          <div className="ai-live-status">
-                            <span className="ai-dots"><i /><i /><i /></span>
-                            <span className="subtle">{t(live?.step ?? 'ai.sending')}</span>
-                            {slow && <span className="subtle ai-slow">{t('ai.stillWorking')}</span>}
-                          </div>
-                        )}
-                    </div>
-                    <button type="button" className="btn ghost ai-touch ai-stop" onClick={stream.stop}><Square size={13} aria-hidden /> {t('ai.stop')}</button>
-                  </div>
-                </div>
-              )}
+              {pending !== null && <SendingTurn text={pending} images={pendingImages} />}
+              {busy && !session.open && <LiveTurn live={live} slow={slow} onStop={stream.stop} />}
               {unsent.map((u) => (
-                <div key={u.id} className="ai-turn ai-turn-user ai-turn-unsent">
-                  <AttachedThumbs images={u.images ?? []} />
-                  {u.text && <div className="ai-bubble">{u.text}</div>}
-                  <div className="ai-unsent">
-                    <p className="ai-unsent-line" role="alert">
-                      <strong>{t('ai.notSent')}</strong> <span className="subtle">{u.error}</span>
-                    </p>
-                    <div className="ai-unsent-actions">
-                      <button type="button" className="btn ai-touch ai-retry" onClick={() => { if (conv && !getRun(conv).busy) void transmit(ctx(conv), u.text, u.images ?? [], !!u.keep, { retryId: u.id }); }} disabled={busy}>
-                        <RotateCw size={14} aria-hidden /> {t('ai.retryNow')}
-                      </button>
-                      <button type="button" className="btn ghost ai-touch" onClick={() => editUnsent(u)} disabled={busy}>
-                        <Pencil size={14} aria-hidden /> {t('ai.edit')}
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <UnsentTurn
+                  key={u.id}
+                  unsent={u}
+                  busy={busy}
+                  onRetry={() => { if (conv && !getRun(conv).busy) void transmit(ctx(conv), u.text, u.images ?? [], !!u.keep, { retryId: u.id }); }}
+                  onEdit={() => editUnsent(u)}
+                />
               ))}
               {conv && !busy && !session.open && (continueError !== null || chat.data?.continueDue) && (
-                <div className="ai-turn ai-turn-assistant">
-                  <span className="ai-mark" aria-hidden><Sparkles size={13} /></span>
-                  <div className="ai-turn-body">
-                    <p className="ai-unsent-line" role={continueError !== null ? 'alert' : undefined}>
-                      {t(continueError !== null ? 'ai.continueFailed' : 'ai.continueDue')}{continueError && <span className="subtle"> {continueError}</span>}
-                    </p>
-                    <div className="ai-unsent-actions ai-continue-actions">
-                      <button type="button" className="btn ai-touch ai-retry" onClick={() => void retryContinue()}>
-                        <RotateCw size={14} aria-hidden /> {t(continueError !== null ? 'ai.retryNow' : 'ai.continueNow')}
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <ContinueTurn error={continueError} onContinue={() => void retryContinue()} />
               )}
             </div>
             {away && (
@@ -700,41 +643,23 @@ export function AssistantDrawer({ tree }: { tree: string }) {
               <ModelPicker choices={models} override={chat.data?.override ?? null} onChange={(m) => void chooseModel(conv, m)} />
             </div>
           )}
-          <form className="ai-composer" onSubmit={send}>
-            <label className="ai-sr" htmlFor="ai-input">{t('ai.placeholder')}</label>
-            {canDraft && <ImageTray attach={attach} provider={status?.provider} keep={keepImages} onKeep={setKeepImages} />}
-            {listening && (
-              <p className="ai-rec" role="status">
-                <span className="ai-rec-dot" aria-hidden /> {t('ai.micRecording')}
-                {dictation.interim && <em className="subtle"> {dictation.interim}</em>}
-              </p>
-            )}
-            <div className="ai-composer-row">
-              {canDraft && <AttachButton attach={attach} />}
-              {dictation.supported && (
-                <button type="button" className={`btn ghost ai-touch ai-icon ai-mic${listening ? ' ai-mic-on' : ''}`} onClick={toggleMic} aria-pressed={listening} aria-label={listening ? t('ai.micStop') : t('ai.mic')} title={listening ? t('ai.micStop') : t('ai.mic')}>
-                  {listening ? <MicOff size={17} aria-hidden /> : <Mic size={17} aria-hidden />}
-                </button>
-              )}
-              <textarea
-                id="ai-input"
-                ref={areaRef}
-                rows={1}
-                maxLength={4000}
-                placeholder={t('ai.placeholder')}
-                onKeyDown={onInputKey}
-              />
-              <button type="submit" className="btn primary ai-touch ai-icon ai-send" disabled={busy || !conv || attach.reading || (!text.trim() && !attach.images.length)} aria-label={t('ai.send')} title={busy ? t('ai.waitForReply') : t('ai.send')}>
-                <Send size={17} aria-hidden />
-              </button>
-            </div>
-          </form>
-          <p className="ai-composer-hint subtle" aria-hidden={text ? true : undefined}>{t(canDraft ? 'ai.composerHintImages' : 'ai.composerHint')}</p>
-          {imageError && <p className="ai-foot ai-card-error" role="alert">{t(imageError as Key)}</p>}
-          {dictation.state === 'denied' && <p className="ai-foot subtle" role="status">{t('ai.micDenied')}</p>}
-          {dictation.state === 'error' && <p className="ai-foot subtle" role="status">{t('ai.micFailed')}</p>}
-          {!dictation.supported && <p className="ai-foot subtle">{t('ai.micUnsupported')}</p>}
-          {!canPropose && <p className="ai-foot subtle">{t('ai.viewerNote')}</p>}
+          <Composer
+            areaRef={areaRef}
+            text={text}
+            busy={busy}
+            conv={conv}
+            canDraft={canDraft}
+            canPropose={canPropose}
+            provider={status?.provider}
+            attach={attach}
+            keepImages={keepImages}
+            onKeepImages={setKeepImages}
+            imageError={imageError}
+            dictation={dictation}
+            onSubmit={send}
+            onKeyDown={onInputKey}
+            onMic={toggleMic}
+          />
         </div>
       </div>
     </aside>
