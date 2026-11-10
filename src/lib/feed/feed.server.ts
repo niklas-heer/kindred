@@ -4,7 +4,7 @@
 // What a page mixes:
 //   post     a member's message to the family (posts.server.ts)
 //   story    a memory, saying, recipe, note or anecdote from the Chronicle; an answer to the question of the week says so
-//   photos   one member's uploads of one day to one album, as one entry (a post's own pictures are the post's)
+//   photos   one member's uploads of one day to one album, as one entry (a picture uploaded for a post is the post's)
 //   people   the people one member added to the tree on one day, from the change history; a newborn is said as one
 //   season   a season of the Campaign that ended
 //
@@ -120,7 +120,7 @@ export async function feedPage(tree: string, who: Who, cursor?: string | null, l
     q(`SELECT s.id, s.person, s.kind, s.title, s.body, s.author, s.at, s.context, a.week FROM story s LEFT JOIN today_answer a ON a.story = s.id
        WHERE 1 = 1${after('s.at', "('story:' || s.id)")} ORDER BY s.at DESC, s.id DESC LIMIT ?`, ...afterParams, n + 1),
     q(`SELECT m.key, m.width, m.height, m.album, al.name AS album_name, m.uploaded_by, m.uploaded_at FROM media m LEFT JOIN album al ON al.id = m.album
-       WHERE m.uploaded_at < ? AND m.key NOT IN (SELECT media FROM post_media) ORDER BY m.uploaded_at DESC, m.key LIMIT ?`, upper, PHOTO_WINDOW),
+       WHERE m.uploaded_at < ? AND m.for_post = 0 ORDER BY m.uploaded_at DESC, m.key LIMIT ?`, upper, PHOTO_WINDOW),
     q(`SELECT h.at, h.account, h.name, h.person, p.born FROM history h JOIN person p ON p.id = h.person
        WHERE h.kind = 'person' AND h.action = 'added' AND h.level = 'family' AND h.at < ? ORDER BY h.at DESC, h.id DESC LIMIT ?`, upper, PEOPLE_WINDOW),
     q(`SELECT season, ended, json_extract(result, '$.winner.name') AS winner FROM campaign_season

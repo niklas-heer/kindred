@@ -4,7 +4,7 @@ import { createFileRoute } from '@tanstack/react-router';
 // members of that family may see it, and only pictures the family's database lists are served. A browser
 // may keep its own copy (a picture never changes under its name); no shared cache may. With ?size=thumb it is the
 // picture's small copy (migration 0023), or the picture itself when it has none. A share-link guest is a reader of the
-// gallery, but not of the family's feed: a picture that came with a post is not served to them (docs/feed.md).
+// gallery, but not of the family's feed: a picture uploaded for a post, sent or not, is not served to them (docs/feed.md).
 export const Route = createFileRoute('/api/media/$tree/$key')({
   server: {
     handlers: {

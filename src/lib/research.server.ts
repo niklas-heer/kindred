@@ -61,7 +61,7 @@ export async function listProjects(tree: string, who: Who): Promise<ProjectSumma
   const rows = await db(tree).all<ProjectRow & { documents: number; pictures: number; notes: number; people: number; places: number }>(
     `SELECT p.*,
        (SELECT count(*) FROM research_document x WHERE x.project = p.id ${privateFilter(see, 'x.')}) AS documents,
-       (SELECT count(*) FROM research_picture x WHERE x.project = p.id) AS pictures,
+       (SELECT count(*) FROM research_picture x JOIN media m ON m.key = x.media WHERE x.project = p.id AND m.for_post = 0) AS pictures,
        (SELECT count(*) FROM research_note x WHERE x.project = p.id ${privateFilter(see, 'x.')}) AS notes,
        (SELECT count(*) FROM research_person x WHERE x.project = p.id ${privateFilter(see, 'x.')}) AS people,
        (SELECT count(*) FROM research_place x WHERE x.project = p.id) AS places
@@ -85,9 +85,10 @@ export async function projectView(tree: string, id: string, who: Who): Promise<P
     d.all<Record<string, never> & DocumentRow>(`SELECT * FROM research_document WHERE project = ? ${privateFilter(see)} ORDER BY coalesce(date, '9999'), created_at, id`, id),
     d.all<Record<string, never> & NoteRow>(`SELECT * FROM research_note WHERE project = ? ${privateFilter(see)} ORDER BY coalesce(date, '9999'), created_at, id`, id),
     d.all<{ media: string; taken: string | null; caption: string | null; created_by: string; created_by_name: string }>(
-      // A picture with a living person in it comes to a protected guest without its caption or date (protect-living.ts).
+      // A picture with a living person in it comes to a protected guest without its caption or date (protect-living.ts). A
+      // picture uploaded for a post is the members' alone, and research, which a guest reads, never shows one.
       `SELECT r.media, ${pictureColumn('m.taken', who.protectLiving)} AS taken, ${pictureColumn('m.caption', who.protectLiving)} AS caption, r.created_by, r.created_by_name
-         FROM research_picture r JOIN media m ON m.key = r.media WHERE r.project = ? ORDER BY r.created_at, r.media`, id),
+         FROM research_picture r JOIN media m ON m.key = r.media WHERE r.project = ? AND m.for_post = 0 ORDER BY r.created_at, r.media`, id),
     d.all<{ person: string; private: number; created_by: string; created_by_name: string }>(
       `SELECT person, private, created_by, created_by_name FROM research_person WHERE project = ? ${privateFilter(see)} ORDER BY created_at, person`, id),
     d.all<{ place: string; created_by: string; created_by_name: string }>(
@@ -333,7 +334,10 @@ const LINK: Record<LinkKind, { table: string; column: string; parent: string; pa
   place: { table: 'research_place', column: 'place', parent: 'place', parentKey: 'name', gone: 'research.err.place_gone' },
 };
 
-/** Links a gallery picture, a person or a place to a project. A link that already exists is left as it is. */
+/**
+ * Links a gallery picture, a person or a place to a project. A link that already exists is left as it is. A picture uploaded
+ * for a post (`media.for_post`) is refused: a share-link guest reads research, and that picture is the members' alone.
+ */
 export function addLink(tree: string, who: Who, project: string, kind: LinkKind, target: string, makePrivate: boolean, op: OpKey | undefined) {
   return once(tree, op, 'researchAddLink', async (d) => {
     needs(who, 'add-research');
@@ -342,12 +346,15 @@ export function addLink(tree: string, who: Who, project: string, kind: LinkKind,
     const l = LINK[kind];
     const linked = await d.get(`SELECT 1 AS x FROM ${l.table} WHERE project = ? AND ${l.column} = ?`, project, target);
     if (!(await d.get(`SELECT 1 AS x FROM ${l.parent} WHERE ${l.parentKey} = ?`, target))) throw new Error(l.gone);
+    if (kind === 'picture' && (await d.get('SELECT 1 AS x FROM media WHERE key = ? AND for_post = 1', target))) throw new Error('research.err.picture_of_a_post');
     const flag = kind === 'person' ? ', private' : '';
     const flagValue = kind === 'person' ? `, ${makePrivate ? 1 : 0}` : '';
     return {
       writes: [
         projectStillThere(project),
-        kind === 'person' ? personExists(target) : guard(`EXISTS (SELECT 1 FROM ${l.parent} WHERE ${l.parentKey} = ?)`, target),
+        kind === 'person' ? personExists(target)
+          : kind === 'picture' ? guard('EXISTS (SELECT 1 FROM media WHERE key = ? AND for_post = 0)', target)
+            : guard(`EXISTS (SELECT 1 FROM ${l.parent} WHERE ${l.parentKey} = ?)`, target),
         q(`INSERT INTO ${l.table} (project, ${l.column}${flag}, created_by, created_by_name, created_at) VALUES (?, ?${flagValue}, ?, ?, ?) ON CONFLICT (project, ${l.column}) DO NOTHING`,
           project, target, who.id, who.name, now()),
         touch(project),

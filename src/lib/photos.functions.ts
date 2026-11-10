@@ -77,7 +77,8 @@ export const personPhotosQuery = (t: string, id: string) =>
 
 /**
  * Adds one picture, with the thumbnail the browser made of it when there is one. The browser has already scaled both down
- * and dropped their EXIF and GPS; pictureIn and checkedThumb drop them again.
+ * and dropped their EXIF and GPS; pictureIn and checkedThumb drop them again. With `forPost` = "1" (the composer's upload)
+ * the picture is marked as meant for a post from the moment it is stored (photos.server.ts `NewPhoto.forPost`).
  */
 export const addGalleryPhoto = createServerFn({ method: 'POST' })
   .validator((d: unknown) => {
@@ -91,16 +92,17 @@ export const addGalleryPhoto = createServerFn({ method: 'POST' })
       place: text(200).parse(field(d, 'place')),
       caption: text(1000).parse(field(d, 'caption')),
       album: albumId.parse(field(d, 'album')),
+      forPost: field(d, 'forPost') === '1',
       opKey: opKey.parse(field(d, 'opKey') || undefined),
     };
   })
   .handler(async ({ data }) => {
     const m = await requireCan(data.tree, 'upload-photo');
-    const { form, tree: t, opKey: k, width, height, taken, place, caption, album: albumOf } = data;
+    const { form, tree: t, opKey: k, width, height, taken, place, caption, album: albumOf, forPost } = data;
     const { file, bytes, mime } = await pictureIn(form, 12_000_000);
     // The small copy for tiles, made by the browser; checked and cleaned like the photo.
     const thumb = await (await import('./picture-in')).checkedThumb(form.get('thumb'));
-    const details = { width, height, taken, place, caption, album: albumOf };
+    const details = { width, height, taken, place, caption, album: forPost ? null : albumOf, forPost };
     return (await server()).addPhoto(t, m.user.id, bytes, { ...details, mime }, opOf(m.user.id, { opKey: k, tree: t, file, ...details }), thumb ?? undefined);
   });
 

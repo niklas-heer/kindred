@@ -17,9 +17,17 @@ CREATE TABLE post (
 CREATE INDEX post_created ON post (created_at, id);
 CREATE INDEX post_account ON post (account);
 
--- A post's pictures, in their order. Each is an ordinary gallery picture (a `media` row, uploaded through the gallery's
--- own code), so it has a thumbnail, can be tagged, and is in the Gallery under "From the feed". A picture belongs to at
--- most one post.
+-- A picture uploaded from the composer is meant for a post from the moment it is stored: `for_post = 1`, set only by the
+-- server, on an upload that says so. A marked picture is the members' alone (a share-link guest never sees it, research
+-- cannot link it, the feed and "What's new" do not list it as an added photo), and only a marked picture can become a
+-- post's, so removing a post deletes only what was uploaded for it. A marked picture in no post is a leftover of a post
+-- never made: nobody sees it, its writer may delete it, and the daily job deletes it after a day.
+ALTER TABLE media ADD COLUMN for_post INTEGER NOT NULL DEFAULT 0 CHECK (for_post IN (0, 1));
+CREATE INDEX media_for_post ON media (for_post, uploaded_at);
+
+-- A post's pictures, in their order. Each is a gallery picture (a `media` row, uploaded through the gallery's own code,
+-- marked `for_post`), so it has a thumbnail, can be tagged, and is in the members' Gallery under "From messages". A
+-- picture belongs to at most one post.
 CREATE TABLE post_media (
   post TEXT NOT NULL REFERENCES post (id) ON DELETE CASCADE,
   media TEXT NOT NULL UNIQUE REFERENCES media (key) ON DELETE CASCADE,

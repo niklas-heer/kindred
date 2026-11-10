@@ -54,8 +54,8 @@ const post = (tree: string, id: string, when: string, body = 'Hello', by = mara)
   run(tree, 'INSERT INTO post (id, account, author_name, author_person, body, created_at) VALUES (?, ?, ?, ?, ?, ?)', id, by.id, by.name, by.person, body, when);
 const story = (tree: string, id: string, when: string, kind = 'memory', person = 'ada') =>
   run(tree, 'INSERT INTO story (id, person, kind, title, body, author, at) VALUES (?, ?, ?, ?, ?, ?, ?)', id, person, kind, null, `Story ${id}`, 'Mara Alder', when);
-const photo = (tree: string, key: string, when: string, album: string | null = null, by = mara.id) =>
-  run(tree, 'INSERT INTO media (key, mime, width, height, album, uploaded_by, uploaded_at) VALUES (?, ?, 4, 3, ?, ?, ?)', `gallery/${key}.jpg`, 'image/jpeg', album, by, when);
+const photo = (tree: string, key: string, when: string, album: string | null = null, by = mara.id, forPost = 0) =>
+  run(tree, 'INSERT INTO media (key, mime, width, height, album, uploaded_by, uploaded_at, for_post) VALUES (?, ?, 4, 3, ?, ?, ?, ?)', `gallery/${key}.jpg`, 'image/jpeg', album, by, when, forPost);
 const addedPerson = (tree: string, id: string, when: string, by = mara, born: string | null = null) =>
   db.db(tree).batch([
     db.q('INSERT INTO person (id, given, surname, born, living) VALUES (?, ?, ?, ?, 1)', id, id, 'Alder', born),
@@ -98,8 +98,9 @@ test('a page mixes posts, memories and answers, a day’s photos as one entry, p
   for (let i = 0; i < 30; i++) await photo(t, `lake-${String(i).padStart(2, '0')}`, at('2026-11-06', `09:${String(i).padStart(2, '0')}:00`), 'alb');
   for (let i = 0; i < 3; i++) await photo(t, `loose-${i}`, at('2026-11-06', `08:0${i}:00`));
   await photo(t, 'earlier', at('2026-11-02'));
-  // A post's own pictures are the post's, not a "photos" entry.
-  await photo(t, 'of-the-post', at('2026-11-09', '17:59:00'));
+  // A post's own pictures are the post's, not a "photos" entry; one uploaded for a post never made is nobody's.
+  await photo(t, 'of-the-post', at('2026-11-09', '17:59:00'), null, mara.id, 1);
+  await photo(t, 'for-no-post', at('2026-11-09', '17:58:00'), null, mara.id, 1);
   await run(t, "INSERT INTO post_media (post, media, ord) VALUES ('00000000-0000-4000-8000-000000000001', 'gallery/of-the-post.jpg', 0)");
   // Two people added on one day by one member are one entry; one of them was born that week.
   await addedPerson(t, 'dan', at('2026-11-05', '10:00:00'));

@@ -30,7 +30,8 @@ In `migrations/tree`:
 - `0026_history.sql` adds the change history table, empty: changes made before it are not in the history.
 - `0027_reactions_comments.sql` adds the tables for reactions, comments and the answer push, and one column on `story`.
 - `0028_today.sql` adds the five tables for the Today page and the daily quiz.
-- `0029_posts.sql` adds the three tables of the family feed and an index on gallery pictures. It also makes the tables of
+- `0029_posts.sql` adds the three tables of the family feed, a column marking a gallery picture uploaded for a post, and
+  two indexes on gallery pictures. It also makes the tables of
   reactions and comments again, with the rows they had, so that a post can be reacted to and commented on.
 
 Every one adds columns or new tables and changes no row you have (`0029_posts.sql` copies the reactions and comments into
@@ -47,7 +48,8 @@ database that has had these migrations.
   a day's photographs as one entry, people added to the tree and a Campaign season's end, newest first, and pages back at
   the press of a button. The question of the week, the quiz, the week's dates, "What's new" and the Campaign stand beside
   it on a wide screen and fold into a strip above it on a phone. A message's pictures are gallery pictures ("From
-  messages" in the Gallery); a share-link guest gets no feed and none of those pictures. A message is not in the change
+  messages" in the Gallery); a share-link guest gets no feed and none of those pictures, from the moment they are
+  uploaded. Pictures uploaded for a message that is never sent are deleted, by the composer or a day later by the daily job. A message is not in the change
   history, but "What's new" and the weekly push count it, and each device can ask to be told about a new message (at most
   one push in six hours). One composer writes a message or a memory, from Today and from the Chronicle. The Markdown
   archive carries the messages in `feed/`. See docs/feed.md.

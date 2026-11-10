@@ -21,10 +21,20 @@ const cols = (protectLiving: boolean) =>
   '(SELECT pm.post FROM post_media pm WHERE pm.media = m.key) AS post';
 
 /**
- * The pictures a share-link guest may see, as a condition on `m`: not the ones shared in a post. A post is the family
- * talking among themselves (docs/feed.md), and a guest sees none of it, so not its pictures in the Gallery either.
+ * The pictures a share-link guest may see, as a condition on `m`: none uploaded for a post (`media.for_post`, tree migration
+ * 0029), whether the post was made or not. A post is the family talking among themselves (docs/feed.md), and a guest sees
+ * none of it, so not its pictures in the Gallery either, from the moment they are stored.
  */
-export const NOT_FROM_A_POST = 'm.key NOT IN (SELECT media FROM post_media)';
+export const NOT_FOR_A_POST = 'm.for_post = 0';
+
+/**
+ * The pictures a member sees in the Gallery, as a condition on `m`: every one but a leftover, a picture uploaded for a post
+ * that was never made (posts.server.ts deletes those).
+ */
+export const NOT_A_LEFTOVER = '(m.for_post = 0 OR m.key IN (SELECT media FROM post_media))';
+
+/** The condition on `m` for what this reader sees of the gallery. */
+export const galleryFor = (guest: boolean) => (guest ? NOT_FOR_A_POST : NOT_A_LEFTOVER);
 
 /**
  * Media rows matching `where` (an SQL condition on `m`), each with its tags, newest upload first. With `protectLiving` (a guest
@@ -60,22 +70,25 @@ async function withTags(d: Db, where: string, params: Param[], protectLiving = f
   }));
 }
 
-/** The whole gallery for a family: every photo with its tags, and the albums. A `guest` gets no picture that came with a post. */
+/**
+ * The whole gallery for a family: every photo with its tags, and the albums. A `guest` gets no picture uploaded for a post;
+ * nobody gets a leftover of a post never made.
+ */
 export async function gallery(tree: string, protectLiving = false, guest = false): Promise<Gallery> {
   const d = db(tree);
   const [items, albums] = await Promise.all([
-    withTags(d, guest ? NOT_FROM_A_POST : '1 = 1', [], protectLiving),
-    d.all<{ id: string; name: string; n: number }>('SELECT a.id, a.name, (SELECT count(*) FROM media m WHERE m.album = a.id) AS n FROM album a ORDER BY a.name COLLATE NOCASE'),
+    withTags(d, galleryFor(guest), [], protectLiving),
+    d.all<{ id: string; name: string; n: number }>(`SELECT a.id, a.name, (SELECT count(*) FROM media m WHERE m.album = a.id AND ${galleryFor(guest)}) AS n FROM album a ORDER BY a.name COLLATE NOCASE`),
   ]);
   return { media: items, albums: albums.map((a): Album => ({ id: a.id, name: a.name, count: a.n })) };
 }
 
 /**
  * The photos a person is confirmed in. With `protectLiving`, none for a living person: that list is their tags. A `guest`
- * gets no picture that came with a post.
+ * gets no picture uploaded for a post; nobody gets a leftover.
  */
 export function personMedia(tree: string, person: string, protectLiving = false, guest = false): Promise<MediaItem[]> {
-  const where = `m.key IN (SELECT mp.media FROM media_person mp WHERE mp.person = ? AND mp.confirmed = 1${protectLiving ? ` AND mp.person NOT IN (${LIVING_IDS})` : ''})${guest ? ` AND ${NOT_FROM_A_POST}` : ''}`;
+  const where = `m.key IN (SELECT mp.media FROM media_person mp WHERE mp.person = ? AND mp.confirmed = 1${protectLiving ? ` AND mp.person NOT IN (${LIVING_IDS})` : ''}) AND ${galleryFor(guest)}`;
   return withTags(db(tree), where, [person], protectLiving);
 }
 
@@ -84,8 +97,8 @@ export function personMedia(tree: string, person: string, protectLiving = false,
  * one (photos uploaded before migration 0023 have none, and get the photo). The route serves only what this finds.
  */
 export async function pictureFor(tree: string, key: string, thumb: boolean, guest = false): Promise<{ key: string; mime: string } | undefined> {
-  // A guest is not served a picture that came with a post, as if it were not there.
-  const row = await db(tree).get<{ mime: string; thumb: string | null }>(`SELECT m.mime, m.thumb FROM media m WHERE m.key = ?${guest ? ` AND ${NOT_FROM_A_POST}` : ''}`, key);
+  // A guest is not served a picture uploaded for a post, as if it were not there.
+  const row = await db(tree).get<{ mime: string; thumb: string | null }>(`SELECT m.mime, m.thumb FROM media m WHERE m.key = ?${guest ? ` AND ${NOT_FOR_A_POST}` : ''}`, key);
   if (!row) return undefined;
   // Thumbnails are always made as JPEG by the browser (and checked as a picture on the way in).
   return thumb && row.thumb ? { key: row.thumb, mime: thumbMime(row.thumb) } : { key, mime: row.mime };
@@ -102,13 +115,20 @@ export { sniff } from './picture-in.ts';
 
 export interface NewPhoto {
   mime: string; width: number; height: number; taken: string | null; place: string | null; caption: string | null; album: string | null;
+  /**
+   * Uploaded from the composer for a post (`media.for_post`): the members' alone from this moment, in no album, and no
+   * news by itself (the post is). posts.server.ts attaches it to the post, or deletes it as a leftover.
+   */
+  forPost?: boolean;
 }
 
 /**
  * Stores a picture, its thumbnail when the browser made one, and its details. The pictures are written first; the row is
- * kept only if the batch commits.
+ * kept only if the batch commits. A picture `forPost` writes no history row: it is part of a post, which is not a record.
  */
 export function addPhoto(tree: string, by: string, bytes: Uint8Array, p: NewPhoto, op: OpKey | undefined, thumb?: { bytes: Uint8Array; mime: string }): Promise<MediaItem> {
+  const forPost = !!p.forPost;
+  if (forPost) p = { ...p, album: null };
   return once(tree, op, 'addPhoto', async (d) => {
     if (p.album && !(await d.get('SELECT id FROM album WHERE id = ?', p.album))) throw new Error('photos.err.album_gone');
     const key = newMediaKey('gallery', p.mime);
@@ -130,10 +150,10 @@ export function addPhoto(tree: string, by: string, bytes: Uint8Array, p: NewPhot
     return {
       writes: [
         ...(p.album ? [guard('EXISTS (SELECT 1 FROM album WHERE id = ?)', p.album)] : []),
-        q('INSERT INTO media (key, mime, width, height, taken, place, caption, album, uploaded_by, uploaded_at, thumb) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          key, p.mime, p.width, p.height, p.taken, p.place, p.caption, p.album, by, at, thumbKey),
+        q('INSERT INTO media (key, mime, width, height, taken, place, caption, album, uploaded_by, uploaded_at, thumb, for_post) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          key, p.mime, p.width, p.height, p.taken, p.place, p.caption, p.album, by, at, thumbKey, forPost ? 1 : 0),
       ],
-      history: [added('photo', key, { label: p.caption })],
+      history: forPost ? [] : [added('photo', key, { label: p.caption })],
       result: item,
       abandon: () => Promise.all([key, thumbKey].filter((k): k is string => !!k).map((k) => media.delete(tree, k).catch(() => {}))).then(() => {}),
     };
@@ -160,11 +180,12 @@ export function editPhoto(tree: string, key: string, patch: Pick<NewPhoto, 'take
 /** Deletes a photo with its tags, and its picture from storage once the delete has committed. */
 export function removePhoto(tree: string, key: string, op: OpKey | undefined) {
   return once(tree, op, 'removePhoto', async (d) => {
-    const row = await d.get<{ thumb: string | null; caption: string | null }>('SELECT thumb, caption FROM media WHERE key = ?', key);
+    const row = await d.get<{ thumb: string | null; caption: string | null; for_post: number }>('SELECT thumb, caption, for_post FROM media WHERE key = ?', key);
     if (!row) throw new Error('photos.err.photo_already_gone');
     return {
       writes: [guard('EXISTS (SELECT 1 FROM media WHERE key = ?)', key), q('DELETE FROM media WHERE key = ?', key)],
-      history: [removed('photo', key, { label: row.caption })],
+      // A picture uploaded for a post was no news when it came, and is none when it goes.
+      history: row.for_post ? [] : [removed('photo', key, { label: row.caption })],
       result: undefined,
       // The photo and its thumbnail both go.
       after: async () => {

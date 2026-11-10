@@ -66,8 +66,8 @@ export const personPostsQuery = (t: string, id: string) =>
 // ---------- changes ----------
 
 /**
- * Writes a post. Its pictures are gallery pictures the writer uploaded just before (addGalleryPhoto in
- * photos.functions.ts), named here by their keys. The devices that asked are told afterwards; the page does not wait.
+ * Writes a post. Its pictures are gallery pictures the writer uploaded just before for it (addGalleryPhoto in
+ * photos.functions.ts, with `forPost`), named here by their keys. The devices that asked are told afterwards; the page does not wait.
  */
 export const createPost = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, body, media: z.array(mediaKey).max(MAX_POST_MEDIA).default([]), people: people.default([]), opKey }))
@@ -91,4 +91,16 @@ export const removePost = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const me = await who(data.tree);
     return (await posts()).removePost(data.tree, me, data.id, opOf(me.id, data));
+  });
+
+/**
+ * Deletes the reader's own pictures uploaded for a post that is not being made: the composer calls it when the writer
+ * cancels or the post is refused. Only pictures marked for a post, uploaded by this member and in no post go; the daily
+ * job deletes any it missed after a day (posts.server.ts `sweepLeftovers`).
+ */
+export const discardPostPictures = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, media: z.array(mediaKey).min(1).max(MAX_POST_MEDIA), opKey }))
+  .handler(async ({ data }) => {
+    const me = await who(data.tree);
+    return (await posts()).discardPictures(data.tree, me, data.media, opOf(me.id, data));
   });

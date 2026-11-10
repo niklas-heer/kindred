@@ -8,8 +8,10 @@
 //   <Composer tree={tree} onClose={close} edit={post} />      changing your own message: its words and who it is about
 //
 // A message's pictures go through the gallery's own upload (scaled down and stripped of their location data in the
-// browser, a small copy for tiles beside each), one by one, and then the message names them. A retry never sends a
-// picture or the message twice (one key per step).
+// browser, a small copy for tiles beside each), one by one, marked as meant for a post, and then the message names them.
+// A retried request never sends a picture or the message twice (one key per step). Pictures uploaded for a message that
+// is then refused, or not sent at all (the window closed), are deleted again at once, best effort; the server deletes any
+// it missed after a day (posts.server.ts `sweepLeftovers`), and nobody sees them meanwhile.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ImagePlus, UserPlus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -23,7 +25,7 @@ import { Dialog, Notice, Segmented } from '~/components/ui';
 import { chronicleQuery, opKeys } from '~/lib/api';
 import { errorText } from '~/lib/errortext';
 import { useFamily, useMeChosen } from '~/lib/family';
-import { createPost, editPost } from '~/lib/feed/feed.functions';
+import { createPost, discardPostPictures, editPost } from '~/lib/feed/feed.functions';
 import { MAX_POST, MAX_POST_MEDIA, MAX_POST_PEOPLE, type PostView } from '~/lib/feed/types';
 import { displayName } from '~/lib/graph';
 import { useT } from '~/lib/i18n';
@@ -126,6 +128,14 @@ function PostForm({ tree, edit, files, active, onDirty, onClose }: {
   const [keys] = useState(opKeys);
   const previews = useRef<string[]>([]);
   const started = useRef(false);
+  // The pictures stored for this message and not yet in it; each attempt after a refusal uploads them afresh.
+  const [uploaded] = useState(() => new Set<string>());
+  const attempt = useRef(0);
+  const [discard] = useState(() => () => {
+    const media = [...uploaded];
+    uploaded.clear();
+    if (media.length) void discardPostPictures({ data: { tree, media } }).catch(() => {});
+  });
 
   useEffect(() => {
     if (started.current || !files?.length) return;
@@ -135,6 +145,8 @@ function PostForm({ tree, edit, files, active, onDirty, onClose }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => () => previews.current.forEach((u) => URL.revokeObjectURL(u)), []);
+  // Closed without sending: what was uploaded for it goes.
+  useEffect(() => discard, [discard]);
   useEffect(() => { if (picking) picker.current?.querySelector('input')?.focus(); }, [picking]);
 
   const text = body.trim();
@@ -197,8 +209,10 @@ function PostForm({ tree, edit, files, active, onDirty, onClose }: {
           fd.set('place', '');
           fd.set('caption', '');
           fd.set('album', '');
-          fd.set('opKey', keys.for(p.id, [p.name, p.blob!.size]));
+          fd.set('forPost', '1');
+          fd.set('opKey', keys.for(`${p.id}:${attempt.current}`, [p.name, p.blob!.size]));
           const photo = await addGalleryPhoto({ data: fd });
+          uploaded.add(photo.key);
           update(p.id, { status: 'added', key: photo.key });
           sent.push(photo.key);
         } catch (e) {
@@ -211,6 +225,7 @@ function PostForm({ tree, edit, files, active, onDirty, onClose }: {
       await createPost({ data: { ...data, opKey: keys.for('post', data) } });
     },
     onSuccess: async () => {
+      uploaded.clear();
       keys.clear();
       onDirty(false);
       await Promise.all([
@@ -220,7 +235,13 @@ function PostForm({ tree, edit, files, active, onDirty, onClose }: {
       if (!edit) toast({ title: t('feed.compose.shared'), body: t('feed.compose.shared_body'), icon: 'quill-ink' });
       onClose();
     },
-    onError: () => { setProgress(null); if (pictures.some((p) => p.key)) void refreshPhotos(qc, tree); },
+    // Refused or failed: the pictures uploaded for it are deleted, and a second try sends them again.
+    onError: () => {
+      setProgress(null);
+      attempt.current += 1;
+      discard();
+      setPictures((list) => list.map((p) => (p.key ? { ...p, key: undefined, status: 'ready' } : p.status === 'failed' ? { ...p, status: 'ready' } : p)));
+    },
   });
 
   const preparing = pictures.some((p) => p.status === 'preparing');

@@ -54,7 +54,8 @@ export async function researchArchive(tree: string): Promise<ResearchArchive> {
     d.all<Note>('SELECT n.* FROM research_note n JOIN research_project p ON p.id = n.project WHERE n.private = 0 AND p.private = 0 ORDER BY n.created_at, n.id'),
     d.all<Named>("SELECT l.project, trim(coalesce(p.given, '') || ' ' || coalesce(p.surname, '')) AS name FROM research_person l JOIN person p ON p.id = l.person WHERE l.private = 0 ORDER BY l.created_at"),
     d.all<Named>('SELECT project, place AS name FROM research_place ORDER BY created_at'),
-    d.all<Named>('SELECT project, media AS name FROM research_picture ORDER BY created_at'),
+    // A picture uploaded for a post is not research's to list (research.server.ts refuses the link).
+    d.all<Named>('SELECT r.project, r.media AS name FROM research_picture r JOIN media m ON m.key = r.media WHERE m.for_post = 0 ORDER BY r.created_at'),
     d.get<{ n: number }>(`SELECT
       (SELECT count(*) FROM research_project WHERE private = 1)
       + (SELECT count(*) FROM research_document d JOIN research_project p ON p.id = d.project WHERE d.private = 1 AND p.private = 0)

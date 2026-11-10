@@ -84,9 +84,9 @@ function populatedFamily(name: string): DatabaseSync {
     INSERT INTO house_meaning (house, name, family_words, meanings, web_searched, note, saved_at, saved_by) VALUES ('h1', 'O''Neill', 'The champion''s line', '[{"id":"m1","language":"Irish","root":"Niall","meaning":"champion","attestation":"well-attested","ideas":[],"chosen":true}]', 1, '', ${Date.now()}, 'ada');
     INSERT INTO house_arms_review (house, fingerprint, verdict, reason, advice, locale, checked_at, checked_by, dismissed_fingerprint) VALUES ('h1', 'f00d', 'partly', 'Some elements speak to it.', 'Add a charge for the trade.', 'en', ${Date.now()}, 'ada', '');
     INSERT INTO album (id, name, at) VALUES ('al1', 'Summer ''41', '${now}');
-    INSERT INTO media (key, mime, width, height, taken, place, caption, album, uploaded_by, uploaded_at) VALUES
-      ('gallery/g1.jpg', 'image/jpeg', 800, 600, '1941-06', 'Lindby', 'On the steps', 'al1', 'Ben', '${now}'),
-      ('gallery/g2.jpg', 'image/png', 10, 10, NULL, NULL, NULL, NULL, 'Ben', '${now}');
+    INSERT INTO media (key, mime, width, height, taken, place, caption, album, uploaded_by, uploaded_at, for_post) VALUES
+      ('gallery/g1.jpg', 'image/jpeg', 800, 600, '1941-06', 'Lindby', 'On the steps', 'al1', 'Ben', '${now}', 0),
+      ('gallery/g2.jpg', 'image/png', 10, 10, NULL, NULL, NULL, NULL, 'Ben', '${now}', 1);
     INSERT INTO media_person (media, person, x, y, w, h, confirmed, tagged_by, at) VALUES ('gallery/g1.jpg', 'ada', 0.1, 0.1, 0.2, 0.3, 1, 'Ben', '${now}');
     INSERT INTO portrait (key, person, mime, source, source_year, model, created_by, created_at, accepted) VALUES ('portrait/ada-1.png', 'ada', 'image/png', 'gallery/g1.jpg', 1941, 'openai/gpt-image-2', 'Ben', '${now}', 1);
     INSERT INTO occupation_translation (text, locale, label) VALUES ('Baker', 'de', 'Bäcker');
@@ -144,6 +144,7 @@ test('a populated family written with the transfer’s own SQL lands in an empty
   assert.equal((target.prepare("SELECT value FROM meta WHERE key = 'name'").get() as { value: string }).value, "Ruff's family");
   assert.equal((target.prepare("SELECT surname FROM person WHERE id = 'ben'").get() as { surname: string }).surname, "O'Brien", 'quotes survive');
   assert.equal((target.prepare("SELECT further_given FROM person WHERE id = 'ada'").get() as { further_given: string }).further_given, '["Augusta","Byron"]', 'the further given names are copied');
+  assert.deepEqual(target.prepare('SELECT key, for_post FROM media ORDER BY key').all().map((r) => ({ ...r })), [{ key: 'gallery/g1.jpg', for_post: 0 }, { key: 'gallery/g2.jpg', for_post: 1 }], 'a post’s picture stays marked as uploaded for it');
   target.close();
 });
 

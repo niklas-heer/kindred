@@ -92,15 +92,17 @@ const PICTURE = '00000000-0000-4000-8000-0000000000e1.jpg';
 const GRAN_PICTURE = '00000000-0000-4000-8000-0000000000e2.jpg';
 const SUGGESTED_PICTURE = '00000000-0000-4000-8000-0000000000e3.jpg';
 const POST_PICTURE = '00000000-0000-4000-8000-0000000000e4.jpg';
+/** A picture uploaded from the composer for a post that was never made: the members' too, from its first second. */
+const LEFTOVER_PICTURE = '00000000-0000-4000-8000-0000000000e5.jpg';
 const POST = '00000000-0000-4000-8000-0000000000f1';
 /** The family's feed (docs/feed.md): a guest gets none of it, protected link or not, though this post is about the dead. */
-const FEED_ONLY = ['POST-TEXT-FOR-MEMBERS', 'POST-CAPTION-TEXT', 'POST-COMMENT-TEXT', POST_PICTURE];
+const FEED_ONLY = ['POST-TEXT-FOR-MEMBERS', 'POST-CAPTION-TEXT', 'POST-COMMENT-TEXT', POST_PICTURE, 'LEFTOVER-CAPTION-TEXT', LEFTOVER_PICTURE];
 
 /** The route's own GET handler, as the server calls it. */
-async function get(route: string, params: Record<string, string>) {
+async function get(route: string, params: Record<string, string>, query = '') {
   const { Route } = await load<{ Route: { options: unknown } }>(`/src/routes/api/${route}.ts`);
   const { GET } = (Route.options as { server: { handlers: { GET: (c: { params: Record<string, string>; request: Request }) => Promise<Response> } } }).server.handlers;
-  return GET({ params, request: new Request('http://localhost/') });
+  return GET({ params, request: new Request(`http://localhost/${query}`) });
 }
 
 before(async () => {
@@ -149,10 +151,12 @@ before(async () => {
   // A post in the family's feed about the grandmother, with a picture of her and a comment under it.
   await d.run("INSERT INTO post (id, account, author_name, body, created_at) VALUES (?, ?, 'steward', 'POST-TEXT-FOR-MEMBERS', '2026-01-04T10:00:00.000Z')", POST, STEWARD);
   await d.run("INSERT INTO post_person (post, person) VALUES (?, 'gran')", POST);
-  await d.run("INSERT INTO media (key, mime, caption, uploaded_by, uploaded_at) VALUES (?, 'image/jpeg', 'POST-CAPTION-TEXT', ?, '2026-01-04')", `gallery/${POST_PICTURE}`, STEWARD);
-  await dbs.media.put(TREE, `gallery/${POST_PICTURE}`, new Uint8Array([255, 216, 255]), 'image/jpeg');
+  for (const [key, caption] of [[POST_PICTURE, 'POST-CAPTION-TEXT'], [LEFTOVER_PICTURE, 'LEFTOVER-CAPTION-TEXT']]) {
+    await d.run("INSERT INTO media (key, mime, caption, uploaded_by, uploaded_at, for_post) VALUES (?, 'image/jpeg', ?, ?, '2026-01-04', 1)", `gallery/${key}`, caption, STEWARD);
+    await dbs.media.put(TREE, `gallery/${key}`, new Uint8Array([255, 216, 255]), 'image/jpeg');
+    await tag(key, 'gran', 1);
+  }
   await d.run('INSERT INTO post_media (post, media, ord) VALUES (?, ?, 0)', POST, `gallery/${POST_PICTURE}`);
-  await tag(POST_PICTURE, 'gran', 1);
   await d.run("INSERT INTO comment (id, target_kind, target, account, author_name, body, created_at) VALUES ('c-post', 'post', ?, ?, 'steward', 'POST-COMMENT-TEXT', '2026-01-04T11:00:00.000Z')", POST, STEWARD);
   // Research about the child, and research about her grandmother.
   for (const [id, title, who, doc, docTitle] of [['pkid', 'KID-PROJECT-TITLE', 'kid', KID_DOC, 'KID-DOC-TITLE'], ['pgran', 'GRAN-PROJECT-TITLE', 'gran', GRAN_DOC, 'Gran document']]) {
@@ -162,8 +166,9 @@ before(async () => {
     await dbs.media.put(TREE, `research/${doc}`, new Uint8Array([37, 80, 68, 70]), 'application/pdf');
   }
   await d.run("INSERT INTO research_note (id, project, title, body, created_by, created_at, updated_at) VALUES ('n1', 'pkid', 'Note', 'KID-RESEARCH-NOTE', 'x', '2026-01-01', '2026-01-01')");
-  // The grandmother's research holds the picture with the child in it, and one of her alone.
-  for (const key of [PICTURE, GRAN_PICTURE]) {
+  // The grandmother's research holds the picture with the child in it, and one of her alone; and, as no change can link them
+  // any more (research.server.ts refuses), the post's picture and the leftover: research must not show them either.
+  for (const key of [PICTURE, GRAN_PICTURE, POST_PICTURE, LEFTOVER_PICTURE]) {
     await d.run("INSERT INTO research_picture (project, media, created_by, created_at) VALUES ('pgran', ?, 'x', '2026-01-01')", `gallery/${key}`);
   }
   await store.accounts().run('INSERT INTO user (id, name, handle, created) VALUES (?, ?, ?, ?)', STEWARD, 'steward', 'handle-steward-living', Date.now());
@@ -252,7 +257,10 @@ test('the control: with the setting off, the same guest gets what it got before'
   assert.ok(!all.includes('KID-PHONE-0000'), 'and still no fields at all');
   // The family's feed is the members': no post, no comment on one, and not its picture in the Gallery or on a person's page.
   for (const feed of FEED_ONLY) assert.ok(!all.includes(feed), `a guest got "${feed}" from the family's feed`);
-  assert.equal((await get('media.$tree.$key', { tree: TREE, key: POST_PICTURE })).status, 404, 'a post’s picture is not served to a guest');
+  for (const key of [POST_PICTURE, LEFTOVER_PICTURE]) {
+    assert.equal((await get('media.$tree.$key', { tree: TREE, key })).status, 404, 'a picture uploaded for a post is not served to a guest');
+    assert.equal((await get('media.$tree.$key', { tree: TREE, key }, '?size=thumb')).status, 404, 'nor its small copy');
+  }
   assert.equal((await get('media.$tree.$key', { tree: TREE, key: GRAN_PICTURE })).status, 200, 'an ordinary gallery picture is');
 });
 

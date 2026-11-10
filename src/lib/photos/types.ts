@@ -25,7 +25,7 @@ export interface MediaItem {
   uploadedBy: string;
   uploadedAt: string;
   tags: Tag[];
-  /** The post in the family's feed it was shared with (docs/feed.md), when it was. Members only: a guest gets no such picture. */
+  /** The post in the family's feed it was shared with (docs/feed.md), when it was. Members only: a guest gets no picture uploaded for a post. */
   post?: string;
 }
 

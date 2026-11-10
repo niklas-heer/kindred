@@ -118,7 +118,9 @@ async function linkGuards(d: Db, who: LifeReader, input: SourceInput): Promise<Q
   }
   if (input.media) {
     if (!(await d.get('SELECT key FROM media WHERE key = ?', input.media))) throw new Error('sources.err.picture_gone');
-    out.push(guard('EXISTS (SELECT 1 FROM media WHERE key = ?)', input.media));
+    // A picture uploaded for a post goes with the post: a source cannot rest on it.
+    if (await d.get('SELECT key FROM media WHERE key = ? AND for_post = 1', input.media)) throw new Error('sources.err.picture_of_a_post');
+    out.push(guard('EXISTS (SELECT 1 FROM media WHERE key = ? AND for_post = 0)', input.media));
   }
   return out;
 }

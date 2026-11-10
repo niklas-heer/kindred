@@ -31,15 +31,21 @@ kind of thing they attach to, and they go when it is removed.
 ### Pictures
 
 A message's pictures are gallery pictures. The composer sends each one through the gallery's own upload (scaled down
-and stripped of its location data in the browser, checked again on the server, with a small copy for tiles) and then
-names them in the message. So each has its row in the change history like any photograph, can be opened in the
-gallery's window and tagged with who is in it, and is in the **Gallery** under "From messages". That is a view, not an
-album anyone made: it has no name to change and cannot be deleted.
+and stripped of its location data in the browser, checked again on the server, with a small copy for tiles), marked as
+meant for a message from the moment it is stored, and then names them in the message. So each can be opened in the
+gallery's window and tagged with who is in it, and is in the members' **Gallery** under "From messages". That is a view,
+not an album anyone made: it has no name to change and cannot be deleted.
 
-Removing a message removes its pictures from the Gallery and from storage, and the page says so before it does. The
-removal of each picture is in the change history.
+Only a picture uploaded this way, by the writer and for no other message, can be a message's: an older gallery picture
+cannot. Removing a message removes its pictures from the Gallery and from storage, and the page says so before it does.
+Like the message, its pictures write no row in the change history, coming or going.
 
-A guest's Gallery leaves these pictures out, and the server does not serve one to a guest.
+A picture uploaded for a message is the members' from its first second: a guest's Gallery and a person's photos leave it
+out, the server does not serve it or its small copy to a guest, research cannot link it and a source cannot cite it.
+
+A picture uploaded for a message that is then not sent (the window closed, the message refused) is a leftover. Nobody
+sees it, not even in the Gallery or the feed. The composer deletes its own leftovers when it closes or the message is
+refused, and the daily job (`feed`) deletes any left older than a day, from the database and from storage.
 
 ### Not in the change history
 
@@ -104,7 +110,7 @@ The existing answer push ("tell me when someone reacts to or comments on what I 
 ## Where it is kept
 
 Three tables in the family database (migration `tree/0029_posts.sql`, see [data-model.md](data-model.md)): `post`,
-`post_media` and `post_person`. `reaction` and `comment` take `post` as a third kind of target. The device's switch is
+`post_media` and `post_person`, and `media.for_post`, the mark of a picture uploaded for a message. `reaction` and `comment` take `post` as a third kind of target. The device's switch is
 two columns on `push_subscription` (migration `accounts/0029_post_push.sql`).
 
 The Markdown archive carries the messages and their comments in `feed/`, one file per year

@@ -136,16 +136,17 @@ for (const file of files) {
     // Never in the future: a post "today at 19:05" seeded in the morning was written a moment ago.
     return new Date(Math.min(Date.parse(`${day}T${time}:00.000Z`) + hoursLater * 3_600_000, seeded - 60_000)).toISOString();
   };
-  const mediaRow = db.prepare('INSERT INTO media (key, mime, width, height, caption, album, uploaded_by, uploaded_at, thumb) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  const mediaRow = db.prepare('INSERT INTO media (key, mime, width, height, caption, album, uploaded_by, uploaded_at, thumb, for_post) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   let pictures = 0;
   const store = (key: string, bytes: Uint8Array) => { mkdirSync(dirname(join(mediaDir, key)), { recursive: true }); writeFileSync(join(mediaDir, key), bytes); };
-  const paint = (p: SeedPicture, by: string, at: string, album: string | null): string => {
+  // A post's picture is marked as uploaded for it (media.for_post), as the composer's upload is: the members' alone.
+  const paint = (p: SeedPicture, by: string, at: string, album: string | null, forPost = false): string => {
     // The same name on every seeding, so seeding a deployed demo again replaces its pictures in storage and leaves none behind.
     const id = `seed-${String(pictures + 1).padStart(4, '0')}`;
     const full = drawScene(p.scene, p.seed, 1280, p.tall);
     store(`gallery/${id}.png`, full.png);
     store(`thumb/${id}.png`, drawScene(p.scene, p.seed, 400, p.tall).png);
-    mediaRow.run(`gallery/${id}.png`, 'image/png', full.width, full.height, p.caption ?? null, album, seedAccount(by), at, `thumb/${id}.png`);
+    mediaRow.run(`gallery/${id}.png`, 'image/png', full.width, full.height, p.caption ?? null, album, seedAccount(by), at, `thumb/${id}.png`, forPost ? 1 : 0);
     pictures++;
     return `gallery/${id}.png`;
   };
@@ -166,7 +167,7 @@ for (const file of files) {
     const id = crypto.randomUUID();
     const at = when(p.daysAgo, p.time);
     post.run(id, seedAccount(p.by), shown(p.by), p.by, p.body, at);
-    (p.pictures ?? []).forEach((pic, i) => postMedia.run(id, paint(pic, p.by, at, null), i));
+    (p.pictures ?? []).forEach((pic, i) => postMedia.run(id, paint(pic, p.by, at, null, true), i));
     for (const person of p.people ?? []) postPerson.run(id, person);
     for (const c of p.comments ?? []) comment.run(crypto.randomUUID(), id, seedAccount(c.by), shown(c.by), c.body, when(p.daysAgo, p.time, c.hoursLater));
     (p.reactions ?? []).forEach((r, i) => reaction.run(id, seedAccount(r.by), r.kind, when(p.daysAgo, p.time, 0.2 + i * 0.3)));

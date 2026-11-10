@@ -81,12 +81,13 @@ test('a seed writes the family’s feed: posts by its people, their comments and
     assert.deepEqual(all('SELECT person FROM post_person'), [{ person: 'ben' }]);
     assert.deepEqual(all("SELECT account, author_name, body, created_at FROM comment WHERE target_kind = 'post'"), [{ account: 'seed:ada', author_name: 'Ada King', body: 'More to come.', created_at: '2026-11-05T21:05:00.000Z' }]);
     assert.deepEqual(all("SELECT account, kind FROM reaction WHERE target_kind = 'post'"), [{ account: 'seed:ada', kind: 'heart' }]);
-    // Three pictures: two with the post, in their order, one in an album. Each is a PNG with its small copy, in the media folder.
-    const media = all('SELECT m.key, m.mime, m.width, m.height, m.caption, m.thumb, m.uploaded_by, a.name AS album, pm.ord FROM media m LEFT JOIN album a ON a.id = m.album LEFT JOIN post_media pm ON pm.media = m.key ORDER BY m.uploaded_at, pm.ord');
-    assert.deepEqual(media.map((m) => [m.mime, m.width, m.height, m.caption, m.uploaded_by, m.album, m.ord]), [
-      ['image/png', 1280, 960, 'The boat', 'seed:ada', 'Summer', null],
-      ['image/png', 1280, 960, null, 'seed:ada', null, 0],
-      ['image/png', 960, 1280, null, 'seed:ada', null, 1],
+    // Three pictures: two with the post, in their order and marked as uploaded for it, one in an album. Each is a PNG with its
+    // small copy, in the media folder.
+    const media = all('SELECT m.key, m.mime, m.width, m.height, m.caption, m.thumb, m.uploaded_by, m.for_post, a.name AS album, pm.ord FROM media m LEFT JOIN album a ON a.id = m.album LEFT JOIN post_media pm ON pm.media = m.key ORDER BY m.uploaded_at, pm.ord');
+    assert.deepEqual(media.map((m) => [m.mime, m.width, m.height, m.caption, m.uploaded_by, m.album, m.ord, m.for_post]), [
+      ['image/png', 1280, 960, 'The boat', 'seed:ada', 'Summer', null, 0],
+      ['image/png', 1280, 960, null, 'seed:ada', null, 0, 1],
+      ['image/png', 960, 1280, null, 'seed:ada', null, 1, 1],
     ]);
     for (const m of media) {
       for (const key of [m.key, m.thumb]) {

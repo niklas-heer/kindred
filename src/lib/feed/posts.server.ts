@@ -9,8 +9,13 @@
 //
 // What it promises:
 // - A post is the family talking, not a record: it writes no change history (NOT_A_RECORD). Its pictures are gallery
-//   pictures, uploaded through the gallery's own code before the post is made, so they have their history rows already;
-//   removing a post removes its pictures, and that is in the history as any removed photo is.
+//   pictures, uploaded through the gallery's own code before the post is made, and marked as meant for a post from the
+//   moment they are stored (`media.for_post`, photos.server.ts): a guest never sees one, and they write no history row,
+//   coming or going. Only such a picture, the writer's own and in no other post, can become a post's, so removing a post
+//   deletes only pictures that were uploaded for it.
+// - A marked picture in no post is a leftover of a post never made (cancelled, refused, the window closed): nobody sees it,
+//   its writer may delete it (`discardPictures`, which the composer calls), and the daily job deletes it after a day
+//   (`sweepLeftovers`, jobs/feed.ts).
 // - A post keeps the name it was written under and the person its writer stood for, so it stays, signed, when the member
 //   leaves (auth/members.server.ts).
 // - Every change is a `once` plan whose guards restate what it read (db.server.ts), so a demo and a steward's preview
@@ -18,7 +23,7 @@
 import { fail } from '../auth/guard.server';
 import { forbidden, notMember } from '../auth/errors';
 import { accounts } from '../auth/store.server';
-import { db, guard, media as mediaStore, NOT_A_RECORD, once, q, removed, type Db, type OpKey, type Query } from '../db.server';
+import { db, guard, media as mediaStore, NOT_A_RECORD, once, q, type Db, type OpKey, type Query } from '../db.server';
 import { can, type Role } from '../roles';
 import { seedVoice } from './voice';
 import { MAX_POST, MAX_POSTS_AN_HOUR, MAX_POST_MEDIA, MAX_POST_PEOPLE, cleanPost, type FeedAuthor, type FeedPicture, type PostView } from './types';
@@ -38,6 +43,8 @@ const marks = (xs: readonly unknown[]) => xs.map(() => '?').join(', ');
 const unique = (xs: readonly string[]) => [...new Set(xs)];
 /** A membership's person, when it names one ("-" is "nobody in the tree"). */
 const personOf = (p: string | null | undefined) => (p && p !== '-' ? p : null);
+/** A picture that may become a post's: uploaded for a post, by this writer (the `?`), and in no post yet. A condition on `media`. */
+const FREE_FOR_POST = 'for_post = 1 AND uploaded_by = ? AND key NOT IN (SELECT media FROM post_media)';
 
 // ---------- reads ----------
 
@@ -137,7 +144,8 @@ async function peopleOf(d: Db, ids: readonly string[]): Promise<{ people: string
 
 /**
  * Writes a post under the member's own name. Its pictures were uploaded to the gallery just before (photos.server.ts
- * `addPhoto`): each must be the writer's own upload and in no other post. Answers the post's id.
+ * `addPhoto`, `forPost`): each must be marked for a post, the writer's own upload and in no post yet; no other picture of
+ * the gallery can become a post's. Answers the post's id.
  */
 export async function createPost(tree: string, who: Who, input: PostInput, op?: OpKey, now: Date = new Date()): Promise<{ id: string }> {
   needs(who, 'post');
@@ -150,8 +158,7 @@ export async function createPost(tree: string, who: Who, input: PostInput, op?: 
     if ((recent?.n ?? 0) >= MAX_POSTS_AN_HOUR) throw new Error('feed.err.too_many');
     const { people, guards } = await peopleOf(d, input.people ?? []);
     if (keys.length) {
-      const own = await d.get<{ n: number }>(
-        `SELECT count(*) AS n FROM media WHERE key IN (${marks(keys)}) AND uploaded_by = ? AND key NOT IN (SELECT media FROM post_media)`, ...keys, who.id);
+      const own = await d.get<{ n: number }>(`SELECT count(*) AS n FROM media WHERE key IN (${marks(keys)}) AND ${FREE_FOR_POST}`, ...keys, who.id);
       if (own?.n !== keys.length) throw new Error('feed.err.picture_gone');
     }
     const author = personOf(who.person);
@@ -161,7 +168,7 @@ export async function createPost(tree: string, who: Who, input: PostInput, op?: 
     return {
       writes: [
         ...guards,
-        ...(keys.length ? [guard(`(SELECT count(*) FROM media WHERE key IN (${marks(keys)}) AND uploaded_by = ? AND key NOT IN (SELECT media FROM post_media)) = ?`, ...keys, who.id, keys.length)] : []),
+        ...(keys.length ? [guard(`(SELECT count(*) FROM media WHERE key IN (${marks(keys)}) AND ${FREE_FOR_POST}) = ?`, ...keys, who.id, keys.length)] : []),
         q('INSERT INTO post (id, account, author_name, author_person, body, created_at) VALUES (?, ?, ?, ?, ?, ?)', id, who.id, who.name, authorThere ? author : null, body, at),
         ...keys.map((key, i) => q('INSERT INTO post_media (post, media, ord) VALUES (?, ?, ?)', id, key, i)),
         ...people.map((person) => q('INSERT INTO post_person (post, person) VALUES (?, ?)', id, person)),
@@ -197,8 +204,8 @@ export async function editPost(tree: string, who: Who, id: string, input: Pick<P
 
 /**
  * Removes a post: the member's own, whatever their role now, or anyone's for an editor or a steward. Its comments and
- * reactions go with it (a trigger), and so do its pictures: they leave the gallery and the storage, and the history
- * says so as for any removed photo.
+ * reactions go with it (a trigger), and so do its pictures, which were uploaded for it (`for_post`, nothing else can be a
+ * post's): they leave the gallery and the storage. Like the post, they write no history row.
  */
 export async function removePost(tree: string, who: Who, id: string, op?: OpKey): Promise<{ removed: boolean }> {
   needsMember(who);
@@ -206,20 +213,74 @@ export async function removePost(tree: string, who: Who, id: string, op?: OpKey)
     const row = await d.get<{ account: string }>('SELECT account FROM post WHERE id = ?', id);
     if (!row) return { writes: [], history: NOT_A_RECORD, result: { removed: false } };
     if (row.account !== who.id && !can(who.role, 'remove-post')) throw fail(forbidden('remove-post', 'editor'));
-    const pictures = await d.all<{ key: string; thumb: string | null; caption: string | null }>(
-      'SELECT m.key, m.thumb, m.caption FROM post_media pm JOIN media m ON m.key = pm.media WHERE pm.post = ?', id);
+    // Only pictures uploaded for a post are deleted with it; any other (there can be none) stays in the gallery.
+    const pictures = await d.all<{ key: string; thumb: string | null }>(
+      'SELECT m.key, m.thumb FROM post_media pm JOIN media m ON m.key = pm.media WHERE pm.post = ? AND m.for_post = 1', id);
     return {
       writes: [
         // The pictures as read: one added meanwhile makes the plan decide again.
-        guard('(SELECT count(*) FROM post_media WHERE post = ?) = ?', id, pictures.length),
-        ...pictures.map((p) => q('DELETE FROM media WHERE key = ?', p.key)),
+        guard('(SELECT count(*) FROM post_media pm JOIN media m ON m.key = pm.media WHERE pm.post = ? AND m.for_post = 1) = ?', id, pictures.length),
+        ...pictures.map((p) => q('DELETE FROM media WHERE key = ? AND for_post = 1', p.key)),
         q('DELETE FROM post WHERE id = ?', id),
       ],
-      history: pictures.length ? pictures.map((p) => removed('photo', p.key, { label: p.caption })) : NOT_A_RECORD,
+      // The pictures were no news when they came (photos.server.ts `forPost`), and are none when they go.
+      history: pictures.length ? [] : NOT_A_RECORD,
       result: { removed: true },
       after: async () => {
         for (const p of pictures) for (const k of [p.key, p.thumb]) if (k) await mediaStore.delete(tree, k).catch((e) => console.error('photos.err.delete_failed', k, e));
       },
     };
   });
+}
+
+// ---------- leftovers: pictures uploaded for a post never made ----------
+
+/** A leftover older than this is deleted by the daily job: a day is long enough for any composer still open. */
+export const LEFTOVER_MS = 86_400_000;
+
+/** Deletes these rows of `media` and, once that has committed, their pictures from storage. */
+function deleteLeftovers(tree: string, op: OpKey | undefined, fn: string, pick: (d: Db) => Promise<{ key: string; thumb: string | null }[]>) {
+  return once<{ removed: number }>(tree, op, fn, async (d) => {
+    const rows = await pick(d);
+    if (!rows.length) return { writes: [], history: NOT_A_RECORD, result: { removed: 0 } };
+    const keys = rows.map((r) => r.key);
+    return {
+      writes: [
+        // Still leftovers as read: one a post took meanwhile makes the plan decide again, and is kept.
+        guard(`(SELECT count(*) FROM media WHERE key IN (${marks(keys)}) AND for_post = 1 AND key NOT IN (SELECT media FROM post_media)) = ?`, ...keys, keys.length),
+        q(`DELETE FROM media WHERE key IN (${marks(keys)}) AND for_post = 1 AND key NOT IN (SELECT media FROM post_media)`, ...keys),
+      ],
+      // A picture uploaded for a post wrote no history row; its leftover writes none either.
+      history: [],
+      result: { removed: rows.length },
+      after: async () => {
+        for (const r of rows) for (const k of [r.key, r.thumb]) if (k) await mediaStore.delete(tree, k).catch((e) => console.error('photos.err.delete_failed', k, e));
+      },
+    };
+  });
+}
+
+/**
+ * Deletes the writer's own pictures uploaded for a post that is not being made (the composer cancelled, or the post
+ * refused): of `keys`, those marked for a post, uploaded by this member and in no post. Anything else is left alone.
+ */
+export async function discardPictures(tree: string, who: Who, keys: readonly string[], op?: OpKey): Promise<{ removed: number }> {
+  needsMember(who);
+  const list = unique(keys).slice(0, MAX_POST_MEDIA);
+  if (!list.length) return { removed: 0 };
+  return deleteLeftovers(tree, op, 'discardPostPictures', (d) =>
+    d.all<{ key: string; thumb: string | null }>(`SELECT key, thumb FROM media WHERE key IN (${marks(list)}) AND ${FREE_FOR_POST}`, ...list, who.id));
+}
+
+/** The daily job's part: every leftover uploaded more than a day before `now` goes, a few hundred at a time. */
+export async function sweepLeftovers(tree: string, now: Date = new Date()): Promise<number> {
+  const before = new Date(now.getTime() - LEFTOVER_MS).toISOString();
+  let total = 0;
+  for (;;) {
+    const { removed: n } = await deleteLeftovers(tree, undefined, 'sweepPostLeftovers', (d) =>
+      d.all<{ key: string; thumb: string | null }>(
+        'SELECT key, thumb FROM media WHERE for_post = 1 AND uploaded_at < ? AND key NOT IN (SELECT media FROM post_media) ORDER BY uploaded_at LIMIT 200', before));
+    total += n;
+    if (n < 200) return total;
+  }
 }

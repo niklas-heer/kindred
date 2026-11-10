@@ -43,7 +43,8 @@ export function AddPictureDialog({ tree, project, linked, onClose }: { tree: str
   const t = useT();
   const gallery = useQuery(galleryQuery(tree));
   const { link, error, busy } = useLink(tree, project);
-  const items = (gallery.data?.media ?? []).filter((m) => !linked.has(m.key));
+  // A picture shared in a message to the family is not research's to link (the server refuses it too).
+  const items = (gallery.data?.media ?? []).filter((m) => !linked.has(m.key) && !m.post);
 
   return (
     <Dialog open onClose={onClose} title={t('research.add_picture_title')} width={pickerWidth}>

@@ -27,6 +27,9 @@ family.close();
 
 const db = await load<typeof import('../db.server.ts')>('/src/lib/db.server.ts');
 const P = await load<typeof import('./posts.server.ts')>('/src/lib/feed/posts.server.ts');
+const F = await load<typeof import('./feed.server.ts')>('/src/lib/feed/feed.server.ts');
+const Rs = await load<typeof import('../research.server.ts')>('/src/lib/research.server.ts');
+const Sources = await load<typeof import('../sources.server.ts')>('/src/lib/sources.server.ts');
 const Push = await load<typeof import('./post-push.server.ts')>('/src/lib/feed/post-push.server.ts');
 const R = await load<typeof import('../responses.server.ts')>('/src/lib/responses.server.ts');
 const H = await load<typeof import('../history.server.ts')>('/src/lib/history.server.ts');
@@ -63,8 +66,10 @@ const d = () => db.db('family');
 const count = async (table: string, where = '1 = 1') => (await d().get<{ n: number }>(`SELECT count(*) AS n FROM ${table} WHERE ${where}`))!.n;
 // The smallest PNG there is: the gallery's own upload stores it.
 const PNG = new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64'));
-/** A gallery picture uploaded by `who`, as the composer uploads one before the post is made. */
-const upload = async (who: { id: string }) => (await Photos.addPhoto('family', who.id, PNG, { mime: 'image/png', width: 1, height: 1, taken: null, place: null, caption: null, album: null }, undefined, { bytes: PNG, mime: 'image/png' })).key;
+/** A gallery picture uploaded by `who`, as the composer uploads one before the post is made: marked as meant for a post. */
+const upload = async (who: { id: string }, caption: string | null = null) => (await Photos.addPhoto('family', who.id, PNG, { mime: 'image/png', width: 1, height: 1, taken: null, place: null, caption, album: null, forPost: true }, undefined, { bytes: PNG, mime: 'image/png' })).key;
+/** An ordinary gallery picture uploaded by `who` in the Gallery. */
+const galleryUpload = async (who: { id: string }, album: string | null = null, caption: string | null = null) => (await Photos.addPhoto('family', who.id, PNG, { mime: 'image/png', width: 1, height: 1, taken: '1990', place: null, caption, album }, undefined, { bytes: PNG, mime: 'image/png' })).key;
 
 const steward = await member('Stella Steward', 'steward');
 const editor = await member('Eda Editor', 'editor');
@@ -147,10 +152,18 @@ test('a retry with the same key writes the post once', async () => {
   assert.equal(await count('post'), before + 1);
 });
 
-test('pictures are the writer’s own gallery uploads, in order, in one post only; a post may be pictures alone', async () => {
+test('pictures are the writer’s own uploads for a post, in order, in one post only; a post may be pictures alone', async () => {
   const [a, b] = [await upload(contributor), await upload(contributor)];
   const theirs = await upload(other);
   await assert.rejects(P.createPost('family', contributor, { body: 'Not mine', media: [theirs] }), /feed\.err\.picture_gone/);
+  // An ordinary gallery picture, the writer's own, is not a post's to take: an old album picture with a face in it.
+  const album = await Photos.saveAlbum('family', { name: 'Wedding 1990' }, undefined);
+  const old = await galleryUpload(contributor, album.id, 'The wedding');
+  await d().run("UPDATE media SET uploaded_at = '2020-01-01T00:00:00.000Z' WHERE key = ?", old);
+  await Photos.addTag('family', contributor.id, old, 'ada', { x: 0.1, y: 0.1, w: 0.2, h: 0.2 }, undefined);
+  await assert.rejects(P.createPost('family', contributor, { body: 'An old one', media: [old] }), /feed\.err\.picture_gone/);
+  await assert.rejects(P.createPost('family', contributor, { body: 'With a new one', media: [a, old] }), /feed\.err\.picture_gone/);
+  assert.ok((await Photos.gallery('family', true, true)).media.some((m) => m.key === old), 'it stays a guest’s to see');
   await assert.rejects(P.createPost('family', contributor, { body: 'Not there', media: ['gallery/none.png'] }), /feed\.err\.picture_gone/);
   const { id } = await P.createPost('family', contributor, { body: '', media: [b, a] });
   const seen = (await P.postView('family', viewer, id))!;
@@ -164,8 +177,9 @@ test('pictures are the writer’s own gallery uploads, in order, in one post onl
 });
 
 test('a guest’s Gallery has no picture that came with a post, and the picture is not served to them', async () => {
+  const plainBefore = await galleryUpload(contributor);
   const key = await upload(contributor);
-  const plain = await upload(contributor);
+  const plain = plainBefore;
   await P.createPost('family', contributor, { body: 'Sunday at the lake', media: [key] });
   const asGuest = await Photos.gallery('family', true, true);
   assert.ok(!asGuest.media.some((m) => m.key === key));
@@ -177,8 +191,109 @@ test('a guest’s Gallery has no picture that came with a post, and the picture 
   assert.ok(await Photos.pictureFor('family', plain, false, true));
   // A person's photos, for a guest: tagged in both, shown the plain one only.
   for (const k of [key, plain]) await Photos.addTag('family', contributor.id, k, 'ada', { x: 0, y: 0, w: 1, h: 1 }, undefined);
-  assert.deepEqual((await Photos.personMedia('family', 'ada', false, true)).map((m) => m.key), [plain]);
-  assert.equal((await Photos.personMedia('family', 'ada')).length, 2);
+  const forGuest = (await Photos.personMedia('family', 'ada', false, true)).map((m) => m.key);
+  assert.ok(forGuest.includes(plain) && !forGuest.includes(key));
+  assert.ok((await Photos.personMedia('family', 'ada')).filter((m) => m.key === key || m.key === plain).length === 2);
+});
+
+test('a picture uploaded for a post that is never made is nobody’s to see: not a guest’s, not in the feed or the news', async () => {
+  await new Promise((done) => setTimeout(done, 5));
+  const since = Date.now();
+  await new Promise((done) => setTimeout(done, 5));
+  const key = await upload(contributor, 'LEFTOVER-CAPTION');
+  await Photos.addTag('family', contributor.id, key, 'ada', { x: 0, y: 0, w: 1, h: 1 }, undefined);
+  const stored = (await d().get<{ for_post: number; album: string | null }>('SELECT for_post, album FROM media WHERE key = ?', key))!;
+  assert.deepEqual({ ...stored }, { for_post: 1, album: null }, 'marked from the moment it is stored, in no album');
+  // A guest: not in the Gallery, not on a person's page, not served, nor its small copy.
+  assert.ok(!(await Photos.gallery('family', false, true)).media.some((m) => m.key === key));
+  assert.ok(!(await Photos.gallery('family', true, true)).media.some((m) => m.key === key));
+  assert.ok(!(await Photos.personMedia('family', 'ada', false, true)).some((m) => m.key === key));
+  assert.equal(await Photos.pictureFor('family', key, false, true), undefined);
+  assert.equal(await Photos.pictureFor('family', key, true, true), undefined);
+  // A member: no post holds it, so it is a leftover, in no list either.
+  assert.ok(!(await Photos.gallery('family')).media.some((m) => m.key === key), 'not in the members’ Gallery');
+  assert.ok(!(await Photos.personMedia('family', 'ada')).some((m) => m.key === key), 'nor on the person’s page');
+  const feed = await F.feedPage('family', viewer);
+  assert.ok(!JSON.stringify(feed).includes(key), 'the feed does not list it as an added photo');
+  const news = await H.whatsNew(d(), { account: viewer.id, role: 'viewer', guest: false }, since);
+  assert.ok(!news.groups.some((g) => g.lines.some((l) => l.kind === 'photo')), '“What’s new” does not say a photo was added');
+  // Research, which a guest reads, cannot take it, and would not show it.
+  const project = await Rs.saveProject('family', contributor, { title: 'Public research', summary: '', private: false }, undefined);
+  await assert.rejects(Rs.addLink('family', contributor, project.id, 'picture', key, false, undefined), /research\.err\.picture_of_a_post/);
+  await d().run("INSERT INTO research_picture (project, media, created_by, created_at) VALUES (?, ?, 'x', '2026-01-01')", project.id, key);
+  const asGuest = { id: '', name: '', role: 'viewer' as const, protectLiving: true };
+  assert.deepEqual((await Rs.projectView('family', project.id, asGuest))!.pictures, []);
+  assert.equal((await Rs.listProjects('family', asGuest)).find((p) => p.id === project.id)!.counts.pictures, 0);
+  await d().run('DELETE FROM research_picture WHERE media = ?', key);
+  // Nor can a source rest on it: it goes with its post.
+  const source = { title: 'A photograph', author: null, publication: null, reference: null, date: null, note: '', document: null, media: key };
+  await assert.rejects(Sources.saveSource('family', editor, source, undefined), /sources\.err\.picture_of_a_post/);
+  // Once a post holds it, the members see it, under "From messages"; a guest still does not.
+  const { id } = await P.createPost('family', contributor, { body: 'Now it is shared', media: [key] });
+  assert.equal((await Photos.gallery('family')).media.find((m) => m.key === key)?.post, id);
+  assert.ok(!(await Photos.gallery('family', false, true)).media.some((m) => m.key === key));
+  assert.equal(await Photos.pictureFor('family', key, false, true), undefined);
+  await assert.rejects(Rs.addLink('family', contributor, project.id, 'picture', key, false, undefined), /research\.err\.picture_of_a_post/, 'nor once it is in a post');
+});
+
+test('removing a post deletes only the pictures uploaded for it', async () => {
+  const mine = await upload(contributor);
+  const { id } = await P.createPost('family', contributor, { body: 'Two pictures', media: [mine] });
+  // No change can put an ordinary picture in a post; were one there, it would stay in the gallery when the post goes.
+  const album = await galleryUpload(contributor, null, 'An album picture');
+  await d().run('INSERT INTO post_media (post, media, ord) VALUES (?, ?, 1)', id, album);
+  await P.removePost('family', { ...contributor, role: 'viewer' }, id);
+  assert.equal(await count('post', `id = '${id}'`), 0);
+  assert.equal(await count('media', `key = '${mine}'`), 0, 'its own picture went');
+  assert.equal(await count('media', `key = '${album}'`), 1, 'the gallery’s stayed');
+  assert.ok(await db.media.get('family', album), 'in storage too');
+});
+
+test('the writer deletes their own leftovers; nobody else’s, and never a picture in a post or an ordinary one', async () => {
+  const [left, kept] = [await upload(contributor), await upload(contributor)];
+  const theirs = await upload(other);
+  const plain = await galleryUpload(contributor);
+  await P.createPost('family', contributor, { body: 'One of them', media: [kept] });
+  await assert.rejects(P.discardPictures('family', guest, [left]), noAccess);
+  assert.deepEqual(await P.discardPictures('family', contributor, [left, kept, theirs, plain]), { removed: 1 });
+  assert.equal(await count('media', `key = '${left}'`), 0);
+  assert.ok(!(await db.media.get('family', left)), 'its picture left storage');
+  for (const k of [kept, theirs, plain]) assert.equal(await count('media', `key = '${k}'`), 1, `${k} stays`);
+  assert.deepEqual(await P.discardPictures('family', contributor, [left]), { removed: 0 }, 'twice changes nothing');
+  process.env.KINDRED_DEMO = '1';
+  try {
+    await assert.rejects(P.discardPictures('family', other, [theirs]), /demo/i);
+  } finally {
+    delete process.env.KINDRED_DEMO;
+  }
+});
+
+test('the daily job deletes leftovers a day old, from the table and the storage, and nothing younger or in a post', async () => {
+  const now = new Date('2026-11-12T03:00:00.000Z');
+  const [old, young, posted] = [await upload(other), await upload(other), await upload(other)];
+  const plain = await galleryUpload(other);
+  await P.createPost('family', other, { body: 'Kept', media: [posted] });
+  const at = (key: string, iso: string) => d().run('UPDATE media SET uploaded_at = ? WHERE key = ?', iso, key);
+  await at(old, '2026-11-11T02:59:59.000Z');
+  await at(young, '2026-11-11T03:00:01.000Z');
+  for (const k of [posted, plain]) await at(k, '2026-11-01T00:00:00.000Z');
+  const thumb = (await d().get<{ thumb: string }>('SELECT thumb FROM media WHERE key = ?', old))!.thumb;
+  const { feedJob } = await load<typeof import('../jobs/feed.ts')>('/src/lib/jobs/feed.ts');
+  const logs: string[] = [];
+  await feedJob.run({ trees: ['family'], now, env: () => undefined, log: (m) => logs.push(m) });
+  assert.equal(await count('media', `key = '${old}'`), 0, 'a day old: gone');
+  assert.ok(!(await db.media.get('family', old)) && !(await db.media.get('family', thumb)), 'with its picture and small copy');
+  for (const k of [young, posted, plain]) assert.equal(await count('media', `key = '${k}'`), 1, `${k} stays`);
+  assert.ok(await db.media.get('family', young));
+  assert.match(logs.join('\n'), /removed [1-9]\d* pictures/);
+  // A demo writes nothing, as everywhere.
+  process.env.KINDRED_DEMO = '1';
+  try {
+    await assert.rejects(P.sweepLeftovers('family', new Date('2026-11-13T03:00:00.000Z')), /demo/i);
+  } finally {
+    delete process.env.KINDRED_DEMO;
+  }
+  assert.equal(await count('media', `key = '${young}'`), 1);
 });
 
 test('only the writer changes a post; the writer or an editor removes it, never another contributor', async () => {
@@ -216,7 +331,7 @@ test('only the writer changes a post; the writer or an editor removes it, never 
   assert.deepEqual(await P.removePost('family', { ...demoted, role: 'viewer' }, own), { removed: true });
 });
 
-test('reactions and comments work on a post as on a memory, and go with it; its pictures go too, and the history says so', async () => {
+test('reactions and comments work on a post as on a memory, and go with it; its pictures go too, without a history row', async () => {
   const key = await upload(contributor);
   const { id } = await P.createPost('family', contributor, { body: 'Photos from Sunday', media: [key] });
   assert.deepEqual(await R.react('family', viewer, 'post', id, 'heart', true), { added: true });
@@ -232,14 +347,14 @@ test('reactions and comments work on a post as on a memory, and go with it; its 
 
   const stored = await Photos.pictureFor('family', key, false);
   assert.ok(await db.media.get('family', stored!.key), 'the picture is in storage');
-  const historyBefore = await count('history', "kind = 'photo' AND action = 'removed'");
+  const historyBefore = await count('history', "kind = 'photo'");
   await P.removePost('family', contributor, id);
   assert.equal(await count('reaction', `target = '${id}'`), 0);
   assert.equal(await count('comment', `target = '${id}'`), 0);
   assert.equal(await count('media', `key = '${key}'`), 0, 'its picture left the Gallery');
   assert.equal(await count('comment', `target = '${key}'`), 0, 'and the comment on the picture');
   assert.ok(!(await db.media.get('family', key)), 'and the storage');
-  assert.equal(await count('history', "kind = 'photo' AND action = 'removed'"), historyBefore + 1, 'a removed picture is in the history like any other');
+  assert.equal(await count('history', "kind = 'photo'"), historyBefore, 'a picture uploaded for a post is part of it, not a record: no history row, coming or going');
   assert.equal(await count('post_media'), await count('post_media', 'post IN (SELECT id FROM post)'));
 });
 
@@ -447,3 +562,4 @@ test('posts go into the Markdown archive with their comments, a file per year, a
   const { text: ged } = writeGedcom(tree);
   assert.ok(!ged.includes('ARCHIVE-POST') && !ged.includes('ARCHIVE-COMMENT'));
 });
+
