@@ -154,3 +154,8 @@ a.con-value:focus-visible { outline: none; box-shadow: var(--focus-ring); border
 }
 /* Paper and Night: the serif only from 16px up, so a nickname beside the name takes the UI face. */
 :is([data-theme='modern'], [data-theme='night']) .con-nick { font-family: var(--font-ui); font-style: normal; font-weight: 500; color: var(--muted); }
+/* The phone numbers and e-mail addresses are what an older relative taps to call someone. */
+@media (pointer: coarse) {
+  a.con-value { display: inline-flex; align-items: center; min-height: 44px; padding: 0; }
+  .con-name { display: inline-flex; align-items: center; min-height: 44px; }
+}

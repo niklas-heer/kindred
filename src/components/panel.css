@@ -450,3 +450,6 @@ p.pp-add-relative.pp-ask { margin: 0; padding: 12px 16px; }
 
 /* Paper and Night: the serif only from 16px up, so a relative's name is set at 16px and carries its weight. */
 :is([data-theme='modern'], [data-theme='night']) .pp-rel-name { font-size: 16px; font-weight: 600; }
+/* The phone and e-mail links of the Everyday tab: a 44px row, the link filling it. */
+@media (pointer: coarse) { .pp-contact { min-height: 44px; } .pp-contact a { align-self: stretch; display: inline-flex; align-items: center; } }
+@media (pointer: coarse) { .pp-photo::after { content: ''; position: absolute; inset: -6px; } }

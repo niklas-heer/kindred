@@ -17,6 +17,8 @@
 /* A contact: the value, then its tags. They share a line while they fit, and the tags drop under the value when they do not. */
 .pp-contact-body { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
 .pp-contact-value { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
+/* The phone and e-mail links are what an older relative taps: a finger-high target. */
+@media (pointer: coarse) { a.pp-contact-value { display: inline-flex; align-items: center; min-height: 44px; } }
 .pp-contact-tags { flex: 0 1 auto; display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
 .pp-contact-tags .chip { display: inline-block; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
 @media (max-width: 600px) {

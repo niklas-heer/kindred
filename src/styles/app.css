@@ -403,6 +403,7 @@ kbd {
 .topbar nav a:active { transform: translateY(1px); }
 .topbar nav a:focus-visible, .topbar .brand:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius); }
 .topbar .spacer { flex: 1; }
+@media (pointer: coarse) { .topbar .brand { min-height: 44px; } }
 .topbar-tools { display: flex; gap: 2px; }
 .topbar-prefs { display: contents; }
 .topbar-menu { display: none; }

@@ -110,3 +110,4 @@
 @media (max-width: 760px) { .share-actions .btn { flex: 1; justify-content: center; } }
 .share-card h2.rule { margin-top: 0; }
 .share-message { field-sizing: content; }
+@media (pointer: coarse) { .guest-chip .btn { height: 44px; padding: 0 12px; } }
