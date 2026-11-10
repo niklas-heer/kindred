@@ -10,6 +10,7 @@ import { connectionsQuery, keyFor, projectedConnected, resolveRoute, resolveRout
 import { q } from '../store/index.ts';
 import { tr, type Tr } from './labels';
 import { isDemo } from '../demo.ts';
+import { refuseReadOnly } from '../read-only.ts';
 import { DEFAULT_MODEL, FEATURES, type AiFeatures, type AiLocale, type AiStatus, type CustomPrice, type Feature, type Provider, type Route } from './types';
 
 export const OFF: AiFeatures = { assistant: false, faces: false, avatar: false, arms: false };
@@ -257,6 +258,8 @@ export async function routeAdapter(tree: string, route: Route, locale: AiLocale,
   const c = tr(locale);
   // A demo sends nothing to any provider, whatever its databases hold.
   if (isDemo()) throw new AiError('not-configured', c('ai.errOff'));
+  // A steward's preview ("View as") sends nothing either: no conversation, no picture, no suggestion, at no cost.
+  refuseReadOnly();
   const settings = await readSettings(tree);
   // A steward's choice for one chat, already checked: it goes to that provider's own key, like any route.
   const resolved: ResolvedRoute = override ? { route, provider: override.provider, model: override.model, effective: override, connected: true, needsModel: false } : await resolveRoute(tree, route);
@@ -315,6 +318,7 @@ export async function testConnection(tree: string, input: { provider: Provider; 
   const model = chatModelId(input.provider, input.model.trim() || DEFAULT_MODEL[input.provider]);
   const started = Date.now();
   if (isDemo()) return { ok: false as const, message: tr(_locale)('ai.errOff'), model, code: 'not-configured' as const };
+  refuseReadOnly();
   try {
     let adapter: AiAdapter;
     const typed = input.apiKey?.trim() ?? '';

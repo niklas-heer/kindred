@@ -17,7 +17,7 @@
 // Private research is `editors`. A value only editors may read inside a family row (a source's link to a private document)
 // is held back from everyone else. A share-link guest reads no history at all.
 import { accounts } from './auth/store.server.ts';
-import { isDemo } from './demo.ts';
+import { readOnly } from './read-only.ts';
 import { can } from './roles.ts';
 import { guard, q, type Db, type Query } from './store/index.ts';
 import type { Audience, Visibility } from './visibility.ts';
@@ -487,7 +487,8 @@ export interface Visit { since: number; shown: number | null; lastSeen: number; 
  * - During a visit `since` stays where it is, so opening the page twice in a minute shows the same news.
  */
 export async function noteVisit(user: string, tree: string, now = Date.now()): Promise<void> {
-  if (isDemo()) return; // a demo has no members and stores nothing
+  // A demo has no members and stores nothing; a steward's preview ("View as") leaves no trace.
+  if (readOnly()) return;
   await accounts().run(
     `INSERT INTO family_visit (user, tree, since, shown, last_seen, visits) VALUES (?, ?, ?, NULL, ?, 1)
      ON CONFLICT (user, tree) DO UPDATE SET
@@ -508,7 +509,7 @@ export async function visitOf(user: string, tree: string): Promise<Visit | undef
 
 /** The news up to `now` has been shown to this member. Only moves forward. */
 export async function markShown(user: string, tree: string, now = Date.now()): Promise<void> {
-  if (isDemo()) return;
+  if (readOnly()) return;
   await accounts().run('UPDATE family_visit SET shown = ? WHERE user = ? AND tree = ? AND (shown IS NULL OR shown < ?)', now, user, tree, now);
 }
 
