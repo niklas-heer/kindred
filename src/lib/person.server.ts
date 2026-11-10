@@ -2,9 +2,9 @@
 // `editSnapshot` below. Every change is a plan run through `once`: it reads what it decides on, guards those facts in
 // the batch, and writes in one transaction, so a retried or racing request never writes twice or half-way (see
 // db.server.ts).
-import { db, fieldOf, guard, newId, once, personExists, q, type OpKey, type Query } from './db.server.ts';
-import { CHANGED_SINCE_OPENED, MAX_FIELDS, storedValue, type FieldInput, type FieldType, type FieldValue, type PersonField } from '../components/fields/model.ts';
-import type { Look } from './types.ts';
+import { db, editedPart, fieldOf, guard, newId, once, personExists, q, type OpKey, type Query } from './db.server.ts';
+import { CHANGED_SINCE_OPENED, isContactType, MAX_FIELDS, storedValue, type FieldInput, type FieldType, type FieldValue, type PersonField } from '../components/fields/model.ts';
+import { EDITED_KEYS, type GraphPatch, type Look } from './types.ts';
 import { parseFurther, storeFurther } from './further-given.ts';
 import { occupationCodeFor } from './occupations.ts';
 import { translate } from './i18n/dictionary.ts';
@@ -168,9 +168,17 @@ export async function editSnapshot(tree: string, id: string, reader: Audience): 
 /**
  * What a save leaves the draft with: the reader's revision after it (see `viewRevision`), known exactly because the batch
  * is guarded on what the plan read, and the id of each field in the list, in the list's order. An autosaving draft goes on from
- * these, so its next save neither looks stale to itself nor adds a new field a second time.
+ * these, so its next save neither looks stale to itself nor adds a new field a second time. `person` is the person as the
+ * saving reader's graph now has them, so the page patches its copy of the family instead of reading all of it again.
  */
-export interface SavedEdit { revision: number; fieldIds: string[] }
+export interface SavedEdit { revision: number; fieldIds: string[]; person: GraphPatch }
+
+/** The person as the saving reader's graph shows them after the save: the row as written, and the contacts they can see. */
+function graphPatchOf(row: Record<EditColumn, Cell>, fields: Seen[]): GraphPatch {
+  const part = editedPart(row) as Record<string, unknown>;
+  const patch = Object.fromEntries(EDITED_KEYS.map((k) => [k, part[k] ?? null])) as Omit<GraphPatch, 'contacts'>;
+  return { ...patch, contacts: fields.filter((f) => isContactType(f.type)).length };
+}
 
 /**
  * Saves the details and the whole list of fields in one batch. `fields` is the list in its new order: a field with an
@@ -275,7 +283,7 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
         ...changed.map((c) => next[c]), nowIso(), id,
       ));
     }
-    return { writes, continues, result: { revision: await viewRevision(next, after), fieldIds } satisfies SavedEdit };
+    return { writes, continues, result: { revision: await viewRevision(next, after), fieldIds, person: graphPatchOf(next, after) } satisfies SavedEdit };
   });
 }
 

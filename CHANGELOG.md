@@ -66,6 +66,9 @@ version will not run on a database that has had these migrations.
 - Cloudflare guide: a page needs the Workers Paid plan, and the Worker should be placed near D1.
 - A family page reaches D1 in 4 round trips instead of about 21: the session with its account and memberships, the families
   list with today's events, the family and the AI status are each read as one batch.
+- Saving a person on the Edit tab no longer reads the whole family again: the save answers with the person as your page shows
+  them, and the page patches its copy. A newly pinned place, or a new birth date for someone with a painted portrait, still
+  reads the family again.
 
 ### Fixed
 

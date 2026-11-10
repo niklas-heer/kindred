@@ -1,7 +1,7 @@
 // A family's data: reads for the pages, and the transaction pattern every change uses. Storage is the
 // async `Db` interface (./store): node:sqlite files on Node, D1 on Cloudflare Workers.
 import { guard, isGuard, isGuardError, q, store, type Db, type Query, type Result } from './store/index.ts';
-import type { GParent, GPerson, GUnion, Graph, House, PersonDetail, TreeMeta } from './types';
+import type { EditedKey, GParent, GPerson, GUnion, Graph, House, PersonDetail, TreeMeta } from './types';
 import { parseFurther } from './further-given.ts';
 import { photoAge } from './portrait-face.ts';
 import { todayEvents, type TodayEvent } from './auth/today.ts';
@@ -231,6 +231,31 @@ const opt = <T>(v: T | null): T | undefined => (v === null ? undefined : v);
  */
 const defined = <T extends object>(o: T): T => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
 
+/**
+ * The part of a person in the graph that the Edit tab writes, from their row (`person.*`). The graph reads it this way, and
+ * an Edit save answers with it (person.server.ts), so the page can patch its copy of the family instead of reading all of it.
+ */
+export function editedPart(r: any): Pick<GPerson, EditedKey> {
+  return {
+    given: r.given,
+    surname: opt(r.surname),
+    sex: opt(r.sex),
+    born: opt(r.born),
+    died: opt(r.died),
+    living: r.living === 1,
+    epithet: opt(r.epithet),
+    title: opt(r.title),
+    occupation: opt(r.occupation),
+    occupationCode: opt(r.occupation_code),
+    nickname: opt(r.nickname),
+    bornPlace: opt(r.born_place),
+    diedPlace: opt(r.died_place),
+    currentGiven: opt(r.current_given),
+    furtherGiven: parseFurther(r.further_given).length ? parseFurther(r.further_given) : undefined,
+    currentSurname: opt(r.current_surname),
+  };
+}
+
 /** The family as one reader's page needs it. `contacts` counts the ways to reach someone that this reader may see. */
 export async function graph(tree: string, reader: Audience = PLAIN_MEMBER): Promise<Graph> {
   const d = db(tree);
@@ -252,28 +277,13 @@ export async function graph(tree: string, reader: Audience = PLAIN_MEMBER): Prom
   const people = peopleRows.map(
     (r): GPerson => defined({
       id: r.id,
-      given: r.given,
-      surname: opt(r.surname),
+      ...editedPart(r),
       house: opt(r.house),
-      sex: opt(r.sex),
-      born: opt(r.born),
-      died: opt(r.died),
-      living: r.living === 1,
-      epithet: opt(r.epithet),
-      title: opt(r.title),
-      occupation: opt(r.occupation),
-      occupationCode: opt(r.occupation_code),
-      nickname: opt(r.nickname),
       traits: json(r.traits),
       look: json(r.look),
       photo: opt(r.photo),
       stories: r.stories,
       contacts: r.contacts,
-      bornPlace: opt(r.born_place),
-      diedPlace: opt(r.died_place),
-      currentGiven: opt(r.current_given),
-      furtherGiven: parseFurther(r.further_given).length ? parseFurther(r.further_given) : undefined,
-      currentSurname: opt(r.current_surname),
       preferAvatar: r.prefer_avatar === 1,
       preferPortrait: r.prefer_portrait === 1,
       portrait: opt(r.portrait),

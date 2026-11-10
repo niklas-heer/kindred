@@ -55,6 +55,19 @@ export interface GPerson {
   portraitAge?: number | null;
 }
 
+/** The keys of a person in the graph that the Edit tab writes (see `editedPart` in db.server.ts). */
+export const EDITED_KEYS = [
+  'given', 'furtherGiven', 'surname', 'currentGiven', 'currentSurname', 'nickname', 'sex', 'born', 'bornPlace', 'died', 'diedPlace',
+  'living', 'title', 'epithet', 'occupation', 'occupationCode',
+] as const satisfies readonly (keyof GPerson)[];
+export type EditedKey = (typeof EDITED_KEYS)[number];
+
+/**
+ * A person as an Edit save left them, in the graph's terms: every edited key, with null for "none" (a missing key would be
+ * lost on the way), and their contact count for the reader who saved.
+ */
+export type GraphPatch = { [K in EditedKey]-?: Exclude<GPerson[K], undefined> | null } & { contacts: number };
+
 export interface Place {
   name: string;
   lat: number;

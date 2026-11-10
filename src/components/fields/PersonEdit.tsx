@@ -16,7 +16,8 @@ import { fullName, yearOf, type Family } from '~/lib/graph';
 import { isoOfDate, periodOf, storedIssue } from '~/lib/partial-date';
 import { useCan, useSession } from '~/lib/session';
 import { toast } from '~/lib/toast';
-import type { GPerson, PersonDetail } from '~/lib/types';
+import type { Graph, GPerson, GraphPatch, PersonDetail } from '~/lib/types';
+import { patchPerson } from '~/lib/graph-patch';
 import { PlaceInput, placeValue, savePlacesKeyed, type PlaceValue } from '../PlaceInput';
 import { MarkdownEditor } from '../MarkdownEditor';
 import { ConfirmDialog, DatePicker, Segmented, Switch } from '../ui';
@@ -161,6 +162,10 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only }: Omit<Props, 'deta
   const discarded = useRef(false);
   // The rest of the app reads the person afresh once the reader pauses, and not after every write.
   const touched = useRef(false);
+  // The person as the last save left them, for patching the page's copy of the family; and whether a save also pinned a place,
+  // which changes the family's places, so the family is read again instead.
+  const patch = useRef<GraphPatch | undefined>(undefined);
+  const pinned = useRef(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const remove = useMutation({
     mutationFn: () => removePerson({ data: { tree, id: p.id } }),
@@ -198,7 +203,11 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only }: Omit<Props, 'deta
     refreshTimer.current = null;
     if (!touched.current) return;
     touched.current = false;
-    void qc.invalidateQueries({ queryKey: ['graph', tree] });
+    const patched = pinned.current ? null : patchPerson(qc.getQueryData<Graph>(['graph', tree]), p.id, patch.current);
+    patch.current = undefined;
+    pinned.current = false;
+    if (patched) qc.setQueryData(['graph', tree], patched);
+    else void qc.invalidateQueries({ queryKey: ['graph', tree] });
     void qc.invalidateQueries({ queryKey: ['person', tree, p.id] });
     void qc.invalidateQueries({ queryKey: ['contacts', tree] });
   }
@@ -216,7 +225,10 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only }: Omit<Props, 'deta
     try {
       // Pins first, and only a place that changed: repeating one on a retry changes nothing.
       const pin = (now: PlaceValue, was: PlaceValue) => (JSON.stringify(now) === JSON.stringify(was) ? undefined : now);
-      await savePlacesKeyed(tree, (pl) => keys.for('places', pl), pin(sent.bornPlace, base.current.bornPlace), sent.living ? undefined : pin(sent.diedPlace, base.current.diedPlace));
+      const pins = [pin(sent.bornPlace, base.current.bornPlace), sent.living ? undefined : pin(sent.diedPlace, base.current.diedPlace)];
+      await savePlacesKeyed(tree, (pl) => keys.for('places', pl), ...pins);
+      // A pin with coordinates writes the family's places (savePlacesKeyed), which only a full read brings back.
+      if (pins.some((v) => !!v?.name.trim() && v.lat !== undefined && v.lng !== undefined)) pinned.current = true;
       const body = { tree, id: p.id, ...wireOf(sent), revision: revision.current };
       const saved = await savePersonEdit({ data: { ...body, opKey: keys.for('edit', body) } });
       keys.clear('edit');
@@ -230,6 +242,7 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only }: Omit<Props, 'deta
       }
       base.current = written;
       revision.current = saved.revision;
+      patch.current = saved.person;
       touched.current = true;
       // A new field learns its id, so the next save updates it instead of adding it again.
       const ids = new Map(sent.fields.flatMap((x, i) => (!x.id && saved.fieldIds[i] ? [[x.key, saved.fieldIds[i]!] as const] : [])));
