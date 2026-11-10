@@ -41,6 +41,9 @@ both what the browser shows and what the server allows.
 | Change the family's name, tagline and theme | Steward |
 | Delete the family (with its address typed and a passkey confirmation) | Steward |
 | Make another family on the server | Steward of any family there, or the server's first account |
+| Open Today, read the week's answers, take the daily quiz | Viewer |
+| Answer the question of the week (an answer is a memory) | Contributor |
+| Change or skip this week's question; switch the daily quiz off | Steward |
 
 Hiding a button is never the only protection. Every server function and server route calls `requireMember` or
 `requireCan` before it reads or writes, and answers 401 when signed out and 403 when the role is too low.
@@ -314,6 +317,20 @@ A steward can see how the family uses Kindred on the family's Statistics page, a
 **How long:** the browser sends a small report about every 30 seconds and when the page is left. There is no log of individual events, only daily counters, which are deleted after three years.
 
 **Off and opt-out:** turning collection off stops all counting and deletes the markers at once; the anonymous daily totals stay. A browser set to Do Not Track or Global Privacy Control is not counted at all.
+
+## Today
+
+Today holds the question of the week and the daily quiz ([today.md](today.md)).
+
+- **Guests:** a share-link guest gets nothing of it. Every call needs a membership, the quiz's picture too; the page sends
+  a guest back to the tree, and the section is not in a guest's navigation or command palette.
+- **The quiz reads what a Viewer may read**, and nothing more: it is drawn from the graph every member gets, so a field
+  kept to editors can never be a question or a wrong answer. It never asks how somebody died. The living can be asked
+  about (their parents, their birthplace, their photo when the family shows one), as every member can read those.
+- **The answer is the server's** until a member has answered; then it cannot be changed.
+- **What is stored about a member:** one row per day they answered (their account id, their choice, whether it was right,
+  and their house), for the streak and the month's table of houses. Removing the family removes it. An answer to the
+  question of the week is a memory signed with the writer's name, like any other.
 
 ## The Campaign
 

@@ -19,7 +19,8 @@ them before the new Worker goes live (`mise run cf:migrate:remote` does the same
 together: to go back to 2.0.0, restore the copies the server made before the migration and start the old version. An old
 version will not run on a database that has had these migrations.
 
-`tree/0025_campaign.sql` adds the Campaign's own five tables and changes none that exist.
+`tree/0025_campaign.sql` adds the Campaign's own five tables and changes none that exist. `tree/0028_today.sql` adds five
+tables for the Today page and changes none that exist.
 
 `tree/0026_history.sql` adds the change history's table, empty: changes made before it are not in the history.
 `accounts/0027_family_visit.sql` adds a table for "since your last visit" and two columns to the reminder devices.
@@ -36,6 +37,12 @@ version will not run on a database that has had these migrations.
   write is refused on the server. `mise run demo` (Node), `docker compose --profile demo up -d --build demo`, and `deploy/demo/`
   for Cloudflare. It refuses to start beside accounts, Access, a guest host, a setup code or reminder keys. See docs/self-host.md,
   "A public demo".
+- Today: a new first section for every family, the page to open again tomorrow. It has the question of the week (sixty
+  curated questions in English, German and Afrikaans; an answer is saved as a memory, and the week's answers show together;
+  a steward can ask their own or skip a week), a daily quiz made from the family's records with a streak and a monthly
+  table of houses (a steward can switch it off under Games), the week's birthdays and anniversaries, and one nudge from
+  the Needed page. A reader can make it the page the family opens on. Members only. See [docs/today.md](docs/today.md).
+
 - Ask to join: a guest of a family's share link can ask for an account of their own, with a passkey. A steward sees the request
   on the Access page (with an approximate place, the device family and how the link was used), gets a badge and a push, and
   approves it with a role or declines it. Requests end after 30 days; a link holds at most 10. Each link has a "Guests may ask to
@@ -102,6 +109,10 @@ version will not run on a database that has had these migrations.
 - `mise run screenshots` retakes the README pictures from the two invented families.
 
 ### Changed
+
+- Navigation: the top bar shows Today, Tree, Almanac, Chronicle and Atlas (and the Campaign while it is on) and keeps the
+  Register, Houses, Contacts, Needed, the Gallery and Research under "More", so every section shown keeps its name at
+  tablet width. On a phone the tab bar starts with Today, and the Atlas moved into More.
 
 - The Node server runs in production mode unless you set `NODE_ENV` yourself.
 - Pages and the family graph are smaller and quicker to load: absent fields are left out, the families list reads only what the
