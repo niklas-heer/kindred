@@ -3,7 +3,7 @@
 // provider and no daily jobs, signs up the first steward with a virtual passkey, says who "me" is in each family, and
 // drives the installed Brave (KINDRED_E2E_BROWSER names another Chromium, as for mise run e2e) to take the pictures
 // into docs/images/. Nothing here reaches the network beyond this machine, and no real family is read.
-//   node scripts/screenshots.ts [--use-dist] [--only tree,person,...] [--out <folder>]
+//   node scripts/screenshots.ts [--use-dist] [--only tree,person,...] [--out <folder>] [--port <number>]
 //   --use-dist  skip the build and serve the dist/ that is already there (built with KINDRED_TARGET=node)
 //   --only      take just these pictures (names as in SHOTS below)
 //   --out       write the pictures here instead of docs/images/
@@ -279,6 +279,55 @@ const SHOTS: Shot[] = [
       await page.getByRole('button', { name: 'Edit arms' }).click();
       await page.getByRole('dialog').waitFor();
       await grab(page, 'arms');
+    },
+  },
+  {
+    // The character editor on the person the modern family's tree opens on: her drawn portrait opens it.
+    name: 'editor',
+    async run(page, origin) {
+      await page.goto(`${origin}/modern/person/p0084`);
+      await settle(page);
+      await page.getByRole('button', { name: /^Change how / }).click();
+      await page.getByRole('dialog').waitFor();
+      await grab(page, 'editor');
+    },
+  },
+  {
+    // The same editor on a phone, choosing hair: the portrait stays in view above the options.
+    name: 'editor-phone',
+    async run(page, origin) {
+      const phone = await page.context().browser()!.newContext({
+        storageState: await page.context().storageState(),
+        viewport: { width: 390, height: 844 },
+        deviceScaleFactor: 2,
+        isMobile: true,
+        hasTouch: true,
+        locale: 'en-GB',
+        timezoneId: 'UTC',
+        reducedMotion: 'reduce',
+      });
+      try {
+        await phone.clock.install({ time: new Date(NOW) });
+        const small = await phone.newPage();
+        await small.goto(`${origin}/modern/person/p0084`);
+        await settle(small);
+        await small.getByRole('button', { name: /^Change how / }).click();
+        const dialog = small.getByRole('dialog');
+        await dialog.getByRole('tab', { name: 'Hair', exact: true }).click();
+        await grab(small, 'editor-phone');
+      } finally {
+        await phone.close();
+      }
+    },
+  },
+  {
+    // An invented family dressed by hand, from the developer's reference page: what a portrait can say.
+    name: 'portraits',
+    height: 760,
+    async run(page, origin) {
+      await page.goto(`${origin}/ui/character?view=family&theme=codex`);
+      await settle(page);
+      await grab(page, 'portraits');
     },
   },
   {

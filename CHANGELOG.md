@@ -58,6 +58,17 @@ database that has had these migrations.
   one button, and the card on Today tells a steward once that it is there.
 - The invented families (`mise run data`, the demo) have a feed and a gallery of painted pictures. `import-to-d1 --from`
   takes pictures from the media folder beside the file it is given.
+- **The character editor.** Clicking a person's drawn portrait opens an editor made like a game's character creator: a large
+  portrait that changes as you choose, ten categories of parts shown on the person's own face, "Surprise me" (a believable
+  relative of the same sex, age and time), ready-made looks ("Grandfather, 1950s", "Wedding day", "In uniform", "Crowned"),
+  undo, redo, "Back to how it was" and a comparison with before. It works by keyboard, with a screen reader and at phone width.
+  A portrait can now say far more: fourteen skin tones, dyed hair, coils, locs, braids and thinning hair, a level of grey, an
+  expression, build, a birthmark or vitiligo, a monocle, a hearing aid, earrings, a hijab, a turban, a kippah, a head wrap, a
+  uniform, a wedding dress, traditional dress, colours for clothes and headwear, and a backdrop. **No portrait you already have
+  changes**: every new part is optional, and a look stored before draws exactly as it did (a test holds 3,067 of them to that).
+  No migration and no new setting. A member who is a person in the tree may now save their own drawn portrait once a steward
+  has confirmed that link, as for painted portraits; everyone else in the family can try a look on without saving it. See
+  [docs/portraits.md](docs/portraits.md).
 - **View as.** A steward can preview a family as a viewer, contributor or editor, as one of its members (their role and the
   person they are in the tree), or as a guest of the share link with its settings, from the account menu or the Access page. A
   bar on every page says who they view it as and offers Switch and Stop. The server answers every check as it would for that

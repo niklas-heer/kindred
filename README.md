@@ -51,9 +51,16 @@ A guest of a share link sees none of this. A guest can, however, ask for an acco
 
 ## What a researcher gets
 
-A person's page holds their life on a timeline, their relatives, what has been written about them, and a drawn portrait you can adjust.
+A person's page holds their life on a timeline, their relatives, what has been written about them, and a drawn portrait.
 
 ![A person's page: a drawn portrait, a life timeline with schooling, a graduation, a marriage, births and a cremation, closest family, a memory, and the places on a map.](docs/images/person.webp)
+
+Click the portrait and a **character editor** opens, as in a game: skin, hair, eyes, glasses, a beard, headwear from a flat cap
+to a hijab or a crown, clothes for every day and for a wedding, a hearing aid, a backdrop. "Surprise me" makes a believable
+relative of the same age and time, and ready-made looks such as "Grandfather, 1950s" dress them in one click. Every relative, of
+any origin, age, faith and era, can be made to look like themselves. [docs/portraits.md](docs/portraits.md) has the details.
+
+![The character editor: a relative's portrait with Surprise me, undo and compare beside ready-made looks such as Wedding day, Midsummer and In uniform.](docs/images/editor.webp)
 
 - **Life events.** Baptism, schooling, service, moves, burial and more (or an event of your own), each with a date, a place and a
   note, in order on the timeline with births, partnerships and death. Places appear in the Atlas.
@@ -177,6 +184,7 @@ Exports leave some things out, so back up the databases and pictures as well.
 - [Roles and privacy](docs/roles-and-privacy.md)
 - [The family feed](docs/feed.md): messages to the family, and the stream on Today
 - [Today](docs/today.md): the question of the week and the daily quiz
+- [Drawn portraits](docs/portraits.md): the character editor, what a portrait can say, and who may change one
 - [The Campaign](docs/campaign.md): a game between the family's houses, and how it runs
 - [Reactions and comments](docs/responses.md): answering messages, memories and photographs
 - [GEDCOM and the Markdown archive](docs/exchange.md)

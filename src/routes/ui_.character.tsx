@@ -11,13 +11,13 @@ import {
   BACKDROPS, BEARDS, CLOTH, CLOTHING, EARRINGS, EXPRESSIONS, EXTRAS, EYE_SHAPES, EYES, FACE_SHAPES, FRAMES, GLASSES, HAIR, HAIR_STYLES, HEADWEAR, LIPS, MARKS,
   MOUSTACHES, NECKLACES, NOSE_SHAPES, SKIN,
 } from '~/lib/portrait-look';
-import type { GPerson, Look } from '~/lib/types';
+import type { GPerson, House, Look } from '~/lib/types';
 
 export const Route = createFileRoute('/ui_/character')({
   validateSearch: z.object({
     theme: z.enum(['codex', 'modern', 'night']).optional(),
     tree: z.enum(['realm', 'modern']).optional(),
-    view: z.enum(['sheet', 'editor', 'matrix', 'photo', 'parts', 'all']).optional(),
+    view: z.enum(['sheet', 'editor', 'matrix', 'photo', 'parts', 'family', 'all']).optional(),
     part: z.string().optional(),
     sex: z.enum(['m', 'f', 'x']).optional(),
     size: z.number().optional(),
@@ -79,6 +79,7 @@ function CharacterGallery() {
         {view === 'matrix' && <Matrix sex={sex} size={size} />}
         {view === 'photo' && <PhotoPairs />}
         {view === 'parts' && <Parts only={part} />}
+        {view === 'family' && <Showcase />}
         {(view === 'editor' || view === 'all') && <EditorDemo people={graph.data?.people} tree={tree} />}
         {(view === 'sheet' || view === 'all') && (
           <section className="ui-card" style={{ display: 'grid', gap: 14 }}>
@@ -194,5 +195,54 @@ function Parts({ only }: { only?: string }) {
         </section>
       ))}
     </>
+  );
+}
+
+const house = (id: string, field: House['arms']['field'], field2: House['arms']['field']): House =>
+  ({ id, name: id, arms: { field, field2, division: 'per-pale', charge: 'none', chargeTincture: 'or' } }) as House;
+const BLUE = house('blue', 'azure', 'or');
+const RED = house('red', 'gules', 'argent');
+const GREEN = house('green', 'vert', 'or');
+
+/** An invented family dressed by hand: what the portrait can say about people since the editor's second version. */
+const SHOWCASE: [Pick<GPerson, 'id' | 'sex' | 'born' | 'died'> & { living?: boolean }, Look, string, House | null][] = [
+  [{ id: 'f1', sex: 'm', born: '1898', died: '1975' }, { skin: 1, hair: 2, eyes: 5, hairStyle: 'slicked', grey: 2, glasses: 'monocle', moustache: 'imperial', clothing: 'waistcoat', expression: 'stern', backdrop: 'drape', age: 62 }, 'Great-great-grandfather', BLUE],
+  [{ id: 'f2', sex: 'f', born: '1925', died: '2010' }, { skin: 9, hair: 5, eyes: 4, hairStyle: 'beehive', grey: 1, glasses: 'cat-eye', frames: 4, clothing: 'pearls', clothColour: 8, earrings: 'pearls', lips: 0, expression: 'smile', age: 58 }, 'Grandmother, 1950s', RED],
+  [{ id: 'f3', sex: 'f', born: '1961', living: true }, { skin: 13, hair: 8, eyes: 6, headwear: 'headwrap', hatColour: 11, clothing: 'kaftan', clothColour: 12, trimColour: 11, earrings: 'hoops', necklace: 'beads', expression: 'grin', backdrop: 'garden' }, 'Aunt', null],
+  [{ id: 'f4', sex: 'm', born: '1958', living: true }, { skin: 12, hair: 0, eyes: 0, headwear: 'turban', hatColour: 5, beardStyle: 'full', moustache: 'chevron', grey: 1, clothing: 'kurta', clothColour: 0, expression: 'calm' }, 'Uncle', null],
+  [{ id: 'f5', sex: 'f', born: '1990', living: true }, { skin: 11, hair: 0, eyes: 1, headwear: 'hijab', hatColour: 8, clothing: 'jacket', clothColour: 6, expression: 'smile', backdrop: 'books', glasses: 'round' }, 'Cousin, a teacher', null],
+  [{ id: 'f6', sex: 'm', born: '1994', living: true }, { skin: 5, hair: 8, eyes: 6, hairStyle: 'locs', beardStyle: 'circle', clothing: 'hoodie', clothColour: 13, expression: 'grin', earrings: 'studs' }, 'Cousin', GREEN],
+  [{ id: 'f7', sex: 'f', born: '2003', living: true }, { skin: 0, hair: 12, eyes: 8, hairStyle: 'fringe', marks: ['freckles', 'lashes'], extras: ['nose-stud'], clothing: 'plaid', expression: 'smile', backdrop: 'night' }, 'Niece, blue hair', BLUE],
+  [{ id: 'f8', sex: 'm', born: '1940', living: true }, { skin: 2, hair: 1, eyes: 2, hairStyle: 'thinning', grey: 3, glasses: 'half', extras: ['hearing-aid', 'pipe'], clothing: 'cardigan', lines: 3, expression: 'smile', build: 8 }, 'Grandfather', RED],
+  [{ id: 'f9', sex: 'f', born: '1972', living: true }, { skin: 14, hair: 8, eyes: 6, hairStyle: 'box-braids', clothing: 'white-coat', glasses: 'rimless', expression: 'calm', earrings: 'drops' }, 'Aunt, a doctor', GREEN],
+  [{ id: 'f10', sex: 'm', born: '1968', living: true }, { skin: 10, hair: 8, eyes: 6, eyeShape: 'monolid', hairStyle: 'side-part', grey: 1, clothing: 'suit-slim', glasses: 'horn', expression: 'calm' }, 'Uncle by marriage', null],
+  [{ id: 'f11', sex: 'f', born: '1996', living: true }, { skin: 1, hair: 4, eyes: 3, hairStyle: 'crown-braid', headwear: 'flower-crown', clothing: 'dirndl', expression: 'grin', backdrop: 'hills' }, 'Midsummer', GREEN],
+  [{ id: 'f12', sex: 'm', born: '1922', died: '1944' }, { skin: 1, hair: 3, eyes: 4, headwear: 'peaked-cap', clothing: 'uniform', expression: 'stern', age: 21 }, 'Great-uncle, 1943', BLUE],
+  [{ id: 'f13', sex: 'f', born: '1995', living: true }, { skin: 3, hair: 0, eyes: 0, hairStyle: 'chignon', headwear: 'bridal-veil', clothing: 'wedding-dress', necklace: 'pearls', expression: 'smile', extras: ['bindi'] }, 'Wedding day', null],
+  [{ id: 'f14', sex: 'm', born: '1985', living: true }, { skin: 2, hair: 2, eyes: 2, headwear: 'kippah', beardStyle: 'short', clothing: 'shirt', clothColour: 0, expression: 'smile', marks: ['vitiligo'] }, 'Cousin', null],
+  [{ id: 'f15', sex: 'f', born: '2017', living: true }, { skin: 4, hair: 0, eyes: 0, hairStyle: 'space-buns', clothing: 'overalls', expression: 'grin', marks: ['dimples'], backdrop: 'sky' }, 'The youngest', RED],
+  [{ id: 'f16', sex: 'x', born: '1999', living: true }, { skin: 9, hair: 13, eyes: 5, hairStyle: 'fade', clothing: 'turtleneck', clothColour: 4, earrings: 'hoops', glasses: 'round', frames: 1, expression: 'calm', marks: ['birthmark'] }, 'Cousin', BLUE],
+  [{ id: 'f17', sex: 'm', born: '1105', died: '1160' }, { skin: 1, hair: 6, eyes: 4, headwear: 'crown', beardStyle: 'long', clothing: 'tunic', expression: 'stern', backdrop: 'house', marks: ['scar'] }, 'A king of the realm', RED],
+  [{ id: 'f18', sex: 'f', born: '1130', died: '1190' }, { skin: 5, hair: 0, eyes: 6, headwear: 'tiara', hairStyle: 'braid', clothing: 'gown', necklace: 'pendant', expression: 'calm', backdrop: 'rays' }, 'A queen of the realm', GREEN],
+];
+
+/** The showcase family at the size of a person's panel and of a list row. The dead are shown in colour here, to show the drawing. */
+function Showcase() {
+  const people = SHOWCASE.map(([p, look, caption, h]) => ({ person: { living: false, ...p, given: caption, stories: 0, contacts: 0, look } as GPerson, caption, h }));
+  return (
+    <section className="ui-card" style={{ display: 'grid', gap: 16 }} data-showcase>
+      <h2 className="rule" style={{ margin: 0 }}>What a family can look like</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '18px 12px' }}>
+        {people.map(({ person, caption, h }) => (
+          <figure key={person.id} style={{ margin: 0, display: 'grid', justifyItems: 'center', gap: 6 }}>
+            <Portrait person={person} tree="none" house={h} size={140} mourn={false} />
+            <figcaption className="subtle" style={{ fontSize: 13, textAlign: 'center' }}>{caption}</figcaption>
+          </figure>
+        ))}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        {people.map(({ person, h }) => <Portrait key={person.id} person={person} tree="none" house={h} size={40} mourn={false} decorative />)}
+      </div>
+    </section>
   );
 }
