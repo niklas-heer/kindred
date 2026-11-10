@@ -92,6 +92,41 @@ account. A guest's pictures go through the same checks, and they need the guest'
   it, the page the server renders included. What the family wrote in free text about someone else (a story about a
   grandmother that names her grandchild's birthday, the caption of a picture nobody living is tagged in) is not rewritten.
 
+### Asking to join (an own account from a share link)
+
+On an installation with Kindred's own sign-in (`KINDRED_AUTH=kindred`), a guest can ask for an account of their own. A quiet,
+dismissible card on their pages (and "Ask to join" by the Guest label) says what an account gives. The guest gives a name,
+picks who they are in the tree (or "I'm not in the tree yet"), may add a short message, and makes a passkey. Before sending, the
+form shows exactly what the stewards will receive.
+
+- **A pending account.** Sending makes an account with that passkey and **no membership**, and a request. The account cannot
+  sign in: the sign-in refuses it until a steward has said yes, so it can reach nothing a guest could not already read. The
+  guest keeps looking around as a guest and sees "Waiting for a steward". The asking browser follows its request through a
+  cookie of its own (only a hash is stored). One browser sends one request.
+- **The steward's card.** Stewards see a badge on the account menu and on Access, a card at the top of the Access page, and,
+  on devices with reminders on, a push. The card shows the name given; who they say they are, with that person's card and how
+  the steward is related to them, and a warning when a member already stands for that person; the message; an approximate
+  place (city, region and country from Cloudflare's request data on Workers, never an IP address; "unknown" on Node, unless a
+  trusted proxy, `KINDRED_TRUSTED_PROXIES`, sets the `CF-IPCountry` header, which then gives the country only); the browser's
+  time zone and language; the device family ("iPhone, Safari"); and how the link was used (below).
+- **Approve or decline.** Approving makes them a member with the role the steward chooses (Contributor by default), standing
+  for the person the steward confirms, changes or clears; a named person counts as confirmed. It works even after the link
+  ended or was replaced. Their passkey then signs them in, and the details of the request are cleared at once. Declining
+  deletes the request, the pending account and its passkey.
+- **Limits.** A request ends by itself after 30 days, and its account and passkey go with it. A link holds at most 10 open
+  requests, and starting one is limited per address (5 per link in 15 minutes, counted in the database like the password
+  tries, the address hashed).
+- **The switch.** "Guests may ask to join" is on by default for every link, existing ones included, and a steward can turn it
+  off on the Access page; requests already sent stay.
+- **The guest host** (`KINDRED_GUEST_ORIGIN`) and Cloudflare Access installations offer no request: the guest host has no sign-in.
+
+**How the link was used.** Only where a request is possible, a guest's visit is measured per browser: a random cookie, stored
+only as a hash, with first and last seen, the number of visits, minutes active, a counter per section, and a small tally of the
+people opened (the 20 opened most). There is no page log and no address. A browser with Do Not Track or Global Privacy Control
+is not measured, and nothing is measured while the family's statistics are off. The password page and the request form say so.
+These figures are shown to stewards only inside a request, as a copy taken when it was sent (which the form showed first); the
+rows go when the link is replaced or turned off, and 90 days after the last visit.
+
 Before you share a link, decide what it should show: anyone who has the link and the password can read the names, the dates
 of the dead (and of the living, if the link does not protect them), biographies and stories, for as long as the link works,
 and can pass it on.
@@ -175,6 +210,8 @@ themselves. The Markdown archive carries research that isn't private, with its d
 - Pages and data are sent with `Cache-Control: private, no-store`, so after signing out on a shared computer the family's
   pages are not left in the browser's cache, and no shared cache keeps one member's page for another. Pages also carry an
   enforced Content-Security-Policy (see [self-host.md](self-host.md#security-headers-and-caching)).
+- An account made by asking to join through a share link cannot sign in until a steward approves it (see
+  [Asking to join](#asking-to-join-an-own-account-from-a-share-link)).
 - Sign-in endpoints are rate-limited. The limit is kept in memory: it resets when the server restarts, and on
   Cloudflare each isolate keeps its own count. It is a brake against guessing, not a wall.
 - With Cloudflare Access as the method, Kindred accepts only a verified Access identity, so the first person through Access can
@@ -198,7 +235,7 @@ To leave, export the family, or copy the database (a copy of the database holds 
 
 A steward can see how the family uses Kindred on the family's Statistics page, and can turn collection off there. It is on until a steward turns it off.
 
-**What is counted, per family and per day:** page views by section (Almanac, Atlas, "a house's page"), visits, how many members were active, and the use of a few features (asked the assistant, designed arms, added research, finished or skipped the tour). A guest from a share link counts as one anonymous visit, and nothing else about them is kept. The changes on the page (people, photos, stories, research) and the number of feedback reports are read from what the family already holds, so they add no new data. A person counts on the day they were last edited.
+**What is counted, per family and per day:** page views by section (Almanac, Atlas, "a house's page"), visits, how many members were active, and the use of a few features (asked the assistant, designed arms, added research, finished or skipped the tour). A guest from a share link counts as one anonymous visit here. Separately, where guests may ask to join, each guest browser's use of the link is kept as a few totals for the stewards to see in a request ([Asking to join](#asking-to-join-an-own-account-from-a-share-link)); this page never shows them. The changes on the page (people, photos, stories, research) and the number of feedback reports are read from what the family already holds, so they add no new data. A person counts on the day they were last edited.
 
 **Who did it, by category.** Every counter is also filed under the role the member held when it happened: steward, editor, contributor or viewer, and share-link guests as their own group. The server reads the role from the membership; a browser cannot name its own category. The Statistics page headline and its "how it's being received" reading cover **the family without stewards**, so a steward using Kindred does not make it look busier; a switch shows each group or everyone. A "Who did what" table gives each group's visits, active people, page views, changes and feature use. These are totals per group, never a list of people. A group with one member says so, because its numbers may then be that one person. Changes are told apart by who made them from the day categories began (the family's records keep no author); before that, and for counters written before categories existed, the numbers appear only under "Everyone", labelled as from before categories.
 

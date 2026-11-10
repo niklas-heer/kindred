@@ -9,8 +9,9 @@ moving to before you upgrade ([docs/self-host.md](docs/self-host.md), "Upgrading
 
 Changes on `main` since 2.0.0. They are not in a release yet.
 
-Database changes: three migrations are new, `accounts/0022_session_credential.sql`, `accounts/0023_share_protect_living.sql`
-and `tree/0023_photo_thumb.sql`. Each adds one column, so they are quick and nothing you have is rewritten. On Node they
+Database changes: four migrations are new, `accounts/0022_session_credential.sql`, `accounts/0023_share_protect_living.sql`,
+`accounts/0024_join_request.sql` and `tree/0023_photo_thumb.sql`. They add columns and new tables, so they are quick and nothing
+you have is rewritten. On Node they
 are applied by themselves when the server starts, after a copy of each database. On Cloudflare, `mise run deploy` applies
 them before the new Worker goes live (`mise run cf:migrate:remote` does the same step alone). Code and migrations roll back
 together: to go back to 2.0.0, restore the copies the server made before the migration and start the old version. An old
@@ -18,6 +19,11 @@ version will not run on a database that has had these migrations.
 
 ### Added
 
+- Ask to join: a guest of a family's share link can ask for an account of their own, with a passkey. A steward sees the request
+  on the Access page (with an approximate place, the device family and how the link was used), gets a badge and a push, and
+  approves it with a role or declines it. Requests end after 30 days; a link holds at most 10. Each link has a "Guests may ask to
+  join" switch, on by default. To show how the link was used, a guest's visit is now measured per browser as a few totals
+  (never with Do Not Track or Global Privacy Control); see docs/roles-and-privacy.md. Kindred sign-in only.
 - Setting `KINDRED_TRUSTED_PROXIES`: how many reverse proxies stand in front of the Node server. `compose.yaml` passes it
   on and the HTTPS steps set it to 1.
 - Removing a passkey now signs out the devices that signed in with it. The passkeys dialog has "Sign out everywhere else".
