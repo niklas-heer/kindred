@@ -21,3 +21,6 @@ data/secret
 
 # Docker settings for this machine (copy .env.example): the public address and any setup code.
 .env
+
+# The demo's own data (mise run demo): the invented families, made fresh on every run.
+.demo/

@@ -1,4 +1,5 @@
-// Reading wrangler.jsonc and running wrangler, for the Cloudflare scripts.
+// Reading wrangler.jsonc and running wrangler, for the Cloudflare scripts. KINDRED_WRANGLER_CONFIG names another configuration
+// (the demo's, deploy/demo/wrangler.jsonc), and KINDRED_WRANGLER_PERSIST a folder for local D1 and R2 state instead of .wrangler/.
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
@@ -25,17 +26,20 @@ function parseJsonc(text: string): unknown {
   return JSON.parse(out.replace(/,(\s*[}\]])/g, '$1'));
 }
 
+/** The configuration the scripts use: wrangler.jsonc, or KINDRED_WRANGLER_CONFIG. */
+export const wranglerConfig = () => process.env.KINDRED_WRANGLER_CONFIG?.trim() || 'wrangler.jsonc';
+
 /** The bindings for an environment (`--env local`), or the top level. */
 export function wranglerBindings(env?: string) {
-  const config = parseJsonc(readFileSync('wrangler.jsonc', 'utf8')) as Config;
+  const config = parseJsonc(readFileSync(wranglerConfig(), 'utf8')) as Config;
   const scope = env ? config.env?.[env] : config;
-  if (!scope) throw new Error(`wrangler.jsonc has no environment "${env}"`);
+  if (!scope) throw new Error(`${wranglerConfig()} has no environment "${env}"`);
   return { d1: scope.d1_databases ?? [], r2: scope.r2_buckets ?? [] };
 }
 
 /** The workerd settings the deployed Worker runs with. */
 export function workerRuntime() {
-  const config = parseJsonc(readFileSync('wrangler.jsonc', 'utf8')) as Config;
+  const config = parseJsonc(readFileSync(wranglerConfig(), 'utf8')) as Config;
   return { compatibilityDate: config.compatibility_date, compatibilityFlags: config.compatibility_flags };
 }
 
@@ -55,10 +59,14 @@ export const treeBinding = (tree: string) => `TREE_${tree.toUpperCase().replace(
 
 /** Runs wrangler with the given arguments; throws when it fails. */
 export function wrangler(args: string[], opts: { quiet?: boolean } = {}) {
-  const r = spawnSync('npx', ['wrangler', ...args], { stdio: opts.quiet ? 'pipe' : 'inherit', encoding: 'utf8', env: { ...process.env, CI: 'true' } });
+  const config = process.env.KINDRED_WRANGLER_CONFIG?.trim() ? ['-c', wranglerConfig()] : [];
+  const r = spawnSync('npx', ['wrangler', ...args, ...config], { stdio: opts.quiet ? 'pipe' : 'inherit', encoding: 'utf8', env: { ...process.env, CI: 'true' } });
   if (r.status !== 0) throw new Error(`wrangler ${args.join(' ')} failed${opts.quiet ? `:\n${r.stdout}\n${r.stderr}` : ''}`);
   return r.stdout ?? '';
 }
 
 /** `--local` or `--remote`, plus `--env <name>` when given. */
-export const where = (remote: boolean, env?: string) => [remote ? '--remote' : '--local', ...(env ? ['--env', env] : [])];
+export const where = (remote: boolean, env?: string) => {
+  const persist = !remote && process.env.KINDRED_WRANGLER_PERSIST?.trim();
+  return [remote ? '--remote' : '--local', ...(env ? ['--env', env] : []), ...(persist ? ['--persist-to', persist] : [])];
+};

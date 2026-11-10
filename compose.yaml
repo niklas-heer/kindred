@@ -4,6 +4,8 @@
 #   docker compose up -d --build                   # the app, on http://localhost:4901 (this machine only)
 #   docker compose --profile https up -d --build   # HTTPS on $KINDRED_DOMAIN, certificates from Let's Encrypt
 #   docker compose logs app                        # shows the setup code, when KINDRED_SETUP_CODE=required
+#   docker compose --profile demo up -d --build demo   # a public, read-only demo of the invented families on
+#                                                      # http://localhost:4902 (docs/self-host.md, "A public demo")
 name: kindred
 
 services:
@@ -36,6 +38,9 @@ services:
       KINDRED_VAPID_PRIVATE_JWK: ${KINDRED_VAPID_PRIVATE_JWK:-}
       KINDRED_VAPID_SUBJECT: ${KINDRED_VAPID_SUBJECT:-}
       KINDRED_JOBS: ${KINDRED_JOBS:-}
+      # A public, read-only demo (docs/self-host.md, "A public demo"). The demo profile below sets it for its own service; leave
+      # it empty here unless this whole app is meant to be one.
+      KINDRED_DEMO: ${KINDRED_DEMO:-}
       # 1 with the https profile: Caddy is the one proxy in front, and the rate limits then count each visitor's own
       # address rather than Caddy's. Leave it empty without Caddy.
       KINDRED_TRUSTED_PROXIES: ${KINDRED_TRUSTED_PROXIES:-}
@@ -45,6 +50,44 @@ services:
       - "127.0.0.1:4901:4901"
     volumes:
       - kindred-data:/data
+
+  # The demo profile: the two invented families, made fresh on every start by the image's build stage (which has the
+  # generators), then the app on them with KINDRED_DEMO=1: no sign-in, read-only. Its own volume, never the app's data.
+  # Settings that need accounts or push are not passed: the demo refuses to start beside them.
+  demo-data:
+    profiles: ["demo"]
+    build:
+      context: .
+      target: build
+    image: kindred:build
+    environment:
+      KINDRED_DATA_DIR: /data
+    # The app runs as the image's unprivileged node user, so the files it opens are handed to it.
+    command: ["sh", "-c", "node scripts/demo.ts --data-only && chown -R node:node /data"]
+    volumes:
+      - kindred-demo-data:/data
+
+  demo:
+    profiles: ["demo"]
+    build:
+      context: .
+      args:
+        KINDRED_COMMIT: ${KINDRED_COMMIT:-unknown}
+    image: kindred:local
+    restart: unless-stopped
+    stop_grace_period: 20s
+    depends_on:
+      demo-data:
+        condition: service_completed_successfully
+    environment:
+      KINDRED_DEMO: "1"
+      KINDRED_ORIGIN: ${KINDRED_DEMO_ORIGIN:-http://localhost:4902}
+      KINDRED_JOBS: "off"
+      KINDRED_TRUSTED_PROXIES: ${KINDRED_TRUSTED_PROXIES:-}
+    ports:
+      - "127.0.0.1:4902:4901"
+    volumes:
+      - kindred-demo-data:/data
 
   caddy:
     image: caddy:2.11
@@ -64,5 +107,6 @@ services:
 
 volumes:
   kindred-data:
+  kindred-demo-data:
   caddy-data:
   caddy-config:

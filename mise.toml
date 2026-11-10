@@ -18,6 +18,15 @@ run = [
   "node scripts/seed.ts --force data/seed/realm.json data/seed/modern.json",
 ]
 
+[tasks.demo]
+description = "Run a public demo on Node: builds the server, makes the two invented families fresh in .demo/data (or KINDRED_DATA_DIR) and starts it read-only with KINDRED_DEMO=1 on PORT (4901). docs/self-host.md, A public demo"
+env = { KINDRED_TARGET = "node" }
+run = ["vite build", "node scripts/demo.ts"]
+
+[tasks."demo:cf"]
+description = "Make the D1 databases of a Cloudflare demo from the invented families (deploy/demo/): --local (default) or --remote, --env, --config. Never run --remote unless you mean to"
+run = 'node deploy/demo/seed-d1.ts "$@"'
+
 [tasks.seed]
 description = "Build missing data/*.db from data/seed/ (existing ones are kept; pass --force to rebuild with a backup)"
 run = "node scripts/seed.ts"

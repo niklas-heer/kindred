@@ -1,5 +1,5 @@
 {
-  "include": ["src/**/*.ts", "src/**/*.tsx", "scripts/**/*.ts", "server/**/*.ts", "e2e/**/*.ts", "vite.config.ts", "playwright.config.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "scripts/**/*.ts", "server/**/*.ts", "deploy/**/*.ts", "e2e/**/*.ts", "vite.config.ts", "playwright.config.ts"],
   "compilerOptions": {
     "strict": true,
     "noUnusedLocals": true,

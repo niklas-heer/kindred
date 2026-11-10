@@ -1,0 +1,49 @@
+// A public, read-only demo of Kindred on Cloudflare Workers: the two invented families (the Realm of Aurelmarch, `realm`, and
+// the modern family, `modern`), KINDRED_DEMO=1, no sign-in. docs/deploy-cloudflare.md, "A public demo", has every step.
+// This is a template: the ids below are placeholders. Never bind a real family's database here; the demo shows it to anyone.
+//
+//   npx wrangler d1 create kindred-demo-accounts    → its database_id below
+//   npx wrangler d1 create kindred-demo-realm       → its database_id below
+//   npx wrangler d1 create kindred-demo-modern      → its database_id below
+//   npx wrangler r2 bucket create kindred-demo-media
+//   mise run demo:cf -- --remote                    → the schema and the invented families (deploy/demo/seed-d1.ts)
+//   KINDRED_WRANGLER_CONFIG=deploy/demo/wrangler.jsonc npx vite build
+//   npx wrangler deploy -c dist/server/wrangler.json
+//
+// Locally, in workerd and never on Cloudflare (the `local` environment):
+//   mise run demo:cf                                  → local D1 in deploy/demo/.wrangler/state
+//   KINDRED_WRANGLER_CONFIG=deploy/demo/wrangler.jsonc CLOUDFLARE_ENV=local npx vite build
+//   npx wrangler dev -c dist/server/wrangler.json --local --persist-to deploy/demo/.wrangler/state
+{
+	"$schema": "../../node_modules/wrangler/config-schema.json",
+	"name": "kindred-demo",
+	"main": "../../src/server.ts",
+	"compatibility_date": "2026-10-12",
+	// nodejs_compat: process.env carries the vars below, which is where the app reads KINDRED_DEMO.
+	"compatibility_flags": ["nodejs_compat"],
+	"observability": { "enabled": true },
+	"placement": { "mode": "smart" },
+	"upload_source_maps": true,
+	// No cron trigger: a demo has no daily jobs. Add no secrets: a demo needs none, and refuses to start beside a setup code,
+	// Cloudflare Access settings, a guest host or reminder keys.
+	"vars": { "KINDRED_DEMO": "1" },
+	"d1_databases": [
+		{ "binding": "ACCOUNTS", "database_name": "kindred-demo-accounts", "database_id": "REPLACE-WITH-D1-ID", "migrations_dir": "../../migrations/accounts" },
+		{ "binding": "TREE_REALM", "database_name": "kindred-demo-realm", "database_id": "REPLACE-WITH-D1-ID", "migrations_dir": "../../migrations/tree" },
+		{ "binding": "TREE_MODERN", "database_name": "kindred-demo-modern", "database_id": "REPLACE-WITH-D1-ID", "migrations_dir": "../../migrations/tree" }
+	],
+	"r2_buckets": [{ "binding": "MEDIA", "bucket_name": "kindred-demo-media" }],
+
+	"env": {
+		// Local only (workerd, local D1 and R2): `mise run demo:cf` fills these, and nothing here is ever deployed.
+		"local": {
+			"vars": { "KINDRED_DEMO": "1" },
+			"d1_databases": [
+				{ "binding": "ACCOUNTS", "database_name": "kindred-demo-local-accounts", "database_id": "demo-local-accounts", "migrations_dir": "../../migrations/accounts" },
+				{ "binding": "TREE_REALM", "database_name": "kindred-demo-local-realm", "database_id": "demo-local-realm", "migrations_dir": "../../migrations/tree" },
+				{ "binding": "TREE_MODERN", "database_name": "kindred-demo-local-modern", "database_id": "demo-local-modern", "migrations_dir": "../../migrations/tree" }
+			],
+			"r2_buckets": [{ "binding": "MEDIA", "bucket_name": "kindred-demo-local-media" }]
+		}
+	}
+}

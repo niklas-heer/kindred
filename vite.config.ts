@@ -72,7 +72,8 @@ export default defineConfig(({ command }) => {
     // node:sqlite is built into Node; keep it out of the bundle.
     ssr: workers ? undefined : { external: ['node:sqlite'] },
     plugins: [
-      ...(workers ? [cloudflare({ viteEnvironment: { name: 'ssr' }, inspectorPort: false })] : []),
+      // KINDRED_WRANGLER_CONFIG builds against another Worker's configuration, such as the demo's (deploy/demo/wrangler.jsonc).
+      ...(workers ? [cloudflare({ viteEnvironment: { name: 'ssr' }, inspectorPort: false, configPath: process.env.KINDRED_WRANGLER_CONFIG?.trim() || undefined })] : []),
       i18nTables(),
       tanstackStart(),
       viteReact(),

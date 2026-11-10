@@ -13,6 +13,11 @@
 //   POST /api/ai-chat/<family>                 403 cross-site, 401 signed out; signed in (a session and a family written into
 //                                              the local D1, the fake AI provider) it streams a reply in pieces and stores it,
 //                                              and a reply cut off mid-way frees its chat for the next message
+// Then the same Worker again with KINDRED_DEMO=1 (a public demo, src/lib/demo.ts), on the databases the checks above filled:
+//   /                  opens the one family; /setup and /signin go back to /
+//   /<family>          200 HTML with the demo's bar, the same Content-Security-Policy and no-store, and no cookie set
+//   POST /api/auth/signin-options              refused with the demo's 403 (the store refuses the write it needs)
+//   POST /api/ai-chat/<family>                 no reply, even with a steward's session and the AI set up
 // Exit status 0 when every check passes; 1 otherwise, with the Worker's own log tail on stderr. WORKER_SMOKE_LOG=1 prints
 // that log tail even when everything passes.
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
@@ -262,7 +267,65 @@ async function main(): Promise<boolean> {
     });
     if (failures.length || process.env.WORKER_SMOKE_LOG) console.error(`\nthe Worker's log (last part):\n${log.join('').slice(-3000)}`);
   }
+  await demoChecks(config, 'modern');
   return failures.length === 0;
+}
+
+/** The same Worker as a public demo (KINDRED_DEMO=1), on the state the checks above left: a family, a steward and their AI. */
+async function demoChecks(config: string, tree: string) {
+  const port = await freePort();
+  const log: string[] = [];
+  const child = spawn(process.execPath, [wranglerBin, 'dev', '-c', config, '--local', '--persist-to', state, '--ip', '127.0.0.1', '--port', String(port), '--log-level', 'info', '--var', 'KINDRED_DEMO:1', '--var', 'KINDRED_AI_FAKE:1', '--var', `KINDRED_SECRET:${SMOKE_SECRET}`], {
+    cwd: work, env: childEnv(), detached: true, stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const collect = (chunk: Buffer) => log.push(chunk.toString());
+  child.stdout?.on('data', collect);
+  child.stderr?.on('data', collect);
+  const base = `http://127.0.0.1:${port}`;
+  const failedBefore = failures.length;
+  try {
+    const deadline = Date.now() + 90_000;
+    let up = false;
+    while (!up && Date.now() < deadline) {
+      if (child.exitCode !== null) break;
+      up = await fetch(`${base}/api/health`).then((r) => r.status === 200, () => false);
+      if (!up) await sleep(500);
+    }
+    if (!up) throw new Error(`the demo Worker did not answer on port ${port}:\n${log.join('').slice(-3000)}`);
+
+    const home = await fetch(`${base}/`, { redirect: 'manual' });
+    await home.body?.cancel();
+    check([301, 302, 307, 308].includes(home.status) && (home.headers.get('location') ?? '').endsWith(`/${tree}`), `demo: / opens the one family (got ${home.status} ${home.headers.get('location')})`);
+    for (const path of ['/setup', '/signin']) {
+      const r = await fetch(`${base}${path}`, { redirect: 'manual' });
+      await r.body?.cancel();
+      check([301, 302, 307, 308].includes(r.status) && new URL(r.headers.get('location') ?? '/x', base).pathname === '/', `demo: ${path} goes back to / (got ${r.status})`);
+    }
+    const page = await fetch(`${base}/${tree}`, { redirect: 'manual' });
+    const html = await page.text();
+    check(page.status === 200 && html.includes('class="demo-bar"') && html.includes('data-demo=""'), `demo: /${tree} renders with the demo's bar (got ${page.status})`);
+    check(/script-src 'self' 'nonce-/.test(page.headers.get('content-security-policy') ?? '') && page.headers.get('cache-control') === 'private, no-store', 'demo: the page keeps its Content-Security-Policy and no-store');
+    check(page.headers.get('set-cookie') === null, 'demo: no cookie is set');
+
+    const post = (path: string, body: object, headers: Record<string, string> = {}) =>
+      fetch(`${base}${path}`, { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/json', 'Sec-Fetch-Site': 'same-origin', Origin: base, ...headers }, body: JSON.stringify(body) });
+    const signin = await post('/api/auth/signin-options', {});
+    const refusal = await signin.text();
+    check(signin.status === 403 && refusal.includes('This is a demo'), `demo: a write is refused with the demo's 403 (got ${signin.status} ${refusal.slice(0, 80)})`);
+    // The steward's session from above is not looked at, and the family's AI is off in a demo.
+    const chat = await post(`/api/ai-chat/${tree}`, { kind: 'message', conv: randomUUID(), turnId: randomUUID(), text: 'hello', locale: 'en' }, { Cookie: `kindred_session=${'a'.repeat(43)}` });
+    const chatBody = await chat.text();
+    check(!chatBody.includes('"type":"delta"'), `demo: the assistant sends no reply (got ${chat.status})`);
+  } catch (e) {
+    failures.push(e instanceof Error ? e.message : String(e));
+    console.error(e);
+  } finally {
+    await stop(child, port).catch((e: Error) => {
+      failures.push(e.message);
+      console.error(e.message);
+    });
+    if (failures.length > failedBefore || process.env.WORKER_SMOKE_LOG) console.error(`\nthe demo Worker's log (last part):\n${log.join('').slice(-3000)}`);
+  }
 }
 
 try {
