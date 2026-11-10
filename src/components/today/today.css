@@ -1,6 +1,7 @@
 /* The Today page and its cards (src/routes/$tree/today.tsx, src/components/today/). Tokens only, so the three themes
-   dress it: Codex in gilt and small caps, Paper quiet, Night by candlelight. The page is one column on a phone and a
-   tablet, and the question beside the smaller cards on a wide screen. */
+   dress it: Codex in gilt and small caps, Paper quiet, Night by candlelight. The family's feed (src/components/feed/) is
+   the page's main column; the cards stand beside it on a wide screen, and fold into one strip of buttons above it on a
+   phone and a tablet, one card open at a time. */
 
 .td { max-width: 1120px; }
 
@@ -24,17 +25,51 @@
 
 /* ---------- the layout ---------- */
 
-.td-grid { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); max-width: 720px; margin-inline: auto; }
-.td-main, .td-side { display: grid; gap: 18px; align-content: start; min-width: 0; }
+.td-grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); max-width: 720px; margin-inline: auto; }
+.td-main { min-width: 0; }
+.td-side { display: grid; gap: 14px; align-content: start; min-width: 0; }
+.td-panel { min-width: 0; }
+.td-panel > * + * { margin-top: 14px; }
+/* A card that has nothing to show (the Campaign while it is off, a day without a nudge) takes no room. */
+.td-panel:empty { display: none; }
+.td-strip { display: none; }
 @media (min-width: 1000px) {
-  .td-grid { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); max-width: none; align-items: start; gap: 22px; }
+  .td-grid { grid-template-columns: minmax(0, 1fr) minmax(300px, 384px); max-width: none; align-items: start; gap: 26px; }
+  /* The cards come first in the source (see today.tsx) and stand at the right. */
+  .td-side { grid-column: 2; grid-row: 1; gap: 18px; }
+  .td-main { grid-column: 1; grid-row: 1; }
+  /* Every card is the column's own child, so the earlier questions can wait below the others. */
+  .td-panel { display: contents; }
+  .td-earlier { order: 9; }
+  .td-foot { order: 10; }
+  .td-main .fd-head { margin-top: 18px; }
 }
-/* One column: the greeting lines up with the cards, and the earlier questions wait below the quiz and the dates. */
+/* One column: the greeting lines up with the feed, and the cards are a strip of buttons with the open one under it. */
 @media (max-width: 999.98px) {
   .td-hero { max-width: 720px; margin-inline: auto; }
-  .td-main, .td-side { display: contents; }
-  .td-earlier { order: 9; }
+  .td-side { gap: 10px; }
+  .td-strip {
+    display: flex; gap: 6px; margin-inline: calc(-1 * var(--gutter)); padding: 2px var(--gutter); overflow-x: auto;
+    scroll-snap-type: x proximity; scroll-padding-inline: var(--gutter); scrollbar-width: none;
+  }
+  .td-strip::-webkit-scrollbar { display: none; }
+  .td-panel:not([data-open]) { display: none; }
+  /* "Open the family on this page" goes with the cards: it shows under whichever is open. */
+  .td-side .td-foot { display: none; }
+  .td-side .td-panel[data-open] ~ .td-foot { display: flex; }
 }
+.td-strip-btn {
+  position: relative; flex: none; display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 6px 14px;
+  border-radius: 999px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); cursor: pointer;
+  font-family: var(--font-ui); font-size: var(--fs-3); line-height: 1; white-space: nowrap; scroll-snap-align: start;
+  transition: border-color var(--dur-1), background-color var(--dur-1), color var(--dur-1);
+}
+[data-theme='codex'] .td-strip-btn { border-radius: var(--radius-lg); font-variant: small-caps; letter-spacing: 0.03em; font-size: var(--fs-4); }
+.td-strip-btn svg { flex: none; color: var(--accent); }
+.td-strip-btn:hover { border-color: var(--edge); background: var(--panel-3); }
+.td-strip-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.td-strip-btn[aria-expanded='true'] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--panel-2)); }
+.td-strip-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--panel-2); }
 
 .td-card { padding: 18px 20px 20px; min-width: 0; }
 .td-card-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin: 0 0 12px; }
@@ -64,6 +99,8 @@
 .td-week-change { margin-left: auto; font-size: var(--fs-2); color: var(--muted); }
 .td-week-q { margin: 6px 0 18px; font-family: var(--font-name); font-size: clamp(1.5rem, 3.4vw, 2.125rem); font-weight: 500; line-height: 1.22; text-wrap: balance; overflow-wrap: anywhere; hyphens: auto; }
 [data-theme='night'] .td-week-q { font-weight: 400; }
+.td-side .td-week { padding: 18px 20px 20px; }
+.td-side .td-week-q { font-size: var(--fs-6); margin-bottom: 14px; }
 .td-week-cta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
 .td-week-cta .btn.primary { height: var(--ctl-lg); padding-inline: 18px; font-size: var(--fs-4); }
 .td-week-cta .subtle { font-size: var(--fs-2); }
@@ -201,8 +238,8 @@ label.td-quiz-option:active { transform: translateY(1px); }
 /* The Campaign's card sits among these; it brings its own layout (campaign.css). */
 .td-side .cg-card { padding: 18px 20px 20px; }
 
-.td-foot { margin: 28px auto 0; max-width: 720px; display: flex; justify-content: center; color: var(--muted); font-family: var(--font-ui); font-size: var(--fs-3); }
-@media (min-width: 1000px) { .td-foot { max-width: none; } }
+/* "Open the family on this page": under the cards. */
+.td-foot { margin: 2px 0 0; display: flex; justify-content: center; color: var(--muted); font-family: var(--font-ui); font-size: var(--fs-3); }
 
 @media (max-width: 760px) {
   .td-hero { margin-bottom: 16px; }
@@ -217,6 +254,6 @@ label.td-quiz-option:active { transform: translateY(1px); }
 
 @media (prefers-reduced-motion: reduce) {
   .td-quiz-result, .td-quiz-verdict .td-quiz-mark { animation: none; }
-  .td-quiz-option, .td-chevron { transition: none; }
+  .td-quiz-option, .td-chevron, .td-strip-btn { transition: none; }
   label.td-quiz-option:active { transform: none; }
 }

@@ -39,6 +39,7 @@ export function AnswerDialog({ tree, question, onClose }: { tree: string; questi
       void qc.invalidateQueries({ queryKey: ['person', tree, about!.id] });
       void qc.invalidateQueries({ queryKey: ['graph', tree] });
       void qc.invalidateQueries({ queryKey: ['chronicle', tree] });
+      void qc.invalidateQueries({ queryKey: ['feed', tree] });
       toast({ title: t('today.answer.saved'), body: t('today.answer.saved_body'), person: about!.id, icon: 'quill-ink' });
       onClose();
     },

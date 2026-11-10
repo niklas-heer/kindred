@@ -19,14 +19,14 @@ const DAY = 86_400_000;
 const WEEK = 7;
 
 /** "9th" in English, as the Almanac writes it; the other languages have their own forms. */
-function nth(n: number, locale: Locale): string {
+export function nth(n: number, locale: Locale): string {
   if (locale !== 'en') return ordinal(n, locale);
   const s = ['th', 'st', 'nd', 'rd'];
   const v = n % 100;
   return n + (s[(v - 20) % 10] || s[v] || s[0]!);
 }
 
-interface DateEvent { key: string; kind: 'birthday' | 'anniversary'; ids: string[]; days: number; date: Date; n: number }
+export interface DateEvent { key: string; kind: 'birthday' | 'anniversary'; ids: string[]; days: number; date: Date; n: number }
 
 /** The next time a month and day come round, today included; 29 February falls on the 28th in other years. */
 function next(month: number, day: number, today: Date): Date {
@@ -38,7 +38,7 @@ function next(month: number, day: number, today: Date): Date {
 }
 
 /** Birthdays of the living and wedding anniversaries of living couples, the soonest first. */
-function comingUp(f: Family, today: Date): DateEvent[] {
+export function comingUp(f: Family, today: Date): DateEvent[] {
   const out: DateEvent[] = [];
   const add = (key: string, kind: DateEvent['kind'], ids: string[], iso: string | undefined) => {
     const m = iso ? FULL.exec(iso) : null;

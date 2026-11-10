@@ -1,0 +1,264 @@
+// The family's feed on the Today page (docs/feed.md): a way to say something, then one stream, newest first, of what
+// people in the family did: their messages, new memories and sayings, a day's photographs, people added to the tree, a
+// season of the Campaign ending, and at the very top whose birthday it is today. Members only: for a share-link guest
+// it draws nothing and asks nothing, and the server refuses a guest anyway.
+//
+//   <Feed tree={tree} />
+//
+// The first page comes with the page (the route's loader); earlier ones follow as the reader scrolls for a while, and
+// then at the press of a button, so the end of the page stays reachable.
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
+import { Baby, Images, ScrollText, Swords, UserPlus } from 'lucide-react';
+import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { EAGER_FACES, StoryCard, type StoryTranslation } from '~/components/chronicle/StoryCard';
+import { GameIcon } from '~/components/GameIcon';
+import { comingUp, nth } from '~/components/today/DatesCard';
+import { EmptyState, ErrorState, Fleuron, Skeleton } from '~/components/ui';
+import { storyTranslationsQuery } from '~/lib/ai/background.functions';
+import { useToday } from '~/lib/clock';
+import { useDealt } from '~/lib/dealt';
+import { useFamily } from '~/lib/family';
+import { feedQuery } from '~/lib/feed/feed.functions';
+import type { FeedItem } from '~/lib/feed/types';
+import { displayName, type Family } from '~/lib/graph';
+import { formatDate, richText, useT, type Translator } from '~/lib/i18n';
+import { mediaUrl } from '~/lib/photos/types';
+import { useCan, useMember, useSession } from '~/lib/session';
+import type { GPerson, Story } from '~/lib/types';
+import { dayLabel } from '~/lib/when';
+import { ComposeRow } from './ComposeRow';
+import { authorFaces, PostCard, useAuthorName, When } from './PostCard';
+import '~/styles/chronicle.css';
+import './feed.css';
+
+/** How many pages follow by themselves as the reader scrolls; after that, a button asks. */
+const AUTO_PAGES = 4;
+
+export function Feed({ tree }: { tree: string }) {
+  const t = useT();
+  const f = useFamily();
+  const heading = useId();
+  const member = !!useMember(tree);
+  const session = useSession();
+  // A demo's visitor and a steward's preview read: the row above says why, and nothing here offers to write.
+  const canPost = useCan('post') && !session?.demo && !session?.viewAs;
+  const q = useInfiniteQuery({ ...feedQuery(tree), enabled: member });
+  // AI translations of memories into the reader's language, as the Chronicle shows them. Optional: without them the originals show.
+  const translations: Record<string, StoryTranslation> = useQuery({ ...storyTranslationsQuery(tree, t.locale), enabled: member }).data ?? {};
+  // The reader's own clock: undefined on the server, so the two never disagree about "today" or "3 hours ago".
+  const today = useToday();
+  const [openedAt] = useState(() => Date.now());
+  const now = useMemo(() => (today ? new Date(openedAt) : undefined), [today, openedAt]);
+  const dealt = useDealt(!q.isPending);
+  const [writing, setWriting] = useState(false);
+
+  const items = useMemo(() => {
+    const seen = new Set<string>();
+    // A post written while an earlier page was on screen can come round again on a later one: each entry is shown once.
+    return (q.data?.pages ?? []).flatMap((p) => p.items).filter((i) => !seen.has(i.key) && !!seen.add(i.key) && shows(i, f));
+  }, [q.data, f]);
+  const groups = useMemo(() => {
+    const m = new Map<string, FeedItem[]>();
+    for (const i of items) {
+      const k = now ? dayLabel(i.at, now, t) : '';
+      const g = m.get(k);
+      if (g) g.push(i);
+      else m.set(k, [i]);
+    }
+    return [...m.entries()];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, now, t.locale]);
+  const celebrating = useMemo(() => (today ? comingUp(f, today).filter((e) => e.days === 0) : []), [f, today]);
+  // A birthday today is said under "Today", which then has a heading also when nobody has written yet.
+  const todayLabel = t('chronicle.today');
+  const shownGroups = celebrating.length && groups[0]?.[0] !== todayLabel ? [[todayLabel, [] as FeedItem[]] as [string, FeedItem[]], ...groups] : groups;
+
+  // Earlier pages follow as the button comes into view, for a few pages; then it waits to be pressed.
+  const more = useRef<HTMLButtonElement>(null);
+  const pages = q.data?.pages.length ?? 0;
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = q;
+  useEffect(() => {
+    const el = more.current;
+    if (!el || !hasNextPage || isFetchingNextPage || pages > AUTO_PAGES || typeof IntersectionObserver === 'undefined') return;
+    const seen = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting)) void fetchNextPage(); }, { rootMargin: '600px 0px' });
+    seen.observe(el);
+    return () => seen.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, pages]);
+
+  if (!member) return null;
+  const empty = q.isSuccess && !items.length && !celebrating.length && !hasNextPage;
+  // Only the first few entries draw their faces in the server's HTML (see EAGER_FACES).
+  const place = new Map(items.map((i, at) => [i.key, at]));
+
+  return (
+    <section className="fd" aria-labelledby={heading}>
+      <ComposeRow tree={tree} open={writing} onOpen={setWriting} />
+      <div className="fd-head">
+        <h2 id={heading}>{t('feed.title')}</h2>
+        <Link to="/$tree/chronicle" params={{ tree }} title={t('feed.to_chronicle_hint')}><ScrollText size={15} aria-hidden /> {t('shell.chronicle')}</Link>
+      </div>
+
+      {q.isPending ? (
+        <div aria-busy="true" aria-label={t('feed.loading')} style={{ marginTop: 14, display: 'grid', gap: 14 }}>
+          {Array.from({ length: 3 }, (_, i) => <div className="ui-card" key={i} style={{ padding: 18 }}><Skeleton lines={3} /></div>)}
+        </div>
+      ) : q.isError && !q.data ? (
+        <ErrorState title={t('feed.failed')} error={q.error} onRetry={() => void q.refetch()} />
+      ) : empty ? (
+        <EmptyState
+          className="fd-empty"
+          icon={<GameIcon name="quill-ink" size={34} />}
+          title={t('feed.empty_title')}
+          text={t(canPost ? 'feed.empty_text' : 'feed.empty_viewer')}
+          action={canPost ? <button type="button" className="btn primary" onClick={() => setWriting(true)}>{t('feed.empty_cta')}</button> : undefined}
+        />
+      ) : (
+        <>
+          {shownGroups.map(([label, entries], gi) => (
+            <section key={label} className="chr-day">
+              {label ? <h3 className="rule">{label}</h3> : null}
+              <ol className={`chr-feed ${gi === 0 ? dealt : ''}`} style={label ? undefined : { marginTop: 14 }}>
+                {/* Whose day it is comes first under "Today": a line, not a card. */}
+                {gi === 0 && celebrating.map((e) => {
+                  const people = e.ids.map((id) => f.byId.get(id)).filter((p): p is GPerson => !!p);
+                  const names = nameLinks(people, f, tree, t);
+                  return (
+                    <Quiet key={e.key} today icon={<GameIcon name={e.kind === 'birthday' ? 'cake-slice' : 'linked-rings'} size={16} />}>
+                      <span>{e.kind === 'birthday' ? richText(t, 'feed.line.birthday', { name: names }, { count: e.n }) : richText(t, 'feed.line.anniversary', { names }, { ord: nth(e.n, t.locale) })}</span>
+                    </Quiet>
+                  );
+                })}
+                {entries.map((item) => <Entry key={item.key} item={item} f={f} tree={tree} now={now?.getTime()} tr={translations} defer={(place.get(item.key) ?? 0) >= EAGER_FACES} />)}
+              </ol>
+            </section>
+          ))}
+          {hasNextPage ? (
+            <button ref={more} type="button" className="btn fd-more" disabled={isFetchingNextPage} onClick={() => void fetchNextPage()}>
+              {isFetchingNextPage ? t('feed.more_loading') : t('feed.more')}
+            </button>
+          ) : items.length > 6 ? (
+            <p className="fd-end"><Fleuron />{t('feed.end')}</p>
+          ) : null}
+          {q.isFetchNextPageError ? <p role="alert" className="fd-end">{t('feed.failed')}</p> : null}
+        </>
+      )}
+    </section>
+  );
+}
+
+/** Whether an entry has anything to show in this family as the reader has it (a memory of someone since removed has not). */
+function shows(item: FeedItem, f: Family): boolean {
+  if (item.type === 'story') return f.byId.has(item.person);
+  if (item.type === 'people') return item.people.some((p) => f.byId.has(p.id));
+  return true;
+}
+
+/** People as links to their pages: one, "A and B", or "A, B" before "and 3 more". */
+function nameLinks(people: GPerson[], f: Family, tree: string, t: Translator): ReactNode {
+  const link = (p: GPerson) => <Link key={p.id} to="/$tree/person/$id" params={{ tree, id: p.id }}>{displayName(p, f)}</Link>;
+  if (people.length === 2) return richText(t, 'feed.pair', { a: link(people[0]!), b: link(people[1]!) });
+  return people.map((p, i) => <Fragment key={p.id}>{i > 0 && ', '}{link(p)}</Fragment>);
+}
+
+/** A quiet line between the entries: a mark, a sentence, and when. */
+function Quiet({ icon, children, today }: { icon: ReactNode; children: ReactNode; today?: boolean }) {
+  return (
+    <li className="fd-quiet" data-today={today || undefined}>
+      <span className="fd-quiet-mark" aria-hidden>{icon}</span>
+      <p>{children}</p>
+    </li>
+  );
+}
+
+function Entry({ item, f, tree, now, tr, defer }: { item: FeedItem; f: Family; tree: string; now?: number; tr: Record<string, StoryTranslation>; defer: boolean }) {
+  const t = useT();
+  switch (item.type) {
+    case 'post':
+      return <PostCard post={item.post} tree={tree} now={now} defer={defer} />;
+    case 'story': {
+      const s: Story = { id: item.id, person: item.person, kind: item.kind, title: item.title ?? undefined, body: item.body, author: item.author, at: item.at, context: item.context ?? undefined };
+      return <StoryCard s={s} f={f} tree={tree} now={now} tr={tr[item.id]} defer={defer} line={item.week ? 'feed.line.answer' : undefined} kindLink />;
+    }
+    case 'photos':
+      return <PhotosEntry item={item} tree={tree} now={now} defer={defer} />;
+    case 'people': {
+      const known = item.people.map((p) => ({ person: f.byId.get(p.id), born: p.born })).filter((p): p is { person: GPerson; born: string | null } => !!p.person);
+      const newborns = known.filter((p) => p.born);
+      const others = known.filter((p) => !p.born).map((p) => p.person);
+      // Those named here, and how many more the day brought beyond them.
+      const named = others.slice(0, 2);
+      const rest = item.count - newborns.length - named.length;
+      const names = nameLinks(named, f, tree, t);
+      return (
+        <>
+          {newborns.map(({ person, born }) => (
+            <Quiet key={person.id} icon={<Baby size={16} />}>
+              <span>{richText(t, 'feed.line.newborn', { name: nameLinks([person], f, tree, t) }, { date: formatDate(born, t.locale) })}</span>
+              <When at={item.at} now={now} t={t} />
+            </Quiet>
+          ))}
+          {named.length > 0 && (
+            <Quiet icon={<UserPlus size={16} />}>
+              <span>
+                {item.by
+                  ? rest > 0 ? richText(t, 'feed.line.added', { author: <b>{item.by}</b>, names }, { count: rest }) : richText(t, 'feed.line.added_one', { author: <b>{item.by}</b>, names })
+                  : rest > 0 ? richText(t, 'feed.line.joined', { names }, { count: rest }) : richText(t, 'feed.line.joined_one', { names })}
+              </span>
+              <When at={item.at} now={now} t={t} />
+            </Quiet>
+          )}
+        </>
+      );
+    }
+    case 'season':
+      return (
+        <Quiet icon={<Swords size={16} />}>
+          <span>
+            <Link to="/$tree/campaign" params={{ tree }}>{t('campaign.title')}</Link>{': '}
+            {item.winner ? t('feed.line.season_won', { season: item.season, winner: item.winner }) : t('feed.line.season_over', { season: item.season })}
+          </span>
+          <When at={item.at} now={now} t={t} />
+        </Quiet>
+      );
+  }
+}
+
+/** One member's photographs of one day: who added how many, to which album, and the newest few, which lead to the Gallery. */
+function PhotosEntry({ item, tree, now, defer }: { item: Extract<FeedItem, { type: 'photos' }>; tree: string; now?: number; defer: boolean }) {
+  const t = useT();
+  const { name: known, person } = useAuthorName(item.by);
+  // An upload keeps no name of its own: someone who has left is "someone".
+  const name = item.by.name || person ? known : t('feed.someone');
+  const faces = authorFaces({ person, name, tree, defer });
+  const author = <b>{name}</b>;
+  const line = item.more
+    ? richText(t, 'feed.line.photos_more', { author }, { count: item.count })
+    : item.album
+      ? richText(t, 'feed.line.photos_album', { author, album: <b>{item.album.name}</b> }, { count: item.count })
+      : richText(t, 'feed.line.photos', { author }, { count: item.count });
+  return (
+    <li className="chr-item fd-photos">
+      {faces.beside}
+      <article className="chr-card ui-card">
+        <header>
+          {faces.inline}
+          <span className="chr-kind"><Images size={14} aria-hidden /> {t('shell.gallery')}</span>
+          <span className="fd-line-text">{line}</span>
+          <When at={item.at} now={now} t={t} />
+        </header>
+        <ul className="fd-pics" data-n={item.pictures.length}>
+          {item.pictures.map((p, i) => (
+            <li key={p.key} style={item.pictures.length === 1 ? { aspectRatio: `${p.width || 4} / ${p.height || 3}` } : undefined}>
+              <Link to="/$tree/gallery" params={{ tree }}>
+                <img src={mediaUrl(tree, p.key, 'thumb')} alt={t('feed.photos.alt', { n: i + 1, name })} loading="lazy" decoding="async" />
+                {item.count > item.pictures.length && i === item.pictures.length - 1 ? <span className="fd-pics-more" aria-hidden>+{item.count - item.pictures.length}</span> : null}
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <Link className="fd-card-link" to="/$tree/gallery" params={{ tree }}>{t('feed.photos.open')}</Link>
+      </article>
+    </li>
+  );
+}

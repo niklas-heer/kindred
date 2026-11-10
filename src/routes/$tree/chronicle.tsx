@@ -3,19 +3,20 @@ import { PageHeader, Skeleton, ErrorState, EmptyState } from '~/components/ui';
 import { useRememberedState, usePageTrail } from '~/lib/page-state';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { ChefHat, Clock, Plus, Quote, Search, Sparkles, StickyNote } from 'lucide-react';
+import { Clock, Plus, Quote, Search } from 'lucide-react';
 import { renderMarkdown } from '~/lib/markdown';
-import { useEffect, useMemo, useState, type ComponentType } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AddMemory } from '~/components/AddMemory';
+import { EAGER_FACES, KINDS, PersonLink, StoryCard, TranslatedNote, useShownStory, type Kind, type StoryTranslation } from '~/components/chronicle/StoryCard';
 import { GameIcon } from '~/components/GameIcon';
 import { Portrait } from '~/components/Portrait';
-import { PortraitZoom } from '~/components/photos/PortraitZoom';
 import { Responses } from '~/components/responses/Responses';
 import { chronicleQuery } from '~/lib/api';
 import { useFamily, useTreeId } from '~/lib/family';
 import { displayName, type Family } from '~/lib/graph';
-import { locales, richText, translate, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
-import type { GPerson, Story } from '~/lib/types';
+import { translate, useT, type Locale } from '~/lib/i18n';
+import type { Story } from '~/lib/types';
+import { ago, dayLabel, exact } from '~/lib/when';
 import '~/styles/chronicle.css';
 import { useDealt } from '~/lib/dealt';
 import { useCan } from '~/lib/session';
@@ -38,45 +39,6 @@ export const Route = createFileRoute('/$tree/chronicle')({
 
 // Raw HTML in a story is shown as text, and script links are dropped.
 const render = renderMarkdown;
-
-// ---------- kinds ----------
-
-type Kind = Story['kind'];
-/** Stories are written with a quill; the rest keep their line icons. */
-const Quill = ({ size = 14 }: { size?: number }) => <GameIcon name="quill-ink" size={size} />;
-const KINDS: { id: Kind; label: Key; plural: Key; line: Key; icon: ComponentType<{ size?: number }> }[] = [
-  { id: 'note', label: 'chronicle.kind.note', plural: 'chronicle.kind.note_plural', line: 'chronicle.line.note', icon: StickyNote },
-  { id: 'quote', label: 'chronicle.kind.quote', plural: 'chronicle.kind.quote_plural', line: 'chronicle.line.quote', icon: Quote },
-  { id: 'anecdote', label: 'chronicle.kind.anecdote', plural: 'chronicle.kind.anecdote_plural', line: 'chronicle.line.anecdote', icon: Quill },
-  { id: 'recipe', label: 'chronicle.kind.recipe', plural: 'chronicle.kind.recipe_plural', line: 'chronicle.line.recipe', icon: ChefHat },
-  { id: 'memory', label: 'chronicle.kind.memory', plural: 'chronicle.kind.memory_plural', line: 'chronicle.line.memory', icon: Sparkles },
-];
-const KIND = Object.fromEntries(KINDS.map((k) => [k.id, k])) as Record<Kind, (typeof KINDS)[number]>;
-
-// ---------- time ----------
-
-function ago(at: string, now: number, tr: Translator): string {
-  const rtf = new Intl.RelativeTimeFormat(locales[tr.locale], { numeric: 'auto' });
-  const s = (new Date(at).getTime() - now) / 1000;
-  const a = Math.abs(s);
-  if (a < 60) return tr('chronicle.just_now');
-  if (a < 3600) return rtf.format(Math.round(s / 60), 'minute');
-  if (a < 86_400) return rtf.format(Math.round(s / 3600), 'hour');
-  if (a < 86_400 * 7) return rtf.format(Math.round(s / 86_400), 'day');
-  if (a < 86_400 * 30) return rtf.format(Math.round(s / (86_400 * 7)), 'week');
-  if (a < 86_400 * 365) return rtf.format(Math.round(s / (86_400 * 30)), 'month');
-  return rtf.format(Math.round(s / (86_400 * 365)), 'year');
-}
-function dayLabel(at: string, now: Date, tr: Translator): string {
-  const d = new Date(at);
-  const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) / 86_400_000);
-  if (days <= 0) return tr('chronicle.today');
-  if (days === 1) return tr('chronicle.yesterday');
-  if (days < 7) return tr('chronicle.earlier_week');
-  if (days < 30) return tr('chronicle.earlier_month');
-  return d.toLocaleDateString(locales[tr.locale], { month: 'long', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' });
-}
-const exact = (at: string, locale: Locale) => new Date(at).toLocaleString(locales[locale], { dateStyle: 'long', timeStyle: 'short' });
 
 // ---------- page ----------
 
@@ -214,7 +176,7 @@ function ChroniclePage() {
                   <h2 className="rule">{label}</h2>
                   <ol className={`chr-feed ${gi === 0 ? dealt : ''}`}>
                     {items.map((s, i) => (
-                      <FeedItem key={s.id} s={s} f={f} tree={tree} now={now?.getTime()} tr={translations[s.id]} defer={before + i >= EAGER_FACES} />
+                      <StoryCard key={s.id} s={s} f={f} tree={tree} now={now?.getTime()} tr={translations[s.id]} defer={before + i >= EAGER_FACES} />
                     ))}
                   </ol>
                 </section>
@@ -246,102 +208,6 @@ function ChroniclePage() {
 }
 
 // ---------- pieces ----------
-
-function PersonLink({ p, f, tree }: { p?: GPerson; f: Family; tree: string }) {
-  const t = useT();
-  if (!p) return <>{t('chronicle.someone')}</>;
-  return (
-    <Link to="/$tree/person/$id" params={{ tree, id: p.id }} className="chr-person">
-      {displayName(p, f)}
-    </Link>
-  );
-}
-
-/** An AI translation of a story into the reader's language (its source text was current when it was made). */
-type StoryTranslation = { title: string | null; body: string };
-
-/**
- * The text a story card shows: its translation while there is one and the reader has not asked for the original. The
- * original is always one click away (TranslatedNote), and it is what a story without a translation shows.
- */
-function useShownStory(s: Story, tr: StoryTranslation | undefined) {
-  const [original, setOriginal] = useState(false);
-  const translated = !!tr && !original;
-  return {
-    title: translated ? (tr?.title ?? s.title) : s.title,
-    body: translated && tr ? tr.body : s.body,
-    hasTranslation: !!tr,
-    original,
-    toggle: () => setOriginal((v) => !v),
-  };
-}
-
-/** "Translated by AI", with the other text one click away. Nothing when the story has no translation. */
-function TranslatedNote({ shown }: { shown: ReturnType<typeof useShownStory> }) {
-  const t = useT();
-  if (!shown.hasTranslation) return null;
-  return (
-    <p className="chr-ai">
-      <Sparkles size={14} /> {t('aitasks.chronicle.translated')}
-      <button type="button" className="btn ghost" onClick={shown.toggle}>
-        {shown.original ? t('aitasks.chronicle.showTranslation') : t('aitasks.chronicle.showOriginal')}
-      </button>
-    </p>
-  );
-}
-
-/**
- * How many entries draw their faces in the server's HTML. A drawn face is about 8 kB of inline SVG and each entry has two
- * (beside the card, and in its first line on a phone), so the rest follow at once after hydration (Portrait's `defer`), in the
- * same frame and house colour: the first screen looks the same, and the page is several hundred kB lighter.
- */
-const EAGER_FACES = 6;
-
-function FeedItem({ s, f, tree, now, tr, defer }: { s: Story; f: Family; tree: string; now?: number; tr?: StoryTranslation; defer?: boolean }) {
-  const [open, setOpen] = useState(false);
-  const t = useT();
-  const p = f.byId.get(s.person);
-  const k = KIND[s.kind];
-  const shown = useShownStory(s, tr);
-  const long = shown.body.length > 360 || shown.body.split('\n').length > 6;
-  return (
-    <li className="chr-item" data-kind={s.kind}>
-      {p && (
-        <PortraitZoom person={p} tree={tree} size={50} className="chr-face" defer={defer} />
-      )}
-      <article className="chr-card ui-card">
-        <header>
-          {/* On a phone the face sits in the card's first line; the column beside the card is for wider screens. */}
-          {p && <span className="chr-face-in"><Portrait person={p} tree={tree} size={28} decorative defer={defer} /></span>}
-          <span className="chr-kind">
-            <k.icon size={14} /> {t(k.label)}
-          </span>
-          <span className="chr-line">
-            {richText(t, k.line, { author: <b>{s.author}</b>, subject: <PersonLink p={p} f={f} tree={tree} /> })}
-          </span>
-          <time dateTime={s.at} title={now === undefined ? undefined : exact(s.at, t.locale)}>
-            {now === undefined ? '' : ago(s.at, now, t)}
-          </time>
-        </header>
-        {shown.title && <h3>{shown.title}</h3>}
-        {s.kind === 'quote' ? (
-          <blockquote className="chr-inline-quote" dangerouslySetInnerHTML={{ __html: render(shown.body) }} />
-        ) : (
-          <div className="chr-md" data-clamped={(long && !open) || undefined} dangerouslySetInnerHTML={{ __html: render(shown.body) }} />
-        )}
-        <TranslatedNote shown={shown} />
-        {s.context && <p className="chr-ctx">{s.context}</p>}
-        {long && s.kind !== 'quote' && (
-          <button className="btn ghost chr-toggle" onClick={() => setOpen(!open)}>
-            {open ? t('chronicle.show_less') : t('chronicle.read_more')}
-          </button>
-        )}
-        {/* Members only: for a guest it draws nothing and asks nothing. */}
-        <Responses tree={tree} kind="story" target={s.id} />
-      </article>
-    </li>
-  );
-}
 
 function SayingCard({ s, f, tree, now, tr, defer }: { s: Story; f: Family; tree: string; now?: number; tr?: StoryTranslation; defer?: boolean }) {
   const p = f.byId.get(s.person);

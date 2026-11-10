@@ -2,7 +2,8 @@
 // about someone close to the reader, asked as a question. One a day (the same all day), only something the reader's
 // role may fill in, and never about a death. Renders nothing when there is nothing to ask.
 //
-//   <NudgeCard tree={tree} />
+//   const nudge = useNudge(tree);          the Today page asks first, to know whether the card has a place in its strip
+//   <NudgeCard tree={tree} nudge={nudge} />
 import { Link } from '@tanstack/react-router';
 import { Sprout } from 'lucide-react';
 import { useId, useMemo } from 'react';
@@ -12,6 +13,7 @@ import { useToday } from '~/lib/clock';
 import { useFamily, useMe } from '~/lib/family';
 import { GAP_ACTION, gapsOf, useRequired, type GapKey } from '~/lib/gaps';
 import { displayName, stepsFrom } from '~/lib/graph';
+import type { GPerson } from '~/lib/types';
 import { richText, useT } from '~/lib/i18n';
 import type { Key } from '~/lib/i18n/dictionary';
 import { can } from '~/lib/roles';
@@ -32,17 +34,18 @@ const ASK: Partial<Record<GapKey, Key>> = {
 const CLOSE = 4;
 const POOL = 12;
 
-export function NudgeCard({ tree }: { tree: string }) {
-  const t = useT();
+export interface Nudge { p: GPerson; gap: GapKey }
+
+/** Today's nudge for this reader, or null when there is nothing to ask (and until the page runs in the browser). */
+export function useNudge(tree: string): Nudge | null {
   const f = useFamily();
-  const id = useId();
   const me = useMe();
   const role = useRole();
   const guest = useSession()?.guest?.tree === tree;
   const today = useToday();
   const [required] = useRequired(tree);
 
-  const nudge = useMemo(() => {
+  return useMemo(() => {
     if (!today || guest) return null;
     const steps = stepsFrom(f, me);
     // A memory is always worth asking for, whatever the reader counts as needed.
@@ -58,7 +61,12 @@ export function NudgeCard({ tree }: { tree: string }) {
     const row = pool[seed % pool.length]!;
     return { p: row.p, gap: row.gaps[(seed >>> 8) % row.gaps.length]! };
   }, [f, me, role, guest, today, required, tree]);
+}
 
+export function NudgeCard({ tree, nudge }: { tree: string; nudge: Nudge | null }) {
+  const t = useT();
+  const f = useFamily();
+  const id = useId();
   if (!nudge) return null;
   const name = displayName(nudge.p, f);
   return (

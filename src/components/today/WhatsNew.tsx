@@ -1,5 +1,5 @@
 // "What's new": what changed in the family since the reader's last visit, in plain sentences grouped by the person it is
-// about ("Mara added 3 photos"), and comments and reactions on what the reader wrote. It fetches for itself, so any page
+// about ("Mara added 3 photos"), who wrote to the family, and comments and reactions on what the reader wrote. It fetches for itself, so any page
 // can mount it: <WhatsNew tree={tree} />. A share-link guest gets nothing (it renders nothing and asks the server nothing).
 //
 // The visit rule is the server's (history.server.ts noteVisit): the news starts where the reader was last shown it, and it
@@ -18,6 +18,8 @@ import './today.css';
 
 /** The groups and lines shown before "and n more"; the rest is on the History page. */
 const GROUPS = 8;
+/** The writers named under "From the family" before "and n more messages". */
+const POSTS = 3;
 
 const replyText = (t: Translator, r: WhatsNewReply) => t(`history.reply.${r.kind}_${r.target}` as Key, { author: r.author, count: r.count });
 
@@ -44,7 +46,7 @@ export function WhatsNew({ tree, className = '' }: { tree: string; className?: s
       </div>
       {q.isPending ? <p className="subtle">{t('history.loading')}</p>
         : q.isError ? <p className="subtle" role="alert">{t('history.failed')}</p>
-        : news && !news.groups.length && !news.replies.length ? <p className="subtle">{t('history.nothing_new')}</p>
+        : news && !news.groups.length && !news.replies.length && !news.posts.length ? <p className="subtle">{t('history.nothing_new')}</p>
         : news && (
           <>
             {news.replies.length > 0 && (
@@ -57,6 +59,16 @@ export function WhatsNew({ tree, className = '' }: { tree: string; className?: s
                       {r.label && <span className="hist-label"> · {r.label}</span>}
                     </li>
                   ))}
+                </ul>
+              </div>
+            )}
+            {news.posts.length > 0 && (
+              <div className="whats-new-group">
+                <h3>{t('feed.title')}</h3>
+                <ul>
+                  {/* The messages themselves are on the page: who wrote is enough here, and not a long list of it. */}
+                  {news.posts.slice(0, POSTS).map((p) => <li key={p.author}>{t('feed.news.posts', { author: p.author || t('responses.former_member'), count: p.count })}</li>)}
+                  {news.posts.length > POSTS && <li>{t('feed.news.more', { count: news.posts.slice(POSTS).reduce((n, p) => n + p.count, 0) })}</li>}
                 </ul>
               </div>
             )}

@@ -2,6 +2,7 @@
 // faces. Arrow keys and Escape work; a phone swipes between pictures. Every change goes to the server,
 // which checks the role again.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { ChevronLeft, ChevronRight, ScanFace, Tag as TagIcon, Trash, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { DatePicker, Dialog, Notice, Select } from '~/components/ui';
@@ -515,6 +516,8 @@ function Photo({ tree, item, index, count, albums, onGo, onDirty }: {
           </dl>
         )}
         <p className="subtle lb-added">{g('lb.added', { date: formatDate(item.uploadedAt.slice(0, 10), t.locale) })}</p>
+        {/* It came with a message in the family's feed (members only: a guest gets no such picture). */}
+        {item.post ? <p className="subtle lb-added"><Link to="/$tree/today" params={{ tree }}>{g('feed.gallery.from_post')}</Link></p> : null}
         {/* Reactions and comments, for members only: a guest sees none. */}
         <Responses tree={tree} kind="media" target={item.key} />
 

@@ -6,13 +6,13 @@ import type { Message } from "../types.ts";
 export const en = {
   "today.title": "Today",
   "today.cmd": "Open Today",
-  "today.cmd_hint": "question of the week & quiz",
+  "today.cmd_hint": "the family’s news, question & quiz",
   "today.more_sections": "More sections",
   "today.hello": "Good to see you, {name}",
   "today.hello_morning": "Good morning, {name}",
   "today.hello_day": "Good afternoon, {name}",
   "today.hello_evening": "Good evening, {name}",
-  "today.subtitle": "Pull up a chair. Here is what your family is remembering, guessing and celebrating this week.",
+  "today.subtitle": "Pull up a chair. Here is what your family is telling, remembering and celebrating.",
   "today.open_here": "Open the family on this page",
   "today.retry": "Try again",
 
@@ -130,13 +130,13 @@ export const en = {
 export const de: Record<keyof typeof en, Message> = {
   "today.title": "Heute",
   "today.cmd": "Heute öffnen",
-  "today.cmd_hint": "Frage der Woche & Quiz",
+  "today.cmd_hint": "Neues aus der Familie, Frage & Quiz",
   "today.more_sections": "Weitere Bereiche",
   "today.hello": "Schön, dass du da bist, {name}",
   "today.hello_morning": "Guten Morgen, {name}",
   "today.hello_day": "Guten Tag, {name}",
   "today.hello_evening": "Guten Abend, {name}",
-  "today.subtitle": "Setze dich dazu. Daran erinnert sich deine Familie diese Woche, das rät und das feiert sie.",
+  "today.subtitle": "Setze dich dazu. Das erzählt deine Familie gerade, daran erinnert sie sich, und das feiert sie.",
   "today.open_here": "Die Familie mit dieser Seite öffnen",
   "today.retry": "Noch einmal versuchen",
 
@@ -254,13 +254,13 @@ export const de: Record<keyof typeof en, Message> = {
 export const af: Record<keyof typeof en, Message> = {
   "today.title": "Vandag",
   "today.cmd": "Maak Vandag oop",
-  "today.cmd_hint": "vraag van die week & vasvra",
+  "today.cmd_hint": "die familie se nuus, vraag & vasvra",
   "today.more_sections": "Nog afdelings",
   "today.hello": "Lekker om jou te sien, {name}",
   "today.hello_morning": "Goeiemôre, {name}",
   "today.hello_day": "Goeiemiddag, {name}",
   "today.hello_evening": "Goeienaand, {name}",
-  "today.subtitle": "Trek ’n stoel nader. Dit is wat jou familie hierdie week onthou, raai en vier.",
+  "today.subtitle": "Trek ’n stoel nader. Dit is wat jou familie vertel, onthou en vier.",
   "today.open_here": "Maak die familie op hierdie bladsy oop",
   "today.retry": "Probeer weer",
 

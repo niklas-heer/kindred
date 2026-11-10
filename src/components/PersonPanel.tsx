@@ -51,6 +51,7 @@ import { DraftContext, DraftTracker, type Draft } from './fields/draft';
 import { PersonEdit } from './fields/PersonEdit';
 import { CharacterEditor } from './CharacterEditor';
 import { PersonPhotos } from './photos/PersonPhotos';
+import { PersonPosts } from './feed/PersonPosts';
 import { PortraitZoom } from './photos/PortraitZoom';
 import { mediaUrl } from '~/lib/photos/types';
 import { PersonResearch } from './research/PersonResearch';
@@ -980,6 +981,7 @@ function StoriesTab({ tree, p, details }: { tree: string; p: GPerson; details: D
     qc.invalidateQueries({ queryKey: ['person', tree, p.id] }),
     qc.invalidateQueries({ queryKey: ['graph', tree] }),
     qc.invalidateQueries({ queryKey: ['chronicle', tree] }),
+    qc.invalidateQueries({ queryKey: ['feed', tree] }),
   ]);
   const remove = useMutation({
     mutationFn: async (s: Story) => {
@@ -1029,6 +1031,8 @@ function StoriesTab({ tree, p, details }: { tree: string; p: GPerson; details: D
           <StoryCard key={s.id} s={s} tree={tree} onDelete={canDelete ? () => { remove.reset(); setAsking(s); } : undefined} />
         ))}
       </div>
+      {/* What the family wrote to each other about them (the feed on Today). Members only: for a guest it draws nothing. */}
+      <PersonPosts tree={tree} person={p} />
       <ConfirmDialog
         open={!!asking}
         onClose={() => setAsking(null)}
@@ -1102,6 +1106,8 @@ export function StoryForm({ tree, person, done, saved }: { tree: string; person:
       await qc.invalidateQueries({ queryKey: ['person', tree, person.id] });
       qc.invalidateQueries({ queryKey: ['graph', tree] });
       qc.invalidateQueries({ queryKey: ['chronicle', tree] });
+      // A new memory is also an entry of the family's feed on Today.
+      qc.invalidateQueries({ queryKey: ['feed', tree] });
       form.reset(value);
       saved?.();
       done();

@@ -25,8 +25,11 @@ export const Route = createFileRoute('/$tree/gallery')({
   component: GalleryPage,
 });
 
-/** The album filter: every photo, the ones in no album, or one album. */
-type AlbumScope = 'all' | 'none' | string;
+/**
+ * The album filter: every photo, the ones in no album, the ones that came with a message in the family's feed (`feed`:
+ * not an album anyone made, so it has no name to change and cannot be deleted), or one album.
+ */
+type AlbumScope = 'all' | 'none' | 'feed' | string;
 
 // One shared empty list, so a memo keyed on the media does not see a new array on every render before the data arrives.
 const NO_MEDIA: MediaItem[] = [];
@@ -71,8 +74,9 @@ function GalleryPage() {
   const filtered = media.filter(inScope);
 
   function inScope(m: MediaItem) {
-    if (album === 'none' && m.album) return false;
-    if (album !== 'all' && album !== 'none' && m.album !== album) return false;
+    if (album === 'none' && (m.album || m.post)) return false;
+    if (album === 'feed' && !m.post) return false;
+    if (album !== 'all' && album !== 'none' && album !== 'feed' && m.album !== album) return false;
     if (person !== 'all' && !m.tags.some((x) => x.confirmed && x.person === person)) return false;
     if (decade === 'undated' && m.taken) return false;
     if (decade !== 'all' && decade !== 'undated' && decadeOf(m.taken) !== Number(decade)) return false;
@@ -89,7 +93,9 @@ function GalleryPage() {
   };
 
   const openIndex = openKey ? filtered.findIndex((m) => m.key === openKey) : -1;
-  const selectedAlbum = album !== 'all' && album !== 'none' ? albums.find((a) => a.id === album) : undefined;
+  const selectedAlbum = album !== 'all' && album !== 'none' && album !== 'feed' ? albums.find((a) => a.id === album) : undefined;
+  // Pictures shared in messages: a guest gets none of them, so for a guest the button is not there.
+  const fromFeed = media.filter((m) => m.post).length;
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
     setDragging(false);
@@ -144,8 +150,13 @@ function GalleryPage() {
                 {a.name} <span className="subtle">{a.count}</span>
               </button>
             ))}
+            {fromFeed > 0 ? (
+              <button type="button" className="btn gal-album" aria-pressed={album === 'feed'} onClick={() => setAlbum('feed')}>
+                {g('feed.gallery.album')} <span className="subtle">{fromFeed}</span>
+              </button>
+            ) : null}
             <button type="button" className="btn gal-album" aria-pressed={album === 'none'} onClick={() => setAlbum('none')}>
-              {g('gallery.no_album')} <span className="subtle">{media.filter((m) => !m.album).length}</span>
+              {g('gallery.no_album')} <span className="subtle">{media.filter((m) => !m.album && !m.post).length}</span>
             </button>
             {canAdd ? (
               <>

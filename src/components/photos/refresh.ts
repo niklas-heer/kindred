@@ -7,5 +7,7 @@ export function refreshPhotos(qc: QueryClient, tree: string) {
     qc.invalidateQueries({ queryKey: ['gallery', tree] }),
     qc.invalidateQueries({ queryKey: ['person-photos', tree] }),
     qc.invalidateQueries({ queryKey: graphQuery(tree).queryKey }),
+    // The family's feed shows a day's uploads and a post's pictures.
+    qc.invalidateQueries({ queryKey: ['feed', tree] }),
   ]);
 }
