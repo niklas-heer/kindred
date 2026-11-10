@@ -140,7 +140,8 @@ for (const file of files) {
   let pictures = 0;
   const store = (key: string, bytes: Uint8Array) => { mkdirSync(dirname(join(mediaDir, key)), { recursive: true }); writeFileSync(join(mediaDir, key), bytes); };
   const paint = (p: SeedPicture, by: string, at: string, album: string | null): string => {
-    const id = crypto.randomUUID();
+    // The same name on every seeding, so seeding a deployed demo again replaces its pictures in storage and leaves none behind.
+    const id = `seed-${String(pictures + 1).padStart(4, '0')}`;
     const full = drawScene(p.scene, p.seed, 1280, p.tall);
     store(`gallery/${id}.png`, full.png);
     store(`thumb/${id}.png`, drawScene(p.scene, p.seed, 400, p.tall).png);
