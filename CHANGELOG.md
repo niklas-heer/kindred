@@ -21,6 +21,9 @@ version will not run on a database that has had these migrations.
 
 `tree/0025_campaign.sql` adds the Campaign's own five tables and changes none that exist.
 
+`tree/0026_history.sql` adds the change history's table, empty: changes made before it are not in the history.
+`accounts/0027_family_visit.sql` adds a table for "since your last visit" and two columns to the reminder devices.
+
 ### Added
 
 - Managing families: a steward (or the server's first account) can make another family on the new Families page (name,
@@ -52,6 +55,15 @@ version will not run on a database that has had these migrations.
   well recorded raises more troops; every member gets three orders a day; a season lasts 28 days. It is off until a steward
   turns it on under Games, never changes the family's records, is not shown to share-link guests and is left out of every
   export. A practice skirmish runs in the browser. See [docs/campaign.md](docs/campaign.md).
+- Change history: every change to the family's records (people, links, partnerships, events, sources, memories, photos, houses,
+  places, research) is kept with who made it and, for a change, what each field was before and after. A History page (in the
+  account menu, with a dot when something is new) filters by person, kind and author, and each person's Life tab has their own
+  history. Editors can put a person's earlier name, date, place or biography back from it. Members see only what their role may
+  see: a personal detail's change is its author's alone and keeps no content, editors' details stay with editors and stewards,
+  and guests see no history. Kept three years (setting `KINDRED_HISTORY_YEARS`); not in GEDCOM or the archive.
+- What's new: a summary of what changed since your last visit, grouped by person, with comments and reactions on what you
+  wrote. And "This week in the family", a weekly push for members who turn it on beside their birthday reminders, sent only
+  when something is new.
 
 - Setting `KINDRED_TRUSTED_PROXIES`: how many reverse proxies stand in front of the Node server. `compose.yaml` passes it
   on and the HTTPS steps set it to 1.

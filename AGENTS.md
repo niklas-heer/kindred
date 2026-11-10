@@ -30,7 +30,7 @@ privacy rules matter more than speed.
 ## Conventions
 
 - **Server functions** validate input with zod, check the role on the server (`requireReader`, `requireMember` or `requireCan` from `src/lib/auth/guard.server.ts`, see `src/lib/roles.ts`), and reach their `.server.ts` module through a dynamic `import()`, so server code stays out of the browser bundle. Never trust the client for a role.
-- **Writes go through `once`** (`src/lib/db.server.ts`): read, decide, then one batch that starts with guards and carries a retry key (`opKey`). See "Rules every change follows" in `docs/data-model.md`.
+- **Writes go through `once`** (`src/lib/db.server.ts`): read, decide, then one batch that starts with guards and carries a retry key (`opKey`). Every plan says what it did to the family's records in `history` (`added`, `removed`, `change` from `src/lib/history.server.ts`), or `NOT_A_RECORD` for a write that touches none (a game, a cache); a records write without it is refused. See "Rules every change follows" in `docs/data-model.md`.
 - **Two storage drivers** (`src/lib/store/node.ts` and `cf.ts`, chosen by the `#store/driver` import map in `package.json`) must behave alike; the shared contract tests are in `src/lib/store/contract.cases.ts`. D1 has no interactive transactions.
 - **Migrations** are new numbered files; a file that has shipped is never edited. They must run on SQLite and D1: no `PRAGMA`, `BEGIN` or `COMMIT`, and a new `NOT NULL` column needs a default. Update `docs/data-model.md` in the same change.
 - **Text** goes in `src/lib/i18n/areas/`, in English, German (du) and Afrikaans (jy), never in a component. See `src/lib/i18n/README.md`; `npm test` fails on a missing translation.

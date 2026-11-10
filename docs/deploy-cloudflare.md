@@ -116,6 +116,7 @@ invites the others.
 | `KINDRED_VAPID_PUBLIC_KEY`, `KINDRED_VAPID_SUBJECT` | variable | Web Push reminders: the public VAPID key and a contact (`mailto:` or `https:`). Reminders stay hidden without them. See Reminders below. |
 | `KINDRED_VAPID_PRIVATE_JWK` | secret | Web Push reminders: the private VAPID key as JWK JSON. Keep it secret. |
 | `KINDRED_DEMO` | variable | `1` makes the Worker a public, read-only demo of invented families. Leave it unset for your family. See [A public demo](#a-public-demo). |
+| `KINDRED_HISTORY_YEARS` | variable | How many years of each family's change history the daily run keeps. Default `3`; `0` keeps it for ever. |
 
 ```sh
 npx wrangler secret put KINDRED_SECRET

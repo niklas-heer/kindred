@@ -30,6 +30,8 @@ both what the browser shows and what the server allows.
 | Manage access | Steward |
 | Import a GEDCOM file | Steward |
 | See the family's usage statistics, and turn them off | Steward |
+| Read the change history and "What's new" (what their role may see) | Viewer |
+| Put a person's earlier fact back from the history | Editor |
 | Play the Campaign, while it is on | Viewer |
 | Turn the Campaign on or off, and end its season | Steward |
 | Change the family's name, tagline and theme | Steward |
@@ -196,6 +198,46 @@ way up it was taken). A picture too damaged to clean is refused. The date a came
 that, and offered as the photo's date. PDFs are stored as they are, so their author and title fields stay: print a PDF to
 a new one first if they say more than the family should read.
 
+## Change history and what's new
+
+Every change to the family's records is kept in the family's database with who made it: people and their details, parent
+links and partnerships, life events, sources and citations, memories, photos, albums and tags, pictures, houses, places, research
+and the family's name (`src/lib/history.server.ts`). The row is written in the same batch as the change itself, so no change is
+stored without it. It keeps the member's name as it was then, what kind of record, which one, and for a change the fields that
+changed, before and after, cut short (400 characters a value, 4,000 a row) and never a picture or a document: a new photo, a
+portrait or the arms are kept as "changed" without the picture. A bulk import is one row ("imported 300 people"). Saves of the
+same record by the same person within ten minutes are one row, so an autosave does not fill the history.
+
+Not kept: the Campaign, reactions and comments, quiz answers, assistant chats, statistics and join requests, which are not the
+family's records.
+
+**Who reads it.** The same rule as a person's fields:
+
+| What changed | Who sees the row |
+| --- | --- |
+| A Personal field | Only its author, and the row holds no content: that it was added, changed or removed. Making a field Personal reads, for everyone else, as removed, again without content. |
+| An Editors field, private research, or a source's link to a private document | Editors and stewards, with the values. Contributors and viewers do not see the row at all, so they do not learn the field exists. |
+| Everything else | Every member: who added, changed or removed what, with the values they can read in the app anyway. |
+| Anything | A share-link guest: nothing. The History page, "What's new" and the dot refuse a guest. |
+
+**Restoring.** On a row about a person's own facts (names, dates, places, sex, title, occupation, biography), an editor can
+put the earlier value back. It is an ordinary save, checked as the Edit tab checks it, and it is itself a row in the history.
+A value that was cut short cannot be put back. Removing a person is unchanged; their history stays, and the removal names them.
+
+**Since your last visit.** The accounts database remembers, per member and family, when they last opened the family and
+when "What's new" or the History page last showed them the news (`family_visit`). A visit ends after two hours away. "What's
+new" lists what others changed since the news was last shown to them, and stays the same throughout a visit; the first time,
+it covers the last two weeks, and it never reaches back more than 90 days. It includes new comments and reactions on what
+they wrote, once the family has those. The rows go when the member leaves the family or the account is deleted.
+
+**This week in the family.** A member who has reminders on can also turn on a weekly push. The daily job sends it at most
+once in seven days, only when the week brought something that member may see and did not do themselves, in the device's
+language.
+
+**How long.** Three years by default (`KINDRED_HISTORY_YEARS`; 0 keeps it for ever), deleted by the daily job. A member's
+personal rows are deleted when they leave the family. The history is not in GEDCOM, the Markdown archive or the D1 transfer.
+Whoever runs the server can read it in a copy of the database, as everything else.
+
 ## What an export contains
 
 An export is a copy of everything the family holds that its format can carry, and an editor or steward can make one.
@@ -259,7 +301,7 @@ A steward can see how the family uses Kindred on the family's Statistics page, a
 
 **What is counted, per family and per day:** page views by section (Almanac, Atlas, "a house's page"), visits, how many members were active, and the use of a few features (asked the assistant, designed arms, added research, finished or skipped the tour). A guest from a share link counts as one anonymous visit here. Separately, where guests may ask to join, each guest browser's use of the link is kept as a few totals for the stewards to see in a request ([Asking to join](#asking-to-join-an-own-account-from-a-share-link)); this page never shows them. The changes on the page (people, photos, stories, research) and the number of feedback reports are read from what the family already holds, so they add no new data. A person counts on the day they were last edited.
 
-**Who did it, by category.** Every counter is also filed under the role the member held when it happened: steward, editor, contributor or viewer, and share-link guests as their own group. The server reads the role from the membership; a browser cannot name its own category. The Statistics page headline and its "how it's being received" reading cover **the family without stewards**, so a steward using Kindred does not make it look busier; a switch shows each group or everyone. A "Who did what" table gives each group's visits, active people, page views, changes and feature use. These are totals per group, never a list of people. A group with one member says so, because its numbers may then be that one person. Changes are told apart by who made them from the day categories began (the family's records keep no author); before that, and for counters written before categories existed, the numbers appear only under "Everyone", labelled as from before categories.
+**Who did it, by category.** Every counter is also filed under the role the member held when it happened: steward, editor, contributor or viewer, and share-link guests as their own group. The server reads the role from the membership; a browser cannot name its own category. The Statistics page headline and its "how it's being received" reading cover **the family without stewards**, so a steward using Kindred does not make it look busier; a switch shows each group or everyone. A "Who did what" table gives each group's visits, active people, page views, changes and feature use. These are totals per group, never a list of people. A group with one member says so, because its numbers may then be that one person. Changes are told apart by who made them from the day categories began (the statistics do not read the change history); before that, and for counters written before categories existed, the numbers appear only under "Everyone", labelled as from before categories.
 
 **What is never stored:** names, anything anyone wrote, which person, house or project was opened, search terms, or IP addresses. The browser turns an address into its section before reporting it, and the server keeps only section and feature names from a fixed list.
 
