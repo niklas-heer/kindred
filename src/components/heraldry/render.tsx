@@ -2,10 +2,10 @@
 import { useId, type ReactNode } from 'react';
 import type { Achievement, ArmsV2, ChargeLayer, Fur, OrdinaryLayer, TinctureV2 } from '~/lib/seed-format';
 import { useArt, type Art, type ArtSource } from './art';
-import { FACES_LEFT, HELM_GLYPH, LEANS } from './catalogue';
-import { chargeDef } from './registry';
-import { divisionPaint, fieldTinctures, ordinaryShape, placeCharges, SHIELD_PATH, type Spot } from './geometry';
-import { FUR_COLOURS, HEX_V2, isFur } from './tinctures';
+import { FACES_LEFT, HELM_GLYPH, LEANS } from '~/lib/heraldry/catalogue';
+import { chargeDef } from '~/lib/heraldry/registry';
+import { divisionPaint, fieldTinctures, ordinaryShape, placeCharges, SHIELD_PATH, type Spot } from '~/lib/heraldry/geometry';
+import { FUR_COLOURS, HEX_V2, isFur } from '~/lib/heraldry/tinctures';
 
 /** The tinctures a field actually uses: what is stored, padded with sensible contrasts. */
 export { fieldTinctures };

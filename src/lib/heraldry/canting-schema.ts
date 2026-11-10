@@ -1,7 +1,7 @@
 // The shape an AI provider answers the arms design call with, and how that answer is checked. Zod only, so the
 // test runner can load it on its own; canting.ts re-exports everything here.
 import { z } from 'zod';
-import { clampTo, cutText, firstOf } from '../../lib/ai/trim.ts';
+import { clampTo, cutText, firstOf } from '../ai/trim.ts';
 
 export const tinctureZ = z.enum([
   'or', 'argent', 'gules', 'azure', 'vert', 'sable', 'purpure', 'murrey', 'sanguine', 'tenne', 'carnation',

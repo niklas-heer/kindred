@@ -7,8 +7,8 @@ import { chargeDef, chargeName } from './registry.ts';
 import { CENTRAL, clampPieces, fieldTinctures, standsBetween } from './geometry.ts';
 import { labelV2 } from './tinctures.ts';
 import { ARRANGEMENTS, divisionLabel, HELMS, lineLabel, ordinaryLabel } from './vocab.ts';
-import { translate, type Key } from '../../lib/i18n/dictionary.ts';
-import type { Locale, Vars } from '../../lib/i18n/types.ts';
+import { translate, type Key } from '../i18n/dictionary.ts';
+import type { Locale, Vars } from '../i18n/types.ts';
 
 const NUM = ['', 'a', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 const en = (k: Key) => translate('en', k);

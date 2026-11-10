@@ -32,9 +32,9 @@ const { saveSettings, budgeted, spentThisMonth, OFF } = await load<typeof import
 const { saveProviderKey } = await load<typeof import('./ai/providers.server.ts')>('/src/lib/ai/providers.server.ts');
 const { tr } = await load<typeof import('./ai/labels.ts')>('/src/lib/ai/labels.ts');
 const { AiError } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
-const { armsV2Schema } = await load<typeof import('../components/heraldry/schema.ts')>('/src/components/heraldry/schema.ts');
-const { chargesOverlap } = await load<typeof import('../components/heraldry/clear-layout.ts')>('/src/components/heraldry/clear-layout.ts');
-const { blazonV2 } = await load<typeof import('../components/heraldry/blazon.ts')>('/src/components/heraldry/blazon.ts');
+const { armsV2Schema } = await load<typeof import('./heraldry/schema.ts')>('/src/lib/heraldry/schema.ts');
+const { chargesOverlap } = await load<typeof import('./heraldry/clear-layout.ts')>('/src/lib/heraldry/clear-layout.ts');
+const { blazonV2 } = await load<typeof import('./heraldry/blazon.ts')>('/src/lib/heraldry/blazon.ts');
 
 // The family's tree, with its house as it is: the budget and the steward's settings live with it.
 const family = openSqlite(join(dir, `${TREE}.db`), 'tree', { create: true });

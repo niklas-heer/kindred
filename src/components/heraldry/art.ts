@@ -4,9 +4,9 @@
 // waiting for, then fills in; a component that draws charges calls useLibrary with them, and re-renders as they arrive.
 import { useEffect, useSyncExternalStore } from 'react';
 import { CHARGE_ICONS } from '../charges.gen';
-import { CHARGE_BY_ID, type ChargeDef } from './catalogue';
+import { CHARGE_BY_ID, type ChargeDef } from '../../lib/heraldry/catalogue';
 import { CLASSIC, CLASSIC_VIEWBOX } from './classic';
-import { addLibraryCharges, chargeDef } from './registry';
+import { addLibraryCharges, chargeDef } from '../../lib/heraldry/registry';
 
 export interface Art {
   viewBox: string;

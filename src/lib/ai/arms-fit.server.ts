@@ -4,15 +4,15 @@
 // rarely, "reconsider" (the arms contradict the name or read badly), with a reason in the reader's language. It is stored with a fingerprint of the arms and the chosen meanings, so the same pair is never asked
 // twice; the caller decides when to ask (a steward saves research, or asks again). Nothing runs on a page view.
 import { z } from 'zod';
-import { blazonV2 } from '../../components/heraldry/blazon';
+import { blazonV2 } from '../heraldry/blazon';
 import './arms-library.server';
-import { asV2 } from '../../components/heraldry/convert';
-import { chargeMeaning, ordinaryMeaning, tinctureMeaning } from '../../components/heraldry/meanings';
+import { asV2 } from '../heraldry/convert';
+import { chargeMeaning, ordinaryMeaning, tinctureMeaning } from '../heraldry/meanings';
 import { translate, type Key, type Vars } from '../i18n/dictionary';
 import type { Translator } from '../i18n';
 import { db, NOT_A_RECORD, once, q, type OpKey } from '../db.server';
-import { chargeGroups, chargesOverlap } from '../../components/heraldry/clear-layout';
-import { tinctureClashesV2 } from '../../components/heraldry/rules';
+import { chargeGroups, chargesOverlap } from '../heraldry/clear-layout';
+import { tinctureClashesV2 } from '../heraldry/rules';
 import { FIT_VERDICTS, type ArmsDecision, type ArmsReview, type SavedMeaningRow } from '../house-meaning.ts';
 import { parseDecisions, sameArmsAndResearch, snapshot, toReview } from '../house-meaning.server';
 import type { ArmsV2 } from '../seed-format';

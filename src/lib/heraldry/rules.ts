@@ -4,8 +4,7 @@ import type { ArmsLayer, ArmsV2, ChargeLayer, FieldDivision, OrdinaryKind, Ordin
 import { chargeNoun } from './blazon';
 import { chargeName } from './registry';
 import type { Key, Translator } from '~/lib/i18n';
-import { CENTRAL, standsBetween, tinctureCount } from './geometry';
-import { fieldTinctures } from './render';
+import { CENTRAL, fieldTinctures, standsBetween, tinctureCount } from './geometry';
 import { kindOf, labelV2 } from './tinctures';
 import { ordinaryLabel } from './vocab';
 

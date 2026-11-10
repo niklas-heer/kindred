@@ -3,8 +3,8 @@
 // lookup before that returns undefined and the caller shows the id, then re-renders when the library arrives.
 //
 // Pure (no React, no `~` imports), so the test runner and the server load it.
-import { translate } from '../../lib/i18n/dictionary.ts';
-import type { Locale } from '../../lib/i18n/types.ts';
+import { translate } from '../i18n/dictionary.ts';
+import type { Locale } from '../i18n/types.ts';
 import { CHARGE_BY_ID, CHARGES_V2, type ChargeDef } from './catalogue.ts';
 
 const library = new Map<string, ChargeDef>();

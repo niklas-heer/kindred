@@ -8,8 +8,8 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import type { ArmsReview } from '~/lib/house-meaning';
 import type { House } from '~/lib/types';
-import { blazonV2 } from './heraldry/blazon';
-import { asV2 } from './heraldry/convert';
+import { blazonV2 } from '~/lib/heraldry/blazon';
+import { asV2 } from '~/lib/heraldry/convert';
 import type { DesignerTab } from './heraldry/Designer';
 
 const Designer = lazy(() => import('./heraldry/Designer'));

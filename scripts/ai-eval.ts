@@ -54,11 +54,11 @@ export interface Server {
   tools: typeof import('../src/lib/ai/tools.server.ts');
   prompt: typeof import('../src/lib/ai/prompt.ts');
   types: typeof import('../src/lib/ai/types.ts');
-  canting: typeof import('../src/components/heraldry/canting.ts');
-  catalogue: typeof import('../src/components/heraldry/catalogue.ts');
-  registry: typeof import('../src/components/heraldry/registry.ts');
-  tinctures: typeof import('../src/components/heraldry/tinctures.ts');
-  schema: typeof import('../src/components/heraldry/schema.ts');
+  canting: typeof import('../src/lib/heraldry/canting.ts');
+  catalogue: typeof import('../src/lib/heraldry/catalogue.ts');
+  registry: typeof import('../src/lib/heraldry/registry.ts');
+  tinctures: typeof import('../src/lib/heraldry/tinctures.ts');
+  schema: typeof import('../src/lib/heraldry/schema.ts');
   fake: typeof import('../src/lib/ai/fake.ts');
   models: typeof import('../src/lib/ai/models.server.ts');
   settings: typeof import('../src/lib/ai/settings.server.ts');
@@ -344,11 +344,11 @@ export async function loadServer(): Promise<{ server: Server; close: () => Promi
     tools: await load<Server['tools']>('/src/lib/ai/tools.server.ts'),
     prompt: await load<Server['prompt']>('/src/lib/ai/prompt.ts'),
     types: await load<Server['types']>('/src/lib/ai/types.ts'),
-    canting: await load<Server['canting']>('/src/components/heraldry/canting.ts'),
-    catalogue: await load<Server['catalogue']>('/src/components/heraldry/catalogue.ts'),
-    registry: await load<Server['registry']>('/src/components/heraldry/registry.ts'),
-    tinctures: await load<Server['tinctures']>('/src/components/heraldry/tinctures.ts'),
-    schema: await load<Server['schema']>('/src/components/heraldry/schema.ts'),
+    canting: await load<Server['canting']>('/src/lib/heraldry/canting.ts'),
+    catalogue: await load<Server['catalogue']>('/src/lib/heraldry/catalogue.ts'),
+    registry: await load<Server['registry']>('/src/lib/heraldry/registry.ts'),
+    tinctures: await load<Server['tinctures']>('/src/lib/heraldry/tinctures.ts'),
+    schema: await load<Server['schema']>('/src/lib/heraldry/schema.ts'),
     fake: await load<Server['fake']>('/src/lib/ai/fake.ts'),
     models: await load<Server['models']>('/src/lib/ai/models.server.ts'),
     settings: await load<Server['settings']>('/src/lib/ai/settings.server.ts'),

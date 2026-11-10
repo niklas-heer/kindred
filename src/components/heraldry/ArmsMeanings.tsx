@@ -6,11 +6,11 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useT, type Translator } from '~/lib/i18n';
 import type { ArmsV2, ChargeLayer, OrdinaryLayer, PartitionLine, TinctureV2 } from '~/lib/seed-format';
 import { useArt, type ArtSource } from './art';
-import { ACHIEVEMENT_MEANING, chargeMeaning, divisionMeaning, LINE_MEANING, ordinaryMeaning, SHIELD_MEANING, tinctureMeaning } from './meanings';
-import { chargeLabel } from './registry';
+import { ACHIEVEMENT_MEANING, chargeMeaning, divisionMeaning, LINE_MEANING, ordinaryMeaning, SHIELD_MEANING, tinctureMeaning } from '~/lib/heraldry/meanings';
+import { chargeLabel } from '~/lib/heraldry/registry';
 import { ArmsV2View, fieldTinctures, TinctureSwatch } from './render';
-import { HEX_V2, labelV2 } from './tinctures';
-import { divisionLabel, HELMS, lineLabel, ordinaryLabel, shieldLabel } from './vocab';
+import { HEX_V2, labelV2 } from '~/lib/heraldry/tinctures';
+import { divisionLabel, HELMS, lineLabel, ordinaryLabel, shieldLabel } from '~/lib/heraldry/vocab';
 import './meanings.css';
 
 /** A charge's drawing, one colour: `color` sets it, and the surrounding colour is kept when it is absent. */

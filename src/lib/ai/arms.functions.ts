@@ -3,7 +3,7 @@
 // adapterForFeature. The research's sources are the only outside text that reaches the browser, and it is data.
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
-import { armsV2Schema } from '../../components/heraldry/schema';
+import { armsV2Schema } from '../heraldry/schema';
 import { designMeaningSchema, toAiLocale } from './types';
 
 const tree = z.string().regex(/^[a-z0-9-]{1,64}$/);

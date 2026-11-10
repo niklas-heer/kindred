@@ -21,7 +21,7 @@ import { play } from '~/lib/sfx';
 import { toast } from '~/lib/toast';
 import type { ArmsV2 } from '~/lib/seed-format';
 import { EmptyState, ErrorState, Skeleton } from '../ui';
-import { blazonV2 } from './blazon';
+import { blazonV2 } from '~/lib/heraldry/blazon';
 import { ArmsV2View } from './render';
 
 const ATTEST_KEY: Record<Attestation, Key> = {

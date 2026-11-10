@@ -10,7 +10,7 @@ import { createServer } from 'vite';
 process.env.KINDRED_DATA_DIR = mkdtempSync(join(tmpdir(), 'kindred-save-arms-'));
 const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent', optimizeDeps: { noDiscovery: true } });
 after(() => vite.close());
-const convert = await vite.ssrLoadModule('/src/components/heraldry/convert.ts');
+const convert = await vite.ssrLoadModule('/src/lib/heraldry/convert.ts');
 const meaning = await vite.ssrLoadModule('/src/lib/house-meaning.ts');
 
 const v1 = { field: 'azure', division: 'plain', charge: 'lion', chargeTincture: 'or' };

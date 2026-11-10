@@ -3,10 +3,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CHARGE_ICONS } from '../charges.gen.ts';
-import { CATEGORIES, CHARGES_V2, type ChargeCategory } from './catalogue.ts';
-import { candidateCharges, searchCharges, STOCK_CHARGES, termsOf } from './charge-search.ts';
+import { CATEGORIES, CHARGES_V2, type ChargeCategory } from '../../lib/heraldry/catalogue.ts';
+import { candidateCharges, searchCharges, STOCK_CHARGES, termsOf } from '../../lib/heraldry/charge-search.ts';
 import { LIBRARY_CHARGES } from './library/charges.gen.ts';
-import { addLibraryCharges, allChargeDefs, chargeDef, chargeLabel } from './registry.ts';
+import { addLibraryCharges, allChargeDefs, chargeDef, chargeLabel } from '../../lib/heraldry/registry.ts';
 
 addLibraryCharges(LIBRARY_CHARGES);
 const ALL = allChargeDefs();

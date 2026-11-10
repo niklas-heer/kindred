@@ -9,8 +9,8 @@ import type { ArmsV2 } from '~/lib/seed-format';
 import { useT } from '~/lib/i18n';
 import { play } from '~/lib/sfx';
 import { ErrorState, Skeleton } from '../ui';
-import { blazonV2 } from './blazon';
-import { chargeName } from './registry';
+import { blazonV2 } from '~/lib/heraldry/blazon';
+import { chargeName } from '~/lib/heraldry/registry';
 import { ArmsV2View } from './render';
 
 export function ArmsRevisions({ feedback, busy, error, revisions, onPick, onRetry }: {

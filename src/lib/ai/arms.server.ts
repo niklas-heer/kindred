@@ -4,7 +4,7 @@
 //      allows web search, a first call searches the web for the surname and country only (a fixed instruction; the
 //      surname and country as the only text); a second call, with no web search, turns those notes and the
 //      family's own words into the meanings. The family's meaning leads and is never contradicted.
-//   2. designArms: 3–5 designs with the full v2 heraldry (the canting hook in components/heraldry/canting.ts),
+//   2. designArms: 3–5 designs with the full v2 heraldry (the canting hook in lib/heraldry/canting.ts),
 //      each naming the chosen meaning it draws on and why.
 // Both validate what the model sends back, retry once on bad output, and write nothing. The caller keeps what it wants.
 import { z } from 'zod';
@@ -12,19 +12,19 @@ import { AiError, isolatedSearch, type AiAdapter, type AiReply, type JsonSchema 
 import { adapterForFeature } from './settings.server';
 import { tr, type Tr } from './labels';
 import { ATTESTATIONS, IDEA_KINDS, nameMeaningSchema, type AiLocale, type ArmsFeedback, type ArmsRevision, type DesignMeaning, type NameDesign, type NameMeaning, type NameResearch } from './types';
-import { cantingFromIdeas, cantingResponseSchema, symbolismItemSchema, type CantingRequest } from '../../components/heraldry/canting';
+import { cantingFromIdeas, cantingResponseSchema, symbolismItemSchema, type CantingRequest } from '../heraldry/canting';
 import { cutText, firstOf } from './trim';
-import { tinctureZ } from '../../components/heraldry/canting-schema.ts';
-import { candidateCharges, STOCK_CHARGES, termsOf } from '../../components/heraldry/charge-search';
-import type { ChargeDef } from '../../components/heraldry/catalogue';
-import { blazonV2 } from '../../components/heraldry/blazon';
-import { contrastFor, underOf } from '../../components/heraldry/rules';
-import { chargeGroups, chargesOverlap } from '../../components/heraldry/clear-layout';
-import { CENTRAL } from '../../components/heraldry/geometry';
-import { kindOf } from '../../components/heraldry/tinctures';
-import { chargeDef, chargeLabel, chargeName } from '../../components/heraldry/registry';
+import { tinctureZ } from '../heraldry/canting-schema.ts';
+import { candidateCharges, STOCK_CHARGES, termsOf } from '../heraldry/charge-search';
+import type { ChargeDef } from '../heraldry/catalogue';
+import { blazonV2 } from '../heraldry/blazon';
+import { contrastFor, underOf } from '../heraldry/rules';
+import { chargeGroups, chargesOverlap } from '../heraldry/clear-layout';
+import { CENTRAL } from '../heraldry/geometry';
+import { kindOf } from '../heraldry/tinctures';
+import { chargeDef, chargeLabel, chargeName } from '../heraldry/registry';
 import './arms-library.server';
-import { armsV2Schema } from '../../components/heraldry/schema';
+import { armsV2Schema } from '../heraldry/schema';
 import type { ArmsV2, ChargeLayer, OrdinaryLayer } from '../seed-format';
 
 const LANG = { en: 'English', de: 'German (du)', af: 'Afrikaans (jy)' } as const;

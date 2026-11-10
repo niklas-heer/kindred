@@ -4,8 +4,8 @@
 import { change, db, guard, NOT_A_RECORD, once, q, type Db, type OpKey } from './db.server';
 import type { NameResearch } from './ai/types.ts';
 import { chosenMeanings, fingerprintInput, keepCollected, type ArmsDecision, type ArmsReview, type FitVerdict, type SavedMeaning, type SavedMeaningRow } from './house-meaning.ts';
-import { blazonV2 } from '../components/heraldry/blazon';
-import { asV2 } from '../components/heraldry/convert';
+import { blazonV2 } from './heraldry/blazon';
+import { asV2 } from './heraldry/convert';
 import './ai/arms-library.server';
 
 interface MeaningRow {

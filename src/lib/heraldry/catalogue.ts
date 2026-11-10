@@ -1,5 +1,5 @@
 // The charge catalogue: every charge the arms editor offers, with its label, category, search words and
-// where its drawing comes from. Classic shapes (mullet, annulet, crosses …) are drawn in classic.ts; the rest
+// where its drawing comes from. Classic shapes (mullet, annulet, crosses …) are drawn in components/heraldry/classic.ts; the rest
 // are game-icons.net glyphs (Lorc, Delapouite and contributors, CC BY 3.0).
 //
 // Pure data with no imports, so scripts/extract-icons.ts can read it: that script extracts exactly the glyphs

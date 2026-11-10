@@ -10,7 +10,7 @@
 // Run with: node scripts/extract-icons.ts
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { iconToSVG } from '@iconify/utils';
-import { CHARGES_V2, HELM_GLYPH, type ChargeCategory } from '../src/components/heraldry/catalogue.ts';
+import { CHARGES_V2, HELM_GLYPH, type ChargeCategory } from '../src/lib/heraldry/catalogue.ts';
 
 const CORE = [
   'boar',
@@ -126,7 +126,7 @@ const libraryDir = new URL('../src/components/heraldry/library/', import.meta.ur
 mkdirSync(new URL('glyphs/', libraryDir), { recursive: true });
 
 const metaOut = `${HEADER}// The charges added to the heraldry library, from scripts/charge-library.tsv. Loaded on demand (heraldry/art.ts).
-import type { ChargeDef } from '../catalogue.ts';
+import type { ChargeDef } from '../../../lib/heraldry/catalogue.ts';
 
 export const LIBRARY_CHARGES: ChargeDef[] = [
 ${rows.map((r) => `  { id: ${JSON.stringify(r.id)}, gi: ${JSON.stringify(r.gi)}, cat: '${r.cat}', name: ${JSON.stringify(r.name)}, keys: ${JSON.stringify(r.keys)}${r.facing ? ', facing: true' : ''} },`).join('\n')}

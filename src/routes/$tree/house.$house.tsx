@@ -8,7 +8,7 @@ import { useId, useMemo, useState, type CSSProperties } from 'react';
 import { ArmsEditor } from '~/components/ArmsEditor';
 import { GameIcon } from '~/components/GameIcon';
 import { Arms, TINCTURE_HEX } from '~/components/Heraldry';
-import { asV2 } from '~/components/heraldry/convert';
+import { asV2 } from '~/lib/heraldry/convert';
 import { countryName, Flag } from '~/components/heraldry/Flag';
 import { ArmsMeanings } from '~/components/heraldry/ArmsMeanings';
 import { CollectedMeanings } from '~/components/CollectedMeanings';

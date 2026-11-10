@@ -33,7 +33,7 @@ const { tr } = await load<typeof import('./ai/labels.ts')>('/src/lib/ai/labels.t
 const { AiError } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
 const { readReviews, settleReview } = await load<typeof import('./house-meaning.server.ts')>('/src/lib/house-meaning.server.ts');
 const { dismissArmsReview } = await load<typeof import('./house-meaning.functions.ts')>('/src/lib/house-meaning.functions.ts');
-const { PRESETS } = await load<typeof import('../components/heraldry/presets.ts')>('/src/components/heraldry/presets.ts');
+const { PRESETS } = await load<typeof import('./heraldry/presets.ts')>('/src/lib/heraldry/presets.ts');
 /** A real design, stored as the designer stores one (`v2`): the arms the steward drew. */
 const DESIGNED = PRESETS[0].arms;
 const { saveHouseMeaning } = await load<typeof import('./house-meaning.functions.ts')>('/src/lib/house-meaning.functions.ts');

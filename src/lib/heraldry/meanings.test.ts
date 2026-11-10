@@ -3,10 +3,10 @@
 // against their types at compile time (meanings.ts), so these tests walk the same keys.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { af, de, en } from '../../lib/i18n/areas/heraldry.ts';
-import type { Key } from '../../lib/i18n/dictionary.ts';
+import { af, de, en } from '../i18n/areas/heraldry.ts';
+import type { Key } from '../i18n/dictionary.ts';
 import { CATEGORIES } from './catalogue.ts';
-import { LIBRARY_CHARGES } from './library/charges.gen.ts';
+import { LIBRARY_CHARGES } from '../../components/heraldry/library/charges.gen.ts';
 import { addLibraryCharges, allChargeDefs, chargeDef } from './registry.ts';
 import {
   ACHIEVEMENT_MEANING, CATEGORY_MEANING, CHARGE_MEANING, DIVISION_MEANING, LINE_MEANING, ORDINARY_MEANING, SHIELD_MEANING, TINCTURE_MEANING,
@@ -15,7 +15,7 @@ import {
 import { blazonAchievement, blazonV2 } from './blazon.ts';
 import { TINCTURES_V2 } from './tinctures.ts';
 import { DIVISIONS_V2, HELMS, LINES_V2, ORDINARIES, SHIELDS } from './vocab.ts';
-import type { ArmsV2 } from '../../lib/seed-format.ts';
+import type { ArmsV2 } from '../seed-format.ts';
 
 const LANGUAGES = [['en', en], ['de', de], ['af', af]] as const;
 

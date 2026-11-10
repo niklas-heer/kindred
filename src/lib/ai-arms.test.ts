@@ -361,8 +361,8 @@ test('without web search the fake answers from its own knowledge, with no source
 });
 
 test('suggested arms keep the rule of tincture on divided fields, whatever the idea asked for', async () => {
-  const canting = await load<typeof import('../components/heraldry/canting')>('/src/components/heraldry/canting.ts');
-  const rules = await load<typeof import('../components/heraldry/rules')>('/src/components/heraldry/rules.ts');
+  const canting = await load<typeof import('./heraldry/canting')>('/src/lib/heraldry/canting.ts');
+  const rules = await load<typeof import('./heraldry/rules')>('/src/lib/heraldry/rules.ts');
   const t = ((key: string) => key) as never;
   const fields = [['azure', 'or'], ['gules', 'argent'], ['or', 'argent'], ['vert', 'sable']] as const;
   for (const field of fields) {
@@ -403,7 +403,7 @@ test('a boot-maker meaning puts the boot first among the charges that fit, and t
 });
 
 test('the offline ideas draw the trades that have a charge: a cobbler’s boot, a locksmith’s padlock', async () => {
-  const canting = await load<typeof import('../components/heraldry/canting')>('/src/components/heraldry/canting.ts');
+  const canting = await load<typeof import('./heraldry/canting')>('/src/lib/heraldry/canting.ts');
   const charges = (name: string) => canting.cantingArms(name).flatMap((s) => s.arms.layers.filter((l) => l.type === 'charge').map((l) => l.charge));
   assert.ok(charges('Schuster').includes('boot'), 'a shoemaker draws a boot');
   assert.ok(charges('Schlosser').includes('padlock'), 'a locksmith draws a padlock');

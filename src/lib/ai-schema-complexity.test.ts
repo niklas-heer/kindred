@@ -62,7 +62,7 @@ for (const [file] of sites) {
   for (const [name, schema] of Object.entries(module.__complexitySchemas)) guard(name, schema);
 }
 // Also protect the shared parser shape used by both design and revision calls.
-const { cantingResponseSchema } = await vite.ssrLoadModule('/src/components/heraldry/canting-schema.ts');
+const { cantingResponseSchema } = await vite.ssrLoadModule('/src/lib/heraldry/canting-schema.ts');
 const { z } = await vite.ssrLoadModule('/node_modules/zod/index.js');
 guard('cantingResponseSchema', z.toJSONSchema(cantingResponseSchema));
 

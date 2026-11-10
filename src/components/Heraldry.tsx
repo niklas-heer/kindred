@@ -4,7 +4,7 @@ import type { House } from '~/lib/types';
 import { CHARGE_ICONS, type ChargeIconName } from './charges.gen';
 import { Flag } from './heraldry/Flag';
 import { ArmsV2View } from './heraldry/render';
-import { HEX_V2 } from './heraldry/tinctures';
+import { HEX_V2 } from '~/lib/heraldry/tinctures';
 
 export const TINCTURE_HEX: Record<Tincture, string> = {
   or: '#d4a53c',

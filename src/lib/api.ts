@@ -2,7 +2,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
-import { armsSchema } from '~/components/heraldry/schema';
+import { armsSchema } from '~/lib/heraldry/schema';
 import { validDate } from './dates';
 import { MAX_FURTHER, MAX_FURTHER_LENGTH, storeFurther } from './further-given';
 import type { Action } from './roles';
@@ -413,7 +413,7 @@ export const upsertPlaces = createServerFn({ method: 'POST' })
 
 // ---------- houses ----------
 
-// v1 arms plus the optional heraldry v2 design (src/components/heraldry/schema.ts).
+// v1 arms plus the optional heraldry v2 design (src/lib/heraldry/schema.ts).
 const arms = armsSchema;
 
 /** A steward renames a house or changes its motto and arms, over the house as they opened it. */
