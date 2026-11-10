@@ -47,8 +47,6 @@ export const en = {
   "research.tl_union_end_death": "The partnership of {name} and {other} ended with a death",
   "research.tl_union_end_divorce": "{name} and {other} divorced",
   "research.tl_union_end": "{name} and {other} parted",
-  "research.tl_document": "Document",
-  "research.tl_note": "Note",
   "research.tl_picture": "Picture",
 
   "research.documents": "Documents",
@@ -173,8 +171,6 @@ export const de: Record<keyof typeof en, Message> = {
   "research.tl_union_end_death": "Die Partnerschaft von {name} und {other} endete durch Tod",
   "research.tl_union_end_divorce": "{name} und {other} wurden geschieden",
   "research.tl_union_end": "{name} und {other} trennten sich",
-  "research.tl_document": "Dokument",
-  "research.tl_note": "Notiz",
   "research.tl_picture": "Bild",
 
   "research.documents": "Dokumente",
@@ -299,8 +295,6 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   "research.tl_union_end_death": "Die verhouding van {name} en {other} het deur dood geëindig",
   "research.tl_union_end_divorce": "{name} en {other} is geskei",
   "research.tl_union_end": "{name} en {other} het uitmekaar gegaan",
-  "research.tl_document": "Dokument",
-  "research.tl_note": "Nota",
   "research.tl_picture": "Foto",
 
   "research.documents": "Dokumente",

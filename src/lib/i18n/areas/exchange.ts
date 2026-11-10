@@ -102,9 +102,7 @@ export const en = {
   "exchange.import.notGedcom": "That file could not be read as GEDCOM.",
   "exchange.import.failed": "Nothing was written. The import did not complete.",
   "exchange.import.family": "The file is for “{name}”.",
-  "exchange.state.loading": "Loading…",
   "exchange.state.failed": "This page could not be loaded.",
-  "exchange.state.retry": "Try again",
 };
 
 export const de: Record<keyof typeof en, Message> = {
@@ -207,9 +205,7 @@ export const de: Record<keyof typeof en, Message> = {
   "exchange.import.notGedcom": "Diese Datei konnte nicht als GEDCOM gelesen werden.",
   "exchange.import.failed": "Nichts wurde geschrieben. Der Import ist nicht abgeschlossen.",
   "exchange.import.family": "Die Datei gehört zu „{name}“.",
-  "exchange.state.loading": "Wird geladen…",
   "exchange.state.failed": "Diese Seite konnte nicht geladen werden.",
-  "exchange.state.retry": "Erneut versuchen",
 };
 
 /** Afrikaans. A missing entry falls back to English at runtime; the test reports them. */
@@ -313,7 +309,5 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   "exchange.import.notGedcom": "Daardie lêer kon nie as GEDCOM gelees word nie.",
   "exchange.import.failed": "Niks is geskryf nie. Die invoer is nie voltooi nie.",
   "exchange.import.family": "Die lêer is vir “{name}”.",
-  "exchange.state.loading": "Laai…",
   "exchange.state.failed": "Hierdie bladsy kon nie gelaai word nie.",
-  "exchange.state.retry": "Probeer weer",
 };
