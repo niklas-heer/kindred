@@ -2,7 +2,7 @@
 // it off. The server keeps only hashes, so the link and the password can be shown only to the browser that made them. Whether the
 // link protects living people is chosen when it is made (on by default) and can be switched at any time without replacing it.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Copy, Link2, Link2Off, MessageCircle, RefreshCw, TriangleAlert } from 'lucide-react';
+import { Check, Copy, Ghost, Link2, Link2Off, MessageCircle, RefreshCw, TriangleAlert } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
 import { Dialog, Notice, Select, Skeleton } from '~/components/ui';
 import { Switch } from '~/components/ui/Switch';
@@ -11,6 +11,7 @@ import { setAskToJoin } from '~/lib/auth/join.functions';
 import { errorText } from '~/lib/errortext';
 import { formatDate, useT, type Key, type Translator } from '~/lib/i18n';
 import '~/styles/access.css';
+import { startPreview } from './viewas/ViewAs';
 
 interface Known { id: string; generation: number; url: string; password: string | null }
 type Days = 1 | 7 | 30 | 90 | null;
@@ -93,6 +94,10 @@ export function ShareLinkCard({ tree, familyName }: { tree: string; familyName: 
               <div className="share-actions">
                 <button className="btn" onClick={() => setMaking(true)}><RefreshCw size={15} /> {t('share.makeNew')}</button>
                 <button className="btn ghost" onClick={() => setTurningOff(true)} disabled={revoke.isPending}><Link2Off size={15} /> {t('share.turnOff')}</button>
+                {/* What the family this link was sent to sees, with its settings as they are now ("View as"). */}
+                {!link.ended && (
+                  <button className="btn ghost" onClick={() => startPreview(tree, { kind: 'guest' }).catch((e: unknown) => setError(errorText(e, t.locale)))}><Ghost size={15} /> {t('viewas.access_guest')}</button>
+                )}
               </div>
             </>
           ) : (

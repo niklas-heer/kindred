@@ -6,7 +6,8 @@ import { graphQuery } from './api';
 import { setMyPerson } from './auth/functions';
 import { buildFamily, generations, type Family } from './graph';
 import { setPref, usePref } from './prefs';
-import { useMembership } from './session';
+import { useMembership, useSession } from './session';
+import { isViewAsRefusal } from './view-as';
 
 export function useTreeId(): string {
   return useParams({ strict: false }).tree as string;
@@ -52,7 +53,9 @@ export function useMeChosen(): string | null {
   const f = useFamily();
   const local = usePref(`me:${f.graph.tree.id}`);
   const saved = useMembership(f.graph.tree.id)?.person ?? null;
-  const me = local ?? saved;
+  // While a steward views the family as someone else, "you" is that reader's person (their membership), never this browser's.
+  const previewing = useSession()?.viewAs?.tree === f.graph.tree.id;
+  const me = previewing ? saved : local ?? saved;
   return me && me !== BROWSING && f.byId.has(me) ? me : null;
 }
 
@@ -61,7 +64,8 @@ export function useMeAnswered(): boolean {
   const f = useFamily();
   const local = usePref(`me:${f.graph.tree.id}`);
   const saved = useMembership(f.graph.tree.id)?.person ?? null;
-  return local !== null || saved !== null;
+  const previewing = useSession()?.viewAs?.tree === f.graph.tree.id;
+  return (!previewing && local !== null) || saved !== null;
 }
 
 /**
@@ -69,6 +73,8 @@ export function useMeAnswered(): boolean {
  * and with their membership on the server. Use this for "This is me", not for "Be them".
  */
 export function chooseMe(tree: string, id: string): Promise<void> {
+  const before = typeof localStorage === 'undefined' ? null : localStorage.getItem(`kindred:me:${tree}`);
   setPref(`me:${tree}`, id);
-  return setMyPerson({ data: { tree, person: id } }).then(() => undefined, () => undefined);
+  // A preview ("View as") saves nothing, and this browser's own answer stays the steward's.
+  return setMyPerson({ data: { tree, person: id } }).then(() => undefined, (e: unknown) => { if (isViewAsRefusal(e)) setPref(`me:${tree}`, before); });
 }

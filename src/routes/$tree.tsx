@@ -13,6 +13,7 @@ import { LanguageChoices, LanguagePicker } from '~/components/LanguagePicker';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { FirstRun } from '~/components/FirstRun';
 import { GuestChip } from '~/components/GuestChip';
+import { ViewAsBar, ViewAsHost } from '~/components/viewas/ViewAs';
 import { JoinInvite } from '~/components/join/JoinInvite';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import { FeedbackHost, openFeedback } from '~/components/feedback/FeedbackHost';
@@ -122,7 +123,11 @@ function TreeLayout() {
   const multiple = families.length >= 2;
   const [more, setMore] = useState(false);
   // A guest has no "who are you" to save and no tour of adding people.
-  const guest = useSession()?.guest?.tree === tree;
+  const session = useSession();
+  const guest = session?.guest?.tree === tree;
+  // A steward's "View as" preview: its bar stays on every page, of this family and of any other they open meanwhile.
+  const viewAs = session?.viewAs;
+  const previewed = viewAs ? families.find((x) => x.id === viewAs.tree)?.name : undefined;
   useStatsBeacon(tree, guest);
   const topbar = useTopbarFit();
   // The Campaign has its section only while a steward has it switched on. Members only: a guest is never asked.
@@ -157,8 +162,9 @@ function TreeLayout() {
   }, [f]);
 
   return (
-    <div className="shell">
+    <div className={viewAs ? 'shell shell-viewas' : 'shell'}>
       <a href="#main" className="skip-link" onClick={(e) => { e.preventDefault(); document.getElementById('main')?.focus(); }}>{t('shell.skip')}</a>
+      <ViewAsBar tree={tree} familyName={previewed} />
       <header className="topbar topbar-stacked" ref={topbar}>
         <Link to={multiple ? "/" : "/$tree"} params={{ tree }} search={multiple ? { families: "all" } : {}} className="brand" title={multiple ? t("shell.all_families") : t("shell.family_tree")}>
           {crest ? <Arms arms={crest.arms} size={28} /> : null}
@@ -234,9 +240,11 @@ function TreeLayout() {
       <Palette />
       {/* The one assistant drawer for this family; it draws itself only when the button opened it. */}
       <AssistantHost tree={tree} />
-      {!guest && <FirstRun />}
+      {/* "Who are you?" and the tour are a reader's own first steps: a steward's preview leaves them out. */}
+      {!guest && !viewAs && <FirstRun />}
       {guest && <JoinInvite tree={tree} />}
       <FeedbackHost tree={tree} />
+      <ViewAsHost tree={tree} />
       <Toasts />
     </div>
   );

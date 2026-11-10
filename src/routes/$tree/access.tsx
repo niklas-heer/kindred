@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { Check, Copy, KeyRound, Mail, RefreshCw, Share2, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { Check, Copy, Eye, Ghost, KeyRound, Mail, RefreshCw, Share2, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import { ago, Initials } from '~/components/AccountMenu';
 import { Portrait } from '~/components/Portrait';
 import { ShareLinkCard } from '~/components/ShareLinkCard';
+import { openViewAs, startPreview } from '~/components/viewas/ViewAs';
 import { JoinRequests } from '~/components/join/JoinRequests';
 import { ROLE_ICON } from '~/components/RoleIcon';
 import { Dialog, EmptyState, ErrorState, Notice, PageHeader, Select, Skeleton } from '~/components/ui';
@@ -58,6 +59,8 @@ function AccessPage() {
   const dateFmt = shortDate(t.locale);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['session'] });
+  // Starting a preview loads the family afresh as that reader; a refusal is shown here.
+  const viewAs = (choice: Parameters<typeof startPreview>[1]) => { setError(null); startPreview(tree, choice).catch((e: unknown) => setError(errorText(e, t.locale))); };
   const onError = (e: Error) => setError(translateMessage(e.message, t.locale));
   const role = useMutation({ mutationFn: (v: { user: string; role: Role }) => setMemberRole({ data: { tree, ...v } }), onSuccess: refresh, onError });
   const remove = useMutation({ mutationFn: (user: string) => removeMember({ data: { tree, user } }), onSuccess: () => { setRemoving(null); return refresh(); }, onError: (e) => { setRemoving(null); onError(e); } });
@@ -150,7 +153,14 @@ function AccessPage() {
                   <li key={m.id}>
                     <Initials name={m.name} size={40} />
                     <div className="acc-who">
-                      <span className="acc-name"><span className="name">{m.name}</span>{m.you && <span className="chip acc-you">{t('common.you')}</span>}</span>
+                      <span className="acc-name">
+                        <span className="name">{m.name}</span>{m.you && <span className="chip acc-you">{t('common.you')}</span>}
+                        {!m.you && (
+                          <button type="button" className="btn ghost acc-viewas" aria-label={t('viewas.access_member_aria', { name: m.name })} onClick={() => viewAs({ kind: 'member', member: m.id })}>
+                            <Eye size={14} aria-hidden /> {t('viewas.access_member')}
+                          </button>
+                        )}
+                      </span>
                       <span className="acc-sub">{m.email && <span>{m.email}</span>}{personOf(m)}</span>
                     </div>
                     <span className="acc-seen">{t('acc.seen', { when: ago(m.lastSeen, t.locale) })}{signInMethod !== 'cloudflare-access' && <small>{t('acc.passkeys', { count: m.passkeys })}</small>}</span>
@@ -218,6 +228,19 @@ function AccessPage() {
             );
           })}
         </div>
+
+        {/* "View as": check what a role, a member or a guest gets, without borrowing their phone. */}
+        <section className="ui-card acc-viewas-card" aria-labelledby="acc-viewas-heading">
+          <h2 className="rule" id="acc-viewas-heading">{t('viewas.access_heading')}</h2>
+          <p>{t('viewas.access_text')}</p>
+          <div className="share-actions">
+            {(['viewer', 'contributor', 'editor'] as const).map((r) => (
+              <button key={r} type="button" className="btn" onClick={() => viewAs({ kind: 'role', role: r })}><Eye size={15} aria-hidden /> {roleLabel(t, r)}</button>
+            ))}
+            <button type="button" className="btn" onClick={() => viewAs({ kind: 'guest' })}><Ghost size={15} aria-hidden /> {t('viewas.guest_heading')}</button>
+            <button type="button" className="btn ghost" onClick={openViewAs}>{t('viewas.menu')}</button>
+          </div>
+        </section>
 
         {/* People first: who is here and who is invited. What is changed once, or rarely, comes after. */}
         <ShareLinkCard tree={tree} familyName={f.graph.tree.name} />

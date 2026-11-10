@@ -5,7 +5,7 @@ import { translateMessage, formatDate, relativeTime, useT, type Locale } from '~
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { graphQuery } from '~/lib/api';
-import { Activity, ArrowLeftRight, BarChart3, Bell, Check, CircleHelp, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus, Gamepad2, Landmark, History, Printer } from 'lucide-react';
+import { Activity, ArrowLeftRight, BarChart3, Bell, Check, CircleHelp, Eye, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus, Gamepad2, Landmark, History, Printer } from 'lucide-react';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import '~/components/assistant/ai-tasks.css';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
@@ -24,6 +24,7 @@ import { startTour } from './tour/store';
 import { dropThisDevice, ReminderRefresh, RemindersDialog } from './Reminders';
 import { useMember, useMembership, useSession } from '~/lib/session';
 import { AboutDialog } from './AboutDialog';
+import { openViewAs, stopPreview } from './viewas/ViewAs';
 import { Dialog } from './ui/Dialog';
 import { isTopOverlay, useOverlayLayer } from './ui/overlay';
 import './account.css';
@@ -47,7 +48,10 @@ const roleOf = (id: string) => ROLES.find((r) => r.id === id);
  */
 function Avatar({ name, size }: { name: string; size: number }) {
   const tree = useParams({ strict: false }).tree as string | undefined;
-  const linked = useMembership()?.person ?? null;
+  // During a preview the membership is the previewed reader's: the account keeps its own initials.
+  const previewing = !!useSession()?.viewAs;
+  const own = useMembership()?.person ?? null;
+  const linked = previewing ? null : own;
   const graph = useQuery({ ...graphQuery(tree ?? ''), enabled: !!tree && !!linked });
   const person = linked && tree ? graph.data?.people.find((p) => p.id === linked) : undefined;
   if (person && tree) return <Portrait person={person} tree={tree} size={size} frame={false} />;
@@ -58,7 +62,9 @@ function Avatar({ name, size }: { name: string; size: number }) {
  * Signs out everywhere this browser knows about, then reloads at /signin with nothing cached. First this device stops
  * the account's reminders (server and browser). That step is bounded and its failure is ignored: it never blocks sign-out.
  */
-export async function signOut(accessLogout?: string) {
+export async function signOut(accessLogout?: string, previewing = false) {
+  // A preview is read-only, and this device's reminders are the steward's own: end the preview first (sign-out ends it anyway).
+  if (previewing) await Promise.race([stopPreview().catch(() => {}), new Promise<void>((resolve) => setTimeout(resolve, 3000))]);
   const boundedDrop = Promise.race([dropThisDevice().catch(() => {}), new Promise<void>((resolve) => setTimeout(resolve, 3000))]);
   await boundedDrop;
   try { await signOutRequest(); } catch {}
@@ -121,6 +127,10 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
   const waiting = (attention.data?.access ?? 0) + (attention.data?.ai ?? 0);
   const steward = !!tree && !!m && can(m.role, 'manage-access');
   const editor = !!tree && !!m && can(m.role, 'edit-person');
+  // "View as" is the real steward's, whatever role they are previewing: the server checks their own membership.
+  const preview = session?.viewAs;
+  const viewAs = !!tree && !demo && (preview?.tree === tree || (steward && !preview));
+  const familyGroup = !!tree && (steward || editor || viewAs);
 
   // Arrow keys move between the menu's items.
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -165,7 +175,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
           {/* The identity above is not a menu item, so the role starts here: a menu may only hold items. */}
           <div className="acct-items" role="menu" aria-label={t("accountmenu.your_account")}>
             {/* Two groups, so ten rows are not one list: what belongs to this family, then what belongs to the reader. */}
-            {tree && (steward || editor) && (
+            {familyGroup && (
               <div className="acct-group" role="group" aria-labelledby={`${id}-family`}>
                 <span className="acct-group-h" id={`${id}-family`}>{t('accountmenu.group_family')}</span>
                 {steward && (
@@ -196,10 +206,14 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
                   <Link role="menuitem" className="acct-item" to="/$tree/settings/feedback" params={{ tree }} onClick={() => setOpen(false)}>
                     <Inbox size={17} /> {t("feedback.inbox")} </Link>
                 )}
+                {viewAs && (
+                  <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); openViewAs(); }}>
+                    <Eye size={17} /> {t('viewas.menu')} </button>
+                )}
               </div>
             )}
-            <div className="acct-group" role="group" aria-labelledby={tree && (steward || editor) ? `${id}-you` : undefined}>
-              {tree && (steward || editor) && <span className="acct-group-h" id={`${id}-you`}>{t('accountmenu.group_you')}</span>}
+            <div className="acct-group" role="group" aria-labelledby={familyGroup ? `${id}-you` : undefined}>
+              {familyGroup && <span className="acct-group-h" id={`${id}-you`}>{t('accountmenu.group_you')}</span>}
               {!demo && (
               <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setPasskeys(true); }}>
                 <KeyRound size={17} /> {session?.auth === 'cloudflare-access' ? t('auth.your_name') : t("accountmenu.your_name_passkeys")} </button>
@@ -212,7 +226,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
                 <Link role="menuitem" className="acct-item" to="/$tree/print" params={{ tree }} onClick={() => setOpen(false)}>
                   <Printer size={17} /> {t('print.link')} </Link>
               )}
-              {!demo && tree && m && remindersOn.data && (
+              {!demo && !preview && tree && m && remindersOn.data && (
                 <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setReminders(true); }}>
                   <Bell size={17} /> {t('reminders.menu')} </button>
               )}
@@ -233,7 +247,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
                   <Landmark size={17} /> {t('families.menu')} </Link>
               )}
               {!demo && (
-              <button role="menuitem" className="acct-item" onClick={() => void signOut(session?.accessLogout)}>
+              <button role="menuitem" className="acct-item" onClick={() => void signOut(session?.accessLogout, !!preview)}>
                 <LogOut size={17} /> {t("accountmenu.sign_out")} </button>
               )}
             </div>
@@ -269,8 +283,9 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
       )}
       <AboutDialog open={about} onClose={() => setAbout(false)} />
       <PasskeysDialog open={passkeys} onClose={() => setPasskeys(false)} />
-      {!demo && tree && m && <ReminderRefresh tree={tree} />}
-      {tree && m && <RemindersDialog tree={tree} open={reminders} onClose={() => setReminders(false)} />}
+      {/* Reminders are the steward's own devices: a preview neither refreshes nor shows them. */}
+      {!demo && !preview && tree && m && <ReminderRefresh tree={tree} />}
+      {!preview && tree && m && <RemindersDialog tree={tree} open={reminders} onClose={() => setReminders(false)} />}
     </>
   );
 }

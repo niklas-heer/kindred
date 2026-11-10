@@ -74,8 +74,6 @@ export function viewAsRefused(v: Pick<ViewAs, 'kind' | 'role' | 'member'>): Auth
   return new AuthError('forbidden', message);
 }
 
-/** What every refusal ends with, so the browser can tell one from other errors whatever the reader's name. */
-export const VIEW_AS_REFUSAL_END = 'Stop the preview to change something.';
 
 // ---------- the cookie ----------
 

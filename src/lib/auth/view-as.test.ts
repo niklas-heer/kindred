@@ -521,3 +521,14 @@ test('deleting a family takes its previews with it', async () => {
   const sql = (await store.accounts().get<{ sql: string }>("SELECT sql FROM sqlite_master WHERE name = 'view_as'"))!.sql;
   assert.match(sql, /\btree\s+TEXT NOT NULL/, 'a `tree` column, which deleteFamily finds');
 });
+
+test('every refusal ends the same way, so the browser shows it as a notice', async () => {
+  const { translate } = await load<typeof import('../i18n/dictionary.ts')>('/src/lib/i18n/dictionary.ts');
+  const { isViewAsRefusal } = await load<typeof import('../view-as.ts')>('/src/lib/view-as.ts');
+  for (const v of [{ kind: 'role', role: 'viewer' }, { kind: 'role', role: 'contributor' }, { kind: 'role', role: 'editor' }, { kind: 'guest', role: 'viewer' }, { kind: 'member', role: 'editor', member: { id: MEMBER, name: 'Milo Member' } }] as const) {
+    const e = viewAsServer.viewAsRefused(v);
+    assert.ok(isViewAsRefusal(e), e.message);
+    assert.equal(e.status, 403);
+  }
+  assert.ok(!isViewAsRefusal(new Error(translate('en', 'viewas.err_not_steward'))));
+});

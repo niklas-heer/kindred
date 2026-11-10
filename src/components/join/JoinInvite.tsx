@@ -25,7 +25,8 @@ const dismiss = (tree: string) => { try { localStorage.setItem(dismissKey(tree),
 /** The request state for a guest of `tree`; nothing is fetched for anyone else. */
 export function useJoinState(tree: string) {
   const session = useSession();
-  const guest = !!session?.guest && session.guest.tree === tree && !session.user;
+  // A steward viewing the family as a guest of its link sees the same invitation ("View as"); pressing it explains instead.
+  const guest = !!session?.guest && session.guest.tree === tree && (!session.user || session.viewAs?.kind === 'guest');
   return useQuery({ ...joinStateQuery(tree), enabled: guest, refetchInterval: (q) => (q.state.data?.request?.status === 'open' ? 60_000 : false) }).data;
 }
 
@@ -33,8 +34,10 @@ export function useJoinState(tree: string) {
 export function JoinInvite({ tree }: { tree: string }) {
   const t = useT();
   const state = useJoinState(tree);
+  const preview = useSession()?.viewAs?.kind === 'guest';
   const [hidden, setHidden] = useState(true);
   const [open, setOpen] = useState(false);
+  const [explained, setExplained] = useState(false);
   useEffect(() => { setHidden(dismissed(tree)); }, [tree]);
   useEffect(() => onOpenJoin(() => setOpen(true)), []);
   if (!state) return null;
@@ -59,13 +62,14 @@ export function JoinInvite({ tree }: { tree: string }) {
             <h2 id="join-invite-title">{t('join.invite_title')}</h2>
             <p>{t('join.invite_text')}</p>
             <div className="join-card-actions">
-              <button className="btn primary" onClick={() => setOpen(true)}>{t('join.ask')}</button>
+              <button className="btn primary" onClick={() => (preview ? setExplained(true) : setOpen(true))} aria-describedby={explained ? 'join-preview-note' : undefined}>{t('join.ask')}</button>
               <button className="btn ghost" onClick={() => { dismiss(tree); setHidden(true); }}>{t('join.not_now')}</button>
             </div>
+            {explained && <p className="join-preview-note" id="join-preview-note" role="status">{t('viewas.join_preview')}</p>}
           </div>
         </aside>
       )}
-      {state.available && !state.request && <JoinDialog open={open} tree={tree} onClose={() => setOpen(false)} />}
+      {state.available && !state.request && !preview && <JoinDialog open={open} tree={tree} onClose={() => setOpen(false)} />}
     </>
   );
 }

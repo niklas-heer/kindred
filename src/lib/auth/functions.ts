@@ -53,7 +53,8 @@ export interface ViewAsInfo {
   tree: string;
   kind: 'role' | 'member' | 'guest';
   role: Role;
-  /** Kind `member`: their name. */
+  /** Kind `member`: their account and name (a steward reads both on the Access page anyway). */
+  member?: string;
   name?: string;
   /** Kind `guest`: whether it is the family's share link (else a plain guest), and that link's settings. */
   link?: boolean;
@@ -102,7 +103,7 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): 
     guestEnded: !user && !guestHere && guestEnded(getRequest()),
     guestHost,
     viewAs: viewAs && user ? {
-      tree: viewAs.tree, kind: viewAs.kind, role: viewAs.role, name: viewAs.member?.name, expires: viewAs.expires,
+      tree: viewAs.tree, kind: viewAs.kind, role: viewAs.role, member: viewAs.member?.id, name: viewAs.member?.name, expires: viewAs.expires,
       ...(viewAs.guest ? { link: viewAs.guest.link !== null, protectLiving: viewAs.guest.protectLiving, askToJoin: viewAs.guest.askToJoin } : {}),
     } : undefined,
   };

@@ -83,7 +83,24 @@ const serverFunctionErrors = createMiddleware({ type: 'function' }).server(async
   }
 });
 
+// In the browser, every server function: a change refused because the session is viewing a family as someone else ("View as",
+// src/lib/auth/view-as.server.ts) also gets a gentle notice, wherever it was made, and the caller still sees its error as usual.
+const viewAsNotice = createMiddleware({ type: 'function' }).client(async ({ next }) => {
+  try {
+    return await next();
+  } catch (e) {
+    const { isViewAsRefusal } = await import('./lib/view-as');
+    if (isViewAsRefusal(e)) {
+      const [{ toast }, { translate, translateMessage, isLocale }] = await Promise.all([import('./lib/toast'), import('./lib/i18n/dictionary')]);
+      const lang = document.documentElement.lang;
+      const locale = isLocale(lang) ? lang : 'en';
+      toast({ title: translate(locale, 'viewas.notice_title'), body: translateMessage((e as Error).message, locale), ms: 8000 });
+    }
+    throw e;
+  }
+});
+
 export const startInstance = createStart(() => ({
   requestMiddleware: [securityHeaders, authSettingGate, csrf, setupNotice],
-  functionMiddleware: [serverFunctionErrors],
+  functionMiddleware: [viewAsNotice, serverFunctionErrors],
 }));

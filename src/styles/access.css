@@ -113,3 +113,9 @@
 @media (pointer: coarse) { .guest-chip .btn { height: 44px; padding: 0 12px; } }
 /* Each switch with its sentence is one group: the sentence sits under its switch, with air before the next thing. */
 .share-card .ui-switch-wrap + .share-note { margin: 4px 0 16px; }
+
+/* "View as" on a member's row: beside the name, so the row's columns stay as they are. */
+.acc-name .acc-viewas { height: 28px; min-height: 28px; padding: 0 8px; margin-left: 8px; font-size: var(--fs-1); gap: 4px; }
+@media (pointer: coarse) { .acc-name .acc-viewas { height: 40px; min-height: 40px; } }
+.acc-viewas-card { padding: 18px; display: grid; gap: 10px; margin-top: 18px; }
+.acc .acc-viewas-card h2.rule, .acc-viewas-card p { margin: 0; }
