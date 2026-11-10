@@ -807,4 +807,4 @@ async function proposeNew(ctx: Ctx, c: Tr, g: Graph, byId: Map<string, GPerson>,
 }
 
 const name = (byId: Map<string, GPerson>, id: string) => (byId.get(id) ? fullName(byId.get(id)!) : id);
-const thumbsFor = (tree: string, keys: string[]) => Object.fromEntries(keys.map((k) => [k, mediaUrl(tree, k)]));
+const thumbsFor = (tree: string, keys: string[]) => Object.fromEntries(keys.map((k) => [k, mediaUrl(tree, k, 'thumb')]));

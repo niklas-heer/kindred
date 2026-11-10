@@ -212,7 +212,7 @@ function GalleryPage() {
                       onClick={() => setOpenKey(m.key)}
                       aria-label={label}
                     >
-                      <img src={mediaUrl(tree, m.key)} alt="" loading="lazy" decoding="async" />
+                      <img src={mediaUrl(tree, m.key, 'thumb')} alt="" loading="lazy" decoding="async" />
                       <span className="gal-meta">
                         {when ?? g('lb.no_date')}
                         {m.place ? <> · {m.place}</> : null}

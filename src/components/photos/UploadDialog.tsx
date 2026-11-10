@@ -9,7 +9,7 @@ import { opKeys } from '~/lib/api';
 import { validDate } from '~/lib/dates';
 import { isoOfDate } from '~/lib/partial-date';
 import { addGalleryPhoto } from '~/lib/photos.functions';
-import { exifDate, scaledPicture } from './image';
+import { exifDate, scaledPicture, THUMB_EDGE } from './image';
 import { refreshPhotos } from './refresh';
 import { formatDate, useT } from '~/lib/i18n';
 import { toast } from '~/lib/toast';
@@ -29,6 +29,8 @@ interface Item {
   status: Status;
   /** The picture as it will be sent: scaled, re-encoded, without EXIF or GPS. */
   blob?: Blob;
+  /** Its small copy for tiles (THUMB_EDGE), made from the scaled picture. Absent when the browser could not make one. */
+  thumb?: Blob;
   width?: number;
   height?: number;
   preview?: string;
@@ -82,9 +84,12 @@ export function UploadDialog({ tree, albums, initialAlbum, files, onClose }: {
     try {
       const fromPhoto = await exifDate(file);
       const scaled = await scaledPicture(file);
-      const preview = URL.createObjectURL(scaled.blob);
+      // Tiles are 84 to 200 pixels across: a small copy saves loading the whole picture for each. Without one the
+      // gallery shows the picture itself, as it does for photos from before thumbnails, so a failure here costs nothing.
+      const thumb = await scaledPicture(scaled.blob, THUMB_EDGE, 0.8).then((t) => t.blob, () => undefined);
+      const preview = URL.createObjectURL(thumb ?? scaled.blob);
       previews.current.push(preview);
-      update(it.id, { status: 'ready', blob: scaled.blob, width: scaled.width, height: scaled.height, preview, fromPhoto });
+      update(it.id, { status: 'ready', blob: scaled.blob, thumb, width: scaled.width, height: scaled.height, preview, fromPhoto });
     } catch {
       update(it.id, { status: 'failed', error: g('up.unreadable') });
     }
@@ -133,6 +138,7 @@ export function UploadDialog({ tree, albums, initialAlbum, files, onClose }: {
         const fd = new FormData();
         fd.set('tree', tree);
         fd.set('file', new File([it.blob!], `${it.name.replace(/\.[^.]+$/, '') || 'photo'}.jpg`, { type: 'image/jpeg' }));
+        if (it.thumb) fd.set('thumb', new File([it.thumb], 'thumb.jpg', { type: 'image/jpeg' }));
         fd.set('width', String(it.width));
         fd.set('height', String(it.height));
         fd.set('taken', dateOf(it));

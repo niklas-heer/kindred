@@ -141,7 +141,7 @@ function ProjectBody({ tree, project, view, back }: { tree: string; project: str
                   {view.pictures.map((p) => (
                     <li key={p.key} className="rs-pic">
                       <button type="button" className="rs-pic-open" onClick={() => setOpenPicture(p.key)} aria-label={p.caption || dateText(p.taken, t.locale) || t('research.tl_picture')}>
-                        <img src={mediaUrl(tree, p.key)} alt="" loading="lazy" decoding="async" />
+                        <img src={mediaUrl(tree, p.key, 'thumb')} alt="" loading="lazy" decoding="async" />
                       </button>
                       {canChange(p.mine) ? <button type="button" className="btn icon ghost rs-pic-remove" title={t('research.remove_picture')} aria-label={t('research.remove_picture')} onClick={() => void unlink('picture', p.key)}><X size={14} /></button> : null}
                     </li>

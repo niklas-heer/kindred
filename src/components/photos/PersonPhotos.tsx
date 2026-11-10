@@ -117,7 +117,7 @@ export function PersonPhotos({ tree, id, bare }: { tree: string; id: string; bar
                 aria-label={m.caption || g('common.photo_of', { name })}
                 onClick={() => { setSelected(m.key); setViewing(m.key); }}
               >
-                <img src={mediaUrl(tree, m.key)} alt="" loading="lazy" decoding="async" />
+                <img src={mediaUrl(tree, m.key, 'thumb')} alt="" loading="lazy" decoding="async" />
               </button>
             </li>
           ))}

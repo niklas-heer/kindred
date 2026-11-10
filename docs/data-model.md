@@ -44,6 +44,7 @@ code (`mise run deploy` migrates before it deploys), so it must not break the re
 | `0020_field_visibility.sql` | `person_field.visibility` (`personal`, `editors`, `family`) and `owner`, in place of the single `private` flag, which it drops. |
 | `0021_further_given_names.sql` | `person.further_given`, and the person revision trigger recreated to count it. |
 | `0022_field_author.sql` | `person_field.created_by` now holds the author's account id; the old display name column is renamed `created_by_name`. |
+| `0023_photo_thumb.sql` | `media.thumb`: the key of a gallery photo's small copy (`thumb/<uuid>.jpg`, about 400 pixels), made by the browser at upload; NULL for photos from before, which are served whole. |
 
 ### Tables
 
@@ -73,7 +74,8 @@ code (`mise run deploy` migrates before it deploys), so it must not break the re
 - **`person_field`**: one row per field, with `created_by` (the account that created it, which alone may make it personal; NULL before migration 0022) and `created_by_name` (the name shown): `type` (phone, email, address, website, social, names, dates, education,
   occupation, military, religion, nationality, languages, medical, allergies, favourites, gifts, notes, related, custom),
   `label`, `value` (JSON, the shape depends on the type), `ord`, `visibility` (migration 0020: `family` for every member, `editors` for editors and stewards, `personal` for the account in `owner` alone, never an export or the assistant) and `owner` (the account id, set exactly when the field is personal).
-- **`album`**, **`media`**, **`media_person`**: the gallery. `media.key` is the picture's key in media storage, `taken` is
+- **`album`**, **`media`**, **`media_person`**: the gallery. `media.key` is the picture's key in media storage, `thumb` (0023)
+  the key of its small copy for tiles, or NULL, `taken` is
   a partial date, and each `media_person` row is a face box (`x`, `y`, `w`, `h` between 0 and 1) with `confirmed` (0 for a
   suggestion, which is never shown as a tag).
 - **`portrait`** (migration 0013): a painted portrait made from one of a person's photos. `key` is the picture in media storage (`portrait/<uuid>.<ext>`), `person`, `mime`, `source` (the photo it was painted from: `gallery/…` or `photo/…`), `source_year` (the photo's year, when it has a date), `model` (the OpenRouter model), `created_by`, `created_at`, `accepted`, and (migration 0018) `kept` and `tweak` (the person's own small adjustments, JSON). A row with `accepted = 0` and `kept = 0` is a draft, swept when abandoned; a kept version is one the person chose to keep; `accepted = 0` otherwise means a candidate waiting for a choice; at most one row per person is accepted ("Use this portrait"), and that is the one the person can show. Accepting deletes the one it replaces; discarding a candidate, or removing the accepted one, deletes its picture too. `person.prefer_portrait` (0013) is the person's choice of the painted portrait: `prefer_avatar` (the drawing) and `prefer_portrait` are never both 1, and neither is 1 when the photo is shown.

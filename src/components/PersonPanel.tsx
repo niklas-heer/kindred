@@ -629,7 +629,7 @@ function PhotosFold({ tree, p, role }: { tree: string; p: GPerson; role: Role })
   if (!photos.length && !p.photo && !p.portrait && !can(role, 'edit-person') && !mayPaintPerson(membership, p.id)) return null;
   const hint = photos.length ? c('panel.ov_photos_count', { count: photos.length }) : p.photo || p.portrait ? undefined : c('panel.ov_photos_none');
   return (
-    <Fold id="photos" title={c('panel.ov_photos')} hint={hint} peek={photos.length ? photos.slice(0, 5).map((m) => <img key={m.key} src={mediaUrl(tree, m.key)} alt="" loading="lazy" decoding="async" />) : undefined}>
+    <Fold id="photos" title={c('panel.ov_photos')} hint={hint} peek={photos.length ? photos.slice(0, 5).map((m) => <img key={m.key} src={mediaUrl(tree, m.key, 'thumb')} alt="" loading="lazy" decoding="async" />) : undefined}>
       <PersonPhotos tree={tree} id={p.id} bare />
     </Fold>
   );

@@ -38,17 +38,10 @@ function opOf<D extends { opKey?: string }>(user: string, data: D) {
 /**
  * The picture in a form, checked by its first bytes as well as its declared type, and without its metadata: the browser
  * has dropped EXIF and GPS already, and src/lib/strip-metadata.ts drops them again for an upload that did not come
- * through the browser's code. A picture too damaged to clean is refused.
+ * through the browser's code. A picture too damaged to clean is refused. See picture-in.ts.
  */
 async function pictureIn(form: FormData, max: number) {
-  const file = form.get('file');
-  if (!(file instanceof File) || !/^image\/(jpeg|png|webp)$/.test(file.type) || file.size > max) throw new Error('photos.err.picture_type');
-  const [{ sniff }, { stripMetadata }] = await Promise.all([server(), import('./strip-metadata')]);
-  const raw = new Uint8Array(await file.arrayBuffer());
-  if (sniff(raw) !== file.type) throw new Error('photos.err.not_picture');
-  const bytes = stripMetadata(raw, file.type);
-  if (!bytes) throw new Error('photos.err.not_picture');
-  return { file, bytes, mime: file.type };
+  return (await import('./picture-in')).checkedPicture(form.get('file'), max);
 }
 
 const pixels = (v: FormDataEntryValue | null) => {
@@ -82,7 +75,10 @@ export const personPhotosQuery = (t: string, id: string) =>
 
 // ---------- photos ----------
 
-/** Adds one picture. The browser has already scaled it down and dropped its EXIF and GPS; pictureIn drops them again. */
+/**
+ * Adds one picture, with the thumbnail the browser made of it when there is one. The browser has already scaled both down
+ * and dropped their EXIF and GPS; pictureIn and checkedThumb drop them again.
+ */
 export const addGalleryPhoto = createServerFn({ method: 'POST' })
   .validator((d: unknown) => {
     if (!(d instanceof FormData)) throw new Error('expected form data');
@@ -102,8 +98,10 @@ export const addGalleryPhoto = createServerFn({ method: 'POST' })
     const m = await requireCan(data.tree, 'upload-photo');
     const { form, tree: t, opKey: k, width, height, taken, place, caption, album: albumOf } = data;
     const { file, bytes, mime } = await pictureIn(form, 12_000_000);
+    // The small copy for tiles, made by the browser; checked and cleaned like the photo.
+    const thumb = await (await import('./picture-in')).checkedThumb(form.get('thumb'));
     const details = { width, height, taken, place, caption, album: albumOf };
-    return (await server()).addPhoto(t, m.user.id, bytes, { ...details, mime }, opOf(m.user.id, { opKey: k, tree: t, file, ...details }));
+    return (await server()).addPhoto(t, m.user.id, bytes, { ...details, mime }, opOf(m.user.id, { opKey: k, tree: t, file, ...details }), thumb ?? undefined);
   });
 
 export const saveGalleryPhoto = createServerFn({ method: 'POST' })

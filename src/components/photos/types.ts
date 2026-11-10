@@ -34,8 +34,11 @@ export interface Gallery {
   albums: Album[];
 }
 
-/** The URL of a gallery picture. The route checks the reader is a member of the family. */
-export const mediaUrl = (tree: string, key: string) => `/api/media/${tree}/${key.replace(/^gallery\//, '')}`;
+/**
+ * The URL of a gallery picture. The route checks the reader is a member of the family. `thumb` asks for its small copy
+ * (about 400 pixels), for tiles, covers and peeks; a photo from before thumbnails is served whole.
+ */
+export const mediaUrl = (tree: string, key: string, size?: 'thumb') => `/api/media/${tree}/${key.replace(/^gallery\//, '')}${size ? `?size=${size}` : ''}`;
 
 /** A face the AI finder suggested: where, and who. The server keeps the box and the person, not the confidence or reason. */
 export interface Face { box: Box; personId: string }

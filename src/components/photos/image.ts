@@ -79,6 +79,9 @@ export interface Scaled {
   mime: 'image/jpeg';
 }
 
+/** The long side of a gallery photo's thumbnail: sharp in a 200-pixel tile on a screen of twice the density. */
+export const THUMB_EDGE = 400;
+
 /**
  * Scales a picture so its longer side is at most `max` pixels, and re-encodes it as JPEG. The canvas
  * drops EXIF and GPS. Orientation from the camera is applied first. Transparent areas become white.

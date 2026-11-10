@@ -220,7 +220,7 @@ export function CharacterEditor({ person, tree, house = null, value, onChange }:
               <div className="ce-photo-grid">
                 {photos.data.map((m) => (
                   <button key={m.key} type="button" className="ce-photo" disabled={fromPhoto.isPending} onClick={() => fromPhoto.mutate(m.key)}>
-                    <img src={mediaUrl(tree, m.key)} alt="" loading="lazy" />
+                    <img src={mediaUrl(tree, m.key, 'thumb')} alt="" loading="lazy" />
                   </button>
                 ))}
               </div>

@@ -64,21 +64,23 @@ export function personMedia(tree: string, person: string, protectLiving = false)
   return withTags(db(tree), where, [person], protectLiving);
 }
 
-/** The stored type of a gallery picture, or undefined. The route serves only what this finds. */
-export async function pictureMime(tree: string, key: string): Promise<string | undefined> {
-  return (await db(tree).get<{ mime: string }>('SELECT mime FROM media WHERE key = ?', key))?.mime;
+/**
+ * The stored picture to serve for a gallery key, or undefined: the photo itself, or for `thumb` its small copy when it has
+ * one (photos uploaded before migration 0023 have none, and get the photo). The route serves only what this finds.
+ */
+export async function pictureFor(tree: string, key: string, thumb: boolean): Promise<{ key: string; mime: string } | undefined> {
+  const row = await db(tree).get<{ mime: string; thumb: string | null }>('SELECT mime, thumb FROM media WHERE key = ?', key);
+  if (!row) return undefined;
+  // Thumbnails are always made as JPEG by the browser (and checked as a picture on the way in).
+  return thumb && row.thumb ? { key: row.thumb, mime: thumbMime(row.thumb) } : { key, mime: row.mime };
 }
+
+const thumbMime = (key: string) => (key.endsWith('.png') ? 'image/png' : key.endsWith('.webp') ? 'image/webp' : 'image/jpeg');
 
 // ---------- files ----------
 
-/** The first bytes of a picture, so the stored type is the real one (a renamed file is refused). */
-export function sniff(bytes: Uint8Array): string | null {
-  const at = (i: number, ...b: number[]) => b.every((x, j) => bytes[i + j] === x);
-  if (at(0, 0xff, 0xd8, 0xff)) return 'image/jpeg';
-  if (at(0, 0x89, 0x50, 0x4e, 0x47)) return 'image/png';
-  if (at(0, 0x52, 0x49, 0x46, 0x46) && at(8, 0x57, 0x45, 0x42, 0x50)) return 'image/webp';
-  return null;
-}
+// The type check lives with the upload's other checks; the feedback form uses it from here.
+export { sniff } from './picture-in.ts';
 
 // ---------- photos ----------
 
@@ -86,12 +88,24 @@ export interface NewPhoto {
   mime: string; width: number; height: number; taken: string | null; place: string | null; caption: string | null; album: string | null;
 }
 
-/** Stores a picture and its details. The picture is written first; the row is kept only if the batch commits. */
-export function addPhoto(tree: string, by: string, bytes: Uint8Array, p: NewPhoto, op: OpKey | undefined): Promise<MediaItem> {
+/**
+ * Stores a picture, its thumbnail when the browser made one, and its details. The pictures are written first; the row is
+ * kept only if the batch commits.
+ */
+export function addPhoto(tree: string, by: string, bytes: Uint8Array, p: NewPhoto, op: OpKey | undefined, thumb?: { bytes: Uint8Array; mime: string }): Promise<MediaItem> {
   return once(tree, op, 'addPhoto', async (d) => {
     if (p.album && !(await d.get('SELECT id FROM album WHERE id = ?', p.album))) throw new Error('photos.err.album_gone');
     const key = newMediaKey('gallery', p.mime);
+    const thumbKey = thumb ? newMediaKey('thumb', thumb.mime) : null;
     await media.put(tree, key, bytes, p.mime);
+    if (thumb && thumbKey) {
+      try {
+        await media.put(tree, thumbKey, thumb.bytes, thumb.mime);
+      } catch (e) {
+        await media.delete(tree, key).catch(() => {});
+        throw e;
+      }
+    }
     const at = new Date().toISOString();
     const item: MediaItem = {
       key, mime: p.mime, width: p.width, height: p.height, taken: p.taken, place: p.place, caption: p.caption, album: p.album,
@@ -100,11 +114,11 @@ export function addPhoto(tree: string, by: string, bytes: Uint8Array, p: NewPhot
     return {
       writes: [
         ...(p.album ? [guard('EXISTS (SELECT 1 FROM album WHERE id = ?)', p.album)] : []),
-        q('INSERT INTO media (key, mime, width, height, taken, place, caption, album, uploaded_by, uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          key, p.mime, p.width, p.height, p.taken, p.place, p.caption, p.album, by, at),
+        q('INSERT INTO media (key, mime, width, height, taken, place, caption, album, uploaded_by, uploaded_at, thumb) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          key, p.mime, p.width, p.height, p.taken, p.place, p.caption, p.album, by, at, thumbKey),
       ],
       result: item,
-      abandon: () => media.delete(tree, key).catch(() => {}),
+      abandon: () => Promise.all([key, thumbKey].filter((k): k is string => !!k).map((k) => media.delete(tree, k).catch(() => {}))).then(() => {}),
     };
   });
 }
@@ -127,11 +141,15 @@ export function editPhoto(tree: string, key: string, patch: Pick<NewPhoto, 'take
 /** Deletes a photo with its tags, and its picture from storage once the delete has committed. */
 export function removePhoto(tree: string, key: string, op: OpKey | undefined) {
   return once(tree, op, 'removePhoto', async (d) => {
-    if (!(await d.get('SELECT key FROM media WHERE key = ?', key))) throw new Error('photos.err.photo_already_gone');
+    const row = await d.get<{ thumb: string | null }>('SELECT thumb FROM media WHERE key = ?', key);
+    if (!row) throw new Error('photos.err.photo_already_gone');
     return {
       writes: [guard('EXISTS (SELECT 1 FROM media WHERE key = ?)', key), q('DELETE FROM media WHERE key = ?', key)],
       result: undefined,
-      after: () => media.delete(tree, key).catch((e) => console.error('photos.err.delete_failed', key, e)),
+      // The photo and its thumbnail both go.
+      after: async () => {
+        for (const k of [key, row.thumb]) if (k) await media.delete(tree, k).catch((e) => console.error('photos.err.delete_failed', k, e));
+      },
     };
   });
 }

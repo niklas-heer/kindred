@@ -52,7 +52,7 @@ export function AddPictureDialog({ tree, project, linked, onClose }: { tree: str
           {items.map((m: MediaItem) => (
             <li key={m.key}>
               <button type="button" className="rs-pick-tile" disabled={busy} onClick={() => void link('picture', m.key, undefined, onClose)} aria-label={m.caption || m.taken || t('research.add_picture')}>
-                <img src={mediaUrl(tree, m.key)} alt="" loading="lazy" decoding="async" />
+                <img src={mediaUrl(tree, m.key, 'thumb')} alt="" loading="lazy" decoding="async" />
                 <span className="rs-pick-add" aria-hidden><Plus size={16} /></span>
               </button>
             </li>

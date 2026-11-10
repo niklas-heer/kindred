@@ -129,7 +129,7 @@ const whoAmI = (ctx: Ctx): Who => ({ id: ctx.user ?? '', name: '', role: ctx.rol
 async function photoOf(env: EditEnv, key: string): Promise<MediaItem> {
   return (await gallery(env.ctx.tree)).media.find((m) => m.key === key) ?? no(`${key} is not a photo in this family`);
 }
-const thumb = (env: EditEnv, key: string) => ({ thumbs: { [key]: mediaUrl(env.ctx.tree, key) } });
+const thumb = (env: EditEnv, key: string) => ({ thumbs: { [key]: mediaUrl(env.ctx.tree, key, 'thumb') } });
 
 async function projectFor(env: EditEnv, id: string) {
   return (await projectView(env.ctx.tree, id, whoAmI(env.ctx))) ?? no('that research project is not in this family; list_research gives the ids');

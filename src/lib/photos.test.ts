@@ -60,3 +60,26 @@ test('a steward deletes an album; its photographs stay, without an album', async
   assert.equal(m.album, null);
   await assert.rejects(photos.deleteAlbum('family', 'a1', undefined), /photos\.err\.album_already_gone/);
 });
+
+const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0xff, 0xd9]);
+const details = { mime: 'image/jpeg', width: 2400, height: 1600, taken: null, place: null, caption: null, album: null };
+
+test('a photo with a thumbnail keeps both, the route finds each, and deleting it removes both', async () => {
+  const item = await photos.addPhoto('family', 'Anna', JPEG, details, undefined, { bytes: JPEG, mime: 'image/jpeg' });
+  const row = await db.db('family').get<{ thumb: string | null }>('SELECT thumb FROM media WHERE key = ?', item.key);
+  assert.match(row?.thumb ?? '', /^thumb\/[a-z0-9-]+\.jpg$/);
+  assert.ok(await db.media.get('family', row!.thumb!), 'the thumbnail is stored');
+  assert.deepEqual(await photos.pictureFor('family', item.key, true), { key: row!.thumb, mime: 'image/jpeg' });
+  assert.deepEqual(await photos.pictureFor('family', item.key, false), { key: item.key, mime: 'image/jpeg' });
+
+  await photos.removePhoto('family', item.key, undefined);
+  assert.equal(await photos.pictureFor('family', item.key, true), undefined);
+  assert.equal(await db.media.get('family', item.key), undefined, 'the photo is gone from storage');
+  assert.equal(await db.media.get('family', row!.thumb!), undefined, 'and so is its thumbnail');
+});
+
+test('a photo from before thumbnails is served whole when a tile asks for its thumbnail', async () => {
+  const item = await photos.addPhoto('family', 'Anna', JPEG, details, undefined);
+  assert.deepEqual(await photos.pictureFor('family', item.key, true), { key: item.key, mime: 'image/jpeg' });
+  assert.equal(await photos.pictureFor('family', 'gallery/none.jpg', true), undefined);
+});
