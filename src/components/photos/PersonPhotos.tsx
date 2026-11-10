@@ -13,14 +13,14 @@ import { galleryQuery, personPhotosQuery, setPersonPortrait } from '~/lib/photos
 import { setPersonDisplay } from '~/lib/portrait.functions';
 import { PaintPortrait } from '~/components/PaintPortrait';
 import { portraitFits } from '~/lib/portrait-face';
-import { shownAge } from '~/components/portrait/look';
+import { shownAge } from '~/lib/portrait-look';
 import { useCan } from '~/lib/session';
 import { squareCrop } from './image';
 import { Lightbox } from './Lightbox';
 import { PortraitZoom } from './PortraitZoom';
 import { refreshPhotos } from './refresh';
 import { useT, type Key } from '~/lib/i18n';
-import { mediaUrl, type MediaItem } from './types';
+import { mediaUrl, type MediaItem } from '~/lib/photos/types';
 import '~/styles/gallery.css';
 
 /** What a person shows: the drawing, the photo, or the painted portrait. */

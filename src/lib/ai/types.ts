@@ -262,10 +262,10 @@ const baseProposalArgs = {
 
 // ---------- vision and generation results ----------
 
-/** A 0–10 face measure (portrait/look.ts). */
+/** A 0–10 face measure (src/lib/portrait-look.ts). */
 const level = z.number().int().min(0).max(10);
 
-/** A portrait look, as stored on a person (SeedLook in seed-format.ts). Indices are palette positions (look.ts). */
+/** A portrait look, as stored on a person (SeedLook in seed-format.ts). Indices are palette positions (src/lib/portrait-look.ts). */
 export const lookSchema = z.object({
   skin: z.number().int().min(0).max(8),
   hair: z.number().int().min(0).max(9),
@@ -281,7 +281,7 @@ export const lookSchema = z.object({
   clothing: z.enum(['tunic', 'cotehardie', 'gown', 'doublet', 'bodice', 'ruff', 'lace-collar', 'coat', 'stays', 'frock', 'victorian', 'suit', 'blouse', 'suit-slim', 'pearls', 'shirt', 'turtleneck', 'sweater', 'tshirt', 'hoodie', 'cardigan', 'smock', 'sailor', 'pinafore', 'knit', 'stripes', 'onesie']).optional(),
   marks: z.array(z.enum(['freckles', 'mole', 'blush', 'dimples', 'scar'])).max(5).optional(),
   age: z.number().int().min(0).max(120).optional(),
-  // The face: its shape, nose, eyes, and the 0–10 measures (see portrait/look.ts). Dropped here, a path through this
+  // The face: its shape, nose, eyes, and the 0–10 measures (see src/lib/portrait-look.ts). Dropped here, a path through this
   // schema would lose them, so they are listed with the portrait's own values.
   face: z.enum(['round', 'oval', 'square', 'long', 'heart']).optional(),
   noseShape: z.enum(['straight', 'aquiline', 'broad', 'snub']).optional(),

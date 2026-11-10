@@ -7,7 +7,7 @@ import { faceResultSchema, type AiLocale, type FaceResult } from './types';
 import { AiError, type ImagePart, type JsonSchema } from './adapters';
 import { tr } from './labels';
 import { adapterForFeature } from './settings.server';
-import { SKIN_LABELS, HAIR_LABELS, EYE_LABELS, PHOTO_LOOK_FIELDS, sanitizeLook } from '../../components/portrait/look';
+import { SKIN_LABELS, HAIR_LABELS, EYE_LABELS, PHOTO_LOOK_FIELDS, sanitizeLook } from '../portrait-look';
 import { translate } from '../i18n/dictionary';
 import type { Look } from '../types';
 

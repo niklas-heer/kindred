@@ -4,7 +4,7 @@
 import { svgDataUri } from '~/lib/svg-data-uri';
 import type { GPerson, House } from '~/lib/types';
 import { avatarSvg, type Detail } from './avatar';
-import { hash, resolveAppearance } from './look';
+import { hash, resolveAppearance } from '../../lib/portrait-look';
 import { dressOf } from './palette';
 
 export type { Detail };

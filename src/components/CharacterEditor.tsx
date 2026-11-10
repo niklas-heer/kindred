@@ -17,13 +17,13 @@ import type { GPerson, House, Look } from '~/lib/types';
 import { useAiStatus } from './assistant/store';
 import { AiSetupHint } from './assistant/AiSetup';
 import { PaintPortrait } from './PaintPortrait';
-import { mediaUrl } from './photos/types';
+import { mediaUrl } from '~/lib/photos/types';
 import { Portrait } from './Portrait';
 import {
   BEARDS, BROWS, CLOTHING, EYE_LABELS, EYE_SHAPES, EYES, FACE_SHAPES, GLASSES, HAIR, HAIR_LABELS, HAIR_ORDER, HAIR_STYLES, HEADWEAR,
   LEVEL_LABELS, MARKS, MOUSTACHES, NOSE_SHAPES, SKIN, SKIN_LABELS, SKIN_NEUTRAL, SKIN_ORDER, autoFeatures, defaultLook, shownAge,
   type LevelKey,
-} from './portrait/look';
+} from '~/lib/portrait-look';
 import { Range, Switch, Tab, TabList, TabPanel, Tabs } from './ui';
 import './charactereditor.css';
 

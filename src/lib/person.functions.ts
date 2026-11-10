@@ -7,7 +7,7 @@ import { fieldInput, isContactType, MAX_FIELDS } from './fields/model';
 import { MAX_FURTHER, MAX_FURTHER_LENGTH } from './further-given';
 import { audienceOf } from './visibility';
 import { validDate } from './dates';
-import { sanitizeLook } from '../components/portrait/look';
+import { sanitizeLook } from './portrait-look';
 
 const tree = z.string().regex(/^[a-z0-9-]+$/).max(64);
 const personId = z.string().min(1).max(120);

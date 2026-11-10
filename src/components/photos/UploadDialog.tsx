@@ -14,7 +14,7 @@ import { refreshPhotos } from './refresh';
 import { formatDate, useT } from '~/lib/i18n';
 import { toast } from '~/lib/toast';
 import { errorText } from '~/lib/errortext';
-import type { Album } from './types';
+import type { Album } from '~/lib/photos/types';
 import '~/styles/gallery.css';
 
 const ACCEPT = ['image/jpeg', 'image/png', 'image/webp'];

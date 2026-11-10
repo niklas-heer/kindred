@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { photoSuggestions } from './photo-suggest.ts';
-import type { MediaItem } from '../components/photos/types.ts';
+import type { MediaItem } from './photos/types.ts';
 import type { GPerson } from './types.ts';
 
 const person = (id: string, born?: string, died?: string): GPerson => ({ id, given: id, born, died, living: !died, stories: 0, contacts: 0 });

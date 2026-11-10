@@ -2,7 +2,7 @@
 // on (`features.faces`), and `aiFindFaces({ data: { tree, mediaKey, locale } })` returns
 // `{ faces: [{ box, suggestions: [{ personId, confidence, reason }] }] }`. The lookup is a glob, so the
 // gallery still builds, and shows no AI controls, while that file is missing.
-import type { Box } from './types';
+import type { Box } from '../../lib/photos/types';
 
 export interface AiSuggestion { personId: string; confidence: number; reason: string }
 export interface AiFace { box: Box; suggestions: AiSuggestion[] }

@@ -1,7 +1,7 @@
 // Which face a person shows: their photo, their painted portrait, or the drawing. Pure, and small, because the
 // Portrait component (in every browser) and the graph (on the server) both use it. The painted portrait is shown
 // only where its age and era fit the age being shown: a child view never shows an adult's painting.
-import { eraOf, yearOf } from '../components/portrait/look.ts';
+import { eraOf, yearOf } from './portrait-look.ts';
 
 /** The age a photo is taken to show when its date, or the person's birth year, is unknown: an adult. */
 export const ADULT_DEFAULT_AGE = 35;

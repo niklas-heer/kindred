@@ -21,7 +21,7 @@ import { useCan, useMembership } from '~/lib/session';
 import type { GPerson } from '~/lib/types';
 import { refreshPhotos } from './photos/refresh';
 import { paintSources } from '~/lib/paint-sources';
-import { mediaUrl, type MediaItem } from './photos/types';
+import { mediaUrl, type MediaItem } from '~/lib/photos/types';
 import './paint-portrait.css';
 
 /** A draft's or a kept version's picture (editors and the linked member only, see routes/api/paint). */

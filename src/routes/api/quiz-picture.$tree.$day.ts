@@ -37,7 +37,7 @@ export const Route = createFileRoute('/api/quiz-picture/$tree/$day')({
         const person = g.people.find((x) => x.id === shown.person);
         if (!person) return text('not found', 404);
         const [{ avatarSvg }, { hash, resolveAppearance }, { dressOf }] = await Promise.all([
-          import('~/components/portrait/avatar'), import('~/components/portrait/look'), import('~/components/portrait/palette'),
+          import('~/components/portrait/avatar'), import('~/lib/portrait-look'), import('~/components/portrait/palette'),
         ]);
         const svg = avatarSvg(resolveAppearance(person, new Date().getFullYear()), dressOf(g.houses.find((h) => h.id === person.house), hash(`${person.id}:dress`)), 'lg');
         return new Response(svg, { headers: { ...headers, 'Content-Type': 'image/svg+xml; charset=utf-8' } });

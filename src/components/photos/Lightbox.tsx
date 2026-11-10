@@ -22,7 +22,7 @@ import { photoSuggestions } from '~/lib/photo-suggest';
 import { useBesidePop } from './besidePop';
 import { PersonPicker } from './PersonPicker';
 import { refreshPhotos } from './refresh';
-import { mediaUrl, type Album, type Box, type MediaItem } from './types';
+import { mediaUrl, type Album, type Box, type MediaItem } from '~/lib/photos/types';
 import '~/styles/gallery.css';
 
 const clamp = (n: number, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, n));

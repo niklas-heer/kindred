@@ -10,7 +10,7 @@ import { createServer } from 'vite';
 process.env.KINDRED_DATA_DIR = mkdtempSync(join(tmpdir(), 'kindred-portrait-look-'));
 const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent', optimizeDeps: { noDiscovery: true } });
 after(() => vite.close());
-const look = await vite.ssrLoadModule('/src/components/portrait/look.ts');
+const look = await vite.ssrLoadModule('/src/lib/portrait-look.ts');
 const avatar = await vite.ssrLoadModule('/src/components/portrait/avatar.ts');
 const vision = await vite.ssrLoadModule('/src/lib/ai/vision.server.ts');
 

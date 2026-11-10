@@ -1,10 +1,10 @@
 // The avatar drawing: a warm, flat illustration built from parts in one 100 × 100 space. Every
-// part is a function of the resolved Appearance (look.ts) and a Geo for the life stage, so a child
+// part is a function of the resolved Appearance (src/lib/portrait-look.ts) and a Geo for the life stage, so a child
 // has a rounder face and a bigger head, and the same parts dress any era.
 //
 // Style: flat fills, one soft shadow tone, outlines in a darker shade of each fill (never black).
 import type { ClothingStyle, HairStyle } from '~/lib/seed-format';
-import { mixHex as mix, type Appearance, type Features, type LevelKey } from './look';
+import { mixHex as mix, type Appearance, type Features, type LevelKey } from '../../lib/portrait-look';
 import type { Dress } from './palette';
 
 export type Detail = 'sm' | 'md' | 'lg';

@@ -1,7 +1,7 @@
 // The gallery's data and changes, for the server functions in photos.functions.ts. Those check who may
 // do what first; these trust their callers and keep the data true: every change is a `once` plan whose
 // guards hold what it read (db.server.ts), and pictures are written before the rows that point at them.
-import type { Album, Box, Face, Gallery, MediaItem, Tag } from '~/components/photos/types';
+import type { Album, Box, Face, Gallery, MediaItem, Tag } from '~/lib/photos/types';
 import { added, change, db, guard, media, newMediaKey, once, personExists, q, removed, type Db, type OpKey } from './db.server';
 import type { Param } from './store/index.ts';
 import { LIVING_IDS, pictureColumn } from './protect-living.ts';

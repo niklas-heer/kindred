@@ -169,7 +169,7 @@ export interface SeedPerson {
 
 /**
  * How a person's generated portrait looks. `skin`, `hair` and `eyes` are palette indices (see
- * src/components/portrait/look.ts). Every other field is optional: absent means "automatic", chosen
+ * src/lib/portrait-look.ts). Every other field is optional: absent means "automatic", chosen
  * from the person's sex, era and age, so older records stay valid and a fresh look ages with them.
  */
 export interface SeedLook {

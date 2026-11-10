@@ -1,7 +1,7 @@
 // Who is likely to be in a photograph, for the name picker that opens on a drawn face box: the people the family has
 // already named in the same album, then those named in pictures from about the same time, then the reader's own
 // family, then anyone alive when it was taken. Without this the picker opened on the family's oldest ancestors.
-import type { MediaItem } from '../components/photos/types.ts';
+import type { MediaItem } from './photos/types.ts';
 import type { GPerson } from './types.ts';
 
 /** Pictures this many years apart count as "about the same time". */

@@ -10,7 +10,7 @@ process.env.KINDRED_DATA_DIR = mkdtempSync(join(tmpdir(), 'kindred-avatar-'));
 const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent', optimizeDeps: { noDiscovery: true } });
 after(() => vite.close());
 const vision = await vite.ssrLoadModule('/src/lib/ai/vision.server.ts');
-const look = await vite.ssrLoadModule('/src/components/portrait/look.ts');
+const look = await vite.ssrLoadModule('/src/lib/portrait-look.ts');
 const types = await vite.ssrLoadModule('/src/lib/ai/types.ts');
 
 test('every look field is required, so Anthropic can compile the schema', () => {

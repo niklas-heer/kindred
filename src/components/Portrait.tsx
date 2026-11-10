@@ -6,7 +6,7 @@ import { CHARGE_ICONS, type ChargeIconName } from './charges.gen';
 import { TINCTURE_HEX } from './Heraldry';
 import { ensurePortraitDefs } from './portrait/defs';
 import { detailOf, drawingUri, type Detail } from './portrait/drawing';
-import { shownAge } from './portrait/look';
+import { shownAge } from '~/lib/portrait-look';
 import { chooseFace, portraitFits, type Face } from '~/lib/portrait-face';
 
 const HEADWEAR_ICON: Partial<Record<NonNullable<Look['headwear']>, ChargeIconName>> = {

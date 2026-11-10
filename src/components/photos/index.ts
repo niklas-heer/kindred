@@ -6,4 +6,4 @@ export { PersonPhotos } from './PersonPhotos';
 export { PersonPicker } from './PersonPicker';
 export { UploadDialog } from './UploadDialog';
 export { refreshPhotos } from './refresh';
-export { mediaUrl, type Album, type Box, type Face, type Gallery, type MediaItem, type Tag } from './types';
+export { mediaUrl, type Album, type Box, type Face, type Gallery, type MediaItem, type Tag } from '../../lib/photos/types';
