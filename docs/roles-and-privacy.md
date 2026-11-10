@@ -282,9 +282,9 @@ themselves. The Markdown archive carries research that isn't private, with its d
   every browser that signed in with it, so a lost phone loses its access with its passkey. The same dialog has "Sign out
   everywhere else", which ends every session of yours except the one you are using. Sessions started before Kindred
   recorded this (accounts migration 0022) name no passkey; only "Sign out everywhere else" or their expiry ends those.
-- Adding a passkey and "Sign out everywhere else" ask for a passkey again: one of your own, with your face, fingerprint or PIN,
-  on this same browser session, in the last five minutes (a sign-in that asked for it counts). So someone at a borrowed,
-  unlocked browser can't add a passkey of their own to your account or sign your other devices out. The confirmation belongs
+- Adding a passkey, removing one and "Sign out everywhere else" ask for a passkey again: one of your own, with your face,
+  fingerprint or PIN, on this same browser session, in the last five minutes (a sign-in that asked for it counts). So someone
+  at a borrowed, unlocked browser can't add a passkey of their own to your account, remove yours or sign your other devices out. The confirmation belongs
   to the session: another browser's doesn't count, and signing out ends it (`src/lib/auth/proof.server.ts`).
 - Pages and data are sent with `Cache-Control: private, no-store`, so after signing out on a shared computer the family's
   pages are not left in the browser's cache, and no shared cache keeps one member's page for another. Pages also carry an

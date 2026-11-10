@@ -190,8 +190,9 @@ database that has had these migrations.
 - Sessions are tied to the passkey that started them (see Added).
 - A share link that protects living people no longer shows the caption, date or place of a picture a living person is
   tagged (or suggested) in, in the gallery, on a person's page or in research.
-- Adding a passkey and "Sign out everywhere else" ask you to confirm with a passkey on that browser first, unless you signed in
-  there in the last five minutes, so a borrowed, unlocked browser cannot add a passkey of its own (accounts migration 0025).
+- Adding a passkey, removing one and "Sign out everywhere else" ask you to confirm with a passkey on that browser first, unless
+  you signed in there in the last five minutes, so a borrowed, unlocked browser cannot add a passkey of its own or remove
+  yours (accounts migration 0025).
 - Nobody learns of changes to, or the number of, a person's fields they cannot see. The Edit tab's version of a person now
   moves only with what that reader sees, the limit of 200 fields counts only theirs, a field's position is its place among
   theirs, and the person read no longer carries the stored revision at all (a guest never needed it). A draft open across

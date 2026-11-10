@@ -14,7 +14,7 @@ import { guestChoice, siteOrigin } from './session.server.ts';
 import { checkSetupCode } from './setup.server.ts';
 import { checkCanMakeFamily, cleanFamilyName, makeFirstFamily } from './trees.server.ts';
 import {
-  accounts, commit, credentialById, credentialsOf, credentialUsed, insertCredential, inviteById, inviteUsed, newUser, noUsersYet, openInvite, saveChallenge, takeChallenge,
+  accounts, commit, credentialById, credentialsOf, credentialUsed, insertCredential, removeCredential, inviteById, inviteUsed, newUser, noUsersYet, openInvite, saveChallenge, takeChallenge,
   upsertMembership, usable, useInvite, userByEmail, userById, userCount, type UserRow,
 } from './store.server.ts';
 
@@ -182,6 +182,16 @@ export async function finishAdd(request: Request, user: UserRow, challengeId: un
   await requireFreshProof(request, user);
   const cred = await verifyNew(request, c.challenge, response);
   await accounts().batch([insertCredential({ ...cred, user: user.id, device: deviceName(request) })]);
+}
+
+/**
+ * Removes one of a signed-in reader's passkeys, and with it every session it started. Like adding one, it needs a fresh
+ * passkey proof on this session, so someone at a borrowed, unlocked browser cannot remove the owner's other devices.
+ */
+export async function removePasskey(request: Request, user: UserRow, id: string) {
+  needPasskeys();
+  await requireFreshProof(request, user);
+  return removeCredential(user.id, id);
 }
 
 // ---------- signing in ----------

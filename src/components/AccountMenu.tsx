@@ -293,7 +293,7 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ['session'] })]);
   const add = useMutation({ mutationFn: addPasskey, onSuccess: refresh, onError: (e) => setError(e.message) });
   const remove = useMutation({
-    mutationFn: (id: string) => removeMyPasskey({ data: { id } }),
+    mutationFn: (id: string) => withFreshProof(() => removeMyPasskey({ data: { id } })),
     onSuccess: ({ signedOut }) => {
       setConfirm(null);
       // The passkey this browser signed in with: its session ended with it, so this browser goes to the sign-in page.

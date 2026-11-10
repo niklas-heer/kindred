@@ -230,17 +230,22 @@ export const myPasskeysQuery = queryOptions({ queryKey: ['session', 'passkeys'],
 /**
  * Removes one of the reader's passkeys; never the last one (they would be locked out). Every session that passkey started
  * ends with it, so removing a lost device's passkey signs that device out. `signedOut` says the request's own session was
- * one of them (the reader removed the passkey they signed in with here).
+ * one of them (the reader removed the passkey they signed in with here). Needs a fresh passkey proof on this session
+ * (proof.server.ts), as adding one does.
  */
 export const removeMyPasskey = createServerFn({ method: 'POST' })
   .validator(z.object({ id: z.string().min(1).max(1024) }))
   .handler(async ({ data }): Promise<{ signedOut: boolean }> => {
-    const [{ requireUser, fail }, s, { AuthError }, { authMethod }, { sessionStillOpen }, { getRequest }] = await Promise.all([
-      guard(), store(), import('./errors'), import('./method.server'), import('./session.server'), import('@tanstack/react-start/server'),
+    const [{ requireUser, fail }, { AuthError }, { removePasskey }, { sessionStillOpen }, { getRequest }] = await Promise.all([
+      guard(), import('./errors'), import('./passkeys.server'), import('./session.server'), import('@tanstack/react-start/server'),
     ]);
     const user = await requireUser();
-    if (authMethod() !== 'kindred') throw fail(new AuthError('invalid', 'auth.passkeys_off'));
-    const outcome = await s.removeCredential(user.id, data.id);
+    let outcome;
+    try {
+      outcome = await removePasskey(getRequest(), user, data.id);
+    } catch (e) {
+      throw e instanceof AuthError ? fail(e) : e;
+    }
     if (outcome === 'last') throw fail(new AuthError('invalid', 'This is your only passkey. Add another before removing it, or you won’t be able to sign in.'));
     if (outcome === 'already-removed') throw fail(new AuthError('invalid', 'That passkey was already removed.'));
     return { signedOut: !(await sessionStillOpen(getRequest())) };

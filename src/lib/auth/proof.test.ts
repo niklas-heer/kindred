@@ -15,7 +15,7 @@ for (const k of ['KINDRED_AUTH', 'CF_ACCESS_TEAM_DOMAIN', 'CF_ACCESS_AUD', 'KIND
 
 const store = await import('./store.server.ts');
 const { finishProof, proofOptions, requireFreshProof, PROOF_MS } = await import('./proof.server.ts');
-const { addOptions } = await import('./passkeys.server.ts');
+const { addOptions, removePasskey } = await import('./passkeys.server.ts');
 
 const SITE = 'http://family.example.org';
 const b64u = (b: Uint8Array | Buffer) => Buffer.from(b).toString('base64url');
@@ -132,4 +132,17 @@ test('without a session of its own a request cannot confirm at all', async () =>
   const phone = device('phone');
   const mira = await account('Mira Testfield', phone);
   await assert.rejects(proofOptions(new Request(SITE), mira), reauth);
+});
+
+test('removing a passkey needs a fresh proof too, so a borrowed browser cannot sign the owner’s other devices out', async () => {
+  const phone = device('phone'), laptop = device('laptop');
+  const mira = await account('Mira Testfield', phone, laptop);
+  const borrowed = (await store.createSession(mira.id, laptop.id)).token;
+  const own = (await store.createSession(mira.id, phone.id)).token;
+  await assert.rejects(removePasskey(browser(borrowed), mira, phone.id), reauth);
+  assert.equal((await store.credentialsOf(mira.id)).length, 2, 'the passkey stays');
+  assert.ok(await store.sessionByToken(own), 'and so does the session it started');
+  await prove(browser(borrowed), mira, laptop);
+  assert.equal(await removePasskey(browser(borrowed), mira, phone.id), 'removed');
+  assert.equal(await store.sessionByToken(own), undefined);
 });
