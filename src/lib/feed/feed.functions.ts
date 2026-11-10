@@ -1,11 +1,12 @@
-// The server functions of the family feed (docs/feed.md): a person's posts, and writing, changing and removing a post. Each one checks the reader first: `requireMember` for the reads and for removing your own post,
+// The server functions of the family feed (docs/feed.md): a page of the feed, a person's posts, and writing, changing and
+// removing a post. Each one checks the reader first: `requireMember` for the reads and for removing your own post,
 // `requireCan` with the same Action the browser asks `useCan()` about for the rest. A share-link guest, who has no
 // account, is refused by every one of them; posts.server.ts and feed.server.ts check again.
-import { queryOptions } from '@tanstack/react-query';
+import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import type { Action } from '../roles';
-import { MAX_POST, MAX_POST_MEDIA, MAX_POST_PEOPLE, type PostView } from './types';
+import { MAX_POST, MAX_POST_MEDIA, MAX_POST_PEOPLE, type FeedPage, type PostView } from './types';
 
 const tree = z.string().regex(/^[a-z0-9-]+$/).max(64);
 const opKey = z.string().regex(/^[A-Za-z0-9_-]{8,80}$/).optional();
@@ -34,6 +35,23 @@ function opOf<D extends { opKey?: string }>(user: string, data: D) {
 }
 
 // ---------- reads ----------
+
+export const getFeed = createServerFn({ method: 'GET' })
+  .validator(z.object({ tree, cursor: z.string().max(300).nullish() }))
+  .handler(async ({ data }): Promise<FeedPage> => {
+    const me = await who(data.tree);
+    return (await import('./feed.server')).feedPage(data.tree, me, data.cursor);
+  });
+
+/** The feed, a page at a time: each page's `next` is the cursor of the page after it. */
+export const feedQuery = (t: string) =>
+  infiniteQueryOptions({
+    queryKey: ['feed', t],
+    queryFn: ({ pageParam }) => getFeed({ data: { tree: t, cursor: pageParam } }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.next,
+    staleTime: 30_000,
+  });
 
 export const getPersonPosts = createServerFn({ method: 'GET' })
   .validator(z.object({ tree, id: personId }))

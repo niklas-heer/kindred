@@ -317,6 +317,8 @@ test('members see everything, protected link or not', async () => {
   assert.ok(family.today.some((e) => e.key === 'a:u1'), 'the wedding anniversary');
   // And the family's feed, with the post's picture in the Gallery and served.
   const feed = await load<typeof import('../feed/feed.functions.ts')>('/src/lib/feed/feed.functions.ts');
+  const page = await feed.getFeed({ data: { tree: TREE } });
+  assert.ok(JSON.stringify(page).includes('POST-TEXT-FOR-MEMBERS'));
   assert.deepEqual((await feed.getPersonPosts({ data: { tree: TREE, id: 'gran' } })).map((p) => p.id), [POST]);
   const photos = await load<typeof import('../photos.functions.ts')>('/src/lib/photos.functions.ts');
   assert.equal((await photos.getGallery({ data: { tree: TREE } })).media.find((m) => m.key === `gallery/${POST_PICTURE}`)?.post, POST);
