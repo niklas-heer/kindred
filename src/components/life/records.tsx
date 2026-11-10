@@ -25,6 +25,7 @@ const ICON: Record<EventType, typeof Church> = {
   military: Shield, occupation: Briefcase, residence: House, emigration: LogOut, immigration: LogIn, naturalisation: Flag,
   engagement: Sparkles, retirement: Sunset, burial: Landmark, cremation: Flame, census: Users, award: Medal, custom: Award,
 };
+const shownAge = (age: Age | undefined) => (age && age.years > 0 ? age : undefined);
 /** For the Atlas and the editor: the icon of an event's type. */
 export const eventIcon = (type: EventType) => ICON[type];
 
@@ -77,7 +78,8 @@ export function useRecordedLife(tree: string, p: GPerson): { rows: RecordedRow[]
         key: `ev:${e.id}`,
         year,
         date: e.date ?? undefined,
-        age: e.date ? ageOn(p.born, e.date) : undefined,
+        // "about 0" under a baptism in the year of birth says nothing: the age starts at one.
+        age: e.date ? shownAge(ageOn(p.born, e.date)) : undefined,
         after: AFTER_DEATH.has(e.type),
         icon: <Icon size={13} />,
         text: (

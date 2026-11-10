@@ -32,7 +32,7 @@ export function UnsourcedBirths() {
           <li key={id}><Link className="chip" to="/$tree/person/$id" params={{ tree, id }}>{displayName(f.byId.get(id)!, f)}</Link></li>
         ))}
       </ul>
-      {ids.length > shown.length && <button type="button" className="btn ghost" onClick={() => setAll(true)}>{t('sources.needed_more', { count: ids.length - shown.length })}</button>}
+      {ids.length > shown.length && <button type="button" className="btn" onClick={() => setAll(true)}>{t('sources.needed_more', { count: ids.length - shown.length })}</button>}
     </section>
   );
 }

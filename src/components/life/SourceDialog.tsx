@@ -69,26 +69,26 @@ export function SourceDialog({ tree, source, onClose, onSaved }: { tree: string;
       footer={<button type="submit" form="life-source-form" className="btn primary" disabled={busy || !title.trim() || badDate}>{t('sources.save')}</button>}
     >
       <form id="life-source-form" className="life-form" onSubmit={(e) => void submit(e)}>
-        <label className="life-field">
+        <label className="field life-field">
           <span>{t('sources.field.title')}</span>
           <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={300} placeholder={t('sources.field.title_ph')} data-autofocus required />
         </label>
         <div className="life-pair">
-          <label className="life-field">
+          <label className="field life-field">
             <span>{t('sources.field.author')}</span>
             <input className="input" value={author} onChange={(e) => setAuthor(e.target.value)} maxLength={200} />
           </label>
-          <label className="life-field">
+          <label className="field life-field">
             <span>{t('sources.field.publication')}</span>
             <input className="input" value={publication} onChange={(e) => setPublication(e.target.value)} maxLength={300} placeholder={t('sources.field.publication_ph')} />
           </label>
         </div>
-        <label className="life-field">
+        <label className="field life-field">
           <span>{t('sources.field.reference')}</span>
           <input className="input" value={reference} onChange={(e) => setReference(e.target.value)} maxLength={500} placeholder={t('sources.field.reference_ph')} />
         </label>
         <DatePicker label={t('sources.field.date')} value={date} onChange={setDate} error={badDate ? t('events.err.not_a_date') : undefined} />
-        <label className="life-field">
+        <label className="field life-field">
           <span>{t('sources.field.note')}</span>
           <textarea className="input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={4000} rows={3} />
         </label>

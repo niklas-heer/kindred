@@ -6,7 +6,7 @@
 .life-editor { display: flex; flex-direction: column; gap: 22px; margin-top: 26px; }
 .life-section { display: flex; flex-direction: column; gap: 8px; }
 .life-section-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.life-section-head .rule { flex: 1; margin: 0; min-width: 10em; font-size: inherit; }
+.life-section-head .rule { flex: 1; margin: 0; min-width: 10em; font-weight: 400; }
 .life-empty { margin: 0; }
 
 .life-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -26,9 +26,8 @@
 
 .life-form { display: flex; flex-direction: column; gap: 14px; }
 .life-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; border: 0; padding: 0; margin: 0; }
-.life-field > span, .life-field > legend { font-size: var(--fs-2, 13px); color: var(--muted); padding: 0; }
 .life-form textarea.input { min-height: 70px; resize: vertical; font: inherit; }
-.life-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 12px; }
+.life-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 12px; align-items: start; }
 .life-pair-tight { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
 .life-link .life-pair { gap: 8px; }
 
@@ -45,4 +44,12 @@
 
 /* The Needed page's list of births with no source. */
 .unsourced { margin-top: 28px; }
-.unsourced ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.unsourced ul { list-style: none; margin: 8px 0 12px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.unsourced .chip { min-height: 28px; padding: 2px 10px; font-size: var(--fs-2); color: var(--text); }
+.unsourced .chip:hover { border-color: var(--edge); }
+.unsourced .chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+@media (pointer: coarse) { .unsourced .chip { min-height: 36px; padding: 4px 12px; } }
+.life-field > legend { font-size: var(--fs-2, 13px); color: var(--muted); padding: 0; margin-bottom: 5px; }
+/* A fact with sources reads differently from one without, and looks like the button it is. */
+.chip.life-count { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.chip.life-count:focus-visible { outline: none; box-shadow: var(--focus-ring); }

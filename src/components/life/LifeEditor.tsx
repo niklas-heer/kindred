@@ -111,7 +111,7 @@ function EventsSection({ tree, p }: { tree: string; p: GPerson }) {
               <li key={e.id} className="life-row">
                 <Icon size={15} aria-hidden className="life-row-icon" />
                 <span className="life-row-main">
-                  <b>{title}</b>{e.type !== 'custom' && e.label ? `: ${e.label}` : ''}
+                  <span><b>{title}</b>{e.type !== 'custom' && e.label ? `: ${e.label}` : ''}</span>
                   <small className="subtle">{[spanText(e, locales[t.locale]), e.place].filter(Boolean).join(' · ') || t('events.no_date')}</small>
                 </span>
                 <span className="life-row-actions">
@@ -191,11 +191,11 @@ export function EventDialog({ tree, p, event, onClose }: { tree: string; p: GPer
       footer={<button type="submit" form="life-event-form" className="btn primary" disabled={busy || badDate || needsLabel}>{t('events.save')}</button>}
     >
       <form id="life-event-form" className="life-form" onSubmit={(e) => void submit(e)}>
-        <div className="life-field">
+        <div className="field life-field">
           <span id="life-event-type">{t('events.field.type')}</span>
           <Select aria-labelledby="life-event-type" value={type} onChange={(v) => setType(v as EventType)} options={types.map((x) => ({ value: x, label: t(EVENT_LABEL[x]) }))} />
         </div>
-        <label className="life-field">
+        <label className="field life-field">
           <span>{type === 'custom' ? t('events.field.label_custom') : t('events.field.label')}</span>
           <input className="input" value={label} onChange={(e) => setLabel(e.target.value)} maxLength={200} placeholder={t('events.field.label_ph')} required={type === 'custom'} data-autofocus />
         </label>
@@ -203,11 +203,11 @@ export function EventDialog({ tree, p, event, onClose }: { tree: string; p: GPer
           <DatePicker label={t('events.field.date')} value={date} onChange={setDate} />
           <DatePicker label={t('events.field.end')} value={endDate} onChange={setEndDate} hint={t('events.field.end_hint')} />
         </div>
-        <div className="life-field">
+        <div className="field life-field">
           <span id="life-event-place">{t('events.field.place')}</span>
           <PlaceInput tree={tree} value={place} onChange={setPlace} aria-labelledby="life-event-place" />
         </div>
-        <label className="life-field">
+        <label className="field life-field">
           <span>{t('events.field.note')}</span>
           <textarea className="input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={4000} rows={3} />
         </label>
@@ -363,7 +363,7 @@ function CitationDialog({ tree, row, citation, onClose }: { tree: string; row: F
         footer={<button type="submit" form="life-cite-form" className="btn primary" disabled={busy || !source}>{t('sources.cite_save')}</button>}
       >
         <form id="life-cite-form" className="life-form" onSubmit={(e) => void submit(e)}>
-          <div className="life-field">
+          <div className="field life-field">
             <span id="life-cite-source">{t('sources.field.source')}</span>
             <div className="life-pair life-pair-tight">
               <Select
@@ -376,11 +376,11 @@ function CitationDialog({ tree, row, citation, onClose }: { tree: string; row: F
               <button type="button" className="btn" onClick={() => setCreating(true)}>{t('sources.new')}</button>
             </div>
           </div>
-          <label className="life-field">
+          <label className="field life-field">
             <span>{t('sources.field.page')}</span>
             <input className="input" value={page} onChange={(e) => setPage(e.target.value)} maxLength={300} placeholder={t('sources.field.page_ph')} />
           </label>
-          <div className="life-field">
+          <div className="field life-field">
             <span id="life-cite-quality">{t('sources.field.quality')}</span>
             <Segmented
               aria-labelledby="life-cite-quality"
@@ -390,7 +390,7 @@ function CitationDialog({ tree, row, citation, onClose }: { tree: string; row: F
               options={[{ value: '', label: t('sources.quality.unknown') }, ...QUALITIES.map((x) => ({ value: x, label: t(QUALITY_LABEL[x]) }))]}
             />
           </div>
-          <label className="life-field">
+          <label className="field life-field">
             <span>{t('sources.field.transcription')}</span>
             <textarea className="input" value={transcription} onChange={(e) => setTranscription(e.target.value)} maxLength={4000} rows={3} placeholder={t('sources.field.transcription_ph')} />
           </label>
