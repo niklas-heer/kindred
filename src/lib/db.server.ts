@@ -39,7 +39,7 @@ export interface OpKey { key: string; user: string; payload: unknown }
 
 /** What a change writes, decided on reads. */
 export interface Plan<T> {
-  /** Guards first, then the writes; run as one batch with the retry key's row and the change's history rows. */
+  /** Guards first, then the writes; run as one batch with the retry key's row and then the change's history rows. */
   writes: Query[];
   /**
    * What the change did to the family's records, for the history (history.server.ts): its rows, none when nothing a reader
@@ -111,7 +111,9 @@ export async function once<T>(tree: string, op: OpKey | undefined, fn: string, w
       await plan.abandon?.();
       throw e;
     }
-    const batch = [...plan.writes, ...logged];
+    // The retry key's row comes straight after the plan's writes, before the history rows: a `resultSql` such as
+    // last_insert_rowid() then still sees the plan's last insert, never a history row.
+    const batch = [...plan.writes];
     if (op) {
       const at = new Date().toISOString();
       batch.push(
@@ -120,6 +122,7 @@ export async function once<T>(tree: string, op: OpKey | undefined, fn: string, w
           : q('INSERT INTO op (key, fn, result, at, user, fingerprint) VALUES (?, ?, ?, ?, ?, ?)', op.key, fn, JSON.stringify(value([]) ?? null), at, op.user, fingerprint),
       );
     }
+    batch.push(...logged);
     let results: Result[];
     try {
       results = batch.length ? await d.batch(batch) : [];

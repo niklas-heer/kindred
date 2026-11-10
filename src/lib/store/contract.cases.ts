@@ -2,7 +2,7 @@
 // cases run on node:sqlite and, inside workerd, on the real Cloudflare driver with local D1 (./contract.test.ts). A
 // behaviour that differs between the two belongs here, and gets fixed in the driver rather than at the call sites.
 import assert from 'node:assert/strict';
-import { db, once } from '../db.server.ts';
+import { added, db, once } from '../db.server.ts';
 import { setHouseMembers } from '../houses.server.ts';
 import { addPersonField, editSnapshot, savePersonEdit } from '../person.server.ts';
 import type { Audience } from '../visibility.ts';
@@ -441,6 +441,35 @@ export const contractCases: Record<string, () => Promise<void>> = {
     same(await d.get('SELECT txt FROM contract_value WHERE id = ?', id), { txt: 'from once' });
     assert.equal(await write(), id);
     assert.equal((await d.get<{ n: number }>("SELECT count(*) AS n FROM contract_value WHERE id = ?", id))?.n, 1);
+  },
+
+  'resultSql sees the plan’s own insert, not the history row written with it': async () => {
+    const d = await scratch();
+    const key = op();
+    const person = uid('hist');
+    const txt = uid('txt');
+    const write = () => once<number>(TREE, key, 'contract', () => ({
+      history: [added('person', person)],
+      writes: [addPerson(person), q('INSERT INTO contract_value (txt) VALUES (?)', txt)],
+      resultSql: 'last_insert_rowid()',
+      result: (results) => results[1].lastRowId,
+    }));
+    const id = await write();
+    same(await d.get('SELECT txt FROM contract_value WHERE id = ?', id), { txt });
+    const replayed = await write();
+    assert.equal(replayed, id, 'the stored result is the contract row’s id');
+    same(await d.get('SELECT txt FROM contract_value WHERE id = ?', replayed), { txt });
+  },
+
+  'a retried key writes its history row once': async () => {
+    const key = op();
+    const person = uid('hist');
+    const write = () => once(TREE, key, 'contract', () => ({ history: [added('person', person)], writes: [addPerson(person)], result: person }));
+    assert.equal(await write(), person);
+    assert.equal(await write(), person);
+    const [a, b] = await Promise.all([write(), write()]);
+    assert.deepEqual([a, b], [person, person]);
+    assert.equal((await tree().get<{ n: number }>('SELECT count(*) AS n FROM history WHERE record = ?', person))?.n, 1);
   },
 };
 
