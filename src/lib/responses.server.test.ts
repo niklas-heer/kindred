@@ -177,7 +177,7 @@ test('a story’s or a photo’s reactions and comments go with it, by whatever 
   assert.equal(await count('comment', "target = 'gallery/1111-gone.jpg'"), 0);
 });
 
-test('a member who leaves keeps their comments, under the name they wrote them with, and their reactions', async () => {
+test('a member who leaves keeps their comments, under the name they wrote them with; their reactions go', async () => {
   const s = await story('ada', editor);
   const leaving = await member('Lou Leaving', 'contributor', 'ada');
   await R.addComment('family', leaving, 'story', s, 'Goodbye, all');
@@ -186,7 +186,7 @@ test('a member who leaves keeps their comments, under the name they wrote them w
   let t = await R.thread('family', viewer, 'story', s);
   assert.equal(t.comments[0].authorName, 'Lou Leaving');
   assert.equal(t.comments[0].person, null, 'no longer standing for anyone here');
-  assert.deepEqual(t.reactors.thanks, ['Lou Leaving']);
+  assert.deepEqual(t.reactors.thanks, ['Lou Leaving'], 'until the clean-up for the removed member has run (members.server.ts)');
   await store.accounts().run('DELETE FROM user WHERE id = ?', leaving.id);
   t = await R.thread('family', viewer, 'story', s);
   assert.equal(t.comments[0].authorName, 'Lou Leaving', 'even once the account is gone');

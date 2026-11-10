@@ -393,27 +393,7 @@ export const setMemberRole = createServerFn({ method: 'POST' })
 export const removeMember = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, user: z.string().uuid() }))
   .handler(async ({ data }) => {
-    const [{ requireCan, fail }, s, { AuthError }] = await Promise.all([guard(), store(), import('./errors')]);
+    const [{ requireCan }, { endMembership }] = await Promise.all([guard(), import('./members.server')]);
     await requireCan(data.tree, 'manage-access');
-    await s.commit(async () => {
-      const m = await s.membership(data.user, data.tree);
-      if (!m) return { writes: [], result: undefined };
-      if (m.role === 'steward' && (await s.stewardCount(data.tree)) <= 1) throw fail(new AuthError('invalid', lastSteward));
-      return {
-        // Their reminder devices for this family go with the membership (migrations/accounts/0005_push.sql), and so do their
-        // assistant chats and the pictures kept in them: inviting them back must not bring back what they could read then.
-        writes: [
-          s.q('DELETE FROM membership WHERE user = ? AND tree = ?', data.user, data.tree), s.keepsASteward(data.tree), s.q('DELETE FROM push_subscription WHERE user = ? AND tree = ?', data.user, data.tree),
-          s.q('DELETE FROM family_visit WHERE user = ? AND tree = ?', data.user, data.tree),
-          ...['ai_chat_image', 'ai_chat', 'ai_thread', 'ai_conversation'].map((table) => s.q(`DELETE FROM ${table} WHERE user = ? AND tree = ?`, data.user, data.tree)),
-        ],
-        result: undefined,
-        refused: () => fail(new AuthError('invalid', lastSteward)),
-      };
-    });
-    // What they kept for themselves goes with them: nobody else could ever read or remove it. After the commit, and on every
-    // call, so a failure here can be finished by removing them again.
-    await (await import('../db.server')).db(data.tree).run("DELETE FROM person_field WHERE visibility = 'personal' AND owner = ? AND (created_by = ? OR created_by IS NULL)", data.user, data.user);
-    // So does the history of those items, which only they could read.
-    await (await import('../db.server')).db(data.tree).run("DELETE FROM history WHERE level = 'personal' AND owner = ?", data.user);
+    await endMembership(data.tree, data.user);
   });

@@ -207,7 +207,7 @@ function ThreadView({ id, tree, kind, target, canComment }: { id: string; tree: 
         {asking ? (
           <blockquote className="ui-confirm-quote resp-quote">
             {asking.body.length > 240 ? `${asking.body.slice(0, 237).trimEnd()}…` : asking.body}
-            <small>{asking.authorName}</small>
+            <small>{asking.authorName || t('responses.former_member')}</small>
           </blockquote>
         ) : null}
       </ConfirmDialog>
@@ -229,12 +229,14 @@ function CommentItem({ c, tree, canComment, onRemove }: { c: CommentView; tree: 
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => setNow(Date.now()), []);
   const at = new Date(c.createdAt);
+  // A comment keeps the name it was written under; one with none (the writer left, or never had a name) is a former member's.
+  const author = c.authorName || t('responses.former_member');
   return (
     <li className="resp-comment" tabIndex={-1}>
-      <Face tree={tree} person={c.person} name={c.authorName} />
+      <Face tree={tree} person={c.person} name={author} />
       <div className="resp-main">
         <div className="resp-head">
-          <b>{c.authorName}</b>
+          <b>{author}</b>
           <time dateTime={c.createdAt} title={at.toLocaleString()}>{now === null ? '' : relativeTime(at, t.locale, now)}</time>
           {c.editedAt ? <span className="subtle">· {t('responses.edited')}</span> : null}
           {!editing && ((c.mine && canComment) || c.removable) ? (
@@ -243,7 +245,7 @@ function CommentItem({ c, tree, canComment, onRemove }: { c: CommentView; tree: 
                 <button type="button" className="btn ghost" aria-label={t('responses.edit_named')} onClick={() => setEditing(true)}>{t('responses.edit')}</button>
               ) : null}
               {c.removable ? (
-                <button type="button" className="btn ghost" aria-label={t('responses.remove_named', { name: c.authorName })} onClick={onRemove}>{t('responses.remove')}</button>
+                <button type="button" className="btn ghost" aria-label={t('responses.remove_named', { name: author })} onClick={onRemove}>{t('responses.remove')}</button>
               ) : null}
             </span>
           ) : null}

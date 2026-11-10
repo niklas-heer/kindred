@@ -43,6 +43,9 @@ database that has had these migrations.
   reader, refuses every change while the preview is on, stores nothing a visit would, and never shows a member's own answers,
   reactions, chats or notes. A preview ends on Stop, on sign-out, after an hour unused, and when the member or the link goes.
   See docs/roles-and-privacy.md, "View as".
+- Removing a member now cleans up after them: their reactions, daily quiz answers, Campaign orders and pledge, and reminder and
+  answer-push choices for that family go, while their memories, comments (shown under the name they were written with, or "a
+  former member") and the change history stay.
 - **Print: charts and a family book.** A new Print page (the account menu, and a Print button on every person) makes an
   ancestor chart (four to six generations, with each house's shield), a descendant chart (two to six generations, with
   partners) and a family book: a cover with the family's arms, the contents, a section for each house, every person with

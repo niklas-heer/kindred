@@ -215,6 +215,26 @@ the family's own places.
 | --- | --- |
 | `0001_gazetteer.sql` | `meta` (key and value), `place` (`id`, `name`, `cc`, `admin1`, `lat`, `lng`, `pop`, with an index on `lat`) and `name` (one row per searchable folded spelling: `key`, `id`, and `alt`, the spelling to show when it differs). |
 
+## When a membership ends
+
+A steward removes a member on the Access page (`removeMember`; removing yourself is the only way to "leave"). No account is
+deleted while it is a member, and deleting a family deletes its database and every accounts row naming it. One function ends
+a membership, `endMembership` in `src/lib/auth/members.server.ts`, in two steps, because the two databases share no
+transaction. First the accounts database, in one batch: the membership, the reminder devices (and so the choices of what to be
+told), the visit marker and the assistant chats for that family. Then the family's database (`forgetInFamily`, one `once`
+plan, safe to run again, skipped for someone who is a member again). The membership goes first so nobody who is out can add
+anything while the second step runs; if it fails, removing them again finishes it.
+
+- Stays: memories (`story`, with `author_account`) and answers to the question of the week; comments (with the name they were
+  written under; "a former member" when none); the change history with their name; the Campaign's chronicle (`campaign_log`);
+  join requests as history.
+- Goes: reactions; quiz answers (so standings and streaks); the Campaign's member rows (orders, pledge: a house's side is
+  worked out from the members who are there, so their seat and command are free and the regent rules apply) and push claims;
+  the opt-in for the answer push (`response_push`); their Personal items and the history rows of those.
+- Left pointing at the account: `story.author_account`, `comment.account`, `campaign_log.account`, `history.account`,
+  `updated_by` columns of the Campaign and Today settings, invitations (`created_by`, `used_by`) and join requests. None is
+  read as a live membership; each is either shown by the name kept beside it or ignored.
+
 ## Rules every change follows
 
 These rules keep the data consistent without interactive transactions, which D1 does not have.

@@ -53,8 +53,9 @@ The family's "what's new" reads the `reaction` and `comment` tables for answers 
 
 - A memory or a photo takes its reactions and comments with it when it is removed, also when a story goes with its person.
   Undoing the removal of a memory brings it back without them.
-- A member who leaves the family keeps their comments, under the name they wrote them with, and their reactions, which
-  still count. Their portrait is no longer shown beside their comments.
+- A member who is removed from the family keeps their comments, under the name they wrote them with ("a former member" when
+  none was kept). Their reactions go, and so do their opt-in for the answer push and their reminder devices for the family.
+  Their portrait is no longer shown beside their comments. See docs/data-model.md, "When a membership ends".
 - The Markdown archive has each story with its comments (`memories/`). GEDCOM has neither. Reactions and the comments on
   photos are in no export. The D1 transfer copies reactions and comments, and not the push choice.
 
