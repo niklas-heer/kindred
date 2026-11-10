@@ -323,8 +323,8 @@
   .arcs.flowing .arc, .pin-grow, .pin.recent .pulse, .atlas-feed, .atlas-feed li, .atlas-feed:not(.playing) li { animation: none; }
   .atlas-time { transition: none; }
 }
-/* The kinds control in a narrower side panel: words only, so "Weddings" fits. */
-@media (min-width: 901px) and (max-width: 1200px) {
+/* The kinds control in the side panel: words only, so five kinds ("Weddings", "Events") fit. */
+@media (min-width: 901px) {
   .atlas-seg-btn > svg { display: none; }
 }
 /* "All": a place's split into kinds sits under its name, so the name is never cut short. */
