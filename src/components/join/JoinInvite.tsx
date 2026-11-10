@@ -224,7 +224,7 @@ export function UsageText({ t, usage, names }: { t: Translator; usage: Usage | n
   const list = (items: string[]) => { try { return new Intl.ListFormat(t.locale, { type: 'conjunction' }).format(items); } catch { return items.join(', '); } };
   return (
     <span className="join-usage">
-      <span>{t('join.usage_summary', { first: formatDate(usage.firstSeen, t.locale), count: usage.visits, minutes: usage.activeMinutes })}</span>
+      <span>{t('join.usage_summary', { first: formatDate(usage.firstSeen, t.locale), count: usage.visits, time: usage.activeMinutes < 1 ? t('join.usage_time_brief') : t('join.usage_time', { count: Math.round(usage.activeMinutes) }) })}</span>
       {sections.length > 0 && <span>{t('join.usage_sections', { list: list(sections) })}</span>}
       {people.length > 0 && <span>{t('join.usage_people', { list: list(people) })}</span>}
     </span>
