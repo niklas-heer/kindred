@@ -28,8 +28,11 @@ import { can, type Role } from '../roles';
 import { seedVoice } from './voice';
 import { MAX_POST, MAX_POSTS_AN_HOUR, MAX_POST_MEDIA, MAX_POST_PEOPLE, cleanPost, type FeedAuthor, type FeedPicture, type PostView } from './types';
 
-/** Who is asking: a member (their account id, the name they show, their role, the person they stand for), or a guest. */
-export interface Who { id: string; name: string; role: Role; person?: string | null; guest?: boolean }
+/**
+ * Who is asking: a member (their account id, the name they show, their role, the person they stand for, only when a steward
+ * has confirmed that link), or a guest.
+ */
+export interface Who { id: string; name: string; role: Role; person?: string | null; personConfirmed?: boolean; guest?: boolean }
 
 export function needsMember(who: Who) {
   if (who.guest || !who.id) throw fail(notMember());
@@ -62,14 +65,15 @@ export const postParts = (sub: string, params: (string | number)[]): [Query, Que
 ];
 
 /**
- * The person each of these accounts stands for in this family now, in one read of the accounts database. A member who
- * said who they are after writing has their face on what they wrote before.
+ * The person each of these accounts stands for in this family now, in one read of the accounts database: only a link a
+ * steward has confirmed (editors' and stewards' own count as confirmed). A member who said who they are after writing
+ * has their face on what they wrote before, once the link is confirmed.
  */
 export async function standingFor(tree: string, ids: readonly string[]): Promise<Map<string, { name: string; person: string | null }>> {
   const real = unique(ids).filter((id) => id && !seedVoice(id));
   if (!real.length) return new Map();
   const rows = await accounts().all<{ id: string; name: string; person: string | null }>(
-    `SELECT u.id, u.name, m.person FROM user u JOIN membership m ON m.user = u.id AND m.tree = ? WHERE u.id IN (SELECT value FROM json_each(?))`,
+    `SELECT u.id, u.name, CASE WHEN m.person_confirmed = 1 THEN m.person END AS person FROM user u JOIN membership m ON m.user = u.id AND m.tree = ? WHERE u.id IN (SELECT value FROM json_each(?))`,
     tree, JSON.stringify(real),
   );
   return new Map(rows.map((r) => [r.id, { name: r.name, person: personOf(r.person) }]));
@@ -161,12 +165,15 @@ export async function createPost(tree: string, who: Who, input: PostInput, op?: 
       const own = await d.get<{ n: number }>(`SELECT count(*) AS n FROM media WHERE key IN (${marks(keys)}) AND ${FREE_FOR_POST}`, ...keys, who.id);
       if (own?.n !== keys.length) throw new Error('feed.err.picture_gone');
     }
-    const author = personOf(who.person);
+    // The person signs the post only when a steward has confirmed the link (editors' and stewards' own count as confirmed).
+    const author = who.personConfirmed ? personOf(who.person) : null;
     const authorThere = author ? !!(await d.get('SELECT 1 AS x FROM person WHERE id = ?', author)) : false;
     const id = crypto.randomUUID();
     const at = now.toISOString();
     return {
       writes: [
+        // The hour's count as read: two posts sent at once cannot both be the twentieth.
+        guard('(SELECT count(*) FROM post WHERE account = ? AND created_at > ?) < ?', who.id, hourAgo, MAX_POSTS_AN_HOUR),
         ...guards,
         ...(keys.length ? [guard(`(SELECT count(*) FROM media WHERE key IN (${marks(keys)}) AND ${FREE_FOR_POST}) = ?`, ...keys, who.id, keys.length)] : []),
         q('INSERT INTO post (id, account, author_name, author_person, body, created_at) VALUES (?, ?, ?, ?, ?, ?)', id, who.id, who.name, authorThere ? author : null, body, at),

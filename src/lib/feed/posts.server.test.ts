@@ -52,12 +52,12 @@ test.after(async () => {
 });
 
 type Role = 'viewer' | 'contributor' | 'editor' | 'steward';
-/** A member with an account in the family, standing for `person` when given. */
-async function member(name: string, role: Role, person: string | null = null) {
+/** A member with an account in the family, standing for `person` when given, a link a steward has confirmed unless `confirmed` is false. */
+async function member(name: string, role: Role, person: string | null = null, confirmed = true) {
   const { user, insert } = store.newUser(name, null);
   await store.accounts().batch([insert, store.upsertMembership(user.id, 'family', role)]);
-  if (person) await store.accounts().run('UPDATE membership SET person = ? WHERE user = ? AND tree = ?', person, user.id, 'family');
-  return { id: user.id, name, role, person };
+  if (person) await store.accounts().run('UPDATE membership SET person = ?, person_confirmed = ? WHERE user = ? AND tree = ?', person, confirmed ? 1 : 0, user.id, 'family');
+  return { id: user.id, name, role, person, personConfirmed: confirmed };
 }
 const guest = { id: '', name: '', role: 'viewer' as const, guest: true };
 const forbidden = /permission/;
@@ -296,6 +296,16 @@ test('the daily job deletes leftovers a day old, from the table and the storage,
   assert.equal(await count('media', `key = '${young}'`), 1);
 });
 
+test('the hour’s limit holds for posts sent at the same moment', async () => {
+  const racer = await member('Rex Racer', 'contributor');
+  const now = new Date('2025-06-01T12:00:00Z');
+  for (let i = 0; i < MAX_POSTS_AN_HOUR - 1; i++) await P.createPost('family', racer, { body: `Note ${i}` }, undefined, new Date(now.getTime() + i));
+  const sent = await Promise.allSettled([1, 2, 3].map((i) => P.createPost('family', racer, { body: `At once ${i}` }, undefined, new Date(now.getTime() + 1000))));
+  assert.equal(sent.filter((r) => r.status === 'fulfilled').length, 1, 'one is the last of the hour');
+  for (const r of sent) if (r.status === 'rejected') assert.match(String(r.reason), /feed\.err\.too_many/);
+  assert.equal(await count('post', `account = '${racer.id}'`), MAX_POSTS_AN_HOUR);
+});
+
 test('only the writer changes a post; the writer or an editor removes it, never another contributor', async () => {
   const { id } = await P.createPost('family', contributor, { body: 'First words', people: ['ada'] });
   await assert.rejects(P.editPost('family', other, id, { body: 'Not yours' }), forbidden);
@@ -387,12 +397,21 @@ test('a member who leaves keeps their posts, under their name and with their fac
   assert.deepEqual(await P.removePost('family', editor, id), { removed: true });
 });
 
-test('a member who says who they are later has their face on what they wrote before', async () => {
+test('a member who says who they are later has their face on what they wrote before, once a steward confirms it', async () => {
   const nia = await member('Nia New', 'contributor');
   const { id } = await P.createPost('family', nia, { body: 'Hello, I am new here.' });
   assert.equal((await P.postView('family', viewer, id))!.author.person, null);
-  await store.accounts().run("UPDATE membership SET person = 'cleo' WHERE user = ? AND tree = 'family'", nia.id);
+  await store.accounts().run("UPDATE membership SET person = 'cleo', person_confirmed = 0 WHERE user = ? AND tree = 'family'", nia.id);
+  assert.equal((await P.postView('family', viewer, id))!.author.person, null, 'a link nobody confirmed shows no face');
+  await store.accounts().run("UPDATE membership SET person_confirmed = 1 WHERE user = ? AND tree = 'family'", nia.id);
   assert.equal((await P.postView('family', viewer, id))!.author.person, 'cleo');
+});
+
+test('a link a steward has not confirmed neither signs a post nor shows a face beside it', async () => {
+  const uma = await member('Uma Unconfirmed', 'contributor', 'ada', false);
+  const { id } = await P.createPost('family', uma, { body: 'Is that me in the tree?' });
+  assert.equal((await d().get<{ author_person: string | null }>('SELECT author_person FROM post WHERE id = ?', id))!.author_person, null, 'nothing stored');
+  assert.equal((await P.postView('family', viewer, id))!.author.person, null, 'nothing shown');
 });
 
 test('an invented family’s voices: a seed’s account is one of its people, with a name and a face', async () => {

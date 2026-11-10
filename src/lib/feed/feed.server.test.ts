@@ -41,7 +41,7 @@ type Role = 'viewer' | 'contributor' | 'editor' | 'steward';
 async function member(name: string, role: Role, person: string | null = null) {
   const { user, insert } = store.newUser(name, null);
   await store.accounts().batch([insert, ...['family', 'busy', 'quiet'].map((t) => store.upsertMembership(user.id, t, role))]);
-  if (person) await store.accounts().run('UPDATE membership SET person = ? WHERE user = ?', person, user.id);
+  if (person) await store.accounts().run('UPDATE membership SET person = ?, person_confirmed = 1 WHERE user = ?', person, user.id);
   return { id: user.id, name, role, person };
 }
 const guest = { id: '', name: '', role: 'viewer' as const, guest: true };

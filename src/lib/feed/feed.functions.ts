@@ -24,7 +24,8 @@ const posts = () => import('./posts.server');
 async function who(t: string, action?: Action) {
   const g = await guard();
   const m = action ? await g.requireCan(t, action) : await g.requireMember(t);
-  return { id: m.user.id, name: m.user.name, role: m.role, person: m.person };
+  // The person a member stands for signs their posts only once a steward has confirmed the link (posts.server.ts).
+  return { id: m.user.id, name: m.user.name, role: m.role, person: m.person, personConfirmed: m.personConfirmed };
 }
 
 /** The retry key for a change, bound to who sends it and to everything else they sent (see db.server.ts `once`). */
