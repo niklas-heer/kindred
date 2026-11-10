@@ -1855,19 +1855,21 @@ function backdrop(a: Appearance, dress: Dress, detail: Detail): string {
     case 'books': {
       const wood = '#4a3426';
       if (!fine) return rect(wood) + `<path d="M0 30L100 30M0 62L100 62" ${stroked('#2c1e15', 2.4)}/>`;
+      // The spines of one colour are one path, so three shelves of books cost seven paths and not fifty rectangles.
       const spines = ['#7a2f2f', '#2f4f6a', '#5f6b3a', '#b08a3c', '#5a3a5f', '#8a5a34', '#34504a'];
-      let s = rect('#2c1e15');
+      const d = spines.map(() => '');
+      let shelves = '';
       for (const [row, top] of [[0, 2], [1, 34], [2, 66]] as const) {
         let x = 1;
         for (let i = 0; x < 99; i++) {
           const wdt = 4 + ((i * 7 + row * 3) % 4);
           const hgt = 22 + ((i * 5 + row * 2) % 6);
-          s += `<rect x="${x}" y="${top + 28 - hgt}" width="${wdt - 0.8}" height="${hgt}" fill="${spines[(i * 3 + row) % spines.length]}"/>`;
+          d[(i * 3 + row) % spines.length] += `M${x} ${top + 28 - hgt}h${n(wdt - 0.8)}v${hgt}h${n(0.8 - wdt)}z`;
           x += wdt;
         }
-        s += `<rect y="${top + 28}" width="100" height="3.4" fill="${wood}"/>`;
+        shelves += `M0 ${top + 28}h100v3.4h-100z`;
       }
-      return s;
+      return rect('#2c1e15') + spines.map((c, i) => `<path d="${d[i]}" fill="${c}"/>`).join('') + `<path d="${shelves}" fill="${wood}"/>`;
     }
     case 'sky':
       return rect('#8ebfe3') + (fine ? `<path d="M8 30a7 7 0 0 1 13 -3a6 6 0 0 1 9 5zM66 20a6 6 0 0 1 11 -3a7 7 0 0 1 14 4a4 4 0 0 1 3 4l-28 0z" fill="#f4f8fb" opacity=".9"/>` : '');
