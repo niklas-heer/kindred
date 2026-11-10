@@ -10,6 +10,7 @@ import { EmptyState, ErrorState, Notice, PageHeader, Skeleton, Switch } from '~/
 import { opKeys } from '~/lib/api';
 import { applyImportFile, exchangeContext, exportReport, previewImportFile } from '~/lib/exchange/exchange.functions';
 import { decodeGedcom } from '~/lib/exchange/encoding';
+import { nothingToAdd as addsNothing, summaryLines } from '~/lib/exchange/preview-summary';
 import { errorText } from '~/lib/errortext';
 import { translate, translateMessage, useT, type Locale, type Translator } from '~/lib/i18n';
 import { treeTitle } from '~/lib/title';
@@ -176,7 +177,7 @@ function ImportSection({ tree, people }: { tree: string; people: number }) {
   }
 
   const needsAllow = people > 0 && !allow;
-  const nothingToAdd = !!preview && preview.addCount === 0 && preview.conflictCount === 0 && preview.parents === 0 && preview.unions === 0;
+  const nothingToAdd = !!preview && addsNothing(preview);
 
   return (
     <section className="exchange-section" aria-labelledby="import-heading">
@@ -228,15 +229,9 @@ function ImportSection({ tree, people }: { tree: string; people: number }) {
             <Notice>{t('exchange.import.noChange')}</Notice>
           ) : (
             <ul className="exchange-counts">
-              <li>{t('exchange.import.summary.new', { count: preview.addCount })}</li>
-              <li>{t('exchange.import.summary.matched', { count: preview.matchCount })}</li>
-              <li>{t('exchange.import.summary.conflicts', { count: preview.conflictCount })}</li>
-              <li>{t('exchange.import.summary.parents', { count: preview.parents })}</li>
-              <li>{t('exchange.import.summary.unions', { count: preview.unions })}</li>
-              <li>{t('exchange.import.summary.dupes', { count: preview.duplicateParents + preview.duplicateUnions })}</li>
-              {preview.ambiguous.length > 0 && <li>{t('exchange.import.summary.ambiguous', { count: preview.ambiguous.length })}</li>}
-              {preview.pictures > 0 && <li>{t('exchange.import.summary.pictures', { count: preview.pictures })}</li>}
-              {preview.unlinked > 0 && <li>{t('exchange.import.summary.unlinked', { count: preview.unlinked })}</li>}
+              {summaryLines(preview).map((l) => (
+                <li key={l.key}>{t(l.key, { count: l.count })}</li>
+              ))}
               {preview.places.located + preview.places.unplaced > 0 && (
                 <li>{t('exchange.import.placesWillBe', { located: preview.places.located, unplaced: preview.places.unplaced })}</li>
               )}

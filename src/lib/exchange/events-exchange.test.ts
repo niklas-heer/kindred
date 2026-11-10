@@ -19,7 +19,8 @@ const { readTree } = await import('./model.ts');
 const { planImport } = await import('./plan.ts');
 const { markdownArchive } = await import('./markdown.ts');
 const { db } = await import('../db.server.ts');
-const { applyImport } = await import('./import.server.ts');
+const { applyImport, previewImport } = await import('./import.server.ts');
+const { nothingToAdd, summaryLines } = await import('./preview-summary.ts');
 import type { ExTree } from './model.ts';
 
 test.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -143,4 +144,30 @@ test('a GEDCOM file applied to an empty family writes its events, sources and ci
   assert.equal(back.citations!.length, 7);
   const again = await applyImport('scratch', writeGedcom(back, NOW).text, undefined, true);
   assert.deepEqual([again.events, again.sources, again.citations], [0, 0, 0], 'its own export changes nothing');
+});
+
+test('the import preview counts new events, sources and citations, and a file that brings only those still has something to add', async () => {
+  const d = openSqlite(join(dir, 'preview.db'), 'tree', { create: true });
+  d.exec("INSERT INTO meta (key, value) VALUES ('id', 'preview'), ('name', 'Preview'), ('tagline', ''), ('theme', 'modern'), ('focus', '')");
+  d.close();
+  const lines = (p: Parameters<typeof summaryLines>[0]) => Object.fromEntries(summaryLines(p).map((l) => [l.key.replace('exchange.import.summary.', ''), l.count]));
+  const first = await previewImport('preview', writeGedcom(withLife(), NOW).text);
+  assert.equal(nothingToAdd(first), false);
+  const firstLines = lines(first);
+  assert.deepEqual([firstLines.events, firstLines.sources, firstLines.citations], [6, 2, 7]);
+  assert.equal(firstLines.records_there, undefined, 'a line with nothing to count is left out');
+
+  // The family has its people and links but no life yet: the same people with their life is not "nothing to add".
+  const bare = withLife();
+  bare.events = []; bare.sources = []; bare.citations = [];
+  await applyImport('preview', writeGedcom(bare, NOW).text, undefined, false);
+  const life = await previewImport('preview', writeGedcom(withLife(), NOW).text);
+  assert.deepEqual([life.addCount, life.parents, life.unions], [0, 0, 0]);
+  assert.equal(nothingToAdd(life), false, 'events, sources and citations are something to add');
+  assert.deepEqual([lines(life).events, lines(life).sources, lines(life).citations], [6, 2, 7]);
+
+  await applyImport('preview', writeGedcom(withLife(), NOW).text, undefined, true);
+  const again = await previewImport('preview', writeGedcom(withLife(), NOW).text);
+  assert.equal(nothingToAdd(again), true);
+  assert.equal(lines(again).records_there, 15, 'six events, two sources and seven citations already there');
 });
