@@ -326,6 +326,8 @@
 /* The kinds control in the side panel: words only, so five kinds ("Weddings", "Events") fit. */
 @media (min-width: 901px) {
   .atlas-seg-btn > svg { display: none; }
+  /* Each as wide as its word, so the longest ("Hochzeiten") is not cut while "All" has room to spare. */
+  .atlas-seg-btn { flex: 1 1 auto; padding: 0 6px; }
 }
 /* "All": a place's split into kinds sits under its name, so the name is never cut short. */
 .atlas-place-name:has(.atlas-kinds) { flex-direction: column; align-items: flex-start; gap: 0; }

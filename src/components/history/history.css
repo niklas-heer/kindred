@@ -22,8 +22,8 @@
 .hist-field ins { text-decoration: none; }
 .hist-arrow { color: var(--muted); }
 .hist-restore { margin-left: auto; }
-.hist-ok { margin: 4px 0 0; color: var(--ok, var(--ink)); }
-.hist-error { margin: 4px 0 0; color: var(--danger, #b42318); }
+.hist-ok { margin: 4px 0 0; font-size: var(--fs-2, 13px); color: var(--ok, var(--ink)); }
+.hist-error { margin: 4px 0 0; font-size: var(--fs-2, 13px); color: var(--danger, #b42318); }
 .hist-more { align-self: center; }
 @media (max-width: 520px) {
   .hist-field { grid-template-columns: minmax(0, 1fr); }

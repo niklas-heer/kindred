@@ -41,6 +41,7 @@ function Fields({ item, tree, canRestore }: { item: HistoryItem; tree: string; c
   const shown = item.fields;
   if (!shown.length) return null;
   return (
+    <>
     <dl className="hist-fields" aria-label={t('history.changes')}>
       {shown.map((f) => (
         <div key={f.name} className="hist-field">
@@ -67,9 +68,11 @@ function Fields({ item, tree, canRestore }: { item: HistoryItem; tree: string; c
           </dd>
         </div>
       ))}
-      {done && <p className="hist-ok" role="status">{t('history.restored')}</p>}
-      {restore.isError && <p className="hist-error" role="alert">{errorText(restore.error, t.locale)}</p>}
     </dl>
+    {/* Outside the list: a definition list may hold only its terms and values. */}
+    {done && <p className="hist-ok" role="status">{t('history.restored')}</p>}
+    {restore.isError && <p className="hist-error" role="alert">{errorText(restore.error, t.locale)}</p>}
+    </>
   );
 }
 
