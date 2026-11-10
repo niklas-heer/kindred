@@ -353,6 +353,8 @@ test('a guest is refused on every server function that is not one of the allowed
   for (const write of ['saveStory', 'addStory', 'updatePersonFact', 'setMemberRole', 'createInvite', 'aiChatSend', 'aiChatLoad', 'setMyPerson', 'saveHouseSettings', 'makeShareLink', 'revokeShareLink']) {
     if (fns.some((f) => f.name === write)) assert.ok(refused.includes(write), `${write} was refused`);
   }
+  // The family's feed (docs/feed.md) is the members': reading it, a person's posts, and writing, changing and removing one.
+  for (const feed of ['getPersonPosts', 'createPost', 'editPost', 'removePost']) assert.ok(refused.includes(feed), `${feed} was refused`);
 });
 
 test('the allowed reads work for a guest of this family and nobody else', async () => {

@@ -16,8 +16,12 @@
 //
 // Stories (memories, sayings, anecdotes, recipes, notes) are in memories/, one file per person they are about, oldest first,
 // each with its comments under it (migration 0027): who wrote it, when, and the plain text, quoted. Reactions are not written.
+//
+// The family's feed (migration 0029, docs/feed.md) is in feed/, one file per year, oldest first: each post with who wrote it
+// and when, its text quoted, the people it is about as links, how many pictures it had (the pictures are the gallery's,
+// which no archive holds) and its comments. The v1 tools and import-kindred.ts leave feed/ alone.
 import { allGiven } from '../further-given.ts';
-import type { ExCitation, ExParent, ExPerson, ExStory, ExTree, ExUnion } from './model.ts';
+import type { ExCitation, ExParent, ExPerson, ExPost, ExStory, ExTree, ExUnion } from './model.ts';
 
 export interface ArchiveFile {
   path: string;
@@ -208,6 +212,12 @@ export function markdownArchive(tree: ExTree, portraits: Set<string> = new Set()
     files.push({ path: `memories/${names.get(id)}.md`, data: memoriesNote(p, list, link(id)) });
   }
 
+  const postsOf = new Map<string, ExPost[]>();
+  for (const x of tree.posts ?? []) postsOf.set(x.at.slice(0, 4), [...(postsOf.get(x.at.slice(0, 4)) ?? []), x]);
+  for (const [year, list] of postsOf) files.push({ path: `feed/${year}.md`, data: feedNote(tree.name, year, list, (id) => (byId.has(id) ? link(id) : null)) });
+  const postPictures = (tree.posts ?? []).reduce((n, x) => n + x.pictures, 0);
+  if (postPictures) losses.push(`${postPictures} ${postPictures === 1 ? 'picture shared in the family’s feed is' : 'pictures shared in the family’s feed are'} not in the archive (the gallery is not either); the posts are`);
+
   for (const x of tree.sources ?? []) {
     const lines = ['---', `id: ${str(x.id)}`, 'type: source', `title: ${str(x.title)}`];
     if (x.author) lines.push(`author: ${str(x.author)}`);
@@ -230,12 +240,33 @@ export function markdownArchive(tree: ExTree, portraits: Set<string> = new Set()
       'Dates keep their original wording as "about 1900" (Kindred v2 reads "~1900"). Partnerships are declared',
       'once, on the note of the partner whose id sorts first. Life events are in each person\'s events; sources are in',
       'sources/, and each person\'s citations name the source and the fact it backs. Memories, sayings and recipes are in',
-      'memories/, one file per person, each with the comments the family wrote under it.',
+      'memories/, one file per person, each with the comments the family wrote under it. What the family wrote to each',
+      'other in the feed is in feed/, one file per year.',
       '',
       ...(losses.length ? ['Not in this archive:', ...losses.map((l) => `- ${l}`), ''] : []),
     ].join('\n'),
   });
   return { files, losses };
+}
+
+/** A year of the family's feed, oldest first: each post with its writer, its text, who it is about, and its comments. */
+export function feedNote(family: string, year: string, posts: ExPost[], personLink: (id: string) => string | null): string {
+  const out: string[] = [`# ${family}: the feed, ${year}`, ''];
+  for (const x of posts) {
+    out.push(`## ${x.at.slice(0, 10)}, ${x.author || 'a former member'}${x.edited ? ' (changed)' : ''}`, '');
+    if (x.body.trim()) out.push(quoted(x.body.trim()), '');
+    const about = x.people.map(personLink).filter((l): l is string => !!l);
+    const notes = [
+      ...(about.length ? [`About ${about.join(', ')}.`] : []),
+      ...(x.pictures ? [`With ${x.pictures} ${x.pictures === 1 ? 'picture' : 'pictures'}, kept in the gallery.`] : []),
+    ];
+    if (notes.length) out.push(`*${notes.join(' ')}*`, '');
+    if (x.comments.length) {
+      out.push('### Comments', '');
+      for (const c of x.comments) out.push(`**${c.author || 'A former member'}**, ${c.at.slice(0, 10)}${c.edited ? ' (changed)' : ''}:`, '', quoted(c.body), '');
+    }
+  }
+  return `${out.join('\n').trimEnd()}\n`;
 }
 
 const STORY_KIND: Record<string, string> = { memory: 'Memory', quote: 'Saying', anecdote: 'Anecdote', recipe: 'Recipe', note: 'Note' };

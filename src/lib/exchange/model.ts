@@ -113,6 +113,22 @@ export interface ExStory {
   comments: ExComment[];
 }
 
+/**
+ * A post in the family's feed (migration 0029, docs/feed.md) with its comments, oldest first. Only the Markdown archive
+ * carries it. Its pictures are gallery pictures, which no export holds: `pictures` says how many it had.
+ */
+export interface ExPost {
+  id: string;
+  author: string;
+  at: string;
+  edited: string | null;
+  body: string;
+  /** The people from the tree it is about. */
+  people: string[];
+  pictures: number;
+  comments: ExComment[];
+}
+
 export interface ExTree {
   id: string;
   name: string;
@@ -125,6 +141,8 @@ export interface ExTree {
   citations?: ExCitation[];
   /** The stories and their comments, for the Markdown archive. Absent in a tree built without them (a GEDCOM's). */
   stories?: ExStory[];
+  /** The posts of the family's feed and their comments, oldest first, for the Markdown archive. */
+  posts?: ExPost[];
   /**
    * What the tree holds beyond this model, counted for the loss report. `photoComments` (migration 0027) are the comments
    * on gallery photos, which no export carries, as the photos themselves are not in one.
@@ -198,6 +216,18 @@ export async function readTree(d: Db): Promise<ExTree> {
   );
   const commentsOf = new Map<string, ExComment[]>();
   for (const c of comments) commentsOf.set(c.target, [...(commentsOf.get(c.target) ?? []), { author: c.author_name, at: c.created_at, edited: c.edited_at, body: c.body }]);
+  // The family's feed: every post with the people it is about, how many pictures it has, and its comments.
+  const posts = await d.all<{ id: string; author_name: string; created_at: string; edited_at: string | null; body: string; pictures: number }>(
+    'SELECT id, author_name, created_at, edited_at, body, (SELECT count(*) FROM post_media pm WHERE pm.post = post.id) AS pictures FROM post ORDER BY created_at, id',
+  );
+  const postPeople = await d.all<{ post: string; person: string }>('SELECT post, person FROM post_person ORDER BY post, rowid');
+  const postComments = await d.all<{ target: string; author_name: string; created_at: string; edited_at: string | null; body: string }>(
+    "SELECT target, author_name, created_at, edited_at, body FROM comment WHERE target_kind = 'post' ORDER BY created_at, id",
+  );
+  const peopleOf = new Map<string, string[]>();
+  for (const r of postPeople) peopleOf.set(r.post, [...(peopleOf.get(r.post) ?? []), r.person]);
+  const postCommentsOf = new Map<string, ExComment[]>();
+  for (const c of postComments) postCommentsOf.set(c.target, [...(postCommentsOf.get(c.target) ?? []), { author: c.author_name, at: c.created_at, edited: c.edited_at, body: c.body }]);
   const count = async (sql: string) => (await d.get<{ n: number }>(sql))?.n ?? 0;
   return {
     id: meta.id ?? '',
@@ -228,6 +258,7 @@ export async function readTree(d: Db): Promise<ExTree> {
     sources: sources.map((r) => ({ ...r, author: or(r.author), publication: or(r.publication), reference: or(r.reference), date: or(r.date), document: or(r.document), media: or(r.media) })),
     citations: citations.map((r) => ({ id: r.id, source: r.source, target: citationTarget(r), page: or(r.page), quality: or(r.quality), transcription: r.transcription })),
     stories: stories.map((r) => ({ ...r, title: or(r.title), context: or(r.context), comments: commentsOf.get(r.id) ?? [] })),
+    posts: posts.map((r) => ({ id: r.id, author: r.author_name, at: r.created_at, edited: r.edited_at, body: r.body, people: peopleOf.get(r.id) ?? [], pictures: r.pictures, comments: postCommentsOf.get(r.id) ?? [] })),
     extras: {
       stories: await count('SELECT count(*) AS n FROM story'),
       fields: await count("SELECT count(*) AS n FROM person_field WHERE visibility <> 'personal'"), // a personal item is its author's alone, even as a number

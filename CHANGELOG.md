@@ -9,7 +9,7 @@ moving to before you upgrade ([docs/self-host.md](docs/self-host.md), "Upgrading
 
 Changes on `main` since 2.0.0. They are not in a release yet.
 
-Database changes: thirteen migrations are new since 2.0.0. In `migrations/accounts`:
+Database changes: fifteen migrations are new since 2.0.0. In `migrations/accounts`:
 
 - `0022_session_credential.sql` records which passkey started a session, so removing a passkey signs that device out.
 - `0023_share_protect_living.sql` adds the per-link "protect living people" switch (off for links that already exist).
@@ -20,6 +20,7 @@ Database changes: thirteen migrations are new since 2.0.0. In `migrations/accoun
 - `0027_join_network_visits.sql` adds a column that counts open requests to join from one network, and one that counts a
   member's visits, so "What's new" knows a first visit.
 - `0028_view_as.sql` adds the table that holds a steward's "View as" previews.
+- `0029_post_push.sql` adds two columns on reminder devices for the push about a new post in the family feed.
 
 In `migrations/tree`:
 
@@ -29,8 +30,11 @@ In `migrations/tree`:
 - `0026_history.sql` adds the change history table, empty: changes made before it are not in the history.
 - `0027_reactions_comments.sql` adds the tables for reactions, comments and the answer push, and one column on `story`.
 - `0028_today.sql` adds the five tables for the Today page and the daily quiz.
+- `0029_posts.sql` adds the three tables of the family feed and an index on gallery pictures. It also makes the tables of
+  reactions and comments again, with the rows they had, so that a post can be reacted to and commented on.
 
-Every one adds columns or new tables and changes no row you have, so they are quick. On Node they are applied by themselves
+Every one adds columns or new tables and changes no row you have (`0029_posts.sql` copies the reactions and comments into
+tables of the same shape), so they are quick. On Node they are applied by themselves
 when the server starts, after a copy of each database. On Cloudflare, `mise run deploy` applies them before the new Worker
 goes live (`mise run cf:migrate:remote` does the same step alone). Code and migrations roll back together: to go back to
 2.0.0, restore the copies the server made before the migration and start the old version. An old version will not run on a

@@ -44,6 +44,12 @@ export const COPIED_TABLES: readonly string[] = [
   'comment',
   'today_week', // the weeks a steward asked their own question of the week, or none (migration 0028)
   'today_answer', // which week's question a memory answers, after story
+  // The family's feed (migration 0029): posts, their pictures and the people they are about, after person and media. A post
+  // names its writer's account, which is not copied, and keeps the name and the person it was written under, so on the
+  // target it reads as before; nobody there can change it, and an editor can remove it.
+  'post',
+  'post_media',
+  'post_person',
 ];
 
 /**

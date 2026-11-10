@@ -91,6 +91,10 @@ const GRAN_DOC = '00000000-0000-4000-8000-00000000d0c2.pdf';
 const PICTURE = '00000000-0000-4000-8000-0000000000e1.jpg';
 const GRAN_PICTURE = '00000000-0000-4000-8000-0000000000e2.jpg';
 const SUGGESTED_PICTURE = '00000000-0000-4000-8000-0000000000e3.jpg';
+const POST_PICTURE = '00000000-0000-4000-8000-0000000000e4.jpg';
+const POST = '00000000-0000-4000-8000-0000000000f1';
+/** The family's feed (docs/feed.md): a guest gets none of it, protected link or not, though this post is about the dead. */
+const FEED_ONLY = ['POST-TEXT-FOR-MEMBERS', 'POST-CAPTION-TEXT', 'POST-COMMENT-TEXT', POST_PICTURE];
 
 /** The route's own GET handler, as the server calls it. */
 async function get(route: string, params: Record<string, string>) {
@@ -142,6 +146,14 @@ before(async () => {
   await tag(SUGGESTED_PICTURE, 'gran', 1);
   await tag(SUGGESTED_PICTURE, 'kid', 0);
   await d.run("INSERT INTO photo (person, mime, data, at) VALUES ('kid', 'image/jpeg', ?, '2026-01-01')", new Uint8Array([255, 216, 255]));
+  // A post in the family's feed about the grandmother, with a picture of her and a comment under it.
+  await d.run("INSERT INTO post (id, account, author_name, body, created_at) VALUES (?, ?, 'steward', 'POST-TEXT-FOR-MEMBERS', '2026-01-04T10:00:00.000Z')", POST, STEWARD);
+  await d.run("INSERT INTO post_person (post, person) VALUES (?, 'gran')", POST);
+  await d.run("INSERT INTO media (key, mime, caption, uploaded_by, uploaded_at) VALUES (?, 'image/jpeg', 'POST-CAPTION-TEXT', ?, '2026-01-04')", `gallery/${POST_PICTURE}`, STEWARD);
+  await dbs.media.put(TREE, `gallery/${POST_PICTURE}`, new Uint8Array([255, 216, 255]), 'image/jpeg');
+  await d.run('INSERT INTO post_media (post, media, ord) VALUES (?, ?, 0)', POST, `gallery/${POST_PICTURE}`);
+  await tag(POST_PICTURE, 'gran', 1);
+  await d.run("INSERT INTO comment (id, target_kind, target, account, author_name, body, created_at) VALUES ('c-post', 'post', ?, ?, 'steward', 'POST-COMMENT-TEXT', '2026-01-04T11:00:00.000Z')", POST, STEWARD);
   // Research about the child, and research about her grandmother.
   for (const [id, title, who, doc, docTitle] of [['pkid', 'KID-PROJECT-TITLE', 'kid', KID_DOC, 'KID-DOC-TITLE'], ['pgran', 'GRAN-PROJECT-TITLE', 'gran', GRAN_DOC, 'Gran document']]) {
     await d.run("INSERT INTO research_project (id, title, created_by, created_at, updated_at) VALUES (?, ?, 'x', '2026-01-01', '2026-01-01')", id, title);
@@ -228,6 +240,7 @@ test('no server function gives a protected guest anything the protection withhol
   }
   const all = [...answered.values()].join('');
   for (const kept of KEPT) assert.ok(all.includes(kept), `a protected guest still gets "${kept}"`);
+  for (const feed of FEED_ONLY) assert.ok(!all.includes(feed), `a protected guest got "${feed}" from the family's feed`);
 });
 
 test('the control: with the setting off, the same guest gets what it got before', async () => {
@@ -237,6 +250,10 @@ test('the control: with the setting off, the same guest gets what it got before'
     assert.ok(all.includes(shown), `an unprotected guest still gets "${shown}"`);
   }
   assert.ok(!all.includes('KID-PHONE-0000'), 'and still no fields at all');
+  // The family's feed is the members': no post, no comment on one, and not its picture in the Gallery or on a person's page.
+  for (const feed of FEED_ONLY) assert.ok(!all.includes(feed), `a guest got "${feed}" from the family's feed`);
+  assert.equal((await get('media.$tree.$key', { tree: TREE, key: POST_PICTURE })).status, 404, 'a post’s picture is not served to a guest');
+  assert.equal((await get('media.$tree.$key', { tree: TREE, key: GRAN_PICTURE })).status, 200, 'an ordinary gallery picture is');
 });
 
 test('a protected guest gets the living child by name, place in the tree and face, and nothing more', async () => {
@@ -298,6 +315,12 @@ test('members see everything, protected link or not', async () => {
   const [family] = await auth.fetchMyFamilies();
   assert.deepEqual(family.birthdays?.map((b) => b.id), ['kid']);
   assert.ok(family.today.some((e) => e.key === 'a:u1'), 'the wedding anniversary');
+  // And the family's feed, with the post's picture in the Gallery and served.
+  const feed = await load<typeof import('../feed/feed.functions.ts')>('/src/lib/feed/feed.functions.ts');
+  assert.deepEqual((await feed.getPersonPosts({ data: { tree: TREE, id: 'gran' } })).map((p) => p.id), [POST]);
+  const photos = await load<typeof import('../photos.functions.ts')>('/src/lib/photos.functions.ts');
+  assert.equal((await photos.getGallery({ data: { tree: TREE } })).media.find((m) => m.key === `gallery/${POST_PICTURE}`)?.post, POST);
+  assert.equal((await get('media.$tree.$key', { tree: TREE, key: POST_PICTURE })).status, 200);
 });
 
 test('the guest routes: the pictures stay, research about the living does not', async () => {

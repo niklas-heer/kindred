@@ -15,12 +15,16 @@
 // What happens to what they left (docs/data-model.md, "When a membership ends"):
 //   stays   memories (`story`, with `author_account` kept: it is only used to tell an author about a reply, and only a
 //           member can be told), answers to the question of the week (memories), comments (they keep `author_name`, the name
-//           they were written under; the reader shows "a former member" when there is none), the change history with
-//           their name, the Campaign's chronicle (`campaign_log`: names, not accounts), join requests as history.
+//           they were written under; the reader shows "a former member" when there is none), their posts in the feed with
+//           the pictures and the comments under them (`post` keeps `author_name` and `author_person`, the person they stood
+//           for, so a post stays signed and keeps its face; `account` is kept and matches nobody: only its writer may
+//           change a post, so it can then only be removed, by an editor), the change history with their name, the
+//           Campaign's chronicle (`campaign_log`: names, not accounts), join requests as history.
 //   goes    reactions, the daily quiz's answers (so standings and streaks), the Campaign's member rows (orders, pledge: their
 //           seat and command are free again and the regent rules cover them, because a house's side is worked out from the
-//           members who are there), the Campaign push claims, their opt-in for response pushes, the items they kept for
-//           themselves (Personal fields) and the history rows of those.
+//           members who are there), the Campaign push claims, their opt-in for response pushes, their devices' choice to be
+//           told about new posts (with the devices, in step 1), the items they kept for themselves (Personal fields) and the
+//           history rows of those.
 import { fail } from './guard.server';
 import { AuthError } from './errors';
 import * as s from './store.server';

@@ -110,6 +110,11 @@ function populatedFamily(name: string): DatabaseSync {
 and so was Ada', '${now}', NULL);
     INSERT INTO today_week (week, skipped, question, updated_at) VALUES ('2026-W46', 0, 'What did the mill sound like?', '${now}');
     INSERT INTO today_answer (story, week, question) SELECT id, '2026-W46', 'custom' FROM story LIMIT 1;
+    INSERT INTO post (id, account, author_name, author_person, body, created_at, edited_at) VALUES ('00000000-0000-4000-8000-000000000001', 'u1', 'Ben', 'ben', 'We''ve moved
+to Lindby', '${now}', NULL);
+    INSERT INTO post_media (post, media, ord) VALUES ('00000000-0000-4000-8000-000000000001', 'gallery/g2.jpg', 0);
+    INSERT INTO post_person (post, person) VALUES ('00000000-0000-4000-8000-000000000001', 'ada');
+    INSERT INTO reaction (target_kind, target, account, kind, created_at) VALUES ('post', '00000000-0000-4000-8000-000000000001', 'u1', 'heart', '${now}');
   `);
   return d;
 }

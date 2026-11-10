@@ -81,14 +81,17 @@ export interface WhatsNewLine {
 /** "What's new", grouped by the person it is about; `person` null is the family as a whole. */
 export interface WhatsNewGroup { person: string | null; name: string | null; lines: WhatsNewLine[] }
 
+/** The posts one member wrote to the family. */
+export interface WhatsNewPosts { author: string; count: number }
+
 /** A comment or reactions on something the reader wrote. */
 export interface WhatsNewReply {
   kind: 'comment' | 'reaction';
-  /** What was commented on: a story or a photo. */
-  target: 'story' | 'media';
-  /** Its id (a story's id or a photo's key). */
+  /** What was commented on: a story, a photo or a post in the feed. */
+  target: 'story' | 'media' | 'post';
+  /** Its id (a story's or a post's id, or a photo's key). */
   id: string;
-  /** Its title or caption, if it has one. */
+  /** Its title or caption, or a post's first words, if it has any. */
   label: string | null;
   /** The person a story is about. */
   person: string | null;
@@ -104,7 +107,12 @@ export interface WhatsNew {
   first: boolean;
   groups: WhatsNewGroup[];
   replies: WhatsNewReply[];
-  /** How many changes in all, before grouping. */
+  /**
+   * Who wrote to the family (posts in the feed, docs/feed.md) and how often. A post is not a change to the records, so it
+   * is not in the history, but it is news.
+   */
+  posts: WhatsNewPosts[];
+  /** How many changes and posts in all, before grouping. */
   total: number;
 }
 

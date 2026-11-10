@@ -348,10 +348,10 @@ test('What’s new groups others’ changes by person, leaves out the reader’s
 });
 
 test('the weekly push says what the week brought, and nothing when it brought nothing', () => {
-  const quiet = push.weeklyMessage(TREE, 'The Quills', 'en', { since: '', first: false, groups: [], replies: [], total: 0 });
+  const quiet = push.weeklyMessage(TREE, 'The Quills', 'en', { since: '', first: false, groups: [], replies: [], posts: [], total: 0 });
   assert.equal(quiet, null);
   const m = push.weeklyMessage(TREE, 'The Quills', 'de', {
-    since: '', first: false, total: 4, replies: [],
+    since: '', first: false, total: 4, replies: [], posts: [],
     groups: [{ person: 'ada', name: 'Ada Quill', lines: [{ author: 'Mara Quill', kind: 'photo', action: 'added', count: 3, label: null }] }],
   })!;
   assert.equal(m.title, 'Diese Woche bei The Quills');

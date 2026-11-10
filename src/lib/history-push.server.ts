@@ -26,6 +26,7 @@ export function weeklyMessage(tree: string, family: string, locale: Locale, news
   for (const g of news.groups) {
     for (const l of g.lines) lines.push(g.name ? `${g.name}: ${lineText(t, l)}` : lineText(t, l));
   }
+  for (const p of news.posts) lines.push(t('feed.news.posts', { author: p.author, count: p.count }));
   for (const r of news.replies) {
     lines.push(t(`history.reply.${r.kind}_${r.target}` as Parameters<typeof translate>[1], { author: r.author, count: r.count }));
   }
@@ -34,7 +35,8 @@ export function weeklyMessage(tree: string, family: string, locale: Locale, news
     title: t('history.push.title', { family }),
     body: [...lines.slice(0, shown), ...(lines.length > shown ? [t('history.push.more', { count: lines.length - shown })] : [])].join('\n'),
     tag: `kindred-week-${tree}`,
-    url: `/${tree}/history`,
+    // The history has the changes; a week that brought only messages opens where they are.
+    url: news.groups.length ? `/${tree}/history` : `/${tree}/today`,
   });
   let shown = Math.min(LINES, lines.length);
   while (shown > 1 && !fitsPush(message(shown))) shown -= 1;

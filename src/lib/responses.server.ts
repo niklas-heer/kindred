@@ -1,5 +1,6 @@
-// Reactions and comments on a memory or a gallery photo (migration 0027, docs/responses.md): the reads for the Chronicle,
-// the gallery and a thread, the members' changes, and the opt-in push to the one who wrote or shared the thing.
+// Reactions and comments on a memory, a gallery photo or a post (migrations 0027 and 0029, docs/responses.md): the reads
+// for the Chronicle, the gallery, the feed and a thread, the members' changes, and the opt-in push to the one who wrote or
+// shared the thing.
 //
 // Members only: every function here refuses a share-link guest itself, besides the server functions' own checks
 // (responses.functions.ts), and the reads that a guest can reach (the Chronicle, the gallery) carry none of this.
@@ -24,6 +25,7 @@ import {
   type Thread,
 } from './responses';
 import { can, type Role } from './roles';
+import { seedVoice } from './feed/voice';
 import { fitsPush, sendPush, type VapidConfig } from './webpush';
 
 /** Who is asking: a member (their account id, the name they show, their role), or a guest, who gets nothing here. */
@@ -42,6 +44,7 @@ function needs(who: Who, action: 'react' | 'comment' | 'remove-comment') {
 const EXISTS: Record<TargetKind, string> = {
   story: 'EXISTS (SELECT 1 FROM story WHERE id = ?)',
   media: 'EXISTS (SELECT 1 FROM media WHERE key = ?)',
+  post: 'EXISTS (SELECT 1 FROM post WHERE id = ?)',
 };
 const targetThere = (d: Db, kind: TargetKind, target: string) => d.get(`SELECT ${EXISTS[kind]} AS ok`, target).then((r) => !!(r as { ok?: number } | undefined)?.ok);
 
@@ -86,14 +89,23 @@ export async function thread(tree: string, who: Who, kind: TargetKind, target: s
       )
     : [];
   const byId = new Map(known.map((u) => [u.id, u]));
+  // An invented family's voices are its people (scripts/seed.ts, `seedVoice`): a reaction of theirs has that person's name.
+  const voices = [...people].map(seedVoice).filter((p): p is string => !!p);
+  const voiceNames = voices.length
+    ? new Map((await db(tree).all<{ id: string; name: string }>(
+        `SELECT id, trim(coalesce(current_given, given) || ' ' || coalesce(coalesce(current_surname, surname), '')) AS name FROM person WHERE id IN (SELECT value FROM json_each(?))`,
+        JSON.stringify(voices),
+      )).map((p) => [p.id, p.name]))
+    : new Map<string, string>();
   const removeAny = can(who.role, 'remove-comment');
   const reactors: Thread['reactors'] = {};
   // A reaction from an account that no longer exists still counts; it has no name to show.
-  for (const r of given) (reactors[r.kind] ??= []).push(byId.get(r.account)?.name ?? '');
+  for (const r of given) (reactors[r.kind] ??= []).push(byId.get(r.account)?.name ?? voiceNames.get(seedVoice(r.account) ?? '') ?? '');
   return {
     comments: rows.map((r): CommentView => {
       const member = byId.get(r.account);
-      const person = member?.person && member.person !== '-' ? member.person : null;
+      const voice = seedVoice(r.account);
+      const person = member?.person && member.person !== '-' ? member.person : voice && voiceNames.has(voice) ? voice : null;
       const mine = r.account === who.id;
       return { id: r.id, authorName: r.author_name, person, body: r.body, createdAt: r.created_at, editedAt: r.edited_at, mine, removable: mine || removeAny };
     }),
@@ -193,7 +205,7 @@ export type Response = { kind: TargetKind; target: string; by: Who } & ({ what: 
 
 const DAY_MS = 86_400_000;
 
-/** Who wrote a story or shared a photo, and for a story the person it is about. */
+/** Who wrote a story or a post or shared a photo, and for a story the person it is about. */
 interface Owner { author: string | null; person?: string; given?: string; surname?: string | null; current_given?: string | null; current_surname?: string | null }
 
 /**
@@ -211,7 +223,9 @@ export async function notifyAuthor(tree: string, r: Response, options: { now?: D
     const d = db(tree);
     const owner = r.kind === 'story'
       ? await d.get<Owner>('SELECT s.author_account AS author, s.person, p.given, p.surname, p.current_given, p.current_surname FROM story s JOIN person p ON p.id = s.person WHERE s.id = ?', r.target)
-      : await d.get<Owner>('SELECT uploaded_by AS author FROM media WHERE key = ?', r.target);
+      : r.kind === 'post'
+        ? await d.get<Owner>('SELECT account AS author FROM post WHERE id = ?', r.target)
+        : await d.get<Owner>('SELECT uploaded_by AS author FROM media WHERE key = ?', r.target);
     const author = owner?.author;
     if (!owner || !author || author === r.by.id) return 0;
     if (!(await d.get('SELECT 1 AS x FROM response_push WHERE account = ? AND enabled = 1', author))) return 0;
@@ -227,14 +241,12 @@ export async function notifyAuthor(tree: string, r: Response, options: { now?: D
     for (const row of devices) {
       // Who answered and about whom; never the comment's words, which stay in the family's app.
       const vars = { name: r.by.name, person, reaction: r.what === 'reaction' ? translate(row.locale, `responses.reaction.${r.reaction}`) : '' };
-      const key = r.what === 'comment'
-        ? (r.kind === 'story' ? 'responses.push.comment_story' : 'responses.push.comment_media')
-        : (r.kind === 'story' ? 'responses.push.reaction_story' : 'responses.push.reaction_media');
+      const key = `responses.push.${r.what}_${r.kind}` as const;
       const message = {
         title: translate(row.locale, 'responses.push.title'),
         body: translate(row.locale, key, vars),
         tag: `kindred-responses-${tree}`,
-        url: owner.person ? `/${tree}/person/${encodeURIComponent(owner.person)}` : `/${tree}/gallery`,
+        url: owner.person ? `/${tree}/person/${encodeURIComponent(owner.person)}` : r.kind === 'post' ? `/${tree}/today` : `/${tree}/gallery`,
       };
       if (!fitsPush(message)) continue;
       try {

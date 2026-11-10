@@ -60,7 +60,7 @@ export const getGallery = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
     const r = await requireReader(data.tree);
-    return (await server()).gallery(data.tree, r.protectLiving);
+    return (await server()).gallery(data.tree, r.protectLiving, r.guest);
   });
 export const galleryQuery = (t: string) => queryOptions({ queryKey: ['gallery', t], queryFn: () => getGallery({ data: { tree: t } }) });
 
@@ -68,7 +68,7 @@ export const getPersonPhotos = createServerFn({ method: 'GET' })
   .validator(z.object({ tree, id: z.string().min(1).max(120) }))
   .handler(async ({ data }) => {
     const r = await requireReader(data.tree);
-    return (await server()).personMedia(data.tree, data.id, r.protectLiving);
+    return (await server()).personMedia(data.tree, data.id, r.protectLiving, r.guest);
   });
 export const personPhotosQuery = (t: string, id: string) =>
   queryOptions({ queryKey: ['person-photos', t, id], queryFn: () => getPersonPhotos({ data: { tree: t, id } }) });

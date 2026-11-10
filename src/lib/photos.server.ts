@@ -10,14 +10,21 @@ import { LIVING_IDS, pictureColumn } from './protect-living.ts';
 
 interface MediaRow {
   key: string; mime: string; width: number; height: number; taken: string | null; place: string | null; caption: string | null;
-  album: string | null; uploaded_by: string; uploaded_at: string;
+  album: string | null; uploaded_by: string; uploaded_at: string; post: string | null;
 }
 interface TagRow { id: number; media: string; person: string; x: number; y: number; w: number; h: number; confirmed: number }
 
 /** The columns of a picture. With `protectLiving`, a picture with a living person in it comes without caption, date or place. */
 const cols = (protectLiving: boolean) =>
   `m.key, m.mime, m.width, m.height, ${pictureColumn('m.taken', protectLiving)} AS taken, ${pictureColumn('m.place', protectLiving)} AS place, ` +
-  `${pictureColumn('m.caption', protectLiving)} AS caption, m.album, m.uploaded_by, m.uploaded_at`;
+  `${pictureColumn('m.caption', protectLiving)} AS caption, m.album, m.uploaded_by, m.uploaded_at, ` +
+  '(SELECT pm.post FROM post_media pm WHERE pm.media = m.key) AS post';
+
+/**
+ * The pictures a share-link guest may see, as a condition on `m`: not the ones shared in a post. A post is the family
+ * talking among themselves (docs/feed.md), and a guest sees none of it, so not its pictures in the Gallery either.
+ */
+export const NOT_FROM_A_POST = 'm.key NOT IN (SELECT media FROM post_media)';
 
 /**
  * Media rows matching `where` (an SQL condition on `m`), each with its tags, newest upload first. With `protectLiving` (a guest
@@ -49,22 +56,26 @@ async function withTags(d: Db, where: string, params: Param[], protectLiving = f
     uploadedBy: r.uploaded_by,
     uploadedAt: r.uploaded_at,
     tags: byMedia.get(r.key) ?? [],
+    ...(r.post ? { post: r.post } : {}),
   }));
 }
 
-/** The whole gallery for a family: every photo with its tags, and the albums. */
-export async function gallery(tree: string, protectLiving = false): Promise<Gallery> {
+/** The whole gallery for a family: every photo with its tags, and the albums. A `guest` gets no picture that came with a post. */
+export async function gallery(tree: string, protectLiving = false, guest = false): Promise<Gallery> {
   const d = db(tree);
   const [items, albums] = await Promise.all([
-    withTags(d, '1 = 1', [], protectLiving),
+    withTags(d, guest ? NOT_FROM_A_POST : '1 = 1', [], protectLiving),
     d.all<{ id: string; name: string; n: number }>('SELECT a.id, a.name, (SELECT count(*) FROM media m WHERE m.album = a.id) AS n FROM album a ORDER BY a.name COLLATE NOCASE'),
   ]);
   return { media: items, albums: albums.map((a): Album => ({ id: a.id, name: a.name, count: a.n })) };
 }
 
-/** The photos a person is confirmed in. With `protectLiving`, none for a living person: that list is their tags. */
-export function personMedia(tree: string, person: string, protectLiving = false): Promise<MediaItem[]> {
-  const where = `m.key IN (SELECT mp.media FROM media_person mp WHERE mp.person = ? AND mp.confirmed = 1${protectLiving ? ` AND mp.person NOT IN (${LIVING_IDS})` : ''})`;
+/**
+ * The photos a person is confirmed in. With `protectLiving`, none for a living person: that list is their tags. A `guest`
+ * gets no picture that came with a post.
+ */
+export function personMedia(tree: string, person: string, protectLiving = false, guest = false): Promise<MediaItem[]> {
+  const where = `m.key IN (SELECT mp.media FROM media_person mp WHERE mp.person = ? AND mp.confirmed = 1${protectLiving ? ` AND mp.person NOT IN (${LIVING_IDS})` : ''})${guest ? ` AND ${NOT_FROM_A_POST}` : ''}`;
   return withTags(db(tree), where, [person], protectLiving);
 }
 
@@ -72,8 +83,9 @@ export function personMedia(tree: string, person: string, protectLiving = false)
  * The stored picture to serve for a gallery key, or undefined: the photo itself, or for `thumb` its small copy when it has
  * one (photos uploaded before migration 0023 have none, and get the photo). The route serves only what this finds.
  */
-export async function pictureFor(tree: string, key: string, thumb: boolean): Promise<{ key: string; mime: string } | undefined> {
-  const row = await db(tree).get<{ mime: string; thumb: string | null }>('SELECT mime, thumb FROM media WHERE key = ?', key);
+export async function pictureFor(tree: string, key: string, thumb: boolean, guest = false): Promise<{ key: string; mime: string } | undefined> {
+  // A guest is not served a picture that came with a post, as if it were not there.
+  const row = await db(tree).get<{ mime: string; thumb: string | null }>(`SELECT m.mime, m.thumb FROM media m WHERE m.key = ?${guest ? ` AND ${NOT_FROM_A_POST}` : ''}`, key);
   if (!row) return undefined;
   // Thumbnails are always made as JPEG by the browser (and checked as a picture on the way in).
   return thumb && row.thumb ? { key: row.thumb, mime: thumbMime(row.thumb) } : { key, mime: row.mime };

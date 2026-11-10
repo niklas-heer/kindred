@@ -83,6 +83,7 @@ export function RemindersDialog({ tree, open, onClose }: { tree: string; open: b
   const [offsetsDraft, setOffsetsDraft] = useState<number[] | null>(null);
   const [kindsDraft, setKindsDraft] = useState<string[] | null>(null);
   const [weeklyDraft, setWeeklyDraft] = useState<boolean | null>(null);
+  const [postsDraft, setPostsDraft] = useState<boolean | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   useEffect(() => {
     if (open) {
@@ -91,6 +92,7 @@ export function RemindersDialog({ tree, open, onClose }: { tree: string; open: b
       setOffsetsDraft(null);
       setKindsDraft(null);
       setWeeklyDraft(null);
+      setPostsDraft(null);
     }
   }, [open]);
 
@@ -114,6 +116,8 @@ export function RemindersDialog({ tree, open, onClose }: { tree: string; open: b
   const kinds = kindsDraft ?? storedKinds;
   // "This week in the family" is off until asked for (history-push.server.ts).
   const weekly = weeklyDraft ?? (status.data?.subscribed ? status.data.weekly : false);
+  // A new message in the family's feed: off until asked for, and gentle (feed/post-push.server.ts).
+  const posts = postsDraft ?? (status.data?.subscribed ? status.data.posts : false);
   const setOffsets = (change: (list: number[]) => number[]) => setOffsetsDraft((draft) => change(draft ?? storedOffsets));
   const setKinds = (change: (list: string[]) => string[]) => setKindsDraft((draft) => change(draft ?? storedKinds));
   // Once the stored choices are read again after a save or turning off, they are the truth and the draft is dropped.
@@ -122,6 +126,7 @@ export function RemindersDialog({ tree, open, onClose }: { tree: string; open: b
     setOffsetsDraft(null);
     setKindsDraft(null);
     setWeeklyDraft(null);
+    setPostsDraft(null);
   };
 
   const subscribed = status.data?.subscribed ?? false;
@@ -147,6 +152,7 @@ export function RemindersDialog({ tree, open, onClose }: { tree: string; open: b
           offsets,
           kinds,
           weekly,
+          posts,
           locale: t.locale,
         },
       });
@@ -235,6 +241,10 @@ export function RemindersDialog({ tree, open, onClose }: { tree: string; open: b
               {t('history.push.toggle')}
             </Switch>
             <p className="acct-help subtle">{t('history.push.toggle_hint')}</p>
+            <Switch checked={posts} onChange={(on) => setPostsDraft(on)} disabled={busy}>
+              {t('feed.push.toggle')}
+            </Switch>
+            <p className="acct-help subtle">{t('feed.push.toggle_hint')}</p>
           </fieldset>
           <ResponsePushSwitch tree={tree} disabled={busy} />
           <div className="reminders-actions">

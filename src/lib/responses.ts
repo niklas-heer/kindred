@@ -1,9 +1,9 @@
-// Reactions and comments on a memory or a gallery photo: the shapes the server and the browser share. Members only; a
-// share-link guest gets none of it (docs/responses.md). Safe to import anywhere.
+// Reactions and comments on a memory, a gallery photo or a post: the shapes the server and the browser share. Members
+// only; a share-link guest gets none of it (docs/responses.md). Safe to import anywhere.
 
-/** What a reaction or a comment is on: a story (its id) or a gallery photo (its media key). */
-export type TargetKind = 'story' | 'media';
-export const TARGET_KINDS = ['story', 'media'] as const satisfies readonly TargetKind[];
+/** What a reaction or a comment is on: a story (its id), a gallery photo (its media key) or a post in the feed (its id). */
+export type TargetKind = 'story' | 'media' | 'post';
+export const TARGET_KINDS = ['story', 'media', 'post'] as const satisfies readonly TargetKind[];
 
 /**
  * The reactions, a small set that means something in a family: a heart, "I remember this", a laugh, a candle for the

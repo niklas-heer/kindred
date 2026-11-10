@@ -69,6 +69,10 @@ export interface PushRow {
   weekly?: number;
   /** The UTC day that weekly push was last claimed for. */
   weekly_sent_day?: string | null;
+  /** 1 when this device wants to hear of a new post in the family's feed (accounts migration 0029, feed/post-push.server.ts). */
+  posts?: number;
+  /** When this device was last told of a post (milliseconds): the claim that keeps it to one in a few hours. */
+  posts_sent_at?: number | null;
 }
 
 /** The device's row for one family, if it has one. */
@@ -97,6 +101,8 @@ export interface Registration {
   locale: Locale;
   /** Also "This week in <family>", once a week when something is new. Off unless asked for. */
   weekly?: boolean;
+  /** Also a new post in the family's feed, at most one push in a few hours. Off unless asked for. */
+  posts?: boolean;
 }
 
 /**
@@ -104,7 +110,7 @@ export interface Registration {
  * person holds at most MAX_DEVICES_PER_PERSON devices. Each rule the check relies on is restated as a guard in the batch,
  * so a racing registration cannot break it. The caller has checked the membership and the endpoint and keys.
  */
-export async function saveRegistration({ user, tree, subscription, choices, locale, weekly = false }: Registration): Promise<void> {
+export async function saveRegistration({ user, tree, subscription, choices, locale, weekly = false, posts = false }: Registration): Promise<void> {
   const { endpoint, keys } = subscription;
   const a = accounts();
   await commit(async () => {
@@ -119,11 +125,12 @@ export async function saveRegistration({ user, tree, subscription, choices, loca
         guard('(SELECT count(DISTINCT endpoint) FROM push_subscription WHERE user = ? AND endpoint <> ?) < ?', user, endpoint, MAX_DEVICES_PER_PERSON),
         guard('EXISTS (SELECT 1 FROM membership WHERE user = ? AND tree = ?)', user, tree),
         q(
-          `INSERT INTO push_subscription (id, user, tree, endpoint, p256dh, auth, offsets, kinds, locale, created, last_seen, weekly)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO push_subscription (id, user, tree, endpoint, p256dh, auth, offsets, kinds, locale, created, last_seen, weekly, posts)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (tree, endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth,
-             offsets = excluded.offsets, kinds = excluded.kinds, locale = excluded.locale, last_seen = excluded.last_seen, weekly = excluded.weekly`,
-          crypto.randomUUID(), user, tree, endpoint, keys.p256dh, keys.auth, JSON.stringify(choices.offsets), JSON.stringify(choices.kinds), locale, stamp, stamp, weekly ? 1 : 0,
+             offsets = excluded.offsets, kinds = excluded.kinds, locale = excluded.locale, last_seen = excluded.last_seen, weekly = excluded.weekly,
+             posts = excluded.posts`,
+          crypto.randomUUID(), user, tree, endpoint, keys.p256dh, keys.auth, JSON.stringify(choices.offsets), JSON.stringify(choices.kinds), locale, stamp, stamp, weekly ? 1 : 0, posts ? 1 : 0,
         ),
       ],
       result: undefined,

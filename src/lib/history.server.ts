@@ -23,7 +23,7 @@ import { guard, q, type Db, type Query } from './store/index.ts';
 import type { Audience, Visibility } from './visibility.ts';
 import {
   HISTORY_FILTERS, isRestorable, type HistoryAction, type HistoryFieldChange, type HistoryFilter, type HistoryItem, type HistoryKind,
-  type HistoryPage, type HistoryValue, type WhatsNew, type WhatsNewGroup, type WhatsNewLine, type WhatsNewReply,
+  type HistoryPage, type HistoryValue, type WhatsNew, type WhatsNewGroup, type WhatsNewLine, type WhatsNewPosts, type WhatsNewReply,
 } from './history.ts';
 
 // ---------- what a plan says ----------
@@ -372,17 +372,19 @@ const NEWS_ROWS = 1000;
 
 /**
  * What changed since `since` that this reader may see, made by someone else, grouped by the person it is about (the family
- * as a whole last), each group's lines one per author, kind and action. Plus comments and reactions on what the reader
- * wrote, when the family has them.
+ * as a whole last), each group's lines one per author, kind and action. Plus who wrote to the family (posts are not in the
+ * history, and are news all the same), and comments and reactions on what the reader wrote, when the family has them.
  */
 export async function whatsNew(d: Db, a: Audience, since: number, first = false): Promise<WhatsNew> {
   const vis = historyVisibleTo(a);
-  const empty: WhatsNew = { since: iso(since), first, groups: [], replies: [], total: 0 };
+  const empty: WhatsNew = { since: iso(since), first, groups: [], replies: [], posts: [], total: 0 };
   if (vis.sql === '0') return empty;
-  const rows = await d.all<StoredRow>(
-    `SELECT * FROM history WHERE ${vis.sql} AND at > ? AND account IS NOT ? ORDER BY id DESC LIMIT ?`,
-    ...vis.params, iso(since), a.account, NEWS_ROWS,
-  );
+  const [historyRows, postRows] = await d.readBatch([
+    q(`SELECT * FROM history WHERE ${vis.sql} AND at > ? AND account IS NOT ? ORDER BY id DESC LIMIT ?`, ...vis.params, iso(since), a.account, NEWS_ROWS),
+    q('SELECT max(author_name) AS author, count(*) AS n FROM post WHERE created_at > ? AND account IS NOT ? GROUP BY account ORDER BY max(created_at) DESC LIMIT 20', iso(since), a.account),
+  ]);
+  const rows = historyRows as unknown as StoredRow[];
+  const posts = (postRows as { author: string; n: number }[]).map((r): WhatsNewPosts => ({ author: r.author, count: r.n }));
   const groups = new Map<string, WhatsNewGroup & { records: Map<string, Set<string>> }>();
   for (const r of rows) {
     const key = r.person ?? '';
@@ -405,30 +407,32 @@ export async function whatsNew(d: Db, a: Audience, since: number, first = false)
     ...empty,
     groups: ordered.map(({ person, name, lines }) => ({ person, name, lines })),
     replies: a.account ? await repliesTo(d, a.account, since) : [],
-    total: rows.length,
+    posts,
+    total: rows.length + posts.reduce((n, p) => n + p.count, 0),
   };
 }
 
 /**
  * Comments and reactions since `since` on what this account wrote: the stories it added (by its history rows, or by its
- * name for stories older than history) and the photos it uploaded. A reader's own comments and reactions are not news
- * to them. `created_at` is ISO text in both tables (tree migration 0027).
+ * name for stories older than history), the photos it uploaded and its posts in the feed. A reader's own comments and
+ * reactions are not news to them. `created_at` is ISO text in both tables (tree migration 0027).
  */
 export async function repliesTo(d: Db, account: string, since: number): Promise<WhatsNewReply[]> {
   const mine = `((x.target_kind = 'media' AND x.target IN (SELECT key FROM media WHERE uploaded_by = ?))
+    OR (x.target_kind = 'post' AND x.target IN (SELECT id FROM post WHERE account = ?))
     OR (x.target_kind = 'story' AND (x.target IN (SELECT id FROM story WHERE author_account = ?)
       OR x.target IN (SELECT record FROM history WHERE kind = 'story' AND action = 'added' AND account = ?))))`;
   const after = iso(since);
   const [comments, reactions] = (await d.readBatch([
     q(`SELECT x.target_kind, x.target, max(x.author_name) AS author, count(*) AS n FROM comment x
        WHERE x.account IS NOT ? AND x.created_at > ? AND ${mine} GROUP BY x.target_kind, x.target LIMIT 50`,
-      account, after, account, account, account),
+      account, after, account, account, account, account),
     q(`SELECT x.target_kind, x.target, count(*) AS n FROM reaction x
        WHERE x.account IS NOT ? AND x.created_at > ? AND ${mine} GROUP BY x.target_kind, x.target LIMIT 50`,
-      account, after, account, account, account),
+      account, after, account, account, account, account),
   ])) as [
-    { target_kind: 'story' | 'media'; target: string; author: string | null; n: number }[],
-    { target_kind: 'story' | 'media'; target: string; n: number }[],
+    { target_kind: WhatsNewReply['target']; target: string; author: string | null; n: number }[],
+    { target_kind: WhatsNewReply['target']; target: string; n: number }[],
   ];
   const out: WhatsNewReply[] = [
     ...comments.map((r): WhatsNewReply => ({ kind: 'comment', target: r.target_kind, id: r.target, label: null, person: null, author: r.author ?? '', count: r.n })),
@@ -437,32 +441,36 @@ export async function repliesTo(d: Db, account: string, since: number): Promise<
   if (!out.length) return out;
   const stories = out.filter((r) => r.target === 'story').map((r) => r.id);
   const photos = out.filter((r) => r.target === 'media').map((r) => r.id);
+  const posts = out.filter((r) => r.target === 'post').map((r) => r.id);
   const marks = (xs: string[]) => xs.map(() => '?').join(', ');
-  const [storyRows, photoRows] = await d.readBatch([
+  const [storyRows, photoRows, postRows] = await d.readBatch([
     q(`SELECT id, person, coalesce(title, '') AS label FROM story WHERE id IN (${marks(stories) || "''"})`, ...stories),
     q(`SELECT key AS id, coalesce(caption, '') AS label FROM media WHERE key IN (${marks(photos) || "''"})`, ...photos),
+    // A post has no title: its first words say which one it is.
+    q(`SELECT id, CASE WHEN length(body) > 60 THEN substr(body, 1, 60) || '…' ELSE body END AS label FROM post WHERE id IN (${marks(posts) || "''"})`, ...posts),
   ]);
   const byStory = new Map((storyRows as { id: string; person: string; label: string }[]).map((r) => [r.id, r]));
   const byPhoto = new Map((photoRows as { id: string; label: string }[]).map((r) => [r.id, r]));
+  const byPost = new Map((postRows as { id: string; label: string }[]).map((r) => [r.id, r]));
+  const found = (r: WhatsNewReply) => (r.target === 'story' ? byStory.get(r.id) : r.target === 'media' ? byPhoto.get(r.id) : byPost.get(r.id));
   for (const r of out) {
-    const s = r.target === 'story' ? byStory.get(r.id) : undefined;
-    const p = r.target === 'media' ? byPhoto.get(r.id) : undefined;
-    r.label = (s?.label || p?.label) || null;
-    r.person = s?.person ?? null;
+    r.label = found(r)?.label.replace(/\s+/g, ' ').trim() || null;
+    r.person = r.target === 'story' ? byStory.get(r.id)?.person ?? null : null;
   }
   // A comment on something since removed is no news.
-  return out.filter((r) => (r.target === 'story' ? byStory.has(r.id) : byPhoto.has(r.id)));
+  return out.filter((r) => !!found(r));
 }
 
-/** How many changes since `after` this reader may see, made by someone else (at most `cap`): the menu's dot. */
+/** How many changes and posts since `after` this reader may see, made by someone else (at most `cap`): the menu's dot. */
 export async function newsCount(d: Db, a: Audience, after: number, cap = 99): Promise<number> {
   const vis = historyVisibleTo(a);
   if (vis.sql === '0') return 0;
   const r = await d.get<{ n: number }>(
-    `SELECT count(*) AS n FROM (SELECT 1 FROM history WHERE ${vis.sql} AND at > ? AND account IS NOT ? LIMIT ?)`,
-    ...vis.params, iso(after), a.account, cap,
+    `SELECT (SELECT count(*) FROM (SELECT 1 FROM history WHERE ${vis.sql} AND at > ? AND account IS NOT ? LIMIT ?))
+       + (SELECT count(*) FROM (SELECT 1 FROM post WHERE created_at > ? AND account IS NOT ? LIMIT ?)) AS n`,
+    ...vis.params, iso(after), a.account, cap, iso(after), a.account, cap,
   );
-  return r?.n ?? 0;
+  return Math.min(r?.n ?? 0, cap);
 }
 
 // ---------- since your last visit (accounts migration 0026) ----------
