@@ -9,25 +9,31 @@ moving to before you upgrade ([docs/self-host.md](docs/self-host.md), "Upgrading
 
 Changes on `main` since 2.0.0. They are not in a release yet.
 
-Database changes: four migrations are new, `accounts/0022_session_credential.sql`, `accounts/0023_share_protect_living.sql`,
-`accounts/0024_join_request.sql` and `tree/0023_photo_thumb.sql`. They add columns and new tables, so they are quick and nothing
-you have is rewritten. On Node they
-`tree/0023_photo_thumb.sql` and `tree/0024_events_sources.sql`. The first three each add one column and the last adds three
-empty tables, so they are quick and nothing you have is rewritten. On Node they
-are applied by themselves when the server starts, after a copy of each database. On Cloudflare, `mise run deploy` applies
-them before the new Worker goes live (`mise run cf:migrate:remote` does the same step alone). Code and migrations roll back
-together: to go back to 2.0.0, restore the copies the server made before the migration and start the old version. An old
-version will not run on a database that has had these migrations.
+Database changes: eleven migrations are new since 2.0.0. In `migrations/accounts`:
 
-`tree/0025_campaign.sql` adds the Campaign's own five tables and changes none that exist. `tree/0028_today.sql` adds five
-tables for the Today page and changes none that exist.
+- `0022_session_credential.sql` records which passkey started a session, so removing a passkey signs that device out.
+- `0023_share_protect_living.sql` adds the per-link "protect living people" switch (off for links that already exist).
+- `0024_join_request.sql` adds the "Guests may ask to join" switch (on for every link) and the tables for join requests,
+  the aggregated guest visit and the sign-up ceremony in progress.
+- `0025_session_proof.sql` adds when a session last confirmed with a passkey, and the `confirm` purpose to the challenge table.
+- `0026_family_visit.sql` adds the table behind "since your last visit" and two columns for the weekly push on reminder devices.
 
-`tree/0026_history.sql` adds the change history's table, empty: changes made before it are not in the history.
-`accounts/0026_family_visit.sql` adds a table for "since your last visit" and two columns to the reminder devices.
-`tree/0027_reactions_comments.sql` adds three empty tables for reactions and comments and one column to `story`.
+In `migrations/tree`:
+
+- `0023_photo_thumb.sql` adds a column for a gallery photograph's small copy.
+- `0024_events_sources.sql` adds the tables for life events, sources and citations.
+- `0025_campaign.sql` adds the Campaign's five tables.
+- `0026_history.sql` adds the change history table, empty: changes made before it are not in the history.
+- `0027_reactions_comments.sql` adds the tables for reactions, comments and the answer push, and one column on `story`.
+- `0028_today.sql` adds the five tables for the Today page and the daily quiz.
+
+Every one adds columns or new tables and changes no row you have, so they are quick. On Node they are applied by themselves
+when the server starts, after a copy of each database. On Cloudflare, `mise run deploy` applies them before the new Worker
+goes live (`mise run cf:migrate:remote` does the same step alone). Code and migrations roll back together: to go back to
+2.0.0, restore the copies the server made before the migration and start the old version. An old version will not run on a
+database that has had these migrations.
 
 ### Added
-
 - **Print: charts and a family book.** A new Print page (the account menu, and a Print button on every person) makes an
   ancestor chart (four to six generations, with each house's shield), a descendant chart (two to six generations, with
   partners) and a family book: a cover with the family's arms, the contents, a section for each house, every person with
@@ -38,7 +44,6 @@ tables for the Today page and changes none that exist.
   pages to expect and is laid out a batch of people at a time, so a family of 1,600 does not stall the browser. For members
   only. Living people are printed by name and place in the family only unless you switch "Living people in full" on, and
   the paper says which it was.
-
 - Managing families: a steward (or the server's first account) can make another family on the new Families page (name,
   address, tagline, theme), change a family's details, and delete a family after downloading its export, typing its address and
   confirming with a passkey. Deleting removes its database, its pictures and every accounts row that names it. On Cloudflare the
@@ -53,7 +58,6 @@ tables for the Today page and changes none that exist.
   a steward can ask their own or skip a week), a daily quiz made from the family's records with a streak and a monthly
   table of houses (a steward can switch it off under Games), the week's birthdays and anniversaries, and one nudge from
   the Needed page. A reader can make it the page the family opens on. Members only. See [docs/today.md](docs/today.md).
-
 - Ask to join: a guest of a family's share link can ask for an account of their own, with a passkey. A steward sees the request
   on the Access page (with an approximate place, the device family and how the link was used), gets a badge and a push, and
   approves it with a role or declines it. Requests end after 30 days; a link holds at most 10. Each link has a "Guests may ask to
@@ -90,7 +94,6 @@ tables for the Today page and changes none that exist.
   on Chronicle entries and gallery tiles. The writer of a memory or the one who shared a photo can turn on a push about
   answers (at most one a day) in the Reminders dialog. Share-link guests see none of it. The Markdown archive now has the
   stories, with their comments, in `memories/`. See [docs/responses.md](docs/responses.md).
-
 - Setting `KINDRED_TRUSTED_PROXIES`: how many reverse proxies stand in front of the Node server. `compose.yaml` passes it
   on and the HTTPS steps set it to 1.
 - Removing a passkey now signs out the devices that signed in with it. The passkeys dialog has "Sign out everywhere else".
@@ -106,7 +109,6 @@ tables for the Today page and changes none that exist.
 - Arrow keys walk the tree and say where you are to a screen reader; the person panel is named, and on a phone it is a dialog.
 - Search lists your nearest relatives first among equal matches.
 - Design rounds one and two: people are larger, every word is readable, the tree opens on the person and the toolbar hangs from the top bar.
-
 - A share link can protect living people, and every new link does: a guest sees their name, face and place in the tree, and
   none of their dates, places, details, stories or photo tags. Links you already made are not changed. The Access page shows
   each link's protection and switches it on or off (accounts migration 0023).
@@ -119,10 +121,10 @@ tables for the Today page and changes none that exist.
   easy to tell apart.
 - A ready-made multi-arch image (amd64 and arm64) is published to `ghcr.io/niklas-heer/kindred` when a version is tagged, and
   `docs/self-host.md` shows the short way to run it. The pipeline also starts the Docker image and checks `/api/health`.
-- `mise run screenshots` retakes the README pictures from the two invented families.
+- `mise run screenshots` retakes the README pictures from the two invented families: the tree, a person, Today, the Campaign, the
+  family book, a house, the Atlas, the arms designer and the phone. It runs the server on a fixed clock, so the pictures repeat.
 
 ### Changed
-
 - Text follows the text size set in the browser: font sizes in the stylesheets are in `rem` instead of `px`, so a reader who has chosen a larger default text size gets larger text. At the default size nothing looks different. The tree's cards and the Print page keep fixed sizes.
 - Relationships reach further through marriages: a spouse's sibling's spouse and a sibling's spouse's sibling (German
   Schwippschwager, Schwippschwägerin), a step-parent's parents and siblings, a grandparent's later spouse (step-grandparents and
@@ -131,7 +133,6 @@ tables for the Today page and changes none that exist.
 - Navigation: the top bar shows Today, Tree, Almanac, Chronicle and Atlas (and the Campaign while it is on) and keeps the
   Register, Houses, Contacts, Needed, the Gallery and Research under "More", so every section shown keeps its name at
   tablet width. On a phone the tab bar starts with Today, and the Atlas moved into More.
-
 - The Node server runs in production mode unless you set `NODE_ENV` yourself.
 - Pages and the family graph are smaller and quicker to load: absent fields are left out, the families list reads only what the
   reader's families need, and the account count is not checked on every request once an account exists.
@@ -155,9 +156,7 @@ tables for the Today page and changes none that exist.
   first entries draw their faces into the page; the rest are drawn as soon as it has loaded, in the same frame.
 
 ### Fixed
-
 - Backing up and restoring: the commands in `docs/self-host.md` and `docs/deploy-cloudflare.md` were run for the first time and corrected where they failed. A D1 export now restores with one extra line that moves the `guard` view first (loading it as it was stopped with `no such table: main.guard`), restoring to a new D1 database says to bind it in `wrangler.jsonc` first, going back after an upgrade has its commands, and Docker to Node, Node to Docker and Cloudflare to Node each have a tested procedure.
-
 - Red "delete" buttons are readable in every theme (white on the old red was below the AA contrast in Codex and Night).
 - On a phone, the Needed page's kinship wraps instead of running under "Fill in", and the "More" sheet's hints stay inside it in German.
 - A GEDCOM file with a few thousand partnerships no longer fails to import because two of them were given the same new id.
@@ -180,7 +179,6 @@ tables for the Today page and changes none that exist.
   to phone numbers, e-mail and names are told apart, and every control on the account menu shows where the focus is.
 
 ### Security
-
 - The Content-Security-Policy is now enforced, not report-only. Every response also carries a Cross-Origin-Opener-Policy and a
   Permissions-Policy, and private pages are marked `Cache-Control: private, no-store`.
 - Behind a reverse proxy, the limits on signing in, share links and invitations now count each visitor's own address instead of

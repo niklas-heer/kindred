@@ -86,6 +86,11 @@ account. A guest's pictures go through the same checks, and they need the guest'
   addresses, every 15 minutes. The count is in the database, so it holds across Workers and across restarts.
 - **The visit.** A guest's cookie lasts 12 hours and never outlives the link; then the password is asked for again.
   Replacing or turning off the link ends every visit at once, and so does the link's own expiry.
+- **What is kept about a guest.** The visit's cookie says which link it came from and when it ends; no account, name or address
+  is stored for it. The family's statistics count it as one anonymous visit (never when the family has them off, or when the
+  browser sends Do Not Track or Global Privacy Control). Only where a guest may ask to join, one more cookie, `kindred_visitor`,
+  lets the server keep a few totals of how that browser used the link (see below), and a guest who sends a request adds what
+  the form showed them. Nothing is kept of what a guest typed in a search or of which pages they opened one by one.
 - **Revoke or replace at any time.** Turning a link off ends it. Replacing it makes a new URL and password; the old ones stop
   working. The expiry can be 1 day, a week, 30 or 90 days, or none.
 - **Protect living people.** On by default for every new link, and switchable on the Access page at any time without replacing
@@ -137,7 +142,7 @@ form shows exactly what the stewards will receive.
 
 **How the link was used.** Only where a request is possible, a guest's visit is measured per browser: a random cookie, stored
 only as a hash, with first and last seen, the number of visits, minutes active, a counter per section, and a small tally of the
-people opened (the 20 opened most). There is no page log and no address. A browser with Do Not Track or Global Privacy Control
+people opened (the 20 opened most; the card shows five). The browser's cookie lasts 90 days. There is no page log and no address. A browser with Do Not Track or Global Privacy Control
 is not measured, and nothing is measured while the family's statistics are off. The password page and the request form say so.
 These figures are shown to stewards only inside a request, as a copy taken when it was sent (which the form showed first); the
 rows go when the link is replaced or turned off, and 90 days after the last visit.
@@ -331,7 +336,7 @@ A steward can see how the family uses Kindred on the family's Statistics page, a
 
 **How long:** the browser sends a small report about every 30 seconds and when the page is left. There is no log of individual events, only daily counters, which are deleted after three years.
 
-**Off and opt-out:** turning collection off stops all counting and deletes the markers at once; the anonymous daily totals stay. A browser set to Do Not Track or Global Privacy Control is not counted at all.
+**Off and opt-out:** turning collection off stops all counting, including the measuring of a guest's use of a share link, and deletes the markers at once; the anonymous daily totals stay. A browser set to Do Not Track or Global Privacy Control is not counted at all.
 
 ## Today
 

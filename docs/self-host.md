@@ -628,6 +628,21 @@ If the server stops in the middle of making or deleting a family, do it again: a
 no people and no members is finished by making it again, and a deletion that stopped is finished by deleting again (or forgotten
 when a new family takes the address).
 
+## Today, the games and talking to each other
+
+These need no setup beyond the daily job. The games' own state is in no export (an answer to the question of the week is an
+ordinary memory, so it is). A steward switches the Campaign and the daily
+quiz on or off under **Games** in the account menu; the Campaign is off until then.
+
+- **Today** is the page a relative opens each day: the question of the week, the daily quiz, what is new and the week's
+  birthdays. See [today.md](today.md).
+- **The Campaign** is a slow game between the family's houses. Its nights are played by the daily job, or when someone next
+  opens the page if `KINDRED_JOBS=off`. See [campaign.md](campaign.md).
+- **Reactions and comments** on memories and photographs, and the opt-in pushes about them, use the same VAPID keys as the
+  reminders. See [responses.md](responses.md).
+- **The change history** and the weekly "This week in the family" push are in [roles-and-privacy.md](roles-and-privacy.md#change-history-and-whats-new);
+  `KINDRED_HISTORY_YEARS` sets how long the history is kept.
+
 ## A public demo
 
 `KINDRED_DEMO=1` turns a server into a public showcase of the two invented families (the Realm of Aurelmarch and the modern family

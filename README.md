@@ -4,14 +4,61 @@
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 [![Latest release](https://img.shields.io/github/v/release/niklas-heer/kindred)](https://github.com/niklas-heer/kindred/releases)
 
-A family tree your whole family can share, with the stories, photographs and places that go with it.
+Kindred is a family tree that a whole family shares, with the stories, photographs and places that go with it. You run it
+yourself, each family lives in its own database, and you can take it with you whenever you like.
 
 ![The Dynasty view of an invented medieval realm: generations of portrait cards under house shields, a minimap of the whole tree, and the person panel beside it.](docs/images/tree.webp)
 
 In most families, one person keeps the records, in a folder or a program nobody else can open. Kindred puts them somewhere
 everyone can reach. Relatives can find themselves, see how they are related to the great-aunt in the old photograph, and
-add what they remember: a saying, a recipe, the name of the village. You run it yourself, each family lives in its own
-database, and you can take it with you whenever you like.
+add what they remember: a saying, a recipe, the name of the village.
+
+## Why a family comes back
+
+A tree gets one look. These are the parts meant to be opened again next week.
+
+**Today** is the first page of every family. It shows what is new since your last visit, the week's birthdays and wedding
+anniversaries, and two things to do.
+
+![Today for an invented family: what is new, the question of the week with two answers, a quiz that has been answered, the week's birthdays, the Campaign and one small thing to fill in.](docs/images/today.webp)
+
+- **The question of the week.** One question for the whole family ("What did the kitchen of your childhood look like?"),
+  chosen from sixty written for the purpose, in English, German and Afrikaans. A relative answers in a few sentences, about
+  themselves or about anyone in the tree, and the answer is kept as a memory in the Chronicle.
+- **The daily quiz.** "Do you know your family?" asks one question a day made from the family's own records: whose shield
+  this is, who this is, who someone's parents were, where someone was born, who came first. Everyone gets the same question, you
+  get one try, and it keeps a streak. It never asks about a cause of death.
+- **The Campaign.** A slow game between the family's houses on a map made from the family's own places, with orders, dice and
+  battle cries, and a season of 28 days. A house whose people are well recorded raises more troops, so the game rewards
+  the research and tells you what to add. It never changes the family's records, and a steward switches it on.
+- **Talking to each other.** Members answer a memory or a photograph with a heart, a laugh or a candle, and contributors can
+  comment. The one who wrote it sees the replies under "What's new", and can choose a push notification about them.
+
+![The Campaign in the fourth day of a season: four houses and their troops, a map of provinces under their shields, and an attack ready to send with a battle cry.](docs/images/campaign.webp)
+
+[docs/today.md](docs/today.md), [docs/campaign.md](docs/campaign.md) and [docs/responses.md](docs/responses.md) have the rules.
+A guest of a share link sees none of this. A guest can, however, ask for an account of their own, and the stewards decide.
+
+## What a researcher gets
+
+A person's page holds their life on a timeline, their relatives, what has been written about them, and a drawn portrait you can adjust.
+
+![A person's page: a drawn portrait, a life timeline with schooling, a graduation, a marriage, births and a cremation, closest family, a memory, and the places on a map.](docs/images/person.webp)
+
+- **Life events.** Baptism, schooling, service, moves, burial and more (or an event of your own), each with a date, a place and a
+  note, in order on the timeline with births, partnerships and death. Places appear in the Atlas.
+- **Sources.** The family's registers, letters, books and web pages are listed once and cited for a birth, a death, a name, an event,
+  a partnership or a parent link, with the page, how good the source is and a short transcription. Cited facts carry a small mark,
+  and the Needed page lists births that have none.
+- **History.** Every change to the records is kept with who made it and what it was before. A History page filters by person, kind
+  and author, and an editor can put an earlier name, date, place or biography back. Private details leave no content in it.
+- **GEDCOM and a Markdown archive.** Export and import carry events and sources, and Kindred's own export comes back unchanged.
+- **Print.** An ancestor chart, a descendant chart or a family book: a cover with the family's arms, a section for each house, a page
+  for every person with their life, memories and sources, and a register of names at the back. A4 or Letter. Your browser prints it
+  or saves it as a PDF, and nothing is made on the server.
+- **Research** gathers one question, such as where a branch came from, with its documents, pictures, notes, people and places on one timeline.
+
+![A page of the printed family book in the Print page's preview: Olof Sjöberg with portrait, parents, children, a life timeline and memories.](docs/images/book.webp)
 
 ## Finding your way around the family
 
@@ -22,15 +69,9 @@ where you are in it.
 
 Press ⌘K or `/` to find anyone by name, nickname, title or house, and each result says how they are related to you. A lens
 dims everyone except a direct line, a house, the living, or the path between two people. On a phone the person panel becomes
-a drawer under the tree and the sections move to a tab bar.
+a drawer under the tree, and the sections move to a tab bar that starts with Today.
 
-<img src="docs/images/phone.webp" alt="The tree on a phone: a family of cards around one person, with a drawer for the person below and a tab bar." width="260">
-
-A person's page holds their life on a timeline, their relatives, what has been written about them, and a **portrait**. Each
-person gets a drawn portrait you can adjust. With AI switched on, it can start from a photo, or be painted in a style the
-family shares.
-
-![A person's page: a drawn portrait, the life on a timeline, closest family, a memory, and the places on a map.](docs/images/person.webp)
+<img src="docs/images/phone.webp" alt="Today on a phone: what is new and the question of the week, with a tab bar for Today, Tree, Almanac, Chronicle and More." width="260">
 
 ## Houses and their arms
 
@@ -50,9 +91,6 @@ whether the arms suit that meaning and suggest new designs.
 - The **Almanac** keeps birthdays, anniversaries and memorial days, for your calendar or as reminders on your devices, next to an
   address book grouped by household.
 - **Needed** is the to-do list of what is still missing, nearest relatives first, one question at a time if you like.
-- **Print** makes an ancestor chart, a descendant chart or a family book with the arms on the cover, a page of names at the
-  back and every person between, on A4 or Letter. Your browser prints it or saves it as a PDF.
-- **Research** gathers one question, such as where a branch came from, with its documents, pictures, notes, people and places on one timeline.
 
 ![The Atlas: a map of Europe with the places an invented modern family was born, and a slider to replay them through the years.](docs/images/atlas.webp)
 
@@ -69,7 +107,7 @@ budget, $5 by default. [docs/ai.md](docs/ai.md) says exactly what is sent where.
 
 Everyone signs in with a **passkey**, so there are no passwords to forget. If you already manage people in Cloudflare, you can make Cloudflare Access the only sign-in instead: one method per installation, [your choice](docs/self-host.md#choosing-how-people-sign-in).
 A member is a viewer, contributor, editor or steward, and the server checks every change. A person's fields and notes have three levels: personal (only the
-account that added them), editors, or the whole family. A relative who doesn't want an account can have a read-only **share link**, protected by a password by default, that by default shows living people only by name, face and place in the tree.
+account that added them), editors, or the whole family. A relative who doesn't want an account can have a read-only **share link**, protected by a password by default, that by default shows living people only by name, face and place in the tree. A guest can ask the stewards for an account of their own from it; to show the stewards how the link was used, a guest's visit is counted in a few totals, never with a page log or an address, and not at all under Do Not Track.
 
 New members are offered a short **tour**. Stewards get counts-only **statistics**, which never hold names or what anyone
 wrote and can be turned off, and a **feedback** inbox that stays inside the family's own Kindred. The app comes in English,
@@ -110,6 +148,9 @@ Pick how people sign in with `KINDRED_AUTH`. `kindred` (the default) is Kindred'
 - **Node**, without a container: `mise run build:node && mise run start`, on Node 26.
 - **Cloudflare**, with Workers, D1 and R2 and no server to look after: see [docs/deploy-cloudflare.md](docs/deploy-cloudflare.md).
 
+A steward can make more families, or delete one, on the Families page. `KINDRED_DEMO=1` runs a read-only demo of the invented
+families that anyone can open without signing in ([docs/self-host.md](docs/self-host.md#a-public-demo)).
+
 ## Your data is yours
 
 Every family is one database you can read: a SQLite file on Node, a D1 database on Cloudflare. Editors and stewards can export
@@ -126,6 +167,7 @@ Exports leave some things out, so back up the databases and pictures as well.
 - [Roles and privacy](docs/roles-and-privacy.md)
 - [Today](docs/today.md): the question of the week and the daily quiz
 - [The Campaign](docs/campaign.md): a game between the family's houses, and how it runs
+- [Reactions and comments](docs/responses.md): answering memories and photographs
 - [GEDCOM and the Markdown archive](docs/exchange.md)
 - [The data model](docs/data-model.md)
 - [Changelog](CHANGELOG.md), [release notes for 2.0.0](docs/releases/v2.0.0.md) and [moving from v1](docs/migration-plan.md)
