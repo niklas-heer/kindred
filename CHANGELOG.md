@@ -9,7 +9,7 @@ moving to before you upgrade ([docs/self-host.md](docs/self-host.md), "Upgrading
 
 Changes on `main` since 2.0.0. They are not in a release yet.
 
-Database changes: eleven migrations are new since 2.0.0. In `migrations/accounts`:
+Database changes: twelve migrations are new since 2.0.0. In `migrations/accounts`:
 
 - `0022_session_credential.sql` records which passkey started a session, so removing a passkey signs that device out.
 - `0023_share_protect_living.sql` adds the per-link "protect living people" switch (off for links that already exist).
@@ -17,6 +17,7 @@ Database changes: eleven migrations are new since 2.0.0. In `migrations/accounts
   the aggregated guest visit and the sign-up ceremony in progress.
 - `0025_session_proof.sql` adds when a session last confirmed with a passkey, and the `confirm` purpose to the challenge table.
 - `0026_family_visit.sql` adds the table behind "since your last visit" and two columns for the weekly push on reminder devices.
+- `0027_join_network.sql` adds a column that counts open requests to join from one network.
 
 In `migrations/tree`:
 
@@ -60,7 +61,7 @@ database that has had these migrations.
   the Needed page. A reader can make it the page the family opens on. Members only. See [docs/today.md](docs/today.md).
 - Ask to join: a guest of a family's share link can ask for an account of their own, with a passkey. A steward sees the request
   on the Access page (with an approximate place, the device family and how the link was used), gets a badge and a push, and
-  approves it with a role or declines it. Requests end after 30 days; a link holds at most 10. Each link has a "Guests may ask to
+  approves it with a role or declines it. Requests end after 30 days; a link holds at most 40, one home 12 and one visit one. Each link has a "Guests may ask to
   join" switch, on by default. To show how the link was used, a guest's visit is now measured per browser as a few totals
   (never with Do Not Track or Global Privacy Control); see docs/roles-and-privacy.md. Kindred sign-in only.
 - Life events: baptisms, schooling, service, moves, burials and more (or a custom event), each with a date and an end, a

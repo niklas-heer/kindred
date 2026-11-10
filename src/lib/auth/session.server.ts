@@ -94,7 +94,8 @@ export function guestCookies(request: Request, token: string, expires: number): 
   ];
 }
 
-const guestToken = (request: Request) => {
+/** The token of this browser's guest visit (the share session's cookie), if it holds one. */
+export const guestToken = (request: Request) => {
   const t = readCookie(request, guestCookieName(request));
   return t && GUEST_TOKEN.test(t) ? t : undefined;
 };

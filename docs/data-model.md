@@ -133,6 +133,7 @@ code (`mise run deploy` migrates before it deploys), so it must not break the re
 | `0024_join_request.sql` | `share_link.ask_to_join` (on for every link), `join_request`, `guest_visitor` and `join_challenge`: a guest asking for an own account, and how a guest browser used the link. |
 | `0025_session_proof.sql` | `session.proved`: when the session last confirmed with a passkey (the reader verified), which adding a passkey and "sign out everywhere else" need within five minutes. `challenge` is made again to allow the purpose `confirm`. |
 | `0026_family_visit.sql` | `family_visit`, for "since your last visit", and `push_subscription.weekly` and `weekly_sent_day`, for "This week in the family". |
+| `0027_join_network.sql` | `join_request.network`: a short hash of the link and the network a request came from, so one home holds at most 12 open requests per link. |
 
 ### Tables
 
@@ -164,9 +165,11 @@ code (`mise run deploy` migrates before it deploys), so it must not break the re
   no membership and cannot sign in while the request is `open`), `browser` (the hash of the asking browser's cookie), `visitor`
   (the hash of its visitor cookie), `status` (`open` or `approved`), and what the stewards read: `name`, `person` (null: not in the
   tree yet), `message`, `city`, `region`, `country` (from Cloudflare's request data, never an address), `time_zone`, `language`,
-  `device` (the family only) and `usage` (a JSON copy of the usage when it was sent). Approving clears all of those; the row then
-  waits for the first sign-in. A declined or expired request is deleted with its account and passkey; `expires` is 30 days.
-- **`guest_visitor`** (0024): one guest browser's use of one link, keyed by the hash of a random cookie and the link: `first_seen`,
+  `device` (the family only), `usage` (a JSON copy of the usage when it was sent) and `network` (0027: 18 bits of a hash of the
+  link and the network, an IPv4 address or an IPv6 /64, which stand for thousands of addresses; it counts the open requests from
+  one home). Approving clears all of those; the row then waits for the first sign-in. A declined or expired request is deleted with its account and passkey; `expires` is 30 days.
+- **`guest_visitor`** (0024): one guest browser's use of one link, keyed by the hash of its visitor cookie and the link (the cookie
+  is derived from the guest's visit, so a visit makes one row at most; at most 500 per link, the one idle longest goes first): `first_seen`,
   `last_seen`, `visits`, `active_seconds`, `sections` (JSON counts per section name from the statistics' fixed list) and `people`
   (JSON counts of the 20 people opened most). Deleted when the link is replaced or turned off, and 90 days after the last visit.
 - **`join_challenge`** (0024): a request's passkey ceremony in progress, with what the guest typed, for five minutes.

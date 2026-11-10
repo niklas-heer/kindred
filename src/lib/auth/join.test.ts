@@ -2,6 +2,7 @@
 // the limits, a steward's answer, expiry, the per-link switch, the push to stewards, and the measured guest visit. The real server
 // code against scratch databases; only the framework around it (who is asking, createServerFn) and the passkey check are replaced.
 import assert from 'node:assert/strict';
+import { randomBytes } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -71,8 +72,14 @@ const asMember = () => { g.__signedIn = { id: MEMBER, name: 'member' }; g.__gues
 
 let link: { id: string };
 const guestOf = (l: { id: string } = link, tree = TREE) => ({ link: l.id, tree, expires: Date.now() + 3_600_000, protectLiving: true });
-const req = (cookies: Record<string, string> = {}, extra: Record<string, string> = {}, url = 'http://localhost/joining') =>
-  new Request(url, { headers: { 'user-agent': IPHONE, ...(Object.keys(cookies).length ? { cookie: Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join('; ') } : {}), ...extra } });
+/** A new guest visit's cookie token (the share session's), as the password page gives it. */
+const visit = () => randomBytes(32).toString('base64url');
+/** A guest browser's request: a fresh visit unless the cookies name one. */
+const req = (cookies: Record<string, string> = {}, extra: Record<string, string> = {}, url = 'http://localhost/joining') => {
+  const all = { kindred_guest: visit(), ...cookies };
+  return new Request(url, { headers: { 'user-agent': IPHONE, cookie: Object.entries(all).map(([k, v]) => `${k}=${v}`).join('; '), ...extra } });
+};
+const rules = await load<typeof import('./join-rules.ts')>('/src/lib/auth/join-rules.ts');
 
 let credentialSeq = 0;
 const fakeVerify = async () => ({ id: `cred-${++credentialSeq}`, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ['internal'], synced: false });
@@ -195,31 +202,71 @@ test('a pending account reaches nothing a guest could not already read', async (
   assert.equal(reader.protectLiving, true);
 });
 
-test('one browser sends one request: by its request cookie, and by its visitor cookie', async () => {
-  const first = await ask({ cookies: { kindred_visitor: 'V'.repeat(43) } });
-  await assert.rejects(ask({ cookies: first.cookies }), (e: Error) => e.message === 'join.err_already');
-  await assert.rejects(ask({ cookies: { kindred_visitor: 'V'.repeat(43) } }), (e: Error) => e.message === 'join.err_already');
+test('one browser sends one request: by its request cookie, by its visit, and by its visitor cookie', async () => {
+  const here = visit();
+  const first = await ask({ cookies: { kindred_guest: here } });
+  await assert.rejects(ask({ cookies: { ...first.cookies, kindred_guest: visit() } }), (e: Error) => e.message === 'join.err_already');
+  await assert.rejects(ask({ cookies: { kindred_guest: here } }), (e: Error) => e.message === 'join.err_already', 'dropping the request cookie does not help in the same visit');
+  // A visitor cookie the link knows counts in any later visit; one the browser made up is no visitor at all.
+  const elsewhere = visit();
+  const set = await j.recordGuestUsage(req({ kindred_guest: elsewhere }), guestOf(), batch(), { active: 10, people: [] });
+  const known = set!.split(';')[0].split('=')[1];
+  await ask({ cookies: { kindred_guest: elsewhere, kindred_visitor: 'V'.repeat(43) } });
+  await assert.rejects(ask({ cookies: { kindred_visitor: known } }), (e: Error) => e.message === 'join.err_already');
   const state = await j.joinState(req(first.cookies), { user: null, guest: guestOf() }, TREE);
   assert.equal(state.request?.status, 'open', 'the browser sees its request waiting');
   assert.equal(state.available, false);
 });
 
-test('a link holds at most ten open requests, also when they race', async () => {
-  for (let i = 0; i < 9; i++) await ask({ name: `Guest ${i}`, ip: `192.0.2.${i}` });
-  // Two browsers start at nine; both finish: only one fits.
+test(`a link holds at most ${rules.MAX_OPEN_PER_LINK} open requests, also when they race`, async () => {
+  const max = rules.MAX_OPEN_PER_LINK;
+  for (let i = 0; i < max - 1; i++) await ask({ name: `Guest ${i}`, ip: `192.0.2.${i}` });
+  // Two browsers start one below the limit; both finish: only one fits.
   const session = { user: null, guest: guestOf() };
-  const a = await j.joinOptions(req(), session, TREE, { name: 'A', person: null }, '192.0.2.100');
-  const b = await j.joinOptions(req(), session, TREE, { name: 'B', person: null }, '192.0.2.101');
+  const a = await j.joinOptions(req(), session, TREE, { name: 'A', person: null }, '198.18.0.100');
+  const b = await j.joinOptions(req(), session, TREE, { name: 'B', person: null }, '198.18.0.101');
   await j.finishJoin(req(), session, a.challengeId, {} as never, fakeVerify);
   await assert.rejects(j.finishJoin(req(), session, b.challengeId, {} as never, fakeVerify), (e: Error) => e.message === 'join.err_full');
-  await assert.rejects(ask({ ip: '192.0.2.102' }), (e: Error) => e.message === 'join.err_full');
-  assert.equal((await store.accounts().get<{ n: number }>("SELECT count(*) AS n FROM join_request WHERE status = 'open'"))!.n, 10);
-  assert.equal((await store.accounts().get<{ n: number }>('SELECT count(*) AS n FROM user'))!.n, 12, 'the refused one left no account behind');
+  await assert.rejects(ask({ ip: '198.18.0.102' }), (e: Error) => e.message === 'join.err_full');
+  assert.equal((await store.accounts().get<{ n: number }>("SELECT count(*) AS n FROM join_request WHERE status = 'open'"))!.n, max);
+  assert.equal((await store.accounts().get<{ n: number }>('SELECT count(*) AS n FROM user'))!.n, max + 2, 'the refused one left no account behind');
+});
+
+test('a family of twelve can ask from one home on one evening; one person clearing cookies stops there, and cannot fill the link from two homes', async () => {
+  const n = rules.MAX_OPEN_PER_NETWORK;
+  assert.ok(n >= 12 && rules.JOINS_PER_IP >= 12, 'twelve fit in one window from one address');
+  for (let i = 0; i < n; i++) await ask({ name: `Cousin ${i}`, ip: '203.0.113.7' });
+  await assert.rejects(ask({ ip: '203.0.113.7' }), (e: Error) => e.message === 'join.err_network');
+  // IPv6: every address in the home's /64 is the same home.
+  for (let i = 0; i < n; i++) await ask({ name: `Nephew ${i}`, ip: `2001:db8:5:7::${i + 1}` });
+  await assert.rejects(ask({ ip: '2001:db8:5:7:ffff::9' }), (e: Error) => e.message === 'join.err_network');
+  assert.ok(2 * n < rules.MAX_OPEN_PER_LINK, 'two homes leave room for the family');
+  await ask({ name: 'Real relative', ip: '198.51.100.200' });
+  // The check holds when the ceremony finishes too, and approving clears what was kept of the network and makes room for the next.
+  const rows = await store.accounts().all<{ network: string | null }>("SELECT network FROM join_request WHERE status = 'open'");
+  assert.equal(new Set(rows.map((r) => r.network)).size, 3);
+  assert.ok(rows.every((r) => r.network && r.network.length === 3 && !r.network.includes('203')), 'a short hash, not the address');
+  asSteward();
+  const r = (await fns.fetchJoinRequests({ data: { tree: TREE } })).requests.find((x) => x.name === 'Cousin 0')!;
+  await fns.approveJoinRequest({ data: { tree: TREE, id: r.id, role: 'viewer', person: null } });
+  assert.equal((await store.accounts().get<{ network: string | null }>('SELECT network FROM join_request WHERE id = ?', r.id))!.network, null);
+  await ask({ name: 'Cousin again', ip: '203.0.113.7' });
+});
+
+test('the network is also checked as the ceremony finishes', async () => {
+  const n = rules.MAX_OPEN_PER_NETWORK;
+  const session = { user: null, guest: guestOf() };
+  for (let i = 0; i < n - 1; i++) await ask({ name: `Cousin ${i}`, ip: '203.0.113.8' });
+  const a = await j.joinOptions(req(), session, TREE, { name: 'A', person: null }, '203.0.113.8');
+  const b = await j.joinOptions(req(), session, TREE, { name: 'B', person: null }, '203.0.113.8');
+  await j.finishJoin(req(), session, a.challengeId, {} as never, fakeVerify);
+  await assert.rejects(j.finishJoin(req(), session, b.challengeId, {} as never, fakeVerify));
+  assert.equal((await store.accounts().get<{ n: number }>("SELECT count(*) AS n FROM join_request WHERE status = 'open'"))!.n, n);
 });
 
 test('starting requests is limited per address in the database, like the password tries', async () => {
   const session = { user: null, guest: guestOf() };
-  for (let i = 0; i < 5; i++) await j.joinOptions(req(), session, TREE, { name: 'X', person: null }, '203.0.113.50');
+  for (let i = 0; i < rules.JOINS_PER_IP; i++) await j.joinOptions(req(), session, TREE, { name: 'X', person: null }, '203.0.113.50');
   await assert.rejects(j.joinOptions(req(), session, TREE, { name: 'X', person: null }, '203.0.113.50'), (e: Error & { code?: string }) => e.message === 'join.err_slow' && e.code === 'throttled');
   await j.joinOptions(req(), session, TREE, { name: 'X', person: null }, '203.0.113.51');
   const rows = await store.accounts().all<{ key: string }>('SELECT key FROM share_attempt');
@@ -368,6 +415,33 @@ test('a guest browser’s use of the link is kept as totals under a hashed cooki
   const asked = await ask({ cookies: { kindred_visitor: token } });
   const row = (await rowOf(asked.token))!;
   assert.deepEqual(JSON.parse(row.usage!), preview.usage, 'the stewards get exactly what the preview showed');
+});
+
+test('a visit makes one usage row at most, whatever cookies the browser sends or leaves out', async () => {
+  const here = visit();
+  const count = async () => (await store.accounts().get<{ n: number }>('SELECT count(*) AS n FROM guest_visitor'))!.n;
+  const cookie = await j.recordGuestUsage(req({ kindred_guest: here }), guestOf(), batch(), { active: 5, people: [] });
+  assert.ok(cookie);
+  for (let i = 0; i < 5; i++) await j.recordGuestUsage(req({ kindred_guest: here }), guestOf(), batch(), { active: 5, people: [] });
+  for (let i = 0; i < 5; i++) await j.recordGuestUsage(req({ kindred_guest: here, kindred_visitor: visit() }), guestOf(), batch(), { active: 5, people: [] });
+  assert.equal(await count(), 1, 'no cookie and invented cookies are the same visitor');
+  assert.equal((await store.accounts().get<{ visits: number }>('SELECT visits FROM guest_visitor'))!.visits, 11);
+  // Without a visit there is nobody to count.
+  const bare = new Request('http://localhost/joining', { headers: { 'user-agent': IPHONE } });
+  assert.equal(await j.recordGuestUsage(bare, guestOf(), batch(), { active: 5, people: [] }), undefined);
+  assert.equal(await count(), 1);
+});
+
+test(`a link keeps the usage of ${rules.MAX_VISITORS_PER_LINK} browsers at most, dropping those idle longest`, async () => {
+  const max = rules.MAX_VISITORS_PER_LINK;
+  const t = Date.now() - DAY;
+  await store.accounts().batch(Array.from({ length: max }, (_, i) =>
+    store.q('INSERT INTO guest_visitor (hash, link, tree, first_seen, last_seen) VALUES (?, ?, ?, ?, ?)', `old-${i}`, link.id, TREE, t, t + i)));
+  await j.recordGuestUsage(req(), guestOf(), batch(), { active: 5, people: [] });
+  const rows = await store.accounts().all<{ hash: string }>('SELECT hash FROM guest_visitor WHERE link = ?', link.id);
+  assert.equal(rows.length, max);
+  assert.ok(!rows.some((r) => r.hash === 'old-0'), 'the one idle longest went');
+  assert.ok(rows.some((r) => r.hash === 'old-1'));
 });
 
 test('Do Not Track, Global Privacy Control, statistics off and a closed door mean nothing is measured', async () => {

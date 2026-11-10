@@ -5,12 +5,37 @@ import { ROUTES, type RouteName } from '../stats/shared.ts';
 
 /** How long a request waits for a steward. */
 export const REQUEST_DAYS = 30;
-/** The most open requests one link may hold at once. */
-export const MAX_OPEN_PER_LINK = 10;
-/** Requests one address may start through one link in one window (the window of the password tries). */
-export const JOINS_PER_IP = 5;
+/**
+ * The most open requests one link may hold at once: a bound on pending accounts, set well above what one network may hold
+ * (MAX_OPEN_PER_NETWORK), so one person with two or three connections cannot fill it and lock the family out for 30 days.
+ */
+export const MAX_OPEN_PER_LINK = 40;
+/**
+ * The most open requests from one network (an IPv4 address, or an IPv6 /64) through one link: a family of twelve at home can all
+ * ask on the same evening, and one person who keeps clearing the browser's cookies stops there until a steward answers.
+ */
+export const MAX_OPEN_PER_NETWORK = 12;
+/** Requests one address may start through one link in one window (the window of the password tries), retries included. */
+export const JOINS_PER_IP = 20;
 /** How long a guest browser's usage is kept after its last visit. */
 export const VISITOR_KEEP_DAYS = 90;
+/** The most guest browsers whose usage one link keeps; a new one pushes out the one idle longest. */
+export const MAX_VISITORS_PER_LINK = 500;
+
+/**
+ * The network an address belongs to, for counting requests from one home: an IPv4 address as it is, an IPv6 address cut to its
+ * /64 (a home gets a /64 and every device picks addresses in it). Anything else is returned as it is.
+ */
+export function networkOf(ip: string): string {
+  const a = ip.trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/%.*$/, '');
+  if (!a.includes(':')) return a;
+  if (/^::ffff:\d+\.\d+\.\d+\.\d+$/.test(a)) return a.slice(7);
+  const [head, tail] = a.split('::');
+  const left = head ? head.split(':') : [];
+  const right = tail !== undefined && tail ? tail.split(':') : [];
+  const groups = tail === undefined ? left : [...left, ...Array(Math.max(0, 8 - left.length - right.length)).fill('0'), ...right];
+  return `${groups.slice(0, 4).map((x) => x.replace(/^0+(?=.)/, '')).join(':')}::/64`;
+}
 /** The longest message a guest may add. */
 export const MAX_MESSAGE = 500;
 /** People kept in a visitor's tally, and how many a steward is shown. */

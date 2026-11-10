@@ -133,15 +133,18 @@ form shows exactly what the stewards will receive.
   for the person the steward confirms, changes or clears; a named person counts as confirmed. It works even after the link
   ended or was replaced. Their passkey then signs them in, and the details of the request are cleared at once. Declining
   deletes the request, the pending account and its passkey.
-- **Limits.** A request ends by itself after 30 days, and its account and passkey go with it. A link holds at most 10 open
-  requests, and starting one is limited per address (5 per link in 15 minutes, counted in the database like the password
+- **Limits.** A request ends by itself after 30 days, and its account and passkey go with it. One guest visit (and one browser)
+  sends one request. One network, an address or an IPv6 /64 such as a home, holds at most 12 open requests per link, so a family
+  can ask together while one person who keeps clearing the browser stops there; the request keeps 18 bits of a hash of the
+  network for this, which name no address. A link holds at most 40 open requests, so one person with two or three connections
+  cannot fill it. Starting one is limited per address too (20 per link in 15 minutes, counted in the database like the password
   tries, the address hashed).
 - **The switch.** "Guests may ask to join" is on by default for every link, existing ones included, and a steward can turn it
   off on the Access page; requests already sent stay.
 - **The guest host** (`KINDRED_GUEST_ORIGIN`) and Cloudflare Access installations offer no request: the guest host has no sign-in.
 
-**How the link was used.** Only where a request is possible, a guest's visit is measured per browser: a random cookie, stored
-only as a hash, with first and last seen, the number of visits, minutes active, a counter per section, and a small tally of the
+**How the link was used.** Only where a request is possible, a guest's visit is measured per browser: a cookie made from the
+guest's visit, stored only as a hash (one per visit, whatever the browser sends; at most 500 browsers per link, the one idle longest goes first), with first and last seen, the number of visits, minutes active, a counter per section, and a small tally of the
 people opened (the 20 opened most; the card shows five). The browser's cookie lasts 90 days. There is no page log and no address. A browser with Do Not Track or Global Privacy Control
 is not measured, and nothing is measured while the family's statistics are off. The password page and the request form say so.
 These figures are shown to stewards only inside a request, as a copy taken when it was sent (which the form showed first); the

@@ -23,13 +23,14 @@ import { pushServiceAllowed, sendPush, type VapidConfig } from '../webpush.ts';
 import { trustedProxies } from './client-address.ts';
 import { AuthError } from './errors.ts';
 import {
-  addUsage, cleanLanguage, cleanMessage, cleanTimeZone, deviceFamily, JOINS_PER_IP, MAX_OPEN_PER_LINK, parseUsage, placeOf, REQUEST_DAYS, usageOf, VISITOR_KEEP_DAYS,
+  addUsage, cleanLanguage, cleanMessage, cleanTimeZone, deviceFamily, JOINS_PER_IP, MAX_OPEN_PER_LINK, MAX_OPEN_PER_NETWORK, MAX_VISITORS_PER_LINK, networkOf, parseUsage, placeOf,
+  REQUEST_DAYS, usageOf, VISITOR_KEEP_DAYS,
   type Place, type Usage, type UsageRow,
 } from './join-rules.ts';
 import { authMethod } from './method.server.ts';
 import { onGuestHost, publicOrigin } from './origin.ts';
 import { cleanName, deviceName, relyingParty } from './passkeys.server.ts';
-import { readCookie, guestChoice, type Session } from './session.server.ts';
+import { readCookie, guestChoice, guestToken, type Session } from './session.server.ts';
 import { ATTEMPT_WINDOW_MS, BUMP_ATTEMPT_SQL, linkOpen, shareLinkOf, type GuestSession, type ShareLinkRow } from './share.server.ts';
 import { accounts, commit, credentialById, guard, insertCredential, newUser, now, q, upsertMembership } from './store.server.ts';
 import { hashToken, randomToken } from './tokens.server.ts';
@@ -78,6 +79,7 @@ export interface JoinRequestRow {
   id: string; tree: string; link: string; user: string; browser: string; visitor: string | null; status: 'open' | 'approved';
   name: string; person: string | null; message: string | null; city: string | null; region: string | null; country: string | null;
   time_zone: string | null; language: string | null; device: string | null; usage: string | null; created: number; expires: number;
+  network: string | null;
 }
 
 /** The request this browser sent, if it still exists (open, unexpired, or approved and not yet used). */
@@ -91,6 +93,41 @@ export async function requestOfBrowser(request: Request): Promise<JoinRequestRow
 /** Open requests a link holds now. */
 const openCount = async (link: string) =>
   (await accounts().get<{ n: number }>("SELECT count(*) AS n FROM join_request WHERE link = ? AND status = 'open' AND expires > ?", link, now()))!.n;
+
+/**
+ * What a request keeps of the network it came from, to count requests from one home: 18 bits of a hash of the link and the
+ * network (networkOf), so the stored value narrows nothing down to an address (each value stands for some 16,000 IPv4 addresses).
+ * Two homes may share a value; they then share the limit, which is far above one family's needs.
+ */
+export async function networkKey(link: string, ip: string): Promise<string> {
+  return (await hashToken('share-ip', `join:${link}:${networkOf(ip)}`)).slice(0, 3);
+}
+
+/** Open requests a link holds now from one network (networkKey). */
+const openFromNetwork = async (link: string, network: string) =>
+  (await accounts().get<{ n: number }>("SELECT count(*) AS n FROM join_request WHERE link = ? AND network = ? AND status = 'open' AND expires > ?", link, network, now()))!.n;
+
+/**
+ * Which visitor this browser is for a link: its visitor cookie when the link already knows that browser, and otherwise one derived
+ * from the guest's visit (the share session's own cookie, which the server made). A browser that drops its cookies or invents one
+ * is still one visitor per visit, so it can neither make a new usage row with every report nor send a new request each time.
+ * Undefined without a visit. `fresh` when the browser should be given the cookie.
+ */
+async function visitorOf(request: Request, link: string): Promise<{ token: string; hash: string; row: UsageRow | undefined; fresh: boolean } | undefined> {
+  const read = async (token: string) => {
+    const hash = await hashToken('visitor', token);
+    return { token, hash, row: await accounts().get<UsageRow>('SELECT * FROM guest_visitor WHERE hash = ? AND link = ?', hash, link) };
+  };
+  const own = tokenIn(request, VISITOR_COOKIE);
+  if (own) {
+    const known = await read(own);
+    if (known.row) return { ...known, fresh: false };
+  }
+  const visit = guestToken(request);
+  if (!visit) return undefined;
+  const derived = await read(await hashToken('visitor', `visit:${visit}`));
+  return { ...derived, fresh: derived.token !== own };
+}
 
 /** Open requests for a family: they count among what waits for a steward (the account menu's badge). */
 export const openJoinCount = async (tree: string) =>
@@ -115,8 +152,8 @@ async function checkCanAsk(request: Request, session: Pick<Session, 'user' | 'gu
   const link = await shareLinkOf(tree);
   if (!joinPossible(request, guest, link)) throw refuse('join.err_unavailable');
   if (await requestOfBrowser(request)) throw refuse('join.err_already');
-  const visitor = tokenIn(request, VISITOR_COOKIE);
-  if (visitor && (await accounts().get("SELECT 1 FROM join_request WHERE visitor = ? AND link = ? AND status = 'open' AND expires > ?", await hashToken('visitor', visitor), link.id, now()))) {
+  const visitor = (await visitorOf(request, link.id))?.hash;
+  if (visitor && (await accounts().get("SELECT 1 FROM join_request WHERE visitor = ? AND link = ? AND status = 'open' AND expires > ?", visitor, link.id, now()))) {
     throw refuse('join.err_already');
   }
   if ((await openCount(link.id)) >= MAX_OPEN_PER_LINK) throw refuse('join.err_full');
@@ -133,9 +170,9 @@ async function spendJoinTry(link: string, ip: string): Promise<boolean> {
 }
 
 export interface JoinInput { name: unknown; person: string | null; message?: unknown; timeZone?: unknown; language?: unknown }
-interface Payload { tree: string; link: string; handle: string; name: string; person: string | null; message: string | null; timeZone: string | null; language: string | null }
+interface Payload { tree: string; link: string; handle: string; network: string; name: string; person: string | null; message: string | null; timeZone: string | null; language: string | null }
 
-async function cleanInput(tree: string, input: JoinInput): Promise<Omit<Payload, 'tree' | 'link' | 'handle'>> {
+async function cleanInput(tree: string, input: JoinInput): Promise<Omit<Payload, 'tree' | 'link' | 'handle' | 'network'>> {
   const name = cleanName(input.name);
   const person = input.person && input.person !== '-' ? input.person : null;
   if (person && !(await db(tree).get('SELECT id FROM person WHERE id = ?', person))) throw refuse('join.err_person');
@@ -146,6 +183,8 @@ async function cleanInput(tree: string, input: JoinInput): Promise<Omit<Payload,
 export async function joinOptions(request: Request, session: Pick<Session, 'user' | 'guest'>, tree: string, input: JoinInput, ip: string) {
   const { link } = await checkCanAsk(request, session, tree);
   const clean = await cleanInput(tree, input);
+  const network = await networkKey(link.id, ip);
+  if ((await openFromNetwork(link.id, network)) >= MAX_OPEN_PER_NETWORK) throw refuse('join.err_network');
   if (!(await spendJoinTry(link.id, ip))) throw new AuthError('throttled', 'join.err_slow');
   const handle = isoBase64URL.fromBuffer(crypto.getRandomValues(new Uint8Array(32)));
   const { rpID } = relyingParty(request);
@@ -155,7 +194,7 @@ export async function joinOptions(request: Request, session: Pick<Session, 'user
     authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' },
   });
   const id = randomToken(24);
-  const payload: Payload = { tree, link: link.id, handle, ...clean };
+  const payload: Payload = { tree, link: link.id, handle, network, ...clean };
   await accounts().batch([
     q('DELETE FROM join_challenge WHERE expires < ?', now()),
     q('INSERT INTO join_challenge (id, challenge, payload, expires) VALUES (?, ?, ?, ?)', id, options.challenge, JSON.stringify(payload), now() + CHALLENGE_MS),
@@ -187,11 +226,8 @@ function context(request: Request) {
 }
 
 async function visitorUsage(request: Request, link: string): Promise<{ hash: string | null; usage: Usage | null }> {
-  const token = tokenIn(request, VISITOR_COOKIE);
-  if (!token) return { hash: null, usage: null };
-  const hash = await hashToken('visitor', token);
-  const row = await accounts().get<UsageRow>('SELECT * FROM guest_visitor WHERE hash = ? AND link = ?', hash, link);
-  return { hash, usage: row ? usageOf(row) : null };
+  const v = await visitorOf(request, link);
+  return { hash: v?.hash ?? null, usage: v?.row ? usageOf(v.row) : null };
 }
 
 /** What the form shows before sending: exactly what the stewards will receive, apart from what the guest types. */
@@ -229,11 +265,12 @@ export async function finishJoin(
       guard('EXISTS (SELECT 1 FROM share_link WHERE id = ? AND tree = ? AND ask_to_join = 1 AND (expires IS NULL OR expires > ?))', link.id, p.tree, t),
       guard("(SELECT count(*) FROM join_request WHERE link = ? AND status = 'open' AND expires > ?) < ?", link.id, t, MAX_OPEN_PER_LINK),
       ...(visitor ? [guard("NOT EXISTS (SELECT 1 FROM join_request WHERE visitor = ? AND link = ? AND status = 'open' AND expires > ?)", visitor, link.id, t)] : []),
+      ...(p.network ? [guard("(SELECT count(*) FROM join_request WHERE link = ? AND network = ? AND status = 'open' AND expires > ?) < ?", link.id, p.network, t, MAX_OPEN_PER_NETWORK)] : []),
       insert,
       insertCredential({ ...cred, user: user.id, device: deviceName(request) }),
-      q(`INSERT INTO join_request (id, tree, link, user, browser, visitor, status, name, person, message, city, region, country, time_zone, language, device, usage, created, expires)
-         VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        crypto.randomUUID(), p.tree, link.id, user.id, browser, visitor, p.name, p.person, p.message, place?.city ?? null, place?.region ?? null, place?.country ?? null,
+      q(`INSERT INTO join_request (id, tree, link, user, browser, visitor, network, status, name, person, message, city, region, country, time_zone, language, device, usage, created, expires)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        crypto.randomUUID(), p.tree, link.id, user.id, browser, visitor, p.network ?? null, p.name, p.person, p.message, place?.city ?? null, place?.region ?? null, place?.country ?? null,
         p.timeZone, p.language, device, usage ? JSON.stringify(usage) : null, t, t + REQUEST_DAYS * DAY),
     ];
     return {
@@ -299,7 +336,7 @@ export async function approveJoinRequest(i: { tree: string; id: string; role: Ro
     const t = now();
     const writes: Query[] = [
       guard("EXISTS (SELECT 1 FROM join_request WHERE id = ? AND status = 'open' AND expires > ?)", r.id, t),
-      q(`UPDATE join_request SET status = 'approved', visitor = NULL, person = NULL, message = NULL, city = NULL, region = NULL, country = NULL,
+      q(`UPDATE join_request SET status = 'approved', visitor = NULL, network = NULL, person = NULL, message = NULL, city = NULL, region = NULL, country = NULL,
            time_zone = NULL, language = NULL, device = NULL, usage = NULL, expires = ? WHERE id = ?`, t + REQUEST_DAYS * DAY, r.id),
       upsertMembership(r.user, i.tree, i.role),
     ];
@@ -384,20 +421,21 @@ export async function recordGuestUsage(
   if (!(await isCollecting(guest.tree))) return undefined;
   const views = batch.views ?? {};
   if (!batch.visit && !Object.keys(views).length && !extras.active && !extras.people.length) return undefined;
-  let token = tokenIn(request, VISITOR_COOKIE);
-  let setCookie: string | undefined;
-  if (!token) {
-    token = randomToken(32);
-    setCookie = cookie(request, VISITOR_COOKIE, token, VISITOR_KEEP_DAYS * 86_400);
-  }
-  const hash = await hashToken('visitor', token);
-  const row = await accounts().get<UsageRow>('SELECT * FROM guest_visitor WHERE hash = ? AND link = ?', hash, link.id);
+  const v = await visitorOf(request, link.id);
+  if (!v) return undefined;
+  const { hash, row } = v;
   const next = addUsage(row, { visit: !!batch.visit || !row, views, active: extras.active, people: extras.people });
-  await accounts().run(
+  const upsert = q(
     `INSERT INTO guest_visitor (hash, link, tree, first_seen, last_seen, visits, active_seconds, sections, people) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (hash, link) DO UPDATE SET last_seen = excluded.last_seen, visits = excluded.visits, active_seconds = excluded.active_seconds,
        sections = excluded.sections, people = excluded.people`,
     hash, link.id, guest.tree, row?.first_seen ?? t, t, next.visits, next.active_seconds, next.sections, next.people,
   );
-  return setCookie;
+  // A new browser for the link: keep at most MAX_VISITORS_PER_LINK, dropping those idle longest.
+  const trim = q(
+    `DELETE FROM guest_visitor WHERE link = ? AND hash IN (SELECT hash FROM guest_visitor WHERE link = ? ORDER BY last_seen DESC, hash LIMIT -1 OFFSET ?)`,
+    link.id, link.id, MAX_VISITORS_PER_LINK,
+  );
+  await accounts().batch(row ? [upsert] : [upsert, trim]);
+  return v.fresh ? cookie(request, VISITOR_COOKIE, v.token, VISITOR_KEEP_DAYS * 86_400) : undefined;
 }
