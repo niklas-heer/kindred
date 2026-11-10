@@ -44,6 +44,12 @@
 .who { display: grid; }
 .who-item.exact { background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 2px 0 0 var(--accent); }
 .who-item > div { flex: 1; min-width: 0; }
+.who-item .who-kin { display: block; }
+.who-confirm { display: grid; gap: 12px; }
+.who-confirm .who-label { margin: 0; }
+.who-sure { cursor: default; }
+.who-confirm-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.who-confirm-actions .btn { min-height: 44px; }
 .who-exact {
   flex: none; font-style: normal; font-family: var(--font-ui); font-size: var(--fs-1); color: var(--accent);
   padding: 2px 8px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);

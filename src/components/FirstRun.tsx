@@ -148,6 +148,15 @@ export function WhoChooser({ f, tree, onChoose, name, autoFocus, busy }: { f: Fa
 /** Search for yourself, or pick from the living people around the tree's starting point. */
 export function WhoPicker({ f, tree, onChoose, autoFocus, initialQuery }: { f: Family; tree: string; onChoose: (id: string) => void; autoFocus?: boolean; initialQuery?: string }) {
   const t = useT();
+  // A tap only proposes a person: two Frejas born a year apart look alike in a list, and the answer sticks.
+  const [pending, setPending] = useState<string | null>(null);
+  const kin = (id: string) => {
+    const names = parents(f, id).map((x) => f.byId.get(x)).filter((x): x is NonNullable<typeof x> => !!x).map((x) => displayName(x, f));
+    if (!names.length) return '';
+    let joined = names.join(', ');
+    try { joined = new Intl.ListFormat(t.locale, { style: 'long', type: 'conjunction' }).format(names); } catch { /* the plain list will do */ }
+    return t('firstrun.who_child_of', { names: joined });
+  };
   const [q, setQ] = useState(initialQuery?.trim() ?? '');
   const results = useMemo(() => {
     const ids = searchPeople(f, q, 8).map((r) => r.id);
@@ -164,6 +173,27 @@ export function WhoPicker({ f, tree, onChoose, autoFocus, initialQuery }: { f: F
   const list = searching ? results : suggested;
   const selectedOnce = useRef(false);
 
+  if (pending && f.byId.get(pending)) {
+    const p = f.byId.get(pending)!;
+    return (
+      <div className="who-confirm" role="group" aria-labelledby="who-confirm-q">
+        <p id="who-confirm-q" className="who-label">{t('firstrun.who_confirm')}</p>
+        <div className="who-item exact who-sure">
+          <Portrait person={p} tree={tree} size={44} frame={false} />
+          <div>
+            <b>{displayName(p, f)}</b>
+            <span>{lifespan(p, t.locale) || (p.living ? t('firstrun.living') : '')}</span>
+            {kin(pending) && <span className="who-kin">{kin(pending)}</span>}
+          </div>
+        </div>
+        <div className="who-confirm-actions">
+          <button className="btn" onClick={() => setPending(null)} autoFocus>{t('firstrun.who_back')}</button>
+          <button className="btn primary" onClick={() => onChoose(pending)}>{t('firstrun.who_yes')}</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="who-search">
@@ -176,7 +206,7 @@ export function WhoPicker({ f, tree, onChoose, autoFocus, initialQuery }: { f: F
           onChange={(e) => setQ(e.target.value)}
           // The prefilled name is selected, so typing another replaces it.
           onFocus={(e) => { if (!selectedOnce.current && initialQuery) { selectedOnce.current = true; e.target.select(); } }}
-          onKeyDown={(e) => { if (e.key === 'Enter' && list[0]) { e.preventDefault(); onChoose(list[0]); } }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && list[0]) { e.preventDefault(); setPending(list[0]); } }}
           placeholder={t("firstrun.your_name")}
           aria-label={t("firstrun.search_for_yourself_by_name")}
           aria-controls="who-list"
@@ -190,11 +220,12 @@ export function WhoPicker({ f, tree, onChoose, autoFocus, initialQuery }: { f: F
           const exact = exactName(f, id, q);
           return (
             <li key={id}>
-              <button className={`who-item${exact ? ' exact' : ''}`} onClick={() => onChoose(id)}>
+              <button className={`who-item${exact ? ' exact' : ''}`} onClick={() => setPending(id)}>
                 <Portrait person={p} tree={tree} size={38} frame={false} />
                 <div>
                   <b>{displayName(p, f)}</b>
                   <span>{lifespan(p, t.locale) || (p.living ? t('firstrun.living') : '')}</span>
+                  {kin(id) && <span className="who-kin">{kin(id)}</span>}
                 </div>
                 {exact && <em className="who-exact">{t("firstrun.your_name")}</em>}
               </button>
