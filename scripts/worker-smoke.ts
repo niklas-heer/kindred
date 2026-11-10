@@ -307,6 +307,14 @@ async function demoChecks(config: string, tree: string) {
     check(/script-src 'self' 'nonce-/.test(page.headers.get('content-security-policy') ?? '') && page.headers.get('cache-control') === 'private, no-store', 'demo: the page keeps its Content-Security-Policy and no-store');
     check(page.headers.get('set-cookie') === null, 'demo: no cookie is set');
 
+    // Today, with the family's feed: its page of reads runs on D1 (one batch over posts, stories, media, history and the
+    // Campaign's seasons), and a demo's visitor is told why they cannot write.
+    const today = await fetch(`${base}/${tree}/today`, { redirect: 'manual' });
+    const todayHtml = await today.text();
+    check(today.status === 200 && todayHtml.includes('From the family'), `demo: /${tree}/today renders with the feed (got ${today.status})`);
+    check(!todayHtml.includes('could not be loaded') && (todayHtml.includes('It is quiet here, for now') || todayHtml.includes('chr-item') || todayHtml.includes('fd-quiet')), 'demo: the feed was read from D1 (its entries, or its empty state)');
+    check(todayHtml.includes('This is a demo, so nothing can be changed or saved here.') && !todayHtml.includes('fd-compose-prompt'), 'demo: the feed offers nothing to write with, and says why');
+
     const post = (path: string, body: object, headers: Record<string, string> = {}) =>
       fetch(`${base}${path}`, { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/json', 'Sec-Fetch-Site': 'same-origin', Origin: base, ...headers }, body: JSON.stringify(body) });
     const signin = await post('/api/auth/signin-options', {});
