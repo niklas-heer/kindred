@@ -12,6 +12,7 @@
 //   missed nights in order, and the same nights always come out the same (the regents draw from the season's seed).
 import { accounts } from '../auth/store.server.ts';
 import { db, guard, NOT_A_RECORD, once, q, type Db, type Query } from '../db.server.ts';
+import { readOnly } from '../read-only.ts';
 import type { House } from '../types.ts';
 import {
   RULES, addLevy, applyOrder, buildMap, endDay, levyOf, ordersOn, provinceCount, provincesOf, standings, startState, troopsOf, validState,
@@ -555,7 +556,8 @@ export async function campaignView(tree: string, who: Who, now: Date = new Date(
     const { fame, laurels } = await hallOfFame(d);
     return { view: { enabled: false, board: await draftBoard(tree, laurels), fame }, fallen: [] };
   }
-  const fallen = await advance(tree, now);
+  // A demo and a steward's preview store nothing: the season is shown as it was last played (src/lib/read-only.ts).
+  const fallen = readOnly() ? [] : await advance(tree, now);
   const c = (await campaignRow(d))!;
   const s = await loadSeason(d, c.season);
   if (!s) throw new Error('campaign.err.try_again');

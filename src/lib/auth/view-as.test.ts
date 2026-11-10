@@ -79,6 +79,7 @@ const join_ = await load<typeof import('./join.functions.ts')>('/src/lib/auth/jo
 const ai = await load<typeof import('../ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
 const historyServer = await load<typeof import('../history.server.ts')>('/src/lib/history.server.ts');
 const readOnly = await load<typeof import('../read-only.ts')>('/src/lib/read-only.ts');
+const campaign = await load<typeof import('../campaign/campaign.functions.ts')>('/src/lib/campaign/campaign.functions.ts');
 
 const TREE = 'viewing';
 const OTHER = 'elsewhere';
@@ -412,6 +413,30 @@ test('a preview leaves no trace: no visit, no news mark, no quiz draw, no statis
   await stop();
   assert.deepEqual(await snapshot(), was);
   assert.equal(await rows('SELECT last_seen AS n FROM user WHERE id = ?', MEMBER), memberSeen, 'the member was not seen');
+});
+
+test('the Campaign opens in a preview and plays no night', async () => {
+  steward(null);
+  await campaign.setCampaignOn({ data: { tree: TREE, on: true } });
+  const d = dbs.db(TREE);
+  // Three nights have passed since anyone opened the game: a member's visit would play them.
+  await d.run('UPDATE campaign_season SET started = started - 3');
+  const stored = async () => JSON.stringify(await d.all('SELECT * FROM campaign_season')) + (await d.get<{ n: number }>('SELECT count(*) AS n FROM campaign_log'))!.n;
+  const was = await stored();
+  for (const choice of [{ kind: 'member', member: MEMBER }, { kind: 'role', role: 'viewer' }] as const) {
+    await start(choice);
+    steward();
+    const view = await campaign.getCampaign({ data: { tree: TREE } });
+    assert.equal(view.enabled, true, 'the page shows the season as it was last played');
+    assert.equal(await stored(), was, 'no night was played');
+    steward();
+    await assert.rejects(campaign.markCampaignSeen({ data: { tree: TREE, upTo: 1 } }), refusedAsPreview);
+    await stop();
+  }
+  steward(null);
+  await campaign.getCampaign({ data: { tree: TREE } });
+  assert.notEqual(await stored(), was, 'the steward’s own visit plays the nights');
+  await campaign.setCampaignOn({ data: { tree: TREE, on: false } });
 });
 
 // ---------- rule 5: the role and the person, not the account ----------

@@ -107,9 +107,11 @@ function Live({ view, tree, help, startPractice }: { view: CampaignView; tree: s
   // What changed since the last visit stays marked for this visit, though the server is told at once that it was seen.
   const [changed] = useState(() => new Set(view.changed ?? []));
   const newest = view.log?.[0]?.id ?? 0;
+  // A preview marks nothing as seen: it leaves no trace, and the refusal would show a notice nobody asked for.
+  const previewing = !!useSession()?.viewAs;
   useEffect(() => {
-    if (newest > 0) void markCampaignSeen({ data: { tree, upTo: newest } }).catch(() => {});
-  }, [tree, newest]);
+    if (newest > 0 && !previewing) void markCampaignSeen({ data: { tree, upTo: newest } }).catch(() => {});
+  }, [tree, newest, previewing]);
 
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: campaignQuery(tree).queryKey }), qc.invalidateQueries({ queryKey: campaignStatusQuery(tree).queryKey })]);
   const order = useMutation({ mutationFn: (v: { order: Order; cry: string | null }) => giveCampaignOrder({ data: { tree, opKey: newOpKey(), order: v.order, cry: v.cry } }) });
