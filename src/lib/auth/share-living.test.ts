@@ -191,6 +191,8 @@ const ANSWERS_A_GUEST = new Set([
   'getGraph', 'getChronicle', 'getContacts', 'getPersonDetail', 'getResearchProjects', 'getResearchProject', 'getPersonResearch',
   'getHouseMeanings', 'getHouseTranslations', 'getHouseSettings', 'storyTranslations', 'getGallery', 'getPersonPhotos', 'aiStatus',
   'fetchSession', 'fetchMyFamilies', 'fetchInvite', 'fetchShareEntry', 'openShareLink', 'leaveGuestVisit', 'fetchRemindersAvailable', 'forgetThisDevice',
+  // "Ask to join": a guest's own request and what it would send, never another person's data (join.test.ts).
+  'fetchJoinState', 'fetchJoinPreview', 'joinOptions', 'sendJoinRequest',
 ]);
 
 /** Asks every server function as a guest, once about the child and once about her research, and returns what answered. */

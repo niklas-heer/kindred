@@ -159,7 +159,7 @@ test('a visitor learns nothing about the family from the link alone', async () =
   const made = await makeLink();
   asNobody();
   const entry = await fns.fetchShareEntry({ data: { token: made.token } });
-  assert.deepEqual(entry, { status: 'open', password: true });
+  assert.deepEqual(entry, { status: 'open', password: true, measured: true });
   assert.ok(!JSON.stringify(entry).includes(TREE), 'no family id or name before the password');
   const wrongToken = await fns.fetchShareEntry({ data: { token: 'A'.repeat(43) } });
   assert.deepEqual(wrongToken, { status: 'closed' }, 'an unknown link and a dead link look the same');
@@ -190,7 +190,7 @@ test('a steward can choose no password, and only then does the URL alone open it
   const made = await makeLink(false);
   assert.equal(made.password, null);
   asNobody();
-  assert.deepEqual(await fns.fetchShareEntry({ data: { token: made.token } }), { status: 'open', password: false });
+  assert.deepEqual(await fns.fetchShareEntry({ data: { token: made.token } }), { status: 'open', password: false, measured: true });
   const opened = await openAs(made.token, undefined);
   assert.deepEqual(opened.result, { status: 'ok', tree: TREE });
 });
@@ -314,7 +314,11 @@ const GUEST_READS = new Set([
   'getHouseMeanings', 'getHouseTranslations', 'getHouseSettings', 'storyTranslations', 'getGallery', 'getPersonPhotos', 'aiStatus',
 ]);
 /** Open to anyone: they check who is asking themselves, or hold nothing of a family's. */
-const OPEN = new Set(['fetchSession', 'fetchMyFamilies', 'fetchInvite', 'fetchShareEntry', 'openShareLink', 'leaveGuestVisit', 'fetchRemindersAvailable', 'forgetThisDevice']);
+const OPEN = new Set([
+  'fetchSession', 'fetchMyFamilies', 'fetchInvite', 'fetchShareEntry', 'openShareLink', 'leaveGuestVisit', 'fetchRemindersAvailable', 'forgetThisDevice',
+  // "Ask to join" is for guests by design; it gives them nothing to read but their own request (join.test.ts holds its rules).
+  'fetchJoinState', 'fetchJoinPreview', 'joinOptions', 'sendJoinRequest',
+]);
 /** Everything a handler might read before its guard, so a failure can only be the guard's. */
 const DATA = { tree: TREE, id: 'ada', person: 'ada', personId: 'ada', key: 'k', house: 'h', mediaKey: 'gallery/x.jpg', locale: 'en', format: 'gedcom', name: 'x', text: 'x', user: STEWARD, role: 'viewer', confirm: true, token: 'x', endpoint: 'https://x/y', opKey: 'abcdefgh', people: [], links: [], places: [], items: [], photos: [], title: 'x', body: 'x', project: 'p1' };
 
@@ -560,7 +564,7 @@ test('malformed tokens are refused before they count; tokens in the right shape 
     assert.deepEqual(await fns.openShareLink({ data: { token: 'junk' } }), { status: 'closed' });
     assert.deepEqual(await fns.fetchShareEntry({ data: { token: 'junk' } }), { status: 'closed' });
   }
-  assert.deepEqual(await fns.fetchShareEntry({ data: { token: made.token } }), { status: 'open', password: true });
+  assert.deepEqual(await fns.fetchShareEntry({ data: { token: made.token } }), { status: 'open', password: true, measured: true });
   g.__setCookies = [];
   assert.equal((await fns.openShareLink({ data: { token: made.token, password: made.password! } })).status, 'ok');
   resetLimits();

@@ -1,4 +1,5 @@
 import { localizeTitle, useT } from '~/lib/i18n';
+import { errorText } from '~/lib/errortext';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { KeyRound, LogOut } from 'lucide-react';
@@ -57,7 +58,7 @@ function PasskeySignIn() {
       // A full load, so nothing from before signing in stays in memory.
       window.location.assign(safeNext(next));
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("signin.signing_in_didn_t_work_please_try_again"));
+      setError(e instanceof Error ? errorText(e, t.locale) : t("signin.signing_in_didn_t_work_please_try_again"));
       setBusy(false);
     }
   };

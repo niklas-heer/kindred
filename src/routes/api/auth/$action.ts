@@ -62,6 +62,9 @@ export const Route = createFileRoute('/api/auth/$action')({
               return json(await p.signInOptions(request));
             case 'signin': {
               const { user, credential, verified } = await p.finishSignIn(request, body.challengeId, body.response);
+              // A guest's account that a steward has not let in yet starts no session (src/lib/auth/join.server.ts).
+              const allowed = await (await import('~/lib/auth/join.server')).signInAllowed(user);
+              if (allowed !== 'ok') throw new AuthError('invalid', allowed === 'pending' ? 'join.err_signin_pending' : 'join.err_signin_expired');
               return json({ ok: true }, 200, await s.startSession(request, user, credential, verified));
             }
             case 'add-options':

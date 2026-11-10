@@ -19,6 +19,7 @@ import * as feedbackArea from "./areas/feedback.ts";
 import * as fieldsArea from "./areas/fields.ts";
 import * as heraldryArea from "./areas/heraldry.ts";
 import * as housesArea from "./areas/houses.ts";
+import * as joinArea from "./areas/join.ts";
 import * as neededArea from "./areas/needed.ts";
 import * as panelArea from "./areas/panel.ts";
 import * as photosArea from "./areas/photos.ts";
@@ -62,6 +63,7 @@ export const AREAS = [
   neededArea,
   accessArea,
   shareArea,
+  joinArea,
   setupArea,
   remindersArea,
   researchArea,

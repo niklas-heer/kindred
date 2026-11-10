@@ -116,6 +116,7 @@ code (`mise run deploy` migrates before it deploys), so it must not break the re
 | `0021_ai_turn.sql` | `ai_turn`: one running reply per chat, as a lease. |
 | `0022_session_credential.sql` | `session.credential`: the passkey that started a session, so removing that passkey signs its device out (null for older sessions). |
 | `0023_share_protect_living.sql` | `share_link.protect_living`: whether the link's guests get living people reduced to their names, faces and place in the tree. 0 for links that already existed; Kindred sets it for every new link unless the steward unticks it. |
+| `0024_join_request.sql` | `share_link.ask_to_join` (on for every link), `join_request`, `guest_visitor` and `join_challenge`: a guest asking for an own account, and how a guest browser used the link. |
 | `0025_session_proof.sql` | `session.proved`: when the session last confirmed with a passkey (the reader verified), which adding a passkey and "sign out everywhere else" need within five minutes. `challenge` is made again to allow the purpose `confirm`. |
 
 ### Tables
@@ -141,7 +142,17 @@ code (`mise run deploy` migrates before it deploys), so it must not break the re
   without dates, places or details; see docs/roles-and-privacy.md). A guest is not a user.
 - **`share_session`** (0015): a guest's short-lived visit: the SHA-256 hash of the cookie's token, the link and the generation it belongs
   to, and `expires`. It is deleted when the link is replaced or turned off.
-- **`share_attempt`** (0015): tries against a link in the current 15-minute window, per link and per link and hashed address.
+- **`share_attempt`** (0015): tries against a link in the current 15-minute window, per link and per link and hashed address. Requests to join use it too, under their own keys.
+- **`join_request`** (0024): a guest's request to join: `tree`, the `link` it came through, `user` (the pending account, which has
+  no membership and cannot sign in while the request is `open`), `browser` (the hash of the asking browser's cookie), `visitor`
+  (the hash of its visitor cookie), `status` (`open` or `approved`), and what the stewards read: `name`, `person` (null: not in the
+  tree yet), `message`, `city`, `region`, `country` (from Cloudflare's request data, never an address), `time_zone`, `language`,
+  `device` (the family only) and `usage` (a JSON copy of the usage when it was sent). Approving clears all of those; the row then
+  waits for the first sign-in. A declined or expired request is deleted with its account and passkey; `expires` is 30 days.
+- **`guest_visitor`** (0024): one guest browser's use of one link, keyed by the hash of a random cookie and the link: `first_seen`,
+  `last_seen`, `visits`, `active_seconds`, `sections` (JSON counts per section name from the statistics' fixed list) and `people`
+  (JSON counts of the 20 people opened most). Deleted when the link is replaced or turned off, and 90 days after the last visit.
+- **`join_challenge`** (0024): a request's passkey ceremony in progress, with what the guest typed, for five minutes.
 - **`membership`**: a user's role in a family (`viewer`, `contributor`, `editor`, `steward`), and who they are in that
   family (a person id, or `-` for "just browsing"). `person_confirmed` (0014) is 1 once a steward has confirmed the link.
 - **`challenge`**: a passkey ceremony in progress (for setup, an invitation, adding a passkey, signing in, or confirming

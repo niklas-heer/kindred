@@ -11,7 +11,13 @@ const guard = () => import('./guard.server');
 const share = () => import('./share.server');
 
 export interface ShareState {
-  link: { id: string; generation: number; hasPassword: boolean; expires: number | null; created: number; ended: boolean; protectLiving: boolean } | null;
+  link: {
+    id: string; generation: number; hasPassword: boolean; expires: number | null; created: number; ended: boolean; protectLiving: boolean;
+    /** Whether the link's guests may ask for an account of their own (join.server.ts). */
+    askToJoin: boolean;
+  } | null;
+  /** Whether this installation can take requests to join at all: only with Kindred's own sign-in. */
+  joinPossible: boolean;
   /** The site is behind Cloudflare Access and no guest host is set, so a link could not reach a relative. */
   behindAccess: boolean;
 }
@@ -24,7 +30,11 @@ export const fetchShareState = createServerFn({ method: 'GET' })
     await requireCan(data.tree, 'manage-access');
     const link = await s.shareLinkOf(data.tree);
     return {
-      link: link ? { id: link.id, generation: link.generation, hasPassword: link.password_hash !== null, expires: link.expires, created: link.created, ended: !s.linkOpen(link), protectLiving: link.protect_living === 1 } : null,
+      link: link ? {
+        id: link.id, generation: link.generation, hasPassword: link.password_hash !== null, expires: link.expires, created: link.created, ended: !s.linkOpen(link),
+        protectLiving: link.protect_living === 1, askToJoin: link.ask_to_join === 1,
+      } : null,
+      joinPossible: authMethod() === 'kindred',
       behindAccess: authMethod() === 'cloudflare-access' && !guestOrigin(),
     };
   });
@@ -70,7 +80,8 @@ export const revokeShareLink = createServerFn({ method: 'POST' })
 
 const WELL_FORMED = /^[A-Za-z0-9_-]{43}$/;
 
-export type ShareEntry = { status: 'open'; password: boolean } | { status: 'closed' } | { status: 'inside'; tree: string };
+/** `measured`: the guest's visit through this link is measured for a request to join (join.server.ts), so the page says so. */
+export type ShareEntry = { status: 'open'; password: boolean; measured: boolean } | { status: 'closed' } | { status: 'inside'; tree: string };
 
 /**
  * What a link asks for. POST, so the token stays out of query strings and logs, and so a chat app's link preview, which only
@@ -79,14 +90,15 @@ export type ShareEntry = { status: 'open'; password: boolean } | { status: 'clos
 export const fetchShareEntry = createServerFn({ method: 'POST' })
   .validator(z.object({ token }))
   .handler(async ({ data }): Promise<ShareEntry> => {
-    const [{ currentSession }, s, { allow, clientIP }] = await Promise.all([guard(), share(), import('./throttle.server')]);
+    const [{ currentSession }, s, { allow, clientIP }, { getRequest }] = await Promise.all([guard(), share(), import('./throttle.server'), import('@tanstack/react-start/server')]);
     // A malformed token is refused before it is counted, so junk cannot use up the limit a relative's real link needs.
     if (!WELL_FORMED.test(data.token) || !allow(`share-entry:${clientIP()}`, 60, 10 * 60_000)) return { status: 'closed' };
     const link = await s.shareLinkByToken(data.token);
     if (!link || !s.linkOpen(link)) return { status: 'closed' };
     const { guest } = await currentSession();
     if (guest?.link === link.id) return { status: 'inside', tree: link.tree };
-    return { status: 'open', password: link.password_hash !== null };
+    const { joinPossible } = await import('./join.server');
+    return { status: 'open', password: link.password_hash !== null, measured: joinPossible(getRequest(), { link: link.id }, link) };
   });
 
 export type ShareResult = { status: 'ok'; tree: string } | { status: 'wrong' | 'closed' | 'slow' };

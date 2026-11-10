@@ -421,7 +421,9 @@ export async function attentionParts(tree: string, now = new Date()): Promise<{ 
   for (const r of Object.values(await readReviews(tree))) if (needsAttention(r)) ai++;
   const weekAgo = now.getTime() - 7 * 86_400_000;
   ai += (await accounts().get<{ n: number }>("SELECT COUNT(*) AS n FROM ai_task_run WHERE tree = ? AND status = 'failed' AND started > ?", tree, weekAgo))?.n ?? 0;
-  return { access: (await linksWaiting(tree)).length, ai };
+  // A guest's request to join waits on the Access page too (src/lib/auth/join.server.ts).
+  const { openJoinCount } = await import('../auth/join.server.ts');
+  return { access: (await linksWaiting(tree)).length + (await openJoinCount(tree)), ai };
 }
 
 /** The number on the quiet badge: everything that waits for a steward. */

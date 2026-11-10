@@ -24,6 +24,8 @@ export interface ShareLinkRow {
   id: string; tree: string; token_hash: string; password_hash: string | null; generation: number; expires: number | null; created: number; created_by: string | null;
   /** 1 when the link's guests get living people's names and pictures only. 0 for links made before the setting existed. */
   protect_living: number;
+  /** 1 when the link's guests may ask for an account of their own (migration 0024, src/lib/auth/join.server.ts). */
+  ask_to_join: number;
 }
 
 export const shareLinkOf = (tree: string) => accounts().get<ShareLinkRow>('SELECT * FROM share_link WHERE tree = ?', tree);
@@ -82,6 +84,8 @@ export async function makeShareLink(i: { tree: string; password: boolean; days: 
         guard('EXISTS (SELECT 1 FROM share_link WHERE id = ? AND generation = ? AND token_hash = ?)', id, generation, tokenHash),
         q('DELETE FROM share_session WHERE link = ?', id),
         q('DELETE FROM share_attempt WHERE key LIKE ?', `${id}:%`),
+        // A guest browser's usage belongs to the link it was measured on (join.server.ts): a new link starts with none.
+        q('DELETE FROM guest_visitor WHERE link = ?', id),
       ],
       result: { id, generation, token, password, expires, protectLiving: protect === 1 },
     };
@@ -98,6 +102,12 @@ export async function setShareProtectLiving(tree: string, on: boolean): Promise<
   return r.changes > 0;
 }
 
+/** Lets the link's guests ask for an account of their own, or not (join.server.ts). Requests already sent stay. False when the family has no link. */
+export async function setShareAskToJoin(tree: string, on: boolean): Promise<boolean> {
+  const r = await accounts().run('UPDATE share_link SET ask_to_join = ? WHERE tree = ?', on ? 1 : 0, tree);
+  return r.changes > 0;
+}
+
 /** Removes the family's link: the URL and the password stop working and every guest's visit ends, at once. */
 export async function revokeShareLink(tree: string): Promise<void> {
   const link = await shareLinkOf(tree);
@@ -105,6 +115,7 @@ export async function revokeShareLink(tree: string): Promise<void> {
   await accounts().batch([
     q('DELETE FROM share_session WHERE link = ?', link.id),
     q('DELETE FROM share_attempt WHERE key LIKE ?', `${link.id}:%`),
+    q('DELETE FROM guest_visitor WHERE link = ?', link.id),
     q('DELETE FROM share_link WHERE id = ?', link.id),
   ]);
 }
