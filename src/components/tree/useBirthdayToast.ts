@@ -1,13 +1,17 @@
-import { useEffect } from 'react';
-import { displayName, type Family, type Kinship } from '~/lib/graph';
-import { useT, yourKinship } from '~/lib/i18n';
+import { useEffect, useRef } from 'react';
+import type { Family, Kinship } from '~/lib/graph';
+import { useT } from '~/lib/i18n';
 import { play } from '~/lib/sfx';
 import { toast } from '~/lib/toast';
 import { birthdaysOn } from '~/lib/tree-view';
+import { birthdayNotices, type NoticePage } from './birthday-notices';
 
 /** Once a day per tree: whose birthday is today, shown only to someone looking at the page. */
 export function useBirthdayToast({ tree, f, kinFor, select }: { tree: string; f: Family; kinFor: (id: string) => Kinship | undefined; select: (id: string) => void }) {
   const t = useT();
+  // The notice is armed once per tree, but shown later and acted on later still: it reads the page as it is then.
+  const page = useRef<NoticePage>({ f, kinFor, select, t });
+  useEffect(() => { page.current = { f, kinFor, select, t }; });
   useEffect(() => {
     const today = new Date();
     const key = `kindred:bday:${tree}:${today.toDateString()}`;
@@ -30,16 +34,7 @@ export function useBirthdayToast({ tree, f, kinFor, select }: { tree: string; f:
       // Marked only once shown: a cancelled effect (StrictMode runs effects twice) must not eat it.
       try { localStorage.setItem(key, '1'); } catch {}
       play('fanfare');
-      for (const { person: p, age } of who.slice(0, 2)) {
-        toast({
-          title: t('tp.birthdayToast', { name: displayName(p, f), n: age }),
-          body: kinFor(p.id) ? `${yourKinship(kinFor(p.id)!, t.locale, { capital: true })}. ${t('tp.callDay')}` : t('tp.goodDay'),
-          person: p.id,
-          icon: 'cake-slice',
-          ms: 9000,
-          action: { label: t('tp.open'), run: () => select(p.id) },
-        });
-      }
+      for (const notice of birthdayNotices(who, () => page.current)) toast(notice);
     };
     document.addEventListener('visibilitychange', arm);
     arm();
