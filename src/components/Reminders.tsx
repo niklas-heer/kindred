@@ -77,13 +77,17 @@ export function RemindersDialog({ tree, open, onClose }: { tree: string; open: b
   const t = useT();
   const qc = useQueryClient();
   const [support, setSupport] = useState<Support | null>(null);
-  const [offsets, setOffsets] = useState<number[]>(DEFAULT_OFFSETS);
-  const [kinds, setKinds] = useState<string[]>(DEFAULT_KINDS);
+  // What the reader has changed and not yet saved. Null leaves the choices stored for this device as they are, so a
+  // refetch never overwrites an edit in progress.
+  const [offsetsDraft, setOffsetsDraft] = useState<number[] | null>(null);
+  const [kindsDraft, setKindsDraft] = useState<string[] | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   useEffect(() => {
     if (open) {
       setSupport(supportOf());
       setNotice(null);
+      setOffsetsDraft(null);
+      setKindsDraft(null);
     }
   }, [open]);
 
@@ -100,13 +104,20 @@ export function RemindersDialog({ tree, open, onClose }: { tree: string; open: b
     queryFn: () => reminderStatus({ data: { tree, endpoint: endpoint ?? undefined } }),
     enabled: open && support === 'ok' && device.isSuccess,
   });
-  useEffect(() => {
-    if (!status.data) return;
-    setOffsets(status.data.subscribed ? status.data.offsets : DEFAULT_OFFSETS);
-    setKinds(status.data.subscribed ? status.data.kinds : DEFAULT_KINDS);
-  }, [status.data]);
-
   const refresh = () => qc.invalidateQueries({ queryKey: ['reminders'] });
+  const storedOffsets = status.data?.subscribed ? status.data.offsets : DEFAULT_OFFSETS;
+  const storedKinds = status.data?.subscribed ? status.data.kinds : DEFAULT_KINDS;
+  const offsets = offsetsDraft ?? storedOffsets;
+  const kinds = kindsDraft ?? storedKinds;
+  const setOffsets = (change: (list: number[]) => number[]) => setOffsetsDraft((draft) => change(draft ?? storedOffsets));
+  const setKinds = (change: (list: string[]) => string[]) => setKindsDraft((draft) => change(draft ?? storedKinds));
+  // Once the stored choices are read again after a save or turning off, they are the truth and the draft is dropped.
+  const settle = async () => {
+    await refresh();
+    setOffsetsDraft(null);
+    setKindsDraft(null);
+  };
+
   const subscribed = status.data?.subscribed ?? false;
   const available = status.data?.available ?? false;
 
@@ -136,7 +147,7 @@ export function RemindersDialog({ tree, open, onClose }: { tree: string; open: b
     },
     onSuccess: async (result) => {
       setNotice(result);
-      await refresh();
+      await settle();
     },
     onError: async (e) => {
       setNotice({ tone: 'error', text: messageOf(e, t.locale, t('reminders.failed')) });
@@ -171,7 +182,7 @@ export function RemindersDialog({ tree, open, onClose }: { tree: string; open: b
     },
     onSuccess: async (result) => {
       setNotice(result);
-      await refresh();
+      await settle();
     },
     onError: (e) => setNotice({ tone: 'error', text: messageOf(e, t.locale, t('reminders.failed')) }),
   });
