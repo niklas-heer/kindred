@@ -476,11 +476,11 @@ export const FIRST_LOOK = 14 * 86_400_000;
 /** News is never older than this, however long someone was away. */
 export const MAX_LOOK = 90 * 86_400_000;
 
-export interface Visit { since: number; shown: number | null; lastSeen: number }
+export interface Visit { since: number; shown: number | null; lastSeen: number; /** 1 during the first visit; 0 when unknown (from before it was counted). */ visits: number }
 
 /**
  * Notes that a member opened the family. The rule, in one statement so two requests cannot disagree:
- * - The first time, the news starts FIRST_LOOK ago.
+ * - The first time, the news starts FIRST_LOOK ago, and `visits` is 1; each new visit counts one more.
  * - A visit ends after VISIT_GAP without opening the family. When a new one starts, `since` moves up to `shown`, the last
  *   time "What's new" or the History page showed this member the news, and never further: news that came after they last
  *   looked stays news, and so does everything when they never looked.
@@ -489,20 +489,21 @@ export interface Visit { since: number; shown: number | null; lastSeen: number }
 export async function noteVisit(user: string, tree: string, now = Date.now()): Promise<void> {
   if (isDemo()) return; // a demo has no members and stores nothing
   await accounts().run(
-    `INSERT INTO family_visit (user, tree, since, shown, last_seen) VALUES (?, ?, ?, NULL, ?)
+    `INSERT INTO family_visit (user, tree, since, shown, last_seen, visits) VALUES (?, ?, ?, NULL, ?, 1)
      ON CONFLICT (user, tree) DO UPDATE SET
        since = CASE WHEN ? - family_visit.last_seen > ? AND family_visit.shown IS NOT NULL AND family_visit.shown > family_visit.since
                     THEN family_visit.shown ELSE family_visit.since END,
+       visits = CASE WHEN ? - family_visit.last_seen > ? AND family_visit.visits > 0 THEN family_visit.visits + 1 ELSE family_visit.visits END,
        last_seen = ?
      WHERE ? - family_visit.last_seen > ?`,
-    user, tree, now - FIRST_LOOK, now, now, VISIT_GAP, now, now, TOUCH_MS,
+    user, tree, now - FIRST_LOOK, now, now, VISIT_GAP, now, VISIT_GAP, now, now, TOUCH_MS,
   );
 }
 
 /** The member's visit, after `noteVisit`. */
 export async function visitOf(user: string, tree: string): Promise<Visit | undefined> {
-  const r = await accounts().get<{ since: number; shown: number | null; last_seen: number }>('SELECT since, shown, last_seen FROM family_visit WHERE user = ? AND tree = ?', user, tree);
-  return r && { since: r.since, shown: r.shown, lastSeen: r.last_seen };
+  const r = await accounts().get<{ since: number; shown: number | null; last_seen: number; visits: number }>('SELECT since, shown, last_seen, visits FROM family_visit WHERE user = ? AND tree = ?', user, tree);
+  return r && { since: r.since, shown: r.shown, lastSeen: r.last_seen, visits: r.visits };
 }
 
 /** The news up to `now` has been shown to this member. Only moves forward. */

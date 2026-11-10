@@ -17,7 +17,8 @@ Database changes: twelve migrations are new since 2.0.0. In `migrations/accounts
   the aggregated guest visit and the sign-up ceremony in progress.
 - `0025_session_proof.sql` adds when a session last confirmed with a passkey, and the `confirm` purpose to the challenge table.
 - `0026_family_visit.sql` adds the table behind "since your last visit" and two columns for the weekly push on reminder devices.
-- `0027_join_network.sql` adds a column that counts open requests to join from one network.
+- `0027_join_network_visits.sql` adds a column that counts open requests to join from one network, and one that counts a
+  member's visits, so "What's new" knows a first visit.
 
 In `migrations/tree`:
 

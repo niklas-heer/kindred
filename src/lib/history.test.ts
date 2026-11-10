@@ -303,6 +303,26 @@ test('the visit marker never skips news: it stays during a visit and moves only 
   assert.equal((await h.visitOf(user, TREE))!.since, t0 + 10 * 3_600_000 + 60_000);
 });
 
+test('What’s new says it is a first visit throughout that visit, also once the news was shown, and not after', async () => {
+  as(CONTRIBUTOR);
+  await store.accounts().run('DELETE FROM family_visit WHERE user = ?', CONTRIBUTOR);
+  assert.equal((await hf.getWhatsNew({ data: { tree: TREE } })).first, true);
+  // Shown once: a reload, or the History page, in the same visit.
+  assert.equal((await hf.getWhatsNew({ data: { tree: TREE } })).first, true, 'still the first visit');
+  await hf.getHistory({ data: { tree: TREE } });
+  assert.equal((await hf.getWhatsNew({ data: { tree: TREE } })).first, true);
+  assert.equal((await h.visitOf(CONTRIBUTOR, TREE))!.visits, 1);
+  // The next visit is not a first one.
+  await store.accounts().run('UPDATE family_visit SET last_seen = last_seen - ? WHERE user = ?', h.VISIT_GAP + 60_000, CONTRIBUTOR);
+  const next = await hf.getWhatsNew({ data: { tree: TREE } });
+  assert.equal(next.first, false);
+  assert.equal((await h.visitOf(CONTRIBUTOR, TREE))!.visits, 2);
+  // A member who visited before visits were counted is never taken for a newcomer.
+  await store.accounts().run('UPDATE family_visit SET visits = 0, last_seen = last_seen - ? WHERE user = ?', h.VISIT_GAP + 60_000, CONTRIBUTOR);
+  assert.equal((await hf.getWhatsNew({ data: { tree: TREE } })).first, false);
+  assert.equal((await h.visitOf(CONTRIBUTOR, TREE))!.visits, 0);
+});
+
 test('What’s new groups others’ changes by person, leaves out the reader’s own, and tells them of comments and reactions on what they wrote', async () => {
   as(EDITOR);
   await save('ada', () => ({ details: { epithet: 'the Bold' } }));

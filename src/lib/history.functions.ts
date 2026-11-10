@@ -53,7 +53,8 @@ export const getWhatsNew = createServerFn({ method: 'GET' })
     const now = Date.now();
     await h.noteVisit(r.user.id, data.tree, now).catch(() => {});
     const visit = await h.visitOf(r.user.id, data.tree);
-    const news = await h.whatsNew(db(data.tree), audienceOf(r), h.newsSince(visit, now), !visit || visit.shown === null);
+    // A first visit says so throughout, also after the news was shown once (a reload, the History page).
+    const news = await h.whatsNew(db(data.tree), audienceOf(r), h.newsSince(visit, now), !visit || visit.visits === 1);
     await h.markShown(r.user.id, data.tree, now).catch(() => {});
     return news;
   });
