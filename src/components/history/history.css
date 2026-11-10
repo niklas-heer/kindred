@@ -1,0 +1,46 @@
+/* The change history: the History page, a person's History section and "What's new". */
+
+.hist-page { display: flex; flex-direction: column; gap: 14px; }
+.hist-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.hist-filters label { display: flex; flex-direction: column; gap: 4px; min-width: min(100%, 12em); flex: 1 1 12em; font-size: var(--fs-2, 13px); color: var(--muted); }
+
+.hist-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.hist-item { padding: 10px 0; display: flex; flex-direction: column; gap: 4px; }
+.hist-item + .hist-item { border-top: 1px solid var(--border); }
+.hist-line { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; }
+.hist-text { min-width: 0; overflow-wrap: anywhere; }
+.hist-label { color: var(--muted); }
+.hist-when { color: var(--muted); font-size: var(--fs-2, 13px); white-space: nowrap; }
+.hist-person { font-size: var(--fs-2, 13px); }
+.hist-muted { color: var(--muted); font-style: italic; }
+
+.hist-fields { margin: 2px 0 0; padding: 6px 0 0 12px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-2, 13px); }
+.hist-field { display: grid; grid-template-columns: minmax(7em, max-content) minmax(0, 1fr); gap: 2px 10px; align-items: baseline; }
+.hist-field dt { color: var(--muted); }
+.hist-field dd { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; min-width: 0; overflow-wrap: anywhere; }
+.hist-field del { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 70%, transparent); color: var(--muted); }
+.hist-field ins { text-decoration: none; }
+.hist-arrow { color: var(--muted); }
+.hist-restore { margin-left: auto; }
+.hist-ok { margin: 4px 0 0; color: var(--ok, var(--ink)); }
+.hist-error { margin: 4px 0 0; color: var(--danger, #b42318); }
+.hist-more { align-self: center; }
+@media (max-width: 520px) {
+  .hist-field { grid-template-columns: minmax(0, 1fr); }
+  .hist-restore { margin-left: 0; }
+}
+
+/* A person's History section. */
+.hist-section { margin-top: 26px; display: flex; flex-direction: column; gap: 6px; }
+.hist-section h3 { margin: 0; font-size: inherit; }
+
+/* What's new. */
+.whats-new { display: flex; flex-direction: column; gap: 10px; }
+.whats-new-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.whats-new-head h2 { margin: 0; font-size: var(--fs-4, 17px); }
+.whats-new-groups { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.whats-new-group h3 { margin: 0 0 2px; font-size: inherit; }
+.whats-new-group ul { list-style: none; margin: 0; padding: 0 0 0 12px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+
+/* The unread dot beside History in the account menu: a count for screen readers, a dot for the eye. */
+.hist-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent, currentColor); margin-left: 6px; vertical-align: 1px; }

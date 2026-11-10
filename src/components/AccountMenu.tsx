@@ -5,7 +5,7 @@ import { translateMessage, formatDate, relativeTime, useT, type Locale } from '~
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { graphQuery } from '~/lib/api';
-import { Activity, ArrowLeftRight, BarChart3, Bell, Check, CircleHelp, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus, Gamepad2, Landmark } from 'lucide-react';
+import { Activity, ArrowLeftRight, BarChart3, Bell, Check, CircleHelp, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus, Gamepad2, Landmark, History } from 'lucide-react';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import '~/components/assistant/ai-tasks.css';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
@@ -13,6 +13,8 @@ import { addPasskey, forgetLocalIdentity, passkeysSupported, signOutRequest, wit
 import { appCommit, appVersion, releaseUrl } from '~/lib/version';
 import { myPasskeysQuery, removeMyPasskey, renameMe, signOutElsewhere, type Passkey } from '~/lib/auth/functions';
 import { fetchRemindersAvailable } from '~/lib/reminders.functions';
+import { newsCountQuery } from '~/lib/history.functions';
+import '~/components/history/history.css';
 import { setPref, THEMES } from '~/lib/prefs';
 import { ROLES, can } from '~/lib/roles';
 import { openFeedback } from './feedback/FeedbackHost';
@@ -77,6 +79,9 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
   const remindersOn = useQuery({ queryKey: ['reminders', 'available'], queryFn: () => fetchRemindersAvailable(), staleTime: 5 * 60_000 });
   // The quiet badge: what waits for a steward, on the Access page and in AI activity (zero for everyone else).
   const attention = useQuery({ ...aiAttentionQuery(tree ?? ''), enabled: !!tree && !!m && can(m.role, 'manage-access') });
+  // Changes in the family this member has not been shown yet: a dot beside History (history.functions.ts).
+  const news = useQuery({ ...newsCountQuery(tree ?? ''), enabled: !!tree && !!m });
+  const unseen = news.data ?? 0;
   const layer = useOverlayLayer(open);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -139,7 +144,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
         title={t('account.trigger', {name:user.name})}
       >
         <Avatar name={user.name} size={30} />
-        {waiting ? <span className="aitasks-dot" aria-label={t('aitasks.attention')}>{waiting}</span> : null}
+        {waiting ? <span className="aitasks-dot" aria-label={t('aitasks.attention')}>{waiting}</span> : unseen ? <span className="hist-dot" role="img" aria-label={t('history.menu_new', { count: unseen })} /> : null}
         <span className="acct-trigger-name">{user.name}</span>
       </button>
       {open && (
@@ -197,6 +202,10 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
               {!demo && (
               <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setPasskeys(true); }}>
                 <KeyRound size={17} /> {session?.auth === 'cloudflare-access' ? t('auth.your_name') : t("accountmenu.your_name_passkeys")} </button>
+              )}
+              {tree && m && (
+                <Link role="menuitem" className="acct-item" to="/$tree/history" params={{ tree }} onClick={() => setOpen(false)} aria-label={unseen ? t('history.menu_new', { count: unseen }) : undefined}>
+                  <History size={17} /> {t('history.menu')} {unseen ? <span className="hist-dot" aria-hidden /> : null} </Link>
               )}
               {!demo && tree && m && remindersOn.data && (
                 <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setReminders(true); }}>

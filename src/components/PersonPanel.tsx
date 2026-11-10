@@ -42,6 +42,7 @@ import { GameIcon } from './GameIcon';
 import { Arms } from './Heraldry';
 import { Portrait } from './Portrait';
 import { ConfirmDialog, DatePicker, Dialog, ErrorState, Segmented, Skeleton, Tabs, TabList, Tab as UiTab, TabPanel, Select, isOverlayOpen } from './ui';
+import { PersonHistory } from './history/PersonHistory';
 import { QuickAdd } from './QuickAdd';
 import type { AddRelation } from './Card';
 import { DraftContext, DraftTracker, type Draft } from './fields/draft';
@@ -296,7 +297,10 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
         </TabPanel>
         <TabPanel value="family"><FamilyTab f={f} tree={tree} id={id} canAdd={canAdd} canEdit={canEdit} onSelect={(v) => leave(() => onSelect(v))} /></TabPanel>
         <TabPanel value="stories"><StoriesTab tree={tree} p={p} details={details} /></TabPanel>
-        <TabPanel value="everyday"><EverydayTab f={f} tree={tree} p={p} details={details} canEdit={canEdit} onSelect={(v) => leave(() => onSelect(v))} /></TabPanel>
+        <TabPanel value="everyday">
+          <EverydayTab f={f} tree={tree} p={p} details={details} canEdit={canEdit} onSelect={(v) => leave(() => onSelect(v))} />
+          <PersonHistory tree={tree} person={id} />
+        </TabPanel>
         <TabPanel value="edit">
           {canEdit && (
             <button type="button" className="pp-appearance" onClick={() => setAppearance(true)} aria-haspopup="dialog">
