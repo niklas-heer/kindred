@@ -139,8 +139,9 @@ id, made safe for any file system.
 
 A partnership belongs to the note of its lower-id partner, so it is declared once.
 
-The v1 importer (`scripts/import-kindred.ts`) reads people, links and marriages; it skips life events, sources and citations, so a
-family moved that way gets them through GEDCOM.
+`scripts/import-kindred.ts` reads people, links and marriages, and from an archive Kindred v2 wrote also the life events,
+the sources in `sources/` and the citations. A citation that names a source or a fact the archive does not hold is left out,
+and the script says how many.
 
 **What the archive leaves out:** step-parent links, because v1 has no step relation and writing one as a biological
 claim would be a false fact in v1; contact details and other fields; houses and arms; pictures other than portraits, and
@@ -306,7 +307,8 @@ they do not make either format a complete backup. Check an import's preview and 
 
 ## Limits of `scripts/import-kindred.ts`
 
-It reads a v1 archive's `people/` folder only, so an archive that keeps its notes elsewhere needs them moved there first.
+It reads a v1 archive's `people/` folder, and `sources/` when there is one, so an archive that keeps its notes elsewhere
+needs them moved there first. A life event of a type Kindred does not know becomes a custom event named by that type.
 It keys partnerships by the pair of people, so two unions between the same two people would be read as one. It creates
 houses from surnames, with generated arms, because v1 has no houses of its own. It does not import attachments,
 current names, titles, epithets, parent confidence or partnership endings. Sex is inferred from parent roles rather

@@ -1,4 +1,5 @@
-// Converts a Kindred Markdown archive into a SeedTree JSON file.
+// Converts a Kindred Markdown archive into a SeedTree JSON file: a Kindred v1 archive, or the archive Kindred v2 exports
+// in the same format (src/lib/exchange/markdown.ts), with its life events, sources (sources/) and citations.
 //   node scripts/import-kindred.ts <archive folder> data/seed/<family id>.json [focus]
 // The family view opens on the person whose note is named by [focus] (the note's file name, without .md), or else on the
 // first person in the archive.
@@ -6,7 +7,8 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { parse } from 'yaml';
-import type { SeedHouse, SeedPerson, SeedTree, Tincture } from '../src/lib/seed-format.ts';
+import { EVENT_TYPES, type EventType, type Fact } from '../src/lib/events.ts';
+import type { SeedCitation, SeedEvent, SeedHouse, SeedPerson, SeedSource, SeedTree, Tincture } from '../src/lib/seed-format.ts';
 
 const [archive, out, focusFile] = process.argv.slice(2);
 if (!archive || !out) {
@@ -18,14 +20,18 @@ const familyName = familyId.charAt(0).toUpperCase() + familyId.slice(1);
 const dir = join(archive, 'people');
 
 type Note = Record<string, any> & { body: string; file: string };
-const notes: Note[] = readdirSync(dir)
-  .filter((f) => f.endsWith('.md'))
-  .map((f) => {
-    const text = readFileSync(join(dir, f), 'utf8');
-    const m = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-    if (!m) throw new Error(`no front matter in ${f}`);
-    return { ...parse(m[1]), body: m[2].trim(), file: basename(f, '.md') };
-  });
+const readNotes = (folder: string): Note[] =>
+  readdirSync(folder)
+    .filter((f) => f.endsWith('.md'))
+    .map((f) => {
+      const text = readFileSync(join(folder, f), 'utf8');
+      const m = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+      if (!m) throw new Error(`no front matter in ${f}`);
+      return { ...parse(m[1]), body: m[2].trim(), file: basename(f, '.md') };
+    });
+const notes = readNotes(dir);
+// Sources are notes of their own in sources/ (an archive Kindred v2 wrote); a v1 archive has none.
+const sourceNotes = existsSync(join(archive, 'sources')) ? readNotes(join(archive, 'sources')).filter((n) => n.type === 'source' && n.id != null && n.title) : [];
 
 // Kindred links name files ("[[people/klaus-heer]]"); the app uses the note's id.
 const idByFile = new Map(notes.map((n) => [n.file, String(n.id)]));
@@ -107,6 +113,74 @@ for (const n of notes) {
   }
 }
 
+// Life events beside the marriages and divorces (those are the partnerships above). A type Kindred does not know is kept
+// as a custom event named by it; birth and death are the person's own fields, not events.
+const KNOWN = new Set<string>(EVENT_TYPES);
+const text = (v: unknown) => (v == null || v === '' ? undefined : String(v));
+const events: SeedEvent[] = [];
+for (const n of notes) {
+  for (const [i, e] of ((n.events ?? []) as any[]).entries()) {
+    const kind = String(e.type ?? '');
+    if (['marriage', 'divorce', 'birth', 'death', ''].includes(kind)) continue;
+    const type: EventType = KNOWN.has(kind) ? (kind as EventType) : 'custom';
+    events.push({
+      id: e.id != null ? String(e.id) : `${n.id}-event-${i}`,
+      person: String(n.id),
+      type,
+      label: text(e.label) ?? (type === 'custom' ? kind : undefined),
+      date: date(e.date),
+      endDate: date(e.end),
+      place: place(e.place),
+      note: text(e.note),
+    });
+  }
+}
+
+const sources: SeedSource[] = sourceNotes.map((x) => ({
+  id: String(x.id),
+  title: String(x.title),
+  author: text(x.author),
+  publication: text(x.publication),
+  reference: text(x.reference),
+  date: date(x.date),
+  note: x.body || undefined,
+}));
+
+// Citations name the source by its note ("[[sources/parish-register]]") and the fact by kind: the note's own birth, death
+// or name, an event or partnership by id, or a parent link by its parent. One that names nothing here is left out.
+const sourceByFile = new Map(sourceNotes.map((x) => [x.file, String(x.id)]));
+const eventIds = new Set(events.map((e) => e.id));
+const unionIds = new Set([...unions.values()].map((u) => u.id));
+const parentLinks = new Set(parents.map((l) => `${l.child}\n${l.parent}`));
+const QUALITIES = new Set(['original', 'derivative', 'unsure']);
+const citations: SeedCitation[] = [];
+let uncited = 0;
+for (const n of notes) {
+  for (const [i, c] of ((n.citations ?? []) as any[]).entries()) {
+    const source = sourceByFile.get(String(c.source ?? '').replace(/^\[\[(?:sources\/)?|\]\]$/g, ''));
+    const person = String(n.id);
+    const parent = c.parent == null ? undefined : idByFile.get(String(c.parent).replace(/^\[\[(?:people\/)?|\]\]$/g, ''));
+    const target: Fact | null =
+      c.fact === 'birth' || c.fact === 'death' || c.fact === 'name' ? { fact: c.fact, person }
+        : c.fact === 'event' && eventIds.has(String(c.event)) ? { fact: 'event', event: String(c.event) }
+          : c.fact === 'partnership' && unionIds.has(String(c.partnership)) ? { fact: 'partnership', partnership: String(c.partnership) }
+            : c.fact === 'parent' && parent && parentLinks.has(`${person}\n${parent}`) ? { fact: 'parent', child: person, parent }
+              : null;
+    if (!source || !target) {
+      uncited++;
+      continue;
+    }
+    citations.push({
+      id: `${person}-cite-${i}`,
+      source,
+      target,
+      page: text(c.page),
+      quality: QUALITIES.has(c.quality) ? c.quality : undefined,
+      transcription: text(c.text),
+    });
+  }
+}
+
 // Coordinates come from a local gazetteer next to the output (gitignored: it says where the family lived).
 const gazetteer = join(dirname(out), `${familyId}-places.json`);
 const places: SeedTree['places'] = existsSync(gazetteer) ? JSON.parse(readFileSync(gazetteer, 'utf8')) : [];
@@ -123,8 +197,12 @@ const tree: SeedTree = {
   stories: [],
   contacts: [],
   places,
+  events,
+  sources,
+  citations,
   focus: (focusFile && idByFile.get(focusFile)) || people[0].id,
 };
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, JSON.stringify(tree, null, 2));
-console.log(`${out}: ${people.length} people, ${parents.length} parent links, ${tree.unions.length} unions, ${houses.size} houses`);
+console.log(`${out}: ${people.length} people, ${parents.length} parent links, ${tree.unions.length} unions, ${houses.size} houses, ${events.length} events, ${sources.length} sources, ${citations.length} citations`);
+if (uncited) console.warn(`${uncited} citation(s) named a source or a fact the archive does not hold and were left out`);

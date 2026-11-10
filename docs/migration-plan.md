@@ -44,9 +44,10 @@ Use a lower-case family id containing letters, digits and dashes; `family` match
 
 It reads ids, splits names into given name and last-word surname, reads birth/death dates and places,
 living status, occupations, a single-word nickname from aliases, the note body as biography, parent links
-and partnerships. A marriage event supplies its date and place. Houses and arms are generated from surnames.
+and partnerships. A marriage event supplies its date and place. Other events become life events, and an archive
+with a `sources/` folder brings its sources and citations. Houses and arms are generated from surnames.
 
-It does not restore portraits or other attachments, structured stories or sources, current names, titles,
+It does not restore portraits or other attachments, structured stories, current names, titles,
 epithets, or explicit sex fields. Sex is inferred from parent roles, which needs checking. Parent confidence is
 not restored. Partnerships are keyed by the pair, so repeated unions of the same people collapse into one;
 non-marriage start dates, divorce and other end details are not read. Coordinate pins require a separate seed file.
