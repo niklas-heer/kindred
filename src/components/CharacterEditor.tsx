@@ -5,7 +5,7 @@
 // (AppearanceDialog.tsx). Its rules, apart from the screen, are in src/lib/portrait-editor.ts.
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Camera, Dices, Eye, History, Redo2, Sparkles, Undo2 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { aiAvatarFromPhoto } from '~/lib/ai.functions';
 import { toAiLocale } from '~/lib/ai/types';
 import { useT, type Key } from '~/lib/i18n';
@@ -120,6 +120,7 @@ export function CharacterEditor({ person, tree, house = null, value, onChange, n
     if (next === draft) return;
     setSaid(say ? t(say) : '');
     setDraft(next);
+    peeked.current = '';
     setPeek(null);
     setComparing(false);
     onChange(next.now);
@@ -189,12 +190,23 @@ export function CharacterEditor({ person, tree, house = null, value, onChange, n
     const age = tileAge(adultOnly);
     return { ...person, look: { ...next, ...(age !== undefined ? { age } : {}) } };
   };
-  /** What the pointer or the focus resting on a choice does: shows it large. */
+  /**
+   * What the pointer or the focus resting on a choice does: shows it large. Only a mouse that really moved counts. A
+   * browser also reports a pointer "entering" whatever slides under it when the list scrolls or the category changes,
+   * and the large portrait must not flicker through those; and a finger has no resting place, it only taps.
+   */
+  const peeked = useRef('');
+  const show = (next: Look | null) => {
+    const key = next ? JSON.stringify(next) : '';
+    if (peeked.current === key) return;
+    peeked.current = key;
+    setPeek(next);
+  };
   const peeks = (next: Look) => ({
-    onPointerEnter: () => setPeek(next),
-    onPointerLeave: () => setPeek(null),
-    onFocus: () => setPeek(next),
-    onBlur: () => setPeek(null),
+    onPointerMove: (e: PointerEvent) => { if (e.pointerType === 'mouse' && (e.movementX !== 0 || e.movementY !== 0)) show(next); },
+    onPointerLeave: () => show(null),
+    onFocus: () => show(next),
+    onBlur: () => show(null),
   });
 
   // Render functions, not components: a component defined here would remount on every change and drop keyboard focus
