@@ -7,10 +7,13 @@ privacy rules matter more than speed.
 ## Layout
 
 - `src/routes/` pages (`$tree/` is one family's pages) and `src/routes/api/` plain HTTP routes (health, media, export).
-- `src/components/` React components and their CSS, one folder per larger feature (`heraldry/`, `assistant/`, `portrait/`, `tour/`, `statistics/`).
+- `src/components/` React components and their CSS, one folder per larger feature (`heraldry/`, `assistant/`, `portrait/`, `tour/`, `statistics/`,
+  `tree/` for the tree page's parts and hooks). A component folder keeps only what serves the view (drawing, hooks, view helpers);
+  rules and models that are not React go to `src/lib/`, with their tests beside them.
 - `src/lib/` the rest of the app, with a pair per feature: `x.functions.ts` (server functions) and `x.server.ts` (the work).
   Areas: `auth/` (passkeys, sessions, roles guard, share links), `ai/` (providers, chat, background tasks), `exchange/`
-  (GEDCOM and Markdown), `store/` (storage drivers), `i18n/`, `stats/`, `jobs/` (daily jobs).
+  (GEDCOM and Markdown), `store/` (storage drivers), `i18n/`, `stats/`, `jobs/` (daily jobs), `fields/` (person fields: model,
+  label presets, edit drafts, rebase, autosave), `heraldry/` (arms schema, rules, blazon, geometry, charge catalogue), `photos/` (the gallery's shapes).
 - `server/` the production Node server (`node.ts`, static files, compression, daily jobs).
 - `migrations/{tree,accounts,gazetteer}/` numbered SQL files. `scripts/` seeding, test families, D1 transfer, Worker smoke test, AI evaluation. `e2e/` Playwright journeys. `docs/` guides for self-hosters.
 
