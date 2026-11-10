@@ -32,9 +32,16 @@ export interface Db {
   readBatch(queries: Query[]): Promise<Record<string, unknown>[][]>;
 }
 
+/**
+ * Whether a statement only reads: a SELECT, or a WITH whose statement is a SELECT. A WITH that ends in INSERT, UPDATE,
+ * DELETE or REPLACE, or anything with RETURNING, writes. Errs on the side of "writes": a word like that inside a string
+ * literal of a read makes it count as a write, which only refuses it, never lets a write through.
+ */
+export const isReadSql = (sql: string) => /^\s*SELECT\b/i.test(sql) || (/^\s*WITH\b/i.test(sql) && !/\b(INSERT|UPDATE|DELETE|REPLACE\s+INTO|RETURNING)\b/i.test(sql));
+
 /** Refuses anything but a read in `readBatch`, on both drivers alike. */
 export function checkReads(queries: Query[]) {
-  for (const x of queries) if (!/^\s*(SELECT|WITH)\b/i.test(x.sql)) throw new Error(`readBatch runs reads only: ${x.sql.slice(0, 120)}`);
+  for (const x of queries) if (!isReadSql(x.sql)) throw new Error(`readBatch runs reads only: ${x.sql.slice(0, 120)}`);
 }
 
 /** D1's limits on one statement, also inside a batch (developers.cloudflare.com/d1/platform/limits). */

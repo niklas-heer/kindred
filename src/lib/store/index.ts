@@ -3,20 +3,28 @@
 // (package.json "imports", by the `workerd` condition), so node:sqlite never reaches the Worker.
 //
 // In a demo (KINDRED_DEMO=1, src/lib/demo.ts) this is where every write is refused: each database handed out is read-only
-// (`run` and `batch` throw the demo's refusal, the reads work) and the media store neither stores nor deletes. Every server
+// (`run` and `batch` throw the demo's refusal, and so do `get` and `all` for anything but a read, since a write with RETURNING
+// goes through them; the reads work) and the media store neither stores nor deletes. Every server
 // function, server route and job reaches the data through here, so nothing needs to know it runs in a demo to be safe in one.
 // The driver object is changed in place rather than wrapped, so code (and tests) holding `store` keep holding the driver.
 import driver from '#store/driver';
 import { demoRefused, isDemo } from '../demo.ts';
-import type { Db, Driver } from './db.ts';
+import { isReadSql, type Db, type Driver } from './db.ts';
 
 const readOnly = new WeakMap<Db, Db>();
-/** The same database with its writes refused. Reads (`all`, `get`, `readBatch`, which refuses anything but a read) pass. */
+/**
+ * The same database with its writes refused. Reads pass: `all` and `get` with a SELECT (or a WITH that selects), and
+ * `readBatch`, which refuses anything but a read itself. A write with RETURNING through `get` or `all` is refused like `run`.
+ */
 function readOnlyOf(d: Db): Db {
   let r = readOnly.get(d);
   if (!r) {
     const refuse = async (): Promise<never> => { throw demoRefused(); };
-    r = { all: d.all.bind(d), get: d.get.bind(d), readBatch: d.readBatch.bind(d), run: refuse, batch: refuse };
+    r = {
+      all: (sql, ...params) => (isReadSql(sql) ? d.all(sql, ...params) : refuse()),
+      get: (sql, ...params) => (isReadSql(sql) ? d.get(sql, ...params) : refuse()),
+      readBatch: d.readBatch.bind(d), run: refuse, batch: refuse,
+    };
     readOnly.set(d, r);
   }
   return r;

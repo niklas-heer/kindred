@@ -188,6 +188,12 @@ test('in a demo, every write is refused where all writes pass: the store, once, 
   await assert.rejects(dbs.db('aurel').batch([dbs.q("DELETE FROM person")]), isReadOnly);
   await assert.rejects(acc.accounts().run('DELETE FROM user'), isReadOnly);
   await assert.rejects(acc.accounts().batch([acc.q('DELETE FROM membership')]), isReadOnly);
+  // A write with RETURNING reads like a read; through `get` and `all` it is refused all the same.
+  await assert.rejects(dbs.db('aurel').get("UPDATE person SET given = 'X' RETURNING id"), isReadOnly);
+  await assert.rejects(dbs.db('aurel').all("WITH p AS (SELECT 'a1' AS id) DELETE FROM person WHERE id IN (SELECT id FROM p) RETURNING id"), isReadOnly);
+  await assert.rejects(acc.accounts().get('DELETE FROM user WHERE id = ? RETURNING id', STEWARD), isReadOnly);
+  await assert.rejects(acc.takeChallenge('any-id'), isReadOnly);
+  assert.equal((await dbs.db('aurel').all<{ id: string }>("WITH p AS (SELECT 'a1' AS id) SELECT person.id FROM person JOIN p USING (id)")).length, 1);
   await assert.rejects(acc.createSession(STEWARD), isReadOnly);
   await assert.rejects(st.store.media.put('aurel', 'photo/y.jpg', new Uint8Array([1]), 'image/jpeg'), isReadOnly);
   await assert.rejects(st.store.media.delete('aurel', 'photo/y.jpg'), isReadOnly);
