@@ -5,8 +5,8 @@ import { families, makeFirstFamily } from './trees.server.ts';
 import { accessEmail, authMethod } from './method.server.ts';
 import { isLocale, negotiateLocale, translate, type Locale } from '../i18n/dictionary.ts';
 import {
-  commit, createSession, deleteSession, endOtherSessions, newUser, noUsersYet, now, pendingInvitesFor, sessionByToken, slideSession, touchUser, upsertMembership, useInvite,
-  userByEmail, userById, userCount, type SessionRow, type UserRow,
+  commit, createSession, deleteSession, endOtherSessions, newUser, noUsersYet, now, pendingInvitesFor, sessionByToken, sessionWithUser, slideSession, touchUser, upsertMembership, useInvite,
+  userByEmail, userCount, type MembershipRow, type SessionRow, type UserRow,
 } from './store.server.ts';
 import { endGuestVisit, guestVisitByToken, type GuestSession } from './share.server.ts';
 import type { Query } from '../store/index.ts';
@@ -129,6 +129,8 @@ export interface Session {
   uninvitedEmail?: string;
   /** A refreshed session cookie to send back (sliding expiry). */
   setCookie?: string;
+  /** The account's memberships, when they were read with the session (one round trip); the guard reads them otherwise. */
+  memberships?: MembershipRow[];
 }
 
 /** The reader's language before they have an account: the guest cookie the app sets, else the browser's preference. */
@@ -164,12 +166,12 @@ export async function getSession(request: Request, verifiedEmail: (r: Request) =
 async function passkeySession(request: Request): Promise<Session> {
   const token = sessionToken(request);
   if (token) {
-    const row = await sessionByToken(token);
-    const user = row && (await userById(row.user));
-    if (row && user) {
+    const found = await sessionWithUser(token);
+    if (found) {
+      const { session: row, user, memberships } = found;
       await touchUser(user.id, user.last_seen);
       const slid = await slideSession(row);
-      return { user, via: 'passkey', setCookie: slid ? cookie(request, token, Math.floor((slid - now()) / 1000)) : undefined };
+      return { user, via: 'passkey', memberships, setCookie: slid ? cookie(request, token, Math.floor((slid - now()) / 1000)) : undefined };
     }
   }
   return { user: null, via: null };

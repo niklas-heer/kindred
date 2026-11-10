@@ -4,7 +4,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
-import { checkMediaKey, checkStatement, NOT_TREES, TREE_ID, type Db, type Driver, type MediaStore, type Param, type Query, type Result } from './db.ts';
+import { checkMediaKey, checkReads, checkStatement, NOT_TREES, TREE_ID, type Db, type Driver, type MediaStore, type Param, type Query, type Result } from './db.ts';
 
 const DATA_DEFAULT = resolve(process.cwd(), 'data');
 const DATA = process.env.KINDRED_DATA_DIR ? resolve(process.env.KINDRED_DATA_DIR) : DATA_DEFAULT;
@@ -145,6 +145,20 @@ export function wrap(d: DatabaseSync): Db {
       d.exec('BEGIN IMMEDIATE');
       try {
         const out = queries.map((x) => exec(x.sql, x.params));
+        d.exec('COMMIT');
+        return out;
+      } catch (e) {
+        if (d.isTransaction) d.exec('ROLLBACK');
+        throw e;
+      }
+    },
+    async readBatch(queries: Query[]) {
+      checkReads(queries);
+      if (!queries.length) return [];
+      // A read transaction, so the reads see one moment, as a D1 batch does; it takes no write lock.
+      d.exec('BEGIN');
+      try {
+        const out = queries.map((x) => checked(x.sql, x.params).all(...args(x.params)) as Record<string, unknown>[]);
         d.exec('COMMIT');
         return out;
       } catch (e) {

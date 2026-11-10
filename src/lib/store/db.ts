@@ -24,6 +24,17 @@ export interface Db {
   run(sql: string, ...params: Param[]): Promise<Result>;
   /** Runs the statements in order as one transaction: all of them, or none if any fails. */
   batch(queries: Query[]): Promise<Result[]>;
+  /**
+   * Runs independent reads together and returns each one's rows, in order. On D1 that is one round trip instead of one per
+   * read, and they see one moment of the database on both drivers. Reads only: a statement that is not a SELECT (or WITH)
+   * is refused before anything runs. Use it where a page needs several reads that do not depend on each other.
+   */
+  readBatch(queries: Query[]): Promise<Record<string, unknown>[][]>;
+}
+
+/** Refuses anything but a read in `readBatch`, on both drivers alike. */
+export function checkReads(queries: Query[]) {
+  for (const x of queries) if (!/^\s*(SELECT|WITH)\b/i.test(x.sql)) throw new Error(`readBatch runs reads only: ${x.sql.slice(0, 120)}`);
 }
 
 /** D1's limits on one statement, also inside a batch (developers.cloudflare.com/d1/platform/limits). */

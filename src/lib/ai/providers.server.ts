@@ -5,6 +5,7 @@
 // of the provider it is asked for, nothing else. A route never falls back to another provider: when its provider is not
 // connected, the route is `needs-provider` and nothing is sent.
 import { accounts } from '../auth/store.server';
+import { q } from '../store/index.ts';
 import { AiError, chatModelId, searchesOnItsOwn } from './adapters';
 import { keyTail, openKey, sealKey } from './secret.server';
 import { DEFAULT_MODEL, PAINT_PROVIDERS, PROVIDERS, ROUTES, followsAssistant, type Provider, type ProviderState, type Route } from './types';
@@ -12,8 +13,8 @@ import { DEFAULT_MODEL, PAINT_PROVIDERS, PROVIDERS, ROUTES, followsAssistant, ty
 const MODEL = /^[A-Za-z0-9._:/-]{1,120}$/;
 export const validModel = (m: string) => m === '' || MODEL.test(m);
 
-interface ConnRow { provider: string; key_sealed: string; key_tail: string; updated: number }
-interface RouteDbRow { route: string; provider: string | null; model: string }
+export interface ConnRow { provider: string; key_sealed: string; key_tail: string; updated: number }
+export interface RouteDbRow { route: string; provider: string | null; model: string }
 
 /** A route as stored (`provider` null: the assistant's), and where it goes once "same as the assistant" is applied. */
 export interface ResolvedRoute {
@@ -29,13 +30,18 @@ export interface ResolvedRoute {
 
 const isProvider = (p: string | null): p is Provider => !!p && (PROVIDERS as readonly string[]).includes(p);
 
+/** The reads `resolveRoutes` makes, for a caller that batches them with its own (see `statusFor`). */
+export const connectionsQuery = (tree: string) => q('SELECT provider, key_sealed, key_tail, updated FROM ai_provider WHERE tree = ?', tree);
+export const routesQuery = (tree: string) => q('SELECT route, provider, model FROM ai_route WHERE tree = ?', tree);
+
 async function connectionRows(tree: string): Promise<ConnRow[]> {
-  return accounts().all<ConnRow>('SELECT provider, key_sealed, key_tail, updated FROM ai_provider WHERE tree = ?', tree);
+  const c = connectionsQuery(tree);
+  return accounts().all<ConnRow>(c.sql, ...c.params);
 }
 
 /** Every provider, with whether a key is saved and can be opened. Never the key itself. */
-export async function providerStates(tree: string): Promise<ProviderState[]> {
-  const rows = new Map((await connectionRows(tree)).filter((r) => isProvider(r.provider)).map((r) => [r.provider as Provider, r]));
+export async function providerStates(tree: string, connections?: ConnRow[]): Promise<ProviderState[]> {
+  const rows = new Map((connections ?? (await connectionRows(tree))).filter((r) => isProvider(r.provider)).map((r) => [r.provider as Provider, r]));
   const out: ProviderState[] = [];
   for (const provider of PROVIDERS) {
     const r = rows.get(provider);
@@ -55,8 +61,8 @@ export async function providerStates(tree: string): Promise<ProviderState[]> {
 }
 
 /** The providers whose key is saved and readable. */
-export async function connectedProviders(tree: string): Promise<Set<Provider>> {
-  return new Set((await providerStates(tree)).filter((p) => p.keyState === 'saved').map((p) => p.provider));
+export async function connectedProviders(tree: string, connections?: ConnRow[]): Promise<Set<Provider>> {
+  return new Set((await providerStates(tree, connections)).filter((p) => p.keyState === 'saved').map((p) => p.provider));
 }
 
 /**
@@ -91,14 +97,15 @@ export async function removeProvider(tree: string, provider: Provider): Promise<
 }
 
 /** The stored routes, by route. A route with no row follows the assistant. */
-async function storedRoutes(tree: string): Promise<Map<Route, { provider: Provider | null; model: string }>> {
-  const rows = await accounts().all<RouteDbRow>('SELECT route, provider, model FROM ai_route WHERE tree = ?', tree);
+async function storedRoutes(tree: string, given?: RouteDbRow[]): Promise<Map<Route, { provider: Provider | null; model: string }>> {
+  const r = routesQuery(tree);
+  const rows = given ?? (await accounts().all<RouteDbRow>(r.sql, ...r.params));
   return new Map(rows.map((r) => [r.route as Route, { provider: isProvider(r.provider) ? r.provider : null, model: r.model }]));
 }
 
-/** Where every route goes now. Reads only. */
-export async function resolveRoutes(tree: string): Promise<Record<Route, ResolvedRoute>> {
-  const [stored, connected] = await Promise.all([storedRoutes(tree), connectedProviders(tree)]);
+/** Where every route goes now. Reads only. `rows` are the two reads already made (`routesQuery`, `connectionsQuery`), if they were. */
+export async function resolveRoutes(tree: string, rows?: { routes: RouteDbRow[]; connections: ConnRow[] }): Promise<Record<Route, ResolvedRoute>> {
+  const [stored, connected] = await Promise.all([storedRoutes(tree, rows?.routes), connectedProviders(tree, rows?.connections)]);
   const own = (r: Route) => stored.get(r) ?? { provider: null, model: '' };
   const a = own('assistant');
   const assistant = a.provider ? { provider: a.provider, model: a.model || DEFAULT_MODEL[a.provider] } : null;

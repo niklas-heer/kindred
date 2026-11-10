@@ -111,6 +111,23 @@ export async function sessionByToken(token: string): Promise<SessionRow | undefi
   return row && row.expires > now() ? row : undefined;
 }
 
+/**
+ * A live session with its account and the account's memberships, read in one round trip: every signed-in request starts
+ * with this, so on D1 it is one trip instead of three. Undefined when the session has expired or its account is gone.
+ */
+export async function sessionWithUser(token: string): Promise<{ session: SessionRow; user: UserRow; memberships: MembershipRow[] } | undefined> {
+  const hash = await hashToken('session', token);
+  const t = now();
+  const live = 'SELECT user FROM session WHERE hash = ? AND expires > ?';
+  const [s, u, m] = (await accounts().readBatch([
+    q('SELECT * FROM session WHERE hash = ? AND expires > ?', hash, t),
+    q(`SELECT * FROM user WHERE id = (${live})`, hash, t),
+    q(`SELECT * FROM membership WHERE user = (${live}) ORDER BY created`, hash, t),
+  ])) as unknown as [SessionRow[], UserRow[], MembershipRow[]];
+  const session = s[0], user = u[0];
+  return session && user ? { session, user, memberships: m } : undefined;
+}
+
 /** Sliding expiry: a session used within 30 days lives on, up to a year from sign-in. Refreshed at most daily. */
 export async function slideSession(row: SessionRow): Promise<number | undefined> {
   const t = now();

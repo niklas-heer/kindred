@@ -132,32 +132,43 @@ export async function once<T>(tree: string, op: OpKey | undefined, fn: string, w
 
 // ---------- reads ----------
 
-const meta = async (d: Db) => Object.fromEntries((await d.all<{ key: string; value: string }>('SELECT key, value FROM meta')).map((r) => [r.key, r.value]));
+const META = q('SELECT key, value FROM meta');
+const metaOf = (rows: Record<string, unknown>[]) => Object.fromEntries(rows.map((r) => [r.key as string, r.value as string]));
+
+const monthDayOf = (d: Date) => `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 /**
  * The families on this server, largest first. With `only`, just those of them: a reader's list never opens anyone else's.
  * `protectLiving` names the families whose reader is a guest with a link that protects living people: no birthdays there.
+ * With `today`, each family also says what that day brings (`todayIn`), read in the same round trip.
  */
-export async function listTrees(only?: Iterable<string>, protectLiving: ReadonlySet<string> = new Set()): Promise<TreeMeta[]> {
-  const monthDay = `${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+export async function listTrees(only?: Iterable<string>, protectLiving: ReadonlySet<string> = new Set(), today?: Date): Promise<(TreeMeta & { today?: TodayEvent[] })[]> {
+  const monthDay = monthDayOf(new Date());
   const wanted = only && new Set(only);
   const ids = wanted ? store.treeIds().filter((id) => wanted.has(id)) : store.treeIds();
   const trees = await Promise.all(
-    ids.map(async (id): Promise<TreeMeta | null> => {
-      const d = db(id);
+    ids.map(async (id): Promise<(TreeMeta & { today?: TodayEvent[] }) | null> => {
+      // One round trip per family: its details, its size, its crest, today's birthdays and, if asked, the rest of today.
       // An empty or half-built database is not a tree yet: skip it rather than break the home page.
-      const m = await meta(d).catch(() => ({}) as Record<string, string>);
-      if (!m.id) return null;
-      const [count, crestRow, born] = await Promise.all([
-        d.get<{ n: number }>('SELECT count(*) AS n FROM person'),
-        d.get<{ arms: string }>('SELECT h.arms FROM house h LEFT JOIN person p ON p.house = h.id GROUP BY h.id ORDER BY count(p.id) DESC, h.id LIMIT 1'),
-        d.all<{ id: string; given: string; surname: string | null }>('SELECT id, given, surname FROM person WHERE living = 1 AND substr(born, 6) = ?', monthDay),
-      ]);
+      const rows = await db(id).readBatch([
+        META,
+        q('SELECT count(*) AS n FROM person'),
+        q('SELECT h.arms FROM house h LEFT JOIN person p ON p.house = h.id GROUP BY h.id ORDER BY count(p.id) DESC, h.id LIMIT 1'),
+        q('SELECT id, given, surname FROM person WHERE living = 1 AND substr(born, 6) = ?', monthDay),
+        ...(today ? todayQueries(today) : []),
+      ]).catch(() => null);
+      const m = rows ? metaOf(rows[0]!) : {};
+      if (!rows || !m.id) return null;
+      const [, [count], [crestRow], born, todayPeople, todayUnions] = rows as [unknown, { n: number }[], { arms: string }[], { id: string; given: string; surname: string | null }[], any[], any[]];
       const birthdays = protectLiving.has(id) ? [] : born.map((p) => ({ id: p.id, name: [p.given, p.surname].filter(Boolean).join(' ') }));
-      return { id: m.id, name: m.name, tagline: m.tagline, theme: m.theme as TreeMeta['theme'], focus: m.focus, people: count?.n ?? 0, crest: crestRow ? (JSON.parse(crestRow.arms) as House['arms']) : undefined, birthdays };
+      return {
+        id: m.id, name: m.name, tagline: m.tagline, theme: m.theme as TreeMeta['theme'], focus: m.focus, people: count?.n ?? 0,
+        crest: crestRow ? (JSON.parse(crestRow.arms) as House['arms']) : undefined, birthdays,
+        ...(today ? { today: todayFrom(todayPeople, todayUnions, today, protectLiving.has(id)) } : {}),
+      };
     }),
   );
-  return trees.filter((t): t is TreeMeta => t !== null).sort((a, b) => b.people - a.people);
+  return trees.filter((t): t is TreeMeta & { today?: TodayEvent[] } => t !== null).sort((a, b) => b.people - a.people);
 }
 
 /**
@@ -169,17 +180,23 @@ export async function listTrees(only?: Iterable<string>, protectLiving: Readonly
  * of the living, and the dead remembered as before.
  */
 export async function todayIn(tree: string, today = new Date(), protectLiving = false): Promise<TodayEvent[]> {
-  const d = db(tree);
-  const md = `${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const [peopleRows, unionRows] = await db(tree).readBatch(todayQueries(today));
+  return todayFrom(peopleRows!, unionRows!, today, protectLiving);
+}
+
+/** `todayIn`'s two reads, for a batch: the people and the partnerships whose dates fall on today's month and day. */
+function todayQueries(today: Date): Query[] {
+  const md = monthDayOf(today);
   // In the graph's order (rowid, and partnerships by start), so the events come out in the order the full read gives.
-  const [peopleRows, unionRows] = await Promise.all([
-    d.all<any>(
-      `SELECT id, given, surname, born, died, living FROM person WHERE substr(born, 6) = ? OR substr(died, 6) = ?
+  return [
+    q(`SELECT id, given, surname, born, died, living FROM person WHERE substr(born, 6) = ? OR substr(died, 6) = ?
         OR id IN (SELECT a FROM partnership WHERE substr(start, 6) = ? UNION SELECT b FROM partnership WHERE substr(start, 6) = ?) ORDER BY rowid`,
-      md, md, md, md,
-    ),
-    d.all<any>('SELECT id, a, b, kind, start, end FROM partnership WHERE substr(start, 6) = ? ORDER BY start', md),
-  ]);
+      md, md, md, md),
+    q('SELECT id, a, b, kind, start, end FROM partnership WHERE substr(start, 6) = ? ORDER BY start', md),
+  ];
+}
+
+function todayFrom(peopleRows: any[], unionRows: any[], today: Date, protectLiving: boolean): TodayEvent[] {
   const people = peopleRows.map((r) => ({ id: r.id, given: r.given, surname: opt(r.surname), born: opt(r.born), died: opt(r.died), living: r.living === 1 }));
   const unions = unionRows.map((r) => ({ id: r.id, a: r.a, b: r.b, kind: r.kind, start: opt(r.start), end: opt(r.end) }));
   const narrow = { people, unions, places: [] } as unknown as Graph;
@@ -218,17 +235,20 @@ const defined = <T extends object>(o: T): T => Object.fromEntries(Object.entries
 export async function graph(tree: string, reader: Audience = PLAIN_MEMBER): Promise<Graph> {
   const d = db(tree);
   const seen = fieldsVisibleTo(reader);
-  const [m, peopleRows, houseRows, parents, unionRows, placeRows] = await Promise.all([
-    meta(d),
-    d.all<any>(`SELECT p.*, ph.at AS photo, (SELECT count(*) FROM story s WHERE s.person = p.id) AS stories,
+  // Six independent reads in one round trip (one moment of the family, too).
+  const [metaRows, peopleRows, houseRows, parentRows, unionRows, placeRows] = (await d.readBatch([
+    META,
+    q(`SELECT p.*, ph.at AS photo, (SELECT count(*) FROM story s WHERE s.person = p.id) AS stories,
       (SELECT pt.key FROM portrait pt WHERE pt.person = p.id AND pt.accepted = 1) AS portrait, (SELECT pt.source_year FROM portrait pt WHERE pt.person = p.id AND pt.accepted = 1) AS portrait_year,
       (SELECT count(*) FROM person_field f WHERE f.person = p.id AND ${seen.sql} AND f.type IN ('phone', 'email', 'address', 'website', 'social')) AS contacts
       FROM person p LEFT JOIN photo ph ON ph.person = p.id`, ...seen.params),
-    d.all<any>('SELECT * FROM house'),
-    d.all<GParent>('SELECT child, parent, kind, confidence FROM parent'),
-    d.all<any>('SELECT * FROM partnership ORDER BY start'),
-    d.all<any>('SELECT * FROM place'),
-  ]);
+    q('SELECT * FROM house'),
+    q('SELECT child, parent, kind, confidence FROM parent'),
+    q('SELECT * FROM partnership ORDER BY start'),
+    q('SELECT * FROM place'),
+  ])) as any[][];
+  const m = metaOf(metaRows!);
+  const parents = parentRows as GParent[];
   const people = peopleRows.map(
     (r): GPerson => defined({
       id: r.id,

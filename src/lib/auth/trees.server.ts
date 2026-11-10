@@ -7,10 +7,11 @@ import { AuthError } from './errors.ts';
 
 /**
  * Every family on this server, or with `only`, just those of them (a reader's own: nobody else's database is opened).
- * `protectLiving` names the families read by a guest whose link protects living people (listTrees).
+ * `protectLiving` names the families read by a guest whose link protects living people (listTrees). With `today`, each also
+ * says what that day brings, in the same read.
  */
-export async function families(only?: Iterable<string>, protectLiving?: ReadonlySet<string>) {
-  return (await listTrees(only, protectLiving)).filter((t) => !NOT_TREES.has(t.id));
+export async function families(only?: Iterable<string>, protectLiving?: ReadonlySet<string>, today?: Date) {
+  return (await listTrees(only, protectLiving, today)).filter((t) => !NOT_TREES.has(t.id));
 }
 
 export async function family(tree: string) {

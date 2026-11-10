@@ -43,8 +43,8 @@ export interface SessionInfo {
 
 /** Who is signed in, and their role and "who you are" in each family. Never cached across readers. */
 export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): Promise<SessionInfo> => {
-  const [{ currentSession }, s, setup, { accessLogoutUrl, authMethod }, { siteOrigin, guestEnded }, { getRequest }, { onGuestHost }, { defaultTreeFor }] = await Promise.all([
-    guard(), store(), import('./setup.server'), import('./method.server'), import('./session.server'), import('@tanstack/react-start/server'), import('./origin'), import('./guest-host'),
+  const [{ currentSession, myMemberships }, setup, { accessLogoutUrl, authMethod }, { siteOrigin, guestEnded }, { getRequest }, { onGuestHost }, { defaultTreeFor }] = await Promise.all([
+    guard(), import('./setup.server'), import('./method.server'), import('./session.server'), import('@tanstack/react-start/server'), import('./origin'), import('./guest-host'),
   ]);
   // The refused setting never reaches here off the guest host (src/start.ts), and the guest host has no sign-in to choose.
   const auth = authMethod() ?? 'kindred';
@@ -53,7 +53,7 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): 
   // First-time setup is no business of the guest host, which is open to the internet.
   const needs = guestHost ? false : await setup.needsSetup(getRequest());
   const needsFamily = needs && !(await (await import('./trees.server')).families()).length;
-  const memberships = user ? (await s.membershipsOf(user.id)).map((m) => ({ tree: m.tree, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed })) : [];
+  const memberships = user ? (await myMemberships()).map((m) => ({ tree: m.tree, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed })) : [];
   // A member of that family is simply a member: only someone who isn't gets the guest's view of it.
   const guestHere = guest && !memberships.some((m) => m.tree === guest.tree) ? guest : undefined;
   if (guestHere) memberships.push({ tree: guestHere.tree, role: 'viewer', person: null, personConfirmed: false });
@@ -78,19 +78,19 @@ export const sessionQuery = queryOptions({ queryKey: ['session'], queryFn: () =>
 
 /** The families the signed-in reader belongs to, with their role in each. Empty when signed out. */
 export const fetchMyFamilies = createServerFn({ method: 'GET' }).handler(async (): Promise<(TreeMeta & { role: Role; today: import('./today').TodayEvent[] })[]> => {
-  const [{ currentSession }, s, { families }] = await Promise.all([guard(), store(), import('./trees.server')]);
+  const [{ currentSession, myMemberships }, { families }] = await Promise.all([guard(), import('./trees.server')]);
   const { user, guest } = await currentSession();
   if (!user && !guest) return [];
-  const mine = new Map(user ? (await s.membershipsOf(user.id)).map((m) => [m.tree, m.role]) : []);
+  const mine = new Map(user ? (await myMemberships()).map((m) => [m.tree, m.role]) : []);
   // A guest's family, unless they are a member of it too. A visit that does not say is protected, as in requireReader.
   const protect = new Set<string>();
   if (guest && !mine.has(guest.tree)) {
     mine.set(guest.tree, 'viewer');
     if (guest.protectLiving !== false) protect.add(guest.tree);
   }
-  // Only the reader's families are opened, and "today" is a narrow read, not the whole family: this runs on every page.
-  const { todayIn } = await import('../db.server');
-  return Promise.all((await families(mine.keys(), protect)).map(async (t) => ({ ...t, role: mine.get(t.id)!, today: await todayIn(t.id, undefined, protect.has(t.id)) })));
+  // Only the reader's families are opened, and "today" is a narrow read, not the whole family: this runs on every page. Each
+  // family is one round trip, its "today" included.
+  return (await families(mine.keys(), protect, new Date())).map((t) => ({ ...t, role: mine.get(t.id)!, today: t.today ?? [] }));
 });
 export const myFamiliesQuery = queryOptions({ queryKey: ['session', 'families'], queryFn: () => fetchMyFamilies() });
 

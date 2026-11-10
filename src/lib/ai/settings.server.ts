@@ -6,7 +6,8 @@ import { AiError, DEFAULT_MAX_TOKENS, DEFAULT_SEARCH_USES, callRounds, chatModel
 import { fakeAdapter } from './fake';
 import { openRouterListed } from './models.server';
 import { costMicros, reportedMicros, resolvePrice, searchReserveMicros, type Price } from './prices';
-import { keyFor, projectedConnected, resolveRoute, resolveRoutes, saveRoutes, type ResolvedRoute, type RouteInput } from './providers.server';
+import { connectionsQuery, keyFor, projectedConnected, resolveRoute, resolveRoutes, routesQuery, saveRoutes, type ConnRow, type ResolvedRoute, type RouteDbRow, type RouteInput } from './providers.server';
+import { q } from '../store/index.ts';
 import { tr, type Tr } from './labels';
 import { DEFAULT_MODEL, FEATURES, type AiFeatures, type AiLocale, type AiStatus, type CustomPrice, type Feature, type Provider, type Route } from './types';
 
@@ -62,7 +63,10 @@ export function parseCustomPrices(s: string): Record<string, CustomPrice> {
 }
 
 export async function readSettings(tree: string): Promise<Settings> {
-  const r = await accounts().get<Row>('SELECT * FROM ai_settings WHERE tree = ?', tree);
+  return settingsOf(await accounts().get<Row>('SELECT * FROM ai_settings WHERE tree = ?', tree));
+}
+
+function settingsOf(r: Row | undefined): Settings {
   if (!r) {
     return { features: { ...OFF }, webSearch: false, monthlyMicros: DEFAULT_MONTHLY_MICROS, customPrices: {}, updated: 0 };
   }
@@ -283,8 +287,12 @@ export async function adapterForFeature(tree: string, feature: Feature, locale: 
 
 /** What the browser shows: the assistant is set up (its provider connected), a feature is on only when switched on and its own route runs, and the budget is above 0. */
 export async function statusFor(tree: string): Promise<AiStatus> {
-  const s = await readSettings(tree);
-  const routes = await resolveRoutes(tree);
+  // Every page asks this: the settings, the routes and the connections in one round trip.
+  const [settingsRows, routeRows, connectionRows] = (await accounts().readBatch([
+    q('SELECT * FROM ai_settings WHERE tree = ?', tree), routesQuery(tree), connectionsQuery(tree),
+  ])) as unknown as [Row[], RouteDbRow[], ConnRow[]];
+  const s = settingsOf(settingsRows[0]);
+  const routes = await resolveRoutes(tree, { routes: routeRows, connections: connectionRows });
   const assistant = routes.assistant;
   const configured = assistant.connected;
   const fake = fakeOn() && configured;

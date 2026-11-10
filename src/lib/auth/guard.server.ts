@@ -16,7 +16,7 @@ import { onChangeCommitted } from '../db.server';
 import { can, needs, type Action, type Role } from '../roles';
 import { forbidden, notMember, signedOut, type AuthError } from './errors';
 import { getSession, type Session } from './session.server';
-import { membership, type UserRow } from './store.server';
+import { membershipsOf, type MembershipRow, type UserRow } from './store.server';
 
 // One lookup per request, however many checks it makes.
 const perRequest = new WeakMap<Request, Promise<Session>>();
@@ -36,6 +36,21 @@ export function currentSession(): Promise<Session> {
   }
   return s;
 }
+
+// And one read of the reader's memberships per request: with the session's, when they came with it.
+const perRequestMemberships = new WeakMap<Request, Promise<MembershipRow[]>>();
+
+/** The signed-in reader's memberships, read once per request (empty for nobody). Every check below uses these. */
+export function myMemberships(): Promise<MembershipRow[]> {
+  const request = getRequest();
+  let m = perRequestMemberships.get(request);
+  if (!m) {
+    m = currentSession().then((s) => s.memberships ?? (s.user ? membershipsOf(s.user.id) : []));
+    perRequestMemberships.set(request, m);
+  }
+  return m;
+}
+const membership = async (_user: string, tree: string) => (await myMemberships()).find((m) => m.tree === tree);
 
 /**
  * Gives a failed server-function call the error's HTTP status (401, 403, 400, 429): Start sends a

@@ -64,6 +64,8 @@ version will not run on a database that has had these migrations.
 - Reminder and date wording in German and Afrikaans was reviewed again: whole sentences, wedding anniversaries with their full
   names, one name for each feature.
 - Cloudflare guide: a page needs the Workers Paid plan, and the Worker should be placed near D1.
+- A family page reaches D1 in 4 round trips instead of about 21: the session with its account and memberships, the families
+  list with today's events, the family and the AI status are each read as one batch.
 
 ### Fixed
 

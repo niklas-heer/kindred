@@ -6,7 +6,7 @@
 //   GAZETTEER      D1, optional: the GeoNames towns for assisted place entry, read-only (migrations/gazetteer,
 //                  loaded by `mise run cf:gazetteer`). Without it the place picker offers the family's own places.
 import { env, waitUntil } from 'cloudflare:workers';
-import { checkMediaKey, checkStatement, NOT_TREES, TREE_ID, type Db, type Driver, type Param, type Query, type Result } from './db.ts';
+import { checkMediaKey, checkReads, checkStatement, NOT_TREES, TREE_ID, type Db, type Driver, type Param, type Query, type Result } from './db.ts';
 
 const isD1 = (v: unknown): v is D1Database => !!v && typeof (v as D1Database).prepare === 'function' && typeof (v as D1Database).batch === 'function';
 
@@ -40,6 +40,12 @@ function wrap(d1: D1Database): Db {
     async batch(queries: Query[]) {
       if (!queries.length) return [];
       return (await d1.batch(queries.map((x) => stmt(x.sql, x.params)))).map(result);
+    },
+    // One batch is one round trip, and D1 runs it as one transaction: the reads see one moment.
+    async readBatch(queries: Query[]) {
+      checkReads(queries);
+      if (!queries.length) return [];
+      return (await d1.batch(queries.map((x) => stmt(x.sql, x.params)))).map((r) => (r.results ?? []).map(row) as Record<string, unknown>[]);
     },
   };
 }
@@ -93,7 +99,7 @@ const driver: Driver = {
     const refuse = async (): Promise<never> => {
       throw new Error('The gazetteer is read-only');
     };
-    return { all: d.all.bind(d), get: d.get.bind(d), run: refuse, batch: refuse };
+    return { all: d.all.bind(d), get: d.get.bind(d), readBatch: d.readBatch.bind(d), run: refuse, batch: refuse };
   },
 
   keepAlive(work) {

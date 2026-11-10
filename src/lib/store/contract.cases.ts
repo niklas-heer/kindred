@@ -169,6 +169,46 @@ export const contractCases: Record<string, () => Promise<void>> = {
     same(read.rows, [{ n: 1 }]);
   },
 
+  // ---------- reads together (readBatch) ----------
+
+  'readBatch returns each read’s rows in order, as all() would, and nothing for no reads': async () => {
+    const d = await scratch();
+    const tag = uid('t');
+    await d.batch([q('INSERT INTO contract_value (txt, int) VALUES (?, 1)', tag), q('INSERT INTO contract_value (txt, int) VALUES (?, 2)', tag)]);
+    const reads = [
+      q('SELECT int FROM contract_value WHERE txt = ? ORDER BY int', tag),
+      q('SELECT count(*) AS n FROM contract_value WHERE txt = ?', tag),
+      q('SELECT int FROM contract_value WHERE txt = ?', uid('nobody')),
+      q('WITH x AS (SELECT 7 AS v) SELECT v FROM x'),
+    ];
+    const got = await d.readBatch(reads);
+    same(got, [[{ int: 1 }, { int: 2 }], [{ n: 2 }], [], [{ v: 7 }]]);
+    same(got, plain(await Promise.all(reads.map((r) => d.all(r.sql, ...r.params)))));
+    same(await d.readBatch([]), []);
+    same(await store.accounts().readBatch([q('SELECT 1 AS one')]), [[{ one: 1 }]]);
+  },
+
+  'readBatch gives a blob back as the same bytes': async () => {
+    const d = await scratch();
+    const bytes = Uint8Array.from({ length: 64 }, (_, i) => 255 - i);
+    const { lastRowId } = await d.run('INSERT INTO contract_value (b) VALUES (?)', bytes as Param);
+    const [[row]] = await d.readBatch([q('SELECT b FROM contract_value WHERE id = ?', lastRowId)]);
+    assert.ok(row!.b instanceof Uint8Array, `a blob came back as ${Object.prototype.toString.call(row!.b)}`);
+    assert.deepEqual([...(row!.b as Uint8Array)], [...bytes]);
+  },
+
+  'readBatch refuses a write before running anything, and a failing read fails the whole call': async () => {
+    const d = await scratch();
+    const tag = uid('t');
+    await assert.rejects(d.readBatch([q('SELECT 1'), q('INSERT INTO contract_value (txt) VALUES (?)', tag)]), /reads only/);
+    await assert.rejects(d.readBatch([q('UPDATE contract_value SET txt = ? WHERE id = -1', tag)]), /reads only/);
+    same(await d.all('SELECT id FROM contract_value WHERE txt = ?', tag), []);
+    await assert.rejects(d.readBatch([q('SELECT 1'), q('SELECT * FROM no_such_table')]));
+    // The same limits as any statement.
+    const marks = Array.from({ length: 101 }, () => '?').join(', ');
+    await assert.rejects(d.readBatch([q(`SELECT 1 WHERE 1 IN (${marks})`, ...Array.from({ length: 101 }, (_, i) => i))]), /101 bound parameters/);
+  },
+
   'a missing row is undefined and an empty read is an empty list': async () => {
     assert.equal(await tree().get('SELECT id FROM person WHERE id = ?', uid('nobody')), undefined);
     same(await tree().all('SELECT id FROM person WHERE id = ?', uid('nobody')), []);

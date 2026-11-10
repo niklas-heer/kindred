@@ -191,6 +191,9 @@ These rules keep the data consistent without interactive transactions, which D1 
   has one parent" or "the person count is the same as when I read it". A guard is an `INSERT INTO guard (ok) SELECT …`,
   and the trigger on the `guard` view aborts the whole batch when the condition is false. If another request changed
   the facts in between, nothing is written and the change is decided again on fresh reads.
+- **Reads that do not depend on each other go together.** On D1 every statement is a round trip, so a page's independent
+  reads are sent as one `readBatch()` (reads only; one round trip on D1, one read transaction on Node, the same moment of
+  the database on both). The family graph, the families list, the session and the AI status each read this way.
 - **Retry keys make a resend safe.** A change sent with an `opKey` stores its result in `op` in the same batch. The same
   key sent again, by the same person with the same change, returns the stored result instead of writing twice. A key
   reused for something else is refused. Rows older than 30 days are pruned.
