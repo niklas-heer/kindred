@@ -125,6 +125,7 @@ database that has had these migrations.
   family book, a house, the Atlas, the arms designer and the phone. It runs the server on a fixed clock, so the pictures repeat.
 
 ### Changed
+
 - Text follows the text size set in the browser: font sizes in the stylesheets are in `rem` instead of `px`, so a reader who has chosen a larger default text size gets larger text. At the default size nothing looks different. The tree's cards and the Print page keep fixed sizes.
 - Relationships reach further through marriages: a spouse's sibling's spouse and a sibling's spouse's sibling (German
   Schwippschwager, Schwippschwägerin), a step-parent's parents and siblings, a grandparent's later spouse (step-grandparents and
@@ -156,6 +157,7 @@ database that has had these migrations.
   first entries draw their faces into the page; the rest are drawn as soon as it has loaded, in the same frame.
 
 ### Fixed
+
 - Backing up and restoring: the commands in `docs/self-host.md` and `docs/deploy-cloudflare.md` were run for the first time and corrected where they failed. A D1 export now restores with one extra line that moves the `guard` view first (loading it as it was stopped with `no such table: main.guard`), restoring to a new D1 database says to bind it in `wrangler.jsonc` first, going back after an upgrade has its commands, and Docker to Node, Node to Docker and Cloudflare to Node each have a tested procedure.
 - Red "delete" buttons are readable in every theme (white on the old red was below the AA contrast in Codex and Night).
 - On a phone, the Needed page's kinship wraps instead of running under "Fill in", and the "More" sheet's hints stay inside it in German.
