@@ -9,7 +9,7 @@ import { forbidden } from './auth/errors';
 import { db, guard, media, once, personExists, q, type Db, type OpKey } from './db.server';
 import { DOCUMENT_EXT, mayChangeResearch, seesPrivateResearch, type DocumentMime, type PersonResearchLink, type ProjectSummary, type ProjectView, type ResearchDocument, type ResearchNote } from './research.ts';
 import { can, type Role } from './roles.ts';
-import { LIVING_IDS } from './protect-living.ts';
+import { LIVING_IDS, pictureColumn } from './protect-living.ts';
 
 /**
  * Who is asking, as the guard established. `protectLiving` is set for a guest whose link protects living people: a project
@@ -82,7 +82,9 @@ export async function projectView(tree: string, id: string, who: Who): Promise<P
     d.all<Record<string, never> & DocumentRow>(`SELECT * FROM research_document WHERE project = ? ${privateFilter(see)} ORDER BY coalesce(date, '9999'), created_at, id`, id),
     d.all<Record<string, never> & NoteRow>(`SELECT * FROM research_note WHERE project = ? ${privateFilter(see)} ORDER BY coalesce(date, '9999'), created_at, id`, id),
     d.all<{ media: string; taken: string | null; caption: string | null; created_by: string; created_by_name: string }>(
-      'SELECT r.media, m.taken, m.caption, r.created_by, r.created_by_name FROM research_picture r JOIN media m ON m.key = r.media WHERE r.project = ? ORDER BY r.created_at, r.media', id),
+      // A picture with a living person in it comes to a protected guest without its caption or date (protect-living.ts).
+      `SELECT r.media, ${pictureColumn('m.taken', who.protectLiving)} AS taken, ${pictureColumn('m.caption', who.protectLiving)} AS caption, r.created_by, r.created_by_name
+         FROM research_picture r JOIN media m ON m.key = r.media WHERE r.project = ? ORDER BY r.created_at, r.media`, id),
     d.all<{ person: string; private: number; created_by: string; created_by_name: string }>(
       `SELECT person, private, created_by, created_by_name FROM research_person WHERE project = ? ${privateFilter(see)} ORDER BY created_at, person`, id),
     d.all<{ place: string; created_by: string; created_by_name: string }>(

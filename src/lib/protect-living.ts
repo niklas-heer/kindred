@@ -6,7 +6,9 @@
 //             tree (parents and partnerships, with their kind), and their face: photo, painted portrait and drawn look.
 //   withheld  every date (no year either: a birth year and a name already identify a child, and an age follows from it),
 //             every place, occupation, traits, biography, stories, story translations, research that names them, their tags
-//             on gallery pictures, the dates and place of their partnerships, and any count that would describe them.
+//             on gallery pictures, the caption, date and place of any picture they are tagged in (the caption is often
+//             their name and the occasion, the date their age), the dates and place of their partnerships, and any count
+//             that would describe them.
 //
 // The `living` flag decides, as stored: someone marked not living is shown as today even without a date of death. The dead
 // are untouched. The reads apply this on the server where they shape a guest's answer (db.server.ts graph, person, chronicle,
@@ -15,6 +17,13 @@ import type { GPerson, GUnion, Graph, PersonDetail } from './types';
 
 /** An SQL condition that is true for a living person's id, for reads that filter rows about people. */
 export const LIVING_IDS = 'SELECT id FROM person WHERE living = 1';
+
+/** The gallery pictures a living person is tagged in, confirmed or only suggested: such a guest gets them without caption, date or place. */
+export const LIVING_PICTURES = `SELECT media FROM media_person WHERE person IN (${LIVING_IDS})`;
+
+/** A picture's column (`m.caption`, `m.taken`, `m.place`), or NULL for such a guest when a living person is tagged in it. */
+export const pictureColumn = (column: string, protectLiving: boolean | undefined, key = 'm.key') =>
+  protectLiving ? `CASE WHEN ${key} IN (${LIVING_PICTURES}) THEN NULL ELSE ${column} END` : column;
 
 /** A living person as such a guest gets them. */
 export function protectPerson(p: GPerson): GPerson {

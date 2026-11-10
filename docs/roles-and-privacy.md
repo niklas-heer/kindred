@@ -83,12 +83,14 @@ account. A guest's pictures go through the same checks, and they need the guest'
   about them in the Chronicle or on their page, in any language, no research project that names them (its notes, documents
   and files included), no birthday or wedding anniversary on the families list or in the Almanac, no Atlas pin or place that
   only their records name, no partnership date or place for a couple with a living partner, and no story or contact counts.
-  Gallery pictures still show if a guest can open the gallery, but no living person is tagged on them, and a living person's
-  own photo list is empty. The `living` flag decides as stored: someone marked not living is shown in full, with or without a
+  Gallery pictures still show if a guest can open the gallery, but no living person is tagged on them, and a picture with a
+  living person in it (tagged, or only suggested) comes without its caption, date and place, in the gallery, on anyone's page
+  and in research alike: a caption usually names who is in the picture and the occasion, and a date gives their age. A living
+  person's own photo list is empty. The `living` flag decides as stored: someone marked not living is shown in full, with or without a
   date of death, and the dead are untouched. The server applies this where it shapes a guest's reads
   (`src/lib/protect-living.ts`; the guard hands every read the link's setting), so no response to such a guest carries any of
   it, the page the server renders included. What the family wrote in free text about someone else (a story about a
-  grandmother that names her grandchild's birthday, a caption on a picture) is not rewritten.
+  grandmother that names her grandchild's birthday, the caption of a picture nobody living is tagged in) is not rewritten.
 
 Before you share a link, decide what it should show: anyone who has the link and the password can read the names, the dates
 of the dead (and of the living, if the link does not protect them), biographies and stories, for as long as the link works,

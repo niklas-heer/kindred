@@ -4,7 +4,7 @@
 import type { Album, Box, Face, Gallery, MediaItem, Tag } from '~/components/photos/types';
 import { db, guard, media, newMediaKey, once, personExists, q, type Db, type OpKey } from './db.server';
 import type { Param } from './store/index.ts';
-import { LIVING_IDS } from './protect-living.ts';
+import { LIVING_IDS, pictureColumn } from './protect-living.ts';
 
 // ---------- reads ----------
 
@@ -14,14 +14,18 @@ interface MediaRow {
 }
 interface TagRow { id: number; media: string; person: string; x: number; y: number; w: number; h: number; confirmed: number }
 
-const COLS = 'm.key, m.mime, m.width, m.height, m.taken, m.place, m.caption, m.album, m.uploaded_by, m.uploaded_at';
+/** The columns of a picture. With `protectLiving`, a picture with a living person in it comes without caption, date or place. */
+const cols = (protectLiving: boolean) =>
+  `m.key, m.mime, m.width, m.height, ${pictureColumn('m.taken', protectLiving)} AS taken, ${pictureColumn('m.place', protectLiving)} AS place, ` +
+  `${pictureColumn('m.caption', protectLiving)} AS caption, m.album, m.uploaded_by, m.uploaded_at`;
 
 /**
  * Media rows matching `where` (an SQL condition on `m`), each with its tags, newest upload first. With `protectLiving` (a guest
- * whose link protects living people) the pictures stay, but no living person is tagged on them (src/lib/protect-living.ts).
+ * whose link protects living people) the pictures stay, but no living person is tagged on them, and a picture one is in has no
+ * caption, date or place (src/lib/protect-living.ts).
  */
 async function withTags(d: Db, where: string, params: Param[], protectLiving = false): Promise<MediaItem[]> {
-  const rows = await d.all<MediaRow>(`SELECT ${COLS} FROM media m WHERE ${where} ORDER BY m.uploaded_at DESC, m.key`, ...params);
+  const rows = await d.all<MediaRow>(`SELECT ${cols(protectLiving)} FROM media m WHERE ${where} ORDER BY m.uploaded_at DESC, m.key`, ...params);
   if (!rows.length) return [];
   const tags = await d.all<TagRow>(
     `SELECT id, media, person, x, y, w, h, confirmed FROM media_person WHERE media IN (SELECT m.key FROM media m WHERE ${where})${protectLiving ? ` AND person NOT IN (${LIVING_IDS})` : ''} ORDER BY id`,

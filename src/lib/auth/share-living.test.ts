@@ -80,13 +80,17 @@ const WITHHELD = [
   KID_BORN, 'Quillbridge', 'Pupil-of-Wrenhall', 'KID-BIO-TEXT', 'kid-trait-xq', 'KID-STORY-TEXT', 'KID-STORY-DE', 'KID-PHONE-0000',
   'KID-PROJECT-TITLE', 'KID-RESEARCH-NOTE', 'KID-DOC-TITLE',
   '1985-02-02', 'Marrowfield', WEDDING, 'Weddingham', 'Isolde-Bio',
+  // A picture the child is in, tagged or only suggested: its caption, date and place.
+  'KID-CAPTION-TEXT', '2016-07-07', 'Picnicford', 'SUGGESTED-CAPTION-TEXT', '2017-08-08', 'Suggestedholm',
 ];
 /** What the same guest still gets: the dead as they were, and the names of the living. */
-const KEPT = ['1920-05-05', 'Oldhaven', 'GRAN-STORY-TEXT', 'GRAN-PROJECT-TITLE', 'Wren', 'Fernsby'];
+const KEPT = ['1920-05-05', 'Oldhaven', 'GRAN-STORY-TEXT', 'GRAN-PROJECT-TITLE', 'Wren', 'Fernsby', 'GRAN-CAPTION-TEXT', '1950-06-06', 'Gransby'];
 
 const KID_DOC = '00000000-0000-4000-8000-00000000d0c1.pdf';
 const GRAN_DOC = '00000000-0000-4000-8000-00000000d0c2.pdf';
 const PICTURE = '00000000-0000-4000-8000-0000000000e1.jpg';
+const GRAN_PICTURE = '00000000-0000-4000-8000-0000000000e2.jpg';
+const SUGGESTED_PICTURE = '00000000-0000-4000-8000-0000000000e3.jpg';
 
 /** The route's own GET handler, as the server calls it. */
 async function get(route: string, params: Record<string, string>) {
@@ -118,10 +122,22 @@ before(async () => {
     await d.run("INSERT INTO story_translation (story, locale, source_hash, body, translated_at) VALUES (?, 'de', ?, ?, '2026-01-03')", story, await tasks.sourceHash(null, body), translated);
   }
   await d.run(`INSERT INTO person_field (id, person, type, label, value, visibility) VALUES ('f-kid', 'kid', 'phone', 'Mobile', '{"number":"KID-PHONE-0000"}', 'family')`);
-  // A gallery picture of the child with her grandmother, and a profile photo.
-  await d.run("INSERT INTO media (key, mime, uploaded_by, uploaded_at) VALUES (?, 'image/jpeg', 'x', '2026-01-01')", `gallery/${PICTURE}`);
-  await dbs.media.put(TREE, `gallery/${PICTURE}`, new Uint8Array([255, 216, 255]), 'image/jpeg');
-  for (const who of ['kid', 'gran']) await d.run("INSERT INTO media_person (media, person, x, y, w, h, confirmed, tagged_by, at) VALUES (?, ?, 0.1, 0.1, 0.2, 0.2, 1, 'x', '2026-01-01')", `gallery/${PICTURE}`, who);
+  // A gallery picture of the child with her grandmother, one of the grandmother alone, one where the child is only suggested,
+  // each with a caption, a date and a place; and a profile photo.
+  for (const [key, caption, taken, place, at] of [
+    [PICTURE, 'KID-CAPTION-TEXT', '2016-07-07', 'Picnicford', '2026-01-01'],
+    [GRAN_PICTURE, 'GRAN-CAPTION-TEXT', '1950-06-06', 'Gransby', '2026-01-02'],
+    [SUGGESTED_PICTURE, 'SUGGESTED-CAPTION-TEXT', '2017-08-08', 'Suggestedholm', '2026-01-03'],
+  ]) {
+    await d.run("INSERT INTO media (key, mime, caption, taken, place, uploaded_by, uploaded_at) VALUES (?, 'image/jpeg', ?, ?, ?, 'x', ?)", `gallery/${key}`, caption, taken, place, at);
+    await dbs.media.put(TREE, `gallery/${key}`, new Uint8Array([255, 216, 255]), 'image/jpeg');
+  }
+  const tag = (key: string, who: string, confirmed: number) =>
+    d.run("INSERT INTO media_person (media, person, x, y, w, h, confirmed, tagged_by, at) VALUES (?, ?, 0.1, 0.1, 0.2, 0.2, ?, 'x', '2026-01-01')", `gallery/${key}`, who, confirmed);
+  for (const who of ['kid', 'gran']) await tag(PICTURE, who, 1);
+  await tag(GRAN_PICTURE, 'gran', 1);
+  await tag(SUGGESTED_PICTURE, 'gran', 1);
+  await tag(SUGGESTED_PICTURE, 'kid', 0);
   await d.run("INSERT INTO photo (person, mime, data, at) VALUES ('kid', 'image/jpeg', ?, '2026-01-01')", new Uint8Array([255, 216, 255]));
   // Research about the child, and research about her grandmother.
   for (const [id, title, who, doc, docTitle] of [['pkid', 'KID-PROJECT-TITLE', 'kid', KID_DOC, 'KID-DOC-TITLE'], ['pgran', 'GRAN-PROJECT-TITLE', 'gran', GRAN_DOC, 'Gran document']]) {
@@ -131,6 +147,10 @@ before(async () => {
     await dbs.media.put(TREE, `research/${doc}`, new Uint8Array([37, 80, 68, 70]), 'application/pdf');
   }
   await d.run("INSERT INTO research_note (id, project, title, body, created_by, created_at, updated_at) VALUES ('n1', 'pkid', 'Note', 'KID-RESEARCH-NOTE', 'x', '2026-01-01', '2026-01-01')");
+  // The grandmother's research holds the picture with the child in it, and one of her alone.
+  for (const key of [PICTURE, GRAN_PICTURE]) {
+    await d.run("INSERT INTO research_picture (project, media, created_by, created_at) VALUES ('pgran', ?, 'x', '2026-01-01')", `gallery/${key}`);
+  }
   await store.accounts().run('INSERT INTO user (id, name, handle, created) VALUES (?, ?, ?, ?)', STEWARD, 'steward', 'handle-steward-living', Date.now());
   await store.accounts().run("INSERT INTO membership (user, tree, role, created) VALUES (?, ?, 'steward', ?)", STEWARD, TREE, Date.now());
 });
@@ -205,7 +225,7 @@ test('no server function gives a protected guest anything the protection withhol
 test('the control: with the setting off, the same guest gets what it got before', async () => {
   const answered = await askEverything(false);
   const all = [...answered.values()].join('');
-  for (const shown of [KID_BORN, 'Quillbridge', 'KID-STORY-TEXT', 'KID-STORY-DE', 'KID-PROJECT-TITLE', 'KID-RESEARCH-NOTE', WEDDING, 'Weddingham']) {
+  for (const shown of [KID_BORN, 'Quillbridge', 'KID-STORY-TEXT', 'KID-STORY-DE', 'KID-PROJECT-TITLE', 'KID-RESEARCH-NOTE', WEDDING, 'Weddingham', 'KID-CAPTION-TEXT', 'Picnicford']) {
     assert.ok(all.includes(shown), `an unprotected guest still gets "${shown}"`);
   }
   assert.ok(!all.includes('KID-PHONE-0000'), 'and still no fields at all');
@@ -234,10 +254,25 @@ test('a protected guest gets the living child by name, place in the tree and fac
 
   const photos = await load<typeof import('../photos.functions.ts')>('/src/lib/photos.functions.ts');
   const gallery = await photos.getGallery({ data: { tree: TREE } });
-  assert.equal(gallery.media.length, 1, 'the picture itself is still in the gallery');
-  assert.deepEqual(gallery.media[0].tags.map((t) => t.person), ['gran'], 'the child is not tagged on it');
+  const picture = (key: string) => gallery.media.find((m) => m.key === `gallery/${key}`)!;
+  assert.equal(gallery.media.length, 3, 'the pictures themselves are still in the gallery');
+  assert.deepEqual(picture(PICTURE).tags.map((t) => t.person), ['gran'], 'the child is not tagged on hers');
+  const about = (key: string) => ({ caption: picture(key).caption, taken: picture(key).taken, place: picture(key).place });
+  assert.deepEqual(about(PICTURE), { caption: null, taken: null, place: null }, 'and it has no caption, date or place');
+  assert.deepEqual(about(SUGGESTED_PICTURE), { caption: null, taken: null, place: null }, 'nor does one she is only suggested in');
+  assert.deepEqual(about(GRAN_PICTURE), { caption: 'GRAN-CAPTION-TEXT', taken: '1950-06-06', place: 'Gransby' }, 'a picture of the dead alone keeps them');
   assert.deepEqual(await photos.getPersonPhotos({ data: { tree: TREE, id: 'kid' } }), [], 'and has no pictures of her own');
-  assert.equal((await photos.getPersonPhotos({ data: { tree: TREE, id: 'gran' } })).length, 1);
+  const grans = await photos.getPersonPhotos({ data: { tree: TREE, id: 'gran' } });
+  assert.equal(grans.length, 3);
+  assert.equal(grans.find((m) => m.key === `gallery/${PICTURE}`)!.caption, null, 'on her grandmother’s page neither');
+
+  // The grandmother's research shows both pictures, the one with the child without its caption or date.
+  const research = await load<typeof import('../research.functions.ts')>('/src/lib/research.functions.ts');
+  const project = (await research.getResearchProject({ data: { tree: TREE, id: 'pgran' } }))!;
+  assert.deepEqual(
+    project.pictures.map((p) => [p.key, p.caption, p.taken]).sort(),
+    [[`gallery/${PICTURE}`, null, null], [`gallery/${GRAN_PICTURE}`, 'GRAN-CAPTION-TEXT', '1950-06-06']],
+  );
 
   const auth = await load<typeof import('./functions.ts')>('/src/lib/auth/functions.ts');
   const [family] = await auth.fetchMyFamilies();
