@@ -242,7 +242,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
                 <Link role="menuitem" className="acct-item" to="/" search={{ families: 'all' }} onClick={() => setOpen(false)}>
                   <LayoutGrid size={17} /> {t('accountmenu.all_families')} </Link>
               )}
-              {!demo && session?.memberships.some((x) => x.role === 'steward') && (
+              {!demo && (!!preview || session?.memberships.some((x) => x.role === 'steward')) && (
                 <Link role="menuitem" className="acct-item" to="/families" onClick={() => setOpen(false)}>
                   <Landmark size={17} /> {t('families.menu')} </Link>
               )}

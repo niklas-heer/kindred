@@ -421,6 +421,12 @@ test('the account stays the steward’s; no member’s own state reaches the pre
   // The account page: the steward's own passkeys.
   steward();
   assert.deepEqual((await authFns.fetchMyPasskeys({})).map((k) => k.id), ['steward-key']);
+  // Their own language is theirs to change, and is kept.
+  steward();
+  await authFns.setMyLocale({ data: { locale: 'de' } });
+  assert.equal((await store.userById(STEWARD))?.locale, 'de');
+  outside();
+  await store.setUserLocale(STEWARD, null);
   // The families page: the steward's own families and roles.
   steward();
   const overview = await families.fetchFamilies({});

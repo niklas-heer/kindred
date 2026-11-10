@@ -337,7 +337,8 @@ What the server holds to:
   may not ask for is refused to the previewing steward too. A guest's preview gets a guest's reads only, with the link's
   protection of living people, and nothing only members may ask for.
 - **Read-only.** While a preview is on, that session changes nothing anywhere, whatever the previewed role would allow: no edits,
-  comments, reactions, uploads, Campaign orders, quiz answers, assistant conversations, Access changes or account changes. The
+  comments, reactions, uploads, Campaign orders, quiz answers, assistant conversations, Access changes or account changes (only the
+  steward's own language can still be changed). The
   store, `once`, the media store and the AI adapters refuse it in one place, for that session only; the refusal says "You are
   viewing as …. Stop the preview to change something." The buttons still show as that reader would see them. Stop always works.
 - **No trace.** A preview leaves nothing a reader's visit would: no visit or "what's new" mark, no quiz draw or answer, no usage

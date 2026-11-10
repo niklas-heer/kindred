@@ -305,8 +305,11 @@ export const renameMe = createServerFn({ method: 'POST' })
 export const setMyLocale = createServerFn({ method: 'POST' })
   .validator(z.object({ locale: z.enum(LOCALES) }))
   .handler(async ({ data }) => {
-    const [{ requireUser }, s] = await Promise.all([guard(), store()]);
+    const [{ requireUser, allowPreviewChange }, s] = await Promise.all([guard(), store()]);
     const user = await requireUser();
+    // The steward's own language, also while they view a family as someone else: it is no family's, and the next page is
+    // rendered in it, so a refusal would switch the language back.
+    allowPreviewChange();
     await s.setUserLocale(user.id, data.locale);
   });
 

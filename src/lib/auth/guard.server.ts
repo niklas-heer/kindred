@@ -79,8 +79,8 @@ onRequestReadOnly(() => {
 export const previewOf = (): ViewAs | undefined => previewing.get(getRequest());
 
 /**
- * Lets this request write again, for the one thing a previewing session may change: the preview itself (starting another one,
- * or stopping it). Nothing else may call this.
+ * Lets this request write again, for what a previewing session may change: the preview itself (starting another one, or
+ * stopping it) and the steward's own language. Nothing else may call this.
  */
 export function allowPreviewChange(): void {
   previewChange.add(getRequest());
