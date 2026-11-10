@@ -28,6 +28,17 @@ tables for the Today page and changes none that exist.
 
 ### Added
 
+- **Print: charts and a family book.** A new Print page (the account menu, and a Print button on every person) makes an
+  ancestor chart (four to six generations, with each house's shield), a descendant chart (two to six generations, with
+  partners) and a family book: a cover with the family's arms, the contents, a section for each house, every person with
+  portrait, family, life timeline with the recorded events, biography, memories and photographs, the sources their facts rest
+  on, and a register of names with the page of each person. A4 or Letter, charts upright or sideways, light on ink whatever
+  theme you use. The browser prints it (choose "Save as PDF" to keep a file); nothing is made on the server and there is no
+  new setting. A book can be of one person, one house, someone's ancestors or descendants, or everyone; it says how many
+  pages to expect and is laid out a batch of people at a time, so a family of 1,600 does not stall the browser. For members
+  only. Living people are printed by name and place in the family only unless you switch "Living people in full" on, and
+  the paper says which it was.
+
 - Managing families: a steward (or the server's first account) can make another family on the new Families page (name,
   address, tagline, theme), change a family's details, and delete a family after downloading its export, typing its address and
   confirming with a passkey. Deleting removes its database, its pictures and every accounts row that names it. On Cloudflare the

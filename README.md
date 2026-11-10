@@ -50,6 +50,8 @@ whether the arms suit that meaning and suggest new designs.
 - The **Almanac** keeps birthdays, anniversaries and memorial days, for your calendar or as reminders on your devices, next to an
   address book grouped by household.
 - **Needed** is the to-do list of what is still missing, nearest relatives first, one question at a time if you like.
+- **Print** makes an ancestor chart, a descendant chart or a family book with the arms on the cover, a page of names at the
+  back and every person between, on A4 or Letter. Your browser prints it or saves it as a PDF.
 - **Research** gathers one question, such as where a branch came from, with its documents, pictures, notes, people and places on one timeline.
 
 ![The Atlas: a map of Europe with the places an invented modern family was born, and a slider to replay them through the years.](docs/images/atlas.webp)

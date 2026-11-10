@@ -31,6 +31,7 @@ import * as neededArea from "./areas/needed.ts";
 import * as panelArea from "./areas/panel.ts";
 import * as photosArea from "./areas/photos.ts";
 import * as portraitArea from "./areas/portrait.ts";
+import * as printArea from "./areas/print.ts";
 import * as profileArea from "./areas/profile.ts";
 import * as proofArea from "./areas/proof.ts";
 import * as remindersArea from "./areas/reminders.ts";
@@ -86,6 +87,7 @@ export const AREAS = [
   responsesArea,
   todayArea,
   todayQuestionsArea,
+  printArea,
 ] as const;
 
 /** Tables that exist before any area is merged. The server has every language in AREAS, so none. */

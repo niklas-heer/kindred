@@ -27,6 +27,7 @@ import { Route as TreeHistoryRouteImport } from './routes/$tree/history'
 import { Route as TreeHousesRouteImport } from './routes/$tree/houses'
 import { Route as TreeNeededRouteImport } from './routes/$tree/needed'
 import { Route as TreePeopleRouteImport } from './routes/$tree/people'
+import { Route as TreePrintRouteImport } from './routes/$tree/print'
 import { Route as TreeResearchRouteImport } from './routes/$tree/research'
 import { Route as TreeStatisticsRouteImport } from './routes/$tree/statistics'
 import { Route as TreeTodayRouteImport } from './routes/$tree/today'
@@ -144,6 +145,11 @@ const TreeNeededRoute = TreeNeededRouteImport.update({
 const TreePeopleRoute = TreePeopleRouteImport.update({
   id: '/people',
   path: '/people',
+  getParentRoute: () => TreeRoute,
+} as any)
+const TreePrintRoute = TreePrintRouteImport.update({
+  id: '/print',
+  path: '/print',
   getParentRoute: () => TreeRoute,
 } as any)
 const TreeResearchRoute = TreeResearchRouteImport.update({
@@ -305,6 +311,7 @@ export interface FileRoutesByFullPath {
   '/$tree/houses': typeof TreeHousesRoute
   '/$tree/needed': typeof TreeNeededRoute
   '/$tree/people': typeof TreePeopleRoute
+  '/$tree/print': typeof TreePrintRoute
   '/$tree/research': typeof TreeResearchRoute
   '/$tree/statistics': typeof TreeStatisticsRoute
   '/$tree/today': typeof TreeTodayRoute
@@ -352,6 +359,7 @@ export interface FileRoutesByTo {
   '/$tree/houses': typeof TreeHousesRoute
   '/$tree/needed': typeof TreeNeededRoute
   '/$tree/people': typeof TreePeopleRoute
+  '/$tree/print': typeof TreePrintRoute
   '/$tree/research': typeof TreeResearchRoute
   '/$tree/statistics': typeof TreeStatisticsRoute
   '/$tree/today': typeof TreeTodayRoute
@@ -401,6 +409,7 @@ export interface FileRoutesById {
   '/$tree/houses': typeof TreeHousesRoute
   '/$tree/needed': typeof TreeNeededRoute
   '/$tree/people': typeof TreePeopleRoute
+  '/$tree/print': typeof TreePrintRoute
   '/$tree/research': typeof TreeResearchRoute
   '/$tree/statistics': typeof TreeStatisticsRoute
   '/$tree/today': typeof TreeTodayRoute
@@ -451,6 +460,7 @@ export interface FileRouteTypes {
     | '/$tree/houses'
     | '/$tree/needed'
     | '/$tree/people'
+    | '/$tree/print'
     | '/$tree/research'
     | '/$tree/statistics'
     | '/$tree/today'
@@ -498,6 +508,7 @@ export interface FileRouteTypes {
     | '/$tree/houses'
     | '/$tree/needed'
     | '/$tree/people'
+    | '/$tree/print'
     | '/$tree/research'
     | '/$tree/statistics'
     | '/$tree/today'
@@ -546,6 +557,7 @@ export interface FileRouteTypes {
     | '/$tree/houses'
     | '/$tree/needed'
     | '/$tree/people'
+    | '/$tree/print'
     | '/$tree/research'
     | '/$tree/statistics'
     | '/$tree/today'
@@ -728,6 +740,13 @@ declare module '@tanstack/react-router' {
       path: '/people'
       fullPath: '/$tree/people'
       preLoaderRoute: typeof TreePeopleRouteImport
+      parentRoute: typeof TreeRoute
+    }
+    '/$tree/print': {
+      id: '/$tree/print'
+      path: '/print'
+      fullPath: '/$tree/print'
+      preLoaderRoute: typeof TreePrintRouteImport
       parentRoute: typeof TreeRoute
     }
     '/$tree/research': {
@@ -941,6 +960,7 @@ interface TreeRouteChildren {
   TreeHousesRoute: typeof TreeHousesRoute
   TreeNeededRoute: typeof TreeNeededRoute
   TreePeopleRoute: typeof TreePeopleRoute
+  TreePrintRoute: typeof TreePrintRoute
   TreeResearchRoute: typeof TreeResearchRoute
   TreeStatisticsRoute: typeof TreeStatisticsRoute
   TreeTodayRoute: typeof TreeTodayRoute
@@ -968,6 +988,7 @@ const TreeRouteChildren: TreeRouteChildren = {
   TreeHousesRoute: TreeHousesRoute,
   TreeNeededRoute: TreeNeededRoute,
   TreePeopleRoute: TreePeopleRoute,
+  TreePrintRoute: TreePrintRoute,
   TreeResearchRoute: TreeResearchRoute,
   TreeStatisticsRoute: TreeStatisticsRoute,
   TreeTodayRoute: TreeTodayRoute,

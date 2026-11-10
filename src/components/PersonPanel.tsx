@@ -34,6 +34,7 @@ import { chooseMe } from '~/lib/family';
 import { useToday } from '~/lib/clock';
 import { can, type Role } from '~/lib/roles';
 import { useCan, useMembership, useRole, useSession } from '~/lib/session';
+import { PrintLink } from './print/PrintLink';
 import { toast } from '~/lib/toast';
 import type { GPerson, House, Look, PersonDetail, PersonField, Place, Story } from '~/lib/types';
 import { TRAITS } from '~/lib/traits';
@@ -270,6 +271,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
           : <button className="btn" onClick={onCenter}><Crosshair size={14} /> {t('panel.centre')}</button>}
         <button className="btn" onClick={onAncestors}><GitFork size={14} style={{ transform: 'rotate(180deg)' }} /> {t('panel.ancestors')}</button>
         <button className="btn" onClick={onDynasty}><Crown size={14} /> {t('panel.dynasty')}</button>
+        <PrintLink tree={tree} person={id} name={displayName(p, f)} />
       </div>
     </>, <>
       <Tabs value={tab} onChange={(v) => leave(() => setTab(v as Tab))} label={t('panel.tabsLabel')}>

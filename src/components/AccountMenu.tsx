@@ -5,7 +5,7 @@ import { translateMessage, formatDate, relativeTime, useT, type Locale } from '~
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { graphQuery } from '~/lib/api';
-import { Activity, ArrowLeftRight, BarChart3, Bell, Check, CircleHelp, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus, Gamepad2, Landmark, History } from 'lucide-react';
+import { Activity, ArrowLeftRight, BarChart3, Bell, Check, CircleHelp, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus, Gamepad2, Landmark, History, Printer } from 'lucide-react';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import '~/components/assistant/ai-tasks.css';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
@@ -207,6 +207,10 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
               {tree && m && (
                 <Link role="menuitem" className="acct-item" to="/$tree/history" params={{ tree }} onClick={() => setOpen(false)} aria-label={unseen ? t('history.menu_new', { count: unseen }) : undefined}>
                   <History size={17} /> {t('history.menu')} {unseen ? <span className="hist-dot" aria-hidden /> : null} </Link>
+              )}
+              {tree && member && (
+                <Link role="menuitem" className="acct-item" to="/$tree/print" params={{ tree }} onClick={() => setOpen(false)}>
+                  <Printer size={17} /> {t('print.link')} </Link>
               )}
               {!demo && tree && m && remindersOn.data && (
                 <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setReminders(true); }}>

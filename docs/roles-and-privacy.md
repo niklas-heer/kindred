@@ -245,6 +245,21 @@ language.
 personal rows are deleted when they leave the family. The history is not in GEDCOM, the Markdown archive or the D1 transfer.
 Whoever runs the server can read it in a copy of the database, as everything else.
 
+## Printing
+
+The Print page makes an ancestor chart, a descendant chart or a family book, and the browser prints it or saves it as a
+PDF. It is for members: a share-link guest is told so, and the read the book makes (`getPrintPeople`,
+`src/lib/print.server.ts`) refuses a guest. Any member may print what their role lets them read in the app; contact details
+and other person fields are never printed.
+
+Paper leaves the family's hands, so the default is cautious. Unless the reader switches **Living people in full** on, someone
+the family marks as living is printed by name, sex, house and place in the family only: no dates, places, occupation,
+biography, memories, events, sources or photos, a drawn face instead of their photo, no date or place for a partnership
+with a living partner, and no gallery picture that a living person is in, on anyone's page. The server does not send what
+is withheld. The cover of the book and the foot of each chart say which it was ("Living people are shown by name only" or
+"in full"), with the date of printing. This is the reader's choice, not a permission: a member can read the living in the
+app, as "The living flag does not hide anyone" above says.
+
 ## What an export contains
 
 An export is a copy of everything the family holds that its format can carry, and an editor or steward can make one.
