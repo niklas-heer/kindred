@@ -517,13 +517,14 @@ kbd {
   .tabbar a, .tabbar button {
     display: grid; justify-items: center; align-content: center; gap: 3px; height: 58px; padding: 0 2px; min-width: 0;
     border: 0; background: none; color: color-mix(in srgb, var(--text) 80%, transparent); text-decoration: none; cursor: pointer;
-    font-family: var(--font-ui); font-size: 0.75rem; line-height: 1.15; letter-spacing: 0.01em; position: relative;
+    font-family: var(--font-ui); font-size: min(0.75rem, 3.3vw); line-height: 1.15; letter-spacing: 0.01em; position: relative;
     -webkit-tap-highlight-color: transparent;
     transition: color var(--dur-1), background-color var(--dur-1);
   }
   .tabbar a > span, .tabbar button > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tabbar a svg, .tabbar button svg { transition: transform var(--dur-2) var(--ease-spring); }
-  [data-theme='codex'] .tabbar a, [data-theme='codex'] .tabbar button { font-family: var(--font-display); font-variant: small-caps; font-size: 0.8438rem; letter-spacing: 0.02em; }
+  /* Five labels share the width: with a larger text size set on the phone they stop growing where the longest still fits. */
+  [data-theme='codex'] .tabbar a, [data-theme='codex'] .tabbar button { font-family: var(--font-display); font-variant: small-caps; font-size: min(0.8438rem, 3.5vw); letter-spacing: 0.02em; }
   /* The tab you are on: accent ink, a tick on the bar's top edge, and a soft wash rising behind it. */
   .tabbar a[data-status='active'], .tabbar button[aria-expanded='true'] {
     color: var(--accent);
