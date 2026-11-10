@@ -74,6 +74,7 @@ version will not run on a database that has had these migrations.
 
 ### Fixed
 
+- A GEDCOM file with a few thousand partnerships no longer fails to import because two of them were given the same new id.
 - The Path lens asks for a second person instead of comparing someone with themselves.
 - Step, foster and in-law relations are named as they are.
 - A house is not saved over someone else's newer change, and a house's member count is the same on the tree and on its page.

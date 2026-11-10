@@ -106,6 +106,21 @@ const unionKey = (a: string, b: string, kind: string, start: string | null, end:
  * The import plan for `incoming` into `existing`. `makeId(given)` gives a new id for a person (or a partnership,
  * given "union") whose file id is missing or taken.
  */
+/**
+ * A new id that nothing in `taken` has. `makeId` is random but short (newId: six hex digits, so a few thousand partnerships
+ * in one file already meet twice), so it is asked again on a collision, and a counter settles one that keeps coming back.
+ */
+function freshId(makeId: (given: string) => string, given: string, taken: ReadonlySet<string>): string {
+  for (let i = 0; i < 8; i++) {
+    const id = makeId(given);
+    if (!taken.has(id)) return id;
+  }
+  const base = makeId(given);
+  let n = 2;
+  while (taken.has(`${base}_${n}`)) n++;
+  return `${base}_${n}`;
+}
+
 export function planImport(incoming: Incoming, existing: ExTree, makeId: (given: string) => string): ImportPlan {
   const issues: Issue[] = [...incoming.issues];
   const byId = new Map(existing.people.map((p) => [p.id, p]));
@@ -179,7 +194,7 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
     }
 
     const preferred = p.preferredId && !taken.has(p.preferredId) ? p.preferredId : null;
-    const id = preferred ?? makeId(p.given);
+    const id = preferred ?? freshId(makeId, p.given, taken);
     taken.add(id);
     keyToId.set(p.id, id);
     add.push({
@@ -346,7 +361,7 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
       continue;
     }
     const preferred = u.preferredId && !unionIds.has(u.preferredId) ? u.preferredId : null;
-    const id = preferred ?? makeId('union');
+    const id = preferred ?? freshId(makeId, 'union', unionIds);
     unionIds.add(id);
     unions.push({ id, a, b, kind: u.kind, start: u.start, end: u.end, endReason: u.endReason, place: u.place });
   }

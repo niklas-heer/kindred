@@ -306,3 +306,20 @@ test('a partnership id that is already taken is not reused for a different coupl
   assert.notEqual(plan.unions[0].id, 'u-anna-karl');
   assert.match(plan.unions[0].id, /^union_new/);
 });
+
+test('new people and partnerships never share an id, even when the id maker repeats itself', () => {
+  // Two people named alike and two partnerships without ids of their own, and an id maker that always says the same:
+  // newId's six hex digits do that in practice once a file has a few thousand partnerships.
+  const text = [
+    '0 HEAD', '1 GEDC', '2 VERS 5.5.1', '1 CHAR UTF-8',
+    '0 @I1@ INDI', '1 NAME Ada /Testfield/', '0 @I2@ INDI', '1 NAME Ada /Testfield/',
+    '0 @I3@ INDI', '1 NAME Bo /Testfield/', '0 @I4@ INDI', '1 NAME Cy /Testfield/',
+    '0 @F1@ FAM', '1 HUSB @I3@', '1 WIFE @I1@', '1 MARR', '0 @F2@ FAM', '1 HUSB @I4@', '1 WIFE @I2@', '1 MARR', '0 TRLR', '',
+  ].join('\r\n');
+  const plan = planImport(readGedcom(text), emptyTree(), (given) => `${given.toLowerCase()}_same`);
+  const people = plan.add.map((p) => p.id);
+  assert.equal(new Set(people).size, people.length, `people: ${people.join(', ')}`);
+  const unions = plan.unions.map((u) => u.id);
+  assert.equal(unions.length, 2);
+  assert.equal(new Set(unions).size, 2, `partnerships: ${unions.join(', ')}`);
+});
