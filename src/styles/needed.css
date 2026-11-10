@@ -108,7 +108,8 @@
   .needed-row { gap: 4px 12px; padding: 8px 8px 8px 6px; }
   /* The life dates drop under a long name whole: never an ellipsis inside a year. */
   .needed-who { gap: 0 8px; flex-wrap: wrap; }
-  .needed-meta { flex: 0 0 auto; overflow: visible; }
+  /* With the kinship after the dates the line can be longer than the row: it wraps at a word, and never runs under "Fill in". */
+  .needed-meta { flex: 0 1 auto; max-width: 100%; overflow: visible; white-space: normal; }
   .needed-fill { min-height: 44px; padding: 0 12px; }
 }
 
