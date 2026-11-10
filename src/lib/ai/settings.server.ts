@@ -300,7 +300,7 @@ export async function statusFor(tree: string): Promise<AiStatus> {
  * A live call to one provider, for "Test connection". The key is the typed one, else that provider's own saved key. Never
  * stores anything, and never uses another provider's key.
  */
-export async function testConnection(tree: string, input: { provider: Provider; model: string; apiKey?: string }, locale: AiLocale) {
+export async function testConnection(tree: string, input: { provider: Provider; model: string; apiKey?: string }, _locale: AiLocale) {
   const model = chatModelId(input.provider, input.model.trim() || DEFAULT_MODEL[input.provider]);
   const started = Date.now();
   try {

@@ -1,5 +1,5 @@
 """
-Reproducible CI for Kindred v2: the type check, the unit tests, the production Node build, the Worker build, the
+Reproducible CI for Kindred v2: the type check, the linter, the unit tests, the production Node build, the Worker build, the
 Worker smoke test (workerd on local D1 and R2; it never contacts Cloudflare) and the Docker image build, started and asked for /api/health.
 
 `mise run ci` runs the same checks locally. It needs a container engine: on macOS, `colima start`.
@@ -19,6 +19,7 @@ type KindredCi {
     "!package.json",
     "!package-lock.json",
     "!tsconfig.json",
+    "!.oxlintrc.json",
     "!vite.config.ts",
     "!wrangler.jsonc",
     "!e2e",
@@ -78,6 +79,13 @@ type KindredCi {
   """
   pub typecheck: String! {
     installed.withExec(["npx", "tsc", "--noEmit"]).stdout
+  }
+
+  """
+  The linter: `npm run lint` (oxlint), over the whole repository.
+  """
+  pub lint: String! {
+    installed.withExec(["npm", "run", "lint"]).stdout
   }
 
   """
@@ -143,6 +151,6 @@ type KindredCi {
   Every check CI requires. Evaluating the list runs them all, and any failing command fails the run.
   """
   pub ci: [String!]! {
-    [typecheck, unitTests, nodeBuild, workerBuild, smoke]
+    [typecheck, lint, unitTests, nodeBuild, workerBuild, smoke]
   }
 }

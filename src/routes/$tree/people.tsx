@@ -306,6 +306,8 @@ function RegisterPage() {
   // The age of someone living needs the reader's day, so it fills in after hydration.
   const today = useToday();
   const all = useMemo(() => buildRows(f, tree, me, locale, today), [f, tree, me, locale, today]);
+  // t is a new function on every render but only depends on the locale.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const columns = useMemo(() => buildColumns(t), [t.locale]);
   // Hide a column nobody in the tree has anything for (no traits recorded, nobody chosen as "you").
   // Judged on everyone, not the filtered rows, so columns don't come and go while typing.
@@ -542,6 +544,8 @@ function useRememberedState<T>(key: string, fallback: T): [T, React.Dispatch<Rea
       if (raw !== null) setValue((typeof fallback === 'boolean' ? raw === 'true' : typeof fallback === 'number' ? Math.max(100, Number(raw) || fallback) : raw) as T);
     } catch { /* Private browsing can disable storage. */ }
     setReady(true);
+    // fallback is only the value before anything is restored; a new one must not restore again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   useEffect(() => {
     if (!ready) return;
@@ -553,6 +557,8 @@ function useRememberedState<T>(key: string, fallback: T): [T, React.Dispatch<Rea
       else url.searchParams.set(param, String(value));
       history.replaceState(history.state, '', url);
     } catch { /* Keeping filters in memory still works. */ }
+    // fallback only decides whether the address carries the setting; the saved value is written when the value changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, value, ready]);
   return [value, setValue];
 }

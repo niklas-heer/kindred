@@ -13,8 +13,7 @@ import { houseTranslationsQuery } from '~/lib/house-meaning.functions';
 import { translateReview } from '~/lib/house-translation';
 import { locales, useT, type Key } from '~/lib/i18n';
 import { toAiLocale } from '~/lib/ai/types';
-import { useFamily, useTreeId } from '~/lib/family';
-import { displayName } from '~/lib/graph';
+import { useTreeId } from '~/lib/family';
 import { useCan } from '~/lib/session';
 import { EmptyState, ErrorState, Main, PageHeader, Skeleton } from '~/components/ui';
 import { ago, usd } from './BackgroundSettings';
@@ -57,7 +56,6 @@ export function AiActivityPage() {
 
 function ActivityBody({ tree, data }: { tree: string; data: Activity }) {
   const t = useT();
-  const f = useFamily();
   const locale = toAiLocale(t.locale);
   const qc = useQueryClient();
   const [now] = useState(() => Date.now());

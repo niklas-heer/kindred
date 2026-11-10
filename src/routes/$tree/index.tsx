@@ -308,9 +308,11 @@ function TreePage() {
     const shown = new Set(lay.nodes.map((n) => n.id));
     const lit = [...dimmed].filter((id) => shown.has(id)).length;
     return t('tp.lensCount', { lit, total: shown.size });
-  }, [dimmed, lay]);
+  }, [dimmed, lay, t]);
 
   // ---- kinship labels, computed lazily for the cards on screen ----
+  // The cache is emptied when the family or the reader's chosen person changes, though it does not read either.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const kinCache = useMemo(() => new Map<string, Kinship | undefined>(), [f, who]);
   const kinFor = useCallback(
     (id: string) => {
@@ -460,6 +462,8 @@ function TreePage() {
     prevRoot.current = lay.root;
     play('seal');
     requestAnimationFrame(() => canvas.current?.frame(sel));
+    // Only a change of root frames the canvas; a change of selection must not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lay.root, view]);
 
   /** A CK3-style notice once someone joins: "A daughter for House Valcourt". */
@@ -595,6 +599,9 @@ function TreePage() {
   }, []);
   const fitKey = [Math.round(hudW), view, line, lay.root, collapsed.size > 0, nameMode, ageMode, t.locale, fonts].join('|');
   const fitFor = useRef('');
+  // Deliberately after every render: the toolbar is measured again whenever its content or the room changes, and each
+  // pass widens `tight` by one step at most, so it stops after two.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     const el = toolbar.current;
     if (!el || phone) return;

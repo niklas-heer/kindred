@@ -154,7 +154,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
       // Saving from the designer always stores the design (v2), even when nothing changed: a v1 house saved as it was
       // is then no longer on generated arms, so the steward's badge goes.
       updateHouse({ data: { tree, id: house.id, name: d.name.trim(), motto: d.motto.trim() || null, arms: storeV2(d.arms), before: { name: house.name, motto: house.motto ?? null, arms: house.arms } } }),
-    onSuccess: async (h2, d) => {
+    onSuccess: async (h2) => {
       await Promise.all([qc.invalidateQueries({ queryKey: graphQuery(tree).queryKey }), qc.invalidateQueries({ queryKey: myFamiliesQuery.queryKey })]);
       play('seal');
       toast({ title: tr('heraldry.sealed'), body: tr('heraldry.sealed_body', { name: h2.name }), icon: 'crown' });
@@ -341,6 +341,9 @@ function Suggestions({ tree, house, initial, country, allowed, onPick }: { tree:
   const [name, setName] = useState(initial);
   // The library's names arrive after the first render: the offline ideas then name their charges, so they are made again.
   const metaReady = useLibraryMeta();
+  // t is a new function on every render but only depends on the locale. metaReady is not read here: it stands for the
+  // library's names arriving, which cantingArms reads from the library itself.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const list = useMemo(() => cantingArms(name, country, t), [name, country, t.locale, metaReady]);
   return (
     <div className="ae-suggest">

@@ -21,10 +21,7 @@ const { accounts } = await load<typeof import('./auth/store.server.ts')>('/src/l
 const { db } = await load<typeof import('./db.server.ts')>('/src/lib/db.server.ts');
 const chat = (await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts')).withLatestChat(await load<typeof import('./ai/chat.server.ts')>('/src/lib/ai/chat.server.ts'));
 const family = await load<typeof import('./ai/family.server.ts')>('/src/lib/ai/family.server.ts');
-const settings = await load<typeof import('./ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
 const setup = await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts');
-const images = await load<typeof import('./ai/chat-images.ts')>('/src/lib/ai/chat-images.ts');
-const { CHAT_IMAGE_COUNT } = await load<typeof import('./ai/types.ts')>('/src/lib/ai/types.ts');
 const { defaultVisibility } = await load<typeof import('../components/fields/model.ts')>('/src/components/fields/model.ts');
 const draft = await load<typeof import('../components/assistant/family-draft.ts')>('/src/components/assistant/family-draft.ts');
 

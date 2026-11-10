@@ -12,7 +12,7 @@ import { feature, mesh } from 'topojson-client';
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type InputHTMLAttributes, type ReactNode } from 'react';
 import { addStory, deleteStory, newOpKey, opKeys, restoreStory, setPartnershipEnd, uploadPhoto, unlinkRelative } from '~/lib/api';
 import { addPersonField, deletePersonField, personDetailQuery, setLook } from '~/lib/person.functions';
-import { kinshipLabel, yourKinshipParts, locales, ordinal, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
+import { yourKinshipParts, locales, ordinal, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
 import { occupationText } from '~/lib/occupations';
 import { translateOccupation } from '~/lib/occupations.functions';
 import { useAiStatus } from './assistant/store';
@@ -169,6 +169,9 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
     onSuccess: () => { photoKeys.clear('photo'); qc.invalidateQueries({ queryKey: ['graph', tree] }); },
   });
 
+  // The docked panel and the phone's sheet are a landmark named after the person they show. Called before the early
+  // return below, so the hooks run in the same order whether or not the person has loaded.
+  const headId = useId();
   if (!p) return null;
   const house = p.house ? f.house.get(p.house) : undefined;
   const a = age(p, today);
@@ -178,8 +181,6 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   const nee = p.currentSurname != null && p.currentSurname !== p.surname && p.surname ? p.surname : undefined;
   const shown = personDisplayName(current, nameMode, f);
   const Heading = page ? 'h1' : 'h2';
-  // The docked panel and the phone's sheet are a landmark named after the person they show.
-  const headId = useId();
   const mode = `${compact ? ' pp-compact' : ''}${tab === 'edit' ? ' pp-editing' : ''}${mini && stuck ? ' pp-stuck' : ''}`;
   // The pinned one-line header. A copy for the eye only: the heading above it is the one that is read out.
   const miniBar = mini && (

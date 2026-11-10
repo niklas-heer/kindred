@@ -162,7 +162,7 @@ export function Palette() {
     const fq = fold(dq);
     const matched = fq ? cmds.filter((c) => fold(c.label).includes(fq)) : cmds;
     return fq ? [...people, ...houses, ...matched] : matched;
-  }, [f, dq, me, who, myAnc, near, navigate, tree, close, t, t.locale, assistantOn, setupNeeded, steward, guest, mode]);
+  }, [f, dq, me, who, myAnc, near, navigate, tree, close, t, assistantOn, setupNeeded, steward, guest, mode]);
 
   useEffect(() => setSel(0), [dq]);
   useEffect(() => {

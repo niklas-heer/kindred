@@ -56,6 +56,10 @@ run = "node scripts/import-to-d1.ts modern realm --env local --replace"
 [tasks.check]
 run = "tsc --noEmit"
 
+[tasks.lint]
+description = "Lint with oxlint: unused code, React hook rules and the correctness checks (npm run lint)"
+run = "npm run lint"
+
 [tasks."ai-eval"]
 description = "Measure which AI models do Kindred's jobs best, on made-up data. Sends real requests and costs money: --provider, --models, --max-usd (default 1, one budget for the whole run), --web, --out, --dry-run (plans and estimates, sends nothing). Key: KINDRED_AI_EVAL_KEY or --saved-family. --provider cursor: a subscription through the agent CLI, no key or budget"
 run = 'node scripts/ai-eval.ts "$@"'

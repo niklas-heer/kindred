@@ -34,7 +34,7 @@ async function v1Seal(tree: string, key: string): Promise<string> {
   return `v1.${b64(iv)}.${b64(ct)}`;
 }
 async function v1Open(tree: string, sealed: string): Promise<string | null> {
-  const [v, iv, ct] = sealed.split('.');
+  const [, iv, ct] = sealed.split('.');
   try {
     return new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(iv!) }, await v1Key(tree), unb64(ct!)));
   } catch {

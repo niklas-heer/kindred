@@ -35,7 +35,6 @@ test.after(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-const steward = { id: 'u-steward', name: 'Sam Steward', role: 'steward' as const };
 const editor = { id: 'u-editor', name: 'Eda Editor', role: 'editor' as const };
 const contributor = { id: 'u-contrib', name: 'Cal Contributor', role: 'contributor' as const };
 const otherContributor = { id: 'u-other', name: 'Ora Other', role: 'contributor' as const };

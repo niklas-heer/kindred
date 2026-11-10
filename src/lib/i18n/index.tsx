@@ -66,6 +66,8 @@ export function I18nProvider({
     return () => {
       current = false;
     };
+  // persist is recreated on every render but only reads key and account, which are already listed.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, initialLocale, account]);
   useEffect(() => {
     document.documentElement.lang = locale;

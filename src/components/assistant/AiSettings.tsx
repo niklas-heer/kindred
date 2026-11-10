@@ -11,7 +11,7 @@ import { aiListModels, aiRemoveProvider, aiSaveProvider, aiSaveSettings, aiSetti
 import { PROVIDER_NOTE } from '~/lib/ai/labels';
 import { conversationsForDollar, tablePrice, type Price } from '~/lib/ai/prices';
 import { RECOMMENDED_PORTRAIT, portraitModelOr, portraitPicks, recommendedFor, type Role } from '~/lib/ai/recommended';
-import { DEFAULT_MODEL, PAINT_PROVIDERS, PROVIDERS, PROVIDER_LABEL, ROUTES, followsAssistant, toAiLocale, type AiFeatures, type AiSettingsData, type CustomPrice, type Feature, type ModelInfo, type Provider, type ProviderState, type Route, type TaskName } from '~/lib/ai/types';
+import { DEFAULT_MODEL, PAINT_PROVIDERS, PROVIDERS, PROVIDER_LABEL, ROUTES, followsAssistant, toAiLocale, type AiFeatures, type AiSettingsData, type CustomPrice, type Feature, type ModelInfo, type Provider, type ProviderState, type Route } from '~/lib/ai/types';
 import type { ImageModel } from '~/lib/ai/portrait-rules';
 import { portraitSettingsQuery } from '~/lib/portrait.functions';
 import { useTreeId } from '~/lib/family';

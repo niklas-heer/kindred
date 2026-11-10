@@ -19,7 +19,6 @@ import type { EditSnapshot } from './person.server.ts';
 import { blankValue, type FieldInput } from '../components/fields/model.ts';
 
 const EDITOR = { account: 'editor-account', role: 'editor', guest: false } as const;
-const VIEWER = { account: 'viewer-account', role: 'viewer', guest: false } as const;
 const TREE = 'save';
 const SEEN = '2026-01-01T00:00:00Z';
 {

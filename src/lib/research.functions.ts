@@ -14,7 +14,6 @@ import type { Who } from './research.server';
 const tree = z.string().regex(/^[a-z0-9-]+$/).max(64);
 const server = () => import('./research.server');
 const guard = () => import('./auth/guard.server');
-const requireMember = async (t: string) => (await guard()).requireMember(t);
 const requireReader = async (t: string) => (await guard()).requireReader(t);
 const requireCan = async (t: string, action: 'add-research') => (await guard()).requireCan(t, action);
 

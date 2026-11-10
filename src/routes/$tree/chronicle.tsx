@@ -34,7 +34,6 @@ export const Route = createFileRoute('/$tree/chronicle')({
 
 // ---------- markdown ----------
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 // Raw HTML in a story is shown as text, and script links are dropped.
 const render = renderMarkdown;
 

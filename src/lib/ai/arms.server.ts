@@ -11,7 +11,6 @@ import { z } from 'zod';
 import { AiError, isolatedSearch, type AiAdapter, type AiReply, type JsonSchema } from './adapters';
 import { adapterForFeature } from './settings.server';
 import { tr, type Tr } from './labels';
-import { translate, type Key } from '../i18n/dictionary';
 import { ATTESTATIONS, IDEA_KINDS, nameMeaningSchema, type AiLocale, type ArmsFeedback, type ArmsRevision, type DesignMeaning, type NameDesign, type NameMeaning, type NameResearch } from './types';
 import { cantingFromIdeas, cantingResponseSchema, symbolismItemSchema, type CantingRequest } from '../../components/heraldry/canting';
 import { cutText, firstOf } from './trim';

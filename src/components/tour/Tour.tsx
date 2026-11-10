@@ -66,7 +66,7 @@ function TourRun() {
   const f = useFamily();
   const role = useRole();
   const assistant = !!useAiStatus(tree)?.features.assistant;
-  const layer = useOverlayLayer(true);
+  useOverlayLayer(true);
   // The script is fixed when the tour starts, so a change behind the scenes can't renumber it mid-way.
   const [steps] = useState(() => stepsFor({ role, assistant, people: f.graph.people.length, houses: f.graph.houses.length }));
   const house = f.graph.houses[0]?.id;

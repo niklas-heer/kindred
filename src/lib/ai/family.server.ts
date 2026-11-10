@@ -5,7 +5,7 @@
 // runs on approval, under the approver's own role: each person is created in its own plan, then each link runs the
 // same rules as the form (relations.server.ts). Every step carries its own retry key, so a repeated approval replays
 // what already happened instead of writing twice. A step that cannot apply is reported and the rest carry on.
-import { db, once, newId, q, type Db } from '../db.server';
+import { db, once, newId, q } from '../db.server';
 import { buildFamily, fullName, parents } from '../graph';
 import type { Graph } from '../types';
 import { can, type Role } from '../roles';
@@ -247,7 +247,7 @@ export async function applyFamilyBatch(o: { tree: string; user: string; author: 
         return clean;
       });
       if (row.existing && !(await db(tree).get('SELECT id FROM person WHERE id = ?', row.existing))) throw new Error(FAMILY_ERR.existingGone);
-      const id = row.existing ?? await once(tree, { key: row.key, user, payload: f }, 'aiFamilyPerson', async (d) => {
+      const id = row.existing ?? await once(tree, { key: row.key, user, payload: f }, 'aiFamilyPerson', async () => {
         const newPersonId = newId(f.given);
         return {
           writes: [q(

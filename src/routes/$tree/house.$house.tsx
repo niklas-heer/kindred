@@ -360,7 +360,7 @@ function SuccessionDialog({ f, house, tree, settings, members, onClose }: {
   const [error, setError] = useState<string | null>(null);
   const dirty = draft.law !== settings.law || draft.head !== settings.head || draft.heir !== settings.heir || draft.country !== settings.country;
   // What the law alone would choose, so "Automatic" names the right person.
-  const auto = useMemo(() => houseSuccession(f, house, { ...draft, head: null, heir: null }), [f, house, draft.law]);
+  const auto = useMemo(() => houseSuccession(f, house, { ...draft, head: null, heir: null }), [f, house, draft]);
   const elective = draft.law === 'elective';
 
   const save = useMutation({

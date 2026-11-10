@@ -1,4 +1,4 @@
-import { formatDate, formatNumber, relativeTime, useT } from '~/lib/i18n';
+import { useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, notFound, Outlet, redirect } from '@tanstack/react-router';
 import { ArrowLeftRight, BarChart3, BookOpen, CalendarHeart, CircleHelp, Contact, FolderSearch, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, SlidersHorizontal, Sparkles, Users, Inbox, MessageSquarePlus } from 'lucide-react';
@@ -55,6 +55,8 @@ export const Route = createFileRoute('/$tree')({
   notFoundComponent: ({ data }) => {
     const missing = data as { access?: boolean; family?: boolean } | undefined;
     if (missing?.access === false) return <NoAccessPage />;
+    // This function is rendered as a component by the router, so calling the route's hook here is allowed.
+    // oxlint-disable-next-line react-hooks/rules-of-hooks
     return missing?.family === false ? <NotFoundPage kind="family" id={Route.useParams().tree} /> : <NotFoundPage />;
   },
   component: TreeLayout,

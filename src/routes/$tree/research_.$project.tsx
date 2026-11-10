@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { ArrowLeft, FileText, Lock, FolderSearch, MapPin, NotebookPen, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { ArrowLeft, FileText, Lock, FolderSearch, MapPin, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Lightbox, mediaUrl } from '~/components/photos';
 import { Portrait } from '~/components/Portrait';

@@ -254,7 +254,7 @@ function PaintDialog({ tree, person, photos, name, start, cost, onChanged, onClo
     await Promise.all(list.map((key) => discardPortrait({ data: { tree, personId: person.id, key } }).catch(() => undefined)));
   }
 
-  async function useThis() {
+  async function applyThis() {
     if (!cand) return;
     setWorking(true);
     setErr(null);
@@ -323,7 +323,7 @@ function PaintDialog({ tree, person, photos, name, start, cost, onChanged, onClo
             <button type="button" className="btn ghost" onClick={() => void discardActive()} disabled={busy}>{t('paint.discard')}</button>
             <button type="button" className="btn" onClick={() => picked && void paint(picked)} disabled={busy || !picked}>{t('paint.tryAgain')}</button>
             <button type="button" className="btn" onClick={() => void keepThis()} disabled={busy}>{t('paint.keepVersion')}</button>
-            <button type="button" className="btn primary" onClick={() => void useThis()} disabled={busy}>{t('paint.useThis')}</button>
+            <button type="button" className="btn primary" onClick={() => void applyThis()} disabled={busy}>{t('paint.useThis')}</button>
           </div>
         ) : (
           <div className="paint-actions">

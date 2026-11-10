@@ -18,7 +18,7 @@ privacy rules matter more than speed.
 
 `mise tasks` lists them all. Run `mise install` once, so the right Node (26) is used.
 
-- `mise run check` the types (`tsc --noEmit`). `mise run test` is `npm test`: **node's own test runner, not vitest**.
+- `mise run check` the types (`tsc --noEmit`). `mise run lint` is oxlint (`.oxlintrc.json`): unused code, React hook rules (`exhaustive-deps` included) and correctness; a disabled rule needs a sentence saying why. `mise run test` is `npm test`: **node's own test runner, not vitest**.
   It wants `KINDRED_DATA_DIR` pointed at an empty folder (`KINDRED_DATA_DIR=$(mktemp -d) node --test <file>` for one file);
   the store refuses to open the repository's `data/` inside a test.
   Every `*.test.ts` under `src/`, `scripts/` and `server/` runs, in any folder, so a new test needs no registration.

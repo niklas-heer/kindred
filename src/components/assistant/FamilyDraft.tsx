@@ -76,10 +76,6 @@ export function FamilyDraft({ tree, conv, itemId, proposal, onDecided }: { tree:
     return t(REL_KEY[l.relation], { name: co ? `${anchor} & ${co}` : anchor });
   };
 
-  function patchRow(ref: string, patch: Partial<Row>) {
-    setRows((rs) => rs.map((r) => (r.ref === ref ? { ...r, ...patch } : r)));
-  }
-
   /** An edit to a row that failed sends it again with new content (and so a new key). A row already added is locked. */
   function edit(ref: string, field: keyof FamilyPerson, value: string) {
     setRows((rs) => rs.map((r) => (r.ref === ref ? { ...r, [field]: value, status: r.status === 'failed' ? 'todo' : r.status, error: undefined } : r)));

@@ -19,7 +19,6 @@ const { savePersonEdit, addPersonField, addFirstPerson, CHANGED_SINCE_OPENED } =
 
 const TREE = 'scratch';
 const EDITOR = { account: 'editor-account', role: 'editor', guest: false } as const;
-const VIEWER = { account: 'viewer-account', role: 'viewer', guest: false } as const;
 {
   const d = openSqlite(join(dir, `${TREE}.db`), 'tree', { create: true });
   d.exec(`INSERT INTO meta (key, value) VALUES ('id', '${TREE}'), ('name', 'Scratch'), ('tagline', ''), ('theme', 'codex'), ('focus', '')`);

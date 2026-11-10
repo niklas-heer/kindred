@@ -13,7 +13,6 @@ process.env.KINDRED_ACCOUNTS_DB = join(dir, 'accounts.db');
 const { openSqlite } = await import('./store/node.ts');
 const { familyAddresses } = await import('./family-addresses.server.ts');
 const EDITOR = { account: 'editor-account', role: 'editor', guest: false } as const;
-const VIEWER = { account: 'viewer-account', role: 'viewer', guest: false } as const;
 import { withoutPersonal, type Audience } from './visibility.ts';
 
 const MEMBER: Audience = { account: 'acc-member', role: 'viewer', guest: false };

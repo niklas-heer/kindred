@@ -614,7 +614,7 @@ export function renderReport(run: { results: ModelResult[]; o: RunOptions; spent
     '## Method',
     '',
     `- **Made-up data only.** An invented family (${FAMILY.name}) is written into a temporary folder with \`scripts/seed.ts\`, and the surnames are common public names whose meanings are in dictionaries. Nothing is a real person. The cases are in \`scripts/ai-eval.fixtures.ts\`.`,
-    '- **The app’s own code.** Each call goes through the provider adapter, and the prompts and functions are the app’s: \`researchName\` and \`designArms\` (arms), \`systemPrompt\`, \`toolsFor\` and \`runTool\` (the assistant), and the face-box schema.',
+    '- **The app’s own code.** Each call goes through the provider adapter, and the prompts and functions are the app’s: `researchName` and `designArms` (arms), `systemPrompt`, `toolsFor` and `runTool` (the assistant), and the face-box schema.',
     '- **Names.** Nine surnames, eight with a known meaning and one made-up trap. A known name passes when each expected meaning appears among the candidates and no candidate is stated as well-attested without being expected. The trap passes only when no candidate is stated as well-attested.',
     '- **Arms.** Three surnames, two steps as the app runs them: the meanings, then the top two chosen for the designs. A design passes when the schema holds, its charges exist, the tincture rule holds and it names a chosen meaning. Repairs (unknown charges, clashes the app fixed, designs it dropped) are counted and not failed.',
     '- **Tools.** Three questions on the family: a fact that needs a tool, a kinship question, and a question the tree does not record, which must be said not to be recorded with no invented year.',

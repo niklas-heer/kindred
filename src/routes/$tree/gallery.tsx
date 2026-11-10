@@ -27,6 +27,8 @@ export const Route = createFileRoute('/$tree/gallery')({
 /** The album filter: every photo, the ones in no album, or one album. */
 type AlbumScope = 'all' | 'none' | string;
 
+// One shared empty list, so a memo keyed on the media does not see a new array on every render before the data arrives.
+const NO_MEDIA: MediaItem[] = [];
 const decadeOf = (taken: string | null) => (taken && /^\d{4}/.test(taken) ? Math.floor(Number(taken.slice(0, 4)) / 10) * 10 : null);
 
 // ---------- page ----------
@@ -50,7 +52,7 @@ function GalleryPage() {
   const [albumDelete, setAlbumDelete] = useState<{ id: string; name: string } | null>(null);
   const [dragging, setDragging] = useState(false);
 
-  const media = q.data?.media ?? [];
+  const media = q.data?.media ?? NO_MEDIA;
   const albums = q.data?.albums ?? [];
 
   const decades = useMemo(

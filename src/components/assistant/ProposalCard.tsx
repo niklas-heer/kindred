@@ -50,7 +50,6 @@ export interface CardControl { approve: () => Promise<boolean>; open: () => bool
 export type RegisterCard = (id: string, control: CardControl | null) => void;
 
 export function ProposalCard({ tree, conv, itemId, proposal, onDecided, register }: { tree: string; conv: string; itemId: string; proposal: Proposal; onDecided: OnDecided; register?: RegisterCard }) {
-  const t = useT();
   // A family draft is its own card (it has rows that are added one by one), so it draws its own head and state.
   if (proposal.kind === 'family') return <FamilyDraft tree={tree} conv={conv} itemId={itemId} proposal={proposal} onDecided={onDecided} />;
   return <GenericCard tree={tree} conv={conv} itemId={itemId} proposal={proposal} onDecided={onDecided} register={register} />;
