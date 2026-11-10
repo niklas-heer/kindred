@@ -29,6 +29,7 @@ import { Route as TreeNeededRouteImport } from './routes/$tree/needed'
 import { Route as TreePeopleRouteImport } from './routes/$tree/people'
 import { Route as TreeResearchRouteImport } from './routes/$tree/research'
 import { Route as TreeStatisticsRouteImport } from './routes/$tree/statistics'
+import { Route as TreeTodayRouteImport } from './routes/$tree/today'
 import { Route as ApiCspReportRouteImport } from './routes/api/csp-report'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiStatsRouteImport } from './routes/api/stats'
@@ -52,6 +53,7 @@ import { Route as ApiMediaTreeKeyRouteImport } from './routes/api/media.$tree.$k
 import { Route as ApiPaintTreeKeyRouteImport } from './routes/api/paint.$tree.$key'
 import { Route as ApiPhotoTreeIdRouteImport } from './routes/api/photo.$tree.$id'
 import { Route as ApiPortraitTreeIdRouteImport } from './routes/api/portrait.$tree.$id'
+import { Route as ApiQuizPictureTreeDayRouteImport } from './routes/api/quiz-picture.$tree.$day'
 import { Route as ApiResearchTreeKeyRouteImport } from './routes/api/research.$tree.$key'
 
 const IndexRoute = IndexRouteImport.update({
@@ -152,6 +154,11 @@ const TreeResearchRoute = TreeResearchRouteImport.update({
 const TreeStatisticsRoute = TreeStatisticsRouteImport.update({
   id: '/statistics',
   path: '/statistics',
+  getParentRoute: () => TreeRoute,
+} as any)
+const TreeTodayRoute = TreeTodayRouteImport.update({
+  id: '/today',
+  path: '/today',
   getParentRoute: () => TreeRoute,
 } as any)
 const ApiCspReportRoute = ApiCspReportRouteImport.update({
@@ -269,6 +276,11 @@ const ApiPortraitTreeIdRoute = ApiPortraitTreeIdRouteImport.update({
   path: '/api/portrait/$tree/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiQuizPictureTreeDayRoute = ApiQuizPictureTreeDayRouteImport.update({
+  id: '/api/quiz-picture/$tree/$day',
+  path: '/api/quiz-picture/$tree/$day',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiResearchTreeKeyRoute = ApiResearchTreeKeyRouteImport.update({
   id: '/api/research/$tree/$key',
   path: '/api/research/$tree/$key',
@@ -295,6 +307,7 @@ export interface FileRoutesByFullPath {
   '/$tree/people': typeof TreePeopleRoute
   '/$tree/research': typeof TreeResearchRoute
   '/$tree/statistics': typeof TreeStatisticsRoute
+  '/$tree/today': typeof TreeTodayRoute
   '/api/csp-report': typeof ApiCspReportRoute
   '/api/health': typeof ApiHealthRoute
   '/api/stats': typeof ApiStatsRoute
@@ -319,6 +332,7 @@ export interface FileRoutesByFullPath {
   '/api/paint/$tree/$key': typeof ApiPaintTreeKeyRoute
   '/api/photo/$tree/$id': typeof ApiPhotoTreeIdRoute
   '/api/portrait/$tree/$id': typeof ApiPortraitTreeIdRoute
+  '/api/quiz-picture/$tree/$day': typeof ApiQuizPictureTreeDayRoute
   '/api/research/$tree/$key': typeof ApiResearchTreeKeyRoute
 }
 export interface FileRoutesByTo {
@@ -340,6 +354,7 @@ export interface FileRoutesByTo {
   '/$tree/people': typeof TreePeopleRoute
   '/$tree/research': typeof TreeResearchRoute
   '/$tree/statistics': typeof TreeStatisticsRoute
+  '/$tree/today': typeof TreeTodayRoute
   '/api/csp-report': typeof ApiCspReportRoute
   '/api/health': typeof ApiHealthRoute
   '/api/stats': typeof ApiStatsRoute
@@ -364,6 +379,7 @@ export interface FileRoutesByTo {
   '/api/paint/$tree/$key': typeof ApiPaintTreeKeyRoute
   '/api/photo/$tree/$id': typeof ApiPhotoTreeIdRoute
   '/api/portrait/$tree/$id': typeof ApiPortraitTreeIdRoute
+  '/api/quiz-picture/$tree/$day': typeof ApiQuizPictureTreeDayRoute
   '/api/research/$tree/$key': typeof ApiResearchTreeKeyRoute
 }
 export interface FileRoutesById {
@@ -387,6 +403,7 @@ export interface FileRoutesById {
   '/$tree/people': typeof TreePeopleRoute
   '/$tree/research': typeof TreeResearchRoute
   '/$tree/statistics': typeof TreeStatisticsRoute
+  '/$tree/today': typeof TreeTodayRoute
   '/api/csp-report': typeof ApiCspReportRoute
   '/api/health': typeof ApiHealthRoute
   '/api/stats': typeof ApiStatsRoute
@@ -411,6 +428,7 @@ export interface FileRoutesById {
   '/api/paint/$tree/$key': typeof ApiPaintTreeKeyRoute
   '/api/photo/$tree/$id': typeof ApiPhotoTreeIdRoute
   '/api/portrait/$tree/$id': typeof ApiPortraitTreeIdRoute
+  '/api/quiz-picture/$tree/$day': typeof ApiQuizPictureTreeDayRoute
   '/api/research/$tree/$key': typeof ApiResearchTreeKeyRoute
 }
 export interface FileRouteTypes {
@@ -435,6 +453,7 @@ export interface FileRouteTypes {
     | '/$tree/people'
     | '/$tree/research'
     | '/$tree/statistics'
+    | '/$tree/today'
     | '/api/csp-report'
     | '/api/health'
     | '/api/stats'
@@ -459,6 +478,7 @@ export interface FileRouteTypes {
     | '/api/paint/$tree/$key'
     | '/api/photo/$tree/$id'
     | '/api/portrait/$tree/$id'
+    | '/api/quiz-picture/$tree/$day'
     | '/api/research/$tree/$key'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -480,6 +500,7 @@ export interface FileRouteTypes {
     | '/$tree/people'
     | '/$tree/research'
     | '/$tree/statistics'
+    | '/$tree/today'
     | '/api/csp-report'
     | '/api/health'
     | '/api/stats'
@@ -504,6 +525,7 @@ export interface FileRouteTypes {
     | '/api/paint/$tree/$key'
     | '/api/photo/$tree/$id'
     | '/api/portrait/$tree/$id'
+    | '/api/quiz-picture/$tree/$day'
     | '/api/research/$tree/$key'
   id:
     | '__root__'
@@ -526,6 +548,7 @@ export interface FileRouteTypes {
     | '/$tree/people'
     | '/$tree/research'
     | '/$tree/statistics'
+    | '/$tree/today'
     | '/api/csp-report'
     | '/api/health'
     | '/api/stats'
@@ -550,6 +573,7 @@ export interface FileRouteTypes {
     | '/api/paint/$tree/$key'
     | '/api/photo/$tree/$id'
     | '/api/portrait/$tree/$id'
+    | '/api/quiz-picture/$tree/$day'
     | '/api/research/$tree/$key'
   fileRoutesById: FileRoutesById
 }
@@ -574,6 +598,7 @@ export interface RootRouteChildren {
   ApiPaintTreeKeyRoute: typeof ApiPaintTreeKeyRoute
   ApiPhotoTreeIdRoute: typeof ApiPhotoTreeIdRoute
   ApiPortraitTreeIdRoute: typeof ApiPortraitTreeIdRoute
+  ApiQuizPictureTreeDayRoute: typeof ApiQuizPictureTreeDayRoute
   ApiResearchTreeKeyRoute: typeof ApiResearchTreeKeyRoute
 }
 
@@ -717,6 +742,13 @@ declare module '@tanstack/react-router' {
       path: '/statistics'
       fullPath: '/$tree/statistics'
       preLoaderRoute: typeof TreeStatisticsRouteImport
+      parentRoute: typeof TreeRoute
+    }
+    '/$tree/today': {
+      id: '/$tree/today'
+      path: '/today'
+      fullPath: '/$tree/today'
+      preLoaderRoute: typeof TreeTodayRouteImport
       parentRoute: typeof TreeRoute
     }
     '/api/csp-report': {
@@ -880,6 +912,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPortraitTreeIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/quiz-picture/$tree/$day': {
+      id: '/api/quiz-picture/$tree/$day'
+      path: '/api/quiz-picture/$tree/$day'
+      fullPath: '/api/quiz-picture/$tree/$day'
+      preLoaderRoute: typeof ApiQuizPictureTreeDayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/research/$tree/$key': {
       id: '/api/research/$tree/$key'
       path: '/api/research/$tree/$key'
@@ -904,6 +943,7 @@ interface TreeRouteChildren {
   TreePeopleRoute: typeof TreePeopleRoute
   TreeResearchRoute: typeof TreeResearchRoute
   TreeStatisticsRoute: typeof TreeStatisticsRoute
+  TreeTodayRoute: typeof TreeTodayRoute
   TreeIndexRoute: typeof TreeIndexRoute
   TreeHouseHouseRoute: typeof TreeHouseHouseRoute
   TreePersonIdRoute: typeof TreePersonIdRoute
@@ -930,6 +970,7 @@ const TreeRouteChildren: TreeRouteChildren = {
   TreePeopleRoute: TreePeopleRoute,
   TreeResearchRoute: TreeResearchRoute,
   TreeStatisticsRoute: TreeStatisticsRoute,
+  TreeTodayRoute: TreeTodayRoute,
   TreeIndexRoute: TreeIndexRoute,
   TreeHouseHouseRoute: TreeHouseHouseRoute,
   TreePersonIdRoute: TreePersonIdRoute,
@@ -965,6 +1006,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPaintTreeKeyRoute: ApiPaintTreeKeyRoute,
   ApiPhotoTreeIdRoute: ApiPhotoTreeIdRoute,
   ApiPortraitTreeIdRoute: ApiPortraitTreeIdRoute,
+  ApiQuizPictureTreeDayRoute: ApiQuizPictureTreeDayRoute,
   ApiResearchTreeKeyRoute: ApiResearchTreeKeyRoute,
 }
 export const routeTree = rootRouteImport

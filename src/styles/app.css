@@ -394,16 +394,38 @@ kbd {
 .topbar .brand b { font-family: var(--font-display); font-size: 18px; font-weight: 600; line-height: var(--lh-tight); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32ch; }
 [data-theme='night'] .topbar .brand b { font-size: 20px; font-weight: 500; }
 .topbar nav { display: flex; gap: 2px; margin-left: 12px; min-width: 0; flex: 0 1 auto; }
-.topbar nav a {
+.topbar nav a, .nav-more-btn {
   padding: 6px 12px; border-radius: var(--radius); text-decoration: none; color: var(--muted); white-space: nowrap;
   font-family: var(--font-ui); font-size: var(--fs-3); line-height: var(--lh-tight); display: inline-flex; gap: 6px; align-items: center;
   transition: color var(--dur-1), background-color var(--dur-1);
 }
-.topbar nav a svg { flex: none; }
-.topbar nav a:hover { color: var(--text); background: var(--panel-2); }
-.topbar nav a[data-status='active'] { color: var(--text); background: var(--panel-2); box-shadow: inset 0 -2px 0 var(--accent); }
-.topbar nav a:active { transform: translateY(1px); }
-.topbar nav a:focus-visible, .topbar .brand:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius); }
+.topbar nav a svg, .nav-more-btn svg { flex: none; }
+.topbar nav a:hover, .nav-more-btn:hover, .nav-more-btn[aria-expanded='true'] { color: var(--text); background: var(--panel-2); }
+.topbar nav a[data-status='active'], .nav-more-btn[data-status='active'] { color: var(--text); background: var(--panel-2); box-shadow: inset 0 -2px 0 var(--accent); }
+.topbar nav a:active, .nav-more-btn:active { transform: translateY(1px); }
+.topbar nav a:focus-visible, .nav-more-btn:focus-visible, .topbar .brand:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius); }
+/* "More": the sections the bar does not name, behind one button that looks like a section (NavMore in $tree.tsx). */
+.nav-more { display: flex; }
+.nav-more-btn { border: 0; background: none; cursor: pointer; }
+.nav-more-btn .nav-label { display: inline-flex; align-items: center; gap: 3px; }
+.nav-more-caret { opacity: 0.7; transition: transform var(--dur-2) var(--ease-out); }
+.nav-more-btn[aria-expanded='true'] .nav-more-caret { transform: rotate(180deg); }
+.nav-more-pop {
+  position: fixed; z-index: 30; width: 320px; max-width: calc(100vw - 16px); margin: 0; padding: 6px; list-style: none;
+  display: grid; gap: 2px; background: var(--panel-solid); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow);
+  animation: nav-more-in var(--dur-2) var(--ease-out) both;
+}
+[data-theme='codex'] .nav-more-pop { border-color: #0a0d12; box-shadow: inset 0 0 0 1px var(--edge-soft), var(--shadow); }
+.topbar nav .nav-more-pop a {
+  display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; gap: 0 12px; min-width: 0; min-height: var(--ctl-lg);
+  padding: 7px 10px; border-radius: var(--radius); flex-direction: row; justify-content: start; text-align: left;
+  font-size: var(--fs-3); line-height: var(--lh-ui); letter-spacing: 0; color: var(--text); white-space: normal; box-shadow: none;
+}
+.topbar nav .nav-more-pop a svg { width: 18px; height: 18px; grid-row: 1 / span 2; color: var(--muted); }
+.topbar nav .nav-more-pop a small { grid-column: 2; color: var(--subtle); font-size: var(--fs-2); }
+.topbar nav .nav-more-pop a[data-status='active'] { background: var(--panel-2); box-shadow: inset 2px 0 0 var(--accent); }
+.topbar nav .nav-more-pop a[data-status='active'] svg { color: var(--accent); }
+@keyframes nav-more-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 .topbar .spacer { flex: 1; }
 @media (pointer: coarse) { .topbar .brand { min-height: 44px; } }
 .topbar-tools { display: flex; gap: 2px; }
@@ -429,26 +451,27 @@ kbd {
   /* Icon over label: every section keeps its name on a laptop. The bar grows to 60px to hold the two lines. */
   .topbar-stacked { height: 60px; }
   .topbar-stacked nav { flex: none; align-self: stretch; gap: 0; margin-left: 8px; }
-  .topbar-stacked nav a {
+  .topbar-stacked nav a, .topbar-stacked .nav-more-btn {
     flex-direction: column; justify-content: center; gap: 3px; min-width: 52px; padding: 2px 6px 0;
     font-size: var(--fs-1); line-height: 1.15; letter-spacing: 0.01em; border-radius: 0;
   }
-  .topbar-stacked nav a svg { width: 18px; height: 18px; }
-  .topbar-stacked nav a:focus-visible { border-radius: var(--radius); }
+  .topbar-stacked nav a svg, .topbar-stacked .nav-more-btn > svg { width: 18px; height: 18px; }
+  .topbar-stacked nav a:focus-visible, .topbar-stacked .nav-more-btn:focus-visible { border-radius: var(--radius); }
   .topbar-stacked .search-trigger { width: 200px; }
   /* No room even for that: the nav keeps its icons, titles explain them. */
   .topbar-compact nav { flex: none; }
   .topbar-compact nav .nav-label { display: none; }
   /* A touch screen has no tooltips, so the section you are in keeps its name beside its icon. */
   .topbar-compact nav a[data-status='active'] .nav-label { display: inline; }
-  .topbar-compact nav a { padding: 6px 10px; }
-  @media (pointer: coarse) { .topbar-compact nav a { min-height: 44px; min-width: 44px; justify-content: center; } }
+  .topbar-compact .nav-more-btn[data-status='active'] .nav-label { display: inline-flex; }
+  .topbar-compact nav a, .topbar-compact .nav-more-btn { padding: 6px 10px; }
+  @media (pointer: coarse) { .topbar-compact nav a, .topbar-compact .nav-more-btn { min-height: 44px; min-width: 44px; justify-content: center; } }
   .topbar-compact .search-trigger { width: 200px; }
 }
 @media (min-width: 901px) { .topbar-compact .brand, .topbar-stacked .brand { flex: 0 1 auto; min-width: calc(18ch + 38px); } }
 /* Before giving up the inline labels: a little less padding and a narrower search. */
 @media (min-width: 761px) and (max-width: 1680px) {
-  .topbar:not(.topbar-compact):not(.topbar-stacked) nav a { padding: 6px 7px; gap: 5px; }
+  .topbar:not(.topbar-compact):not(.topbar-stacked) nav a, .topbar:not(.topbar-compact):not(.topbar-stacked) .nav-more-btn { padding: 6px 7px; gap: 5px; }
   .topbar:not(.topbar-compact):not(.topbar-stacked) .search-trigger { width: 168px; }
   /* Sound and theme move into the account menu (account.css shows them there at the same width). */
   .topbar-prefs { display: none; }
@@ -536,6 +559,8 @@ kbd {
 
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--dur-2); animation-timing-function: var(--ease-out); }
 @media (prefers-reduced-motion: reduce) {
+  .nav-more-pop { animation: none; }
+  .nav-more-btn, .nav-more-caret { transition: none !important; transform: none !important; }
   .btn, .btn:active, .ui-card.interactive, .ui-card.interactive:hover, .ui-card.interactive:active, .topbar nav a, .tabbar a, .tabbar button, .tabbar svg { transition: none !important; transform: none !important; }
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }

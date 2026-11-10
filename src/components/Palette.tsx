@@ -3,7 +3,7 @@ import { searchPeople } from '~/lib/search';
 // ⌘K: jump to anyone by name, nickname, epithet, title or place; or run a command.
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useNavigate } from '@tanstack/react-router';
-import { CalendarHeart, CircleHelp, Contact, Landmark, Languages, Map as MapIcon, Crown, GitFork, Moon, Network, ScrollText, Shield, Sparkles, Sun, UserRound, FolderSearch, Inbox, MessageSquarePlus } from 'lucide-react';
+import { CalendarHeart, Flame, CircleHelp, Contact, Landmark, Languages, Map as MapIcon, Crown, GitFork, Moon, Network, ScrollText, Shield, Sparkles, Sun, UserRound, FolderSearch, Inbox, MessageSquarePlus } from 'lucide-react';
 import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useFamily, useMe, useMeChosen, useTreeId } from '~/lib/family';
 import { displayName, kinship, lifespan, ancestorDepths, stepsFrom, type Family } from '~/lib/graph';
@@ -71,8 +71,8 @@ export function PersonRow({ f, tree, id, who, anc, note }: { f: Family; tree: st
 
 const groupOf = (it: Item, t: Translator) => it.group ?? (it.person ? t('shell.palette.people') : t('shell.palette.commands'));
 
-/** The commands this reader can use. A guest has no Contacts: the shell hides it and the guest host refuses it. */
-export const commandsForReader = <T extends { key: string }>(cmds: T[], guest: boolean): T[] => (guest ? cmds.filter((c) => c.key !== 'contacts') : cmds);
+/** The commands this reader can use. A guest has no Contacts and no Today: the shell hides them and the server refuses them. */
+export const commandsForReader = <T extends { key: string }>(cmds: T[], guest: boolean): T[] => (guest ? cmds.filter((c) => c.key !== 'contacts' && c.key !== 'today') : cmds);
 
 // The search itself lives in ~/lib/search; other pickers import it from here.
 export { searchPeople };
@@ -141,6 +141,7 @@ export function Palette() {
       { key: 'v-anc', icon: <GitFork size={16} style={{ transform: 'rotate(180deg)' }} />, label: t('shell.cmd.viewAncestors'), run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'ancestors' }) }); close(); } },
       // An empty family has nobody to go to yet.
       ...(f.byId.has(me) ? [{ key: 'me', icon: <UserRound size={16} />, label: who ? t('shell.cmd.goMe') : t('shell.cmd.goHome'), hint: displayName(f.byId.get(me)!, f), run: go(me) }] : []),
+      { key: 'today', icon: <Flame size={16} />, label: t('today.cmd'), hint: t('today.cmd_hint'), run: () => { navigate({ to: '/$tree/today', params: { tree } }); close(); } },
       { key: 'almanac', icon: <CalendarHeart size={16} />, label: t('shell.cmd.almanac'), hint: t('shell.cmd.almanacHint'), run: () => { navigate({ to: '/$tree/almanac', params: { tree } }); close(); } },
       { key: 'atlas', icon: <MapIcon size={16} />, label: t('shell.cmd.atlas'), hint: t('shell.cmd.atlasHint'), run: () => { navigate({ to: '/$tree/atlas', params: { tree } }); close(); } },
       { key: 'contacts', icon: <Contact size={16} />, label: t('shell.cmd.contacts'), run: () => { navigate({ to: '/$tree/contacts', params: { tree } }); close(); } },

@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router';
 import {
   ArrowDownToLine, ArrowLeft, ArrowUpToLine, ChevronUp, ChevronsDownUp, ChevronsUpDown, Crown, FileQuestion, GitFork, Glasses,
   HeartPulse, Keyboard, Landmark, Minus, Network, Plus, Route as RouteIcon, Shield, SlidersHorizontal, Users, UserPlus, Waypoints, X,
@@ -26,10 +26,20 @@ import { formatNumber, kinshipLabel, yourKinship, translateMessage, useT, type K
 import { Arms } from '~/components/Heraldry';
 import { personName, treeTitle } from '~/lib/title';
 import { useCan } from '~/lib/session';
+import { sessionQuery } from '~/lib/auth/functions';
+import { opensOnToday } from '~/lib/today/opening';
 import '~/styles/tree.css';
 
 export const Route = createFileRoute('/$tree/')({
   validateSearch: treeSearch,
+  // A member who chose Today as the opening page (the switch at the foot of that page) arrives there instead: only on
+  // the way into the family, and only at its plain address, never for a link to a person or a view. In the browser
+  // only, where the choice is kept; the layout turns the page the server rendered (src/lib/today/opening.ts).
+  beforeLoad: ({ context, params, search }) => {
+    if (typeof window === 'undefined' || Object.keys(search).length > 0 || !opensOnToday(params.tree)) return;
+    if (context.queryClient.getQueryData(sessionQuery.queryKey)?.guest?.tree === params.tree) return;
+    throw redirect({ to: '/$tree/today', params: { tree: params.tree }, replace: true });
+  },
   // "Ada Lindqvist · The Lindqvist–Ashworth family · Kindred" when someone is selected or centred.
   head: (ctx) => ({ meta: [{ title: treeTitle(ctx, personName(ctx, ctx.match.search.sel ?? ctx.match.search.focus)) }] }),
   component: TreePage,

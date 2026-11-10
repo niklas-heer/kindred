@@ -1,8 +1,10 @@
-// Games, for stewards: the switch for the Campaign (off until a steward turns it on) and "end the season now". The
-// server checks the steward's role on every call (src/lib/campaign/campaign.functions.ts).
+// Games, for stewards: the switch for the Campaign (off until a steward turns it on) with "end the season now", and
+// the switch for the daily quiz on the Today page (on until a steward turns it off). The server checks the steward's
+// role on every call (src/lib/campaign/campaign.functions.ts, src/lib/today/today.functions.ts).
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Gamepad2, KeyRound, Swords } from 'lucide-react';
+import { GameIcon } from '~/components/GameIcon';
 import { useState } from 'react';
 import '~/components/campaign/campaign.css';
 import { ConfirmDialog, EmptyState, ErrorState, PageHeader, Skeleton, Switch } from '~/components/ui';
@@ -13,6 +15,7 @@ import { useFamily, useTreeId } from '~/lib/family';
 import { translate, useT, type Locale } from '~/lib/i18n';
 import { useCan } from '~/lib/session';
 import { treeTitle } from '~/lib/title';
+import { quizQuery, setQuizOn, todaySettingsQuery } from '~/lib/today/today.functions';
 
 export const Route = createFileRoute('/$tree/settings/games')({
   head: (ctx) => ({ meta: [{ title: treeTitle(ctx, translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'campaign.games.title')) }] }),
@@ -29,6 +32,11 @@ function GamesPage() {
   const [ending, setEnding] = useState(false);
   const refresh = () => Promise.all([campaignSettingsQuery(tree), campaignQuery(tree), campaignStatusQuery(tree)].map((o) => qc.invalidateQueries({ queryKey: o.queryKey })));
   const toggle = useMutation({ mutationFn: (on: boolean) => setCampaignOn({ data: { tree, on } }), onSettled: refresh });
+  const quiz = useQuery({ ...todaySettingsQuery(tree), enabled: steward });
+  const quizToggle = useMutation({
+    mutationFn: (on: boolean) => setQuizOn({ data: { tree, on } }),
+    onSettled: () => Promise.all([todaySettingsQuery(tree), quizQuery(tree)].map((o) => qc.invalidateQueries({ queryKey: o.queryKey }))),
+  });
   const end = useMutation({ mutationFn: () => endCampaignSeason({ data: { tree } }), onSuccess: () => setEnding(false), onSettled: refresh });
 
   if (!steward) {
@@ -55,6 +63,18 @@ function GamesPage() {
                   {settings.data.enabled && settings.data.season > 0 && <button type="button" className="btn" onClick={() => setEnding(true)}>{t('campaign.games.end')}</button>}
                 </div>
                 {settings.data.enabled && settings.data.season > 0 && <p className="subtle">{t('campaign.games.season', { season: settings.data.season })}</p>}
+              </section>
+              <section className="ui-card" aria-labelledby="cg-games-quiz">
+                <h2 className="cg-h" id="cg-games-quiz"><GameIcon name="laurel-crown" size={18} /> {t('today.games.title')}</h2>
+                <p>{t('today.games.what')}</p>
+                <p className="muted">{t('today.games.promise')}</p>
+                {quiz.isError ? <p role="alert">{errorText(quiz.error, t.locale)}</p> : (
+                  <Switch checked={quizToggle.isPending ? !!quizToggle.variables : quiz.data?.quiz !== false} onChange={(next) => quizToggle.mutate(next)} disabled={quizToggle.isPending || !quiz.data}>{t('today.games.switch')}</Switch>
+                )}
+                {quizToggle.isError && <p role="alert">{errorText(quizToggle.error, t.locale)}</p>}
+                <div className="cg-games-row">
+                  <Link className="btn" to="/$tree/today" params={{ tree }}>{t('today.games.open')}</Link>
+                </div>
               </section>
             </div>
           )}

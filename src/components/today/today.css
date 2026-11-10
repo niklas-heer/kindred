@@ -1,0 +1,222 @@
+/* The Today page and its cards (src/routes/$tree/today.tsx, src/components/today/). Tokens only, so the three themes
+   dress it: Codex in gilt and small caps, Paper quiet, Night by candlelight. The page is one column on a phone and a
+   tablet, and the question beside the smaller cards on a wide screen. */
+
+.td { max-width: 1120px; }
+
+/* ---------- the greeting ---------- */
+
+.td-hero { position: relative; margin: 0 0 22px; padding: 6px 0 0; }
+.td-hero::before {
+  /* The hearth: a low, warm light behind the greeting. Decoration only. */
+  content: ''; position: absolute; inset: -16px 0 -10px; z-index: -1; pointer-events: none;
+  background: radial-gradient(60% 120% at 18% 0%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 70%);
+}
+.td-hero-date { margin: 0 0 2px; min-height: 1.35em; font-family: var(--font-ui); font-size: var(--fs-3); line-height: var(--lh-ui); color: var(--muted); letter-spacing: 0.02em; }
+.td-hero h1 { margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.td-hero-sub { margin: 6px 0 0; max-width: 60ch; font-size: var(--fs-4); line-height: var(--lh-ui); color: var(--muted); text-wrap: pretty; }
+.td-hero-rule { display: none; color: var(--edge); margin-top: 12px; }
+[data-theme='codex'] .td-hero { text-align: center; }
+[data-theme='codex'] .td-hero::before { background: radial-gradient(50% 120% at 50% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%); }
+[data-theme='codex'] .td-hero-sub { margin-inline: auto; font-style: italic; }
+[data-theme='codex'] .td-hero-rule { display: block; }
+[data-theme='codex'] .td-hero-date { font-family: var(--font-display); font-variant: small-caps; letter-spacing: 0.08em; }
+
+/* ---------- the layout ---------- */
+
+.td-grid { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); max-width: 720px; margin-inline: auto; }
+.td-main, .td-side { display: grid; gap: 18px; align-content: start; min-width: 0; }
+@media (min-width: 1000px) {
+  .td-grid { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); max-width: none; align-items: start; gap: 22px; }
+}
+/* One column: the greeting lines up with the cards, and the earlier questions wait below the quiz and the dates. */
+@media (max-width: 999.98px) {
+  .td-hero { max-width: 720px; margin-inline: auto; }
+  .td-main, .td-side { display: contents; }
+  .td-earlier { order: 9; }
+}
+
+.td-card { padding: 18px 20px 20px; min-width: 0; }
+.td-card-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin: 0 0 12px; }
+.td-card-head .td-h, .td-card-head .td-eyebrow { margin: 0; }
+.td-h { margin: 0 0 12px; display: flex; align-items: center; gap: 8px; font-family: var(--font-title); font-size: var(--fs-5); font-weight: 600; line-height: var(--lh-tight); }
+.td-h svg { flex: none; color: var(--accent); }
+[data-theme='codex'] .td-h { font-variant: small-caps; letter-spacing: 0.03em; color: var(--accent); }
+.td-h-quiet { font-size: var(--fs-4); color: var(--muted); }
+[data-theme='codex'] .td-h-quiet { color: var(--muted); }
+.td-note { margin: 0 0 12px; font-size: var(--fs-3); line-height: var(--lh-body); text-wrap: pretty; }
+.td-more-link { display: inline-block; margin-top: 10px; font-family: var(--font-ui); font-size: var(--fs-3); color: var(--accent); text-underline-offset: 3px; }
+[data-theme='modern'] .td-more-link { color: var(--accent); }
+.td-more-link:focus-visible, .td a:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius); }
+
+/* ---------- the question of the week ---------- */
+
+.td-week { position: relative; padding: 22px 26px 24px; overflow: hidden; }
+.td-week::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(90% 70% at 50% 0%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 75%);
+}
+.td-week > * { position: relative; }
+.td-eyebrow { margin: 0; display: flex; align-items: center; gap: 8px; font-family: var(--font-ui); font-size: var(--fs-3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+[data-theme='codex'] .td-eyebrow { font-family: var(--font-display); letter-spacing: 0.1em; }
+[data-theme='modern'] .td-eyebrow { font-size: var(--fs-2); }
+.td-week-date { font-family: var(--font-ui); font-size: var(--fs-2); }
+.td-week-change { margin-left: auto; font-size: var(--fs-2); color: var(--muted); }
+.td-week-q { margin: 6px 0 18px; font-family: var(--font-name); font-size: clamp(24px, 3.4vw, 34px); font-weight: 500; line-height: 1.22; text-wrap: balance; overflow-wrap: anywhere; hyphens: auto; }
+[data-theme='night'] .td-week-q { font-weight: 400; }
+.td-week-cta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+.td-week-cta .btn.primary { height: var(--ctl-lg); padding-inline: 18px; font-size: var(--fs-4); }
+.td-week-cta .subtle { font-size: var(--fs-2); }
+.td-week-viewer, .td-week-skipped { padding: 10px 12px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); }
+
+.td-answers { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); }
+[data-theme='codex'] .td-answers { border-top-color: var(--edge-soft); }
+.td-answers h3 { margin: 0 0 10px; font-family: var(--font-ui); font-size: var(--fs-3); font-weight: 600; color: var(--muted); letter-spacing: 0.02em; }
+.td-answer-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.td-answer { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; }
+.td-answer-by { margin: 0 0 2px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; font-family: var(--font-ui); font-size: var(--fs-3); line-height: var(--lh-ui); color: var(--muted); }
+.td-answer-by > span { min-width: 0; }
+.td-answer-by b { color: var(--text); font-weight: 600; }
+.td-answer-by time { margin-left: auto; font-size: var(--fs-2); color: var(--subtle); white-space: nowrap; }
+.td-answer-body { font-family: var(--font-hand); font-size: var(--fs-4); line-height: var(--lh-body); overflow-wrap: anywhere; }
+[data-theme='modern'] .td-answer-body { font-size: 17px; }
+.td-answer-body > :first-child { margin-top: 0; }
+.td-answer-body > :last-child { margin-bottom: 0; }
+.td-answer-body p { margin: 0 0 8px; }
+
+/* Earlier questions: a quiet list under the card. */
+.td-earlier ul { list-style: none; margin: 0; padding: 0; display: grid; }
+.td-earlier-item { padding: 12px 2px; border-top: 1px solid var(--border); }
+[data-theme='codex'] .td-earlier-item { border-top-color: var(--edge-soft); }
+.td-earlier-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; }
+.td-earlier-text { flex: 1 1 260px; min-width: 0; }
+.td-earlier-text .subtle { font-family: var(--font-ui); font-size: var(--fs-2); }
+.td-earlier-text p { margin: 1px 0 0; font-family: var(--font-name); font-size: var(--fs-4); line-height: var(--lh-ui); overflow-wrap: anywhere; }
+.td-earlier-item .btn { flex: none; }
+.td-earlier-item .td-answer-list { margin-top: 12px; padding-left: 4px; }
+.td-earlier-more { margin-top: 4px; color: var(--muted); font-size: var(--fs-3); }
+.td-chevron { transition: transform var(--dur-2) var(--ease-out); }
+[aria-expanded='true'] > .td-chevron { transform: rotate(180deg); }
+
+/* The answer dialog and the steward's "change the question". */
+.td-answer-q { margin: 0 0 14px; font-family: var(--font-name); font-size: var(--fs-6); font-weight: 500; line-height: 1.25; text-wrap: balance; overflow-wrap: anywhere; }
+.td-answer-about { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; padding: 8px 10px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--border); }
+.td-answer-about > div { display: grid; min-width: 0; flex: 1; }
+.td-answer-about b { font-family: var(--font-name); font-weight: var(--name-weight); font-size: var(--fs-4); overflow-wrap: anywhere; }
+.td-answer-about .subtle { font-size: var(--fs-2); }
+.td-answer-who { margin: 0 0 8px; font-family: var(--font-ui); font-size: var(--fs-3); font-weight: 600; }
+.td-answer-dialog label, .td-change label { display: block; margin: 0 0 6px; font-family: var(--font-ui); font-size: var(--fs-3); font-weight: 600; }
+.td-answer-dialog textarea, .td-change textarea { width: 100%; font-family: var(--font-body); font-size: var(--fs-4); }
+.td-answer-dialog .subtle, .td-change .subtle { margin: 6px 0 0; font-size: var(--fs-2); line-height: var(--lh-ui); }
+.td-change-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+/* ---------- the daily quiz ---------- */
+
+.td-streak { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-family: var(--font-ui); font-size: var(--fs-2); font-weight: 600; color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); white-space: nowrap; }
+.td-quiz-prompt { display: flex; align-items: center; gap: 14px; margin: 0 0 14px; }
+.td-quiz-prompt[data-kind='shield'], .td-quiz-prompt[data-kind='portrait'] { flex-direction: column; text-align: center; gap: 10px; }
+.td-quiz-figure { flex: none; display: grid; place-items: center; }
+.td-quiz-face { width: 112px; height: 112px; border-radius: 50%; object-fit: cover; background: var(--panel-2); border: 2px solid var(--edge); box-shadow: 0 0 0 1px #0004, var(--shadow); }
+.td-quiz-q { margin: 0; font-family: var(--font-name); font-size: var(--fs-5); font-weight: 500; line-height: 1.3; text-wrap: balance; overflow-wrap: anywhere; }
+.td-quiz-q a { color: inherit; text-decoration-color: color-mix(in srgb, var(--accent) 60%, transparent); text-underline-offset: 3px; }
+
+.td-quiz-options { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.td-quiz-option {
+  position: relative; display: flex; align-items: center; gap: 10px; min-height: var(--ctl-lg); padding: 7px 12px;
+  border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--panel-2); cursor: pointer;
+  font-family: var(--font-ui); font-size: var(--fs-4); line-height: var(--lh-ui);
+  transition: border-color var(--dur-1), background-color var(--dur-1), transform var(--dur-1) var(--ease-out);
+}
+label.td-quiz-option:hover { border-color: var(--edge); background: var(--panel-3); }
+label.td-quiz-option:active { transform: translateY(1px); }
+.td-quiz-option input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.td-quiz-option:has(input:focus-visible) { box-shadow: var(--focus-ring); }
+.td-quiz-option[data-picked] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--panel-2)); }
+.td-quiz-option-text { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.td-quiz-faces { display: inline-flex; flex: none; }
+.td-quiz-faces > * + * { margin-left: -8px; }
+.td-quiz-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin-top: 14px; }
+.td-quiz-foot .btn.primary { height: var(--ctl-lg); padding-inline: 18px; }
+.td-quiz-foot .subtle { font-size: var(--fs-2); }
+
+.td-quiz-order { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.td-quiz-order li { display: flex; align-items: center; gap: 10px; min-height: var(--ctl-lg); padding: 5px 6px 5px 10px; border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--panel-2); font-family: var(--font-ui); font-size: var(--fs-4); }
+.td-quiz-order .btn.icon { width: var(--ctl); height: var(--ctl); }
+@media (pointer: coarse) { .td-quiz-order .btn.icon { width: var(--ctl-lg); height: var(--ctl-lg); } }
+.td-quiz-rank { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; font-family: var(--font-ui); font-size: var(--fs-2); font-weight: 700; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent); }
+.td-quiz-order-done li { padding-right: 12px; }
+
+.td-quiz-verdict { margin: 0 0 12px; display: flex; align-items: center; gap: 10px; font-family: var(--font-title); font-size: var(--fs-5); line-height: var(--lh-tight); }
+.td-quiz-mark { flex: none; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; }
+.td-quiz-verdict .td-quiz-mark { width: 30px; height: 30px; color: var(--accent-text); background: var(--accent); animation: td-pop var(--dur-4) var(--ease-spring) both; }
+.td-quiz-result[data-correct='false'] .td-quiz-verdict .td-quiz-mark { color: var(--text); background: var(--panel-3); border: 1px solid var(--border); }
+.td-quiz-reveal { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; }
+.td-quiz-reveal .td-quiz-q { font-size: var(--fs-4); color: var(--muted); }
+.td-quiz-options-done .td-quiz-option { cursor: default; }
+.td-quiz-option[data-right] { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, var(--panel-2)); }
+.td-quiz-option[data-right] .td-quiz-mark { color: var(--ok); }
+.td-quiz-option[data-missed] { border-color: color-mix(in srgb, var(--danger) 70%, var(--border)); border-style: dashed; }
+.td-quiz-option[data-missed] .td-quiz-mark { color: var(--danger); }
+.td-quiz-tag { flex: none; font-size: var(--fs-1); font-weight: 600; letter-spacing: 0.03em; color: var(--muted); }
+.td-quiz-family { margin: 14px 0 0; font-size: var(--fs-3); line-height: var(--lh-body); color: var(--muted); text-wrap: pretty; }
+.td-quiz-bonus { margin: 8px 0 0; display: flex; align-items: center; gap: 8px; font-size: var(--fs-3); color: var(--accent); }
+[data-theme='modern'] .td-quiz-bonus { color: var(--text); }
+.td-quiz-result { animation: td-rise var(--dur-3) var(--ease-out) both; }
+
+.td-quiz-houses { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+[data-theme='codex'] .td-quiz-houses { border-top-color: var(--edge-soft); }
+.td-quiz-houses h3 { margin: 0 0 8px; font-family: var(--font-ui); font-size: var(--fs-2); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--subtle); }
+.td-quiz-houses ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.td-quiz-houses li { display: flex; align-items: center; gap: 10px; font-family: var(--font-ui); font-size: var(--fs-3); }
+.td-quiz-house-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-quiz-house-score { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
+.td-quiz-houses li:first-child .td-quiz-house-name { font-weight: 600; }
+
+@keyframes td-pop { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes td-rise { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ---------- this week's dates ---------- */
+
+.td-date-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.td-date-list li { display: grid; grid-template-columns: 5.5em 58px minmax(0, 1fr); align-items: center; gap: 10px; }
+.td-date-when { font-family: var(--font-ui); font-size: var(--fs-2); color: var(--subtle); overflow-wrap: anywhere; }
+.td-date-list li[data-today] .td-date-when { color: var(--accent); font-weight: 700; }
+[data-theme='modern'] .td-date-list li[data-today] .td-date-when { color: var(--accent); }
+.td-date-faces { display: inline-flex; }
+.td-date-faces > * + * { margin-left: -10px; }
+.td-date-text { display: grid; min-width: 0; font-size: var(--fs-3); line-height: var(--lh-ui); }
+.td-date-names { font-family: var(--font-name); font-weight: var(--name-weight); font-size: var(--fs-4); overflow-wrap: anywhere; }
+.td-date-names a { color: inherit; text-decoration: none; }
+.td-date-names a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.td-date-text .muted svg { vertical-align: -1px; }
+
+/* ---------- the nudge ---------- */
+
+.td-nudge-row { display: flex; align-items: center; gap: 12px; }
+.td-nudge-row p { margin: 0; font-size: var(--fs-4); line-height: var(--lh-ui); text-wrap: pretty; overflow-wrap: anywhere; }
+.td-nudge-row b { font-family: var(--font-name); font-weight: 600; }
+.td-nudge-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; margin-top: 12px; }
+.td-nudge-actions .td-more-link { margin-top: 0; }
+
+/* The Campaign's card sits among these; it brings its own layout (campaign.css). */
+.td-side .cg-card { padding: 18px 20px 20px; }
+
+.td-foot { margin: 28px auto 0; max-width: 720px; display: flex; justify-content: center; color: var(--muted); font-family: var(--font-ui); font-size: var(--fs-3); }
+@media (min-width: 1000px) { .td-foot { max-width: none; } }
+
+@media (max-width: 760px) {
+  .td-hero { margin-bottom: 16px; }
+  .td-hero-sub { font-size: var(--fs-3); }
+  .td-card, .td-side .cg-card { padding: 16px 16px 18px; }
+  .td-week { padding: 18px 16px 20px; }
+  .td-week-change { margin-left: 0; }
+  .td-week-cta .btn.primary { width: 100%; justify-content: center; }
+  .td-quiz-foot .btn.primary { width: 100%; justify-content: center; }
+  .td-date-list li { grid-template-columns: 4.6em 58px minmax(0, 1fr); gap: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .td-quiz-result, .td-quiz-verdict .td-quiz-mark { animation: none; }
+  .td-quiz-option, .td-chevron { transition: none; }
+  label.td-quiz-option:active { transform: none; }
+}

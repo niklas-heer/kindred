@@ -1,7 +1,7 @@
 import { useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
-import { createFileRoute, Link, notFound, Outlet, redirect } from '@tanstack/react-router';
-import { ArrowLeftRight, BarChart3, BookOpen, CalendarHeart, CircleHelp, Contact, FolderSearch, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, SlidersHorizontal, Sparkles, Swords, Users, Inbox, MessageSquarePlus, Gamepad2 } from 'lucide-react';
+import { createFileRoute, Link, notFound, Outlet, redirect, useLocation, useNavigate } from '@tanstack/react-router';
+import { ArrowLeftRight, BarChart3, BookOpen, CalendarHeart, ChevronDown, CircleHelp, Contact, Flame, LayoutGrid, FolderSearch, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, SlidersHorizontal, Sparkles, Swords, Users, Inbox, MessageSquarePlus, Gamepad2 } from 'lucide-react';
 import { AccountMenu } from '~/components/AccountMenu';
 import { AssistantButton, AssistantHost } from '~/components/assistant/Launcher';
 import { useAiSetupNeeded } from '~/components/assistant/AiSetup';
@@ -9,7 +9,7 @@ import { openAiSetup, openAssistant, useAiStatus } from '~/components/assistant/
 import { aiStatusQuery } from '~/lib/ai.functions';
 import { campaignStatusQuery } from '~/lib/campaign/campaign.functions';
 import { LanguageChoices, LanguagePicker } from '~/components/LanguagePicker';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { FirstRun } from '~/components/FirstRun';
 import { GuestChip } from '~/components/GuestChip';
 import { JoinInvite } from '~/components/join/JoinInvite';
@@ -31,6 +31,7 @@ import { useFamily } from '~/lib/family';
 import { useStatsBeacon } from '~/lib/stats/beacon';
 import { setPref, THEMES, usePref } from '~/lib/prefs';
 import { treeTitle } from '~/lib/title';
+import { arrivedIn, leftFamily, opensOnToday } from '~/lib/today/opening';
 
 export const Route = createFileRoute('/$tree')({
   // Signed out: to /signin and back. Not a member: "You don't have access" (whether or not the family exists).
@@ -42,8 +43,8 @@ export const Route = createFileRoute('/$tree')({
       throw redirect({ to: '/signin', search: { next: location.href } });
     }
     if (!session.memberships.some((m) => m.tree === params.tree)) throw notFound({ data: { access: false } });
-    // A guest looks around; Access, the settings, Contacts and the Campaign are not for them (the server refuses or empties their data anyway).
-    if (session.guest?.tree === params.tree && /^\/[^/]+\/(?:access|settings|contacts|campaign)(?:\/|$)/i.test(location.pathname)) throw redirect({ to: '/$tree', params: { tree: params.tree } });
+    // A guest looks around; Access, the settings, Contacts, the Campaign and Today are not for them (the server refuses or empties their data anyway).
+    if (session.guest?.tree === params.tree && /^\/[^/]+\/(?:access|settings|contacts|campaign|today)(?:\/|$)/i.test(location.pathname)) throw redirect({ to: '/$tree', params: { tree: params.tree } });
   },
   loader: async ({ context, params }) => {
     // An unknown family is a friendly "not found", never a server error with a developer hint.
@@ -66,7 +67,9 @@ export const Route = createFileRoute('/$tree')({
 });
 
 /**
- * The sections have three states. Labels beside the icons when they fit next to the family's whole name; else icon over
+ * The bar shows the sections a family opens most (Today, the tree, the Almanac, the Chronicle, the Atlas, the Campaign
+ * while it is on) and keeps the rest under "More" (`NavMore`), so that every section shown has room for its name on a
+ * tablet as well as on a desktop. The sections have three states. Labels beside the icons when they fit next to the family's whole name; else icon over
  * label (`topbar-stacked`), so every section keeps its name on a laptop; else icons alone (`topbar-compact`). Which fits
  * depends on the language, the reader's sections and the name itself, so it is measured. Starts stacked (the server can't
  * measure, and most screens end there); the classes are only ever set here, so React's renders leave them alone.
@@ -117,6 +120,16 @@ function TreeLayout() {
   // The Campaign has its section only while a steward has it switched on. Members only: a guest is never asked.
   const campaign = !!useQuery({ ...campaignStatusQuery(tree), enabled: !guest }).data?.enabled;
 
+  // A reader who chose Today as the opening page (src/lib/today/opening.ts) and arrives at the family's own address
+  // goes there. Only on arrival: from then on the Tree section is the tree. A client navigation is turned in the
+  // tree route's beforeLoad; this covers the page the server rendered, where the choice (kept in this browser) is unknown.
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!guest && location.pathname.replace(/\/$/, '') === `/${tree}` && !location.search && opensOnToday(tree)) void navigate({ to: '/$tree/today', params: { tree }, replace: true });
+    arrivedIn(tree);
+    return () => leftFamily(tree);
+  }, [tree, guest, navigate]);
+
   // Each tree opens in its own theme unless the reader picked one.
   useEffect(() => {
     // Read storage directly: during hydration the pref hook still reports the server's null.
@@ -144,43 +157,29 @@ function TreeLayout() {
           <b>{f.graph.tree.name}</b>
         </Link>
         <nav aria-label={t("shell.sections")}>
+          {!guest && (
+            <Link to="/$tree/today" params={{ tree }} title={t("today.title")} aria-label={t("today.title")}>
+              <Flame size={16} /><span className="nav-label">{t("today.title")}</span>
+            </Link>
+          )}
           <Link to="/$tree" params={{ tree }} activeOptions={{ exact: true, includeSearch: false }} title={t("shell.tree")} aria-label={t("shell.tree")}>
             <Network size={16} /><span className="nav-label">{t("shell.tree")}</span>
           </Link>
           <Link to="/$tree/almanac" params={{ tree }} title={t("shell.almanac")} aria-label={t("shell.almanac")}>
             <CalendarHeart size={16} /><span className="nav-label">{t("shell.almanac")}</span>
           </Link>
-          <Link to="/$tree/atlas" params={{ tree }} title={t("shell.atlas")} aria-label={t("shell.atlas")}>
-            <MapIcon size={16} /><span className="nav-label">{t("shell.atlas")}</span>
-          </Link>
-          {!guest && (
-            <Link to="/$tree/contacts" params={{ tree }} title={t("shell.contacts")} aria-label={t("shell.contacts")}>
-              <Contact size={16} /><span className="nav-label">{t("shell.contacts")}</span>
-            </Link>
-          )}
-          <Link to="/$tree/people" params={{ tree }} title={t("shell.register")} aria-label={t("shell.register")}>
-            <BookOpen size={16} /><span className="nav-label">{t("shell.register")}</span>
-          </Link>
-          <Link to="/$tree/houses" params={{ tree }} title={t("shell.houses")} aria-label={t("shell.houses")} activeOptions={{ exact: false }}>
-            <Landmark size={16} /><span className="nav-label">{t("shell.houses")}</span>
-          </Link>
-          <Link to="/$tree/needed" params={{ tree }} title={t("shell.information_needed")} aria-label={t("shell.information_needed")}>
-            <CircleHelp size={16} /><span className="nav-label">{t("shell.needed")}</span>
-          </Link>
           <Link to="/$tree/chronicle" params={{ tree }} title={t("shell.chronicle")} aria-label={t("shell.chronicle")}>
             <ScrollText size={16} /><span className="nav-label">{t("shell.chronicle")}</span>
           </Link>
-          <Link to="/$tree/gallery" params={{ tree }} title={t("shell.gallery")} aria-label={t("shell.gallery")}>
-            <Images size={16} /><span className="nav-label">{t("shell.gallery")}</span>
-          </Link>
-          <Link to="/$tree/research" params={{ tree }} title={t("research.title")} aria-label={t("research.title")} activeOptions={{ exact: false }}>
-            <FolderSearch size={16} /><span className="nav-label">{t("research.title")}</span>
+          <Link to="/$tree/atlas" params={{ tree }} title={t("shell.atlas")} aria-label={t("shell.atlas")}>
+            <MapIcon size={16} /><span className="nav-label">{t("shell.atlas")}</span>
           </Link>
           {campaign && (
             <Link to="/$tree/campaign" params={{ tree }} title={t("campaign.title")} aria-label={t("campaign.title")}>
               <Swords size={16} /><span className="nav-label">{t("campaign.nav")}</span>
             </Link>
           )}
+          <NavMore tree={tree} guest={guest} />
         </nav>
         <span className="spacer" />
         <button className="btn search-trigger" onClick={() => palette.open()}>
@@ -204,15 +203,22 @@ function TreeLayout() {
       </MainContext.Provider>
       {/* Phones: the sections move to a bar along the bottom edge. */}
       <nav className="tabbar" aria-label={t("shell.sections")}>
+        {/* What brings a family back comes first: Today, then the tree, the dates and the stories. The rest is in More. */}
+        {!guest && (
+          <Link to="/$tree/today" params={{ tree }}>
+            <Flame size={21} /><span>{t("today.title")}</span></Link>
+        )}
         <Link to="/$tree" params={{ tree }} activeOptions={{ exact: true, includeSearch: false }}>
           <Network size={21} /><span>{t("shell.tree_tab")}</span></Link>
         <Link to="/$tree/almanac" params={{ tree }}>
           <CalendarHeart size={21} /><span>{t("shell.almanac")}</span></Link>
-        {/* Stories bring a family back; the to-do list ("Needed") is first in More. */}
         <Link to="/$tree/chronicle" params={{ tree }}>
           <ScrollText size={21} /><span>{t("shell.chronicle")}</span></Link>
-        <Link to="/$tree/atlas" params={{ tree }}>
-          <MapIcon size={21} /><span>{t("shell.atlas")}</span></Link>
+        {/* A guest has no Today, so the Atlas keeps its tab; for a member it is the first row of More. */}
+        {guest && (
+          <Link to="/$tree/atlas" params={{ tree }}>
+            <MapIcon size={21} /><span>{t("shell.atlas")}</span></Link>
+        )}
         <button type="button" onClick={() => setMore(true)} aria-expanded={more} aria-haspopup="dialog">
           <MoreHorizontal size={21} /><span>{t("shell.more")}</span></button>
       </nav>
@@ -228,7 +234,77 @@ function TreeLayout() {
   );
 }
 
-/** Needed, Contacts, Register and the rest, plus theme and sound: what the phone's tab bar has no room for. */
+/**
+ * The sections the top bar does not show by name, under one "More" button: the Register, the Houses, Contacts, Needed,
+ * the Gallery and Research. Inside one of them, the button carries that section's icon and name, so the bar still says
+ * where the reader is. A plain disclosure: a button and a list of links, closed by Escape, a press outside or a choice.
+ */
+function NavMore({ tree, guest }: { tree: string; guest: boolean }) {
+  const t = useT();
+  const id = useId();
+  const [open, setOpen] = useState(false);
+  const [at, setAt] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const wrap = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const path = useLocation({ select: (l) => l.pathname });
+  const sections: { seg: string; to: '/$tree/people' | '/$tree/houses' | '/$tree/contacts' | '/$tree/needed' | '/$tree/gallery' | '/$tree/research'; icon: (size: number) => ReactNode; label: string; hint: string; also?: string }[] = [
+    { seg: 'people', to: '/$tree/people', icon: (n) => <BookOpen size={n} />, label: t('shell.register'), hint: t('shell.everyone_as_a_table') },
+    { seg: 'houses', to: '/$tree/houses', icon: (n) => <Landmark size={n} />, label: t('shell.houses'), hint: t('shell.arms_mottos_members'), also: 'house' },
+    ...(guest ? [] : [{ seg: 'contacts', to: '/$tree/contacts' as const, icon: (n: number) => <Contact size={n} />, label: t('shell.contacts'), hint: t('shell.addresses_phones') }]),
+    { seg: 'needed', to: '/$tree/needed', icon: (n) => <CircleHelp size={n} />, label: t('shell.needed'), hint: t('shell.information_needed') },
+    { seg: 'gallery', to: '/$tree/gallery', icon: (n) => <Images size={n} />, label: t('shell.gallery'), hint: t('shell.gallery_hint') },
+    { seg: 'research', to: '/$tree/research', icon: (n) => <FolderSearch size={n} />, label: t('research.title'), hint: t('research.nav_hint') },
+  ];
+  const inside = (seg: string) => path === `/${tree}/${seg}` || path.startsWith(`/${tree}/${seg}/`);
+  const current = sections.find((s) => inside(s.seg) || (s.also && inside(s.also)));
+
+  useEffect(() => setOpen(false), [path]);
+  useEffect(() => {
+    if (!open) return;
+    const press = (e: PointerEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false); };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); button.current?.focus(); } };
+    const close = () => setOpen(false);
+    document.addEventListener('pointerdown', press);
+    document.addEventListener('keydown', key);
+    window.addEventListener('resize', close);
+    return () => { document.removeEventListener('pointerdown', press); document.removeEventListener('keydown', key); window.removeEventListener('resize', close); };
+  }, [open]);
+
+  const toggle = () => {
+    // Placed against the window, under the button, and kept inside the screen: the list is not part of the bar's own
+    // width, which useTopbarFit measures.
+    const r = button.current!.getBoundingClientRect();
+    setAt({ top: Math.round(r.bottom + 6), left: Math.round(Math.max(8, Math.min(r.left, window.innerWidth - 328))) });
+    setOpen((o) => !o);
+  };
+
+  return (
+    <div className="nav-more" ref={wrap}>
+      <button
+        type="button" ref={button} className="nav-more-btn" onClick={toggle}
+        aria-expanded={open} aria-controls={open ? id : undefined} data-status={current ? 'active' : undefined}
+        aria-label={current ? `${t('shell.more')}: ${current.label}` : undefined}
+        title={current ? current.label : t('today.more_sections')}
+      >
+        {current ? current.icon(16) : <LayoutGrid size={16} />}
+        <span className="nav-label">{current ? current.label : t('shell.more')} <ChevronDown size={11} className="nav-more-caret" aria-hidden /></span>
+      </button>
+      {open && (
+        <ul className="nav-more-pop" id={id} aria-label={t('today.more_sections')} style={{ top: at.top, left: at.left }}>
+          {sections.map((s) => (
+            <li key={s.seg}>
+              <Link to={s.to} params={{ tree }} activeOptions={{ exact: false }} onClick={() => setOpen(false)}>
+                {s.icon(18)} <span>{s.label}</span> <small>{s.hint}</small>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** The Atlas, Needed, Contacts, the Register and the rest, plus theme and sound: what the phone's tab bar has no room for. */
 function MoreSheet({ open, onClose, tree, multiple, campaign }: { open: boolean; onClose: () => void; tree: string; multiple: boolean; campaign: boolean }) {
   const guest = useSession()?.guest?.tree === tree;
   const t = useT();
@@ -244,6 +320,7 @@ function MoreSheet({ open, onClose, tree, multiple, campaign }: { open: boolean;
   return (
     <Dialog open={open} onClose={onClose} title={t("shell.more")} placement="sheet" width={560}>
       <ul className="more-list" onClick={(e) => (e.target as HTMLElement).closest('a') && onClose()}>
+        {!guest && <li><Link to="/$tree/atlas" params={{ tree }}><MapIcon size={19} /> {t("shell.atlas")} <small>{t("shell.cmd.atlasHint")}</small></Link></li>}
         <li><Link to="/$tree/needed" params={{ tree }}><CircleHelp size={19} /> {t("shell.needed")} <small>{t("shell.information_needed")}</small></Link></li>
         {!guest && <li><Link to="/$tree/contacts" params={{ tree }}><Contact size={19} /> {t("shell.contacts")} <small>{t("shell.addresses_phones")}</small></Link></li>}
         <li><Link to="/$tree/people" params={{ tree }}><BookOpen size={19} /> {t("shell.register")} <small>{t("shell.everyone_as_a_table")}</small></Link></li>
