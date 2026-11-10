@@ -249,12 +249,32 @@ export function markdownArchive(tree: ExTree, portraits: Set<string> = new Set()
   return { files, losses };
 }
 
+/**
+ * Plain text as Markdown that reads as the same text and nothing more: a post is written as text, never as markup
+ * (docs/feed.md), so what Markdown would read as a link, a picture, HTML, emphasis or code is escaped with a backslash, and
+ * so is a line's opening mark (a heading, a list, a quote). Ordinary words, punctuation and line breaks stay as they are.
+ */
+export function plainMarkdown(text: string): string {
+  return text
+    .split('\n')
+    .map((line) =>
+      line
+        .replace(/[\\`*_[\]<>]/g, '\\$&')
+        // An entity (&amp;, &#106;) would be read as its character; a lone "&" is left alone.
+        .replace(/&(?=#?[A-Za-z0-9]+;)/g, '\\&')
+        // A line's opening mark: a heading, a list item (also "1." or "1)"), a setext underline.
+        .replace(/^(\s*)([#+\-=])/, '$1\\$2')
+        .replace(/^(\s*\d+)([.)])/, '$1\\$2'))
+    .join('\n');
+}
+
 /** A year of the family's feed, oldest first: each post with its writer, its text, who it is about, and its comments. */
 export function feedNote(family: string, year: string, posts: ExPost[], personLink: (id: string) => string | null): string {
   const out: string[] = [`# ${family}: the feed, ${year}`, ''];
   for (const x of posts) {
-    out.push(`## ${x.at.slice(0, 10)}, ${x.author || 'a former member'}${x.edited ? ' (changed)' : ''}`, '');
-    if (x.body.trim()) out.push(quoted(x.body.trim()), '');
+    // The writer's name and every word they wrote are the reader's input: written as text, never as markup.
+    out.push(`## ${x.at.slice(0, 10)}, ${x.author ? plainMarkdown(x.author.replace(/\s+/g, ' ')) : 'a former member'}${x.edited ? ' (changed)' : ''}`, '');
+    if (x.body.trim()) out.push(quoted(plainMarkdown(x.body.trim())), '');
     const about = x.people.map(personLink).filter((l): l is string => !!l);
     const notes = [
       ...(about.length ? [`About ${about.join(', ')}.`] : []),
@@ -263,7 +283,7 @@ export function feedNote(family: string, year: string, posts: ExPost[], personLi
     if (notes.length) out.push(`*${notes.join(' ')}*`, '');
     if (x.comments.length) {
       out.push('### Comments', '');
-      for (const c of x.comments) out.push(`**${c.author || 'A former member'}**, ${c.at.slice(0, 10)}${c.edited ? ' (changed)' : ''}:`, '', quoted(c.body), '');
+      for (const c of x.comments) out.push(`**${c.author ? plainMarkdown(c.author.replace(/\s+/g, ' ')) : 'A former member'}**, ${c.at.slice(0, 10)}${c.edited ? ' (changed)' : ''}:`, '', quoted(plainMarkdown(c.body)), '');
     }
   }
   return `${out.join('\n').trimEnd()}\n`;

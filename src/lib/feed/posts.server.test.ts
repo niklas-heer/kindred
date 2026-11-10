@@ -575,10 +575,39 @@ test('posts go into the Markdown archive with their comments, a file per year, a
   const year = files.find((f) => f.path === 'feed/2025.md');
   assert.ok(year, 'the year has its file');
   const text = String(year.data);
-  assert.match(text, /## 2025-03-04, Cal Contributor\n\n> ARCHIVE-POST first line\n> # not a heading\n\n\*About \[\[people\/ada\]\]\. With 1 picture, kept in the gallery\.\*\n\n### Comments\n\n\*\*Ona Other\*\*, \d{4}-\d{2}-\d{2}:\n\n> ARCHIVE-COMMENT/);
+  assert.match(text, /## 2025-03-04, Cal Contributor\n\n> ARCHIVE-POST first line\n> \\# not a heading\n\n\*About \[\[people\/ada\]\]\. With 1 picture, kept in the gallery\.\*\n\n### Comments\n\n\*\*Ona Other\*\*, \d{4}-\d{2}-\d{2}:\n\n> ARCHIVE-COMMENT/);
   assert.ok(files.some((f) => /^feed\/20\d\d\.md$/.test(f.path) && f.path !== 'feed/2025.md'), 'and the other years theirs');
   assert.ok(losses.some((l) => /shared in the family’s feed (is|are) not in the archive/.test(l)), 'the archive says the pictures are not in it');
   const { text: ged } = writeGedcom(tree);
   assert.ok(!ged.includes('ARCHIVE-POST') && !ged.includes('ARCHIVE-COMMENT'));
 });
 
+test('the archive writes a post as text: what Markdown would read as a link, HTML or emphasis is escaped, and reads back as written', async () => {
+  const { marked } = await import('marked');
+  const { feedNote, plainMarkdown } = await load<typeof import('../exchange/markdown.ts')>('/src/lib/exchange/markdown.ts');
+  const body = [
+    '[x](javascript:alert(1)) and ![y](https://evil.example/p.png)',
+    '<a href="javascript:alert(2)">hi</a> <img src=x onerror=alert(3)>',
+    '<javascript:alert(4)> &#106;avascript &amp; *bold* _it_ `code`',
+    '# not a heading',
+    '- not a list',
+    '1. not a list either',
+    '> not a quote',
+    'Tom & Jerry, 3 > 2, Ann_Marie, C:\\Users, 50% off, (a) [b] — ordinary text.',
+  ].join('\n');
+  const author = '[Mal](javascript:alert(5)) **Ory**';
+  const note = feedNote('The Alders', '2025', [{ at: '2025-03-04T10:00:00.000Z', author, body, edited: false, people: [], pictures: 0, comments: [{ author: '<b>C</b>', at: '2025-03-04T11:00:00.000Z', body: '[c](javascript:alert(6))', edited: false }] }] as never, () => null);
+  const html = await marked.parse(note);
+  assert.doesNotMatch(html, /<img\b|<em>|<code>|<script|<ul>|<ol>|<h[2-6]>[^<]*not a heading|<b>|href="(?!https:)/i, html);
+  // The only link is the plain web address a reader would see as one anyway; the only bold is the commenter's name.
+  assert.deepEqual(html.match(/<a\b[^>]*>/g), ['<a href="https://evil.example/p.png">']);
+  assert.equal((html.match(/<strong>/g) ?? []).length, 1);
+  assert.equal((html.match(/<h1>/g) ?? []).length, 1, 'one heading for the year');
+  // What a reader sees is what was written: the text of the rendered note holds every line of the post as it was.
+  const decode = (h: string) => h.replace(/<[^>]+>/g, '').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  const seen = decode(html);
+  for (const line of body.split('\n')) assert.ok(seen.includes(line), `reads back: ${line}\n${seen}`);
+  assert.ok(seen.includes(author), 'and the writer’s name');
+  // Ordinary text stays ordinary.
+  assert.equal(plainMarkdown('We moved to Aldersbrook! Come by, 3 to 5 pm & bring boots.'), 'We moved to Aldersbrook! Come by, 3 to 5 pm & bring boots.');
+});
