@@ -15,7 +15,7 @@ const { openSqlite } = await import('./store/node.ts');
 const { store } = await import('./store/index.ts');
 import type { Db, Param } from './store/index.ts';
 const { db, person } = await import('./db.server.ts');
-const { savePersonEdit, addPersonField, addFirstPerson, CHANGED_SINCE_OPENED } = await import('./person.server.ts');
+const { editSnapshot, savePersonEdit, addPersonField, addFirstPerson, CHANGED_SINCE_OPENED } = await import('./person.server.ts');
 
 const TREE = 'scratch';
 const EDITOR = { account: 'editor-account', role: 'editor', guest: false } as const;
@@ -41,14 +41,15 @@ const details = (given: string) => ({
 const fieldCount = async () => (await db(TREE).get<{ n: number }>('SELECT count(*) AS n FROM person_field WHERE person = ?', 'ada'))!.n;
 
 test('a draft opened at the person’s current revision saves, and the revision moves on', async () => {
-  const opened = (await person(TREE, 'ada')).revision!;
-  await savePersonEdit(TREE, 'ada', { ...details('Ada'), nickname: 'Addy' }, [], opened, undefined, 'Test', EDITOR);
-  const after = (await person(TREE, 'ada')).revision!;
-  assert.ok(after > opened, `revision went from ${opened} to ${after}`);
+  const opened = (await editSnapshot(TREE, 'ada', EDITOR)).revision;
+  const saved = await savePersonEdit(TREE, 'ada', { ...details('Ada'), nickname: 'Addy' }, [], opened, undefined, 'Test', EDITOR);
+  const after = (await editSnapshot(TREE, 'ada', EDITOR)).revision;
+  assert.notEqual(after, opened, 'the revision moved on');
+  assert.equal(saved.revision, after, 'and the save said where to');
 });
 
 test('a draft opened before someone else added a field is refused, and that field survives', async () => {
-  const opened = (await person(TREE, 'ada')).revision!;
+  const opened = (await editSnapshot(TREE, 'ada', EDITOR)).revision;
   // Another reader adds a private note through the Everyday tab.
   await addPersonField(TREE, 'ada', { type: 'notes', label: 'Note', value: { text: 'Kept safe' }, visibility: 'editors' }, undefined, 'Other', EDITOR);
   assert.equal(await fieldCount(), 1);
@@ -62,24 +63,25 @@ test('a draft opened before someone else added a field is refused, and that fiel
 });
 
 test('a change that lands between the check and the write is caught by the batch, and the save is refused', async () => {
-  const opened = (await person(TREE, 'ada')).revision!;
+  const opened = (await editSnapshot(TREE, 'ada', EDITOR)).revision;
   let injected = false;
   let reads = 0;
-  // Between the plan's revision check and its batch, another writer adds a field through the same database.
+  // Between the plan's reads (the person, then the fields) and its batch, another writer adds a field through the same database.
   store.tree = (id: string): Db => {
     const inner = realTree(id);
     const get = (async (sql: string, ...params: Param[]) => {
-      const row = await inner.get(sql, ...params);
-      if (sql.startsWith('SELECT revision')) {
-        reads++;
-        if (!injected) {
-          injected = true;
-          await inner.run("INSERT INTO person_field (id, person, type, label, value, ord, visibility, created_by_name, created_at, updated_by, updated_at) VALUES ('race', 'ada', 'notes', 'Raced', '{\"text\":\"late\"}', 5, 'family', 'Other', '2026-11-08T00:00:00Z', 'Other', '2026-11-08T00:00:00Z')");
-        }
-      }
-      return row;
+      if (sql.startsWith('SELECT revision')) reads++;
+      return inner.get(sql, ...params);
     }) as Db['get'];
-    return { ...inner, get };
+    const all = (async (sql: string, ...params: Param[]) => {
+      const rows = await inner.all(sql, ...params);
+      if (sql.startsWith('SELECT id, type, label, value') && !injected) {
+        injected = true;
+        await inner.run("INSERT INTO person_field (id, person, type, label, value, ord, visibility, created_by_name, created_at, updated_by, updated_at) VALUES ('race', 'ada', 'notes', 'Raced', '{\"text\":\"late\"}', 5, 'family', 'Other', '2026-11-08T00:00:00Z', 'Other', '2026-11-08T00:00:00Z')");
+      }
+      return rows;
+    }) as Db['all'];
+    return { ...inner, get, all };
   };
   try {
     await assert.rejects(savePersonEdit(TREE, 'ada', details('Ada, raced'), [], opened, undefined, 'Test', EDITOR), (e: Error) => e.message === CHANGED_SINCE_OPENED);
@@ -92,9 +94,9 @@ test('a change that lands between the check and the write is caught by the batch
 });
 
 test('a draft opened at the current revision, with the fields it shows, still saves after the race', async () => {
-  const current = await person(TREE, 'ada', EDITOR);
+  const current = await editSnapshot(TREE, 'ada', EDITOR);
   const fields = current.fields.map((f) => ({ id: f.id, type: f.type, label: f.label, value: f.value, visibility: f.visibility }));
-  await savePersonEdit(TREE, 'ada', details('Ada, again'), fields, current.revision!, undefined, 'Test', EDITOR);
+  await savePersonEdit(TREE, 'ada', details('Ada, again'), fields, current.revision, undefined, 'Test', EDITOR);
   assert.equal(await fieldCount(), 2, 'both fields kept: the draft listed them');
   assert.equal((await db(TREE).get<{ given: string }>('SELECT given FROM person WHERE id = ?', 'ada'))!.given, 'Ada, again');
 });

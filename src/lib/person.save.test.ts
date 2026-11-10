@@ -13,7 +13,7 @@ process.env.KINDRED_DATA_DIR = dir;
 process.env.KINDRED_ACCOUNTS_DB = join(dir, 'accounts.db');
 
 const { openSqlite } = await import('./store/node.ts');
-const { db, person } = await import('./db.server.ts');
+const { db } = await import('./db.server.ts');
 const { editSnapshot, savePersonEdit } = await import('./person.server.ts');
 import type { EditSnapshot } from './person.server.ts';
 import { blankValue, type FieldInput } from '../components/fields/model.ts';
@@ -49,12 +49,12 @@ const inputOf = (f: EditSnapshot['fields'][number]): FieldInput => ({
 const row = (id: string) => db(TREE).get<{ label: string; value: string; ord: number; updated_by: string; updated_at: string }>(
   'SELECT label, value, ord, updated_by, updated_at FROM person_field WHERE id = ?', id,
 );
-const revisionOf = async (p: string) => (await person(TREE, p)).revision!;
+/** The stored counter the triggers move (readers get `editSnapshot`'s revision instead). */
+const revisionOf = async (p: string) => (await db(TREE).get<{ revision: number }>('SELECT revision FROM person WHERE id = ?', p))!.revision;
 
 test('a save that changes one nickname writes that, and no field, even one stored with blanks missing', async () => {
   const snap = await editSnapshot(TREE, 'nick', EDITOR);
   const before = await revisionOf('nick');
-  assert.equal(before, snap.revision);
   await savePersonEdit(TREE, 'nick', { ...detailsOf(snap), nickname: 'Addy' }, snap.fields.map(inputOf), snap.revision, undefined, 'Editor', EDITOR);
   assert.equal(await revisionOf('nick'), before + 1, 'the revision moved once, for the person’s row');
   for (const id of ['nick-street', 'nick-note']) {
@@ -66,8 +66,10 @@ test('a save that changes one nickname writes that, and no field, even one store
 
 test('a save with nothing changed writes nothing: the revision stays where it was', async () => {
   const snap = await editSnapshot(TREE, 'same', EDITOR);
+  const before = await revisionOf('same');
   await savePersonEdit(TREE, 'same', detailsOf(snap), snap.fields.map(inputOf), snap.revision, undefined, 'Editor', EDITOR);
-  assert.equal(await revisionOf('same'), snap.revision);
+  assert.equal(await revisionOf('same'), before);
+  assert.equal((await editSnapshot(TREE, 'same', EDITOR)).revision, snap.revision);
   assert.equal((await row('same-street'))!.updated_by, 'Seed');
 });
 
@@ -93,9 +95,10 @@ test('a field added at the end writes that field only: the others keep their edi
 test('a field with the same text, with blank parts written out, is not rewritten; a field whose text changed is', async () => {
   const snap = await editSnapshot(TREE, 'text', EDITOR);
   // Nothing but the blanks differ: the street address gains empty city, postcode and country. Not a change.
+  const stored = await revisionOf('text');
   await savePersonEdit(TREE, 'text', detailsOf(snap), snap.fields.map(inputOf), snap.revision, undefined, 'Editor', EDITOR);
   assert.equal((await row('text-street'))!.updated_by, 'Seed');
-  assert.equal((await revisionOf('text')), snap.revision);
+  assert.equal(await revisionOf('text'), stored);
   // The note's text itself changed: that field, and only that one, is written.
   const edited = snap.fields.map(inputOf).map((f) => (f.id === 'text-note' ? { ...f, value: { text: 'Hello again' } } : f));
   await savePersonEdit(TREE, 'text', detailsOf(snap), edited, snap.revision, undefined, 'Editor', EDITOR);

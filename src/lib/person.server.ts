@@ -43,6 +43,7 @@ export interface PersonDetails {
  */
 export interface EditSnapshot {
   id: string;
+  /** The version of what this reader can see of the person (see `viewRevision`), never the stored counter. */
   revision: number;
   given: string;
   furtherGiven: string[];
@@ -76,6 +77,22 @@ interface EditRow {
   given: string; further_given: string | null; surname: string | null; current_given: string | null; current_surname: string | null; nickname: string | null;
   sex: 'm' | 'f' | 'x' | null; born: string | null; born_place: string | null; died: string | null; died_place: string | null;
   living: number; title: string | null; epithet: string | null; occupation: string | null; occupation_code: string | null; bio: string | null;
+}
+
+/** A field as the reader's version counts it: what the Edit tab shows and writes, with the value as stored. */
+interface Seen { id: string; type: string; label: string; value: string; visibility: string }
+
+/**
+ * The revision a reader is given: a 48-bit digest of exactly what their Edit draft holds, the person's Edit columns and
+ * the fields they may see, in order. The stored `person.revision` moves with every field at every level, so handing it
+ * out would let a reader watch someone's Personal or Editors fields change; this number moves only with what this
+ * reader sees. The stale-save check compares it; the batch still guards the stored counter, so any change in between
+ * makes the plan read and decide again.
+ */
+async function viewRevision(row: Record<EditColumn, Cell>, fields: Seen[]): Promise<number> {
+  const text = JSON.stringify([EDIT_COLUMNS.map((c) => row[c]), fields.map((f) => [f.id, f.type, f.label, f.value, f.visibility])]);
+  const h = new DataView(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+  return h.getUint32(0) * 0x10000 + h.getUint16(4);
 }
 
 /** How often `editSnapshot` reads again when the person changes in the middle of the read. */
@@ -122,7 +139,7 @@ export async function editSnapshot(tree: string, id: string, reader: Audience): 
     if (again?.revision === r.revision) {
       return {
         id,
-        revision: r.revision,
+        revision: await viewRevision(r as unknown as Record<EditColumn, Cell>, fields),
         given: r.given,
         furtherGiven: parseFurther(r.further_given),
         surname: r.surname,
@@ -141,7 +158,7 @@ export async function editSnapshot(tree: string, id: string, reader: Audience): 
         occupationCode: r.occupation_code,
         bio: r.bio,
         // Whether this reader created each field, so the picker offers Personal when the save would take it. Never the account itself.
-        fields: fields.map((row) => ({ ...fieldOf(row), authored: !!reader.account && row.created_by === reader.account })),
+        fields: fields.map((row, i) => ({ ...fieldOf(row, i), authored: !!reader.account && row.created_by === reader.account })),
       };
     }
     if (attempt >= SNAPSHOT_ATTEMPTS) throw new Error('The family changed while this was loaded. Please try again.');
@@ -149,8 +166,8 @@ export async function editSnapshot(tree: string, id: string, reader: Audience): 
 }
 
 /**
- * What a save leaves the draft with: the revision it moved the person to, known exactly because the batch is guarded on the
- * revision it started from, and the id of each field in the list, in the list's order. An autosaving draft goes on from
+ * What a save leaves the draft with: the reader's revision after it (see `viewRevision`), known exactly because the batch
+ * is guarded on what the plan read, and the id of each field in the list, in the list's order. An autosaving draft goes on from
  * these, so its next save neither looks stale to itself nor adds a new field a second time.
  */
 export interface SavedEdit { revision: number; fieldIds: string[] }
@@ -158,14 +175,15 @@ export interface SavedEdit { revision: number; fieldIds: string[] }
 /**
  * Saves the details and the whole list of fields in one batch. `fields` is the list in its new order: a field with an
  * `id` is updated, one without is added, and any field of this person not in the list is removed. `revision` is the
- * person's revision when the draft was opened: if anything about the person has changed since (a field added elsewhere,
- * a name changed), the save is refused and the draft stays with the reader. The batch restates the revision it read, so a
+ * reader's revision when the draft was opened (`viewRevision`): if anything they can see has changed since (a field added
+ * elsewhere, a name changed), the save is refused and the draft stays with the reader. A change to a field they cannot see
+ * does not refuse it, so a refusal never tells them one happened. The batch restates the stored revision it read, so any
  * change that lands between this check and the write makes the batch write nothing, and the plan runs again on fresh
- * reads (and then refuses).
+ * reads (and then refuses if the reader's view moved).
  *
  * Only what changed is written: a field whose content, label, privacy and position are as stored is left alone (so its
- * last editor and time stand), and the person's row is written only if one of its columns differs. Each write moves the
- * revision once per row, so a save of one nickname makes one step, not several.
+ * last editor and time stand), and the person's row is written only if one of its columns differs. A field that only moved
+ * in the list gets its new place and keeps its last editor and time: someone else's hidden field moving it says nothing.
  *
  * `who` is the person saving. The list only ever covers what they may see: someone else's personal field is not in their
  * draft, so it is neither removed nor changed, and an id naming one is refused as any unknown field is. Only the
@@ -175,20 +193,20 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
   return once(tree, op, 'savePersonEdit', async (d) => {
     const now = await d.get<EditRow & { revision: number; updated_at: string | null }>(`SELECT revision, updated_at, ${EDIT_COLUMNS.join(', ')} FROM person WHERE id = ?`, id);
     if (!now) throw new Error('Person not found.');
-    if (now.revision !== revision) throw new Error(CHANGED_SINCE_OPENED);
     const seen = fieldsVisibleTo(who);
-    const had = await d.all<Existing>(`SELECT id, type, label, value, visibility, owner, ord, created_by, updated_by, updated_at FROM person_field WHERE person = ? AND ${seen.sql}`, id, ...seen.params);
+    const had = await d.all<Existing>(`SELECT id, type, label, value, visibility, owner, ord, created_by, updated_by, updated_at FROM person_field WHERE person = ? AND ${seen.sql} ORDER BY ord, id`, id, ...seen.params);
+    if ((await viewRevision(now as unknown as Record<EditColumn, Cell>, had)) !== revision) throw new Error(CHANGED_SINCE_OPENED);
     const hadById = new Map(had.map((r) => [r.id, r]));
     const kept = new Set<string>();
     const fieldIds: string[] = [];
-    // How far this batch moves the revision: the triggers count one step per written row (see the note above).
-    let steps = 0;
+    // The reader's fields as they will be stored after this batch, for the revision the save answers with.
+    const after: Seen[] = [];
     // Whether every row written here was just written by this editor: then this is the same change going on (see `ONE_CHANGE_MS`).
     let continues = true;
-    // What the plan read: the person at this revision (every change bumps it, see migration 0009), and the fields.
+    // What the plan read: the person at the stored revision (every change bumps it, see migration 0009), and the fields.
     // Every decision below rests on that revision, so the guard covers the person's columns as well.
     const writes: Query[] = [
-      guard('EXISTS (SELECT 1 FROM person WHERE id = ? AND revision = ?)', id, revision),
+      guard('EXISTS (SELECT 1 FROM person WHERE id = ? AND revision = ?)', id, now.revision),
       guard(`(SELECT count(*) FROM person_field WHERE person = ? AND ${seen.sql}) = ?`, id, ...seen.params, had.length),
     ];
 
@@ -210,20 +228,23 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
         kept.add(f.id);
         writes.push(guard('EXISTS (SELECT 1 FROM person_field WHERE id = ? AND person = ?)', f.id, id));
         const sameText = sameContent(before.value, value);
-        const same = before.label === f.label && before.visibility === f.visibility && before.owner === owner && before.ord === ord && sameText;
+        const same = before.label === f.label && before.visibility === f.visibility && before.owner === owner && sameText;
+        const stored = sameText ? before.value : JSON.stringify(value);
         fieldIds.push(f.id);
+        after.push({ id: f.id, type: f.type, label: f.label, value: stored, visibility: f.visibility });
         if (!same) {
-          steps += 1;
           continues &&= before.updated_by === by && justWritten(before.updated_at);
           writes.push(q(
             'UPDATE person_field SET label = ?, value = ?, visibility = ?, owner = ?, ord = ?, updated_by = ?, updated_at = ? WHERE id = ? AND person = ?',
-            f.label, sameText ? before.value : JSON.stringify(value), f.visibility, owner, ord, by, nowIso(), f.id, id,
+            f.label, stored, f.visibility, owner, ord, by, nowIso(), f.id, id,
           ));
+        } else if (before.ord !== ord) {
+          writes.push(q('UPDATE person_field SET ord = ? WHERE id = ? AND person = ?', ord, f.id, id));
         }
       } else {
         const fresh = crypto.randomUUID();
         fieldIds.push(fresh);
-        steps += 1;
+        after.push({ id: fresh, type: f.type, label: f.label, value: JSON.stringify(value), visibility: f.visibility });
         continues = false;
         writes.push(q(
           'INSERT INTO person_field (id, person, type, label, value, ord, visibility, owner, created_by, created_by_name, created_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -233,7 +254,6 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
     }
     for (const r of had) {
       if (kept.has(r.id)) continue;
-      steps += 1;
       continues = false;
       writes.push(q('DELETE FROM person_field WHERE id = ? AND person = ?', r.id, id));
     }
@@ -248,7 +268,6 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
     };
     const changed = EDIT_COLUMNS.filter((c) => next[c] !== now[c]);
     if (changed.length) {
-      steps += 1;
       // The person's row names no editor, so its time alone says whether this is the same bout of editing.
       continues &&= justWritten(now.updated_at);
       writes.push(q(
@@ -256,7 +275,7 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
         ...changed.map((c) => next[c]), nowIso(), id,
       ));
     }
-    return { writes, continues, result: { revision: revision + steps, fieldIds } satisfies SavedEdit };
+    return { writes, continues, result: { revision: await viewRevision(next, after), fieldIds } satisfies SavedEdit };
   });
 }
 
@@ -265,7 +284,12 @@ export function addPersonField(tree: string, person: string, f: FieldInput, op: 
   return once(tree, op, 'addPersonField', async (d) => {
     const owner = ownerFor(f.visibility, who);
     if (!(await d.get('SELECT id FROM person WHERE id = ?', person))) throw new Error('Person not found.');
-    const at = await d.get<{ n: number; last: number }>('SELECT count(*) AS n, coalesce(max(ord), -1) AS last FROM person_field WHERE person = ?', person);
+    // The cap counts the fields this reader sees, as the Edit tab's list does, so it never tells them how many they don't.
+    const seen = fieldsVisibleTo(who);
+    const at = await d.get<{ n: number; last: number }>(
+      `SELECT (SELECT count(*) FROM person_field WHERE person = ? AND ${seen.sql}) AS n, (SELECT coalesce(max(ord), -1) FROM person_field WHERE person = ?) AS last`,
+      person, ...seen.params, person,
+    );
     if ((at?.n ?? 0) >= MAX_FIELDS) throw new Error(`A person can have up to ${MAX_FIELDS} fields.`);
     if (f.type === 'related' && storedValue('related', f.value).person) {
       const other = storedValue('related', f.value).person!;
@@ -276,7 +300,7 @@ export function addPersonField(tree: string, person: string, f: FieldInput, op: 
     return {
       writes: [
         personExists(person),
-        guard('(SELECT count(*) FROM person_field WHERE person = ?) = ?', person, at?.n ?? 0),
+        guard(`(SELECT count(*) FROM person_field WHERE person = ? AND ${seen.sql}) = ?`, person, ...seen.params, at?.n ?? 0),
         q('INSERT INTO person_field (id, person, type, label, value, ord, visibility, owner, created_by, created_by_name, created_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           fid, person, f.type, f.label, JSON.stringify(storedValue(f.type, f.value)), (at?.last ?? -1) + 1, f.visibility, owner, who.account, by, now, by, now),
       ],

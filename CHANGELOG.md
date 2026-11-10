@@ -94,6 +94,10 @@ version will not run on a database that has had these migrations.
 - Uploaded photographs lose their EXIF, GPS, XMP and IPTC data on the server, whatever client sent them (a camera's orientation is kept).
 - A PDF cannot hide active content in comments, strings or object streams, and `/AA` and most `/OpenAction` entries are refused.
 - Sessions are tied to the passkey that started them (see Added).
+- Nobody learns of changes to, or the number of, a person's fields they cannot see. The Edit tab's version of a person now
+  moves only with what that reader sees, the limit of 200 fields counts only theirs, a field's position is its place among
+  theirs, and the person read no longer carries the stored revision at all (a guest never needed it). A draft open across
+  this upgrade asks once to load the latest.
 
 ## [2.0.0] - 2026-11-09
 

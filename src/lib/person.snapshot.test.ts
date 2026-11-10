@@ -15,7 +15,7 @@ process.env.KINDRED_ACCOUNTS_DB = join(dir, 'accounts.db');
 const { openSqlite } = await import('./store/node.ts');
 const { store } = await import('./store/index.ts');
 import type { Db, Param } from './store/index.ts';
-const { db, person } = await import('./db.server.ts');
+const { db } = await import('./db.server.ts');
 const { editSnapshot, savePersonEdit, CHANGED_SINCE_OPENED } = await import('./person.server.ts');
 const { rebaseDraft } = await import('../components/fields/rebase.ts');
 import type { EditSnapshot } from './person.server.ts';
@@ -69,7 +69,7 @@ test('a change between the reads is read again: the snapshot’s names and its r
   try {
     const snap = await editSnapshot(TREE, 'ada', EDITOR);
     assert.equal(snap.given, 'Ada Lovelace', 'the name changed between the two reads is in the snapshot');
-    assert.equal(snap.revision, (await person(TREE, 'ada')).revision, 'and the revision is the one it was read at');
+    assert.equal(snap.revision, (await editSnapshot(TREE, 'ada', EDITOR)).revision, 'and the revision is the one it was read at');
   } finally {
     beforeFields = null;
   }
@@ -97,7 +97,9 @@ test('private fields are in the snapshot for editors only, as the person read gi
 });
 
 test('the reader’s draft, rebased on a snapshot taken across a race, saves the other editor’s name and the reader’s nickname', async () => {
-  // The reader opens the draft at the current revision and changes only the nickname.
+  // The reader opens the draft at the current revision and changes only the nickname. (The test before left the name
+  // at what the other editor is about to save; a save of the same name changes nothing the reader sees.)
+  await db(TREE).run("UPDATE person SET given = 'Ada' WHERE id = 'ada'");
   const opened = await editSnapshot(TREE, 'ada', EDITOR);
   const draft = { ...asValues(opened), nickname: 'my nickname' };
   // Someone else saves the name, so the draft is stale: the save is refused, the names are not overwritten.

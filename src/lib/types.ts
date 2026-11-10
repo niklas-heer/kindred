@@ -104,8 +104,6 @@ export interface PersonDetail {
   bornPlace?: string;
   diedPlace?: string;
   updatedAt: string;
-  /** Bumps with every change to the person or their fields; a save sends back the one it opened (see person.server.ts). */
-  revision?: number;
   stories: Story[];
   /** In the order the family keeps them. Private fields are only here for editors and stewards. */
   fields: PersonField[];

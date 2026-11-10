@@ -12,8 +12,8 @@ process.env.KINDRED_DATA_DIR = dir;
 process.env.KINDRED_ACCOUNTS_DB = join(dir, 'accounts.db');
 
 const { openSqlite } = await import('./store/node.ts');
-const { db, person } = await import('./db.server.ts');
-const { savePersonEdit, setPersonLook, CHANGED_SINCE_OPENED } = await import('./person.server.ts');
+const { db } = await import('./db.server.ts');
+const { editSnapshot, savePersonEdit, setPersonLook, CHANGED_SINCE_OPENED } = await import('./person.server.ts');
 import type { Look } from './types.ts';
 
 const EDITOR = { account: 'editor-account', role: 'editor', guest: false } as const;
@@ -32,7 +32,10 @@ const details = (given: string) => ({
   died: null, diedPlace: null, living: true, title: null, epithet: null, occupation: null, bio: null,
 });
 
-const revisionOf = async () => (await person(TREE, 'ada')).revision!;
+/** The stored counter the triggers move; readers never see it. */
+const storedOf = async () => (await db(TREE).get<{ revision: number }>('SELECT revision FROM person WHERE id = ?', 'ada'))!.revision;
+/** The revision an editor's draft opens at. */
+const revisionOf = async () => (await editSnapshot(TREE, 'ada', EDITOR)).revision;
 const look: Look = { skin: 1, hair: 2, eyes: 3 } as Look;
 
 test('the trigger counts the Edit tab’s columns and not the portrait, the picture or the house', async () => {
@@ -49,23 +52,27 @@ test('the trigger counts the Edit tab’s columns and not the portrait, the pict
 test('changing your own look does not move the revision, so the draft you opened still saves', async () => {
   const opened = await revisionOf();
   await setPersonLook(TREE, 'ada', look, undefined);
-  assert.equal(await revisionOf(), opened, 'the look did not bump the revision');
+  assert.equal(await revisionOf(), opened, 'the look did not move the revision');
+  const stored = await storedOf();
   await savePersonEdit(TREE, 'ada', details('Ada Lovelace'), [], opened, undefined, 'Test', EDITOR);
-  assert.equal(await revisionOf(), opened + 1, 'the Edit save itself moves it once');
+  assert.equal(await storedOf(), stored + 1, 'the Edit save itself moves the stored counter once');
+  assert.notEqual(await revisionOf(), opened, 'and the reader’s revision with it');
 });
 
 test('keeping a picture or preferring the drawn avatar does not move the revision', async () => {
-  const before = await revisionOf();
+  const before = await storedOf();
   await db(TREE).run('UPDATE person SET prefer_avatar = 1 WHERE id = ?', 'ada');
-  assert.equal(await revisionOf(), before);
+  assert.equal(await storedOf(), before);
   await db(TREE).run('UPDATE person SET prefer_avatar = 0 WHERE id = ?', 'ada');
-  assert.equal(await revisionOf(), before);
+  assert.equal(await storedOf(), before);
 });
 
 test('a change to a column the Edit tab saves moves the revision, so a stale draft is still refused', async () => {
   const opened = await revisionOf();
+  const stored = await storedOf();
   await db(TREE).run('UPDATE person SET nickname = ? WHERE id = ?', 'Addy', 'ada');
-  assert.equal(await revisionOf(), opened + 1, 'a nickname change from another route counts');
+  assert.equal(await storedOf(), stored + 1, 'a nickname change from another route counts');
+  assert.notEqual(await revisionOf(), opened);
   await assert.rejects(savePersonEdit(TREE, 'ada', details('Ada'), [], opened, undefined, 'Test', EDITOR), (e: Error) => e.message === CHANGED_SINCE_OPENED);
 });
 

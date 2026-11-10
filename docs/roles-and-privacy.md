@@ -111,6 +111,11 @@ Only the account that created a field can make it Personal, or make it Personal 
 The rule is one file, `src/lib/visibility.ts`, and the server applies it on every read. Fields that were private before became
 Editors; the others became Family.
 
+Nothing a reader can see moves when a field they cannot see changes. The Edit tab's check that a person has not changed
+since the draft was opened compares only what that reader sees, a field's position is its place among their fields, and
+the limit on fields (200 per person) counts only theirs, so none of these tells them a hidden field was added, changed or
+removed, or how many there are. A guest gets no such version at all.
+
 Each reader sees everything their level allows wherever a field appears, with its symbol: the person's page and its Everyday tab, the Overview's call and write buttons, and Contacts. The assistant answers an editor or a steward from Editors fields too.
 
 A personal item shows only to its author, in those same places. It stays out of everything that is shared or passed on: suggestions, the assistant and everything sent to an AI provider (even for its own author), the

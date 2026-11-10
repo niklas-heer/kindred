@@ -276,13 +276,16 @@ export async function graph(tree: string, reader: Audience = PLAIN_MEMBER): Prom
   return reader.protectLiving ? protectGraph(whole) : whole;
 }
 
-/** A person_field row as the browser gets it. The owner stays on the server: a reader only ever gets their own. */
-export const fieldOf = (r: any): PersonField => ({
+/**
+ * A person_field row as the browser gets it. The owner stays on the server: a reader only ever gets their own. `ord` is
+ * the field's place among the ones this reader sees (`at`), not the stored number, whose gaps would count the hidden ones.
+ */
+export const fieldOf = (r: any, at: number): PersonField => ({
   id: r.id,
   type: r.type as FieldType,
   label: r.label,
   value: JSON.parse(r.value) as FieldValue,
-  ord: r.ord,
+  ord: at,
   visibility: r.visibility as Visibility,
   updatedAt: r.updated_at,
   updatedBy: r.updated_by,
@@ -292,7 +295,7 @@ export async function person(tree: string, id: string, reader: Audience = PLAIN_
   const d = db(tree);
   const seen = fieldsVisibleTo(reader);
   const [r, stories, fields] = await Promise.all([
-    d.get<any>('SELECT bio, born_place, died_place, updated_at, revision, living FROM person WHERE id = ?', id),
+    d.get<any>('SELECT bio, born_place, died_place, updated_at, living FROM person WHERE id = ?', id),
     d.all<any>('SELECT * FROM story WHERE person = ? ORDER BY at DESC', id),
     d.all<any>(`SELECT * FROM person_field WHERE person = ? AND ${seen.sql} ORDER BY ord, id`, id, ...seen.params),
   ]);
@@ -303,11 +306,10 @@ export async function person(tree: string, id: string, reader: Audience = PLAIN_
     bornPlace: opt(r.born_place),
     diedPlace: opt(r.died_place),
     updatedAt: r.updated_at,
-    revision: r.revision,
     stories: stories.map((s) => ({
       id: s.id, person: s.person, kind: s.kind, title: opt(s.title), body: s.body, author: s.author, at: s.at, context: opt(s.context),
     })),
-    fields: fields.map(fieldOf),
+    fields: fields.map((f, i) => fieldOf(f, i)),
   };
   return reader.protectLiving && r.living === 1 ? protectDetail(detail) : detail;
 }

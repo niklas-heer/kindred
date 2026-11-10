@@ -61,5 +61,5 @@ export function protectGraph(g: Graph): Graph {
 
 /** One living person's details as such a guest gets them: nothing but who they are. */
 export function protectDetail(d: PersonDetail): PersonDetail {
-  return { id: d.id, updatedAt: d.updatedAt, revision: d.revision, stories: [], fields: [] };
+  return { id: d.id, updatedAt: d.updatedAt, stories: [], fields: [] };
 }

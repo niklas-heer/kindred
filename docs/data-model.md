@@ -30,7 +30,7 @@ code (`mise run deploy` migrates before it deploys), so it must not break the re
 | `0006_occupation.sql` | `person.occupation_code`, and `occupation_translation`, the cache of AI-translated occupations. |
 | `0007_prefer_avatar.sql` | `person.prefer_avatar`: show the drawn portrait even when there is a photo. |
 | `0008_drop_legacy_contact.sql` | Drops the old `contact` table and `person.favourite`, both replaced by `person_field` in 0003. |
-| `0009_person_revision.sql` | `person.revision`, bumped by triggers on person and `person_field` changes, so the Edit tab can refuse a stale save. |
+| `0009_person_revision.sql` | `person.revision`, bumped by triggers on person and `person_field` changes, so the Edit tab can refuse a stale save. It never leaves the server: a reader gets a digest of what they can see instead (see `viewRevision` in `src/lib/person.server.ts`), so a hidden field's change does not show. |
 | `0010_revision_scope.sql` | Limits the person trigger to the columns the Edit tab writes, so a portrait or picture change doesn't block your own save. |
 | `0011_ancestry_revision.sql` | `ancestry_rev`, one number bumped by triggers on every change to `parent`, which the GEDCOM import guards instead of the whole list of links. |
 | `0012_house_meaning.sql` | `house_meaning`: what each house's name means, as a steward researched and chose it. `house_arms_review`: the steward's latest check of the arms against it, and whether they were kept. |
