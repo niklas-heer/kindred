@@ -9,8 +9,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { errorText } from '~/lib/errortext';
 import { ArrowDown } from 'lucide-react';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
-import { aiChatModelsQuery, aiChatNew, aiChatQuery, aiChatRetry, aiChatSend, aiStatusQuery, aiThreadSetModel, aiThreadsQuery } from '~/lib/ai.functions';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import { aiChatModelsQuery, aiChatNew, aiChatQuery, aiStatusQuery, aiThreadsQuery } from '~/lib/ai.functions';
 import { threadTitle } from '~/lib/ai/thread-title';
 import { retryable } from '~/lib/ai/chat-turns';
 import { graphQuery } from '~/lib/api';
@@ -20,7 +20,6 @@ import { fullName } from '~/lib/graph';
 import { useMeChosen } from '~/lib/family';
 import { useCan } from '~/lib/session';
 import { ErrorState, Notice, Skeleton } from '~/components/ui';
-import { isTopOverlay, useOverlayLayer } from '~/components/ui/overlay';
 import type { OnDecided } from './ProposalCard';
 import { AssistantTurn, UserTurn } from './ChatTurns';
 import { ChatWelcome } from './ChatWelcome';
@@ -30,28 +29,25 @@ import { ContinueTurn, LiveTurn, SendingTurn, UnsentTurn } from './WaitingTurns'
 import { chatExamples } from './examples';
 import { usePageContext } from './page-context';
 import './widgets/widgets.css';
-import { ASSISTANT_FOCUS, closeAssistant, takeFocusRequest } from './store';
+import { closeAssistant } from './store';
 import { ResizeEdges, useChatWindow } from './useChatWindow';
 import { useTabs } from './ChatDock';
 import { ChatList, chatName } from './ChatList';
-import { finishRun, forgetRun, getRun, patchRun, setFrontChat, useRun, useRunSummary } from './chat-runs';
-import { closeTab, forgetChat, getTabs, openTab, updateTabs, withDraft } from './chat-tabs';
-import { ModelPicker, type PickedModel } from './ModelPicker';
+import { forgetRun, getRun, patchRun, setFrontChat, useRun, useRunSummary } from './chat-runs';
+import { closeTab, forgetChat, getTabs, openTab, updateTabs } from './chat-tabs';
+import { ModelPicker } from './ModelPicker';
 import { carryOn, forgetInterrupted, restoreInterrupted, transmit, useChatStream } from './useChatStream';
 import { DropVeil, useImageAttach, type Attached } from './attachments';
 import { useDictation } from './dictation';
 import { FamilySession } from './FamilySession';
+import { forgetDraftImages, joined, useBoxHeight, useChatDraft, useComposerBox, useNativeInput } from './useComposerBox';
+import { useThreadScroll } from './useThreadScroll';
+import { useViewportFit } from './useViewportFit';
+import { useWindowFocus } from './useWindowFocus';
+import { askAgain, chooseModel, recordAndCarryOn, recordDecision, sendSession } from './chat-actions';
 import './assistant.css';
 
-/** Joins what was typed and what was heard, with one space between. */
-const joined = (a: string, b: string) => (a.trim() ? `${a.replace(/\s+$/, '')} ${b}` : b);
-
-// Pictures waiting to be sent, per chat, for the page's life: they are too large to keep across a reload, unlike a draft's words.
-const draftImages = new Map<string, Attached[]>();
 const restoredInterrupted = new Set<string>();
-
-/** The composer's tallest: five lines of its text and its padding (the same number as max-height in assistant.css). */
-const COMPOSER_MAX = 136;
 
 /** From this wide, the list of chats sits beside the thread; below it, it slides over (the same width as the CSS container query). */
 const LIST_BESIDE_WIDTH = 720;
@@ -97,26 +93,16 @@ export function AssistantDrawer({ tree }: { tree: string }) {
   const stream = useChatStream(conv ?? '', conv ? chat.data?.items : undefined);
   const models = useQuery(aiChatModelsQuery(tree, steward)).data;
 
-  // The box is not a controlled field: Wispr Flow and other dictation apps write into it from outside (paste, the accessibility API, a value set
-  // and an input event), and nothing the app draws may put old text back over what they wrote. `text` follows the box, for the Send button and its size.
-  const [text, setText] = useState('');
   const [slow, setSlow] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [keepImages, setKeepImages] = useState(false);
   const [session, setSession] = useState<{ open: boolean; used: boolean }>({ open: false, used: false });
   const [tabsFull, setTabsFull] = useState(false);
   const [moreExamples, setMoreExamples] = useState(false);
-  // Whether the reader has scrolled away from the newest message; then new content waits behind "Jump to latest".
-  const [away, setAway] = useState(false);
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const asideRef = useRef<HTMLElement>(null);
-  const stick = useRef(true);
-  const returnTo = useRef<Element | null>(document.activeElement);
   const win = useChatWindow(asideRef);
-  // Whether the reader is working in the window. It is not modal: while they are on the page behind it, the page's keys are the page's.
-  const [inside, setInside] = useState(true);
-  const insideRef = useRef(true);
   const listOpen = tabState.listOpen;
   const listOpenRef = useRef(listOpen);
   listOpenRef.current = listOpen;
@@ -125,35 +111,27 @@ export function AssistantDrawer({ tree }: { tree: string }) {
   pageRef.current = page;
   const ctx = (c: string) => ({ conv: c, tree, locale: t.locale, qc, page: pageRef.current });
 
-  /** What the reader wrote: remembered for this chat. Every way of writing in the box comes through here. */
-  const noteText = useCallback((value: string) => {
-    setText(value);
-    const c = convRef.current;
-    if (c) updateTabs(tree, (s) => withDraft(s, c, value, Date.now()), true);
-  }, [tree]);
-
-  /** Sets the box from the app's side: a reply's Edit, an example, dictation, or clearing it after sending. */
-  function setComposer(value: string) {
-    const el = areaRef.current;
-    if (el && el.value !== value) el.value = value;
-    noteText(value);
-  }
+  // The box, and the draft it holds (useComposerBox.ts: the box is not a controlled field).
+  const { text, setText, noteText, setComposer } = useComposerBox({ tree, convRef, areaRef });
 
   const dictation = useDictation({ locale, onFinal: (s) => setComposer(joined(areaRef.current?.value ?? '', s)) });
   // Pictures need the same role as a family session. The composer shows nothing of them to anyone else.
   const attach = useImageAttach({ active: canDraft && !session.open, onError: setImageError });
 
-  // Page hotkeys stay quiet while the reader is in the window, and always on a phone, where the sheet covers the page (ui/overlay.ts).
-  const layer = useOverlayLayer(win.phone || inside);
-  const layerRef = useRef(layer);
-  layerRef.current = layer;
-  useEffect(() => {
-    // A window that a reload put back leaves the focus where it is.
-    if (takeFocusRequest()) areaRef.current?.focus();
-    const back = returnTo.current as HTMLElement | null;
-    // Focus goes back only if it was in the window: a reader who has moved on to the page keeps their place.
-    return () => { if (insideRef.current || document.activeElement === document.body) back?.focus?.(); };
-  }, []);
+  useWindowFocus({
+    asideRef,
+    areaRef,
+    phone: win.phone,
+    // The list of chats and a popover inside it close first.
+    onEscape: () => {
+      if (listOpenRef.current && listOverlays()) {
+        closeList();
+        return;
+      }
+      dictation.stop();
+      closeAssistant();
+    },
+  });
   // Once per page: a window minimized and restored must not read a reply still running as one the reload interrupted.
   useEffect(() => {
     if (restoredInterrupted.has(tree)) return;
@@ -165,14 +143,7 @@ export function AssistantDrawer({ tree }: { tree: string }) {
     setFrontChat(conv);
     return () => setFrontChat(null);
   }, [conv]);
-  // Text from outside the app arrives as a native input event. Listened to directly, because React skips one when the value was set by script.
-  useEffect(() => {
-    const el = areaRef.current;
-    if (!el) return;
-    const onInput = () => noteText(el.value);
-    el.addEventListener('input', onInput);
-    return () => el.removeEventListener('input', onInput);
-  }, [noteText]);
+  useNativeInput(areaRef, noteText);
   // A window with nothing open starts on the newest chat, or a new one. Closing the last tab starts a new one.
   const firstLook = useRef(true);
   const starting = useRef(false);
@@ -194,78 +165,10 @@ export function AssistantDrawer({ tree }: { tree: string }) {
       updateTabs(tree, (s) => forgetChat(s, conv));
     }
   }, [conv, chat.error, tree]);
-  // Follows where the reader is working, by focus and by pointer (a click on empty page moves no focus).
-  useEffect(() => {
-    const track = (e: Event) => {
-      const now = !!asideRef.current?.contains(e.target as Node);
-      insideRef.current = now;
-      setInside(now);
-    };
-    const enter = () => {
-      insideRef.current = true;
-      setInside(true);
-      areaRef.current?.focus();
-    };
-    // Esc closes from anywhere in the window, the list of chats and a popover inside it first. F6 moves between the window and the page.
-    const onKeyDown = (e: globalThis.KeyboardEvent) => {
-      if (e.key === 'Escape' && !e.isComposing && !e.defaultPrevented && insideRef.current && isTopOverlay(layerRef.current)) {
-        e.preventDefault();
-        if (listOpenRef.current && listOverlays()) {
-          closeList();
-          return;
-        }
-        dictation.stop();
-        closeAssistant();
-      } else if (e.key === 'F6' && !e.defaultPrevented) {
-        e.preventDefault();
-        if (!insideRef.current) return enter();
-        insideRef.current = false;
-        setInside(false);
-        const back = returnTo.current as HTMLElement | null;
-        if (back && back !== document.body && back.isConnected) back.focus();
-        else (document.activeElement as HTMLElement | null)?.blur?.();
-      }
-    };
-    document.addEventListener('focusin', track);
-    document.addEventListener('pointerdown', track, true);
-    document.addEventListener('keydown', onKeyDown);
-    window.addEventListener(ASSISTANT_FOCUS, enter);
-    return () => {
-      document.removeEventListener('focusin', track);
-      document.removeEventListener('pointerdown', track, true);
-      document.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener(ASSISTANT_FOCUS, enter);
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  // Resizing the window keeps the newest message in view, unless the reader has scrolled up.
-  useEffect(() => {
-    const el = logRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => { if (stick.current) el.scrollTop = el.scrollHeight; });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
   // Stops listening when the drawer closes, whatever it was doing.
   useEffect(() => () => dictation.stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
-  // Switching chats brings that chat's own draft and pictures into the same box, so the focus never moves.
-  const shownConv = useRef<string | null>(null);
-  useLayoutEffect(() => {
-    const el = areaRef.current;
-    const before = shownConv.current;
-    shownConv.current = conv;
-    if (!el || !conv) return;
-    // Words written while the very first chat was being made belong to it.
-    if (before === null && el.value) noteText(el.value);
-    else {
-      el.value = getTabs(tree).drafts[conv]?.text ?? '';
-      setText(el.value);
-    }
-    if (before) draftImages.set(before, attach.images);
-    attach.replace(draftImages.get(conv) ?? []);
-    setImageError(null);
-    setKeepImages(false);
-  }, [conv, tree]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (conv) draftImages.set(conv, attach.images); }, [conv, attach.images]);
+  // Switching chats brings that chat's own draft and pictures into the same box.
+  useChatDraft({ tree, conv, areaRef, attach, noteText, setText, onSwitch: () => { setImageError(null); setKeepImages(false); } });
   // The typing line says more after a while: a lookup can take long, and the reader should know it has not stalled.
   useEffect(() => {
     setSlow(false);
@@ -273,76 +176,18 @@ export function AssistantDrawer({ tree }: { tree: string }) {
     const id = window.setTimeout(() => setSlow(true), 8000);
     return () => window.clearTimeout(id);
   }, [busy, conv]);
-  // The box grows with its text, up to five lines, then scrolls.
-  useLayoutEffect(() => {
-    const el = areaRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, COMPOSER_MAX)}px`;
-  }, [text, session.open]);
-  // On a phone the sheet follows the visible part of the screen, so the composer stays above the on-screen keyboard.
-  useEffect(() => {
-    const vv = window.visualViewport;
-    const el = asideRef.current;
-    if (!vv || !el) return;
-    const fit = () => {
-      if (window.matchMedia('(max-width: 640px)').matches) {
-        el.style.height = `${vv.height}px`;
-        el.style.top = `${vv.offsetTop}px`;
-      } else {
-        el.style.height = '';
-        el.style.top = '';
-      }
-    };
-    fit();
-    vv.addEventListener('resize', fit);
-    vv.addEventListener('scroll', fit);
-    return () => {
-      vv.removeEventListener('resize', fit);
-      vv.removeEventListener('scroll', fit);
-    };
-  }, []);
+  useBoxHeight(areaRef, text, session.open);
+  useViewportFit(asideRef);
 
-  // Each chat comes back where the reader left it, once its messages are here.
-  const placedConv = useRef<string | null>(null);
-  useLayoutEffect(() => {
-    const el = logRef.current;
-    if (!el || !conv || !chat.isSuccess || placedConv.current === conv) return;
-    placedConv.current = conv;
-    const spot = getTabs(tree).scroll[conv];
-    stick.current = !spot || spot.atEnd;
-    setAway(false);
-    el.scrollTop = stick.current ? el.scrollHeight : spot.y;
-  }, [conv, chat.isSuccess, tree]);
-
-  // New content keeps the reader at the newest message, unless they have scrolled up to read; then it waits.
   const live = stream.live;
-  useLayoutEffect(() => {
-    const el = logRef.current;
-    if (!el || session.open) return;
-    // Instant, not smooth: a reply that lands mid-animation would leave the thread short of its newest message.
-    if (items.length === 0 && pending === null && !busy && unsent.length === 0) el.scrollTop = 0;
-    else if (stick.current) el.scrollTop = el.scrollHeight;
-    else setAway(true);
-  }, [items.length, pending, busy, unsent.length, session.open, live?.text]);
-
-  function onLogScroll() {
-    const el = logRef.current;
-    const c = convRef.current;
-    if (!el || !c) return;
-    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
-    stick.current = near;
-    if (near) setAway(false);
-    updateTabs(tree, (s) => ({ ...s, scroll: { ...s.scroll, [c]: { y: el.scrollTop, atEnd: near } } }), true);
-  }
-
-  /** An instant jump: a smooth one can be cut short by the reply landing, and the reader would be left in the middle. */
-  function jumpLatest() {
-    const el = logRef.current;
-    stick.current = true;
-    setAway(false);
-    if (el) el.scrollTop = el.scrollHeight;
-  }
+  const { stick, away, onLogScroll, jumpLatest } = useThreadScroll({
+    logRef,
+    tree,
+    conv,
+    convRef,
+    ready: chat.isSuccess,
+    content: { items: items.length, pending, busy, unsent: unsent.length, liveText: live?.text, paused: session.open },
+  });
 
   // ---------- tabs and the list of chats ----------
 
@@ -387,7 +232,7 @@ export function AssistantDrawer({ tree }: { tree: string }) {
 
   function onChatDeleted(c: string) {
     forgetRun(c);
-    draftImages.delete(c);
+    forgetDraftImages(c);
     updateTabs(tree, (s) => forgetChat(s, c));
     qc.removeQueries({ queryKey: ['ai-chat', tree, c] });
   }
@@ -440,45 +285,9 @@ export function AssistantDrawer({ tree }: { tree: string }) {
     const c = conv;
     if (!c) return false;
     stick.current = true;
-    patchRun(c, { busy: true, error: null, pending: transcript ? t('ai.sessionMessage', { count: transcript.split('\n').length }) : t('ai.imagesSent', { count: images.length }), pendingImages: images });
-    try {
-      await aiChatSend({ data: { tree, conv: c, text: transcript, locale, session: true, speaker, ...(images.length && { images: images.map((i) => ({ base64: i.base64 })), keepImages: keep }) } });
-      await Promise.all([qc.invalidateQueries({ queryKey: ['ai-chat', tree, c] }), qc.invalidateQueries({ queryKey: ['ai-threads', tree] })]);
-      setSession({ open: false, used: true });
-      return true;
-    } catch (err) {
-      patchRun(c, { error: errorText(err, t.locale) });
-      return false;
-    } finally {
-      patchRun(c, { pending: null, pendingImages: [], busy: false });
-      finishRun(c);
-    }
+    const waiting = transcript ? t('ai.sessionMessage', { count: transcript.split('\n').length }) : t('ai.imagesSent', { count: images.length });
+    return sendSession(ctx(c), { transcript, speaker, images, keep, pending: waiting }, () => setSession({ open: false, used: true }));
   }
-
-  /** "Try with a stronger model": the same question on another model. Both answers stay; nothing new from the reader is stored. */
-  async function retryAnswer(c: string, itemId: string, model: PickedModel) {
-    if (getRun(c).busy) return;
-    patchRun(c, { busy: true, error: null, stream: null });
-    try {
-      await aiChatRetry({ data: { tree, conv: c, itemId, model, locale } });
-      await Promise.all([qc.invalidateQueries({ queryKey: ['ai-chat', tree, c] }), qc.invalidateQueries({ queryKey: ['ai-threads', tree] })]);
-    } catch (err) {
-      patchRun(c, { error: errorText(err, t.locale) });
-    } finally {
-      patchRun(c, { busy: false });
-      finishRun(c);
-    }
-  }
-
-  async function chooseModel(c: string, model: PickedModel | null) {
-    try {
-      await aiThreadSetModel({ data: { tree, conv: c, model } });
-      await qc.invalidateQueries({ queryKey: ['ai-chat', tree, c] });
-    } catch (err) {
-      patchRun(c, { error: errorText(err, t.locale) });
-    }
-  }
-
 
   function openSession() {
     dictation.stop();
@@ -495,27 +304,14 @@ export function AssistantDrawer({ tree }: { tree: string }) {
   const onDecided: OnDecided = (mark) => {
     const c = conv;
     if (!c) return;
-    void mark().then(
-      (r) => { if (r.due) void carryOn(ctx(c)); },
-      (err) => patchRun(c, (x) => ({ unrecorded: [...x.unrecorded, mark], continueError: errorText(err, t.locale) })),
-    );
+    recordDecision(c, t.locale, mark, () => void carryOn(ctx(c)));
   };
 
   /** Retry: records whatever could not be recorded, then asks the assistant to carry on. */
   async function retryContinue() {
     const c = conv;
     if (!c) return;
-    patchRun(c, { continueError: null });
-    for (const mark of getRun(c).unrecorded) {
-      try {
-        await mark();
-        patchRun(c, (x) => ({ unrecorded: x.unrecorded.filter((m) => m !== mark) }));
-      } catch (err) {
-        patchRun(c, { continueError: errorText(err, t.locale) });
-        return;
-      }
-    }
-    await carryOn(ctx(c));
+    await recordAndCarryOn(c, t.locale, () => carryOn(ctx(c)));
   }
 
   /** Enter sends; Shift+Enter makes a new line. Nothing is sent while a reply is on its way. */
@@ -614,7 +410,7 @@ export function AssistantDrawer({ tree }: { tree: string }) {
                   }}
                 />
               )}
-              {conv && items.map((m, i) => (m.role === 'user' ? <UserTurn key={m.id} tree={tree} item={m} /> : <AssistantTurn key={m.id} tree={tree} conv={conv} item={m} people={people} places={places} onDecided={onDecided} steward={steward} models={models} canRetry={!busy && retryable(items, i)} onRetry={(id, model) => void retryAnswer(conv, id, model)} last={i === items.length - 1} busy={busy} onSay={(words) => { if (!getRun(conv).busy) void transmit(ctx(conv), words, [], false); }} pagePerson={viewed && { id: viewed.id, given: fullName(viewed) }} />))}
+              {conv && items.map((m, i) => (m.role === 'user' ? <UserTurn key={m.id} tree={tree} item={m} /> : <AssistantTurn key={m.id} tree={tree} conv={conv} item={m} people={people} places={places} onDecided={onDecided} steward={steward} models={models} canRetry={!busy && retryable(items, i)} onRetry={(id, model) => void askAgain(ctx(conv), id, model)} last={i === items.length - 1} busy={busy} onSay={(words) => { if (!getRun(conv).busy) void transmit(ctx(conv), words, [], false); }} pagePerson={viewed && { id: viewed.id, given: fullName(viewed) }} />))}
               {pending !== null && <SendingTurn text={pending} images={pendingImages} />}
               {busy && !session.open && <LiveTurn live={live} slow={slow} onStop={stream.stop} />}
               {unsent.map((u) => (
@@ -640,7 +436,7 @@ export function AssistantDrawer({ tree }: { tree: string }) {
 
           {steward && models && conv && (
             <div className="ai-composer-meta">
-              <ModelPicker choices={models} override={chat.data?.override ?? null} onChange={(m) => void chooseModel(conv, m)} />
+              <ModelPicker choices={models} override={chat.data?.override ?? null} onChange={(m) => void chooseModel(ctx(conv), m)} />
             </div>
           )}
           <Composer
