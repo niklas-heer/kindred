@@ -15,6 +15,7 @@ import { Portrait } from '~/components/Portrait';
 import { PlaceInput, savePlacesKeyed, type PlaceValue } from '~/components/PlaceInput';
 import { PersonRow } from '~/components/Palette';
 import { HousesToReview } from '~/components/HouseMeaning';
+import { UnsourcedBirths } from '~/components/life/UnsourcedBirths';
 import { LinkCandidates } from '~/components/QuickAdd';
 import { addContact, addRelative, addStory, linkRelative, opKeys, patchPerson, uploadPhoto } from '~/lib/api';
 import { fullDate, validDate } from '~/lib/dates';
@@ -179,6 +180,8 @@ function Needed() {
 
         {/* A steward's chore, after the page's own list. */}
         <HousesToReview tree={tree} />
+        {/* An editor's: births recorded without a source (life/UnsourcedBirths.tsx). */}
+        <UnsourcedBirths />
       </div>
       {blaze && <Blaze queue={blaze} only={blazeOnly} f={f} tree={tree} me={who} role={role} required={required} onClose={() => setBlaze(null)} />}
     </div>

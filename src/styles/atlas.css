@@ -63,15 +63,17 @@
 }
 
 /* "All": each kind of event has its colour, around the pin and in the lists. */
-.atlas { --k-births: #e2bd6b; --k-deaths: #8fa3b8; --k-weddings: #d27a8c; }
-[data-theme='modern'] .atlas { --k-births: #9a6f1f; --k-deaths: #55697d; --k-weddings: #a8455f; }
+.atlas { --k-births: #e2bd6b; --k-deaths: #8fa3b8; --k-weddings: #d27a8c; --k-events: #8fbf8a; }
+[data-theme='modern'] .atlas { --k-births: #9a6f1f; --k-deaths: #55697d; --k-weddings: #a8455f; --k-events: #3f7a46; }
 .kind-ring path, .kind-ring circle { fill: none; stroke-linecap: butt; }
 .kind-ring .k-births { stroke: var(--k-births); }
 .kind-ring .k-deaths { stroke: var(--k-deaths); }
 .kind-ring .k-weddings { stroke: var(--k-weddings); }
+.kind-ring .k-events { stroke: var(--k-events); }
 .atlas .k-births { color: var(--k-births); }
 .atlas .k-deaths { color: var(--k-deaths); }
 .atlas .k-weddings { color: var(--k-weddings); }
+.atlas .k-events { color: var(--k-events); }
 
 /* Heraldry view: each place flies its main house's arms; a place without one shows a tower token. */
 .pin-arms { filter: drop-shadow(0 2px 2px #0008); }

@@ -14,6 +14,7 @@ import * as atlasArea from "./areas/atlas.ts";
 import * as chronicleArea from "./areas/chronicle.ts";
 import * as commonArea from "./areas/common.ts";
 import * as contactsArea from "./areas/contacts.ts";
+import * as eventsArea from "./areas/events.ts";
 import * as exchangeArea from "./areas/exchange.ts";
 import * as feedbackArea from "./areas/feedback.ts";
 import * as fieldsArea from "./areas/fields.ts";
@@ -31,6 +32,7 @@ import * as researchArea from "./areas/research.ts";
 import * as setupArea from "./areas/setup.ts";
 import * as shareArea from "./areas/share.ts";
 import * as shellArea from "./areas/shell.ts";
+import * as sourcesArea from "./areas/sources.ts";
 import * as statisticsArea from "./areas/statistics.ts";
 import * as tourArea from "./areas/tour.ts";
 import * as treeArea from "./areas/tree.ts";
@@ -70,6 +72,8 @@ export const AREAS = [
   tourArea,
   feedbackArea,
   statisticsArea,
+  eventsArea,
+  sourcesArea,
 ] as const;
 
 /** Tables that exist before any area is merged. The server has every language in AREAS, so none. */

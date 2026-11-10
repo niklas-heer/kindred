@@ -1,11 +1,13 @@
 // The Atlas: where the family was born, died and married, on a world map drawn locally (d3-geo +
 // world-atlas, no tile server). A time slider replays the family spreading out; arcs show moves
-// from a mother's birthplace to her child's.
+// from a mother's birthplace to her child's. "Events" are the life events the family recorded (baptisms, moves, service…)
+// that name a place; they come from their own read (events.functions.ts), with the pins of their places.
 //
 // Layout: the map always fills the page. The place list (left, or a bottom sheet on narrow screens),
 // the time bar and the chronicle (right column, or a bottom sheet) sit over it, and the map is told
 // which rectangle they leave free: fitting, centring and labels all live inside that rectangle, and
 // the camera glides when it changes.
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { geoGraticule10, geoNaturalEarth1, geoPath, type GeoPermissibleObjects } from 'd3-geo';
 import {
@@ -25,34 +27,38 @@ import { useFamily, useTreeId } from '~/lib/family';
 import { displayName, lifespan, parents, yearOf } from '~/lib/graph';
 import { play } from '~/lib/sfx';
 import type { GPerson, Place } from '~/lib/types';
+import { eventPlacesQuery } from '~/lib/events.functions';
+import { eventTitle } from '~/components/life/records';
 import '~/styles/atlas.css';
 import { treeTitle } from '~/lib/title';
 
-type Kind = 'births' | 'deaths' | 'weddings';
+type Kind = 'births' | 'deaths' | 'weddings' | 'events';
 type Mode = Kind | 'all';
 
 export const Route = createFileRoute('/$tree/atlas')({
   head: (ctx) => ({ meta: [{ title: treeTitle(ctx, translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'atlas.title')) }] }),
-  validateSearch: z.object({ mode: z.enum(['all', 'births', 'deaths', 'weddings']).optional(), place: z.string().optional() }),
+  validateSearch: z.object({ mode: z.enum(['all', 'births', 'deaths', 'weddings', 'events']).optional(), place: z.string().optional() }),
   component: Atlas,
 });
 
-interface Event { kind: Kind; place: string; year: number; people: string[] }
+/** `what` names a recorded life event ("Baptism", "Residence"), for the chronicle's sentence. */
+interface Event { kind: Kind; place: string; year: number; people: string[]; what?: string }
 interface FeedRow { year: number; event?: Event; summary?: Event[] }
 interface Pin { place: Place; people: string[]; first: number; entries: { kind: Kind; id: string }[]; kinds: Record<Kind, number>; house?: string; /** Events here: a wedding counts once. */ n: number }
 /** The part of the map no panel covers, as insets from each edge of the atlas, in pixels. */
 interface Free { l: number; t: number; r: number; b: number }
 interface Arc { from: Place; to: Place; n: number }
 
-const KINDS: Kind[] = ['births', 'deaths', 'weddings'];
-const ICON: Record<Kind, 'cake-slice' | 'candle-light' | 'linked-rings'> = { births: 'cake-slice', deaths: 'candle-light', weddings: 'linked-rings' };
+const KINDS: Kind[] = ['births', 'deaths', 'weddings', 'events'];
+const ICON: Record<Kind, 'cake-slice' | 'candle-light' | 'linked-rings' | 'quill-ink'> = { births: 'cake-slice', deaths: 'candle-light', weddings: 'linked-rings', events: 'quill-ink' };
 /** Each kind's noun, singular and plural (by count). */
-const KIND_ONE: Record<Kind, Key> = { births: 'atlas.kind.births', deaths: 'atlas.kind.deaths', weddings: 'atlas.kind.weddings' };
-const MODES: { id: Mode; label: Key; icon?: 'cake-slice' | 'candle-light' | 'linked-rings' }[] = [
+const KIND_ONE: Record<Kind, Key> = { births: 'atlas.kind.births', deaths: 'atlas.kind.deaths', weddings: 'atlas.kind.weddings', events: 'events.atlas.kind' };
+const MODES: { id: Mode; label: Key; icon?: 'cake-slice' | 'candle-light' | 'linked-rings' | 'quill-ink' }[] = [
   { id: 'all', label: 'atlas.mode.all' },
   { id: 'births', label: 'atlas.mode.births', icon: 'cake-slice' },
   { id: 'deaths', label: 'atlas.mode.deaths', icon: 'candle-light' },
   { id: 'weddings', label: 'atlas.mode.weddings', icon: 'linked-rings' },
+  { id: 'events', label: 'events.atlas.mode', icon: 'quill-ink' },
 ];
 const SPEEDS = [0.5, 1, 2, 4];
 const speedLabel = (s: number) => (s === 0.5 ? '½×' : `${s}×`);
@@ -98,7 +104,9 @@ function Atlas() {
   const navigate = useNavigate({ from: '/$tree/atlas' });
   const search = Route.useSearch();
   const mode: Mode = search.mode ?? 'births';
-  const placeBy = useMemo(() => new Map(f.graph.places.map((p) => [p.name, p])), [f]);
+  // The recorded events with a place, and their pins: a guest's graph only carries the places its own records name.
+  const recorded = useQuery(eventPlacesQuery(tree)).data;
+  const placeBy = useMemo(() => new Map([...(recorded?.places ?? []), ...f.graph.places].map((p) => [p.name, p])), [f, recorded]);
   const narrow = useMedia(NARROW);
 
   // Every event of this kind, with a year and a place we can draw.
@@ -113,8 +121,16 @@ function Atlas() {
     if (want('births')) for (const p of f.graph.people) add('births', p.bornPlace, yearOf(p.born), [p.id]);
     if (want('deaths')) for (const p of f.graph.people) { if (!p.living && (p.died || p.diedPlace)) add('deaths', p.diedPlace, yearOf(p.died), [p.id]); }
     if (want('weddings')) for (const u of f.graph.unions) if (u.kind === 'marriage') add('weddings', u.place, yearOf(u.start), [u.a, u.b]);
+    if (want('events')) {
+      for (const e of recorded?.events ?? []) {
+        if (!f.byId.has(e.person)) continue;
+        const year = yearOf(e.date ?? undefined);
+        if (e.place && placeBy.has(e.place) && !isNaN(year)) out.push({ kind: 'events', place: e.place, year, people: [e.person], what: eventTitle(e, tr) });
+        else unplaced += 1;
+      }
+    }
     return { events: out.sort((a, b) => a.year - b.year), unplaced };
-  }, [f, mode, placeBy]);
+  }, [f, mode, placeBy, recorded, tr]);
 
   // How much happened at each place, of every kind and in every year: the map opens on where most of it was.
   const weight = useMemo(() => {
@@ -122,8 +138,9 @@ function Atlas() {
     const add = (place?: string) => { if (place && placeBy.has(place)) w.set(place, (w.get(place) ?? 0) + 1); };
     for (const p of f.graph.people) { add(p.bornPlace); if (!p.living) add(p.diedPlace); }
     for (const u of f.graph.unions) if (u.kind === 'marriage') add(u.place);
+    for (const e of recorded?.events ?? []) add(e.place ?? undefined);
     return w;
-  }, [f, placeBy]);
+  }, [f, placeBy, recorded]);
 
   const [y0, y1] = events.length ? [events[0].year, events[events.length - 1].year] : [0, 0];
   const [year, setYear] = useState<number | null>(null);
@@ -178,7 +195,7 @@ function Atlas() {
     const m = new Map<string, Pin>();
     for (const e of events) {
       if (e.year > cursor) break;
-      const pin = m.get(e.place) ?? m.set(e.place, { place: placeBy.get(e.place)!, people: [], first: e.year, entries: [], kinds: { births: 0, deaths: 0, weddings: 0 }, n: 0 }).get(e.place)!;
+      const pin = m.get(e.place) ?? m.set(e.place, { place: placeBy.get(e.place)!, people: [], first: e.year, entries: [], kinds: { births: 0, deaths: 0, weddings: 0, events: 0 }, n: 0 }).get(e.place)!;
       pin.people.push(...e.people);
       pin.kinds[e.kind] += 1;
       pin.n += 1;
@@ -319,7 +336,7 @@ function Atlas() {
   }, [measure, showFeed, feedFolded, listOpen, narrow, events.length > 0, !!selected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ticks = useMemo(() => eraTicks(y0, y1), [y0, y1]);
-  const what = mode === 'all' ? 'atlas.what_all' : mode === 'weddings' ? 'atlas.what_weddings' : mode === 'births' ? 'atlas.what_births' : 'atlas.what_deaths';
+  const what: Key = mode === 'all' ? 'atlas.what_all' : mode === 'weddings' ? 'atlas.what_weddings' : mode === 'births' ? 'atlas.what_births' : mode === 'events' ? 'events.atlas.what' : 'atlas.what_deaths';
   const countText = `${tr('atlas.count_text', { total, what: tr(what), places: tr('atlas.places_n', { count: pins.length }) })}${cursor < y1 ? tr('atlas.by_year', { year: cursor }) : ''}`;
 
   return (
@@ -450,7 +467,7 @@ function Atlas() {
 
 function PlaceDetail({ pin, f, tree, mode, onBack }: { pin: Pin; f: ReturnType<typeof useFamily>; tree: string; mode: Mode; onBack: () => void }) {
   const tr = useT();
-  const WHAT: Record<Kind, Key> = { births: 'atlas.born_here', deaths: 'atlas.died_here', weddings: 'atlas.married_here' };
+  const WHAT: Record<Kind, Key> = { births: 'atlas.born_here', deaths: 'atlas.died_here', weddings: 'atlas.married_here', events: 'events.atlas.here' };
   const groups = KINDS.filter((k) => mode === 'all' || mode === k)
     .map((k) => [k, [...new Set(pin.entries.filter((e) => e.kind === k).map((e) => e.id))].map((id) => f.byId.get(id)).filter((p): p is GPerson => !!p)] as const)
     .filter(([, ps]) => ps.length);
@@ -821,7 +838,7 @@ function WorldMap({ places, weight, pins, arcs, selected, onSelect, rings, heral
   }, [pins, projection, cam, max, selected, heraldry, rings, free, size, theme, fontsReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const tr = useT();
-  const kindWord = tr(mode === 'all' ? 'atlas.kindword.all' : mode === 'births' ? 'atlas.kindword.births' : mode === 'deaths' ? 'atlas.kindword.deaths' : 'atlas.kindword.weddings');
+  const kindWord = tr(mode === 'all' ? 'atlas.kindword.all' : mode === 'births' ? 'atlas.kindword.births' : mode === 'deaths' ? 'atlas.kindword.deaths' : mode === 'events' ? 'events.atlas.kindword' : 'atlas.kindword.weddings');
   const arcMax = Math.max(1, ...arcs.map((a) => a.n));
   // Screen-constant pin sizes: zooming in spreads places apart instead of inflating them.
   const radius = (n: number) => screenR(n) / cam.k;
@@ -1032,6 +1049,7 @@ function sentence(e: Event, f: ReturnType<typeof useFamily>, tr: Translator) {
     const age = a && !isNaN(yearOf(a.born)) ? e.year - yearOf(a.born) : undefined;
     return <>{name(a)} {tr('atlas.dies')} <i>{tr('atlas.in_place', { place: e.place })}{age !== undefined ? tr('atlas.aged', { age }) : ''}</i></>;
   }
+  if (e.kind === 'events') return <>{name(a)}: {e.what} <i>{tr('atlas.in_place', { place: e.place })}</i></>;
   return <>{name(a)} {tr('atlas.marries')} {name(b)} <i>{tr('atlas.in_place', { place: e.place })}</i></>;
 }
 

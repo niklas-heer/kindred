@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { FileText, Image, Lock, FolderSearch, MapPin, NotebookPen, Plus, Users } from 'lucide-react';
+import { BookMarked, FileText, Image, Lock, FolderSearch, MapPin, NotebookPen, Plus, Users } from 'lucide-react';
 import { useState } from 'react';
 import { ProjectDialog } from '~/components/research/forms';
 import { EmptyState, ErrorState, PageHeader, Skeleton } from '~/components/ui';
@@ -8,7 +8,7 @@ import { useTreeId } from '~/lib/family';
 import { relativeTime, translate, useT, type Locale } from '~/lib/i18n';
 import { researchProjectsQuery } from '~/lib/research.functions';
 import type { ProjectSummary } from '~/lib/research';
-import { useCan } from '~/lib/session';
+import { useCan, useMembership } from '~/lib/session';
 import { treeTitle } from '~/lib/title';
 import '~/styles/research.css';
 import { useDealt } from '~/lib/dealt';
@@ -22,6 +22,8 @@ function ResearchPage() {
   const tree = useTreeId();
   const t = useT();
   const canAdd = useCan('add-research');
+  // Sources are for members (a share-link guest gets none), so only they are offered the way there.
+  const member = !!useMembership(tree);
   const navigate = useNavigate();
   const q = useQuery(researchProjectsQuery(tree));
   const dealt = useDealt(!q.isPending);
@@ -31,11 +33,12 @@ function ResearchPage() {
   const addButton = canAdd ? (
     <button type="button" className="btn primary" onClick={() => setCreating(true)}><Plus size={16} aria-hidden /> {t('research.new')}</button>
   ) : null;
+  const sourcesLink = member ? <Link className="btn" to="/$tree/research/sources" params={{ tree }}><BookMarked size={16} aria-hidden /> {t('sources.title')}</Link> : null;
 
   return (
     <div className="page">
       <div className="page-inner research">
-        <PageHeader title={t('research.title')} subtitle={t('research.subtitle')} icon={<FolderSearch size={26} />} actions={!q.isPending && !q.isError && projects.length === 0 ? undefined : addButton} />
+        <PageHeader title={t('research.title')} subtitle={t('research.subtitle')} icon={<FolderSearch size={26} />} actions={<>{sourcesLink}{!q.isPending && !q.isError && projects.length === 0 ? null : addButton}</>} />
         {q.isPending ? (
           <div className="rs-grid" aria-busy="true">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} height={132} radius={8} />)}</div>
         ) : q.isError ? (

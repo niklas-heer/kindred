@@ -51,6 +51,8 @@ import { PersonPhotos } from './photos/PersonPhotos';
 import { PortraitZoom } from './photos/PortraitZoom';
 import { mediaUrl } from './photos/types';
 import { PersonResearch } from './research/PersonResearch';
+import { SourcedMark, useCitationCounts, useRecordedLife } from './life/records';
+import { AddEventButton, LifeEditor } from './life/LifeEditor';
 import { ContactRow, FieldGroups, contactHref, contactsOf } from './fields/FieldsView';
 import { RemoveOwnField, VisibilityMark } from './fields/VisibilityMark';
 import { AddressFinder } from './fields/AddressFinder';
@@ -303,6 +305,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
             </button>
           )}
           {canEdit && (detail ? <PersonEdit tree={tree} p={p} f={f} detail={detail} done={() => setTab('overview')} onRemoved={onClose} /> : <DetailFallback details={details} />)}
+          {canEdit && <LifeEditor tree={tree} p={p} f={f} />}
         </TabPanel>
       </div></Tabs>
     </>, <>
@@ -410,6 +413,7 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
   const c = useT();
   const { soon, later } = partitionSoon(p.living && today ? upcomingDates(f, p, today, c) : [], (d) => d.days);
   const wide = useContext(PageLayout);
+  const cites = useCitationCounts(tree, p.id);
 
   const lead = (
     <>
@@ -437,11 +441,13 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
         {(p.born || bornPlace) && (
           <Fact icon={<Cake size={15} />} label={c('fact.born')}>
             {fmtDate(p.born, locales[c.locale]) ?? c('panel.dateUnknown')}{bornPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={bornPlace} /></>}
+            <SourcedMark count={cites({ fact: 'birth', person: p.id })} />
           </Fact>
         )}
         {!p.living && (p.died || diedPlace) && (
           <Fact icon={<span aria-hidden>✝</span>} label={c('fact.died')}>
             {fmtDate(p.died, locales[c.locale]) ?? c('panel.dateUnknown')}{diedPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={diedPlace} /></>}
+            <SourcedMark count={cites({ fact: 'death', person: p.id })} />
           </Fact>
         )}
         <OccupationFact tree={tree} p={p} icon={<BriefcaseBusiness size={15} />} label={c('fact.occupation')} />
@@ -693,19 +699,21 @@ function ContactActions({ p, detail, onMore }: { p: GPerson; detail: PersonDetai
   );
 }
 
-type LifeEvent = { year: number; date?: string; age?: Age; icon: ReactNode; text: ReactNode; key: string };
+type LifeEvent = { year: number; date?: string; age?: Age; icon: ReactNode; text: ReactNode; key: string; after?: boolean };
 
-/** Birth, partnerships, children's births and death, in order, from the graph. */
+/** Birth, partnerships, children's births and death from the graph, and the events the family recorded (life/records.tsx), in order. */
 function useLifeEvents(f: Family, tree: string, p: GPerson, onSelect: (id: string) => void): LifeEvent[] {
   const c = useT();
+  const recorded = useRecordedLife(tree, p);
   return useMemo(() => {
-    const out: LifeEvent[] = [];
-    if (!isNaN(yearOf(p.born))) out.push({ key: 'born', year: yearOf(p.born), date: p.born, icon: <Cake size={13} />, text: <>{c('fact.born')}{p.bornPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={p.bornPlace} /></>}</> });
+    const { cites } = recorded;
+    const out: LifeEvent[] = [...recorded.rows];
+    if (!isNaN(yearOf(p.born))) out.push({ key: 'born', year: yearOf(p.born), date: p.born, icon: <Cake size={13} />, text: <>{c('fact.born')}{p.bornPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={p.bornPlace} /></>}<SourcedMark count={cites({ fact: 'birth', person: p.id })} /></> });
     for (const u of f.unionsOf.get(p.id) ?? []) {
       const o = f.byId.get(u.a === p.id ? u.b : u.a);
       if (!o) continue;
       const who = <button className="pp-inline-link" onClick={() => onSelect(o.id)}>{displayName(o, f)}</button>;
-      if (!isNaN(yearOf(u.start))) out.push({ key: `u${u.id}`, year: yearOf(u.start), date: u.start, age: ageOn(p.born, u.start), icon: <Heart size={13} />, text: <>{u.kind === 'marriage' ? c('fact.married') : c('panel.partneredWith')} {who}{u.place && <> {c('fact.in')} <PlaceLink tree={tree} name={u.place} /></>}</> });
+      if (!isNaN(yearOf(u.start))) out.push({ key: `u${u.id}`, year: yearOf(u.start), date: u.start, age: ageOn(p.born, u.start), icon: <Heart size={13} />, text: <>{u.kind === 'marriage' ? c('fact.married') : c('panel.partneredWith')} {who}{u.place && <> {c('fact.in')} <PlaceLink tree={tree} name={u.place} /></>}<SourcedMark count={cites({ fact: 'partnership', partnership: u.id })} /></> });
       if (!isNaN(yearOf(u.end)) && u.endReason !== 'death') out.push({ key: `e${u.id}`, year: yearOf(u.end), date: u.end, age: ageOn(p.born, u.end), icon: <HeartCrack size={13} />, text: <>{u.endReason === 'divorce' ? c('panel.divorced') : c('panel.partedFrom')} {who}</> });
       // A spouse who died while this marriage stood (see widowedOn for when that is not so).
       const died = widowedOn(p, o, u);
@@ -717,10 +725,11 @@ function useLifeEvents(f: Family, tree: string, p: GPerson, onSelect: (id: strin
       const word = kid.sex === 'm' ? c('panel.childSon') : kid.sex === 'f' ? c('panel.childDaughter') : c('panel.childAny');
       out.push({ key: `c${kidId}`, year: yearOf(kid.born), date: kid.born, age: ageOn(p.born, kid.born), icon: <Baby size={13} />, text: <>{word}, <button className="pp-inline-link" onClick={() => onSelect(kidId)}>{kid.given}</button>, {c('panel.isBorn')}</> });
     }
-    if (!p.living && !isNaN(yearOf(p.died))) out.push({ key: 'died', year: yearOf(p.died), date: p.died, icon: <span aria-hidden>✝</span>, text: <>{c('fact.died')}{p.diedPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={p.diedPlace} /></>}{age(p) !== undefined && <span className="muted">, {c('fact.agedN', { n: age(p)! })}</span>}</> });
-    const order = (e: LifeEvent) => (e.key === 'born' ? 0 : e.key === 'died' ? 2 : 1);
-    return out.sort((a, b) => a.year - b.year || order(a) - order(b) || (a.date ?? '').localeCompare(b.date ?? ''));
-  }, [f, tree, p, onSelect, c]);
+    if (!p.living && !isNaN(yearOf(p.died))) out.push({ key: 'died', year: yearOf(p.died), date: p.died, icon: <span aria-hidden>✝</span>, text: <>{c('fact.died')}{p.diedPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={p.diedPlace} /></>}{age(p) !== undefined && <span className="muted">, {c('fact.agedN', { n: age(p)! })}</span>}<SourcedMark count={cites({ fact: 'death', person: p.id })} /></> });
+    // Undated recorded events come last; a burial or cremation follows the death in the same year.
+    const order = (e: LifeEvent) => (e.key === 'born' ? 0 : e.after ? 3 : e.key === 'died' ? 2 : 1);
+    return out.sort((a, b) => (a.year === b.year ? 0 : a.year - b.year) || order(a) - order(b) || (a.date ?? '').localeCompare(b.date ?? ''));
+  }, [f, tree, p, onSelect, c, recorded]);
 }
 
 /**
@@ -734,7 +743,7 @@ function LifeTimeline({ f, tree, p, onSelect, full }: { f: Family; tree: string;
   if (events.length < 2) return null;
   const row = (e: LifeEvent, gap?: boolean) => (
     <li key={e.key} data-gap={gap || undefined}>
-      <span className="pp-tl-year">{e.year}{e.age && <span className="pp-tl-age">{e.age.approx ? c('panel.aboutAge', { n: e.age.years }) : c('panel.ageAt', { n: e.age.years })}</span>}</span>
+      <span className="pp-tl-year">{Number.isFinite(e.year) ? e.year : '–'}{e.age && <span className="pp-tl-age">{e.age.approx ? c('panel.aboutAge', { n: e.age.years }) : c('panel.ageAt', { n: e.age.years })}</span>}</span>
       <span className="pp-tl-dot" aria-hidden>{e.icon}</span>
       <span className="pp-tl-text">{e.text}</span>
     </li>
@@ -747,6 +756,7 @@ function LifeTimeline({ f, tree, p, onSelect, full }: { f: Family; tree: string;
         {shown.map((e, i) => row(e, !all && events.length > 8 && i === 6))}
       </ol>
       {!all && events.length > 8 && <button className="btn ghost pp-more" onClick={() => setAll(true)}>{c('panel.showAll', { count: events.length })}</button>}
+      <AddEventButton tree={tree} p={p} />
     </Fold>
   );
 }

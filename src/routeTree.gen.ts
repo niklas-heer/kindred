@@ -35,6 +35,7 @@ import { Route as UiCharacterRouteImport } from './routes/ui_.character'
 import { Route as TreeHouseHouseRouteImport } from './routes/$tree/house.$house'
 import { Route as TreePersonIdRouteImport } from './routes/$tree/person.$id'
 import { Route as TreeResearchProjectRouteImport } from './routes/$tree/research_.$project'
+import { Route as TreeResearchSourcesRouteImport } from './routes/$tree/research_.sources'
 import { Route as TreeSettingsActivityRouteImport } from './routes/$tree/settings.activity'
 import { Route as TreeSettingsAiRouteImport } from './routes/$tree/settings.ai'
 import { Route as TreeSettingsFeedbackRouteImport } from './routes/$tree/settings.feedback'
@@ -179,6 +180,11 @@ const TreeResearchProjectRoute = TreeResearchProjectRouteImport.update({
   path: '/research/$project',
   getParentRoute: () => TreeRoute,
 } as any)
+const TreeResearchSourcesRoute = TreeResearchSourcesRouteImport.update({
+  id: '/research_/sources',
+  path: '/research/sources',
+  getParentRoute: () => TreeRoute,
+} as any)
 const TreeSettingsActivityRoute = TreeSettingsActivityRouteImport.update({
   id: '/settings/activity',
   path: '/settings/activity',
@@ -272,6 +278,7 @@ export interface FileRoutesByFullPath {
   '/$tree/house/$house': typeof TreeHouseHouseRoute
   '/$tree/person/$id': typeof TreePersonIdRoute
   '/$tree/research/$project': typeof TreeResearchProjectRoute
+  '/$tree/research/sources': typeof TreeResearchSourcesRoute
   '/$tree/settings/activity': typeof TreeSettingsActivityRoute
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
   '/$tree/settings/feedback': typeof TreeSettingsFeedbackRoute
@@ -312,6 +319,7 @@ export interface FileRoutesByTo {
   '/$tree/house/$house': typeof TreeHouseHouseRoute
   '/$tree/person/$id': typeof TreePersonIdRoute
   '/$tree/research/$project': typeof TreeResearchProjectRoute
+  '/$tree/research/sources': typeof TreeResearchSourcesRoute
   '/$tree/settings/activity': typeof TreeSettingsActivityRoute
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
   '/$tree/settings/feedback': typeof TreeSettingsFeedbackRoute
@@ -354,6 +362,7 @@ export interface FileRoutesById {
   '/$tree/house/$house': typeof TreeHouseHouseRoute
   '/$tree/person/$id': typeof TreePersonIdRoute
   '/$tree/research_/$project': typeof TreeResearchProjectRoute
+  '/$tree/research_/sources': typeof TreeResearchSourcesRoute
   '/$tree/settings/activity': typeof TreeSettingsActivityRoute
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
   '/$tree/settings/feedback': typeof TreeSettingsFeedbackRoute
@@ -397,6 +406,7 @@ export interface FileRouteTypes {
     | '/$tree/house/$house'
     | '/$tree/person/$id'
     | '/$tree/research/$project'
+    | '/$tree/research/sources'
     | '/$tree/settings/activity'
     | '/$tree/settings/ai'
     | '/$tree/settings/feedback'
@@ -437,6 +447,7 @@ export interface FileRouteTypes {
     | '/$tree/house/$house'
     | '/$tree/person/$id'
     | '/$tree/research/$project'
+    | '/$tree/research/sources'
     | '/$tree/settings/activity'
     | '/$tree/settings/ai'
     | '/$tree/settings/feedback'
@@ -478,6 +489,7 @@ export interface FileRouteTypes {
     | '/$tree/house/$house'
     | '/$tree/person/$id'
     | '/$tree/research_/$project'
+    | '/$tree/research_/sources'
     | '/$tree/settings/activity'
     | '/$tree/settings/ai'
     | '/$tree/settings/feedback'
@@ -700,6 +712,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TreeResearchProjectRouteImport
       parentRoute: typeof TreeRoute
     }
+    '/$tree/research_/sources': {
+      id: '/$tree/research_/sources'
+      path: '/research/sources'
+      fullPath: '/$tree/research/sources'
+      preLoaderRoute: typeof TreeResearchSourcesRouteImport
+      parentRoute: typeof TreeRoute
+    }
     '/$tree/settings/activity': {
       id: '/$tree/settings/activity'
       path: '/settings/activity'
@@ -810,6 +829,7 @@ interface TreeRouteChildren {
   TreeHouseHouseRoute: typeof TreeHouseHouseRoute
   TreePersonIdRoute: typeof TreePersonIdRoute
   TreeResearchProjectRoute: typeof TreeResearchProjectRoute
+  TreeResearchSourcesRoute: typeof TreeResearchSourcesRoute
   TreeSettingsActivityRoute: typeof TreeSettingsActivityRoute
   TreeSettingsAiRoute: typeof TreeSettingsAiRoute
   TreeSettingsFeedbackRoute: typeof TreeSettingsFeedbackRoute
@@ -832,6 +852,7 @@ const TreeRouteChildren: TreeRouteChildren = {
   TreeHouseHouseRoute: TreeHouseHouseRoute,
   TreePersonIdRoute: TreePersonIdRoute,
   TreeResearchProjectRoute: TreeResearchProjectRoute,
+  TreeResearchSourcesRoute: TreeResearchSourcesRoute,
   TreeSettingsActivityRoute: TreeSettingsActivityRoute,
   TreeSettingsAiRoute: TreeSettingsAiRoute,
   TreeSettingsFeedbackRoute: TreeSettingsFeedbackRoute,

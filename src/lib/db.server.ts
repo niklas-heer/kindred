@@ -415,6 +415,7 @@ export async function searchPlaces(tree: string, q: string, limit = 8): Promise<
       SELECT born_place AS name FROM person WHERE born_place IS NOT NULL AND born_place != ''
       UNION ALL SELECT died_place FROM person WHERE died_place IS NOT NULL AND died_place != ''
       UNION ALL SELECT place FROM partnership WHERE place IS NOT NULL AND place != ''
+      UNION ALL SELECT place FROM life_event WHERE place IS NOT NULL AND place != ''
     ) GROUP BY name`)).map((r) => [r.name, r.n]));
   for (const name of placed.keys()) if (!used.has(name)) used.set(name, 0);
 
