@@ -1,6 +1,7 @@
 // Turns a person into one cached SVG image. Hundreds of portraits render at once on the tree and
 // every drawing is deterministic, so each is built once: a WeakMap per person record for the common
 // re-render, and a key on the resolved appearance so relatives drawn alike share a string.
+import { svgDataUri } from '~/lib/svg-data-uri';
 import type { GPerson, House } from '~/lib/types';
 import { avatarSvg, type Detail } from './avatar';
 import { hash, resolveAppearance } from './look';
@@ -32,7 +33,7 @@ function build(p: GPerson, house: House | undefined, detail: Detail, at?: number
   if (uri === undefined) {
     // The editor makes a new drawing per change; keep the shared cache bounded.
     if (drawings.size > 4000) drawings.clear();
-    uri = `data:image/svg+xml;utf8,${encodeURIComponent(avatarSvg(a, dress, detail))}`;
+    uri = svgDataUri(avatarSvg(a, dress, detail));
     drawings.set(key, uri);
   }
   return uri;
