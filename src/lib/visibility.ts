@@ -13,15 +13,18 @@ import { can, type Role } from './roles.ts';
 export const VISIBILITIES = ['personal', 'editors', 'family'] as const;
 export type Visibility = (typeof VISIBILITIES)[number];
 
-/** Who is reading. `account` is null for anything that is not one person's own eyes, such as the assistant. */
-export interface Audience { account: string | null; role: Role | null; guest: boolean }
+/**
+ * Who is reading. `account` is null for anything that is not one person's own eyes, such as the assistant. `protectLiving` is
+ * set for a share-link guest whose link protects living people: the reads then shape the living with src/lib/protect-living.ts.
+ */
+export interface Audience { account: string | null; role: Role | null; guest: boolean; protectLiving?: boolean }
 
 /** A reader of what every member may see, and nothing more. The default when a read names no one. */
 export const PLAIN_MEMBER: Audience = { account: null, role: 'viewer', guest: false };
 
 /** The audience of a signed-in member, or of a guest with a share link (see `requireReader`). */
-export const audienceOf = (r: { user: { id: string } | null; role: Role; guest?: boolean }): Audience =>
-  ({ account: r.user?.id ?? null, role: r.role, guest: r.guest === true });
+export const audienceOf = (r: { user: { id: string } | null; role: Role; guest?: boolean; protectLiving?: boolean }): Audience =>
+  ({ account: r.user?.id ?? null, role: r.role, guest: r.guest === true, protectLiving: r.protectLiving === true });
 
 /**
  * What the assistant may be given on a reader's behalf: the reader's role, but no account. So it can never receive a

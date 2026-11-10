@@ -113,6 +113,7 @@ code (`mise run deploy` migrates before it deploys), so it must not break the re
 | `0020_ai_threads.sql` | `ai_thread`: one row per assistant chat, with its title and an optional provider and model. |
 | `0021_ai_turn.sql` | `ai_turn`: one running reply per chat, as a lease. |
 | `0022_session_credential.sql` | `session.credential`: the passkey that started a session, so removing that passkey signs its device out (null for older sessions). |
+| `0023_share_protect_living.sql` | `share_link.protect_living`: whether the link's guests get living people reduced to their names, faces and place in the tree. 0 for links that already existed; Kindred sets it for every new link unless the steward unticks it. |
 
 ### Tables
 
@@ -132,7 +133,8 @@ code (`mise run deploy` migrates before it deploys), so it must not break the re
 - **`invite`**: an invitation to a family with a `role`, an optional `email`, an `expires`, who created it and who used
   it, and `revoked_at`. Only a hash of the link's token is stored.
 - **`share_link`** (0015): a family's share link, at most one per family: a hash of its token, a PBKDF2 hash of its password (or none),
-  a `generation` that goes up when it is replaced, and an optional `expires`. A guest is not a user.
+  a `generation` that goes up when it is replaced, an optional `expires`, and `protect_living` (0023: 1 when its guests get the living
+  without dates, places or details; see docs/roles-and-privacy.md). A guest is not a user.
 - **`share_session`** (0015): a guest's short-lived visit: the SHA-256 hash of the cookie's token, the link and the generation it belongs
   to, and `expires`. It is deleted when the link is replaced or turned off.
 - **`share_attempt`** (0015): tries against a link in the current 15-minute window, per link and per link and hashed address.

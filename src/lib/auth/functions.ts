@@ -82,10 +82,15 @@ export const fetchMyFamilies = createServerFn({ method: 'GET' }).handler(async (
   const { user, guest } = await currentSession();
   if (!user && !guest) return [];
   const mine = new Map(user ? (await s.membershipsOf(user.id)).map((m) => [m.tree, m.role]) : []);
-  if (guest && !mine.has(guest.tree)) mine.set(guest.tree, 'viewer');
+  // A guest's family, unless they are a member of it too. A visit that does not say is protected, as in requireReader.
+  const protect = new Set<string>();
+  if (guest && !mine.has(guest.tree)) {
+    mine.set(guest.tree, 'viewer');
+    if (guest.protectLiving !== false) protect.add(guest.tree);
+  }
   // Only the reader's families are opened, and "today" is a narrow read, not the whole family: this runs on every page.
   const { todayIn } = await import('../db.server');
-  return Promise.all((await families(mine.keys())).map(async (t) => ({ ...t, role: mine.get(t.id)!, today: await todayIn(t.id) })));
+  return Promise.all((await families(mine.keys(), protect)).map(async (t) => ({ ...t, role: mine.get(t.id)!, today: await todayIn(t.id, undefined, protect.has(t.id)) })));
 });
 export const myFamiliesQuery = queryOptions({ queryKey: ['session', 'families'], queryFn: () => fetchMyFamilies() });
 

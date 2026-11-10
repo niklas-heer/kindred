@@ -62,7 +62,7 @@ budget, $5 by default. [docs/ai.md](docs/ai.md) says exactly what is sent where.
 
 Everyone signs in with a **passkey**, so there are no passwords to forget. If you already manage people in Cloudflare, you can make Cloudflare Access the only sign-in instead: one method per installation, [your choice](docs/self-host.md#choosing-how-people-sign-in).
 A member is a viewer, contributor, editor or steward, and the server checks every change. A person's fields and notes have three levels: personal (only the
-account that added them), editors, or the whole family. A relative who doesn't want an account can have a read-only **share link**, protected by a password by default.
+account that added them), editors, or the whole family. A relative who doesn't want an account can have a read-only **share link**, protected by a password by default, that by default shows living people only by name, face and place in the tree.
 
 New members are offered a short **tour**. Stewards get counts-only **statistics**, which never hold names or what anyone
 wrote and can be turned off, and a **feedback** inbox that stays inside the family's own Kindred. The app comes in English,

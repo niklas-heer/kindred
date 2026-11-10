@@ -66,16 +66,16 @@ const field = (d: FormData, name: string) => {
 export const getGallery = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
-    await requireReader(data.tree);
-    return (await server()).gallery(data.tree);
+    const r = await requireReader(data.tree);
+    return (await server()).gallery(data.tree, r.protectLiving);
   });
 export const galleryQuery = (t: string) => queryOptions({ queryKey: ['gallery', t], queryFn: () => getGallery({ data: { tree: t } }) });
 
 export const getPersonPhotos = createServerFn({ method: 'GET' })
   .validator(z.object({ tree, id: z.string().min(1).max(120) }))
   .handler(async ({ data }) => {
-    await requireReader(data.tree);
-    return (await server()).personMedia(data.tree, data.id);
+    const r = await requireReader(data.tree);
+    return (await server()).personMedia(data.tree, data.id, r.protectLiving);
   });
 export const personPhotosQuery = (t: string, id: string) =>
   queryOptions({ queryKey: ['person-photos', t, id], queryFn: () => getPersonPhotos({ data: { tree: t, id } }) });

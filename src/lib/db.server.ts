@@ -8,6 +8,7 @@ import { todayEvents, type TodayEvent } from './auth/today.ts';
 import { fieldText, type FieldType, type FieldValue, type PersonField } from '../components/fields/model.ts';
 import { fieldsVisibleTo, PLAIN_MEMBER, type Audience, type Visibility } from './visibility.ts';
 import { translate } from './i18n/dictionary.ts';
+import { LIVING_IDS, protectDetail, protectGraph } from './protect-living.ts';
 
 export { guard, q, store, type Db, type Query } from './store/index.ts';
 
@@ -133,8 +134,11 @@ export async function once<T>(tree: string, op: OpKey | undefined, fn: string, w
 
 const meta = async (d: Db) => Object.fromEntries((await d.all<{ key: string; value: string }>('SELECT key, value FROM meta')).map((r) => [r.key, r.value]));
 
-/** The families on this server, largest first. With `only`, just those of them: a reader's list never opens anyone else's. */
-export async function listTrees(only?: Iterable<string>): Promise<TreeMeta[]> {
+/**
+ * The families on this server, largest first. With `only`, just those of them: a reader's list never opens anyone else's.
+ * `protectLiving` names the families whose reader is a guest with a link that protects living people: no birthdays there.
+ */
+export async function listTrees(only?: Iterable<string>, protectLiving: ReadonlySet<string> = new Set()): Promise<TreeMeta[]> {
   const monthDay = `${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
   const wanted = only && new Set(only);
   const ids = wanted ? store.treeIds().filter((id) => wanted.has(id)) : store.treeIds();
@@ -149,7 +153,7 @@ export async function listTrees(only?: Iterable<string>): Promise<TreeMeta[]> {
         d.get<{ arms: string }>('SELECT h.arms FROM house h LEFT JOIN person p ON p.house = h.id GROUP BY h.id ORDER BY count(p.id) DESC, h.id LIMIT 1'),
         d.all<{ id: string; given: string; surname: string | null }>('SELECT id, given, surname FROM person WHERE living = 1 AND substr(born, 6) = ?', monthDay),
       ]);
-      const birthdays = born.map((p) => ({ id: p.id, name: [p.given, p.surname].filter(Boolean).join(' ') }));
+      const birthdays = protectLiving.has(id) ? [] : born.map((p) => ({ id: p.id, name: [p.given, p.surname].filter(Boolean).join(' ') }));
       return { id: m.id, name: m.name, tagline: m.tagline, theme: m.theme as TreeMeta['theme'], focus: m.focus, people: count?.n ?? 0, crest: crestRow ? (JSON.parse(crestRow.arms) as House['arms']) : undefined, birthdays };
     }),
   );
@@ -160,9 +164,11 @@ export async function listTrees(only?: Iterable<string>): Promise<TreeMeta[]> {
  * What today brings in one family (todayEvents in ./auth/today.ts), read narrowly: only the people and partnerships
  * whose dates fall on today's month and day, rather than the whole family. The families list asks this of every
  * family on every page. todayEvents reads names, dates and `living`, which every member's graph carries (field
- * visibility only governs person_field), so the result is the same as todayEvents(await graph(tree)).
+ * visibility only governs person_field), so the result is the same as todayEvents(await graph(tree)). With `protectLiving`
+ * (a guest whose link protects the living) it is the same as for that guest's graph: no birthday and no wedding anniversary
+ * of the living, and the dead remembered as before.
  */
-export async function todayIn(tree: string, today = new Date()): Promise<TodayEvent[]> {
+export async function todayIn(tree: string, today = new Date(), protectLiving = false): Promise<TodayEvent[]> {
   const d = db(tree);
   const md = `${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   // In the graph's order (rowid, and partnerships by start), so the events come out in the order the full read gives.
@@ -176,7 +182,8 @@ export async function todayIn(tree: string, today = new Date()): Promise<TodayEv
   ]);
   const people = peopleRows.map((r) => ({ id: r.id, given: r.given, surname: opt(r.surname), born: opt(r.born), died: opt(r.died), living: r.living === 1 }));
   const unions = unionRows.map((r) => ({ id: r.id, a: r.a, b: r.b, kind: r.kind, start: opt(r.start), end: opt(r.end) }));
-  return todayEvents({ people, unions } as Graph, today);
+  const narrow = { people, unions, places: [] } as unknown as Graph;
+  return todayEvents(protectLiving ? protectGraph(narrow) : narrow, today);
 }
 
 // ---------- creating a family ----------
@@ -258,7 +265,7 @@ export async function graph(tree: string, reader: Audience = PLAIN_MEMBER): Prom
     (r): GUnion => defined({ id: r.id, a: r.a, b: r.b, kind: r.kind, start: opt(r.start), end: opt(r.end), endReason: opt(r.end_reason), place: opt(r.place) }),
   );
   const places = placeRows.map((r) => defined({ name: r.name, lat: r.lat, lng: r.lng, country: opt(r.country) }));
-  return {
+  const whole: Graph = {
     places,
     tree: { id: m.id, name: m.name, tagline: m.tagline, theme: m.theme as TreeMeta['theme'], focus: m.focus, people: people.length },
     houses,
@@ -266,6 +273,7 @@ export async function graph(tree: string, reader: Audience = PLAIN_MEMBER): Prom
     parents,
     unions,
   };
+  return reader.protectLiving ? protectGraph(whole) : whole;
 }
 
 /** A person_field row as the browser gets it. The owner stays on the server: a reader only ever gets their own. */
@@ -284,12 +292,12 @@ export async function person(tree: string, id: string, reader: Audience = PLAIN_
   const d = db(tree);
   const seen = fieldsVisibleTo(reader);
   const [r, stories, fields] = await Promise.all([
-    d.get<any>('SELECT bio, born_place, died_place, updated_at, revision FROM person WHERE id = ?', id),
+    d.get<any>('SELECT bio, born_place, died_place, updated_at, revision, living FROM person WHERE id = ?', id),
     d.all<any>('SELECT * FROM story WHERE person = ? ORDER BY at DESC', id),
     d.all<any>(`SELECT * FROM person_field WHERE person = ? AND ${seen.sql} ORDER BY ord, id`, id, ...seen.params),
   ]);
   if (!r) throw new Error(`no person ${id}`);
-  return {
+  const detail: PersonDetail = {
     id,
     bio: opt(r.bio),
     bornPlace: opt(r.born_place),
@@ -301,11 +309,12 @@ export async function person(tree: string, id: string, reader: Audience = PLAIN_
     })),
     fields: fields.map(fieldOf),
   };
+  return reader.protectLiving && r.living === 1 ? protectDetail(detail) : detail;
 }
 
-/** Every story in the tree, newest first: the family's "recent changes". */
-export function chronicle(tree: string, limit: number) {
-  return db(tree).all<any>('SELECT * FROM story ORDER BY at DESC LIMIT ?', limit);
+/** Every story in the tree, newest first: the family's "recent changes". With `protectLiving`, none about the living. */
+export function chronicle(tree: string, limit: number, protectLiving = false) {
+  return db(tree).all<any>(`SELECT * FROM story ${protectLiving ? `WHERE person NOT IN (${LIVING_IDS})` : ''} ORDER BY at DESC LIMIT ?`, limit);
 }
 
 // The contacts page and its vCards speak in the older kinds; these map the fields onto them. Each reader gets every

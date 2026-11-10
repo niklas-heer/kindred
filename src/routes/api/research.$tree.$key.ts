@@ -12,16 +12,16 @@ export const Route = createFileRoute('/api/research/$tree/$key')({
         const text = (body: string, status: number) => new Response(body, { status, headers: { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' } });
         if (!/^[a-z0-9-]{1,64}$/.test(params.tree) || !/^[a-z0-9-]{1,80}\.(?:pdf|jpg|png|webp)$/.test(params.key)) return text('not found', 404);
         const [{ requireReader }, { AuthError }] = await Promise.all([import('~/lib/auth/guard.server'), import('~/lib/auth/errors')]);
-        let role;
+        let reader;
         try {
-          role = (await requireReader(params.tree)).role;
+          reader = await requireReader(params.tree);
         } catch (e) {
           if (e instanceof AuthError) return text(e.message, e.status);
           throw e;
         }
         const [{ documentFile }, { media }, { documentFileName, isPdf }] = await Promise.all([import('~/lib/research.server'), import('~/lib/db.server'), import('~/lib/research')]);
         const key = `research/${params.key}`;
-        const doc = await documentFile(params.tree, key, role);
+        const doc = await documentFile(params.tree, key, reader.role, reader.protectLiving);
         if (!doc) return text('not found', 404);
         const stored = await media.get(params.tree, key);
         if (!stored) return text('not found', 404);

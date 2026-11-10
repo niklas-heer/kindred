@@ -57,9 +57,13 @@ const isAdult = (p: GPerson) => {
   return !isNaN(y) && new Date().getFullYear() - y >= 16;
 };
 
+/** What a guest whose link protects living people does not get of the living, so it is never a gap to them (protect-living.ts). */
+const WITHHELD_FROM_GUEST: ReadonlySet<GapKey> = new Set(['born', 'birthday', 'birthplace', 'contact', 'occupation', 'story']);
+
 export function gapsOf(f: Family, p: GPerson, required: ReadonlySet<GapKey> = new Set(DEFAULT_GAPS)): GapKey[] {
   const out: GapKey[] = [];
-  const want = (k: GapKey) => required.has(k);
+  const withheld = f.graph.livingProtected && p.living;
+  const want = (k: GapKey) => required.has(k) && !(withheld && WITHHELD_FROM_GUEST.has(k));
   if (want('born') && !p.born) out.push('born');
   // Living people need a full date, so the Almanac can remind the family of their birthday.
   if (want('birthday') && p.living && !/^\d{4}-\d\d-\d\d$/.test(p.born ?? '') && !(want('born') && !p.born)) out.push('birthday');

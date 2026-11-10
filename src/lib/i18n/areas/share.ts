@@ -60,6 +60,11 @@ export const en = {
   'share.guest': 'Guest',
   'share.guestHint': 'You’re looking around as a guest. Your visit ends by itself after a while.',
   'share.leave': 'Leave',
+  'share.protectLiving': 'Protect living people',
+  'share.protectLivingHint': 'Guests see the living by name, face and place in the tree, but not their birthdays, places, memories or other details.',
+  'share.protectLivingOff': 'Guests see the living as a viewer does, birthdays and birthplaces included.',
+  'share.protectLivingFailed': 'That setting could not be changed. Please try again.',
+  'share.err_no_link': 'This family has no link to change.',
 };
 
 export const de: Record<keyof typeof en, Message> = {
@@ -121,6 +126,11 @@ export const de: Record<keyof typeof en, Message> = {
   'share.guest': 'Gast',
   'share.guestHint': 'Du siehst dich als Gast um. Dein Besuch endet nach einer Weile von selbst.',
   'share.leave': 'Verlassen',
+  'share.protectLiving': 'Lebende schützen',
+  'share.protectLivingHint': 'Gäste sehen von Lebenden den Namen, das Bild und den Platz im Stammbaum, aber keine Geburtstage, Orte, Erinnerungen oder anderen Angaben.',
+  'share.protectLivingOff': 'Gäste sehen Lebende so, wie Lesende sie sehen, auch Geburtstage und Geburtsorte.',
+  'share.protectLivingFailed': 'Die Einstellung ließ sich nicht ändern. Versuche es bitte noch einmal.',
+  'share.err_no_link': 'Diese Familie hat keinen Link, den du ändern kannst.',
 };
 
 export const af: Partial<Record<keyof typeof en, Message>> = {
@@ -182,4 +192,9 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   'share.guest': 'Gas',
   'share.guestHint': 'Jy kyk as ’n gas rond. Jou besoek eindig vanself na ’n rukkie.',
   'share.leave': 'Verlaat',
+  'share.protectLiving': 'Beskerm lewende mense',
+  'share.protectLivingHint': 'Gaste sien lewende mense se naam, gesig en plek in die stamboom, maar nie hul verjaarsdae, plekke, herinneringe of ander besonderhede nie.',
+  'share.protectLivingOff': 'Gaste sien lewende mense soos ’n kyker hulle sien, verjaarsdae en geboorteplekke ingesluit.',
+  'share.protectLivingFailed': 'Die instelling kon nie verander word nie. Probeer asseblief weer.',
+  'share.err_no_link': 'Hierdie familie het geen skakel om te verander nie.',
 };

@@ -2,8 +2,11 @@
 // the password are stored only as hashes. A guest is not an account: they get a short-lived visit that the guard treats as a
 // viewer for the reads that allow it (guard.server.ts, requireReader) and refuses for everything else.
 //
-// Schema in migrations/accounts/0015_share_link.sql. The rate limit lives in the database, so it holds on Workers (where each
-// isolate has its own memory) as well as on Node.
+// A link can protect living people (migration 0023): its guests then get the living reduced to their names, their place in the
+// tree and their pictures. Which reads do that is src/lib/protect-living.ts; the guard hands the link's choice to every read.
+//
+// Schema in migrations/accounts/0015_share_link.sql and 0023_share_protect_living.sql. The rate limit lives in the database,
+// so it holds on Workers (where each isolate has its own memory) as well as on Node.
 import { commit, accounts, guard, isGuardError, now, q } from './store.server.ts';
 import { hashPassword, hashToken, randomToken, verifyPassword } from './tokens.server.ts';
 
@@ -19,6 +22,8 @@ export const SHARE_DAYS = [1, 7, 30, 90, null] as const;
 
 export interface ShareLinkRow {
   id: string; tree: string; token_hash: string; password_hash: string | null; generation: number; expires: number | null; created: number; created_by: string | null;
+  /** 1 when the link's guests get living people's names and pictures only. 0 for links made before the setting existed. */
+  protect_living: number;
 }
 
 export const shareLinkOf = (tree: string) => accounts().get<ShareLinkRow>('SELECT * FROM share_link WHERE tree = ?', tree);
@@ -48,13 +53,14 @@ export const normalizeSharePassword = (typed: string) => typed.toUpperCase().rep
 
 // ---------- making, replacing and removing the link ----------
 
-export interface MadeShareLink { id: string; generation: number; token: string; password: string | null; expires: number | null }
+export interface MadeShareLink { id: string; generation: number; token: string; password: string | null; expires: number | null; protectLiving: boolean }
 
 /**
  * Makes the family's link, or replaces the one it has. Replacing changes the token and the password, ends every guest's visit
- * and forgets the link's failed tries.
+ * and forgets the link's failed tries. A new link protects living people unless the steward said otherwise.
  */
-export async function makeShareLink(i: { tree: string; password: boolean; days: number | null; createdBy: string | null }): Promise<MadeShareLink> {
+export async function makeShareLink(i: { tree: string; password: boolean; days: number | null; createdBy: string | null; protectLiving?: boolean }): Promise<MadeShareLink> {
+  const protect = i.protectLiving === false ? 0 : 1;
   const token = randomToken(32);
   const password = i.password ? newSharePassword() : null;
   const passwordHash = password ? await hashPassword(normalizeSharePassword(password)) : null;
@@ -68,18 +74,28 @@ export async function makeShareLink(i: { tree: string; password: boolean; days: 
     return {
       writes: [
         current
-          ? q('UPDATE share_link SET token_hash = ?, password_hash = ?, generation = ?, expires = ?, created = ?, created_by = ? WHERE id = ? AND generation = ?',
-              tokenHash, passwordHash, generation, expires, t, i.createdBy, id, current.generation)
-          : q('INSERT INTO share_link (id, tree, token_hash, password_hash, generation, expires, created, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-              id, i.tree, tokenHash, passwordHash, generation, expires, t, i.createdBy),
+          ? q('UPDATE share_link SET token_hash = ?, password_hash = ?, generation = ?, expires = ?, created = ?, created_by = ?, protect_living = ? WHERE id = ? AND generation = ?',
+              tokenHash, passwordHash, generation, expires, t, i.createdBy, protect, id, current.generation)
+          : q('INSERT INTO share_link (id, tree, token_hash, password_hash, generation, expires, created, created_by, protect_living) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+              id, i.tree, tokenHash, passwordHash, generation, expires, t, i.createdBy, protect),
         // Another replace got there first when this generation is not the one stored: the batch writes nothing, and it is decided again.
         guard('EXISTS (SELECT 1 FROM share_link WHERE id = ? AND generation = ? AND token_hash = ?)', id, generation, tokenHash),
         q('DELETE FROM share_session WHERE link = ?', id),
         q('DELETE FROM share_attempt WHERE key LIKE ?', `${id}:%`),
       ],
-      result: { id, generation, token, password, expires },
+      result: { id, generation, token, password, expires, protectLiving: protect === 1 },
     };
   });
+}
+
+/**
+ * Turns the protection of living people on or off for the family's link, without replacing it: the URL and the password keep
+ * working, and the guests already looking around see the change with their next read, since every read asks the link again.
+ * False when the family has no link.
+ */
+export async function setShareProtectLiving(tree: string, on: boolean): Promise<boolean> {
+  const r = await accounts().run('UPDATE share_link SET protect_living = ? WHERE tree = ?', on ? 1 : 0, tree);
+  return r.changes > 0;
 }
 
 /** Removes the family's link: the URL and the password stop working and every guest's visit ends, at once. */
@@ -134,7 +150,8 @@ export async function checkPassword(link: ShareLinkRow, typed: string | undefine
 
 // ---------- a guest's visit ----------
 
-export interface GuestSession { link: string; tree: string; expires: number }
+/** A guest's visit. `protectLiving` is the link's setting as it is now, read with the visit on every request. */
+export interface GuestSession { link: string; tree: string; expires: number; protectLiving: boolean }
 
 /** Starts a visit, unless the link was replaced, removed or ended in the meantime. It never outlasts the link. */
 export async function startGuestVisit(link: ShareLinkRow): Promise<{ token: string; expires: number } | undefined> {
@@ -157,11 +174,12 @@ export async function startGuestVisit(link: ShareLinkRow): Promise<{ token: stri
 /** The visit behind a cookie's token: only while the session, the link and its generation all still hold. */
 export async function guestVisitByToken(token: string): Promise<GuestSession | undefined> {
   const t = now();
-  return accounts().get<GuestSession>(
-    `SELECT s.link AS link, l.tree AS tree, s.expires AS expires FROM share_session s JOIN share_link l ON l.id = s.link
+  const row = await accounts().get<Omit<GuestSession, 'protectLiving'> & { protect_living: number }>(
+    `SELECT s.link AS link, l.tree AS tree, s.expires AS expires, l.protect_living AS protect_living FROM share_session s JOIN share_link l ON l.id = s.link
       WHERE s.hash = ? AND s.expires > ? AND s.generation = l.generation AND (l.expires IS NULL OR l.expires > ?)`,
     await hashToken('guest', token), t, t,
   );
+  return row && { link: row.link, tree: row.tree, expires: row.expires, protectLiving: row.protect_living === 1 };
 }
 
 export const endGuestVisit = async (token: string) => accounts().run('DELETE FROM share_session WHERE hash = ?', await hashToken('guest', token));

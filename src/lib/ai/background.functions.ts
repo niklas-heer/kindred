@@ -57,8 +57,9 @@ export const aiAttentionQuery = (t: string) => queryOptions({ queryKey: ['ai-att
 export const storyTranslations = createServerFn({ method: 'GET' })
   .validator(z.object({ tree, locale: z.enum(LOCALES) }))
   .handler(async ({ data }) => {
-    await (await guard()).requireReader(data.tree);
-    return (await tasks()).storyTranslations(data.tree, data.locale);
+    const r = await (await guard()).requireReader(data.tree);
+    // A guest whose link protects living people gets no story about them, translated or not (src/lib/protect-living.ts).
+    return (await tasks()).storyTranslations(data.tree, data.locale, r.protectLiving);
   });
 
 export const storyTranslationsQuery = (t: string, locale: string) =>

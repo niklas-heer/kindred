@@ -5,9 +5,12 @@ import { translate } from '../i18n/dictionary.ts';
 import { NOT_TREES, onWorkers, store, TREE_ID } from '../store/index.ts';
 import { AuthError } from './errors.ts';
 
-/** Every family on this server, or with `only`, just those of them (a reader's own: nobody else's database is opened). */
-export async function families(only?: Iterable<string>) {
-  return (await listTrees(only)).filter((t) => !NOT_TREES.has(t.id));
+/**
+ * Every family on this server, or with `only`, just those of them (a reader's own: nobody else's database is opened).
+ * `protectLiving` names the families read by a guest whose link protects living people (listTrees).
+ */
+export async function families(only?: Iterable<string>, protectLiving?: ReadonlySet<string>) {
+  return (await listTrees(only, protectLiving)).filter((t) => !NOT_TREES.has(t.id));
 }
 
 export async function family(tree: string) {

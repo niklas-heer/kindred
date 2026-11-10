@@ -87,6 +87,11 @@ export interface Graph {
   parents: GParent[];
   unions: GUnion[];
   places: Place[];
+  /**
+   * Set for a share-link guest whose link protects living people: the living arrive without dates, places or details
+   * (src/lib/protect-living.ts), so a page must not read their absence as something the family has yet to find out.
+   */
+  livingProtected?: true;
 }
 
 export type Story = SeedStory;

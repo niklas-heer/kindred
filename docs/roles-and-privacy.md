@@ -52,10 +52,12 @@ URL for the family and, by default, a password. The steward can copy the link, t
 and paste it into a chat or an email. A guest is not a member and is not an account: they don't appear in the members list,
 and they have no name, no "who you are" and no settings.
 
-A guest sees less than a viewer: the tree, the people's names, dates, biographies and stories, and the research that isn't private, but
+A guest sees less than a viewer: the tree, the people's names, dates, biographies and stories (of living people only what
+"Protect living people" below leaves, when the link has it on), and the research that isn't private, but
 **no person's fields at any level (no contacts, no favourites, no notes), no Contacts page, no editing, no AI, no money
 spent, no export, no Access or settings pages.** A link can be passed on, so "Family" means the members with an account, not
-everyone holding the link. One number does reach a guest: the Needed page can say that someone has no contact recorded. The
+everyone holding the link. One number does reach a guest: the Needed page can say that someone has no contact recorded (never
+a living person, when the link protects them). The
 server enforces this: a guest can only reach the reads named in
 `requireReader` (`src/lib/auth/guard.server.ts`), and the person read and Contacts give a guest no fields (`src/lib/visibility.ts`). Every other server function refuses a guest, because the checks it uses need an
 account. A guest's pictures go through the same checks, and they need the guest's visit too.
@@ -71,9 +73,26 @@ account. A guest's pictures go through the same checks, and they need the guest'
   Replacing or turning off the link ends every visit at once, and so does the link's own expiry.
 - **Revoke or replace at any time.** Turning a link off ends it. Replacing it makes a new URL and password; the old ones stop
   working. The expiry can be 1 day, a week, 30 or 90 days, or none.
+- **Protect living people.** On by default for every new link, and switchable on the Access page at any time without replacing
+  the link; links made before the setting existed have it off until a steward turns it on, so nothing changed under their guests.
+  When it is on, a guest gets each person the family marks as living by **name** (with title, epithet and nickname), **sex,
+  house and place in the tree** (parents, children, partners and the kind of each tie), and **face** (photo, painted portrait and
+  drawn look, without an age pinned in it). They get **no date of any kind**, not even a birth year, since a year and a name
+  already identify a child and an age follows from it; so no age either, and where the dates would be the page shows nothing.
+  They also get no birthplace or other place, no occupation, traits or biography, no fields (no guest ever does), no stories
+  about them in the Chronicle or on their page, in any language, no research project that names them (its notes, documents
+  and files included), no birthday or wedding anniversary on the families list or in the Almanac, no Atlas pin or place that
+  only their records name, no partnership date or place for a couple with a living partner, and no story or contact counts.
+  Gallery pictures still show if a guest can open the gallery, but no living person is tagged on them, and a living person's
+  own photo list is empty. The `living` flag decides as stored: someone marked not living is shown in full, with or without a
+  date of death, and the dead are untouched. The server applies this where it shapes a guest's reads
+  (`src/lib/protect-living.ts`; the guard hands every read the link's setting), so no response to such a guest carries any of
+  it, the page the server renders included. What the family wrote in free text about someone else (a story about a
+  grandmother that names her grandchild's birthday, a caption on a picture) is not rewritten.
 
-Before you share a link, decide what it should show: anyone who has the link and the password can read the names, dates,
-biographies and stories, for as long as the link works, and can pass it on.
+Before you share a link, decide what it should show: anyone who has the link and the password can read the names, the dates
+of the dead (and of the living, if the link does not protect them), biographies and stories, for as long as the link works,
+and can pass it on.
 
 ## What is private
 

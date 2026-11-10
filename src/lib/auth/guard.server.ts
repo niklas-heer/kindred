@@ -62,18 +62,23 @@ export async function requireMember(tree: string): Promise<Member> {
   return { user, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed };
 }
 
-/** Someone reading a family: a member, or a guest with a viewer's role. A guest gets no person and no account. */
-export interface Reader { user: UserRow | null; role: Role; person: string | null; personConfirmed: boolean; guest: boolean }
+/**
+ * Someone reading a family: a member, or a guest with a viewer's role. A guest gets no person and no account.
+ * `protectLiving` is true only for a guest whose link protects living people (src/lib/protect-living.ts).
+ */
+export interface Reader { user: UserRow | null; role: Role; person: string | null; personConfirmed: boolean; guest: boolean; protectLiving: boolean }
 
 /**
  * Like `requireMember`, and a guest of this family counts too, as a viewer. Use it only for reads a guest may have: the role
- * it returns is what keeps private fields and private research back, exactly as for a viewer.
+ * it returns is what keeps private fields and private research back, exactly as for a viewer, and `protectLiving` is what
+ * keeps living people back when the guest's link asks for it. Every read that allows a guest passes both on.
  */
 export async function requireReader(tree: string): Promise<Reader> {
   const { user, guest } = await currentSession();
   const m = user && (await membership(user.id, tree));
-  if (user && m) return { user, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed, guest: false };
-  if (guest?.tree === tree) return { user: null, role: 'viewer', person: null, personConfirmed: false, guest: true };
+  if (user && m) return { user, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed, guest: false, protectLiving: false };
+  // A visit that does not say is protected: only a link that has the setting off shows the living in full.
+  if (guest?.tree === tree) return { user: null, role: 'viewer', person: null, personConfirmed: false, guest: true, protectLiving: guest.protectLiving !== false };
   throw fail(user ? notMember() : signedOut());
 }
 

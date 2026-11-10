@@ -6,7 +6,7 @@ import { armsSchema } from '~/components/heraldry/schema';
 import { validDate } from './dates';
 import { MAX_FURTHER, MAX_FURTHER_LENGTH, storeFurther } from './further-given';
 import type { Action } from './roles';
-import { audienceOf } from './visibility';
+import { audienceOf, PLAIN_MEMBER } from './visibility';
 
 const tree = z.string().regex(/^[a-z0-9-]+$/).max(64);
 const date = z.string().refine(validDate, 'Not a real date').optional();
@@ -26,16 +26,17 @@ export const getGraph = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
     const r = await requireReader(data.tree);
-    // A guest gets the plain count, so the Needed page does not say that everyone lacks a contact. Never a value.
-    return (await server()).graph(data.tree, r.guest ? undefined : audienceOf(r));
+    // A guest gets the plain count, so the Needed page does not say that everyone lacks a contact. Never a value. A guest whose
+    // link protects living people gets them without dates, places or details (src/lib/protect-living.ts).
+    return (await server()).graph(data.tree, r.guest ? { ...PLAIN_MEMBER, protectLiving: r.protectLiving } : audienceOf(r));
   });
 export const graphQuery = (t: string) => queryOptions({ queryKey: ['graph', t], queryFn: () => getGraph({ data: { tree: t } }), staleTime: Infinity });
 
 export const getChronicle = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
-    await requireReader(data.tree);
-    return (await server()).chronicle(data.tree, 300);
+    const r = await requireReader(data.tree);
+    return (await server()).chronicle(data.tree, 300, r.protectLiving);
   });
 export const chronicleQuery = (t: string) => queryOptions({ queryKey: ['chronicle', t], queryFn: () => getChronicle({ data: { tree: t } }) });
 

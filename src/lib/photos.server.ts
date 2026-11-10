@@ -4,6 +4,7 @@
 import type { Album, Box, Face, Gallery, MediaItem, Tag } from '~/components/photos/types';
 import { db, guard, media, newMediaKey, once, personExists, q, type Db, type OpKey } from './db.server';
 import type { Param } from './store/index.ts';
+import { LIVING_IDS } from './protect-living.ts';
 
 // ---------- reads ----------
 
@@ -15,12 +16,15 @@ interface TagRow { id: number; media: string; person: string; x: number; y: numb
 
 const COLS = 'm.key, m.mime, m.width, m.height, m.taken, m.place, m.caption, m.album, m.uploaded_by, m.uploaded_at';
 
-/** Media rows matching `where` (an SQL condition on `m`), each with its tags, newest upload first. */
-async function withTags(d: Db, where: string, params: Param[]): Promise<MediaItem[]> {
+/**
+ * Media rows matching `where` (an SQL condition on `m`), each with its tags, newest upload first. With `protectLiving` (a guest
+ * whose link protects living people) the pictures stay, but no living person is tagged on them (src/lib/protect-living.ts).
+ */
+async function withTags(d: Db, where: string, params: Param[], protectLiving = false): Promise<MediaItem[]> {
   const rows = await d.all<MediaRow>(`SELECT ${COLS} FROM media m WHERE ${where} ORDER BY m.uploaded_at DESC, m.key`, ...params);
   if (!rows.length) return [];
   const tags = await d.all<TagRow>(
-    `SELECT id, media, person, x, y, w, h, confirmed FROM media_person WHERE media IN (SELECT m.key FROM media m WHERE ${where}) ORDER BY id`,
+    `SELECT id, media, person, x, y, w, h, confirmed FROM media_person WHERE media IN (SELECT m.key FROM media m WHERE ${where})${protectLiving ? ` AND person NOT IN (${LIVING_IDS})` : ''} ORDER BY id`,
     ...params,
   );
   const byMedia = new Map<string, Tag[]>();
@@ -45,18 +49,19 @@ async function withTags(d: Db, where: string, params: Param[]): Promise<MediaIte
 }
 
 /** The whole gallery for a family: every photo with its tags, and the albums. */
-export async function gallery(tree: string): Promise<Gallery> {
+export async function gallery(tree: string, protectLiving = false): Promise<Gallery> {
   const d = db(tree);
   const [items, albums] = await Promise.all([
-    withTags(d, '1 = 1', []),
+    withTags(d, '1 = 1', [], protectLiving),
     d.all<{ id: string; name: string; n: number }>('SELECT a.id, a.name, (SELECT count(*) FROM media m WHERE m.album = a.id) AS n FROM album a ORDER BY a.name COLLATE NOCASE'),
   ]);
   return { media: items, albums: albums.map((a): Album => ({ id: a.id, name: a.name, count: a.n })) };
 }
 
-/** The photos a person is confirmed in. */
-export function personMedia(tree: string, person: string): Promise<MediaItem[]> {
-  return withTags(db(tree), 'm.key IN (SELECT mp.media FROM media_person mp WHERE mp.person = ? AND mp.confirmed = 1)', [person]);
+/** The photos a person is confirmed in. With `protectLiving`, none for a living person: that list is their tags. */
+export function personMedia(tree: string, person: string, protectLiving = false): Promise<MediaItem[]> {
+  const where = `m.key IN (SELECT mp.media FROM media_person mp WHERE mp.person = ? AND mp.confirmed = 1${protectLiving ? ` AND mp.person NOT IN (${LIVING_IDS})` : ''})`;
+  return withTags(db(tree), where, [person], protectLiving);
 }
 
 /** The stored type of a gallery picture, or undefined. The route serves only what this finds. */

@@ -73,7 +73,9 @@ const PERSONAL = 'PERSONALMARKER', EDITORS = 'EDITORSMARKER', FAMILY = 'FAMILYMA
 
 const g = globalThis as unknown as { __signedIn?: { id: string; name: string } | null; __guest?: unknown };
 const as = (user: string) => { g.__signedIn = { id: user, name: user }; g.__guest = undefined; };
-const asGuest = () => { g.__signedIn = null; g.__guest = { link: 'l', tree: TREE, expires: Date.now() + 3_600_000 }; };
+// A link that shows the living in full, as one made before "Protect living people" does: the most a guest can get. What a
+// protecting link withholds on top of this is auth/share-living.test.ts.
+const asGuest = () => { g.__signedIn = null; g.__guest = { link: 'l', tree: TREE, expires: Date.now() + 3_600_000, protectLiving: false }; };
 
 let ops = 0;
 const opKey = () => `testop-${++ops}-abcdefgh`;

@@ -15,6 +15,7 @@ import { db } from '../db.server';
 import { MAX_COLLECT_FAILURES, surnameOf } from '../house-meaning.ts';
 import { noteCollectFailure, saveCollected, snapshot } from '../house-meaning.server';
 import { occupationForText } from '../occupations';
+import { LIVING_IDS } from '../protect-living';
 import { askForOccupation } from '../occupations.server';
 import { translation } from '../occupations.translate';
 import type { Locale } from '../i18n/types';
@@ -259,10 +260,10 @@ export async function perform(tree: string, p: Pending, o: { adapter: AiAdapter;
  * translation whose source has changed since it was made is left out (the reader sees the original). `same` ones are left
  * out too: the story is already in that language.
  */
-export async function storyTranslations(tree: string, locale: Locale): Promise<Record<string, { title: string | null; body: string }>> {
+export async function storyTranslations(tree: string, locale: Locale, protectLiving = false): Promise<Record<string, { title: string | null; body: string }>> {
   const rows = await db(tree).all<{ id: string; title: string | null; body: string; source_hash: string; t_title: string | null; t_body: string; same: number }>(
     `SELECT s.id, s.title, s.body, t.source_hash, t.title AS t_title, t.body AS t_body, t.same
-       FROM story_translation t JOIN story s ON s.id = t.story WHERE t.locale = ?`,
+       FROM story_translation t JOIN story s ON s.id = t.story WHERE t.locale = ?${protectLiving ? ` AND s.person NOT IN (${LIVING_IDS})` : ''}`,
     locale,
   );
   const out: Record<string, { title: string | null; body: string }> = {};

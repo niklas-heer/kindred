@@ -11,7 +11,7 @@ const guard = () => import('./guard.server');
 const share = () => import('./share.server');
 
 export interface ShareState {
-  link: { id: string; generation: number; hasPassword: boolean; expires: number | null; created: number; ended: boolean } | null;
+  link: { id: string; generation: number; hasPassword: boolean; expires: number | null; created: number; ended: boolean; protectLiving: boolean } | null;
   /** The site is behind Cloudflare Access and no guest host is set, so a link could not reach a relative. */
   behindAccess: boolean;
 }
@@ -24,15 +24,18 @@ export const fetchShareState = createServerFn({ method: 'GET' })
     await requireCan(data.tree, 'manage-access');
     const link = await s.shareLinkOf(data.tree);
     return {
-      link: link ? { id: link.id, generation: link.generation, hasPassword: link.password_hash !== null, expires: link.expires, created: link.created, ended: !s.linkOpen(link) } : null,
+      link: link ? { id: link.id, generation: link.generation, hasPassword: link.password_hash !== null, expires: link.expires, created: link.created, ended: !s.linkOpen(link), protectLiving: link.protect_living === 1 } : null,
       behindAccess: authMethod() === 'cloudflare-access' && !guestOrigin(),
     };
   });
 export const shareStateQuery = (t: string) => queryOptions({ queryKey: ['session', 'share', t], queryFn: () => fetchShareState({ data: { tree: t } }) });
 
-/** Makes the link, or replaces it (the old URL and password stop working). The URL and the password are returned only here, once. */
+/**
+ * Makes the link, or replaces it (the old URL and password stop working). The URL and the password are returned only here, once.
+ * The link protects living people unless the steward unticks it: a caller that does not say gets the protection.
+ */
 export const makeShareLink = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, password: z.boolean(), days: z.union([z.literal(1), z.literal(7), z.literal(30), z.literal(90), z.null()]) }))
+  .validator(z.object({ tree, password: z.boolean(), days: z.union([z.literal(1), z.literal(7), z.literal(30), z.literal(90), z.null()]), protectLiving: z.boolean().default(true) }))
   .handler(async ({ data }) => {
     const [{ requireCan, fail }, s, { family }, { AuthError }, { authMethod }, { guestOrigin, siteOrigin }, { getRequest }] = await Promise.all([
       guard(), share(), import('./trees.server'), import('./errors'), import('./method.server'), import('./origin'), import('@tanstack/react-start/server'),
@@ -40,9 +43,18 @@ export const makeShareLink = createServerFn({ method: 'POST' })
     const { user } = await requireCan(data.tree, 'manage-access');
     if (!(await family(data.tree))) throw fail(new AuthError('invalid', 'No such family.'));
     if (authMethod() === 'cloudflare-access' && !guestOrigin()) throw fail(new AuthError('invalid', 'share.err_behind_access'));
-    const made = await s.makeShareLink({ tree: data.tree, password: data.password, days: data.days, createdBy: user.id });
+    const made = await s.makeShareLink({ tree: data.tree, password: data.password, days: data.days, createdBy: user.id, protectLiving: data.protectLiving });
     const origin = guestOrigin() ?? siteOrigin(getRequest());
-    return { id: made.id, generation: made.generation, url: `${origin.origin}/share/${made.token}`, password: made.password, expires: made.expires };
+    return { id: made.id, generation: made.generation, url: `${origin.origin}/share/${made.token}`, password: made.password, expires: made.expires, protectLiving: made.protectLiving };
+  });
+
+/** Turns the protection of living people on or off for the family's link. The link, its password and its guests' visits stay. */
+export const setShareProtectLiving = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, protectLiving: z.boolean() }))
+  .handler(async ({ data }) => {
+    const [{ requireCan, fail }, s, { AuthError }] = await Promise.all([guard(), share(), import('./errors')]);
+    await requireCan(data.tree, 'manage-access');
+    if (!(await s.setShareProtectLiving(data.tree, data.protectLiving))) throw fail(new AuthError('invalid', 'share.err_no_link'));
   });
 
 /** Turns the link off: it stops working, and everyone looking around through it is sent away. */

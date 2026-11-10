@@ -9,9 +9,13 @@ import { forbidden } from './auth/errors';
 import { db, guard, media, once, personExists, q, type Db, type OpKey } from './db.server';
 import { DOCUMENT_EXT, mayChangeResearch, seesPrivateResearch, type DocumentMime, type PersonResearchLink, type ProjectSummary, type ProjectView, type ResearchDocument, type ResearchNote } from './research.ts';
 import { can, type Role } from './roles.ts';
+import { LIVING_IDS } from './protect-living.ts';
 
-/** Who is asking, as the guard established. */
-export interface Who { id: string; name: string; role: Role }
+/**
+ * Who is asking, as the guard established. `protectLiving` is set for a guest whose link protects living people: a project
+ * that names a living person is then not there for them at all, documents, notes and files included (src/lib/protect-living.ts).
+ */
+export interface Who { id: string; name: string; role: Role; protectLiving?: boolean }
 
 interface ProjectRow {
   id: string; title: string; summary: string; private: number; created_by: string; created_by_name: string; updated_at: string;
@@ -19,6 +23,9 @@ interface ProjectRow {
 
 const now = () => new Date().toISOString();
 const privateFilter = (see: boolean, alias = '') => (see ? '' : `AND ${alias}private = 0`);
+/** Leaves out every project that names a living person, privately or not, when the reader's link protects the living. */
+const livingFilter = (protect: boolean | undefined, project: string) =>
+  (protect ? `AND NOT EXISTS (SELECT 1 FROM research_person lp WHERE lp.project = ${project} AND lp.person IN (${LIVING_IDS}))` : '');
 
 const needs = (who: Who, action: 'add-research' | 'edit-research') => {
   if (!can(who.role, action)) throw fail(forbidden(action, action === 'add-research' ? 'contributor' : 'editor'));
@@ -56,7 +63,7 @@ export async function listProjects(tree: string, who: Who): Promise<ProjectSumma
        (SELECT count(*) FROM research_person x WHERE x.project = p.id ${privateFilter(see, 'x.')}) AS people,
        (SELECT count(*) FROM research_place x WHERE x.project = p.id) AS places
      FROM research_project p
-     WHERE 1 = 1 ${privateFilter(see, 'p.')}
+     WHERE 1 = 1 ${privateFilter(see, 'p.')} ${livingFilter(who.protectLiving, 'p.id')}
      ORDER BY p.updated_at DESC, p.id`,
   );
   return rows.map((r) => ({
@@ -69,7 +76,7 @@ export async function listProjects(tree: string, who: Who): Promise<ProjectSumma
 export async function projectView(tree: string, id: string, who: Who): Promise<ProjectView | undefined> {
   const d = db(tree);
   const see = seesPrivateResearch(who.role);
-  const p = await d.get<ProjectRow>(`SELECT * FROM research_project WHERE id = ? ${privateFilter(see)}`, id);
+  const p = await d.get<ProjectRow>(`SELECT * FROM research_project WHERE id = ? ${privateFilter(see)} ${livingFilter(who.protectLiving, 'research_project.id')}`, id);
   if (!p) return undefined;
   const [documents, notes, pictures, people, places] = await Promise.all([
     d.all<Record<string, never> & DocumentRow>(`SELECT * FROM research_document WHERE project = ? ${privateFilter(see)} ORDER BY coalesce(date, '9999'), created_at, id`, id),
@@ -96,19 +103,19 @@ export async function personResearch(tree: string, person: string, who: Who): Pr
   const see = seesPrivateResearch(who.role);
   const rows = await db(tree).all<{ id: string; title: string; private: number }>(
     `SELECT p.id, p.title, p.private FROM research_person l JOIN research_project p ON p.id = l.project
-     WHERE l.person = ? ${privateFilter(see, 'l.')} ${privateFilter(see, 'p.')} ORDER BY p.updated_at DESC, p.id`,
+     WHERE l.person = ? ${privateFilter(see, 'l.')} ${privateFilter(see, 'p.')} ${livingFilter(who.protectLiving, 'p.id')} ORDER BY p.updated_at DESC, p.id`,
     person,
   );
   return rows.map((r) => ({ id: r.id, title: r.title, private: r.private === 1 }));
 }
 
-/** What the file route may serve: the document, if the reader may see it and its project. */
-export async function documentFile(tree: string, key: string, role: Role | null | undefined): Promise<{ mime: DocumentMime; title: string; private: boolean } | undefined> {
+/** What the file route may serve: the document, if the reader may see it and its project (`protectLiving` as in `Who`). */
+export async function documentFile(tree: string, key: string, role: Role | null | undefined, protectLiving = false): Promise<{ mime: DocumentMime; title: string; private: boolean } | undefined> {
   const see = seesPrivateResearch(role);
   const r = await db(tree).get<{ mime: DocumentMime; title: string; doc_private: number; project_private: number }>(
     `SELECT d.mime, d.title, d.private AS doc_private, p.private AS project_private
      FROM research_document d JOIN research_project p ON p.id = d.project
-     WHERE d.key = ? ${privateFilter(see, 'd.')} ${privateFilter(see, 'p.')}`,
+     WHERE d.key = ? ${privateFilter(see, 'd.')} ${privateFilter(see, 'p.')} ${livingFilter(protectLiving, 'p.id')}`,
     key,
   );
   return r ? { mime: r.mime, title: r.title, private: r.doc_private === 1 || r.project_private === 1 } : undefined;

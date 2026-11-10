@@ -25,7 +25,7 @@ const partialDate = z.string().max(11).refine((s) => s === '' || validDate(s), '
 const text = (max: number) => z.string().trim().max(max);
 const title = z.string().trim().min(1, 'research.err.title_required').max(200);
 
-const whoOf = (m: Member | Reader): Who => ({ id: m.user?.id ?? '', name: m.user?.name ?? '', role: m.role });
+const whoOf = (m: Member | Reader): Who => ({ id: m.user?.id ?? '', name: m.user?.name ?? '', role: m.role, protectLiving: 'protectLiving' in m && m.protectLiving });
 
 /** The retry key for a change, bound to who sends it and to everything else they sent (see db.server.ts `once`). */
 function opOf<D extends { opKey?: string }>(m: Member, data: D) {
