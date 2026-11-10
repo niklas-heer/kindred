@@ -42,6 +42,8 @@ export const COPIED_TABLES: readonly string[] = [
   // copied: a comment keeps the name it was written under, and a reaction still counts, though nobody on the target owns it.
   'reaction',
   'comment',
+  'today_week', // the weeks a steward asked their own question of the week, or none (migration 0028)
+  'today_answer', // which week's question a memory answers, after story
 ];
 
 /**
@@ -67,6 +69,11 @@ export const LEFT_OUT_TABLES: Record<string, string> = {
   // would have no one to show them to. The target starts its own history.
   history: 'the change history, which names accounts; the target starts its own',
   response_push: 'members\' choice of a push about answers to what they wrote, keyed by account ids, which are not copied',
+  // The daily quiz (migration 0028) is a game too: its answers are keyed by account ids, which are not copied, and a day's
+  // question is drawn again from the records on the target. The quiz starts switched on there, as in a new family.
+  today_settings: 'the switch for the daily quiz; the target starts with the quiz on',
+  quiz_day: 'the quiz questions already drawn; the target draws its own from the records',
+  quiz_answer: 'the quiz answers and streaks, keyed by account ids, which are not copied',
 };
 
 /**

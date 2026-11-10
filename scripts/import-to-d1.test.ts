@@ -32,7 +32,7 @@ test('every table the current schema has is decided: copied, or left out on purp
   const present = tablesOf(d);
   const plan = T.planTables(present);
   assert.deepEqual(plan.copy, [...T.COPIED_TABLES], 'the copy list, in order');
-  assert.deepEqual(plan.leftOut, ['ancestry_rev', 'campaign', 'campaign_log', 'campaign_member', 'campaign_push', 'campaign_season', 'd1_migrations', 'history', 'op', 'response_push'], 'bookkeeping, the game, the history and the push choices are left out on purpose');
+  assert.deepEqual(plan.leftOut, ['ancestry_rev', 'campaign', 'campaign_log', 'campaign_member', 'campaign_push', 'campaign_season', 'd1_migrations', 'history', 'op', 'quiz_answer', 'quiz_day', 'response_push', 'today_settings'], 'bookkeeping, the games, the history and the push choices are left out on purpose');
   for (const t of ['person_field', 'house_succession', 'album', 'media', 'media_person', 'occupation_translation']) {
     assert.ok(plan.copy.includes(t), `${t} is copied`);
   }
@@ -108,6 +108,8 @@ function populatedFamily(name: string): DatabaseSync {
     INSERT INTO reaction (target_kind, target, account, kind, created_at) VALUES ('story', 's1', 'u1', 'remember', '${now}'), ('media', 'gallery/g1.jpg', 'u1', 'heart', '${now}');
     INSERT INTO comment (id, target_kind, target, account, author_name, body, created_at, edited_at) VALUES ('c1', 'story', 's1', 'u1', 'Ben', 'I was ''there''
 and so was Ada', '${now}', NULL);
+    INSERT INTO today_week (week, skipped, question, updated_at) VALUES ('2026-W46', 0, 'What did the mill sound like?', '${now}');
+    INSERT INTO today_answer (story, week, question) SELECT id, '2026-W46', 'custom' FROM story LIMIT 1;
   `);
   return d;
 }

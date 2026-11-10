@@ -65,6 +65,7 @@ Stamboom (the phone tab says „Boom“).
 | `access` | Sign-in, passkeys, invitations, roles, the account menu, not-found and no-access states |
 | `setup` | First-time setup of a server |
 | `tour` | The guided tour: the first-run offer, the card's buttons and each step's words (`tour.*`) |
+| `today`, `today-questions` | Today: the page, its cards, the quiz and the stewards' switch (`today.*`); the sixty questions of the week (`today.q.*`) |
 | `campaign` | The Campaign: the game between the houses, its practice skirmish, the Today card and the stewards' Games page (`campaign.*`) |
 | `history` | The change history: the History page, a person's history, "What's new" and the weekly push (`history.*`) |
 | `atlas`, `almanac`, `chronicle`, `contacts`, `needed` | Empty until the translation sweep moves those pages' text here |
