@@ -12,7 +12,12 @@
 
 .acct-trigger { height: 40px; padding: 0 8px 0 5px; gap: 8px; border-radius: 999px; }
 .acct-trigger-name { max-width: 14ch; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-3); }
-@media (max-width: 1600px) { .acct-trigger-name { display: none; } .acct-trigger { width: 40px; padding: 0; justify-content: center; } }
+/* Below this width the name is not shown, but it stays the button's name for a screen reader: hidden with display:none,
+   a dot's label ("3 new changes") became the whole name of the button for an account with no portrait. */
+@media (max-width: 1600px) {
+  .acct-trigger-name { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; max-width: none; }
+  .acct-trigger { width: 40px; padding: 0; justify-content: center; }
+}
 @media (max-width: 760px) { .acct-trigger { width: 44px; height: 44px; flex: none; } }
 
 .acct-menu {

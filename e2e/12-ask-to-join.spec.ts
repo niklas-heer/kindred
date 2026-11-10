@@ -71,6 +71,11 @@ test('ask to join: guest asks with a passkey, steward approves, new member signs
   await yes.getByRole('button', { name: 'Sign in with your passkey' }).click();
   await guest.waitForURL(new RegExp(`/${tree}$`));
   await settled(guest);
+  // They said they are not in the tree yet, so as a member they are asked who they are, like anyone new.
+  const who = guest.getByRole('dialog', { name: /Who are you/ });
+  await expect(who).toBeVisible();
+  await who.getByRole('button', { name: 'Just browsing' }).click();
+  await expect(who).toBeHidden();
   await expect(guest.getByRole('button', { name: new RegExp(NEWCOMER) }).first()).toBeVisible();
   await expect(guest.getByText('Guest', { exact: true })).toHaveCount(0);
 

@@ -46,7 +46,9 @@ function collector(): Issues {
         if (m.type() === 'error' || HYDRATION.test(text)) add(`[console.${m.type()}] ${text}${m.location().url ? ` (${m.location().url})` : ''}`);
       });
       context.on('weberror', (e) => {
-        const text = `[uncaught] ${e.error().stack ?? e.error().message}`;
+        const err = e.error();
+        // An error thrown with no message (a cancelled request, for one) still says its kind and its page.
+        const text = `[uncaught] ${err.stack || err.message || `${err.name || 'a thrown value'} with no message`}${err.stack || err.message ? '' : ` on ${e.page()?.url() ?? 'a closed page'}`}`;
         add(text);
         if (HYDRATION.test(text) || /React error #4(18|23|25)/.test(text)) pending.push(whereItDiffers(e.page()).then((d) => { if (d) add(d); }));
       });

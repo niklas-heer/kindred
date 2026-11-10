@@ -17,6 +17,16 @@ function cspNonce(): string | undefined {
   }
 }
 
+// A page change crossfades (defaultViewTransition below). When the window is resized or a phone is turned while one runs,
+// the browser gives the transition up and rejects a promise only the router holds. The page has changed all the same, so
+// this is not an error: without this it reaches the console and the client error log as an unhandled rejection.
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (e) => {
+    const reason = e.reason as { name?: string; message?: string } | undefined;
+    if (reason?.name === 'InvalidStateError' && /^Transition was (aborted|skipped)/.test(reason.message ?? '')) e.preventDefault();
+  });
+}
+
 export function getRouter() {
   const nonce = cspNonce();
   const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } });
