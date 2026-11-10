@@ -15,6 +15,11 @@ import '~/styles/gallery.css';
 import { useDealt } from '~/lib/dealt';
 
 export const Route = createFileRoute('/$tree/gallery')({
+  // The page's own query, fetched before it renders, so the server sends the photos rather than an empty gallery. Every
+  // reader of the family may see it, the family's guest included; a failure is the page's to show.
+  loader: async ({ context: { queryClient }, params: { tree } }) => {
+    await queryClient.prefetchQuery(galleryQuery(tree));
+  },
   head: (ctx) => ({ meta: [{ title: treeTitle(ctx, translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'gallery.title')) }] }),
   component: GalleryPage,
 });

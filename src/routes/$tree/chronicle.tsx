@@ -22,6 +22,12 @@ import { storyTranslationsQuery } from '~/lib/ai/background.functions';
 import '~/components/assistant/ai-tasks.css';
 
 export const Route = createFileRoute('/$tree/chronicle')({
+  // The same queries the page runs, fetched before it renders: on the server, so the first page shows the stories rather
+  // than a placeholder, and on a client navigation, while the link is hovered. Every reader of the family may read them
+  // (the layout's beforeLoad has let only members and the family's guest this far). A failure is the page's to show.
+  loader: async ({ context: { queryClient, locale }, params: { tree } }) => {
+    await Promise.all([queryClient.prefetchQuery(chronicleQuery(tree)), queryClient.prefetchQuery(storyTranslationsQuery(tree, locale))]);
+  },
   head: (ctx) => ({ meta: [{ title: treeTitle(ctx, translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'chronicle.title')) }] }),
   component: ChroniclePage,
 });
