@@ -276,6 +276,8 @@ const OPTIONAL: Record<string, (r: R) => boolean> = {
 
 const ROW = 46;
 const HEAD = 40;
+/** The phone list's rows whose drawings the server sends: about one screenful. */
+const MOBILE_EAGER = 12;
 
 // ---------- page ----------
 
@@ -439,8 +441,9 @@ function RegisterPage() {
 
         <div className={`reg-mobile ${dealt}`}>
           {rows.length === 0 && (none ? <NoPeopleYet tree={tree} canAdd={canAdd} /> : <EmptyState title={t('con.noMatchTitle')} text={t('people.tryFewer')} action={<button className="btn" onClick={reset}>{t('con.clearFilters')}</button>} />)}
-          {rows.slice(0, mobileLimit).map(({ original: r }) => <details className="reg-mobile-person ui-card" key={r.id}>
-            <summary><Portrait person={r.p} tree={tree} size={42} /><span><b>{r.base}</b>{r.p.epithet && <i>{r.p.epithet}</i>}<small>{short(r.p.born, locale) || t('people.birthUnknown')} · {r.p.living ? t('panel.living') : short(r.p.died, locale) || t('people.deathUnknown')}</small>{r.rel && <small>{r.rel === 'you' ? t('people.youCap') : r.kin && yourKinship(r.kin, locale, { capital: true })}</small>}</span></summary>
+          {/* Only the first screenful's drawings are in the server's HTML; the rest arrive after hydration (Portrait's defer). */}
+          {rows.slice(0, mobileLimit).map(({ original: r }, i) => <details className="reg-mobile-person ui-card" key={r.id}>
+            <summary><Portrait person={r.p} tree={tree} size={42} defer={i >= MOBILE_EAGER} /><span><b>{r.base}</b>{r.p.epithet && <i>{r.p.epithet}</i>}<small>{short(r.p.born, locale) || t('people.birthUnknown')} · {r.p.living ? t('panel.living') : short(r.p.died, locale) || t('people.deathUnknown')}</small>{r.rel && <small>{r.rel === 'you' ? t('people.youCap') : r.kin && yourKinship(r.kin, locale, { capital: true })}</small>}</span></summary>
             <div className="reg-mobile-detail">{r.house && <Link className="reg-house" to="/$tree/house/$house" params={{ tree, house: r.house.id }}><Arms arms={r.house.arms} size={18} /><span>{r.house.name}</span></Link>}{r.role && <p>{r.role}</p>}<Link className="btn" to="/$tree" params={{ tree }} search={{ focus: r.id }}>{t('people.openPerson')}</Link></div>
           </details>)}
           {rows.length > mobileLimit && <button className="btn" onClick={() => setMobileLimit((n) => n + 100)}>{t('people.showMorePeople', { count: Math.min(100, rows.length - mobileLimit) })}</button>}

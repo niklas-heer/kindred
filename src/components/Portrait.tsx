@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, type CSSProperties } from 'react';
+import { useEffect, useSyncExternalStore, type CSSProperties } from 'react';
 import { graphQuery } from '~/lib/api';
 import type { GPerson, Graph, House, Look } from '~/lib/types';
 import { CHARGE_ICONS, type ChargeIconName } from './charges.gen';
@@ -50,6 +50,12 @@ export function faceSrc(person: GPerson, tree: string, house: House | undefined,
   return drawingUri(person, house, detail, age);
 }
 
+const noSubscription = () => () => {};
+/** False on the server and in the render that hydrates its HTML, true from then on (and at once for anything mounted later). */
+function useHydrated(): boolean {
+  return useSyncExternalStore(noSubscription, () => true, () => false);
+}
+
 /**
  * A person's portrait: their photo, or a generated likeness (portrait/avatar.ts) aged and dressed for
  * the moment shown, on a roundel of their house's tincture. Photo and drawing share the frame, and
@@ -66,6 +72,7 @@ export function Portrait({
   age,
   mourn = true,
   decorative = false,
+  defer = false,
 }: {
   person: GPerson;
   tree: string;
@@ -83,6 +90,11 @@ export function Portrait({
   mourn?: boolean;
   /** True when the name is already written beside the picture, so it is not announced twice. */
   decorative?: boolean;
+  /**
+   * True for a portrait far down a long list: a drawing is about 6 kB of inline SVG in the server's HTML, so the server and
+   * the hydrating render show the empty frame (the same size, in the house's colour) and the drawing follows at once after.
+   */
+  defer?: boolean;
 }) {
   useEffect(ensurePortraitDefs, []);
   const house = useHouse(person, tree, givenHouse);
@@ -94,7 +106,8 @@ export function Portrait({
   const pictured = photo || painted;
   // A drawing wears its crown on its head; a photo or a painting gets the badge on the frame instead.
   const badge = pictured && headwear && HEADWEAR_ICON[headwear] ? CHARGE_ICONS[HEADWEAR_ICON[headwear]] : null;
-  const src = faceSrc(person, tree, house, which, detail, age);
+  const hydrated = useHydrated();
+  const src = defer && !pictured && !hydrated ? null : faceSrc(person, tree, house, which, detail, age);
   const name = [person.given, person.surname].filter(Boolean).join(' ');
 
   const cls = ['portrait', frame ? 'is-framed' : 'is-bare', `is-${detail}`].join(' ');
@@ -105,7 +118,11 @@ export function Portrait({
     <span className={cls} style={style}>
       <span className="portrait-mat">
         <span className={face}>
-          <img className={painted ? 'portrait-img is-painted' : 'portrait-img'} src={src} alt={decorative ? '' : name} loading={pictured ? 'lazy' : undefined} decoding="async" draggable={false} />
+          {src === null ? (
+            <span className="portrait-img" role={decorative ? undefined : 'img'} aria-label={decorative ? undefined : name} />
+          ) : (
+            <img className={painted ? 'portrait-img is-painted' : 'portrait-img'} src={src} alt={decorative ? '' : name} loading={pictured ? 'lazy' : undefined} decoding="async" draggable={false} />
+          )}
         </span>
       </span>
       {badge ? (
