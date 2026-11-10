@@ -847,7 +847,9 @@ function WorldMap({ places, weight, pins, arcs, selected, onSelect, rings, heral
       ref={host}
       className="atlas-canvas"
       onPointerDown={(e) => {
-        if ((e.target as Element).closest('.pin')) return;
+        // A pin, or a button drawn over the map ("Show all"), is not the start of a drag: capturing the pointer here would
+        // send its click to the map instead, so the button would do nothing.
+        if ((e.target as Element).closest('.pin, button, a')) return;
         touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
         if (touches.current.size === 2) {
           const [a, b] = [...touches.current.values()];
