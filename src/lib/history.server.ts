@@ -409,45 +409,31 @@ export async function whatsNew(d: Db, a: Audience, since: number, first = false)
   };
 }
 
-/** Whether the family's database has a table (the comments come with another change and may not be there yet). */
-async function hasTable(d: Db, name: string): Promise<boolean> {
-  return !!(await d.get("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", name).catch(() => undefined));
-}
-
 /**
  * Comments and reactions since `since` on what this account wrote: the stories it added (by its history rows, or by its
- * name for stories older than history) and the photos it uploaded. Reads the `comment` and `reaction` tables only when the
- * family's database has them; without them, nothing. A reader's own comments and reactions are not news to them.
+ * name for stories older than history) and the photos it uploaded. A reader's own comments and reactions are not news
+ * to them. `created_at` is ISO text in both tables (tree migration 0027).
  */
 export async function repliesTo(d: Db, account: string, since: number): Promise<WhatsNewReply[]> {
-  const [hasComments, hasReactions] = await Promise.all([hasTable(d, 'comment'), hasTable(d, 'reaction')]);
-  if (!hasComments && !hasReactions) return [];
-  // `created_at` may be text (ISO) or a number (milliseconds): compare each as what it is.
-  const after = "(CASE typeof(x.created_at) WHEN 'text' THEN x.created_at > ? ELSE x.created_at > ? END)";
   const mine = `((x.target_kind = 'media' AND x.target IN (SELECT key FROM media WHERE uploaded_by = ?))
     OR (x.target_kind = 'story' AND (x.target IN (SELECT id FROM story WHERE author_account = ?)
       OR x.target IN (SELECT record FROM history WHERE kind = 'story' AND action = 'added' AND account = ?))))`;
-  const out: WhatsNewReply[] = [];
-  try {
-    if (hasComments) {
-      const rows = await d.all<{ target_kind: 'story' | 'media'; target: string; author: string; n: number }>(
-        `SELECT x.target_kind, x.target, max(x.author_name) AS author, count(*) AS n FROM comment x
-         WHERE x.account IS NOT ? AND ${after} AND ${mine} GROUP BY x.target_kind, x.target LIMIT 50`,
-        account, iso(since), since, account, account, account,
-      );
-      for (const r of rows) out.push({ kind: 'comment', target: r.target_kind, id: r.target, label: null, person: null, author: r.author ?? '', count: r.n });
-    }
-    if (hasReactions) {
-      const rows = await d.all<{ target_kind: 'story' | 'media'; target: string; n: number }>(
-        `SELECT x.target_kind, x.target, count(*) AS n FROM reaction x
-         WHERE x.account IS NOT ? AND ${after} AND ${mine} GROUP BY x.target_kind, x.target LIMIT 50`,
-        account, iso(since), since, account, account, account,
-      );
-      for (const r of rows) out.push({ kind: 'reaction', target: r.target_kind, id: r.target, label: null, person: null, author: '', count: r.n });
-    }
-  } catch {
-    return [];
-  }
+  const after = iso(since);
+  const [comments, reactions] = (await d.readBatch([
+    q(`SELECT x.target_kind, x.target, max(x.author_name) AS author, count(*) AS n FROM comment x
+       WHERE x.account IS NOT ? AND x.created_at > ? AND ${mine} GROUP BY x.target_kind, x.target LIMIT 50`,
+      account, after, account, account, account),
+    q(`SELECT x.target_kind, x.target, count(*) AS n FROM reaction x
+       WHERE x.account IS NOT ? AND x.created_at > ? AND ${mine} GROUP BY x.target_kind, x.target LIMIT 50`,
+      account, after, account, account, account),
+  ])) as [
+    { target_kind: 'story' | 'media'; target: string; author: string | null; n: number }[],
+    { target_kind: 'story' | 'media'; target: string; n: number }[],
+  ];
+  const out: WhatsNewReply[] = [
+    ...comments.map((r): WhatsNewReply => ({ kind: 'comment', target: r.target_kind, id: r.target, label: null, person: null, author: r.author ?? '', count: r.n })),
+    ...reactions.map((r): WhatsNewReply => ({ kind: 'reaction', target: r.target_kind, id: r.target, label: null, person: null, author: '', count: r.n })),
+  ];
   if (!out.length) return out;
   const stories = out.filter((r) => r.target === 'story').map((r) => r.id);
   const photos = out.filter((r) => r.target === 'media').map((r) => r.id);
