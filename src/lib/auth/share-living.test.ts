@@ -79,12 +79,12 @@ const WEDDING = `2010-${MD}`;
 const WITHHELD = [
   KID_BORN, 'Quillbridge', 'Pupil-of-Wrenhall', 'KID-BIO-TEXT', 'kid-trait-xq', 'KID-STORY-TEXT', 'KID-STORY-DE', 'KID-PHONE-0000',
   'KID-PROJECT-TITLE', 'KID-RESEARCH-NOTE', 'KID-DOC-TITLE',
-  '1985-02-02', 'Marrowfield', WEDDING, 'Weddingham', 'Isolde-Bio',
+  '1985-02-02', 'Marrowfield', WEDDING, 'Weddingham', 'Isolde-Bio', 'KID-EVENT-SCHOOL', 'Schoolbury',
   // A picture the child is in, tagged or only suggested: its caption, date and place.
   'KID-CAPTION-TEXT', '2016-07-07', 'Picnicford', 'SUGGESTED-CAPTION-TEXT', '2017-08-08', 'Suggestedholm',
 ];
 /** What the same guest still gets: the dead as they were, and the names of the living. */
-const KEPT = ['1920-05-05', 'Oldhaven', 'GRAN-STORY-TEXT', 'GRAN-PROJECT-TITLE', 'Wren', 'Fernsby', 'GRAN-CAPTION-TEXT', '1950-06-06', 'Gransby'];
+const KEPT = ['1920-05-05', 'Oldhaven', 'GRAN-STORY-TEXT', 'GRAN-PROJECT-TITLE', 'Wren', 'Fernsby', 'GRAN-CAPTION-TEXT', '1950-06-06', 'Gransby', 'GRAN-EVENT-CHAPEL', 'Graveston'];
 
 const KID_DOC = '00000000-0000-4000-8000-00000000d0c1.pdf';
 const GRAN_DOC = '00000000-0000-4000-8000-00000000d0c2.pdf';
@@ -115,7 +115,10 @@ before(async () => {
   await person('elder', 'Bramwell', 0, '1890-01-01', 'Oldhaven');
   for (const [child, parent] of [['kid', 'mum'], ['kid', 'dad'], ['mum', 'gran']]) await d.run('INSERT INTO parent (child, parent) VALUES (?, ?)', child, parent);
   await d.run("INSERT INTO partnership (id, a, b, kind, start, place) VALUES ('u1', 'mum', 'dad', 'marriage', ?, 'Weddingham')", WEDDING);
-  for (const [name, lat] of [['Quillbridge', 10], ['Marrowfield', 11], ['Weddingham', 12], ['Oldhaven', 13]] as const) await d.run('INSERT INTO place (name, lat, lng) VALUES (?, ?, 0)', name, lat);
+  // Life events (migration 0024): the child's school, in a town only it names, and the grandmother's burial.
+  await d.run("INSERT INTO life_event (id, person, type, label, date, place, created_at, updated_at) VALUES ('e-kid', 'kid', 'education', 'KID-EVENT-SCHOOL', '2021', 'Schoolbury', '2026', '2026')");
+  await d.run("INSERT INTO life_event (id, person, type, label, date, place, created_at, updated_at) VALUES ('e-gran', 'gran', 'burial', 'GRAN-EVENT-CHAPEL', '1999-09-12', 'Graveston', '2026', '2026')");
+  for (const [name, lat] of [['Quillbridge', 10], ['Marrowfield', 11], ['Weddingham', 12], ['Oldhaven', 13], ['Schoolbury', 14], ['Graveston', 15]] as const) await d.run('INSERT INTO place (name, lat, lng) VALUES (?, ?, 0)', name, lat);
   await d.run("INSERT INTO story (id, person, kind, body, author, at) VALUES ('s-kid', 'kid', 'memory', 'KID-STORY-TEXT', 'x', '2026-01-02')");
   await d.run("INSERT INTO story (id, person, kind, body, author, at) VALUES ('s-gran', 'gran', 'memory', 'GRAN-STORY-TEXT', 'x', '2026-01-01')");
   for (const [story, body, translated] of [['s-kid', 'KID-STORY-TEXT', 'KID-STORY-DE'], ['s-gran', 'GRAN-STORY-TEXT', 'GRAN-STORY-DE']]) {
@@ -190,6 +193,7 @@ async function everyServerFn() {
 const ANSWERS_A_GUEST = new Set([
   'getGraph', 'getChronicle', 'getContacts', 'getPersonDetail', 'getResearchProjects', 'getResearchProject', 'getPersonResearch',
   'getHouseMeanings', 'getHouseTranslations', 'getHouseSettings', 'storyTranslations', 'getGallery', 'getPersonPhotos', 'aiStatus',
+  'getPersonEvents', 'getEventPlaces',
   'fetchSession', 'fetchMyFamilies', 'fetchInvite', 'fetchShareEntry', 'openShareLink', 'leaveGuestVisit', 'fetchRemindersAvailable', 'forgetThisDevice',
   // "Ask to join": a guest's own request and what it would send, never another person's data (join.test.ts).
   'fetchJoinState', 'fetchJoinPreview', 'joinOptions', 'sendJoinRequest',
@@ -227,7 +231,7 @@ test('no server function gives a protected guest anything the protection withhol
 test('the control: with the setting off, the same guest gets what it got before', async () => {
   const answered = await askEverything(false);
   const all = [...answered.values()].join('');
-  for (const shown of [KID_BORN, 'Quillbridge', 'KID-STORY-TEXT', 'KID-STORY-DE', 'KID-PROJECT-TITLE', 'KID-RESEARCH-NOTE', WEDDING, 'Weddingham', 'KID-CAPTION-TEXT', 'Picnicford']) {
+  for (const shown of [KID_BORN, 'Quillbridge', 'KID-STORY-TEXT', 'KID-STORY-DE', 'KID-PROJECT-TITLE', 'KID-RESEARCH-NOTE', WEDDING, 'Weddingham', 'KID-CAPTION-TEXT', 'Picnicford', 'KID-EVENT-SCHOOL', 'Schoolbury']) {
     assert.ok(all.includes(shown), `an unprotected guest still gets "${shown}"`);
   }
   assert.ok(!all.includes('KID-PHONE-0000'), 'and still no fields at all');
