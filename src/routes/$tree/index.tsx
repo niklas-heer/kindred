@@ -1,25 +1,22 @@
 import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router';
 import { ArrowDownToLine, ArrowLeft, ArrowUpToLine, ChevronUp, ChevronsDownUp, ChevronsUpDown, Crown, FileQuestion, GitFork, Glasses, HeartPulse, Keyboard, Landmark, Network, Route as RouteIcon, Shield, SlidersHorizontal, Users, Waypoints, X } from 'lucide-react';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Canvas, type CanvasHandle, type Detail, type Inset } from '~/components/Canvas';
 import { Card, type AddRelation } from '~/components/Card';
 import { PersonPanel } from '~/components/PersonPanel';
 import { Portrait } from '~/components/Portrait';
 import { QuickAdd } from '~/components/QuickAdd';
 import { useFamily, useMe, useMeChosen } from '~/lib/family';
-import { Dialog, Select, usePageHotkey, type SelectOption } from '~/components/ui';
-import { ancestorDepths, displayName, houseMembers, kinship, lifespan, parents, children, nameModeKey, type Kinship, type NameMode } from '~/lib/graph';
-import { birthdaysOn, foldAllBut, houseRoot, lensMembers, rowMark, rowNeighbour, toggled } from '~/lib/tree-view';
+import { Dialog, Select, type SelectOption } from '~/components/ui';
+import { displayName, houseMembers, kinship, lifespan, parents, children } from '~/lib/graph';
+import { foldAllBut, houseRoot, lensMembers, rowMark, rowNeighbour, toggled } from '~/lib/tree-view';
 import { selectionAnnouncement } from '~/lib/card-label';
 import { layout as computeLayout, rootFor, type LNode, type View } from '~/lib/layout';
 import { setPref, usePref } from '~/lib/prefs';
 import { openingView, treeSearch } from '~/lib/tree-search';
 import { gapsOf, useRequired } from '~/lib/gaps';
-import { removePerson } from '~/lib/api';
-import { useQueryClient } from '@tanstack/react-query';
 import { play } from '~/lib/sfx';
-import { toast } from '~/lib/toast';
-import { formatNumber, kinshipLabel, yourKinship, translateMessage, useT, type Key, type Vars } from '~/lib/i18n';
+import { formatNumber, kinshipLabel, yourKinship, useT } from '~/lib/i18n';
 import { Arms } from '~/components/Heraldry';
 import { personName, treeTitle } from '~/lib/title';
 import { useCan } from '~/lib/session';
@@ -29,6 +26,15 @@ import { DisplayChoices } from '~/components/tree/DisplayChoices';
 import { EmptyTree } from '~/components/tree/EmptyTree';
 import { HelpCard } from '~/components/tree/HelpCard';
 import { Stepper } from '~/components/tree/Stepper';
+import { useAddedNotice } from '~/components/tree/useAddedNotice';
+import { useBirthdayToast } from '~/components/tree/useBirthdayToast';
+import { useBottomSheet, useSheetFocus } from '~/components/tree/useBottomSheet';
+import { useCardDisplay } from '~/components/tree/useCardDisplay';
+import { useHud, useToolbarFit } from '~/components/tree/useHud';
+import { useKinLabels } from '~/components/tree/useKinLabels';
+import { useMedia } from '~/components/tree/useMedia';
+import { useStaleLinks } from '~/components/tree/useStaleLinks';
+import { useTreeHotkeys } from '~/components/tree/useTreeHotkeys';
 import '~/styles/tree.css';
 
 export const Route = createFileRoute('/$tree/')({
@@ -48,9 +54,6 @@ export const Route = createFileRoute('/$tree/')({
 
 /** Phones and narrow tablets: the panel becomes a bottom sheet and the toolbar compacts. */
 const PHONE = '(max-width: 900px)';
-type Snap = 'peek' | 'half' | 'full';
-/** Peek height of the bottom sheet: its grip, a small portrait, the name and the life dates. */
-const PEEK_H = 76; // matches .panel-sheet[data-snap='peek'] in tree.css
 
 function TreePage() {
   const { tree } = Route.useParams();
@@ -60,7 +63,6 @@ function TreePage() {
   const me = useMe();
   // Who the reader said they are; kinship labels wait for this.
   const who = useMeChosen();
-  const qc = useQueryClient();
   const codex = f.graph.tree.theme === 'codex';
   // Adding from the tree (the + marks, empty parent slots) and its Undo need these roles; the server checks too.
   const canAdd = useCan('add-person');
@@ -71,23 +73,8 @@ function TreePage() {
   const focus = search.focus && f.byId.has(search.focus) ? search.focus : me;
   const sel = search.sel && f.byId.has(search.sel) ? search.sel : focus;
 
-  // Someone in the URL who isn't in this tree (a stale link, a typo): say so once and tidy the URL.
-  // People who were here a moment ago (removed with Undo) are dropped quietly.
-  const known = useRef(new Set<string>());
-  for (const p of f.graph.people) known.current.add(p.id);
-  const told = useRef('');
   const t = useT();
-  useEffect(() => {
-    const stale = (['focus', 'sel', 'root', 'to'] as const).filter((k) => search[k] && !f.byId.has(search[k]!));
-    if (!stale.length) return;
-    const unseen = stale.some((k) => !known.current.has(search[k]!));
-    navigate({ search: (s) => ({ ...s, ...Object.fromEntries(stale.map((k) => [k, undefined])) }), replace: true });
-    // Once per stale link, even if the effect runs again before the URL is tidied.
-    const key = stale.map((k) => search[k]).join('|');
-    if (told.current === key) return;
-    told.current = key;
-    if (unseen) toast({ title: t('tp.toastStale'), body: t('tp.toastStaleBody'), ms: 6000 });
-  }, [search.focus, search.sel, search.root, search.to, f]); // eslint-disable-line react-hooks/exhaustive-deps
+  useStaleLinks(search, f, (stale) => navigate({ search: (s) => ({ ...s, ...Object.fromEntries(stale.map((k) => [k, undefined])) }), replace: true }));
   // The opening view follows the reader and the family, never the theme: the view this reader last chose here, else
   // Family, which suits one person as well as a thousand. A link that names a view wins over both.
   const lastView = usePref(`view:${tree}`);
@@ -98,31 +85,7 @@ function TreePage() {
   const down = search.down ?? 2;
   const lens = search.lens ?? 'none';
 
-  const [nameMode, setNameMode] = useState<NameMode>('full');
-  const [ageMode, setAgeMode] = useState<'living' | 'all' | 'off'>('living');
-  useEffect(() => {
-    const read = () => {
-      try {
-        const names = localStorage.getItem(nameModeKey(tree));
-        setNameMode(names === 'nickname' || names === 'first' ? names : 'full');
-        const ages = localStorage.getItem(`kindred:${tree}:ages`);
-        setAgeMode(ages === 'all' || ages === 'off' ? ages : 'living');
-      } catch { /* Storage can be unavailable in private browsing. */ }
-    };
-    read();
-    addEventListener('storage', read);
-    addEventListener('kindred:names', read);
-    return () => { removeEventListener('storage', read); removeEventListener('kindred:names', read); };
-  }, [tree]);
-  const changeNameMode = (mode: NameMode) => {
-    setNameMode(mode);
-    try { localStorage.setItem(nameModeKey(tree), mode); } catch {}
-    dispatchEvent(new Event('kindred:names'));
-  };
-  const changeAgeMode = (mode: 'living' | 'all' | 'off') => {
-    setAgeMode(mode);
-    try { localStorage.setItem(`kindred:${tree}:ages`, mode); } catch {}
-  };
+  const { nameMode, ageMode, changeNameMode, changeAgeMode } = useCardDisplay(tree);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [panel, setPanel] = useState(true);
@@ -150,21 +113,8 @@ function TreePage() {
   }, []);
 
   // ---- phone: the panel is a bottom sheet (peek, half, full) over the tree ----
-  const [snap, setSnap] = useState<Snap>('peek');
   const page = useRef<HTMLDivElement>(null);
-  const sheet = useRef<HTMLDivElement>(null);
-  const [pageH, setPageH] = useState(700);
-  useEffect(() => {
-    const el = page.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => setPageH(el.getBoundingClientRect().height));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  const snapH = (s: Snap) => (s === 'peek' ? PEEK_H : s === 'half' ? Math.round(pageH * 0.55) : pageH);
-  const sheetH = phone && panel ? snapH(snap) : 0;
-  // A closed sheet opens at peek again, so the tree stays in view.
-  useEffect(() => { if (!panel) setSnap('peek'); }, [panel]);
+  const { snap, setSnap, sheet, sheetH, justDragged, cycle, drag } = useBottomSheet({ page, phone, panel, setPanel });
   // Crossing into or out of phone layout (also right after hydration) moves the free area: frame again.
   const wasPhone = useRef(phone);
   useEffect(() => {
@@ -172,34 +122,12 @@ function TreePage() {
     wasPhone.current = phone;
     requestAnimationFrame(() => canvas.current?.frame(sel, { animate: false }));
   }, [phone]); // eslint-disable-line react-hooks/exhaustive-deps
-  // The toolbar wraps on narrow windows: measure the HUD so centring and notices clear it.
-  const hud = useRef<HTMLDivElement>(null);
-  const [hudH, setHudH] = useState(56);
-  // The room the toolbar has (see `tight`, below).
-  const [hudW, setHudW] = useState(1200);
-  // Until the reader moves the camera, a HUD that changes height (a lens chip, a late font) frames the tree
-  // again, so the top generation always starts below it.
-  const hudSeen = useRef<number | null>(null);
+  // Until the reader moves the camera, a HUD that changes height frames the tree again (useHud).
   const camMoved = useRef(false);
   const selNow = useRef(sel);
   selNow.current = sel;
-  useEffect(() => {
-    const el = hud.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      const { height: h, width: w, bottom } = el.getBoundingClientRect();
-      setHudH(h);
-      setHudW(w);
-      // Notices open just under the HUD, wherever the top bar puts it.
-      document.documentElement.style.setProperty('--hud-bottom', `${Math.round(bottom + 8)}px`);
-      if (hudSeen.current !== null && Math.abs(h - hudSeen.current) > 3 && !camMoved.current) {
-        requestAnimationFrame(() => canvas.current?.frame(selNow.current, { animate: false }));
-      }
-      hudSeen.current = h;
-    });
-    ro.observe(el);
-    return () => { ro.disconnect(); document.documentElement.style.removeProperty('--hud-bottom'); };
-  }, []);
+  const hud = useRef<HTMLDivElement>(null);
+  const { hudH, hudW } = useHud(hud, canvas, camMoved, selNow);
 
   const root = view === 'dynasty' ? (search.root && f.byId.has(search.root) ? search.root : rootFor(f, focus, line)) : undefined;
   const lay = useMemo(
@@ -296,7 +224,6 @@ function TreePage() {
   const lastSeen = trail[1] ? f.byId.get(trail[1]) : undefined;
 
   // ---- lenses ----
-  const myAnc = useMemo(() => (who ? ancestorDepths(f, who) : new Map<string, number>()), [f, who]);
   const [required] = useRequired(tree);
   const dimmed = useMemo(
     () => lensMembers(f, lens, { sel, from: who ?? me, to: search.to ?? sel, gapped: (p) => gapsOf(f, p, required).length > 0 }),
@@ -310,27 +237,7 @@ function TreePage() {
   }, [dimmed, lay, t]);
 
   // ---- kinship labels, computed lazily for the cards on screen ----
-  // The cache is emptied when the family or the reader's chosen person changes, though it does not read either.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const kinCache = useMemo(() => new Map<string, Kinship | undefined>(), [f, who]);
-  const kinFor = useCallback(
-    (id: string) => {
-      if (!who) return undefined;
-      if (!kinCache.has(id)) {
-        const k = kinship(f, who, id, myAnc);
-        kinCache.set(id, k && k.label !== 'you' ? k : undefined);
-      }
-      return kinCache.get(id);
-    },
-    [kinCache, f, who, myAnc],
-  );
-  const kinOf = useCallback(
-    (id: string) => {
-      const k = kinFor(id);
-      return k ? kinshipLabel(k, t.locale) : undefined;
-    },
-    [kinFor, t.locale],
-  );
+  const { kinFor, kinOf } = useKinLabels(f, who);
 
   const toggle = useCallback((id: string) => (play('page'), setCollapsed((c) => toggled(c, id))), []);
 
@@ -408,27 +315,27 @@ function TreePage() {
     if (next.length) select(next.find(inLayout) ?? next[0], 'key');
   };
   const live = !adding;
-  usePageHotkey('ArrowLeft', () => spatial('left'), { enabled: live });
-  usePageHotkey('ArrowRight', () => spatial('right'), { enabled: live });
-  usePageHotkey('ArrowUp', () => vertical('up'), { enabled: live });
-  usePageHotkey('ArrowDown', () => vertical('down'), { enabled: live });
-  usePageHotkey('Enter', () => refocus(sel), { enabled: live });
-  usePageHotkey('F', () => { camMoved.current = true; canvas.current?.fit(); }, { enabled: live });
-  usePageHotkey('C', () => { camMoved.current = true; canvas.current?.centerOn(sel); }, { enabled: live });
-  usePageHotkey('H', () => refocus(me), { enabled: live });
-  usePageHotkey('1', () => go(viewPatch('family')), { enabled: live });
-  usePageHotkey('2', () => go(viewPatch('dynasty')), { enabled: live });
-  usePageHotkey('3', () => go(viewPatch('ancestors')), { enabled: live });
-  usePageHotkey('L', () => go({ lens: lens === 'line' ? 'none' : 'line' }), { enabled: live });
-  usePageHotkey('=', () => { camMoved.current = true; canvas.current?.zoomBy(1.25); }, { enabled: live });
-  usePageHotkey('-', () => { camMoved.current = true; canvas.current?.zoomBy(0.8); }, { enabled: live });
-  usePageHotkey('?', () => setHelp((h) => !h), { enabled: live });
-  usePageHotkey('Escape', () => {
-    if (help) setHelp(false);
-    else if (phone && panel && snap !== 'peek') setSnap('peek');
-    else if (lens !== 'none') go({ lens: 'none', to: undefined });
-    else setPanel(false);
-  }, { enabled: live });
+  const views: View[] = ['family', 'dynasty', 'ancestors'];
+  useTreeHotkeys(live, {
+    left: () => spatial('left'),
+    right: () => spatial('right'),
+    up: () => vertical('up'),
+    down: () => vertical('down'),
+    enter: () => refocus(sel),
+    fit: () => { camMoved.current = true; canvas.current?.fit(); },
+    centre: () => { camMoved.current = true; canvas.current?.centerOn(sel); },
+    home: () => refocus(me),
+    view: (n) => go(viewPatch(views[n - 1])),
+    lineLens: () => go({ lens: lens === 'line' ? 'none' : 'line' }),
+    zoom: (by) => { camMoved.current = true; canvas.current?.zoomBy(by); },
+    help: () => setHelp((h) => !h),
+    escape: () => {
+      if (help) setHelp(false);
+      else if (phone && panel && snap !== 'peek') setSnap('peek');
+      else if (lens !== 'none') go({ lens: 'none', to: undefined });
+      else setPanel(false);
+    },
+  });
 
   const rowLabel = (row: number, year: number | undefined, i: number): [string, string?] => {
     const mark = rowMark(view, codex, row, i);
@@ -458,79 +365,10 @@ function TreePage() {
   }, [lay.root, view]);
 
   /** A CK3-style notice once someone joins: "A daughter for House Valcourt". */
-  const announce = (id: string, person: { given: string; sex?: string }, anchor: string, relation: AddRelation) => {
-    const a = f.byId.get(anchor);
-    const h = a?.house ? f.house.get(a.house) : undefined;
-    const fam = h ? (h.name.startsWith('House') ? h.name : t('tp.famNamed', { name: h.name })) : t('tp.famFallback');
-    const word = (m: Key, w: Key, x: Key, vars?: Vars) => t(person.sex === 'm' ? m : person.sex === 'f' ? w : x, vars);
-    const title =
-      relation === 'child' ? t('tp.annChild', { word: word('tp.new.son', 'tp.new.daughter', 'tp.new.child'), family: fam }) :
-      relation === 'partner' ? t('tp.annPartner', { name: person.given, family: fam }) :
-      relation === 'sibling' ? t('tp.annSibling', { word: word('tp.new.brother', 'tp.new.sister', 'tp.new.sibling'), name: a?.given ?? t('tp.theirs') }) :
-      word('tp.annFather', 'tp.annMother', 'tp.annParent', { who: a?.given ?? t('tp.theirs') });
-    play('chime');
-    toast({
-      title,
-      body: t('tp.annBody', { name: person.given }),
-      person: id,
-      ms: 9000,
-      // Added by mistake? One click takes them out again.
-      action: !canRemove ? undefined : {
-        label: t('tp.undo'),
-        run: async () => {
-          // Back to the person they were adding to first: once the new person is gone, the page would
-          // otherwise clear the selection that pointed at them, and land on the focus instead.
-          selectNow.current(anchor);
-          try {
-            await removePerson({ data: { tree, id } });
-            await qc.invalidateQueries({ queryKey: ['graph', tree] });
-            play('page');
-          } catch (e) {
-            toast({ title: t('quick.undoFailed'), body: e instanceof Error ? translateMessage(e.message, t.locale) : t('tp.undoBody') });
-          }
-        },
-      },
-    });
-  };
+  const announce = useAddedNotice({ f, tree, canRemove, selectNow });
 
   // Once a day per tree: whose birthday is today.
-  useEffect(() => {
-    const today = new Date();
-    const key = `kindred:bday:${tree}:${today.toDateString()}`;
-    try { if (localStorage.getItem(key)) return; } catch { return; }
-    const who = birthdaysOn(f.graph.people, today);
-    if (!who.length) return;
-    let timer = 0;
-    // Shown only to someone looking: the timer starts over whenever the tab is hidden and shown again.
-    const arm = () => {
-      clearTimeout(timer);
-      if (!document.hidden) timer = window.setTimeout(show, 1200);
-    };
-    const disarm = () => {
-      clearTimeout(timer);
-      document.removeEventListener('visibilitychange', arm);
-    };
-    const show = () => {
-      if (document.hidden) return;
-      disarm();
-      // Marked only once shown: a cancelled effect (StrictMode runs effects twice) must not eat it.
-      try { localStorage.setItem(key, '1'); } catch {}
-      play('fanfare');
-      for (const { person: p, age } of who.slice(0, 2)) {
-        toast({
-          title: t('tp.birthdayToast', { name: displayName(p, f), n: age }),
-          body: kinFor(p.id) ? `${yourKinship(kinFor(p.id)!, t.locale, { capital: true })}. ${t('tp.callDay')}` : t('tp.goodDay'),
-          person: p.id,
-          icon: 'cake-slice',
-          ms: 9000,
-          action: { label: t('tp.open'), run: () => select(p.id) },
-        });
-      }
-    };
-    document.addEventListener('visibilitychange', arm);
-    arm();
-    return disarm;
-  }, [tree]); // eslint-disable-line react-hooks/exhaustive-deps
+  useBirthdayToast({ tree, f, kinFor, select });
 
   // The house banner introduces the dynasty, then folds into a pill after a moment or once the
   // reader pans, so it never sits over the top generation for long.
@@ -578,29 +416,7 @@ function TreePage() {
   // while that runs over the room it has, first the view buttons drop their names, then names and ages move
   // behind the Display button. Measured before paint, and again when the room, the words or the fonts change.
   const toolbar = useRef<HTMLDivElement>(null);
-  const [tight, setTight] = useState<0 | 1 | 2>(0);
-  const [fonts, setFonts] = useState(0);
-  useEffect(() => {
-    const bump = () => setFonts((n) => n + 1);
-    const mo = new MutationObserver(bump);
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    void document.fonts?.ready.then(bump);
-    return () => mo.disconnect();
-  }, []);
-  const fitKey = [Math.round(hudW), view, line, lay.root, collapsed.size > 0, nameMode, ageMode, t.locale, fonts].join('|');
-  const fitFor = useRef('');
-  // Deliberately after every render: the toolbar is measured again whenever its content or the room changes, and each
-  // pass widens `tight` by one step at most, so it stops after two.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useLayoutEffect(() => {
-    const el = toolbar.current;
-    if (!el || phone) return;
-    if (fitFor.current !== fitKey) {
-      fitFor.current = fitKey;
-      if (tight !== 0) { setTight(0); return; }
-    }
-    if (tight < 2 && el.scrollWidth > el.clientWidth) setTight((tight + 1) as 1 | 2);
-  });
+  const tight = useToolbarFit(toolbar, phone, [Math.round(hudW), view, line, lay.root, collapsed.size > 0, nameMode, ageMode, t.locale]);
   const roomy = !phone && tight < 2;
   useEffect(() => { if (roomy) setDisplayOpen(false); }, [roomy]);
   // The controls of the current view: in the toolbar row on wide screens, in the Display sheet on a phone.
@@ -656,64 +472,8 @@ function TreePage() {
     return () => cancelAnimationFrame(r);
   }, [panel, phone, snap]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Bottom sheet: drag the grip (or the peek) to resize; it settles on the nearest height.
-  const drag = useRef<{ y: number; h: number; t: number; v: number; moved: boolean } | null>(null);
-  const justDragged = useRef(false);
-  const sheetDown = (e: React.PointerEvent) => {
-    if (!phone || !(e.target as HTMLElement).closest('.sheet-bar, .sheet-peek-hit')) return;
-    if ((e.target as HTMLElement).closest('.sheet-back')) return;
-    drag.current = { y: e.clientY, h: sheet.current!.getBoundingClientRect().height, t: performance.now(), v: 0, moved: false };
-  };
-  const sheetMove = (e: React.PointerEvent) => {
-    const d = drag.current;
-    const el = sheet.current;
-    if (!d || !el) return;
-    const dy = e.clientY - d.y;
-    if (!d.moved && Math.abs(dy) < 6) return;
-    if (!d.moved) try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch {}
-    d.moved = true;
-    const h = Math.max(PEEK_H * 0.6, Math.min(pageH, d.h - dy));
-    const now = performance.now();
-    d.v = (d.h - dy - (parseFloat(el.style.height) || d.h)) / Math.max(1, now - d.t);
-    d.t = now;
-    el.style.transition = 'none';
-    el.style.height = `${h}px`;
-    page.current?.style.setProperty('--sheet-h', `${h}px`);
-  };
-  const sheetUp = () => {
-    const d = drag.current;
-    const el = sheet.current;
-    drag.current = null;
-    if (!d?.moved || !el) return;
-    justDragged.current = true;
-    setTimeout(() => (justDragged.current = false), 0);
-    // Where it would come to rest, given the flick.
-    const h = el.getBoundingClientRect().height + d.v * 180;
-    const order: Snap[] = ['peek', 'half', 'full'];
-    const best = order.reduce((a, b) => (Math.abs(snapH(b) - h) < Math.abs(snapH(a) - h) ? b : a));
-    el.style.transition = '';
-    el.style.height = '';
-    page.current?.style.removeProperty('--sheet-h');
-    if (h < PEEK_H * 0.55) setPanel(false);
-    else setSnap(best);
-  };
   const sheetDialog = phone && panel && snap === 'full';
-  const wasDialog = useRef(false);
-  useEffect(() => {
-    if (sheetDialog === wasDialog.current) return;
-    wasDialog.current = sheetDialog;
-    if (sheetDialog) {
-      // Unless something inside already has it (the editor focuses its first field).
-      if (!sheet.current?.contains(document.activeElement)) sheet.current?.focus({ preventScroll: true });
-    } else if (!document.activeElement || document.activeElement === document.body) {
-      // Back on the tree: to the card the sheet was about, when focus was left nowhere.
-      page.current?.querySelector<HTMLElement>(`.world [data-person="${CSS.escape(sel)}"]`)?.focus({ preventScroll: true });
-    }
-  }, [sheetDialog]); // eslint-disable-line react-hooks/exhaustive-deps
-  const cycle = () => {
-    if (justDragged.current) return;
-    setSnap((s) => (s === 'peek' ? 'half' : s === 'half' ? 'full' : 'peek'));
-  };
+  useSheetFocus(sheetDialog, sheet, page, sel);
 
   // An empty family has no tree to draw: the first person is added here (or, without the right to add, nobody is said).
   if (!f.graph.people.length) return <EmptyTree tree={tree} canAdd={canAdd} />;
@@ -911,10 +671,7 @@ function TreePage() {
           role={sheetDialog ? 'dialog' : undefined}
           aria-label={sheetDialog && focusPerson ? displayName(focusPerson, f) : undefined}
           tabIndex={sheetDialog ? -1 : undefined}
-          onPointerDown={sheetDown}
-          onPointerMove={sheetMove}
-          onPointerUp={sheetUp}
-          onPointerCancel={sheetUp}
+          {...drag}
         >
           <div className="sheet-bar">
             {snap === 'full' && (
@@ -965,18 +722,5 @@ function TreePage() {
         />
       )}
     </div>
-  );
-}
-
-/** A media query, live. False on the server and during hydration. */
-function useMedia(q: string): boolean {
-  return useSyncExternalStore(
-    (cb) => {
-      const m = matchMedia(q);
-      m.addEventListener('change', cb);
-      return () => m.removeEventListener('change', cb);
-    },
-    () => matchMedia(q).matches,
-    () => false,
   );
 }
