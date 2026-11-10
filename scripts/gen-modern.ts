@@ -9,6 +9,7 @@ import { summarize, validate, writeTree } from './lib/check.ts';
 import { placeModern } from './lib/places.ts';
 import { addLife } from './lib/life.ts';
 import { modernFeed } from './lib/feed-seed.ts';
+import { dressByHand } from './lib/dressed.ts';
 import {
   FAMILIES,
   FAVOURITE_FOODS,
@@ -397,6 +398,7 @@ function build(seed: number): { tree: SeedTree; focus: number; seed: number } | 
     }
     return out;
   });
+  dressByHand(people);
 
   const parents: SeedParent[] = sim.links.map((l) => {
     const link: SeedParent = { child: idOf('p', l.child + 1), parent: idOf('p', l.parent + 1) };

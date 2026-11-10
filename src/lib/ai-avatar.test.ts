@@ -49,3 +49,20 @@ test('the face fields survive the look schema, and every value the portrait offe
   assert.equal(types.lookSchema.safeParse({ ...base, face: 'triangle' }).success, false);
   assert.equal(types.lookSchema.safeParse({ ...base, jaw: 11 }).success, false);
 });
+
+test('a photo can be given the parts added later, but never the ones that are a choice and not a likeness', () => {
+  const p = vision.LOOK_JSON.properties;
+  for (const style of ['locs', 'coily', 'box-braids', 'thinning', 'fade']) assert.ok(p.hairStyle.enum.includes(style), style);
+  for (const g of ['cat-eye', 'rimless', 'horn']) assert.ok(p.glasses.enum.includes(g), g);
+  assert.ok(!p.glasses.enum.includes('sunglasses'), 'sunglasses are the weather, not the person');
+  for (const m of ['birthmark', 'vitiligo', 'cleft']) assert.ok(p.marks.items.enum.includes(m), m);
+  assert.ok(!p.marks.items.enum.includes('lashes'));
+  assert.ok(p.eyeShape.enum.includes('monolid') && p.noseShape.enum.includes('round') && p.face.enum.includes('diamond'));
+  // The colours go as far as the palettes do, and "neutral" (nobody has said) is not offered to a photo.
+  assert.equal(p.skin.maximum, look.SKIN.length - 1);
+  assert.equal(p.hair.maximum, look.HAIR.length - 1);
+  assert.equal(p.eyes.maximum, look.EYES.length - 1);
+  assert.doesNotMatch(p.skin.description, /Neutral/);
+  assert.match(p.skin.description, /14 Ebony/);
+  for (const k of ['expression', 'earrings', 'necklace', 'extras', 'backdrop', 'clothColour', 'grey', 'lines', 'build', 'lips']) assert.equal(p[k], undefined, k);
+});

@@ -625,8 +625,10 @@ export const PHOTO_LOOK_FIELDS = {
   brows: { kind: 'one', of: BROWS.map((o) => o.id) },
   beardStyle: { kind: 'one', of: BEARDS.map((o) => o.id) },
   moustache: { kind: 'one', of: MOUSTACHES.map((o) => o.id) },
-  glasses: { kind: 'one', of: GLASSES.map((o) => o.id) },
-  marks: { kind: 'many', of: MARKS.map((o) => o.id) },
+  // Sunglasses are the day's weather, not the person: a photo never puts them on a portrait.
+  glasses: { kind: 'one', of: GLASSES.map((o) => o.id).filter((id) => id !== 'sunglasses') },
+  // What a photo shows of the skin. Long lashes are a choice made in the editor, not a mark.
+  marks: { kind: 'many', of: MARKS.map((o) => o.id).filter((id) => id !== 'lashes') },
   face: {
     kind: 'one', of: FACE_SHAPES.map((o) => o.id),
     what: 'the outline of the face: round (soft, wide cheeks and chin), oval (longer, narrower chin), square (flat jaw, angular corners), long (narrow and tall), heart (wide forehead, pointed chin)',

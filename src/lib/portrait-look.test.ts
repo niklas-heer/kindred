@@ -13,6 +13,10 @@ after(() => vite.close());
 const look = await vite.ssrLoadModule('/src/lib/portrait-look.ts');
 const avatar = await vite.ssrLoadModule('/src/components/portrait/avatar.ts');
 const vision = await vite.ssrLoadModule('/src/lib/ai/vision.server.ts');
+// Every module is loaded here, before the first test: the tests above a later load would finish, and close Vite, while it ran.
+const dict = await vite.ssrLoadModule('/src/lib/i18n/dictionary.ts');
+const types = await vite.ssrLoadModule('/src/lib/ai/types.ts');
+const { LOOKS } = await vite.ssrLoadModule('/scripts/lib/dressed.ts');
 
 const DRESS = { cloth: '#6e5b45', trim: '#b5a07a', metal: '#c9a14a' };
 const NOW = 2026;
@@ -93,8 +97,6 @@ test('every face shape, nose, eye shape and life stage draws at every size', () 
 
 // ---------- the character editor's second version: more parts, and nothing that was there moves ----------
 
-const dict = await vite.ssrLoadModule('/src/lib/i18n/dictionary.ts');
-const types = await vite.ssrLoadModule('/src/lib/ai/types.ts');
 const OLD = { skin: 2, hair: 1, eyes: 0, hairStyle: 'bob', glasses: 'round', marks: ['freckles'], age: 40 };
 const draw = (l: object, detail = 'lg', over = {}) => avatar.avatarSvg(look.resolveAppearance(person({ look: l, ...over }), NOW), DRESS, detail);
 /** Every part chosen from a list, with the field that stores it. */
@@ -220,5 +222,13 @@ test('a list-size drawing stays light: flat colour for a backdrop, and no part a
   for (const [field, list, old] of [['headwear', 'HEADWEAR', OLD_HEADWEAR], ['hairStyle', 'HAIR_STYLES', OLD_HAIR], ['clothing', 'CLOTHING', OLD_CLOTHING]] as const) {
     const limit = worst(field, old);
     for (const o of look[list]) assert.ok(size({ [field]: o.id }) <= limit, `${field} ${o.id} is ${size({ [field]: o.id })} bytes at list size; the heaviest before was ${limit}`);
+  }
+});
+
+test('the looks the invented family is given by hand are looks the portrait keeps whole', () => {
+  assert.ok(Object.keys(LOOKS).length >= 10);
+  for (const [id, worn] of Object.entries(LOOKS)) {
+    const l = { skin: 1, hair: 1, eyes: 1, ...(worn as object) };
+    assert.deepEqual(look.sanitizeLook(l), l, id);
   }
 });
