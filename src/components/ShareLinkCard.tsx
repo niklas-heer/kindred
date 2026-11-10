@@ -1,11 +1,12 @@
 // The steward's family share link on the Access page: make it, copy the link, the password or a ready message, replace it, or turn
-// it off. The server keeps only hashes, so the link and the password can be shown only to the browser that made them.
+// it off. The server keeps only hashes, so the link and the password can be shown only to the browser that made them. Whether the
+// link protects living people is chosen when it is made (on by default) and can be switched at any time without replacing it.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Copy, Link2, Link2Off, MessageCircle, RefreshCw, TriangleAlert } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Dialog, Notice, Select, Skeleton } from '~/components/ui';
 import { Switch } from '~/components/ui/Switch';
-import { makeShareLink, revokeShareLink, shareStateQuery } from '~/lib/auth/share.functions';
+import { makeShareLink, revokeShareLink, setShareProtectLiving, shareStateQuery } from '~/lib/auth/share.functions';
 import { errorText } from '~/lib/errortext';
 import { formatDate, useT, type Key, type Translator } from '~/lib/i18n';
 import '~/styles/access.css';
@@ -56,6 +57,11 @@ export function ShareLinkCard({ tree, familyName }: { tree: string; familyName: 
     onSuccess: () => { setTurningOff(false); forgetKnown(tree); setKnown(null); return refresh(); },
     onError: (e) => { setTurningOff(false); setError(errorText(e, t.locale)); },
   });
+  const protect = useMutation({
+    mutationFn: (on: boolean) => setShareProtectLiving({ data: { tree, protectLiving: on } }),
+    onSuccess: () => refresh(),
+    onError: () => setError(t('share.protectLivingFailed')),
+  });
 
   const link = state.data?.link ?? null;
   // Only a copy of the link as it is now: an older copy names a link that no longer works.
@@ -75,6 +81,7 @@ export function ShareLinkCard({ tree, familyName }: { tree: string; familyName: 
                 <span className="chip" data-ended={link.ended || undefined}>{link.ended ? t('share.statusEnded', { date: formatDate(link.expires!, t.locale) }) : link.expires ? t('share.statusUntil', { date: formatDate(link.expires, t.locale) }) : t('share.statusForever')}</span>
                 <span className="chip">{link.hasPassword ? t('share.hasPassword') : t('share.noPassword')}</span>
               </p>
+              <ProtectLiving checked={protect.isPending ? protect.variables : link.protectLiving} disabled={protect.isPending} onChange={(on) => protect.mutate(on)} />
               {shown ? <Shared known={shown} familyName={familyName} /> : <p className="acc-hint share-note">{t('share.forgotten')}</p>}
               <div className="share-actions">
                 <button className="btn" onClick={() => setMaking(true)}><RefreshCw size={15} /> {t('share.makeNew')}</button>
@@ -115,6 +122,18 @@ export function ShareLinkCard({ tree, familyName }: { tree: string; familyName: 
         }
       />
     </section>
+  );
+}
+
+/** The switch for protecting living people, with one sentence on what it means either way. */
+function ProtectLiving({ checked, disabled, onChange }: { checked: boolean; disabled?: boolean; onChange: (on: boolean) => void }) {
+  const t = useT();
+  const hint = useId();
+  return (
+    <>
+      <Switch checked={checked} disabled={disabled} onChange={onChange} aria-describedby={hint}>{t('share.protectLiving')}</Switch>
+      <p className="acc-hint share-note" id={hint}>{t(checked ? 'share.protectLivingHint' : 'share.protectLivingOff')}</p>
+    </>
   );
 }
 
@@ -163,8 +182,10 @@ function ShareDialog({ open, tree, replacing, onClose, onMade }: { open: boolean
   const t = useT();
   const [password, setPassword] = useState(true);
   const [days, setDays] = useState('30');
+  // On for every new link: a link can be forwarded, and the living, children above all, are better protected by default.
+  const [protectLiving, setProtectLiving] = useState(true);
   const make = useMutation({
-    mutationFn: () => makeShareLink({ data: { tree, password, days: CHOICES.find((c) => c.value === days)!.days } }),
+    mutationFn: () => makeShareLink({ data: { tree, password, days: CHOICES.find((c) => c.value === days)!.days, protectLiving } }),
     onSuccess: (r) => onMade({ id: r.id, generation: r.generation, url: r.url, password: r.password }),
   });
   return (
@@ -184,6 +205,7 @@ function ShareDialog({ open, tree, replacing, onClose, onMade }: { open: boolean
         {replacing && <p className="acc-ready">{t('share.replaceText')}</p>}
         <Switch checked={password} onChange={setPassword}>{t('share.usePassword')}</Switch>
         <p className="acc-hint share-note">{t(password ? 'share.usePasswordHint' : 'share.noPasswordWarn')}</p>
+        <ProtectLiving checked={protectLiving} onChange={setProtectLiving} />
         <label className="field">
           <span>{t('share.endsAfter')}</span>
           <Select<string> value={days} options={CHOICES.map((c) => ({ value: c.value, label: t(c.label) }))} onChange={setDays} aria-label={t('share.endsAfter')} />

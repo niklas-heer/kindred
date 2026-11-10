@@ -22,6 +22,8 @@ test('share link: create, guest signs in, viewer only, writes refused', async ({
   await settled(page);
   await checkAxe(page, 'access');
   await page.getByRole('button', { name: 'Make a link' }).click();
+  // A new link protects living people unless the steward switches it off.
+  await expect(page.getByRole('dialog').getByRole('switch', { name: 'Protect living people' })).toHaveAttribute('aria-checked', 'true');
   await page.getByRole('dialog').getByRole('button', { name: 'Make a link' }).click();
   const shown = page.locator('.share-shown input');
   await expect(shown.first()).toBeVisible();
