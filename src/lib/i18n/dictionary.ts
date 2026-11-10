@@ -200,6 +200,27 @@ export function formatNumber(value: number, locale: Locale = "en", options?: Int
   return new Intl.NumberFormat(locales[locale], options).format(value);
 }
 
+// Engines disagree on abbreviated months: for British English Node and Workers say "Sept" and Safari says "Sep". A page drawn
+// on the server must read the same in the browser, or React throws that page's text away and draws it again (error #418), so
+// the abbreviated months are Kindred's own. Everything else about a date (order, punctuation) is left to Intl.
+const SHORT_MONTHS: Record<Locale, readonly string[]> = {
+  en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+  de: ["Jan.", "Feb.", "März", "Apr.", "Mai", "Juni", "Juli", "Aug.", "Sept.", "Okt.", "Nov.", "Dez."],
+  af: ["Jan.", "Feb.", "Mrt.", "Apr.", "Mei", "Jun.", "Jul.", "Aug.", "Sep.", "Okt.", "Nov.", "Des."],
+};
+
+/**
+ * A date or time as Intl writes it for the reader's language, with an abbreviated month from Kindred's own list. Use it
+ * wherever a date has `month: 'short'` or `dateStyle: 'medium'`, instead of Intl or toLocaleDateString (a test keeps it so).
+ */
+export function dateText(value: Date | number, locale: Locale, options: Intl.DateTimeFormatOptions): string {
+  const format = new Intl.DateTimeFormat(locales[locale], options);
+  if (options.month !== "short" && options.dateStyle !== "medium") return format.format(value);
+  const month = Number(new Intl.DateTimeFormat("en-US", { month: "numeric", timeZone: format.resolvedOptions().timeZone }).format(value)) - 1;
+  // A medium date is all numbers in German: only a month written in letters is replaced.
+  return format.formatToParts(value).map((part) => (part.type === "month" && !/^\d+$/.test(part.value) ? SHORT_MONTHS[locale][month] : part.value)).join("");
+}
+
 export function formatDate(
   value?: string | number | Date | null,
   locale: Locale = "en",
@@ -212,24 +233,25 @@ export function formatDate(
     date.setUTCFullYear(y, (m || 1) - 1, d || 1);
     const text = !m
       ? String(y)
-      : new Intl.DateTimeFormat(locales[locale], {
+      : dateText(date, locale, {
           year: "numeric",
           month: "long",
           ...(d ? { day: "numeric" as const } : {}),
           ...options,
           timeZone: "UTC",
-        }).format(date);
+        });
     const approx = locale === "de" ? "ca." : locale === "af" ? "ong." : "c.";
     return value.startsWith("~") ? `${approx} ${text}` : text;
   }
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? String(value)
-    : new Intl.DateTimeFormat(
-        locales[locale],
+    : dateText(
+        date,
+        locale,
         // A date or time style cannot be mixed with the parts (Intl throws): a caller who gives one gets just that.
         options?.dateStyle || options?.timeStyle ? options : { day: "numeric", month: "long", year: "numeric", ...options },
-      ).format(date);
+      );
 }
 
 export function relativeTime(value: number | Date | null, locale: Locale = "en", now = Date.now()): string {

@@ -15,7 +15,7 @@ import { contactsQuery } from '~/lib/api';
 import { VisibilityMark } from '~/components/fields/VisibilityMark';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
 import { play } from '~/lib/sfx';
-import { locales, useT, type Key } from '~/lib/i18n';
+import { dateText, useT, type Key } from '~/lib/i18n';
 import { age as ageOf, children, displayName, partnersOf, parents, siblings, type Family } from '~/lib/graph';
 import type { GPerson } from '~/lib/types';
 import { buildHouseholds, type Household, type Row } from '~/lib/contact-households';
@@ -383,7 +383,7 @@ function HouseholdCard({ h, f, tree }: { h: Household; f: Family; tree: string }
                   {bd && (
                     <span className="con-bday" data-soon={bd.days <= 14 || undefined}>
                       <GameIcon name="cake-slice" size={14} />
-                      {bd.days === 0 ? t('con.birthdayToday') : bd.days === 1 ? t('con.birthdayTomorrow') : t('con.birthdayOn', { date: bd.date.toLocaleDateString(locales[t.locale], { day: 'numeric', month: 'short' }), n: bd.turns })}
+                      {bd.days === 0 ? t('con.birthdayToday') : bd.days === 1 ? t('con.birthdayTomorrow') : t('con.birthdayOn', { date: dateText(bd.date, t.locale, { day: 'numeric', month: 'short' }), n: bd.turns })}
                     </span>
                   )}
                 </div>

@@ -177,6 +177,9 @@ database that has had these migrations.
 
 ### Fixed
 
+- In Safari, with English chosen, the Register drew itself twice when someone was born or died in September: the server
+  wrote "Sept" and Safari "Sep". Abbreviated months are now Kindred's own, so every browser reads what the server wrote.
+- The phone's tab labels fit when a larger text size is set, and a guest's short visit no longer reads "about 0 minutes".
 - Backing up and restoring: the commands in `docs/self-host.md` and `docs/deploy-cloudflare.md` were run for the first time and corrected where they failed. A D1 export now restores with one extra line that moves the `guard` view first (loading it as it was stopped with `no such table: main.guard`), restoring to a new D1 database says to bind it in `wrangler.jsonc` first, going back after an upgrade has its commands, and Docker to Node, Node to Docker and Cloudflare to Node each have a tested procedure.
 - The Atlas's "places beyond this view · Show all" button and its way back work with a mouse: the map's drag took their click.
 - Red "delete" buttons are readable in every theme (white on the old red was below the AA contrast in Codex and Night).

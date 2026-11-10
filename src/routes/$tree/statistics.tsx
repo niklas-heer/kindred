@@ -8,7 +8,7 @@ import { EmptyState, ErrorState, Notice, PageHeader, Segmented, Skeleton } from 
 import { Switch } from '~/components/ui/Switch';
 import { errorText } from '~/lib/errortext';
 import { useFamily, useTreeId } from '~/lib/family';
-import { formatNumber, locales, useT, type Key, type Translator } from '~/lib/i18n';
+import { dateText, formatNumber, useT, type Key, type Translator } from '~/lib/i18n';
 import { useCan } from '~/lib/session';
 import { setStatsCollecting, statsOverviewQuery } from '~/lib/stats/functions';
 import { CHANGE_KINDS, percentChange, VIEWS, type ChangeKind, type Overview, type Tone, type ViewKey } from '~/lib/stats/overview';
@@ -71,8 +71,8 @@ const VIEW_LABEL: Record<ViewKey, Key> = {
 function Report({ o, t, tree, view, setView }: { o: Overview; t: Translator; tree: string; view: ViewKey; setView: (v: ViewKey) => void }) {
   const s = o.slices[view];
   const count = (n: number) => formatNumber(n, t.locale);
-  const short = new Intl.DateTimeFormat(locales[t.locale], { day: 'numeric', month: 'short', timeZone: 'UTC' });
-  const long = new Intl.DateTimeFormat(locales[t.locale], { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const short = { format: (at: number) => dateText(at, t.locale, { day: 'numeric', month: 'short', timeZone: 'UTC' }) };
+  const long = { format: (at: number) => dateText(at, t.locale, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }) };
   const dayLabel = (day: string) => short.format(Date.parse(`${day}T00:00:00Z`));
   const days = s.series.map((p) => p.day);
   const rangeActive = o.days === 7 ? s.active.d7 : o.days === 30 ? s.active.d30 : s.active.d90;

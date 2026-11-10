@@ -11,7 +11,7 @@ import { TASKS, type Activity, type Task } from '~/lib/ai/background';
 import { errorText } from '~/lib/errortext';
 import { houseTranslationsQuery } from '~/lib/house-meaning.functions';
 import { translateReview } from '~/lib/house-translation';
-import { locales, useT, type Key } from '~/lib/i18n';
+import { dateText, locales, useT, type Key } from '~/lib/i18n';
 import { toAiLocale } from '~/lib/ai/types';
 import { useTreeId } from '~/lib/family';
 import { useCan } from '~/lib/session';
@@ -161,7 +161,8 @@ function ActivityBody({ tree, data }: { tree: string; data: Activity }) {
           <ul className="aitasks-runs">
             {data.runs.map((r) => (
               <li key={r.id} data-status={r.status}>
-                <time dateTime={new Date(r.started).toISOString()}>{new Date(r.started).toLocaleString(locales[locale], { dateStyle: 'medium', timeStyle: 'short' })}</time>
+                {/* Engines join a date and a time differently (", " or " at "), and the time is the reader's own: the browser keeps what the server wrote. */}
+                <time dateTime={new Date(r.started).toISOString()} suppressHydrationWarning>{dateText(r.started, locale, { dateStyle: 'medium', timeStyle: 'short' })}</time>
                 <span>
                   {t(TASK_NAME[r.task])}
                   <span className="muted"> · {r.source === 'manual' ? t('aitasks.by.manual') : t('aitasks.by.schedule')}</span>

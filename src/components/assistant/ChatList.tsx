@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { aiThreadDelete, aiThreadRename, aiThreadSearchQuery, aiThreadsQuery } from '~/lib/ai.functions';
 import type { ThreadSummary } from '~/lib/ai/types';
 import { errorText } from '~/lib/errortext';
-import { useT } from '~/lib/i18n';
+import { dateText, useT } from '~/lib/i18n';
 import { Notice, Skeleton } from '~/components/ui';
 import { useRunSummary } from './chat-runs';
 
@@ -28,7 +28,7 @@ function when(t: T, at: number): string {
   const opts: Intl.DateTimeFormatOptions = d.toDateString() === now.toDateString()
     ? { hour: 'numeric', minute: '2-digit' }
     : d.getFullYear() === now.getFullYear() ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' };
-  return new Intl.DateTimeFormat(t.locale, opts).format(d);
+  return dateText(d, t.locale, opts);
 }
 
 export function RunMark({ conv, summary }: { conv: string; summary: ReturnType<typeof useRunSummary> }) {

@@ -16,7 +16,7 @@ import {
 } from '~/lib/house-meaning';
 import { armsReviewsQuery, collectedMeaningsQuery, dismissArmsReview, houseMeaningsQuery, houseTranslationsQuery, saveHouseMeaning } from '~/lib/house-meaning.functions';
 import { translateReview, translateSaved } from '~/lib/house-translation';
-import { locales, useT, type Key } from '~/lib/i18n';
+import { dateText, locales, useT, type Key } from '~/lib/i18n';
 import type { SavedMeaningRow } from '~/lib/house-meaning';
 import { useCan } from '~/lib/session';
 import type { House } from '~/lib/types';
@@ -28,7 +28,7 @@ const BADGE_KEY: Record<ReviewBadge, Key> = { 'arms-review': 'houses.review.arms
 
 /** A date for the reader, in their language. */
 export const whenText = (ms: number, locale: keyof typeof locales) =>
-  new Date(ms).toLocaleDateString(locales[locale], { day: 'numeric', month: 'short', year: 'numeric' });
+  dateText(ms, locale, { day: 'numeric', month: 'short', year: 'numeric' });
 
 /** The one badge a steward sees on a house, in the list and on the house page. */
 export function ReviewBadgeChip({ badge }: { badge: ReviewBadge }) {

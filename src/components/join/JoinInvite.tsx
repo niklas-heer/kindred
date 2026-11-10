@@ -208,9 +208,10 @@ export function Facts({ t, place, timeZone, language, device, loading }: { t: Tr
   const where = place ? [place.city, place.region, place.country && displayCode('region', place.country, t.locale)].filter(Boolean).join(', ') : '';
   return (
     <>
-      <dt>{t('join.fact_place')}</dt><dd>{loading ? '…' : where || t('join.unknown')}</dd>
+      {/* Engines name some countries and languages differently ("UK" or "United Kingdom"): the browser keeps what the server wrote. */}
+      <dt>{t('join.fact_place')}</dt><dd suppressHydrationWarning>{loading ? '…' : where || t('join.unknown')}</dd>
       <dt>{t('join.fact_time_zone')}</dt><dd>{timeZone || t('join.unknown')}</dd>
-      <dt>{t('join.fact_language')}</dt><dd>{language ? displayCode('language', language, t.locale) : t('join.unknown')}</dd>
+      <dt>{t('join.fact_language')}</dt><dd suppressHydrationWarning>{language ? displayCode('language', language, t.locale) : t('join.unknown')}</dd>
       <dt>{t('join.fact_device')}</dt><dd>{loading ? '…' : !device || device === 'unknown' ? t('join.unknown') : device}</dd>
     </>
   );

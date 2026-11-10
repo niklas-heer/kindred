@@ -12,7 +12,7 @@ import { feature, mesh } from 'topojson-client';
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type InputHTMLAttributes, type ReactNode } from 'react';
 import { addStory, deleteStory, newOpKey, opKeys, restoreStory, setPartnershipEnd, uploadPhoto, unlinkRelative } from '~/lib/api';
 import { addPersonField, deletePersonField, personDetailQuery, setLook } from '~/lib/person.functions';
-import { yourKinshipParts, locales, ordinal, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
+import { dateText, yourKinshipParts, locales, ordinal, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
 import { occupationText } from '~/lib/occupations';
 import { translateOccupation } from '~/lib/occupations.functions';
 import { useAiStatus } from './assistant/store';
@@ -1073,7 +1073,7 @@ function StoryCard({ s, compact, onDelete, tree }: { s: Story; compact?: boolean
       )}
       <footer>
         {s.context && <span>{s.context} · </span>}
-        <span>{c('panel.addedBy', { name: s.author })}</span> · <time dateTime={s.at}>{new Date(s.at).toLocaleDateString(locales[c.locale], { day: 'numeric', month: 'short', year: 'numeric' })}</time>
+        <span>{c('panel.addedBy', { name: s.author })}</span> · <time dateTime={s.at}>{dateText(new Date(s.at), c.locale, { day: 'numeric', month: 'short', year: 'numeric' })}</time>
       </footer>
       {tree ? <Responses tree={tree} kind="story" target={s.id} /> : null}
     </article>

@@ -25,7 +25,7 @@ import { Portrait } from '~/components/Portrait';
 import { PortraitZoom } from '~/components/photos/PortraitZoom';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
 import { useCan } from '~/lib/session';
-import { compareText, formatNumber, kinshipLabel, yourKinship, locales, translate, useT, type Locale, type Translator } from '~/lib/i18n';
+import { compareText, dateText, formatNumber, kinshipLabel, yourKinship, translate, useT, type Locale, type Translator } from '~/lib/i18n';
 import { occupationSearchText, occupationText } from '~/lib/occupations';
 import { TRAITS } from '~/lib/traits';
 import { useToday } from '~/lib/clock';
@@ -72,8 +72,8 @@ function short(d: string | undefined, locale: Locale = 'en'): string {
   const m = d && PARTIAL.exec(d);
   if (!m) return '';
   const c = m[1] ? translate(locale, 'life.circa') : '';
-  if (m[4]) return c + new Date(Date.UTC(+m[2], +m[3] - 1, +m[4])).toLocaleDateString(locales[locale], { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
-  if (m[3]) return c + new Date(Date.UTC(+m[2], +m[3] - 1, 1)).toLocaleDateString(locales[locale], { month: 'short', year: 'numeric', timeZone: 'UTC' });
+  if (m[4]) return c + dateText(Date.UTC(+m[2], +m[3] - 1, +m[4]), locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  if (m[3]) return c + dateText(Date.UTC(+m[2], +m[3] - 1, 1), locale, { month: 'short', year: 'numeric', timeZone: 'UTC' });
   return c + m[2];
 }
 

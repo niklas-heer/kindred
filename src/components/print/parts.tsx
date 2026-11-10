@@ -3,7 +3,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { Arms, houseColour } from '~/components/Heraldry';
 import { faceOf, faceSrc } from '~/components/Portrait';
 import type { Family } from '~/lib/graph';
-import { formatDate, locales, type Translator } from '~/lib/i18n';
+import { dateText, formatDate, type Translator } from '~/lib/i18n';
 import { familyCrest, PX_PER_MM } from '~/lib/print';
 import type { GPerson, House } from '~/lib/types';
 
@@ -62,7 +62,7 @@ function paperDate(d: string | undefined | null, t: Translator, month: 'short' |
   if (!Number.isFinite(y)) return d;
   const date = new Date(0);
   date.setUTCFullYear(y, (m || 1) - 1, day || 1);
-  const text = m ? new Intl.DateTimeFormat(locales[t.locale], { year: 'numeric', month, ...(day ? { day: 'numeric' as const } : {}), timeZone: 'UTC' }).format(date) : String(y);
+  const text = m ? dateText(date, t.locale, { year: 'numeric', month, ...(day ? { day: 'numeric' as const } : {}), timeZone: 'UTC' }) : String(y);
   return d.startsWith('~') ? `${t('life.circa')}${text}` : text;
 }
 /** A date for a narrow place: "12 Mar 1901". */

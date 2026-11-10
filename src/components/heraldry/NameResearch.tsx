@@ -16,7 +16,7 @@ import { errorText } from '~/lib/errortext';
 import { armsReviewsQuery, collectedMeaningsQuery, houseMeaningsQuery, houseTranslationsQuery, saveHouseMeaning } from '~/lib/house-meaning.functions';
 import { translateNote, translateRow } from '~/lib/house-translation';
 import type { SavedMeaning } from '~/lib/house-meaning';
-import { locales, useT, type Key } from '~/lib/i18n';
+import { dateText, useT, type Key } from '~/lib/i18n';
 import { play } from '~/lib/sfx';
 import { toast } from '~/lib/toast';
 import type { ArmsV2 } from '~/lib/seed-format';
@@ -192,7 +192,7 @@ export function NameResearchPanel({ tree, surname, country, onPick, house }: {
     });
   };
 
-  const when = (ms: number) => new Date(ms).toLocaleDateString(locales[t.locale], { day: 'numeric', month: 'short', year: 'numeric' });
+  const when = (ms: number) => dateText(ms, t.locale, { day: 'numeric', month: 'short', year: 'numeric' });
 
   return (
     <section className="ae-research" aria-label={t('heraldry.research_title')} aria-busy={research.isPending || design.isPending || save.isPending || check.isPending || undefined}>

@@ -9,7 +9,7 @@ import { Portrait } from '~/components/Portrait';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
 import { play } from '~/lib/sfx';
 import { ancestorDepths, displayName, kinship, type Family, type Kinship } from '~/lib/graph';
-import { yourKinship, locales, ordinal, translate, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
+import { dateText, yourKinship, locales, ordinal, translate, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
 import type { GPerson } from '~/lib/types';
 import '~/styles/almanac.css';
 import { useDealt } from '~/lib/dealt';
@@ -30,7 +30,7 @@ const PARTIAL = /^(~?)(\d{3,4})(?:-(\d\d)(?:-(\d\d))?)?$/;
 const DAY = 86_400_000;
 /** A month's name in the reader's language. */
 const monthName = (m: number, locale: Locale, style: 'long' | 'short' = 'long') =>
-  new Intl.DateTimeFormat(locales[locale], { month: style, timeZone: 'UTC' }).format(new Date(Date.UTC(2000, m - 1, 1)));
+  dateText(Date.UTC(2000, m - 1, 1), locale, { month: style, timeZone: 'UTC' });
 
 function full(d?: string) {
   const m = d && FULL.exec(d);

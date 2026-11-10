@@ -15,7 +15,7 @@ import { displayName } from '~/lib/graph';
 import { errorText } from '~/lib/errortext';
 import { opKeys } from '~/lib/api';
 import { updateFamilyDetails } from '~/lib/family-details.functions';
-import { locales, translateMessage, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
+import { dateText, translateMessage, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
 import { toast } from '~/lib/toast';
 import '~/styles/manage.css';
 import { ROLES, type Role } from '~/lib/roles';
@@ -29,7 +29,8 @@ export const Route = createFileRoute('/$tree/access')({
 });
 
 /** The short date shown on invitations, in the reader's language. */
-const shortDate = (locale: Locale) => new Intl.DateTimeFormat(locales[locale], { day: 'numeric', month: 'short' });
+type ShortDate = { format: (at: number) => string };
+const shortDate = (locale: Locale): ShortDate => ({ format: (at) => dateText(at, locale, { day: 'numeric', month: 'short' }) });
 const roleLabel = (t: Translator, r: Role) => t(ROLES.find((x) => x.id === r)!.label);
 
 // A link is shown once by the server; this browser remembers the ones its steward made, for "Copy link".
@@ -39,7 +40,7 @@ const knownLink = (id: string) => { try { return localStorage.getItem(linkKey(id
 const forgetLink = (id: string) => { try { localStorage.removeItem(linkKey(id)); } catch {} };
 const inviteUrl = (token: string) => `${window.location.origin}/invite/${token}`;
 
-function daysLeft(t: Translator, ms: number, date: Intl.DateTimeFormat): string {
+function daysLeft(t: Translator, ms: number, date: ShortDate): string {
   const d = Math.ceil((ms - Date.now()) / 86_400_000);
   return d <= 1 ? t('acc.expiresWithinDay') : t('acc.expiresIn', { count: d, date: date.format(ms) });
 }
@@ -338,7 +339,7 @@ async function copy(text: string) {
   try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
 }
 
-function InviteRow({ i, onRevoke, onRenew, busy, dateFmt }: { i: AccessInvite; onRevoke: () => void; onRenew: () => void; busy: boolean; dateFmt: Intl.DateTimeFormat }) {
+function InviteRow({ i, onRevoke, onRenew, busy, dateFmt }: { i: AccessInvite; onRevoke: () => void; onRenew: () => void; busy: boolean; dateFmt: ShortDate }) {
   const t = useT();
   const [copied, setCopied] = useState(false);
   const link = knownLink(i.id);

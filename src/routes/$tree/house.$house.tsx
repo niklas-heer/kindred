@@ -27,7 +27,7 @@ import {
   COUNTRY_CODES, DEFAULT_HOUSE_SETTINGS, houseHistory, houseStats, houseSuccession, kinToHead, memberOrder, notables,
   SUCCESSION_LAWS, spanLabel, useHouseSettings, type HouseSettings, type HouseTenure, type Succession, type SuccessionLaw,
 } from '~/lib/houses';
-import { compareText, kinshipLabel, locales, translate, useT, type Key, type Locale } from '~/lib/i18n';
+import { compareText, dateText, kinshipLabel, locales, translate, useT, type Key, type Locale } from '~/lib/i18n';
 import { occupationText } from '~/lib/occupations';
 import { useCan } from '~/lib/session';
 import { toast } from '~/lib/toast';
@@ -625,4 +625,4 @@ function HouseChronicle({ members, tree, houseName }: { members: GPerson[]; tree
 }
 
 const when = (at: string, locale: keyof typeof locales) =>
-  new Date(at).toLocaleDateString(locales[locale], { day: 'numeric', month: 'short', year: 'numeric' });
+  dateText(new Date(at), locale, { day: 'numeric', month: 'short', year: 'numeric' });
