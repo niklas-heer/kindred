@@ -131,7 +131,9 @@ database that has had these migrations.
 - Relationships reach further through marriages: a spouse's sibling's spouse and a sibling's spouse's sibling (German
   Schwippschwager, Schwippschwägerin), a step-parent's parents and siblings, a grandparent's later spouse (step-grandparents and
   step-grandchildren), and a spouse's relative's spouse. Anyone tied further out is a "relative by marriage" rather than
-  unnamed. The Register and the Almanac now name a step-sibling who is related only through a parent's marriage.
+  unnamed. The Register and the Almanac now name a step-sibling who is related only through a parent's marriage. A parent's or
+  grandparent's partner whose partnership ended, by the recorded dates, before the child on that line was born is no step
+  relation: "grandfather's wife", "father's wife's brother".
 - Navigation: the top bar shows Today, Tree, Almanac, Chronicle and Atlas (and the Campaign while it is on) and keeps the
   Register, Houses, Contacts, Needed, the Gallery and Research under "More", so every section shown keeps its name at
   tablet width. On a phone the tab bar starts with Today, and the Atlas moved into More.

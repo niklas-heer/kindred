@@ -268,12 +268,7 @@ function renderDe(k: Kinship, view: KinshipView): DeKin {
         const pre = collateral(pibling[2] ? Number(pibling[1] ?? 1) : 0);
         return by(spouses, (g) => (g === "f" ? `angeheiratete ${capitalise(pre + "tante")}` : `angeheirateter ${capitalise(pre + "onkel")}`));
       }
-      // A grandmother's husband who is not your grandfather is your step-grandfather.
-      const grand = rel.match(/^(?:(\d+)× )?(great-)?grand(?:father|mother|parent)$/);
-      if (grand) {
-        const pre = "ur".repeat(grand[2] ? Number(grand[1] ?? 1) : 0);
-        return by(spouses, (g) => `Stief${pre}${g === "f" ? "großmutter" : "großvater"}`);
-      }
+      // A step-grandparent comes as "step-grandmother"; "grandfather's wife" is one who never was one (graph.kinship).
       return { alts: spouses.alts, tail: ` ${of(render(spouse[1]))}`, through: true };
     }
     const theirs = label.match(/^(husband|wife|partner)'s (.+)$/);

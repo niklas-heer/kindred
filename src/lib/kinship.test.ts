@@ -146,8 +146,8 @@ test('German names ties through a marriage the way people say them', () => {
   assert.equal(label("first cousin's wife"), 'Ehefrau deines Cousins oder deiner Cousine');
   assert.equal(de({ label: "first cousin's wife", via: [], cousin: { sex: 'm', up: 0 } }), 'Ehefrau deines Cousins');
   assert.equal(label("nephew's husband"), 'Ehemann deines Neffen');
-  assert.equal(label("grandmother's husband"), 'Stiefgroßvater');
-  assert.equal(label("great-grandfather's wife"), 'Stiefurgroßmutter');
+  assert.equal(label("grandmother's husband"), 'Ehemann deiner Großmutter');
+  assert.equal(label("great-grandfather's wife"), 'Ehefrau deines Urgroßvaters');
   assert.equal(label("aunt's partner"), 'angeheirateter Onkel oder angeheiratete Tante');
   assert.equal(label('brother-in-law'), 'Schwager');
   assert.equal(label('sibling-in-law'), 'Schwager oder Schwägerin');
@@ -283,6 +283,54 @@ test('beyond those words, a relative by marriage, with German agreeing with the 
   assert.deepEqual(kinPath(h, 'mia', 'wanda'), ['mia', 'nils', 'nils-father', 'ruth', 'sven', 'sven-father', 'lars', 'wanda']);
 });
 
+// Partnerships that ended before the line's child was born. Opa married Erste first (divorced 1950), then Oma; their son
+// Vati was born in 1955. Vati married Ex first (divorced 1975), then Mutti; their daughter Ich was born in 1980. Ex's
+// brother is Exbruder, and Ex's son Exsohn was born to her and Neu in 1978. Opa's third wife Dritte has no dates.
+const D = ['opa', 'vati', 'exbruder', 'exsohn', 'neu', 'exvater'];
+const W = ['erste', 'oma', 'ex', 'mutti', 'ich', 'dritte', 'erste-mutter'];
+const dated = (id: string, sex: 'm' | 'f', born?: string): GPerson => ({ ...person(id, sex), ...(born && { born }) });
+const birth: Record<string, string> = { vati: '1955-04-02', ich: '1980-06-01', exsohn: '1978', ex: '1952' };
+const d = buildFamily({
+  tree: {} as never, houses: [], places: [],
+  people: [...D.map((id) => dated(id, 'm', birth[id])), ...W.map((id) => dated(id, 'f', birth[id]))],
+  parents: [
+    link('vati', 'opa'), link('vati', 'oma'), link('ich', 'vati'), link('ich', 'mutti'),
+    link('ex', 'exvater'), link('exbruder', 'exvater'), link('exsohn', 'ex'), link('exsohn', 'neu'), link('erste', 'erste-mutter'),
+  ],
+  unions: [
+    { ...union('opa', 'erste'), end: '1950' }, union('opa', 'oma'), union('opa', 'dritte'),
+    { ...union('vati', 'ex'), start: '1972', end: '1975-09' }, union('vati', 'mutti'), union('ex', 'neu'),
+  ],
+} as never);
+const dl = (me: string, other: string) => kinship(d, me, other)?.label;
+const dde = (me: string, other: string) => kinshipLabel(kinship(d, me, other), 'de');
+
+test('a grandparent’s or parent’s partner from before the line’s child was born is no step relation', () => {
+  assert.equal(dl('vati', 'erste'), "father's wife", 'divorced before Vati was born');
+  assert.equal(dl('erste', 'vati'), "husband's son");
+  assert.equal(dl('ich', 'erste'), "grandfather's wife");
+  assert.equal(dl('erste', 'ich'), "husband's granddaughter");
+  assert.equal(dl('ich', 'ex'), "father's wife", 'divorced before Ich was born');
+  assert.equal(dl('ex', 'ich'), "husband's daughter");
+  assert.equal(dl('ich', 'exbruder'), "father's wife's brother");
+  assert.equal(dl('exbruder', 'ich'), "sister's husband's daughter");
+  assert.equal(dl('ich', 'exsohn'), "father's wife's son");
+  assert.equal(dl('vati', 'erste-mutter'), "father's wife's mother");
+  assert.equal(dl('erste-mutter', 'vati'), "daughter's husband's son");
+  // Where the dates say nothing, the step words stay.
+  assert.equal(dl('ich', 'dritte'), 'step-grandmother');
+  assert.equal(dl('vati', 'dritte'), 'stepmother');
+  assert.equal(dl('ich', 'mutti'), 'mother');
+  assert.equal(dde('ich', 'erste'), 'Ehefrau deines Großvaters');
+  assert.equal(dde('erste', 'ich'), 'Enkelin deines Ehemanns');
+  assert.equal(dde('ich', 'ex'), 'Ehefrau deines Vaters');
+  assert.equal(dde('ex', 'ich'), 'Tochter deines Ehemanns');
+  assert.equal(dde('ich', 'exbruder'), 'Bruder der Ehefrau deines Vaters');
+  assert.equal(dde('exbruder', 'ich'), 'Tochter des Ehemanns deiner Schwester');
+  assert.equal(dde('ich', 'dritte'), 'Stiefgroßmutter');
+  assert.equal(kinshipLabel(kinship(d, 'ich', 'erste'), 'af'), 'oupa se vrou');
+});
+
 // ---------- properties over every pair ----------
 
 /** A label in sex-free parts, one per person along the way: "wife's first cousin" → ["SPOUSE", "first cousin"]. */
@@ -306,7 +354,7 @@ function chains(label: string): string[][] {
 }
 const inverseOf = (label: string) => chains(label).map((c) => [...c].reverse().map(invert).join(' / '));
 
-for (const [name, fam] of [['first', f], ['cousins', g], ['marriages', h]] as const) {
+for (const [name, fam] of [['first', f], ['cousins', g], ['marriages', h], ['dated', d]] as const) {
   test(`every relation in the ${name} family is named both ways, as each other's inverse, and has a word in German and Afrikaans`, () => {
     const ids = fam.graph.people.map((p) => p.id);
     for (const a of ids) {

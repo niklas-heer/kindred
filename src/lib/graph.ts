@@ -372,17 +372,48 @@ function bloodKinship(f: Family, me: string, other: string, myAnc: Map<string, n
   return { label, via: best.via };
 }
 
+/** A partial date ("1953", "1953-08-08", "~1953") as year, month and day, the month and day when known. */
+const dateParts = (d?: string) => {
+  const m = d?.match(/^(~?)(\d{3,4})(?:-(\d\d)(?:-(\d\d))?)?$/);
+  return m ? { about: !!m[1], y: Number(m[2]), m: m[3] ? Number(m[3]) : undefined, d: m[4] ? Number(m[4]) : undefined } : undefined;
+};
+/** Whether `a` is surely before `b`: false when either is unknown or they cannot be told apart. An "about" year counts a year either way. */
+function surelyBefore(a?: string, b?: string): boolean {
+  const x = dateParts(a), y = dateParts(b);
+  if (!x || !y) return false;
+  if (x.about || y.about) return x.y + 1 < y.y;
+  if (x.y !== y.y) return x.y < y.y;
+  if (x.m === undefined || y.m === undefined) return false;
+  if (x.m !== y.m) return x.m < y.m;
+  return x.d !== undefined && y.d !== undefined && x.d < y.d;
+}
+/**
+ * Whether every partnership of `a` and `b` had ended before `child` was born, by the dates on record: then the partner was
+ * never a step-parent or step-grandparent on that line (a grandfather's first wife, divorced before the father's birth).
+ * False when a date is missing, so the step word stays where nothing says otherwise.
+ */
+function partedBefore(f: Family, a: string, b: string, child: string | undefined): boolean {
+  const born = child ? f.byId.get(child)?.born : undefined;
+  const between = (f.unionsOf.get(a) ?? []).filter((u) => u.a === b || u.b === b);
+  return !!born && between.length > 0 && between.every((u) => surelyBefore(u.end, born));
+}
+
+interface HouseholdParent { id: string; path: string[]; foster: boolean; former?: { parent: string } }
 /**
  * The people who raise or raised `id` without being their parent by descent: a step or foster parent on record, and
- * a parent's partner who is not their parent. Each with the way to them and whether the tie is fostering.
+ * a parent's partner who is not their parent. Each with the way to them and whether the tie is fostering. With `former`,
+ * also a parent's partner from before: one whose every partnership with the parent ended before `id` was born, marked
+ * with that parent (never a step-parent, but "father's wife" and her relatives are named through it).
  */
-function householdParents(f: Family, id: string): { id: string; path: string[]; foster: boolean }[] {
-  const out: { id: string; path: string[]; foster: boolean }[] = [];
+function householdParents(f: Family, id: string, former = false): HouseholdParent[] {
+  const out: HouseholdParent[] = [];
   const blood = bloodParents(f, id);
   for (const p of parents(f, id)) if (!blood.includes(p)) out.push({ id: p, path: [id, p], foster: kindOf(f, id, p) === 'foster' });
   for (const bp of blood) {
     for (const sp of partnersOf(f, bp)) {
-      if (sp !== id && !parents(f, id).includes(sp) && !out.some((o) => o.id === sp)) out.push({ id: sp, path: [id, bp, sp], foster: false });
+      if (sp === id || parents(f, id).includes(sp) || out.some((o) => o.id === sp)) continue;
+      const before = partedBefore(f, bp, sp, id);
+      if (!before || former) out.push({ id: sp, path: [id, bp, sp], foster: false, ...(before && { former: { parent: bp } }) });
     }
   }
   return out;
@@ -485,18 +516,28 @@ function tiePath(f: Family, from: string, to: string): string[] {
 function stepKinship(f: Family, me: string, other: string, mine: Map<string, number>): Kinship | undefined {
   const p = f.byId.get(other);
   const word = (h: { id: string; foster: boolean }, m: string, w: string, x: string) => `${h.foster ? 'foster ' : 'step'}${gendered(f.byId.get(h.id), m, w, x)}`;
-  for (const h of householdParents(f, me)) {
+  for (const h of householdParents(f, me, true)) {
     const k = bloodKinship(f, h.id, other, ancestorDepths(f, h.id, true));
     if (!k) continue;
     const path = [...h.path, ...bloodPath(f, h.id, other, k.via[0]).slice(1)];
+    // A parent's partner from before I was born is no step-parent: "father's wife's brother", not "stepmother's brother".
+    if (h.former) {
+      const label = `${gendered(f.byId.get(h.former.parent), 'father', 'mother', 'parent')}'s ${spouseWord(f.byId.get(h.id))}'s ${k.label}`;
+      return { label, via: k.via, path, ...(k.cousin && { cousin: k.cousin }) };
+    }
     const d = depthUp(f, h.id, other);
     if (d !== undefined && !h.foster) return { label: stepGrand(p, d + 1, true), via: [], path };
     return { label: `${word(h, 'father', 'mother', 'parent')}'s ${k.label}`, via: k.via, path, ...(k.cousin && { cousin: k.cousin }) };
   }
-  for (const h of householdParents(f, other)) {
+  for (const h of householdParents(f, other, true)) {
     const k = bloodKinship(f, me, h.id, mine);
     if (!k) continue;
     const path = [...bloodPath(f, me, h.id, k.via[0]), ...[...h.path].reverse().slice(1)];
+    // The child of my relative's partner, born after they parted: "sister's husband's son".
+    if (h.former) {
+      const label = `${k.label}'s ${spouseWord(f.byId.get(h.former.parent))}'s ${gendered(p, 'son', 'daughter', 'child')}`;
+      return { label, via: k.via, path, ...(k.cousin && { cousin: k.cousin }) };
+    }
     const d = depthUp(f, h.id, me);
     if (d !== undefined && !h.foster) return { label: stepGrand(p, d + 1, false), via: [], path };
     const child = `${h.foster ? 'foster ' : 'step'}${gendered(p, 'son', 'daughter', 'child')}`;
@@ -536,6 +577,8 @@ export function kinship(f: Family, me: string, other: string, myAnc?: Map<string
     if (!k) continue;
     const path = [me, ...bloodPath(f, sp, other, k.via[0])];
     const down = depthUp(f, other, sp);
+    // My partner's child or grandchild on a line that began after we parted is theirs, not mine: "husband's son".
+    if (down !== undefined && partedBefore(f, me, sp, childOnLine(f, other, sp))) return { label: `${spouseWord(f.byId.get(sp))}'s ${k.label}`, via: k.via, path };
     if (down !== undefined && down >= 2) return { label: stepGrand(p, down, false), via: [], path };
     const spouse = knownSex(f.byId.get(sp));
     if (!/cousin|great|adopt/.test(k.label)) return { label: `${k.label}-in-law`, via: k.via, path, ...(spouse && { spouse }) };
@@ -547,7 +590,8 @@ export function kinship(f: Family, me: string, other: string, myAnc?: Map<string
     if (!k) continue;
     const path = [...bloodPath(f, me, sp, k.via[0]), other];
     const up = depthUp(f, me, sp);
-    if (up !== undefined && up >= 2) return { label: stepGrand(p, up, true), via: [], path };
+    // A grandparent's partner from before the line's child was born is no step-grandparent: "grandfather's wife".
+    if (up !== undefined && up >= 2 && !partedBefore(f, sp, other, childOnLine(f, me, sp))) return { label: stepGrand(p, up, true), via: [], path };
     const base = k.label.replace(/^(half-|adopted |adoptive )?/, '');
     if (/^(brother|sister|sibling)$/.test(base)) return { label: `${gendered(p, 'brother', 'sister', 'sibling')}-in-law`, via: k.via, path };
     if (/^(son|daughter|child)$/.test(base)) return { label: `${gendered(p, 'son', 'daughter', 'child')}-in-law`, via: k.via, path };
