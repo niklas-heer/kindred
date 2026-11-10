@@ -267,9 +267,23 @@ preview says there is nothing to do, and the button stays off.
 the family in between, nothing is written and the import is planned again on fresh reads. A retry after a lost
 response writes nothing twice: the request carries a key, and the server answers a repeat with the first result.
 
-The import is written in one batch. A very large family may take a while to write, and the page waits for it. The
-batch size is not limited by Kindred itself; if Cloudflare D1 refuses a large batch, split the file. That limit has
-not been measured for this app.
+**How large a file.** The file may be up to 5 MB, and that cap is what bounds the batch: the import stays one batch, so
+it is written whole or not at all, and its guards keep their meaning. D1 counts a batch as one query and limits it by
+time (30 seconds for the whole batch) and by the size of each statement (100 KB, 100 parameters); an import's
+statements are small (one row each, at most 17 parameters), so the time is the limit that matters. Tested on local D1
+in workerd (`wrangler`'s own runtime, never Cloudflare) with invented families written as GEDCOM:
+
+| People in the file | File size | Statements in the batch | Import on local D1 |
+| --- | --- | --- | --- |
+| 1,002 | 0.16 MB | about 2,300 | 0.1 s |
+| 5,002 | 0.68 MB | about 11,300 | 0.4 s |
+| 20,002 | 2.7 MB | about 45,000 | 2.1 s |
+| 36,002 | 4.8 MB (just under the cap) | about 81,000 | 4.9 s |
+
+Real D1 is slower than local D1, which has no network between the Worker and the database, so treat these times as a
+floor; the largest file the cap allows still leaves about six times the margin to D1's 30 seconds. If an import of a
+file near the cap is ever refused for taking too long, nothing has been written: split the file by branch in your
+genealogy program and import the parts one after the other (each part matches the people the earlier ones added).
 
 ## Round trips
 
