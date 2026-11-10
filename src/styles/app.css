@@ -234,6 +234,8 @@ input, textarea, select { font: inherit; color: inherit; }
 /* Tertiary text. Still readable (4.5:1); --faint itself is for decoration only. */
 .faint, .subtle { color: var(--subtle); }
 h1, h2, h3, h4 { text-wrap: balance; }
+/* Long German and Afrikaans compounds break at a syllable rather than push a button or a heading past its edge. */
+.ui-dialog-title, .pp-ov-label, .btn { hyphens: auto; }
 .shell-main { display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); outline: none; }
 .shell-main > * { min-width: 0; min-height: 0; }
 /* The skip link is the first stop of the tab order: out of sight until it has focus. */

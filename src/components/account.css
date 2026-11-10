@@ -52,6 +52,8 @@
 .acct-item svg { color: var(--muted); flex: none; }
 .acct-item:hover, .acct-item:focus-visible { background: var(--panel-3); outline: none; }
 [data-theme='codex'] .acct-item:hover, [data-theme='codex'] .acct-item:focus-visible { background: linear-gradient(90deg, #4a3d2288, #4a3d2222); box-shadow: inset 2px 0 0 var(--accent); }
+/* The menu is driven by arrow keys, so the focused row needs more than a tint. */
+.acct-item:focus-visible, [data-theme='codex'] .acct-item:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
 
 /* Theme and sound, for screens where the top bar has no room for their buttons (app.css hides them there at the same width). */
 .acct-prefs { display: none; margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--border); }
