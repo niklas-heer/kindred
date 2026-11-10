@@ -98,6 +98,13 @@ function populatedFamily(name: string): DatabaseSync {
     INSERT INTO research_picture (project, media, created_by, created_by_name, created_at) VALUES ('rp1', 'gallery/g1.jpg', 'u1', 'Ben', '${now}');
     INSERT INTO research_person (project, person, private, created_by, created_by_name, created_at) VALUES ('rp1', 'ada', 0, 'u1', 'Ben', '${now}');
     INSERT INTO research_place (project, place, created_by, created_by_name, created_at) VALUES ('rp1', 'Lindby', 'u1', 'Ben', '${now}');
+    INSERT INTO life_event (id, person, type, label, date, place, note, ord, created_by, created_by_name, created_at, updated_at) VALUES ('ev1', 'ben', 'residence', 'The mill', '1860', 'Lindby', '', 0, 'u1', 'Ben', '${now}', '${now}');
+    INSERT INTO source (id, title, author, document, media, created_by, created_by_name, created_at, updated_at) VALUES ('so1', 'Parish ''book''', NULL, 'rd1', 'gallery/g1.jpg', 'u1', 'Ben', '${now}', '${now}');
+    INSERT INTO citation (id, source, fact, person, parent, event, partnership, page, quality, created_by, created_by_name, created_at, updated_at) VALUES
+      ('ci1', 'so1', 'birth', 'ada', NULL, NULL, NULL, 'p. 1', 'original', 'u1', 'Ben', '${now}', '${now}'),
+      ('ci2', 'so1', 'parent', 'ben', 'ada', NULL, NULL, NULL, NULL, 'u1', 'Ben', '${now}', '${now}'),
+      ('ci3', 'so1', 'event', NULL, NULL, 'ev1', NULL, NULL, NULL, 'u1', 'Ben', '${now}', '${now}'),
+      ('ci4', 'so1', 'partnership', NULL, NULL, NULL, 'u1', NULL, 'unsure', 'u1', 'Ben', '${now}', '${now}');
   `);
   return d;
 }

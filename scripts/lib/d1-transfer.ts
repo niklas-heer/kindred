@@ -35,6 +35,9 @@ export const COPIED_TABLES: readonly string[] = [
   'research_picture', // gallery pictures linked to a project (after media)
   'research_person', // people linked to a project (after person)
   'research_place', // Atlas places linked to a project (after place)
+  'life_event', // a person's life events (migration 0024), after person
+  'source', // the family's sources, after research_document and media, which a source may link to
+  'citation', // a source cited for a fact, after source and every fact it may name: person, parent, partnership, life_event
 ];
 
 /**

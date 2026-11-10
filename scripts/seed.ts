@@ -80,14 +80,32 @@ for (const file of files) {
   const place = db.prepare('INSERT OR REPLACE INTO place (name, lat, lng, country) VALUES (?, ?, ?, ?)');
   for (const p of t.places ?? []) place.run(p.name, p.lat, p.lng, p.country ?? null);
 
+  // Life events, sources and citations (migration 0024), in that order: a citation names a source and an event.
+  const now = new Date().toISOString();
+  const ords = new Map<string, number>();
+  const event = db.prepare('INSERT INTO life_event (id, person, type, label, date, end_date, place, note, ord, created_by_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  for (const e of t.events ?? []) {
+    const ord = ords.get(e.person) ?? 0;
+    ords.set(e.person, ord + 1);
+    event.run(e.id, e.person, e.type, e.label ?? null, e.date ?? null, e.endDate ?? null, e.place ?? null, e.note ?? '', ord, 'seed', now, now);
+  }
+  const source = db.prepare('INSERT INTO source (id, title, author, publication, reference, date, note, created_by_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  for (const x of t.sources ?? []) source.run(x.id, x.title, x.author ?? null, x.publication ?? null, x.reference ?? null, x.date ?? null, x.note ?? '', 'seed', now, now);
+  const citation = db.prepare('INSERT INTO citation (id, source, fact, person, parent, event, partnership, page, quality, transcription, created_by_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  for (const c of t.citations ?? []) {
+    const f = c.target;
+    const cols = f.fact === 'event' ? [null, null, f.event, null] : f.fact === 'partnership' ? [null, null, null, f.partnership] : f.fact === 'parent' ? [f.child, f.parent, null, null] : [f.person, null, null, null];
+    citation.run(c.id, c.source, f.fact, ...cols, c.page ?? null, c.quality ?? null, c.transcription ?? '', 'seed', now, now);
+  }
+
   // Person fields: the contacts in the family's order, then the favourite things after them (as migration 0003 laid them out).
   const field = db.prepare('INSERT INTO person_field (id, person, type, label, value, ord, created_by_name, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-  const ords = new Map<string, number>();
+  const fieldOrds = new Map<string, number>();
   let fields = 0;
   for (const c of t.contacts) {
     const { type, key } = CONTACT_FIELD[c.kind];
-    const ord = ords.get(c.person) ?? 0;
-    ords.set(c.person, ord + 1);
+    const ord = fieldOrds.get(c.person) ?? 0;
+    fieldOrds.set(c.person, ord + 1);
     const label = c.label ?? (c.kind === 'messenger' ? 'Messenger' : '');
     field.run(crypto.randomUUID(), c.person, type, label, JSON.stringify({ [key]: c.value }), ord, 'seed', 'seed');
     fields++;
@@ -101,5 +119,5 @@ for (const file of files) {
   db.exec('COMMIT');
   const fk = db.prepare('PRAGMA foreign_key_check').all();
   db.close();
-  console.log(`${path}: ${t.people.length} people, ${t.unions.length} unions, ${t.stories.length} stories, ${(t.places ?? []).length} places, ${fields} fields${fk.length ? `, ${fk.length} broken references!` : ''}`);
+  console.log(`${path}: ${t.people.length} people, ${t.unions.length} unions, ${t.stories.length} stories, ${(t.places ?? []).length} places, ${fields} fields, ${(t.events ?? []).length} events, ${(t.sources ?? []).length} sources, ${(t.citations ?? []).length} citations${fk.length ? `, ${fk.length} broken references!` : ''}`);
 }

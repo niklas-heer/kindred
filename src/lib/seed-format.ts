@@ -20,6 +20,11 @@ export interface SeedTree {
   contacts: SeedContact[];
   /** Coordinates for the place names used above, for the Atlas. Optional per place. */
   places?: SeedPlace[];
+  /** Life events beyond birth, partnerships and death (migration 0024). */
+  events?: SeedEvent[];
+  /** The family's sources, and the citations that tie them to facts. */
+  sources?: SeedSource[];
+  citations?: SeedCitation[];
   /** The person the tree opens on (the "player character"). */
   focus: string;
 }
@@ -289,4 +294,39 @@ export interface SeedContact {
   kind: 'phone' | 'email' | 'address' | 'web' | 'messenger';
   label?: string; // "mobile", "home", "Signal"
   value: string;
+}
+
+/** A life event: a baptism, a school, a move, service, a burial. See src/lib/events.ts for the types. */
+export interface SeedEvent {
+  id: string;
+  person: string;
+  type: import('./events.ts').EventType;
+  /** What it was ("Village school", "Miller"); required for `custom`. */
+  label?: string;
+  date?: string;
+  endDate?: string;
+  place?: string;
+  note?: string;
+}
+
+export interface SeedSource {
+  id: string;
+  title: string;
+  author?: string;
+  /** The publication or the archive that holds it. */
+  publication?: string;
+  /** A call number or a URL. */
+  reference?: string;
+  date?: string;
+  note?: string;
+}
+
+/** One source cited for one fact. */
+export interface SeedCitation {
+  id: string;
+  source: string;
+  target: import('./events.ts').Fact;
+  page?: string;
+  quality?: 'original' | 'derivative' | 'unsure';
+  transcription?: string;
 }

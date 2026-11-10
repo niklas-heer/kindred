@@ -7,6 +7,7 @@ import type { Rng } from './lib/rng.ts';
 import { idOf, mulberry32 } from './lib/rng.ts';
 import { summarize, validate, writeTree } from './lib/check.ts';
 import { placeModern } from './lib/places.ts';
+import { addLife } from './lib/life.ts';
 import {
   FAMILIES,
   FAVOURITE_FOODS,
@@ -511,11 +512,13 @@ function main(): void {
     const { tree, focus } = built;
     validate(tree);
     placeModern(tree, mulberry32(built.seed));
+    // Life events and sources after the places, so events name the family's pinned towns (scripts/lib/life.ts).
+    addLife(tree, mulberry32(built.seed + 24), 'modern');
     writeTree(tree, OUT_PATH);
 
     const s = summarize(tree);
     console.log(`modern: wrote ${OUT_PATH} (seed ${built.seed})`);
-    console.log(`  people ${s.people}, unions ${s.unions}, stories ${s.stories}, contacts ${s.contacts}`);
+    console.log(`  people ${s.people}, unions ${s.unions}, stories ${s.stories}, contacts ${s.contacts}, events ${tree.events?.length ?? 0}, citations ${tree.citations?.length ?? 0}`);
     console.log(`  living ${s.living}, max generation depth ${s.maxGenerationDepth}`);
     console.log(`  largest house ${s.largestHouse.name} (${s.largestHouse.members} members)`);
     console.log(`  focus ${tree.focus} (${tree.people.find((p) => p.id === tree.focus)?.given ?? ''}, focus index ${focus})`);
