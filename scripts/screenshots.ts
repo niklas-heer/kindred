@@ -7,11 +7,15 @@
 //   --use-dist  skip the build and serve the dist/ that is already there (built with KINDRED_TARGET=node)
 //   --only      take just these pictures (names as in SHOTS below)
 //   --out       write the pictures here instead of docs/images/
+//   --keep-png  also leave the full-size PNGs beside the WebP files (to look at them)
+// The server runs on a clock of its own (scripts/lib/shot-clock.ts): first on 3 November 2026, when the steward turns the
+// Campaign on and a relative is invited, then on 7 November, the day the invented modern family is set on, so the season is
+// four days old, the week's question is the same every time, and the pictures differ between runs only where the data does.
 // Screenshots are PNG from Playwright; cwebp (brew install webp) makes the WebP files, at the best quality that fits
 // MAX_BYTES. The scratch folder and the server are removed again whether or not a step fails.
 import { chromium, type BrowserContext, type Page } from '@playwright/test';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -22,6 +26,7 @@ process.chdir(root);
 const args = process.argv.slice(2);
 const useDist = args.includes('--use-dist');
 const flagValue = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
+const keepPng = args.includes('--keep-png');
 const only = flagValue('--only')?.split(',');
 const outDir = resolve(flagValue('--out') ?? 'docs/images');
 
@@ -30,6 +35,9 @@ const executablePath = process.env.KINDRED_E2E_BROWSER || (existsSync(BRAVE) ? B
 const SETUP_CODE = 'SHOT-TEST-SETUP-CODE';
 /** The size every picture is taken at: CSS pixels, at twice the density. */
 const VIEWPORT = { width: 1440, height: 900 };
+/** The day the invented modern family is set on (gen-modern.ts), and the day the Campaign's season began four days before. */
+const NOW = '2026-11-07T12:00:00Z';
+const SEASON_START = '2026-11-03T12:00:00Z';
 /** Aim for no more than this per WebP file (cwebp's size search lands a little over or under), in bytes: the README is the front page and loads four or five of them. */
 const MAX_BYTES = 145_000;
 
@@ -87,10 +95,10 @@ async function createAccount(page: Page, origin: string, name: string) {
   await page.waitForURL((u) => !u.pathname.startsWith('/setup'), { timeout: 30_000 });
 }
 
-/** Opens a family's tree and answers "Who are you in this family?" with the person the seed opens on. */
-async function sayWhoIAm(page: Page, origin: string, tree: string) {
+/** Opens a family's tree and answers "Who are you in this family?" with the given person (the one the seed opens on by default). */
+async function sayWhoIAm(page: Page, origin: string, tree: string, personId?: string) {
   const s = seed(tree);
-  const me = s.people.find((p) => p.id === s.focus)!;
+  const me = s.people.find((p) => p.id === (personId ?? s.focus))!;
   await page.goto(`${origin}/${tree}`);
   const dialog = page.getByRole('dialog');
   await dialog.waitFor({ timeout: 20_000 });
@@ -103,7 +111,77 @@ async function sayWhoIAm(page: Page, origin: string, tree: string) {
   await offer.getByRole('button', { name: 'Not now' }).click({ timeout: 8000 }).catch(() => undefined);
 }
 
-interface Shot { name: string; run(page: Page, origin: string): Promise<void> }
+/** A steward makes an invitation link on the Access page, the way the page's own button does. */
+async function invite(page: Page, origin: string, tree: string): Promise<string> {
+  await page.goto(`${origin}/${tree}/access`);
+  await settle(page);
+  await page.getByRole('button', { name: 'Invite someone' }).first().click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Make an invitation link' }).click();
+  const url = await dialog.getByRole('textbox', { name: 'Invitation link' }).inputValue();
+  await dialog.getByRole('button', { name: 'Done' }).click();
+  return url;
+}
+
+/** A relative opens an invitation in a browser of their own (with a virtual passkey) and says who they are. */
+async function joinByInvite(page: Page, origin: string, url: string, name: string, tree: string, personId: string) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('WebAuthn.enable', { enableUI: false });
+  await cdp.send('WebAuthn.addVirtualAuthenticator', {
+    options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true },
+  });
+  await page.goto(url.replace(/^https?:\/\/[^/]+/, origin));
+  await page.getByRole('textbox', { name: 'What should the family call you?' }).fill(name);
+  await page.getByRole('button', { name: 'Create your passkey' }).click();
+  await page.waitForURL((u) => !u.pathname.startsWith('/invite'), { timeout: 30_000 }).catch(() => undefined);
+  await sayWhoIAm(page, origin, tree, personId);
+}
+
+/** Switches a game on or off under Games, as a steward does. */
+async function setGame(page: Page, origin: string, tree: string, name: string, on: boolean) {
+  await page.goto(`${origin}/${tree}/settings/games`);
+  await settle(page);
+  const toggle = page.getByRole('switch', { name });
+  if ((await toggle.getAttribute('aria-checked')) !== String(on)) await toggle.click();
+  await page.locator(`[role="switch"][aria-checked="${on}"]`).first().waitFor();
+}
+
+/** Answers this week's question on Today from the person the dialog starts with (the reader, if they said who they are). */
+async function answerQuestion(page: Page, origin: string, tree: string, text: string) {
+  await page.goto(`${origin}/${tree}/today`);
+  await settle(page);
+  const week = page.getByRole('region', { name: 'Question of the week' });
+  await week.getByRole('button', { name: 'Tell your story' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Your answer' });
+  await dialog.getByLabel('What do you remember?').fill(text);
+  await dialog.getByRole('button', { name: 'Share with the family' }).click();
+  await dialog.waitFor({ state: 'detached' });
+  await week.getByRole('heading', { name: /answers? this week/ }).waitFor();
+}
+
+/**
+ * Takes today's quiz. The choices come in an order the server's seed fixes (family, day), and on 7 November that gives the
+ * same question every run, so the picture shows a right answer by taking the choice that is right on that day: the second.
+ */
+const QUIZ_PICK = 1;
+/** (The server judges; a different day would only make the picture show "Not quite".) */
+async function takeQuiz(page: Page, origin: string, tree: string) {
+  await page.goto(`${origin}/${tree}/today`);
+  await settle(page);
+  const quiz = page.getByRole('region', { name: 'Do you know your family?' });
+  const radios = quiz.getByRole('radio');
+  if (await radios.count()) await radios.nth(QUIZ_PICK).check();
+  await quiz.getByRole('button', { name: 'That is my answer' }).click();
+  await quiz.getByRole('status').waitFor();
+}
+
+interface Shot { name: string; /** The viewport's height, for a page that wants more than 900 px. */ height?: number; run(page: Page, origin: string): Promise<void> }
+
+/** What the family writes in answer to the week's question on 7 November ("What did the kitchen of your childhood look like?"): invented, and short enough to read in a picture. */
+const ANSWERS = {
+  steward: 'A wood stove that was never allowed to go out, a yellow oilcloth on the table, and a jar of cardamom buns on the shelf above the sink. It smelled of coffee from five in the morning.',
+  relative: 'It was small and always warm. Everyone sat on the bench along the wall, so there was never a chair for the person who was cooking, and my aunt Signe stood and stirred the whole time.',
+};
 
 const SHOTS: Shot[] = [
   {
@@ -117,14 +195,54 @@ const SHOTS: Shot[] = [
   {
     name: 'person',
     async run(page, origin) {
-      await page.goto(`${origin}/realm/person/p0001`);
+      await page.goto(`${origin}/modern/person/p0061`);
+      await settle(page);
       await grab(page, 'person');
+    },
+  },
+  {
+    name: 'today',
+    height: 1700,
+    async run(page, origin) {
+      await page.goto(`${origin}/modern/today`);
+      await settle(page);
+      await grab(page, 'today');
+    },
+  },
+  {
+    name: 'campaign',
+    height: 1085,
+    async run(page, origin) {
+      await page.goto(`${origin}/modern/campaign`);
+      await settle(page);
+      // A province of the house with an order on it: raise its garrison, then get an attack on a neighbour ready to send.
+      await page.locator('.cm-prov[data-mine]').first().click();
+      const orders = page.getByRole('complementary', { name: 'Your orders' });
+      await orders.getByRole('button', { name: /^Muster \d+ troops? at / }).click();
+      await orders.getByRole('region', { name: 'Chronicle of the campaign' }).or(page.getByRole('region', { name: 'Chronicle of the campaign' })).getByText(/mustered/).first().waitFor();
+      await orders.getByRole('button', { name: 'Attack' }).first().click();
+      await orders.getByLabel(/battle cry/i).fill('For Grandma!');
+      await grab(page, 'campaign');
+    },
+  },
+  {
+    name: 'book',
+    height: 1210,
+    async run(page, origin) {
+      await page.goto(`${origin}/modern/print?product=book&scope=person&person=p0146`);
+      await settle(page);
+      await page.locator('.pr-doc').and(page.locator('[data-ready="true"]')).waitFor();
+      // The person's own page, the one after the cover and the contents.
+      await page.locator('.pr-sheet').nth(2).scrollIntoViewIfNeeded();
+      await page.locator('.pr-sheet').nth(2).evaluate((el) => el.scrollIntoView({ block: 'start' }));
+      await grab(page, 'book');
     },
   },
   {
     name: 'house',
     async run(page, origin) {
       await page.goto(`${origin}/modern/house/lindqvist`);
+      await settle(page);
       await grab(page, 'house');
     },
   },
@@ -133,7 +251,14 @@ const SHOTS: Shot[] = [
     async run(page, origin) {
       await page.goto(`${origin}/modern/atlas`);
       await settle(page);
-      await page.getByRole('button', { name: /Show all/ }).click();
+      // Zoom out until every place is in view (the note about places beyond the view goes), as a visitor would with the wheel.
+      await page.mouse.move(1100, 450);
+      for (let i = 0; i < 8 && (await page.locator('.atlas-scope-btn').count()); i++) {
+        await page.mouse.wheel(0, 120);
+        await sleep(500);
+      }
+      await page.mouse.move(0, 0);
+      await settle(page);
       await grab(page, 'atlas');
     },
   },
@@ -161,9 +286,9 @@ const SHOTS: Shot[] = [
         reducedMotion: 'reduce',
       });
       try {
-        await phone.clock.install({ time: new Date('2026-11-07T12:00:00Z') });
+        await phone.clock.install({ time: new Date(NOW) });
         const small = await phone.newPage();
-        await small.goto(`${origin}/modern?focus=p0084`);
+        await small.goto(`${origin}/modern/today`);
         await grab(small, 'phone');
       } finally {
         await phone.close();
@@ -196,11 +321,13 @@ function toWebp(name: string) {
   mkdirSync(outDir, { recursive: true });
   const target = join(outDir, `${name}.webp`);
   sh(`cwebp ${name}`, 'cwebp', ['-quiet', '-m', '6', '-pass', '10', '-sharp_yuv', '-size', String(MAX_BYTES), join(raw, `${name}.png`), '-o', target]);
+  if (keepPng) copyFileSync(join(raw, `${name}.png`), join(outDir, `${name}.png`));
   log(`  ${name}.webp  ${(statSync(target).size / 1024).toFixed(1)} kB`);
 }
 
-async function startServer(port: number, origin: string) {
-  server = spawn(process.execPath, ['server/node.ts'], {
+async function startServer(port: number, origin: string, now: string) {
+  serverLog = '';
+  server = spawn(process.execPath, ['--import', join(root, 'scripts/lib/shot-clock.ts'), 'server/node.ts'], {
     cwd: root,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
@@ -213,6 +340,7 @@ async function startServer(port: number, origin: string) {
       KINDRED_AI_FAKE: '1',
       KINDRED_JOBS: 'off',
       KINDRED_SETUP_CODE: SETUP_CODE,
+      KINDRED_SHOT_NOW: now,
     },
   });
   const keep = (d: Buffer) => { serverLog = (serverLog + d.toString()).slice(-4000); };
@@ -253,31 +381,36 @@ async function main() {
   sh('gen-modern', process.execPath, ['scripts/gen-modern.ts']);
   sh('seed', process.execPath, ['scripts/seed.ts', 'data/seed/realm.json', 'data/seed/modern.json'], { KINDRED_DATA_DIR: dataDir });
 
-  const port = await freePort(5361);
+  const port = await freePort(4632);
   const origin = `http://localhost:${port}`;
   log(`starting the server on ${origin}`);
-  await startServer(port, origin);
+  await startServer(port, origin, SEASON_START);
 
   const browser = await chromium.launch({ executablePath, args: ['--hide-scrollbars'] });
   try {
-    const context: BrowserContext = await browser.newContext({
-      viewport: VIEWPORT,
-      deviceScaleFactor: 2,
-      locale: 'en-GB',
-      timezoneId: 'UTC',
-      colorScheme: 'light',
-      reducedMotion: 'reduce',
-    });
-    // The day the invented modern family is set on (gen-modern.ts), so ages and "today" read the same on every run.
-    await context.clock.install({ time: new Date('2026-11-07T12:00:00Z') });
-    await context.addInitScript(() => {
-      try {
-        localStorage.setItem('kindred:theme', 'codex');
-      } catch { /* a locked-down browser */ }
-    });
-    const page = await context.newPage();
+    const open = async () => {
+      const context: BrowserContext = await browser.newContext({
+        viewport: VIEWPORT,
+        deviceScaleFactor: 2,
+        locale: 'en-GB',
+        timezoneId: 'UTC',
+        colorScheme: 'light',
+        reducedMotion: 'reduce',
+      });
+      // The browser's clock follows the server's, so ages, birthdays and "today" read the same on every run.
+      await context.clock.install({ time: new Date(NOW) });
+      await context.addInitScript(() => {
+        try {
+          localStorage.setItem('kindred:theme', 'codex');
+        } catch { /* a locked-down browser */ }
+      });
+      const page = await context.newPage();
+      page.on('pageerror', (e) => aborts.push(e.message));
+      return { context, page };
+    };
     const aborts: string[] = [];
-    page.on('pageerror', (e) => aborts.push(e.message));
+    const { context, page } = await open();
+    const relative = await open();
 
     const realm = seed('realm');
     const steward = realm.people.find((p) => p.id === realm.focus)!;
@@ -286,8 +419,30 @@ async function main() {
     await sayWhoIAm(page, origin, 'realm');
     await sayWhoIAm(page, origin, 'modern');
 
+    // Four days before the day of the pictures: the steward starts the Campaign, and invites a relative.
+    log('turning the Campaign on, and inviting a relative');
+    await setGame(page, origin, 'modern', 'The Campaign is on for this family', true);
+    const link = await invite(page, origin, 'modern');
+    await joinByInvite(relative.page, origin, link, 'Johan Lindqvist', 'modern', 'p0018');
+
+    // The day of the pictures: the season is four days old, and the family has been busy.
+    log('moving the server to the day of the pictures');
+    await stopServer();
+    await startServer(port, origin, NOW);
+    log('answering the question, taking the quiz, playing the Campaign');
+    await answerQuestion(relative.page, origin, 'modern', ANSWERS.relative);
+    await answerQuestion(page, origin, 'modern', ANSWERS.steward);
+    await takeQuiz(page, origin, 'modern');
+    await page.goto(`${origin}/modern/campaign`);
+    await settle(page);
+    await page.getByRole('dialog', { name: 'How the Campaign works' }).getByRole('button', { name: 'To the map' }).click({ timeout: 4000 }).catch(() => undefined);
+    await page.getByRole('button', { name: 'Serve Lindqvist' }).click();
+    await page.getByRole('complementary', { name: 'Your orders' }).getByTestId('orders-left').waitFor();
+    await relative.context.close();
+
     for (const shot of wanted) {
       log(`taking ${shot.name}`);
+      await page.setViewportSize({ width: VIEWPORT.width, height: shot.height ?? VIEWPORT.height });
       await shot.run(page, origin);
       toWebp(shot.name);
     }
