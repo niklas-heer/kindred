@@ -19,6 +19,8 @@ them before the new Worker goes live (`mise run cf:migrate:remote` does the same
 together: to go back to 2.0.0, restore the copies the server made before the migration and start the old version. An old
 version will not run on a database that has had these migrations.
 
+`tree/0025_campaign.sql` adds the Campaign's own five tables and changes none that exist.
+
 ### Added
 
 - Ask to join: a guest of a family's share link can ask for an account of their own, with a passkey. A steward sees the request
@@ -37,6 +39,10 @@ version will not run on a database that has had these migrations.
 - GEDCOM export and import carry life events (standard tags, `EVEN` with `TYPE` for the rest) and sources (`SOUR` records,
   and citations with `PAGE`, `QUAY` and `DATA`/`TEXT`); Kindred's own export comes back unchanged. The Markdown archive lists
   them too, with sources in `sources/`.
+- The Campaign: a slow game between the family's houses, on a map made from the family's places. A house whose people are
+  well recorded raises more troops; every member gets three orders a day; a season lasts 28 days. It is off until a steward
+  turns it on under Games, never changes the family's records, is not shown to share-link guests and is left out of every
+  export. A practice skirmish runs in the browser. See [docs/campaign.md](docs/campaign.md).
 
 - Setting `KINDRED_TRUSTED_PROXIES`: how many reverse proxies stand in front of the Node server. `compose.yaml` passes it
   on and the HTTPS steps set it to 1.

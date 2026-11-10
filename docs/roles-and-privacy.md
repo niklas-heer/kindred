@@ -30,6 +30,8 @@ both what the browser shows and what the server allows.
 | Manage access | Steward |
 | Import a GEDCOM file | Steward |
 | See the family's usage statistics, and turn them off | Steward |
+| Play the Campaign, while it is on | Viewer |
+| Turn the Campaign on or off, and end its season | Steward |
 
 Hiding a button is never the only protection. Every server function and server route calls `requireMember` or
 `requireCan` before it reads or writes, and answers 401 when signed out and 403 when the role is too low.
@@ -251,6 +253,28 @@ A steward can see how the family uses Kindred on the family's Statistics page, a
 **How long:** the browser sends a small report about every 30 seconds and when the page is left. There is no log of individual events, only daily counters, which are deleted after three years.
 
 **Off and opt-out:** turning collection off stops all counting and deletes the markers at once; the anonymous daily totals stay. A browser set to Do Not Track or Global Privacy Control is not counted at all.
+
+## The Campaign
+
+The Campaign is a game between the family's houses ([campaign.md](campaign.md)). It is off until a steward turns it on
+under Games.
+
+- **Who can play:** every member, viewers too. A member acts only for the house they fight for: the house of the person
+  they stand for, or one they chose for the season when they stand for nobody in a house. The server decides that from
+  the membership, never from what a browser sends, and it rolls the dice.
+- **Guests:** a share-link guest gets nothing of it. Every call needs a membership, the page sends a guest back to the
+  tree, and the section is not in a guest's navigation.
+- **What it reads:** the houses and their arms, the places and their coordinates, and counts per house of people with a
+  portrait, with dates, with a birthplace and with memories (and life events and sources where the app records them).
+  Counts only: no name, date or text of a person enters the game. Place names appear on the map, which only members see.
+- **What it writes:** only its own five tables. It never changes a person, a house, a place or anything else the
+  family recorded.
+- **What it keeps about a member:** the account id with their orders, the house they chose, and the orders they gave,
+  with the name they had and an optional battle cry of up to 80 characters, which every member can read in the
+  chronicle. The chronicle of the last two seasons is kept; older seasons keep only which house won.
+- **Exports and copies:** GEDCOM and the Markdown archive carry none of it, and the D1 transfer leaves its tables out.
+- **Push:** a member who has reminders on gets at most one message a day, when a province of their house falls. It says
+  the province and the house that took it, nothing else.
 
 ## The AI assistant and privacy
 

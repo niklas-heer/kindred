@@ -122,6 +122,7 @@ Exports leave some things out, so back up the databases and pictures as well.
 - [Self-hosting](docs/self-host.md) and [deploying on Cloudflare](docs/deploy-cloudflare.md)
 - [The AI features](docs/ai.md): what they send, what they cost, and how keys are kept
 - [Roles and privacy](docs/roles-and-privacy.md)
+- [The Campaign](docs/campaign.md): a game between the family's houses, and how it runs
 - [GEDCOM and the Markdown archive](docs/exchange.md)
 - [The data model](docs/data-model.md)
 - [Changelog](CHANGELOG.md), [release notes for 2.0.0](docs/releases/v2.0.0.md) and [moving from v1](docs/migration-plan.md)
