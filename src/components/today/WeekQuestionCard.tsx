@@ -16,7 +16,7 @@ import { displayName } from '~/lib/graph';
 import { formatDate, richText, useT, type Translator } from '~/lib/i18n';
 import type { Key } from '~/lib/i18n/dictionary';
 import { renderMarkdown } from '~/lib/markdown';
-import { useCan } from '~/lib/session';
+import { useCan, useSession } from '~/lib/session';
 import { setWeekQuestion, weekAnswersQuery, weekQuery } from '~/lib/today/today.functions';
 import type { WeekAnswer, WeekQuestion } from '~/lib/today/types';
 import { weekStart } from '~/lib/today/week';
@@ -36,6 +36,7 @@ export function WeekQuestionCard({ tree }: { tree: string }) {
   const id = useId();
   const canWrite = useCan('add-story');
   const steward = useCan('manage-access');
+  const demo = !!useSession()?.demo;
   const week = useQuery(weekQuery(tree));
   const [answering, setAnswering] = useState<WeekQuestion | null>(null);
   const [changing, setChanging] = useState(false);
@@ -71,7 +72,7 @@ export function WeekQuestionCard({ tree }: { tree: string }) {
                   <span className="subtle">{t('today.week.answer_hint')}</span>
                 </div>
               ) : (
-                <p className="td-note td-week-viewer">{t('today.week.viewer')}</p>
+                <p className="td-note td-week-viewer">{t(demo ? 'demo.err_read_only' : 'today.week.viewer')}</p>
               )}
               <div className="td-answers">
                 <h3>{data.answers.length ? t('today.week.answers', { count: data.answers.length }) : t('today.week.no_answers')}</h3>

@@ -18,7 +18,7 @@ import { useFamily } from '~/lib/family';
 import { displayName, yearOf, type Family } from '~/lib/graph';
 import { richText, useT, type Translator } from '~/lib/i18n';
 import type { Key } from '~/lib/i18n/dictionary';
-import { useCan } from '~/lib/session';
+import { useSession, useCan } from '~/lib/session';
 import { play } from '~/lib/sfx';
 import type { QuizOption, QuizQuestion } from '~/lib/today/quiz';
 import { answerQuizQuestion, quizQuery } from '~/lib/today/today.functions';
@@ -57,7 +57,9 @@ export function QuizCard({ tree }: { tree: string }) {
   const f = useFamily();
   const qc = useQueryClient();
   const steward = useCan('manage-access');
-  const quiz = useQuery(quizQuery(tree));
+  // A demo keeps nothing, and the day's question is kept when it is drawn: there the card is left out instead of failing.
+  const demo = !!useSession()?.demo;
+  const quiz = useQuery({ ...quizQuery(tree), enabled: !demo });
   const [picked, setPicked] = useState<number | null>(null);
   const [sequence, setSequence] = useState<number[] | null>(null);
   const group = useId();
@@ -73,6 +75,7 @@ export function QuizCard({ tree }: { tree: string }) {
   });
 
   const data = quiz.data;
+  if (demo) return null;
   if (data && !data.enabled) {
     if (!steward) return null;
     return (

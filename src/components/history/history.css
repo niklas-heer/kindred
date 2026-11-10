@@ -36,7 +36,7 @@
 
 /* What's new: a card of the Today page (today.css has the card and its heading). */
 .whats-new-head { justify-content: space-between; align-items: baseline; }
-.whats-new > p { margin: 0; }
+.whats-new > p { margin: 10px 0 0; }
 .whats-new > .td-more-link { justify-self: start; }
 .whats-new-groups { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .whats-new-group + .whats-new-groups { margin-top: 12px; }

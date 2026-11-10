@@ -33,3 +33,5 @@ html[data-demo] .home { min-height: calc(100vh - var(--demo-bar-h)); }
 .families-hint { font-size: var(--fs-2); color: var(--subtle); line-height: 1.4; }
 .families-error { color: var(--danger); margin: 0; }
 .home-manage { text-align: center; margin: 0; }
+/* The demo visitor's line in the account menu is a sentence, not an address: it wraps instead of being cut. */
+html[data-demo] .acct-sub { white-space: normal; overflow: visible; }
