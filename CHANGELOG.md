@@ -9,9 +9,12 @@ moving to before you upgrade ([docs/self-host.md](docs/self-host.md), "Upgrading
 
 Changes on `main` since 2.0.0. They are not in a release yet.
 
-Database changes: accounts migration `0022_session_credential.sql` is new. On Node it is applied by itself when the
-server starts, after a copy of the database. On Cloudflare, `mise run deploy` applies it before the new Worker goes live
-(`mise run cf:migrate:remote` does the same step alone). It adds one empty column; sessions you already have keep working.
+Database changes: three migrations are new, `accounts/0022_session_credential.sql`, `accounts/0023_share_protect_living.sql`
+and `tree/0023_photo_thumb.sql`. Each adds one column, so they are quick and nothing you have is rewritten. On Node they
+are applied by themselves when the server starts, after a copy of each database. On Cloudflare, `mise run deploy` applies
+them before the new Worker goes live (`mise run cf:migrate:remote` does the same step alone). Code and migrations roll back
+together: to go back to 2.0.0, restore the copies the server made before the migration and start the old version. An old
+version will not run on a database that has had these migrations.
 
 ### Added
 
@@ -31,6 +34,20 @@ server starts, after a copy of the database. On Cloudflare, `mise run deploy` ap
 - Search lists your nearest relatives first among equal matches.
 - Design rounds one and two: people are larger, every word is readable, the tree opens on the person and the toolbar hangs from the top bar.
 
+- A share link can protect living people, and every new link does: a guest sees their name, face and place in the tree, and
+  none of their dates, places, details, stories or photo tags. Links you already made are not changed. The Access page shows
+  each link's protection and switches it on or off (accounts migration 0023).
+- Gallery tiles load a small copy of each photograph (about 400 pixels), made when it is uploaded, so a big gallery opens much
+  faster. Photographs uploaded before keep loading whole (tree migration 0023).
+- "About and credits" in the account menu, which now holds only what concerns you. A skip link and a main landmark on every
+  family page, and the section icons carry names for screen readers.
+- On a phone the page uses the whole screen, and Kindred can be added to the home screen with its own icon.
+- A new first-run question after setup shows years and parents before you say who you are, so two people with one name are
+  easy to tell apart.
+- A ready-made multi-arch image (amd64 and arm64) is published to `ghcr.io/niklas-heer/kindred` when a version is tagged, and
+  `docs/self-host.md` shows the short way to run it. The pipeline also starts the Docker image and checks `/api/health`.
+- `mise run screenshots` retakes the README pictures from the two invented families.
+
 ### Changed
 
 - The Node server runs in production mode unless you set `NODE_ENV` yourself.
@@ -42,6 +59,10 @@ server starts, after a copy of the database. On Cloudflare, `mise run deploy` ap
 - A person's removal no longer blocks other changes to the fields that named them.
 - The Access page lists people first; the account menu has two groups.
 - Removing something asks in Kindred's own dialog.
+- The browser downloads only the language it shows, not all three, and page code loads when a page is opened, so the first
+  screen appears sooner. The Chronicle, the Gallery and a profile are drawn on the server.
+- Reminder and date wording in German and Afrikaans was reviewed again: whole sentences, wedding anniversaries with their full
+  names, one name for each feature.
 - Cloudflare guide: a page needs the Workers Paid plan, and the Worker should be placed near D1.
 
 ### Fixed
@@ -56,7 +77,11 @@ server starts, after a copy of the database. On Cloudflare, `mise run deploy` ap
   dates are kept as about their year.
 - A restored draft that cannot be saved shows the field that stops it. An old invitation opened by a signed-in member shows the way in.
 - A contributor is told what she can add instead of being sent to someone else.
-- Layout fixes for phones and 1280 px laptops.
+- Layout fixes for phones and 1280 px laptops: the upload button and the add-a-memory form stay on the screen, date fields
+  keep their size, the almanac's month tiles and the person tabs keep their words in German, and keyboard hints are hidden on
+  touch screens.
+- Accessibility: input fields are 16 px on touch so iOS does not zoom, errors are tied to the field that caused them, links
+  to phone numbers, e-mail and names are told apart, and every control on the account menu shows where the focus is.
 
 ### Security
 
