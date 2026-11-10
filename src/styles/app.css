@@ -567,4 +567,7 @@ kbd {
 .more-row .ui-switch-wrap { width: 100%; justify-content: space-between; }
 
 /* A solid danger button: panel.css has the quiet ghost one. Lives here so it never depends on which page's sheet loaded. */
-.btn.danger:not(.ghost) { background: var(--danger); color: #fff; border-color: transparent; font-weight: 600; }
+/* Its own red, the same in every theme: --danger is tuned as a text colour, and white on it is too faint to read (AA). */
+.btn.danger:not(.ghost), [data-theme] .btn.danger:not(.ghost) { background: #b4452f; background-image: none; color: #fff; border-color: transparent; font-weight: 600; box-shadow: none; }
+.btn.danger:not(.ghost):hover:not(:disabled) { background: #a23c28; }
+.btn.danger:not(.ghost):focus-visible { box-shadow: var(--focus-ring); }
