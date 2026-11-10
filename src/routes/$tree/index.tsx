@@ -11,7 +11,8 @@ import { Portrait } from '~/components/Portrait';
 import { QuickAdd } from '~/components/QuickAdd';
 import { chooseMe, useFamily, useMe, useMeChosen } from '~/lib/family';
 import { Dialog, EmptyState, Select, usePageHotkey, type SelectOption } from '~/components/ui';
-import { ancestorDepths, ancestorDepths as anc, descendants, displayName, houseMembers, kinPath, kinship, lifespan, parents, children, nameModeKey, type Kinship, type NameMode } from '~/lib/graph';
+import { ancestorDepths, displayName, houseMembers, kinship, lifespan, parents, children, nameModeKey, type Kinship, type NameMode } from '~/lib/graph';
+import { birthdaysOn, foldAllBut, houseRoot, lensMembers, rowMark, rowNeighbour, toggled } from '~/lib/tree-view';
 import { selectionAnnouncement } from '~/lib/card-label';
 import { layout as computeLayout, rootFor, type LNode, type View } from '~/lib/layout';
 import { setPref, usePref } from '~/lib/prefs';
@@ -50,8 +51,6 @@ const PHONE = '(max-width: 900px)';
 type Snap = 'peek' | 'half' | 'full';
 /** Peek height of the bottom sheet: its grip, a small portrait, the name and the life dates. */
 const PEEK_H = 76; // matches .panel-sheet[data-snap='peek'] in tree.css
-
-const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI', 'XVII', 'XVIII', 'XIX', 'XX'];
 
 function TreePage() {
   const { tree } = Route.useParams();
@@ -299,20 +298,10 @@ function TreePage() {
   // ---- lenses ----
   const myAnc = useMemo(() => (who ? ancestorDepths(f, who) : new Map<string, number>()), [f, who]);
   const [required] = useRequired(tree);
-  const dimmed = useMemo<Set<string> | null>(() => {
-    if (lens === 'line') return new Set([sel, ...anc(f, sel).keys(), ...descendants(f, sel)]);
-    if (lens === 'living') return new Set(f.graph.people.filter((p) => p.living).map((p) => p.id));
-    if (lens === 'gaps') return new Set(f.graph.people.filter((p) => gapsOf(f, p, required).length).map((p) => p.id));
-    if (lens === 'house') {
-      const h = f.byId.get(sel)?.house;
-      return new Set(f.graph.people.filter((p) => p.house === h).map((p) => p.id));
-    }
-    if (lens === 'path') {
-      const path = kinPath(f, who ?? me, search.to ?? sel);
-      return path.length ? new Set(path) : null;
-    }
-    return null;
-  }, [lens, f, sel, me, who, search.to, required]);
+  const dimmed = useMemo(
+    () => lensMembers(f, lens, { sel, from: who ?? me, to: search.to ?? sel, gapped: (p) => gapsOf(f, p, required).length > 0 }),
+    [lens, f, sel, me, who, search.to, required],
+  );
   const lensCount = useMemo(() => {
     if (!dimmed) return '';
     const shown = new Set(lay.nodes.map((n) => n.id));
@@ -343,18 +332,11 @@ function TreePage() {
     [kinFor, t.locale],
   );
 
-  const toggle = useCallback((id: string) => (play('page'), setCollapsed((c) => {
-    const n = new Set(c);
-    if (n.has(id)) n.delete(id);
-    else n.add(id);
-    return n;
-  })), []);
+  const toggle = useCallback((id: string) => (play('page'), setCollapsed((c) => toggled(c, id))), []);
 
   // Fold everything except the line from the root to the selected person.
   const foldToFocus = () => {
-    const keep = new Set([sel, ...anc(f, sel).keys()]);
-    const n = new Set<string>();
-    for (const node of lay.nodes) if (!keep.has(node.id) && children(f, node.id).length) n.add(node.id);
+    const n = foldAllBut(f, lay.nodes, sel);
     play('page');
     setCollapsed(n);
     panTo.current = sel;
@@ -418,9 +400,8 @@ function TreePage() {
   const spatial = (dir: 'left' | 'right') => {
     const cur = canvas.current?.nodeOf(sel);
     if (!cur) return;
-    const row = lay.nodes.filter((n) => n.row === cur.row && n.role !== 'dup' && n.role !== 'ghost' && (dir === 'left' ? n.x < cur.x : n.x > cur.x));
-    row.sort((a, b) => Math.abs(a.x - cur.x) - Math.abs(b.x - cur.x));
-    if (row[0]) select(row[0].id, 'key');
+    const next = rowNeighbour(lay.nodes, cur, dir);
+    if (next) select(next.id, 'key');
   };
   const vertical = (dir: 'up' | 'down') => {
     const next = dir === 'up' ? parents(f, sel) : children(f, sel);
@@ -450,7 +431,7 @@ function TreePage() {
   }, { enabled: live });
 
   const rowLabel = (row: number, year: number | undefined, i: number): [string, string?] => {
-    const mark = view === 'dynasty' ? (codex ? ROMAN[i] ?? String(i + 1) : String(i + 1)) : row === 0 ? '●' : row < 0 ? `↑${-row}` : `↓${row}`;
+    const mark = rowMark(view, codex, row, i);
     const era = year === undefined ? undefined : codex ? `${t('life.circa')}${year}` : t('tp.decade', { decade: Math.floor(year / 10) * 10 });
     return [mark, era];
   };
@@ -515,10 +496,9 @@ function TreePage() {
   // Once a day per tree: whose birthday is today.
   useEffect(() => {
     const today = new Date();
-    const md = `-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const key = `kindred:bday:${tree}:${today.toDateString()}`;
     try { if (localStorage.getItem(key)) return; } catch { return; }
-    const who = f.graph.people.filter((p) => p.living && p.born && /^\d{4}-\d\d-\d\d$/.test(p.born) && p.born.endsWith(md));
+    const who = birthdaysOn(f.graph.people, today);
     if (!who.length) return;
     let timer = 0;
     // Shown only to someone looking: the timer starts over whenever the tab is hidden and shown again.
@@ -536,9 +516,9 @@ function TreePage() {
       // Marked only once shown: a cancelled effect (StrictMode runs effects twice) must not eat it.
       try { localStorage.setItem(key, '1'); } catch {}
       play('fanfare');
-      for (const p of who.slice(0, 2)) {
+      for (const { person: p, age } of who.slice(0, 2)) {
         toast({
-          title: t('tp.birthdayToast', { name: displayName(p, f), n: today.getFullYear() - parseInt(p.born!, 10) }),
+          title: t('tp.birthdayToast', { name: displayName(p, f), n: age }),
           body: kinFor(p.id) ? `${yourKinship(kinFor(p.id)!, t.locale, { capital: true })}. ${t('tp.callDay')}` : t('tp.goodDay'),
           person: p.id,
           icon: 'cake-slice',
@@ -1023,20 +1003,6 @@ function useMedia(q: string): boolean {
     () => matchMedia(q).matches,
     () => false,
   );
-}
-
-/** Where a house's tree starts: its founder, or the member with the most descendants in the house. */
-function houseRoot(f: ReturnType<typeof useFamily>, house: string): string | undefined {
-  const h = f.house.get(house);
-  if (h?.founder && f.byId.has(h.founder)) return h.founder;
-  const members = f.graph.people.filter((p) => p.house === house);
-  const tops = members.filter((p) => !parents(f, p.id).some((q) => f.byId.get(q)?.house === house));
-  let best: string | undefined, size = -1;
-  for (const t of tops) {
-    const n = [...descendants(f, t.id)].filter((d) => f.byId.get(d)?.house === house).length;
-    if (n > size) { best = t.id; size = n; }
-  }
-  return best;
 }
 
 /** A count with − and +. `full`: a row of the Display sheet, with its whole name and touch-sized buttons. */
