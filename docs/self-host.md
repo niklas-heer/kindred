@@ -266,8 +266,12 @@ docker compose run --rm --no-deps --user root --entrypoint node -v "$PWD/backups
     }
   })();"
 docker compose cp app:/data/media backups/
-docker compose cp app:/data/secret backups/    # if it exists yet
+docker compose cp app:/data/secret backups/ || true   # the file exists once an AI key has been saved; until then this prints an error
 ```
+
+`$PWD/backups` has to be a folder your Docker engine shares with the host. Docker Desktop shares your home folder, and so does
+Colima; a checkout outside it (on `/tmp`, say) is not shared, and the backup would be written inside the engine's virtual machine, not
+into `./backups`. If `ls backups` is empty after the command, that is why.
 
 **While the app runs, without Docker**, with the `sqlite3` command (macOS and most Linux systems have it):
 
@@ -293,7 +297,8 @@ docker compose start app
 
 The archive is written as `root` into `backups/`, and it is readable by anyone who can read that folder.
 
-The volume is called `kindred_kindred-data` because Compose names it after the project (`kindred`). `docker volume ls` shows the name.
+The volume is called `kindred_kindred-data` because Compose names it after the project (`kindred`). `docker volume ls` shows the name;
+it is `<project>_kindred-data` if you start Compose with another project name (`-p`, or `COMPOSE_PROJECT_NAME`).
 
 **Restoring** replaces everything in the volume: stop the app, unpack a copy into the volume, and start it again. It runs as
 the image's `node` user, which owns the volume, and only reads the archive from `backups/`.
@@ -304,6 +309,8 @@ docker run --rm -v kindred_kindred-data:/data -v "$PWD/backups:/backup" kindred:
   sh -c 'rm -rf /data/* && tar -xzf /backup/kindred-data-2026-11-08.tar.gz -C /data'
 docker compose start app
 ```
+
+Use the file name of the archive you made (`ls backups`).
 
 ### Restoring the other backups
 
@@ -330,13 +337,24 @@ belongs with the accounts database of its time: members and roles live in `accou
 members have since changed shows the roles as they are now.
 
 **Without Docker.** Stop the server, copy the files from the backup into the data folder (`data/`, or `KINDRED_DATA_DIR`),
-remove the `-wal` and `-shm` files of the databases you replaced, and start the server again.
+remove the `-wal` and `-shm` files of the databases you replaced, and start the server again. With the folder the `sqlite3` backup
+above wrote (`$dest`), from the checkout:
+
+```sh
+rm -f data/*.db-wal data/*.db-shm
+cp "$dest"/*.db data/
+cp -R "$dest"/media/. data/media/
+[ -f "$dest/secret" ] && cp "$dest/secret" data/secret
+```
 
 **Copies made before an upgrade** are in `backups/` inside the data folder; restore one by copying it over the file it was
 made from, as above (see "Upgrades").
 
-These steps were written from the commands above and from how the app reads its data folder. They were not run against a
-live installation for this guide: try a restore on a scratch volume before you need it.
+The backup and restore commands on this page were run for this guide on scratch data (Docker 27 through Colima, and Node 26): the online
+backup, the archive of the whole volume, restoring from each, the same on plain Node with `sqlite3`, and going back after an upgrade. After
+each restore the app was healthy and a row written after the backup was gone. Two things were not run on their own: restoring a single
+family (it is the same copy, of two paths) and a bind-mounted data folder owned by uid 1000. It is still a good habit to try a restore on a
+scratch volume before you need it.
 
 A GEDCOM or Markdown export ([exchange.md](exchange.md)) is readable, but it is not a backup: it leaves out stories, contacts,
 houses, and the pictures.
@@ -345,6 +363,26 @@ houses, and the pictures.
 
 The same files serve Docker and plain Node: a data folder moves between them as it is (stop the app, copy the folder, set
 `KINDRED_DATA_DIR`). Cloudflare is different, because the data is in D1 and R2 rather than files.
+
+**Docker to Node.** Make the archive of the whole volume (see "Backups"), then unpack it into the data folder and start the server
+on it:
+
+```sh
+mkdir -p data && tar -xzf backups/kindred-data-2026-11-08.tar.gz -C data
+KINDRED_DATA_DIR=$PWD/data mise run start
+```
+
+**Node to Docker.** Stop the server, make the volume if it is not there yet (`docker compose up -d`, then `docker compose stop app`),
+and copy the data folder into it, handing the files to the image's `node` user:
+
+```sh
+docker run --rm --user root -v kindred_kindred-data:/data -v "$PWD/data:/from:ro" kindred:local \
+  sh -c 'cp -R /from/. /data/ && chown -R node:node /data'
+docker compose start app
+```
+
+Both were run for this guide on scratch data (the Node server, started directly, and the Docker app each read the moved families). Passkeys belong to a host
+name, so signing in on a different address needs a new passkey (set `KINDRED_ORIGIN` to the new address).
 
 **Docker to Cloudflare.** `scripts/import-to-d1.ts` reads a family's database and pictures and writes them to D1 and R2 (the
 whole procedure is [step 4 of the Cloudflare guide](deploy-cloudflare.md#4-bring-a-family-in-optional)). From Docker:
@@ -357,13 +395,25 @@ whole procedure is [step 4 of the Cloudflare guide](deploy-cloudflare.md#4-bring
 Accounts do not move: passkeys belong to a host name. The first person to open the new site sets up, and invites the others.
 Fields a member made **Personal** stay behind, because only their owner's account can read them; the script prints how many.
 
-**Cloudflare to Docker or Node.** There is no tool for it. D1 is SQLite and Node reads the same schema, so it should be
-possible by hand: `npx wrangler d1 export kindred-family --remote --output family.sql`, load the file into a new SQLite file
-named `<id>.db` in the data folder (for example with the `sqlite3` command), and download the pictures from R2 into
-`media/<id>/` under their keys. Nobody has done this with Kindred yet, so treat it as an outline, not a recipe. Accounts do not
-move either. What does work today is the readable route: a steward exports GEDCOM or the Markdown archive from **Import and
-export** and imports it on the new server ([exchange.md](exchange.md) says what each keeps and drops), then adds the pictures
-again.
+**Cloudflare to Docker or Node.** There is no script for it, but the steps work by hand. D1 is SQLite and Node reads the same schema
+and migration record, so a D1 export loads into a `<id>.db` file in the data folder:
+
+```sh
+npx wrangler d1 export kindred-family --remote --output family.sql
+{ echo 'CREATE VIEW guard AS SELECT 1 AS ok;'; grep -v '^CREATE VIEW guard AS' family.sql; } > family.ready.sql
+sqlite3 data/<id>.db < family.ready.sql
+```
+
+The second line puts the `guard` view (the one the app's writes check against) before the triggers that use it. The export wrangler
+writes from a local database lists it last, and `sqlite3` then stops with `no such table: main.guard`; a remote export may order it
+differently, and then the line changes nothing. Then fetch the pictures from R2 into `data/media/<id>/` under their keys (the keys are in
+the family's `photo`, `media`, `portrait` and `research_document` rows; make the folders first):
+`npx wrangler r2 object get kindred-media/<id>/<key> --remote --file data/media/<id>/<key>`. Accounts do not move.
+
+The export, the load, and opening the result with the Node server's own store (1,627 people, integrity check ok, nothing left to migrate)
+were run on a local D1 database. The same commands with `--remote` were not run: that needs a Cloudflare account. The readable route
+also works: a steward exports GEDCOM or the Markdown archive from **Import and export** and imports it on the new server
+([exchange.md](exchange.md) says what each keeps and drops), then adds the pictures again.
 
 ## The nightly archive (optional)
 
@@ -493,8 +543,29 @@ Schema changes are migrations in `migrations/`, and they run when a file is open
 `accounts.db`, on first use after the upgrade. Before the first pending migration, it copies the file to `backups/`
 next to it (`/data/backups` in the container), named after the migration and the time. Look there if an upgrade goes wrong.
 
-To go back, stop the app, restore the backup of the file from `backups/` (or the whole volume), and start the previous
-image. An older image cannot read a file that a newer migration has changed, so restore the backup as well.
+To go back, stop the app, put the copies from `backups/` back over the files they were made from, and start the previous version.
+An older version cannot read a file that a newer migration has changed, so the copies are needed. The copies are named
+`<file>-before-<migration>-<time>.db`; `ls backups` in the data folder lists them, and when an earlier upgrade left copies of
+the same file, take the one from the upgrade you are undoing. With Docker, and one copy of each file:
+
+```sh
+docker compose stop app
+docker compose run --rm --no-deps --user root --entrypoint sh app -c '
+  cd /data && ls backups
+  rm -f *.db-wal *.db-shm
+  cp backups/accounts-before-*.db accounts.db
+  cp backups/modern-before-*.db modern.db        # one line for each family that has a copy
+  chown node:node *.db'
+git checkout v2.0.0                                # the release you came from
+KINDRED_COMMIT=$(git rev-parse --short HEAD) docker compose up -d --build
+```
+
+Without Docker, do the same in the data folder: stop the server, `cp` each copy over its file (and delete its `-wal` and `-shm`),
+check out the old version, build and start it.
+
+This was run for this guide: a 2.0.0 installation with two families, upgraded to the current code (which copied three files before
+migrating, `accounts` before `0022` and two families before `0023`), then taken back with the commands above. The 2.0.0 image started and
+was healthy on the restored files. Anything written after the upgrade is lost by going back.
 
 ## Running without Docker
 

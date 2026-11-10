@@ -359,8 +359,9 @@ npx wrangler d1 export kindred-accounts --remote --output backups/accounts.sql
 npx wrangler d1 export kindred-family   --remote --output backups/family.sql
 ```
 
-`wrangler d1 export --help` shows the flags used here (`--remote`, `--output`; `--no-data` and `--no-schema` are there too).
-Repeat the second line for every family. Kindred ships no backup script of its own for Cloudflare.
+`wrangler d1 export --help` shows the flags used here (`--remote`, `--output`; `--no-data`, `--no-schema` and `--table` are there too).
+Repeat the second line for every family. Kindred ships no backup script of its own for Cloudflare. Against the local databases of
+`mise run dev:cf` the same command is `npx wrangler d1 export kindred-local-realm --local --env local --output backups/realm.sql`.
 
 **D1: Time Travel.** D1 also keeps its own point-in-time history, which `--timestamp` can reach back 30 days into (wrangler's help says so).
 `npx wrangler d1 time-travel info kindred-family` shows the restore points, and
@@ -372,19 +373,30 @@ fetches one object, and wrangler has no command for the whole bucket. To copy th
 tool such as `rclone` or the `aws` CLI (Cloudflare's R2 documentation describes the endpoint and the access keys). The keys
 are in the family's database (`photo`, `media`, `portrait` and `research_document` rows).
 
-**Restoring.** Restore into a new, empty database and check it before you switch to it:
+**Restoring.** Restore into a new, empty database and check it before you switch to it. `wrangler d1 execute` finds a database by the
+name in `wrangler.jsonc`, so make the database, then point the family's `TREE_<ID>` binding at it (its `database_name` and
+`database_id`, keeping `migrations_dir`) before you load the file:
 
 ```sh
 npx wrangler d1 create kindred-family-restored
-npx wrangler d1 execute kindred-family-restored --remote --file backups/family.sql
+# edit wrangler.jsonc: the family's binding now names kindred-family-restored and its new database_id
+{ echo 'CREATE VIEW guard AS SELECT 1 AS ok;'; grep -v '^CREATE VIEW guard AS' backups/family.sql; } > backups/family.restore.sql
+npx wrangler d1 execute kindred-family-restored --remote --file backups/family.restore.sql
+npx wrangler d1 execute kindred-family-restored --remote --command "select count(*) from person"
 ```
 
-Then point the family's `TREE_<ID>` binding in `wrangler.jsonc` at it (its `database_name` and `database_id`), and run
-`mise run deploy`. For the pictures, copy the objects back into the bucket under the same keys. The export holds the schema
-and the `d1_migrations` record, so the migrations see the restored database as up to date.
+The second line of the commands puts the `guard` view first. The export lists it after the triggers that use it, and loading the file as it
+stands stops with `no such table: main.guard`; if your export has the view earlier, the line changes nothing. Then run `mise run deploy` to
+switch the Worker to the restored database. For the pictures, copy the objects back into the bucket under the same keys, for example
+`npx wrangler r2 object put kindred-media/<family>/<key> --remote --file <path>`. The export holds the schema and the `d1_migrations` record, so
+the migrations see the restored database as up to date.
 
-None of these commands was run against a live Cloudflare account for this guide. They come from wrangler's own help and from
-how `scripts/` uses wrangler. Rehearse the whole cycle on a scratch database first.
+What was run for this guide: the whole cycle on the local databases (`mise run dev:cf`'s), with `--local --env local` in place of
+`--remote`: migrate, import a family, export it, load the file into a new empty database (it failed at the `guard` view until the second line
+was added, then held the same 1,627 people, 400 stories, 28 migration records and 10 triggers as the source), and fetch and put a picture with
+`r2 object get` and `r2 object put`. What was not run, because it needs a Cloudflare account: the same commands with `--remote`,
+`d1 create`, the Time Travel commands (they have no local mode), `mise run deploy` and the S3 route to R2. Rehearse those on a scratch
+database first.
 
 ## Moving from Docker
 

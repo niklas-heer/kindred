@@ -156,6 +156,8 @@ tables for the Today page and changes none that exist.
 
 ### Fixed
 
+- Backing up and restoring: the commands in `docs/self-host.md` and `docs/deploy-cloudflare.md` were run for the first time and corrected where they failed. A D1 export now restores with one extra line that moves the `guard` view first (loading it as it was stopped with `no such table: main.guard`), restoring to a new D1 database says to bind it in `wrangler.jsonc` first, going back after an upgrade has its commands, and Docker to Node, Node to Docker and Cloudflare to Node each have a tested procedure.
+
 - Red "delete" buttons are readable in every theme (white on the old red was below the AA contrast in Codex and Night).
 - On a phone, the Needed page's kinship wraps instead of running under "Fill in", and the "More" sheet's hints stay inside it in German.
 - A GEDCOM file with a few thousand partnerships no longer fails to import because two of them were given the same new id.
