@@ -330,7 +330,9 @@ KINDRED_WRANGLER_CONFIG=deploy/demo/wrangler.jsonc npx vite build
 npx wrangler deploy -c dist/server/wrangler.json
 ```
 
-Run `mise run demo:cf -- --remote` again to put the families back as they were generated. The demo needs no secrets, and it does
+Run `mise run demo:cf -- --remote` again to put the families back as they were generated: it also dates their feed
+([feed.md](feed.md)) back from that day, so run it now and then to keep the demo's feed recent, and it uploads their painted
+pictures to the R2 bucket under the same names each time. The demo needs no secrets, and it does
 not start beside `KINDRED_AUTH=cloudflare-access`, the Access settings, `KINDRED_GUEST_ORIGIN`, `KINDRED_SETUP_CODE` or the VAPID
 keys: every page then says which setting to remove. `KINDRED_WRANGLER_CONFIG` is what points the build and the D1 scripts
 (`cf-migrate.ts`, `import-to-d1.ts`) at the demo's configuration instead of `wrangler.jsonc`.

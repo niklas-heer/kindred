@@ -19,10 +19,17 @@ add what they remember: a saying, a recipe, the name of the village.
 
 A tree gets one look. These are the parts meant to be opened again next week.
 
-**Today** is the first page of every family. It shows what is new since your last visit, the week's birthdays and wedding
-anniversaries, and two things to do.
+**Today** is the first page of every family, and its common room. The family's feed leads: what relatives wrote to each
+other, new memories and photographs, who was added to the tree. Beside it are the week's question, the day's quiz, the
+week's birthdays and wedding anniversaries, and what is new since your last visit.
 
-![Today for an invented family: what is new, the question of the week with two answers, a quiz that has been answered, the week's birthdays, the Campaign and one small thing to fill in.](docs/images/today.webp)
+![Today for an invented family: a line to write to the family, then the feed with a birthday, two answers to the question of the week and a message about a move with a drawn picture of a street; beside it the question of the week with its answers and a quiz that has been answered.](docs/images/today.webp)
+
+- **The family's feed.** A relative writes a few lines to the family ("We have moved", "She passed her exam", "Photos from
+  Sunday"), with pictures and the people it is about. Everyone can react, contributors can comment, and the message also
+  shows on the page of whoever it is about. New memories, a day's photographs and new people in the tree join the same
+  stream, so one page says what the family has been up to. A device can be told about a new message, at most once in a
+  few hours.
 
 - **The question of the week.** One question for the whole family ("What did the kitchen of your childhood look like?"),
   chosen from sixty written for the purpose, in English, German and Afrikaans. A relative answers in a few sentences, about
@@ -33,12 +40,13 @@ anniversaries, and two things to do.
 - **The Campaign.** A slow game between the family's houses on a map made from the family's own places, with orders, dice and
   battle cries, and a season of 28 days. A house whose people are well recorded raises more troops, so the game rewards
   the research and tells you what to add. It never changes the family's records, and a steward switches it on.
-- **Talking to each other.** Members answer a memory or a photograph with a heart, a laugh or a candle, and contributors can
-  comment. The one who wrote it sees the replies under "What's new", and can choose a push notification about them.
+- **Talking to each other.** Members answer a message, a memory or a photograph with a heart, a laugh or a candle, and
+  contributors can comment. The one who wrote it sees the replies under "What's new", and can choose a push notification about them.
 
 ![The Campaign in the fourth day of a season: four houses and their troops, a map of provinces under their shields, and an attack ready to send with a battle cry.](docs/images/campaign.webp)
 
-[docs/today.md](docs/today.md), [docs/campaign.md](docs/campaign.md) and [docs/responses.md](docs/responses.md) have the rules.
+[docs/feed.md](docs/feed.md), [docs/today.md](docs/today.md), [docs/campaign.md](docs/campaign.md) and
+[docs/responses.md](docs/responses.md) have the rules.
 A guest of a share link sees none of this. A guest can, however, ask for an account of their own, and the stewards decide.
 
 ## What a researcher gets
@@ -71,9 +79,9 @@ where you are in it.
 
 Press ⌘K or `/` to find anyone by name, nickname, title or house, and each result says how they are related to you. A lens
 dims everyone except a direct line, a house, the living, or the path between two people. On a phone the person panel becomes
-a drawer under the tree, and the sections move to a tab bar that starts with Today.
+a drawer under the tree, and the sections move to a tab bar: Today, Tree, Gallery, Contacts and More.
 
-<img src="docs/images/phone.webp" alt="Today on a phone: what is new and the question of the week, with a tab bar for Today, Tree, Almanac, Chronicle and More." width="260">
+<img src="docs/images/phone.webp" alt="Today on a phone: a strip of buttons for the question, the quiz and the week, a line to write to the family, and the feed, with a tab bar for Today, Tree, Gallery, Contacts and More." width="260">
 
 ## Houses and their arms
 
@@ -167,9 +175,10 @@ Exports leave some things out, so back up the databases and pictures as well.
 - [Self-hosting](docs/self-host.md) and [deploying on Cloudflare](docs/deploy-cloudflare.md)
 - [The AI features](docs/ai.md): what they send, what they cost, and how keys are kept
 - [Roles and privacy](docs/roles-and-privacy.md)
+- [The family feed](docs/feed.md): messages to the family, and the stream on Today
 - [Today](docs/today.md): the question of the week and the daily quiz
 - [The Campaign](docs/campaign.md): a game between the family's houses, and how it runs
-- [Reactions and comments](docs/responses.md): answering memories and photographs
+- [Reactions and comments](docs/responses.md): answering messages, memories and photographs
 - [GEDCOM and the Markdown archive](docs/exchange.md)
 - [The data model](docs/data-model.md)
 - [Changelog](CHANGELOG.md), [release notes for 2.0.0](docs/releases/v2.0.0.md) and [moving from v1](docs/migration-plan.md)

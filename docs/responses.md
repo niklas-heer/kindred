@@ -1,7 +1,8 @@
 # Reactions and comments
 
-Members can answer what the family shares: a memory (any story: a memory, a saying, an anecdote, a recipe or a note) and a
-photo in the gallery. Under each one there is a small row of reactions and a thread of comments. It is for members only;
+Members can answer what the family shares: a memory (any story: a memory, a saying, an anecdote, a recipe or a note), a
+photo in the gallery, and a message in the family's feed ([feed.md](feed.md)). Under each one there is a small row of
+reactions and a thread of comments. It is for members only;
 a share-link guest sees none of it, not even the counts.
 
 ## Reactions
@@ -36,12 +37,13 @@ Kindred, never one the browser sends; when the writer stands for someone in the 
 - The Chronicle: every entry, sayings included, has the reactions and the comment count, and opens its thread in place.
 - A person's Stories tab: under each story.
 - The gallery: a tile shows its number of reactions and comments; the photo's own window has the reactions and the thread.
+- The family's feed on Today, and a person's Stories tab: under each message and each memory.
 
 The counts for a whole page come from one request that makes two reads of the family database, however many entries there are.
 
 ## Telling the author
 
-The person who wrote a memory or shared a photo can be told when someone reacts to it or comments on it. It is off until
+The person who wrote a memory or a message or shared a photo can be told when someone reacts to it or comments on it. It is off until
 they turn it on, in the Reminders dialog ("Answers"), and it arrives on the devices where reminders are on for that family.
 At most one such push a day, never for their own answer, and it says who answered and about whom, not the words. Stories
 written before this feature, by the assistant or brought in by an import have no account as their writer, so nobody is

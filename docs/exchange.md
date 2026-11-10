@@ -101,6 +101,7 @@ that is not counted.
 **What GEDCOM leaves out**, and says so on export:
 
 - stories, memories, sayings and recipes, and the comments and reactions on them and on photos;
+- the messages of the family's feed, and their comments;
 - contact details and other person fields, private or not;
 - houses and their arms;
 - place coordinates (place names are kept);
@@ -136,6 +137,7 @@ id, made safe for any file system.
 | Citation | an entry in `citations` on the note of the person whose fact it is (a partnership's on the note that declares it): `fact`, `event`, `partnership` or `parent`, `source` (a link to `sources/`), `page`, `quality`, `text` |
 | Memory, saying, anecdote, recipe, note | a section of `memories/<person>.md` (one file per person they are about, oldest first): the title or kind, who wrote it and when, and the text; a saying is quoted |
 | Comment on a story | under its story, in `### Comments`: the name it was written under, the date (and "changed" when its writer changed it), and the plain text, quoted line by line |
+| Message in the family's feed | a section of `feed/<year>.md` (one file per year, oldest first): the date and who wrote it, the text quoted line by line, the people it is about as links, how many pictures it had, and its comments as under a story |
 
 A partnership belongs to the note of its lower-id partner, so it is declared once.
 
@@ -145,8 +147,9 @@ and the script says how many.
 
 **What the archive leaves out:** step-parent links, because v1 has no step relation and writing one as a biological
 claim would be a false fact in v1; contact details and other fields; houses and arms; pictures other than portraits, and
-the comments on gallery photos; and reactions. Stories and their comments are in `memories/`, which the v1 tools and
-`import-kindred.ts` do not read.
+the comments on gallery photos; the pictures of the feed's messages (they are gallery pictures); and reactions. Stories
+and their comments are in `memories/` and the feed's messages in `feed/`, which the v1 tools and `import-kindred.ts` do
+not read.
 
 ## The nightly archive
 

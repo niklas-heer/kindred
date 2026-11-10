@@ -8,8 +8,11 @@ see it, and it is left out of every export.
 
 ## Turning it on
 
-A steward opens **Games** (account menu, or More on a phone) and turns on "The Campaign is on for this family". The first
-season starts at once, and a **Campaign** section appears in the navigation for every member. Turning it off hides the
+The Campaign can be found while it is off: members have it under **More**, marked "resting", and its page offers the
+practice skirmish. A steward turns it on in any of three places, which all use the same switch: **Games** (account menu,
+or More on a phone) with "The Campaign is on for this family"; the Campaign's own page, with "Turn the Campaign on for
+this family"; or the card on Today that tells a steward once that the game is there ("Not now" puts the card away in
+that browser). The first season starts at once, and a **Campaign** section appears in the bar for every member. Turning it off hides the
 section and stops the game: nothing is played while it is off, and the season's calendar keeps running, so the regents
 play the missed nights when it is turned on again. "End the season now" closes the season on the spot.
 

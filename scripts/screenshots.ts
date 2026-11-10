@@ -8,6 +8,7 @@
 //   --only      take just these pictures (names as in SHOTS below)
 //   --out       write the pictures here instead of docs/images/
 //   --keep-png  also leave the full-size PNGs beside the WebP files (to look at them)
+//   --port      the port to serve on (default: the first free one from 4632)
 // The server runs on a clock of its own (scripts/lib/shot-clock.ts): first on 3 November 2026, when the steward turns the
 // Campaign on and a relative is invited, then on 7 November, the day the invented modern family is set on, so the season is
 // four days old, the week's question is the same every time, and the pictures differ between runs only where the data does.
@@ -17,6 +18,7 @@ import { chromium, type BrowserContext, type Page } from '@playwright/test';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
+import { inflateSync } from 'node:zlib';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -77,7 +79,12 @@ async function settle(page: Page) {
   await page.evaluate(() => document.fonts.ready.then(() => undefined));
   await page.waitForFunction(() => document.getAnimations().every((a) => a.effect?.getComputedTiming().iterations === Infinity || a.playState !== 'running'));
   // Images and drawn portraits that have not arrived yet are placeholders: wait for them too.
-  await page.waitForFunction(() => [...document.images].every((i) => i.complete));
+  // (A picture far down a long page that loads only when it is scrolled to is not waited for: it is not in the picture.)
+  await page.waitForFunction(() => [...document.images].every((i) => {
+    if (i.complete) return true;
+    const box = i.getBoundingClientRect();
+    return i.loading === 'lazy' && (box.top > innerHeight + 200 || box.bottom < -200 || box.width === 0);
+  }));
   await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
   await sleep(400);
 }
@@ -206,6 +213,8 @@ const SHOTS: Shot[] = [
     async run(page, origin) {
       await page.goto(`${origin}/modern/today`);
       await settle(page);
+      // The page remembers how far down the reader was (answering the question and the quiz scrolled it): from the top.
+      await page.locator('.page').evaluate((el) => el.scrollTo(0, 0));
       await grab(page, 'today');
     },
   },
@@ -297,6 +306,47 @@ const SHOTS: Shot[] = [
   },
 ];
 
+/** A PNG's pixels (8 bits a channel, as Playwright writes them), row after row, and how many bytes a pixel takes. */
+function pixelsOf(png: Buffer): { data: Buffer; width: number; height: number; bpp: number } | null {
+  const width = png.readUInt32BE(16), height = png.readUInt32BE(20);
+  const bpp = png[25] === 6 ? 4 : png[25] === 2 ? 3 : 0;
+  if (png[24] !== 8 || !bpp) return null;
+  const parts: Buffer[] = [];
+  for (let at = 8; at < png.length;) {
+    const length = png.readUInt32BE(at);
+    if (png.toString('latin1', at + 4, at + 8) === 'IDAT') parts.push(png.subarray(at + 8, at + 8 + length));
+    at += 12 + length;
+  }
+  const packed = inflateSync(Buffer.concat(parts));
+  const stride = width * bpp;
+  const data = Buffer.alloc(stride * height);
+  for (let y = 0; y < height; y++) {
+    const filter = packed[y * (stride + 1)]!;
+    const from = y * (stride + 1) + 1, to = y * stride;
+    for (let x = 0; x < stride; x++) {
+      const left = x >= bpp ? data[to + x - bpp]! : 0;
+      const up = y ? data[to + x - stride]! : 0;
+      const corner = y && x >= bpp ? data[to + x - stride - bpp]! : 0;
+      const p = left + up - corner;
+      const paeth = Math.abs(p - left) <= Math.abs(p - up) && Math.abs(p - left) <= Math.abs(p - corner) ? left : Math.abs(p - up) <= Math.abs(p - corner) ? up : corner;
+      data[to + x] = (packed[from + x]! + (filter === 1 ? left : filter === 2 ? up : filter === 3 ? (left + up) >> 1 : filter === 4 ? paeth : 0)) & 255;
+    }
+  }
+  return { data, width, height, bpp };
+}
+
+/** Two pictures of a page that is holding still: the same size, and at most a few pixels apart by at most two shades. */
+function asGoodAsSame(a: Buffer, b: Buffer): boolean {
+  const p = pixelsOf(a), q = pixelsOf(b);
+  if (!p || !q || p.width !== q.width || p.height !== q.height || p.bpp !== q.bpp) return false;
+  let apart = 0;
+  for (let i = 0; i < p.data.length; i++) {
+    if (p.data[i] === q.data[i]) continue;
+    if (Math.abs(p.data[i]! - q.data[i]!) > 2 || ++apart > 24) return false;
+  }
+  return true;
+}
+
 /** Takes the PNG of the whole viewport. */
 async function grab(page: Page, name: string) {
   await settle(page);
@@ -305,11 +355,12 @@ async function grab(page: Page, name: string) {
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await settle(page);
   // Some things (the tree centring itself, a map fitting its bounds) move by fractions of a pixel for a while after the
-  // network is quiet: take pictures until two in a row are identical.
+  // network is quiet: take pictures until two in a row are the same. "The same" allows a handful of pixels one shade apart:
+  // the graphics card rounds an edge now one way, now the other, on a page that is not moving at all.
   let last: Buffer | undefined;
   for (let i = 0; i < 20; i++) {
     const shot = await page.screenshot({ type: 'png', animations: 'disabled', caret: 'hide' });
-    if (last && shot.equals(last)) { writeFileSync(join(raw, `${name}.png`), shot); return; }
+    if (last && (shot.equals(last) || asGoodAsSame(last, shot))) { writeFileSync(join(raw, `${name}.png`), shot); return; }
     last = shot;
     await sleep(300);
   }
@@ -379,9 +430,10 @@ async function main() {
   mkdirSync(raw, { recursive: true });
   sh('gen-realm', process.execPath, ['scripts/gen-realm.ts']);
   sh('gen-modern', process.execPath, ['scripts/gen-modern.ts']);
-  sh('seed', process.execPath, ['scripts/seed.ts', 'data/seed/realm.json', 'data/seed/modern.json'], { KINDRED_DATA_DIR: dataDir });
+  // The families' feed is dated back from the day of the pictures, not from today (scripts/seed.ts).
+  sh('seed', process.execPath, ['scripts/seed.ts', 'data/seed/realm.json', 'data/seed/modern.json'], { KINDRED_DATA_DIR: dataDir, KINDRED_SEED_NOW: NOW });
 
-  const port = await freePort(4632);
+  const port = flagValue('--port') ? Number(flagValue('--port')) : await freePort(4632);
   const origin = `http://localhost:${port}`;
   log(`starting the server on ${origin}`);
   await startServer(port, origin, SEASON_START);

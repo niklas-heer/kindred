@@ -69,6 +69,7 @@ Stamboom (the phone tab says „Boom“).
 | `today`, `today-questions` | Today: the page, its cards, the quiz and the stewards' switch (`today.*`); the sixty questions of the week (`today.q.*`) |
 | `campaign` | The Campaign: the game between the houses, its practice skirmish, the Today card and the stewards' Games page (`campaign.*`) |
 | `history` | The change history: the History page, a person's history, "What's new" and the weekly push (`history.*`) |
+| `feed` | The family's feed on Today: messages, the composer, the stream's lines, the strip of cards on a phone, the push about a new message (`feed.*`) |
 | `atlas`, `almanac`, `chronicle`, `contacts`, `needed` | Empty until the translation sweep moves those pages' text here |
 
 ## Language choice

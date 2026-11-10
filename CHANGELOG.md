@@ -41,6 +41,23 @@ goes live (`mise run cf:migrate:remote` does the same step alone). Code and migr
 database that has had these migrations.
 
 ### Added
+- **The family feed.** Today is now the family's common room. Contributors write a short message to the family, with up to
+  six pictures and the people from the tree it is about; every member reads and reacts, contributors comment, the writer
+  can change or remove their own, and an editor can remove anyone's. The feed mixes messages with new memories and sayings,
+  a day's photographs as one entry, people added to the tree and a Campaign season's end, newest first, and pages back at
+  the press of a button. The question of the week, the quiz, the week's dates, "What's new" and the Campaign stand beside
+  it on a wide screen and fold into a strip above it on a phone. A message's pictures are gallery pictures ("From
+  messages" in the Gallery); a share-link guest gets no feed and none of those pictures. A message is not in the change
+  history, but "What's new" and the weekly push count it, and each device can ask to be told about a new message (at most
+  one push in six hours). One composer writes a message or a memory, from Today and from the Chronicle. The Markdown
+  archive carries the messages in `feed/`. See docs/feed.md.
+- **A lighter bar.** The bar is Today, Tree, Chronicle, Gallery, Contacts and More (the phone: Today, Tree, Gallery,
+  Contacts, More). The Almanac, the Atlas, the Register, the Houses, Needed and Research are under More, in groups. A
+  guest's bar is the tree, the Chronicle, the Gallery and the Almanac.
+- The Campaign can be found while it is off: it is listed under More as "resting", its page lets a steward turn it on with
+  one button, and the card on Today tells a steward once that it is there.
+- The invented families (`mise run data`, the demo) have a feed and a gallery of painted pictures. `import-to-d1 --from`
+  takes pictures from the media folder beside the file it is given.
 - **View as.** A steward can preview a family as a viewer, contributor or editor, as one of its members (their role and the
   person they are in the tree), or as a guest of the share link with its settings, from the account menu or the Access page. A
   bar on every page says who they view it as and offers Switch and Stop. The server answers every check as it would for that

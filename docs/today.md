@@ -1,10 +1,18 @@
 # Today
 
 Today is the page a relative opens again tomorrow. It is the first section of every family, and it holds what changes
-from day to day: this week's question and the family's answers, the daily quiz, the week's birthdays and wedding
-anniversaries, the Campaign's state while that is on, and one small thing the family still wants to know.
+from day to day. The family's feed is its main part: what relatives wrote to each other, new memories and photographs,
+and who was added to the tree ([feed.md](feed.md)). Beside it are the cards this page describes: this week's question
+and the family's answers, the daily quiz, the week's birthdays and wedding anniversaries, what is new since the last
+visit, the Campaign's state while that is on, and one small thing the family still wants to know.
 
-It is for members. A share-link guest has no Today page, no question and no quiz.
+On a wide screen the cards are a column beside the feed. On a phone and a tablet they fold into one strip of buttons
+above it (Question, Quiz, This week, What's new, and the Campaign and "One small thing" when they have something to
+show); a button opens its card under the strip and closes it again, one at a time, so the screen starts with the family
+and a way to write to it. The quiz's button carries a dot until today's question is answered.
+
+The page is called Today in the three languages (Heute, Vandag). It is for members. A share-link guest has no Today
+page, no feed, no question and no quiz.
 
 ## The question of the week
 
@@ -18,8 +26,8 @@ illness or death. No AI is involved.
   same question.
 - **Answering:** a member with the role Contributor or higher writes a few sentences, about themself or about anyone in
   the tree. The answer is saved as an ordinary memory of that person, titled with the question and signed with the
-  writer's account name. So it is in the Chronicle and on the person's page, and it is in the Markdown archive and the
-  GEDCOM export like any other memory. A Viewer reads the answers and is told which role writing takes.
+  writer's account name. So it is in the Chronicle, in the family's feed (which says it is an answer) and on the
+  person's page, and it is in the Markdown archive and the GEDCOM export like any other memory. A Viewer reads the answers and is told which role writing takes.
 - **Together:** the card lists the week's answers. Earlier questions stay listed with their answers, and stay
   answerable for two years.
 - **Stewards** can replace this week's question with one of their own (5 to 200 characters), skip the week, or take
