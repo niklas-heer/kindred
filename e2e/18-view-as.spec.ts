@@ -1,6 +1,7 @@
 // Journey 18: "View as". A steward previews the family as a viewer (no edit controls, a reaction refused with a gentle notice),
 // as a member linked to a person (the tree says "you" there), and as a guest of a share link that protects living people (a
 // living person's dates are held back), then stops and can change things again. The bar works at 390 px and by keyboard.
+import type { Page } from '@playwright/test';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { checkAxe, expect, openFamily, settled, test } from './fixtures.ts';
@@ -23,6 +24,9 @@ function addFamily(tree: string) {
   a.close();
 }
 
+// The Register draws only the rows in view, and earlier journeys leave people in the family: search, so the row is there.
+const findMilo = (page: Page) => page.getByPlaceholder(/^Search by name/).fill('Previewson');
+
 test('view as: a viewer, a member, a guest of a protecting link, then stop', async ({ page, issues }) => {
   // A refused change answers 403, which the browser logs; that is the point of the step that causes it.
   issues.allow(/status of 403|403 \(Forbidden\)/);
@@ -41,6 +45,7 @@ test('view as: a viewer, a member, a guest of a protecting link, then stop', asy
   // As the steward, the living relative's year is there.
   await page.goto(`/${tree}/people`);
   await settled(page);
+  await findMilo(page);
   await expect(page.getByRole('gridcell', { name: '14 Mar 1961' })).toBeVisible();
 
   // 1. As a viewer, from the Access page.
@@ -92,6 +97,7 @@ test('view as: a viewer, a member, a guest of a protecting link, then stop', asy
   await expect(bar.getByText('Living people protected')).toBeVisible();
   await page.goto(`/${tree}/people`);
   await settled(page);
+  await findMilo(page);
   await expect(page.getByRole('link', { name: 'Milo Previewson' })).toBeVisible();
   await expect(page.getByRole('gridcell', { name: '14 Mar 1961' })).toHaveCount(0);
   await checkAxe(page, 'register, viewing as a guest');
@@ -111,6 +117,7 @@ test('view as: a viewer, a member, a guest of a protecting link, then stop', asy
   // 4. Stopped: the steward again, everything back, and changes work.
   await expect(page.getByRole('complementary', { name: 'Preview' })).toHaveCount(0);
   await expect(page.getByRole('status').filter({ hasText: 'Preview stopped.' })).toHaveText('Preview stopped. You see the family as yourself again.');
+  await findMilo(page);
   await expect(page.getByRole('gridcell', { name: '14 Mar 1961' })).toBeVisible();
   await page.goto(`/${tree}/chronicle`);
   await settled(page);

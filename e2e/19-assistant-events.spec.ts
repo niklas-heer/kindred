@@ -32,6 +32,8 @@ test('the assistant proposes a life event with its source, and approving puts bo
 
   await page.goto(`/${slug}/people`);
   await settled(page);
+  // The Register draws only the rows in view, and earlier journeys leave people in the family: search, so the row is there.
+  await page.getByPlaceholder(/^Search by name/).fill(STEWARD.surname);
   const href = await page.locator('.reg-name a').filter({ hasText: STEWARD.given }).first().getAttribute('href');
   await page.goto(href!);
   await settled(page);
