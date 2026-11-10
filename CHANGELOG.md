@@ -76,6 +76,8 @@ version will not run on a database that has had these migrations.
   doubled, parent rules are the link form's, an ancestor with no death record is not marked living, and Julian and dual-year
   dates are kept as about their year.
 - A restored draft that cannot be saved shows the field that stops it. An old invitation opened by a signed-in member shows the way in.
+- An edit whose save reached the server just as the page closed says "All saved" when the person is opened again, instead of
+  looking as if nothing had been typed.
 - A contributor is told what she can add instead of being sent to someone else.
 - Layout fixes for phones and 1280 px laptops: the upload button and the add-a-memory form stay on the screen, date fields
   keep their size, the almanac's month tiles and the person tabs keep their words in German, and keyboard hints are hidden on

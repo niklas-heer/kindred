@@ -20,9 +20,9 @@ import type { GPerson, PersonDetail } from '~/lib/types';
 import { PlaceInput, placeValue, savePlacesKeyed, type PlaceValue } from '../PlaceInput';
 import { MarkdownEditor } from '../MarkdownEditor';
 import { ConfirmDialog, DatePicker, Segmented, Switch } from '../ui';
-import { classifyFailure, clearJournal, createAutosaver, journalKey, MAX_UNDO, nextAfter, readJournal, undoStep, writeJournal, type Journal, type Outcome, type SaveState, type UndoStep } from './autosave';
+import { classifyFailure, clearJournal, createAutosaver, journalKey, MAX_UNDO, nextAfter, readJournal, undoStep, writeJournal, type Outcome, type SaveState, type UndoStep } from './autosave';
 import { DraftContext } from './draft';
-import { keepShared, sendable, signatureOf, storedForm, wireOf, type EditValues } from './edit-values';
+import { keepShared, openDraft, sendable, signatureOf, storedForm, wireOf, type EditValues } from './edit-values';
 import { draftOf, FieldEditor, type DraftField } from './FieldEditor';
 import { fieldText } from './model';
 import { rebaseDraft, takeTheirs, type Conflict } from './rebase';
@@ -118,14 +118,6 @@ const textEntries = (root: HTMLElement) => [...root.querySelectorAll<HTMLElement
 
 const deviceStore = () => { try { return window.localStorage; } catch { return undefined; } };
 
-/** The form's first values: the server's, with any draft left on this device rebased onto them. */
-function openDraft(snap: EditSnapshot, left: Journal<Values> | null) {
-  const latest = valuesOf(snap);
-  if (!left) return { start: latest, base: latest, conflicts: [] as Conflict<DraftField>[], restored: false, unchosen: null };
-  const { values, conflicts } = rebaseDraft<Values, DraftField>(left.base, left.draft, latest);
-  return { start: values, base: latest, conflicts, restored: signatureOf(values) !== signatureOf(latest), unchosen: conflicts.length ? left.base : null };
-}
-
 function EditForm({ tree, p, f, snap, done, onRemoved, only }: Omit<Props, 'detail'> & { snap: EditSnapshot }) {
   const { leave, register } = useContext(DraftContext);
   const c = useT();
@@ -139,10 +131,11 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only }: Omit<Props, 'deta
   const minYear = useMemo(() => earliestCentury(f), [f]);
   const account = useSession()?.user?.id ?? 'anonymous';
   const [draftKey] = useState(() => journalKey(account, tree, p.id));
-  const [opened] = useState(() => openDraft(snap, readJournal<Values>(deviceStore(), draftKey, Date.now())));
+  const [opened] = useState(() => openDraft(valuesOf(snap), readJournal<Values>(deviceStore(), draftKey, Date.now())));
   const [state, setState] = useState<SaveState>('saved');
-  // Set once anything has been saved or is on its way, so the line stops explaining itself.
-  const [edited, setEdited] = useState(opened.restored);
+  // Set once anything has been saved or is on its way, so the line stops explaining itself. A draft left on this device
+  // counts even when the server already has it: its write landed as the page went away, and the reader never saw it confirmed.
+  const [edited, setEdited] = useState(opened.leftOver);
   // Something typed that cannot be written yet: it stays in the form with its red mark.
   const [held, setHeld] = useState(false);
   // The server's own words for a refused write (translated when shown).

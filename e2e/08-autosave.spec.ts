@@ -1,6 +1,7 @@
 // Journey 8: filling someone in on a phone. Each change saves itself, with no Save button: the status line, Undo, Next on the
-// keyboard, adding a field in one tap, a failed save that retries, a draft that survives the page going away, someone else's
-// edits (merged when they don't clash, shown when they do), and tapping a value on the Everyday tab to edit it where it is.
+// keyboard, adding a field in one tap, a failed save that retries, a draft that survives the page going away (and one whose
+// write landed as the page went), someone else's edits (merged when they don't clash, shown when they do), and tapping a
+// value on the Everyday tab to edit it where it is.
 import type { Page } from '@playwright/test';
 import { expect, openFamily, settled, STEWARD, test } from './fixtures.ts';
 
@@ -38,10 +39,12 @@ test('a change saves itself, and Undo takes it back', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(0);
 
-  await saved(page, 'Called', 'Addy');
   // The family is read afresh after a save: the form the reader is in has to stay where it is, focus and all.
+  const reread = page.waitForResponse(async (r) => r.request().method() === 'GET' && r.url().includes('/_serverFn/') && (await r.text()).includes('"Addy"'));
+  await saved(page, 'Called', 'Addy');
   await box(page, 'Called').focus();
-  await page.waitForTimeout(2500);
+  await (await reread).finished();
+  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
   await expect(box(page, 'Called')).toBeFocused();
   await bar(page).getByRole('button', { name: 'Undo' }).click();
   await expect(box(page, 'Called')).toHaveValue('');
@@ -124,12 +127,36 @@ test('a draft the server never got is there again after the page goes away', asy
   });
   await box(page, 'Epithet').fill('the Unsaved');
   await expect(status(page)).toHaveText('Not saved yet. Trying again…');
+
+  // The page going away writes once more; that write fails too, so the server never has it.
+  await page.reload();
+  await settled(page);
   await page.unroute('**/*');
+  await openEditTab(page);
+  await expect(box(page, 'Epithet')).toHaveValue('the Unsaved');
+  await expect(status(page)).toHaveText('All saved');
+});
+
+test('a draft the server took as the page went away, its answer lost, is confirmed when the page is back', async ({ page, issues }) => {
+  issues.allow(/Failed to load resource/);
+  await openEdit(page);
+  // The first write reaches the server, but the page never hears back; every later one fails before it gets there.
+  let through = false;
+  await page.route('**/*', async (route) => {
+    const r = route.request();
+    if (r.method() !== 'POST' || !(r.postData() ?? '').includes('the Landed')) return route.fallback();
+    if (!through) { through = true; await route.fetch(); }
+    return route.abort('failed');
+  });
+  await box(page, 'Epithet').fill('the Landed');
+  await expect(status(page)).toHaveText('Not saved yet. Trying again…');
 
   await page.reload();
   await settled(page);
+  await page.unroute('**/*');
   await openEditTab(page);
-  await expect(box(page, 'Epithet')).toHaveValue('the Unsaved');
+  await expect(box(page, 'Epithet')).toHaveValue('the Landed');
+  // Nothing is owed, but the reader typed this and never saw it saved: the line says it is, rather than starting afresh.
   await expect(status(page)).toHaveText('All saved');
 });
 

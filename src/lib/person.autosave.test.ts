@@ -17,7 +17,7 @@ const { editSnapshot, savePersonEdit, CHANGED_SINCE_OPENED } = await import('./p
 const {
   classifyFailure, clearJournal, createAutosaver, journalKey, JOURNAL_KEEP_MS, nextAfter, readJournal, undoStep, writeJournal,
 } = await import('../components/fields/autosave.ts');
-const { isBlankNew, keepShared, offersPersonal, sendable, signatureOf, storedForm } = await import('../components/fields/edit-values.ts');
+const { isBlankNew, keepShared, offersPersonal, openDraft, sendable, signatureOf, storedForm } = await import('../components/fields/edit-values.ts');
 const { forgetLocalIdentity } = await import('./auth/client.ts');
 const { rebaseDraft, rebaseFields } = await import('../components/fields/rebase.ts');
 import type { Outcome, SaveState, Timers } from '../components/fields/autosave.ts';
@@ -431,6 +431,29 @@ test('broken or missing storage never breaks the form', () => {
   const store = memory();
   store.setItem('k', 'not json');
   assert.equal(readJournal(store, 'k', 1), null);
+});
+
+test('a draft left on this device is brought back, and still counts when the server already has it', () => {
+  const server = values();
+  assert.deepEqual(
+    (({ restored, leftOver }) => ({ restored, leftOver }))(openDraft(server, null)),
+    { restored: false, leftOver: false },
+    'nothing kept: the form opens as the server has it',
+  );
+
+  // The write never reached the server: the draft comes back and is written again.
+  const typed = values({ epithet: 'the Unsaved' });
+  const back = openDraft(server, { at: 1, revision: 1, base: server, draft: typed });
+  assert.equal(back.start.epithet, 'the Unsaved');
+  assert.equal(back.restored, true);
+  assert.equal(back.leftOver, true);
+
+  // The write reached the server as the page went away, and its answer went with the page: nothing to write again, but the
+  // reader typed this and never saw it confirmed, so the form must not open as if nothing had been typed.
+  const landed = openDraft(typed, { at: 1, revision: 1, base: server, draft: typed });
+  assert.equal(landed.start.epithet, 'the Unsaved');
+  assert.equal(landed.restored, false, 'nothing is owed to the server');
+  assert.equal(landed.leftOver, true, 'the status line confirms it is saved');
 });
 
 test('Next moves through the list and stops at the end', () => {

@@ -4,8 +4,10 @@
 // runner loads it.
 import { periodOf, storedIssue } from '../../lib/partial-date.ts';
 import type { PlaceValue } from '../PlaceInput';
+import type { Journal } from './autosave.ts';
 import type { DraftField } from './FieldEditor';
 import { blankValue, fieldIssue, storedValue } from './model.ts';
+import { rebaseDraft, type Conflict } from './rebase.ts';
 
 export interface EditValues {
   given: string; furtherGiven: string[]; surname: string; sameName: boolean; currentGiven: string; currentSurname: string;
@@ -92,4 +94,16 @@ export function storedForm(v: EditValues): EditValues {
     occupationCode: v.occupation.trim() ? v.occupationCode : '', bio: v.bio.trim(),
     fields: v.fields.map((f) => ({ ...f, label: f.label.trim(), value: { ...blankValue(f.type), ...storedValue(f.type, f.value) } })),
   };
+}
+
+/**
+ * The form's first values: the server's (`latest`), with any draft left on this device rebased onto them. `restored` says
+ * the draft brought something back that the server does not have; `leftOver` says a draft was there at all, which also
+ * covers the write that reached the server as the page went away, its answer lost with the page: the server has the
+ * reader's words, and the status line says so instead of starting again as if nothing had been typed.
+ */
+export function openDraft(latest: EditValues, left: Journal<EditValues> | null) {
+  if (!left) return { start: latest, base: latest, conflicts: [] as Conflict<DraftField>[], restored: false, leftOver: false, unchosen: null };
+  const { values, conflicts } = rebaseDraft<EditValues, DraftField>(left.base, left.draft, latest);
+  return { start: values, base: latest, conflicts, restored: signatureOf(values) !== signatureOf(latest), leftOver: true, unchosen: conflicts.length ? left.base : null };
 }
