@@ -27,6 +27,7 @@ privacy rules matter more than speed.
   Every `*.test.ts` under `src/`, `scripts/` and `server/` runs, in any folder, so a new test needs no registration.
 - `mise run e2e` builds the Node server, then runs Playwright on scratch data with the fake AI provider. It takes minutes. It uses the installed Brave, or the Chromium in `KINDRED_E2E_BROWSER`.
 - `mise run smoke:worker` builds the Worker and checks it in workerd on empty local D1 and R2. It never contacts Cloudflare.
+- `mise run sweep -- <origin>` opens every main page of a running demo (`mise run demo`) in Safari's engine and lists the pages the browser draws differently from the server. The journeys cannot see that, because Chromium agrees with the server. Run it after changing how a page writes dates, names or anything that depends on the day. It needs `npx playwright install webkit` once.
 - `mise run build` builds the Worker; `mise run build:node` builds for Node, then `mise run start` runs it. `mise run dev` is the dev server (port 4517); `mise run data` makes the two invented test families.
 - `mise run ci` runs the Dagger pipeline CI uses (needs a container engine).
 
