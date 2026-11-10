@@ -45,6 +45,19 @@ URL is `/<id>`.
 The first family that first-time setup makes (step 7) needs its binding too. Its id is `KINDRED_DEFAULT_TREE`, or
 `family` when that is not set, so `TREE_FAMILY` must exist, or the binding for whatever `KINDRED_DEFAULT_TREE` names.
 
+### Another family
+
+A family made later (Manage families in the account menu, see [self-host.md](self-host.md#more-than-one-family)) needs its own
+database too, because a Worker cannot create or bind a D1 database by itself:
+
+1. `npx wrangler d1 create kindred-<id>`, and its binding in `wrangler.jsonc` as above (`TREE_<ID>`).
+2. `mise run deploy`, which applies the schema to it and deploys.
+3. The Families page now lists it as an empty database: give it a name there and **Set up this family**. You become its steward.
+
+Deleting a family on Workers empties its database (every row; the schema stays) and deletes its pictures from R2 and its rows
+in the accounts database. The database stays bound and is listed again as empty, ready for another family; to remove it for
+good, take its binding out of `wrangler.jsonc`, deploy, then `npx wrangler d1 delete kindred-<id>`.
+
 ## 3. Apply the schema
 
 ```sh
@@ -102,6 +115,7 @@ invites the others.
 | `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` | variable | Used only with `KINDRED_AUTH=cloudflare-access`. The team domain and the application's audience tag. See step 6. |
 | `KINDRED_VAPID_PUBLIC_KEY`, `KINDRED_VAPID_SUBJECT` | variable | Web Push reminders: the public VAPID key and a contact (`mailto:` or `https:`). Reminders stay hidden without them. See Reminders below. |
 | `KINDRED_VAPID_PRIVATE_JWK` | secret | Web Push reminders: the private VAPID key as JWK JSON. Keep it secret. |
+| `KINDRED_DEMO` | variable | `1` makes the Worker a public, read-only demo of invented families. Leave it unset for your family. See [A public demo](#a-public-demo). |
 
 ```sh
 npx wrangler secret put KINDRED_SECRET
@@ -297,6 +311,38 @@ mise run cf:seed   # copies data/modern.db and data/realm.db into the local D1 d
 ```
 
 `cf:seed` replaces the local databases, so it is safe for test data only.
+
+## A public demo
+
+`deploy/demo/` holds what a demo of the two invented families needs, as a Worker of its own beside (never instead of) your
+family's: `wrangler.jsonc`, a template with placeholder ids and `KINDRED_DEMO=1`, and `seed-d1.ts`, which generates the families
+and fills the demo's databases. What a demo does and refuses is in [self-host.md](self-host.md#a-public-demo). Never bind a real
+family's database in it: the demo shows every family it has to anyone.
+
+```sh
+npx wrangler d1 create kindred-demo-accounts      # paste each database_id into deploy/demo/wrangler.jsonc
+npx wrangler d1 create kindred-demo-realm
+npx wrangler d1 create kindred-demo-modern
+npx wrangler r2 bucket create kindred-demo-media
+mise run demo:cf -- --remote                       # the schema and the families (refused while a placeholder id is left)
+KINDRED_WRANGLER_CONFIG=deploy/demo/wrangler.jsonc npx vite build
+npx wrangler deploy -c dist/server/wrangler.json
+```
+
+Run `mise run demo:cf -- --remote` again to put the families back as they were generated. The demo needs no secrets, and it does
+not start beside `KINDRED_AUTH=cloudflare-access`, the Access settings, `KINDRED_GUEST_ORIGIN`, `KINDRED_SETUP_CODE` or the VAPID
+keys: every page then says which setting to remove. `KINDRED_WRANGLER_CONFIG` is what points the build and the D1 scripts
+(`cf-migrate.ts`, `import-to-d1.ts`) at the demo's configuration instead of `wrangler.jsonc`.
+
+To try it locally first, in workerd with local D1 and R2 and nothing sent to Cloudflare:
+
+```sh
+mise run demo:cf                                   # local databases in deploy/demo/.wrangler/state
+KINDRED_WRANGLER_CONFIG=deploy/demo/wrangler.jsonc CLOUDFLARE_ENV=local npx vite build
+npx wrangler dev -c dist/server/wrangler.json --local --persist-to deploy/demo/.wrangler/state
+```
+
+`mise run smoke:worker` also starts its Worker once as a demo and checks it.
 
 ## Backups
 

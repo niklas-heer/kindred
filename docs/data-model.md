@@ -219,6 +219,16 @@ These rules keep the data consistent without interactive transactions, which D1 
 - **Pictures and research documents are in media storage.** The database holds only keys (`photo/<uuid>.jpg`, `gallery/<uuid>.jpg`, `research/<uuid>.pdf`). Node keeps
   them in `data/media/<id>/`, Cloudflare in R2 under `<id>/<key>`. A replaced picture is deleted after the change that
   replaced it is written.
+- **A family's rows in the accounts database carry its id in a column named `tree`.** Deleting a family
+  (`src/lib/families.server.ts`) removes every accounts row whose table has a `tree` column, found from the schema, so a
+  table added later is included without a list to keep. A row that belongs to a family only through another row (a share
+  session through its link, a running reply through its chat) is listed there by hand; add yours the same way. On Workers
+  the family database itself is emptied rather than removed (`emptyDatabase` in `src/lib/store/db.ts`): every table but
+  `d1_migrations` and the tables a migration seeds with a starting row (`SEEDED_TABLES`, today `ancestry_rev`). A new
+  migration that seeds a table with a row the app needs adds it there.
+- **A demo writes nothing.** With `KINDRED_DEMO=1` (`src/lib/demo.ts`) the storage layer hands out read-only databases and
+  a media store that refuses to store or delete, and `once` refuses before its plan runs. A write made while a page is only
+  read (bookkeeping such as "last seen") must tolerate that refusal, or skip itself when `isDemo()`.
 
 ## Seeding and the exchange
 

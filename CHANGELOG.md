@@ -23,6 +23,15 @@ version will not run on a database that has had these migrations.
 
 ### Added
 
+- Managing families: a steward (or the server's first account) can make another family on the new Families page (name,
+  address, tagline, theme), change a family's details, and delete a family after downloading its export, typing its address and
+  confirming with a passkey. Deleting removes its database, its pictures and every accounts row that names it. On Cloudflare the
+  page lists bound but empty `TREE_<ID>` databases to set up and explains the binding step. See docs/self-host.md, "More than one
+  family".
+- A public demo: `KINDRED_DEMO=1` opens the invented families to anyone without sign-in, read-only, with a slim demo bar; every
+  write is refused on the server. `mise run demo` (Node), `docker compose --profile demo up -d --build demo`, and `deploy/demo/`
+  for Cloudflare. It refuses to start beside accounts, Access, a guest host, a setup code or reminder keys. See docs/self-host.md,
+  "A public demo".
 - Ask to join: a guest of a family's share link can ask for an account of their own, with a passkey. A steward sees the request
   on the Access page (with an approximate place, the device family and how the link was used), gets a badge and a push, and
   approves it with a role or declines it. Requests end after 30 days; a link holds at most 10. Each link has a "Guests may ask to

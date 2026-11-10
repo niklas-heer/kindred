@@ -124,7 +124,7 @@ they are that account.
 
 Compose reads `.env` for the settings below, and passes the ones the app reads into the container: `KINDRED_ORIGIN`,
 `KINDRED_AUTH`, `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `KINDRED_GUEST_ORIGIN`, `KINDRED_SETUP_CODE`, `KINDRED_REQUIRE_SETUP_CODE`, `KINDRED_DEFAULT_TREE`, `KINDRED_SECRET`, the three `KINDRED_VAPID_*` reminder
-settings, `KINDRED_JOBS` and `KINDRED_TRUSTED_PROXIES`. `KINDRED_DOMAIN` goes to
+settings, `KINDRED_JOBS`, `KINDRED_TRUSTED_PROXIES` and `KINDRED_DEMO`. `KINDRED_DOMAIN` goes to
 Caddy, and `WITH_GAZETTEER` and `KINDRED_COMMIT` to the build. An empty value is the same as an unset one, so the defaults still apply. Without
 Docker, set them as environment variables for the server.
 
@@ -148,6 +148,8 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 | `KINDRED_VAPID_PUBLIC_KEY`, `KINDRED_VAPID_PRIVATE_JWK`, `KINDRED_VAPID_SUBJECT` | empty | Web Push reminders. Make the three with `mise run vapid-keys -- mailto:you@example.org`. Without all three the Reminders item is hidden. See [Reminders](#reminders). |
 | `KINDRED_JOBS` | empty | `off` stops the daily run at 06:00 UTC for reminders, archives and enabled background AI tasks. Any other value keeps it on. |
 | `KINDRED_TRUSTED_PROXIES` | empty (0) | How many reverse proxies stand in front of the server: `1` for Caddy alone, as in [HTTPS with Caddy](#https-with-caddy). The limits on signing in, share links and invitations then count the visitor's address that the proxy passes on (X-Forwarded-For, counted from the right, so a visitor cannot write their own). Empty or `0`: the header is never believed. Set it only when every request reaches the server through that many proxies. Not used on Cloudflare. |
+| `KINDRED_DEMO` | empty | `1` makes the server a public, read-only demo of invented families. Leave it empty for your family. See [A public demo](#a-public-demo). |
+| `KINDRED_DEMO_ORIGIN` | `http://localhost:4902` | Compose's demo profile only: the `KINDRED_ORIGIN` of its demo service. |
 | `PORT` | `4901` | The port the server listens on. Docker: the image uses 4901, and Compose maps it. |
 | `HOST` | `127.0.0.1` | The address it listens on. The image sets `0.0.0.0`, so that Docker can reach it. |
 
@@ -526,6 +528,62 @@ such as Caddy's `encode`, leaves an answer that is already compressed alone.
 Bun is not supported. Kindred's storage uses Node's `node:sqlite`, and Bun does not provide it. The production build starts under
 Bun 1.3.14 and serves the health check and the static files, but any page that reads the database fails. `/setup` returns 500,
 with `No such built-in module: node:sqlite` in the log. Kindred does not have a Bun SQLite driver: run it on Node 26.
+
+## More than one family
+
+One server can hold several families, each with its own members, pictures and settings. A steward of any family on the server
+(or the server's first account) opens **Manage families** in the account menu, or the link under the family cards on the home
+page, and makes another one: its name, its address (`/<id>`), an optional tagline and the theme it opens in. The maker becomes
+its steward and is asked to add themselves first, as after setup; nobody else sees the new family until they are invited.
+
+- The address is lower-case letters, digits and single dashes, 2 to 40 characters, starting with a letter. Words the app uses
+  for its own pages (`api`, `setup`, `signin`, `share`, `invite`, `ui`, `families` and a few more) are refused. It cannot be changed
+  later: it is the family's database name.
+- On Node and Docker the family is a new file, `data/<id>.db`, beside the others; back it up with them. A file of that name that
+  already holds people is never written over. A database that holds no family yet (an empty file) is listed on the page and can
+  be set up from there.
+- On Cloudflare a family needs its own D1 database, bound when the Worker is deployed: see
+  [deploy-cloudflare.md](deploy-cloudflare.md#another-family).
+- A family's stewards change its name, tagline and theme on the same page (the Access page has the name and tagline too).
+- A family's steward can delete it there. The page offers the export first (the Markdown archive and GEDCOM), then asks for the
+  family's address to be typed and for the steward's passkey. Deleting removes the family's database, every picture and document it
+  stored, and every row of the accounts database that belongs to it: memberships, invitations, the share link and its guests'
+  visits, the AI settings, chats and spending, statistics, reminder subscriptions, join requests (and the pending accounts of those
+  who asked) and feedback. The accounts of its members stay, for their other families. The server's last family, and the family
+  `KINDRED_DEFAULT_TREE` names, cannot be deleted. **It cannot be undone**: only a backup brings it back.
+
+If the server stops in the middle of making or deleting a family, do it again: a family that was left with its details but
+no people and no members is finished by making it again, and a deletion that stopped is finished by deleting again (or forgotten
+when a new family takes the address).
+
+## A public demo
+
+`KINDRED_DEMO=1` turns a server into a public showcase of the two invented families (the Realm of Aurelmarch and the modern family
+the tests use), for a project page or to try Kindred before installing it:
+
+- Nobody signs in. Every visitor reads every family as a viewer, so the tree, the people, the Atlas, the Almanac, the Today page
+  and the games' practice modes (which run in the browser) all work. A slim bar on every page says it is a demo with an invented
+  family and links to the repository.
+- Every change is refused on the server, in the storage layer every write passes through: nothing is saved, uploaded or deleted,
+  and the visitor gets "This is a demo, so nothing can be changed or saved here." There are no accounts, no setup, no
+  invitations, no share links, no join requests, no AI, no reminders, no statistics and no daily jobs.
+- Only the environment turns it on; nothing a visitor sends can. The security headers and the caching rules are the same as
+  everywhere else.
+- It cannot be combined with `KINDRED_AUTH=cloudflare-access`, `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `KINDRED_GUEST_ORIGIN`,
+  `KINDRED_SETUP_CODE`, `KINDRED_REQUIRE_SETUP_CODE` or the `KINDRED_VAPID_*` keys. With any of them, or with a value other than
+  `1` or empty, the Node server does not start and says why; on Cloudflare every page says so instead.
+
+Never point a demo at your family's data: it would show your family to anyone. The commands below make the invented families in
+a folder of their own, fresh on every start.
+
+```sh
+mise run demo                                   # Node: builds the server, makes the families in .demo/data, serves them on :4901
+docker compose --profile demo up -d --build demo   # Docker: the same on http://localhost:4902, in its own volume
+```
+
+`mise run demo` takes `PORT`, `HOST` and `KINDRED_ORIGIN` as usual, and `KINDRED_DATA_DIR` for another folder (never `data/`).
+In Compose, set `KINDRED_DEMO_ORIGIN` to the demo's public address, and put it behind Caddy or another proxy as for any install.
+For a demo on Cloudflare, see [deploy-cloudflare.md](deploy-cloudflare.md#a-public-demo) and `deploy/demo/`.
 
 ## Health
 

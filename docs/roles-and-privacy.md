@@ -32,6 +32,9 @@ both what the browser shows and what the server allows.
 | See the family's usage statistics, and turn them off | Steward |
 | Play the Campaign, while it is on | Viewer |
 | Turn the Campaign on or off, and end its season | Steward |
+| Change the family's name, tagline and theme | Steward |
+| Delete the family (with its address typed and a passkey confirmation) | Steward |
+| Make another family on the server | Steward of any family there, or the server's first account |
 
 Hiding a button is never the only protection. Every server function and server route calls `requireMember` or
 `requireCan` before it reads or writes, and answers 401 when signed out and 403 when the role is too low.
@@ -236,7 +239,19 @@ runs offline once the gazetteer is built.
 
 **Usage statistics** stay in the same place and go nowhere else: no third-party service is involved. See [Usage statistics](#usage-statistics).
 
-To leave, export the family, or copy the database (a copy of the database holds everyone's personal items too). Deleting a family means deleting its database and its media.
+To leave, export the family, or copy the database (a copy of the database holds everyone's personal items too). A steward can
+delete a family on the Families page ([self-host.md](self-host.md#more-than-one-family)): its database, every picture and document,
+and every row of the accounts database that names it (memberships, invitations, the share link and its guests' visits, AI settings,
+chats and spending, statistics, reminder subscriptions, join requests with the pending accounts of those who asked, and feedback).
+The members' accounts stay for their other families. Backups you made are yours to delete.
+
+## A public demo
+
+With `KINDRED_DEMO=1` ([self-host.md](self-host.md#a-public-demo)) a server shows its families to anyone, without signing in, as a
+viewer. It is meant for the invented families only. Nothing is stored about a visitor: there is no account, no session cookie, no usage
+statistics and no share-link measuring, and every change is refused on the server. Choosing who you are in
+the tree is kept in the visitor's own browser only. The rules for viewers apply to what is shown, so private fields and private
+research stay hidden as for any viewer.
 
 ## Usage statistics
 
