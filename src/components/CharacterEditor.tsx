@@ -1,18 +1,21 @@
-// The character editor: change how a person's generated portrait looks, in the manner of CK3's ruler
-// designer. A controlled component: it shows `value` and reports every change through `onChange`,
-// so the caller decides when to save. Each part is picked from tiles that show this person wearing
-// it, at the age being previewed.
+// The character editor: change how a person's drawn portrait looks, in the manner of a game's character creator.
+// A large portrait that changes as you choose (and shows a choice while the pointer or the focus rests on it), the
+// parts in categories, every choice shown on this person's own face, "Surprise me", ready-made looks, and steps
+// back and forward. It shows `value` and reports every change through `onChange`: the caller decides when to save
+// (AppearanceDialog.tsx). Its rules, apart from the screen, are in src/lib/portrait-editor.ts.
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Camera, Dices, RotateCcw, Sparkles, Undo2 } from 'lucide-react';
-import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { Camera, Dices, Eye, History, Redo2, Sparkles, Undo2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import { aiAvatarFromPhoto } from '~/lib/ai.functions';
 import { toAiLocale } from '~/lib/ai/types';
 import { useT, type Key } from '~/lib/i18n';
 import { errorText } from '~/lib/errortext';
 import { personPhotosQuery } from '~/lib/photos.functions';
 import { useCan } from '~/lib/session';
+import { play } from '~/lib/sfx';
 import { portraitStatusQuery } from '~/lib/portrait.functions';
-import type { Mark } from '~/lib/seed-format';
+import { applyPreset, canRedo, canUndo, changed, commit, presetsFor, redo, revert, startDraft, surprise, undo, type Draft } from '~/lib/portrait-editor';
+import type { Extra, Mark } from '~/lib/seed-format';
 import type { GPerson, House, Look } from '~/lib/types';
 import { useAiStatus } from './assistant/store';
 import { AiSetupHint } from './assistant/AiSetup';
@@ -20,9 +23,11 @@ import { PaintPortrait } from './PaintPortrait';
 import { mediaUrl } from '~/lib/photos/types';
 import { Portrait } from './Portrait';
 import {
-  BEARDS, BROWS, CLOTHING, EYE_LABELS, EYE_SHAPES, EYES, FACE_SHAPES, GLASSES, HAIR, HAIR_LABELS, HAIR_ORDER, HAIR_STYLES, HEADWEAR,
-  LEVEL_LABELS, MARKS, MOUSTACHES, NOSE_SHAPES, SKIN, SKIN_LABELS, SKIN_NEUTRAL, SKIN_ORDER, autoFeatures, defaultLook, shownAge,
-  type LevelKey,
+  BACKDROPS, BEARDS, BROWS, CLOTH, CLOTH_LABELS, CLOTHING, CLOTHING_GROUP_LABELS, EARRINGS, EXPRESSIONS, EXTRAS, EYE_LABELS, EYE_ORDER, EYE_SHAPES, EYES,
+  FACE_SHAPES, FRAME_LABELS, FRAMES, GLASSES, GREY_LABELS, HAIR, HAIR_DYED, HAIR_GROUP_LABELS, HAIR_LABELS, HAIR_ORDER, HAIR_STYLES, HEADWEAR,
+  HEADWEAR_GROUP_LABELS, LEVEL_LABELS, LINES_LABELS, LIP_LABELS, LIPS, MARKS, MOUSTACHES, NECKLACES, NOSE_SHAPES, SKIN, SKIN_LABELS, SKIN_NEUTRAL,
+  SKIN_ORDER, autoFeatures, autoGrey, defaultLook, headwearShows, resolveAppearance, shownAge, stageOf,
+  type ClothingGroup, type HeadwearGroup, type LevelKey, type Opt,
 } from '~/lib/portrait-look';
 import { Range, Switch, Tab, TabList, TabPanel, Tabs } from './ui';
 import './charactereditor.css';
@@ -34,10 +39,14 @@ export interface CharacterEditorProps {
   house?: House | null;
   /** The look being edited; absent means "automatic" until the first change. */
   value: Look | undefined;
-  onChange: (look: Look) => void;
+  onChange: (look: Look | undefined) => void;
+  /** Shown over the options when nothing made here will be saved: a demo, a preview, a reader who may not edit. */
+  notice?: ReactNode;
 }
 
-type Optional = Exclude<keyof Look, 'skin' | 'hair' | 'eyes'>;
+type Field = Exclude<keyof Look, 'skin' | 'hair' | 'eyes'>;
+/** What a thumbnail shows of the portrait: the part being chosen, close enough to tell one choice from the next. */
+type Focus = 'bust' | 'head' | 'face' | 'eyes' | 'mouth' | 'chest';
 
 const STAGES = [
   { label: 'character.stage.child', age: 8 },
@@ -46,6 +55,28 @@ const STAGES = [
 ] as const;
 const LIFE = [1, 6, 12, 17, 28, 45, 62, 82];
 const NOW = new Date().getFullYear();
+/** Where each small thing is worn, so its thumbnail shows it. */
+const EXTRA_FOCUS: Record<Extra, Focus> = { 'hearing-aid': 'face', flower: 'chest', brooch: 'chest', medal: 'chest', scarf: 'chest', pipe: 'face', bindi: 'face', 'nose-stud': 'face' };
+const EARLY = new Set(['early-medieval', 'high-medieval', 'renaissance', 'c17']);
+
+// Where the eyes and the mouth sit in the picture, in percent from the top: lower for a child, whose head is larger.
+const EYE_Y = { baby: 54.6, child: 50.1, teen: 46.2, adult: 44.6 };
+const MOUTH_Y = { baby: 64.6, child: 61.8, teen: 59.3, adult: 58.6 };
+
+/** How a thumbnail is brought close to its part: a scale, the point it grows from, and the shift that centres that point. */
+function focusStyle(focus: Focus, age: number | undefined): CSSProperties {
+  const stage = age === undefined ? 'adult' : stageOf(age);
+  const k = stage === 'baby' || stage === 'child' || stage === 'teen' ? stage : 'adult';
+  const at = (s: number, y: number) => ({ '--s': s, '--oy': `${y}%`, '--ty': `${50 - y}%` }) as CSSProperties;
+  switch (focus) {
+    case 'bust': return {};
+    case 'head': return { '--s': 1.3, '--oy': `${EYE_Y[k] - 22}%` } as CSSProperties;
+    case 'chest': return { '--s': 1.45, '--oy': '100%' } as CSSProperties;
+    case 'face': return at(1.8, (EYE_Y[k] + MOUTH_Y[k]) / 2 + 0.5);
+    case 'eyes': return at(2.5, EYE_Y[k]);
+    case 'mouth': return at(2.4, MOUTH_Y[k] - 2.5);
+  }
+}
 
 /** Ages that make sense for this person: nobody is previewed older than they lived. */
 function lifeAges(p: GPerson): number[] {
@@ -55,273 +86,464 @@ function lifeAges(p: GPerson): number[] {
   return [...LIFE.filter((a) => a < end - 4), end];
 }
 
-export function CharacterEditor({ person, tree, house = null, value, onChange }: CharacterEditorProps) {
+/** True on a phone-sized screen, where the portrait sits small above the options and stays in view. */
+function useNarrow(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      const m = matchMedia('(max-width: 760px)');
+      m.addEventListener('change', cb);
+      return () => m.removeEventListener('change', cb);
+    },
+    () => matchMedia('(max-width: 760px)').matches,
+    () => false,
+  );
+}
+
+export function CharacterEditor({ person, tree, house = null, value, onChange, notice }: CharacterEditorProps) {
+  const t = useT();
+  const narrow = useNarrow();
+  // The session's steps. The caller holds the look itself; this holds how it got there.
+  const [draft, setDraft] = useState<Draft>(() => startDraft(value));
   const look = value ?? defaultLook(person);
-  // The 0–10 measures a slider shows when it is on automatic: the value the drawing will use.
-  const auto = autoFeatures(person.id);
-  const initial = useRef(value);
-  const [history, setHistory] = useState<(Look | undefined)[]>([]);
+  // A choice the pointer or the focus rests on, shown in the large portrait without being taken.
+  const [peek, setPeek] = useState<Look | null>(null);
+  const [comparing, setComparing] = useState(false);
   // undefined: the age the portrait itself shows (age at death, today's age, or the fixed age).
   const [preview, setPreview] = useState<number | undefined>(undefined);
-  const [life, setLife] = useState(false);
-  const [tab, setTab] = useState('face');
+  const [tab, setTab] = useState('looks');
+  // The 0–10 measures a slider shows when it is on automatic: the value the drawing will use.
+  const auto = autoFeatures(person.id);
 
-  const commit = (next: Look) => {
-    setHistory((h) => [...h.slice(-49), value]);
-    onChange(next);
+  // What a tool just did, for a screen reader: the picture changes without a word otherwise.
+  const [said, setSaid] = useState('');
+  const move = (next: Draft, say?: Key) => {
+    if (next === draft) return;
+    setSaid(say ? t(say) : '');
+    setDraft(next);
+    setPeek(null);
+    setComparing(false);
+    onChange(next.now);
   };
-  const set = <K extends keyof Look>(key: K, v: Look[K] | undefined) => {
+  const take = (next: Look, sound: 'tick' | 'page' = 'tick', say?: Key) => {
+    play(sound);
+    move(commit(draft, next), say);
+  };
+  const withField = <K extends keyof Look>(key: K, v: Look[K] | undefined): Look => {
     const next = { ...look };
     if (v === undefined) delete next[key];
     else next[key] = v;
-    commit(next);
+    return next;
   };
+  const set = <K extends keyof Look>(key: K, v: Look[K] | undefined) => take(withField(key, v));
+
   // "Make from photo": the AI reads one of the person's photos and the result loads here for review. Nothing is saved
-  // until the caller saves the editor's value, and it counts as one undo step.
-  const t = useT();
+  // until the caller saves the editor's value, and it counts as one step.
   const aiAvatar = !!useAiStatus(tree)?.features.avatar;
   const [picking, setPicking] = useState(false);
   // The photos feed both "Make from photo" and the painted portrait, which needs them to know it has one to paint.
   // The painted portrait is offered to editors when the feature is on for this family (its own status, not the assistant's).
   const canEdit = useCan('edit-person');
-  const paint = useQuery({ ...portraitStatusQuery(tree), enabled: canEdit });
+  const paint = useQuery({ ...portraitStatusQuery(tree), enabled: canEdit && !notice });
   const paintOn = !!paint.data?.enabled && !!paint.data?.configured;
-  const photos = useQuery({ ...personPhotosQuery(tree, person.id), enabled: (aiAvatar && picking) || (canEdit && paintOn) });
+  const photos = useQuery({ ...personPhotosQuery(tree, person.id), enabled: !notice && ((aiAvatar && picking) || (canEdit && paintOn)) });
   const fromPhoto = useMutation({
     mutationFn: (mediaKey: string) => aiAvatarFromPhoto({ data: { tree, personId: person.id, mediaKey, locale: toAiLocale(t.locale) } }),
     // Over the current look: a photo says nothing about era-driven headwear, clothing or a fixed age.
-    onSuccess: (next) => commit({ ...look, ...next }),
+    onSuccess: (next) => take({ ...look, ...next }),
   });
-  const undo = () => {
-    if (!history.length) return;
-    const prev = history[history.length - 1];
-    setHistory((h) => h.slice(0, -1));
-    onChange(prev ?? defaultLook(person));
-  };
-  const reset = () => commit(initial.current ?? defaultLook(person));
-  const randomise = () => commit(randomLook(person, look));
+
   const onKeyDown = (e: KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !(e.target instanceof HTMLInputElement)) {
+    if (!(e.metaKey || e.ctrlKey) || e.target instanceof HTMLInputElement) return;
+    const key = e.key.toLowerCase();
+    if (key === 'z' || key === 'y') {
       e.preventDefault();
-      undo();
+      if (key === 'y' || e.shiftKey) move(redo(draft), 'character.said.redone');
+      else move(undo(draft), 'character.said.undone');
     }
   };
 
-  const shown = useMemo(() => ({ ...person, look }), [person, look]);
-  const ownAge = shownAge(shown, NOW);
+  const shownLook = comparing ? draft.start : peek ?? look;
+  const shown = useMemo(() => ({ ...person, look: shownLook }), [person, shownLook]);
+  const current = useMemo(() => ({ ...person, look }), [person, look]);
+  const ownAge = shownAge(current, NOW);
   const heroAge = preview ?? ownAge;
   const ages = lifeAges(person);
   const sex = person.sex === 'm' || person.sex === 'f' ? person.sex : 'x';
+  const appearance = resolveAppearance(current, NOW, preview);
+  const presets = presetsFor(person, look, NOW, preview);
 
-  /** This person with one part changed, for a tile. Grown-up parts are shown on a grown-up. */
-  const tile = (key: Optional, v: unknown, adultOnly = false): GPerson => {
-    const next = { ...look } as Record<string, unknown>;
-    if (v === undefined) delete next[key];
-    else next[key] = v;
-    const age = heroAge === undefined || !adultOnly ? heroAge : Math.max(heroAge, 30);
-    return { ...person, look: { ...(next as unknown as Look), ...(age !== undefined ? { age } : {}) } };
+  // The large portrait gives a small start when a part changes. Its key is the look, so the animation runs once per change.
+  const heroKey = JSON.stringify(shownLook ?? null) + (preview ?? '');
+  const tabs = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    tabs.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [tab]);
+
+  const tool = (label: string, icon: ReactNode, on: boolean, run: () => void, keys?: string) => (
+    <button type="button" className="btn ghost icon" aria-disabled={!on} onClick={() => on && run()} aria-keyshortcuts={keys} aria-label={label} title={label}>{icon}</button>
+  );
+  /** The age a thumbnail shows: the one being previewed, and grown-up parts on a grown-up. */
+  const tileAge = (adultOnly = false) => (heroAge === undefined || !adultOnly ? heroAge : Math.max(heroAge, 30));
+  /** This person with one part changed, for a thumbnail. */
+  const wearing = (next: Look, adultOnly = false): GPerson => {
+    const age = tileAge(adultOnly);
+    return { ...person, look: { ...next, ...(age !== undefined ? { age } : {}) } };
+  };
+  /** What the pointer or the focus resting on a choice does: shows it large. */
+  const peeks = (next: Look) => ({
+    onPointerEnter: () => setPeek(next),
+    onPointerLeave: () => setPeek(null),
+    onFocus: () => setPeek(next),
+    onBlur: () => setPeek(null),
+  });
+
+  // Render functions, not components: a component defined here would remount on every change and drop keyboard focus
+  // from the choice just pressed.
+  const thumb = (next: Look, focus: Focus, adultOnly?: boolean) => (
+    <span className="ce-thumb" style={focusStyle(focus, tileAge(adultOnly))}>
+      <Portrait prefer="avatar" person={wearing(next, adultOnly)} tree={tree} house={house} mourn={false} size={76} frame={false} decorative />
+    </span>
+  );
+  // `bare`: the thumbnail takes the glasses and the hat off, so that eyes and brows can be told apart under them.
+  const tile = (key: string, label: string, next: Look, on: boolean, focus: Focus, opts: { adultOnly?: boolean; auto?: boolean; bare?: boolean } = {}) => (
+    <button key={key} type="button" className={`ce-tile${opts.auto ? ' is-auto' : ''}`} aria-pressed={on} onClick={() => take(next)} {...peeks(next)}>
+      {thumb(opts.bare ? { ...next, glasses: 'none', headwear: 'none' } : next, focus, opts.adultOnly)}
+      <span className="ce-tile-name">{opts.auto ? <Sparkles size={12} aria-hidden="true" /> : null}{label}</span>
+    </button>
+  );
+
+  /** One part chosen from a catalogue: "Automatic" first (as the portrait would choose), then each option on this face. */
+  const tiles = <T extends string>({ field, options, focus, adultOnly, auto = true, label, bare }: { field: Field; options: readonly Opt<T>[]; focus: Focus; adultOnly?: boolean | ((id: T) => boolean); auto?: boolean; label: string; bare?: boolean }) => (
+    <div className="ce-tiles" role="group" aria-label={label}>
+      {auto && tile('auto', t('character.auto'), withField(field, undefined), look[field] === undefined, focus, { adultOnly: adultOnly === true, auto: true, bare })}
+      {options.map((o) => tile(o.id, t(o.label), withField(field, o.id as never), look[field] === o.id, focus, { adultOnly: typeof adultOnly === 'function' ? adultOnly(o.id) : adultOnly, bare }))}
+    </div>
+  );
+  /** The same, under headings: hair by length, headwear and clothes by occasion. */
+  /** `lead`: a group that needs no heading (headwear's "none"), set beside "Automatic". */
+  const grouped = <T extends string, G extends string>({ field, options, order, labels, focus, adultOnly, lead }: { field: Field; options: readonly Opt<T, G>[]; order: readonly G[]; labels: Record<G, Key>; focus: Focus; adultOnly?: (id: T) => boolean; lead?: G }) => (
+    <>
+      <div className="ce-tiles" role="group" aria-label={t('character.auto')}>
+        {tile('auto', t('character.auto'), withField(field, undefined), look[field] === undefined, focus, { auto: true })}
+        {options.filter((o) => o.group === lead).map((o) => tile(o.id, t(o.label), withField(field, o.id as never), look[field] === o.id, focus))}
+      </div>
+      {order.filter((g) => g !== lead).map((g) => (
+        <div key={g} className="ce-group">
+          <h4>{t(labels[g])}</h4>
+          {tiles({ field, options: options.filter((o) => o.group === g), focus, adultOnly, auto: false, label: t(labels[g]) })}
+        </div>
+      ))}
+    </>
+  );
+  /** A numbered part with a few named steps (greying, lines of age): automatic, then each step on this face. */
+  const steps = (field: 'grey' | 'lines', labels: Key[], focus: Focus, label: string) => (
+    <div className="ce-tiles" role="group" aria-label={label}>
+      {tile('auto', t('character.auto'), withField(field, undefined), look[field] === undefined, focus, { auto: true })}
+      {labels.map((k, i) => tile(String(i), t(k), withField(field, i), look[field] === i, focus))}
+    </div>
+  );
+  /** Several at once (marks, things worn and carried). */
+  const toggles = <T extends Mark | Extra>({ field, options, focus, label, auto }: { field: 'marks' | 'extras'; options: readonly Opt<T>[]; focus: Focus | ((id: T) => Focus); label: string; auto: boolean }) => {
+    const whole = typeof focus === 'function' ? 'bust' : focus;
+    const chosen = (look[field] ?? []) as T[];
+    const flip = (id: T) => (chosen.includes(id) ? chosen.filter((x) => x !== id) : [...chosen, id]);
+    return (
+      <div className="ce-tiles" role="group" aria-label={label}>
+        {auto
+          ? tile('auto', t('character.auto'), withField(field, undefined), look[field] === undefined, whole, { auto: true })
+          : tile('none', t('character.none_extra'), withField(field, undefined), !chosen.length, whole)}
+        {options.map((o) => {
+          const next = flip(o.id);
+          const preview = { ...look, [field]: chosen.includes(o.id) ? chosen : [...chosen, o.id] } as Look;
+          return (
+            <button key={o.id} type="button" className="ce-tile" aria-pressed={chosen.includes(o.id)} onClick={() => take(field === 'extras' && !next.length ? withField(field, undefined) : ({ ...look, [field]: next } as Look))} {...peeks(preview)}>
+              {thumb(preview, typeof focus === 'function' ? focus(o.id) : focus, field === 'extras')}
+              <span className="ce-tile-name">{t(o.label)}</span>
+            </button>
+          );
+        })}
+      </div>
+    );
   };
 
-  // A render function, not a component: a component defined here would remount on every change and
-  // drop keyboard focus from the tile just pressed.
-  const tiles = <T extends string>({ field, options, adultOnly, auto = true }: { field: Optional; options: { id: T; label: Key }[]; adultOnly?: boolean; auto?: boolean }) => (
-    <div className="ce-tiles" role="group">
-      {auto && (
-        <button type="button" className="ce-tile is-auto" aria-pressed={look[field] === undefined} onClick={() => set(field, undefined)}>
-          <span className="ce-auto"><Sparkles size={20} aria-hidden="true" /></span>
-          {t('character.auto')}
+  /** A 0–10 measure: a slider, showing the automatic value until it is set by hand. */
+  const measure = (key: LevelKey | 'build', label: string) => {
+    const base = key === 'build' ? 5 : auto[key];
+    return (
+      <div className="ce-measure">
+        <span className="ce-measure-name">{label}</span>
+        <Range aria-label={label} value={look[key] ?? base} min={0} max={10} step={1} ticks={[0, 5, 10]} format={(v) => String(v)} onChange={(v) => set(key, v)} />
+        <span className="ce-measure-state">
+          {look[key] === undefined ? t(key === 'build' ? 'character.average' : 'character.auto') : (
+            <button type="button" className="ce-link" onClick={() => set(key, undefined)}>{t(key === 'build' ? 'character.average' : 'character.auto')}</button>
+          )}
+        </span>
+      </div>
+    );
+  };
+
+  const swatches = ({ field, order, colours, labels, neutral, auto, label }: { field: 'skin' | 'hair' | 'eyes' | 'lips' | 'frames' | 'clothColour' | 'trimColour' | 'hatColour'; order: readonly number[]; colours: readonly string[]; labels: readonly Key[]; neutral?: number; auto?: string; label: string }) => (
+    <div className="ce-swatches" role="group" aria-label={label}>
+      {auto !== undefined && (
+        <button type="button" className="ce-swatch is-auto" aria-pressed={look[field] === undefined} aria-label={auto} title={auto} onClick={() => set(field, undefined)} {...peeks(withField(field, undefined))}>
+          <span><Sparkles size={14} aria-hidden="true" /></span>
         </button>
       )}
-      {options.map((o) => (
-        <button key={o.id} type="button" className="ce-tile" aria-pressed={look[field] === o.id} onClick={() => set(field, o.id as never)}>
-          <Portrait prefer="avatar" person={tile(field, o.id, adultOnly)} tree={tree} house={house} mourn={false} size={56} frame={false} />
-          {t(o.label)}
+      {order.map((i) => (
+        <button
+          key={i}
+          type="button"
+          className={`ce-swatch${i === neutral ? ' is-neutral' : ''}`}
+          aria-pressed={look[field] === i}
+          aria-label={t(labels[i])}
+          title={t(labels[i])}
+          onClick={() => set(field, i)}
+          {...peeks(withField(field, i))}
+          style={{ ['--sw' as string]: colours[i] }}
+        >
+          <span />
         </button>
       ))}
     </div>
   );
+  const all = (xs: readonly unknown[]) => xs.map((_, i) => i);
 
-  /** A 0–10 measure: a slider, showing the automatic value until it is set by hand. */
-  const measure = (key: LevelKey) => (
-    <div className="ce-measure">
-      <Range
-        aria-label={t(LEVEL_LABELS[key])}
-        value={look[key] ?? auto[key]}
-        min={0}
-        max={10}
-        step={1}
-        ticks={[0, 5, 10]}
-        format={(v) => String(v)}
-        onChange={(v) => set(key, v)}
-      />
-      <span className="ce-measure-state">
-        {look[key] === undefined ? t('character.auto') : (
-          <button type="button" className="ce-link" onClick={() => set(key, undefined)}>{t('character.auto')}</button>
-        )}
-      </span>
-    </div>
-  );
-
-  const marks = look.marks;
-  const toggleMark = (m: Mark) => {
-    const base = marks ?? [];
-    set('marks', base.includes(m) ? base.filter((x) => x !== m) : [...base, m]);
-  };
+  const clothingOrder: ClothingGroup[] = appearance.stage === 'child'
+    ? ['children', 'everyday', 'best', 'traditional', 'work', 'c19', 'early']
+    : EARLY.has(appearance.era) ? ['early', 'c19', 'traditional', 'best', 'work', 'everyday', 'children']
+      : appearance.era === 'c18' || appearance.era === 'c19' ? ['c19', 'best', 'work', 'traditional', 'everyday', 'early', 'children']
+        : ['everyday', 'best', 'work', 'traditional', 'c19', 'early', 'children'];
+  const headwearOrder: HeadwearGroup[] = EARLY.has(appearance.era) ? ['none', 'realm', 'period', 'faith', 'occasion', 'everyday', 'work'] : ['none', 'everyday', 'faith', 'occasion', 'work', 'period', 'realm'];
+  const greyNow = autoGrey(current, NOW, preview);
 
   return (
     <div className="ce" onKeyDown={onKeyDown}>
       <div className="ce-stage">
         <div className="ce-hero">
-          <Portrait prefer="avatar" person={shown} tree={tree} house={house} mourn={false} size={176} age={preview} />
+          <span className="ce-hero-pop" key={heroKey}>
+            <Portrait prefer="avatar" person={shown} tree={tree} house={house} mourn={false} size={narrow ? 128 : 248} age={preview} />
+          </span>
+          {comparing ? <span className="ce-hero-flag">{t('character.before')}</span> : null}
           <span className="ce-hero-caption">{heroAge === undefined ? t('character.age_unknown') : t('character.aged', { age: heroAge })}</span>
         </div>
-        <div className="ce-ages" role="group" aria-label={t('character.preview_age')}>
-          <button type="button" className="ce-age" aria-pressed={preview === undefined} onClick={() => setPreview(undefined)}>
-            <Portrait prefer="avatar" person={shown} tree={tree} house={house} mourn={false} size={44} frame={false} />
-            {t('character.as_shown')}
+
+        <div className="ce-tools" role="toolbar" aria-label={t('character.tools')}>
+          <button type="button" className="btn primary ce-surprise" onClick={() => take(surprise(person, look, NOW, Math.random, preview), 'page', 'character.said.surprised')} title={t('character.surprise_hint')}>
+            <Dices size={16} aria-hidden="true" /> {t('character.surprise')}
           </button>
+          {/* aria-disabled, not disabled: a tool that has just run out keeps the focus, so the keyboard is not thrown back to the top. */}
+          {tool(t('character.undo'), <Undo2 size={16} aria-hidden="true" />, canUndo(draft), () => move(undo(draft), 'character.said.undone'), 'Control+Z Meta+Z')}
+          {tool(t('character.redo'), <Redo2 size={16} aria-hidden="true" />, canRedo(draft), () => move(redo(draft), 'character.said.redone'), 'Control+Shift+Z Meta+Shift+Z')}
+          <button type="button" className="btn ghost icon" aria-pressed={comparing} aria-disabled={!changed(draft)} onClick={() => changed(draft) && setComparing((c) => !c)} aria-label={t('character.compare')} title={t('character.compare')}><Eye size={16} aria-hidden="true" /></button>
+          {tool(t('character.revert'), <History size={16} aria-hidden="true" />, changed(draft), () => move(revert(draft), 'character.said.reverted'))}
+          <span className="sr-only" role="status" aria-live="polite">{said}</span>
+        </div>
+
+        <div className="ce-ages" role="group" aria-label={t('character.preview_age')}>
+          <button type="button" className="ce-age" aria-pressed={preview === undefined} onClick={() => setPreview(undefined)}>{t('character.as_shown')}</button>
           {STAGES.filter((s) => ages.some((a) => a >= s.age - 6) || s.age <= 8).map((s) => (
-            <button key={s.label} type="button" className="ce-age" aria-pressed={preview === s.age} onClick={() => setPreview(s.age)}>
-              <Portrait prefer="avatar" person={shown} tree={tree} house={house} mourn={false} size={44} frame={false} age={s.age} />
-              {t(s.label)}
-            </button>
+            <button key={s.label} type="button" className="ce-age" aria-pressed={preview === s.age} onClick={() => setPreview(s.age)}>{t(s.label)}</button>
           ))}
         </div>
-        <Switch checked={life} onChange={setLife} size="sm">{t('character.life')}</Switch>
-        {life && (
-          <div className="ce-life">
-            {ages.map((a) => (
-              <figure key={a}>
-                <Portrait prefer="avatar" person={shown} tree={tree} house={house} mourn={false} size={52} age={a} />
-                <figcaption>{a}</figcaption>
-              </figure>
-            ))}
-          </div>
-        )}
+
+        <div className="ce-sizes" aria-label={t('character.sizes')} role="group">
+          <Portrait prefer="avatar" person={shown} tree={tree} house={house} size={84} age={preview} decorative />
+          <Portrait prefer="avatar" person={shown} tree={tree} house={house} size={40} age={preview} decorative />
+          <Portrait prefer="avatar" person={shown} tree={tree} house={house} size={28} frame={false} age={preview} decorative />
+          <span className="ce-sizes-note">{t('character.sizes')}</span>
+        </div>
       </div>
 
       <div className="ce-controls">
-        <div className="ce-toolbar">
-          <button type="button" className="btn" onClick={randomise}><Dices size={16} aria-hidden="true" /> {t('character.randomise')}</button>
-          {aiAvatar ? (
-            <button type="button" className="btn" onClick={() => setPicking((p) => !p)} aria-expanded={picking} aria-controls="ce-photo-pick">
-              <Camera size={16} aria-hidden="true" /> {t('character.make_from_photo')}
-            </button>
-          ) : <AiSetupHint tree={tree} feature={t('character.make_from_photo')} />}
-          <span className="ce-spacer" />
-          <button type="button" className="btn ghost" onClick={undo} disabled={!history.length} aria-keyshortcuts="Control+Z Meta+Z"><Undo2 size={16} aria-hidden="true" /> {t('character.undo')}</button>
-          <button type="button" className="btn ghost" onClick={reset}><RotateCcw size={16} aria-hidden="true" /> {t('character.reset')}</button>
-        </div>
-        {canEdit && paintOn ? <PaintPortrait tree={tree} person={person} photos={photos.data ?? []} /> : null}
-        {aiAvatar && picking && (
-          <div className="ce-photo-pick" id="ce-photo-pick" role="group" aria-label={t('character.make_from_photo')}>
-            <p className="ce-hint">{t('character.photo_pick')}</p>
-            {photos.data?.length ? (
-              <div className="ce-photo-grid">
-                {photos.data.map((m) => (
-                  <button key={m.key} type="button" className="ce-photo" disabled={fromPhoto.isPending} onClick={() => fromPhoto.mutate(m.key)}>
-                    <img src={mediaUrl(tree, m.key, 'thumb')} alt="" loading="lazy" />
-                  </button>
-                ))}
-              </div>
-            ) : photos.data ? (
-              <p className="ce-hint">{t('character.no_photos')}</p>
-            ) : null}
-            {fromPhoto.isPending && <p className="ce-hint" role="status" aria-busy="true">{t('character.photo_loading')}</p>}
-            {fromPhoto.isError && <p className="ce-hint ce-err" role="alert">{t('character.photo_failed')} {errorText(fromPhoto.error, t.locale)}</p>}
-            {fromPhoto.isSuccess && !fromPhoto.isPending && <p className="ce-hint" role="status">{t('character.photo_loaded')}</p>}
-          </div>
-        )}
+        {notice ? <p className="ce-notice" role="note">{notice}</p> : null}
         <Tabs value={tab} onChange={setTab} label={t('character.appearance')}>
-          <TabList>
-            <Tab value="face">{t('character.tab.face')}</Tab>
-            <Tab value="hair">{t('character.tab.hair')}</Tab>
-            <Tab value="beard">{t('character.tab.beard')}</Tab>
-            <Tab value="extras">{t('character.tab.headwear')}</Tab>
-            <Tab value="clothes">{t('character.tab.clothes')}</Tab>
-            <Tab value="age">{t('character.tab.age')}</Tab>
-          </TabList>
-          <TabPanel value="face">
-            <p className="ce-hint">{t('character.hint.measures')}</p>
-            <Section title={t('character.section.face_shape')}>{tiles({ field: 'face', options: FACE_SHAPES })}</Section>
-            <Section title={t('character.section.jaw')}>{measure('jaw')}</Section>
-            <Section title={t('character.section.skin')}>
-              <Swatches
-                value={look.skin}
-                order={[...SKIN_ORDER, SKIN_NEUTRAL]}
-                colours={SKIN}
-                labels={SKIN_LABELS.map((k) => t(k))}
-                neutral={SKIN_NEUTRAL}
-                onPick={(i) => set('skin', i)}
-              />
-            </Section>
-            <Section title={t('character.section.eyes')}>
-              <Swatches value={look.eyes} order={EYES.map((_, i) => i)} colours={EYES} labels={EYE_LABELS.map((k) => t(k))} onPick={(i) => set('eyes', i)} />
-            </Section>
-            <Section title={t('character.section.eye_shape')}>{tiles({ field: 'eyeShape', options: EYE_SHAPES })}</Section>
-            <Section title={t('character.section.eye_size')}>{measure('eyeSize')}</Section>
-            <Section title={t('character.section.eye_spacing')}>{measure('eyeSpacing')}</Section>
-            <Section title={t('character.section.eyebrows')}>{tiles({ field: 'brows', options: BROWS })}</Section>
-            <Section title={t('character.section.brow_height')}>{measure('browHeight')}</Section>
-            <Section title={t('character.section.nose')}>
-              {tiles({ field: 'noseShape', options: NOSE_SHAPES })}
-              {measure('noseSize')}
-            </Section>
-            <Section title={t('character.section.mouth')}>
-              {measure('mouthWidth')}
-              {measure('mouthFullness')}
-            </Section>
-            <Section title={t('character.section.ears')}>{measure('earSize')}</Section>
-            <Section title={t('character.section.marks')}>
-              <div className="ce-tiles" role="group">
-                <button type="button" className="ce-tile is-auto" aria-pressed={marks === undefined} onClick={() => set('marks', undefined)}>
-                  <span className="ce-auto"><Sparkles size={20} aria-hidden="true" /></span>
-                  {t('character.auto')}
-                </button>
-                {MARKS.map((m) => (
-                  <button key={m.id} type="button" className="ce-tile" aria-pressed={!!marks?.includes(m.id)} onClick={() => toggleMark(m.id)}>
-                    <Portrait prefer="avatar" person={tile('marks', [m.id])} tree={tree} house={house} mourn={false} size={56} frame={false} />
-                    {t(m.label)}
-                  </button>
-                ))}
-              </div>
-            </Section>
-          </TabPanel>
-          <TabPanel value="hair">
-            <Section title={t('character.section.colour')}>
-              <Swatches value={look.hair} order={HAIR_ORDER} colours={HAIR} labels={HAIR_LABELS.map((k) => t(k))} onPick={(i) => set('hair', i)} />
-              <Switch checked={look.hairGreys !== false} onChange={(v) => set('hairGreys', v ? undefined : false)} size="sm">{t('character.greys')}</Switch>
-            </Section>
-            <Section title={t('character.section.style')}>{tiles({ field: 'hairStyle', options: HAIR_STYLES })}</Section>
-            <Section title={t('character.section.hairline')}>{measure('hairline')}</Section>
-          </TabPanel>
-          <TabPanel value="beard">
-            {heroAge !== undefined && heroAge < 20 && <p className="ce-hint">{t('character.hint.beard_young')}</p>}
-            <Section title={t('character.section.beard')}>{tiles({ field: 'beardStyle', options: BEARDS, adultOnly: true })}</Section>
-            <Section title={t('character.section.moustache')}>{tiles({ field: 'moustache', options: MOUSTACHES, adultOnly: true })}</Section>
-            {sex !== 'm' && <p className="ce-hint">{t('character.hint.beard_men')}</p>}
-          </TabPanel>
-          <TabPanel value="extras">
-            <Section title={t('character.section.headwear')}>{tiles({ field: 'headwear', options: HEADWEAR, adultOnly: true })}</Section>
-            <Section title={t('character.section.glasses')}>{tiles({ field: 'glasses', options: GLASSES, adultOnly: true })}</Section>
-          </TabPanel>
-          <TabPanel value="clothes">
-            <p className="ce-hint">{t('character.hint.clothes')}</p>
-            <Section title={t('character.section.clothing')}>{tiles({ field: 'clothing', options: CLOTHING })}</Section>
-          </TabPanel>
-          <TabPanel value="age">
-            <Section title={t('character.section.age')}>
-              <Switch checked={look.age !== undefined} onChange={(v) => set('age', v ? ownAge ?? 40 : undefined)} size="sm">{t('character.show_fixed_age')}</Switch>
-              <p className="ce-hint">
-                {look.age === undefined ? t(person.living ? 'character.age_auto_today' : 'character.age_auto_died') : t('character.age_fixed_note')}
-              </p>
-              {look.age !== undefined && (
-                <div className="ce-age-range">
-                  <Range aria-label={t('character.section.age')} value={look.age} min={0} max={100} ticks={[0, 25, 50, 75, 100]} onChange={(v) => set('age', v)} format={(v) => String(v)} />
+          <div ref={tabs} className="ce-tabs">
+            <TabList>
+              <Tab value="looks">{t('character.tab.looks')}</Tab>
+              <Tab value="face">{t('character.tab.face')}</Tab>
+              <Tab value="eyes">{t('character.tab.eyes')}</Tab>
+              <Tab value="hair">{t('character.tab.hair')}</Tab>
+              <Tab value="beard">{t('character.tab.beard')}</Tab>
+              <Tab value="details">{t('character.tab.details')}</Tab>
+              <Tab value="clothes">{t('character.tab.clothes')}</Tab>
+              <Tab value="headwear">{t('character.tab.headwear')}</Tab>
+              <Tab value="extras">{t('character.tab.extras')}</Tab>
+              <Tab value="age">{t('character.tab.age')}</Tab>
+            </TabList>
+          </div>
+          <div className="ce-panels">
+            <TabPanel value="looks">
+              <Section title={t('character.section.presets')}>
+                <p className="ce-hint">{t(presets.length ? 'character.hint.presets' : 'character.hint.no_presets')}</p>
+                <div className="ce-tiles is-wide" role="group" aria-label={t('character.section.presets')}>
+                  {presets.map((p) => {
+                    const next = applyPreset(look, p);
+                    return tile(p.id, t(p.label), next, JSON.stringify(next) === JSON.stringify(look), 'bust');
+                  })}
                 </div>
+              </Section>
+              {!notice && (
+                <Section title={t('character.section.from_photo')}>
+                  <div className="ce-row">
+                    {aiAvatar ? (
+                      <button type="button" className="btn" onClick={() => setPicking((p) => !p)} aria-expanded={picking} aria-controls="ce-photo-pick">
+                        <Camera size={16} aria-hidden="true" /> {t('character.make_from_photo')}
+                      </button>
+                    ) : <AiSetupHint tree={tree} feature={t('character.make_from_photo')} />}
+                  </div>
+                  {aiAvatar && picking && (
+                    <div className="ce-photo-pick" id="ce-photo-pick" role="group" aria-label={t('character.make_from_photo')}>
+                      <p className="ce-hint">{t('character.photo_pick')}</p>
+                      {photos.data?.length ? (
+                        <div className="ce-photo-grid">
+                          {photos.data.map((m) => (
+                            <button key={m.key} type="button" className="ce-photo" disabled={fromPhoto.isPending} onClick={() => fromPhoto.mutate(m.key)}>
+                              <img src={mediaUrl(tree, m.key, 'thumb')} alt="" loading="lazy" />
+                            </button>
+                          ))}
+                        </div>
+                      ) : photos.data ? (
+                        <p className="ce-hint">{t('character.no_photos')}</p>
+                      ) : null}
+                      {fromPhoto.isPending && <p className="ce-hint" role="status" aria-busy="true">{t('character.photo_loading')}</p>}
+                      {fromPhoto.isError && <p className="ce-hint ce-err" role="alert">{t('character.photo_failed')} {errorText(fromPhoto.error, t.locale)}</p>}
+                      {fromPhoto.isSuccess && !fromPhoto.isPending && <p className="ce-hint" role="status">{t('character.photo_loaded')}</p>}
+                    </div>
+                  )}
+                  {canEdit && paintOn ? <PaintPortrait tree={tree} person={person} photos={photos.data ?? []} /> : null}
+                </Section>
               )}
-            </Section>
-          </TabPanel>
+            </TabPanel>
+
+            <TabPanel value="face">
+              <Section title={t('character.section.skin')}>
+                {swatches({ field: 'skin', order: [...SKIN_ORDER, SKIN_NEUTRAL], colours: SKIN, labels: SKIN_LABELS, neutral: SKIN_NEUTRAL, label: t('character.section.skin') })}
+              </Section>
+              <Section title={t('character.section.face_shape')}>
+                {tiles({ field: 'face', options: FACE_SHAPES, focus: 'head', label: t('character.section.face_shape') })}
+                {measure('jaw', t(LEVEL_LABELS.jaw))}
+                {measure('build', t('character.section.build'))}
+              </Section>
+              <Section title={t('character.section.expression')}>{tiles({ field: 'expression', options: EXPRESSIONS, focus: 'face', label: t('character.section.expression') })}</Section>
+              <Section title={t('character.section.nose')}>
+                {tiles({ field: 'noseShape', options: NOSE_SHAPES, focus: 'mouth', label: t('character.section.nose') })}
+                {measure('noseSize', t(LEVEL_LABELS.noseSize))}
+              </Section>
+              <Section title={t('character.section.mouth')}>
+                {measure('mouthWidth', t(LEVEL_LABELS.mouthWidth))}
+                {measure('mouthFullness', t(LEVEL_LABELS.mouthFullness))}
+                <h4>{t('character.section.lips')}</h4>
+                {swatches({ field: 'lips', order: all(LIPS), colours: LIPS, labels: LIP_LABELS, auto: t('look.lips.natural'), label: t('character.section.lips') })}
+              </Section>
+              <Section title={t('character.section.ears')}>{measure('earSize', t(LEVEL_LABELS.earSize))}</Section>
+            </TabPanel>
+
+            <TabPanel value="eyes">
+              <Section title={t('character.section.colour')}>
+                {swatches({ field: 'eyes', order: EYE_ORDER, colours: EYES, labels: EYE_LABELS, label: t('character.section.eyes') })}
+              </Section>
+              <Section title={t('character.section.eye_shape')}>
+                {tiles({ field: 'eyeShape', options: EYE_SHAPES, focus: 'eyes', label: t('character.section.eye_shape'), bare: true })}
+                {measure('eyeSize', t(LEVEL_LABELS.eyeSize))}
+                {measure('eyeSpacing', t(LEVEL_LABELS.eyeSpacing))}
+              </Section>
+              <Section title={t('character.section.eyebrows')}>
+                {tiles({ field: 'brows', options: BROWS, focus: 'eyes', label: t('character.section.eyebrows'), bare: true })}
+                {measure('browHeight', t(LEVEL_LABELS.browHeight))}
+              </Section>
+              <Section title={t('character.section.glasses')}>
+                {tiles({ field: 'glasses', options: GLASSES, focus: 'face', adultOnly: true, label: t('character.section.glasses') })}
+                <h4>{t('character.section.frames')}</h4>
+                {swatches({ field: 'frames', order: all(FRAMES), colours: FRAMES, labels: FRAME_LABELS, auto: t('look.frames.auto'), label: t('character.section.frames') })}
+              </Section>
+            </TabPanel>
+
+            <TabPanel value="hair">
+              {appearance.stage === 'baby' && <p className="ce-hint">{t('character.hint.baby')}</p>}
+              {appearance.headwear !== 'none' && ['hijab', 'turban', 'headwrap', 'wimple', 'hood'].includes(appearance.headwear) && <p className="ce-hint">{t('character.hint.covered')}</p>}
+              <Section title={t('character.section.colour')}>
+                {swatches({ field: 'hair', order: HAIR_ORDER, colours: HAIR, labels: HAIR_LABELS, label: t('character.section.colour') })}
+                <h4>{t('character.section.dyed')}</h4>
+                {swatches({ field: 'hair', order: HAIR_DYED, colours: HAIR, labels: HAIR_LABELS, label: t('character.section.dyed') })}
+              </Section>
+              <Section title={t('character.section.grey')}>
+                <div className="ce-tiles" role="group" aria-label={t('character.section.grey')}>
+                  {tile('auto', `${t('character.auto')} · ${t(GREY_LABELS[greyNow])}`, withField('grey', undefined), look.grey === undefined, 'head', { auto: true })}
+                  {GREY_LABELS.map((k, i) => tile(String(i), t(k), withField('grey', i), look.grey === i, 'head'))}
+                </div>
+              </Section>
+              <Section title={t('character.section.style')}>
+                {grouped({ field: 'hairStyle', options: HAIR_STYLES, order: ['short', 'medium', 'long', 'up', 'textured', 'thin', 'period'], labels: HAIR_GROUP_LABELS, focus: 'head' })}
+              </Section>
+              <Section title={t('character.section.hairline')}>{measure('hairline', t(LEVEL_LABELS.hairline))}</Section>
+            </TabPanel>
+
+            <TabPanel value="beard">
+              {heroAge !== undefined && heroAge < 20 && <p className="ce-hint">{t('character.hint.beard_young')}</p>}
+              <Section title={t('character.section.beard')}>{tiles({ field: 'beardStyle', options: BEARDS, focus: 'face', adultOnly: true, label: t('character.section.beard') })}</Section>
+              <Section title={t('character.section.moustache')}>{tiles({ field: 'moustache', options: MOUSTACHES, focus: 'mouth', adultOnly: true, label: t('character.section.moustache') })}</Section>
+              {sex !== 'm' && <p className="ce-hint">{t('character.hint.beard_men')}</p>}
+            </TabPanel>
+
+            <TabPanel value="details">
+              <Section title={t('character.section.marks')}>{toggles({ field: 'marks', options: MARKS, focus: 'face', label: t('character.section.marks'), auto: true })}</Section>
+              <Section title={t('character.section.lines')}>{steps('lines', LINES_LABELS, 'face', t('character.section.lines'))}</Section>
+            </TabPanel>
+
+            <TabPanel value="clothes">
+              <p className="ce-hint">{t('character.hint.clothes')}</p>
+              <Section title={t('character.section.cloth_colour')}>
+                {swatches({ field: 'clothColour', order: all(CLOTH), colours: CLOTH, labels: CLOTH_LABELS, auto: t('look.cloth.house'), label: t('character.section.cloth_colour') })}
+                <h4>{t('character.section.trim_colour')}</h4>
+                {swatches({ field: 'trimColour', order: all(CLOTH), colours: CLOTH, labels: CLOTH_LABELS, auto: t('look.cloth.house'), label: t('character.section.trim_colour') })}
+                <p className="ce-hint">{t('character.hint.house_colours')}</p>
+              </Section>
+              <Section title={t('character.section.clothing')}>
+                {grouped({ field: 'clothing', options: CLOTHING, order: clothingOrder, labels: CLOTHING_GROUP_LABELS, focus: 'chest' })}
+              </Section>
+            </TabPanel>
+
+            <TabPanel value="headwear">
+              {look.headwear && !headwearShows(look.headwear, appearance.stage) && <p className="ce-hint">{t('character.hint.not_at_age')}</p>}
+              <Section title={t('character.section.headwear')}>
+                {grouped({ field: 'headwear', options: HEADWEAR, order: headwearOrder, labels: HEADWEAR_GROUP_LABELS, focus: 'head', adultOnly: (id) => !headwearShows(id, appearance.stage), lead: 'none' })}
+              </Section>
+              <Section title={t('character.section.hat_colour')}>
+                {swatches({ field: 'hatColour', order: all(CLOTH), colours: CLOTH, labels: CLOTH_LABELS, auto: t('character.auto'), label: t('character.section.hat_colour') })}
+              </Section>
+            </TabPanel>
+
+            <TabPanel value="extras">
+              <Section title={t('character.section.extras')}>{toggles({ field: 'extras', options: EXTRAS, focus: (id) => EXTRA_FOCUS[id], label: t('character.section.extras'), auto: false })}</Section>
+              <Section title={t('character.section.earrings')}>{tiles({ field: 'earrings', options: EARRINGS, focus: 'face', auto: false, label: t('character.section.earrings') })}</Section>
+              <Section title={t('character.section.necklace')}>{tiles({ field: 'necklace', options: NECKLACES, focus: 'chest', auto: false, label: t('character.section.necklace') })}</Section>
+              <Section title={t('character.section.backdrop')}>{tiles({ field: 'backdrop', options: BACKDROPS, focus: 'bust', auto: false, label: t('character.section.backdrop') })}</Section>
+            </TabPanel>
+
+            <TabPanel value="age">
+              <Section title={t('character.section.age')}>
+                <Switch checked={look.age !== undefined} onChange={(v) => set('age', v ? ownAge ?? 40 : undefined)} size="sm">{t('character.show_fixed_age')}</Switch>
+                <p className="ce-hint">
+                  {look.age === undefined ? t(person.living ? 'character.age_auto_today' : 'character.age_auto_died') : t('character.age_fixed_note')}
+                </p>
+                {look.age !== undefined && (
+                  <div className="ce-age-range">
+                    <Range aria-label={t('character.section.age')} value={look.age} min={0} max={100} ticks={[0, 25, 50, 75, 100]} onChange={(v) => set('age', v)} format={(v) => String(v)} />
+                  </div>
+                )}
+              </Section>
+              <Section title={t('character.life')}>
+                <div className="ce-life">
+                  {ages.map((a) => (
+                    <button key={a} type="button" className="ce-life-age" aria-pressed={preview === a} onClick={() => setPreview(preview === a ? undefined : a)} aria-label={t('character.aged', { age: a })}>
+                      <Portrait prefer="avatar" person={current} tree={tree} house={house} mourn={false} size={64} age={a} decorative />
+                      <span>{a}</span>
+                    </button>
+                  ))}
+                </div>
+              </Section>
+            </TabPanel>
+          </div>
         </Tabs>
       </div>
     </div>
@@ -335,53 +557,4 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       {children}
     </section>
   );
-}
-
-function Swatches({ value, order, colours, labels, neutral, onPick }: { value: number; order: number[]; colours: string[]; labels: string[]; neutral?: number; onPick: (i: number) => void }) {
-  return (
-    <div className="ce-swatches" role="group">
-      {order.map((i) => (
-        <button
-          key={i}
-          type="button"
-          className={`ce-swatch${i === neutral ? ' is-neutral' : ''}`}
-          aria-pressed={value === i}
-          aria-label={labels[i]}
-          title={labels[i]}
-          onClick={() => onPick(i)}
-          style={{ ['--sw' as string]: colours[i] }}
-        >
-          <span />
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/** A plausible new face for this person: colours and features change; era-driven parts stay automatic. */
-function randomLook(p: GPerson, current: Look): Look {
-  const r = (n: number) => Math.floor(Math.random() * n);
-  const pickOf = <T,>(xs: readonly T[]) => xs[r(xs.length)];
-  const sex = p.sex === 'm' || p.sex === 'f' ? p.sex : 'x';
-  const styles = HAIR_STYLES.map((s) => s.id).filter((s) => (sex === 'm' ? !['braid', 'pigtails', 'chignon', 'bun'].includes(s) : sex === 'f' ? !['receding', 'bald', 'periwig'].includes(s) : true));
-  const next: Look = {
-    skin: pickOf(SKIN_ORDER),
-    hair: r(HAIR.length),
-    eyes: r(EYES.length),
-    ...(current.headwear ? { headwear: current.headwear } : {}),
-    ...(current.clothing ? { clothing: current.clothing } : {}),
-    ...(current.age !== undefined ? { age: current.age } : {}),
-  };
-  if (Math.random() < 0.6) next.hairStyle = pickOf(styles);
-  next.brows = pickOf(BROWS).id;
-  if (sex === 'm') {
-    next.beardStyle = Math.random() < 0.45 ? 'none' : pickOf(BEARDS.slice(1)).id;
-    next.moustache = Math.random() < 0.5 ? 'none' : pickOf(MOUSTACHES.slice(1)).id;
-  }
-  const marks: Mark[] = [];
-  if (Math.random() < 0.25) marks.push('freckles');
-  if (Math.random() < 0.1) marks.push('mole');
-  next.marks = marks;
-  if (Math.random() < 0.15) next.glasses = pickOf(GLASSES.slice(1)).id;
-  return next;
 }

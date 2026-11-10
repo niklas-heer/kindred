@@ -11,7 +11,7 @@ import {
 import { feature, mesh } from 'topojson-client';
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type InputHTMLAttributes, type ReactNode } from 'react';
 import { addStory, deleteStory, newOpKey, opKeys, restoreStory, setPartnershipEnd, uploadPhoto, unlinkRelative } from '~/lib/api';
-import { addPersonField, deletePersonField, personDetailQuery, setLook } from '~/lib/person.functions';
+import { addPersonField, deletePersonField, personDetailQuery } from '~/lib/person.functions';
 import { dateText, yourKinshipParts, locales, ordinal, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
 import { occupationText } from '~/lib/occupations';
 import { translateOccupation } from '~/lib/occupations.functions';
@@ -33,23 +33,23 @@ import { ageOn, widowedOn, type Age } from '~/lib/life';
 import { chooseMe } from '~/lib/family';
 import { useToday } from '~/lib/clock';
 import { can, type Role } from '~/lib/roles';
-import { useCan, useMembership, useRole, useSession } from '~/lib/session';
+import { useCan, useMember, useMembership, useRole, useSession } from '~/lib/session';
 import { PrintLink } from './print/PrintLink';
 import { toast } from '~/lib/toast';
-import type { GPerson, House, Look, PersonDetail, PersonField, Place, Story } from '~/lib/types';
+import type { GPerson, House, PersonDetail, PersonField, Place, Story } from '~/lib/types';
 import { TRAITS } from '~/lib/traits';
 import { GAP_ACTION, GAP_LABEL, GAP_WHERE, gapsOf, useRequired, type GapKey } from '~/lib/gaps';
 import { renderMarkdown } from '~/lib/markdown';
 import { GameIcon } from './GameIcon';
 import { Arms } from './Heraldry';
-import { Portrait } from './Portrait';
+import { faceOf, Portrait } from './Portrait';
 import { ConfirmDialog, DatePicker, Dialog, ErrorState, Segmented, Skeleton, Tabs, TabList, Tab as UiTab, TabPanel, Select, isOverlayOpen } from './ui';
 import { PersonHistory } from './history/PersonHistory';
 import { QuickAdd } from './QuickAdd';
 import type { AddRelation } from './Card';
 import { DraftContext, DraftTracker, type Draft } from './fields/draft';
 import { PersonEdit } from './fields/PersonEdit';
-import { CharacterEditor } from './CharacterEditor';
+import { AppearanceDialog } from './AppearanceDialog';
 import { PersonPhotos } from './photos/PersonPhotos';
 import { PersonPosts } from './feed/PersonPosts';
 import { PortraitZoom } from './photos/PortraitZoom';
@@ -148,6 +148,8 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   // What this reader may do here (the server checks the same; see src/lib/roles.ts).
   const role = useRole();
   const canEdit = can(role, 'edit-person');
+  // The drawn portrait opens the character editor for a member; a guest's visit keeps the plain enlargement.
+  const member = !!useMember(tree);
   const canAdd = can(role, 'add-person');
   // A contributor is told what she can do herself, not sent to someone else for it.
   const canWriteStory = can(role, 'add-story');
@@ -187,6 +189,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   const nee = p.currentSurname != null && p.currentSurname !== p.surname && p.surname ? p.surname : undefined;
   const shown = personDisplayName(current, nameMode, f);
   const Heading = page ? 'h1' : 'h2';
+  const drawn = faceOf(p) === 'drawing';
   const mode = `${compact ? ' pp-compact' : ''}${tab === 'edit' ? ' pp-editing' : ''}${mini && stuck ? ' pp-stuck' : ''}`;
   // The pinned one-line header. A copy for the eye only: the heading above it is the one that is read out.
   const miniBar = mini && (
@@ -222,7 +225,15 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
     {shell(<>
       <header className="pp-head">
         <span className="pp-portrait-slot">
-          <PortraitZoom className="pp-portrait" person={p} tree={tree} size={page ? 320 : 124} />
+          {/* A drawn portrait opens the character editor (a member may at least try a look on); a photo or a painting opens large. */}
+          {member && drawn ? (
+            <button type="button" className="portrait-zoom pp-portrait" aria-haspopup="dialog" aria-label={t(canEdit ? 'character.open' : 'character.try', { name: shown })} title={t(canEdit ? 'character.open' : 'character.try', { name: shown })} onClick={() => setAppearance(true)}>
+              <Portrait person={p} tree={tree} size={page ? 320 : 124} decorative />
+            </button>
+          ) : <PortraitZoom className="pp-portrait" person={p} tree={tree} size={page ? 320 : 124} />}
+          {member && !drawn && (
+            <button type="button" className="pp-photo pp-look" aria-haspopup="dialog" aria-label={t(canEdit ? 'character.open' : 'character.try', { name: shown })} title={t(canEdit ? 'character.open' : 'character.try', { name: shown })} onClick={() => setAppearance(true)}><Paintbrush size={14} aria-hidden /></button>
+          )}
           {canPhoto && (
             <>
               <button type="button" className="pp-photo" disabled={photo.isPending} aria-label={t('panel.changePortrait')} title={t('panel.changePortrait')} onClick={() => photoInput.current?.click()}><Camera size={14} aria-hidden /></button>
@@ -331,7 +342,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
         <button className="btn" disabled={savingDraft || draft?.busy} onClick={() => { draft?.discard?.(); proceed(); }}>{t('panel.discard')}</button>
         <button className="btn primary" disabled={savingDraft || draft?.busy} onClick={async () => { setSavingDraft(true); try { if (await draft?.save()) proceed(); } finally { setSavingDraft(false); } }}>{t('panel.save')}</button>
       </>}><p>{t('panel.unsavedBody')}</p></Dialog>
-      {appearance && canEdit && <AppearanceDialog tree={tree} p={p} house={house ?? null} onClose={() => setAppearance(false)} />}
+      {appearance && member && <AppearanceDialog tree={tree} p={p} house={house ?? null} onClose={() => setAppearance(false)} />}
     </>)}
     </PageLayout.Provider></DraftContext.Provider>
   );
@@ -347,41 +358,6 @@ function useSheetLayout(): boolean {
     },
     () => matchMedia('(max-width: 900px)').matches,
     () => false,
-  );
-}
-
-/**
- * The Edit tab's "Appearance": the character editor in a dialog. Its value is saved only on Save; closing with
- * changes asks first (the dialog's dirty guard). The save is retried with the same key until it lands.
- */
-function AppearanceDialog({ tree, p, house, onClose }: { tree: string; p: GPerson; house: House | null; onClose: () => void }) {
-  const t = useT();
-  const qc = useQueryClient();
-  const [draft, setDraft] = useState<Look | undefined>(p.look);
-  const [keys] = useState(opKeys);
-  const dirty = JSON.stringify(draft ?? null) !== JSON.stringify(p.look ?? null);
-  const save = useMutation({
-    mutationFn: () => setLook({ data: { tree, id: p.id, look: draft!, opKey: keys.for('look', [p.id, draft]) } }),
-    onSuccess: async () => {
-      keys.clear('look');
-      await qc.invalidateQueries({ queryKey: ['person', tree, p.id] });
-      await qc.invalidateQueries({ queryKey: ['graph', tree] });
-      onClose();
-    },
-  });
-  return (
-    <Dialog
-      open
-      onClose={onClose}
-      title={t('panel.appearance_title', { name: p.given })}
-      dirty={dirty}
-      width={880}
-      dismissible={!save.isPending}
-      footer={<button className="btn primary" onClick={() => save.mutate()} disabled={!dirty || !draft || save.isPending}>{t('panel.appearance_save')}</button>}
-    >
-      <CharacterEditor person={p} tree={tree} house={house} value={draft} onChange={setDraft} />
-      {save.isError && <p className="err" role="alert">{t('panel.appearance_failed')}</p>}
-    </Dialog>
   );
 }
 
