@@ -24,6 +24,8 @@ import { ErrorState, Notice, Skeleton } from '~/components/ui';
 import { isTopOverlay, useOverlayLayer } from '~/components/ui/overlay';
 import type { OnDecided } from './ProposalCard';
 import { AssistantTurn, AttachedThumbs, UserTurn } from './ChatTurns';
+import { ChatWelcome } from './ChatWelcome';
+import { chatExamples } from './examples';
 import { usePageContext } from './page-context';
 import './widgets/widgets.css';
 import { ASSISTANT_FOCUS, closeAssistant, takeFocusRequest } from './store';
@@ -392,22 +394,15 @@ export function AssistantDrawer({ tree }: { tree: string }) {
 
   /** The example prompts that suit this reader's role and the family's features (the first is the one nobody else needs). */
   const viewed = page.personId ? graph.data?.people.find((p) => p.id === page.personId) : undefined;
-  const examples: { key: Key; open?: boolean; name?: string }[] = [
-    ...(viewed
-      ? (['chat.start.who', 'chat.start.family'] as Key[]).map((key) => ({ key, name: fullName(viewed) }))
-      : [{ key: 'chat.start.birthdays' as Key }]),
-    // Among the first four whatever page the reader is on: the rest wait behind "More".
-    ...(canDraft ? [{ key: 'ai.exFamily' as Key, open: true }] : []),
-    ...(viewed
-      ? (['chat.start.timeline', 'chat.start.gaps', ...(me && me !== viewed.id ? ['chat.start.relation'] : [])] as Key[]).map((key) => ({ key, name: fullName(viewed) }))
-      : []),
-    { key: 'ai.exPhotos' },
-    { key: 'ai.exMissing' },
-    { key: 'ai.exRelated' },
-    ...(canPhotos ? [{ key: 'ai.exAlbum' as Key }] : []),
-    ...(canPropose && status?.features.avatar ? [{ key: 'ai.exAvatar' as Key }] : []),
-    ...(canHouse ? [{ key: 'ai.exHouse' as Key }] : []),
-  ];
+  const examples = chatExamples({
+    viewed: viewed && { id: viewed.id, name: fullName(viewed) },
+    me,
+    canDraft,
+    canPhotos,
+    canPropose,
+    canHouse,
+    avatars: !!status?.features.avatar,
+  });
 
   /** Sends what is in the box. While this chat is waiting for its reply nothing is sent, and the words stay where they are. */
   function send(e?: FormEvent) {
@@ -617,35 +612,18 @@ export function AssistantDrawer({ tree }: { tree: string }) {
               {(!conv || chat.isPending) && <Skeleton lines={3} />}
               {chat.isError && !String(chat.error.message).includes('ai.err_no_chat') && <ErrorState title={t('ai.loadFailed')} message={errorText(chat.error, t.locale)} onRetry={() => chat.refetch()} />}
               {empty && (
-                <div className="ai-empty">
-                  <div className="ai-welcome">
-                    <span className="ai-mark" aria-hidden><Sparkles size={16} /></span>
-                    <p className="ai-welcome-text">{t('ai.empty')}</p>
-                  </div>
-                  <p className="ai-examples-title">{t('ai.examplesTitle')}</p>
-                  <div className="ai-examples">
-                    {(moreExamples ? examples : examples.slice(0, 4)).map((ex) => (
-                      <button
-                        key={ex.key}
-                        type="button"
-                        className={`ai-example${ex.open ? ' ai-example-primary' : ''}`}
-                        onClick={() => {
-                          if (ex.open) openSession();
-                          else {
-                            setComposer(t(ex.key, { name: ex.name ?? '' }));
-                            areaRef.current?.focus();
-                          }
-                        }}
-                      >
-                        {ex.open && <Users size={14} aria-hidden />}
-                        {t(ex.key, { name: ex.name ?? '' })}
-                      </button>
-                    ))}
-                    {!moreExamples && examples.length > 4 && (
-                      <button type="button" className="btn ghost ai-touch ai-examples-more" onClick={() => setMoreExamples(true)}>{t('shell.more')}</button>
-                    )}
-                  </div>
-                </div>
+                <ChatWelcome
+                  examples={examples}
+                  more={moreExamples}
+                  onMore={() => setMoreExamples(true)}
+                  onPick={(ex) => {
+                    if (ex.open) openSession();
+                    else {
+                      setComposer(t(ex.key, { name: ex.name ?? '' }));
+                      areaRef.current?.focus();
+                    }
+                  }}
+                />
               )}
               {conv && items.map((m, i) => (m.role === 'user' ? <UserTurn key={m.id} tree={tree} item={m} /> : <AssistantTurn key={m.id} tree={tree} conv={conv} item={m} people={people} places={places} onDecided={onDecided} steward={steward} models={models} canRetry={!busy && retryable(items, i)} onRetry={(id, model) => void retryAnswer(conv, id, model)} last={i === items.length - 1} busy={busy} onSay={(words) => { if (!getRun(conv).busy) void transmit(ctx(conv), words, [], false); }} pagePerson={viewed && { id: viewed.id, given: fullName(viewed) }} />))}
               {pending !== null && (
