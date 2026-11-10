@@ -18,6 +18,7 @@ import { Route as TreeIndexRouteImport } from './routes/$tree/index'
 import { Route as TreeAccessRouteImport } from './routes/$tree/access'
 import { Route as TreeAlmanacRouteImport } from './routes/$tree/almanac'
 import { Route as TreeAtlasRouteImport } from './routes/$tree/atlas'
+import { Route as TreeCampaignRouteImport } from './routes/$tree/campaign'
 import { Route as TreeChronicleRouteImport } from './routes/$tree/chronicle'
 import { Route as TreeContactsRouteImport } from './routes/$tree/contacts'
 import { Route as TreeGalleryRouteImport } from './routes/$tree/gallery'
@@ -39,6 +40,7 @@ import { Route as TreeResearchSourcesRouteImport } from './routes/$tree/research
 import { Route as TreeSettingsActivityRouteImport } from './routes/$tree/settings.activity'
 import { Route as TreeSettingsAiRouteImport } from './routes/$tree/settings.ai'
 import { Route as TreeSettingsFeedbackRouteImport } from './routes/$tree/settings.feedback'
+import { Route as TreeSettingsGamesRouteImport } from './routes/$tree/settings.games'
 import { Route as TreeSettingsImportRouteImport } from './routes/$tree/settings.import'
 import { Route as ApiAiChatTreeRouteImport } from './routes/api/ai-chat.$tree'
 import { Route as ApiAuthActionRouteImport } from './routes/api/auth/$action'
@@ -93,6 +95,11 @@ const TreeAlmanacRoute = TreeAlmanacRouteImport.update({
 const TreeAtlasRoute = TreeAtlasRouteImport.update({
   id: '/atlas',
   path: '/atlas',
+  getParentRoute: () => TreeRoute,
+} as any)
+const TreeCampaignRoute = TreeCampaignRouteImport.update({
+  id: '/campaign',
+  path: '/campaign',
   getParentRoute: () => TreeRoute,
 } as any)
 const TreeChronicleRoute = TreeChronicleRouteImport.update({
@@ -200,6 +207,11 @@ const TreeSettingsFeedbackRoute = TreeSettingsFeedbackRouteImport.update({
   path: '/settings/feedback',
   getParentRoute: () => TreeRoute,
 } as any)
+const TreeSettingsGamesRoute = TreeSettingsGamesRouteImport.update({
+  id: '/settings/games',
+  path: '/settings/games',
+  getParentRoute: () => TreeRoute,
+} as any)
 const TreeSettingsImportRoute = TreeSettingsImportRouteImport.update({
   id: '/settings/import',
   path: '/settings/import',
@@ -260,6 +272,7 @@ export interface FileRoutesByFullPath {
   '/$tree/access': typeof TreeAccessRoute
   '/$tree/almanac': typeof TreeAlmanacRoute
   '/$tree/atlas': typeof TreeAtlasRoute
+  '/$tree/campaign': typeof TreeCampaignRoute
   '/$tree/chronicle': typeof TreeChronicleRoute
   '/$tree/contacts': typeof TreeContactsRoute
   '/$tree/gallery': typeof TreeGalleryRoute
@@ -282,6 +295,7 @@ export interface FileRoutesByFullPath {
   '/$tree/settings/activity': typeof TreeSettingsActivityRoute
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
   '/$tree/settings/feedback': typeof TreeSettingsFeedbackRoute
+  '/$tree/settings/games': typeof TreeSettingsGamesRoute
   '/$tree/settings/import': typeof TreeSettingsImportRoute
   '/api/ai-chat/$tree': typeof ApiAiChatTreeRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
@@ -301,6 +315,7 @@ export interface FileRoutesByTo {
   '/$tree/access': typeof TreeAccessRoute
   '/$tree/almanac': typeof TreeAlmanacRoute
   '/$tree/atlas': typeof TreeAtlasRoute
+  '/$tree/campaign': typeof TreeCampaignRoute
   '/$tree/chronicle': typeof TreeChronicleRoute
   '/$tree/contacts': typeof TreeContactsRoute
   '/$tree/gallery': typeof TreeGalleryRoute
@@ -323,6 +338,7 @@ export interface FileRoutesByTo {
   '/$tree/settings/activity': typeof TreeSettingsActivityRoute
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
   '/$tree/settings/feedback': typeof TreeSettingsFeedbackRoute
+  '/$tree/settings/games': typeof TreeSettingsGamesRoute
   '/$tree/settings/import': typeof TreeSettingsImportRoute
   '/api/ai-chat/$tree': typeof ApiAiChatTreeRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
@@ -344,6 +360,7 @@ export interface FileRoutesById {
   '/$tree/access': typeof TreeAccessRoute
   '/$tree/almanac': typeof TreeAlmanacRoute
   '/$tree/atlas': typeof TreeAtlasRoute
+  '/$tree/campaign': typeof TreeCampaignRoute
   '/$tree/chronicle': typeof TreeChronicleRoute
   '/$tree/contacts': typeof TreeContactsRoute
   '/$tree/gallery': typeof TreeGalleryRoute
@@ -366,6 +383,7 @@ export interface FileRoutesById {
   '/$tree/settings/activity': typeof TreeSettingsActivityRoute
   '/$tree/settings/ai': typeof TreeSettingsAiRoute
   '/$tree/settings/feedback': typeof TreeSettingsFeedbackRoute
+  '/$tree/settings/games': typeof TreeSettingsGamesRoute
   '/$tree/settings/import': typeof TreeSettingsImportRoute
   '/api/ai-chat/$tree': typeof ApiAiChatTreeRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
@@ -388,6 +406,7 @@ export interface FileRouteTypes {
     | '/$tree/access'
     | '/$tree/almanac'
     | '/$tree/atlas'
+    | '/$tree/campaign'
     | '/$tree/chronicle'
     | '/$tree/contacts'
     | '/$tree/gallery'
@@ -410,6 +429,7 @@ export interface FileRouteTypes {
     | '/$tree/settings/activity'
     | '/$tree/settings/ai'
     | '/$tree/settings/feedback'
+    | '/$tree/settings/games'
     | '/$tree/settings/import'
     | '/api/ai-chat/$tree'
     | '/api/auth/$action'
@@ -429,6 +449,7 @@ export interface FileRouteTypes {
     | '/$tree/access'
     | '/$tree/almanac'
     | '/$tree/atlas'
+    | '/$tree/campaign'
     | '/$tree/chronicle'
     | '/$tree/contacts'
     | '/$tree/gallery'
@@ -451,6 +472,7 @@ export interface FileRouteTypes {
     | '/$tree/settings/activity'
     | '/$tree/settings/ai'
     | '/$tree/settings/feedback'
+    | '/$tree/settings/games'
     | '/$tree/settings/import'
     | '/api/ai-chat/$tree'
     | '/api/auth/$action'
@@ -471,6 +493,7 @@ export interface FileRouteTypes {
     | '/$tree/access'
     | '/$tree/almanac'
     | '/$tree/atlas'
+    | '/$tree/campaign'
     | '/$tree/chronicle'
     | '/$tree/contacts'
     | '/$tree/gallery'
@@ -493,6 +516,7 @@ export interface FileRouteTypes {
     | '/$tree/settings/activity'
     | '/$tree/settings/ai'
     | '/$tree/settings/feedback'
+    | '/$tree/settings/games'
     | '/$tree/settings/import'
     | '/api/ai-chat/$tree'
     | '/api/auth/$action'
@@ -591,6 +615,13 @@ declare module '@tanstack/react-router' {
       path: '/atlas'
       fullPath: '/$tree/atlas'
       preLoaderRoute: typeof TreeAtlasRouteImport
+      parentRoute: typeof TreeRoute
+    }
+    '/$tree/campaign': {
+      id: '/$tree/campaign'
+      path: '/campaign'
+      fullPath: '/$tree/campaign'
+      preLoaderRoute: typeof TreeCampaignRouteImport
       parentRoute: typeof TreeRoute
     }
     '/$tree/chronicle': {
@@ -740,6 +771,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TreeSettingsFeedbackRouteImport
       parentRoute: typeof TreeRoute
     }
+    '/$tree/settings/games': {
+      id: '/$tree/settings/games'
+      path: '/settings/games'
+      fullPath: '/$tree/settings/games'
+      preLoaderRoute: typeof TreeSettingsGamesRouteImport
+      parentRoute: typeof TreeRoute
+    }
     '/$tree/settings/import': {
       id: '/$tree/settings/import'
       path: '/settings/import'
@@ -817,6 +855,7 @@ interface TreeRouteChildren {
   TreeAccessRoute: typeof TreeAccessRoute
   TreeAlmanacRoute: typeof TreeAlmanacRoute
   TreeAtlasRoute: typeof TreeAtlasRoute
+  TreeCampaignRoute: typeof TreeCampaignRoute
   TreeChronicleRoute: typeof TreeChronicleRoute
   TreeContactsRoute: typeof TreeContactsRoute
   TreeGalleryRoute: typeof TreeGalleryRoute
@@ -833,6 +872,7 @@ interface TreeRouteChildren {
   TreeSettingsActivityRoute: typeof TreeSettingsActivityRoute
   TreeSettingsAiRoute: typeof TreeSettingsAiRoute
   TreeSettingsFeedbackRoute: typeof TreeSettingsFeedbackRoute
+  TreeSettingsGamesRoute: typeof TreeSettingsGamesRoute
   TreeSettingsImportRoute: typeof TreeSettingsImportRoute
 }
 
@@ -840,6 +880,7 @@ const TreeRouteChildren: TreeRouteChildren = {
   TreeAccessRoute: TreeAccessRoute,
   TreeAlmanacRoute: TreeAlmanacRoute,
   TreeAtlasRoute: TreeAtlasRoute,
+  TreeCampaignRoute: TreeCampaignRoute,
   TreeChronicleRoute: TreeChronicleRoute,
   TreeContactsRoute: TreeContactsRoute,
   TreeGalleryRoute: TreeGalleryRoute,
@@ -856,6 +897,7 @@ const TreeRouteChildren: TreeRouteChildren = {
   TreeSettingsActivityRoute: TreeSettingsActivityRoute,
   TreeSettingsAiRoute: TreeSettingsAiRoute,
   TreeSettingsFeedbackRoute: TreeSettingsFeedbackRoute,
+  TreeSettingsGamesRoute: TreeSettingsGamesRoute,
   TreeSettingsImportRoute: TreeSettingsImportRoute,
 }
 

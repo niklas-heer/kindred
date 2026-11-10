@@ -1,12 +1,13 @@
 import { useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, notFound, Outlet, redirect } from '@tanstack/react-router';
-import { ArrowLeftRight, BarChart3, BookOpen, CalendarHeart, CircleHelp, Contact, FolderSearch, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, SlidersHorizontal, Sparkles, Users, Inbox, MessageSquarePlus } from 'lucide-react';
+import { ArrowLeftRight, BarChart3, BookOpen, CalendarHeart, CircleHelp, Contact, FolderSearch, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, SlidersHorizontal, Sparkles, Swords, Users, Inbox, MessageSquarePlus, Gamepad2 } from 'lucide-react';
 import { AccountMenu } from '~/components/AccountMenu';
 import { AssistantButton, AssistantHost } from '~/components/assistant/Launcher';
 import { useAiSetupNeeded } from '~/components/assistant/AiSetup';
 import { openAiSetup, openAssistant, useAiStatus } from '~/components/assistant/store';
 import { aiStatusQuery } from '~/lib/ai.functions';
+import { campaignStatusQuery } from '~/lib/campaign/campaign.functions';
 import { LanguageChoices, LanguagePicker } from '~/components/LanguagePicker';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FirstRun } from '~/components/FirstRun';
@@ -41,8 +42,8 @@ export const Route = createFileRoute('/$tree')({
       throw redirect({ to: '/signin', search: { next: location.href } });
     }
     if (!session.memberships.some((m) => m.tree === params.tree)) throw notFound({ data: { access: false } });
-    // A guest looks around; Access, the settings and Contacts are not for them (the server refuses or empties their data anyway).
-    if (session.guest?.tree === params.tree && /^\/[^/]+\/(?:access|settings|contacts)(?:\/|$)/i.test(location.pathname)) throw redirect({ to: '/$tree', params: { tree: params.tree } });
+    // A guest looks around; Access, the settings, Contacts and the Campaign are not for them (the server refuses or empties their data anyway).
+    if (session.guest?.tree === params.tree && /^\/[^/]+\/(?:access|settings|contacts|campaign)(?:\/|$)/i.test(location.pathname)) throw redirect({ to: '/$tree', params: { tree: params.tree } });
   },
   loader: async ({ context, params }) => {
     // An unknown family is a friendly "not found", never a server error with a developer hint.
@@ -113,6 +114,8 @@ function TreeLayout() {
   const guest = useSession()?.guest?.tree === tree;
   useStatsBeacon(tree, guest);
   const topbar = useTopbarFit();
+  // The Campaign has its section only while a steward has it switched on. Members only: a guest is never asked.
+  const campaign = !!useQuery({ ...campaignStatusQuery(tree), enabled: !guest }).data?.enabled;
 
   // Each tree opens in its own theme unless the reader picked one.
   useEffect(() => {
@@ -173,6 +176,11 @@ function TreeLayout() {
           <Link to="/$tree/research" params={{ tree }} title={t("research.title")} aria-label={t("research.title")} activeOptions={{ exact: false }}>
             <FolderSearch size={16} /><span className="nav-label">{t("research.title")}</span>
           </Link>
+          {campaign && (
+            <Link to="/$tree/campaign" params={{ tree }} title={t("campaign.title")} aria-label={t("campaign.title")}>
+              <Swords size={16} /><span className="nav-label">{t("campaign.nav")}</span>
+            </Link>
+          )}
         </nav>
         <span className="spacer" />
         <button className="btn search-trigger" onClick={() => palette.open()}>
@@ -208,7 +216,7 @@ function TreeLayout() {
         <button type="button" onClick={() => setMore(true)} aria-expanded={more} aria-haspopup="dialog">
           <MoreHorizontal size={21} /><span>{t("shell.more")}</span></button>
       </nav>
-      <MoreSheet open={more} onClose={() => setMore(false)} tree={tree} multiple={multiple} />
+      <MoreSheet open={more} onClose={() => setMore(false)} tree={tree} multiple={multiple} campaign={campaign} />
       <Palette />
       {/* The one assistant drawer for this family; it draws itself only when the button opened it. */}
       <AssistantHost tree={tree} />
@@ -221,7 +229,7 @@ function TreeLayout() {
 }
 
 /** Needed, Contacts, Register and the rest, plus theme and sound: what the phone's tab bar has no room for. */
-function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: () => void; tree: string; multiple: boolean }) {
+function MoreSheet({ open, onClose, tree, multiple, campaign }: { open: boolean; onClose: () => void; tree: string; multiple: boolean; campaign: boolean }) {
   const guest = useSession()?.guest?.tree === tree;
   const t = useT();
   const theme = useTheme();
@@ -242,12 +250,14 @@ function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: 
         <li><Link to="/$tree/houses" params={{ tree }}><Landmark size={19} /> {t("shell.houses")} <small>{t("shell.arms_mottos_members")}</small></Link></li>
         <li><Link to="/$tree/gallery" params={{ tree }}><Images size={19} /> {t("shell.gallery")} <small>{t("shell.gallery_hint")}</small></Link></li>
         <li><Link to="/$tree/research" params={{ tree }}><FolderSearch size={19} /> {t("research.title")} <small>{t("research.nav_hint")}</small></Link></li>
+        {campaign && <li><Link to="/$tree/campaign" params={{ tree }}><Swords size={19} /> {t("campaign.nav")} <small>{t("campaign.nav_hint")}</small></Link></li>}
         {assistant && <li><button type="button" onClick={() => { onClose(); openAssistant(); }}><Sparkles size={19} /> {t("ai.askCommand")}</button></li>}
         {editor && <li><Link to="/$tree/settings/import" params={{ tree }}><ArrowLeftRight size={19} /> {t("shell.importExport")} <small>{t("shell.importExportHint")}</small></Link></li>}
         {steward && <li><Link to="/$tree/access" params={{ tree }}><Users size={19} /> {t("shell.access")} {waiting ? <span className="aitasks-count">{waiting}</span> : null} <small>{t("shell.members_invitations")}</small></Link></li>}
         {steward && <li><Link to="/$tree/statistics" params={{ tree }}><BarChart3 size={19} /> {t("stats.menu")} <small>{t("stats.menu_hint")}</small></Link></li>}
         {setupNeeded && <li><button type="button" onClick={() => { onClose(); openAiSetup(); }}><Sparkles size={19} /> {t("ai.setupButton")} <small>{t("shell.ai_settings_hint")}</small></button></li>}
         {steward && !setupNeeded && <li><Link to="/$tree/settings/ai" params={{ tree }}><SlidersHorizontal size={19} /> {t("shell.ai_settings")} <small>{t("shell.ai_settings_hint")}</small></Link></li>}
+        {steward && <li><Link to="/$tree/settings/games" params={{ tree }}><Gamepad2 size={19} /> {t("campaign.games.title")} <small>{t("campaign.nav_hint")}</small></Link></li>}
         {steward && <li><button type="button" onClick={() => { onClose(); openFeedback(); }}><MessageSquarePlus size={19} /> {t("feedback.menu")} <small>{t("feedback.command_hint")}</small></button></li>}
         {steward && <li><Link to="/$tree/settings/feedback" params={{ tree }}><Inbox size={19} /> {t("feedback.inbox")} <small>{t("feedback.inbox_hint")}</small></Link></li>}
         {multiple && <li><Link to="/" search={{ families: "all" }}><Network size={19} /> {t("shell.all_families")}</Link></li>}

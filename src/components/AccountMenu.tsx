@@ -5,7 +5,7 @@ import { translateMessage, formatDate, relativeTime, useT, type Locale } from '~
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { graphQuery } from '~/lib/api';
-import { Activity, ArrowLeftRight, BarChart3, Bell, Check, CircleHelp, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus } from 'lucide-react';
+import { Activity, ArrowLeftRight, BarChart3, Bell, Check, CircleHelp, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus, Gamepad2 } from 'lucide-react';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import '~/components/assistant/ai-tasks.css';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
@@ -178,6 +178,10 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
                 {steward && (
                   <Link role="menuitem" className="acct-item" to="/$tree/settings/activity" params={{ tree }} onClick={() => setOpen(false)}>
                     <Activity size={17} /> {t("aitasks.menu")} {attention.data?.ai ? <span className="aitasks-count">{attention.data.ai}</span> : null} </Link>
+                )}
+                {steward && (
+                  <Link role="menuitem" className="acct-item" to="/$tree/settings/games" params={{ tree }} onClick={() => setOpen(false)}>
+                    <Gamepad2 size={17} /> {t("campaign.games.title")} </Link>
                 )}
                 {steward && (
                   <Link role="menuitem" className="acct-item" to="/$tree/settings/feedback" params={{ tree }} onClick={() => setOpen(false)}>
