@@ -109,7 +109,9 @@ test('a wrong /Length cannot stretch a stream over the objects after it', async 
 test('an open action is refused unless it only opens a page; additional actions are refused', async () => {
   assert.equal(await pdfContentProblem(PDF('2 0 obj\n<< /Type /Catalog /OpenAction [3 0 R /FitH null] >>\nendobj\n')), null, 'a page to open at');
   assert.equal(await pdfContentProblem(PDF('2 0 obj\n<< /Type /Catalog /OpenAction << /S /GoTo /D [3 0 R /Fit] >> >>\nendobj\n')), 'active');
-  assert.equal(await pdfContentProblem(PDF('2 0 obj\n<< /Type /Catalog /OpenAction 5 0 R >>\nendobj\n')), 'active', 'an action elsewhere cannot be told from here');
+  assert.equal(await pdfContentProblem(PDF('2 0 obj\n<< /Type /Catalog /OpenAction 5 0 R >>\nendobj\n5 0 obj\n[3 0 R /Fit]\nendobj\n')), null, 'a reference to a page to open at, as pdfTeX and Quartz write it');
+  assert.equal(await pdfContentProblem(PDF(OPEN_JS)), 'active', 'a reference to a script is refused by the script');
+  assert.equal(await pdfContentProblem(PDF('2 0 obj\n<< /Type /Catalog /OpenAction 5 0 Rx >>\nendobj\n')), 'active');
   assert.equal(await pdfContentProblem(PDF('2 0 obj\n<< /Type /Page /AA << /O 6 0 R >> >>\nendobj\n')), 'active');
   assert.equal(await pdfContentProblem(PDF('2 0 obj\n<< /Type /Page /#41A << >> >>\nendobj\n')), 'active');
 });
@@ -130,6 +132,20 @@ test('a modern PDF that packs its objects into compressed object streams is acce
   const clean = objectStream('<< /Type /Catalog /Pages 8 0 R /OpenAction [9 0 R /Fit] >>');
   assert.equal(await pdfContentProblem(clean), null);
   assert.deepEqual(await checkDocument(clean, 'application/pdf'), { mime: 'application/pdf' });
+});
+
+test('an encrypted PDF is kept though its packed objects cannot be read, and naming /Encrypt hides nothing in a plain one', async () => {
+  const withEncrypt = (pdf: Uint8Array) => {
+    const mark = encode('\n9 0 obj\n<< /Encrypt 10 0 R >>\nendobj\n');
+    const out = new Uint8Array(pdf.length + mark.length);
+    const at = pdf.length - encode('startxref\n9\n%%EOF\n').length;
+    out.set(pdf.subarray(0, at));
+    out.set(mark, at);
+    out.set(pdf.subarray(at), at + mark.length);
+    return out;
+  };
+  assert.equal(await pdfContentProblem(withEncrypt(objectStream('', { body: encode('cipher text, not deflate') }))), null);
+  assert.equal(await pdfContentProblem(withEncrypt(objectStream('<< /S /JavaScript /JS (app.alert(1)) >>'))), 'active');
 });
 
 test('scripts packed inside a compressed object stream are found and refused', async () => {

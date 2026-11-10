@@ -156,11 +156,12 @@ async function inflate(body: Uint8Array, limit: number): Promise<Uint8Array | nu
  * A first filter, not a proof: what really keeps a file harmless is how the route serves it (src/routes/api/research.$tree.$key.ts).
  */
 export async function pdfContentProblem(bytes: Uint8Array): Promise<PdfProblem | null> {
-  const budget = { inflated: 0 };
+  // A document with usage restrictions is encrypted, its packed objects included, so they cannot be inflated here.
+  const budget = { inflated: 0, encrypted: indexOfWord(bytes, '/Encrypt', 0) !== -1 };
   return scanPdf(bytes, budget, false);
 }
 
-async function scanPdf(bytes: Uint8Array, budget: { inflated: number }, inObjectStream: boolean): Promise<PdfProblem | null> {
+async function scanPdf(bytes: Uint8Array, budget: { inflated: number; encrypted: boolean }, inObjectStream: boolean): Promise<PdfProblem | null> {
   // The last two significant bytes outside comments and strings: `stream` starts a body only right after `>>`.
   let prev1 = 0;
   let prev2 = 0;
@@ -224,7 +225,9 @@ async function scanPdf(bytes: Uint8Array, budget: { inflated: number }, inObject
       if (name === 'OpenAction') {
         let k = j;
         while (k < bytes.length && isWhite(bytes[k])) k++;
-        if (bytes[k] !== 0x5b /* [ */) return 'active';
+        // A page to open at, written here or as a reference to it ("6 0 R"), is harmless. The object a reference
+        // points to is scanned like every other, so a script or a launch there is still refused by its own name.
+        if (bytes[k] !== 0x5b /* [ */ && !/^\d{1,10}\s+\d{1,5}\s+R(?![A-Za-z0-9])/.test(ascii(bytes, k, Math.min(bytes.length, k + 24)))) return 'active';
       }
       names.push(name);
       afterLength = name === 'Length';
@@ -271,10 +274,15 @@ async function scanPdf(bytes: Uint8Array, budget: { inflated: number }, inObject
         if (names.includes('DecodeParms') || names.some((n) => OTHER_FILTERS.has(n))) return 'broken';
         const body = bytes.subarray(from, to);
         const inner = names.includes('FlateDecode') || names.includes('Fl') ? await inflate(body, MAX_INFLATED_BYTES - budget.inflated) : body;
-        if (!inner) return 'broken';
-        budget.inflated += inner.length;
-        const problem = await scanPdf(inner, budget, true);
-        if (problem) return problem;
+        // What cannot be inflated in an encrypted document is its cipher text, not damage: such a file is kept, and
+        // served as every research file is, as a download no page can run. One that does inflate is read as usual,
+        // so naming /Encrypt in a plain file hides nothing.
+        if (!inner && !budget.encrypted) return 'broken';
+        if (inner) {
+          budget.inflated += inner.length;
+          const problem = await scanPdf(inner, budget, true);
+          if (problem) return problem;
+        }
       }
       i = found + 8;
       names = [];
