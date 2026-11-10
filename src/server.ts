@@ -7,6 +7,7 @@ import startEntry from '@tanstack/react-start/server-entry';
 import { guestHostAllows } from './lib/auth/guest-host.ts';
 import { onGuestHost } from './lib/auth/origin.ts';
 import { runJobs, workerSetting } from './lib/jobs/run.server.ts';
+import { demoProblem, isDemo } from './lib/demo.ts';
 
 export default {
   // The TanStack Start request handler. The guest host answers only what a guest needs (src/lib/auth/guest-host.ts).
@@ -22,4 +23,7 @@ export default {
 
   /** Node's daily timer (server/node.ts) calls this with the time of the run and its own settings. */
   runJobs,
+
+  /** What server/node.ts checks before it listens: a setting that must stop the server, and whether it is a demo. */
+  startup: () => ({ problem: demoProblem(), demo: isDemo() }),
 };

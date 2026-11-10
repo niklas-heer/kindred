@@ -3,9 +3,12 @@
 import { families } from '../auth/trees.server.ts';
 import { envSetting } from '../reminders.server.ts';
 import { runDailyJobs } from './index.ts';
+import { isDemo } from '../demo.ts';
 
 /** Runs every daily job for the families this server holds, at `now`. */
 export async function runJobs(now: Date, env: (name: string) => string | undefined, log: (message: string) => void = (message) => console.log(`[kindred] ${message}`)): Promise<void> {
+  // A demo has nobody to remind and may change nothing, so its daily run has nothing to do.
+  if (isDemo()) return log('demo: no daily jobs');
   const trees = (await families()).map((family) => family.id);
   await runDailyJobs({ trees, now, env, log });
 }

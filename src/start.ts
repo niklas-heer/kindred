@@ -41,12 +41,13 @@ const csrf = createCsrfMiddleware({
     }),
 });
 
-// A sign-in setting Kindred cannot use (src/lib/auth/method.server.ts) replaces the site with a page that says which one, before
-// anything else runs. The health check stays up: it says the server answers, and the log says what to fix.
+// A sign-in setting Kindred cannot use (src/lib/auth/method.server.ts), or a demo setting it cannot use (src/lib/demo.ts), replaces
+// the site with a page that says which one, before anything else runs. The health check stays up: it says the server answers,
+// and the log says what to fix. (On Node the server does not even start with a bad demo setting: server/node.ts.)
 const authSettingGate = createMiddleware().server(async ({ next, request }) => {
   if (new URL(request.url).pathname === '/api/health') return next();
-  const { authRefusal } = await import('./lib/auth/method.server');
-  return authRefusal(request) ?? next();
+  const [{ authRefusal }, { demoRefusal }] = await Promise.all([import('./lib/auth/method.server'), import('./lib/demo')]);
+  return demoRefusal() ?? authRefusal(request) ?? next();
 });
 
 // In code-protected mode, announce the setup code once while no account exists. Without a code, warn
@@ -56,8 +57,9 @@ const authSettingGate = createMiddleware().server(async ({ next, request }) => {
 // The health check (/api/health) is left alone: it must not open the accounts database.
 const setupNotice = createMiddleware().server(async ({ next, request }) => {
   if (new URL(request.url).pathname === '/api/health') return next();
-  const { onGuestHost } = await import('./lib/auth/origin');
-  if (onGuestHost(request)) return next();
+  const [{ onGuestHost }, { isDemo }] = await Promise.all([import('./lib/auth/origin'), import('./lib/demo')]);
+  // A demo has no setup and no accounts: nothing to announce.
+  if (onGuestHost(request) || isDemo()) return next();
   const { announceSetup, arrivedAt, logOriginMismatch, warnOpenSetup } = await import('./lib/auth/setup.server');
   const { siteOrigin } = await import('./lib/auth/session.server');
   try {

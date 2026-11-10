@@ -17,6 +17,7 @@ import { can, needs, type Action, type Role } from '../roles';
 import { forbidden, notMember, signedOut, type AuthError } from './errors';
 import { getSession, type Session } from './session.server';
 import { membershipsOf, type MembershipRow, type UserRow } from './store.server';
+import { demoRefused, isDemo } from '../demo';
 
 // One lookup per request, however many checks it makes.
 const perRequest = new WeakMap<Request, Promise<Session>>();
@@ -100,6 +101,9 @@ export async function requireReader(tree: string): Promise<Reader> {
 /** Like `requireMember`, and the reader's role must allow `action` (403 otherwise). */
 export async function requireCan(tree: string, action: Action): Promise<Member> {
   const m = await requireMember(tree);
+  // A demo's visitor is a viewer, so this only says it sooner and in the demo's words: anything beyond reading would be a change,
+  // and the store refuses every change anyway (src/lib/store/index.ts).
+  if (isDemo() && action !== 'view') throw fail(demoRefused());
   if (!can(m.role, action)) throw fail(forbidden(action, needs(action)));
   if (CHANGE_OF_ACTION[action]) {
     const request = getRequest();

@@ -81,8 +81,20 @@ function noticeForwarded(req: Request) {
 const CLOSE_DATABASES = Symbol.for('kindred.closeDatabases');
 const closeDatabases = () => (globalThis as unknown as Record<symbol, (() => void) | undefined>)[CLOSE_DATABASES]?.();
 
-type Server = { fetch: (req: Request) => Response | Promise<Response>; runJobs?: (now: Date, env: (name: string) => string | undefined) => Promise<void> };
+type Server = {
+  fetch: (req: Request) => Response | Promise<Response>;
+  runJobs?: (now: Date, env: (name: string) => string | undefined) => Promise<void>;
+  startup?: () => { problem?: string; demo: boolean };
+};
 const { default: app } = (await import(pathToFileURL(bundle).href)) as { default: Server };
+
+// A setting that must not run at all (a demo beside accounts or push, say: src/lib/demo.ts) stops the server here.
+const startup = app.startup?.();
+if (startup?.problem) {
+  console.error(`[kindred] ${startup.problem} See docs/self-host.md, "A public demo".`);
+  process.exit(1);
+}
+if (startup?.demo) console.log('[kindred] demo mode (KINDRED_DEMO=1): no sign-in, read-only, every write is refused');
 
 const server = serve({
   port,

@@ -106,8 +106,11 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
     menu.current?.querySelector<HTMLElement>('a, button')?.focus();
   }, [open]);
 
-  const user = session?.user;
-  if (!user) return null;
+  const signedIn = session?.user;
+  if (!signedIn) return null;
+  // A demo's visitor has no account: no name to change, no passkeys, no reminders and nothing to sign out of.
+  const demo = !!session?.demo;
+  const user = demo ? { ...signedIn, name: t('demo.visitor') } : signedIn;
   const role = m ? roleOf(m.role) : undefined;
   const waiting = (attention.data?.access ?? 0) + (attention.data?.ai ?? 0);
   const steward = !!tree && !!m && can(m.role, 'manage-access');
@@ -145,7 +148,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
             <Avatar name={user.name} size={44} />
             <div>
               <b className="acct-name">{user.name}</b>
-              <span className="acct-sub">{user.via === 'access' ? t('account.signedIn', {email:user.email ?? ''}) : user.email ?? t("accountmenu.signed_in_with_a_passkey")}</span>
+              <span className="acct-sub">{demo ? t('demo.visitor_sub') : user.via === 'access' ? t('account.signedIn', {email:user.email ?? ''}) : user.email ?? t("accountmenu.signed_in_with_a_passkey")}</span>
             </div>
           </div>
           {role && (
@@ -191,9 +194,11 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
             )}
             <div className="acct-group" role="group" aria-labelledby={tree && (steward || editor) ? `${id}-you` : undefined}>
               {tree && (steward || editor) && <span className="acct-group-h" id={`${id}-you`}>{t('accountmenu.group_you')}</span>}
+              {!demo && (
               <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setPasskeys(true); }}>
                 <KeyRound size={17} /> {session?.auth === 'cloudflare-access' ? t('auth.your_name') : t("accountmenu.your_name_passkeys")} </button>
-              {tree && m && remindersOn.data && (
+              )}
+              {!demo && tree && m && remindersOn.data && (
                 <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setReminders(true); }}>
                   <Bell size={17} /> {t('reminders.menu')} </button>
               )}
@@ -209,12 +214,14 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
                 <Link role="menuitem" className="acct-item" to="/" search={{ families: 'all' }} onClick={() => setOpen(false)}>
                   <LayoutGrid size={17} /> {t('accountmenu.all_families')} </Link>
               )}
-              {session?.memberships.some((x) => x.role === 'steward') && (
+              {!demo && session?.memberships.some((x) => x.role === 'steward') && (
                 <Link role="menuitem" className="acct-item" to="/families" onClick={() => setOpen(false)}>
                   <Landmark size={17} /> {t('families.menu')} </Link>
               )}
+              {!demo && (
               <button role="menuitem" className="acct-item" onClick={() => void signOut(session?.accessLogout)}>
                 <LogOut size={17} /> {t("accountmenu.sign_out")} </button>
+              )}
             </div>
             {/* Below 1680px the top bar has no room for the theme and sound buttons: they live here (app.css hides them there). */}
             <div className="acct-prefs">
@@ -248,7 +255,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
       )}
       <AboutDialog open={about} onClose={() => setAbout(false)} />
       <PasskeysDialog open={passkeys} onClose={() => setPasskeys(false)} />
-      {tree && m && <ReminderRefresh tree={tree} />}
+      {!demo && tree && m && <ReminderRefresh tree={tree} />}
       {tree && m && <RemindersDialog tree={tree} open={reminders} onClose={() => setReminders(false)} />}
     </>
   );

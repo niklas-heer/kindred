@@ -1,5 +1,13 @@
-// The Families page: making, changing and deleting a family.
+// The Families page (making, changing and deleting a family) and the public demo (its bar, its visitor, its refusal).
 export const en = {
+  "demo.banner": "This is a demo with an invented family. Nothing you change is saved.",
+  "demo.banner_link": "Kindred on GitHub",
+  "demo.banner_label": "Demo",
+  "demo.visitor": "Demo visitor",
+  "demo.visitor_sub": "A demo: nobody signs in, nothing is saved",
+  "demo.err_read_only": "This is a demo, so nothing can be changed or saved here.",
+  "demo.refused_title": "This demo cannot start",
+
   "families.title": "Families",
   "families.subtitle": "The families on this server: make another one, change one, or delete one.",
   "families.menu": "Manage families",
@@ -59,6 +67,14 @@ export const en = {
 } as const;
 
 export const de = {
+  "demo.banner": "Das ist eine Demo mit einer erfundenen Familie. Was du änderst, wird nicht gespeichert.",
+  "demo.banner_link": "Kindred auf GitHub",
+  "demo.banner_label": "Demo",
+  "demo.visitor": "Demo-Besuch",
+  "demo.visitor_sub": "Eine Demo: niemand meldet sich an, nichts wird gespeichert",
+  "demo.err_read_only": "Das ist eine Demo, deshalb kann hier nichts geändert oder gespeichert werden.",
+  "demo.refused_title": "Diese Demo kann nicht starten",
+
   "families.title": "Familien",
   "families.subtitle": "Die Familien auf diesem Server: leg eine weitere an, ändere oder lösche eine.",
   "families.menu": "Familien verwalten",
@@ -118,6 +134,14 @@ export const de = {
 } as const;
 
 export const af = {
+  "demo.banner": "Dit is 'n demo met 'n versinde familie. Niks wat jy verander, word gestoor nie.",
+  "demo.banner_link": "Kindred op GitHub",
+  "demo.banner_label": "Demo",
+  "demo.visitor": "Demo-besoeker",
+  "demo.visitor_sub": "'n Demo: niemand meld aan nie, niks word gestoor nie",
+  "demo.err_read_only": "Dit is 'n demo, so niks kan hier verander of gestoor word nie.",
+  "demo.refused_title": "Hierdie demo kan nie begin nie",
+
   "families.title": "Families",
   "families.subtitle": "Die families op hierdie bediener: maak nog een, verander een of skrap een.",
   "families.menu": "Bestuur families",

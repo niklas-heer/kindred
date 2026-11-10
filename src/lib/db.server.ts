@@ -9,6 +9,7 @@ import { fieldText, type FieldType, type FieldValue, type PersonField } from '..
 import { fieldsVisibleTo, PLAIN_MEMBER, type Audience, type Visibility } from './visibility.ts';
 import { translate } from './i18n/dictionary.ts';
 import { LIVING_IDS, protectDetail, protectGraph } from './protect-living.ts';
+import { refuseInDemo } from './demo.ts';
 
 export { guard, q, store, type Db, type Query } from './store/index.ts';
 
@@ -76,6 +77,9 @@ const refusedByDatabase = (e: unknown) =>
  * resending the same change gets a replay; a key used for anything else is refused.
  */
 export async function once<T>(tree: string, op: OpKey | undefined, fn: string, work: (d: Db) => Promise<Plan<T>> | Plan<T>): Promise<T> {
+  // A demo refuses before the plan runs, so nothing a plan does first (an upload, an AI call) happens either. The store
+  // refuses the batch as well (src/lib/store/index.ts); this is the early, kind answer.
+  refuseInDemo();
   const d = db(tree);
   const fingerprint = op ? await fingerprintOf(fn, op.payload) : null;
   const replay = (r: OpRow): T => {

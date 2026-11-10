@@ -19,7 +19,7 @@ const store = () => import('./store.server');
 export interface SessionInfo {
   /** The installation's one sign-in method (KINDRED_AUTH). Decides which sign-in screens exist at all. */
   auth: 'kindred' | 'cloudflare-access';
-  user: { id: string; name: string; email: string | null; via: 'passkey' | 'access'; locale: (typeof LOCALES)[number] | null } | null;
+  user: { id: string; name: string; email: string | null; via: 'passkey' | 'access' | 'demo'; locale: (typeof LOCALES)[number] | null } | null;
   memberships: { tree: string; role: Role; person: string | null; personConfirmed: boolean }[];
   /** Nobody has an account yet: /setup creates the first steward. */
   needsSetup: boolean;
@@ -39,6 +39,8 @@ export interface SessionInfo {
   guestEnded?: boolean;
   /** This request came in on the guest host (docs/deploy-cloudflare.md). */
   guestHost?: boolean;
+  /** This server is a demo (KINDRED_DEMO, src/lib/demo.ts): nobody signs in, nothing is saved, and the banner says so. */
+  demo?: true;
 }
 
 /** Who is signed in, and their role and "who you are" in each family. Never cached across readers. */
@@ -49,6 +51,14 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): 
   // The refused setting never reaches here off the guest host (src/start.ts), and the guest host has no sign-in to choose.
   const auth = authMethod() ?? 'kindred';
   const { user, via, uninvitedEmail, guest } = await currentSession();
+  if (via === 'demo' && user) {
+    const { DEMO_USER_ID } = await import('../demo');
+    return {
+      auth, user: { id: DEMO_USER_ID, name: user.name, email: null, via, locale: null },
+      memberships: (await myMemberships()).map((m) => ({ tree: m.tree, role: m.role, person: null, personConfirmed: false })),
+      needsSetup: false, setupCodeRequired: false, defaultTree: defaultTreeFor(true), demo: true,
+    };
+  }
   const guestHost = onGuestHost(getRequest());
   // First-time setup is no business of the guest host, which is open to the internet.
   const needs = guestHost ? false : await setup.needsSetup(getRequest());

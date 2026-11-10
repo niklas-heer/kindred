@@ -1,6 +1,6 @@
 import { localizeTitle, translateMessage, useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import { Crown, KeyRound, TriangleAlert, UserPlus } from 'lucide-react';
 import { useState } from 'react';
 import { AuthCard, AuthError, NoAccessIdentity, PasskeyExplainer } from '~/components/AuthCard';
@@ -23,7 +23,9 @@ const nudgeSetupCode = createServerFn({ method: 'POST' }).handler(async () => {
 
 export const Route = createFileRoute('/setup')({
   loader: async ({ context }) => {
-    await context.queryClient.fetchQuery({ ...sessionQuery, staleTime: 0 });
+    const session = await context.queryClient.fetchQuery({ ...sessionQuery, staleTime: 0 });
+    // A demo has no setup and no accounts.
+    if (session.demo) throw redirect({ to: '/' });
   },
   head: ({match}) => ({ meta: [{ title: localizeTitle('Set up · Kindred', match.context.locale) }] }),
   component: Setup,

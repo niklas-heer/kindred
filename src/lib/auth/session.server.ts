@@ -9,7 +9,8 @@ import {
   userByEmail, userCount, type MembershipRow, type SessionRow, type UserRow,
 } from './store.server.ts';
 import { endGuestVisit, guestVisitByToken, type GuestSession } from './share.server.ts';
-import type { Query } from '../store/index.ts';
+import { store, NOT_TREES, type Query } from '../store/index.ts';
+import { DEMO_USER_ID, isDemo } from '../demo.ts';
 
 import { onGuestHost, publicOrigin, siteOrigin } from './origin.ts';
 export { siteOrigin };
@@ -123,8 +124,8 @@ export interface Session {
   /** A guest's visit through a family share link. Never an account: the guard lets it reach only the reads that allow guests. */
   guest?: GuestSession;
   user: UserRow | null;
-  /** How they are signed in. */
-  via: 'passkey' | 'access' | null;
+  /** How they are signed in. `demo`: nobody is; this is a demo's visitor (src/lib/demo.ts). */
+  via: 'passkey' | 'access' | 'demo' | null;
   /** A verified Cloudflare Access email that has no account and no invitation. */
   uninvitedEmail?: string;
   /** A refreshed session cookie to send back (sliding expiry). */
@@ -156,10 +157,22 @@ const nameFromEmail = (email: string) =>
  * method. While the sign-in setting is refused (method.server.ts), nobody is an account: not by cookie, not by token.
  */
 export async function getSession(request: Request, verifiedEmail: (r: Request) => Promise<string | undefined> = accessEmail, listFamilies: () => Promise<{ id: string }[]> = families): Promise<Session> {
+  // A demo has no accounts and no share links: every visitor is the same viewer of every family, whatever the request carries.
+  if (isDemo()) return demoSession();
   const guest = await guestOf(request);
   const method = authMethod();
   if (onGuestHost(request) || !method) return { user: null, via: null, guest };
   return { ...(await (method === 'kindred' ? passkeySession(request) : accessSession(request, verifiedEmail, listFamilies))), guest };
+}
+
+/**
+ * A demo's visitor: an account that exists nowhere (no row, no session, no cookie), a viewer of every family on the server. The
+ * guard treats them as a member, so the pages a viewer reads work; every write is refused by the store (src/lib/store/index.ts).
+ */
+export function demoSession(): Session {
+  const user: UserRow = { id: DEMO_USER_ID, name: 'Demo visitor', email: null, handle: DEMO_USER_ID, created: 0, last_seen: now(), locale: null };
+  const memberships: MembershipRow[] = store.treeIds().filter((tree) => !NOT_TREES.has(tree)).map((tree) => ({ user: user.id, tree, role: 'viewer', person: null, person_confirmed: 0, created: 0 }));
+  return { user, via: 'demo', memberships };
 }
 
 /** `kindred`: the session cookie, and nothing else. An Access token on the request is not looked at. */

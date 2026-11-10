@@ -9,6 +9,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { createRootRouteWithContext, HeadContent, Outlet, Scripts } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import appCss from '~/styles/app.css?url';
+import { DemoBanner } from '~/components/families/DemoBanner';
 import '~/components/art.css';
 
 // Apply the saved theme before first paint, so codex never flashes as paper, and keep the browser's
@@ -25,7 +26,7 @@ const zodConfigScript = 'globalThis.__zod_globalConfig={jitless:true}';
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   // The browser has only English until it fetches another language (catalog.client.ts), so a navigation that finds the
   // reader's language changed (another tab) waits for its words. On the server, and for a language already here, at once.
-  beforeLoad: async ({context}) => { const [locale, session] = await Promise.all([requestLocale(), context.queryClient.ensureQueryData(sessionQuery)]); await loadLocale(locale); return {locale, localeAccount: session.user?.id}; },
+  beforeLoad: async ({context}) => { const [locale, session] = await Promise.all([requestLocale(), context.queryClient.ensureQueryData(sessionQuery)]); await loadLocale(locale); return {locale, localeAccount: session.demo ? undefined : session.user?.id, demo: !!session.demo}; },
   head: (ctx) => ({
     meta: [
       { charSet: 'utf-8' },
@@ -48,14 +49,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function Shell({ children }: { children: ReactNode }) {
-  const {locale, localeAccount} = Route.useRouteContext();
+  const {locale, localeAccount, demo} = Route.useRouteContext();
   return (
-    <html lang={locale} data-theme="codex" suppressHydrationWarning>
+    <html lang={locale} data-theme="codex" data-demo={demo ? '' : undefined} suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
       <body>
-        <I18nProvider initialLocale={locale ?? 'en'} account={localeAccount} saveRemote={localeAccount ? (next) => setMyLocale({ data: { locale: next } }) : undefined}><div id="app">{children}</div></I18nProvider>
+        <I18nProvider initialLocale={locale ?? 'en'} account={localeAccount} saveRemote={localeAccount ? (next) => setMyLocale({ data: { locale: next } }) : undefined}>{demo && <DemoBanner />}<div id="app">{children}</div></I18nProvider>
         <Scripts />
       </body>
     </html>

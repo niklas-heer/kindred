@@ -15,6 +15,8 @@ export const Route = createFileRoute('/api/stats')({
         try {
           const { headersRefuseTracking, MAX_BATCH_BYTES, parseBatch } = await import('~/lib/stats/shared');
           if (headersRefuseTracking(request.headers)) return done();
+          // A demo collects nothing (and could store nothing).
+          if ((await import('~/lib/demo')).isDemo()) return done();
           const text = await request.text();
           if (text.length > MAX_BATCH_BYTES) return done();
           const raw = JSON.parse(text) as unknown;

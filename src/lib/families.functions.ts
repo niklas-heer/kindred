@@ -28,9 +28,10 @@ export const familiesQuery = queryOptions({ queryKey: ['families', 'admin'], que
 export const createFamily = createServerFn({ method: 'POST' })
   .validator(z.object({ id: z.string().max(80), ...details }))
   .handler(async ({ data }): Promise<{ id: string }> => {
-    const [{ requireUser, myMemberships }, s] = await Promise.all([guard(), server()]);
+    const [{ requireUser, myMemberships }, s, { refuseInDemo }] = await Promise.all([guard(), server(), import('./demo')]);
     const user = await requireUser();
     try {
+      refuseInDemo();
       if (!(await s.mayCreate(user, await myMemberships()))) throw s.notAllowed();
       return { id: await s.createFamily(user, data) };
     } catch (e) {
