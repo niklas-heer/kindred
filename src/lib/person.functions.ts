@@ -8,6 +8,8 @@ import { MAX_FURTHER, MAX_FURTHER_LENGTH } from './further-given';
 import { audienceOf } from './visibility';
 import { validDate } from './dates';
 import { sanitizeLook } from './portrait-look';
+import { awaitsLinkConfirmation, mayPaintPerson } from './ai/portrait-rules';
+import { can, needs } from './roles';
 
 const tree = z.string().regex(/^[a-z0-9-]+$/).max(64);
 const personId = z.string().min(1).max(120);
@@ -110,11 +112,26 @@ export const deletePersonField = createServerFn({ method: 'POST' })
     return (await import('./person.server')).deletePersonField(data.tree, data.id, opOf(m.user, data), audienceOf(m));
   });
 
+/**
+ * Who may change a person's drawn portrait: whoever may paint it. An editor, or the member who is this person once a
+ * steward has confirmed that link, so that a cousin can put their own face right without being given the whole tree to edit.
+ */
+async function requireLookEditor(t: string, id: string) {
+  const g = await guard();
+  const m = await g.requireMember(t);
+  // An editor goes through the usual check, which is also what counts the change for the statistics.
+  if (can(m.role, 'edit-person')) return g.requireCan(t, 'edit-person');
+  const { AuthError, forbidden } = await import('./auth/errors');
+  if (awaitsLinkConfirmation(m, id)) throw g.fail(new AuthError('forbidden', 'paint.err_link_unconfirmed'));
+  if (!mayPaintPerson(m, id)) throw g.fail(forbidden('edit-person', needs('edit-person')));
+  return m;
+}
+
 /** The portrait's look, from the Appearance dialog. The server cleans it: unknown parts are dropped. */
 export const setLook = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, id: personId, look: z.unknown(), opKey }))
   .handler(async ({ data }) => {
-    const m = await (await guard()).requireCan(data.tree, 'edit-person');
+    const m = await requireLookEditor(data.tree, data.id);
     const clean = sanitizeLook(data.look);
     if (!clean) throw new Error('That look has no parts a portrait can show.');
     return (await import('./person.server')).setPersonLook(data.tree, data.id, clean, opOf(m.user, data));

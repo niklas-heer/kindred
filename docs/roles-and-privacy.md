@@ -59,9 +59,11 @@ Hiding a button is never the only protection. Every server function and server r
 - **Access** (the family's Access page) shows the members and their roles. Stewards can change a role or remove a
   member. A family always keeps at least one steward: the last one cannot be removed or demoted.
 - **"Who you are"** is a separate choice: the person in the tree a member stands for, which makes kinship labels such
-  as "your aunt" work. It takes effect at once. A member may also paint their own portrait through it, but only after a
-  steward confirms the link on the Access page (declining unlinks them, and changing the link asks again). Editors and
-  stewards can paint anyway, so their own links need no confirmation.
+  as "your aunt" work. It takes effect at once. A member may also paint their own portrait through it, and change their
+  own drawn portrait in the character editor, but only after a steward confirms the link on the Access page (declining
+  unlinks them, and changing the link asks again). Editors and stewards can do both for anyone, so their own links need no
+  confirmation. Nobody else can save a drawn portrait: the editor still opens for a member, to try a look on, and says
+  that it will not be kept.
 
 ## Guests (a family share link)
 
