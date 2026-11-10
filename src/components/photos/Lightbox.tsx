@@ -13,6 +13,7 @@ import { useFamily, useMeChosen } from '~/lib/family';
 import { displayName } from '~/lib/graph';
 import { confirmPhotoTag, galleryQuery, removeGalleryPhoto, removePhotoTag, saveGalleryPhoto, suggestPhotoTags, tagPhoto } from '~/lib/photos.functions';
 import { useCan } from '~/lib/session';
+import { Responses } from '~/components/responses/Responses';
 import type { GPerson } from '~/lib/types';
 import { AiSetupHint } from '~/components/assistant/AiSetup';
 import { facesOn, findFaces } from './aiFaces';
@@ -514,6 +515,8 @@ function Photo({ tree, item, index, count, albums, onGo, onDirty }: {
           </dl>
         )}
         <p className="subtle lb-added">{g('lb.added', { date: formatDate(item.uploadedAt.slice(0, 10), t.locale) })}</p>
+        {/* Reactions and comments, for members only: a guest sees none. */}
+        <Responses tree={tree} kind="media" target={item.key} />
 
         {canDelete ? (
           <div className="lb-danger">

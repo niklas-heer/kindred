@@ -16,6 +16,7 @@ import { yourKinshipParts, locales, ordinal, translateMessage, useT, type Key, t
 import { occupationText } from '~/lib/occupations';
 import { translateOccupation } from '~/lib/occupations.functions';
 import { useAiStatus } from './assistant/store';
+import { Responses } from './responses/Responses';
 import { HeadOfHouse } from '~/lib/houses';
 import {
   ageAt, age, children, displayName, fmtDate, fullName, kinship, lifespan, parents, partnersOf, personDisplayName, siblings, useNameMode, yearOf, type Family,
@@ -1021,7 +1022,7 @@ function StoriesTab({ tree, p, details }: { tree: string; p: GPerson; details: D
       {!canWrite && <p className="pp-ask subtle">{c('ask.editor')}</p>}
       <div className="pp-stories">
         {detail.stories.map((s) => (
-          <StoryCard key={s.id} s={s} onDelete={canDelete ? () => { remove.reset(); setAsking(s); } : undefined} />
+          <StoryCard key={s.id} s={s} tree={tree} onDelete={canDelete ? () => { remove.reset(); setAsking(s); } : undefined} />
         ))}
       </div>
       <ConfirmDialog
@@ -1051,7 +1052,7 @@ const excerpt = (s: Story) => {
 };
 
 /** One story: a saying in the hand font, anything else as safe Markdown. `compact` clamps it for the Overview. */
-function StoryCard({ s, compact, onDelete }: { s: Story; compact?: boolean; onDelete?: () => void }) {
+function StoryCard({ s, compact, onDelete, tree }: { s: Story; compact?: boolean; onDelete?: () => void; /** Shows the reactions and comments (members only). */ tree?: string }) {
   const c = useT();
   const kind = KINDS.find((k) => k.id === s.kind);
   return (
@@ -1070,6 +1071,7 @@ function StoryCard({ s, compact, onDelete }: { s: Story; compact?: boolean; onDe
         {s.context && <span>{s.context} · </span>}
         <span>{c('panel.addedBy', { name: s.author })}</span> · <time dateTime={s.at}>{new Date(s.at).toLocaleDateString(locales[c.locale], { day: 'numeric', month: 'short', year: 'numeric' })}</time>
       </footer>
+      {tree ? <Responses tree={tree} kind="story" target={s.id} /> : null}
     </article>
   );
 }

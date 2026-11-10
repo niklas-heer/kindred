@@ -1,0 +1,69 @@
+/* Reactions and comments under a memory or a photo (Responses.tsx). */
+
+.resp { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px; }
+.resp-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; }
+.resp-reactions { display: flex; flex-wrap: wrap; gap: 4px; }
+.resp-react {
+  display: inline-flex; align-items: center; gap: 4px; min-width: 34px; height: 30px; padding: 0 8px;
+  border-radius: 999px; border: 1px solid transparent; background: none; cursor: pointer;
+  color: var(--muted); font-family: var(--font-ui); font-size: var(--fs-2);
+  transition: color var(--dur-1) ease, background var(--dur-1) ease, border-color var(--dur-1) ease;
+}
+.resp-react:hover { color: var(--text); background: var(--panel-2); }
+.resp-react:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* The reader's own reaction: filled and outlined, not only a colour. */
+.resp-react[aria-pressed='true'] { color: var(--accent); background: var(--panel-2); border-color: var(--accent); }
+.resp-react[aria-pressed='true'] svg { fill: currentColor; fill-opacity: 0.25; }
+.resp-n { font-variant-numeric: tabular-nums; color: var(--text); }
+.resp-open { height: 30px; font-size: var(--fs-2); }
+
+.resp-thread { margin-top: 10px; display: grid; gap: 10px; }
+.resp-who { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: var(--fs-2); color: var(--muted); }
+.resp-who li { display: flex; align-items: center; gap: 6px; }
+.resp-earlier { justify-self: start; font-size: var(--fs-2); }
+.resp-none { margin: 0; font-size: var(--fs-2); }
+.resp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.resp-comment { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; align-items: start; border-radius: var(--radius); }
+.resp-comment:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.resp-face { width: 30px; height: 30px; display: grid; place-items: center; }
+.resp-initial {
+  border-radius: 50%; background: var(--panel-2); border: 1px solid var(--border);
+  font-family: var(--font-title); font-size: var(--fs-2); color: var(--muted);
+}
+.resp-main { min-width: 0; }
+.resp-head { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; font-size: var(--fs-2); min-height: 24px; }
+.resp .resp-head time { color: var(--muted); order: 0; margin-left: 0; } /* not the Chronicle card's own time rule */
+/* Plain text: the writer's line breaks stay, and a long word or link wraps instead of widening the card. */
+.resp-body { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-3); line-height: 1.5; }
+/* Change and Remove sit at the end of the name line, so a long thread stays short. */
+.resp-actions { display: inline-flex; gap: 2px; margin-left: auto; }
+.resp-actions .btn { height: 24px; min-width: 24px; padding: 0 8px; font-size: var(--fs-1); color: var(--muted); }
+.resp-actions .btn:hover { color: var(--text); }
+.resp-compose { display: grid; gap: 6px; }
+.resp-compose textarea { width: 100%; resize: vertical; min-height: 56px; font-size: var(--fs-3); }
+.resp-compose-row { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.resp-left { margin-right: auto; font-size: var(--fs-1); color: var(--muted); }
+.resp-left.is-over { color: var(--danger); }
+.resp-quote { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* On a parchment story card (any story in the codex theme's person panel, a saying or a recipe in every theme), the
+   reactions and the thread take the card's ink instead of the page's. */
+[data-theme='codex'] .story .resp, .story-quote .resp, .story-recipe .resp {
+  --text: #2a2213; --muted: #5e4f31; --border: #a892637a; --panel-2: #00000012; --accent: #7a4e12;
+  color: var(--text);
+}
+[data-theme='codex'] .story .resp .input, .story-quote .resp .input, .story-recipe .resp .input {
+  background: #fffaf099; color: var(--text); border-color: var(--border);
+}
+
+/* A gallery tile's tally, over the picture's top corner, dressed like the tile's "untagged" badge. */
+.resp-tally {
+  position: absolute; top: 8px; right: 8px; display: inline-flex; gap: 8px; padding: 2px 8px; border-radius: 999px;
+  background: #0009; color: #fff; border: 1px solid #fff3; font-size: var(--fs-1); pointer-events: none;
+}
+.resp-tally > span { display: inline-flex; align-items: center; gap: 3px; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 480px) {
+  .resp-react { min-width: 36px; height: 34px; padding: 0 7px; }
+  .resp-open { height: 34px; }
+}

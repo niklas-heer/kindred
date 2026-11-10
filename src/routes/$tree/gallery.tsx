@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { FolderPlus, ImagePlus, Images, Pencil, Tag as TagIcon, Trash2 } from 'lucide-react';
 import { useMemo, useState, type DragEvent } from 'react';
 import { AlbumDialog, DeleteAlbumDialog, Lightbox, PersonPhotos, UploadDialog, mediaUrl, type Album, type MediaItem } from '~/components/photos';
+import { ResponseTally } from '~/components/responses/Responses';
 import { EmptyState, ErrorState, PageHeader, Select, Skeleton, Switch } from '~/components/ui';
 import { compareText, formatDate, useT } from '~/lib/i18n';
 import { useFamily, useTreeId } from '~/lib/family';
@@ -220,6 +221,7 @@ function GalleryPage() {
                         {m.place ? <> · {m.place}</> : null}
                       </span>
                       {!tagged ? <span className="gal-badge">{g('gallery.untagged')}</span> : null}
+                      <ResponseTally tree={tree} kind="media" target={m.key} />
                     </button>
                   </li>
                 );

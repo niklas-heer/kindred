@@ -8,6 +8,7 @@ import { translateMessage, useT, type Locale } from '~/lib/i18n';
 import { forgetThisDevice, reminderStatus, removeReminders, saveReminders, sendTestReminder, touchReminders } from '~/lib/reminders.functions';
 import { Dialog } from './ui/Dialog';
 import { Switch } from './ui/Switch';
+import { ResponsePushSwitch } from './responses/PushSwitch';
 import './reminders.css';
 
 /** What this browser can do: push works, or the reason it does not. */
@@ -235,6 +236,7 @@ export function RemindersDialog({ tree, open, onClose }: { tree: string; open: b
             </Switch>
             <p className="acct-help subtle">{t('history.push.toggle_hint')}</p>
           </fieldset>
+          <ResponsePushSwitch tree={tree} disabled={busy} />
           <div className="reminders-actions">
             <button className="btn primary" onClick={() => save.mutate()} disabled={busy}>
               {subscribed ? t('reminders.save') : t('reminders.enable')}

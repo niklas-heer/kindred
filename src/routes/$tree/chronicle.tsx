@@ -10,6 +10,7 @@ import { AddMemory } from '~/components/AddMemory';
 import { GameIcon } from '~/components/GameIcon';
 import { Portrait } from '~/components/Portrait';
 import { PortraitZoom } from '~/components/photos/PortraitZoom';
+import { Responses } from '~/components/responses/Responses';
 import { chronicleQuery } from '~/lib/api';
 import { useFamily, useTreeId } from '~/lib/family';
 import { displayName, type Family } from '~/lib/graph';
@@ -335,6 +336,8 @@ function FeedItem({ s, f, tree, now, tr, defer }: { s: Story; f: Family; tree: s
             {open ? t('chronicle.show_less') : t('chronicle.read_more')}
           </button>
         )}
+        {/* Members only: for a guest it draws nothing and asks nothing. */}
+        <Responses tree={tree} kind="story" target={s.id} />
       </article>
     </li>
   );
@@ -358,6 +361,7 @@ function SayingCard({ s, f, tree, now, tr, defer }: { s: Story; f: Family; tree:
           </small>
         </div>
       </figcaption>
+      <Responses tree={tree} kind="story" target={s.id} />
     </figure>
   );
 }
