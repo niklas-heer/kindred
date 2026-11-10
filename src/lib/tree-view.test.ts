@@ -10,7 +10,7 @@ import { birthdaysOn, foldAllBut, houseRoot, lensMembers, rowMark, rowNeighbour,
 const person = (id: string, extra: Partial<GPerson> = {}): GPerson => ({ id, given: id, living: true, stories: 0, contacts: 0, ...extra });
 
 // Bram founded nothing but heads House Vale: his son Cas and grandson Dirk are Vales; Cas married Elke (House Moor),
-// whose brother Finn has a son Gus. Hugo has no house and no family.
+// whose brother Finn has a son Gus. Hugo and Ida have no house and no family.
 function family(houses: House[] = [{ id: 'vale', name: 'House Vale' }, { id: 'moor', name: 'Moor' }] as House[]): Family {
   const people: GPerson[] = [
     person('bram', { house: 'vale', living: false, born: '1900-03-04' }),
@@ -20,6 +20,7 @@ function family(houses: House[] = [{ id: 'vale', name: 'House Vale' }, { id: 'mo
     person('finn', { house: 'moor', born: '1935' }),
     person('gus', { house: 'moor' }),
     person('hugo', { born: '1990-11-10' }),
+    person('ida', { born: '1991' }),
     person('moorsire', { house: 'moor', living: false }),
   ];
   const parents: GParent[] = [['cas', 'bram'], ['dirk', 'cas'], ['dirk', 'elke'], ['elke', 'moorsire'], ['finn', 'moorsire'], ['gus', 'finn']]
@@ -36,13 +37,13 @@ test('a lens lights the line, the living, the house, the gaps or a path; "none" 
   const opts = { sel: 'cas', from: 'dirk', to: 'gus', gapped: (p: GPerson) => !p.born };
   assert.equal(lensMembers(f, 'none', opts), null);
   assert.deepEqual(sorted(lensMembers(f, 'line', opts)), ['bram', 'cas', 'dirk']);
-  assert.deepEqual(sorted(lensMembers(f, 'living', opts)), ['cas', 'dirk', 'elke', 'finn', 'gus', 'hugo']);
+  assert.deepEqual(sorted(lensMembers(f, 'living', opts)), ['cas', 'dirk', 'elke', 'finn', 'gus', 'hugo', 'ida']);
   assert.deepEqual(sorted(lensMembers(f, 'house', opts)), ['bram', 'cas', 'dirk']);
   assert.deepEqual(sorted(lensMembers(f, 'gaps', opts)), ['gus', 'moorsire']);
   assert.deepEqual(sorted(lensMembers(f, 'path', opts)), ['dirk', 'elke', 'finn', 'gus', 'moorsire']);
   // No path between two people lights everyone rather than nobody.
   assert.equal(lensMembers(f, 'path', { ...opts, to: 'hugo' }), null);
-  // Someone without a house lights everyone else without one.
+  // Someone without a house lights only themselves, not everyone else without one.
   assert.deepEqual(sorted(lensMembers(f, 'house', { ...opts, sel: 'hugo' })), ['hugo']);
 });
 

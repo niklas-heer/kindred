@@ -19,8 +19,9 @@ export function lensMembers(
   if (lens === 'living') return new Set(f.graph.people.filter((p) => p.living).map((p) => p.id));
   if (lens === 'gaps') return new Set(f.graph.people.filter(gapped).map((p) => p.id));
   if (lens === 'house') {
+    // Someone without a house is in no house with anyone: only they are lit.
     const h = f.byId.get(sel)?.house;
-    return new Set(f.graph.people.filter((p) => p.house === h).map((p) => p.id));
+    return h ? new Set(f.graph.people.filter((p) => p.house === h).map((p) => p.id)) : new Set([sel]);
   }
   if (lens === 'path') {
     const path = kinPath(f, from, to);
