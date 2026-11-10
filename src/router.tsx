@@ -39,7 +39,18 @@ export function getRouter() {
     // so the first client render has the same words and hydration matches. The browser ships only English.
     hydrate: async () => {
       const lang = document.documentElement.lang;
-      if (isLocale(lang)) await loadLocale(lang);
+      if (!isLocale(lang)) return;
+      try {
+        await loadLocale(lang);
+      } catch (e) {
+        // The words did not arrive: a deploy replaced the file between the page and this request, or the connection
+        // dropped. Rethrowing would leave the server's page on screen with nothing answering, so load it afresh, once.
+        let again = false;
+        try { again = sessionStorage.getItem('kindred:locale-retry') !== location.pathname; sessionStorage.setItem('kindred:locale-retry', location.pathname); } catch { /* storage is off: do not loop */ }
+        if (again) { location.reload(); await new Promise(() => {}); }
+        throw e;
+      }
+      try { sessionStorage.removeItem('kindred:locale-retry'); } catch { /* storage is off */ }
     },
   });
   setupRouterSsrQueryIntegration({ router, queryClient });
