@@ -21,6 +21,7 @@ privacy rules matter more than speed.
 - `mise run check` the types (`tsc --noEmit`). `mise run test` is `npm test`: **node's own test runner, not vitest**.
   It wants `KINDRED_DATA_DIR` pointed at an empty folder (`KINDRED_DATA_DIR=$(mktemp -d) node --test <file>` for one file);
   the store refuses to open the repository's `data/` inside a test.
+  Every `*.test.ts` under `src/`, `scripts/` and `server/` runs, in any folder, so a new test needs no registration.
 - `mise run e2e` builds the Node server, then runs Playwright on scratch data with the fake AI provider. It takes minutes. It uses the installed Brave, or the Chromium in `KINDRED_E2E_BROWSER`.
 - `mise run smoke:worker` builds the Worker and checks it in workerd on empty local D1 and R2. It never contacts Cloudflare.
 - `mise run build` builds the Worker; `mise run build:node` builds for Node, then `mise run start` runs it. `mise run dev` is the dev server (port 4517); `mise run data` makes the two invented test families.

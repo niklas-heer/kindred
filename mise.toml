@@ -61,7 +61,7 @@ description = "Measure which AI models do Kindred's jobs best, on made-up data. 
 run = 'node scripts/ai-eval.ts "$@"'
 
 [tasks.test]
-description = "Unit tests, the same list CI runs (npm test, in package.json)"
+description = "Unit tests, every *.test.ts under src, scripts and server, as CI runs them (npm test)"
 run = "npm test"
 
 [tasks.e2e]
