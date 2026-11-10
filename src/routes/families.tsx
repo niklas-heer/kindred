@@ -7,7 +7,7 @@ import { Download, Plus, Shield, Trash2 } from 'lucide-react';
 import { useId, useState, type FormEvent } from 'react';
 import { AccountMenu } from '~/components/AccountMenu';
 import { LanguagePicker } from '~/components/LanguagePicker';
-import { Dialog, ErrorState, Notice, PageHeader, Skeleton } from '~/components/ui';
+import { Dialog, ErrorState, Notice, PageHeader, Segmented, Skeleton } from '~/components/ui';
 import { opKeys } from '~/lib/api';
 import { sessionQuery } from '~/lib/auth/functions';
 import { withFreshProof } from '~/lib/auth/client';
@@ -138,19 +138,19 @@ function NewFamilyForm({ fixedId }: { fixedId?: string }) {
   };
   return (
     <form className="families-form" onSubmit={submit} aria-describedby={error ? `${ids}-error` : undefined}>
-      <label>
+      <label className="field">
         <span>{t('families.name')}</span>
         <input className="input" value={name} maxLength={80} required autoComplete="off" onChange={(e) => setName(e.target.value)} />
       </label>
       {!fixedId && (
-        <label>
+        <label className="field">
           <span>{t('families.id')}</span>
           <input className="input families-id" value={chosenId} maxLength={40} required pattern="[a-z][a-z0-9]*(-[a-z0-9]+)*" autoComplete="off" spellCheck={false} aria-describedby={`${ids}-id-hint`}
             onChange={(e) => { setIdTouched(true); setId(e.target.value.toLowerCase()); }} />
-          <span className="families-hint muted" id={`${ids}-id-hint`}>{t('families.id_hint', { url: `/${chosenId || '…'}` })}</span>
+          <small className="families-hint" id={`${ids}-id-hint`}>{t('families.id_hint', { url: `/${chosenId || '…'}` })}</small>
         </label>
       )}
-      <label>
+      <label className="field">
         <span>{t('families.tagline')}</span>
         <input className="input" value={tagline} maxLength={140} autoComplete="off" onChange={(e) => setTagline(e.target.value)} />
       </label>
@@ -167,16 +167,13 @@ function NewFamilyForm({ fixedId }: { fixedId?: string }) {
 
 function ThemeChoice({ value, onChange }: { value: Theme; onChange: (theme: Theme) => void }) {
   const t = useT();
-  const name = useId();
+  const label = useId();
   return (
-    <fieldset className="families-row" style={{ border: 0, padding: 0, margin: 0 }}>
-      <legend>{t('families.theme')}</legend>
-      {THEMES.map((th) => (
-        <label key={th} className="families-row">
-          <input type="radio" name={name} value={th} checked={value === th} onChange={() => onChange(th)} /> {t(th === 'codex' ? 'shell.themeCodex' : 'shell.themePaper')}
-        </label>
-      ))}
-    </fieldset>
+    <div className="field">
+      <span id={label}>{t('families.theme')}</span>
+      <Segmented aria-labelledby={label} value={value} onChange={onChange} className="families-theme"
+        options={THEMES.map((th) => ({ value: th, label: t(th === 'codex' ? 'shell.themeCodex' : 'shell.themePaper') }))} />
+    </div>
   );
 }
 
@@ -224,11 +221,11 @@ function EditFamily({ family: f }: { family: FamilyAdminRow }) {
   });
   return (
     <form className="families-form" onSubmit={(e) => { e.preventDefault(); if (dirty && draft.name.trim() && !save.isPending) save.mutate(); }}>
-      <label>
+      <label className="field">
         <span>{t('families.name')}</span>
         <input className="input" value={draft.name} maxLength={80} required autoComplete="off" onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
       </label>
-      <label>
+      <label className="field">
         <span>{t('families.tagline')}</span>
         <input className="input" value={draft.tagline} maxLength={140} autoComplete="off" onChange={(e) => setDraft({ ...draft, tagline: e.target.value })} />
       </label>
@@ -265,23 +262,26 @@ function DeleteFamily({ family: f, onClose }: { family: FamilyAdminRow; onClose:
   });
   const ready = typed.trim() === f.id;
   return (
-    <Dialog open onClose={onClose} title={t('families.delete_title', { name: f.name })} width="min(520px, 100vw - 24px)" dismissible={!remove.isPending}>
+    <Dialog
+      open onClose={onClose} title={t('families.delete_title', { name: f.name })} width="min(520px, 100vw - 24px)" dismissible={!remove.isPending}
+      footer={<>
+        <button type="button" className="btn" onClick={onClose} disabled={remove.isPending}>{t('families.cancel')}</button>
+        <button type="submit" form={`${ids}-form`} className="btn danger" disabled={!ready || remove.isPending}><Trash2 size={16} aria-hidden /> {remove.isPending ? t('families.deleting') : t('families.delete_confirm')}</button>
+      </>}
+    >
       <div className="families-form">
         <Notice icon={<Trash2 size={15} aria-hidden />}>{t('families.delete_warning', { count: f.people })}</Notice>
-        <p>{t('families.delete_export')}</p>
+        <p className="families-p">{t('families.delete_export')}</p>
         <div className="families-row">
           <a className="btn" href={`/api/export/${f.id}?format=markdown`} download><Download size={16} aria-hidden /> {t('families.export_markdown')}</a>
           <a className="btn" href={`/api/export/${f.id}?format=gedcom`} download><Download size={16} aria-hidden /> {t('families.export_gedcom')}</a>
         </div>
-        <form className="families-form" onSubmit={(e) => { e.preventDefault(); if (ready && !remove.isPending) remove.mutate(); }}>
-          <label>
+        <form id={`${ids}-form`} className="families-form" onSubmit={(e) => { e.preventDefault(); if (ready && !remove.isPending) remove.mutate(); }}>
+          {/* Not a .field: its label is set in capitals in two themes, and the address to type is lower-case. */}
+          <label className="families-confirm">
             <span>{t('families.delete_type', { id: f.id })}</span>
             <input className="input families-id" value={typed} autoComplete="off" spellCheck={false} autoCapitalize="none" onChange={(e) => setTyped(e.target.value)} aria-describedby={error ? `${ids}-error` : undefined} />
           </label>
-          <div className="families-row">
-            <button type="button" className="btn" onClick={onClose} disabled={remove.isPending}>{t('families.cancel')}</button>
-            <button type="submit" className="btn danger" disabled={!ready || remove.isPending}><Trash2 size={16} aria-hidden /> {remove.isPending ? t('families.deleting') : t('families.delete_confirm')}</button>
-          </div>
           {error && <p role="alert" id={`${ids}-error`} className="families-error">{error}</p>}
         </form>
       </div>
