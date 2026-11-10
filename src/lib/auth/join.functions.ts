@@ -30,7 +30,10 @@ export const fetchJoinState = createServerFn({ method: 'GET' })
   .handler(async ({ data }): Promise<JoinState> => {
     const [{ currentSession }, j, { getRequest, appendResponseHeader }] = await Promise.all([guard(), join(), import('@tanstack/react-start/server')]);
     const request = getRequest();
-    const state = await j.joinState(request, await currentSession(), data.tree);
+    const session = await currentSession();
+    // A steward viewing the family as a guest of its link sees the invitation that guest would see (the browser explains
+    // that a preview sends nothing, and every request to join would be refused anyway).
+    const state = await j.joinState(request, session.viewAs?.kind === 'guest' ? { user: null, guest: session.guest } : session, data.tree);
     if (!state.request && j.hasJoinCookie(request) && !(await j.requestOfBrowser(request))) appendResponseHeader('Set-Cookie', j.clearJoinCookie(request));
     return state;
   });

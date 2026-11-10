@@ -41,6 +41,25 @@ export interface SessionInfo {
   guestHost?: boolean;
   /** This server is a demo (KINDRED_DEMO, src/lib/demo.ts): nobody signs in, nothing is saved, and the banner says so. */
   demo?: true;
+  /**
+   * A steward's "View as" preview of one family (view-as.server.ts). `user` stays the steward; `memberships` (and `guest`, for
+   * a guest's preview) are then the previewed reader's for that family, so every page shows what that reader gets.
+   */
+  viewAs?: ViewAsInfo;
+}
+
+/** What the browser knows of a preview: enough for the bar, never anything of the member's own. */
+export interface ViewAsInfo {
+  tree: string;
+  kind: 'role' | 'member' | 'guest';
+  role: Role;
+  /** Kind `member`: their name. */
+  name?: string;
+  /** Kind `guest`: whether it is the family's share link (else a plain guest), and that link's settings. */
+  link?: boolean;
+  protectLiving?: boolean;
+  askToJoin?: boolean;
+  expires: number;
 }
 
 /** Who is signed in, and their role and "who you are" in each family. Never cached across readers. */
@@ -50,7 +69,7 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): 
   ]);
   // The refused setting never reaches here off the guest host (src/start.ts), and the guest host has no sign-in to choose.
   const auth = authMethod() ?? 'kindred';
-  const { user, via, uninvitedEmail, guest } = await currentSession();
+  const { user, via, uninvitedEmail, guest, viewAs } = await currentSession();
   if (via === 'demo' && user) {
     const { DEMO_USER_ID } = await import('../demo');
     return {
@@ -82,6 +101,10 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): 
     guest: guestHere && { tree: guestHere.tree, expires: guestHere.expires },
     guestEnded: !user && !guestHere && guestEnded(getRequest()),
     guestHost,
+    viewAs: viewAs && user ? {
+      tree: viewAs.tree, kind: viewAs.kind, role: viewAs.role, name: viewAs.member?.name, expires: viewAs.expires,
+      ...(viewAs.guest ? { link: viewAs.guest.link !== null, protectLiving: viewAs.guest.protectLiving, askToJoin: viewAs.guest.askToJoin } : {}),
+    } : undefined,
   };
 });
 export const sessionQuery = queryOptions({ queryKey: ['session'], queryFn: () => fetchSession(), staleTime: 60_000 });

@@ -18,9 +18,10 @@ async function failed(e: unknown): Promise<unknown> {
 
 /** The reader's families, the empty databases a family can be made in, and whether they may make one. Signed-in members only. */
 export const fetchFamilies = createServerFn({ method: 'GET' }).handler(async (): Promise<FamiliesOverview> => {
-  const [{ requireUser, myMemberships }, s] = await Promise.all([guard(), server()]);
+  const [{ requireUser, myRealMemberships }, s] = await Promise.all([guard(), server()]);
   const user = await requireUser();
-  return s.overview(user, await myMemberships());
+  // The steward's own families and roles, also while they view one of them as someone else ("View as").
+  return s.overview(user, await myRealMemberships());
 });
 export const familiesQuery = queryOptions({ queryKey: ['families', 'admin'], queryFn: () => fetchFamilies() });
 
@@ -28,11 +29,11 @@ export const familiesQuery = queryOptions({ queryKey: ['families', 'admin'], que
 export const createFamily = createServerFn({ method: 'POST' })
   .validator(z.object({ id: z.string().max(80), ...details }))
   .handler(async ({ data }): Promise<{ id: string }> => {
-    const [{ requireUser, myMemberships }, s, { refuseInDemo }] = await Promise.all([guard(), server(), import('./demo')]);
+    const [{ requireUser, myRealMemberships }, s, { refuseReadOnly }] = await Promise.all([guard(), server(), import('./read-only')]);
     const user = await requireUser();
     try {
-      refuseInDemo();
-      if (!(await s.mayCreate(user, await myMemberships()))) throw s.notAllowed();
+      refuseReadOnly();
+      if (!(await s.mayCreate(user, await myRealMemberships()))) throw s.notAllowed();
       return { id: await s.createFamily(user, data) };
     } catch (e) {
       throw await failed(e);

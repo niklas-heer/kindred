@@ -319,6 +319,8 @@ const OPEN = new Set([
   'fetchSession', 'fetchMyFamilies', 'fetchInvite', 'fetchShareEntry', 'openShareLink', 'leaveGuestVisit', 'fetchRemindersAvailable', 'forgetThisDevice',
   // "Ask to join" is for guests by design; it gives them nothing to read but their own request (join.test.ts holds its rules).
   'fetchJoinState', 'fetchJoinPreview', 'joinOptions', 'sendJoinRequest',
+  // Stopping a "View as" preview ends this browser's preview, if it has one, and carries nothing (view-as.test.ts).
+  'stopViewAs',
 ]);
 /** Everything a handler might read before its guard, so a failure can only be the guard's. */
 const DATA = { tree: TREE, id: 'ada', person: 'ada', personId: 'ada', key: 'k', house: 'h', mediaKey: 'gallery/x.jpg', locale: 'en', format: 'gedcom', name: 'x', text: 'x', user: STEWARD, role: 'viewer', confirm: true, token: 'x', endpoint: 'https://x/y', opKey: 'abcdefgh', people: [], links: [], places: [], items: [], photos: [], title: 'x', body: 'x', project: 'p1' };

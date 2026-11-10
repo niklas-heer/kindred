@@ -229,6 +229,7 @@ test('deleting a family removes its database, its files and every accounts row t
       st.q('INSERT INTO guest_visitor (hash, link, tree, first_seen, last_seen) VALUES (?, ?, ?, ?, ?)', `${s}visitor`, `${s}link`, tree, T, T),
       st.q('INSERT INTO family_visit (user, tree, since, last_seen) VALUES (?, ?, ?, ?)', STEWARD.id, tree, T, T),
       st.q("INSERT INTO feedback (id, tree, kind, body, context, user, user_name, created_at, updated_at) VALUES (?, ?, 'bug', 'b', '{}', ?, 'n', ?, ?)", `${s}fb`, tree, STEWARD.id, T, T),
+      st.q("INSERT INTO view_as (hash, user, tree, kind, role, created, last_used) VALUES (?, ?, ?, 'role', 'viewer', ?, ?)", `${s}view-as`, STEWARD.id, tree, T, T),
     ]);
   }
   // Someone who asked to join A and is not yet approved: their pending account goes with the request.

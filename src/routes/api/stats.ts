@@ -15,7 +15,8 @@ export const Route = createFileRoute('/api/stats')({
         try {
           const { headersRefuseTracking, MAX_BATCH_BYTES, parseBatch } = await import('~/lib/stats/shared');
           if (headersRefuseTracking(request.headers)) return done();
-          // A demo collects nothing (and could store nothing).
+          // A demo collects nothing (and could store nothing). Neither does a steward's preview ("View as"): checked after the
+          // session is known, below.
           if ((await import('~/lib/demo')).isDemo()) return done();
           const text = await request.text();
           if (text.length > MAX_BATCH_BYTES) return done();
@@ -25,7 +26,8 @@ export const Route = createFileRoute('/api/stats')({
           const [{ currentSession }, { membership }, stats] = await Promise.all([
             import('~/lib/auth/guard.server'), import('~/lib/auth/store.server'), import('~/lib/stats/store.server'),
           ]);
-          const { user, guest } = await currentSession();
+          const { user, guest, viewAs } = await currentSession();
+          if (viewAs) return done();
           // A member is counted as a member, also with a guest cookie; a guest of this family only as one anonymous visit.
           const m = user && (await membership(user.id, batch.tree));
           if (user && m) await stats.recordMemberBatch(user.id, batch, Date.now(), m.role);

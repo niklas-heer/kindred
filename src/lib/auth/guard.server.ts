@@ -10,6 +10,9 @@
 // A guest (a family share link) has no account, so all of these refuse them. Only `requireReader`, used by the reads that are
 // safe for someone who is not a member, lets a guest through, and then with exactly a viewer's role. Anything new is closed to
 // guests until it says otherwise.
+//
+// A steward's "View as" preview (view-as.server.ts) is resolved here, with the session, once per request: from then on every
+// check below answers for the previewed reader in that family, and the request writes nothing (src/lib/read-only.ts).
 import { appendResponseHeader, getRequest, setResponseStatus } from '@tanstack/react-start/server';
 import { CHANGE_OF_ACTION } from '../stats/shared';
 import { onChangeCommitted } from '../db.server';
@@ -19,6 +22,8 @@ import { forbidden, notMember, signedOut, type AuthError } from './errors';
 import { getSession, type Session } from './session.server';
 import { membershipsOf, type MembershipRow, type UserRow } from './store.server';
 import { demoRefused, isDemo } from '../demo';
+import { onRequestReadOnly } from '../read-only';
+import { previewMemberships, resolveViewAs, viewAsRefused, viewAsToken, viewAsUser, type ViewAs } from './view-as.server';
 
 // One lookup per request, however many checks it makes.
 const perRequest = new WeakMap<Request, Promise<Session>>();
@@ -28,15 +33,63 @@ export function currentSession(): Promise<Session> {
   const request = getRequest();
   let s = perRequest.get(request);
   if (!s) {
-    s = getSession(request).then((session) => {
+    s = getSession(request).then(async (session) => {
       if (session.setCookie) {
         try { appendResponseHeader('Set-Cookie', session.setCookie); } catch {}
       }
-      return session;
+      return withViewAs(request, session);
     });
     perRequest.set(request, s);
   }
   return s;
+}
+
+/**
+ * The session with the steward's preview applied, when this browser has one that still holds (view-as.server.ts). Checked
+ * against the real session: its account, its passkey session and its own memberships, never the previewed ones. From here on
+ * the request is read-only.
+ */
+async function withViewAs(request: Request, session: Session): Promise<Session> {
+  if (!session.user || (session.via !== 'passkey' && session.via !== 'access') || !viewAsToken(request)) return session;
+  const real = session.memberships ?? (await membershipsOf(session.user.id));
+  const { viewAs, clear } = await resolveViewAs(request, { user: session.user, via: session.via, session: session.sessionHash ?? null, memberships: real });
+  if (clear) {
+    try { appendResponseHeader('Set-Cookie', clear); } catch {}
+  }
+  if (!viewAs) return { ...session, memberships: real };
+  // Read-only from here on: the preview's own row was the last write this request may make.
+  previewing.set(request, viewAs);
+  const guest = viewAs.kind === 'guest' ? { link: viewAs.guest!.link ?? 'view-as', tree: viewAs.tree, expires: viewAs.expires, protectLiving: viewAs.guest!.protectLiving } : session.guest;
+  return { ...session, memberships: previewMemberships(real, viewAs), realMemberships: real, guest, viewAs };
+}
+
+// The requests of a previewing session, and those of them allowed to change the preview itself (start, switch, stop).
+const previewing = new WeakMap<Request, ViewAs>();
+const previewChange = new WeakSet<Request>();
+
+// The one place that says a request may not write: asked by the store, `once`, the media store and the AI adapters.
+onRequestReadOnly(() => {
+  let request: Request;
+  try { request = getRequest(); } catch { return undefined; } // outside a request: a job, a script
+  const viewAs = previewing.get(request);
+  return viewAs && !previewChange.has(request) ? viewAsRefused(viewAs) : undefined;
+});
+
+/** The request's preview, if the session has one (after `currentSession`). */
+export const previewOf = (): ViewAs | undefined => previewing.get(getRequest());
+
+/**
+ * Lets this request write again, for the one thing a previewing session may change: the preview itself (starting another one,
+ * or stopping it). Nothing else may call this.
+ */
+export function allowPreviewChange(): void {
+  previewChange.add(getRequest());
+}
+
+/** The steward's own memberships, whatever they preview: for what stays theirs (the families page, starting a preview). */
+export async function myRealMemberships(): Promise<MembershipRow[]> {
+  const s = await currentSession();
+  return s.realMemberships ?? (await myMemberships());
 }
 
 // And one read of the reader's memberships per request: with the session's, when they came with it.
@@ -73,12 +126,16 @@ export interface Member { user: UserRow; role: Role; person: string | null; pers
 
 /** The signed-in reader's membership of `tree`; 401 when signed out, 403 when not a member. */
 export async function requireMember(tree: string): Promise<Member> {
-  const user = await requireUser();
-  const m = await membership(user.id, tree);
+  const signedIn = await requireUser();
+  const m = await membership(signedIn.id, tree);
   if (!m) throw fail(notMember());
+  const user = readerAccount(await currentSession(), tree) ?? signedIn;
   actorsOf(getRequest()).set(tree, { account: user.id, name: user.name });
   return { user, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed };
 }
+
+/** During a preview of `tree` as a member or a role: the account that reader is, which no row has (view-as.server.ts). */
+const readerAccount = (s: Session, tree: string): UserRow | undefined => (s.viewAs?.tree === tree && s.viewAs.kind !== 'guest' && s.user ? viewAsUser(s.viewAs, s.user) : undefined);
 
 // Who a request's changes are by, per family, as the membership check found them: the history names them (history.server.ts).
 // A request that never passed a member's check (a daily job, a script) changes the family as Kindred itself.
@@ -102,9 +159,10 @@ export interface Reader { user: UserRow | null; role: Role; person: string | nul
  * keeps living people back when the guest's link asks for it. Every read that allows a guest passes both on.
  */
 export async function requireReader(tree: string): Promise<Reader> {
-  const { user, guest } = await currentSession();
+  const session = await currentSession();
+  const { user, guest } = session;
   const m = user && (await membership(user.id, tree));
-  if (user && m) return { user, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed, guest: false, protectLiving: false };
+  if (user && m) return { user: readerAccount(session, tree) ?? user, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed, guest: false, protectLiving: false };
   // A visit that does not say is protected: only a link that has the setting off shows the living in full.
   if (guest?.tree === tree) return { user: null, role: 'viewer', person: null, personConfirmed: false, guest: true, protectLiving: guest.protectLiving !== false };
   throw fail(user ? notMember() : signedOut());

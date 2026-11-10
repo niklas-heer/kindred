@@ -9,6 +9,7 @@ import {
   userByEmail, userCount, type MembershipRow, type SessionRow, type UserRow,
 } from './store.server.ts';
 import { endGuestVisit, guestVisitByToken, type GuestSession } from './share.server.ts';
+import { endViewAs } from './view-as.server.ts';
 import { store, NOT_TREES, type Query } from '../store/index.ts';
 import { DEMO_USER_ID, isDemo } from '../demo.ts';
 
@@ -107,10 +108,10 @@ export async function endGuestSession(request: Request): Promise<string> {
   return guestCookie(request, guestCookieName(request), '', 0);
 }
 
-/** Sign-out: ends the account's session and any guest visit in this browser, and forgets that it was ever a guest's.
- *  Returns every Set-Cookie value to send. */
+/** Sign-out: ends the account's session, any "View as" preview and any guest visit in this browser, and forgets that it was
+ *  ever a guest's. Returns every Set-Cookie value to send. */
 export async function endAllSessions(request: Request): Promise<string[]> {
-  return [await endSession(request), await endGuestSession(request), guestCookie(request, WAS_GUEST, '', 0)];
+  return [await endViewAs(request), await endSession(request), await endGuestSession(request), guestCookie(request, WAS_GUEST, '', 0)];
 }
 
 async function guestOf(request: Request): Promise<GuestSession | undefined> {
@@ -133,6 +134,14 @@ export interface Session {
   setCookie?: string;
   /** The account's memberships, when they were read with the session (one round trip); the guard reads them otherwise. */
   memberships?: MembershipRow[];
+  /** Kindred's own sign-in: the hash of the session's token, which a "View as" preview belongs to (view-as.server.ts). */
+  sessionHash?: string;
+  /**
+   * A steward's "View as" preview, as the guard resolved it (guard.server.ts). `memberships` and `guest` are then the
+   * previewed reader's for that family, and `realMemberships` the steward's own, for what stays theirs.
+   */
+  viewAs?: import('./view-as.server.ts').ViewAs;
+  realMemberships?: MembershipRow[];
 }
 
 /** The reader's language before they have an account: the guest cookie the app sets, else the browser's preference. */
@@ -185,7 +194,7 @@ async function passkeySession(request: Request): Promise<Session> {
       const { session: row, user, memberships } = found;
       await touchUser(user.id, user.last_seen);
       const slid = await slideSession(row);
-      return { user, via: 'passkey', memberships, setCookie: slid ? cookie(request, token, Math.floor((slid - now()) / 1000)) : undefined };
+      return { user, via: 'passkey', memberships, sessionHash: row.hash, setCookie: slid ? cookie(request, token, Math.floor((slid - now()) / 1000)) : undefined };
     }
   }
   return { user: null, via: null };

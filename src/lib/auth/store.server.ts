@@ -141,7 +141,11 @@ export async function slideSession(row: SessionRow): Promise<number | undefined>
 /** Records a fresh passkey proof on one session of `user` (proof.server.ts). */
 export const sessionProved = (hash: string, user: string) => accounts().run('UPDATE session SET proved = ? WHERE hash = ? AND user = ?', now(), hash, user);
 
-export const deleteSession = async (token: string) => accounts().run('DELETE FROM session WHERE hash = ?', await hashToken('session', token));
+/** Ends a session, and any "View as" preview it had started (src/lib/auth/view-as.server.ts). */
+export async function deleteSession(token: string) {
+  const hash = await hashToken('session', token);
+  await accounts().batch([q('DELETE FROM view_as WHERE session = ?', hash), q('DELETE FROM session WHERE hash = ?', hash)]);
+}
 
 /** "Sign out everywhere else": ends every session of `user` but the one whose cookie holds `keep`. Returns how many ended. */
 export async function endOtherSessions(user: string, keep: string): Promise<number> {
