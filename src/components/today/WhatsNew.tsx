@@ -11,7 +11,7 @@ import { useEffect, useId } from 'react';
 import { lineText } from '~/lib/history-text';
 import { whatsNewQuery } from '~/lib/history.functions';
 import type { WhatsNewReply } from '~/lib/history';
-import { relativeTime, useT, type Key, type Translator } from '~/lib/i18n';
+import { formatDate, useT, type Key, type Translator } from '~/lib/i18n';
 import { useMember } from '~/lib/session';
 import '~/components/history/history.css';
 import './today.css';
@@ -40,7 +40,7 @@ export function WhatsNew({ tree, className = '' }: { tree: string; className?: s
     <section className={`ui-card td-card whats-new ${className}`} aria-labelledby={heading} aria-busy={q.isPending}>
       <div className="td-card-head whats-new-head">
         <h2 className="td-h" id={heading}><Sparkles size={18} aria-hidden /> {t('history.whats_new')}</h2>
-        {news && <span className="subtle">{news.first ? t('history.first_visit') : t('history.since_visit', { when: relativeTime(Date.parse(news.since), t.locale) })}</span>}
+        {news && <span className="subtle">{news.first ? t('history.first_visit') : t('history.since_visit', { when: formatDate(new Date(news.since), t.locale, { day: 'numeric', month: 'long' }) })}</span>}
       </div>
       {q.isPending ? <p className="subtle">{t('history.loading')}</p>
         : q.isError ? <p className="subtle" role="alert">{t('history.failed')}</p>
