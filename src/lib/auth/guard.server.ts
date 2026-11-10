@@ -64,8 +64,10 @@ async function withViewAs(request: Request, session: Session): Promise<Session> 
 }
 
 // The requests of a previewing session, and those of them allowed to change the preview itself (start, switch, stop).
-const previewing = new WeakMap<Request, ViewAs>();
-const previewChange = new WeakSet<Request>();
+// Kept on globalThis like the check itself (read-only.ts): were this module ever loaded twice, both copies must see one answer.
+const shared = globalThis as unknown as { __kindredPreviewing?: WeakMap<Request, ViewAs>; __kindredPreviewChange?: WeakSet<Request> };
+const previewing = (shared.__kindredPreviewing ??= new WeakMap<Request, ViewAs>());
+const previewChange = (shared.__kindredPreviewChange ??= new WeakSet<Request>());
 
 // The one place that says a request may not write: asked by the store, `once`, the media store and the AI adapters.
 onRequestReadOnly(() => {

@@ -15,7 +15,7 @@ type Refusal = () => AuthError | undefined;
 // Kept on globalThis: a test's module graph (vite's) and Node's own may load this file twice, and both must see one answer.
 const g = globalThis as unknown as { __kindredRequestRefusal?: Refusal };
 
-/** Set by the guard: the refusal for the current request when it belongs to a preview, else undefined. Never throws. */
+/** Set by the guard: the refusal for the current request when it belongs to a preview, else undefined. */
 export function onRequestReadOnly(fn: Refusal): void {
   g.__kindredRequestRefusal = fn;
 }
@@ -23,11 +23,9 @@ export function onRequestReadOnly(fn: Refusal): void {
 /** The refusal a write gets here and now: the demo's, a preview's, or undefined when writing is allowed. */
 export function readOnlyRefusal(): AuthError | undefined {
   if (isDemo()) return demoRefused();
-  try {
-    return g.__kindredRequestRefusal?.();
-  } catch {
-    return undefined;
-  }
+  // Not caught: the guard's answer already covers "outside a request", so anything it throws is a fault, and a fault must
+  // fail the write rather than let a preview through.
+  return g.__kindredRequestRefusal?.();
 }
 
 /** Whether nothing may be written now. A page that stores something while it is only being read skips that when this is true. */
