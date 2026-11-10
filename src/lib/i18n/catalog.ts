@@ -11,6 +11,7 @@ import * as aiThreadsArea from "./areas/ai-threads.ts";
 import * as aiTasksArea from "./areas/ai-tasks.ts";
 import * as almanacArea from "./areas/almanac.ts";
 import * as campaignArea from "./areas/campaign.ts";
+import * as responsesArea from "./areas/responses.ts";
 import * as atlasArea from "./areas/atlas.ts";
 import * as chronicleArea from "./areas/chronicle.ts";
 import * as commonArea from "./areas/common.ts";
@@ -80,6 +81,7 @@ export const AREAS = [
   campaignArea,
   familiesArea,
   historyArea,
+  responsesArea,
 ] as const;
 
 /** Tables that exist before any area is merged. The server has every language in AREAS, so none. */

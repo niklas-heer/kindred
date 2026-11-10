@@ -286,8 +286,9 @@ export const addStory = createServerFn({ method: 'POST' })
       return {
         writes: [
           personExists(data.person),
-          q('INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            id, data.person, data.kind, data.title || null, data.body, user.name, new Date().toISOString(), data.context || null),
+          // The account too (migration 0027), so the writer can be told when someone answers it.
+          q('INSERT INTO story (id, person, kind, title, body, author, at, context, author_account) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            id, data.person, data.kind, data.title || null, data.body, user.name, new Date().toISOString(), data.context || null, user.id),
         ],
         history: [added('story', id, { person: data.person, label: data.title || null })],
         result: id,

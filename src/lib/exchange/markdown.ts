@@ -13,8 +13,11 @@
 // `date`, `end`, `place` and `note`. Sources are notes of their own in sources/, and a person's `citations` list each fact's
 // sources there: `fact` (birth, death, name, event, partnership, parent), the event's or partnership's `id` or the
 // `parent`, the `source` as a link, `page`, `quality` and `text`. A partnership's citations are on the note that declares it.
+//
+// Stories (memories, sayings, anecdotes, recipes, notes) are in memories/, one file per person they are about, oldest first,
+// each with its comments under it (migration 0027): who wrote it, when, and the plain text, quoted. Reactions are not written.
 import { allGiven } from '../further-given.ts';
-import type { ExCitation, ExParent, ExPerson, ExTree, ExUnion } from './model.ts';
+import type { ExCitation, ExParent, ExPerson, ExStory, ExTree, ExUnion } from './model.ts';
 
 export interface ArchiveFile {
   path: string;
@@ -56,7 +59,9 @@ export function markdownArchive(tree: ExTree, portraits: Set<string> = new Set()
   const losses: string[] = [];
   const steps = tree.parents.filter((l) => l.kind === 'step').length;
   if (steps) losses.push(`${steps} step-parent ${steps === 1 ? 'link is' : 'links are'} not written: the v1 format has no step relation`);
-  if (tree.extras.stories) losses.push(`${tree.extras.stories} ${tree.extras.stories === 1 ? 'story, memory or saying is' : 'stories, memories and sayings are'} not in the archive (biographies are)`);
+  if (tree.extras.stories && !tree.stories) losses.push(`${tree.extras.stories} ${tree.extras.stories === 1 ? 'story, memory or saying is' : 'stories, memories and sayings are'} not in the archive (biographies are)`);
+  const photoComments = tree.extras.photoComments ?? 0;
+  if (photoComments) losses.push(`${photoComments} ${photoComments === 1 ? 'comment on a gallery photo is' : 'comments on gallery photos are'} not in the archive (the gallery is not either)`);
   if (tree.extras.fields) losses.push(`${tree.extras.fields} ${tree.extras.fields === 1 ? 'contact detail or other field is' : 'contact details and other fields are'} not in the archive`);
   if (tree.extras.houses) losses.push(`${tree.extras.houses} ${tree.extras.houses === 1 ? 'house and its arms are' : 'houses and their arms are'} not in the archive`);
   const byId = new Map(tree.people.map((p) => [p.id, p]));
@@ -195,6 +200,14 @@ export function markdownArchive(tree: ExTree, portraits: Set<string> = new Set()
     files.push({ path: `people/${names.get(p.id)}.md`, data: `${lines.join('\n')}\n${body}` });
   }
 
+  // Stories, one file per person they are about, beside the person's note.
+  const storiesOf = new Map<string, ExStory[]>();
+  for (const x of tree.stories ?? []) if (byId.has(x.person)) storiesOf.set(x.person, [...(storiesOf.get(x.person) ?? []), x]);
+  for (const [id, list] of storiesOf) {
+    const p = byId.get(id)!;
+    files.push({ path: `memories/${names.get(id)}.md`, data: memoriesNote(p, list, link(id)) });
+  }
+
   for (const x of tree.sources ?? []) {
     const lines = ['---', `id: ${str(x.id)}`, 'type: source', `title: ${str(x.title)}`];
     if (x.author) lines.push(`author: ${str(x.author)}`);
@@ -216,10 +229,34 @@ export function markdownArchive(tree: ExTree, portraits: Set<string> = new Set()
       'Open it with the Kindred v1 tools, or import it into Kindred v2 with scripts/import-kindred.ts.',
       'Dates keep their original wording as "about 1900" (Kindred v2 reads "~1900"). Partnerships are declared',
       'once, on the note of the partner whose id sorts first. Life events are in each person\'s events; sources are in',
-      'sources/, and each person\'s citations name the source and the fact it backs.',
+      'sources/, and each person\'s citations name the source and the fact it backs. Memories, sayings and recipes are in',
+      'memories/, one file per person, each with the comments the family wrote under it.',
       '',
       ...(losses.length ? ['Not in this archive:', ...losses.map((l) => `- ${l}`), ''] : []),
     ].join('\n'),
   });
   return { files, losses };
+}
+
+const STORY_KIND: Record<string, string> = { memory: 'Memory', quote: 'Saying', anecdote: 'Anecdote', recipe: 'Recipe', note: 'Note' };
+/** A quoted block: every line of the text behind "> ", blank lines kept, so line breaks survive and nothing is read as a heading. */
+const quoted = (text: string) => text.split('\n').map((l) => (l ? `> ${l}` : '>')).join('\n');
+
+/** The stories about one person, oldest first, each with its comments. */
+export function memoriesNote(p: ExPerson, stories: ExStory[], personLink: string): string {
+  const name = [allGiven(p.given, p.furtherGiven), p.surname].filter(Boolean).join(' ');
+  const out: string[] = [`# Memories of ${name}`, '', `About ${personLink}.`, ''];
+  for (const x of stories) {
+    const kind = STORY_KIND[x.kind] ?? 'Story';
+    out.push(`## ${x.title ? x.title.replace(/\s+/g, ' ').trim() : kind}`, '');
+    out.push(`*${kind}, written by ${x.author || 'someone'} on ${x.at.slice(0, 10)}${x.context ? `. ${x.context.replace(/\s+/g, ' ').trim()}` : ''}*`, '');
+    out.push(x.kind === 'quote' ? quoted(x.body.trim()) : x.body.trim(), '');
+    if (x.comments.length) {
+      out.push('### Comments', '');
+      for (const c of x.comments) {
+        out.push(`**${c.author || 'A former member'}**, ${c.at.slice(0, 10)}${c.edited ? ' (changed)' : ''}:`, '', quoted(c.body), '');
+      }
+    }
+  }
+  return `${out.join('\n').trimEnd()}\n`;
 }

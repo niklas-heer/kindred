@@ -92,6 +92,27 @@ export interface ExCitation {
   transcription: string;
 }
 
+/** A comment on a story (migration 0027): plain text, with the name its writer showed. Only the Markdown archive carries it. */
+export interface ExComment {
+  author: string;
+  at: string;
+  edited: string | null;
+  body: string;
+}
+
+/** A memory, saying, anecdote, recipe or note, with its comments, oldest first. GEDCOM leaves it out; the Markdown archive has it. */
+export interface ExStory {
+  id: string;
+  person: string;
+  kind: string;
+  title: string | null;
+  body: string;
+  author: string;
+  at: string;
+  context: string | null;
+  comments: ExComment[];
+}
+
 export interface ExTree {
   id: string;
   name: string;
@@ -102,8 +123,13 @@ export interface ExTree {
   events?: ExEvent[];
   sources?: ExSource[];
   citations?: ExCitation[];
-  /** What the tree holds beyond this model, counted for the loss report. */
-  extras: { stories: number; fields: number; houses: number; places: number };
+  /** The stories and their comments, for the Markdown archive. Absent in a tree built without them (a GEDCOM's). */
+  stories?: ExStory[];
+  /**
+   * What the tree holds beyond this model, counted for the loss report. `photoComments` (migration 0027) are the comments
+   * on gallery photos, which no export carries, as the photos themselves are not in one.
+   */
+  extras: { stories: number; fields: number; houses: number; places: number; photoComments?: number };
 }
 
 /** A translation key for something a reader is told about in the import preview (`exchange.issue.*`). */
@@ -164,6 +190,14 @@ export async function readTree(d: Db): Promise<ExTree> {
   const citations = await d.all<{ id: string; source: string; fact: Fact['fact']; person: string | null; parent: string | null; event: string | null; partnership: string | null; page: string | null; quality: Quality | null; transcription: string }>(
     'SELECT id, source, fact, person, parent, event, partnership, page, quality, transcription FROM citation ORDER BY created_at, id',
   );
+  const stories = await d.all<{ id: string; person: string; kind: string; title: string | null; body: string; author: string; at: string; context: string | null }>(
+    'SELECT id, person, kind, title, body, author, at, context FROM story ORDER BY person, at, id',
+  );
+  const comments = await d.all<{ target: string; author_name: string; created_at: string; edited_at: string | null; body: string }>(
+    "SELECT target, author_name, created_at, edited_at, body FROM comment WHERE target_kind = 'story' ORDER BY created_at, id",
+  );
+  const commentsOf = new Map<string, ExComment[]>();
+  for (const c of comments) commentsOf.set(c.target, [...(commentsOf.get(c.target) ?? []), { author: c.author_name, at: c.created_at, edited: c.edited_at, body: c.body }]);
   const count = async (sql: string) => (await d.get<{ n: number }>(sql))?.n ?? 0;
   return {
     id: meta.id ?? '',
@@ -193,11 +227,13 @@ export async function readTree(d: Db): Promise<ExTree> {
     events: events.map((r) => ({ id: r.id, person: r.person, type: r.type, label: or(r.label), date: or(r.date), endDate: or(r.end_date), place: or(r.place), note: r.note, ord: r.ord })),
     sources: sources.map((r) => ({ ...r, author: or(r.author), publication: or(r.publication), reference: or(r.reference), date: or(r.date), document: or(r.document), media: or(r.media) })),
     citations: citations.map((r) => ({ id: r.id, source: r.source, target: citationTarget(r), page: or(r.page), quality: or(r.quality), transcription: r.transcription })),
+    stories: stories.map((r) => ({ ...r, title: or(r.title), context: or(r.context), comments: commentsOf.get(r.id) ?? [] })),
     extras: {
       stories: await count('SELECT count(*) AS n FROM story'),
       fields: await count("SELECT count(*) AS n FROM person_field WHERE visibility <> 'personal'"), // a personal item is its author's alone, even as a number
       houses: await count('SELECT count(*) AS n FROM house'),
       places: await count('SELECT count(*) AS n FROM place'),
+      photoComments: await count("SELECT count(*) AS n FROM comment WHERE target_kind = 'media'"),
     },
   };
 }

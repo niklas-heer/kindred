@@ -38,6 +38,10 @@ export const COPIED_TABLES: readonly string[] = [
   'life_event', // a person's life events (migration 0024), after person
   'source', // the family's sources, after research_document and media, which a source may link to
   'citation', // a source cited for a fact, after source and every fact it may name: person, parent, partnership, life_event
+  // Reactions and comments on stories and gallery photos (migration 0027), after both. They name accounts, which are not
+  // copied: a comment keeps the name it was written under, and a reaction still counts, though nobody on the target owns it.
+  'reaction',
+  'comment',
 ];
 
 /**
@@ -62,6 +66,7 @@ export const LEFT_OUT_TABLES: Record<string, string> = {
   // The change history (migration 0026) names members by their account ids, which are not copied, and its personal rows
   // would have no one to show them to. The target starts its own history.
   history: 'the change history, which names accounts; the target starts its own',
+  response_push: 'members\' choice of a push about answers to what they wrote, keyed by account ids, which are not copied',
 };
 
 /**

@@ -1,9 +1,9 @@
 // Who may do what in a family tree. Every editing control asks `can(action)`; the server checks the
 // same table, so hiding a button is never the only protection.
 //
-//   viewer      — browse the tree, the Atlas, the Almanac
-//   contributor — also add memories, sayings, recipes and photos; suggest corrections
-//   editor      — also add, edit and remove people and their links, places and contacts
+//   viewer      — browse the tree, the Atlas, the Almanac; react to memories and photos
+//   contributor — also add memories, sayings, recipes and photos, and comment on them; suggest corrections
+//   editor      — also add, edit and remove people and their links, places and contacts, and remove anyone's comment
 //   steward     — also edit houses and their arms, delete albums, and manage who has access
 
 export type Role = 'viewer' | 'contributor' | 'editor' | 'steward';
@@ -32,7 +32,10 @@ export type Action =
   | 'edit-house'
   | 'delete-album'
   | 'manage-access'
-  | 'view-statistics';
+  | 'view-statistics'
+  | 'react'
+  | 'comment'
+  | 'remove-comment';
 
 const RANK: Record<Role, number> = { viewer: 0, contributor: 1, editor: 2, steward: 3 };
 
@@ -51,6 +54,9 @@ const NEEDS: Record<Action, Role> = {
   'delete-album': 'steward',
   'manage-access': 'steward',
   'view-statistics': 'steward',
+  react: 'viewer',
+  comment: 'contributor',
+  'remove-comment': 'editor',
 };
 
 export function can(role: Role | null | undefined, action: Action): boolean {

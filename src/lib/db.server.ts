@@ -366,9 +366,12 @@ export async function person(tree: string, id: string, reader: Audience = PLAIN_
   return reader.protectLiving && r.living === 1 ? protectDetail(detail) : detail;
 }
 
-/** Every story in the tree, newest first: the family's "recent changes". With `protectLiving`, none about the living. */
+/**
+ * Every story in the tree, newest first: the family's "recent changes". With `protectLiving`, none about the living. The
+ * columns are named, so nothing that is not for a guest (the writer's account, migration 0027) comes with a story.
+ */
 export function chronicle(tree: string, limit: number, protectLiving = false) {
-  return db(tree).all<any>(`SELECT * FROM story ${protectLiving ? `WHERE person NOT IN (${LIVING_IDS})` : ''} ORDER BY at DESC LIMIT ?`, limit);
+  return db(tree).all<any>(`SELECT id, person, kind, title, body, author, at, context FROM story ${protectLiving ? `WHERE person NOT IN (${LIVING_IDS})` : ''} ORDER BY at DESC LIMIT ?`, limit);
 }
 
 // The contacts page and its vCards speak in the older kinds; these map the fields onto them. Each reader gets every
