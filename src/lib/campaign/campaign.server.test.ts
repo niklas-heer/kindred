@@ -302,22 +302,26 @@ test('the map shows what changed hands since the member last looked, until they 
   assert.deepEqual((await game.campaignView('seen', steward, later(4))).view.changed, [], 'the mark never moves back');
 });
 
-test('renown counts how well a house is recorded, life events and sources too once those tables exist', async () => {
+test('renown counts how well a house is recorded, its life events and cited sources too', async () => {
   family('renown');
   const sides = await game.sidesOf('renown');
   const before = (await game.renownOfSides('renown', sides)).get('ash')!;
-  assert.deepEqual(before.parts.map((p) => [p.key, p.have]), [['portraits', 0], ['dates', 2], ['places', 4], ['memories', 1]], 'what this database cannot count is not shown');
-  assert.ok(!before.tips.includes('events') && !before.tips.includes('sources'));
+  assert.deepEqual(before.parts.map((p) => [p.key, p.have]), [['portraits', 0], ['dates', 2], ['places', 4], ['memories', 1], ['events', 0], ['sources', 0]]);
   assert.equal(before.score, 0 + 10 + 20 + 10 + 0 + 0);
-  // The tables of tree migration 0024 are not in this branch; with them there, their rows count.
-  await db('renown').run('CREATE TABLE life_event (id INTEGER PRIMARY KEY, person TEXT NOT NULL, type TEXT)');
-  await db('renown').run('CREATE TABLE citation (id INTEGER PRIMARY KEY, person TEXT, source INTEGER)');
-  await db('renown').batch(['ash0', 'ash1', 'ash2', 'ash3'].map((p) => ({ sql: 'INSERT INTO life_event (person, type) VALUES (?, ?)', params: [p, 'baptism'] })));
-  await db('renown').run("INSERT INTO citation (person, source) VALUES ('ash0', 1)");
+  const at = T0.toISOString();
+  await db('renown').batch(['ash0', 'ash1', 'ash2', 'ash3'].map((p) => ({
+    sql: 'INSERT INTO life_event (id, person, type, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', params: [`ev-${p}`, p, 'baptism', at, at],
+  })));
+  await db('renown').run('INSERT INTO source (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)', 's1', 'Parish register', at, at);
+  // One citation names its person, the other an event of theirs: both count for the house.
+  await db('renown').run("INSERT INTO citation (id, source, fact, person, created_at, updated_at) VALUES ('c1', 's1', 'birth', 'ash0', ?, ?)", at, at);
   const after = (await game.renownOfSides('renown', sides)).get('ash')!;
   assert.equal(after.parts.find((p) => p.key === 'events')!.points, 10);
   assert.equal(after.parts.find((p) => p.key === 'sources')!.points, 5);
   assert.equal(after.score, before.score + 15);
+  await db('renown').run("INSERT INTO citation (id, source, fact, event, created_at, updated_at) VALUES ('c2', 's1', 'event', 'ev-ash1', ?, ?)", at, at);
+  const more = (await game.renownOfSides('renown', sides)).get('ash')!;
+  assert.ok(more.parts.find((p) => p.key === 'sources')!.have === 2);
 });
 
 test('small houses fight beside the house they are nearest to by marriage, and a house married into none sits out', async () => {

@@ -74,7 +74,9 @@ const RENOWN_QUERIES = {
   // Life events and sources arrive with tree migration 0024. Until a database has those tables, both count as none
   // and are left out of what the page shows and suggests.
   events: 'SELECT p.house AS house, count(*) AS n FROM life_event e JOIN person p ON p.id = e.person WHERE p.house IS NOT NULL GROUP BY p.house',
-  sources: 'SELECT p.house AS house, count(*) AS n FROM citation c JOIN person p ON p.id = c.person WHERE p.house IS NOT NULL GROUP BY p.house',
+  // A citation names its person directly (birth, death, name, a parent link) or through the event it is about.
+  sources: `SELECT p.house AS house, count(*) AS n FROM citation c LEFT JOIN life_event e ON e.id = c.event
+    JOIN person p ON p.id = coalesce(c.person, e.person) WHERE p.house IS NOT NULL GROUP BY p.house`,
 } as const;
 
 /** How well each side's people are recorded. */
