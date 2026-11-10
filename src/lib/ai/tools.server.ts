@@ -24,7 +24,11 @@ import { readHouseSettings } from '../houses.server';
 import { proposalArgs, PROPOSAL_KINDS, NEW_REF, type AiLocale, type Proposal, type ProposalArgs, type ProposalKind, type ProposalView } from './types';
 import type { ChatBlock } from './blocks';
 import { ASK_TOOL, findRelatives, isBlockTool, KIN_TOOL, runBlockTool, SHOW_TOOLS } from './blocks.server';
-import { EDITS, researchList, researchRead, runEdit } from './edits.server';
+import { EDITS as BASE_EDITS, researchList, researchRead, runEdit } from './edits.server';
+import { LIFE_EDITS } from './life-edits.server';
+
+/** Every change proposal beyond the older ones below: edits.server.ts, and life events, sources and citations. */
+const EDITS = [...BASE_EDITS, ...LIFE_EDITS];
 import { EVENT_TYPES, byDate, type Citation, type Fact, type LifeEvent } from '../events';
 import { eventOf, personEvents, type LifeReader } from '../events.server';
 import { listSources, personCitations, sourceCitations } from '../sources.server';
@@ -486,7 +490,7 @@ const sourceView = (x: Awaited<ReturnType<typeof listSources>>[number]) => ({
 const factView = (f: Fact, name: (id: string) => string) =>
   f.fact === 'event' ? { fact: 'event', event: f.event } : f.fact === 'partnership' ? { fact: 'partnership', partnership: f.partnership } : f.fact === 'parent' ? { fact: 'parent', child: name(f.child), parent: name(f.parent) } : { fact: f.fact, person: name(f.person) };
 const citationView = (x: Citation, name: (id: string) => string) => ({
-  source: x.source, sourceTitle: x.sourceTitle, ...factView(x.target, name), ...(x.event ? { eventType: x.event.type, eventLabel: x.event.label } : {}),
+  id: x.id, source: x.source, sourceTitle: x.sourceTitle, ...factView(x.target, name), ...(x.event ? { eventType: x.event.type, eventLabel: x.event.label } : {}),
   about: x.about.map(name), page: x.page, quality: x.quality, transcription: x.transcription ? clip(x.transcription, 400) : undefined,
 });
 

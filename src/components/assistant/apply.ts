@@ -1,5 +1,5 @@
 // Approving a proposal: the card's arguments go to the existing server functions (api.ts, person.functions.ts,
-// photos.functions.ts, houses.functions.ts, research.functions.ts and the rest), exactly as the forms send them, under the reader's own role. Nothing
+// photos.functions.ts, houses.functions.ts, research.functions.ts, events.functions.ts, sources.functions.ts and the rest), exactly as the forms send them, under the reader's own role. Nothing
 // here writes on its own; the server checks the role and the family's rules again on every call. A family draft is
 // approved row by row by FamilyDraft.tsx, which calls applyFamilyBatch (family-batch.functions.ts).
 import type { QueryClient } from '@tanstack/react-query';
@@ -12,6 +12,9 @@ import { setPersonDisplay } from '~/lib/portrait.functions';
 import { addResearchLink, removeResearchDocument, removeResearchLink, removeResearchNote, removeResearchProject, saveResearchDocument, saveResearchNote, saveResearchProject } from '~/lib/research.functions';
 import { updateFamilyDetails } from '~/lib/family-details.functions';
 import { setPartnershipDetails } from '~/lib/partnership.functions';
+import { getPersonEvents, removeLifeEvent, saveLifeEvent } from '~/lib/events.functions';
+import { getSourceCitations, getSources, removeCitation, removeSource, saveCitation, saveSource } from '~/lib/sources.functions';
+import { citationInput, eventInput, eventUnchanged, pickSource, sourceInput, sourceUnchanged } from '~/lib/ai/life-apply';
 import { CHANGED_SINCE_OPENED, defaultVisibility, fieldInput } from '~/lib/fields/model';
 import { detailsOf, fieldsOf, mergeEdit, mergeField } from './apply-merge';
 import { proposalArgs, type Proposal, type ProposalArgs } from '~/lib/ai/types';
@@ -127,6 +130,35 @@ export async function applyProposal(tree: string, p: Proposal, args: ProposalArg
     else await removeResearchDocument({ data: { tree, id: a.id, opKey } });
   } else if (p.kind === 'family-details') {
     await updateFamilyDetails({ data: { tree, opKey, name: a.name, tagline: a.tagline } });
+  } else if (p.kind === 'life-event') {
+    // The Edit tab's event dialog, then its cite dialog. The source is found before anything is written, so an event card
+    // approved before the card of its new source writes nothing; a retry replays the event by its key and adds the citation.
+    if (a.before) {
+      const now = (await getPersonEvents({ data: { tree, person: a.person } })).find((e) => e.id === a.id);
+      if (!now) throw new Error('events.err.gone');
+      if (!eventUnchanged(now, a.before)) throw new Error(CHANGED_SINCE_OPENED);
+    }
+    const source = a.cite ? pickSource(await getSources({ data: { tree } }), a.cite) : null;
+    const { id } = await saveLifeEvent({ data: { tree, event: eventInput(a as Parameters<typeof eventInput>[0]), opKey } });
+    if (a.cite && source) await saveCitation({ data: { tree, citation: citationInput(a.cite, source, { fact: 'event', event: id }), opKey: keys.for('life-event:cite', { ...a.cite, source, event: id }) } });
+  } else if (p.kind === 'source') {
+    const list = await getSources({ data: { tree } });
+    const current = a.id ? list.find((s) => s.id === a.id) : undefined;
+    if (a.id && !current) throw new Error('sources.err.gone');
+    if (current && a.before && !sourceUnchanged(current, a.before)) throw new Error(CHANGED_SINCE_OPENED);
+    await saveSource({ data: { tree, source: sourceInput(a as Parameters<typeof sourceInput>[0], current), opKey } });
+  } else if (p.kind === 'citation') {
+    if (a.id && a.before) {
+      const now = (await getSourceCitations({ data: { tree, source: a.before.source } })).find((x) => x.id === a.id);
+      if (!now) throw new Error('sources.err.citation_gone');
+      if (now.page !== a.before.page || now.quality !== a.before.quality || now.transcription !== a.before.transcription) throw new Error(CHANGED_SINCE_OPENED);
+    }
+    const source = pickSource(await getSources({ data: { tree } }), a);
+    await saveCitation({ data: { tree, citation: citationInput(a as Parameters<typeof citationInput>[0], source, a.target), opKey } });
+  } else if (p.kind === 'life-remove') {
+    if (a.what === 'event') await removeLifeEvent({ data: { tree, id: a.id, opKey } });
+    else if (a.what === 'source') await removeSource({ data: { tree, id: a.id, citations: a.citations ?? 0, opKey } });
+    else await removeCitation({ data: { tree, id: a.id, opKey } });
   }
   await Promise.all([
     qc.invalidateQueries({ queryKey: ['graph', tree] }),
@@ -137,6 +169,8 @@ export async function applyProposal(tree: string, p: Proposal, args: ProposalArg
     qc.invalidateQueries({ queryKey: ['house-settings', tree] }),
     qc.invalidateQueries({ queryKey: ['house-meanings', tree] }),
     qc.invalidateQueries({ queryKey: ['research', tree] }),
+    qc.invalidateQueries({ queryKey: ['events', tree] }),
+    qc.invalidateQueries({ queryKey: ['sources', tree] }),
     // The widgets in the chat are built from the tree, so they follow what was just changed.
     qc.invalidateQueries({ queryKey: ['ai-widget', tree] }),
   ]);

@@ -1,6 +1,7 @@
 // The assistant's instructions to the model. Server-only: only the server sends these to a provider, and
 // they are English on purpose. The reply language is named in them, so the model answers in the reader's language.
 import type { AiLocale } from './types';
+import { can, type Role } from '../roles';
 
 /** How to work out what the reader means. Each rule is one a test can hold the prompt to. */
 const INTENT = [
@@ -21,6 +22,13 @@ const CHANGES = [
   'Removals (propose_remove_*, propose_unlink, clear, propose_album_delete) only when the reader clearly asked for that removal. Never assume one, and if it is unclear what is meant, ask.',
   'Use the field ids and story ids read_person gives, and the partnership ids relatives gives. Never invent an id.',
   'Details marked personal are not visible to you and cannot be changed in chat. If the reader asks, say they can change those themselves on the person’s page.',
+].join(' ');
+
+/** Life events and their sources: for a role that may change people (the same as the Edit tab's events and sources). */
+const SOURCES = [
+  'A life event the reader tells (a baptism, a school, service, a job, a move, emigration, a burial) is proposed with propose_life_event; use custom with a label when no type fits. Changing or removing one uses its id from read_person.',
+  'When the reader says where something comes from (“according to the passenger list”, “the parish register says”, “her certificate shows”), cite it: use that source from list_sources if the family has it; otherwise propose_source with the title in the reader’s own words first, then cite it with sourceTitle on propose_life_event or propose_citation, in the same reply.',
+  'Cite only a source the reader named or showed, or one the tree already records for that fact. Never invent a source, a title, an author, a page, a call number or a transcription, and never cite a source for a fact it was not named for. When the reader names no source, propose the change without one.',
 ].join(' ');
 
 const LANGUAGE_NAME: Record<AiLocale, string> = {
@@ -89,6 +97,7 @@ export function systemPrompt(o: {
   if (o.canPropose) {
     lines.push('When the reader wants something changed, call propose_ tools with the ids the tools gave you. Anything the reader could change by hand can be proposed. Nothing is saved until the reader approves the card; never say that anything has been saved, added or changed.');
     lines.push(CHANGES);
+    if (can(o.role as Role, 'edit-person')) lines.push(SOURCES);
     lines.push('On living: set it to true only when something shows the person is alive today, such as the reader saying so or a current social profile. There is no unknown value, so when nothing shows it either way set living to false and add a line to that person’s unsure saying that whether they are living is not shown. Someone born more than about 110 years ago is never living.');
     if (o.avatar) lines.push('propose_avatar makes a drawn avatar from a photo where the person is confirmed; the drawing is shown before anything is kept.');
   } else {

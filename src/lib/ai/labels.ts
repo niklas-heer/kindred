@@ -53,4 +53,8 @@ export const PROPOSAL_KIND_KEY: Record<ProposalKind, Key> = {
   'research-link': 'chat.kind.researchLink',
   'research-remove': 'chat.kind.researchRemove',
   'family-details': 'chat.kind.familyDetails',
+  'life-event': 'ailife.kind.event',
+  source: 'ailife.kind.source',
+  citation: 'ailife.kind.citation',
+  'life-remove': 'ailife.kind.remove',
 };

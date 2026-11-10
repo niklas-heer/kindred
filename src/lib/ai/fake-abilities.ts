@@ -6,6 +6,8 @@
 //   FAKE-REMOVE   a proposal to remove someone
 //   FAKE-THIS     reads the person the reader is looking at (the system prompt's "Looking at" line)
 //   FAKE-MY <relation>   finds the reader's relatives of that kind
+//   "add that she emigrated in 1952, according to the passenger list" (he/they, any year and source): on a person's page, a
+//                 source card for the passenger list and an emigration card that cites it
 import type { AiMessage, AiRequest, ToolCall } from './adapters';
 
 const trigger = /^FAKE-(ASK|WIDGET|APPLY|REMOVE|THIS|MY)\b\s*([\w-]*)/;
@@ -45,8 +47,30 @@ const ASK: Record<string, { question: string; options?: string[] }> = {
   text: { question: 'What should the note say?' },
 };
 
+/** "add that she emigrated in 1952, according to the passenger list": a life event with its source, as a reader would say it. */
+const EMIGRATED = /^add that (?:she|he|they) emigrated in (\d{4}),? according to (?:the |a |her |his |their )?(.+?)\.?$/i;
+
+function emigrated(req: AiRequest, said: string): { text: string; calls: ToolCall[] } | null {
+  const m = EMIGRATED.exec(said.trim());
+  if (!m) return null;
+  if (sinceLastUser(req.messages).some((x) => x.role === 'assistant')) return { text: 'Fake: an event and its source to approve.', calls: [] };
+  const person = /Looking at: .*\[id: ([^\]]+)\]/.exec(req.system)?.[1];
+  if (!person) return { text: 'Fake: no person on this page.', calls: [] };
+  const title = m[2].charAt(0).toUpperCase() + m[2].slice(1);
+  const call = (name: string, args: unknown): ToolCall => ({ id: `fake-life-${req.messages.length}-${name}`, name, args });
+  return {
+    text: '',
+    calls: [
+      call('propose_source', { title }),
+      call('propose_life_event', { person, type: 'emigration', date: m[1], cite: { sourceTitle: title } }),
+    ],
+  };
+}
+
 /** One step of a scripted ability, or null when the message is no such phrase. */
 export function abilityStep(req: AiRequest, said: string): { text: string; calls: ToolCall[] } | null {
+  const life = emigrated(req, said);
+  if (life) return life;
   const m = trigger.exec(said.trim());
   if (!m) return null;
   const [, what, arg] = m;

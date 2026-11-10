@@ -26,20 +26,20 @@ import type { Tr } from './labels';
 import { type Clearable, type Proposal, type ProposalArgs, type ProposalKind } from './types';
 import type { Ctx } from './tools.server';
 
-export interface EditEnv { ctx: Ctx; c: Tr; g: Graph; byId: Map<string, GPerson> }
+export interface EditEnv { ctx: Ctx; c: Tr; g: Graph; byId: Map<string, GPerson>; /** The cards this reply has made so far. */ out?: readonly Proposal[] }
 export type Made = Omit<Proposal, 'id' | 'status'>;
 
 /** A refusal the model reads and can act on. */
 class Refused extends Error {}
-const no = (message: string): never => { throw new Refused(message); };
-const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
+export const no = (message: string): never => { throw new Refused(message); };
+export const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
 
 const idText = z.string().min(1).max(120);
 const nameText = z.string().trim().min(1).max(120);
 const idParam = { type: 'string', description: 'A person id, as the tools returned it.' };
 const photoParam = { type: 'string', description: 'A photo key, as list_photos returned it.' };
 const date = { type: 'string', description: 'YYYY, YYYY-MM or YYYY-MM-DD, with a leading ~ for about. Never guess a date.' };
-const object = (properties: Record<string, unknown>, required: string[]) => ({ type: 'object', properties, required });
+export const object = (properties: Record<string, unknown>, required: string[]) => ({ type: 'object', properties, required });
 const clearOf = (keys: readonly string[]) => ({ type: 'array', items: { type: 'string', enum: [...keys] }, maxItems: keys.length, description: 'Only what the reader asked to remove.' });
 
 const NAME_KEYS = ['furtherGiven', 'surname', 'currentGiven', 'currentSurname', 'nickname', 'title', 'epithet'] as const satisfies readonly Clearable[];
@@ -52,12 +52,12 @@ const LABEL: Record<string, Key> = {
   diedPlace: 'ai.fieldDiedPlace', occupation: 'ai.fieldOccupation',
 };
 
-const who = (env: EditEnv, id: string): GPerson => env.byId.get(id) ?? no(`${id} is not a person in this tree; search for them first`);
-const named = (env: EditEnv, id: string) => fullName(who(env, id));
+export const who = (env: EditEnv, id: string): GPerson => env.byId.get(id) ?? no(`${id} is not a person in this tree; search for them first`);
+export const named = (env: EditEnv, id: string) => fullName(who(env, id));
 const showValue = (v: Record<string, string>) => Object.values(v).filter(Boolean).join(', ');
-const none = (c: Tr, v: unknown) => (v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length) ? c('ai.fieldNone') : Array.isArray(v) ? v.join(' ') : String(v));
-const removedRow = (c: Tr, label: string, from: string) => ({ label, from, to: c('chat.removed'), removed: true });
-const check = (d: string | null | undefined, what: string) => { if (d && !validDate(d)) no(`${what} is not a real date; use YYYY, YYYY-MM or YYYY-MM-DD, with ~ for about`); };
+export const none = (c: Tr, v: unknown) => (v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length) ? c('ai.fieldNone') : Array.isArray(v) ? v.join(' ') : String(v));
+export const removedRow = (c: Tr, label: string, from: string) => ({ label, from, to: c('chat.removed'), removed: true });
+export const check = (d: string | null | undefined, what: string) => { if (d && !validDate(d)) no(`${what} is not a real date; use YYYY, YYYY-MM or YYYY-MM-DD, with ~ for about`); };
 
 /** The stored value of a details key, as it is on the record. */
 function storedOf(p: GPerson, bio: string | null | undefined, key: string): unknown {
@@ -114,10 +114,10 @@ async function editPerson(env: EditEnv, a: { person: string; clear?: Clearable[]
 
 const fieldsOf = async (env: EditEnv, id: string) => (await person(env.ctx.tree, id, assistantAudience(env.ctx.role))).fields;
 
-function findUnion(env: EditEnv, id: string): GUnion {
+export function findUnion(env: EditEnv, id: string): GUnion {
   return env.g.unions.find((u) => u.id === id && env.byId.has(u.a) && env.byId.has(u.b)) ?? no('that partnership is not in this family; relatives lists the ids');
 }
-const coupleOf = (env: EditEnv, u: GUnion) => `${named(env, u.a)} & ${named(env, u.b)}`;
+export const coupleOf = (env: EditEnv, u: GUnion) => `${named(env, u.a)} & ${named(env, u.b)}`;
 const unionKind = (c: Tr, k: string) => (k === 'marriage' ? c('chat.union.marriage') : k === 'other' ? c('chat.union.other') : k === 'betrothal' ? c('chat.union.betrothal') : c('chat.union.partnership'));
 
 function findHouse(env: EditEnv, id: string) {
@@ -141,7 +141,7 @@ function mayBePrivate(env: EditEnv, wanted: boolean | undefined) {
   if (wanted && !seesPrivateResearch(env.ctx.role)) no('only an editor can mark research private');
 }
 
-interface Edit { kind: ProposalKind; action: Action; spec: ToolSpec; run: (env: EditEnv, input: unknown) => Promise<Made> | Made }
+export interface Edit { kind: ProposalKind; action: Action; spec: ToolSpec; run: (env: EditEnv, input: unknown) => Promise<Made> | Made }
 
 export const EDITS: Edit[] = [
   {
@@ -584,7 +584,7 @@ const refusedText = (e: Refused) => JSON.stringify({ error: e.message });
 /** Runs one edit tool: checks it and adds its card. Returns the text the model sees. */
 export async function runEdit(env: EditEnv, edit: Edit, input: unknown, out: Proposal[]): Promise<string> {
   try {
-    out.push({ id: crypto.randomUUID(), status: 'open', ...(await edit.run(env, input)) });
+    out.push({ id: crypto.randomUUID(), status: 'open', ...(await edit.run({ ...env, out }, input)) });
     return JSON.stringify({ proposed: true, kind: edit.kind, note: 'Shown to the reader for approval. Nothing is saved yet.' });
   } catch (e) {
     if (e instanceof Refused) return refusedText(e);

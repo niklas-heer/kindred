@@ -8,6 +8,7 @@ import { FIELD_TYPES } from '~/lib/fields/model';
 import { VISIBILITIES } from '../visibility';
 import type { ArmsV2 } from '~/lib/seed-format';
 import type { ChatBlock } from './blocks';
+import { EVENT_TYPES, QUALITIES } from '../events';
 
 export const PROVIDERS = ['anthropic', 'openai', 'openrouter'] as const;
 export type Provider = (typeof PROVIDERS)[number];
@@ -118,6 +119,8 @@ export const PROPOSAL_KINDS = [
   'edit-person', 'update-field', 'remove-field', 'remove-story', 'unlink', 'partnership', 'partnership-end', 'remove-person',
   'house-details', 'house-create', 'house-members', 'house-words', 'album-rename', 'album-delete', 'photo-remove', 'photo-untag',
   'person-display', 'place-pin', 'research-project', 'research-note', 'research-document', 'research-link', 'research-remove', 'family-details',
+  // Life events, sources and citations (see ai/life-edits.server.ts).
+  'life-event', 'source', 'citation', 'life-remove',
 ] as const;
 export type ProposalKind = (typeof PROPOSAL_KINDS)[number];
 
@@ -431,7 +434,60 @@ const editArgs = {
   'family-details': z.object({ name: text(400), tagline: z.string().trim().max(400) }),
 };
 
-export const proposalArgs = { ...baseProposalArgs, ...fillArgs, ...editArgs } as typeof baseProposalArgs & typeof fillArgs & typeof editArgs;
+// ---------- life events, sources and citations (ai/life-edits.server.ts; applied by components/assistant/apply-life.ts) ----------
+
+const partialDate = z.string().trim().max(11).nullable();
+const optText = (max: number) => z.string().trim().max(max).nullable();
+const quality = z.enum(QUALITIES).nullable();
+/** The source a card cites: one already in the family's list by id, or one a card of the same reply adds, by its title. */
+const citeSource = { source: id.optional(), sourceTitle: text(300).optional() };
+const oneSource = (c: { source?: string; sourceTitle?: string }) => !!c.source !== !!c.sourceTitle;
+/** The fact a citation is about, as lib/events.ts names it. */
+export const factArg = z.discriminatedUnion('fact', [
+  z.object({ fact: z.enum(['birth', 'death', 'name']), person: id }),
+  z.object({ fact: z.literal('event'), event: id }),
+  z.object({ fact: z.literal('partnership'), partnership: id }),
+  z.object({ fact: z.literal('parent'), child: id, parent: id }),
+]);
+const eventFields = { type: z.enum(EVENT_TYPES), label: optText(200), date: partialDate, endDate: partialDate, place: optText(200), note: z.string().max(4000) };
+
+const lifeArgs = {
+  /** Adds an event (no id) or changes one; `cite` ties a source to it in the same approval. Label and note may be edited on the card. */
+  'life-event': z.object({
+    id: id.optional(),
+    person: id,
+    type: z.enum(EVENT_TYPES),
+    label: z.string().trim().max(200).optional(),
+    date: partialDate,
+    endDate: partialDate,
+    place: optText(200),
+    note: z.string().trim().max(4000).optional(),
+    before: z.object(eventFields).optional(),
+    cite: z.object({ ...citeSource, page: optText(300), quality, transcription: z.string().trim().max(4000) }).refine(oneSource, 'ai.err_check_fields').optional(),
+  }),
+  'source': z.object({
+    id: id.optional(),
+    title: text(300),
+    author: optText(200),
+    publication: optText(300),
+    reference: optText(500),
+    date: partialDate,
+    note: z.string().trim().max(4000),
+    before: z.object({ title: z.string(), author: z.string().nullable(), publication: z.string().nullable(), reference: z.string().nullable(), date: z.string().nullable(), note: z.string() }).optional(),
+  }),
+  'citation': z.object({
+    id: id.optional(),
+    ...citeSource,
+    target: factArg,
+    page: optText(300),
+    quality,
+    transcription: z.string().trim().max(4000),
+    before: z.object({ source: id, page: z.string().nullable(), quality, transcription: z.string() }).optional(),
+  }).refine(oneSource, 'ai.err_check_fields'),
+  'life-remove': z.object({ what: z.enum(['event', 'source', 'citation']), id, person: id.optional(), citations: z.number().int().min(0).optional() }),
+};
+
+export const proposalArgs = { ...baseProposalArgs, ...fillArgs, ...editArgs, ...lifeArgs } as typeof baseProposalArgs & typeof fillArgs & typeof editArgs & typeof lifeArgs;
 
 export const faceResultSchema = z.object({
   faces: z.array(z.object({

@@ -5,6 +5,7 @@
 import * as accessArea from "./areas/access.ts";
 import * as aiArea from "./areas/ai.ts";
 import * as aiChatArea from "./areas/ai-chat.ts";
+import * as aiLifeArea from "./areas/ai-life.ts";
 import * as aiPortraitArea from "./areas/ai-portrait.ts";
 import * as aiStreamArea from "./areas/ai-stream.ts";
 import * as aiThreadsArea from "./areas/ai-threads.ts";
@@ -56,6 +57,7 @@ export const AREAS = [
   photosArea,
   aiArea,
   aiChatArea,
+  aiLifeArea,
   aiPortraitArea,
   aiStreamArea,
   aiThreadsArea,
