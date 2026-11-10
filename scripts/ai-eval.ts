@@ -398,7 +398,8 @@ async function converse(cx: Cx, question: string, locale: Lang): Promise<{ text:
   const { tools, proposals: canPropose } = server.tools.toolsFor('editor', { web: false });
   const system = server.prompt.systemPrompt({ locale: locale as AiLocale, family: FAMILY.name, readerName: null, kinToReader: null, canPropose, role: 'editor', webSearch: false });
   const messages: AiMessage[] = [{ role: 'user', text: question }];
-  const ctx: ToolCtx = { tree: TREE_ID, role: 'editor', me: null, locale: locale as AiLocale };
+  // A member's account, as in the app: the family's sources are read (and cited) only for members.
+  const ctx: ToolCtx = { tree: TREE_ID, role: 'editor', me: null, user: 'eval-reader', locale: locale as AiLocale };
   const out: Proposal[] = [];
   const calls: string[] = [];
   let text = '';
@@ -618,7 +619,7 @@ export function renderReport(run: { results: ModelResult[]; o: RunOptions; spent
     '- **Names.** Nine surnames, eight with a known meaning and one made-up trap. A known name passes when each expected meaning appears among the candidates and no candidate is stated as well-attested without being expected. The trap passes only when no candidate is stated as well-attested.',
     '- **Arms.** Three surnames, two steps as the app runs them: the meanings, then the top two chosen for the designs. A design passes when the schema holds, its charges exist, the tincture rule holds and it names a chosen meaning. Repairs (unknown charges, clashes the app fixed, designs it dropped) are counted and not failed.',
     '- **Tools.** Three questions on the family: a fact that needs a tool, a kinship question, and a question the tree does not record, which must be said not to be recorded with no invented year.',
-    '- **Proposals.** Three requests that must become a proposal card with the right kind and details. The reply must not say anything was saved, because nothing is written.',
+    '- **Proposals.** Four requests (a memory, a phone number, a birth, and a life event citing the source the reader names) that must become a proposal card with the right kind and details. The reply must not say anything was saved, because nothing is written.',
     '- **Language.** The same kind of question in German (du) and Afrikaans (jy). A reply passes when it uses at least one word of that language, none of the other languages’ words the scorer lists, and no formal address.',
     '- **Vision.** One generated picture; the reply passes when it is the face-box shape with each box between 0 and 1. Nothing else is judged.',
     ...(o.web ? ['- **Web.** One research with web search, for the surname Schmidt: the meaning must be found, and a cited page must be listed.'] : []),

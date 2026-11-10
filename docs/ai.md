@@ -149,8 +149,21 @@ checks each step the same way. A contributor's approval cannot make an editor's 
 (new people, their facts and links, approved row by row or all at once), a photo's date, place and caption, an album for
 several photos (new or existing), people tagged in a photo, a drawn avatar (`avatar`, when the avatar feature is on: the
 drawing is shown before anything is kept), an occupation, a house's succession law, head, heir and country (stewards),
-and the person, link, date, memory and detail proposals that were there before. The assistant never deletes anything,
-never manages access or invitations, and never changes AI settings or keys: no tool offers those.
+and the person, link, date, memory and detail proposals that were there before. The assistant never manages access or
+invitations, and never changes AI settings or keys: no tool offers those. Removals are cards too, and only when the reader
+asked for one.
+
+**Life events and sources.** Editors and stewards (the roles that may change them by hand) are offered
+`propose_life_event` (add or change an event, optionally citing a source), `propose_source` (add or change a source in the
+family's list), `propose_citation` (cite a source for a birth, death, name, event, partnership or parent link, or change a
+citation) and `propose_remove_life_record` (an event with its citations, a source with its citations, or one citation).
+Approving sends the card to the same server functions as the Edit tab and the Sources page (`events.functions.ts`,
+`sources.functions.ts`), so their checks, the change history and the retry key apply as for the forms; a change card keeps
+its starting point and is refused if the record moved on since. A source the reader names but the family does not have
+yet is its own card, and the event or citation card cites it by its title: approve the source first (Apply all does them
+in order), otherwise the card says so and writes nothing. The prompt tells the assistant to cite a source when the reader
+names one and never to invent a source, a page or a transcription. In the fake provider, "add that she emigrated in 1952,
+according to the passenger list" on a person's page proposes both cards (`src/lib/ai/fake-abilities.ts`).
 
 **A family draft.** The draft is checked before it is shown: a person who may already be in the tree (same given name, a
 compatible surname, and the same birth year or an unknown one) is flagged, and a link that would make someone their own
@@ -272,6 +285,8 @@ and the model lists. `src/lib/ai-prices.test.ts` checks cost calculation and pri
 `src/lib/ai-budget.test.ts` checks the budget: racing calls, refused calls, settlement and failures. `src/lib/ai-family.test.ts`
 checks a family draft (links between new and existing people, retries, loops, dates, duplicates), each role's tools, and that
 no tool deletes or manages access or settings. In the fake, a line `FAKE-FAMILY {json}` in a family session is the draft it proposes.
+`src/lib/ai-life-edits.test.ts` checks the life-event, source and citation cards: who is offered them and who is refused,
+what they say, approving through the forms' server path with its history, a stale card, and taking a change back.
 `src/lib/jobs/ai-tasks.test.ts` checks the background tasks: off by default, the schedule and the daily call limit, the cap (it
 stops the work, and stays stopped on the next run), batches that resume, the outgoing request bodies (no private value),
 originals that are never altered, a stale translation that is not shown, web search refused, the arms review run only when its

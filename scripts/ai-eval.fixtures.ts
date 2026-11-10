@@ -77,6 +77,8 @@ export const PROPOSAL_CASES: ProposalCase[] = [
   { id: 'memory', question: 'Add a memory to Ruth Weber: every September she baked plum cake for the whole street.', kind: 'add-story', expectArgs: { person: 'ruth' } },
   { id: 'phone', question: 'Add a mobile number for Mara Weber: +49 151 2345678.', kind: 'add-field', expectArgs: { person: 'mara', type: 'phone', value: '2345678' } },
   { id: 'birth', question: 'Hans Weber was born on 9 January 1928 in Leipzig.', kind: 'set-dates', expectArgs: { person: 'hans', born: '1928' } },
+  // A life event with the source the reader names: the event card cites it (a new source has a card of its own, cited by its title).
+  { id: 'event-source', question: 'Add that Ruth Weber emigrated in 1952, according to the passenger list of the Gannet.', kind: 'life-event', expectArgs: { person: 'ruth', type: 'emigration', date: '1952', cite: 'Gannet' } },
 ];
 
 /** The same kind of question in German (informal "du") and Afrikaans ("jy"). */

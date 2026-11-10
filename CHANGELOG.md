@@ -47,6 +47,10 @@ database that has had these migrations.
 - Removing a member now cleans up after them: their reactions, daily quiz answers, Campaign orders and pledge, and reminder and
   answer-push choices for that family go, while their memories, comments (shown under the name they were written with, or "a
   former member") and the change history stay.
+- The assistant proposes life events, sources and citations: "add that she emigrated in 1952, according to the passenger
+  list" becomes a card for the new source and a card for the emigration that cites it. It can also change or remove an event,
+  a source or a citation. Editors and stewards only, as by hand; approving goes through the same checks and change history
+  as the Edit tab and the Sources page. The assistant cites a source only when you name one, and never invents one.
 - **Print: charts and a family book.** A new Print page (the account menu, and a Print button on every person) makes an
   ancestor chart (four to six generations, with each house's shield), a descendant chart (two to six generations, with
   partners) and a family book: a cover with the family's arms, the contents, a section for each house, every person with

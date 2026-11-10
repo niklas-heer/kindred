@@ -420,9 +420,10 @@ What the assistant may propose depends on the reader's role, and the server chec
 | --- | --- |
 | **Viewer** | Nothing. Questions only: who someone is, what is recorded, what is missing, which photos have no date. |
 | **Contributor** | Viewer, plus memories and stories, and for photos: a date, place and caption, an album (new or existing), and people tagged in a photo. |
-| **Editor** | Contributor, plus people (one at a time or a whole family draft from a conversation), links, dates and places, occupations, details and contacts, and a drawn avatar when that feature is on. |
+| **Editor** | Contributor, plus people (one at a time or a whole family draft from a conversation), links, dates and places, occupations, details and contacts, life events, sources and citations, and a drawn avatar when that feature is on. |
 | **Steward** | Editor, plus a house's succession law, head, heir and country. |
 
-Nobody is offered a delete, a change to who has access or invitations, or a change to the AI settings or keys. Pictures
+A removal is a card like any other, proposed only when the reader asks for it, under the same role as by hand. Nobody is
+offered a change to who has access or invitations, or a change to the AI settings or keys. Pictures
 are looked at by the assistant only when the family's faces feature is on, and a family session is drafted only after its
 speaker finishes it. A family draft shows its likely duplicates and its loops before anything is added.
