@@ -62,7 +62,8 @@ test('today: the question of the week, the daily quiz, and sections that keep th
   const dialog = page.getByRole('dialog', { name: 'Your answer' });
   await expect(dialog.getByText(question)).toBeVisible();
   // The steward said who they are in journey 1, so the answer starts out as about them.
-  await expect(dialog.getByText(`${STEWARD.given} ${STEWARD.surname} (you)`)).toBeVisible();
+  // An earlier journey may have given them an epithet, which follows the name.
+  await expect(dialog.getByText(new RegExp(`${STEWARD.given} ${STEWARD.surname}.*\\(you\\)`))).toBeVisible();
   await checkAxe(page, 'today, answering');
   await dialog.getByLabel('What do you remember?').fill('My grandmother ran beside me down the lane, and let go without telling me.');
   await dialog.getByRole('button', { name: 'Share with the family' }).click();

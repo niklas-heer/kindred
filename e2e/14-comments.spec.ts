@@ -96,10 +96,14 @@ test('comments: react, comment, change and remove on a memory; react to a photo;
   const protect = page.getByRole('dialog').getByRole('switch', { name: 'Protect living people' });
   if ((await protect.count()) && (await protect.getAttribute('aria-checked')) === 'true') await protect.click();
   await page.getByRole('dialog').getByRole('button', { name: /^(Make a link|Replace it)$/ }).click();
-  const living = page.getByRole('switch', { name: 'Protect living people' });
-  if ((await living.count()) && (await living.first().getAttribute('aria-checked')) === 'true') await living.first().click();
   const shown = page.locator('.share-shown input');
   await expect(shown.first()).toBeVisible();
+  // A replaced link keeps the protection the one before it had (an earlier journey's): switch it off on the card, once
+  // the card shows the new link.
+  const living = page.getByRole('switch', { name: 'Protect living people' }).first();
+  await expect(living).toBeVisible();
+  if ((await living.getAttribute('aria-checked')) === 'true') await living.click();
+  await expect(living).toHaveAttribute('aria-checked', 'false');
   const url = await shown.first().inputValue();
   const password = await shown.nth(1).inputValue();
 
