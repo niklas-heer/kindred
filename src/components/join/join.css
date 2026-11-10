@@ -9,14 +9,30 @@
 .join-card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .join-card .btn.icon { width: 32px; height: 32px; }
 .join-card-yes { border-color: var(--accent); }
-/* Above the phone's tab bar. */
-@media (max-width: 760px) { .join-card { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); right: 16px; left: 16px; width: auto; } }
+/* Above the phone's tab bar. There the invitation is one short strip, so it covers a line of the page and not a third of it:
+   what an account gives is in the form it opens, and the top bar keeps its own "Ask to join". */
+@media (max-width: 760px) {
+  .join-card { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); right: 12px; left: 12px; width: auto; }
+  .join-card-invite { padding: 10px 12px; gap: 10px; align-items: center; }
+  .join-card-invite > div { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+  .join-card-invite h2 { flex: 1 1 100%; margin: 0; font-size: var(--fs-3); line-height: 1.25; }
+  .join-card-invite p { display: none; }
+  .join-card-invite .join-card-actions { margin-top: 0; }
+  .join-card-invite .join-card-icon { margin-top: 0; }
+  /* In the top bar the button keeps its name for a screen reader and shows its icon, so the family's name has room. */
+  .join-chip-ask { width: 44px; padding: 0 !important; justify-content: center; }
+  .join-chip-ask > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
 
 .join-chip-wait { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
 @media (max-width: 760px) { .join-chip-label { display: none; } }
 
 .join-form fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 0; }
-.join-form legend, .join-who legend { font-family: var(--font-ui); font-size: var(--fs-2); color: var(--muted); padding: 0; margin-bottom: 6px; }
+/* The legend reads as the fields' labels do (.field > span in app.css). */
+.join-form legend, .join-who legend { font-family: var(--font-ui); font-size: var(--fs-1); color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; padding: 0; margin-bottom: 6px; }
+[data-theme='night'] .join-who legend { text-transform: none; letter-spacing: 0.02em; font-size: var(--fs-2); }
+[data-theme='codex'] .join-who legend { font-family: var(--font-display); text-transform: none; font-variant: small-caps; font-size: 14px; }
+@media (pointer: coarse) { [data-theme] .join-who legend { font-size: 14px; } }
 .join-who { border: 0; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 0; }
 .join-who .who-list { max-height: 220px; overflow: auto; }
 .join-chosen { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -34,6 +50,7 @@
 .join-usage { display: grid; gap: 2px; }
 
 .join-requests h2.rule { margin-top: 10px; }
+.join-requests > .acc-hint { margin: 0 0 10px; }
 .join-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
 .join-request { display: grid; gap: 10px; padding: 14px 16px; }
 .join-request-head { display: flex; gap: 12px; align-items: center; }

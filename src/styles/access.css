@@ -111,3 +111,5 @@
 .share-card h2.rule { margin-top: 0; }
 .share-message { field-sizing: content; }
 @media (pointer: coarse) { .guest-chip .btn { height: 44px; padding: 0 12px; } }
+/* Each switch with its sentence is one group: the sentence sits under its switch, with air before the next thing. */
+.share-card .ui-switch-wrap + .share-note { margin: 4px 0 16px; }

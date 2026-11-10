@@ -53,7 +53,7 @@ export function JoinInvite({ tree }: { tree: string }) {
         </aside>
       )}
       {state.available && !state.request && !hidden && (
-        <aside className="ui-card join-card" aria-labelledby="join-invite-title">
+        <aside className="ui-card join-card join-card-invite" aria-labelledby="join-invite-title">
           <UserPlus size={20} aria-hidden className="join-card-icon" />
           <div>
             <h2 id="join-invite-title">{t('join.invite_title')}</h2>
@@ -232,6 +232,6 @@ export function JoinChip({ tree }: { tree: string }) {
   const t = useT();
   const state = useJoinState(tree);
   if (state?.request?.status === 'open') return <span className="join-chip-wait" title={t('join.waiting_title')}><Clock size={14} aria-hidden /> <span className="join-chip-label">{t('join.chip_waiting')}</span></span>;
-  if (state?.available && !state.request) return <button className="btn" onClick={() => openJoin()}><UserPlus size={15} aria-hidden /> <span>{t('join.ask')}</span></button>;
+  if (state?.available && !state.request) return <button className="btn join-chip-ask" title={t('join.ask')} onClick={() => openJoin()}><UserPlus size={15} aria-hidden /> <span>{t('join.ask')}</span></button>;
   return null;
 }

@@ -76,7 +76,7 @@ function RequestCard({ tree, r, onApprove, onDecline, busy }: { tree: string; r:
         <Initials name={r.name} size={40} />
         <div>
           <h3 id={titleId}>{t('join.request_from', { name: r.name })}</h3>
-          <span className="subtle">{t('join.request_when', { when: relativeTime(r.created, t.locale), count: days })}</span>
+          <span className="subtle" title={formatDate(r.created, t.locale)}>{t('join.request_when', { when: relativeTime(r.created, t.locale), count: days })}</span>
         </div>
       </header>
       <div className="join-request-who">
@@ -104,7 +104,6 @@ function RequestCard({ tree, r, onApprove, onDecline, busy }: { tree: string; r:
         <button className="btn primary" onClick={onApprove} disabled={busy}><Check size={15} /> {t('join.approve')}</button>
         <button className="btn ghost" onClick={onDecline} disabled={busy}><X size={15} /> {t('join.decline')}</button>
       </div>
-      <p className="acc-hint">{formatDate(r.created, t.locale)}</p>
     </article>
   );
 }
