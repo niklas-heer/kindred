@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { ago, Initials } from '~/components/AccountMenu';
 import { Portrait } from '~/components/Portrait';
 import { ShareLinkCard } from '~/components/ShareLinkCard';
+import { JoinRequests } from '~/components/join/JoinRequests';
 import { ROLE_ICON } from '~/components/RoleIcon';
 import { Dialog, EmptyState, ErrorState, Notice, PageHeader, Select, Skeleton } from '~/components/ui';
 import { accessQuery, answerPersonLink, createInvite, removeMember, renewInvite, revokeInvite, setMemberRole, type AccessInvite, type AccessMember } from '~/lib/auth/functions';
@@ -106,6 +107,8 @@ function AccessPage() {
           actions={<button className="btn primary" onClick={() => setInviting(true)}><UserPlus size={16} /> {t('acc.inviteSomeone')}</button>}
         />
         {error && <Notice onDismiss={() => setError(null)} className="acc-notice">{error}</Notice>}
+        {/* Requests to join come first: someone is waiting for an answer. */}
+        <JoinRequests tree={tree} />
 
         {access.isPending ? (
           <div className="ui-card" aria-busy="true" aria-label={t('acc.loadingMembers')}><Skeleton lines={4} /></div>

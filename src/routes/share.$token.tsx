@@ -81,6 +81,7 @@ function SharePage() {
           </label>
         )}
         <AuthError id="share-error">{error}</AuthError>
+        {entry.status === 'open' && entry.measured && <p className="auth-device-hint">{t('join.measured_entry')}</p>}
         <button className="btn primary auth-go" disabled={busy || (needsPassword && !password.trim())}>{busy ? t('share.entering') : t('share.enter')}</button>
       </form>
     </AuthCard>

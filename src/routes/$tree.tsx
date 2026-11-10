@@ -11,6 +11,8 @@ import { LanguageChoices, LanguagePicker } from '~/components/LanguagePicker';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FirstRun } from '~/components/FirstRun';
 import { GuestChip } from '~/components/GuestChip';
+import { JoinInvite } from '~/components/join/JoinInvite';
+import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import { FeedbackHost, openFeedback } from '~/components/feedback/FeedbackHost';
 import { Arms } from '~/components/Heraldry';
 import { NotFoundPage } from '~/components/NotFoundPage';
@@ -109,7 +111,7 @@ function TreeLayout() {
   const [more, setMore] = useState(false);
   // A guest has no "who are you" to save and no tour of adding people.
   const guest = useSession()?.guest?.tree === tree;
-  useStatsBeacon(tree);
+  useStatsBeacon(tree, guest);
   const topbar = useTopbarFit();
 
   // Each tree opens in its own theme unless the reader picked one.
@@ -211,6 +213,7 @@ function TreeLayout() {
       {/* The one assistant drawer for this family; it draws itself only when the button opened it. */}
       <AssistantHost tree={tree} />
       {!guest && <FirstRun />}
+      {guest && <JoinInvite tree={tree} />}
       <FeedbackHost tree={tree} />
       <Toasts />
     </div>
@@ -228,6 +231,8 @@ function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: 
   // The phone has no top bar, so a steward of a family without AI reaches "Set up AI" from here.
   const setupNeeded = useAiSetupNeeded(tree);
   const [sound, toggleSound] = useSound();
+  // What waits for a steward on the Access page: requests to join and "this is me" links (the account menu shows the same).
+  const waiting = useQuery({ ...aiAttentionQuery(tree), enabled: steward }).data?.access ?? 0;
   return (
     <Dialog open={open} onClose={onClose} title={t("shell.more")} placement="sheet" width={560}>
       <ul className="more-list" onClick={(e) => (e.target as HTMLElement).closest('a') && onClose()}>
@@ -239,7 +244,7 @@ function MoreSheet({ open, onClose, tree, multiple }: { open: boolean; onClose: 
         <li><Link to="/$tree/research" params={{ tree }}><FolderSearch size={19} /> {t("research.title")} <small>{t("research.nav_hint")}</small></Link></li>
         {assistant && <li><button type="button" onClick={() => { onClose(); openAssistant(); }}><Sparkles size={19} /> {t("ai.askCommand")}</button></li>}
         {editor && <li><Link to="/$tree/settings/import" params={{ tree }}><ArrowLeftRight size={19} /> {t("shell.importExport")} <small>{t("shell.importExportHint")}</small></Link></li>}
-        {steward && <li><Link to="/$tree/access" params={{ tree }}><Users size={19} /> {t("shell.access")} <small>{t("shell.members_invitations")}</small></Link></li>}
+        {steward && <li><Link to="/$tree/access" params={{ tree }}><Users size={19} /> {t("shell.access")} {waiting ? <span className="aitasks-count">{waiting}</span> : null} <small>{t("shell.members_invitations")}</small></Link></li>}
         {steward && <li><Link to="/$tree/statistics" params={{ tree }}><BarChart3 size={19} /> {t("stats.menu")} <small>{t("stats.menu_hint")}</small></Link></li>}
         {setupNeeded && <li><button type="button" onClick={() => { onClose(); openAiSetup(); }}><Sparkles size={19} /> {t("ai.setupButton")} <small>{t("shell.ai_settings_hint")}</small></button></li>}
         {steward && !setupNeeded && <li><Link to="/$tree/settings/ai" params={{ tree }}><SlidersHorizontal size={19} /> {t("shell.ai_settings")} <small>{t("shell.ai_settings_hint")}</small></Link></li>}

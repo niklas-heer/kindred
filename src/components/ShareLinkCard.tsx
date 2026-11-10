@@ -7,6 +7,7 @@ import { useEffect, useId, useState } from 'react';
 import { Dialog, Notice, Select, Skeleton } from '~/components/ui';
 import { Switch } from '~/components/ui/Switch';
 import { makeShareLink, revokeShareLink, setShareProtectLiving, shareStateQuery } from '~/lib/auth/share.functions';
+import { setAskToJoin } from '~/lib/auth/join.functions';
 import { errorText } from '~/lib/errortext';
 import { formatDate, useT, type Key, type Translator } from '~/lib/i18n';
 import '~/styles/access.css';
@@ -62,6 +63,11 @@ export function ShareLinkCard({ tree, familyName }: { tree: string; familyName: 
     onSuccess: () => refresh(),
     onError: () => setError(t('share.protectLivingFailed')),
   });
+  const askToJoin = useMutation({
+    mutationFn: (on: boolean) => setAskToJoin({ data: { tree, on } }),
+    onSuccess: () => refresh(),
+    onError: (e) => setError(errorText(e, t.locale)),
+  });
 
   const link = state.data?.link ?? null;
   // Only a copy of the link as it is now: an older copy names a link that no longer works.
@@ -82,6 +88,7 @@ export function ShareLinkCard({ tree, familyName }: { tree: string; familyName: 
                 <span className="chip">{link.hasPassword ? t('share.hasPassword') : t('share.noPassword')}</span>
               </p>
               <ProtectLiving checked={protect.isPending ? protect.variables : link.protectLiving} disabled={protect.isPending} onChange={(on) => protect.mutate(on)} />
+              {state.data?.joinPossible && <AskToJoin checked={askToJoin.isPending ? askToJoin.variables : link.askToJoin} disabled={askToJoin.isPending} onChange={(on) => askToJoin.mutate(on)} />}
               {shown ? <Shared known={shown} familyName={familyName} /> : <p className="acc-hint share-note">{t('share.forgotten')}</p>}
               <div className="share-actions">
                 <button className="btn" onClick={() => setMaking(true)}><RefreshCw size={15} /> {t('share.makeNew')}</button>
@@ -133,6 +140,18 @@ function ProtectLiving({ checked, disabled, onChange }: { checked: boolean; disa
     <>
       <Switch checked={checked} disabled={disabled} onChange={onChange} aria-describedby={hint}>{t('share.protectLiving')}</Switch>
       <p className="acc-hint share-note" id={hint}>{t(checked ? 'share.protectLivingHint' : 'share.protectLivingOff')}</p>
+    </>
+  );
+}
+
+/** The switch that lets the link's guests ask for an account of their own (src/components/join). */
+function AskToJoin({ checked, disabled, onChange }: { checked: boolean; disabled?: boolean; onChange: (on: boolean) => void }) {
+  const t = useT();
+  const hint = useId();
+  return (
+    <>
+      <Switch checked={checked} disabled={disabled} onChange={onChange} aria-describedby={hint}>{t('join.switch')}</Switch>
+      <p className="acc-hint share-note" id={hint}>{t(checked ? 'join.switch_on' : 'join.switch_off')}</p>
     </>
   );
 }

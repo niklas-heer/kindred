@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { leaveGuestVisit } from '~/lib/auth/share.functions';
 import { useT } from '~/lib/i18n';
 import { useSession } from '~/lib/session';
+import { JoinChip } from './join/JoinInvite';
 
 /** Where a guest would have their account menu: says they are a guest, and lets them leave. Nothing for anyone else. */
 export function GuestChip() {
@@ -18,6 +19,7 @@ export function GuestChip() {
   return (
     <span className="guest-chip" title={t('share.guestHint')}>
       <UserRound size={15} aria-hidden /> <span className="guest-chip-label">{t('share.guest')}</span>
+      <JoinChip tree={session.guest.tree} />
       <button className="btn ghost" disabled={busy} onClick={() => void leave()}>{t('share.leave')}</button>
     </span>
   );
