@@ -205,16 +205,20 @@ function ChroniclePage() {
         {stories.length > 0 && tab === 'recent' && (
           <>
             {recent.length === 0 && <NoMatch onClear={() => { setQ(''); setKind(null); }} />}
-            {groups.map(([label, items], gi) => (
-              <section key={label} className="chr-day">
-                <h2 className="rule">{label}</h2>
-                <ol className={`chr-feed ${gi === 0 ? dealt : ''}`}>
-                  {items.map((s) => (
-                    <FeedItem key={s.id} s={s} f={f} tree={tree} now={now?.getTime()} tr={translations[s.id]} />
-                  ))}
-                </ol>
-              </section>
-            ))}
+            {groups.map(([label, items], gi) => {
+              // Entries before this one, in the earlier days: only the first screenful draws its faces in the server's HTML.
+              const before = groups.slice(0, gi).reduce((n, [, g]) => n + g.length, 0);
+              return (
+                <section key={label} className="chr-day">
+                  <h2 className="rule">{label}</h2>
+                  <ol className={`chr-feed ${gi === 0 ? dealt : ''}`}>
+                    {items.map((s, i) => (
+                      <FeedItem key={s.id} s={s} f={f} tree={tree} now={now?.getTime()} tr={translations[s.id]} defer={before + i >= EAGER_FACES} />
+                    ))}
+                  </ol>
+                </section>
+              );
+            })}
             {recent.length > limit && (
               <button className="btn chr-more" onClick={() => setLimit(limit + 30)}>
                 {t('chronicle.show_more', { count: Math.min(30, recent.length - limit) })}
@@ -227,8 +231,8 @@ function ChroniclePage() {
           <>
             {sayings.length === 0 && (q ? <NoMatch onClear={() => setQ('')} /> : <NoSayings tree={tree} write={write} />)}
             <div className={`chr-wall ${dealt}`}>
-              {sayings.map((s) => (
-                <SayingCard key={s.id} s={s} f={f} tree={tree} now={now?.getTime()} tr={translations[s.id]} />
+              {sayings.map((s, i) => (
+                <SayingCard key={s.id} s={s} f={f} tree={tree} now={now?.getTime()} tr={translations[s.id]} defer={i >= EAGER_FACES} />
               ))}
             </div>
           </>
@@ -285,7 +289,14 @@ function TranslatedNote({ shown }: { shown: ReturnType<typeof useShownStory> }) 
   );
 }
 
-function FeedItem({ s, f, tree, now, tr }: { s: Story; f: Family; tree: string; now?: number; tr?: StoryTranslation }) {
+/**
+ * How many entries draw their faces in the server's HTML. A drawn face is about 8 kB of inline SVG and each entry has two
+ * (beside the card, and in its first line on a phone), so the rest follow at once after hydration (Portrait's `defer`), in the
+ * same frame and house colour: the first screen looks the same, and the page is several hundred kB lighter.
+ */
+const EAGER_FACES = 6;
+
+function FeedItem({ s, f, tree, now, tr, defer }: { s: Story; f: Family; tree: string; now?: number; tr?: StoryTranslation; defer?: boolean }) {
   const [open, setOpen] = useState(false);
   const t = useT();
   const p = f.byId.get(s.person);
@@ -295,12 +306,12 @@ function FeedItem({ s, f, tree, now, tr }: { s: Story; f: Family; tree: string; 
   return (
     <li className="chr-item" data-kind={s.kind}>
       {p && (
-        <PortraitZoom person={p} tree={tree} size={50} className="chr-face" />
+        <PortraitZoom person={p} tree={tree} size={50} className="chr-face" defer={defer} />
       )}
       <article className="chr-card ui-card">
         <header>
           {/* On a phone the face sits in the card's first line; the column beside the card is for wider screens. */}
-          {p && <span className="chr-face-in"><Portrait person={p} tree={tree} size={28} decorative /></span>}
+          {p && <span className="chr-face-in"><Portrait person={p} tree={tree} size={28} decorative defer={defer} /></span>}
           <span className="chr-kind">
             <k.icon size={14} /> {t(k.label)}
           </span>
@@ -329,7 +340,7 @@ function FeedItem({ s, f, tree, now, tr }: { s: Story; f: Family; tree: string; 
   );
 }
 
-function SayingCard({ s, f, tree, now, tr }: { s: Story; f: Family; tree: string; now?: number; tr?: StoryTranslation }) {
+function SayingCard({ s, f, tree, now, tr, defer }: { s: Story; f: Family; tree: string; now?: number; tr?: StoryTranslation; defer?: boolean }) {
   const p = f.byId.get(s.person);
   const t = useT();
   const shown = useShownStory(s, tr);
@@ -338,7 +349,7 @@ function SayingCard({ s, f, tree, now, tr }: { s: Story; f: Family; tree: string
       <blockquote dangerouslySetInnerHTML={{ __html: render(shown.body) }} />
       <TranslatedNote shown={shown} />
       <figcaption>
-        {p && <Portrait person={p} tree={tree} size={42} />}
+        {p && <Portrait person={p} tree={tree} size={42} defer={defer} />}
         <div>
           <PersonLink p={p} f={f} tree={tree} />
           {s.context && <em>{s.context}</em>}

@@ -69,6 +69,8 @@ version will not run on a database that has had these migrations.
 - Saving a person on the Edit tab no longer reads the whole family again: the save answers with the person as your page shows
   them, and the page patches its copy. A newly pinned place, or a new birth date for someone with a painted portrait, still
   reads the family again.
+- The Chronicle's page is about 375 kB lighter (1.44 MB to 1.07 MB on a family of 1600 people, before compression): only the
+  first entries draw their faces into the page; the rest are drawn as soon as it has loaded, in the same frame.
 
 ### Fixed
 

@@ -11,13 +11,15 @@ const FACE_LABEL: Record<Face, Key> = { photo: 'pp.photo', portrait: 'paint.show
 // A row or card around the picture must not also react to what happens in the dialog: React events pass through portals.
 const contain = (e: SyntheticEvent) => e.stopPropagation();
 
-export function PortraitZoom({ person, tree, size, frame, prefer, className = '' }: {
+export function PortraitZoom({ person, tree, size, frame, prefer, className = '', defer }: {
   person: GPerson;
   tree: string;
   size: number;
   frame?: boolean;
   prefer?: 'photo' | 'avatar' | 'portrait';
   className?: string;
+  /** Passed to Portrait: a drawing far down a list follows after hydration instead of being in the server's HTML. */
+  defer?: boolean;
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -34,7 +36,7 @@ export function PortraitZoom({ person, tree, size, frame, prefer, className = ''
         title={t('profile.enlarge', { name })}
         onClick={(e) => { contain(e); e.preventDefault(); setOpen(true); }}
       >
-        <Portrait person={person} tree={tree} size={size} frame={frame} prefer={prefer} decorative />
+        <Portrait person={person} tree={tree} size={size} frame={frame} prefer={prefer} decorative defer={defer} />
       </button>
       {open ? (
         <span className="portrait-zoom-host" onClick={contain} onKeyDown={contain} onPointerDown={contain}>
