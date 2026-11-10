@@ -52,7 +52,7 @@ import { PersonEdit } from './fields/PersonEdit';
 import { CharacterEditor } from './CharacterEditor';
 import { PersonPhotos } from './photos/PersonPhotos';
 import { PortraitZoom } from './photos/PortraitZoom';
-import { mediaUrl } from './photos/types';
+import { mediaUrl } from '~/lib/photos/types';
 import { PersonResearch } from './research/PersonResearch';
 import { SourcedMark, useCitationCounts, useRecordedLife } from './life/records';
 import { AddEventButton, LifeEditor } from './life/LifeEditor';
@@ -60,7 +60,7 @@ import { ContactRow, FieldGroups, contactHref, contactsOf } from './fields/Field
 import { RemoveOwnField, VisibilityMark } from './fields/VisibilityMark';
 import { AddressFinder } from './fields/AddressFinder';
 import { formatAddress, parseAddress, type AddressParts } from '~/lib/address';
-import { DEFAULT_LABEL, defaultVisibility, fieldIssue, fieldText, type IssueCode } from './fields/model';
+import { DEFAULT_LABEL, defaultVisibility, fieldIssue, fieldText, type IssueCode } from '~/lib/fields/model';
 import './panel.css';
 import './profile.css';
 

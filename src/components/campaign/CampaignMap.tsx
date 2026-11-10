@@ -5,7 +5,7 @@
 import { Crown } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Arms, TINCTURE_HEX } from '~/components/Heraldry';
-import { HEX_V2 } from '~/components/heraldry/tinctures';
+import { HEX_V2 } from '~/lib/heraldry/tinctures';
 import { MAP_H, MAP_W, type GameMap, type Pt, type State } from '~/lib/campaign/engine';
 import { hashSeed, rng } from '~/lib/campaign/rng';
 import type { SideView } from '~/lib/campaign/types';

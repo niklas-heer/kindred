@@ -5,7 +5,7 @@
 // change height on its own: pictures have fixed frames, and a page number fills a place kept for it.
 import { createContext, useContext, type ReactNode } from 'react';
 import { eventTitle } from '~/components/life/records';
-import { mediaUrl } from '~/components/photos/types';
+import { mediaUrl } from '~/lib/photos/types';
 import { AFTER_DEATH, type Source } from '~/lib/events';
 import { age, children, displayName, fullName, lifespan, parents, sortedUnions, yearOf } from '~/lib/graph';
 import { formatDate, type Translator } from '~/lib/i18n';
