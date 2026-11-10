@@ -126,6 +126,10 @@ Every provider call is made by the server. The browser never talks to a provider
   the reader is allowed to see: names, dates, places, occupation, the biography (cut to 1,500 characters), up to 40
   fields, and family links. **Fields at the Editors level are included only for editors and stewards, and a Personal field is never included, not even for its author**, the same rule the rest of the
   app follows, and the reader's role decides what is returned.
+- life events and sources: `read_person` also returns a person's life events (at most 20) and the sources cited for their
+  facts (at most 20); `list_events` finds events across the family (at most 30); `list_sources` and `read_source` return the
+  family's sources and what each is cited for (at most 30), with the transcriptions cut short. Every member may read them, as
+  in the app. A source's link to a private research document is named only for editors and stewards.
 - with web search on, the query of each web lookup the assistant writes. It goes to the provider's search alone, after the
   guard above has checked it for names, private details, addresses and long numbers.
 

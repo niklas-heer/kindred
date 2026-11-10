@@ -54,7 +54,7 @@ export function stepLabel(tool: string | undefined): Key {
   if (tool === 'missing_info') return 'ai.stepMissing';
   if (tool === 'list_houses') return 'ai.stepHouses';
   if (tool === 'list_photos' || tool === 'describe_photo') return 'ai.stepPhotos';
-  if (tool === 'search_people' || tool === 'read_person' || tool === 'relatives' || tool === 'find_relatives') return 'ai.stepFamily';
+  if (tool === 'search_people' || tool === 'read_person' || tool === 'relatives' || tool === 'find_relatives' || tool === 'list_events' || tool === 'list_sources' || tool === 'read_source') return 'ai.stepFamily';
   if (tool.startsWith('propose_')) return 'ai.stepProposing';
   return 'ai.stepWorking';
 }

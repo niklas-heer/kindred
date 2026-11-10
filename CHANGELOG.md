@@ -59,6 +59,8 @@ tables for the Today page and changes none that exist.
 - GEDCOM export and import carry life events (standard tags, `EVEN` with `TYPE` for the rest) and sources (`SOUR` records,
   and citations with `PAGE`, `QUAY` and `DATA`/`TEXT`); Kindred's own export comes back unchanged. The Markdown archive lists
   them too, with sources in `sources/`, and `scripts/import-kindred.ts` reads them back from it.
+- The assistant answers from life events and sources: a person's events and the sources cited for their facts, the family's
+  events by type or place, and the family's sources and what each backs. See docs/ai.md.
 - The Campaign: a slow game between the family's houses, on a map made from the family's places. A house whose people are
   well recorded raises more troops; every member gets three orders a day; a season lasts 28 days. It is off until a steward
   turns it on under Games, never changes the family's records, is not shown to share-link guests and is left out of every

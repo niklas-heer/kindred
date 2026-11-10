@@ -25,6 +25,9 @@ import { proposalArgs, PROPOSAL_KINDS, NEW_REF, type AiLocale, type Proposal, ty
 import type { ChatBlock } from './blocks';
 import { ASK_TOOL, findRelatives, isBlockTool, KIN_TOOL, runBlockTool, SHOW_TOOLS } from './blocks.server';
 import { EDITS, researchList, researchRead, runEdit } from './edits.server';
+import { EVENT_TYPES, byDate, type Citation, type Fact, type LifeEvent } from '../events';
+import { eventOf, personEvents, type LifeReader } from '../events.server';
+import { listSources, personCitations, sourceCitations } from '../sources.server';
 
 /** The fields area's word for each value key of a field (the same words the Edit tab shows). */
 const VALUE_LABEL: Record<string, Key> = {
@@ -75,7 +78,7 @@ export const READ_TOOLS: ToolSpec[] = [
   },
   {
     name: 'read_person',
-    description: 'Read what the tree records about one person: names, dates, places, occupation, title, stories. Bio and contact details appear only when the reader may see them.',
+    description: 'Read what the tree records about one person: names, dates, places, occupation, title, stories, life events (baptism, school, moves…, with ids) and the sources cited for their facts. Bio and contact details appear only when the reader may see them.',
     parameters: { type: 'object', properties: { id: idParam }, required: ['id'] },
   },
   {
@@ -97,6 +100,27 @@ export const READ_TOOLS: ToolSpec[] = [
     name: 'read_research',
     description: 'One research project: its notes, documents, people, places and pictures, with ids.',
     parameters: { type: 'object', properties: { project: { type: 'string' } }, required: ['project'] },
+  },
+  {
+    name: 'list_events',
+    description: 'Life events across the family (baptisms, schooling, military service, moves, emigration, burials…), oldest first, with the person each belongs to. Filter by type or by part of the label or place. At most 30.',
+    parameters: {
+      type: 'object',
+      properties: {
+        type: { type: 'string', enum: [...EVENT_TYPES] },
+        text: { type: 'string', description: 'Part of the label, the place or the note, e.g. a town or a school.' },
+      },
+    },
+  },
+  {
+    name: 'list_sources',
+    description: 'The family’s sources (registers, letters, books, web pages), with ids and how many facts cite each. At most 30.',
+    parameters: { type: 'object', properties: {} },
+  },
+  {
+    name: 'read_source',
+    description: 'One source: its details and the facts it is cited for (whose birth, death, name, event, partnership or parent link), with page, quality and transcription.',
+    parameters: { type: 'object', properties: { source: { type: 'string', description: 'A source id, as list_sources or read_person returned it.' } }, required: ['source'] },
   },
   {
     name: 'list_houses',
@@ -369,7 +393,7 @@ export async function runTool(ctx: Ctx, name: string, input: unknown, out: Propo
       const { id } = z.object({ id: z.string().min(1) }).parse(input);
       const p = byId.get(id);
       if (!p) return json({ error: 'not in this tree' });
-      return json(await readPerson(ctx, p, houses));
+      return json(await readPerson(ctx, p, houses, byId));
     }
     if (name === 'relatives') {
       const { id } = z.object({ id: z.string().min(1) }).parse(input);
@@ -381,6 +405,20 @@ export async function runTool(ctx: Ctx, name: string, input: unknown, out: Propo
       return json({ parents: names(parents(f, id)), children: names(children(f, id)), partners: names(partnersOf(f, id)), siblings: names(siblings(f, id)), partnerships, relatedToReader: kin });
     }
     if (name === 'find_relatives') return json(findRelatives(buildFamily(g), ctx.me, input));
+    if (name === 'list_events') return json(await listEvents(ctx, byId, input));
+    if (name === 'list_sources' || name === 'read_source') {
+      const who = lifeReader(ctx);
+      if (!who) return json({ error: 'sources are for the family’s members' });
+      if (name === 'list_sources') {
+        const all = await listSources(ctx.tree, who);
+        return json({ count: all.length, sources: all.slice(0, 30).map(sourceView) });
+      }
+      const { source } = z.object({ source: z.string().min(1).max(120) }).parse(input);
+      const found = (await listSources(ctx.tree, who)).find((x) => x.id === source);
+      if (!found) return json({ error: 'no such source in this tree' });
+      const cites = (await sourceCitations(ctx.tree, source, who)).filter((x) => x.about.every((id) => byId.has(id)));
+      return json({ source: { ...sourceView(found), note: clip(found.note, 1500) }, citedFor: cites.slice(0, 30).map((x) => citationView(x, name_)), count: cites.length });
+    }
     if (name === 'list_research') return json(await researchList(ctx));
     if (name === 'read_research') {
       const { project } = z.object({ project: z.string().min(1).max(120) }).parse(input);
@@ -432,10 +470,48 @@ export async function runTool(ctx: Ctx, name: string, input: unknown, out: Propo
   }
 }
 
-async function readPerson(ctx: Ctx, p: GPerson, houses: Map<string, string>) {
+/**
+ * The reader as the life-event and source reads take them. The assistant answers members only (a share-link guest has no
+ * assistant), so this is never a guest; without an account there is no member to read sources for, and none are read.
+ */
+function lifeReader(ctx: Ctx): LifeReader | null {
+  return ctx.user ? { id: ctx.user, name: '', role: ctx.role } : null;
+}
+
+const eventView = (e: LifeEvent) => ({ id: e.id, type: e.type, label: e.label, date: e.date, endDate: e.endDate, place: e.place, note: e.note ? clip(e.note, 300) : undefined });
+const sourceView = (x: Awaited<ReturnType<typeof listSources>>[number]) => ({
+  id: x.id, title: x.title, author: x.author, publication: x.publication, reference: x.reference, date: x.date, citedFor: x.citations,
+  ...(x.document ? { researchDocument: x.document.title } : {}),
+});
+const factView = (f: Fact, name: (id: string) => string) =>
+  f.fact === 'event' ? { fact: 'event', event: f.event } : f.fact === 'partnership' ? { fact: 'partnership', partnership: f.partnership } : f.fact === 'parent' ? { fact: 'parent', child: name(f.child), parent: name(f.parent) } : { fact: f.fact, person: name(f.person) };
+const citationView = (x: Citation, name: (id: string) => string) => ({
+  source: x.source, sourceTitle: x.sourceTitle, ...factView(x.target, name), ...(x.event ? { eventType: x.event.type, eventLabel: x.event.label } : {}),
+  about: x.about.map(name), page: x.page, quality: x.quality, transcription: x.transcription ? clip(x.transcription, 400) : undefined,
+});
+
+/** Life events across the family, oldest first, by type or by words in the label, place or note. At most 30. */
+async function listEvents(ctx: Ctx, byId: Map<string, GPerson>, input: unknown) {
+  const a = z.object({ type: z.enum(EVENT_TYPES).optional(), text: z.string().trim().min(1).max(80).optional() }).parse(input);
+  const rows = await db(ctx.tree).all<Parameters<typeof eventOf>[0]>(
+    `SELECT * FROM life_event WHERE (?1 IS NULL OR type = ?1)
+       AND (?2 IS NULL OR instr(lower(coalesce(label, '') || ' ' || coalesce(place, '') || ' ' || note), lower(?2)) > 0)`,
+    a.type ?? null, a.text ?? null,
+  );
+  const events = rows.map(eventOf).filter((e) => byId.has(e.person)).sort(byDate);
+  return { count: events.length, events: events.slice(0, 30).map((e) => ({ ...eventView(e), person: e.person, name: fullName(byId.get(e.person)!) })) };
+}
+
+async function readPerson(ctx: Ctx, p: GPerson, houses: Map<string, string>, byId: Map<string, GPerson>) {
   // The family's own rule (lib/visibility.ts): editors' fields only for editors and stewards, and no personal field ever,
   // not even the reader's own, because this goes to the provider.
-  const d = await person(ctx.tree, p.id, assistantAudience(ctx.role));
+  const who = lifeReader(ctx);
+  const [d, events, cites] = await Promise.all([
+    person(ctx.tree, p.id, assistantAudience(ctx.role)),
+    personEvents(ctx.tree, p.id, who ?? { id: '', name: '', role: ctx.role }),
+    who ? personCitations(ctx.tree, p.id, who) : Promise.resolve([] as Citation[]),
+  ]);
+  const name = (id: string) => (byId.get(id) ? fullName(byId.get(id)!) : id);
   return {
     id: p.id,
     name: fullName(p),
@@ -458,6 +534,9 @@ async function readPerson(ctx: Ctx, p: GPerson, houses: Map<string, string>) {
     bio: d.bio ? clip(d.bio, 1500) : undefined,
     fields: d.fields.slice(0, 40).map((f) => ({ id: f.id, type: f.type, label: f.label, value: f.value, private: f.visibility !== 'family' })),
     stories: d.stories.slice(0, 8).map((s) => ({ id: s.id, kind: s.kind, title: s.title, body: clip(s.body, 800), author: s.author, at: s.at.slice(0, 10) })),
+    events: events.slice(0, 20).map(eventView),
+    ...(events.length > 20 ? { moreEvents: events.length - 20 } : {}),
+    sources: cites.filter((x) => x.about.every((id) => byId.has(id))).slice(0, 20).map((x) => citationView(x, name)),
   };
 }
 

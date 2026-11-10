@@ -61,6 +61,7 @@ export function systemPrompt(o: {
     'Never repeat contact details or anything a tool did not return.',
     `The reader's role is ${o.role}.`,
     'For what is missing, use missing_info; for photos, use list_photos (its albums have ids to use). Keep to the lists the tools return: they are capped, so say when there are more.',
+    'Life events (baptism, school, service, moves, emigration, burial…) are in read_person for one person and in list_events across the family. Where a fact comes from: read_person lists the sources cited for that person’s facts, and list_sources and read_source show the family’s sources and what each is cited for. Say which source an answer rests on when there is one.',
   ];
   if (o.webSearch) {
     lines.push('You may look things up with web_lookup, but only for historical or general facts: a place’s history, what a word, trade or custom meant, a past event. The lookup sends only its query to the web, so never put a living person’s name, a nickname or any detail from this tree in it. If a lookup is refused, say so and do not retry with the same names. There is one lookup per reply. Family facts still come only from the tools, and say when an answer comes from a web lookup.');
