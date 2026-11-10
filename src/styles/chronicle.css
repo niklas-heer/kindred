@@ -134,7 +134,10 @@
 
 /* Match the story sheets in the person panel, with ink colours on parchment. */
 .chr-item[data-kind='quote'] .chr-card, .chr-item[data-kind='recipe'] .chr-card, .chr-saying {
-  --text: #302718; --muted: #665335; --meta: #665335; --accent: #704510; --border: #bba57b;
+  --text: #302718; --muted: #665335; --meta: #665335; --subtle: #665335; --accent: #704510; --border: #bba57b;
+  /* The surfaces too: a hover, a notice or a comment box drawn on the sheet is paper, not the dark page behind it. */
+  --panel: #f1e6c8; --panel-solid: #f6eed8; --panel-2: #e0cd9c; --panel-3: #d3bd86; --edge: #8a6a2e; --edge-soft: #8a6a2e55;
+  --danger: #8c2318; --shadow: 0 1px 3px #0003; --focus-ring: 0 0 0 2px #f3e9cd, 0 0 0 4px #704510;
   color: var(--text); background: linear-gradient(145deg, #f3e9cd, #e5d4a8);
   border-color: var(--border); box-shadow: inset 0 0 24px #a0864c22, 0 2px 5px #0002;
 }

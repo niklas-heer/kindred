@@ -162,9 +162,15 @@
 .pp-edit .ui-select { width: 100%; }
 .pp-edit small { font-family: var(--font-ui); font-size: var(--fs-1, 0.75rem); display: block; }
 .story-quote, .story-recipe, [data-theme='codex'] .story-quote, [data-theme='codex'] .story-recipe {
+  /* Ink and paper for everything drawn on the sheet (reactions, a notice, the comment box), as in the Chronicle (chronicle.css). */
+  --text: #302718; --muted: #665335; --meta: #665335; --subtle: #665335; --accent: #704510; --border: #bba57b;
+  --panel: #f1e6c8; --panel-solid: #f6eed8; --panel-2: #e0cd9c; --panel-3: #d3bd86; --edge: #8a6a2e; --edge-soft: #8a6a2e55;
+  --danger: #8c2318; --shadow: 0 1px 3px #0003; --focus-ring: 0 0 0 2px #f3e9cd, 0 0 0 4px #704510;
   background: linear-gradient(145deg, #f3e9cd, #e5d4a8); color: #302718;
   border: 1px solid #bba57b; box-shadow: inset 0 0 24px #a0864c22, 0 2px 5px #0002;
 }
+/* The codex theme gives a notice a near-black rim, which is wrong on paper. */
+.story-quote .ui-notice, .story-recipe .ui-notice, .chr-card .ui-notice, .chr-saying .ui-notice { border-color: var(--border); box-shadow: var(--shadow); }
 .story-quote header, .story-quote footer, .story-recipe header, .story-recipe footer,
 [data-theme='codex'] .story-quote header, [data-theme='codex'] .story-quote footer,
 [data-theme='codex'] .story-recipe header, [data-theme='codex'] .story-recipe footer { color: #665335; }
