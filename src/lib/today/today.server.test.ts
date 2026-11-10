@@ -19,7 +19,7 @@ const { db, chronicle, person } = await import('../db.server.ts');
 const store = await import('../auth/store.server.ts');
 const today = await import('./today.server.ts');
 const game = await import('../campaign/campaign.server.ts');
-const { removeStory } = await import('../story.server.ts');
+const { removeStory, restoreStory } = await import('../story.server.ts');
 const { translate } = await import('../i18n/dictionary.ts');
 const { questionOfWeek, weekOf, weeksBefore } = await import('./week.ts');
 const { planTables, foreignKeyOrderErrors, COPIED_TABLES } = await import('../../../scripts/lib/d1-transfer.ts');
@@ -278,10 +278,15 @@ test('an answer to the question of the week is a memory in the Chronicle, tagged
   const now = await today.weekView('week', later(1));
   assert.deepEqual(now.answers.map((a) => [a.person, a.author, a.body]), [['ada', 'Bo Tester', 'Pancakes.'], ['gran', 'Ada Tester', 'Roast chicken, and the good plates.']]);
 
-  // Removing the memory takes its tag with it.
-  await removeStory('week', id, undefined);
+  // Removing the memory takes its tag with it; Undo brings both back.
+  await removeStory('week', id, { key: 'k-week-remove-1', user: 'u1', payload: { id } });
   assert.equal((await today.weekView('week', later(1))).answers.length, 1);
   assert.equal(await count('week', 'today_answer'), 1);
+  assert.deepEqual(await restoreStory('week', 'k-week-remove-1', 'u1'), { restored: true });
+  assert.deepEqual((await today.weekView('week', later(1))).answers.map((a) => a.person), ['ada', 'gran'], 'the answer is back under its week');
+  assert.deepEqual({ ...(await db('week').get('SELECT week, question FROM today_answer WHERE story = ?', id)) }, { week, question: view.current.id });
+  assert.deepEqual(await restoreStory('week', 'k-week-remove-1', 'u1'), { restored: true }, 'twice changes nothing');
+  assert.equal(await count('week', 'today_answer'), 2);
 });
 
 test('earlier questions stay answerable; a week to come, a week long gone and an unknown person do not', async () => {
