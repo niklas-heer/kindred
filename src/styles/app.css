@@ -354,6 +354,8 @@ kbd {
   border: 1px solid var(--border); border-bottom-width: 2px;
   background: var(--panel-2); color: var(--muted);
 }
+/* A touch screen has no keyboard: the shortcuts printed on buttons and under headings are noise there. */
+@media (hover: none) { .btn kbd, .acct-kbd, .search-trigger kbd, .reg-keys { display: none; } }
 
 /* Section header with a gold rule, like CK3's "Family 12" tabs. */
 .rule {
