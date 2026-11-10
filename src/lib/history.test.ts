@@ -352,3 +352,30 @@ test('pruning keeps the last three years by default', async () => {
   assert.equal((await rows("record = 'Old'")).length, 0);
   assert.equal(await h.pruneHistory(d(), 0), 0, '0 keeps everything');
 });
+
+test('the weekly push goes to a device that asked, once in seven days, and only with news its owner did not make', async () => {
+  const b64url = (b: ArrayBuffer | Uint8Array) => Buffer.from(b instanceof Uint8Array ? b : new Uint8Array(b)).toString('base64url');
+  const pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  const keys = { p256dh: b64url(await crypto.subtle.exportKey('raw', pair.publicKey)), auth: b64url(crypto.getRandomValues(new Uint8Array(16))) };
+  const signing = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+  const vapid = { publicKey: b64url(await crypto.subtle.exportKey('raw', signing.publicKey)), privateJwk: await crypto.subtle.exportKey('jwk', signing.privateKey), subject: 'mailto:family@example.org' };
+  const sent: string[] = [];
+  const fetchImpl = (async (url: string) => { sent.push(String(url)); return new Response(null, { status: 201 }); }) as unknown as typeof fetch;
+  const now = new Date();
+  const add = (user: string, endpoint: string, weekly: number) => store.accounts().run(
+    `INSERT INTO push_subscription (id, user, tree, endpoint, p256dh, auth, offsets, kinds, locale, created, last_seen, weekly)
+     VALUES (?, ?, ?, ?, ?, ?, '[0]', '["birthday"]', 'en', ?, ?, ?)`, crypto.randomUUID(), user, TREE, endpoint, keys.p256dh, keys.auth, now.getTime(), now.getTime(), weekly);
+  await add(VIEWER, 'https://web.push.apple.com/viewer', 1);
+  await add(CONTRIBUTOR, 'https://web.push.apple.com/no-weekly', 0);
+  as(EDITOR);
+  await save('cid', () => ({ details: { nickname: 'Ciddy' } }));
+  const run = () => push.sendWeeklyNews({ trees: [TREE], now, vapid, fetchImpl, log: () => {} });
+  assert.equal((await run()).sent, 1);
+  assert.deepEqual(sent, ['https://web.push.apple.com/viewer'], 'only the device that asked');
+  assert.equal((await run()).sent, 0, 'not twice in a week');
+  // The editor's own week holds only their own change: no news, and no claim used up.
+  await add(EDITOR, 'https://web.push.apple.com/editor', 1);
+  await d().run('DELETE FROM history WHERE account IS NOT ?', EDITOR);
+  assert.equal((await run()).sent, 0);
+  assert.equal((await store.accounts().get<{ weekly_sent_day: string | null }>("SELECT weekly_sent_day FROM push_subscription WHERE endpoint LIKE '%editor'"))!.weekly_sent_day, null);
+});
