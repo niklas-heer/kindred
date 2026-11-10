@@ -123,7 +123,7 @@ type KindredCi {
 
   """
   The browser journeys (`e2e/`, `mise run e2e`) on Debian's Chromium: a production Node build, scratch data, the fake AI
-  provider. Not in `ci` yet: add it once a run on a container engine has shown it green.
+  provider. Not in `ci`: the journeys run as their own CI job (`e2e` in .github/workflows/ci.yml), so their result is seen apart from the checks.
   """
   pub e2e: String! {
     installed

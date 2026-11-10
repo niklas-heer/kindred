@@ -1,6 +1,6 @@
 name: CI
 
-# Both jobs run the Dagger module in .dagger/ (`mise run ci` runs the same two locally).
+# Each job runs a function of the Dagger module in .dagger/ (`mise run ci` runs the checks and the image locally).
 on:
   push:
     branches: [main]
@@ -41,3 +41,18 @@ jobs:
         with:
           version: "0.21.9"
           call: docker
+
+  # The browser journeys run as their own job, not in the Dagger `ci` list, so a flaky journey is seen on its own and
+  # does not hide the result of the checks.
+  e2e:
+    name: Browser journeys
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dagger/dagger-for-github@27b130bf0f79a7f6fbbbe0fbca6760dc9bb40a77 # v8.4.1
+        with:
+          version: "0.21.9"
+          call: e2e
