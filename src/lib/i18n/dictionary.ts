@@ -225,12 +225,11 @@ export function formatDate(
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? String(value)
-    : new Intl.DateTimeFormat(locales[locale], {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-        ...options,
-      }).format(date);
+    : new Intl.DateTimeFormat(
+        locales[locale],
+        // A date or time style cannot be mixed with the parts (Intl throws): a caller who gives one gets just that.
+        options?.dateStyle || options?.timeStyle ? options : { day: "numeric", month: "long", year: "numeric", ...options },
+      ).format(date);
 }
 
 export function relativeTime(value: number | Date | null, locale: Locale = "en", now = Date.now()): string {

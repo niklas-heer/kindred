@@ -77,6 +77,13 @@ test('negotiation accepts Afrikaans and keeps the best supported language', () =
   assert.equal(negotiateLocale(''), 'en');
 });
 
+test('a moment formats with a date and time style, as the history rows ask for', () => {
+  const text = formatDate('2026-11-10T09:30:00Z', 'en', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' });
+  assert.match(text, /10 Nov 2026/);
+  assert.match(text, /09:30/);
+  assert.equal(formatDate('2026-11-10T09:30:00Z', 'de', { timeZone: 'UTC' }), '10. November 2026');
+});
+
 test('dates and relative times follow the Afrikaans locale', () => {
   assert.equal(formatDate('1985-06-14', 'af'), '14 Junie 1985');
   assert.equal(formatDate('~1900', 'af'), 'ong. 1900');
