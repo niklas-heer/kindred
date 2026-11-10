@@ -13,7 +13,7 @@ import '~/components/campaign/campaign.css';
 import { Arms } from '~/components/Heraldry';
 import { EmptyState, ErrorState, PageHeader, Select, Skeleton } from '~/components/ui';
 import { newOpKey } from '~/lib/api';
-import { campaignQuery, campaignStatusQuery, giveCampaignOrder, markCampaignSeen, pledgeCampaignSide } from '~/lib/campaign/campaign.functions';
+import { campaignQuery, campaignSettingsQuery, campaignStatusQuery, giveCampaignOrder, markCampaignSeen, pledgeCampaignSide, setCampaignOn } from '~/lib/campaign/campaign.functions';
 import { RULES, levyOf, standings, type Order } from '~/lib/campaign/engine';
 import type { CampaignBoard, CampaignView } from '~/lib/campaign/types';
 import { errorText } from '~/lib/errortext';
@@ -77,7 +77,13 @@ function CampaignPage() {
 
 function Off({ view, tree, help, startPractice }: { view: CampaignView; tree: string; help: React.ReactNode; startPractice: () => void }) {
   const t = useT();
+  const qc = useQueryClient();
   const steward = useCan('manage-access');
+  // The same switch as the Games page: the server checks the steward's role, and a demo or a preview refuses it.
+  const turnOn = useMutation({
+    mutationFn: () => setCampaignOn({ data: { tree, on: true } }),
+    onSettled: () => Promise.all([campaignQuery(tree), campaignStatusQuery(tree), campaignSettingsQuery(tree)].map((o) => qc.invalidateQueries({ queryKey: o.queryKey }))),
+  });
   return (
     <>
       <PageHeader title={t('campaign.title')} subtitle={t('campaign.subtitle')} icon={<Swords size={26} />} actions={help} />
@@ -86,8 +92,11 @@ function Off({ view, tree, help, startPractice }: { view: CampaignView; tree: st
         <p>{steward ? t('campaign.off.steward') : t('campaign.off.member')}</p>
         <div className="cg-banner-actions">
           <button type="button" className="btn primary" onClick={startPractice}><Swords size={16} /> {t('campaign.practice.try')}</button>
-          {steward && <Link className="btn" to="/$tree/settings/games" params={{ tree }}>{t('campaign.off.settings')}</Link>}
+          {steward && <button type="button" className="btn" disabled={turnOn.isPending} onClick={() => turnOn.mutate()}>{t('campaign.turn_on')}</button>}
+          {steward && <Link className="btn ghost" to="/$tree/settings/games" params={{ tree }}>{t('campaign.off.settings')}</Link>}
         </div>
+        {steward && <p className="subtle">{t('campaign.turn_on_text')}</p>}
+        {turnOn.isError && <p role="alert">{errorText(turnOn.error, t.locale)}</p>}
       </section>
       <HallOfFame fame={view.fame} />
     </>

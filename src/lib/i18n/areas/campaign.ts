@@ -181,7 +181,9 @@ export const en = {
   "campaign.practice.lost": { one: "You lost {count} province.", other: "You lost {count} provinces." },
 
   "campaign.off.title": "The Campaign is resting",
-  "campaign.off.steward": "The houses can contest a map made from the family’s places. It is switched off until you turn it on under Games.",
+  "campaign.off.steward": "The houses can contest a map made from the family’s places. It is switched off until a steward turns it on; you can do that here, or try a practice skirmish first.",
+  "campaign.turn_on": "Turn the Campaign on for this family",
+  "campaign.turn_on_text": "A first season begins at once: every member gets three orders a day for their house. The game never changes the family’s records, and you can turn it off again under Games.",
   "campaign.off.member": "The houses can contest a map made from the family’s places. A steward can turn the game on; until then, try a practice skirmish.",
   "campaign.off.settings": "Open Games",
   "campaign.season.line": "Season {season} · day {day} of {days} · ends {date}",
@@ -216,6 +218,9 @@ export const en = {
   "campaign.card.choose": "Choose a house to serve",
   "campaign.card.orders": { one: "{count} order left today", other: "{count} orders left today" },
   "campaign.card.open": "Open the Campaign",
+  "campaign.card.off_text": "A slow, friendly game between the family’s houses. It is off until a steward turns it on.",
+  "campaign.card.look": "Have a look first",
+  "campaign.card.not_now": "Not now",
 
   "campaign.games.title": "Games",
   "campaign.games.nav_hint": "The Campaign and the daily quiz",
@@ -414,7 +419,9 @@ export const de: Record<keyof typeof en, Message> = {
   "campaign.practice.lost": { one: "Du hast {count} Provinz verloren.", other: "Du hast {count} Provinzen verloren." },
 
   "campaign.off.title": "Der Feldzug ruht",
-  "campaign.off.steward": "Die Häuser können um eine Karte aus den Orten der Familie wetteifern. Das Spiel ist aus, bis du es unter „Spiele“ einschaltest.",
+  "campaign.off.steward": "Die Häuser können um eine Karte aus den Orten der Familie wetteifern. Das Spiel ist aus, bis die Familienverwaltung es einschaltet; das kannst du hier tun oder zuerst ein Übungsgefecht ausprobieren.",
+  "campaign.turn_on": "Den Feldzug für diese Familie einschalten",
+  "campaign.turn_on_text": "Sofort beginnt eine erste Saison: Jedes Mitglied bekommt drei Befehle am Tag für sein Haus. Das Spiel ändert nie etwas an den Aufzeichnungen der Familie, und unter „Spiele“ kannst du es wieder ausschalten.",
   "campaign.off.member": "Die Häuser können um eine Karte aus den Orten der Familie wetteifern. Die Familienverwaltung kann das Spiel einschalten; bis dahin kannst du ein Übungsgefecht ausprobieren.",
   "campaign.off.settings": "„Spiele“ öffnen",
   "campaign.season.line": "Saison {season} · Tag {day} von {days} · endet am {date}",
@@ -449,6 +456,9 @@ export const de: Record<keyof typeof en, Message> = {
   "campaign.card.choose": "Wähle ein Haus, dem du dienst",
   "campaign.card.orders": { one: "Heute noch {count} Befehl", other: "Heute noch {count} Befehle" },
   "campaign.card.open": "Den Feldzug öffnen",
+  "campaign.card.off_text": "Ein gemächliches, freundliches Spiel zwischen den Häusern der Familie. Es ist aus, bis die Familienverwaltung es einschaltet.",
+  "campaign.card.look": "Erst einmal ansehen",
+  "campaign.card.not_now": "Jetzt nicht",
 
   "campaign.games.title": "Spiele",
   "campaign.games.nav_hint": "Der Feldzug und das tägliche Quiz",
@@ -647,7 +657,9 @@ export const af: Record<keyof typeof en, Message> = {
   "campaign.practice.lost": { one: "Jy het {count} provinsie verloor.", other: "Jy het {count} provinsies verloor." },
 
   "campaign.off.title": "Die Veldtog rus",
-  "campaign.off.steward": "Die huise kan meeding om ’n kaart wat uit die familie se plekke gemaak is. Dit is af totdat jy dit onder Speletjies aanskakel.",
+  "campaign.off.steward": "Die huise kan meeding om ’n kaart wat uit die familie se plekke gemaak is. Dit is af totdat ’n rentmeester dit aanskakel; jy kan dit hier doen, of eers ’n oefengeveg probeer.",
+  "campaign.turn_on": "Skakel die Veldtog aan vir hierdie familie",
+  "campaign.turn_on_text": "’n Eerste seisoen begin dadelik: elke lid kry drie bevele per dag vir sy huis. Die spel verander nooit die familie se rekords nie, en jy kan dit weer onder Speletjies afskakel.",
   "campaign.off.member": "Die huise kan meeding om ’n kaart wat uit die familie se plekke gemaak is. ’n Rentmeester kan die spel aanskakel; tot dan kan jy ’n oefengeveg probeer.",
   "campaign.off.settings": "Maak Speletjies oop",
   "campaign.season.line": "Seisoen {season} · dag {day} van {days} · eindig op {date}",
@@ -682,6 +694,9 @@ export const af: Record<keyof typeof en, Message> = {
   "campaign.card.choose": "Kies ’n huis om te dien",
   "campaign.card.orders": { one: "{count} bevel oor vandag", other: "{count} bevele oor vandag" },
   "campaign.card.open": "Maak die Veldtog oop",
+  "campaign.card.off_text": "’n Rustige, vriendelike spel tussen die familie se huise. Dit is af totdat ’n rentmeester dit aanskakel.",
+  "campaign.card.look": "Kyk eers",
+  "campaign.card.not_now": "Nie nou nie",
 
   "campaign.games.title": "Speletjies",
   "campaign.games.nav_hint": "Die Veldtog en die daaglikse vasvra",

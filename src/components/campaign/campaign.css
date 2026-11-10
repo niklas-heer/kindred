@@ -190,6 +190,11 @@
 .cg-card-text { display: grid; gap: 2px; min-width: 0; font-size: var(--fs-3); line-height: var(--lh-ui); }
 .cg-card-text b { font-family: var(--font-name); font-weight: 600; overflow-wrap: anywhere; }
 .cg-card .btn { grid-column: 1 / -1; justify-self: start; }
+/* While the game is off: the steward's one-time note, as a quiet card. */
+.cg-card-off { grid-template-columns: minmax(0, 1fr); }
+.cg-card-note { margin: 0; font-size: var(--fs-3); line-height: var(--lh-ui); text-wrap: pretty; }
+.cg-card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.cg-card-actions .btn { grid-column: auto; }
 
 /* The stewards' Games page. */
 .cg-games { display: grid; gap: 14px; max-width: 720px; }
