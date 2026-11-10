@@ -24,7 +24,9 @@ const chat = (await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/t
 const settings = await load<typeof import('./ai/settings.server.ts')>('/src/lib/ai/settings.server.ts');
 const setup = await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts');
 const providers = await load<typeof import('./ai/providers.server.ts')>('/src/lib/ai/providers.server.ts');
-const { AiError, makeAdapter, isolatedSearch, callRounds, outputCap } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
+const { AiError, makeAdapter, isolatedSearch, callRounds, outputCap, retryWait } = await load<typeof import('./ai/adapters.ts')>('/src/lib/ai/adapters.ts');
+// The one retry of a rate-limited or failing call waits seconds; these tests do not wait on the real clock.
+retryWait.sleep = async () => {};
 const lookup = await load<typeof import('./ai/lookup.server.ts')>('/src/lib/ai/lookup.server.ts');
 const { tr } = await load<typeof import('./ai/labels.ts')>('/src/lib/ai/labels.ts');
 const { graph } = await load<typeof import('./db.server.ts')>('/src/lib/db.server.ts');

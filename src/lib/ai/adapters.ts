@@ -180,7 +180,8 @@ export function isolatedSearch(adapter: AiAdapter, o: { system: string; prompt: 
   });
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** The wait before the one retry of a call. A test swaps `sleep` for a no-op, so the suite does not wait on the real clock. */
+export const retryWait = { sleep: (ms: number) => new Promise<void>((r) => setTimeout(r, ms)) };
 
 /** Strips the key from anything that might echo it, and keeps the message short. */
 const scrub = (s: string, key: string) => (key ? s.split(key).join('…') : s).slice(0, 300);
@@ -239,7 +240,7 @@ async function send(label: Provider, url: string, headers: Record<string, string
     if (res.ok) return res;
     const retryAfter = Number(res.headers.get('retry-after')) || undefined;
     if ((res.status === 429 || res.status >= 500) && attempt === 1) {
-      await sleep(Math.min(retryAfter ?? 1, 5) * 1000);
+      await retryWait.sleep(Math.min(retryAfter ?? 1, 5) * 1000);
       watch?.touch();
       continue;
     }
