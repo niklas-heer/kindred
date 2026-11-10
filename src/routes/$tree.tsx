@@ -8,6 +8,7 @@ import { useAiSetupNeeded } from '~/components/assistant/AiSetup';
 import { openAiSetup, openAssistant, useAiStatus } from '~/components/assistant/store';
 import { aiStatusQuery } from '~/lib/ai.functions';
 import { campaignStatusQuery } from '~/lib/campaign/campaign.functions';
+import { newsCountQuery } from '~/lib/history.functions';
 import { LanguageChoices, LanguagePicker } from '~/components/LanguagePicker';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { FirstRun } from '~/components/FirstRun';
@@ -51,8 +52,15 @@ export const Route = createFileRoute('/$tree')({
     const trees = await context.queryClient.ensureQueryData(myFamiliesQuery);
     if (!trees.some((t) => t.id === params.tree)) throw notFound({ data: { family: false } });
     await context.queryClient.ensureQueryData(graphQuery(params.tree));
-    // On the server too, so its first render shows the same AI controls as the browser's. Never fails the page.
-    await context.queryClient.prefetchQuery(aiStatusQuery(params.tree));
+    // What the bar draws from (the AI controls, the Campaign's section, the dot for news) is read here, on the server
+    // too, so its first render is the browser's. Otherwise an answer that arrives while a slow device is still hydrating
+    // changes the bar under React, which then fails hydration and draws the page again. Never fails the page; a guest
+    // is not asked for what only members get.
+    const guest = context.queryClient.getQueryData(sessionQuery.queryKey)?.guest?.tree === params.tree;
+    await Promise.all([
+      context.queryClient.prefetchQuery(aiStatusQuery(params.tree)),
+      ...(guest ? [] : [context.queryClient.prefetchQuery(campaignStatusQuery(params.tree)), context.queryClient.prefetchQuery(newsCountQuery(params.tree))]),
+    ]);
   },
   head: (ctx) => ({ meta: [{ title: treeTitle(ctx) }] }),
   // Also catches an unknown address inside a family that exists: that is a missing page, not a missing family.
