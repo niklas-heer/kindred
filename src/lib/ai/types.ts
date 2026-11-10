@@ -9,6 +9,10 @@ import { VISIBILITIES } from '../visibility';
 import type { ArmsV2 } from '~/lib/seed-format';
 import type { ChatBlock } from './blocks';
 import { EVENT_TYPES, QUALITIES } from '../events';
+import {
+  BACKDROPS, BEARDS, BROWS, CLOTH, CLOTHING, EARRINGS, EXPRESSIONS, EXTRAS, EYES, EYE_SHAPES, FACE_SHAPES, FRAMES, GLASSES, HAIR, HAIR_STYLES,
+  HEADWEAR, LIPS, MARKS, MOUSTACHES, NECKLACES, NOSE_SHAPES, SKIN,
+} from '../portrait-look';
 
 export const PROVIDERS = ['anthropic', 'openai', 'openrouter'] as const;
 export type Provider = (typeof PROVIDERS)[number];
@@ -268,27 +272,32 @@ const baseProposalArgs = {
 /** A 0–10 face measure (src/lib/portrait-look.ts). */
 const level = z.number().int().min(0).max(10);
 
+/** The ids of a catalogue of the portrait, as a zod enum: the portrait's own lists, so this schema cannot fall behind them. */
+const oneOf = <T extends string>(options: readonly { id: T }[]) => z.enum(options.map((o) => o.id) as [T, ...T[]]);
+const index = (palette: readonly unknown[]) => z.number().int().min(0).max(palette.length - 1);
+
 /** A portrait look, as stored on a person (SeedLook in seed-format.ts). Indices are palette positions (src/lib/portrait-look.ts). */
 export const lookSchema = z.object({
-  skin: z.number().int().min(0).max(8),
-  hair: z.number().int().min(0).max(9),
-  eyes: z.number().int().min(0).max(6),
+  skin: index(SKIN),
+  hair: index(HAIR),
+  eyes: index(EYES),
   beard: z.boolean().optional(),
-  headwear: z.enum(['none', 'crown', 'circlet', 'mitre', 'veil', 'wimple', 'hood', 'coif', 'beret', 'mobcap', 'tricorn', 'tophat', 'bonnet', 'flatcap', 'fedora', 'cloche', 'headscarf', 'beanie']).optional(),
-  hairStyle: z.enum(['tuft', 'cropped', 'short', 'side-part', 'swept', 'curly', 'afro', 'quiff', 'bowl', 'shoulder', 'long', 'wavy', 'braid', 'bun', 'chignon', 'bob', 'pixie', 'ponytail', 'pigtails', 'periwig', 'powdered', 'receding', 'bald']).optional(),
+  headwear: oneOf(HEADWEAR).optional(),
+  // A baby's tuft is the portrait's own choice, and older proposals may name it.
+  hairStyle: z.enum(['tuft', ...HAIR_STYLES.map((o) => o.id)]).optional(),
   hairGreys: z.boolean().optional(),
-  beardStyle: z.enum(['none', 'stubble', 'short', 'full', 'long', 'goatee', 'vandyke', 'muttonchops']).optional(),
-  moustache: z.enum(['none', 'thin', 'chevron', 'handlebar', 'walrus']).optional(),
-  brows: z.enum(['soft', 'straight', 'arched', 'thick', 'thin', 'bushy']).optional(),
-  glasses: z.enum(['none', 'round', 'oval', 'square', 'browline', 'half']).optional(),
-  clothing: z.enum(['tunic', 'cotehardie', 'gown', 'doublet', 'bodice', 'ruff', 'lace-collar', 'coat', 'stays', 'frock', 'victorian', 'suit', 'blouse', 'suit-slim', 'pearls', 'shirt', 'turtleneck', 'sweater', 'tshirt', 'hoodie', 'cardigan', 'smock', 'sailor', 'pinafore', 'knit', 'stripes', 'onesie']).optional(),
-  marks: z.array(z.enum(['freckles', 'mole', 'blush', 'dimples', 'scar'])).max(5).optional(),
+  beardStyle: oneOf(BEARDS).optional(),
+  moustache: oneOf(MOUSTACHES).optional(),
+  brows: oneOf(BROWS).optional(),
+  glasses: oneOf(GLASSES).optional(),
+  clothing: oneOf(CLOTHING).optional(),
+  marks: z.array(oneOf(MARKS)).max(MARKS.length).optional(),
   age: z.number().int().min(0).max(120).optional(),
   // The face: its shape, nose, eyes, and the 0–10 measures (see src/lib/portrait-look.ts). Dropped here, a path through this
   // schema would lose them, so they are listed with the portrait's own values.
-  face: z.enum(['round', 'oval', 'square', 'long', 'heart']).optional(),
-  noseShape: z.enum(['straight', 'aquiline', 'broad', 'snub']).optional(),
-  eyeShape: z.enum(['round', 'almond', 'hooded']).optional(),
+  face: oneOf(FACE_SHAPES).optional(),
+  noseShape: oneOf(NOSE_SHAPES).optional(),
+  eyeShape: oneOf(EYE_SHAPES).optional(),
   jaw: level.optional(),
   noseSize: level.optional(),
   mouthWidth: level.optional(),
@@ -298,6 +307,20 @@ export const lookSchema = z.object({
   browHeight: level.optional(),
   earSize: level.optional(),
   hairline: level.optional(),
+  // The character editor's second version: every part is optional, and absent means "as before".
+  grey: z.number().int().min(0).max(3).optional(),
+  expression: oneOf(EXPRESSIONS).optional(),
+  lines: z.number().int().min(0).max(3).optional(),
+  build: level.optional(),
+  lips: index(LIPS).optional(),
+  earrings: oneOf(EARRINGS).optional(),
+  necklace: oneOf(NECKLACES).optional(),
+  extras: z.array(oneOf(EXTRAS)).max(EXTRAS.length).optional(),
+  frames: index(FRAMES).optional(),
+  clothColour: index(CLOTH).optional(),
+  trimColour: index(CLOTH).optional(),
+  hatColour: index(CLOTH).optional(),
+  backdrop: oneOf(BACKDROPS).optional(),
 });
 
 // ---------- the family draft, photos, avatars and the fill-in proposals (see ai/family.server.ts) ----------

@@ -96,9 +96,14 @@ function cases(): Case[] {
   for (let i = 1; i <= 160; i++) {
     const person: Person = { id: b.chance(0.5) ? id('q', i) : `01J${b.int(1e6, 9e6).toString(36)}${i}`, given: 'B' };
     if (b.chance(0.8)) person.sex = b.pick(['m', 'f', 'x']);
-    if (b.chance(0.8)) Object.assign(person, life(b, b.int(1400, 2024)));
-    else if (b.chance(0.5)) person.died = String(b.int(1500, 2000));
-    else if (b.chance(0.5)) person.living = true;
+    if (b.chance(0.8)) {
+      Object.assign(person, life(b, b.int(1400, 2024)));
+    } else {
+      // No birth date: half of them have a death date, and half of the rest are known to be living.
+      const dead = b.chance(0.5);
+      if (dead) person.died = String(b.int(1500, 2000));
+      else if (b.chance(0.5)) person.living = true;
+    }
     out.push({ name: `bare ${i}`, person, house: houseOf(b) });
   }
 

@@ -7,13 +7,18 @@ import { CharacterEditor } from '~/components/CharacterEditor';
 import { z } from 'zod';
 import { Portrait } from '~/components/Portrait';
 import { graphQuery } from '~/lib/api';
+import {
+  BACKDROPS, BEARDS, CLOTH, CLOTHING, EARRINGS, EXPRESSIONS, EXTRAS, EYE_SHAPES, EYES, FACE_SHAPES, FRAMES, GLASSES, HAIR, HAIR_STYLES, HEADWEAR, LIPS, MARKS,
+  MOUSTACHES, NECKLACES, NOSE_SHAPES, SKIN,
+} from '~/lib/portrait-look';
 import type { GPerson, Look } from '~/lib/types';
 
 export const Route = createFileRoute('/ui_/character')({
   validateSearch: z.object({
     theme: z.enum(['codex', 'modern', 'night']).optional(),
     tree: z.enum(['realm', 'modern']).optional(),
-    view: z.enum(['sheet', 'editor', 'matrix', 'photo', 'all']).optional(),
+    view: z.enum(['sheet', 'editor', 'matrix', 'photo', 'parts', 'all']).optional(),
+    part: z.string().optional(),
     sex: z.enum(['m', 'f', 'x']).optional(),
     size: z.number().optional(),
   }),
@@ -64,7 +69,7 @@ function ageText(p: GPerson): string {
 }
 
 function CharacterGallery() {
-  const { theme, tree = 'modern', view = 'all', sex = 'm', size } = Route.useSearch();
+  const { theme, tree = 'modern', view = 'all', sex = 'm', size, part } = Route.useSearch();
   useEffect(() => { if (theme) document.documentElement.dataset.theme = theme; }, [theme]);
   const graph = useQuery(graphQuery(tree));
   const people = graph.data ? sample(graph.data.people, 36) : [];
@@ -73,6 +78,7 @@ function CharacterGallery() {
       <div className="page-inner" style={{ display: 'grid', gap: 18 }}>
         {view === 'matrix' && <Matrix sex={sex} size={size} />}
         {view === 'photo' && <PhotoPairs />}
+        {view === 'parts' && <Parts only={part} />}
         {(view === 'editor' || view === 'all') && <EditorDemo people={graph.data?.people} tree={tree} />}
         {(view === 'sheet' || view === 'all') && (
           <section className="ui-card" style={{ display: 'grid', gap: 14 }}>
@@ -146,5 +152,47 @@ function PhotoPairs() {
         </div>
       ))}
     </section>
+  );
+}
+
+/** The sitters every part is shown on: a woman, a man and a child, so each part is seen on more than one face. */
+const SITTERS: GPerson[] = [
+  { id: 'sit-a', given: 'A', sex: 'f', born: '1988', living: true, stories: 0, contacts: 0, look: { skin: 2, hair: 3, eyes: 4, age: 34 } },
+  { id: 'sit-b', given: 'B', sex: 'm', born: '1950', living: true, stories: 0, contacts: 0, look: { skin: 4, hair: 0, eyes: 0, age: 58, beardStyle: 'none', moustache: 'none' } },
+  { id: 'sit-c', given: 'C', sex: 'f', born: '2014', living: true, stories: 0, contacts: 0, look: { skin: 0, hair: 5, eyes: 3, age: 10 } },
+];
+
+/** Every part of the catalogue on the sitters, at the size of a tree node and of a list row. */
+function Parts({ only }: { only?: string }) {
+  const index = (xs: readonly unknown[]) => xs.map((_, i) => i);
+  const lists: [keyof Look, readonly (string | number | string[])[]][] = [
+    ['hairStyle', HAIR_STYLES.map((o) => o.id)], ['headwear', HEADWEAR.map((o) => o.id)], ['clothing', CLOTHING.map((o) => o.id)],
+    ['beardStyle', BEARDS.map((o) => o.id)], ['moustache', MOUSTACHES.map((o) => o.id)], ['glasses', GLASSES.map((o) => o.id)],
+    ['face', FACE_SHAPES.map((o) => o.id)], ['noseShape', NOSE_SHAPES.map((o) => o.id)], ['eyeShape', EYE_SHAPES.map((o) => o.id)],
+    ['expression', EXPRESSIONS.map((o) => o.id)], ['marks', MARKS.map((o) => [o.id])], ['earrings', EARRINGS.map((o) => o.id)],
+    ['necklace', NECKLACES.map((o) => o.id)], ['extras', EXTRAS.map((o) => [o.id])], ['backdrop', BACKDROPS.map((o) => o.id)],
+    ['skin', index(SKIN)], ['hair', index(HAIR)], ['eyes', index(EYES)], ['lips', index(LIPS)], ['frames', index(FRAMES)],
+    ['clothColour', index(CLOTH)], ['hatColour', index(CLOTH)], ['grey', [0, 1, 2, 3]], ['lines', [0, 1, 2, 3]], ['build', [0, 2, 5, 8, 10]],
+  ];
+  const base: Partial<Record<keyof Look, Partial<Look>>> = { frames: { glasses: 'round' }, hatColour: { headwear: 'beanie' }, lips: { marks: ['lashes'] } };
+  return (
+    <>
+      {lists.filter(([field]) => !only || only.split(',').includes(field)).map(([field, values]) => (
+        <section key={field} className="ui-card" style={{ display: 'grid', gap: 10 }}>
+          <h2 className="rule" style={{ margin: 0 }}>{field}</h2>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+            {values.map((v) => (
+              <figure key={String(v)} style={{ margin: 0, display: 'grid', justifyItems: 'center', gap: 4 }}>
+                <span style={{ display: 'flex', gap: 4, alignItems: 'end' }}>
+                  {SITTERS.map((p) => <Portrait key={p.id} person={{ ...p, look: { ...p.look!, ...base[field], [field]: v } }} tree="none" house={null} size={96} />)}
+                  {SITTERS.slice(0, 2).map((p) => <Portrait key={p.id} person={{ ...p, look: { ...p.look!, ...base[field], [field]: v } }} tree="none" house={null} size={40} />)}
+                </span>
+                <figcaption className="subtle" style={{ fontSize: 12 }}>{String(v)}</figcaption>
+              </figure>
+            ))}
+          </div>
+        </section>
+      ))}
+    </>
   );
 }

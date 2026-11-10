@@ -267,28 +267,65 @@ export interface SeedLook {
   earSize?: number;
   /** Hairline: 0 high, 10 low. */
   hairline?: number;
+  /*
+   * Everything below was added with the character editor's second version. Absent always means "as the portrait drew
+   * before": a look stored without these draws exactly as it did.
+   */
+  /** Greying: 0 none, 1 a little, 2 grey, 3 white. Absent: follows age, unless `hairGreys` is false. */
+  grey?: number;
+  /** The expression. Absent: automatic, the mouth the portrait has always given this person. */
+  expression?: Expression;
+  /** Lines of age: 0 smooth to 3 deeply lined. Absent: follows age. */
+  lines?: number;
+  /** Build: 0 slight, 5 average, 10 heavy. Absent: average. */
+  build?: number;
+  /** Lip colour, an index into LIPS (src/lib/portrait-look.ts). Absent: natural. */
+  lips?: number;
+  earrings?: Earrings;
+  necklace?: Necklace;
+  /** Small things worn or carried; an empty list and absent both mean none. */
+  extras?: Extra[];
+  /** Colour of the frames, an index into FRAMES. Absent: gold wire before 1945, dark after. */
+  frames?: number;
+  /** Colours of the clothes, their trim and the headwear: indices into CLOTH. Absent: the house's colours. */
+  clothColour?: number;
+  trimColour?: number;
+  hatColour?: number;
+  /** What is behind them. Absent: the plain roundel in the house's colour. */
+  backdrop?: Backdrop;
 }
 
-export type FaceShape = 'round' | 'oval' | 'square' | 'long' | 'heart';
-export type NoseShape = 'straight' | 'aquiline' | 'broad' | 'snub';
-export type EyeShape = 'round' | 'almond' | 'hooded';
+export type FaceShape = 'round' | 'oval' | 'square' | 'long' | 'heart' | 'diamond' | 'pear';
+export type NoseShape = 'straight' | 'aquiline' | 'broad' | 'snub' | 'round' | 'narrow';
+export type EyeShape = 'round' | 'almond' | 'hooded' | 'monolid' | 'downturned';
 
 export type Headwear =
   | 'none' | 'crown' | 'circlet' | 'mitre' | 'veil' | 'wimple' | 'hood' | 'coif' | 'beret' | 'mobcap' | 'tricorn'
-  | 'tophat' | 'bonnet' | 'flatcap' | 'fedora' | 'cloche' | 'headscarf' | 'beanie';
+  | 'tophat' | 'bonnet' | 'flatcap' | 'fedora' | 'cloche' | 'headscarf' | 'beanie'
+  | 'hijab' | 'kippah' | 'kufi' | 'turban' | 'headwrap' | 'peaked-cap' | 'bowler' | 'boater' | 'sunhat' | 'cap'
+  | 'tiara' | 'bridal-veil' | 'flower-crown' | 'mortarboard' | 'hard-hat' | 'ushanka' | 'headband' | 'bow';
 export type HairStyle =
   | 'tuft' | 'cropped' | 'short' | 'side-part' | 'swept' | 'curly' | 'afro' | 'quiff' | 'bowl' | 'shoulder' | 'long'
   | 'wavy' | 'braid' | 'bun' | 'chignon' | 'bob' | 'pixie' | 'ponytail' | 'pigtails' | 'periwig' | 'powdered'
-  | 'receding' | 'bald';
-export type BeardStyle = 'none' | 'stubble' | 'short' | 'full' | 'long' | 'goatee' | 'vandyke' | 'muttonchops';
-export type MoustacheStyle = 'none' | 'thin' | 'chevron' | 'handlebar' | 'walrus';
+  | 'receding' | 'bald'
+  | 'buzz' | 'coily' | 'fade' | 'slicked' | 'thinning' | 'mullet' | 'fringe' | 'curly-long' | 'locs' | 'box-braids'
+  | 'cornrows' | 'side-braid' | 'crown-braid' | 'beehive' | 'space-buns';
+export type BeardStyle = 'none' | 'stubble' | 'short' | 'full' | 'long' | 'goatee' | 'vandyke' | 'muttonchops' | 'circle' | 'chinstrap' | 'sideburns' | 'soul-patch';
+export type MoustacheStyle = 'none' | 'thin' | 'chevron' | 'handlebar' | 'walrus' | 'pencil' | 'horseshoe' | 'imperial';
 export type BrowStyle = 'soft' | 'straight' | 'arched' | 'thick' | 'thin' | 'bushy';
-export type GlassesStyle = 'none' | 'round' | 'oval' | 'square' | 'browline' | 'half';
+export type GlassesStyle = 'none' | 'round' | 'oval' | 'square' | 'browline' | 'half' | 'cat-eye' | 'aviator' | 'rimless' | 'horn' | 'pince-nez' | 'monocle' | 'sunglasses';
 export type ClothingStyle =
   | 'tunic' | 'cotehardie' | 'gown' | 'doublet' | 'bodice' | 'ruff' | 'lace-collar' | 'coat' | 'stays' | 'frock'
   | 'victorian' | 'suit' | 'blouse' | 'suit-slim' | 'pearls' | 'shirt' | 'turtleneck' | 'sweater' | 'tshirt'
-  | 'hoodie' | 'cardigan' | 'smock' | 'sailor' | 'pinafore' | 'knit' | 'stripes' | 'onesie';
-export type Mark = 'freckles' | 'mole' | 'blush' | 'dimples' | 'scar';
+  | 'hoodie' | 'cardigan' | 'smock' | 'sailor' | 'pinafore' | 'knit' | 'stripes' | 'onesie'
+  | 'dress' | 'polo' | 'plaid' | 'jacket' | 'waistcoat' | 'tuxedo' | 'wedding-dress' | 'apron' | 'overalls'
+  | 'white-coat' | 'uniform' | 'clerical' | 'dirndl' | 'folk-vest' | 'kimono' | 'sari' | 'kurta' | 'kaftan';
+export type Mark = 'freckles' | 'mole' | 'blush' | 'dimples' | 'scar' | 'birthmark' | 'vitiligo' | 'cleft' | 'cheek-scar' | 'lashes';
+export type Expression = 'calm' | 'smile' | 'grin' | 'stern';
+export type Earrings = 'none' | 'studs' | 'hoops' | 'drops' | 'pearls';
+export type Necklace = 'none' | 'chain' | 'pendant' | 'cross' | 'pearls' | 'beads';
+export type Extra = 'hearing-aid' | 'pipe' | 'flower' | 'medal' | 'brooch' | 'bindi' | 'nose-stud' | 'scarf';
+export type Backdrop = 'plain' | 'house' | 'rays' | 'sky' | 'hills' | 'sea' | 'night' | 'books' | 'drape' | 'garden';
 
 export interface SeedPlace {
   name: string;

@@ -7,7 +7,7 @@ import { faceResultSchema, type AiLocale, type FaceResult } from './types';
 import { AiError, type ImagePart, type JsonSchema } from './adapters';
 import { tr } from './labels';
 import { adapterForFeature } from './settings.server';
-import { SKIN_LABELS, HAIR_LABELS, EYE_LABELS, PHOTO_LOOK_FIELDS, sanitizeLook } from '../portrait-look';
+import { SKIN_LABELS, SKIN_NEUTRAL, HAIR_LABELS, EYE_LABELS, PHOTO_LOOK_FIELDS, sanitizeLook } from '../portrait-look';
 import { translate } from '../i18n/dictionary';
 import type { Look } from '../types';
 
@@ -149,9 +149,10 @@ const oneOf = (values: readonly string[]) => ({ type: 'string', enum: [...values
 
 /** Only what a face shows (see PHOTO_LOOK_FIELDS): headwear, clothing and age follow the person's era and stay as they were. */
 const LOOK_PROPERTIES = {
-    skin: { type: 'integer', minimum: 0, maximum: 8, description: 'Skin tone index: ' + SKIN_LABELS.map((l, i) => `${i} ${translate('en', l)}`).join(', ') },
-    hair: { type: 'integer', minimum: 0, maximum: 9, description: 'Hair colour index: ' + HAIR_LABELS.map((l, i) => `${i} ${translate('en', l)}`).join(', ') },
-    eyes: { type: 'integer', minimum: 0, maximum: 6, description: 'Eye colour index: ' + EYE_LABELS.map((l, i) => `${i} ${translate('en', l)}`).join(', ') },
+    // Every tone but "neutral", which means nobody has said: a photo always says.
+    skin: { type: 'integer', minimum: 0, maximum: SKIN_LABELS.length - 1, description: 'Skin tone index: ' + SKIN_LABELS.map((l, i) => `${i} ${translate('en', l)}`).filter((_, i) => i !== SKIN_NEUTRAL).join(', ') },
+    hair: { type: 'integer', minimum: 0, maximum: HAIR_LABELS.length - 1, description: 'Hair colour index: ' + HAIR_LABELS.map((l, i) => `${i} ${translate('en', l)}`).join(', ') },
+    eyes: { type: 'integer', minimum: 0, maximum: EYE_LABELS.length - 1, description: 'Eye colour index: ' + EYE_LABELS.map((l, i) => `${i} ${translate('en', l)}`).join(', ') },
     hairStyle: oneOf(PHOTO_LOOK_FIELDS.hairStyle.of), beardStyle: oneOf(PHOTO_LOOK_FIELDS.beardStyle.of),
     moustache: oneOf(PHOTO_LOOK_FIELDS.moustache.of), glasses: oneOf(PHOTO_LOOK_FIELDS.glasses.of),
     brows: oneOf(PHOTO_LOOK_FIELDS.brows.of), hairGreys: { type: 'boolean' },

@@ -17,6 +17,7 @@ import * as feedArea from "./areas/feed.ts";
 import * as todayArea from "./areas/today.ts";
 import * as todayQuestionsArea from "./areas/today-questions.ts";
 import * as atlasArea from "./areas/atlas.ts";
+import * as characterArea from "./areas/character.ts";
 import * as chronicleArea from "./areas/chronicle.ts";
 import * as commonArea from "./areas/common.ts";
 import * as contactsArea from "./areas/contacts.ts";
@@ -67,6 +68,7 @@ export const AREAS = [
   housesArea,
   heraldryArea,
   portraitArea,
+  characterArea,
   profileArea,
   proofArea,
   atlasArea,

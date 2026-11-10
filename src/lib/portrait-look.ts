@@ -3,7 +3,8 @@
 // portrait never changes between renders, and a person seen at another age stays recognisably them.
 import type { Key } from '~/lib/i18n/dictionary';
 import type {
-  BeardStyle, BrowStyle, ClothingStyle, EyeShape, FaceShape, GlassesStyle, HairStyle, Headwear, Mark, MoustacheStyle, NoseShape,
+  Backdrop, BeardStyle, BrowStyle, ClothingStyle, Earrings, Expression, Extra, EyeShape, FaceShape, GlassesStyle, HairStyle, Headwear, Mark,
+  MoustacheStyle, Necklace, NoseShape,
 } from '~/lib/seed-format';
 import type { GPerson, Look } from '~/lib/types';
 
@@ -19,27 +20,66 @@ export type Features = Record<LevelKey, number>;
 
 // ---------- Palettes (indices are stored in Look; never reorder, only append) ----------
 
-/** Skin: 0–5 fair to deep (the original six), 6 porcelain, 7 deepest, 8 neutral parchment. */
-export const SKIN = ['#f3d5bd', '#e8bd98', '#d39f75', '#b77d52', '#8f5c3a', '#6a4129', '#fae3d3', '#4b2c1d', '#e9d6b9'];
-export const SKIN_ORDER = [6, 0, 1, 2, 3, 4, 5, 7];
+/** Skin: 0–5 fair to deep (the original six), 6 porcelain, 7 deepest, 8 neutral parchment, 9–14 the tones between and beyond. */
+export const SKIN = [
+  '#f3d5bd', '#e8bd98', '#d39f75', '#b77d52', '#8f5c3a', '#6a4129', '#fae3d3', '#4b2c1d', '#e9d6b9',
+  '#f4cfc2', '#ecd0a8', '#d0ae80', '#c08e58', '#7b4a35', '#33201a',
+];
+/** Lightest to deepest, for the editor's row of swatches. */
+export const SKIN_ORDER = [6, 9, 0, 10, 1, 11, 2, 12, 3, 4, 13, 5, 7, 14];
 export const SKIN_NEUTRAL = 8;
 export const SKIN_LABELS: Key[] = [
   'look.skin.fair', 'look.skin.light', 'look.skin.light_medium', 'look.skin.medium', 'look.skin.brown', 'look.skin.deep',
   'look.skin.porcelain', 'look.skin.deepest', 'look.skin.neutral',
+  'look.skin.rosy', 'look.skin.sand', 'look.skin.olive', 'look.skin.golden', 'look.skin.russet', 'look.skin.ebony',
 ];
+/** Tones that most often come with textured hair, and tones that freckle: what the automatic parts go by. */
+const DEEP_SKIN = new Set([4, 5, 7, 13, 14]);
+const FAIR_SKIN = new Set([0, 1, 6, 9, 10]);
 
-/** Natural hair colours. */
-export const HAIR = ['#2b201b', '#4a3226', '#6b462d', '#8a5631', '#a7783f', '#d2ac69', '#a3482a', '#e4cf9a', '#17151a', '#c66c2e'];
-export const HAIR_ORDER = [8, 0, 1, 2, 3, 4, 9, 6, 5, 7];
+/** Hair colours: 0–9 the natural ones a person without a recorded colour is given, 10–15 dyed, 16–17 two more natural ones. */
+export const HAIR = [
+  '#2b201b', '#4a3226', '#6b462d', '#8a5631', '#a7783f', '#d2ac69', '#a3482a', '#e4cf9a', '#17151a', '#c66c2e',
+  '#7d2438', '#e07aa8', '#3d6fb8', '#7b57b3', '#2f8c84', '#ece5d0', '#dba36a', '#7a6a58',
+];
+/** How many colours the automatic choice draws from. Never change it: people without a recorded colour would change hair. */
+const HAIR_AUTO = 10;
+export const HAIR_ORDER = [8, 0, 1, 2, 17, 3, 4, 9, 6, 16, 5, 7, 15];
+export const HAIR_DYED = [10, 11, 13, 12, 14];
 export const HAIR_LABELS: Key[] = [
   'look.hair_colour.black', 'look.hair_colour.dark_brown', 'look.hair_colour.brown', 'look.hair_colour.chestnut',
   'look.hair_colour.light_brown', 'look.hair_colour.blond', 'look.hair_colour.auburn', 'look.hair_colour.flaxen',
   'look.hair_colour.jet', 'look.hair_colour.copper',
+  'look.hair_colour.burgundy', 'look.hair_colour.pink', 'look.hair_colour.blue', 'look.hair_colour.violet', 'look.hair_colour.teal',
+  'look.hair_colour.platinum', 'look.hair_colour.strawberry', 'look.hair_colour.ash',
 ];
 
-export const EYES = ['#4a2e1c', '#6f4b2a', '#7a6a3a', '#4f7a4a', '#4f7fae', '#7d8b96', '#2f2420'];
+export const EYES = ['#4a2e1c', '#6f4b2a', '#7a6a3a', '#4f7a4a', '#4f7fae', '#7d8b96', '#2f2420', '#a8742a', '#8db4d6', '#3f8a86'];
+/** As HAIR_AUTO: the automatic choice draws from the first seven. */
+const EYES_AUTO = 7;
+export const EYE_ORDER = [6, 0, 1, 7, 2, 3, 9, 4, 8, 5];
 export const EYE_LABELS: Key[] = [
   'look.eye.brown', 'look.eye.light_brown', 'look.eye.hazel', 'look.eye.green', 'look.eye.blue', 'look.eye.grey', 'look.eye.dark',
+  'look.eye.amber', 'look.eye.light_blue', 'look.eye.blue_green',
+];
+
+/** Lipstick. A look without `lips` has natural lips. */
+export const LIPS = ['#c0332f', '#d4687a', '#b5614a', '#7a2b3d', '#e08a6a'];
+export const LIP_LABELS: Key[] = ['look.lips.red', 'look.lips.rose', 'look.lips.terracotta', 'look.lips.plum', 'look.lips.coral'];
+
+/** Frames of glasses. */
+export const FRAMES = ['#3a2a22', '#a8802f', '#9aa0a6', '#7a4a26', '#b03a3a', '#35558a'];
+export const FRAME_LABELS: Key[] = ['look.frames.dark', 'look.frames.gold', 'look.frames.silver', 'look.frames.tortoise', 'look.frames.red', 'look.frames.blue'];
+
+/** Dyed cloth, for clothes, trims and hats: a little duller than paint, as the house colours are. */
+export const CLOTH = [
+  '#efe6d2', '#e0cfa2', '#9a9892', '#4a4a52', '#26242c', '#2c3a5a', '#3f6ea6', '#8fb5d6', '#2f7f7a', '#3f7a4a',
+  '#6b6f3f', '#c9a03c', '#c9703a', '#a8343a', '#6f2434', '#d58a9e', '#6a4a8a', '#6e4b32', '#a8996e', '#6f7a6c',
+];
+export const CLOTH_LABELS: Key[] = [
+  'look.cloth.white', 'look.cloth.cream', 'look.cloth.grey', 'look.cloth.charcoal', 'look.cloth.black', 'look.cloth.navy', 'look.cloth.blue',
+  'look.cloth.sky', 'look.cloth.teal', 'look.cloth.green', 'look.cloth.olive', 'look.cloth.mustard', 'look.cloth.orange', 'look.cloth.red',
+  'look.cloth.burgundy', 'look.cloth.pink', 'look.cloth.purple', 'look.cloth.brown', 'look.cloth.khaki', 'look.cloth.field_grey',
 ];
 
 const GREY = '#b9b3aa';
@@ -48,67 +88,72 @@ const POWDER = '#ebe6dc';
 
 // ---------- Catalogues, for the editor ----------
 
-/** A catalogue entry: its stored id, and the i18n key of its label. */
-type Opt<T extends string> = { id: T; label: Key };
-export const HAIR_STYLES: Opt<HairStyle>[] = [
-  { id: 'cropped', label: 'look.hair.cropped' }, { id: 'short', label: 'look.hair.short' }, { id: 'side-part', label: 'look.hair.side_part' },
-  { id: 'swept', label: 'look.hair.swept' }, { id: 'quiff', label: 'look.hair.quiff' }, { id: 'curly', label: 'look.hair.curly' },
-  { id: 'afro', label: 'look.hair.afro' }, { id: 'bowl', label: 'look.hair.bowl' }, { id: 'pixie', label: 'look.hair.pixie' }, { id: 'bob', label: 'look.hair.bob' },
-  { id: 'shoulder', label: 'look.hair.shoulder' }, { id: 'long', label: 'look.hair.long' }, { id: 'wavy', label: 'look.hair.wavy' },
-  { id: 'braid', label: 'look.hair.braid' }, { id: 'ponytail', label: 'look.hair.ponytail' }, { id: 'pigtails', label: 'look.hair.pigtails' },
-  { id: 'bun', label: 'look.hair.bun' }, { id: 'chignon', label: 'look.hair.chignon' }, { id: 'periwig', label: 'look.hair.periwig' },
-  { id: 'powdered', label: 'look.hair.powdered' }, { id: 'receding', label: 'look.hair.receding' }, { id: 'bald', label: 'look.hair.bald' },
+/** A catalogue entry: its stored id, the i18n key of its label, and the group the editor lists it under. */
+export type Opt<T extends string, G extends string = string> = { id: T; label: Key; group?: G };
+const opts = <T extends string, G extends string>(group: G, ids: readonly T[], area: string): Opt<T, G>[] =>
+  ids.map((id) => ({ id, label: `look.${area}.${id.replace(/-/g, '_')}` as Key, group }));
+
+export type HairGroup = 'short' | 'medium' | 'long' | 'up' | 'textured' | 'thin' | 'period';
+export const HAIR_STYLES: Opt<HairStyle, HairGroup>[] = [
+  ...opts('short', ['buzz', 'cropped', 'short', 'side-part', 'swept', 'slicked', 'quiff', 'fade', 'pixie', 'bowl'] as const, 'hair'),
+  ...opts('medium', ['bob', 'shoulder', 'mullet', 'curly'] as const, 'hair'),
+  ...opts('long', ['long', 'fringe', 'wavy', 'curly-long'] as const, 'hair'),
+  ...opts('up', ['ponytail', 'pigtails', 'braid', 'side-braid', 'crown-braid', 'bun', 'space-buns', 'chignon', 'beehive'] as const, 'hair'),
+  ...opts('textured', ['coily', 'afro', 'locs', 'box-braids', 'cornrows'] as const, 'hair'),
+  ...opts('thin', ['thinning', 'receding', 'bald'] as const, 'hair'),
+  ...opts('period', ['periwig', 'powdered'] as const, 'hair'),
 ];
-export const BEARDS: Opt<BeardStyle>[] = [
-  { id: 'none', label: 'look.beard.none' }, { id: 'stubble', label: 'look.beard.stubble' }, { id: 'short', label: 'look.beard.short' }, { id: 'full', label: 'look.beard.full' },
-  { id: 'long', label: 'look.beard.long' }, { id: 'goatee', label: 'look.beard.goatee' }, { id: 'vandyke', label: 'look.beard.vandyke' }, { id: 'muttonchops', label: 'look.beard.muttonchops' },
+export const HAIR_GROUP_LABELS: Record<HairGroup, Key> = {
+  short: 'look.group.hair_short', medium: 'look.group.hair_medium', long: 'look.group.hair_long', up: 'look.group.hair_up',
+  textured: 'look.group.hair_textured', thin: 'look.group.hair_thin', period: 'look.group.hair_period',
+};
+export const BEARDS: Opt<BeardStyle>[] = opts('', ['none', 'stubble', 'short', 'full', 'long', 'goatee', 'circle', 'vandyke', 'soul-patch', 'chinstrap', 'sideburns', 'muttonchops'] as const, 'beard');
+export const MOUSTACHES: Opt<MoustacheStyle>[] = opts('', ['none', 'thin', 'pencil', 'chevron', 'handlebar', 'imperial', 'horseshoe', 'walrus'] as const, 'moustache');
+export const BROWS: Opt<BrowStyle>[] = opts('', ['soft', 'straight', 'arched', 'thick', 'thin', 'bushy'] as const, 'brows');
+export const GLASSES: Opt<GlassesStyle>[] = opts('', ['none', 'round', 'oval', 'square', 'horn', 'browline', 'cat-eye', 'aviator', 'rimless', 'half', 'pince-nez', 'monocle', 'sunglasses'] as const, 'glasses');
+
+export type HeadwearGroup = 'none' | 'everyday' | 'faith' | 'occasion' | 'work' | 'period' | 'realm';
+export const HEADWEAR: Opt<Headwear, HeadwearGroup>[] = [
+  ...opts('none', ['none'] as const, 'headwear'),
+  ...opts('everyday', ['cap', 'beanie', 'sunhat', 'flatcap', 'beret', 'fedora', 'headband', 'bow', 'ushanka'] as const, 'headwear'),
+  ...opts('faith', ['headscarf', 'hijab', 'headwrap', 'turban', 'kippah', 'kufi', 'veil', 'wimple', 'mitre'] as const, 'headwear'),
+  ...opts('occasion', ['bridal-veil', 'flower-crown', 'tiara', 'mortarboard', 'tophat', 'boater'] as const, 'headwear'),
+  ...opts('work', ['peaked-cap', 'hard-hat'] as const, 'headwear'),
+  ...opts('period', ['bowler', 'cloche', 'bonnet', 'mobcap', 'tricorn', 'coif', 'hood'] as const, 'headwear'),
+  ...opts('realm', ['crown', 'circlet'] as const, 'headwear'),
 ];
-export const MOUSTACHES: Opt<MoustacheStyle>[] = [
-  { id: 'none', label: 'look.moustache.none' }, { id: 'thin', label: 'look.moustache.thin' }, { id: 'chevron', label: 'look.moustache.chevron' },
-  { id: 'handlebar', label: 'look.moustache.handlebar' }, { id: 'walrus', label: 'look.moustache.walrus' },
+export const HEADWEAR_GROUP_LABELS: Record<HeadwearGroup, Key> = {
+  none: 'look.group.none', everyday: 'look.group.everyday', faith: 'look.group.faith', occasion: 'look.group.occasion', work: 'look.group.work',
+  period: 'look.group.period', realm: 'look.group.realm',
+};
+/** `coif` reads "Bonnet (Tudor)" and so on: a few labels predate the id-to-key rule and keep their keys. */
+
+export type ClothingGroup = 'everyday' | 'best' | 'work' | 'traditional' | 'c19' | 'early' | 'children';
+export const CLOTHING: Opt<ClothingStyle, ClothingGroup>[] = [
+  ...opts('everyday', ['tshirt', 'shirt', 'polo', 'plaid', 'sweater', 'turtleneck', 'hoodie', 'cardigan', 'jacket', 'blouse', 'dress', 'stripes', 'knit'] as const, 'clothing'),
+  ...opts('best', ['suit', 'suit-slim', 'waistcoat', 'tuxedo', 'pearls', 'wedding-dress'] as const, 'clothing'),
+  ...opts('work', ['apron', 'overalls', 'white-coat', 'uniform', 'clerical'] as const, 'clothing'),
+  ...opts('traditional', ['dirndl', 'folk-vest', 'kimono', 'sari', 'kurta', 'kaftan'] as const, 'clothing'),
+  ...opts('c19', ['frock', 'victorian', 'coat', 'stays'] as const, 'clothing'),
+  ...opts('early', ['tunic', 'cotehardie', 'gown', 'doublet', 'bodice', 'ruff', 'lace-collar'] as const, 'clothing'),
+  ...opts('children', ['smock', 'sailor', 'pinafore', 'onesie'] as const, 'clothing'),
 ];
-export const BROWS: Opt<BrowStyle>[] = [
-  { id: 'soft', label: 'look.brows.soft' }, { id: 'straight', label: 'look.brows.straight' }, { id: 'arched', label: 'look.brows.arched' },
-  { id: 'thick', label: 'look.brows.thick' }, { id: 'thin', label: 'look.brows.thin' }, { id: 'bushy', label: 'look.brows.bushy' },
-];
-export const GLASSES: Opt<GlassesStyle>[] = [
-  { id: 'none', label: 'look.glasses.none' }, { id: 'round', label: 'look.glasses.round' }, { id: 'oval', label: 'look.glasses.oval' }, { id: 'square', label: 'look.glasses.square' },
-  { id: 'browline', label: 'look.glasses.browline' }, { id: 'half', label: 'look.glasses.half' },
-];
-export const HEADWEAR: Opt<Headwear>[] = [
-  { id: 'none', label: 'look.headwear.none' }, { id: 'crown', label: 'look.headwear.crown' }, { id: 'circlet', label: 'look.headwear.circlet' }, { id: 'mitre', label: 'look.headwear.mitre' },
-  { id: 'veil', label: 'look.headwear.veil' }, { id: 'wimple', label: 'look.headwear.wimple' }, { id: 'hood', label: 'look.headwear.hood' }, { id: 'coif', label: 'look.headwear.coif' },
-  { id: 'beret', label: 'look.headwear.beret' }, { id: 'mobcap', label: 'look.headwear.mobcap' }, { id: 'tricorn', label: 'look.headwear.tricorn' },
-  { id: 'tophat', label: 'look.headwear.tophat' }, { id: 'bonnet', label: 'look.headwear.bonnet' }, { id: 'flatcap', label: 'look.headwear.flatcap' },
-  { id: 'fedora', label: 'look.headwear.fedora' }, { id: 'cloche', label: 'look.headwear.cloche' }, { id: 'headscarf', label: 'look.headwear.headscarf' },
-  { id: 'beanie', label: 'look.headwear.beanie' },
-];
-export const CLOTHING: Opt<ClothingStyle>[] = [
-  { id: 'tunic', label: 'look.clothing.tunic' }, { id: 'cotehardie', label: 'look.clothing.cotehardie' }, { id: 'gown', label: 'look.clothing.gown' },
-  { id: 'doublet', label: 'look.clothing.doublet' }, { id: 'bodice', label: 'look.clothing.bodice' }, { id: 'ruff', label: 'look.clothing.ruff' },
-  { id: 'lace-collar', label: 'look.clothing.lace_collar' }, { id: 'coat', label: 'look.clothing.coat' }, { id: 'stays', label: 'look.clothing.stays' },
-  { id: 'frock', label: 'look.clothing.frock' }, { id: 'victorian', label: 'look.clothing.victorian' }, { id: 'suit', label: 'look.clothing.suit' },
-  { id: 'blouse', label: 'look.clothing.blouse' }, { id: 'suit-slim', label: 'look.clothing.suit_slim' }, { id: 'pearls', label: 'look.clothing.pearls' },
-  { id: 'shirt', label: 'look.clothing.shirt' }, { id: 'turtleneck', label: 'look.clothing.turtleneck' }, { id: 'sweater', label: 'look.clothing.sweater' },
-  { id: 'tshirt', label: 'look.clothing.tshirt' }, { id: 'hoodie', label: 'look.clothing.hoodie' }, { id: 'cardigan', label: 'look.clothing.cardigan' },
-  { id: 'smock', label: 'look.clothing.smock' }, { id: 'sailor', label: 'look.clothing.sailor' }, { id: 'pinafore', label: 'look.clothing.pinafore' },
-  { id: 'knit', label: 'look.clothing.knit' }, { id: 'stripes', label: 'look.clothing.stripes' }, { id: 'onesie', label: 'look.clothing.onesie' },
-];
-export const MARKS: Opt<Mark>[] = [
-  { id: 'freckles', label: 'look.mark.freckles' }, { id: 'blush', label: 'look.mark.blush' }, { id: 'dimples', label: 'look.mark.dimples' },
-  { id: 'mole', label: 'look.mark.mole' }, { id: 'scar', label: 'look.mark.scar' },
-];
-export const FACE_SHAPES: Opt<FaceShape>[] = [
-  { id: 'round', label: 'look.face.round' }, { id: 'oval', label: 'look.face.oval' }, { id: 'square', label: 'look.face.square' },
-  { id: 'long', label: 'look.face.long' }, { id: 'heart', label: 'look.face.heart' },
-];
-export const NOSE_SHAPES: Opt<NoseShape>[] = [
-  { id: 'straight', label: 'look.nose.straight' }, { id: 'aquiline', label: 'look.nose.aquiline' }, { id: 'broad', label: 'look.nose.broad' },
-  { id: 'snub', label: 'look.nose.snub' },
-];
-export const EYE_SHAPES: Opt<EyeShape>[] = [
-  { id: 'round', label: 'look.eyeshape.round' }, { id: 'almond', label: 'look.eyeshape.almond' }, { id: 'hooded', label: 'look.eyeshape.hooded' },
-];
+export const CLOTHING_GROUP_LABELS: Record<ClothingGroup, Key> = {
+  everyday: 'look.group.everyday', best: 'look.group.best', work: 'look.group.work', traditional: 'look.group.traditional',
+  c19: 'look.group.c19', early: 'look.group.early', children: 'look.group.children',
+};
+export const MARKS: Opt<Mark>[] = opts('', ['freckles', 'blush', 'dimples', 'mole', 'birthmark', 'vitiligo', 'cleft', 'scar', 'cheek-scar', 'lashes'] as const, 'mark');
+export const FACE_SHAPES: Opt<FaceShape>[] = opts('', ['round', 'oval', 'square', 'long', 'heart', 'diamond', 'pear'] as const, 'face');
+export const NOSE_SHAPES: Opt<NoseShape>[] = opts('', ['straight', 'aquiline', 'broad', 'snub', 'round', 'narrow'] as const, 'nose');
+export const EYE_SHAPES: Opt<EyeShape>[] = opts('', ['round', 'almond', 'hooded', 'monolid', 'downturned'] as const, 'eyeshape');
+export const EXPRESSIONS: Opt<Expression>[] = opts('', ['calm', 'smile', 'grin', 'stern'] as const, 'expression');
+export const EARRINGS: Opt<Earrings>[] = opts('', ['none', 'studs', 'hoops', 'drops', 'pearls'] as const, 'earrings');
+export const NECKLACES: Opt<Necklace>[] = opts('', ['none', 'chain', 'pendant', 'cross', 'pearls', 'beads'] as const, 'necklace');
+export const EXTRAS: Opt<Extra>[] = opts('', ['hearing-aid', 'flower', 'brooch', 'medal', 'scarf', 'pipe', 'bindi', 'nose-stud'] as const, 'extra');
+export const BACKDROPS: Opt<Backdrop>[] = opts('', ['plain', 'house', 'rays', 'drape', 'books', 'sky', 'hills', 'garden', 'sea', 'night'] as const, 'backdrop');
+/** The names of the levels that are not face measures: greying and lines of age, 0 to 3. */
+export const GREY_LABELS: Key[] = ['look.grey.none', 'look.grey.some', 'look.grey.grey', 'look.grey.white'];
+export const LINES_LABELS: Key[] = ['look.lines.smooth', 'look.lines.hint', 'look.lines.lined', 'look.lines.deep'];
 /** The labels of the numeric features, for the editor's sliders. */
 export const LEVEL_LABELS: Record<LevelKey, Key> = {
   jaw: 'look.level.jaw', noseSize: 'look.level.nose_size', mouthWidth: 'look.level.mouth_width', mouthFullness: 'look.level.mouth_fullness',
@@ -188,6 +233,25 @@ export interface Appearance {
   eyeShape: EyeShape;
   /** The 0–10 measures, recorded or automatic. */
   feat: Features;
+  /*
+   * The parts below come only from a recorded look. Left out (or at their neutral value) they draw nothing, so a look
+   * recorded before they existed draws as it always did.
+   */
+  /** A chosen expression; absent, the mouth above is drawn as it always was. */
+  expression?: Expression;
+  /** 0–10, 5 average. */
+  build: number;
+  /** Lipstick, as a colour. */
+  lips?: string;
+  earrings: Earrings;
+  necklace: Necklace;
+  extras: Extra[];
+  /** Chosen colours: the frames of the glasses, the cloth, its trim and the headwear. Absent: as before. */
+  frames?: string;
+  cloth?: string;
+  trim?: string;
+  hat?: string;
+  backdrop: Backdrop;
 }
 
 const NOSE_AUTO: NoseShape[] = ['straight', 'aquiline', 'broad', 'snub'];
@@ -211,10 +275,21 @@ function measure(look: Partial<Look>, id: string): Features {
 /** Adult-only styles a child cannot have, with what they wear instead. */
 const CHILD_HAIR: Partial<Record<HairStyle, HairStyle>> = {
   receding: 'short', bald: 'cropped', periwig: 'shoulder', powdered: 'short', quiff: 'swept', chignon: 'braid',
+  thinning: 'short', slicked: 'side-part', beehive: 'bun',
 };
+/** Headwear a child or a teenager wears too. The rest is for grown-ups, and a child shown young wears none. */
+const YOUNG_HEADWEAR = new Set<Headwear>([
+  'circlet', 'bonnet', 'beanie', 'headscarf',
+  'cap', 'sunhat', 'headband', 'bow', 'flower-crown', 'tiara', 'kippah', 'kufi', 'hijab', 'turban', 'headwrap', 'ushanka', 'mortarboard',
+]);
+/** Whether this headwear shows at this age: the editor says so when it does not. */
+export const headwearShows = (h: Headwear, stage: Stage): boolean =>
+  h === 'none' || stage === 'adult' || stage === 'middle' || stage === 'elder' || YOUNG_HEADWEAR.has(h);
+/** Things only a grown-up carries. */
+const ADULT_EXTRAS = new Set<Extra>(['pipe', 'medal']);
 
 function autoHair(id: string, era: Era, stage: Stage, pres: Presentation, skin: number): HairStyle {
-  const textured = skin === 4 || skin === 5 || skin === 7;
+  const textured = DEEP_SKIN.has(skin);
   if (stage === 'baby') return 'tuft';
   if (stage === 'child') {
     const pre = era === 'early-medieval' || era === 'high-medieval' || era === 'renaissance';
@@ -376,16 +451,18 @@ export function resolveAppearance(p: GPerson, now: number, at?: number): Appeara
   const adult = stage === 'adult' || stage === 'middle' || stage === 'elder';
 
   const skinIdx = p.look ? look.skin ?? SKIN_NEUTRAL : SKIN_NEUTRAL;
-  const hairIdx = look.hair ?? hash(`${id}:hair`);
-  const hairBase = HAIR[((hairIdx % HAIR.length) + HAIR.length) % HAIR.length];
+  const hairIdx = paletteIndex(look.hair, hash(`${id}:hair`), HAIR.length, HAIR_AUTO);
+  const hairBase = HAIR[hairIdx];
+  const dyed = HAIR_DYED.includes(hairIdx);
 
   let hairStyle = look.hairStyle ?? autoHair(id, era, stage, pres, skinIdx);
   if (stage === 'baby') hairStyle = 'tuft';
   else if (!adult) hairStyle = CHILD_HAIR[hairStyle] ?? hairStyle;
   else if (!look.hairStyle) hairStyle = thinning(id, hairStyle, age, pres);
 
-  const greys = look.hairGreys !== false;
-  const hair = hairStyle === 'powdered' ? POWDER : greyed(hairBase, age, id, greys);
+  // A recorded level of grey wins; otherwise hair greys with age, unless it is dyed or the look says it never does.
+  const greys = look.hairGreys !== false && !dyed;
+  const hair = hairStyle === 'powdered' ? POWDER : look.grey !== undefined ? greyLevel(hairBase, look.grey) : greyed(hairBase, age, id, greys);
 
   const [autoB, autoM] = autoBeard(id, era, look.beard, pres, stage);
   const beard = adult ? look.beardStyle ?? autoB : 'none';
@@ -397,12 +474,12 @@ export function resolveAppearance(p: GPerson, now: number, at?: number): Appeara
   const glasses = look.glasses ?? (adult || stage === 'teen' ? autoGlasses(id, year, age) : 'none');
   let headwear = look.headwear ?? autoHeadwear(id, era, stage, pres);
   // Crowns, mitres and veils are for grown-ups; a child shown young wears none.
-  if (!adult && look.headwear && look.headwear !== 'circlet' && look.headwear !== 'bonnet' && look.headwear !== 'beanie' && look.headwear !== 'headscarf') headwear = 'none';
+  if (look.headwear && !headwearShows(look.headwear, stage)) headwear = 'none';
   let clothing = look.clothing ?? autoClothing(id, era, stage, pres, year);
   if (stage === 'baby' && look.clothing) clothing = autoClothing(id, era, stage, pres, year);
 
-  const fair = skinIdx === 0 || skinIdx === 6 || skinIdx === 1;
-  const ginger = hairIdx % HAIR.length === 6 || hairIdx % HAIR.length === 9;
+  const fair = FAIR_SKIN.has(skinIdx);
+  const ginger = hairIdx === 6 || hairIdx === 9 || hairIdx === 16;
   const autoMarks: Mark[] = [];
   if (roll(id, 'fr') < (ginger ? 0.6 : fair ? 0.18 : 0.04)) autoMarks.push('freckles');
   if (roll(id, 'mole') < 0.08) autoMarks.push('mole');
@@ -411,28 +488,62 @@ export function resolveAppearance(p: GPerson, now: number, at?: number): Appeara
 
   const autoFace: FaceShape = !adult ? 'round' : pick(id, 'face', (pres === 'f' ? ['oval', 'heart', 'round', 'oval'] : pres === 'm' ? ['square', 'oval', 'long', 'round'] : ['oval', 'round', 'heart']) as FaceShape[]);
   const face = look.face ?? autoFace;
-  const lines = age >= 75 ? 3 : age >= 62 ? 2 : age >= 48 ? 1 : 0;
+  const lines = look.lines ?? (age >= 75 ? 3 : age >= 62 ? 2 : age >= 48 ? 1 : 0);
+  const extras = (look.extras ?? []).filter((x) => adult || !ADULT_EXTRAS.has(x));
 
   return {
     stage, age, era, pres, face,
     skin: SKIN[skinIdx % SKIN.length] ?? SKIN[SKIN_NEUTRAL],
     hair, hairBase, hairStyle,
     brows: look.brows ?? browsAuto,
-    eyes: EYES[((look.eyes ?? hash(`${id}:eyes`)) % EYES.length + EYES.length) % EYES.length],
+    eyes: EYES[paletteIndex(look.eyes, hash(`${id}:eyes`), EYES.length, EYES_AUTO)],
     beard, moustache, glasses, headwear, clothing, marks, lines,
     mouth: hash(`${id}:mouth`) % 4,
     noseShape: look.noseShape ?? NOSE_AUTO[hash(`${id}:nose`) % 4],
     eyeShape: look.eyeShape ?? EYE_AUTO[hash(`${id}:eyeshape`) % 3],
     feat: measure(look, id),
+    ...(look.expression ? { expression: look.expression } : {}),
+    build: look.build ?? 5,
+    ...(look.lips !== undefined && LIPS[look.lips] ? { lips: LIPS[look.lips] } : {}),
+    earrings: look.earrings ?? 'none',
+    necklace: look.necklace ?? 'none',
+    extras,
+    ...(look.frames !== undefined && FRAMES[look.frames] ? { frames: FRAMES[look.frames] } : {}),
+    ...(look.clothColour !== undefined && CLOTH[look.clothColour] ? { cloth: CLOTH[look.clothColour] } : {}),
+    ...(look.trimColour !== undefined && CLOTH[look.trimColour] ? { trim: CLOTH[look.trimColour] } : {}),
+    ...(look.hatColour !== undefined && CLOTH[look.hatColour] ? { hat: CLOTH[look.hatColour] } : {}),
+    backdrop: look.backdrop ?? 'plain',
   };
+}
+
+/**
+ * A palette index: the recorded one when the palette has it, else the automatic one. Automatic (and any number a look
+ * recorded before the palette grew) wraps within the first `auto` colours, exactly as it did when those were all there were.
+ */
+function paletteIndex(recorded: number | undefined, automatic: number, size: number, auto: number): number {
+  if (recorded !== undefined && Number.isInteger(recorded) && recorded >= 0 && recorded < size) return recorded;
+  const v = recorded ?? automatic;
+  return ((v % auto) + auto) % auto;
+}
+
+/** A chosen level of grey: 0 the natural colour, 1 salt and pepper, 2 grey, 3 white. */
+function greyLevel(base: string, level: number): string {
+  return level <= 0 ? base : level === 1 ? mixHex(base, GREY, 0.5) : level === 2 ? GREY : WHITE;
+}
+
+/** The level of grey a person's hair shows at this age when nothing is recorded, for the editor's "automatic". */
+export function autoGrey(p: GPerson, now: number, at?: number): number {
+  const a = resolveAppearance({ ...p, look: p.look ? { ...p.look, grey: undefined } : undefined }, now, at);
+  if (a.hair === a.hairBase) return 0;
+  return a.hair === WHITE ? 3 : a.hair === GREY ? 2 : 1;
 }
 
 /** The look as it would be filled in automatically, for an editor starting from nothing. */
 export function defaultLook(p: GPerson): Look {
   return {
     skin: p.look?.skin ?? SKIN_NEUTRAL,
-    hair: p.look?.hair ?? hash(`${p.id}:hair`) % HAIR.length,
-    eyes: p.look?.eyes ?? hash(`${p.id}:eyes`) % EYES.length,
+    hair: p.look?.hair ?? hash(`${p.id}:hair`) % HAIR_AUTO,
+    eyes: p.look?.eyes ?? hash(`${p.id}:eyes`) % EYES_AUTO,
     ...(p.look?.beard !== undefined ? { beard: p.look.beard } : {}),
     ...(p.look?.headwear ? { headwear: p.look.headwear } : {}),
   };
@@ -443,8 +554,12 @@ const VALID = {
   hairStyle: ids(HAIR_STYLES), beardStyle: ids(BEARDS), moustache: ids(MOUSTACHES), brows: ids(BROWS),
   glasses: ids(GLASSES), headwear: ids(HEADWEAR), clothing: ids(CLOTHING),
   face: ids(FACE_SHAPES), noseShape: ids(NOSE_SHAPES), eyeShape: ids(EYE_SHAPES),
+  expression: ids(EXPRESSIONS), earrings: ids(EARRINGS), necklace: ids(NECKLACES), backdrop: ids(BACKDROPS),
 };
 const MARK_IDS = ids(MARKS);
+const EXTRA_IDS = ids(EXTRAS);
+/** The numbered parts and how many values each has. */
+const INDEXED = { grey: 4, lines: 4, lips: LIPS.length, frames: FRAMES.length, clothColour: CLOTH.length, trimColour: CLOTH.length, hatColour: CLOTH.length } as const;
 const int = (v: unknown, max: number) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < max ? v : undefined);
 /** A 0–10 measure: a whole number, or undefined (automatic). */
 const level = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 10 ? v : undefined);
@@ -468,6 +583,16 @@ export function sanitizeLook(input: unknown): Look | undefined {
     if (v !== undefined) out[k] = v;
   }
   if (Array.isArray(o.marks)) out.marks = [...new Set(o.marks.filter((m): m is Mark => typeof m === 'string' && MARK_IDS.has(m)))];
+  if (Array.isArray(o.extras)) {
+    const extras = [...new Set(o.extras.filter((x): x is Extra => typeof x === 'string' && EXTRA_IDS.has(x)))];
+    if (extras.length) out.extras = extras;
+  }
+  for (const k of Object.keys(INDEXED) as (keyof typeof INDEXED)[]) {
+    const v = int(o[k], INDEXED[k]);
+    if (v !== undefined) out[k] = v;
+  }
+  const build = level(o.build);
+  if (build !== undefined) out.build = build;
   const age = int(o.age, 121);
   if (age !== undefined) out.age = age;
   return out;
@@ -487,9 +612,12 @@ export function sanitizeLook(input: unknown): Look | undefined {
  *   person who lived to 90). `beard` is a legacy field; use beardStyle.
  * - Colours are palette indices: pick the nearest swatch, never a hex value. For hair in a photo of
  *   an older person, give the natural colour if it can be told, else the nearest and hairGreys: true.
+ * - The lists grow with the portrait: a hair style, a pair of glasses or a mark added to the catalogue is offered to the
+ *   model at once. Parts that are a choice and not a likeness (expression, jewellery, colours of clothes, a backdrop)
+ *   are never asked for.
  */
 export const PHOTO_LOOK_FIELDS = {
-  skin: { kind: 'index', of: SKIN_LABELS.slice(0, SKIN_NEUTRAL) },
+  skin: { kind: 'index', of: SKIN_LABELS },
   hair: { kind: 'index', of: HAIR_LABELS },
   eyes: { kind: 'index', of: EYE_LABELS },
   hairStyle: { kind: 'one', of: HAIR_STYLES.map((o) => o.id) },

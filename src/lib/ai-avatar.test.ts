@@ -28,7 +28,7 @@ test('every style field offers the portrait\'s own values, and era fields are no
 });
 
 test('a value the portrait doesn\'t know is dropped, and the rest is kept', () => {
-  const r = types.lookSchema.safeParse(look.sanitizeLook({ skin: 2, hair: 1, eyes: 0, glasses: 'sunglasses', beardStyle: 'full', hairStyle: 'short hair' }));
+  const r = types.lookSchema.safeParse(look.sanitizeLook({ skin: 2, hair: 1, eyes: 0, glasses: 'goggles', beardStyle: 'full', hairStyle: 'short hair' }));
   assert.equal(r.success, true);
   assert.equal(r.data.beardStyle, 'full');
   assert.equal(r.data.glasses, undefined);
