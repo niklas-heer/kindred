@@ -144,6 +144,7 @@
 @media (pointer: coarse) { .fd-chips li { min-height: 40px; padding-right: 2px; } .fd-chips .btn.icon { width: 36px; height: 36px; } }
 .fd-composer-pick { padding: 10px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--border); }
 .fd-composer-pick .gal-picker-item { align-items: center; gap: 10px; }
+.fd-composer-pick .gal-picker-list { max-height: 232px; overflow-y: auto; }
 .fd-composer-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 2px; }
 .fd-composer-actions .subtle { font-size: var(--fs-2); }
 .fd-composer-actions .btn.primary { min-height: var(--ctl-lg); padding-inline: 18px; }
