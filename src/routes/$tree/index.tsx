@@ -635,8 +635,8 @@ function TreePage() {
       options={houseOptions}
       onChange={(v) => {
         then?.();
-        if (v === PAGE) return lineHouse && navigate({ to: '/$tree/house/$house', params: { tree, house: lineHouse.id } });
-        if (v === ALL) return go({ line: 'all', root: undefined });
+        if (v === PAGE) { if (lineHouse) navigate({ to: '/$tree/house/$house', params: { tree, house: lineHouse.id } }); return; }
+        if (v === ALL) { go({ line: 'all', root: undefined }); return; }
         const r = houseRoot(f, v);
         if (r) { panTo.current = r; go({ line: 'house', root: r, focus: r, sel: undefined }); }
       }}

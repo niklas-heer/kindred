@@ -45,6 +45,7 @@ const i18nTables = (): Plugin => {
     resolveId(source, importer) {
       if (localeOfId(source)) return `\0${source}`;
       if (source === './catalog.ts' && importer?.split('?')[0].endsWith('/src/lib/i18n/dictionary.ts')) return `${dir}catalog.client.ts`;
+      return undefined;
     },
     async load(id) {
       const locale = localeOfId(id);

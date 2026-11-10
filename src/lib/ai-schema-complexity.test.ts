@@ -31,6 +31,7 @@ const vite = await createServer({ root, logLevel: 'error', server: { middlewareM
   transform(code, id) {
     const entries = sites.get(id.replace(root, ''));
     if (entries) return code + '\nexport const __complexitySchemas = {' + entries.map(([name, variable]) => JSON.stringify(name) + ':' + variable).join(',') + '};';
+    return undefined;
   },
 }] });
 after(async () => { await vite.close(); rmSync(dir, { recursive: true, force: true }); });

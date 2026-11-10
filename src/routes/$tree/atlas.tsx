@@ -1084,7 +1084,7 @@ function Chronicle({ ref, rows, more, onMore, cursor, playing, f, tree, heraldry
     if (!el) return;
     const isAway = el.scrollTop > 8;
     setAway(isAway);
-    if (!isAway) return (anchor.current = null);
+    if (!isAway) { anchor.current = null; return; }
     const first = [...el.querySelectorAll<HTMLElement>('li[data-key]')].find((li) => li.offsetTop + li.offsetHeight > el.scrollTop);
     anchor.current = first ? { key: first.dataset.key!, offset: first.offsetTop - el.scrollTop } : null;
   };

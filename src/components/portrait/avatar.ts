@@ -432,7 +432,7 @@ function arc(cx: number, cy: number, rx: number, ry: number, from: number, to: n
   });
 }
 
-function hair(g: Geo, p: Paint, a: Appearance, style: HairStyle, detail: Detail): HairParts {
+function hair(g: Geo, p: Paint, _a: Appearance, style: HairStyle, detail: Detail): HairParts {
   const { cx, cy, w, h, ny } = g;
   const H = filled(p.hair, p.sw, p.hairLine);
   const path = (d: string, extra = '') => `<path d="${d}" ${H}${extra}/>`;
