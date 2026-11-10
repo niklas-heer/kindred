@@ -15,7 +15,7 @@ import { personEventsQuery } from '~/lib/events.functions';
 import { yearOf } from '~/lib/graph';
 import { useT, type Translator } from '~/lib/i18n';
 import { ageOn, type Age } from '~/lib/life';
-import { useMembership } from '~/lib/session';
+import { useMember } from '~/lib/session';
 import { personCitationsQuery } from '~/lib/sources.functions';
 import type { GPerson } from '~/lib/types';
 import './life.css';
@@ -52,7 +52,7 @@ export function SourcedMark({ count }: { count: number }) {
 
 /** How many citations each fact has, for the marks. Empty for a guest, who gets no sources. */
 export function useCitationCounts(tree: string, person: string): (f: Fact) => number {
-  const member = !!useMembership(tree);
+  const member = !!useMember(tree);
   const q = useQuery({ ...personCitationsQuery(tree, person), enabled: member });
   return useMemo(() => {
     const n = new Map<string, number>();

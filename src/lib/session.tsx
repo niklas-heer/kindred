@@ -19,6 +19,17 @@ export function useMembership(tree?: string): SessionInfo['memberships'][number]
   return useSession()?.memberships.find((m) => m.tree === t);
 }
 
+/**
+ * The reader's membership of a family, or undefined for a share-link guest. A guest's session lists the family it visits
+ * as a viewer's membership (src/lib/auth/functions.ts), so a membership alone does not make a member: anything only
+ * members may ask the server for is switched on with this, never with `useMembership`.
+ */
+export function useMember(tree?: string): SessionInfo['memberships'][number] | undefined {
+  const session = useSession();
+  const membership = useMembership(tree);
+  return session?.user && session.guest?.tree !== membership?.tree ? membership : undefined;
+}
+
 /** The reader's role in the current tree; 'viewer' (can change nothing) when unknown. */
 export function useRole(): Role {
   return useMembership()?.role ?? 'viewer';

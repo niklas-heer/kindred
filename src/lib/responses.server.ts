@@ -10,7 +10,7 @@
 import { fail } from './auth/guard.server';
 import { forbidden, notMember } from './auth/errors';
 import { accounts, q as accountsQ } from './auth/store.server';
-import { db, guard, once, q, type Db, type OpKey } from './db.server';
+import { db, guard, NOT_A_RECORD, once, q, type Db, type OpKey } from './db.server';
 import { translate } from './i18n/dictionary';
 import { STALE_DAYS, envSetting, subscriptionFrom, vapidFrom, type PushRow } from './reminders.server';
 import {
@@ -109,7 +109,7 @@ export async function react(tree: string, who: Who, kind: TargetKind, target: st
   return once(tree, op, 'react', async (d) => {
     if (!(await targetThere(d, kind, target))) throw new Error('responses.err.gone');
     if (!on) {
-      return { writes: [q('DELETE FROM reaction WHERE target_kind = ? AND target = ? AND account = ? AND kind = ?', kind, target, who.id, reaction)], result: { added: false } };
+      return { writes: [q('DELETE FROM reaction WHERE target_kind = ? AND target = ? AND account = ? AND kind = ?', kind, target, who.id, reaction)], history: NOT_A_RECORD, result: { added: false } };
     }
     const had = await d.get('SELECT 1 AS x FROM reaction WHERE target_kind = ? AND target = ? AND account = ? AND kind = ?', kind, target, who.id, reaction);
     return {
@@ -117,6 +117,7 @@ export async function react(tree: string, who: Who, kind: TargetKind, target: st
         guard(EXISTS[kind], target),
         q('INSERT INTO reaction (target_kind, target, account, kind, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING', kind, target, who.id, reaction, now()),
       ],
+      history: NOT_A_RECORD,
       result: { added: !had },
     };
   });
@@ -141,6 +142,7 @@ export async function addComment(tree: string, who: Who, kind: TargetKind, targe
         guard(EXISTS[kind], target),
         q('INSERT INTO comment (id, target_kind, target, account, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', id, kind, target, who.id, who.name, body, now()),
       ],
+      history: NOT_A_RECORD,
       result: { id },
     };
   });
@@ -156,6 +158,7 @@ export async function editComment(tree: string, who: Who, id: string, text: stri
     if (row.account !== who.id) throw fail(forbidden('comment', 'contributor'));
     return {
       writes: [guard('EXISTS (SELECT 1 FROM comment WHERE id = ? AND account = ?)', id, who.id), q('UPDATE comment SET body = ?, edited_at = ? WHERE id = ?', body, now(), id)],
+      history: NOT_A_RECORD,
       result: undefined,
     };
   });
@@ -166,9 +169,9 @@ export async function removeComment(tree: string, who: Who, id: string, op?: OpK
   needsMember(who);
   return once<{ removed: boolean }>(tree, op, 'removeComment', async (d) => {
     const row = await d.get<{ account: string }>('SELECT account FROM comment WHERE id = ?', id);
-    if (!row) return { writes: [], result: { removed: false } };
+    if (!row) return { writes: [], history: NOT_A_RECORD, result: { removed: false } };
     if (row.account !== who.id && !can(who.role, 'remove-comment')) throw fail(forbidden('remove-comment', 'editor'));
-    return { writes: [q('DELETE FROM comment WHERE id = ?', id)], result: { removed: true } };
+    return { writes: [q('DELETE FROM comment WHERE id = ?', id)], history: NOT_A_RECORD, result: { removed: true } };
   });
 }
 

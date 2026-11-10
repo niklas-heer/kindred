@@ -1,4 +1,4 @@
-// "This week in <family>": a weekly push to the devices that asked for it (push_subscription.weekly, accounts migration 0027),
+// "This week in <family>": a weekly push to the devices that asked for it (push_subscription.weekly, accounts migration 0026),
 // sent by the daily job, only when the week brought something this member may see and did not do themselves. At most one
 // push per device in seven days: the device's week is claimed with one conditional UPDATE before the send, as the daily
 // reminders claim their day (reminders.server.ts). Nothing is logged that names a person or a device.

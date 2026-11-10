@@ -39,11 +39,10 @@ test('a change saves itself, and Undo takes it back', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(0);
 
-  // The family is read afresh after a save: the form the reader is in has to stay where it is, focus and all.
-  const reread = page.waitForResponse(async (r) => r.request().method() === 'GET' && r.url().includes('/_serverFn/') && (await r.text()).includes('"Addy"'));
+  // The page's copy of the family is patched from the save's answer: the form the reader is in has to stay where it is,
+  // focus and all, while the card behind it takes the new name.
   await saved(page, 'Called', 'Addy');
   await box(page, 'Called').focus();
-  await (await reread).finished();
   await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
   await expect(box(page, 'Called')).toBeFocused();
   await bar(page).getByRole('button', { name: 'Undo' }).click();

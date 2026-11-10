@@ -22,7 +22,7 @@ import { Portrait } from './Portrait';
 import { THEME_ICONS, THEME_LABEL, useSound, useTheme } from './ThemeSwitch';
 import { startTour } from './tour/store';
 import { dropThisDevice, ReminderRefresh, RemindersDialog } from './Reminders';
-import { useMembership, useSession } from '~/lib/session';
+import { useMember, useMembership, useSession } from '~/lib/session';
 import { AboutDialog } from './AboutDialog';
 import { Dialog } from './ui/Dialog';
 import { isTopOverlay, useOverlayLayer } from './ui/overlay';
@@ -71,6 +71,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
   const session = useSession();
   const tree = useParams({ strict: false }).tree as string | undefined;
   const m = useMembership();
+  const member = useMember();
   const [open, setOpen] = useState(false);
   const [passkeys, setPasskeys] = useState(false);
   const [about, setAbout] = useState(false);
@@ -80,7 +81,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
   // The quiet badge: what waits for a steward, on the Access page and in AI activity (zero for everyone else).
   const attention = useQuery({ ...aiAttentionQuery(tree ?? ''), enabled: !!tree && !!m && can(m.role, 'manage-access') });
   // Changes in the family this member has not been shown yet: a dot beside History (history.functions.ts).
-  const news = useQuery({ ...newsCountQuery(tree ?? ''), enabled: !!tree && !!m });
+  const news = useQuery({ ...newsCountQuery(tree ?? ''), enabled: !!tree && !!member });
   const unseen = news.data ?? 0;
   const layer = useOverlayLayer(open);
   const button = useRef<HTMLButtonElement>(null);

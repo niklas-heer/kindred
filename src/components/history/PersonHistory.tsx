@@ -5,7 +5,7 @@ import { Link } from '@tanstack/react-router';
 import { useId } from 'react';
 import { historyQuery } from '~/lib/history.functions';
 import { useT } from '~/lib/i18n';
-import { useCan, useMembership } from '~/lib/session';
+import { useCan, useMember } from '~/lib/session';
 import { HistoryList } from './HistoryList';
 import './history.css';
 
@@ -14,7 +14,7 @@ const SHOWN = 5;
 
 export function PersonHistory({ tree, person }: { tree: string; person: string }) {
   const t = useT();
-  const member = !!useMembership(tree);
+  const member = !!useMember(tree);
   const canRestore = useCan('edit-person');
   const heading = useId();
   const q = useQuery({ ...historyQuery(tree, { person }), enabled: member });

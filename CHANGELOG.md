@@ -23,7 +23,7 @@ version will not run on a database that has had these migrations.
 tables for the Today page and changes none that exist.
 
 `tree/0026_history.sql` adds the change history's table, empty: changes made before it are not in the history.
-`accounts/0027_family_visit.sql` adds a table for "since your last visit" and two columns to the reminder devices.
+`accounts/0026_family_visit.sql` adds a table for "since your last visit" and two columns to the reminder devices.
 `tree/0027_reactions_comments.sql` adds three empty tables for reactions and comments and one column to `story`.
 
 ### Added

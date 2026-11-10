@@ -9,6 +9,7 @@ import { DatesCard } from '~/components/today/DatesCard';
 import { NudgeCard } from '~/components/today/NudgeCard';
 import { QuizCard } from '~/components/today/QuizCard';
 import { WeekQuestionCard } from '~/components/today/WeekQuestionCard';
+import { WhatsNew } from '~/components/today/WhatsNew';
 import '~/components/today/today.css';
 import { Fleuron, Switch } from '~/components/ui';
 import { useToday } from '~/lib/clock';
@@ -57,7 +58,7 @@ function TodayPage() {
           <span className="td-hero-rule" aria-hidden><Fleuron /></span>
         </header>
 
-        {/* WhatsNew slot: the coordinator mounts <WhatsNew tree={tree} /> (src/components/today/WhatsNew.tsx) on the next line. */}
+        <WhatsNew tree={tree} />
 
         <div className="td-grid">
           <div className="td-main">

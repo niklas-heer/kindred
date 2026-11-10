@@ -65,7 +65,7 @@ export interface PushRow {
   last_seen: number;
   /** The UTC day this device's reminder was last claimed for (see claimDay). */
   last_sent_day: string | null;
-  /** 1 when this device wants "This week in <family>" (accounts migration 0027, history-push.server.ts). */
+  /** 1 when this device wants "This week in <family>" (accounts migration 0026, history-push.server.ts). */
   weekly?: number;
   /** The UTC day that weekly push was last claimed for. */
   weekly_sent_day?: string | null;

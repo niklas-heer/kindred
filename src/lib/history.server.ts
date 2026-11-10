@@ -17,6 +17,7 @@
 // Private research is `editors`. A value only editors may read inside a family row (a source's link to a private document)
 // is held back from everyone else. A share-link guest reads no history at all.
 import { accounts } from './auth/store.server.ts';
+import { isDemo } from './demo.ts';
 import { can } from './roles.ts';
 import { guard, q, type Db, type Query } from './store/index.ts';
 import type { Audience, Visibility } from './visibility.ts';
@@ -424,14 +425,15 @@ export async function repliesTo(d: Db, account: string, since: number): Promise<
   // `created_at` may be text (ISO) or a number (milliseconds): compare each as what it is.
   const after = "(CASE typeof(x.created_at) WHEN 'text' THEN x.created_at > ? ELSE x.created_at > ? END)";
   const mine = `((x.target_kind = 'media' AND x.target IN (SELECT key FROM media WHERE uploaded_by = ?))
-    OR (x.target_kind = 'story' AND x.target IN (SELECT record FROM history WHERE kind = 'story' AND action = 'added' AND account = ?)))`;
+    OR (x.target_kind = 'story' AND (x.target IN (SELECT id FROM story WHERE author_account = ?)
+      OR x.target IN (SELECT record FROM history WHERE kind = 'story' AND action = 'added' AND account = ?))))`;
   const out: WhatsNewReply[] = [];
   try {
     if (hasComments) {
       const rows = await d.all<{ target_kind: 'story' | 'media'; target: string; author: string; n: number }>(
         `SELECT x.target_kind, x.target, max(x.author_name) AS author, count(*) AS n FROM comment x
          WHERE x.account IS NOT ? AND ${after} AND ${mine} GROUP BY x.target_kind, x.target LIMIT 50`,
-        account, iso(since), since, account, account,
+        account, iso(since), since, account, account, account,
       );
       for (const r of rows) out.push({ kind: 'comment', target: r.target_kind, id: r.target, label: null, person: null, author: r.author ?? '', count: r.n });
     }
@@ -439,7 +441,7 @@ export async function repliesTo(d: Db, account: string, since: number): Promise<
       const rows = await d.all<{ target_kind: 'story' | 'media'; target: string; n: number }>(
         `SELECT x.target_kind, x.target, count(*) AS n FROM reaction x
          WHERE x.account IS NOT ? AND ${after} AND ${mine} GROUP BY x.target_kind, x.target LIMIT 50`,
-        account, iso(since), since, account, account,
+        account, iso(since), since, account, account, account,
       );
       for (const r of rows) out.push({ kind: 'reaction', target: r.target_kind, id: r.target, label: null, person: null, author: '', count: r.n });
     }
@@ -477,7 +479,7 @@ export async function newsCount(d: Db, a: Audience, after: number, cap = 99): Pr
   return r?.n ?? 0;
 }
 
-// ---------- since your last visit (accounts migration 0027) ----------
+// ---------- since your last visit (accounts migration 0026) ----------
 
 /** No opening of the family for this long ends a visit. */
 export const VISIT_GAP = 2 * 3_600_000;
@@ -499,6 +501,7 @@ export interface Visit { since: number; shown: number | null; lastSeen: number }
  * - During a visit `since` stays where it is, so opening the page twice in a minute shows the same news.
  */
 export async function noteVisit(user: string, tree: string, now = Date.now()): Promise<void> {
+  if (isDemo()) return; // a demo has no members and stores nothing
   await accounts().run(
     `INSERT INTO family_visit (user, tree, since, shown, last_seen) VALUES (?, ?, ?, NULL, ?)
      ON CONFLICT (user, tree) DO UPDATE SET
@@ -518,6 +521,7 @@ export async function visitOf(user: string, tree: string): Promise<Visit | undef
 
 /** The news up to `now` has been shown to this member. Only moves forward. */
 export async function markShown(user: string, tree: string, now = Date.now()): Promise<void> {
+  if (isDemo()) return;
   await accounts().run('UPDATE family_visit SET shown = ? WHERE user = ? AND tree = ? AND (shown IS NULL OR shown < ?)', now, user, tree, now);
 }
 

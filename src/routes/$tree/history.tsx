@@ -13,7 +13,7 @@ import { displayName } from '~/lib/graph';
 import { HISTORY_FILTER_NAMES, type HistoryFilter } from '~/lib/history';
 import { getHistory } from '~/lib/history.functions';
 import { compareText, translate, useT, type Key, type Locale } from '~/lib/i18n';
-import { useCan, useMembership } from '~/lib/session';
+import { useCan, useMember } from '~/lib/session';
 import { treeTitle } from '~/lib/title';
 import '~/components/history/history.css';
 
@@ -33,7 +33,7 @@ function HistoryPage() {
   const tree = useTreeId();
   const t = useT();
   const f = useFamily();
-  const member = !!useMembership(tree);
+  const member = !!useMember(tree);
   const canRestore = useCan('edit-person');
   const { person, filter, author } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });

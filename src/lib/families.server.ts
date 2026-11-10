@@ -20,7 +20,7 @@ import { cleanFamilyDetails } from './family-details.server.ts';
 import { bindingOf, families } from './auth/trees.server.ts';
 import { accounts, upsertMembership, type MembershipRow, type UserRow } from './auth/store.server.ts';
 import { guard, NOT_TREES, onWorkers, q, store, type Query } from './store/index.ts';
-import { once, type OpKey } from './db.server.ts';
+import { change, once, type OpKey } from './db.server.ts';
 import { translate } from './i18n/dictionary.ts';
 
 /** A new family's id: 2 to 40 characters, a letter first, single dashes between letters and digits. */
@@ -203,7 +203,8 @@ function cleanFamily(input: { name: string; tagline: string; theme: string }): {
 /** Changes a family's own details: its name, tagline and the theme it opens in. Through `once`, so a retry writes nothing twice. */
 export function editFamily(tree: string, input: { name: string; tagline: string; theme: string }, op: OpKey | undefined) {
   const details = cleanFamily(input);
-  return once(tree, op, 'editFamily', async () => ({
+  return once(tree, op, 'editFamily', async (d) => ({
+    history: change('family', 'details', Object.fromEntries((await d.all<{ key: string; value: string }>("SELECT key, value FROM meta WHERE key IN ('name', 'tagline', 'theme')")).map((r) => [r.key, r.value])), details, { label: details.name }),
     writes: [
       guard("EXISTS (SELECT 1 FROM meta WHERE key = 'id')"),
       ...(['name', 'tagline', 'theme'] as const).map((k) => q('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', k, details[k])),

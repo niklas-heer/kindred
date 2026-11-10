@@ -11,7 +11,7 @@ import { lineText } from '~/lib/history-text';
 import { whatsNewQuery } from '~/lib/history.functions';
 import type { WhatsNewReply } from '~/lib/history';
 import { relativeTime, useT, type Key, type Translator } from '~/lib/i18n';
-import { useMembership } from '~/lib/session';
+import { useMember } from '~/lib/session';
 import '~/components/history/history.css';
 
 /** The groups and lines shown before "and n more"; the rest is on the History page. */
@@ -21,7 +21,7 @@ const replyText = (t: Translator, r: WhatsNewReply) => t(`history.reply.${r.kind
 
 export function WhatsNew({ tree, className = '' }: { tree: string; className?: string }) {
   const t = useT();
-  const member = !!useMembership(tree);
+  const member = !!useMember(tree);
   const heading = useId();
   const qc = useQueryClient();
   const q = useQuery({ ...whatsNewQuery(tree), enabled: member, staleTime: 5 * 60_000 });

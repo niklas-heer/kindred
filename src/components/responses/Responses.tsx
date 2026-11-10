@@ -26,7 +26,7 @@ import {
 } from '~/lib/responses';
 import { addComment, editComment, removeComment, responseCountsQuery, setReaction, threadQuery } from '~/lib/responses.functions';
 import { can } from '~/lib/roles';
-import { useMembership, useSession } from '~/lib/session';
+import { useMember } from '~/lib/session';
 import './responses.css';
 
 const ICON: Record<ReactionKind, (size: number) => ReactNode> = {
@@ -42,15 +42,6 @@ const SHOWN = 5;
 
 const message = (e: unknown, t: Translator) => (e instanceof Error && e.message ? translateMessage(e.message, t.locale) : t('responses.failed'));
 
-/**
- * The reader's membership of the family, or undefined for a share-link guest. A guest's session lists the family it visits
- * as a viewer's membership (src/lib/auth/functions.ts), so a membership alone does not make a member.
- */
-function useMember(tree: string) {
-  const session = useSession();
-  const membership = useMembership(tree);
-  return session?.user && session.guest?.tree !== tree ? membership : undefined;
-}
 
 /** The counts of the whole family, for members; undefined for a guest, who never asks. */
 export function useResponseCounts(tree: string): ResponseCounts | undefined {

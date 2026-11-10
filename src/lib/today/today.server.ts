@@ -8,7 +8,7 @@
 // - An answer to the question of the week is an ordinary memory (a `story` row) with a tag beside it, so the
 //   Chronicle, the person's page and the exports show it like any other.
 // - Members are named by their account ids, and only in the quiz's tables.
-import { db, graph, guard, once, personExists, q, type Db } from '../db.server.ts';
+import { added, db, graph, guard, NOT_A_RECORD, once, personExists, q, type Db } from '../db.server.ts';
 import { translate, type Key, type Locale } from '../i18n/dictionary.ts';
 import { PLAIN_MEMBER } from '../visibility.ts';
 import { drawQuiz, facePictured, REST_DAYS, validChoice, type QuizQuestion } from './quiz.ts';
@@ -34,6 +34,7 @@ export async function setQuizEnabled(tree: string, on: boolean, by: string, now:
       q('INSERT INTO today_settings (id, quiz, updated_at, updated_by) VALUES (1, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET quiz = excluded.quiz, updated_at = excluded.updated_at, updated_by = excluded.updated_by',
         on ? 1 : 0, now.toISOString(), by),
     ],
+    history: NOT_A_RECORD,
     result: null,
   }));
 }
@@ -61,6 +62,7 @@ async function questionOf(tree: string, day: string): Promise<QuizDayRow | undef
   // Two readers at once draw the same question; whichever row lands first is the day's.
   await once(tree, undefined, 'quizDay', () => ({
     writes: [q('INSERT OR IGNORE INTO quiz_day (day, kind, about, question, answer) VALUES (?, ?, ?, ?, ?)', day, drawn.kind, drawn.about, JSON.stringify(drawn.question), drawn.answer)],
+    history: NOT_A_RECORD,
     result: null,
   }));
   return read();
@@ -127,12 +129,13 @@ export async function answerQuiz(tree: string, who: Who, day: string, choice: st
   const correct = choice === row.answer;
   const house = who.person ? (await d.get<{ house: string | null }>('SELECT house FROM person WHERE id = ?', who.person))?.house ?? null : null;
   const fresh = await once<boolean>(tree, undefined, 'quizAnswer', async (dd) => {
-    if (await dd.get('SELECT 1 FROM quiz_answer WHERE day = ? AND account = ?', day, who.account)) return { writes: [], result: false };
+    if (await dd.get('SELECT 1 FROM quiz_answer WHERE day = ? AND account = ?', day, who.account)) return { writes: [], history: NOT_A_RECORD, result: false };
     return {
       writes: [
         guard('NOT EXISTS (SELECT 1 FROM quiz_answer WHERE day = ? AND account = ?)', day, who.account),
         q('INSERT INTO quiz_answer (day, account, choice, correct, house, at) VALUES (?, ?, ?, ?, ?, ?)', day, who.account, choice, correct ? 1 : 0, house, now.toISOString()),
       ],
+      history: NOT_A_RECORD,
       result: true,
     };
   });
@@ -229,9 +232,11 @@ export async function answerWeek(
     return {
       writes: [
         personExists(input.person),
-        q('INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', id, input.person, 'memory', title, body, input.author, now.toISOString(), null),
+        q('INSERT INTO story (id, person, kind, title, body, author, at, context, author_account) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', id, input.person, 'memory', title, body, input.author, now.toISOString(), null, op?.user ?? null),
         q('INSERT INTO today_answer (story, week, question) VALUES (?, ?, ?)', id, week, question.id),
       ],
+      // An answer is a memory like any other: it is in the family's history, and its writer hears of replies to it.
+      history: [added('story', id, { person: input.person, label: title })],
       result: { id },
     };
   });
@@ -252,6 +257,7 @@ export async function setWeek(tree: string, change: { mode: 'custom'; text: stri
         : q('INSERT INTO today_week (week, skipped, question, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT (week) DO UPDATE SET skipped = excluded.skipped, question = excluded.question, updated_at = excluded.updated_at',
           week, change.mode === 'skip' ? 1 : 0, text, now.toISOString()),
     ],
+    history: NOT_A_RECORD,
     result: null,
   }));
 }

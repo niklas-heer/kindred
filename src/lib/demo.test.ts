@@ -137,7 +137,7 @@ test('with the setting off, a request that asks for a demo gets none, and the in
   assert.equal(info.demo, undefined);
   assert.equal(info.user, null);
   // Writes work as they always did.
-  const renamed = await dbs.once('aurel', undefined, 'test', async () => ({ writes: [dbs.q("UPDATE person SET given = 'Adah' WHERE id = 'a1'")], result: 'ok' }));
+  const renamed = await dbs.once('aurel', undefined, 'test', async () => ({ writes: [dbs.q("UPDATE person SET given = 'Adah' WHERE id = 'a1'")], history: [], result: 'ok' }));
   assert.equal(renamed, 'ok');
   await st.store.media.put('aurel', 'photo/x.jpg', new Uint8Array([1]), 'image/jpeg');
   await st.store.media.delete('aurel', 'photo/x.jpg');
@@ -181,7 +181,7 @@ test('in a demo, every write is refused where all writes pass: the store, once, 
   await assert.rejects(guard.requireCan('aurel', 'add-story'), isReadOnly);
   // once: before its plan runs, so nothing a plan does first (an upload, an AI call) happens either.
   let planned = false;
-  await assert.rejects(dbs.once('aurel', undefined, 'test', async () => { planned = true; return { writes: [], result: 1 }; }), isReadOnly);
+  await assert.rejects(dbs.once('aurel', undefined, 'test', async () => { planned = true; return { writes: [], history: [], result: 1 }; }), isReadOnly);
   assert.equal(planned, false);
   // The store: a family's database and the accounts database are read-only, whoever asks.
   await assert.rejects(dbs.db('aurel').run("UPDATE person SET given = 'X'"), isReadOnly);

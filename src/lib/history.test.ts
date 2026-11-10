@@ -303,7 +303,7 @@ test('the visit marker never skips news: it stays during a visit and moves only 
   assert.equal((await h.visitOf(user, TREE))!.since, t0 + 10 * 3_600_000 + 60_000);
 });
 
-test('What’s new groups others’ changes by person, leaves out the reader’s own, and reads comments only where they exist', async () => {
+test('What’s new groups others’ changes by person, leaves out the reader’s own, and tells them of comments and reactions on what they wrote', async () => {
   as(EDITOR);
   await save('ada', () => ({ details: { epithet: 'the Bold' } }));
   await dbs.upsertPlaces(TREE, [{ name: 'Lindenfeld', lat: 50, lng: 8 }]);
@@ -317,18 +317,14 @@ test('What’s new groups others’ changes by person, leaves out the reader’s
   assert.equal(ada.name, 'Ada Quill');
   assert.ok(ada.lines.length > 0);
   assert.equal(news.groups.at(-1)!.person, null, 'the family as a whole comes last');
-  assert.deepEqual(news.replies, [], 'no comment table, no comments');
-  // Once the comments feature's tables exist, comments and reactions on what the reader wrote are news to them.
-  await d().run('CREATE TABLE comment (id TEXT PRIMARY KEY, target_kind TEXT, target TEXT, account TEXT, author_name TEXT, body TEXT, created_at TEXT, edited_at TEXT)');
-  await d().run('CREATE TABLE reaction (target_kind TEXT, target TEXT, account TEXT, kind TEXT, created_at INTEGER)');
+  assert.deepEqual(news.replies, [], 'nobody has answered yet');
+  // Comments and reactions on what the reader wrote are news to them; their own are not.
   await d().run("INSERT INTO comment VALUES ('c1', 'story', ?, ?, 'Vera Lumen', 'Lovely', ?, NULL)", storyId, VIEWER, new Date().toISOString());
   await d().run("INSERT INTO comment VALUES ('c2', 'story', ?, ?, 'Odo Brisk', 'Thanks', ?, NULL)", storyId, CONTRIBUTOR, new Date().toISOString());
-  await d().run("INSERT INTO reaction VALUES ('story', ?, ?, 'heart', ?)", storyId, EDITOR, Date.now());
+  await d().run("INSERT INTO reaction VALUES ('story', ?, ?, 'heart', ?)", storyId, EDITOR, new Date().toISOString());
   const replies = await h.repliesTo(d(), CONTRIBUTOR, Date.now() - 60_000);
   assert.deepEqual(replies.map((r) => [r.kind, r.count, r.label, r.author]), [['comment', 1, 'Rain', 'Vera Lumen'], ['reaction', 1, 'Rain', '']]);
   assert.deepEqual(await h.repliesTo(d(), VIEWER, Date.now() - 60_000), [], 'not on what they wrote');
-  await d().run('DROP TABLE comment');
-  await d().run('DROP TABLE reaction');
 });
 
 test('the weekly push says what the week brought, and nothing when it brought nothing', () => {
