@@ -24,6 +24,7 @@ both what the browser shows and what the server allows.
 | Add research (a project, a document, a note, a link), and change your own | Contributor |
 | Change or remove anyone's research; mark research private | Editor |
 | Edit or add a person, a link, a place or a contact; remove a person | Editor |
+| Add, change and remove life events, sources and citations | Editor |
 | Export the family (GEDCOM or Markdown) | Editor |
 | Edit a house and its arms | Steward |
 | Manage access | Steward |
@@ -53,8 +54,8 @@ and paste it into a chat or an email. A guest is not a member and is not an acco
 and they have no name, no "who you are" and no settings.
 
 A guest sees less than a viewer: the tree, the people's names, dates, biographies and stories (of living people only what
-"Protect living people" below leaves, when the link has it on), and the research that isn't private, but
-**no person's fields at any level (no contacts, no favourites, no notes), no Contacts page, no editing, no AI, no money
+"Protect living people" below leaves, when the link has it on), and the research that isn't private, and life events (of living people none, when the link protects them), but
+**no sources or citations, no person's fields at any level (no contacts, no favourites, no notes), no Contacts page, no editing, no AI, no money
 spent, no export, no Access or settings pages.** A link can be passed on, so "Family" means the members with an account, not
 everyone holding the link. One number does reach a guest: the Needed page can say that someone has no contact recorded (never
 a living person, when the link protects them). The
@@ -81,7 +82,7 @@ account. A guest's pictures go through the same checks, and they need the guest'
   already identify a child and an age follows from it; so no age either, and where the dates would be the page shows nothing.
   They also get no birthplace or other place, no occupation, traits or biography, no fields (no guest ever does), no stories
   about them in the Chronicle or on their page, in any language, no research project that names them (its notes, documents
-  and files included), no birthday or wedding anniversary on the families list or in the Almanac, no Atlas pin or place that
+  and files included), no birthday or wedding anniversary on the families list or in the Almanac, no life event (on their page or the Atlas), no Atlas pin or place that
   only their records name, no partnership date or place for a couple with a living partner, and no story or contact counts.
   Gallery pictures still show if a guest can open the gallery, but no living person is tagged on them, and a picture with a
   living person in it (tagged, or only suggested) comes without its caption, date and place, in the gallery, on anyone's page
@@ -166,6 +167,10 @@ Personal does not mean encrypted. Whoever runs the server can read it in a copy 
 Cloudflare with `scripts/import-to-d1.ts` leaves them behind, because accounts are not copied and the target would have no one to show them to.
 
 **Private research.** A research project, a document, a note, or a link from a project to a person can be marked private. It follows the Editors level above: only editors and stewards ever receive it, and for anyone else it is not there at all: no entry in a list, no count, no timeline event, and the file answers "not found". Only editors can mark something private. Kindred has no private person (see below), so a person whose connection to a piece of research is sensitive is kept private by the link, not by hiding them from the family.
+
+**Life events, sources and citations** have no private level: every member reads them, and editors change them. A share-link
+guest reads events (with "Protect living people", none of a living person's) but no sources and no citations, and the Sources
+page tells a guest so. A source that links to a private research document shows that link only to editors and stewards.
 
 **Everything else is visible to every member.** That includes names, dates, places, biographies, memories and
 sayings, and the public contact fields. Contributors can add to these, and viewers can read them.

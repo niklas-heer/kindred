@@ -12,6 +12,8 @@ Changes on `main` since 2.0.0. They are not in a release yet.
 Database changes: four migrations are new, `accounts/0022_session_credential.sql`, `accounts/0023_share_protect_living.sql`,
 `accounts/0024_join_request.sql` and `tree/0023_photo_thumb.sql`. They add columns and new tables, so they are quick and nothing
 you have is rewritten. On Node they
+`tree/0023_photo_thumb.sql` and `tree/0024_events_sources.sql`. The first three each add one column and the last adds three
+empty tables, so they are quick and nothing you have is rewritten. On Node they
 are applied by themselves when the server starts, after a copy of each database. On Cloudflare, `mise run deploy` applies
 them before the new Worker goes live (`mise run cf:migrate:remote` does the same step alone). Code and migrations roll back
 together: to go back to 2.0.0, restore the copies the server made before the migration and start the old version. An old
@@ -24,6 +26,18 @@ version will not run on a database that has had these migrations.
   approves it with a role or declines it. Requests end after 30 days; a link holds at most 10. Each link has a "Guests may ask to
   join" switch, on by default. To show how the link was used, a guest's visit is now measured per browser as a few totals
   (never with Do Not Track or Global Privacy Control); see docs/roles-and-privacy.md. Kindred sign-in only.
+- Life events: baptisms, schooling, service, moves, burials and more (or a custom event), each with a date and an end, a
+  place and a note. Editors add them on a person's Edit tab or with "Add an event" on the life timeline, where every reader
+  sees them in order with birth, partnerships, children and death. Events with a place are a new "Events" view on the Atlas.
+  A share-link guest sees events of the dead, and with "Protect living people" none of a living person's.
+- Sources and citations: a Sources page under Research holds the family's registers, letters, books and web pages, and
+  editors cite them for a birth, death, name, event, partnership or parent link, with a page, a quality and a short
+  transcription. Cited facts carry a small "sourced" mark; the Edit tab shows which facts have no source, and the Needed page
+  lists births without one for editors. Members read sources; guests get none.
+- GEDCOM export and import carry life events (standard tags, `EVEN` with `TYPE` for the rest) and sources (`SOUR` records,
+  and citations with `PAGE`, `QUAY` and `DATA`/`TEXT`); Kindred's own export comes back unchanged. The Markdown archive lists
+  them too, with sources in `sources/`.
+
 - Setting `KINDRED_TRUSTED_PROXIES`: how many reverse proxies stand in front of the Node server. `compose.yaml` passes it
   on and the HTTPS steps set it to 1.
 - Removing a passkey now signs out the devices that signed in with it. The passkeys dialog has "Sign out everywhere else".

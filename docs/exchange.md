@@ -59,6 +59,9 @@ carried in `_KINDRED_*` tags, which other programs skip, so a file made here com
 | Divorce | `DIV` with `DATE` | The end reason is `divorce`. |
 | Other ending (for example, a death) | `_KINDRED_END <reason>` with `DATE` | |
 | Children | `CHIL` on the family | A child belongs to one family for each kind of parent link, so a birth parent and a step parent are two families. |
+| Life event | its standard tag: `BAPM`, `CHR`, `CONF`, `BARM` (`BASM` is read too), `EDUC`, `GRAD`, `OCCU`, `RESI`, `EMIG`, `IMMI`, `NATU`, `RETI`, `BURI`, `CREM`, `CENS`; `EVEN` with `TYPE` for military service, an engagement, an award and a custom event (its label is the `TYPE`) | The line's value is the event's details; `DATE`, `PLAC`, `NOTE`, `_KINDRED_ID`, and `_KINDRED_TYPE` on an `EVEN`. An event with an end is `DATE FROM … TO …`. An `OCCU` that is an event carries `_KINDRED_EVENT Y`; from another program, an `OCCU` with a date or place is read as an event too, and the first `OCCU` is still the person's occupation. `_MILT` is read as military service. |
+| Source | a `SOUR` record with `TITL`, `AUTH`, `PUBL`, `REFN` (call number or URL), `NOTE`, `_KINDRED_ID`, and `_KINDRED_DATE`, `_KINDRED_DOC`, `_KINDRED_MEDIA` (its date, research document and gallery picture) | A link to research or the gallery is kept on import only when the family has that document or picture. A `SOUR` with only text (no record) is read as a source of its own. |
+| Citation | `SOUR @S…@` under the fact: `BIRT`, `DEAT`, the birth `NAME`, the event, `MARR` or `_KINDRED_BEGAN`, or `FAMC` for a parent link (with `_KINDRED_PARENT` naming the parent) | `PAGE`, `QUAY` (3 original, 2 derivative, 1 unsure; 0 is read as unsure), `DATA`/`TEXT` for the transcription, `_KINDRED_ID`. A `FAMC` citation from another program is read as one for each parent of that family. A citation of the death of someone marked living is not written, and the report says so. |
 
 **Dates.** Kindred's partial dates map to GEDCOM's: `1953`, `AUG 1953`, `8 AUG 1953`, and `ABT …` for an approximate
 date (Kindred's `~`). On import, `CAL` and `EST` are read as about. `BEF` and `AFT`, `BET … AND …` and `FROM … TO …` have
@@ -128,8 +131,14 @@ id, made safe for any file system.
 | A marriage that ended by something other than divorce | `ended` and `ended_by` on the marriage event |
 | Divorce | an event of type `divorce` |
 | Biography | the body, under `## Story` |
+| Life event | an entry in `events` with `id`, `type` (`baptism`, `residence`, `custom`…), `label`, `date`, `end`, `place` and `note` |
+| Source | a note of its own in `sources/`, with `id`, `type: source`, `title`, `author`, `publication`, `reference`, `date`, and its note as the body |
+| Citation | an entry in `citations` on the note of the person whose fact it is (a partnership's on the note that declares it): `fact`, `event`, `partnership` or `parent`, `source` (a link to `sources/`), `page`, `quality`, `text` |
 
 A partnership belongs to the note of its lower-id partner, so it is declared once.
+
+The v1 importer (`scripts/import-kindred.ts`) reads people, links and marriages; it skips life events, sources and citations, so a
+family moved that way gets them through GEDCOM.
 
 **What the archive leaves out:** step-parent links, because v1 has no step relation and writing one as a biological
 claim would be a false fact in v1; stories, memories and sayings; contact details and other fields; houses and arms; and
