@@ -68,7 +68,7 @@ function CampaignPage() {
           : view.enabled ? <Live view={view} tree={tree} help={help} startPractice={() => setPractice(true)} />
           : <Off view={view} tree={tree} help={help} startPractice={() => setPractice(true)} />}
       </div>
-      <HowItWorks open={how} onClose={() => setHow(false)} onPractice={practice ? undefined : () => { setHow(false); setPractice(true); }} />
+      <HowItWorks open={how} onClose={() => setHow(false)} map={practice || !!view?.enabled} onPractice={practice ? undefined : () => { setHow(false); setPractice(true); }} />
     </div>
   );
 }

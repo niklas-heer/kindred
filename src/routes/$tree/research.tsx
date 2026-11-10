@@ -8,7 +8,7 @@ import { useTreeId } from '~/lib/family';
 import { relativeTime, translate, useT, type Locale } from '~/lib/i18n';
 import { researchProjectsQuery } from '~/lib/research.functions';
 import type { ProjectSummary } from '~/lib/research';
-import { useCan, useMembership } from '~/lib/session';
+import { useCan, useMember } from '~/lib/session';
 import { treeTitle } from '~/lib/title';
 import '~/styles/research.css';
 import { useDealt } from '~/lib/dealt';
@@ -23,7 +23,8 @@ function ResearchPage() {
   const t = useT();
   const canAdd = useCan('add-research');
   // Sources are for members (a share-link guest gets none), so only they are offered the way there.
-  const member = !!useMembership(tree);
+  // A guest's session lists the family as a viewer's membership; only a member's counts here (useMember).
+  const member = !!useMember(tree);
   const navigate = useNavigate();
   const q = useQuery(researchProjectsQuery(tree));
   const dealt = useDealt(!q.isPending);

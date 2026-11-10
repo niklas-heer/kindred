@@ -158,7 +158,11 @@ export function HallOfFame({ fame }: { fame: FameEntry[] }) {
 
 // ---------- how it works ----------
 
-export function HowItWorks({ open, onClose, onPractice }: { open: boolean; onClose: () => void; onPractice?: () => void }) {
+/**
+ * "How the Campaign works". `map` says a map is on the page behind it (the live season or a practice): then its main button goes
+ * back to it. While the game is off there is none, so the practice skirmish is the main action and the other button just closes.
+ */
+export function HowItWorks({ open, onClose, onPractice, map = true }: { open: boolean; onClose: () => void; onPractice?: () => void; map?: boolean }) {
   const t = useT();
   const steps: { icon: ReactNode; title: Key; text: Key }[] = [
     { icon: <Landmark size={20} />, title: 'campaign.how.map_title', text: 'campaign.how.map_text' },
@@ -178,8 +182,17 @@ export function HowItWorks({ open, onClose, onPractice }: { open: boolean; onClo
       initialFocus="[data-autofocus]"
       footer={
         <>
-          {onPractice && <button type="button" className="btn" onClick={onPractice}>{t('campaign.practice.try')}</button>}
-          <button type="button" className="btn primary" onClick={onClose} data-autofocus>{t('campaign.how.close')}</button>
+          {map || !onPractice ? (
+            <>
+              {onPractice && <button type="button" className="btn" onClick={onPractice}>{t('campaign.practice.try')}</button>}
+              <button type="button" className="btn primary" onClick={onClose} data-autofocus>{t(map ? 'campaign.how.close' : 'campaign.how.later')}</button>
+            </>
+          ) : (
+            <>
+              <button type="button" className="btn" onClick={onClose}>{t('campaign.how.later')}</button>
+              <button type="button" className="btn primary" onClick={onPractice} data-autofocus>{t('campaign.practice.try')}</button>
+            </>
+          )}
         </>
       }
     >

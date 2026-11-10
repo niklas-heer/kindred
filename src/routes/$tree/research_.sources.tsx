@@ -14,7 +14,7 @@ import { isWebAddress, QUALITY_LABEL, type Citation, type Source } from '~/lib/e
 import { useFamily, useTreeId } from '~/lib/family';
 import { displayName, fmtDate } from '~/lib/graph';
 import { compareText, locales, translate, useT, type Locale } from '~/lib/i18n';
-import { useCan, useMembership } from '~/lib/session';
+import { useCan, useMember } from '~/lib/session';
 import { removeSource, sourceCitationsQuery, sourcesQuery } from '~/lib/sources.functions';
 import { treeTitle } from '~/lib/title';
 import '~/components/life/life.css';
@@ -27,7 +27,8 @@ export const Route = createFileRoute('/$tree/research_/sources')({
 function SourcesPage() {
   const tree = useTreeId();
   const t = useT();
-  const member = !!useMembership(tree);
+  // A guest's session lists the family as a viewer's membership; only a member's counts here (useMember).
+  const member = !!useMember(tree);
   const canEdit = useCan('edit-person');
   const q = useQuery({ ...sourcesQuery(tree), enabled: member });
   const [filter, setFilter] = useState('');

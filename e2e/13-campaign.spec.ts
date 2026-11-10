@@ -7,6 +7,15 @@ test('campaign: a steward turns it on, plays an order, and the practice skirmish
 
   // Off by default: no section in the navigation, and the page says so.
   await expect(page.getByRole('navigation', { name: 'Sections' }).first().getByRole('link', { name: 'The Campaign' })).toHaveCount(0);
+  // The first visit explains the game once. While it is off there is no map to go to: the practice is the main action.
+  await page.goto(`/${tree}/campaign`);
+  await settled(page);
+  const how = page.getByRole('dialog', { name: 'How the Campaign works' });
+  await expect(how).toBeVisible();
+  await expect(how.getByRole('button', { name: 'To the map' })).toHaveCount(0);
+  await expect(how.getByRole('button', { name: 'Try a practice skirmish' })).toHaveClass(/primary/);
+  await how.getByRole('button', { name: 'Not now' }).click();
+  await expect(how).toBeHidden();
 
   // The steward's own house, so there is a side to play.
   await page.goto(`/${tree}/houses`);
@@ -29,11 +38,12 @@ test('campaign: a steward turns it on, plays an order, and the practice skirmish
   await expect(toggle).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByText('Season 1 is being played.')).toBeVisible();
 
-  // The section appears, and the first visit explains the game once.
+  // The section appears; "How it works" now goes back to the map.
   await page.getByRole('link', { name: 'Open the Campaign' }).click();
   await page.waitForURL(/\/campaign$/);
   await settled(page);
-  const how = page.getByRole('dialog', { name: 'How the Campaign works' });
+  await expect(how).toBeHidden();
+  await page.getByRole('button', { name: 'How it works' }).click();
   await expect(how).toBeVisible();
   await checkAxe(page, 'campaign, how it works');
   await how.getByRole('button', { name: 'To the map' }).click();

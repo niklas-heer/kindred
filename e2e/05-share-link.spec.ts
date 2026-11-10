@@ -63,6 +63,11 @@ test('share link: create, guest signs in, viewer only, writes refused', async ({
   await expect(guest.getByText('Open question for all')).toBeVisible();
   await expect(guest.getByText('Private question for editors')).toHaveCount(0);
   await expect(guest.getByRole('button', { name: 'New project' })).toHaveCount(0);
+  // Sources are for members: no way there, and the page itself asks the server for nothing a guest may not read.
+  await expect(guest.getByRole('link', { name: 'Sources' })).toHaveCount(0);
+  await guest.goto(`/${tree}/research/sources`);
+  await settled(guest);
+  await expect(guest.getByRole('heading', { name: 'Sources are for the family' })).toBeVisible();
 
   await guest.goto(`/${tree}/access`);
   await settled(guest);
