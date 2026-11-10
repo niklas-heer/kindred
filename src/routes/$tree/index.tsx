@@ -1,5 +1,5 @@
-import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router';
-import { ArrowDownToLine, ArrowLeft, ArrowUpToLine, ChevronUp, ChevronsDownUp, ChevronsUpDown, Crown, FileQuestion, GitFork, Glasses, HeartPulse, Keyboard, Landmark, Network, Route as RouteIcon, Shield, SlidersHorizontal, Users, Waypoints, X } from 'lucide-react';
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { Keyboard } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Canvas, type CanvasHandle, type Detail, type Inset } from '~/components/Canvas';
 import { Card, type AddRelation } from '~/components/Card';
@@ -7,25 +7,21 @@ import { PersonPanel } from '~/components/PersonPanel';
 import { Portrait } from '~/components/Portrait';
 import { QuickAdd } from '~/components/QuickAdd';
 import { useFamily, useMe, useMeChosen } from '~/lib/family';
-import { Dialog, Select, type SelectOption } from '~/components/ui';
 import { displayName, houseMembers, kinship, lifespan, parents, children } from '~/lib/graph';
-import { foldAllBut, houseRoot, lensMembers, rowMark, rowNeighbour, toggled } from '~/lib/tree-view';
+import { foldAllBut, lensMembers, rowMark, rowNeighbour, toggled } from '~/lib/tree-view';
 import { selectionAnnouncement } from '~/lib/card-label';
 import { layout as computeLayout, rootFor, type LNode, type View } from '~/lib/layout';
 import { setPref, usePref } from '~/lib/prefs';
 import { openingView, treeSearch } from '~/lib/tree-search';
 import { gapsOf, useRequired } from '~/lib/gaps';
 import { play } from '~/lib/sfx';
-import { formatNumber, kinshipLabel, yourKinship, useT } from '~/lib/i18n';
-import { Arms } from '~/components/Heraldry';
+import { kinshipLabel, yourKinship, useT } from '~/lib/i18n';
 import { personName, treeTitle } from '~/lib/title';
 import { useCan } from '~/lib/session';
 import { sessionQuery } from '~/lib/auth/functions';
 import { opensOnToday } from '~/lib/today/opening';
-import { DisplayChoices } from '~/components/tree/DisplayChoices';
 import { EmptyTree } from '~/components/tree/EmptyTree';
 import { HelpCard } from '~/components/tree/HelpCard';
-import { Stepper } from '~/components/tree/Stepper';
 import { useAddedNotice } from '~/components/tree/useAddedNotice';
 import { useBirthdayToast } from '~/components/tree/useBirthdayToast';
 import { useBottomSheet, useSheetFocus } from '~/components/tree/useBottomSheet';
@@ -35,6 +31,12 @@ import { useKinLabels } from '~/components/tree/useKinLabels';
 import { useMedia } from '~/components/tree/useMedia';
 import { useStaleLinks } from '~/components/tree/useStaleLinks';
 import { useTreeHotkeys } from '~/components/tree/useTreeHotkeys';
+import { HouseBanner } from '~/components/tree/HouseBanner';
+import { LensBanner } from '~/components/tree/LensBanner';
+import { PanelSheet } from '~/components/tree/PanelSheet';
+import { DisplaySheet, TreeToolbar } from '~/components/tree/TreeToolbar';
+import { TreeTrail } from '~/components/tree/TreeTrail';
+import { FoldButtons, HouseSelect, ViewSteppers } from '~/components/tree/ViewControls';
 import '~/styles/tree.css';
 
 export const Route = createFileRoute('/$tree/')({
@@ -85,7 +87,8 @@ function TreePage() {
   const down = search.down ?? 2;
   const lens = search.lens ?? 'none';
 
-  const { nameMode, ageMode, changeNameMode, changeAgeMode } = useCardDisplay(tree);
+  const display = useCardDisplay(tree);
+  const { nameMode, ageMode } = display;
 
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [panel, setPanel] = useState(true);
@@ -352,8 +355,6 @@ function TreePage() {
   // married in, and the minimap counts those as "people". Every descendant has no such list, so that banner counts who is drawn.
   const shown = useMemo(() => new Set(lay.nodes.filter((n) => n.role !== 'ghost').map((n) => n.id)).size, [lay]);
   const members = line === 'house' && rootHouse ? houseMembers(f, rootHouse.id).length : shown;
-  // "Descendants of {name}", as the words before and after the name, in whatever order the language puts them.
-  const descOf = t('tp.descendantsOf', { name: '\u0001' }).split('\u0001').map((w) => w.trim());
   const prevRoot = useRef(lay.root);
   useEffect(() => {
     if (view !== 'dynasty' || prevRoot.current === lay.root) return;
@@ -382,34 +383,9 @@ function TreePage() {
   }, [bannerKey]);
   const onUserMove = useCallback(() => { camMoved.current = true; setBannerBig(false); }, []);
 
-  const houses = useMemo(() => {
-    return f.graph.houses.map((h) => [h, houseMembers(f, h.id).length] as const).filter(([, c]) => c > 1).sort((a, b) => b[1] - a[1]);
-  }, [f]);
   const house = focusPerson?.house ? f.house.get(focusPerson.house) : undefined;
 
   const setView = (v: View) => go(viewPatch(v));
-  const viewOptions: (SelectOption<View> & { title: string })[] = [
-    { value: 'family', label: t('tp.view.family'), icon: <Network size={15} />, title: t('tp.viewTitle.family') },
-    { value: 'dynasty', label: t('tp.view.dynasty'), icon: <Crown size={15} />, title: t('tp.viewTitle.dynasty') },
-    { value: 'ancestors', label: t('tp.view.ancestors'), icon: <GitFork size={15} style={{ transform: 'rotate(180deg)' }} />, title: t('tp.viewTitle.ancestors') },
-  ];
-  const ALL = '*all';
-  const PAGE = '*page';
-  const lineHouse = view === 'dynasty' && line === 'house' ? f.house.get(f.byId.get(lay.root)?.house ?? '') : undefined;
-  const houseOptions: SelectOption[] = [
-    ...houses.map(([h, n]) => ({ value: h.id, label: h.name, icon: <Arms arms={h.arms} size={18} />, hint: formatNumber(n, t.locale), group: t('tp.houseLine') })),
-    { value: ALL, label: t('tp.allDesc'), icon: <Users size={16} />, hint: t('tp.throughDaughters'), group: t('tp.everyDesc') },
-    ...(lineHouse ? [{ value: PAGE, label: t('tp.openHousePage'), icon: <Landmark size={16} />, hint: lineHouse.name, group: t('tp.thisHouse') }] : []),
-  ];
-  const lensOptions: SelectOption<NonNullable<typeof search.lens>>[] = [
-    { value: 'none', label: t('tp.lensEveryone'), icon: <Glasses size={16} /> },
-    { value: 'line', label: t('tp.lensLine', { name: focusPerson?.given ?? '' }), icon: <Waypoints size={16} />, hint: 'L' },
-    { value: 'house', label: house ? house.name : t('tp.lensSameHouse'), icon: house ? <Arms arms={house.arms} size={16} /> : <Shield size={16} /> },
-    { value: 'living', label: t('tp.lensLiving'), icon: <HeartPulse size={16} /> },
-    { value: 'gaps', label: t('needed.title'), icon: <FileQuestion size={16} /> },
-    { value: 'path', label: who ? t('tp.lensPathMe') : t('tp.lensPathStart'), icon: <RouteIcon size={16} /> },
-  ];
-  const lensLabel = lensOptions.find((o) => o.value === lens)?.label ?? t('tp.lensEveryone');
   const older = rootPerson ? parents(f, rootPerson.id)[0] : undefined;
 
   // The toolbar is one row, whatever the language and typeface. It starts with everything named and in the row;
@@ -420,39 +396,22 @@ function TreePage() {
   const roomy = !phone && tight < 2;
   useEffect(() => { if (roomy) setDisplayOpen(false); }, [roomy]);
   // The controls of the current view: in the toolbar row on wide screens, in the Display sheet on a phone.
-  const steppers = (full: boolean) =>
-    view === 'family' ? (
-      <>
-        <Stepper full={full} label="tp.up" long="tp.genUp" icon={<ArrowUpToLine size={15} />} value={up} onChange={(v) => go({ up: v }, true)} />
-        <Stepper full={full} label="tp.down" long="tp.genDown" icon={<ArrowDownToLine size={15} />} value={down} onChange={(v) => go({ down: v }, true)} />
-      </>
-    ) : view === 'ancestors' ? (
-      <Stepper full={full} label="tp.generations" long="tp.generations" icon={<ArrowUpToLine size={15} />} value={Math.max(up, 6)} onChange={(v) => go({ up: v }, true)} />
-    ) : null;
-  const houseSelect = (then?: () => void) => view !== 'dynasty' ? null : (
-    <Select
-      className="tb-house"
-      size="sm"
-      aria-label={t('tp.houseWord')}
-      title={t('tp.dynastyTitle')}
-      placeholder={t('tp.chooseHouse')}
-      menuWidth={260}
-      value={line === 'house' ? (f.byId.get(lay.root)?.house ?? '') : ALL}
-      options={houseOptions}
-      onChange={(v) => {
-        then?.();
-        if (v === PAGE) { if (lineHouse) navigate({ to: '/$tree/house/$house', params: { tree, house: lineHouse.id } }); return; }
-        if (v === ALL) { go({ line: 'all', root: undefined }); return; }
-        const r = houseRoot(f, v);
-        if (r) { panTo.current = r; go({ line: 'house', root: r, focus: r, sel: undefined }); }
-      }}
+  const steppers = (full: boolean) => (
+    <ViewSteppers view={view} up={up} down={down} full={full} onUp={(v) => go({ up: v }, true)} onDown={(v) => go({ down: v }, true)} />
+  );
+  const houseSelect = (then?: () => void) => (
+    <HouseSelect
+      family={f}
+      tree={tree}
+      line={line}
+      root={lay.root}
+      then={then}
+      onAll={() => go({ line: 'all', root: undefined })}
+      onHouse={(r) => { panTo.current = r; go({ line: 'house', root: r, focus: r, sel: undefined }); }}
     />
   );
-  const foldButtons = (then?: () => void) => view !== 'dynasty' ? null : (
-    <>
-      <button className="btn tb-fold" onClick={() => { foldToFocus(); then?.(); }} title={t('tp.foldTitle')} aria-label={t('tp.foldOthers')}><ChevronsDownUp size={15} aria-hidden /><span className="tb-label">{t('tp.foldOthers')}</span></button>
-      {collapsed.size > 0 && <button className="btn tb-fold" onClick={() => { setCollapsed(new Set()); then?.(); }} title={t('tp.unfoldTitle')} aria-label={t('tp.unfoldAll')}><ChevronsUpDown size={15} aria-hidden /><span className="tb-label">{t('tp.unfoldAll')}</span></button>}
-    </>
+  const foldButtons = (then?: () => void) => (
+    <FoldButtons folded={collapsed.size > 0} onFold={foldToFocus} onUnfold={() => setCollapsed(new Set())} then={then} />
   );
 
   // What covers the canvas, measured when the camera frames something: the HUD (toolbar, banner, lens
@@ -515,146 +474,68 @@ function TreePage() {
           <>
             <div ref={hud} className={`hud${panel ? ' with-panel' : ''}`}>
             <div className="tb-stack">
-            <div ref={toolbar} className={`tree-toolbar panel no-pan${phone ? ' is-phone' : tight ? ' is-tight' : ''}`} role="toolbar" aria-label={t('tp.toolbarAria')}>
-              <div className="seg tb-views" role="group" aria-label={t('tp.view')}>
-                {viewOptions.map((o) => (
-                  <button key={o.value} className="btn" aria-pressed={view === o.value} onClick={() => setView(o.value)} title={o.title} aria-label={o.label}>
-                    <span className="tb-view-icon" aria-hidden>{o.icon}</span><span className="tb-label">{o.label}</span>
-                  </button>
-                ))}
-              </div>
-              {!phone && <Select className="tb-view-select" size="sm" value={view} onChange={setView} options={viewOptions} aria-label={t('tp.view')} menuWidth={170} />}
-              {/* A phone keeps the row to the view, the lens and Display: the rest of these open from Display, each with its name. */}
-              {!phone && (
-                <>
-                  <span className="tb-sep" />
-                  {steppers(false)}
-                  {houseSelect()}
-                  {foldButtons()}
-                </>
-              )}
-              <span className="tb-sep" />
-              <Select
-                className={`tb-lens${lens !== 'none' ? ' on' : ''}`}
-                size="sm"
-                aria-label={t('tp.lensLabel', { lens: lensLabel })}
-                title={t('tp.lensLabel', { lens: lensLabel })}
-                menuWidth={250}
-                value={lens}
-                options={lensOptions}
-                onChange={(v) => go({ lens: v, to: undefined })}
-              />
-              {roomy ? (
-                <>
-                  <span className="tb-sep" />
-                  <div className="tb-display-row" role="group" aria-label={t('tp.cardDisplay')}>
-                    <DisplayChoices nameMode={nameMode} onName={changeNameMode} ageMode={ageMode} onAge={changeAgeMode} />
-                  </div>
-                </>
-              ) : (
-                <button type="button" className="btn tb-display" onClick={() => setDisplayOpen(true)} aria-haspopup="dialog" aria-label={t('tp.display')} title={t(phone ? 'tp.display' : 'tp.namesAndAges')}>
-                  <SlidersHorizontal size={16} aria-hidden /><span className="tb-label">{t('tp.display')}</span>
-                </button>
-              )}
-            </div>
+            <TreeToolbar
+              ref={toolbar}
+              phone={phone}
+              tight={tight}
+              roomy={roomy}
+              view={view}
+              onView={setView}
+              controls={view === 'dynasty' ? <>{houseSelect()}{foldButtons()}</> : steppers(false)}
+              lens={lens}
+              onLens={(v) => go({ lens: v, to: undefined })}
+              focusGiven={focusPerson?.given ?? ''}
+              house={house}
+              who={!!who}
+              display={display}
+              onDisplay={() => setDisplayOpen(true)}
+            />
 
             {view === 'dynasty' && rootPerson && (
-              <div key={lay.root + line} className={`house-banner no-pan${bannerBig ? '' : ' compact'}`}>
-                <button
-                  className="banner-id"
-                  onClick={() => setBannerBig((b) => !b)}
-                  aria-expanded={bannerBig}
-                  title={bannerBig ? t('tp.bannerFold') : t('tp.houseDetails')}
-                >
-                  {line === 'house' && rootHouse ? <Arms arms={rootHouse.arms} size={20} /> : <Users size={16} />}
-                  <span className="banner-text">
-                    {line === 'house' && rootHouse ? <b className="display">{rootHouse.name}</b> : (
-                      // The name once. Short of room, the words around it go first (tree.css, .banner-of).
-                      <b className="display banner-of">
-                        {descOf[0] && <span>{descOf[0]}</span>}
-                        <span className="banner-name">{displayName(rootPerson, f)}{descOf[1] ? ` ${descOf[1]}` : ''}</span>
-                      </b>
-                    )}
-                    {line === 'house' && rootHouse ? (bannerBig ? (
-                      <span className="faint banner-more">
-                        {t('tp.memberCount', { count: members })} · {t('tp.from', { name: displayName(rootPerson, f) })}
-                        {rootHouse.motto ? <> · <i>“{rootHouse.motto}”</i></> : null}
-                      </span>
-                    ) : (
-                      <span className="faint banner-count">{formatNumber(members, t.locale)}</span>
-                    )) : (
-                      <span className="faint banner-count">· {formatNumber(members, t.locale)}</span>
-                    )}
-                  </span>
-                </button>
-                {line === 'house' && rootHouse && (
-                  <Link className="btn ghost banner-page" to="/$tree/house/$house" params={{ tree, house: rootHouse.id }} title={t('panel.openHouse', { name: rootHouse.name })} aria-label={t('panel.openHouse', { name: rootHouse.name })}>
-                    <Landmark size={15} aria-hidden />{bannerBig && <span className="banner-btn-label">{t('tp.housePage')}</span>}
-                  </Link>
-                )}
-                {older && (
-                  <button className="btn ghost" onClick={() => go({ root: older })} title={t('tp.olderTitle')} aria-label={t('tp.startEarlier')}>
-                    <ChevronUp size={15} aria-hidden />{bannerBig && <span className="banner-btn-label">{t('tp.older')}</span>}
-                  </button>
-                )}
-              </div>
+              <HouseBanner
+                key={lay.root + line}
+                family={f}
+                tree={tree}
+                rootPerson={rootPerson}
+                rootHouse={rootHouse}
+                line={line}
+                members={members}
+                big={bannerBig}
+                onToggle={() => setBannerBig((b) => !b)}
+                older={older}
+                onOlder={() => go({ root: older })}
+              />
             )}
             </div>
 
-            <Dialog open={displayOpen && !roomy} onClose={() => setDisplayOpen(false)} title={t(phone ? 'tp.display' : 'tp.namesAndAges')} placement={phone ? 'sheet' : 'center'} width={420}>
-              <div className="tb-display-sheet">
-                {phone && view !== 'dynasty' && steppers(true)}
-                {phone && view === 'dynasty' && (
-                  <>
-                    <div className="tb-sheet-field"><span>{t('tp.houseWord')}</span>{houseSelect(() => setDisplayOpen(false))}</div>
-                    <div className="tb-sheet-actions">{foldButtons(() => setDisplayOpen(false))}</div>
-                  </>
-                )}
-                <div className="tb-sheet-group" role="group" aria-label={t('tp.cardDisplay')}>
-                  <DisplayChoices labelled nameMode={nameMode} onName={changeNameMode} ageMode={ageMode} onAge={changeAgeMode} />
-                </div>
-              </div>
-            </Dialog>
+            <DisplaySheet open={displayOpen && !roomy} phone={phone} onClose={() => setDisplayOpen(false)} display={display}>
+              {phone && view !== 'dynasty' && steppers(true)}
+              {phone && view === 'dynasty' && (
+                <>
+                  <div className="tb-sheet-field"><span>{t('tp.houseWord')}</span>{houseSelect(() => setDisplayOpen(false))}</div>
+                  <div className="tb-sheet-actions">{foldButtons(() => setDisplayOpen(false))}</div>
+                </>
+              )}
+            </DisplaySheet>
 
             {lens !== 'none' && (
-              <div className="lens-banner no-pan" role="status">
-                <span className="lens-text">
-                {lens === 'path' ? (
-                  // The path needs two people: with only one in view, ask for the other (or, unsaid, who the reader is).
-                  (search.to ?? sel) === (who ?? me)
-                    ? <>{who ? t('tp.bannerPathPick') : t('tp.bannerPathPickStart', { me: displayName(f.byId.get(me)!, f) })}</>
-                    : who
-                    ? <>{t('tp.bannerPathYou', { name: displayName(f.byId.get(search.to ?? sel)!, f), rel: kinshipLabel(kinship(f, who, search.to ?? sel), t.locale) || t('tp.relative') })}</>
-                    : <>{t('tp.bannerPathRelated', { name: displayName(f.byId.get(search.to ?? sel)!, f), me: displayName(f.byId.get(me)!, f) })}</>
-                ) : lens === 'line' ? (
-                  <>{t('tp.bannerLine', { name: focusPerson?.given ?? '' })}</>
-                ) : lens === 'living' ? (
-                  <>{t('tp.lensLiving')}</>
-                ) : lens === 'gaps' ? (
-                  <>{t('tp.bannerGaps')}</>
-                ) : (
-                  <>{t('tp.bannerHouse', { name: house?.name ?? t('tp.houseWord') })}</>
-                )}
-                </span>
-                <span className="lens-count">{lensCount}</span>
-                <button className="btn icon ghost" onClick={() => go({ lens: 'none', to: undefined })} aria-label={t('tp.clearLens')} title={t('tp.clearLensEsc')}><X size={14} /></button>
-              </div>
+              <LensBanner
+                family={f}
+                lens={lens}
+                target={search.to ?? sel}
+                me={me}
+                who={who}
+                focusPerson={focusPerson}
+                house={house}
+                count={lensCount}
+                onClear={() => go({ lens: 'none', to: undefined })}
+              />
             )}
 
             </div>
 
             {trail.length > 1 && !phone && (
-              <nav className={`trail no-pan panel${panel ? ' with-panel' : ''}`} aria-label={t('tp.recent')}>
-                <span className="faint">{t('tp.trail')}</span>
-                {trail.slice(1).map((id) => {
-                  const p = f.byId.get(id);
-                  return p ? (
-                    <button key={id} className="trail-item" onClick={() => select(id)} title={displayName(p, f)} aria-label={displayName(p, f)}>
-                      <Portrait person={p} tree={tree} size={30} frame={false} />
-                    </button>
-                  ) : null;
-                })}
-              </nav>
+              <TreeTrail family={f} tree={tree} trail={trail} panel={panel} onSelect={(id) => select(id)} />
             )}
 
             {help && <HelpCard onClose={() => setHelp(false)} />}
@@ -663,31 +544,16 @@ function TreePage() {
       />
       <div className="sr-only" role="status" aria-live="polite">{said}</div>
       {panel && (
-        <div
+        <PanelSheet
           ref={sheet}
-          className="panel-sheet"
-          data-snap={snap}
-          // Opened fully on a phone it covers the page: a dialog named after the person, which takes focus and gives it back.
-          role={sheetDialog ? 'dialog' : undefined}
-          aria-label={sheetDialog && focusPerson ? displayName(focusPerson, f) : undefined}
-          tabIndex={sheetDialog ? -1 : undefined}
-          {...drag}
+          snap={snap}
+          dialog={sheetDialog}
+          name={focusPerson ? displayName(focusPerson, f) : undefined}
+          drag={drag}
+          onBack={() => setSnap('peek')}
+          onCycle={cycle}
+          onPeek={() => !justDragged.current && setSnap('half')}
         >
-          <div className="sheet-bar">
-            {snap === 'full' && (
-              <button className="btn ghost sheet-back" onClick={() => setSnap('peek')}><ArrowLeft size={16} /> {t('tp.backToTree')}</button>
-            )}
-            <button
-              className="sheet-grip"
-              // At peek the whole strip below is one button that does the same, so this one steps aside for it.
-              inert={snap === 'peek'}
-              onClick={cycle}
-              aria-label={snap === 'peek' ? t('tp.showMore') : snap === 'half' ? t('tp.showEverything') : t('tp.showLess')}
-              title={snap === 'full' ? t('tp.showLess') : t('tp.showMore')}
-            >
-              <span />
-            </button>
-          </div>
           <PersonPanel
             family={f}
             tree={tree}
@@ -701,12 +567,7 @@ function TreePage() {
             onAncestors={() => { if (phone) setSnap('peek'); go(viewPatch('ancestors')); }}
             onClose={() => setPanel(false)}
           />
-          {snap === 'peek' && (
-            <button className="sheet-peek-hit" onClick={() => !justDragged.current && setSnap('half')} aria-label={t('tp.moreAbout', { name: focusPerson ? displayName(focusPerson, f) : '' })}>
-              <ChevronUp size={18} aria-hidden />
-            </button>
-          )}
-        </div>
+        </PanelSheet>
       )}
       {adding && canAdd && (
         <QuickAdd
