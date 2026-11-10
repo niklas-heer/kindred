@@ -49,11 +49,7 @@ const ref = (p: GPerson): PersonRef => ({ id: p.id, name: fullName(p), born: p.b
 
 function safeKin(f: Family, me: string | null, id: string, anc?: Map<string, number>): Kinship | undefined {
   if (!me || me === id || !f.byId.has(me)) return undefined;
-  try {
-    return kinship(f, me, id, anc);
-  } catch {
-    return undefined; // an unrelated pair can recurse past the stack (see people.tsx)
-  }
+  return kinship(f, me, id, anc);
 }
 
 const MDAY = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -310,9 +306,10 @@ const KIN_MATCH: Record<KinRelation, RegExp> = {
   niece_nephew: /^(half-)?(niece|nephew|nibling)$|^(great-|\d+× great-)(half-)?(niece|nephew|nibling)$/,
   // Anchored, so a tie through a marriage ("wife's first cousin") is an in-law, not a cousin or an ancestor.
   cousin: /^[^']*cousin[^']*$/,
-  in_law: /-in-law$|'s /,
-  ancestor: /^[^']*grand(father|mother|parent)$|^(adoptive )?(father|mother|parent)$/,
-  descendant: /^[^']*grand(son|daughter|child)$|^(adopted )?(son|daughter|child)$/,
+  // Ties by marriage, step-grandparents and the far ones ("relative by marriage") included; a step-grandparent is no ancestor.
+  in_law: /-in-law$|'s |^step-|^relative by marriage$/,
+  ancestor: /^(?!step-)[^']*grand(father|mother|parent)$|^(adoptive )?(father|mother|parent)$/,
+  descendant: /^(?!step-)[^']*grand(son|daughter|child)$|^(adopted )?(son|daughter|child)$/,
 };
 
 export const KIN_TOOL: ToolSpec = {

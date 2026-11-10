@@ -8,7 +8,7 @@ import { GameIcon, type GameIconName } from '~/components/GameIcon';
 import { Portrait } from '~/components/Portrait';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
 import { play } from '~/lib/sfx';
-import { ancestorDepths, displayName, kinship, partnersOf, type Family, type Kinship } from '~/lib/graph';
+import { ancestorDepths, displayName, kinship, type Family, type Kinship } from '~/lib/graph';
 import { yourKinship, locales, ordinal, translate, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
 import type { GPerson } from '~/lib/types';
 import '~/styles/almanac.css';
@@ -423,24 +423,11 @@ function AlmanacView({ today: startDay }: { today: Date }) {
 // ---------- pieces ----------
 
 /**
- * kinship() recurses forever for someone with no tie to you when you have a partner (graph.ts), so only ask
- * when some tie exists, and treat a stack overflow as "no relation".
+ * How `id` is related to the reader. kinship() finds every tie, a step-sibling through a parent's marriage among them,
+ * and answers undefined for someone with no tie at all.
  */
-function relatedTo(f: Family, anc: Map<string, number>, id: string) {
-  for (const a of ancestorDepths(f, id).keys()) if (anc.has(a)) return true;
-  return false;
-}
 function safeKinship(f: Family, me: string, id: string, myAnc: Map<string, number>): Kinship | undefined {
-  const tied =
-    relatedTo(f, myAnc, id) ||
-    partnersOf(f, me).some((s) => relatedTo(f, ancestorDepths(f, s), id)) ||
-    partnersOf(f, id).some((s) => relatedTo(f, myAnc, s));
-  if (!tied) return undefined;
-  try {
-    return kinship(f, me, id, myAnc);
-  } catch {
-    return undefined;
-  }
+  return kinship(f, me, id, myAnc);
 }
 
 

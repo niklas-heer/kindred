@@ -3,6 +3,9 @@ import type { Locale } from "./types.ts";
 
 type Gender = "m" | "f" | "n";
 
+/** graph.ts BY_MARRIAGE: a tie through marriages further than a specific word reaches. */
+const BY_MARRIAGE = "relative by marriage";
+
 /** German kinship nouns with their grammatical gender, from graph.kinship()'s English labels. Two when the sex is open. */
 const DE_WORDS: Record<string, [string, Gender][]> = {
   father: [["Vater", "m"]],
@@ -232,16 +235,28 @@ const removedCount = (word: string | undefined) =>
 
 function renderDe(k: Kinship, view: KinshipView): DeKin {
   const words = (label: string) => DE_WORDS[label] && one(DE_WORDS[label].map(([w, g]) => noun(w, g)));
-  /** "deines Cousins oder deiner Cousine 2. Grades": a relation as the owner in a genitive. */
+  /**
+   * "deines Cousins oder deiner Cousine 2. Grades": a relation as the owner in a genitive. An owner that is itself named
+   * through someone takes the article: "der Schwester deiner Ehefrau".
+   */
   const of = (owner: DeKin) =>
-    owner.alts.map((n) => `${view === "you" ? (n.g === "f" ? "deiner" : "deines") : n.g === "f" ? "der" : "des"} ${n.gen}`).join(" oder ") +
+    owner.alts.map((n) => `${view === "you" && !owner.through ? (n.g === "f" ? "deiner" : "deines") : n.g === "f" ? "der" : "des"} ${n.gen}`).join(" oder ") +
     owner.tail;
+  /** One word for a man and one for a woman, both when the English word leaves the sex open. */
+  const bySex = (sex: "m" | "f" | undefined, m: string, f: string) => one(sex === "m" ? [noun(m, "m")] : sex === "f" ? [noun(f, "f")] : [noun(m, "m"), noun(f, "f")]);
+  const sexOf = (word: string): "m" | "f" | undefined => (/^(husband|brother)$/.test(word) ? "m" : /^(wife|sister)$/.test(word) ? "f" : undefined);
   const spouseWord = (sex: "m" | "f" | undefined) => words(sex === "m" ? "husband" : sex === "f" ? "wife" : "partner")!;
   const by = (spouses: DeKin, sex: (g: Gender) => string) => one(spouses.alts.map((n) => noun(sex(n.g), n.g)));
 
   const render = (label: string): DeKin => {
     const word = words(label);
     if (word) return word;
+    if (label === BY_MARRIAGE) return bySex(k.sex, "angeheirateter Verwandter", "angeheiratete Verwandte");
+    // The husband of your wife's sister, and the sister of your brother's wife: Schwippschwager, Schwippschwägerin.
+    const schwipp =
+      label.match(/^(?:husband|wife|partner)'s (?:half-)?(?:brother|sister|sibling)'s (husband|wife|partner)$/) ??
+      label.match(/^(?:half-)?(?:brother|sister|sibling)'s (?:husband|wife|partner)'s (?:half-)?(brother|sister|sibling)$/);
+    if (schwipp) return bySex(sexOf(schwipp[1]), "Schwippschwager", "Schwippschwägerin");
     // A tie through a marriage first, so "great-uncle's wife" is not read as a "great-" word.
     const spouse = label.match(/^(.+)'s (husband|wife|partner)$/);
     if (spouse) {
@@ -266,6 +281,14 @@ function renderDe(k: Kinship, view: KinshipView): DeKin {
       const rel = render(theirs[2]);
       return { alts: rel.alts, tail: `${rel.tail} ${of(render(theirs[1]))}`, through: true };
     }
+    // Anyone else named through another person, the last first: "Bruder deines Stiefvaters", "Stiefsohn deiner Schwester".
+    const through = label.match(/^(.+)'s (.+)$/);
+    if (through) {
+      const rel = render(through[2]);
+      return { alts: rel.alts, tail: `${rel.tail} ${of(render(through[1]))}`, through: true };
+    }
+    // A grandparent or grandchild by marriage: Stiefgroßvater, Stiefurenkel.
+    if (label.startsWith("step-")) return prefixed(render(label.slice(5)), "Stief");
     const cousin = label.match(/^(half-)?(?:(\w+|\d+th) )?cousin(?: (once|twice|\d+ times) removed)?$/);
     if (cousin) {
       const degree = cousinDegree(cousin[2]);
@@ -308,9 +331,12 @@ function renderAf(k: Kinship): string {
   const pick = (m: string, f: string) => (k.cousin?.sex === "m" ? m : k.cousin?.sex === "f" ? f : `${m}/${f}`);
   const render = (label: string): string => {
     if (AF_WORDS[label]) return AF_WORDS[label];
-    // A tie through a marriage first, with the possessive "se": "grootoom se vrou", "vrou se niggie".
-    const spouse = label.match(/^(.+)'s (husband|wife|partner)$/) ?? label.match(/^(husband|wife|partner)'s (.+)$/);
-    if (spouse) return `${render(spouse[1])} se ${render(spouse[2])}`;
+    if (label === BY_MARRIAGE) return "aangetroude familielid";
+    // A tie through someone first, with the possessive "se": "grootoom se vrou", "vrou se suster se man", "stiefpa se broer".
+    const through = label.match(/^(.+)'s (.+)$/);
+    if (through) return `${render(through[1])} se ${render(through[2])}`;
+    // A grandparent or grandchild by marriage: stiefoupa, stiefkleinseun.
+    if (label.startsWith("step-")) return `stief${render(label.slice(5))}`;
     const cousin = label.match(/^(half-)?(?:(\w+|\d+th) )?cousin(?: (once|twice|\d+ times) removed)?$/);
     if (cousin) {
       const degree = cousinDegree(cousin[2]);

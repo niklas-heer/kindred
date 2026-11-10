@@ -292,7 +292,15 @@ export interface Kinship {
   cousin?: { sex?: 'm' | 'f'; up: number };
   /** The sex of the first person's partner an "-in-law" tie runs through ("Onkel deiner Frau"). */
   spouse?: 'm' | 'f';
+  /** The second person's sex, where the English word leaves it open and other languages do not ("relative by marriage"). */
+  sex?: 'm' | 'f';
 }
+
+/**
+ * The label for two people tied through marriages (or a parent's partner) further than a specific word reaches: a spouse's
+ * cousin's spouse's sibling, a sibling's in-law's in-law. Never a guess at a closer word.
+ */
+export const BY_MARRIAGE = 'relative by marriage';
 
 const knownSex = (p: GPerson | undefined) => (p?.sex === 'm' || p?.sex === 'f' ? p.sex : undefined);
 
@@ -420,11 +428,96 @@ function bloodPath(f: Family, from: string, to: string, anc: string): string[] {
   return [...up(from), ...up(to).reverse().slice(1)];
 }
 
+/** How far up `anc` stands from `id` by descent (1 = parent), or undefined when it is not an ancestor. */
+const depthUp = (f: Family, id: string, anc: string) => ancestorDepths(f, id, true).get(anc);
+/** "step-grandfather", "step-great-granddaughter": a grandparent or grandchild `d` generations away, tied through a marriage. */
+const stepGrand = (p: GPerson | undefined, d: number, up: boolean) =>
+  `step-${greats(d - 2)}grand${up ? gendered(p, 'father', 'mother', 'parent') : gendered(p, 'son', 'daughter', 'child')}`;
+const spouseWord = (p: GPerson | undefined) => gendered(p, 'husband', 'wife', 'partner');
+const siblingLabel = (label: string) => /^(half-)?(brother|sister|sibling)$/.test(label);
+
 /**
- * How `other` is related to `me`, in English: "your great-aunt". Blood relationships (biological and adoptive links)
- * go through the closest common ancestor; then step and foster ties; then one marriage: a spouse, the spouse of
- * any blood relative ("great-uncle's wife"), and any blood relative of a spouse ("wife's cousin"). Never more than
- * one marriage (that way lies recursion). `inLaws` false asks for blood alone.
+ * The people tied to each other at all: through parents by descent or by step link, and through partnerships (a foster
+ * link ties a household, not a family). A number per person, the same for everyone in one group. Worked out once per family.
+ */
+const tieGroups = new WeakMap<Family, Map<string, number>>();
+function tieGroup(f: Family): Map<string, number> {
+  let groups = tieGroups.get(f);
+  if (groups) return groups;
+  groups = new Map();
+  let n = 0;
+  for (const start of f.byId.keys()) {
+    if (groups.has(start)) continue;
+    groups.set(start, ++n);
+    const queue = [start];
+    for (let i = 0; i < queue.length; i++) {
+      for (const y of tieNeighbours(f, queue[i])) if (!groups.has(y)) { groups.set(y, n); queue.push(y); }
+    }
+  }
+  tieGroups.set(f, groups);
+  return groups;
+}
+function tieNeighbours(f: Family, x: string): string[] {
+  return [
+    ...parents(f, x).filter((p) => kindOf(f, x, p) !== 'foster'),
+    ...children(f, x).filter((c) => kindOf(f, c, x) !== 'foster'),
+    ...partnersOf(f, x),
+  ];
+}
+/** The shortest chain of ties between two people (see tieGroup), or none. */
+function tiePath(f: Family, from: string, to: string): string[] {
+  const prev = new Map<string, string | null>([[from, null]]);
+  const queue = [from];
+  for (let i = 0; i < queue.length && !prev.has(to); i++) {
+    for (const y of tieNeighbours(f, queue[i])) if (!prev.has(y)) { prev.set(y, queue[i]); queue.push(y); }
+  }
+  if (!prev.has(to)) return [];
+  const path: string[] = [];
+  for (let x: string | null | undefined = to; x; x = prev.get(x)) path.push(x);
+  return path.reverse();
+}
+
+/**
+ * Ties through a parent's partner or a step link that reach past the household: a step-parent's relatives
+ * ("step-grandmother", "stepfather's brother") and, the other way round, a relative's stepchildren ("step-grandson",
+ * "sister's stepson").
+ */
+function stepKinship(f: Family, me: string, other: string, mine: Map<string, number>): Kinship | undefined {
+  const p = f.byId.get(other);
+  const word = (h: { id: string; foster: boolean }, m: string, w: string, x: string) => `${h.foster ? 'foster ' : 'step'}${gendered(f.byId.get(h.id), m, w, x)}`;
+  for (const h of householdParents(f, me)) {
+    const k = bloodKinship(f, h.id, other, ancestorDepths(f, h.id, true));
+    if (!k) continue;
+    const path = [...h.path, ...bloodPath(f, h.id, other, k.via[0]).slice(1)];
+    const d = depthUp(f, h.id, other);
+    if (d !== undefined && !h.foster) return { label: stepGrand(p, d + 1, true), via: [], path };
+    return { label: `${word(h, 'father', 'mother', 'parent')}'s ${k.label}`, via: k.via, path, ...(k.cousin && { cousin: k.cousin }) };
+  }
+  for (const h of householdParents(f, other)) {
+    const k = bloodKinship(f, me, h.id, mine);
+    if (!k) continue;
+    const path = [...bloodPath(f, me, h.id, k.via[0]), ...[...h.path].reverse().slice(1)];
+    const d = depthUp(f, h.id, me);
+    if (d !== undefined && !h.foster) return { label: stepGrand(p, d + 1, false), via: [], path };
+    const child = `${h.foster ? 'foster ' : 'step'}${gendered(p, 'son', 'daughter', 'child')}`;
+    return { label: `${k.label}'s ${child}`, via: k.via, path, ...(k.cousin && { cousin: k.cousin }) };
+  }
+  return undefined;
+}
+
+/**
+ * How `other` is related to `me`, in English: "your great-aunt". In this order:
+ *
+ * 1. by descent (biological and adoptive links), through the closest common ancestor;
+ * 2. step and foster parents, children and siblings, by a recorded link or a parent's partner;
+ * 3. one marriage at either end of a blood line: a spouse, a spouse's blood relative ("father-in-law", "wife's cousin",
+ *    "step-grandson" for a spouse's grandchild), a blood relative's spouse ("sister-in-law", "uncle's wife",
+ *    "step-grandmother" for a grandfather's wife);
+ * 4. a step-parent's relatives and a relative's stepchildren ("step-grandfather", "stepmother's brother", "sister's stepson");
+ * 5. a marriage at both ends ("wife's sister's husband"), and a sibling's spouse's sibling ("brother's wife's sister");
+ * 6. anyone else tied through partnerships and parents is a "relative by marriage" (BY_MARRIAGE), never a closer word.
+ *
+ * Someone with no tie at all has none. `inLaws` false asks for blood alone.
  */
 export function kinship(f: Family, me: string, other: string, myAnc?: Map<string, number>, inLaws = true): Kinship | undefined {
   if (me === other) return { label: 'you', via: [] };
@@ -433,34 +526,73 @@ export function kinship(f: Family, me: string, other: string, myAnc?: Map<string
   if (blood || !inLaws) return blood;
   const household = householdKinship(f, me, other);
   if (household) return household;
+  if (!f.byId.has(me) || !f.byId.has(other) || tieGroup(f).get(me) !== tieGroup(f).get(other)) return undefined;
   const p = f.byId.get(other);
-  if (partnersOf(f, me).includes(other)) return { label: gendered(p, 'husband', 'wife', 'partner'), via: [], path: [me, other] };
-  // A blood relative of my partner: the close ones are "-in-law", the rest "wife's cousin".
+  if (partnersOf(f, me).includes(other)) return { label: spouseWord(p), via: [], path: [me, other] };
+  // A blood relative of my partner: the close ones are "-in-law", the rest "wife's cousin"; their grandchildren are mine by marriage.
+  const spouseAnc = new Map(partnersOf(f, me).map((sp) => [sp, ancestorDepths(f, sp, true)]));
   for (const sp of partnersOf(f, me)) {
-    const k = bloodKinship(f, sp, other, ancestorDepths(f, sp, true));
+    const k = bloodKinship(f, sp, other, spouseAnc.get(sp)!);
     if (!k) continue;
     const path = [me, ...bloodPath(f, sp, other, k.via[0])];
+    const down = depthUp(f, other, sp);
+    if (down !== undefined && down >= 2) return { label: stepGrand(p, down, false), via: [], path };
     const spouse = knownSex(f.byId.get(sp));
     if (!/cousin|great|adopt/.test(k.label)) return { label: `${k.label}-in-law`, via: k.via, path, ...(spouse && { spouse }) };
-    return { label: `${gendered(f.byId.get(sp), 'husband', 'wife', 'partner')}'s ${k.label}`, via: k.via, path, ...(k.cousin && { cousin: k.cousin }) };
+    return { label: `${spouseWord(f.byId.get(sp))}'s ${k.label}`, via: k.via, path, ...(k.cousin && { cousin: k.cousin }) };
   }
-  // The partner of a blood relative of mine: "sister-in-law", "son-in-law", "great-uncle's wife".
+  // The partner of a blood relative of mine: "sister-in-law", "son-in-law", "great-uncle's wife"; a grandparent's is a step-grandparent.
   for (const sp of partnersOf(f, other)) {
     const k = bloodKinship(f, me, sp, mine);
     if (!k) continue;
     const path = [...bloodPath(f, me, sp, k.via[0]), other];
+    const up = depthUp(f, me, sp);
+    if (up !== undefined && up >= 2) return { label: stepGrand(p, up, true), via: [], path };
     const base = k.label.replace(/^(half-|adopted |adoptive )?/, '');
     if (/^(brother|sister|sibling)$/.test(base)) return { label: `${gendered(p, 'brother', 'sister', 'sibling')}-in-law`, via: k.via, path };
     if (/^(son|daughter|child)$/.test(base)) return { label: `${gendered(p, 'son', 'daughter', 'child')}-in-law`, via: k.via, path };
-    return { label: `${k.label}'s ${gendered(p, 'husband', 'wife', 'partner')}`, via: k.via, path, ...(k.cousin && { cousin: k.cousin }) };
+    return { label: `${k.label}'s ${spouseWord(p)}`, via: k.via, path, ...(k.cousin && { cousin: k.cousin }) };
   }
-  return undefined;
+  const step = stepKinship(f, me, other, mine);
+  if (step) return step;
+  // A marriage at both ends: my partner's blood relative's partner ("wife's sister's husband", "husband's cousin's wife").
+  for (const sp of partnersOf(f, me)) {
+    for (const x of partnersOf(f, other)) {
+      if (x === me || x === sp) continue;
+      const k = bloodKinship(f, sp, x, spouseAnc.get(sp)!);
+      if (!k) continue;
+      return {
+        label: `${spouseWord(f.byId.get(sp))}'s ${k.label}'s ${spouseWord(p)}`,
+        via: k.via,
+        path: [me, ...bloodPath(f, sp, x, k.via[0]), other],
+        ...(k.cousin && { cousin: k.cousin }),
+      };
+    }
+  }
+  // A sibling's partner's sibling ("brother's wife's sister"): the one tie with a marriage in the middle that has a word of its own.
+  for (const x of siblings(f, me)) {
+    const kx = bloodKinship(f, me, x, mine);
+    if (!kx || !siblingLabel(kx.label)) continue;
+    for (const y of partnersOf(f, x)) {
+      if (y === me) continue;
+      const ky = bloodKinship(f, y, other, ancestorDepths(f, y, true));
+      if (!ky || !siblingLabel(ky.label)) continue;
+      return {
+        label: `${kx.label}'s ${spouseWord(f.byId.get(y))}'s ${ky.label}`,
+        via: [],
+        path: [...bloodPath(f, me, x, kx.via[0]), ...bloodPath(f, y, other, ky.via[0])],
+      };
+    }
+  }
+  const sex = knownSex(p);
+  return { label: BY_MARRIAGE, via: [], ...(sex && { sex }) };
 }
 
 /** The chain of people between two relatives: through their closest common ancestor, or through the marriage or household that ties them. */
 export function kinPath(f: Family, from: string, to: string): string[] {
   const k = kinship(f, from, to);
   if (k?.path) return k.path;
+  if (k?.label === BY_MARRIAGE) return tiePath(f, from, to);
   if (!k?.via.length) return [];
   return bloodPath(f, from, to, k.via[0]);
 }

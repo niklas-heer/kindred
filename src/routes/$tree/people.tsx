@@ -78,24 +78,11 @@ function short(d: string | undefined, locale: Locale = 'en'): string {
 }
 
 /**
- * kinship() recurses forever for someone with no tie to you when you have a partner (graph.ts), so only ask
- * when some tie exists, and treat a stack overflow as "no relation".
+ * How `id` is related to the reader. kinship() finds every tie, a step-sibling through a parent's marriage among them,
+ * and answers undefined for someone with no tie at all.
  */
-function relatedTo(f: Family, anc: Map<string, number>, id: string) {
-  for (const a of ancestorDepths(f, id).keys()) if (anc.has(a)) return true;
-  return false;
-}
 function safeKinship(f: Family, me: string, id: string, myAnc: Map<string, number>): Kinship | undefined {
-  const tied =
-    relatedTo(f, myAnc, id) ||
-    partnersOf(f, me).some((s) => relatedTo(f, ancestorDepths(f, s), id)) ||
-    partnersOf(f, id).some((s) => relatedTo(f, myAnc, s));
-  if (!tied) return undefined;
-  try {
-    return kinship(f, me, id, myAnc);
-  } catch {
-    return undefined;
-  }
+  return kinship(f, me, id, myAnc);
 }
 
 function buildRows(f: Family & { gen: Map<string, number> }, tree: string, me: string | null, locale: Locale, today: Date | undefined): R[] {

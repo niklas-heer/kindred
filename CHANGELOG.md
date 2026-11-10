@@ -112,6 +112,10 @@ tables for the Today page and changes none that exist.
 
 ### Changed
 
+- Relationships reach further through marriages: a spouse's sibling's spouse and a sibling's spouse's sibling (German
+  Schwippschwager, Schwippschwägerin), a step-parent's parents and siblings, a grandparent's later spouse (step-grandparents and
+  step-grandchildren), and a spouse's relative's spouse. Anyone tied further out is a "relative by marriage" rather than
+  unnamed. The Register and the Almanac now name a step-sibling who is related only through a parent's marriage.
 - Navigation: the top bar shows Today, Tree, Almanac, Chronicle and Atlas (and the Campaign while it is on) and keeps the
   Register, Houses, Contacts, Needed, the Gallery and Research under "More", so every section shown keeps its name at
   tablet width. On a phone the tab bar starts with Today, and the Atlas moved into More.

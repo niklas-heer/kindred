@@ -6,15 +6,16 @@
 //   Karl + Greta ── Otto, and Ben, whom they adopted. Karl later married Nora, whose son Finn is by Fritz.
 //   Jonas ── Lea, whose stepmother Greta is recorded as a step link; Pia is Greta's foster daughter.
 //   Otto married Wilma, daughter of Walter; Walter's father Wim also had Vera, mother of Cora.
+//   Xena has no tie to anyone.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildFamily, kinPath, kinship } from './graph.ts';
+import { BY_MARRIAGE, buildFamily, kinPath, kinship } from './graph.ts';
 import { kinshipLabel, yourKinship, yourKinshipParts } from './i18n/kinship.ts';
 import type { Kinship } from './graph.ts';
 import type { GParent, GPerson, GUnion } from './types.ts';
 
 const M = ['adam', 'albert', 'emil', 'karl', 'uwe', 'otto', 'ben', 'finn', 'fritz', 'jonas', 'walter', 'wim'];
-const F = ['berta', 'erna', 'ulla', 'greta', 'nora', 'lea', 'pia', 'wilma', 'vera', 'cora'];
+const F = ['berta', 'erna', 'ulla', 'greta', 'nora', 'lea', 'pia', 'wilma', 'vera', 'cora', 'xena'];
 const person = (id: string, sex: 'm' | 'f'): GPerson => ({ id, given: id, sex, living: true, stories: 0, contacts: 0 });
 const link = (child: string, parent: string, kind: GParent['kind'] = 'biological'): GParent => ({ child, parent, kind, confidence: 'certain' });
 const union = (a: string, b: string): GUnion => ({ id: `${a}-${b}`, a, b, kind: 'marriage' });
@@ -73,9 +74,13 @@ test('a blood relative of your spouse is named, and the path runs through the ma
   assert.deepEqual(kinPath(f, 'otto', 'cora'), ['otto', 'wilma', 'walter', 'wim', 'vera', 'cora']);
 });
 
-test('someone with no tie at all is still unrelated', () => {
-  assert.equal(label('otto', 'fritz'), undefined);
-  assert.deepEqual(kinPath(f, 'otto', 'fritz'), []);
+test('someone with no tie at all is still unrelated; a far tie is a relative by marriage, never a closer word', () => {
+  assert.equal(label('otto', 'xena'), undefined);
+  assert.deepEqual(kinPath(f, 'otto', 'xena'), []);
+  // Fritz is the father of Otto's stepbrother Finn: tied, but no word reaches that far.
+  assert.equal(label('otto', 'fritz'), BY_MARRIAGE);
+  assert.equal(label('fritz', 'otto'), BY_MARRIAGE);
+  assert.deepEqual(kinPath(f, 'otto', 'fritz'), ['otto', 'karl', 'nora', 'finn', 'fritz']);
 });
 
 test('the new relations have words in German and Afrikaans', () => {
@@ -206,3 +211,119 @@ test('"your" agrees with each kinship word', () => {
   ]);
   assert.deepEqual(yourKinshipParts(k('aunt'), 'en'), [{ text: 'Your ' }, { text: 'aunt', kin: true }]);
 });
+
+// A third invented family, for ties through marriages at both ends and through a parent's partner:
+//
+//   Opa + Oma ── Pa. Opa later married Gerti. Pa + Ma ── Mia and Tom. Ma later married Rolf, son of Hedi; Rolf's brother
+//   is Udo, and Rolf's son Kai is by Eva. Mia married Nils, whose sister Ruth married Sven; Sven's brother Lars married
+//   Wanda. Tom married Ines, whose sister is Jana. Nils, Sven and Ines each have a father on record (nils-father…).
+const h = buildFamily({
+  tree: {} as never, houses: [], places: [],
+  people: [
+    ...['opa', 'pa', 'tom', 'rolf', 'udo', 'kai', 'nils', 'sven', 'lars', 'nils-father', 'sven-father', 'ines-father'].map((id) => person(id, 'm')),
+    ...['oma', 'gerti', 'ma', 'mia', 'hedi', 'eva', 'ruth', 'wanda', 'ines', 'jana'].map((id) => person(id, 'f')),
+  ],
+  parents: [
+    link('pa', 'opa'), link('pa', 'oma'), link('mia', 'pa'), link('mia', 'ma'), link('tom', 'pa'), link('tom', 'ma'),
+    link('rolf', 'hedi'), link('udo', 'hedi'), link('kai', 'rolf'), link('kai', 'eva'),
+    link('nils', 'nils-father'), link('ruth', 'nils-father'), link('sven', 'sven-father'), link('lars', 'sven-father'),
+    link('ines', 'ines-father'), link('jana', 'ines-father'),
+  ],
+  unions: [union('opa', 'oma'), union('opa', 'gerti'), union('pa', 'ma'), union('ma', 'rolf'), union('mia', 'nils'), union('ruth', 'sven'), union('lars', 'wanda'), union('tom', 'ines')],
+} as never);
+const hl = (me: string, other: string) => kinship(h, me, other)?.label;
+const hde = (me: string, other: string) => kinshipLabel(kinship(h, me, other), 'de');
+const haf = (me: string, other: string) => kinshipLabel(kinship(h, me, other), 'af');
+
+test('a spouse’s sibling’s spouse and a sibling’s spouse’s sibling: Schwippschwager and Schwippschwägerin', () => {
+  assert.equal(hl('mia', 'sven'), "husband's sister's husband");
+  assert.equal(hl('sven', 'mia'), "wife's brother's wife");
+  assert.deepEqual(kinPath(h, 'mia', 'sven'), ['mia', 'nils', 'nils-father', 'ruth', 'sven']);
+  assert.equal(hde('mia', 'sven'), 'Schwippschwager');
+  assert.equal(hde('sven', 'mia'), 'Schwippschwägerin');
+  assert.equal(yourKinship(kinship(h, 'mia', 'sven')!, 'de'), 'dein Schwippschwager');
+  assert.equal(haf('mia', 'sven'), 'man se suster se man');
+  assert.equal(hl('mia', 'jana'), "brother's wife's sister");
+  assert.equal(hl('jana', 'mia'), "sister's husband's sister");
+  assert.equal(hde('mia', 'jana'), 'Schwippschwägerin');
+  assert.equal(haf('mia', 'jana'), 'broer se vrou se suster');
+  assert.equal(kinshipLabel({ label: "wife's sibling's partner", via: [] }, 'de'), 'Schwippschwager oder Schwippschwägerin');
+});
+
+test('a step-parent’s relatives and a grandparent’s second spouse are step relations', () => {
+  assert.equal(hl('mia', 'rolf'), 'stepfather');
+  assert.equal(hl('mia', 'hedi'), 'step-grandmother');
+  assert.equal(hl('hedi', 'mia'), 'step-granddaughter');
+  assert.deepEqual(kinPath(h, 'mia', 'hedi'), ['mia', 'ma', 'rolf', 'hedi']);
+  assert.equal(hl('mia', 'gerti'), 'step-grandmother');
+  assert.equal(hl('gerti', 'mia'), 'step-granddaughter');
+  assert.equal(hl('mia', 'udo'), "stepfather's brother");
+  assert.equal(hl('udo', 'mia'), "brother's stepdaughter");
+  assert.equal(hl('mia', 'kai'), 'stepbrother');
+  assert.equal(hde('mia', 'hedi'), 'Stiefgroßmutter');
+  assert.equal(hde('hedi', 'mia'), 'Stiefenkelin');
+  assert.equal(hde('mia', 'udo'), 'Bruder deines Stiefvaters');
+  assert.equal(yourKinship(kinship(h, 'mia', 'udo')!, 'de'), 'der Bruder deines Stiefvaters');
+  assert.equal(hde('udo', 'mia'), 'Stieftochter deines Bruders');
+  assert.equal(haf('mia', 'hedi'), 'stiefouma');
+  assert.equal(haf('mia', 'udo'), 'stiefpa se broer');
+  assert.equal(kinshipLabel({ label: 'step-great-grandson', via: [] }, 'de'), 'Stiefurenkel');
+});
+
+test('beyond those words, a relative by marriage, with German agreeing with the person', () => {
+  assert.equal(hl('mia', 'lars'), BY_MARRIAGE);
+  assert.equal(hl('mia', 'wanda'), BY_MARRIAGE);
+  assert.equal(hl('mia', 'eva'), BY_MARRIAGE, 'the mother of a stepbrother');
+  assert.equal(hde('mia', 'lars'), 'angeheirateter Verwandter');
+  assert.equal(hde('mia', 'wanda'), 'angeheiratete Verwandte');
+  assert.equal(yourKinship(kinship(h, 'mia', 'wanda')!, 'de'), 'deine angeheiratete Verwandte');
+  assert.equal(yourKinship(kinship(h, 'mia', 'lars')!, 'en'), 'your relative by marriage');
+  assert.equal(haf('mia', 'lars'), 'aangetroude familielid');
+  assert.equal(kinshipLabel({ label: BY_MARRIAGE, via: [] }, 'de'), 'angeheirateter Verwandter oder angeheiratete Verwandte');
+  assert.deepEqual(kinPath(h, 'mia', 'wanda'), ['mia', 'nils', 'nils-father', 'ruth', 'sven', 'sven-father', 'lars', 'wanda']);
+});
+
+// ---------- properties over every pair ----------
+
+/** A label in sex-free parts, one per person along the way: "wife's first cousin" → ["SPOUSE", "first cousin"]. */
+const SEXLESS: [RegExp, string][] = [
+  [/(father|mother|parent)/, 'PARENT'], [/(son|daughter|child)/, 'CHILD'], [/(brother|sister|sibling)/, 'SIB'],
+  [/(uncle|aunt|pibling)/, 'PIB'], [/(nephew|niece|nibling)/, 'NIB'], [/(husband|wife|partner)/, 'SPOUSE'],
+];
+const sexless = (part: string) => SEXLESS.reduce((x, [re, to]) => x.replace(re, to), part);
+const invert = (part: string) =>
+  part.replace(/PARENT|CHILD|PIB|NIB|adoptive|adopted/g, (w) => ({ PARENT: 'CHILD', CHILD: 'PARENT', PIB: 'NIB', NIB: 'PIB', adoptive: 'adopted', adopted: 'adoptive' })[w]!);
+/** Every reading of a label as a chain of parts: an "-in-law" is a spouse's relative or a relative's spouse. */
+function chains(label: string): string[][] {
+  const parts = label.split("'s ").map(sexless);
+  const out: string[][] = [[]];
+  for (const part of parts) {
+    const inLaw = part.match(/^(.+)-in-law$/);
+    const options = inLaw ? [['SPOUSE', inLaw[1]], [inLaw[1], 'SPOUSE']] : [[part]];
+    out.splice(0, out.length, ...out.flatMap((c) => options.map((o) => [...c, ...o])));
+  }
+  return out;
+}
+const inverseOf = (label: string) => chains(label).map((c) => [...c].reverse().map(invert).join(' / '));
+
+for (const [name, fam] of [['first', f], ['cousins', g], ['marriages', h]] as const) {
+  test(`every relation in the ${name} family is named both ways, as each other's inverse, and has a word in German and Afrikaans`, () => {
+    const ids = fam.graph.people.map((p) => p.id);
+    for (const a of ids) {
+      for (const b of ids) {
+        if (a === b) continue;
+        const ab = kinship(fam, a, b), ba = kinship(fam, b, a);
+        assert.equal(!!ab, !!ba, `${a}→${b} ${ab?.label} but ${b}→${a} ${ba?.label}`);
+        if (!ab || !ba) continue;
+        const back = new Set(chains(ba.label).map((c) => c.join(' / ')));
+        assert.ok(inverseOf(ab.label).some((c) => back.has(c)), `${a}→${b} “${ab.label}” is not the inverse of ${b}→${a} “${ba.label}”`);
+        for (const locale of ['de', 'af'] as const) {
+          const text = kinshipLabel(ab, locale);
+          assert.doesNotMatch(text, /'s |step|great|in-law|husband|wife|cousin|relative|half-|parent|sibling|grand|son\b/, `${locale} for “${ab.label}”: ${text}`);
+        }
+        const path = kinPath(fam, a, b);
+        if (path.length) assert.deepEqual([path[0], path.at(-1)], [a, b], `${a}→${b} path`);
+      }
+    }
+  });
+}
