@@ -98,6 +98,10 @@ run = "node scripts/vapid-keys.ts"
 description = "Remove build output and generated databases"
 run = "rm -rf dist .output .tanstack .wrangler data/*.db data/*.db-wal data/*.db-shm data/media"
 
+[tasks.screenshots]
+description = "Retake the README pictures in docs/images/ (WebP) from the two invented families: builds the Node server, runs it on scratch data with the fake AI provider, drives the installed Brave (KINDRED_E2E_BROWSER names another Chromium) and needs cwebp (brew install webp). --use-dist skips the build, --only tree,person,... takes some, --out <folder> writes elsewhere"
+run = 'node scripts/screenshots.ts "$@"'
+
 [tasks."smoke:worker"]
 description = "Build the Worker into a scratch folder, run it locally (workerd, empty local D1 and R2) and check its routes; never contacts Cloudflare"
 run = "node scripts/worker-smoke.ts"
