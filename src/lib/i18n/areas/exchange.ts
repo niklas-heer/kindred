@@ -3,6 +3,7 @@
 import type { Message } from "../types.ts";
 
 export const en = {
+  "exchange.untitled_source": "Untitled source",
   "exchange.date.about": "“{shown}” read as about {value}",
   "exchange.date.earlier": "“{shown}” read as about its earlier year",
   "exchange.date.start": "“{shown}” read as about its start",
@@ -107,6 +108,7 @@ export const en = {
 };
 
 export const de: Record<keyof typeof en, Message> = {
+  "exchange.untitled_source": "Quelle ohne Titel",
   "exchange.date.about": "„{shown}“ als ungefähr {value} gelesen",
   "exchange.date.earlier": "„{shown}“ als ungefähr das frühere Jahr gelesen",
   "exchange.date.start": "„{shown}“ als ungefähr den Beginn gelesen",
@@ -212,6 +214,7 @@ export const de: Record<keyof typeof en, Message> = {
 
 /** Afrikaans. A missing entry falls back to English at runtime; the test reports them. */
 export const af: Partial<Record<keyof typeof en, Message>> = {
+  "exchange.untitled_source": "Bron sonder titel",
   "exchange.date.about": "“{shown}” as ongeveer {value} gelees",
   "exchange.date.earlier": "“{shown}” as ongeveer die vroeëre jaar gelees",
   "exchange.date.start": "“{shown}” as ongeveer die begin gelees",

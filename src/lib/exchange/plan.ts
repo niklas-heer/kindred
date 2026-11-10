@@ -390,10 +390,18 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
   const sourceOfKey = new Map<string, string>();
   const sources: ExSource[] = [];
   let duplicateSources = 0;
-  const sourceName = (x: { title: string; author: string | null }) => `${fold(x.title)}|${fold(x.author ?? '')}`;
-  const byTitle = new Map([...treeSources].reverse().map((x) => [sourceName(x), x.id]));
+  // A source the file gave no title is matched by its words as a whole (title, author and text), never by a made-up title alone;
+  // nor is one the tree holds under a file's xref ("@S12@", from an import before titles were made up).
+  const sourceName = (x: { title: string; author: string | null; note: string }, untitled?: boolean) =>
+    `${fold(x.title)}|${fold(x.author ?? '')}${untitled ? `|${fold(x.note)}` : ''}`;
+  const xrefTitle = (title: string) => /^@[^@\s]+@$/.test(title.trim());
+  const byTitle = new Map([...treeSources].reverse().filter((x) => !xrefTitle(x.title)).flatMap((x) => [
+    [sourceName(x), x.id] as const,
+    ...(x.note.trim() ? [[sourceName(x, true), x.id] as const] : []),
+  ]));
   for (const x of incoming.sources ?? []) {
-    const had = x.preferredId && treeSources.some((t) => t.id === x.preferredId) ? x.preferredId : byTitle.get(sourceName(x));
+    const name = x.untitled && !x.note.trim() ? undefined : sourceName(x, x.untitled);
+    const had = x.preferredId && treeSources.some((t) => t.id === x.preferredId) ? x.preferredId : name ? byTitle.get(name) : undefined;
     if (had) {
       sourceOfKey.set(x.key, had);
       duplicateSources++;
@@ -402,8 +410,8 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
     const id = x.preferredId && !sourceIds.has(x.preferredId) ? x.preferredId : freshId(makeId, 'source', sourceIds);
     sourceIds.add(id);
     sourceOfKey.set(x.key, id);
-    byTitle.set(sourceName(x), id);
-    const { key: _key, preferredId: _pref, ...rest } = x;
+    if (name) byTitle.set(name, id);
+    const { key: _key, preferredId: _pref, untitled: _untitled, ...rest } = x;
     sources.push({ id, ...rest });
   }
 

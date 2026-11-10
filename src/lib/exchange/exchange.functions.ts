@@ -9,6 +9,9 @@ const tree = z.string().regex(/^[a-z0-9-]+$/).max(64);
 export const MAX_GEDCOM_BYTES = 5_000_000;
 
 const guard = () => import('../auth/guard.server');
+/** The reader's language: the title a source without one gets ("Untitled source"). */
+const locale = z.enum(['en', 'de', 'af']).default('en');
+const untitledIn = async (l: 'en' | 'de' | 'af') => (await import('../i18n/dictionary.ts')).translate(l, 'exchange.untitled_source');
 
 /** The reader's role in a family, and what they may do with the exchange. */
 export const exchangeContext = createServerFn({ method: 'GET' })
@@ -32,11 +35,11 @@ export const exportReport = createServerFn({ method: 'GET' })
 
 /** The import preview: what the file would add, match and conflict with. Writes nothing. */
 export const previewImportFile = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, text: z.string().max(MAX_GEDCOM_BYTES) }))
+  .validator(z.object({ tree, text: z.string().max(MAX_GEDCOM_BYTES), locale }))
   .handler(async ({ data }) => {
     await (await guard()).requireCan(data.tree, 'manage-access');
     const { previewImport } = await import('./import.server.ts');
-    return previewImport(data.tree, data.text);
+    return previewImport(data.tree, data.text, await untitledIn(data.locale));
   });
 
 /**
@@ -44,7 +47,7 @@ export const previewImportFile = createServerFn({ method: 'POST' })
  * server refuses without it. `opKey` makes a retry after a lost response write nothing twice.
  */
 export const applyImportFile = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, text: z.string().max(MAX_GEDCOM_BYTES), allowExisting: z.boolean(), opKey: z.string().min(8).max(64) }))
+  .validator(z.object({ tree, text: z.string().max(MAX_GEDCOM_BYTES), allowExisting: z.boolean(), opKey: z.string().min(8).max(64), locale }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireCan(data.tree, 'manage-access');
     const { applyImport } = await import('./import.server.ts');
@@ -53,5 +56,6 @@ export const applyImportFile = createServerFn({ method: 'POST' })
       data.text,
       { key: data.opKey, user: m.user.id, payload: { text: data.text, allowExisting: data.allowExisting } },
       data.allowExisting,
+      await untitledIn(data.locale),
     );
   });

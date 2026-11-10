@@ -345,3 +345,47 @@ test('new sources, events and citations never share an id: a file with 20,000 ev
   assert.equal(distinct(small.sources.map((x) => x.id)), 3);
   assert.equal(distinct(small.citations.map((c) => c.id)), 3);
 });
+
+test('a source without a title gets one from its text, or the words for "untitled", keeps its text, and is never matched by a made-up title', () => {
+  const long = 'Letter from Aunt Ilse to her brother about the move to the coast in the spring, with a list of who went along and when';
+  const file = (sources: string[]) => [
+    '0 HEAD', '1 GEDC', '2 VERS 5.5.1', '1 CHAR UTF-8',
+    '0 @I1@ INDI', '1 NAME Ada /Testfield/', '1 BIRT', '2 DATE 1900', '2 SOUR @S1@', '2 SOUR @S2@', '2 SOUR @S3@',
+    ...sources, '0 TRLR', '',
+  ].join('\n');
+  const text = file([
+    '0 @S1@ SOUR', `1 TEXT ${long}`, '2 CONT Second line.', '1 NOTE Kept in the attic.',
+    '0 @S2@ SOUR', '1 AUTH Ilse Testfield',
+    '0 @S3@ SOUR', '1 TITL Parish register', '1 TEXT Page 4, baptisms.',
+  ]);
+  const incoming = readGedcom(text, new Date('2026-11-10'), 'Quelle ohne Titel');
+  const [s1, s2, s3] = incoming.sources!;
+  assert.equal(s1.title, 'Letter from Aunt Ilse to her brother about the move to the coast in the spring,…');
+  assert.ok(s1.title.length <= 81);
+  assert.equal(s1.note, `Kept in the attic.\n\n${long}\nSecond line.`, 'the text is kept, after the note');
+  assert.equal(s1.untitled, true);
+  assert.equal(s2.title, 'Quelle ohne Titel', 'neither title nor text: the words for "untitled", never the xref');
+  assert.equal(s3.title, 'Parish register');
+  assert.equal(s3.note, 'Page 4, baptisms.');
+  assert.equal(s3.untitled, undefined);
+
+  // A tree from an import before this: one source holds its xref as title, one is untitled with no text, one has text.
+  const tree: ExTree = {
+    ...emptyTree(),
+    sources: [
+      { id: 'old-xref', title: '@S2@', author: 'Ilse Testfield', publication: null, reference: null, date: null, note: '', document: null, media: null },
+      { id: 'old-untitled', title: 'Quelle ohne Titel', author: 'Ilse Testfield', publication: null, reference: null, date: null, note: '', document: null, media: null },
+      { id: 'old-letter', title: s1.title, author: null, publication: null, reference: null, date: null, note: s1.note, document: null, media: null },
+      { id: 'other-letter', title: s1.title, author: null, publication: null, reference: null, date: null, note: 'Another letter.', document: null, media: null },
+    ],
+  };
+  const plan = planImport(readGedcom(text, new Date('2026-11-10'), 'Quelle ohne Titel'), tree, makeId);
+  const ids = plan.sources.map((x) => x.title);
+  assert.ok(ids.includes('Quelle ohne Titel'), 'an untitled source without text is new, not the old untitled one');
+  assert.ok(!plan.sources.some((x) => x.id === 'old-xref' || x.id === 'old-untitled'));
+  assert.equal(plan.duplicateSources, 1, 'only the letter with the same words is the same source');
+  assert.ok(!ids.includes(s1.title));
+  // And a plain title still matches as before.
+  const again = planImport(readGedcom(text, new Date('2026-11-10'), 'Quelle ohne Titel'), { ...emptyTree(), sources: [{ ...tree.sources![0], id: 'reg', title: 'Parish register', author: null }] }, makeId);
+  assert.equal(again.duplicateSources, 1);
+});

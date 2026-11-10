@@ -146,7 +146,7 @@ function ImportSection({ tree, people }: { tree: string; people: number }) {
     setError(null);
     setApplied(null);
     try {
-      setPreview(await previewImportFile({ data: { tree, text: file.text } }));
+      setPreview(await previewImportFile({ data: { tree, text: file.text, locale: t.locale } }));
     } catch (e) {
       setPreview(null);
       setError(/GEDCOM/i.test(messageOf(e)) ? t('exchange.import.notGedcom') : `${t('exchange.state.failed')} ${errorText(e, t.locale)}`);
@@ -161,7 +161,7 @@ function ImportSection({ tree, people }: { tree: string; people: number }) {
     setError(null);
     try {
       const opKey = keys.current.for('apply', { text: file.text, allow });
-      const result = await applyImportFile({ data: { tree, text: file.text, allowExisting: allow, opKey } });
+      const result = await applyImportFile({ data: { tree, text: file.text, allowExisting: allow, opKey, locale: t.locale } });
       keys.current.clear('apply');
       setApplied(result);
       setPreview(null);

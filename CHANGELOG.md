@@ -171,6 +171,8 @@ database that has had these migrations.
 - A house is not saved over someone else's newer change, and a house's member count is the same on the tree and on its page.
 - A value someone else entered on the Needed page while yours was open is kept.
 - An upload is kept when the batch that used it may have been saved.
+- A GEDCOM source without a title is named by the start of its text (or "Untitled source") instead of its record number, keeps
+  its text in the note, and a later import no longer matches sources by such a made-up title.
 - GEDCOM and the other imports: continued text keeps every character, a couple's existing partnership is matched instead of
   doubled, parent rules are the link form's, an ancestor with no death record is not marked living, and Julian and dual-year
   dates are kept as about their year.

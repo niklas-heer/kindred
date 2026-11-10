@@ -398,6 +398,16 @@ export interface IncomingEvent extends Omit<ExEvent, 'id'> {
 export interface IncomingSource extends Omit<ExSource, 'id'> {
   key: string;
   preferredId: string | null;
+  /** The file gave no title (no TITL or ABBR): `title` was made from the source's text, or is the words for "untitled". */
+  untitled?: boolean;
+}
+
+/** A title from the start of a source's text: its first line, cut at a word near 80 characters. */
+function titleFromText(text: string): string {
+  const line = text.split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).find(Boolean) ?? '';
+  if (line.length <= 80) return line;
+  const cut = line.slice(0, 80);
+  return `${cut.slice(0, cut.lastIndexOf(' ') > 40 ? cut.lastIndexOf(' ') : 80).trimEnd()}…`;
 }
 
 /** The fact a citation in the file is about, by the file's keys (a partnership by its FAM xref). */
@@ -435,9 +445,10 @@ const LINE = /^(\d+)(?:\s+(@[^@\s]+@))?\s+([A-Za-z_][A-Za-z0-9_]*)(?: (.*))?$/;
 
 /**
  * Reads a GEDCOM file. Throws only when it holds no people or families at all; everything else is reported. `now` is
- * the day the file is read, to tell who cannot be living any more.
+ * the day the file is read, to tell who cannot be living any more. `untitled` is the title, in the reader's language, of a
+ * source the file gives neither a title nor any text.
  */
-export function readGedcom(text: string, now: Date = new Date()): Incoming {
+export function readGedcom(text: string, now: Date = new Date(), untitled = 'Untitled source'): Incoming {
   const issues: Issue[] = [];
   const roots: GNode[] = [];
   const stack: GNode[] = [];
@@ -799,15 +810,20 @@ export function readGedcom(text: string, now: Date = new Date()): Incoming {
   const sources: IncomingSource[] = [
     ...roots.filter((r) => r.tag === 'SOUR' && r.xref).map((r): IncomingSource => {
       const date = first(r, '_KINDRED_DATE')?.value;
+      // The source's own text ("text from source") is kept in its note, after any NOTE.
+      const text = (first(r, 'TEXT')?.value ?? first(first(r, 'DATA'), 'TEXT')?.value ?? '').trim();
+      // Without a title of its own, the start of its text, else the words for "untitled"; never the file's xref.
+      const given = (first(r, 'TITL')?.value || first(r, 'ABBR')?.value || '').trim();
       return {
         key: r.xref!,
         preferredId: id(first(r, '_KINDRED_ID')?.value),
-        title: first(r, 'TITL')?.value || first(r, 'ABBR')?.value || r.xref!,
+        title: given || titleFromText(text) || untitled,
+        ...(!given && { untitled: true }),
         author: first(r, 'AUTH')?.value || null,
         publication: first(r, 'PUBL')?.value || null,
         reference: first(r, 'REFN')?.value || null,
         date: date && validDate(date.replace(/^~/, '')) ? date : null,
-        note: all(r, 'NOTE').map((x) => x.value).join('\n\n').trim(),
+        note: [...all(r, 'NOTE').map((x) => x.value), text].join('\n\n').trim(),
         document: id(first(r, '_KINDRED_DOC')?.value),
         media: first(r, '_KINDRED_MEDIA')?.value || null,
       };

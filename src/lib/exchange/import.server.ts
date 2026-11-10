@@ -124,10 +124,10 @@ function summarize(plan: ImportPlan, incoming: ReturnType<typeof readGedcom>, ex
 }
 
 /** What importing `text` into `tree` would do. Reads only. */
-export async function previewImport(tree: string, text: string): Promise<ImportPreview> {
+export async function previewImport(tree: string, text: string, untitled?: string): Promise<ImportPreview> {
   const d = db(tree);
   const existing = await readTree(d);
-  const incoming = readGedcom(text);
+  const incoming = readGedcom(text, undefined, untitled);
   const plan = planImport(incoming, existing, newId);
   return summarize(plan, incoming, existing, await placePlan(d, plan));
 }
@@ -152,7 +152,7 @@ export interface ApplyResult {
  * family of any size, and it moves even when another editor replaces one link with a different one and leaves the
  * count the same. The loop check above only holds for the links it read.
  */
-export function applyImport(tree: string, text: string, op: OpKey | undefined, allowExisting: boolean): Promise<ApplyResult> {
+export function applyImport(tree: string, text: string, op: OpKey | undefined, allowExisting: boolean, untitled?: string): Promise<ApplyResult> {
   return once<ApplyResult>(tree, op, 'importExchange', async (d) => {
     // The revision is read before the links: a change between the two reads makes the guard fail, never pass.
     const rev = await d.get<{ rev: number }>('SELECT rev FROM ancestry_rev WHERE id = 1');
@@ -161,7 +161,7 @@ export function applyImport(tree: string, text: string, op: OpKey | undefined, a
     if (existing.people.length && !allowExisting) {
       throw new Error('exchange.import.needAllow');
     }
-    const incoming = readGedcom(text);
+    const incoming = readGedcom(text, undefined, untitled);
     const plan = planImport(incoming, existing, newId);
     // A file that would make someone their own ancestor is not written at all: the steward corrects it first.
     if (plan.cycles.length) throw new Error('exchange.cycle_refused');
