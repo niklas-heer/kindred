@@ -10,7 +10,6 @@ export const en = {
   "con.downloadTitle": "Save everyone shown as a .vcf file for your phone or address book",
   "con.downloadVcard": "Download vCard",
   "con.downloadVcardShort": "vCard",
-  "con.downloadCount": " ({count})",
   "con.loadingAria": "Loading contacts",
   "con.errorTitle": "Could not open the address book",
   "con.errorText": "Your family’s information is still safe. Please try again.",
@@ -47,14 +46,11 @@ export const en = {
   "con.saveOne": "Save contact: {name}",
   "con.saveButton": { one: "Save contact", other: "Save contacts" },
   "con.saveFallback": "this contact",
-  "con.loadingCards": "Loading contacts",
   "con.contactNumber": { one: "{count} contact", other: "{count} contacts" },
-  "con.noDetailsNote": "Living relatives with no phone, email or address on file.",
   "con.titleLabel": "Contacts",
   "con.kidsTitle": "Children under 18",
   "con.kidsOption": "Put them on a parent's card",
   "con.kidsText": "Off by default: children without contact details of their own are listed under No details yet. Turn this on to show them on the card of a parent who has details.",
-  "con.sectionNoDetails": "No details yet",
 };
 
 export const de: Record<keyof typeof en, Message> = {
@@ -65,7 +61,6 @@ export const de: Record<keyof typeof en, Message> = {
   "con.downloadTitle": "Alle hier Gezeigten als .vcf-Datei für Telefon oder Adressbuch speichern",
   "con.downloadVcard": "vCard herunterladen",
   "con.downloadVcardShort": "vCard",
-  "con.downloadCount": " ({count})",
   "con.loadingAria": "Kontakte werden geladen",
   "con.errorTitle": "Das Adressbuch konnte nicht geöffnet werden",
   "con.errorText": "Die Angaben deiner Familie sind weiterhin sicher. Versuche es noch einmal.",
@@ -102,14 +97,11 @@ export const de: Record<keyof typeof en, Message> = {
   "con.saveOne": "Kontakt speichern: {name}",
   "con.saveButton": { one: "Kontakt speichern", other: "Kontakte speichern" },
   "con.saveFallback": "diesen Kontakt",
-  "con.loadingCards": "Kontakte werden geladen",
   "con.contactNumber": { one: "{count} Kontakt", other: "{count} Kontakte" },
-  "con.noDetailsNote": "Lebende Verwandte ohne Telefon, E-Mail oder Adresse in den Unterlagen.",
   "con.titleLabel": "Kontakte",
   "con.kidsTitle": "Kinder unter 18",
   "con.kidsOption": "Auf der Karte eines Elternteils zeigen",
   "con.kidsText": "Standardmäßig aus: Kinder ohne eigene Kontaktdaten stehen unter Noch keine Angaben. Schalte das ein, um sie auf der Karte eines Elternteils zu zeigen, das Angaben hat.",
-  "con.sectionNoDetails": "Noch keine Angaben",
 };
 
 /** Afrikaans. A missing entry falls back to English at runtime; the test reports them. */
@@ -121,7 +113,6 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   "con.downloadTitle": "Stoor almal wat hier gewys word as ’n .vcf-lêer vir jou foon of adresboek",
   "con.downloadVcard": "Laai vCard af",
   "con.downloadVcardShort": "vCard",
-  "con.downloadCount": " ({count})",
   "con.loadingAria": "Kontakte word gelaai",
   "con.errorTitle": "Kon nie die adresboek oopmaak nie",
   "con.errorText": "Die familie se inligting is steeds veilig. Probeer asseblief weer.",
@@ -158,12 +149,9 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   "con.saveOne": "Stoor kontak: {name}",
   "con.saveButton": { one: "Stoor kontak", other: "Stoor kontakte" },
   "con.saveFallback": "hierdie kontak",
-  "con.loadingCards": "Kontakte word gelaai",
   "con.contactNumber": { one: "{count} kontak", other: "{count} kontakte" },
-  "con.noDetailsNote": "Lewende familielede sonder telefoon, e-pos of adres op lêer.",
   "con.titleLabel": "Kontakte",
   "con.kidsTitle": "Kinders onder 18",
   "con.kidsOption": "Wys hulle op 'n ouer se kaart",
   "con.kidsText": "Standaard af: kinders sonder eie kontakbesonderhede staan onder Nog geen besonderhede nie. Skakel dit aan om hulle op die kaart van 'n ouer met besonderhede te wys.",
-  "con.sectionNoDetails": "Nog geen besonderhede nie",
 };

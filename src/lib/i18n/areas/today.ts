@@ -5,7 +5,6 @@ import type { Message } from "../types.ts";
 
 export const en = {
   "today.title": "Today",
-  "today.nav_hint": "This week’s question and the daily quiz",
   "today.cmd": "Open Today",
   "today.cmd_hint": "question of the week & quiz",
   "today.more_sections": "More sections",
@@ -129,7 +128,6 @@ export const en = {
 
 export const de: Record<keyof typeof en, Message> = {
   "today.title": "Heute",
-  "today.nav_hint": "Die Frage der Woche und das tägliche Quiz",
   "today.cmd": "Heute öffnen",
   "today.cmd_hint": "Frage der Woche & Quiz",
   "today.more_sections": "Weitere Bereiche",
@@ -253,7 +251,6 @@ export const de: Record<keyof typeof en, Message> = {
 
 export const af: Record<keyof typeof en, Message> = {
   "today.title": "Vandag",
-  "today.nav_hint": "Die vraag van die week en die daaglikse vasvra",
   "today.cmd": "Maak Vandag oop",
   "today.cmd_hint": "vraag van die week & vasvra",
   "today.more_sections": "Nog afdelings",

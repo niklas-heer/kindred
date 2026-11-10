@@ -50,7 +50,6 @@ export const en = {
   "responses.push.switch": "Tell me when someone reacts to or comments on what I wrote or shared",
   "responses.push.help": "At most once a day, on the devices where reminders are on for this family.",
   "responses.push.failed": "The choice could not be saved. Try again.",
-  "responses.loss.photo_comments_md": { one: "{count} comment on a gallery photo is not in the archive (the gallery is not either)", other: "{count} comments on gallery photos are not in the archive (the gallery is not either)" },
 };
 
 export const de: Record<keyof typeof en, Message> = {
@@ -100,7 +99,6 @@ export const de: Record<keyof typeof en, Message> = {
   "responses.push.switch": "Sag mir Bescheid, wenn jemand auf etwas reagiert oder etwas kommentiert, das ich geschrieben oder geteilt habe",
   "responses.push.help": "Höchstens einmal am Tag, auf den Geräten, auf denen Erinnerungen für diese Familie an sind.",
   "responses.push.failed": "Die Einstellung konnte nicht gespeichert werden. Versuche es noch einmal.",
-  "responses.loss.photo_comments_md": { one: "{count} Kommentar zu einem Foto der Galerie ist nicht im Archiv (die Galerie auch nicht)", other: "{count} Kommentare zu Fotos der Galerie sind nicht im Archiv (die Galerie auch nicht)" },
 };
 
 export const af: Record<keyof typeof en, Message> = {
@@ -150,5 +148,4 @@ export const af: Record<keyof typeof en, Message> = {
   "responses.push.switch": "Laat my weet as iemand reageer op of kommentaar lewer op iets wat ek geskryf of gedeel het",
   "responses.push.help": "Hoogstens een keer per dag, op die toestelle waar herinneringe vir hierdie familie aan is.",
   "responses.push.failed": "Die keuse kon nie gestoor word nie. Probeer weer.",
-  "responses.loss.photo_comments_md": { one: "{count} kommentaar op ’n foto in die galery is nie in die argief nie (die galery ook nie)", other: "{count} kommentare op foto’s in die galery is nie in die argief nie (die galery ook nie)" },
 };
