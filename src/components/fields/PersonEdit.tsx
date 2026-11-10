@@ -462,9 +462,12 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only }: Omit<Props, 'deta
             placeholder={opts.placeholder}
             autoComplete={opts.autoComplete ?? 'off'}
             autoCapitalize={opts.words ? 'words' : undefined}
+            aria-required={opts.required || undefined}
+            aria-invalid={opts.required && !field.state.value.trim() ? true : undefined}
+            aria-describedby={opts.required && !field.state.value.trim() ? `pe-issue-${String(name)}` : undefined}
             onChange={(e) => field.handleChange(e.target.value)}
           />
-          {opts.required && !field.state.value.trim() && <em className="err fe-issue" role="status">{c('issue.required')}</em>}
+          {opts.required && !field.state.value.trim() && <em className="err fe-issue" id={`pe-issue-${String(name)}`} role="status">{c('issue.required')}</em>}
         </label>
       )}
     </form.Field>

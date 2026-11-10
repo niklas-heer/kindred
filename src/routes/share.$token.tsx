@@ -77,10 +77,10 @@ function SharePage() {
           <label className="field">
             <span>{t('share.passwordField')}</span>
             {/* The password arrives in a message and is pasted or typed once, so the letters stay visible. */}
-            <input className="input" value={password} onChange={(e) => setPassword(e.target.value)} required maxLength={100} autoFocus autoComplete="off" autoCapitalize="characters" spellCheck={false} />
+            <input className="input" value={password} onChange={(e) => setPassword(e.target.value)} required maxLength={100} autoFocus autoComplete="off" autoCapitalize="characters" spellCheck={false} aria-invalid={error ? true : undefined} aria-describedby={error ? 'share-error' : undefined} />
           </label>
         )}
-        <AuthError>{error}</AuthError>
+        <AuthError id="share-error">{error}</AuthError>
         <button className="btn primary auth-go" disabled={busy || (needsPassword && !password.trim())}>{busy ? t('share.entering') : t('share.enter')}</button>
       </form>
     </AuthCard>

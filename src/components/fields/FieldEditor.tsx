@@ -412,7 +412,7 @@ function FieldRowEditor({ tree, f, index, count, fam, self, fixed, focusFirst, o
             return (
               <label className={cls} key={inp.key}>
                 <span>{label}</span>
-                <textarea className="input" rows={3} value={v} placeholder={inp.placeholder} onChange={(e) => setV(e.target.value)} />
+                <textarea className="input" rows={3} value={v} placeholder={inp.placeholder} aria-invalid={issueText ? true : undefined} aria-describedby={issueText ? `${id}-issue` : undefined} onChange={(e) => setV(e.target.value)} />
               </label>
             );
           }
@@ -429,6 +429,8 @@ function FieldRowEditor({ tree, f, index, count, fam, self, fixed, focusFirst, o
                 autoCapitalize={inp.verbatim ? 'none' : inp.name ? 'words' : undefined}
                 autoCorrect={inp.verbatim ? 'off' : undefined}
                 spellCheck={inp.verbatim ? false : undefined}
+                aria-invalid={issueText ? true : undefined}
+                aria-describedby={issueText ? `${id}-issue` : undefined}
                 onChange={(e) => setV(e.target.value)}
               />
             </label>
@@ -438,7 +440,7 @@ function FieldRowEditor({ tree, f, index, count, fam, self, fixed, focusFirst, o
       </div>
 
       <VisibilityPicker value={f.visibility} onChange={(visibility) => onChange({ visibility })} personal={offersPersonal(f)} />
-      {issueText && <em className="err fe-issue" role="status">{issueText}</em>}
+      {issueText && <em className="err fe-issue" id={`${id}-issue`} role="status">{issueText}</em>}
     </li>
   );
 }

@@ -21,9 +21,9 @@ export function AuthCard({ crest, kicker, title, lede, children, wide }: { crest
   );
 }
 
-export function AuthError({ children }: { children: ReactNode }) {
+export function AuthError({ children, id }: { children: ReactNode; id?: string }) {
   const t = useT();
-  return children ? <p className="auth-error" role="alert"><AlertCircle size={18} />{typeof children === 'string' ? translateMessage(children,t.locale) : children}</p> : null;
+  return children ? <p className="auth-error" id={id} role="alert"><AlertCircle size={18} />{typeof children === 'string' ? translateMessage(children,t.locale) : children}</p> : null;
 }
 
 /** Behind Cloudflare Access, a visit with no verified identity: Kindred has nothing of its own to offer instead. */
