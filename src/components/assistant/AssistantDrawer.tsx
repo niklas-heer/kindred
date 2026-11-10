@@ -13,6 +13,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { aiChatImageQuery, aiChatModelsQuery, aiChatNew, aiChatQuery, aiChatRetry, aiChatSend, aiStatusQuery, aiThreadSetModel, aiThreadsQuery } from '~/lib/ai.functions';
 import { nextStronger, type ModelChoices } from '~/lib/ai/model-choice';
 import { threadTitle } from '~/lib/ai/thread-title';
+import { hostOf, retryable, webUrl } from '~/lib/ai/chat-turns';
 import { graphQuery } from '~/lib/api';
 import { toAiLocale, type ChatItem, type Provider } from '~/lib/ai/types';
 import { compareText, useT, type Key } from '~/lib/i18n';
@@ -55,23 +56,6 @@ const COMPOSER_MAX = 136;
 
 /** From this wide, the list of chats sits beside the thread; below it, it slides over (the same width as the CSS container query). */
 const LIST_BESIDE_WIDTH = 720;
-
-/** A link a reader can follow: http(s) only. The model's own sources are shown as links, so nothing else is. */
-const webUrl = (url: string): boolean => {
-  try {
-    const u = new URL(url);
-    return u.protocol === 'https:' || u.protocol === 'http:';
-  } catch {
-    return false;
-  }
-};
-const hostOf = (url: string): string => {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return url;
-  }
-};
 
 /** The window itself. Loaded on demand by Launcher.tsx, so a page carries none of it until the reader asks. */
 export function AssistantDrawer({ tree }: { tree: string }) {
@@ -503,15 +487,6 @@ export function AssistantDrawer({ tree }: { tree: string }) {
     }
   }
 
-  /** Whether an answer can be asked again: it answers a message in words, not a decision, a family session or pictures that were not kept. */
-  function retryable(i: number): boolean {
-    const m = items[i];
-    if (m.role !== 'assistant' || m.continuation) return false;
-    const before = items.slice(0, i).reverse().find((x) => !x.alternateOf);
-    const base = m.alternateOf ? items.find((x) => x.id === m.alternateOf) : m;
-    const question = base ? items[items.indexOf(base) - 1] : before;
-    return !!question && question.role === 'user' && !question.session && !question.images;
-  }
 
   function openSession() {
     dictation.stop();
@@ -677,7 +652,7 @@ export function AssistantDrawer({ tree }: { tree: string }) {
                   </div>
                 </div>
               )}
-              {conv && items.map((m, i) => (m.role === 'user' ? <UserTurn key={m.id} tree={tree} item={m} /> : <AssistantTurn key={m.id} tree={tree} conv={conv} item={m} people={people} places={places} onDecided={onDecided} steward={steward} models={models} canRetry={!busy && retryable(i)} onRetry={(id, model) => void retryAnswer(conv, id, model)} last={i === items.length - 1} busy={busy} onSay={(words) => { if (!getRun(conv).busy) void transmit(ctx(conv), words, [], false); }} pagePerson={viewed && { id: viewed.id, given: fullName(viewed) }} />))}
+              {conv && items.map((m, i) => (m.role === 'user' ? <UserTurn key={m.id} tree={tree} item={m} /> : <AssistantTurn key={m.id} tree={tree} conv={conv} item={m} people={people} places={places} onDecided={onDecided} steward={steward} models={models} canRetry={!busy && retryable(items, i)} onRetry={(id, model) => void retryAnswer(conv, id, model)} last={i === items.length - 1} busy={busy} onSay={(words) => { if (!getRun(conv).busy) void transmit(ctx(conv), words, [], false); }} pagePerson={viewed && { id: viewed.id, given: fullName(viewed) }} />))}
               {pending !== null && (
                 <div className="ai-turn ai-turn-user ai-turn-pending">
                   <AttachedThumbs images={pendingImages} />
