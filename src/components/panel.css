@@ -199,9 +199,9 @@ p.pp-add-relative.pp-ask { margin: 0; padding: 12px 16px; }
 
 /* ---------- tabs: centred labels, each column as wide as its label needs (and equal when there is room) ---------- */
 /* A column is never narrower than its label and count, so a long word ("Geschichten") can't run into the next tab. */
-.pp-tabs.ui-tablist { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(max-content, 1fr); gap: 0; padding: 8px 10px 0; overflow: visible; }
+.pp-tabs.ui-tablist { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(max-content, 1fr); gap: 0; padding: 8px 10px 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; } /* a long language scrolls sideways rather than run its tabs together */
 .pp-tabs .ui-tab {
-  flex: none; min-width: 0; justify-content: center; text-align: center; gap: 3px; padding: 9px 2px 10px;
+  flex: none; min-width: 0; justify-content: center; text-align: center; gap: 3px; padding: 9px 6px 10px; /* 12px between two labels */
   font-size: var(--fs-3, 14px); white-space: nowrap;
 }
 /* Five small-caps tabs share 380px: 15px is the largest that keeps "Geschichten" and its count clear of its neighbours. */

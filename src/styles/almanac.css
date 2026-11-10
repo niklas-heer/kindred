@@ -193,6 +193,8 @@
 .alm-tile { min-height: 94px; justify-content: space-between; padding: 12px 3px 14px; }
 .alm-tile-n { font: 13px var(--font-ui); }
 .alm-tile-n small { display: block; font-size: var(--fs-1); color: var(--muted); }
+/* The tiles are about 65px wide: the noun ("Geburtstage", "verjaarsdae") does not fit, and the caption under the strip says it. It stays for screen readers. */
+@media (max-width: 640px) { .alm-tile-n small { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
 .alm-tile-gauge { left: 8%; width: 84%; height: calc(4px + var(--heat) * 18px); opacity: .65; bottom: 0; }
 .alm-tile-n { z-index: 1; padding-bottom: 16px; }
 .alm-who { overflow: visible; overflow-wrap: anywhere; font-family: var(--font-name); font-weight: var(--name-weight); }
