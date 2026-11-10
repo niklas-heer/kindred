@@ -9,6 +9,7 @@ import {
 import { isoBase64URL } from '@simplewebauthn/server/helpers';
 import { AuthError } from './errors.ts';
 import { authMethod } from './method.server.ts';
+import { requireFreshProof } from './proof.server.ts';
 import { guestChoice, siteOrigin } from './session.server.ts';
 import { checkSetupCode } from './setup.server.ts';
 import { checkCanMakeFamily, cleanFamilyName, makeFirstFamily } from './trees.server.ts';
@@ -87,9 +88,10 @@ export async function inviteOptions(request: Request, token: string, rawName: un
   return { options, challengeId: await saveChallenge({ challenge: options.challenge, purpose: 'invite', subject: `${invite.id} ${handle}`, name }) };
 }
 
-/** Options for another passkey of a signed-in reader (a new phone, a second laptop). */
+/** Options for another passkey of a signed-in reader (a new phone, a second laptop), once they have just confirmed it is them. */
 export async function addOptions(request: Request, user: UserRow) {
   needPasskeys();
+  await requireFreshProof(request, user);
   const options = await creationOptions(request, { name: user.name, handle: user.handle, existing: await credentialsOf(user.id) });
   return { options, challengeId: await saveChallenge({ challenge: options.challenge, purpose: 'add', subject: user.id }) };
 }
@@ -177,6 +179,7 @@ export async function finishInvite(request: Request, token: string, challengeId:
 export async function finishAdd(request: Request, user: UserRow, challengeId: unknown, response: RegistrationResponseJSON) {
   const c = await take(challengeId, 'add');
   if (c.subject !== user.id) throw invalid('That took too long. Please try again.');
+  await requireFreshProof(request, user);
   const cred = await verifyNew(request, c.challenge, response);
   await accounts().batch([insertCredential({ ...cred, user: user.id, device: deviceName(request) })]);
 }
@@ -191,8 +194,8 @@ export async function signInOptions(request: Request) {
   return { options, challengeId: await saveChallenge({ challenge: options.challenge, purpose: 'login' }) };
 }
 
-/** Verifies a sign-in; returns the account's id and the passkey that signed in. */
-export async function finishSignIn(request: Request, challengeId: unknown, response: AuthenticationResponseJSON): Promise<{ user: string; credential: string }> {
+/** Verifies a sign-in; returns the account's id, the passkey that signed in, and whether the device verified the reader. */
+export async function finishSignIn(request: Request, challengeId: unknown, response: AuthenticationResponseJSON): Promise<{ user: string; credential: string; verified: boolean }> {
   const c = await take(challengeId, 'login');
   const unknown = invalid('This passkey isn’t one we know. If you were invited, open your invitation link first.');
   const row = typeof response?.id === 'string' ? await credentialById(response.id) : undefined;
@@ -214,7 +217,7 @@ export async function finishSignIn(request: Request, challengeId: unknown, respo
   }
   if (!result.verified) throw invalid('Your passkey couldn’t be checked. Please try again.');
   await credentialUsed(row.id, result.authenticationInfo.newCounter);
-  return { user: user.id, credential: row.id };
+  return { user: user.id, credential: row.id, verified: result.authenticationInfo.userVerified };
 }
 
 /** "iPhone", "Mac", "Android"…: a label for the list of someone's passkeys. */

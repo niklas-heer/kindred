@@ -94,6 +94,8 @@ version will not run on a database that has had these migrations.
 - Uploaded photographs lose their EXIF, GPS, XMP and IPTC data on the server, whatever client sent them (a camera's orientation is kept).
 - A PDF cannot hide active content in comments, strings or object streams, and `/AA` and most `/OpenAction` entries are refused.
 - Sessions are tied to the passkey that started them (see Added).
+- Adding a passkey and "Sign out everywhere else" ask you to confirm with a passkey on that browser first, unless you signed in
+  there in the last five minutes, so a borrowed, unlocked browser cannot add a passkey of its own (accounts migration 0025).
 - Nobody learns of changes to, or the number of, a person's fields they cannot see. The Edit tab's version of a person now
   moves only with what that reader sees, the limit of 200 fields counts only theirs, a field's position is its place among
   theirs, and the person read no longer carries the stored revision at all (a guest never needed it). A draft open across

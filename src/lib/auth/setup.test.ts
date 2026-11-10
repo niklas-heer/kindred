@@ -68,7 +68,10 @@ test('bootstrap modes, discoverable options, exclusions and proxy origin', async
         store.insertCredential({id:'YWJj', user:user.id, publicKey:new Uint8Array([1]), counter:0, transports:[], device:'Test', synced:true}),
         store.upsertMembership(user.id, 'modern', 'steward'),
       ]);
-      const { options } = await passkeys.addOptions(request, user);
+      // Adding a passkey needs a fresh proof on the session (proof.server.ts): a sign-in that verified the reader is one.
+      const { token } = await store.createSession(user.id, 'YWJj', true);
+      const signedIn = new Request('http://localhost:4651', { headers: { cookie: `kindred_session=${token}` } });
+      const { options } = await passkeys.addOptions(signedIn, user);
       assert.deepEqual(options.excludeCredentials, [{id:'YWJj', type:'public-key', transports:[]}]);
       assert.equal(await setup.needsSetup(), false);
       assert.equal(await setup.checkSetupCode(''), false);

@@ -88,19 +88,20 @@ export const credentialUsed = (id: string, counter: number) => accounts().run('U
 
 // ---------- sessions ----------
 
-export interface SessionRow { hash: string; user: string; created: number; expires: number; refreshed: number; credential: string | null }
+export interface SessionRow { hash: string; user: string; created: number; expires: number; refreshed: number; credential: string | null; proved: number | null }
 
 /**
  * A new session for `user`; returns the cookie's token (only its hash is stored). `credential` is the passkey that
- * started it, so removing that passkey ends this session too (removeCredential).
+ * started it, so removing that passkey ends this session too (removeCredential). `proved` says the sign-in verified the
+ * reader (face, fingerprint or PIN), which counts as a fresh proof for a few minutes (proof.server.ts).
  */
-export async function createSession(user: string, credential: string | null = null): Promise<{ token: string; expires: number }> {
+export async function createSession(user: string, credential: string | null = null, proved = false): Promise<{ token: string; expires: number }> {
   const token = randomToken(32);
   const t = now();
   const expires = t + SESSION_DAYS * DAY;
   await accounts().batch([
     q('DELETE FROM session WHERE expires < ?', t),
-    q('INSERT INTO session (hash, user, created, expires, refreshed, credential) VALUES (?, ?, ?, ?, ?, ?)', await hashToken('session', token), user, t, expires, t, credential),
+    q('INSERT INTO session (hash, user, created, expires, refreshed, credential, proved) VALUES (?, ?, ?, ?, ?, ?, ?)', await hashToken('session', token), user, t, expires, t, credential, proved ? t : null),
   ]);
   return { token, expires };
 }
@@ -119,6 +120,9 @@ export async function slideSession(row: SessionRow): Promise<number | undefined>
   await accounts().run('UPDATE session SET expires = ?, refreshed = ? WHERE hash = ?', expires, t, row.hash);
   return expires;
 }
+
+/** Records a fresh passkey proof on one session of `user` (proof.server.ts). */
+export const sessionProved = (hash: string, user: string) => accounts().run('UPDATE session SET proved = ? WHERE hash = ? AND user = ?', now(), hash, user);
 
 export const deleteSession = async (token: string) => accounts().run('DELETE FROM session WHERE hash = ?', await hashToken('session', token));
 
@@ -264,7 +268,7 @@ export const pendingInvitesFor = (email: string) =>
 
 // ---------- WebAuthn challenges ----------
 
-export async function saveChallenge(c: { challenge: string; purpose: 'setup' | 'invite' | 'add' | 'login'; subject?: string; name?: string }): Promise<string> {
+export async function saveChallenge(c: { challenge: string; purpose: 'setup' | 'invite' | 'add' | 'login' | 'confirm'; subject?: string; name?: string }): Promise<string> {
   const id = randomToken(24);
   await accounts().batch([
     q('DELETE FROM challenge WHERE expires < ?', now()),

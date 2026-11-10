@@ -236,13 +236,21 @@ export const removeMyPasskey = createServerFn({ method: 'POST' })
     return { signedOut: !(await sessionStillOpen(getRequest())) };
   });
 
-/** "Sign out everywhere else": ends every session of the reader except this one. Returns how many ended. */
+/**
+ * "Sign out everywhere else": ends every session of the reader except this one. Returns how many ended. Needs a fresh
+ * passkey proof on this session (proof.server.ts), so a borrowed browser cannot sign its owner's own devices out.
+ */
 export const signOutElsewhere = createServerFn({ method: 'POST' }).handler(async (): Promise<{ ended: number }> => {
-  const [{ requireUser, fail }, { AuthError }, { authMethod }, { endOtherSessionsOf }, { getRequest }] = await Promise.all([
-    guard(), import('./errors'), import('./method.server'), import('./session.server'), import('@tanstack/react-start/server'),
+  const [{ requireUser, fail }, { AuthError }, { authMethod }, { endOtherSessionsOf }, { getRequest }, { requireFreshProof }] = await Promise.all([
+    guard(), import('./errors'), import('./method.server'), import('./session.server'), import('@tanstack/react-start/server'), import('./proof.server'),
   ]);
   const user = await requireUser();
   if (authMethod() !== 'kindred') throw fail(new AuthError('invalid', 'auth.passkeys_off'));
+  try {
+    await requireFreshProof(getRequest(), user);
+  } catch (e) {
+    throw e instanceof AuthError ? fail(e) : e;
+  }
   return { ended: await endOtherSessionsOf(getRequest(), user.id) };
 });
 

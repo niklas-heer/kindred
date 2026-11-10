@@ -9,7 +9,7 @@ import { Activity, ArrowLeftRight, BarChart3, Bell, Check, CircleHelp, Fingerpri
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import '~/components/assistant/ai-tasks.css';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { addPasskey, forgetLocalIdentity, passkeysSupported, signOutRequest } from '~/lib/auth/client';
+import { addPasskey, forgetLocalIdentity, passkeysSupported, signOutRequest, withFreshProof } from '~/lib/auth/client';
 import { appCommit, appVersion, releaseUrl } from '~/lib/version';
 import { myPasskeysQuery, removeMyPasskey, renameMe, signOutElsewhere, type Passkey } from '~/lib/auth/functions';
 import { fetchRemindersAvailable } from '~/lib/reminders.functions';
@@ -275,7 +275,7 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
   });
   const [confirmElsewhere, setConfirmElsewhere] = useState(false);
   const elsewhere = useMutation({
-    mutationFn: () => signOutElsewhere(),
+    mutationFn: () => withFreshProof(() => signOutElsewhere()),
     onSuccess: () => setConfirmElsewhere(false),
     onError: (e) => { setConfirmElsewhere(false); setError(e.message); },
   });
@@ -339,6 +339,7 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
         {add.isSuccess && <p className="acct-ok" role="status"><Check size={15} /> {t("accountmenu.passkey_added")}</p>}
         <h3 className="acct-h">{t("accountmenu.other_sign_ins")}</h3>
         <p className="acct-help">{t("accountmenu.sign_out_everywhere_else_help")}</p>
+        <p className="acct-help">{t("proof.hint")}</p>
         <button className="btn acct-add" onClick={() => { setError(null); elsewhere.reset(); setConfirmElsewhere(true); }} disabled={elsewhere.isPending}>
           <LogOut size={16} /> {t("accountmenu.sign_out_everywhere_else")}
         </button>

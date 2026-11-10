@@ -2,7 +2,7 @@
 // (Start reads it); the message is written for the person reading it, never a stack or a hint.
 import type { Action, Role } from '../roles';
 
-export type AuthErrorCode = 'signed-out' | 'not-member' | 'forbidden' | 'throttled' | 'invalid';
+export type AuthErrorCode = 'signed-out' | 'not-member' | 'forbidden' | 'throttled' | 'invalid' | 'reauth';
 
 export class AuthError extends Error {
   status: number;
@@ -15,6 +15,8 @@ export class AuthError extends Error {
   }
 }
 
+/** A step that needs the reader to confirm with a passkey on this session first (proof.server.ts). The browser does that and tries again. */
+export const needsProof = () => new AuthError('reauth', 'Confirm it’s you with your passkey first.');
 export const signedOut = () => new AuthError('signed-out', 'Please sign in to continue.');
 export const notMember = () => new AuthError('not-member', 'You don’t have access to this family.');
 // The text is one fixed English sentence, so the client can translate it (see translateMessage).
@@ -23,7 +25,7 @@ export const forbidden = (_action: Action, _needed: Role) => new AuthError('forb
 /** The kind of an error that came back from a server function, if it was an auth error. */
 export function authErrorCode(e: unknown): AuthErrorCode | undefined {
   const code = (e as { code?: unknown } | null)?.code;
-  if (typeof code === 'string' && ['signed-out', 'not-member', 'forbidden', 'throttled', 'invalid'].includes(code)) return code as AuthErrorCode;
+  if (typeof code === 'string' && ['signed-out', 'not-member', 'forbidden', 'throttled', 'invalid', 'reauth'].includes(code)) return code as AuthErrorCode;
   const msg = e instanceof Error ? e.message : '';
   if (msg === 'Please sign in to continue.') return 'signed-out';
   if (msg === 'You don’t have access to this family.') return 'not-member';

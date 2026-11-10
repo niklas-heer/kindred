@@ -116,6 +116,7 @@ code (`mise run deploy` migrates before it deploys), so it must not break the re
 | `0021_ai_turn.sql` | `ai_turn`: one running reply per chat, as a lease. |
 | `0022_session_credential.sql` | `session.credential`: the passkey that started a session, so removing that passkey signs its device out (null for older sessions). |
 | `0023_share_protect_living.sql` | `share_link.protect_living`: whether the link's guests get living people reduced to their names, faces and place in the tree. 0 for links that already existed; Kindred sets it for every new link unless the steward unticks it. |
+| `0025_session_proof.sql` | `session.proved`: when the session last confirmed with a passkey (the reader verified), which adding a passkey and "sign out everywhere else" need within five minutes. `challenge` is made again to allow the purpose `confirm`. |
 
 ### Tables
 
@@ -131,7 +132,8 @@ code (`mise run deploy` migrates before it deploys), so it must not break the re
   was last used. Each user has one or more.
 - **`session`**: a sign-in. Its key is the SHA-256 hash of the cookie's token, never the token; it has `expires` and
   `refreshed`, and it slides forward as the user is active. `credential` (0022) is the passkey that started it; removing
-  that passkey deletes the session.
+  that passkey deletes the session. `proved` (0025) is when the session last confirmed with one of its user's passkeys, the
+  reader verified, or signed in that way; NULL means never.
 - **`invite`**: an invitation to a family with a `role`, an optional `email`, an `expires`, who created it and who used
   it, and `revoked_at`. Only a hash of the link's token is stored.
 - **`share_link`** (0015): a family's share link, at most one per family: a hash of its token, a PBKDF2 hash of its password (or none),
@@ -142,8 +144,8 @@ code (`mise run deploy` migrates before it deploys), so it must not break the re
 - **`share_attempt`** (0015): tries against a link in the current 15-minute window, per link and per link and hashed address.
 - **`membership`**: a user's role in a family (`viewer`, `contributor`, `editor`, `steward`), and who they are in that
   family (a person id, or `-` for "just browsing"). `person_confirmed` (0014) is 1 once a steward has confirmed the link.
-- **`challenge`**: a passkey ceremony in progress (for setup, an invitation, adding a passkey, or signing in), with its
-  expiry.
+- **`challenge`**: a passkey ceremony in progress (for setup, an invitation, adding a passkey, signing in, or confirming
+  it is you on a session, 0025), with its expiry.
 - **`ai_settings`**: one row per family: feature switches, web search, the monthly budget in micro-dollars and custom prices.
   Legacy provider/model and daily token-budget columns remain for compatibility; provider connections and routes are authoritative.
 - **`ai_provider`** (0010): one connection per family and provider (`anthropic`, `openai`, `openrouter`), with a sealed key,

@@ -9,7 +9,7 @@ const json = (body: unknown, status = 200, cookie?: string | string[]) => {
   return new Response(JSON.stringify(body), { status, headers });
 };
 
-const ACTIONS = new Set(['setup-options', 'setup', 'invite-options', 'invite', 'signin-options', 'signin', 'add-options', 'add', 'signout']);
+const ACTIONS = new Set(['setup-options', 'setup', 'invite-options', 'invite', 'signin-options', 'signin', 'add-options', 'add', 'confirm-options', 'confirm', 'signout']);
 
 export const Route = createFileRoute('/api/auth/$action')({
   server: {
@@ -28,6 +28,7 @@ export const Route = createFileRoute('/api/auth/$action')({
           import('~/lib/auth/trees.server'),
           import('~/lib/auth/guard.server'),
         ]);
+        const proof = () => import('~/lib/auth/proof.server');
 
         // Throttling: per address, and one global budget for guessing the setup code.
         const ip = clientIP();
@@ -60,13 +61,19 @@ export const Route = createFileRoute('/api/auth/$action')({
             case 'signin-options':
               return json(await p.signInOptions(request));
             case 'signin': {
-              const { user, credential } = await p.finishSignIn(request, body.challengeId, body.response);
-              return json({ ok: true }, 200, await s.startSession(request, user, credential));
+              const { user, credential, verified } = await p.finishSignIn(request, body.challengeId, body.response);
+              return json({ ok: true }, 200, await s.startSession(request, user, credential, verified));
             }
             case 'add-options':
               return json(await p.addOptions(request, await requireUser()));
             case 'add':
               await p.finishAdd(request, await requireUser(), body.challengeId, body.response);
+              return json({ ok: true });
+            // A fresh proof on this session, before adding a passkey or signing out everywhere else (proof.server.ts).
+            case 'confirm-options':
+              return json(await (await proof()).proofOptions(request, await requireUser()));
+            case 'confirm':
+              await (await proof()).finishProof(request, await requireUser(), body.challengeId, body.response);
               return json({ ok: true });
             case 'signout':
               return json({ ok: true }, 200, await s.endAllSessions(request));

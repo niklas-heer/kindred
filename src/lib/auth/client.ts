@@ -51,8 +51,39 @@ export const setUpFirstSteward = (code: string, name: string, familyName: string
 /** Creates a passkey from an invitation and joins the family. */
 export const acceptWithPasskey = (token: string, name: string) => create('invite-options', 'invite', { token, name }, { token });
 
-/** Adds another passkey for the signed-in reader. */
-export const addPasskey = () => create('add-options', 'add', {}, {});
+/** Confirms with one of the reader's passkeys, on this session, that it is them (see proof.server.ts). */
+async function proveItsYou() {
+  const { startAuthentication } = await import('@simplewebauthn/browser');
+  const { options, challengeId } = await post<{ options: PublicKeyCredentialRequestOptionsJSON; challengeId: string }>('confirm-options');
+  let response;
+  try {
+    response = await startAuthentication({ optionsJSON: options });
+  } catch (e) {
+    throw friendly(e);
+  }
+  await post('confirm', { challengeId, response });
+}
+
+/** The English of the server's "confirm it's you first" refusal (errors.ts, needsProof), for a server function's error. */
+const PROOF_NEEDED = 'Confirm it’s you with your passkey first.';
+const needsProof = (e: unknown) => (e as { code?: unknown } | null)?.code === 'reauth' || (e instanceof Error && e.message === PROOF_NEEDED);
+
+/**
+ * Runs a step that may need a fresh passkey proof: when the server asks for one, the reader confirms with their passkey and
+ * the step runs once more. A sign-in a few minutes ago already counts, so then there is no second prompt.
+ */
+export async function withFreshProof<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (e) {
+    if (!needsProof(e)) throw e;
+    await proveItsYou();
+    return run();
+  }
+}
+
+/** Adds another passkey for the signed-in reader, after they confirm it is them. */
+export const addPasskey = () => withFreshProof(() => create('add-options', 'add', {}, {}));
 
 /** Signs in with any of this site's passkeys on the device. */
 export async function signInWithPasskey() {

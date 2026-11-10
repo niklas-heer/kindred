@@ -6,7 +6,7 @@ import { accessEmail, authMethod } from './method.server.ts';
 import { isLocale, negotiateLocale, translate, type Locale } from '../i18n/dictionary.ts';
 import {
   commit, createSession, deleteSession, endOtherSessions, newUser, noUsersYet, now, pendingInvitesFor, sessionByToken, slideSession, touchUser, upsertMembership, useInvite,
-  userByEmail, userById, userCount, type UserRow,
+  userByEmail, userById, userCount, type SessionRow, type UserRow,
 } from './store.server.ts';
 import { endGuestVisit, guestVisitByToken, type GuestSession } from './share.server.ts';
 import type { Query } from '../store/index.ts';
@@ -40,10 +40,10 @@ function cookie(request: Request, value: string, maxAgeSeconds: number) {
  * and the old one, if any, is ended. `credential` is the passkey used, so removing it later signs this session out.
  * Returns the Set-Cookie value.
  */
-export async function startSession(request: Request, user: string, credential: string | null = null): Promise<string> {
+export async function startSession(request: Request, user: string, credential: string | null = null, proved = false): Promise<string> {
   const old = sessionToken(request);
   if (old) await deleteSession(old);
-  const { token, expires } = await createSession(user, credential);
+  const { token, expires } = await createSession(user, credential, proved);
   return cookie(request, token, Math.floor((expires - now()) / 1000));
 }
 
@@ -52,6 +52,12 @@ export async function endOtherSessionsOf(request: Request, user: string): Promis
   const keep = sessionToken(request);
   // Without a cookie of its own the request is not a passkey session (Access has none to end), so nothing is ended.
   return keep ? endOtherSessions(user, keep) : 0;
+}
+
+/** The request's own live session, if its cookie names one. */
+export async function sessionOf(request: Request): Promise<SessionRow | undefined> {
+  const t = sessionToken(request);
+  return t ? sessionByToken(t) : undefined;
 }
 
 /** Whether the request's session cookie still names a live session, such as after removing the passkey that started it. */
