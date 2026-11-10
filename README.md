@@ -6,7 +6,7 @@
 
 A family tree your whole family can share, with the stories, photographs and places that go with it.
 
-![The Dynasty view of an invented family: generations of cards under house shields, with a minimap of the whole tree.](docs/images/tree.webp)
+![The Dynasty view of an invented medieval realm: generations of portrait cards under house shields, a minimap of the whole tree, and the person panel beside it.](docs/images/tree.webp)
 
 In most families, one person keeps the records, in a folder or a program nobody else can open. Kindred puts them somewhere
 everyone can reach. Relatives can find themselves, see how they are related to the great-aunt in the old photograph, and
@@ -21,21 +21,26 @@ plates, then shields that keep each person's name, then shields alone, and a **m
 where you are in it.
 
 Press ⌘K or `/` to find anyone by name, nickname, title or house, and each result says how they are related to you. A lens
-dims everyone except a direct line, a house, the living, or the path between two people.
+dims everyone except a direct line, a house, the living, or the path between two people. On a phone the person panel becomes
+a drawer under the tree and the sections move to a tab bar.
+
+<img src="docs/images/phone.webp" alt="The tree on a phone: a family of cards around one person, with a drawer for the person below and a tab bar." width="260">
 
 A person's page holds their life on a timeline, their relatives, what has been written about them, and a **portrait**. Each
 person gets a drawn portrait you can adjust. With AI switched on, it can start from a photo, or be painted in a style the
 family shares.
 
-![A person's page beside the tree, with a drawn portrait, a timeline and relatives.](docs/images/person.webp)
+![A person's page: a drawn portrait, the life on a timeline, closest family, a memory, and the places on a map.](docs/images/person.webp)
 
 ## Houses and their arms
 
 A branch of the family can be a **house**, with a shield, a motto, a head and a line of succession. You draw the arms in a
-designer. The assistant can look up what a surname means and offer the possible origins for you to choose from, then say
+designer, with its choices of field, division, charges and tinctures explained as you go. The assistant can look up what a surname means and offer the possible origins for you to choose from, then say
 whether the arms suit that meaning and suggest new designs.
 
 ![A house page with its coat of arms, its head and the line of succession.](docs/images/house.webp)
+
+![The arms designer: a shield beside its layers, a charge picker and the tinctures.](docs/images/arms.webp)
 
 ## What the family remembers
 
@@ -47,7 +52,7 @@ whether the arms suit that meaning and suggest new designs.
 - **Needed** is the to-do list of what is still missing, nearest relatives first, one question at a time if you like.
 - **Research** gathers one question, such as where a branch came from, with its documents, pictures, notes, people and places on one timeline.
 
-![The Atlas: a world map with the places an invented family lived.](docs/images/atlas.webp)
+![The Atlas: a map of Europe with the places an invented modern family was born, and a slider to replay them through the years.](docs/images/atlas.webp)
 
 ## The assistant, if you want one
 
