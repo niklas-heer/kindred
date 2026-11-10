@@ -18,9 +18,9 @@
 // of a D1 database that already holds a family first; its old pictures stay in R2), --from <file.db>,
 // --plan (print what would be copied and uploaded, and change nothing in Cloudflare). A database that already has
 // the family's details but no people (setup made them) is refused without --replace, up front (see existingFamilyProblem).
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { movePhotosOut, openSqlite } from '../src/lib/store/node.ts';
 import { COPY_ONLY, countMismatches, countSql, deleteSql, existingFamilyProblem, foreignKeyOrderErrors, insertSql, listFiles, planMedia, planTables, type MediaFile } from './lib/d1-transfer.ts';
@@ -92,7 +92,10 @@ for (const tree of trees) {
     const named = [...rows.get('photo')!, ...rows.get('media')!, ...rows.get('portrait')!, ...rows.get('research_document')!].map((r) => r.key)
       .concat(rows.get('media')!.map((r) => r.thumb))
       .filter((k): k is string => typeof k === 'string');
-    const onDisk = listFiles(resolve('data/media', tree)).map((f) => ({ key: f.key, file: f.file }));
+    // The pictures are in the media folder beside the family's file: data/media/<tree>, or with --from the folder beside
+    // that file when it has one (a demo's scratch folder, scripts/demo.ts), else data/media/<tree> as before.
+    const beside = from ? join(dirname(resolve(from)), 'media', tree) : null;
+    const onDisk = listFiles(beside && existsSync(beside) ? beside : resolve('data/media', tree)).map((f) => ({ key: f.key, file: f.file }));
     const media = planMedia(named, [...moved, ...onDisk]);
     d.close();
 

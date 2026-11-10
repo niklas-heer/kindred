@@ -52,6 +52,15 @@ export function validate(tree: SeedTree): void {
   for (const s of tree.stories) needPerson(s.person, `story ${s.id}`);
   for (const c of tree.contacts) needPerson(c.person, 'contact');
   needPerson(tree.focus, 'focus');
+  // The feed: whoever writes, comments or reacts, and whoever a post is about, is in the family.
+  for (const [i, post] of (tree.posts ?? []).entries()) {
+    needPerson(post.by, `post ${i + 1}`);
+    for (const id of post.people ?? []) needPerson(id, `post ${i + 1} about`);
+    for (const c of post.comments ?? []) needPerson(c.by, `post ${i + 1} comment`);
+    for (const r of post.reactions ?? []) needPerson(r.by, `post ${i + 1} reaction`);
+    if (!post.body.trim() && !post.pictures?.length) fail(`post ${i + 1} says nothing`);
+  }
+  for (const [i, upload] of (tree.uploads ?? []).entries()) needPerson(upload.by, `upload ${i + 1}`);
 
   // Parent graph: no self-parents, no cycles.
   const parentsOf = new Map<string, string[]>();

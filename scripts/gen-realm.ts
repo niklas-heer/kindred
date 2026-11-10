@@ -8,6 +8,7 @@ import type { Rng } from './lib/rng.ts';
 import { summarize, validate, writeTree } from './lib/check.ts';
 import { placeRealm } from './lib/places.ts';
 import { addLife } from './lib/life.ts';
+import { realmFeed } from './lib/feed-seed.ts';
 import {
   ABBEYS,
   BISHOP_SEES,
@@ -409,11 +410,14 @@ function main(): void {
     placeRealm(tree, mulberry32(built.seed));
     // Life events and sources after the places, so events name the family's pinned towns (scripts/lib/life.ts).
     addLife(tree, mulberry32(built.seed + 24), 'realm');
+    // What the family wrote to each other, and photographs for the gallery, once everyone has a birthplace to mention.
+    Object.assign(tree, realmFeed(tree));
+    validate(tree);
     writeTree(tree, OUT_PATH);
 
     const s = summarize(tree);
     console.log(`realm: wrote ${OUT_PATH} (seed ${built.seed})`);
-    console.log(`  people ${s.people}, unions ${s.unions}, stories ${s.stories}, contacts ${s.contacts}, events ${tree.events?.length ?? 0}, citations ${tree.citations?.length ?? 0}`);
+    console.log(`  people ${s.people}, unions ${s.unions}, stories ${s.stories}, contacts ${s.contacts}, events ${tree.events?.length ?? 0}, citations ${tree.citations?.length ?? 0}, posts ${tree.posts?.length ?? 0}`);
     console.log(`  living ${s.living}, max generation depth ${s.maxGenerationDepth}`);
     console.log(`  largest house ${s.largestHouse.name} (${s.largestHouse.members} members)`);
     console.log(`  dynasty descendants of Valcourt ${sim.people.filter((p) => p.dynasty).length}; cousin-marriage unions ${countCollapsedUnions(sim)}`);

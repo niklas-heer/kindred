@@ -25,8 +25,51 @@ export interface SeedTree {
   /** The family's sources, and the citations that tie them to facts. */
   sources?: SeedSource[];
   citations?: SeedCitation[];
+  /** What the family wrote to each other in the feed (migration 0029, docs/feed.md), and photographs added to the gallery. */
+  posts?: SeedPost[];
+  uploads?: SeedUpload[];
   /** The person the tree opens on (the "player character"). */
   focus: string;
+}
+
+/**
+ * A picture painted for a seed (scripts/lib/pictures.ts): a scene and the seed it is painted from. No photograph of
+ * anyone goes into a seed.
+ */
+export interface SeedPicture {
+  scene: 'lake' | 'boat' | 'garden' | 'street' | 'door' | 'table' | 'castle' | 'falcon';
+  seed: number;
+  /** Taller than wide. */
+  tall?: boolean;
+  caption?: string;
+}
+
+/**
+ * A post in the family's feed. Its writer, and whoever comments or reacts, is a living person of the family: the seed
+ * has no accounts, so each speaks as that person (src/lib/feed/voice.ts). Times are counted back from the moment the
+ * family is seeded, so a fresh family's feed reads as recent.
+ */
+export interface SeedPost {
+  /** Who wrote it (a person id). */
+  by: string;
+  body: string;
+  /** How many days before the seeding it was written, and at what time of day ("HH:MM", UTC). */
+  daysAgo: number;
+  time: string;
+  /** The people it is about. */
+  people?: string[];
+  pictures?: SeedPicture[];
+  comments?: { by: string; body: string; hoursLater: number }[];
+  reactions?: { by: string; kind: 'heart' | 'remember' | 'laugh' | 'candle' | 'thanks' }[];
+}
+
+/** Photographs one person added to the gallery on one day, into an album when it is named. */
+export interface SeedUpload {
+  by: string;
+  daysAgo: number;
+  time: string;
+  album?: string;
+  pictures: SeedPicture[];
 }
 
 export interface SeedHouse {

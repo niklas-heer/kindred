@@ -2,14 +2,18 @@
 // KINDRED_DATA_DIR when it is set, else data/: point it at a scratch folder to try a seed without
 // touching the real families.
 //   node scripts/seed.ts [--force] [data/seed/realm.json ...]
+// A family's feed is dated back from the moment of seeding (KINDRED_SEED_NOW sets another), and its pictures are painted
+// into <data>/media/<id>/ (scripts/lib/pictures.ts).
 // An existing database holds what the family typed in, so it is left alone unless --force is given;
 // even then the old file is first copied to backups/ in that folder.
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { openSqlite } from '../src/lib/store/node.ts';
 import { storeFurther } from '../src/lib/further-given.ts';
-import type { SeedTree } from '../src/lib/seed-format.ts';
+import { seedAccount } from '../src/lib/feed/voice.ts';
+import type { SeedPicture, SeedTree } from '../src/lib/seed-format.ts';
+import { drawScene } from './lib/pictures.ts';
 
 const DATA = process.env.KINDRED_DATA_DIR ? resolve(process.env.KINDRED_DATA_DIR) : resolve('data');
 const args = process.argv.slice(2);
@@ -116,8 +120,59 @@ for (const file of files) {
       fields++;
     }
   }
+  // The family's feed and gallery (migration 0029, docs/feed.md). A seed has no accounts: whoever writes, comments, reacts or
+  // adds a photograph does so as `seed:<person id>` (src/lib/feed/voice.ts), which the app reads as that person. Times are
+  // counted back from now, so a family seeded today has a feed that reads as recent. The pictures are painted here
+  // (scripts/lib/pictures.ts) and stored as gallery pictures with their small copies; an earlier seeding's are replaced.
+  const mediaDir = join(DATA, 'media', t.id);
+  for (const folder of ['gallery', 'thumb']) rmSync(join(mediaDir, folder), { recursive: true, force: true });
+  const byId = new Map(t.people.map((p) => [p.id, p]));
+  const shown = (id: string) => { const p = byId.get(id)!; return [p.currentGiven ?? p.given, p.currentSurname ?? p.surname].filter(Boolean).join(' '); };
+  // KINDRED_SEED_NOW (an ISO moment) is the clock to count back from, for a run that has a clock of its own (scripts/screenshots.ts).
+  const seeded = process.env.KINDRED_SEED_NOW ? Date.parse(process.env.KINDRED_SEED_NOW) : Date.now();
+  if (!Number.isFinite(seeded)) throw new Error(`KINDRED_SEED_NOW is not a moment: ${process.env.KINDRED_SEED_NOW}`);
+  const when = (daysAgo: number, time: string, hoursLater = 0) => {
+    const day = new Date(seeded - daysAgo * 86_400_000).toISOString().slice(0, 10);
+    // Never in the future: a post "today at 19:05" seeded in the morning was written a moment ago.
+    return new Date(Math.min(Date.parse(`${day}T${time}:00.000Z`) + hoursLater * 3_600_000, seeded - 60_000)).toISOString();
+  };
+  const mediaRow = db.prepare('INSERT INTO media (key, mime, width, height, caption, album, uploaded_by, uploaded_at, thumb) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  let pictures = 0;
+  const store = (key: string, bytes: Uint8Array) => { mkdirSync(dirname(join(mediaDir, key)), { recursive: true }); writeFileSync(join(mediaDir, key), bytes); };
+  const paint = (p: SeedPicture, by: string, at: string, album: string | null): string => {
+    const id = crypto.randomUUID();
+    const full = drawScene(p.scene, p.seed, 1280, p.tall);
+    store(`gallery/${id}.png`, full.png);
+    store(`thumb/${id}.png`, drawScene(p.scene, p.seed, 400, p.tall).png);
+    mediaRow.run(`gallery/${id}.png`, 'image/png', full.width, full.height, p.caption ?? null, album, seedAccount(by), at, `thumb/${id}.png`);
+    pictures++;
+    return `gallery/${id}.png`;
+  };
+  const albums = new Map<string, string>();
+  const albumRow = db.prepare('INSERT INTO album (id, name, at) VALUES (?, ?, ?)');
+  for (const u of t.uploads ?? []) {
+    const at = when(u.daysAgo, u.time);
+    if (u.album && !albums.has(u.album)) { albums.set(u.album, crypto.randomUUID()); albumRow.run(albums.get(u.album)!, u.album, at); }
+    // A minute apart, the last one first to arrive, as an upload sends them.
+    u.pictures.forEach((p, i) => paint(p, u.by, new Date(Date.parse(at) - (u.pictures.length - i) * 60_000).toISOString(), u.album ? albums.get(u.album)! : null));
+  }
+  const post = db.prepare('INSERT INTO post (id, account, author_name, author_person, body, created_at) VALUES (?, ?, ?, ?, ?, ?)');
+  const postMedia = db.prepare('INSERT INTO post_media (post, media, ord) VALUES (?, ?, ?)');
+  const postPerson = db.prepare('INSERT OR IGNORE INTO post_person (post, person) VALUES (?, ?)');
+  const comment = db.prepare("INSERT INTO comment (id, target_kind, target, account, author_name, body, created_at) VALUES (?, 'post', ?, ?, ?, ?, ?)");
+  const reaction = db.prepare("INSERT OR IGNORE INTO reaction (target_kind, target, account, kind, created_at) VALUES ('post', ?, ?, ?, ?)");
+  for (const p of t.posts ?? []) {
+    const id = crypto.randomUUID();
+    const at = when(p.daysAgo, p.time);
+    post.run(id, seedAccount(p.by), shown(p.by), p.by, p.body, at);
+    (p.pictures ?? []).forEach((pic, i) => postMedia.run(id, paint(pic, p.by, at, null), i));
+    for (const person of p.people ?? []) postPerson.run(id, person);
+    for (const c of p.comments ?? []) comment.run(crypto.randomUUID(), id, seedAccount(c.by), shown(c.by), c.body, when(p.daysAgo, p.time, c.hoursLater));
+    (p.reactions ?? []).forEach((r, i) => reaction.run(id, seedAccount(r.by), r.kind, when(p.daysAgo, p.time, 0.2 + i * 0.3)));
+  }
+
   db.exec('COMMIT');
   const fk = db.prepare('PRAGMA foreign_key_check').all();
   db.close();
-  console.log(`${path}: ${t.people.length} people, ${t.unions.length} unions, ${t.stories.length} stories, ${(t.places ?? []).length} places, ${fields} fields, ${(t.events ?? []).length} events, ${(t.sources ?? []).length} sources, ${(t.citations ?? []).length} citations${fk.length ? `, ${fk.length} broken references!` : ''}`);
+  console.log(`${path}: ${t.people.length} people, ${t.unions.length} unions, ${t.stories.length} stories, ${(t.places ?? []).length} places, ${fields} fields, ${(t.events ?? []).length} events, ${(t.sources ?? []).length} sources, ${(t.citations ?? []).length} citations, ${(t.posts ?? []).length} posts, ${pictures} pictures${fk.length ? `, ${fk.length} broken references!` : ''}`);
 }
