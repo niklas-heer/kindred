@@ -22,7 +22,8 @@ test('a look is changed in the character editor, saved, and shown on the tree', 
 
   // The drawn portrait in the panel opens the editor.
   await page.locator('.card', { hasText: FULL }).first().locator('.card-hit').click();
-  await expect(page.getByRole('heading', { name: FULL, level: 2, exact: true })).toBeVisible();
+  // Earlier journeys may have given the steward an epithet: the name starts the heading.
+  await expect(page.getByRole('heading', { name: new RegExp(`^${FULL}`), level: 2 })).toBeVisible();
   await page.getByRole('button', { name: new RegExp(`^Change how ${STEWARD.given}`) }).click();
   const editor = page.getByRole('dialog', { name: `Appearance of ${STEWARD.given}` });
   await expect(editor).toBeVisible();

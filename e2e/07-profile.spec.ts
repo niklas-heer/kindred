@@ -1,7 +1,8 @@
-// Journey 7: a name leads to the person's own page, a picture opens large, the tree is one click away, and a guest sees what a viewer may.
+// Journey 7: a name leads to the person's own page, a drawn portrait opens the character editor for a steward, the tree is
+// one click away, and a guest sees what a viewer may, the picture large included.
 import { checkAxe, expect, openFamily, settled, STEWARD, test } from './fixtures.ts';
 
-test('profile: from the Register, a large picture, back to the tree, and as a guest', async ({ page, browser, issues, baseURL }) => {
+test('profile: from the Register, the character editor, back to the tree, and as a guest with a large picture', async ({ page, browser, issues, baseURL }) => {
   const tree = await openFamily(page);
 
   await page.goto(`/${tree}/people`);
@@ -15,16 +16,17 @@ test('profile: from the Register, a large picture, back to the tree, and as a gu
   await expect(page.getByRole('tab', { name: 'Overview' })).toBeVisible();
   await checkAxe(page, 'profile');
 
-  // The address is a real one: it works on its own, and a click on the picture opens it large and Escape closes it.
+  // The address is a real one: it works on its own. For a steward a drawn portrait opens the character editor (journey 21
+  // goes through it); closed with Escape, nothing was changed and the page is where it was.
   await page.goto(href!);
   await settled(page);
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-  await page.getByRole('button', { name: /Show the picture of .* large/ }).first().click();
-  const large = page.locator('.lb-picture');
-  await expect(large.locator('img')).toBeVisible();
-  await checkAxe(page, 'profile picture');
+  await page.locator('.pp-head').getByRole('button', { name: new RegExp(`^Change how ${STEWARD.given}`) }).first().click();
+  const editor = page.getByRole('dialog', { name: new RegExp(`^Appearance of ${STEWARD.given}`) });
+  await expect(editor).toBeVisible();
+  await expect(editor.getByRole('button', { name: 'Save appearance' })).toBeDisabled();
   await page.keyboard.press('Escape');
-  await expect(large).toHaveCount(0);
+  await expect(editor).toHaveCount(0);
   await expect(page).toHaveURL(new RegExp(`${href}$`));
 
   await page.getByRole('button', { name: 'Show in tree' }).click();
@@ -62,5 +64,14 @@ test('profile: from the Register, a large picture, back to the tree, and as a gu
   await expect(guest.getByRole('tab', { name: 'Edit' })).toHaveCount(0);
   await expect(guest.locator('button.pp-photo')).toHaveCount(0);
   await checkAxe(guest, 'profile as guest');
+  // A guest has no editor: a click on the picture opens it large, and Escape closes it.
+  await expect(guest.getByRole('button', { name: /^Change how|^Try a new look/ })).toHaveCount(0);
+  await guest.getByRole('button', { name: /Show the picture of .* large/ }).first().click();
+  const large = guest.locator('.lb-picture');
+  await expect(large.locator('img')).toBeVisible();
+  await checkAxe(guest, 'profile picture');
+  await guest.keyboard.press('Escape');
+  await expect(large).toHaveCount(0);
+  await expect(guest).toHaveURL(new RegExp(`${href}$`));
   await visit.close();
 });
