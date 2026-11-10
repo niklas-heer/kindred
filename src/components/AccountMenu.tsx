@@ -5,7 +5,7 @@ import { translateMessage, formatDate, relativeTime, useT, type Locale } from '~
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { graphQuery } from '~/lib/api';
-import { Activity, ArrowLeftRight, BarChart3, Bell, Check, CircleHelp, Fingerprint, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus } from 'lucide-react';
+import { Activity, ArrowLeftRight, BarChart3, Bell, Check, CircleHelp, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus } from 'lucide-react';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import '~/components/assistant/ai-tasks.css';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
@@ -21,6 +21,7 @@ import { THEME_ICONS, THEME_LABEL, useSound, useTheme } from './ThemeSwitch';
 import { startTour } from './tour/store';
 import { dropThisDevice, ReminderRefresh, RemindersDialog } from './Reminders';
 import { useMembership, useSession } from '~/lib/session';
+import { AboutDialog } from './AboutDialog';
 import { Dialog } from './ui/Dialog';
 import { isTopOverlay, useOverlayLayer } from './ui/overlay';
 import './account.css';
@@ -70,6 +71,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
   const m = useMembership();
   const [open, setOpen] = useState(false);
   const [passkeys, setPasskeys] = useState(false);
+  const [about, setAbout] = useState(false);
   const [reminders, setReminders] = useState(false);
   // Reminders are offered only when this server has its VAPID keys (docs/self-host.md, "Reminders").
   const remindersOn = useQuery({ queryKey: ['reminders', 'available'], queryFn: () => fetchRemindersAvailable(), staleTime: 5 * 60_000 });
@@ -113,11 +115,12 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
 
   // Arrow keys move between the menu's items.
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
     // Rows hidden by CSS (the theme and sound rows on a wide screen) take no part.
     const items = [...(menu.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])].filter((el) => el.offsetParent !== null);
     const i = items.indexOf(document.activeElement as HTMLElement);
-    items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+    const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : (i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+    items[next]?.focus();
     e.preventDefault();
   };
 
@@ -137,7 +140,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
         <span className="acct-trigger-name">{user.name}</span>
       </button>
       {open && (
-        <div className="acct-menu panel" id={id} ref={menu} role="menu" aria-label={t("accountmenu.your_account")} onKeyDown={onKeyDown} style={pos ?? undefined}>
+        <div className="acct-menu panel" id={id} ref={menu} onKeyDown={onKeyDown} style={pos ?? undefined}>
           <div className="acct-head">
             <Avatar name={user.name} size={44} />
             <div>
@@ -150,7 +153,8 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
               {t('account.role', {family:familyName ?? t('accountmenu.this_family'), role:t(`role.${role.id}`)})} <span>{t(`role.${role.id}Description`)}.</span>
             </p>
           )}
-          <div className="acct-items">
+          {/* The identity above is not a menu item, so the role starts here: a menu may only hold items. */}
+          <div className="acct-items" role="menu" aria-label={t("accountmenu.your_account")}>
             {/* Two groups, so ten rows are not one list: what belongs to this family, then what belongs to the reader. */}
             {tree && (steward || editor) && (
               <div className="acct-group" role="group" aria-labelledby={`${id}-family`}>
@@ -224,6 +228,8 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
                 <span className="acct-check" aria-hidden>{sound ? <Check size={16} /> : null}</span>
               </button>
             </div>
+            <button role="menuitem" className="acct-item acct-about" onClick={() => { setOpen(false); setAbout(true); }}>
+              <Info size={17} /> {t('accountmenu.about')} </button>
             {appVersion() && (
               <a className="acct-version" role="menuitem" href={releaseUrl(appVersion()!)} target="_blank" rel="noopener noreferrer" title={t('accountmenu.releaseNotes')}>
                 {t('accountmenu.version', { version: appVersion()! })}{appCommit() && <span> · {appCommit()}</span>}
@@ -232,6 +238,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
           </div>
         </div>
       )}
+      <AboutDialog open={about} onClose={() => setAbout(false)} />
       <PasskeysDialog open={passkeys} onClose={() => setPasskeys(false)} />
       {tree && m && <ReminderRefresh tree={tree} />}
       {tree && m && <RemindersDialog tree={tree} open={reminders} onClose={() => setReminders(false)} />}
