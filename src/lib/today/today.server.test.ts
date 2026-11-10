@@ -371,3 +371,33 @@ test('every one of Today’s server functions is for members: none lets a share-
   const picture = readFileSync(new URL('../../routes/api/quiz-picture.$tree.$day.ts', import.meta.url), 'utf8');
   assert.ok(picture.includes('requireMember(params.tree)') && !picture.includes('requireReader'));
 });
+
+test('in a demo the quiz is drawn without being kept, and an answer is shown and forgotten', async () => {
+  family('demo-quiz');
+  const ada = await account('demo-quiz', 'Ada', 'ada');
+  process.env.KINDRED_DEMO = '1';
+  try {
+    let face: { day: string; now: Date } | undefined;
+    for (let d = 0; d < 60; d++) {
+      const now = later(d);
+      const before = await today.quizView('demo-quiz', ada, now);
+      assert.ok(before.question, 'a question, though nothing may be stored');
+      assert.deepEqual(Object.keys(before).sort(), ['day', 'enabled', 'houses', 'question', 'streak'], 'and still no answer before answering');
+      assert.deepEqual((await today.quizView('demo-quiz', ada, later(0.3, now))).question, before.question, 'the same all day');
+      const right = await today.answerQuiz('demo-quiz', ada, before.day, before.question!.kind === 'order' ? '0,1,2' : '0', now);
+      assert.equal(right.demo, true);
+      assert.ok(right.answer && right.mine);
+      assert.equal(right.mine.correct, right.mine.choice === right.answer);
+      assert.equal(right.family, undefined, 'no tally of the family');
+      assert.equal(right.bonus, undefined);
+      assert.equal(right.streak, 0);
+      if (!face && right.question!.kind === 'portrait') face = { day: before.day, now };
+    }
+    assert.ok(face, 'a face within sixty days');
+    assert.ok(await today.quizPicture('demo-quiz', face.day, face.now), 'its picture is served too');
+  } finally {
+    delete process.env.KINDRED_DEMO;
+  }
+  assert.equal(await count('demo-quiz', 'quiz_day'), 0, 'no question kept');
+  assert.equal(await count('demo-quiz', 'quiz_answer'), 0, 'no answer kept');
+});

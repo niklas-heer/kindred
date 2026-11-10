@@ -1,7 +1,8 @@
 // The daily quiz, "Do you know your family?", as a card for the Today page: one question made from the family's own
 // records, the same for every member that day. The reader picks, confirms once (an answer cannot be changed), and the
 // card then shows the answer with a way to the person, how the family did, the reader's streak and this month's
-// table of houses. It fetches its own data; while a steward has the quiz switched off it shows only them a note.
+// table of houses. It fetches its own data; while a steward has the quiz switched off it shows only them a note. In a demo
+// the visitor answers and sees the result, and the card says in one line that a demo keeps no score.
 //
 //   <QuizCard tree={tree} />
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -57,9 +58,9 @@ export function QuizCard({ tree }: { tree: string }) {
   const f = useFamily();
   const qc = useQueryClient();
   const steward = useCan('manage-access');
-  // A demo keeps nothing, and the day's question is kept when it is drawn: there the card is left out instead of failing.
+  // A demo keeps nothing: the visitor may answer and sees the result, and the card says no score is kept.
   const demo = !!useSession()?.demo;
-  const quiz = useQuery({ ...quizQuery(tree), enabled: !demo });
+  const quiz = useQuery(quizQuery(tree));
   const [picked, setPicked] = useState<number | null>(null);
   const [sequence, setSequence] = useState<number[] | null>(null);
   const group = useId();
@@ -75,7 +76,6 @@ export function QuizCard({ tree }: { tree: string }) {
   });
 
   const data = quiz.data;
-  if (demo) return null;
   if (data && !data.enabled) {
     if (!steward) return null;
     return (
@@ -132,7 +132,7 @@ export function QuizCard({ tree }: { tree: string }) {
             {answer.isError && <p role="alert" className="td-note">{errorText(answer.error, t.locale)}</p>}
             <div className="td-quiz-foot">
               <button type="submit" className="btn primary" disabled={answer.isPending || (data.question.kind !== 'order' && picked === null)}>{t('today.quiz.answer')}</button>
-              <span className="subtle">{t('today.quiz.once')}</span>
+              <span className="subtle">{t(demo ? 'today.quiz.demo' : 'today.quiz.once')}</span>
             </div>
           </form>
         )}
@@ -251,8 +251,8 @@ function Result({ view, f, tree }: { view: QuizView; f: Family; tree: string }) 
         </ul>
       )}
       <p className="td-quiz-family">
-        {family.answered <= 1 ? t('today.quiz.family_first') : t('today.quiz.family', { count: family.answered, right: family.right })}
-        {' '}{t('today.quiz.tomorrow')}
+        {view.demo ? t('today.quiz.demo')
+          : <>{family.answered <= 1 ? t('today.quiz.family_first') : t('today.quiz.family', { count: family.answered, right: family.right })}{' '}{t('today.quiz.tomorrow')}</>}
       </p>
       {view.bonus && <p className="td-quiz-bonus"><GameIcon name="broadsword" size={15} /> {t('today.quiz.bonus')}</p>}
       {link && <div className="td-quiz-foot">{link}</div>}

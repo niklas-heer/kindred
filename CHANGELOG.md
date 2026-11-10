@@ -52,8 +52,8 @@ database that has had these migrations.
   family".
 - A public demo: `KINDRED_DEMO=1` opens the invented families to anyone without sign-in, read-only, with a slim demo bar; every
   write is refused on the server. `mise run demo` (Node), `docker compose --profile demo up -d --build demo`, and `deploy/demo/`
-  for Cloudflare. It refuses to start beside accounts, Access, a guest host, a setup code or reminder keys. See docs/self-host.md,
-  "A public demo".
+  for Cloudflare. It refuses to start beside accounts, Access, a guest host, a setup code or reminder keys. The daily quiz can be
+  played there, with the result shown and nothing kept. See docs/self-host.md, "A public demo".
 - Today: a new first section for every family, the page to open again tomorrow. It has the question of the week (sixty
   curated questions in English, German and Afrikaans; an answer is saved as a memory, and the week's answers show together;
   a steward can ask their own or skip a week), a daily quiz made from the family's records with a streak and a monthly

@@ -8,6 +8,9 @@
 // - An answer to the question of the week is an ordinary memory (a `story` row) with a tag beside it, so the
 //   Chronicle, the person's page and the exports show it like any other.
 // - Members are named by their account ids, and only in the quiz's tables.
+// - In a demo (src/lib/demo.ts) nothing is kept: the day's question is drawn on every read (the draw is the same all day),
+//   and an answer is checked and shown with its result, but counts for no streak and no table.
+import { isDemo } from '../demo.ts';
 import { added, db, graph, guard, NOT_A_RECORD, once, personExists, q, type Db } from '../db.server.ts';
 import { translate, type Key, type Locale } from '../i18n/dictionary.ts';
 import { PLAIN_MEMBER } from '../visibility.ts';
@@ -59,6 +62,8 @@ async function questionOf(tree: string, day: string): Promise<QuizDayRow | undef
     recentKinds: before.map((r) => r.kind),
   });
   if (!drawn) return undefined;
+  // A demo stores nothing, and with nothing stored the draw is the same all day.
+  if (isDemo()) return { day, kind: drawn.kind, about: drawn.about, question: JSON.stringify(drawn.question), answer: drawn.answer };
   // Two readers at once draw the same question; whichever row lands first is the day's.
   await once(tree, undefined, 'quizDay', () => ({
     writes: [q('INSERT OR IGNORE INTO quiz_day (day, kind, about, question, answer) VALUES (?, ?, ?, ?, ?)', day, drawn.kind, drawn.about, JSON.stringify(drawn.question), drawn.answer)],
@@ -127,6 +132,11 @@ export async function answerQuiz(tree: string, who: Who, day: string, choice: st
   if (!row) throw new Error('today.err.no_question');
   if (!validChoice(JSON.parse(row.question) as QuizQuestion, choice)) throw new Error('today.err.choice');
   const correct = choice === row.answer;
+  if (isDemo()) {
+    // The result, shown and forgotten: no streak, no table, no order in the Campaign.
+    const view = await viewOf(tree, who, day);
+    return { ...view, mine: { choice, correct }, answer: row.answer, about: row.about ?? undefined, demo: true };
+  }
   const house = who.person ? (await d.get<{ house: string | null }>('SELECT house FROM person WHERE id = ?', who.person))?.house ?? null : null;
   const fresh = await once<boolean>(tree, undefined, 'quizAnswer', async (dd) => {
     if (await dd.get('SELECT 1 FROM quiz_answer WHERE day = ? AND account = ?', day, who.account)) return { writes: [], history: NOT_A_RECORD, result: false };
@@ -154,7 +164,8 @@ export async function quizPicture(tree: string, day: string, now: Date = new Dat
   if (day !== dayOf(now)) return null;
   const d = db(tree);
   if (!(await quizOn(d))) return null;
-  const row = await d.get<QuizDayRow>('SELECT day, kind, about, question, answer FROM quiz_day WHERE day = ?', day);
+  // A demo keeps no day's question; the draw is the same all day, so it is drawn again.
+  const row = isDemo() ? await questionOf(tree, day) : await d.get<QuizDayRow>('SELECT day, kind, about, question, answer FROM quiz_day WHERE day = ?', day);
   if (!row || row.kind !== 'portrait' || !row.about) return null;
   const person = (await graph(tree, PLAIN_MEMBER)).people.find((p) => p.id === row.about);
   return person ? { person: person.id, photo: facePictured(person) } : null;

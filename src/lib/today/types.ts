@@ -48,4 +48,6 @@ export interface QuizView {
   houses: QuizHouseRow[];
   /** Set on the answer itself: the right answer earned an extra order in the Campaign. */
   bonus?: boolean;
+  /** Set on the answer in a demo: the result is shown, and nothing was kept (no streak, no table, no family tally). */
+  demo?: boolean;
 }
