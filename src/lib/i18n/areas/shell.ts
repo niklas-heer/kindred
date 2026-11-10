@@ -167,7 +167,7 @@ export const de: Record<keyof typeof en, Message> = {
   "shell.contacts": "Kontakte",
   "shell.register": "Verzeichnis",
   "shell.houses": "Häuser",
-  "shell.information_needed": "Was noch zu klären ist",
+  "shell.information_needed": "Was noch fehlt",
   "shell.needed": "Fehlende Angaben",
   "shell.chronicle": "Chronik",
   "shell.gallery": "Galerie",

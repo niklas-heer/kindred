@@ -155,6 +155,8 @@ tables for the Today page and changes none that exist.
 
 ### Fixed
 
+- Red "delete" buttons are readable in every theme (white on the old red was below the AA contrast in Codex and Night).
+- On a phone, the Needed page's kinship wraps instead of running under "Fill in", and the "More" sheet's hints stay inside it in German.
 - A GEDCOM file with a few thousand partnerships no longer fails to import because two of them were given the same new id.
 - The Path lens asks for a second person instead of comparing someone with themselves.
 - Step, foster and in-law relations are named as they are.
