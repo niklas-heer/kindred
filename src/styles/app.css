@@ -425,6 +425,11 @@ kbd {
 .topbar nav .nav-more-pop a small { grid-column: 2; color: var(--subtle); font-size: var(--fs-2); }
 .topbar nav .nav-more-pop a[data-status='active'] { background: var(--panel-2); box-shadow: inset 2px 0 0 var(--accent); }
 .topbar nav .nav-more-pop a[data-status='active'] svg { color: var(--accent); }
+/* A group's name, between its sections: small and quiet, not a link. */
+.nav-more-group, .more-group { padding: 8px 10px 2px; font-family: var(--font-ui); font-size: var(--fs-1); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--subtle); }
+.nav-more-group:first-child, .more-group:first-child { padding-top: 4px; }
+.nav-more-group:not(:first-child), .more-group:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--border); padding-top: 10px; }
+[data-theme='codex'] :is(.nav-more-group, .more-group) { font-family: var(--font-display); color: var(--accent); border-top-color: var(--edge-soft); }
 @keyframes nav-more-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 .topbar .spacer { flex: 1; }
 @media (pointer: coarse) { .topbar .brand { min-height: 44px; } }

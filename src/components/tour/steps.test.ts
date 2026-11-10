@@ -10,14 +10,14 @@ const ids = (c: TourContext) => stepsFor(c).map((s) => s.id);
 test('a viewer gets no editing or steward steps', () => {
   const got = ids(ctx());
   for (const hidden of ['add', 'memory', 'access']) assert.ok(!got.includes(hidden), hidden);
-  for (const shown of ['welcome', 'tree', 'panel', 'find', 'chronicle', 'almanac', 'again']) assert.ok(got.includes(shown), shown);
+  for (const shown of ['welcome', 'tree', 'panel', 'find', 'today', 'chronicle', 'almanac', 'again']) assert.ok(got.includes(shown), shown);
 });
 
-test('the tour is short: eight steps for a new relative, a few more for those who run the family', () => {
-  assert.equal(ids(ctx()).length, 8);
-  assert.equal(ids(ctx({ role: 'contributor' })).length, 8);
-  assert.equal(ids(ctx({ role: 'editor' })).length, 9);
-  assert.equal(ids(ctx({ role: 'steward' })).length, 10);
+test('the tour is short: nine steps for a new relative, a few more for those who run the family', () => {
+  assert.equal(ids(ctx()).length, 9);
+  assert.equal(ids(ctx({ role: 'contributor' })).length, 9);
+  assert.equal(ids(ctx({ role: 'editor' })).length, 10);
+  assert.equal(ids(ctx({ role: 'steward' })).length, 11);
 });
 
 test('whoever may write is shown how to add a memory; a viewer is shown where to read them', () => {

@@ -5,8 +5,12 @@ import { checkAxe, expect, openFamily, settled, test } from './fixtures.ts';
 test('campaign: a steward turns it on, plays an order, and the practice skirmish opens', async ({ page }) => {
   const tree = await openFamily(page);
 
-  // Off by default: no section in the navigation, and the page says so.
-  await expect(page.getByRole('navigation', { name: 'Sections' }).first().getByRole('link', { name: 'The Campaign' })).toHaveCount(0);
+  // Off by default: no section in the bar, but it can be found under More, where it is "resting"; and the page says so.
+  const bar = page.getByRole('navigation', { name: 'Sections' }).first();
+  await expect(bar.getByRole('link', { name: 'The Campaign' })).toHaveCount(0);
+  await bar.getByRole('button', { name: /^More/ }).click();
+  await expect(bar.getByRole('list', { name: 'More sections' }).getByRole('link', { name: /^Campaign.*Resting/ })).toBeVisible();
+  await page.keyboard.press('Escape');
   // The first visit explains the game once. While it is off there is no map to go to: the practice is the main action.
   await page.goto(`/${tree}/campaign`);
   await settled(page);
@@ -16,6 +20,9 @@ test('campaign: a steward turns it on, plays an order, and the practice skirmish
   await expect(how.getByRole('button', { name: 'Try a practice skirmish' })).toHaveClass(/primary/);
   await how.getByRole('button', { name: 'Not now' }).click();
   await expect(how).toBeHidden();
+  // A steward can turn it on from here, with a sentence on what that does (this journey uses the Games page's switch below).
+  await expect(page.getByRole('button', { name: 'Turn the Campaign on for this family' })).toBeVisible();
+  await expect(page.getByText(/A first season begins at once/)).toBeVisible();
 
   // The steward's own house, so there is a side to play.
   await page.goto(`/${tree}/houses`);

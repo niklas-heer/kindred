@@ -1,7 +1,8 @@
 // Journey 15: Today. The page is first in the navigation; the steward answers the question of the week (the answer is
-// a memory in the Chronicle), asks a question of their own and takes the curated one back; the quiz has nothing to ask
-// in a family of one, then asks once relatives are there, takes one answer and keeps it; a steward can switch it off.
-// The sections keep readable names at tablet width, and the phone's tab bar starts with Today.
+// a memory in the Chronicle, and an entry of the family's feed on Today), asks a question of their own and takes the
+// curated one back; the quiz has nothing to ask in a family of one, then asks once relatives are there, takes one answer
+// and keeps it; a steward can switch it off. The sections keep readable names at tablet width, and the phone's tab bar
+// starts with Today. Journey 20 covers the feed itself.
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { checkAxe, expect, openFamily, settled, STEWARD, test } from './fixtures.ts';
@@ -70,6 +71,10 @@ test('today: the question of the week, the daily quiz, and sections that keep th
   await expect(dialog).toBeHidden();
   await expect(week.getByRole('heading', { name: '1 answer this week' })).toBeVisible();
   await expect(week.getByText('My grandmother ran beside me down the lane')).toBeVisible();
+  // And it is in the family's feed beside the card, said as an answer.
+  const feed = page.getByRole('region', { name: 'From the family' });
+  await expect(feed.getByText(new RegExp(`${STEWARD.given} ${STEWARD.surname} answered the question of the week`))).toBeVisible();
+  await expect(feed.getByRole('heading', { name: question, level: 3 })).toBeVisible();
 
   // The answer is an ordinary memory: the Chronicle has it, under the question.
   await page.goto(`/${tree}/chronicle`);
@@ -169,7 +174,7 @@ test('today: the question of the week, the daily quiz, and sections that keep th
   await page.setViewportSize({ width: 820, height: 1180 });
   await page.goto(`/${tree}/today`);
   await settled(page);
-  for (const name of ['Today', 'Tree', 'Almanac', 'Chronicle', 'Atlas']) {
+  for (const name of ['Today', 'Tree', 'Chronicle', 'Gallery', 'Contacts']) {
     await expect(sections.getByRole('link', { name, exact: true }).locator('.nav-label'), `${name} keeps its name at 820px`).toBeVisible();
   }
   const more = sections.getByRole('button', { name: 'More' });
@@ -177,7 +182,7 @@ test('today: the question of the week, the daily quiz, and sections that keep th
   await more.focus();
   await page.keyboard.press('Enter');
   const list = sections.getByRole('list', { name: 'More sections' });
-  for (const name of ['Register', 'Houses', 'Contacts', 'Needed', 'Gallery', 'Research']) await expect(list.getByRole('link', { name: new RegExp(`^${name}`) })).toBeVisible();
+  for (const name of ['Almanac', 'Atlas', 'Register', 'Houses', 'Needed', 'Research']) await expect(list.getByRole('link', { name: new RegExp(`^${name}`) })).toBeVisible();
   await checkAxe(page, 'today (tablet), More open');
   await page.keyboard.press('Escape');
   await expect(list).toHaveCount(0);

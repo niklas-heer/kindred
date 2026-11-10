@@ -6,6 +6,7 @@ import { can, type Action, type Role } from '../../lib/roles.ts';
 /** Where a step happens. `$house` is filled with the family's first house, `$id` with the reader or the family's focus. */
 export const TOUR_ROUTES = {
   tree: '/$tree',
+  today: '/$tree/today',
   profile: '/$tree/person/$id',
   almanac: '/$tree/almanac',
   atlas: '/$tree/atlas',
@@ -58,7 +59,7 @@ const PAGE_HEADER = '.ui-page-header';
 
 /**
  * The tour is short on purpose: what a relative who has just been invited needs on the first day. The tree, one person,
- * finding someone, where to add a memory, and where the birthdays are. Editors also see how a relative is added and
+ * finding someone, where the family talks, where to add a memory, and where the birthdays are. Editors also see how a relative is added and
  * stewards how one is invited. The other pages have a line of their own under their titles; the last step says so.
  */
 export const TOUR_STEPS: readonly TourStep[] = [
@@ -68,6 +69,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: 'add', page: 'tree', targets: ['.card.selected', '.canvas'], title: 'tour.add.title', body: 'tour.add.body', requires: 'people', needs: 'add-person' },
   { id: 'panel', page: 'tree', targets: ['.person-panel'], title: 'tour.panel.title', body: 'tour.panel.body', requires: 'people', prepare: 'panel' },
   { id: 'find', targets: ['.search-trigger'], title: 'tour.find.title', body: 'tour.find.body' },
+  // Today: where the family talks. The tour is a member's; a share-link guest has neither.
+  { id: 'today', page: 'today', targets: ['.fd-compose', '.td-hero'], title: 'today.title', body: 'tour.today.body' },
   // The Chronicle: for anyone who may write, the step is about adding a memory; a viewer is shown where to read them.
   { id: 'memory', page: 'chronicle', targets: ['.ui-page-header-actions .btn', PAGE_HEADER], title: 'tour.memory.title', body: 'tour.memory.body', needs: 'add-story' },
   { id: 'chronicle', page: 'chronicle', targets: ['.chr-bar', PAGE_HEADER], title: 'shell.chronicle', body: 'tour.chronicle.body', lacks: 'add-story' },

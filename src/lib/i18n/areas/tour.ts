@@ -29,7 +29,8 @@ export const en = {
   "tour.memory.body": "The Chronicle keeps the family’s stories, sayings and recipes. Choose “Add a memory”, say who it is about, and write it down. It is the best thing you can add here.",
   "tour.access.body": "As a steward you decide who is in the family and what they may do: invite relatives, change roles, and see who has joined.",
   "tour.again.title": "Whenever you need it",
-  "tour.again.body": "That is the heart of it. The Atlas, the Houses, the Gallery and the other pages sit beside the Tree in the menu, and each explains itself. To see this again, open your account menu here and choose “Take the tour”, or find it with ⌘K.",
+  "tour.today.body": "This is where the family talks: a few lines about the week, photos from Sunday, the question of the week. Write something here, and come back to see who answered.",
+  "tour.again.body": "That is the heart of it. The Gallery and Contacts sit beside the Tree in the menu, the Almanac, the Atlas, the Houses and the rest are under More, and each explains itself. To see this again, open your account menu here and choose “Take the tour”, or find it with ⌘K.",
 };
 
 export const de: Record<keyof typeof en, string> = {
@@ -61,7 +62,8 @@ export const de: Record<keyof typeof en, string> = {
   "tour.memory.body": "Die Chronik bewahrt die Geschichten, Sprüche und Rezepte der Familie. Wähle „Erinnerung hinzufügen“, sage, um wen es geht, und schreibe es auf. Etwas Besseres kannst du hier nicht beitragen.",
   "tour.access.body": "Wenn du die Familie verwaltest, bestimmst du, wer dazugehört und was alle dürfen: Verwandte einladen, Rollen ändern und sehen, wer dazugekommen ist.",
   "tour.again.title": "Wann immer du es brauchst",
-  "tour.again.body": "Das ist das Wichtigste. Atlas, Häuser, Galerie und die anderen Seiten stehen im Menü neben dem Stammbaum, und jede erklärt sich selbst. Um den Rundgang wieder zu sehen, öffne hier dein Kontomenü und wähle „Rundgang starten“, oder finde ihn mit ⌘K.",
+  "tour.today.body": "Hier spricht die Familie miteinander: ein paar Zeilen über die Woche, Fotos vom Sonntag, die Frage der Woche. Schreibe hier etwas, und schaue wieder vorbei, wer geantwortet hat.",
+  "tour.again.body": "Das ist das Wichtigste. Galerie und Kontakte stehen im Menü neben dem Stammbaum, Kalender, Atlas, Häuser und die übrigen Seiten findest du unter „Mehr“, und jede erklärt sich selbst. Um den Rundgang wieder zu sehen, öffne hier dein Kontomenü und wähle „Rundgang starten“, oder finde ihn mit ⌘K.",
 };
 
 export const af: Partial<Record<keyof typeof en, string>> = {
@@ -93,5 +95,6 @@ export const af: Partial<Record<keyof typeof en, string>> = {
   "tour.memory.body": "Die Kroniek bewaar die familie se stories, sêgoed en resepte. Kies “Voeg ’n herinnering by”, sê oor wie dit gaan, en skryf dit neer. Dis die beste ding wat jy hier kan byvoeg.",
   "tour.access.body": "As rentmeester besluit jy wie deel van die familie is en wat hulle mag doen: nooi familie, verander rolle en sien wie aangesluit het.",
   "tour.again.title": "Wanneer jy dit nodig het",
-  "tour.again.body": "Dis die kern daarvan. Die Atlas, die Huise, die Galery en die ander bladsye staan langs die Boom in die kieslys, en elkeen verduidelik homself. Om dit weer te sien, maak hier jou rekeningkieslys oop en kies “Neem die toer”, of vind dit met ⌘K.",
+  "tour.today.body": "Hier praat die familie met mekaar: ’n paar reëls oor die week, foto’s van Sondag, die vraag van die week. Skryf iets hier, en kom kyk weer wie geantwoord het.",
+  "tour.again.body": "Dis die kern daarvan. Die Galery en Kontakte staan langs die Boom in die kieslys, die Almanak, die Atlas, die Huise en die res is onder Meer, en elkeen verduidelik homself. Om dit weer te sien, maak hier jou rekeningkieslys oop en kies “Neem die toer”, of vind dit met ⌘K.",
 };
