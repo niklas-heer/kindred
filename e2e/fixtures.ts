@@ -22,24 +22,60 @@ export interface Issues {
   allow(pattern: RegExp): void;
   /** Watches another browser context, such as a guest's. */
   watch(context: BrowserContext): void;
+  /** Waits for what a failure is still finding out about itself. */
+  settle(): Promise<void>;
 }
 
 function collector(): Issues {
   const seen: string[] = [];
   const allowed: RegExp[] = [];
+  const pending: Promise<void>[] = [];
   const add = (text: string) => { if (!allowed.some((p) => p.test(text))) seen.push(text); };
   const issues: Issues = {
     seen,
     allow: (pattern) => { allowed.push(pattern); },
     watch(context) {
+      // The server's HTML as it arrived, kept so a hydration failure can say where the browser's own render differs.
+      void context.addInitScript(() => {
+        document.addEventListener('readystatechange', () => {
+          if (document.readyState === 'interactive') (window as unknown as { __ssr?: string }).__ssr = document.body?.innerHTML;
+        });
+      });
       context.on('console', (m) => {
         const text = m.text();
         if (m.type() === 'error' || HYDRATION.test(text)) add(`[console.${m.type()}] ${text}${m.location().url ? ` (${m.location().url})` : ''}`);
       });
-      context.on('weberror', (e) => add(`[uncaught] ${e.error().stack ?? e.error().message}`));
+      context.on('weberror', (e) => {
+        const text = `[uncaught] ${e.error().stack ?? e.error().message}`;
+        add(text);
+        if (HYDRATION.test(text) || /React error #4(18|23|25)/.test(text)) pending.push(whereItDiffers(e.page()).then((d) => { if (d) add(d); }));
+      });
     },
+    settle: async () => { await Promise.all(pending); },
   };
   return issues;
+}
+
+/**
+ * After a failed hydration React draws the page again in the browser. This finds the first place where that differs from
+ * the server's HTML, with the page's address: a minified production error says neither.
+ */
+async function whereItDiffers(page: Page | null): Promise<string | null> {
+  if (!page) return null;
+  try {
+    await page.waitForTimeout(400);
+    return await page.evaluate(() => {
+      const server = (window as unknown as { __ssr?: string }).__ssr;
+      if (!server) return null;
+      const browser = document.body.innerHTML;
+      let i = 0;
+      while (i < server.length && i < browser.length && server[i] === browser[i]) i++;
+      const cut = (text: string) => text.slice(Math.max(0, i - 200), i + 300);
+      return `[hydration] ${location.pathname} first differs at ${i}\n  server:  ${cut(server)}\n  browser: ${cut(browser)}`;
+    });
+  } catch {
+    return null;
+  }
 }
 
 export const test = base.extend<{ issues: Issues }>({
@@ -47,6 +83,7 @@ export const test = base.extend<{ issues: Issues }>({
     const issues = collector();
     issues.watch(context);
     await use(issues);
+    await issues.settle();
     expect(issues.seen, 'hydration warnings and uncaught console errors').toEqual([]);
   }, { auto: true }],
 });
