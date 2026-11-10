@@ -9,7 +9,7 @@ moving to before you upgrade ([docs/self-host.md](docs/self-host.md), "Upgrading
 
 Changes on `main` since 2.0.0. They are not in a release yet.
 
-Database changes: twelve migrations are new since 2.0.0. In `migrations/accounts`:
+Database changes: thirteen migrations are new since 2.0.0. In `migrations/accounts`:
 
 - `0022_session_credential.sql` records which passkey started a session, so removing a passkey signs that device out.
 - `0023_share_protect_living.sql` adds the per-link "protect living people" switch (off for links that already exist).
@@ -19,6 +19,7 @@ Database changes: twelve migrations are new since 2.0.0. In `migrations/accounts
 - `0026_family_visit.sql` adds the table behind "since your last visit" and two columns for the weekly push on reminder devices.
 - `0027_join_network_visits.sql` adds a column that counts open requests to join from one network, and one that counts a
   member's visits, so "What's new" knows a first visit.
+- `0028_view_as.sql` adds the table that holds a steward's "View as" previews.
 
 In `migrations/tree`:
 
@@ -36,6 +37,12 @@ goes live (`mise run cf:migrate:remote` does the same step alone). Code and migr
 database that has had these migrations.
 
 ### Added
+- **View as.** A steward can preview a family as a viewer, contributor or editor, as one of its members (their role and the
+  person they are in the tree), or as a guest of the share link with its settings, from the account menu or the Access page. A
+  bar on every page says who they view it as and offers Switch and Stop. The server answers every check as it would for that
+  reader, refuses every change while the preview is on, stores nothing a visit would, and never shows a member's own answers,
+  reactions, chats or notes. A preview ends on Stop, on sign-out, after an hour unused, and when the member or the link goes.
+  See docs/roles-and-privacy.md, "View as".
 - **Print: charts and a family book.** A new Print page (the account menu, and a Print button on every person) makes an
   ancestor chart (four to six generations, with each house's shield), a descendant chart (two to six generations, with
   partners) and a family book: a cover with the family's arms, the contents, a section for each house, every person with

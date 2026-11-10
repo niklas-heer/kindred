@@ -317,6 +317,36 @@ and every row of the accounts database that names it (memberships, invitations, 
 chats and spending, statistics, reminder subscriptions, join requests with the pending accounts of those who asked, and feedback).
 The members' accounts stay for their other families. Backups you made are yours to delete.
 
+## View as
+
+A steward can check what someone else gets without borrowing their phone: "View as…" in the account menu, "View as" on a member's
+row and on the share link on the Access page, or the role buttons there. They can view the family as a **role** (a viewer,
+contributor or editor who is not linked to anyone in the tree), as a **member** (that member's role and the person they are in the
+tree, so "you", kinship words and birthdays follow them) or as a **guest** of the family's share link, with that link's "Protect
+living people" and "Guests may ask to join" as they are now (a plain guest with living people protected when the family has no open
+link). A bar on every page says whom they view the family as, the role, that nothing is saved, and offers Switch and Stop.
+
+What the server holds to:
+
+- **Only a steward of that family starts one**, checked against their own membership, never the previewed one. A guest, someone who
+  is not a steward, and a demo are refused. Starting and stopping need no fresh passkey proof. The preview belongs to the steward's
+  account and, under Kindred's own sign-in, to the session that started it; it survives a reload, and ends on Stop, on sign-out,
+  after an hour unused, a day after it started, and as soon as the member leaves, the link is turned off or the steward is no
+  longer a steward.
+- **Less, never more.** Every check for that family answers as it would for the previewed reader, reads included: what a viewer
+  may not ask for is refused to the previewing steward too. A guest's preview gets a guest's reads only, with the link's
+  protection of living people, and nothing only members may ask for.
+- **Read-only.** While a preview is on, that session changes nothing anywhere, whatever the previewed role would allow: no edits,
+  comments, reactions, uploads, Campaign orders, quiz answers, assistant conversations, Access changes or account changes. The
+  store, `once`, the media store and the AI adapters refuse it in one place, for that session only; the refusal says "You are
+  viewing as …. Stop the preview to change something." The buttons still show as that reader would see them. Stop always works.
+- **No trace.** A preview leaves nothing a reader's visit would: no visit or "what's new" mark, no quiz draw or answer, no usage
+  statistics, no share-link visit, no last-seen for the member, no history.
+- **The role and the person, not the account.** The steward never becomes the member. Passkeys, sessions, reminder devices, the
+  account page, the Families page and sign-in stay the steward's own. What belongs to a member alone (their quiz answers and
+  streak, their reactions, their unread news, their assistant chats, their personal notes) is never shown: a preview sees what a
+  new reader with that role and person would see. "Who are you?", the tour and reminders are left out of a preview.
+
 ## A public demo
 
 With `KINDRED_DEMO=1` ([self-host.md](self-host.md#a-public-demo)) a server shows its families to anyone, without signing in, as a
