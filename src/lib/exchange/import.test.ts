@@ -41,7 +41,7 @@ test('a preview of an import into an empty family says what would be added, and 
 test('applying the import writes the family, and reading it back gives the same people and links', async () => {
   emptyFamily('target');
   const result = await applyImport('target', text, undefined, false);
-  assert.deepEqual(result, { people: 8, parents: 8, unions: 3, matched: 0, places: { located: 0, unplaced: 2 } });
+  assert.deepEqual(result, { people: 8, parents: 8, unions: 3, matched: 0, events: 0, sources: 0, citations: 0, places: { located: 0, unplaced: 2 } });
   const back = await readTree(db('target'));
   const want = fixtureTree();
   assert.equal(back.people.length, 8);
@@ -65,7 +65,7 @@ test('a family that already has people refuses the import unless the steward say
 
 test('adding a file to a family that already has its people matches them and writes nothing new', async () => {
   const result = await applyImport('target', text, undefined, true);
-  assert.deepEqual(result, { people: 0, parents: 0, unions: 0, matched: 8, places: { located: 0, unplaced: 0 } });
+  assert.deepEqual(result, { people: 0, parents: 0, unions: 0, matched: 8, events: 0, sources: 0, citations: 0, places: { located: 0, unplaced: 0 } });
   assert.equal((await readTree(db('target'))).people.length, 8);
 });
 
@@ -183,7 +183,7 @@ test('a small import into a family with about 30,000 parent links is written: th
   const links = (await db('many').get<{ n: number }>('SELECT count(*) AS n FROM parent'))!.n;
   assert.ok(links > 29_000, `the family has ${links} links`);
   const result = await applyImport('many', text, undefined, true);
-  assert.deepEqual(result, { people: 8, parents: 8, unions: 3, matched: 0, places: { located: 0, unplaced: 2 } });
+  assert.deepEqual(result, { people: 8, parents: 8, unions: 3, matched: 0, events: 0, sources: 0, citations: 0, places: { located: 0, unplaced: 2 } });
   assert.equal((await db('many').get<{ n: number }>('SELECT count(*) AS n FROM parent'))!.n, links + 8);
 });
 
@@ -210,7 +210,7 @@ test('another editor replacing one of those links, one for one, between the plan
   };
   try {
     const result = await applyImport('many-race', text, undefined, true);
-    assert.deepEqual(result, { people: 8, parents: 8, unions: 3, matched: 0, places: { located: 0, unplaced: 2 } });
+    assert.deepEqual(result, { people: 8, parents: 8, unions: 3, matched: 0, events: 0, sources: 0, citations: 0, places: { located: 0, unplaced: 2 } });
   } finally {
     store.tree = realTree;
   }

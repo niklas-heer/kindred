@@ -6,6 +6,7 @@ import { parseFurther } from '../further-given.ts';
 import type { Key } from '../i18n/dictionary.ts';
 import type { Vars } from '../i18n/types.ts';
 import type { Db } from '../store/db.ts';
+import type { EventType, Fact, Quality } from '../events.ts';
 
 export type Sex = 'm' | 'f' | 'x';
 export type ParentKind = 'biological' | 'adoptive' | 'foster' | 'step';
@@ -55,12 +56,52 @@ export interface ExUnion {
   place: string | null;
 }
 
+/** A life event (migration 0024). */
+export interface ExEvent {
+  id: string;
+  person: string;
+  type: EventType;
+  label: string | null;
+  date: string | null;
+  endDate: string | null;
+  place: string | null;
+  note: string;
+  ord: number;
+}
+
+/** A source of the family's register. `document` and `media` link it to research and the gallery, which only this family has. */
+export interface ExSource {
+  id: string;
+  title: string;
+  author: string | null;
+  publication: string | null;
+  reference: string | null;
+  date: string | null;
+  note: string;
+  document: string | null;
+  media: string | null;
+}
+
+/** One source cited for one fact. */
+export interface ExCitation {
+  id: string;
+  source: string;
+  target: Fact;
+  page: string | null;
+  quality: Quality | null;
+  transcription: string;
+}
+
 export interface ExTree {
   id: string;
   name: string;
   people: ExPerson[];
   parents: ExParent[];
   unions: ExUnion[];
+  /** Life events, sources and citations (migration 0024). Absent in a tree made before them, as empty. */
+  events?: ExEvent[];
+  sources?: ExSource[];
+  citations?: ExCitation[];
   /** What the tree holds beyond this model, counted for the loss report. */
   extras: { stories: number; fields: number; houses: number; places: number };
 }
@@ -116,6 +157,13 @@ export async function readTree(d: Db): Promise<ExTree> {
   const unions = await d.all<{ id: string; a: string; b: string; kind: UnionKind; start: string | null; end: string | null; end_reason: string | null; place: string | null }>(
     'SELECT id, a, b, kind, start, end, end_reason, place FROM partnership ORDER BY start, id',
   );
+  const events = await d.all<{ id: string; person: string; type: EventType; label: string | null; date: string | null; end_date: string | null; place: string | null; note: string; ord: number }>(
+    'SELECT id, person, type, label, date, end_date, place, note, ord FROM life_event ORDER BY person, ord, id',
+  );
+  const sources = await d.all<ExSource>('SELECT id, title, author, publication, reference, date, note, document, media FROM source ORDER BY title, id');
+  const citations = await d.all<{ id: string; source: string; fact: Fact['fact']; person: string | null; parent: string | null; event: string | null; partnership: string | null; page: string | null; quality: Quality | null; transcription: string }>(
+    'SELECT id, source, fact, person, parent, event, partnership, page, quality, transcription FROM citation ORDER BY created_at, id',
+  );
   const count = async (sql: string) => (await d.get<{ n: number }>(sql))?.n ?? 0;
   return {
     id: meta.id ?? '',
@@ -142,6 +190,9 @@ export async function readTree(d: Db): Promise<ExTree> {
     })),
     parents: parents.map((r) => ({ child: r.child, parent: r.parent, kind: r.kind, confidence: r.confidence })),
     unions: unions.map((r) => ({ id: r.id, a: r.a, b: r.b, kind: r.kind, start: or(r.start), end: or(r.end), endReason: or(r.end_reason), place: or(r.place) })),
+    events: events.map((r) => ({ id: r.id, person: r.person, type: r.type, label: or(r.label), date: or(r.date), endDate: or(r.end_date), place: or(r.place), note: r.note, ord: r.ord })),
+    sources: sources.map((r) => ({ ...r, author: or(r.author), publication: or(r.publication), reference: or(r.reference), date: or(r.date), document: or(r.document), media: or(r.media) })),
+    citations: citations.map((r) => ({ id: r.id, source: r.source, target: citationTarget(r), page: or(r.page), quality: or(r.quality), transcription: r.transcription })),
     extras: {
       stories: await count('SELECT count(*) AS n FROM story'),
       fields: await count("SELECT count(*) AS n FROM person_field WHERE visibility <> 'personal'"), // a personal item is its author's alone, even as a number
@@ -149,4 +200,14 @@ export async function readTree(d: Db): Promise<ExTree> {
       places: await count('SELECT count(*) AS n FROM place'),
     },
   };
+}
+
+/** The fact a citation row names (see migration 0024). */
+export function citationTarget(r: { fact: Fact['fact']; person: string | null; parent: string | null; event: string | null; partnership: string | null }): Fact {
+  switch (r.fact) {
+    case 'event': return { fact: 'event', event: r.event! };
+    case 'partnership': return { fact: 'partnership', partnership: r.partnership! };
+    case 'parent': return { fact: 'parent', child: r.person!, parent: r.parent! };
+    default: return { fact: r.fact, person: r.person! };
+  }
 }

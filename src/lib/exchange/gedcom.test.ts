@@ -151,7 +151,9 @@ test('unknown tags are skipped and counted, and the rest of the file still reads
   assert.equal(back.people[0].born, '1901');
   const skipped = back.issues.map((i) => i.message).join('\n');
   assert.match(skipped, /Skipped 1× _WEIRD/);
-  assert.match(skipped, /Skipped 2× SOUR/, 'the source record and the one under NAME; the header is not data');
+  assert.doesNotMatch(skipped, /SOUR/, 'a source record and a citation are read now (migration 0024); the header is not data');
+  assert.equal(back.sources?.length, 1);
+  assert.deepEqual(back.citations?.map((c) => c.target), [{ fact: 'name', person: '@I1@' }]);
   assert.match(skipped, /refers to @I3@/);
   assert.equal(back.unions.length, 0, 'a marriage-less pair is not a partnership');
 });

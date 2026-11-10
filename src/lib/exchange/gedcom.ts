@@ -7,16 +7,30 @@
 //         (a portrait, by its media key), FAMC (PEDI, _KINDRED_KIND, _KINDRED_CONFIDENCE), FAMS
 //   FAM   _KINDRED_ID, _KINDRED_KIND (marriage, partnership, betrothal, other, or parents for a family with
 //         no partnership), HUSB, WIFE, CHIL, MARR (DATE, PLAC), DIV (DATE), _KINDRED_BEGAN, _KINDRED_END
+//   SOUR  a source record: _KINDRED_ID, TITL, AUTH, PUBL, REFN (call number or URL), NOTE, and _KINDRED_DATE,
+//         _KINDRED_DOC, _KINDRED_MEDIA (its date, research document and gallery picture, as Kindred holds them)
+//
+// Life events are written with their standard tags (BAPM, CHR, CONF, BARM, EDUC, GRAD, OCCU, RESI, EMIG, IMMI, NATU,
+// RETI, BURI, CREM, CENS), and as EVEN with a TYPE for the rest (military service, an engagement of one person, an
+// award, and a custom event, whose TYPE is its label). The line's value is the event's details; DATE is "FROM … TO …"
+// for one with an end; _KINDRED_ID, _KINDRED_TYPE and NOTE ride along. An OCCU that is an event carries _KINDRED_EVENT,
+// so it is not read as the person's occupation.
+//
+// A citation is a SOUR pointer under its fact (BIRT, DEAT, the birth NAME, an event, MARR or _KINDRED_BEGAN, or FAMC
+// for a parent link, where _KINDRED_PARENT says which parent), with PAGE, QUAY (3 original, 2 derivative, 1 unsure),
+// DATA/TEXT for the transcription, and _KINDRED_ID.
 //
 // Nothing here touches storage: `writeGedcom` takes an ExTree, `readGedcom` returns what the file says.
 import { allGiven } from '../further-given.ts';
 import { yearIn } from '../parent-rules.ts';
+import { validDate } from '../dates.ts';
 import { fromGedcomDate, toGedcomDate } from './dates.ts';
 import { charsetOf } from './encoding.ts';
-import type { Confidence, ExParent, ExPerson, ExTree, ExUnion, Issue, IssueCode, ParentKind, Sex, UnionKind } from './model.ts';
+import type { Confidence, ExCitation, ExEvent, ExParent, ExPerson, ExSource, ExTree, ExUnion, Issue, IssueCode, ParentKind, Sex, UnionKind } from './model.ts';
+import { EVENT_TYPES, type EventType, type Quality } from '../events.ts';
 
 /** The date facts a file can hold, and the words that name them in the report. */
-type DateEvent = 'birth' | 'death' | 'marriage' | 'start' | 'divorce' | 'end';
+type DateEvent = 'birth' | 'death' | 'marriage' | 'start' | 'divorce' | 'end' | 'event';
 const DATE_EVENT: Record<DateEvent, { word: string; code: IssueCode }> = {
   birth: { word: 'birth date', code: 'exchange.issue.date_birth' },
   death: { word: 'death date', code: 'exchange.issue.date_death' },
@@ -24,6 +38,7 @@ const DATE_EVENT: Record<DateEvent, { word: string; code: IssueCode }> = {
   start: { word: 'start date', code: 'exchange.issue.date_start' },
   divorce: { word: 'divorce date', code: 'exchange.issue.date_divorce' },
   end: { word: 'end date', code: 'exchange.issue.date_end' },
+  event: { word: 'date', code: 'exchange.issue.date_event' },
 };
 
 const CHUNK = 120; // characters per line, before escaping: keeps every line under GEDCOM's 255
@@ -43,7 +58,25 @@ const KNOWN = new Set([
   'CHIL', 'MARR', 'DIV', 'CONC', 'CONT', 'CHAN', 'REFN', 'RIN',
   '_KINDRED_ID', '_KINDRED_KIND', '_KINDRED_CONFIDENCE', '_KINDRED_LIVING', '_KINDRED_BEGAN', '_KINDRED_END',
   '_KINDRED_TREE', '_KINDRED_NAME',
+  'SOUR', 'PAGE', 'QUAY', 'DATA', 'TEXT', 'AUTH', 'PUBL', 'ABBR', 'EVEN', 'BAPM', 'CHR', 'CONF', 'BARM', 'BASM', 'EDUC', 'GRAD', 'RESI',
+  'EMIG', 'IMMI', 'NATU', 'RETI', 'BURI', 'CREM', 'CENS', '_MILT',
+  '_KINDRED_EVENT', '_KINDRED_TYPE', '_KINDRED_PARENT', '_KINDRED_DOC', '_KINDRED_MEDIA', '_KINDRED_DATE',
 ]);
+
+/** Each event type's GEDCOM tag. EVEN carries a TYPE: the English name below, or a custom event's label. */
+const EVENT_TAG: Record<EventType, string> = {
+  baptism: 'BAPM', christening: 'CHR', confirmation: 'CONF', 'bar-bat-mitzvah': 'BARM', education: 'EDUC', graduation: 'GRAD',
+  military: 'EVEN', occupation: 'OCCU', residence: 'RESI', emigration: 'EMIG', immigration: 'IMMI', naturalisation: 'NATU',
+  engagement: 'EVEN', retirement: 'RETI', burial: 'BURI', cremation: 'CREM', census: 'CENS', award: 'EVEN', custom: 'EVEN',
+};
+const EVEN_TYPE: Partial<Record<EventType, string>> = { military: 'Military service', engagement: 'Engagement', award: 'Award' };
+/** Tags read as events, beyond those Kindred writes: a bat mitzvah and the common military extension. */
+const TAG_EVENT: Record<string, EventType> = {
+  ...Object.fromEntries(Object.entries(EVENT_TAG).filter(([, tag]) => tag !== 'EVEN').map(([type, tag]) => [tag, type as EventType])),
+  BASM: 'bar-bat-mitzvah', _MILT: 'military',
+};
+const QUAY: Record<Quality, string> = { original: '3', derivative: '2', unsure: '1' };
+const qualityOf = (v: string | undefined): Quality | null => (v === '3' ? 'original' : v === '2' ? 'derivative' : v === '1' || v === '0' ? 'unsure' : null);
 
 const pedi = { biological: 'birth', adoptive: 'adopted', foster: 'foster' } as const;
 
@@ -102,6 +135,33 @@ export function writeGedcom(tree: ExTree, now: Date = new Date()): { text: strin
   const people = [...tree.people].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const xrefOf = new Map(people.map((p, i) => [p.id, `@I${i + 1}@`]));
   const named = (id: string) => byId.get(id)?.given ?? id;
+
+  // Sources and their citations, grouped by the fact each one is about.
+  const sources = [...(tree.sources ?? [])].sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
+  const sourXref = new Map(sources.map((s, i) => [s.id, `@S${i + 1}@`]));
+  const citesOf = new Map<string, ExCitation[]>();
+  const citeKey = (c: ExCitation) => {
+    const t = c.target;
+    return t.fact === 'event' ? `event:${t.event}` : t.fact === 'partnership' ? `partnership:${t.partnership}` : t.fact === 'parent' ? `parent:${t.child}` : `${t.fact}:${t.person}`;
+  };
+  for (const c of tree.citations ?? []) if (sourXref.has(c.source)) citesOf.set(citeKey(c), [...(citesOf.get(citeKey(c)) ?? []), c]);
+  let unwritten = 0;
+  const writeCites = (level: number, key: string, only?: (c: ExCitation) => boolean) => {
+    for (const c of citesOf.get(key) ?? []) {
+      if (only && !only(c)) continue;
+      out.push(`${level} SOUR ${sourXref.get(c.source)}`);
+      if (c.page) emitText(out, level + 1, 'PAGE', c.page);
+      if (c.quality) out.push(`${level + 1} QUAY ${QUAY[c.quality]}`);
+      if (c.transcription) {
+        out.push(`${level + 1} DATA`);
+        emitText(out, level + 2, 'TEXT', c.transcription);
+      }
+      if (c.target.fact === 'parent') out.push(`${level + 1} _KINDRED_PARENT ${xrefOf.get(c.target.parent)}`);
+      out.push(`${level + 1} _KINDRED_ID ${esc(c.id)}`);
+    }
+  };
+  const eventsOf = new Map<string, ExEvent[]>();
+  for (const e of tree.events ?? []) if (byId.has(e.person)) eventsOf.set(e.person, [...(eventsOf.get(e.person) ?? []), e]);
 
   // Families: one per partnership, then one per set of parents without a partnership.
   type Fam = { xref: string; union: ExUnion | null; spouses: string[]; children: string[]; links: Map<string, ExParent> };
@@ -168,15 +228,16 @@ export function writeGedcom(tree: ExTree, now: Date = new Date()): { text: strin
     out.push(`0 ${xrefOf.get(p.id)} INDI`);
     out.push(`1 _KINDRED_ID ${esc(p.id)}`);
     if (p.living) out.push('1 _KINDRED_LIVING Y');
-    writeNames(out, p);
+    writeNames(out, p, () => writeCites(2, `name:${p.id}`));
     if (p.sex) out.push(`1 SEX ${p.sex.toUpperCase()}`);
     if (p.title) emitText(out, 1, 'TITL', p.title);
     if (p.nickname) emitText(out, 1, 'NICK', p.nickname);
     if (p.occupation) emitText(out, 1, 'OCCU', p.occupation);
-    if (p.born || p.bornPlace) {
+    if (p.born || p.bornPlace || citesOf.has(`birth:${p.id}`)) {
       out.push('1 BIRT');
       dateLine(out, 2, p.born);
       if (p.bornPlace) emitText(out, 2, 'PLAC', p.bornPlace);
+      writeCites(2, `birth:${p.id}`);
     }
     if (!p.living || p.died || p.diedPlace) {
       if (p.died || p.diedPlace) {
@@ -184,6 +245,22 @@ export function writeGedcom(tree: ExTree, now: Date = new Date()): { text: strin
         dateLine(out, 2, p.died);
         if (p.diedPlace) emitText(out, 2, 'PLAC', p.diedPlace);
       } else out.push('1 DEAT Y');
+      writeCites(2, `death:${p.id}`);
+    } else unwritten += citesOf.get(`death:${p.id}`)?.length ?? 0;
+    for (const e of eventsOf.get(p.id) ?? []) {
+      const tag = EVENT_TAG[e.type];
+      const value = e.type === 'custom' ? '' : (e.label ?? '');
+      out.push(value ? `1 ${tag} ${esc(value.replace(/\s*[\r\n]+\s*/g, ' '))}` : `1 ${tag}`);
+      if (tag === 'EVEN') emitText(out, 2, 'TYPE', e.type === 'custom' ? (e.label ?? 'Event') : EVEN_TYPE[e.type]!);
+      if (tag === 'EVEN' && e.type !== 'custom') out.push(`2 _KINDRED_TYPE ${e.type}`);
+      if (tag === 'OCCU') out.push('2 _KINDRED_EVENT Y');
+      out.push(`2 _KINDRED_ID ${esc(e.id)}`);
+      if (e.date && e.endDate) out.push(`2 DATE FROM ${toGedcomDate(e.date)} TO ${toGedcomDate(e.endDate)}`);
+      else if (e.endDate) out.push(`2 DATE TO ${toGedcomDate(e.endDate)}`);
+      else dateLine(out, 2, e.date);
+      if (e.place) emitText(out, 2, 'PLAC', e.place);
+      if (e.note) emitText(out, 2, 'NOTE', e.note);
+      writeCites(2, `event:${e.id}`);
     }
     if (p.bio) emitText(out, 1, 'NOTE', p.bio);
     if (p.portrait) out.push('1 OBJE', `2 FORM ${extOf(p.portrait.mime)}`, `2 FILE ${esc(p.portrait.key)}`, '2 TITL portrait');
@@ -193,6 +270,9 @@ export function writeGedcom(tree: ExTree, now: Date = new Date()): { text: strin
       if (l && l.kind in pedi) out.push(`2 PEDI ${pedi[l.kind as keyof typeof pedi]}`);
       if (l) out.push(`2 _KINDRED_KIND ${l.kind}`);
       if (l && l.confidence !== 'certain') out.push(`2 _KINDRED_CONFIDENCE ${l.confidence}`);
+      // Only the links this family holds for this child: a parent of another kind has a family of their own.
+      const held = new Set(f.spouses.filter((s) => tree.parents.some((x) => x.child === p.id && x.parent === s && `${x.kind}|${x.confidence}` === (l ? `${l.kind}|${l.confidence}` : ''))));
+      writeCites(2, `parent:${p.id}`, (c) => c.target.fact === 'parent' && held.has(c.target.parent));
     }
     for (const f of famsOf.get(p.id) ?? []) out.push(`1 FAMS ${f.xref}`);
   }
@@ -213,10 +293,12 @@ export function writeGedcom(tree: ExTree, now: Date = new Date()): { text: strin
         out.push('1 MARR');
         dateLine(out, 2, u.start);
         if (u.place) emitText(out, 2, 'PLAC', u.place);
-      } else if (u.start || u.place) {
+        writeCites(2, `partnership:${u.id}`);
+      } else if (u.start || u.place || citesOf.has(`partnership:${u.id}`)) {
         out.push('1 _KINDRED_BEGAN');
         dateLine(out, 2, u.start);
         if (u.place) emitText(out, 2, 'PLAC', u.place);
+        writeCites(2, `partnership:${u.id}`);
       }
       if (u.end) {
         if (u.endReason === 'divorce') {
@@ -228,6 +310,19 @@ export function writeGedcom(tree: ExTree, now: Date = new Date()): { text: strin
       }
     }
     for (const c of f.children) out.push(`1 CHIL ${xrefOf.get(c)}`);
+  }
+
+  // ----- sources -----
+  for (const src of sources) {
+    out.push(`0 ${sourXref.get(src.id)} SOUR`, `1 _KINDRED_ID ${esc(src.id)}`);
+    emitText(out, 1, 'TITL', src.title);
+    if (src.author) emitText(out, 1, 'AUTH', src.author);
+    if (src.publication) emitText(out, 1, 'PUBL', src.publication);
+    if (src.reference) emitText(out, 1, 'REFN', src.reference);
+    if (src.date) out.push(`1 _KINDRED_DATE ${src.date}`);
+    if (src.note) emitText(out, 1, 'NOTE', src.note);
+    if (src.document) out.push(`1 _KINDRED_DOC ${esc(src.document)}`);
+    if (src.media) out.push(`1 _KINDRED_MEDIA ${esc(src.media)}`);
   }
   out.push('0 TRLR');
   const text = out.join('\r\n') + '\r\n';
@@ -242,11 +337,12 @@ export function writeGedcom(tree: ExTree, now: Date = new Date()): { text: strin
   lost(tree.extras.houses, 'house and its arms are not exported', 'houses and their arms are not exported');
   lost(tree.extras.places, 'place coordinate is not exported; place names are', 'place coordinates are not exported; place names are');
   lost(people.filter((p) => p.epithet).length, 'epithet is not exported', 'epithets are not exported');
+  lost(unwritten, 'citation of the death of someone marked living is not exported', 'citations of the deaths of people marked living are not exported');
   lost(people.filter((p) => p.portrait).length, 'portrait is referenced by its media key only; the picture is not included', 'portraits are referenced by their media key only; the pictures are not included');
   return { text, losses };
 }
 
-function writeNames(out: string[], p: ExPerson) {
+function writeNames(out: string[], p: ExPerson, birthNameCites: () => void = () => {}) {
   // A name is one line. In NAME a "/" would end the surname, so it is written as "∕" (U+2215) there and read back as
   // "/"; GIVN and SURN have no such marker and carry the name as it is.
   const line = (s: string) => s.replace(/\s*[\r\n]+\s*/g, ' ');
@@ -259,6 +355,7 @@ function writeNames(out: string[], p: ExPerson) {
   out.push(`1 NAME ${esc([given, ...further].map(inName).join(' '))} /${esc(inName(surname))}/`);
   out.push(`2 GIVN ${esc([given, ...further].join(further.length ? ', ' : ' '))}`);
   if (surname) out.push(`2 SURN ${esc(surname)}`);
+  birthNameCites();
   const cg = line(p.currentGiven ?? p.given);
   const cs = line(p.currentSurname ?? p.surname ?? '');
   if (cg !== given || cs !== surname) {
@@ -287,6 +384,36 @@ export interface IncomingPerson extends ExPerson {
 
 export interface IncomingUnion extends ExUnion {
   preferredId: string | null;
+  /** The file's own key for this family (its FAM xref), which citations of it name. */
+  key?: string;
+}
+
+/** A life event as the file gives it. `key` is unique in the file; `person` is the person's file key. */
+export interface IncomingEvent extends Omit<ExEvent, 'id'> {
+  key: string;
+  preferredId: string | null;
+}
+
+/** A source as the file gives it: a SOUR record (`key` is its xref), or a SOUR line with only text (`key` is that text). */
+export interface IncomingSource extends Omit<ExSource, 'id'> {
+  key: string;
+  preferredId: string | null;
+}
+
+/** The fact a citation in the file is about, by the file's keys (a partnership by its FAM xref). */
+export type IncomingFact =
+  | { fact: 'birth' | 'death' | 'name'; person: string }
+  | { fact: 'event'; event: string }
+  | { fact: 'partnership'; union: string }
+  | { fact: 'parent'; child: string; parent: string };
+
+export interface IncomingCitation {
+  source: string;
+  target: IncomingFact;
+  page: string | null;
+  quality: Quality | null;
+  transcription: string;
+  preferredId: string | null;
 }
 
 /** What a file says about a family: its people, parent links and partnerships, keyed by the file's own keys. */
@@ -295,6 +422,10 @@ export interface Incoming {
   people: IncomingPerson[];
   parents: ExParent[];
   unions: IncomingUnion[];
+  /** Life events, sources and citations (absent from what an older reader made: treated as none). */
+  events?: IncomingEvent[];
+  sources?: IncomingSource[];
+  citations?: IncomingCitation[];
   /** Portraits the file refers to. Their pictures are not in the text, so they are only counted. */
   pictures: number;
   issues: Issue[];
@@ -411,6 +542,27 @@ export function readGedcom(text: string, now: Date = new Date()): Incoming {
   const famcKind = new Map<string, Map<string, { kind: ParentKind; confidence: Confidence }>>();
   // People the file says nothing about being alive or dead: no death record and no Kindred living mark.
   const unstated = new Set<string>();
+  const events: IncomingEvent[] = [];
+  const citations: IncomingCitation[] = [];
+  const inlineSources = new Map<string, IncomingSource>();
+  /** FAMC citations, resolved to parents once the families are read. */
+  const famcCites: { child: string; fam: string; cites: { parent: string | null; cite: Omit<IncomingCitation, 'target'> }[] }[] = [];
+  /** The citations under one fact's line. A SOUR with only text is a source of its own, one per distinct text. */
+  const citesUnder = (n: GNode | undefined): { parent: string | null; cite: Omit<IncomingCitation, 'target'> }[] =>
+    (n?.children ?? []).filter((c) => c.tag === 'SOUR' && c.value).map((c) => {
+      let source = c.value;
+      if (!/^@[^@\s]+@$/.test(source)) {
+        const title = source.trim();
+        source = `text:${title}`;
+        if (!inlineSources.has(source)) inlineSources.set(source, { key: source, preferredId: null, title, author: null, publication: null, reference: null, date: null, note: '', document: null, media: null });
+      }
+      const data = first(c, 'DATA');
+      const text = first(data, 'TEXT')?.value ?? first(c, 'TEXT')?.value ?? '';
+      return {
+        parent: first(c, '_KINDRED_PARENT')?.value ?? null,
+        cite: { source, page: first(c, 'PAGE')?.value || null, quality: qualityOf(first(c, 'QUAY')?.value), transcription: text.trim(), preferredId: id(first(c, '_KINDRED_ID')?.value) },
+      };
+    });
   const people: IncomingPerson[] = indis.map((r) => {
     const key = r.xref!;
     const names = all(r, 'NAME');
@@ -448,7 +600,47 @@ export function readGedcom(text: string, now: Date = new Date()): Incoming {
     // One NOTE is the biography exactly as written; several are joined as paragraphs.
     const notes = all(r, 'NOTE').map((n) => n.value);
     const bio = notes.length === 1 ? notes[0] : notes.map((n) => n.trim()).filter(Boolean).join('\n\n');
+    for (const c of citesUnder(birthName)) citations.push({ ...c.cite, target: { fact: 'name', person: key } });
+    for (const c of citesUnder(birth)) citations.push({ ...c.cite, target: { fact: 'birth', person: key } });
+    for (const c of citesUnder(death)) citations.push({ ...c.cite, target: { fact: 'death', person: key } });
+    // Life events, in the file's order.
+    let ord = 0;
+    for (const n of r.children) {
+      const known = TAG_EVENT[n.tag];
+      if (!known && n.tag !== 'EVEN') continue;
+      // The person's own occupation is an OCCU without a date or place; one with either, or marked as an event, is an event too.
+      if (n.tag === 'OCCU' && !first(n, '_KINDRED_EVENT') && !first(n, 'DATE') && !first(n, 'PLAC')) continue;
+      const typeTag = first(n, 'TYPE')?.value.trim() ?? '';
+      const marked = first(n, '_KINDRED_TYPE')?.value.toLowerCase() as EventType | undefined;
+      let type: EventType = known ?? 'custom';
+      if (n.tag === 'EVEN') {
+        const byName = (Object.entries(EVEN_TYPE) as [EventType, string][]).find(([, word]) => word.toLowerCase() === typeTag.toLowerCase())?.[0];
+        type = marked && EVENT_TYPES.includes(marked) ? marked : byName ?? 'custom';
+      }
+      const value = n.value && n.value.toUpperCase() !== 'Y' ? n.value : '';
+      const label = type === 'custom' ? (typeTag || value || 'Event') : (value || (known && typeTag ? typeTag : '') || null);
+      const subject = `${given} (${label ?? type})`;
+      const raw = first(n, 'DATE')?.value;
+      const span = raw ? /^\s*(?:FROM\s+(.+?))?\s*(?:TO\s+(.+))?\s*$/i.exec(raw) : null;
+      const ranged = !!span && /^\s*(FROM|TO)\b/i.test(raw ?? '');
+      const evKey = `${key}#${ord}`;
+      events.push({
+        key: evKey,
+        preferredId: id(first(n, '_KINDRED_ID')?.value),
+        person: key,
+        type,
+        label: label || null,
+        date: ranged ? parseDate(span![1], 'event', subject) : parseDate(raw, 'event', subject),
+        endDate: ranged ? parseDate(span![2], 'event', subject) : null,
+        place: first(n, 'PLAC')?.value || null,
+        note: all(n, 'NOTE').map((x) => x.value).join('\n\n').trim(),
+        ord: ord++,
+      });
+      for (const c of citesUnder(n)) citations.push({ ...c.cite, target: { fact: 'event', event: evKey } });
+    }
     for (const f of all(r, 'FAMC')) {
+      const fc = citesUnder(f);
+      if (fc.length) famcCites.push({ child: key, fam: f.value, cites: fc });
       const kindTag = first(f, '_KINDRED_KIND')?.value.toLowerCase() as ParentKind | undefined;
       const pediTag = first(f, 'PEDI')?.value.toLowerCase();
       const conf = first(f, '_KINDRED_CONFIDENCE')?.value.toLowerCase() as Confidence | undefined;
@@ -473,7 +665,7 @@ export function readGedcom(text: string, now: Date = new Date()): Incoming {
       living: livingTag ? livingTag === 'Y' : !dead,
       title: first(r, 'TITL')?.value || null,
       epithet: null,
-      occupation: first(r, 'OCCU')?.value || null,
+      occupation: all(r, 'OCCU').find((o) => !first(o, '_KINDRED_EVENT'))?.value || null,
       nickname: first(r, 'NICK')?.value || null,
       bio: bio.trim() ? bio : null,
       portrait: null,
@@ -485,6 +677,7 @@ export function readGedcom(text: string, now: Date = new Date()): Incoming {
   const parents: ExParent[] = [];
   const unions: IncomingUnion[] = [];
   const seenLink = new Set<string>();
+  const famSpouses = new Map<string, string[]>();
   for (const f of roots.filter((r) => r.tag === 'FAM' && r.xref)) {
     const xref = f.xref!;
     const spouses = [first(f, 'HUSB')?.value, first(f, 'WIFE')?.value].filter((s): s is string => !!s && known.has(s));
@@ -503,6 +696,7 @@ export function readGedcom(text: string, now: Date = new Date()): Incoming {
       }
     }
 
+    famSpouses.set(xref, spouses);
     const marr = first(f, 'MARR');
     const div = first(f, 'DIV');
     const ended = first(f, '_KINDRED_END');
@@ -522,7 +716,9 @@ export function readGedcom(text: string, now: Date = new Date()): Incoming {
       });
       continue;
     }
+    for (const c of [...citesUnder(marr), ...citesUnder(began)]) citations.push({ ...c.cite, target: { fact: 'partnership', union: xref } });
     const u: IncomingUnion = {
+      key: xref,
       id: first(f, '_KINDRED_ID')?.value ?? xref,
       preferredId: id(first(f, '_KINDRED_ID')?.value),
       a: spouses[0],
@@ -592,8 +788,38 @@ export function readGedcom(text: string, now: Date = new Date()): Incoming {
     });
   }
 
+  // A parent link's citation names its parent (_KINDRED_PARENT); one from another program is about both parents of that family.
+  for (const { child, fam, cites } of famcCites) {
+    for (const { parent, cite } of cites) {
+      for (const s of parent ? [parent] : famSpouses.get(fam) ?? []) {
+        if (s !== child && parents.some((l) => l.child === child && l.parent === s)) citations.push({ ...cite, target: { fact: 'parent', child, parent: s } });
+      }
+    }
+  }
+  const sources: IncomingSource[] = [
+    ...roots.filter((r) => r.tag === 'SOUR' && r.xref).map((r): IncomingSource => {
+      const date = first(r, '_KINDRED_DATE')?.value;
+      return {
+        key: r.xref!,
+        preferredId: id(first(r, '_KINDRED_ID')?.value),
+        title: first(r, 'TITL')?.value || first(r, 'ABBR')?.value || r.xref!,
+        author: first(r, 'AUTH')?.value || null,
+        publication: first(r, 'PUBL')?.value || null,
+        reference: first(r, 'REFN')?.value || null,
+        date: date && validDate(date.replace(/^~/, '')) ? date : null,
+        note: all(r, 'NOTE').map((x) => x.value).join('\n\n').trim(),
+        document: id(first(r, '_KINDRED_DOC')?.value),
+        media: first(r, '_KINDRED_MEDIA')?.value || null,
+      };
+    }),
+    ...inlineSources.values(),
+  ];
+  const sourceKeys = new Set(sources.map((x) => x.key));
+  const missing = citations.filter((c) => !sourceKeys.has(c.source)).length;
+  if (missing) issues.push({ level: 'skipped', code: 'exchange.issue.source_missing', vars: { count: missing }, message: `${missing}× a source the file does not hold was cited; those citations were left out` });
+
   const head0 = head ? { id: first(head, '_KINDRED_TREE')?.value ?? null, name: first(head, '_KINDRED_NAME')?.value ?? null } : { id: null, name: null };
   // A file with a header is GEDCOM even when it holds no people (an empty family is still a valid export).
   if (!head && !people.length && !roots.some((r) => r.tag === 'FAM')) throw new Error('No people or families found: this is not a GEDCOM family file.');
-  return { tree: head0, people, parents, unions, pictures, issues };
+  return { tree: head0, people, parents, unions, pictures, issues, events, sources, citations: citations.filter((c) => sourceKeys.has(c.source)) };
 }

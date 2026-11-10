@@ -76,6 +76,7 @@ export const en = {
   "sources.err.cited_changed": "The source was cited again meanwhile. Look at it once more before you delete it.",
   "exchange.issue.date_event": "Date of {subject}: {note}",
   "exchange.issue.source_missing": "{count}× a source the file does not hold was cited; those citations were left out",
+  "exchange.loss.death_citations_gedcom": { one: "{count} citation of the death of someone marked living is not exported", other: "{count} citations of the deaths of people marked living are not exported" },
 } as const;
 
 export const de = {
@@ -154,6 +155,7 @@ export const de = {
   "sources.err.cited_changed": "Die Quelle wurde inzwischen erneut als Beleg verwendet. Sieh sie dir noch einmal an, bevor du sie löschst.",
   "exchange.issue.date_event": "Datum von {subject}: {note}",
   "exchange.issue.source_missing": "{count}× wurde eine Quelle angegeben, die nicht in der Datei steht; diese Belege wurden ausgelassen",
+  "exchange.loss.death_citations_gedcom": { one: "{count} Beleg für den Tod einer als lebend markierten Person wird nicht exportiert", other: "{count} Belege für den Tod als lebend markierter Personen werden nicht exportiert" },
 } as const;
 
 export const af = {
@@ -232,4 +234,5 @@ export const af = {
   "sources.err.cited_changed": "Die bron is intussen weer aangehaal. Kyk weer daarna voordat jy dit skrap.",
   "exchange.issue.date_event": "Datum van {subject}: {note}",
   "exchange.issue.source_missing": "{count}× is ’n bron aangehaal wat nie in die lêer is nie; daardie aanhalings is weggelaat",
+  "exchange.loss.death_citations_gedcom": { one: "{count} aanhaling vir die dood van iemand wat as lewend gemerk is, word nie uitgevoer nie", other: "{count} aanhalings vir die dood van mense wat as lewend gemerk is, word nie uitgevoer nie" },
 } as const;

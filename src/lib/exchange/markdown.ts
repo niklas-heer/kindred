@@ -8,8 +8,13 @@
 // Every value that is text is written as a JSON string, which YAML reads as the same text. Keys the v1 schema
 // does not name (sex, title, epithet, current name, the end of a partnership) are extra properties, which
 // v1 retains; import-kindred ignores them.
+//
+// Life events join a person's `events` list beside marriages, with their own type (`baptism`, `residence`, …), `label`,
+// `date`, `end`, `place` and `note`. Sources are notes of their own in sources/, and a person's `citations` list each fact's
+// sources there: `fact` (birth, death, name, event, partnership, parent), the event's or partnership's `id` or the
+// `parent`, the `source` as a link, `page`, `quality` and `text`. A partnership's citations are on the note that declares it.
 import { allGiven } from '../further-given.ts';
-import type { ExParent, ExPerson, ExTree, ExUnion } from './model.ts';
+import type { ExCitation, ExParent, ExPerson, ExTree, ExUnion } from './model.ts';
 
 export interface ArchiveFile {
   path: string;
@@ -57,6 +62,29 @@ export function markdownArchive(tree: ExTree, portraits: Set<string> = new Set()
   const byId = new Map(tree.people.map((p) => [p.id, p]));
   const link = (id: string) => `[[people/${names.get(id)}]]`;
   const files: ArchiveFile[] = [];
+
+  // Sources, one note each, and each citation on the note of the person whose fact it is.
+  const sourceNames = new Map<string, string>();
+  {
+    const used = new Set<string>();
+    for (const x of tree.sources ?? []) {
+      const base = x.title.normalize('NFKD').replace(/[^\w -]+/g, '').trim().replace(/\s+/g, '-').toLowerCase().slice(0, 60) || 'source';
+      let name = base;
+      for (let n = 2; used.has(name); n++) name = `${base}-${n}`;
+      used.add(name);
+      sourceNames.set(x.id, name);
+    }
+  }
+  const eventOwner = new Map((tree.events ?? []).map((e) => [e.id, e.person]));
+  const unionOwner = new Map(tree.unions.map((u) => [u.id, u.a < u.b ? u.a : u.b]));
+  const citesOn = new Map<string, ExCitation[]>();
+  for (const c of tree.citations ?? []) {
+    const t = c.target;
+    const owner = t.fact === 'event' ? eventOwner.get(t.event) : t.fact === 'partnership' ? unionOwner.get(t.partnership) : t.fact === 'parent' ? t.child : t.person;
+    if (owner && byId.has(owner) && sourceNames.has(c.source)) citesOn.set(owner, [...(citesOn.get(owner) ?? []), c]);
+  }
+  const lifeEvents = new Map<string, NonNullable<ExTree['events']>>();
+  for (const e of tree.events ?? []) lifeEvents.set(e.person, [...(lifeEvents.get(e.person) ?? []), e]);
 
   // Each partnership belongs to its lower-id partner's note, so it is declared once.
   const partnersOf = new Map<string, ExUnion[]>();
@@ -124,7 +152,8 @@ export function markdownArchive(tree: ExTree, portraits: Set<string> = new Set()
       ...marriages.map((u) => ({ type: 'marriage', u })),
       ...unions.filter((u) => u.end && u.endReason === 'divorce').map((u) => ({ type: 'divorce', u })),
     ];
-    if (events.length) {
+    const life = lifeEvents.get(p.id) ?? [];
+    if (events.length || life.length) {
       lines.push('events:');
       for (const { type, u } of events) {
         const other = u.a === p.id ? u.b : u.a;
@@ -137,10 +166,43 @@ export function markdownArchive(tree: ExTree, portraits: Set<string> = new Set()
         }
         lines.push(`    people: [${str(link(other))}]`); // the owner is implicit; import-kindred takes owner + people
       }
+      for (const e of life) {
+        lines.push(`  - id: ${str(e.id)}`, `    type: ${str(e.type)}`);
+        if (e.label) lines.push(`    label: ${str(e.label)}`);
+        if (e.date) lines.push(`    date: ${str(v1Date(e.date)!)}`);
+        if (e.endDate) lines.push(`    end: ${str(v1Date(e.endDate)!)}`);
+        if (e.place) lines.push(`    place: ${str(e.place)}`);
+        if (e.note) lines.push(`    note: ${str(e.note)}`);
+      }
+    }
+    const cites = citesOn.get(p.id) ?? [];
+    if (cites.length) {
+      lines.push('citations:');
+      for (const c of cites) {
+        const t = c.target;
+        lines.push(`  - fact: ${str(t.fact)}`);
+        if (t.fact === 'event') lines.push(`    event: ${str(t.event)}`);
+        if (t.fact === 'partnership') lines.push(`    partnership: ${str(t.partnership)}`);
+        if (t.fact === 'parent') lines.push(`    parent: ${str(byId.has(t.parent) ? link(t.parent) : t.parent)}`);
+        lines.push(`    source: ${str(`[[sources/${sourceNames.get(c.source)}]]`)}`);
+        if (c.page) lines.push(`    page: ${str(c.page)}`);
+        if (c.quality) lines.push(`    quality: ${str(c.quality)}`);
+        if (c.transcription) lines.push(`    text: ${str(c.transcription)}`);
+      }
     }
     lines.push('---');
     const body = p.bio ? `\n## Story\n\n${p.bio.trim()}\n` : '';
     files.push({ path: `people/${names.get(p.id)}.md`, data: `${lines.join('\n')}\n${body}` });
+  }
+
+  for (const x of tree.sources ?? []) {
+    const lines = ['---', `id: ${str(x.id)}`, 'type: source', `title: ${str(x.title)}`];
+    if (x.author) lines.push(`author: ${str(x.author)}`);
+    if (x.publication) lines.push(`publication: ${str(x.publication)}`);
+    if (x.reference) lines.push(`reference: ${str(x.reference)}`);
+    if (x.date) lines.push(`date: ${str(v1Date(x.date)!)}`);
+    lines.push('---');
+    files.push({ path: `sources/${sourceNames.get(x.id)}.md`, data: `${lines.join('\n')}\n${x.note ? `\n${x.note.trim()}\n` : ''}` });
   }
 
   files.push({
@@ -153,7 +215,8 @@ export function markdownArchive(tree: ExTree, portraits: Set<string> = new Set()
       '',
       'Open it with the Kindred v1 tools, or import it into Kindred v2 with scripts/import-kindred.ts.',
       'Dates keep their original wording as "about 1900" (Kindred v2 reads "~1900"). Partnerships are declared',
-      'once, on the note of the partner whose id sorts first.',
+      'once, on the note of the partner whose id sorts first. Life events are in each person\'s events; sources are in',
+      'sources/, and each person\'s citations name the source and the fact it backs.',
       '',
       ...(losses.length ? ['Not in this archive:', ...losses.map((l) => `- ${l}`), ''] : []),
     ].join('\n'),

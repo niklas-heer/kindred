@@ -16,11 +16,16 @@
 //     one is a conflict, and is not added; the rest of the file still is.
 //   - A parent link that would make someone their own ancestor (directly or through others, in the tree or in the
 //     file) is a conflict, and is not added. `applyImport` refuses the whole file while there are any.
+//   - Life events, sources and citations are added when they are new, as links are. A source in the file is the tree's
+//     own when it carries its _KINDRED_ID or has the same title and author; an event of a matched person is already
+//     there when one of the same type, date, place and details is; a citation when the same source already backs the
+//     same fact with the same page. A citation of a fact that is not imported (a refused link) is left out.
 import type { Key } from '../i18n/dictionary.ts';
 import { bornBeforeParent, MAX_PARENTS } from '../parent-rules.ts';
 import type { Vars } from '../i18n/types.ts';
 import type { Incoming, IncomingPerson } from './gedcom.ts';
-import type { ExParent, ExPerson, ExTree, ExUnion, Issue, IssueCode, ParentKind } from './model.ts';
+import { factKey, type Fact } from '../events.ts';
+import type { ExCitation, ExEvent, ExParent, ExPerson, ExSource, ExTree, ExUnion, Issue, IssueCode, ParentKind } from './model.ts';
 
 type ConflictField = 'born' | 'died' | 'born place' | 'died place' | 'parent' | 'union start' | 'union end' | 'union kind' | 'union place';
 export type ConflictCode = Extract<Key, `exchange.conflict.field.${string}`>;
@@ -88,6 +93,13 @@ export interface ImportPlan {
   duplicateUnions: number;
   /** Links whose people are not in the file's people (should not happen in a valid file). */
   unlinked: number;
+  /** New sources, life events and citations (ids of the tree), and how many of each were already there. */
+  sources: ExSource[];
+  duplicateSources: number;
+  events: ExEvent[];
+  duplicateEvents: number;
+  citations: ExCitation[];
+  duplicateCitations: number;
   issues: Issue[];
 }
 
@@ -323,6 +335,8 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
     byCouple.set(couple(u.a, u.b), [...(byCouple.get(couple(u.a, u.b)) ?? []), u]);
   }
   const usedUnions = new Set<ExUnion>();
+  /** Which partnership of the tree each family of the file became, for the citations that name it. */
+  const unionOfKey = new Map<string, string>();
   const unions: ExUnion[] = [];
   let duplicateUnions = 0;
   const pending: { u: (typeof incoming.unions)[number]; a: string; b: string }[] = [];
@@ -337,6 +351,7 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
     const same = (exact.get(unionKey(a, b, u.kind, u.start, u.end)) ?? []).find((e) => !usedUnions.has(e));
     if (same) {
       usedUnions.add(same);
+      if (u.key) unionOfKey.set(u.key, same.id);
       duplicateUnions++;
       continue;
     }
@@ -347,6 +362,7 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
     const hit = candidates.find((e) => e.id === u.preferredId) ?? candidates.find((e) => e.kind === u.kind) ?? candidates[0];
     if (hit) {
       usedUnions.add(hit);
+      if (u.key) unionOfKey.set(u.key, hit.id);
       duplicateUnions++;
       const name = `${nameById.get(hit.a) ?? hit.a} & ${nameById.get(hit.b) ?? hit.b}`;
       const check = (field: ConflictField, x: string | null, y: string | null) => {
@@ -363,10 +379,96 @@ export function planImport(incoming: Incoming, existing: ExTree, makeId: (given:
     const preferred = u.preferredId && !unionIds.has(u.preferredId) ? u.preferredId : null;
     const id = preferred ?? freshId(makeId, 'union', unionIds);
     unionIds.add(id);
+    if (u.key) unionOfKey.set(u.key, id);
     unions.push({ id, a, b, kind: u.kind, start: u.start, end: u.end, endReason: u.endReason, place: u.place });
   }
 
-  return { add, matched, ambiguous, conflicts, cycles, bornRead, parents, duplicateParents, unions, duplicateUnions, unlinked, issues };
+  // Sources: the tree's own by id, then by title and author; the rest are new.
+  const treeSources = existing.sources ?? [];
+  const sourceIds = new Set(treeSources.map((x) => x.id));
+  const sourceOfKey = new Map<string, string>();
+  const sources: ExSource[] = [];
+  let duplicateSources = 0;
+  const sourceName = (x: { title: string; author: string | null }) => `${fold(x.title)}|${fold(x.author ?? '')}`;
+  const byTitle = new Map([...treeSources].reverse().map((x) => [sourceName(x), x.id]));
+  for (const x of incoming.sources ?? []) {
+    const had = x.preferredId && treeSources.some((t) => t.id === x.preferredId) ? x.preferredId : byTitle.get(sourceName(x));
+    if (had) {
+      sourceOfKey.set(x.key, had);
+      duplicateSources++;
+      continue;
+    }
+    const id = x.preferredId && !sourceIds.has(x.preferredId) ? x.preferredId : makeId('source');
+    sourceIds.add(id);
+    sourceOfKey.set(x.key, id);
+    byTitle.set(sourceName(x), id);
+    const { key: _key, preferredId: _pref, ...rest } = x;
+    sources.push({ id, ...rest });
+  }
+
+  // Life events: all of a new person's; of a matched person, those the tree does not have yet.
+  const treeEvents = existing.events ?? [];
+  const eventIds = new Set(treeEvents.map((e) => e.id));
+  const eventOfKey = new Map<string, string>();
+  const events: ExEvent[] = [];
+  let duplicateEvents = 0;
+  const eventSig = (e: Pick<ExEvent, 'person' | 'type' | 'date' | 'place' | 'label'>) => [e.person, e.type, e.date ?? '', fold(e.place ?? ''), fold(e.label ?? '')].join('|');
+  const treeEventBySig = new Map(treeEvents.map((e) => [eventSig(e), e.id]));
+  const ordOf = new Map<string, number>();
+  for (const e of treeEvents) ordOf.set(e.person, Math.max(ordOf.get(e.person) ?? -1, e.ord));
+  for (const e of incoming.events ?? []) {
+    const person = keyToId.get(e.person);
+    if (!person) continue;
+    const had = treeEventBySig.get(eventSig({ ...e, person }));
+    if (had) {
+      eventOfKey.set(e.key, had);
+      duplicateEvents++;
+      continue;
+    }
+    const id = e.preferredId && !eventIds.has(e.preferredId) ? e.preferredId : makeId('event');
+    eventIds.add(id);
+    eventOfKey.set(e.key, id);
+    const ord = (ordOf.get(person) ?? -1) + 1;
+    ordOf.set(person, ord);
+    events.push({ id, person, type: e.type, label: e.label, date: e.date, endDate: e.endDate, place: e.place, note: e.note, ord });
+  }
+
+  // Citations: only of facts the family will have, and not twice.
+  const linked = new Set(existingLinks);
+  const citationIds = new Set((existing.citations ?? []).map((c) => c.id));
+  const citeSig = (source: string, f: Fact, page: string | null) => `${source}|${factKey(f)}|${fold(page ?? '')}`;
+  const citedAlready = new Set((existing.citations ?? []).map((c) => citeSig(c.source, c.target, c.page)));
+  const citations: ExCitation[] = [];
+  let duplicateCitations = 0;
+  for (const c of incoming.citations ?? []) {
+    const source = sourceOfKey.get(c.source);
+    const t = c.target;
+    let target: Fact | null = null;
+    if (t.fact === 'event') target = eventOfKey.has(t.event) ? { fact: 'event', event: eventOfKey.get(t.event)! } : null;
+    else if (t.fact === 'partnership') target = unionOfKey.has(t.union) ? { fact: 'partnership', partnership: unionOfKey.get(t.union)! } : null;
+    else if (t.fact === 'parent') {
+      const child = keyToId.get(t.child), parent = keyToId.get(t.parent);
+      target = child && parent && linked.has(`${child}|${parent}`) ? { fact: 'parent', child, parent } : null;
+    } else {
+      const person = keyToId.get(t.person);
+      target = person ? { fact: t.fact, person } : null;
+    }
+    if (!source || !target) continue;
+    const sig = citeSig(source, target, c.page);
+    if (citedAlready.has(sig)) {
+      duplicateCitations++;
+      continue;
+    }
+    citedAlready.add(sig);
+    const id = c.preferredId && !citationIds.has(c.preferredId) ? c.preferredId : makeId('citation');
+    citationIds.add(id);
+    citations.push({ id, source, target, page: c.page, quality: c.quality, transcription: c.transcription });
+  }
+
+  return {
+    add, matched, ambiguous, conflicts, cycles, bornRead, parents, duplicateParents, unions, duplicateUnions, unlinked, issues,
+    sources, duplicateSources, events, duplicateEvents, citations, duplicateCitations,
+  };
 }
 
 const addParent = (parentsOf: Map<string, Set<string>>, child: string, parent: string) => {

@@ -38,7 +38,7 @@ export interface PlacePreview {
 }
 
 async function placePlan(d: Db, plan: ImportPlan): Promise<PlacePlan> {
-  const names = [...new Set([...plan.add.flatMap((p) => [p.bornPlace, p.diedPlace]), ...plan.unions.map((u) => u.place)])].filter(
+  const names = [...new Set([...plan.add.flatMap((p) => [p.bornPlace, p.diedPlace]), ...plan.unions.map((u) => u.place), ...plan.events.map((e) => e.place)])].filter(
     (n): n is string => !!n,
   );
   const pinned = await d.all<{ name: string }>('SELECT name FROM place');
@@ -78,6 +78,13 @@ export interface ImportPreview {
   duplicateUnions: number;
   unlinked: number;
   pictures: number;
+  /** New life events, sources and citations, and how many of each the family already had. */
+  events: number;
+  duplicateEvents: number;
+  sources: number;
+  duplicateSources: number;
+  citations: number;
+  duplicateCitations: number;
   issues: { level: string; message: string; code: IssueCode; vars: Vars }[];
   issueCount: number;
   places: PlacePreview;
@@ -105,6 +112,12 @@ function summarize(plan: ImportPlan, incoming: ReturnType<typeof readGedcom>, ex
     duplicateUnions: plan.duplicateUnions,
     unlinked: plan.unlinked,
     pictures: incoming.pictures,
+    events: plan.events.length,
+    duplicateEvents: plan.duplicateEvents,
+    sources: plan.sources.length,
+    duplicateSources: plan.duplicateSources,
+    citations: plan.citations.length,
+    duplicateCitations: plan.duplicateCitations,
     issues: plan.issues.slice(0, LIST).map((i) => ({ level: i.level, message: i.message, code: i.code, vars: i.vars })),
     issueCount: plan.issues.length,
   };
@@ -124,6 +137,9 @@ export interface ApplyResult {
   parents: number;
   unions: number;
   matched: number;
+  events: number;
+  sources: number;
+  citations: number;
   /** Places given a pin on the Atlas from the gazetteer, and places that could not be placed with certainty. */
   places: { located: number; unplaced: number };
 }
@@ -154,7 +170,23 @@ export function applyImport(tree: string, text: string, op: OpKey | undefined, a
       guard('(SELECT count(*) FROM parent) = ?', existing.parents.length),
       guard('(SELECT rev FROM ancestry_rev WHERE id = 1) = ?', rev.rev),
       guard('(SELECT count(*) FROM partnership) = ?', existing.unions.length),
+      // What the plan read of events, sources and citations, so one added meanwhile makes the import plan again.
+      guard('(SELECT count(*) FROM life_event) = ?', existing.events?.length ?? 0),
+      guard('(SELECT count(*) FROM source) = ?', existing.sources?.length ?? 0),
+      guard('(SELECT count(*) FROM citation) = ?', existing.citations?.length ?? 0),
     ];
+    const at = new Date().toISOString();
+    // A source's link to research or the gallery is kept only when this family has that document or picture.
+    const docs = new Set((await d.all<{ id: string }>('SELECT id FROM research_document')).map((r) => r.id));
+    const pictures = new Set((await d.all<{ key: string }>('SELECT key FROM media')).map((r) => r.key));
+    for (const x of plan.sources) {
+      const document = x.document && docs.has(x.document) ? x.document : null;
+      const media = x.media && pictures.has(x.media) ? x.media : null;
+      if (document) writes.push(guard('EXISTS (SELECT 1 FROM research_document WHERE id = ?)', document));
+      if (media) writes.push(guard('EXISTS (SELECT 1 FROM media WHERE key = ?)', media));
+      writes.push(q('INSERT INTO source (id, title, author, publication, reference, date, note, document, media, created_by_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        x.id, x.title, x.author, x.publication, x.reference, x.date, x.note, document, media, 'GEDCOM', at, at));
+    }
     // The parent rules read these birth dates: a date changed in between makes the import plan again.
     for (const [id, born] of plan.bornRead) writes.push(sameBorn(id, born));
     for (const p of plan.add) {
@@ -188,6 +220,16 @@ export function applyImport(tree: string, text: string, op: OpKey | undefined, a
         q('INSERT INTO partnership (id, a, b, kind, start, end, end_reason, place) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', u.id, u.a, u.b, u.kind, u.start, u.end, u.endReason, u.place),
       );
     }
+    for (const e of plan.events) {
+      writes.push(q('INSERT INTO life_event (id, person, type, label, date, end_date, place, note, ord, created_by_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        e.id, e.person, e.type, e.label, e.date, e.endDate, e.place, e.note, e.ord, 'GEDCOM', at, at));
+    }
+    for (const c of plan.citations) {
+      const t = c.target;
+      const cols = t.fact === 'event' ? [null, null, t.event, null] : t.fact === 'partnership' ? [null, null, null, t.partnership] : t.fact === 'parent' ? [t.child, t.parent, null, null] : [t.person, null, null, null];
+      writes.push(q('INSERT INTO citation (id, source, fact, person, parent, event, partnership, page, quality, transcription, created_by_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        c.id, c.source, t.fact, ...cols, c.page, c.quality, c.transcription, 'GEDCOM', at, at));
+    }
     // The pins: only for places the gazetteer places with certainty, and only where the family has no pin yet.
     const places = await placePlan(d, plan);
     writes.push(guard('(SELECT count(*) FROM place) = ?', places.pins));
@@ -201,6 +243,9 @@ export function applyImport(tree: string, text: string, op: OpKey | undefined, a
         parents: plan.parents.length,
         unions: plan.unions.length,
         matched: plan.matched.length,
+        events: plan.events.length,
+        sources: plan.sources.length,
+        citations: plan.citations.length,
         places: { located: places.located.size, unplaced: places.unplaced.length },
       },
     };
