@@ -1,7 +1,7 @@
 // The rules for connecting two people who are already in the tree: the plan behind `linkRelative` (api.ts) and
 // behind each link of an assistant's family draft (ai/family.server.ts). Both run the same checks, so a draft can
 // never link what the form would refuse. A plan reads what it needs and guards every fact it read (db.server.ts `once`).
-import { guard, media, q, sameBorn, sameParents, type Db, type Plan } from './db.server';
+import { added, guard, media, q, removed, sameBorn, sameParents, type Db, type HistoryEntry, type Plan } from './db.server';
 import type { LinkResult } from './api';
 import { bornBeforeParent, MAX_PARENTS } from './parent-rules';
 
@@ -95,12 +95,18 @@ export async function linkPlan(d: Db, data: LinkInput): Promise<Plan<LinkResult>
     );
     created.partnership = id;
   }
+  // On the anchor's history: the link or the partnership, naming the other person.
+  const other = people.get(data.person)!.given;
+  const history: HistoryEntry[] = created.partnership ? [added('partnership', created.partnership, { person: data.anchor, label: other })] : [];
   // The guards hold every parent set as read, so exactly the edges not already there are new.
   for (const [child, parent] of edges) {
     writes.push(q('INSERT OR IGNORE INTO parent (child, parent) VALUES (?, ?)', child, parent));
-    if (!(await parentsOf(child)).includes(parent) && !created.parents.some((e) => e.child === child && e.parent === parent)) created.parents.push({ child, parent });
+    if (!(await parentsOf(child)).includes(parent) && !created.parents.some((e) => e.child === child && e.parent === parent)) {
+      created.parents.push({ child, parent });
+      history.push(added('link', `${child}>${parent}`, { person: data.anchor, label: other }));
+    }
   }
-  return { writes, result: created };
+  return { writes, history, result: created };
 }
 
 /**
@@ -135,8 +141,11 @@ export async function removePlan(d: Db, tree: string, id: string): Promise<Plan<
   }
   // RETURNING counts the person alone (D1's `changes` would include the cascade).
   writes.push(q('DELETE FROM person WHERE id = ? RETURNING id', id));
+  // The person's history stays, and this row keeps their name: nothing else will say who they were.
+  const name = gone ? [gone.current_given ?? gone.given, gone.current_surname ?? gone.surname].filter(Boolean).join(' ') : null;
   return {
     writes,
+    history: gone ? [removed('person', id, { person: id, personName: name, label: name })] : [],
     result: (r) => r[r.length - 1].rows.length,
     after: async (r) => {
       const keys = [...r[1].rows, ...r[2].rows].map((x) => (x as { key: string | null }).key).filter((k): k is string => !!k);

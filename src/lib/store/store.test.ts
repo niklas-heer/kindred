@@ -57,7 +57,7 @@ test('a file from before migrations is brought up to date, backed up, and its ph
 test('a retry key replays its result for the same person and change, and refuses anything else', async () => {
   const op = { key: 'key-0001', user: 'u1', payload: { given: 'Eve' } };
   const add = (o: typeof op) =>
-    s.once('old', o, 'addPerson', () => ({ writes: [q('INSERT INTO person (id, given) VALUES (?, ?)', `eve_${crypto.randomUUID().slice(0, 4)}`, 'Eve')], result: 'done' }));
+    s.once('old', o, 'addPerson', () => ({ history: [], writes: [q('INSERT INTO person (id, given) VALUES (?, ?)', `eve_${crypto.randomUUID().slice(0, 4)}`, 'Eve')], result: 'done' }));
   assert.equal(await add(op), 'done');
   assert.equal(await add(op), 'done');
   const d = s.db('old');
@@ -71,7 +71,7 @@ test('two copies of one change racing write once and both get the same result', 
   const run = () =>
     s.once('old', op, 'addRace', async (d) => {
       await d.get('SELECT 1'); // both copies read before either writes
-      return { writes: [q("INSERT INTO person (id, given) VALUES ('race-1', 'Race')")], result: (r) => r[0].lastRowId, resultSql: 'last_insert_rowid()' };
+      return { history: [], writes: [q("INSERT INTO person (id, given) VALUES ('race-1', 'Race')")], result: (r) => r[0].lastRowId, resultSql: 'last_insert_rowid()' };
     });
   const [a, b] = await Promise.all([run(), run()]);
   assert.equal(a, b);
@@ -88,7 +88,7 @@ test('a guard sends a change back to its checks when the family changed in betwe
       const had = (await d.all<{ parent: string }>("SELECT parent FROM parent WHERE child = 'ada'")).map((r) => r.parent);
       if (had.length >= 2) throw new Error('They already have two parents.');
       await new Promise((r) => setTimeout(r, 5));
-      return { writes: [s.sameParents('ada', had), q("INSERT INTO parent (child, parent) VALUES ('ada', ?)", parent)], result: parent };
+      return { history: [], writes: [s.sameParents('ada', had), q("INSERT INTO parent (child, parent) VALUES ('ada', ?)", parent)], result: parent };
     });
   const results = await Promise.allSettled([addParent('cy'), addParent('dot')]);
   assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);

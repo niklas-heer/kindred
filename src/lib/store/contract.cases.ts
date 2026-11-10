@@ -357,7 +357,7 @@ export const contractCases: Record<string, () => Promise<void>> = {
   'once stores the result and replays it without writing or running after() again': async () => {
     const key = op();
     let afters = 0;
-    const add = (id: string) => once(TREE, key, 'contract', () => ({ writes: [addPerson(id)], result: { id, nested: ['ü', 1, null] }, after: () => { afters++; } }));
+    const add = (id: string) => once(TREE, key, 'contract', () => ({ history: [], writes: [addPerson(id)], result: { id, nested: ['ü', 1, null] }, after: () => { afters++; } }));
     const first = uid('p');
     const second = uid('p');
     same(await add(first), { id: first, nested: ['ü', 1, null] });
@@ -368,11 +368,11 @@ export const contractCases: Record<string, () => Promise<void>> = {
 
   'once refuses a retry key used by someone else or for something else': async () => {
     const key = op();
-    await once(TREE, key, 'contract', () => ({ writes: [addPerson(uid('p'))], result: 1 }));
+    await once(TREE, key, 'contract', () => ({ history: [], writes: [addPerson(uid('p'))], result: 1 }));
     const refused = /already sent as something else/;
-    assert.match(String(await failure(() => once(TREE, { ...key, user: 'u2' }, 'contract', () => ({ writes: [], result: 2 })))), refused);
-    assert.match(String(await failure(() => once(TREE, { ...key, payload: { a: 2 } }, 'contract', () => ({ writes: [], result: 2 })))), refused);
-    assert.match(String(await failure(() => once(TREE, key, 'other', () => ({ writes: [], result: 2 })))), refused);
+    assert.match(String(await failure(() => once(TREE, { ...key, user: 'u2' }, 'contract', () => ({ history: [], writes: [], result: 2 })))), refused);
+    assert.match(String(await failure(() => once(TREE, { ...key, payload: { a: 2 } }, 'contract', () => ({ history: [], writes: [], result: 2 })))), refused);
+    assert.match(String(await failure(() => once(TREE, key, 'other', () => ({ history: [], writes: [], result: 2 })))), refused);
   },
 
   'once decides again on fresh reads when a guard fails': async () => {
@@ -381,7 +381,7 @@ export const contractCases: Record<string, () => Promise<void>> = {
     let abandoned = 0;
     const result = await once(TREE, op(), 'contract', () => {
       attempts++;
-      return { writes: [guard('1 = ?', attempts >= 3 ? 1 : 0), addPerson(id)], result: attempts, abandon: () => { abandoned++; } };
+      return { history: [], writes: [guard('1 = ?', attempts >= 3 ? 1 : 0), addPerson(id)], result: attempts, abandon: () => { abandoned++; } };
     });
     assert.equal(result, 3);
     assert.equal(abandoned, 2);
@@ -394,7 +394,7 @@ export const contractCases: Record<string, () => Promise<void>> = {
     let attempts = 0;
     const e = await failure(() => once(TREE, key, 'contract', () => {
       attempts++;
-      return { writes: [addPerson(id), guard('1 = ?', 0)], result: 1 };
+      return { history: [], writes: [addPerson(id), guard('1 = ?', 0)], result: 1 };
     }));
     assert.equal(attempts, 4);
     assert.match(String(e), /changed while this was being saved/);
@@ -409,7 +409,7 @@ export const contractCases: Record<string, () => Promise<void>> = {
     let abandoned = 0;
     const e = await failure(() => once(TREE, op(), 'contract', () => {
       attempts++;
-      return { writes: [addPerson(id)], result: 1, abandon: () => { abandoned++; } };
+      return { history: [], writes: [addPerson(id)], result: 1, abandon: () => { abandoned++; } };
     }));
     assert.ok(isUniqueError(e), String(e));
     assert.deepEqual([attempts, abandoned], [1, 1]);
@@ -421,7 +421,7 @@ export const contractCases: Record<string, () => Promise<void>> = {
     const copy = () => once(TREE, key, 'contract', () => {
       const id = uid('race');
       made.push(id);
-      return { writes: [addPerson(id)], result: id };
+      return { history: [], writes: [addPerson(id)], result: id };
     });
     const [a, b] = await Promise.all([copy(), copy()]);
     assert.equal(a, b);
@@ -433,7 +433,7 @@ export const contractCases: Record<string, () => Promise<void>> = {
     const d = await scratch();
     const key = op();
     const write = () => once<number>(TREE, key, 'contract', () => ({
-      writes: [q('INSERT INTO contract_value (txt) VALUES (?)', 'from once')],
+      history: [], writes: [q('INSERT INTO contract_value (txt) VALUES (?)', 'from once')],
       resultSql: 'last_insert_rowid()',
       result: (results) => results[0].lastRowId,
     }));

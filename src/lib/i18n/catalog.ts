@@ -21,6 +21,7 @@ import * as familiesArea from "./areas/families.ts";
 import * as feedbackArea from "./areas/feedback.ts";
 import * as fieldsArea from "./areas/fields.ts";
 import * as heraldryArea from "./areas/heraldry.ts";
+import * as historyArea from "./areas/history.ts";
 import * as housesArea from "./areas/houses.ts";
 import * as joinArea from "./areas/join.ts";
 import * as neededArea from "./areas/needed.ts";
@@ -78,6 +79,7 @@ export const AREAS = [
   sourcesArea,
   campaignArea,
   familiesArea,
+  historyArea,
 ] as const;
 
 /** Tables that exist before any area is merged. The server has every language in AREAS, so none. */

@@ -1,7 +1,7 @@
 // Houses: their stored settings (succession law, optional head and heir, country), and the changes a steward makes to
 // the houses themselves: making one, making one per surname, and adding or removing members. Reads are for the house
 // pages and the tree's badges. Every write goes through `once` with guards for everything its check read.
-import { db, guard, newId, once, q, type Db, type OpKey, type Query } from './db.server.ts';
+import { added, change as changed, db, guard, newId, once, q, type Db, type HistoryEntry, type OpKey, type Query } from './db.server.ts';
 import type { HouseSettings } from './houses';
 
 export async function readHouseSettings(tree: string): Promise<Record<string, HouseSettings>> {
@@ -11,7 +11,9 @@ export async function readHouseSettings(tree: string): Promise<Record<string, Ho
 
 export async function saveHouseSettings(tree: string, id: string, settings: HouseSettings, op: OpKey | undefined) {
   return once(tree, op, 'saveHouseSettings', async (d) => {
-    if (!await d.get('SELECT id FROM house WHERE id = ?', id)) throw new Error('houses.err.not_found');
+    const h = await d.get<{ name: string }>('SELECT name FROM house WHERE id = ?', id);
+    if (!h) throw new Error('houses.err.not_found');
+    const had = await d.get<HouseSettings>('SELECT law, head, heir, country FROM house_succession WHERE house = ?', id);
     const guards = [guard('EXISTS (SELECT 1 FROM house WHERE id = ?)', id)];
     for (const person of [settings.head, settings.heir]) {
       if (!person) continue;
@@ -26,6 +28,7 @@ export async function saveHouseSettings(tree: string, id: string, settings: Hous
           ON CONFLICT(house) DO UPDATE SET law = excluded.law, head = excluded.head, heir = excluded.heir, country = excluded.country`,
           id, settings.law, settings.head, settings.heir, settings.country),
       ],
+      history: changed('house', id, { ...(had ?? { law: 'absolute-primogeniture', head: null, heir: null, country: null }) }, { ...settings }, { label: h.name }),
       result: settings,
     };
   });
@@ -56,7 +59,7 @@ export function createHouse(tree: string, input: { name: string; motto: string |
       q('INSERT INTO house (id, name, motto, arms) VALUES (?, ?, ?, ?)', id, input.name, input.motto, JSON.stringify(NEW_HOUSE_ARMS)),
     ];
     if (input.country) writes.push(q('INSERT INTO house_succession (house, law, head, heir, country) VALUES (?, ?, NULL, NULL, ?)', id, 'absolute-primogeniture', input.country));
-    return { writes, result: { id, name: input.name } };
+    return { writes, history: [added('house', id, { label: input.name })], result: { id, name: input.name } };
   });
 }
 
@@ -107,11 +110,14 @@ export function createHousesFromSurnames(tree: string, surnames: string[], op: O
       made.push({ id, name: surname, people: group.people });
     }
     if (!made.length) throw new Error('houses.err.nothing_to_make');
-    return { writes, result: made };
+    return { writes, history: made.map((m) => added('house', m.id, { label: m.name, count: 1 })), result: made };
   });
 }
 
 // ---------- members ----------
+
+/** Up to this many people moving house are one history row each; more are one row on the house. */
+const MEMBER_ROWS = 20;
 
 /**
  * Adds people to a house and takes people out of it. A person already in the house is left as it is, and so is
@@ -121,7 +127,8 @@ export function setHouseMembers(tree: string, house: string, change: { add: stri
   const add = [...new Set(change.add)];
   const remove = [...new Set(change.remove)];
   return once(tree, op, 'setHouseMembers', async (d) => {
-    if (!await d.get('SELECT id FROM house WHERE id = ?', house)) throw new Error('houses.err.not_found');
+    const h = await d.get<{ name: string }>('SELECT name FROM house WHERE id = ?', house);
+    if (!h) throw new Error('houses.err.not_found');
     const ids = [...new Set([...add, ...remove])];
     const rows = ids.length
       ? await d.all<{ id: string; house: string | null }>('SELECT id, house FROM person WHERE id IN (SELECT value FROM json_each(?))', JSON.stringify(ids))
@@ -145,6 +152,10 @@ export function setHouseMembers(tree: string, house: string, change: { add: stri
     for (const id of moved) {
       writes.push(q('UPDATE house_succession SET head = NULL WHERE head = ?', id), q('UPDATE house_succession SET heir = NULL WHERE heir = ?', id));
     }
-    return { writes, result: { added: add.filter((id) => moved.includes(id)).length, removed: remove.filter((id) => moved.includes(id)).length } };
+    // Each person's house is on their own history; a large move is one row on the house's.
+    const history: HistoryEntry[] = moved.length <= MEMBER_ROWS
+      ? moved.flatMap((id) => changed('person', id, { house: at.get(id) ?? null }, { house: add.includes(id) ? house : null }, { person: id }))
+      : changed('house', house, { members: 0 }, { members: moved.length }, { label: h.name });
+    return { writes, history, result: { added: add.filter((id) => moved.includes(id)).length, removed: remove.filter((id) => moved.includes(id)).length } };
   });
 }

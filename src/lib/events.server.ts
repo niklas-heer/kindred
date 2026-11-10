@@ -6,7 +6,7 @@
 // not on the Atlas, and no place that only such an event names.
 import { fail } from './auth/guard.server';
 import { forbidden } from './auth/errors';
-import { db, guard, once, personExists, q, type OpKey, type Query } from './db.server';
+import { added, change, db, guard, once, personExists, q, removed, type OpKey, type Query } from './db.server';
 import { AFTER_DEATH, byDate, MAX_EVENTS, type EventInput, type EventType, type LifeEvent } from './events.ts';
 import { LIVING_IDS } from './protect-living.ts';
 import { can, type Role } from './roles.ts';
@@ -73,14 +73,17 @@ export function saveEvent(tree: string, who: LifeReader, input: EventInput, op: 
     const values = [input.type, label, clean(input.date), clean(input.endDate), clean(input.place), input.note.trim()];
     const writes: Query[] = [personExists(input.person)];
     if (AFTER_DEATH.has(input.type)) writes.push(guard('EXISTS (SELECT 1 FROM person WHERE id = ? AND living = 0)', input.person));
+    const [type, , date, end_date, place, note] = values;
+    const next = { type, label, date, end_date, place, note };
     if (input.id) {
-      const had = await d.get<{ person: string }>('SELECT person FROM life_event WHERE id = ?', input.id);
+      const had = await d.get<{ person: string } & typeof next>('SELECT person, type, label, date, end_date, place, note FROM life_event WHERE id = ?', input.id);
       if (!had || had.person !== input.person) throw new Error('events.err.gone');
+      const { person: _, ...was } = had;
       writes.push(
         guard('EXISTS (SELECT 1 FROM life_event WHERE id = ? AND person = ?)', input.id, input.person),
         q('UPDATE life_event SET type = ?, label = ?, date = ?, end_date = ?, place = ?, note = ?, updated_by = ?, updated_at = ? WHERE id = ?', ...values, who.id, at, input.id),
       );
-      return { writes, result: { id: input.id } };
+      return { writes, history: change('event', input.id, was, next, { person: input.person, label: label ?? type }), result: { id: input.id } };
     }
     const count = await d.get<{ n: number; last: number }>('SELECT count(*) AS n, coalesce(max(ord), -1) AS last FROM life_event WHERE person = ?', input.person);
     const n = count?.n ?? 0;
@@ -91,7 +94,7 @@ export function saveEvent(tree: string, who: LifeReader, input: EventInput, op: 
       q(`INSERT INTO life_event (id, person, type, label, date, end_date, place, note, ord, created_by, created_by_name, created_at, updated_by, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, input.person, ...values, (count?.last ?? -1) + 1, who.id, who.name, at, who.id, at),
     );
-    return { writes, result: { id } };
+    return { writes, history: [added('event', id, { person: input.person, label: label ?? input.type })], result: { id } };
   });
 }
 
@@ -99,9 +102,13 @@ export function saveEvent(tree: string, who: LifeReader, input: EventInput, op: 
 export function removeEvent(tree: string, who: LifeReader, id: string, op: OpKey | undefined) {
   return once(tree, op, 'removeLifeEvent', async (d) => {
     needsEditor(who);
-    const had = await d.get<{ person: string }>('SELECT person FROM life_event WHERE id = ?', id);
-    if (!had) return { writes: [], result: undefined };
-    return { writes: [guard('EXISTS (SELECT 1 FROM life_event WHERE id = ?)', id), q('DELETE FROM life_event WHERE id = ?', id)], result: undefined };
+    const had = await d.get<{ person: string; type: string; label: string | null }>('SELECT person, type, label FROM life_event WHERE id = ?', id);
+    if (!had) return { writes: [], history: [], result: undefined };
+    return {
+      writes: [guard('EXISTS (SELECT 1 FROM life_event WHERE id = ?)', id), q('DELETE FROM life_event WHERE id = ?', id)],
+      history: [removed('event', id, { person: had.person, label: had.label ?? had.type })],
+      result: undefined,
+    };
   });
 }
 
@@ -121,6 +128,8 @@ export function reorderEvents(tree: string, who: LifeReader, person: string, ids
         ...(ids.length ? [guard(`(SELECT count(*) FROM life_event WHERE person = ? AND id IN (${ids.map(() => '?').join(', ')})) = ?`, person, ...ids, ids.length)] : []),
         ...ids.map((id, i) => q('UPDATE life_event SET ord = ? WHERE id = ? AND person = ?', i, id, person)),
       ],
+      // A new order among events of the same date changes no fact.
+      history: [],
       result: undefined,
     };
   });

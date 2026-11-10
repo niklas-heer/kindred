@@ -6,7 +6,7 @@
 // private field: only editors and stewards ever receive them, and to everyone else they do not exist (not found, not refused).
 import { fail } from './auth/guard.server';
 import { forbidden } from './auth/errors';
-import { db, guard, media, once, personExists, q, type Db, type OpKey } from './db.server';
+import { added, change, db, guard, media, once, personExists, q, removed, type Db, type OpKey } from './db.server';
 import { DOCUMENT_EXT, mayChangeResearch, seesPrivateResearch, type DocumentMime, type PersonResearchLink, type ProjectSummary, type ProjectView, type ResearchDocument, type ResearchNote } from './research.ts';
 import { can, type Role } from './roles.ts';
 import { LIVING_IDS, pictureColumn } from './protect-living.ts';
@@ -44,6 +44,9 @@ async function projectFor(d: Db, id: string, who: Who): Promise<ProjectRow> {
   if (!row) throw new Error('research.err.project_gone');
   return row;
 }
+
+/** The history's level for research: private research is for editors and stewards only, as everywhere else. */
+const levelOf = (...privates: (number | boolean | undefined)[]) => (privates.some((x) => x === 1 || x === true) ? 'editors' as const : 'family' as const);
 
 const projectStillThere = (id: string) => guard('EXISTS (SELECT 1 FROM research_project WHERE id = ?)', id);
 const touch = (id: string) => q('UPDATE research_project SET updated_at = ? WHERE id = ?', now(), id);
@@ -137,6 +140,8 @@ export function saveProject(tree: string, who: Who, p: ProjectInput, op: OpKey |
       needsChange(who, had.created_by);
       return {
         writes: [projectStillThere(p.id), q('UPDATE research_project SET title = ?, summary = ?, private = ?, updated_at = ? WHERE id = ?', p.title, p.summary, p.private ? 1 : 0, now(), p.id)],
+        history: change('research', p.id, { title: had.title, summary: had.summary, private: had.private }, { title: p.title, summary: p.summary, private: p.private ? 1 : 0 },
+          { label: p.title, level: levelOf(had.private, p.private) }),
         result: { id: p.id },
       };
     }
@@ -144,6 +149,7 @@ export function saveProject(tree: string, who: Who, p: ProjectInput, op: OpKey |
     const at = now();
     return {
       writes: [q('INSERT INTO research_project (id, title, summary, private, created_by, created_by_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', id, p.title, p.summary, p.private ? 1 : 0, who.id, who.name, at, at)],
+      history: [added('research', id, { label: p.title, level: levelOf(p.private) })],
       result: { id },
     };
   });
@@ -173,6 +179,7 @@ export function removeProject(tree: string, who: Who, id: string, op: OpKey | un
         q('SELECT key FROM research_document WHERE project = ?', id), // the files to delete, read inside the batch
         q('DELETE FROM research_project WHERE id = ?', id),
       ],
+      history: [removed('research', id, { label: had.title, level: levelOf(had.private) })],
       result: undefined,
       after: async (r) => {
         const rows = r[isEditor ? 0 : 1].rows as { key: string }[];
@@ -203,7 +210,7 @@ export function addDocument(
   return once(tree, op, 'researchAddDocument', async (d) => {
     needs(who, 'add-research');
     needsPrivateRight(who, details.private);
-    await projectFor(d, project, who);
+    const proj = await projectFor(d, project, who);
     const id = crypto.randomUUID();
     const key = `research/${crypto.randomUUID()}.${DOCUMENT_EXT[mime]}`;
     await media.put(tree, key, bytes, mime);
@@ -216,6 +223,8 @@ export function addDocument(
           id, project, key, mime, row.size, size.width, size.height, details.title, details.date, details.source, details.notes, row.private, who.id, who.name, at, at),
         touch(project),
       ],
+      // The file itself never goes into the history.
+      history: [added('research', id, { label: details.title, level: levelOf(proj.private, details.private) })],
       result: documentOf(row, who),
       abandon: () => media.delete(tree, key).catch(() => {}),
     };
@@ -223,10 +232,10 @@ export function addDocument(
 }
 
 /** The document, if the reader may see it. */
-async function documentFor(d: Db, id: string, who: Who): Promise<DocumentRow & { project: string }> {
+async function documentFor(d: Db, id: string, who: Who): Promise<DocumentRow & { project: string; project_private: number }> {
   const see = seesPrivateResearch(who.role);
-  const r = await d.get<DocumentRow & { project: string }>(
-    `SELECT d.* FROM research_document d JOIN research_project p ON p.id = d.project WHERE d.id = ? ${privateFilter(see, 'd.')} ${privateFilter(see, 'p.')}`, id);
+  const r = await d.get<DocumentRow & { project: string; project_private: number }>(
+    `SELECT d.*, p.private AS project_private FROM research_document d JOIN research_project p ON p.id = d.project WHERE d.id = ? ${privateFilter(see, 'd.')} ${privateFilter(see, 'p.')}`, id);
   if (!r) throw new Error('research.err.document_gone');
   return r;
 }
@@ -242,6 +251,9 @@ export function editDocument(tree: string, who: Who, id: string, details: Docume
         q('UPDATE research_document SET title = ?, date = ?, source = ?, notes = ?, private = ?, updated_at = ? WHERE id = ?', details.title, details.date, details.source, details.notes, details.private ? 1 : 0, now(), id),
         touch(had.project),
       ],
+      history: change('research', id, { title: had.title, date: had.date, source: had.source, notes: had.notes, private: had.private },
+        { title: details.title, date: details.date, source: details.source, notes: details.notes, private: details.private ? 1 : 0 },
+        { label: details.title, level: levelOf(had.project_private, had.private, details.private) }),
       result: undefined,
     };
   });
@@ -253,6 +265,7 @@ export function removeDocument(tree: string, who: Who, id: string, op: OpKey | u
     needsChange(who, had.created_by);
     return {
       writes: [guard('EXISTS (SELECT 1 FROM research_document WHERE id = ?)', id), q('DELETE FROM research_document WHERE id = ?', id), touch(had.project)],
+      history: [removed('research', id, { label: had.title, level: levelOf(had.project_private, had.private) })],
       result: undefined,
       after: () => media.delete(tree, had.key).catch((e) => console.error('research.err.delete_failed', had.key, e)),
     };
@@ -272,21 +285,25 @@ export function saveNote(tree: string, who: Who, n: NoteInput, op: OpKey | undef
   return once(tree, op, 'researchSaveNote', async (d) => {
     needs(who, 'add-research');
     needsPrivateRight(who, n.private);
-    await projectFor(d, n.project, who);
+    const proj = await projectFor(d, n.project, who);
     const at = now();
     if (n.id) {
       const see = seesPrivateResearch(who.role);
-      const had = await d.get<{ created_by: string }>(`SELECT created_by FROM research_note WHERE id = ? AND project = ? ${privateFilter(see)}`, n.id, n.project);
+      const had = await d.get<{ created_by: string; title: string; body: string; date: string | null; private: number }>(
+        `SELECT created_by, title, body, date, private FROM research_note WHERE id = ? AND project = ? ${privateFilter(see)}`, n.id, n.project);
       if (!had) throw new Error('research.err.note_gone');
       needsChange(who, had.created_by);
       return {
         writes: [guard('EXISTS (SELECT 1 FROM research_note WHERE id = ?)', n.id), q('UPDATE research_note SET title = ?, body = ?, date = ?, private = ?, updated_at = ? WHERE id = ?', n.title, n.body, n.date, n.private ? 1 : 0, at, n.id), touch(n.project)],
+        history: change('research', n.id, { title: had.title, body: had.body, date: had.date, private: had.private }, { title: n.title, body: n.body, date: n.date, private: n.private ? 1 : 0 },
+          { label: n.title, level: levelOf(proj.private, had.private, n.private) }),
         result: { id: n.id },
       };
     }
     const id = crypto.randomUUID();
     return {
       writes: [projectStillThere(n.project), q('INSERT INTO research_note (id, project, title, body, date, private, created_by, created_by_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', id, n.project, n.title, n.body, n.date, n.private ? 1 : 0, who.id, who.name, at, at), touch(n.project)],
+      history: [added('research', id, { label: n.title, level: levelOf(proj.private, n.private) })],
       result: { id },
     };
   });
@@ -294,12 +311,13 @@ export function saveNote(tree: string, who: Who, n: NoteInput, op: OpKey | undef
 
 export function removeNote(tree: string, who: Who, project: string, id: string, op: OpKey | undefined) {
   return once(tree, op, 'researchRemoveNote', async (d) => {
-    await projectFor(d, project, who);
-    const had = await d.get<{ created_by: string }>(`SELECT created_by FROM research_note WHERE id = ? AND project = ? ${privateFilter(seesPrivateResearch(who.role))}`, id, project);
+    const proj = await projectFor(d, project, who);
+    const had = await d.get<{ created_by: string; title: string; private: number }>(`SELECT created_by, title, private FROM research_note WHERE id = ? AND project = ? ${privateFilter(seesPrivateResearch(who.role))}`, id, project);
     if (!had) throw new Error('research.err.note_gone');
     needsChange(who, had.created_by);
     return {
       writes: [guard('EXISTS (SELECT 1 FROM research_note WHERE id = ?)', id), q('DELETE FROM research_note WHERE id = ?', id), touch(project)],
+      history: [removed('research', id, { label: had.title, level: levelOf(proj.private, had.private) })],
       result: undefined,
     };
   });
@@ -320,8 +338,9 @@ export function addLink(tree: string, who: Who, project: string, kind: LinkKind,
   return once(tree, op, 'researchAddLink', async (d) => {
     needs(who, 'add-research');
     needsPrivateRight(who, makePrivate);
-    await projectFor(d, project, who);
+    const proj = await projectFor(d, project, who);
     const l = LINK[kind];
+    const linked = await d.get(`SELECT 1 AS x FROM ${l.table} WHERE project = ? AND ${l.column} = ?`, project, target);
     if (!(await d.get(`SELECT 1 AS x FROM ${l.parent} WHERE ${l.parentKey} = ?`, target))) throw new Error(l.gone);
     const flag = kind === 'person' ? ', private' : '';
     const flagValue = kind === 'person' ? `, ${makePrivate ? 1 : 0}` : '';
@@ -333,6 +352,8 @@ export function addLink(tree: string, who: Who, project: string, kind: LinkKind,
           project, target, who.id, who.name, now()),
         touch(project),
       ],
+      // A link that is already there is left as it is, and is no news. A person link is on that person's history too.
+      history: linked ? [] : [added('research', `${project}>${target}`, { label: proj.title, person: kind === 'person' ? target : null, level: levelOf(proj.private, kind === 'person' && makePrivate) })],
       result: undefined,
     };
   });
@@ -341,14 +362,15 @@ export function addLink(tree: string, who: Who, project: string, kind: LinkKind,
 /** Removes a link; the picture, the person or the place itself stays. */
 export function removeLink(tree: string, who: Who, project: string, kind: LinkKind, target: string, op: OpKey | undefined) {
   return once(tree, op, 'researchRemoveLink', async (d) => {
-    await projectFor(d, project, who);
+    const proj = await projectFor(d, project, who);
     const l = LINK[kind];
     const hidden = kind === 'person' && !seesPrivateResearch(who.role) ? 'AND private = 0' : '';
-    const had = await d.get<{ created_by: string }>(`SELECT created_by FROM ${l.table} WHERE project = ? AND ${l.column} = ? ${hidden}`, project, target);
+    const had = await d.get<{ created_by: string; private?: number }>(`SELECT * FROM ${l.table} WHERE project = ? AND ${l.column} = ? ${hidden}`, project, target);
     if (!had) throw new Error('research.err.link_gone');
     needsChange(who, had.created_by);
     return {
       writes: [guard(`EXISTS (SELECT 1 FROM ${l.table} WHERE project = ? AND ${l.column} = ?)`, project, target), q(`DELETE FROM ${l.table} WHERE project = ? AND ${l.column} = ?`, project, target), touch(project)],
+      history: [removed('research', `${project}>${target}`, { label: proj.title, person: kind === 'person' ? target : null, level: levelOf(proj.private, had.private) })],
       result: undefined,
     };
   });

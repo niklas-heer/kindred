@@ -44,7 +44,7 @@ store.tree = (id: string): Db => {
 
 const addPerson = (id: string) => q('INSERT INTO person (id, given) VALUES (?, ?)', id, 'Ida');
 const hasPerson = async (id: string) => !!(await realTree(TREE).get('SELECT id FROM person WHERE id = ?', id));
-const plan = (id: string, log: string[]) => () => ({ writes: [addPerson(id)], result: id, abandon: () => { log.push('abandoned'); } });
+const plan = (id: string, log: string[]) => () => ({ history: [], writes: [addPerson(id)], result: id, abandon: () => { log.push('abandoned'); } });
 
 test('with a retry key, a batch that committed and then failed replays its result and keeps the upload', async () => {
   const log: string[] = [];
@@ -77,7 +77,7 @@ test('a batch the database refused gives its upload back, with or without a retr
   let attempts = 0;
   await assert.rejects(once(TREE, undefined, 'guarded', () => {
     attempts++;
-    return { writes: [guard('1 = 0'), addPerson('ida4')], result: 1, abandon: () => { log.push('guard'); } };
+    return { history: [], writes: [guard('1 = 0'), addPerson('ida4')], result: 1, abandon: () => { log.push('guard'); } };
   }), /changed while this was being saved/);
   assert.deepEqual(log, ['abandoned', 'guard', 'guard', 'guard', 'guard'].slice(0, 1 + attempts));
 });

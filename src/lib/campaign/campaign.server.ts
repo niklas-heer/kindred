@@ -11,7 +11,7 @@
 // - Time moves by UTC days. Nothing runs on a timer of its own: whoever opens the game, or the daily job, plays the
 //   missed nights in order, and the same nights always come out the same (the regents draw from the season's seed).
 import { accounts } from '../auth/store.server.ts';
-import { db, guard, once, q, type Db, type Query } from '../db.server.ts';
+import { db, guard, NOT_A_RECORD, once, q, type Db, type Query } from '../db.server.ts';
 import type { House } from '../types.ts';
 import {
   RULES, addLevy, applyOrder, buildMap, endDay, levyOf, ordersOn, provinceCount, provincesOf, standings, startState, troopsOf, validState,
@@ -264,13 +264,13 @@ interface Step { done: boolean; fallen: Fallen[] }
  */
 async function planStep(tree: string, d: Db, now: Date) {
   const c = await campaignRow(d);
-  if (!c?.enabled) return { writes: [] as Query[], result: { done: true, fallen: [] } as Step };
+  if (!c?.enabled) return { history: NOT_A_RECORD, writes: [] as Query[], result: { done: true, fallen: [] } as Step };
   const today = dayNumber(now);
   const at = now.toISOString();
   const s = c.season > 0 ? await loadSeason(d, c.season) : undefined;
   if (!s) {
     const number = c.season + 1;
-    return { writes: [sameCampaign(c), ...startWrites(number, today, await draftSeason(tree, number, today), at)], result: { done: false, fallen: [] } as Step };
+    return { history: NOT_A_RECORD, writes: [sameCampaign(c), ...startWrites(number, today, await draftSeason(tree, number, today), at)], result: { done: false, fallen: [] } as Step };
   }
   const next = async (state: State): Promise<Query[]> => {
     const number = s.row.season + 1;
@@ -279,10 +279,10 @@ async function planStep(tree: string, d: Db, now: Date) {
     const started = s.row.ended || today - after >= RULES.SEASON_DAYS || state.day < RULES.SEASON_DAYS ? today : after;
     return startWrites(number, started, await draftSeason(tree, number, started), at);
   };
-  if (s.row.ended) return { writes: [sameCampaign(c), ...(await next(s.state))], result: { done: false, fallen: [] } as Step };
+  if (s.row.ended) return { history: NOT_A_RECORD, writes: [sameCampaign(c), ...(await next(s.state))], result: { done: false, fallen: [] } as Step };
 
   const target = Math.max(0, Math.min(today - s.row.started, RULES.SEASON_DAYS));
-  if (s.state.day >= target && s.state.day < RULES.SEASON_DAYS) return { writes: [] as Query[], result: { done: true, fallen: [] } as Step };
+  if (s.state.day >= target && s.state.day < RULES.SEASON_DAYS) return { history: NOT_A_RECORD, writes: [] as Query[], result: { done: true, fallen: [] } as Step };
 
   // The nights between the day the position is on and today, in order, with the family's renown as it is now.
   const [renown, members] = await Promise.all([renownOfSides(tree, s.sides), sidesOfMembers(tree, s)]);
@@ -304,7 +304,7 @@ async function planStep(tree: string, d: Db, now: Date) {
   const writes: Query[] = [sameCampaign(c), sameSeason(s), ...logs];
   if (state.day >= RULES.SEASON_DAYS) writes.push(...finishWrites({ ...s, sides }, state, at), ...(await next(state)));
   else writes.push(q('UPDATE campaign_season SET state = ?, sides = ?, rev = rev + 1 WHERE season = ?', JSON.stringify(state), JSON.stringify(sides), s.row.season));
-  return { writes, result: { done: false, fallen } as Step };
+  return { history: NOT_A_RECORD, writes, result: { done: false, fallen } as Step };
 }
 
 /**
@@ -334,6 +334,8 @@ export async function setCampaignEnabled(tree: string, on: boolean, by: string, 
   await once(tree, undefined, 'campaignSwitch', async (d) => {
     const c = await campaignRow(d);
     return {
+      // The game is not the family's records.
+      history: NOT_A_RECORD,
       writes: [
         sameCampaign(c),
         q('INSERT INTO campaign (id, enabled, season, updated_at, updated_by) VALUES (1, ?, 0, ?, ?) ON CONFLICT (id) DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at, updated_by = excluded.updated_by', on ? 1 : 0, now.toISOString(), by),
@@ -355,7 +357,7 @@ export async function endSeasonNow(tree: string, now: Date = new Date()): Promis
     const number = s.row.season + 1;
     const today = dayNumber(now);
     const at = now.toISOString();
-    return { writes: [sameCampaign(c), sameSeason(s), ...finishWrites(s, s.state, at), ...startWrites(number, today, await draftSeason(tree, number, today), at)], result: undefined };
+    return { history: NOT_A_RECORD, writes: [sameCampaign(c), sameSeason(s), ...finishWrites(s, s.state, at), ...startWrites(number, today, await draftSeason(tree, number, today), at)], result: undefined };
   });
 }
 
@@ -407,6 +409,8 @@ export async function giveOrder(tree: string, who: Who, order: Order, cry: strin
     const e = played.event;
     fallen = e.t === 'attack' && e.took && e.defender ? [{ season: s.row.season, day: s.state.day, province: s.map.provinces[e.to].name, from: e.defender, to: side, by: who.account }] : [];
     return {
+      // The game is not the family's records.
+      history: NOT_A_RECORD,
       writes: [
         sameCampaign(c),
         sameSeason(s),
@@ -432,6 +436,8 @@ export async function pledge(tree: string, who: Who, side: string, now: Date = n
     if (mine.side) throw new Error('campaign.err.pledged');
     if (!s.sides.some((x) => x.id === side && !x.rival)) throw new Error('campaign.err.no_such_side');
     return {
+      // The game is not the family's records.
+      history: NOT_A_RECORD,
       writes: [
         sameCampaign(c),
         sameMember(s.row.season, who.account, row),
@@ -476,10 +482,12 @@ export async function grantOrder(tree: string, accountId: string, reason: string
   return once<{ granted: boolean; orders?: number }>(tree, undefined, 'campaignBonus', async (d) => {
     const { c, s } = await current(d, now);
     const row = await memberRow(d, s.row.season, accountId);
-    if (row?.bonus_day === today) return { writes: [], result: { granted: false, orders: ordersLeft(row, s.state.day) } };
+    if (row?.bonus_day === today) return { history: NOT_A_RECORD, writes: [], result: { granted: false, orders: ordersLeft(row, s.state.day) } };
     const orders = Math.min(RULES.ORDERS_MAX, ordersLeft(row, s.state.day) + 1);
     const who: Who = { account: accountId, name: user.name, person: null };
     return {
+      // The game is not the family's records.
+      history: NOT_A_RECORD,
       writes: [
         sameCampaign(c),
         sameMember(s.row.season, accountId, row),

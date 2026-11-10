@@ -1,7 +1,7 @@
 // A house's name meaning and its arms review, stored in the family's database (migration 0012). Reads are for the house
 // pages and the list; the two writes go through `once` (the retry key) with guards for everything they read, so a write
 // made on stale reads commits nothing. Callers check the role first (house-meaning.functions.ts, arms-fit.functions.ts).
-import { db, guard, once, q, type Db, type OpKey } from './db.server';
+import { change, db, guard, NOT_A_RECORD, once, q, type Db, type OpKey } from './db.server';
 import type { NameResearch } from './ai/types.ts';
 import { chosenMeanings, fingerprintInput, keepCollected, type ArmsDecision, type ArmsReview, type FitVerdict, type SavedMeaning, type SavedMeaningRow } from './house-meaning.ts';
 import { blazonV2 } from '../components/heraldry/blazon';
@@ -192,6 +192,8 @@ export function saveMeanings(tree: string, house: string, input: SaveMeaningInpu
           house, input.name, input.familyWords, JSON.stringify(meanings), input.webSearched ? 1 : 0, input.note, now, op.user,
         ),
       ],
+      // What the name means is the steward's research: the history says it changed, not what it says.
+      history: change('house', house, { meaning: 0 }, { meaning: 1 }, { label: input.name, opaque: ['meaning'] }),
       result: saved,
     };
   });
@@ -249,6 +251,7 @@ export function chooseCollected(tree: string, house: string, picked: string | st
         guard('(SELECT saved_at FROM house_meaning WHERE house = ?) = ?', house, row.saved_at),
         q('UPDATE house_meaning SET meanings = ?, saved_at = ?, saved_by = ? WHERE house = ?', JSON.stringify(meanings), now, op.user, house),
       ],
+      history: change('house', house, { meaning: 0 }, { meaning: 1 }, { label: row.name, opaque: ['meaning'] }),
       result: { ...saved, savedAt: now, meanings },
     };
   });
@@ -263,6 +266,8 @@ export function dismissCollected(tree: string, house: string, op: OpKey, now = D
         guard('(SELECT saved_at FROM house_meaning WHERE house = ?) = ?', house, row.saved_at),
         q("UPDATE house_meaning SET meanings = '[]', note = '', web_searched = 0, collect_failures = 0, saved_at = ?, saved_by = ? WHERE house = ?", now, op.user, house),
       ],
+      // Background suggestions nobody chose were never the family's record.
+      history: [],
       result: undefined,
     };
   });
@@ -284,6 +289,8 @@ export function dismissReview(tree: string, house: string, op: OpKey): Promise<A
         guard('(SELECT fingerprint FROM house_arms_review WHERE house = ?) = ?', house, s.review.fingerprint),
         q('UPDATE house_arms_review SET dismissed_fingerprint = ?, history = ? WHERE house = ?', s.fingerprint, history, house),
       ],
+      // The steward's check of the arms is advice, not the family's record (the arms themselves are, in updateHouse).
+      history: NOT_A_RECORD,
       result: toReview({ ...s.review, dismissed_fingerprint: s.fingerprint, history }, s.fingerprint),
     };
   });
@@ -319,6 +326,7 @@ export function settleReview(tree: string, house: string, op: OpKey, now = Date.
           house, row.fingerprint, row.verdict, row.reason, row.advice, row.locale, row.checked_at, row.checked_by, row.dismissed_fingerprint, row.history,
         ),
       ],
+      history: NOT_A_RECORD,
       result: toReview(row, s.fingerprint),
     };
   });

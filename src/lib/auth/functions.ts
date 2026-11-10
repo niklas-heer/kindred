@@ -372,6 +372,7 @@ export const removeMember = createServerFn({ method: 'POST' })
         // assistant chats and the pictures kept in them: inviting them back must not bring back what they could read then.
         writes: [
           s.q('DELETE FROM membership WHERE user = ? AND tree = ?', data.user, data.tree), s.keepsASteward(data.tree), s.q('DELETE FROM push_subscription WHERE user = ? AND tree = ?', data.user, data.tree),
+          s.q('DELETE FROM family_visit WHERE user = ? AND tree = ?', data.user, data.tree),
           ...['ai_chat_image', 'ai_chat', 'ai_thread', 'ai_conversation'].map((table) => s.q(`DELETE FROM ${table} WHERE user = ? AND tree = ?`, data.user, data.tree)),
         ],
         result: undefined,
@@ -381,4 +382,6 @@ export const removeMember = createServerFn({ method: 'POST' })
     // What they kept for themselves goes with them: nobody else could ever read or remove it. After the commit, and on every
     // call, so a failure here can be finished by removing them again.
     await (await import('../db.server')).db(data.tree).run("DELETE FROM person_field WHERE visibility = 'personal' AND owner = ? AND (created_by = ? OR created_by IS NULL)", data.user, data.user);
+    // So does the history of those items, which only they could read.
+    await (await import('../db.server')).db(data.tree).run("DELETE FROM history WHERE level = 'personal' AND owner = ?", data.user);
   });

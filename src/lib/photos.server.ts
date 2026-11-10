@@ -2,7 +2,7 @@
 // do what first; these trust their callers and keep the data true: every change is a `once` plan whose
 // guards hold what it read (db.server.ts), and pictures are written before the rows that point at them.
 import type { Album, Box, Face, Gallery, MediaItem, Tag } from '~/components/photos/types';
-import { db, guard, media, newMediaKey, once, personExists, q, type Db, type OpKey } from './db.server';
+import { added, change, db, guard, media, newMediaKey, once, personExists, q, removed, type Db, type OpKey } from './db.server';
 import type { Param } from './store/index.ts';
 import { LIVING_IDS, pictureColumn } from './protect-living.ts';
 
@@ -121,6 +121,7 @@ export function addPhoto(tree: string, by: string, bytes: Uint8Array, p: NewPhot
         q('INSERT INTO media (key, mime, width, height, taken, place, caption, album, uploaded_by, uploaded_at, thumb) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           key, p.mime, p.width, p.height, p.taken, p.place, p.caption, p.album, by, at, thumbKey),
       ],
+      history: [added('photo', key, { label: p.caption })],
       result: item,
       abandon: () => Promise.all([key, thumbKey].filter((k): k is string => !!k).map((k) => media.delete(tree, k).catch(() => {}))).then(() => {}),
     };
@@ -130,13 +131,15 @@ export function addPhoto(tree: string, by: string, bytes: Uint8Array, p: NewPhot
 /** Changes a photo's date, place, caption or album. */
 export function editPhoto(tree: string, key: string, patch: Pick<NewPhoto, 'taken' | 'place' | 'caption' | 'album'>, op: OpKey | undefined) {
   return once(tree, op, 'editPhoto', async (d) => {
-    if (!(await d.get('SELECT key FROM media WHERE key = ?', key))) throw new Error('photos.err.photo_gone');
+    const had = await d.get<{ taken: string | null; place: string | null; caption: string | null; album: string | null }>('SELECT taken, place, caption, album FROM media WHERE key = ?', key);
+    if (!had) throw new Error('photos.err.photo_gone');
     if (patch.album && !(await d.get('SELECT id FROM album WHERE id = ?', patch.album))) throw new Error('photos.err.album_gone');
     return {
       writes: [
         guard('EXISTS (SELECT 1 FROM media WHERE key = ?)', key),
         q('UPDATE media SET taken = ?, place = ?, caption = ?, album = ? WHERE key = ?', patch.taken, patch.place, patch.caption, patch.album, key),
       ],
+      history: change('photo', key, had, patch, { label: patch.caption ?? had.caption }),
       result: undefined,
     };
   });
@@ -145,10 +148,11 @@ export function editPhoto(tree: string, key: string, patch: Pick<NewPhoto, 'take
 /** Deletes a photo with its tags, and its picture from storage once the delete has committed. */
 export function removePhoto(tree: string, key: string, op: OpKey | undefined) {
   return once(tree, op, 'removePhoto', async (d) => {
-    const row = await d.get<{ thumb: string | null }>('SELECT thumb FROM media WHERE key = ?', key);
+    const row = await d.get<{ thumb: string | null; caption: string | null }>('SELECT thumb, caption FROM media WHERE key = ?', key);
     if (!row) throw new Error('photos.err.photo_already_gone');
     return {
       writes: [guard('EXISTS (SELECT 1 FROM media WHERE key = ?)', key), q('DELETE FROM media WHERE key = ?', key)],
+      history: [removed('photo', key, { label: row.caption })],
       result: undefined,
       // The photo and its thumbnail both go.
       after: async () => {
@@ -164,15 +168,18 @@ export function removePhoto(tree: string, key: string, op: OpKey | undefined) {
 export function saveAlbum(tree: string, a: { id?: string; name: string }, op: OpKey | undefined): Promise<{ id: string }> {
   return once(tree, op, 'saveAlbum', async (d) => {
     if (a.id) {
-      if (!(await d.get('SELECT id FROM album WHERE id = ?', a.id))) throw new Error('photos.err.album_gone');
+      const had = await d.get<{ name: string }>('SELECT name FROM album WHERE id = ?', a.id);
+      if (!had) throw new Error('photos.err.album_gone');
       return {
         writes: [guard('EXISTS (SELECT 1 FROM album WHERE id = ?)', a.id), q('UPDATE album SET name = ? WHERE id = ?', a.name, a.id)],
+        history: change('album', a.id, had, { name: a.name }, { label: a.name }),
         result: { id: a.id },
       };
     }
     const id = crypto.randomUUID();
     return {
       writes: [q('INSERT INTO album (id, name, at) VALUES (?, ?, ?)', id, a.name, new Date().toISOString())],
+      history: [added('album', id, { label: a.name })],
       result: { id },
     };
   });
@@ -181,9 +188,11 @@ export function saveAlbum(tree: string, a: { id?: string; name: string }, op: Op
 /** Deletes an album. Its photos stay in the gallery, without an album (the row's album is cleared by the foreign key). */
 export function deleteAlbum(tree: string, id: string, op: OpKey | undefined) {
   return once(tree, op, 'deleteAlbum', async (d) => {
-    if (!(await d.get('SELECT id FROM album WHERE id = ?', id))) throw new Error('photos.err.album_already_gone');
+    const had = await d.get<{ name: string }>('SELECT name FROM album WHERE id = ?', id);
+    if (!had) throw new Error('photos.err.album_already_gone');
     return {
       writes: [guard('EXISTS (SELECT 1 FROM album WHERE id = ?)', id), q('DELETE FROM album WHERE id = ?', id)],
+      history: [removed('album', id, { label: had.name })],
       result: undefined,
     };
   });
@@ -195,8 +204,10 @@ export function deleteAlbum(tree: string, id: string, op: OpKey | undefined) {
 export function addTag(tree: string, by: string, key: string, person: string, box: Box, op: OpKey | undefined) {
   return once(tree, op, 'addTag', async (d) => {
     if (!(await d.get('SELECT id FROM person WHERE id = ?', person))) throw new Error('photos.err.person_not_found');
-    if (!(await d.get('SELECT key FROM media WHERE key = ?', key))) throw new Error('photos.err.photo_gone');
+    const photo = await d.get<{ caption: string | null }>('SELECT caption FROM media WHERE key = ?', key);
+    if (!photo) throw new Error('photos.err.photo_gone');
     return {
+      history: [added('tag', key, { person, label: photo.caption })],
       writes: [
         personExists(person),
         guard('EXISTS (SELECT 1 FROM media WHERE key = ?)', key),
@@ -225,6 +236,8 @@ export function suggestTags(tree: string, by: string, key: string, faces: Face[]
                AND NOT EXISTS (SELECT 1 FROM media_person WHERE media = ? AND person = ?)`,
             key, f.personId, f.box.x, f.box.y, f.box.w, f.box.h, by, at, f.personId, key, f.personId)),
       ],
+      // Suggestions are not tags: nobody sees them until someone confirms one, which is when the history hears of it.
+      history: [],
       result: undefined,
     };
   });
@@ -233,9 +246,11 @@ export function suggestTags(tree: string, by: string, key: string, faces: Face[]
 /** A suggestion a person has agreed to: it becomes a confirmed tag. */
 export function confirmTag(tree: string, by: string, id: number, op: OpKey | undefined) {
   return once(tree, op, 'confirmTag', async (d) => {
-    const t = await d.get<{ confirmed: number }>('SELECT confirmed FROM media_person WHERE id = ?', id);
+    const t = await d.get<{ confirmed: number; media: string; person: string; caption: string | null }>(
+      'SELECT t.confirmed, t.media, t.person, m.caption FROM media_person t JOIN media m ON m.key = t.media WHERE t.id = ?', id);
     if (!t) throw new Error('photos.err.tag_gone');
     return {
+      history: t.confirmed ? [] : [added('tag', t.media, { person: t.person, label: t.caption })],
       writes: [
         guard('EXISTS (SELECT 1 FROM media_person WHERE id = ? AND confirmed = ?)', id, t.confirmed),
         q('UPDATE media_person SET confirmed = 1, tagged_by = ? WHERE id = ?', by, id),
@@ -248,8 +263,12 @@ export function confirmTag(tree: string, by: string, id: number, op: OpKey | und
 /** Removes a tag, or dismisses a suggestion. */
 export function removeTag(tree: string, id: number, op: OpKey | undefined) {
   return once(tree, op, 'removeTag', async (d) => {
-    if (!(await d.get('SELECT id FROM media_person WHERE id = ?', id))) throw new Error('photos.err.tag_already_gone');
+    const t = await d.get<{ confirmed: number; media: string; person: string; caption: string | null }>(
+      'SELECT t.confirmed, t.media, t.person, m.caption FROM media_person t JOIN media m ON m.key = t.media WHERE t.id = ?', id);
+    if (!t) throw new Error('photos.err.tag_already_gone');
     return {
+      // Dismissing a suggestion removes nothing anyone saw.
+      history: t.confirmed ? [removed('tag', t.media, { person: t.person, label: t.caption })] : [],
       writes: [guard('EXISTS (SELECT 1 FROM media_person WHERE id = ?)', id), q('DELETE FROM media_person WHERE id = ?', id)],
       result: undefined,
     };
@@ -274,6 +293,7 @@ export function setPortrait(tree: string, person: string, bytes: Uint8Array, mim
         q('INSERT INTO photo (person, mime, key, data, at) VALUES (?, ?, ?, NULL, ?) ON CONFLICT(person) DO UPDATE SET mime = excluded.mime, key = excluded.key, data = NULL, at = excluded.at',
           person, mime, key, new Date().toISOString()),
       ],
+      history: change('portrait', person, { photo: 0 }, { photo: 1 }, { person, opaque: ['photo'] }),
       result: undefined,
       abandon: () => media.delete(tree, key).catch(() => {}),
       after: async (r) => {
@@ -290,9 +310,11 @@ export function setPortrait(tree: string, person: string, bytes: Uint8Array, mim
  */
 export function setPreferAvatar(tree: string, person: string, prefer: boolean, op: OpKey | undefined) {
   return once(tree, op, 'setPreferAvatar', async (d) => {
-    if (!(await d.get('SELECT id FROM person WHERE id = ?', person))) throw new Error('photos.err.person_not_found');
+    const had = await d.get<{ prefer_avatar: number }>('SELECT prefer_avatar FROM person WHERE id = ?', person);
+    if (!had) throw new Error('photos.err.person_not_found');
     return {
       writes: [personExists(person), q('UPDATE person SET prefer_avatar = ? WHERE id = ?', prefer ? 1 : 0, person)],
+      history: change('portrait', person, had, { prefer_avatar: prefer ? 1 : 0 }, { person }),
       result: undefined,
     };
   });

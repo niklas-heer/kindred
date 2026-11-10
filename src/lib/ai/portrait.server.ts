@@ -6,7 +6,7 @@
 // OpenRouter reports (settings.server.ts). The key is the painting provider's own, goes only to that provider, and never
 // reaches a message, a log or the browser.
 import { accounts } from '../auth/store.server';
-import { db, guard, media, newMediaKey, once, personExists, q } from '../db.server';
+import { change, db, guard, media, newMediaKey, once, personExists, q } from '../db.server';
 import { AiError } from './adapters';
 import { keyFor, resolveRoute } from './providers.server';
 import { readSettings, reserve, settle, SINGLE_CALL_SHARE, TINY_BUDGET_MICROS, failureMicros } from './settings.server';
@@ -265,6 +265,8 @@ export async function sweepDrafts(tree: string, personId: string, olderThanMs = 
   for (const { key } of old) {
     await once<void>(tree, undefined, 'sweepDraft', async () => ({
       writes: [q('DELETE FROM portrait WHERE key = ? AND person = ? AND accepted = 0 AND kept = 0', key, personId)],
+      // A draft nobody chose was never shown: no news.
+      history: [],
       result: undefined,
       after: async () => {
         // The picture goes only when the row is gone (a draft accepted in the meantime keeps both).
@@ -334,6 +336,8 @@ export async function createPortrait(tree: string, o: { by: string; personId: st
         q('INSERT INTO portrait (key, person, mime, source, source_year, model, created_by, created_at, accepted, kept, tweak) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)',
           key, o.personId, painted.mime, o.mediaKey, sourceYear, model, o.by, at, tweak ? JSON.stringify(tweak) : null),
       ],
+      // A candidate is shown to nobody until it is accepted, which is when the history hears of it.
+      history: [],
       result: { key, model, sourceYear, createdAt: at },
       abandon: () => media.delete(tree, key).catch(() => {}),
     };
@@ -366,7 +370,7 @@ export function acceptPortrait(tree: string, personId: string, key: string, op?:
   return once<void>(tree, op, 'acceptPortrait', async (d) => {
     const cand = await d.get<{ accepted: number; created_at: string }>('SELECT accepted, created_at FROM portrait WHERE key = ? AND person = ?', key, personId);
     if (!cand) throw new Error('paint.err_candidate_gone');
-    if (cand.accepted === 1) return { writes: [personExists(personId)], result: undefined };
+    if (cand.accepted === 1) return { writes: [personExists(personId)], history: [], result: undefined };
     const kept = await keptOf(d as unknown as Reader, personId);
     const before = kept.find((k) => k.shown)?.key;
     const after = [...kept.filter((k) => k.key !== key).map((k) => ({ ...k, shown: false })), { key, createdAt: cand.created_at, shown: true }];
@@ -380,6 +384,7 @@ export function acceptPortrait(tree: string, personId: string, key: string, op?:
         q('UPDATE person SET prefer_avatar = 0, prefer_portrait = 1 WHERE id = ?', personId),
         ...evictions(personId, evict),
       ],
+      history: change('portrait', personId, { painted: 0 }, { painted: 1 }, { person: personId, opaque: ['painted'] }),
       result: undefined,
       after: () => deletePictures(tree, evict),
     };
@@ -391,11 +396,13 @@ export function keepPortrait(tree: string, personId: string, key: string, op?: {
   return once<void>(tree, op, 'keepPortrait', async (d) => {
     const cand = await d.get<{ kept: number; created_at: string }>('SELECT kept, created_at FROM portrait WHERE key = ? AND person = ?', key, personId);
     if (!cand) throw new Error('paint.err_candidate_gone');
-    if (cand.kept === 1) return { writes: [personExists(personId)], result: undefined };
+    if (cand.kept === 1) return { writes: [personExists(personId)], history: [], result: undefined };
     const after = [...(await keptOf(d as unknown as Reader, personId)), { key, createdAt: cand.created_at, shown: false }];
     const evict = overCapKeys(after, [key]);
     return {
       writes: [guard('EXISTS (SELECT 1 FROM portrait WHERE key = ? AND person = ? AND kept = 0)', key, personId), q('UPDATE portrait SET kept = 1 WHERE key = ?', key), ...evictions(personId, evict)],
+      // Keeping a version changes nothing anyone sees of the person.
+      history: [],
       result: undefined,
       after: () => deletePictures(tree, evict),
     };
@@ -410,6 +417,7 @@ export function discardPortrait(tree: string, personId: string, key: string, op?
     if (cand.accepted === 1) throw new Error('paint.err_is_current');
     return {
       writes: [guard('EXISTS (SELECT 1 FROM portrait WHERE key = ? AND person = ? AND accepted = 0)', key, personId), q('DELETE FROM portrait WHERE key = ? AND accepted = 0', key)],
+      history: [],
       result: undefined,
       after: () => deletePictures(tree, [key]),
     };
@@ -455,6 +463,7 @@ export function removePortrait(tree: string, personId: string, op?: { key: strin
         q('DELETE FROM portrait WHERE key = ?', cur.key),
         q('UPDATE person SET prefer_portrait = 0 WHERE id = ?', personId),
       ],
+      history: change('portrait', personId, { painted: 1 }, { painted: 0 }, { person: personId, opaque: ['painted'] }),
       result: undefined,
       after: () => media.delete(tree, cur.key).catch((e) => console.error('paint.err_delete', cur.key, e)),
     };
@@ -470,11 +479,13 @@ export type Display = 'drawing' | 'photo' | 'portrait';
  */
 export function setPersonDisplay(tree: string, personId: string, display: Display, op?: { key: string; user: string; payload: unknown }) {
   return once<void>(tree, op, 'setPersonDisplay', async (d) => {
-    if (!(await d.get('SELECT id FROM person WHERE id = ?', personId))) throw new Error('photos.err.person_not_found');
+    const had = await d.get<{ prefer_avatar: number; prefer_portrait: number }>('SELECT prefer_avatar, prefer_portrait FROM person WHERE id = ?', personId);
+    if (!had) throw new Error('photos.err.person_not_found');
     const writes = [personExists(personId)];
     if (display === 'portrait') writes.push(guard('EXISTS (SELECT 1 FROM portrait WHERE person = ? AND accepted = 1)', personId));
     writes.push(q('UPDATE person SET prefer_avatar = ?, prefer_portrait = ? WHERE id = ?', display === 'drawing' ? 1 : 0, display === 'portrait' ? 1 : 0, personId));
-    return { writes, result: undefined };
+    const shown = (avatar: number, portrait: number): Display => (portrait ? 'portrait' : avatar ? 'drawing' : 'photo');
+    return { writes, history: change('portrait', personId, { display: shown(had.prefer_avatar, had.prefer_portrait) }, { display }, { person: personId }), result: undefined };
   });
 }
 

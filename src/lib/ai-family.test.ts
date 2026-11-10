@@ -449,7 +449,7 @@ test('one draft approved from two sessions, even in two languages, writes once',
   let wrote = 0;
   const approve = () => once(TREE, { key: approvalKeys(proposalId).for('add-story', args), user: 'u-twice', payload: args }, 'addStory', () => {
     wrote++;
-    return { writes: [], result: 'stored' };
+    return { history: [], writes: [], result: 'stored' };
   });
   assert.equal(await approve(), 'stored');
   assert.equal(await approve(), 'stored');

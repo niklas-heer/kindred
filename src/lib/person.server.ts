@@ -2,10 +2,12 @@
 // `editSnapshot` below. Every change is a plan run through `once`: it reads what it decides on, guards those facts in
 // the batch, and writes in one transaction, so a retried or racing request never writes twice or half-way (see
 // db.server.ts).
-import { db, editedPart, fieldOf, guard, newId, once, personExists, q, type OpKey, type Query } from './db.server.ts';
-import { CHANGED_SINCE_OPENED, isContactType, MAX_FIELDS, storedValue, type FieldInput, type FieldType, type FieldValue, type PersonField } from '../components/fields/model.ts';
+import { added, change, db, editedPart, fieldOf, guard, newId, once, personExists, q, removed, type HistoryEntry, type OpKey, type Query } from './db.server.ts';
+import { CHANGED_SINCE_OPENED, fieldText, isContactType, MAX_FIELDS, storedValue, type FieldInput, type FieldType, type FieldValue, type PersonField } from '../components/fields/model.ts';
 import { EDITED_KEYS, type GraphPatch, type Look } from './types.ts';
 import { parseFurther, storeFurther } from './further-given.ts';
+import { validDate } from './dates.ts';
+import type { HistoryValue, RestorableField } from './history.ts';
 import { occupationCodeFor } from './occupations.ts';
 import { translate } from './i18n/dictionary.ts';
 import { fieldsVisibleTo, mayBePersonal, maySee, type Audience, type Visibility } from './visibility.ts';
@@ -123,6 +125,41 @@ const parts = (v: Record<string, string>) =>
 /** Whether a stored value already says what the draft says, so an untouched field is not rewritten. */
 const sameContent = (stored: string, value: FieldValue) => parts(JSON.parse(stored)) === parts(value);
 
+/** A person's name as the history keeps it. */
+const nameOf = (r: { given: string | null; surname: string | null; current_given?: string | null; current_surname?: string | null }) =>
+  [r.current_given ?? r.given, r.current_surname ?? r.surname].filter(Boolean).join(' ');
+
+/** A field as the history compares it. */
+interface FieldState { id: string; type: string; label: string; value: string; visibility: Visibility; owner: string | null }
+
+/** The stricter of two levels that are not personal. */
+const stricter = (a: Visibility, b: Visibility): Visibility => (a === 'editors' || b === 'editors' ? 'editors' : 'family');
+
+/**
+ * What a change to one of a person's fields writes to the history. A personal field's row is personal, for its owner alone,
+ * and keeps no content. A field made personal is, for everyone else, removed (without its content, as its author withdrew
+ * it); a personal field shared is, for them, added. Between the other two levels, the row is at the stricter one.
+ */
+export function fieldHistory(person: string, before: FieldState | null, after: FieldState | null): HistoryEntry[] {
+  const f = (after ?? before)!;
+  const label = f.label || f.type;
+  const base = { person, label };
+  const text = (x: FieldState) => { try { return fieldText(x.type as FieldType, JSON.parse(x.value) as FieldValue); } catch { return ''; } };
+  if (!before && after) return [added('field', after.id, { ...base, level: after.visibility, owner: after.owner })];
+  if (before && !after) return [removed('field', before.id, { ...base, level: before.visibility, owner: before.owner })];
+  const b = before!, a = after!;
+  if (b.visibility === 'personal' && a.visibility === 'personal') {
+    return b.label === a.label && b.value === a.value ? [] : [{ kind: 'field', record: a.id, action: 'changed', ...base, level: 'personal', owner: a.owner }];
+  }
+  if (a.visibility === 'personal') return [removed('field', b.id, { ...base, level: b.visibility })];
+  if (b.visibility === 'personal') return [added('field', a.id, { ...base, level: a.visibility })];
+  return change('field', a.id, { label: b.label, value: text(b), visibility: b.visibility }, { label: a.label, value: text(a), visibility: a.visibility }, { ...base, level: stricter(b.visibility, a.visibility) });
+}
+
+/** The person's columns the history compares on a save: the Edit tab's, without the derived occupation code. */
+const LOGGED_COLUMNS = EDIT_COLUMNS.filter((c) => c !== 'occupation_code');
+const pick = (row: object, cols: readonly string[]) => Object.fromEntries(cols.map((c) => [c, (row as Record<string, unknown>)[c]]));
+
 /**
  * The Edit tab's read. Reads the person's row (scalars and revision) in one statement, then the fields, then the
  * revision again: if the person changed in between, the read starts again, so the snapshot is one moment, never a
@@ -209,6 +246,7 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
     const fieldIds: string[] = [];
     // The reader's fields as they will be stored after this batch, for the revision the save answers with.
     const after: Seen[] = [];
+    const history: HistoryEntry[] = [];
     // Whether every row written here was just written by this editor: then this is the same change going on (see `ONE_CHANGE_MS`).
     let continues = true;
     // What the plan read: the person at the stored revision (every change bumps it, see migration 0009), and the fields.
@@ -241,6 +279,7 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
         fieldIds.push(f.id);
         after.push({ id: f.id, type: f.type, label: f.label, value: stored, visibility: f.visibility });
         if (!same) {
+          history.push(...fieldHistory(id, before, { id: f.id, type: f.type, label: f.label, value: stored, visibility: f.visibility, owner }));
           continues &&= before.updated_by === by && justWritten(before.updated_at);
           writes.push(q(
             'UPDATE person_field SET label = ?, value = ?, visibility = ?, owner = ?, ord = ?, updated_by = ?, updated_at = ? WHERE id = ? AND person = ?',
@@ -253,6 +292,7 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
         const fresh = crypto.randomUUID();
         fieldIds.push(fresh);
         after.push({ id: fresh, type: f.type, label: f.label, value: JSON.stringify(value), visibility: f.visibility });
+        history.push(...fieldHistory(id, null, { id: fresh, type: f.type, label: f.label, value: JSON.stringify(value), visibility: f.visibility, owner }));
         continues = false;
         writes.push(q(
           'INSERT INTO person_field (id, person, type, label, value, ord, visibility, owner, created_by, created_by_name, created_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -262,6 +302,7 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
     }
     for (const r of had) {
       if (kept.has(r.id)) continue;
+      history.push(...fieldHistory(id, r, null));
       continues = false;
       writes.push(q('DELETE FROM person_field WHERE id = ? AND person = ?', r.id, id));
     }
@@ -275,6 +316,7 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
       occupation, occupation_code: occupation ? occupationCodeFor(occupation, s.occupationCode) : null, bio: empty(s.bio),
     };
     const changed = EDIT_COLUMNS.filter((c) => next[c] !== now[c]);
+    history.unshift(...change('person', id, pick(now, LOGGED_COLUMNS), pick(next, LOGGED_COLUMNS), { person: id, personName: nameOf(next as never), label: nameOf(next as never) }));
     if (changed.length) {
       // The person's row names no editor, so its time alone says whether this is the same bout of editing.
       continues &&= justWritten(now.updated_at);
@@ -283,7 +325,7 @@ export function savePersonEdit(tree: string, id: string, details: PersonDetails,
         ...changed.map((c) => next[c]), nowIso(), id,
       ));
     }
-    return { writes, continues, result: { revision: await viewRevision(next, after), fieldIds, person: graphPatchOf(next, after) } satisfies SavedEdit };
+    return { writes, continues, history, result: { revision: await viewRevision(next, after), fieldIds, person: graphPatchOf(next, after) } satisfies SavedEdit };
   });
 }
 
@@ -312,6 +354,7 @@ export function addPersonField(tree: string, person: string, f: FieldInput, op: 
         q('INSERT INTO person_field (id, person, type, label, value, ord, visibility, owner, created_by, created_by_name, created_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           fid, person, f.type, f.label, JSON.stringify(storedValue(f.type, f.value)), (at?.last ?? -1) + 1, f.visibility, owner, who.account, by, now, by, now),
       ],
+      history: fieldHistory(person, null, { id: fid, type: f.type, label: f.label, value: '{}', visibility: f.visibility, owner }),
       result: fid,
     };
   });
@@ -321,15 +364,16 @@ export function addPersonField(tree: string, person: string, f: FieldInput, op: 
  * Removes one field. Refuses a field that is not of the type the caller checked the role for. Someone else's personal
  * field is left alone, and it answers exactly as a field that does not exist does.
  */
-export function deletePersonField(tree: string, id: string, op: OpKey | undefined, who: Audience) {
+export function deletePersonField(tree: string, id: string, op: OpKey | undefined, who: Audience, types?: readonly string[]) {
   return once(tree, op, 'deletePersonField', async (d) => {
-    const row = await d.get<{ person: string; type: string; visibility: Visibility; owner: string | null }>('SELECT person, type, visibility, owner FROM person_field WHERE id = ?', id);
-    if (!row || !maySee(who, row)) return { writes: [], result: undefined };
+    const row = await d.get<{ person: string; type: string; label: string; value: string; visibility: Visibility; owner: string | null }>('SELECT person, type, label, value, visibility, owner FROM person_field WHERE id = ?', id);
+    if (!row || !maySee(who, row) || (types && !types.includes(row.type))) return { writes: [], history: [], result: undefined };
     return {
       writes: [
         guard('EXISTS (SELECT 1 FROM person_field WHERE id = ? AND person = ? AND type = ? AND visibility = ? AND owner IS ?)', id, row.person, row.type, row.visibility, row.owner),
         q('DELETE FROM person_field WHERE id = ?', id),
       ],
+      history: fieldHistory(row.person, { id, ...row }, null),
       result: undefined,
     };
   });
@@ -338,9 +382,11 @@ export function deletePersonField(tree: string, id: string, op: OpKey | undefine
 /** Saves the portrait's look (the Appearance dialog). The caller has cleaned it with `sanitizeLook`. */
 export function setPersonLook(tree: string, id: string, look: Look, op: OpKey | undefined) {
   return once(tree, op, 'setPersonLook', async (d) => {
-    if (!(await d.get('SELECT id FROM person WHERE id = ?', id))) throw new Error('Person not found.');
+    const row = await d.get<{ look: string | null }>('SELECT look FROM person WHERE id = ?', id);
+    if (!row) throw new Error('Person not found.');
     return {
       writes: [personExists(id), q('UPDATE person SET look = ?, updated_at = ? WHERE id = ?', JSON.stringify(look), nowIso(), id)],
+      history: change('portrait', id, { look: row.look }, { look: JSON.stringify(look) }, { person: id, opaque: ['look'] }),
       result: undefined,
     };
   });
@@ -368,6 +414,8 @@ export function fillGaps(tree: string, id: string, patch: Partial<Record<GapFiel
     const writes: Query[] = [];
     const assigns: string[] = [];
     const values: (string | null)[] = [];
+    const was: Record<string, unknown> = {};
+    const becomes: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(patch) as [GapField, string | undefined][]) {
       if (v === undefined || v === '') continue;
       const col = GAP_COLUMNS[k];
@@ -378,10 +426,12 @@ export function fillGaps(tree: string, id: string, patch: Partial<Record<GapFiel
       writes.push(guard(`EXISTS (SELECT 1 FROM person WHERE id = ? AND coalesce(${col}, '') = ?)`, id, stored ?? ''));
       assigns.push(`${col} = ?`);
       values.push(v);
+      was[col] = stored;
+      becomes[col] = v;
       if (k === 'occupation') { assigns.push('occupation_code = ?'); values.push(occupationCodeFor(v)); }
     }
     if (assigns.length) writes.push(q(`UPDATE person SET ${assigns.join(', ')}, updated_at = ? WHERE id = ?`, ...values, nowIso(), id));
-    return { writes, result: { kept } satisfies FilledGaps };
+    return { writes, history: change('person', id, was, becomes, { person: id }), result: { kept } satisfies FilledGaps };
   });
 }
 
@@ -395,6 +445,7 @@ export function setPersonDiedPlace(tree: string, id: string, place: string | nul
         guard('EXISTS (SELECT 1 FROM person WHERE id = ? AND died_place IS ?)', id, row.died_place),
         q('UPDATE person SET died_place = ?, updated_at = ? WHERE id = ?', empty(place), nowIso(), id),
       ],
+      history: change('person', id, { died_place: row.died_place }, { died_place: empty(place) }, { person: id }),
       result: undefined,
     };
   });
@@ -416,6 +467,38 @@ export function addFirstPerson(tree: string, name: { given: string; surname: str
       q('INSERT INTO person (id, given, surname, living, updated_at) VALUES (?, ?, ?, 1, ?)', id, given, empty(name.surname), nowIso()),
     ];
     if (focus && focus.value === '') writes.push(q("UPDATE meta SET value = ? WHERE key = 'focus'", id));
-    return { writes, result: id };
+    const full = [given, empty(name.surname)].filter(Boolean).join(' ');
+    return { writes, history: [added('person', id, { person: id, personName: full, label: full })], result: id };
+  });
+}
+
+/**
+ * Puts one of a person's own facts back to a value from the history (an editor's "Restore this value"). It is a save like
+ * any other: guarded on the person as read, and itself written to the history. The value is checked as the Edit tab checks
+ * it; one that no longer fits (an unreadable date) is refused.
+ */
+export function restorePersonValue(tree: string, id: string, column: RestorableField, value: HistoryValue, op: OpKey | undefined) {
+  return once(tree, op, 'restorePersonValue', async (d) => {
+    const now = await d.get<EditRow & { revision: number }>(`SELECT revision, ${EDIT_COLUMNS.join(', ')} FROM person WHERE id = ?`, id);
+    if (!now) throw new Error('Person not found.');
+    const text = value === null ? null : empty(String(value));
+    let cell: Cell = text;
+    if (column === 'given' && !text) throw new Error('A given name is needed.');
+    if (column === 'living') cell = value === 1 || value === '1' ? 1 : 0;
+    if (column === 'sex' && text !== null && !['m', 'f', 'x'].includes(text)) throw new Error('history.err.cannot_restore');
+    if ((column === 'born' || column === 'died') && text !== null && !validDate(text)) throw new Error('history.err.cannot_restore');
+    if (column === 'further_given') cell = storeFurther(parseFurther(text));
+    if (typeof cell === 'string' && cell.length > (column === 'bio' ? 20_000 : 200)) throw new Error('history.err.cannot_restore');
+    const next: Record<EditColumn, Cell> = { ...(now as unknown as Record<EditColumn, Cell>), [column]: cell };
+    if (column === 'occupation') next.occupation_code = text ? occupationCodeFor(text) : null;
+    const cols = column === 'occupation' ? (['occupation', 'occupation_code'] as const) : ([column] as const);
+    return {
+      writes: [
+        guard('EXISTS (SELECT 1 FROM person WHERE id = ? AND revision = ?)', id, now.revision),
+        q(`UPDATE person SET ${cols.map((c) => `${c} = ?`).join(', ')}, updated_at = ? WHERE id = ?`, ...cols.map((c) => next[c]), nowIso(), id),
+      ],
+      history: change('person', id, { [column]: now[column] }, { [column]: next[column] }, { person: id, personName: nameOf(next as never), label: nameOf(next as never), fold: false }),
+      result: undefined,
+    };
   });
 }

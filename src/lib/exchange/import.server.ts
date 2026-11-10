@@ -3,7 +3,7 @@
 // Server-only: it uses the family's database. The steward's permission is checked by the server function that
 // calls this (exchange.functions.ts), before anything here runs.
 import { storeFurther } from '../further-given.ts';
-import { db, newId, once, sameBorn, type Db, type OpKey } from '../db.server.ts';
+import { db, newId, once, sameBorn, type Db, type HistoryEntry, type OpKey } from '../db.server.ts';
 import { gazetteer, locatePlaces, type Located } from '../gazetteer.server.ts';
 import { guard, q, type Query } from '../store/index.ts';
 import { readGedcom } from './gedcom.ts';
@@ -236,8 +236,15 @@ export function applyImport(tree: string, text: string, op: OpKey | undefined, a
     for (const [name, at] of places.located) {
       writes.push(q('INSERT INTO place (name, lat, lng, country) VALUES (?, ?, ?, ?) ON CONFLICT(name) DO NOTHING', name, at.lat, at.lng, at.country));
     }
+    // One row for the whole import, however many people it brings: what it added, counted. Never a row per person.
+    const counts = { people: plan.add.length, parents: plan.parents.length, unions: plan.unions.length, events: plan.events.length, sources: plan.sources.length, citations: plan.citations.length };
+    const history: HistoryEntry[] = Object.values(counts).some((n) => n > 0)
+      ? [{ kind: 'import', record: at, action: 'added', label: 'GEDCOM', count: plan.add.length || 1,
+        diff: { f: Object.fromEntries(Object.entries(counts).filter(([, n]) => n > 0).map(([k, n]) => [k, [null, n]])) } }]
+      : [];
     return {
       writes,
+      history,
       result: {
         people: plan.add.length,
         parents: plan.parents.length,

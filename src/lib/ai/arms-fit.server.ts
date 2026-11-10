@@ -10,7 +10,7 @@ import { asV2 } from '../../components/heraldry/convert';
 import { chargeMeaning, ordinaryMeaning, tinctureMeaning } from '../../components/heraldry/meanings';
 import { translate, type Key, type Vars } from '../i18n/dictionary';
 import type { Translator } from '../i18n';
-import { db, once, q, type OpKey } from '../db.server';
+import { db, NOT_A_RECORD, once, q, type OpKey } from '../db.server';
 import { chargeGroups, chargesOverlap } from '../../components/heraldry/clear-layout';
 import { tinctureClashesV2 } from '../../components/heraldry/rules';
 import { FIT_VERDICTS, type ArmsDecision, type ArmsReview, type SavedMeaningRow } from '../house-meaning.ts';
@@ -183,6 +183,8 @@ export async function checkArms(o: FitInput): Promise<ArmsReview> {
           o.house, s.fingerprint, fit.verdict, fit.reason, advice, o.locale, now, o.by,
         ),
       ],
+      // Advice about the arms, not the family's record.
+      history: NOT_A_RECORD,
       result: toReview({
         house: o.house, fingerprint: s.fingerprint, verdict: fit.verdict, reason: fit.reason, advice, locale: o.locale,
         checked_at: now, checked_by: o.by, dismissed_fingerprint: '', history: s.review?.history ?? '[]',

@@ -10,8 +10,10 @@ import { fieldsVisibleTo, PLAIN_MEMBER, type Audience, type Visibility } from '.
 import { translate } from './i18n/dictionary.ts';
 import { LIVING_IDS, protectDetail, protectGraph } from './protect-living.ts';
 import { refuseInDemo } from './demo.ts';
+import { added, change, checkHistory, currentActor, historyWrites, NOT_A_RECORD, type HistoryEntry } from './history.server.ts';
 
 export { guard, q, store, type Db, type Query } from './store/index.ts';
+export { added, change, NOT_A_RECORD, removed, type HistoryEntry, type HistoryOf } from './history.server.ts';
 
 /** A family's database. Throws for an unknown tree. */
 export function db(tree: string): Db {
@@ -37,8 +39,14 @@ export interface OpKey { key: string; user: string; payload: unknown }
 
 /** What a change writes, decided on reads. */
 export interface Plan<T> {
-  /** Guards first, then the writes; run as one batch with the retry key's row. */
+  /** Guards first, then the writes; run as one batch with the retry key's row and the change's history rows. */
   writes: Query[];
+  /**
+   * What the change did to the family's records, for the history (history.server.ts): its rows, none when nothing a reader
+   * would call a change happened, or NOT_A_RECORD when it writes none of the family's records. Required, so that no change
+   * can forget its history; a write of the records that says NOT_A_RECORD is refused.
+   */
+  history: import('./history.server.ts').HistoryOf;
   /** What the caller gets back, and what a retry with the same key replays. */
   result: T | ((results: Result[]) => T);
   /** An SQL expression for a result only the batch knows (`last_insert_rowid()`), stored for replays. */
@@ -93,7 +101,17 @@ export async function once<T>(tree: string, op: OpKey | undefined, fn: string, w
     if (had) return replay(had);
     const plan = await work(d);
     const value = (results: Result[]) => (typeof plan.result === 'function' ? (plan.result as (r: Result[]) => T)(results) : plan.result);
-    const batch = [...plan.writes];
+    // The history rows go in the same batch, so a change is never stored without them (and a refused batch writes neither).
+    let logged: Query[];
+    try {
+      checkHistory(fn, plan.writes, plan.history);
+      const changes = plan.writes.some((w) => !isGuard(w));
+      logged = changes && plan.history !== NOT_A_RECORD ? await historyWrites(d, fn, currentActor(tree), plan.history) : [];
+    } catch (e) {
+      await plan.abandon?.();
+      throw e;
+    }
+    const batch = [...plan.writes, ...logged];
     if (op) {
       const at = new Date().toISOString();
       batch.push(
@@ -503,6 +521,12 @@ export function upsertPlaces(tree: string, places: { name: string; lat: number; 
       pinned.add(p.name);
     }
     const writes: Query[] = names.length ? [guard(`(SELECT count(*) FROM place WHERE name IN (${marks})) = ?`, ...names, existing.size)] : [];
+    // A new pin is added; an existing one the user moved is changed (its coordinates are not worth a reader's time).
+    const history: HistoryEntry[] = [];
+    for (const name of names) {
+      if (!existing.has(name)) history.push(added('place', name, { label: name }));
+      else if (places.some((p) => p.name === name && p.move)) history.push(...change('place', name, { pin: 0 }, { pin: 1 }, { label: name, opaque: ['pin'] }));
+    }
     for (const p of places) {
       writes.push(
         p.move
@@ -510,7 +534,7 @@ export function upsertPlaces(tree: string, places: { name: string; lat: number; 
           : q('INSERT INTO place (name, lat, lng, country) VALUES (?, ?, ?, ?) ON CONFLICT(name) DO NOTHING', p.name, p.lat, p.lng, p.country ?? null),
       );
     }
-    return { writes, result: kept };
+    return { writes, history, result: kept };
   });
 }
 
@@ -549,6 +573,7 @@ export function updateHouse(tree: string, id: string, patch: { name: string; mot
         guard('EXISTS (SELECT 1 FROM house WHERE id = ? AND name = ? AND motto IS ? AND arms = ?)', id, r.name, r.motto, r.arms),
         q('UPDATE house SET name = ?, motto = ?, arms = ? WHERE id = ?', patch.name, patch.motto, JSON.stringify(arms), id),
       ],
+      history: change('house', id, { name: r.name, motto: r.motto, arms: canonical(JSON.parse(r.arms)) }, { name: patch.name, motto: patch.motto, arms: canonical(arms) }, { label: patch.name, opaque: ['arms'] }),
       result: { id, name: patch.name, motto: patch.motto ?? undefined, arms, founder: opt(r.founder) },
     };
   });

@@ -5,7 +5,7 @@
 // runs on approval, under the approver's own role: each person is created in its own plan, then each link runs the
 // same rules as the form (relations.server.ts). Every step carries its own retry key, so a repeated approval replays
 // what already happened instead of writing twice. A step that cannot apply is reported and the rest carry on.
-import { db, once, newId, q } from '../db.server';
+import { added, db, once, newId, q } from '../db.server';
 import { buildFamily, fullName, parents } from '../graph';
 import type { Graph } from '../types';
 import { can, type Role } from '../roles';
@@ -254,6 +254,7 @@ export async function applyFamilyBatch(o: { tree: string; user: string; author: 
             'INSERT INTO person (id, given, further_given, surname, sex, born, born_place, died, died_place, living, occupation, occupation_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             newPersonId, f.given, storeFurther(f.furtherGiven), f.surname, f.sex, f.born, f.bornPlace, f.died, f.diedPlace, f.living ? 1 : 0, f.occupation, occupationCodeFor(f.occupation),
           )],
+          history: [added('person', newPersonId, { person: newPersonId, personName: [f.given, f.surname].filter(Boolean).join(' '), label: [f.given, f.surname].filter(Boolean).join(' ') })],
           result: newPersonId,
         };
       });
@@ -288,9 +289,11 @@ export async function applyFamilyBatch(o: { tree: string; user: string; author: 
         const author = teller ? [teller.given, teller.surname].filter(Boolean).join(' ') : o.author;
         const context = teller ? c('ai.famStoryContext', { name: o.author }) : null;
         // The fingerprint is what was approved, not the note worded in this reader's language: the same approval from a device in another language is a replay.
+        const storyId = crypto.randomUUID();
         await once(tree, { key: `${row.key}s`, user, payload: { person: id, story: row.story ?? null, unsure } }, 'aiFamilyStory', () => ({
           writes: [q('INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            crypto.randomUUID(), id, s.kind, s.title || null, s.body, author, new Date().toISOString(), context)],
+            storyId, id, s.kind, s.title || null, s.body, author, new Date().toISOString(), context)],
+          history: [added('story', storyId, { person: id, label: s.title || null })],
           result: undefined,
         }));
       }

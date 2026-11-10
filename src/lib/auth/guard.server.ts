@@ -13,6 +13,7 @@
 import { appendResponseHeader, getRequest, setResponseStatus } from '@tanstack/react-start/server';
 import { CHANGE_OF_ACTION } from '../stats/shared';
 import { onChangeCommitted } from '../db.server';
+import { onActor, type Actor } from '../history.server';
 import { can, needs, type Action, type Role } from '../roles';
 import { forbidden, notMember, signedOut, type AuthError } from './errors';
 import { getSession, type Session } from './session.server';
@@ -75,8 +76,19 @@ export async function requireMember(tree: string): Promise<Member> {
   const user = await requireUser();
   const m = await membership(user.id, tree);
   if (!m) throw fail(notMember());
+  actorsOf(getRequest()).set(tree, { account: user.id, name: user.name });
   return { user, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed };
 }
+
+// Who a request's changes are by, per family, as the membership check found them: the history names them (history.server.ts).
+// A request that never passed a member's check (a daily job, a script) changes the family as Kindred itself.
+const requestActors = new WeakMap<Request, Map<string, Actor>>();
+const actorsOf = (request: Request) => {
+  let m = requestActors.get(request);
+  if (!m) requestActors.set(request, (m = new Map()));
+  return m;
+};
+onActor((tree) => requestActors.get(getRequest())?.get(tree));
 
 /**
  * Someone reading a family: a member, or a guest with a viewer's role. A guest gets no person and no account.

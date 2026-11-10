@@ -4,6 +4,7 @@ import { aiTasksJob } from './ai-tasks.ts';
 import { archiveJob } from './archive.ts';
 import { joinJob } from './join.ts';
 import { campaignJob } from './campaign.ts';
+import { historyJob } from './history.ts';
 import { remindersJob } from './reminders.ts';
 import { statsJob } from './stats.ts';
 import type { DailyJob, JobContext } from './types.ts';
@@ -18,6 +19,7 @@ export const DAILY_JOBS: readonly DailyJob[] = [
   statsJob,
   joinJob,
   campaignJob,
+  historyJob,
 ];
 
 /**

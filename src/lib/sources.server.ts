@@ -10,7 +10,7 @@
 // that number, so a citation added meanwhile makes the editor confirm again rather than vanish unseen.
 import { fail } from './auth/guard.server';
 import { notMember } from './auth/errors';
-import { db, guard, once, q, type Db, type OpKey, type Query } from './db.server';
+import { added, change, db, guard, once, q, removed, type Db, type OpKey, type Query } from './db.server';
 import { needsEditor, type LifeReader } from './events.server';
 import type { Citation, CitationInput, EventType, Fact, Quality, Source, SourceInput } from './events.ts';
 import { seesPrivateResearch } from './research.ts';
@@ -132,20 +132,24 @@ export function saveSource(tree: string, who: LifeReader, input: SourceInput, op
     const at = now();
     const values = [title, clean(input.author), clean(input.publication), clean(input.reference), clean(input.date), input.note.trim(), input.document, input.media];
     const writes = await linkGuards(d, who, input);
+    const [, author, publication, reference, date, note, document, media] = values;
+    const next = { title, author, publication, reference, date, note, document, media };
     if (input.id) {
-      if (!(await d.get('SELECT id FROM source WHERE id = ?', input.id))) throw new Error('sources.err.gone');
+      const had = await d.get<typeof next>('SELECT title, author, publication, reference, date, note, document, media FROM source WHERE id = ?', input.id);
+      if (!had) throw new Error('sources.err.gone');
       writes.push(
         guard('EXISTS (SELECT 1 FROM source WHERE id = ?)', input.id),
         q('UPDATE source SET title = ?, author = ?, publication = ?, reference = ?, date = ?, note = ?, document = ?, media = ?, updated_at = ? WHERE id = ?', ...values, at, input.id),
       );
-      return { writes, result: { id: input.id } };
+      // The link to a research document may name a private one: only editors read it in the history.
+      return { writes, history: change('source', input.id, had, next, { label: title, editors: ['document'] }), result: { id: input.id } };
     }
     const id = crypto.randomUUID();
     writes.push(q(
       'INSERT INTO source (id, title, author, publication, reference, date, note, document, media, created_by, created_by_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       id, ...values, who.id, who.name, at, at,
     ));
-    return { writes, result: { id } };
+    return { writes, history: [added('source', id, { label: title })], result: { id } };
   });
 }
 
@@ -156,8 +160,8 @@ export function saveSource(tree: string, who: LifeReader, input: SourceInput, op
 export function removeSource(tree: string, who: LifeReader, id: string, citations: number, op: OpKey | undefined) {
   return once(tree, op, 'removeSource', async (d) => {
     needsEditor(who);
-    const had = await d.get<{ n: number }>('SELECT (SELECT count(*) FROM citation WHERE source = s.id) AS n FROM source s WHERE s.id = ?', id);
-    if (!had) return { writes: [], result: undefined };
+    const had = await d.get<{ n: number; title: string }>('SELECT (SELECT count(*) FROM citation WHERE source = s.id) AS n, s.title FROM source s WHERE s.id = ?', id);
+    if (!had) return { writes: [], history: [], result: undefined };
     if (had.n !== citations) throw new Error('sources.err.cited_changed');
     return {
       writes: [
@@ -165,6 +169,8 @@ export function removeSource(tree: string, who: LifeReader, id: string, citation
         q('DELETE FROM citation WHERE source = ?', id),
         q('DELETE FROM source WHERE id = ?', id),
       ],
+      // One row for the source; its citations go with it, as the editor confirmed.
+      history: [removed('source', id, { label: had.title })],
       result: undefined,
     };
   });
@@ -191,16 +197,29 @@ async function factColumns(d: Db, f: Fact): Promise<{ cols: { person: string | n
   }
 }
 
+/** The person a citation of an event or a partnership is about, for the history. */
+async function factPerson(d: Db, event: string | null, partnership: string | null): Promise<string | null> {
+  if (event) return (await d.get<{ person: string }>('SELECT person FROM life_event WHERE id = ?', event))?.person ?? null;
+  if (partnership) return (await d.get<{ a: string }>('SELECT a FROM partnership WHERE id = ?', partnership))?.a ?? null;
+  return null;
+}
+
 /** Cites a source for a fact (no id), or changes a citation's source, page, quality and transcription. Returns its id. */
 export function saveCitation(tree: string, who: LifeReader, input: CitationInput, op: OpKey | undefined): Promise<{ id: string }> {
   return once(tree, op, 'saveCitation', async (d) => {
     needsEditor(who);
-    if (!(await d.get('SELECT id FROM source WHERE id = ?', input.source))) throw new Error('sources.err.gone');
+    const source = await d.get<{ title: string }>('SELECT title FROM source WHERE id = ?', input.source);
+    if (!source) throw new Error('sources.err.gone');
     const at = now();
-    const detail = [clean(input.page), input.quality, input.transcription.trim()];
+    const detail = [clean(input.page), input.quality, input.transcription.trim()] as const;
+    const next = { source: input.source, page: detail[0], quality: detail[1], transcription: detail[2] };
     if (input.id) {
-      if (!(await d.get('SELECT id FROM citation WHERE id = ?', input.id))) throw new Error('sources.err.citation_gone');
+      const had = await d.get<typeof next & { person: string | null; event: string | null; partnership: string | null }>(
+        'SELECT source, page, quality, transcription, person, event, partnership FROM citation WHERE id = ?', input.id);
+      if (!had) throw new Error('sources.err.citation_gone');
+      const { person, event, partnership, ...was } = had;
       return {
+        history: change('citation', input.id, was, next, { label: source.title, person: person ?? await factPerson(d, event, partnership) }),
         writes: [
           guard('EXISTS (SELECT 1 FROM source WHERE id = ?)', input.source),
           guard('EXISTS (SELECT 1 FROM citation WHERE id = ?)', input.id),
@@ -219,6 +238,7 @@ export function saveCitation(tree: string, who: LifeReader, input: CitationInput
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           id, input.source, input.target.fact, cols.person, cols.parent, cols.event, cols.partnership, ...detail, who.id, who.name, at, at),
       ],
+      history: [added('citation', id, { label: source.title, person: cols.person ?? await factPerson(d, cols.event, cols.partnership) })],
       result: { id },
     };
   });
@@ -228,7 +248,13 @@ export function saveCitation(tree: string, who: LifeReader, input: CitationInput
 export function removeCitation(tree: string, who: LifeReader, id: string, op: OpKey | undefined) {
   return once(tree, op, 'removeCitation', async (d) => {
     needsEditor(who);
-    if (!(await d.get('SELECT id FROM citation WHERE id = ?', id))) return { writes: [], result: undefined };
-    return { writes: [guard('EXISTS (SELECT 1 FROM citation WHERE id = ?)', id), q('DELETE FROM citation WHERE id = ?', id)], result: undefined };
+    const had = await d.get<{ person: string | null; event: string | null; partnership: string | null; title: string }>(
+      'SELECT c.person, c.event, c.partnership, s.title FROM citation c JOIN source s ON s.id = c.source WHERE c.id = ?', id);
+    if (!had) return { writes: [], history: [], result: undefined };
+    return {
+      writes: [guard('EXISTS (SELECT 1 FROM citation WHERE id = ?)', id), q('DELETE FROM citation WHERE id = ?', id)],
+      history: [removed('citation', id, { label: had.title, person: had.person ?? await factPerson(d, had.event, had.partnership) })],
+      result: undefined,
+    };
   });
 }

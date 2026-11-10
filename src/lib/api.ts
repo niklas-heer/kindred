@@ -26,6 +26,8 @@ export const getGraph = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
     const r = await requireReader(data.tree);
+    // Opening the family is a visit, for "What's new" (history.server.ts noteVisit). A guest is not remembered.
+    if (r.user && !r.guest) await (await import('./history.server')).noteVisit(r.user.id, data.tree).catch(() => {});
     // A guest gets the plain count, so the Needed page does not say that everyone lacks a contact. Never a value. A guest whose
     // link protects living people gets them without dates, places or details (src/lib/protect-living.ts).
     return (await server()).graph(data.tree, r.guest ? { ...PLAIN_MEMBER, protectLiving: r.protectLiving } : audienceOf(r));
@@ -117,7 +119,7 @@ export const addRelative = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data }) => {
     const _m = await requireCan(data.tree, 'add-person');
-    const { once, newId, q, guard, sameParents } = await server();
+    const { once, newId, q, guard, sameParents, added } = await server();
     return once(data.tree, opOf(_m, data), 'addRelative', async (d) => {
       const p = data.person;
       const id = newId(p.given);
@@ -137,7 +139,13 @@ export const addRelative = createServerFn({ method: 'POST' })
         q('INSERT INTO person (id, given, further_given, surname, house, sex, born, died, living) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
           id, p.given, storeFurther(p.furtherGiven), p.surname ?? null, sameHouse ? anchor.house : null, p.sex ?? null, p.born ?? null, p.died ?? null, p.living ? 1 : 0),
       ];
-      const link = (child: string, parent: string) => q('INSERT OR IGNORE INTO parent (child, parent) VALUES (?, ?)', child, parent);
+      const name = [p.given, p.surname].filter(Boolean).join(' ');
+      // The new person, and on the anchor's history the link that ties them in.
+      const history = [added('person', id, { person: id, personName: name, label: name })];
+      const link = (child: string, parent: string) => {
+        history.push(added('link', `${child}>${parent}`, { person: data.anchor, label: name }));
+        return q('INSERT OR IGNORE INTO parent (child, parent) VALUES (?, ?)', child, parent);
+      };
       if (data.relation === 'child') {
         writes.push(link(id, data.anchor));
         if (data.coParent && data.coParent !== data.anchor) writes.push(link(id, data.coParent));
@@ -148,8 +156,9 @@ export const addRelative = createServerFn({ method: 'POST' })
       } else {
         writes.push(q('INSERT INTO partnership (id, a, b, kind, start, place) VALUES (?, ?, ?, ?, ?, ?)',
           `${data.anchor}__${id}`, data.anchor, id, data.partnership?.kind ?? 'partnership', data.partnership?.start ?? null, data.partnership?.place ?? null));
+        history.push(added('partnership', `${data.anchor}__${id}`, { person: data.anchor, label: name }));
       }
-      return { writes, result: id };
+      return { writes, history, result: id };
     });
   });
 
@@ -175,14 +184,24 @@ export const unlinkRelative = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, parents: z.array(z.object({ child: z.string(), parent: z.string() })).max(4), partnership: z.string().optional() }))
   .handler(async ({ data }) => {
     await requireCan(data.tree, 'edit-person');
-    const { once, q } = await server();
-    await once(data.tree, undefined, 'unlinkRelative', () => ({
-      writes: [
-        ...data.parents.map((e) => q('DELETE FROM parent WHERE child = ? AND parent = ?', e.child, e.parent)),
-        ...(data.partnership ? [q('DELETE FROM partnership WHERE id = ?', data.partnership)] : []),
-      ],
-      result: undefined,
-    }));
+    const { once, q, removed } = await server();
+    await once(data.tree, undefined, 'unlinkRelative', async (d) => {
+      // What is there to take away, for the history: the links that exist, and the partnership's couple.
+      const links = (await Promise.all(data.parents.map((e) => d.get<{ child: string; parent: string; given: string }>(
+        'SELECT l.child, l.parent, p.given FROM parent l JOIN person p ON p.id = l.parent WHERE l.child = ? AND l.parent = ?', e.child, e.parent)))).filter((x) => !!x);
+      const couple = data.partnership ? await d.get<{ a: string; b: string }>('SELECT a, b FROM partnership WHERE id = ?', data.partnership) : undefined;
+      return {
+        writes: [
+          ...data.parents.map((e) => q('DELETE FROM parent WHERE child = ? AND parent = ?', e.child, e.parent)),
+          ...(data.partnership ? [q('DELETE FROM partnership WHERE id = ?', data.partnership)] : []),
+        ],
+        history: [
+          ...links.map((l) => removed('link', `${l.child}>${l.parent}`, { person: l.child, label: l.given })),
+          ...(couple && data.partnership ? [removed('partnership', data.partnership, { person: couple.a })] : []),
+        ],
+        result: undefined,
+      };
+    });
   });
 
 /** When a partnership ended, and why. Clearing the end clears the reason too. Editors only, as the link is. */
@@ -190,12 +209,20 @@ export const setPartnershipEnd = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, id: z.string(), end: z.string().refine(validDate, 'Not a real date').nullable(), endReason: z.enum(['divorce', 'death', 'other']).nullable() }))
   .handler(async ({ data }) => {
     await requireCan(data.tree, 'edit-person');
-    const { once, q } = await server();
+    const { once, q, guard, change } = await server();
     const reason = data.end ? data.endReason : null;
-    await once(data.tree, undefined, 'setPartnershipEnd', () => ({
-      writes: [q('UPDATE partnership SET end = ?, end_reason = ? WHERE id = ?', data.end, reason, data.id)],
-      result: undefined,
-    }));
+    await once(data.tree, undefined, 'setPartnershipEnd', async (d) => {
+      const had = await d.get<{ a: string; end: string | null; end_reason: string | null }>('SELECT a, end, end_reason FROM partnership WHERE id = ?', data.id);
+      if (!had) return { writes: [], history: [], result: undefined };
+      return {
+        writes: [
+          guard('EXISTS (SELECT 1 FROM partnership WHERE id = ? AND end IS ? AND end_reason IS ?)', data.id, had.end, had.end_reason),
+          q('UPDATE partnership SET end = ?, end_reason = ? WHERE id = ?', data.end, reason, data.id),
+        ],
+        history: change('partnership', data.id, { end: had.end, end_reason: had.end_reason }, { end: data.end, end_reason: reason }, { person: had.a }),
+        result: undefined,
+      };
+    });
   });
 
 /**
@@ -252,7 +279,7 @@ export const addStory = createServerFn({ method: 'POST' })
     // Signed with the writer's own name from their account, never a name the browser sends.
     const _m = await requireCan(data.tree, 'add-story');
     const { user } = _m;
-    const { once, q, personExists } = await server();
+    const { once, q, personExists, added } = await server();
     return once(data.tree, opOf(_m, data), 'addStory', async (d) => {
       if (!(await d.get('SELECT id FROM person WHERE id = ?', data.person))) throw new Error('Person not found.');
       const id = crypto.randomUUID();
@@ -262,6 +289,7 @@ export const addStory = createServerFn({ method: 'POST' })
           q('INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             id, data.person, data.kind, data.title || null, data.body, user.name, new Date().toISOString(), data.context || null),
         ],
+        history: [added('story', id, { person: data.person, label: data.title || null })],
         result: id,
       };
     });
@@ -307,8 +335,8 @@ export const deleteContact = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, id: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/) }))
   .handler(async ({ data }) => {
     const m = await requireCan(data.tree, 'edit-contact');
-    // Someone else's personal field is not theirs to remove, whatever their role.
-    await (await server()).db(data.tree).run("DELETE FROM person_field WHERE id = ? AND type IN ('phone', 'email', 'address', 'website', 'social') AND (visibility <> 'personal' OR owner = ?)", data.id, m.user.id);
+    // Someone else's personal field is not theirs to remove, whatever their role (deletePersonField leaves it alone).
+    await (await import('./person.server')).deletePersonField(data.tree, data.id, undefined, audienceOf(m), ['phone', 'email', 'address', 'website', 'social']);
   });
 
 export const uploadPhoto = createServerFn({ method: 'POST' })
@@ -325,7 +353,7 @@ export const uploadPhoto = createServerFn({ method: 'POST' })
     const cleaned = (await import('./strip-metadata')).stripMetadata(new Uint8Array(await data.file.arrayBuffer()), data.file.type);
     if (!cleaned) throw new Error('A photo (JPEG, PNG, WebP, GIF or AVIF) under 5 MB');
     const bytes = cleaned;
-    const { once, q, personExists, media, newMediaKey } = await server();
+    const { once, q, personExists, media, newMediaKey, change } = await server();
     await once(data.tree, opOf(_m, data), 'uploadPhoto', async (d) => {
       if (!(await d.get('SELECT id FROM person WHERE id = ?', data.id))) throw new Error('Person not found.');
       // The picture goes to media storage first; the row points at it once the batch commits.
@@ -338,6 +366,8 @@ export const uploadPhoto = createServerFn({ method: 'POST' })
           q('INSERT INTO photo (person, mime, key, data, at) VALUES (?, ?, ?, NULL, ?) ON CONFLICT(person) DO UPDATE SET mime = excluded.mime, key = excluded.key, data = NULL, at = excluded.at',
             data.id, data.file.type, key, new Date().toISOString()),
         ],
+        // The picture itself never goes into the history: only that it changed.
+        history: change('portrait', data.id, { photo: 0 }, { photo: 1 }, { person: data.id, opaque: ['photo'] }),
         result: undefined,
         abandon: () => media.delete(data.tree, key).catch(() => {}),
         after: async (r) => {
