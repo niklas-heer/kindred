@@ -45,4 +45,13 @@ test('editing a person, with a partnership and a date', async ({ page }) => {
   await expect(page.getByRole('tabpanel', { name: /^Family/ }).getByRole('button', { name: new RegExp(`^${PARTNER}.*1975`) })).toBeVisible();
   await page.getByRole('tab', { name: 'Edit' }).click();
   await expect(page.getByRole('textbox', { name: 'Epithet' })).toHaveValue('the Careful');
+
+  // The edits are in the family's history, each row with its time: the page once failed on its first row.
+  const tree = new URL(page.url()).pathname.split('/')[1];
+  await page.goto(`/${tree}/history`);
+  await settled(page);
+  await expect(page.getByRole('heading', { name: 'History', level: 1 })).toBeVisible();
+  await expect(page.locator('.hist-fields').getByText('the Careful').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Restore this value: Epithet/ }).first()).toBeVisible();
+  await checkAxe(page, 'history');
 });
