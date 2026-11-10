@@ -2,10 +2,10 @@
 // typing, so a part that is not valid yet (an email without its domain, a date that is not real) stays in the form with its
 // red mark, and the server keeps the last good version of that part while the rest is saved. No React here, so the test
 // runner loads it.
-import { periodOf, storedIssue } from '../../lib/partial-date.ts';
-import type { PlaceValue } from '../PlaceInput';
+import { periodOf, storedIssue } from '../partial-date.ts';
+import type { PlaceValue } from '../../components/PlaceInput';
 import type { Journal } from './autosave.ts';
-import type { DraftField } from './FieldEditor';
+import type { DraftField } from '../../components/fields/FieldEditor';
 import { blankValue, fieldIssue, storedValue } from './model.ts';
 import { rebaseDraft, type Conflict } from './rebase.ts';
 

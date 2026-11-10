@@ -22,7 +22,7 @@ const { db } = await load<typeof import('./db.server.ts')>('/src/lib/db.server.t
 const chat = (await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts')).withLatestChat(await load<typeof import('./ai/chat.server.ts')>('/src/lib/ai/chat.server.ts'));
 const family = await load<typeof import('./ai/family.server.ts')>('/src/lib/ai/family.server.ts');
 const setup = await load<typeof import('./ai/testing.server.ts')>('/src/lib/ai/testing.server.ts');
-const { defaultVisibility } = await load<typeof import('../components/fields/model.ts')>('/src/components/fields/model.ts');
+const { defaultVisibility } = await load<typeof import('./fields/model.ts')>('/src/lib/fields/model.ts');
 const draft = await load<typeof import('../components/assistant/family-draft.ts')>('/src/components/assistant/family-draft.ts');
 
 const TREE = 'extract';

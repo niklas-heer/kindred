@@ -1,7 +1,7 @@
 // Laying a card's change over the person as they are now, for the same save the Edit tab makes. Pure, so a test can hold it
 // to its rule: what the card showed must still be what the record says, or the reader is told it changed and nothing is written.
 // A change that is already on the record counts as done, so a retry after a lost reply is not refused.
-import { CHANGED_SINCE_OPENED, type FieldInput } from '~/components/fields/model';
+import { CHANGED_SINCE_OPENED, type FieldInput } from '~/lib/fields/model';
 import type { EditSnapshot, PersonDetails } from '~/lib/person.server';
 
 type Args = Record<string, unknown> & { clear?: string[]; before?: Record<string, unknown> };

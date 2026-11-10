@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, before, test } from 'node:test';
 import { createServer, type Plugin } from 'vite';
-import type { FieldInput } from '../components/fields/model.ts';
+import type { FieldInput } from './fields/model.ts';
 
 const dir = mkdtempSync(join(tmpdir(), 'kindred-stats-changes-'));
 process.env.KINDRED_DATA_DIR = dir;

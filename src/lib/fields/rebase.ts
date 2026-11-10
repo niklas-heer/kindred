@@ -5,7 +5,7 @@
 // same thing to different values, the reader's version stays in the draft and the case comes back as a conflict, so
 // the Edit tab can show both versions and the reader chooses. Pure: the Edit tab and the tests use the same code.
 
-import type { Visibility } from '../../lib/visibility.ts';
+import type { Visibility } from '../visibility.ts';
 
 /** A field in the draft (`key` is React's; `id` is set once the family has saved the field). */
 export interface RebaseField {

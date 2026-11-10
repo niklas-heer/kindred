@@ -3,7 +3,7 @@
 // the batch, and writes in one transaction, so a retried or racing request never writes twice or half-way (see
 // db.server.ts).
 import { added, change, db, editedPart, fieldOf, guard, newId, once, personExists, q, removed, type HistoryEntry, type OpKey, type Query } from './db.server.ts';
-import { CHANGED_SINCE_OPENED, fieldText, isContactType, MAX_FIELDS, storedValue, type FieldInput, type FieldType, type FieldValue, type PersonField } from '../components/fields/model.ts';
+import { CHANGED_SINCE_OPENED, fieldText, isContactType, MAX_FIELDS, storedValue, type FieldInput, type FieldType, type FieldValue, type PersonField } from './fields/model.ts';
 import { EDITED_KEYS, type GraphPatch, type Look } from './types.ts';
 import { parseFurther, storeFurther } from './further-given.ts';
 import { validDate } from './dates.ts';

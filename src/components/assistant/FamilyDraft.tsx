@@ -20,7 +20,7 @@ import { CardHead } from './CardHead';
 import type { OnDecided } from './ProposalCard';
 import type { DecisionOutcome } from '~/lib/ai/continuation';
 import { VisibilityMark } from '../fields/VisibilityMark';
-import { presetLabel } from '../fields/presets';
+import { presetLabel } from '~/lib/fields/presets';
 import { approvalKeys } from './approval-keys';
 import { cleanPerson, detailKeys, detailPreview, draftProgress, dropDetail, linkIdentity, linksToSend, patchDetail, type DraftLink as LinkRow, type DraftRow as Row, type Status } from './family-draft';
 

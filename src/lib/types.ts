@@ -1,7 +1,7 @@
 // What the browser receives. The whole graph of a tree comes in one request (a few hundred KB for
 // 1,500 people) so layout, search, kinship and the minimap all run locally and instantly.
 import type { SeedHouse, SeedPerson, SeedStory, SeedContact } from './seed-format';
-import type { PersonField } from '../components/fields/model';
+import type { PersonField } from './fields/model';
 
 export type House = SeedHouse;
 export type Look = NonNullable<SeedPerson['look']>;
@@ -122,4 +122,4 @@ export interface PersonDetail {
   fields: PersonField[];
 }
 
-export type { PersonField } from '../components/fields/model';
+export type { PersonField } from './fields/model';

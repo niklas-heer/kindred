@@ -16,15 +16,15 @@ const { openSqlite } = await import('./store/node.ts');
 const { editSnapshot, savePersonEdit, CHANGED_SINCE_OPENED } = await import('./person.server.ts');
 const {
   classifyFailure, clearJournal, createAutosaver, journalKey, JOURNAL_KEEP_MS, nextAfter, readJournal, undoStep, writeJournal,
-} = await import('../components/fields/autosave.ts');
-const { isBlankNew, keepShared, offersPersonal, openDraft, sendable, signatureOf, storedForm } = await import('../components/fields/edit-values.ts');
+} = await import('./fields/autosave.ts');
+const { isBlankNew, keepShared, offersPersonal, openDraft, sendable, signatureOf, storedForm } = await import('./fields/edit-values.ts');
 const { forgetLocalIdentity } = await import('./auth/client.ts');
-const { rebaseDraft, rebaseFields } = await import('../components/fields/rebase.ts');
-import type { Outcome, SaveState, Timers } from '../components/fields/autosave.ts';
-import type { EditValues } from '../components/fields/edit-values.ts';
+const { rebaseDraft, rebaseFields } = await import('./fields/rebase.ts');
+import type { Outcome, SaveState, Timers } from './fields/autosave.ts';
+import type { EditValues } from './fields/edit-values.ts';
 import type { DraftField } from '../components/fields/FieldEditor';
 import type { EditSnapshot } from './person.server.ts';
-import type { FieldInput } from '../components/fields/model.ts';
+import type { FieldInput } from './fields/model.ts';
 
 const EDITOR = { account: 'editor-account', role: 'editor', guest: false } as const;
 const TREE = 'autosave';

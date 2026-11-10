@@ -18,12 +18,12 @@ import { DatePicker, Select, Switch } from '../ui';
 import { PlaceInput, type PlaceValue } from '../PlaceInput';
 import { AddressFinder } from './AddressFinder';
 import { TYPE_ICON } from './FieldsView';
-import { offersPersonal } from './edit-values';
+import { offersPersonal } from '~/lib/fields/edit-values';
 import { VisibilityPicker } from './VisibilityMark';
 import type { Visibility } from '~/lib/visibility';
-import { isBlankNew } from './edit-values';
-import { blankValue, DEFAULT_LABEL, fieldIssue, isContactType, MAX_FIELDS, PRESETS, defaultVisibility, type FieldType, type FieldValue } from './model';
-import { presetLabel } from './presets';
+import { isBlankNew } from '~/lib/fields/edit-values';
+import { blankValue, DEFAULT_LABEL, fieldIssue, isContactType, MAX_FIELDS, PRESETS, defaultVisibility, type FieldType, type FieldValue } from '~/lib/fields/model';
+import { presetLabel } from '~/lib/fields/presets';
 import { SuggestInput } from './SuggestInput';
 import './suggest.css';
 

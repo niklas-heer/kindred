@@ -4,7 +4,7 @@
 // is returned as a conflict, so the Edit tab can show both and the reader chooses (takeTheirs settles one).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rebaseDraft, rebaseFields, takeTheirs, type Conflict, type RebaseField } from '../components/fields/rebase.ts';
+import { rebaseDraft, rebaseFields, takeTheirs, type Conflict, type RebaseField } from './fields/rebase.ts';
 
 const field = (id: string | undefined, over: Partial<RebaseField> = {}): RebaseField => ({
   key: id ?? `new-${over.label ?? 'x'}`, id, type: 'notes', label: 'General', value: { text: 'first' }, visibility: 'family', ...over,

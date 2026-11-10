@@ -5,7 +5,7 @@ import type { EditedKey, GParent, GPerson, GUnion, Graph, House, PersonDetail, T
 import { parseFurther } from './further-given.ts';
 import { photoAge } from './portrait-face.ts';
 import { todayEvents, type TodayEvent } from './auth/today.ts';
-import { fieldText, type FieldType, type FieldValue, type PersonField } from '../components/fields/model.ts';
+import { fieldText, type FieldType, type FieldValue, type PersonField } from './fields/model.ts';
 import { fieldsVisibleTo, PLAIN_MEMBER, type Audience, type Visibility } from './visibility.ts';
 import { translate } from './i18n/dictionary.ts';
 import { LIVING_IDS, protectDetail, protectGraph } from './protect-living.ts';

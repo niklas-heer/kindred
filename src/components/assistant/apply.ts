@@ -12,7 +12,7 @@ import { setPersonDisplay } from '~/lib/portrait.functions';
 import { addResearchLink, removeResearchDocument, removeResearchLink, removeResearchNote, removeResearchProject, saveResearchDocument, saveResearchNote, saveResearchProject } from '~/lib/research.functions';
 import { updateFamilyDetails } from '~/lib/family-details.functions';
 import { setPartnershipDetails } from '~/lib/partnership.functions';
-import { CHANGED_SINCE_OPENED, defaultVisibility, fieldInput } from '~/components/fields/model';
+import { CHANGED_SINCE_OPENED, defaultVisibility, fieldInput } from '~/lib/fields/model';
 import { detailsOf, fieldsOf, mergeEdit, mergeField } from './apply-merge';
 import { proposalArgs, type Proposal, type ProposalArgs } from '~/lib/ai/types';
 import type { ApprovalKeys } from './approval-keys';

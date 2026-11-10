@@ -2,7 +2,7 @@
 // Edit tab shows it: the preset word translated, and a label the family typed kept as typed.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { withPresetLabel } from '../components/fields/presets.ts';
+import { withPresetLabel } from './fields/presets.ts';
 import { translate, type Key } from './i18n/dictionary.ts';
 
 /** A translator as the components get from `useT()`, for one language. */

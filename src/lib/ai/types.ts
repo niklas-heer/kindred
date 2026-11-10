@@ -4,7 +4,7 @@ import { isLocale, type Locale } from '../i18n/types';
 import { MAX_FURTHER } from '../further-given';
 import { z } from 'zod';
 import { cutText, firstOf } from './trim';
-import { FIELD_TYPES } from '~/components/fields/model';
+import { FIELD_TYPES } from '~/lib/fields/model';
 import { VISIBILITIES } from '../visibility';
 import type { ArmsV2 } from '~/lib/seed-format';
 import type { ChatBlock } from './blocks';
@@ -332,7 +332,7 @@ export const familyPersonSchema = z.object({
   story: z.object({ kind: z.enum(['note', 'quote', 'anecdote', 'recipe', 'memory']), title: z.string().trim().max(200).optional(), body: text(20_000), /** Who told it, as an id in the tree. Without one it is saved under the approver's name. */ teller: id.optional() }).optional(),
   /** Social profiles to save on the person: the network's name, and the handle without its @. */
   social: z.array(z.object({ network: text(40), handle: text(300) })).max(5).optional(),
-  /** Other facts read from a document or picture, each as the person page's field of that type (value keys as in components/fields/model.ts). The server gives each the level its type starts at. */
+  /** Other facts read from a document or picture, each as the person page's field of that type (value keys as in lib/fields/model.ts). The server gives each the level its type starts at. */
   details: z.array(z.object({ type: z.enum(DRAFT_DETAIL_TYPES), label: z.string().trim().overwrite(cutText(60)).optional(), value: z.record(z.string(), z.string().overwrite(cutText(500))) })).overwrite(firstOf(8)).optional(),
   /** What was hard to read or is a guess (handwriting, an old script, a smudge, an age instead of a date), one short line each, naming the field. Shown on the card and kept with the person. */
   unsure: z.array(z.string().trim().min(1).overwrite(cutText(200))).overwrite(firstOf(8)).optional(),

@@ -3,7 +3,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
-import { fieldInput, isContactType, MAX_FIELDS } from '../components/fields/model';
+import { fieldInput, isContactType, MAX_FIELDS } from './fields/model';
 import { MAX_FURTHER, MAX_FURTHER_LENGTH } from './further-given';
 import { audienceOf } from './visibility';
 import { validDate } from './dates';

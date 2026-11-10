@@ -10,8 +10,8 @@ import { displayName, type Family } from '~/lib/graph';
 import { isColourLabel, parseColours } from '~/lib/favourites';
 import { socialLink } from '~/lib/social';
 import type { PersonField } from '~/lib/types';
-import { fieldText, isContactType, type FieldType } from './model';
-import { presetLabel } from './presets';
+import { fieldText, isContactType, type FieldType } from '~/lib/fields/model';
+import { presetLabel } from '~/lib/fields/presets';
 import { VisibilityMark } from './VisibilityMark';
 import './fields.css';
 

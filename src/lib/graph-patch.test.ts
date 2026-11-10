@@ -17,7 +17,7 @@ const { db, graph } = await import('./db.server.ts');
 const { editSnapshot, savePersonEdit } = await import('./person.server.ts');
 const { patchPerson } = await import('./graph-patch.ts');
 import type { EditSnapshot, PersonDetails } from './person.server.ts';
-import type { FieldInput } from '../components/fields/model.ts';
+import type { FieldInput } from './fields/model.ts';
 import type { Audience } from './visibility.ts';
 
 const EDITOR: Audience = { account: 'ed', role: 'editor', guest: false };

@@ -2,7 +2,7 @@
 // say about it. A link the server's check found would loop is left out for good: it is never sent and is not counted.
 import { MAX_FURTHER } from '~/lib/further-given';
 import { NEW_REF, type FamilyLink, type FamilyPerson } from '~/lib/ai/types';
-import { blankValue, DEFAULT_LABEL, defaultVisibility, fieldIssue, storedValue } from '~/components/fields/model';
+import { blankValue, DEFAULT_LABEL, defaultVisibility, fieldIssue, storedValue } from '~/lib/fields/model';
 
 export type Status = 'todo' | 'done' | 'failed';
 export interface DraftRow extends FamilyPerson { status: Status; id?: string; error?: string; /** Chosen on the card: this row is someone already in the tree, so no one new is created. */ existing?: string }

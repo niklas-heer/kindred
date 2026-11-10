@@ -17,10 +17,10 @@ const { store } = await import('./store/index.ts');
 import type { Db, Param } from './store/index.ts';
 const { db } = await import('./db.server.ts');
 const { editSnapshot, savePersonEdit, CHANGED_SINCE_OPENED } = await import('./person.server.ts');
-const { rebaseDraft } = await import('../components/fields/rebase.ts');
+const { rebaseDraft } = await import('./fields/rebase.ts');
 import type { EditSnapshot } from './person.server.ts';
-import type { RebaseField } from '../components/fields/rebase.ts';
-import type { FieldInput, FieldType } from '../components/fields/model.ts';
+import type { RebaseField } from './fields/rebase.ts';
+import type { FieldInput, FieldType } from './fields/model.ts';
 
 const EDITOR = { account: 'editor-account', role: 'editor', guest: false } as const;
 const VIEWER = { account: 'viewer-account', role: 'viewer', guest: false } as const;

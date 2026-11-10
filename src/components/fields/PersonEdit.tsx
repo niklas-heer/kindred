@@ -21,17 +21,17 @@ import { patchPerson } from '~/lib/graph-patch';
 import { PlaceInput, placeValue, savePlacesKeyed, type PlaceValue } from '../PlaceInput';
 import { MarkdownEditor } from '../MarkdownEditor';
 import { ConfirmDialog, DatePicker, Segmented, Switch } from '../ui';
-import { classifyFailure, clearJournal, createAutosaver, journalKey, MAX_UNDO, nextAfter, readJournal, undoStep, writeJournal, type Outcome, type SaveState, type UndoStep } from './autosave';
+import { classifyFailure, clearJournal, createAutosaver, journalKey, MAX_UNDO, nextAfter, readJournal, undoStep, writeJournal, type Outcome, type SaveState, type UndoStep } from '~/lib/fields/autosave';
 import { DraftContext } from './draft';
-import { keepShared, openDraft, sendable, signatureOf, storedForm, wireOf, type EditValues } from './edit-values';
+import { keepShared, openDraft, sendable, signatureOf, storedForm, wireOf, type EditValues } from '~/lib/fields/edit-values';
 import { draftOf, FieldEditor, type DraftField } from './FieldEditor';
-import { fieldText } from './model';
-import { rebaseDraft, takeTheirs, type Conflict } from './rebase';
+import { fieldText } from '~/lib/fields/model';
+import { rebaseDraft, takeTheirs, type Conflict } from '~/lib/fields/rebase';
 import { translateMessage, useT, type Key } from '~/lib/i18n';
 import { isKnownMessage } from '~/lib/i18n/dictionary';
 import { MAX_FURTHER, MAX_FURTHER_LENGTH } from '~/lib/further-given';
 import { OccupationField } from './OccupationField';
-import { presetLabel } from './presets';
+import { presetLabel } from '~/lib/fields/presets';
 import './editor.css';
 
 interface Props {

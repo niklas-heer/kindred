@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { FAITH_TRADITIONS, faithSuggestions } from './faiths.ts';
 import { foldText } from './address.ts';
-import { defaultVisibility, storedValue } from '../components/fields/model.ts';
+import { defaultVisibility, storedValue } from './fields/model.ts';
 
 const L = ['en', 'de', 'af'] as const;
 const ROWS = FAITH_TRADITIONS.flatMap((t) => t.faiths);

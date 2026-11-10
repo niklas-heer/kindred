@@ -14,7 +14,7 @@ process.env.KINDRED_ACCOUNTS_DB = join(dir, 'accounts.db');
 const { openSqlite } = await import('./store/node.ts');
 const { db, person } = await import('./db.server.ts');
 const { editSnapshot, savePersonEdit, addPersonField, deletePersonField } = await import('./person.server.ts');
-const { MAX_FIELDS } = await import('../components/fields/model.ts');
+const { MAX_FIELDS } = await import('./fields/model.ts');
 import type { EditSnapshot } from './person.server.ts';
 import type { Audience } from './visibility.ts';
 

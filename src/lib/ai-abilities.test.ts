@@ -27,7 +27,7 @@ const { systemPrompt } = await load<typeof import('./ai/prompt.ts')>('/src/lib/a
 const merge = await load<typeof import('../components/assistant/apply-merge.ts')>('/src/components/assistant/apply-merge.ts');
 const { chipsFor } = await load<typeof import('../components/assistant/widgets/chips.ts')>('/src/components/assistant/widgets/chips.ts');
 const { pageFrom } = await load<typeof import('../components/assistant/page-context.ts')>('/src/components/assistant/page-context.ts');
-const { CHANGED_SINCE_OPENED } = await load<typeof import('../components/fields/model.ts')>('/src/components/fields/model.ts');
+const { CHANGED_SINCE_OPENED } = await load<typeof import('./fields/model.ts')>('/src/lib/fields/model.ts');
 
 import type { Role } from './roles.ts';
 import type { Proposal } from './ai/types.ts';

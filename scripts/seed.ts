@@ -20,7 +20,7 @@ const files = named.length
   : readdirSync('data/seed').filter((f) => f.endsWith('.json') && !f.endsWith('-places.json')).map((f) => join('data/seed', f));
 
 /**
- * Contacts are person fields now (migration 0003, src/components/fields/model.ts): each kind is a field
+ * Contacts are person fields now (migration 0003, src/lib/fields/model.ts): each kind is a field
  * type, and its value is stored under one key. Messenger handles are "social" fields.
  */
 const CONTACT_FIELD = {

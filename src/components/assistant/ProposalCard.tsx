@@ -13,7 +13,7 @@ import { useT, type Key } from '~/lib/i18n';
 import { errorText } from '~/lib/errortext';
 import type { Look } from '~/lib/types';
 import { Portrait } from '~/components/Portrait';
-import { withPresetLabel } from '../fields/presets';
+import { withPresetLabel } from '~/lib/fields/presets';
 import { applyProposal } from './apply';
 import { approvalKeys } from './approval-keys';
 import { FamilyDraft } from './FamilyDraft';

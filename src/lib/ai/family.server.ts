@@ -14,7 +14,7 @@ import { occupationCodeFor } from '../occupations';
 import { linkPlan } from '../relations.server';
 import { addPersonField } from '../person.server';
 import { socialLink } from '../social';
-import { DEFAULT_LABEL, defaultVisibility, fieldInput, PRESETS, storedValue } from '../../components/fields/model';
+import { DEFAULT_LABEL, defaultVisibility, fieldInput, PRESETS, storedValue } from '../fields/model';
 import { tr } from './labels';
 import { storeFurther } from '../further-given';
 import { NEW_REF, toAiLocale, type FamilyLink, type FamilyPerson } from './types';

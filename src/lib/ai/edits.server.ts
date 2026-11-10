@@ -12,7 +12,7 @@ import { fullName } from '../graph';
 import type { GPerson, GUnion, Graph } from '../types';
 import { can, type Action } from '../roles';
 import { validDate } from '../dates';
-import { fieldInput, isContactType } from '../../components/fields/model';
+import { fieldInput, isContactType } from '../fields/model';
 import { mediaUrl, type MediaItem } from '../../components/photos/types';
 import { assistantAudience } from '../visibility';
 import type { Key } from '../i18n/dictionary';

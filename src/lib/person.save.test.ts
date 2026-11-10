@@ -16,7 +16,7 @@ const { openSqlite } = await import('./store/node.ts');
 const { db } = await import('./db.server.ts');
 const { editSnapshot, savePersonEdit } = await import('./person.server.ts');
 import type { EditSnapshot } from './person.server.ts';
-import { blankValue, type FieldInput } from '../components/fields/model.ts';
+import { blankValue, type FieldInput } from './fields/model.ts';
 
 const EDITOR = { account: 'editor-account', role: 'editor', guest: false } as const;
 const TREE = 'save';
