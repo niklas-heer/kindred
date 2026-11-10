@@ -311,8 +311,10 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
               <span><b>{t('panel.appearance')}</b><small>{t('panel.appearance_hint')}</small></span>
             </button>
           )}
-          {canEdit && (detail ? <PersonEdit tree={tree} p={p} f={f} detail={detail} done={() => setTab('overview')} onRemoved={onClose} /> : <DetailFallback details={details} />)}
-          {canEdit && <LifeEditor tree={tree} p={p} f={f} />}
+          {/* Life events and sources come after the dates, inside the form's flow, before removing and the save line. */}
+          {canEdit && (detail
+            ? <PersonEdit tree={tree} p={p} f={f} detail={detail} done={() => setTab('overview')} onRemoved={onClose} life={<LifeEditor tree={tree} p={p} f={f} />} />
+            : <><DetailFallback details={details} /><LifeEditor tree={tree} p={p} f={f} /></>)}
         </TabPanel>
       </div></Tabs>
     </>, <>

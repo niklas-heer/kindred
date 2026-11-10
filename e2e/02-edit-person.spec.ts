@@ -23,6 +23,14 @@ test('editing a person, with a partnership and a date', async ({ page }) => {
   await expect(page.getByRole('heading', { name: FULL, level: 2, exact: true })).toBeVisible();
   await page.getByRole('tab', { name: 'Edit' }).click();
   await checkAxe(page, 'person panel, editing');
+  // Life events and the sources of the facts follow the dates, before contact details, removing and the save line.
+  const order = await page.locator('.pp-edit').evaluate((form) => {
+    const at = (el: Element | null) => (el ? [...form.querySelectorAll('*')].indexOf(el) : -1);
+    const heading = (text: string) => [...form.querySelectorAll('.rule, h3')].find((e) => e.textContent?.trim() === text) ?? null;
+    return { dates: at(heading('Life dates and places')), events: at(heading('Life events')), sources: at(heading('Sources of the facts')), contact: at(heading('Contact')), remove: at(form.querySelector('.pe-remove')), status: at(form.querySelector('.pe-bar')) };
+  });
+  expect(order.dates).toBeGreaterThanOrEqual(0);
+  expect([order.dates < order.events, order.events < order.sources, order.sources < order.contact, order.contact < order.remove, order.remove < order.status]).toEqual([true, true, true, true, true]);
   await page.getByRole('textbox', { name: 'Epithet' }).fill('the Careful');
   const born = page.getByRole('group', { name: 'Born' });
   await born.getByRole('textbox', { name: 'Day' }).fill('12');

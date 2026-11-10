@@ -8,7 +8,7 @@
 import { useForm } from '@tanstack/react-form';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, RotateCw, Trash2, Undo2, X } from 'lucide-react';
-import { useContext, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { opKeys, removePerson } from '~/lib/api';
 import { getEditSnapshot, savePersonEdit } from '~/lib/person.functions';
 import type { EditSnapshot } from '~/lib/person.server';
@@ -44,6 +44,11 @@ interface Props {
   onRemoved: () => void;
   /** A field's id: edit just that field, in place. */
   only?: string;
+  /**
+   * The life events and the sources of the facts (life/LifeEditor.tsx), shown after the dates they belong with and before
+   * the rest of the form. They save on their own: their clicks, keys and focus do not reach this form's autosave.
+   */
+  life?: ReactNode;
 }
 
 type Values = EditValues;
@@ -119,7 +124,7 @@ const textEntries = (root: HTMLElement) => [...root.querySelectorAll<HTMLElement
 
 const deviceStore = () => { try { return window.localStorage; } catch { return undefined; } };
 
-function EditForm({ tree, p, f, snap, done, onRemoved, only }: Omit<Props, 'detail'> & { snap: EditSnapshot }) {
+function EditForm({ tree, p, f, snap, done, onRemoved, only, life }: Omit<Props, 'detail'> & { snap: EditSnapshot }) {
   const { leave, register } = useContext(DraftContext);
   const c = useT();
   const words = useRef(c);
@@ -707,6 +712,11 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only }: Omit<Props, 'deta
       <form.Field name="fields">
         {(field) => <FieldEditor tree={tree} group="life" focusKey={focusKey} value={field.state.value} onChange={(v) => field.handleChange(v)} fam={f} self={p.id} />}
       </form.Field>
+      {life && (
+        <div className="wide pe-life" onSubmit={(e) => e.stopPropagation()} onBlur={(e) => e.stopPropagation()}>
+          {life}
+        </div>
+      )}
 
       <div className="rule">{c('group.contact')}</div>
       <form.Field name="fields">
