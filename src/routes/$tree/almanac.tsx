@@ -1,7 +1,9 @@
-import { PageSkeleton, PageHeader, ErrorState, EmptyState } from '~/components/ui';
-import { useRouter, createFileRoute, Link } from '@tanstack/react-router';
+import { PageSkeleton, PageHeader, EmptyState } from '~/components/ui';
+import { PageError } from '~/components/ui/PageError';
+import { useRememberedState, usePageTrail } from '~/lib/page-state';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { CalendarPlus, Check, Hourglass } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { GameIcon, type GameIconName } from '~/components/GameIcon';
 import { Portrait } from '~/components/Portrait';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
@@ -16,7 +18,7 @@ import { useToday } from '~/lib/clock';
 
 export const Route = createFileRoute('/$tree/almanac')({
   pendingComponent: PageSkeleton,
-  errorComponent: function PageError() { const router = useRouter(); const t = useT(); return <div className="page"><PageHeader title={t('almanac.title')} /><ErrorState message={t('almanac.error')} onRetry={() => { void router.invalidate(); }} /></div>; },
+  errorComponent: () => <PageError title="almanac.title" message="almanac.error" />,
   head: (ctx) => ({ meta: [{ title: treeTitle(ctx, translate((ctx.match.context as { locale?: Locale }).locale ?? 'en', 'almanac.title')) }] }),
   component: AlmanacPage,
 });
@@ -615,55 +617,4 @@ function MonthHistory({ hist, f, tree, thisYear }: { hist: Hist[]; f: Family; tr
       )}
     </>
   );
-}
-
-// Restore after hydration, so stored preferences never change server-rendered markup.
-function useRememberedState<T>(key: string, fallback: T): [T, React.Dispatch<React.SetStateAction<T>>] {
-  const [value, setValue] = useState<T>(fallback);
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem(key);
-      if (stored !== null) setValue(JSON.parse(stored) as T);
-
-    } catch { /* Private browsing can disable storage. */ }
-    setReady(true);
-  }, [key]);
-  useEffect(() => {
-    if (!ready) return;
-    try {
-      sessionStorage.setItem(key, JSON.stringify(value));
-
-    } catch { /* Keeping filters in memory still works. */ }
-  }, [key, value, ready]);
-  return [value, setValue];
-}
-function usePageTrail(page: string, tree: string, locale: Locale) {
-  useEffect(() => {
-    const key = `kindred:scroll:${tree}:${page}`;
-    const restore = () => {
-      try {
-        const saved = JSON.parse(sessionStorage.getItem(key) ?? '{}') as Record<string, number>;
-        for (const selector of [':root', '.page', '.reg-scroll']) {
-          const el = document.querySelector(selector);
-          if (el) el.scrollTop = saved[selector] ?? 0;
-        }
-      } catch {}
-    };
-    const timer = window.setTimeout(() => { restore(); document.addEventListener('scroll', scroll, true); }, 450);
-    const scroll = () => {
-      try { sessionStorage.setItem(key, JSON.stringify(Object.fromEntries([':root', '.page', '.reg-scroll'].map((selector) => [selector, document.querySelector(selector)?.scrollTop ?? 0])))); } catch {}
-    };
-    const click = (event: MouseEvent) => {
-      const link = (event.target as Element).closest('a');
-      if (!link) return;
-      const url = new URL(link.href);
-      const person = url.searchParams.get('focus');
-      if (person && url.pathname === `/${tree}`) {
-        try { localStorage.setItem('kindred:last-visit', JSON.stringify({ tree, person, name: link.textContent?.trim() || translate(locale, 'chronicle.your_family') })); } catch {}
-      }
-    };
-    document.addEventListener('click', click, true);
-    return () => { clearTimeout(timer); document.removeEventListener('scroll', scroll, true); document.removeEventListener('click', click, true); };
-  }, [page, tree, locale]);
 }

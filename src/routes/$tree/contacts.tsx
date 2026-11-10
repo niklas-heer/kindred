@@ -1,6 +1,7 @@
 import { socialLink } from '~/lib/social';
 import { useToday } from '~/lib/clock';
 import { PageHeader, Skeleton, ErrorState, EmptyState } from '~/components/ui';
+import { useRememberedState, usePageTrail } from '~/lib/page-state';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useDebouncedValue } from '@tanstack/react-pacer';
@@ -88,7 +89,7 @@ function ContactsPage() {
   const f = useFamily();
   const me = useMeChosen();
   const tree = useTreeId();
-  usePageTrail('contacts', tree);
+  usePageTrail('contacts', tree, t.locale);
   const { data, isPending, isError, refetch } = useQuery(contactsQuery(tree));
   const [q, setQ] = useRememberedState(`contacts:${tree}:q`, '');
   const [dq] = useDebouncedValue(q, { wait: 180 });
@@ -418,55 +419,4 @@ function HouseholdCard({ h, f, tree }: { h: Household; f: Family; tree: string }
       </footer>
     </article>
   );
-}
-
-// Restore after hydration, so stored preferences never change server-rendered markup.
-function useRememberedState<T>(key: string, fallback: T): [T, React.Dispatch<React.SetStateAction<T>>] {
-  const [value, setValue] = useState<T>(fallback);
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem(key);
-      if (stored !== null) setValue(JSON.parse(stored) as T);
-
-    } catch { /* Private browsing can disable storage. */ }
-    setReady(true);
-  }, [key]);
-  useEffect(() => {
-    if (!ready) return;
-    try {
-      sessionStorage.setItem(key, JSON.stringify(value));
-
-    } catch { /* Keeping filters in memory still works. */ }
-  }, [key, value, ready]);
-  return [value, setValue];
-}
-function usePageTrail(page: string, tree: string) {
-  useEffect(() => {
-    const key = `kindred:scroll:${tree}:${page}`;
-    const restore = () => {
-      try {
-        const saved = JSON.parse(sessionStorage.getItem(key) ?? '{}') as Record<string, number>;
-        for (const selector of [':root', '.page', '.reg-scroll']) {
-          const el = document.querySelector(selector);
-          if (el) el.scrollTop = saved[selector] ?? 0;
-        }
-      } catch {}
-    };
-    const timer = window.setTimeout(() => { restore(); document.addEventListener('scroll', scroll, true); }, 450);
-    const scroll = () => {
-      try { sessionStorage.setItem(key, JSON.stringify(Object.fromEntries([':root', '.page', '.reg-scroll'].map((selector) => [selector, document.querySelector(selector)?.scrollTop ?? 0])))); } catch {}
-    };
-    const click = (event: MouseEvent) => {
-      const link = (event.target as Element).closest('a');
-      if (!link) return;
-      const url = new URL(link.href);
-      const person = url.searchParams.get('focus');
-      if (person && url.pathname === `/${tree}`) {
-        try { localStorage.setItem('kindred:last-visit', JSON.stringify({ tree, person, name: link.textContent?.trim() || 'your family' })); } catch {}
-      }
-    };
-    document.addEventListener('click', click, true);
-    return () => { clearTimeout(timer); document.removeEventListener('scroll', scroll, true); document.removeEventListener('click', click, true); };
-  }, [page, tree]);
 }

@@ -1,4 +1,6 @@
-import { PageSkeleton, PageHeader, ErrorState, EmptyState, Select } from '~/components/ui';
+import { PageSkeleton, PageHeader, EmptyState, Select } from '~/components/ui';
+import { PageError } from '~/components/ui/PageError';
+import { useRememberedState, usePageTrail } from '~/lib/page-state';
 import {
   columnFilteringFeature,
   createColumnHelper,
@@ -13,7 +15,7 @@ import {
   type SortFn,
 } from '@tanstack/react-table';
 import { useDebouncedValue } from '@tanstack/react-pacer';
-import { useRouter, createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowDown, ArrowUp, ArrowUpDown, ScrollText, Search, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
@@ -35,7 +37,7 @@ import { sectionHead } from '~/lib/title';
 
 export const Route = createFileRoute('/$tree/people')({
   pendingComponent: PageSkeleton,
-  errorComponent: function PageError() { const router = useRouter(); const t = useT(); return <div className="page"><PageHeader title={t('shell.register')} /><ErrorState message={t('needed.loadFailed')} onRetry={() => { void router.invalidate(); }} /></div>; },
+  errorComponent: () => <PageError title="shell.register" message="needed.loadFailed" />,
   head: sectionHead('Register'),
   component: RegisterPage,
 });
@@ -289,20 +291,20 @@ function RegisterPage() {
   // Kinship only once the reader has said who they are.
   const me = useMeChosen();
   const tree = useTreeId();
-  usePageTrail('people', tree);
   const navigate = useNavigate();
 
-  const [q, setQ] = useRememberedState(`people:${tree}:q`, '');
+  const [q, setQ] = useRememberedState(`people:${tree}:q`, '', { inAddress: true });
   const [dq] = useDebouncedValue(q, { wait: 150 });
-  const [scope, setScope] = useRememberedState<Scope>(`people:${tree}:scope`, 'all');
-  const [withStories, setWithStories] = useRememberedState(`people:${tree}:withStories`, false);
-  const [house, setHouse] = useRememberedState(`people:${tree}:house`, '');
+  const [scope, setScope] = useRememberedState<Scope>(`people:${tree}:scope`, 'all', { inAddress: true });
+  const [withStories, setWithStories] = useRememberedState(`people:${tree}:withStories`, false, { inAddress: true });
+  const [house, setHouse] = useRememberedState(`people:${tree}:house`, '', { inAddress: true });
   const [sel, setSel] = useState(0);
-  const [mobileLimit, setMobileLimit] = useRememberedState(`people:${tree}:limit`, 100);
+  const [mobileLimit, setMobileLimit] = useRememberedState(`people:${tree}:limit`, 100, { inAddress: true });
   const dealt = useDealt();
 
   const t = useT();
   const { locale } = t;
+  usePageTrail('people', tree, locale);
   // The age of someone living needs the reader's day, so it fills in after hydration.
   const today = useToday();
   const all = useMemo(() => buildRows(f, tree, me, locale, today), [f, tree, me, locale, today]);
@@ -529,67 +531,6 @@ function RegisterPage() {
       </div>
     </div>
   );
-}
-
-// Restore after hydration, so stored preferences never change server-rendered markup.
-function useRememberedState<T>(key: string, fallback: T): [T, React.Dispatch<React.SetStateAction<T>>] {
-  const [value, setValue] = useState<T>(fallback);
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem(key);
-      if (stored !== null) setValue(JSON.parse(stored) as T);
-      const param = key.split(':').at(-1)!;
-      const raw = new URLSearchParams(location.search).get(param);
-      if (raw !== null) setValue((typeof fallback === 'boolean' ? raw === 'true' : typeof fallback === 'number' ? Math.max(100, Number(raw) || fallback) : raw) as T);
-    } catch { /* Private browsing can disable storage. */ }
-    setReady(true);
-    // fallback is only the value before anything is restored; a new one must not restore again.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-  useEffect(() => {
-    if (!ready) return;
-    try {
-      sessionStorage.setItem(key, JSON.stringify(value));
-      const url = new URL(location.href);
-      const param = key.split(':').at(-1)!;
-      if (value === fallback) url.searchParams.delete(param);
-      else url.searchParams.set(param, String(value));
-      history.replaceState(history.state, '', url);
-    } catch { /* Keeping filters in memory still works. */ }
-    // fallback only decides whether the address carries the setting; the saved value is written when the value changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, value, ready]);
-  return [value, setValue];
-}
-function usePageTrail(page: string, tree: string) {
-  useEffect(() => {
-    const key = `kindred:scroll:${tree}:${page}`;
-    const restore = () => {
-      try {
-        const saved = JSON.parse(sessionStorage.getItem(key) ?? '{}') as Record<string, number>;
-        for (const selector of [':root', '.page', '.reg-scroll']) {
-          const el = document.querySelector(selector);
-          if (el) el.scrollTop = saved[selector] ?? 0;
-        }
-      } catch {}
-    };
-    const timer = window.setTimeout(() => { restore(); document.addEventListener('scroll', scroll, true); }, 450);
-    const scroll = () => {
-      try { sessionStorage.setItem(key, JSON.stringify(Object.fromEntries([':root', '.page', '.reg-scroll'].map((selector) => [selector, document.querySelector(selector)?.scrollTop ?? 0])))); } catch {}
-    };
-    const click = (event: MouseEvent) => {
-      const link = (event.target as Element).closest('a');
-      if (!link) return;
-      const url = new URL(link.href);
-      const person = url.searchParams.get('focus');
-      if (person && url.pathname === `/${tree}`) {
-        try { localStorage.setItem('kindred:last-visit', JSON.stringify({ tree, person, name: link.textContent?.trim() || 'your family' })); } catch {}
-      }
-    };
-    document.addEventListener('click', click, true);
-    return () => { clearTimeout(timer); document.removeEventListener('scroll', scroll, true); document.removeEventListener('click', click, true); };
-  }, [page, tree]);
 }
 
 /** The family has nobody in it yet: editors are shown how to start the tree, everyone else that nobody has been added. */

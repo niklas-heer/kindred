@@ -1,8 +1,10 @@
-import { PageSkeleton, ErrorState, PageHeader, EmptyState, Select, DatePicker } from '~/components/ui';
+import { PageSkeleton, PageHeader, EmptyState, Select, DatePicker } from '~/components/ui';
+import { PageError } from '~/components/ui/PageError';
+import { useRememberedState, usePageTrail } from '~/lib/page-state';
 // Information needed: the family's research to-do list, nearest relatives first, and a way to
 // blaze through it: one person at a time, only the missing fields, save and on to the next.
 import { useQueryClient } from '@tanstack/react-query';
-import { Link, useRouter, createFileRoute } from '@tanstack/react-router';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import { Camera, Check, Flame, Link2, SkipForward, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { GameIcon } from '~/components/GameIcon';
@@ -32,14 +34,14 @@ const KEPT_LABEL: Record<GapField, Key> = { born: 'needed.gap.born', bornPlace: 
 
 export const Route = createFileRoute('/$tree/needed')({
   pendingComponent: PageSkeleton,
-  errorComponent: function PageError() { const router = useRouter(); const t = useT(); return <div className="page"><PageHeader title={t('needed.title')} /><ErrorState message={t('needed.loadFailed')} onRetry={() => { void router.invalidate(); }} /></div>; },
+  errorComponent: () => <PageError title="needed.title" message="needed.loadFailed" />,
   head: sectionHead('Information needed'), component: Needed });
 
 function Needed() {
   const t = useT();
   const f = useFamily();
   const tree = useTreeId();
-  usePageTrail('needed', tree);
+  usePageTrail('needed', tree, t.locale);
   const me = useMe();
   // Kinship labels only once the reader has said who they are.
   const who = useMeChosen();
@@ -546,57 +548,6 @@ function parentSlots(f: Family, id: string, gaps: GapKey[]): ('m' | 'f' | 'x')[]
   if (!known.length) return ['m', 'f'];
   const sx = f.byId.get(known[0])?.sex;
   return sx === 'm' ? ['f'] : sx === 'f' ? ['m'] : ['x'];
-}
-
-// Restore after hydration, so stored preferences never change server-rendered markup.
-function useRememberedState<T>(key: string, fallback: T): [T, React.Dispatch<React.SetStateAction<T>>] {
-  const [value, setValue] = useState<T>(fallback);
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem(key);
-      if (stored !== null) setValue(JSON.parse(stored) as T);
-
-    } catch { /* Private browsing can disable storage. */ }
-    setReady(true);
-  }, [key]);
-  useEffect(() => {
-    if (!ready) return;
-    try {
-      sessionStorage.setItem(key, JSON.stringify(value));
-
-    } catch { /* Keeping filters in memory still works. */ }
-  }, [key, value, ready]);
-  return [value, setValue];
-}
-function usePageTrail(page: string, tree: string) {
-  useEffect(() => {
-    const key = `kindred:scroll:${tree}:${page}`;
-    const restore = () => {
-      try {
-        const saved = JSON.parse(sessionStorage.getItem(key) ?? '{}') as Record<string, number>;
-        for (const selector of [':root', '.page', '.reg-scroll']) {
-          const el = document.querySelector(selector);
-          if (el) el.scrollTop = saved[selector] ?? 0;
-        }
-      } catch {}
-    };
-    const timer = window.setTimeout(() => { restore(); document.addEventListener('scroll', scroll, true); }, 450);
-    const scroll = () => {
-      try { sessionStorage.setItem(key, JSON.stringify(Object.fromEntries([':root', '.page', '.reg-scroll'].map((selector) => [selector, document.querySelector(selector)?.scrollTop ?? 0])))); } catch {}
-    };
-    const click = (event: MouseEvent) => {
-      const link = (event.target as Element).closest('a');
-      if (!link) return;
-      const url = new URL(link.href);
-      const person = url.searchParams.get('focus');
-      if (person && url.pathname === `/${tree}`) {
-        try { localStorage.setItem('kindred:last-visit', JSON.stringify({ tree, person, name: link.textContent?.trim() || 'your family' })); } catch {}
-      }
-    };
-    document.addEventListener('click', click, true);
-    return () => { clearTimeout(timer); document.removeEventListener('scroll', scroll, true); document.removeEventListener('click', click, true); };
-  }, [page, tree]);
 }
 
 function safeRelation(f: Family, me: string, id: string, ancestors?: Map<string, number>) {
