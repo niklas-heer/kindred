@@ -210,9 +210,9 @@ function GalleryPage() {
                       className="gal-tile"
                       style={{ aspectRatio: `${m.width || 4} / ${m.height || 3}` }}
                       onClick={() => setOpenKey(m.key)}
-                      aria-label={label}
                     >
-                      <img src={mediaUrl(tree, m.key, 'thumb')} alt="" loading="lazy" decoding="async" />
+                      {/* The photograph's description is the image's alt, so the button's name still contains the date and place written under it. */}
+                      <img src={mediaUrl(tree, m.key, 'thumb')} alt={label} loading="lazy" decoding="async" />
                       <span className="gal-meta">
                         {when ?? g('lb.no_date')}
                         {m.place ? <> · {m.place}</> : null}

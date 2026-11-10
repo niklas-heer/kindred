@@ -7,6 +7,7 @@ import { Lock } from 'lucide-react';
 import { myFamiliesQuery } from '~/lib/auth/functions';
 import { useSession } from '~/lib/session';
 import { signOut } from './AccountMenu';
+import { Main } from './ui/Main';
 import { NotFound } from './ui/states';
 
 export function NoAccessPage() {
@@ -16,7 +17,7 @@ export function NoAccessPage() {
   const session = useSession();
   const { data: trees } = useQuery(myFamiliesQuery);
   return (
-    <main className="page ui-notfound-page">
+    <Main className="page ui-notfound-page">
       <NotFound
         icon={<Lock size={28} />}
         title={t("noaccess.you_don_t_have_access_to_this_family")}
@@ -39,6 +40,6 @@ export function NoAccessPage() {
           <button className="btn ghost" onClick={() => void signOut(session?.accessLogout)}>{t("noaccess.sign_out")}</button>
         </div>
       </NotFound>
-    </main>
+    </Main>
   );
 }

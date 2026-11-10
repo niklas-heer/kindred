@@ -64,7 +64,7 @@ export function PersonPhotos({ tree, id, bare }: { tree: string; id: string; bar
 
   return (
     <section className="pp" aria-labelledby={`pp-${id}`}>
-      <h3 className={bare ? 'sr-only' : 'pp-title'} id={`pp-${id}`}>{g('pp.title')}</h3>
+      {bare ? <h2 className="sr-only" id={`pp-${id}`}>{g('pp.title')}</h2> : <h3 className="pp-title" id={`pp-${id}`}>{g('pp.title')}</h3>}
 
       {person.photo || person.portrait ? (
         <div className="pp-portraits">

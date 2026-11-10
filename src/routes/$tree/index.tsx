@@ -728,6 +728,7 @@ function TreePage() {
       data-sheet={phone && panel ? snap : undefined}
       style={{ '--sheet-h': `${phone && panel && snap !== 'full' ? sheetH : 0}px` } as CSSProperties}
     >
+      <h1 className="sr-only">{f.graph.tree.name}</h1>
       <Canvas
         ref={canvas}
         family={f}
@@ -924,6 +925,8 @@ function TreePage() {
             )}
             <button
               className="sheet-grip"
+              // At peek the whole strip below is one button that does the same, so this one steps aside for it.
+              inert={snap === 'peek'}
               onClick={cycle}
               aria-label={snap === 'peek' ? t('tp.showMore') : snap === 'half' ? t('tp.showEverything') : t('tp.showLess')}
               title={snap === 'full' ? t('tp.showLess') : t('tp.showMore')}

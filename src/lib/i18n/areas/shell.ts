@@ -45,6 +45,7 @@ export const en = {
   "shell.all_families": "All families",
   "shell.family_tree": "Family tree",
   "shell.sections": "Sections",
+  "shell.skip": "Skip to content",
   "shell.tree": "Tree",
   // The phone's bottom tab, where a long word is cut off at 360 px.
   "shell.tree_tab": "Tree",
@@ -158,6 +159,7 @@ export const de: Record<keyof typeof en, Message> = {
   "shell.all_families": "Alle Familien",
   "shell.family_tree": "Stammbaum",
   "shell.sections": "Bereiche",
+  "shell.skip": "Zum Inhalt springen",
   "shell.tree": "Stammbaum",
   "shell.tree_tab": "Baum",
   "shell.almanac": "Kalender",
@@ -271,6 +273,7 @@ export const af: Partial<Record<keyof typeof en, Message>> = {
   "shell.all_families": "Alle families",
   "shell.family_tree": "Stamboom",
   "shell.sections": "Afdelings",
+  "shell.skip": "Slaan oor na die inhoud",
   "shell.tree": "Stamboom",
   "shell.tree_tab": "Boom",
   "shell.almanac": "Almanak",

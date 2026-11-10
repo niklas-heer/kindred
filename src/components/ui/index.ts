@@ -9,6 +9,7 @@ export { Segmented, type SegmentedProps, type SegmentedOption } from './Segmente
 export { DatePicker, type DatePickerProps } from './DatePicker';
 export { Range, type RangeProps, type RangeTick } from './Range';
 export { Tabs, TabList, Tab, TabPanel, type TabsProps } from './Tabs';
+export { Main, MainContext } from './Main';
 export { PageHeader, Fleuron, type PageHeaderProps } from './PageHeader';
 export {
   Skeleton, PageSkeleton, EmptyState, ErrorState, NotFound, Notice, useDelayed,

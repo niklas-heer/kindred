@@ -16,7 +16,7 @@ import { toAiLocale } from '~/lib/ai/types';
 import { useFamily, useTreeId } from '~/lib/family';
 import { displayName } from '~/lib/graph';
 import { useCan } from '~/lib/session';
-import { EmptyState, ErrorState, PageHeader, Skeleton } from '~/components/ui';
+import { EmptyState, ErrorState, Main, PageHeader, Skeleton } from '~/components/ui';
 import { ago, usd } from './BackgroundSettings';
 import './ai-tasks.css';
 
@@ -33,14 +33,14 @@ export function AiActivityPage() {
   const q = useQuery({ ...aiActivityQuery(tree), enabled: steward });
   if (!steward) {
     return (
-      <main className="page"><div className="page-inner ai-activity-page">
+      <Main className="page"><div className="page-inner ai-activity-page">
         <PageHeader title={t('aitasks.activityTitle')} subtitle={t('aitasks.activitySubtitle')} icon={<ActivityIcon size={22} />} />
         <EmptyState title={t('aitasks.stewardsOnly')} text="" />
-      </div></main>
+      </div></Main>
     );
   }
   return (
-    <main className="page"><div className="page-inner ai-activity-page">
+    <Main className="page"><div className="page-inner ai-activity-page">
       <PageHeader
         title={t('aitasks.activityTitle')}
         subtitle={t('aitasks.activitySubtitle')}
@@ -51,7 +51,7 @@ export function AiActivityPage() {
       {q.isPending && <Skeleton lines={6} />}
       {q.isError && <ErrorState title={t('ai.settingsLoadFailed')} message={errorText(q.error, t.locale)} onRetry={() => q.refetch()} />}
       {q.data && <ActivityBody tree={tree} data={q.data} />}
-    </div></main>
+    </div></Main>
   );
 }
 

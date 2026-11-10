@@ -17,7 +17,7 @@ import { portraitSettingsQuery } from '~/lib/portrait.functions';
 import { useTreeId } from '~/lib/family';
 import { locales, useT, type Key, type Locale } from '~/lib/i18n';
 import { useCan } from '~/lib/session';
-import { EmptyState, ErrorState, PageHeader, Range, Select, Skeleton, Switch, type SelectOption } from '~/components/ui';
+import { EmptyState, ErrorState, Main, PageHeader, Range, Select, Skeleton, Switch, type SelectOption } from '~/components/ui';
 import { AssistantButton } from './Launcher';
 import { PortraitSettings } from './PortraitSettings';
 import { formChanged, formOf, isOn, routeChanged, TASK_OF_ROUTE, type Draft, type FormState } from './settings-form';
@@ -71,14 +71,14 @@ export function AiSettingsPage() {
   const q = useQuery({ ...aiSettingsQuery(tree), enabled: steward });
   if (!steward) {
     return (
-      <main className="page"><div className="page-inner ai-settings-page">
+      <Main className="page"><div className="page-inner ai-settings-page">
         <PageHeader title={t('ai.settingsTitle')} subtitle={t('ai.settingsSubtitle')} icon={<Sparkles size={22} />} />
         <EmptyState title={t('ai.stewardsOnly')} text="" />
-      </div></main>
+      </div></Main>
     );
   }
   return (
-    <main className="page"><div className="page-inner ai-settings-page">
+    <Main className="page"><div className="page-inner ai-settings-page">
       <PageHeader title={t('ai.settingsTitle')} subtitle={t('ai.settingsSubtitle')} icon={<Sparkles size={22} />} />
       {q.isPending && <Skeleton lines={6} />}
       {q.isError && <ErrorState title={t('ai.settingsLoadFailed')} message={errorText(q.error, t.locale)} onRetry={() => q.refetch()} />}
@@ -86,7 +86,7 @@ export function AiSettingsPage() {
       {q.data && <SettingsForm tree={tree} data={q.data} />}
       {/* A way to try the assistant from here. The drawer itself is mounted once, in the tree layout. */}
       <div className="ai-actions"><AssistantButton tree={tree} /></div>
-    </div></main>
+    </div></Main>
   );
 }
 

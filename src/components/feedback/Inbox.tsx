@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Bug, ClipboardCopy, Download, HelpCircle, ImageOff, Inbox as InboxIcon, Lightbulb, MessageSquarePlus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { EmptyState, ErrorState, PageHeader, Segmented, Skeleton } from '~/components/ui';
+import { EmptyState, ErrorState, Main, PageHeader, Segmented, Skeleton } from '~/components/ui';
 import { Dialog } from '~/components/ui/Dialog';
 import { errorText } from '~/lib/errortext';
 import { FEEDBACK_STATUSES, reportMarkdown, type FeedbackKind, type FeedbackReport, type FeedbackStatus } from '~/lib/feedback';
@@ -37,12 +37,12 @@ export function FeedbackInbox() {
       actions={steward ? <button className="btn" onClick={openFeedback}><MessageSquarePlus size={15} /> {t('feedback.title')}</button> : undefined}
     />
   );
-  if (!steward) return <main className="page fb-page">{header}<EmptyState title={t('feedback.stewards_only')} text="" /></main>;
+  if (!steward) return <Main className="page fb-page">{header}<EmptyState title={t('feedback.stewards_only')} text="" /></Main>;
   const reports = q.data ?? [];
   const shown = filter === 'all' ? reports : reports.filter((r) => r.status === filter);
   const current = reports.find((r) => r.id === selected) ?? null;
   return (
-    <main className="page fb-page">
+    <Main className="page fb-page">
       <div className="page-inner">
         {header}
         {q.isPending && <Skeleton lines={6} />}
@@ -85,7 +85,7 @@ export function FeedbackInbox() {
           </div>
         )}
       </div>
-    </main>
+    </Main>
   );
 }
 

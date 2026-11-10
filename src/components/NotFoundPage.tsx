@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { Users } from 'lucide-react';
 import { myFamiliesQuery } from '~/lib/auth/functions';
+import { Main } from './ui/Main';
 import { NotFound } from './ui/states';
 
 export function NotFoundPage({ kind = 'page', id }: { kind?: 'family' | 'page'; id?: string }) {
@@ -14,7 +15,7 @@ export function NotFoundPage({ kind = 'page', id }: { kind?: 'family' | 'page'; 
   const tr = t;
   const { data: trees } = useQuery(myFamiliesQuery);
   return (
-    <main className="page ui-notfound-page">
+    <Main className="page ui-notfound-page">
       <NotFound
         icon={kind === 'family' ? <Users size={28} /> : undefined}
         title={kind === 'family' ? t("notfoundpage.family_not_found") : t("notfoundpage.page_not_found")}
@@ -39,6 +40,6 @@ export function NotFoundPage({ kind = 'page', id }: { kind?: 'family' | 'page'; 
           <div className="ui-state-actions"><Link to="/" className="btn primary">{t("notfoundpage.your_families")}</Link></div>
         )}
       </NotFound>
-    </main>
+    </Main>
   );
 }

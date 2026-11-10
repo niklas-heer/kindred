@@ -19,6 +19,7 @@ import { SoundSwitch, THEME_ICONS, THEME_LABEL, ThemeSwitch, useSound, useTheme 
 import { Toasts } from '~/components/Toasts';
 import { Dialog } from '~/components/ui/Dialog';
 import { Switch } from '~/components/ui/Switch';
+import { MainContext } from '~/components/ui/Main';
 import { graphQuery } from '~/lib/api';
 import { myFamiliesQuery, sessionQuery } from '~/lib/auth/functions';
 import { NoAccessPage } from '~/components/NoAccess';
@@ -129,6 +130,7 @@ function TreeLayout() {
 
   return (
     <div className="shell">
+      <a href="#main" className="skip-link" onClick={(e) => { e.preventDefault(); document.getElementById('main')?.focus(); }}>{t('shell.skip')}</a>
       <header className="topbar topbar-stacked" ref={topbar}>
         <Link to={multiple ? "/" : "/$tree"} params={{ tree }} search={multiple ? { families: "all" } : {}} className="brand" title={multiple ? t("shell.all_families") : t("shell.family_tree")}>
           {crest ? <Arms arms={crest.arms} size={28} /> : null}
@@ -185,7 +187,9 @@ function TreeLayout() {
         <AccountMenu familyName={f.graph.tree.name} />
         <GuestChip />
       </header>
-      <Outlet />
+      <MainContext.Provider value>
+        <main id="main" className="shell-main" tabIndex={-1}><Outlet /></main>
+      </MainContext.Provider>
       {/* Phones: the sections move to a bar along the bottom edge. */}
       <nav className="tabbar" aria-label={t("shell.sections")}>
         <Link to="/$tree" params={{ tree }} activeOptions={{ exact: true, includeSearch: false }}>

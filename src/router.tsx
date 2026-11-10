@@ -3,6 +3,7 @@ import { createRouter, useRouter, type ErrorComponentProps } from '@tanstack/rea
 import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query';
 import { getGlobalStartContext } from '@tanstack/react-start';
 import { NotFoundPage } from './components/NotFoundPage';
+import { Main } from './components/ui/Main';
 import { ErrorState, PageSkeleton } from './components/ui/states';
 import { isLocale, loadLocale, useT } from './lib/i18n';
 import { routeTree } from './routeTree.gen';
@@ -49,12 +50,12 @@ function RouteError({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
   const t = useT();
   return (
-    <main className="page ui-notfound-page">
+    <Main className="page ui-notfound-page">
       <ErrorState
         message={t('common.page_load_failed')}
         error={error}
         onRetry={() => { reset(); router.invalidate(); }}
       />
-    </main>
+    </Main>
   );
 }

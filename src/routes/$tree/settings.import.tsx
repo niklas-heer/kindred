@@ -46,7 +46,7 @@ function ExchangePage() {
   const context = useQuery({ queryKey: ['exchange-context', tree], queryFn: () => exchangeContext({ data: { tree } }) });
 
   return (
-    <main className="exchange">
+    <div className="exchange">
       <PageHeader title={t('exchange.page.title')} subtitle={t('exchange.page.subtitle')} />
       {context.isPending ? (
         <Skeleton lines={3} />
@@ -62,7 +62,7 @@ function ExchangePage() {
           )}
         </>
       )}
-    </main>
+    </div>
   );
 }
 

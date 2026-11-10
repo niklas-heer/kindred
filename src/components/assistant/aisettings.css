@@ -371,7 +371,7 @@
 .ai-state.needs-provider,
 .ai-state.needs-model { color: var(--danger); border-color: currentColor; }
 
-.ai-state.off { color: var(--faint); }
+.ai-state.off { color: var(--subtle); }
 
 .ai-state.unsaved { color: var(--accent); border-color: currentColor; border-style: dashed; }
 
