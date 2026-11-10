@@ -1,16 +1,13 @@
 import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router';
-import {
-  ArrowDownToLine, ArrowLeft, ArrowUpToLine, ChevronUp, ChevronsDownUp, ChevronsUpDown, Crown, FileQuestion, GitFork, Glasses,
-  HeartPulse, Keyboard, Landmark, Minus, Network, Plus, Route as RouteIcon, Shield, SlidersHorizontal, Users, UserPlus, Waypoints, X,
-} from 'lucide-react';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { ArrowDownToLine, ArrowLeft, ArrowUpToLine, ChevronUp, ChevronsDownUp, ChevronsUpDown, Crown, FileQuestion, GitFork, Glasses, HeartPulse, Keyboard, Landmark, Network, Route as RouteIcon, Shield, SlidersHorizontal, Users, Waypoints, X } from 'lucide-react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { Canvas, type CanvasHandle, type Detail, type Inset } from '~/components/Canvas';
 import { Card, type AddRelation } from '~/components/Card';
 import { PersonPanel } from '~/components/PersonPanel';
 import { Portrait } from '~/components/Portrait';
 import { QuickAdd } from '~/components/QuickAdd';
-import { chooseMe, useFamily, useMe, useMeChosen } from '~/lib/family';
-import { Dialog, EmptyState, Select, usePageHotkey, type SelectOption } from '~/components/ui';
+import { useFamily, useMe, useMeChosen } from '~/lib/family';
+import { Dialog, Select, usePageHotkey, type SelectOption } from '~/components/ui';
 import { ancestorDepths, displayName, houseMembers, kinship, lifespan, parents, children, nameModeKey, type Kinship, type NameMode } from '~/lib/graph';
 import { birthdaysOn, foldAllBut, houseRoot, lensMembers, rowMark, rowNeighbour, toggled } from '~/lib/tree-view';
 import { selectionAnnouncement } from '~/lib/card-label';
@@ -18,8 +15,7 @@ import { layout as computeLayout, rootFor, type LNode, type View } from '~/lib/l
 import { setPref, usePref } from '~/lib/prefs';
 import { openingView, treeSearch } from '~/lib/tree-search';
 import { gapsOf, useRequired } from '~/lib/gaps';
-import { opKeys, removePerson } from '~/lib/api';
-import { addSelfToFamily } from '~/lib/person.functions';
+import { removePerson } from '~/lib/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { play } from '~/lib/sfx';
 import { toast } from '~/lib/toast';
@@ -29,6 +25,10 @@ import { personName, treeTitle } from '~/lib/title';
 import { useCan } from '~/lib/session';
 import { sessionQuery } from '~/lib/auth/functions';
 import { opensOnToday } from '~/lib/today/opening';
+import { DisplayChoices } from '~/components/tree/DisplayChoices';
+import { EmptyTree } from '~/components/tree/EmptyTree';
+import { HelpCard } from '~/components/tree/HelpCard';
+import { Stepper } from '~/components/tree/Stepper';
 import '~/styles/tree.css';
 
 export const Route = createFileRoute('/$tree/')({
@@ -969,30 +969,6 @@ function TreePage() {
 }
 
 /** A media query, live. False on the server and during hydration. */
-type AgeMode = 'living' | 'all' | 'off';
-
-/** Names and ages on the cards: in the toolbar's row when there is room, else in the Display sheet, each under its name. */
-function DisplayChoices({ nameMode, onName, ageMode, onAge, labelled }: { nameMode: NameMode; onName: (m: NameMode) => void; ageMode: AgeMode; onAge: (m: AgeMode) => void; labelled?: boolean }) {
-  const t = useT();
-  const names = (
-    <Select size="sm" value={nameMode} onChange={onName} aria-label={t('tp.names')} options={[
-      { value: 'nickname', label: t('tp.nick') }, { value: 'first', label: t('tp.firstName') }, { value: 'full', label: t('tp.fullName') },
-    ]} />
-  );
-  const ages = (
-    <Select size="sm" value={ageMode} onChange={onAge} aria-label={t('tp.ages')} options={[
-      { value: 'living', label: t('tp.agesLiving') }, { value: 'all', label: t('tp.agesAll') }, { value: 'off', label: t('tp.agesHidden') },
-    ]} />
-  );
-  if (!labelled) return <>{names}{ages}</>;
-  return (
-    <>
-      <div className="tb-sheet-field"><span aria-hidden>{t('tp.names')}</span>{names}</div>
-      <div className="tb-sheet-field"><span aria-hidden>{t('tp.ages')}</span>{ages}</div>
-    </>
-  );
-}
-
 function useMedia(q: string): boolean {
   return useSyncExternalStore(
     (cb) => {
@@ -1002,120 +978,5 @@ function useMedia(q: string): boolean {
     },
     () => matchMedia(q).matches,
     () => false,
-  );
-}
-
-/** A count with − and +. `full`: a row of the Display sheet, with its whole name and touch-sized buttons. */
-function Stepper({ label, long, icon, value, onChange, full }: { label: Key; long: Key; icon: ReactNode; value: number; onChange: (v: number) => void; full?: boolean }) {
-  const t = useT();
-  return (
-    <span className={`stepper${full ? ' full' : ''}`} role="group" aria-label={t(long)} title={full ? undefined : t(long)}>
-      <span className={full ? 'tb-label' : 'faint tb-label'}>{t(full ? long : label)}</span>
-      {!full && <span className="tb-icon faint" aria-hidden>{icon}</span>}
-      <button className="btn icon" onClick={() => onChange(Math.max(1, value - 1))} disabled={value <= 1} aria-label={t('tp.fewer', { what: t(long) })}><Minus size={13} /></button>
-      <b aria-live="polite">{value}</b>
-      <button className="btn icon" onClick={() => onChange(Math.min(12, value + 1))} disabled={value >= 12} aria-label={t('tp.more', { what: t(long) })}><Plus size={13} /></button>
-    </span>
-  );
-}
-
-function HelpCard({ onClose }: { onClose: () => void }) {
-  const t = useT();
-  const keys: [string, Key][] = [
-    ['← →', 'tp.k.neighbour'],
-    ['↑ ↓', 'tp.k.parentChild'],
-    ['⌘K or /', 'tp.k.find'],
-    ['1 2 3', 'tp.k.views'],
-    ['L', 'tp.k.lens'],
-    ['C', 'tp.k.centre'],
-    ['F', 'tp.k.fit'],
-    ['H', 'tp.k.home'],
-    ['= −', 'tp.k.zoom'],
-    ['Esc', 'tp.k.esc'],
-  ];
-  return (
-    <div className="help-card panel no-pan" role="dialog" aria-label={t('tp.keys')}>
-      <header className="display">{t('tp.gettingAround')} <button className="btn icon ghost" onClick={onClose} aria-label={t('ui.close')}><X size={14} /></button></header>
-      {keys.map(([k, v]) => (
-        <div key={k} className="help-row"><span>{k.split(' ').map((x) => <kbd key={x}>{x}</kbd>)}</span><span>{t(v)}</span></div>
-      ))}
-      <p className="faint">{t('tp.canvasHint')}</p>
-    </div>
-  );
-}
-
-/**
- * An empty family: a card to start the tree. Someone who may add people adds themselves (the first-run step's form, the
- * same server call) or somebody else; everyone else is told that nobody has been added yet.
- */
-function EmptyTree({ tree, canAdd }: { tree: string; canAdd: boolean }) {
-  const t = useT();
-  const qc = useQueryClient();
-  const [keys] = useState(opKeys);
-  const [mode, setMode] = useState<'me' | 'other'>('me');
-  const [given, setGiven] = useState('');
-  const [surname, setSurname] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  if (!canAdd) {
-    return (
-      <div className="page">
-        <div className="page-inner">
-          <EmptyState icon={<Users size={28} />} title={t('tree.nobodyYet')} text={t('tree.nobodyYetText')} />
-        </div>
-      </div>
-    );
-  }
-
-  const self = mode === 'me';
-  const add = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const body = { tree, given: given.trim(), surname: surname.trim() };
-      const id = await addSelfToFamily({ data: { ...body, opKey: keys.for(mode, body) } });
-      keys.clear(mode);
-      // The steward's own card is their "me"; a person added for someone else leaves the reader's answer as it was.
-      if (self) await chooseMe(tree, id);
-      await qc.invalidateQueries({ queryKey: ['graph', tree] });
-      await qc.invalidateQueries({ queryKey: ['session'] });
-    } catch (err) {
-      setError(err instanceof Error ? translateMessage(err.message, t.locale) : t(self ? 'setup.family_add_failed' : 'tree.start.failed'));
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="page">
-      <div className="page-inner">
-        <section className="panel tree-start" aria-labelledby="tree-start-title" style={{ maxWidth: 480, margin: '48px auto', padding: 24 }}>
-          <h2 id="tree-start-title" className="display">{self ? t('tree.start.title') : t('tree.start.otherTitle')}</h2>
-          <p className="muted">{self ? t('tree.start.lede') : t('tree.start.otherLede')}</p>
-          <form onSubmit={add} style={{ display: 'grid', gap: 12 }}>
-            <label className="field">
-              <span>{t('setup.given_name')}</span>
-              <input className="input" value={given} onChange={(e) => setGiven(e.target.value)} autoComplete="given-name" required maxLength={120} autoFocus />
-            </label>
-            <label className="field">
-              <span>{t('setup.surname')}</span>
-              <input className="input" value={surname} onChange={(e) => setSurname(e.target.value)} autoComplete="family-name" maxLength={120} />
-            </label>
-            {error && <p role="alert" className="muted">{error}</p>}
-            <button className="btn primary" disabled={busy || !given.trim()}>
-              <UserPlus size={17} /> {self ? t('setup.add_me') : t('tree.start.addOther')}
-            </button>
-          </form>
-          <p style={{ marginTop: 16 }}>
-            {self ? (
-              <button type="button" className="btn ghost" onClick={() => { setMode('other'); setError(null); }}>{t('tree.start.other')}</button>
-            ) : (
-              <button type="button" className="btn ghost" onClick={() => { setMode('me'); setError(null); }}>{t('tree.start.back')}</button>
-            )}
-          </p>
-        </section>
-      </div>
-    </div>
   );
 }
