@@ -23,6 +23,7 @@ version will not run on a database that has had these migrations.
 
 `tree/0026_history.sql` adds the change history's table, empty: changes made before it are not in the history.
 `accounts/0027_family_visit.sql` adds a table for "since your last visit" and two columns to the reminder devices.
+`tree/0027_reactions_comments.sql` adds three empty tables for reactions and comments and one column to `story`.
 
 ### Added
 
@@ -64,6 +65,11 @@ version will not run on a database that has had these migrations.
 - What's new: a summary of what changed since your last visit, grouped by person, with comments and reactions on what you
   wrote. And "This week in the family", a weekly push for members who turn it on beside their birthday reminders, sent only
   when something is new.
+- Reactions and comments on memories and gallery photos: every member can answer with a heart, "I remember this", a laugh, a
+  candle or a thank-you, and contributors can comment in plain text (editors and stewards can remove any comment). Counts show
+  on Chronicle entries and gallery tiles. The writer of a memory or the one who shared a photo can turn on a push about
+  answers (at most one a day) in the Reminders dialog. Share-link guests see none of it. The Markdown archive now has the
+  stories, with their comments, in `memories/`. See [docs/responses.md](docs/responses.md).
 
 - Setting `KINDRED_TRUSTED_PROXIES`: how many reverse proxies stand in front of the Node server. `compose.yaml` passes it
   on and the HTTPS steps set it to 1.

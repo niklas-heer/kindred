@@ -100,7 +100,7 @@ that is not counted.
 
 **What GEDCOM leaves out**, and says so on export:
 
-- stories, memories, sayings and recipes;
+- stories, memories, sayings and recipes, and the comments and reactions on them and on photos;
 - contact details and other person fields, private or not;
 - houses and their arms;
 - place coordinates (place names are kept);
@@ -134,6 +134,8 @@ id, made safe for any file system.
 | Life event | an entry in `events` with `id`, `type` (`baptism`, `residence`, `custom`…), `label`, `date`, `end`, `place` and `note` |
 | Source | a note of its own in `sources/`, with `id`, `type: source`, `title`, `author`, `publication`, `reference`, `date`, and its note as the body |
 | Citation | an entry in `citations` on the note of the person whose fact it is (a partnership's on the note that declares it): `fact`, `event`, `partnership` or `parent`, `source` (a link to `sources/`), `page`, `quality`, `text` |
+| Memory, saying, anecdote, recipe, note | a section of `memories/<person>.md` (one file per person they are about, oldest first): the title or kind, who wrote it and when, and the text; a saying is quoted |
+| Comment on a story | under its story, in `### Comments`: the name it was written under, the date (and "changed" when its writer changed it), and the plain text, quoted line by line |
 
 A partnership belongs to the note of its lower-id partner, so it is declared once.
 
@@ -141,8 +143,9 @@ The v1 importer (`scripts/import-kindred.ts`) reads people, links and marriages;
 family moved that way gets them through GEDCOM.
 
 **What the archive leaves out:** step-parent links, because v1 has no step relation and writing one as a biological
-claim would be a false fact in v1; stories, memories and sayings; contact details and other fields; houses and arms; and
-pictures other than portraits.
+claim would be a false fact in v1; contact details and other fields; houses and arms; pictures other than portraits, and
+the comments on gallery photos; and reactions. Stories and their comments are in `memories/`, which the v1 tools and
+`import-kindred.ts` do not read.
 
 ## The nightly archive
 
