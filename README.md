@@ -7,6 +7,8 @@
 Kindred is a family tree that a whole family shares, with the stories, photographs and places that go with it. You run it
 yourself, each family lives in its own database, and you can take it with you whenever you like.
 
+**[Try the demo](https://kindred-demo.niklas-heer.workers.dev)**: two invented families, read-only, nothing to sign up for.
+
 ![The Dynasty view of an invented medieval realm: generations of portrait cards under house shields, a minimap of the whole tree, and the person panel beside it.](docs/images/tree.webp)
 
 In most families, one person keeps the records, in a folder or a program nobody else can open. Kindred puts them somewhere
