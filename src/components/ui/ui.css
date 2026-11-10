@@ -55,7 +55,7 @@
 
 /* Event variant: the CK3 event window. A lacquered panel with a gold frame and a centred title. */
 .ui-dialog--event .ui-dialog-head { flex-direction: column; padding: 22px 52px 0; text-align: center; }
-.ui-dialog--event .ui-dialog-title { font-size: calc(var(--fs-6) + 2px); }
+.ui-dialog--event .ui-dialog-title { font-size: calc(var(--fs-6) + 0.125rem); }
 .ui-dialog--event .ui-dialog-desc { text-align: center; }
 .ui-dialog--event .ui-dialog-close { position: absolute; top: 10px; right: 10px; }
 /* A centred ornament between two hairlines that fade out. */
@@ -110,7 +110,7 @@
   color: var(--text); font-family: var(--font-ui); font-size: var(--fs-3); text-align: left; cursor: pointer;
   transition: background-color var(--dur-1), box-shadow var(--dur-1);
 }
-@media (pointer: coarse) { .ui-select:not(.sm) { font-size: max(16px, var(--fs-3)); } }
+@media (pointer: coarse) { .ui-select:not(.sm) { font-size: max(1rem, var(--fs-3)); } }
 .ui-select:hover { background: var(--panel-3); }
 .ui-select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .ui-select[aria-expanded='true'] { box-shadow: var(--focus-ring); }
@@ -138,7 +138,7 @@
 }
 [data-theme='codex'] .ui-select-pop { border-color: #0a0d12; box-shadow: inset 0 0 0 1px var(--edge-soft), var(--shadow); }
 .ui-select-group { padding: 8px 10px 4px; font-size: var(--fs-1); text-transform: uppercase; letter-spacing: 0.12em; color: var(--subtle); }
-[data-theme='codex'] .ui-select-group { font-family: var(--font-display); text-transform: none; font-variant: small-caps; font-size: 14px; color: var(--accent); }
+[data-theme='codex'] .ui-select-group { font-family: var(--font-display); text-transform: none; font-variant: small-caps; font-size: 0.875rem; color: var(--accent); }
 .ui-option {
   display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: var(--radius);
   font-size: var(--fs-3); cursor: pointer; white-space: nowrap; user-select: none; min-height: var(--ctl-sm);
@@ -373,7 +373,7 @@
 .ui-state-text { margin: 0; color: var(--muted); font-size: var(--fs-4); line-height: var(--lh-body); max-width: 44ch; text-wrap: pretty; }
 .ui-state-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 6px; }
 .ui-state.error .ui-state-icon { color: var(--danger); }
-.ui-state-detail { font-family: ui-monospace, monospace; font-size: 12px; color: var(--subtle); max-width: 100%; overflow-wrap: anywhere; }
+.ui-state-detail { font-family: ui-monospace, monospace; font-size: 0.75rem; color: var(--subtle); max-width: 100%; overflow-wrap: anywhere; }
 .ui-state-links { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; width: 100%; }
 .ui-state-links a {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px;

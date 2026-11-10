@@ -25,16 +25,16 @@
 .ae-full-switch { justify-self: center; }
 
 .ae-caption { display: grid; gap: 4px; justify-items: center; max-width: 100%; }
-.ae-name { font-family: var(--font-display); font-size: 21px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+.ae-name { font-family: var(--font-display); font-size: 1.3125rem; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
 [data-theme='codex'] .ae-name { font-variant: small-caps; letter-spacing: 0.04em; color: var(--accent); }
-[data-theme='night'] .ae-name { font-weight: 500; font-size: 23px; }
-.ae-motto { font-family: var(--font-hand); font-size: 17px; color: var(--muted); overflow-wrap: anywhere; }
+[data-theme='night'] .ae-name { font-weight: 500; font-size: 1.4375rem; }
+.ae-motto { font-family: var(--font-hand); font-size: 1.0625rem; color: var(--muted); overflow-wrap: anywhere; }
 .ae-blazon { margin: 4px 0 0; font-size: var(--fs-3); line-height: 1.45; color: var(--muted); font-style: italic; text-wrap: pretty; }
 .ae-blazon-label {
   font-style: normal; font-family: var(--font-ui); font-size: var(--fs-1); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--subtle); margin-right: 4px;
 }
-[data-theme='codex'] .ae-blazon-label { font-size: 14px; }
+[data-theme='codex'] .ae-blazon-label { font-size: 0.875rem; }
 .ae-blazon-ach { display: block; margin-top: 4px; font-size: var(--fs-2); }
 .ae-rule { width: 100%; min-height: 0; }
 .ae-warn {
@@ -134,7 +134,7 @@
 .ae-lines svg { color: var(--text); }
 .ae-seg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .ae-seg .ae-tile small { font-size: var(--fs-2); color: var(--text); }
-.ae-none { color: var(--muted); font-size: 18px; line-height: 28px; }
+.ae-none { color: var(--muted); font-size: 1.125rem; line-height: 28px; }
 
 /* Tinctures, in labelled groups: metals, colours, stains, furs. */
 .ae-tinctures { gap: 10px 14px; }
@@ -284,7 +284,7 @@
   .ae-stage[data-full] svg { width: 128px !important; }
   .ae-flag { right: 4px; bottom: 4px; }
   .ae-caption { justify-items: start; }
-  .ae-name { font-size: 18px; }
+  .ae-name { font-size: 1.125rem; }
   .ae-motto { font-size: var(--fs-3); }
   .ae-blazon { font-size: var(--fs-2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .ae-blazon-ach { display: none; }

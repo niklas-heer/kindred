@@ -56,7 +56,7 @@
 .dp-wd {
   text-align: center; font-size: var(--fs-1); color: var(--subtle); padding: 2px 0 4px; letter-spacing: 0.04em;
 }
-[data-theme='codex'] .dp-wd { font-variant: small-caps; font-size: 14px; }
+[data-theme='codex'] .dp-wd { font-variant: small-caps; font-size: 0.875rem; }
 .dp-cell { display: flex; min-width: 0; }
 .dp-day {
   width: 100%; min-height: 34px; padding: 0; border: 1px solid transparent; border-radius: var(--radius);
@@ -94,7 +94,7 @@
     border-radius: 16px 16px 0 0; border-bottom: 0; padding: 8px 14px calc(14px + env(safe-area-inset-bottom));
     max-height: 86dvh; overflow: auto; animation: ui-sheet var(--dur-3) var(--ease-out);
   }
-  .dp-seg { height: 44px; font-size: max(16px, var(--fs-3)); }
+  .dp-seg { height: 44px; font-size: max(1rem, var(--fs-3)); }
   .dp-cal { width: 44px; height: 44px; }
   .dp-pop-head .dp-nav, .dp-pop .dp-nav { width: 44px; height: 44px; }
   .dp-day { min-height: 44px; }
@@ -107,5 +107,5 @@
   .dp-y { width: 7ch; }
 }
 /* Any touch screen, whatever its width: date parts you can hit, and no zoom on focus. */
-@media (pointer: coarse) { .dp-seg { font-size: max(16px, var(--fs-3)); } .dp-cal { width: 44px; height: 44px; } }
+@media (pointer: coarse) { .dp-seg { font-size: max(1rem, var(--fs-3)); } .dp-cal { width: 44px; height: 44px; } }
 @media (prefers-reduced-motion: reduce) { .dp-pop, .dp-scrim, .dp-pop.sheet { animation: none; } .dp-day { transition: none; } }

@@ -2,7 +2,7 @@
 
 .hist-page { display: flex; flex-direction: column; gap: 14px; }
 .hist-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
-.hist-filters label { display: flex; flex-direction: column; gap: 4px; min-width: min(100%, 12em); flex: 1 1 12em; font-size: var(--fs-2, 13px); color: var(--muted); }
+.hist-filters label { display: flex; flex-direction: column; gap: 4px; min-width: min(100%, 12em); flex: 1 1 12em; font-size: var(--fs-2, 0.8125rem); color: var(--muted); }
 
 .hist-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .hist-item { padding: 10px 0; display: flex; flex-direction: column; gap: 4px; }
@@ -10,11 +10,11 @@
 .hist-line { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; }
 .hist-text { min-width: 0; overflow-wrap: anywhere; }
 .hist-label { color: var(--muted); }
-.hist-when { color: var(--muted); font-size: var(--fs-2, 13px); white-space: nowrap; }
-.hist-person { font-size: var(--fs-2, 13px); }
+.hist-when { color: var(--muted); font-size: var(--fs-2, 0.8125rem); white-space: nowrap; }
+.hist-person { font-size: var(--fs-2, 0.8125rem); }
 .hist-muted { color: var(--muted); font-style: italic; }
 
-.hist-fields { margin: 2px 0 0; padding: 6px 0 0 12px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-2, 13px); }
+.hist-fields { margin: 2px 0 0; padding: 6px 0 0 12px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-2, 0.8125rem); }
 .hist-field { display: grid; grid-template-columns: minmax(7em, max-content) minmax(0, 1fr); gap: 2px 10px; align-items: baseline; }
 .hist-field dt { color: var(--muted); }
 .hist-field dd { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; min-width: 0; overflow-wrap: anywhere; }
@@ -22,8 +22,8 @@
 .hist-field ins { text-decoration: none; }
 .hist-arrow { color: var(--muted); }
 .hist-restore { margin-left: auto; }
-.hist-ok { margin: 4px 0 0; font-size: var(--fs-2, 13px); color: var(--ok, var(--ink)); }
-.hist-error { margin: 4px 0 0; font-size: var(--fs-2, 13px); color: var(--danger, #b42318); }
+.hist-ok { margin: 4px 0 0; font-size: var(--fs-2, 0.8125rem); color: var(--ok, var(--ink)); }
+.hist-error { margin: 4px 0 0; font-size: var(--fs-2, 0.8125rem); color: var(--danger, #b42318); }
 .hist-more { align-self: center; }
 @media (max-width: 520px) {
   .hist-field { grid-template-columns: minmax(0, 1fr); }
@@ -40,7 +40,7 @@
 .whats-new > .td-more-link { justify-self: start; }
 .whats-new-groups { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .whats-new-group + .whats-new-groups { margin-top: 12px; }
-.whats-new-group h3 { margin: 0 0 4px; font-size: var(--fs-4, 17px); font-weight: 600; }
+.whats-new-group h3 { margin: 0 0 4px; font-size: var(--fs-4, 1.0625rem); font-weight: 600; }
 .whats-new-group ul { list-style: none; margin: 0; padding: 0 0 0 12px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 3px; overflow-wrap: anywhere; }
 
 /* The unread dot beside History in the account menu: a count for screen readers, a dot for the eye. */

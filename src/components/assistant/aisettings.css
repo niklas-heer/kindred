@@ -385,7 +385,7 @@
 }
 [data-theme='codex'] .ai-savebar { border-color: var(--edge-soft); background: linear-gradient(180deg, #1a2130, #151b27); box-shadow: 0 -10px 16px -12px #000b; }
 [data-theme='night'] .ai-savebar { background: #1c2029; border-color: #6b563655; }
-.ai-savebar-status { flex: 1 1 12em; min-width: 0; margin: 0; color: var(--accent); font-family: var(--font-ui); font-size: 15px; overflow-wrap: anywhere; }
+.ai-savebar-status { flex: 1 1 12em; min-width: 0; margin: 0; color: var(--accent); font-family: var(--font-ui); font-size: 0.9375rem; overflow-wrap: anywhere; }
 .ai-savebar-status.ai-card-error { color: var(--danger); }
 .ai-savebar .btn { min-height: 40px; }
 

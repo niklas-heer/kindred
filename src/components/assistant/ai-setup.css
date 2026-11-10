@@ -8,12 +8,12 @@
 .more-list button {
   display: flex; align-items: center; gap: 14px; width: 100%; padding: 12px 10px; border: 0; border-radius: var(--radius);
   background: none; color: var(--text); text-align: left; cursor: pointer;
-  font-family: var(--font-ui); font-size: 16px;
+  font-family: var(--font-ui); font-size: 1rem;
 }
 .more-list button svg { color: var(--muted); flex: none; }
 .more-list button:hover { background: var(--panel-2); }
 .more-list button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.more-list button small { margin-left: auto; color: var(--subtle); font-size: 13px; }
+.more-list button small { margin-left: auto; color: var(--subtle); font-size: 0.8125rem; }
 
 /* Narrower windows keep the sparkle and drop the words; the title and the accessible name still say them. */
 @media (max-width: 1600px) {
@@ -24,7 +24,7 @@
 /* A hint sits in a toolbar or under a list: small, underlined softly, a touch target of about 40px. */
 .ai-setup-hint {
   display: inline-flex; align-items: center; gap: 5px; min-height: 40px; padding: 0 6px;
-  font-family: var(--font-ui); font-size: 13.5px; color: var(--muted); text-decoration: underline;
+  font-family: var(--font-ui); font-size: 0.8438rem; color: var(--muted); text-decoration: underline;
   text-decoration-color: var(--edge-soft, var(--border)); text-underline-offset: 4px;
   border-radius: var(--radius);
 }
@@ -33,13 +33,13 @@
 
 /* The panel. */
 .ai-setup-panel { display: grid; gap: 12px; font-family: var(--font-body); color: var(--text); }
-.ai-setup-lede { margin: 0; font-size: 16px; line-height: 1.5; color: var(--muted); text-wrap: pretty; }
-.ai-setup-what { margin: 4px 0 0; font-family: var(--font-display); font-weight: 600; font-size: 15px; }
-[data-theme='codex'] .ai-setup-what { font-variant: small-caps; color: var(--accent); font-size: 16px; }
+.ai-setup-lede { margin: 0; font-size: 1rem; line-height: 1.5; color: var(--muted); text-wrap: pretty; }
+.ai-setup-what { margin: 4px 0 0; font-family: var(--font-display); font-weight: 600; font-size: 0.9375rem; }
+[data-theme='codex'] .ai-setup-what { font-variant: small-caps; color: var(--accent); font-size: 1rem; }
 .ai-setup-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
-.ai-setup-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 15.5px; line-height: 1.4; }
+.ai-setup-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 0.9688rem; line-height: 1.4; }
 .ai-setup-list svg { flex: none; margin-top: 3px; color: var(--accent); }
 .ai-setup-privacy {
   margin: 4px 0 0; padding: 10px 12px; border-radius: var(--radius); background: var(--panel-2);
-  font-family: var(--font-ui); font-size: 14px; line-height: 1.45; color: var(--muted);
+  font-family: var(--font-ui); font-size: 0.875rem; line-height: 1.45; color: var(--muted);
 }

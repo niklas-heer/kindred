@@ -30,8 +30,8 @@
 /* The gilt runs down the sides and along the foot; the top edge belongs to the top bar. */
 [data-theme='codex'] .tree-toolbar { box-shadow: inset 1px 0 0 var(--edge-soft), inset -1px 0 0 var(--edge-soft), inset 0 -1px 0 var(--edge-soft), 0 6px 16px #0008; }
 .tree-toolbar .seg { display: flex; flex-wrap: nowrap; gap: 2px; flex: none; }
-.tree-toolbar .btn { height: var(--ctl-sm, 32px); font-size: var(--fs-3, 14px); flex: none; }
-.tree-toolbar .ui-select { height: var(--ctl-sm, 32px); font-size: var(--fs-3, 14px); }
+.tree-toolbar .btn { height: var(--ctl-sm, 32px); font-size: var(--fs-3, 0.875rem); flex: none; }
+.tree-toolbar .ui-select { height: var(--ctl-sm, 32px); font-size: var(--fs-3, 0.875rem); }
 .tb-sep { width: 1px; height: 22px; background: var(--border); margin: 0 2px; flex: none; }
 [data-theme='codex'] .tb-sep { background: var(--edge-soft); }
 /* Inter runs wider than Garamond: tighter buttons keep the toolbar on one row. */
@@ -44,7 +44,7 @@
 .tb-display-row { display: flex; gap: 6px; flex: none; }
 .tb-display-row .ui-select { flex: none; }
 
-.stepper { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-3, 14px); flex: none; }
+.stepper { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-3, 0.875rem); flex: none; }
 .stepper .btn { position: relative; width: 26px; height: 26px; }
 .stepper b { min-width: 14px; text-align: center; font-variant-numeric: tabular-nums; }
 @media (pointer: coarse) { .stepper .btn { width: 36px; height: 36px; } }
@@ -103,24 +103,24 @@
 .banner-text:has(> .banner-of) { align-items: center; }
 .house-banner .banner-of { display: flex; flex-wrap: wrap; align-content: flex-end; column-gap: 0.28em; height: 1.2em; min-width: 0; }
 .banner-of > span { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.house-banner b { flex: 0 1 auto; font-size: var(--fs-3, 14px); font-weight: 600; }
+.house-banner b { flex: 0 1 auto; font-size: var(--fs-3, 0.875rem); font-weight: 600; }
 [data-theme='codex'] .house-banner b { color: var(--accent); font-weight: 500; }
-.house-banner .faint { flex: 0 10 auto; min-width: 0; font-size: var(--fs-2, 13px); }
+.house-banner .faint { flex: 0 10 auto; min-width: 0; font-size: var(--fs-2, 0.8125rem); }
 .house-banner .banner-count { flex: none; font-variant-numeric: tabular-nums; }
-.house-banner .btn { flex: none; height: 26px; min-width: 26px; padding: 0 6px; gap: 4px; font-size: var(--fs-2, 13px); }
+.house-banner .btn { flex: none; height: 26px; min-width: 26px; padding: 0 6px; gap: 4px; font-size: var(--fs-2, 0.8125rem); }
 .house-banner .arms { flex: none; }
 @keyframes banner-in { from { opacity: 0; transform: translateY(-6px); } }
 @container hud (max-width: 600px) { .banner-btn-label { display: none; } }
 
 .lens-banner {
   width: fit-content; max-width: 100%; display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 14px; border-radius: 999px;
-  background: var(--accent); color: var(--accent-text); box-shadow: var(--shadow); font-size: var(--fs-3, 14px);
+  background: var(--accent); color: var(--accent-text); box-shadow: var(--shadow); font-size: var(--fs-3, 0.875rem);
   animation: rise 160ms ease-out;
 }
 .lens-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lens-banner .btn { color: inherit; width: 26px; height: 26px; flex: none; }
 .lens-banner .btn:hover { background: color-mix(in srgb, var(--accent-text) 12%, transparent); }
-.lens-count { opacity: 0.85; font-size: var(--fs-2, 13px); white-space: nowrap; }
+.lens-count { opacity: 0.85; font-size: var(--fs-2, 0.8125rem); white-space: nowrap; }
 
 /* A phone's trail: the last person looked at, as one button among the map controls. */
 .map-controls .btn.trail-back { padding: 0; }
@@ -129,7 +129,7 @@
 /* ---------- trail ---------- */
 .trail {
   position: absolute; left: 72px; bottom: 16px; z-index: 6; display: flex; align-items: center; gap: 6px; padding: 6px 10px;
-  font-size: var(--fs-1, 12px); transition: left var(--dur-2, 200ms);
+  font-size: var(--fs-1, 0.75rem); transition: left var(--dur-2, 200ms);
 }
 .trail.with-panel { left: calc(var(--panel-w) + 72px); }
 .trail-item { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 50%; width: 30px; height: 30px; transition: transform 120ms; flex: none; }
@@ -141,13 +141,13 @@
 
 /* ---------- keyboard help, beside the map controls ---------- */
 .help-card {
-  position: absolute; right: 76px; bottom: 16px; z-index: 9; width: 320px; padding: 12px 14px; font-size: var(--fs-3, 14px);
+  position: absolute; right: 76px; bottom: 16px; z-index: 9; width: 320px; padding: 12px 14px; font-size: var(--fs-3, 0.875rem);
   animation: rise 140ms ease-out;
 }
-.help-card header { display: flex; justify-content: space-between; align-items: center; font-size: var(--fs-5, 18px); margin-bottom: 6px; }
+.help-card header { display: flex; justify-content: space-between; align-items: center; font-size: var(--fs-5, 1.125rem); margin-bottom: 6px; }
 .help-row { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--border); }
 .help-row span:first-child { display: inline-flex; gap: 3px; }
-.help-card p { margin: 10px 0 0; font-size: var(--fs-2, 13px); }
+.help-card p { margin: 10px 0 0; font-size: var(--fs-2, 0.8125rem); }
 @media (hover: none), (max-width: 900px) { .map-keys { display: none !important; } }
 
 /* ---------- the person panel: docked on the left on wide screens ---------- */
@@ -169,8 +169,8 @@
      generation steppers, the house, folding, names and ages open from Display, each with its name. */
   .tree-toolbar.is-phone { gap: 4px; padding: 4px; }
   .is-phone .tb-views { flex: 1 1 0; min-width: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; }
-  .is-phone .tb-views .btn { height: 44px; min-width: 0; padding: 0 4px; justify-content: center; font-size: 14px; }
-  [data-theme='codex'] .is-phone .tb-views .btn { font-size: 15px; }
+  .is-phone .tb-views .btn { height: 44px; min-width: 0; padding: 0 4px; justify-content: center; font-size: 0.875rem; }
+  [data-theme='codex'] .is-phone .tb-views .btn { font-size: 0.9375rem; }
   .is-phone .tb-view-icon { display: none; }
   .is-phone .tb-views .tb-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .is-phone .tb-lens, .is-phone .tb-display { height: 44px; min-width: 44px; justify-content: center; }
@@ -223,7 +223,7 @@
   .sheet-grip > span { width: 40px; height: 5px; border-radius: 999px; background: color-mix(in srgb, var(--text) 30%, transparent); }
   .sheet-grip:focus-visible { outline: none; }
   .sheet-grip:focus-visible > span { box-shadow: var(--focus-ring); }
-  .sheet-back { position: absolute; left: 6px; top: 50%; translate: 0 -50%; height: 44px; font-size: var(--fs-3, 15px); color: var(--text); }
+  .sheet-back { position: absolute; left: 6px; top: 50%; translate: 0 -50%; height: 44px; font-size: var(--fs-3, 0.9375rem); color: var(--text); }
   [data-theme='codex'] .sheet-back { color: var(--accent); }
 
   /* The panel fills the sheet and scrolls as one, so "Add relative" ends the content and takes no room at the
@@ -251,8 +251,8 @@
   .panel-sheet[data-snap='peek'] .pp-portrait-slot { align-self: center; line-height: 0; }
   .panel-sheet[data-snap='peek'] .pp-portrait > .portrait { width: 44px !important; height: 44px !important; transition: none; }
   .panel-sheet[data-snap='peek'] .pp-id { padding-top: 0; gap: 0; }
-  .panel-sheet[data-snap='peek'] .pp-id h2 { font-size: var(--fs-5, 18px); padding-right: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .panel-sheet[data-snap='peek'] .pp-life { font-size: var(--fs-2, 13px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .panel-sheet[data-snap='peek'] .pp-id h2 { font-size: var(--fs-5, 1.125rem); padding-right: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .panel-sheet[data-snap='peek'] .pp-life { font-size: var(--fs-2, 0.8125rem); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .panel-sheet[data-snap='peek'] :is(.pp-title, .pp-house, .pp-motto, .pp-mini, .pp-head ~ *, .pp-add-relative) { display: none; }
   .sheet-peek-hit {
     display: flex; align-items: center; justify-content: flex-end; position: absolute; left: 0; right: 48px; top: 0; bottom: 0; z-index: 3;
@@ -270,14 +270,14 @@
 .tb-display-sheet, .tb-sheet-group { display: grid; gap: 16px; }
 .tb-display-sheet { padding: 4px 2px 8px; }
 .tb-sheet-field { display: grid; gap: 6px; min-width: 0; }
-.tb-sheet-field > span { font-size: 14px; color: var(--muted); font-family: var(--font-ui); }
-[data-theme='codex'] .tb-sheet-field > span { font-family: var(--font-display); font-variant: small-caps; letter-spacing: 0.06em; font-size: 15px; }
-.tb-display-sheet .ui-select { width: 100%; max-width: none; min-height: 44px; font-size: max(16px, var(--fs-3, 14px)); }
+.tb-sheet-field > span { font-size: 0.875rem; color: var(--muted); font-family: var(--font-ui); }
+[data-theme='codex'] .tb-sheet-field > span { font-family: var(--font-display); font-variant: small-caps; letter-spacing: 0.06em; font-size: 0.9375rem; }
+.tb-display-sheet .ui-select { width: 100%; max-width: none; min-height: 44px; font-size: max(1rem, var(--fs-3, 0.875rem)); }
 .tb-sheet-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .tb-sheet-actions .btn { flex: 1 1 0; min-height: 44px; justify-content: center; white-space: nowrap; }
-.stepper.full { display: flex; gap: 10px; font-size: var(--fs-4, 16px); }
+.stepper.full { display: flex; gap: 10px; font-size: var(--fs-4, 1rem); }
 .stepper.full .tb-label { flex: 1; min-width: 0; }
 .stepper.full .btn { width: 44px; height: 44px; }
-.stepper.full b { min-width: 28px; font-size: var(--fs-5, 18px); }
+.stepper.full b { min-width: 28px; font-size: var(--fs-5, 1.125rem); }
 /* The trail's faces are buttons too. */
 @media (pointer: coarse) { .trail { gap: 14px; } .trail-item { position: relative; } .trail-item::after { content: ''; position: absolute; inset: -7px; } }

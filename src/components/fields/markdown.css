@@ -6,7 +6,7 @@
 .md-tool[aria-pressed='true'] { color: var(--accent); }
 .md-tool:disabled { opacity: 0.4; }
 .md-mode .btn { min-height: 44px; }
-.md-text { min-height: 160px; resize: vertical; font-family: var(--font-body); font-size: 16px; line-height: 1.55; }
+.md-text { min-height: 160px; resize: vertical; font-family: var(--font-body); font-size: 1rem; line-height: 1.55; }
 .md-preview { min-height: 160px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-2); overflow-wrap: anywhere; }
 .md-preview > div > :first-child { margin-top: 0; }
 .md-mention { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-2); }

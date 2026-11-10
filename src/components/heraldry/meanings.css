@@ -88,4 +88,4 @@
 .ae-symbolism > span { display: block; overflow-wrap: anywhere; }
 .ae-symbolism b { font-weight: 500; }
 .ae-means-name small { font-size: var(--fs-1); }
-[data-theme='codex'] .ae-means-kind { font-size: 14px; }
+[data-theme='codex'] .ae-means-kind { font-size: 0.875rem; }

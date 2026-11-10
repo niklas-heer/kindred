@@ -22,7 +22,7 @@
      1 badges, key caps · 2 captions · 3 controls, labels · 4 body, rows · 5 names, card titles ·
      6 section and dialog titles · 7 page title on a phone · 8 page title on desktop.
      Nothing on a page is set below --fs-1; small caps never below 14px. */
-  --fs-1: 13px; --fs-2: 15px; --fs-3: 16px; --fs-4: 18px; --fs-5: 20px; --fs-6: 24px; --fs-7: 28px; --fs-8: 34px;
+  --fs-1: 0.8125rem; --fs-2: 0.9375rem; --fs-3: 1rem; --fs-4: 1.125rem; --fs-5: 1.25rem; --fs-6: 1.5rem; --fs-7: 1.75rem; --fs-8: 2.125rem;
   --lh-tight: 1.2; --lh-ui: 1.35; --lh-body: 1.5;
   /* Controls: heights you can touch. Raised under (pointer: coarse), below. */
   --ctl-sm: 32px; --ctl: 36px; --ctl-lg: 44px;
@@ -94,7 +94,7 @@
   --name-weight: 500;
   /* Titles in ink: page, dialog and section titles share the names' serif; body and controls stay Inter. */
   --font-title: 'EB Garamond Variable', Garamond, Georgia, serif;
-  --fs-1: 12px; --fs-2: 13px; --fs-3: 14px; --fs-4: 16px; --fs-5: 18px; --fs-6: 22px; --fs-7: 26px; --fs-8: 30px;
+  --fs-1: 0.75rem; --fs-2: 0.8125rem; --fs-3: 0.875rem; --fs-4: 1rem; --fs-5: 1.125rem; --fs-6: 1.375rem; --fs-7: 1.625rem; --fs-8: 1.875rem;
 
   --bg: #f4f2ee;
   --panel: #ffffff;
@@ -152,7 +152,7 @@
   --font-name: 'EB Garamond Variable', Garamond, Georgia, serif;
   --name-weight: 500;
   --font-title: 'EB Garamond Variable', Garamond, Georgia, serif;
-  --fs-1: 12px; --fs-2: 13px; --fs-3: 14px; --fs-4: 16px; --fs-5: 20px; --fs-6: 24px; --fs-7: 28px; --fs-8: 32px;
+  --fs-1: 0.75rem; --fs-2: 0.8125rem; --fs-3: 0.875rem; --fs-4: 1rem; --fs-5: 1.25rem; --fs-6: 1.5rem; --fs-7: 1.75rem; --fs-8: 2rem;
 
   --bg: #13161d;
   --panel: linear-gradient(180deg, #1c2029 0%, #181b23 100%);
@@ -335,14 +335,14 @@ h1, h2, h3, h4 { text-wrap: balance; }
 }
 textarea.input { height: auto; min-height: 88px; padding: 8px 10px; line-height: var(--lh-body); resize: vertical; }
 /* Under a finger: 44px tall (through --ctl), and never under 16px, or Safari on an iPhone zooms the page on focus. */
-@media (pointer: coarse) { .input { font-size: max(16px, var(--fs-3)); } }
+@media (pointer: coarse) { .input { font-size: max(1rem, var(--fs-3)); } }
 .input:focus { outline: none; box-shadow: var(--focus-ring); }
 [data-theme='codex'] .input { background: #121722; border-color: #0b0e13; box-shadow: inset 0 0 0 1px #b8954f2a; }
 .field { display: grid; gap: 4px; }
 .field > span { font-size: var(--fs-1); color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--font-ui); }
 [data-theme='night'] .field > span { text-transform: none; letter-spacing: 0.02em; font-size: var(--fs-2); }
-[data-theme='codex'] .field > span { font-family: var(--font-display); text-transform: none; font-variant: small-caps; letter-spacing: 0.08em; font-size: 14px; }
-@media (pointer: coarse) { .field { gap: 6px; } .field > span, [data-theme] .field > span { font-size: 14px; } }
+[data-theme='codex'] .field > span { font-family: var(--font-display); text-transform: none; font-variant: small-caps; letter-spacing: 0.08em; font-size: 0.875rem; }
+@media (pointer: coarse) { .field { gap: 6px; } .field > span, [data-theme] .field > span { font-size: 0.875rem; } }
 
 .chip {
   display: inline-flex; align-items: center; gap: 4px;
@@ -351,7 +351,7 @@ textarea.input { height: auto; min-height: 88px; padding: 8px 10px; line-height:
   font-size: var(--fs-1); color: var(--muted); font-family: var(--font-ui);
 }
 kbd {
-  font-family: ui-monospace, monospace; font-size: 12px;
+  font-family: ui-monospace, monospace; font-size: 0.75rem;
   padding: 1px 5px; border-radius: 4px;
   border: 1px solid var(--border); border-bottom-width: 2px;
   background: var(--panel-2); color: var(--muted);
@@ -391,8 +391,8 @@ kbd {
 /* The sections come in three states, measured in useTopbarFit: labels beside the icons when they fit next to the family's
    whole name; else icon over label (topbar-stacked); else icons alone, with titles (topbar-compact). */
 .topbar .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; min-width: 0; flex: none; }
-.topbar .brand b { font-family: var(--font-display); font-size: 18px; font-weight: 600; line-height: var(--lh-tight); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32ch; }
-[data-theme='night'] .topbar .brand b { font-size: 20px; font-weight: 500; }
+.topbar .brand b { font-family: var(--font-display); font-size: 1.125rem; font-weight: 600; line-height: var(--lh-tight); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32ch; }
+[data-theme='night'] .topbar .brand b { font-size: 1.25rem; font-weight: 500; }
 .topbar nav { display: flex; gap: 2px; margin-left: 12px; min-width: 0; flex: 0 1 auto; }
 .topbar nav a, .nav-more-btn {
   padding: 6px 12px; border-radius: var(--radius); text-decoration: none; color: var(--muted); white-space: nowrap;
@@ -431,7 +431,7 @@ kbd {
 .topbar-tools { display: flex; gap: 2px; }
 .topbar-prefs { display: contents; }
 .topbar-menu { display: none; }
-.search-trigger { width: 260px; flex: none; justify-content: space-between; color: var(--muted); }
+.search-trigger { width: max(260px, 16.25rem); flex: none; justify-content: space-between; color: var(--muted); }
 .search-trigger > span:first-child { display: inline-flex; gap: 8px; align-items: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 /* Positioned, so that what is absolutely placed inside (a visually hidden heading, say) scrolls with the page. Left
@@ -457,7 +457,7 @@ kbd {
   }
   .topbar-stacked nav a svg, .topbar-stacked .nav-more-btn > svg { width: 18px; height: 18px; }
   .topbar-stacked nav a:focus-visible, .topbar-stacked .nav-more-btn:focus-visible { border-radius: var(--radius); }
-  .topbar-stacked .search-trigger { width: 200px; }
+  .topbar-stacked .search-trigger { width: max(200px, 12.5rem); }
   /* No room even for that: the nav keeps its icons, titles explain them. */
   .topbar-compact nav { flex: none; }
   .topbar-compact nav .nav-label { display: none; }
@@ -466,17 +466,17 @@ kbd {
   .topbar-compact .nav-more-btn[data-status='active'] .nav-label { display: inline-flex; }
   .topbar-compact nav a, .topbar-compact .nav-more-btn { padding: 6px 10px; }
   @media (pointer: coarse) { .topbar-compact nav a, .topbar-compact .nav-more-btn { min-height: 44px; min-width: 44px; justify-content: center; } }
-  .topbar-compact .search-trigger { width: 200px; }
+  .topbar-compact .search-trigger { width: max(200px, 12.5rem); }
 }
 @media (min-width: 901px) { .topbar-compact .brand, .topbar-stacked .brand { flex: 0 1 auto; min-width: calc(18ch + 38px); } }
 /* Before giving up the inline labels: a little less padding and a narrower search. */
 @media (min-width: 761px) and (max-width: 1680px) {
   .topbar:not(.topbar-compact):not(.topbar-stacked) nav a, .topbar:not(.topbar-compact):not(.topbar-stacked) .nav-more-btn { padding: 6px 7px; gap: 5px; }
-  .topbar:not(.topbar-compact):not(.topbar-stacked) .search-trigger { width: 168px; }
+  .topbar:not(.topbar-compact):not(.topbar-stacked) .search-trigger { width: max(168px, 10.5rem); }
   /* Sound and theme move into the account menu (account.css shows them there at the same width). */
   .topbar-prefs { display: none; }
 }
-@media (min-width: 761px) and (max-width: 1400px) { .topbar-stacked .search-trigger { width: 150px; } }
+@media (min-width: 761px) and (max-width: 1400px) { .topbar-stacked .search-trigger { width: max(150px, 9.375rem); } }
 /* Short of room on a laptop, the search gives way before the family's name does: it shrinks to its icon and shortcut
    (and drops its words once they no longer fit) so "The Lindqvist–Ashworth family" is not cut to make room for it. */
 @media (min-width: 901px) {
@@ -496,7 +496,7 @@ kbd {
 @media (max-width: 760px) {
   .topbar { gap: 4px; padding: 0 6px 0 12px; }
   .topbar nav, .topbar-tools > :not(.topbar-ask) { display: none; }
-  .topbar .brand b { display: block; font-size: 17px; max-width: 100%; }
+  .topbar .brand b { display: block; font-size: 1.0625rem; max-width: 100%; }
   .topbar .brand { flex: 0 1 auto; margin-right: 4px; }
   .topbar-menu { display: inline-flex; }
   /* Search and Ask: 44px squares, icons only; their words stay as the accessible names. */
@@ -517,13 +517,13 @@ kbd {
   .tabbar a, .tabbar button {
     display: grid; justify-items: center; align-content: center; gap: 3px; height: 58px; padding: 0 2px; min-width: 0;
     border: 0; background: none; color: color-mix(in srgb, var(--text) 80%, transparent); text-decoration: none; cursor: pointer;
-    font-family: var(--font-ui); font-size: 12px; line-height: 1.15; letter-spacing: 0.01em; position: relative;
+    font-family: var(--font-ui); font-size: 0.75rem; line-height: 1.15; letter-spacing: 0.01em; position: relative;
     -webkit-tap-highlight-color: transparent;
     transition: color var(--dur-1), background-color var(--dur-1);
   }
   .tabbar a > span, .tabbar button > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tabbar a svg, .tabbar button svg { transition: transform var(--dur-2) var(--ease-spring); }
-  [data-theme='codex'] .tabbar a, [data-theme='codex'] .tabbar button { font-family: var(--font-display); font-variant: small-caps; font-size: 13.5px; letter-spacing: 0.02em; }
+  [data-theme='codex'] .tabbar a, [data-theme='codex'] .tabbar button { font-family: var(--font-display); font-variant: small-caps; font-size: 0.8438rem; letter-spacing: 0.02em; }
   /* The tab you are on: accent ink, a tick on the bar's top edge, and a soft wash rising behind it. */
   .tabbar a[data-status='active'], .tabbar button[aria-expanded='true'] {
     color: var(--accent);

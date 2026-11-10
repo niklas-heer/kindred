@@ -2,10 +2,10 @@
 
 /* Read-only: a label, then the value, in a row per field. */
 .fv-group { display: grid; gap: 0; margin-top: 10px; }
-.fv-row { display: grid; grid-template-columns: 22px minmax(0, 0.9fr) minmax(0, 1.5fr); gap: 4px 10px; align-items: start; padding: 8px 0; border-bottom: 1px dotted var(--border); font-size: var(--fs-3, 15px); }
+.fv-row { display: grid; grid-template-columns: 22px minmax(0, 0.9fr) minmax(0, 1.5fr); gap: 4px 10px; align-items: start; padding: 8px 0; border-bottom: 1px dotted var(--border); font-size: var(--fs-3, 0.9375rem); }
 .fv-row:last-child { border-bottom: 0; }
 .fv-icon { color: var(--accent); padding-top: 3px; }
-.fv-label { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; min-width: 0; font-size: var(--fs-2, 13px); color: var(--muted); overflow-wrap: break-word; }
+.fv-label { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; min-width: 0; font-size: var(--fs-2, 0.8125rem); color: var(--muted); overflow-wrap: break-word; }
 .fv-label > span:first-child { min-width: 0; }
 .fv-value { min-width: 0; overflow-wrap: anywhere; }
 .fv-lines { display: grid; }

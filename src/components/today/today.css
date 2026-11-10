@@ -62,7 +62,7 @@
 [data-theme='modern'] .td-eyebrow { font-size: var(--fs-2); }
 .td-week-date { font-family: var(--font-ui); font-size: var(--fs-2); }
 .td-week-change { margin-left: auto; font-size: var(--fs-2); color: var(--muted); }
-.td-week-q { margin: 6px 0 18px; font-family: var(--font-name); font-size: clamp(24px, 3.4vw, 34px); font-weight: 500; line-height: 1.22; text-wrap: balance; overflow-wrap: anywhere; hyphens: auto; }
+.td-week-q { margin: 6px 0 18px; font-family: var(--font-name); font-size: clamp(1.5rem, 3.4vw, 2.125rem); font-weight: 500; line-height: 1.22; text-wrap: balance; overflow-wrap: anywhere; hyphens: auto; }
 [data-theme='night'] .td-week-q { font-weight: 400; }
 .td-week-cta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
 .td-week-cta .btn.primary { height: var(--ctl-lg); padding-inline: 18px; font-size: var(--fs-4); }
@@ -79,7 +79,7 @@
 .td-answer-by b { color: var(--text); font-weight: 600; }
 .td-answer-by time { margin-left: auto; font-size: var(--fs-2); color: var(--subtle); white-space: nowrap; }
 .td-answer-body { font-family: var(--font-hand); font-size: var(--fs-4); line-height: var(--lh-body); overflow-wrap: anywhere; }
-[data-theme='modern'] .td-answer-body { font-size: 17px; }
+[data-theme='modern'] .td-answer-body { font-size: 1.0625rem; }
 .td-answer-body > :first-child { margin-top: 0; }
 .td-answer-body > :last-child { margin-bottom: 0; }
 .td-answer-body p { margin: 0 0 8px; }

@@ -31,8 +31,8 @@
 /* The legend reads as the fields' labels do (.field > span in app.css). */
 .join-form legend, .join-who legend { font-family: var(--font-ui); font-size: var(--fs-1); color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; padding: 0; margin-bottom: 6px; }
 [data-theme='night'] .join-who legend { text-transform: none; letter-spacing: 0.02em; font-size: var(--fs-2); }
-[data-theme='codex'] .join-who legend { font-family: var(--font-display); text-transform: none; font-variant: small-caps; font-size: 14px; }
-@media (pointer: coarse) { [data-theme] .join-who legend { font-size: 14px; } }
+[data-theme='codex'] .join-who legend { font-family: var(--font-display); text-transform: none; font-variant: small-caps; font-size: 0.875rem; }
+@media (pointer: coarse) { [data-theme] .join-who legend { font-size: 0.875rem; } }
 .join-who { border: 0; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 0; }
 .join-who .who-list { max-height: 220px; overflow: auto; }
 .join-chosen { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

@@ -122,6 +122,7 @@ tables for the Today page and changes none that exist.
 - `mise run screenshots` retakes the README pictures from the two invented families.
 
 ### Changed
+- Text follows the text size set in the browser: font sizes in the stylesheets are in `rem` instead of `px`, so a reader who has chosen a larger default text size gets larger text. At the default size nothing looks different. The tree's cards and the Print page keep fixed sizes.
 
 - Relationships reach further through marriages: a spouse's sibling's spouse and a sibling's spouse's sibling (German
   Schwippschwager, Schwippschwägerin), a step-parent's parents and siblings, a grandparent's later spouse (step-grandparents and

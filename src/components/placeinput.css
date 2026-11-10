@@ -22,7 +22,7 @@
   color: var(--subtle); cursor: pointer; border-radius: var(--radius) 0 0 var(--radius);
 }
 /* A finger needs a 44px row and a 16px font, or iOS zooms the page on focus. */
-@media (pointer: coarse) { .pi-box { height: 44px; } .pi-input { font-size: max(16px, var(--fs-3)); } }
+@media (pointer: coarse) { .pi-box { height: 44px; } .pi-input { font-size: max(1rem, var(--fs-3)); } }
 .pi-pin:hover { color: var(--accent); }
 .pi-pin:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
 .pi-pin[data-placed='true'] { color: var(--accent); }
@@ -32,7 +32,7 @@
   color: var(--muted); font-family: var(--font-ui); font-size: var(--fs-1); white-space: nowrap; overflow: hidden;
 }
 .pi-where > span:last-child { overflow: hidden; text-overflow: ellipsis; }
-.pi-flag { font-size: 14px; line-height: 1; font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; }
+.pi-flag { font-size: 0.875rem; line-height: 1; font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; }
 
 /* The line under the field: a gentle nudge, never an error. */
 .pi-note {
@@ -64,7 +64,7 @@
 /* Suggestions: the Select popover, with a second line of region text. */
 .pi-pop { padding: 5px; }
 .pi-pop .ui-option { white-space: normal; align-items: center; min-height: 40px; }
-.pi-pop .ui-option-icon { width: 22px; font-size: 15px; }
+.pi-pop .ui-option-icon { width: 22px; font-size: 0.9375rem; }
 .pi-pop .ui-option-label { display: grid; line-height: 1.25; }
 .pi-pop .ui-option-label small { color: var(--muted); font-size: var(--fs-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pi-pop .pi-hl { font-weight: 600; }
@@ -106,13 +106,13 @@
 .pm-land { fill: var(--land); stroke: var(--land-edge); stroke-width: 0.7; vector-effect: non-scaling-stroke; }
 .pm-borders { fill: none; stroke: var(--borders); stroke-width: 0.7; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; }
 .pm-town circle { fill: var(--dot); }
-.pm-label { font-family: var(--font-ui); font-size: 11.5px; fill: var(--label); paint-order: stroke; stroke: var(--halo); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
-.pm-label.big { font-size: 12.5px; font-weight: 600; }
+.pm-label { font-family: var(--font-ui); font-size: 0.7188rem; fill: var(--label); paint-order: stroke; stroke: var(--halo); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+.pm-label.big { font-size: 0.7812rem; font-weight: 600; }
 .pm-family circle { fill: var(--family); stroke: var(--pin-edge); stroke-width: 1.5; }
 .pm-family .pm-label { font-weight: 600; font-style: italic; }
 .pm-pin path { fill: var(--pin); stroke: var(--pin-edge); stroke-width: 1.5; }
 .pm-pin circle { fill: var(--pin-edge); }
-.pm-pin .pm-label { font-weight: 700; font-size: 13px; }
+.pm-pin .pm-label { font-weight: 700; font-size: 0.8125rem; }
 .pm-zoom { position: absolute; right: 10px; top: 10px; display: grid; gap: 6px; }
 .pm-zoom .btn { width: 36px; height: 36px; padding: 0; justify-content: center; }
 .pm-hint {

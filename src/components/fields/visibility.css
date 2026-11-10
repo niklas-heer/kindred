@@ -3,5 +3,5 @@
 .fv-vis-personal { color: var(--accent); }
 .pp-contact .fv-vis svg { color: inherit; }
 .fv-vis-picker { display: grid; gap: 4px; margin-top: 8px; }
-.fv-vis-picker .subtle { font-size: 13px; }
+.fv-vis-picker .subtle { font-size: 0.8125rem; }
 .fv-vis-remove { flex: none; }

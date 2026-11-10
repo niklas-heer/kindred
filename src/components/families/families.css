@@ -20,8 +20,8 @@ html[data-demo] .home { min-height: calc(100vh - var(--demo-bar-h)); }
 .families-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .families-list { display: grid; gap: 16px; list-style: none; margin: 0; padding: 0; }
 .families-card { padding: 18px; display: grid; gap: 12px; }
-.families-card h2, .families-card h3 { margin: 0; font-size: var(--fs-5, 18px); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.families-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-2, 13px); }
+.families-card h2, .families-card h3 { margin: 0; font-size: var(--fs-5, 1.125rem); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.families-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-2, 0.8125rem); }
 .families-form { display: grid; gap: 12px; }
 .families-p, .families-card > p { margin: 0; }
 .families-theme { justify-self: start; }

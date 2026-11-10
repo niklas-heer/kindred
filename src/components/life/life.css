@@ -1,7 +1,7 @@
 /* Life events and sources: the timeline's marks, the Edit tab's sections, their dialogs, and the Sources page. */
 
-.life-sourced { display: inline-flex; align-items: center; gap: 1px; margin-left: 6px; padding: 0 4px; border-radius: 999px; font-size: 11px; line-height: 16px; color: var(--accent, var(--ink)); background: color-mix(in srgb, var(--accent, currentColor) 10%, transparent); vertical-align: 1px; }
-.life-note { display: block; color: var(--muted); font-size: var(--fs-2, 13px); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.life-sourced { display: inline-flex; align-items: center; gap: 1px; margin-left: 6px; padding: 0 4px; border-radius: 999px; font-size: 0.6875rem; line-height: 16px; color: var(--accent, var(--ink)); background: color-mix(in srgb, var(--accent, currentColor) 10%, transparent); vertical-align: 1px; }
+.life-note { display: block; color: var(--muted); font-size: var(--fs-2, 0.8125rem); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
 .life-editor { display: flex; flex-direction: column; gap: 22px; margin-top: 26px; }
 .life-section { display: flex; flex-direction: column; gap: 8px; }
@@ -13,7 +13,7 @@
 .life-row { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 2px 0; }
 .life-row-icon { flex: none; color: var(--muted); }
 .life-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
-.life-row-main small { font-size: var(--fs-2, 13px); }
+.life-row-main small { font-size: var(--fs-2, 0.8125rem); }
 .life-row-actions { display: flex; flex: none; }
 .life-fact + .life-fact { border-top: 1px solid var(--border); }
 .life-fact .life-row-main { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 0 4px; }
@@ -22,7 +22,7 @@
 .life-cites { list-style: none; margin: 0 0 8px; padding: 0 0 0 14px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
 .life-cites li { display: flex; align-items: center; gap: 4px; }
 .life-cites li > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.life-quote { display: block; font-style: italic; color: var(--muted); font-size: var(--fs-2, 13px); }
+.life-quote { display: block; font-style: italic; color: var(--muted); font-size: var(--fs-2, 0.8125rem); }
 
 .life-form { display: flex; flex-direction: column; gap: 14px; }
 .life-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; border: 0; padding: 0; margin: 0; }
@@ -37,8 +37,8 @@
 .sources-tools .input { flex: 1; min-width: 12em; }
 .sources-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .source-card { padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
-.source-card h2 { margin: 0; font-size: var(--fs-4, 17px); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
-.source-card-meta { margin: 0; color: var(--muted); font-size: var(--fs-2, 13px); overflow-wrap: anywhere; }
+.source-card h2 { margin: 0; font-size: var(--fs-4, 1.0625rem); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.source-card-meta { margin: 0; color: var(--muted); font-size: var(--fs-2, 0.8125rem); overflow-wrap: anywhere; }
 .source-card-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
 .source-cites { list-style: none; margin: 6px 0 0; padding: 0 0 0 12px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
 
@@ -49,7 +49,7 @@
 .unsourced .chip:hover { border-color: var(--edge); }
 .unsourced .chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 @media (pointer: coarse) { .unsourced .chip { min-height: 36px; padding: 4px 12px; } }
-.life-field > legend { font-size: var(--fs-2, 13px); color: var(--muted); padding: 0; margin-bottom: 5px; }
+.life-field > legend { font-size: var(--fs-2, 0.8125rem); color: var(--muted); padding: 0; margin-bottom: 5px; }
 /* A fact with sources reads differently from one without, and looks like the button it is. */
 .chip.life-count { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .chip.life-count:focus-visible { outline: none; box-shadow: var(--focus-ring); }

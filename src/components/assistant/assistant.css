@@ -329,7 +329,7 @@
   background: transparent;
   color: var(--text);
   font: inherit;
-  font-size: max(16px, var(--fs-4));
+  font-size: max(1rem, var(--fs-4));
   line-height: 24px;
   resize: none;
   outline: none;
@@ -739,7 +739,7 @@
 .ai-tab:hover .ai-tab-close, .ai-tab-active .ai-tab-close, .ai-tab-close:focus-visible { opacity: 1; }
 .ai-tab-close:hover { background: var(--panel-2); color: var(--text); }
 .ai-tab-new { flex: none; width: 30px; height: 30px; min-height: 30px; margin-bottom: 1px; color: var(--muted); }
-@media (pointer: coarse) { .ai-chats-search input { font-size: max(16px, var(--fs-3)); min-height: 44px; } }
+@media (pointer: coarse) { .ai-chats-search input { font-size: max(1rem, var(--fs-3)); min-height: 44px; } }
 @media (pointer: coarse) { .ai-tabs-bar { height: 48px; } .ai-tab-open { min-height: 43px; } .ai-tab-close { width: 32px; height: 32px; opacity: 1; } .ai-tab-new { width: 44px; height: 44px; } }
 
 .ai-chats { position: absolute; top: 0; bottom: 0; left: 0; z-index: 7; display: flex; flex-direction: column; width: min(310px, 88%); background: var(--panel-solid); border-right: 1px solid var(--edge-soft); box-shadow: var(--shadow); animation: ai-chats-in 0.16s ease-out; }
@@ -875,6 +875,6 @@
 @container ai-window (max-width: 360px) {
   .ai-composer { padding: 5px; }
   .ai-composer textarea { padding-inline: 3px; }
-  .ai-composer textarea::placeholder { font-size: 12px; }
+  .ai-composer textarea::placeholder { font-size: 0.75rem; }
 }
 @media (prefers-reduced-motion: reduce) { .ai-composer { transition: none; } }

@@ -58,7 +58,7 @@
 .chr-md blockquote { margin: 0.5em 0; padding-left: 12px; border-left: 2px solid var(--edge); color: var(--muted); }
 .chr-md code { font-size: 0.9em; background: var(--panel-2); padding: 1px 4px; border-radius: 3px; }
 .chr-md[data-clamped] { max-height: 9em; overflow: hidden; mask-image: linear-gradient(180deg, #000 60%, transparent); -webkit-mask-image: linear-gradient(180deg, #000 60%, transparent); }
-.chr-inline-quote { margin: 0; font-family: var(--font-hand); font-size: 21px; line-height: 1.4; padding-left: 14px; border-left: 3px solid var(--accent); }
+.chr-inline-quote { margin: 0; font-family: var(--font-hand); font-size: 1.3125rem; line-height: 1.4; padding-left: 14px; border-left: 3px solid var(--accent); }
 /* Typographic quotation marks. Sayings are stored bare, so the opening and closing marks are added here,
    as the real U+201C / U+201D glyphs, set in the hand font and tinted. */
 .chr-inline-quote > p:first-child::before,
@@ -80,9 +80,9 @@
   background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow);
 }
 [data-theme='codex'] .chr-saying { --meta: #bdb195; border-color: #0a0d12; box-shadow: inset 0 0 0 1px var(--edge-soft), var(--shadow); }
-.chr-saying blockquote { margin: 0 0 16px; position: relative; font-family: var(--font-hand); font-size: 24px; line-height: 1.38; padding-top: 2px; text-wrap: pretty; }
-.chr-saying:nth-child(3n + 2) blockquote { font-size: 27px; }
-.chr-saying:nth-child(5n) blockquote { font-size: 21px; }
+.chr-saying blockquote { margin: 0 0 16px; position: relative; font-family: var(--font-hand); font-size: 1.5rem; line-height: 1.38; padding-top: 2px; text-wrap: pretty; }
+.chr-saying:nth-child(3n + 2) blockquote { font-size: 1.6875rem; }
+.chr-saying:nth-child(5n) blockquote { font-size: 1.3125rem; }
 .chr-saying figcaption { display: flex; align-items: center; gap: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .chr-saying figcaption > div { display: grid; gap: 1px; min-width: 0; font-family: var(--font-ui); font-size: var(--fs-2); }
 .chr-saying figcaption em { font-size: var(--fs-2); color: var(--meta); font-style: italic; }
@@ -116,7 +116,7 @@
   .chr-bar { gap: 8px; border-bottom: 0; }
   .chr-search { order: -1; flex: 1 1 100%; margin: 0; padding: 0; }
   .chr-search svg { top: 50%; }
-  .chr-search .input { height: 44px; font-size: max(16px, var(--fs-3)); }
+  .chr-search .input { height: 44px; font-size: max(1rem, var(--fs-3)); }
   .chr-strip {
     flex-wrap: nowrap; align-items: center; gap: 6px; margin-inline: -16px; padding: 0 16px 2px; overflow-x: auto;
     scroll-snap-type: x proximity; scroll-padding-inline: 16px; scrollbar-width: none; border-bottom: 1px solid var(--border);

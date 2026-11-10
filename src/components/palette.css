@@ -25,10 +25,10 @@
 @keyframes fade { from { opacity: 0; } }
 @keyframes rise { from { opacity: 0; transform: translateY(-8px) scale(0.99); } }
 .palette-group { padding: 10px 10px 4px; font-size: var(--fs-1); text-transform: uppercase; letter-spacing: 0.12em; color: var(--subtle); font-family: var(--font-ui); }
-[data-theme='codex'] .palette-group { font-family: var(--font-display); text-transform: none; font-variant: small-caps; font-size: 14px; color: var(--accent); }
+[data-theme='codex'] .palette-group { font-family: var(--font-display); text-transform: none; font-variant: small-caps; font-size: 0.875rem; color: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .palette-item:active { transform: none; } }
 
 .palette-item { min-height: 44px; }
 .palette-foot { flex-wrap: wrap; gap: 8px 12px; }
 .palette-label { min-width: 0; overflow-wrap: anywhere; }
-@media (max-width: 600px) { .palette-item { gap: 8px; flex-wrap: wrap; } .palette-hint { max-width: 100%; margin-left: 38px; white-space: normal; } .palette-input { font-size: max(16px, var(--fs-4)); padding-inline: 12px; } }
+@media (max-width: 600px) { .palette-item { gap: 8px; flex-wrap: wrap; } .palette-hint { max-width: 100%; margin-left: 38px; white-space: normal; } .palette-input { font-size: max(1rem, var(--fs-4)); padding-inline: 12px; } }

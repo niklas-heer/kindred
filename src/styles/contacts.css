@@ -14,7 +14,7 @@
 .con-letter-row { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; margin-bottom: 18px; }
 .con-letter {
   position: sticky; top: 8px; align-self: start;
-  font-size: 34px; line-height: 1; color: var(--accent); padding-top: 10px; text-align: center;
+  font-size: 2.125rem; line-height: 1; color: var(--accent); padding-top: 10px; text-align: center;
 }
 @media (max-width: 560px) {
   .con-letter-row { grid-template-columns: 1fr; }
@@ -128,7 +128,7 @@ a.con-value:focus-visible { outline: none; box-shadow: var(--focus-ring); border
 @media (max-width: 600px) {
   .con-tools { gap: 8px; margin-bottom: 14px; }
   .con-search { flex: 1 1 100%; }
-  .con-search .input { height: 44px; font-size: max(16px, var(--fs-3)); }
+  .con-search .input { height: 44px; font-size: max(1rem, var(--fs-3)); }
   .con-filters {
     flex: 1 1 100%; flex-wrap: nowrap; margin-inline: -16px; padding: 0 16px; overflow-x: auto;
     scroll-snap-type: x proximity; scroll-padding-inline: 16px; scrollbar-width: none;

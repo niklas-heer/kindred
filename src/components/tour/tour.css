@@ -35,7 +35,7 @@
 
 .tour-foot { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
 .tour-skip { margin-right: auto; }
-.tour-keys { display: inline-flex; gap: 3px; color: var(--subtle); font-size: 12px; }
+.tour-keys { display: inline-flex; gap: 3px; color: var(--subtle); font-size: 0.75rem; }
 .tour-card .btn { min-height: 38px; }
 
 /* Touch screens have no arrow keys to mention; the buttons take the full reach of a thumb. */

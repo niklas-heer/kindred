@@ -59,8 +59,8 @@
   display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px;
   color: var(--muted);
 }
-.ruler-row b { font-family: var(--font-display); font-weight: 600; font-size: 17px; line-height: 1; }
-.ruler-row span { font-size: var(--fs-1, 12px); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ruler-row b { font-family: var(--font-display); font-weight: 600; font-size: 1.0625rem; line-height: 1; }
+.ruler-row span { font-size: var(--fs-1, 0.75rem); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* The current generation: a 2px accent bar and the faintest tint, not a selection slab. */
 .ruler-row.active { color: var(--text); box-shadow: inset 2px 0 0 var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .ruler-row.active b { color: var(--accent); }
@@ -104,14 +104,14 @@
 /* Drawn smaller where the canvas is short of room: the two counts stack so neither is cut. */
 .minimap.small { padding: 6px; }
 .minimap.small .minimap-foot { flex-wrap: wrap; gap: 0 10px; padding-top: 4px; }
-.minimap-foot { display: flex; justify-content: space-between; gap: 12px; padding: 6px 2px 0; font-size: var(--fs-1, 12px); color: var(--muted); font-family: var(--font-ui); }
+.minimap-foot { display: flex; justify-content: space-between; gap: 12px; padding: 6px 2px 0; font-size: var(--fs-1, 0.75rem); color: var(--muted); font-family: var(--font-ui); }
 [data-theme='codex'] .minimap-foot { font-family: var(--font-display); letter-spacing: 0.03em; }
 
 /* Phones and narrow tablets: a slimmer ruler, bigger controls, and the minimap only on request. */
 @media (max-width: 900px) {
   .canvas { --ruler-w: 44px; }
-  .ruler-row b { font-size: 15px; }
-  .ruler-row span { font-size: 12px; letter-spacing: -0.01em; }
+  .ruler-row b { font-size: 0.9375rem; }
+  .ruler-row span { font-size: 0.75rem; letter-spacing: -0.01em; }
   .map-dock { right: 10px; bottom: calc(var(--sheet-h, 0px) + 10px); gap: 8px; }
   .map-controls .btn { width: 44px; height: 44px; }
   .map-toggle { display: inline-flex !important; }
@@ -148,15 +148,15 @@
 .union-label {
   position: absolute; z-index: 1; translate: -50% -50%; pointer-events: none;
   display: grid; justify-items: center; gap: 0; padding: 0.2em 0.5em; white-space: nowrap;
-  font-family: var(--font-body, Georgia, serif); font-size: 15px; line-height: 1.2; font-variant-numeric: lining-nums tabular-nums;
+  font-family: var(--font-body, Georgia, serif); font-size: 0.9375rem; line-height: 1.2; font-variant-numeric: lining-nums tabular-nums;
   color: var(--chip-text); background: var(--chip); border: calc(1px / var(--k, 1)) solid var(--edge-soft, var(--border)); border-radius: 2px;
   box-shadow: 0 calc(1px / var(--k, 1)) calc(3px / var(--k, 1)) #0005;
   transition: opacity var(--dur-2, 200ms);
 }
 [data-theme='modern'] .union-label { box-shadow: 0 1px 2px #2a22141f; }
-.union-status { font-size: 13px; color: color-mix(in srgb, var(--chip-text) 78%, transparent); }
+.union-status { font-size: 0.8125rem; color: color-mix(in srgb, var(--chip-text) 78%, transparent); }
 .union-label.dim { opacity: .25; }
 .canvas:is(.detail-far, .detail-seal) .union-label { display: none; }
-.canvas.detail-mid .union-label { font-size: 22px; }
+.canvas.detail-mid .union-label { font-size: 1.375rem; }
 .canvas.detail-mid :is(.union-ended, .union-status) { display: none; }
 @media (prefers-reduced-motion: reduce) { .union-label { transition: none; } }

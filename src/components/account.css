@@ -42,7 +42,7 @@
 .acct-group + .acct-group { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--border); }
 [data-theme='codex'] .acct-group + .acct-group { border-top-color: var(--edge-soft); }
 .acct-group-h { padding: 4px 10px 2px; font-family: var(--font-ui); font-size: var(--fs-1); letter-spacing: 0.1em; text-transform: uppercase; color: var(--subtle); }
-[data-theme='codex'] .acct-group-h { font-family: var(--font-display); font-size: 14px; letter-spacing: 0.04em; text-transform: none; font-variant: small-caps; color: var(--accent); }
+[data-theme='codex'] .acct-group-h { font-family: var(--font-display); font-size: 0.875rem; letter-spacing: 0.04em; text-transform: none; font-variant: small-caps; color: var(--accent); }
 .acct-item {
   display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 10px; width: 100%;
   border: 0; border-radius: var(--radius); background: none; text-align: left; text-decoration: none; cursor: pointer;
@@ -93,7 +93,7 @@
 .acct-ok { color: var(--ok); display: flex; align-items: center; gap: 6px; margin: 8px 0 0; font-size: var(--fs-3); }
 .btn.acct-danger, [data-theme] .btn.acct-danger { background: var(--danger); color: #fff; box-shadow: none; }
 
-.acct-kbd { margin-left: auto; font-size: 12px; color: var(--muted); }
+.acct-kbd { margin-left: auto; font-size: 0.75rem; color: var(--muted); }
 
 /* Which version this is: the quiet last line of the account menu. */
 .about-body { display: grid; gap: 10px; }

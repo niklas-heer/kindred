@@ -27,7 +27,7 @@
 .st-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .st-tile { display: flex; flex-direction: column; gap: 2px; font-family: var(--font-ui); }
 .st-tile span { font-size: var(--fs-2); color: var(--muted); }
-.st-tile b { font-size: 32px; font-weight: 600; line-height: 1.15; color: var(--text); font-variant-numeric: tabular-nums; }
+.st-tile b { font-size: 2rem; font-weight: 600; line-height: 1.15; color: var(--text); font-variant-numeric: tabular-nums; }
 .st-tile small { font-size: var(--fs-2); color: var(--subtle); }
 
 .st-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
@@ -95,7 +95,7 @@
 
 .st-steps { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; font-family: var(--font-ui); }
 .st-steps dt { font-size: var(--fs-2); color: var(--muted); }
-.st-steps dd { margin: 0; font-size: 26px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.st-steps dd { margin: 0; font-size: 1.625rem; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
 
 .st-privacy { font-family: var(--font-ui); font-size: var(--fs-3); color: var(--muted); line-height: 1.45; }
 .st-privacy p { margin: 10px 0 0; max-width: 70ch; }
@@ -103,7 +103,7 @@
 @media (max-width: 760px) {
   .st-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .st-grid-2 { grid-template-columns: minmax(0, 1fr); }
-  .st-tile b { font-size: 26px; }
+  .st-tile b { font-size: 1.625rem; }
   .st-card { padding: 14px; }
   .st-ranked li { grid-template-columns: minmax(0, 8.5em) minmax(0, 1fr) 2.8em; }
 }

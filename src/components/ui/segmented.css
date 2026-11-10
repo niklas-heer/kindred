@@ -33,6 +33,6 @@
 [data-theme='night'] .ui-seg-item[aria-checked='true'] { background: #2b3140; color: #f1e6d0; border-color: #6b563666; }
 
 @media (max-width: 600px) {
-  .ui-seg-item, .ui-seg.sm .ui-seg-item { min-height: 44px; font-size: max(16px, var(--fs-3)); }
+  .ui-seg-item, .ui-seg.sm .ui-seg-item { min-height: 44px; font-size: max(1rem, var(--fs-3)); }
 }
 @media (prefers-reduced-motion: reduce) { .ui-seg-item { transition: none; } .ui-seg-item:active { transform: none !important; } }

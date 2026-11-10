@@ -32,10 +32,10 @@
 .cm-token text { fill: #fff8e2; font-family: 'Inter Variable', system-ui, sans-serif; font-weight: 700; font-variant-numeric: tabular-nums; }
 .cm-mark.is-mine .cm-token circle { fill: #7a1f1a; stroke: #ffe08a; stroke-width: 3; }
 .cm-name {
-  font-family: var(--font-display); font-size: 21px; font-weight: 600; letter-spacing: 0.02em; fill: var(--cm-ink);
+  font-family: var(--font-display); font-size: 1.3125rem; font-weight: 600; letter-spacing: 0.02em; fill: var(--cm-ink);
   paint-order: stroke; stroke: var(--cm-paper); stroke-width: 5px; stroke-linejoin: round;
 }
-[data-theme='codex'] .cm-name { font-variant: small-caps; font-size: 22px; }
+[data-theme='codex'] .cm-name { font-variant: small-caps; font-size: 1.375rem; }
 .cm-wrap[data-narrow] .cm-name { display: none; }
 .cm-pulse { fill: none; stroke: #fff6d6; stroke-width: 5; }
 @keyframes cm-march { to { stroke-dashoffset: -48; } }
@@ -86,9 +86,9 @@
 .cg-row-text small { font-family: var(--font-ui); font-size: var(--fs-1); color: var(--subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cg-row-troops, .cg-n {
   min-width: 26px; height: 26px; padding: 0 6px; display: inline-grid; place-items: center; border-radius: 13px;
-  background: #1f1b14; color: #fff8e2; font-family: 'Inter Variable', system-ui, sans-serif; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums;
+  background: #1f1b14; color: #fff8e2; font-family: 'Inter Variable', system-ui, sans-serif; font-weight: 700; font-size: 0.8125rem; font-variant-numeric: tabular-nums;
 }
-.cg-n { min-width: 22px; height: 22px; font-size: 12px; }
+.cg-n { min-width: 22px; height: 22px; font-size: 0.75rem; }
 .cg-row-free { color: var(--subtle); }
 .cg-new { font-family: var(--font-ui); font-weight: 600; font-size: var(--fs-1); padding: 0 6px; border-radius: 999px; background: var(--accent); color: var(--accent-text); }
 
