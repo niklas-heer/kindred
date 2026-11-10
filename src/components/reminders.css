@@ -18,3 +18,5 @@
   gap: 0.5rem;
   margin: 1rem 0 0.9rem;
 }
+/* A sentence under a switch belongs to it: no paragraph gap of its own, so the groups stay evenly apart. */
+.reminders-choices > p { margin: 0; }

@@ -538,7 +538,8 @@ kbd {
 }
 
 /* The "More" sheet. */
-.more-list { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 2px; }
+/* One column that never grows past the sheet, so a long hint (German) ends in an ellipsis instead of running off the edge. */
+.more-list { list-style: none; margin: 0 0 14px; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
 .more-list a {
   display: flex; align-items: center; gap: 14px; padding: 12px 10px; border-radius: var(--radius);
   text-decoration: none; font-family: var(--font-ui); font-size: var(--fs-4); min-height: var(--ctl-lg);
@@ -549,7 +550,7 @@ kbd {
 .more-list a:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 /* One line per row: the name keeps its width, the hint gives way. (ai-setup.css draws the rows that are buttons.) */
 .more-list a, .more-list button { white-space: nowrap; }
-.more-list a small, .more-list button small { margin-left: auto; color: var(--subtle); font-size: var(--fs-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.more-list a small, .more-list button small { margin-left: auto; padding-left: 8px; flex: 0 1 auto; color: var(--subtle); font-size: var(--fs-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .more-list a:active, .more-list button:active { transform: translateY(1px); }
 .more-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border-top: 1px solid var(--border); font-family: var(--font-ui); }
 [data-theme='codex'] .more-row { border-top-color: var(--edge-soft); }

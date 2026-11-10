@@ -217,6 +217,7 @@ export const en = {
   "campaign.card.open": "Open the Campaign",
 
   "campaign.games.title": "Games",
+  "campaign.games.nav_hint": "The Campaign and the daily quiz",
   "campaign.games.subtitle": "A little fun for the family, switched on by its stewards",
   "campaign.games.only_stewards": "Only stewards can change the games",
   "campaign.games.only_stewards_text": "Ask a steward of {family} to turn a game on or off.",
@@ -448,6 +449,7 @@ export const de: Record<keyof typeof en, Message> = {
   "campaign.card.open": "Den Feldzug öffnen",
 
   "campaign.games.title": "Spiele",
+  "campaign.games.nav_hint": "Der Feldzug und das tägliche Quiz",
   "campaign.games.subtitle": "Ein wenig Spaß für die Familie, eingeschaltet von der Familienverwaltung",
   "campaign.games.only_stewards": "Nur die Familienverwaltung kann die Spiele ändern",
   "campaign.games.only_stewards_text": "Bitte die Familienverwaltung von {family}, ein Spiel ein- oder auszuschalten.",
@@ -679,6 +681,7 @@ export const af: Record<keyof typeof en, Message> = {
   "campaign.card.open": "Maak die Veldtog oop",
 
   "campaign.games.title": "Speletjies",
+  "campaign.games.nav_hint": "Die Veldtog en die daaglikse vasvra",
   "campaign.games.subtitle": "’n Bietjie pret vir die familie, aangeskakel deur sy rentmeesters",
   "campaign.games.only_stewards": "Net rentmeesters kan die speletjies verander",
   "campaign.games.only_stewards_text": "Vra ’n rentmeester van {family} om ’n spel aan of af te skakel.",

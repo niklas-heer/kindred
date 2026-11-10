@@ -334,7 +334,7 @@ function MoreSheet({ open, onClose, tree, multiple, campaign }: { open: boolean;
         {steward && <li><Link to="/$tree/statistics" params={{ tree }}><BarChart3 size={19} /> {t("stats.menu")} <small>{t("stats.menu_hint")}</small></Link></li>}
         {setupNeeded && <li><button type="button" onClick={() => { onClose(); openAiSetup(); }}><Sparkles size={19} /> {t("ai.setupButton")} <small>{t("shell.ai_settings_hint")}</small></button></li>}
         {steward && !setupNeeded && <li><Link to="/$tree/settings/ai" params={{ tree }}><SlidersHorizontal size={19} /> {t("shell.ai_settings")} <small>{t("shell.ai_settings_hint")}</small></Link></li>}
-        {steward && <li><Link to="/$tree/settings/games" params={{ tree }}><Gamepad2 size={19} /> {t("campaign.games.title")} <small>{t("campaign.nav_hint")}</small></Link></li>}
+        {steward && <li><Link to="/$tree/settings/games" params={{ tree }}><Gamepad2 size={19} /> {t("campaign.games.title")} <small>{t("campaign.games.nav_hint")}</small></Link></li>}
         {steward && <li><button type="button" onClick={() => { onClose(); openFeedback(); }}><MessageSquarePlus size={19} /> {t("feedback.menu")} <small>{t("feedback.command_hint")}</small></button></li>}
         {steward && <li><Link to="/$tree/settings/feedback" params={{ tree }}><Inbox size={19} /> {t("feedback.inbox")} <small>{t("feedback.inbox_hint")}</small></Link></li>}
         {multiple && <li><Link to="/" search={{ families: "all" }}><Network size={19} /> {t("shell.all_families")}</Link></li>}
