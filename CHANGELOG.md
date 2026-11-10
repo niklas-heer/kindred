@@ -43,6 +43,7 @@ database that has had these migrations.
   reader, refuses every change while the preview is on, stores nothing a visit would, and never shows a member's own answers,
   reactions, chats or notes. A preview ends on Stop, on sign-out, after an hour unused, and when the member or the link goes.
   See docs/roles-and-privacy.md, "View as".
+- The README links a public, read-only demo of two invented families, so anyone can look before installing.
 - Removing a member now cleans up after them: their reactions, daily quiz answers, Campaign orders and pledge, and reminder and
   answer-push choices for that family go, while their memories, comments (shown under the name they were written with, or "a
   former member") and the change history stay.
