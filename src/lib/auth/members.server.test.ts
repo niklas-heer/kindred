@@ -44,7 +44,7 @@ async function member(name: string, role: Role, tree = 'family') {
   await store.accounts().batch([insert, store.upsertMembership(user.id, tree, role)]);
   return { id: user.id, name, role };
 }
-const run = (tree: string, sql: string, ...p: unknown[]) => db.db(tree).run(sql, ...p);
+const run = (tree: string, sql: string, ...p: (string | number | null)[]) => db.db(tree).run(sql, ...p);
 const count = async (table: string, where = '1 = 1', tree = 'family') => (await db.db(tree).get<{ n: number }>(`SELECT count(*) AS n FROM ${table} WHERE ${where}`))!.n;
 const devices = async (user: string, tree?: string) =>
   (await store.accounts().get<{ n: number }>(`SELECT count(*) AS n FROM push_subscription WHERE user = ?${tree ? ' AND tree = ?' : ''}`, ...(tree ? [user, tree] : [user])))!.n;

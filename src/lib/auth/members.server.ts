@@ -24,7 +24,7 @@
 import { fail } from './guard.server';
 import { AuthError } from './errors';
 import * as s from './store.server';
-import { NOT_A_RECORD, once, q } from '../db.server';
+import { once, q } from '../db.server';
 
 const lastSteward = 'A family always needs at least one steward. Make someone else a steward first.';
 
