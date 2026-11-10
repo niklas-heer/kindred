@@ -6,6 +6,7 @@
 // stays the same throughout a visit, so opening the page twice shows the same news. Showing it counts as seen.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
+import { Sparkles } from 'lucide-react';
 import { useEffect, useId } from 'react';
 import { lineText } from '~/lib/history-text';
 import { whatsNewQuery } from '~/lib/history.functions';
@@ -13,6 +14,7 @@ import type { WhatsNewReply } from '~/lib/history';
 import { relativeTime, useT, type Key, type Translator } from '~/lib/i18n';
 import { useMember } from '~/lib/session';
 import '~/components/history/history.css';
+import './today.css';
 
 /** The groups and lines shown before "and n more"; the rest is on the History page. */
 const GROUPS = 8;
@@ -35,9 +37,9 @@ export function WhatsNew({ tree, className = '' }: { tree: string; className?: s
   const hidden = (news?.groups.slice(GROUPS) ?? []).reduce((n, g) => n + g.lines.reduce((m, l) => m + l.count, 0), 0);
 
   return (
-    <section className={`whats-new ${className}`} aria-labelledby={heading} aria-busy={q.isPending}>
-      <div className="whats-new-head">
-        <h2 id={heading}>{t('history.whats_new')}</h2>
+    <section className={`ui-card td-card whats-new ${className}`} aria-labelledby={heading} aria-busy={q.isPending}>
+      <div className="td-card-head whats-new-head">
+        <h2 className="td-h" id={heading}><Sparkles size={18} aria-hidden /> {t('history.whats_new')}</h2>
         {news && <span className="subtle">{news.first ? t('history.first_visit') : t('history.since_visit', { when: relativeTime(Date.parse(news.since), t.locale) })}</span>}
       </div>
       {q.isPending ? <p className="subtle">{t('history.loading')}</p>
@@ -80,7 +82,7 @@ export function WhatsNew({ tree, className = '' }: { tree: string; className?: s
             {hidden > 0 && <p className="subtle">{t('history.more_changes', { count: hidden })}</p>}
           </>
         )}
-      <Link to="/$tree/history" params={{ tree }}>{t('history.see_all')}</Link>
+      <Link className="td-more-link" to="/$tree/history" params={{ tree }}>{t('history.see_all')}</Link>
     </section>
   );
 }

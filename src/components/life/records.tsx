@@ -79,7 +79,8 @@ export function useRecordedLife(tree: string, p: GPerson): { rows: RecordedRow[]
         year,
         date: e.date ?? undefined,
         // "about 0" under a baptism in the year of birth says nothing: the age starts at one.
-        age: e.date ? shownAge(ageOn(p.born, e.date)) : undefined,
+        // Nor does an age under a burial: the line above it already says how old they were.
+        age: e.date && !AFTER_DEATH.has(e.type) ? shownAge(ageOn(p.born, e.date)) : undefined,
         after: AFTER_DEATH.has(e.type),
         icon: <Icon size={13} />,
         text: (

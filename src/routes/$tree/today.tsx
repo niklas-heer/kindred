@@ -58,10 +58,9 @@ function TodayPage() {
           <span className="td-hero-rule" aria-hidden><Fleuron /></span>
         </header>
 
-        <WhatsNew tree={tree} />
-
         <div className="td-grid">
           <div className="td-main">
+            <WhatsNew tree={tree} />
             <WeekQuestionCard tree={tree} />
           </div>
           <div className="td-side">
