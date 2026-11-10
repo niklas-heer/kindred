@@ -5,7 +5,7 @@ import { translateMessage, formatDate, relativeTime, useT, type Locale } from '~
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { graphQuery } from '~/lib/api';
-import { Activity, ArrowLeftRight, BarChart3, Bell, Check, CircleHelp, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus, Gamepad2 } from 'lucide-react';
+import { Activity, ArrowLeftRight, BarChart3, Bell, Check, CircleHelp, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus, Gamepad2, Landmark } from 'lucide-react';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import '~/components/assistant/ai-tasks.css';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
@@ -208,6 +208,10 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
               {tree && (
                 <Link role="menuitem" className="acct-item" to="/" search={{ families: 'all' }} onClick={() => setOpen(false)}>
                   <LayoutGrid size={17} /> {t('accountmenu.all_families')} </Link>
+              )}
+              {session?.memberships.some((x) => x.role === 'steward') && (
+                <Link role="menuitem" className="acct-item" to="/families" onClick={() => setOpen(false)}>
+                  <Landmark size={17} /> {t('families.menu')} </Link>
               )}
               <button role="menuitem" className="acct-item" onClick={() => void signOut(session?.accessLogout)}>
                 <LogOut size={17} /> {t("accountmenu.sign_out")} </button>

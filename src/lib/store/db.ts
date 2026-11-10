@@ -86,6 +86,8 @@ export interface MediaStore {
   put(tree: string, key: string, bytes: Uint8Array, mime: string): Promise<void>;
   get(tree: string, key: string): Promise<MediaObject | undefined>;
   delete(tree: string, key: string): Promise<void>;
+  /** Deletes every file of a family (deleting the family, src/lib/families.server.ts). */
+  deleteTree(tree: string): Promise<void>;
 }
 
 /** What a driver provides. */
@@ -100,6 +102,11 @@ export interface Driver {
   ensureTree(id: string): Db;
   /** The ids of every family database there is (some may still be empty). */
   treeIds(): string[];
+  /**
+   * Removes a family's database (deleting the family). Node: closes and deletes data/<id>.db. Workers: a D1 database cannot be
+   * removed from inside the Worker, so it is emptied (`emptyDatabase`) and stays bound, ready to hold a family again.
+   */
+  dropTree(id: string): Promise<void>;
   /** The accounts database: people, passkeys, sessions, invitations, memberships. */
   accounts(): Db;
   /** The offline place gazetteer (data/gazetteer.db), only on Node and only once built. */
@@ -113,6 +120,29 @@ export interface Driver {
   secret(): string;
   /** Lets `work` finish after the response has ended or the client has gone. Workers stop a request's work when its client disconnects; Node does not, so there it does nothing. */
   keepAlive(work: Promise<unknown>): void;
+}
+
+/** Tables a migration fills with a starting row, which an emptied database must keep (tree migration 0011). */
+export const SEEDED_TABLES = new Set(['ancestry_rev']);
+
+/**
+ * Deletes every row of a database but wrangler's migration record and the tables a migration seeded, so it is as a freshly
+ * migrated one. Tables that refer to others go first, so the foreign keys hold at every step; `meta` (a family's details)
+ * goes last, so a run that stops part-way leaves a family that is still there and can be deleted again. One batch: all or none.
+ */
+export async function emptyDatabase(d: Db): Promise<void> {
+  const tables = (await d.all<{ name: string; sql: string | null }>("SELECT name, sql FROM sqlite_master WHERE type = 'table'"))
+    .filter((t) => !/^(sqlite_|_cf_|d1_migrations$)/.test(t.name) && !SEEDED_TABLES.has(t.name) && /^[A-Za-z_][A-Za-z0-9_]*$/.test(t.name));
+  const refers = new Map(tables.map((t) => [t.name, new Set([...(t.sql ?? '').matchAll(/REFERENCES\s+"?([A-Za-z0-9_]+)"?/gi)].map((m) => m[1]).filter((p) => p !== t.name))]));
+  const left = tables.map((t) => t.name).filter((n) => n !== 'meta');
+  const order: string[] = [];
+  while (left.length) {
+    // A table nobody left refers to can go; a cycle (none today) goes in its remaining order.
+    const i = left.findIndex((n) => !left.some((other) => other !== n && refers.get(other)?.has(n)));
+    order.push(...left.splice(i < 0 ? 0 : i, 1));
+  }
+  if (tables.some((t) => t.name === 'meta')) order.push('meta');
+  if (order.length) await d.batch(order.map((t) => q(`DELETE FROM "${t}"`)));
 }
 
 /** Tree ids are URL segments and database names: lower-case letters, digits and dashes. */

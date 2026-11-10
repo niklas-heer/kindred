@@ -1,0 +1,18 @@
+/* The Families page (src/routes/families.tsx). */
+
+.families { max-width: 860px; margin: 0 auto; padding: 32px var(--gutter, 16px) 64px; display: grid; gap: 24px; }
+.families h1 { margin: 0; }
+.families-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.families-list { display: grid; gap: 16px; list-style: none; margin: 0; padding: 0; }
+.families-card { padding: 18px; display: grid; gap: 12px; }
+.families-card h2, .families-card h3 { margin: 0; font-size: var(--fs-5, 18px); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.families-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-2, 13px); }
+.families-form { display: grid; gap: 12px; }
+.families-form label { display: grid; gap: 4px; }
+.families-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.families-danger { border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 8px; }
+.families-steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.families-steps code, .families-card code { word-break: break-all; }
+.families-hint { font-size: var(--fs-2); color: var(--subtle); line-height: 1.4; }
+.families-error { color: var(--danger); margin: 0; }
+.home-manage { text-align: center; margin: 0; }

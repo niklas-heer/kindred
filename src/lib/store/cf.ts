@@ -6,7 +6,7 @@
 //   GAZETTEER      D1, optional: the GeoNames towns for assisted place entry, read-only (migrations/gazetteer,
 //                  loaded by `mise run cf:gazetteer`). Without it the place picker offers the family's own places.
 import { env, waitUntil } from 'cloudflare:workers';
-import { checkMediaKey, checkReads, checkStatement, NOT_TREES, TREE_ID, type Db, type Driver, type Param, type Query, type Result } from './db.ts';
+import { checkMediaKey, checkReads, checkStatement, emptyDatabase, NOT_TREES, TREE_ID, type Db, type Driver, type Param, type Query, type Result } from './db.ts';
 
 const isD1 = (v: unknown): v is D1Database => !!v && typeof (v as D1Database).prepare === 'function' && typeof (v as D1Database).batch === 'function';
 
@@ -78,6 +78,11 @@ const driver: Driver = {
     return driver.tree(id);
   },
 
+  // A bound D1 database cannot be removed from inside the Worker: it is emptied, and stays bound for a family to come.
+  async dropTree(id) {
+    await emptyDatabase(driver.tree(id));
+  },
+
   treeIds() {
     return Object.keys(env)
       .filter((k) => /^TREE_[A-Z0-9_]+$/.test(k) && isD1(env[k]))
@@ -125,6 +130,16 @@ const driver: Driver = {
     async delete(tree, key) {
       checkMediaKey(tree, key);
       await bucket().delete(`${tree}/${key}`);
+    },
+    // R2 lists at most 1000 keys at a time and deletes as many in one call.
+    async deleteTree(tree) {
+      if (!TREE_ID.test(tree) || NOT_TREES.has(tree)) throw new Error(`bad tree id ${tree}`);
+      for (let cursor: string | undefined, more = true; more; ) {
+        const page = await bucket().list({ prefix: `${tree}/`, cursor, limit: 1000 });
+        if (page.objects.length) await bucket().delete(page.objects.map((o) => o.key));
+        more = page.truncated;
+        cursor = page.truncated ? page.cursor : undefined;
+      }
     },
   },
 };

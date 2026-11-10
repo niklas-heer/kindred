@@ -8,6 +8,7 @@ import { LanguagePicker } from '~/components/LanguagePicker';
 import { Arms } from '~/components/Heraldry';
 import { PageHeader, EmptyState, ErrorState, Skeleton } from '~/components/ui';
 import { myFamiliesQuery, sessionQuery } from '~/lib/auth/functions';
+import { useSession } from '~/lib/session';
 import '~/styles/home.css';
 
 export const Route = createFileRoute('/')({
@@ -32,6 +33,7 @@ function Home() {
   const tr = t;
   // Only the families the reader belongs to.
   const { data: trees = [], isPending, isError, refetch } = useQuery(myFamiliesQuery);
+  const steward = !!useSession()?.memberships.some((m) => m.role === 'steward');
   const [last, setLast] = useState<{ tree: string; person: string; name: string } | null>(null);
   useEffect(() => {
     try {
@@ -52,6 +54,7 @@ function Home() {
         <span className="home-crest" aria-hidden>{t.crest ? <Arms arms={t.crest} size={80} /> : <Shield size={60} />}</span>
         <b className="home-name">{t.name}</b><span className="home-tagline muted">{t.tagline}</span><span className="home-people"><span className="home-count display">{formatNumber(t.people, tLocale)}</span><span className="home-count-label">{tr('common.personUnit', {count: t.people})}</span></span>
       </span></Link></div>)}</div>
+      {steward && <p className="home-manage"><Link to="/families">{t('families.manage_link')}</Link></p>}
       <section className="home-today ui-card"><h2><Cake size={20} /> {t("index.today_across_your_families")}</h2>{today.length ? <ul>{today.map((p) => <li key={`${p.tree}:${p.key}`}><Link to="/$tree" params={{ tree: p.tree }} search={{ focus: p.id }}>{p.name}</Link><span>{translateMessage(p.label, t.locale)}</span><span className="muted">{p.family}</span></li>)}</ul> : <p className="muted">{t("index.a_quiet_day_no_birthdays_anniversaries_or_memorial_days_recorded_for_today")}</p>}</section>
     </>}
   </div></main>;

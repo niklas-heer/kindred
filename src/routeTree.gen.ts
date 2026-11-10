@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TreeRouteImport } from './routes/$tree'
+import { Route as FamiliesRouteImport } from './routes/families'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SigninRouteImport } from './routes/signin'
 import { Route as UiRouteImport } from './routes/ui'
@@ -60,6 +61,11 @@ const IndexRoute = IndexRouteImport.update({
 const TreeRoute = TreeRouteImport.update({
   id: '/$tree',
   path: '/$tree',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FamiliesRoute = FamiliesRouteImport.update({
+  id: '/families',
+  path: '/families',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SetupRoute = SetupRouteImport.update({
@@ -266,6 +272,7 @@ const ApiResearchTreeKeyRoute = ApiResearchTreeKeyRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$tree': typeof TreeRouteWithChildren
+  '/families': typeof FamiliesRoute
   '/setup': typeof SetupRoute
   '/signin': typeof SigninRoute
   '/ui': typeof UiRoute
@@ -309,6 +316,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/families': typeof FamiliesRoute
   '/setup': typeof SetupRoute
   '/signin': typeof SigninRoute
   '/ui': typeof UiRoute
@@ -354,6 +362,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$tree': typeof TreeRouteWithChildren
+  '/families': typeof FamiliesRoute
   '/setup': typeof SetupRoute
   '/signin': typeof SigninRoute
   '/ui': typeof UiRoute
@@ -400,6 +409,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$tree'
+    | '/families'
     | '/setup'
     | '/signin'
     | '/ui'
@@ -443,6 +453,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/families'
     | '/setup'
     | '/signin'
     | '/ui'
@@ -487,6 +498,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/$tree'
+    | '/families'
     | '/setup'
     | '/signin'
     | '/ui'
@@ -532,6 +544,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   TreeRoute: typeof TreeRouteWithChildren
+  FamiliesRoute: typeof FamiliesRoute
   SetupRoute: typeof SetupRoute
   SigninRoute: typeof SigninRoute
   UiRoute: typeof UiRoute
@@ -566,6 +579,13 @@ declare module '@tanstack/react-router' {
       path: '/$tree'
       fullPath: '/$tree'
       preLoaderRoute: typeof TreeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/families': {
+      id: '/families'
+      path: '/families'
+      fullPath: '/families'
+      preLoaderRoute: typeof FamiliesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/setup': {
@@ -906,6 +926,7 @@ const TreeRouteWithChildren = TreeRoute._addFileChildren(TreeRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   TreeRoute: TreeRouteWithChildren,
+  FamiliesRoute: FamiliesRoute,
   SetupRoute: SetupRoute,
   SigninRoute: SigninRoute,
   UiRoute: UiRoute,

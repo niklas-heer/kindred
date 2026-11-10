@@ -195,6 +195,10 @@ const media: MediaStore = {
   async delete(tree, key) {
     rmSync(mediaFile(tree, key), { force: true });
   },
+  async deleteTree(tree) {
+    if (!TREE_ID.test(tree) || NOT_TREES.has(tree)) throw new Error(`bad tree id ${tree}`);
+    rmSync(join(dataDir(), 'media', tree), { recursive: true, force: true });
+  },
 };
 
 const EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif' };
@@ -218,6 +222,8 @@ export function movePhotosOut(d: DatabaseSync, tree: string, put: (key: string, 
 // ---------- the driver ----------
 
 const g = globalThis as unknown as { __kindredAccounts?: { path: string; d: DatabaseSync } };
+/** Which family an open connection belongs to, so dropping the family closes it. */
+const DB_ID = Symbol('kindred.tree');
 const trees = new Map<string, Db>();
 let accountsDb: { d: DatabaseSync; db: Db } | undefined;
 let gazetteerDb: Db | null = null;
@@ -235,6 +241,7 @@ const driver: Driver = {
       const path = join(dataDir(), `${id}.db`);
       if (!existsSync(path)) throw new Error(`no tree ${id}; run mise run seed`);
       const d = openSqlite(path, 'tree');
+      (d as unknown as { [k: symbol]: unknown })[DB_ID] = id;
       open.add(d);
       movePhotosOut(d, id);
       db = wrap(d);
@@ -248,6 +255,20 @@ const driver: Driver = {
     const path = join(dataDir(), `${id}.db`);
     if (!trees.has(id) && !existsSync(path)) openSqlite(path, 'tree', { create: true }).close();
     return driver.tree(id);
+  },
+
+  async dropTree(id) {
+    if (!TREE_ID.test(id) || NOT_TREES.has(id)) throw new Error(`bad tree id ${id}`);
+    const path = join(dataDir(), `${id}.db`);
+    trees.delete(id);
+    // The open connection first, so its write-ahead log is folded in and nothing writes to the file after it is gone.
+    for (const d of open) {
+      if ((d as unknown as { [k: symbol]: unknown })[DB_ID] === id) {
+        try { d.close(); } catch {}
+        open.delete(d);
+      }
+    }
+    for (const suffix of ['', '-wal', '-shm']) rmSync(path + suffix, { force: true });
   },
 
   treeIds() {
