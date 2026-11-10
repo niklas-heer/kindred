@@ -52,6 +52,13 @@ export const LEFT_OUT_TABLES: Record<string, string> = {
   // parent rows bump the target's own counter as they are written, and the import guards only that the number it read
   // is still the one in the batch, so the target keeps its own (seeded at 0) rather than receiving the source's.
   ancestry_rev: 'the ancestry revision counts changes on the database that holds the links; the target keeps its own',
+  // The Campaign (migration 0025) is a game, not part of the family's records, and it names members by their account ids,
+  // which are not copied. The target starts with the game off and an empty hall of fame.
+  campaign: 'the game\'s switch and season number; the target starts with the game off',
+  campaign_season: 'the game\'s seasons and hall of fame; not part of the family\'s records',
+  campaign_member: 'the game\'s orders, keyed by account ids, which are not copied',
+  campaign_log: 'the game\'s chronicle, which names accounts',
+  campaign_push: 'the game\'s push claims, keyed by account ids',
 };
 
 /**

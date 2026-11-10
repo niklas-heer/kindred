@@ -32,7 +32,7 @@ test('every table the current schema has is decided: copied, or left out on purp
   const present = tablesOf(d);
   const plan = T.planTables(present);
   assert.deepEqual(plan.copy, [...T.COPIED_TABLES], 'the copy list, in order');
-  assert.deepEqual(plan.leftOut, ['ancestry_rev', 'd1_migrations', 'op'], 'bookkeeping is left out on purpose');
+  assert.deepEqual(plan.leftOut, ['ancestry_rev', 'campaign', 'campaign_log', 'campaign_member', 'campaign_push', 'campaign_season', 'd1_migrations', 'op'], 'bookkeeping and the game are left out on purpose');
   for (const t of ['person_field', 'house_succession', 'album', 'media', 'media_person', 'occupation_translation']) {
     assert.ok(plan.copy.includes(t), `${t} is copied`);
   }
