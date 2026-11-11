@@ -163,6 +163,20 @@ for (const file of files) {
   const postPerson = db.prepare('INSERT OR IGNORE INTO post_person (post, person) VALUES (?, ?)');
   const comment = db.prepare("INSERT INTO comment (id, target_kind, target, account, author_name, body, created_at) VALUES (?, 'post', ?, ?, ?, ?, ?)");
   const reaction = db.prepare("INSERT OR IGNORE INTO reaction (target_kind, target, account, kind, created_at) VALUES ('post', ?, ?, ?, ?)");
+  // Contact details given since: the fields, and the history rows `once` would have written for them (the feed reads those).
+  const history = db.prepare("INSERT INTO history (at, account, name, kind, record, person, person_name, label, action, level, count, fn) VALUES (?, ?, ?, 'field', ?, ?, ?, ?, 'added', 'family', 1, 'seed')");
+  for (const u of t.updates ?? []) {
+    const at = when(u.daysAgo, u.time);
+    u.contacts.forEach((c, i) => {
+      const { type, key } = CONTACT_FIELD[c.kind];
+      const ord = fieldOrds.get(u.person) ?? 0;
+      fieldOrds.set(u.person, ord + 1);
+      const id = crypto.randomUUID();
+      field.run(id, u.person, type, c.label ?? '', JSON.stringify({ [key]: c.value }), ord, shown(u.by), shown(u.by));
+      fields++;
+      history.run(new Date(Date.parse(at) - (u.contacts.length - 1 - i) * 60_000).toISOString(), seedAccount(u.by), shown(u.by), id, u.person, shown(u.person), c.label || type);
+    });
+  }
   for (const p of t.posts ?? []) {
     const id = crypto.randomUUID();
     const at = when(p.daysAgo, p.time);

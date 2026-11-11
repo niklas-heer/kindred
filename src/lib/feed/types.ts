@@ -45,11 +45,38 @@ export type FeedItem = { at: string; key: string } & (
   | { type: 'story'; id: string; person: string; kind: 'note' | 'quote' | 'anecdote' | 'recipe' | 'memory'; title: string | null; body: string; author: string; context: string | null; week: string | null }
   /** One member's uploads of one day to one album, as one entry. `more` says the count is a lower bound (a very large day). */
   | { type: 'photos'; by: FeedAuthor; album: { id: string; name: string } | null; count: number; more: boolean; pictures: FeedPicture[] }
-  /** People one member added to the tree on one day. `born` is set for a newborn (born within a year of being added). */
-  | { type: 'people'; by: string; people: { id: string; born: string | null }[]; count: number }
+  /**
+   * People one member added to the tree on one day. `born` is set for a newborn (born within a year of being added).
+   * `target` is the entry's key for reactions and comments (an `event`, see responses.ts).
+   */
+  | { type: 'people'; by: string; people: { id: string; born: string | null }[]; count: number; target: string }
+  /**
+   * What one member did to the family's records on one day, person by person (from the change history): details, contact
+   * details, life events, sources, a portrait, photos they were tagged in, and a GEDCOM import as one number.
+   * `count` is how many people it touched, of whom `people` carries the first few.
+   */
+  | { type: 'updates'; by: string; people: UpdatePerson[]; count: number; imported: number; target: string }
   /** A season of the Campaign ended. */
   | { type: 'season'; season: number; winner: string | null }
 );
+
+/** The contact fields an update names on their own ("Has a new address"): the ways to reach someone. */
+export type ContactKind = 'phone' | 'email' | 'address' | 'website' | 'social';
+
+/**
+ * One person's part of a day's updates. `id` is null for what is about nobody in particular (a source recorded).
+ * `details` names what changed: a person's own fact by its column ("born") or another field by its type ("field:occupation").
+ * Never a value: the person's page shows what this reader may see of it.
+ */
+export interface UpdatePerson {
+  id: string | null;
+  contact: ContactKind[];
+  details: string[];
+  events: number;
+  sources: number;
+  portrait: boolean;
+  tagged: number;
+}
 
 /** A page of the feed, newest first. `next` is the cursor for the page after it, or null at the end. */
 export interface FeedPage { items: FeedItem[]; next: string | null }

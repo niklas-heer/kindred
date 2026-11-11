@@ -62,6 +62,10 @@ export function validate(tree: SeedTree): void {
     if (!post.body.trim() && !post.pictures?.length) fail(`post ${i + 1} says nothing`);
     for (const r of post.reactions ?? []) if (!reactionOf(r.kind)) fail(`post ${i + 1}: "${r.kind}" is not one emoji`);
   }
+  for (const [i, u] of (tree.updates ?? []).entries()) {
+    needPerson(u.by, `update ${i + 1}`);
+    needPerson(u.person, `update ${i + 1} about`);
+  }
   for (const [i, upload] of (tree.uploads ?? []).entries()) needPerson(upload.by, `upload ${i + 1}`);
 
   // Parent graph: no self-parents, no cycles.

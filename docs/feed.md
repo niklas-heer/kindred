@@ -71,10 +71,25 @@ One stream, newest first, under the days it falls on ("Today", "Yesterday", "Ear
   message's own pictures are the message's and are not listed twice;
 - **people added to the tree**: those one member added on one day, in one line. Someone born within a year of being
   added is welcomed in a line of their own;
+- **updates to the records**: what one member did on one day, in one entry, person by person, each name a link to the
+  person's page. "Ada updated Carl: has a new address, new phone number" for one person; "Ada updated 3 people:" with a
+  short line for each (the first six, then "and 4 more") for more. It names what changed, never a value: contact details
+  by their kind (a new address, phone number, email address, website or social media profile), other details by their
+  name (born, birthplace, occupation…), life events and sources recorded, a new portrait, photos someone was tagged in,
+  and sources about nobody in particular. A GEDCOM import is one line, however many people it brought ("Ada brought in
+  500 people from a GEDCOM file"). Removals are not news here; the History page has them;
 - **a season of the Campaign ending**, with the house that won;
 - at the very top, **whose birthday or wedding anniversary it is today**.
 
-Private research, editors' notes and Personal fields are in none of these, so every member reads the same feed.
+Messages and events are in one stream, by the time they happened. Members react to and comment on an event as on a
+message ([responses.md](responses.md)): people added, a day's updates, a birthday or an anniversary today (a new year's
+is a new one).
+
+Private research, editors' notes and Personal fields are in none of these. Updates come from the change history and are
+read at its levels ([roles-and-privacy.md](roles-and-privacy.md#change-history-and-whats-new)): an update to something only editors read is in an editor's feed alone.
+An address, which starts at the editors' level, is news to editors until it is shared with the family. A share-link
+guest reads no feed at all, so no contact detail or event reaches one; "Protect living people" has nothing to hide from
+a member.
 
 Twenty entries come with the page. Earlier ones follow as you scroll for a few pages, then at the press of "Show
 earlier", so the end of the page stays within reach.
@@ -82,10 +97,11 @@ earlier", so the end of the page stays within reach.
 ### How a page is read
 
 A page is one batch of reads in the family's database (one round trip on D1): posts, stories, gallery uploads, the
-"person added" rows of the change history and the Campaign's finished seasons, each limited, plus one read of the
+"person added" rows of the change history, the change history's other rows for updates (with each field's kind, joined
+in the same read), and the Campaign's finished seasons, each limited, plus one read of the
 accounts database for the writers' faces. There is no read per entry. Each source hands over its newest entries after
-the page's cursor, and the page is the newest twenty of them together. The two sources that group rows by day (uploads,
-people added) read a window of rows; when the window was full, the page ends where the window did, so a later page
+the page's cursor, and the page is the newest twenty of them together. The three sources that group rows by day (uploads,
+people added, updates) read a window of rows (400, 120 and 400); when the window was full, the page ends where the window did, so a later page
 never skips anything. A day on which one member uploaded more pictures than the window holds (400) is one entry that
 says "more than".
 
@@ -110,7 +126,9 @@ The existing answer push ("tell me when someone reacts to or comments on what I 
 ## Where it is kept
 
 Three tables in the family database (migration `tree/0029_posts.sql`, see [data-model.md](data-model.md)): `post`,
-`post_media` and `post_person`, and `media.for_post`, the mark of a picture uploaded for a message. `reaction` and `comment` take `post` as a third kind of target. The device's switch is
+`post_media` and `post_person`, and `media.for_post`, the mark of a picture uploaded for a message. `reaction` and `comment` take `post` as a third kind of target,
+and `event` as a fourth (migration `tree/0030`), keyed by the event's own key. Events themselves are not stored: they are
+read from the change history and the calendar each time. The device's switch is
 two columns on `push_subscription` (migration `accounts/0029_post_push.sql`).
 
 The Markdown archive carries the messages and their comments in `feed/`, one file per year
@@ -120,7 +138,8 @@ transfer copies the three tables.
 ## The invented families
 
 `mise run data` and the demo give the two invented families a feed: a dozen messages in the modern family with comments
-and reactions, a few in the realm in its own voice, and some gallery uploads. A seed has no accounts, so each of them
+and reactions, a few in the realm in its own voice, some gallery uploads, and in the modern family two updates of
+contact details (a move's new address and phone number, a new work email), with the change history's rows for them. A seed has no accounts, so each of them
 speaks as a person of the tree (an account written `seed:<person id>`, which the app reads as that person). No
 photograph of anyone is in a seed: the pictures are painted by `scripts/lib/pictures.ts`. The feed is dated back from
 the moment of seeding.

@@ -3,7 +3,7 @@
 // people write as people of their time would, to their kin. Everyone who speaks is a person of the tree, found from the
 // person the tree opens on (their parents, partner, children, brothers and sisters, cousins), so the names in a post
 // are the family's own. Invented people only. The same tree gives the same feed.
-import type { SeedPerson, SeedPost, SeedTree, SeedUpload } from '../../src/lib/seed-format.ts';
+import type { SeedPerson, SeedPost, SeedTree, SeedUpdate, SeedUpload } from '../../src/lib/seed-format.ts';
 
 interface Kin {
   byId: Map<string, SeedPerson>;
@@ -52,7 +52,7 @@ function casting(kin: Kin, focus: string, fits: (p: SeedPerson) => boolean) {
 const bornYear = (p: SeedPerson) => Number(/\d{4}/.exec(p.born ?? '')?.[0] ?? 0);
 
 /** The Lindqvist–Ashworth family's last month: moves, exams, photographs from Sunday, a recipe nobody can find. */
-export function modernFeed(tree: SeedTree, year = 2026): { posts: SeedPost[]; uploads: SeedUpload[] } {
+export function modernFeed(tree: SeedTree, year = 2026): { posts: SeedPost[]; uploads: SeedUpload[]; updates: SeedUpdate[] } {
   const kin = kinOf(tree);
   const me = tree.focus;
   const adult = (p: SeedPerson) => !!p.living && bornYear(p) > 0 && year - bornYear(p) >= 18;
@@ -143,7 +143,12 @@ export function modernFeed(tree: SeedTree, year = 2026): { posts: SeedPost[]; up
     { by: father, daysAgo: 3, time: '15:20', album: 'Summer at the lake', pictures: [{ scene: 'lake', seed: 31 }, { scene: 'boat', seed: 32 }, { scene: 'lake', seed: 33 }, { scene: 'garden', seed: 34 }, { scene: 'boat', seed: 35, tall: true }] },
     { by: cousin, daysAgo: 18, time: '11:00', pictures: [{ scene: 'street', seed: 41, caption: 'The street where the bakery was' }, { scene: 'door', seed: 42 }] },
   ];
-  return { posts, uploads };
+  // The move in the first post, in the records too: the new flat's address and a new number, an hour after the news.
+  const updates: SeedUpdate[] = [
+    { by: sibling, person: sibling, daysAgo: 0, time: '09:15', contacts: [{ kind: 'address', label: 'home', value: '2 Larch Lane, Flat 4' }, { kind: 'phone', label: 'home', value: '+44 20 7946 0518' }] },
+    { by: mother, person: partner, daysAgo: 11, time: '20:10', contacts: [{ kind: 'email', label: 'work', value: 'new.job@example.org' }] },
+  ];
+  return { posts, uploads, updates };
 }
 
 /** Aurelmarch, in its own voice: the family of the house writes to its kin, as it would have by letter. */

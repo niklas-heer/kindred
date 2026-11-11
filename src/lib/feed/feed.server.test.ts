@@ -17,7 +17,7 @@ delete process.env.KINDRED_DEMO;
 const vite = await createServer({ root: process.cwd(), logLevel: 'error', server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom' });
 const load = <T>(path: string) => vite.ssrLoadModule(path) as Promise<T>;
 const { openSqlite, closeAccounts } = await load<typeof import('../store/node.ts')>('/src/lib/store/node.ts');
-for (const tree of ['family', 'busy', 'quiet']) {
+for (const tree of ['family', 'busy', 'quiet', 'edits']) {
   const f = openSqlite(join(dir, `${tree}.db`), 'tree', { create: true });
   f.exec(`
     INSERT INTO meta (key, value) VALUES ('id', '${tree}'), ('name', 'The Alders'), ('tagline', ''), ('theme', 'codex'), ('focus', 'ada');
@@ -28,6 +28,8 @@ for (const tree of ['family', 'busy', 'quiet']) {
 
 const db = await load<typeof import('../db.server.ts')>('/src/lib/db.server.ts');
 const F = await load<typeof import('./feed.server.ts')>('/src/lib/feed/feed.server.ts');
+const H = await load<typeof import('../history.server.ts')>('/src/lib/history.server.ts');
+const R = await load<typeof import('../responses.server.ts')>('/src/lib/responses.server.ts');
 const store = await load<typeof import('../auth/store.server.ts')>('/src/lib/auth/store.server.ts');
 type FeedItem = import('./types.ts').FeedItem;
 
@@ -40,13 +42,15 @@ test.after(async () => {
 type Role = 'viewer' | 'contributor' | 'editor' | 'steward';
 async function member(name: string, role: Role, person: string | null = null) {
   const { user, insert } = store.newUser(name, null);
-  await store.accounts().batch([insert, ...['family', 'busy', 'quiet'].map((t) => store.upsertMembership(user.id, t, role))]);
+  await store.accounts().batch([insert, ...['family', 'busy', 'quiet', 'edits'].map((t) => store.upsertMembership(user.id, t, role))]);
   if (person) await store.accounts().run('UPDATE membership SET person = ?, person_confirmed = 1 WHERE user = ?', person, user.id);
   return { id: user.id, name, role, person };
 }
 const guest = { id: '', name: '', role: 'viewer' as const, guest: true };
 const mara = await member('Mara Alder', 'contributor', 'ben');
 const viewer = await member('Vi Viewer', 'viewer');
+const eda = await member('Eda Editor', 'editor');
+const maraKey = await H.authorKey('busy', mara.id);
 
 const at = (day: string, time = '12:00:00') => `${day}T${time}.000Z`;
 const run = (tree: string, sql: string, ...p: (string | number | null)[]) => db.db(tree).run(sql, ...p);
@@ -61,6 +65,14 @@ const addedPerson = (tree: string, id: string, when: string, by = mara, born: st
     db.q('INSERT INTO person (id, given, surname, born, living) VALUES (?, ?, ?, ?, 1)', id, id, 'Alder', born),
     db.q("INSERT INTO history (at, account, name, kind, record, person, person_name, action, fn) VALUES (?, ?, ?, 'person', ?, ?, ?, 'added', 'test')", when, by.id, by.name, id, id, `${id} Alder`),
   ]);
+
+/** A row of the change history, as `once` writes it. */
+const change = (tree: string, when: string, by: { id: string; name: string } | null, kind: string, record: string, action: string, person: string | null,
+  fields: object | null = null, level = 'family', count = 1) =>
+  run(tree, 'INSERT INTO history (at, account, name, kind, record, person, action, level, owner, fields, count, fn) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    when, by?.id ?? null, by?.name ?? '', kind, record, person, action, level, level === 'personal' ? by?.id ?? null : null, fields && JSON.stringify(fields), count, 'test');
+const field = (tree: string, id: string, person: string, type: string, visibility = 'family') =>
+  run(tree, 'INSERT INTO person_field (id, person, type, label, value, visibility, owner) VALUES (?, ?, ?, ?, ?, ?, ?)', id, person, type, type, '{}', visibility, visibility === 'personal' ? mara.id : null);
 
 /** Every page of a family's feed, to the end. */
 async function whole(tree: string, limit: number) {
@@ -182,7 +194,13 @@ test('paging to the end shows every entry once, in order, at any page size', asy
     }
     if (day % 7 === 0) {
       await addedPerson(t, `kid${day}`, at(d, '15:00:00'));
-      expected.push(`people:${d}|${mara.id}`);
+      expected.push(`people:${d}|${maraKey}`);
+    }
+    if (day % 4 === 0) {
+      // A life event recorded and a detail changed: one entry of the day's updates, whatever their number.
+      await change(t, at(d, '16:00:00'), mara, 'event', `ev${day}`, 'added', 'ada');
+      await change(t, at(d, '16:30:00'), mara, 'person', 'ada', 'changed', 'ada', { f: { born: ['1890', '1891'] } });
+      expected.push(`updates:${d}|${maraKey}`);
     }
   }
   for (const limit of [1, 7, 20, 50]) {
@@ -245,4 +263,84 @@ test('a member who left still signs what they shared', async () => {
   assert.deepEqual(p.post.author, { name: 'Lou Leaving', person: 'cleo' }, 'a post keeps its name and its face');
   assert.ok(ph!.type === 'photos');
   assert.deepEqual(ph.by, { name: '', person: null }, 'a photo upload keeps no name: the page says "someone"');
+});
+
+test('a day of one member’s updates is one event, person by person: contact details by kind, never their values', async () => {
+  const t = 'edits';
+  const d = '2026-11-02';
+  await field(t, 'f-phone', 'ben', 'phone');
+  await field(t, 'f-addr', 'ben', 'address', 'editors');
+  await field(t, 'f-job', 'cleo', 'occupation');
+  await field(t, 'f-note', 'cleo', 'notes', 'personal');
+  await change(t, at(d, '09:00:00'), mara, 'field', 'f-phone', 'changed', 'ben', { f: { value: ['+44 1', '+44 2'] } });
+  await change(t, at(d, '09:05:00'), mara, 'field', 'f-phone', 'changed', 'ben', { f: { value: ['+44 2', '+44 3'] } });
+  await change(t, at(d, '09:10:00'), mara, 'field', 'f-addr', 'added', 'ben', null, 'editors');
+  await change(t, at(d, '09:20:00'), mara, 'field', 'f-job', 'added', 'cleo');
+  await change(t, at(d, '09:25:00'), mara, 'field', 'f-note', 'changed', 'cleo', null, 'personal');
+  await change(t, at(d, '09:30:00'), mara, 'event', 'e1', 'added', 'cleo');
+  await change(t, at(d, '09:31:00'), mara, 'event', 'e1', 'changed', 'cleo', { f: { place: [null, 'Leeds'] } });
+  await change(t, at(d, '09:40:00'), mara, 'citation', 'c1', 'added', 'cleo');
+  await change(t, at(d, '09:45:00'), mara, 'portrait', 'cleo', 'changed', 'cleo', { f: { photo: [null, null] }, o: ['photo'] });
+  await change(t, at(d, '09:50:00'), mara, 'source', 'src1', 'added', null);
+  await change(t, at(d, '09:55:00'), mara, 'event', 'e2', 'removed', 'ben');
+  // Another member's day is its own event; a removal and a Personal field are in nobody's.
+  await change(t, at(d, '10:00:00'), eda, 'person', 'cleo', 'changed', 'cleo', { f: { nickname: [null, 'Clo'] } });
+
+  const ofViewer = (await F.feedPage(t, viewer)).items.filter((i) => i.type === 'updates');
+  const ofEditor = (await F.feedPage(t, eda)).items.filter((i) => i.type === 'updates');
+  assert.equal(ofViewer.length, 2);
+  const mine = ofViewer.find((i) => i.type === 'updates' && i.by === 'Mara Alder');
+  assert.ok(mine && mine.type === 'updates');
+  assert.equal(mine.key, `updates:${d}|${await H.authorKey(t, mara.id)}`);
+  assert.equal(mine.target, mine.key);
+  assert.equal(mine.at, at(d, '09:50:00'), 'when the day’s last change was made');
+  assert.equal(mine.count, 2, 'two people');
+  assert.deepEqual(mine.people, [
+    { id: 'ben', contact: ['phone'], details: [], events: 0, sources: 0, portrait: false, tagged: 0 },
+    { id: 'cleo', contact: [], details: ['field:occupation'], events: 1, sources: 1, portrait: true, tagged: 0 },
+    { id: null, contact: [], details: [], events: 0, sources: 1, portrait: false, tagged: 0 },
+  ], 'the address is for editors; the Personal note and the removal are in nobody’s');
+  assert.doesNotMatch(JSON.stringify(ofViewer), /\+44|Leeds/, 'no value travels');
+  const forEditor = ofEditor.find((i) => i.type === 'updates' && i.by === 'Mara Alder');
+  assert.ok(forEditor && forEditor.type === 'updates');
+  assert.deepEqual(forEditor.people[0]!.contact, ['phone', 'address'], 'an editor reads the address’s news');
+  const eda1 = ofViewer.find((i) => i.type === 'updates' && i.by === 'Eda Editor');
+  assert.ok(eda1 && eda1.type === 'updates');
+  assert.deepEqual(eda1.people, [{ id: 'cleo', contact: [], details: ['nickname'], events: 0, sources: 0, portrait: false, tagged: 0 }]);
+  // Members react to it and comment on it like a post; nobody can react to an event that is not there.
+  assert.deepEqual(await R.react(t, viewer, 'event', mine.target, '🎉', true), { added: true });
+  const { id } = await R.addComment(t, mara, 'event', mine.target, 'Thanks for the update!');
+  assert.ok(id);
+  const counts = await R.responseCounts(t, viewer);
+  assert.deepEqual(counts[`event:${mine.target}`], { reactions: { '🎉': 1 }, mine: ['🎉'], comments: 1 });
+  await assert.rejects(R.react(t, viewer, 'event', `updates:2026-01-01|${await H.authorKey(t, mara.id)}`, '🎉', true), /responses\.err\.gone/);
+  await assert.rejects(R.react(t, viewer, 'event', `updates:${d}|0000000000000000`, '🎉', true), /responses\.err\.gone/);
+  await assert.rejects(R.react(t, viewer, 'event', 'updates:nonsense', '🎉', true), /responses\.err\.gone/);
+  // A birthday or an anniversary today, keyed by the year: the person or the couple must be there.
+  assert.deepEqual(await R.react(t, viewer, 'event', 'b:cleo:2026', '🎂', true), { added: true });
+  await assert.rejects(R.react(t, viewer, 'event', 'b:nobody:2026', '🎂', true), /responses\.err\.gone/);
+  await assert.rejects(R.react(t, guest, 'event', 'b:cleo:2026', '🎂', true), /access/i);
+});
+
+test('an import of hundreds of people is one event, not hundreds', async () => {
+  const t = 'edits';
+  const d = '2026-11-04';
+  await change(t, at(d, '08:00:00'), eda, 'import', at(d, '08:00:00'), 'added', null, { f: { people: [null, 500], events: [null, 900] } }, 'family', 500);
+  const page = await F.feedPage(t, viewer);
+  const imports = page.items.filter((i) => i.type === 'updates' && i.imported > 0);
+  assert.equal(imports.length, 1);
+  const only = imports[0]!;
+  assert.ok(only.type === 'updates');
+  assert.equal(only.imported, 500);
+  assert.equal(only.count, 0);
+});
+
+test('posts and events of a day come interleaved by time', async () => {
+  const t = 'edits';
+  const d = '2026-11-06';
+  await post(t, '00000000-0000-4000-8000-0000000e0001', at(d, '08:00:00'), 'Morning');
+  await change(t, at(d, '09:00:00'), mara, 'event', 'e9', 'added', 'ben');
+  await post(t, '00000000-0000-4000-8000-0000000e0002', at(d, '10:00:00'), 'Later');
+  const types = (await F.feedPage(t, viewer)).items.filter((i) => i.at.startsWith(d)).map((i) => i.type);
+  assert.deepEqual(types, ['post', 'updates', 'post']);
 });

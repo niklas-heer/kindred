@@ -28,6 +28,8 @@ export interface SeedTree {
   /** What the family wrote to each other in the feed (migration 0029, docs/feed.md), and photographs added to the gallery. */
   posts?: SeedPost[];
   uploads?: SeedUpload[];
+  /** Contact details someone of the family gave since, for the feed's "has a new address" (tree migration 0030). */
+  updates?: SeedUpdate[];
   /** The person the tree opens on (the "player character"). */
   focus: string;
 }
@@ -62,6 +64,18 @@ export interface SeedPost {
   comments?: { by: string; body: string; hoursLater: number }[];
   /** Who reacted, and with which emoji (one each, as `reactionOf` in src/lib/responses.ts accepts it). */
   reactions?: { by: string; kind: string }[];
+}
+
+/**
+ * Contact details a person of the family added to someone's page: new fields, with the change history's rows for them,
+ * written as `seed:<by>` like a post. The feed says them as one update ("Ines updated Ola: has a new address").
+ */
+export interface SeedUpdate {
+  by: string;
+  person: string;
+  daysAgo: number;
+  time: string;
+  contacts: Omit<SeedContact, 'person'>[];
 }
 
 /** Photographs one person added to the gallery on one day, into an album when it is named. */

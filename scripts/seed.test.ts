@@ -65,6 +65,7 @@ test('a seed writes the family’s feed: posts by its people, their comments and
       { by: 'ada', daysAgo: 0, time: '23:59', body: 'Good night.' },
     ],
     uploads: [{ by: 'ada', daysAgo: 5, time: '10:00', album: 'Summer', pictures: [{ scene: 'boat', seed: 3, caption: 'The boat' }] }],
+    updates: [{ by: 'ada', person: 'ben', daysAgo: 1, time: '09:00', contacts: [{ kind: 'address', label: 'home', value: '1 Elm Row' }, { kind: 'phone', value: '+44 20 7946 0001' }] }],
   }));
   const now = '2026-11-07T12:00:00.000Z';
   execFileSync(process.execPath, ['scripts/seed.ts', feedFile], { env: { ...process.env, KINDRED_DATA_DIR: data, KINDRED_SEED_NOW: now }, stdio: 'pipe' });
@@ -81,6 +82,12 @@ test('a seed writes the family’s feed: posts by its people, their comments and
     assert.deepEqual(all('SELECT person FROM post_person'), [{ person: 'ben' }]);
     assert.deepEqual(all("SELECT account, author_name, body, created_at FROM comment WHERE target_kind = 'post'"), [{ account: 'seed:ada', author_name: 'Ada King', body: 'More to come.', created_at: '2026-11-05T21:05:00.000Z' }]);
     assert.deepEqual(all("SELECT account, kind FROM reaction WHERE target_kind = 'post'"), [{ account: 'seed:ada', kind: '❤️' }]);
+    // Contact details given since: their fields, and the history rows the feed says them from, a minute apart.
+    const given = all("SELECT h.at, h.account, h.name, h.kind, h.action, h.person, h.level, f.type FROM history h JOIN person_field f ON f.id = h.record ORDER BY h.at");
+    assert.deepEqual(given, [
+      { at: '2026-11-06T08:59:00.000Z', account: 'seed:ada', name: 'Ada King', kind: 'field', action: 'added', person: 'ben', level: 'family', type: 'address' },
+      { at: '2026-11-06T09:00:00.000Z', account: 'seed:ada', name: 'Ada King', kind: 'field', action: 'added', person: 'ben', level: 'family', type: 'phone' },
+    ]);
     // Three pictures: two with the post, in their order and marked as uploaded for it, one in an album. Each is a PNG with its
     // small copy, in the media folder.
     const media = all('SELECT m.key, m.mime, m.width, m.height, m.caption, m.thumb, m.uploaded_by, m.for_post, a.name AS album, pm.ord FROM media m LEFT JOIN album a ON a.id = m.album LEFT JOIN post_media pm ON pm.media = m.key ORDER BY m.uploaded_at, pm.ord');

@@ -9,7 +9,7 @@ Each person has one role in each family they belong to. Roles are cumulative: ea
 
 | Role | Can do |
 | --- | --- |
-| **Viewer** | Browse the tree, the Atlas, the Almanac, the Chronicle, the gallery, the houses and the research, read the family's feed and everyone's public details, and react to messages, memories and photos. |
+| **Viewer** | Browse the tree, the Atlas, the Almanac, the Chronicle, the gallery, the houses and the research, read the family's feed and everyone's public details, and react to messages, memories, photos and the events of the feed. |
 | **Contributor** | Viewer, plus write messages to the family, add memories, sayings, recipes and photos, comment on messages, memories and photos, and add research projects, documents, notes and links, and change their own. |
 | **Editor** | Contributor, plus add and edit people, parent and partner links, places and contacts, and remove people. Editors can also export the family, change or remove anyone's research, mark research private, and remove anyone's comment. |
 | **Steward** | Editor, plus edit houses and their arms, delete albums, manage AI settings and who has access (invite, change roles, remove), and import a GEDCOM file. |
@@ -390,6 +390,9 @@ Today holds the question of the week and the daily quiz ([today.md](today.md)).
 - **What is stored about a member:** one row per day they answered (their account id, their choice, whether it was right,
   and their house), for the streak and the month's table of houses. Removing the family removes it. An answer to the
   question of the week is a memory signed with the writer's name, like any other.
+- **The feed's updates** ([feed.md](feed.md)) come from the change history and follow its levels: a change to something
+  only editors read (an address, at first) is in an editor's feed alone, a Personal field is in nobody's, and an update
+  names what changed (a new phone number), never the value. A guest has no feed.
 
 ## The Campaign
 

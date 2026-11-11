@@ -1,7 +1,9 @@
 // The family's feed on the Today page (docs/feed.md): a way to say something, then one stream, newest first, of what
 // people in the family did: their messages, new memories and sayings, a day's photographs, people added to the tree, a
-// season of the Campaign ending, and at the very top whose birthday it is today. Members only: for a share-link guest
-// it draws nothing and asks nothing, and the server refuses a guest anyway.
+// day's updates to the records (details, contact details, life events, sources, a portrait), a season of the Campaign
+// ending, and at the very top whose birthday it is today. The events (people added, updates, a birthday) take reactions
+// and comments as a message does. Members only: for a share-link guest it draws nothing and asks nothing, and the server
+// refuses a guest anyway.
 //
 //   <Feed tree={tree} />
 //
@@ -9,10 +11,11 @@
 // then at the press of a button, so the end of the page stays reachable.
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Baby, Images, ScrollText, Swords, UserPlus } from 'lucide-react';
+import { Baby, FileInput, Images, PencilLine, ScrollText, Swords, UserPlus } from 'lucide-react';
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EAGER_FACES, StoryCard, type StoryTranslation } from '~/components/chronicle/StoryCard';
 import { GameIcon } from '~/components/GameIcon';
+import { Responses } from '~/components/responses/Responses';
 import { comingUp, nth } from '~/components/today/DatesCard';
 import { EmptyState, ErrorState, Fleuron, Skeleton } from '~/components/ui';
 import { storyTranslationsQuery } from '~/lib/ai/background.functions';
@@ -20,9 +23,10 @@ import { useToday } from '~/lib/clock';
 import { useDealt } from '~/lib/dealt';
 import { useFamily } from '~/lib/family';
 import { feedQuery } from '~/lib/feed/feed.functions';
-import type { FeedItem } from '~/lib/feed/types';
+import type { FeedItem, UpdatePerson } from '~/lib/feed/types';
 import { displayName, type Family } from '~/lib/graph';
-import { formatDate, richText, useT, type Translator } from '~/lib/i18n';
+import { fieldName } from '~/lib/history-text';
+import { formatDate, richText, useT, type Key, type Translator } from '~/lib/i18n';
 import { mediaUrl } from '~/lib/photos/types';
 import { useCan, useMember, useSession } from '~/lib/session';
 import type { GPerson, Story } from '~/lib/types';
@@ -124,7 +128,12 @@ export function Feed({ tree }: { tree: string }) {
                   const people = e.ids.map((id) => f.byId.get(id)).filter((p): p is GPerson => !!p);
                   const names = nameLinks(people, f, tree, t);
                   return (
-                    <Quiet key={e.key} today icon={<GameIcon name={e.kind === 'birthday' ? 'cake-slice' : 'linked-rings'} size={16} />}>
+                    <Quiet
+                      key={e.key}
+                      today
+                      icon={<GameIcon name={e.kind === 'birthday' ? 'cake-slice' : 'linked-rings'} size={16} />}
+                      after={<Responses tree={tree} kind="event" target={`${e.key}:${e.date.getFullYear()}`} compact />}
+                    >
                       <span>{e.kind === 'birthday' ? richText(t, 'feed.line.birthday', { name: names }, { count: e.n }) : richText(t, 'feed.line.anniversary', { names }, { ord: nth(e.n, t.locale) })}</span>
                     </Quiet>
                   );
@@ -151,6 +160,7 @@ export function Feed({ tree }: { tree: string }) {
 function shows(item: FeedItem, f: Family): boolean {
   if (item.type === 'story') return f.byId.has(item.person);
   if (item.type === 'people') return item.people.some((p) => f.byId.has(p.id));
+  if (item.type === 'updates') return item.imported > 0 || item.people.some((p) => p.id === null || f.byId.has(p.id));
   return true;
 }
 
@@ -161,12 +171,15 @@ function nameLinks(people: GPerson[], f: Family, tree: string, t: Translator): R
   return people.map((p, i) => <Fragment key={p.id}>{i > 0 && ', '}{link(p)}</Fragment>);
 }
 
-/** A quiet line between the entries: a mark, a sentence, and when. */
-function Quiet({ icon, children, today }: { icon: ReactNode; children: ReactNode; today?: boolean }) {
+/** A quiet line between the entries: a mark, a sentence, and when; `after` goes under the sentence (reactions, a list). */
+function Quiet({ icon, children, today, after }: { icon: ReactNode; children: ReactNode; today?: boolean; after?: ReactNode }) {
   return (
     <li className="fd-quiet" data-today={today || undefined}>
       <span className="fd-quiet-mark" aria-hidden>{icon}</span>
-      <p>{children}</p>
+      <div className="fd-quiet-body">
+        <p>{children}</p>
+        {after}
+      </div>
     </li>
   );
 }
@@ -199,7 +212,7 @@ function Entry({ item, f, tree, now, tr, defer }: { item: FeedItem; f: Family; t
             </Quiet>
           ))}
           {named.length > 0 && (
-            <Quiet icon={<UserPlus size={16} />}>
+            <Quiet icon={<UserPlus size={16} />} after={<Responses tree={tree} kind="event" target={item.target} compact />}>
               <span>
                 {item.by
                   ? rest > 0 ? richText(t, 'feed.line.added', { author: <b>{item.by}</b>, names }, { count: rest }) : richText(t, 'feed.line.added_one', { author: <b>{item.by}</b>, names })
@@ -211,6 +224,8 @@ function Entry({ item, f, tree, now, tr, defer }: { item: FeedItem; f: Family; t
         </>
       );
     }
+    case 'updates':
+      return <UpdatesEntry item={item} f={f} tree={tree} now={now} />;
     case 'season':
       return (
         <Quiet icon={<Swords size={16} />}>
@@ -222,6 +237,56 @@ function Entry({ item, f, tree, now, tr, defer }: { item: FeedItem; f: Family; t
         </Quiet>
       );
   }
+}
+
+/** What one update to one person said, as short phrases: "has a new address", "a life event", "details changed (Born)". */
+function updateParts(p: UpdatePerson, t: Translator): string[] {
+  const parts: string[] = p.contact.map((c) => t(`feed.update.contact.${c}`));
+  if (p.details.length) {
+    const names = p.details.map((d) => (d.startsWith('field:') ? t(`type.${d.slice(6)}` as Key) : fieldName(t, d)));
+    parts.push(t('feed.update.details', { list: names.join(', ') }));
+  }
+  if (p.events) parts.push(t('feed.update.events', { count: p.events }));
+  if (p.sources && p.id !== null) parts.push(t('feed.update.sources', { count: p.sources }));
+  if (p.portrait) parts.push(t('feed.update.portrait'));
+  if (p.tagged) parts.push(t('feed.update.tagged', { count: p.tagged }));
+  return parts;
+}
+
+/**
+ * One member's updates of one day, as a quiet line: one person said in a sentence ("Ada updated Carl: has a new address,
+ * new phone number"), more as a short list under it, each name a link to the person's page. A GEDCOM import is one line.
+ */
+function UpdatesEntry({ item, f, tree, now }: { item: Extract<FeedItem, { type: 'updates' }>; f: Family; tree: string; now?: number }) {
+  const t = useT();
+  const author = <b>{item.by || t('feed.someone')}</b>;
+  const people = item.people.filter((p) => p.id !== null && f.byId.has(p.id));
+  const nobody = item.people.find((p) => p.id === null);
+  const link = (id: string) => <Link to="/$tree/person/$id" params={{ tree, id }}>{displayName(f.byId.get(id)!, f)}</Link>;
+  const what = (p: UpdatePerson) => updateParts(p, t).join(', ');
+  const responses = <Responses tree={tree} kind="event" target={item.target} compact />;
+  const lines: ReactNode[] = [];
+  if (item.imported) lines.push(<span key="import">{richText(t, 'feed.line.imported', { author }, { count: item.imported })}</span>);
+  if (people.length === 1 && item.count === 1) {
+    lines.push(<span key="one">{richText(t, 'feed.line.updated_one', { author, name: link(people[0]!.id!) }, { what: what(people[0]!) })}</span>);
+  } else if (people.length) {
+    lines.push(<span key="many">{richText(t, 'feed.line.updated', { author }, { count: item.count })}</span>);
+  }
+  if (nobody?.sources) lines.push(<span key="sources">{richText(t, 'feed.line.recorded', { author }, { what: t('feed.update.sources', { count: nobody.sources }) })}</span>);
+  if (!lines.length) return null;
+  const rest = item.count - people.length;
+  const list = people.length > 1 || (people.length === 1 && item.count > 1) ? (
+    <ul className="fd-updates">
+      {people.map((p) => <li key={p.id}>{link(p.id!)}{': '}{what(p)}</li>)}
+      {rest > 0 ? <li className="fd-updates-more">{t('feed.line.updated_more', { count: rest })}</li> : null}
+    </ul>
+  ) : null;
+  return (
+    <Quiet icon={item.imported && !people.length ? <FileInput size={16} /> : <PencilLine size={16} />} after={<>{list}{responses}</>}>
+      {lines.map((l, i) => <Fragment key={i}>{i > 0 ? ' ' : null}{l}</Fragment>)}
+      <When at={item.at} now={now} t={t} />
+    </Quiet>
+  );
 }
 
 /** One member's photographs of one day: who added how many, to which album, and the newest few, which lead to the Gallery. */
