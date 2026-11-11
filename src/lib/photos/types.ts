@@ -9,6 +9,8 @@ export interface Tag {
   person: string;
   box: Box;
   confirmed: boolean;
+  /** The member whose "Who is this?" proposal it came from, by the name shown then (tree migration 0033). */
+  namedBy?: string;
 }
 
 export interface MediaItem {

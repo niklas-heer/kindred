@@ -86,6 +86,10 @@ export const LEFT_OUT_TABLES: Record<string, string> = {
   today_settings: 'the switch for the daily quiz; the target starts with the quiz on',
   quiz_day: 'the quiz questions already drawn; the target draws its own from the records',
   quiz_answer: 'the quiz answers and streaks, keyed by account ids, which are not copied',
+  // "Who is this?" (migration 0033): proposals and passes are the game's, keyed by account ids, which are not copied. A
+  // confirmed proposal is already a tag in `media_person`, which is copied with its `named_by`.
+  tag_proposal: 'the "Who is this?" proposals, keyed by account ids, which are not copied; confirmed ones are tags already',
+  tag_pass: 'the pictures a member passed on in "Who is this?", keyed by account ids',
 };
 
 /**

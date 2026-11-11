@@ -49,6 +49,7 @@ import * as statisticsArea from "./areas/statistics.ts";
 import * as tourArea from "./areas/tour.ts";
 import * as treeArea from "./areas/tree.ts";
 import * as viewasArea from "./areas/viewas.ts";
+import * as whoisArea from "./areas/whois.ts";
 import type { Locale, Message } from "./types.ts";
 
 /** Every area module. Adding an area means adding it here once; keys go in the area files. */
@@ -100,6 +101,7 @@ export const AREAS = [
   todayQuestionsArea,
   printArea,
   viewasArea,
+  whoisArea,
 ] as const;
 
 /** Tables that exist before any area is merged. The server has every language in AREAS, so none. */

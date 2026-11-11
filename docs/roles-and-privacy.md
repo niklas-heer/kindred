@@ -47,6 +47,8 @@ both what the browser shows and what the server allows.
 | Open Today, read the week's answers, take the daily quiz | Viewer |
 | Answer the question of the week (an answer is a memory) | Contributor |
 | Change or skip this week's question; switch the daily quiz off | Steward |
+| Play "Who is this?" and propose who is in an untagged photograph | Viewer |
+| Confirm or set aside someone else's "Who is this?" proposal (it becomes a tag) | Contributor |
 
 Hiding a button is never the only protection. Every server function and server route calls `requireMember` or
 `requireCan` before it reads or writes, and answers 401 when signed out and 403 when the role is too low.
@@ -416,6 +418,17 @@ Today holds the question of the week and the daily quiz ([today.md](today.md)).
 - **The feed's updates** ([feed.md](feed.md)) come from the change history and follow its levels: a change to something
   only editors read (an address, at first) is in an editor's feed alone, a Personal field is in nobody's, and an update
   names what changed (a new phone number), never the value. A guest has no feed.
+
+## Who is this?
+
+"Who is this?" asks members who is in the gallery's untagged photographs ([who-is-this.md](who-is-this.md)).
+
+- **Guests:** a share-link guest gets none of it, and the gallery does not tell a guest which member named someone.
+- **A proposal is not a tag.** It becomes one only when someone with the right to tag photographs (Contributor or higher)
+  agrees, and never on the proposer's own word. Until then nobody sees it but the members who may confirm it.
+- **What is stored about a member:** their proposals (account id, name then, the photograph, the person, the box) and the
+  photographs they passed on, for the round and the month's count. Removing the family removes them; a confirmed tag
+  keeps the proposer's name as "Named by".
 
 ## The Campaign
 

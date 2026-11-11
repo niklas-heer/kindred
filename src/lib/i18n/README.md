@@ -67,6 +67,7 @@ Stamboom (the phone tab says „Boom“).
 | `print` | The Print page and everything on paper: the charts, the family book, the colophon (`print.*`) |
 | `tour` | The guided tour: the first-run offer, the card's buttons and each step's words (`tour.*`) |
 | `today`, `today-questions` | Today: the page, its cards, the quiz and the stewards' switch (`today.*`); the sixty questions of the week (`today.q.*`) |
+| `whois` | "Who is this?": naming people in untagged photographs, its card, page and confirmations (`whois.*`) |
 | `campaign` | The Campaign: the game between the houses, its practice skirmish, the Today card and the stewards' Games page (`campaign.*`) |
 | `history` | The change history: the History page, a person's history, "What's new" and the weekly push (`history.*`) |
 | `feed` | The family's feed on Today: messages, the composer, the stream's lines, the strip of cards on a phone, the push about a new message (`feed.*`) |

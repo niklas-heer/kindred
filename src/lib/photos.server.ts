@@ -12,7 +12,7 @@ interface MediaRow {
   key: string; mime: string; width: number; height: number; taken: string | null; place: string | null; caption: string | null;
   album: string | null; uploaded_by: string; uploaded_at: string; post: string | null;
 }
-interface TagRow { id: number; media: string; person: string; x: number; y: number; w: number; h: number; confirmed: number }
+interface TagRow { id: number; media: string; person: string; x: number; y: number; w: number; h: number; confirmed: number; named_by: string | null }
 
 /** The columns of a picture. With `protectLiving`, a picture with a living person in it comes without caption, date or place. */
 const cols = (protectLiving: boolean) =>
@@ -39,19 +39,20 @@ export const galleryFor = (guest: boolean) => (guest ? NOT_FOR_A_POST : NOT_A_LE
 /**
  * Media rows matching `where` (an SQL condition on `m`), each with its tags, newest upload first. With `protectLiving` (a guest
  * whose link protects living people) the pictures stay, but no living person is tagged on them, and a picture one is in has no
- * caption, date or place (src/lib/protect-living.ts).
+ * caption, date or place (src/lib/protect-living.ts). A `guest` is not told which member named someone ("Who is this?"):
+ * that is the family's own talk, like the feed.
  */
-async function withTags(d: Db, where: string, params: Param[], protectLiving = false): Promise<MediaItem[]> {
+async function withTags(d: Db, where: string, params: Param[], protectLiving = false, guest = false): Promise<MediaItem[]> {
   const rows = await d.all<MediaRow>(`SELECT ${cols(protectLiving)} FROM media m WHERE ${where} ORDER BY m.uploaded_at DESC, m.key`, ...params);
   if (!rows.length) return [];
   const tags = await d.all<TagRow>(
-    `SELECT id, media, person, x, y, w, h, confirmed FROM media_person WHERE media IN (SELECT m.key FROM media m WHERE ${where})${protectLiving ? ` AND person NOT IN (${LIVING_IDS})` : ''} ORDER BY id`,
+    `SELECT id, media, person, x, y, w, h, confirmed, named_by FROM media_person WHERE media IN (SELECT m.key FROM media m WHERE ${where})${protectLiving ? ` AND person NOT IN (${LIVING_IDS})` : ''} ORDER BY id`,
     ...params,
   );
   const byMedia = new Map<string, Tag[]>();
   for (const t of tags) {
     const list = byMedia.get(t.media) ?? [];
-    list.push({ id: t.id, person: t.person, box: { x: t.x, y: t.y, w: t.w, h: t.h }, confirmed: t.confirmed === 1 });
+    list.push({ id: t.id, person: t.person, box: { x: t.x, y: t.y, w: t.w, h: t.h }, confirmed: t.confirmed === 1, ...(t.named_by && !guest ? { namedBy: t.named_by } : {}) });
     byMedia.set(t.media, list);
   }
   return rows.map((r) => ({
@@ -77,7 +78,7 @@ async function withTags(d: Db, where: string, params: Param[], protectLiving = f
 export async function gallery(tree: string, protectLiving = false, guest = false): Promise<Gallery> {
   const d = db(tree);
   const [items, albums] = await Promise.all([
-    withTags(d, galleryFor(guest), [], protectLiving),
+    withTags(d, galleryFor(guest), [], protectLiving, guest),
     d.all<{ id: string; name: string; n: number }>(`SELECT a.id, a.name, (SELECT count(*) FROM media m WHERE m.album = a.id AND ${galleryFor(guest)}) AS n FROM album a ORDER BY a.name COLLATE NOCASE`),
   ]);
   return { media: items, albums: albums.map((a): Album => ({ id: a.id, name: a.name, count: a.n })) };
@@ -89,7 +90,7 @@ export async function gallery(tree: string, protectLiving = false, guest = false
  */
 export function personMedia(tree: string, person: string, protectLiving = false, guest = false): Promise<MediaItem[]> {
   const where = `m.key IN (SELECT mp.media FROM media_person mp WHERE mp.person = ? AND mp.confirmed = 1${protectLiving ? ` AND mp.person NOT IN (${LIVING_IDS})` : ''}) AND ${galleryFor(guest)}`;
-  return withTags(db(tree), where, [person], protectLiving);
+  return withTags(db(tree), where, [person], protectLiving, guest);
 }
 
 /**
