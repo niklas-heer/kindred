@@ -205,7 +205,8 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, kin
             <span className="card-heir" title={t('houses.heirOf', { name: bareHouseName(houseRole.house) })}>{t('houses.heirRibbon')}</span>
           )}
           {p.stories > 0 && detail === 'near' && (
-            <span className="card-badge card-stories" title={t('card.stories', { count: p.stories })}>
+            // The count is for the eye: the card's spoken name says "2 stories" after the name (extras), not "2" before it.
+            <span className="card-badge card-stories" title={t('card.stories', { count: p.stories })} aria-hidden>
               <GameIcon name="quill-ink" size={12} /> {p.stories}
             </span>
           )}
