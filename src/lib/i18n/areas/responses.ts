@@ -5,7 +5,7 @@ import type { Message } from "../types.ts";
 
 export const en = {
   "responses.reactions": "Reactions",
-  "responses.react_count": { one: "{reaction} {count} person", other: "{reaction} {count} people" },
+  "responses.react_count": { one: "{reaction} {count} – from {count} person", other: "{reaction} {count} – from {count} people" },
   "responses.reactions_count": { one: "{count} reaction", other: "{count} reactions" },
   "responses.comments_count": { one: "{count} comment", other: "{count} comments" },
   "responses.comment": "Comment",
@@ -76,7 +76,7 @@ export const en = {
 
 export const de: Record<keyof typeof en, Message> = {
   "responses.reactions": "Reaktionen",
-  "responses.react_count": { one: "{reaction} {count} Person", other: "{reaction} {count} Personen" },
+  "responses.react_count": { one: "{reaction} {count} – von {count} Person", other: "{reaction} {count} – von {count} Personen" },
   "responses.reactions_count": { one: "{count} Reaktion", other: "{count} Reaktionen" },
   "responses.comments_count": { one: "{count} Kommentar", other: "{count} Kommentare" },
   "responses.comment": "Kommentieren",
@@ -147,7 +147,7 @@ export const de: Record<keyof typeof en, Message> = {
 
 export const af: Record<keyof typeof en, Message> = {
   "responses.reactions": "Reaksies",
-  "responses.react_count": { one: "{reaction} {count} persoon", other: "{reaction} {count} mense" },
+  "responses.react_count": { one: "{reaction} {count} – van {count} persoon", other: "{reaction} {count} – van {count} mense" },
   "responses.reactions_count": { one: "{count} reaksie", other: "{count} reaksies" },
   "responses.comments_count": { one: "{count} kommentaar", other: "{count} kommentare" },
   "responses.comment": "Lewer kommentaar",
