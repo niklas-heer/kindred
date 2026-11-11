@@ -232,3 +232,131 @@ test('the looks the invented family is given by hand are looks the portrait keep
     assert.deepEqual(look.sanitizeLook(l), l, id);
   }
 });
+
+// ---------- hair and beards redrawn: colours of one's own, and a beard as coverage, length and shape ----------
+
+test('a colour of one\'s own is a hash and six hex digits, or it is dropped: on saving, in the schema and in the drawing', () => {
+  const base = { skin: 1, hair: 2, eyes: 0 };
+  assert.equal(look.hexColour('#8A5631'), '#8a5631');
+  const BAD = ['8a5631', '#8a563', '#8a56311', '#8a563g', '#fff', 'red', 'rgb(1,2,3)', '#8a5631"/><script>alert(1)</script>', '"><svg onload=alert(1)>', ' #8a5631', '#8a5631 ', '', 0x8a5631, null, ['#8a5631'], { hex: '#8a5631' }];
+  for (const bad of BAD) {
+    assert.equal(look.hexColour(bad), undefined, JSON.stringify(bad));
+    const clean = look.sanitizeLook({ ...base, hairHex: bad, beardHex: bad });
+    assert.deepEqual(clean, base, `saving drops ${JSON.stringify(bad)}`);
+    if (typeof bad === 'string') assert.equal(types.lookSchema.safeParse({ ...base, hairHex: bad }).success, false, `the schema refuses ${JSON.stringify(bad)}`);
+    // A stored look is trusted by nobody: a bad value that reached the database draws as if it were not there.
+    for (const detail of ['sm', 'md', 'lg']) assert.equal(draw({ ...base, beardStyle: 'full', hairHex: bad, beardHex: bad }, detail, { sex: 'm' }), draw({ ...base, beardStyle: 'full' }, detail, { sex: 'm' }), JSON.stringify(bad));
+  }
+  assert.deepEqual(look.sanitizeLook({ ...base, hairHex: '#12ABef', beardHex: '#B5522C' }), { ...base, hairHex: '#12abef', beardHex: '#b5522c' });
+  assert.equal(types.lookSchema.safeParse({ ...base, hairHex: '#12abef', beardHex: '#b5522c', beardLength: 7, beardShape: 'forked' }).success, true);
+  // Whatever a look holds, the drawing holds nothing but the markup it is made of: no quote, bracket or script survives into it.
+  const svg = draw({ ...base, hairHex: '#123456"><script>', beardHex: 'javascript:alert(1)', beardStyle: 'full' }, 'lg', { sex: 'm' });
+  assert.doesNotMatch(svg, /script|javascript/);
+});
+
+test('a hair colour of one\'s own wins over the swatch, greys like a natural colour, and stays as it is when it is plainly dyed', () => {
+  const at = (l: object, born: string) => look.resolveAppearance(person({ look: { skin: 1, hair: 2, eyes: 0, ...l }, born }), NOW);
+  assert.equal(at({ hairHex: '#5c3b21' }, '1990').hair, '#5c3b21');
+  assert.equal(at({ hairHex: '#5c3b21' }, '1990').hairBase, '#5c3b21');
+  assert.match(draw({ skin: 1, hair: 2, eyes: 0, hairHex: '#5c3b21' }, 'lg', { born: '2000' }), /fill="#5c3b21"/);
+  assert.doesNotMatch(draw({ skin: 1, hair: 2, eyes: 0, hairHex: '#5c3b21' }, 'lg', { born: '2000' }), new RegExp(`fill="${look.HAIR[2]}"`));
+  assert.notEqual(at({ hairHex: '#5c3b21' }, '1940').hair, '#5c3b21', 'a brown of one\'s own is grey by 86');
+  assert.equal(at({ hairHex: '#5c3b21', hairGreys: false }, '1940').hair, '#5c3b21');
+  assert.equal(at({ hairHex: '#2f6fd0' }, '1940').hair, '#2f6fd0', 'blue is dyed, and stays blue');
+  for (const natural of ['#17151a', '#4a3226', '#a3482a', '#c66c2e', '#d2ac69', '#ece5d0', '#8a8a8a']) assert.equal(look.looksDyed(natural), false, natural);
+  for (const dyed of ['#2f6fd0', '#3aa35a', '#7b57b3', '#e07aa8', '#2f8c84']) assert.equal(look.looksDyed(dyed), true, dyed);
+  // The index stays the fallback: the nearest swatch.
+  assert.equal(look.nearestHair(look.HAIR[6]), 6);
+  assert.equal(look.nearestHair('#000000'), 8);
+});
+
+test('a beard is where it grows, how long it is and how it is cut: the older names keep their meaning', () => {
+  assert.deepEqual(look.beardSpec('short'), { cover: 'full', length: 2, shape: 'round' });
+  assert.deepEqual(look.beardSpec('full'), { cover: 'full', length: 5, shape: 'round' });
+  assert.deepEqual(look.beardSpec('long'), { cover: 'full', length: 9, shape: 'pointed' });
+  assert.deepEqual(look.beardSpec('vandyke'), { cover: 'goatee', length: 6, shape: 'pointed' });
+  assert.deepEqual(look.beardSpec('goatee'), { cover: 'goatee', length: 4, shape: 'round' });
+  assert.deepEqual(look.beardSpec('circle'), { cover: 'circle', length: 3, shape: 'round' });
+  // A look's own length and shape win over the name's; values that are not lengths or shapes do not.
+  assert.deepEqual(look.beardSpec('short', { beardLength: 8, beardShape: 'forked' }), { cover: 'full', length: 8, shape: 'forked' });
+  assert.deepEqual(look.beardSpec('long', { beardLength: 11, beardShape: 'spiky' }), { cover: 'full', length: 9, shape: 'pointed' });
+  const man = { sex: 'm', born: '1970' };
+  const base = { skin: 2, hair: 1, eyes: 0, moustache: 'none', hairStyle: 'short' };
+  // Every beard ever stored is kept on saving and by the schema, has a name in three languages, and draws as its new fields say.
+  for (const [id, preset] of Object.entries(look.BEARD_PRESETS) as [string, { cover: string; length: number; shape: string }][]) {
+    assert.equal(look.sanitizeLook({ ...base, beardStyle: id }).beardStyle, id);
+    assert.equal(types.lookSchema.safeParse({ ...base, beardStyle: id }).success, true, id);
+    for (const locale of ['en', 'de', 'af']) assert.ok(dict.translate(locale, `look.beard.${id.replace(/-/g, '_')}`), `${id} (${locale})`);
+    for (const detail of ['sm', 'md', 'lg']) assert.equal(draw({ ...base, beardStyle: id }, detail, man), draw({ ...base, beardStyle: preset.cover, beardLength: preset.length, beardShape: preset.shape }, detail, man), `${id} at ${detail}`);
+  }
+  for (const o of [...look.BEARD_SHAPES, ...look.BEARD_LENGTHS]) for (const locale of ['en', 'de', 'af']) assert.ok(dict.translate(locale, o.label) && dict.KEYS.includes(o.label), o.label);
+  // Length and shape show: every step of length draws a different full beard, and so does every shape of a long one.
+  const lengths = Array.from({ length: 11 }, (_, n) => draw({ ...base, beardStyle: 'full', beardLength: n }, 'lg', man));
+  assert.equal(new Set(lengths).size, 11);
+  assert.equal(new Set(look.BEARD_SHAPES.map((o: { id: string }) => draw({ ...base, beardStyle: 'full', beardLength: 8, beardShape: o.id }, 'lg', man))).size, 4);
+  assert.deepEqual(look.sanitizeLook({ ...base, beardLength: 4.5, beardShape: 'spiky' }), base);
+  assert.deepEqual(look.sanitizeLook({ ...base, beardLength: 10, beardShape: 'square' }), { ...base, beardLength: 10, beardShape: 'square' });
+});
+
+test('the moustache is its own part: a full beard leaves the upper lip to it, and both take the beard\'s colour', () => {
+  const man = (l: object) => look.resolveAppearance(person({ id: 'p-clean', sex: 'm', born: '1975', look: { skin: 2, hair: 1, eyes: 0, ...l } }), NOW);
+  // Nobody chose a moustache: a full beard comes with one, as it always looked. Choosing "none" shaves the lip.
+  assert.notEqual(man({ beardStyle: 'full' }).moustache, 'none');
+  assert.notEqual(man({ beardStyle: 'long' }).moustache, 'none');
+  assert.equal(man({ beardStyle: 'full', moustache: 'none' }).moustache, 'none');
+  assert.equal(man({ beardStyle: 'full', moustache: 'walrus' }).moustache, 'walrus');
+  const base = { skin: 2, hair: 1, eyes: 0, hairStyle: 'bald', beardStyle: 'full' };
+  const m = { sex: 'm', born: '1975' };
+  assert.notEqual(draw({ ...base, moustache: 'none' }, 'lg', m), draw({ ...base, moustache: 'chevron' }, 'lg', m));
+  // No patch of skin painted over the beard to make a mouth: the only skin-coloured shapes are the ones a beardless face has.
+  const skin = look.SKIN[2];
+  const count = (svg: string) => svg.split(`fill="${skin}"`).length - 1;
+  assert.equal(count(draw({ ...base, moustache: 'none' }, 'lg', m)), count(draw({ ...base, beardStyle: 'none', moustache: 'none' }, 'lg', m)));
+  assert.equal(count(draw({ ...base, beardStyle: 'circle', moustache: 'none' }, 'lg', m)), count(draw({ ...base, beardStyle: 'none', moustache: 'none' }, 'lg', m)));
+  // The beard's colour: the hair's unless it has its own, and the moustache follows it.
+  assert.equal(man({ beardStyle: 'full' }).beardColour, man({ beardStyle: 'full' }).hair);
+  assert.equal(man({ beardStyle: 'full', beardHex: '#b5522c' }).beardColour, '#b5522c');
+  assert.equal(man({ beardStyle: 'full', beardHex: '#b5522c' }).hair, look.HAIR[1]);
+  const red = draw({ ...base, moustache: 'handlebar', beardStyle: 'none', beardHex: '#b5522c' }, 'lg', m);
+  assert.match(red, /fill="#b5522c"/, 'a moustache alone takes the colour too');
+});
+
+test('the editor\'s first choices are about twenty hair styles, and every style ever stored still has its place and its drawing', () => {
+  const first = look.HAIR_STYLES.filter((o: { more?: boolean }) => !o.more);
+  assert.ok(first.length >= 18 && first.length <= 22, `${first.length} first choices`);
+  for (const id of ['cropped', 'side-part', 'swept-back', 'bob', 'curly', 'coily', 'long', 'ponytail', 'bun', 'bald', 'receding', 'textured-crop', 'undercut', 'messy']) assert.ok(first.some((o: { id: string }) => o.id === id), id);
+  // The styles a look could store before the redraw (the frozen test's own lists) and since.
+  const STORED = ['cropped', 'short', 'side-part', 'swept', 'curly', 'afro', 'quiff', 'bowl', 'shoulder', 'long', 'wavy', 'braid', 'bun', 'chignon', 'bob', 'pixie', 'ponytail', 'pigtails', 'periwig', 'powdered', 'receding', 'bald', 'buzz', 'coily', 'fade', 'slicked', 'thinning', 'mullet', 'fringe', 'curly-long', 'locs', 'box-braids', 'cornrows', 'side-braid', 'crown-braid', 'beehive', 'space-buns'];
+  const ids = look.HAIR_STYLES.map((o: { id: string }) => o.id);
+  for (const id of STORED) assert.ok(ids.includes(id), id);
+  assert.equal(new Set(ids).size, ids.length, 'no style twice');
+  // Each draws its own silhouette: no two styles are the same picture, at the list size or the largest.
+  const base = { skin: 3, hair: 2, eyes: 1, glasses: 'none', headwear: 'none', clothing: 'shirt' };
+  for (const detail of ['sm', 'lg']) assert.equal(new Set([...ids, 'tuft'].map((id: string) => draw({ ...base, hairStyle: id }, detail, { sex: 'f', born: '1980' }))).size, ids.length + 1, detail);
+  for (const o of look.MOUSTACHES) assert.ok(['none', 'pencil', 'chevron', 'handlebar', 'walrus'].includes(o.id) !== !!o.more, o.id);
+});
+
+test('at the list size hair is its silhouette alone: one flat shape a layer, no rim, no highlight, no line of flow', () => {
+  const base = { skin: 3, hair: 2, eyes: 1, grey: 0, glasses: 'none', headwear: 'none', clothing: 'shirt', beardStyle: 'none', moustache: 'none' };
+  const ink = look.HAIR[2];
+  const bare = avatar.avatarSvg(look.resolveAppearance(person({ look: base }), NOW), DRESS, 'sm', true);
+  for (const o of look.HAIR_STYLES) {
+    // A powdered wig is its own colour, and whitens the brows with it: not this test's business.
+    if (o.id === 'powdered') continue;
+    const svg = draw({ ...base, hairStyle: o.id }, 'sm');
+    // What the hair adds to the drawing: paths filled with the hair's colour and nothing else.
+    const added = (svg.match(/<path [^>]*>/g) ?? []).filter((p: string) => !bare.includes(p));
+    assert.ok(added.length >= 1 && added.length <= 4, `${o.id}: ${added.length} shapes`);
+    for (const p of added) assert.match(p, new RegExp(`^<path d="[^"]+" fill="${ink}"( opacity="\\.42")?/>$`), `${o.id}: ${p.slice(0, 40)}…${p.slice(-60)}`);
+  }
+});
+
+test('a hat presses the hair down: nothing of it shows above the hat, and hair worn with a crown or a bow keeps its shape', () => {
+  const base = { skin: 3, hair: 2, eyes: 1, hairStyle: 'curly', clothing: 'shirt' };
+  assert.match(draw({ ...base, headwear: 'cap' }), /<clipPath id="hh">/);
+  assert.match(draw({ ...base, headwear: 'cap' }, 'sm'), /clip-path="url\(#hh\)"/);
+  for (const worn of ['none', 'crown', 'headband', 'bow', 'tiara', 'flower-crown', 'kippah']) assert.doesNotMatch(draw({ ...base, headwear: worn }), /id="hh"/, worn);
+  // Covered hair draws no hair at all, as before.
+  assert.doesNotMatch(draw({ ...base, grey: 0, headwear: 'hijab' }), new RegExp(`fill="${look.HAIR[2]}"`));
+  assert.match(draw({ ...base, grey: 0, headwear: 'cap' }), new RegExp(`fill="${look.HAIR[2]}"`));
+});

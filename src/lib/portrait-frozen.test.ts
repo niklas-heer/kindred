@@ -7,6 +7,12 @@
 // option does not move them. When a case fails, a stored look draws differently: fix the drawing, not the fixture. The
 // fixture is written only with KINDRED_FREEZE_PORTRAITS=write, to add cases; it never replaces a print that is there
 // (KINDRED_FREEZE_PORTRAITS=rewrite does, for a change to every portrait that the family was told about).
+//
+// That has happened once: the hair, the beards and the moustaches were redrawn for everyone (docs/portraits.md, "Hair and
+// beards were redrawn"), and every print was taken again. So that the redraw could not move anything else, a second
+// fixture, portrait-frozen-rest.fixture.json, keeps the prints of the same cases drawn without those three layers, taken
+// from the drawing as it was before: with them left out, old and new drawings are the same bytes. That file is never
+// rewritten. Cases added after it was taken (section 7) have no print in it.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -41,6 +47,11 @@ const NOSES = ['straight', 'aquiline', 'broad', 'snub'];
 const EYE_SHAPES = ['round', 'almond', 'hooded'];
 const LEVELS = ['jaw', 'noseSize', 'mouthWidth', 'mouthFullness', 'eyeSize', 'eyeSpacing', 'browHeight', 'earSize', 'hairline'];
 const TINCTURES = ['or', 'argent', 'gules', 'azure', 'vert', 'sable', 'purpure'];
+// The parts added since, as they stood when hair and beards were redrawn (frozen too).
+const LATER_HAIR = ['buzz', 'coily', 'fade', 'slicked', 'thinning', 'mullet', 'fringe', 'curly-long', 'locs', 'box-braids', 'cornrows', 'side-braid', 'crown-braid', 'beehive', 'space-buns', 'textured-crop', 'messy', 'undercut', 'swept-back'];
+const LATER_BEARDS = ['circle', 'chinstrap', 'sideburns', 'soul-patch'];
+const LATER_MOUSTACHES = ['pencil', 'horseshoe', 'imperial'];
+const BEARD_SHAPES = ['round', 'square', 'pointed', 'forked'];
 const SKINS = 9;
 const HAIRS = 10;
 const EYES = 7;
@@ -174,6 +185,24 @@ function cases(): Case[] {
   // 6. Stored looks older than the three colours being required: a look that says only part of itself.
   const partial = [{ beard: true }, { headwear: 'crown' }, { hair: 3 }, { skin: 2 }, { eyes: 4, hairStyle: 'bun' }, {}];
   partial.forEach((p, i) => out.push({ name: `partial ${i}`, person: { id: id('old', i), given: 'F', sex: i % 2 ? 'f' : 'm', born: String(1700 + i * 55), died: String(1760 + i * 55), look: p } }));
+
+  // 7. What a look could store when hair and beards were redrawn: the later hair styles, a beard as coverage, length and
+  // shape, the later moustaches, and colours of one's own. (Added with that redraw; frozen from then on, like the rest.)
+  one('hairStyle', LATER_HAIR);
+  one('beardStyle', LATER_BEARDS);
+  one('moustache', LATER_MOUSTACHES);
+  one('hairHex', ['#5c3b21', '#d9b36c', '#2f6fd0', '#101014']);
+  const e = rng(20261111);
+  for (let i = 1; i <= 160; i++) {
+    const look: Record<string, unknown> = { skin: e.int(0, 14), hair: e.int(0, 17), eyes: e.int(0, 9), hairStyle: e.pick([...HAIR_STYLES.slice(1), ...LATER_HAIR]), moustache: e.pick([...MOUSTACHES, ...LATER_MOUSTACHES]) };
+    look.beardStyle = e.pick([...BEARDS, ...LATER_BEARDS]);
+    if (e.chance(0.7)) look.beardLength = e.int(0, 10);
+    if (e.chance(0.6)) look.beardShape = e.pick(BEARD_SHAPES);
+    if (e.chance(0.3)) look.beardHex = e.pick(['#b5522c', '#ece5d0', '#2b201b']);
+    if (e.chance(0.3)) look.hairHex = e.pick(['#5c3b21', '#d9b36c', '#2f6fd0']);
+    if (e.chance(0.5)) look.age = e.int(20, 95);
+    out.push({ name: `bearded ${i}`, person: { id: id('b', i), given: 'G', sex: 'm', ...life(e, e.int(900, 2000)), look }, house: houseOf(e) });
+  }
   return out;
 }
 
@@ -212,8 +241,10 @@ test('with the hair, the beard and the moustache left out, every stored look dra
     writeFileSync(REST, `${JSON.stringify({ about: 'Prints of portrait drawings without hair, beard and moustache, taken before those were redrawn; see portrait-frozen.test.ts. Never edit by hand, never rewrite.', now: NOW, prints })}\n`);
   }
   const kept: string[] = JSON.parse(readFileSync(REST, 'utf8')).prints;
-  assert.equal(prints.length, kept.length, 'the cases changed: they are frozen, only ever add to the end');
-  const changed = all.map((c, i) => ({ c, i })).filter(({ i }) => prints[i] !== kept[i]);
+  // The cases that existed before the redraw: the first 3,067. Later ones were never drawn the old way.
+  assert.equal(kept.length, 3067);
+  assert.ok(prints.length >= kept.length, 'the cases changed: they are frozen, only ever add to the end');
+  const changed = all.slice(0, kept.length).map((c, i) => ({ c, i })).filter(({ i }) => prints[i] !== kept[i]);
   assert.equal(
     changed.length, 0,
     `${changed.length} of ${all.length} stored looks draw differently under the hair and the beard. The first few:\n` +
@@ -225,7 +256,7 @@ test('the cases cover every part a look could store, and a wide spread of people
   const all = cases();
   assert.ok(all.length > 2500, `${all.length} cases`);
   const seen = (field: string) => new Set(all.map((c) => c.person.look?.[field]).filter((v) => typeof v === 'string'));
-  for (const [field, values] of Object.entries({ hairStyle: HAIR_STYLES, beardStyle: BEARDS, moustache: MOUSTACHES, brows: BROWS, glasses: GLASSES, headwear: HEADWEAR, clothing: CLOTHING, face: FACES, noseShape: NOSES, eyeShape: EYE_SHAPES })) {
+  for (const [field, values] of Object.entries({ hairStyle: [...HAIR_STYLES, ...LATER_HAIR], beardStyle: [...BEARDS, ...LATER_BEARDS], moustache: [...MOUSTACHES, ...LATER_MOUSTACHES], brows: BROWS, glasses: GLASSES, headwear: HEADWEAR, clothing: CLOTHING, face: FACES, noseShape: NOSES, eyeShape: EYE_SHAPES })) {
     assert.deepEqual([...seen(field)].sort(), [...values].sort(), field);
   }
   // Two prints of one drawing are possible; hundreds of different ones are what a wide spread means.

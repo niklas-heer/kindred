@@ -3,12 +3,12 @@
 // portrait never changes between renders, and a person seen at another age stays recognisably them.
 import type { Key } from '~/lib/i18n/dictionary';
 import type {
-  Backdrop, BeardStyle, BrowStyle, ClothingStyle, Earrings, Expression, Extra, EyeShape, FaceShape, GlassesStyle, HairStyle, Headwear, Mark,
+  Backdrop, BeardShape, BeardStyle, BrowStyle, ClothingStyle, Earrings, Expression, Extra, EyeShape, FaceShape, GlassesStyle, HairStyle, Headwear, Mark,
   MoustacheStyle, Necklace, NoseShape,
 } from '~/lib/seed-format';
 import type { GPerson, Look } from '~/lib/types';
 
-export type { EyeShape, FaceShape, NoseShape };
+export type { BeardShape, EyeShape, FaceShape, NoseShape };
 export type Stage = 'baby' | 'child' | 'teen' | 'adult' | 'middle' | 'elder';
 export type Era = 'early-medieval' | 'high-medieval' | 'renaissance' | 'c17' | 'c18' | 'c19' | 'c1900' | 'c1945' | 'c1970' | 'c2000';
 export type Presentation = 'm' | 'f' | 'x';
@@ -89,26 +89,83 @@ const POWDER = '#ebe6dc';
 // ---------- Catalogues, for the editor ----------
 
 /** A catalogue entry: its stored id, the i18n key of its label, and the group the editor lists it under. */
-export type Opt<T extends string, G extends string = string> = { id: T; label: Key; group?: G };
-const opts = <T extends string, G extends string>(group: G, ids: readonly T[], area: string): Opt<T, G>[] =>
-  ids.map((id) => ({ id, label: `look.${area}.${id.replace(/-/g, '_')}` as Key, group }));
+export type Opt<T extends string, G extends string = string> = {
+  id: T; label: Key; group?: G;
+  /** Kept and drawn, but not among the first choices: the editor lists it under "More". */
+  more?: boolean;
+};
+const opts = <T extends string, G extends string>(group: G, ids: readonly T[], area: string, more?: boolean): Opt<T, G>[] =>
+  ids.map((id) => ({ id, label: `look.${area}.${id.replace(/-/g, '_')}` as Key, group, ...(more ? { more } : {}) }));
 
 export type HairGroup = 'short' | 'medium' | 'long' | 'up' | 'textured' | 'thin' | 'period';
+/**
+ * Every hair style, by group. The editor shows about twenty first, the common cuts of today, and the rest under "More":
+ * every id ever stored still draws.
+ */
 export const HAIR_STYLES: Opt<HairStyle, HairGroup>[] = [
-  ...opts('short', ['buzz', 'cropped', 'short', 'side-part', 'swept', 'slicked', 'quiff', 'fade', 'pixie', 'bowl'] as const, 'hair'),
-  ...opts('medium', ['bob', 'shoulder', 'mullet', 'curly'] as const, 'hair'),
-  ...opts('long', ['long', 'fringe', 'wavy', 'curly-long'] as const, 'hair'),
-  ...opts('up', ['ponytail', 'pigtails', 'braid', 'side-braid', 'crown-braid', 'bun', 'space-buns', 'chignon', 'beehive'] as const, 'hair'),
-  ...opts('textured', ['coily', 'afro', 'locs', 'box-braids', 'cornrows'] as const, 'hair'),
-  ...opts('thin', ['thinning', 'receding', 'bald'] as const, 'hair'),
-  ...opts('period', ['periwig', 'powdered'] as const, 'hair'),
+  ...opts('short', ['cropped', 'short', 'textured-crop', 'messy', 'side-part', 'swept', 'undercut', 'swept-back', 'buzz', 'pixie'] as const, 'hair'),
+  ...opts('short', ['slicked', 'quiff', 'fade', 'bowl'] as const, 'hair', true),
+  ...opts('medium', ['bob', 'shoulder', 'curly'] as const, 'hair'),
+  ...opts('medium', ['mullet'] as const, 'hair', true),
+  ...opts('long', ['long', 'wavy'] as const, 'hair'),
+  ...opts('long', ['fringe', 'curly-long'] as const, 'hair', true),
+  ...opts('up', ['ponytail', 'bun'] as const, 'hair'),
+  ...opts('up', ['pigtails', 'braid', 'side-braid', 'crown-braid', 'space-buns', 'chignon', 'beehive'] as const, 'hair', true),
+  ...opts('textured', ['coily', 'afro'] as const, 'hair'),
+  ...opts('textured', ['locs', 'box-braids', 'cornrows'] as const, 'hair', true),
+  ...opts('thin', ['receding', 'bald'] as const, 'hair'),
+  ...opts('thin', ['thinning'] as const, 'hair', true),
+  ...opts('period', ['periwig', 'powdered'] as const, 'hair', true),
 ];
 export const HAIR_GROUP_LABELS: Record<HairGroup, Key> = {
   short: 'look.group.hair_short', medium: 'look.group.hair_medium', long: 'look.group.hair_long', up: 'look.group.hair_up',
   textured: 'look.group.hair_textured', thin: 'look.group.hair_thin', period: 'look.group.hair_period',
 };
-export const BEARDS: Opt<BeardStyle>[] = opts('', ['none', 'stubble', 'short', 'full', 'long', 'goatee', 'circle', 'vandyke', 'soul-patch', 'chinstrap', 'sideburns', 'muttonchops'] as const, 'beard');
-export const MOUSTACHES: Opt<MoustacheStyle>[] = opts('', ['none', 'thin', 'pencil', 'chevron', 'handlebar', 'imperial', 'horseshoe', 'walrus'] as const, 'moustache');
+
+/** Where a beard grows: what `beardStyle` chooses. How long it is and how it is cut at the chin are `beardLength` and `beardShape`. */
+export type BeardCover = 'none' | 'stubble' | 'full' | 'goatee' | 'circle' | 'chinstrap' | 'sideburns' | 'muttonchops' | 'soul-patch';
+export const BEARDS: Opt<BeardCover>[] = opts('', ['none', 'stubble', 'full', 'goatee', 'circle', 'chinstrap', 'sideburns', 'muttonchops', 'soul-patch'] as const, 'beard');
+/**
+ * What each stored beard means as coverage, length (0 to 10) and shape. `short`, `long` and `vandyke` are the older ids:
+ * a full beard cut short, a full beard grown long, a pointed goatee. A stored look that names one keeps its meaning.
+ */
+export const BEARD_PRESETS: Record<BeardStyle, { cover: BeardCover; length: number; shape: BeardShape }> = {
+  none: { cover: 'none', length: 0, shape: 'round' },
+  stubble: { cover: 'stubble', length: 0, shape: 'round' },
+  short: { cover: 'full', length: 2, shape: 'round' },
+  full: { cover: 'full', length: 5, shape: 'round' },
+  long: { cover: 'full', length: 9, shape: 'pointed' },
+  goatee: { cover: 'goatee', length: 4, shape: 'round' },
+  vandyke: { cover: 'goatee', length: 6, shape: 'pointed' },
+  circle: { cover: 'circle', length: 3, shape: 'round' },
+  chinstrap: { cover: 'chinstrap', length: 5, shape: 'round' },
+  sideburns: { cover: 'sideburns', length: 5, shape: 'round' },
+  muttonchops: { cover: 'muttonchops', length: 5, shape: 'round' },
+  'soul-patch': { cover: 'soul-patch', length: 5, shape: 'round' },
+};
+export const BEARD_SHAPES: Opt<BeardShape>[] = opts('', ['round', 'square', 'pointed', 'forked'] as const, 'beard_shape');
+/** The named lengths the editor offers beside its slider. */
+export const BEARD_LENGTHS: { length: number; label: Key }[] = [
+  { length: 2, label: 'look.beard_length.short' }, { length: 5, label: 'look.beard_length.medium' }, { length: 9, label: 'look.beard_length.long' },
+];
+/** The coverages whose length shows, and the ones cut to a shape at the chin. */
+export const BEARD_HAS_LENGTH = new Set<BeardCover>(['full', 'goatee', 'circle', 'chinstrap', 'sideburns', 'muttonchops', 'soul-patch']);
+export const BEARD_HAS_SHAPE = new Set<BeardCover>(['full', 'goatee', 'circle']);
+
+/** The beard a look describes: the coverage its style names, with the look's own length and shape where it gives them. */
+export function beardSpec(style: BeardStyle, look: { beardLength?: number; beardShape?: BeardShape } = {}): { cover: BeardCover; length: number; shape: BeardShape } {
+  const preset = BEARD_PRESETS[style] ?? BEARD_PRESETS.none;
+  return {
+    cover: preset.cover,
+    length: level(look.beardLength) ?? preset.length,
+    shape: look.beardShape && SHAPE_IDS.has(look.beardShape) ? look.beardShape : preset.shape,
+  };
+}
+
+export const MOUSTACHES: Opt<MoustacheStyle>[] = [
+  ...opts('', ['none', 'pencil', 'chevron', 'handlebar', 'walrus'] as const, 'moustache'),
+  ...opts('', ['thin', 'imperial', 'horseshoe'] as const, 'moustache', true),
+];
 export const BROWS: Opt<BrowStyle>[] = opts('', ['soft', 'straight', 'arched', 'thick', 'thin', 'bushy'] as const, 'brows');
 export const GLASSES: Opt<GlassesStyle>[] = opts('', ['none', 'round', 'oval', 'square', 'horn', 'browline', 'cat-eye', 'aviator', 'rimless', 'half', 'pince-nez', 'monocle', 'sunglasses'] as const, 'glasses');
 
@@ -163,6 +220,12 @@ export const LEVEL_LABELS: Record<LevelKey, Key> = {
 
 
 // ---------- Helpers ----------
+
+/** A 0–10 measure: a whole number, or undefined (automatic). */
+function level(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 10 ? v : undefined;
+}
+const SHAPE_IDS = new Set<string>(['round', 'square', 'pointed', 'forked']);
 
 export function hash(s: string): number {
   let h = 2166136261;
@@ -220,6 +283,12 @@ export interface Appearance {
   brows: BrowStyle;
   eyes: string;
   beard: BeardStyle;
+  /** The beard as drawn: where it grows, how long (0 to 10) and how it is cut at the chin. */
+  beardCover: BeardCover;
+  beardLength: number;
+  beardShape: BeardShape;
+  /** The colour of the beard and the moustache: the hair's, unless the look gives its own. */
+  beardColour: string;
   moustache: MoustacheStyle;
   glasses: GlassesStyle;
   headwear: Headwear;
@@ -426,6 +495,43 @@ function greyed(base: string, age: number, id: string, greys: boolean): string {
   return t < 0.75 ? mixHex(base, GREY, t / 0.75) : mixHex(GREY, WHITE, (t - 0.75) / 0.25);
 }
 
+/**
+ * A colour someone chose freely, as #rrggbb in lower case, or undefined for anything else. Strict on purpose: the value
+ * is written into the drawing's markup, so nothing but a hash and six hex digits may pass.
+ */
+export function hexColour(v: unknown): string | undefined {
+  return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : undefined;
+}
+
+const rgbOf = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+
+/** The swatch nearest a colour: what a look with a colour of its own keeps as `hair`, for anything that reads the index. */
+export function nearestHair(hex: string): number {
+  const [r, g, b] = rgbOf(hex);
+  let best = 0;
+  let least = Infinity;
+  HAIR.forEach((c, i) => {
+    const [x, y, z] = rgbOf(c);
+    const d = (r - x) ** 2 + (g - y) ** 2 + (b - z) ** 2;
+    if (d < least) { least = d; best = i; }
+  });
+  return best;
+}
+
+/**
+ * Whether a colour is one hair is dyed, not one it grows: strong colour outside the browns, reds and blonds. Dyed hair
+ * keeps its colour with age, as the dyed swatches do; a natural colour of one's own greys like any other.
+ */
+export function looksDyed(hex: string): boolean {
+  const [r, g, b] = rgbOf(hex).map((v) => v / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  if (max - min < 0.18) return false;
+  const hue = max === r ? ((g - b) / (max - min) + 6) % 6 : max === g ? (b - r) / (max - min) + 2 : (r - g) / (max - min) + 4;
+  const degrees = hue * 60;
+  return degrees > 56 && degrees < 350;
+}
+
 export function mixHex(a: string, b: string, t: number): string {
   const p = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
   const x = p(a);
@@ -452,8 +558,10 @@ export function resolveAppearance(p: GPerson, now: number, at?: number): Appeara
 
   const skinIdx = p.look ? look.skin ?? SKIN_NEUTRAL : SKIN_NEUTRAL;
   const hairIdx = paletteIndex(look.hair, hash(`${id}:hair`), HAIR.length, HAIR_AUTO);
-  const hairBase = HAIR[hairIdx];
-  const dyed = HAIR_DYED.includes(hairIdx);
+  // A colour of one's own wins over the swatch. It is checked here as well as on saving: it goes into the drawing as it is.
+  const ownHair = hexColour(look.hairHex);
+  const hairBase = ownHair ?? HAIR[hairIdx];
+  const dyed = ownHair ? looksDyed(ownHair) : HAIR_DYED.includes(hairIdx);
 
   let hairStyle = look.hairStyle ?? autoHair(id, era, stage, pres, skinIdx);
   if (stage === 'baby') hairStyle = 'tuft';
@@ -466,7 +574,10 @@ export function resolveAppearance(p: GPerson, now: number, at?: number): Appeara
 
   const [autoB, autoM] = autoBeard(id, era, look.beard, pres, stage);
   const beard = adult ? look.beardStyle ?? autoB : 'none';
-  const moustache = adult ? look.moustache ?? autoM : 'none';
+  const spec = beardSpec(beard, look);
+  // A full beard used to cover the upper lip itself. The moustache is its own part now, so a full beard whose moustache
+  // nobody chose comes with one; choosing "none" shaves the lip.
+  const moustache = !adult ? 'none' : look.moustache ?? (autoM === 'none' && spec.cover === 'full' ? 'chevron' : autoM);
 
   const browsAuto: BrowStyle = stage === 'elder' && pres === 'm' && roll(id, 'bb') < 0.5 ? 'bushy'
     : pick(id, 'brows', (pres === 'f' ? ['arched', 'soft', 'thin'] : pres === 'm' ? ['straight', 'thick', 'soft'] : ['soft', 'straight']) as BrowStyle[]);
@@ -497,7 +608,8 @@ export function resolveAppearance(p: GPerson, now: number, at?: number): Appeara
     hair, hairBase, hairStyle,
     brows: look.brows ?? browsAuto,
     eyes: EYES[paletteIndex(look.eyes, hash(`${id}:eyes`), EYES.length, EYES_AUTO)],
-    beard, moustache, glasses, headwear, clothing, marks, lines,
+    beard, beardCover: spec.cover, beardLength: spec.length, beardShape: spec.shape, beardColour: hexColour(look.beardHex) ?? hair,
+    moustache, glasses, headwear, clothing, marks, lines,
     mouth: hash(`${id}:mouth`) % 4,
     noseShape: look.noseShape ?? NOSE_AUTO[hash(`${id}:nose`) % 4],
     eyeShape: look.eyeShape ?? EYE_AUTO[hash(`${id}:eyeshape`) % 3],
@@ -551,7 +663,9 @@ export function defaultLook(p: GPerson): Look {
 
 const ids = <T extends string>(xs: Opt<T>[]) => new Set<string>(xs.map((x) => x.id));
 const VALID = {
-  hairStyle: ids(HAIR_STYLES), beardStyle: ids(BEARDS), moustache: ids(MOUSTACHES), brows: ids(BROWS),
+  // Every beard ever stored, the older ids among them.
+  hairStyle: ids(HAIR_STYLES), beardStyle: new Set<string>(Object.keys(BEARD_PRESETS)), moustache: ids(MOUSTACHES), brows: ids(BROWS),
+  beardShape: SHAPE_IDS,
   glasses: ids(GLASSES), headwear: ids(HEADWEAR), clothing: ids(CLOTHING),
   face: ids(FACE_SHAPES), noseShape: ids(NOSE_SHAPES), eyeShape: ids(EYE_SHAPES),
   expression: ids(EXPRESSIONS), earrings: ids(EARRINGS), necklace: ids(NECKLACES), backdrop: ids(BACKDROPS),
@@ -561,8 +675,6 @@ const EXTRA_IDS = ids(EXTRAS);
 /** The numbered parts and how many values each has. */
 const INDEXED = { grey: 4, lines: 4, lips: LIPS.length, frames: FRAMES.length, clothColour: CLOTH.length, trimColour: CLOTH.length, hatColour: CLOTH.length } as const;
 const int = (v: unknown, max: number) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < max ? v : undefined);
-/** A 0–10 measure: a whole number, or undefined (automatic). */
-const level = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 10 ? v : undefined);
 
 /**
  * A Look from untrusted input (a form, an import, an AI reply): unknown values are dropped, so the
@@ -593,6 +705,13 @@ export function sanitizeLook(input: unknown): Look | undefined {
   }
   const build = level(o.build);
   if (build !== undefined) out.build = build;
+  const beardLength = level(o.beardLength);
+  if (beardLength !== undefined) out.beardLength = beardLength;
+  // Colours of one's own: a hash and six hex digits, or they are dropped.
+  const hairHex = hexColour(o.hairHex);
+  if (hairHex) out.hairHex = hairHex;
+  const beardHex = hexColour(o.beardHex);
+  if (beardHex) out.beardHex = beardHex;
   const age = int(o.age, 121);
   if (age !== undefined) out.age = age;
   return out;
@@ -603,14 +722,14 @@ export function sanitizeLook(input: unknown): Look | undefined {
  * with the allowed values. Run the reply through `sanitizeLook`, then merge it over the person's
  * current look so era-driven choices (headwear, clothing) and a fixed age stay as they were.
  *
- * - Fill: skin, hair, eyes, hairStyle, hairGreys, brows, beardStyle, moustache, glasses, marks, and the
+ * - Fill: skin, hair, eyes, hairStyle, hairGreys, brows, beardStyle (with beardLength and beardShape), moustache, glasses, marks, and the
  *   face itself: face, noseShape, eyeShape and the 0–10 measures. Each measure's `what` tells the model
  *   what to look at; a measure the photo cannot show (ears under hair) should be left out.
  *   These describe the face and do not depend on when the photo was taken.
  * - Leave out: headwear and clothing (the portrait dresses people for the era shown, and a photo's
  *   hat or jumper is rarely who they are), and age (a photo of a 30-year-old should not freeze a
  *   person who lived to 90). `beard` is a legacy field; use beardStyle.
- * - Colours are palette indices: pick the nearest swatch, never a hex value. For hair in a photo of
+ * - Colours are palette indices: pick the nearest swatch, never a hex value (hairHex and beardHex are a person's own choice in the editor). For hair in a photo of
  *   an older person, give the natural colour if it can be told, else the nearest and hairGreys: true.
  * - The lists grow with the portrait: a hair style, a pair of glasses or a mark added to the catalogue is offered to the
  *   model at once. Parts that are a choice and not a likeness (expression, jewellery, colours of clothes, a backdrop)
@@ -624,6 +743,8 @@ export const PHOTO_LOOK_FIELDS = {
   hairGreys: { kind: 'boolean' },
   brows: { kind: 'one', of: BROWS.map((o) => o.id) },
   beardStyle: { kind: 'one', of: BEARDS.map((o) => o.id) },
+  beardLength: { kind: 'level', min: 0, max: 10, what: 'how long the beard is, if there is one: 0 close to the skin, 2 short and trimmed, 5 a medium beard that hides the chin, 9 long, to the chest; answer 5 when there is no beard' },
+  beardShape: { kind: 'one', of: BEARD_SHAPES.map((o) => o.id), what: 'how a full beard or a goatee ends at the chin: round, square (cut straight across), pointed, forked (two points); answer round when there is no beard' },
   moustache: { kind: 'one', of: MOUSTACHES.map((o) => o.id) },
   // Sunglasses are the day's weather, not the person: a photo never puts them on a portrait.
   glasses: { kind: 'one', of: GLASSES.map((o) => o.id).filter((id) => id !== 'sunglasses') },

@@ -336,6 +336,17 @@ export interface SeedLook {
   hatColour?: number;
   /** What is behind them. Absent: the plain roundel in the house's colour. */
   backdrop?: Backdrop;
+  /*
+   * Added when hair and beards were redrawn. Absent means what the fields above already say.
+   */
+  /** A hair colour of one's own, as #rrggbb. It wins over `hair`, which stays as the nearest swatch and the fallback. */
+  hairHex?: string;
+  /** How long the beard is: 0 close to the skin, 10 to the chest. Absent: what `beardStyle` says ("short" 2, "long" 9), else 5. */
+  beardLength?: number;
+  /** How a full beard or a goatee is cut at the chin. Absent: round (pointed for the older "long" and "vandyke"). */
+  beardShape?: BeardShape;
+  /** The colour of the beard and the moustache, as #rrggbb. Absent: the hair's, greying with it. */
+  beardHex?: string;
 }
 
 export type FaceShape = 'round' | 'oval' | 'square' | 'long' | 'heart' | 'diamond' | 'pear';
@@ -352,8 +363,14 @@ export type HairStyle =
   | 'wavy' | 'braid' | 'bun' | 'chignon' | 'bob' | 'pixie' | 'ponytail' | 'pigtails' | 'periwig' | 'powdered'
   | 'receding' | 'bald'
   | 'buzz' | 'coily' | 'fade' | 'slicked' | 'thinning' | 'mullet' | 'fringe' | 'curly-long' | 'locs' | 'box-braids'
-  | 'cornrows' | 'side-braid' | 'crown-braid' | 'beehive' | 'space-buns';
+  | 'cornrows' | 'side-braid' | 'crown-braid' | 'beehive' | 'space-buns'
+  | 'textured-crop' | 'messy' | 'undercut' | 'swept-back';
+/**
+ * Where a beard grows. `short`, `long` and `vandyke` are older ways of saying a full beard cut short, a full beard grown
+ * long and a pointed goatee: they stay valid and mean what they meant (BEARD_PRESETS in src/lib/portrait-look.ts).
+ */
 export type BeardStyle = 'none' | 'stubble' | 'short' | 'full' | 'long' | 'goatee' | 'vandyke' | 'muttonchops' | 'circle' | 'chinstrap' | 'sideburns' | 'soul-patch';
+export type BeardShape = 'round' | 'square' | 'pointed' | 'forked';
 export type MoustacheStyle = 'none' | 'thin' | 'chevron' | 'handlebar' | 'walrus' | 'pencil' | 'horseshoe' | 'imperial';
 export type BrowStyle = 'soft' | 'straight' | 'arched' | 'thick' | 'thin' | 'bushy';
 export type GlassesStyle = 'none' | 'round' | 'oval' | 'square' | 'browline' | 'half' | 'cat-eye' | 'aviator' | 'rimless' | 'horn' | 'pince-nez' | 'monocle' | 'sunglasses';

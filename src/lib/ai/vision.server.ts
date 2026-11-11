@@ -154,6 +154,8 @@ const LOOK_PROPERTIES = {
     hair: { type: 'integer', minimum: 0, maximum: HAIR_LABELS.length - 1, description: 'Hair colour index: ' + HAIR_LABELS.map((l, i) => `${i} ${translate('en', l)}`).join(', ') },
     eyes: { type: 'integer', minimum: 0, maximum: EYE_LABELS.length - 1, description: 'Eye colour index: ' + EYE_LABELS.map((l, i) => `${i} ${translate('en', l)}`).join(', ') },
     hairStyle: oneOf(PHOTO_LOOK_FIELDS.hairStyle.of), beardStyle: oneOf(PHOTO_LOOK_FIELDS.beardStyle.of),
+    beardLength: { type: 'integer', minimum: 0, maximum: 10, description: PHOTO_LOOK_FIELDS.beardLength.what },
+    beardShape: { ...oneOf(PHOTO_LOOK_FIELDS.beardShape.of), description: PHOTO_LOOK_FIELDS.beardShape.what },
     moustache: oneOf(PHOTO_LOOK_FIELDS.moustache.of), glasses: oneOf(PHOTO_LOOK_FIELDS.glasses.of),
     brows: oneOf(PHOTO_LOOK_FIELDS.brows.of), hairGreys: { type: 'boolean' },
     marks: { type: 'array', items: oneOf(PHOTO_LOOK_FIELDS.marks.of) },

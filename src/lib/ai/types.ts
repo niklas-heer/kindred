@@ -10,7 +10,7 @@ import type { ArmsV2 } from '~/lib/seed-format';
 import type { ChatBlock } from './blocks';
 import { EVENT_TYPES, QUALITIES } from '../events';
 import {
-  BACKDROPS, BEARDS, BROWS, CLOTH, CLOTHING, EARRINGS, EXPRESSIONS, EXTRAS, EYES, EYE_SHAPES, FACE_SHAPES, FRAMES, GLASSES, HAIR, HAIR_STYLES,
+  BACKDROPS, BEARD_PRESETS, BEARD_SHAPES, BROWS, CLOTH, CLOTHING, EARRINGS, EXPRESSIONS, EXTRAS, EYES, EYE_SHAPES, FACE_SHAPES, FRAMES, GLASSES, HAIR, HAIR_STYLES,
   HEADWEAR, LIPS, MARKS, MOUSTACHES, NECKLACES, NOSE_SHAPES, SKIN,
 } from '../portrait-look';
 
@@ -286,7 +286,13 @@ export const lookSchema = z.object({
   // A baby's tuft is the portrait's own choice, and older proposals may name it.
   hairStyle: z.enum(['tuft', ...HAIR_STYLES.map((o) => o.id)]).optional(),
   hairGreys: z.boolean().optional(),
-  beardStyle: oneOf(BEARDS).optional(),
+  // Every beard ever stored, the older ids among them (BEARD_PRESETS).
+  beardStyle: z.enum(Object.keys(BEARD_PRESETS) as [keyof typeof BEARD_PRESETS, ...(keyof typeof BEARD_PRESETS)[]]).optional(),
+  beardLength: z.number().int().min(0).max(10).optional(),
+  beardShape: oneOf(BEARD_SHAPES).optional(),
+  // Colours of one's own: nothing but a hash and six hex digits, because they are written into the drawing.
+  hairHex: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  beardHex: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   moustache: oneOf(MOUSTACHES).optional(),
   brows: oneOf(BROWS).optional(),
   glasses: oneOf(GLASSES).optional(),

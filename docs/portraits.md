@@ -21,6 +21,13 @@ the corner does (the picture itself opens large). Editors also find it as **Appe
   a grown-up and in old age.
 - **Categories**: Looks, Face, Eyes, Hair, Beard, Details, Clothes, Headwear, Extras and Age. Each choice is a small picture
   of this person wearing it. "Automatic" leaves a part to the portrait, which is what every part is until someone sets it.
+- **Hair** offers about twenty cuts first (cropped, textured crop, short and messy, side part, undercut, swept back, bob,
+  curls, coils, long, a ponytail, a bun, receding, bald) and every other style under **More**. Its colour is a swatch, or
+  **a colour of your own**: the browser's colour picker, or a code such as `#8a5631`.
+- **Beard** is three choices: where it grows (stubble, full, goatee, circle, chinstrap, sideburns, mutton chops, soul
+  patch), how long it is (short, medium, long, or a slider from 0 to 10), and how it is cut at the chin (round, square,
+  pointed, forked). The **moustache** is chosen on its own (pencil, chevron, handlebar, walrus, more under More): a full
+  beard with no moustache leaves the upper lip shaven. Beard and moustache take the hair's colour, or one of their own.
 - **Surprise me** makes a believable relative: the same sex, age and time, the same skin (or a shade either side), a new
   face, hair and clothes. Headwear that is part of who someone is (a crown, a hijab, a turban, a kippah) stays.
 - **Looks** are ready-made outfits for the person's own time: "Grandfather, 1950s", "Wedding day", "In uniform",
@@ -36,10 +43,12 @@ the three themes and the three languages. With "reduce motion" on, nothing moves
 
 ## What a portrait can say
 
-Skin in fourteen tones. Hair in natural and dyed colours, straight, wavy, curly or coily, in braids, locs, cornrows, buns,
-a beehive or a crown braid, thinning, receding or bald; greying that follows age until you set it. Eye colour and shape,
+Skin in fourteen tones. Hair in natural and dyed colours or any colour of your own, straight, wavy, curly or coily, cropped,
+textured, swept back or undercut, in braids, locs, cornrows, buns, a beehive or a crown braid, thinning, receding or bald;
+greying that follows age until you set it. Eye colour and shape,
 brows, nose, mouth, ears, the shape of the face, build, and lines of age. Freckles, a mole, a birthmark, vitiligo, a scar.
-An expression: calm, a smile, a grin, stern. Beards and moustaches. Glasses of a dozen kinds (a monocle and a pince-nez among them) and
+An expression: calm, a smile, a grin, stern. Beards by coverage, length and cut, in the hair's colour or their own, and a
+moustache chosen separately. Glasses of a dozen kinds (a monocle and a pince-nez among them) and
 the colour of the frames. A hearing aid, earrings, a necklace, a brooch, a medal, a scarf, a pipe, a bindi. Headwear by
 time, faith and occasion: caps and hats, a headscarf, a hijab, a head wrap, a turban, a kippah, a prayer cap, a veil, a
 uniform cap, a bridal veil, a flower crown, a crown. Clothes for every day, for Sunday, for work and service, and
@@ -70,8 +79,34 @@ A portrait that is stored draws exactly as it did before a release, unless someo
   the end.
 - The automatic choice of hair and eye colour draws from the colours that existed when it was written, however many are
   added.
-- `src/lib/portrait-frozen.test.ts` draws 3,067 stored looks at the three sizes and compares each with a kept print. If it
-  fails, a stored portrait has changed: the drawing is wrong, not the fixture.
+- `src/lib/portrait-frozen.test.ts` draws some 3,300 stored looks at the three sizes and compares each with a kept print.
+  If it fails, a stored portrait has changed: the drawing is wrong, not the fixture.
+
+### Hair and beards were redrawn (the one exception)
+
+Once, on purpose, every portrait changed: the hair, the beard and the moustache were redrawn for everyone, stored looks
+included. The first drawing built every hairstyle from the same dome with the same dark outline, and they read as
+helmets ("Cropped" was a skull cap one unit thick); a beard was a fixed shape with a skin-coloured patch painted over it
+for the mouth, and a full beard covered the upper lip whatever moustache was chosen.
+
+What changed, and what did not:
+
+- Each hairstyle is now its own silhouette (`src/components/portrait/hair.ts`): an uneven outer edge, a hairline with
+  temples and sideburns, a rim only where hair meets skin, the shadow of the fringe, a highlight. At list size it is the
+  silhouette alone. A hat presses the hair down: nothing shows above it.
+- A beard follows the face's own jaw (`beard.ts`), is drawn behind the lips with the mouth left open in its shape, and
+  stops at the corners of the mouth. The moustache is drawn above the lips.
+- **Stored ids keep their meaning.** A stored `long` beard is still a long full beard: `short`, `long` and `vandyke` are
+  read as a full beard of length 2, a pointed full beard of length 9 and a pointed goatee (`BEARD_PRESETS` in
+  `src/lib/portrait-look.ts`). The editor writes the coverage with `beardLength` and `beardShape` instead.
+- A full beard whose moustache nobody chose is drawn with one, as it always looked. A look that says full beard and
+  moustache "none" now shows a shaven upper lip: that is the one stored combination that reads differently.
+- New optional fields, absent meaning "as the fields before say": `hairHex` (wins over the `hair` swatch, which stays as
+  the nearest swatch), `beardHex` (absent: the hair's colour), `beardLength`, `beardShape`. A colour is `#rrggbb` and
+  nothing else: it is checked when a look is saved and again when it is drawn, because it is written into the drawing.
+- **Nothing else moved.** Before the redraw, prints were taken of every frozen case drawn without hair, beard and
+  moustache (`portrait-frozen-rest.fixture.json`). With those three layers left out, the old and the new drawing are the
+  same bytes, and the test keeps it so. The main fixture was printed again once, with the redraw.
 
 Portraits are drawn at three levels of detail (`src/components/portrait/drawing.ts`): up to 40 px, up to 72 px, and
 larger. A list-size portrait leaves out what would not show: a backdrop is flat colour there, and no part added later is

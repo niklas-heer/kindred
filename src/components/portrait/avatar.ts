@@ -2,10 +2,14 @@
 // part is a function of the resolved Appearance (src/lib/portrait-look.ts) and a Geo for the life stage, so a child
 // has a rounder face and a bigger head, and the same parts dress any era.
 //
-// Style: flat fills, one soft shadow tone, outlines in a darker shade of each fill (never black).
+// Style: flat fills, one soft shadow tone, outlines in a darker shade of each fill (never black). Hair and beards are
+// the exception: flat masses with a rim only where they meet skin (hair.ts, beard.ts).
 import type { ClothingStyle, HairStyle } from '~/lib/seed-format';
 import { mixHex as mix, type Appearance, type Features, type LevelKey } from '../../lib/portrait-look';
 import type { Dress } from './palette';
+import { drawBeard, drawMoustache } from './beard';
+import { drawHair } from './hair';
+import { halfWidth, sampleClosed, type Head } from './ink';
 
 export type Detail = 'sm' | 'md' | 'lg';
 
@@ -116,7 +120,8 @@ function smoothClosed(pts: [number, number][]): string {
   return d + 'Z';
 }
 
-function headPath(g: Geo, a: Appearance): string {
+/** The points the head's outline passes through. */
+function headPoints(g: Geo, a: Appearance): [number, number][] {
   const { cx, cy, w } = g;
   const h = a.face === 'long' ? g.h * 1.04 : g.h;
   // The jaw is the one measure that changes the outline: broad below the cheekbones, or narrow.
@@ -125,8 +130,7 @@ function headPath(g: Geo, a: Appearance): string {
   const cheek = (y: number) => 1 + 0.08 * g.b * Math.max(0, Math.min(1, (y + 0.3) / 0.5));
   const right = OUTLINE[a.face].map(([x, y]) => [x * (y > 0.2 ? jawK : 1) * cheek(y), y] as [number, number]);
   const mirror = right.slice(1, -1).reverse().map(([x, y]) => [-x, y] as [number, number]);
-  const pts = [...right, ...mirror].map(([x, y]) => [cx + x * w, cy + y * h] as [number, number]);
-  return smoothClosed(pts);
+  return [...right, ...mirror].map(([x, y]) => [cx + x * w, cy + y * h] as [number, number]);
 }
 
 function neckAndChest(g: Geo, p: Paint): string {
@@ -387,11 +391,17 @@ function nose(g: Geo, p: Paint, a: Appearance, detail: Detail): string {
   return `<g transform="translate(${n(cx)} ${n(y)}) scale(${n(k)}) translate(${n(-cx)} ${n(-y)})">${under}${shadowLine}${body}${nostrils}</g>`;
 }
 
+/** Half the mouth's width at rest: what the lips, the beard and the moustache all measure from. */
+function mouthHalf(g: Geo, a: Appearance): number {
+  const kid = a.stage === 'baby' || a.stage === 'child';
+  const base = kid ? 3.2 : a.stage === 'elder' ? 3.4 : 3.8;
+  return base * (1 + 0.24 * g.m.mouthWidth);
+}
+
 function mouth(g: Geo, p: Paint, a: Appearance, detail: Detail): string {
   const { cx, mouthY: y } = g;
   const kid = a.stage === 'baby' || a.stage === 'child';
-  const base = kid ? 3.2 : a.stage === 'elder' ? 3.4 : 3.8;
-  const wd = base * (1 + 0.24 * g.m.mouthWidth);
+  const wd = mouthHalf(g, a);
   // Fuller lips for a feminine face, and whatever the measure says.
   const fu = Math.max(0.5, 1 + 0.5 * g.m.mouthFullness) * (a.pres === 'f' && !kid ? 1.12 : 1);
   const style = kid ? (a.mouth % 2 ? 2 : 0) : a.mouth;
@@ -463,11 +473,11 @@ function expression(g: Geo, p: Paint, a: Appearance, detail: Detail, wd0: number
   return s;
 }
 
-// ---------- Hair ----------
+// The hair, the beard and the moustache are drawn in hair.ts and beard.ts, with the pen in ink.ts.
 
-interface HairParts { back: string; front: string; overBody: string }
+// ---------- Shapes the headwear is built from ----------
 
-/** The hair's outer dome over the head, expanded by `v`, from the left side at `y0` to the right. */
+/** A dome over the head, expanded by `v`, from the left side at `y0` to the right: what hats and hoods are built on. */
 function dome(g: Geo, v: number, y0: number, lift = 1.25): string {
   const { cx, cy, w, h } = g;
   return (
@@ -477,46 +487,10 @@ function dome(g: Geo, v: number, y0: number, lift = 1.25): string {
   );
 }
 
-/** A plain hairline back from the right temple to the left one, through the forehead at `fh`. */
-function hairline(g: Geo, fh0: number, side: number, part = 0): string {
-  const { cx, cy, w, h } = g;
-  const fh = fh0 + g.hs;
-  return (
-    `L${n(cx + w * 0.97)} ${n(cy + side * h)}` +
-    `C${n(cx + w * 0.95)} ${n(cy - 0.22 * h)} ${n(cx + 0.58 * w)} ${n(cy - fh * h)} ${n(cx + part)} ${n(cy - fh * h + Math.abs(part) * 0.1)}` +
-    `C${n(cx - 0.58 * w)} ${n(cy - fh * h)} ${n(cx - w * 0.95)} ${n(cy - 0.22 * h)} ${n(cx - w * 0.97)} ${n(cy + side * h)}Z`
-  );
-}
-
-/**
- * A fill for hair that sits on the whole crown: an ellipse that holds the head's top corners, with the
- * face cut out by the hairline. A plain dome is narrower than the head at the temples, so it leaves the
- * skin of the head showing as a thin curved line at the top of the hair. Used with fill-rule evenodd.
- */
-function crownCap(g: Geo, fh: number): string {
-  const { cx, cy, w, h } = g;
-  const rx = w + 2;
-  const ry = h + 1.5;
-  const cyc = cy - 0.2 * h;
-  const yb = cy + 0.15 * h;
-  const xb = rx * Math.sqrt(1 - ((yb - cyc) / ry) ** 2);
-  return `M${n(cx - xb)} ${n(yb)}A${n(rx)} ${n(ry)} 0 1 1 ${n(cx + xb)} ${n(yb)}Z` + hairline(g, fh, 0.15).replace(/^L/, 'M');
-}
-
-/** A fringe swept from a parting on the right down across the forehead to the left temple. */
-function sweptLine(g: Geo, side: number, depth0: number): string {
-  const { cx, cy, w, h } = g;
-  const depth = depth0 + g.hs;
-  return (
-    `L${n(cx + w * 0.97)} ${n(cy + side * h)}` +
-    `C${n(cx + w * 0.95)} ${n(cy - 0.3 * h)} ${n(cx + 0.62 * w)} ${n(cy - 0.6 * h)} ${n(cx + 0.42 * w)} ${n(cy - 0.64 * h)}` +
-    `C${n(cx + 0.1 * w)} ${n(cy - depth * h)} ${n(cx - 0.6 * w)} ${n(cy - (depth - 0.06) * h)} ${n(cx - w * 0.97)} ${n(cy + (side - 0.12) * h)}Z`
-  );
-}
-
 function curls(cxs: number[][], r: number, fill: string, line: string, sw: number): string {
   return cxs.map(([x, y, rr]) => `<circle cx="${n(x)}" cy="${n(y)}" r="${n(rr ?? r)}" fill="${fill}" stroke="${line}" stroke-width="${n(sw)}"/>`).join('');
 }
+
 
 /** Points along an ellipse arc (degrees, 0 = right, 90 = down). */
 function arc(cx: number, cy: number, rx: number, ry: number, from: number, to: number, count: number): number[][] {
@@ -524,411 +498,6 @@ function arc(cx: number, cy: number, rx: number, ry: number, from: number, to: n
     const t = ((from + ((to - from) * i) / (count - 1)) * Math.PI) / 180;
     return [cx + rx * Math.cos(t), cy + ry * Math.sin(t)];
   });
-}
-
-function hair(g: Geo, p: Paint, _a: Appearance, style: HairStyle, detail: Detail): HairParts {
-  const { cx, cy, w, h, ny } = g;
-  const H = filled(p.hair, p.sw, p.hairLine);
-  const path = (d: string, extra = '') => `<path d="${d}" ${H}${extra}/>`;
-  const lg = detail === 'lg';
-  // A highlight arc on the crown and a few strands, at the largest size only.
-  const shine = (v: number) => (lg ? `<path d="M${n(cx - w * 0.55)} ${n(cy - h * 0.82 - v * 0.6)}Q${n(cx - w * 0.1)} ${n(cy - h - v * 1.05)} ${n(cx + w * 0.3)} ${n(cy - h * 0.93 - v)}" ${stroked(p.hairLight, 1.3)} opacity=".7"/>` : '');
-  const strand = (d: string) => (detail === 'sm' ? '' : `<path d="${d}" ${stroked(p.hairShade, 0.8)}/>`);
-  const none: HairParts = { back: '', front: '', overBody: '' };
-
-  // Long hair falling behind the shoulders, to `bottom`, flaring by `flare`.
-  const fall = (bottom: number, flare: number, v = 3) =>
-    path(`${dome(g, v, 0.2)}C${n(cx + w + v + flare * 0.6)} ${n(cy + 0.9 * h)} ${n(cx + w + flare)} ${n(bottom - 8)} ${n(cx + w + flare)} ${n(bottom)}L${n(cx - w - flare)} ${n(bottom)}C${n(cx - w - flare)} ${n(bottom - 8)} ${n(cx - w - v - flare * 0.6)} ${n(cy + 0.9 * h)} ${n(cx - w - v)} ${n(cy + 0.2 * h)}Z`);
-  // Locks framing the face and lying over the shoulders, from the temples down to `bottom`.
-  const locks = (bottom: number, out: number, inner = 0.84) => {
-    const one = (s: number) => {
-      const X = (u: number) => n(cx + s * u);
-      return path(
-        `M${X(w * 0.62)} ${n(cy - 0.66 * h)}C${X(w + 4.5)} ${n(cy - 0.5 * h)} ${X(w + out + 0.8)} ${n(cy + 0.2 * h)} ${X(w + out)} ${n(bottom - 5)}` +
-          `Q${X(w + out - 0.6)} ${n(bottom + 0.6)} ${X(w * inner + 2.4)} ${n(bottom)}` +
-          `C${X(w * inner + 0.4)} ${n(cy + 0.9 * h)} ${X(w * inner - 0.4)} ${n(cy + 0.25 * h)} ${X(w * inner)} ${n(cy - 0.22 * h)}Z`,
-      ) + strand(`M${X(w + out * 0.45)} ${n(cy + 0.1 * h)}Q${X(w + out * 0.7)} ${n(cy + 0.7 * h)} ${X(w + out * 0.5)} ${n(bottom - 4)}`);
-    };
-    return one(-1) + one(1);
-  };
-  // Centre-parted crown.
-  const centre = (v: number, fh: number, side: number) =>
-    path(`${dome(g, v, side)}${hairline(g, fh, side)}`) +
-    strand(`M${n(cx)} ${n(cy - h - v)}Q${n(cx + 0.6)} ${n(cy - h * 0.8)} ${n(cx)} ${n(cy - fh * h)}`);
-
-  // A plait hanging at one side: overlapping links, tied off with a bead.
-  const plait = (s: number, links = 6) => {
-    const x = cx + s * (w + 0.5);
-    let out = '';
-    for (let i = 0; i < links; i++) out += `<ellipse cx="${n(x + s * (i % 2 ? 0.6 : -0.6))}" cy="${n(cy + 0.42 * h + i * 4.4)}" rx="3" ry="2.9" ${H}/>`;
-    return out + `<circle cx="${n(x)}" cy="${n(cy + 0.42 * h + links * 4.4 - 0.4)}" r="1.4" fill="${GOLD}" stroke="${shade(GOLD)}" stroke-width=".6"/>`;
-  };
-  // What a bald head keeps: the hair over each ear.
-  const overEar = (s: number) => {
-    const X = (u: number) => n(cx + s * u);
-    return path(`M${X(w * 0.82)} ${n(cy - 0.5 * h)}C${X(w + 2.5)} ${n(cy - 0.3 * h)} ${X(w + 2)} ${n(cy + 0.15 * h)} ${X(w + 0.5)} ${n(cy + 0.25 * h)}L${X(w * 0.94)} ${n(cy + 0.1 * h)}C${X(w * 0.96)} ${n(cy - 0.1 * h)} ${X(w * 0.92)} ${n(cy - 0.3 * h)} ${X(w * 0.82)} ${n(cy - 0.5 * h)}Z`);
-  };
-  // Ropes of hair hanging from the crown at each side: locs when thick, box braids when thin. One stroke for the
-  // outline and one for the hair, so a dozen strands cost two paths.
-  const ropes = (count: number, width: number, bottom: number) => {
-    let d = '';
-    for (const s of [-1, 1]) for (let i = 0; i < count; i++) {
-      const x0 = cx + s * (w * 0.66 + i * (width + 0.5));
-      const x1 = cx + s * (w * 0.9 + i * (width + 0.9));
-      d += `M${n(x0)} ${n(cy - 0.5 * h + i * 1.2)}C${n(x1 + s * 1.5)} ${n(cy)} ${n(x1 - s * 0.6)} ${n(cy + 0.8 * h)} ${n(x1 + s * (i % 2 ? 0.8 : -0.4))} ${n(bottom - (i % 2) * 3.2)}`;
-    }
-    return `<path d="${d}" ${stroked(p.hairLine, width + p.sw * 0.9)}/><path d="${d}" ${stroked(p.hair, width)}/>`;
-  };
-
-  switch (style) {
-    case 'tuft':
-      return {
-        ...none,
-        front:
-          `<path d="${dome(g, 0.3, -0.25)}${hairline(g, 0.6, -0.25)}" fill="${p.hair}" opacity=".3"/>` +
-          path(`M${n(cx - 2.2)} ${n(cy - h + 1)}Q${n(cx - 2)} ${n(cy - h - 5)} ${n(cx + 3)} ${n(cy - h - 4.4)}Q${n(cx + 0.6)} ${n(cy - h - 2.6)} ${n(cx + 1.6)} ${n(cy - h + 0.8)}Z`),
-      };
-    case 'cropped':
-      return { ...none, front: path(`${dome(g, 1, 0.05)}${hairline(g, 0.5, 0.05)}`) + shine(1) };
-    case 'short':
-      return {
-        ...none,
-        front: path(`${dome(g, 2.3, 0.1)}${hairline(g, 0.46, 0.1, 2)}`) + strand(`M${n(cx + w * 0.3)} ${n(cy - h - 1.5)}Q${n(cx + w * 0.42)} ${n(cy - h * 0.7)} ${n(cx + w * 0.36)} ${n(cy - h * 0.5)}`) + shine(2.3),
-      };
-    case 'side-part':
-      return {
-        ...none,
-        front: path(`${dome(g, 2.6, 0.1)}${sweptLine(g, 0.1, 0.42)}`) + strand(`M${n(cx + w * 0.42)} ${n(cy - h - 2)}Q${n(cx + w * 0.48)} ${n(cy - h * 0.8)} ${n(cx + w * 0.42)} ${n(cy - h * 0.64)}`) + shine(2.6),
-      };
-    case 'swept':
-      return {
-        ...none,
-        front: path(`${dome(g, 3, 0.12)}${sweptLine(g, 0.12, 0.3)}`) + strand(`M${n(cx + w * 0.2)} ${n(cy - h * 0.62)}Q${n(cx - w * 0.2)} ${n(cy - h * 0.45)} ${n(cx - w * 0.6)} ${n(cy - h * 0.3)}`) + shine(3),
-      };
-    case 'quiff':
-      return {
-        ...none,
-        front:
-          path(`${dome(g, 2, 0.08)}${hairline(g, 0.5, 0.08)}`) +
-          path(`M${n(cx - w * 0.78)} ${n(cy - 0.62 * h)}C${n(cx - w * 0.85)} ${n(cy - h - 9)} ${n(cx + w * 0.75)} ${n(cy - h - 11)} ${n(cx + w * 0.92)} ${n(cy - 0.62 * h)}C${n(cx + w * 0.4)} ${n(cy - 0.78 * h)} ${n(cx - w * 0.2)} ${n(cy - 0.6 * h)} ${n(cx - w * 0.78)} ${n(cy - 0.62 * h)}Z`) +
-          strand(`M${n(cx - w * 0.5)} ${n(cy - h - 3)}Q${n(cx)} ${n(cy - h - 7)} ${n(cx + w * 0.6)} ${n(cy - h - 3)}`),
-      };
-    case 'curly': {
-      const pts = arc(cx, cy - 0.12 * h, w + 1.2, h * 0.98, 172, 368, 11).map(([x, y]) => [x, y, 4.3]);
-      const fr = arc(cx, cy - 0.12 * h, w * 0.78, h * 0.42, 200, 340, 5).map(([x, y]) => [x, y, 3.4]);
-      return { ...none, front: path(`${dome(g, 2, 0.15)}${hairline(g, 0.44, 0.15)}`) + curls(pts, 4.3, p.hair, p.hairLine, p.sw) + curls(fr, 3.4, p.hair, p.hairLine, p.sw * 0.8) + `<path d="${dome(g, 1.4, 0.1)}${hairline(g, 0.5, 0.1)}" fill="${p.hair}"/>` };
-    }
-    case 'afro': {
-      const ring = arc(cx, cy - 0.2 * h, w + 6.5, h + 4, 150, 390, 15).map(([x, y]) => [x, y, 5]);
-      return {
-        ...none,
-        back: `<ellipse cx="${n(cx)}" cy="${n(cy - 0.2 * h)}" rx="${n(w + 7)}" ry="${n(h + 4.5)}" fill="${p.hair}"/>` + curls(ring, 5, p.hair, p.hairLine, p.sw) + `<ellipse cx="${n(cx)}" cy="${n(cy - 0.2 * h)}" rx="${n(w + 6)}" ry="${n(h + 3.5)}" fill="${p.hair}"/>`,
-        front: `<path d="${crownCap(g, 0.46)}" fill="${p.hair}" fill-rule="evenodd"/>` + strand(`M${n(cx - w * 0.6)} ${n(cy - 0.5 * h)}Q${n(cx)} ${n(cy - 0.62 * h)} ${n(cx + w * 0.6)} ${n(cy - 0.5 * h)}`),
-      };
-    }
-    case 'bowl': {
-      // Not a helmet: the dome comes down to a hem that flares a little at the jaw, and the fringe is
-      // cut in an uneven, soft line across the forehead, with the sides tucked in at the temples.
-      const X = (u: number) => n(cx + u * w);
-      const Y = (v: number) => n(cy + v * h);
-      const right = `L${X(1.02)} ${Y(0.6)}Q${X(0.9)} ${Y(0.72)} ${X(0.74)} ${Y(0.62)}L${X(0.84)} ${Y(0.2)}` +
-        `C${X(0.9)} ${Y(-0.08)} ${X(0.84)} ${Y(-0.24)} ${X(0.66)} ${Y(-0.36)}Q${X(0.56)} ${Y(-0.5)} ${X(0.34)} ${Y(-0.42)}`;
-      const fringe = `Q${X(0.16)} ${Y(-0.34)} ${X(0)} ${Y(-0.44)}Q${X(-0.2)} ${Y(-0.55)} ${X(-0.38)} ${Y(-0.44)}`;
-      const left = `Q${X(-0.6)} ${Y(-0.36)} ${X(-0.7)} ${Y(-0.34)}C${X(-0.84)} ${Y(-0.24)} ${X(-0.9)} ${Y(-0.08)} ${X(-0.84)} ${Y(0.2)}` +
-        `L${X(-0.74)} ${Y(0.62)}Q${X(-0.9)} ${Y(0.72)} ${X(-1.02)} ${Y(0.6)}Z`;
-      return {
-        ...none,
-        front: path(`${dome(g, 2.8, 0.38)}${right}${fringe}${left}`) +
-          strand(`M${X(0.22)} ${Y(-0.44)}Q${X(0.14)} ${Y(-0.2)} ${X(0.2)} ${Y(0.08)}`) + shine(2.8),
-      };
-    }
-    case 'pixie':
-      return {
-        ...none,
-        front: path(`${dome(g, 2.4, 0.3)}L${n(cx + w * 0.97)} ${n(cy + 0.3 * h)}L${n(cx + w * 0.86)} ${n(cy - 0.1 * h)}C${n(cx + 0.7 * w)} ${n(cy - 0.5 * h)} ${n(cx + 0.2 * w)} ${n(cy - 0.62 * h)} ${n(cx - 0.1 * w)} ${n(cy - 0.62 * h)}C${n(cx - 0.4 * w)} ${n(cy - 0.45 * h)} ${n(cx - 0.7 * w)} ${n(cy - 0.3 * h)} ${n(cx - w * 0.8)} ${n(cy - 0.12 * h)}L${n(cx - w * 0.97)} ${n(cy + 0.3 * h)}Z`) + shine(2.4),
-      };
-    case 'bob':
-      return {
-        ...none,
-        back: path(`${dome(g, 4, 0.2)}L${n(cx + w + 4)} ${n(cy + 0.8 * h)}L${n(cx - w - 4)} ${n(cy + 0.8 * h)}Z`),
-        front: path(`${dome(g, 4, 0.8)}L${n(cx + w + 4)} ${n(cy + 0.8 * h)}Q${n(cx + w * 0.9)} ${n(cy + 0.84 * h)} ${n(cx + w * 0.8)} ${n(cy + 0.78 * h)}C${n(cx + w * 0.86)} ${n(cy + 0.2 * h)} ${n(cx + w * 0.9)} ${n(cy - 0.3 * h)} ${n(cx + w * 0.4)} ${n(cy - 0.36 * h)}Q${n(cx - w * 0.2)} ${n(cy - 0.28 * h)} ${n(cx - w * 0.7)} ${n(cy - 0.34 * h)}C${n(cx - w * 0.92)} ${n(cy - 0.2 * h)} ${n(cx - w * 0.86)} ${n(cy + 0.2 * h)} ${n(cx - w * 0.8)} ${n(cy + 0.78 * h)}Q${n(cx - w * 0.9)} ${n(cy + 0.84 * h)} ${n(cx - w - 4)} ${n(cy + 0.8 * h)}Z`) + shine(4),
-      };
-    case 'shoulder':
-      return {
-        ...none,
-        back: fall(ny + 4, 3.5),
-        front: centre(3, 0.48, 0.1) + locks(ny + 3, 3.4, 0.88),
-      };
-    case 'long':
-      return {
-        ...none,
-        back: fall(104, 6),
-        front: centre(3, 0.48, 0.1),
-        overBody: locks(ny + 15, 5, 0.86),
-      };
-    case 'wavy': {
-      const back = fall(102, 7.5, 3.6);
-      const wave = (s: number) => {
-        const X = (u: number) => n(cx + s * u);
-        return path(`M${X(w * 0.6)} ${n(cy - 0.66 * h)}C${X(w + 6)} ${n(cy - 0.5 * h)} ${X(w + 2)} ${n(cy + 0.1 * h)} ${X(w + 5.5)} ${n(cy + 0.4 * h)}C${X(w + 9)} ${n(cy + 0.75 * h)} ${X(w + 3)} ${n(ny)} ${X(w + 7)} ${n(ny + 12)}L${X(w * 0.9)} ${n(ny + 10)}C${X(w * 0.7)} ${n(ny)} ${X(w * 0.95)} ${n(cy + 0.4 * h)} ${X(w * 0.84)} ${n(cy + 0.1 * h)}C${X(w * 0.78)} ${n(cy - 0.2 * h)} ${X(w * 0.3)} ${n(cy - 0.35 * h)} ${X(-w * 0.1)} ${n(cy - 0.5 * h)}Z`);
-      };
-      return { ...none, back, front: path(`${dome(g, 3.6, 0.1)}${sweptLine(g, 0.1, 0.45)}`) + shine(3.6), overBody: wave(-1) + wave(1) };
-    }
-    case 'braid':
-      return { ...none, front: centre(1.6, 0.5, 0.3), overBody: plait(-1) + plait(1) };
-    case 'ponytail':
-      return {
-        ...none,
-        back: path(`M${n(cx + w * 0.4)} ${n(cy - 0.75 * h)}C${n(cx + w + 12)} ${n(cy - 0.6 * h)} ${n(cx + w + 9)} ${n(cy + 0.6 * h)} ${n(cx + w + 4)} ${n(ny + 2)}C${n(cx + w + 2)} ${n(cy + 0.6 * h)} ${n(cx + w * 0.7)} ${n(cy)} ${n(cx + w * 0.5)} ${n(cy - 0.3 * h)}Z`),
-        front: path(`${dome(g, 1.8, 0.1)}${hairline(g, 0.5, 0.1)}`) + strand(`M${n(cx - w * 0.5)} ${n(cy - 0.6 * h)}Q${n(cx)} ${n(cy - h - 1)} ${n(cx + w * 0.7)} ${n(cy - 0.7 * h)}`) + shine(1.8),
-      };
-    case 'pigtails': {
-      const tail = (s: number) => {
-        const x = cx + s * (w + 5);
-        return `<ellipse cx="${n(x)}" cy="${n(cy + 0.2 * h)}" rx="4.6" ry="7.4" transform="rotate(${s * -18} ${n(x)} ${n(cy + 0.2 * h)})" ${H}/>` +
-          `<circle cx="${n(cx + s * (w + 1.5))}" cy="${n(cy - 0.12 * h)}" r="1.7" fill="#d9534f" stroke="${shade('#d9534f')}" stroke-width=".6"/>`;
-      };
-      return { ...none, back: tail(-1) + tail(1), front: centre(2, 0.48, 0.1) };
-    }
-    case 'bun':
-      return {
-        ...none,
-        back: `<circle cx="${n(cx + 1)}" cy="${n(cy - h - 3.5)}" r="6.8" ${H}/>` + (lg ? `<path d="M${n(cx - 3.5)} ${n(cy - h - 5)}Q${n(cx + 1)} ${n(cy - h - 9)} ${n(cx + 5)} ${n(cy - h - 4.5)}" ${stroked(p.hairShade, 0.8)}/>` : ''),
-        front: path(`${dome(g, 1.8, 0.15)}${hairline(g, 0.5, 0.15)}`) + strand(`M${n(cx - w * 0.6)} ${n(cy - 0.5 * h)}Q${n(cx - w * 0.4)} ${n(cy - h)} ${n(cx)} ${n(cy - h - 1)}`) + shine(1.8),
-      };
-    case 'chignon':
-      return {
-        ...none,
-        back: `<ellipse cx="${n(cx)}" cy="${n(cy + 0.42 * h)}" rx="${n(w + 4.5)}" ry="9" ${H}/>`,
-        front: path(`${dome(g, 2.2, 0.36)}L${n(cx + w * 0.98)} ${n(cy + 0.36 * h)}C${n(cx + w * 0.92)} ${n(cy - 0.1 * h)} ${n(cx + 0.6 * w)} ${n(cy - 0.5 * h)} ${n(cx)} ${n(cy - 0.5 * h)}C${n(cx - 0.6 * w)} ${n(cy - 0.5 * h)} ${n(cx - w * 0.92)} ${n(cy - 0.1 * h)} ${n(cx - w * 0.98)} ${n(cy + 0.36 * h)}Z`) +
-          strand(`M${n(cx)} ${n(cy - h - 2)}L${n(cx)} ${n(cy - 0.5 * h)}`) + shine(2.2),
-      };
-    case 'periwig': {
-      const col = (s: number) => arc(cx + s * (w + 3.4), cy + 0.25 * h, 0.6, h * 0.95, -60, 80, 7).map(([x, y], i) => [x + s * (i % 2 ? 1 : -0.6), y, 4.4]);
-      return {
-        ...none,
-        back: fall(ny + 14, 8, 4.5),
-        front: centre(4.2, 0.5, 0.15),
-        overBody: curls([...col(-1), ...col(1)], 4.4, p.hair, p.hairLine, p.sw),
-      };
-    }
-    case 'powdered': {
-      const rolls = (s: number) => [0.02, 0.3].map((t) => `<ellipse cx="${n(cx + s * (w + 1.6))}" cy="${n(cy + t * h)}" rx="3.9" ry="2.8" ${H}/>`).join('');
-      return { ...none, front: path(`${dome(g, 2.6, 0.05)}${hairline(g, 0.56, 0.05)}`) + rolls(-1) + rolls(1) + shine(2.6) };
-    }
-    case 'receding':
-      return {
-        ...none,
-        front:
-          path(`${dome(g, 1.2, 0.12)}L${n(cx + w * 0.97)} ${n(cy + 0.12 * h)}C${n(cx + w * 0.95)} ${n(cy - 0.3 * h)} ${n(cx + 0.75 * w)} ${n(cy - 0.82 * h)} ${n(cx + 0.45 * w)} ${n(cy - 0.84 * h)}Q${n(cx + 0.2 * w)} ${n(cy - 0.72 * h)} ${n(cx)} ${n(cy - 0.76 * h)}Q${n(cx - 0.2 * w)} ${n(cy - 0.72 * h)} ${n(cx - 0.45 * w)} ${n(cy - 0.84 * h)}C${n(cx - 0.75 * w)} ${n(cy - 0.82 * h)} ${n(cx - w * 0.95)} ${n(cy - 0.3 * h)} ${n(cx - w * 0.97)} ${n(cy + 0.12 * h)}Z`),
-      };
-    case 'bald': {
-      const gleam = lg ? `<ellipse cx="${n(cx - w * 0.3)}" cy="${n(cy - h * 0.78)}" rx="4.5" ry="2.2" transform="rotate(-20 ${n(cx - w * 0.3)} ${n(cy - h * 0.78)})" fill="#fff" opacity=".22"/>` : '';
-      return { ...none, front: overEar(-1) + overEar(1) + gleam };
-    }
-
-    // ----- The styles added with the editor's second version -----
-    case 'buzz':
-      // Shaved close: the scalp shows through, so the cap is a tint of the hair and has no outline.
-      return { ...none, front: `<path d="${dome(g, 0.5, 0.04)}${hairline(g, 0.54, 0.04)}" fill="${p.hair}" opacity=".5"/>` + (lg ? `<path d="${dome(g, 0.5, 0.04)}" ${stroked(p.hairShade, 0.6)} opacity=".5"/>` : '') };
-    case 'coily': {
-      // Short, tight coils: a close cap with a bumpy edge all the way round.
-      const edge = arc(cx, cy - 0.16 * h, w + 0.9, h * 0.94, 176, 364, detail === 'sm' ? 9 : 14).map(([x, y]) => [x, y, 2.7]);
-      return {
-        ...none,
-        front: curls(edge, 2.7, p.hair, p.hairLine, p.sw) + `<path d="${crownCap(g, 0.5)}" fill="${p.hair}" fill-rule="evenodd"/>` +
-          (lg ? arc(cx, cy - 0.5 * h, w * 0.7, h * 0.36, 200, 340, 6).map(([x, y]) => `<path d="M${n(x - 1)} ${n(y)}q1 -1.3 2 0" ${stroked(p.hairShade, 0.7)}/>`).join('') : ''),
-      };
-    }
-    case 'fade':
-      // Clipped at the sides, longer on top.
-      return {
-        ...none,
-        front: `<path d="${dome(g, 0.6, 0.12)}${hairline(g, 0.5, 0.12)}" fill="${p.hair}" opacity=".45"/>` +
-          path(`${dome(g, 2.6, -0.36)}${hairline(g, 0.48, -0.36, 1.5)}`) + shine(2.6),
-      };
-    case 'slicked':
-      // Combed straight back from a high forehead, with the comb's lines in it.
-      return {
-        ...none,
-        front: path(`${dome(g, 1.5, 0.08)}${hairline(g, 0.6, 0.08)}`) +
-          strand(`M${n(cx - w * 0.5)} ${n(cy - 0.55 * h)}Q${n(cx - w * 0.52)} ${n(cy - 0.9 * h)} ${n(cx - w * 0.2)} ${n(cy - h - 0.9)}M${n(cx + w * 0.02)} ${n(cy - 0.6 * h)}L${n(cx + w * 0.04)} ${n(cy - h - 1.1)}M${n(cx + w * 0.5)} ${n(cy - 0.55 * h)}Q${n(cx + w * 0.52)} ${n(cy - 0.9 * h)} ${n(cx + w * 0.26)} ${n(cy - h - 0.9)}`) + shine(1.5),
-      };
-    case 'thinning':
-      // Still there on top, but thin: a veil of hair over the crown, and the full hair over the ears.
-      return {
-        ...none,
-        front: `<path d="${dome(g, 0.7, 0)}${hairline(g, 0.7, 0)}" fill="${p.hair}" opacity=".3"/>` + overEar(-1) + overEar(1) +
-          strand(`M${n(cx - w * 0.4)} ${n(cy - 0.74 * h)}Q${n(cx - w * 0.1)} ${n(cy - h + 0.4)} ${n(cx + w * 0.3)} ${n(cy - 0.9 * h)}M${n(cx - w * 0.5)} ${n(cy - 0.84 * h)}Q${n(cx)} ${n(cy - h - 0.6)} ${n(cx + w * 0.5)} ${n(cy - 0.8 * h)}`),
-      };
-    case 'mullet':
-      return {
-        ...none,
-        back: fall(ny + 9, 6.5, 2.6),
-        front: path(`${dome(g, 2.4, 0.1)}${hairline(g, 0.46, 0.1, 2)}`) + strand(`M${n(cx + w * 0.3)} ${n(cy - h - 1.5)}Q${n(cx + w * 0.42)} ${n(cy - h * 0.7)} ${n(cx + w * 0.36)} ${n(cy - h * 0.5)}`) + shine(2.4),
-      };
-    case 'fringe': {
-      // Long hair, with a fringe cut straight across just above the brows.
-      const fy = g.browY - 1.3;
-      return {
-        ...none,
-        back: fall(104, 6),
-        front: path(`${dome(g, 3, 0.1)}L${n(cx + w * 0.97)} ${n(cy + 0.1 * h)}L${n(cx + w * 0.9)} ${n(fy)}Q${n(cx)} ${n(fy + 1.3)} ${n(cx - w * 0.9)} ${n(fy)}L${n(cx - w * 0.97)} ${n(cy + 0.1 * h)}Z`) +
-          strand(`M${n(cx - w * 0.4)} ${n(cy - 0.7 * h)}L${n(cx - w * 0.44)} ${n(fy + 0.4)}M${n(cx + w * 0.1)} ${n(cy - 0.74 * h)}L${n(cx + w * 0.08)} ${n(fy + 1)}M${n(cx + w * 0.52)} ${n(cy - 0.68 * h)}L${n(cx + w * 0.56)} ${n(fy + 0.3)}`) + shine(3),
-        overBody: locks(ny + 15, 5, 0.86),
-      };
-    }
-    case 'curly-long': {
-      // A mass of long curls: a cloud behind the shoulders, and ringlets falling over them.
-      const col = (s: number) => arc(cx + s * (w + 4.2), cy + 0.62 * h, 1.2, h * 0.98, -86, 86, detail === 'sm' ? 4 : 6).map(([x, y], i) => [x + s * (i % 2 ? 1.4 : -0.6), y, 4.6]);
-      const top = arc(cx, cy - 0.14 * h, w + 1.6, h, 180, 360, detail === 'sm' ? 6 : 9).map(([x, y]) => [x, y, 4.6]);
-      return {
-        ...none,
-        back: fall(ny + 13, 9.5, 4.5),
-        front: curls(top, 4.6, p.hair, p.hairLine, p.sw) + `<path d="${dome(g, 1.4, 0.1)}${hairline(g, 0.5, 0.1)}" fill="${p.hair}"/>`,
-        overBody: curls([...col(-1), ...col(1)], 4.6, p.hair, p.hairLine, p.sw),
-      };
-    }
-    case 'locs':
-      return {
-        ...none,
-        back: fall(ny + 9, 5, 3),
-        front: path(`${dome(g, 2.6, 0.1)}${hairline(g, 0.48, 0.1)}`) +
-          strand(`M${n(cx)} ${n(cy - h - 2.4)}L${n(cx)} ${n(cy - 0.5 * h)}M${n(cx - w * 0.5)} ${n(cy - h - 0.6)}Q${n(cx - w * 0.6)} ${n(cy - 0.7 * h)} ${n(cx - w * 0.5)} ${n(cy - 0.44 * h)}M${n(cx + w * 0.5)} ${n(cy - h - 0.6)}Q${n(cx + w * 0.6)} ${n(cy - 0.7 * h)} ${n(cx + w * 0.5)} ${n(cy - 0.44 * h)}`),
-        overBody: ropes(detail === 'sm' ? 3 : 4, 2.9, ny + 9),
-      };
-    case 'box-braids':
-      return {
-        ...none,
-        back: fall(104, 6.5, 2.4),
-        front: centre(2.2, 0.5, 0.16) +
-          strand(`M${n(cx - w * 0.5)} ${n(cy - h - 1)}Q${n(cx - w * 0.56)} ${n(cy - 0.7 * h)} ${n(cx - w * 0.46)} ${n(cy - 0.46 * h)}M${n(cx + w * 0.5)} ${n(cy - h - 1)}Q${n(cx + w * 0.56)} ${n(cy - 0.7 * h)} ${n(cx + w * 0.46)} ${n(cy - 0.46 * h)}`),
-        overBody: ropes(detail === 'sm' ? 3 : 5, 1.9, 101),
-      };
-    case 'cornrows': {
-      // Rows braided flat to the scalp, running back from the hairline.
-      const rows = [-0.66, -0.34, 0, 0.34, 0.66].map((u) => `M${n(cx + u * w)} ${n(cy - (0.5 - Math.abs(u) * 0.12) * h)}Q${n(cx + u * w * 1.16)} ${n(cy - 0.84 * h)} ${n(cx + u * w * 0.86)} ${n(cy - h - 0.6 + Math.abs(u) * 4.6)}`).join('');
-      return {
-        ...none,
-        back: path(`M${n(cx - nwOf(g))} ${n(cy + 0.5 * h)}L${n(cx - nwOf(g) - 1.2)} ${n(ny + 1)}L${n(cx + nwOf(g) + 1.2)} ${n(ny + 1)}L${n(cx + nwOf(g))} ${n(cy + 0.5 * h)}Z`),
-        front: path(`${dome(g, 1, 0.06)}${hairline(g, 0.52, 0.06)}`) + (detail === 'sm' ? '' : `<path d="${rows}" ${stroked(p.hairLine, lg ? 0.9 : 1.1)}/>`),
-      };
-    }
-    case 'side-braid':
-      return { ...none, front: centre(1.8, 0.5, 0.3) + shine(1.8), overBody: plait(1, 7) };
-    case 'crown-braid': {
-      // A plait laid over the head from ear to ear.
-      const over = arc(cx, cy - 0.3 * h, w + 1.2, h * 0.8, 190, 350, 12);
-      const band = `M${n(over[0][0])} ${n(over[0][1])}C${n(cx - w - 1.6)} ${n(cy - h - 6)} ${n(cx + w + 1.6)} ${n(cy - h - 6)} ${n(over[11][0])} ${n(over[11][1])}`;
-      // The strands cross the band slantwise, leaning away from the middle.
-      const twists = over.slice(1, -1).map(([x, y]) => `M${n(x - (x < cx ? 2 : -2))} ${n(y - 2.2)}L${n(x + (x < cx ? 1.6 : -1.6))} ${n(y + 2.2)}`).join('');
-      return {
-        ...none,
-        front: path(`${dome(g, 1.8, 0.15)}${hairline(g, 0.5, 0.15)}`) +
-          `<path d="${band}" ${stroked(p.hairLine, 6 + p.sw)}/><path d="${band}" ${stroked(tint(p.hair, 0.12), 5.2)}/>` +
-          (detail === 'sm' ? '' : `<path d="${twists}" ${stroked(p.hairLine, 0.9)}/>`),
-      };
-    }
-    case 'beehive':
-      // Piled high and smooth, as in the sixties.
-      return {
-        ...none,
-        back: `<ellipse cx="${n(cx)}" cy="${n(cy - 0.9 * h)}" rx="${n(w + 2.6)}" ry="${n(h * 0.72)}" ${H}/>` +
-          strand(`M${n(cx - w * 0.6)} ${n(cy - 1.08 * h)}Q${n(cx - w * 0.2)} ${n(cy - 1.56 * h)} ${n(cx + w * 0.34)} ${n(cy - 1.5 * h)}M${n(cx + w * 0.7)} ${n(cy - 1.02 * h)}Q${n(cx + w * 0.72)} ${n(cy - 1.36 * h)} ${n(cx + w * 0.4)} ${n(cy - 1.46 * h)}`),
-        front: path(`${dome(g, 2.6, 0.2)}${sweptLine(g, 0.2, 0.42)}`) + shine(2.6),
-      };
-    case 'space-buns': {
-      const bun = (s: number) => `<circle cx="${n(cx + s * w * 0.66)}" cy="${n(cy - h - 1.6)}" r="5.6" ${H}/>` + (lg ? `<path d="M${n(cx + s * w * 0.66 - 3)} ${n(cy - h - 2.6)}q3 -3.4 6 0" ${stroked(p.hairShade, 0.8)}/>` : '');
-      return { ...none, back: bun(-1) + bun(1), front: centre(1.8, 0.5, 0.12) };
-    }
-  }
-}
-
-/** The neck's half-width, for hair that hangs behind it. */
-const nwOf = (g: Geo) => g.nw;
-
-// ---------- Beard and moustache ----------
-
-function beard(g: Geo, p: Paint, a: Appearance, detail: Detail): string {
-  const { cx, cy, w, h, mouthY } = g;
-  const H = filled(p.hair, p.sw * 0.9, p.hairLine);
-  const hole = `<ellipse cx="${n(cx)}" cy="${n(mouthY + 0.9)}" rx="4.6" ry="2.3" fill="${p.skin}"/>`;
-  // The beard's outline: sideburns down the jaw to the chin, then back up along the cheeks.
-  const full = (len: number, point = 0) =>
-    `M${n(cx - w + 0.2)} ${n(cy + 0.02 * h)}L${n(cx - w + 0.4)} ${n(cy + 0.4 * h)}` +
-    `C${n(cx - w + 0.8)} ${n(cy + 0.95 * h + len * 0.5)} ${n(cx - w * 0.45)} ${n(cy + 1.08 * h + len)} ${n(cx)} ${n(cy + 1.1 * h + len + point)}` +
-    `C${n(cx + w * 0.45)} ${n(cy + 1.08 * h + len)} ${n(cx + w - 0.8)} ${n(cy + 0.95 * h + len * 0.5)} ${n(cx + w - 0.4)} ${n(cy + 0.4 * h)}` +
-    `L${n(cx + w - 0.2)} ${n(cy + 0.02 * h)}L${n(cx + w - 2.6)} ${n(cy + 0.02 * h)}` +
-    `C${n(cx + w - 2.8)} ${n(cy + 0.4 * h)} ${n(cx + 0.55 * w)} ${n(mouthY - 3.4)} ${n(cx + 0.3 * w)} ${n(mouthY - 2.4)}` +
-    `Q${n(cx)} ${n(mouthY - 3.6)} ${n(cx - 0.3 * w)} ${n(mouthY - 2.4)}` +
-    `C${n(cx - 0.55 * w)} ${n(mouthY - 3.4)} ${n(cx - w + 2.8)} ${n(cy + 0.4 * h)} ${n(cx - w + 2.6)} ${n(cy + 0.02 * h)}Z`;
-  switch (a.beard) {
-    case 'none':
-      return '';
-    case 'stubble':
-      return `<path d="${full(0)}" fill="${p.hairShade}" opacity="${detail === 'sm' ? 0.3 : 0.24}"/>`;
-    case 'short':
-      return `<path d="${full(0.5)}" ${H}/>` + hole;
-    case 'full':
-      return `<path d="${full(4)}" ${H}/>` + hole + (detail === 'lg' ? `<path d="M${n(cx - 4)} ${n(cy + h + 3)}q1 2.4 0 4M${n(cx + 4)} ${n(cy + h + 3)}q-1 2.4 0 4M${n(cx)} ${n(cy + h + 4)}l0 4" ${stroked(p.hairShade, 0.8)}/>` : '');
-    case 'long':
-      return `<path d="${full(9, 5)}" ${H}/>` + hole + (detail === 'lg' ? `<path d="M${n(cx - 5)} ${n(cy + h + 2)}q1.4 5 0 10M${n(cx + 5)} ${n(cy + h + 2)}q-1.4 5 0 10M${n(cx)} ${n(cy + h + 4)}l0 10" ${stroked(p.hairShade, 0.8)}/>` : '');
-    case 'goatee':
-      return `<path d="M${n(cx - 4.4)} ${n(mouthY + 2.6)}Q${n(cx)} ${n(mouthY + 1.4)} ${n(cx + 4.4)} ${n(mouthY + 2.6)}Q${n(cx + 4.6)} ${n(cy + 1.06 * h)} ${n(cx)} ${n(cy + 1.12 * h)}Q${n(cx - 4.6)} ${n(cy + 1.06 * h)} ${n(cx - 4.4)} ${n(mouthY + 2.6)}Z" ${H}/>`;
-    case 'vandyke':
-      return `<path d="M${n(cx - 3.6)} ${n(mouthY + 2.8)}Q${n(cx)} ${n(mouthY + 1.8)} ${n(cx + 3.6)} ${n(mouthY + 2.8)}L${n(cx + 0.8)} ${n(cy + 1.2 * h)}L${n(cx)} ${n(cy + 1.26 * h)}L${n(cx - 0.8)} ${n(cy + 1.2 * h)}Z" ${H}/>`;
-    case 'muttonchops': {
-      const side = (s: number) => {
-        const X = (u: number) => n(cx + s * u);
-        return `<path d="M${X(w - 0.2)} ${n(cy + 0.02 * h)}L${X(w - 0.3)} ${n(cy + 0.55 * h)}C${X(w - 1)} ${n(cy + 0.8 * h)} ${X(w * 0.6)} ${n(mouthY + 2)} ${X(w * 0.4)} ${n(mouthY)}C${X(w * 0.55)} ${n(mouthY - 3)} ${X(w - 2.8)} ${n(cy + 0.3 * h)} ${X(w - 2.6)} ${n(cy + 0.02 * h)}Z" ${H}/>`;
-      };
-      return side(-1) + side(1);
-    }
-    case 'circle':
-      // A goatee joined to a moustache, all the way round the mouth.
-      return `<path d="M${n(cx - 5.6)} ${n(mouthY - 1.6)}Q${n(cx)} ${n(mouthY - 4.6)} ${n(cx + 5.6)} ${n(mouthY - 1.6)}Q${n(cx + 6.4)} ${n(cy + 1.05 * h)} ${n(cx)} ${n(cy + 1.12 * h)}Q${n(cx - 6.4)} ${n(cy + 1.05 * h)} ${n(cx - 5.6)} ${n(mouthY - 1.6)}Z" ${H}/>` +
-        `<ellipse cx="${n(cx)}" cy="${n(mouthY + 0.9)}" rx="3.9" ry="2" fill="${p.skin}"/>`;
-    case 'chinstrap': {
-      // A narrow line of beard along the jaw from ear to ear, kept inside the face's outline.
-      const d = `M${n(cx - w)} ${n(cy + 0.02 * h)}L${n(cx - w)} ${n(cy + 0.42 * h)}C${n(cx - w + 0.4)} ${n(cy + 1.02 * h)} ${n(cx - w * 0.45)} ${n(cy + 1.1 * h)} ${n(cx)} ${n(cy + 1.1 * h)}C${n(cx + w * 0.45)} ${n(cy + 1.1 * h)} ${n(cx + w - 0.4)} ${n(cy + 1.02 * h)} ${n(cx + w)} ${n(cy + 0.42 * h)}L${n(cx + w)} ${n(cy + 0.02 * h)}`;
-      return `<path d="${d}" fill="none" stroke="${p.hair}" stroke-width="5.4" clip-path="url(#hc)"/>`;
-    }
-    case 'sideburns': {
-      const side = (s: number) => {
-        const X = (u: number) => n(cx + s * u);
-        return `<path d="M${X(w - 0.2)} ${n(cy + 0.02 * h)}L${X(w - 0.4)} ${n(cy + 0.5 * h)}Q${X(w - 1.8)} ${n(cy + 0.62 * h)} ${X(w - 3.2)} ${n(cy + 0.46 * h)}L${X(w - 2.6)} ${n(cy + 0.02 * h)}Z" ${H}/>`;
-      };
-      return side(-1) + side(1);
-    }
-    case 'soul-patch':
-      return `<path d="M${n(cx - 1.7)} ${n(mouthY + 3)}Q${n(cx)} ${n(mouthY + 2.4)} ${n(cx + 1.7)} ${n(mouthY + 3)}L${n(cx)} ${n(mouthY + 6.4)}Z" ${H}/>`;
-  }
-}
-
-function moustache(g: Geo, p: Paint, a: Appearance): string {
-  const { cx, mouthY: y } = g;
-  const H = filled(p.hair, p.sw * 0.8, p.hairLine);
-  switch (a.moustache) {
-    case 'none':
-      return '';
-    case 'thin':
-      return `<path d="M${n(cx - 4.4)} ${n(y - 0.6)}Q${n(cx)} ${n(y - 3.2)} ${n(cx + 4.4)} ${n(y - 0.6)}" ${stroked(p.hair, 1.3)}/>`;
-    case 'chevron':
-      return `<path d="M${n(cx - 5)} ${n(y - 0.2)}Q${n(cx - 4.2)} ${n(y - 3.6)} ${n(cx)} ${n(y - 3.4)}Q${n(cx + 4.2)} ${n(y - 3.6)} ${n(cx + 5)} ${n(y - 0.2)}Q${n(cx)} ${n(y - 1.6)} ${n(cx - 5)} ${n(y - 0.2)}Z" ${H}/>`;
-    case 'handlebar':
-      return `<path d="M${n(cx)} ${n(y - 3.2)}Q${n(cx - 4.4)} ${n(y - 3.6)} ${n(cx - 6.4)} ${n(y - 1.2)}Q${n(cx - 7.6)} ${n(y - 3.4)} ${n(cx - 6)} ${n(y - 4.4)}Q${n(cx - 7)} ${n(y - 1.8)} ${n(cx - 4)} ${n(y - 1.4)}Q${n(cx)} ${n(y - 1.6)} ${n(cx + 4)} ${n(y - 1.4)}Q${n(cx + 7)} ${n(y - 1.8)} ${n(cx + 6)} ${n(y - 4.4)}Q${n(cx + 7.6)} ${n(y - 3.4)} ${n(cx + 6.4)} ${n(y - 1.2)}Q${n(cx + 4.4)} ${n(y - 3.6)} ${n(cx)} ${n(y - 3.2)}Z" ${H}/>`;
-    case 'walrus':
-      return `<path d="M${n(cx - 6)} ${n(y + 1.4)}Q${n(cx - 6.4)} ${n(y - 4.2)} ${n(cx)} ${n(y - 4)}Q${n(cx + 6.4)} ${n(y - 4.2)} ${n(cx + 6)} ${n(y + 1.4)}Q${n(cx + 3)} ${n(y - 0.2)} ${n(cx)} ${n(y + 0.2)}Q${n(cx - 3)} ${n(y - 0.2)} ${n(cx - 6)} ${n(y + 1.4)}Z" ${H}/>`;
-    case 'pencil':
-      // Two fine lines with a gap under the nose.
-      return `<path d="M${n(cx - 4.8)} ${n(y - 1.2)}Q${n(cx - 2.6)} ${n(y - 2.3)} ${n(cx - 0.7)} ${n(y - 2)}M${n(cx + 0.7)} ${n(y - 2)}Q${n(cx + 2.6)} ${n(y - 2.3)} ${n(cx + 4.8)} ${n(y - 1.2)}" ${stroked(p.hair, 1)}/>`;
-    case 'horseshoe':
-      // Down past both corners of the mouth to the jaw.
-      return `<path d="M${n(cx - 5.8)} ${n(y + 6)}L${n(cx - 6.1)} ${n(y - 1)}Q${n(cx - 5)} ${n(y - 3.9)} ${n(cx)} ${n(y - 3.5)}Q${n(cx + 5)} ${n(y - 3.9)} ${n(cx + 6.1)} ${n(y - 1)}L${n(cx + 5.8)} ${n(y + 6)}L${n(cx + 3.9)} ${n(y + 6)}L${n(cx + 4)} ${n(y - 0.5)}Q${n(cx)} ${n(y - 1.7)} ${n(cx - 4)} ${n(y - 0.5)}L${n(cx - 3.9)} ${n(y + 6)}Z" ${H}/>`;
-    case 'imperial':
-      // Full, and waxed up into the cheeks at both ends.
-      return `<path d="M${n(cx)} ${n(y - 3.4)}Q${n(cx - 5.6)} ${n(y - 4.2)} ${n(cx - 8.4)} ${n(y - 1.6)}Q${n(cx - 10.4)} ${n(y - 3.6)} ${n(cx - 9.2)} ${n(y - 7)}Q${n(cx - 8.6)} ${n(y - 3)} ${n(cx - 5)} ${n(y - 1)}Q${n(cx)} ${n(y - 1.5)} ${n(cx + 5)} ${n(y - 1)}Q${n(cx + 8.6)} ${n(y - 3)} ${n(cx + 9.2)} ${n(y - 7)}Q${n(cx + 10.4)} ${n(y - 3.6)} ${n(cx + 8.4)} ${n(y - 1.6)}Q${n(cx + 5.6)} ${n(y - 4.2)} ${n(cx)} ${n(y - 3.4)}Z" ${H}/>`;
-  }
 }
 
 // ---------- Glasses ----------
@@ -994,6 +563,9 @@ const HAIR_UNDER: Record<string, 'all' | 'fringe' | 'none'> = {
 const IN_THE_HAIR = new Set(['none', 'crown', 'circlet', 'tiara', 'headband', 'bow', 'flower-crown', 'bridal-veil', 'kippah']);
 /** Styles that stand too tall for a hat, and what is worn under one instead. */
 const UNDER_A_HAT: Record<string, HairStyle> = { bun: 'short', quiff: 'short', afro: 'curly', beehive: 'bob', 'space-buns': 'short', 'crown-braid': 'chignon' };
+
+/** Where a hat sits, in head units from the middle of the head: hair shows below this line only. Most sit just above the temples. */
+const HAT_LINE: Record<string, number> = { beret: -0.94, mortarboard: -0.9, kufi: -0.86 };
 
 function headwear(g: Geo, p: Paint, a: Appearance, dress: Dress, detail: Detail): { back: string; front: string } {
   const { cx, cy, w, h, ny } = g;
@@ -1913,17 +1485,27 @@ export function avatarSvg(a: Appearance, house: Dress, detail: Detail, bare = fa
   let style = a.hairStyle;
   if (under !== 'all') style = under === 'fringe' ? 'chignon' : 'cropped';
   else if (!IN_THE_HAIR.has(a.headwear)) style = UNDER_A_HAT[style] ?? style;
-  const hp = hair(g, p, a, style, detail);
+  const outline = headPoints(g, a);
+  const head = smoothClosed(outline);
+  // The head as the hair and the beard see it: its middle, its size, and how wide it is at any height.
+  const on: Head = { cx: g.cx, cy: g.cy, w: g.w, h: a.face === 'long' ? g.h * 1.04 : g.h, halfAt: halfWidth(sampleClosed(outline), g.cx), hs: g.hs };
+  const hp = drawHair(style, on, { hair: p.hair, shade: p.hairShade, line: p.hairLine, light: p.hairLight, skinShade: p.skinShade, sw: p.sw }, detail);
   const hw = headwear(g, p, a, hatDress, detail);
-  const head = headPath(g, a);
+  // The beard and the moustache share a colour: the hair's, or their own.
+  const whiskers = { hair: a.beardColour, shade: shade(a.beardColour, 0.28), line: shade(a.beardColour, 0.5), sw: p.sw };
+  const lips = { y: g.mouthY, wd: mouthHalf(g, a) };
   const showHair = under !== 'none' && !bare;
+  // A hat presses the hair down: nothing of it shows above the line the hat sits on, whatever its volume.
+  const hatted = under === 'all' && !IN_THE_HAIR.has(a.headwear);
+  const pressed = (s: string) => (hatted && s ? `<g clip-path="url(#hh)">${s}</g>` : s);
+  const hatLine = hatted && showHair ? `<clipPath id="hh"><rect y="${n(g.cy + (HAT_LINE[a.headwear] ?? -0.72) * g.h)}" width="100" height="110"/></clipPath>` : '';
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">` +
-    `<defs><clipPath id="hc"><path d="${head}"/></clipPath></defs>` +
+    `<defs><clipPath id="hc"><path d="${head}"/></clipPath>${hatLine}</defs>` +
     backdrop(a, house, detail) +
     `<g${ZOOM[detail] ? ` transform="${ZOOM[detail]}"` : ''}>` +
     hw.back +
-    (showHair && under === 'all' ? hp.back : '') +
+    (showHair && under === 'all' ? pressed(hp.back) : '') +
     neckAndChest(g, p) +
     body(g, p, a, a.clothing, dress, detail) +
     onTheChest(g, p, a, dress, detail) +
@@ -1932,11 +1514,11 @@ export function avatarSvg(a: Appearance, house: Dress, detail: Detail, bare = fa
     `<path d="${head}" ${filled(p.skin, p.sw, p.skinLine)}/>` +
     face(g, p, a, detail) +
     onTheFace(g, a, detail) +
-    (bare ? '' : beard(g, p, a, detail)) +
+    (bare ? '' : drawBeard({ cover: a.beardCover, length: a.beardLength, shape: a.beardShape }, { ...on, chin: Math.max(...outline.map(([, y]) => y)) }, lips, whiskers, detail)) +
     mouth(g, p, a, detail) +
     pipe(g, a, detail) +
-    (bare ? '' : moustache(g, p, a)) +
-    (showHair ? hp.front : '') +
+    (bare ? '' : drawMoustache(a.moustache, on, lips, whiskers, detail)) +
+    (showHair ? pressed(hp.front) : '') +
     atTheEars(g, a, dress, detail) +
     glasses(g, a, detail) +
     hw.front +
