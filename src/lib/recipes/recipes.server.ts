@@ -16,7 +16,7 @@ import { added, change, db, guard, media, newMediaKey, once, personExists, q, ty
 import { LIVING_IDS } from '../protect-living.ts';
 import { can, type Role } from '../roles';
 import {
-  cleanRecipe, hasSubstance, ingredientLine, recipeMarkdown, ENGLISH_WORDS, MAX_TITLE, RECIPE_KEY,
+  cleanRecipe, hasSubstance, ingredientLine, recipeMarkdown, ENGLISH_WORDS, MAX_STEP_IMAGES, MAX_TITLE, RECIPE_KEY,
   type IngredientGroup, type RecipeBody, type RecipeDetail, type RecipePicture, type RecipeStep, type RecipeSummary, type RecipeWords,
 } from './model.ts';
 
@@ -147,6 +147,12 @@ export function saveRecipe(tree: string, who: RecipeReader, input: RecipeInput, 
     if (input.id && !had) throw new Error('recipes.err.gone');
     if (had && !mayChange(who, had.story)) throw fail(forbidden('edit-person', 'editor'));
     const mine = new Map((had?.images ?? []).map((i) => [i.key, i]));
+    // The steps' pictures it would have, the ones it keeps and the new ones together, counted before anything is uploaded.
+    const named = input.steps.filter((s) => {
+      const sent = /^new:(\d{1,2})$/.exec(s.image ?? '');
+      return sent ? !!pictures.steps[Number(sent[1])] : !!s.image && mine.has(s.image);
+    }).length;
+    if (named > MAX_STEP_IMAGES) throw new Error('recipes.err.too_many_pictures');
 
     // The pictures first, as every upload: the rows that name them are kept only if the batch commits.
     const stored: string[] = [];
@@ -194,6 +200,8 @@ export function saveRecipe(tree: string, who: RecipeReader, input: RecipeInput, 
       if (had) {
         // The story as it was read: a change in between (another save, a removal) makes this plan decide again.
         writes.push(guard("EXISTS (SELECT 1 FROM story WHERE id = ? AND kind = 'recipe' AND title IS ? AND body = ? AND person = ?)", id, had.story.title, had.story.body, had.story.person));
+        // And its cover as it was read: two saves changing only the cover must not both win, or one's picture is lost.
+        writes.push(guard('(SELECT cover FROM recipe WHERE story = ?) IS ?', id, had.recipe?.cover ?? null));
         writes.push(personExists(input.person));
         writes.push(q('UPDATE story SET title = ?, body = ?, person = ? WHERE id = ?', title, text, input.person, id));
       } else {

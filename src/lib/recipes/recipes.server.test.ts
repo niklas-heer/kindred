@@ -186,6 +186,52 @@ test('its writer and an editor may change it, another contributor may not; a cha
   assert.ok(await stored(other));
 });
 
+test('the steps’ pictures are counted, kept and new together, before anything is uploaded', async () => {
+  const five = Array.from({ length: 5 }, (_, n) => ({ text: `Step ${n + 1}.`, image: `new:${n}` }));
+  const { id: soup } = await R.saveRecipe('family', nora, goulash({ title: 'Soup', steps: five }), { steps: Object.fromEntries(five.map((_, n) => [n, picture()])) });
+  const kept = (await R.recipe('family', soup, nora))!.steps.map((s) => ({ text: s.text, image: s.image }));
+  assert.equal(kept.filter((s) => s.image).length, 5);
+  const puts = db.media.put;
+  let uploaded = 0;
+  db.media.put = (async (...a: Parameters<typeof puts>) => { uploaded += 1; return puts(...a); }) as typeof puts;
+  try {
+    await assert.rejects(
+      R.saveRecipe('family', nora, goulash({ id: soup, title: 'Soup', steps: [...kept, { text: 'Six.', image: 'new:0' }, { text: 'Seven.', image: 'new:1' }] }), { steps: { 0: picture(), 1: picture() } }),
+      /recipes\.err\.too_many_pictures/,
+    );
+  } finally {
+    db.media.put = puts;
+  }
+  assert.equal(uploaded, 0, 'nothing was uploaded');
+  assert.equal(await count('recipe_image', `story = '${soup}'`), 5);
+  // One more is still allowed.
+  await R.saveRecipe('family', nora, goulash({ id: soup, title: 'Soup', steps: [...kept, { text: 'Six.', image: 'new:0' }] }), { steps: { 0: picture() } });
+  assert.equal(await count('recipe_image', `story = '${soup}'`), 6);
+});
+
+test('two saves that change only the cover do not both win: the second decides again, and no picture is left behind', async () => {
+  const { id: pie } = await R.saveRecipe('family', nora, goulash({ title: 'Pie', cover: 'new' }), { cover: picture(), steps: {} });
+  const write = d().batch.bind(d());
+  let theirs = '';
+  d().batch = (async (qs: Parameters<typeof write>[0]) => {
+    if (!theirs && qs.some((x) => /INSERT INTO recipe \(/.test(x.sql))) {
+      d().batch = write;
+      await R.saveRecipe('family', eda, goulash({ id: pie, title: 'Pie', cover: 'new' }), { cover: picture(), steps: {} });
+      theirs = (await R.recipe('family', pie, nora))!.cover!.key;
+    }
+    return write(qs);
+  }) as typeof write;
+  try {
+    await R.saveRecipe('family', nora, goulash({ id: pie, title: 'Pie', cover: 'new' }), { cover: picture(), steps: {} });
+  } finally {
+    d().batch = write;
+  }
+  const now = (await R.recipe('family', pie, nora))!;
+  assert.ok(theirs && now.cover!.key !== theirs, 'the later save wins');
+  assert.equal(await count('recipe_image', `story = '${pie}'`), 1, 'only the cover it names');
+  assert.equal(await stored(theirs), false, 'the replaced cover is deleted, not left behind');
+});
+
 test('a recipe from before the form becomes a structured one, and stays its writer’s', async () => {
   const before = (await R.recipe('family', 'old', nora))!;
   assert.equal(before.structured, false);
