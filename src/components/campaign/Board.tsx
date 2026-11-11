@@ -241,7 +241,14 @@ export function Board({ reign, sides, game, onAttack, renownLink }: BoardProps) 
         </div>
         {!over && (
           <ol className="cg-steps" aria-label={t('campaign.steps.label')}>
-            <li className={step === 1 ? 'is-on' : 'is-done'} aria-current={step === 1 ? 'step' : undefined}><b>1</b> {t('campaign.steps.reinforce')}</li>
+            <li className={step === 1 ? 'is-on' : 'is-done'} aria-current={step === 1 ? 'step' : undefined}>
+              {/* Levy left after "Done placing": the step can be returned to until the turn ends. */}
+              {step === 2 && pool > 0 ? (
+                <button type="button" className="cg-step-back" onClick={() => { setSkipped(-1); setPick({ k: 'none' }); }} aria-label={t('campaign.steps.reinforce_back', { count: pool })} title={t('campaign.steps.reinforce_back', { count: pool })}>
+                  <b>1</b> {t('campaign.steps.reinforce')} <Undo2 size={13} aria-hidden />
+                </button>
+              ) : <><b>1</b> {t('campaign.steps.reinforce')}</>}
+            </li>
             <li className={step === 2 ? 'is-on' : ''} aria-current={step === 2 ? 'step' : undefined}><b>2</b> {t('campaign.steps.orders', { count: state.orders })}</li>
             <li><b>3</b> {t('campaign.steps.end')}</li>
           </ol>
@@ -295,7 +302,7 @@ export function Board({ reign, sides, game, onAttack, renownLink }: BoardProps) 
         {!over && (
           <div className="cg-turn">
             {step === 2 && <button type="button" className="btn" disabled={!game.canUndo} onClick={undo}><Undo2 size={15} /> {t('campaign.undo')}</button>}
-            <button type="button" className={`btn${step === 2 ? ' primary' : ''}`} onClick={endTurn} disabled={!!replay}><Sunrise size={16} /> {state.turn + 1 >= RULES.TURNS ? t('campaign.end.last') : t('campaign.end.turn')}</button>
+            <button type="button" className={`btn${step === 2 && pick.k !== 'target' ? ' primary' : ''}`} onClick={endTurn} disabled={!!replay}><Sunrise size={16} /> {state.turn + 1 >= RULES.TURNS ? t('campaign.end.last') : t('campaign.end.turn')}</button>
           </div>
         )}
 

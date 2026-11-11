@@ -192,6 +192,9 @@
 .cg-steps li.is-on { color: var(--text); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
 .cg-steps li.is-on b { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 .cg-steps li.is-done { color: var(--muted); }
+.cg-steps .cg-step-back { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 6px; width: calc(100% + 16px); margin: -6px -8px; padding: 6px 8px; border-radius: var(--radius); cursor: pointer; color: var(--text); text-decoration: underline dotted; text-underline-offset: 3px; }
+.cg-steps .cg-step-back:hover { background: var(--panel-2); }
+.cg-steps .cg-step-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .cg-act h3 { margin: 0; display: flex; align-items: center; gap: 6px; font-family: var(--font-ui); font-size: var(--fs-3); font-weight: 600; }
 .cg-step-actions { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
 .cg-step-actions .btn { height: var(--ctl-lg); justify-content: center; }

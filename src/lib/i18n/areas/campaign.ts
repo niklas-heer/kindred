@@ -225,6 +225,7 @@ export const en = {
   "campaign.steps.label": "The turn’s steps",
   "campaign.steps.orders": { one: "Orders ({count} left)", other: "Orders ({count} left)" },
   "campaign.steps.reinforce": "Reinforce",
+  "campaign.steps.reinforce_back": { one: "Back to placing: {count} troop of the levy still waits", other: "Back to placing: {count} troops of the levy still wait" },
 
   "campaign.subtitle": "Rule your house for twelve turns, and beat the family’s table",
 
@@ -498,6 +499,7 @@ export const de: Record<keyof typeof en, Message> = {
   "campaign.steps.label": "Die Schritte des Zuges",
   "campaign.steps.orders": { one: "Befehle (noch {count})", other: "Befehle (noch {count})" },
   "campaign.steps.reinforce": "Verstärken",
+  "campaign.steps.reinforce_back": { one: "Zurück zum Aufstellen: {count} Truppe des Aufgebots wartet noch", other: "Zurück zum Aufstellen: {count} Truppen des Aufgebots warten noch" },
 
   "campaign.subtitle": "Regiere dein Haus zwölf Züge lang und schlag die Tabelle der Familie",
 
@@ -771,6 +773,7 @@ export const af: Record<keyof typeof en, Message> = {
   "campaign.steps.label": "Die beurt se stappe",
   "campaign.steps.orders": { one: "Bevele (nog {count})", other: "Bevele (nog {count})" },
   "campaign.steps.reinforce": "Versterk",
+  "campaign.steps.reinforce_back": { one: "Terug na ontplooiing: {count} troep van die ligting wag nog", other: "Terug na ontplooiing: {count} troepe van die ligting wag nog" },
 
   "campaign.subtitle": "Regeer jou huis twaalf beurte lank, en klop die familie se tabel",
 

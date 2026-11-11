@@ -38,6 +38,7 @@ The turn's three steps are shown above the orders:
 
 1. **Reinforce.** The turn's levy waits to be placed. Press a province of yours to place one troop there; press again for
    the next. Placing costs no order. "Undo" takes the last troop back. Levy you do not place is kept for the next turn.
+   After "Done placing", while levy is left, the "Reinforce" step is a button that goes back to placing.
 2. **Orders.** Up to **3** marches or attacks:
    - **Choose a province** of yours with at least two troops (one always stays behind). It gets a thick gold outline,
      the provinces it cannot reach dim, and its neighbours are ringed: **footprints** for a march to your own province,
@@ -48,6 +49,8 @@ The turn's three steps are shown above the orders:
    - **Back**, Escape or a press on the sea goes one step back. Pressing another province of yours chooses that one
      instead. A press on any other province only shows what it is.
    - A march can be undone until you end the turn (back to your last battle). A battle cannot: its dice have been rolled.
+     Undo closes an open order bar, since the province may spare fewer troops after it.
+   - While the order bar is open, its button is the one gold button; "End the turn" is a plain one beside it.
 3. **End turn.** The regents move. Their attacks are shown one after another on the map ("Skip" ends that), and listed
    under the orders. Then the next turn's levy arrives.
 
