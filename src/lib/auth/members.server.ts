@@ -19,10 +19,12 @@
 //           the pictures and the comments under them (`post` keeps `author_name` and `author_person`, the person they stood
 //           for, so a post stays signed and keeps its face; `account` is kept and matches nobody: only its writer may
 //           change a post, so it can then only be removed, by an editor), the change history with their name, the
-//           Campaign's chronicle (`campaign_log`: names, not accounts), join requests as history.
+//           Campaign's chronicle (`campaign_log`: names, not accounts), join requests as history, their confirmed "Who is
+//           this?" proposals (they are tags, "Named by" them).
 //   goes    reactions, the daily quiz's answers (so standings and streaks), the Campaign's reigns (so their lines in the
 //           weekly and all-time tables) and its old member rows and push claims, their opt-in for response pushes, their devices' choice to be
-//           told about new posts (with the devices, in step 1), the items they kept for themselves (Personal fields) and the
+//           told about new posts (with the devices, in step 1), their unconfirmed "Who is this?" proposals (open or declined)
+//           and the pictures they passed on (`tag_pass`), the items they kept for themselves (Personal fields) and the
 //           history rows of those.
 import { fail } from './guard.server';
 import { AuthError } from './errors';
@@ -43,6 +45,9 @@ export async function forgetInFamily(tree: string, user: string): Promise<void> 
       q('DELETE FROM campaign_push WHERE account = ?', user),
       q('DELETE FROM campaign_run WHERE account = ?', user),
       q('DELETE FROM response_push WHERE account = ?', user),
+      // "Who is this?": a proposal nobody confirmed (open, or declined) and the pictures they passed on. A confirmed one is a tag.
+      q("DELETE FROM tag_proposal WHERE account = ? AND status <> 'confirmed'", user),
+      q('DELETE FROM tag_pass WHERE account = ?', user),
       // What they kept for themselves: nobody else could ever read or remove it, nor the history of it.
       q("DELETE FROM person_field WHERE visibility = 'personal' AND owner = ? AND (created_by = ? OR created_by IS NULL)", user, user),
       q("DELETE FROM history WHERE level = 'personal' AND owner = ?", user),

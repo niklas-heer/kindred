@@ -248,11 +248,13 @@ anything while the second step runs; if it fails, removing them again finishes i
 - Stays: memories (`story`, with `author_account`) and answers to the question of the week; comments (with the name they were
   written under; "a former member" when none); their posts in the feed, with the pictures and the comments under them (a `post`
   keeps `author_name` and `author_person`; only its writer could change it, so it can now only be removed, by an editor); the
-  change history with their name; the Campaign's chronicle (`campaign_log`); join requests as history.
+  change history with their name; the Campaign's chronicle (`campaign_log`); join requests as history; their confirmed
+  "Who is this?" proposals (`tag_proposal`, `confirmed`: they are tags, "Named by" them).
 - Goes: reactions; quiz answers (so standings and streaks); the Campaign's reigns (`campaign_run`, so their lines in the
   tables) and the old game's member rows and push claims;
-  the opt-in for the answer push (`response_push`); their Personal items and the history rows of those.
-- Left pointing at the account: `story.author_account`, `comment.account`, `post.account`, `campaign_log.account`, `history.account`,
+  the opt-in for the answer push (`response_push`); their "Who is this?" proposals nobody confirmed (open or declined) and the
+  pictures they passed on (`tag_pass`); their Personal items and the history rows of those.
+- Left pointing at the account: `story.author_account`, `comment.account`, `post.account`, `campaign_log.account`, `history.account`, `tag_proposal.account` (confirmed) and `decided_by`,
   `updated_by` columns of the Campaign and Today settings, invitations (`created_by`, `used_by`) and join requests. None is
   read as a live membership; each is either shown by the name kept beside it or ignored.
 

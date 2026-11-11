@@ -443,8 +443,9 @@ The address box on a person's contacts suggests whole addresses as someone types
 - **A proposal is not a tag.** It becomes one only when someone with the right to tag photographs (Contributor or higher)
   agrees, and never on the proposer's own word. Until then nobody sees it but the members who may confirm it.
 - **What is stored about a member:** their proposals (account id, name then, the photograph, the person, the box) and the
-  photographs they passed on, for the round and the month's count. Removing the family removes them; a confirmed tag
-  keeps the proposer's name as "Named by".
+  photographs they passed on, for the round and the month's count. Removing the family removes them. When a member
+  leaves, their proposals nobody confirmed and the photographs they passed on are deleted; a confirmed one is a tag and
+  stays, with the proposer's name as "Named by".
 
 ## The Campaign
 

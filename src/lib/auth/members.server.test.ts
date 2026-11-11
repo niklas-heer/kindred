@@ -181,6 +181,27 @@ test('their private items and the history of them go; the history of what they c
   assert.equal(await count('history', `account = '${pat.id}' AND name = 'Pat Private'`), 1);
 });
 
+test("their open \"Who is this?\" proposals and their passes go; a confirmed one stays, as it is a tag", async () => {
+  const wyn = await member('Wyn Whois', 'contributor');
+  const other = await member('Oli Other', 'contributor');
+  await run('family', "INSERT INTO media (key, mime, uploaded_by, uploaded_at) VALUES ('gallery/3333-whois.jpg', 'image/jpeg', 'u', '2026-01-01')");
+  const propose = (account: string, name: string, person: string, status: string) => run('family',
+    "INSERT INTO tag_proposal (media, person, account, name, at, status) VALUES ('gallery/3333-whois.jpg', ?, ?, ?, '2026-11-10T08:00:00Z', ?)", person, account, name, status);
+  await propose(wyn.id, wyn.name, 'ada', 'open');
+  await propose(wyn.id, wyn.name, 'ben', 'confirmed');
+  await propose(other.id, other.name, 'ada', 'open');
+  await run('family', "INSERT INTO tag_pass (media, account, kind, at) VALUES ('gallery/3333-whois.jpg', ?, 'skip', '2026-11-10T08:00:00Z')", wyn.id);
+  await run('family', "INSERT INTO tag_pass (media, account, kind, at) VALUES ('gallery/3333-whois.jpg', ?, 'unknown', '2026-11-10T08:00:00Z')", other.id);
+
+  await M.endMembership('family', wyn.id);
+
+  assert.equal(await count('tag_proposal', `account = '${wyn.id}' AND status = 'open'`), 0, 'nobody is asked to confirm a former member');
+  assert.equal(await count('tag_proposal', `account = '${wyn.id}' AND status = 'confirmed'`), 1, 'a confirmed proposal is a tag');
+  assert.equal(await count('tag_pass', `account = '${wyn.id}'`), 0);
+  assert.equal(await count('tag_proposal', `account = '${other.id}'`), 1, "another member's proposal stays");
+  assert.equal(await count('tag_pass', `account = '${other.id}'`), 1);
+});
+
 test('the last steward cannot be removed, and nothing is forgotten when it is refused', async () => {
   const only = await member('Sole Steward', 'steward', 'other');
   await run('other', 'INSERT INTO response_push (account, enabled) VALUES (?, 1)', only.id);
