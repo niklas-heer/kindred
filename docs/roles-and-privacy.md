@@ -419,6 +419,22 @@ Today holds the question of the week and the daily quiz ([today.md](today.md)).
   only editors read (an address, at first) is in an editor's feed alone, a Personal field is in nobody's, and an update
   names what changed (a new phone number), never the value. A guest has no feed.
 
+## Address suggestions
+
+The address box on a person's contacts suggests whole addresses as someone types, and this is on by default.
+
+- **What is sent, and to whom:** the text typed into the address box (at most 200 characters, from the fourth letter on,
+  after a short pause) and the reader's language, to [Photon](https://photon.komoot.io), komoot's public geocoder over
+  OpenStreetMap's data. Nothing else: no name, no person, no account and no family. The request comes from your Kindred
+  server, never from the browser, with a User-Agent naming Kindred, so Photon sees your server's address, not the reader's.
+- **When:** only while a member who may edit contacts (Editor or Steward) types in that box. Never for a guest or a
+  viewer, never in a demo, and the line under the box says so before the first lookup: "Suggestions come from
+  OpenStreetMap via Photon (komoot); what you type is sent there".
+- **What is kept:** the server remembers answers in memory for an hour, per family, so a family never sees an answer
+  another family's typing fetched; nothing is written to disk or logged. Photon's own handling is komoot's.
+- **Switching it off:** `KINDRED_ADDRESS_LOOKUP=off` ([self-host.md](self-host.md)). The box then suggests towns from the
+  family's own places and the offline gazetteer only, which never leave the server.
+
 ## Who is this?
 
 "Who is this?" asks members who is in the gallery's untagged photographs ([who-is-this.md](who-is-this.md)).
