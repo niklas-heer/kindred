@@ -19,6 +19,7 @@ export const TOUR_ROUTES = {
   chronicle: '/$tree/chronicle',
   cookbook: '/$tree/cookbook',
   gallery: '/$tree/gallery',
+  whois: '/$tree/who-is-this',
   campaign: '/$tree/campaign',
   print: '/$tree/print',
   history: '/$tree/history',
@@ -133,6 +134,8 @@ export const GRAND_TOUR: readonly TourChapter[] = [
     { id: 'g-everyday', page: 'profile', targets: ['person-tab-everyday'], title: 'tour.g.everyday.title', body: 'tour.g.everyday.body', requires: 'people', task: { until: 'person-everyday', click: 'person-tab-everyday', ask: 'tour.g.everyday.ask' } },
     { id: 'g-edit', page: 'profile', targets: ['person-tab-edit'], title: 'tour.g.edit.title', body: 'tour.g.edit.body', requires: 'people', needs: 'edit-person', task: { until: 'person-edit', click: 'person-tab-edit', ask: 'tour.g.edit.ask' } },
     { id: 'g-fields', page: 'profile', targets: ['person-edit'], opener: 'person-tab-edit', title: 'tour.g.fields.title', body: 'tour.g.fields.body', requires: 'people', needs: 'edit-person' },
+    // Non-interactive: the address box when one is open, else the Edit tab it lives in, so no address is needed.
+    { id: 'g-address', page: 'profile', targets: ['address-finder', 'person-edit'], opener: 'person-tab-edit', title: 'tour.g.address.title', body: 'tour.g.address.body', requires: 'people', needs: 'edit-person' },
     { id: 'g-life', page: 'profile', targets: ['life-editor'], opener: 'person-tab-edit', title: 'tour.g.life.title', body: 'tour.g.life.body', requires: 'people', needs: 'edit-person' },
     { id: 'g-look', page: 'profile', targets: ['person-appearance'], opener: 'person-tab-edit', title: 'tour.g.look.title', body: 'tour.g.look.body', requires: 'people', needs: 'edit-person' },
   ] },
@@ -145,6 +148,7 @@ export const GRAND_TOUR: readonly TourChapter[] = [
   ] },
   { id: 'pictures', title: 'tour.g.pictures.chapter', steps: [
     { id: 'g-gallery', page: 'gallery', targets: [HEADER], title: 'shell.gallery', body: 'tour.g.gallery.body' },
+    { id: 'g-whois', page: 'whois', targets: [HEADER], title: 'whois.title', body: 'tour.g.whois.body' },
     { id: 'g-contacts', page: 'contacts', targets: [HEADER], title: 'shell.contacts', body: 'tour.g.contacts.body' },
   ] },
   { id: 'places', title: 'tour.g.places.chapter', steps: [

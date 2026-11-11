@@ -91,6 +91,9 @@ test('the grand tour skips, pauses and continues by chapter, and ticks off what 
   await card(page).getByRole('button', { name: 'Show me' }).click();
   await expect(title(page, 'Fields that fold away')).toBeVisible();
   await expect(page.locator('[data-tour="person-edit"]')).toBeVisible();
+  // The address step needs no address: with no address box open it shows the Edit tab.
+  await card(page).getByRole('button', { name: 'Next' }).click();
+  await expect(title(page, 'Addresses that complete themselves')).toBeVisible();
 
   // On through the rest of the chapter: leaving it by its last step ticks it.
   for (let i = 0; i < 6 && !(await card(page).getByText(/· Chronicle and Cookbook/).isVisible()); i++) {

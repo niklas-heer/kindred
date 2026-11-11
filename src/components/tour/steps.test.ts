@@ -67,12 +67,12 @@ test('Welcome begins and ends the same way for every role', () => {
 
 test('the grand tour is about twenty-five steps, more for those who may do more', () => {
   const n = Object.fromEntries(ROLES.map((role) => [role, grand(ctx({ role })).length]));
-  assert.deepEqual(n, { viewer: 23, contributor: 24, editor: 30, steward: 34 });
+  assert.deepEqual(n, { viewer: 24, contributor: 25, editor: 32, steward: 36 });
 });
 
 test('a viewer is told nothing about editing, and only stewards get the stewards\' chapter', () => {
   const viewer = grand(ctx()).map((s) => s.id);
-  for (const hidden of ['g-add', 'g-edit', 'g-fields', 'g-life', 'g-look', 'g-memory', 'g-export', 'g-access', 'g-share', 'g-viewas', 'g-games']) assert.ok(!viewer.includes(hidden), hidden);
+  for (const hidden of ['g-add', 'g-edit', 'g-fields', 'g-address', 'g-life', 'g-look', 'g-memory', 'g-export', 'g-access', 'g-share', 'g-viewas', 'g-games']) assert.ok(!viewer.includes(hidden), hidden);
   for (const role of ['viewer', 'contributor', 'editor'] as const) assert.ok(!chaptersFor(ctx({ role })).some((c) => c.id === 'stewards'), role);
   assert.equal(chaptersFor(ctx({ role: 'steward' })).at(-1)?.id, 'stewards');
 });

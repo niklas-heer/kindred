@@ -5,7 +5,7 @@ Kindred shows itself on the reader's own family. There are two tours, both under
 
 - **Welcome**: two or three minutes, eight steps (nine for a steward). What a relative who has just been invited needs
   on the first day. A new member is offered it once, in a corner of the tree, after they have said who they are.
-- **The grand tour**: every part of Kindred, in chapters (nine, and a tenth for stewards), about 25 to 35 steps
+- **The grand tour**: every part of Kindred, in chapters (nine, and a tenth for stewards), about 25 to 36 steps
   depending on the role. Each chapter can be skipped, the tour can be paused anywhere, and it carries on another day.
   A [public demo](self-host.md#a-public-demo) offers this one to its visitors instead of Welcome, because they came to see what
   Kindred does.
@@ -95,62 +95,64 @@ A chapter is left out for a reader none of whose steps remain (the stewards' cha
 | 11 | Everyday details (`g-everyday`) | `/person/$id` | `person-tab-everyday` | open the tab | everyone |
 | 12 | Editing (`g-edit`) | `/person/$id` | `person-tab-edit` | open the Edit tab | editors, stewards |
 | 13 | Fields that fold away (`g-fields`) | `/person/$id` | `person-edit` |  | editors, stewards |
-| 14 | Life events and sources (`g-life`) | `/person/$id` | `life-editor` |  | editors, stewards |
-| 15 | A portrait for everyone (`g-look`) | `/person/$id` | `person-appearance` |  | editors, stewards |
+| 14 | Addresses that complete themselves (`g-address`) | `/person/$id` | `address-finder`, `person-edit` |  | editors, stewards |
+| 15 | Life events and sources (`g-life`) | `/person/$id` | `life-editor` |  | editors, stewards |
+| 16 | A portrait for everyone (`g-look`) | `/person/$id` | `person-appearance` |  | editors, stewards |
 
 ### Chapter 4: Chronicle and Cookbook (`chronicle`)
 
 | # | Step | Page | Points at | Your turn | Shown to |
 |---|---|---|---|---|---|
-| 16 | Chronicle (`g-chronicle`) | `/chronicle` | `chronicle-bar`, `page-header` |  | everyone |
-| 17 | Add what you remember (`g-memory`) | `/chronicle` | `chronicle-add` |  | contributors and up |
-| 18 | Cookbook (`g-cookbook`) | `/cookbook` | `recipe-card`, `page-header` | open a recipe | everyone |
-| 19 | Cooking mode (`g-cook`) | where you are | `recipe-cook`, `recipe` |  | everyone |
+| 17 | Chronicle (`g-chronicle`) | `/chronicle` | `chronicle-bar`, `page-header` |  | everyone |
+| 18 | Add what you remember (`g-memory`) | `/chronicle` | `chronicle-add` |  | contributors and up |
+| 19 | Cookbook (`g-cookbook`) | `/cookbook` | `recipe-card`, `page-header` | open a recipe | everyone |
+| 20 | Cooking mode (`g-cook`) | where you are | `recipe-cook`, `recipe` |  | everyone |
 
 ### Chapter 5: Gallery and Contacts (`pictures`)
 
 | # | Step | Page | Points at | Your turn | Shown to |
 |---|---|---|---|---|---|
-| 20 | Gallery (`g-gallery`) | `/gallery` | `page-header` |  | everyone |
-| 21 | Contacts (`g-contacts`) | `/contacts` | `page-header` |  | everyone |
+| 21 | Gallery (`g-gallery`) | `/gallery` | `page-header` |  | everyone |
+| 22 | Who is this? (`g-whois`) | `/who-is-this` | `page-header` |  | everyone |
+| 23 | Contacts (`g-contacts`) | `/contacts` | `page-header` |  | everyone |
 
 ### Chapter 6: Atlas and Almanac (`places`)
 
 | # | Step | Page | Points at | Your turn | Shown to |
 |---|---|---|---|---|---|
-| 22 | Atlas (`g-atlas`) | `/atlas` | `page-header`, `atlas-handle` |  | everyone |
-| 23 | Almanac (`g-almanac`) | `/almanac` | `almanac-strip`, `page-header` |  | everyone |
+| 24 | Atlas (`g-atlas`) | `/atlas` | `page-header`, `atlas-handle` |  | everyone |
+| 25 | Almanac (`g-almanac`) | `/almanac` | `almanac-strip`, `page-header` |  | everyone |
 
 ### Chapter 7: Houses and arms (`houses`)
 
 | # | Step | Page | Points at | Your turn | Shown to |
 |---|---|---|---|---|---|
-| 24 | Houses (`g-houses`) | `/houses` | `page-header` |  | everyone |
-| 25 | A coat of arms (`g-arms`) | `/house/$house` | `house-arms` |  | everyone |
+| 26 | Houses (`g-houses`) | `/houses` | `page-header` |  | everyone |
+| 27 | A coat of arms (`g-arms`) | `/house/$house` | `house-arms` |  | everyone |
 
 ### Chapter 8: The Campaign (`campaign`)
 
 | # | Step | Page | Points at | Your turn | Shown to |
 |---|---|---|---|---|---|
-| 26 | The Campaign (`g-campaign`) | `/campaign` | `page-header` |  | everyone |
-| 27 | Try a practice run (`g-practice`) | `/campaign` | `campaign-practice` |  | everyone |
+| 28 | The Campaign (`g-campaign`) | `/campaign` | `page-header` |  | everyone |
+| 29 | Try a practice run (`g-practice`) | `/campaign` | `campaign-practice` |  | everyone |
 
 ### Chapter 9: Keep and share (`keep`)
 
 | # | Step | Page | Points at | Your turn | Shown to |
 |---|---|---|---|---|---|
-| 28 | Print and the family book (`g-print`) | `/print` | `page-header` |  | everyone |
-| 29 | Export (`g-export`) | `/settings/import` | `export`, `page-header` |  | editors, stewards |
-| 30 | History (`g-history`) | `/history` | `page-header` |  | everyone |
+| 30 | Print and the family book (`g-print`) | `/print` | `page-header` |  | everyone |
+| 31 | Export (`g-export`) | `/settings/import` | `export`, `page-header` |  | editors, stewards |
+| 32 | History (`g-history`) | `/history` | `page-header` |  | everyone |
 
 ### Chapter 10: For stewards (`stewards`)
 
 | # | Step | Page | Points at | Your turn | Shown to |
 |---|---|---|---|---|---|
-| 31 | Access (`g-access`) | `/access` | `access-invite`, `page-header` |  | stewards |
-| 32 | Share links (`g-share`) | `/access` | `share-links` |  | stewards |
-| 33 | View as (`g-viewas`) | `/access` | `view-as` |  | stewards |
-| 34 | Games (`g-games`) | `/settings/games` | `page-header` |  | stewards |
+| 33 | Access (`g-access`) | `/access` | `access-invite`, `page-header` |  | stewards |
+| 34 | Share links (`g-share`) | `/access` | `share-links` |  | stewards |
+| 35 | View as (`g-viewas`) | `/access` | `view-as` |  | stewards |
+| 36 | Games (`g-games`) | `/settings/games` | `page-header` |  | stewards |
 
 ## Adding or changing a step
 

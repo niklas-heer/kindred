@@ -83,7 +83,7 @@ export function AddressFinder({ tree, value, onChange, onPick, onBlur, label, la
   };
 
   return (
-    <div className="af">
+    <div className="af" data-tour="address-finder">
       <SuggestInput value={value} onChange={onChange} onPick={pick} onBlur={onBlur} options={options} label={label} labelledBy={labelledBy} describedBy={online ? noteId : undefined} placeholder={placeholder ?? t('addr.placeholder')} listLabel={t('places.suggestedAria')} />
       {online && <small className="subtle af-where af-tools" id={noteId}>{t('addr.onlineNote')}</small>}
       {family && relatives.length > 0 && (
