@@ -67,11 +67,14 @@ on OpenStreetMap through komoot's Photon service by your server. Set it to `off`
   The old shared seasons are closed and kept as "Seasons of old"; the Campaign's nightly job and its push are gone. See
   [docs/campaign.md](docs/campaign.md). The weekly table is a family honour board: the server refuses impossible scores,
   and each reign has its own dice. A server without `KINDRED_SECRET` lets members play but ranks no reign.
+  A reign in progress survives a reload or a visit to another page in the same tab, and leaving it asks first.
 - **Hair, beards and moustaches are redrawn** for every drawn portrait: each hairstyle is its own shape, with four new
   short cuts. A beard is chosen by coverage, length and cut, and the moustache separately. Hair and beard can take any
   colour, by picker or `#rrggbb` code. The editor shows about twenty hairstyles first and the rest under "More". Only the
   hair and beard of existing portraits change (a test holds everything else to the old drawing); a stored full beard with
   the moustache set to "none" now shows a shaven upper lip.
+  The short cuts (cropped, short, side part, swept, slicked back, pixie, undercut, textured crop) each have a
+  silhouette of their own, so they can be told apart at a glance.
 - **The Edit tab is compact.** Each field shows as one line, and only the one you are editing opens.
 
 ## [2.1.0] - 2026-11-11
