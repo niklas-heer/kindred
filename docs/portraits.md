@@ -94,6 +94,11 @@ What changed, and what did not:
 - Each hairstyle is now its own silhouette (`src/components/portrait/hair.ts`): an uneven outer edge, a hairline with
   temples and sideburns, a rim only where hair meets skin, the shadow of the fringe, a highlight. At list size it is the
   silhouette alone. A hat presses the hair down: nothing shows above it.
+  The short cuts each have one cue that still reads on a tile: cropped hugs the skull under a straight hairline with
+  square temples, short has a soft fringe, a side part shows its parting as a wedge of scalp beside the higher side,
+  swept lays a fringe across the forehead, slicked is flat and glossy over a high forehead, a pixie has a choppy fringe
+  and a wisp at each ear, an undercut is a slab over shaved sides, a textured crop stands up in spikes. (The fixture
+  was printed a second time for the cases wearing these eight cuts, in the same release as the redraw.)
 - A beard follows the face's own jaw (`beard.ts`), is drawn behind the lips with the mouth left open in its shape, and
   stops at the corners of the mouth. The moustache is drawn above the lips.
 - **Stored ids keep their meaning.** A stored `long` beard is still a long full beard: `short`, `long` and `vandyke` are

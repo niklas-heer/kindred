@@ -12,7 +12,8 @@
 // beards were redrawn"), and every print was taken again. So that the redraw could not move anything else, a second
 // fixture, portrait-frozen-rest.fixture.json, keeps the prints of the same cases drawn without those three layers, taken
 // from the drawing as it was before: with them left out, old and new drawings are the same bytes. That file is never
-// rewritten. Cases added after it was taken (section 7) have no print in it.
+// rewritten. Cases added after it was taken (section 7) have no print in it. (Before that redraw was released, the eight
+// short cuts were told apart better, and the prints of the cases wearing them were taken once more.)
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
