@@ -161,6 +161,10 @@ test('campaign: a steward turns it on, plays a reign to the table, and a practic
   await page.getByRole('button', { name: 'Practice', exact: true }).first().click();
   await expect(page.getByRole('heading', { name: 'Practice reign', level: 1 })).toBeVisible();
   await page.getByRole('button', { name: 'On to the orders' }).click();
+  // Levy left after "On to the orders": the Reinforce step goes back to placing.
+  await page.getByRole('button', { name: /^Back to placing: \d+ troops? of the levy/ }).click();
+  await expect(page.getByRole('heading', { name: /^Place your levy/ })).toBeVisible();
+  await page.getByRole('button', { name: 'On to the orders' }).click();
   await page.getByRole('button', { name: 'End the turn' }).click();
   await expect(page.getByRole('heading', { name: 'Turn 2 of 12' })).toBeVisible();
   await checkAxe(page, 'campaign, practice');
