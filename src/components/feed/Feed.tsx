@@ -11,7 +11,7 @@
 // then at the press of a button, so the end of the page stays reachable.
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Baby, FileInput, Images, PencilLine, ScrollText, Swords, UserPlus } from 'lucide-react';
+import { Baby, FileInput, Images, Lock, PencilLine, ScrollText, Swords, UserPlus } from 'lucide-react';
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EAGER_FACES, StoryCard, type StoryTranslation } from '~/components/chronicle/StoryCard';
 import { GameIcon } from '~/components/GameIcon';
@@ -284,6 +284,7 @@ function UpdatesEntry({ item, f, tree, now }: { item: Extract<FeedItem, { type: 
   return (
     <Quiet icon={item.imported && !people.length ? <FileInput size={16} /> : <PencilLine size={16} />} after={<>{list}{responses}</>}>
       {lines.map((l, i) => <Fragment key={i}>{i > 0 ? ' ' : null}{l}</Fragment>)}
+      {item.editors ? <small className="subtle fd-editors" title={t('field.vis.editorsHint')}><Lock size={12} aria-hidden /> {t('field.vis.editors')}</small> : null}
       <When at={item.at} now={now} t={t} />
     </Quiet>
   );

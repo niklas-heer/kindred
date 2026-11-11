@@ -87,7 +87,9 @@ message ([responses.md](responses.md)): people added, a day's updates, a birthda
 is a new one).
 
 Private research, editors' notes and Personal fields are in none of these. Updates come from the change history and are
-read at its levels ([roles-and-privacy.md](roles-and-privacy.md#change-history-and-whats-new)): an update to something only editors read is in an editor's feed alone.
+read at its levels ([roles-and-privacy.md](roles-and-privacy.md#change-history-and-whats-new)): an update to something only editors read is in an editor's feed alone,
+as an entry of its own beside the day's other one, marked "Editors", with its own reactions and comments. A viewer can
+neither read nor answer that thread, and the entry every member reads is the same for an editor.
 An address, which starts at the editors' level, is news to editors until it is shared with the family. A share-link
 guest reads no feed at all, so no contact detail or event reaches one; "Protect living people" has nothing to hide from
 a member.

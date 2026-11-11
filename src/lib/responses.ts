@@ -10,12 +10,16 @@ export const TARGET_KINDS = ['story', 'media', 'post', 'event'] as const satisfi
 
 /**
  * An event's key, as the feed gives it:
- *   updates:<day>|<author>   one member's changes to the family's records on one day (feed.server.ts)
+ *   updates:<day>|<author>   one member's changes to the family's records on one day (feed.server.ts) that every member reads
+ *   updates:<day>|<author>|e the same member's changes of that day to what only editors read: an entry, and a thread, of its own
  *   people:<day>|<author>    the people one member added on one day; <author> is a key, never an account id
  *   b:<person>:<year>        a birthday today; a new year is a new day to celebrate
  *   a:<partnership>:<year>   a wedding anniversary today
  */
-export const EVENT_TARGET = /^(?:(?:updates|people):\d{4}-\d{2}-\d{2}\|[a-z0-9.-]{1,120}|[ba]:[^\s:|]{1,100}:\d{4})$/;
+export const EVENT_TARGET = /^(?:updates:\d{4}-\d{2}-\d{2}\|[a-z0-9.-]{1,120}(?:\|e)?|people:\d{4}-\d{2}-\d{2}\|[a-z0-9.-]{1,120}|[ba]:[^\s:|]{1,100}:\d{4})$/;
+
+/** Whether an event's key is an entry only editors read (`updates:…|e`): its reactions and comments are theirs alone. */
+export const editorsEvent = (target: string) => target.startsWith('updates:') && target.endsWith('|e');
 
 /**
  * A reaction is one emoji, like a chat's: a heart, a laugh, a candle for the one remembered. Stored as the emoji itself

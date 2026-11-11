@@ -301,9 +301,15 @@ test('a day of one member’s updates is one event, person by person: contact de
     { id: null, contact: [], details: [], events: 0, sources: 1, portrait: false, tagged: 0 },
   ], 'the address is for editors; the Personal note and the removal are in nobody’s');
   assert.doesNotMatch(JSON.stringify(ofViewer), /\+44|Leeds/, 'no value travels');
-  const forEditor = ofEditor.find((i) => i.type === 'updates' && i.by === 'Mara Alder');
-  assert.ok(forEditor && forEditor.type === 'updates');
-  assert.deepEqual(forEditor.people[0]!.contact, ['phone', 'address'], 'an editor reads the address’s news');
+  // An editor reads the same entry, and the address's news as an entry of its own, with a thread of its own.
+  const forEditor = ofEditor.filter((i) => i.type === 'updates' && i.by === 'Mara Alder');
+  assert.deepEqual(forEditor.map((i) => i.key).sort(), [mine.key, `${mine.key}|e`]);
+  const shared = forEditor.find((i) => i.key === mine.key)!;
+  assert.ok(shared.type === 'updates' && !shared.editors);
+  assert.deepEqual(shared.people, mine.people, 'the entry every member reads is the same for an editor');
+  const onlyEditors = forEditor.find((i) => i.key === `${mine.key}|e`)!;
+  assert.ok(onlyEditors.type === 'updates' && onlyEditors.editors && onlyEditors.target === onlyEditors.key);
+  assert.deepEqual(onlyEditors.people, [{ id: 'ben', contact: ['address'], details: [], events: 0, sources: 0, portrait: false, tagged: 0 }]);
   const eda1 = ofViewer.find((i) => i.type === 'updates' && i.by === 'Eda Editor');
   assert.ok(eda1 && eda1.type === 'updates');
   assert.deepEqual(eda1.people, [{ id: 'cleo', contact: [], details: ['nickname'], events: 0, sources: 0, portrait: false, tagged: 0 }]);
@@ -316,6 +322,19 @@ test('a day of one member’s updates is one event, person by person: contact de
   await assert.rejects(R.react(t, viewer, 'event', `updates:2026-01-01|${await H.authorKey(t, mara.id)}`, '🎉', true), /responses\.err\.gone/);
   await assert.rejects(R.react(t, viewer, 'event', `updates:${d}|0000000000000000`, '🎉', true), /responses\.err\.gone/);
   await assert.rejects(R.react(t, viewer, 'event', 'updates:nonsense', '🎉', true), /responses\.err\.gone/);
+  // The editors' entry: an editor reacts and comments, and reads both; a viewer can neither react, nor comment, nor read it.
+  const secret = `${mine.key}|e`;
+  assert.deepEqual(await R.react(t, eda, 'event', secret, '👀', true), { added: true });
+  await R.addComment(t, eda, 'event', secret, 'The new address is in.');
+  assert.deepEqual((await R.thread(t, eda, 'event', secret)).comments.map((c) => c.body), ['The new address is in.']);
+  assert.deepEqual((await R.responseCounts(t, eda))[`event:${secret}`], { reactions: { '👀': 1 }, mine: ['👀'], comments: 1 });
+  assert.deepEqual((await R.thread(t, eda, 'event', mine.target)).comments.map((c) => c.body), ['Thanks for the update!'], 'the threads are apart');
+  await assert.rejects(R.react(t, viewer, 'event', secret, '🎉', true), /responses\.err\.gone/);
+  await assert.rejects(R.addComment(t, mara, 'event', secret, 'Where?'), /responses\.err\.gone/);
+  assert.deepEqual(await R.thread(t, viewer, 'event', secret), { comments: [], reactors: {} });
+  assert.equal((await R.responseCounts(t, viewer))[`event:${secret}`], undefined, 'not even a count');
+  // A key of the editors' level stands only on editors-level rows, and the plain key only on the family's.
+  await assert.rejects(R.react(t, eda, 'event', `updates:${d}|${await H.authorKey(t, eda.id)}|e`, '👀', true), /responses\.err\.gone/);
   // A birthday or an anniversary today, keyed by the year: the person or the couple must be there.
   assert.deepEqual(await R.react(t, viewer, 'event', 'b:cleo:2026', '🎂', true), { added: true });
   await assert.rejects(R.react(t, viewer, 'event', 'b:nobody:2026', '🎂', true), /responses\.err\.gone/);

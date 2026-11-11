@@ -19,6 +19,7 @@ import { STALE_DAYS, envSetting, subscriptionFrom, vapidFrom, type PushRow } fro
 import {
   EVENT_TARGET,
   MAX_COMMENT,
+  editorsEvent,
   MAX_REACTIONS,
   cleanComment,
   reactionOf,
@@ -46,6 +47,12 @@ function needs(who: Who, action: 'react' | 'comment' | 'remove-comment') {
   if (!can(who.role, action)) throw fail(forbidden(action, action === 'react' ? 'viewer' : action === 'comment' ? 'contributor' : 'editor'));
 }
 
+/**
+ * Whether this member may read what is said about a target: an editors-only event (`editorsEvent`) only for those who
+ * read the editors' level of the history (feed.server.ts), as its entry is in nobody else's feed.
+ */
+const mayRead = (who: Who, kind: TargetKind, target: string) => kind !== 'event' || !editorsEvent(target) || can(who.role, 'edit-person');
+
 const EXISTS: Record<Exclude<TargetKind, 'event'>, string> = {
   story: 'EXISTS (SELECT 1 FROM story WHERE id = ?)',
   media: 'EXISTS (SELECT 1 FROM media WHERE key = ?)',
@@ -55,10 +62,13 @@ const EXISTS: Record<Exclude<TargetKind, 'event'>, string> = {
 /**
  * What an event's key stands for, as a condition the batch can restate: the day's history rows for an entry of changes or
  * of people added (`EVENT_TARGET`), the person whose birthday it is, the couple whose anniversary it is. Null for a key
- * that names nothing there is: no row in the history of that day by that author, nobody of that id.
+ * that names nothing there is: no row in the history of that day by that author at the entry's level, nobody of that id.
  */
 async function eventThere(d: Db, tree: string, target: string): Promise<[string, ...(string | number)[]] | null> {
   if (!EVENT_TARGET.test(target)) return null;
+  // An editors' entry stands on that day's editors-level rows, any other on the family-level ones: the rows its readers see.
+  const level = editorsEvent(target) ? 'editors' : 'family';
+  if (level === 'editors') target = target.slice(0, -2);
   const [kind, rest] = [target.slice(0, target.indexOf(':')), target.slice(target.indexOf(':') + 1)];
   if (kind === 'b' || kind === 'a') {
     const id = rest.slice(0, rest.lastIndexOf(':'));
@@ -66,21 +76,23 @@ async function eventThere(d: Db, tree: string, target: string): Promise<[string,
     return (await d.get<{ ok: number }>(`SELECT ${sql} AS ok`, id))?.ok ? [sql, id] : null;
   }
   const [day, author] = rest.split('|') as [string, string];
-  const range = [day, `${day}U`] as const;
+  const range = [day, `${day}U`, level] as const;
   // A row of Kindred itself (an import by a script) has no account; its entries are keyed by the name it showed.
   if (author.startsWith('-')) {
-    const sql = 'EXISTS (SELECT 1 FROM history WHERE at >= ? AND at < ? AND account IS NULL)';
+    const sql = 'EXISTS (SELECT 1 FROM history WHERE at >= ? AND at < ? AND level = ? AND account IS NULL)';
     return (await d.get<{ ok: number }>(`SELECT ${sql} AS ok`, ...range))?.ok ? [sql, ...range] : null;
   }
-  const accounts = await d.all<{ account: string }>('SELECT DISTINCT account FROM history WHERE at >= ? AND at < ? AND account IS NOT NULL', ...range);
+  const accounts = await d.all<{ account: string }>('SELECT DISTINCT account FROM history WHERE at >= ? AND at < ? AND level = ? AND account IS NOT NULL', ...range);
   for (const { account } of accounts) {
-    if ((await authorKey(tree, account)) === author) return ['EXISTS (SELECT 1 FROM history WHERE at >= ? AND at < ? AND account = ?)', ...range, account];
+    if ((await authorKey(tree, account)) === author) return ['EXISTS (SELECT 1 FROM history WHERE at >= ? AND at < ? AND level = ? AND account = ?)', ...range, account];
   }
   return null;
 }
 
 /** The condition that the target is there, for the batch's guard, or null when it is not. */
-async function targetGuard(d: Db, tree: string, kind: TargetKind, target: string): Promise<[string, ...(string | number)[]] | null> {
+async function targetGuard(d: Db, tree: string, who: Who, kind: TargetKind, target: string): Promise<[string, ...(string | number)[]] | null> {
+  // One who may not read it finds nothing there, as their feed has no such entry.
+  if (!mayRead(who, kind, target)) return null;
   if (kind === 'event') return eventThere(d, tree, target);
   return (await d.get<{ ok: number }>(`SELECT ${EXISTS[kind]} AS ok`, target))?.ok ? [EXISTS[kind], target] : null;
 }
@@ -100,11 +112,12 @@ export async function responseCounts(tree: string, who: Who): Promise<ResponseCo
   const out: ResponseCounts = {};
   const at = (kind: TargetKind, target: string) => (out[targetKey(kind, target)] ??= { reactions: {}, mine: [], comments: 0 });
   for (const r of reactions) {
+    if (!mayRead(who, r.target_kind, r.target)) continue;
     const s = at(r.target_kind, r.target);
     s.reactions[r.kind] = r.n;
     if (r.mine) s.mine.push(r.kind);
   }
-  for (const c of comments) at(c.target_kind, c.target).comments = c.n;
+  for (const c of comments) if (mayRead(who, c.target_kind, c.target)) at(c.target_kind, c.target).comments = c.n;
   return out;
 }
 
@@ -113,6 +126,7 @@ interface CommentRow { id: string; account: string; author_name: string; body: s
 /** A target's comments, oldest first, with the portrait of who each author stands for, and the names behind each reaction. */
 export async function thread(tree: string, who: Who, kind: TargetKind, target: string): Promise<Thread> {
   needsMember(who);
+  if (!mayRead(who, kind, target)) return { comments: [], reactors: {} };
   const [rows, given] = await db(tree).readBatch([
     q('SELECT id, account, author_name, body, created_at, edited_at FROM comment WHERE target_kind = ? AND target = ? ORDER BY created_at, id', kind, target),
     q('SELECT account, kind FROM reaction WHERE target_kind = ? AND target = ? ORDER BY created_at, rowid', kind, target),
@@ -174,7 +188,7 @@ export async function react(tree: string, who: Who, kind: TargetKind, target: st
     if (!on) {
       return { writes: [q('DELETE FROM reaction WHERE target_kind = ? AND target = ? AND account = ? AND kind = ?', kind, target, who.id, reaction)], history: NOT_A_RECORD, result: { added: false } };
     }
-    const there = await targetGuard(d, tree, kind, target);
+    const there = await targetGuard(d, tree, who, kind, target);
     if (!there) throw new Error('responses.err.gone');
     const given = await d.all<{ kind: string }>('SELECT kind FROM reaction WHERE target_kind = ? AND target = ? AND account = ?', kind, target, who.id);
     const had = given.some((r) => r.kind === reaction);
@@ -204,7 +218,7 @@ export async function addComment(tree: string, who: Who, kind: TargetKind, targe
   needs(who, 'comment');
   const body = bodyOf(text);
   return once(tree, op, 'addComment', async (d) => {
-    const there = await targetGuard(d, tree, kind, target);
+    const there = await targetGuard(d, tree, who, kind, target);
     if (!there) throw new Error('responses.err.gone');
     const id = crypto.randomUUID();
     return {

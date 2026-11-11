@@ -54,7 +54,7 @@ const NEWBORN_DAYS = 366;
 interface StoryRow { id: string; person: string; kind: 'note' | 'quote' | 'anecdote' | 'recipe' | 'memory'; title: string | null; body: string; author: string; at: string; context: string | null; week: string | null }
 interface MediaRow { key: string; width: number; height: number; album: string | null; album_name: string | null; uploaded_by: string; uploaded_at: string }
 interface AddedRow { at: string; account: string | null; name: string; person: string; born: string | null }
-interface UpdateRow { at: string; account: string | null; name: string; kind: string; action: string; record: string; person: string | null; fields: string | null; count: number; field_type: string | null }
+interface UpdateRow { at: string; account: string | null; name: string; level: string; kind: string; action: string; record: string; person: string | null; fields: string | null; count: number; field_type: string | null }
 interface SeasonRow { season: number; ended: string; winner: string | null }
 
 /** What a source found: its entries, and how far down it looked when it could not look at everything (else null). */
@@ -108,11 +108,11 @@ function photoEntries(rows: MediaRow[], partial: boolean, names: Map<string, Fee
 const authorPart = (keys: Map<string, string>, r: { account: string | null; name: string }) =>
   r.account ? keys.get(r.account)! : `-${[...r.name].map((ch) => ch.codePointAt(0)!.toString(36)).join('.')}`;
 
-/** Rows grouped by day and author, newest group first (the rows come newest first). */
-function byDayAndAuthor<R extends { at: string; account: string | null; name: string }>(rows: R[], keys: Map<string, string>): Map<string, R[]> {
+/** Rows grouped by day and author (and by what `extra` adds to the key), newest group first (the rows come newest first). */
+function byDayAndAuthor<R extends { at: string; account: string | null; name: string }>(rows: R[], keys: Map<string, string>, extra: (r: R) => string = () => ''): Map<string, R[]> {
   const groups = new Map<string, R[]>();
   for (const r of rows) {
-    const k = `${day(r.at)}|${authorPart(keys, r)}`;
+    const k = `${day(r.at)}|${authorPart(keys, r)}${extra(r)}`;
     const g = groups.get(k);
     if (g) g.push(r);
     else groups.set(k, [r]);
@@ -146,7 +146,8 @@ function detailsOf(fields: string | null): string[] {
 
 function updateEntries(rows: UpdateRow[], keys: Map<string, string>): FeedItem[] {
   const out: FeedItem[] = [];
-  for (const [k, g] of byDayAndAuthor(rows, keys)) {
+  // What only editors read is an entry of its own (`|e`, responses.ts), so its reactions and comments never reach a viewer.
+  for (const [k, g] of byDayAndAuthor(rows, keys, (r) => (r.level === 'editors' ? '|e' : ''))) {
     const people = new Map<string | null, UpdatePerson & { seen: Set<string> }>();
     let imported = 0;
     const of = (id: string | null) => {
@@ -179,6 +180,7 @@ function updateEntries(rows: UpdateRow[], keys: Map<string, string>): FeedItem[]
     out.push({
       type: 'updates', at: g[0]!.at, key: `updates:${k}`, target: `updates:${k}`, by: g[0]!.name,
       people: said.slice(0, UPDATES_NAMED), count: said.filter((p) => p.id !== null).length, imported,
+      ...(g[0]!.level === 'editors' ? { editors: true as const } : {}),
     });
   }
   return out;
@@ -209,7 +211,7 @@ export async function feedPage(tree: string, who: Who, cursor?: string | null, l
        WHERE m.uploaded_at < ? AND m.for_post = 0 ORDER BY m.uploaded_at DESC, m.key LIMIT ?`, upper, PHOTO_WINDOW),
     q(`SELECT h.at, h.account, h.name, h.person, p.born FROM history h JOIN person p ON p.id = h.person
        WHERE h.kind = 'person' AND h.action = 'added' AND h.level = 'family' AND h.at < ? ORDER BY h.at DESC, h.id DESC LIMIT ?`, upper, PEOPLE_WINDOW),
-    q(`SELECT h.at, h.account, h.name, h.kind, h.action, h.record, h.person, h.fields, h.count, pf.type AS field_type
+    q(`SELECT h.at, h.account, h.name, h.level, h.kind, h.action, h.record, h.person, h.fields, h.count, pf.type AS field_type
        FROM history h LEFT JOIN person_field pf ON h.kind = 'field' AND pf.id = h.record
        WHERE h.at < ? AND h.action <> 'removed' AND ${updatesLevel}
          AND (h.kind IN ('field', 'event', 'citation', 'source', 'portrait', 'tag', 'import') OR (h.kind = 'person' AND h.action = 'changed'))

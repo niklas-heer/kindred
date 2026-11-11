@@ -59,7 +59,8 @@ Kindred, never one the browser sends; when the writer stands for someone in the 
 - A person's Stories tab: under each story.
 - The gallery: a tile shows its number of reactions and comments; the photo's own window has the reactions and the thread.
 - The family's feed on Today, and a person's Stories tab: under each message and each memory; on Today also under each
-  event, as a smaller row.
+  event, as a smaller row. An event only editors read (a day's updates to an address, say) has its reactions and comments
+  for editors alone: the server answers anyone else as if it were not there, and leaves it out of their counts.
 
 The counts for a whole page come from one request that makes two reads of the family database, however many entries there are.
 
