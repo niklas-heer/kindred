@@ -31,6 +31,8 @@ import { NoAccessPage } from '~/components/NoAccess';
 import { useCan, useSession } from '~/lib/session';
 import { useFamily } from '~/lib/family';
 import { useStatsBeacon } from '~/lib/stats/beacon';
+import { PresenceHost } from '~/components/presence/PresenceHost';
+import { HereNow, PageFaces } from '~/components/presence/Faces';
 import { setPref, THEMES, usePref } from '~/lib/prefs';
 import { treeTitle } from '~/lib/title';
 import { arrivedIn, leftFamily, opensOnToday } from '~/lib/today/opening';
@@ -164,6 +166,7 @@ function TreeLayout() {
   }, [f]);
 
   return (
+    <PresenceHost tree={tree}>
     <div className={viewAs ? 'shell shell-viewas' : 'shell'}>
       <a href="#main" className="skip-link" onClick={(e) => { e.preventDefault(); document.getElementById('main')?.focus(); }}>{t('shell.skip')}</a>
       <ViewAsBar tree={tree} familyName={previewed} />
@@ -218,12 +221,14 @@ function TreeLayout() {
           </span>
           <LanguagePicker />
         </span>
+        <HereNow />
         <AccountMenu familyName={f.graph.tree.name} />
         <GuestChip />
       </header>
       <MainContext.Provider value>
         <main id="main" className="shell-main" tabIndex={-1}><Outlet /></main>
       </MainContext.Provider>
+      <PageFaces />
       {/* Phones: the sections move to a bar along the bottom edge. */}
       <nav className="tabbar" aria-label={t("shell.sections")}>
         {/* Five places. A member: Today (the family's feed), the tree, the Gallery, Contacts, and More, where the Chronicle
@@ -261,6 +266,7 @@ function TreeLayout() {
       <ViewAsHost tree={tree} />
       <Toasts />
     </div>
+    </PresenceHost>
   );
 }
 

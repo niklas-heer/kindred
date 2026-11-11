@@ -16,6 +16,8 @@ import type { Detail } from './Canvas';
 import { GameIcon } from './GameIcon';
 import { Arms, shieldColours } from './Heraldry';
 import { Portrait } from './Portrait';
+import { CardWatchers, watchedStyle } from './presence/Faces';
+import type { Present } from '~/lib/presence/shared';
 import './card.css';
 
 export type AddRelation = 'parent' | 'child' | 'partner' | 'sibling';
@@ -38,9 +40,11 @@ interface Props {
   onOpen?: (id: string) => void;
   onToggle?: (id: string) => void;
   onAdd?: (id: string, r: AddRelation, sex?: 'm' | 'f') => void;
+  /** Other members who have this person selected right now (live presence): a soft halo in their colour. */
+  watchers?: Present[];
 }
 
-export const Card = memo(function Card({ node, detail, family: f, tree, kin, kinSpoken, selected, isMe, nameMode = 'full', ageMode = 'living', onSelect, onOpen, onToggle, onAdd }: Props) {
+export const Card = memo(function Card({ node, detail, family: f, tree, kin, kinSpoken, selected, isMe, nameMode = 'full', ageMode = 'living', onSelect, onOpen, onToggle, onAdd, watchers }: Props) {
   const [required] = useRequired(tree);
   const role = useRole();
   const t = useT();
@@ -124,8 +128,8 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, kin
     const founder = house?.founder === p.id;
     const founderText = founder ? t('card.founderOf', { house: house!.name }) : '';
     const farColour = shieldColours(house?.arms);
-    const shieldClass = `card far${selected ? ' selected' : ''}${p.living ? ' living' : ' dead'}${isMe ? ' me' : ''}${ruler ? ' crowned' : ''}${founder ? ' founder' : ''}`;
-    const shieldStyle = { ['--house' as string]: farColour.house, ['--house-ink' as string]: farColour.ink };
+    const shieldClass = `card far${selected ? ' selected' : ''}${p.living ? ' living' : ' dead'}${isMe ? ' me' : ''}${ruler ? ' crowned' : ''}${founder ? ' founder' : ''}${watchers?.length ? ' watched' : ''}`;
+    const shieldStyle = { ['--house' as string]: farColour.house, ['--house-ink' as string]: farColour.ink, ...watchedStyle(watchers) };
     const face = (
       <>
         {ruler && <GameIcon name="crown" size={84} className="far-crown" />}
@@ -146,7 +150,8 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, kin
       const short = personDisplayName(p, nameMode === 'nickname' ? 'nickname' : 'first', f);
       return (
         <button
-          className={`seal${selected ? ' selected' : ''}${node.role === 'dup' ? ' dup' : ''}`}
+          className={`seal${selected ? ' selected' : ''}${node.role === 'dup' ? ' dup' : ''}${watchers?.length ? ' watched' : ''}`}
+          style={watchedStyle(watchers)}
           onClick={() => onSelect(p.id)}
           onDoubleClick={() => onOpen?.(p.id)}
           title={[name, years, founderText].filter(Boolean).join(' · ')}
@@ -183,7 +188,8 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, kin
   const base = epithet ? name.slice(0, -epithet.length - 1) : name;
   const canFold = !!onToggle && !!(node.folded || (f.childrenOf.get(p.id)?.length && node.role === 'main'));
   return (
-    <div className={`card ${detail}${selected ? ' selected' : ''}${roleClass}${p.living ? ' living' : ' dead'}${ruler ? ' crowned' : ''}`}>
+    <div className={`card ${detail}${selected ? ' selected' : ''}${roleClass}${p.living ? ' living' : ' dead'}${ruler ? ' crowned' : ''}${watchers?.length ? ' watched' : ''}`} style={watchedStyle(watchers)}>
+      {watchers?.length ? <CardWatchers watchers={watchers} name={name} /> : null}
       <button className="card-hit" onClick={() => onSelect(p.id)} onDoubleClick={() => onOpen?.(p.id)} title={t('card.clickToSelect', { name })} {...mark}>
         <div className="card-portrait">
           <Portrait person={p} tree={tree} size={detail === 'near' ? 104 : 84} decorative />

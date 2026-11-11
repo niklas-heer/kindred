@@ -36,6 +36,7 @@ import * as panelArea from "./areas/panel.ts";
 import * as photosArea from "./areas/photos.ts";
 import * as portraitArea from "./areas/portrait.ts";
 import * as printArea from "./areas/print.ts";
+import * as presenceArea from "./areas/presence.ts";
 import * as profileArea from "./areas/profile.ts";
 import * as proofArea from "./areas/proof.ts";
 import * as remindersArea from "./areas/reminders.ts";
@@ -71,6 +72,7 @@ export const AREAS = [
   portraitArea,
   characterArea,
   profileArea,
+  presenceArea,
   proofArea,
   atlasArea,
   almanacArea,

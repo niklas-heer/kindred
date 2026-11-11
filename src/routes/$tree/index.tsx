@@ -37,6 +37,8 @@ import { PanelSheet } from '~/components/tree/PanelSheet';
 import { DisplaySheet, TreeToolbar } from '~/components/tree/TreeToolbar';
 import { TreeTrail } from '~/components/tree/TreeTrail';
 import { FoldButtons, HouseSelect, ViewSteppers } from '~/components/tree/ViewControls';
+import { useWatchers } from '~/components/presence/Faces';
+import { setSelectedPerson } from '~/components/presence/editing';
 import '~/styles/tree.css';
 
 export const Route = createFileRoute('/$tree/')({
@@ -241,6 +243,11 @@ function TreePage() {
 
   // ---- kinship labels, computed lazily for the cards on screen ----
   const { kinFor, kinOf } = useKinLabels(f, who);
+  // Who else has someone selected right now (live presence): their card gets a soft halo.
+  const watchers = useWatchers();
+  // And this reader's own selection, for theirs (only the id, and only while they share it: PresenceHost decides).
+  useEffect(() => { setSelectedPerson(sel); }, [sel]);
+  useEffect(() => () => setSelectedPerson(null), []);
 
   const toggle = useCallback((id: string) => (play('page'), setCollapsed((c) => toggled(c, id))), []);
 
@@ -270,9 +277,10 @@ function TreePage() {
         onOpen={refocus}
         onToggle={view === 'dynasty' || (view === 'family' && n.row > 0 && n.role === 'main') ? toggle : undefined}
         onAdd={canAdd ? (anchor, relation, sex) => setAdding({ anchor, relation, sex }) : undefined}
+        watchers={watchers.get(n.id)}
       />
     ),
-    [f, tree, kinOf, kinFor, t.locale, sel, who, view, select, refocus, toggle, canAdd, nameMode, ageMode],
+    [f, tree, kinOf, kinFor, t.locale, sel, who, view, select, refocus, toggle, canAdd, nameMode, ageMode, watchers],
   );
 
   // ---- keyboard: walking the tree is said aloud, and focus goes with the selection ----

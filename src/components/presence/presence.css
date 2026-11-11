@@ -1,0 +1,63 @@
+/* Live presence (Faces.tsx). Each member has a steady hue (--presence-hue); everything here is quiet: a ring, a halo, a fade. */
+.presence-face {
+  --ring: hsl(var(--presence-hue, 40) 60% 55%);
+  display: inline-grid; place-items: center; flex: none; border-radius: 50%; overflow: hidden;
+  background: var(--panel-2); box-shadow: 0 0 0 2px var(--ring), 0 0 0 3px var(--bg);
+}
+.presence-face > * { width: 100%; height: 100%; }
+.presence-face svg, .presence-face img { width: 100%; height: 100%; object-fit: cover; }
+.presence-initial { display: grid; place-items: center; font-size: 0.75em; font-weight: 700; color: var(--text); line-height: 1; }
+.presence-face .presence-initial { font-size: 0.75rem; }
+.presence-stack { display: inline-flex; align-items: center; }
+.presence-stack > .presence-face + .presence-face { margin-left: -6px; }
+.presence-more { margin-left: 4px; font-size: var(--fs-1, 0.75rem); color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.presence-here {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 8px; flex: none;
+  background: none; border: 0; border-radius: 22px; color: var(--muted); font: inherit; font-size: var(--fs-2, 0.8125rem); cursor: pointer;
+  animation: presence-in 400ms ease-out;
+}
+.presence-here:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.presence-here.presence-quiet { opacity: 0.8; }
+.presence-label { white-space: nowrap; }
+/* On a phone the faces say it; the words stay as the button's name. */
+@media (max-width: 760px) {
+  .presence-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .presence-here { padding: 0 4px; }
+}
+/* "Last here" is for a wider bar only: on a phone the bar keeps its room. */
+@media (max-width: 1100px) { .presence-here.presence-quiet { display: none; } }
+
+.presence-list {
+  position: fixed; z-index: 60; width: min(320px, calc(100vw - 16px)); display: grid; gap: 6px; padding: 14px 16px;
+  background: var(--panel-solid, var(--bg)); color: var(--text); border: 1px solid var(--line-dim, #8884); border-radius: 12px;
+  box-shadow: 0 8px 28px #0006;
+}
+.presence-list small { color: var(--muted); }
+.presence-list p { margin: 0; }
+.presence-list ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 10px; }
+.presence-list li { display: flex; align-items: center; gap: 10px; }
+
+.presence-page {
+  position: fixed; z-index: 40; left: 16px; bottom: 16px; display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 10px 6px 8px; border-radius: 20px; background: var(--panel-solid, var(--bg)); border: 1px solid var(--line-dim, #8884);
+  box-shadow: 0 4px 14px #0004; animation: presence-in 400ms ease-out; pointer-events: none;
+}
+@media (max-width: 760px) { .presence-page { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); left: 12px; } }
+
+.presence-note {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 10px; padding: 8px 12px; border-radius: 10px;
+  background: hsl(var(--presence-hue, 40) 60% 55% / 0.1); color: var(--text); font-size: var(--fs-2, 0.875rem);
+  animation: presence-in 400ms ease-out;
+}
+.presence-note.editing { box-shadow: inset 3px 0 0 hsl(var(--presence-hue, 40) 60% 55%); }
+
+/* A card someone else has selected: a soft halo in their colour, and their small face on the card's corner. */
+.card.watched .card-hit { filter: drop-shadow(0 0 2px hsl(var(--presence-hue, 40) 65% 55%)) drop-shadow(0 0 10px hsl(var(--presence-hue, 40) 65% 55% / 0.7)); }
+.card.far.watched, .seal.watched .seal-shield { filter: drop-shadow(0 0 8px hsl(var(--presence-hue, 40) 60% 55% / 0.8)); }
+.card-watchers { position: absolute; top: -6px; left: -6px; z-index: 3; pointer-events: none; animation: presence-in 400ms ease-out; }
+
+@keyframes presence-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .presence-here, .presence-page, .presence-note, .card-watchers { animation: none; }
+}

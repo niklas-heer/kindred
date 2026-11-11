@@ -51,6 +51,8 @@ import { QuickAdd } from './QuickAdd';
 import type { AddRelation } from './Card';
 import { DraftContext, DraftTracker, type Draft } from './fields/draft';
 import { PersonEdit } from './fields/PersonEdit';
+import { PresenceNote } from './presence/Faces';
+import { setEditingPerson } from './presence/editing';
 import { AppearanceDialog } from './AppearanceDialog';
 import { PersonPhotos } from './photos/PersonPhotos';
 import { PersonPosts } from './feed/PersonPosts';
@@ -118,6 +120,12 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   const [tab, setTab] = useState<Tab>('overview');
   // Only when the tab changes: the callback is a new function on every render of the tree.
   useEffect(() => { if (tab === 'edit') onEditOpen?.(); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Live presence says "editing" while this person's Edit tab is open: only who, never what is typed.
+  useEffect(() => {
+    if (tab !== 'edit') return;
+    setEditingPerson(id);
+    return () => setEditingPerson(null);
+  }, [tab, id]);
   // The header steps aside. The Overview keeps the full one until its name scrolls out of view; then, and on
   // every other tab, a one-line header (small portrait, name, life dates) holds the top and the tabs stick under it.
   const scroller = useRef<HTMLDivElement>(null);
@@ -306,6 +314,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
       </TabList>
 
       <div className="pp-body">
+        <PresenceNote person={id} />
         <TabPanel value="overview">
           <OverviewTab
             f={f} tree={tree} p={p} me={me} details={details} role={role} gaps={gapsOf(f, p, required)}

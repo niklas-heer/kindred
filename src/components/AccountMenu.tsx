@@ -27,6 +27,7 @@ import { AboutDialog } from './AboutDialog';
 import { openViewAs, stopPreview } from './viewas/ViewAs';
 import { Dialog } from './ui/Dialog';
 import { isTopOverlay, useOverlayLayer } from './ui/overlay';
+import { SHADOWS_PREF, useSharesShadows } from './presence/PresenceHost';
 import './account.css';
 
 /** A name's initials in a small medallion: "Anna Lindqvist" → "AL". */
@@ -95,6 +96,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
   const id = useId();
   const theme = useTheme();
   const [sound, toggleSound] = useSound();
+  const shadows = useSharesShadows();
 
   // Close on Escape (only when this is the top layer) or a press outside; focus moves into the menu.
   useEffect(() => {
@@ -270,6 +272,14 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
                 {sound ? <Volume2 size={17} /> : <VolumeX size={17} />} {t('shell.sound_effects')}
                 <span className="acct-check" aria-hidden>{sound ? <Check size={16} /> : null}</span>
               </button>
+              {/* Live presence (src/lib/presence/): whether others see whom this member has selected. Members only. */}
+              {tree && member && !demo && !preview && (
+                <button role="menuitemcheckbox" aria-checked={shadows} aria-describedby={`${id}-shadows`} className="acct-item acct-shadows" onClick={() => setPref(SHADOWS_PREF, shadows ? 'off' : null)}>
+                  <Users size={17} aria-hidden />
+                  <span><span>{t('presence.share')}</span><small id={`${id}-shadows`}>{t('presence.share_hint')}</small></span>
+                  <span className="acct-check" aria-hidden>{shadows ? <Check size={16} /> : null}</span>
+                </button>
+              )}
             </div>
             <button role="menuitem" className="acct-item acct-about" onClick={() => { setOpen(false); setAbout(true); }}>
               <Info size={17} /> {t('accountmenu.about')} </button>
