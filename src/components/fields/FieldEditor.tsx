@@ -353,7 +353,16 @@ function FieldRowEditor({ tree, f, index, count, fam, self, fixed, focusFirst, o
   // An empty address shows only its finder; the four boxes come with a value, or when asked for.
   const [byHand, setByHand] = useState(false);
   const partsShown = f.type !== 'address' || byHand || !!formatAddress(f.value);
-  const toggle = (on: boolean) => { moved.current = on ? 'in' : 'out'; onToggle?.(on); };
+  const toggle = (on: boolean) => {
+    // Folding takes the box being typed in away, and a box that is removed fires no blur: leave it first, so what leaving
+    // a field does still happens (an address typed in full is read into its boxes, the form saves).
+    if (!on) {
+      const typing = document.activeElement;
+      if (typing instanceof HTMLElement && card.current?.contains(typing)) typing.blur();
+    }
+    moved.current = on ? 'in' : 'out';
+    onToggle?.(on);
+  };
   const labelOptions = [
     { value: '__none', label: c('label.none') },
     ...presets.map((p) => ({ value: p, label: presetLabel(p, c) })),
