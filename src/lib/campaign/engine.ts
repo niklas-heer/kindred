@@ -346,6 +346,19 @@ export const terrainOf = (map: GameMap, id: number): Terrain => map.provinces[id
 /** How many troops a province holds at most. */
 export const capOf = (map: GameMap, id: number) => (terrainOf(map, id) === 'town' ? RULES.TOWN_GARRISON_MAX : RULES.GARRISON_MAX);
 
+/** The most troops an order from `from` to `to` can send now: all but one, and for a march no more than `to` has room for. */
+export function sendable(s: State, map: GameMap, side: string, from: number, to: number): number {
+  const spare = s.troops[from] - 1;
+  return s.holder[to] === side ? Math.min(spare, capOf(map, to) - s.troops[to]) : spare;
+}
+
+/**
+ * The troops an order sends: what the player chose, kept between one and what the position allows now. The choice may
+ * have been made on another position (an undo while the order bar was open), so it is clamped when the order is given.
+ */
+export const orderTroops = (wanted: number, s: State, map: GameMap, side: string, from: number, to: number) =>
+  Math.max(1, Math.min(wanted, sendable(s, map, side, from, to)));
+
 // ---------- the opening ----------
 
 /** Each side's people per place on the map, from the places' `byHouse` counts: where a side's seat should be. */

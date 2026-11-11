@@ -5,7 +5,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  CampaignError, MAP_H, MAP_W, RULES, adjacent, battle, buildMap, capOf, levyOf, neighbours, openReign, play, provincesOf, regentMoves,
+  CampaignError, MAP_H, MAP_W, RULES, adjacent, battle, buildMap, capOf, levyOf, neighbours, openReign, orderTroops, play, provincesOf, regentMoves,
+  sendable,
   regentTurn, replay, scoreOf, setupField, standings, startState, terrainOf, troopsOf, winChance,
   type GameMap, type Move, type PlaceIn, type Reign, type State,
 } from './engine.ts';
@@ -353,4 +354,26 @@ test('a reign between regents: no seat falls, scores spread, and the lead can st
   assert.ok(at(0.9) - at(0.1) >= 30, `scores spread from ${at(0.1)} to ${at(0.9)}`);
   assert.ok(lastTurnChanges > 0, 'some reigns are decided only on the last turn');
   assert.ok(changes / runs >= 1.5, `the lead changes ${(changes / runs).toFixed(1)} times a reign`);
+});
+
+test('an order chosen before an undo is clamped to what the position now spares, so it is never refused', () => {
+  const { reign, state } = reignOf('undo-clamp');
+  const p = reign.player;
+  // A province of one's own next to one that can be attacked (not a seat), and room for two more troops.
+  const from = state.holder.findIndex((h, i) => h === p && state.troops[i] + 2 <= capOf(reign.map, i)
+    && neighbours(reign.map, i).some((n) => state.holder[n] !== p && !Object.values(state.seats).includes(n)));
+  assert.ok(from >= 0, 'the field has such a province');
+  const to = neighbours(reign.map, from).find((n) => state.holder[n] !== p && !Object.values(state.seats).includes(n))!;
+  assert.ok((state.pool[p] ?? 0) >= 2, 'levy to place');
+  // At least two troops before, one more placed after: "All" is chosen on the larger garrison, then that troop is taken back.
+  let before = state;
+  while (before.troops[from] < 2) before = play(before, reign, { t: 'place', to: from }).state;
+  const after = play(before, reign, { t: 'place', to: from }).state;
+  const all = sendable(after, reign.map, p, from, to);
+  assert.equal(all, after.troops[from] - 1);
+  assert.throws(() => play(before, reign, { t: 'attack', from, to, troops: all }), refused('stay_one'));
+  const sent = orderTroops(all, before, reign.map, p, from, to);
+  assert.equal(sent, before.troops[from] - 1);
+  assert.doesNotThrow(() => play(before, reign, { t: 'attack', from, to, troops: sent }));
+  assert.equal(orderTroops(0, after, reign.map, p, from, to), 1, 'never fewer than one');
 });

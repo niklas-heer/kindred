@@ -17,7 +17,7 @@ import { Crown, Flag, List, Map as MapIcon, Minus, Plus, Sunrise, Swords, Undo2,
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Arms } from '~/components/Heraldry';
 import { Segmented } from '~/components/ui';
-import { CampaignError, RULES, capOf, levyOf, neighbours, terrainOf, winChance, type GameEvent, type GameMap, type Move, type Reign, type Terrain } from '~/lib/campaign/engine';
+import { CampaignError, RULES, capOf, levyOf, neighbours, orderTroops, sendable, terrainOf, winChance, type GameEvent, type GameMap, type Move, type Reign, type Terrain } from '~/lib/campaign/engine';
 import type { StoredSide } from '~/lib/campaign/types';
 import { useT, type Key } from '~/lib/i18n';
 import { play as sound } from '~/lib/sfx';
@@ -104,10 +104,9 @@ export function Board({ reign, sides, game, onAttack, renownLink }: BoardProps) 
     else toast({ title: t('campaign.err.title'), body: errorText(e, t.locale) });
   };
 
-  const maxFor = (f: number, to: number) => {
-    const spare = state.troops[f] - 1;
-    return isMine(to) ? Math.min(spare, capOf(map, to) - state.troops[to]) : spare;
-  };
+  const maxFor = (f: number, to: number) => sendable(state, map, player, f, to);
+  // Taking a move back changes what a province can spare, so an open order goes with it.
+  const undo = () => { game.undo(); setPick({ k: 'none' }); };
 
   const choose = (id: number) => {
     if (over || replay) { setPick({ k: 'inspect', id }); return; }
@@ -146,7 +145,8 @@ export function Board({ reign, sides, game, onAttack, renownLink }: BoardProps) 
     if (pick.k !== 'target') return;
     const kind = isMine(pick.to) ? 'march' : 'attack';
     try {
-      const events = game.move({ t: kind, from: pick.from, to: pick.to, troops: pick.troops } as Move);
+      const troops = orderTroops(pick.troops, state, map, player, pick.from, pick.to);
+      const events = game.move({ t: kind, from: pick.from, to: pick.to, troops } as Move);
       const e = events[0];
       setPick({ k: 'none' });
       if (e?.t === 'attack') onAttack(e);
@@ -258,7 +258,7 @@ export function Board({ reign, sides, game, onAttack, renownLink }: BoardProps) 
             </p>
             {renownLink}
             <div className="cg-step-actions">
-              <button type="button" className="btn" disabled={!game.canUndo} onClick={game.undo}><Undo2 size={15} /> {t('campaign.undo')}</button>
+              <button type="button" className="btn" disabled={!game.canUndo} onClick={undo}><Undo2 size={15} /> {t('campaign.undo')}</button>
               <button type="button" className="btn primary" onClick={() => { setSkipped(state.turn); setPick({ k: 'none' }); }}>{t('campaign.reinforce.done')} <ChevronRight size={15} /></button>
             </div>
           </section>
@@ -294,7 +294,7 @@ export function Board({ reign, sides, game, onAttack, renownLink }: BoardProps) 
 
         {!over && (
           <div className="cg-turn">
-            {step === 2 && <button type="button" className="btn" disabled={!game.canUndo} onClick={game.undo}><Undo2 size={15} /> {t('campaign.undo')}</button>}
+            {step === 2 && <button type="button" className="btn" disabled={!game.canUndo} onClick={undo}><Undo2 size={15} /> {t('campaign.undo')}</button>}
             <button type="button" className={`btn${step === 2 ? ' primary' : ''}`} onClick={endTurn} disabled={!!replay}><Sunrise size={16} /> {state.turn + 1 >= RULES.TURNS ? t('campaign.end.last') : t('campaign.end.turn')}</button>
           </div>
         )}
