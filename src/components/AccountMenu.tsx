@@ -5,7 +5,7 @@ import { translateMessage, formatDate, relativeTime, useT, type Locale } from '~
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { graphQuery } from '~/lib/api';
-import { Activity, ArrowLeftRight, BarChart3, Bell, Check, CircleHelp, Eye, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus, Gamepad2, Landmark, History, Printer } from 'lucide-react';
+import { Activity, ArrowLeftRight, BarChart3, Bell, Check, Compass, Eye, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus, Gamepad2, Landmark, History, Printer } from 'lucide-react';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import '~/components/assistant/ai-tasks.css';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
@@ -20,7 +20,7 @@ import { ROLES, can } from '~/lib/roles';
 import { openFeedback } from './feedback/FeedbackHost';
 import { Portrait } from './Portrait';
 import { THEME_ICONS, THEME_LABEL, useSound, useTheme } from './ThemeSwitch';
-import { startTour } from './tour/store';
+import { openTours } from './tour/store';
 import { dropThisDevice, ReminderRefresh, RemindersDialog } from './Reminders';
 import { useMember, useMembership, useSession } from '~/lib/session';
 import { AboutDialog } from './AboutDialog';
@@ -150,6 +150,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
       <button
         ref={button}
         className="btn ghost acct-trigger"
+        data-tour="account-menu"
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -233,8 +234,8 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
                   <Bell size={17} /> {t('reminders.menu')} </button>
               )}
               {tree && m && (
-                <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); startTour(); }}>
-                  <CircleHelp size={17} /> {t('tour.menu')} </button>
+                <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); openTours(); }}>
+                  <Compass size={17} /> {t('tour.menu')} </button>
               )}
               {steward && (
                 <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); openFeedback(); }}>

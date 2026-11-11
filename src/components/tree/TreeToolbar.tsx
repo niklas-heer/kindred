@@ -47,7 +47,7 @@ export function TreeToolbar({ ref, phone, tight, roomy, view, onView, controls, 
   ];
   const lensLabel = lensOptions.find((o) => o.value === lens)?.label ?? t('tp.lensEveryone');
   return (
-    <div ref={ref} className={`tree-toolbar panel no-pan${phone ? ' is-phone' : tight ? ' is-tight' : ''}`} role="toolbar" aria-label={t('tp.toolbarAria')}>
+    <div ref={ref} className={`tree-toolbar panel no-pan${phone ? ' is-phone' : tight ? ' is-tight' : ''}`} role="toolbar" aria-label={t('tp.toolbarAria')} data-tour="tree-toolbar">
       <div className="seg tb-views" role="group" aria-label={t('tp.view')}>
         {viewOptions.map((o) => (
           <button key={o.value} className="btn" aria-pressed={view === o.value} onClick={() => onView(o.value)} title={o.title} aria-label={o.label}>

@@ -15,14 +15,10 @@ import { useSession } from '~/lib/session';
 import { Arms } from './Heraldry';
 import { searchPeople } from './Palette';
 import { Portrait } from './Portrait';
-import { Tour } from './tour/Tour';
-import { markTourSeen, startTour, TOUR_SEEN_PREF } from './tour/store';
+import { markTourSeen, openTours, startTour, TOUR_SEEN_PREF } from './tour/store';
 import { Dialog } from './ui/Dialog';
 import { useOverlayOpen } from './ui/overlay';
 import './firstrun.css';
-
-/** Starts the guided tour; the ⌘K palette's command. */
-export const reopenTour = startTour;
 
 /** How long the page settles before the tour is offered, so the offer never lands on top of another dialog. */
 const OFFER_DELAY = 700;
@@ -42,6 +38,7 @@ export function FirstRun() {
   const answered = useMeAnswered();
   // Closing without answering only defers the question to the next visit.
   const [later, setLater] = useState(false);
+  const demo = !!useSession()?.demo;
   const onTree = useRouterState({ select: (s) => TREE_PAGE.test(s.location.pathname) });
   const arrived = useRouterState({ select: (s) => TREE_PAGE.test(s.location.pathname) && !namesAPerson(s.location.search) });
 
@@ -54,17 +51,18 @@ export function FirstRun() {
   return (
     <>
       <WhoAreYou open={arrived && !answered && !later && f.graph.people.length > 0} onChoose={choose} onLater={() => setLater(true)} familyName={f.graph.tree.name} />
-      <TourOffer eligible={onTree && answered && f.graph.people.length > 0} />
-      <Tour />
+      {/* A demo's visitor has no membership to keep the answer in: there, putting the question off is answer enough. */}
+      <TourOffer eligible={onTree && (answered || (demo && later)) && f.graph.people.length > 0} demo={demo} />
     </>
   );
 }
 
 /**
- * Offers the tour once, after the reader has said who they are: a small card in the corner that leaves the tree usable.
- * Showing it counts as offering it, so a reader who ignores it is not asked again; the account menu still has the tour.
+ * Offers a tour once, after the reader has said who they are: a small card in the corner that leaves the tree usable.
+ * Showing it counts as offering it, so a reader who ignores it is not asked again; the account menu still has the tours.
+ * A new member is offered Welcome. A demo's visitor came to see what Kindred does, so they are offered the grand tour.
  */
-function TourOffer({ eligible }: { eligible: boolean }) {
+function TourOffer({ eligible, demo }: { eligible: boolean; demo: boolean }) {
   const t = useT();
   const seen = usePref(TOUR_SEEN_PREF) !== null;
   const busy = useOverlayOpen();
@@ -78,11 +76,12 @@ function TourOffer({ eligible }: { eligible: boolean }) {
   if (!open || !eligible || busy) return null;
   return (
     <aside className="ui-card tour-offer" aria-labelledby="tour-offer-title">
-      <h2 id="tour-offer-title">{t('tour.offer.title')}</h2>
-      <p>{t('tour.offer.body')}</p>
+      <h2 id="tour-offer-title">{t(demo ? 'tour.offer.demo_title' : 'tour.offer.title')}</h2>
+      <p>{t(demo ? 'tour.offer.demo_body' : 'tour.offer.body')}</p>
       <div>
         <button className="btn ghost" onClick={() => setOpen(false)}>{t('tour.offer.no')}</button>
-        <button className="btn primary" onClick={() => { setOpen(false); startTour(); }}>{t('tour.offer.yes')}</button>
+        <button className="btn ghost" onClick={() => { setOpen(false); openTours(); }}>{t('tour.offer.all')}</button>
+        <button className="btn primary" onClick={() => { setOpen(false); startTour(demo ? 'grand' : 'welcome'); }}>{t(demo ? 'tour.offer.demo_yes' : 'tour.offer.yes')}</button>
       </div>
     </aside>
   );

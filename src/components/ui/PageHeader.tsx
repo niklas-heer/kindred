@@ -34,7 +34,7 @@ export function PageHeader({ title, subtitle, actions, icon, className = '', id 
     el?.toggleAttribute('data-worded-action', icons && kids.some((k) => k.matches('.primary, [data-keep-label]')));
   });
   return (
-    <header ref={header} className={`ui-page-header ${className}`}>
+    <header ref={header} className={`ui-page-header ${className}`} data-tour="page-header">
       <div className="ui-page-header-text">
         <h1 id={id}>
           {icon && <span className="ui-page-header-icon" aria-hidden>{icon}</span>}

@@ -2,22 +2,26 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { findStep, placeCard, stepsFor, TOUR_STEPS, type TourContext, type TourStep } from './steps.ts';
+import { advance, chaptersDone, chaptersFor, findStep, GRAND_TOUR, NO_PROGRESS, nextChapterStart, placeCard, readProgress, resumeChapter, scriptFor, stepsFor, WELCOME_TOUR, type TourContext, type TourStep } from './steps.ts';
 
 const ctx = (over: Partial<TourContext> = {}): TourContext => ({ role: 'viewer', assistant: false, people: 10, houses: 2, ...over });
 const ids = (c: TourContext) => stepsFor(c).map((s) => s.id);
+const grand = (c: TourContext) => scriptFor('grand', c);
+const ROLES = ['viewer', 'contributor', 'editor', 'steward'] as const;
 
-test('a viewer gets no editing or steward steps', () => {
+// Welcome.
+
+test('a viewer gets no writing or steward steps', () => {
   const got = ids(ctx());
-  for (const hidden of ['add', 'memory', 'access']) assert.ok(!got.includes(hidden), hidden);
-  for (const shown of ['welcome', 'tree', 'panel', 'find', 'today', 'chronicle', 'almanac', 'again']) assert.ok(got.includes(shown), shown);
+  for (const hidden of ['memory', 'access']) assert.ok(!got.includes(hidden), hidden);
+  for (const shown of ['welcome', 'today', 'find', 'tree', 'panel', 'chronicle', 'almanac', 'help']) assert.ok(got.includes(shown), shown);
 });
 
-test('the tour is short: nine steps for a new relative, a few more for those who run the family', () => {
-  assert.equal(ids(ctx()).length, 9);
-  assert.equal(ids(ctx({ role: 'contributor' })).length, 9);
-  assert.equal(ids(ctx({ role: 'editor' })).length, 10);
-  assert.equal(ids(ctx({ role: 'steward' })).length, 11);
+test('Welcome is short: eight steps for a new relative, one more for a steward', () => {
+  assert.equal(ids(ctx()).length, 8);
+  assert.equal(ids(ctx({ role: 'contributor' })).length, 8);
+  assert.equal(ids(ctx({ role: 'editor' })).length, 8);
+  assert.equal(ids(ctx({ role: 'steward' })).length, 9);
 });
 
 test('whoever may write is shown how to add a memory; a viewer is shown where to read them', () => {
@@ -29,17 +33,11 @@ test('whoever may write is shown how to add a memory; a viewer is shown where to
   assert.ok(viewer.includes('chronicle') && !viewer.includes('memory'));
 });
 
-test('an editor is shown how to add a relative but gets no steward steps', () => {
-  const got = ids(ctx({ role: 'editor' }));
-  assert.ok(got.includes('add'));
-  assert.ok(!got.includes('access'));
-});
-
-test('a steward is shown how to invite the family', () => {
+test('only a steward is shown how to invite the family', () => {
   assert.ok(ids(ctx({ role: 'steward' })).includes('access'));
+  assert.ok(!ids(ctx({ role: 'editor' })).includes('access'));
 });
 
-// The rules below are kept for steps that may come back; no step in today's short tour uses them.
 const step = (id: string, over: Partial<TourStep>): TourStep => ({ id, title: 'tour.welcome.title', body: 'tour.welcome.body', ...over });
 
 test('a step for the assistant needs the assistant to be on', () => {
@@ -50,19 +48,110 @@ test('a step for the assistant needs the assistant to be on', () => {
 
 test('a family with nobody in it, or no houses, skips what it does not have', () => {
   const empty = ids(ctx({ role: 'steward', people: 0, houses: 0 }));
-  for (const hidden of ['tree', 'views', 'add', 'panel']) assert.ok(!empty.includes(hidden), hidden);
+  for (const hidden of ['tree', 'panel']) assert.ok(!empty.includes(hidden), hidden);
   assert.ok(empty.includes('welcome') && empty.includes('access'));
-  const steps = [step('arms', { requires: 'house' })];
-  assert.equal(stepsFor(ctx({ houses: 0 }), steps).length, 0);
-  assert.equal(stepsFor(ctx(), steps).length, 1);
+  const none = grand(ctx({ role: 'steward', people: 0, houses: 0 })).map((s) => s.id);
+  for (const hidden of ['g-select', 'g-profile', 'g-edit', 'g-arms']) assert.ok(!none.includes(hidden), hidden);
+  assert.ok(none.includes('g-houses'));
 });
 
-test('every step begins and ends the same way for every role', () => {
-  for (const role of ['viewer', 'contributor', 'editor', 'steward'] as const) {
+test('Welcome begins and ends the same way for every role', () => {
+  for (const role of ROLES) {
     const got = ids(ctx({ role }));
     assert.equal(got[0], 'welcome');
-    assert.equal(got[got.length - 1], 'again');
+    assert.equal(got[got.length - 1], 'help');
   }
+});
+
+// The grand tour.
+
+test('the grand tour is about twenty-five steps, more for those who may do more', () => {
+  const n = Object.fromEntries(ROLES.map((role) => [role, grand(ctx({ role })).length]));
+  assert.deepEqual(n, { viewer: 23, contributor: 24, editor: 30, steward: 34 });
+});
+
+test('a viewer is told nothing about editing, and only stewards get the stewards\' chapter', () => {
+  const viewer = grand(ctx()).map((s) => s.id);
+  for (const hidden of ['g-add', 'g-edit', 'g-fields', 'g-life', 'g-look', 'g-memory', 'g-export', 'g-access', 'g-share', 'g-viewas', 'g-games']) assert.ok(!viewer.includes(hidden), hidden);
+  for (const role of ['viewer', 'contributor', 'editor'] as const) assert.ok(!chaptersFor(ctx({ role })).some((c) => c.id === 'stewards'), role);
+  assert.equal(chaptersFor(ctx({ role: 'steward' })).at(-1)?.id, 'stewards');
+});
+
+test('every step of the grand tour carries its chapter, and the chapters come in order', () => {
+  const steps = grand(ctx({ role: 'steward' }));
+  assert.ok(steps.every((s) => !!s.chapter));
+  assert.deepEqual([...new Set(steps.map((s) => s.chapter))], GRAND_TOUR.map((c) => c.id));
+  assert.ok(scriptFor('welcome', ctx()).every((s) => !s.chapter));
+});
+
+test('step ids are unique across both tours', () => {
+  const all = [...WELCOME_TOUR, ...GRAND_TOUR.flatMap((c) => c.steps)].map((s) => s.id);
+  assert.equal(new Set(all).size, all.length);
+});
+
+test('a step that waits for the reader points at what "Show me" presses, so there is always something to press', () => {
+  for (const s of [...WELCOME_TOUR, ...GRAND_TOUR.flatMap((c) => c.steps)]) {
+    if (s.task) assert.ok(s.targets?.length, s.id);
+    if (s.opener) assert.ok(s.targets?.length, s.id);
+  }
+});
+
+// Chapters: ticking off, skipping, and picking up again.
+
+const CHAPTERS = ['today', 'tree', 'person'];
+const SCRIPT: TourStep[] = [
+  step('a1', { chapter: 'today' }), step('a2', { chapter: 'today' }),
+  step('b1', { chapter: 'tree' }), step('b2', { chapter: 'tree' }),
+  step('c1', { chapter: 'person' }),
+];
+
+test('a reader who has not begun has nothing to continue', () => {
+  assert.equal(resumeChapter(NO_PROGRESS, CHAPTERS), null);
+});
+
+test('going on inside a chapter ticks nothing; leaving it by its last step ticks it', () => {
+  const inside = advance(NO_PROGRESS, SCRIPT, 0, 1);
+  assert.deepEqual(inside, { done: [], at: 'today' });
+  const left = advance(inside, SCRIPT, 1, 2);
+  assert.deepEqual(left, { done: ['today'], at: 'tree' });
+  assert.equal(resumeChapter(left, CHAPTERS), 'tree');
+  assert.equal(chaptersDone(left, CHAPTERS), 1);
+});
+
+test('a skipped chapter is not ticked, and waits for another day', () => {
+  const at = nextChapterStart(SCRIPT, 0);
+  assert.equal(at, 2);
+  const skipped = advance(NO_PROGRESS, SCRIPT, 0, at, true);
+  assert.deepEqual(skipped, { done: [], at: 'tree' });
+  // Walk the rest to the end: the skipped chapter is what "Continue" opens next.
+  const end = advance(advance(skipped, SCRIPT, 3, 4), SCRIPT, 4, SCRIPT.length);
+  assert.deepEqual(end, { done: ['tree', 'person'], at: null });
+  assert.equal(resumeChapter(end, CHAPTERS), 'today');
+  assert.equal(nextChapterStart(SCRIPT, 4), SCRIPT.length);
+});
+
+test('chapters passed over because nothing in them could be shown count as walked', () => {
+  assert.deepEqual(advance(NO_PROGRESS, SCRIPT, 1, 4), { done: ['today', 'tree'], at: 'person' });
+});
+
+test('the whole tour walked leaves nothing to continue', () => {
+  const all = advance(NO_PROGRESS, SCRIPT, 0, SCRIPT.length);
+  assert.deepEqual(all, { done: CHAPTERS, at: null });
+  assert.equal(resumeChapter(all, CHAPTERS), null);
+  assert.equal(chaptersDone(all, CHAPTERS), 3);
+});
+
+test('"Continue" opens where the reader stopped, unless that chapter is no longer theirs', () => {
+  assert.equal(resumeChapter({ done: ['today'], at: 'person' }, CHAPTERS), 'person');
+  // A steward who became an editor stopped in a chapter they no longer have.
+  assert.equal(resumeChapter({ done: ['today'], at: 'stewards' }, CHAPTERS), 'tree');
+  // Stopped in a chapter that is ticked already (walked again from the list): the first one still open.
+  assert.equal(resumeChapter({ done: ['today', 'tree'], at: 'today' }, CHAPTERS), 'person');
+});
+
+test('what a browser kept is read back, and nonsense is no progress', () => {
+  assert.deepEqual(readProgress(JSON.stringify({ done: ['today', 'today', 7], at: 'tree' })), { done: ['today'], at: 'tree' });
+  for (const raw of [null, '', 'seen', '[]', '{"done":"all"}', '42']) assert.deepEqual(readProgress(raw), NO_PROGRESS, String(raw));
 });
 
 test('a step whose element is missing is passed over, forwards and backwards', async () => {
@@ -111,20 +200,27 @@ test('on a phone the card docks away from its target', () => {
   assert.deepEqual(placeCard({ x: 10, y: 700, w: 100, h: 40 }, card, view), { left: 12, top: 12 });
 });
 
-/** Every class a step points at still exists in the app, so a rename fails here instead of quietly dropping a step. */
-test('every target still names real classes', () => {
+/**
+ * Every name a step points at is still set as a `data-tour` somewhere in the app, so a renamed or removed element fails
+ * here instead of quietly dropping a step. `tour="…"` is how a tab passes its name on (ui/Tabs.tsx).
+ */
+test('every target is a data-tour name the app still sets', () => {
   const root = new URL('../../', import.meta.url).pathname;
   const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
     const p = join(dir, e.name);
     if (e.isDirectory()) return e.name === 'library' ? [] : walk(p);
-    return /\.(tsx|css)$/.test(e.name) && !p.includes('/tour/') ? [p] : [];
+    return /\.tsx$/.test(e.name) && !p.includes('/tour/') ? [p] : [];
   });
-  const source = walk(root).map((f) => readFileSync(f, 'utf8')).join('\n');
-  for (const step of TOUR_STEPS) {
-    for (const selector of step.targets ?? []) {
-      for (const [, name] of selector.matchAll(/\.([a-z][a-z0-9-]*)/g)) {
-        assert.ok(source.includes(name), `${step.id}: .${name} is gone`);
-      }
-    }
+  const set = new Set<string>();
+  for (const file of walk(root)) {
+    const source = readFileSync(file, 'utf8');
+    // data-tour="name", data-tour={cond ? 'name' : undefined}, tour="name", and tour={`person-tab-${tb}`} with its tabs.
+    for (const [, value] of source.matchAll(/\btour=(?:"([^"]+)"|\{[^}]*\})/g)) if (value) set.add(value);
+    for (const [expr] of source.matchAll(/\btour=\{[^}]*\}/g)) for (const [, name] of expr.matchAll(/'([a-z][a-z0-9-]*)'/g)) set.add(name);
+    if (source.includes('tour={`person-tab-${tb}`}')) for (const [, tb] of source.matchAll(/\['(overview|family|stories|everyday|edit)',/g)) set.add(`person-tab-${tb}`);
+  }
+  const names = (s: TourStep) => [...(s.targets ?? []), ...(s.opener ? [s.opener] : []), ...(s.task ? [s.task.until, s.task.click] : [])];
+  for (const s of [...WELCOME_TOUR, ...GRAND_TOUR.flatMap((c) => c.steps)]) {
+    for (const name of names(s)) assert.ok(set.has(name), `${s.id}: nothing in src/ sets data-tour="${name}"`);
   }
 });

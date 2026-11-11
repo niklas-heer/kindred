@@ -357,7 +357,7 @@ function AlmanacView({ today: startDay }: { today: Date }) {
             </button>
           )}</>} />
 
-        <div className="alm-strip-wrap">
+        <div className="alm-strip-wrap" data-tour="almanac-strip">
           <MonthStrip counts={strip} current={todayM} selected={month} onSelect={(m) => setMonth(month === m ? null : m)} noun={hasLiving ? 'almanac.noun.birthday' : 'almanac.noun.event'} />
           <p className="muted alm-strip-cap">
             {hasLiving ? t('almanac.strip_birthdays') : t('almanac.strip_events')}

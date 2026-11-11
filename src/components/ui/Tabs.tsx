@@ -65,7 +65,7 @@ export function TabList({ children, className = '', 'aria-label': ariaLabel }: {
   );
 }
 
-export function Tab({ value, children, icon, badge, disabled, className = '', title }: { value: string; children: ReactNode; icon?: ReactNode; badge?: ReactNode; disabled?: boolean; className?: string; title?: string }) {
+export function Tab({ value, children, icon, badge, disabled, className = '', title, tour }: { value: string; children: ReactNode; icon?: ReactNode; badge?: ReactNode; disabled?: boolean; className?: string; title?: string; /** A name the guided tour can point at (`data-tour`). */ tour?: string }) {
   const { value: current, select, base } = useTabs();
   const on = current === value;
   return (
@@ -79,6 +79,7 @@ export function Tab({ value, children, icon, badge, disabled, className = '', ti
       disabled={disabled}
       title={title}
       className={`ui-tab ${className}`}
+      data-tour={tour}
       onClick={() => select(value)}
     >
       {icon}
@@ -88,12 +89,12 @@ export function Tab({ value, children, icon, badge, disabled, className = '', ti
   );
 }
 
-export function TabPanel({ value, children, className = '', keepMounted }: { value: string; children: ReactNode; className?: string; keepMounted?: boolean }) {
+export function TabPanel({ value, children, className = '', keepMounted, tour }: { value: string; children: ReactNode; className?: string; keepMounted?: boolean; /** A name the guided tour can point at (`data-tour`), there only while the panel is open. */ tour?: string }) {
   const { value: current, base } = useTabs();
   const on = current === value;
   if (!on && !keepMounted) return null;
   return (
-    <div role="tabpanel" id={`${base}-p-${key(value)}`} aria-labelledby={`${base}-t-${key(value)}`} hidden={!on} tabIndex={0} className={`ui-tabpanel ${className}`}>
+    <div role="tabpanel" id={`${base}-p-${key(value)}`} aria-labelledby={`${base}-t-${key(value)}`} hidden={!on} tabIndex={0} className={`ui-tabpanel ${className}`} data-tour={on ? tour : undefined}>
       {children}
     </div>
   );

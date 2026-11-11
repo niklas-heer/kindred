@@ -108,7 +108,7 @@ function AccessPage() {
           title={t('acc.title')}
           icon={<Users size={24} />}
           subtitle={t('acc.subtitle', { family: f.graph.tree.name })}
-          actions={<button className="btn primary" onClick={() => setInviting(true)}><UserPlus size={16} /> {t('acc.inviteSomeone')}</button>}
+          actions={<button className="btn primary" data-tour="access-invite" onClick={() => setInviting(true)}><UserPlus size={16} /> {t('acc.inviteSomeone')}</button>}
         />
         {error && <Notice onDismiss={() => setError(null)} className="acc-notice">{error}</Notice>}
         {/* Requests to join come first: someone is waiting for an answer. */}
@@ -231,7 +231,7 @@ function AccessPage() {
         </div>
 
         {/* "View as": check what a role, a member or a guest gets, without borrowing their phone. */}
-        <section className="ui-card acc-viewas-card" aria-labelledby="acc-viewas-heading">
+        <section className="ui-card acc-viewas-card" aria-labelledby="acc-viewas-heading" data-tour="view-as">
           <h2 className="rule" id="acc-viewas-heading">{t('viewas.access_heading')}</h2>
           <p>{t('viewas.access_text')}</p>
           <div className="share-actions">

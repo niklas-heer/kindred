@@ -1,7 +1,7 @@
 import { useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, notFound, Outlet, redirect, useLocation, useNavigate } from '@tanstack/react-router';
-import { ArrowLeftRight, BarChart3, BookOpen, CalendarHeart, ChevronDown, CircleHelp, Contact, Flame, LayoutGrid, FolderSearch, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, SlidersHorizontal, Sparkles, Swords, Users, Inbox, MessageSquarePlus, Gamepad2 } from 'lucide-react';
+import { ArrowLeftRight, BarChart3, BookOpen, CalendarHeart, ChevronDown, CircleHelp, Compass, Contact, Flame, LayoutGrid, FolderSearch, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, SlidersHorizontal, Sparkles, Swords, Users, Inbox, MessageSquarePlus, Gamepad2 } from 'lucide-react';
 import { AccountMenu } from '~/components/AccountMenu';
 import { AssistantButton, AssistantHost } from '~/components/assistant/Launcher';
 import { useAiSetupNeeded } from '~/components/assistant/AiSetup';
@@ -12,6 +12,8 @@ import { newsCountQuery } from '~/lib/history.functions';
 import { LanguageChoices, LanguagePicker } from '~/components/LanguagePicker';
 import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { FirstRun } from '~/components/FirstRun';
+import { Tours } from '~/components/tour/Tours';
+import { openTours } from '~/components/tour/store';
 import { GuestChip } from '~/components/GuestChip';
 import { ViewAsBar, ViewAsHost } from '~/components/viewas/ViewAs';
 import { JoinInvite } from '~/components/join/JoinInvite';
@@ -170,7 +172,7 @@ function TreeLayout() {
     <div className={viewAs ? 'shell shell-viewas' : 'shell'}>
       <a href="#main" className="skip-link" onClick={(e) => { e.preventDefault(); document.getElementById('main')?.focus(); }}>{t('shell.skip')}</a>
       <ViewAsBar tree={tree} familyName={previewed} />
-      <header className="topbar topbar-stacked" ref={topbar}>
+      <header className="topbar topbar-stacked" ref={topbar} data-tour="topbar">
         <Link to={multiple ? "/" : "/$tree"} params={{ tree }} search={multiple ? { families: "all" } : {}} className="brand" title={multiple ? t("shell.all_families") : t("shell.family_tree")}>
           {crest ? <Arms arms={crest.arms} size={28} /> : null}
           <b>{f.graph.tree.name}</b>
@@ -208,7 +210,7 @@ function TreeLayout() {
           <NavMore tree={tree} guest={guest} campaign={campaign} />
         </nav>
         <span className="spacer" />
-        <button className="btn search-trigger" onClick={() => palette.open()}>
+        <button className="btn search-trigger" data-tour="search" onClick={() => palette.open()}>
           <span><Search size={16} /> {t("shell.find_anyone")}</span>
           <kbd>⌘K</kbd>
         </button>
@@ -252,7 +254,7 @@ function TreeLayout() {
           <Link to="/$tree/contacts" params={{ tree }}>
             <Contact size={21} /><span>{t("shell.contacts")}</span></Link>
         )}
-        <button type="button" onClick={() => setMore(true)} aria-expanded={more} aria-haspopup="dialog">
+        <button type="button" data-tour="more" onClick={() => setMore(true)} aria-expanded={more} aria-haspopup="dialog">
           <MoreHorizontal size={21} /><span>{t("shell.more")}</span></button>
       </nav>
       <MoreSheet open={more} onClose={() => setMore(false)} tree={tree} multiple={multiple} campaign={campaign} />
@@ -261,6 +263,8 @@ function TreeLayout() {
       <AssistantHost tree={tree} />
       {/* "Who are you?" and the tour are a reader's own first steps: a steward's preview leaves them out. */}
       {!guest && !viewAs && <FirstRun />}
+      {/* The tours themselves are any member's, a preview's too: they only show, and a preview is read-only anyway. */}
+      {!guest && <Tours />}
       {guest && <JoinInvite tree={tree} />}
       <FeedbackHost tree={tree} />
       <ViewAsHost tree={tree} />
@@ -401,6 +405,7 @@ function MoreSheet({ open, onClose, tree, multiple, campaign }: { open: boolean;
         {steward && <li><Link to="/$tree/settings/games" params={{ tree }}><Gamepad2 size={19} /> {t("campaign.games.title")} <small>{t("campaign.games.nav_hint")}</small></Link></li>}
         {steward && <li><button type="button" onClick={() => { onClose(); openFeedback(); }}><MessageSquarePlus size={19} /> {t("feedback.menu")} <small>{t("feedback.command_hint")}</small></button></li>}
         {steward && <li><Link to="/$tree/settings/feedback" params={{ tree }}><Inbox size={19} /> {t("feedback.inbox")} <small>{t("feedback.inbox_hint")}</small></Link></li>}
+        {!guest && <li><button type="button" onClick={() => { onClose(); openTours(); }}><Compass size={19} /> {t("tour.menu")} <small>{t("shell.cmd.tourHint")}</small></button></li>}
         {multiple && <li><Link to="/" search={{ families: "all" }}><Network size={19} /> {t("shell.all_families")}</Link></li>}
       </ul>
       <div className="more-row"><LanguageChoices /></div>

@@ -412,6 +412,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     <div
       ref={host}
       className={`canvas detail-${detail}`}
+      data-tour="tree-canvas"
       style={{ '--name-near': `${NAME_PX.near}px`, '--name-mid': `${NAME_PX.mid}px`, '--name-seal': `${NAME_PX.seal}px` } as CSSProperties}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

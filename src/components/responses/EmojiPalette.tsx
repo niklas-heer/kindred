@@ -72,7 +72,7 @@ export function EmojiPalette({ tree, mine, anchor, onPick, onClose }: {
   };
 
   return (
-    <div ref={box} className="resp-palette" role="dialog" aria-label={t('responses.palette')} onKeyDown={keys}>
+    <div ref={box} className="resp-palette" data-tour="emoji-palette" role="dialog" aria-label={t('responses.palette')} onKeyDown={keys}>
       <div className="resp-palette-quick" role="group" aria-label={t('responses.quick')}>
         {QUICK_REACTIONS.map((r) => (
           <button key={r} type="button" className="resp-cell" aria-pressed={mine.includes(r)} aria-label={name(r)} title={name(r)} onClick={() => onPick(r)}>{r}</button>

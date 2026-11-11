@@ -74,7 +74,7 @@ export function HereNow() {
   const label = here.length ? t('presence.here_now', { count: here.length }) : t('presence.last_here', { name: roster.last!.name, ago: relativeTime(roster.last!.at, t.locale) });
   return (
     <>
-      <button ref={button} type="button" className={`presence-here${here.length ? '' : ' presence-quiet'}`} aria-expanded={open} aria-haspopup="true" onClick={() => setOpen((o) => !o)} title={label}>
+      <button ref={button} type="button" data-tour="here-now" className={`presence-here${here.length ? '' : ' presence-quiet'}`} aria-expanded={open} aria-haspopup="true" onClick={() => setOpen((o) => !o)} title={label}>
         {here.length ? <Stack people={here} /> : <Face who={{ name: roster.last!.name, person: roster.last!.person, hue: 0 }} size={22} />}
         <span className="presence-label">{label}</span>
       </button>

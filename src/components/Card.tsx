@@ -188,9 +188,9 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, kin
   const base = epithet ? name.slice(0, -epithet.length - 1) : name;
   const canFold = !!onToggle && !!(node.folded || (f.childrenOf.get(p.id)?.length && node.role === 'main'));
   return (
-    <div className={`card ${detail}${selected ? ' selected' : ''}${roleClass}${p.living ? ' living' : ' dead'}${ruler ? ' crowned' : ''}${watchers?.length ? ' watched' : ''}`} style={watchedStyle(watchers)}>
+    <div className={`card ${detail}${selected ? ' selected' : ''}${roleClass}${p.living ? ' living' : ' dead'}${ruler ? ' crowned' : ''}${watchers?.length ? ' watched' : ''}`} style={watchedStyle(watchers)} data-tour={selected ? 'tree-selected' : undefined}>
       {watchers?.length ? <CardWatchers watchers={watchers} name={name} /> : null}
-      <button className="card-hit" onClick={() => onSelect(p.id)} onDoubleClick={() => onOpen?.(p.id)} title={t('card.clickToSelect', { name })} {...mark}>
+      <button className="card-hit" data-tour="tree-card" onClick={() => onSelect(p.id)} onDoubleClick={() => onOpen?.(p.id)} title={t('card.clickToSelect', { name })} {...mark}>
         <div className="card-portrait">
           <Portrait person={p} tree={tree} size={detail === 'near' ? 104 : 84} decorative />
           {house && (

@@ -31,7 +31,7 @@ export function ComposeRow({ tree, open, onOpen }: { tree: string; open: boolean
   const why = session?.demo ? t('demo.err_read_only') : session?.viewAs ? t('feed.compose.preview') : !canPost && !canRemember ? t('feed.compose.viewer') : null;
 
   return (
-    <div className="ui-card fd-compose">
+    <div className="ui-card fd-compose" data-tour="feed-compose">
       {me ? <span className="fd-compose-face"><Portrait person={me} tree={tree} size={40} decorative /></span> : null}
       {why ? <p className="fd-compose-note">{why}</p> : (
         <>

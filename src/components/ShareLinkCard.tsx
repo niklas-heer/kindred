@@ -75,7 +75,7 @@ export function ShareLinkCard({ tree, familyName }: { tree: string; familyName: 
   const shown = link && known && known.id === link.id && known.generation === link.generation ? known : null;
 
   return (
-    <section className="ui-card share-card" aria-labelledby="acc-share-heading">
+    <section className="ui-card share-card" aria-labelledby="acc-share-heading" data-tour="share-links">
       <h2 className="rule" id="acc-share-heading">{t('share.heading')}</h2>
       <p>{t('share.intro')}</p>
       {error && <Notice onDismiss={() => setError(null)} className="acc-notice">{error}</Notice>}

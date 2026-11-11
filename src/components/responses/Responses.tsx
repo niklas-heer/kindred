@@ -131,6 +131,7 @@ export function Responses({ tree, kind, target, startOpen = false, compact = fal
             ref={plus}
             type="button"
             className="resp-react resp-plus"
+            data-tour="feed-react"
             aria-expanded={picking}
             aria-haspopup="dialog"
             title={t('responses.more_emoji')}

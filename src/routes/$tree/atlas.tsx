@@ -343,7 +343,7 @@ function Atlas() {
     <div className={`atlas${showFeed ? ' feed-on' : ''}${listOpen ? ' list-open' : ''}${feedFolded ? ' feed-folded' : ''}`} ref={atlasEl}>
       <aside className="atlas-side panel" ref={sideEl} aria-label={tr('atlas.places')}>
         {/* On a narrow screen: the sheet's handle, folding the list away to show the map. */}
-        <button className="atlas-handle" aria-expanded={listOpen} onClick={() => setListOpen((o) => !o)}>
+        <button className="atlas-handle" data-tour="atlas-handle" aria-expanded={listOpen} onClick={() => setListOpen((o) => !o)}>
           <span className="atlas-grip" aria-hidden />
           <span className="atlas-handle-text">
             <b className="display">{tr('atlas.title')}</b>

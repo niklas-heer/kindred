@@ -114,7 +114,7 @@ function HousePage() {
         </nav>
 
         <header className="ui-card hp-head" style={{ '--house': TINCTURE_HEX[house.arms.field] } as CSSProperties}>
-          <div className="hp-shield">
+          <div className="hp-shield" data-tour="house-arms">
             <Arms arms={house.arms} size={176} full country={country ?? undefined} title={t('houses.armsOf', { name: house.name })} />
           </div>
           <div className="hp-text">

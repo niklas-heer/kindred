@@ -72,7 +72,7 @@ function ExchangePage() {
 function ExportSection({ tree }: { tree: string }) {
   const t = useT();
   return (
-    <section className="exchange-section" aria-labelledby="export-heading">
+    <section className="exchange-section" aria-labelledby="export-heading" data-tour="export">
       <h2 id="export-heading">{t('exchange.export.heading')}</h2>
       <p className="exchange-text">{t('exchange.export.text')}</p>
       <div className="exchange-actions">

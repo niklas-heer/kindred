@@ -84,7 +84,7 @@ function TodayPage() {
   return (
     <div className="page">
       <div className="page-inner td">
-        <header className="td-hero">
+        <header className="td-hero" data-tour="today-hero">
           {/* The reader's own date: empty on the server, so the two never disagree around midnight. */}
           <p className="td-hero-date">{today ? formatDate(today, t.locale, { weekday: 'long', year: undefined }) : ' '}</p>
           <h1>{name ? t(hello, { name }) : t('today.title')}</h1>
@@ -93,7 +93,7 @@ function TodayPage() {
         </header>
 
         <div className="td-grid">
-          <aside className="td-side" aria-label={t('feed.strip.label')}>
+          <aside className="td-side" aria-label={t('feed.strip.label')} data-tour="today-cards">
             <div className="td-strip" role="group" aria-label={t('feed.strip.label')}>
               {cards.map((c) => (
                 <button key={c.id} type="button" className="td-strip-btn" aria-expanded={open === c.id} aria-controls={`td-card-${c.id}`} onClick={() => setOpen(open === c.id ? null : c.id)}>
@@ -107,7 +107,7 @@ function TodayPage() {
               <Switch checked={opens} onChange={(on) => setPref(OPEN_PREF(tree), on ? 'today' : null)}>{t('today.open_here')}</Switch>
             </div>
           </aside>
-          <div className="td-main">
+          <div className="td-main" data-tour="feed">
             <Feed tree={tree} />
           </div>
         </div>

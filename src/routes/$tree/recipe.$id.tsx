@@ -107,7 +107,7 @@ function Recipe({ tree, r }: { tree: string; r: RecipeDetail }) {
         <nav className="rcp-crumbs">
           <Link to="/$tree/cookbook" params={{ tree }} className="btn ghost"><ArrowLeft size={15} aria-hidden /> {t('recipes.book.title')}</Link>
         </nav>
-        <article className="rcp rcp-doc ui-card" data-cover={r.cover ? '' : undefined}>
+        <article className="rcp rcp-doc ui-card" data-tour="recipe" data-cover={r.cover ? '' : undefined}>
           {r.cover ? (
             <figure className="rcp-hero" style={{ aspectRatio: `${r.cover.width} / ${r.cover.height}` }}>
               <img src={recipeImageUrl(tree, r.cover.key)} alt={t('recipes.cover_of', { title })} width={r.cover.width} height={r.cover.height} />
@@ -139,7 +139,7 @@ function Recipe({ tree, r }: { tree: string; r: RecipeDetail }) {
               </ul>
             ) : null}
             <div className="rcp-actions">
-              {r.structured && r.steps.length ? <button type="button" className="btn primary" onClick={() => setCooking(true)}><CookingPot size={16} aria-hidden /> {t('recipes.start_cooking')}</button> : null}
+              {r.structured && r.steps.length ? <button type="button" className="btn primary" data-tour="recipe-cook" onClick={() => setCooking(true)}><CookingPot size={16} aria-hidden /> {t('recipes.start_cooking')}</button> : null}
               <button type="button" className="btn" onClick={() => window.print()}><Printer size={15} aria-hidden /> {t('recipes.print')}</button>
               {r.editable ? <button type="button" className="btn" onClick={() => setEditing(true)}><Pencil size={15} aria-hidden /> {r.structured ? t('recipes.edit') : t('recipes.structure')}</button> : null}
               {r.removable ? <button type="button" className="btn ghost" onClick={() => { remove.reset(); setAsking(true); }}><Trash2 size={15} aria-hidden /> {t('recipes.remove')}</button> : null}

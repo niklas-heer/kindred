@@ -64,7 +64,7 @@ export function Minimap({ family, layout, view, focus, here, dimmed, small, onJu
     onJump(vx + vw / 2 + (step[0] * vw) / 4, vy + vh / 2 + (step[1] * vh) / 4);
   };
   return (
-    <div className={`minimap no-pan panel${small ? ' small' : ''}`}>
+    <div className={`minimap no-pan panel${small ? ' small' : ''}`} data-tour="tree-minimap">
       <div
         className="minimap-map"
         role="application"

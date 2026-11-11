@@ -49,7 +49,7 @@ export function RecipeCard({ r, tree, defer }: { r: RecipeSummary; tree: string;
   const p = f.byId.get(r.person);
   const title = r.title || t('recipes.untitled');
   return (
-    <Link to="/$tree/recipe/$id" params={{ tree, id: r.id }} className="rcp-card ui-card interactive">
+    <Link to="/$tree/recipe/$id" params={{ tree, id: r.id }} className="rcp-card ui-card interactive" data-tour="recipe-card">
       <span className="rcp-card-cover">
         {r.cover
           ? <img src={recipeImageUrl(tree, r.cover.key, 'thumb')} alt="" loading="lazy" width={r.cover.width} height={r.cover.height} />

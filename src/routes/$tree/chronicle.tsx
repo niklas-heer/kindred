@@ -130,13 +130,13 @@ function ChroniclePage() {
           actions={<>
             {/* The recipes have a page of their own, with their pictures (docs/recipes.md). */}
             <Link className="btn" to="/$tree/cookbook" params={{ tree }} title={t('recipes.to_cookbook')}><ChefHat size={15} /> {t('recipes.book.title')}</Link>
-            {write && <button type="button" className="btn primary" onClick={write}><Plus size={15} /> {t('chronicle.add')}</button>}
+            {write && <button type="button" className="btn primary" data-tour="chronicle-add" onClick={write}><Plus size={15} /> {t('chronicle.add')}</button>}
           </>} />
 
         {isPending && <div className="page-loading" aria-busy="true" aria-label={t('chronicle.loading')}>{Array.from({ length: 4 }, (_, i) => <div className="ui-card" key={i} style={{ padding: 20, marginBottom: 12 }}><Skeleton width={48} height={48} radius="50%" /><Skeleton lines={3} /></div>)}</div>}
         {isError && <ErrorState title={t('chronicle.error')} message={t('chronicle.error_text')} onRetry={() => { void refetch(); }} />}
         {!isPending && !isError && <>
-        <div className="chr-bar">
+        <div className="chr-bar" data-tour="chronicle-bar">
           {/* One row: the two views, then the kinds. On a phone it scrolls sideways instead of wrapping. */}
           <div className="chr-strip">
           <div className="chr-tabs" role="tablist">

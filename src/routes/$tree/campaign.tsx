@@ -11,6 +11,7 @@ import { BattleDialog, type Battle } from '~/components/campaign/BattleDialog';
 import { Board, Laurel, type BoardSide } from '~/components/campaign/Board';
 import { HowItWorks, LeaderboardPanel, RenownCard, SeasonsOfOld } from '~/components/campaign/panels';
 import { useReign } from '~/components/campaign/reign';
+import { isTourRunning } from '~/components/tour/store';
 import '~/components/campaign/campaign.css';
 import { Arms } from '~/components/Heraldry';
 import { EmptyState, ErrorState, PageHeader, Select, Skeleton, useIsClient } from '~/components/ui';
@@ -54,7 +55,8 @@ function CampaignPage() {
   // The first visit opens "how it works" once; after that it is behind its button.
   const ready = !!q.data;
   useEffect(() => {
-    if (!ready) return;
+    // Not while a tour is showing the page: its card is a dialog too, and this one would open over it. The next visit opens it.
+    if (!ready || isTourRunning()) return;
     try {
       if (localStorage.getItem(INTRO_KEY)) return;
       localStorage.setItem(INTRO_KEY, '1');
@@ -111,7 +113,7 @@ function Off({ view, tree, help, startPractice }: { view: CampaignView; tree: st
         <h2>{t('campaign.off.title')}</h2>
         <p>{steward ? t('campaign.off.steward') : t('campaign.off.member')}</p>
         <div className="cg-banner-actions">
-          <button type="button" className="btn primary" onClick={startPractice}><Swords size={16} /> {t('campaign.practice.try')}</button>
+          <button type="button" className="btn primary" data-tour="campaign-practice" onClick={startPractice}><Swords size={16} /> {t('campaign.practice.try')}</button>
           {steward && <button type="button" className="btn" disabled={turnOn.isPending} onClick={() => turnOn.mutate()}>{t('campaign.turn_on')}</button>}
           {steward && <Link className="btn ghost" to="/$tree/settings/games" params={{ tree }}>{t('campaign.off.settings')}</Link>}
         </div>
@@ -154,7 +156,7 @@ function Week({ view, tree, help, begin, startPractice }: { view: CampaignView; 
         title={t('campaign.title')}
         subtitle={t('campaign.week.line', { date: formatDate(challenge.ends, t.locale) })}
         icon={<Swords size={26} />}
-        actions={<>{help}<button type="button" className="btn" onClick={startPractice}><Swords size={16} /> {t('campaign.practice.button')}</button></>}
+        actions={<>{help}<button type="button" className="btn" data-tour="campaign-practice" onClick={startPractice}><Swords size={16} /> {t('campaign.practice.button')}</button></>}
       />
       <section className="ui-card cg-banner cg-week" aria-labelledby="cg-week-h">
         <div className="cg-week-top">

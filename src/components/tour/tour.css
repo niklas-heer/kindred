@@ -50,3 +50,65 @@
 @media (prefers-reduced-motion: reduce) {
   .tour-spot, .tour-card, .tour-meter i { transition: none; }
 }
+
+/* A step the reader does themselves: the dialog is not modal, so the page under it takes the clicks. Only the card
+   catches them, and the page is dimmed less, because it is in use. */
+.tour-dialog:not(:modal) { z-index: 200; }
+.tour-dialog[data-free] { pointer-events: none; }
+.tour-dialog[data-free] .tour-card { pointer-events: auto; }
+.tour-dialog[data-free] .tour-spot { box-shadow: 0 0 0 2px var(--accent), 0 0 0 200vmax #00000059; animation: tour-pulse 1.6s var(--ease-out) infinite; }
+.tour-dialog[data-free] .tour-scrim { pointer-events: none; background: #00000059; }
+@keyframes tour-pulse {
+  0%, 100% { outline: 2px solid transparent; outline-offset: 2px; }
+  50% { outline: 2px solid var(--accent); outline-offset: 7px; }
+}
+
+.tour-ask { display: flex; align-items: flex-start; gap: 8px; margin: 10px 0 0; padding: 8px 10px; border-radius: var(--radius); background: var(--panel-3); color: var(--text); font-size: var(--fs-3); line-height: 1.4; }
+.tour-ask svg { flex: none; margin-top: 2px; color: var(--accent); }
+.tour-ask-done { animation: ui-rise var(--dur-3) var(--ease-out); }
+
+/* The grand tour: which chapter this is, and the way past it. */
+.tour-chapter { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 10px; flex-wrap: wrap; margin: 8px 0 -6px; font-family: var(--font-ui); font-size: var(--fs-2); color: var(--subtle); }
+.tour-chapter b { color: var(--text); font-weight: 600; }
+.tour-chapter-skip { border: 0; padding: 2px 0; background: none; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.tour-chapter-skip:hover, .tour-chapter-skip:focus-visible { text-decoration-thickness: 2px; }
+
+/* The closing card: a seal that draws itself once, nothing more. */
+.tour-end { padding-top: 18px; text-align: center; justify-items: center; }
+.tour-end .tour-foot { width: 100%; }
+.tour-seal { width: 52px; height: 52px; fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.tour-seal circle { stroke-dasharray: 132; stroke-dashoffset: 132; animation: tour-draw 600ms var(--ease-out) 80ms forwards; }
+.tour-seal path { stroke-dasharray: 30; stroke-dashoffset: 30; animation: tour-draw 360ms var(--ease-out) 560ms forwards; }
+@keyframes tour-draw { to { stroke-dashoffset: 0; } }
+
+/* The Tours dialog. */
+.tours { display: grid; gap: 14px; }
+.tours-tour { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px 12px; padding: 14px; border: 1px solid var(--edge-soft, var(--panel-3)); border-radius: var(--radius); background: var(--panel-2, transparent); }
+.tours-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--panel-3); color: var(--accent); }
+.tours-text h3 { margin: 0 0 2px; font-family: var(--font-title); font-size: var(--fs-5); font-weight: 600; line-height: 1.25; }
+.tours-text p { margin: 0; color: var(--muted); font-size: var(--fs-3); line-height: 1.45; text-wrap: pretty; }
+.tours-grand > .tours-progress, .tours-grand > .tours-chapters, .tours-grand > .tours-actions { grid-column: 1 / -1; }
+.tours-progress { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; color: var(--subtle); font-size: var(--fs-2); font-variant-numeric: tabular-nums; }
+.tours-progress .tour-meter { margin: 0; height: 4px; border-radius: 2px; overflow: hidden; }
+.tours-chapters { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; }
+.tours-chapters button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 4px 8px; border: 0; border-radius: var(--radius); background: none; color: var(--text); font: inherit; font-size: var(--fs-3); text-align: left; cursor: pointer; }
+.tours-chapters button:hover, .tours-chapters button:focus-visible { background: var(--panel-3); outline: none; }
+.tours-chapters button:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+.tours-tick { display: grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--subtle); color: var(--subtle); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.tours-chapters [data-done] .tours-tick { border-color: var(--accent); background: var(--accent); color: var(--accent-text); }
+.tours-chapter { min-width: 0; flex: 1; }
+.tours-chapters em { flex: none; font-style: normal; font-size: var(--fs-2); color: var(--accent); }
+.tours-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 600px) {
+  .tours-tour { grid-template-columns: auto 1fr; }
+  .tours-tour > .btn { grid-column: 1 / -1; justify-content: center; min-height: 44px; }
+  .tours-chapters { grid-template-columns: 1fr; }
+  .tours-chapters button { min-height: 44px; }
+  .tours-actions .btn { flex: 1; justify-content: center; min-height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-dialog[data-free] .tour-spot, .tour-ask-done { animation: none; }
+  .tour-seal circle, .tour-seal path { animation: none; stroke-dashoffset: 0; }
+}

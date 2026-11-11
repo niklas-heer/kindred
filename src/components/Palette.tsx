@@ -20,7 +20,7 @@ import { Flag } from './heraldry/Flag';
 import { LANGUAGE_FLAG } from './LanguagePicker';
 import { Portrait } from './Portrait';
 import { Dialog } from './ui/Dialog';
-import { reopenTour } from './FirstRun';
+import { openTours } from './tour/store';
 import { openFeedback } from './feedback/FeedbackHost';
 import './palette.css';
 
@@ -161,7 +161,7 @@ export function Palette() {
       { key: 't-codex', icon: <Shield size={16} />, label: t('shell.cmd.themeCodex'), run: () => { setPref('theme', 'codex'); close(); } },
       { key: 't-paper', icon: <Sun size={16} />, label: t('shell.cmd.themePaper'), run: () => { setPref('theme', 'modern'); close(); } },
       { key: 't-night', icon: <Moon size={16} />, label: t('shell.cmd.themeNight'), run: () => { setPref('theme', 'night'); close(); } },
-      { key: 'tour', icon: <CircleHelp size={16} />, label: t('shell.cmd.tour'), hint: t('shell.cmd.tourHint'), run: () => { close(); reopenTour(); } },
+      { key: 'tour', icon: <CircleHelp size={16} />, label: t('shell.cmd.tour'), hint: t('shell.cmd.tourHint'), run: () => { close(); openTours(); } },
       ...(steward ? [
         { key: 'feedback', icon: <MessageSquarePlus size={16} />, label: t('feedback.menu'), hint: t('feedback.command_hint'), run: () => { close(); openFeedback(); } },
         { key: 'feedback-inbox', icon: <Inbox size={16} />, label: t('feedback.inbox'), hint: t('feedback.inbox_hint'), run: () => { navigate({ to: '/$tree/settings/feedback', params: { tree } }); close(); } },
@@ -180,6 +180,7 @@ export function Palette() {
   return (
     <Dialog open={isOpen} onClose={close} label={t('shell.palette.label')} placement="top" width={640} bare className="palette" initialFocus={input}>
         <input
+          data-tour="palette"
           ref={input}
           className="palette-input"
           placeholder={mode === 'language' ? t('shell.palette.language') : t('shell.palette.placeholder')}

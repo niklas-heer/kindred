@@ -40,7 +40,7 @@ export function LifeEditor({ tree, p, f }: { tree: string; p: GPerson; f: Family
   const canEdit = useCan('edit-person');
   if (!canEdit) return null;
   return (
-    <div className="life-editor">
+    <div className="life-editor" data-tour="life-editor">
       <EventsSection tree={tree} p={p} />
       <FactSources tree={tree} p={p} f={f} />
     </div>

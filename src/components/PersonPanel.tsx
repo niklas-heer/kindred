@@ -223,7 +223,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
       {dialogs}
     </article>
   ) : (
-    <aside className={`person-panel panel${mode}`} key={id} aria-labelledby={headId}>
+    <aside className={`person-panel panel${mode}`} data-tour="person-panel" key={id} aria-labelledby={headId}>
       <button className="btn icon ghost panel-close" onClick={() => leave(onClose)} aria-label={t('panel.closeAria')} title={t('panel.closeTitle')}><X size={16} /></button>
       <div className="pp-scroll" ref={scroller}>{miniBar}{head}{extras}{tabs}</div>
       {foot}{dialogs}
@@ -233,7 +233,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   return (
     <DraftContext.Provider value={{ register: setDraft, leave }}><PageLayout.Provider value={page}>
     {shell(<>
-      <header className="pp-head">
+      <header className="pp-head" data-tour="person-head">
         <span className="pp-portrait-slot">
           {/* A drawn portrait opens the character editor (a member may at least try a look on); a photo or a painting opens large. */}
           {member && drawn ? (
@@ -307,7 +307,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
             ['edit', t('panel.tab.edit'), undefined],
           ] as const
         ).filter(([tb]) => tb !== 'edit' || canEdit).map(([tb, label, n]) => (
-          <UiTab key={tb} value={tb} title={n ? `${label}: ${n}` : undefined}>
+          <UiTab key={tb} value={tb} title={n ? `${label}: ${n}` : undefined} tour={`person-tab-${tb}`}>
             {label}{n ? <span className="pp-count">{n}</span> : null}
           </UiTab>
         ))}
@@ -323,13 +323,13 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
         </TabPanel>
         <TabPanel value="family"><FamilyTab f={f} tree={tree} id={id} canAdd={canAdd} canEdit={canEdit} onSelect={(v) => leave(() => onSelect(v))} /></TabPanel>
         <TabPanel value="stories"><StoriesTab tree={tree} p={p} details={details} /></TabPanel>
-        <TabPanel value="everyday">
+        <TabPanel value="everyday" tour="person-everyday">
           <EverydayTab f={f} tree={tree} p={p} details={details} canEdit={canEdit} onSelect={(v) => leave(() => onSelect(v))} />
           <PersonHistory tree={tree} person={id} />
         </TabPanel>
-        <TabPanel value="edit">
+        <TabPanel value="edit" tour="person-edit">
           {canEdit && (
-            <button type="button" className="pp-appearance" onClick={() => setAppearance(true)} aria-haspopup="dialog">
+            <button type="button" className="pp-appearance" data-tour="person-appearance" onClick={() => setAppearance(true)} aria-haspopup="dialog">
               <Paintbrush size={18} aria-hidden />
               <span><b>{t('panel.appearance')}</b><small>{t('panel.appearance_hint')}</small></span>
             </button>
