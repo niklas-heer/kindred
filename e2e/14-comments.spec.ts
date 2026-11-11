@@ -30,7 +30,7 @@ test('comments: react, comment, change and remove on a memory; react to a photo;
   await expect(thanks).toHaveAttribute('aria-pressed', 'false');
   await thanks.click();
   await expect(thanks).toHaveAttribute('aria-pressed', 'true');
-  await expect(thanks).toHaveAccessibleName('🙏 (1 person)');
+  await expect(thanks).toHaveAccessibleName('🙏 1 person');
   // Any other emoji from the palette: found by name, given, and the palette closes.
   await reactions.getByRole('button', { name: 'More emoji' }).click();
   const palette = entry.getByRole('dialog', { name: 'Choose an emoji' });

@@ -142,7 +142,7 @@ test('feed: the new bar; a message with a picture; a second member answers; a gu
   // The steward reads the answer, and "What's new" says who wrote.
   await page.goto(`/${tree}/today`);
   await settled(page);
-  await expect(post.getByRole('group', { name: 'Reactions' }).getByRole('button', { name: /❤️/ })).toHaveAccessibleName('❤️ (1 person)');
+  await expect(post.getByRole('group', { name: 'Reactions' }).getByRole('button', { name: /❤️/ })).toHaveAccessibleName('❤️ 1 person');
   await post.getByRole('button', { name: '1 comment' }).click();
   await expect(post.getByRole('region', { name: 'Comments' }).getByText('We will come and see it.')).toBeVisible();
   await expect(page.getByRole('region', { name: 'What’s new' }).getByText('Cora Cousin wrote to the family')).toBeVisible();

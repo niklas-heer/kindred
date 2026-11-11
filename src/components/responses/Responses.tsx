@@ -206,7 +206,8 @@ function ReactionButton({ tree, kind, target, reaction, n, mine, quick, onToggle
         onKeyDown={(e) => { if (e.key === 'Escape' && peek) { e.stopPropagation(); setPeek(false); } }}
       >
         <span className="resp-emoji" aria-hidden>{reaction}</span>
-        {n ? <span className="resp-n" aria-hidden>{n}</span> : null}
+        {/* The space makes the visible text "🙏 1", which the label begins with (axe: label-content-name-mismatch); flex ignores it. */}
+        {n ? <>{' '}<span className="resp-n" aria-hidden>{n}</span></> : null}
       </button>
       {peek && n ? (
         <span id={tip} className="resp-peek" role="tooltip">
