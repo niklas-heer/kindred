@@ -46,12 +46,26 @@ export const familyAddressesQuery = (t: string, person: string) =>
   queryOptions({ queryKey: ['family-addresses', t, person], queryFn: () => getFamilyAddresses({ data: { tree: t, person } }), staleTime: 60_000 });
 
 /**
- * Sends the typed address to OpenStreetMap's public search, because the person just pressed the button that says so.
- * POST, so the address stays out of URLs and access logs. Editing a contact is what this is for, so it needs that right.
+ * Whether the address box may suggest whole addresses from OpenStreetMap (address-lookup.server.ts): on unless the
+ * self-hoster switched it off, and never in a demo. Asked once per page; a guest or a viewer is refused, as for the lookup.
  */
-export const lookupAddressOnline = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, text: z.string().trim().min(3).max(200), locale: z.enum(['en', 'de', 'af']) }))
+export const getAddressLookup = createServerFn({ method: 'GET' })
+  .validator(z.object({ tree }))
   .handler(async ({ data }) => {
     await (await guard()).requireCan(data.tree, 'edit-contact');
-    return (await import('./address-lookup.server')).lookupAddress(data.text, data.locale);
+    return { on: (await import('./address-lookup.server')).addressLookupOn() };
+  });
+export const addressLookupQuery = (t: string) =>
+  queryOptions({ queryKey: ['address-lookup', t], queryFn: () => getAddressLookup({ data: { tree: t } }), staleTime: Infinity, retry: false });
+
+/**
+ * Addresses for what is being typed, from OpenStreetMap through Photon: the browser asks here, never Photon itself.
+ * POST, so the address stays out of URLs and access logs. Editing a contact is what this is for, so it needs that right,
+ * which a guest, a viewer and a demo's visitor do not have.
+ */
+export const suggestAddressesOnline = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, text: z.string().trim().min(3).max(200), locale: z.enum(['en', 'de', 'af']) }))
+  .handler(async ({ data }) => {
+    const m = await (await guard()).requireCan(data.tree, 'edit-contact');
+    return (await import('./address-lookup.server')).suggestAddresses(data.text, data.locale, m.user.id);
   });

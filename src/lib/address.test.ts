@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { countryCodeOf, formatAddress, osmHit, parseAddress, townQuery } from './address.ts';
-import { lookupAddress, resetLookup } from './address-lookup.server.ts';
+import { countryCodeOf, formatAddress, parseAddress, photonHit, photonHits, townQuery } from './address.ts';
+import { addressLookupOn, resetLookup, suggestAddresses } from './address-lookup.server.ts';
 
 const parts = (street: string, postcode: string, city: string, country: string) => ({ street, postcode, city, country });
 
@@ -44,18 +44,39 @@ test('country names in all three languages are known', () => {
   for (const n of ['Germany', 'Deutschland', 'Duitsland', 'de']) assert.equal(countryCodeOf(n), 'DE', n);
 });
 
-test('reads an OpenStreetMap result into parts, house number where the country writes it', () => {
-  const at = (cc: string) => ({ place_id: 1, address: { road: 'Long Street', house_number: '12', postcode: '8001', town: 'Exampleton', country: 'Somewhere', country_code: cc } });
-  assert.deepEqual(osmHit(at('de'))?.parts, parts('Long Street 12', '8001', 'Exampleton', 'Somewhere'));
-  assert.equal(osmHit(at('za'))?.parts.street, '12 Long Street');
-  assert.equal(osmHit({ place_id: 2 }), null);
-  assert.equal(osmHit('junk'), null);
+// Shaped like Photon's answers (docs/api-v1.md), with invented places.
+const house = (cc: string, extra: Record<string, unknown> = {}) => ({
+  type: 'Feature',
+  geometry: { type: 'Point', coordinates: [1, 2] },
+  properties: { osm_type: 'N', osm_id: 101, type: 'house', housenumber: '12', street: 'Long Street', postcode: '8001', city: 'Exampleton', country: 'Somewhere', countrycode: cc.toUpperCase(), ...extra },
+});
+
+test('reads a Photon result into parts, house number where the country writes it', () => {
+  assert.deepEqual(photonHit(house('de'))?.parts, parts('Long Street 12', '8001', 'Exampleton', 'Somewhere'));
+  assert.equal(photonHit(house('za'))?.parts.street, '12 Long Street');
+  assert.equal(photonHit(house('de'))?.id, 'N101');
+  // A shop's name is not part of its address.
+  assert.equal(photonHit(house('de', { name: 'Corner Bakery' }))?.label, 'Long Street 12, 8001 Exampleton, Somewhere');
+  // A street on its own is named by `name`; a place with no town still has its locality.
+  const street = { properties: { type: 'street', name: 'Quiet Lane', locality: 'Smallfield', country: 'Somewhere', countrycode: 'GB' } };
+  assert.deepEqual(photonHit(street)?.parts, parts('Quiet Lane', '', 'Smallfield', 'Somewhere'));
+  assert.equal(photonHit({ properties: { type: 'state', name: 'Region', country: 'Somewhere' } }), null);
+  assert.equal(photonHit({ type: 'Feature' }), null);
+  assert.equal(photonHit('junk'), null);
+});
+
+test('a Photon answer lists each address once, and anything else is no answer', () => {
+  const hits = photonHits({ type: 'FeatureCollection', features: [house('de'), house('de', { osm_id: 102 }), house('de', { housenumber: '14' }), 'junk'] });
+  assert.deepEqual(hits?.map((h) => h.parts.street), ['Long Street 12', 'Long Street 14']);
+  assert.deepEqual(photonHits({ type: 'FeatureCollection', features: [] }), []);
+  assert.equal(photonHits([house('de')]), null);
+  assert.equal(photonHits(null), null);
 });
 
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const HIT = { place_id: 7, address: { road: 'Long Street', house_number: '12', city: 'Exampleton', country: 'Somewhere', country_code: 'de' } };
+const ANSWER = { type: 'FeatureCollection', features: [house('de')] };
 
-function deps(fetchImpl: () => Promise<Response>) {
+function deps(fetchImpl: () => Promise<Response>, env: Record<string, string | undefined> = {}) {
   const clock = { t: 1000 };
   const calls: { url: string; init?: RequestInit }[] = [];
   return {
@@ -64,51 +85,77 @@ function deps(fetchImpl: () => Promise<Response>) {
       fetch: (async (url: string, init?: RequestInit) => { calls.push({ url, init }); return fetchImpl(); }) as typeof fetch,
       now: () => clock.t,
       sleep: async (ms: number) => { clock.t += ms; },
+      env,
     },
   };
 }
 
-test('sends only the typed text, says who is asking, and caches the answer', async () => {
+test('the lookup is on unless the self-hoster switched it off, and then asks nobody', async () => {
+  assert.equal(addressLookupOn({}), true);
+  assert.equal(addressLookupOn({ KINDRED_ADDRESS_LOOKUP: '' }), true);
+  assert.equal(addressLookupOn({ KINDRED_ADDRESS_LOOKUP: 'on' }), true);
+  for (const v of ['off', 'OFF', '0', 'false', 'no']) assert.equal(addressLookupOn({ KINDRED_ADDRESS_LOOKUP: v }), false, v);
   resetLookup();
-  const { calls, d } = deps(async () => reply([HIT]));
-  const first = await lookupAddress('Long Street 12', 'de', d);
+  const { calls, d } = deps(async () => reply(ANSWER), { KINDRED_ADDRESS_LOOKUP: 'off' });
+  assert.deepEqual(await suggestAddresses('Long Street 12', 'en', 'a', d), { ok: false, reason: 'off' });
+  assert.equal(calls.length, 0);
+});
+
+test('sends only the typed text to Photon, says who is asking, and caches the answer', async () => {
+  resetLookup();
+  const { calls, d } = deps(async () => reply(ANSWER));
+  const first = await suggestAddresses('Long Street 12', 'de', 'a', d);
   assert.ok(first.ok && first.hits[0].parts.city === 'Exampleton');
   const url = new URL(calls[0].url);
   assert.equal(url.protocol, 'https:');
-  assert.equal(url.hostname, 'nominatim.openstreetmap.org');
-  assert.deepEqual([...url.searchParams.keys()].sort(), ['accept-language', 'addressdetails', 'format', 'limit', 'q']);
+  assert.equal(url.hostname, 'photon.komoot.io');
+  assert.deepEqual([...new Set(url.searchParams.keys())].sort(), ['lang', 'layer', 'limit', 'q']);
   assert.equal(url.searchParams.get('q'), 'Long Street 12');
+  assert.equal(url.searchParams.get('lang'), 'de');
+  assert.deepEqual(url.searchParams.getAll('layer'), ['house', 'street']);
   assert.match(new Headers(calls[0].init?.headers).get('User-Agent') ?? '', /Kindred/);
-  await lookupAddress('long street 12', 'de', d);
+  await suggestAddresses('long street 12', 'de', 'b', d);
   assert.equal(calls.length, 1, 'answered from the cache');
+  // Photon has no Afrikaans: the local names come back, and no language is sent.
+  await suggestAddresses('Long Street 12', 'af', 'a', d);
+  assert.equal(new URL(calls[1].url).searchParams.has('lang'), false);
 });
 
-test('keeps a second between requests, and declines rather than queueing for long', async () => {
+test('keeps a gap between requests, declines rather than queueing for long, and caps one person', async () => {
   resetLookup();
-  const { calls, clock, d } = deps(async () => reply([]));
-  await lookupAddress('First Street', 'en', d);
+  const { calls, clock, d } = deps(async () => reply(ANSWER));
+  await suggestAddresses('First Street', 'en', 'a', d);
   const before = clock.t;
-  await lookupAddress('Second Street', 'en', d);
-  assert.ok(clock.t - before >= 1000);
+  await suggestAddresses('Second Street', 'en', 'a', d);
+  assert.ok(clock.t - before >= 250);
   assert.equal(calls.length, 2);
 
   resetLookup();
-  const held = deps(async () => reply([]));
+  const held = deps(async () => reply(ANSWER));
   held.d.sleep = () => new Promise(() => {});
-  for (let i = 0; i < 4; i++) void lookupAddress(`Street number ${i}`, 'en', held.d);
-  assert.deepEqual(await lookupAddress('Street number 9', 'en', held.d), { ok: false });
+  for (let i = 0; i < 6; i++) void suggestAddresses(`Street number ${i}`, 'en', `p${i}`, held.d);
+  assert.deepEqual(await suggestAddresses('Street number 9', 'en', 'p9', held.d), { ok: false, reason: 'busy' });
+
+  resetLookup();
+  const busy = deps(async () => reply(ANSWER));
+  let last;
+  for (let i = 0; i < 41; i++) { busy.clock.t += 1000; last = await suggestAddresses(`Street ${i}`, 'en', 'eager', busy.d); }
+  assert.deepEqual(last, { ok: false, reason: 'busy' }, 'the 41st in a minute');
+  assert.equal((await suggestAddresses('Street 99', 'en', 'someone else', busy.d)).ok, true, 'another person is not held up');
+  busy.clock.t += 60_000;
+  assert.equal((await suggestAddresses('Street 100', 'en', 'eager', busy.d)).ok, true, 'a minute later');
 });
 
 test('any failure is just a failure, and is not cached', async () => {
-  for (const f of [async () => reply({}, 500), async () => { throw new Error('offline'); }, async () => reply({ not: 'a list' })]) {
+  for (const f of [async () => reply({}, 500), async () => { throw new Error('offline'); }, async () => reply({ not: 'features' })]) {
     resetLookup();
     const { d } = deps(f);
-    assert.deepEqual(await lookupAddress('Long Street 12', 'en', d), { ok: false });
+    assert.deepEqual(await suggestAddresses('Long Street 12', 'en', 'a', d), { ok: false, reason: 'failed' });
   }
   resetLookup();
   let n = 0;
-  const { d, clock } = deps(async () => (++n === 1 ? reply({}, 500) : reply([HIT])));
-  await lookupAddress('Long Street 12', 'en', d);
+  const { d, clock } = deps(async () => (++n === 1 ? reply({}, 500) : reply(ANSWER)));
+  await suggestAddresses('Long Street 12', 'en', 'a', d);
   clock.t += 5000;
-  assert.equal((await lookupAddress('Long Street 12', 'en', d)).ok, true);
+  assert.equal((await suggestAddresses('Long Street 12', 'en', 'a', d)).ok, true);
 });

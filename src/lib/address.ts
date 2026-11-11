@@ -121,30 +121,52 @@ export function townQuery(text: string): { street: string; postcode: string; q: 
   return { street, postcode: '', q: /\d/.test(last) ? '' : last };
 }
 
-// ---------- OpenStreetMap ----------
+// ---------- OpenStreetMap, through Photon ----------
 
-export interface OsmHit { id: string; label: string; parts: AddressParts }
+/** An address the online lookup found, ready to fill the parts. */
+export interface AddressHit { id: string; label: string; parts: AddressParts }
 
 /** Countries that write the house number before the street. Elsewhere it follows. */
 const NUMBER_FIRST = new Set(['us', 'gb', 'ie', 'ca', 'au', 'nz', 'za', 'fr', 'in']);
 
-/** One Nominatim result (`addressdetails=1`) as address parts; null when it says nothing usable. */
-export function osmHit(raw: unknown): OsmHit | null {
+/**
+ * One Photon result (a GeoJSON feature, https://github.com/komoot/photon/blob/master/docs/api-v1.md) as address parts; null
+ * when it says nothing usable. A street on its own carries its name as `name`; a house names its street in `street` (and
+ * its `name`, if any, is a shop or an office, not part of the address).
+ */
+export function photonHit(raw: unknown): AddressHit | null {
   if (!raw || typeof raw !== 'object') return null;
-  const r = raw as { place_id?: unknown; display_name?: unknown; address?: Record<string, unknown> };
-  const a = r.address;
-  if (!a || typeof a !== 'object') return null;
+  const p = (raw as { properties?: unknown }).properties;
+  if (!p || typeof p !== 'object') return null;
+  const a = p as Record<string, unknown>;
   const str = (k: string) => (typeof a[k] === 'string' ? (a[k] as string).trim().slice(0, 120) : '');
-  const road = str('road') || str('pedestrian') || str('footway') || str('path');
-  const number = str('house_number');
-  const cc = str('country_code').toLowerCase();
+  const kind = str('type');
+  const road = str('street') || (kind === 'street' ? str('name') : '');
+  const number = str('housenumber');
+  const cc = str('countrycode').toLowerCase();
   const parts: AddressParts = {
     street: !road ? '' : !number ? road : NUMBER_FIRST.has(cc) ? `${number} ${road}` : `${road} ${number}`,
     postcode: str('postcode'),
-    city: str('city') || str('town') || str('village') || str('municipality') || str('hamlet') || str('suburb'),
+    city: str('city') || (kind === 'city' ? str('name') : '') || str('locality') || str('district'),
     country: str('country'),
   };
-  if (!Object.values(parts).some(Boolean)) return null;
+  if (!parts.street && !parts.city) return null;
   const label = formatAddress(parts);
-  return { id: String(r.place_id ?? label), label, parts };
+  const osm = typeof a.osm_id === 'number' || typeof a.osm_id === 'string' ? `${str('osm_type')}${String(a.osm_id)}` : '';
+  return { id: osm || label, label, parts };
+}
+
+/** A Photon answer as hits, the same address listed once. Anything that is not a feature collection is no hits. */
+export function photonHits(body: unknown): AddressHit[] | null {
+  const features = body && typeof body === 'object' ? (body as { features?: unknown }).features : undefined;
+  if (!Array.isArray(features)) return null;
+  const seen = new Set<string>();
+  const out: AddressHit[] = [];
+  for (const f of features) {
+    const h = photonHit(f);
+    if (!h || seen.has(h.label)) continue;
+    seen.add(h.label);
+    out.push(h);
+  }
+  return out;
 }

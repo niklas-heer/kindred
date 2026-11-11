@@ -202,6 +202,26 @@ test('suggestions offer an editor what they may see, and never a personal value,
   await dbs.db(TREE).run("DELETE FROM person_field WHERE id = 'w-e'");
 });
 
+test('address suggestions are for those who may edit contacts: never a viewer or a guest', async () => {
+  // Switched off, so nothing here can reach Photon; the guard runs before the setting is read.
+  const was = process.env.KINDRED_ADDRESS_LOOKUP;
+  process.env.KINDRED_ADDRESS_LOOKUP = 'off';
+  try {
+    const ask = () => suggest.suggestAddressesOnline({ data: { tree: TREE, text: 'Long Street 12', locale: 'en' } });
+    as(AUTHOR);
+    assert.deepEqual(await suggest.getAddressLookup({ data: { tree: TREE } }), { on: false });
+    assert.deepEqual(await ask(), { ok: false, reason: 'off' });
+    as(VIEWER);
+    await assert.rejects(ask(), /permission|forbidden|role|allowed/i);
+    await assert.rejects(suggest.getAddressLookup({ data: { tree: TREE } }), /permission|forbidden|role|allowed/i);
+    asGuest();
+    await assert.rejects(ask());
+    await assert.rejects(suggest.getAddressLookup({ data: { tree: TREE } }));
+  } finally {
+    if (was === undefined) delete process.env.KINDRED_ADDRESS_LOOKUP; else process.env.KINDRED_ADDRESS_LOOKUP = was;
+  }
+});
+
 test('the assistant never receives a personal field, whoever is asking, and editors’ fields only for editors', async () => {
   const tools = await toolsModule();
   for (const role of ['viewer', 'contributor', 'editor', 'steward'] as const) {

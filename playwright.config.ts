@@ -56,6 +56,8 @@ export default defineConfig({
       KINDRED_ACCOUNTS_DB: join(data, 'accounts.db'),
       KINDRED_AI_FAKE: '1',
       KINDRED_JOBS: 'off',
+      // The journeys never ask OpenStreetMap: the address box suggests offline towns only.
+      KINDRED_ADDRESS_LOOKUP: 'off',
       KINDRED_SETUP_CODE: SETUP_CODE,
     },
   },

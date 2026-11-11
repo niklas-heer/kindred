@@ -1,18 +1,25 @@
-// One box for a whole address. Typing suggests towns from the family's own places and the offline gazetteer, which
-// never leaves the app. For a street, "Look up this address" asks OpenStreetMap, and only when pressed: the button says
-// where the text goes. A failed lookup changes nothing, so what was typed stays.
+// One box for a whole address, suggesting as you type. First the towns from the family's own places and the offline
+// gazetteer, which never leaves the app; then, once there are a few letters, whole addresses from OpenStreetMap, which our
+// server looks up with Photon (address-lookup.server.ts) so the browser never talks to anyone else. One line under the box
+// says so. Picking an address fills the street, the postcode, the town and the country. A self-hoster can switch the
+// online part off (KINDRED_ADDRESS_LOOKUP), and a guest never has it; the towns stay either way, and a failed lookup changes
+// nothing, so what was typed stays.
 import { useDebouncedValue } from '@tanstack/react-pacer';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { Search, UsersRound } from 'lucide-react';
-import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { UsersRound } from 'lucide-react';
+import { useId, useMemo } from 'react';
 import { placeSearchQuery } from '~/lib/api';
 import { formatAddress, townQuery, type AddressParts } from '~/lib/address';
-import { familyAddressesQuery, lookupAddressOnline } from '~/lib/field-suggest.functions';
+import { addressLookupQuery, familyAddressesQuery, suggestAddressesOnline } from '~/lib/field-suggest.functions';
 import { displayName, type Family } from '~/lib/graph';
 import { useT } from '~/lib/i18n';
+import { useMember } from '~/lib/session';
 import type { Suggestion } from '~/lib/field-suggest';
 import { countryName } from '../PlaceInput';
 import { SuggestInput } from './SuggestInput';
+
+/** Fewer letters than this and an address search finds too much to be any help. */
+const MIN_LETTERS = 4;
 
 export function AddressFinder({ tree, value, onChange, onPick, onBlur, label, labelledBy, placeholder, family }: {
   tree: string;
@@ -27,29 +34,49 @@ export function AddressFinder({ tree, value, onChange, onPick, onBlur, label, la
   family?: { person: string; fam: Family; onCopy: (parts: AddressParts) => void };
 }) {
   const t = useT();
-  const text = value.trim();
+  const noteId = useId();
   const typed = townQuery(value);
   const [q] = useDebouncedValue(typed.q, { wait: 150 });
   const search = useQuery({ ...placeSearchQuery(tree, q), enabled: q.trim().length >= 2 });
-  const hits = useMemo(() => (q.trim().length >= 2 ? search.data ?? [] : []), [q, search.data]);
-  const options = useMemo<Suggestion[]>(() => hits.map((h, i) => ({
-    value: String(i),
-    label: h.name,
-    hint: [h.region && h.region !== h.name ? h.region : '', countryName(h.country, t.locale)].filter(Boolean).join(', ') || undefined,
-    used: h.uses !== undefined,
-  })), [hits, t.locale]);
+  const towns = useMemo(() => (q.trim().length >= 2 ? search.data ?? [] : []), [q, search.data]);
 
-  const lookup = useMutation({ mutationFn: (typedText: string) => lookupAddressOnline({ data: { tree, text: typedText, locale: t.locale } }) });
-  // An answer belongs to the text it was asked about; typing on makes it stale.
-  const answer = lookup.variables === text ? lookup.data : undefined;
-  const failed = lookup.variables === text && (lookup.isError || answer?.ok === false);
-  const found = answer?.ok ? answer.hits : undefined;
+  // The online part: for members only, and only when this server has it on.
+  const member = !!useMember(tree);
+  const online = useQuery({ ...addressLookupQuery(tree), enabled: member }).data?.on === true;
+  const [asked] = useDebouncedValue(value.trim(), { wait: 300 });
+  const askable = online && asked.length >= MIN_LETTERS && /\p{L}/u.test(asked);
+  const found = useQuery({
+    queryKey: ['address-suggest', tree, t.locale, asked.toLowerCase()],
+    queryFn: () => suggestAddressesOnline({ data: { tree, text: asked, locale: t.locale } }),
+    enabled: askable,
+    staleTime: 600_000,
+    retry: false,
+    // While the next answer is on its way, the last one stays, so the list does not blink with every key.
+    placeholderData: (prev) => prev,
+  });
+  const addresses = useMemo(() => (askable && found.data?.ok ? found.data.hits : []), [askable, found.data]);
+
+  const options = useMemo<Suggestion[]>(() => [
+    ...towns.map((h, i) => ({
+      value: `t${i}`,
+      label: h.name,
+      hint: [h.region && h.region !== h.name ? h.region : '', countryName(h.country, t.locale)].filter(Boolean).join(', ') || undefined,
+      used: h.uses !== undefined,
+    })),
+    ...addresses.map((h, i) => ({ value: `a${i}`, label: h.parts.street || h.label, hint: [h.parts.postcode, h.parts.city, h.parts.country].filter(Boolean).join(' · ') || undefined, group: t('addr.resultsAria') })),
+  ], [towns, addresses, t]);
+
   const relatives = useQuery({ ...familyAddressesQuery(tree, family?.person ?? ''), enabled: !!family }).data ?? [];
   const nameOf = (id: string) => { const p = family?.fam.byId.get(id); return p ? displayName(p, family!.fam) : undefined; };
-  const canLookUp = text.length >= 5 && /\p{L}/u.test(text);
 
-  const pickTown = (s: Suggestion) => {
-    const h = hits[Number(s.value)];
+  const pick = (s: Suggestion) => {
+    const n = Number(s.value.slice(1));
+    if (s.value.startsWith('a')) {
+      const h = addresses[n];
+      if (h) onPick(h.parts);
+      return;
+    }
+    const h = towns[n];
     if (!h) return;
     const named = h.name.split(',').map((x) => x.trim());
     onPick({ street: typed.street, postcode: typed.postcode, city: named[0], country: h.country ? countryName(h.country, t.locale) : named.slice(1).join(', ') });
@@ -57,7 +84,8 @@ export function AddressFinder({ tree, value, onChange, onPick, onBlur, label, la
 
   return (
     <div className="af">
-      <SuggestInput value={value} onChange={onChange} onPick={pickTown} onBlur={onBlur} options={options} label={label} labelledBy={labelledBy} placeholder={placeholder ?? t('addr.placeholder')} listLabel={t('places.suggestedAria')} />
+      <SuggestInput value={value} onChange={onChange} onPick={pick} onBlur={onBlur} options={options} label={label} labelledBy={labelledBy} describedBy={online ? noteId : undefined} placeholder={placeholder ?? t('addr.placeholder')} listLabel={t('places.suggestedAria')} />
+      {online && <small className="subtle af-where af-tools" id={noteId}>{t('addr.onlineNote')}</small>}
       {family && relatives.length > 0 && (
         <div className="af-family" role="group" aria-label={t('addr.family')}>
           <span className="af-family-title">{t('addr.family')}</span>
@@ -70,26 +98,6 @@ export function AddressFinder({ tree, value, onChange, onPick, onBlur, label, la
               </button>
             );
           })}
-        </div>
-      )}
-      {canLookUp && (
-        <div className="af-tools">
-          <div className="af-ask">
-            <button type="button" className="btn af-lookup" disabled={lookup.isPending} onClick={() => lookup.mutate(text)}>
-              <Search size={14} aria-hidden /> {lookup.isPending ? t('addr.looking') : t('addr.lookup')}
-            </button>
-            <span className="subtle af-where">{t('addr.lookupHint')}</span>
-          </div>
-          {failed && <p className="subtle af-note" role="status">{t('addr.failed')}</p>}
-          {found && !found.length && <p className="subtle af-note" role="status">{t('addr.none')}</p>}
-          {found && found.length > 0 && (
-            <div className="af-results" role="group" aria-label={t('addr.resultsAria')}>
-              {found.map((h) => (
-                <button type="button" key={h.id} className="af-result" onClick={() => { onPick(h.parts); lookup.reset(); }}>{h.label}</button>
-              ))}
-              <small className="subtle af-attr">{t('addr.attribution')}</small>
-            </div>
-          )}
         </div>
       )}
     </div>

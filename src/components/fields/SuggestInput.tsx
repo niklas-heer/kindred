@@ -8,7 +8,7 @@ import { useAnchoredPop } from '../ui/anchoredPop';
 import { isTopOverlay, useOverlayLayer } from '../ui/overlay';
 import './suggest.css';
 
-export function SuggestInput({ value, onChange, onPick, onBlur, options, placeholder, label, labelledBy, listLabel }: {
+export function SuggestInput({ value, onChange, onPick, onBlur, options, placeholder, label, labelledBy, describedBy, listLabel }: {
   value: string;
   onChange: (text: string) => void;
   /** Instead of putting the option's value in the box. */
@@ -18,6 +18,7 @@ export function SuggestInput({ value, onChange, onPick, onBlur, options, placeho
   placeholder?: string;
   label?: string;
   labelledBy?: string;
+  describedBy?: string;
   listLabel?: string;
 }) {
   const t = useT();
@@ -71,6 +72,7 @@ export function SuggestInput({ value, onChange, onPick, onBlur, options, placeho
         aria-activedescendant={showing && active >= 0 ? `${id}-o${active}` : undefined}
         aria-label={label}
         aria-labelledby={labelledBy}
+        aria-describedby={describedBy}
         placeholder={placeholder}
         value={value}
         onChange={(e) => { onChange(e.target.value); setOpen(true); }}

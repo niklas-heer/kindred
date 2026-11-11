@@ -41,6 +41,8 @@ services:
       # A public, read-only demo (docs/self-host.md, "A public demo"). The demo profile below sets it for its own service; leave
       # it empty here unless this whole app is meant to be one.
       KINDRED_DEMO: ${KINDRED_DEMO:-}
+      # off: the address box suggests towns only, and never asks OpenStreetMap (Photon) for whole addresses. Default on.
+      KINDRED_ADDRESS_LOOKUP: ${KINDRED_ADDRESS_LOOKUP:-}
       # Years of each family's change history the daily run keeps (default 3; 0 keeps it for ever).
       KINDRED_HISTORY_YEARS: ${KINDRED_HISTORY_YEARS:-}
       # 1 with the https profile: Caddy is the one proxy in front, and the rate limits then count each visitor's own
