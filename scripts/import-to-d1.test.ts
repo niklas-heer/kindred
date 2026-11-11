@@ -115,6 +115,9 @@ to Lindby', '${now}', NULL);
     INSERT INTO post_media (post, media, ord) VALUES ('00000000-0000-4000-8000-000000000001', 'gallery/g2.jpg', 0);
     INSERT INTO post_person (post, person) VALUES ('00000000-0000-4000-8000-000000000001', 'ada');
     INSERT INTO reaction (target_kind, target, account, kind, created_at) VALUES ('post', '00000000-0000-4000-8000-000000000001', 'u1', '❤️', '${now}');
+    INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES ('s2', 'ada', 'recipe', 'Ada''s stew', '- 1 onion', 'Ben', '${now}', NULL);
+    INSERT INTO recipe (story, source, servings, prep_minutes, cook_minutes, ingredients, steps, notes, tags, cover, updated_at) VALUES ('s2', 'Ada''s own', 4, 10, 90, '[{"name":"","items":[{"amount":"1","unit":"","item":"onion","note":""}]}]', '[{"text":"Chop it.","image":null}]', 'It''s better tomorrow', '["stew"]', 'recipe/r1.jpg', '${now}');
+    INSERT INTO recipe_image (key, story, mime, width, height, thumb, created_at, gone_at) VALUES ('recipe/r1.jpg', 's2', 'image/jpeg', 1200, 800, 'recipe-thumb/r1.jpg', '${now}', NULL);
   `);
   return d;
 }

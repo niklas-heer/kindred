@@ -1,0 +1,322 @@
+/* Recipes (docs/recipes.md): the Cookbook's grid, a recipe's own page, cooking mode, the form, and the sheet it prints
+   on. Everything is drawn in the theme's tokens, so Codex, Paper and Night each get their own cookbook. */
+
+/* ---------- shared bits ---------- */
+
+.rcp-tag {
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 999px;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+  font-family: var(--font-ui); font-size: var(--fs-1); line-height: 1.6; white-space: nowrap; text-decoration: none;
+}
+a.rcp-tag:hover, button.rcp-tag:hover { border-color: var(--accent); color: var(--accent); }
+a.rcp-tag:focus-visible, button.rcp-tag:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+button.rcp-tag { cursor: pointer; min-height: 28px; }
+button.rcp-tag[aria-pressed='true'] { background: var(--accent); border-color: transparent; color: var(--accent-text); }
+button.rcp-tag > span { opacity: 0.7; font-variant-numeric: tabular-nums; }
+.rcp-tag.is-offer { border-style: dashed; color: var(--muted); }
+.rcp-tag > button { display: inline-flex; padding: 2px; margin-right: -5px; border: 0; background: none; color: inherit; cursor: pointer; border-radius: 50%; }
+.rcp-tag > button:hover { color: var(--danger); }
+.rcp-tag > button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.rcp-facts { display: inline-flex; flex-wrap: wrap; gap: 2px 14px; color: var(--muted); font-family: var(--font-ui); font-size: var(--fs-2); }
+.rcp-facts > span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.rcp-hint { margin: 0; color: var(--muted); font-size: var(--fs-2); line-height: var(--lh-ui); }
+.rcp-small { height: var(--ctl-sm); font-size: var(--fs-2); }
+.rcp-label { font-family: var(--font-ui); font-size: var(--fs-2); color: var(--muted); }
+
+/* A recipe without a picture: a gingham cloth in the theme's accent, with the dish's first letter. */
+.rcp-nocover {
+  position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 2px; color: var(--accent);
+  background:
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--accent) 13%, transparent) 0 14px, transparent 14px 28px),
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--accent) 13%, transparent) 0 14px, transparent 14px 28px),
+    var(--panel-2);
+}
+.rcp-nocover b { font-family: var(--font-display); font-size: 2.25rem; line-height: 1; font-weight: 600; }
+
+/* ---------- the Cookbook ---------- */
+
+.rcp-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin: 4px 0 12px; }
+.rcp-filters .rcp-search { flex: 1 1 240px; margin: 0; padding: 0; }
+.rcp-filters .rcp-search svg { top: 50%; }
+.rcp-filters .ui-select { flex: 0 1 220px; min-width: 160px; }
+.rcp-tagbar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.rcp-result { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; color: var(--muted); font-family: var(--font-ui); font-size: var(--fs-2); }
+
+.rcp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 18px; }
+.rcp-card { display: flex; flex-direction: column; overflow: hidden; padding: 0; color: var(--text); text-decoration: none; }
+.rcp-card-cover { position: relative; display: block; aspect-ratio: 4 / 3; background: var(--panel-2); overflow: hidden; }
+.rcp-card-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s var(--ease-out); }
+.rcp-card:hover .rcp-card-cover img { transform: scale(1.04); }
+.rcp-card-text { display: grid; gap: 7px; padding: 14px 16px 16px; align-content: start; }
+.rcp-card-title { font-family: var(--font-display); font-size: var(--fs-5); font-weight: 600; line-height: var(--lh-tight); text-wrap: balance; }
+[data-theme='codex'] .rcp-card-title { font-variant: small-caps; letter-spacing: 0.03em; }
+.rcp-card-by { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font-size: var(--fs-2); }
+.rcp-card-by > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rcp-card-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+
+/* ---------- a recipe inside the Chronicle, the feed or a person's memories ---------- */
+
+.rcp-teaser { display: grid; grid-template-columns: minmax(0, 168px) minmax(0, 1fr); gap: 14px; align-items: start; container-type: inline-size; }
+.rcp-teaser:not(:has(.rcp-teaser-cover)) { grid-template-columns: minmax(0, 1fr); }
+.rcp-teaser-cover { display: block; aspect-ratio: 4 / 3; border-radius: var(--radius); overflow: hidden; background: var(--panel-2); }
+.rcp-teaser-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rcp-teaser-cover:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.rcp-teaser-text { display: grid; gap: 7px; min-width: 0; justify-items: start; }
+.rcp-teaser-source { font-family: var(--font-hand); font-size: 1.25rem; line-height: 1.2; color: var(--accent); }
+.rcp-teaser-items { margin: 0; color: var(--muted); font-size: var(--fs-3); line-height: var(--lh-ui); overflow-wrap: anywhere; }
+.rcp-teaser-foot { display: flex; margin-top: 4px; }
+.rcp-open { height: var(--ctl-sm); font-size: var(--fs-2); }
+@media (max-width: 520px) { .rcp-teaser { grid-template-columns: minmax(0, 1fr); } .rcp-teaser-cover { aspect-ratio: 16 / 9; } }
+.story .rcp-teaser { grid-template-columns: minmax(0, 1fr); margin-top: 6px; }
+.story .rcp-teaser-cover { aspect-ratio: 16 / 9; }
+
+/* ---------- a recipe's page ---------- */
+
+.rcp-page { max-width: 1020px; }
+.rcp-crumbs { margin: -8px 0 10px -8px; }
+.rcp { padding: 0; overflow: hidden; }
+.rcp-hero { margin: 0; max-height: min(46vh, 420px); width: 100%; overflow: hidden; background: var(--panel-2); border-bottom: 1px solid var(--border); }
+.rcp-hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rcp-head { display: grid; gap: 12px; padding: 26px clamp(18px, 4vw, 40px) 20px; justify-items: start; }
+.rcp-kicker { display: inline-flex; align-items: center; gap: 7px; margin: 0; color: var(--accent); font-family: var(--font-hand); font-size: 1.5rem; line-height: 1.1; }
+.rcp-head h1 { margin: 0; font-family: var(--font-title); font-size: clamp(1.9rem, 4.6vw, 2.9rem); line-height: 1.08; text-wrap: balance; overflow-wrap: anywhere; }
+.rcp-byline { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.rcp-face { flex: none; border-radius: var(--radius); display: block; }
+.rcp-face:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.rcp-byline > div { display: grid; gap: 1px; min-width: 0; }
+.rcp-whose { font-size: var(--fs-4); }
+.rcp-byline small { color: var(--muted); font-family: var(--font-ui); font-size: var(--fs-2); }
+.rcp-meta { display: flex; flex-wrap: wrap; margin: 4px 0 0; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel-2); overflow: hidden; }
+.rcp-meta > div { padding: 9px 18px 10px; border-right: 1px solid var(--border); margin-right: -1px; }
+.rcp-meta dt { font-family: var(--font-ui); font-size: var(--fs-1); color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+.rcp-meta dd { margin: 1px 0 0; font-family: var(--font-display); font-size: var(--fs-5); font-weight: 600; white-space: nowrap; }
+.rcp-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.rcp-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.rcp-translated { margin: 0; }
+
+.rcp-body { display: grid; grid-template-columns: minmax(250px, 5fr) minmax(0, 8fr); gap: 0; border-top: 1px solid var(--border); }
+.rcp-body > :only-child { grid-column: 1 / -1; }
+.rcp-col-ing { padding: 22px clamp(16px, 2.6vw, 28px) 28px clamp(18px, 4vw, 40px); background: var(--panel-2); border-right: 1px solid var(--border); }
+.rcp-col-method { padding: 22px clamp(18px, 4vw, 40px) 30px clamp(16px, 2.6vw, 30px); min-width: 0; }
+.rcp-col-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: var(--ctl-sm); }
+.rcp-body h2, .rcp-notes h2 { margin: 0; font-family: var(--font-display); font-size: var(--fs-6); font-weight: 600; line-height: var(--lh-tight); }
+[data-theme='codex'] .rcp-body h2 { font-variant: small-caps; letter-spacing: 0.04em; }
+
+.rcp-scaler { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 12px 0 6px; }
+.rcp-stepper { display: inline-flex; align-items: center; gap: 4px; }
+.rcp-stepper label { display: inline-flex; align-items: center; gap: 7px; font-family: var(--font-ui); font-size: var(--fs-3); }
+.rcp-stepper .input { width: 3.4em; text-align: center; padding-inline: 4px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.rcp-times { display: inline-flex; gap: 4px; }
+.rcp-times .btn { min-width: 44px; height: var(--ctl-sm); padding-inline: 8px; font-variant-numeric: tabular-nums; }
+.rcp-times .btn[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+/* The list: one ruled line each, the amount in its own column, a tick that strikes the line through. */
+.rcp-ingredients { margin-top: 6px; }
+.rcp-ing-group h4 { margin: 16px 0 2px; font-family: var(--font-hand); font-size: 1.3rem; font-weight: 400; color: var(--accent); line-height: 1.2; }
+.rcp-ing-group ul { list-style: none; margin: 0; padding: 0; }
+.rcp-ing-group li { border-bottom: 1px dashed var(--edge-soft, var(--border)); }
+.rcp-ing-group li:last-child { border-bottom: 0; }
+.rcp-ing-group label { display: grid; grid-template-columns: 20px minmax(3.2em, auto) minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 8px 0; cursor: pointer; font-size: var(--fs-4); line-height: var(--lh-ui); }
+.rcp-ing-group input[type='checkbox'] { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); align-self: center; cursor: pointer; }
+.rcp-ing-amount { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.rcp-ing-item { overflow-wrap: anywhere; }
+.rcp-ing-item em { color: var(--muted); font-style: normal; }
+.rcp-ing-group label[data-done] .rcp-ing-amount, .rcp-ing-group label[data-done] .rcp-ing-item { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--edge); }
+.rcp-ingredients.is-large label { font-size: clamp(1.15rem, 2.6vw, 1.5rem); padding: 12px 0; grid-template-columns: 26px minmax(3.6em, auto) minmax(0, 1fr); }
+.rcp-ingredients.is-large input[type='checkbox'] { width: 24px; height: 24px; }
+.rcp-ingredients.is-large h4 { font-size: 1.6rem; }
+
+.rcp-steps { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 20px; }
+.rcp-steps > li { display: grid; grid-template-columns: 2.4rem minmax(0, 1fr); gap: 14px; align-items: start; }
+.rcp-step-n {
+  display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: 50%; flex: none;
+  border: 1px solid var(--accent); color: var(--accent); font-family: var(--font-display); font-size: var(--fs-5); font-weight: 600; line-height: 1;
+}
+.rcp-steps p { margin: 4px 0 0; font-size: var(--fs-4); line-height: 1.6; white-space: pre-line; overflow-wrap: anywhere; }
+.rcp-steps img { display: block; max-width: min(100%, 460px); height: auto; margin-top: 12px; border-radius: var(--radius-lg); border: 1px solid var(--border); }
+.rcp-notes { margin-top: 28px; padding: 16px 20px 18px; border-left: 3px solid var(--accent); background: var(--panel-2); border-radius: 0 var(--radius-lg) var(--radius-lg) 0; }
+.rcp-notes h2 { font-family: var(--font-hand); font-weight: 400; font-size: 1.6rem; color: var(--accent); margin-bottom: 6px; }
+.rcp-plain { padding: 4px clamp(18px, 4vw, 40px) 30px; border-top: 1px solid var(--border); padding-top: 22px; }
+.rcp-plain-hint { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--border); }
+.rcp-print-foot { display: none; }
+.rcp-responses { margin-top: 14px; padding: 0 4px; }
+
+@media (max-width: 860px) {
+  .rcp-body { grid-template-columns: minmax(0, 1fr); }
+  .rcp-col-ing { border-right: 0; border-bottom: 1px solid var(--border); padding-right: clamp(18px, 4vw, 40px); }
+  .rcp-col-method { padding-left: clamp(18px, 4vw, 40px); }
+}
+@media (max-width: 560px) {
+  .rcp-page { padding-inline: 10px; }
+  .rcp-hero { max-height: 36vh; }
+  .rcp-head { padding-top: 20px; }
+  .rcp-meta { width: 100%; }
+  .rcp-meta > div { flex: 1 1 auto; padding-inline: 12px; }
+  .rcp-actions { width: 100%; }
+  .rcp-actions .btn.primary { flex: 1 1 100%; height: var(--ctl-lg); }
+  .rcp-steps > li { grid-template-columns: 2rem minmax(0, 1fr); gap: 10px; }
+  .rcp-step-n { width: 1.9rem; height: 1.9rem; font-size: var(--fs-4); }
+  .rcp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .rcp-card-text { padding: 10px 12px 12px; }
+  .rcp-card-title { font-size: var(--fs-4); }
+}
+
+/* ---------- cooking mode ---------- */
+
+.ui-dialog:has(.rcp-cook) { padding: 0; }
+.ui-dialog-panel.rcp-cook {
+  width: 100vw; max-width: none; height: 100dvh; max-height: none; border-radius: 0; border: 0; overflow: hidden;
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--panel-solid, var(--panel));
+}
+.rcp-cook-head { display: flex; align-items: center; gap: 10px; padding: 12px clamp(14px, 3vw, 28px); border-bottom: 1px solid var(--border); padding-top: max(12px, env(safe-area-inset-top)); }
+.rcp-cook-head > div { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.rcp-cook-head b { font-family: var(--font-display); font-size: var(--fs-5); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rcp-cook-awake { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-family: var(--font-ui); font-size: var(--fs-1); }
+.rcp-cook-awake[data-state='on'] { color: var(--ok, var(--accent)); }
+.rcp-cook-stage { overflow-y: auto; overscroll-behavior: contain; padding: clamp(18px, 4vw, 44px) clamp(18px, 6vw, 72px); display: grid; }
+.rcp-cook-step { align-self: center; justify-self: center; width: min(100%, 60rem); display: grid; gap: 18px; }
+.rcp-cook-count { color: var(--accent); font-family: var(--font-ui); font-size: var(--fs-3); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; }
+.rcp-cook-step p { margin: 0; font-size: clamp(1.45rem, 3.6vw, 2.6rem); line-height: 1.38; white-space: pre-line; overflow-wrap: anywhere; text-wrap: pretty; }
+.rcp-cook-step img { max-width: 100%; max-height: 38vh; width: auto; height: auto; border-radius: var(--radius-lg); border: 1px solid var(--border); justify-self: start; }
+.rcp-cook-done { font-family: var(--font-hand); font-size: 1.9rem; color: var(--accent); }
+.rcp-cook-list { justify-self: center; width: min(100%, 40rem); }
+.rcp-cook-list h2 { margin: 0 0 4px; font-family: var(--font-display); font-size: var(--fs-7); }
+.rcp-cook-foot { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 12px clamp(14px, 3vw, 28px); padding-bottom: max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--border); }
+.rcp-cook-foot .btn { height: 56px; font-size: var(--fs-4); padding-inline: 18px; justify-content: center; }
+.rcp-cook-foot .btn:first-child { justify-self: start; }
+.rcp-cook-foot .btn:last-child { justify-self: end; min-width: min(46vw, 220px); }
+.rcp-cook-dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: 30vw; }
+.rcp-cook-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+.rcp-cook-dots i[data-past] { background: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.rcp-cook-dots i[data-on] { background: var(--accent); transform: scale(1.35); }
+@media (max-width: 560px) { .rcp-cook-dots { display: none; } .rcp-cook-foot { grid-template-columns: auto minmax(0, 1fr); } .rcp-cook-foot .btn:last-child { justify-self: stretch; min-width: 0; } }
+
+/* ---------- the form ---------- */
+
+.rcp-form { display: grid; gap: 18px; container-type: inline-size; container-name: rcp-form; min-width: 0; }
+.rcp-form .err { color: var(--danger); font-size: var(--fs-2); margin: 0; }
+.rcp-form .pp-unsaved { color: var(--accent); font-size: var(--fs-2); font-family: var(--font-ui); }
+.rcp-form label, .rcp-form legend { font-family: var(--font-ui); font-size: var(--fs-2); color: var(--muted); }
+.rcp-form-top { display: grid; grid-template-columns: minmax(0, 200px) minmax(0, 1fr); gap: 16px; align-items: stretch; }
+.rcp-form-cover {
+  display: grid; place-items: center; align-content: center; gap: 4px; min-height: 132px; padding: 12px; text-align: center; cursor: pointer;
+  border: 1.5px dashed var(--edge, var(--border)); border-radius: var(--radius-lg); background: var(--panel-2); color: var(--muted); font: inherit;
+}
+.rcp-form-cover:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.rcp-form-cover:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.rcp-form-cover b { font-family: var(--font-ui); font-size: var(--fs-3); color: var(--text); }
+.rcp-form-cover span { font-size: var(--fs-1); line-height: var(--lh-ui); }
+.rcp-form-cover.has { position: relative; padding: 0; border-style: solid; overflow: hidden; cursor: default; }
+.rcp-form-cover.has img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.rcp-form-cover-tools { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; justify-content: space-between; gap: 6px; }
+.rcp-form-cover-tools .btn { height: var(--ctl-sm); font-size: var(--fs-2); background: var(--panel-solid, var(--panel)); }
+.rcp-form-name { display: grid; gap: 4px; align-content: start; min-width: 0; }
+.rcp-form-name label:not(:first-child) { margin-top: 8px; }
+.rcp-title-input { font-family: var(--font-display); font-size: var(--fs-5); height: var(--ctl-lg); }
+.rcp-form-whose { display: grid; gap: 6px; }
+.rcp-form-person { display: flex; align-items: center; gap: 10px; }
+.rcp-form-pick { display: grid; gap: 8px; }
+.rcp-form-facts { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: end; }
+.rcp-fact { display: grid; gap: 4px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.rcp-fact > .input { width: 5.5em; }
+.rcp-duration { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.rcp-duration legend { padding: 0; margin-bottom: 4px; float: left; width: 100%; }
+.rcp-duration label { display: inline-flex; align-items: center; gap: 5px; }
+.rcp-duration .input { width: 3.6em; text-align: center; padding-inline: 4px; }
+
+.rcp-form-section { display: grid; gap: 8px; padding-top: 14px; border-top: 1px solid var(--border); min-width: 0; }
+.rcp-form-section > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.rcp-form-section h3 { margin: 0; font-family: var(--font-display); font-size: var(--fs-5); font-weight: 600; }
+.rcp-form-section > .btn, .rcp-group > .btn { justify-self: start; }
+.rcp-paste { display: grid; gap: 8px; }
+.rcp-row-end { display: flex; gap: 8px; }
+.rcp-group { display: grid; gap: 6px; }
+.rcp-group + .rcp-group { margin-top: 8px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.rcp-group-name { display: flex; gap: 6px; align-items: center; }
+.rcp-group-name .input { flex: 1; font-family: var(--font-hand); font-size: 1.15rem; }
+.rcp-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.rcp-row { display: grid; grid-template-columns: 5.2em 4.6em minmax(0, 3fr) minmax(0, 2fr) auto; gap: 6px; align-items: center; }
+.rcp-row .input { min-width: 0; width: 100%; padding-inline: 8px; }
+.rcp-amount { text-align: right; font-variant-numeric: tabular-nums; }
+.rcp-row-del { color: var(--muted); }
+/* In a narrow place (a phone, the person panel) a row is two lines: amount, unit and what; then how, once it matters. */
+@container rcp-form (max-width: 560px) {
+  .rcp-form-top { grid-template-columns: minmax(0, 1fr); }
+  .rcp-form-cover { min-height: 104px; }
+  .rcp-form-cover.has { min-height: 150px; }
+  .rcp-row { grid-template-columns: 4.4em 3.9em minmax(0, 1fr) auto; }
+  .rcp-row .rcp-note { grid-column: 1 / 4; grid-row: 2; display: none; }
+  .rcp-row:focus-within .rcp-note, .rcp-row .rcp-note[data-has] { display: block; }
+}
+.rcp-steps-edit { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.rcp-steps-edit > li { display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; gap: 8px; align-items: start; }
+.rcp-steps-edit .rcp-step-n { width: 1.9rem; height: 1.9rem; font-size: var(--fs-3); margin-top: 3px; }
+.rcp-step-body { display: grid; gap: 6px; min-width: 0; }
+.rcp-step-body textarea.input { min-height: 62px; field-sizing: content; }
+.rcp-step-pic { position: relative; width: 132px; aspect-ratio: 4 / 3; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
+.rcp-step-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rcp-step-pic .btn { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; min-height: 0; background: var(--panel-solid, var(--panel)); }
+.rcp-step-tools { display: grid; grid-template-columns: repeat(2, auto); gap: 2px; }
+.rcp-step-tools .btn { width: var(--ctl-sm); height: var(--ctl-sm); min-height: 0; color: var(--muted); }
+.rcp-tags-edit { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.rcp-tags-edit .input { flex: 1 1 140px; min-width: 120px; height: var(--ctl-sm); }
+.rcp-tags-known { display: flex; flex-wrap: wrap; gap: 6px; }
+.rcp-form-actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 12px 0 2px; border-top: 1px solid var(--border);
+  background: var(--panel-solid, var(--panel));
+}
+/* In its window the form is long: the way to save it stays in reach, over the window's own bottom padding. */
+.rcp-dialog .rcp-form-actions { position: sticky; bottom: -18px; padding-bottom: 18px; z-index: 1; }
+.story-form .rcp-form { margin-top: 8px; }
+.story-form .rcp-form-actions { background: none; }
+
+/* ---------- on paper ---------- */
+
+@media print {
+  /* Only the recipe prints: everything that is not it, or on the way to it, is gone, and what is on the way to it (the
+     app's shell, its scrolling page) is flattened so the sheet starts at the top of the first page. */
+  :root:has(.rcp-doc) :not(.rcp-doc, .rcp-doc *, :has(.rcp-doc)) { display: none !important; }
+  :root:has(.rcp-doc), :root:has(.rcp-doc) :has(.rcp-doc) {
+    display: block !important; position: static !important; overflow: visible !important; width: auto !important; height: auto !important;
+    min-height: 0 !important; max-width: none !important; max-height: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important;
+    background: #fff !important; box-shadow: none !important; transform: none !important; filter: none !important; contain: none !important; color-scheme: light !important;
+  }
+  .rcp-doc {
+    --text: #111; --muted: #444; --accent: #7a4a12; --border: #c9c2b4; --edge: #b9b1a0; --edge-soft: #c9c2b4; --panel: #fff; --panel-2: #fff; --panel-solid: #fff;
+    display: block !important; color: #111 !important; background: #fff !important; border: 0 !important; box-shadow: none !important; border-radius: 0 !important; overflow: visible !important;
+    font-size: 11pt;
+  }
+  .rcp-doc .rcp-actions, .rcp-doc .rcp-scaler, .rcp-doc .rcp-col-head .btn, .rcp-doc .rcp-translated, .rcp-doc .rcp-plain-hint { display: none !important; }
+  .rcp-doc .rcp-hero { float: right; width: 42%; max-height: 62mm; margin: 0 0 4mm 6mm; border: 0; border-radius: 2mm; aspect-ratio: auto !important; }
+  .rcp-doc .rcp-hero img { height: auto; max-height: 62mm; object-fit: cover; }
+  .rcp-doc .rcp-head { display: block; padding: 0 0 4mm; }
+  .rcp-doc .rcp-head > * { margin-bottom: 2.5mm; }
+  .rcp-doc .rcp-head h1 { font-size: 24pt; }
+  .rcp-doc .rcp-kicker { font-size: 15pt; }
+  .rcp-doc .rcp-face { display: none; }
+  .rcp-doc .rcp-whose a { color: inherit; text-decoration: none; }
+  .rcp-doc .rcp-meta { display: inline-flex; background: none; }
+  .rcp-doc .rcp-meta > div { padding: 1.5mm 4mm; }
+  .rcp-doc .rcp-meta dd { font-size: 12pt; }
+  .rcp-doc .rcp-tag { border: 0; padding: 0 6pt 0 0; background: none; color: #444; }
+  .rcp-doc .rcp-body { clear: both; grid-template-columns: 34% minmax(0, 1fr); border-top: 0.3mm solid #c9c2b4; }
+  .rcp-doc .rcp-col-ing { padding: 4mm 5mm 0 0; background: none; border-right: 0.3mm solid #c9c2b4; }
+  .rcp-doc .rcp-col-method { padding: 4mm 0 0 5mm; }
+  .rcp-doc .rcp-body h2 { font-size: 14pt; }
+  .rcp-doc .rcp-ing-group label { font-size: 10.5pt; padding: 1.3mm 0; grid-template-columns: 4mm minmax(3em, auto) minmax(0, 1fr); gap: 2mm; }
+  /* A box to tick with a pen. */
+  .rcp-doc .rcp-ing-group input[type='checkbox'] { appearance: none; width: 3.2mm; height: 3.2mm; border: 0.3mm solid #444; border-radius: 0.5mm; background: #fff; }
+  .rcp-doc .rcp-ing-group label[data-done] .rcp-ing-amount, .rcp-doc .rcp-ing-group label[data-done] .rcp-ing-item { color: #111; text-decoration: none; }
+  .rcp-doc .rcp-steps { gap: 3.5mm; }
+  .rcp-doc .rcp-steps > li { break-inside: avoid; grid-template-columns: 8mm minmax(0, 1fr); gap: 3mm; }
+  .rcp-doc .rcp-step-n { width: 7mm; height: 7mm; font-size: 11pt; }
+  .rcp-doc .rcp-steps p { font-size: 10.5pt; line-height: 1.45; margin-top: 0.6mm; }
+  .rcp-doc .rcp-steps img { max-width: 60mm; max-height: 45mm; width: auto; }
+  .rcp-doc .rcp-notes { break-inside: avoid; margin-top: 6mm; padding: 3mm 4mm; background: none; }
+  .rcp-doc .rcp-notes h2 { font-size: 14pt; }
+  .rcp-doc .rcp-notes .chr-md { font-size: 10.5pt; line-height: 1.45; }
+  .rcp-doc .rcp-plain { padding: 4mm 0 0; }
+  .rcp-doc .rcp-print-foot { display: block; margin-top: 8mm; padding-top: 2mm; border-top: 0.3mm solid #c9c2b4; color: #666; font-size: 8.5pt; font-family: var(--font-ui); }
+  @page { margin: 16mm 15mm; }
+}

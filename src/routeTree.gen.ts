@@ -22,6 +22,7 @@ import { Route as TreeAtlasRouteImport } from './routes/$tree/atlas'
 import { Route as TreeCampaignRouteImport } from './routes/$tree/campaign'
 import { Route as TreeChronicleRouteImport } from './routes/$tree/chronicle'
 import { Route as TreeContactsRouteImport } from './routes/$tree/contacts'
+import { Route as TreeCookbookRouteImport } from './routes/$tree/cookbook'
 import { Route as TreeGalleryRouteImport } from './routes/$tree/gallery'
 import { Route as TreeHistoryRouteImport } from './routes/$tree/history'
 import { Route as TreeHousesRouteImport } from './routes/$tree/houses'
@@ -39,6 +40,7 @@ import { Route as ShareTokenRouteImport } from './routes/share.$token'
 import { Route as UiCharacterRouteImport } from './routes/ui_.character'
 import { Route as TreeHouseHouseRouteImport } from './routes/$tree/house.$house'
 import { Route as TreePersonIdRouteImport } from './routes/$tree/person.$id'
+import { Route as TreeRecipeIdRouteImport } from './routes/$tree/recipe.$id'
 import { Route as TreeResearchProjectRouteImport } from './routes/$tree/research_.$project'
 import { Route as TreeResearchSourcesRouteImport } from './routes/$tree/research_.sources'
 import { Route as TreeSettingsActivityRouteImport } from './routes/$tree/settings.activity'
@@ -55,6 +57,7 @@ import { Route as ApiPaintTreeKeyRouteImport } from './routes/api/paint.$tree.$k
 import { Route as ApiPhotoTreeIdRouteImport } from './routes/api/photo.$tree.$id'
 import { Route as ApiPortraitTreeIdRouteImport } from './routes/api/portrait.$tree.$id'
 import { Route as ApiQuizPictureTreeDayRouteImport } from './routes/api/quiz-picture.$tree.$day'
+import { Route as ApiRecipeTreeKeyRouteImport } from './routes/api/recipe.$tree.$key'
 import { Route as ApiResearchTreeKeyRouteImport } from './routes/api/research.$tree.$key'
 
 const IndexRoute = IndexRouteImport.update({
@@ -120,6 +123,11 @@ const TreeChronicleRoute = TreeChronicleRouteImport.update({
 const TreeContactsRoute = TreeContactsRouteImport.update({
   id: '/contacts',
   path: '/contacts',
+  getParentRoute: () => TreeRoute,
+} as any)
+const TreeCookbookRoute = TreeCookbookRouteImport.update({
+  id: '/cookbook',
+  path: '/cookbook',
   getParentRoute: () => TreeRoute,
 } as any)
 const TreeGalleryRoute = TreeGalleryRouteImport.update({
@@ -207,6 +215,11 @@ const TreePersonIdRoute = TreePersonIdRouteImport.update({
   path: '/person/$id',
   getParentRoute: () => TreeRoute,
 } as any)
+const TreeRecipeIdRoute = TreeRecipeIdRouteImport.update({
+  id: '/recipe/$id',
+  path: '/recipe/$id',
+  getParentRoute: () => TreeRoute,
+} as any)
 const TreeResearchProjectRoute = TreeResearchProjectRouteImport.update({
   id: '/research_/$project',
   path: '/research/$project',
@@ -287,6 +300,11 @@ const ApiQuizPictureTreeDayRoute = ApiQuizPictureTreeDayRouteImport.update({
   path: '/api/quiz-picture/$tree/$day',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRecipeTreeKeyRoute = ApiRecipeTreeKeyRouteImport.update({
+  id: '/api/recipe/$tree/$key',
+  path: '/api/recipe/$tree/$key',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiResearchTreeKeyRoute = ApiResearchTreeKeyRouteImport.update({
   id: '/api/research/$tree/$key',
   path: '/api/research/$tree/$key',
@@ -306,6 +324,7 @@ export interface FileRoutesByFullPath {
   '/$tree/campaign': typeof TreeCampaignRoute
   '/$tree/chronicle': typeof TreeChronicleRoute
   '/$tree/contacts': typeof TreeContactsRoute
+  '/$tree/cookbook': typeof TreeCookbookRoute
   '/$tree/gallery': typeof TreeGalleryRoute
   '/$tree/history': typeof TreeHistoryRoute
   '/$tree/houses': typeof TreeHousesRoute
@@ -324,6 +343,7 @@ export interface FileRoutesByFullPath {
   '/$tree/': typeof TreeIndexRoute
   '/$tree/house/$house': typeof TreeHouseHouseRoute
   '/$tree/person/$id': typeof TreePersonIdRoute
+  '/$tree/recipe/$id': typeof TreeRecipeIdRoute
   '/$tree/research/$project': typeof TreeResearchProjectRoute
   '/$tree/research/sources': typeof TreeResearchSourcesRoute
   '/$tree/settings/activity': typeof TreeSettingsActivityRoute
@@ -340,6 +360,7 @@ export interface FileRoutesByFullPath {
   '/api/photo/$tree/$id': typeof ApiPhotoTreeIdRoute
   '/api/portrait/$tree/$id': typeof ApiPortraitTreeIdRoute
   '/api/quiz-picture/$tree/$day': typeof ApiQuizPictureTreeDayRoute
+  '/api/recipe/$tree/$key': typeof ApiRecipeTreeKeyRoute
   '/api/research/$tree/$key': typeof ApiResearchTreeKeyRoute
 }
 export interface FileRoutesByTo {
@@ -354,6 +375,7 @@ export interface FileRoutesByTo {
   '/$tree/campaign': typeof TreeCampaignRoute
   '/$tree/chronicle': typeof TreeChronicleRoute
   '/$tree/contacts': typeof TreeContactsRoute
+  '/$tree/cookbook': typeof TreeCookbookRoute
   '/$tree/gallery': typeof TreeGalleryRoute
   '/$tree/history': typeof TreeHistoryRoute
   '/$tree/houses': typeof TreeHousesRoute
@@ -372,6 +394,7 @@ export interface FileRoutesByTo {
   '/$tree': typeof TreeIndexRoute
   '/$tree/house/$house': typeof TreeHouseHouseRoute
   '/$tree/person/$id': typeof TreePersonIdRoute
+  '/$tree/recipe/$id': typeof TreeRecipeIdRoute
   '/$tree/research/$project': typeof TreeResearchProjectRoute
   '/$tree/research/sources': typeof TreeResearchSourcesRoute
   '/$tree/settings/activity': typeof TreeSettingsActivityRoute
@@ -388,6 +411,7 @@ export interface FileRoutesByTo {
   '/api/photo/$tree/$id': typeof ApiPhotoTreeIdRoute
   '/api/portrait/$tree/$id': typeof ApiPortraitTreeIdRoute
   '/api/quiz-picture/$tree/$day': typeof ApiQuizPictureTreeDayRoute
+  '/api/recipe/$tree/$key': typeof ApiRecipeTreeKeyRoute
   '/api/research/$tree/$key': typeof ApiResearchTreeKeyRoute
 }
 export interface FileRoutesById {
@@ -404,6 +428,7 @@ export interface FileRoutesById {
   '/$tree/campaign': typeof TreeCampaignRoute
   '/$tree/chronicle': typeof TreeChronicleRoute
   '/$tree/contacts': typeof TreeContactsRoute
+  '/$tree/cookbook': typeof TreeCookbookRoute
   '/$tree/gallery': typeof TreeGalleryRoute
   '/$tree/history': typeof TreeHistoryRoute
   '/$tree/houses': typeof TreeHousesRoute
@@ -422,6 +447,7 @@ export interface FileRoutesById {
   '/$tree/': typeof TreeIndexRoute
   '/$tree/house/$house': typeof TreeHouseHouseRoute
   '/$tree/person/$id': typeof TreePersonIdRoute
+  '/$tree/recipe/$id': typeof TreeRecipeIdRoute
   '/$tree/research_/$project': typeof TreeResearchProjectRoute
   '/$tree/research_/sources': typeof TreeResearchSourcesRoute
   '/$tree/settings/activity': typeof TreeSettingsActivityRoute
@@ -438,6 +464,7 @@ export interface FileRoutesById {
   '/api/photo/$tree/$id': typeof ApiPhotoTreeIdRoute
   '/api/portrait/$tree/$id': typeof ApiPortraitTreeIdRoute
   '/api/quiz-picture/$tree/$day': typeof ApiQuizPictureTreeDayRoute
+  '/api/recipe/$tree/$key': typeof ApiRecipeTreeKeyRoute
   '/api/research/$tree/$key': typeof ApiResearchTreeKeyRoute
 }
 export interface FileRouteTypes {
@@ -455,6 +482,7 @@ export interface FileRouteTypes {
     | '/$tree/campaign'
     | '/$tree/chronicle'
     | '/$tree/contacts'
+    | '/$tree/cookbook'
     | '/$tree/gallery'
     | '/$tree/history'
     | '/$tree/houses'
@@ -473,6 +501,7 @@ export interface FileRouteTypes {
     | '/$tree/'
     | '/$tree/house/$house'
     | '/$tree/person/$id'
+    | '/$tree/recipe/$id'
     | '/$tree/research/$project'
     | '/$tree/research/sources'
     | '/$tree/settings/activity'
@@ -489,6 +518,7 @@ export interface FileRouteTypes {
     | '/api/photo/$tree/$id'
     | '/api/portrait/$tree/$id'
     | '/api/quiz-picture/$tree/$day'
+    | '/api/recipe/$tree/$key'
     | '/api/research/$tree/$key'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -503,6 +533,7 @@ export interface FileRouteTypes {
     | '/$tree/campaign'
     | '/$tree/chronicle'
     | '/$tree/contacts'
+    | '/$tree/cookbook'
     | '/$tree/gallery'
     | '/$tree/history'
     | '/$tree/houses'
@@ -521,6 +552,7 @@ export interface FileRouteTypes {
     | '/$tree'
     | '/$tree/house/$house'
     | '/$tree/person/$id'
+    | '/$tree/recipe/$id'
     | '/$tree/research/$project'
     | '/$tree/research/sources'
     | '/$tree/settings/activity'
@@ -537,6 +569,7 @@ export interface FileRouteTypes {
     | '/api/photo/$tree/$id'
     | '/api/portrait/$tree/$id'
     | '/api/quiz-picture/$tree/$day'
+    | '/api/recipe/$tree/$key'
     | '/api/research/$tree/$key'
   id:
     | '__root__'
@@ -552,6 +585,7 @@ export interface FileRouteTypes {
     | '/$tree/campaign'
     | '/$tree/chronicle'
     | '/$tree/contacts'
+    | '/$tree/cookbook'
     | '/$tree/gallery'
     | '/$tree/history'
     | '/$tree/houses'
@@ -570,6 +604,7 @@ export interface FileRouteTypes {
     | '/$tree/'
     | '/$tree/house/$house'
     | '/$tree/person/$id'
+    | '/$tree/recipe/$id'
     | '/$tree/research_/$project'
     | '/$tree/research_/sources'
     | '/$tree/settings/activity'
@@ -586,6 +621,7 @@ export interface FileRouteTypes {
     | '/api/photo/$tree/$id'
     | '/api/portrait/$tree/$id'
     | '/api/quiz-picture/$tree/$day'
+    | '/api/recipe/$tree/$key'
     | '/api/research/$tree/$key'
   fileRoutesById: FileRoutesById
 }
@@ -611,6 +647,7 @@ export interface RootRouteChildren {
   ApiPhotoTreeIdRoute: typeof ApiPhotoTreeIdRoute
   ApiPortraitTreeIdRoute: typeof ApiPortraitTreeIdRoute
   ApiQuizPictureTreeDayRoute: typeof ApiQuizPictureTreeDayRoute
+  ApiRecipeTreeKeyRoute: typeof ApiRecipeTreeKeyRoute
   ApiResearchTreeKeyRoute: typeof ApiResearchTreeKeyRoute
 }
 
@@ -705,6 +742,13 @@ declare module '@tanstack/react-router' {
       path: '/contacts'
       fullPath: '/$tree/contacts'
       preLoaderRoute: typeof TreeContactsRouteImport
+      parentRoute: typeof TreeRoute
+    }
+    '/$tree/cookbook': {
+      id: '/$tree/cookbook'
+      path: '/cookbook'
+      fullPath: '/$tree/cookbook'
+      preLoaderRoute: typeof TreeCookbookRouteImport
       parentRoute: typeof TreeRoute
     }
     '/$tree/gallery': {
@@ -826,6 +870,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TreePersonIdRouteImport
       parentRoute: typeof TreeRoute
     }
+    '/$tree/recipe/$id': {
+      id: '/$tree/recipe/$id'
+      path: '/recipe/$id'
+      fullPath: '/$tree/recipe/$id'
+      preLoaderRoute: typeof TreeRecipeIdRouteImport
+      parentRoute: typeof TreeRoute
+    }
     '/$tree/research_/$project': {
       id: '/$tree/research_/$project'
       path: '/research/$project'
@@ -938,6 +989,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiQuizPictureTreeDayRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/recipe/$tree/$key': {
+      id: '/api/recipe/$tree/$key'
+      path: '/api/recipe/$tree/$key'
+      fullPath: '/api/recipe/$tree/$key'
+      preLoaderRoute: typeof ApiRecipeTreeKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/research/$tree/$key': {
       id: '/api/research/$tree/$key'
       path: '/api/research/$tree/$key'
@@ -955,6 +1013,7 @@ interface TreeRouteChildren {
   TreeCampaignRoute: typeof TreeCampaignRoute
   TreeChronicleRoute: typeof TreeChronicleRoute
   TreeContactsRoute: typeof TreeContactsRoute
+  TreeCookbookRoute: typeof TreeCookbookRoute
   TreeGalleryRoute: typeof TreeGalleryRoute
   TreeHistoryRoute: typeof TreeHistoryRoute
   TreeHousesRoute: typeof TreeHousesRoute
@@ -967,6 +1026,7 @@ interface TreeRouteChildren {
   TreeIndexRoute: typeof TreeIndexRoute
   TreeHouseHouseRoute: typeof TreeHouseHouseRoute
   TreePersonIdRoute: typeof TreePersonIdRoute
+  TreeRecipeIdRoute: typeof TreeRecipeIdRoute
   TreeResearchProjectRoute: typeof TreeResearchProjectRoute
   TreeResearchSourcesRoute: typeof TreeResearchSourcesRoute
   TreeSettingsActivityRoute: typeof TreeSettingsActivityRoute
@@ -983,6 +1043,7 @@ const TreeRouteChildren: TreeRouteChildren = {
   TreeCampaignRoute: TreeCampaignRoute,
   TreeChronicleRoute: TreeChronicleRoute,
   TreeContactsRoute: TreeContactsRoute,
+  TreeCookbookRoute: TreeCookbookRoute,
   TreeGalleryRoute: TreeGalleryRoute,
   TreeHistoryRoute: TreeHistoryRoute,
   TreeHousesRoute: TreeHousesRoute,
@@ -995,6 +1056,7 @@ const TreeRouteChildren: TreeRouteChildren = {
   TreeIndexRoute: TreeIndexRoute,
   TreeHouseHouseRoute: TreeHouseHouseRoute,
   TreePersonIdRoute: TreePersonIdRoute,
+  TreeRecipeIdRoute: TreeRecipeIdRoute,
   TreeResearchProjectRoute: TreeResearchProjectRoute,
   TreeResearchSourcesRoute: TreeResearchSourcesRoute,
   TreeSettingsActivityRoute: TreeSettingsActivityRoute,
@@ -1028,6 +1090,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPhotoTreeIdRoute: ApiPhotoTreeIdRoute,
   ApiPortraitTreeIdRoute: ApiPortraitTreeIdRoute,
   ApiQuizPictureTreeDayRoute: ApiQuizPictureTreeDayRoute,
+  ApiRecipeTreeKeyRoute: ApiRecipeTreeKeyRoute,
   ApiResearchTreeKeyRoute: ApiResearchTreeKeyRoute,
 }
 export const routeTree = rootRouteImport

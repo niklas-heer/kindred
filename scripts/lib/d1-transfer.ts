@@ -50,6 +50,10 @@ export const COPIED_TABLES: readonly string[] = [
   'post',
   'post_media',
   'post_person',
+  // Recipes (migration 0031): what makes a story a structured recipe, after story, and its pictures: the rows keep media
+  // keys, the pictures are in R2 (recipe/, and the covers' small copies in recipe-thumb/).
+  'recipe',
+  'recipe_image',
 ];
 
 /**

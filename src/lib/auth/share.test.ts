@@ -313,6 +313,7 @@ const GUEST_READS = new Set([
   'getGraph', 'getChronicle', 'getContacts', 'getPersonDetail', 'getResearchProjects', 'getResearchProject', 'getPersonResearch',
   'getHouseMeanings', 'getHouseTranslations', 'getHouseSettings', 'storyTranslations', 'getGallery', 'getPersonPhotos', 'aiStatus',
   'getPersonEvents', 'getEventPlaces', // life events: of the dead, and of the living unless the link protects them
+  'getCookbook', 'getRecipe', // recipes are stories: read as the Chronicle is, and none of a living person when the link protects them
 ]);
 /** Open to anyone: they check who is asking themselves, or hold nothing of a family's. */
 const OPEN = new Set([

@@ -111,6 +111,11 @@ export interface ExStory {
   at: string;
   context: string | null;
   comments: ExComment[];
+  /**
+   * Set for a recipe written with the recipe form (migration 0031, docs/recipes.md). Its `body` is already the whole recipe
+   * written out; this adds its tags and how many pictures it has (the pictures are in media storage, which no export holds).
+   */
+  recipe?: { tags: string[]; pictures: number };
 }
 
 /**
@@ -216,6 +221,11 @@ export async function readTree(d: Db): Promise<ExTree> {
   );
   const commentsOf = new Map<string, ExComment[]>();
   for (const c of comments) commentsOf.set(c.target, [...(commentsOf.get(c.target) ?? []), { author: c.author_name, at: c.created_at, edited: c.edited_at, body: c.body }]);
+  // What makes a story a structured recipe: its tags, and how many pictures it has.
+  const recipes = await d.all<{ story: string; tags: string; pictures: number }>(
+    'SELECT r.story, r.tags, (SELECT count(*) FROM recipe_image i WHERE i.story = r.story AND i.gone_at IS NULL) AS pictures FROM recipe r',
+  );
+  const recipeOf = new Map(recipes.map((r) => [r.story, { tags: tagList(r.tags), pictures: r.pictures }]));
   // The family's feed: every post with the people it is about, how many pictures it has, and its comments.
   const posts = await d.all<{ id: string; author_name: string; created_at: string; edited_at: string | null; body: string; pictures: number }>(
     'SELECT id, author_name, created_at, edited_at, body, (SELECT count(*) FROM post_media pm WHERE pm.post = post.id) AS pictures FROM post ORDER BY created_at, id',
@@ -257,7 +267,7 @@ export async function readTree(d: Db): Promise<ExTree> {
     events: events.map((r) => ({ id: r.id, person: r.person, type: r.type, label: or(r.label), date: or(r.date), endDate: or(r.end_date), place: or(r.place), note: r.note, ord: r.ord })),
     sources: sources.map((r) => ({ ...r, author: or(r.author), publication: or(r.publication), reference: or(r.reference), date: or(r.date), document: or(r.document), media: or(r.media) })),
     citations: citations.map((r) => ({ id: r.id, source: r.source, target: citationTarget(r), page: or(r.page), quality: or(r.quality), transcription: r.transcription })),
-    stories: stories.map((r) => ({ ...r, title: or(r.title), context: or(r.context), comments: commentsOf.get(r.id) ?? [] })),
+    stories: stories.map((r) => ({ ...r, title: or(r.title), context: or(r.context), comments: commentsOf.get(r.id) ?? [], ...(recipeOf.has(r.id) ? { recipe: recipeOf.get(r.id)! } : {}) })),
     posts: posts.map((r) => ({ id: r.id, author: r.author_name, at: r.created_at, edited: r.edited_at, body: r.body, people: peopleOf.get(r.id) ?? [], pictures: r.pictures, comments: postCommentsOf.get(r.id) ?? [] })),
     extras: {
       stories: await count('SELECT count(*) AS n FROM story'),
@@ -267,6 +277,16 @@ export async function readTree(d: Db): Promise<ExTree> {
       photoComments: await count("SELECT count(*) AS n FROM comment WHERE target_kind = 'media'"),
     },
   };
+}
+
+/** A recipe's tags from their JSON column: a list of words, or none when it is not one. */
+function tagList(json: string): string[] {
+  try {
+    const v = JSON.parse(json) as unknown;
+    return Array.isArray(v) ? v.filter((t): t is string => typeof t === 'string') : [];
+  } catch {
+    return [];
+  }
 }
 
 /** The fact a citation row names (see migration 0024). */

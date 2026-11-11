@@ -3,7 +3,7 @@ import { PageHeader, Skeleton, ErrorState, EmptyState } from '~/components/ui';
 import { useRememberedState, usePageTrail } from '~/lib/page-state';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Clock, Plus, Quote, Search } from 'lucide-react';
+import { ChefHat, Clock, Plus, Quote, Search } from 'lucide-react';
 import { renderMarkdown } from '~/lib/markdown';
 import { useEffect, useMemo, useState } from 'react';
 import { AddMemory } from '~/components/AddMemory';
@@ -127,7 +127,11 @@ function ChroniclePage() {
                   ? t('chronicle.contributions', { count: stories.length, voices: t('chronicle.voices', { count: authors }) })
                   : t('chronicle.subtitle')}
             </>}
-          actions={write && <button type="button" className="btn primary" onClick={write}><Plus size={15} /> {t('chronicle.add')}</button>} />
+          actions={<>
+            {/* The recipes have a page of their own, with their pictures (docs/recipes.md). */}
+            <Link className="btn" to="/$tree/cookbook" params={{ tree }} title={t('recipes.to_cookbook')}><ChefHat size={15} /> {t('recipes.book.title')}</Link>
+            {write && <button type="button" className="btn primary" onClick={write}><Plus size={15} /> {t('chronicle.add')}</button>}
+          </>} />
 
         {isPending && <div className="page-loading" aria-busy="true" aria-label={t('chronicle.loading')}>{Array.from({ length: 4 }, (_, i) => <div className="ui-card" key={i} style={{ padding: 20, marginBottom: 12 }}><Skeleton width={48} height={48} radius="50%" /><Skeleton lines={3} /></div>)}</div>}
         {isError && <ErrorState title={t('chronicle.error')} message={t('chronicle.error_text')} onRetry={() => { void refetch(); }} />}

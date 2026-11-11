@@ -167,7 +167,7 @@ export function currentActor(tree: string): Actor {
 export const RECORD_TABLES = new Set([
   'meta', 'house', 'house_succession', 'house_meaning', 'person', 'parent', 'partnership', 'story', 'place', 'photo', 'person_field',
   'album', 'media', 'media_person', 'portrait', 'life_event', 'source', 'citation', 'research_project', 'research_document',
-  'research_note', 'research_picture', 'research_person', 'research_place',
+  'research_note', 'research_picture', 'research_person', 'research_place', 'recipe', 'recipe_image',
 ]);
 
 const WRITE = /^\s*(?:INSERT(?:\s+OR\s+\w+)?\s+INTO|REPLACE\s+INTO|UPDATE(?:\s+OR\s+\w+)?|DELETE\s+FROM)\s+["`[]?(\w+)/i;

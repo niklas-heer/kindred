@@ -1,5 +1,6 @@
 // A memory, saying, recipe, note or anecdote as an entry: the face of the person it is about, who wrote what about
-// whom, the words, and the family's reactions and comments. The Chronicle lists every one this way, and the family's
+// whom, the words (for a recipe written with the recipe form: its picture, what it takes and the way to its page,
+// src/components/recipes/RecipeCard.tsx), and the family's reactions and comments. The Chronicle lists every one this way, and the family's
 // feed on the Today page shows the newest between the posts, so a memory looks the same wherever it is read.
 //
 //   <StoryCard s={story} f={family} tree={tree} now={now} />
@@ -9,6 +10,7 @@ import { useState, type ComponentType, type ReactNode } from 'react';
 import { GameIcon } from '~/components/GameIcon';
 import { Portrait } from '~/components/Portrait';
 import { PortraitZoom } from '~/components/photos/PortraitZoom';
+import { RecipeTeaser } from '~/components/recipes/RecipeCard';
 import { Responses } from '~/components/responses/Responses';
 import { displayName, type Family } from '~/lib/graph';
 import { richText, useT, type Key } from '~/lib/i18n';
@@ -99,6 +101,22 @@ export function StoryCard({ s, f, tree, now, tr, defer, line, kindLink }: {
   const shown = useShownStory(s, tr);
   const long = shown.body.length > 360 || shown.body.split('\n').length > 6;
   const kind: ReactNode = <><k.icon size={14} /> {t(k.label)}</>;
+  const words = (
+    <>
+      {s.kind === 'quote' ? (
+        <blockquote className="chr-inline-quote" dangerouslySetInnerHTML={{ __html: renderMarkdown(shown.body) }} />
+      ) : (
+        <div className="chr-md" data-clamped={(long && !open) || undefined} dangerouslySetInnerHTML={{ __html: renderMarkdown(shown.body) }} />
+      )}
+      <TranslatedNote shown={shown} />
+      {s.context && <p className="chr-ctx">{s.context}</p>}
+      {long && s.kind !== 'quote' && (
+        <button className="btn ghost chr-toggle" onClick={() => setOpen(!open)}>
+          {open ? t('chronicle.show_less') : t('chronicle.read_more')}
+        </button>
+      )}
+    </>
+  );
   return (
     <li className="chr-item" data-kind={s.kind}>
       {p && (
@@ -119,18 +137,9 @@ export function StoryCard({ s, f, tree, now, tr, defer, line, kindLink }: {
           </time>
         </header>
         {shown.title && <h3>{shown.title}</h3>}
-        {s.kind === 'quote' ? (
-          <blockquote className="chr-inline-quote" dangerouslySetInnerHTML={{ __html: renderMarkdown(shown.body) }} />
-        ) : (
-          <div className="chr-md" data-clamped={(long && !open) || undefined} dangerouslySetInnerHTML={{ __html: renderMarkdown(shown.body) }} />
-        )}
-        <TranslatedNote shown={shown} />
-        {s.context && <p className="chr-ctx">{s.context}</p>}
-        {long && s.kind !== 'quote' && (
-          <button className="btn ghost chr-toggle" onClick={() => setOpen(!open)}>
-            {open ? t('chronicle.show_less') : t('chronicle.read_more')}
-          </button>
-        )}
+        {/* A recipe written with the recipe form shows as one (its picture, what it takes, the way to its page); a recipe
+            from before keeps its text, with the same way in. */}
+        {s.kind === 'recipe' ? <RecipeTeaser tree={tree} id={s.id} title={shown.title} fallback={words} /> : words}
         {/* Members only: for a guest it draws nothing and asks nothing. */}
         <Responses tree={tree} kind="story" target={s.id} />
       </article>

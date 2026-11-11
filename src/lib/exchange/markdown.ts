@@ -16,6 +16,9 @@
 //
 // Stories (memories, sayings, anecdotes, recipes, notes) are in memories/, one file per person they are about, oldest first,
 // each with its comments under it (migration 0027): who wrote it, when, and the plain text, quoted. Reactions are not written.
+// A recipe written with the recipe form (migration 0031, docs/recipes.md) is a story whose text is the whole recipe written
+// out: what it serves and how long it takes, the ingredients as a list, the method numbered, the notes. Its tags follow, and
+// a line says how many pictures it has; the pictures themselves are in media storage, which no archive holds.
 //
 // The family's feed (migration 0029, docs/feed.md) is in feed/, one file per year, oldest first: each post with who wrote it
 // and when, its text quoted, the people it is about as links, how many pictures it had (the pictures are the gallery's,
@@ -215,6 +218,8 @@ export function markdownArchive(tree: ExTree, portraits: Set<string> = new Set()
   const postsOf = new Map<string, ExPost[]>();
   for (const x of tree.posts ?? []) postsOf.set(x.at.slice(0, 4), [...(postsOf.get(x.at.slice(0, 4)) ?? []), x]);
   for (const [year, list] of postsOf) files.push({ path: `feed/${year}.md`, data: feedNote(tree.name, year, list, (id) => (byId.has(id) ? link(id) : null)) });
+  const recipePictures = (tree.stories ?? []).reduce((n, x) => n + (x.recipe?.pictures ?? 0), 0);
+  if (recipePictures) losses.push(`${recipePictures} ${recipePictures === 1 ? 'recipe picture is' : 'recipe pictures are'} not in the archive; the recipes are, written out`);
   const postPictures = (tree.posts ?? []).reduce((n, x) => n + x.pictures, 0);
   if (postPictures) losses.push(`${postPictures} ${postPictures === 1 ? 'picture shared in the family’s feed is' : 'pictures shared in the family’s feed are'} not in the archive (the gallery is not either); the posts are`);
 
@@ -302,6 +307,14 @@ export function memoriesNote(p: ExPerson, stories: ExStory[], personLink: string
     out.push(`## ${x.title ? x.title.replace(/\s+/g, ' ').trim() : kind}`, '');
     out.push(`*${kind}, written by ${x.author || 'someone'} on ${x.at.slice(0, 10)}${x.context ? `. ${x.context.replace(/\s+/g, ' ').trim()}` : ''}*`, '');
     out.push(x.kind === 'quote' ? quoted(x.body.trim()) : x.body.trim(), '');
+    if (x.recipe) {
+      // The tags are the family's words: written as text. The pictures stay in Kindred.
+      const notes = [
+        ...(x.recipe.tags.length ? [`Tags: ${x.recipe.tags.map((t) => plainMarkdown(t.replace(/\s+/g, ' '))).join(', ')}.`] : []),
+        ...(x.recipe.pictures ? [`With ${x.recipe.pictures} ${x.recipe.pictures === 1 ? 'picture' : 'pictures'}, kept in Kindred.`] : []),
+      ];
+      if (notes.length) out.push(`*${notes.join(' ')}*`, '');
+    }
     if (x.comments.length) {
       out.push('### Comments', '');
       for (const c of x.comments) {

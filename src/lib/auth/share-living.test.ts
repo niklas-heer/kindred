@@ -78,13 +78,14 @@ const WEDDING = `2010-${MD}`;
 /** What a protected guest must never receive, whichever read they call. */
 const WITHHELD = [
   KID_BORN, 'Quillbridge', 'Pupil-of-Wrenhall', 'KID-BIO-TEXT', 'kid-trait-xq', 'KID-STORY-TEXT', 'KID-STORY-DE', 'KID-PHONE-0000',
+  'KID-RECIPE-TITLE', 'KID-RECIPE-ITEM', 'kid-cover.jpg',
   'KID-PROJECT-TITLE', 'KID-RESEARCH-NOTE', 'KID-DOC-TITLE',
   '1985-02-02', 'Marrowfield', WEDDING, 'Weddingham', 'Isolde-Bio', 'KID-EVENT-SCHOOL', 'Schoolbury',
   // A picture the child is in, tagged or only suggested: its caption, date and place.
   'KID-CAPTION-TEXT', '2016-07-07', 'Picnicford', 'SUGGESTED-CAPTION-TEXT', '2017-08-08', 'Suggestedholm',
 ];
 /** What the same guest still gets: the dead as they were, and the names of the living. */
-const KEPT = ['1920-05-05', 'Oldhaven', 'GRAN-STORY-TEXT', 'GRAN-PROJECT-TITLE', 'Wren', 'Fernsby', 'GRAN-CAPTION-TEXT', '1950-06-06', 'Gransby', 'GRAN-EVENT-CHAPEL', 'Graveston'];
+const KEPT = ['GRAN-RECIPE-TITLE', 'GRAN-RECIPE-ITEM', 'GRAN-RECIPE-TITLE-SOURCE', '1920-05-05', 'Oldhaven', 'GRAN-STORY-TEXT', 'GRAN-PROJECT-TITLE', 'Wren', 'Fernsby', 'GRAN-CAPTION-TEXT', '1950-06-06', 'Gransby', 'GRAN-EVENT-CHAPEL', 'Graveston'];
 
 const KID_DOC = '00000000-0000-4000-8000-00000000d0c1.pdf';
 const GRAN_DOC = '00000000-0000-4000-8000-00000000d0c2.pdf';
@@ -127,6 +128,13 @@ before(async () => {
   for (const [name, lat] of [['Quillbridge', 10], ['Marrowfield', 11], ['Weddingham', 12], ['Oldhaven', 13], ['Schoolbury', 14], ['Graveston', 15]] as const) await d.run('INSERT INTO place (name, lat, lng) VALUES (?, ?, 0)', name, lat);
   await d.run("INSERT INTO story (id, person, kind, body, author, at) VALUES ('s-kid', 'kid', 'memory', 'KID-STORY-TEXT', 'x', '2026-01-02')");
   await d.run("INSERT INTO story (id, person, kind, body, author, at) VALUES ('s-gran', 'gran', 'memory', 'GRAN-STORY-TEXT', 'x', '2026-01-01')");
+  // A recipe of the child's (its id is the one every function is asked about) and one of her grandmother's, each with a picture.
+  for (const [id, who, title, item] of [['kid', 'kid', 'KID-RECIPE-TITLE', 'KID-RECIPE-ITEM'], ['r-gran', 'gran', 'GRAN-RECIPE-TITLE', 'GRAN-RECIPE-ITEM']]) {
+    await d.run("INSERT INTO story (id, person, kind, title, body, author, at) VALUES (?, ?, 'recipe', ?, ?, 'x', '2026-01-02')", id, who, title, `- ${item}`);
+    await d.run('INSERT INTO recipe (story, source, ingredients, steps, notes, tags, cover) VALUES (?, ?, ?, ?, ?, ?, ?)', id, `${title}-SOURCE`, JSON.stringify([{ name: '', items: [{ amount: '1', unit: '', item, note: '' }] }]), JSON.stringify([{ text: `${title}-STEP`, image: null }]), `${title}-NOTES`, JSON.stringify([`${title}-TAG`]), `recipe/${id}-cover.jpg`);
+    await d.run("INSERT INTO recipe_image (key, story, mime, width, height, created_at) VALUES (?, ?, 'image/jpeg', 4, 3, '2026-01-02')", `recipe/${id}-cover.jpg`, id);
+    await dbs.media.put(TREE, `recipe/${id}-cover.jpg`, new Uint8Array([255, 216, 255]), 'image/jpeg');
+  }
   for (const [story, body, translated] of [['s-kid', 'KID-STORY-TEXT', 'KID-STORY-DE'], ['s-gran', 'GRAN-STORY-TEXT', 'GRAN-STORY-DE']]) {
     await d.run("INSERT INTO story_translation (story, locale, source_hash, body, translated_at) VALUES (?, 'de', ?, ?, '2026-01-03')", story, await tasks.sourceHash(null, body), translated);
   }
@@ -211,6 +219,7 @@ const ANSWERS_A_GUEST = new Set([
   'getGraph', 'getChronicle', 'getContacts', 'getPersonDetail', 'getResearchProjects', 'getResearchProject', 'getPersonResearch',
   'getHouseMeanings', 'getHouseTranslations', 'getHouseSettings', 'storyTranslations', 'getGallery', 'getPersonPhotos', 'aiStatus',
   'getPersonEvents', 'getEventPlaces',
+  'getCookbook', 'getRecipe',
   'fetchSession', 'fetchMyFamilies', 'fetchInvite', 'fetchShareEntry', 'openShareLink', 'leaveGuestVisit', 'fetchRemindersAvailable', 'forgetThisDevice',
   // "Ask to join": a guest's own request and what it would send, never another person's data (join.test.ts).
   'fetchJoinState', 'fetchJoinPreview', 'joinOptions', 'sendJoinRequest',
@@ -251,7 +260,7 @@ test('no server function gives a protected guest anything the protection withhol
 test('the control: with the setting off, the same guest gets what it got before', async () => {
   const answered = await askEverything(false);
   const all = [...answered.values()].join('');
-  for (const shown of [KID_BORN, 'Quillbridge', 'KID-STORY-TEXT', 'KID-STORY-DE', 'KID-PROJECT-TITLE', 'KID-RESEARCH-NOTE', WEDDING, 'Weddingham', 'KID-CAPTION-TEXT', 'Picnicford', 'KID-EVENT-SCHOOL', 'Schoolbury']) {
+  for (const shown of ['KID-RECIPE-TITLE', 'KID-RECIPE-ITEM', 'KID-RECIPE-TITLE-STEP', 'KID-RECIPE-TITLE-NOTES', KID_BORN, 'Quillbridge', 'KID-STORY-TEXT', 'KID-STORY-DE', 'KID-PROJECT-TITLE', 'KID-RESEARCH-NOTE', WEDDING, 'Weddingham', 'KID-CAPTION-TEXT', 'Picnicford', 'KID-EVENT-SCHOOL', 'Schoolbury']) {
     assert.ok(all.includes(shown), `an unprotected guest still gets "${shown}"`);
   }
   assert.ok(!all.includes('KID-PHONE-0000'), 'and still no fields at all');
@@ -280,7 +289,7 @@ test('a protected guest gets the living child by name, place in the tree and fac
   assert.deepEqual(u, { id: 'u1', a: 'mum', b: 'dad', kind: 'marriage' }, 'the marriage, without its day or place');
   const gran = graph.people.find((p) => p.id === 'gran')!;
   assert.equal(gran.born, '1920-05-05', 'the dead are untouched');
-  assert.equal(gran.stories, 1);
+  assert.equal(gran.stories, 2, 'her memory and her recipe');
   const elder = graph.people.find((p) => p.id === 'elder')!;
   assert.equal(elder.born, '1890-01-01', 'someone marked not living is shown, death date or not');
   assert.deepEqual(graph.places.map((p) => p.name), ['Oldhaven'], 'no Atlas place only the living would have');
@@ -340,8 +349,13 @@ test('the guest routes: the pictures stay, research about the living does not', 
   assert.equal((await get('portrait.$tree.$id', { tree: TREE, id: 'kid' })).status, 404, 'no painted portrait here, as for anyone');
   assert.equal((await get('research.$tree.$key', { tree: TREE, key: KID_DOC })).status, 404, 'a document of research that names her does not exist');
   assert.equal((await get('research.$tree.$key', { tree: TREE, key: GRAN_DOC })).status, 200, 'research about the dead is there');
+  // A recipe's picture follows its recipe: the grandmother's is there, the child's is not, and the gallery's route has neither.
+  assert.equal((await get('recipe.$tree.$key', { tree: TREE, key: 'r-gran-cover.jpg' })).status, 200, 'the picture of a recipe of the dead is there');
+  assert.equal((await get('recipe.$tree.$key', { tree: TREE, key: 'kid-cover.jpg' })).status, 404, 'the picture of her recipe does not exist');
+  assert.equal((await get('media.$tree.$key', { tree: TREE, key: 'r-gran-cover.jpg' })).status, 404, 'a recipe picture is not a gallery picture');
   asGuest(false);
   assert.equal((await get('research.$tree.$key', { tree: TREE, key: KID_DOC })).status, 200, 'the control: an unprotected guest gets it');
+  assert.equal((await get('recipe.$tree.$key', { tree: TREE, key: 'kid-cover.jpg' })).status, 200, 'and her recipe’s picture');
 });
 
 // ---------- the setting itself ----------

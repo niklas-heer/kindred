@@ -73,7 +73,7 @@ and paste it into a chat or an email. A guest is not a member and is not an acco
 and they have no name, no "who you are" and no settings.
 
 A guest sees less than a viewer: the tree, the people's names, dates, biographies and stories (of living people only what
-"Protect living people" below leaves, when the link has it on), and the research that isn't private, and life events (of living people none, when the link protects them), but
+"Protect living people" below leaves, when the link has it on), and the research that isn't private, and life events (of living people none, when the link protects them), and the Cookbook's recipes with their pictures (a recipe is a story: none of a living person's, when the link protects them; see [recipes.md](recipes.md)), but
 **no feed and no message of the family's (nor a message's pictures in the gallery, which are not served to a guest), no reactions or comments (not even their counts), no sources or citations, no person's fields at any level (no contacts, no favourites, no notes), no Contacts page, no editing, no AI, no money
 spent, no export, no Access or settings pages.** A link can be passed on, so "Family" means the members with an account, not
 everyone holding the link. One number does reach a guest: the Needed page can say that someone has no contact recorded (never

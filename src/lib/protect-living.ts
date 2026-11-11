@@ -12,7 +12,8 @@
 //
 // The `living` flag decides, as stored: someone marked not living is shown as today even without a date of death. The dead
 // are untouched. The reads apply this on the server where they shape a guest's answer (db.server.ts graph, person, chronicle,
-// todayIn; photos.server.ts; research.server.ts; the story translations), so no response to such a guest carries what is withheld.
+// todayIn; photos.server.ts; research.server.ts; the story translations; recipes/recipes.server.ts, as a recipe is a story, with
+// its pictures), so no response to such a guest carries what is withheld.
 import type { GPerson, GUnion, Graph, PersonDetail } from './types';
 
 /** An SQL condition that is true for a living person's id, for reads that filter rows about people. */

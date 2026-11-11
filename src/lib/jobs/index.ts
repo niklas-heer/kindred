@@ -6,6 +6,7 @@ import { joinJob } from './join.ts';
 import { campaignJob } from './campaign.ts';
 import { feedJob } from './feed.ts';
 import { historyJob } from './history.ts';
+import { recipesJob } from './recipes.ts';
 import { remindersJob } from './reminders.ts';
 import { statsJob } from './stats.ts';
 import type { DailyJob, JobContext } from './types.ts';
@@ -22,6 +23,7 @@ export const DAILY_JOBS: readonly DailyJob[] = [
   campaignJob,
   historyJob,
   feedJob,
+  recipesJob,
 ];
 
 /**

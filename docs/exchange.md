@@ -100,7 +100,7 @@ that is not counted.
 
 **What GEDCOM leaves out**, and says so on export:
 
-- stories, memories, sayings and recipes, and the comments and reactions on them and on photos;
+- stories, memories, sayings and recipes (a recipe's ingredients, steps and pictures with them), and the comments and reactions on them and on photos;
 - the messages of the family's feed, and their comments;
 - contact details and other person fields, private or not;
 - houses and their arms;
@@ -136,6 +136,7 @@ id, made safe for any file system.
 | Source | a note of its own in `sources/`, with `id`, `type: source`, `title`, `author`, `publication`, `reference`, `date`, and its note as the body |
 | Citation | an entry in `citations` on the note of the person whose fact it is (a partnership's on the note that declares it): `fact`, `event`, `partnership` or `parent`, `source` (a link to `sources/`), `page`, `quality`, `text` |
 | Memory, saying, anecdote, recipe, note | a section of `memories/<person>.md` (one file per person they are about, oldest first): the title or kind, who wrote it and when, and the text; a saying is quoted |
+| Recipe written with the recipe form ([recipes.md](recipes.md)) | as a memory, in `memories/<person>.md`: its text is the whole recipe written out (what it serves and how long it takes, the ingredients as a list with its parts, the method numbered, the notes), then its tags and how many pictures it has. The pictures themselves are not in the archive |
 | Comment on a story | under its story, in `### Comments`: the name it was written under, the date (and "changed" when its writer changed it), and the plain text, quoted line by line |
 | Message in the family's feed | a section of `feed/<year>.md` (one file per year, oldest first): the date and who wrote it, the text quoted line by line, the people it is about as links, how many pictures it had, and its comments as under a story |
 

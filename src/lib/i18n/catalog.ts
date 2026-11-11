@@ -14,6 +14,7 @@ import * as almanacArea from "./areas/almanac.ts";
 import * as campaignArea from "./areas/campaign.ts";
 import * as responsesArea from "./areas/responses.ts";
 import * as feedArea from "./areas/feed.ts";
+import * as recipesArea from "./areas/recipes.ts";
 import * as todayArea from "./areas/today.ts";
 import * as todayQuestionsArea from "./areas/today-questions.ts";
 import * as atlasArea from "./areas/atlas.ts";
@@ -92,6 +93,7 @@ export const AREAS = [
   historyArea,
   responsesArea,
   feedArea,
+  recipesArea,
   todayArea,
   todayQuestionsArea,
   printArea,

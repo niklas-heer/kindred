@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { feature, mesh } from 'topojson-client';
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type InputHTMLAttributes, type ReactNode } from 'react';
+import { RecipeTeaser } from '~/components/recipes/RecipeCard';
+import { RecipeForm } from '~/components/recipes/RecipeForm';
 import { addStory, deleteStory, newOpKey, opKeys, restoreStory, setPartnershipEnd, uploadPhoto, unlinkRelative } from '~/lib/api';
 import { addPersonField, deletePersonField, personDetailQuery } from '~/lib/person.functions';
 import { dateText, yourKinshipParts, locales, ordinal, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
@@ -1002,6 +1004,9 @@ function StoriesTab({ tree, p, details }: { tree: string; p: GPerson; details: D
         <p className="empty">{c('panel.nothingWritten', { name: p.given })}{canWrite ? ` ${c('panel.rememberQ')}` : ''}</p>
       )}
       {!canWrite && <p className="pp-ask subtle">{c('ask.editor')}</p>}
+      {detail.stories.some((s) => s.kind === 'recipe') ? (
+        <Link className="btn ghost pp-cookbook" to="/$tree/cookbook" params={{ tree }} search={{ person: p.id }}><CookingPot size={14} /> {c('recipes.panel_book')}</Link>
+      ) : null}
       <div className="pp-stories">
         {detail.stories.map((s) => (
           <StoryCard key={s.id} s={s} tree={tree} onDelete={canDelete ? () => { remove.reset(); setAsking(s); } : undefined} />
@@ -1048,6 +1053,9 @@ function StoryCard({ s, compact, onDelete, tree }: { s: Story; compact?: boolean
       </header>
       {s.kind === 'quote' ? (
         <blockquote>{s.body}</blockquote>
+      ) : s.kind === 'recipe' && tree && !compact ? (
+        // A recipe shows as one, and opens on its own page; one from before the recipe form keeps its text.
+        <RecipeTeaser tree={tree} id={s.id} title={s.title} fallback={<div className="story-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(s.body) }} />} />
       ) : (
         <div className="story-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(s.body) }} />
       )}
@@ -1065,6 +1073,7 @@ export function StoryForm({ tree, person, done, saved }: { tree: string; person:
   const t = useT();
   const { leave } = useContext(DraftContext);
   const [saveError, setSaveError] = useState('');
+  const [recipe, setRecipe] = useState(false);
   const qc = useQueryClient();
   // Stories are signed with the writer's account name; the server fills it in.
   const author = useSession()?.user?.name;
@@ -1090,6 +1099,22 @@ export function StoryForm({ tree, person, done, saved }: { tree: string; person:
       } catch (e) { setSaveError(e instanceof Error ? translateMessage(e.message, t.locale) : t('panel.storySaveFailed')); }
     },
   });
+  // A recipe has a form of its own (ingredients in rows, steps, a picture): picking "Recipe" opens it here, in place of
+  // the memory's fields. It saves itself; any other kind brings the memory's form back with what was typed in it.
+  if (recipe) {
+    return (
+      <div className="story-form">
+        <div className="seg">
+          {KINDS.map((k) => (
+            <button type="button" key={k.id} aria-pressed={k.id === 'recipe'} className="btn" onClick={() => { if (k.id !== 'recipe') { form.setFieldValue('kind', k.id); setRecipe(false); } }}>
+              {k.icon} {t(k.label)}
+            </button>
+          ))}
+        </div>
+        <RecipeForm tree={tree} person={person} lockPerson onDone={done} onCancel={done} />
+      </div>
+    );
+  }
   return (
     <form className="story-form" onSubmit={(e) => { e.preventDefault(); form.handleSubmit(); }}>
       <DraftTracker form={form} />{saveError && <p role="alert" className="err">{saveError}</p>}
@@ -1097,7 +1122,7 @@ export function StoryForm({ tree, person, done, saved }: { tree: string; person:
         {(field) => (
           <div className="seg">
             {KINDS.map((k) => (
-              <button type="button" key={k.id} aria-pressed={field.state.value === k.id} className="btn" onClick={() => field.handleChange(k.id)}>
+              <button type="button" key={k.id} aria-pressed={field.state.value === k.id} className="btn" onClick={() => (k.id === 'recipe' ? setRecipe(true) : field.handleChange(k.id))}>
                 {k.icon} {t(k.label)}
               </button>
             ))}
