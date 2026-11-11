@@ -7,7 +7,7 @@
 Kindred is a family tree that a whole family shares, with the stories, photographs and places that go with it. You run it
 yourself, each family lives in its own database, and you can take it with you whenever you like.
 
-**[Try the demo](https://kindred-demo.niklas-heer.workers.dev)**: two invented families, read-only, nothing to sign up for.
+**[Try the demo](https://kindred-demo.niklas-heer.workers.dev)**: two invented families, read-only, nothing to sign up for. The demo offers the **grand tour** first: a walk through everything Kindred does, on those families.
 
 ![The Dynasty view of an invented medieval realm: generations of portrait cards under house shields, a minimap of the whole tree, and the person panel beside it.](docs/images/tree.webp)
 
@@ -23,13 +23,14 @@ A tree gets one look. These are the parts meant to be opened again next week.
 other, new memories and photographs, who was added to the tree. Beside it are the week's question, the day's quiz, the
 week's birthdays and wedding anniversaries, and what is new since your last visit.
 
-![Today for an invented family: a line to write to the family, then the feed with a birthday, two answers to the question of the week and a message about a move with a drawn picture of a street; beside it the question of the week with its answers and a quiz that has been answered.](docs/images/today.webp)
+![Today for an invented family: a line to write to the family, then the feed with a birthday, two answers to the question of the week and an update about a new address, a message about a move with a drawn picture of a street; beside it the question of the week with its answers and a quiz that has been answered.](docs/images/today.webp)
 
 - **The family's feed.** A relative writes a few lines to the family ("We have moved", "She passed her exam", "Photos from
   Sunday"), with pictures and the people it is about. Everyone can react, contributors can comment, and the message also
   shows on the page of whoever it is about. New memories, a day's photographs and new people in the tree join the same
-  stream, so one page says what the family has been up to. A device can be told about a new message, at most once in a
-  few hours.
+  stream, so one page says what the family has been up to. The feed also says when records change ("Ada updated Carl: has a
+  new address"), naming what changed and never the value; changes only editors may see stay with editors. A device can be
+  told about a new message, at most once in a few hours.
 
 - **The question of the week.** One question for the whole family ("What did the kitchen of your childhood look like?"),
   chosen from sixty written for the purpose, in English, German and Afrikaans. A relative answers in a few sentences, about
@@ -37,16 +38,23 @@ week's birthdays and wedding anniversaries, and what is new since your last visi
 - **The daily quiz.** "Do you know your family?" asks one question a day made from the family's own records: whose shield
   this is, who this is, who someone's parents were, where someone was born, who came first. Everyone gets the same question, you
   get one try, and it keeps a streak. It never asks about a cause of death.
-- **The Campaign.** A slow game between the family's houses on a map made from the family's own places, with orders, dice and
-  battle cries, and a season of 28 days. A house whose people are well recorded raises more troops, so the game rewards
-  the research and tells you what to add. It never changes the family's records, and a steward switches it on.
-- **Talking to each other.** Members answer a message, a memory or a photograph with a heart, a laugh or a candle, and
-  contributors can comment. The one who wrote it sees the replies under "What's new", and can choose a push notification about them.
+- **The Campaign.** Rule your house for 12 turns on a map made from the family's places (plains, forest, highland, towns).
+  Each turn you place troops, give up to three orders and see your exact chance before you attack. The whole family plays
+  the same field each week and compares scores; recording the family raises your renown and your levy. Practice any house
+  on a fresh field. It never changes the family's records, and a steward switches it on.
+- **Who is this?** Photographs nobody has tagged become a two-minute game. Anyone can suggest who is in a picture, and a
+  contributor or editor confirms it.
+- **Talking to each other.** Members answer a message, a memory, a photograph or an update with an emoji, from a quick row
+  or a searchable palette, and contributors can comment. The one who wrote it sees the replies under "What's new", and can
+  choose a push notification about them. The emoji data ships with Kindred, so the palette asks no outside server.
+- **Here now.** Members see who of the family is in Kindred with them, on which page, and whom they have selected. "Show me
+  to others" in the account menu stops sharing. Guests never see it.
 
-![The Campaign in the fourth day of a season: four houses and their troops, a map of provinces under their shields, and an attack ready to send with a battle cry.](docs/images/campaign.webp)
+![The Campaign in turn 1 of a reign: a map of provinces under their shields with terrain, and an attack on a neighbour with its chance shown before it is sent.](docs/images/campaign.webp)
 
-[docs/feed.md](docs/feed.md), [docs/today.md](docs/today.md), [docs/campaign.md](docs/campaign.md) and
-[docs/responses.md](docs/responses.md) have the rules.
+[docs/feed.md](docs/feed.md), [docs/today.md](docs/today.md), [docs/campaign.md](docs/campaign.md),
+[docs/who-is-this.md](docs/who-is-this.md), [docs/responses.md](docs/responses.md) and
+[here now](docs/roles-and-privacy.md#here-now) have the rules.
 A guest of a share link sees none of this. A guest can, however, ask for an account of their own, and the stewards decide.
 
 ## What a researcher gets
@@ -55,13 +63,15 @@ A person's page holds their life on a timeline, their relatives, what has been w
 
 ![A person's page: a drawn portrait, a life timeline with schooling, a graduation, a marriage, births and a cremation, closest family, a memory, and the places on a map.](docs/images/person.webp)
 
-Click the portrait and a **character editor** opens, as in a game: skin, hair, eyes, glasses, a beard, headwear from a flat cap
+Click the portrait and a **character editor** opens, as in a game: skin, hair and beard in any colour, eyes, glasses, a beard chosen by coverage, length and cut (the moustache separately), headwear from a flat cap
 to a hijab or a crown, clothes for every day and for a wedding, a hearing aid, a backdrop. "Surprise me" makes a believable
 relative of the same age and time, and ready-made looks such as "Grandfather, 1950s" dress them in one click. Every relative, of
 any origin, age, faith and era, can be made to look like themselves. [docs/portraits.md](docs/portraits.md) has the details.
 
 ![The character editor: a relative's portrait with Surprise me, undo and compare beside ready-made looks such as Wedding day, Midsummer and In uniform.](docs/images/editor.webp)
 
+- **Quick editing.** On a person's Edit tab each field folds to one line, and only the one you open is edited. An address
+  completes as you type, from OpenStreetMap through the Photon service; set `KINDRED_ADDRESS_LOOKUP=off` to send no address anywhere.
 - **Life events.** Baptism, schooling, service, moves, burial and more (or an event of your own), each with a date, a place and a
   note, in order on the timeline with births, partnerships and death. Places appear in the Atlas.
 - **Sources.** The family's registers, letters, books and web pages are listed once and cited for a birth, a death, a name, an event,
@@ -84,7 +94,7 @@ The tree opens on one person and the people around them. **Family** is an hourgl
 plates, then shields that keep each person's name, then shields alone, and a **minimap** always shows the whole family and
 where you are in it.
 
-Press ⌘K or `/` to find anyone by name, nickname, title or house, and each result says how they are related to you. A lens
+Press ⌘K or `/` (on a phone, the search icon) to find people by name, nickname, title or house, with their years and face, and also houses, places and pages. Accents are ignored, so "Muller" finds "Müller". Each person says how they are related to you. A lens
 dims everyone except a direct line, a house, the living, or the path between two people. On a phone the person panel becomes
 a drawer under the tree, and the sections move to a tab bar: Today, Tree, Gallery, Contacts and More.
 
@@ -103,11 +113,17 @@ whether the arms suit that meaning and suggest new designs.
 ## What the family remembers
 
 - The **Chronicle** gathers the family's notes, sayings, anecdotes, recipes and memories.
+- The **Cookbook** lists the family's recipes. A recipe has ingredients in rows (type or paste a line and it sorts itself into
+  amount, unit and item), numbered steps, servings, times, tags and where it comes from ("Grandma's"). Its page scales the
+  amounts, lets you tick off ingredients, has a cooking mode that keeps the screen awake, and prints as one sheet. Its
+  picture stays with the recipe and is not in the Gallery. See [docs/recipes.md](docs/recipes.md).
 - The **Gallery** holds photographs and albums, with the people in them tagged. AI can suggest faces, and a person confirms each one.
 - The **Atlas** maps where the family was born, married and died, and replays them spreading out over the years.
 - The **Almanac** keeps birthdays, anniversaries and memorial days, for your calendar or as reminders on your devices, next to an
   address book grouped by household.
 - **Needed** is the to-do list of what is still missing, nearest relatives first, one question at a time if you like.
+
+![The Cookbook of an invented family: recipe cards with pictures, search and tag filters.](docs/images/cookbook.webp)
 
 ![The Atlas: a map of Europe with the places an invented modern family was born, and a slider to replay them through the years.](docs/images/atlas.webp)
 
@@ -120,13 +136,23 @@ name meanings, review arms and translate stories, each with its own switch.
 You can connect Anthropic, OpenAI and OpenRouter, and choose a provider and model for each job. The family shares one monthly
 budget, $5 by default. [docs/ai.md](docs/ai.md) says exactly what is sent where.
 
+## Tours
+
+Kindred explains itself on your own family. New members are offered **Welcome**, a two-to-three-minute tour of what matters
+on the first day. **The grand tour** walks through everything else in chapters you can skip, pause and pick up again. Some
+steps ask you to try the thing yourself, and "Show me" does it for you. Tours only show and never change your family's
+records, so they also work in the public demo and in a steward's preview. Both are under **Tours** in the account menu.
+[docs/tours.md](docs/tours.md) has the details.
+
+![The Tours card: Welcome, and the grand tour with its ten chapters.](docs/images/tours.webp)
+
 ## Who sees what
 
 Everyone signs in with a **passkey**, so there are no passwords to forget. If you already manage people in Cloudflare, you can make Cloudflare Access the only sign-in instead: one method per installation, [your choice](docs/self-host.md#choosing-how-people-sign-in).
 A member is a viewer, contributor, editor or steward, and the server checks every change. A person's fields and notes have three levels: personal (only the
 account that added them), editors, or the whole family. A relative who doesn't want an account can have a read-only **share link**, protected by a password by default, that by default shows living people only by name, face and place in the tree. A guest can ask the stewards for an account of their own from it; to show the stewards how the link was used, a guest's visit is counted in a few totals, never with a page log or an address, and not at all under Do Not Track.
 
-New members are offered a short **tour**. Stewards get counts-only **statistics**, which never hold names or what anyone
+Stewards get counts-only **statistics**, which never hold names or what anyone
 wrote and can be turned off, and a **feedback** inbox that stays inside the family's own Kindred. The app comes in English,
 German and Afrikaans, in the Codex, Paper and Night themes.
 
@@ -186,6 +212,9 @@ Exports leave some things out, so back up the databases and pictures as well.
 - [Today](docs/today.md): the question of the week and the daily quiz
 - [Drawn portraits](docs/portraits.md): the character editor, what a portrait can say, and who may change one
 - [The Campaign](docs/campaign.md): a game between the family's houses, and how it runs
+- [Recipes and the Cookbook](docs/recipes.md)
+- [Who is this?](docs/who-is-this.md): naming people in untagged photographs
+- [The tours](docs/tours.md): Welcome and the grand tour
 - [Reactions and comments](docs/responses.md): answering messages, memories and photographs
 - [GEDCOM and the Markdown archive](docs/exchange.md)
 - [The data model](docs/data-model.md)
