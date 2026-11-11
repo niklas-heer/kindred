@@ -79,6 +79,10 @@ test('Next goes to the next box, and a new phone number is one tap and a number 
   await page.reload();
   await settled(page);
   await openEditTab(page);
+  // Back on the tab, the card is one line with its number; a tap opens it.
+  const card = page.getByRole('button', { name: /^Phone.*\+49 151 1234567/ });
+  await expect(card).toHaveAttribute('aria-expanded', 'false');
+  await card.click();
   await expect(box(page, 'Number')).toHaveValue('+49 151 1234567');
   await expect(box(page, 'Number')).toHaveCount(1);
   await expect(page.getByRole('radiogroup', { name: 'Who can see this' }).getByRole('radio', { name: 'Editors' })).toHaveAttribute('aria-checked', 'true');

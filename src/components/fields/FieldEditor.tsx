@@ -3,7 +3,10 @@
 // saved is the order the cards were added in. The usual kinds are one tap, the rest are in a searchable menu grouped by
 // kind; a new card opens with its first box in focus. Cards are put in order with the arrows (within their group), given a
 // level (personal, editors, family), and removed.
-import { ArrowDown, ArrowUp, Plus, Search, Trash2, X } from 'lucide-react';
+// A card is folded to one line (its kind, label and value) until the reader opens it, and only one is open at a time, so
+// the tab reads like a list and not like a wall of boxes. The open one is the parent's (`openKey`), since the three groups
+// share it. A card with something wrong in it, or a version to choose, stays open.
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Plus, Search, Trash2, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { formatAddress, parseAddress, type AddressParts } from '~/lib/address';
@@ -19,10 +22,10 @@ import { PlaceInput, type PlaceValue } from '../PlaceInput';
 import { AddressFinder } from './AddressFinder';
 import { TYPE_ICON } from './FieldsView';
 import { offersPersonal } from '~/lib/fields/edit-values';
-import { VisibilityPicker } from './VisibilityMark';
+import { VisibilityMark, VisibilityPicker } from './VisibilityMark';
 import type { Visibility } from '~/lib/visibility';
 import { isBlankNew } from '~/lib/fields/edit-values';
-import { blankValue, DEFAULT_LABEL, fieldIssue, isContactType, MAX_FIELDS, PRESETS, defaultVisibility, type FieldType, type FieldValue } from '~/lib/fields/model';
+import { blankValue, DEFAULT_LABEL, fieldIssue, fieldText, isContactType, MAX_FIELDS, PRESETS, defaultVisibility, type FieldType, type FieldValue } from '~/lib/fields/model';
 import { presetLabel } from '~/lib/fields/presets';
 import { SuggestInput } from './SuggestInput';
 import './suggest.css';
@@ -199,9 +202,13 @@ const QUICK_ADD: readonly FieldType[] = ['phone', 'email', 'address', 'notes'];
  * `only` (a field's id or key) narrows it to one card that cannot be moved. `focusKey` is the card whose first box gets
  * the focus; `onAdded` reports a new card's key, so the parent can pass it back here even when another group shows it.
  */
-export function FieldEditor({ tree, value, onChange, fam, self, group, addMenu = false, only, focusKey, onAdded }: {
+export function FieldEditor({ tree, value, onChange, fam, self, group, addMenu = false, only, focusKey, onAdded, openKey = null, onOpen, flagged }: {
   tree: string; value: DraftField[]; onChange: (next: DraftField[]) => void; fam: Family; self: string;
   group: FieldGroup; addMenu?: boolean; only?: string; focusKey?: string | null; onAdded?: (key: string) => void;
+  /** The one card open for editing (its key); the rest show a line each. Without `onOpen`, every card is open. */
+  openKey?: string | null; onOpen?: (key: string | null) => void;
+  /** Saved fields (by id) with a version to choose: they stay open and say so. */
+  flagged?: ReadonlySet<string>;
 }) {
   const c = useT();
   const [adding, setAdding] = useState(false);
@@ -238,6 +245,8 @@ export function FieldEditor({ tree, value, onChange, fam, self, group, addMenu =
           {rows.map(({ f, i }, k) => (
             <FieldRowEditor
               key={f.key} tree={tree} f={f} index={k} count={rows.length} fam={fam} self={self} fixed={!!only} focusFirst={f.key === focusKey}
+              open={!onOpen || !!only || openKey === f.key} conflict={!!f.id && !!flagged?.has(f.id)}
+              onToggle={onOpen ? (on) => onOpen(on ? f.key : null) : undefined}
               onChange={(patch) => update(i, patch)} onMove={(d) => move(i, d)} onRemove={() => remove(i)}
             />
           ))}
@@ -299,8 +308,19 @@ export function FieldEditor({ tree, value, onChange, fam, self, group, addMenu =
   );
 }
 
-function FieldRowEditor({ tree, f, index, count, fam, self, fixed, focusFirst, onChange, onMove, onRemove }: {
+/** The folded card's value: what the field says, a linked person by name. */
+function summaryOf(f: DraftField, fam: Family): string {
+  if (f.type === 'related' && f.value.person) {
+    const p = fam.byId.get(f.value.person);
+    if (p) return displayName(p, fam);
+  }
+  if (f.type === 'address') return formatAddress(f.value);
+  return fieldText(f.type, f.value).replace(/\s+/g, ' ').trim();
+}
+
+function FieldRowEditor({ tree, f, index, count, fam, self, fixed, focusFirst, open: chosen, conflict, onToggle, onChange, onMove, onRemove }: {
   tree: string; f: DraftField; index: number; count: number; fam: Family; self: string; fixed: boolean; focusFirst: boolean;
+  open: boolean; conflict: boolean; onToggle?: (open: boolean) => void;
   onChange: (patch: Partial<DraftField>) => void; onMove: (d: -1 | 1) => void; onRemove: () => void;
 }) {
   const c = useT();
@@ -313,10 +333,27 @@ function FieldRowEditor({ tree, f, index, count, fam, self, fixed, focusFirst, o
   const issue = isBlankNew(f) ? undefined : fieldIssue(f.type, f.value);
   const issueText = issue ? c(`issue.${issue}`) : undefined;
   const card = useRef<HTMLLIElement>(null);
+  // Something to fix or to choose keeps the card open whatever else is opened.
+  const open = chosen || !!issueText || conflict;
+  // Set when the reader opened or closed the card here, so the focus follows: into it, or back to its line.
+  const moved = useRef<'in' | 'out' | null>(null);
   // In the commit of the tap that made the card, so the phone still opens the keyboard for it.
   useLayoutEffect(() => {
     if (focusFirst) card.current?.querySelector<HTMLElement>('.fe-inputs input:not([type=search]), .fe-inputs textarea')?.focus();
   }, [focusFirst]);
+  useLayoutEffect(() => {
+    const to = moved.current;
+    moved.current = null;
+    if (to === 'out' && !open) card.current?.querySelector<HTMLElement>('.fe-summary')?.focus();
+    if (to === 'in' && open) {
+      const el = card.current?.querySelector<HTMLElement>('.fe-inputs :is(input:not([type=search]), textarea, button)') ?? card.current?.querySelector<HTMLElement>('.fe-body :is(button, input)');
+      el?.focus({ preventScroll: true });
+    }
+  }, [open]);
+  // An empty address shows only its finder; the four boxes come with a value, or when asked for.
+  const [byHand, setByHand] = useState(false);
+  const partsShown = f.type !== 'address' || byHand || !!formatAddress(f.value);
+  const toggle = (on: boolean) => { moved.current = on ? 'in' : 'out'; onToggle?.(on); };
   const labelOptions = [
     { value: '__none', label: c('label.none') },
     ...presets.map((p) => ({ value: p, label: presetLabel(p, c) })),
@@ -324,16 +361,53 @@ function FieldRowEditor({ tree, f, index, count, fam, self, fixed, focusFirst, o
   ];
   const selectValue = typing ? '__custom' : f.label || '__none';
 
+  if (!open && onToggle) {
+    const text = summaryOf(f, fam);
+    return (
+      <li ref={card} className={`fe-row fe-row-${f.type} fe-folded`}>
+        <button type="button" className="fe-summary" aria-expanded={false} aria-controls={`${id}-body`} onClick={() => toggle(true)}>
+          <span className="fe-icon" aria-hidden>{TYPE_ICON[f.type]}</span>
+          <span className="fe-sum-kind">
+            <b className="fe-name">{typeName}</b>
+            {f.label && <small>{presetLabel(f.label, c)}</small>}
+          </span>
+          <span className={`fe-sum-value${text ? '' : ' empty'}`}>{text || c('fields.empty')}</span>
+          <VisibilityMark level={f.visibility} />
+          <ChevronDown size={16} aria-hidden className="fe-chevron" />
+        </button>
+      </li>
+    );
+  }
+
   return (
-    <li ref={card} className={`fe-row fe-row-${f.type}`} aria-labelledby={`${id}-name`}>
+    <li
+      ref={card}
+      className={`fe-row fe-row-${f.type}${onToggle ? ' fe-open' : ''}${conflict ? ' fe-flag' : ''}${issueText ? ' fe-wrong' : ''}`}
+      aria-labelledby={`${id}-name`}
+      data-key={f.key}
+      // Escape folds the card, unless a list or a picker inside it took the key first.
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape' || e.defaultPrevented || !onToggle || !card.current?.contains(e.target as Node)) return;
+        if (issueText || conflict) return;
+        // The panel's own Escape (closing it) is for when no card is open.
+        e.preventDefault();
+        e.stopPropagation();
+        toggle(false);
+      }}
+    >
       <div className="fe-head">
         <span className="fe-icon" aria-hidden>{TYPE_ICON[f.type]}</span>
         <b id={`${id}-name`} className="fe-name">{typeName}</b>
+        {conflict && <span className="fe-badge">{c('fields.chooseVersion')}</span>}
         <span className="spacer" />
         {!fixed && <button type="button" className="btn icon ghost fe-move" onClick={() => onMove(-1)} disabled={index === 0} aria-label={c('fields.moveUp', { name: typeName })} title={c('fields.moveUp', { name: typeName })}><ArrowUp size={15} /></button>}
         {!fixed && <button type="button" className="btn icon ghost fe-move" onClick={() => onMove(1)} disabled={index === count - 1} aria-label={c('fields.moveDown', { name: typeName })} title={c('fields.moveDown', { name: typeName })}><ArrowDown size={15} /></button>}
         <button type="button" className="btn icon ghost fe-remove" onClick={onRemove} aria-label={c('fields.remove', { name: typeName })} title={c('fields.remove', { name: typeName })}><Trash2 size={15} /></button>
+        {onToggle && !issueText && !conflict && (
+          <button type="button" className="btn icon ghost fe-fold" aria-expanded aria-controls={`${id}-body`} onClick={() => toggle(false)} aria-label={c('fields.fold', { name: typeName })} title={c('fields.fold', { name: typeName })}><ChevronUp size={16} /></button>
+        )}
       </div>
+      <div className="fe-body" id={`${id}-body`}>
 
       {presets.length > 0 && (
         <div className="fe-labelrow">
@@ -362,7 +436,8 @@ function FieldRowEditor({ tree, f, index, count, fam, self, fixed, focusFirst, o
 
       <div className="fe-inputs">
         {f.type === 'address' && <AddressCardFinder tree={tree} f={f} onChange={onChange} id={`${id}-find`} fam={fam} self={self} />}
-        {INPUTS[f.type].map((inp) => {
+        {!partsShown && <button type="button" className="btn ghost fe-byhand wide" onClick={() => setByHand(true)}>{c('addr.byHand')}</button>}
+        {partsShown && INPUTS[f.type].map((inp) => {
           const v = f.value[inp.key] ?? '';
           const setV = (text: string) => onChange({ value: { ...f.value, [inp.key]: text } });
           const label = c(inp.label);
@@ -441,6 +516,7 @@ function FieldRowEditor({ tree, f, index, count, fam, self, fixed, focusFirst, o
 
       <VisibilityPicker value={f.visibility} onChange={(visibility) => onChange({ visibility })} personal={offersPersonal(f)} />
       {issueText && <em className="err fe-issue" id={`${id}-issue`} role="status">{issueText}</em>}
+      </div>
     </li>
   );
 }

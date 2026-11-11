@@ -70,6 +70,37 @@
 .fe-inputs textarea.input { min-height: 84px; resize: vertical; }
 .fe-issue { font-size: var(--fs-3, 0.875rem); }
 
+/* A folded card: one line with its kind, its label and its value, the whole line a button. The list reads like a contact
+   card; only the card being edited opens. */
+.fe-body { display: grid; gap: 10px; min-width: 0; }
+.fe-list:has(.fe-folded) { gap: 6px; }
+.fe-row.fe-folded { padding: 0; gap: 0; background: var(--panel); }
+.fe-summary {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; min-height: 48px; padding: 6px 10px 6px 8px;
+  border: 0; border-radius: inherit; background: none; color: var(--text); font: inherit; text-align: start; cursor: pointer;
+}
+.fe-summary:hover { background: var(--panel-2); }
+.fe-summary:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.fe-summary .fe-icon { width: 28px; height: 28px; margin-right: 0; border-radius: 8px; }
+.fe-sum-kind { display: grid; flex: 0 1 auto; min-width: 0; max-width: 40%; line-height: 1.2; }
+.fe-sum-kind .fe-name { font-size: var(--fs-3, 0.9375rem); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fe-sum-kind small { color: var(--muted); font-size: var(--fs-2, 0.8125rem); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fe-sum-value { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-3, 0.9375rem); }
+.fe-sum-value.empty { color: var(--muted); font-style: italic; }
+.fe-summary .fv-vis { flex: none; }
+.fe-chevron { flex: none; color: var(--muted); }
+.fe-summary:hover .fe-chevron { color: var(--accent); }
+/* The open card stands out from the folded ones; one with a version to choose or a value to fix says so in its colour. */
+.fe-row.fe-open { border-color: var(--edge, var(--border)); box-shadow: 0 1px 0 var(--border), 0 6px 18px -14px #0006; }
+.fe-row.fe-open > .fe-body { animation: fe-unfold 0.16s ease-out; }
+.fe-row.fe-flag { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.fe-row.fe-wrong { border-color: var(--danger); box-shadow: inset 3px 0 0 var(--danger); }
+.fe-badge { font-size: var(--fs-2, 0.8125rem); color: var(--accent); font-family: var(--font-ui); margin-inline-start: 6px; }
+.fe-head .btn.icon.fe-fold { width: 40px; height: 40px; }
+.fe-byhand { justify-self: start; min-height: 40px; }
+@keyframes fe-unfold { from { opacity: 0; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .fe-row.fe-open > .fe-body { animation: none; } }
+
 /* The add menu: a search, then the kinds grouped as they are in the family's record, each with its own icon. */
 .fe-add { justify-self: start; min-height: 40px; margin-top: 2px; }
 .fe-menu {
@@ -112,7 +143,9 @@
   .fe-menu-items, .fe-quick { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .fe-quick .fe-type { min-height: 48px; }
   .fe-quick .fe-add { grid-column: 1 / -1; }
-  .fe-menu-head .btn.icon, .fe-head .btn.icon.fe-move, .fe-head .btn.icon.fe-remove { width: 44px; height: 44px; }
+  .fe-menu-head .btn.icon, .fe-head .btn.icon.fe-move, .fe-head .btn.icon.fe-remove, .fe-head .btn.icon.fe-fold { width: 44px; height: 44px; }
+  .fe-sum-kind { max-width: 46%; }
+  .fe-byhand { min-height: 44px; }
   .fe-menu-items .fe-type { min-height: 48px; }
   .pe-bar .btn { min-height: 44px; }
   .pe .field.check .ui-switch-wrap, .dp-foot .ui-switch-wrap { min-height: 44px; }
@@ -131,7 +164,8 @@
   .pe .field.check .ui-switch-wrap, .dp-foot .ui-switch-wrap { min-height: 44px; }
   .fe-sub, [data-theme] .fe-sub, .fe-menu-title, [data-theme] .fe-menu-title { font-size: 0.875rem; }
   .fe-row { padding: 12px; }
-  .fe-head .btn.icon.fe-move, .fe-head .btn.icon.fe-remove, .fe-menu-head .btn.icon { width: 44px; height: 44px; }
+  .fe-head .btn.icon.fe-move, .fe-head .btn.icon.fe-remove, .fe-head .btn.icon.fe-fold, .fe-menu-head .btn.icon { width: 44px; height: 44px; }
+  .fe-summary { min-height: 52px; }
   .fe-add, .fe-quick .fe-add, .fe-type, .pe-further-add, .pe-further-row .btn, .pe-bar .btn, .pe-remove .btn { min-height: 44px; }
   .pe-further-add { padding-inline: 12px; }
   .pe .pi-pin { min-width: 44px; min-height: 44px; }

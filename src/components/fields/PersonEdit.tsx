@@ -150,6 +150,9 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only, life }: Omit<Props,
   const [conflicts, setConflicts] = useState<Conflict<DraftField>[]>(opened.conflicts);
   const [undoCount, setUndoCount] = useState(0);
   const [focusKey, setFocusKey] = useState<string | null>(() => (only ? opened.start.fields.find((x) => x.id === only)?.key ?? null : null));
+  // The one field card open for editing; the others show a line each (FieldEditor). A new card opens by itself.
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const added = (key: string) => { setFocusKey(key); setOpenKey(key); };
   const [keys] = useState(opKeys);
   const root = useRef<HTMLFormElement>(null);
   const conflictList = useRef<HTMLDivElement>(null);
@@ -539,6 +542,27 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only, life }: Omit<Props,
     </div>
   );
 
+  /**
+   * A click elsewhere in the form folds the open card. It runs after the click's own handler, so a card or a field that
+   * click has just opened stays open. Only inside the form: a picker's list is drawn outside it (and React still bubbles its
+   * events here), and a press there belongs to the card. Folding on the click rather than the press keeps the page still
+   * under the pointer until the click has landed.
+   */
+  function foldOutside(e: { target: EventTarget }) {
+    const at = e.target as Element;
+    const was = openKey;
+    if (!was || !root.current?.contains(at)) return;
+    if (at.closest('.fe-row')?.getAttribute('data-key') === was) return;
+    setOpenKey((k) => (k === was ? null : k));
+  }
+  /** Moving on with the keyboard into another box folds it too. A button (another card's line, an add) folds on its click. */
+  function foldOnFocus(e: FocusEvent<HTMLFormElement>) {
+    if ((e.target as Element).closest('button')) return;
+    foldOutside(e);
+  }
+  const flagged = useMemo(() => new Set(conflicts.flatMap((k) => (k.kind === 'field' ? [k.id] : []))), [conflicts]);
+  const cards = { openKey, onOpen: setOpenKey, flagged };
+
   const formProps = { ref: root, noValidate: true, onSubmit: (e: { preventDefault: () => void }) => { e.preventDefault(); void saver.flush(); }, onKeyDown, onBlur: onLeaveField };
 
   if (only) {
@@ -554,7 +578,7 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only, life }: Omit<Props,
   }
 
   return (
-    <form className="pp-edit pe" {...formProps}>
+    <form className="pp-edit pe" {...formProps} onClick={foldOutside} onFocus={foldOnFocus}>
       <div className="rule">{c('edit.names')}</div>
       <div className="pe-grid">
         {text('given', c('edit.givenAtBirth'), { words: true, required: true })}
@@ -710,7 +734,7 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only, life }: Omit<Props,
         </form.Subscribe>
       </div>
       <form.Field name="fields">
-        {(field) => <FieldEditor tree={tree} group="life" focusKey={focusKey} value={field.state.value} onChange={(v) => field.handleChange(v)} fam={f} self={p.id} />}
+        {(field) => <FieldEditor tree={tree} group="life" focusKey={focusKey} {...cards} value={field.state.value} onChange={(v) => field.handleChange(v)} fam={f} self={p.id} />}
       </form.Field>
       {life && (
         <div className="wide pe-life" onSubmit={(e) => e.stopPropagation()} onBlur={(e) => e.stopPropagation()}>
@@ -720,7 +744,7 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only, life }: Omit<Props,
 
       <div className="rule">{c('group.contact')}</div>
       <form.Field name="fields">
-        {(field) => <FieldEditor tree={tree} group="contact" focusKey={focusKey} value={field.state.value} onChange={(v) => field.handleChange(v)} fam={f} self={p.id} />}
+        {(field) => <FieldEditor tree={tree} group="contact" focusKey={focusKey} {...cards} value={field.state.value} onChange={(v) => field.handleChange(v)} fam={f} self={p.id} />}
       </form.Field>
 
       <div className="rule">{c('edit.biography')}</div>
@@ -736,7 +760,7 @@ function EditForm({ tree, p, f, snap, done, onRemoved, only, life }: Omit<Props,
       <form.Field name="fields">
         {(field) => (
           <div className="wide">
-            <FieldEditor tree={tree} group="more" addMenu focusKey={focusKey} onAdded={setFocusKey} value={field.state.value} onChange={(v) => field.handleChange(v)} fam={f} self={p.id} />
+            <FieldEditor tree={tree} group="more" addMenu focusKey={focusKey} onAdded={added} {...cards} value={field.state.value} onChange={(v) => field.handleChange(v)} fam={f} self={p.id} />
           </div>
         )}
       </form.Field>
