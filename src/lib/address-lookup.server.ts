@@ -7,8 +7,8 @@
 //
 // The browser never talks to Photon: it asks our server function, which only a member who may edit contacts can call. Only
 // the typed text is sent, with a User-Agent that says who is asking. To stay reasonable it keeps a small gap between
-// requests from this server, caps how often one person can ask, and remembers answers for an hour. The cache lives in
-// memory only, because what people type here is private. Plain fetch, so it runs the same on Node and on Workers (where each
+// requests from this server, caps how often one person can ask, and remembers answers for an hour, per family, so one
+// family never learns what another typed. The cache lives in memory only, because what people type here is private. Plain fetch, so it runs the same on Node and on Workers (where each
 // isolate keeps its own cache and limits).
 //
 // KINDRED_ADDRESS_LOOKUP=off switches it off: the address box then suggests towns from the offline gazetteer only.
@@ -57,12 +57,13 @@ function allowed(who: string, now: number): boolean {
   return true;
 }
 
-/** Addresses for the typed text, in the reader's language where Photon has it. `who` is the asking account. */
-export async function suggestAddresses(text: string, locale: string, who: string, deps: Deps = live): Promise<SuggestResult> {
+/** Addresses for the typed text, in the reader's language where Photon has it. `who` is the asking account, `tree` its family. */
+export async function suggestAddresses(tree: string, text: string, locale: string, who: string, deps: Deps = live): Promise<SuggestResult> {
   if (!addressLookupOn(deps.env)) return { ok: false, reason: 'off' };
   const q = text.trim().slice(0, 200);
   const lang = LANGS.has(locale) ? locale : '';
-  const key = `${lang}\n${q.toLowerCase()}`;
+  // Per family: a hit from the cache says that someone typed this, and another family must not learn it.
+  const key = `${tree}\n${lang}\n${q.toLowerCase()}`;
   const now = deps.now();
   const had = cache.get(key);
   if (had && now - had.at < TTL_MS) return { ok: true, hits: had.hits };

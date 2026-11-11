@@ -97,14 +97,14 @@ test('the lookup is on unless the self-hoster switched it off, and then asks nob
   for (const v of ['off', 'OFF', '0', 'false', 'no']) assert.equal(addressLookupOn({ KINDRED_ADDRESS_LOOKUP: v }), false, v);
   resetLookup();
   const { calls, d } = deps(async () => reply(ANSWER), { KINDRED_ADDRESS_LOOKUP: 'off' });
-  assert.deepEqual(await suggestAddresses('Long Street 12', 'en', 'a', d), { ok: false, reason: 'off' });
+  assert.deepEqual(await suggestAddresses('fam', 'Long Street 12', 'en', 'a', d), { ok: false, reason: 'off' });
   assert.equal(calls.length, 0);
 });
 
 test('sends only the typed text to Photon, says who is asking, and caches the answer', async () => {
   resetLookup();
   const { calls, d } = deps(async () => reply(ANSWER));
-  const first = await suggestAddresses('Long Street 12', 'de', 'a', d);
+  const first = await suggestAddresses('fam', 'Long Street 12', 'de', 'a', d);
   assert.ok(first.ok && first.hits[0].parts.city === 'Exampleton');
   const url = new URL(calls[0].url);
   assert.equal(url.protocol, 'https:');
@@ -114,48 +114,51 @@ test('sends only the typed text to Photon, says who is asking, and caches the an
   assert.equal(url.searchParams.get('lang'), 'de');
   assert.deepEqual(url.searchParams.getAll('layer'), ['house', 'street']);
   assert.match(new Headers(calls[0].init?.headers).get('User-Agent') ?? '', /Kindred/);
-  await suggestAddresses('long street 12', 'de', 'b', d);
+  await suggestAddresses('fam', 'long street 12', 'de', 'b', d);
   assert.equal(calls.length, 1, 'answered from the cache');
+  // Another family typing the same is asked afresh: a cached answer would tell them someone typed it.
+  await suggestAddresses('other', 'Long Street 12', 'de', 'c', d);
+  assert.equal(calls.length, 2, 'the cache is per family');
   // Photon has no Afrikaans: the local names come back, and no language is sent.
-  await suggestAddresses('Long Street 12', 'af', 'a', d);
-  assert.equal(new URL(calls[1].url).searchParams.has('lang'), false);
+  await suggestAddresses('fam', 'Long Street 12', 'af', 'a', d);
+  assert.equal(new URL(calls[2].url).searchParams.has('lang'), false);
 });
 
 test('keeps a gap between requests, declines rather than queueing for long, and caps one person', async () => {
   resetLookup();
   const { calls, clock, d } = deps(async () => reply(ANSWER));
-  await suggestAddresses('First Street', 'en', 'a', d);
+  await suggestAddresses('fam', 'First Street', 'en', 'a', d);
   const before = clock.t;
-  await suggestAddresses('Second Street', 'en', 'a', d);
+  await suggestAddresses('fam', 'Second Street', 'en', 'a', d);
   assert.ok(clock.t - before >= 250);
   assert.equal(calls.length, 2);
 
   resetLookup();
   const held = deps(async () => reply(ANSWER));
   held.d.sleep = () => new Promise(() => {});
-  for (let i = 0; i < 6; i++) void suggestAddresses(`Street number ${i}`, 'en', `p${i}`, held.d);
-  assert.deepEqual(await suggestAddresses('Street number 9', 'en', 'p9', held.d), { ok: false, reason: 'busy' });
+  for (let i = 0; i < 6; i++) void suggestAddresses('fam', `Street number ${i}`, 'en', `p${i}`, held.d);
+  assert.deepEqual(await suggestAddresses('fam', 'Street number 9', 'en', 'p9', held.d), { ok: false, reason: 'busy' });
 
   resetLookup();
   const busy = deps(async () => reply(ANSWER));
   let last;
-  for (let i = 0; i < 41; i++) { busy.clock.t += 1000; last = await suggestAddresses(`Street ${i}`, 'en', 'eager', busy.d); }
+  for (let i = 0; i < 41; i++) { busy.clock.t += 1000; last = await suggestAddresses('fam', `Street ${i}`, 'en', 'eager', busy.d); }
   assert.deepEqual(last, { ok: false, reason: 'busy' }, 'the 41st in a minute');
-  assert.equal((await suggestAddresses('Street 99', 'en', 'someone else', busy.d)).ok, true, 'another person is not held up');
+  assert.equal((await suggestAddresses('fam', 'Street 99', 'en', 'someone else', busy.d)).ok, true, 'another person is not held up');
   busy.clock.t += 60_000;
-  assert.equal((await suggestAddresses('Street 100', 'en', 'eager', busy.d)).ok, true, 'a minute later');
+  assert.equal((await suggestAddresses('fam', 'Street 100', 'en', 'eager', busy.d)).ok, true, 'a minute later');
 });
 
 test('any failure is just a failure, and is not cached', async () => {
   for (const f of [async () => reply({}, 500), async () => { throw new Error('offline'); }, async () => reply({ not: 'features' })]) {
     resetLookup();
     const { d } = deps(f);
-    assert.deepEqual(await suggestAddresses('Long Street 12', 'en', 'a', d), { ok: false, reason: 'failed' });
+    assert.deepEqual(await suggestAddresses('fam', 'Long Street 12', 'en', 'a', d), { ok: false, reason: 'failed' });
   }
   resetLookup();
   let n = 0;
   const { d, clock } = deps(async () => (++n === 1 ? reply({}, 500) : reply(ANSWER)));
-  await suggestAddresses('Long Street 12', 'en', 'a', d);
+  await suggestAddresses('fam', 'Long Street 12', 'en', 'a', d);
   clock.t += 5000;
-  assert.equal((await suggestAddresses('Long Street 12', 'en', 'a', d)).ok, true);
+  assert.equal((await suggestAddresses('fam', 'Long Street 12', 'en', 'a', d)).ok, true);
 });

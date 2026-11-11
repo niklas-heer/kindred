@@ -67,5 +67,5 @@ export const suggestAddressesOnline = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, text: z.string().trim().min(3).max(200), locale: z.enum(['en', 'de', 'af']) }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireCan(data.tree, 'edit-contact');
-    return (await import('./address-lookup.server')).suggestAddresses(data.text, data.locale, m.user.id);
+    return (await import('./address-lookup.server')).suggestAddresses(data.tree, data.text, data.locale, m.user.id);
   });
