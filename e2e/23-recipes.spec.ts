@@ -7,6 +7,8 @@ import { checkAxe, expect, openFamily, settled, STEWARD, test } from './fixtures
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
 const ME = `${STEWARD.given} ${STEWARD.surname}`;
+// An earlier journey (08) may have given the steward an epithet, which follows the name: "Ada Testerby the Merged".
+const MINE = `${ME}(?: [^,]+?)?`;
 
 test('recipes: write one with a picture, scale it, cook from it, find it, change it, remove it and undo', async ({ page, issues }) => {
   test.setTimeout(180_000);
@@ -26,7 +28,7 @@ test('recipes: write one with a picture, scale it, cook from it, find it, change
   const form = page.getByRole('dialog', { name: 'A new recipe' });
   await expect(form.getByLabel('What is it called?')).toBeFocused();
   // It is the writer's own unless they say otherwise.
-  await expect(form.getByText(ME, { exact: true })).toBeVisible();
+  await expect(form.getByText(new RegExp(`^${MINE}$`))).toBeVisible();
   // Nothing in it yet: it says what is missing, and keeps the form.
   await form.getByRole('button', { name: 'Save the recipe' }).click();
   await expect(form.getByRole('alert')).toHaveText('Give the recipe a name first.');
@@ -132,7 +134,7 @@ test('recipes: write one with a picture, scale it, cook from it, find it, change
   await page.goto(`/${tree}/chronicle`);
   await settled(page);
   const entry = page.locator('.chr-item').filter({ hasText: 'Goulash' });
-  await expect(entry.getByText(`${ME} shared a recipe from`)).toBeVisible();
+  await expect(entry.getByText(new RegExp(`${MINE} shared a recipe from`))).toBeVisible();
   await expect(entry.getByText('Serves 4')).toBeVisible();
   await expect(entry.getByRole('link', { name: 'Open the recipe', exact: true })).toHaveAttribute('href', new URL(recipeUrl).pathname);
   await checkAxe(page, 'chronicle, with a recipe');

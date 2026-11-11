@@ -7,6 +7,8 @@ import { addPasskeyDevice, checkAxe, expect, openFamily, settled, STEWARD, test 
 
 const COUSIN = 'Bram Presence';
 const ME = `${STEWARD.given} ${STEWARD.surname}`;
+// An earlier journey (08) may have given the steward an epithet, which follows the name: "Ada Testerby the Merged".
+const MINE = `${ME}(?: [^,]+?)?`;
 
 test('presence: two members see each other, a selected card has a halo, sharing can be switched off', async ({ page, browser, issues, baseURL }) => {
   const tree = await openFamily(page);
@@ -50,7 +52,7 @@ test('presence: two members see each other, a selected card has a halo, sharing 
   await cousin.locator('.card', { hasText: STEWARD.given }).first().locator('.card-hit').click();
   const watched = page.locator('.card.watched', { hasText: STEWARD.given }).first();
   await expect(watched).toBeVisible({ timeout: 15_000 });
-  await expect(watched.locator('.card-watchers')).toHaveAttribute('title', `${COUSIN} has ${ME} selected`);
+  await expect(watched.locator('.card-watchers')).toHaveAttribute('title', new RegExp(`^${COUSIN} has ${MINE} selected$`));
 
   // ---------- both on the steward's profile ----------
   await cousin.getByRole('link', { name: 'Full profile' }).first().click();
@@ -59,7 +61,7 @@ test('presence: two members see each other, a selected card has a halo, sharing 
   await page.goto(profile);
   await settled(page);
   await expect(page.getByRole('status').filter({ hasText: `${COUSIN} is here` })).toBeVisible({ timeout: 15_000 });
-  await expect(cousin.getByRole('status').filter({ hasText: `${ME} is here` })).toBeVisible({ timeout: 15_000 });
+  await expect(cousin.getByRole('status').filter({ hasText: new RegExp(`${MINE} is here`) })).toBeVisible({ timeout: 15_000 });
 
   // ---------- "Show me to others" off: nothing selected is shared any more, either way ----------
   await cousin.locator('.acct-trigger').click();
@@ -69,7 +71,7 @@ test('presence: two members see each other, a selected card has a halo, sharing 
   await expect(share).toHaveAttribute('aria-checked', 'false');
   await cousin.keyboard.press('Escape');
   await expect(page.getByRole('status').filter({ hasText: `${COUSIN} is here` })).toBeHidden({ timeout: 15_000 });
-  await expect(cousin.getByRole('status').filter({ hasText: `${ME} is here` })).toBeHidden({ timeout: 15_000 });
+  await expect(cousin.getByRole('status').filter({ hasText: new RegExp(`${MINE} is here`) })).toBeHidden({ timeout: 15_000 });
   // Still here, though: the page is shared, the person is not.
   await expect(page.getByRole('button', { name: '1 here now' })).toBeVisible();
 

@@ -7,6 +7,8 @@ import { addPasskeyDevice, checkAxe, expect, openFamily, settled, STEWARD, test 
 // A 40 × 30 picture, so the tap has room.
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAACgAAAAeCAIAAADRv8uKAAAAK0lEQVR42u3NMQ0AAAgDsIlFE5qQhQw4mvRvputExGKxWCwWi8VisVj8N15zHj3ZVogU+QAAAABJRU5ErkJggg==', 'base64');
 const ME = `${STEWARD.given} ${STEWARD.surname}`;
+// An earlier journey (08) may have given the steward an epithet, which follows the name: "Ada Testerby the Merged".
+const MINE = `${ME}(?: [^,]+?)?`;
 
 test('who is this: a member names someone, the steward confirms, the tag says who named them', async ({ page, browser, issues, baseURL }) => {
   test.setTimeout(180_000);
@@ -56,10 +58,10 @@ test('who is this: a member names someone, the steward confirms, the tag says wh
   await checkAxe(cousin, 'who is this, a photograph with a mark');
   await game.getByRole('searchbox', { name: 'Who is in this photograph?' }).fill(STEWARD.given);
   await game.getByRole('list', { name: 'Who is in this photograph?' }).getByRole('button', { name: new RegExp(`^${ME}`) }).first().click();
-  await expect(game.getByRole('status').filter({ hasText: `Thank you! ${ME} is suggested` })).toBeVisible();
+  await expect(game.getByRole('status').filter({ hasText: new RegExp(`Thank you! ${MINE} is suggested`) })).toBeVisible();
   await expect(game.getByText('You named 1 person this month.')).toBeVisible();
   // Their own suggestion is not theirs to confirm.
-  await expect(game.getByText(`${ME}, named by Wren Cousin`)).toHaveCount(0);
+  await expect(game.getByText(new RegExp(`${MINE}, named by Wren Cousin`))).toHaveCount(0);
 
   // On a phone the photograph fits the screen.
   await cousin.setViewportSize({ width: 390, height: 844 });
@@ -74,7 +76,7 @@ test('who is this: a member names someone, the steward confirms, the tag says wh
   await settled(page);
   const card = page.getByTestId('who-is-this');
   await expect(card.getByRole('heading', { name: 'Waiting for your confirmation' })).toBeVisible();
-  const waiting = card.getByRole('listitem').filter({ hasText: `${ME}, named by Wren Cousin` });
+  const waiting = card.getByRole('listitem').filter({ hasText: new RegExp(`${MINE}, named by Wren Cousin`) });
   await waiting.getByRole('button', { name: 'Confirm' }).click();
   await expect(waiting.getByRole('status')).toHaveText('Tagged.');
 
