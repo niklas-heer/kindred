@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { displayName, fullName, personDisplayName } from './graph.ts';
-import { matchesName, pickList } from './search.ts';
+import { matchesName, pickList, rankByName } from './search.ts';
 import type { GPerson } from './types.ts';
 
 const ann: GPerson = { id: 'ann', given: 'Anna', surname: 'Müller', currentSurname: 'Schmidt', nickname: 'Ann', living: true, stories: 0, contacts: 0 };
@@ -60,4 +60,23 @@ test('what was typed still decides who is listed; a suggestion only moves a matc
 
 test('the list stops at the limit, and someone who has left the family is not invented', () => {
   assert.equal(ids(pickList(people, '', ['f', 'gone'], 3)), 'fab');
+});
+
+test('a search ignores accents and finds an umlaut spelled out, and ß as ss', () => {
+  assert.ok(matchesName(ann, 'Muller'));
+  assert.ok(matchesName(ann, 'Mueller'));
+  assert.ok(matchesName(ann, 'anna müll'));
+  const str = { ...cy, given: 'Ida', surname: 'Großmann' };
+  assert.ok(matchesName(str, 'grossmann'));
+  assert.ok(matchesName(str, 'Großm'));
+  assert.ok(!matchesName(ann, 'Muellerx'));
+});
+
+test('names are ranked with a word that starts the name above one found inside it', () => {
+  const places = ['Neustadt', 'Stuttgart', 'Bad Cannstatt, Stuttgart', 'Münster', 'Ostrava'];
+  assert.deepEqual(rankByName(places, 'st', (x) => x), ['Stuttgart', 'Bad Cannstatt, Stuttgart', 'Neustadt', 'Münster', 'Ostrava']);
+  assert.deepEqual(rankByName(places, 'munster', (x) => x), ['Münster']);
+  assert.deepEqual(rankByName(places, 'muenster', (x) => x), ['Münster']);
+  assert.deepEqual(rankByName(places, '  ', (x) => x), []);
+  assert.equal(rankByName(places, 's', (x) => x, 2).length, 2);
 });

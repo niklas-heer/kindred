@@ -7,8 +7,36 @@ export { openingView, treeSearch, type TreeSearch } from './tree-search.ts';
 
 // ---------- finding people by name ----------
 
-/** Lower case, no accents: what a name search compares. */
-export const foldName = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+/** Lower case, no accents, ß as ss: what a name search compares. "Müller" is "muller", "Straße" is "strasse". */
+export const foldName = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/ß/g, 'ss').replace(/æ/g, 'ae').replace(/ø/g, 'o');
+
+/** The German way of writing an umlaut without one: "Müller" as "mueller", so a search typed that way finds it too. */
+const spelledOut = (s: string) => foldName(s.toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue'));
+
+/** A name's folded forms: without accents, and with umlauts spelled out when that differs. */
+export const nameForms = (s: string): string[] => {
+  const a = foldName(s);
+  const b = spelledOut(s);
+  return a === b ? [a] : [a, b];
+};
+
+/**
+ * Things with a name ranked for what was typed: every typed word must appear in the name, accents ignored, and a name
+ * where each word starts a word ranks above one where it is only found inside. Ties keep the given order.
+ */
+export function rankByName<T>(items: readonly T[], q: string, nameOf: (x: T) => string, limit = 5): T[] {
+  const terms = foldName(q).split(/\s+/).filter(Boolean);
+  if (!terms.length) return [];
+  const out: { x: T; score: number; i: number }[] = [];
+  items.forEach((x, i) => {
+    const forms = nameForms(nameOf(x));
+    if (!terms.every((t) => forms.some((n) => n.includes(t)))) return;
+    const starts = terms.filter((t) => forms.some((n) => n.split(/[\s,.\-–]+/).some((w) => w.startsWith(t)))).length;
+    const whole = forms.some((n) => n.startsWith(terms[0])) ? 1 : 0;
+    out.push({ x, score: starts * 2 + whole, i });
+  });
+  return out.sort((a, b) => b.score - a.score || a.i - b.i).slice(0, limit).map((r) => r.x);
+}
 
 /**
  * Every name a person is known by, folded: the birth name, the name they go by now (the current name
@@ -21,7 +49,7 @@ export function personNames(p: GPerson): string[] {
   const further = p.furtherGiven ?? [];
   return [join(allGiven(p.given, further), p.surname), join(p.given, p.surname), join(now.given, now.surname), p.given, now.given, ...further, p.nickname, p.surname, now.surname]
     .filter((s): s is string => !!s)
-    .map(foldName);
+    .flatMap(nameForms);
 }
 
 /** Whether a person matches a typed search: every word typed appears in one of their names, in any order. */
@@ -46,7 +74,7 @@ export function searchPeople(f: Family, q: string, limit = 40, near?: ReadonlyMa
   for (const p of f.graph.people) {
     // Names first (any known name, in any order); the epithet, title, occupation and house also find someone.
     const named = matchesName(p, q);
-    const name = foldName([p.given, p.surname, p.nickname].filter(Boolean).join(' '));
+    const name = nameForms([p.given, p.surname, p.nickname].filter(Boolean).join(' ')).join(' ');
     const extra = foldName([p.epithet, p.title, p.occupation, occupationSearchText(p.occupationCode), f.house.get(p.house ?? '')?.name].filter(Boolean).join(' '));
     if (!named && !terms.every((t) => extra.includes(t))) continue;
     const text = named ? 10 + terms.filter((t) => name.split(' ').some((w) => w.startsWith(t))).length * 5 : 2;

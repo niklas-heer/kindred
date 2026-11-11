@@ -1,9 +1,12 @@
 import { yourKinship, LANGUAGE_NAME, LOCALES, useT, type Translator } from '~/lib/i18n';
-import { searchPeople } from '~/lib/search';
-// ⌘K: jump to anyone by name, nickname, epithet, title or place; or run a command.
+import { rankByName, searchPeople } from '~/lib/search';
+// ⌘K: jump to anyone by name, nickname, epithet, title or house; to a house, a place on the Atlas or a page; or run a
+// command. Suggestions follow each key typed. Accents do not matter ("Muller" finds "Müller", so does "Mueller"), and a
+// word that starts a name ranks above one found inside it. A guest's family is already the guest's version of it
+// (protect-living.ts), so the places offered are only those its remaining records name.
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useNavigate } from '@tanstack/react-router';
-import { CalendarHeart, Flame, CircleHelp, Contact, Landmark, Languages, Map as MapIcon, Crown, GitFork, Moon, Network, ScrollText, Shield, Sparkles, Sun, UserRound, FolderSearch, Images, Inbox, MessageSquarePlus, Swords } from 'lucide-react';
+import { CalendarHeart, MapPin, Flame, CircleHelp, Contact, Landmark, Languages, Map as MapIcon, Crown, GitFork, Moon, Network, ScrollText, Shield, Sparkles, Sun, UserRound, FolderSearch, Images, Inbox, MessageSquarePlus, Swords } from 'lucide-react';
 import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useFamily, useMe, useMeChosen, useTreeId } from '~/lib/family';
 import { displayName, kinship, lifespan, ancestorDepths, stepsFrom, type Family } from '~/lib/graph';
@@ -28,8 +31,6 @@ export function usePalette() {
   const open = useSyncExternalStore((l) => (subs.add(l), () => subs.delete(l)), () => isOpen, () => false);
   return { isOpen: open, open: () => set(true), close: () => set(false) };
 }
-
-const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 interface Item {
   key: string;
@@ -127,13 +128,15 @@ export function Palette() {
       return { key: id, person: id, label: displayName(p, f), hint: personHint(f, id, who, myAnc, t), run: () => { navigate({ to: '/$tree/person/$id', params: { tree, id } }); close(); } };
     });
     // Houses by name: straight to the house's page.
-    const fqh = fold(dq.trim());
-    const houses: Item[] = fqh
-      ? f.graph.houses.filter((h) => fold(h.name).includes(fqh)).slice(0, 5).map((h) => ({
-          key: `house:${h.id}`, group: t('shell.palette.houses'), icon: <Arms arms={h.arms} size={22} />, label: h.name, hint: t('shell.palette.house'),
-          run: () => { navigate({ to: '/$tree/house/$house', params: { tree, house: h.id } }); close(); },
-        }))
-      : [];
+    const houses: Item[] = rankByName(f.graph.houses, dq, (h) => h.name, 5).map((h) => ({
+      key: `house:${h.id}`, group: t('shell.palette.houses'), icon: <Arms arms={h.arms} size={22} />, label: h.name, hint: t('shell.palette.house'),
+      run: () => { navigate({ to: '/$tree/house/$house', params: { tree, house: h.id } }); close(); },
+    }));
+    // Places the family's records name: the Atlas, opened on that place.
+    const places: Item[] = rankByName(f.graph.places, dq, (pl) => pl.name, 5).map((pl) => ({
+      key: `place:${pl.name}`, group: t('shell.palette.places'), icon: <MapPin size={16} />, label: pl.name, hint: t('shell.palette.onAtlas'),
+      run: () => { navigate({ to: '/$tree/atlas', params: { tree }, search: { place: pl.name } }); close(); },
+    }));
     const cmds = commandsForReader<Item>([
       // Views first, then pages, then what you do rarely: settings, the tour, feedback.
       { key: 'v-family', icon: <Network size={16} />, label: t('shell.cmd.viewFamily'), run: () => { navigate({ to: '/$tree', params: { tree }, search: (s: any) => ({ ...s, view: 'family' }) }); close(); } },
@@ -164,9 +167,9 @@ export function Palette() {
         { key: 'feedback-inbox', icon: <Inbox size={16} />, label: t('feedback.inbox'), hint: t('feedback.inbox_hint'), run: () => { navigate({ to: '/$tree/settings/feedback', params: { tree } }); close(); } },
       ] : []),
     ], guest);
-    const fq = fold(dq);
-    const matched = fq ? cmds.filter((c) => fold(c.label).includes(fq)) : cmds;
-    return fq ? [...people, ...houses, ...matched] : matched;
+    if (!dq.trim()) return cmds;
+    const matched = rankByName(cmds, dq, (c) => c.label, cmds.length);
+    return [...people, ...houses, ...places, ...matched];
   }, [f, dq, me, who, myAnc, near, navigate, tree, close, t, assistantOn, setupNeeded, steward, guest, mode]);
 
   useEffect(() => setSel(0), [dq]);
