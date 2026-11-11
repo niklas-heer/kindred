@@ -1,4 +1,4 @@
-// Journey 22: live presence. The steward invites a second member, who opens the family in a browser of their own: each sees
+// Journey 24: live presence. The steward invites a second member, who opens the family in a browser of their own: each sees
 // the other in the top bar ("1 here now", and who is on which page); the second member selects the steward's card and the
 // steward's tree shows it with a halo and their face; both on the same profile say "… is here"; switching "Show me to others"
 // off takes the halo away; on a phone the faces stay without sideways scrolling; and when the second member closes their
