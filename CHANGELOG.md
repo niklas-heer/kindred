@@ -7,7 +7,13 @@ moving to before you upgrade ([docs/self-host.md](docs/self-host.md), "Upgrading
 
 ## [Unreleased]
 
-Changes on `main` since 2.0.0. They are not in a release yet.
+Changes on `main` since 2.1.0. They are not in a release yet.
+
+## [2.1.0] - 2026-11-11
+
+The family's common room: Today with a feed, a quiz and a question of the week, the Campaign game, reactions, comments, life
+events, sources, change history, printed charts and a family book, a rebuilt character editor, and a public demo. Fifteen
+migrations are new since 2.0.0 (listed below); read the [release notes](docs/releases/v2.1.0.md) before upgrading.
 
 Database changes: fifteen migrations are new since 2.0.0. In `migrations/accounts`:
 
@@ -271,5 +277,6 @@ on Node 26 with SQLite or on Cloudflare Workers with D1 and R2.
 Read the [release notes](docs/releases/v2.0.0.md) for the full list and for moving from v1 (also
 [docs/migration-plan.md](docs/migration-plan.md)). Cloudflare Access installs must set `KINDRED_AUTH=cloudflare-access` before deploying.
 
-[Unreleased]: https://github.com/niklas-heer/kindred/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/niklas-heer/kindred/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/niklas-heer/kindred/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/niklas-heer/kindred/releases/tag/v2.0.0
