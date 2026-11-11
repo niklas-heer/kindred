@@ -1,4 +1,4 @@
-// Journey 22: recipes. The steward writes a goulash in the Cookbook: a whole line typed into a row sorts itself, a pasted
+// Journey 23: recipes. The steward writes a goulash in the Cookbook: a whole line typed into a row sorts itself, a pasted
 // list becomes rows with a part of its own, and a picture goes with it. The recipe has its own page: the amounts double,
 // a tick survives a reload, cooking mode walks through the steps, and the picture is the recipe's, not the Gallery's.
 // It is in the Chronicle and on Today as a recipe; the composer's "Recipe" opens the same form; it can be changed, found
