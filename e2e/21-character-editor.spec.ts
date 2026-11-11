@@ -33,14 +33,46 @@ test('a look is changed in the character editor, saved, and shown on the tree', 
   await expect(save).toBeDisabled();
   await checkAxe(page, 'character editor');
 
-  // With the pointer: a hair style. The choice is pressed, and the large portrait is another drawing. (A beehive, because
+  // With the pointer: a hair style. The choice is pressed, and the large portrait is another drawing. (An undercut, because
   // the automatic choice never makes one: a style it does make could be the one the steward already has.)
   await editor.getByRole('tab', { name: 'Hair', exact: true }).click();
-  const beehive = editor.getByRole('button', { name: 'Beehive', exact: true });
-  await beehive.click();
-  await expect(beehive).toHaveAttribute('aria-pressed', 'true');
+  const undercut = editor.getByRole('button', { name: 'Undercut', exact: true });
+  await undercut.click();
+  await expect(undercut).toHaveAttribute('aria-pressed', 'true');
   await expect(hero).not.toHaveAttribute('src', start!);
   await expect(save).toBeEnabled();
+  // The styles past the first twenty are under "More", and a click away.
+  await expect(editor.getByRole('button', { name: 'Beehive', exact: true })).toBeHidden();
+  await editor.locator('.ce-more > summary').first().click();
+  await expect(editor.getByRole('button', { name: 'Beehive', exact: true })).toBeVisible();
+
+  // A hair colour of one's own: half a code is flagged and changes nothing, a whole one is taken.
+  const code = editor.getByLabel('Colour code');
+  const styled = await hero.getAttribute('src');
+  await code.fill('#5c3b2');
+  await expect(code).toHaveAttribute('aria-invalid', 'true');
+  await expect(hero).toHaveAttribute('src', styled!);
+  await code.fill('#5c3b21');
+  await expect(code).toHaveAttribute('aria-invalid', 'false');
+  await expect(hero).not.toHaveAttribute('src', styled!);
+
+  // A beard is where it grows, how long, and how it is cut; the moustache is chosen on its own.
+  await editor.getByRole('tab', { name: 'Beard', exact: true }).click();
+  const coloured = await hero.getAttribute('src');
+  await editor.getByRole('group', { name: 'Beard', exact: true }).getByRole('button', { name: 'Full', exact: true }).click();
+  await expect(hero).not.toHaveAttribute('src', coloured!);
+  const long = editor.getByRole('group', { name: 'Length', exact: true }).getByRole('button', { name: 'Long', exact: true });
+  await long.click();
+  await expect(long).toHaveAttribute('aria-pressed', 'true');
+  await expect(editor.getByRole('slider', { name: 'Exact length' })).toHaveValue('9');
+  const forked = editor.getByRole('group', { name: 'Cut at the chin', exact: true }).getByRole('button', { name: 'Forked', exact: true });
+  await forked.click();
+  await expect(forked).toHaveAttribute('aria-pressed', 'true');
+  const shaven = editor.getByRole('group', { name: 'Moustache', exact: true }).getByRole('button', { name: 'None', exact: true });
+  const bearded = await hero.getAttribute('src');
+  await shaven.click();
+  await expect(shaven).toHaveAttribute('aria-pressed', 'true');
+  await expect(hero).not.toHaveAttribute('src', bearded!);
 
   // With the keyboard: along the categories with the arrow keys, an eye colour with Enter, a measure with the arrows.
   await editor.getByRole('tab', { name: 'Hair', exact: true }).focus();
@@ -102,6 +134,9 @@ test('a look is changed in the character editor, saved, and shown on the tree', 
   await expect(green).toHaveAttribute('aria-pressed', 'true');
   await editor.getByRole('tab', { name: 'Extras', exact: true }).click();
   await expect(editor.getByRole('button', { name: 'Sea', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  // The hair colour is part of the face, not of the outfit: the ready-made look left it, and it was saved.
+  await editor.getByRole('tab', { name: 'Hair', exact: true }).click();
+  await expect(editor.getByLabel('Colour code')).toHaveValue('#5c3b21');
   // Nothing was changed this time, so it closes without a question.
   await page.keyboard.press('Escape');
   await expect(editor).toBeHidden();

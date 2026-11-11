@@ -3,7 +3,7 @@
 import type { Key } from '~/lib/i18n/dictionary';
 import type { ClothingStyle, GlassesStyle, HairStyle, Headwear } from '~/lib/seed-format';
 import type { GPerson, Look } from '~/lib/types';
-import { LEVEL_KEYS, SKIN_NEUTRAL, SKIN_ORDER, defaultLook, resolveAppearance, type Era, type Presentation, type Stage } from './portrait-look';
+import { BEARD_PRESETS, LEVEL_KEYS, SKIN_NEUTRAL, SKIN_ORDER, defaultLook, hexColour, nearestHair, resolveAppearance, type Appearance, type BeardCover, type BeardShape, type Era, type Presentation, type Stage } from './portrait-look';
 
 // ---------- steps ----------
 
@@ -45,6 +45,55 @@ export function redo(d: Draft): Draft {
 
 /** "Back to how it was": the look the session started with, as a step of its own, so it can be undone like any other. */
 export const revert = (d: Draft): Draft => commit(d, d.start);
+
+// ---------- hair colour and beard ----------
+
+/**
+ * A hair colour of one's own (#rrggbb), or back to a swatch. With a colour of their own the look keeps the nearest
+ * swatch as `hair`, so anything that reads the index still gets a sensible answer. Anything that is not a colour changes nothing.
+ */
+export function withHairColour(look: Look, colour: string | number): Look {
+  const next = { ...look };
+  if (typeof colour === 'number') {
+    next.hair = colour;
+    delete next.hairHex;
+    return next;
+  }
+  const hex = hexColour(colour);
+  if (!hex) return look;
+  return { ...next, hair: nearestHair(hex), hairHex: hex };
+}
+
+/**
+ * A change to the beard: where it grows, how long it is, or how it is cut. `shown` is the beard as the portrait draws it
+ * now (resolved, so an automatic beard or one stored under an older name has a coverage, a length and a shape). The look
+ * that comes back names the coverage, and stores a length or a shape only where it differs from that coverage's own:
+ * a look stored as "long" becomes a full beard of length 9, pointed, and draws exactly as before.
+ */
+export function withBeard(look: Look, shown: Pick<Appearance, 'beardCover' | 'beardLength' | 'beardShape'>, change: { cover?: BeardCover; length?: number; shape?: BeardShape }): Look {
+  const cover = change.cover ?? shown.beardCover;
+  const next: Look = { ...look, beardStyle: cover };
+  delete next.beardLength;
+  delete next.beardShape;
+  if (cover === 'none' || cover === 'stubble') return next;
+  const own = BEARD_PRESETS[cover];
+  // A new coverage starts at its own length unless a length was chosen with it; the same coverage keeps what it had.
+  const kept = cover === shown.beardCover;
+  const length = change.length ?? (kept ? shown.beardLength : look.beardLength ?? own.length);
+  const shape = change.shape ?? (kept ? shown.beardShape : look.beardShape ?? own.shape);
+  if (length !== own.length) next.beardLength = Math.max(0, Math.min(10, Math.round(length)));
+  if (shape !== own.shape) next.beardShape = shape;
+  return next;
+}
+
+/** The beard back to automatic: its coverage, length and shape all follow the person again. The colour is kept. */
+export function withAutoBeard(look: Look): Look {
+  const next = { ...look };
+  delete next.beardStyle;
+  delete next.beardLength;
+  delete next.beardShape;
+  return next;
+}
 
 // ---------- Surprise me ----------
 
@@ -110,8 +159,11 @@ export function surprise(person: GPerson, current: Look | undefined, now: number
   const next: Look = {
     ...base,
     brows: a.brows, face: a.face, noseShape: a.noseShape, eyeShape: a.eyeShape, marks: a.marks,
-    beardStyle: a.beard, moustache: a.moustache, glasses: a.glasses, clothing: a.clothing, headwear: a.headwear,
+    beardStyle: a.beardCover, moustache: a.moustache, glasses: a.glasses, clothing: a.clothing, headwear: a.headwear,
   };
+  // The beard as coverage, with its length and cut where they are not that coverage's own.
+  if (a.beardLength !== BEARD_PRESETS[a.beardCover].length) next.beardLength = a.beardLength;
+  if (a.beardShape !== BEARD_PRESETS[a.beardCover].shape) next.beardShape = a.beardShape;
   if (a.hairStyle !== 'tuft') next.hairStyle = a.hairStyle;
   for (const k of LEVEL_KEYS) next[k] = a.feat[k];
 
@@ -140,8 +192,8 @@ export function surprise(person: GPerson, current: Look | undefined, now: number
 // ---------- ready-made looks ----------
 
 /** The parts a ready-made look sets. The face itself (skin, eyes, hair colour, shapes, measures, marks, build) is never touched. */
-export type Outfit = Pick<Look, 'hairStyle' | 'grey' | 'beardStyle' | 'moustache' | 'glasses' | 'frames' | 'headwear' | 'hatColour' | 'clothing' | 'clothColour' | 'trimColour' | 'expression' | 'lips' | 'earrings' | 'necklace' | 'extras' | 'backdrop'>;
-const OUTFIT_KEYS: (keyof Outfit)[] = ['hairStyle', 'grey', 'beardStyle', 'moustache', 'glasses', 'frames', 'headwear', 'hatColour', 'clothing', 'clothColour', 'trimColour', 'expression', 'lips', 'earrings', 'necklace', 'extras', 'backdrop'];
+export type Outfit = Pick<Look, 'hairStyle' | 'grey' | 'beardStyle' | 'beardLength' | 'beardShape' | 'moustache' | 'glasses' | 'frames' | 'headwear' | 'hatColour' | 'clothing' | 'clothColour' | 'trimColour' | 'expression' | 'lips' | 'earrings' | 'necklace' | 'extras' | 'backdrop'>;
+const OUTFIT_KEYS: (keyof Outfit)[] = ['hairStyle', 'grey', 'beardStyle', 'beardLength', 'beardShape', 'moustache', 'glasses', 'frames', 'headwear', 'hatColour', 'clothing', 'clothColour', 'trimColour', 'expression', 'lips', 'earrings', 'necklace', 'extras', 'backdrop'];
 
 export interface Preset {
   id: string;

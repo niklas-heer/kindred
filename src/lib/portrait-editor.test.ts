@@ -157,3 +157,53 @@ test('the looks offered fit the person: of their time, a child\'s for a child, a
   assert.deepEqual(ids(PEOPLE[3], 1), [], 'a baby wears what babies wear');
   assert.ok(ids(PEOPLE[1]).includes('today'));
 });
+
+// ---------- hair colour and beard ----------
+
+test('a hair colour of one\'s own keeps the nearest swatch beside it, a swatch clears it, and what is not a colour changes nothing', () => {
+  const own = ed.withHairColour(A, '#A3482B');
+  assert.deepEqual(own, { ...A, hair: 6, hairHex: '#a3482b' });
+  assert.deepEqual(ed.withHairColour(own, 3), { ...A, hair: 3 });
+  for (const bad of ['a3482b', '#a3482', 'red', '#a3482b"><script>']) assert.equal(ed.withHairColour(own, bad), own, bad);
+});
+
+test('a change to the beard stores its coverage, and a length or a shape only where they are not that coverage\'s own', () => {
+  const shown = (l: object) => look.resolveAppearance({ id: 'p-beard', sex: 'm', born: '1980', living: true, look: { ...A, ...l } }, NOW);
+  const draw = (l: object) => avatar.avatarSvg(shown(l), DRESS, 'lg');
+  // Choosing a coverage.
+  assert.deepEqual(ed.withBeard(A, shown({ beardStyle: 'none' }), { cover: 'full' }), { ...A, beardStyle: 'full' });
+  assert.deepEqual(ed.withBeard({ ...A, beardStyle: 'full', beardLength: 8 }, shown({ beardStyle: 'full', beardLength: 8 }), { cover: 'none' }), { ...A, beardStyle: 'none' });
+  // A length and a shape, on the coverage shown.
+  const full = { ...A, beardStyle: 'full' };
+  assert.deepEqual(ed.withBeard(full, shown(full), { length: 8 }), { ...full, beardLength: 8 });
+  assert.deepEqual(ed.withBeard({ ...full, beardLength: 8 }, shown({ ...full, beardLength: 8 }), { length: 5 }), full);
+  assert.deepEqual(ed.withBeard(full, shown(full), { shape: 'forked' }), { ...full, beardShape: 'forked' });
+  assert.deepEqual(ed.withBeard({ ...full, beardShape: 'forked', beardLength: 8 }, shown({ ...full, beardShape: 'forked', beardLength: 8 }), { shape: 'round' }), { ...full, beardLength: 8 });
+  // A look stored under an older name becomes its coverage with the same length and cut, and draws the same.
+  const long = { ...A, beardStyle: 'long', moustache: 'walrus' };
+  const longer = ed.withBeard(long, shown(long), { shape: 'forked' });
+  assert.deepEqual(longer, { ...A, moustache: 'walrus', beardStyle: 'full', beardLength: 9, beardShape: 'forked' });
+  const same = ed.withBeard(long, shown(long), {});
+  assert.deepEqual(same, { ...A, moustache: 'walrus', beardStyle: 'full', beardLength: 9, beardShape: 'pointed' });
+  assert.equal(draw(same), draw(long));
+  // A new coverage keeps the length chosen, and takes its own where none was.
+  assert.deepEqual(ed.withBeard({ ...full, beardLength: 8 }, shown({ ...full, beardLength: 8 }), { cover: 'goatee' }), { ...A, beardStyle: 'goatee', beardLength: 8 });
+  assert.deepEqual(ed.withBeard(full, shown(full), { cover: 'goatee' }), { ...A, beardStyle: 'goatee' });
+  // An automatic beard has a coverage too: the first change writes it down.
+  const auto = shown({ beard: true });
+  assert.notEqual(auto.beardCover, 'none');
+  assert.equal(ed.withBeard({ ...A, beard: true }, auto, { length: 10 }).beardStyle, auto.beardCover);
+  // Back to automatic: coverage, length and shape go, the colour stays.
+  assert.deepEqual(ed.withAutoBeard({ ...full, beardLength: 8, beardShape: 'square', beardHex: '#b5522c' }), { ...A, beardHex: '#b5522c' });
+  // Whatever the editor writes, the server keeps whole.
+  for (const l of [longer, same, { ...full, beardHex: '#b5522c', hairHex: '#5c3b21' }]) assert.deepEqual(look.sanitizeLook(l), l);
+});
+
+test('a surprise stores its beard as a coverage, never under an older name', () => {
+  const covers = new Set(look.BEARDS.map((o: { id: string }) => o.id));
+  for (let i = 0; i < 300; i++) {
+    const s = ed.surprise({ id: `p-s${i}`, sex: 'm', born: String(900 + i * 3), living: false, died: String(960 + i * 3) }, undefined, NOW, sequence(i));
+    assert.ok(covers.has(s.beardStyle), `${s.beardStyle}`);
+    assert.deepEqual(look.sanitizeLook(s), s);
+  }
+});

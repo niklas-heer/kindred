@@ -5,7 +5,7 @@
 // (AppearanceDialog.tsx). Its rules, apart from the screen, are in src/lib/portrait-editor.ts.
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Camera, Dices, Eye, History, Redo2, Sparkles, Undo2 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { aiAvatarFromPhoto } from '~/lib/ai.functions';
 import { toAiLocale } from '~/lib/ai/types';
 import { useT, type Key } from '~/lib/i18n';
@@ -14,7 +14,7 @@ import { personPhotosQuery } from '~/lib/photos.functions';
 import { useCan } from '~/lib/session';
 import { play } from '~/lib/sfx';
 import { portraitStatusQuery } from '~/lib/portrait.functions';
-import { applyPreset, canRedo, canUndo, changed, commit, presetsFor, redo, revert, startDraft, surprise, undo, type Draft } from '~/lib/portrait-editor';
+import { applyPreset, canRedo, canUndo, changed, commit, presetsFor, redo, revert, startDraft, surprise, undo, withAutoBeard, withBeard, withHairColour, type Draft } from '~/lib/portrait-editor';
 import type { Extra, Mark } from '~/lib/seed-format';
 import type { GPerson, House, Look } from '~/lib/types';
 import { useAiStatus } from './assistant/store';
@@ -23,10 +23,10 @@ import { PaintPortrait } from './PaintPortrait';
 import { mediaUrl } from '~/lib/photos/types';
 import { Portrait } from './Portrait';
 import {
-  BACKDROPS, BEARDS, BROWS, CLOTH, CLOTH_LABELS, CLOTHING, CLOTHING_GROUP_LABELS, EARRINGS, EXPRESSIONS, EXTRAS, EYE_LABELS, EYE_ORDER, EYE_SHAPES, EYES,
+  BACKDROPS, BEARD_HAS_LENGTH, BEARD_HAS_SHAPE, BEARD_LENGTHS, BEARD_SHAPES, BEARDS, BROWS, CLOTH, CLOTH_LABELS, CLOTHING, CLOTHING_GROUP_LABELS, EARRINGS, EXPRESSIONS, EXTRAS, EYE_LABELS, EYE_ORDER, EYE_SHAPES, EYES,
   FACE_SHAPES, FRAME_LABELS, FRAMES, GLASSES, GREY_LABELS, HAIR, HAIR_DYED, HAIR_GROUP_LABELS, HAIR_LABELS, HAIR_ORDER, HAIR_STYLES, HEADWEAR,
   HEADWEAR_GROUP_LABELS, LEVEL_LABELS, LINES_LABELS, LIP_LABELS, LIPS, MARKS, MOUSTACHES, NECKLACES, NOSE_SHAPES, SKIN, SKIN_LABELS, SKIN_NEUTRAL,
-  SKIN_ORDER, autoFeatures, autoGrey, defaultLook, headwearShows, resolveAppearance, shownAge, stageOf,
+  SKIN_ORDER, autoFeatures, autoGrey, defaultLook, headwearShows, hexColour, resolveAppearance, shownAge, stageOf,
   type ClothingGroup, type HeadwearGroup, type LevelKey, type Opt,
 } from '~/lib/portrait-look';
 import { Range, Switch, Tab, TabList, TabPanel, Tabs } from './ui';
@@ -111,6 +111,8 @@ export function CharacterEditor({ person, tree, house = null, value, onChange, n
   // undefined: the age the portrait itself shows (age at death, today's age, or the fixed age).
   const [preview, setPreview] = useState<number | undefined>(undefined);
   const [tab, setTab] = useState('looks');
+  // Which "More" lists are open: the styles kept for stored looks and for anyone who wants them.
+  const [more, setMore] = useState<Record<string, boolean>>({});
   // The 0–10 measures a slider shows when it is on automatic: the value the drawing will use.
   const auto = autoFeatures(person.id);
 
@@ -231,6 +233,20 @@ export function CharacterEditor({ person, tree, house = null, value, onChange, n
       {options.map((o) => tile(o.id, t(o.label), withField(field, o.id as never), look[field] === o.id, focus, { adultOnly: typeof adultOnly === 'function' ? adultOnly(o.id) : adultOnly, bare }))}
     </div>
   );
+  /**
+   * The choices past the first ones, folded away. Open when the look wears one of them, so what is chosen is always in
+   * sight. Its tiles are made only while it is open: dozens of small portraits nobody sees are not worth drawing, and a
+   * browser still measures what a closed <details> holds.
+   */
+  const moreOf = (key: string, chosen: boolean, children: () => ReactNode) => {
+    const open = more[key] ?? chosen;
+    return (
+      <details className="ce-more" open={open} onToggle={(e) => { const now = e.currentTarget.open; setMore((m) => ((m[key] ?? chosen) === now ? m : { ...m, [key]: now })); }}>
+        <summary>{t('character.more')}</summary>
+        {open ? children() : null}
+      </details>
+    );
+  };
   /** The same, under headings: hair by length, headwear and clothes by occasion. */
   /** `lead`: a group that needs no heading (headwear's "none"), set beside "Automatic". */
   const grouped = <T extends string, G extends string>({ field, options, order, labels, focus, adultOnly, lead }: { field: Field; options: readonly Opt<T, G>[]; order: readonly G[]; labels: Record<G, Key>; focus: Focus; adultOnly?: (id: T) => boolean; lead?: G }) => (
@@ -239,11 +255,19 @@ export function CharacterEditor({ person, tree, house = null, value, onChange, n
         {tile('auto', t('character.auto'), withField(field, undefined), look[field] === undefined, focus, { auto: true })}
         {options.filter((o) => o.group === lead).map((o) => tile(o.id, t(o.label), withField(field, o.id as never), look[field] === o.id, focus))}
       </div>
-      {order.filter((g) => g !== lead).map((g) => (
+      {order.filter((g) => g !== lead && options.some((o) => o.group === g && !o.more)).map((g) => (
         <div key={g} className="ce-group">
           <h4>{t(labels[g])}</h4>
-          {tiles({ field, options: options.filter((o) => o.group === g), focus, adultOnly, auto: false, label: t(labels[g]) })}
+          {tiles({ field, options: options.filter((o) => o.group === g && !o.more), focus, adultOnly, auto: false, label: t(labels[g]) })}
         </div>
+      ))}
+      {options.some((o) => o.more) && moreOf(field, options.some((o) => o.more && look[field] === o.id), () => (
+        order.filter((g) => options.some((o) => o.group === g && o.more)).map((g) => (
+          <div key={g} className="ce-group">
+            <h4>{t(labels[g])}</h4>
+            {tiles({ field, options: options.filter((o) => o.group === g && o.more), focus, adultOnly, auto: false, label: t(labels[g]) })}
+          </div>
+        ))
       ))}
     </>
   );
@@ -306,11 +330,11 @@ export function CharacterEditor({ person, tree, house = null, value, onChange, n
           key={i}
           type="button"
           className={`ce-swatch${i === neutral ? ' is-neutral' : ''}`}
-          aria-pressed={look[field] === i}
+          aria-pressed={look[field] === i && !(field === 'hair' && look.hairHex)}
           aria-label={t(labels[i])}
           title={t(labels[i])}
-          onClick={() => set(field, i)}
-          {...peeks(withField(field, i))}
+          onClick={() => take(field === 'hair' ? withHairColour(look, i) : withField(field, i))}
+          {...peeks(field === 'hair' ? withHairColour(look, i) : withField(field, i))}
           style={{ ['--sw' as string]: colours[i] }}
         >
           <span />
@@ -477,6 +501,11 @@ export function CharacterEditor({ person, tree, house = null, value, onChange, n
                 {swatches({ field: 'hair', order: HAIR_ORDER, colours: HAIR, labels: HAIR_LABELS, label: t('character.section.colour') })}
                 <h4>{t('character.section.dyed')}</h4>
                 {swatches({ field: 'hair', order: HAIR_DYED, colours: HAIR, labels: HAIR_LABELS, label: t('character.section.dyed') })}
+                <h4>{t('character.section.own_colour')}</h4>
+                <OwnColour
+                  value={hexColour(look.hairHex)} shown={appearance.hairBase} label={t('character.section.own_colour')}
+                  onPreview={(hex) => show(withHairColour(look, hex))} onChange={(hex) => take(withHairColour(look, hex))}
+                />
               </Section>
               <Section title={t('character.section.grey')}>
                 <div className="ce-tiles" role="group" aria-label={t('character.section.grey')}>
@@ -492,8 +521,52 @@ export function CharacterEditor({ person, tree, house = null, value, onChange, n
 
             <TabPanel value="beard">
               {heroAge !== undefined && heroAge < 20 && <p className="ce-hint">{t('character.hint.beard_young')}</p>}
-              <Section title={t('character.section.beard')}>{tiles({ field: 'beardStyle', options: BEARDS, focus: 'face', adultOnly: true, label: t('character.section.beard') })}</Section>
-              <Section title={t('character.section.moustache')}>{tiles({ field: 'moustache', options: MOUSTACHES, focus: 'mouth', adultOnly: true, label: t('character.section.moustache') })}</Section>
+              <Section title={t('character.section.beard')}>
+                <div className="ce-tiles" role="group" aria-label={t('character.section.beard')}>
+                  {tile('auto', t('character.auto'), withAutoBeard(look), look.beardStyle === undefined, 'face', { adultOnly: true, auto: true })}
+                  {BEARDS.map((o) => tile(o.id, t(o.label), withBeard(look, appearance, { cover: o.id }), look.beardStyle !== undefined && appearance.beardCover === o.id, 'face', { adultOnly: true }))}
+                </div>
+              </Section>
+              {BEARD_HAS_LENGTH.has(appearance.beardCover) && (
+                <Section title={t('character.section.beard_length')}>
+                  <div className="ce-tiles" role="group" aria-label={t('character.section.beard_length')}>
+                    {BEARD_LENGTHS.map((l) => tile(String(l.length), t(l.label), withBeard(look, appearance, { length: l.length }), appearance.beardLength === l.length, 'face', { adultOnly: true }))}
+                  </div>
+                  <div className="ce-measure">
+                    <span className="ce-measure-name">{t('character.exact_length')}</span>
+                    <Range aria-label={t('character.exact_length')} value={appearance.beardLength} min={0} max={10} step={1} ticks={[0, 5, 10]} format={(v) => String(v)} onChange={(v) => take(withBeard(look, appearance, { length: v }))} />
+                    <span className="ce-measure-state" />
+                  </div>
+                </Section>
+              )}
+              {BEARD_HAS_SHAPE.has(appearance.beardCover) && (
+                <Section title={t('character.section.beard_shape')}>
+                  <div className="ce-tiles" role="group" aria-label={t('character.section.beard_shape')}>
+                    {BEARD_SHAPES.map((o) => tile(o.id, t(o.label), withBeard(look, appearance, { shape: o.id }), appearance.beardShape === o.id, 'face', { adultOnly: true }))}
+                  </div>
+                </Section>
+              )}
+              <Section title={t('character.section.moustache')}>
+                {tiles({ field: 'moustache', options: MOUSTACHES.filter((o) => !o.more), focus: 'mouth', adultOnly: true, label: t('character.section.moustache') })}
+                {moreOf('moustache', MOUSTACHES.some((o) => o.more && look.moustache === o.id), () => tiles({ field: 'moustache', options: MOUSTACHES.filter((o) => o.more), focus: 'mouth', adultOnly: true, auto: false, label: t('character.more') }))}
+                <p className="ce-hint">{t('character.hint.moustache_own')}</p>
+              </Section>
+              <Section title={t('character.section.beard_colour')}>
+                <div className="ce-swatches" role="group" aria-label={t('character.section.beard_colour')}>
+                  <button type="button" className="ce-swatch is-auto" aria-pressed={!look.beardHex} aria-label={t('character.beard_match_hair')} title={t('character.beard_match_hair')} onClick={() => set('beardHex', undefined)} {...peeks(withField('beardHex', undefined))}>
+                    <span><Sparkles size={14} aria-hidden="true" /></span>
+                  </button>
+                  {HAIR_ORDER.map((i) => (
+                    <button key={i} type="button" className="ce-swatch" aria-pressed={look.beardHex === HAIR[i]} aria-label={t(HAIR_LABELS[i])} title={t(HAIR_LABELS[i])} onClick={() => set('beardHex', HAIR[i])} {...peeks(withField('beardHex', HAIR[i]))} style={{ ['--sw' as string]: HAIR[i] }}>
+                      <span />
+                    </button>
+                  ))}
+                </div>
+                <OwnColour
+                  value={hexColour(look.beardHex)} shown={appearance.beardColour} label={t('character.section.beard_colour')}
+                  onPreview={(hex) => show(withField('beardHex', hex))} onChange={(hex) => set('beardHex', hex)}
+                />
+              </Section>
               {sex !== 'm' && <p className="ce-hint">{t('character.hint.beard_men')}</p>}
             </TabPanel>
 
@@ -558,6 +631,54 @@ export function CharacterEditor({ person, tree, house = null, value, onChange, n
           </div>
         </Tabs>
       </div>
+    </div>
+  );
+}
+
+/**
+ * A colour of one's own: the browser's colour picker, and a field for the code (#rrggbb) for anyone who has one. The
+ * picker shows the colour in the large portrait while it is dragged and takes it when it closes, so a drag is one step;
+ * the field takes a code the moment it is whole. A component of its own, outside the editor, so typing keeps its focus.
+ */
+function OwnColour({ value, shown, label, onPreview, onChange }: { value: string | undefined; shown: string; label: string; onPreview: (hex: string) => void; onChange: (hex: string) => void }) {
+  const t = useT();
+  const id = useId();
+  // What is typed, until it is a whole colour. Null: the field shows the colour in use.
+  const [typed, setTyped] = useState<string | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  // The colour picker's own "change" fires once, when it closes. React's onChange is its "input", which fires all the way through a drag.
+  const taken = useRef(onChange);
+  useEffect(() => { taken.current = onChange; });
+  useEffect(() => {
+    const el = picker.current;
+    if (!el) return;
+    const done = () => { const hex = hexColour(el.value); if (hex) taken.current(hex); };
+    el.addEventListener('change', done);
+    return () => el.removeEventListener('change', done);
+  }, []);
+  const text = typed ?? value ?? '';
+  const bad = typed !== null && typed !== '' && !hexColour(typed);
+  return (
+    <div className="ce-own">
+      <label className="ce-own-pick">
+        <input ref={picker} type="color" value={value ?? shown} aria-label={`${label}: ${t('character.pick_colour')}`} onChange={(e) => { const hex = hexColour(e.target.value); if (hex) onPreview(hex); }} />
+        <span>{t('character.pick_colour')}</span>
+      </label>
+      <label className="ce-own-code" htmlFor={id}>
+        <span>{t('character.hex')}</span>
+        <input
+          id={id} className="input" type="text" inputMode="text" autoComplete="off" autoCapitalize="off" spellCheck={false} maxLength={7} placeholder="#8a5631"
+          value={text} aria-invalid={bad} aria-describedby={`${id}-hint`}
+          onChange={(e) => {
+            const raw = e.target.value.trim();
+            const next = raw && !raw.startsWith('#') ? `#${raw}` : raw;
+            const hex = hexColour(next);
+            if (hex) { setTyped(null); onChange(hex); } else setTyped(next);
+          }}
+          onBlur={() => setTyped(null)}
+        />
+      </label>
+      <p className={`ce-hint${bad ? ' ce-err' : ''}`} id={`${id}-hint`}>{t('character.hex_hint')}</p>
     </div>
   );
 }

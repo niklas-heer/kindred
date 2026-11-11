@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { Portrait } from '~/components/Portrait';
 import { graphQuery } from '~/lib/api';
 import {
-  BACKDROPS, BEARDS, CLOTH, CLOTHING, EARRINGS, EXPRESSIONS, EXTRAS, EYE_SHAPES, EYES, FACE_SHAPES, FRAMES, GLASSES, HAIR, HAIR_STYLES, HEADWEAR, LIPS, MARKS,
+  BACKDROPS, BEARD_SHAPES, BEARDS, CLOTH, CLOTHING, EARRINGS, EXPRESSIONS, EXTRAS, EYE_SHAPES, EYES, FACE_SHAPES, FRAMES, GLASSES, HAIR, HAIR_STYLES, HEADWEAR, LIPS, MARKS,
   MOUSTACHES, NECKLACES, NOSE_SHAPES, SKIN,
 } from '~/lib/portrait-look';
 import type { GPerson, House, Look } from '~/lib/types';
@@ -168,14 +168,20 @@ function Parts({ only }: { only?: string }) {
   const index = (xs: readonly unknown[]) => xs.map((_, i) => i);
   const lists: [keyof Look, readonly (string | number | string[])[]][] = [
     ['hairStyle', HAIR_STYLES.map((o) => o.id)], ['headwear', HEADWEAR.map((o) => o.id)], ['clothing', CLOTHING.map((o) => o.id)],
-    ['beardStyle', BEARDS.map((o) => o.id)], ['moustache', MOUSTACHES.map((o) => o.id)], ['glasses', GLASSES.map((o) => o.id)],
+    ['beardStyle', BEARDS.map((o) => o.id)], ['beardLength', [0, 2, 5, 7, 9, 10]], ['beardShape', BEARD_SHAPES.map((o) => o.id)],
+    ['beardHex', ['#b5522c', '#ece5d0', '#2b201b']], ['hairHex', ['#5c3b21', '#d9b36c', '#2f6fd0', '#101014']],
+    ['moustache', MOUSTACHES.map((o) => o.id)], ['glasses', GLASSES.map((o) => o.id)],
     ['face', FACE_SHAPES.map((o) => o.id)], ['noseShape', NOSE_SHAPES.map((o) => o.id)], ['eyeShape', EYE_SHAPES.map((o) => o.id)],
     ['expression', EXPRESSIONS.map((o) => o.id)], ['marks', MARKS.map((o) => [o.id])], ['earrings', EARRINGS.map((o) => o.id)],
     ['necklace', NECKLACES.map((o) => o.id)], ['extras', EXTRAS.map((o) => [o.id])], ['backdrop', BACKDROPS.map((o) => o.id)],
     ['skin', index(SKIN)], ['hair', index(HAIR)], ['eyes', index(EYES)], ['lips', index(LIPS)], ['frames', index(FRAMES)],
     ['clothColour', index(CLOTH)], ['hatColour', index(CLOTH)], ['grey', [0, 1, 2, 3]], ['lines', [0, 1, 2, 3]], ['build', [0, 2, 5, 8, 10]],
   ];
-  const base: Partial<Record<keyof Look, Partial<Look>>> = { frames: { glasses: 'round' }, hatColour: { headwear: 'beanie' }, lips: { marks: ['lashes'] } };
+  const bearded: Partial<Look> = { beardStyle: 'full', moustache: 'chevron' };
+  const base: Partial<Record<keyof Look, Partial<Look>>> = {
+    frames: { glasses: 'round' }, hatColour: { headwear: 'beanie' }, lips: { marks: ['lashes'] },
+    beardLength: bearded, beardHex: bearded, beardShape: { ...bearded, beardLength: 8 },
+  };
   return (
     <>
       {lists.filter(([field]) => !only || only.split(',').includes(field)).map(([field, values]) => (

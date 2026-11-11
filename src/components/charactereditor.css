@@ -185,6 +185,54 @@
 }
 .ce-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 
+/* A colour of one's own: the picker and the field for its code, side by side, the hint under them. */
+.ce-own {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 14rem);
+  justify-content: start;
+  align-items: end;
+  gap: 6px 16px;
+}
+.ce-own > .ce-hint { grid-column: 1 / -1; }
+.ce-own-pick, .ce-own-code {
+  display: grid;
+  gap: 4px;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.ce-own-pick input[type='color'] {
+  appearance: none;
+  width: 64px;
+  height: 44px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  background: var(--panel-2, var(--bg, #fff));
+  cursor: pointer;
+}
+.ce-own-pick input[type='color']:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.ce-own-code .input {
+  height: 44px;
+  width: 100%;
+  min-width: 0;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+.ce-own-code .input[aria-invalid='true'] { border-color: var(--danger, #b03a3a); }
+
+/* The choices past the first ones. */
+.ce-more { margin-top: 8px; }
+.ce-more > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 4px;
+  color: var(--accent, inherit);
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+.ce-more > summary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 6px; }
+
+
 .ce-swatches {
   display: flex;
   flex-wrap: wrap;
