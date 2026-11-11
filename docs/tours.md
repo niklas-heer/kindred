@@ -184,7 +184,7 @@ A step is data; the player (`src/components/tour/Tour.tsx`) needs no change for 
    a name a step uses is not set as a `data-tour` anywhere in `src/`, when ids repeat, and when the step counts per
    role change (update those numbers on purpose). `npm test` also fails on a missing translation.
 5. **Update the tables above**, and walk the tour once at desktop width and at 390 px. The journey
-   `e2e/25-tours.spec.ts` covers both tours' behaviour, not every step.
+   `e2e/26-tours.spec.ts` covers both tours' behaviour, not every step.
 
 A page that opens a dialog of its own on a first visit should wait while a tour is showing it
 (`isTourRunning()` in `src/components/tour/store.ts`; the Campaign's "How it works" does), or it opens over the card.

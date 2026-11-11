@@ -1,4 +1,4 @@
-// Journey 25: the tours. The Tours dialog starts either one. Welcome waits for the reader to open the search and goes
+// Journey 26: the tours. The Tours dialog starts either one. Welcome waits for the reader to open the search and goes
 // on by itself when they do, or does it for them ("Show me"). The grand tour has chapters that can be skipped, paused
 // and picked up again, and it ends with a closing card. In a steward's preview the tours are the previewed role's. On a
 // phone the card stays on the screen.
