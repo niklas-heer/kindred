@@ -4,7 +4,7 @@ Today is the page a relative opens again tomorrow. It is the first section of ev
 from day to day. The family's feed is its main part: what relatives wrote to each other, new memories and photographs,
 and who was added to the tree ([feed.md](feed.md)). Beside it are the cards this page describes: this week's question
 and the family's answers, the daily quiz, the week's birthdays and wedding anniversaries, what is new since the last
-visit, the Campaign's state while that is on, and one small thing the family still wants to know.
+visit, where the reader stands in the Campaign's week while that is on, and one small thing the family still wants to know.
 
 On a wide screen the cards are a column beside the feed. On a phone and a tablet they fold into one strip of buttons
 above it (Question, Quiz, This week, What's new, and the Campaign and "One small thing" when they have something to
@@ -50,7 +50,8 @@ One question a day, made from the family's own records, the same for every membe
   shows the right answer with a link to the person or house, and how the family did that day.
 - **A streak** counts the days in a row a member has answered, right or wrong. **A table of houses** counts each
   month's right answers by the house of the person each member stands for.
-- **The Campaign:** a right answer earns one extra order there while that game is on, at most one a day.
+- **The Campaign:** while that game is on, a right answer adds 2 troops to the first turn of the member's next reign
+  that day (once a day).
 - **A small family** gets the kinds its records can carry. A family with nothing to ask about yet is told what would
   help, with a link to the Needed page.
 - **Variety:** yesterday's kind of question is tried last, a person or house rests for three weeks after a question

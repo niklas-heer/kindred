@@ -40,7 +40,7 @@ both what the browser shows and what the server allows.
 | Remove anyone's message (`remove-post`) | Editor |
 | Remove your own comment | Any member |
 | Remove anyone's comment (`remove-comment`) | Editor |
-| Turn the Campaign on or off, and end its season | Steward |
+| Turn the Campaign on or off | Steward |
 | Change the family's name, tagline and theme | Steward |
 | Delete the family (with its address typed and a passkey confirmation) | Steward |
 | Make another family on the server | Steward of any family there, or the server's first account |
@@ -342,7 +342,7 @@ What the server holds to:
   may not ask for is refused to the previewing steward too. A guest's preview gets a guest's reads only, with the link's
   protection of living people, and nothing only members may ask for.
 - **Read-only.** While a preview is on, that session changes nothing anywhere, whatever the previewed role would allow: no edits,
-  comments, reactions, uploads, Campaign orders, quiz answers, assistant conversations, Access changes or account changes (only the
+  comments, reactions, uploads, Campaign reigns, quiz answers, assistant conversations, Access changes or account changes (only the
   steward's own language can still be changed). The
   store, `once`, the media store and the AI adapters refuse it in one place, for that session only; the refusal says "You are
   viewing as …. Stop the preview to change something." The buttons still show as that reader would see them. Stop always works.
@@ -419,25 +419,28 @@ Today holds the question of the week and the daily quiz ([today.md](today.md)).
 
 ## The Campaign
 
-The Campaign is a game between the family's houses ([campaign.md](campaign.md)). It is off until a steward turns it on
-under Games.
+The Campaign is a game a member plays alone, as their own house, with a weekly table for the family
+([campaign.md](campaign.md)). It is off until a steward turns it on under Games.
 
-- **Who can play:** every member, viewers too. A member acts only for the house they fight for: the house of the person
-  they stand for, or one they chose for the season when they stand for nobody in a house. The server decides that from
-  the membership, never from what a browser sends, and it rolls the dice.
+- **Who can play:** every member, viewers too. A member rules the house of the person they stand for; one who stands for
+  nobody in a house chooses one for each reign. The server decides that from the membership, never from what a browser
+  sends.
+- **Scores:** the server never accepts a score. It stores the reign when it begins, and at the end replays the moves the
+  browser sent and keeps the score that comes out.
 - **Guests:** a share-link guest gets nothing of it. Every call needs a membership, the page sends a guest back to the
   tree, and the section is not in a guest's navigation.
-- **What it reads:** the houses and their arms, the places and their coordinates, and counts per house of people with a
-  portrait, with dates, with a birthplace and with memories (and life events and sources where the app records them).
-  Counts only: no name, date or text of a person enters the game. Place names appear on the map, which only members see.
-- **What it writes:** only its own five tables. It never changes a person, a house, a place or anything else the
-  family recorded.
-- **What it keeps about a member:** the account id with their orders, the house they chose, and the orders they gave,
-  with the name they had and an optional battle cry of up to 80 characters, which every member can read in the
-  chronicle. The chronicle of the last two seasons is kept; older seasons keep only which house won.
+- **What it reads:** the houses and their arms, the places and their coordinates, counts per house of people with a
+  portrait, with dates, with a birthplace and with memories (and life events and sources), and whether the member answered
+  today's quiz right. Counts only: no name, date or text of a person enters the game. Place names appear on the map, which
+  only members see.
+- **What it writes:** only its own tables. It never changes a person, a house, a place or anything else the family
+  recorded.
+- **What it keeps about a member:** each reign they begin, with their account id, the name they had then, the house they
+  ruled, the week, the moves and the score. Every member sees the tables: names, houses, scores and counts of reigns,
+  never an account id. The seasons of the old shared game keep only their standings. When a member leaves, their reigns
+  are deleted.
+- **A demo and a preview** play this week's field without sending anything.
 - **Exports and copies:** GEDCOM and the Markdown archive carry none of it, and the D1 transfer leaves its tables out.
-- **Push:** a member who has reminders on gets at most one message a day, when a province of their house falls. It says
-  the province and the house that took it, nothing else.
 
 ## The AI assistant and privacy
 

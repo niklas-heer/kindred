@@ -142,7 +142,7 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 | `KINDRED_REQUIRE_SETUP_CODE` | empty | `1`, `true`, `yes` or `required` (any case) does the same as `KINDRED_SETUP_CODE=required`; `0`, `false`, `no` or `off` does not. Any other value requires the code, to be safe, and the log says so once. |
 | `KINDRED_DEFAULT_TREE` | `family` | The family that `/` opens directly, for its members. Lower-case letters, digits and dashes. |
 | `KINDRED_DATA_DIR` | `/data` in the image, `data/` otherwise | Where the families, pictures, accounts and the secret are kept. Docker: fixed at `/data`. |
-| `KINDRED_SECRET` | the `secret` file in the data folder | The key that seals the AI keys the stewards save. Set it here to keep it out of the data folder; it must then stay the same. |
+| `KINDRED_SECRET` | the `secret` file in the data folder | The key that seals the AI keys the stewards save, and that the Campaign's weekly dice are drawn under. Set it here to keep it out of the data folder; it must then stay the same. |
 | `KINDRED_ACCOUNTS_DB` | `accounts.db` in the data folder | Advanced: a different path for the accounts database. The tests use it. Compose does not pass it, and the image has no use for it: leave it unset. |
 | `KINDRED_GAZETTEER` | `gazetteer.db` in the data folder | The offline place search. The image sets it to a file it may contain (see below). |
 | `KINDRED_VAPID_PUBLIC_KEY`, `KINDRED_VAPID_PRIVATE_JWK`, `KINDRED_VAPID_SUBJECT` | empty | Web Push reminders. Make the three with `mise run vapid-keys -- mailto:you@example.org`. Without all three the Reminders item is hidden. See [Reminders](#reminders). |
@@ -637,8 +637,8 @@ quiz on or off under **Games** in the account menu; the Campaign is off until th
 
 - **Today** is the page a relative opens each day: the question of the week, the daily quiz, what is new and the week's
   birthdays. See [today.md](today.md).
-- **The Campaign** is a slow game between the family's houses. Its nights are played by the daily job, or when someone next
-  opens the page if `KINDRED_JOBS=off`. See [campaign.md](campaign.md).
+- **The Campaign** is a game each member plays alone as their house, with a weekly table for the family. It needs no daily
+  job. Its weekly dice seed mixes in `KINDRED_SECRET` (or the `secret` file). See [campaign.md](campaign.md).
 - **Reactions and comments** on memories and photographs, and the opt-in pushes about them, use the same VAPID keys as the
   reminders. See [responses.md](responses.md).
 - **The change history** and the weekly "This week in the family" push are in [roles-and-privacy.md](roles-and-privacy.md#change-history-and-whats-new);

@@ -78,7 +78,8 @@ One stream, newest first, under the days it falls on ("Today", "Yesterday", "Ear
   name (born, birthplace, occupation…), life events and sources recorded, a new portrait, photos someone was tagged in,
   and sources about nobody in particular. A GEDCOM import is one line, however many people it brought ("Ada brought in
   500 people from a GEDCOM file"). Removals are not news here; the History page has them;
-- **a season of the Campaign ending**, with the house that won;
+- **a season of the Campaign's old shared game ending**, with the house that won (since the Campaign became a game one
+  plays alone, only the last season, closed once on the upgrade, can still appear);
 - at the very top, **whose birthday or wedding anniversary it is today**.
 
 Messages and events are in one stream, by the time they happened. Members react to and comment on an event as on a
