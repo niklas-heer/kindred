@@ -42,7 +42,8 @@ on OpenStreetMap through komoot's Photon service by your server. Set it to `off`
 - **Updates in the feed.** The feed now also says what changed in the records ("Ada updated Carl: has a new address, new
   phone number"), one entry per member and day, naming what changed and never the value. Editors-only changes, such as a
   new address, are news only to editors; a GEDCOM import is one line. Members can react to and comment on these events,
-  and on birthdays and anniversaries.
+  and on birthdays and anniversaries. An update only editors may read is an entry of its own, marked "Editors", with reactions
+  and comments only editors see.
 - **Here now.** Members see who of the family is in Kindred with them: faces in the top bar ("2 here now"), who is on which
   page, a soft halo on the tree card someone else has selected, "Anna is here" on a person's page and "Anna is editing
   Carl" on the Edit tab. When nobody else is there, the bar says who was last here. "Show me to others" in the account
@@ -64,7 +65,8 @@ on OpenStreetMap through komoot's Photon service by your server. Set it to `off`
   field each week and compares scores in a weekly table, an all-time list and house totals; the server replays every reign
   to check its score. Recording the family still raises your renown and your levy, and a right quiz answer adds two troops.
   The old shared seasons are closed and kept as "Seasons of old"; the Campaign's nightly job and its push are gone. See
-  [docs/campaign.md](docs/campaign.md).
+  [docs/campaign.md](docs/campaign.md). The weekly table is a family honour board: the server refuses impossible scores,
+  and each reign has its own dice. A server without `KINDRED_SECRET` lets members play but ranks no reign.
 - **Hair, beards and moustaches are redrawn** for every drawn portrait: each hairstyle is its own shape, with four new
   short cuts. A beard is chosen by coverage, length and cut, and the moustache separately. Hair and beard can take any
   colour, by picker or `#rrggbb` code. The editor shows about twenty hairstyles first and the rest under "More". Only the
