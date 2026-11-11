@@ -267,7 +267,7 @@ function UpdatesEntry({ item, f, tree, now }: { item: Extract<FeedItem, { type: 
   const responses = <Responses tree={tree} kind="event" target={item.target} compact />;
   const lines: ReactNode[] = [];
   if (item.imported) lines.push(<span key="import">{richText(t, 'feed.line.imported', { author }, { count: item.imported })}</span>);
-  if (people.length === 1 && item.count === 1) {
+  if (people.length === 1 && item.count === 1 && !item.more) {
     lines.push(<span key="one">{richText(t, 'feed.line.updated_one', { author, name: link(people[0]!.id!) }, { what: what(people[0]!) })}</span>);
   } else if (people.length) {
     lines.push(<span key="many">{richText(t, 'feed.line.updated', { author }, { count: item.count })}</span>);
@@ -275,10 +275,11 @@ function UpdatesEntry({ item, f, tree, now }: { item: Extract<FeedItem, { type: 
   if (nobody?.sources) lines.push(<span key="sources">{richText(t, 'feed.line.recorded', { author }, { what: t('feed.update.sources', { count: nobody.sources }) })}</span>);
   if (!lines.length) return null;
   const rest = item.count - people.length;
-  const list = people.length > 1 || (people.length === 1 && item.count > 1) ? (
+  const list = people.length > 1 || (people.length === 1 && (item.count > 1 || item.more)) ? (
     <ul className="fd-updates">
       {people.map((p) => <li key={p.id}>{link(p.id!)}{': '}{what(p)}</li>)}
       {rest > 0 ? <li className="fd-updates-more">{t('feed.line.updated_more', { count: rest })}</li> : null}
+      {item.more ? <li className="fd-updates-more">{t('feed.line.updated_and_more')}</li> : null}
     </ul>
   ) : null;
   return (

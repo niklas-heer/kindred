@@ -106,7 +106,9 @@ accounts database for the writers' faces. There is no read per entry. Each sourc
 the page's cursor, and the page is the newest twenty of them together. The three sources that group rows by day (uploads,
 people added, updates) read a window of rows (400, 120 and 400); when the window was full, the page ends where the window did, so a later page
 never skips anything. A day on which one member uploaded more pictures than the window holds (400) is one entry that
-says "more than".
+says "more than". Updates are grouped in the database instead: whole days, down to the day of the 400th newest change,
+one row per record changed (an autosave every few minutes counts once), and at most 100 records per member and day, so a
+busy day of one member never hides anyone else's updates that day; an entry that had more says "and more that day".
 
 ## One composer
 

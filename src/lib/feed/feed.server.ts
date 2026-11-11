@@ -19,7 +19,8 @@
 // read bounded by a LIMIT, plus one read of the accounts database for the writers' faces. No read per entry. Each source
 // hands over its newest entries after the cursor; the page is the newest FEED_PAGE of them together. A source that
 // groups rows (photos by day, people by day) reads a window of rows: when the window was full it says how far down it
-// looked (its floor), and the page ends there, so nothing a later page would bring is skipped.
+// looked (its floor), and the page ends there, so nothing a later page would bring is skipped. Updates group in SQL, by
+// whole days, so one member's busy day cannot push another's updates of that day out of the window.
 import { db, q, type Query } from '../db.server';
 import { isContactType } from '../fields/model';
 import { authorKey } from '../history.server';
@@ -35,6 +36,8 @@ import { seedVoice } from './voice';
 const PHOTO_WINDOW = 400;
 const PEOPLE_WINDOW = 120;
 const UPDATES_WINDOW = 400;
+/** The records one entry of updates reads at most; more, and it says "and more". */
+const UPDATES_PER_ENTRY = 100;
 /** The people an "updates" entry carries; the rest are counted. */
 const UPDATES_NAMED = 6;
 /** A person's own facts an update may name, as the history keeps them (person.server.ts, LOGGED_COLUMNS). */
@@ -54,7 +57,8 @@ const NEWBORN_DAYS = 366;
 interface StoryRow { id: string; person: string; kind: 'note' | 'quote' | 'anecdote' | 'recipe' | 'memory'; title: string | null; body: string; author: string; at: string; context: string | null; week: string | null }
 interface MediaRow { key: string; width: number; height: number; album: string | null; album_name: string | null; uploaded_by: string; uploaded_at: string }
 interface AddedRow { at: string; account: string | null; name: string; person: string; born: string | null }
-interface UpdateRow { at: string; account: string | null; name: string; level: string; kind: string; action: string; record: string; person: string | null; fields: string | null; count: number; field_type: string | null }
+/** One record's changes of one day by one author at one level (the SQL groups them); `fields` is a JSON array of the rows' own. */
+interface UpdateRow { at: string; account: string | null; name: string; level: string; kind: string; record: string; person: string | null; fields: string; count: number; field_type: string | null; more: number; cut: string | null }
 interface SeasonRow { season: number; ended: string; winner: string | null }
 
 /** What a source found: its entries, and how far down it looked when it could not look at everything (else null). */
@@ -134,11 +138,11 @@ function peopleEntries(rows: AddedRow[], keys: Map<string, string>): FeedItem[] 
   });
 }
 
-/** The names of the fields a person row's change touched, of those an update names. */
-function detailsOf(fields: string | null): string[] {
-  if (!fields) return [];
+/** The names of the fields a person's changes touched, of those an update names, from the rows' `fields` as one JSON array. */
+function detailsOf(fields: string): string[] {
   try {
-    return Object.keys((JSON.parse(fields) as { f?: Record<string, unknown> }).f ?? {}).filter((k) => PERSON_DETAILS.has(k));
+    const each = (JSON.parse(fields) as (string | null)[]).flatMap((f) => (f ? Object.keys((JSON.parse(f) as { f?: Record<string, unknown> }).f ?? {}) : []));
+    return [...new Set(each)].filter((k) => PERSON_DETAILS.has(k));
   } catch {
     return [];
   }
@@ -181,6 +185,7 @@ function updateEntries(rows: UpdateRow[], keys: Map<string, string>): FeedItem[]
       type: 'updates', at: g[0]!.at, key: `updates:${k}`, target: `updates:${k}`, by: g[0]!.name,
       people: said.slice(0, UPDATES_NAMED), count: said.filter((p) => p.id !== null).length, imported,
       ...(g[0]!.level === 'editors' ? { editors: true as const } : {}),
+      ...(g.some((r) => r.more) ? { more: true as const } : {}),
     });
   }
   return out;
@@ -202,6 +207,11 @@ export async function feedPage(tree: string, who: Who, cursor?: string | null, l
   const postParams = [...afterParams, n + 1];
   // An update is read at the history's levels (history.server.ts), Personal fields left out: they are their owner's notes.
   const updatesLevel = can(who.role, 'edit-person') ? "h.level IN ('family', 'editors')" : "h.level = 'family'";
+  const updatesWhere = `h.at < ? AND h.action <> 'removed' AND ${updatesLevel}
+    AND (h.kind IN ('field', 'event', 'citation', 'source', 'portrait', 'tag', 'import') OR (h.kind = 'person' AND h.action = 'changed'))`;
+  // Who made a row, as the entries are grouped (byDayAndAuthor): the account, or for a row of none the name it showed.
+  const author = (t: string) => `${t}.account, CASE WHEN ${t}.account IS NULL THEN ${t}.name END`;
+  const entry = `PARTITION BY substr(at, 1, 10), ${author('rec')}, level`;
   const reads: Query[] = [
     q(`SELECT id, account, author_name, author_person, body, created_at, edited_at FROM post WHERE id IN (${postIds}) ORDER BY created_at DESC, id DESC`, ...postParams),
     ...postParts(postIds, postParams),
@@ -211,11 +221,18 @@ export async function feedPage(tree: string, who: Who, cursor?: string | null, l
        WHERE m.uploaded_at < ? AND m.for_post = 0 ORDER BY m.uploaded_at DESC, m.key LIMIT ?`, upper, PHOTO_WINDOW),
     q(`SELECT h.at, h.account, h.name, h.person, p.born FROM history h JOIN person p ON p.id = h.person
        WHERE h.kind = 'person' AND h.action = 'added' AND h.level = 'family' AND h.at < ? ORDER BY h.at DESC, h.id DESC LIMIT ?`, upper, PEOPLE_WINDOW),
-    q(`SELECT h.at, h.account, h.name, h.level, h.kind, h.action, h.record, h.person, h.fields, h.count, pf.type AS field_type
-       FROM history h LEFT JOIN person_field pf ON h.kind = 'field' AND pf.id = h.record
-       WHERE h.at < ? AND h.action <> 'removed' AND ${updatesLevel}
-         AND (h.kind IN ('field', 'event', 'citation', 'source', 'portrait', 'tag', 'import') OR (h.kind = 'person' AND h.action = 'changed'))
-       ORDER BY h.at DESC, h.id DESC LIMIT ?`, upper, UPDATES_WINDOW),
+    // Updates, grouped in SQL so a busy day of one member never hides another's: the window is whole days (from the day of
+    // the UPDATES_WINDOW-th newest row, `cut`, which is then the floor), one row per record changed (an autosave every few
+    // minutes is one), and at most UPDATES_PER_ENTRY records per entry, which then says there was more (`more`).
+    q(`WITH cut AS (SELECT substr(h.at, 1, 10) AS d FROM history h WHERE ${updatesWhere} ORDER BY h.at DESC LIMIT 1 OFFSET ?),
+       rec AS (
+         SELECT max(h.at) AS at, h.account, h.name, h.level, h.kind, h.record, h.person, json_group_array(h.fields) AS fields, sum(h.count) AS count, pf.type AS field_type
+         FROM history h LEFT JOIN person_field pf ON h.kind = 'field' AND pf.id = h.record
+         WHERE ${updatesWhere} AND h.at >= coalesce((SELECT d FROM cut), '')
+         GROUP BY substr(h.at, 1, 10), ${author('h')}, h.level, h.kind, h.record, h.person, pf.type),
+       ranked AS (SELECT rec.*, row_number() OVER (${entry} ORDER BY at DESC, record) AS n, count(*) OVER (${entry}) AS total FROM rec)
+       SELECT at, account, name, level, kind, record, person, fields, count, field_type, total > ? AS more, (SELECT d FROM cut) AS cut
+       FROM ranked WHERE n <= ? ORDER BY at DESC, record DESC`, upper, UPDATES_WINDOW - 1, upper, UPDATES_PER_ENTRY, UPDATES_PER_ENTRY),
     q(`SELECT season, ended, json_extract(result, '$.winner.name') AS winner FROM campaign_season
        WHERE ended IS NOT NULL${after('ended', "('season:' || season)")} ORDER BY ended DESC LIMIT ?`, ...afterParams, SEASONS),
   ];
@@ -229,7 +246,8 @@ export async function feedPage(tree: string, who: Who, cursor?: string | null, l
 
   const photos = windowed(mediaRows, PHOTO_WINDOW, (r) => r.uploaded_at);
   const added = windowed(addedRows, PEOPLE_WINDOW, (r) => r.at);
-  const updates = windowed(updateRows, UPDATES_WINDOW, (r) => r.at);
+  // Whole days down to the cut one, which is the floor when the window was full.
+  const updates = { rows: updateRows, floor: updateRows[0]?.cut ?? null };
   // The authors' keys for the entries' own keys: the same as the History page's, never an account id. Hashes, not reads.
   const accountIds = [...new Set([...added.rows, ...updates.rows].map((r) => r.account).filter((a): a is string => !!a))];
   const keys = new Map(await Promise.all(accountIds.map(async (a) => [a, await authorKey(tree, a)] as const)));

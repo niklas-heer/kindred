@@ -54,9 +54,10 @@ export type FeedItem = { at: string; key: string } & (
    * What one member did to the family's records on one day, person by person (from the change history): details, contact
    * details, life events, sources, a portrait, photos they were tagged in, and a GEDCOM import as one number.
    * `count` is how many people it touched, of whom `people` carries the first few. `editors`: what only editors read (an
-   * address), an entry of its own beside the day's other one, with reactions and comments of its own.
+   * address), an entry of its own beside the day's other one, with reactions and comments of its own. `more`: the member
+   * changed more that day than one entry reads, so `count` is what was read.
    */
-  | { type: 'updates'; by: string; people: UpdatePerson[]; count: number; imported: number; target: string; editors?: true }
+  | { type: 'updates'; by: string; people: UpdatePerson[]; count: number; imported: number; target: string; editors?: true; more?: true }
   /** A season of the Campaign ended. */
   | { type: 'season'; season: number; winner: string | null }
 );

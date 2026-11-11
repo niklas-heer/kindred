@@ -341,6 +341,31 @@ test('a day of one member’s updates is one event, person by person: contact de
   await assert.rejects(R.react(t, guest, 'event', 'b:cleo:2026', '🎂', true), /access/i);
 });
 
+test('a busy day of one member hides nobody else’s updates that day, and the feed goes on below it', async () => {
+  const t = 'quiet';
+  const d = '2026-06-10';
+  // An older day with an update, then a day where Eda adds 120 life events and then autosaves one person 450 times, and
+  // Mara changes one thing: three entries of updates, every author's.
+  await change(t, at('2026-06-09', '09:00:00'), mara, 'event', 'old-ev', 'added', 'ada');
+  const qs = Array.from({ length: 450 }, (_, i) => db.q("INSERT INTO history (at, account, name, kind, record, person, action, level, fields, count, fn) VALUES (?, ?, ?, 'person', 'ben', 'ben', 'changed', 'family', ?, 1, 'test')",
+    `${d}T12:${String(Math.floor(i / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}.000Z`, eda.id, eda.name, JSON.stringify({ f: { [i % 2 ? 'nickname' : 'occupation']: [null, `v${i}`] } })));
+  for (let i = 0; i < 120; i++) qs.push(db.q("INSERT INTO history (at, account, name, kind, record, person, action, level, count, fn) VALUES (?, ?, ?, 'event', ?, 'ada', 'added', 'family', 1, 'test')",
+    `${d}T11:${String(Math.floor(i / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}.000Z`, eda.id, eda.name, `busy-ev-${i}`));
+  for (let i = 0; i < qs.length; i += 50) await db.db(t).batch(qs.slice(i, i + 50));
+  await change(t, at(d, '08:00:00'), mara, 'source', 'quiet-src', 'added', null);
+
+  const items = (await whole(t, 20)).flat().filter((i) => i.type === 'updates');
+  const day = items.filter((i) => i.at.startsWith(d));
+  assert.deepEqual(day.map((i) => i.type === 'updates' && i.by).sort(), ['Eda Editor', 'Mara Alder'], 'both authors of the day');
+  const busy = day.find((i) => i.type === 'updates' && i.by === 'Eda Editor')!;
+  assert.ok(busy.type === 'updates' && busy.more, 'it says there was more');
+  assert.deepEqual(busy.people.find((p) => p.id === 'ben')!.details.sort(), ['nickname', 'occupation'], 'a record changed 450 times is one, with every detail');
+  const quiet = day.find((i) => i.type === 'updates' && i.by === 'Mara Alder')!;
+  assert.ok(quiet.type === 'updates' && !quiet.more && quiet.people[0]!.sources === 1);
+  assert.ok(items.some((i) => i.at.startsWith('2026-06-09')), 'and the day before follows');
+  assert.equal(new Set(items.map((i) => i.key)).size, items.length);
+});
+
 test('an import of hundreds of people is one event, not hundreds', async () => {
   const t = 'edits';
   const d = '2026-11-04';
