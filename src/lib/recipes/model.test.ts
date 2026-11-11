@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  parseServings,
   cleanRecipe, cleanTags, factorFor, formatAmount, hasSubstance, ingredientLine, minutesText, numberOf, parseIngredient, parseIngredientLines, parseStepLines,
   recipeImageUrl, recipeMarkdown, scaleAmount, MAX_STEP_IMAGES, MAX_TAGS,
 } from './model.ts';
@@ -162,4 +163,13 @@ test('the written-out recipe is readable Markdown, and what was typed stays text
 test('a picture has its own address, away from the gallery', () => {
   assert.equal(recipeImageUrl('modern', 'recipe/abc.jpg'), '/api/recipe/modern/abc.jpg');
   assert.equal(recipeImageUrl('modern', 'recipe/abc.jpg', 'thumb'), '/api/recipe/modern/abc.jpg?size=thumb');
+});
+
+test('the servings box reads a comma or a point, and refuses nothing, none and too many', () => {
+  assert.equal(parseServings('1,5'), 1.5);
+  assert.equal(parseServings(' 1.5 '), 1.5);
+  assert.equal(parseServings('4'), 4);
+  assert.equal(parseServings('2.'), 2);
+  assert.equal(parseServings(',5'), 0.5);
+  for (const bad of ['', ' ', '0', '0,0', '1000', 'abc', '1,5,5', '-2', '1e3']) assert.equal(parseServings(bad), null, bad);
 });

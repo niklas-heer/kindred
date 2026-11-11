@@ -22,7 +22,7 @@ import { useFamily } from '~/lib/family';
 import { dateText, richText, translate, useT, type Locale } from '~/lib/i18n';
 import { renderMarkdown } from '~/lib/markdown';
 import { useRememberedState } from '~/lib/page-state';
-import { formatAmount, minutesText, recipeImageUrl, type RecipeDetail } from '~/lib/recipes/model';
+import { formatAmount, minutesText, parseServings, recipeImageUrl, type RecipeDetail } from '~/lib/recipes/model';
 import { recipeQuery } from '~/lib/recipes/recipes.functions';
 import { treeTitle } from '~/lib/title';
 import { toast } from '~/lib/toast';
@@ -225,16 +225,30 @@ function Scaler({ base, wanted, onChange }: { base: number | null; wanted: numbe
   const set = (n: number) => onChange(base ? (Math.abs(n - base) < 1e-9 ? null : n) : n === 1 ? null : n);
   const times = (x: number) => set(base ? base * x : x);
   const quick = base ? [0.5, 1, 2] : [0.5, 1, 2, 3];
+  const [draft, setDraft] = useState<string | null>(null);
+  // A number the box cannot read leaves the servings as they were.
+  const commit = () => {
+    if (draft === null) return;
+    const n = parseServings(draft);
+    if (n !== null) set(n);
+    setDraft(null);
+  };
   return (
     <div className="rcp-scaler" role="group" aria-label={t('recipes.scale')}>
       {base ? (
         <div className="rcp-stepper">
           <button type="button" className="btn icon" aria-label={t('recipes.scale_fewer')} disabled={now <= 1} onClick={() => set(Math.max(1, Math.ceil(now) - 1))}><Minus size={15} aria-hidden /></button>
           <label>
+            {/* What is typed stays as typed ("1,", or nothing for a moment) and counts on Enter or when the box is left. */}
             <input
-              className="input" inputMode="decimal" aria-label={t('recipes.scale_servings')} value={formatAmount(now, t.locale, true)}
-              onChange={(e) => { const n = Number(e.target.value.replace(',', '.')); if (Number.isFinite(n) && n > 0 && n <= 999) set(n); }}
-              onFocus={(e) => e.target.select()}
+              className="input" inputMode="decimal" aria-label={t('recipes.scale_servings')} value={draft ?? formatAmount(now, t.locale, true)}
+              onChange={(e) => setDraft(e.target.value)}
+              onFocus={(e) => { setDraft(formatAmount(now, t.locale, true)); e.target.select(); }}
+              onBlur={commit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); commit(); }
+                else if (e.key === 'Escape' && draft !== null) { e.preventDefault(); setDraft(formatAmount(now, t.locale, true)); }
+              }}
             />
             <span>{t('recipes.servings_word', { count: Math.round(now) || 1 })}</span>
           </label>

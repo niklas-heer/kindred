@@ -94,6 +94,18 @@ test('recipes: write one with a picture, scale it, cook from it, find it, change
   await expect(list.getByText('1400 g', { exact: true })).toBeVisible();
   await list.getByRole('button', { name: '1×' }).click();
   await expect(list.getByText('800 g', { exact: true })).toBeVisible();
+  // The servings box takes free typing: empty for a moment, "2," on the way, and counts on Enter.
+  const servings = list.getByRole('textbox', { name: 'Servings' });
+  await servings.fill('');
+  await expect(servings).toHaveValue('');
+  await servings.pressSequentially('2,');
+  await expect(servings).toHaveValue('2,');
+  await servings.pressSequentially('5');
+  await servings.press('Enter');
+  await expect(list.getByText('500 g', { exact: true })).toBeVisible();
+  await expect(servings).toHaveValue('2.5');
+  await list.getByRole('button', { name: '1×' }).click();
+  await expect(list.getByText('800 g', { exact: true })).toBeVisible();
 
   // A tick is kept in this browser: it is still there after a reload.
   await list.getByRole('checkbox', { name: /beef/ }).check();

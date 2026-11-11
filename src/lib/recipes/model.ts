@@ -208,6 +208,14 @@ export function formatAmount(n: number, locale = 'en', decimal = false): string 
   return new Intl.NumberFormat(locale, rounded ? { maximumFractionDigits: 2, useGrouping: false } : { maximumSignificantDigits: 1, useGrouping: false }).format(rounded || n);
 }
 
+/** A number of servings as typed into the box: "1,5" and "1.5" alike, more than none and at most 999; else null. */
+export function parseServings(text: string): number | null {
+  const s = text.trim().replace(',', '.');
+  if (!/^\d*\.?\d+$|^\d+\.$/.test(s)) return null;
+  const n = Number(s);
+  return Number.isFinite(n) && n > 0 && n <= 999 ? n : null;
+}
+
 /**
  * An amount for `factor` times the recipe: "1 1/2" at 2 is "3", "2-3" at ½ is "1–1½". Words that are not a number
  * ("a pinch", "some") come back as they are, and so does everything at a factor of 1: the writer's own spelling stands.
