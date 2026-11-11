@@ -353,7 +353,7 @@ What the server holds to:
 - **The role and the person, not the account.** The steward never becomes the member. Passkeys, sessions, reminder devices, the
   account page, the Families page and sign-in stay the steward's own. What belongs to a member alone (their quiz answers and
   streak, their reactions, their unread news, their assistant chats, their personal notes) is never shown: a preview sees what a
-  new reader with that role and person would see. "Who are you?", the tour and reminders are left out of a preview.
+  new reader with that role and person would see. "Who are you?", the offer of a tour and reminders are left out of a preview; the [tours](tours.md) themselves can be taken in one, and show what that role would be shown.
 
 ## A public demo
 
@@ -390,7 +390,7 @@ bar says who was here last and when ("Last here: Anna, 2 h ago"), from the visit
 
 A steward can see how the family uses Kindred on the family's Statistics page, and can turn collection off there. It is on until a steward turns it off.
 
-**What is counted, per family and per day:** page views by section (Almanac, Atlas, "a house's page"), visits, how many members were active, and the use of a few features (asked the assistant, designed arms, added research, finished or skipped the tour). A guest from a share link counts as one anonymous visit here. Separately, where guests may ask to join, each guest browser's use of the link is kept as a few totals for the stewards to see in a request ([Asking to join](#asking-to-join-an-own-account-from-a-share-link)); this page never shows them. The changes on the page (people, photos, stories, research) and the number of feedback reports are read from what the family already holds, so they add no new data. A person counts on the day they were last edited.
+**What is counted, per family and per day:** page views by section (Almanac, Atlas, "a house's page"), visits, how many members were active, and the use of a few features (asked the assistant, designed arms, added research, finished or skipped the Welcome [tour](tours.md)). A guest from a share link counts as one anonymous visit here. Separately, where guests may ask to join, each guest browser's use of the link is kept as a few totals for the stewards to see in a request ([Asking to join](#asking-to-join-an-own-account-from-a-share-link)); this page never shows them. The changes on the page (people, photos, stories, research) and the number of feedback reports are read from what the family already holds, so they add no new data. A person counts on the day they were last edited.
 
 **Who did it, by category.** Every counter is also filed under the role the member held when it happened: steward, editor, contributor or viewer, and share-link guests as their own group. The server reads the role from the membership; a browser cannot name its own category. The Statistics page headline and its "how it's being received" reading cover **the family without stewards**, so a steward using Kindred does not make it look busier; a switch shows each group or everyone. A "Who did what" table gives each group's visits, active people, page views, changes and feature use. These are totals per group, never a list of people. A group with one member says so, because its numbers may then be that one person. Changes are told apart by who made them from the day categories began (the statistics do not read the change history); before that, and for counters written before categories existed, the numbers appear only under "Everyone", labelled as from before categories.
 

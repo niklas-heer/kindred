@@ -651,7 +651,8 @@ the tests use), for a project page or to try Kindred before installing it:
 
 - Nobody signs in. Every visitor reads every family as a viewer, so the tree, the people, the Atlas, the Almanac, the Today page
   and the games' practice modes (which run in the browser) all work. A slim bar on every page says it is a demo with an invented
-  family and links to the repository.
+  family and links to the repository. A visitor is offered the grand [tour](tours.md) once, which walks through every
+  part of Kindred on the invented family; it stores its progress in the visitor's browser only.
 - Every change is refused on the server, in the storage layer every write passes through: nothing is saved, uploaded or deleted,
   and the visitor gets "This is a demo, so nothing can be changed or saved here." There are no accounts, no setup, no
   invitations, no share links, no join requests, no AI, no reminders, no statistics and no daily jobs.
