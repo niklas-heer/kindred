@@ -29,6 +29,9 @@ export const en = {
   "presence.route.research-project": "in a research project",
   "presence.route.campaign": "in the Campaign",
   "presence.route.history": "in the History",
+  "presence.route.cookbook": "in the Cookbook",
+  "presence.route.recipe": "at a recipe",
+  "presence.route.who-is-this": "on Who is this?",
   "presence.route.elsewhere": "somewhere in the family",
 } as const;
 
@@ -62,6 +65,9 @@ export const de = {
   "presence.route.research-project": "in einem Forschungsprojekt",
   "presence.route.campaign": "im Feldzug",
   "presence.route.history": "im Verlauf",
+  "presence.route.cookbook": "im Kochbuch",
+  "presence.route.recipe": "bei einem Rezept",
+  "presence.route.who-is-this": "bei Wer ist das?",
   "presence.route.elsewhere": "irgendwo in der Familie",
 } as const;
 
@@ -95,5 +101,8 @@ export const af = {
   "presence.route.research-project": "in 'n navorsingsprojek",
   "presence.route.campaign": "in die Veldtog",
   "presence.route.history": "in die Geskiedenis",
+  "presence.route.cookbook": "in die Kookboek",
+  "presence.route.recipe": "by 'n resep",
+  "presence.route.who-is-this": "by Wie is dit?",
   "presence.route.elsewhere": "êrens in die familie",
 } as const;

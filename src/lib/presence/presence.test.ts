@@ -192,6 +192,7 @@ test('a page is sent as a fixed name, and Contacts, Access and the settings only
   const { presenceRoute, presenceFocus } = await load<typeof import('./shared.ts')>('/src/lib/presence/shared.ts');
   const r = (path: string) => presenceRoute(path, TREE);
   assert.deepEqual([r('/gathering'), r('/gathering/today'), r('/gathering/person/carl'), r('/gathering/people'), r('/gathering/research/p1')], ['tree', 'today', 'person', 'register', 'research-project']);
+  assert.deepEqual([r('/gathering/cookbook'), r('/gathering/recipe/r1'), r('/gathering/who-is-this')], ['cookbook', 'recipe', 'who-is-this']);
   assert.deepEqual([r('/gathering/contacts'), r('/gathering/access'), r('/gathering/settings/ai'), r('/gathering/statistics'), r('/gathering/print')], ['elsewhere', 'elsewhere', 'elsewhere', 'elsewhere', 'elsewhere']);
   assert.equal(r('/other/today'), null);
   assert.equal(presenceFocus('/gathering', { sel: 'dina', focus: 'carl' }, TREE), 'dina');

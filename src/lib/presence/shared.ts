@@ -5,7 +5,7 @@ import { routeName } from '../stats/shared.ts';
 
 export const PRESENCE_ROUTES = [
   'today', 'tree', 'person', 'almanac', 'atlas', 'register', 'houses', 'house', 'needed', 'chronicle', 'gallery',
-  'research', 'research-project', 'campaign', 'history', 'elsewhere',
+  'research', 'research-project', 'campaign', 'history', 'cookbook', 'recipe', 'who-is-this', 'elsewhere',
 ] as const;
 export type PresenceRoute = (typeof PRESENCE_ROUTES)[number];
 
@@ -32,6 +32,9 @@ export function presenceRoute(pathname: string, tree: string): PresenceRoute | n
     case 'person': return parts[2] ? 'person' : 'elsewhere';
     case 'campaign': return 'campaign';
     case 'history': return 'history';
+    case 'cookbook': return 'cookbook';
+    case 'recipe': return parts[2] ? 'recipe' : 'cookbook';
+    case 'who-is-this': return 'who-is-this';
     case 'contacts': case 'access': case 'settings': return 'elsewhere';
   }
   const name = routeName(pathname, tree);
