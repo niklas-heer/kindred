@@ -82,6 +82,10 @@ test('presence: two members see each other, a selected card has a halo, sharing 
   await page.setViewportSize({ width: 1280, height: 800 });
 
   // ---------- the cousin leaves ----------
+  // Closing says "gone" at once (a beacon on pagehide), but a closing browser may drop it, or a heartbeat already on its way
+  // may land after it; then the tab is forgotten once it is older than EXPIRY_MS (45 s, src/lib/presence/shared.ts). Wait
+  // for that promise, not the beacon's, or the journey fails now and then in the whole suite.
+  await cousin.close({ runBeforeUnload: true });
   await theirs.close();
-  await expect(page.getByRole('button', { name: /^Last here: Bram Presence/ })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: /^Last here: Bram Presence/ })).toBeVisible({ timeout: 60_000 });
 });
