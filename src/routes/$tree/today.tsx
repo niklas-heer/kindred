@@ -10,7 +10,7 @@
 // reader passes a handful of cards rather than a feed without end to reach them.
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { CalendarHeart, Sparkles, Sprout, Swords } from 'lucide-react';
+import { CalendarHeart, Sparkles, Sprout, Swords, UserSearch } from 'lucide-react';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { CampaignCard, useCampaignCard } from '~/components/campaign/CampaignCard';
 import { Feed } from '~/components/feed/Feed';
@@ -20,6 +20,7 @@ import { NudgeCard, useNudge } from '~/components/today/NudgeCard';
 import { QuizCard } from '~/components/today/QuizCard';
 import { WeekQuestionCard } from '~/components/today/WeekQuestionCard';
 import { WhatsNew } from '~/components/today/WhatsNew';
+import { useWhoIsThis, WhoIsThis } from '~/components/whois/WhoIsThis';
 import '~/components/today/today.css';
 import { Fleuron, Switch } from '~/components/ui';
 import { useToday } from '~/lib/clock';
@@ -48,7 +49,7 @@ function usePartOfDay(): 'morning' | 'day' | 'evening' | undefined {
   return useSyncExternalStore(never, () => { const h = new Date().getHours(); return h >= 5 && h < 12 ? 'morning' : h >= 12 && h < 18 ? 'day' : 'evening'; }, () => undefined);
 }
 
-type CardId = 'week' | 'quiz' | 'dates' | 'news' | 'campaign' | 'nudge';
+type CardId = 'week' | 'quiz' | 'dates' | 'news' | 'campaign' | 'nudge' | 'whois';
 
 function TodayPage() {
   const t = useT();
@@ -60,10 +61,12 @@ function TodayPage() {
   const opens = usePref(OPEN_PREF(tree)) === 'today';
   const hello = part === 'morning' ? 'today.hello_morning' : part === 'evening' ? 'today.hello_evening' : part === 'day' ? 'today.hello_day' : 'today.hello';
 
-  // The cards. Two of them have nothing to show for some readers (the Campaign while it is off, a day without a nudge):
+  // The cards. Three of them have nothing to show for some readers (the Campaign while it is off, a day without a nudge,
+  // "Who is this?" while every photograph has someone named in it):
   // those have no button in the strip either.
   const campaign = useCampaignCard(tree);
   const nudge = useNudge(tree);
+  const whois = useWhoIsThis(tree);
   const quiz = useQuery(quizQuery(tree)).data;
   const quizOpen = !!quiz?.enabled && !!quiz.question && !quiz.mine;
   const cards: { id: CardId; label: string; icon: ReactNode; mark?: string; card: ReactNode }[] = [
@@ -72,6 +75,7 @@ function TodayPage() {
     { id: 'dates', label: t('feed.strip.dates'), icon: <CalendarHeart size={16} aria-hidden />, card: <DatesCard tree={tree} /> },
     { id: 'news', label: t('feed.strip.news'), icon: <Sparkles size={16} aria-hidden />, card: <WhatsNew tree={tree} /> },
     ...(campaign ? [{ id: 'campaign' as const, label: t('campaign.nav'), icon: <Swords size={16} aria-hidden />, card: <CampaignCard tree={tree} /> }] : []),
+    ...(whois ? [{ id: 'whois' as const, label: t('whois.title'), icon: <UserSearch size={16} aria-hidden />, card: <WhoIsThis tree={tree} /> }] : []),
     ...(nudge ? [{ id: 'nudge' as const, label: t('feed.strip.nudge'), icon: <Sprout size={16} aria-hidden />, card: <NudgeCard tree={tree} nudge={nudge} /> }] : []),
   ];
   // Which card the strip has open, on a phone and a tablet. None at first: the feed is what the page is for.

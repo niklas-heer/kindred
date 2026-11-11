@@ -291,3 +291,4 @@
 @supports not (animation-timeline: scroll()) {
   .gal-albums { mask-size: calc(100% + 40px) 100%; }
 }
+.lb-named-by { font-size: var(--fs-2); font-family: var(--font-ui); }

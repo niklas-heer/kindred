@@ -4,11 +4,12 @@ Today is the page a relative opens again tomorrow. It is the first section of ev
 from day to day. The family's feed is its main part: what relatives wrote to each other, new memories and photographs,
 and who was added to the tree ([feed.md](feed.md)). Beside it are the cards this page describes: this week's question
 and the family's answers, the daily quiz, the week's birthdays and wedding anniversaries, what is new since the last
-visit, where the reader stands in the Campaign's week while that is on, and one small thing the family still wants to know.
+visit, where the reader stands in the Campaign's week while that is on, "Who is this?" while there are untagged
+photographs to name ([who-is-this.md](who-is-this.md)), and one small thing the family still wants to know.
 
 On a wide screen the cards are a column beside the feed. On a phone and a tablet they fold into one strip of buttons
-above it (Question, Quiz, This week, What's new, and the Campaign and "One small thing" when they have something to
-show); a button opens its card under the strip and closes it again, one at a time, so the screen starts with the family
+above it (Question, Quiz, This week, What's new, and the Campaign, "Who is this?" and "One small thing" when they have
+something to show); a button opens its card under the strip and closes it again, one at a time, so the screen starts with the family
 and a way to write to it. The quiz's button carries a dot until today's question is answered.
 
 The page is called Today in the three languages (Heute, Vandag). It is for members. A share-link guest has no Today

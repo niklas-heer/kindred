@@ -4,6 +4,7 @@ import { FolderPlus, ImagePlus, Images, Pencil, Tag as TagIcon, Trash2 } from 'l
 import { useMemo, useState, type DragEvent } from 'react';
 import { AlbumDialog, DeleteAlbumDialog, Lightbox, PersonPhotos, UploadDialog, mediaUrl, type Album, type MediaItem } from '~/components/photos';
 import { ResponseTally } from '~/components/responses/Responses';
+import { WhoIsThisLink } from '~/components/whois/WhoIsThis';
 import { EmptyState, ErrorState, PageHeader, Select, Skeleton, Switch } from '~/components/ui';
 import { compareText, formatDate, useT } from '~/lib/i18n';
 import { useFamily, useTreeId } from '~/lib/family';
@@ -120,6 +121,7 @@ function GalleryPage() {
     <div className={`page-inner gallery${dragging ? ' is-dragging' : ''}`} onDragOver={onDragOver} onDragLeave={(e) => { if (e.currentTarget === e.target) setDragging(false); }} onDrop={onDrop}>
       <PageHeader title={g('gallery.title')} subtitle={g('gallery.subtitle')} icon={<Images size={26} />} actions={!q.isPending && !q.isError && media.length === 0 ? undefined : addButton} />
 
+      <WhoIsThisLink tree={tree} />
       {dragging ? <div className="gal-dropzone" aria-hidden>{g('gallery.drop')}</div> : null}
 
       {q.isPending ? (

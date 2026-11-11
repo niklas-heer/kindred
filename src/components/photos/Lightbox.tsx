@@ -366,6 +366,7 @@ function Photo({ tree, item, index, count, albums, onGo, onDirty }: {
                   >
                     {name(tg.person)}
                   </span>
+                  {tg.namedBy ? <span className="subtle lb-named-by">{g('whois.named_by', { name: tg.namedBy })}</span> : null}
                   {canAdd ? (
                     <button
                       type="button"

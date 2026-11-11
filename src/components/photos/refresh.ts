@@ -9,5 +9,7 @@ export function refreshPhotos(qc: QueryClient, tree: string) {
     qc.invalidateQueries({ queryKey: graphQuery(tree).queryKey }),
     // The family's feed shows a day's uploads and a post's pictures.
     qc.invalidateQueries({ queryKey: ['feed', tree] }),
+    // "Who is this?" deals untagged pictures: a new upload or a new tag changes what it has.
+    qc.invalidateQueries({ queryKey: ['whois', tree] }),
   ]);
 }

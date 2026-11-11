@@ -32,6 +32,7 @@ import { Route as TreePrintRouteImport } from './routes/$tree/print'
 import { Route as TreeResearchRouteImport } from './routes/$tree/research'
 import { Route as TreeStatisticsRouteImport } from './routes/$tree/statistics'
 import { Route as TreeTodayRouteImport } from './routes/$tree/today'
+import { Route as TreeWhoIsThisRouteImport } from './routes/$tree/who-is-this'
 import { Route as ApiCspReportRouteImport } from './routes/api/csp-report'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiPresenceRouteImport } from './routes/api/presence'
@@ -174,6 +175,11 @@ const TreeStatisticsRoute = TreeStatisticsRouteImport.update({
 const TreeTodayRoute = TreeTodayRouteImport.update({
   id: '/today',
   path: '/today',
+  getParentRoute: () => TreeRoute,
+} as any)
+const TreeWhoIsThisRoute = TreeWhoIsThisRouteImport.update({
+  id: '/who-is-this',
+  path: '/who-is-this',
   getParentRoute: () => TreeRoute,
 } as any)
 const ApiCspReportRoute = ApiCspReportRouteImport.update({
@@ -340,6 +346,7 @@ export interface FileRoutesByFullPath {
   '/$tree/research': typeof TreeResearchRoute
   '/$tree/statistics': typeof TreeStatisticsRoute
   '/$tree/today': typeof TreeTodayRoute
+  '/$tree/who-is-this': typeof TreeWhoIsThisRoute
   '/api/csp-report': typeof ApiCspReportRoute
   '/api/health': typeof ApiHealthRoute
   '/api/presence': typeof ApiPresenceRoute
@@ -392,6 +399,7 @@ export interface FileRoutesByTo {
   '/$tree/research': typeof TreeResearchRoute
   '/$tree/statistics': typeof TreeStatisticsRoute
   '/$tree/today': typeof TreeTodayRoute
+  '/$tree/who-is-this': typeof TreeWhoIsThisRoute
   '/api/csp-report': typeof ApiCspReportRoute
   '/api/health': typeof ApiHealthRoute
   '/api/presence': typeof ApiPresenceRoute
@@ -446,6 +454,7 @@ export interface FileRoutesById {
   '/$tree/research': typeof TreeResearchRoute
   '/$tree/statistics': typeof TreeStatisticsRoute
   '/$tree/today': typeof TreeTodayRoute
+  '/$tree/who-is-this': typeof TreeWhoIsThisRoute
   '/api/csp-report': typeof ApiCspReportRoute
   '/api/health': typeof ApiHealthRoute
   '/api/presence': typeof ApiPresenceRoute
@@ -501,6 +510,7 @@ export interface FileRouteTypes {
     | '/$tree/research'
     | '/$tree/statistics'
     | '/$tree/today'
+    | '/$tree/who-is-this'
     | '/api/csp-report'
     | '/api/health'
     | '/api/presence'
@@ -553,6 +563,7 @@ export interface FileRouteTypes {
     | '/$tree/research'
     | '/$tree/statistics'
     | '/$tree/today'
+    | '/$tree/who-is-this'
     | '/api/csp-report'
     | '/api/health'
     | '/api/presence'
@@ -606,6 +617,7 @@ export interface FileRouteTypes {
     | '/$tree/research'
     | '/$tree/statistics'
     | '/$tree/today'
+    | '/$tree/who-is-this'
     | '/api/csp-report'
     | '/api/health'
     | '/api/presence'
@@ -827,6 +839,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TreeTodayRouteImport
       parentRoute: typeof TreeRoute
     }
+    '/$tree/who-is-this': {
+      id: '/$tree/who-is-this'
+      path: '/who-is-this'
+      fullPath: '/$tree/who-is-this'
+      preLoaderRoute: typeof TreeWhoIsThisRouteImport
+      parentRoute: typeof TreeRoute
+    }
     '/api/csp-report': {
       id: '/api/csp-report'
       path: '/api/csp-report'
@@ -1043,6 +1062,7 @@ interface TreeRouteChildren {
   TreeResearchRoute: typeof TreeResearchRoute
   TreeStatisticsRoute: typeof TreeStatisticsRoute
   TreeTodayRoute: typeof TreeTodayRoute
+  TreeWhoIsThisRoute: typeof TreeWhoIsThisRoute
   TreeIndexRoute: typeof TreeIndexRoute
   TreeHouseHouseRoute: typeof TreeHouseHouseRoute
   TreePersonIdRoute: typeof TreePersonIdRoute
@@ -1073,6 +1093,7 @@ const TreeRouteChildren: TreeRouteChildren = {
   TreeResearchRoute: TreeResearchRoute,
   TreeStatisticsRoute: TreeStatisticsRoute,
   TreeTodayRoute: TreeTodayRoute,
+  TreeWhoIsThisRoute: TreeWhoIsThisRoute,
   TreeIndexRoute: TreeIndexRoute,
   TreeHouseHouseRoute: TreeHouseHouseRoute,
   TreePersonIdRoute: TreePersonIdRoute,

@@ -1,0 +1,35 @@
+/* "Who is this?" (WhoIsThis.tsx): the photograph to tap, the mark, the picker and the proposals waiting for confirmation. */
+.wi-play { display: grid; gap: 10px; }
+.wi-play .td-note { margin: 0; }
+.wi-progress { margin: 0; font-family: var(--font-ui); font-size: var(--fs-2); }
+.wi-figure { margin: 0; display: grid; gap: 6px; }
+.wi-figure figcaption { font-size: var(--fs-2); }
+.wi-photo {
+  position: relative; display: block; margin-inline: auto; padding: 0; border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; background: var(--panel-2); cursor: crosshair;
+}
+.wi-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.wi-photo:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.wi-mark {
+  position: absolute; border: 2px solid var(--accent); border-radius: 6px;
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.18); pointer-events: none;
+}
+.wi-thumb .wi-mark { box-shadow: none; border-width: 1.5px; }
+.wi-marked { margin: 0; display: flex; align-items: center; gap: 8px; font-size: var(--fs-2); }
+.wi-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.wi-said { margin: 0 0 10px; padding: 8px 10px; border-radius: var(--radius); background: var(--panel-2); font-family: var(--font-ui); font-size: var(--fs-3); }
+.wi-said:empty { display: none; }
+.wi-done { display: grid; gap: 6px; justify-items: start; }
+.wi-done p { margin: 0; }
+.wi-month { margin: 12px 0 0; font-family: var(--font-ui); font-size: var(--fs-2); }
+.wi-review { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.wi-review-h { font-size: var(--fs-3); margin: 0 0 8px; }
+.wi-review ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.wi-review-row { display: grid; grid-template-columns: 64px 1fr; gap: 4px 10px; align-items: center; }
+.wi-thumb { position: relative; grid-row: span 2; width: 64px; max-height: 64px; border-radius: var(--radius); overflow: hidden; background: var(--panel-2); }
+.wi-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.wi-review-text { font-family: var(--font-ui); font-size: var(--fs-3); }
+.wi-review-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.wi-entry { display: inline-flex; align-items: center; gap: 6px; }
+.wi-page { max-width: 720px; }
+.wi-entry-row { margin: 0 0 16px; }

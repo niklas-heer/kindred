@@ -16,6 +16,7 @@ import { PlaceInput, savePlacesKeyed, type PlaceValue } from '~/components/Place
 import { PersonRow } from '~/components/Palette';
 import { HousesToReview } from '~/components/HouseMeaning';
 import { UnsourcedBirths } from '~/components/life/UnsourcedBirths';
+import { WhoIsThisLink } from '~/components/whois/WhoIsThis';
 import { LinkCandidates } from '~/components/QuickAdd';
 import { addContact, addRelative, addStory, linkRelative, opKeys, patchPerson, uploadPhoto } from '~/lib/api';
 import { fullDate, validDate } from '~/lib/dates';
@@ -109,6 +110,8 @@ function Needed() {
               </button>
             )}
           </div>} />
+
+        <WhoIsThisLink tree={tree} />
 
         {shown.length > 0 && queue.length === 0 && (
           <p className="needed-ask subtle" role="note">
