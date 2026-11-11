@@ -20,7 +20,10 @@
 .presence-here:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
 .presence-here.presence-quiet { opacity: 0.8; }
 .presence-label { white-space: nowrap; }
-/* On a phone the faces say it; the words stay as the button's name. */
+/* On a phone the faces say it; the words stay as the button's name. The same once the bar is short of room (stacked or
+   compact, see useTopbarFit in $tree.tsx): the sections keep their names before "2 here now" keeps its words. */
+.topbar-stacked .presence-label, .topbar-compact .presence-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.topbar-stacked .presence-here, .topbar-compact .presence-here { padding: 0 4px; }
 @media (max-width: 760px) {
   .presence-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .presence-here { padding: 0 4px; }
