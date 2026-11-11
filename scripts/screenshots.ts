@@ -334,6 +334,28 @@ const SHOTS: Shot[] = [
     },
   },
   {
+    // The Cookbook, and one recipe's page (docs/recipes.md).
+    name: 'cookbook',
+    height: 1000,
+    async run(page, origin) {
+      await page.goto(`${origin}/modern/cookbook`);
+      await settle(page);
+      await grab(page, 'cookbook');
+    },
+  },
+  {
+    // The tours card from the account menu (docs/tours.md).
+    name: 'tours',
+    async run(page, origin) {
+      await page.goto(`${origin}/modern/today`);
+      await settle(page);
+      await page.locator('button[aria-haspopup="menu"]').last().click();
+      await page.getByRole('menuitem', { name: /^Tours/ }).click();
+      await page.getByRole('dialog', { name: 'Tours' }).waitFor();
+      await grab(page, 'tours');
+    },
+  },
+  {
     name: 'phone',
     async run(page, origin) {
       const phone = await page.context().browser()!.newContext({
