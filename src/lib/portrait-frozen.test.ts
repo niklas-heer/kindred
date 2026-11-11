@@ -23,6 +23,7 @@ const avatar = await vite.ssrLoadModule('/src/components/portrait/avatar.ts');
 const palette = await vite.ssrLoadModule('/src/components/portrait/palette.ts');
 
 const FIXTURE = join(import.meta.dirname, 'portrait-frozen.fixture.json');
+const REST = join(import.meta.dirname, 'portrait-frozen-rest.fixture.json');
 const NOW = 2026;
 
 // ---------- the parts a look could store when this was written (frozen: never add to these lists) ----------
@@ -176,17 +177,17 @@ function cases(): Case[] {
   return out;
 }
 
-function print(c: Case): string {
+function print(c: Case, bare = false): string {
   const a = look.resolveAppearance(c.person, NOW, c.at);
   const dress = palette.dressOf(c.house, look.hash(`${c.person.id}:dress`));
   const h = createHash('sha256');
-  for (const detail of ['sm', 'md', 'lg']) h.update(avatar.avatarSvg(a, dress, detail));
+  for (const detail of ['sm', 'md', 'lg']) h.update(avatar.avatarSvg(a, dress, detail, bare));
   return h.digest('hex').slice(0, 12);
 }
 
 test('every stored look draws as it did when its print was taken', () => {
   const all = cases();
-  const prints = all.map(print);
+  const prints = all.map((c) => print(c));
   const mode = process.env.KINDRED_FREEZE_PORTRAITS;
   const kept: string[] = existsSync(FIXTURE) ? JSON.parse(readFileSync(FIXTURE, 'utf8')).prints : [];
   if (mode === 'rewrite' || (mode === 'write' && prints.length > kept.length)) {
@@ -204,6 +205,22 @@ test('every stored look draws as it did when its print was taken', () => {
   );
 });
 
+test('with the hair, the beard and the moustache left out, every stored look draws as it did before they were redrawn', () => {
+  const all = cases();
+  const prints = all.map((c) => print(c, true));
+  if (process.env.KINDRED_FREEZE_PORTRAITS === 'rest' && !existsSync(REST)) {
+    writeFileSync(REST, `${JSON.stringify({ about: 'Prints of portrait drawings without hair, beard and moustache, taken before those were redrawn; see portrait-frozen.test.ts. Never edit by hand, never rewrite.', now: NOW, prints })}\n`);
+  }
+  const kept: string[] = JSON.parse(readFileSync(REST, 'utf8')).prints;
+  assert.equal(prints.length, kept.length, 'the cases changed: they are frozen, only ever add to the end');
+  const changed = all.map((c, i) => ({ c, i })).filter(({ i }) => prints[i] !== kept[i]);
+  assert.equal(
+    changed.length, 0,
+    `${changed.length} of ${all.length} stored looks draw differently under the hair and the beard. The first few:\n` +
+      changed.slice(0, 8).map(({ c, i }) => `  #${i} ${c.name}: ${JSON.stringify(c.person)}${c.at === undefined ? '' : ` at ${c.at}`}`).join('\n'),
+  );
+});
+
 test('the cases cover every part a look could store, and a wide spread of people', () => {
   const all = cases();
   assert.ok(all.length > 2500, `${all.length} cases`);
@@ -212,5 +229,5 @@ test('the cases cover every part a look could store, and a wide spread of people
     assert.deepEqual([...seen(field)].sort(), [...values].sort(), field);
   }
   // Two prints of one drawing are possible; hundreds of different ones are what a wide spread means.
-  assert.ok(new Set(all.map(print)).size > 2000);
+  assert.ok(new Set(all.map((c) => print(c))).size > 2000);
 });

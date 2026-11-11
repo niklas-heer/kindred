@@ -1898,7 +1898,11 @@ const ZOOM: Record<Detail, string> = {
   lg: 'translate(50 50) scale(1.08) translate(-50 -50)',
 };
 
-export function avatarSvg(a: Appearance, house: Dress, detail: Detail): string {
+/**
+ * `bare` leaves out the hair, the beard and the moustache. Nothing on a page asks for it: it is how the frozen test
+ * (src/lib/portrait-frozen.test.ts) shows that a redraw of those three moved nothing else.
+ */
+export function avatarSvg(a: Appearance, house: Dress, detail: Detail, bare = false): string {
   const g = geo(a);
   const p = paint(a, detail);
   // The colours someone chose for the clothes and the headwear go in place of the house's. The backdrop keeps the house's.
@@ -1912,7 +1916,7 @@ export function avatarSvg(a: Appearance, house: Dress, detail: Detail): string {
   const hp = hair(g, p, a, style, detail);
   const hw = headwear(g, p, a, hatDress, detail);
   const head = headPath(g, a);
-  const showHair = under !== 'none';
+  const showHair = under !== 'none' && !bare;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">` +
     `<defs><clipPath id="hc"><path d="${head}"/></clipPath></defs>` +
@@ -1928,10 +1932,10 @@ export function avatarSvg(a: Appearance, house: Dress, detail: Detail): string {
     `<path d="${head}" ${filled(p.skin, p.sw, p.skinLine)}/>` +
     face(g, p, a, detail) +
     onTheFace(g, a, detail) +
-    beard(g, p, a, detail) +
+    (bare ? '' : beard(g, p, a, detail)) +
     mouth(g, p, a, detail) +
     pipe(g, a, detail) +
-    moustache(g, p, a) +
+    (bare ? '' : moustache(g, p, a)) +
     (showHair ? hp.front : '') +
     atTheEars(g, a, dress, detail) +
     glasses(g, a, detail) +
