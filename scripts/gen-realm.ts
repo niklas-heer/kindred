@@ -9,6 +9,7 @@ import { summarize, validate, writeTree } from './lib/check.ts';
 import { placeRealm } from './lib/places.ts';
 import { addLife } from './lib/life.ts';
 import { realmFeed } from './lib/feed-seed.ts';
+import { realmRecipes } from './lib/recipe-seed.ts';
 import {
   ABBEYS,
   BISHOP_SEES,
@@ -412,6 +413,8 @@ function main(): void {
     addLife(tree, mulberry32(built.seed + 24), 'realm');
     // What the family wrote to each other, and photographs for the gallery, once everyone has a birthplace to mention.
     Object.assign(tree, realmFeed(tree));
+    // A few recipes written with the recipe form, for the Cookbook (scripts/lib/recipe-seed.ts).
+    Object.assign(tree, realmRecipes(tree));
     validate(tree);
     writeTree(tree, OUT_PATH);
 

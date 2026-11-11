@@ -9,6 +9,7 @@ import { summarize, validate, writeTree } from './lib/check.ts';
 import { placeModern } from './lib/places.ts';
 import { addLife } from './lib/life.ts';
 import { modernFeed } from './lib/feed-seed.ts';
+import { modernRecipes } from './lib/recipe-seed.ts';
 import { dressByHand } from './lib/dressed.ts';
 import {
   FAMILIES,
@@ -519,6 +520,8 @@ function main(): void {
     addLife(tree, mulberry32(built.seed + 24), 'modern');
     // What the family wrote to each other, and photographs for the gallery, once everyone has a birthplace to mention.
     Object.assign(tree, modernFeed(tree));
+    // A few recipes written with the recipe form, for the Cookbook (scripts/lib/recipe-seed.ts).
+    Object.assign(tree, modernRecipes(tree));
     validate(tree);
     writeTree(tree, OUT_PATH);
 

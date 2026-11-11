@@ -14,6 +14,7 @@ import { storeFurther } from '../src/lib/further-given.ts';
 import { seedAccount } from '../src/lib/feed/voice.ts';
 import type { SeedPicture, SeedTree } from '../src/lib/seed-format.ts';
 import { drawScene } from './lib/pictures.ts';
+import { cleanRecipe, parseIngredient, recipeMarkdown } from '../src/lib/recipes/model.ts';
 
 const DATA = process.env.KINDRED_DATA_DIR ? resolve(process.env.KINDRED_DATA_DIR) : resolve('data');
 const args = process.argv.slice(2);
@@ -125,7 +126,7 @@ for (const file of files) {
   // counted back from now, so a family seeded today has a feed that reads as recent. The pictures are painted here
   // (scripts/lib/pictures.ts) and stored as gallery pictures with their small copies; an earlier seeding's are replaced.
   const mediaDir = join(DATA, 'media', t.id);
-  for (const folder of ['gallery', 'thumb']) rmSync(join(mediaDir, folder), { recursive: true, force: true });
+  for (const folder of ['gallery', 'thumb', 'recipe', 'recipe-thumb']) rmSync(join(mediaDir, folder), { recursive: true, force: true });
   const byId = new Map(t.people.map((p) => [p.id, p]));
   const shown = (id: string) => { const p = byId.get(id)!; return [p.currentGiven ?? p.given, p.currentSurname ?? p.surname].filter(Boolean).join(' '); };
   // KINDRED_SEED_NOW (an ISO moment) is the clock to count back from, for a run that has a clock of its own (scripts/screenshots.ts).
@@ -187,8 +188,34 @@ for (const file of files) {
     (p.reactions ?? []).forEach((r, i) => reaction.run(id, seedAccount(r.by), r.kind, when(p.daysAgo, p.time, 0.2 + i * 0.3)));
   }
 
+  // Recipes written with the recipe form (migration 0031, docs/recipes.md): a story of kind `recipe` whose text is the
+  // recipe written out, its row of details, and its painted picture, stored with the media under recipe/ and listed in
+  // `recipe_image`, never in the gallery.
+  const recipeRow = db.prepare('INSERT INTO recipe (story, source, servings, prep_minutes, cook_minutes, ingredients, steps, notes, tags, cover, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  const recipeImage = db.prepare('INSERT INTO recipe_image (key, story, mime, width, height, thumb, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  (t.recipes ?? []).forEach((r, n) => {
+    // The same names on every seeding, as the gallery's pictures have.
+    const id = `seed-recipe-${String(n + 1).padStart(3, '0')}`;
+    const at = when(r.daysAgo, r.time);
+    const body = cleanRecipe({
+      source: r.source, servings: r.servings, prepMinutes: r.prepMinutes, cookMinutes: r.cookMinutes, notes: r.notes, tags: r.tags,
+      groups: r.groups.map((g) => ({ name: g.name ?? '', items: g.lines.map(parseIngredient) })),
+      steps: r.steps.map((text) => ({ text, image: null })),
+    });
+    story.run(id, r.person, 'recipe', r.title, recipeMarkdown(body), shown(r.by), at, null);
+    let cover: string | null = null;
+    if (r.cover) {
+      const full = drawScene(r.cover.scene, r.cover.seed, 1280, r.cover.tall);
+      cover = `recipe/${id}.png`;
+      store(cover, full.png);
+      store(`recipe-thumb/${id}.png`, drawScene(r.cover.scene, r.cover.seed, 640, r.cover.tall).png);
+      recipeImage.run(cover, id, 'image/png', full.width, full.height, `recipe-thumb/${id}.png`, at);
+    }
+    recipeRow.run(id, body.source, body.servings, body.prepMinutes, body.cookMinutes, JSON.stringify(body.groups), JSON.stringify(body.steps), body.notes, JSON.stringify(body.tags), cover, at);
+  });
+
   db.exec('COMMIT');
   const fk = db.prepare('PRAGMA foreign_key_check').all();
   db.close();
-  console.log(`${path}: ${t.people.length} people, ${t.unions.length} unions, ${t.stories.length} stories, ${(t.places ?? []).length} places, ${fields} fields, ${(t.events ?? []).length} events, ${(t.sources ?? []).length} sources, ${(t.citations ?? []).length} citations, ${(t.posts ?? []).length} posts, ${pictures} pictures${fk.length ? `, ${fk.length} broken references!` : ''}`);
+  console.log(`${path}: ${t.people.length} people, ${t.unions.length} unions, ${t.stories.length} stories, ${(t.places ?? []).length} places, ${fields} fields, ${(t.events ?? []).length} events, ${(t.sources ?? []).length} sources, ${(t.citations ?? []).length} citations, ${(t.posts ?? []).length} posts, ${pictures} pictures, ${(t.recipes ?? []).length} recipes${fk.length ? `, ${fk.length} broken references!` : ''}`);
 }

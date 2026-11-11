@@ -30,6 +30,8 @@ export interface SeedTree {
   uploads?: SeedUpload[];
   /** Contact details someone of the family gave since, for the feed's "has a new address" (tree migration 0030). */
   updates?: SeedUpdate[];
+  /** Recipes written with the recipe form (migration 0031, docs/recipes.md), each a story of kind `recipe` with its details. */
+  recipes?: SeedRecipe[];
   /** The person the tree opens on (the "player character"). */
   focus: string;
 }
@@ -39,7 +41,7 @@ export interface SeedTree {
  * anyone goes into a seed.
  */
 export interface SeedPicture {
-  scene: 'lake' | 'boat' | 'garden' | 'street' | 'door' | 'table' | 'castle' | 'falcon';
+  scene: 'lake' | 'boat' | 'garden' | 'street' | 'door' | 'table' | 'castle' | 'falcon' | 'dish' | 'bake';
   seed: number;
   /** Taller than wide. */
   tall?: boolean;
@@ -76,6 +78,32 @@ export interface SeedUpdate {
   daysAgo: number;
   time: string;
   contacts: Omit<SeedContact, 'person'>[];
+}
+
+/**
+ * A recipe as the recipe form writes one. Its writer is a person of the family, whose name signs it; the time is counted
+ * back from the seeding, as a post's is. The ingredients are lines as a cook writes them ("800 g beef, diced"), sorted
+ * into amount, unit, item and note as a pasted list is (src/lib/recipes/model.ts). The picture is painted, and is the
+ * recipe's own: it is stored with the media and is not in the gallery.
+ */
+export interface SeedRecipe {
+  /** Whose recipe it is (a person id), and who wrote it down (a person id). */
+  person: string;
+  by: string;
+  title: string;
+  daysAgo: number;
+  time: string;
+  /** Where it comes from, in the family's words ("Grandma's"). */
+  source?: string;
+  servings?: number;
+  prepMinutes?: number;
+  cookMinutes?: number;
+  /** The list, in parts: a part without a name is the list's plain start. */
+  groups: { name?: string; lines: string[] }[];
+  steps: string[];
+  notes?: string;
+  tags?: string[];
+  cover?: SeedPicture;
 }
 
 /** Photographs one person added to the gallery on one day, into an album when it is named. */

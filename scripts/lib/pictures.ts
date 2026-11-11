@@ -1,11 +1,12 @@
-// Drawn pictures for the invented families' feed and gallery: a lake, a boat, a garden, a street, a door, a castle.
+// Drawn pictures for the invented families' feed and gallery: a lake, a boat, a garden, a street, a door, a castle,
+// and for their recipes a bowl of stew and a tray of buns.
 // No photograph of anyone goes into a seed, so the pictures a seeded post carries are painted here, from a seed, as
 // PNG files: flat shapes in a few colours, like the app's drawn portraits. Same scene and seed, same picture.
 // Node only (zlib). scripts/seed.ts writes them into a family's media folder as gallery pictures with their small copies.
 import { crc32, deflateSync } from 'node:zlib';
 import { mulberry32, type Rng } from './rng.ts';
 
-export const SCENES = ['lake', 'boat', 'garden', 'street', 'door', 'table', 'castle', 'falcon'] as const;
+export const SCENES = ['lake', 'boat', 'garden', 'street', 'door', 'table', 'castle', 'falcon', 'dish', 'bake'] as const;
 export type Scene = (typeof SCENES)[number];
 export interface Picture { png: Uint8Array; width: number; height: number }
 
@@ -175,6 +176,51 @@ function paintScene(scene: Scene, rng: Rng, w: number, h: number): Canvas {
     c.disc(w / 2, h / 2, h * 0.11, hex('#8a5a3a'));
     c.disc(w / 2, h / 2, h * 0.09, hex('#d98d4a'));
     for (let i = 0; i < 9; i++) c.disc(w / 2 + (rng.next() - 0.5) * h * 0.13, h / 2 + (rng.next() - 0.5) * h * 0.13, h * 0.012, hex('#7a2d1f'));
+  } else if (scene === 'dish') {
+    // A bowl of stew from above, on a checked cloth, with a spoon and a piece of bread: a recipe's picture.
+    const check = rng.pick([hex('#c8553d'), hex('#4f7a5a'), hex('#3f6a94')]);
+    c.rect(0, 0, w, h, hex('#f3ead8'));
+    for (let i = 0; i < 10; i++) c.rect(w * (i / 10), 0, w / 20, h, check, 0.2);
+    for (let i = 0; i < 8; i++) c.rect(0, h * (i / 8), w, h / 16, check, 0.2);
+    const bx = w * 0.46, by = h * 0.52;
+    c.oval(w * 0.13, h * 0.8, w * 0.1, h * 0.085, hex('#b9783c'));
+    c.oval(w * 0.13, h * 0.785, w * 0.085, h * 0.062, hex('#e7c48a'));
+    c.disc(bx + h * 0.02, by + h * 0.025, h * 0.37, hex('#3a2a1c'), 0.16);
+    c.disc(bx, by, h * 0.365, hex('#fbf7ee'));
+    c.disc(bx, by, h * 0.315, hex('#e3d8c4'));
+    c.disc(bx, by, h * 0.29, hex('#a13b1c'));
+    c.disc(bx - h * 0.04, by - h * 0.03, h * 0.2, hex('#bb5229'), 0.55);
+    for (let i = 0; i < 16; i++) {
+      const a = rng.next() * 6.28, r = Math.sqrt(rng.next()) * h * 0.23;
+      c.disc(bx + Math.cos(a) * r, by + Math.sin(a) * r, h * (0.022 + rng.next() * 0.02), rng.pick([hex('#6b2f1c'), hex('#7a3a22'), hex('#e2b96a'), hex('#d3452c'), hex('#f0d9a6')]));
+    }
+    c.disc(bx + h * 0.05, by - h * 0.04, h * 0.055, hex('#fbf6ea'));
+    c.disc(bx + h * 0.065, by - h * 0.05, h * 0.03, hex('#ffffff'));
+    for (let i = 0; i < 26; i++) {
+      const a = rng.next() * 6.28, r = Math.sqrt(rng.next()) * h * 0.26;
+      c.disc(bx + Math.cos(a) * r, by + Math.sin(a) * r, h * 0.008, hex('#4f8a3c'));
+    }
+    c.rect(w * 0.84, h * 0.3, w * 0.018, h * 0.42, hex('#b9bcc0'));
+    c.oval(w * 0.849, h * 0.25, w * 0.034, h * 0.075, hex('#c9ccd0'));
+    c.oval(w * 0.849, h * 0.25, w * 0.022, h * 0.052, hex('#dfe2e5'));
+  } else if (scene === 'bake') {
+    // A tray of buns just out of the oven, on baking paper.
+    c.rect(0, 0, w, h, hex('#cdb892'));
+    for (let i = 0; i < 7; i++) c.rect(0, h * (i / 7), w, h * 0.006, hex('#b7a077'));
+    c.rect(w * 0.08, h * 0.1, w * 0.84, h * 0.8, hex('#565b60'));
+    c.rect(w * 0.1, h * 0.125, w * 0.8, h * 0.75, hex('#6f757a'));
+    c.rect(w * 0.115, h * 0.145, w * 0.77, h * 0.71, hex('#efe6d2'));
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 4; col++) {
+        const x = w * (0.215 + col * 0.19) + (rng.next() - 0.5) * w * 0.02, y = h * (0.27 + row * 0.23) + (rng.next() - 0.5) * h * 0.02, r = h * (0.088 + rng.next() * 0.012);
+        c.disc(x + r * 0.08, y + r * 0.12, r, hex('#8a6a3a'), 0.25);
+        c.disc(x, y, r, hex('#c4843a'));
+        c.disc(x, y, r * 0.78, hex('#d99d4c'));
+        c.disc(x, y, r * 0.52, hex('#b9762f'));
+        c.disc(x, y, r * 0.3, hex('#e2ad5c'));
+        for (let k = 0; k < 7; k++) { const a = rng.next() * 6.28, q = rng.next() * r * 0.8; c.disc(x + Math.cos(a) * q, y + Math.sin(a) * q, r * 0.055, hex('#fffdf6')); }
+      }
+    }
   } else if (scene === 'castle') {
     c.wash(0, h * 0.7, hex('#8e9db5'), hex('#e8d9b8'));
     c.land(rolling(rng, h * 0.6, h * 0.05, w), h * 0.75, hex('#7b8c74'));
