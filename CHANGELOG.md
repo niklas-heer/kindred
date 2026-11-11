@@ -9,6 +9,69 @@ moving to before you upgrade ([docs/self-host.md](docs/self-host.md), "Upgrading
 
 Changes on `main` since 2.1.0. They are not in a release yet.
 
+Database changes: six migrations are new since 2.1.0. In `migrations/tree`:
+
+- `0030_emoji_reactions.sql` makes the reaction and comment tables again with every row, so that a feed event can be
+  answered, and turns each stored reaction into its emoji (heart ❤️, laugh 😂, candle 🕯️, thanks 🙏, "I remember this" 💭).
+- `0031_recipes.sql` adds the tables for recipes and their pictures.
+- `0032_campaign_run.sql` adds the table for the Campaign's reigns. The old season tables stay.
+- `0033_who_is_this.sql` adds the tables for "Who is this?" and a column saying who named someone in a photograph.
+- `0034_campaign_week.sql` adds the table that keeps one field for the Campaign's whole week.
+
+In `migrations/accounts`:
+
+- `0032_presence.sql` adds the table behind "here now".
+
+All of them add tables or columns, except `0030`, which copies the reactions and comments into tables of the same shape.
+On Node they are applied when the server starts, after a copy of each database; on Cloudflare `mise run deploy` applies
+them before the new Worker goes live.
+
+New setting: `KINDRED_ADDRESS_LOOKUP` (on by default) lets the address box suggest whole addresses as you type, looked up
+on OpenStreetMap through komoot's Photon service by your server. Set it to `off` to send no address anywhere.
+
+### Added
+- **Recipes and the Cookbook.** A recipe has a form of its own: ingredients in rows (a typed or pasted line sorts itself
+  into amount, unit and item), numbered steps, servings, times, tags, where it comes from ("Grandma's") and a picture of
+  the dish that stays with the recipe and is not in the Gallery. Its page scales the amounts, lets you tick off
+  ingredients, has a cooking mode that keeps the screen awake, and prints as one sheet. The Cookbook lists the family's
+  recipes with search and filters by tag, person and house. Recipes written before show as free text and can be given
+  rows. See [docs/recipes.md](docs/recipes.md). A daily job `recipes` deletes pictures of removed recipes after 31 days.
+- **Emoji reactions.** A quick row (❤️ 😂 😮 😢 🙏 👏 🕯️) and a palette with search in English, German and Afrikaans,
+  categories and your recently used ones; hover or long-press shows who reacted. The emoji data ships with Kindred, so the
+  palette asks no outside server. Existing reactions are converted.
+- **Updates in the feed.** The feed now also says what changed in the records ("Ada updated Carl: has a new address, new
+  phone number"), one entry per member and day, naming what changed and never the value. Editors-only changes, such as a
+  new address, are news only to editors; a GEDCOM import is one line. Members can react to and comment on these events,
+  and on birthdays and anniversaries.
+- **Here now.** Members see who of the family is in Kindred with them: faces in the top bar ("2 here now"), who is on which
+  page, a soft halo on the tree card someone else has selected, "Anna is here" on a person's page and "Anna is editing
+  Carl" on the Edit tab. When nobody else is there, the bar says who was last here. "Show me to others" in the account
+  menu turns sharing off both ways. Guests, the demo and View as take no part. See
+  [docs/roles-and-privacy.md](docs/roles-and-privacy.md#here-now).
+- **Who is this?** Untagged gallery photographs become a two-minute game on Today, the Gallery and Needed: anyone in the
+  family can suggest who is in a picture, and someone who may tag photographs (not the one who suggested it) confirms it.
+  The tag then says who named them. See [docs/who-is-this.md](docs/who-is-this.md).
+- **Address auto-complete.** The address box suggests whole addresses as you type (street, number, postcode, town,
+  country), after the family's own places and the offline towns. It replaces the "Look up this address" button. See the
+  new setting above and [docs/roles-and-privacy.md](docs/roles-and-privacy.md).
+- **Search finds places** and ignores accents and spelled-out umlauts ("Muller" and "Mueller" find "Müller"). ⌘K on a
+  computer, the search icon on a phone.
+
+### Changed
+- **The Campaign is a game you play alone.** A reign is 12 turns as your own house, about eight minutes, on a map made from
+  the family's places, with terrain (plains, forest, highland, towns). Each turn you place troops, give up to three orders
+  (choose a province, choose a target, confirm) and see your exact chance before you attack. The whole family plays the same
+  field each week and compares scores in a weekly table, an all-time list and house totals; the server replays every reign
+  to check its score. Recording the family still raises your renown and your levy, and a right quiz answer adds two troops.
+  The old shared seasons are closed and kept as "Seasons of old"; the Campaign's nightly job and its push are gone. See
+  [docs/campaign.md](docs/campaign.md).
+- **Hair, beards and moustaches are redrawn** for every drawn portrait: each hairstyle is its own shape, with four new
+  short cuts. A beard is chosen by coverage, length and cut, and the moustache separately. Hair and beard can take any
+  colour, by picker or `#rrggbb` code. The editor shows about twenty hairstyles first and the rest under "More". Only the
+  hair and beard of existing portraits change (a test holds everything else to the old drawing); a stored full beard with
+  the moustache set to "none" now shows a shaven upper lip.
+- **The Edit tab is compact.** Each field shows as one line, and only the one you are editing opens.
+
 ## [2.1.0] - 2026-11-11
 
 The family's common room: Today with a feed, a quiz and a question of the week, the Campaign game, reactions, comments, life
