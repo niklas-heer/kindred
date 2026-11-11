@@ -1,6 +1,6 @@
 // node --test src/lib/today/today.server.test.ts — Today on the server: the day's quiz is drawn once and is the same
 // for every member, the answer is not in what a reader is sent until they have answered, an answer stands (it cannot
-// be changed or given twice), a right answer earns one Campaign order while the game is on, a steward can switch the
+// be changed or given twice), a right answer adds levy to the next Campaign reign that day while the game is on, a steward can switch the
 // quiz off, and an answer to the question of the week is an ordinary memory with its week beside it.
 // A scratch family and accounts database; never data/. Invented people only.
 import assert from 'node:assert/strict';
@@ -176,7 +176,7 @@ test('a streak counts the days in a row, and the month’s table counts right an
   assert.deepEqual((await today.quizView('streak', ada, new Date('2026-12-01T09:00:00Z'))).houses, []);
 });
 
-test('a right answer earns one Campaign order while the game is on, and none otherwise', async () => {
+test('a right answer adds levy to the next Campaign reign that day while the game is on, and nothing otherwise', async () => {
   family('bonus');
   const steward = await account('bonus', 'Sten', 'gran', 'steward');
   const ada = await account('bonus', 'Ada', 'ada');
@@ -190,15 +190,20 @@ test('a right answer earns one Campaign order while the game is on, and none oth
   assert.equal((await play(ada, T0, true)).bonus, false);
   await game.setCampaignEnabled('bonus', true, steward.account, later(1));
   const who = { account: ada.account, name: 'Ada', person: 'ada' };
-  const before = (await game.campaignStatus('bonus', who, later(1))).orders!;
   const won = await play(ada, later(1), true);
   assert.equal(won.bonus, true);
-  assert.equal((await game.campaignStatus('bonus', who, later(1))).orders, before + 1);
+  // The reward is the Campaign's to give: extra levy on the first turn of Ada's next reign that day, once.
+  const challenge = (await game.campaignView('bonus', who, later(1))).challenge!;
+  const side = challenge.side ?? challenge.field.sides[0].id;
+  assert.equal(challenge.grant, 2);
+  assert.equal((await game.startRun('bonus', who, side, later(1))).grant, 2);
+  assert.equal((await game.startRun('bonus', who, side, later(1))).grant, 0, 'one reign a day gets it');
   // A wrong answer earns nothing, and answering again earns nothing more.
   assert.equal((await play(bo, later(1), false)).bonus, undefined);
   assert.equal((await play(ada, later(1), true)).bonus, undefined);
-  assert.equal((await game.campaignStatus('bonus', who, later(1))).orders, before + 1);
-  assert.equal(await count('bonus', 'campaign_log', "kind = 'bonus'"), 1);
+  const bob = { account: bo.account, name: 'Bo', person: 'bo' };
+  assert.equal((await game.startRun('bonus', bob, side, later(1))).grant, 0);
+  assert.equal((await game.startRun('bonus', who, side, later(2))).grant, 0, 'a new day needs a new right answer');
 });
 
 test('a steward can switch the quiz off: no question is drawn or shown, and nothing can be answered', async () => {

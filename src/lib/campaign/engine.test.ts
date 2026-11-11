@@ -1,11 +1,13 @@
 // node --test src/lib/campaign/engine.test.ts — the Campaign's rules: the map is one piece and the same for the same
-// seed, orders are refused when the rules say so and never change the position they were given, the dice follow Risk's
-// rules, the regent and the nights are deterministic, and a season between regents stays close.
+// seed, its terrain is dealt in fair shares and each kind keeps its one rule, the odds an attack shows are exact, moves
+// are refused when the rules say so and never change the position they were given, regents play only by the rules, a
+// reign's moves replay to the same score and a forged list is refused, and a reign between regents stays open to the end.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  CampaignError, MAP_H, MAP_W, RULES, addLevy, adjacent, applyOrder, battle, buildMap, endDay, levyOf, neighbours, ordersOn, provinceCount,
-  provincesOf, regentTurn, standings, startState, troopsOf, validState, type GameMap, type PlaceIn, type SideRules, type State,
+  CampaignError, MAP_H, MAP_W, RULES, adjacent, battle, buildMap, capOf, levyOf, neighbours, openReign, play, provincesOf, regentMoves,
+  regentTurn, replay, scoreOf, setupField, standings, startState, terrainOf, troopsOf, winChance,
+  type GameMap, type Move, type PlaceIn, type Reign, type State,
 } from './engine.ts';
 import { RENOWN_STEPS, renownOf } from './renown.ts';
 import { rng } from './rng.ts';
@@ -15,10 +17,10 @@ const places = (n: number, seed = 'places'): PlaceIn[] => {
   return Array.from({ length: n }, (_, i) => ({ name: `Place ${i}`, lat: 44 + r() * 8, lng: r() * 12, people: 100 - i }));
 };
 const SIDES = ['ash', 'birch', 'cedar', 'dale'];
-const rules = (ids = SIDES): SideRules[] => ids.map((id) => ({ id, bonus: 1, temper: 'bold' }));
-const game = (seed = 's1', ids = SIDES) => {
-  const map = buildMap(places(30), provinceCount(ids.length), seed);
-  return { map, state: addLevy(startState(map, ids, seed), rules(ids)) };
+const reignOf = (seed = 's1', extra: Partial<Reign> = {}) => {
+  const field = setupField(places(30, `p:${seed}`), SIDES, seed);
+  const reign: Reign = { map: field.map, sides: SIDES, player: 'ash', seed, renown: 0, grant: 0, ...extra };
+  return { field, reign, state: openReign(field.start, reign) };
 };
 const refused = (code: string) => (e: unknown) => e instanceof CampaignError && e.code === code && e.message === `campaign.err.${code}`;
 const reachable = (map: GameMap) => {
@@ -27,18 +29,27 @@ const reachable = (map: GameMap) => {
   while (queue.length) for (const n of neighbours(map, queue.pop()!)) if (!seen.has(n)) { seen.add(n); queue.push(n); }
   return seen.size;
 };
-/** A position nobody could have reached by an order is a bug: every province held with at least one troop, none over the cap. */
-const sound = (state: State, map: GameMap) => validState(state, map) && state.troops.every((t) => t >= 1 && t <= RULES.GARRISON_MAX + 3);
+/** A position nobody could have reached by a move is a bug: every province held with at least one troop, none over its cap. */
+const sound = (state: State, map: GameMap) => state.holder.length === map.provinces.length && state.troops.every((t, i) => Number.isInteger(t) && t >= 1 && t <= capOf(map, i));
+/** A whole reign with a regent playing the player's side too. */
+const regentReign = (seed: string, extra: Partial<Reign> = {}) => {
+  const { field, reign, state } = reignOf(seed, extra);
+  let s = state;
+  const moves: Move[] = [];
+  const leaders: string[] = [];
+  while (s.turn < RULES.TURNS) {
+    for (const m of regentMoves(s, reign)) { s = play(s, reign, m).state; moves.push(m); }
+    leaders.push(standings(s, SIDES)[0].side);
+  }
+  return { field, reign, state: s, moves, leaders };
+};
 
-test('the map has four provinces for each side, within ten and twenty-four, and is the same for the same seed', () => {
-  assert.equal(provinceCount(1), 10);
-  assert.equal(provinceCount(4), 16);
-  assert.equal(provinceCount(6), 24);
-  assert.equal(provinceCount(9), 24);
-  const a = buildMap(places(30), 16, 'seed');
-  assert.deepEqual(a, buildMap(places(30), 16, 'seed'));
-  assert.notDeepEqual(a.provinces.map((p) => [p.x, p.y]), buildMap(places(30), 16, 'other').provinces.map((p) => [p.x, p.y]));
-  assert.equal(a.provinces.length, 16);
+test('a reign’s map has sixteen provinces, and the same seed gives the same field', () => {
+  const a = setupField(places(30), SIDES, 'seed');
+  assert.deepEqual(a, setupField(places(30), SIDES, 'seed'));
+  assert.notDeepEqual(a.map.provinces.map((p) => [p.x, p.y]), setupField(places(30), SIDES, 'other').map.provinces.map((p) => [p.x, p.y]));
+  assert.equal(a.map.provinces.length, RULES.PROVINCES);
+  assert.equal(reachable(a.map), RULES.PROVINCES);
 });
 
 test('the map takes the places most people are linked to, keeps every banner inside the box, and is one piece', () => {
@@ -57,6 +68,7 @@ test('the map takes the places most people are linked to, keeps every banner ins
   }
 });
 
+
 test('a family with few places gets invented marches, and one with none still gets a whole map', () => {
   const few = buildMap(places(3), 10, 'few');
   assert.equal(few.provinces.length, 10);
@@ -71,18 +83,6 @@ test('a family with few places gets invented marches, and one with none still ge
   assert.ok(!odd.provinces.some((p) => p.name === 'C'));
 });
 
-test('every side opens with a seat of its own and a neighbouring province, and the rest are free marches', () => {
-  const { map, state } = game();
-  const seats = Object.values(state.seats);
-  assert.equal(new Set(seats).size, SIDES.length);
-  for (const side of SIDES) {
-    assert.equal(state.holder[state.seats[side]], side);
-    assert.ok(provincesOf(state, side) >= 1 && provincesOf(state, side) <= 2);
-    assert.ok(state.pool[side] >= RULES.BASE_LEVY);
-  }
-  assert.ok(state.holder.filter((h) => h === null).length >= map.provinces.length - 2 * SIDES.length);
-  assert.ok(sound(state, map));
-});
 
 test('a house is seated where its own people are, when the map has that place', () => {
   const map = buildMap(places(30), 16, 'home');
@@ -91,194 +91,6 @@ test('a house is seated where its own people are, when the map has that place', 
   assert.equal(state.seats.cedar, 7);
 });
 
-test('the dice follow Risk: three against two at most, the highest compared, ties to the defender, three rounds at most', () => {
-  for (let i = 0; i < 300; i++) {
-    const a = 1 + (i % 9), d = 1 + (i % 7);
-    const fought = battle(a, d, `dice${i}`);
-    assert.deepEqual(fought, battle(a, d, `dice${i}`), 'the same seed rolls the same dice');
-    assert.ok(fought.rounds.length >= 1 && fought.rounds.length <= RULES.BATTLE_ROUNDS);
-    let left = a, held = d;
-    for (const r of fought.rounds) {
-      assert.equal(r.a.length, Math.min(3, left));
-      assert.equal(r.d.length, Math.min(2, held));
-      assert.deepEqual(r.a, [...r.a].sort((x, y) => y - x));
-      for (const die of [...r.a, ...r.d]) assert.ok(die >= 1 && die <= 6);
-      const pairs = Math.min(r.a.length, r.d.length);
-      let aLost = 0;
-      for (let k = 0; k < pairs; k++) if (r.a[k] <= r.d[k]) aLost++;
-      assert.equal(r.aLost, aLost);
-      assert.equal(r.dLost, pairs - aLost);
-      left -= r.aLost;
-      held -= r.dLost;
-    }
-    assert.equal(fought.aLost, a - left);
-    assert.equal(fought.dLost, d - held);
-    assert.ok(left >= 0 && held >= 0);
-  }
-});
-
-test('muster places waiting levy on a province of the house, up to five and up to what the province feeds', () => {
-  const { map, state } = game();
-  const seat = state.seats.ash;
-  const before = JSON.stringify(state);
-  const done = applyOrder(state, map, 'ash', { type: 'muster', to: seat, troops: 2 }, 'x');
-  assert.equal(JSON.stringify(state), before, 'the position given is not changed');
-  assert.equal(done.state.troops[seat], state.troops[seat] + 2);
-  assert.equal(done.state.pool.ash, state.pool.ash - 2);
-  assert.deepEqual(done.state.acted, ['ash']);
-  assert.throws(() => applyOrder(state, map, 'ash', { type: 'muster', to: state.seats.birch, troops: 1 }, 'x'), refused('not_yours'));
-  assert.throws(() => applyOrder(state, map, 'ash', { type: 'muster', to: seat, troops: state.pool.ash + 1 }, 'x'), refused('troops'));
-  assert.throws(() => applyOrder({ ...state, pool: { ...state.pool, ash: 12 } }, map, 'ash', { type: 'muster', to: seat, troops: 6 }, 'x'), refused('troops'));
-  assert.throws(() => applyOrder({ ...state, pool: { ...state.pool, ash: 0 } }, map, 'ash', { type: 'muster', to: seat, troops: 1 }, 'x'), refused('no_levy'));
-  const full = { ...state, troops: state.troops.map((t, i) => (i === seat ? RULES.GARRISON_MAX - 1 : t)) };
-  assert.throws(() => applyOrder(full, map, 'ash', { type: 'muster', to: seat, troops: 2 }, 'x'), refused('full'));
-  for (const troops of [0, -1, 1.5, Number.NaN]) assert.throws(() => applyOrder(state, map, 'ash', { type: 'muster', to: seat, troops }, 'x'), refused('troops'));
-  assert.throws(() => applyOrder(state, map, 'ash', { type: 'muster', to: 99, troops: 1 }, 'x'), refused('no_province'));
-});
-
-test('march moves troops between neighbouring provinces of the house, and one always stays behind', () => {
-  const { map, state } = game();
-  const seat = state.seats.ash;
-  const own = neighbours(map, seat).find((n) => state.holder[n] === 'ash')!;
-  const free = map.provinces.find((p) => state.holder[p.id] === null && adjacent(map, seat, p.id))!.id;
-  const far = map.provinces.find((p) => !adjacent(map, seat, p.id) && p.id !== seat)!.id;
-  const done = applyOrder(state, map, 'ash', { type: 'march', from: seat, to: own, troops: 3 }, 'x');
-  assert.equal(done.state.troops[seat], state.troops[seat] - 3);
-  assert.equal(done.state.troops[own], state.troops[own] + 3);
-  assert.equal(troopsOf(done.state, 'ash'), troopsOf(state, 'ash'));
-  assert.throws(() => applyOrder(state, map, 'ash', { type: 'march', from: seat, to: own, troops: state.troops[seat] }, 'x'), refused('stay_one'));
-  assert.throws(() => applyOrder(state, map, 'ash', { type: 'march', from: seat, to: free, troops: 1 }, 'x'), refused('not_yours'));
-  assert.throws(() => applyOrder(state, map, 'ash', { type: 'march', from: seat, to: far, troops: 1 }, 'x'), refused('not_adjacent'));
-  assert.throws(() => applyOrder(state, map, 'birch', { type: 'march', from: seat, to: own, troops: 1 }, 'x'), refused('not_yours'));
-});
-
-test('an attack is fought with the troops sent: a fallen province is taken by the survivors, a held one costs only the losses', () => {
-  const { map, state } = game();
-  const seat = state.seats.ash;
-  const free = map.provinces.find((p) => state.holder[p.id] === null && adjacent(map, seat, p.id))!.id;
-  let won = 0, held = 0;
-  for (let i = 0; i < 80; i++) {
-    const strong = { ...state, troops: state.troops.map((t, k) => (k === seat ? 8 : t)) };
-    const { state: after, event } = applyOrder(strong, map, 'ash', { type: 'attack', from: seat, to: free, troops: 5 }, `attack${i}`);
-    assert.equal(event.t, 'attack');
-    if (event.t !== 'attack') continue;
-    assert.equal(event.defender, null);
-    assert.equal(event.seed, `attack${i}`);
-    assert.deepEqual({ rounds: event.rounds, aLost: event.aLost, dLost: event.dLost }, battle(5, strong.troops[free], `attack${i}`), 'the dice are the seed’s dice');
-    if (event.took) {
-      won++;
-      assert.equal(after.holder[free], 'ash');
-      assert.equal(after.troops[free], 5 - event.aLost);
-      assert.equal(after.troops[seat], 3);
-    } else {
-      held++;
-      assert.equal(after.holder[free], null);
-      assert.equal(after.troops[free], strong.troops[free] - event.dLost);
-      assert.equal(after.troops[seat], 8 - event.aLost);
-    }
-    assert.ok(sound(after, map));
-  }
-  assert.ok(won > 0 && held > 0, 'both outcomes happen');
-});
-
-test('nobody attacks their own province, a seat, a province that is not a neighbour, or with the troop that must stay', () => {
-  const { map, state } = game('s3');
-  const seat = state.seats.ash;
-  const own = neighbours(map, seat).find((n) => state.holder[n] === 'ash')!;
-  assert.throws(() => applyOrder(state, map, 'ash', { type: 'attack', from: seat, to: own, troops: 1 }, 'x'), refused('own_province'));
-  assert.throws(() => applyOrder(state, map, 'ash', { type: 'attack', from: seat, to: neighbours(map, seat)[0], troops: state.troops[seat] }, 'x'), refused('stay_one'));
-  // Put another house's seat next door: it is still safe.
-  const next = neighbours(map, seat).find((n) => n !== own)!;
-  const beside = { ...state, holder: state.holder.map((h, i) => (i === next ? 'birch' : h)), seats: { ...state.seats, birch: next } };
-  assert.throws(() => applyOrder(beside, map, 'ash', { type: 'attack', from: seat, to: next, troops: 2 }, 'x'), refused('seat'));
-  assert.throws(() => applyOrder({ ...state, day: RULES.SEASON_DAYS }, map, 'ash', { type: 'muster', to: seat, troops: 1 }, 'x'), refused('season_over'));
-});
-
-test('the levy is the base, plus renown up to two, plus one for each province behind the leader up to two', () => {
-  const { state } = game();
-  const lead = { ...state, holder: state.holder.map((h, i) => (h === null && i % 2 === 0 ? 'ash' : h)) };
-  assert.deepEqual(levyOf(state, 'ash', 0, SIDES), { base: RULES.BASE_LEVY, renown: 0, rally: 0, total: RULES.BASE_LEVY });
-  assert.equal(levyOf(state, 'ash', 9, SIDES).renown, RULES.RENOWN_MAX_BONUS);
-  assert.equal(levyOf(lead, 'ash', 1, SIDES).rally, 0);
-  assert.equal(levyOf(lead, 'birch', 1, SIDES).rally, RULES.RALLY_MAX);
-  assert.equal(levyOf(lead, 'birch', 1, SIDES).total, RULES.BASE_LEVY + 1 + RULES.RALLY_MAX);
-  assert.ok(addLevy({ ...state, pool: { ash: RULES.POOL_CAP } }, rules()).pool.ash === RULES.POOL_CAP, 'the waiting levy stops at its cap');
-});
-
-test('a regent plays the same day the same way, only ever by the rules, and attacks once a day at most', () => {
-  for (const seed of ['r1', 'r2', 'r3', 'r4', 'r5']) {
-    let { map, state } = game(seed);
-    for (let day = 0; day < 12; day++) {
-      for (const side of SIDES) {
-        const a = regentTurn(state, map, side, `${seed}:${day}`);
-        assert.deepEqual(a, regentTurn(state, map, side, `${seed}:${day}`));
-        assert.ok(a.events.length <= RULES.ORDERS_PER_DAY);
-        assert.ok(a.events.filter((e) => e.t === 'attack').length <= RULES.REGENT_ATTACKS);
-        assert.ok(a.events.every((e) => e.side === side));
-        assert.ok(sound(a.state, map));
-        state = a.state;
-      }
-      state = addLevy({ ...state, day: state.day + 1, acted: [] }, rules());
-    }
-  }
-});
-
-test('at nightfall a regent plays the sides nobody gave an order for, then the next day’s levy arrives', () => {
-  const { map, state } = game('n1');
-  const seat = state.seats.ash;
-  const mine = applyOrder(state, map, 'ash', { type: 'muster', to: seat, troops: 1 }, 'x').state;
-  const night = endDay(mine, map, rules(), 'n1');
-  assert.deepEqual(night, endDay(mine, map, rules(), 'n1'), 'the same night comes out the same');
-  assert.equal(night.state.day, 1);
-  assert.deepEqual(night.state.acted, []);
-  assert.ok(!night.events.some((e) => e.side === 'ash'), 'a house a member played is left alone');
-  assert.ok(new Set(night.events.map((e) => e.side)).size >= 2, 'the others were played');
-  assert.ok(night.state.pool.ash >= mine.pool.ash + RULES.BASE_LEVY);
-  // The last night brings no levy, and a finished season stays as it is.
-  const last = endDay({ ...state, day: RULES.SEASON_DAYS - 1 }, map, rules(), 'n1');
-  assert.equal(last.state.day, RULES.SEASON_DAYS);
-  assert.deepEqual(endDay(last.state, map, rules(), 'n1'), { state: last.state, events: [] });
-});
-
-test('a season stays close: nobody is ever out, no house runs away with the map, and the lead changes hands', () => {
-  let changes = 0, share = 0;
-  const runs = 30;
-  for (let i = 0; i < runs; i++) {
-    const seed = `season${i}`;
-    let { map, state } = game(seed);
-    let leader = '';
-    for (let day = 0; day < RULES.SEASON_DAYS; day++) {
-      state = endDay(state, map, rules(), seed).state;
-      assert.ok(sound(state, map));
-      for (const side of SIDES) assert.equal(state.holder[state.seats[side]], side, 'a seat never falls');
-      const top = standings(state, SIDES)[0].side;
-      if (day > 6 && top !== leader) { leader = top; changes++; }
-    }
-    assert.equal(state.day, RULES.SEASON_DAYS);
-    const table = standings(state, SIDES);
-    assert.ok(table.at(-1)!.provinces >= 1);
-    assert.ok(table[0].provinces / map.provinces.length <= 0.7, `${seed}: the winner holds ${table[0].provinces} of ${map.provinces.length}`);
-    share += table[0].provinces / map.provinces.length;
-  }
-  assert.ok(share / runs < 0.5, `the winner holds ${(share / runs).toFixed(2)} of the map on average`);
-  assert.ok(changes / runs >= 2, `the lead changes ${(changes / runs).toFixed(1)} times a season after the first week`);
-});
-
-test('the standings put most provinces first, then most troops', () => {
-  const { state } = game();
-  const s: State = { ...state, holder: ['ash', 'birch', 'birch', 'cedar', 'cedar', ...state.holder.slice(5).map(() => null)], troops: [9, 1, 1, 4, 4, ...state.troops.slice(5)] };
-  assert.deepEqual(standings(s, SIDES).map((r) => r.side), ['cedar', 'birch', 'ash', 'dale']);
-});
-
-test('orders: three more each day, saved up to six, and a bonus on top is kept', () => {
-  assert.equal(ordersOn(4, 3, 4), 3);
-  assert.equal(ordersOn(5, 0, 4), 3);
-  assert.equal(ordersOn(5, 2, 4), 5);
-  assert.equal(ordersOn(6, 2, 4), RULES.ORDERS_BANK);
-  assert.equal(ordersOn(40, 0, 4), RULES.ORDERS_BANK);
-  assert.equal(ordersOn(5, RULES.ORDERS_MAX, 4), RULES.ORDERS_MAX);
-  assert.equal(ordersOn(3, 2, 4), 2, 'a count from a later day is not changed');
-});
 
 test('renown is a share of the house’s own people, so a small house recorded with care outshines a large one that is not', () => {
   const none = renownOf({ people: 0, portraits: 0, dated: 0, placed: 0, memories: 0, events: 0, sources: 0 });
@@ -296,4 +108,249 @@ test('renown is a share of the house’s own people, so a small house recorded w
   assert.equal(large.toNext, RENOWN_STEPS[large.bonus] - large.score);
   // More than one memory each does not count twice.
   assert.equal(renownOf({ people: 2, portraits: 0, dated: 0, placed: 0, memories: 40, events: 0, sources: 0 }).score, 20);
+});
+
+test('every side opens with a seat and a neighbouring province; the player’s first levy waits with three orders', () => {
+  const { field, reign, state } = reignOf();
+  assert.equal(new Set(Object.values(state.seats)).size, SIDES.length);
+  for (const side of SIDES) {
+    assert.equal(state.holder[state.seats[side]], side);
+    assert.ok(provincesOf(state, side) >= 1 && provincesOf(state, side) <= 2);
+  }
+  assert.equal(state.turn, 0);
+  assert.equal(state.orders, RULES.ORDERS_PER_TURN);
+  assert.equal(state.pool.ash, levyOf(state, field.map, 'ash').total);
+  assert.equal(state.pool.birch, undefined, 'a regent’s levy arrives in its own turn');
+  assert.ok(sound(state, field.map));
+  assert.deepEqual(field.start.pool, {}, 'the opening itself is shared by every player and holds no levy');
+  // The quiz's reward comes once, on the first turn.
+  assert.equal(openReign(field.start, { ...reign, grant: RULES.QUIZ_LEVY }).pool.ash, state.pool.ash + RULES.QUIZ_LEVY);
+});
+
+test('terrain: every seat is a town, so is the most-peopled place, about half the land is plains, and forest and highland share the rest', () => {
+  let plains = 0, total = 0;
+  for (const seed of ['t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8']) {
+    const { map, start } = setupField(places(30, seed), SIDES, seed);
+    for (const seat of Object.values(start.seats)) assert.equal(terrainOf(map, seat), 'town');
+    assert.equal(terrainOf(map, 0), 'town', 'the place most people are linked to');
+    const kinds = map.provinces.map((p) => p.terrain);
+    assert.ok(kinds.every((k) => k === 'plains' || k === 'forest' || k === 'highland' || k === 'town'));
+    assert.ok(kinds.includes('forest') && kinds.includes('highland'));
+    plains += kinds.filter((k) => k === 'plains').length;
+    total += kinds.length;
+  }
+  assert.ok(Math.abs(plains / total - RULES.PLAINS_SHARE) < 0.05, `plains are ${(plains / total).toFixed(2)} of the land`);
+  // A map stored before there was terrain reads as plains everywhere.
+  const old = buildMap(places(20), 12, 'old');
+  for (const p of old.provinces) delete p.terrain;
+  assert.equal(terrainOf(old, 3), 'plains');
+  assert.equal(capOf(old, 3), RULES.GARRISON_MAX);
+});
+
+test('the dice follow Risk: three against two at most, the highest compared, ties to the defender, three rounds at most', () => {
+  for (let i = 0; i < 200; i++) {
+    const b = battle(6, 5, `dice${i}`);
+    assert.deepEqual(b, battle(6, 5, `dice${i}`), 'the same seed rolls the same dice');
+    assert.ok(b.rounds.length >= 1 && b.rounds.length <= RULES.BATTLE_ROUNDS);
+    for (const r of b.rounds) {
+      assert.ok(r.a.length <= 3 && r.d.length <= 2);
+      assert.equal(r.aLost + r.dLost, Math.min(r.a.length, r.d.length));
+      const pairs = Math.min(r.a.length, r.d.length);
+      let dLost = 0;
+      for (let k = 0; k < pairs; k++) if (r.a[k] > r.d[k]) dLost++;
+      assert.equal(r.dLost, dLost, 'the highest are compared, and a tie goes to the defender');
+    }
+    assert.equal(b.aLost, b.rounds.reduce((n, r) => n + r.aLost, 0));
+  }
+});
+
+test('forest raises the defender’s highest die by one, highland lets the attacker roll two dice at most', () => {
+  for (let i = 0; i < 200; i++) {
+    const plain = battle(5, 3, `t${i}`);
+    const forest = battle(5, 3, `t${i}`, 'forest');
+    // The first round is rolled from the same numbers: only the defender's best die differs.
+    assert.deepEqual(forest.rounds[0].a, plain.rounds[0].a);
+    assert.equal(forest.rounds[0].d[0], Math.min(6, plain.rounds[0].d[0] + 1));
+    assert.equal(forest.rounds[0].d[1], plain.rounds[0].d[1]);
+    for (const r of battle(6, 4, `h${i}`, 'highland').rounds) assert.ok(r.a.length <= 2);
+    for (const r of battle(2, 4, `h${i}`, 'town').rounds) assert.ok(r.a.length <= 2 && r.d.length <= 2);
+  }
+});
+
+test('winChance is exact: one die against one, and the terrain’s rule in the odds', () => {
+  assert.equal(winChance(1, 1), 15 / 36);
+  assert.equal(winChance(1, 1, 'highland'), 15 / 36, 'one die is one die');
+  assert.equal(winChance(1, 1, 'forest'), 10 / 36);
+  assert.equal(winChance(0, 3), 0);
+  assert.equal(winChance(3, 0), 1);
+  // Three rounds remove at most six defenders.
+  assert.equal(winChance(12, 7), 0);
+  for (const terrain of ['plains', 'forest', 'highland', 'town'] as const) {
+    for (let d = 1; d <= 5; d++) {
+      for (let a = 1; a < 10; a++) assert.ok(winChance(a + 1, d, terrain) >= winChance(a, d, terrain) - 1e-12, 'more attackers never lower the chance');
+    }
+  }
+  assert.ok(winChance(4, 2, 'forest') < winChance(4, 2));
+  assert.ok(winChance(4, 2, 'highland') < winChance(4, 2));
+  assert.equal(winChance(4, 2, 'town'), winChance(4, 2), 'a town has no battle rule');
+  // The exact number agrees with the dice themselves.
+  for (const [a, d, terrain] of [[4, 2, 'forest'], [5, 3, 'highland'], [3, 2, 'plains']] as const) {
+    let took = 0;
+    const n = 6000;
+    for (let i = 0; i < n; i++) if (battle(a, d, `mc${i}`, terrain).dLost >= d) took++;
+    assert.ok(Math.abs(took / n - winChance(a, d, terrain)) < 0.025, `${a} against ${d} in ${terrain}: ${took / n} vs ${winChance(a, d, terrain)}`);
+  }
+});
+
+test('placing the levy costs no order, needs levy, a province of one’s own and room in it; a town holds more', () => {
+  const { reign, state } = reignOf('place');
+  const seat = state.seats.ash;
+  const placed = play(state, reign, { t: 'place', to: seat }).state;
+  assert.equal(placed.troops[seat], state.troops[seat] + 1);
+  assert.equal(placed.pool.ash, state.pool.ash - 1);
+  assert.equal(placed.orders, RULES.ORDERS_PER_TURN);
+  assert.equal(capOf(reign.map, seat), RULES.TOWN_GARRISON_MAX);
+  const other = state.holder.findIndex((h) => h !== 'ash');
+  assert.throws(() => play(state, reign, { t: 'place', to: other }), refused('not_yours'));
+  assert.throws(() => play({ ...state, pool: { ash: 0 } }, reign, { t: 'place', to: seat }), refused('no_levy'));
+  assert.throws(() => play({ ...state, troops: state.troops.map((t, i) => (i === seat ? RULES.TOWN_GARRISON_MAX : t)) }, reign, { t: 'place', to: seat }), refused('full'));
+  assert.throws(() => play(state, reign, { t: 'place', to: 99 }), refused('no_province'));
+});
+
+test('marches and attacks take one of three orders a turn; one troop stays behind; seats and far provinces are refused', () => {
+  const { reign, state } = reignOf('orders');
+  const map = reign.map;
+  const seat = state.seats.ash;
+  const own = neighbours(map, seat).find((n) => state.holder[n] === 'ash')!;
+  const rich = { ...state, troops: state.troops.map((t, i) => (i === seat ? 9 : t)) };
+  let s = rich;
+  for (let k = 0; k < RULES.ORDERS_PER_TURN; k++) s = play(s, reign, { t: 'march', from: seat, to: own, troops: 1 }).state;
+  assert.equal(s.orders, 0);
+  assert.equal(s.troops[own], rich.troops[own] + 3);
+  assert.throws(() => play(s, reign, { t: 'march', from: seat, to: own, troops: 1 }), refused('no_orders'));
+  assert.throws(() => play(rich, reign, { t: 'march', from: seat, to: own, troops: 9 }), refused('stay_one'));
+  assert.throws(() => play(rich, reign, { t: 'attack', from: seat, to: own, troops: 2 }), refused('own_province'));
+  const far = map.provinces.find((p) => p.id !== seat && !adjacent(map, seat, p.id))!.id;
+  assert.throws(() => play(rich, reign, { t: 'attack', from: seat, to: far, troops: 2 }), refused('not_adjacent'));
+  // Another house's seat next door is locked.
+  const next = neighbours(map, seat).find((n) => n !== own)!;
+  const beside = { ...rich, holder: rich.holder.map((h, i) => (i === next ? 'birch' : h)), seats: { ...rich.seats, birch: next } };
+  assert.throws(() => play(beside, reign, { t: 'attack', from: seat, to: next, troops: 2 }), refused('seat'));
+  // A refused move changes nothing it was given.
+  assert.deepEqual(rich, { ...state, troops: state.troops.map((t, i) => (i === seat ? 9 : t)) });
+  assert.throws(() => play({ ...state, turn: RULES.TURNS }, reign, { t: 'end' }), refused('over'));
+});
+
+test('an attack is fought with the troops sent and counted: survivors move in, losses and wins are kept for the score', () => {
+  const { reign, state } = reignOf('attack');
+  const map = reign.map;
+  const seat = state.seats.ash;
+  const free = neighbours(map, seat).find((n) => state.holder[n] === null)!;
+  let won = 0, held = 0;
+  for (let i = 0; i < 60; i++) {
+    const strong = { ...state, attacks: i, troops: state.troops.map((t, k) => (k === seat ? 8 : t)) };
+    const { state: after, events } = play(strong, reign, { t: 'attack', from: seat, to: free, troops: 5 });
+    const e = events[0];
+    assert.ok(e.t === 'attack');
+    if (e.t !== 'attack') continue;
+    assert.equal(e.terrain, terrainOf(map, free));
+    assert.deepEqual({ rounds: e.rounds, aLost: e.aLost, dLost: e.dLost }, battle(5, strong.troops[free], `${reign.seed}:t0:p${i}`, e.terrain), 'the dice are the reign’s, numbered by attack');
+    assert.equal(after.attacks, i + 1);
+    assert.equal(after.lost.ash ?? 0, e.aLost);
+    if (e.took) {
+      won++;
+      assert.equal(after.holder[free], 'ash');
+      assert.equal(after.troops[free], 5 - e.aLost);
+      assert.equal(after.won.ash, 1);
+    } else {
+      held++;
+      assert.equal(after.holder[free], null);
+      assert.equal(after.troops[seat], 8 - e.aLost);
+      assert.equal(after.won.ash ?? 0, 0);
+    }
+    assert.ok(sound(after, map));
+  }
+  assert.ok(won > 0 && held > 0, 'both outcomes happen');
+});
+
+test('the levy is the base, one for each town held, and renown up to two', () => {
+  const { reign, state } = reignOf('levy');
+  const map = reign.map;
+  const towns = state.holder.filter((h, i) => h === 'ash' && terrainOf(map, i) === 'town').length;
+  assert.deepEqual(levyOf(state, map, 'ash', 0), { base: RULES.BASE_LEVY, towns, renown: 0, grant: 0, total: RULES.BASE_LEVY + towns });
+  assert.equal(levyOf(state, map, 'ash', 9).renown, RULES.RENOWN_MAX_BONUS);
+  const town = map.provinces.find((p) => p.terrain === 'town' && state.holder[p.id] === null);
+  if (town) assert.equal(levyOf({ ...state, holder: state.holder.map((h, i) => (i === town.id ? 'ash' : h)) }, map, 'ash').towns, towns + 1);
+});
+
+test('ending the turn lets every regent play by the rules, then the next turn’s levy and orders arrive', () => {
+  const { reign, state } = reignOf('end', { renown: 2 });
+  const after = play(state, reign, { t: 'end' });
+  assert.deepEqual(after, play(state, reign, { t: 'end' }), 'the same turn ends the same way');
+  assert.equal(after.state.turn, 1);
+  assert.equal(after.state.orders, RULES.ORDERS_PER_TURN);
+  assert.ok(after.events.every((e) => e.side !== 'ash'), 'the regents play only their own sides');
+  assert.ok(after.state.pool.ash >= state.pool.ash + RULES.BASE_LEVY + 2, 'unplaced levy is kept, and renown adds to the next');
+  assert.ok(sound(after.state, reign.map));
+  for (const side of ['birch', 'cedar', 'dale']) {
+    const r = regentTurn(state, reign, side);
+    assert.deepEqual(r, regentTurn(state, reign, side));
+    assert.ok(r.events.length <= RULES.ORDERS_PER_TURN);
+    assert.ok(r.events.filter((e) => e.t === 'attack').length <= RULES.REGENT_ATTACKS);
+  }
+});
+
+test('the score: ten a province, twenty a town, two a battle won, one off for each troop lost', () => {
+  const { reign, state } = reignOf('score');
+  const map = reign.map;
+  const s = { ...state, holder: state.holder.map((h, i) => (i < 6 ? 'ash' : h === 'ash' ? 'birch' : h)), won: { ash: 4 }, lost: { ash: 7 } };
+  const towns = s.holder.filter((h, i) => h === 'ash' && terrainOf(map, i) === 'town').length;
+  assert.deepEqual(scoreOf(s, map, 'ash'), { provinces: 6, towns, won: 4, lost: 7, total: (6 - towns) * 10 + towns * 20 + 8 - 7 });
+  assert.equal(scoreOf({ ...s, lost: { ash: 999 } }, map, 'ash').total, 0, 'never below nothing');
+});
+
+test('a reign replays to the same position and score; the moves after its end, a forged move and an unfinished list are refused', () => {
+  const { field, reign, state, moves } = regentReign('replay');
+  assert.equal(state.turn, RULES.TURNS);
+  assert.equal(moves.filter((m) => m.t === 'end').length, RULES.TURNS);
+  const once = replay(field.start, reign, moves);
+  assert.deepEqual(once.state, state);
+  assert.deepEqual(once, replay(field.start, reign, moves), 'the same moves, the same score');
+  assert.deepEqual(once.score, scoreOf(state, reign.map, 'ash'));
+  assert.throws(() => replay(field.start, reign, [...moves, { t: 'end' }]), refused('over'));
+  assert.throws(() => replay(field.start, reign, moves.slice(0, -1)), refused('unfinished'));
+  assert.throws(() => replay(field.start, reign, Array.from({ length: RULES.MAX_MOVES + 1 }, () => ({ t: 'end' }) as Move)), refused('too_long'));
+  // A fourth order in the first turn, a troop placed on a province of another house, or a march to nowhere.
+  const seat = field.start.seats.ash;
+  const own = neighbours(reign.map, seat).find((n) => field.start.holder[n] === 'ash')!;
+  assert.throws(() => replay(field.start, reign, [...Array.from({ length: 4 }, () => ({ t: 'march', from: seat, to: own, troops: 1 }) as Move), ...moves]), (e: unknown) => e instanceof CampaignError);
+  assert.throws(() => replay(field.start, reign, [{ t: 'place', to: field.start.seats.birch }, ...moves]), refused('not_yours'));
+  assert.throws(() => replay(field.start, reign, [{ t: 'march', from: seat, to: 999, troops: 1 }, ...moves]), refused('no_province'));
+  assert.throws(() => replay(field.start, reign, [{ t: 'fly' } as unknown as Move, ...moves]), refused('no_province'));
+  // Renown is part of the reign: the same moves with more of it end elsewhere, so the server replays with what it stored.
+  const idle = Array.from({ length: RULES.TURNS }, () => ({ t: 'end' }) as Move);
+  assert.notDeepEqual(replay(field.start, { ...reign, renown: 2 }, idle).state.pool, replay(field.start, reign, idle).state.pool);
+});
+
+test('a reign between regents: no seat falls, scores spread, and the lead can still change on the last turn', () => {
+  const scores: number[] = [];
+  let lastTurnChanges = 0, changes = 0;
+  const runs = 60;
+  for (let i = 0; i < runs; i++) {
+    const { state, reign, leaders } = regentReign(`season${i}`, { player: SIDES[i % 4], renown: 1 });
+    for (const side of SIDES) assert.equal(state.holder[state.seats[side]], side, 'a seat never falls');
+    assert.ok(sound(state, reign.map));
+    const table = standings(state, SIDES);
+    assert.ok(table.at(-1)!.provinces >= 1, 'nobody is out');
+    assert.ok(table[0].provinces <= 11, 'nobody runs away with the whole map');
+    scores.push(scoreOf(state, reign.map, reign.player).total);
+    if (leaders.at(-1) !== leaders.at(-2)) lastTurnChanges++;
+    for (let k = 1; k < leaders.length; k++) if (leaders[k] !== leaders[k - 1]) changes++;
+    assert.ok(troopsOf(state, reign.player) >= 1);
+  }
+  scores.sort((a, b) => a - b);
+  const at = (f: number) => scores[Math.floor(f * (scores.length - 1))];
+  assert.ok(at(0.9) - at(0.1) >= 30, `scores spread from ${at(0.1)} to ${at(0.9)}`);
+  assert.ok(lastTurnChanges > 0, 'some reigns are decided only on the last turn');
+  assert.ok(changes / runs >= 1.5, `the lead changes ${(changes / runs).toFixed(1)} times a reign`);
 });

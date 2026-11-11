@@ -78,13 +78,14 @@ async function leaveTraces(who: { id: string; name: string; role: Role }, other?
   await run('family', "INSERT INTO campaign_member (season, account, name, side, pledged, orders) VALUES (1, ?, ?, 'ash', 1, 2)", who.id, who.name);
   await run('family', "INSERT INTO campaign_log (season, day, at, kind, side, account, name) VALUES (1, 1, '2026-11-10T08:00:00Z', 'pledge', 'ash', ?, ?)", who.id, who.name);
   await run('family', "INSERT INTO campaign_push (account, day) VALUES (?, '2026-11-10')", who.id);
+  await run('family', "INSERT INTO campaign_run (id, account, name_then, side, week, seed, field, score, finished_at, created_at) VALUES (?, ?, ?, 'ash', '2026-W46', 's', '{}', 40, '2026-11-10T08:00:00Z', '2026-11-10T08:00:00Z')", crypto.randomUUID(), who.id, who.name);
   await run('family', 'INSERT INTO response_push (account, enabled) VALUES (?, 1)', who.id);
   await device(who.id, 'family', `https://web.push.apple.com/${who.id}-family`);
   if (other) await device(who.id, other, `https://web.push.apple.com/${who.id}-other`);
   return { story: s, commentId };
 }
 
-test('removing a member takes their reactions, quiz answers, Campaign rows, push claims and devices; memories and comments stay', async () => {
+test('removing a member takes their reactions, quiz answers, Campaign rows and reigns, push claims and devices; memories and comments stay', async () => {
   const lou = await member('Lou Leaving', 'contributor');
   const other = await member('Ola Other', 'contributor');
   const { story: s } = await leaveTraces(lou);
@@ -95,7 +96,7 @@ test('removing a member takes their reactions, quiz answers, Campaign rows, push
   await M.endMembership('family', lou.id);
 
   assert.equal(await store.membership(lou.id, 'family'), undefined);
-  for (const table of ['reaction', 'quiz_answer', 'campaign_member', 'campaign_push', 'response_push']) assert.equal(await count(table, 'account = ?'.replace('?', `'${lou.id}'`)), 0, `${table} of the removed member`);
+  for (const table of ['reaction', 'quiz_answer', 'campaign_member', 'campaign_push', 'campaign_run', 'response_push']) assert.equal(await count(table, 'account = ?'.replace('?', `'${lou.id}'`)), 0, `${table} of the removed member`);
   assert.equal(await devices(lou.id), 0, 'no reminder device is left for the family');
   // What others did, and what is the family's record, is untouched.
   assert.equal(await count('reaction', `account = '${other.id}'`), 1);

@@ -123,7 +123,7 @@ export const quizView = (tree: string, who: Who, now: Date = new Date()): Promis
 
 /**
  * A member's answer to today's question. One for each member and day: a second one changes nothing and gets the
- * first one's result back. A right answer earns an extra order in the Campaign while it is on (once a day).
+ * first one's result back. A right answer adds levy to the member's next Campaign reign that day while the game is on.
  */
 export async function answerQuiz(tree: string, who: Who, day: string, choice: string, now: Date = new Date()): Promise<QuizView> {
   const d = db(tree);
@@ -134,7 +134,7 @@ export async function answerQuiz(tree: string, who: Who, day: string, choice: st
   if (!validChoice(JSON.parse(row.question) as QuizQuestion, choice)) throw new Error('today.err.choice');
   const correct = choice === row.answer;
   if (isDemo()) {
-    // The result, shown and forgotten: no streak, no table, no order in the Campaign.
+    // The result, shown and forgotten: no streak, no table, no reward in the Campaign.
     const view = await viewOf(tree, who, day);
     return { ...view, mine: { choice, correct }, answer: row.answer, about: row.about ?? undefined, demo: true };
   }
@@ -152,8 +152,9 @@ export async function answerQuiz(tree: string, who: Who, day: string, choice: st
   });
   const view = await viewOf(tree, who, day);
   if (!fresh || !correct) return view;
-  // The Campaign's own rule decides (off, or already given today): the quiz never fails because of the game.
-  const bonus = await (await import('../campaign/campaign.server.ts')).grantOrder(tree, who.account, 'quiz', now).then((r) => r.granted, () => false);
+  // While the Campaign is on, the right answer adds to the first turn of the member's next reign today (the Campaign reads
+  // the answer itself when the reign begins). The quiz never fails because of the game.
+  const bonus = await (await import('../campaign/campaign.server.ts')).quizRewardOn(tree).catch(() => false);
   return { ...view, bonus };
 }
 

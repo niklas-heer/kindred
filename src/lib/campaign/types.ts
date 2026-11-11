@@ -1,54 +1,79 @@
 // What the campaign's pages receive from the server. Types only: safe to import anywhere.
-import type { GameEvent, GameMap, Levy, State } from './engine.ts';
+import type { GameMap, Move, PlaceIn, Score, State } from './engine.ts';
 import type { Renown } from './renown.ts';
 import type { House } from '../types.ts';
 
-/** A side as a season keeps it: a house (with the smaller houses allied to it) or a regent company. */
+/** A side as a field keeps it: a house (with the smaller houses allied to it) or an invented regent company. */
 export interface StoredSide {
   id: string;
   name: string;
   arms: House['arms'];
-  /** An invented company a regent always plays. */
+  /** An invented company: a regent always plays it. */
   rival: boolean;
   /** The house ids that fight under this banner: its own, then its allies'. */
   houses: string[];
   allies: { id: string; name: string }[];
-  /** What renown added to its levy at the last nightfall. */
-  bonus: number;
 }
 
+/** A side as the page shows it: its house's name and arms today, and its renown. */
 export interface SideView extends StoredSide {
-  provinces: number;
-  troops: number;
-  /** Levy waiting to be mustered. */
-  pool: number;
-  /** Tomorrow's levy, with its parts. */
-  levy: Levy;
   renown: Renown;
-  /** Members who fight for it. */
-  members: number;
-  /** Seasons it has won. */
-  laurels: number;
 }
 
-export type LogKind = 'muster' | 'march' | 'attack' | 'season_start' | 'season_end' | 'pledge' | 'bonus';
+/** What a reign is played on: the map with its terrain, the four sides in their order, and the opening. */
+export interface FieldView { map: GameMap; sides: StoredSide[]; start: State }
 
-export interface LogEntry {
-  id: number;
-  day: number;
-  at: string;
-  kind: LogKind;
+/** This week's challenge, as the reader would play it. */
+export interface Challenge {
+  /** The ISO week, "2026-W46", and its last day (a Sunday, UTC). */
+  week: string;
+  ends: string;
+  /** The dice's seed for this week. A browser can see it; no browser can work out another week's. */
+  seed: string;
+  field: FieldView;
+  /** The side the reader plays: their own house's, or null until they choose one. */
   side: string | null;
-  /** The member's name as it was then; null for a regent. */
-  name: string | null;
-  /** Whether the reader gave this order. */
-  mine: boolean;
-  event?: GameEvent;
-  /** For the season's end: the winner's side id. */
-  winner?: string | null;
-  cry: string | null;
+  /** True when the reader stands for nobody in a house, so the side is theirs to choose for each reign. */
+  chooses: boolean;
+  /** What renown adds to the levy each turn for each side the reader could play. */
+  renown: Record<string, number>;
+  /** The daily quiz's reward waiting for the reader's next reign today: extra levy on its first turn. */
+  grant: number;
 }
 
+/** A reign the server has begun: what the browser plays it with. */
+export interface RunStart {
+  id: string;
+  week: string;
+  seed: string;
+  field: FieldView;
+  side: string;
+  renown: number;
+  grant: number;
+}
+
+/** One line of a table: a member's best (or one reign), by the name they had then. */
+export interface BoardRow {
+  name: string;
+  side: string;
+  score: number;
+  /** Reigns finished this week (the weekly table only). */
+  runs?: number;
+  /** The week it was played (the all-time list only). */
+  week?: string;
+  mine: boolean;
+}
+
+export interface HouseTotal { side: string; name: string; arms: House['arms']; total: number; members: number }
+
+export interface Leaderboard {
+  week: BoardRow[];
+  allTime: BoardRow[];
+  houses: HouseTotal[];
+  me: { best: number | null; runs: number; rank: number | null; of: number };
+}
+
+/** A season of the old shared game: its winner and standings, kept for the hall of fame. */
 export interface FameEntry {
   season: number;
   ended: string;
@@ -56,44 +81,30 @@ export interface FameEntry {
   standings: { id: string; name: string; provinces: number; troops: number }[];
 }
 
-export interface CampaignMe {
-  /** The side the reader fights for, or null until they choose one. */
-  side: string | null;
-  /** True when the reader stands for nobody in a house, so the side is theirs to choose. */
-  chooses: boolean;
-  orders: number;
-  /** Whether today's bonus order has been earned. */
-  bonusToday: boolean;
-}
-
-export interface CampaignBoard {
-  map: GameMap;
-  sides: SideView[];
-  /** Each side's people per province name: decides the seats of a practice skirmish as it did the season's. */
-  homes: Record<string, Record<string, number>>;
-}
-
 export interface CampaignView {
   enabled: boolean;
-  /** The map and sides, also while the game is off: the practice skirmish needs nothing else. */
-  board: CampaignBoard;
-  season?: { number: number; day: number; days: number; started: string; ends: string };
-  state?: State;
-  me?: CampaignMe;
-  log?: LogEntry[];
-  /** Provinces that changed hands since the reader last looked. */
-  changed?: number[];
+  /** What a practice reign is made from (a fresh field each time): the family's places and the sides, also while the game is off. */
+  kit: { places: PlaceIn[]; sides: SideView[] };
+  /** The side of the reader's own house among the kit's sides, or null when they stand for nobody in one. */
+  mySide: string | null;
+  /** This week's challenge and table, while the game is on. */
+  challenge?: Challenge;
+  board?: Leaderboard;
   fame: FameEntry[];
 }
 
 /** The small summary the Today page's card and the navigation use. */
 export interface CampaignStatus {
   enabled: boolean;
-  season?: number;
-  day?: number;
-  days?: number;
-  side?: { id: string; name: string; arms: House['arms']; provinces: number; rank: number; of: number } | null;
-  orders?: number;
+  week?: string;
+  /** The reader's best this week, their reigns, and their place among the members who played. */
+  best?: number | null;
+  runs?: number;
+  rank?: number | null;
+  of?: number;
 }
 
-export interface OrderResult { event: GameEvent; orders: number }
+/** What finishing a reign answers: its score as the server worked it out, and where it stands. */
+export interface FinishResult { score: Score; best: number; rank: number; of: number; personalBest: boolean }
+
+export type { Move };

@@ -308,7 +308,7 @@ async function demoChecks(config: string, tree: string) {
     check(page.headers.get('set-cookie') === null, 'demo: no cookie is set');
 
     // Today, with the family's feed: its page of reads runs on D1 (one batch over posts, stories, media, history and the
-    // Campaign's seasons), and a demo's visitor is told why they cannot write.
+    // Campaign's seasons of old), and a demo's visitor is told why they cannot write.
     const today = await fetch(`${base}/${tree}/today`, { redirect: 'manual' });
     const todayHtml = await today.text();
     check(today.status === 200 && todayHtml.includes('From the family'), `demo: /${tree}/today renders with the feed (got ${today.status})`);

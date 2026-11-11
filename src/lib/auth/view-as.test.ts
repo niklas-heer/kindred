@@ -415,27 +415,27 @@ test('a preview leaves no trace: no visit, no news mark, no quiz draw, no statis
   assert.equal(await rows('SELECT last_seen AS n FROM user WHERE id = ?', MEMBER), memberSeen, 'the member was not seen');
 });
 
-test('the Campaign opens in a preview and plays no night', async () => {
+test('the Campaign opens in a preview, and a preview can neither begin nor finish a reign', async () => {
   steward(null);
   await campaign.setCampaignOn({ data: { tree: TREE, on: true } });
   const d = dbs.db(TREE);
-  // Three nights have passed since anyone opened the game: a member's visit would play them.
-  await d.run('UPDATE campaign_season SET started = started - 3');
-  const stored = async () => JSON.stringify(await d.all('SELECT * FROM campaign_season')) + (await d.get<{ n: number }>('SELECT count(*) AS n FROM campaign_log'))!.n;
+  const stored = async () => JSON.stringify(await d.all('SELECT * FROM campaign_run')) + JSON.stringify(await d.all('SELECT * FROM campaign_season'));
   const was = await stored();
   for (const choice of [{ kind: 'member', member: MEMBER }, { kind: 'role', role: 'viewer' }] as const) {
     await start(choice);
     steward();
     const view = await campaign.getCampaign({ data: { tree: TREE } });
-    assert.equal(view.enabled, true, 'the page shows the season as it was last played');
-    assert.equal(await stored(), was, 'no night was played');
+    assert.equal(view.enabled, true, 'the page shows the week, so the field can be played without sending it');
+    assert.ok(view.challenge!.field.map.provinces.length > 0);
     steward();
-    await assert.rejects(campaign.markCampaignSeen({ data: { tree: TREE, upTo: 1 } }), refusedAsPreview);
+    const side = view.challenge!.side ?? view.challenge!.field.sides[0].id;
+    await assert.rejects(campaign.startCampaignRun({ data: { tree: TREE, side } }), refusedAsPreview);
+    steward();
+    await assert.rejects(campaign.finishCampaignRun({ data: { tree: TREE, opKey: 'k12345678', id: crypto.randomUUID(), moves: [] } }), refusedAsPreview);
+    assert.equal(await stored(), was, 'nothing was stored');
     await stop();
   }
   steward(null);
-  await campaign.getCampaign({ data: { tree: TREE } });
-  assert.notEqual(await stored(), was, 'the steward’s own visit plays the nights');
   await campaign.setCampaignOn({ data: { tree: TREE, on: false } });
 });
 

@@ -1,77 +1,62 @@
-// The campaign page's side panels: the chronicle, a house's renown with what would raise it, the hall of fame, and
-// "how it works". All of them only read.
+// The campaign page's panels: the family's tables (this week, all time, the houses), a house's renown with what would
+// raise it, the seasons of the old shared game, and "how it works". All of them only read.
 import { Link } from '@tanstack/react-router';
-import { BookOpen, Footprints, Landmark, ScrollText, Sparkles, Swords, Tent, Trophy } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { BookOpen, Castle, Crown, Swords, Trophy, Users } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import { Arms } from '~/components/Heraldry';
-import { Dialog } from '~/components/ui';
-import { RULES, type GameMap, type Levy } from '~/lib/campaign/engine';
+import { Dialog, Segmented } from '~/components/ui';
+import { RULES } from '~/lib/campaign/engine';
 import { RENOWN_STEPS, type RenownKey } from '~/lib/campaign/renown';
-import type { FameEntry, LogEntry, SideView } from '~/lib/campaign/types';
+import type { BoardRow, FameEntry, Leaderboard, SideView, StoredSide } from '~/lib/campaign/types';
 import { formatDate, useT, type Key } from '~/lib/i18n';
 import { Laurel } from './Board';
 
-// ---------- the chronicle ----------
+// ---------- the tables ----------
 
-/** One chronicle entry as a sentence in the reader's language. */
-function useLine(map: GameMap, sides: SideView[]) {
+export function LeaderboardPanel({ board, sides }: { board: Leaderboard; sides: Pick<StoredSide, 'id' | 'name' | 'arms'>[] }) {
   const t = useT();
-  const house = (id: string | null | undefined) => sides.find((s) => s.id === id)?.name ?? t('campaign.free');
-  const place = (id: number) => map.provinces[id]?.name ?? '';
-  return (l: LogEntry): string => {
-    const e = l.event;
-    const who = l.name;
-    switch (l.kind) {
-      case 'season_start': return t('campaign.log.seasonStart');
-      case 'season_end': return l.winner ? t('campaign.log.seasonEnd', { house: house(l.winner) }) : t('campaign.log.seasonEndNone');
-      case 'pledge': return t('campaign.log.pledge', { name: who ?? '', house: house(l.side) });
-      case 'bonus': return t('campaign.log.bonus', { name: who ?? '' });
-      case 'muster': return e?.t === 'muster' ? t('campaign.log.muster', { name: who ?? '', count: e.troops, province: place(e.to), house: house(l.side) }) : '';
-      case 'march': return e?.t === 'march' ? t('campaign.log.march', { name: who ?? '', count: e.troops, from: place(e.from), province: place(e.to) }) : '';
-      case 'attack': {
-        if (e?.t !== 'attack') return '';
-        const vars = { name: who ?? '', house: house(l.side), province: place(e.to), defender: house(e.defender) };
-        if (e.took) return e.defender ? t(who ? 'campaign.log.took' : 'campaign.log.tookRegent', vars) : t(who ? 'campaign.log.claimed' : 'campaign.log.claimedRegent', vars);
-        return e.defender ? t(who ? 'campaign.log.repelled' : 'campaign.log.repelledRegent', vars) : t(who ? 'campaign.log.repelledFree' : 'campaign.log.repelledFreeRegent', vars);
-      }
-      default: return '';
-    }
-  };
-}
-
-const KIND_ICON: Record<LogEntry['kind'], ReactNode> = {
-  attack: <Swords size={15} />, muster: <Tent size={15} />, march: <Footprints size={15} />, season_start: <ScrollText size={15} />,
-  season_end: <Trophy size={15} />, pledge: <Landmark size={15} />, bonus: <Sparkles size={15} />,
-};
-
-export function CampaignChronicle({ log, map, sides, empty }: { log: LogEntry[]; map: GameMap; sides: SideView[]; empty: string }) {
-  const t = useT();
-  const line = useLine(map, sides);
-  let day = -1;
+  const [tab, setTab] = useState<'week' | 'all' | 'houses'>('week');
+  const sideOf = (id: string) => sides.find((s) => s.id === id);
+  const rows = (list: BoardRow[], all: boolean) => (
+    <ol className="cg-table">
+      {list.map((r, i) => {
+        const side = sideOf(r.side);
+        return (
+          <li key={`${r.name}-${i}`} className={r.mine ? 'is-mine' : ''} aria-current={r.mine ? 'true' : undefined}>
+            <span className="cg-table-rank">{i + 1}</span>
+            {side ? <Arms arms={side.arms} size={22} /> : <span />}
+            <span className="cg-table-name"><b>{r.name}</b><small>{all ? t('campaign.board.week_of', { week: r.week?.slice(6) ?? '' }) : t('campaign.board.runs', { count: r.runs ?? 0 })}</small></span>
+            <span className="cg-table-score">{r.score}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
   return (
-    <section className="ui-card cg-panel" aria-labelledby="cg-chronicle-h">
-      <h2 className="cg-h" id="cg-chronicle-h"><ScrollText size={18} aria-hidden /> {t('campaign.chronicle.title')}</h2>
-      {log.length === 0 ? <p className="muted cg-note">{empty}</p> : (
-        <ol className="cg-log">
-          {log.map((l) => {
-            const text = line(l);
-            if (!text) return null;
-            const head = l.day !== day ? <li key={`d${l.id}`} className="cg-log-day">{t('campaign.day', { day: l.day + 1 })}</li> : null;
-            day = l.day;
-            const side = sides.find((s) => s.id === l.side);
-            return [
-              head,
-              <li key={l.id} className={`cg-log-line${l.mine ? ' is-mine' : ''}${l.kind === 'attack' && l.event?.t === 'attack' && l.event.took ? ' is-took' : ''}`}>
-                <span className="cg-log-icon" aria-hidden>{side ? <Arms arms={side.arms} size={18} /> : KIND_ICON[l.kind]}</span>
-                <span>
-                  {text}
-                  {l.cry && <q className="cg-cry-said">{l.cry}</q>}
-                </span>
-              </li>,
-            ];
-          })}
+    <section className="ui-card cg-panel" aria-labelledby="cg-board-h">
+      <h2 className="cg-h" id="cg-board-h"><Trophy size={18} aria-hidden /> {t('campaign.board.title')}</h2>
+      <Segmented
+        aria-label={t('campaign.board.title')}
+        size="sm"
+        value={tab}
+        onChange={setTab}
+        options={[{ value: 'week', label: t('campaign.board.week') }, { value: 'all', label: t('campaign.board.all') }, { value: 'houses', label: t('campaign.board.houses') }]}
+      />
+      {tab === 'week' && (board.week.length ? rows(board.week, false) : <p className="muted cg-note">{t('campaign.board.empty')}</p>)}
+      {tab === 'all' && (board.allTime.length ? rows(board.allTime, true) : <p className="muted cg-note">{t('campaign.board.empty_all')}</p>)}
+      {tab === 'houses' && (board.houses.length ? (
+        <ol className="cg-table">
+          {board.houses.map((h, i) => (
+            <li key={h.side}>
+              <span className="cg-table-rank">{i + 1}</span>
+              <Arms arms={h.arms} size={22} />
+              <span className="cg-table-name"><b>{h.name}</b><small>{t('campaign.board.members', { count: h.members })}</small></span>
+              <span className="cg-table-score">{h.total}</span>
+            </li>
+          ))}
         </ol>
-      )}
+      ) : <p className="muted cg-note">{t('campaign.board.empty')}</p>)}
+      <p className="subtle cg-note">{tab === 'houses' ? t('campaign.board.houses_note') : t('campaign.board.note')}</p>
     </section>
   );
 }
@@ -87,20 +72,20 @@ const TIP: Record<RenownKey, Key> = {
   memories: 'campaign.tip.memories', events: 'campaign.tip.events', sources: 'campaign.tip.sources',
 };
 
-export function RenownCard({ side, levy, tree, mine }: { side: SideView; levy: Levy; tree: string; mine: boolean }) {
+export function RenownCard({ side, tree }: { side: SideView; tree: string }) {
   const t = useT();
   const r = side.renown;
   return (
     <section className="ui-card cg-panel cg-renown" aria-labelledby="cg-renown-h">
       <h2 className="cg-h" id="cg-renown-h"><BookOpen size={18} aria-hidden /> {t('campaign.renown.title', { house: side.name })}</h2>
-      <p className="muted cg-note">{t('campaign.renown.what')}</p>
+      <p className="muted cg-note">{t('campaign.renown.what', { max: RULES.RENOWN_MAX_BONUS })}</p>
       <div className="cg-score">
         <b className="cg-score-n">{r.score}</b><span className="subtle"> / 100</span>
         <div className="cg-meter" role="img" aria-label={t('campaign.renown.score', { score: r.score })}>
           <span style={{ width: `${r.score}%` }} />
           {RENOWN_STEPS.map((step) => <i key={step} style={{ left: `${step}%` }} />)}
         </div>
-        <p className="cg-next">{r.toNext === null ? t('campaign.renown.top') : t('campaign.renown.next', { count: r.toNext })}</p>
+        <p className="cg-next"><b>{t('campaign.levy.renown', { count: r.bonus })}</b> · {r.toNext === null ? t('campaign.renown.top') : t('campaign.renown.next', { count: r.toNext })}</p>
       </div>
       {r.parts.length > 0 && (
         <ul className="cg-parts">
@@ -113,12 +98,9 @@ export function RenownCard({ side, levy, tree, mine }: { side: SideView; levy: L
           ))}
         </ul>
       )}
-      <p className="cg-levy">
-        <Tent size={15} aria-hidden /> {t('campaign.levy.line', { total: levy.total, base: levy.base, renown: levy.renown, rally: levy.rally })}
-      </p>
       {r.tips.length > 0 && (
         <div className="cg-tips">
-          <h3>{mine ? t('campaign.tip.title') : t('campaign.tip.titleOther')}</h3>
+          <h3>{t('campaign.tip.title')}</h3>
           <ul>
             {r.tips.map((key) => <li key={key}>{t(TIP[key], { house: side.name })}</li>)}
           </ul>
@@ -128,30 +110,31 @@ export function RenownCard({ side, levy, tree, mine }: { side: SideView; levy: L
           </div>
         </div>
       )}
+      <p className="subtle cg-note">{t('campaign.renown.fixed')}</p>
     </section>
   );
 }
 
-// ---------- the hall of fame ----------
+// ---------- the seasons of old ----------
 
-export function HallOfFame({ fame }: { fame: FameEntry[] }) {
+export function SeasonsOfOld({ fame }: { fame: FameEntry[] }) {
   const t = useT();
+  if (!fame.length) return null;
   return (
     <section className="ui-card cg-panel" aria-labelledby="cg-fame-h">
-      <h2 className="cg-h" id="cg-fame-h"><Trophy size={18} aria-hidden /> {t('campaign.fame.title')}</h2>
-      {fame.length === 0 ? <p className="muted cg-note">{t('campaign.fame.empty')}</p> : (
-        <ol className="cg-fame">
-          {fame.map((f) => (
-            <li key={f.season}>
-              {f.winner ? <Arms arms={f.winner.arms} size={30} /> : <span />}
-              <span className="cg-fame-text">
-                <b><Laurel size={15} /> {f.winner?.name ?? t('campaign.fame.nobody')}</b>
-                <small>{t('campaign.fame.line', { season: f.season, date: formatDate(f.ended.slice(0, 10), t.locale), count: f.standings[0]?.provinces ?? 0 })}</small>
-              </span>
-            </li>
-          ))}
-        </ol>
-      )}
+      <h2 className="cg-h" id="cg-fame-h"><Laurel size={18} /> {t('campaign.fame.title')}</h2>
+      <p className="muted cg-note">{t('campaign.fame.what')}</p>
+      <ol className="cg-fame">
+        {fame.map((f) => (
+          <li key={f.season}>
+            {f.winner ? <Arms arms={f.winner.arms} size={30} /> : <span />}
+            <span className="cg-fame-text">
+              <b><Laurel size={15} /> {f.winner?.name ?? t('campaign.fame.nobody')}</b>
+              <small>{t('campaign.fame.line', { season: f.season, date: formatDate(f.ended.slice(0, 10), t.locale), count: f.standings[0]?.provinces ?? 0 })}</small>
+            </span>
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }
@@ -159,41 +142,34 @@ export function HallOfFame({ fame }: { fame: FameEntry[] }) {
 // ---------- how it works ----------
 
 /**
- * "How the Campaign works". `map` says a map is on the page behind it (the live season or a practice): then its main button goes
- * back to it. While the game is off there is none, so the practice skirmish is the main action and the other button just closes.
+ * "How the Campaign works". `onPlay` is the main action when the page offers one (a practice reign while the game is
+ * off); without it the dialog just closes.
  */
-export function HowItWorks({ open, onClose, onPractice, map = true }: { open: boolean; onClose: () => void; onPractice?: () => void; map?: boolean }) {
+export function HowItWorks({ open, onClose, onPlay, playLabel }: { open: boolean; onClose: () => void; onPlay?: () => void; playLabel?: string }) {
   const t = useT();
   const steps: { icon: ReactNode; title: Key; text: Key }[] = [
-    { icon: <Landmark size={20} />, title: 'campaign.how.map_title', text: 'campaign.how.map_text' },
-    { icon: <ScrollText size={20} />, title: 'campaign.how.orders_title', text: 'campaign.how.orders_text' },
+    { icon: <Crown size={20} />, title: 'campaign.how.reign_title', text: 'campaign.how.reign_text' },
+    { icon: <Users size={20} />, title: 'campaign.how.turn_title', text: 'campaign.how.turn_text' },
     { icon: <Swords size={20} />, title: 'campaign.how.battle_title', text: 'campaign.how.battle_text' },
     { icon: <BookOpen size={20} />, title: 'campaign.how.renown_title', text: 'campaign.how.renown_text' },
-    { icon: <Trophy size={20} />, title: 'campaign.how.season_title', text: 'campaign.how.season_text' },
+    { icon: <Castle size={20} />, title: 'campaign.how.score_title', text: 'campaign.how.score_text' },
   ];
-  const numbers = { orders: RULES.ORDERS_PER_DAY, bank: RULES.ORDERS_BANK, days: RULES.SEASON_DAYS, rounds: RULES.BATTLE_ROUNDS, max: RULES.GARRISON_MAX };
+  const numbers = { turns: RULES.TURNS, orders: RULES.ORDERS_PER_TURN, rounds: RULES.BATTLE_ROUNDS, max: RULES.RENOWN_MAX_BONUS };
   return (
     <Dialog
       open={open}
       onClose={onClose}
       variant="event"
       title={t('campaign.how.title')}
-      width="min(560px, 100vw - 24px)"
+      width="min(580px, 100vw - 24px)"
       initialFocus="[data-autofocus]"
       footer={
-        <>
-          {map || !onPractice ? (
-            <>
-              {onPractice && <button type="button" className="btn" onClick={onPractice}>{t('campaign.practice.try')}</button>}
-              <button type="button" className="btn primary" onClick={onClose} data-autofocus>{t(map ? 'campaign.how.close' : 'campaign.how.later')}</button>
-            </>
-          ) : (
-            <>
-              <button type="button" className="btn" onClick={onClose}>{t('campaign.how.later')}</button>
-              <button type="button" className="btn primary" onClick={onPractice} data-autofocus>{t('campaign.practice.try')}</button>
-            </>
-          )}
-        </>
+        onPlay ? (
+          <>
+            <button type="button" className="btn" onClick={onClose}>{t('campaign.how.later')}</button>
+            <button type="button" className="btn primary" onClick={onPlay} data-autofocus>{playLabel}</button>
+          </>
+        ) : <button type="button" className="btn primary" onClick={onClose} data-autofocus>{t('campaign.how.close')}</button>
       }
     >
       <ol className="cg-how">

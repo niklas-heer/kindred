@@ -75,6 +75,8 @@ export const LEFT_OUT_TABLES: Record<string, string> = {
   campaign_member: 'the game\'s orders, keyed by account ids, which are not copied',
   campaign_log: 'the game\'s chronicle, which names accounts',
   campaign_push: 'the game\'s push claims, keyed by account ids',
+  // The Campaign's reigns (migration 0032) are a game's scores, keyed by account ids, which are not copied.
+  campaign_run: 'the game\'s reigns and their scores, keyed by account ids, which are not copied',
   // The change history (migration 0026) names members by their account ids, which are not copied, and its personal rows
   // would have no one to show them to. The target starts its own history.
   history: 'the change history, which names accounts; the target starts its own',

@@ -1,14 +1,12 @@
-// Games, for stewards: the switch for the Campaign (off until a steward turns it on) with "end the season now", and
-// the switch for the daily quiz on the Today page (on until a steward turns it off). The server checks the steward's
+// Games, for stewards: the switch for the Campaign (off until a steward turns it on), and the switch for the daily quiz on the Today page (on until a steward turns it off). The server checks the steward's
 // role on every call (src/lib/campaign/campaign.functions.ts, src/lib/today/today.functions.ts).
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Gamepad2, KeyRound, Swords } from 'lucide-react';
 import { GameIcon } from '~/components/GameIcon';
-import { useState } from 'react';
 import '~/components/campaign/campaign.css';
-import { ConfirmDialog, EmptyState, ErrorState, PageHeader, Skeleton, Switch } from '~/components/ui';
-import { campaignQuery, campaignSettingsQuery, campaignStatusQuery, endCampaignSeason, setCampaignOn } from '~/lib/campaign/campaign.functions';
+import { EmptyState, ErrorState, PageHeader, Skeleton, Switch } from '~/components/ui';
+import { campaignQuery, campaignSettingsQuery, campaignStatusQuery, setCampaignOn } from '~/lib/campaign/campaign.functions';
 import { RULES } from '~/lib/campaign/engine';
 import { errorText } from '~/lib/errortext';
 import { useFamily, useTreeId } from '~/lib/family';
@@ -29,7 +27,6 @@ function GamesPage() {
   const qc = useQueryClient();
   const steward = useCan('manage-access');
   const settings = useQuery({ ...campaignSettingsQuery(tree), enabled: steward });
-  const [ending, setEnding] = useState(false);
   const refresh = () => Promise.all([campaignSettingsQuery(tree), campaignQuery(tree), campaignStatusQuery(tree)].map((o) => qc.invalidateQueries({ queryKey: o.queryKey })));
   const toggle = useMutation({ mutationFn: (on: boolean) => setCampaignOn({ data: { tree, on } }), onSettled: refresh });
   const quiz = useQuery({ ...todaySettingsQuery(tree), enabled: steward });
@@ -37,7 +34,6 @@ function GamesPage() {
     mutationFn: (on: boolean) => setQuizOn({ data: { tree, on } }),
     onSettled: () => Promise.all([todaySettingsQuery(tree), quizQuery(tree)].map((o) => qc.invalidateQueries({ queryKey: o.queryKey }))),
   });
-  const end = useMutation({ mutationFn: () => endCampaignSeason({ data: { tree } }), onSuccess: () => setEnding(false), onSettled: refresh });
 
   if (!steward) {
     return <div className="page"><div className="page-inner"><EmptyState icon={<KeyRound size={30} />} title={t('campaign.games.only_stewards')} text={t('campaign.games.only_stewards_text', { family: f.graph.tree.name })} /></div></div>;
@@ -53,16 +49,15 @@ function GamesPage() {
             <div className="cg-games">
               <section className="ui-card" aria-labelledby="cg-games-h">
                 <h2 className="cg-h" id="cg-games-h"><Swords size={18} aria-hidden /> {t('campaign.title')}</h2>
-                <p>{t('campaign.games.what', { days: RULES.SEASON_DAYS })}</p>
+                <p>{t('campaign.games.what', { turns: RULES.TURNS })}</p>
                 <p className="muted">{t('campaign.games.promise')}</p>
                 <Switch checked={on} onChange={(next) => toggle.mutate(next)} disabled={toggle.isPending}>{t('campaign.games.switch')}</Switch>
                 {toggle.isError && <p role="alert">{errorText(toggle.error, t.locale)}</p>}
                 <div className="cg-games-row">
                   {settings.data.enabled && <Link className="btn primary" to="/$tree/campaign" params={{ tree }}>{t('campaign.card.open')}</Link>}
                   <Link className="btn" to="/$tree/campaign" params={{ tree }} search={{ practice: true }}>{t('campaign.practice.try')}</Link>
-                  {settings.data.enabled && settings.data.season > 0 && <button type="button" className="btn" onClick={() => setEnding(true)}>{t('campaign.games.end')}</button>}
                 </div>
-                {settings.data.enabled && settings.data.season > 0 && <p className="subtle">{t('campaign.games.season', { season: settings.data.season })}</p>}
+                {settings.data.enabled && <p className="subtle">{t('campaign.games.on')}</p>}
               </section>
               <section className="ui-card" aria-labelledby="cg-games-quiz">
                 <h2 className="cg-h" id="cg-games-quiz"><GameIcon name="laurel-crown" size={18} /> {t('today.games.title')}</h2>
@@ -79,17 +74,6 @@ function GamesPage() {
             </div>
           )}
       </div>
-      <ConfirmDialog
-        open={ending}
-        onClose={() => setEnding(false)}
-        onConfirm={() => end.mutate()}
-        title={t('campaign.games.end_title')}
-        confirmLabel={t('campaign.games.end_confirm')}
-        busy={end.isPending}
-        error={end.isError ? errorText(end.error, t.locale) : undefined}
-      >
-        <p>{t('campaign.games.end_text')}</p>
-      </ConfirmDialog>
     </div>
   );
 }

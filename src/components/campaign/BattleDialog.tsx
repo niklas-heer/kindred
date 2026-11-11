@@ -1,12 +1,12 @@
-// The battle: two banners, and the dice of each round as the server rolled them (or the engine, in a practice
-// skirmish). The rounds appear one after another; with "reduce motion" they are all there at once and nothing tumbles.
+// The battle: two banners, the ground it is fought on, and the dice of each round as the reign's seed rolled them. The rounds appear one after another; with "reduce motion" they are all there at once and nothing tumbles.
 // The result is also said in words, in a live region. Sound goes through the app's own switch (src/lib/sfx.ts).
 import { Flag, Swords } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Arms } from '~/components/Heraldry';
 import { Dialog } from '~/components/ui';
-import type { GameEvent, GameMap } from '~/lib/campaign/engine';
-import type { SideView } from '~/lib/campaign/types';
+import { RULES, type GameEvent, type GameMap } from '~/lib/campaign/engine';
+import type { BoardSide } from './Board';
+import { TERRAIN_NAME, TERRAIN_RULE, TerrainIcon } from './CampaignMap';
 import { useT } from '~/lib/i18n';
 import { play } from '~/lib/sfx';
 
@@ -33,7 +33,7 @@ function Die({ value, lost, defender, delay }: { value: number; lost: boolean; d
 const reducedMotion = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const ROUND_MS = 900;
 
-export function BattleDialog({ battle, map, sides, mySide, onClose }: { battle: Battle; map: GameMap; sides: SideView[]; mySide: string | null; onClose: () => void }) {
+export function BattleDialog({ battle, map, sides, mySide, onClose }: { battle: Battle; map: GameMap; sides: BoardSide[]; mySide: string | null; onClose: () => void }) {
   const t = useT();
   const attacker = sides.find((s) => s.id === battle.side);
   const defender = sides.find((s) => s.id === battle.defender);
@@ -80,6 +80,7 @@ export function BattleDialog({ battle, map, sides, mySide, onClose }: { battle: 
             <span className="muted">{t('campaign.battle.defended', { count: battle.defenders })}</span>
           </div>
         </div>
+        <p className="cb-terrain"><TerrainIcon terrain={battle.terrain} size={15} /> <b>{t(TERRAIN_NAME[battle.terrain])}</b> · {t(TERRAIN_RULE[battle.terrain], { cap: battle.terrain === 'town' ? RULES.TOWN_GARRISON_MAX : RULES.GARRISON_MAX })}</p>
         <ol className="cb-rounds">
           {battle.rounds.slice(0, shown).map((r, i) => (
             <li key={i} className="cb-round">

@@ -10,8 +10,8 @@
 //   --keep-png  also leave the full-size PNGs beside the WebP files (to look at them)
 //   --port      the port to serve on (default: the first free one from 4632)
 // The server runs on a clock of its own (scripts/lib/shot-clock.ts): first on 3 November 2026, when the steward turns the
-// Campaign on and a relative is invited, then on 7 November, the day the invented modern family is set on, so the season is
-// four days old, the week's question is the same every time, and the pictures differ between runs only where the data does.
+// Campaign on and a relative is invited, then on 7 November, the day the invented modern family is set on, so the week's
+// question is the same every time, and the pictures differ between runs only where the data does.
 // Screenshots are PNG from Playwright; cwebp (brew install webp) makes the WebP files, at the best quality that fits
 // MAX_BYTES. The scratch folder and the server are removed again whether or not a step fails.
 import { chromium, type BrowserContext, type Page } from '@playwright/test';
@@ -224,13 +224,16 @@ const SHOTS: Shot[] = [
     async run(page, origin) {
       await page.goto(`${origin}/modern/campaign`);
       await settle(page);
-      // A province of the house with an order on it: raise its garrison, then get an attack on a neighbour ready to send.
-      await page.locator('.cm-prov[data-mine]').first().click();
+      // A reign of this week's challenge: the levy placed, then an attack on a neighbour chosen, with its chance shown.
+      await page.getByRole('button', { name: 'Begin a reign' }).click();
       const orders = page.getByRole('complementary', { name: 'Your orders' });
-      await orders.getByRole('button', { name: /^Muster \d+ troops? at / }).click();
-      await orders.getByRole('region', { name: 'Chronicle of the campaign' }).or(page.getByRole('region', { name: 'Chronicle of the campaign' })).getByText(/mustered/).first().waitFor();
-      await orders.getByRole('button', { name: 'Attack' }).first().click();
-      await orders.getByLabel(/battle cry/i).fill('For Grandma!');
+      const mine = page.locator('.cm-prov[data-mine]').first();
+      const levy = Number((await orders.getByRole('heading', { name: /^Place your levy/ }).textContent())?.match(/\d+/)?.[0] ?? 0);
+      for (let i = 0; i < levy; i++) await mine.click();
+      if (await orders.getByRole('button', { name: 'On to the orders' }).isVisible()) await orders.getByRole('button', { name: 'On to the orders' }).click();
+      await mine.click();
+      await page.locator('.cm-prov[data-reach="attack"]').first().click();
+      await orders.getByTestId('chance').waitFor();
       await grab(page, 'campaign');
     },
   },
@@ -520,13 +523,13 @@ async function main() {
     await sayWhoIAm(page, origin, 'realm');
     await sayWhoIAm(page, origin, 'modern');
 
-    // Four days before the day of the pictures: the steward starts the Campaign, and invites a relative.
+    // Four days before the day of the pictures: the steward turns the Campaign on, and invites a relative.
     log('turning the Campaign on, and inviting a relative');
     await setGame(page, origin, 'modern', 'The Campaign is on for this family', true);
     const link = await invite(page, origin, 'modern');
     await joinByInvite(relative.page, origin, link, 'Johan Lindqvist', 'modern', 'p0018');
 
-    // The day of the pictures: the season is four days old, and the family has been busy.
+    // The day of the pictures: the family has been busy.
     log('moving the server to the day of the pictures');
     await stopServer();
     await startServer(port, origin, NOW);
@@ -536,9 +539,8 @@ async function main() {
     await takeQuiz(page, origin, 'modern');
     await page.goto(`${origin}/modern/campaign`);
     await settle(page);
-    await page.getByRole('dialog', { name: 'How the Campaign works' }).getByRole('button', { name: 'To the map' }).click({ timeout: 4000 }).catch(() => undefined);
-    await page.getByRole('button', { name: 'Serve Lindqvist' }).click();
-    await page.getByRole('complementary', { name: 'Your orders' }).getByTestId('orders-left').waitFor();
+    await page.getByRole('dialog', { name: 'How the Campaign works' }).getByRole('button', { name: 'Got it' }).click({ timeout: 4000 }).catch(() => undefined);
+    await page.getByRole('button', { name: 'Begin a reign' }).waitFor();
     await relative.context.close();
 
     for (const shot of wanted) {

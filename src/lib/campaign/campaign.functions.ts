@@ -1,19 +1,21 @@
 // The Campaign's server functions. Members only: every call checks the membership on the server (`requireMember`), which
-// refuses a share-link guest, so a guest never reads or plays the game. Viewers may play. The switch and "end the season
-// now" are the stewards' (`manage-access`). The dice are rolled on the server; the browser sends an order and reads the result.
+// refuses a share-link guest, so a guest never reads or plays the game. Viewers may play. The switch is the stewards'
+// (`manage-access`). The browser plays a reign and sends its moves; the server plays them again and keeps the score.
 import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
-import type { CampaignStatus, CampaignView, OrderResult } from './types.ts';
+import { RULES } from './engine.ts';
+import type { CampaignStatus, CampaignView, FinishResult, RunStart } from './types.ts';
 
 const tree = z.string().regex(/^[a-z0-9-]{1,64}$/);
 const opKey = z.string().regex(/^[A-Za-z0-9_-]{8,80}$/);
 const province = z.number().int().min(0).max(63);
 const troops = z.number().int().min(1).max(99);
-const order = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('muster'), to: province, troops }),
-  z.object({ type: z.literal('march'), from: province, to: province, troops }),
-  z.object({ type: z.literal('attack'), from: province, to: province, troops }),
+const move = z.discriminatedUnion('t', [
+  z.object({ t: z.literal('place'), to: province }),
+  z.object({ t: z.literal('march'), from: province, to: province, troops }),
+  z.object({ t: z.literal('attack'), from: province, to: province, troops }),
+  z.object({ t: z.literal('end') }),
 ]);
 
 const guard = () => import('../auth/guard.server');
@@ -25,54 +27,31 @@ async function member(t: string) {
   return { account: m.user.id, name: m.user.name, person: m.person };
 }
 
-/** Sends the day's push to the houses that lost a province, after the response: the page does not wait for it. */
-async function tell(t: string, fallen: import('./campaign.server').Fallen[]) {
-  if (!fallen.length) return;
-  const [{ notifyFallen }, { store }] = await Promise.all([import('./push.server'), import('../db.server')]);
-  store.keepAlive(notifyFallen(t, fallen));
-}
-
-/** The whole campaign page for a member. A POST, because opening the game plays the nights that have passed. */
+/** The whole campaign page for a member. A POST, because the first visit after the upgrade closes the old season. */
 export const getCampaign = createServerFn({ method: 'POST' })
   .validator(z.object({ tree }))
-  .handler(async ({ data }): Promise<CampaignView> => {
-    const who = await member(data.tree);
-    const { view, fallen } = await (await game()).campaignView(data.tree, who);
-    await tell(data.tree, fallen);
-    return view;
-  });
+  .handler(async ({ data }): Promise<CampaignView> => (await game()).campaignView(data.tree, await member(data.tree)));
 
 export const campaignQuery = (t: string) => queryOptions({ queryKey: ['campaign', t], queryFn: () => getCampaign({ data: { tree: t } }), staleTime: 15_000 });
 
-/** Whether the game is on, the season's day, the reader's house and orders: for the navigation and the Today card. */
+/** Whether the game is on, and where the reader stands this week: for the navigation and the Today card. */
 export const getCampaignStatus = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }): Promise<CampaignStatus> => (await game()).campaignStatus(data.tree, await member(data.tree)));
 
 export const campaignStatusQuery = (t: string) => queryOptions({ queryKey: ['campaign-status', t], queryFn: () => getCampaignStatus({ data: { tree: t } }), staleTime: 60_000 });
 
-export const giveCampaignOrder = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, opKey, order, cry: z.string().max(80).nullable() }))
-  .handler(async ({ data }): Promise<OrderResult> => {
-    const who = await member(data.tree);
-    const { result, fallen } = await (await game()).giveOrder(data.tree, who, data.order, data.cry, { key: data.opKey });
-    await tell(data.tree, fallen);
-    return result;
-  });
+/** Begins a reign of this week's challenge. `side` counts only for a member who stands for nobody in a house. */
+export const startCampaignRun = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, side: z.string().min(1).max(100).nullable() }))
+  .handler(async ({ data }): Promise<RunStart> => (await game()).startRun(data.tree, await member(data.tree), data.side));
 
-export const pledgeCampaignSide = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, side: z.string().min(1).max(100) }))
-  .handler(async ({ data }) => {
-    await (await game()).pledge(data.tree, await member(data.tree), data.side);
-  });
+/** Finishes a reign with the moves that were played. The score is the server's. */
+export const finishCampaignRun = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, opKey, id: z.string().uuid(), moves: z.array(move).max(RULES.MAX_MOVES) }))
+  .handler(async ({ data }): Promise<FinishResult> => (await game()).finishRun(data.tree, await member(data.tree), data.id, data.moves, { key: data.opKey }));
 
-export const markCampaignSeen = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, upTo: z.number().int().min(0) }))
-  .handler(async ({ data }) => {
-    await (await game()).markSeen(data.tree, await member(data.tree), data.upTo);
-  });
-
-// ---------- the stewards' controls ----------
+// ---------- the stewards' switch ----------
 
 export const getCampaignSettings = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
@@ -88,11 +67,4 @@ export const setCampaignOn = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const m = await (await guard()).requireCan(data.tree, 'manage-access');
     await (await game()).setCampaignEnabled(data.tree, data.on, m.user.id);
-  });
-
-export const endCampaignSeason = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree }))
-  .handler(async ({ data }) => {
-    await (await guard()).requireCan(data.tree, 'manage-access');
-    await (await game()).endSeasonNow(data.tree);
   });

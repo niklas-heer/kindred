@@ -20,9 +20,8 @@
 //           for, so a post stays signed and keeps its face; `account` is kept and matches nobody: only its writer may
 //           change a post, so it can then only be removed, by an editor), the change history with their name, the
 //           Campaign's chronicle (`campaign_log`: names, not accounts), join requests as history.
-//   goes    reactions, the daily quiz's answers (so standings and streaks), the Campaign's member rows (orders, pledge: their
-//           seat and command are free again and the regent rules cover them, because a house's side is worked out from the
-//           members who are there), the Campaign push claims, their opt-in for response pushes, their devices' choice to be
+//   goes    reactions, the daily quiz's answers (so standings and streaks), the Campaign's reigns (so their lines in the
+//           weekly and all-time tables) and its old member rows and push claims, their opt-in for response pushes, their devices' choice to be
 //           told about new posts (with the devices, in step 1), the items they kept for themselves (Personal fields) and the
 //           history rows of those.
 import { fail } from './guard.server';
@@ -42,6 +41,7 @@ export async function forgetInFamily(tree: string, user: string): Promise<void> 
       q('DELETE FROM quiz_answer WHERE account = ?', user),
       q('DELETE FROM campaign_member WHERE account = ?', user),
       q('DELETE FROM campaign_push WHERE account = ?', user),
+      q('DELETE FROM campaign_run WHERE account = ?', user),
       q('DELETE FROM response_push WHERE account = ?', user),
       // What they kept for themselves: nobody else could ever read or remove it, nor the history of it.
       q("DELETE FROM person_field WHERE visibility = 'personal' AND owner = ? AND (created_by = ? OR created_by IS NULL)", user, user),

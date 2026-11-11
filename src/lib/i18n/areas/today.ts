@@ -90,7 +90,7 @@ export const en = {
   "today.quiz.family": { one: "{count} of the family has answered today, {right} of them right.", other: "{count} of the family have answered today, {right} of them right." },
   "today.quiz.family_first": "You are the first to answer today.",
   "today.quiz.tomorrow": "A new question comes tomorrow.",
-  "today.quiz.bonus": "Your right answer earned you an extra order in the Campaign.",
+  "today.quiz.bonus": "Your right answer adds 2 troops to the first turn of your next reign in the Campaign today.",
   "today.quiz.houses": "Houses this month",
   "today.quiz.house_score": { one: "{count} right answer", other: "{count} right answers" },
 
@@ -113,7 +113,7 @@ export const en = {
 
   "today.games.title": "The daily quiz",
   "today.games.what": "“Do you know your family?” asks one question a day on the Today page, made from the family’s own records: a shield, a portrait, a birthplace, who is whose grandchild. Every member gets the same question, and one try.",
-  "today.games.promise": "It never asks how somebody died, and nothing a viewer could not read anyway. While the Campaign is on, a right answer earns an extra order there.",
+  "today.games.promise": "It never asks how somebody died, and nothing a viewer could not read anyway. While the Campaign is on, a right answer adds 2 troops to the first turn of the next reign played that day.",
   "today.games.switch": "The daily quiz is on for this family",
   "today.games.open": "Open Today",
 
@@ -214,7 +214,7 @@ export const de: Record<keyof typeof en, Message> = {
   "today.quiz.family": { one: "{count} aus der Familie hat heute geantwortet, davon {right} richtig.", other: "{count} aus der Familie haben heute geantwortet, davon {right} richtig." },
   "today.quiz.family_first": "Heute hat vor dir noch niemand geantwortet.",
   "today.quiz.tomorrow": "Morgen kommt eine neue Frage.",
-  "today.quiz.bonus": "Deine richtige Antwort hat dir einen zusätzlichen Befehl im Feldzug eingebracht.",
+  "today.quiz.bonus": "Deine richtige Antwort bringt dir 2 Truppen mehr im ersten Zug deiner nächsten Herrschaft im Feldzug heute.",
   "today.quiz.houses": "Häuser in diesem Monat",
   "today.quiz.house_score": { one: "{count} richtige Antwort", other: "{count} richtige Antworten" },
 
@@ -237,7 +237,7 @@ export const de: Record<keyof typeof en, Message> = {
 
   "today.games.title": "Das tägliche Quiz",
   "today.games.what": "„Kennst du deine Familie?“ stellt auf der Seite „Heute“ jeden Tag eine Frage aus den eigenen Angaben der Familie: ein Wappen, ein Porträt, ein Geburtsort, wer wessen Enkelkind ist. Alle Mitglieder bekommen dieselbe Frage und einen Versuch.",
-  "today.games.promise": "Es fragt nie, woran jemand gestorben ist, und nichts, was Lesende nicht ohnehin sehen dürfen. Solange der Feldzug läuft, bringt eine richtige Antwort dort einen zusätzlichen Befehl.",
+  "today.games.promise": "Es fragt nie, woran jemand gestorben ist, und nichts, was Lesende nicht ohnehin sehen dürfen. Solange der Feldzug läuft, bringt eine richtige Antwort 2 Truppen mehr im ersten Zug der nächsten Herrschaft an diesem Tag.",
   "today.games.switch": "Das tägliche Quiz ist für diese Familie eingeschaltet",
   "today.games.open": "Heute öffnen",
 
@@ -338,7 +338,7 @@ export const af: Record<keyof typeof en, Message> = {
   "today.quiz.family": { one: "{count} van die familie het vandag geantwoord, {right} van hulle reg.", other: "{count} van die familie het vandag geantwoord, {right} van hulle reg." },
   "today.quiz.family_first": "Jy is die eerste wat vandag antwoord.",
   "today.quiz.tomorrow": "Môre kom daar ’n nuwe vraag.",
-  "today.quiz.bonus": "Jou regte antwoord het jou ’n ekstra bevel in die Veldtog besorg.",
+  "today.quiz.bonus": "Jou regte antwoord gee jou 2 troepe meer in die eerste beurt van jou volgende bewind in die Veldtog vandag.",
   "today.quiz.houses": "Huise hierdie maand",
   "today.quiz.house_score": { one: "{count} regte antwoord", other: "{count} regte antwoorde" },
 
@@ -361,7 +361,7 @@ export const af: Record<keyof typeof en, Message> = {
 
   "today.games.title": "Die daaglikse vasvra",
   "today.games.what": "„Ken jy jou familie?“ vra elke dag een vraag op die Vandag-bladsy, gemaak uit die familie se eie rekords: ’n wapen, ’n portret, ’n geboorteplek, wie wie se kleinkind is. Elke lid kry dieselfde vraag, en een kans.",
-  "today.games.promise": "Dit vra nooit hoe iemand gesterf het nie, en niks wat ’n kyker nie in elk geval kan lees nie. Terwyl die Veldtog aan is, verdien ’n regte antwoord ’n ekstra bevel daar.",
+  "today.games.promise": "Dit vra nooit hoe iemand gesterf het nie, en niks wat ’n kyker nie in elk geval kan lees nie. Terwyl die Veldtog aan is, gee ’n regte antwoord 2 troepe meer in die eerste beurt van die volgende bewind daardie dag.",
   "today.games.switch": "Die daaglikse vasvra is aan vir hierdie familie",
   "today.games.open": "Maak Vandag oop",
 
