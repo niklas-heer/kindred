@@ -48,7 +48,8 @@ Each recipe has a page, `/<family>/recipe/<id>`:
 - the picture, the name, whose kitchen it is from (with their face) and who wrote it down;
 - **how much to make**: fewer or more servings, any number typed in, or ½×, 1×, 2× in one press. The amounts follow.
   Fractions stay fractions ("1 1/2" doubled is "3", halved is "¾"), a decimal stays a decimal in the reader's notation,
-  and words such as "a pinch" are left alone. A recipe that does not say what it serves is scaled by times;
+  a point between groups of three figures is read as thousands ("1.000 g Mehl" is a kilogram), a tiny amount never
+  scales to nothing, and words such as "a pinch" are left alone. A recipe that does not say what it serves is scaled by times;
 - **ingredients to tick off**. The ticks are the reader's own, kept in that browser for that recipe, so they survive a
   reload;
 - the method, with its pictures, and the notes;

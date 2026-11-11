@@ -162,25 +162,29 @@ export const hasSubstance = (r: RecipeBody) => r.groups.some((g) => g.items.leng
 
 const VULGAR: Record<string, number> = { '½': 1 / 2, '⅓': 1 / 3, '⅔': 2 / 3, '¼': 1 / 4, '¾': 3 / 4, '⅕': 1 / 5, '⅖': 2 / 5, '⅗': 3 / 5, '⅘': 4 / 5, '⅙': 1 / 6, '⅚': 5 / 6, '⅛': 1 / 8, '⅜': 3 / 8, '⅝': 5 / 8, '⅞': 7 / 8 };
 const VULGAR_CHARS = Object.keys(VULGAR).join('');
-const NUM = String.raw`\d+(?:[.,]\d+)?`;
+/** A point between groups of three figures is a thousands separator, as German writes it: "1.000" is a thousand, "1.000,5" a thousand and a half. */
+const THOUSANDS = String.raw`[1-9]\d{0,2}(?:\.\d{3})+(?:,\d+)?`;
+const NUM = String.raw`(?:${THOUSANDS}|\d+(?:[.,]\d+)?)`;
+/** The value of a figure NUM matched: "1.000" is 1000, "1,5" and "1.5" are 1.5. */
+const figure = (text: string) => Number(new RegExp(`^${THOUSANDS}$`).test(text) ? text.replace(/\./g, '').replace(',', '.') : text.replace(',', '.'));
 /** One number as people write it: "2", "1,5", "1/2", "1 1/2", "½", "1½", "1 ½". */
 const ONE = String.raw`(?:${NUM}\s*[${VULGAR_CHARS}]|${NUM}\s+\d+\s*/\s*\d+|\d+\s*/\s*\d+|[${VULGAR_CHARS}]|${NUM})`;
 /** A number, or a range of two: "2-3", "2 – 3", "2 to 3", "2 bis 3", "2 tot 3". */
 const AMOUNT = String.raw`${ONE}(?:\s*(?:[-–—]|to|bis|tot)\s*${ONE})?`;
 const AMOUNT_ONLY = new RegExp(String.raw`^\s*(${ONE})(?:\s*([-–—]|to|bis|tot)\s*(${ONE}))?\s*$`, 'i');
 
-/** The value of one written number, or null: "1 1/2" is 1.5, "¾" is 0.75, "1,5" is 1.5. */
+/** The value of one written number, or null: "1 1/2" is 1.5, "¾" is 0.75, "1,5" is 1.5, "1.000" is 1000. */
 export function numberOf(text: string): number | null {
   const s = text.trim();
   let m = new RegExp(String.raw`^(${NUM})\s*([${VULGAR_CHARS}])$`).exec(s);
-  if (m) return Number(m[1]!.replace(',', '.')) + VULGAR[m[2]!]!;
+  if (m) return figure(m[1]!) + VULGAR[m[2]!]!;
   m = new RegExp(String.raw`^(${NUM})\s+(\d+)\s*/\s*(\d+)$`).exec(s);
-  if (m) return Number(m[3]) ? Number(m[1]!.replace(',', '.')) + Number(m[2]) / Number(m[3]) : null;
+  if (m) return Number(m[3]) ? figure(m[1]!) + Number(m[2]) / Number(m[3]) : null;
   m = /^(\d+)\s*\/\s*(\d+)$/.exec(s);
   if (m) return Number(m[2]) ? Number(m[1]) / Number(m[2]) : null;
   if (s.length === 1 && VULGAR[s] !== undefined) return VULGAR[s]!;
   m = new RegExp(`^${NUM}$`).exec(s);
-  return m ? Number(s.replace(',', '.')) : null;
+  return m ? figure(s) : null;
 }
 
 const FRACTIONS: [number, string][] = [[1 / 8, '⅛'], [1 / 4, '¼'], [1 / 3, '⅓'], [3 / 8, '⅜'], [1 / 2, '½'], [5 / 8, '⅝'], [2 / 3, '⅔'], [3 / 4, '¾'], [7 / 8, '⅞']];
@@ -195,12 +199,13 @@ export function formatAmount(n: number, locale = 'en', decimal = false): string 
   if (!decimal && n < 20) {
     const base = Math.floor(n + 1e-9);
     const rest = n - base;
-    if (rest < 0.02) return String(base || '');
+    if (rest < 0.02 && base) return String(base);
     const hit = FRACTIONS.find(([v]) => Math.abs(v - rest) < 0.02);
     if (hit) return `${base || ''}${hit[1]}`;
   }
   const rounded = n >= 100 ? Math.round(n) : n >= 10 ? Math.round(n * 10) / 10 : Math.round(n * 100) / 100;
-  return new Intl.NumberFormat(locale, { maximumFractionDigits: 2, useGrouping: false }).format(rounded || n);
+  // Less than a hundredth keeps its first figure ("0.004"), so a tiny amount never comes back as nothing or nought.
+  return new Intl.NumberFormat(locale, rounded ? { maximumFractionDigits: 2, useGrouping: false } : { maximumSignificantDigits: 1, useGrouping: false }).format(rounded || n);
 }
 
 /**

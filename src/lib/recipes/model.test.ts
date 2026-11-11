@@ -57,6 +57,26 @@ test('written numbers are read', () => {
   assert.equal(numberOf('a pinch'), null);
 });
 
+test('a point between groups of three is a thousands separator: "1.000 g Mehl" is a kilogram', () => {
+  assert.equal(numberOf('1.000'), 1000);
+  assert.equal(numberOf('2.500'), 2500);
+  assert.equal(numberOf('1.000.000'), 1_000_000);
+  assert.equal(numberOf('1.000,5'), 1000.5);
+  // Not when it cannot be one: a decimal with fewer figures, or a nought before the point.
+  assert.equal(numberOf('1.5'), 1.5);
+  assert.equal(numberOf('1.25'), 1.25);
+  assert.equal(numberOf('0.250'), 0.25);
+  assert.deepEqual(parseIngredient('1.000 g Mehl'), { amount: '1.000', unit: 'g', item: 'Mehl', note: '' });
+  for (const locale of ['de', 'en']) {
+    assert.equal(scaleAmount('1.000', 0.5, locale), '500', locale);
+    assert.equal(scaleAmount('1.000', 2, locale), '2000', locale);
+    assert.equal(scaleAmount('1.500', 1 / 3, locale), '500', locale);
+  }
+  assert.equal(scaleAmount('1.000,5', 2, 'de'), '2001');
+  assert.equal(scaleAmount('0.250', 2, 'en'), '0.5');
+  assert.equal(scaleAmount('0,250', 2, 'de'), '0,5');
+});
+
 test('amounts scale, and words stay words', () => {
   assert.equal(scaleAmount('1 1/2', 2), '3');
   assert.equal(scaleAmount('1', 0.5), '½');
@@ -76,6 +96,13 @@ test('amounts scale, and words stay words', () => {
   assert.equal(formatAmount(133.333), '133');
   assert.equal(formatAmount(12.5), '12½');
   assert.equal(formatAmount(26.666, 'en'), '26.7');
+  // A tiny amount never scales to nothing.
+  assert.equal(formatAmount(0.0125), '0.01');
+  assert.equal(formatAmount(0.0125, 'de'), '0,01');
+  assert.equal(formatAmount(0.004), '0.004');
+  assert.notEqual(scaleAmount('1/8', 0.1), '');
+  assert.equal(scaleAmount('1/8', 0.1), '0.01');
+  assert.equal(formatAmount(0), '');
   assert.equal(factorFor(4, 6), 1.5);
   assert.equal(factorFor(null, 6), 1);
 });
