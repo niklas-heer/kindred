@@ -115,7 +115,7 @@ export async function thread(tree: string, who: Who, kind: TargetKind, target: s
   needsMember(who);
   const [rows, given] = await db(tree).readBatch([
     q('SELECT id, account, author_name, body, created_at, edited_at FROM comment WHERE target_kind = ? AND target = ? ORDER BY created_at, id', kind, target),
-    q('SELECT account, kind FROM reaction WHERE target_kind = ? AND target = ? ORDER BY created_at, account', kind, target),
+    q('SELECT account, kind FROM reaction WHERE target_kind = ? AND target = ? ORDER BY created_at, rowid', kind, target),
   ]) as [CommentRow[], { account: string; kind: ReactionKind }[]];
   const people = new Set([...rows.map((r) => r.account), ...given.map((r) => r.account)]);
   const known = people.size
