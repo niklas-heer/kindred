@@ -143,7 +143,7 @@ before(async () => {
   await acc.run("INSERT INTO membership (user, tree, role, person, person_confirmed, created) VALUES (?, ?, 'contributor', 'milo', 1, 3)", MEMBER, TREE);
   await acc.run("INSERT INTO membership (user, tree, role, created) VALUES (?, ?, 'viewer', 4)", VIEWER, TREE);
   // The member's own state: a reaction, a quiz answer, a visit marker, an assistant chat.
-  await d.run("INSERT INTO reaction (target_kind, target, account, kind, created_at) VALUES ('story', 's1', ?, 'heart', '2026-01-02')", MEMBER);
+  await d.run("INSERT INTO reaction (target_kind, target, account, kind, created_at) VALUES ('story', 's1', ?, '❤️', '2026-01-02')", MEMBER);
   await acc.run('INSERT INTO family_visit (user, tree, since, shown, last_seen, visits) VALUES (?, ?, 0, NULL, 0, 3)', MEMBER, TREE);
   await acc.run('INSERT INTO credential (id, user, public_key, created) VALUES (?, ?, ?, ?)', 'steward-key', STEWARD, new Uint8Array([1]), 1);
 });
@@ -332,7 +332,7 @@ test('a preview writes nothing, at every choke point; other sessions write; Stop
   steward();
   await assert.rejects(authFns.setMyPerson({ data: { tree: TREE, person: 'old' } }), refusedAsPreview);
   steward();
-  await assert.rejects(responses.setReaction({ data: { tree: TREE, kind: 'story', target: 's1', reaction: 'heart', on: true, opKey: 'k-react-0001' } }), refusedAsPreview);
+  await assert.rejects(responses.setReaction({ data: { tree: TREE, kind: 'story', target: 's1', reaction: '❤️', on: true, opKey: 'k-react-0001' } }), refusedAsPreview);
   // Access changes, in another family too: the whole session is read-only while the preview is on.
   steward();
   await guard.currentSession();
@@ -466,7 +466,7 @@ test('the account stays the steward’s; no member’s own state reaches the pre
   steward();
   const counts = await responses.getResponseCounts({ data: { tree: TREE } });
   const s1 = Object.values(counts as Record<string, { reactions: Record<string, number>; mine: string[] }>)[0];
-  assert.equal(s1.reactions.heart, 1, 'the family’s count is there');
+  assert.equal(s1.reactions['❤️'], 1, 'the family’s count is there');
   assert.deepEqual(s1.mine, [], 'the member’s own reaction is not shown as the reader’s');
   await stop();
 });

@@ -1,6 +1,7 @@
-// Reactions and comments on a memory, a gallery photo or a post (migrations 0027 and 0029, docs/responses.md): the reads
-// for the Chronicle, the gallery, the feed and a thread, the members' changes, and the opt-in push to the one who wrote or
-// shared the thing.
+// Reactions and comments on a memory, a gallery photo, a post or an event of the feed (migrations 0027, 0029 and 0030,
+// docs/responses.md): the reads for the Chronicle, the gallery, the feed and a thread, the members' changes, and the opt-in
+// push to the one who wrote or shared the thing. A reaction is one emoji (`reactionOf`), at most MAX_REACTIONS different
+// ones from one member on one thing.
 //
 // Members only: every function here refuses a share-link guest itself, besides the server functions' own checks
 // (responses.functions.ts), and the reads that a guest can reach (the Chronicle, the gallery) carry none of this.
@@ -13,10 +14,14 @@ import { forbidden, notMember } from './auth/errors';
 import { accounts, q as accountsQ } from './auth/store.server';
 import { db, guard, NOT_A_RECORD, once, q, type Db, type OpKey } from './db.server';
 import { translate } from './i18n/dictionary';
+import { authorKey } from './history.server';
 import { STALE_DAYS, envSetting, subscriptionFrom, vapidFrom, type PushRow } from './reminders.server';
 import {
+  EVENT_TARGET,
   MAX_COMMENT,
+  MAX_REACTIONS,
   cleanComment,
+  reactionOf,
   targetKey,
   type CommentView,
   type ReactionKind,
@@ -41,12 +46,44 @@ function needs(who: Who, action: 'react' | 'comment' | 'remove-comment') {
   if (!can(who.role, action)) throw fail(forbidden(action, action === 'react' ? 'viewer' : action === 'comment' ? 'contributor' : 'editor'));
 }
 
-const EXISTS: Record<TargetKind, string> = {
+const EXISTS: Record<Exclude<TargetKind, 'event'>, string> = {
   story: 'EXISTS (SELECT 1 FROM story WHERE id = ?)',
   media: 'EXISTS (SELECT 1 FROM media WHERE key = ?)',
   post: 'EXISTS (SELECT 1 FROM post WHERE id = ?)',
 };
-const targetThere = (d: Db, kind: TargetKind, target: string) => d.get(`SELECT ${EXISTS[kind]} AS ok`, target).then((r) => !!(r as { ok?: number } | undefined)?.ok);
+
+/**
+ * What an event's key stands for, as a condition the batch can restate: the day's history rows for an entry of changes or
+ * of people added (`EVENT_TARGET`), the person whose birthday it is, the couple whose anniversary it is. Null for a key
+ * that names nothing there is: no row in the history of that day by that author, nobody of that id.
+ */
+async function eventThere(d: Db, tree: string, target: string): Promise<[string, ...(string | number)[]] | null> {
+  if (!EVENT_TARGET.test(target)) return null;
+  const [kind, rest] = [target.slice(0, target.indexOf(':')), target.slice(target.indexOf(':') + 1)];
+  if (kind === 'b' || kind === 'a') {
+    const id = rest.slice(0, rest.lastIndexOf(':'));
+    const sql = kind === 'b' ? 'EXISTS (SELECT 1 FROM person WHERE id = ?)' : 'EXISTS (SELECT 1 FROM partnership WHERE id = ?)';
+    return (await d.get<{ ok: number }>(`SELECT ${sql} AS ok`, id))?.ok ? [sql, id] : null;
+  }
+  const [day, author] = rest.split('|') as [string, string];
+  const range = [day, `${day}U`] as const;
+  // A row of Kindred itself (an import by a script) has no account; its entries are keyed by the name it showed.
+  if (author.startsWith('-')) {
+    const sql = 'EXISTS (SELECT 1 FROM history WHERE at >= ? AND at < ? AND account IS NULL)';
+    return (await d.get<{ ok: number }>(`SELECT ${sql} AS ok`, ...range))?.ok ? [sql, ...range] : null;
+  }
+  const accounts = await d.all<{ account: string }>('SELECT DISTINCT account FROM history WHERE at >= ? AND at < ? AND account IS NOT NULL', ...range);
+  for (const { account } of accounts) {
+    if ((await authorKey(tree, account)) === author) return ['EXISTS (SELECT 1 FROM history WHERE at >= ? AND at < ? AND account = ?)', ...range, account];
+  }
+  return null;
+}
+
+/** The condition that the target is there, for the batch's guard, or null when it is not. */
+async function targetGuard(d: Db, tree: string, kind: TargetKind, target: string): Promise<[string, ...(string | number)[]] | null> {
+  if (kind === 'event') return eventThere(d, tree, target);
+  return (await d.get<{ ok: number }>(`SELECT ${EXISTS[kind]} AS ok`, target))?.ok ? [EXISTS[kind], target] : null;
+}
 
 // ---------- reads ----------
 
@@ -113,20 +150,40 @@ export async function thread(tree: string, who: Who, kind: TargetKind, target: s
   };
 }
 
+/** How many emoji the palette's "Recently used" shows. */
+const RECENT = 24;
+
+/**
+ * The emoji this member gave most recently in this family, newest first: the palette's "Recently used", the same on every
+ * device. A steward's preview reads the previewed reader's, as everything else it shows.
+ */
+export async function recentReactions(tree: string, who: Who): Promise<ReactionKind[]> {
+  needsMember(who);
+  const rows = await db(tree).all<{ kind: string }>('SELECT kind FROM reaction WHERE account = ? GROUP BY kind ORDER BY max(created_at) DESC, max(rowid) DESC LIMIT ?', who.id, RECENT);
+  return rows.map((r) => r.kind);
+}
+
 // ---------- changes ----------
 
 /** Gives a reaction (`on`) or takes it back. Giving it twice is one reaction. Answers whether it was new. */
-export async function react(tree: string, who: Who, kind: TargetKind, target: string, reaction: ReactionKind, on: boolean, op?: OpKey): Promise<{ added: boolean }> {
+export async function react(tree: string, who: Who, kind: TargetKind, target: string, emoji: ReactionKind, on: boolean, op?: OpKey): Promise<{ added: boolean }> {
   needs(who, 'react');
+  const reaction = reactionOf(emoji);
+  if (!reaction) throw new Error('responses.err.not_emoji');
   return once(tree, op, 'react', async (d) => {
-    if (!(await targetThere(d, kind, target))) throw new Error('responses.err.gone');
     if (!on) {
       return { writes: [q('DELETE FROM reaction WHERE target_kind = ? AND target = ? AND account = ? AND kind = ?', kind, target, who.id, reaction)], history: NOT_A_RECORD, result: { added: false } };
     }
-    const had = await d.get('SELECT 1 AS x FROM reaction WHERE target_kind = ? AND target = ? AND account = ? AND kind = ?', kind, target, who.id, reaction);
+    const there = await targetGuard(d, tree, kind, target);
+    if (!there) throw new Error('responses.err.gone');
+    const given = await d.all<{ kind: string }>('SELECT kind FROM reaction WHERE target_kind = ? AND target = ? AND account = ?', kind, target, who.id);
+    const had = given.some((r) => r.kind === reaction);
+    if (!had && given.length >= MAX_REACTIONS) throw new Error('responses.err.too_many');
     return {
       writes: [
-        guard(EXISTS[kind], target),
+        guard(...there),
+        // What was read still holds: the member has not reached the limit since, in another tab.
+        guard('(SELECT count(*) FROM reaction WHERE target_kind = ? AND target = ? AND account = ?) = ?', kind, target, who.id, given.length),
         q('INSERT INTO reaction (target_kind, target, account, kind, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING', kind, target, who.id, reaction, now()),
       ],
       history: NOT_A_RECORD,
@@ -147,11 +204,12 @@ export async function addComment(tree: string, who: Who, kind: TargetKind, targe
   needs(who, 'comment');
   const body = bodyOf(text);
   return once(tree, op, 'addComment', async (d) => {
-    if (!(await targetThere(d, kind, target))) throw new Error('responses.err.gone');
+    const there = await targetGuard(d, tree, kind, target);
+    if (!there) throw new Error('responses.err.gone');
     const id = crypto.randomUUID();
     return {
       writes: [
-        guard(EXISTS[kind], target),
+        guard(...there),
         q('INSERT INTO comment (id, target_kind, target, account, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', id, kind, target, who.id, who.name, body, now()),
       ],
       history: NOT_A_RECORD,
@@ -221,6 +279,8 @@ export async function notifyAuthor(tree: string, r: Response, options: { now?: D
   let sent = 0;
   try {
     const d = db(tree);
+    // An event of the feed is the family's, not one member's: nobody is told about its answers.
+    if (r.kind === 'event') return 0;
     const owner = r.kind === 'story'
       ? await d.get<Owner>('SELECT s.author_account AS author, s.person, p.given, p.surname, p.current_given, p.current_surname FROM story s JOIN person p ON p.id = s.person WHERE s.id = ?', r.target)
       : r.kind === 'post'
@@ -240,8 +300,8 @@ export async function notifyAuthor(tree: string, r: Response, options: { now?: D
     const person = owner.person ? [owner.current_given ?? owner.given, owner.current_surname ?? owner.surname].filter(Boolean).join(' ') : '';
     for (const row of devices) {
       // Who answered and about whom; never the comment's words, which stay in the family's app.
-      const vars = { name: r.by.name, person, reaction: r.what === 'reaction' ? translate(row.locale, `responses.reaction.${r.reaction}`) : '' };
-      const key = `responses.push.${r.what}_${r.kind}` as const;
+      const vars = { name: r.by.name, person, reaction: r.what === 'reaction' ? r.reaction : '' };
+      const key = `responses.push.${r.what}_${r.kind as Exclude<TargetKind, 'event'>}` as const;
       const message = {
         title: translate(row.locale, 'responses.push.title'),
         body: translate(row.locale, key, vars),

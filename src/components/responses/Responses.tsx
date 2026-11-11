@@ -1,14 +1,19 @@
-// Reactions and comments under a memory or a gallery photo (docs/responses.md). Members only: for a share-link guest it
-// draws nothing and asks nothing, and the server refuses a guest anyway.
+// Reactions and comments under a memory, a gallery photo, a message or an event of the feed (docs/responses.md). Members
+// only: for a share-link guest it draws nothing and asks nothing, and the server refuses a guest anyway.
 //
 //   <Responses tree={tree} kind="story" target={story.id} />
+//   <Responses tree={tree} kind="event" target={item.target} compact />
+//
+// A reaction is an emoji. The bar shows the emoji given, with how many gave each, then the quick row (QUICK_REACTIONS) and
+// a "+" that opens the palette, which loads its data only then. `compact` (a line of the feed) keeps the quick row in the
+// palette. Holding the pointer on an emoji, or pressing it long on a phone, says who gave it.
 //
 // The counts come from one query for the whole family (responseCountsQuery), shared by every entry on the page, so a
-// Chronicle of three hundred memories asks once. The thread itself is read when it is opened.
+// Chronicle of three hundred memories asks once. The thread itself is read when it is opened, or when someone asks who
+// reacted.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { HandHeart, Heart, Laugh, MessageCircle, Sparkles } from 'lucide-react';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { GameIcon } from '~/components/GameIcon';
+import { MessageCircle, SmilePlus } from 'lucide-react';
+import { lazy, Suspense, useEffect, useId, useRef, useState } from 'react';
 import { Portrait } from '~/components/Portrait';
 import { ConfirmDialog, Notice, Skeleton } from '~/components/ui';
 import { newOpKey } from '~/lib/api';
@@ -17,7 +22,9 @@ import { relativeTime, translateMessage, useT, type Translator } from '~/lib/i18
 import {
   EMPTY_SUMMARY,
   MAX_COMMENT,
-  REACTIONS,
+  MAX_REACTIONS,
+  QUICK_REACTIONS,
+  reactionOrder,
   targetKey,
   type CommentView,
   type ReactionKind,
@@ -29,13 +36,10 @@ import { can } from '~/lib/roles';
 import { useMember } from '~/lib/session';
 import './responses.css';
 
-const ICON: Record<ReactionKind, (size: number) => ReactNode> = {
-  heart: (s) => <Heart size={s} aria-hidden />,
-  remember: (s) => <Sparkles size={s} aria-hidden />,
-  laugh: (s) => <Laugh size={s} aria-hidden />,
-  candle: (s) => <GameIcon name="candle-light" size={s} />,
-  thanks: (s) => <HandHeart size={s} aria-hidden />,
-};
+const EmojiPalette = lazy(() => import('./EmojiPalette').then((m) => ({ default: m.EmojiPalette })));
+
+/** How long a press on a phone is held before it asks who reacted, rather than reacting. */
+const LONG_PRESS_MS = 450;
 
 /** How many comments an opened thread shows at first; the earlier ones are one click away. */
 const SHOWN = 5;
@@ -54,17 +58,19 @@ export function ResponseTally({ tree, kind, target }: { tree: string; kind: Targ
   const t = useT();
   const s = useResponseCounts(tree)?.[targetKey(kind, target)];
   if (!s) return null;
-  const reactions = Object.values(s.reactions).reduce((a, n) => a + (n ?? 0), 0);
+  const reactions = Object.values(s.reactions).reduce<number>((a, n) => a + (n ?? 0), 0);
   if (!reactions && !s.comments) return null;
+  // The most given emoji stand for the reactions, as a chat shows them.
+  const top = reactionOrder(s.reactions).sort((a, b) => (s.reactions[b] ?? 0) - (s.reactions[a] ?? 0)).slice(0, 3);
   return (
     <span className="resp-tally">
-      {reactions ? <span><Heart size={12} aria-hidden /> {reactions}<span className="sr-only"> {t('responses.reactions_count', { count: reactions })}</span></span> : null}
+      {reactions ? <span><span className="resp-emoji" aria-hidden>{top.join('')}</span> {reactions}<span className="sr-only"> {t('responses.reactions_count', { count: reactions })}</span></span> : null}
       {s.comments ? <span><MessageCircle size={12} aria-hidden /> {s.comments}<span className="sr-only"> {t('responses.comments_count', { count: s.comments })}</span></span> : null}
     </span>
   );
 }
 
-export function Responses({ tree, kind, target, startOpen = false }: { tree: string; kind: TargetKind; target: string; startOpen?: boolean }) {
+export function Responses({ tree, kind, target, startOpen = false, compact = false }: { tree: string; kind: TargetKind; target: string; startOpen?: boolean; compact?: boolean }) {
   const t = useT();
   const qc = useQueryClient();
   const membership = useMember(tree);
@@ -74,6 +80,9 @@ export function Responses({ tree, kind, target, startOpen = false }: { tree: str
   const key = targetKey(kind, target);
   const summary = counts?.[key] ?? EMPTY_SUMMARY;
   const canComment = can(membership?.role, 'comment');
+  const [picking, setPicking] = useState(false);
+  const [full, setFull] = useState(false);
+  const plus = useRef<HTMLButtonElement>(null);
 
   const toggle = useMutation({
     mutationFn: ({ reaction, on }: { reaction: ReactionKind; on: boolean }) =>
@@ -98,32 +107,38 @@ export function Responses({ tree, kind, target, startOpen = false }: { tree: str
 
   if (!membership) return null;
   const count = summary.comments;
+  const given = reactionOrder(summary.reactions);
+  const quick = compact ? [] : QUICK_REACTIONS.filter((r) => !given.includes(r));
+  /** Gives or takes back an emoji; a new one past the limit is refused here as the server would. */
+  const pick = (r: ReactionKind) => {
+    const mine = summary.mine.includes(r);
+    if (!mine && summary.mine.length >= MAX_REACTIONS) {
+      setFull(true);
+      return;
+    }
+    setFull(false);
+    toggle.mutate({ reaction: r, on: !mine });
+  };
   return (
-    <div className="resp">
+    <div className="resp" data-compact={compact || undefined}>
       <div className="resp-bar">
         <div className="resp-reactions" role="group" aria-label={t('responses.reactions')}>
-          {REACTIONS.map((r) => {
-            const n = summary.reactions[r] ?? 0;
-            const mine = summary.mine.includes(r);
-            const name = t(`responses.reaction.${r}`);
-            const label = n ? t('responses.react_count', { reaction: name, count: n }) : name;
-            return (
-              <button
-                key={r}
-                type="button"
-                className="resp-react"
-                data-kind={r}
-                aria-pressed={mine}
-                title={label}
-                onClick={() => toggle.mutate({ reaction: r, on: !mine })}
-              >
-                {ICON[r](15)}
-                {/* The name is the words and the number the reader sees, so speech input can say what is on screen. */}
-                <span className="sr-only">{n ? `${name}, ` : name}</span>
-                {n ? <span className="resp-n">{n}</span> : null}
-              </button>
-            );
-          })}
+          {given.map((r) => (
+            <ReactionButton key={r} tree={tree} kind={kind} target={target} reaction={r} n={summary.reactions[r] ?? 0} mine={summary.mine.includes(r)} onToggle={() => pick(r)} />
+          ))}
+          {quick.map((r) => <ReactionButton key={r} tree={tree} kind={kind} target={target} reaction={r} n={0} mine={false} quick onToggle={() => pick(r)} />)}
+          <button
+            ref={plus}
+            type="button"
+            className="resp-react resp-plus"
+            aria-expanded={picking}
+            aria-haspopup="dialog"
+            title={t('responses.more_emoji')}
+            onClick={() => setPicking(!picking)}
+          >
+            <SmilePlus size={15} aria-hidden />
+            <span className="sr-only">{t('responses.more_emoji')}</span>
+          </button>
         </div>
         {count > 0 || canComment ? (
           <button type="button" className="btn ghost resp-open" aria-expanded={open} aria-controls={threadId} onClick={() => setOpen(!open)}>
@@ -131,9 +146,75 @@ export function Responses({ tree, kind, target, startOpen = false }: { tree: str
           </button>
         ) : null}
       </div>
+      {picking ? (
+        <Suspense fallback={<div className="resp-palette" aria-busy="true"><Skeleton lines={2} /></div>}>
+          <EmojiPalette
+            tree={tree}
+            mine={summary.mine}
+            anchor={plus}
+            onPick={(r) => { pick(r); setPicking(false); plus.current?.focus(); }}
+            onClose={(back) => { setPicking(false); if (back) plus.current?.focus(); }}
+          />
+        </Suspense>
+      ) : null}
+      {full ? <Notice>{t('responses.err.too_many', { count: MAX_REACTIONS })}</Notice> : null}
       {toggle.isError ? <Notice>{message(toggle.error, t)}</Notice> : null}
       {open ? <ThreadView id={threadId} tree={tree} kind={kind} target={target} canComment={canComment} /> : null}
     </div>
+  );
+}
+
+/**
+ * One emoji under an entry: pressed gives it or takes it back. Held (a pointer resting on it, a long press on a phone, or
+ * focus from the keyboard) it says who gave it, read from the thread only then.
+ */
+function ReactionButton({ tree, kind, target, reaction, n, mine, quick, onToggle }: {
+  tree: string; kind: TargetKind; target: string; reaction: ReactionKind; n: number; mine: boolean; quick?: boolean; onToggle: () => void;
+}) {
+  const t = useT();
+  const [peek, setPeek] = useState(false);
+  const tip = useId();
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const held = useRef(false);
+  const who = useQuery({ ...threadQuery(tree, kind, target), enabled: peek && n > 0 });
+  const names = who.data?.reactors[reaction]?.map((x) => x || t('responses.former_member'));
+  const label = n ? t('responses.react_count', { reaction, count: n }) : t('responses.react_with', { reaction });
+  const stop = () => { if (timer.current) clearTimeout(timer.current); timer.current = null; };
+  useEffect(() => stop, []);
+  return (
+    <span className="resp-react-wrap">
+      <button
+        type="button"
+        className={`resp-react${quick ? ' resp-quick' : ''}`}
+        aria-pressed={mine}
+        aria-label={label}
+        aria-describedby={peek && n ? tip : undefined}
+        onClick={() => { if (held.current) { held.current = false; return; } onToggle(); }}
+        onPointerEnter={(e) => { if (e.pointerType === 'mouse' && n) { stop(); timer.current = setTimeout(() => setPeek(true), 350); } }}
+        onPointerLeave={() => { stop(); setPeek(false); }}
+        onPointerDown={(e) => {
+          if (e.pointerType === 'mouse' || !n) return;
+          held.current = false;
+          stop();
+          timer.current = setTimeout(() => { held.current = true; setPeek(true); }, LONG_PRESS_MS);
+        }}
+        onPointerUp={stop}
+        onPointerCancel={() => { stop(); setPeek(false); }}
+        onContextMenu={(e) => { if (n) e.preventDefault(); }}
+        onFocus={(e) => { if (n && e.currentTarget.matches(':focus-visible')) setPeek(true); }}
+        onBlur={() => setPeek(false)}
+        onKeyDown={(e) => { if (e.key === 'Escape' && peek) { e.stopPropagation(); setPeek(false); } }}
+      >
+        <span className="resp-emoji" aria-hidden>{reaction}</span>
+        {n ? <span className="resp-n" aria-hidden>{n}</span> : null}
+      </button>
+      {peek && n ? (
+        <span id={tip} className="resp-peek" role="tooltip">
+          <span className="resp-emoji" aria-hidden>{reaction}</span>{' '}
+          {names ? names.join(', ') : who.isError ? t('responses.load_failed') : t('responses.loading_who')}
+        </span>
+      ) : null}
+    </span>
   );
 }
 
@@ -170,7 +251,7 @@ function ThreadView({ id, tree, kind, target, canComment }: { id: string; tree: 
         <ul className="resp-who">
           {reactors.map(([r, names]) => (
             <li key={r}>
-              {ICON[r](13)} {t('responses.reactors', { reaction: t(`responses.reaction.${r}`), names: names.map((n) => n || t('responses.former_member')).join(', ') })}
+              {t('responses.reactors', { reaction: r, names: names.map((n) => n || t('responses.former_member')).join(', ') })}
             </li>
           ))}
         </ul>

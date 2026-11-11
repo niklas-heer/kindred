@@ -84,7 +84,7 @@ test('a guest gets nothing: no counts, no thread, no reaction, no comment, no pu
   const s = await story('ada', contributor);
   await assert.rejects(R.responseCounts('family', guest), noAccess);
   await assert.rejects(R.thread('family', guest, 'story', s), noAccess);
-  await assert.rejects(R.react('family', guest, 'story', s, 'heart', true), noAccess);
+  await assert.rejects(R.react('family', guest, 'story', s, '❤️', true), noAccess);
   await assert.rejects(R.addComment('family', guest, 'story', s, 'Hello'), noAccess);
   await assert.rejects(R.removeComment('family', guest, 'x'), noAccess);
   await assert.rejects(R.setResponsePush('family', guest, true), noAccess);
@@ -96,19 +96,19 @@ test('a guest gets nothing: no counts, no thread, no reaction, no comment, no pu
 
 test('every member reacts; the same reaction twice is one; taking it back removes only theirs', async () => {
   const s = await story('ada', contributor);
-  assert.deepEqual(await R.react('family', viewer, 'story', s, 'remember', true), { added: true });
-  assert.deepEqual(await R.react('family', viewer, 'story', s, 'remember', true), { added: false });
-  await R.react('family', editor, 'story', s, 'remember', true);
-  await R.react('family', editor, 'story', s, 'candle', true);
+  assert.deepEqual(await R.react('family', viewer, 'story', s, '💭', true), { added: true });
+  assert.deepEqual(await R.react('family', viewer, 'story', s, '💭', true), { added: false });
+  await R.react('family', editor, 'story', s, '💭', true);
+  await R.react('family', editor, 'story', s, '🕯️', true);
   let counts = await R.responseCounts('family', viewer);
-  assert.deepEqual(counts[`story:${s}`].reactions, { remember: 2, candle: 1 });
-  assert.deepEqual(counts[`story:${s}`].mine, ['remember']);
-  await R.react('family', viewer, 'story', s, 'remember', false);
+  assert.deepEqual(counts[`story:${s}`].reactions, { '💭': 2, '🕯️': 1 });
+  assert.deepEqual(counts[`story:${s}`].mine, ['💭']);
+  await R.react('family', viewer, 'story', s, '💭', false);
   counts = await R.responseCounts('family', editor);
-  assert.deepEqual(counts[`story:${s}`].reactions, { remember: 1, candle: 1 });
-  assert.deepEqual(counts[`story:${s}`].mine.sort(), ['candle', 'remember']);
-  await assert.rejects(R.react('family', viewer, 'story', 'no-such-story', 'heart', true), /responses\.err\.gone/);
-  await assert.rejects(R.react('family', viewer, 'media', 'gallery/none.jpg', 'heart', true), /responses\.err\.gone/);
+  assert.deepEqual(counts[`story:${s}`].reactions, { '💭': 1, '🕯️': 1 });
+  assert.deepEqual(counts[`story:${s}`].mine.sort(), ['💭', '🕯️']);
+  await assert.rejects(R.react('family', viewer, 'story', 'no-such-story', '❤️', true), /responses\.err\.gone/);
+  await assert.rejects(R.react('family', viewer, 'media', 'gallery/none.jpg', '❤️', true), /responses\.err\.gone/);
 });
 
 test('comments are a contributor’s; plain text with its line breaks, at most 1,000 characters', async () => {
@@ -154,7 +154,7 @@ test('only the writer changes a comment; the writer or an editor removes it, nev
 test('a story’s or a photo’s reactions and comments go with it, by whatever route it goes', async () => {
   // A story removed on its own.
   const a = await story('ada', contributor);
-  await R.react('family', viewer, 'story', a, 'heart', true);
+  await R.react('family', viewer, 'story', a, '❤️', true);
   await R.addComment('family', contributor, 'story', a, 'Gone soon');
   await Story.removeStory('family', a, undefined);
   assert.equal(await count('reaction', `target = '${a}'`), 0);
@@ -162,7 +162,7 @@ test('a story’s or a photo’s reactions and comments go with it, by whatever 
   // A story that goes with its person.
   await db.db('family').run("INSERT INTO person (id, given, living) VALUES ('dora', 'Dora', 0)");
   const b = await story('dora', contributor);
-  await R.react('family', viewer, 'story', b, 'laugh', true);
+  await R.react('family', viewer, 'story', b, '😂', true);
   await R.addComment('family', contributor, 'story', b, 'About Dora');
   await db.once('family', undefined, 'removePerson', (d) => Rel.removePlan(d, 'family', 'dora'));
   assert.equal(await count('story', "person = 'dora'"), 0);
@@ -170,7 +170,7 @@ test('a story’s or a photo’s reactions and comments go with it, by whatever 
   assert.equal(await count('comment', `target = '${b}'`), 0);
   // A photo.
   await db.db('family').run("INSERT INTO media (key, mime, uploaded_by, uploaded_at) VALUES ('gallery/1111-gone.jpg', 'image/jpeg', 'u', '2026-01-01')");
-  await R.react('family', viewer, 'media', 'gallery/1111-gone.jpg', 'heart', true);
+  await R.react('family', viewer, 'media', 'gallery/1111-gone.jpg', '❤️', true);
   await R.addComment('family', contributor, 'media', 'gallery/1111-gone.jpg', 'Lovely');
   await Photos.removePhoto('family', 'gallery/1111-gone.jpg', undefined);
   assert.equal(await count('reaction', "target = 'gallery/1111-gone.jpg'"), 0);
@@ -181,22 +181,22 @@ test('a member who leaves keeps their comments, under the name they wrote them w
   const s = await story('ada', editor);
   const leaving = await member('Lou Leaving', 'contributor', 'ada');
   await R.addComment('family', leaving, 'story', s, 'Goodbye, all');
-  await R.react('family', leaving, 'story', s, 'thanks', true);
+  await R.react('family', leaving, 'story', s, '🙏', true);
   await store.accounts().run('DELETE FROM membership WHERE user = ?', leaving.id);
   let t = await R.thread('family', viewer, 'story', s);
   assert.equal(t.comments[0].authorName, 'Lou Leaving');
   assert.equal(t.comments[0].person, null, 'no longer standing for anyone here');
-  assert.deepEqual(t.reactors.thanks, ['Lou Leaving'], 'until the clean-up for the removed member has run (members.server.ts)');
+  assert.deepEqual(t.reactors['🙏'], ['Lou Leaving'], 'until the clean-up for the removed member has run (members.server.ts)');
   await store.accounts().run('DELETE FROM user WHERE id = ?', leaving.id);
   t = await R.thread('family', viewer, 'story', s);
   assert.equal(t.comments[0].authorName, 'Lou Leaving', 'even once the account is gone');
-  assert.deepEqual(t.reactors.thanks, [''], 'a reaction without a name still counts');
+  assert.deepEqual(t.reactors['🙏'], [''], 'a reaction without a name still counts');
 });
 
 test('the counts for the whole family are two reads, whatever their number', async () => {
   const before = await R.responseCounts('family', viewer);
   const ids = await Promise.all(Array.from({ length: 40 }, () => story('ada', contributor)));
-  for (const id of ids) await R.react('family', viewer, 'story', id, 'heart', true);
+  for (const id of ids) await R.react('family', viewer, 'story', id, '❤️', true);
   const d = db.db('family');
   const calls: string[] = [];
   const all = d.all.bind(d), get = d.get.bind(d), rb = d.readBatch.bind(d);
@@ -227,7 +227,7 @@ test('the push to the author: only when they chose it, never for their own answe
   const vapid = { publicKey: b64url(await crypto.subtle.exportKey('raw', signing.publicKey)), privateJwk: await crypto.subtle.exportKey('jwk', signing.privateKey), subject: 'mailto:family@example.org' };
   const sent: string[] = [];
   const fetchImpl = (async (url: string | URL | Request) => { sent.push(String(url)); return new Response(null, { status: 201 }); }) as typeof fetch;
-  const answer = { kind: 'story' as const, target: s, by: viewer, what: 'reaction' as const, reaction: 'heart' as const };
+  const answer = { kind: 'story' as const, target: s, by: viewer, what: 'reaction' as const, reaction: '❤️' as const };
 
   assert.equal(await R.notifyAuthor('family', answer, { now: T0, vapid, fetchImpl }), 0, 'off until the author turns it on');
   assert.equal(await R.responsePush('family', author), false);
@@ -262,4 +262,32 @@ test('comments go into the Markdown archive with their story, and not into GEDCO
   const { text: ged } = writeGedcom(tree);
   assert.doesNotMatch(ged, /I was there/);
   assert.doesNotMatch(ged, /What a day/);
+});
+
+test('a reaction is one emoji; at most twelve different ones from one member on one thing; the palette remembers the latest', async () => {
+  const s = await story('ada', contributor);
+  await assert.rejects(R.react('family', viewer, 'story', s, 'heart', true), /responses\.err\.not_emoji/);
+  await assert.rejects(R.react('family', viewer, 'story', s, '❤️❤️', true), /responses\.err\.not_emoji/);
+  await assert.rejects(R.react('family', viewer, 'story', s, '<img src=x>', true), /responses\.err\.not_emoji/);
+  // A heart without its presentation selector is the same heart.
+  assert.deepEqual(await R.react('family', viewer, 'story', s, '❤', true), { added: true });
+  assert.deepEqual(await R.react('family', viewer, 'story', s, '❤️', true), { added: false });
+  const twelve = ['❤️', '😂', '😮', '😢', '🙏', '👏', '🕯️', '🎉', '🌻', '💭', '🥰', '👍🏽'];
+  for (const e of twelve) await R.react('family', viewer, 'story', s, e, true);
+  assert.equal(await count('reaction', `target = '${s}'`), 12);
+  await assert.rejects(R.react('family', viewer, 'story', s, '🍰', true), /responses\.err\.too_many/);
+  assert.deepEqual(await R.react('family', viewer, 'story', s, '🎉', true), { added: false }, 'one already given is not a new one');
+  // Another member has their own twelve.
+  assert.deepEqual(await R.react('family', editor, 'story', s, '🍰', true), { added: true });
+  await R.react('family', viewer, 'story', s, '🌻', false);
+  assert.deepEqual(await R.react('family', viewer, 'story', s, '🍰', true), { added: true });
+  const recent = await R.recentReactions('family', viewer);
+  assert.equal(recent[0], '🍰', 'newest first');
+  assert.ok(!recent.includes('🌻'), 'one taken back is not recent');
+  assert.equal(new Set(recent).size, recent.length);
+  await assert.rejects(R.recentReactions('family', guest), noAccess);
+  const counts = await R.responseCounts('family', viewer);
+  assert.equal(counts[`story:${s}`].reactions['🍰'], 2);
+  const thread = await R.thread('family', viewer, 'story', s);
+  assert.deepEqual(thread.reactors['🍰'], ['Eda Editor', 'Vi Viewer']);
 });

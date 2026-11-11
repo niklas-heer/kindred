@@ -60,7 +60,8 @@ export interface SeedPost {
   people?: string[];
   pictures?: SeedPicture[];
   comments?: { by: string; body: string; hoursLater: number }[];
-  reactions?: { by: string; kind: 'heart' | 'remember' | 'laugh' | 'candle' | 'thanks' }[];
+  /** Who reacted, and with which emoji (one each, as `reactionOf` in src/lib/responses.ts accepts it). */
+  reactions?: { by: string; kind: string }[];
 }
 
 /** Photographs one person added to the gallery on one day, into an album when it is named. */

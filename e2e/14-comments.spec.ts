@@ -24,19 +24,26 @@ test('comments: react, comment, change and remove on a memory; react to a photo;
   await expect(entry).toBeVisible();
   const reactions = entry.getByRole('group', { name: 'Reactions' });
 
-  // A reaction: pressed at once, with its count in its name.
-  const remember = reactions.getByRole('button', { name: /^I remember this/ });
-  await expect(remember).toHaveAttribute('aria-pressed', 'false');
-  await remember.click();
-  await expect(remember).toHaveAttribute('aria-pressed', 'true');
-  await expect(remember).toHaveAccessibleName('I remember this, 1');
-  await expect(remember).toHaveAttribute('title', 'I remember this (1 person)');
+  // A reaction from the quick row: pressed at once, with its count in its name.
+  const thanks = reactions.getByRole('button', { name: /🙏/ });
+  await expect(thanks).toHaveAccessibleName('React with 🙏');
+  await expect(thanks).toHaveAttribute('aria-pressed', 'false');
+  await thanks.click();
+  await expect(thanks).toHaveAttribute('aria-pressed', 'true');
+  await expect(thanks).toHaveAccessibleName('🙏 (1 person)');
+  // Any other emoji from the palette: found by name, given, and the palette closes.
+  await reactions.getByRole('button', { name: 'More emoji' }).click();
+  const palette = entry.getByRole('dialog', { name: 'Choose an emoji' });
+  await palette.getByRole('searchbox').fill('sunflower');
+  await palette.getByRole('button', { name: 'sunflower' }).click();
+  await expect(palette).toBeHidden();
+  await expect(reactions.getByRole('button', { name: /🌻/ })).toHaveAttribute('aria-pressed', 'true');
 
   // A comment with a line break, kept as plain text.
   await entry.getByRole('button', { name: 'Comment' }).click();
   const thread = entry.getByRole('region', { name: 'Comments' });
   await expect(thread.getByText('No comments yet.')).toBeVisible();
-  await expect(thread.getByText(`I remember this: ${STEWARD.given} ${STEWARD.surname}`)).toBeVisible();
+  await expect(thread.getByText(`🙏: ${STEWARD.given} ${STEWARD.surname}`)).toBeVisible();
   await thread.getByRole('textbox', { name: 'Your comment' }).fill('I held the hammer.\n<b>Not bold</b>');
   await thread.getByRole('button', { name: 'Send' }).click();
   const comment = thread.locator('.resp-comment').first();
@@ -80,7 +87,7 @@ test('comments: react, comment, change and remove on a memory; react to a photo;
   await expect(upload).toBeHidden();
   await page.locator('.gal-tile').first().click();
   const box = page.getByRole('dialog', { name: /photo/i });
-  const heart = box.getByRole('group', { name: 'Reactions' }).getByRole('button', { name: /^With love/ });
+  const heart = box.getByRole('group', { name: 'Reactions' }).getByRole('button', { name: /❤️/ });
   await heart.click();
   await expect(heart).toHaveAttribute('aria-pressed', 'true');
   // Not axe on the whole lightbox here: its date field's small switch is below the target size already (not this feature's).

@@ -102,7 +102,7 @@ test('a guest gets nothing: no post, no person’s posts, no change', async () =
   await assert.rejects(P.editPost('family', guest, id, { body: 'Hello' }), noAccess);
   await assert.rejects(P.removePost('family', guest, id), noAccess);
   // And none of the reactions or comments on it.
-  await assert.rejects(R.react('family', guest, 'post', id, 'heart', true), noAccess);
+  await assert.rejects(R.react('family', guest, 'post', id, '❤️', true), noAccess);
   await assert.rejects(R.thread('family', guest, 'post', id), noAccess);
 });
 
@@ -344,16 +344,16 @@ test('only the writer changes a post; the writer or an editor removes it, never 
 test('reactions and comments work on a post as on a memory, and go with it; its pictures go too, without a history row', async () => {
   const key = await upload(contributor);
   const { id } = await P.createPost('family', contributor, { body: 'Photos from Sunday', media: [key] });
-  assert.deepEqual(await R.react('family', viewer, 'post', id, 'heart', true), { added: true });
+  assert.deepEqual(await R.react('family', viewer, 'post', id, '❤️', true), { added: true });
   await assert.rejects(R.addComment('family', viewer, 'post', id, 'Lovely'), forbidden);
   const { id: commentId } = await R.addComment('family', other, 'post', id, 'What a day that was.');
   await R.addComment('family', editor, 'media', key, 'On the picture itself');
   const counts = await R.responseCounts('family', viewer);
-  assert.deepEqual(counts[`post:${id}`], { reactions: { heart: 1 }, mine: ['heart'], comments: 1 });
+  assert.deepEqual(counts[`post:${id}`], { reactions: { '❤️': 1 }, mine: ['❤️'], comments: 1 });
   const thread = await R.thread('family', contributor, 'post', id);
   assert.deepEqual(thread.comments.map((c) => [c.id, c.authorName, c.body]), [[commentId, 'Ona Other', 'What a day that was.']]);
-  assert.deepEqual(thread.reactors, { heart: ['Vi Viewer'] });
-  await assert.rejects(R.react('family', viewer, 'post', '00000000-0000-4000-8000-000000000000', 'heart', true), /responses\.err\.gone/);
+  assert.deepEqual(thread.reactors, { '❤️': ['Vi Viewer'] });
+  await assert.rejects(R.react('family', viewer, 'post', '00000000-0000-4000-8000-000000000000', '❤️', true), /responses\.err\.gone/);
 
   const stored = await Photos.pictureFor('family', key, false);
   assert.ok(await db.media.get('family', stored!.key), 'the picture is in storage');
@@ -385,7 +385,7 @@ test('a member who leaves keeps their posts, under their name and with their fac
   const key = await upload(lou);
   const { id } = await P.createPost('family', lou, { body: 'Before I go', media: [key] });
   await R.addComment('family', other, 'post', id, 'Safe travels');
-  await R.react('family', lou, 'post', id, 'thanks', true);
+  await R.react('family', lou, 'post', id, '🙏', true);
   await M.endMembership('family', lou.id);
   const seen = (await P.postView('family', viewer, id))!;
   assert.equal(seen.body, 'Before I go');
@@ -416,10 +416,10 @@ test('a link a steward has not confirmed neither signs a post nor shows a face b
 
 test('an invented family’s voices: a seed’s account is one of its people, with a name and a face', async () => {
   await d().run("INSERT INTO post (id, account, author_name, author_person, body, created_at) VALUES ('00000000-0000-4000-8000-00000000feed', 'seed:ben', 'Ben Alder', 'ben', 'From the seed', '2026-01-01T10:00:00.000Z')");
-  await d().run("INSERT INTO reaction (target_kind, target, account, kind, created_at) VALUES ('post', '00000000-0000-4000-8000-00000000feed', 'seed:cleo', 'heart', '2026-01-01T11:00:00.000Z')");
+  await d().run("INSERT INTO reaction (target_kind, target, account, kind, created_at) VALUES ('post', '00000000-0000-4000-8000-00000000feed', 'seed:cleo', '❤️', '2026-01-01T11:00:00.000Z')");
   await d().run("INSERT INTO comment (id, target_kind, target, account, author_name, body, created_at) VALUES ('c-seed', 'post', '00000000-0000-4000-8000-00000000feed', 'seed:cleo', 'Cleo Alder', 'Well said', '2026-01-01T12:00:00.000Z')");
   const thread = await R.thread('family', viewer, 'post', '00000000-0000-4000-8000-00000000feed');
-  assert.deepEqual(thread.reactors, { heart: ['Cleo Alder'] });
+  assert.deepEqual(thread.reactors, { '❤️': ['Cleo Alder'] });
   assert.equal(thread.comments[0]!.person, 'cleo');
   assert.equal((await P.postView('family', viewer, '00000000-0000-4000-8000-00000000feed'))!.author.person, 'ben');
 });
@@ -544,7 +544,7 @@ test('a post is news: "What’s new" names who wrote, the weekly push counts it,
   const { id } = await P.createPost('family', wren, { body: 'The garden is in bloom, come and see it before the frost.\nBring boots.' });
   await P.createPost('family', wren, { body: 'And bring cake.' });
   await R.addComment('family', other, 'post', id, 'We will!');
-  await R.react('family', viewer, 'post', id, 'heart', true);
+  await R.react('family', viewer, 'post', id, '❤️', true);
 
   const forViewer = await H.whatsNew(d(), { account: viewer.id, role: 'viewer', guest: false }, since);
   assert.deepEqual(forViewer.posts, [{ author: 'Wren Writer', count: 2 }]);

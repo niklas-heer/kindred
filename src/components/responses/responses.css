@@ -1,4 +1,4 @@
-/* Reactions and comments under a memory or a photo (Responses.tsx). */
+/* Reactions and comments under a memory, a photo, a message or an event of the feed (Responses.tsx, EmojiPalette.tsx). */
 
 .resp { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px; }
 .resp-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; }
@@ -15,6 +15,63 @@
 .resp-react[aria-pressed='true'] { color: var(--accent); background: var(--panel-2); border-color: var(--accent); }
 .resp-react[aria-pressed='true'] svg { fill: currentColor; fill-opacity: 0.25; }
 .resp-n { font-variant-numeric: tabular-nums; color: var(--text); }
+/* An emoji is drawn by the reader's own system font, in colour; it keeps its size whatever the theme's text is. */
+.resp-emoji { font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; font-size: 1rem; line-height: 1; }
+.resp-react .resp-emoji { font-size: 0.95rem; }
+/* The quick row: there to be given, quieter than what was given. */
+.resp-quick { min-width: 30px; padding: 0 5px; }
+/* Only the glyph is quieted (not the button's text colour, so its contrast stays what the theme gives it). */
+.resp-quick .resp-emoji { filter: grayscale(0.5) saturate(0.8); }
+.resp-quick:hover .resp-emoji, .resp-quick:focus-visible .resp-emoji { filter: none; }
+.resp-plus { min-width: 30px; padding: 0 6px; }
+.resp-react-wrap { position: relative; display: inline-flex; }
+/* Who gave an emoji: a small note over it while it is held. */
+.resp-peek {
+  position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 5; width: max-content; max-width: min(280px, 80vw);
+  padding: 6px 10px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--edge-soft, var(--border));
+  box-shadow: 0 6px 20px #0000002e; font-family: var(--font-ui); font-size: var(--fs-2); color: var(--text); line-height: 1.4;
+  pointer-events: none;
+}
+/* A line of the feed: the bar is a quiet row under the sentence, without the card's rule. */
+.resp[data-compact] { margin-top: 4px; border-top: 0; padding-top: 0; }
+.resp[data-compact] .resp-react, .resp[data-compact] .resp-open { height: 26px; }
+
+/* The palette: in the page's flow, under the bar it answers. */
+.resp-palette {
+  margin-top: 8px; padding: 10px; display: grid; gap: 8px; max-width: 380px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel);
+  box-shadow: 0 8px 24px #00000024;
+}
+.resp-palette-quick { display: flex; flex-wrap: wrap; gap: 2px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.resp-palette-search { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.resp-palette-search .input { flex: 1; min-width: 0; height: 34px; font-size: var(--fs-3); }
+.resp-palette-tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.resp-tab {
+  flex: 0 0 auto; width: 34px; height: 30px; display: grid; place-items: center; border: 0; border-bottom: 2px solid transparent;
+  background: none; cursor: pointer; font-size: 1rem; border-radius: 4px 4px 0 0; color: var(--text);
+}
+.resp-tab > span[aria-hidden] { filter: grayscale(0.7); }
+.resp-tab[aria-selected='true'] { border-bottom-color: var(--accent); background: var(--panel-2); }
+.resp-tab[aria-selected='true'] > span[aria-hidden] { filter: none; }
+.resp-tab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.resp-palette-grid {
+  display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 2px; max-height: 232px; overflow-y: auto;
+  overscroll-behavior: contain; align-content: start;
+}
+.resp-palette-grid > p { grid-column: 1 / -1; }
+.resp-cell {
+  aspect-ratio: 1; min-height: 36px; display: grid; place-items: center; border: 1px solid transparent; border-radius: 8px;
+  background: none; cursor: pointer; padding: 0;
+  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; font-size: 1.375rem; line-height: 1;
+}
+.resp-palette-quick .resp-cell { width: 38px; }
+.resp-cell:hover { background: var(--panel-2); }
+.resp-cell:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.resp-cell[aria-pressed='true'] { border-color: var(--accent); background: var(--panel-2); }
+@media (max-width: 560px) {
+  .resp-palette { max-width: none; }
+  .resp-cell { min-height: 40px; }
+}
 .resp-open { height: 30px; font-size: var(--fs-2); }
 
 .resp-thread { margin-top: 10px; display: grid; gap: 10px; }

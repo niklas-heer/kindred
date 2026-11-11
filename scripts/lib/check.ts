@@ -2,6 +2,7 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { reactionOf } from '../../src/lib/responses.ts';
 import type { SeedTree } from '../../src/lib/seed-format.ts';
 
 export interface Summary {
@@ -59,6 +60,7 @@ export function validate(tree: SeedTree): void {
     for (const c of post.comments ?? []) needPerson(c.by, `post ${i + 1} comment`);
     for (const r of post.reactions ?? []) needPerson(r.by, `post ${i + 1} reaction`);
     if (!post.body.trim() && !post.pictures?.length) fail(`post ${i + 1} says nothing`);
+    for (const r of post.reactions ?? []) if (!reactionOf(r.kind)) fail(`post ${i + 1}: "${r.kind}" is not one emoji`);
   }
   for (const [i, upload] of (tree.uploads ?? []).entries()) needPerson(upload.by, `upload ${i + 1}`);
 

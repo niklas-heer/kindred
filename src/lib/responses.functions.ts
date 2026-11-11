@@ -4,17 +4,19 @@
 import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
-import { MAX_COMMENT, REACTIONS, TARGET_KINDS } from './responses';
+import { MAX_COMMENT, TARGET_KINDS, reactionOf } from './responses';
 import type { Action } from './roles';
 
 const tree = z.string().regex(/^[a-z0-9-]+$/).max(64);
 const opKey = z.string().regex(/^[A-Za-z0-9_-]{8,80}$/).optional();
 const kind = z.enum(TARGET_KINDS);
-/** A story id or a media key (`gallery/<uuid>.<ext>`). */
+/** A story id, a media key (`gallery/<uuid>.<ext>`), a post id or an event's key (`EVENT_TARGET`). */
 const target = z.string().min(1).max(120);
 const commentId = z.string().regex(/^[0-9a-f-]{36}$/);
 // A little room over the limit for line endings the server folds; the server holds the limit itself.
 const body = z.string().max(MAX_COMMENT * 2);
+/** One emoji, made whole (`reactionOf`); anything else is refused before it reaches the server's own check. */
+const reaction = z.string().max(40).transform((s, ctx) => reactionOf(s) ?? (ctx.addIssue({ code: 'custom', message: 'responses.err.not_emoji' }), z.NEVER));
 
 const server = () => import('./responses.server');
 const guard = () => import('./auth/guard.server');
@@ -51,13 +53,19 @@ export const threadQuery = (t: string, k: (typeof TARGET_KINDS)[number], id: str
   queryOptions({ queryKey: ['responses', t, 'thread', k, id], queryFn: () => getThread({ data: { tree: t, kind: k, target: id } }) });
 
 export const setReaction = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, kind, target, reaction: z.enum(REACTIONS), on: z.boolean(), opKey }))
+  .validator(z.object({ tree, kind, target, reaction, on: z.boolean(), opKey }))
   .handler(async ({ data }) => {
     const me = await who(data.tree, 'react');
     const result = await (await server()).react(data.tree, me, data.kind, data.target, data.reaction, data.on, opOf(me.id, data));
     if (result.added) await tell(data.tree, { kind: data.kind, target: data.target, by: me, what: 'reaction', reaction: data.reaction });
     return result;
   });
+
+export const getRecentReactions = createServerFn({ method: 'GET' })
+  .validator(z.object({ tree }))
+  .handler(async ({ data }) => (await server()).recentReactions(data.tree, await who(data.tree)));
+export const recentReactionsQuery = (t: string) =>
+  queryOptions({ queryKey: ['responses', t, 'recent'], queryFn: () => getRecentReactions({ data: { tree: t } }), staleTime: 60_000 });
 
 export const addComment = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, kind, target, body, opKey }))

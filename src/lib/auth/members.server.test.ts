@@ -70,7 +70,7 @@ const editor = await member('Eda Editor', 'editor');
 /** Everything a member can leave behind in the family, in both families (so the other one shows what must not change). */
 async function leaveTraces(who: { id: string; name: string; role: Role }, other?: string) {
   const s = await story('ada', editor);
-  await R.react('family', who, 'story', s, 'heart', true);
+  await R.react('family', who, 'story', s, '❤️', true);
   const { id: commentId } = await R.addComment('family', who, 'story', s, 'I was there.');
   await run('family', "INSERT OR IGNORE INTO quiz_day (day, kind, about, question, answer) VALUES ('2026-11-10', 'k', NULL, '{}', '0')");
   await run('family', "INSERT INTO quiz_answer (day, account, choice, correct, house, at) VALUES ('2026-11-10', ?, '0', 1, NULL, '2026-11-10T08:00:00Z')", who.id);
@@ -88,7 +88,7 @@ test('removing a member takes their reactions, quiz answers, Campaign rows, push
   const lou = await member('Lou Leaving', 'contributor');
   const other = await member('Ola Other', 'contributor');
   const { story: s } = await leaveTraces(lou);
-  await R.react('family', other, 'story', s, 'heart', true);
+  await R.react('family', other, 'story', s, '❤️', true);
   await run('family', "INSERT INTO quiz_answer (day, account, choice, correct, house, at) VALUES ('2026-11-10', ?, '0', 1, NULL, '2026-11-10T08:00:00Z')", other.id);
   const own = await story('ben', lou);
 
@@ -164,7 +164,7 @@ test('someone invited back before the clean-up runs again keeps what they have m
   const { story: s } = await leaveTraces(back);
   await M.endMembership('family', back.id);
   await store.accounts().batch([store.upsertMembership(back.id, 'family', 'contributor')]);
-  await R.react('family', back, 'story', s, 'candle', true);
+  await R.react('family', back, 'story', s, '🕯️', true);
   await M.forgetInFamily('family', back.id);
   assert.equal(await count('reaction', `account = '${back.id}'`), 1);
 });

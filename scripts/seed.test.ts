@@ -59,7 +59,7 @@ test('a seed writes the family’s feed: posts by its people, their comments and
         by: 'ada', daysAgo: 2, time: '19:05', body: 'Photos from Sunday.', people: ['ben'],
         pictures: [{ scene: 'lake', seed: 1 }, { scene: 'door', seed: 2, tall: true }],
         comments: [{ by: 'ada', body: 'More to come.', hoursLater: 2 }],
-        reactions: [{ by: 'ada', kind: 'heart' }],
+        reactions: [{ by: 'ada', kind: '❤️' }],
       },
       // Later today than the clock says: never dated in the future.
       { by: 'ada', daysAgo: 0, time: '23:59', body: 'Good night.' },
@@ -80,7 +80,7 @@ test('a seed writes the family’s feed: posts by its people, their comments and
     assert.match(String(posts[0]!.id), /^[0-9a-f-]{36}$/);
     assert.deepEqual(all('SELECT person FROM post_person'), [{ person: 'ben' }]);
     assert.deepEqual(all("SELECT account, author_name, body, created_at FROM comment WHERE target_kind = 'post'"), [{ account: 'seed:ada', author_name: 'Ada King', body: 'More to come.', created_at: '2026-11-05T21:05:00.000Z' }]);
-    assert.deepEqual(all("SELECT account, kind FROM reaction WHERE target_kind = 'post'"), [{ account: 'seed:ada', kind: 'heart' }]);
+    assert.deepEqual(all("SELECT account, kind FROM reaction WHERE target_kind = 'post'"), [{ account: 'seed:ada', kind: '❤️' }]);
     // Three pictures: two with the post, in their order and marked as uploaded for it, one in an album. Each is a PNG with its
     // small copy, in the media folder.
     const media = all('SELECT m.key, m.mime, m.width, m.height, m.caption, m.thumb, m.uploaded_by, m.for_post, a.name AS album, pm.ord FROM media m LEFT JOIN album a ON a.id = m.album LEFT JOIN post_media pm ON pm.media = m.key ORDER BY m.uploaded_at, pm.ord');

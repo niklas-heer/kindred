@@ -122,7 +122,7 @@ test('feed: the new bar; a message with a picture; a second member answers; a gu
   // Someone else's message: nothing to change or remove it with.
   await expect(theirPost.getByRole('button', { name: 'Change your message' })).toHaveCount(0);
   await expect(theirPost.getByRole('button', { name: /^Remove the message/ })).toHaveCount(0);
-  const heart = theirPost.getByRole('group', { name: 'Reactions' }).getByRole('button', { name: /^With love/ });
+  const heart = theirPost.getByRole('group', { name: 'Reactions' }).getByRole('button', { name: /❤️/ });
   await heart.click();
   await expect(heart).toHaveAttribute('aria-pressed', 'true');
   await theirPost.getByRole('button', { name: 'Comment' }).click();
@@ -142,7 +142,7 @@ test('feed: the new bar; a message with a picture; a second member answers; a gu
   // The steward reads the answer, and "What's new" says who wrote.
   await page.goto(`/${tree}/today`);
   await settled(page);
-  await expect(post.getByRole('group', { name: 'Reactions' }).getByRole('button', { name: /^With love/ })).toHaveAccessibleName('With love, 1');
+  await expect(post.getByRole('group', { name: 'Reactions' }).getByRole('button', { name: /❤️/ })).toHaveAccessibleName('❤️ (1 person)');
   await post.getByRole('button', { name: '1 comment' }).click();
   await expect(post.getByRole('region', { name: 'Comments' }).getByText('We will come and see it.')).toBeVisible();
   await expect(page.getByRole('region', { name: 'What’s new' }).getByText('Cora Cousin wrote to the family')).toBeVisible();

@@ -105,7 +105,7 @@ function populatedFamily(name: string): DatabaseSync {
       ('ci2', 'so1', 'parent', 'ben', 'ada', NULL, NULL, NULL, NULL, 'u1', 'Ben', '${now}', '${now}'),
       ('ci3', 'so1', 'event', NULL, NULL, 'ev1', NULL, NULL, NULL, 'u1', 'Ben', '${now}', '${now}'),
       ('ci4', 'so1', 'partnership', NULL, NULL, NULL, 'u1', NULL, 'unsure', 'u1', 'Ben', '${now}', '${now}');
-    INSERT INTO reaction (target_kind, target, account, kind, created_at) VALUES ('story', 's1', 'u1', 'remember', '${now}'), ('media', 'gallery/g1.jpg', 'u1', 'heart', '${now}');
+    INSERT INTO reaction (target_kind, target, account, kind, created_at) VALUES ('story', 's1', 'u1', '💭', '${now}'), ('media', 'gallery/g1.jpg', 'u1', '❤️', '${now}');
     INSERT INTO comment (id, target_kind, target, account, author_name, body, created_at, edited_at) VALUES ('c1', 'story', 's1', 'u1', 'Ben', 'I was ''there''
 and so was Ada', '${now}', NULL);
     INSERT INTO today_week (week, skipped, question, updated_at) VALUES ('2026-W46', 0, 'What did the mill sound like?', '${now}');
@@ -114,7 +114,7 @@ and so was Ada', '${now}', NULL);
 to Lindby', '${now}', NULL);
     INSERT INTO post_media (post, media, ord) VALUES ('00000000-0000-4000-8000-000000000001', 'gallery/g2.jpg', 0);
     INSERT INTO post_person (post, person) VALUES ('00000000-0000-4000-8000-000000000001', 'ada');
-    INSERT INTO reaction (target_kind, target, account, kind, created_at) VALUES ('post', '00000000-0000-4000-8000-000000000001', 'u1', 'heart', '${now}');
+    INSERT INTO reaction (target_kind, target, account, kind, created_at) VALUES ('post', '00000000-0000-4000-8000-000000000001', 'u1', '❤️', '${now}');
   `);
   return d;
 }

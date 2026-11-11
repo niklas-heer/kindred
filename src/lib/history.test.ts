@@ -341,7 +341,7 @@ test('What’s new groups others’ changes by person, leaves out the reader’s
   // Comments and reactions on what the reader wrote are news to them; their own are not.
   await d().run("INSERT INTO comment VALUES ('c1', 'story', ?, ?, 'Vera Lumen', 'Lovely', ?, NULL)", storyId, VIEWER, new Date().toISOString());
   await d().run("INSERT INTO comment VALUES ('c2', 'story', ?, ?, 'Odo Brisk', 'Thanks', ?, NULL)", storyId, CONTRIBUTOR, new Date().toISOString());
-  await d().run("INSERT INTO reaction VALUES ('story', ?, ?, 'heart', ?)", storyId, EDITOR, new Date().toISOString());
+  await d().run("INSERT INTO reaction VALUES ('story', ?, ?, '❤️', ?)", storyId, EDITOR, new Date().toISOString());
   const replies = await h.repliesTo(d(), CONTRIBUTOR, Date.now() - 60_000);
   assert.deepEqual(replies.map((r) => [r.kind, r.count, r.label, r.author]), [['comment', 1, 'Rain', 'Vera Lumen'], ['reaction', 1, 'Rain', '']]);
   assert.deepEqual(await h.repliesTo(d(), VIEWER, Date.now() - 60_000), [], 'not on what they wrote');

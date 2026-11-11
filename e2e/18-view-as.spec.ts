@@ -66,7 +66,7 @@ test('view as: a viewer, a member, a guest of a protecting link, then stop', asy
   await expect(page.getByRole('button', { name: 'Add a memory' })).toHaveCount(0);
   const entry = page.locator('.chr-item').filter({ hasText: MEMORY });
   await expect(entry).toBeVisible();
-  const remember = entry.getByRole('group', { name: 'Reactions' }).getByRole('button', { name: /^I remember this/ });
+  const remember = entry.getByRole('group', { name: 'Reactions' }).getByRole('button', { name: /🙏/ });
   await remember.click();
   const notice = page.locator('.toast').filter({ hasText: 'Not saved: this is a preview' });
   await expect(notice).toBeVisible();
@@ -122,7 +122,7 @@ test('view as: a viewer, a member, a guest of a protecting link, then stop', asy
   await page.goto(`/${tree}/chronicle`);
   await settled(page);
   await expect(page.getByRole('button', { name: 'Add a memory' }).first()).toBeVisible();
-  const again = page.locator('.chr-item').filter({ hasText: MEMORY }).getByRole('group', { name: 'Reactions' }).getByRole('button', { name: /^I remember this/ });
+  const again = page.locator('.chr-item').filter({ hasText: MEMORY }).getByRole('group', { name: 'Reactions' }).getByRole('button', { name: /🙏/ });
   await again.click();
   await expect(again).toHaveAttribute('aria-pressed', 'true');
 });
