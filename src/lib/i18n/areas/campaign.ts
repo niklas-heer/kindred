@@ -115,6 +115,7 @@ export const en = {
   "campaign.levy.grant": "Quiz +{count}",
   "campaign.levy.line": "Levy this turn: {total} ({base} for every house, {towns} from towns)",
   "campaign.levy.raise": "Renown grows with every portrait, date, place and memory: see Information needed",
+  "campaign.levy.new_tab": "(opens in a new tab)",
   "campaign.levy.renown": { one: "Renown +{count}", other: "Renown +{count}" },
 
   "campaign.load_failed": "The Campaign could not be loaded.",
@@ -170,6 +171,9 @@ export const en = {
   "campaign.reach.march": "a march",
 
   "campaign.reign.leave": "Leave the reign",
+  "campaign.reign.leave_go": "End the reign",
+  "campaign.reign.leave_text": "Leaving ends this reign: its moves so far are let go, and it does not count on the family’s table. You can begin a new one at any time this week. A reload or a visit to another page does not end it; this tab keeps it until it closes.",
+  "campaign.reign.leave_title": "End this reign?",
   "campaign.reign.line": "{turns} turns against three regents",
   "campaign.reign.over": "The reign is over",
   "campaign.reign.score_now": "Score {score}",
@@ -389,6 +393,7 @@ export const de: Record<keyof typeof en, Message> = {
   "campaign.levy.grant": "Quiz +{count}",
   "campaign.levy.line": "Aufgebot in diesem Zug: {total} ({base} für jedes Haus, {towns} aus Städten)",
   "campaign.levy.raise": "Ruhm wächst mit jedem Porträt, jedem Datum, jedem Ort und jeder Erinnerung: siehe Fehlende Angaben",
+  "campaign.levy.new_tab": "(öffnet in einem neuen Tab)",
   "campaign.levy.renown": { one: "Ruhm +{count}", other: "Ruhm +{count}" },
 
   "campaign.load_failed": "Der Feldzug konnte nicht geladen werden.",
@@ -444,6 +449,9 @@ export const de: Record<keyof typeof en, Message> = {
   "campaign.reach.march": "ein Marsch",
 
   "campaign.reign.leave": "Herrschaft verlassen",
+  "campaign.reign.leave_go": "Herrschaft beenden",
+  "campaign.reign.leave_text": "Wenn du gehst, endet diese Herrschaft: Deine bisherigen Züge verfallen, und sie zählt nicht in der Tabelle der Familie. Du kannst diese Woche jederzeit eine neue beginnen. Neu laden oder eine andere Seite besuchen beendet sie nicht; dieser Tab behält sie, bis er geschlossen wird.",
+  "campaign.reign.leave_title": "Diese Herrschaft beenden?",
   "campaign.reign.line": "{turns} Züge gegen drei Regentschaften",
   "campaign.reign.over": "Die Herrschaft ist vorbei",
   "campaign.reign.score_now": "Punkte {score}",
@@ -663,6 +671,7 @@ export const af: Record<keyof typeof en, Message> = {
   "campaign.levy.grant": "Vasvra +{count}",
   "campaign.levy.line": "Ligting hierdie beurt: {total} ({base} vir elke huis, {towns} uit dorpe)",
   "campaign.levy.raise": "Roem groei met elke portret, datum, plek en herinnering: sien Inligting nodig",
+  "campaign.levy.new_tab": "(maak in ’n nuwe oortjie oop)",
   "campaign.levy.renown": { one: "Roem +{count}", other: "Roem +{count}" },
 
   "campaign.load_failed": "Die Veldtog kon nie gelaai word nie.",
@@ -718,6 +727,9 @@ export const af: Record<keyof typeof en, Message> = {
   "campaign.reach.march": "’n opmars",
 
   "campaign.reign.leave": "Verlaat die bewind",
+  "campaign.reign.leave_go": "Beëindig die bewind",
+  "campaign.reign.leave_text": "As jy weggaan, eindig hierdie bewind: jou skuiwe tot dusver verval, en dit tel nie op die familie se tabel nie. Jy kan enige tyd hierdie week ’n nuwe een begin. Herlaai of ’n besoek aan ’n ander bladsy beëindig dit nie; hierdie oortjie hou dit totdat dit toegemaak word.",
+  "campaign.reign.leave_title": "Beëindig hierdie bewind?",
   "campaign.reign.line": "{turns} beurte teen drie regente",
   "campaign.reign.over": "Die bewind is verby",
   "campaign.reign.score_now": "Punte {score}",

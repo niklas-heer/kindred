@@ -2,11 +2,12 @@
 // for the family (docs/campaign.md). Members only. While a steward has it on, the page shows this week's challenge, the
 // tables and a way to begin a reign; a reign is played in the browser and its moves are sent at the end, where the
 // server plays them again and keeps the score. A practice reign (any house, a fresh field) is always there and stores
-// nothing. A demo and a steward's preview play the week's field but never send it.
+// nothing. A demo and a steward's preview play the week's field but never send it. A week's reign is kept in the tab while
+// it is played (src/lib/campaign/saved.ts), so a reload or a visit elsewhere comes back to it.
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { CircleHelp, Crown, Play as PlayIcon, RotateCcw, Swords, Undo2 } from 'lucide-react';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { CircleHelp, Crown, ExternalLink, Play as PlayIcon, RotateCcw, Swords, Undo2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BattleDialog, type Battle } from '~/components/campaign/BattleDialog';
 import { Board, Laurel, type BoardSide } from '~/components/campaign/Board';
 import { HowItWorks, LeaderboardPanel, RenownCard, SeasonsOfOld } from '~/components/campaign/panels';
@@ -14,10 +15,11 @@ import { useReign } from '~/components/campaign/reign';
 import { isTourRunning } from '~/components/tour/store';
 import '~/components/campaign/campaign.css';
 import { Arms } from '~/components/Heraldry';
-import { EmptyState, ErrorState, PageHeader, Select, Skeleton, useIsClient } from '~/components/ui';
+import { ConfirmDialog, EmptyState, ErrorState, PageHeader, Select, Skeleton, useIsClient } from '~/components/ui';
 import { newOpKey } from '~/lib/api';
 import { campaignQuery, campaignSettingsQuery, campaignStatusQuery, finishCampaignRun, setCampaignOn, startCampaignRun } from '~/lib/campaign/campaign.functions';
-import { RULES, setupField, type Reign, type State } from '~/lib/campaign/engine';
+import { RULES, setupField, type Move, type Reign, type State } from '~/lib/campaign/engine';
+import { forgetReigns, loadReign, saveReign, tabStore, type SavedReign } from '~/lib/campaign/saved';
 import type { CampaignView, FinishResult, RunStart } from '~/lib/campaign/types';
 import { errorText } from '~/lib/errortext';
 import { useTreeId } from '~/lib/family';
@@ -48,9 +50,18 @@ function CampaignPage() {
   const navigate = Route.useNavigate();
   const q = useQuery({ ...campaignQuery(tree), enabled: !guest });
   const [how, setHow] = useState(false);
-  const [week, setWeek] = useState<{ run: RunStart; submit: boolean; round: number } | null>(null);
+  const [week, setWeek] = useState<{ run: RunStart; submit: boolean; round: number; saved?: SavedReign } | null>(null);
   const practice = !!search.practice;
   const setPractice = (on: boolean) => { setWeek(null); void navigate({ search: on ? { practice: true } : {}, replace: true }); };
+  const account = session?.user?.id ?? 'anon';
+
+  // A week's reign this tab was playing comes back where it was left.
+  const thisWeek = q.data?.challenge?.week;
+  useEffect(() => {
+    if (!thisWeek || week || practice) return;
+    const saved = loadReign(tabStore(), tree, account, thisWeek);
+    if (saved) setWeek({ run: saved.run, submit: saved.submit, round: 0, saved });
+  }, [thisWeek, week, practice, tree, account]);
 
   // The first visit opens "how it works" once; after that it is behind its button.
   const ready = !!q.data;
@@ -75,7 +86,7 @@ function CampaignPage() {
         {q.isError ? <ErrorState title={t('campaign.load_failed')} error={q.error} onRetry={() => void q.refetch()} />
           : !view ? <Skeleton height={520} />
           : playing?.kind === 'practice' ? <Practice view={view} tree={tree} help={help} leave={() => setPractice(false)} />
-          : playing?.kind === 'week' ? <WeekReign key={`${week!.run.id}:${week!.round}`} tree={tree} run={playing.run} submit={playing.submit} help={help} leave={() => setWeek(null)} again={(run, submit) => setWeek({ run, submit, round: (week?.round ?? 0) + 1 })} />
+          : playing?.kind === 'week' ? <WeekReign key={`${week!.run.id}:${week!.round}`} tree={tree} account={account} run={playing.run} submit={playing.submit} saved={week!.saved} help={help} leave={() => setWeek(null)} again={(run, submit) => setWeek({ run, submit, round: (week?.round ?? 0) + 1 })} />
           : view.enabled ? <Week view={view} tree={tree} help={help} begin={(run, submit) => setWeek({ run, submit, round: 0 })} startPractice={() => setPractice(true)} />
           : <Off view={view} tree={tree} help={help} startPractice={() => setPractice(true)} />}
       </div>
@@ -206,13 +217,23 @@ interface PlayProps {
   over: (score: ReturnType<typeof useReign>['score'], moves: ReturnType<typeof useReign>['moves']) => ReactNode;
   head: ReactNode;
   note?: ReactNode;
+  /** Moves already played (a reign kept in the tab), played again before the board shows. */
+  initial?: Move[];
+  /** Hears each change to the moves, so the page can keep them. */
+  onMoves?: (moves: Move[], over: boolean) => void;
 }
 
-function Play({ reign, start, sides, tree, over, head, note }: PlayProps) {
+function Play({ reign, start, sides, tree, over, head, note, initial, onMoves }: PlayProps) {
   const t = useT();
-  const game = useReign(reign, start);
+  const game = useReign(reign, start, initial);
   const [battle, setBattle] = useState<Battle | null>(null);
-  const renownLink = <Link className="cg-renown-link" to="/$tree/needed" params={{ tree }}>{t('campaign.levy.raise')}</Link>;
+  useEffect(() => { onMoves?.(game.moves, game.over); }, [onMoves, game.moves, game.over]);
+  // A new tab, so the game stays where it is.
+  const renownLink = (
+    <Link className="cg-renown-link" to="/$tree/needed" params={{ tree }} target="_blank" rel="noopener">
+      {t('campaign.levy.raise')} <ExternalLink size={13} aria-hidden /> <span className="subtle">{t('campaign.levy.new_tab')}</span>
+    </Link>
+  );
   return (
     <>
       {head}
@@ -229,34 +250,52 @@ function ScoreLine({ score }: { score: ReturnType<typeof useReign>['score'] }) {
   return <p className="cg-score-parts">{t('campaign.result.parts', { provinces: score.provinces, towns: score.towns, won: score.won, lost: score.lost })}</p>;
 }
 
-function WeekReign({ tree, run, submit, help, leave, again }: { tree: string; run: RunStart; submit: boolean; help: ReactNode; leave: () => void; again: (run: RunStart, submit: boolean) => void }) {
+function WeekReign({ tree, account, run, submit, saved, help, leave, again }: { tree: string; account: string; run: RunStart; submit: boolean; saved?: SavedReign; help: ReactNode; leave: () => void; again: (run: RunStart, submit: boolean) => void }) {
   const t = useT();
   const qc = useQueryClient();
   const reign = useMemo<Reign>(() => ({ map: run.field.map, sides: run.field.sides.map((s) => s.id), player: run.side, seed: run.seed, renown: run.renown, grant: run.grant }), [run]);
   const side = run.field.sides.find((s) => s.id === run.side);
-  const [key] = useState(newOpKey);
+  // The same retry key as before a reload, so a finish sent twice is kept once.
+  const [key] = useState(() => saved?.opKey ?? newOpKey());
+  const [initial] = useState(() => (saved?.run.id === run.id ? saved.moves : []));
   const finish = useMutation({
     mutationFn: (moves: Moves) => finishCampaignRun({ data: { tree, opKey: key, id: run.id, moves } }),
-    onSuccess: (r) => { if (r.personalBest) sound('fanfare'); },
+    onSuccess: (r) => { forgetReigns(tabStore(), tree, account); if (r.personalBest) sound('fanfare'); },
     onSettled: () => Promise.all([campaignQuery(tree), campaignStatusQuery(tree)].map((o) => qc.invalidateQueries({ queryKey: o.queryKey }))),
   });
+  // Kept while it is played; a reign that is over and sent nowhere has nothing left to keep.
+  const [played, setPlayed] = useState({ count: 0, over: false });
+  const keep = useCallback((moves: Move[], over: boolean) => {
+    setPlayed({ count: moves.length, over });
+    if (over && !submit) forgetReigns(tabStore(), tree, account);
+    else saveReign(tabStore(), tree, account, { run, submit, moves, opKey: key });
+  }, [run, submit, tree, account, key]);
+  const [asking, setAsking] = useState(false);
+  const goAway = () => { forgetReigns(tabStore(), tree, account); leave(); };
+  const askLeave = () => { if (played.count > 0 && !played.over) setAsking(true); else goAway(); };
   const restart = useMutation({ mutationFn: () => startCampaignRun({ data: { tree, side: run.side } }) });
   const playAgain = async () => {
     if (!submit) { again(run, false); return; }
     try { again(await restart.mutateAsync(), true); } catch { /* shown below */ }
   };
   return (
+    <>
+    <ConfirmDialog open={asking} onClose={() => setAsking(false)} onConfirm={() => { setAsking(false); goAway(); }} title={t('campaign.reign.leave_title')} confirmLabel={t('campaign.reign.leave_go')}>
+      <p>{t('campaign.reign.leave_text')}</p>
+    </ConfirmDialog>
     <Play
       reign={reign}
       start={run.field.start}
       sides={run.field.sides}
       tree={tree}
+      initial={initial}
+      onMoves={keep}
       head={
         <PageHeader
           title={t('campaign.reign.title', { house: side?.name ?? '' })}
           subtitle={t('campaign.reign.line', { turns: RULES.TURNS })}
           icon={<Crown size={26} />}
-          actions={<>{help}<button type="button" className="btn" onClick={leave}><Undo2 size={16} /> {t('campaign.reign.leave')}</button></>}
+          actions={<>{help}<button type="button" className="btn" onClick={askLeave}><Undo2 size={16} /> {t('campaign.reign.leave')}</button></>}
         />
       }
       note={!submit ? <p className="cg-local" role="note">{t('campaign.week.local')}</p> : run.grant > 0 ? <p className="cg-local">{t('campaign.week.grant', { count: run.grant })}</p> : null}
@@ -268,12 +307,13 @@ function WeekReign({ tree, run, submit, help, leave, again }: { tree: string; ru
           status={!submit ? <p className="subtle">{t('campaign.result.local')}</p> : <Submit finish={finish} moves={moves} />}
           actions={<>
             <button type="button" className="btn primary" disabled={restart.isPending || (submit && !finish.isSuccess)} onClick={() => void playAgain()}><RotateCcw size={16} /> {t('campaign.result.again')}</button>
-            <button type="button" className="btn" onClick={leave}>{t('campaign.result.table')}</button>
+            <button type="button" className="btn" onClick={goAway}>{t('campaign.result.table')}</button>
             {restart.isError && <p role="alert">{errorText(restart.error, t.locale)}</p>}
           </>}
         />
       )}
     />
+    </>
   );
 }
 

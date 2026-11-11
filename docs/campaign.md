@@ -105,8 +105,13 @@ At the end of turn 12: **10 a province, 20 a town, 2 a battle won** (a province 
 - **Play as often as you like.** The table has three views: **This week** (each member's best, with their count of
   reigns), **All time** (the ten best reigns ever), and **Houses** (each house's total: the sum of its members' bests this
   week, by the house each one ruled).
+- **A reign in progress is kept in the tab.** A reload, or a visit to another page and back, returns to the same turn:
+  the tab keeps the reign and its moves (sessionStorage, by family, account and reign) and the page plays them again.
+  Closing the tab lets it go, and so does "Leave the reign", which asks first once a move is made: leaving ends the
+  reign, and an unfinished reign never counts. The link to Information needed opens in a new tab, so the game stays.
 - **Today** shows a small card: "You are 2nd of 5 this week", or an invitation to a first reign.
-- **Practice:** any house, on a fresh field dealt in your browser. It is never counted and nothing is stored.
+- **Practice:** any house, on a fresh field dealt in your browser. It is never counted and nothing is stored, not even in
+  the tab: a reload deals a new field.
 - **A demo and a steward's "View as"** can play this week's field, but the reign is not sent or counted; the page says so.
 
 ## Seasons of old

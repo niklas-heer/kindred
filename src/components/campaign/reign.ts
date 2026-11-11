@@ -1,13 +1,15 @@
 // A reign in the browser: the engine plays every move here, so the board answers at once, and the list of moves is what
 // the server is sent at the end (it plays them again and keeps the score). Placing a troop and marching can be undone
-// until the turn ends, back to the last battle; a battle cannot, since its dice have been rolled.
+// until the turn ends, back to the last battle; a battle cannot, since its dice have been rolled. A reign kept in the tab
+// (src/lib/campaign/saved.ts) comes back by playing its moves again.
 import { useState } from 'react';
-import { RULES, openReign, play, scoreOf, type GameEvent, type Move, type Reign, type State } from '~/lib/campaign/engine';
+import { RULES, play, scoreOf, type GameEvent, type Move, type Reign, type State } from '~/lib/campaign/engine';
+import { restore } from '~/lib/campaign/saved';
 
 interface History { states: State[]; moves: Move[] }
 
-export function useReign(reign: Reign, start: State) {
-  const [h, setH] = useState<History>(() => ({ states: [openReign(start, reign)], moves: [] }));
+export function useReign(reign: Reign, start: State, initial: Move[] = []) {
+  const [h, setH] = useState<History>(() => restore(reign, start, initial));
   const state = h.states[h.states.length - 1];
   const last = h.moves[h.moves.length - 1];
 

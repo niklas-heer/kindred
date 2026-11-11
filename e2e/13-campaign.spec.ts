@@ -69,6 +69,8 @@ test('campaign: a steward turns it on, plays a reign to the table, and a practic
   const orders = page.getByRole('complementary', { name: 'Your orders' });
   await expect(orders.getByRole('heading', { name: 'Turn 1 of 12' })).toBeVisible();
   await expect(orders.getByRole('listitem').filter({ hasText: 'Reinforce' })).toHaveAttribute('aria-current', 'step');
+  // Where renown comes from opens in a new tab, so the game stays.
+  await expect(orders.getByRole('link', { name: /Information needed/ })).toHaveAttribute('target', '_blank');
 
   // Step 1: each press on a province of one's own places one troop; Undo takes it back.
   const mine = page.locator('.cm-prov[data-mine]').first();
@@ -110,6 +112,19 @@ test('campaign: a steward turns it on, plays a reign to the table, and a practic
   const battle = page.getByRole('dialog', { name: /^The battle of / });
   await expect(battle).toBeVisible();
   await battle.getByRole('button', { name: 'Carry on' }).click();
+  await expect(orders.getByRole('heading', { name: '2 orders left' })).toBeVisible();
+
+  // A reload comes back to the same turn: the tab keeps the reign and plays its moves again.
+  await page.reload();
+  await settled(page);
+  await expect(page.getByRole('heading', { name: /^The reign of /, level: 1 })).toBeVisible();
+  await expect(orders.getByRole('heading', { name: '2 orders left' })).toBeVisible();
+  // Leaving asks first, since it ends the reign.
+  await page.getByRole('button', { name: 'Leave the reign' }).click();
+  const leaving = page.getByRole('dialog', { name: 'End this reign?' });
+  await expect(leaving).toBeVisible();
+  await leaving.getByRole('button', { name: 'Cancel' }).click();
+  await expect(leaving).toBeHidden();
   await expect(orders.getByRole('heading', { name: '2 orders left' })).toBeVisible();
 
   // The same provinces as a list, for a screen reader: choosing works the same way there.
