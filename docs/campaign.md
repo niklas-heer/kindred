@@ -95,9 +95,10 @@ At the end of turn 12: **10 a province, 20 a town, 2 a battle won** (a province 
 
 ## The week's challenge
 
-- **The same field for everyone:** the map, the opening and the dice come from the family and the ISO week (Monday to
-  Sunday, UTC). The first reign of a week keeps that field, and every later reign that week reuses it, even when the
-  family's places change. Next week brings a new one.
+- **The same field for everyone:** the map and the opening come from the family and the ISO week (Monday to Sunday,
+  UTC). The first reign of a week stores that field (`campaign_week`), and every later reign that week reads it back,
+  even when the family's places change, a member leaves, or two first reigns begin at the same moment. Next week brings a
+  new one. The dice are each reign's own, so playing the week again is a new game on the same field.
 - **Play as often as you like.** The table has three views: **This week** (each member's best, with their count of
   reigns), **All time** (the ten best reigns ever), and **Houses** (each house's total: the sum of its members' bests this
   week, by the house each one ruled).
@@ -120,9 +121,17 @@ nightly job, the push "a province of your house has fallen", the chronicle and t
   seed, and the field with the renown and the quiz's reward as they were then) and returns what the browser needs. At the
   end the browser sends the list of moves (`finishCampaignRun`); the server plays them again from the stored field and
   keeps the score that comes out. A move the rules refuse, a list that stops early, someone else's reign or a reign
-  finished before is refused. That is enough for a family; it is not meant to stop a determined cheat.
-- **The seed** is an HMAC of the family's id and the week under the server's secret (`KINDRED_SECRET`, or the `secret`
-  file), so the browser sees this week's seed but cannot work out the next week's.
+  finished before is refused.
+- **The seeds.** The week's field is laid out from an HMAC of the family's id and the week under the server's secret
+  (`KINDRED_SECRET`, or the `secret` file on Node), so nobody can work out next week's field. A reign's dice come from an
+  HMAC of the reign's own id under the same secret, fixed when the reign begins, so a reign begun again meets other dice.
+  A Worker without `KINDRED_SECRET` ranks no reign: "Begin a reign" says the server has no secret, and practice still
+  works. The seeds never fall back to a public value.
+- **An honour board, not a referee.** The weekly table is the family's honour board. The server rejects every score it
+  cannot replay from legal moves, and the daily quiz's reward is given to one reign a day, but the dice are in the
+  browser's hands once a reign begins: a determined player with a modified browser could look at them in advance and
+  choose their moves by them, or begin reigns until the dice favour them. That is enough for a family; it is not meant
+  to stop a determined cheat.
 - **For other features:** `<CampaignCard tree={…} />` in `src/components/campaign/CampaignCard.tsx` is a small card that
   fetches its own data and renders nothing while the game is off. `quizRewardOn(tree)` in
   `src/lib/campaign/campaign.server.ts` says whether a right quiz answer earns the levy (the game reads the answer itself
@@ -136,7 +145,8 @@ against regents without wins about two reigns in three, one with renown 0 about 
 
 ## What is stored
 
-One table in the family database for the reigns, `campaign_run` (migration `tree/0032_campaign_run.sql`), and the five of
+Two tables in the family database: the reigns, `campaign_run` (migration `tree/0032_campaign_run.sql`), and each week's
+field, `campaign_week` (migration `tree/0034_campaign_week.sql`, which names nobody); and the five of
 the old shared game (migration `tree/0025_campaign.sql`): the switch, the seasons with their result (the hall of fame),
 and the old member rows, chronicle and push claims, kept as they were. See [data-model.md](data-model.md). A reign names
 the member by their account id and keeps the name they had then. When a member leaves, their reigns are deleted, with

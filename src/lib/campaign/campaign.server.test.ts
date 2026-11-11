@@ -162,17 +162,85 @@ test('everyone plays the same field all week, even when the family changes; reno
   const second = await game.startRun('field', lo, 'cedar', later(2));
   assert.equal(second.side, 'cedar');
   assert.deepEqual(second.field, first.field);
-  assert.equal(second.seed, first.seed);
+  // The dice are each reign's own, from the secret and the reign's id: playing the week again meets new dice.
+  assert.notEqual(second.seed, first.seed);
+  assert.match(first.seed, /^[0-9a-f]{24}$/);
+  assert.equal(first.seed, await game.reignSeed(first.id));
+  assert.notEqual(first.seed, await game.weekSeed('field', first.week), 'not the week\'s seed, which every browser sees');
+  assert.equal((await db('field').get<{ seed: string }>('SELECT seed FROM campaign_run WHERE id = ?', first.id))!.seed, first.seed);
   // A reign begun before the edits is replayed with the renown it began with.
   const kept = JSON.parse((await db('field').get<{ field: string }>('SELECT field FROM campaign_run WHERE id = ?', first.id))!.field) as { renown: number; grant: number };
   assert.equal(kept.renown, first.renown);
   const moves = movesFor(first);
   assert.deepEqual((await game.finishRun('field', steward, first.id, moves, { key: key() }, later(3))).score, replay(first.field.start, reignOf(first), moves).score);
+  // The member who began the week leaves (their reigns go): the week's field stays, as it is kept on its own.
+  await db('field').run('DELETE FROM campaign_run WHERE account = ?', steward.account);
+  assert.deepEqual((await game.startRun('field', lo, 'cedar', later(3))).field, first.field);
+  assert.deepEqual((await game.campaignView('field', lo, later(3))).challenge!.field.map, first.field.map);
   // The next week is a new field from a new seed.
   const next = await game.startRun('field', steward, null, later(7));
   assert.equal(next.week, '2026-W11');
   assert.notEqual(next.seed, first.seed);
   assert.ok(next.field.map.provinces.some((p) => p.name === 'New Town'), 'the new week sees the new place');
+});
+
+test('two first reigns begun at once share one field, and the quiz’s reward is taken by one reign a day', async () => {
+  const steward = await on('race');
+  const lo = await account('race', 'Lo', 'loner');
+  // Lo's first reign is decided, and before its batch is written, Sten's begins and is stored, on a family that has
+  // changed meanwhile, so the two fields laid out would differ. Lo's batch then finds the week taken and reads it back.
+  const d = db('race');
+  const write = d.batch.bind(d);
+  let a: RunStart | undefined;
+  d.batch = (async (qs: Parameters<typeof write>[0]) => {
+    if (!a && qs.some((x) => /INSERT INTO campaign_run/.test(x.sql))) {
+      d.batch = write;
+      await d.run("INSERT INTO place (name, lat, lng) VALUES ('Raced Town', 50, 9)");
+      await d.run("UPDATE place SET lat = lat + 0.7 WHERE name = 'Town 0'");
+      a = await game.startRun('race', steward, null, T0);
+    }
+    return write(qs);
+  }) as typeof d.batch;
+  const b = await game.startRun('race', lo, 'cedar', T0);
+  d.batch = write;
+  assert.ok(a);
+  assert.deepEqual(b.field, a.field, 'the reign that came second plays the stored field');
+  assert.equal(await count('race', 'campaign_week'), 1);
+  for (const run of [a, b]) assert.deepEqual(JSON.parse((await db('race').get<{ field: string }>('SELECT field FROM campaign_week'))!.field), run.field);
+
+  // A right answer in today's quiz adds to the levy of one reign begun today, however many begin at once.
+  const today = T0.toISOString().slice(0, 10);
+  await db('race').run("INSERT INTO quiz_day (day, kind, about, question, answer) VALUES (?, 'k', NULL, '{}', '0')", today);
+  await db('race').run("INSERT INTO quiz_answer (day, account, choice, correct, house, at) VALUES (?, ?, '0', 1, NULL, ?)", today, lo.account, T0.toISOString());
+  // The same again: one reign decided with the reward, another taking it before the first is written.
+  let other: RunStart | undefined;
+  d.batch = (async (qs: Parameters<typeof write>[0]) => {
+    if (!other && qs.some((x) => /INSERT INTO campaign_run/.test(x.sql))) {
+      d.batch = write;
+      other = await game.startRun('race', lo, 'cedar', later(0.01));
+    }
+    return write(qs);
+  }) as typeof d.batch;
+  const first = await game.startRun('race', lo, 'cedar', later(0.01));
+  d.batch = write;
+  assert.deepEqual([first.grant, other!.grant].sort(), [0, RULES.QUIZ_LEVY]);
+  assert.equal((await game.startRun('race', lo, 'cedar', later(0.02))).grant, 0, 'spent for the day');
+});
+
+test('without the server’s secret no reign is ranked, and nothing is written; the week is still shown', async () => {
+  const steward = await on('nosecret');
+  const { store: driver } = await import('../db.server.ts');
+  const kept = driver.secret;
+  driver.secret = () => { throw new Error('KINDRED_SECRET is not set.'); };
+  try {
+    await assert.rejects(game.startRun('nosecret', steward, null, T0), /campaign\.err\.no_secret/);
+    await assert.rejects(game.reignSeed('anything'), /campaign\.err\.no_secret/);
+    assert.equal(await count('nosecret', 'campaign_run'), 0);
+    assert.equal(await count('nosecret', 'campaign_week'), 0);
+    assert.ok((await game.campaignView('nosecret', steward, T0)).challenge, 'the field is shown, for a practice');
+  } finally {
+    driver.secret = kept;
+  }
 });
 
 test('the tables: each member’s best this week with their count of reigns, the all-time list, and each house’s total', async () => {
@@ -291,7 +359,7 @@ test('the D1 transfer leaves the game’s tables out and still finds every table
   family('transfer');
   const names = (await db('transfer').all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table'")).map((r) => r.name);
   const plan = planTables(names);
-  for (const table of ['campaign', 'campaign_log', 'campaign_member', 'campaign_push', 'campaign_season', 'campaign_run']) {
+  for (const table of ['campaign', 'campaign_log', 'campaign_member', 'campaign_push', 'campaign_season', 'campaign_run', 'campaign_week']) {
     assert.ok(plan.leftOut.includes(table), table);
     assert.ok(!plan.copy.includes(table));
   }

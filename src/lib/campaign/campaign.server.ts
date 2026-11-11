@@ -7,9 +7,11 @@
 //   goes to a `campaign*` table, as NOT_A_RECORD.
 // - It never accepts a score. A reign is begun here (its field, renown and reward are fixed then), the browser sends the
 //   moves it played, and the score is what this module gets by playing them again. A reign is finished once.
-// - The week's seed mixes the server's secret into the family's id and the week, so a browser that sees this week's dice
-//   cannot work out the next week's.
-// - Every member plays the same field all week: the first reign of a week keeps it, and every later reign that week reuses it.
+// - The week's seed (which lays out the field) mixes the server's secret into the family's id and the week, so a browser
+//   cannot work out next week's field. A reign's dice come from a seed of its own (the secret and the reign's id), so
+//   playing the week again never meets the same dice. Without a secret there is no ranked play (`campaign.err.no_secret`).
+// - Every member plays the same field all week: the first reign of a week stores it in `campaign_week` (migration 0034), and
+//   every later reign that week reads it back, whoever leaves and however many begin at once.
 import { db, guard, NOT_A_RECORD, once, q, store, type Db, type Query } from '../db.server.ts';
 import { readOnly } from '../read-only.ts';
 import { dayOf, weekOf, weekStart } from '../today/week.ts';
@@ -169,35 +171,66 @@ async function sideFor(d: Db, who: Who, sides: StoredSide[], asked?: string | nu
 
 // ---------- the week ----------
 
-/** The week's seed: the server's secret mixed with the family and the week (HMAC-SHA-256), so no browser can derive another week's. */
-export async function weekSeed(tree: string, week: string): Promise<string> {
-  const enc = new TextEncoder();
-  let secret: string;
+/** The server's secret, or null on a Worker without KINDRED_SECRET (Node makes one in the data folder on first use). */
+function secretOrNull(): string | null {
   try {
-    secret = store.secret();
+    return store.secret();
   } catch {
-    // A Worker without its secret: the seed still differs by family and week, only it can be worked out.
-    secret = 'kindred-campaign-without-a-secret';
+    return null;
   }
+}
+
+async function hmacSeed(secret: string, text: string): Promise<string> {
+  const enc = new TextEncoder();
   const key = await crypto.subtle.importKey('raw', enc.encode(`campaign:${secret}`), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(`${tree}|${week}`)));
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(text)));
   return [...mac.slice(0, 12)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * The week's seed, which lays out the week's field: the server's secret mixed with the family and the week (HMAC-SHA-256),
+ * so no browser can derive another week's field. Without a secret the field is still laid out (everyone sees it anyway, and
+ * a practice or a demo plays it), but no reign is ranked: see `reignSeed`.
+ */
+export async function weekSeed(tree: string, week: string): Promise<string> {
+  return hmacSeed(secretOrNull() ?? 'kindred-campaign-unranked', `${tree}|${week}`);
+}
+
+/**
+ * A reign's dice: the server's secret mixed with the reign's own id, so replaying the week meets new dice, and nobody can
+ * work them out before the reign begins. Never from a public constant: without a secret, ranked play is refused.
+ */
+export async function reignSeed(id: string): Promise<string> {
+  const secret = secretOrNull();
+  if (!secret) throw new Error('campaign.err.no_secret');
+  return hmacSeed(secret, `reign|${id}`);
 }
 
 /** The last day of an ISO week (its Sunday), as "2026-11-15". */
 const weekEnds = (week: string) => dayOf(new Date(weekStart(week).getTime() + 6 * DAY_MS));
 
-/** The week's field: the one its first reign kept, or the one the family's places and houses give today. */
-async function weekField(tree: string, d: Db, week: string, seed: string): Promise<FieldView> {
-  const first = await d.get<{ field: string }>('SELECT field FROM campaign_run WHERE week = ? ORDER BY created_at, id LIMIT 1', week);
-  if (first) {
-    const kept = JSON.parse(first.field) as StoredField;
-    return { map: kept.map, sides: kept.sides, start: kept.start };
-  }
+/** The week's field as `campaign_week` keeps it, if a reign of that week has begun. */
+async function keptField(d: Db, week: string): Promise<FieldView | null> {
+  const row = await d.get<{ field: string }>('SELECT field FROM campaign_week WHERE week = ?', week);
+  if (!row) return null;
+  const kept = JSON.parse(row.field) as FieldView;
+  return { map: kept.map, sides: kept.sides, start: kept.start };
+}
+
+/** The field the family's places and houses give today, for a week no reign has begun yet. */
+async function freshField(tree: string, seed: string): Promise<FieldView> {
   const sides = await sidesOf(tree);
   const field = setupField(await placesOf(tree, sides), sides.map((s) => s.id), seed);
   return { map: field.map, sides, start: field.start };
 }
+
+/** The week's field: the one its first reign stored, or the one the family's places and houses give today. */
+async function weekField(tree: string, d: Db, week: string, seed: string): Promise<FieldView> {
+  return (await keptField(d, week)) ?? freshField(tree, seed);
+}
+
+/** A reign of this member's begun today that took the daily quiz's reward. */
+const spentSql = "EXISTS (SELECT 1 FROM campaign_run WHERE account = ? AND created_at >= ? AND json_extract(field, '$.grant') > 0)";
 
 /** The daily quiz's reward: a right answer today, not yet spent on a reign begun today. Never fails the reign. */
 async function quizGrant(d: Db, account: string, now: Date): Promise<number> {
@@ -205,8 +238,8 @@ async function quizGrant(d: Db, account: string, now: Date): Promise<number> {
     const today = dayOf(now);
     const right = await d.get('SELECT 1 FROM quiz_answer WHERE day = ? AND account = ? AND correct = 1', today, account);
     if (!right) return 0;
-    const spent = await d.get("SELECT 1 FROM campaign_run WHERE account = ? AND created_at >= ? AND json_extract(field, '$.grant') > 0", account, today);
-    return spent ? 0 : RULES.QUIZ_LEVY;
+    const spent = await d.get<{ ok: number }>(`SELECT ${spentSql} AS ok`, account, today);
+    return spent?.ok ? 0 : RULES.QUIZ_LEVY;
   } catch {
     return 0;
   }
@@ -332,33 +365,41 @@ export async function quizRewardOn(tree: string): Promise<boolean> {
 
 /** Begins a reign of this week's challenge for a member: the field, the seed, and what their levy has, fixed now. */
 export async function startRun(tree: string, who: Who, asked: string | null, now: Date = new Date()): Promise<RunStart> {
-  const d = db(tree);
-  if (!(await campaignRow(d))?.enabled) throw new Error('campaign.err.off');
+  if (!(await campaignRow(db(tree)))?.enabled) throw new Error('campaign.err.off');
   const week = weekOf(now);
-  const seed = await weekSeed(tree, week);
-  const field = await weekField(tree, d, week, seed);
-  const { side } = await sideFor(d, who, field.sides, asked);
-  if (!side) throw new Error('campaign.err.no_side');
-  const renown = (await renownOfSides(tree, field.sides)).get(side)?.bonus ?? 0;
-  const grant = await quizGrant(d, who.account, now);
   const id = crypto.randomUUID();
-  const stored: StoredField = { ...field, renown, grant };
-  await once(tree, undefined, 'campaignStartRun', async (dd) => {
+  // The reign's own dice; refused before anything is written when the server has no secret.
+  const seed = await reignSeed(id);
+  return once(tree, undefined, 'campaignStartRun', async (dd) => {
     const c = await campaignRow(dd);
     if (!c?.enabled) throw new Error('campaign.err.off');
+    // The week's field: read back when a reign of the week has stored it, else laid out now and stored with this reign,
+    // only if nobody stored one meanwhile (the guard; on a race this plan runs again and reads the winner's back).
+    const kept = await keptField(dd, week);
+    const field = kept ?? (await freshField(tree, await weekSeed(tree, week)));
+    const { side } = await sideFor(dd, who, field.sides, asked);
+    if (!side) throw new Error('campaign.err.no_side');
+    const renown = (await renownOfSides(tree, field.sides)).get(side)?.bonus ?? 0;
+    const grant = await quizGrant(dd, who.account, now);
+    const stored: StoredField = { ...field, renown, grant };
+    const at = now.toISOString();
     return {
       // The game is not the family's records.
       history: NOT_A_RECORD,
       writes: [
         sameCampaign(c),
-        q('INSERT INTO campaign_run (id, account, name_then, side, week, seed, field, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', id, who.account, who.name, side, week, seed, JSON.stringify(stored), now.toISOString()),
+        ...(kept
+          ? []
+          : [guard('NOT EXISTS (SELECT 1 FROM campaign_week WHERE week = ?)', week), q('INSERT INTO campaign_week (week, field, created_at) VALUES (?, ?, ?)', week, JSON.stringify(field), at)]),
+        // The quiz's reward is spent once a day: two reigns begun at once cannot both take it.
+        ...(grant > 0 ? [guard(`NOT ${spentSql}`, who.account, dayOf(now))] : []),
+        q('INSERT INTO campaign_run (id, account, name_then, side, week, seed, field, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', id, who.account, who.name, side, week, seed, JSON.stringify(stored), at),
         // A reign begun and never finished is forgotten after two weeks.
         q('DELETE FROM campaign_run WHERE account = ? AND finished_at IS NULL AND created_at < ?', who.account, new Date(now.getTime() - 14 * DAY_MS).toISOString()),
       ],
-      result: undefined,
+      result: { id, week, seed, field, side, renown, grant },
     };
   });
-  return { id, week, seed, field, side, renown, grant };
 }
 
 /**
