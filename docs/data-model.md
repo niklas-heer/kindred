@@ -141,11 +141,20 @@ code (`mise run deploy` migrates before it deploys), so it must not break the re
 | `0027_join_network_visits.sql` | `join_request.network`: a short hash of the link and the network a request came from, so one home holds at most 12 open requests per link. `family_visit.visits`: how many visits the member has made (0 for visits from before), so a first visit is known. |
 | `0028_view_as.sql` | `view_as`: a steward's "View as" preview of one family ([roles-and-privacy.md](roles-and-privacy.md#view-as)). |
 | `0029_post_push.sql` | `push_subscription.posts` and `posts_sent_at`, for the push about a new post in the family feed ([feed.md](feed.md)). |
+| `0032_presence.sql` | `presence`: who of the family is here right now ([roles-and-privacy.md](roles-and-privacy.md#here-now)). |
 
 ### Tables
 
 - **`view_as`** (0028): one "View as" preview, behind a random token in its own HttpOnly cookie; `hash` is the token's SHA-256, as for a session. `user` is the steward who started it and `session` the hash of the passkey session it belongs to (NULL under Cloudflare Access, which has no session row). `tree` is the family previewed; `kind` is `role` (with `role`: `viewer`, `contributor` or `editor`), `member` (with `member`, the account previewed) or `guest` (with `link`, the family's share link, or NULL for a plain guest with living people protected). `created` and `last_used` are milliseconds: a preview unused for an hour, or older than a day, is over. Deleted on Stop, on sign-out and with its session, when the steward is no longer a steward, the member leaves or the link goes, with the account (`ON DELETE CASCADE`) and with the family (its `tree` column).
 - **`family_visit`** (0026): one row per member and family: `last_seen` (when they last opened the family, milliseconds), `shown` (when "What's new" or the History page last showed them the news) and `since` (where "What's new" counts from). `visits` (0027) counts the visits, 1 during the first (0 for members who visited before it was counted). A visit ends after two hours without opening the family; when the next begins, `since` moves up to `shown` and never further, so news that came after they last looked is not skipped, and during a visit it stays put, so the page shows the same news however often it is opened. Goes with the account and when the member leaves the family.
+- **`presence`** (0032): one row per member's open browser tab in a family (`tree`, `account`, `tab`, a random id the tab
+  keeps for its life), rewritten by the tab's heartbeat every 15 seconds while it is visible. `route` is one page name from a
+  fixed list (`src/lib/presence/shared.ts`), `focus` a person of that family or NULL, `editing` 1 while that person's Edit tab
+  is open, `shadows` 0 when the member turned "Show me to others" off (then `focus` and `editing` stay empty). `seen` is
+  milliseconds: a row older than 45 seconds is ignored by every read, deleted when its tab is left, and swept by the next
+  heartbeat after five minutes. Not a record of the family and not history, so it is written with a plain upsert, not `once`,
+  and adds nothing to the op table. Goes with the account (`ON DELETE CASCADE`), when the member leaves the family and with
+  the family (its `tree` column).
 - **`push_subscription.weekly`** and **`weekly_sent_day`** (0026): whether the device wants "This week in the family", and the UTC day it was last claimed for: at most one in seven days, claimed by one conditional UPDATE before the send.
 - **`push_subscription.posts`** and **`posts_sent_at`** (0029): whether the device wants to be told of a new post in the family feed (0 until its owner turns it on), and when it was last told (milliseconds): at most one push in six hours for each device, claimed by one conditional UPDATE before the send.
 - **`ai_task_giveup`** (0012): per family, task and item, how many tries failed for a reason of the item's own; after a few, the item is no longer asked until it changes.
@@ -228,7 +237,7 @@ A steward removes a member on the Access page (`removeMember`; removing yourself
 deleted while it is a member, and deleting a family deletes its database and every accounts row naming it. One function ends
 a membership, `endMembership` in `src/lib/auth/members.server.ts`, in two steps, because the two databases share no
 transaction. First the accounts database, in one batch: the membership, the reminder devices (and so the choices of what to be
-told), the visit marker and the assistant chats for that family. Then the family's database (`forgetInFamily`, one `once`
+told), the visit marker, any live presence rows and the assistant chats for that family. Then the family's database (`forgetInFamily`, one `once`
 plan, safe to run again, skipped for someone who is a member again). The membership goes first so nobody who is out can add
 anything while the second step runs; if it fails, removing them again finishes it.
 

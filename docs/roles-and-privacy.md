@@ -361,6 +361,29 @@ statistics and no share-link measuring, and every change is refused on the serve
 the tree is kept in the visitor's own browser only. The rules for viewers apply to what is shown, so private fields and private
 research stay hidden as for any viewer.
 
+## Here now
+
+Members see who else of the family has it open right now: a small stack of faces in the top bar ("2 here now"), which opens a
+list of who is on which page; the faces of others on the same page; on a person's page "Anna is here", and on their Edit tab
+"Anna is editing Carl", so two people do not edit the same relative unawares (saving already merges their changes). On the
+tree, a card someone else has selected has a soft halo in their colour and their small face. When nobody else is here, the
+bar says who was here last and when ("Last here: Anna, 2 h ago"), from the visit marker described under
+[Change history and what's new](#change-history-and-whats-new).
+
+- **What is shared:** the page's name from a fixed list (Today, the tree, a profile, the Gallery and so on), never its
+  address, a search or anything typed; and, with "Show me to others" on, the id of the person selected on the tree or opened
+  as a profile, and whether their Edit tab is open. The server keeps a person only when they belong to the family. Contacts,
+  Access, the settings, Statistics and the assistant are only ever "somewhere in the family", with no person. Drafts, typed
+  text, the pointer and the assistant's chats never leave the browser for this.
+- **With whom:** the other members of the same family. A share-link guest neither sends nor sees anything; neither does a
+  demo, and a steward's "View as" preview sends nothing, sees nothing and shows the previewed reader nothing of it.
+- **Switching it off:** "Show me to others" in the account menu (on by default, kept in this browser). Off, others still
+  see that you are here and on which page, but not whom you have selected, and you no longer see whom they have: it is
+  mutual.
+- **How long:** each open tab says it is here every 15 seconds while it is visible and that it is gone when it is hidden or
+  closed. Nothing older than 45 seconds is shown, and old rows are deleted within minutes. No history of who was where is
+  kept ([data-model.md](data-model.md), `presence`).
+
 ## Usage statistics
 
 A steward can see how the family uses Kindred on the family's Statistics page, and can turn collection off there. It is on until a steward turns it off.

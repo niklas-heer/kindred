@@ -66,6 +66,7 @@ export async function endMembership(tree: string, user: string): Promise<void> {
         // and the assistant chats and the pictures kept in them: inviting them back must not bring back what they could read then.
         s.q('DELETE FROM push_subscription WHERE user = ? AND tree = ?', user, tree),
         s.q('DELETE FROM family_visit WHERE user = ? AND tree = ?', user, tree),
+        s.q('DELETE FROM presence WHERE account = ? AND tree = ?', user, tree),
         ...['ai_chat_image', 'ai_chat', 'ai_thread', 'ai_conversation'].map((table) => s.q(`DELETE FROM ${table} WHERE user = ? AND tree = ?`, user, tree)),
       ],
       result: undefined,

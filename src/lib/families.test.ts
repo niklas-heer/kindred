@@ -228,6 +228,7 @@ test('deleting a family removes its database, its files and every accounts row t
       st.q("INSERT INTO push_subscription (id, user, tree, endpoint, p256dh, auth, offsets, kinds, created, last_seen) VALUES (?, ?, ?, ?, 'k', 'a', '[]', '[]', ?, ?)", `${s}push`, STEWARD.id, tree, `https://push.example/${s}`, T, T),
       st.q('INSERT INTO guest_visitor (hash, link, tree, first_seen, last_seen) VALUES (?, ?, ?, ?, ?)', `${s}visitor`, `${s}link`, tree, T, T),
       st.q('INSERT INTO family_visit (user, tree, since, last_seen) VALUES (?, ?, ?, ?)', STEWARD.id, tree, T, T),
+      st.q("INSERT INTO presence (tree, account, tab, route, seen) VALUES (?, ?, 'tab-00000001', 'tree', ?)", tree, STEWARD.id, T),
       st.q("INSERT INTO feedback (id, tree, kind, body, context, user, user_name, created_at, updated_at) VALUES (?, ?, 'bug', 'b', '{}', ?, 'n', ?, ?)", `${s}fb`, tree, STEWARD.id, T, T),
       st.q("INSERT INTO view_as (hash, user, tree, kind, role, created, last_used) VALUES (?, ?, ?, 'role', 'viewer', ?, ?)", `${s}view-as`, STEWARD.id, tree, T, T),
     ]);

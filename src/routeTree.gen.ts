@@ -34,6 +34,7 @@ import { Route as TreeStatisticsRouteImport } from './routes/$tree/statistics'
 import { Route as TreeTodayRouteImport } from './routes/$tree/today'
 import { Route as ApiCspReportRouteImport } from './routes/api/csp-report'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiPresenceRouteImport } from './routes/api/presence'
 import { Route as ApiStatsRouteImport } from './routes/api/stats'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
@@ -183,6 +184,11 @@ const ApiCspReportRoute = ApiCspReportRouteImport.update({
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPresenceRoute = ApiPresenceRouteImport.update({
+  id: '/api/presence',
+  path: '/api/presence',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiStatsRoute = ApiStatsRouteImport.update({
@@ -336,6 +342,7 @@ export interface FileRoutesByFullPath {
   '/$tree/today': typeof TreeTodayRoute
   '/api/csp-report': typeof ApiCspReportRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/presence': typeof ApiPresenceRoute
   '/api/stats': typeof ApiStatsRoute
   '/invite/$token': typeof InviteTokenRoute
   '/share/$token': typeof ShareTokenRoute
@@ -387,6 +394,7 @@ export interface FileRoutesByTo {
   '/$tree/today': typeof TreeTodayRoute
   '/api/csp-report': typeof ApiCspReportRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/presence': typeof ApiPresenceRoute
   '/api/stats': typeof ApiStatsRoute
   '/invite/$token': typeof InviteTokenRoute
   '/share/$token': typeof ShareTokenRoute
@@ -440,6 +448,7 @@ export interface FileRoutesById {
   '/$tree/today': typeof TreeTodayRoute
   '/api/csp-report': typeof ApiCspReportRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/presence': typeof ApiPresenceRoute
   '/api/stats': typeof ApiStatsRoute
   '/invite/$token': typeof InviteTokenRoute
   '/share/$token': typeof ShareTokenRoute
@@ -494,6 +503,7 @@ export interface FileRouteTypes {
     | '/$tree/today'
     | '/api/csp-report'
     | '/api/health'
+    | '/api/presence'
     | '/api/stats'
     | '/invite/$token'
     | '/share/$token'
@@ -545,6 +555,7 @@ export interface FileRouteTypes {
     | '/$tree/today'
     | '/api/csp-report'
     | '/api/health'
+    | '/api/presence'
     | '/api/stats'
     | '/invite/$token'
     | '/share/$token'
@@ -597,6 +608,7 @@ export interface FileRouteTypes {
     | '/$tree/today'
     | '/api/csp-report'
     | '/api/health'
+    | '/api/presence'
     | '/api/stats'
     | '/invite/$token'
     | '/share/$token'
@@ -634,6 +646,7 @@ export interface RootRouteChildren {
   UiRoute: typeof UiRoute
   ApiCspReportRoute: typeof ApiCspReportRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiPresenceRoute: typeof ApiPresenceRoute
   ApiStatsRoute: typeof ApiStatsRoute
   InviteTokenRoute: typeof InviteTokenRoute
   ShareTokenRoute: typeof ShareTokenRoute
@@ -826,6 +839,13 @@ declare module '@tanstack/react-router' {
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/presence': {
+      id: '/api/presence'
+      path: '/api/presence'
+      fullPath: '/api/presence'
+      preLoaderRoute: typeof ApiPresenceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/stats': {
@@ -1077,6 +1097,7 @@ const rootRouteChildren: RootRouteChildren = {
   UiRoute: UiRoute,
   ApiCspReportRoute: ApiCspReportRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ApiPresenceRoute: ApiPresenceRoute,
   ApiStatsRoute: ApiStatsRoute,
   InviteTokenRoute: InviteTokenRoute,
   ShareTokenRoute: ShareTokenRoute,
