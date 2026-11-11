@@ -211,7 +211,7 @@ Exports leave some things out, so back up the databases and pictures as well.
 - [The family feed](docs/feed.md): messages to the family, and the stream on Today
 - [Today](docs/today.md): the question of the week and the daily quiz
 - [Drawn portraits](docs/portraits.md): the character editor, what a portrait can say, and who may change one
-- [The Campaign](docs/campaign.md): a game between the family's houses, and how it runs
+- [The Campaign](docs/campaign.md): a reign you play alone as your house, with weekly family scores, and how it runs
 - [Recipes and the Cookbook](docs/recipes.md)
 - [Who is this?](docs/who-is-this.md): naming people in untagged photographs
 - [The tours](docs/tours.md): Welcome and the grand tour
