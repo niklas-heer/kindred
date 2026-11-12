@@ -425,13 +425,7 @@ function InviteDialog({ open, onClose, tree, familyName, onCreated }: { open: bo
       {made ? (
         <>
           <p className="acc-ready">
-            {t('acc.readyText', {
-              who: made.email || t('acc.them'),
-              article: t(/^[aeiou]/i.test(made.role) ? 'acc.article.an' : 'acc.article.a'),
-              // English and Afrikaans put the role in lower case inside a sentence; German nouns keep their capital.
-              role: t.locale === 'de' ? roleLabel(t, made.role) : roleLabel(t, made.role).toLowerCase(),
-              date: dateFmt.format(made.expires),
-            })} {t('acc.keepsCopy')}
+            {t(`acc.ready_text.${made.role}`, { who: made.email || t('acc.them'), date: dateFmt.format(made.expires) })} {t('acc.keepsCopy')}
           </p>
           <div className="acc-link">
             <input className="input" readOnly value={made.url} aria-label={t('acc.invitationLink')} onFocus={(e) => e.currentTarget.select()} />

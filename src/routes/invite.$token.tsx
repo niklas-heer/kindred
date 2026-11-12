@@ -159,10 +159,10 @@ function Invite() {
           {info.terms && <TermsCheck checked={accepted} onChange={setAccepted} />}
           <AuthError>{error}</AuthError>
           <button className="btn primary auth-go" onClick={join} disabled={busy || (!!info.terms && !accepted)} data-autofocus>
-            {busy ? t("invitetoken.joining") : <>{t("invitetoken.join_as")} {info.signedInAs}</>}
+            {busy ? t("invitetoken.joining") : t("invitetoken.join_as_name", { name: info.signedInAs })}
           </button>
           <div className="auth-alt">
-            <span>{t("invitetoken.not")} {info.signedInAs}?</span>
+            <span>{t("invitetoken.not_you", { name: info.signedInAs })}</span>
             {session?.accessLogout
               ? <a className="auth-link" href={session.accessLogout}>{t("invitetoken.sign_out")}</a>
               : <button className="auth-link" onClick={() => void signOutRequest().finally(() => { forgetLocalIdentity(); window.location.reload(); })}>{t("invitetoken.sign_out")}</button>}

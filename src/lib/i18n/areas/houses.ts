@@ -2,7 +2,7 @@
 // Keys are unique across every area. Add a key to en here, its words to locales/<locale>/houses.ts, and use it as t('<key>').
 
 export const en = {
-  "houses.about": "about",
+  "houses.story_about": "about {name}",
   "houses.allHouses": "All houses",
   "houses.armsOf": "Arms of {name}",
   "houses.automatic": "Automatic: {name}",
@@ -124,7 +124,7 @@ export const en = {
   "houses.notFoundText": "This family has no such house. It may have been renamed or removed.",
   "houses.notSet": "Not set",
   "houses.notable": "Notable members",
-  "houses.of": "of",
+  "houses.quote_of": "of {name}",
   "houses.onlySteward": "Only a steward can change the arms and the succession",
   "houses.openTree": "Open the tree",
   "houses.perGeneration": "Members per generation",

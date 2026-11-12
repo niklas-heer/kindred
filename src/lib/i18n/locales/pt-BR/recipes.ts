@@ -94,7 +94,6 @@ export default {
   "recipes.form.picture_failed": "Não foi possível ler {name} como imagem (JPEG, PNG ou WebP).",
   "recipes.form.ingredients_hint": "Uma linha para cada. Digite uma linha inteira na primeira caixa (“800 g de carne, em cubos”) e ela se organiza sozinha, ou cole a sua lista.",
   "recipes.form.paste": "Colar uma lista",
-  "recipes.form.paste_ph": "800 g de carne, em cubos\n3 cebolas\n2 colheres de páprica\n\nPara os bolinhos:\n250 g de farinha",
   "recipes.form.paste_add": "Transformar em linhas",
   "recipes.form.group_ph": "Para o… (molho, massa, cobertura)",
   "recipes.form.group_n": "Nome da parte {n} da lista",

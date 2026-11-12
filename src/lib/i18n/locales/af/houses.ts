@@ -4,7 +4,7 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/houses.ts";
 
 export default {
-  "houses.about": "oor",
+  "houses.story_about": "oor {name}",
   "houses.allHouses": "Alle huise",
   "houses.armsOf": "Wapens van {name}",
   "houses.automatic": "Outomaties: {name}",
@@ -126,7 +126,7 @@ export default {
   "houses.notFoundText": "Hierdie familie het nie so ’n huis nie. Dit is dalk hernoem of verwyder.",
   "houses.notSet": "Nie ingestel nie",
   "houses.notable": "Noemenswaardige lede",
-  "houses.of": "van",
+  "houses.quote_of": "van {name}",
   "houses.onlySteward": "Net ’n rentmeester kan die wapens en die opvolging verander",
   "houses.openTree": "Maak die boom oop",
   "houses.perGeneration": "Lede per generasie",

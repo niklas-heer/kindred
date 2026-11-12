@@ -97,7 +97,7 @@ export default {
   "recipes.form.picture_failed": "{name} ließ sich nicht als Bild lesen (JPEG, PNG oder WebP).",
   "recipes.form.ingredients_hint": "Je eine Zeile. Tippe eine ganze Zeile ins erste Feld („800 g Rindfleisch, gewürfelt“) und sie sortiert sich selbst, oder füge deine Liste ein.",
   "recipes.form.paste": "Liste einfügen",
-  "recipes.form.paste_ph": "800 g Rindfleisch, gewürfelt\n3 Zwiebeln\n2 EL Paprikapulver\n\nFür die Knödel:\n250 g Mehl",
+  "recipes.form.paste_example": "800 g Rindfleisch, gewürfelt\n3 Zwiebeln\n20 g Paprikapulver\n\nFür die Soße:\n250 ml Sahne",
   "recipes.form.paste_add": "Zeilen daraus machen",
   "recipes.form.group_ph": "Für … (die Soße, den Teig, den Belag)",
   "recipes.form.group_n": "Name von Teil {n} der Liste",

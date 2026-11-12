@@ -55,7 +55,6 @@ export default {
   "events.err.too_many": "每个人最多可以有200个事件。",
   "events.err.changed": "你排序的时候事件有了变化，页面显示的是现在的样子。",
   "events.atlas.mode": "事件",
-  "events.atlas.kind": "事件",
   "events.atlas.what": "人生事件",
   "events.atlas.kindword": "事件",
   "events.atlas.here": "这里的事件",

@@ -94,7 +94,6 @@ export default {
   "recipes.form.picture_failed": "{name}は、画像（JPEG、PNG、WebP）として読み取れませんでした。",
   "recipes.form.ingredients_hint": "1行に1つずつ。最初の欄に1行まるごと（「牛肉 800g、角切り」）入力すると自動で分けられます。リストを貼り付けてもかまいません。",
   "recipes.form.paste": "リストを貼り付ける",
-  "recipes.form.paste_ph": "牛肉 800g、角切り\n玉ねぎ 3個\nパプリカ 大さじ2\n\nだんごの材料：\n小麦粉 250g",
   "recipes.form.paste_add": "行に分ける",
   "recipes.form.group_ph": "〜用（ソース、生地、トッピング）",
   "recipes.form.group_n": "リストの{n}番目の部分の名前",

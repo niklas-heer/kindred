@@ -51,7 +51,7 @@ Errors keep a language from being complete:
 
 - **missing** and **extra**: keys English has and yours does not, or the other way round.
 - **placeholders**: `{name}` differs from the English form for the same count. `{count}` may be spelled out in a singular
-  ("one person") and `{article}` is English's "a" or "an"; every other placeholder must appear.
+  ("one person"); every other placeholder must appear.
 - **plurals**: an English plural needs a form for each category a whole number reaches in your language, and no form your
   language never uses.
 - **english**: an entry that is still the English text (more than one word, or an everyday word such as "Save"). A name,
@@ -135,6 +135,13 @@ complete. `kinship/cases.ts` holds the cases every module answers, as `[label, y
   (`shortMonths` in `languages.ts`), because engines disagree on them and a page must read the same on the server and in
   every browser: check yours against your language's usual abbreviations in a date ("15 sept. 2020"). "About 1900" and
   "never" are keys (`date.circa`, `time.never`).
+- A sentence around a stored date has one key per precision, `_day`, `_month`, `_year` and `_about` ("born 3 May 1890",
+  "born May 1890", "born 1890", "born c. 1890"), because many languages word them differently ("geboren am 3. Mai",
+  "im Mai 1890", "1890"; "le 3 mai", "en mai 1890"). `{date}` is already formatted; `_about` gets it with `date.circa`.
+- Wedding anniversaries with a name (`almanac.wedding.y<n>`, the years 1, 5, 10 and every five to 70) are keyed by the
+  year, not by the English material: write the name your language's tradition gives that year (German 65 is "Eiserne
+  Hochzeit", not a blue sapphire), and `""` where your tradition names no anniversary that year. The Almanac then shows
+  the anniversary without a name.
 - Ordinals: `ORDINAL_FORMS` gives a form per ordinal category (`Intl.PluralRules` with `type: "ordinal"`), `{n}` the number.
 - The date picker writes day, month and year as numbers in the order and with the separator the language says in
   `languages.ts` (`dateOrder`: `dmy`, or `ymd` for Japanese and Chinese; `dateSeparator`). A test compares them with

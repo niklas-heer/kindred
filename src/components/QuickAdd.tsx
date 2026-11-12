@@ -5,12 +5,12 @@ import { useForm, useStore } from '@tanstack/react-form';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { Check } from 'lucide-react';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { addRelative, linkRelative, opKeys, unlinkRelative } from '~/lib/api';
 import { isoOfDate, storedIssue } from '~/lib/partial-date';
 import { useMeChosen } from '~/lib/family';
 import { ancestorDepths, children, descendants, displayName, parents, partnersOf, siblings, yearOf, type Family } from '~/lib/graph';
-import { translateMessage, useT, type Key, type Translator, type Vars } from '~/lib/i18n';
+import { translateMessage, translateParts, useT, type Key, type Translator, type Vars } from '~/lib/i18n';
 import { foldName } from '~/lib/search';
 import { useCan } from '~/lib/session';
 import { play } from '~/lib/sfx';
@@ -28,7 +28,7 @@ import './quickadd.css';
 export interface Msg { key: Key; vars?: Vars }
 const msg = (key: Key, vars?: Vars): Msg => ({ key, vars });
 
-const TITLE: Record<AddRelation, Key> = { parent: 'quick.title.parent', child: 'quick.title.child', partner: 'quick.title.partner', sibling: 'quick.title.sibling' };
+const TITLE: Record<AddRelation, Key> = { parent: 'quick.add.parent', child: 'quick.add.child', partner: 'quick.add.partner', sibling: 'quick.add.sibling' };
 const RELATION_WORD: Record<AddRelation, Key> = { parent: 'quick.rel.parent', child: 'quick.rel.child', partner: 'quick.rel.partner', sibling: 'quick.rel.sibling' };
 
 // ---------- who can be linked ----------
@@ -324,7 +324,8 @@ export function QuickAdd({ family: f, tree, anchor, relation, sex, onDone, onLin
       variant="event"
       width={520}
       dirty={dirty && !busy}
-      title={<><span className="qa-what">{t(TITLE[relation])}</span> {displayName(a, f)}</>}
+      // The words around the name are the small line above it, in whichever order the language puts them.
+      title={<>{translateParts(t.locale, TITLE[relation], ['name']).map((part, i) => (typeof part === 'string' ? <span key={i} className="qa-what">{part}</span> : <Fragment key={i}>{displayName(a, f)}</Fragment>))}</>}
       footer={
         <>
           {error ? <span className="err qa-note" role="alert">{error}</span> : <span className="subtle qa-note">{mode === 'existing' ? t('quick.note.existing') : t('quick.note.new')}</span>}

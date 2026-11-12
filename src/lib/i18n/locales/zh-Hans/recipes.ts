@@ -94,7 +94,6 @@ export default {
   "recipes.form.picture_failed": "{name}无法作为图片读取（JPEG、PNG 或 WebP）。",
   "recipes.form.ingredients_hint": "每行一种。在第一个框里输入整行（“牛肉800克，切块”）会自动拆分，也可以直接粘贴你的清单。",
   "recipes.form.paste": "粘贴清单",
-  "recipes.form.paste_ph": "牛肉800克，切块\n洋葱3个\n红椒粉2汤匙\n\n面疙瘩：\n面粉250克",
   "recipes.form.paste_add": "拆成多行",
   "recipes.form.group_ph": "用于…（酱汁、面团、配料）",
   "recipes.form.group_n": "清单第{n}部分的名称",

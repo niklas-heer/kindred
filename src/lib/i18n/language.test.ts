@@ -2,7 +2,8 @@
 // sorting, whole anniversary names and sentence templates. Names are invented.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { KEYS, compareText, ordinal, ordinalWord, translate, translateParts, type Key } from './dictionary.ts';
+import { KEYS, compareText, datePrecision, formatDate, ordinal, ordinalWord, translate, translateParts, type Key } from './dictionary.ts';
+import { replyKey } from '../history.ts';
 
 test('Afrikaans ordinals: -ste for 1, 8 and from 20 up, the last two digits past a hundred', () => {
   const af = (n: number) => ordinal(n, 'af');
@@ -24,11 +25,11 @@ test('names sort the way the reader’s language sorts them', () => {
 test('a wedding anniversary carries its whole name in each language', () => {
   const name = (l: 'en' | 'de' | 'af', k: string, n: string) =>
     translate(l, 'almanac.anniversary_note', { ord: n, name: translate(l, `almanac.wedding.${k}` as Key) });
-  assert.equal(name('de', 'golden', '50.'), '50. Hochzeitstag · Goldene Hochzeit');
-  assert.equal(name('de', 'coral', '35.'), '35. Hochzeitstag · Leinwandhochzeit');
-  assert.equal(name('de', 'diamond', '60.'), '60. Hochzeitstag · Diamantene Hochzeit');
-  assert.equal(name('af', 'golden', '50ste'), '50ste trouherdenking · goue bruilof');
-  assert.equal(name('en', 'silver', '25th'), '25th anniversary · silver wedding');
+  assert.equal(name('de', 'y50', '50.'), '50. Hochzeitstag · Goldene Hochzeit');
+  assert.equal(name('de', 'y35', '35.'), '35. Hochzeitstag · Leinwandhochzeit');
+  assert.equal(name('de', 'y60', '60.'), '60. Hochzeitstag · Diamantene Hochzeit');
+  assert.equal(name('af', 'y50', '50ste'), '50ste trouherdenking · goue bruilof');
+  assert.equal(name('en', 'y25', '25th'), '25th anniversary · silver wedding');
   for (const k of KEYS.filter((k) => k.startsWith('almanac.wedding.'))) {
     assert.match(translate('de', k), /^[A-ZÄÖÜ].*(hochzeit| Hochzeit)$/, `${k} is a whole German name`);
     assert.match(translate('af', k), /bruilof$/, `${k} is a whole Afrikaans name`);
@@ -46,4 +47,25 @@ test('a chronicle line is one sentence per language, with the parts where each l
   assert.equal(line('af', 'memory'), 'Linnea Reyes onthou Sven Ström');
   assert.equal(line('en', 'recipe'), 'Linnea Reyes shared a recipe from Sven Ström');
   assert.deepEqual(translateParts('de', 'chronicle.line.memory', ['author', 'subject']), [{ slot: 'author' }, ' erinnert sich an ', { slot: 'subject' }]);
+});
+
+test('a sentence around a date takes the words for how much of the date is known', () => {
+  assert.deepEqual(['1890-05-03', '1890-05', '1890', '~1890', '~1890-05'].map(datePrecision), ['day', 'month', 'year', 'about', 'about']);
+  const born = (l: 'de' | 'af', d: string) => translate(l, `feed.value.born_in_${datePrecision(d)}` as Key, { date: formatDate(d, l), place: 'Graz' });
+  assert.equal(born('de', '1890-05-03'), 'geboren am 3. Mai 1890 in Graz');
+  assert.equal(born('de', '1890-05'), 'geboren im Mai 1890 in Graz');
+  assert.equal(born('de', '1890'), 'geboren 1890 in Graz');
+  assert.equal(born('af', '1890'), 'gebore in 1890 in Graz');
+});
+
+test('one comment names its writer; several are counted without a name', () => {
+  const text = (count: number) => translate('en', replyKey({ kind: 'comment', target: 'story', count }), { author: 'Ada', count });
+  assert.equal(text(1), 'Ada commented on your memory');
+  assert.equal(text(3), '3 new comments on your memory');
+  assert.equal(replyKey({ kind: 'reaction', target: 'post', count: 1 }), 'history.reply.reaction_post');
+});
+
+test('a count that the screen fills in itself still chooses the plural form', () => {
+  assert.deepEqual(translateParts('de', 'almanac.count.birthday', ['count'], { count: 1 }), [{ slot: 'count' }, ' Geburtstag']);
+  assert.deepEqual(translateParts('de', 'almanac.count.birthday', ['count'], { count: 3 }), [{ slot: 'count' }, ' Geburtstage']);
 });

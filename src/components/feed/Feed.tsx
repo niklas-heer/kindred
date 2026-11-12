@@ -28,7 +28,7 @@ import type { ContactKind, FeedItem, UpdatePerson, UpdateValue } from '~/lib/fee
 import { isContactType, type FieldType } from '~/lib/fields/model';
 import { displayName, type Family } from '~/lib/graph';
 import { fieldName, valueText } from '~/lib/history-text';
-import { formatDate, richText, useT, type Key, type Translator } from '~/lib/i18n';
+import { datePrecision, formatDate, richText, useT, type Key, type Translator } from '~/lib/i18n';
 import { mediaUrl } from '~/lib/photos/types';
 import { useCan, useMember, useSession } from '~/lib/session';
 import type { GPerson, Story } from '~/lib/types';
@@ -209,7 +209,7 @@ function Entry({ item, f, tree, now, tr, defer }: { item: FeedItem; f: Family; t
         <>
           {newborns.map(({ person, born }) => (
             <Quiet key={person.id} icon={<Baby size={16} />}>
-              <span>{richText(t, 'feed.line.newborn', { name: nameLinks([person], f, tree, t) }, { date: formatDate(born, t.locale) })}</span>
+              <span>{richText(t, `feed.line.newborn_${datePrecision(born!)}`, { name: nameLinks([person], f, tree, t) }, { date: formatDate(born, t.locale) })}</span>
               <When at={item.at} now={now} t={t} />
             </Quiet>
           ))}
@@ -262,7 +262,7 @@ function valuePhrases(values: UpdateValue[], t: Translator, to: { tree: string; 
   // A birth or a death with its place is one phrase.
   for (const [date, place] of [['born', 'born_place'], ['died', 'died_place']] as const) {
     const d = by.get(date)?.value, pl = by.get(place)?.value;
-    if (d) out.push(t(pl ? `feed.value.${date}_in` : `feed.value.${date}`, { date: formatDate(d, t.locale), place: pl ?? '' }));
+    if (d) out.push(t(`feed.value.${date}${pl ? '_in' : ''}_${datePrecision(d)}`, { date: formatDate(d, t.locale), place: pl ?? '' }));
     else if (pl) out.push(t(`feed.value.${place}`, { place: pl }));
     if (d) said.add(date);
     if (pl) said.add(place);

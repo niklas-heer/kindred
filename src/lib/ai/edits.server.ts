@@ -233,8 +233,8 @@ export const EDITS: Edit[] = [
       const a = z.object({ person: idText, relative: idText, relation: z.enum(['parent', 'child', 'partner']) }).parse(input);
       who(env, a.person);
       who(env, a.relative);
-      const label = c(a.relation === 'parent' ? 'ai.relParent' : a.relation === 'child' ? 'ai.relChild' : 'ai.relPartner');
-      const text = `${named(env, a.relative)}: ${label} ${named(env, a.person)}`;
+      const rel = c(a.relation === 'parent' ? 'ai.relOf.parent' : a.relation === 'child' ? 'ai.relOf.child' : 'ai.relOf.partner', { name: named(env, a.person) });
+      const text = `${named(env, a.relative)}: ${rel}`;
       const base = { kind: 'unlink' as const, removal: true, editable: [], summary: c('chat.sum.unlink', { a: named(env, a.person), b: named(env, a.relative) }), diff: [removedRow(c, c('ai.fieldRelation'), text)] };
       if (a.relation === 'partner') {
         const u = g.unions.find((x) => (x.a === a.person && x.b === a.relative) || (x.b === a.person && x.a === a.relative)) ?? no('those two are not recorded as partners');

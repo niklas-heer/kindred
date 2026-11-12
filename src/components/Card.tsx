@@ -56,13 +56,14 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, kin
     const { child, as } = node.ghost;
     if (detail === 'seal') detail = 'far';
     const of = f.byId.get(child);
-    const who = of?.given ?? t('card.theirs');
-    const rel = t(as === 'father' ? 'card.father' : 'card.mother');
+    const name = of?.given ?? t('card.someone');
+    const unknown = t(as === 'father' ? 'card.unknownFather' : 'card.unknownMother', { name });
+    const add = t(as === 'father' ? 'card.addFather' : 'card.addMother', { name });
     const relLabel = t(as === 'father' ? 'card.fatherLabel' : 'card.motherLabel');
     // Readers who may not add people see the slot as a plain "unknown", not a button.
     if (!onAdd) {
       return (
-        <div className={`card ghost readonly ${detail}`} title={t('card.unknownSlot', { who, rel })} aria-hidden>
+        <div className={`card ghost readonly ${detail}`} title={unknown} aria-hidden>
           {detail === 'near' && (
             <>
               <span className="ghost-label">{relLabel}</span>
@@ -76,8 +77,8 @@ export const Card = memo(function Card({ node, detail, family: f, tree, kin, kin
       <button
         className={`card ghost ${detail}`}
         onClick={() => onAdd?.(child, 'parent', as === 'father' ? 'm' : 'f')}
-        title={t('card.addSlot', { who, rel })}
-        aria-label={t('card.addSlot', { who, rel })}
+        title={add}
+        aria-label={add}
       >
         {detail !== 'far' && (
           <>

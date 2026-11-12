@@ -27,7 +27,7 @@ import {
   COUNTRY_CODES, DEFAULT_HOUSE_SETTINGS, houseHistory, houseStats, houseSuccession, kinToHead, memberOrder, notables,
   SUCCESSION_LAWS, spanLabel, useHouseSettings, type HouseSettings, type HouseTenure, type Succession, type SuccessionLaw,
 } from '~/lib/houses';
-import { compareText, dateText, kinshipLabel, locales, translate, useT, type Key, type Locale } from '~/lib/i18n';
+import { compareText, dateText, kinshipLabel, locales, richText, translate, useT, type Key, type Locale } from '~/lib/i18n';
 import { occupationText } from '~/lib/occupations';
 import { useCan } from '~/lib/session';
 import { toast } from '~/lib/toast';
@@ -601,8 +601,9 @@ function HouseChronicle({ members, tree, houseName }: { members: GPerson[]; tree
                     <div className="hp-story-meta">
                       <span className="hp-story-kind">{t(kind)}</span>
                       <span>
-                        {st.kind === 'quote' ? t('houses.of') : t('houses.about')}{' '}
-                        <Link className="hp-link" to="/$tree" params={{ tree }} search={{ focus: p.id }}><Name p={p} /></Link>
+                        {richText(t, st.kind === 'quote' ? 'houses.quote_of' : 'houses.story_about', {
+                          name: <Link className="hp-link" to="/$tree" params={{ tree }} search={{ focus: p.id }}><Name p={p} /></Link>,
+                        })}
                         {' '}· {st.author}
                       </span>
                       <time dateTime={st.at}>{when(st.at, t.locale)}</time>

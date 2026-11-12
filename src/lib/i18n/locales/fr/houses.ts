@@ -3,7 +3,6 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/houses.ts";
 
 export default {
-  "houses.about": "à propos de",
   "houses.allHouses": "Toutes les maisons",
   "houses.armsOf": "Armoiries de {name}",
   "houses.automatic": "Automatique : {name}",
@@ -125,7 +124,6 @@ export default {
   "houses.notFoundText": "Cette famille n’a pas de telle maison. Elle a peut-être été renommée ou supprimée.",
   "houses.notSet": "Non défini",
   "houses.notable": "Membres notables",
-  "houses.of": "de",
   "houses.onlySteward": "Seul un gardien peut modifier les armoiries et la succession",
   "houses.openTree": "Ouvrir l’arbre",
   "houses.perGeneration": "Membres par génération",

@@ -1,4 +1,4 @@
-import { useT } from '~/lib/i18n';
+import { richText, useT } from '~/lib/i18n';
 // First visit to a tree: "Who are you in this family?", asked on the tree page only (someone sent a link to one page reads that
 // page; "This is me" is there when they want it). Afterwards, once, a small offer of the guided tour in the corner.
 // The answer is saved with the reader's membership and as the `me:<tree>` preference (a person id,
@@ -108,7 +108,7 @@ function WhoAreYou({ open, onChoose, onLater, familyName }: { open: boolean; onC
       variant="event"
       width={520}
       title={<>{crest && <span className="who-crest" aria-hidden><Arms arms={crest.arms} size={56} /></span>}<span className="who-title">{t("firstrun.who_are_you_in_this_family")}</span></>}
-      description={<>{t("firstrun.kindred_names_everyone_in")} <b>{familyName}</b> {t("firstrun.from_your_point_of_view_your_great_aunt_your_second_cousin")}</>}
+      description={<>{richText(t, 'firstrun.names_everyone', { family: <b>{familyName}</b> })}</>}
     >
       <WhoChooser f={f} tree={tree} onChoose={onChoose} name={name} />
     </Dialog>

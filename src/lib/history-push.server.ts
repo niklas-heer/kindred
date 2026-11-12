@@ -11,7 +11,7 @@ import type { Locale } from './i18n/types.ts';
 import { can } from './roles.ts';
 import { dayKey, type ReminderMessage } from './reminders.ts';
 import { STALE_DAYS, subscriptionFrom, type PushRow } from './reminders.server.ts';
-import type { WhatsNew } from './history.ts';
+import { replyKey, type WhatsNew } from './history.ts';
 import { fitsPush, sendPush, type VapidConfig } from './webpush.ts';
 
 const DAY_MS = 86_400_000;
@@ -28,7 +28,7 @@ export function weeklyMessage(tree: string, family: string, locale: Locale, news
   }
   for (const p of news.posts) lines.push(t('feed.news.posts', { author: p.author, count: p.count }));
   for (const r of news.replies) {
-    lines.push(t(`history.reply.${r.kind}_${r.target}` as Parameters<typeof translate>[1], { author: r.author, count: r.count }));
+    lines.push(t(replyKey(r), { author: r.author, count: r.count }));
   }
   if (!lines.length) return null;
   const message = (shown: number): ReminderMessage => ({

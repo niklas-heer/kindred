@@ -3,7 +3,6 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/houses.ts";
 
 export default {
-  "houses.about": "対象：",
   "houses.allHouses": "すべての家系",
   "houses.armsOf": "{name}の紋章",
   "houses.automatic": "おまかせ：{name}",
@@ -113,7 +112,6 @@ export default {
   "houses.notFoundText": "この家族には、そのような家系はありません。名前が変わったか、削除されたかもしれません。",
   "houses.notSet": "未設定",
   "houses.notable": "主なメンバー",
-  "houses.of": "言葉の主：",
   "houses.onlySteward": "紋章と継承を変更できるのは、世話役だけです",
   "houses.openTree": "家系図を開く",
   "houses.perGeneration": "世代ごとのメンバー数",

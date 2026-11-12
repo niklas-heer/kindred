@@ -19,7 +19,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { feature, mesh } from 'topojson-client';
 import { z } from 'zod';
 import { GameIcon } from '~/components/GameIcon';
-import { compareText, translate, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
+import { compareText, richText, translate, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
 import { Arms } from '~/components/Heraldry';
 import type { House } from '~/lib/types';
 import { Portrait } from '~/components/Portrait';
@@ -52,7 +52,7 @@ interface Arc { from: Place; to: Place; n: number }
 const KINDS: Kind[] = ['births', 'deaths', 'weddings', 'events'];
 const ICON: Record<Kind, 'cake-slice' | 'candle-light' | 'linked-rings' | 'quill-ink'> = { births: 'cake-slice', deaths: 'candle-light', weddings: 'linked-rings', events: 'quill-ink' };
 /** Each kind's noun, singular and plural (by count). */
-const KIND_ONE: Record<Kind, Key> = { births: 'atlas.kind.births', deaths: 'atlas.kind.deaths', weddings: 'atlas.kind.weddings', events: 'events.atlas.kind' };
+const KIND_COUNT: Record<Kind, Key> = { births: 'atlas.count.births', deaths: 'atlas.count.deaths', weddings: 'atlas.count.weddings', events: 'events.atlas.count' };
 const MODES: { id: Mode; label: Key; icon?: 'cake-slice' | 'candle-light' | 'linked-rings' | 'quill-ink' }[] = [
   { id: 'all', label: 'atlas.mode.all' },
   { id: 'births', label: 'atlas.mode.births', icon: 'cake-slice' },
@@ -379,7 +379,7 @@ function Atlas() {
                       {mode === 'all' && (
                         <small className="atlas-kinds">
                           {KINDS.filter((k) => p.kinds[k]).map((k) => (
-                            <span key={k} className={`k-${k}`} title={`${p.kinds[k]} ${tr(KIND_ONE[k], { count: p.kinds[k] })}`}>
+                            <span key={k} className={`k-${k}`} title={tr(KIND_COUNT[k], { count: p.kinds[k] })}>
                               <GameIcon name={ICON[k]} size={11} />{p.kinds[k]}
                             </span>
                           ))}
@@ -488,7 +488,7 @@ function PlaceDetail({ pin, f, tree, mode, onBack }: { pin: Pin; f: ReturnType<t
           <p className="muted">{tr('atlas.first_recorded', { year: pin.first })}{house ? <> · {tr('atlas.mostly')} <Link className="atlas-house" to="/$tree/house/$house" params={{ tree, house: house.id }}>{house.name}</Link></> : null}</p>
           <p className="atlas-place-kinds">
             {KINDS.filter((k) => pin.kinds[k]).map((k) => (
-              <span key={k} className={`k-${k}`}><GameIcon name={ICON[k]} size={13} /> {pin.kinds[k]} {tr(KIND_ONE[k], { count: pin.kinds[k] })}</span>
+              <span key={k} className={`k-${k}`}><GameIcon name={ICON[k]} size={13} /> {tr(KIND_COUNT[k], { count: pin.kinds[k] })}</span>
             ))}
           </p>
         </div>
@@ -1046,13 +1046,16 @@ function KindRing({ kinds, r, w }: { kinds: Record<Kind, number>; r: number; w: 
 function sentence(e: Event, f: ReturnType<typeof useFamily>, tr: Translator) {
   const [a, b] = e.people.map((id) => f.byId.get(id));
   const name = (p?: GPerson) => <b>{p ? displayName(p, f) : tr('atlas.someone')}</b>;
-  if (e.kind === 'births') return <>{name(a)} {tr('atlas.is_born')} <i>{tr('atlas.in_place', { place: e.place })}</i></>;
+  const place = <i>{e.place}</i>;
+  if (e.kind === 'births') return richText(tr, 'atlas.line.born', { name: name(a), place });
   if (e.kind === 'deaths') {
     const age = a && !isNaN(yearOf(a.born)) ? e.year - yearOf(a.born) : undefined;
-    return <>{name(a)} {tr('atlas.dies')} <i>{tr('atlas.in_place', { place: e.place })}{age !== undefined ? tr('atlas.aged', { age }) : ''}</i></>;
+    return age !== undefined
+      ? richText(tr, 'atlas.line.died_aged', { name: name(a), place }, { count: age })
+      : richText(tr, 'atlas.line.died', { name: name(a), place });
   }
-  if (e.kind === 'events') return <>{name(a)}: {e.what} <i>{tr('atlas.in_place', { place: e.place })}</i></>;
-  return <>{name(a)} {tr('atlas.marries')} {name(b)} <i>{tr('atlas.in_place', { place: e.place })}</i></>;
+  if (e.kind === 'events') return richText(tr, 'atlas.line.event', { name: name(a), place }, { what: e.what ?? '' });
+  return richText(tr, 'atlas.line.married', { name: name(a), partner: name(b), place });
 }
 
 /** The portrait of who it is about, or their house's arms when the map shows arms. */
@@ -1070,7 +1073,7 @@ function FeedFace({ e, f, tree, heraldry }: { e: Event; f: ReturnType<typeof use
 /** "37 births, 9 deaths and 2 weddings across the realm", for a busy year. */
 function summary(events: Event[], f: ReturnType<typeof useFamily>, tr: Translator) {
   const n = (k: Kind) => events.filter((e) => e.kind === k).length;
-  const parts = KINDS.filter((k) => n(k)).map((k) => `${n(k)} ${tr(KIND_ONE[k], { count: n(k) })}`);
+  const parts = KINDS.filter((k) => n(k)).map((k) => tr(KIND_COUNT[k], { count: n(k) }));
   const text = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} ${tr('atlas.and')} ${parts.at(-1)}` : parts[0];
   const where = f.graph.tree.theme === 'codex' ? tr('atlas.realm') : tr('atlas.family');
   return <><b>{text}</b> <i>{where}, {tr('atlas.most_in', { place: busiest(events) })}</i></>;

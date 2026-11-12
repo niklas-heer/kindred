@@ -115,9 +115,9 @@ const ENGLISH_WORDS = new Set([
 const wordsOf = (text: string) => text.replace(/\{\w+\}/g, " ").replace(/\S+[@.]\S+/g, " ").match(/\p{L}{2,}/gu) ?? [];
 /** wordsOf() without quoted names ("Do Not Track"), settings (KINDRED_DEFAULT_TREE) and paths, which stay English. */
 const proseWordsOf = (text: string) => wordsOf(text.replace(/[„“"«‘][^„“”"»’]*[“”"»’]/g, " ").replace(/\S*[_/]\S*/g, " "));
-/** The placeholders of a text, sorted; {count} may be spelled out in a singular and {article} is English's "a" or "an". */
+/** The placeholders of a text, sorted; {count} may be spelled out in a singular. */
 const placeholders = (text: string) =>
-  [...new Set([...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]))].filter((p) => p !== "count" && p !== "article").sort().join();
+  [...new Set([...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]))].filter((p) => p !== "count").sort().join();
 const formsOf = (m: Message): [PluralCategory | "text", string][] =>
   typeof m === "string" ? [["text", m]] : (Object.entries(m) as [PluralCategory, string][]).filter(([, v]) => typeof v === "string");
 const enRules = new Intl.PluralRules(LANGUAGES.en.intl);

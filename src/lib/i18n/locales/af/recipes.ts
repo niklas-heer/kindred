@@ -97,7 +97,7 @@ export default {
   "recipes.form.picture_failed": "{name} kon nie as ’n prent gelees word nie (JPEG, PNG of WebP).",
   "recipes.form.ingredients_hint": "Een ry elk. Tik ’n hele reël in die eerste blokkie („800 g beesvleis, in blokkies“) en dit sorteer homself, of plak jou lys.",
   "recipes.form.paste": "Plak ’n lys",
-  "recipes.form.paste_ph": "800 g beesvleis, in blokkies\n3 uie\n2 eetlepels paprika\n\nVir die kluitjies:\n250 g meel",
+  "recipes.form.paste_example": "800 g beesvleis, in blokkies\n3 uie\n20 g paprika\n\nVir die sous:\n250 ml room",
   "recipes.form.paste_add": "Maak rye daarvan",
   "recipes.form.group_ph": "Vir die… (sous, deeg, bolaag)",
   "recipes.form.group_n": "Naam van deel {n} van die lys",

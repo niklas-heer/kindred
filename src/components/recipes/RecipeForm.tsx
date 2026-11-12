@@ -405,7 +405,7 @@ export function RecipeForm({ tree, person, edit, onDone, onCancel, onDirty, lock
       }>
         {pasting ? (
           <div className="rcp-paste">
-            <textarea className="input" rows={5} value={pasteText} placeholder={t('recipes.form.paste_ph')} aria-label={t('recipes.form.paste')} onChange={(e) => setPasteText(e.target.value)} />
+            <textarea className="input" rows={5} value={pasteText} placeholder={t('recipes.form.paste_example')} aria-label={t('recipes.form.paste')} onChange={(e) => setPasteText(e.target.value)} />
             <div className="rcp-row-end">
               <button type="button" className="btn primary" disabled={!pasteText.trim()} onClick={() => { if (takeLines(pasteText, groups[groups.length - 1]!.id)) { setPasteText(''); setPasting(false); } }}>
                 <Check size={14} aria-hidden /> {t('recipes.form.paste_add')}

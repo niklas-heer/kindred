@@ -3,7 +3,6 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/houses.ts";
 
 export default {
-  "houses.about": "关于",
   "houses.allHouses": "所有支系",
   "houses.armsOf": "{name}的纹章",
   "houses.automatic": "自动：{name}",
@@ -113,7 +112,6 @@ export default {
   "houses.notFoundText": "这个家族没有这样的支系。它可能已被改名或删除。",
   "houses.notSet": "未设置",
   "houses.notable": "知名成员",
-  "houses.of": "出自",
   "houses.onlySteward": "只有负责人可以更改纹章和继承",
   "houses.openTree": "打开家谱",
   "houses.perGeneration": "每代的成员数",

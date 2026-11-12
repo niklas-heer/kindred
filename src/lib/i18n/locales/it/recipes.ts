@@ -94,7 +94,6 @@ export default {
   "recipes.form.picture_failed": "{name} non si è potuto leggere come immagine (JPEG, PNG o WebP).",
   "recipes.form.ingredients_hint": "Una riga ciascuno. Scrivi una riga intera nella prima casella (“800 g di manzo a dadi”) e si ordina da sola, oppure incolla la tua lista.",
   "recipes.form.paste": "Incolla una lista",
-  "recipes.form.paste_ph": "800 g di manzo a dadi\n3 cipolle\n2 cucchiai di paprika\n\nPer il ripieno:\n250 g di farina",
   "recipes.form.paste_add": "Trasformala in righe",
   "recipes.form.group_ph": "Per il… (sugo, impasto, guarnizione)",
   "recipes.form.group_n": "Nome della parte {n} della lista",

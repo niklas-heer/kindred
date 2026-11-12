@@ -19,11 +19,12 @@ export function useAddedNotice({ f, tree, canRemove, selectNow }: { f: Family; t
     const h = a?.house ? f.house.get(a.house) : undefined;
     const fam = h ? (h.name.startsWith('House') ? h.name : t('tp.famNamed', { name: h.name })) : t('tp.famFallback');
     const word = (m: Key, w: Key, x: Key, vars?: Vars) => t(person.sex === 'm' ? m : person.sex === 'f' ? w : x, vars);
+    const anchorName = a?.given ?? t('card.someone');
     const title =
-      relation === 'child' ? t('tp.annChild', { word: word('tp.new.son', 'tp.new.daughter', 'tp.new.child'), family: fam }) :
+      relation === 'child' ? word('tp.ann.son', 'tp.ann.daughter', 'tp.ann.child', { family: fam }) :
       relation === 'partner' ? t('tp.annPartner', { name: person.given, family: fam }) :
-      relation === 'sibling' ? t('tp.annSibling', { word: word('tp.new.brother', 'tp.new.sister', 'tp.new.sibling'), name: a?.given ?? t('tp.theirs') }) :
-      word('tp.annFather', 'tp.annMother', 'tp.annParent', { who: a?.given ?? t('tp.theirs') });
+      relation === 'sibling' ? word('tp.ann.brother', 'tp.ann.sister', 'tp.ann.sibling', { name: anchorName }) :
+      word('tp.annFather', 'tp.annMother', 'tp.annParent', { who: anchorName });
     play('chime');
     toast({
       title,

@@ -10,8 +10,8 @@ import { Sparkles } from 'lucide-react';
 import { useEffect, useId } from 'react';
 import { lineText } from '~/lib/history-text';
 import { whatsNewQuery } from '~/lib/history.functions';
-import type { WhatsNewReply } from '~/lib/history';
-import { formatDate, useT, type Key, type Translator } from '~/lib/i18n';
+import { replyKey, type WhatsNewReply } from '~/lib/history';
+import { formatDate, useT, type Translator } from '~/lib/i18n';
 import { useMember } from '~/lib/session';
 import '~/components/history/history.css';
 import './today.css';
@@ -21,7 +21,7 @@ const GROUPS = 8;
 /** The writers named under "From the family" before "and n more messages". */
 const POSTS = 3;
 
-const replyText = (t: Translator, r: WhatsNewReply) => t(`history.reply.${r.kind}_${r.target}` as Key, { author: r.author, count: r.count });
+const replyText = (t: Translator, r: WhatsNewReply) => t(replyKey(r), { author: r.author, count: r.count });
 
 export function WhatsNew({ tree, className = '' }: { tree: string; className?: string }) {
   const t = useT();

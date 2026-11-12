@@ -55,7 +55,7 @@ export default {
   "events.err.too_many": "’n Persoon kan tot 200 gebeure hê.",
   "events.err.changed": "Die gebeure het verander terwyl jy hulle gesorteer het. Die bladsy wys hulle soos hulle nou is.",
   "events.atlas.mode": "Gebeure",
-  "events.atlas.kind": { one: "gebeurtenis", other: "gebeure" },
+  "events.atlas.count": { one: "{count} gebeurtenis", other: "{count} gebeure" },
   "events.atlas.what": "lewensgebeure",
   "events.atlas.kindword": "gebeure",
   "events.atlas.here": "Gebeure hier",

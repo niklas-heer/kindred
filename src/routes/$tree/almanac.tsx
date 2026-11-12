@@ -3,13 +3,13 @@ import { PageError } from '~/components/ui/PageError';
 import { useRememberedState, usePageTrail } from '~/lib/page-state';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { CalendarPlus, Check, Hourglass } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { GameIcon, type GameIconName } from '~/components/GameIcon';
 import { Portrait } from '~/components/Portrait';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
 import { play } from '~/lib/sfx';
 import { ancestorDepths, displayName, kinship, type Family, type Kinship } from '~/lib/graph';
-import { dateText, yourKinship, locales, ordinal, translate, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
+import { dateText, formatNumber, yourKinship, locales, ordinal, richText, translate, translateParts, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
 import type { GPerson } from '~/lib/types';
 import '~/styles/almanac.css';
 import { useDealt } from '~/lib/dealt';
@@ -74,12 +74,9 @@ interface Ev {
 }
 
 const ROUND_AGES = new Set([18, 30, 40, 50, 60, 70, 80, 90, 100]);
-const WEDDING: Record<number, Key> = {
-  1: 'almanac.wedding.paper', 5: 'almanac.wedding.wood', 10: 'almanac.wedding.tin', 15: 'almanac.wedding.crystal', 20: 'almanac.wedding.china',
-  25: 'almanac.wedding.silver', 30: 'almanac.wedding.pearl', 35: 'almanac.wedding.coral', 40: 'almanac.wedding.ruby',
-  45: 'almanac.wedding.sapphire', 50: 'almanac.wedding.golden', 55: 'almanac.wedding.emerald', 60: 'almanac.wedding.diamond',
-  65: 'almanac.wedding.blue_sapphire', 70: 'almanac.wedding.platinum',
-};
+// The years a wedding anniversary may have a name. Each language names them in its own tradition, or leaves one "".
+const WEDDING_YEARS = new Set([1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70]);
+const weddingNote = (n: number): Key | undefined => (WEDDING_YEARS.has(n) ? (`almanac.wedding.y${n}` as Key) : undefined);
 
 /** Everything that comes round again within the next year, soonest first. */
 function upcoming(f: Family, today: Date): Ev[] {
@@ -107,7 +104,7 @@ function upcoming(f: Family, today: Date): Ev[] {
     if (n > 0)
       out.push({
         key: `a:${u.id}`, kind: 'anniversary', date, days: daysBetween(date, today), ids: [u.a, u.b], n,
-        milestone: n >= 10 && n % 5 === 0, note: WEDDING[n],
+        milestone: n >= 10 && n % 5 === 0, note: weddingNote(n),
       });
   }
   return out.filter((e) => e.days <= 365).sort((a, b) => a.days - b.days || a.kind.localeCompare(b.kind));
@@ -358,7 +355,7 @@ function AlmanacView({ today: startDay }: { today: Date }) {
           )}</>} />
 
         <div className="alm-strip-wrap" data-tour="almanac-strip">
-          <MonthStrip counts={strip} current={todayM} selected={month} onSelect={(m) => setMonth(month === m ? null : m)} noun={hasLiving ? 'almanac.noun.birthday' : 'almanac.noun.event'} />
+          <MonthStrip counts={strip} current={todayM} selected={month} onSelect={(m) => setMonth(month === m ? null : m)} noun={hasLiving ? 'almanac.count.birthday' : 'almanac.count.event'} />
           <p className="muted alm-strip-cap">
             {hasLiving ? t('almanac.strip_birthdays') : t('almanac.strip_events')}
             {month !== null && (
@@ -448,11 +445,12 @@ function MonthStrip({ counts, current, selected, onSelect, noun }: { counts: num
             aria-pressed={selected === m}
             data-current={m === current || undefined}
             data-empty={c === 0 || undefined}
-            title={`${monthName(m, t.locale)}: ${c} ${t(noun, { count: c })}`}
+            title={`${monthName(m, t.locale)}: ${t(noun, { count: c })}`}
             onClick={() => onSelect(m)}
           >
             <span className="alm-tile-m">{monthName(m, t.locale, 'short')}</span>
-            <span className="alm-tile-n">{c} <small>{t(noun, { count: c })}</small></span>
+            {/* The number large, the words around it small, in the language's order. */}
+            <span className="alm-tile-n">{translateParts(t.locale, noun, ['count'], { count: c }).map((part, i) => (typeof part === 'string' ? <small key={i}>{part.trim()}</small> : <Fragment key={i}>{formatNumber(c, t.locale)}</Fragment>))}</span>
             <span className="alm-tile-gauge" aria-hidden />
           </button>
         );
@@ -505,7 +503,7 @@ function EventRow({ ev, f, tree, me, myAnc }: { ev: Ev; f: Family; tree: string;
     ev.kind === 'birthday'
       ? t('almanac.turns', { count: ev.n })
       : ev.kind === 'anniversary'
-        ? ev.note
+        ? ev.note && t(ev.note)
           ? t('almanac.anniversary_note', { ord: ordOf(ev.n, t.locale), name: t(ev.note) })
           : t('almanac.anniversary', { ord: ordOf(ev.n, t.locale) })
         : t('almanac.years_since', { count: ev.n });
@@ -551,7 +549,7 @@ function EventRow({ ev, f, tree, me, myAnc }: { ev: Ev; f: Family; tree: string;
   );
 }
 
-const HIST_VERB: Record<HistType, Key> = { born: 'almanac.was_born', died: 'almanac.died', married: 'almanac.married' };
+const HIST_LINE: Record<HistType, Key> = { born: 'almanac.hist.born', died: 'almanac.hist.died', married: 'almanac.hist.married' };
 
 function HistRow({ h, f, tree, thisYear, away, showDay }: { h: Hist; f: Family; tree: string; thisYear: number; away?: number; showDay?: boolean }) {
   const t = useT();
@@ -567,15 +565,9 @@ function HistRow({ h, f, tree, thisYear, away, showDay }: { h: Hist; f: Family; 
       </span>
       <Portrait person={ps[0]} tree={tree} size={32} frame={false} />
       <span className="alm-htext">
-        <Name p={ps[0]} f={f} tree={tree} />
-        {h.type === 'married' && ps[1] ? (
-          <>
-            {' '}
-            {t('almanac.married')} <Name p={ps[1]} f={f} tree={tree} />
-          </>
-        ) : (
-          <> {t(HIST_VERB[h.type])}</>
-        )}
+        {h.type === 'married' && ps[1]
+          ? richText(t, 'almanac.hist.married_to', { name: <Name p={ps[0]} f={f} tree={tree} />, partner: <Name p={ps[1]} f={f} tree={tree} /> })
+          : richText(t, HIST_LINE[h.type], { name: <Name p={ps[0]} f={f} tree={tree} /> })}
         <small className="muted">
           {' '}
           {away !== undefined ? `${awayLabel(away, t).toLowerCase()} · ` : ''}

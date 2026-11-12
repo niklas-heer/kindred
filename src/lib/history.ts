@@ -100,6 +100,12 @@ export interface WhatsNewReply {
   count: number;
 }
 
+/** The sentence of a reply: one comment names its writer, several are counted, reactions are counted. */
+export const replyKey = (r: Pick<WhatsNewReply, 'kind' | 'target' | 'count'>) =>
+  r.kind === 'comment'
+    ? r.count === 1 ? (`history.reply.comment_by_${r.target}` as const) : (`history.reply.comments_${r.target}` as const)
+    : (`history.reply.reaction_${r.target}` as const);
+
 export interface WhatsNew {
   /** Where the news is counted from (ISO), so the component can say "since Tuesday". */
   since: string;

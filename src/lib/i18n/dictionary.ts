@@ -122,10 +122,10 @@ function messageFor(locale: Locale, key: Key): Message {
   return tables.en[key] ?? key;
 }
 
-export function translate(locale: Locale, key: Key, vars: Vars = {}): string {
+export function translate(locale: Locale, key: Key, vars: Vars = {}, count = Number(vars.count ?? 0)): string {
   const entry = messageFor(locale, key);
   // A plural gives the forms its language needs; a category it leaves out takes `other`.
-  const text = typeof entry === "string" ? entry : (entry[pluralCategory(locale, Number(vars.count ?? 0))] ?? entry.other);
+  const text = typeof entry === "string" ? entry : (entry[pluralCategory(locale, count)] ?? entry.other);
   return text.replace(/\{(\w+)\}/g, (all, k) =>
     // A year is a name for a time, not a quantity: "1985", never "1,985" or "1.985".
     vars[k] === undefined ? all : typeof vars[k] === "number" && !/year|decade/i.test(k) ? formatNumber(vars[k] as number, locale) : String(vars[k]),
@@ -139,7 +139,8 @@ export function translate(locale: Locale, key: Key, vars: Vars = {}): string {
 export function translateParts(locale: Locale, key: Key, slots: readonly string[], vars: Vars = {}): (string | { slot: string })[] {
   const marked: Vars = { ...vars };
   for (const s of slots) marked[s] = `\u0000${s}\u0000`;
-  return translate(locale, key, marked)
+  // A slot named count still chooses the plural form by the number.
+  return translate(locale, key, marked, Number(vars.count ?? 0))
     .split("\u0000")
     .map((part, i) => (i % 2 ? { slot: part } : part))
     .filter((part) => part !== "");
@@ -227,6 +228,17 @@ export function dateText(value: Date | number, locale: Locale, options: Intl.Dat
   const month = Number(new Intl.DateTimeFormat("en-US", { month: "numeric", timeZone: format.resolvedOptions().timeZone }).format(value)) - 1;
   // A medium date is all numbers in German: only a month written in letters is replaced.
   return format.formatToParts(value).map((part) => (part.type === "month" && !/^\d+$/.test(part.value) ? LANGUAGES[locale].shortMonths[month] : part.value)).join("");
+}
+
+/**
+ * How much of a stored date is known: "1890-05-03" a day, "1890-05" a month, "1890" a year, "~1890" about. A sentence
+ * around a date has a key for each, since languages word them differently ("am 3. Mai 1890", "im Mai 1890", "1890").
+ */
+export type DatePrecision = "day" | "month" | "year" | "about";
+export function datePrecision(value: string): DatePrecision {
+  if (value.startsWith("~")) return "about";
+  const m = /^\d{4}(-\d{2})?(-\d{2})?$/.exec(value);
+  return !m || m[2] ? "day" : m[1] ? "month" : "year";
 }
 
 export function formatDate(

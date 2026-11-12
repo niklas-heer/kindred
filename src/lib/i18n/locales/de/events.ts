@@ -55,7 +55,7 @@ export default {
   "events.err.too_many": "Eine Person kann bis zu 200 Ereignisse haben.",
   "events.err.changed": "Die Ereignisse haben sich beim Sortieren geändert. Die Seite zeigt sie, wie sie jetzt sind.",
   "events.atlas.mode": "Ereignisse",
-  "events.atlas.kind": { one: "Ereignis", other: "Ereignisse" },
+  "events.atlas.count": { one: "{count} Ereignis", other: "{count} Ereignisse" },
   "events.atlas.what": "Lebensereignisse",
   "events.atlas.kindword": "Ereignisse",
   "events.atlas.here": "Ereignisse hier",

@@ -94,7 +94,6 @@ export default {
   "recipes.form.picture_failed": "{name} n’a pas pu être lu comme une image (JPEG, PNG ou WebP).",
   "recipes.form.ingredients_hint": "Une ligne chacun. Saisis une ligne entière dans la première case (« 800 g de bœuf, en dés ») et elle se range toute seule, ou colle ta liste.",
   "recipes.form.paste": "Coller une liste",
-  "recipes.form.paste_ph": "800 g de bœuf, en dés\n3 oignons\n2 c. à s. de paprika\n\nPour la garniture :\n250 g de farine",
   "recipes.form.paste_add": "En faire des lignes",
   "recipes.form.group_ph": "Pour la… (sauce, pâte, garniture)",
   "recipes.form.group_n": "Nom de la partie {n} de la liste",

@@ -94,7 +94,6 @@ export default {
   "recipes.form.picture_failed": "No se pudo leer {name} como imagen (JPEG, PNG o WebP).",
   "recipes.form.ingredients_hint": "Una fila cada uno. Escribe una línea entera en la primera casilla (“800 g de ternera, en dados”) y se ordena sola, o pega tu lista.",
   "recipes.form.paste": "Pegar una lista",
-  "recipes.form.paste_ph": "800 g de ternera, en dados\n3 cebollas\n2 cucharadas de pimentón\n\nPara las albóndigas:\n250 g de harina",
   "recipes.form.paste_add": "Convertirlo en filas",
   "recipes.form.group_ph": "Para el… (salsa, masa, cobertura)",
   "recipes.form.group_n": "Nombre de la parte {n} de la lista",

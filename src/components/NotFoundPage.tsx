@@ -21,7 +21,7 @@ export function NotFoundPage({ kind = 'page', id }: { kind?: 'family' | 'page'; 
         title={kind === 'family' ? t("notfoundpage.family_not_found") : t("notfoundpage.page_not_found")}
         text={
           kind === 'family'
-            ? <>{t("notfoundpage.there_s_no_family")} {id ? <>{t("notfoundpage.called")}{id}{t("notfoundpage.")} </> : null}{t("notfoundpage.here_it_may_have_been_renamed_or_the_link_is_old")}</>
+            ? id ? t("notfoundpage.no_family_named", { name: id }) : t("notfoundpage.no_family")
             : t("notfoundpage.this_page_doesn_t_exist_or_it_has_moved")
         }
       >

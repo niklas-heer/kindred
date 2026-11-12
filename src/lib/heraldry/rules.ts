@@ -3,7 +3,7 @@
 import type { ArmsLayer, ArmsV2, ChargeLayer, FieldDivision, OrdinaryKind, OrdinaryLayer, PartitionLine, ShieldShape, TinctureV2 } from '~/lib/seed-format';
 import { chargeNoun } from './blazon';
 import { chargeName } from './registry';
-import type { Key, Translator } from '~/lib/i18n';
+import type { Translator } from '~/lib/i18n';
 import { CENTRAL, fieldTinctures, standsBetween, tinctureCount } from './geometry';
 import { kindOf, labelV2 } from './tinctures';
 import { ordinaryLabel } from './vocab';
@@ -58,19 +58,19 @@ export function tinctureClashesV2(a: ArmsV2, t: Translator): Clash[] {
   const out: Clash[] = [];
   const field = fieldTinctures(a);
   if (field.length > 1 && new Set(field).size < field.length) {
-    out.push({ layer: -1, message: t('heraldry.clash.repeat', { tincture: nameOf(t, field.find((x, i) => field.indexOf(x) !== i)!) }) });
+    out.push({ layer: -1, message: t('heraldry.clash.repeated', { tincture: nameOf(t, field.find((x, i) => field.indexOf(x) !== i)!) }) });
   }
   a.layers.forEach((l, i) => {
     if (l.counterchanged && field.length > 1) return;
     const under = underOf(a, i);
     const bad = [...new Set(under.filter((u) => clashes2(u, l.tincture)))];
     if (!bad.length) return;
-    const kind = t(`heraldry.kind.${kindOf(l.tincture)}` as Key);
     const what = l.type === 'ordinary'
       ? (t.locale === 'en' ? t(ordinaryLabel(l.kind)).toLowerCase() : t(ordinaryLabel(l.kind)))
       : t.locale === 'en' ? chargeNoun(l.charge, (l as ChargeLayer).count) : chargeName(l.charge, t.locale);
-    const message = t(l.type === 'charge' && l.count > 1 ? 'heraldry.clash.on_many' : 'heraldry.clash.on', {
-      tincture: nameOf(t, l.tincture), what, on: bad.map((x) => nameOf(t, x)).join(` ${t('heraldry.and')} `), kind,
+    // Every tincture stands alone as a name, so no language has to inflect one.
+    const message = t(kindOf(l.tincture) === 'metal' ? 'heraldry.clash.metal' : 'heraldry.clash.colour', {
+      tincture: nameOf(t, l.tincture), what, on: bad.map((x) => nameOf(t, x)).join(` ${t('heraldry.and')} `),
     });
     const mixed = new Set(under.filter(bound).map(kindOf)).size === 2;
     const partition = field.length > 1 && under.length === field.length && under.every((t, k) => t === field[k]);

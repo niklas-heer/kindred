@@ -627,7 +627,8 @@ async function propose(ctx: Ctx, c: Tr, byId: Map<string, GPerson>, kind: Propos
     if (typeof args[k] === 'string' && !byId.has(args[k] as string)) return json({ error: `${k} is not a person in this tree; search for them first` });
   }
   const name = (id: string) => fullName(byId.get(id)!);
-  const rel = (r: string) => (r === 'child' ? c('ai.relChild') : r === 'parent' ? c('ai.relParent') : r === 'partner' ? c('ai.relPartner') : c('ai.relSibling'));
+  // "child of Ada": the name inside the phrase, where the language puts it.
+  const relOf = (r: string, anchor: string) => c(r === 'child' ? 'ai.relOf.child' : r === 'parent' ? 'ai.relOf.parent' : r === 'partner' ? 'ai.relOf.partner' : 'ai.relOf.sibling', { name: name(anchor) });
   const storyKind = (k: string) => (STORY_KIND_KEY[k] ? c(STORY_KIND_KEY[k]) : k);
   const show = (v: unknown) => (v === undefined || v === null || v === '' ? c('ai.fieldNone') : String(v));
   const diff: Proposal['diff'] = [];
@@ -637,8 +638,8 @@ async function propose(ctx: Ctx, c: Tr, byId: Map<string, GPerson>, kind: Propos
   if (kind === 'add-person') {
     const a = args as z.infer<typeof proposalArgs['add-person']>;
     const who = [allGiven(a.given, a.furtherGiven), a.surname].filter(Boolean).join(' ');
-    summary = c('ai.summaryAddPerson', { name: who, rel: rel(a.relation), anchor: name(a.anchor) });
-    diff.push({ label: c('ai.fieldName'), to: who }, { label: c('ai.fieldRelation'), to: `${rel(a.relation)} ${name(a.anchor)}` });
+    summary = c('ai.summaryAddRel', { name: who, rel: relOf(a.relation, a.anchor) });
+    diff.push({ label: c('ai.fieldName'), to: who }, { label: c('ai.fieldRelation'), to: relOf(a.relation, a.anchor) });
     if (a.born) diff.push({ label: c('ai.fieldBorn'), to: a.born });
     if (a.died) diff.push({ label: c('ai.fieldDied'), to: a.died });
     if (a.partnership?.start) diff.push({ label: c('chat.field.unionStart'), to: a.partnership.start });
@@ -646,8 +647,8 @@ async function propose(ctx: Ctx, c: Tr, byId: Map<string, GPerson>, kind: Propos
     editable = ['given', 'surname', 'born', 'died'];
   } else if (kind === 'link-relative') {
     const a = args as { anchor: string; person: string; relation: string; partnership?: { start?: string; place?: string } };
-    summary = c('ai.summaryLink', { name: name(a.person), rel: rel(a.relation), anchor: name(a.anchor) });
-    diff.push({ label: c('ai.fieldRelation'), to: `${name(a.person)}: ${rel(a.relation)} ${name(a.anchor)}` });
+    summary = c('ai.summaryLinkRel', { name: name(a.person), rel: relOf(a.relation, a.anchor) });
+    diff.push({ label: c('ai.fieldRelation'), to: `${name(a.person)}: ${relOf(a.relation, a.anchor)}` });
     if (a.partnership?.start) diff.push({ label: c('chat.field.unionStart'), to: a.partnership.start });
     if (a.partnership?.place) diff.push({ label: c('ai.fieldPlace'), to: a.partnership.place });
   } else if (kind === 'set-dates') {

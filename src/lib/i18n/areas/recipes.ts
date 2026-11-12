@@ -8,6 +8,7 @@ export const en = {
   "recipes.untitled": "A recipe",
   "recipes.serves": "Serves {count}",
   "recipes.servings": { one: "{count} serving", other: "{count} servings" },
+  // The word after the servings field, which holds the number: give every plural form your language needs, without {count}.
   "recipes.servings_word": { one: "serving", other: "servings" },
   "recipes.makes": "Makes",
   "recipes.prep": "Preparation",
@@ -98,7 +99,7 @@ export const en = {
   "recipes.form.picture_failed": "{name} could not be read as a picture (JPEG, PNG or WebP).",
   "recipes.form.ingredients_hint": "One row each. Type a whole line into the first box (“800 g beef, diced”) and it sorts itself, or paste your list.",
   "recipes.form.paste": "Paste a list",
-  "recipes.form.paste_ph": "800 g beef, diced\n3 onions\n2 tbsp paprika\n\nFor the dumplings:\n250 g flour",
+  "recipes.form.paste_example": "800 g beef, diced\n3 onions\n20 g paprika\n\nFor the sauce:\n250 ml cream",
   "recipes.form.paste_add": "Make rows of it",
   "recipes.form.group_ph": "For the… (sauce, dough, topping)",
   "recipes.form.group_n": "Name of part {n} of the list",

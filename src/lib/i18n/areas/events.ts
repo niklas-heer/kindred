@@ -53,7 +53,7 @@ export const en = {
   "events.err.too_many": "A person can have up to 200 events.",
   "events.err.changed": "The events changed while you were sorting them. The page shows them as they are now.",
   "events.atlas.mode": "Events",
-  "events.atlas.kind": { one: "event", other: "events" },
+  "events.atlas.count": { one: "{count} event", other: "{count} events" },
   "events.atlas.what": "life events",
   "events.atlas.kindword": "events",
   "events.atlas.here": "Events here",
