@@ -28,9 +28,11 @@ week's birthdays and wedding anniversaries, and what is new since your last visi
 - **The family's feed.** A relative writes a few lines to the family ("We have moved", "She passed her exam", "Photos from
   Sunday"), with pictures and the people it is about. Everyone can react, contributors can comment, and the message also
   shows on the page of whoever it is about. New memories, a day's photographs and new people in the tree join the same
-  stream, so one page says what the family has been up to. The feed also says when records change ("Ada updated Carl: has a
-  new address"), naming what changed and never the value; changes only editors may see stay with editors. A device can be
-  told about a new message, at most once in a few hours.
+  stream, so one page says what the family has been up to. The feed also says when records change, with the new value
+  ("Ada updated Carl: new phone number +49 30 …, born 3 May 1950 in Graz"): a number you can call, an address that opens
+  the map, the start of a biography. Each reader sees only the values they could see on the person's page; old values,
+  removed values and medical or faith notes are never shown. A device can be told about a new message, at most once in a
+  few hours.
 
 - **The question of the week.** One question for the whole family ("What did the kitchen of your childhood look like?"),
   chosen from sixty written for the purpose, in English, German and Afrikaans. A relative answers in a few sentences, about
@@ -38,10 +40,13 @@ week's birthdays and wedding anniversaries, and what is new since your last visi
 - **The daily quiz.** "Do you know your family?" asks one question a day made from the family's own records: whose shield
   this is, who this is, who someone's parents were, where someone was born, who came first. Everyone gets the same question, you
   get one try, and it keeps a streak. It never asks about a cause of death.
-- **The Campaign.** Rule your house for 12 turns on a map made from the family's places (plains, forest, highland, towns).
-  Each turn you place troops, give up to three orders and see your exact chance before you attack. The whole family plays
-  the same field each week and compares scores; recording the family raises your renown and your levy. Practice any house
-  on a fresh field. It never changes the family's records, and a steward switches it on.
+- **The Campaign.** Rule your house for 12 turns against the family's other houses, on an invented continent drawn fresh
+  each week: plains, forests, highlands, marshes, rivers, mountain ridges, sea lanes, towns and castles, all with invented
+  names. Each turn you place troops, give up to three orders and see your exact chance before you attack; marches, battles
+  and conquests are animated, and a reign ends with a short chronicle and a title. The whole family plays the same continent
+  each week: the first reign you begin each day counts for the family's table (you can continue it on any device), and
+  more reigns are practice with a personal best. Recording the family raises your renown and your levy. It never changes the
+  family's records, and a steward switches it on.
 - **Who is this?** Photographs nobody has tagged become a two-minute game. Anyone can suggest who is in a picture, and a
   contributor or editor confirms it.
 - **Talking to each other.** Members answer a message, a memory, a photograph or an update with an emoji, from a quick row
@@ -189,14 +194,26 @@ Pick how people sign in with `KINDRED_AUTH`. `kindred` (the default) is Kindred'
 
 - **Docker**, on your own machine or server: `docker compose up -d --build` (or, from the next release, a published image), then open <http://localhost:4901/setup>. Each family is a SQLite file. See [docs/self-host.md](docs/self-host.md), which also covers HTTPS, backups and reminders.
 - **Node**, without a container: `mise run build:node && mise run start`, on Node 26.
-- **Cloudflare**, with Workers, D1 and R2 and no server to look after: see [docs/deploy-cloudflare.md](docs/deploy-cloudflare.md).
+- **Cloudflare**, with Workers, Durable Objects and R2 and no server to look after: each family gets its own storage when it
+  is made, with no redeploy, and can be kept in the EU. See [docs/deploy-cloudflare.md](docs/deploy-cloudflare.md), or
+  start from the button (it needs the Workers Paid plan; the guide walks through the first run):
 
-A steward can make more families, or delete one, on the Families page. `KINDRED_DEMO=1` runs a read-only demo of the invented
+  [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/niklas-heer/kindred)
+
+A steward can make more families, or delete one, on the Families page.
+
+**Hosting families for other people.** One Kindred server can host many families, run by an **operator**: an instance role,
+not a family's, that sees how each family is run (its size, storage and stewards) but none of its records. The operator
+console at `/operator` makes a family for someone and hands them a steward invitation, keeps a waiting list from a public
+request form (with optional Cloudflare Turnstile), handles data requests from relatives who never signed up, sets storage
+caps, can make a family read-only or close it, keeps an audit log, and holds the Impressum, privacy policy and terms that
+the server shows. A setting decides who may make families: the operator, any steward, or anyone by request. See
+[docs/hosting-many-families.md](docs/hosting-many-families.md). `KINDRED_DEMO=1` runs a read-only demo of the invented
 families that anyone can open without signing in ([docs/self-host.md](docs/self-host.md#a-public-demo)).
 
 ## Your data is yours
 
-Every family is one database you can read: a SQLite file on Node, a D1 database on Cloudflare. Editors and stewards can export
+Every family is one database you can read: a SQLite file on Node, a Durable Object (or a D1 database) on Cloudflare. Editors and stewards can export
 a family as GEDCOM 5.5.1, for other genealogy programs, or as a Markdown archive. Stewards can import a GEDCOM file, and see
 a preview before anything is written. An optional nightly archive can copy each family to a private GitHub repository.
 [docs/exchange.md](docs/exchange.md) says what each format keeps and drops.
@@ -208,10 +225,11 @@ Exports leave some things out, so back up the databases and pictures as well.
 - [Self-hosting](docs/self-host.md) and [deploying on Cloudflare](docs/deploy-cloudflare.md)
 - [The AI features](docs/ai.md): what they send, what they cost, and how keys are kept
 - [Roles and privacy](docs/roles-and-privacy.md)
+- [Hosting many families](docs/hosting-many-families.md): the operator, the waiting list, data requests, storage caps and legal pages
 - [The family feed](docs/feed.md): messages to the family, and the stream on Today
 - [Today](docs/today.md): the question of the week and the daily quiz
 - [Drawn portraits](docs/portraits.md): the character editor, what a portrait can say, and who may change one
-- [The Campaign](docs/campaign.md): a reign you play alone as your house, with weekly family scores, and how it runs
+- [The Campaign](docs/campaign.md): a reign you play alone as your house on an invented continent, with weekly family scores
 - [Recipes and the Cookbook](docs/recipes.md)
 - [Who is this?](docs/who-is-this.md): naming people in untagged photographs
 - [The tours](docs/tours.md): Welcome and the grand tour
