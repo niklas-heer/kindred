@@ -2,7 +2,8 @@
    a suspended family. Built on the Families page's classes (families.css). */
 .operator { max-width: 980px; }
 .operator-tabs { flex-wrap: wrap; }
-.operator-panel { display: grid; gap: 20px; padding-top: 16px; }
+/* One column that may be narrower than its widest card: a form's inputs then shrink with a phone instead of pushing the page sideways. */
+.operator-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; padding-top: 16px; }
 .operator-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .operator-facts { display: grid; gap: 8px 16px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 0; }
 .operator-fact { display: grid; gap: 2px; min-width: 0; }
