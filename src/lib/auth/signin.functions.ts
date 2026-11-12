@@ -193,21 +193,22 @@ export const fetchResetLink = createServerFn({ method: 'POST' })
 
 /** When an operator's reset link was used on the reader's account, for a session another way in started; null otherwise. */
 export const fetchResetNotice = createServerFn({ method: 'GET' }).handler(async (): Promise<{ at: number } | null> => {
-  const [{ currentSession }, { resetNoticeOf }, { isDemo }] = await Promise.all([guard(), import('./password.server'), import('../demo')]);
+  const [{ currentSession, requireUser }, { resetNoticeOf }, { isDemo }] = await Promise.all([guard(), import('./password.server'), import('../demo')]);
+  const user = await requireUser();
   const s = await currentSession();
-  if (!s.user || s.via !== 'passkey' || s.viewAs || isDemo()) return null;
-  return resetNoticeOf(s.user.id, s.method ?? 'passkey');
+  if (s.via !== 'passkey' || s.viewAs || isDemo()) return null;
+  return resetNoticeOf(user.id, s.method ?? 'passkey');
 });
 export const resetNoticeQuery = queryOptions({ queryKey: ['session', 'reset-notice'], queryFn: () => fetchResetNotice(), staleTime: 5 * 60_000 });
 
 /** Dismisses that notice (refused from a password session, and in a preview or a demo, which write nothing). */
 export const dismissResetNotice = createServerFn({ method: 'POST' }).handler(async (): Promise<void> => {
-  const [{ currentSession }, p, { refuseReadOnly }] = await Promise.all([guard(), import('./password.server'), import('../read-only')]);
+  const [{ currentSession, requireUser }, p, { refuseReadOnly }] = await Promise.all([guard(), import('./password.server'), import('../read-only')]);
+  const user = await requireUser();
   const s = await currentSession();
-  if (!s.user) return;
   await failing(async () => {
     refuseReadOnly();
-    await p.dismissResetNotice(s.user!.id, s.method ?? 'passkey');
+    await p.dismissResetNotice(user.id, s.method ?? 'passkey');
   });
 });
 
