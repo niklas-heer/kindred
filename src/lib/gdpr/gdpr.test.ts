@@ -446,6 +446,9 @@ test('erasing an imported short id leaves the ids that merely start with it alon
     dbs.q("INSERT INTO op (key, fn, result, at, user) VALUES ('op-i10', 'savePersonEdit', '{\"id\":\"i10\"}', '2026-01-01', ?)", ROSA.id),
   ]);
   await run("INSERT INTO presence (tree, account, tab, route, focus, seen) VALUES (?, ?, 't-i10', '/ashgrove/person/i10', 'i10', ?)", tree, ROSA.id, T);
+  // A text that names both: Una (i1) and Tess (i10), in a family's story and in a chat in the accounts database.
+  await d.run("INSERT INTO story (id, person, kind, title, body, author, at) VALUES ('st-both', 'i10', 'memory', 'Two cousins', 'See /ashgrove/person/i1 and /ashgrove/person/i10, also i1>i10 and xi1.', 'Rosa', '2026-01-01')");
+  await run("INSERT INTO feedback (id, tree, kind, body, context, user, user_name, created_at, updated_at) VALUES ('fb-both', ?, 'bug', 'i1 and i10 swapped', '{}', ?, 'Rosa', ?, ?)", tree, ROSA.id, T, T);
   const report = await subject.subjectReport(tree, 'i1');
   assert.ok(!report.traces.some((t) => t.table === 'parent'), 'Tess’s link to Ned is not counted as Una’s');
   await subject.erasePerson(tree, 'i1', ROSA.id);
@@ -454,6 +457,10 @@ test('erasing an imported short id leaves the ids that merely start with it alon
   assert.ok(await d.get("SELECT 1 FROM op WHERE key = 'op-i10'"), 'a retry key about Tess stays');
   assert.ok(await one("SELECT 1 FROM presence WHERE tab = 't-i10'"), 'someone looking at Tess’s page is not affected');
   assert.equal((await d.get<{ n: number }>("SELECT count(*) AS n FROM history WHERE record = 'i1'"))!.n, 0);
+  // Only the whole token `i1` is replaced: `i10` (and `xi1`, another id) in the same text stay as they were.
+  assert.equal((await d.get<{ body: string }>("SELECT body FROM story WHERE id = 'st-both'"))!.body,
+    `See /ashgrove/person/${subject.REDACTED} and /ashgrove/person/i10, also ${subject.REDACTED}>i10 and xi1.`);
+  assert.equal((await one<{ body: string }>("SELECT body FROM feedback WHERE id = 'fb-both'"))!.body, `${subject.REDACTED} and i10 swapped`);
 });
 
 test('a member\'s own person is not erased, and a restricted person cannot be changed until it is lifted', async () => {

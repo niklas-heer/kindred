@@ -89,8 +89,8 @@ Access → *A request about someone* → *Erase…*, with the person's name type
   claimed to be them, the background tasks' give-up list, live presence, and the same replacement in the family's feedback and
   join messages.
 - Nothing of it is written down again: the erasure leaves no history row, and the steward's record keeps only counts.
-- Their id is matched as a whole: an imported short id such as `i1` does not match `i10`, so another person's history, links
-  and retry keys stay. Within a text that names both, the replacement of `i1` also cuts into `i10`; that rare case is left.
+- Their id is matched and replaced as a whole: an imported short id such as `i1` does not match `i10`, so another person's
+  history, links and retry keys stay, and in a text that names both only `i1` is replaced.
 - It can be finished after a failure. The accounts database is cleaned first and the erasure recorded as pending (with the
   person's id, never a name), then the family's records go, then the record is finished and the request marked done. Each step
   is safe to repeat: if one fails, *Erase…* again completes it, even once the person is already gone from the family.

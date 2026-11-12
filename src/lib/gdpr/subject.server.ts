@@ -28,7 +28,7 @@ import { AuthError } from '../auth/errors.ts';
 import { db, media, once, type Db } from '../db.server.ts';
 import { translate } from '../i18n/dictionary.ts';
 import { removePlan } from '../relations.server.ts';
-import { guard, q, store, type Query } from '../store/index.ts';
+import { guard, isGuardError, q, store, type Query } from '../store/index.ts';
 import { ident, isText, tablesOf, type Table } from './schema.ts';
 
 const accounts = () => store.accounts();
@@ -231,8 +231,26 @@ export async function subjectCopy(tree: string, person: string, now = new Date()
 
 export interface ErasureResult { counts: Record<string, number>; files: number }
 
-/** The statements that replace a person's names (and drop their id) in every text column of `tables`, but key columns. */
-function scrubText(tables: Table[], who: { id: string; names: string[] }, where = '', whereParams: (string | number)[] = []): Query[] {
+/**
+ * A text with the person replaced: their id only as a whole token (`i1` is replaced, `i10` and `xi1` beside it are not), then
+ * each of their full names, longest first.
+ */
+export function scrubbed(text: string, who: { id: string; names: string[] }): string {
+  const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  let out = text.replace(new RegExp(`(?<![${ID_CHAR}])${esc(who.id)}(?![${ID_CHAR}])`, 'g'), REDACTED);
+  for (const n of who.names) out = out.split(n).join(REDACTED);
+  return out;
+}
+
+/**
+ * The statements that rewrite every text naming the person in `tables` of `d` (`where`: more conditions, such as the family's
+ * rows of an accounts table). SQL has no replacement at a token's edge, so each distinct text that names them is read and
+ * written back replaced (scrubbed): rows with the same text get the same result. `guards` hold that no other text naming them
+ * came meanwhile (a race refuses the batch rather than leaving one behind), so they go before anything else in the batch
+ * changes a text; `writes` may go later. A row keyed by the id goes instead (its key cannot be rewritten without colliding).
+ */
+async function scrubText(d: Db, tables: Table[], who: { id: string; names: string[] }, where = '', whereParams: (string | number)[] = []): Promise<{ guards: Query[]; writes: Query[] }> {
+  const guards: Query[] = [];
   const out: Query[] = [];
   for (const t of tables) {
     for (const c of t.columns) {
@@ -240,18 +258,37 @@ function scrubText(tables: Table[], who: { id: string; names: string[] }, where 
       const col = ident(c.name);
       // The id only as a whole token: an imported `i1` does not match `i10`.
       const id = hasId(col, who.id);
-      // A key column cannot be rewritten without colliding: a row keyed by the id goes instead.
       if (c.key) {
         out.push(q(`DELETE FROM ${ident(t.name)} WHERE ${id.sql}${where}`, ...id.params, ...whereParams));
         continue;
       }
-      // Only rows that name them are rewritten. Within such a row the id is replaced wherever it occurs, so a row that names
-      // both `i1` and `i10` loses the start of `i10` too; that is the one case left, and it is rare (docs/gdpr.md).
-      let expr = `replace(${col}, ?, ?)`;
-      const params: string[] = [who.id, REDACTED];
-      for (const n of who.names) { expr = `replace(${expr}, ?, ?)`; params.push(n, REDACTED); }
-      const names = who.names.map(() => `instr(${col}, ?) > 0`);
-      out.push(q(`UPDATE ${ident(t.name)} SET ${col} = ${expr} WHERE (${[id.sql, ...names].join(' OR ')})${where}`, ...params, ...id.params, ...who.names, ...whereParams));
+      const match = `(${[id.sql, ...who.names.map(() => `instr(${col}, ?) > 0`)].join(' OR ')})`;
+      const matchParams = [...id.params, ...who.names];
+      const texts = (await d.all<{ v: string }>(`SELECT DISTINCT ${col} AS v FROM ${ident(t.name)} WHERE ${match}${where}`, ...matchParams, ...whereParams))
+        .map((r) => r.v).filter((v): v is string => typeof v === 'string');
+      guards.push(guard(`NOT EXISTS (SELECT 1 FROM ${ident(t.name)} WHERE ${match}${where} AND ${col} NOT IN (SELECT value FROM json_each(?)))`,
+        ...matchParams, ...whereParams, JSON.stringify(texts)));
+      for (const v of texts) {
+        const next = scrubbed(v, who);
+        if (next !== v) out.push(q(`UPDATE ${ident(t.name)} SET ${col} = ? WHERE ${col} = ?${where}`, next, v, ...whereParams));
+      }
+    }
+  }
+  return { guards, writes: out };
+}
+
+/** Their full names replaced in any text that still holds one (a removal may write the name into a field it unlinks). */
+function scrubNames(tables: Table[], names: string[]): Query[] {
+  if (!names.length) return [];
+  const out: Query[] = [];
+  for (const t of tables) {
+    for (const c of t.columns) {
+      if (!isText(c) || c.key || c.name === 'tree' || SKIP_COLUMN.test(c.name)) continue;
+      const col = ident(c.name);
+      let expr = col;
+      for (const _ of names) expr = `replace(${expr}, ?, ?)`;
+      out.push(q(`UPDATE ${ident(t.name)} SET ${col} = ${expr} WHERE ${names.map(() => `instr(${col}, ?) > 0`).join(' OR ')}`,
+        ...names.flatMap((n) => [n, REDACTED]), ...names));
     }
   }
   return out;
@@ -301,20 +338,28 @@ export async function erasePerson(tree: string, person: string, by: string, requ
   const convs = JSON.stringify(convRows.map((r) => r.conv));
   const inConvs = 'conv IN (SELECT value FROM json_each(?))';
   const famTables = (await familyTables()).filter((t) => accountsFound.has(t.name) && !['ai_chat', 'ai_thread', 'ai_conversation'].includes(t.name));
-  await accounts().batch([
-    q(`DELETE FROM ai_turn WHERE ${inConvs}`, convs),
-    q(`DELETE FROM ai_chat_image WHERE tree = ? AND item IN (SELECT id FROM ai_chat WHERE tree = ? AND ${inConvs})`, tree, tree, convs),
-    q(`DELETE FROM ai_chat WHERE tree = ? AND ${inConvs}`, tree, convs),
-    q(`DELETE FROM ai_thread WHERE tree = ? AND ${inConvs}`, tree, convs),
-    q(`DELETE FROM ai_conversation WHERE tree = ? AND ${inConvs}`, tree, convs),
-    q('UPDATE guest_visitor SET people = json_remove(people, ?) WHERE tree = ? AND json_valid(people) AND json_type(people, ?) IS NOT NULL', `$."${person}"`, tree, `$."${person}"`),
-    q('UPDATE join_request SET person = NULL WHERE tree = ? AND person = ?', tree, person),
-    q(`DELETE FROM presence WHERE tree = ? AND (focus = ? OR ${hasId('route', person).sql})`, tree, person, ...hasId('route', person).params),
-    q('DELETE FROM subject_restriction WHERE tree = ? AND person = ?', tree, person),
-    ...scrubText(famTables, who, ' AND tree = ?', [tree]),
-    q(`INSERT INTO subject_action (tree, kind, at, done_by, request, counts, pending) SELECT ?, 'erase', ?, ?, ?, ?, ?
-       WHERE NOT EXISTS (SELECT 1 FROM subject_action WHERE tree = ? AND kind = 'erase' AND pending = ?)`, tree, now, by, request, JSON.stringify(counts), person, tree, person),
-  ]);
+  // The texts are read and written back (scrubText): a text that came in between refuses the batch, and the step runs again.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await accounts().batch([
+        q(`DELETE FROM ai_turn WHERE ${inConvs}`, convs),
+        q(`DELETE FROM ai_chat_image WHERE tree = ? AND item IN (SELECT id FROM ai_chat WHERE tree = ? AND ${inConvs})`, tree, tree, convs),
+        q(`DELETE FROM ai_chat WHERE tree = ? AND ${inConvs}`, tree, convs),
+        q(`DELETE FROM ai_thread WHERE tree = ? AND ${inConvs}`, tree, convs),
+        q(`DELETE FROM ai_conversation WHERE tree = ? AND ${inConvs}`, tree, convs),
+        q('UPDATE guest_visitor SET people = json_remove(people, ?) WHERE tree = ? AND json_valid(people) AND json_type(people, ?) IS NOT NULL', `$."${person}"`, tree, `$."${person}"`),
+        q('UPDATE join_request SET person = NULL WHERE tree = ? AND person = ?', tree, person),
+        q(`DELETE FROM presence WHERE tree = ? AND (focus = ? OR ${hasId('route', person).sql})`, tree, person, ...hasId('route', person).params),
+        q('DELETE FROM subject_restriction WHERE tree = ? AND person = ?', tree, person),
+        ...(await scrubText(accounts(), famTables, who, ' AND tree = ?', [tree]).then((x) => [...x.guards, ...x.writes])),
+        q(`INSERT INTO subject_action (tree, kind, at, done_by, request, counts, pending) SELECT ?, 'erase', ?, ?, ?, ?, ?
+           WHERE NOT EXISTS (SELECT 1 FROM subject_action WHERE tree = ? AND kind = 'erase' AND pending = ?)`, tree, now, by, request, JSON.stringify(counts), person, tree, person),
+      ]);
+      break;
+    } catch (e) {
+      if (!isGuardError(e) || attempt >= 2) throw e;
+    }
+  }
 
   // (2) The family's records.
   const tables = (await tablesOf(d)).filter((t) => familyFound.has(t.name));
@@ -326,14 +371,20 @@ export async function erasePerson(tree: string, person: string, by: string, requ
       'SELECT mp.media AS key FROM media_person mp WHERE mp.person = ? AND NOT EXISTS (SELECT 1 FROM media_person o WHERE o.media = mp.media AND o.person <> ?)', person, person);
     const pictures = JSON.stringify(only.map((r) => r.key));
     const nPlan = base.writes.length;
+    // The texts as read here: their guards before the removal changes any (it unlinks fields), their rewrites after it, and
+    // last the names the removal itself may have written into a field it unlinked.
+    const scrub = await scrubText(dd, tables, who);
+    const g = 1 + scrub.guards.length;
     const writes: Query[] = [
       // Guarded on the tags read, so a picture tagged with someone else meanwhile is not deleted.
       guard('(SELECT count(*) FROM media_person WHERE media IN (SELECT value FROM json_each(?)) AND person <> ?) = 0', pictures, person),
+      ...scrub.guards,
       ...base.writes,
       q('SELECT key, thumb FROM media WHERE key IN (SELECT value FROM json_each(?))', pictures),
       q('DELETE FROM media WHERE key IN (SELECT value FROM json_each(?))', pictures),
       q(`DELETE FROM history WHERE person = ? OR ${hasId('record', person).sql}`, person, ...hasId('record', person).params),
-      ...scrubText(tables, who),
+      ...scrub.writes,
+      ...scrubNames(tables, who.names),
     ];
     return {
       writes,
@@ -341,10 +392,10 @@ export async function erasePerson(tree: string, person: string, by: string, requ
       history: [],
       result: null,
       after: async (r) => {
-        await base.after?.(r.slice(1, 1 + nPlan));
-        const rows = r[1 + nPlan]!.rows as { key: string; thumb: string | null }[];
+        await base.after?.(r.slice(g, g + nPlan));
+        const rows = r[g + nPlan]!.rows as { key: string; thumb: string | null }[];
         for (const x of rows) for (const k of [x.key, x.thumb]) if (k) { await media.delete(tree, k).catch((e) => console.error('[media] could not delete', k, e)); files++; }
-        files += (r[2]?.rows.length ?? 0) + (r[3]?.rows.length ?? 0);
+        files += (r[g + 1]?.rows.length ?? 0) + (r[g + 2]?.rows.length ?? 0);
       },
     };
   });
