@@ -21,9 +21,17 @@
   --cjk-serif: 'Songti SC', 'STSong', SimSun, 'Noto Serif SC', 'Noto Serif CJK SC', 'Source Han Serif SC', serif;
   --cjk-sans: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', 'Noto Sans CJK SC', sans-serif;
 }
-/* Neither script has italics: an emphasis is not slanted (a browser would fake it). */
+/* Neither script has italics: an emphasis is not slanted (a browser would fake it), and neither is anything a class sets
+   in italics (a subtitle, a hint): the kanji stand upright, while Latin words among them keep their real italic. */
+:root:lang(ja), :root:lang(zh-Hans) { font-synthesis-style: none; }
 :root:lang(ja) :is(em, i),
 :root:lang(zh-Hans) :is(em, i) { font-style: normal; }
+/* Japanese is written without spaces, so a line may end between any two characters, in the middle of a word
+   ("エピソ/ード", "教え/てくれた"). Where the browser can tell the phrases apart (Chromium), lines end between them. A
+   phrase longer than its box still breaks, and a box still counts as able to shrink to one character, as it did before
+   (overflow-wrap: anywhere), so no tile or column grows to fit a long phrase. Inherited, so a rule that sets word-break
+   itself (a secret, a link) keeps it. */
+:root:lang(ja) body { word-break: auto-phrase; overflow-wrap: anywhere; }
 
 :root,
 [data-theme='codex'] {
