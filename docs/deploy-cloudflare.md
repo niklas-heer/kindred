@@ -1,8 +1,52 @@
 # Deploying Kindred on Cloudflare
 
-Kindred runs as a Cloudflare Worker. Its data sits in D1 (SQLite in the cloud): one database for accounts, and one
-per family. Pictures sit in R2. People sign in with Kindred's passkeys or through Cloudflare Access, one or the other (step 6). Every command below is one
-from `mise.toml`, `wrangler.jsonc` or `scripts/`.
+Kindred runs as a Cloudflare Worker. Each family's data sits in its own [Durable Object](https://developers.cloudflare.com/durable-objects/)
+with SQLite storage, made the moment a steward makes the family; the accounts sit in one more. Pictures sit in R2. Nothing
+needs creating or binding per family, and there is no limit on how many there are. Installs from before Durable Objects keep
+their D1 databases (one for accounts, one per family) and keep working unchanged; see [Families in D1](#2-bind-each-family). People
+sign in with Kindred's passkeys or through Cloudflare Access, one or the other (step 6). Every command below is one from
+`mise.toml`, `wrangler.jsonc` or `scripts/`.
+
+## One-click deploy
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/niklas-heer/kindred)
+
+The button copies this repository into your GitHub (or GitLab) account, connects it to Workers Builds and deploys it. It
+needs a Cloudflare account on the **Workers Paid plan** (see [What you need](#what-you-need)). It makes everything
+`wrangler.jsonc` asks for and nothing else:
+
+| What | Name | Made by |
+| --- | --- | --- |
+| The Worker | `kindred` (you may rename it) | the button |
+| `FAMILIES` Durable Objects, class `FamilyStore`, SQLite storage | one object per family, and one for the accounts | the Worker, on first use |
+| `MEDIA` R2 bucket | `kindred-media` (you may rename it) | the button |
+| `KINDRED_SECRET` | secret: a long random value, for example from `openssl rand -base64 32`. It seals the AI keys stewards save; keep a copy | you, in the button's form |
+| `KINDRED_SETUP_CODE` | secret: 12 or more letters or digits, asked for by `/setup` so nobody else can claim the new site | you, in the button's form |
+
+There is no D1 database and no migration step: each Durable Object applies `migrations/` to itself. The build runs with the
+Node version in `.node-version` and the `build` and `deploy` scripts of `package.json`; keep the button's defaults.
+
+Then, the first run:
+
+1. Open the address the button shows (`https://kindred.<your-subdomain>.workers.dev`). It sends you to `/setup`.
+2. Enter the setup code, the family's name and your own name, and create a passkey. You are the first steward, and the first
+   family (`family`, or `KINDRED_DEFAULT_TREE`) is made.
+3. Add yourself as the family's starting point, or skip it. Invite the others from the Access page.
+4. For a custom domain, add it to the Worker (Settings, Domains & Routes) and set `KINDRED_ORIGIN` to it **before** anyone else
+   makes a passkey: passkeys are bound to the host name.
+5. More families: Manage families in the account menu. Each is made at once, in its own Durable Object.
+
+**Keeping the families in the EU.** Durable Objects can be kept in the EU jurisdiction. Before anyone opens the new site, add
+`"vars": { "KINDRED_JURISDICTION": "eu" }` to `wrangler.jsonc` in your copy of the repository and push: Workers Builds deploys
+again. The setting decides where the first object is made, so it cannot be changed afterwards. Kindred records it in the bucket
+on first use and refuses to start with another value, rather than show empty families and an open `/setup`. The R2 bucket's
+location is chosen when it is made: for an EU bucket, make one with `npx wrangler r2 bucket create kindred-media --jurisdiction eu`
+and add `"jurisdiction": "eu"` to the `MEDIA` binding before the first deploy.
+
+Updating later: pull this repository's new release into your copy and push; Workers Builds deploys it, and every Durable
+Object brings its schema up to date the first time it is used.
+
+The rest of this guide is the same deployment by hand, with wrangler, and the older setup with D1.
 
 ## What you need
 
@@ -15,11 +59,21 @@ from `mise.toml`, `wrangler.jsonc` or `scripts/`.
   [the nightly archive](#the-nightly-archive-optional)).
 
 `wrangler.jsonc` turns on [Smart Placement](https://developers.cloudflare.com/workers/configuration/smart-placement/).
-A page reads D1 in several steps, one after the other (the session, then the reader's families, then the family itself),
+A page reads its database in several steps, one after the other (the session, then the reader's families, then the family itself),
 so a Worker that runs near the reader would cross the distance to the databases at every step. Smart Placement moves it
 next to them once it has seen enough requests. Remove the `placement` line to run it near the reader instead.
 
-## 1. Create the databases and the bucket
+## 1. Create the bucket (and the D1 databases, if you keep families in D1)
+
+With Durable Objects (the default `wrangler.jsonc`) the bucket is all there is to make; skip to step 5 afterwards:
+
+```sh
+npx wrangler r2 bucket create kindred-media
+```
+
+The rest of steps 1 to 3 is for families kept in D1 (installs from before Durable Objects, or a choice to stay on D1). Add a
+`d1_databases` list to `wrangler.jsonc` with an `ACCOUNTS` binding and a `TREE_<ID>` binding per family, each with
+`"migrations_dir"` as in the `local` environment there:
 
 ```sh
 npx wrangler d1 create kindred-accounts
@@ -27,12 +81,16 @@ npx wrangler d1 create kindred-family        # default TREE_FAMILY binding; repe
 npx wrangler r2 bucket create kindred-media
 ```
 
-Each `d1 create` prints a `database_id`. Paste it into `wrangler.jsonc`, in the `d1_databases` list, replacing the
-`REPLACE-WITH-D1-ID` placeholder. The bucket needs no id.
+Each `d1 create` prints a `database_id`. Paste it into `wrangler.jsonc`, in the `d1_databases` list. The bucket needs no id.
 
 ## 2. Bind each family
 
-Each family has its own D1 binding. A family with the id `my-family` is bound as `TREE_MY_FAMILY`: take the id, make
+With Durable Objects there is nothing to bind: a family is made in its own object when a steward makes it. This step is for
+families in D1. A family with a `TREE_<ID>` binding is served from D1 even when `FAMILIES` is bound too, so an install can
+keep its D1 families and make every new one as a Durable Object; [Moving a family into a Durable Object](#moving-a-family-into-a-durable-object)
+moves the old ones over when you like.
+
+Each family in D1 has its own D1 binding. A family with the id `my-family` is bound as `TREE_MY_FAMILY`: take the id, make
 it upper case and change dashes to underscores. The binding names the database, and it points at `migrations/tree`:
 
 ```jsonc
@@ -47,18 +105,22 @@ The first family that first-time setup makes (step 7) needs its binding too. Its
 
 ### Another family
 
-A family made later (Manage families in the account menu, see [self-host.md](self-host.md#more-than-one-family)) needs its own
-database too, because a Worker cannot create or bind a D1 database by itself:
+With Durable Objects, a family made later (Manage families in the account menu, see [self-host.md](self-host.md#more-than-one-family))
+is made at once and needs nothing here. Without `FAMILIES` bound, it needs its own D1 database, because a Worker cannot create
+or bind a D1 database by itself:
 
 1. `npx wrangler d1 create kindred-<id>`, and its binding in `wrangler.jsonc` as above (`TREE_<ID>`).
 2. `mise run deploy`, which applies the schema to it and deploys.
 3. The Families page now lists it as an empty database: give it a name there and **Set up this family**. You become its steward.
 
-Deleting a family on Workers empties its database (every row; the schema stays) and deletes its pictures from R2 and its rows
+Deleting a family kept in a Durable Object deletes everything the object stores, its pictures in R2 and its rows in the accounts
+database. Deleting a family kept in D1 empties its database (every row; the schema stays) and deletes its pictures from R2 and its rows
 in the accounts database. The database stays bound and is listed again as empty, ready for another family; to remove it for
 good, take its binding out of `wrangler.jsonc`, deploy, then `npx wrangler d1 delete kindred-<id>`.
 
 ## 3. Apply the schema
+
+Durable Objects apply the migrations to themselves, when they are made and after each deploy. For D1:
 
 ```sh
 mise run cf:migrate:remote    # node scripts/cf-migrate.ts --remote: every D1 in wrangler.jsonc, in migration order
@@ -69,7 +131,15 @@ the same files the Node driver applies, so both targets keep one schema.
 
 ## 4. Bring a family in (optional)
 
-If you have a family in a local `data/<id>.db` (for example, from `mise run data`), check the copy first, then send it:
+Into a Durable Object (the default setup), after the site is set up and you are signed in, with
+`scripts/import-to-do.ts` (see [Moving a family into a Durable Object](#moving-a-family-into-a-durable-object)):
+
+```sh
+node scripts/import-to-do.ts <id> --from data/<id>.db --plan                                   # what would be sent
+KINDRED_SESSION=<your session> node scripts/import-to-do.ts <id> --from data/<id>.db --url https://family.example.org --remote
+```
+
+Into a D1 database: if you have a family in a local `data/<id>.db` (for example, from `mise run data`), check the copy first, then send it:
 
 ```sh
 node scripts/import-to-d1.ts <id> --plan     # prints what would be copied; changes nothing, needs no Cloudflare login
@@ -106,6 +176,7 @@ invites the others.
 
 | Name | Kind | What it does |
 | --- | --- | --- |
+| `KINDRED_JURISDICTION` | variable | `eu` keeps every Durable Object (the families and the accounts) in the EU; `fedramp` in FedRAMP data centres. Empty: wherever Cloudflare places them. Choose it before anyone opens the site: it cannot be changed later, and Kindred refuses to run with a value other than the one the first object was made under. D1 databases and R2 buckets choose their jurisdiction when they are made. Not used on Node. |
 | `KINDRED_SECRET` | secret | Seals each family's AI key (AES-GCM under a key derived from this secret and the family's id). Set it before you save an AI key. Changing it makes the saved keys unreadable, so the settings page asks for them again. Back it up. |
 | `KINDRED_SETUP_CODE` | secret | A fixed code of at least 12 letters or digits, asked for by `/setup`. On Workers every isolate would make its own random code, so use a fixed one; do not use `required` there. Any other value locks setup. |
 | `KINDRED_ORIGIN` | variable | The public address, e.g. `https://family.example.org`. Passkeys are tied to it. Set it when the address is not the one the Worker sees. |
@@ -278,6 +349,11 @@ on D1 the time is mostly the round trip, and the name reads of a search wait for
 mise run deploy    # vite build, then cf:migrate:remote, then npx wrangler deploy
 ```
 
+With Durable Objects only there is no D1 database to migrate, so the middle step does nothing: each object brings itself up
+to date the first time it is used after the deploy, before it answers anything. A migration that fails there leaves that
+object as it was (every file is its own transaction) and its family answers with the error until a fixed release is deployed.
+What follows about failed migrations is about D1.
+
 The steps run in that order, and the first one that fails stops the rest, so new code never goes live on an old schema:
 
 - **The build fails:** nothing has changed on Cloudflare.
@@ -297,9 +373,61 @@ go through `/setup` (with the setup code, if you set one). Type the family's nam
 passkey. The family gets the id `KINDRED_DEFAULT_TREE` (or `family`) and the name you typed. On the next screen, add
 yourself to it as its starting point, or skip that and the family opens empty. Setup closes after that account exists.
 
-Setup can only make that family when its binding exists (`TREE_FAMILY`, or the `TREE_<ID>` for your
-`KINDRED_DEFAULT_TREE`), and its database has the schema from step 3. Otherwise setup stops before it asks for a
-passkey, and says what to add.
+Setup makes that family as a Durable Object when `FAMILIES` is bound. Without it, setup can only make the family when its
+binding exists (`TREE_FAMILY`, or the `TREE_<ID>` for your `KINDRED_DEFAULT_TREE`), and its database has the schema from
+step 3. Otherwise setup stops before it asks for a passkey, and says what to add.
+
+## Durable Objects: limits and costs
+
+- **One family, one object, up to 10 GB** of rows (Cloudflare's limit for one SQLite Durable Object). Pictures are in R2 and
+  do not count; the invented family of 1,627 people (`mise run data`) is a 1.8 MB file. The accounts object holds every
+  account, session and chat; it has the same limit.
+- **One request at a time per family.** An object runs one call after the other, which is what makes a batch atomic. A family's
+  reads and writes are milliseconds each, so this is the same throughput D1 gives (D1 is built on Durable Objects).
+- **Costs** (Workers Paid, as published in November 2026, per month): 1 million requests, 400,000 GB-s of duration, 25 billion
+  rows read, 50 million rows written and 5 GB-month of storage are included; beyond that $0.15 per million requests, $12.50 per
+  million GB-s, $0.001 per million rows read, $1.00 per million rows written and $0.20 per GB-month. A family's pages make a
+  handful of requests to its object; check Cloudflare's [pricing page](https://developers.cloudflare.com/durable-objects/platform/pricing/)
+  for the current numbers.
+- **Where they live.** An object is made near the request that first asks for it, or in the EU with `KINDRED_JURISDICTION=eu`,
+  and stays there. Smart Placement can move the Worker closer to them.
+- **Locally**, `mise run dev:cf` and the tests run Durable Objects in workerd, under `.wrangler/state`. workerd has no
+  jurisdictions, so `KINDRED_JURISDICTION` is accepted and ignored there.
+
+## Moving a family into a Durable Object
+
+`scripts/import-to-do.ts` copies a family into its Durable Object on the running Worker. A Durable Object can only be reached
+through its Worker, so the script reads the family on your machine and sends the rows to the Worker (`POST /api/move/<id>`),
+signed in as you: `KINDRED_SESSION` is the value of your `kindred_session` cookie on the site (the browser's developer tools,
+Application or Storage, Cookies). You must be a steward of the family, or, for a family that has no stewards there yet, someone
+who may make families (a steward of any family, or the first account); you then become its steward. It does not run in a demo.
+
+From a D1 database of the same install (an older install moving its families over):
+
+```sh
+KINDRED_SESSION=... node scripts/import-to-do.ts family --from-d1 kindred-family --remote --url https://family.example.org
+# then remove the TREE_FAMILY binding from wrangler.jsonc and run mise run deploy
+```
+
+Every table and row moves, the history, personal items and games included, because the accounts and pictures stay where they
+are. Until the binding is removed, D1 keeps serving the family and nothing reads the copy, so stop editing the family while it
+moves, or move it again with `--replace` just before you remove the binding. Keep the D1 database until you have checked the
+family on the site; deleting it afterwards is `npx wrangler d1 delete kindred-family`.
+
+From a Node or Docker install's `data/<id>.db` (another install, so accounts do not come along): the same tables the D1 transfer
+copies (step 4), and the pictures from the `media/<id>/` folder beside the file go to the `MEDIA` bucket with wrangler.
+
+```sh
+node scripts/import-to-do.ts family --from data/family.db --plan                  # what would be sent; sends nothing
+KINDRED_SESSION=... node scripts/import-to-do.ts family --from data/family.db --remote --url https://family.example.org
+```
+
+Either way the script sends the rows in batches of a few hundred, each written as one transaction, then reads every table's
+count back and compares it with what it sent. It refuses an object that already holds a family unless you pass `--replace`,
+and `--replace` is refused once the object serves a family that has members. What was run for this guide: both ways against
+`mise run dev:cf`'s local Worker (`--env local` instead of `--remote`): a 3,061-row family from a file with its 36 pictures,
+the same family from local D1 (53 tables), then the binding removed and the family read from its object. Not run: `--remote`.
+
 
 ## Checking a deployment locally first
 
@@ -349,6 +477,11 @@ npx wrangler dev -c dist/server/wrangler.json --local --persist-to deploy/demo/.
 `mise run smoke:worker` also starts its Worker once as a demo and checks it.
 
 ## Backups
+
+**Durable Objects.** Cloudflare keeps 30 days of point-in-time history for every SQLite Durable Object, but only code inside the
+Worker can reach it, and Kindred has no command for it yet. For a file you hold, use each family's own export (GEDCOM or the
+Markdown archive, [exchange.md](exchange.md)) and the nightly archive, and back up the bucket as below. The sections that follow
+are about D1.
 
 The data lives in D1 and R2, and the sealing key is a setting: back up all three. Keep the `KINDRED_SECRET` value with
 them, because saved AI keys cannot be decrypted without it (the rest of the database stays usable).
@@ -418,7 +551,11 @@ has the steps. Going back from Cloudflare to Docker has no tool; that section sa
 
 ## Troubleshooting
 
-- **A family is missing from the site**: its `TREE_<ID>` binding is absent or misspelt, or the id is not lower case.
+- **A family is missing from the site**: its `TREE_<ID>` binding is absent or misspelt, or the id is not lower case. With
+  Durable Objects: its row in the accounts database's `family_store` table is missing (the move or the family's making stopped
+  part-way; make or move it again).
+- **Every page says the jurisdiction cannot be changed**: `KINDRED_JURISDICTION` differs from the value the first Durable Object
+  was made under. Set it back; the families are where they were.
 - **The transfer says the database already has a family's details**: first-time setup made them. Pass `--replace` to
   overwrite them with the copy (step 4), or send the copy to a database that has none.
 - **Setup stops before the passkey**: the family it would make has no `TREE_<ID>` binding, or its database has no

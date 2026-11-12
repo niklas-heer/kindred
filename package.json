@@ -26,6 +26,22 @@
     "preview": "vite preview",
     "deploy": "vite build && node scripts/cf-migrate.ts --remote && wrangler deploy"
   },
+  "cloudflare": {
+    "bindings": {
+      "KINDRED_SECRET": {
+        "description": "A long random value that seals the AI keys stewards save, for example from `openssl rand -base64 32`. **Keep a copy**: saved AI keys cannot be read with another one."
+      },
+      "KINDRED_SETUP_CODE": {
+        "description": "12 or more letters or digits. `/setup` asks for it, so nobody else can claim the new site before you. See [the guide](https://github.com/niklas-heer/kindred/blob/main/docs/deploy-cloudflare.md#one-click-deploy)."
+      },
+      "FAMILIES": {
+        "description": "Durable Objects: one per family, and one for the accounts. Made by the Worker on first use; nothing to set."
+      },
+      "MEDIA": {
+        "description": "The R2 bucket for pictures and documents."
+      }
+    }
+  },
   "dependencies": {
     "@fontsource-variable/cinzel": "^5.3.0",
     "@fontsource-variable/eb-garamond": "^5.3.0",

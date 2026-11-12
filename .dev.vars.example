@@ -1,0 +1,10 @@
+# The secrets a Kindred Worker needs. The "Deploy to Cloudflare" button asks for each one (docs/deploy-cloudflare.md,
+# "One-click deploy"); by hand, `npx wrangler secret put <NAME>`. For `mise run dev:cf`, copy this file to .dev.vars
+# (gitignored) and fill it in. Never commit real values.
+
+# A long random value that seals the AI keys stewards save (for example: openssl rand -base64 32). Keep a copy:
+# saved AI keys cannot be read with another one.
+KINDRED_SECRET=
+
+# 12 or more letters or digits, asked for by /setup, so nobody else can claim the new site before you do.
+KINDRED_SETUP_CODE=
