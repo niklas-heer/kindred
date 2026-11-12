@@ -139,8 +139,8 @@ export interface BackupStore {
   where: 'files' | 'r2';
   /** Whether this scope is backed up here (`backup`), left to D1 Time Travel (`d1`), or cannot be (`none`). */
   covers(scope: string): 'backup' | 'd1' | 'none';
-  /** Makes a backup named `name` and returns its manifest. */
-  take(scope: string, name: string): Promise<import('../backup/kbak.ts').Manifest>;
+  /** Makes a backup named `name` and returns its manifest and the size of its (encrypted) file. */
+  take(scope: string, name: string): Promise<{ manifest: import('../backup/kbak.ts').Manifest; bytes: number }>;
   /** The file's bytes, or undefined when it is gone. */
   read(scope: string, name: string): Promise<Uint8Array | undefined>;
   /** Writes a file's bytes (tests use it to damage or move one). */

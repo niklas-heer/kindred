@@ -188,8 +188,8 @@ export class FamilyStore extends DurableObject {
     return open(new Uint8Array(await new Response(o.body).arrayBuffer()), await this.#key(), scope, name);
   }
 
-  /** Backs this object's database up into the bucket as `scope`/`name` and returns the manifest. */
-  async backup(scope: string, name: string): Promise<Manifest> {
+  /** Backs this object's database up into the bucket as `scope`/`name` and returns the manifest and the file's size. */
+  async backup(scope: string, name: string): Promise<{ manifest: Manifest; bytes: number }> {
     const kind = this.#kind;
     if (!kind || this.#staged) throw new Error(NOT_MADE);
     if ((scope === ACCOUNTS_SCOPE) !== (kind === 'accounts')) throw new Error(`This store holds the ${kind} database, not ${scope}`);
@@ -202,7 +202,7 @@ export class FamilyStore extends DurableObject {
     }));
     const { bytes, manifest } = await seal({ scope, name, created: new Date(nameTime(name)).toISOString(), format: 'dump', schema, counts: dumpCounts(dump) }, encodeDump(dump), await this.#key());
     await this.#bucket().put(backupKey(scope, name), bytes, { httpMetadata: { contentType: 'application/octet-stream' } });
-    return manifest;
+    return { manifest, bytes: bytes.length };
   }
 
   /**

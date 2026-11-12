@@ -69,7 +69,7 @@ export function nodeBackups(deps: NodeBackupDeps): BackupStore {
         const { bytes, manifest } = await seal({ scope, name, created, format: 'sqlite', schema, counts }, new Uint8Array(readFileSync(tmp)), await key());
         put(path, bytes);
         put(path.replace(/\.kbak$/, '.json'), `${JSON.stringify(manifest, null, 2)}\n`);
-        return manifest;
+        return { manifest, bytes: bytes.length };
       } finally {
         rmSync(tmp, { force: true });
       }

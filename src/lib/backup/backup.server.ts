@@ -80,16 +80,15 @@ const sanitise = async (e: unknown) => sanitiseFailure(e instanceof Error ? e.me
 /** Backs one scope up now and records it. Throws (after recording the failure) when it cannot be made. */
 export async function backUp(scope: string, at = new Date()): Promise<Manifest> {
   const now = at.getTime();
-  let m: Manifest;
+  let m: Manifest, bytes: number;
   try {
-    m = await store.backups.take(scope, backupName(at));
+    ({ manifest: m, bytes } = await store.backups.take(scope, backupName(at)));
   } catch (e) {
     await accounts().run(
       `INSERT INTO backup_status (family, tried_at, error) VALUES (?, ?, ?)
        ON CONFLICT(family) DO UPDATE SET tried_at = excluded.tried_at, error = excluded.error`, scope, now, await sanitise(e)).catch(() => {});
     throw e;
   }
-  const bytes = (await store.backups.read(scope, m.name))?.length ?? 0;
   await accounts().batch([
     q(`INSERT INTO family_backup (family, name, created_at, bytes, format, schema, counts, sha256, key_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(family, name) DO NOTHING`, scope, m.name, Date.parse(m.created) || now, bytes, m.format, m.schema, JSON.stringify(m.counts), m.sha256, m.keyId),

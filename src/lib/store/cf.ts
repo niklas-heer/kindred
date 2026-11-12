@@ -83,7 +83,7 @@ interface StoreStub {
   stagedRows(table: string, columns: string[], rows: unknown[][]): Promise<number>;
   stagedCounts(tables: string[]): Promise<{ counts: Record<string, number>; id: string | null }>;
   publish(): Promise<void>;
-  backup(scope: string, name: string): Promise<Manifest>;
+  backup(scope: string, name: string): Promise<{ manifest: Manifest; bytes: number }>;
   drill(scope: string, name: string): Promise<DrillResult>;
   restoreBackup(scope: string, name: string): Promise<string[]>;
   recoveryPoints(): Promise<RecoveryPoint[]>;

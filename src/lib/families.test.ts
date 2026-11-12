@@ -238,9 +238,15 @@ test('deleting a family removes its database, its files and every accounts row t
       st.q('INSERT INTO subject_restriction (tree, person, since) VALUES (?, ?, ?)', tree, `${s}person`, T),
       st.q("INSERT INTO subject_action (tree, kind, at) VALUES (?, 'restrict', ?)", tree, T),
       st.q('INSERT INTO family_left (user, tree, left_at) VALUES (?, ?, ?)', VIEWER.id, tree, T),
+<<<<<<< HEAD
       st.q("INSERT INTO family_lifecycle (tree, stage, quiet_since, warned_at) VALUES (?, 'warned', ?, ?)", tree, T, T),
       st.q("INSERT INTO steward_notice (tree, kind, vars, at) VALUES (?, 'lifecycle_warning', '{}', ?)", tree, T),
       st.q("INSERT INTO steward_notice_dismissal (user, tree, kind, until) VALUES (?, ?, 'lifecycle_warning', ?)", STEWARD.id, tree, T),
+=======
+      st.q('INSERT INTO recovery_point (tree, bookmark, at) VALUES (?, ?, ?)', tree, `${s}bookmark`, T),
+      // An automatic backup's row names the family in `family`, not `tree`: it outlasts the family for the grace period.
+      st.q("INSERT INTO family_backup (family, name, created_at) VALUES (?, '20261110T060000000Z', ?)", tree, T),
+>>>>>>> ec5702c3 (fix(backup): report the file's size from the backup itself, and test that backups outlast a deleted family)
     ]);
   }
   // Someone who asked to join A and is not yet approved: their pending account goes with the request.
@@ -266,6 +272,9 @@ test('deleting a family removes its database, its files and every accounts row t
     assert.equal((await acc.accounts().get<{ n: number }>(`SELECT count(*) AS n FROM "${t}" WHERE tree = ?`, A))?.n, 0, `${t} holds nothing of ${A}`);
   }
   assert.equal((await acc.accounts().get<{ n: number }>("SELECT count(*) AS n FROM share_session WHERE link = 'doomed-link'"))?.n, 0);
+  const kept = await acc.accounts().get<{ gone_at: number | null }>('SELECT gone_at FROM family_backup WHERE family = ?', A);
+  assert.ok(kept?.gone_at, 'its backups are kept, marked with when the family was deleted');
+  assert.equal((await acc.accounts().get<{ gone_at: number | null }>('SELECT gone_at FROM family_backup WHERE family = ?', B))?.gone_at, null);
   assert.equal((await acc.accounts().get<{ n: number }>("SELECT count(*) AS n FROM ai_turn WHERE conv = 'doomed-conv'"))?.n, 0);
   assert.equal(await acc.userById(PENDING), undefined, 'the pending account went with its request');
   assert.equal(await acc.accounts().get("SELECT 1 FROM credential WHERE id = 'pending-cred'"), undefined);
