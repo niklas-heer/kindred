@@ -121,6 +121,19 @@ test('five wrong passwords from one network lock the username there, even for th
   assert.equal(row!.count, attempts.PAIR_LIMIT + 2, 'every try is counted, a refused one too (and refused before any hashing)');
 });
 
+test('the network a try is counted for: an IPv4 address as it is, an IPv6 address by its /64', async () => {
+  const k = (addr: string) => attempts.attemptKeys('ada', addr);
+  const [a1, a2, other, v4a, v4b, mapped] = await Promise.all([
+    k('2001:db8:1:2::10'), k('2001:0db8:0001:0002:abcd:ef01:2345:6789'), k('2001:db8:1:3::10'), k('203.0.113.1'), k('203.0.113.2'), k('::ffff:203.0.113.1'),
+  ]);
+  assert.equal(a1.network, a2.network, 'one home’s /64: every address in it is one network');
+  assert.equal(a1.pair, a2.pair, 'and one username-and-network lock');
+  assert.notEqual(a1.network, other.network, 'the next /64 is another network');
+  assert.notEqual(v4a.network, v4b.network, 'IPv4 by the address');
+  assert.equal(v4a.network, mapped.network, 'an IPv4 address written as IPv6 is that address');
+  assert.equal(a1.user, v4a.user, 'the username’s own count is the same from anywhere');
+});
+
 test('two copies counting at once lose no failure: the count is one statement', async () => {
   const other = await import(`./attempts.server.ts?isolate=${Date.now()}`) as typeof attempts;
   const keys = await attempts.attemptKeys('ada', ip);

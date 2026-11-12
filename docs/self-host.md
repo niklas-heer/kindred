@@ -120,7 +120,8 @@ Any combination works. A fresh install and an upgrade offer passkeys only, so up
   stronger one replaces it at the next sign-in.
 - **Guessing** is limited in the accounts database, the same on Node and on every Worker isolate. Every try is counted before
   it is checked, so tries sent at once cannot slip past the limit. 5 tries per username from one network in 15 minutes, then
-  that network waits, a wait that doubles after each lockout (up to 16 hours, never permanent); 20 tries an hour per network.
+  that network waits, a wait that doubles after each lockout (up to 16 hours, never permanent); 20 tries an hour per network
+  (an IPv4 address, or an IPv6 address's /64, which a home or server picks its addresses from).
   A username tried more than 5 times in 15 minutes from anywhere is never locked: each further try needs a Cloudflare Turnstile
   answer when `KINDRED_TURNSTILE_*` is set, or else waits two seconds, so nobody can keep a known username (an operator's) out.
   After 500 tries an hour on the whole server the sign-in form asks for Turnstile, when it is set. A right password gives its

@@ -10,13 +10,17 @@
 //   username             5 tries in 15 minutes from anywhere: from then on each try needs a Turnstile answer, when the server
 //                        has its keys, or else waits a short fixed delay. Never a lock: someone guessing a known username
 //                        (an operator's) from many networks cannot keep its owner out.
-//   network              20 tries an hour from one address (its hash), across usernames: refused.
+//   network              20 tries an hour from one network (its hash), across usernames: refused.
+//
+// A network is an IPv4 address as it is, or an IPv6 address's /64 (join-rules.ts, networkOf): a home or a server gets a whole
+// /64 and may pick any address in it, so counting per IPv6 address would give one guesser billions of fresh counts.
 //   server-wide          500 tries an hour: from then on the sign-in form asks for Cloudflare Turnstile, when the server has its keys.
 //
 // Usernames and addresses are hashed, so the table names nobody; an unknown username is counted exactly like a real one.
 import { accounts, now, q } from './store.server.ts';
 import { hashToken } from './tokens.server.ts';
 import { normalizeUsername } from './methods.ts';
+import { networkOf } from './join-rules.ts';
 
 export const PAIR_LIMIT = 5;
 export const PAIR_WINDOW_MS = 15 * 60_000;
@@ -37,11 +41,11 @@ interface Row { count: number; level: number; window_start: number }
 export interface AttemptKeys { user: string; pair: string; network: string }
 
 const userHash = (username: string) => hashToken('auth-user', normalizeUsername(username));
-export const networkKey = async (ip: string) => `n:${await hashToken('auth-ip', ip)}`;
+export const networkKey = async (ip: string) => `n:${await hashToken('auth-ip', networkOf(ip))}`;
 
 export async function attemptKeys(username: string, ip: string): Promise<AttemptKeys> {
   const u = await userHash(username);
-  return { user: `u:${u}`, pair: `p:${await hashToken('auth-ip', `${u}\n${ip}`)}`, network: await networkKey(ip) };
+  return { user: `u:${u}`, pair: `p:${await hashToken('auth-ip', `${u}\n${networkOf(ip)}`)}`, network: await networkKey(ip) };
 }
 const SERVER_KEY = 'all';
 

@@ -275,7 +275,8 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   it is the check). Codes made before that are a plain SHA-256 with no prefix: they still work once each, and the account menu
   asks for new ones. Replaced by a new set; goes with the account.
 - **`auth_attempt`** (0040): password, two-step and recovery-code tries per `key`: `u:` and a hash of the username (known or
-  not), `p:` and a hash of the username with the network, `n:` and a hash of the network, or `all` for the server.
+  not), `p:` and a hash of the username with the network, `n:` and a hash of the network (an IPv4 address, or an IPv6 address's
+  /64), or `all` for the server.
   `window_start`, `count`, and `level` (each lockout of a `p:` key doubles its next window, up to 16 hours). Every try is counted
   before it is checked, by one statement that answers the new count, so the limit holds across every Worker isolate and against
   tries sent at once (`src/lib/auth/attempts.server.ts`). A success deletes the username's rows and gives the network's and the
