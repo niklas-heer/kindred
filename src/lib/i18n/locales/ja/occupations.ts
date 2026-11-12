@@ -38,7 +38,7 @@ export default {
   "occupation.shoemaker": "靴職人",
   "occupation.potter": "陶芸家",
   "occupation.glassblower": "ガラス職人",
-  "occupation.glazier": "ガラス屋",
+  "occupation.glazier": "ガラス職人",
   "occupation.carpenter": "大工",
   "occupation.cabinetmaker": "家具職人",
   "occupation.mason": "石工",

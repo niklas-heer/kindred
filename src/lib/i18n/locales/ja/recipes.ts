@@ -94,6 +94,7 @@ export default {
   "recipes.form.picture_failed": "{name}は、画像（JPEG、PNG、WebP）として読み取れませんでした。",
   "recipes.form.ingredients_hint": "1行に1つずつ。最初の欄に1行まるごと（「牛肉 800g、角切り」）入力すると自動で分けられます。リストを貼り付けてもかまいません。",
   "recipes.form.paste": "リストを貼り付ける",
+  "recipes.form.paste_example": "牛肉 800g（角切り）\n玉ねぎ 3個\nパプリカパウダー 20g\n\nソース：\n生クリーム 250ml",
   "recipes.form.paste_add": "行に分ける",
   "recipes.form.group_ph": "〜用（ソース、生地、トッピング）",
   "recipes.form.group_n": "リストの{n}番目の部分の名前",
@@ -140,5 +141,5 @@ export default {
   "recipes.err.gone": "そのレシピはもうありません。",
   "recipes.err.invalid": "レシピが最後まで届きませんでした。もう一度お試しください。",
   "recipes.err.too_many_pictures": "レシピの手順につけられる写真は、最大6枚です。",
-  "recipes.unitWords": "g, gr, グラム, kg, キロ, キログラム, mg, ml, ミリリットル, cc, dl, l, リットル, oz, オンス, lb, ポンド, 大さじ, 小さじ, さじ, カップ, 合, つまみ, ひとつまみ, 少々, 適量, 個, こ, 本, 枚, 片, かけ, 切れ, 束, 把, 房, 株, 玉, 丁, 缶, 袋, パック, 箱, 瓶, 粒, 滴, 杯, 人分, 匹, 尾, 杯",
+  "recipes.unitWords": "g, gr, グラム, kg, キロ, キログラム, mg, ml, ミリリットル, cc, dl, l, リットル, oz, オンス, lb, ポンド, 大さじ, 小さじ, さじ, カップ, 合, つまみ, ひとつまみ, 少々, 適量, 個, こ, 本, 枚, 片, かけ, 切れ, 束, 把, 房, 株, 玉, 丁, 缶, 袋, パック, 箱, 瓶, 粒, 滴, 杯, 人分, 匹, 尾",
 } satisfies Strings<typeof en, "ja">;

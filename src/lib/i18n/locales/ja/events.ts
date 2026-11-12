@@ -55,6 +55,7 @@ export default {
   "events.err.too_many": "1人につき出来事は200件までです。",
   "events.err.changed": "並べ替えている間に出来事が変わりました。ページには現在の内容が表示されています。",
   "events.atlas.mode": "出来事",
+  "events.atlas.count": "出来事{count}件",
   "events.atlas.what": "人生の出来事",
   "events.atlas.kindword": "出来事",
   "events.atlas.here": "ここでの出来事",

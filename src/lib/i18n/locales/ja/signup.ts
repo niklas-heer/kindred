@@ -5,7 +5,7 @@ import type { en } from "../../areas/signup.ts";
 export default {
   "signup.landing_nav": "サインインと言語",
   "signup.landing_kicker": "ホスティングされた家系図",
-  "signup.landing_lede": "暮らせる家系図。親戚、そのエピソード、写真、誕生日を、それを分かち合う人たちが一緒に守ります。",
+  "signup.landing_lede": "家族が集う家系図。親戚、そのエピソード、写真、誕生日を、それを分かち合う人たちが一緒に守ります。",
   "signup.start_family": "家族を始める",
   "signup.ask_family": "家族をお願いする",
   "signup.have_account": "すでにアカウントがあります",
@@ -159,4 +159,6 @@ export default {
   "signup.audit_settings": "ホスティング設定を変更しました",
   "signup.audit_code_create": "登録コードを作りました",
   "signup.audit_code_revoke": "登録コードを取り消しました",
+  "signup.password_button": "アカウントと家族を作成",
+  "signup.sso_skips_wait": "または、メールアドレスを確認するプロバイダーでサインインすると、すぐに始められます：",
 } satisfies Strings<typeof en, "ja">;

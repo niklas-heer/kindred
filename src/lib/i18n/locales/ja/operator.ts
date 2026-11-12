@@ -226,4 +226,5 @@ export default {
   "request.full": "回答待ちの申請が多すぎるため、このフォームは今は閉じています。数日後に、もう一度お試しください。",
   "privacyreq.full": "回答待ちの申請が多すぎるため、このフォームは今は閉じています。",
   "privacyreq.full_write": "運営者に直接連絡することはできます：",
+  "operator.err.needs_totp": "このアカウントにはパスワードがありますが、2段階認証コードがありません。本人が先にコードをオンにすると、運営者にできます。",
 } satisfies Strings<typeof en, "ja">;

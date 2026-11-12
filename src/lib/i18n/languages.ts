@@ -226,7 +226,7 @@ export const LANGUAGES = {
     accepts: ["ja"],
     // A Japanese date writes its month as a number ("9月"), so these are never put into one; kept for completeness.
     shortMonths: ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"],
-    complete: false, // TOP-UP: 20 keys added after the translation; set back to true then
+    complete: true,
   },
   "zh-Hans": {
     native: "简体中文",

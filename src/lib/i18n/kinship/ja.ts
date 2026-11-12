@@ -29,7 +29,7 @@ const JA_WORDS: Record<string, string> = {
   "father-in-law": "義父",
   "mother-in-law": "義母",
   "parent-in-law": "義理の親",
-  "son-in-law": "娘の夫",
+  "son-in-law": "娘婿",
   "daughter-in-law": "息子の妻",
   "child-in-law": "子の配偶者",
   "brother-in-law": "義理の兄弟",
@@ -38,8 +38,8 @@ const JA_WORDS: Record<string, string> = {
   stepfather: "継父",
   stepmother: "継母",
   stepparent: "継親",
-  stepson: "男の継子",
-  stepdaughter: "女の継子",
+  stepson: "継息子",
+  stepdaughter: "継娘",
   stepchild: "継子",
   stepbrother: "継兄弟",
   stepsister: "継姉妹",
@@ -47,8 +47,8 @@ const JA_WORDS: Record<string, string> = {
   "foster father": "里父",
   "foster mother": "里母",
   "foster parent": "里親",
-  "foster son": "男の里子",
-  "foster daughter": "女の里子",
+  "foster son": "里子（男）",
+  "foster daughter": "里子（女）",
   "foster child": "里子",
   "foster brother": "里親家庭の兄弟",
   "foster sister": "里親家庭の姉妹",
@@ -72,7 +72,7 @@ function ancestor(g: number, sex: Sex): string {
 function descendant(g: number, sex: Sex): string {
   if (g === 1) return sex === "m" ? "息子" : sex === "f" ? "娘" : "子ども";
   if (g === 2) return sex === "m" ? "孫息子" : sex === "f" ? "孫娘" : "孫";
-  return g === 3 ? "曽孫" : g === 4 ? "玄孫" : `${g}代後の孫`;
+  return g === 3 ? "曽孫" : g === 4 ? "玄孫" : `${g}代目の子孫`;
 }
 const HALF = "片親違いの";
 const sexOf = (word: string): Sex => (/(father|brother|uncle|nephew|son|husband)$/.test(word) ? "m" : /(mother|sister|aunt|niece|daughter|wife)$/.test(word) ? "f" : undefined);

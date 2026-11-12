@@ -156,4 +156,6 @@ export default {
   "ops.r200.access_text": "親戚を閲覧者、投稿者、編集者、世話役として招待したり、読み取り専用のリンクで共有したりできます。",
   "ops.r200.ai_title": "任意のアシスタント。",
   "ops.r200.ai_text": "プロバイダーと月の予算を選びます。承認なしには、何も変わりません。",
+  "ops.signins_password": "パスワードでのサインイン（30日間）",
+  "ops.signins_oidc": "シングルサインオンでのサインイン（30日間）",
 } satisfies Strings<typeof en, "ja">;

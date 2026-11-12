@@ -3,7 +3,7 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/common.ts";
 
 export default {
-  "date.exact": "日付をそのまま入力",
+  "date.exact": "日まで",
   "date.monthOnly": "月まで",
   "date.yearOnly": "年だけ",
   "date.about": "おおよそ",
@@ -28,7 +28,7 @@ export default {
   "date.onlyYear": "{year}年のみ",
   "date.onlyMonth": "{year}年{month}のみ",
   "date.clear": "消去",
-  "date.whatBirth": "誕生日",
+  "date.whatBirth": "誕生",
   "date.ageTurns": "{age}歳 · {date}に{turns}歳になります",
   "date.err.year": "西暦を4桁で入力してください（例：1953、1200）。",
   "date.err.monthMissing": "月を入力するか、「年だけ」を選んでください。",
@@ -38,7 +38,7 @@ export default {
   "date.err.future": "その日はまだ先です。",
   "date.err.before": "{what}（{date}）より前の日付です。",
   "date.err.invalid": "実在しない日付です。",
-  "common.appDescription": "暮らせる家系図。",
+  "common.appDescription": "家族が集う家系図。",
   "common.you": "あなた",
   "life.born": "{year}年生まれ",
   "life.circa": "約",

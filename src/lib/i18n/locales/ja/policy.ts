@@ -8,6 +8,8 @@ export default {
   "policy.err.no_price": "Kindredはこのモデルの料金を把握していないため、このサーバーのAIでは使えません。料金がわかっているモデルを選んでください。",
   "policy.err.operator_model": "このサーバーのAIが使うプロバイダーとモデルを選んでください。",
   "policy.err.operator_budget": "このサーバーが提供するAIは、今月の予算を使い切りました。UTCの1日に再開します。",
+  "policy.err.operator_paused": "このサーバーが提供するAIは、この家族では一時停止中です。ある呼び出しの費用が、確保した額を超えました。再開するのはサーバーの運営者です。",
+  "policy.err.operator_unbounded": "このサーバーが提供するAIは、ウェブ検索や画像の確認をしません。費用を前もって見積もれないためです。画像なしで質問するか、家族自身のAIキーに切り替えてください。",
   "policy.err.not_offered": "このサーバーは、この家族にAIを提供していません。",
   "policy.err.announcement_title": "お知らせには題名が必要です。",
   "policy.err.announcement_end": "お知らせの終了は、開始より後にしてください。",

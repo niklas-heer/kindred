@@ -16,7 +16,7 @@ export default {
   "panel.photoError": "肖像を変更できませんでした。5MB未満の画像をお試しください。",
   "panel.centre": "中心にする",
   "panel.ancestors": "先祖",
-  "panel.dynasty": "家系の木",
+  "panel.dynasty": "系譜",
   "panel.tabsLabel": "人物の詳細",
   "panel.tab.overview": "概要",
   "panel.tab.family": "家族",
@@ -213,5 +213,5 @@ export default {
   "panel.occupation.translate": "翻訳",
   "panel.occupation.translating": "翻訳中…",
   "panel.occupation.translateFailed": "翻訳がうまくいきませんでした。もう一度お試しください。",
-  "panel.occupation.translatedAs": "あなたの言語では：{label}",
+  "panel.occupation.translatedAs": "日本語では：{label}",
 } satisfies Strings<typeof en, "ja">;

@@ -3,6 +3,7 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/houses.ts";
 
 export default {
+  "houses.story_about": "{name}さんについて",
   "houses.allHouses": "すべての家系",
   "houses.armsOf": "{name}の紋章",
   "houses.automatic": "おまかせ：{name}",
@@ -16,7 +17,7 @@ export default {
   "houses.count": "{count}",
   "houses.country": "国",
   "houses.countryNone": "国なし",
-  "houses.dynastyTree": "家系の木",
+  "houses.dynastyTree": "系譜",
   "houses.editArms": "紋章を編集",
   "houses.editSuccession": "継承と国",
   "houses.emptyText": "この家族には、記録された家系がありません。家系は、ひとつの名前とひとつの紋章のもとに、ひと続きの系統を集めます。",
@@ -112,6 +113,7 @@ export default {
   "houses.notFoundText": "この家族には、そのような家系はありません。名前が変わったか、削除されたかもしれません。",
   "houses.notSet": "未設定",
   "houses.notable": "主なメンバー",
+  "houses.quote_of": "{name}さんの言葉",
   "houses.onlySteward": "紋章と継承を変更できるのは、世話役だけです",
   "houses.openTree": "家系図を開く",
   "houses.perGeneration": "世代ごとのメンバー数",
