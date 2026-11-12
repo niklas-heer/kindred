@@ -13,6 +13,10 @@
 //   POST /api/ai-chat/<family>                 403 cross-site, 401 signed out; signed in (a session and a family written into
 //                                              the local D1, the fake AI provider) it streams a reply in pieces and stores it,
 //                                              and a reply cut off mid-way frees its chat for the next message
+//   password sign-up and sign-in               with passwords turned on (the console's setting, written into the local D1), an
+//                                              invitation is taken with a username and password, a wrong password and an unknown
+//                                              username get the same answer, and the right one signs in with a new session each
+//                                              time; the times are printed (the hash is 600,000 PBKDF2 iterations on workerd)
 // Then the same Worker again with KINDRED_DEMO=1 (a public demo, src/lib/demo.ts), on the databases the checks above filled:
 //   /                  opens the one family; /setup and /signin go back to /
 //   /<family>          200 HTML with the demo's bar, the same Content-Security-Policy and no-store, and no cookie set
@@ -273,6 +277,8 @@ async function main(): Promise<boolean> {
 
     stewardCookie = cookie;
 
+    await passwordChecks(state, port);
+
   } finally {
     await stop(child, port).catch((e: Error) => {
       failures.push(e.message);
@@ -285,6 +291,44 @@ async function main(): Promise<boolean> {
   if (stewardCookie) await importChecks(config, stewardCookie);
   await durableChecks(config);
   return failures.length === 0;
+}
+
+/**
+ * Username and password on workerd (src/lib/auth/password.server.ts): turns passwords on as the console would, takes an invitation
+ * with a password, then signs in. Prints how long each answer took, which is mostly the 600,000-iteration hash.
+ */
+async function passwordChecks(state: string, port: number) {
+  const execute = (sql: string) => run(['d1', 'execute', 'kindred-local-accounts', '--local', '--env', 'local', '--persist-to', state, '--command', sql], 'seeding the password check');
+  const token = randomBytes(32).toString('base64url');
+  const hash = createHash('sha256').update(`kindred:invite:${token}`).digest('base64url');
+  const now = Date.now();
+  execute([
+    `INSERT INTO instance_setting (key, value, updated_at) VALUES ('auth_methods', '["passkey","password"]', ${now}) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    `INSERT INTO invite (id, hash, tree, role, expires, created) VALUES ('${randomUUID()}', ${sqlText(hash)}, 'modern', 'viewer', ${now + 3_600_000}, ${now})`,
+  ].join('; '));
+  const post = async (action: string, body: object) => {
+    const t = performance.now();
+    const res = await fetch(`http://127.0.0.1:${port}/api/auth/${action}`, {
+      method: 'POST', redirect: 'manual', body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json', 'Sec-Fetch-Site': 'same-origin', Origin: `http://127.0.0.1:${port}` },
+    });
+    const ms = performance.now() - t;
+    const json = (await res.json().catch(() => ({}))) as { error?: string };
+    return { status: res.status, json, ms, cookie: /kindred_session=([^;]*)/.exec(res.headers.get('set-cookie') ?? '')?.[1] ?? '' };
+  };
+  const password = 'a smoke test evening by the river';
+  const joined = await post('password-invite', { token, name: 'Smoke Password', username: 'smoke.pw', password });
+  check(joined.status === 200 && joined.cookie.length === 43, `an invitation is taken with a username and password on workerd (got ${joined.status} ${joined.json.error ?? ''}, ${joined.ms.toFixed(0)} ms)`);
+  const wrong = await post('password-signin', { username: 'smoke.pw', password: 'not the right password' });
+  const unknown = await post('password-signin', { username: 'nobody.here', password: 'not the right password' });
+  check(wrong.status === 400 && unknown.status === 400 && wrong.json.error === 'pw.err.wrong' && unknown.json.error === wrong.json.error,
+    `a wrong password and an unknown username get the same answer (${wrong.json.error} / ${unknown.json.error})`);
+  const signIns = [];
+  for (let i = 0; i < 3; i++) signIns.push(await post('password-signin', { username: 'SMOKE.PW', password }));
+  check(signIns.every((r) => r.status === 200 && r.cookie.length === 43), `the right password signs in (got ${signIns.map((r) => r.status).join(', ')})`);
+  check(new Set(signIns.map((r) => r.cookie)).size === signIns.length, 'every sign-in is a new session');
+  const ms = signIns.map((r) => r.ms).sort((a, b) => a - b);
+  console.log(`     password timings on workerd: sign-in ${ms.map((m) => m.toFixed(0)).join(' / ')} ms, wrong password ${wrong.ms.toFixed(0)} ms, unknown username ${unknown.ms.toFixed(0)} ms, sign-up ${joined.ms.toFixed(0)} ms`);
 }
 
 /** Waits until a dev server answers its health check, or throws with its log. */
