@@ -59,7 +59,9 @@ test('the operator chooses the languages a reader may pick', async ({ page }) =>
   await settled(page);
   await expect(html).toHaveAttribute('lang', 'de');
   await page.getByRole('combobox', { name: /: Deutsch$/ }).click();
-  await expect(page.getByRole('option')).toHaveCount(3);
+  // Every complete language is back in the list (eleven of them now; the count grows with each new one), all in view.
+  await expect(page.getByRole('option', { name: '日本語' })).toBeInViewport();
+  expect(await page.getByRole('option').count()).toBeGreaterThan(3);
   await page.getByRole('option', { name: 'English' }).click();
   await expect(html).toHaveAttribute('lang', 'en');
 });

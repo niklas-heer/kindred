@@ -1,5 +1,6 @@
 /* The language picker: a flag on a ghost button in the top bar, the sign-in card's corner and the home page, and
-   the three-language row of the phone's More sheet. The list itself is the Select's popover (.ui-select-pop). */
+   the row (or, past three languages, the grid) of the phone's More sheet. The list itself is the Select's popover
+   (.ui-select-pop). */
 
 /* The flag keeps one size in every language, so the top bar never shifts when the language changes. It is a
    32px icon button, like the sound and theme switches beside it. */
@@ -8,11 +9,16 @@
 .lang-picker[aria-expanded='true'] { box-shadow: var(--focus-ring); }
 .lang-picker:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
-.lang-pop { min-width: 190px; }
+/* Every language at once where the window is tall enough for them: eleven rows of 40px, not eight and a sliver. */
+.lang-pop { min-width: 190px; max-height: min(480px, calc(100dvh - 72px)); }
 .lang-option { min-height: 40px; }
 
-/* The More sheet: three equal segments across the row. */
+/* The More sheet: up to three languages are equal segments across the row. */
 .lang-choices { flex: 1; min-width: 0; }
 .lang-choices .btn { flex: 1 1 0; min-width: 0; min-height: 44px; gap: 6px; padding: 0 6px; justify-content: center; white-space: nowrap; font-size: 0.9062rem; }
+/* More than three languages do not fit side by side on a phone (eleven ran over one another): they become a grid of
+   three across, each flag above its name, and a long name ("Português (Brasil)") takes two lines. */
+.more-row .lang-choices:has(> .btn:nth-child(4)) { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 6px; }
+.lang-choices:has(> .btn:nth-child(4)) .btn { flex-direction: column; gap: 4px; height: auto; min-height: 52px; padding: 6px 4px; font-size: var(--fs-3); white-space: normal; text-align: center; line-height: 1.15; hyphens: manual; }
 /* The only way to change language before signing in: a finger-sized target. */
 @media (pointer: coarse) { .lang-picker { width: 44px; height: 44px; } }
