@@ -1,0 +1,256 @@
+{
+  "terms": {
+    "family": {
+      "use": "família",
+      "accept": [
+        "famíli"
+      ]
+    },
+    "tree": {
+      "use": "árvore genealógica (a página); árvore em uma frase e na aba do celular",
+      "accept": [
+        "árvore",
+        "arvore"
+      ]
+    },
+    "person": {
+      "use": "pessoa, pessoas",
+      "accept": [
+        "pessoa",
+        "gente"
+      ]
+    },
+    "relative": {
+      "use": "familiar, familiares",
+      "accept": [
+        "familiar",
+        "parente"
+      ]
+    },
+    "member": {
+      "use": "membro, membros",
+      "accept": [
+        "membro"
+      ]
+    },
+    "guest": {
+      "use": "visitante, visitantes",
+      "accept": [
+        "visitante"
+      ]
+    },
+    "viewer": {
+      "use": "leitor, leitores (o papel só de leitura)",
+      "accept": [
+        "leitor",
+        "só leitura",
+        "somente leitura",
+        "só ler"
+      ]
+    },
+    "contributor": {
+      "use": "colaborador, colaboradores",
+      "accept": [
+        "colaborad"
+      ]
+    },
+    "editor": {
+      "use": "editor, editores",
+      "accept": [
+        "editor"
+      ]
+    },
+    "steward": {
+      "use": "responsável, responsáveis (pela família)",
+      "accept": [
+        "responsáve"
+      ]
+    },
+    "operator": {
+      "use": "operador, operadores (do servidor)",
+      "accept": [
+        "operador"
+      ]
+    },
+    "house": {
+      "use": "casa, casas (uma linha da família, nunca um prédio)",
+      "accept": [
+        "casa"
+      ]
+    },
+    "head of the house": {
+      "use": "chefe da casa",
+      "accept": [
+        "chefe da casa",
+        "chefe ou chefa",
+        "chefa da casa"
+      ]
+    },
+    "arms": {
+      "use": "brasão",
+      "accept": [
+        "brasão",
+        "brasões",
+        "brasao"
+      ]
+    },
+    "blazon": {
+      "use": "brasonamento",
+      "accept": [
+        "brasonamento"
+      ]
+    },
+    "tincture": {
+      "use": "esmalte",
+      "accept": [
+        "esmalte"
+      ]
+    },
+    "charge": {
+      "use": "figura, figuras",
+      "accept": [
+        "figura"
+      ]
+    },
+    "source": {
+      "use": "fonte, fontes",
+      "accept": [
+        "fonte"
+      ]
+    },
+    "memory": {
+      "use": "lembrança, lembranças",
+      "accept": [
+        "lembran"
+      ]
+    },
+    "story": {
+      "use": "história, histórias",
+      "accept": [
+        "históri",
+        "histori"
+      ]
+    },
+    "Today": {
+      "use": "Hoje",
+      "accept": [
+        "hoje"
+      ]
+    },
+    "question of the week": {
+      "use": "pergunta da semana",
+      "accept": [
+        "pergunta da semana",
+        "pergunta semanal"
+      ]
+    },
+    "quiz": {
+      "use": "quiz",
+      "accept": [
+        "quiz"
+      ]
+    },
+    "the Campaign": {
+      "use": "a Campanha",
+      "accept": [
+        "campanha"
+      ]
+    },
+    "Chronicle": {
+      "use": "Crônica",
+      "accept": [
+        "crônica",
+        "cronica"
+      ]
+    },
+    "Almanac": {
+      "use": "Almanaque",
+      "accept": [
+        "almanaque"
+      ]
+    },
+    "Atlas": {
+      "use": "Atlas",
+      "accept": [
+        "atlas"
+      ]
+    },
+    "Register": {
+      "use": "Registro",
+      "accept": [
+        "registro"
+      ]
+    },
+    "Gallery": {
+      "use": "Galeria",
+      "accept": [
+        "galeria"
+      ]
+    },
+    "Information needed": {
+      "use": "Informações pendentes",
+      "accept": [
+        "informações pendentes",
+        "informacoes pendentes",
+        "dados pendentes",
+        "informações que faltam",
+        "informação pendente"
+      ]
+    },
+    "Who is this?": {
+      "use": "Quem é?",
+      "accept": [
+        "quem é",
+        "quem e"
+      ]
+    },
+    "assistant": {
+      "use": "assistente",
+      "accept": [
+        "assistente"
+      ]
+    },
+    "proposal": {
+      "use": "proposta, propostas",
+      "accept": [
+        "propost"
+      ]
+    },
+    "share link": {
+      "use": "link de compartilhamento",
+      "accept": [
+        "link"
+      ]
+    },
+    "passkey": {
+      "use": "chave de acesso",
+      "accept": [
+        "chave de acesso",
+        "chaves de acesso",
+        "passkey"
+      ]
+    },
+    "invitation": {
+      "use": "convite, convites",
+      "accept": [
+        "convit"
+      ]
+    },
+    "history": {
+      "use": "histórico",
+      "accept": [
+        "históric",
+        "historic"
+      ]
+    },
+    "Cookbook": {
+      "use": "Livro de receitas",
+      "accept": [
+        "livro de receitas",
+        "receitas"
+      ]
+    }
+  },
+  "sameAsEnglish": [],
+  "ownWords": []
+}
