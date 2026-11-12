@@ -365,6 +365,37 @@ test('storage caps: every upload counts, one over the cap is refused with what i
   await dbs.media.delete('alderby', 'gallery/loose.jpg');
 });
 
+test('a recount never loses an upload that runs beside it', async () => {
+  const bytes = (n: number) => new Uint8Array(n).fill(7);
+  const raw = dbs.store.media;
+  const row = (key: string) => one<{ bytes: number; pending_at: number | null }>('SELECT bytes, pending_at FROM media_usage WHERE tree = ? AND key = ?', 'alderby', key);
+  // An upload reserved before the recount began, whose file is written after the recount listed the storage.
+  let release!: () => void;
+  const gate = new Promise<void>((r) => { release = r; });
+  const late = storage.countedMedia({ ...raw, put: async (...a) => { await gate; return raw.put(...a); } }).put('alderby', 'gallery/late.jpg', bytes(30), 'image/jpeg');
+  // A file the listing sees at its old size, replaced meanwhile by a larger upload still on its way.
+  await dbs.media.put('alderby', 'gallery/swap.jpg', bytes(40), 'image/jpeg');
+  await new Promise((r) => setTimeout(r, 5));
+  const started = Date.now();
+  const listing = {
+    ...raw,
+    list: async (tree: string) => {
+      const found = await raw.list(tree);
+      release();
+      await late;
+      await acc.accounts().batch(storage.reserve('alderby', 'gallery/swap.jpg', 80));
+      return found;
+    },
+  };
+  await storage.recount('alderby', listing, started);
+  assert.deepEqual({ ...(await row('gallery/late.jpg')) }, { bytes: 30, pending_at: null }, 'the finished upload is kept');
+  const swap = await row('gallery/swap.jpg');
+  assert.equal(swap?.bytes, 80, 'the newer reservation is not replaced by the listing');
+  assert.notEqual(swap?.pending_at, null, 'and is still pending');
+  await dbs.media.delete('alderby', 'gallery/late.jpg');
+  await dbs.media.delete('alderby', 'gallery/swap.jpg');
+});
+
 test('a suspended family is read-only for its members, with the reason; resuming opens it again', async () => {
   asUser(OP);
   await fns.operatorSetStatus({ data: { tree: 'alderby', status: 'suspended' } });

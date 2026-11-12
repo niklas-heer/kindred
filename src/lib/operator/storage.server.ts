@@ -57,7 +57,8 @@ export function countedMedia(raw: MediaStore): MediaStore {
         await accounts().run('DELETE FROM media_usage WHERE tree = ? AND key = ?', tree, key).catch(() => {});
         throw e;
       }
-      await accounts().run('UPDATE media_usage SET pending_at = NULL WHERE tree = ? AND key = ?', tree, key);
+      // Written now: a recount that began before this (and may have listed the storage without the file) keeps the row.
+      await accounts().run('UPDATE media_usage SET pending_at = NULL, at = ? WHERE tree = ? AND key = ?', Date.now(), tree, key);
     },
     get: (tree, key) => raw.get(tree, key),
     async delete(tree, key) {
@@ -78,15 +79,16 @@ export const PENDING_MS = 3600_000;
 /**
  * Rebuilds a family's `media_usage` from its storage: every file stored under the family, with its size as the storage lists
  * it (one listing, no file is opened), whether a record names it or not, since a file nobody points at still costs. Nothing
- * of the family's records is read. Rows written since the recount began (an upload meanwhile) are kept, and so are pending
- * reservations younger than PENDING_MS, whose file is still being written; rows for files that are gone are dropped. Returns
- * the new total.
+ * of the family's records is read. Rows written since the recount began (an upload reserved or finished meanwhile) are kept
+ * as they are, never replaced by the listing's older view, and so are pending reservations younger than PENDING_MS, whose file
+ * is still being written; rows for files that are gone are dropped. Returns the new total.
  */
 export async function recount(tree: string, raw: MediaStore = store.media, started = Date.now()): Promise<number> {
   const found = await raw.list(tree);
   const writes = found.map(({ key, size }) =>
     q(`INSERT INTO media_usage (tree, key, bytes, at, pending_at) VALUES (?, ?, ?, ?, NULL)
-       ON CONFLICT(tree, key) DO UPDATE SET bytes = excluded.bytes, at = excluded.at, pending_at = NULL`, tree, key, size, started));
+       ON CONFLICT(tree, key) DO UPDATE SET bytes = excluded.bytes, at = excluded.at, pending_at = NULL
+       WHERE media_usage.at < ? AND (media_usage.pending_at IS NULL OR media_usage.pending_at < ?)`, tree, key, size, started, started, started - PENDING_MS));
   for (let i = 0; i < writes.length; i += 50) await accounts().batch(writes.slice(i, i + 50));
   await accounts().batch([
     q('DELETE FROM media_usage WHERE tree = ? AND at < ? AND (pending_at IS NULL OR pending_at < ?)', tree, started, started - PENDING_MS),
