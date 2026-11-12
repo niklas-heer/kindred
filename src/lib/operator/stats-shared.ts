@@ -23,8 +23,11 @@ export interface InstanceDay {
   storageBytes: number | null;
   /** Page views of families that collect usage statistics. */
   pageViews: number | null;
-  /** Sign-ins that day by method ('passkey', 'other'), from the sessions started that day. */
-  signIns: Record<string, number> | null;
+  /**
+   * Sign-ins that day by method ('passkey', 'other'), from the sessions started that day. As the Statistics tab receives it, a
+   * count below five is null ("fewer than 5"; readStatistics suppresses it on the server).
+   */
+  signIns: Record<string, number | null> | null;
   requestsOpen: number | null;
   dataRequestsOpen: number | null;
   /** Reconstructed after the fact (the first run's backfill), not counted on the day. */
@@ -49,22 +52,28 @@ export interface StatsFamily {
   views30: number | null;
 }
 
-/** "Of the accounts made in the week N weeks ago, how many used Kindred in the last 7 days." */
-export interface RetentionRow { weeksAgo: number; created: number; activeLastWeek: number }
+/**
+ * "Of the accounts made in the week N weeks ago, how many used Kindred in the last 7 days." A count below five is null ("fewer
+ * than 5"), and a cohort that is hidden hides its share too.
+ */
+export interface RetentionRow { weeksAgo: number; created: number | null; activeLastWeek: number | null }
 
 /** AI spending of the whole server per UTC month, in micro-dollars (from ai_spend). */
 export interface AiMonth { month: string; micros: number }
 
-/** Of the families made at least `weeks` weeks ago, how many had a member's visit in the last 7 days. */
-export interface FamilyCohort { weeks: number; families: number; visitedLastWeek: number }
+/** Of the families made at least `weeks` weeks ago, how many had a member's visit in the last 7 days (null: fewer than five). */
+export interface FamilyCohort { weeks: number; families: number; visitedLastWeek: number | null }
 
 /** Storage against the caps: everything used, and the families with a cap (their use, their caps, those at 80% or more). */
 export interface StorageSummary { usedBytes: number; cappedFamilies: number; cappedUsedBytes: number; capBytes: number; nearCap: number }
 
-/** A breakdown (a cohort, a sign-in method) smaller than this is shown as "fewer than 5", so it cannot point at a few people. */
+/**
+ * A breakdown (a cohort, a sign-in method) smaller than this is shown as "fewer than 5", so it cannot point at a few people. The
+ * server suppresses it before the statistics leave it (stats.server.ts, readStatistics): the browser never receives the count.
+ */
 export const SMALL = 5;
-/** A count for a breakdown, or null when it is too small to show. */
-export const shown = (n: number) => (n > 0 && n < SMALL ? null : n);
+/** A count for a breakdown, or null when it is too small to show (or already suppressed). */
+export const shown = (n: number | null) => (n === null || (n > 0 && n < SMALL) ? null : n);
 
 export interface OperatorStatistics {
   days: InstanceDay[];
@@ -75,6 +84,8 @@ export interface OperatorStatistics {
   cohorts: FamilyCohort[];
   /** Families with 3 or more members who visited in the last 30 days. */
   busyFamilies: number;
+  /** Sign-ins in the 30 days up to today, by method, summed on the server before suppression (null: fewer than five). */
+  signIns30: Record<string, number | null>;
   storage: StorageSummary;
   ai: AiMonth[];
   /** Families with usage statistics off: counted in every aggregate, their activity not shown per family. */

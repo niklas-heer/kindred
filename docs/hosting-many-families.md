@@ -262,7 +262,9 @@ no family's Durable Object wakes for it) and never reads a record. A daily job (
 What it holds to:
 
 - **Counts, never people.** No name or record is read or shown. A breakdown smaller than five (a cohort, a sign-in method) shows
-  "fewer than 5", so it cannot point at one or two people.
+  "fewer than 5", so it cannot point at one or two people. The server suppresses it before the statistics leave it (cohorts,
+  retention, sign-ins by method, and each stored day's sign-ins), so the count never reaches the browser; the 30 days' sign-ins
+  are summed on the server first.
 - **A family's own switch holds.** A family whose stewards turned usage statistics off
   ([roles-and-privacy.md](roles-and-privacy.md#usage-statistics)) counts in every total, but its row shows no activity (no last
   visit, no page views), and it records no page views to begin with.

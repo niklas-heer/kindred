@@ -8,7 +8,7 @@
 // The first run reconstructs the days before it from what the accounts database still holds: families and accounts by their
 // creation, page views from the families' daily counters. The rest of a reconstructed day is NULL, and it is marked as such.
 import { q, store } from '../store/index.ts';
-import { median, type AiMonth, type FamilyCohort, type StorageSummary, type InstanceDay, type OperatorStatistics, type RetentionRow, type StatsFamily } from './stats-shared.ts';
+import { median, shown, type AiMonth, type FamilyCohort, type StorageSummary, type InstanceDay, type OperatorStatistics, type RetentionRow, type StatsFamily } from './stats-shared.ts';
 
 const accounts = () => store.accounts();
 const DAY = 86_400_000;
@@ -218,14 +218,30 @@ export async function readStatistics(now = Date.now()): Promise<OperatorStatisti
     nearCap: capped.filter((f) => f.capBytes! > 0 ? f.usedBytes / f.capBytes! >= 0.8 : f.usedBytes > 0).length,
   };
   const [days, today, ret] = await Promise.all([storedDays(), liveDay(utcDay(now), trees, now), retention(now)]);
+  // Sign-ins over the 30 days up to today, by method, summed before they are suppressed.
+  const todayKey = utcDay(now);
+  const signIns30: Record<string, number> = {};
+  for (const d of [...days.filter((x) => x.day >= since && x.day < todayKey), today]) {
+    for (const [k, v] of Object.entries(d.signIns ?? {})) signIns30[k] = (signIns30[k] ?? 0) + (v ?? 0);
+  }
+  // Every breakdown below five is suppressed here, so the browser never receives it (stats-shared.ts, SMALL).
   return {
-    days, now: today, families: table, retention: ret, cohorts,
+    days: days.map(suppressDay), now: suppressDay(today), families: table,
+    retention: ret.map((r) => { const created = shown(r.created); return { ...r, created, activeLastWeek: created === null ? null : shown(r.activeLastWeek) }; }),
+    cohorts: cohorts.map((c) => ({ ...c, visitedLastWeek: shown(c.visitedLastWeek) })),
+    signIns30: suppressCounts(signIns30),
     busyFamilies: trees.filter((id) => (act.get(id)?.n ?? 0) >= 3).length,
     storage,
     ai: ai.map((r): AiMonth => ({ month: r.month, micros: Number(r.micros ?? 0) })),
     statsOff: trees.filter((id) => offSet.has(id)).length,
   };
 }
+
+/** A breakdown's counts with each one below five replaced by null. */
+const suppressCounts = (m: Record<string, number | null>): Record<string, number | null> =>
+  Object.fromEntries(Object.entries(m).map(([k, v]) => [k, shown(v)]));
+/** A day as the Statistics tab receives it: its sign-ins by method suppressed below five. */
+const suppressDay = (d: InstanceDay): InstanceDay => (d.signIns ? { ...d, signIns: suppressCounts(d.signIns) } : d);
 
 /** Rows older than the three years the statistics are kept. */
 export async function pruneInstanceDays(now: number): Promise<void> {

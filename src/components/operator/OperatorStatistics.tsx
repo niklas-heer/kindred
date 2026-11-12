@@ -51,7 +51,7 @@ export function StatisticsTab() {
       </section>
       <Cohorts data={data} />
       <Storage data={data} />
-      <Activity data={data} all={all} />
+      <Activity data={data} />
       <Ai data={data} />
       <Families data={data} />
     </div>
@@ -140,8 +140,8 @@ function Chart({ title, days, range, pick, kind, bytes, note }: { title: Key; da
   );
 }
 
-/** A count in a breakdown: "fewer than 5" when it is small enough to point at a few people. */
-function Small({ n }: { n: number }) {
+/** A count in a breakdown: "fewer than 5" when it is small enough to point at a few people (the server already sent null). */
+function Small({ n }: { n: number | null }) {
   const t = useT();
   const v = shown(n);
   return <>{v === null ? t('ops.fewer_than_5') : v}</>;
@@ -203,13 +203,11 @@ function Storage({ data }: { data: OperatorStatistics }) {
   );
 }
 
-function Activity({ data, all }: { data: OperatorStatistics; all: InstanceDay[] }) {
+function Activity({ data }: { data: OperatorStatistics }) {
   const t = useT();
   const n = data.now;
-  // Sign-ins over the last 30 days, by method.
-  const start = isoDay(dayMs(n.day) - 29 * DAY);
-  const methods = new Map<string, number>();
-  for (const d of all) if (d.day >= start && d.signIns) for (const [k, v] of Object.entries(d.signIns)) methods.set(k, (methods.get(k) ?? 0) + v);
+  // Sign-ins over the last 30 days, by method: summed on the server, before a count below five is suppressed.
+  const methods = Object.entries(data.signIns30);
   return (
     <section aria-labelledby="ops-activity" className="ops-section">
       <h2 id="ops-activity" className="rule">{t('ops.activity')}</h2>
@@ -220,7 +218,7 @@ function Activity({ data, all }: { data: OperatorStatistics; all: InstanceDay[] 
         <div className="operator-fact"><dt>{t('ops.members_max')}</dt><dd>{n.membersMax ?? '–'}</dd></div>
         <div className="operator-fact"><dt>{t('ops.suspended_closed')}</dt><dd>{n.familiesSuspended ?? 0} / {n.familiesClosed ?? 0}</dd></div>
         <div className="operator-fact"><dt>{t('ops.requests_open')}</dt><dd>{n.requestsOpen ?? 0} / {n.dataRequestsOpen ?? 0}</dd></div>
-        {[...methods].map(([k, v]) => (
+        {methods.map(([k, v]) => (
           <div key={k} className="operator-fact"><dt>{t(k === 'passkey' ? 'ops.signins_passkey' : 'ops.signins_other')}</dt><dd><Small n={v} /></dd></div>
         ))}
       </dl>

@@ -157,8 +157,22 @@ test('a family with usage statistics off is counted in the totals, but its activ
   assert.equal(s.families[0]!.id, 'corrow', 'sorted by storage');
   assert.deepEqual(s.storage, { usedBytes: 1200, cappedFamilies: 1, cappedUsedBytes: 900, capBytes: 1000, nearCap: 1 });
   assert.equal(s.busyFamilies, 1, 'Ashgrove has three members who visited in 30 days');
-  assert.deepEqual(s.cohorts.map((c) => [c.weeks, c.families, c.visitedLastWeek]), [[1, 2, 2], [4, 0, 0], [12, 0, 0]]);
+  assert.deepEqual(s.cohorts.map((c) => [c.weeks, c.families, c.visitedLastWeek]), [[1, 2, null], [4, 0, 0], [12, 0, 0]], 'two families visited: fewer than five');
   assert.equal(JSON.stringify(s).includes('Ada'), false, 'no names');
+});
+
+test('a breakdown below five never leaves the server: cohorts, retention and sign-ins, stored days too', async () => {
+  const s = await stats.readStatistics(NOW);
+  const small = (n: number | null) => n !== null && n > 0 && n < 5;
+  for (const c of s.cohorts) assert.ok(!small(c.visitedLastWeek), `cohort ${c.weeks}: ${c.visitedLastWeek}`);
+  for (const r of s.retention) {
+    assert.ok(!small(r.created) && !small(r.activeLastWeek), `retention ${r.weeksAgo}: ${r.created}/${r.activeLastWeek}`);
+    if (r.created === null) assert.equal(r.activeLastWeek, null, 'a hidden cohort hides its share too');
+  }
+  assert.ok(s.retention.some((r) => r.created === null), 'Bram and Dov’s week is hidden');
+  for (const d of [...s.days, s.now]) for (const v of Object.values(d.signIns ?? {})) assert.ok(!small(v), `${d.day}: ${v}`);
+  assert.deepEqual(s.signIns30, { passkey: null }, 'one sign-in in 30 days is fewer than five');
+  assert.ok(s.days.some((d) => d.signIns && 'passkey' in d.signIns), 'the method is still named');
 });
 
 test('a breakdown below five is not shown, and series thin out over a long range', () => {
