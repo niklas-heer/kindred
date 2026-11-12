@@ -62,12 +62,7 @@ export default {
   "update.health_job_last_ok": "Ostatnio bez błędu: {date}",
   "update.health_job_never_ok": "Jeszcze nie wykonano bez błędu",
   "update.health_families": "Bazy danych rodzin",
-  "update.health_families_ok": {
-    one: "{count} rodzina, która się zgłosiła, ma najnowszy schemat.",
-    few: "Wszystkie {count} rodziny, które się zgłosiły, mają najnowszy schemat.",
-    many: "Wszystkie {count} rodzin, które się zgłosiły, ma najnowszy schemat.",
-    other: "Wszystkie {count} rodziny, które się zgłosiły, mają najnowszy schemat.",
-  },
+  "update.health_families_ok": { one: "{count} rodzina, która się zgłosiła, ma najnowszy schemat.", few: "Każda z {count} rodzin, które się zgłosiły, ma najnowszy schemat.", many: "Każda z {count} rodzin, które się zgłosiły, ma najnowszy schemat.", other: "Każda z {count} rodziny, które się zgłosiły, ma najnowszy schemat." },
   "update.health_newest": "Najnowszy schemat: {migration}",
   "update.health_failed": {
     one: "{count} rodzina miała nieudaną migrację:",
@@ -100,4 +95,8 @@ export default {
   "update.health_check_failed": "Ostatnie sprawdzenie nie powiodło się {date} ({error}).",
   "update.health_check_never": "Jeszcze nie sprawdzano.",
   "update.health_update": "Dostępne jest nowsze wydanie: zobacz Aktualizacje.",
+  "update.health_ai": "AI opłacana przez administratora serwera",
+  "update.health_ai_overage": { one: "W tym miesiącu {count} zapytanie do opłacanej przez Ciebie AI kosztowało o {amount} więcej, niż na nie zarezerwowano. Zaksięgowano je w całości, więc liczą je zestawienia miesiąca i oba limity.", few: "W tym miesiącu {count} zapytania do opłacanej przez Ciebie AI kosztowały o {amount} więcej, niż na nie zarezerwowano. Każde zaksięgowano w całości, więc liczą je zestawienia miesiąca i oba limity.", many: "W tym miesiącu {count} zapytań do opłacanej przez Ciebie AI kosztowało o {amount} więcej, niż na nie zarezerwowano. Każde zaksięgowano w całości, więc liczą je zestawienia miesiąca i oba limity.", other: "W tym miesiącu {count} zapytania do opłacanej przez Ciebie AI kosztowało o {amount} więcej, niż na nie zarezerwowano. Każde zaksięgowano w całości, więc liczą je zestawienia miesiąca i oba limity." },
+  "update.health_ai_paused": { one: "Wstrzymane dla rodziny {family} z modelem {model} od {date}: {count} zapytanie kosztowało o {amount} więcej, niż zarezerwowano. Zapytania tej rodziny do Twojej AI z tym modelem są odrzucane, dopóki tego nie potwierdzisz.", few: "Wstrzymane dla rodziny {family} z modelem {model} od {date}: {count} zapytania kosztowały o {amount} więcej, niż zarezerwowano. Zapytania tej rodziny do Twojej AI z tym modelem są odrzucane, dopóki tego nie potwierdzisz.", many: "Wstrzymane dla rodziny {family} z modelem {model} od {date}: {count} zapytań kosztowało o {amount} więcej, niż zarezerwowano. Zapytania tej rodziny do Twojej AI z tym modelem są odrzucane, dopóki tego nie potwierdzisz.", other: "Wstrzymane dla rodziny {family} z modelem {model} od {date}: {count} zapytania kosztowało o {amount} więcej, niż zarezerwowano. Zapytania tej rodziny do Twojej AI z tym modelem są odrzucane, dopóki tego nie potwierdzisz." },
+  "update.health_ai_acknowledge": "Potwierdź i wznów",
 } satisfies Strings<typeof en, "pl">;

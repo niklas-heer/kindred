@@ -96,4 +96,6 @@ export default {
   "policy.funding_switch": "Użyj AI tego serwera",
   "policy.funding_on": "Udostępnia ten serwer: {spent} z {budget} w tym miesiącu.",
   "policy.funding_routes": "Gdy jest włączone, każde zadanie używa dostawcy i modelu serwera, a malowane portrety czekają. Twoje własne klucze i wybory są zachowane na później.",
+  "policy.err.operator_paused": "AI udostępniana przez ten serwer jest wstrzymana dla tej rodziny: jedno zapytanie kosztowało więcej, niż na nie zarezerwowano. Administrator serwera może ją ponownie włączyć.",
+  "policy.err.operator_unbounded": "AI udostępniana przez ten serwer nie przeszukuje internetu ani nie ogląda obrazów: kosztu nie da się z góry określić. Zapytaj bez obrazu albo przełącz się na własny klucz AI rodziny.",
 } satisfies Strings<typeof en, "pl">;

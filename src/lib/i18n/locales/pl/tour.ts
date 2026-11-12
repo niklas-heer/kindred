@@ -5,7 +5,7 @@ import type { en } from "../../areas/tour.ts";
 export default {
   "tour.menu": "Wycieczki",
   "tour.offer.title": "Chcesz krótką wycieczkę?",
-  "tour.offer.body": "Dwie, trzy minuty: gdzie rozmawia rodzina, jak kogoś znaleźć, drzewo, jedna osoba oraz gdzie mieszkają wspomnienia i urodziny. Pokazane na Twojej własnej rodzinie, a nic, co w nim zrobisz, niczego nie zmienia.",
+  "tour.offer.body": "Dwie, trzy minuty: gdzie rozmawia rodzina, jak kogoś znaleźć, drzewo, jedna osoba oraz gdzie mieszkają wspomnienia i urodziny. Wycieczka odbywa się na Twojej własnej rodzinie, a nic, co w niej zrobisz, niczego nie zmienia.",
   "tour.offer.yes": "Oprowadź mnie",
   "tour.offer.no": "Nie teraz",
   "tour.offer.all": "Wszystkie wycieczki",
@@ -43,7 +43,7 @@ export default {
   "tour.end.body": "To jest sedno. Gdy będziesz chcieć zobaczyć resztę (Książkę kucharską, Atlas, Rody, drukowanie księgi rodzinnej), wielka wycieczka przeprowadzi Cię przez wszystko, rozdział po rozdziale.",
   "tour.end.to_grand": "Wielka wycieczka",
   "tour.end.grand_title": "To była wielka wycieczka",
-  "tour.end.grand_all": "Przeszliśmy wszystkie {count} rozdziałów. Zobaczono wszystko, co robi Kindred; reszta należy do Waszej rodziny.",
+  "tour.end.grand_all": "Wszystkie rozdziały za nami ({count}). Znasz już wszystko, co potrafi Kindred; resztę wypełni Twoja rodzina.",
   "tour.end.grand_some": "Przeszliśmy {done} z {count} rozdziałów. Pozostałe czekają w menu konta, w Wycieczkach, kiedy tylko zechcesz.",
 
   "tour.welcome.title": "Witaj w Kindred",
@@ -71,7 +71,7 @@ export default {
   "tour.g.intro.title": "Wielka wycieczka",
   "tour.g.intro.body": "Każda część Kindred, rozdział po rozdziale. „Pomiń rozdział” przeskakuje dalej, „Wstrzymaj” zatrzymuje tutaj, a Wycieczki w menu konta pamiętają, gdzie skończono. Nic w wycieczce nie zmienia zapisów Twojej rodziny.",
   "tour.g.feed.title": "Strumień rodziny",
-  "tour.g.feed.body": "Wpisy, zdjęcia i nowe wspomnienia całej rodziny, od najnowszych. Zmiany w drzewie też się tu pojawiają, więc widać, gdy ktoś doda prababcię albo nowy adres.",
+  "tour.g.feed.body": "Wpisy, zdjęcia i nowe wspomnienia całej rodziny, od najnowszych. Zmiany w drzewie też się tu pojawiają, więc widać, gdy ktoś doda nową ciocię albo nowy adres.",
   "tour.g.react.title": "Reakcje",
   "tour.g.react.body": "Odpowiedz na wpis emoji: kilka ulubionych jest obok, a buźka otwiera całą paletę z wyszukiwarką.",
   "tour.g.react.ask": "Teraz Ty: otwórz paletę emoji buźką.",

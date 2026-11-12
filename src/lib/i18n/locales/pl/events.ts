@@ -58,4 +58,5 @@ export default {
   "events.atlas.what": "wydarzenia z życia",
   "events.atlas.kindword": "wydarzenia",
   "events.atlas.here": "Wydarzenia tutaj",
+  "events.atlas.count": { one: "{count} wydarzenie", few: "{count} wydarzenia", many: "{count} wydarzeń", other: "{count} wydarzenia" },
 } satisfies Strings<typeof en, "pl">;

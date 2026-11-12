@@ -81,7 +81,7 @@ export default {
   "common.saving": "Zapisywanie",
   "common.delete": "Usuń",
   "common.close": "Zamknij",
-  "common.find_person": "Znajdź osobę po nazwisku",
+  "common.find_person": "Znajdź osobę po imieniu lub nazwisku",
   "common.err_network": "Nie udało się połączyć z Kindred. Sprawdź połączenie i spróbuj ponownie.",
   "common.err_unexpected": "Na serwerze coś poszło nie tak. Spróbuj za chwilę. Jeśli to się powtarza, podaj opiekunowi swojej rodziny kod {reference}.",
   "common.page_load_failed": "Nie udało się wczytać tej strony. Dane Twojej rodziny są bezpieczne; spróbuj za chwilę.",

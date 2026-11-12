@@ -238,4 +238,6 @@ export default {
   "houses.review.count": { one: "{count} ród do przeglądu", few: "{count} rody do przeglądu", many: "{count} rodów do przeglądu", other: "{count} rodu do przeglądu" },
   "houses.review.neededTitle": "Rody do przeglądu",
   "houses.review.neededText": "Widzą to tylko opiekunowie. Ród jest na liście, dopóki jego nazwisko nie jest zbadane, jego herb wymaga spojrzenia albo wciąż nosi wygenerowany herb.",
+  "houses.story_about": "o osobie {name}",
+  "houses.quote_of": "autor: {name}",
 } satisfies Strings<typeof en, "pl">;

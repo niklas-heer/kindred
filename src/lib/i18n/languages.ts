@@ -176,7 +176,7 @@ export const LANGUAGES = {
     formal: "u",
     accepts: ["nl"],
     shortMonths: ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"],
-    complete: false, // TOP-UP: keys added after the translation; set back to true then
+    complete: true,
   },
   pl: {
     native: "Polski",
@@ -193,7 +193,7 @@ export const LANGUAGES = {
     jobForms: "piekarz/piekarka",
     accepts: ["pl"],
     shortMonths: ["sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wrz", "paź", "lis", "gru"],
-    complete: false, // TOP-UP: keys added after the translation; set back to true then
+    complete: true,
   },
   "pt-BR": {
     native: "Português (Brasil)",

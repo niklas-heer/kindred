@@ -99,7 +99,7 @@ export default {
   "oidc.scopes": "Zakresy (scopes)",
   "oidc.scopes_hint": "O openid prosi się zawsze; email i profile dają imię i nazwisko oraz adres e-mail.",
   "oidc.trust_email": "Ufaj zweryfikowanym adresom e-mail tego dostawcy",
-  "oidc.trust_email_warning": "Ktoś, o kim ten dostawca mówi, że jest właścicielem adresu e-mail, może wtedy zalogować się na konto Kindred z tym adresem bez uprzedniego dodania dostawcy. Włącz to tylko dla dostawcy, którego sam prowadzisz lub któremu w pełni ufasz.",
+  "oidc.trust_email_warning": "Ktoś, o kim ten dostawca mówi, że jest właścicielem adresu e-mail, może wtedy zalogować się na konto Kindred z tym adresem bez uprzedniego dodania dostawcy. Włącz to tylko dla dostawcy, którego prowadzisz osobiście lub któremu w pełni ufasz.",
   "oidc.enabled": "Oferuj",
   "oidc.turn_off_warning": {
     one: "Wyłączenie kończy sesje, które rozpoczął; {count} konto traci ten sposób logowania, dopóki nie zostanie znów włączony.",
@@ -108,4 +108,7 @@ export default {
     other: "Wyłączenie kończy sesje, które rozpoczął; {count} konta traci ten sposób logowania, dopóki nie zostanie znów włączony.",
   },
   "oidc.save": "Zapisz dostawcę",
+  "oidc.err.signup_unverified": "Twój dostawca nie potwierdził Twojego adresu e-mail, a takie rejestracje ten serwer najpierw sprawdza. Wyślij zamiast tego prośbę albo użyj dostawcy, który potwierdza adres.",
+  "oidc.err.signup_failed": "Nie udało się założyć rodziny: adres może być zajęty albo serwer chwilowo nie przyjmuje nowych rodzin. Sprawdź formularz i spróbuj ponownie.",
+  "oidc.err.signup_exists": "To logowanie należy już do konta Kindred. Najpierw zaloguj się nim, a potem załóż rodzinę stamtąd.",
 } satisfies Strings<typeof en, "pl">;

@@ -150,4 +150,5 @@ export default {
   "recipes.err.invalid": "Przepis nie dotarł w całości. Spróbuj ponownie.",
   "recipes.err.too_many_pictures": "Kroki przepisu mogą mieć najwyżej sześć obrazów.",
   "recipes.unitWords": "g, gr, gram, grama, gramy, kg, kilogram, dag, dkg, mg, ml, cl, dl, l, litr, litry, łyżka, łyżki, łyżek, łyżeczka, łyżeczki, łyżeczek, szklanka, szklanki, szklanek, filiżanka, szczypta, szczypty, garść, garści, ząbek, ząbki, ząbków, plaster, plastry, plasterek, puszka, puszki, pęczek, pęczki, gałązka, gałązki, kostka, kostki, słoik, słoiki, butelka, butelki, opakowanie, opakowania, torebka, torebki, sztuka, sztuki, szt, kropla, krople, liść, liście, główka, główki, kromka, kromki",
+  "recipes.form.paste_example": "800 g wołowiny w kostkę\n3 cebule\n20 g papryki słodkiej\n\nSos:\n250 ml śmietany",
 } satisfies Strings<typeof en, "pl">;

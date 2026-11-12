@@ -935,4 +935,7 @@ export default {
   "canting.the_coopers_barrel": "beczka bednarza",
   "canting.the_woodcutters_axe": "topór drwala",
   "heraldry.show_more": "Pokaż jeszcze {count}",
+  "heraldry.clash.repeated": "Ta sama tynktura występuje w polu dwa razy ({tincture}), więc część podziału znika.",
+  "heraldry.clash.metal": "Metal na metalu. {what}: {tincture}. Pod spodem: {on}.",
+  "heraldry.clash.colour": "Barwa na barwie. {what}: {tincture}. Pod spodem: {on}.",
 } satisfies Strings<typeof en, "pl">;

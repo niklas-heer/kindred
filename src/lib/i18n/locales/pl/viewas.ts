@@ -40,7 +40,7 @@ export default {
   // The chooser.
   "viewas.menu": "Zobacz jako…",
   "viewas.title": "Zobacz rodzinę oczami kogoś innego",
-  "viewas.intro": "Zobacz rodzinę {family} dokładnie tak, jak widzi ją inny czytelnik. Pozostajesz zalogowany na swoje konto, a nic, co zrobisz podczas podglądu, nie zostanie zapisane.",
+  "viewas.intro": "Zobacz rodzinę {family} dokładnie tak, jak widzi ją inny czytelnik. Twoje konto pozostaje zalogowane, a nic, co zrobisz podczas podglądu, nie zostanie zapisane.",
   "viewas.role_heading": "Rola",
   "viewas.role_hint": "Członek z tą rolą, niepowiązany z nikim w drzewie.",
   "viewas.member_heading": "Członek",

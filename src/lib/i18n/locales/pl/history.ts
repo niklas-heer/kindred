@@ -202,4 +202,10 @@ export default {
   },
   "history.s.import.changed": { one: "{author}: zaimportowano plik GEDCOM", few: "{author}: zaimportowano {count} pliki GEDCOM", many: "{author}: zaimportowano {count} plików GEDCOM", other: "{author}: zaimportowano {count} pliku GEDCOM" },
   "history.s.import.removed": { one: "{author}: zaimportowano plik GEDCOM", few: "{author}: zaimportowano {count} pliki GEDCOM", many: "{author}: zaimportowano {count} plików GEDCOM", other: "{author}: zaimportowano {count} pliku GEDCOM" },
+  "history.reply.comment_by_story": "{author} komentuje Twoje wspomnienie",
+  "history.reply.comments_story": { one: "{count} nowy komentarz do Twojego wspomnienia", few: "{count} nowe komentarze do Twojego wspomnienia", many: "{count} nowych komentarzy do Twojego wspomnienia", other: "{count} nowego komentarza do Twojego wspomnienia" },
+  "history.reply.comment_by_media": "{author} komentuje Twoje zdjęcie",
+  "history.reply.comments_media": { one: "{count} nowy komentarz do Twojego zdjęcia", few: "{count} nowe komentarze do Twojego zdjęcia", many: "{count} nowych komentarzy do Twojego zdjęcia", other: "{count} nowego komentarza do Twojego zdjęcia" },
+  "history.reply.comment_by_post": "{author} komentuje Twoją wiadomość",
+  "history.reply.comments_post": { one: "{count} nowy komentarz do Twojej wiadomości", few: "{count} nowe komentarze do Twojej wiadomości", many: "{count} nowych komentarzy do Twojej wiadomości", other: "{count} nowego komentarza do Twojej wiadomości" },
 } satisfies Strings<typeof en, "pl">;

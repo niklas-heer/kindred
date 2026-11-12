@@ -17,12 +17,7 @@ export default {
   "exchange.issue.line_orphan": "Wiersz {line} wisi pod niczym i został pominięty",
   "exchange.issue.tag_skipped": "Pominięto {count}× {tag}: Kindred tego nie importuje",
   "exchange.issue.charset": "Plik podaje kodowanie {charset}; odczytano go jako UTF-8",
-  "exchange.issue.unreadable": {
-    one: "{count} znaku nie dało się odczytać i jest pokazany jako �",
-    few: "{count} znaków nie dało się odczytać i są pokazane jako �",
-    many: "{count} znaków nie dało się odczytać i są pokazane jako �",
-    other: "{count} znaku nie dało się odczytać i są pokazane jako �",
-  },
+  "exchange.issue.unreadable": { one: "{count} znak nie dał się odczytać i jest pokazany jako �", few: "{count} znaki nie dały się odczytać i są pokazane jako �", many: "{count} znaków nie dało się odczytać i są pokazane jako �", other: "{count} znaku nie dało się odczytać i są pokazane jako �" },
   "exchange.issue.no_given_name": "{id} nie ma imienia; przyjęto nazwę „Bez imienia”",
   "exchange.issue.unknown_ref": "{family} odwołuje się do osoby {person}, której nie ma w pliku",
   "exchange.issue.union_spouses": "{family}: małżeństwo lub związek wymaga dwóch osób; nie zaimportowano go jako takiego",

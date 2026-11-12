@@ -43,8 +43,8 @@ export default {
   "operator.recount": "Przelicz",
   "operator.recounting": "Liczenie…",
   "operator.suspended": "Wstrzymana",
-  "operator.suspended_hint": "Jej członkowie i goście mogą wszystko czytać i niczego zmieniać, dopóki nie pozwolisz znów jej używać. Opiekunowie nie mogą jej w tym czasie usunąć: dostają informację, aby zapytać Ciebie.",
-  "operator.suspended_banner": "Ta rodzina została wstrzymana przez administratora serwera: możesz ją czytać, ale nic nie można zmienić.",
+  "operator.suspended_hint": "Jej członkowie i goście mogą wszystko czytać, ale niczego nie mogą zmieniać, dopóki nie pozwolisz znów jej używać. Opiekunowie nie mogą jej w tym czasie usunąć: dostają informację, aby zapytać Ciebie.",
+  "operator.suspended_banner": "Ta rodzina została wstrzymana przez administratora serwera: możesz ją czytać, ale niczego nie możesz zmienić.",
   "operator.delete_warning": "To usuwa na zawsze drzewo rodziny, jej opowieści, obrazy i dokumenty oraz każde członkostwo.",
   "operator.delete_export": "Nie możesz wyeksportować rodziny, której nie jesteś członkiem. Poproś jej opiekunów, aby najpierw pobrali archiwum Markdown albo GEDCOM (Import i eksport).",
 
@@ -73,7 +73,7 @@ export default {
   "operator.kind_deletion": "Usunięcie",
   "operator.kind_other": "Coś innego",
   "operator.about_family": "O rodzinie: {name}",
-  "operator.about_unknown": "Rodzina jest niejasna",
+  "operator.about_unknown": "Nie wiadomo, o którą rodzinę chodzi",
   "operator.as_written": "napisano: „{text}”",
   "operator.days_left": { one: "Pozostał {count} dzień na odpowiedź", few: "Pozostały {count} dni na odpowiedź", many: "Pozostało {count} dni na odpowiedź", other: "Pozostało {count} dnia na odpowiedź" },
   "operator.overdue": { one: "{count} dzień po terminie", few: "{count} dni po terminie", many: "{count} dni po terminie", other: "{count} dnia po terminie" },
@@ -236,4 +236,5 @@ export default {
   "request.full": "Zbyt wiele próśb czeka teraz na odpowiedź, więc ten formularz jest na razie zamknięty. Spróbuj za kilka dni.",
   "privacyreq.full": "Zbyt wiele próśb czeka teraz na odpowiedź, więc ten formularz jest na razie zamknięty.",
   "privacyreq.full_write": "Nadal możesz napisać do administratora serwera:",
+  "operator.err.needs_totp": "To konto ma hasło, ale nie ma kodów dwuetapowych. Najpierw właściciel musi je włączyć, potem można nadać mu rolę administratora serwera.",
 } satisfies Strings<typeof en, "pl">;

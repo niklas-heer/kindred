@@ -331,4 +331,10 @@ export default {
   "ai.err_route": "Ta trasa jest niedozwolona. Wybierz dostawcę i model, których może użyć.",
   "ai.err_needs_provider": "To zadanie potrzebuje podłączonego dostawcy. Podłącz go w sekcji Dostawcy albo wybierz innego.",
   "ai.err_provider_not_connected": "Ten dostawca nie jest podłączony. Najpierw podłącz go w sekcji Dostawcy.",
+  "ai.relOf.child": "dziecko osoby {name}",
+  "ai.relOf.parent": "rodzic osoby {name}",
+  "ai.relOf.partner": "partner lub partnerka osoby {name}",
+  "ai.relOf.sibling": "brat lub siostra osoby {name}",
+  "ai.summaryAddRel": "Dodanie: {name}, {rel}",
+  "ai.summaryLinkRel": "Powiązanie: {name}, {rel}",
 } satisfies Strings<typeof en, "pl">;

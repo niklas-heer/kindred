@@ -166,4 +166,6 @@ export default {
   "signup.audit_settings": "Zmieniono ustawienia hostingu",
   "signup.audit_code_create": "Utworzono kod rejestracji",
   "signup.audit_code_revoke": "Wycofano kod rejestracji",
+  "signup.password_button": "Utwórz konto i rodzinę",
+  "signup.sso_skips_wait": "Albo załóż ją od razu, logując się u dostawcy, który potwierdza Twój adres e-mail:",
 } satisfies Strings<typeof en, "pl">;

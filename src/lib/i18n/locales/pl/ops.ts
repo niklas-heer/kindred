@@ -175,4 +175,6 @@ export default {
   "ops.r200.access_text": "Zapraszaj krewnych jako czytelników, współtwórców, redaktorów lub opiekunów albo udostępnij link tylko do odczytu.",
   "ops.r200.ai_title": "Opcjonalny asystent.",
   "ops.r200.ai_text": "Wybierz dostawcę i miesięczny budżet; nic się nie zmienia bez zatwierdzenia.",
+  "ops.signins_password": "Logowania hasłem (30 dni)",
+  "ops.signins_oidc": "Logowania przez SSO (30 dni)",
 } satisfies Strings<typeof en, "pl">;

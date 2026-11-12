@@ -66,4 +66,12 @@ export default {
   "atlas.fold_short": "Zwiń",
   "atlas.close_chronicle": "Zamknij kronikę",
   "atlas.show_earlier": "Pokaż wcześniejsze",
+  "atlas.count.births": { one: "{count} narodziny", few: "{count} narodziny", many: "{count} narodzin", other: "{count} narodzin" },
+  "atlas.count.deaths": { one: "{count} zgon", few: "{count} zgony", many: "{count} zgonów", other: "{count} zgonu" },
+  "atlas.count.weddings": { one: "{count} ślub", few: "{count} śluby", many: "{count} ślubów", other: "{count} ślubu" },
+  "atlas.line.born": "Narodziny: {name}, {place}",
+  "atlas.line.died": "Śmierć: {name}, {place}",
+  "atlas.line.died_aged": { one: "Śmierć: {name}, {place}, w wieku {count} roku", few: "Śmierć: {name}, {place}, w wieku {count} lat", many: "Śmierć: {name}, {place}, w wieku {count} lat", other: "Śmierć: {name}, {place}, w wieku {count} lat" },
+  "atlas.line.event": "{name}: {what}, {place}",
+  "atlas.line.married": "Ślub: {name} i {partner}, {place}",
 } satisfies Strings<typeof en, "pl">;

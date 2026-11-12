@@ -42,6 +42,8 @@ const HALF: Adj = { m: ["przyrodni", "przyrodniego"], f: ["przyrodnia", "przyrod
 const FOSTER = hard("zastępcz");
 const ADOPTIVE = hard("adopcyjn");
 const ADOPTED = hard("adoptowan");
+/** "przyszywany": the everyday word for a step-relation without a word of its own (przyszywany brat, przyszywana babcia). */
+const STEP = hard("przyszywan");
 
 const alt = (noun: Noun, adjs: Adj[] = [], rest = ""): Alt => ({ noun, adjs, rest });
 const one = (alts: Alt[], tail = ""): PlKin => ({ alts, tail });
@@ -87,6 +89,8 @@ const NOUNS = {
 };
 const N = NOUNS;
 const m = (nn: Noun, ...adjs: Adj[]) => alt(nn, adjs);
+/** An adjective before its noun, both declined: "przyszywany brat", "przyszywanego brata". */
+const pre = (adj: Adj, nn: Noun): Noun => n(`${adj[nn.g][0]} ${nn.nom}`, `${adj[nn.g][1]} ${nn.gen}`, nn.g);
 
 /** English words from graph.kinship() with a single Polish word (or two, when the sex is open). */
 const PL_WORDS: Record<string, PlKin> = {
@@ -110,7 +114,6 @@ const PL_WORDS: Record<string, PlKin> = {
   pibling: one([m(N.wujek), m(N.ciocia)]),
   nephew: one([m(N.bratanek), m(N.siostrzeniec)]),
   niece: one([m(N.bratanica), m(N.siostrzenica)]),
-  nibling: one([alt(N.dziecko, [], " brata lub siostry")]),
   husband: one([m(N.maz)]),
   wife: one([m(N.zona)]),
   partner: one([m(N.partner), m(N.partnerka)]),
@@ -129,9 +132,9 @@ const PL_WORDS: Record<string, PlKin> = {
   stepson: one([m(N.pasierb)]),
   stepdaughter: one([m(N.pasierbica)]),
   stepchild: one([m(N.pasierb), m(N.pasierbica)]),
-  stepbrother: one([alt(N.brat, [], " z nowej rodziny")]),
-  stepsister: one([alt(N.siostra, [], " z nowej rodziny")]),
-  stepsibling: one([alt(N.brat, [], " z nowej rodziny"), alt(N.siostra, [], " z nowej rodziny")]),
+  stepbrother: one([alt(pre(STEP, N.brat))]),
+  stepsister: one([alt(pre(STEP, N.siostra))]),
+  stepsibling: one([alt(pre(STEP, N.brat)), alt(pre(STEP, N.siostra))]),
   "foster father": one([m(N.ojciec, FOSTER)]),
   "foster mother": one([m(N.matka, FOSTER)]),
   "foster parent": one([m(N.rodzic, FOSTER)]),
@@ -159,9 +162,15 @@ const POSS_GEN: Record<Gender, string> = { m: "twojego", f: "twojej", n: "twojeg
 const praNoun = (nn: Noun, count: number): Noun =>
   count <= 3 ? n("pra".repeat(count) + nn.nom, "pra".repeat(count) + nn.gen, nn.g) : n(`${count}× pra${nn.nom}`, `${count}× pra${nn.gen}`, nn.g);
 const praAlt = (a: Alt, count: number): Alt => ({ ...a, noun: praNoun(a.noun, count) });
-/** The ancestor `r` generations above, in the genitive: "rodzica", "dziadka lub babci", "pradziadka lub prababci". */
-const ancestors = (r: number) =>
-  r <= 1 ? "rodzica" : r === 2 ? "dziadka lub babci" : `${praNoun(N.dziadek, r - 2).gen} lub ${praNoun(N.babcia, r - 2).gen}`;
+/** The ancestor `r` generations above: rodzic; dziadek or babcia; pradziadek or prababcia. */
+const ancestors = (r: number): Noun[] =>
+  r <= 1 ? [N.rodzic] : r === 2 ? [N.dziadek, N.babcia] : [praNoun(N.dziadek, r - 2), praNoun(N.babcia, r - 2)];
+/**
+ * People a relation belongs to, in the genitive, with the reader's possessive on them when `poss`:
+ * " twojego dziadka lub twojej babci" ("siostra twojego dziadka", never "twoja siostra dziadka").
+ */
+const owners = (nouns: Noun[], poss: boolean) =>
+  ` ${nouns.map((nn, i) => `${poss && (i === 0 || nouns[i - 1].g !== nn.g) ? `${POSS_GEN[nn.g]} ` : ""}${nn.gen}`).join(" lub ")}`;
 
 function renderPl(k: Kinship, view: KinshipView): PlKin {
   const words = (label: string) => PL_WORDS[label];
@@ -177,28 +186,35 @@ function renderPl(k: Kinship, view: KinshipView): PlKin {
   const spouseWord = (sex: "m" | "f" | undefined) => words(sex === "m" ? "husband" : sex === "f" ? "wife" : "partner");
   const prefixHalf = (kin: PlKin) => ({ ...kin, alts: kin.alts.map((a) => ({ ...a, adjs: [HALF, ...a.adjs] })) });
 
-  const render = (label: string): PlKin => {
+  // `poss`: whether the people a relation belongs to take the reader's possessive. Only the outermost relation seen
+  // from the reader does; one named through someone else ("żona brata twojego dziadka") does not.
+  const render = (label: string, poss = view === "you"): PlKin => {
     const word = words(label);
     if (word) return word;
     if (label === BY_MARRIAGE) return one(k.sex === "m" ? [m(N.powinowaty)] : k.sex === "f" ? [m(N.powinowata)] : [m(N.powinowaty), m(N.powinowata)]);
     // A tie through a marriage first, so "great-uncle's wife" is not read as a "great-" word.
     const spouse = label.match(/^(.+)'s (husband|wife|partner)$/);
-    if (spouse) return { alts: render(spouse[2]).alts, tail: of(render(spouse[1])), through: true };
+    if (spouse) return { alts: render(spouse[2], false).alts, tail: of(render(spouse[1])), through: true };
     const theirs = label.match(/^(husband|wife|partner)'s (.+)$/);
     if (theirs) {
-      const rel = render(theirs[2]);
+      const rel = render(theirs[2], false);
       return { alts: rel.alts, tail: `${rel.tail}${of(render(theirs[1]))}`, through: true };
     }
     // Anyone else named through another person, the last first: "brat twojego ojczyma", "pasierb twojej siostry".
     const through = label.match(/^(.+)'s (.+)$/);
     if (through) {
-      const rel = render(through[2]);
+      const rel = render(through[2], false);
       return { alts: rel.alts, tail: `${rel.tail}${of(render(through[1]))}`, through: true };
     }
-    // A grandparent or grandchild by a stepparent: "dziadek z nowej rodziny".
+    // Any other relative of your partner: "dziadek twojej żony", "pradziadek twojego męża".
+    if (label.endsWith("-in-law")) {
+      const rel = render(label.slice(0, -7), false);
+      return { alts: rel.alts, tail: `${rel.tail}${of(spouseWord(k.spouse))}`, through: true };
+    }
+    // A grandparent or grandchild by a stepparent: "przyszywany dziadek".
     if (label.startsWith("step-")) {
-      const rel = render(label.slice(5));
-      return { ...rel, tail: `${rel.tail} z nowej rodziny` };
+      const rel = render(label.slice(5), poss);
+      return { ...rel, alts: rel.alts.map((a) => ({ ...a, noun: pre(STEP, a.noun) })) };
     }
     const cousin = label.match(/^(half-)?(?:(\w+|\d+th) )?cousin(?: (once|twice|\d+ times) removed)?$/);
     if (cousin) {
@@ -210,12 +226,12 @@ function renderPl(k: Kinship, view: KinshipView): PlKin {
       const pick = (nm: Noun, nf: Noun, rest = "") => (sex === "m" ? [alt(nm, [], rest)] : sex === "f" ? [alt(nf, [], rest)] : [alt(nm, [], rest), alt(nf, [], rest)]);
       let kin: PlKin;
       if (removed && up && up > 0) {
-        // A parent's cousin: "kuzyn rodzica", "kuzynka dziadka lub babci".
-        kin = one(pick(N.kuzyn, N.kuzynka), `${deg} ${ancestors(removed)}`);
+        // A parent's cousin: "kuzyn twojego rodzica", "kuzynka drugiego stopnia twojego dziadka lub twojej babci".
+        kin = { ...one(pick(N.kuzyn, N.kuzynka), `${deg}${owners(ancestors(removed), poss)}`), through: true };
       } else if (removed && up && up < 0) {
-        // A cousin's child: "syn kuzyna lub kuzynki", "wnuczka kuzyna lub kuzynki drugiego stopnia".
+        // A cousin's child: "syn twojego kuzyna lub twojej kuzynki", "wnuczka twojego kuzyna lub twojej kuzynki drugiego stopnia".
         const kids = removed === 1 ? pick(N.syn, N.corka) : pick(praNoun(N.wnuk, Math.max(removed - 2, 0)), praNoun(N.wnuczka, Math.max(removed - 2, 0)));
-        kin = one(kids.map((a) => ({ ...a, rest: " kuzyna lub kuzynki" })), deg);
+        kin = { ...one(kids, `${owners([N.kuzyn, N.kuzynka], poss)}${deg}`), through: true };
       } else {
         kin = one(pick(N.kuzyn, N.kuzynka), `${deg}${removed ? `, ${removed === 1 ? "jedno pokolenie" : removed < 5 ? `${removed} pokolenia` : `${removed} pokoleń`} różnicy` : ""}`);
       }
@@ -227,33 +243,28 @@ function renderPl(k: Kinship, view: KinshipView): PlKin {
       const base = great[3];
       const halfed = (kin: PlKin) => (great[2] ? prefixHalf(kin) : kin);
       if (/^grand(father|mother|parent)$/.test(base)) {
-        const kin = render(base);
+        const kin = render(base, poss);
         return halfed({ ...kin, alts: kin.alts.map((a) => praAlt(a, count)) });
       }
       if (/^grand(son|daughter|child)$/.test(base)) {
-        const kin = render(base);
+        const kin = render(base, poss);
         return halfed({ ...kin, alts: kin.alts.map((a) => praAlt(a, count)) });
       }
-      // A great-uncle is a grandparent's brother: "brat dziadka lub babci", "siostra pradziadka lub prababci".
+      // A great-uncle is a grandparent's brother: "brat twojego dziadka lub twojej babci", "siostra twojego pradziadka lub twojej prababci".
       if (/^(uncle|aunt|pibling)$/.test(base)) {
-        const anc = ancestors(count + 1);
         const heads = base === "uncle" ? [N.brat] : base === "aunt" ? [N.siostra] : [N.brat, N.siostra];
-        return halfed(one(heads.map((h) => alt(h, [], ` ${anc}`))));
+        return halfed({ ...one(heads.map((h) => alt(h)), owners(ancestors(count + 1), poss)), through: true });
       }
-      // A great-nephew is a sibling's grandchild: "wnuk brata lub siostry", "prawnuk brata lub siostry".
+      // A great-nephew is a sibling's grandchild: "wnuk twojego brata lub twojej siostry", "prawnuk twojego brata lub twojej siostry".
       if (/^(nephew|niece|nibling)$/.test(base)) {
         const heads =
           base === "nephew" ? [praNoun(N.wnuk, count - 1)] : base === "niece" ? [praNoun(N.wnuczka, count - 1)] : [praNoun(N.wnuk, count - 1), praNoun(N.wnuczka, count - 1)];
-        return halfed(one(heads.map((h) => alt(h, [], " brata lub siostry"))));
+        return halfed({ ...one(heads.map((h) => alt(h)), owners([N.brat, N.siostra], poss)), through: true });
       }
-      return halfed(render(base));
+      return halfed(render(base, poss));
     }
-    if (label.startsWith("half-")) return prefixHalf(render(label.slice(5)));
-    // Any other relative of your partner: "dziadek twojej żony".
-    if (label.endsWith("-in-law")) {
-      const rel = render(label.slice(0, -7));
-      return { alts: rel.alts, tail: `${rel.tail}${of(spouseWord(k.spouse))}`, through: true };
-    }
+    if (label === "nibling") return { ...one([alt(N.dziecko)], owners([N.brat, N.siostra], poss)), through: true };
+    if (label.startsWith("half-")) return prefixHalf(render(label.slice(5), poss));
     return one([alt(n(label, label, "m"))]);
   };
   return render(k.label);
