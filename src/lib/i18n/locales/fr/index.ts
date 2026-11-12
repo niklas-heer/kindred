@@ -26,6 +26,7 @@ import houses from "./houses.ts";
 import join from "./join.ts";
 import needed from "./needed.ts";
 import operator from "./operator.ts";
+import ops from "./ops.ts";
 import panel from "./panel.ts";
 import photos from "./photos.ts";
 import portrait from "./portrait.ts";
@@ -77,6 +78,7 @@ export default {
   ...join,
   ...needed,
   ...operator,
+  ...ops,
   ...panel,
   ...photos,
   ...portrait,
