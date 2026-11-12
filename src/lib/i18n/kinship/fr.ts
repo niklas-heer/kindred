@@ -96,7 +96,9 @@ const noun = (word: string, g: Gender): Noun => ({ word, g });
 const one = (alts: Noun[], tail = ""): FrKin => ({ alts, tail });
 /** The same relation with each word rewritten ("oncle" → "grand-oncle"). */
 const reword = (kin: FrKin, f: (w: string) => string): FrKin => ({ ...kin, alts: kin.alts.map((n) => ({ word: f(n.word), g: n.g })) });
-const prefixed = (kin: FrKin, pre: string) => (pre ? reword(kin, (w) => pre + w) : kin);
+/** `pre` before each word; "petit-" agrees with a feminine noun ("petite-nièce", "arrière-petite-nièce"), "grand-" does not. */
+const prefixed = (kin: FrKin, pre: string): FrKin =>
+  pre ? { ...kin, alts: kin.alts.map((n) => ({ word: (n.g === "f" ? pre.replace(/petit-/g, "petite-") : pre) + n.word, g: n.g })) } : kin;
 /** "arrière-" repeated, as many as French writes out. */
 const arriere = (n: number) => (n <= 0 ? "" : n <= 3 ? "arrière-".repeat(n) : `${n}× arrière-`);
 /** Prefix of an uncle or aunt `levels` generations further out: grand-, arrière-grand-. */

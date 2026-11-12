@@ -7,7 +7,7 @@ export default {
   "today.cmd": "Ouvrir Aujourd’hui",
   "today.cmd_hint": "les nouvelles de la famille, la question et le quiz",
   "today.more_sections": "Plus de rubriques",
-  "today.hello": "Content de te voir, {name}",
+  "today.hello": "Quel plaisir de te voir, {name}",
   "today.hello_morning": "Bonjour, {name}",
   "today.hello_day": "Bon après-midi, {name}",
   "today.hello_evening": "Bonsoir, {name}",

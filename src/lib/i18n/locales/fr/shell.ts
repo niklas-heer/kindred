@@ -14,7 +14,7 @@ export default {
   "people.birthUnknown": "Naissance inconnue",
   "people.deathUnknown": "Décès inconnu",
   "people.houses": { one: "{count} maison", other: "{count} maisons" },
-  "people.showing": "{count} affichées",
+  "people.showing": "affichage : {count}",
   "people.keysMove": "déplacer",
   "people.keysOpen": "ouvrir",
   "people.searchPlaceholder": "Chercher par nom, maison, titre, année…",

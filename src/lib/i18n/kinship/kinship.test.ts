@@ -32,3 +32,11 @@ test('a complete language has written kinship words, and a stub falls back to th
     assert.equal(yourKinship({ label: 'great-aunt', via: [] }, stub, { capital: true }), 'Great-aunt');
   }
 });
+
+test('French "petit-" agrees with a feminine noun, as far down as it goes', () => {
+  const fr = (label: string) => yourKinship({ label, via: [] } as never, 'fr');
+  assert.equal(fr('great-niece'), 'ta petite-nièce');
+  assert.equal(fr('great-great-niece'), 'ton arrière-petite-nièce');
+  assert.equal(fr('great-nephew'), 'ton petit-neveu');
+  assert.equal(fr('great-aunt'), 'ta grand-tante', '"grand-" does not agree');
+});
