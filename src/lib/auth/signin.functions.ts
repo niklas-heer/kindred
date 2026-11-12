@@ -211,4 +211,3 @@ export const dismissResetNotice = createServerFn({ method: 'POST' }).handler(asy
     await p.dismissResetNotice(user.id, s.method ?? 'passkey');
   });
 });
-
