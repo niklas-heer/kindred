@@ -248,7 +248,9 @@
       ]
     }
   },
-  "sameAsEnglish": [],
+  "sameAsEnglish": [
+    "feedback.key_mod"
+  ],
   "ownWords": [
     "a",
     "action",
