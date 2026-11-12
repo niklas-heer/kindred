@@ -410,6 +410,9 @@ then becomes a [request](#waiting-list), no account is made, and you approve it 
   families it made that are still here.
 - **Sign-ups a day** (default 20) and **families from sign-up, at most** (default 200; empty for no ceiling).
 - **Three sign-ups a day from one network** (a 4-character hash, never the address), and Turnstile.
+- The day's and the network's counts outlive what they count: deleting a signed-up account or its family lowers neither (they
+  count `signup_tally`, which holds only a hash and a time, kept two days). The ceiling of families from sign-up counts the
+  families still here, so deleting one frees its place.
 - New families get the default storage cap; AI uses the family's own key, as everywhere.
 
 The limits are checked in the same database batch that writes the account, the family's administration and the sign-up, so two

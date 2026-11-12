@@ -101,7 +101,7 @@ export async function precheck(form: CleanForm, g: SignupGuards, now = Date.now(
   if (!state.open) throw closedError(state.reason);
   if (!(await passesSignupTurnstile(g.turnstile, g.ip))) throw new AuthError('invalid', 'operator.err_turnstile');
   const network = await networkKey(g.ip);
-  const row = await accounts().get<{ n: number }>('SELECT count(*) AS n FROM signup WHERE network = ? AND created > ?', network, now - DAY);
+  const row = await accounts().get<{ n: number }>('SELECT count(*) AS n FROM signup_tally WHERE network = ? AND created > ?', network, now - DAY);
   if ((row?.n ?? 0) >= SIGNUPS_PER_NETWORK) throw err('throttled', 'signup.err.slow');
   return { state, network };
 }
@@ -138,19 +138,23 @@ export async function completeSignup(who: NewAccount, form: CleanForm, network: 
   } else {
     user = who.user;
   }
-  // The limits, again, in the batch: two sign-ups at once cannot both take the last place.
-  before.push(guard('(SELECT count(*) FROM signup WHERE network = ? AND created > ?) < ?', network, now - DAY, SIGNUPS_PER_NETWORK));
+  // The limits, again, in the batch: two sign-ups at once cannot both take the last place. They count `signup_tally`, which
+  // holds no account and no family, so deleting either lowers neither count (migration 0049).
+  before.push(guard('(SELECT count(*) FROM signup_tally WHERE network = ? AND created > ?) < ?', network, now - DAY, SIGNUPS_PER_NETWORK));
   if (withCode) {
     before.push(guard('EXISTS (SELECT 1 FROM signup_code WHERE id = ? AND revoked_at IS NULL AND uses < uses_max AND (expires IS NULL OR expires > ?))', withCode.id, now));
   } else {
-    before.push(guard('(SELECT count(*) FROM signup WHERE created > ?) < ?', now - DAY, h.perDay));
+    before.push(guard('(SELECT count(*) FROM signup_tally WHERE created > ?) < ?', now - DAY, h.perDay));
     if (h.total !== null) before.push(guard('(SELECT count(*) FROM family_admin WHERE self_signed = 1) < ?', h.total));
   }
   const id = form.familyId;
+  const signupId = crypto.randomUUID();
   const after: Query[] = [
     q('UPDATE family_admin SET self_signed = 1 WHERE tree = ?', id),
     q('INSERT INTO signup (id, user, family, name, email, verified, age_confirmed, code, network, created) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)',
-      crypto.randomUUID(), user.id, id, who.kind === 'passkey' ? who.name : user.name, form.email, verified ? 1 : 0, withCode?.id ?? null, network, now),
+      signupId, user.id, id, who.kind === 'passkey' ? who.name : user.name, form.email, verified ? 1 : 0, withCode?.id ?? null, network, now),
+    q('INSERT INTO signup_tally (id, network, created) VALUES (?, ?, ?)', signupId, network, now),
+    q('DELETE FROM signup_tally WHERE created < ?', now - 2 * DAY),
     ...(withCode ? [q('UPDATE signup_code SET uses = uses + 1 WHERE id = ?', withCode.id)] : []),
   ];
   const refused = async (): Promise<Error> => {

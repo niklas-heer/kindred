@@ -122,7 +122,7 @@ const DAY = 86_400_000;
 /** Today's sign-ups and the signed-up families the server holds: the two counts the limits read. */
 export async function signupCounts(now = Date.now()): Promise<{ day: number; total: number }> {
   const row = await accounts().get<{ day: number; total: number }>(
-    'SELECT (SELECT count(*) FROM signup WHERE created > ?) AS day, (SELECT count(*) FROM family_admin WHERE self_signed = 1) AS total', now - DAY);
+    'SELECT (SELECT count(*) FROM signup_tally WHERE created > ?) AS day, (SELECT count(*) FROM family_admin WHERE self_signed = 1) AS total', now - DAY);
   return { day: row?.day ?? 0, total: row?.total ?? 0 };
 }
 

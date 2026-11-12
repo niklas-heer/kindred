@@ -208,6 +208,7 @@ test('Turnstile is checked by the server; the hidden field stops a bot; one netw
 
 test('the day’s limit and the ceiling hold when sign-ups race; the loser leaves no family behind; then the page offers the request form', async () => {
   await sql('DELETE FROM signup');
+  await sql('DELETE FROM signup_tally');
   await open({ perDay: 1 });
   const ids = [form(), form()];
   const raced = await Promise.allSettled(ids.map((f, i) => signup.completeSignup(newAccount(`Day${i}`), f, `d${i}`)));
@@ -221,6 +222,7 @@ test('the day’s limit and the ceiling hold when sign-ups race; the loser leave
 
   // The ceiling: families from sign-up on the server at once.
   await sql('DELETE FROM signup');
+  await sql('DELETE FROM signup_tally');
   const total = await count('SELECT count(*) AS n FROM family_admin WHERE self_signed = 1');
   await open({ perDay: 100, total: total + 1 });
   const race2 = await Promise.allSettled([0, 1, 2].map((i) => signup.completeSignup(newAccount(`Cap${i}`), form(), `c${i}`)));
@@ -233,8 +235,27 @@ test('the day’s limit and the ceiling hold when sign-ups race; the loser leave
   assert.deepEqual(await submitFamilyRequest({ name: 'Wen', email: 'wen@example.org', familyName: 'The Wens', message: '' }, { ip: '10.77.0.1', turnstile: 'good' }), { email: 'wen@example.org' });
 });
 
+test('deleting the accounts and families sign-up made lowers neither the network’s count nor the day’s', async () => {
+  await sql('DELETE FROM signup');
+  await sql('DELETE FROM signup_tally');
+  await open({ perDay: 3, total: null });
+  const network = await net(31);
+  const made: { tree: string; user: string }[] = [];
+  for (let i = 0; i < 3; i++) made.push(await signup.completeSignup(newAccount(`Leaver${i}`), form(), network));
+  const { forgetInAccounts } = await load<typeof import('../families.server.ts')>('/src/lib/families.server.ts');
+  for (const m of made) {
+    await acc.accounts().batch(await forgetInAccounts(m.tree));
+    await sql('DELETE FROM user WHERE id = ?', m.user);
+  }
+  assert.equal(await count('SELECT count(*) AS n FROM signup'), 0, 'their names and addresses went with their accounts');
+  assert.equal((await hosting.signupState()).reason, 'day', 'the day’s count stays');
+  await open({ perDay: 100, total: null });
+  await assert.rejects(signup.completeSignup(newAccount('Again'), form(), network), /Too many families were started from your network/);
+});
+
 test('an account signed in starts families within its limit, also when two requests race', async () => {
   await sql('DELETE FROM signup');
+  await sql('DELETE FROM signup_tally');
   await open({ perAccount: 1, total: null, perDay: 100 });
   const raced = await Promise.allSettled([0, 1].map((i) => signup.completeSignup({ kind: 'existing', user: SIGNED as never }, form(), `s${i}`)));
   assert.deepEqual(raced.map((r) => r.status).sort(), ['fulfilled', 'rejected']);
@@ -252,6 +273,7 @@ test('an account signed in starts families within its limit, also when two reque
 
 test('codes: made, used once each even when raced, passing the day’s limit; withdrawn and expired codes open nothing; all logged', async () => {
   await sql('DELETE FROM signup');
+  await sql('DELETE FROM signup_tally');
   await open({ perDay: 0 });
   await saveOp({ familyCreation: 'requests' });
   asUser(OP);
@@ -288,6 +310,7 @@ test('codes: made, used once each even when raced, passing the day’s limit; wi
 
 test('unverified sign-ups to the waiting list: the form becomes a request, no account is made; a code still signs up', async () => {
   await sql('DELETE FROM signup');
+  await sql('DELETE FROM signup_tally');
   await open({ unverified: 'waitlist', perDay: 50 });
   const state = await hosting.signupState();
   assert.equal(state.waitlist, true);
