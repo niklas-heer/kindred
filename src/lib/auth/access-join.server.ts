@@ -44,6 +44,8 @@ export async function joinWithInvite(email: string, token: string, rawName: unkn
     const fresh = await inviteById(invite.id);
     if (!fresh || !usable(fresh)) throw gone();
     const existing = await userByEmail(email);
+    // An account the retention job is retiring takes no invitation: it is going, and the invitation would go with it.
+    if (existing?.retiring) throw gone();
     if (existing) return { writes: [...useInvite(fresh, existing.id), ...(await inviteAcceptance(fresh, existing, acceptTerms))], result: existing.id, refused: inviteUsed };
     const { user, insert } = newUser(name, email, undefined, locale, true);
     return { writes: [insert, ...useInvite(fresh, user.id), ...(await inviteAcceptance(fresh, user, acceptTerms))], result: user.id, refused: inviteUsed };

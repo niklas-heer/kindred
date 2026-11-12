@@ -69,6 +69,11 @@ jobs:
             version=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)".*/\1/p' package.json | head -n 1)
             [[ -n "$version" ]] && prev="v$version"
           fi
+          # Fail closed: a copy whose release cannot be read (a prerelease version, a hand-edited file) is not updated blindly.
+          if [[ ! "$prev" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Cannot tell which release this copy has (.kindred-release or package.json gives '${prev:-nothing}'). Write the release you run, such as v2.4.0, into .kindred-release and run the update again."
+            exit 1
+          fi
           if [[ "$prev" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
             have=("${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}")
             [[ "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]

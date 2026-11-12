@@ -334,11 +334,11 @@ test('push: a family whose push is off gets none, and its devices stay registere
 test('the operator’s budget: racing reservations never pass the family’s budget or the server’s ceiling', async () => {
   const c = (k: string) => k;
   const limits = { familyMicros: 1_000_000, ceilingMicros: 1_500_000 };
-  const tries = await Promise.allSettled(Array.from({ length: 20 }, () => funding.reserveOperator('race-a', 100_000, limits, c as never)));
+  const tries = await Promise.allSettled(Array.from({ length: 20 }, () => funding.reserveOperator('race-a', 100_000, limits, c as never, 'p:m')));
   assert.equal(tries.filter((r) => r.status === 'fulfilled').length, 10, 'exactly the family’s budget, no more');
   assert.ok(tries.filter((r) => r.status === 'rejected').every((r) => /operator_budget/.test(String((r as PromiseRejectedResult).reason?.message))));
   // Another family hits the server's ceiling: only 500,000 is left of it.
-  const more = await Promise.allSettled(Array.from({ length: 10 }, () => funding.reserveOperator('race-b', 100_000, limits, c as never)));
+  const more = await Promise.allSettled(Array.from({ length: 10 }, () => funding.reserveOperator('race-b', 100_000, limits, c as never, 'p:m')));
   assert.equal(more.filter((r) => r.status === 'fulfilled').length, 5);
   const month = new Date().toISOString().slice(0, 7);
   assert.equal((await store.accounts().get<{ micros: number }>('SELECT micros FROM ai_operator_month WHERE month = ?', month))!.micros, 1_500_000);
@@ -427,14 +427,14 @@ test('deleting a family keeps what the operator’s AI booked for it this month,
   const c = (k: string) => k;
   const limits = { familyMicros: 1_000_000, ceilingMicros: 100_000_000 };
   await dbs.provisionFamily('again', 'Again');
-  const b = await funding.reserveOperator('again', 900_000, limits, c as never);
+  const b = await funding.reserveOperator('again', 900_000, limits, c as never, 'p:m');
   await funding.settleOperator(b, 900_000);
   const total = await serverMonth();
   const { forgetInAccounts } = await load<typeof import('../families.server.ts')>('/src/lib/families.server.ts');
   await store.accounts().batch(await forgetInAccounts('again'));
   assert.equal(await familyMonth('again'), 900_000, 'kept: a family made again under the id does not start at 0');
   assert.equal(await serverMonth(), total);
-  await assert.rejects(funding.reserveOperator('again', 200_000, limits, c as never), /operator_budget/);
+  await assert.rejects(funding.reserveOperator('again', 200_000, limits, c as never, 'p:m'), /operator_budget/);
   assert.equal((await funding.operatorSpent('again')).family, 900_000);
 });
 

@@ -107,7 +107,7 @@ export interface OperatorLimits { familyMicros: number; ceilingMicros: number }
  * Books `amount` against the family's operator budget and the server's ceiling at once, or throws `budget`. Refused while an
  * overage of this family and model waits for the operator (`model`, as overageModel writes it).
  */
-export async function reserveOperator(tree: string, amount: number, limits: OperatorLimits, c: Tr, now = new Date(), model = ''): Promise<OperatorBooking> {
+export async function reserveOperator(tree: string, amount: number, limits: OperatorLimits, c: Tr, model: string, now = new Date()): Promise<OperatorBooking> {
   const month = monthNow(now);
   const id = crypto.randomUUID();
   try {
@@ -203,7 +203,7 @@ export function operatorBudgeted(tree: string, adapter: AiAdapter, price: Price,
       const req = { ...request, maxTokens: cap };
       const reserve = costMicros({ inputTokens: inputBound(req), outputTokens: cap, searches: 0 }, price);
       if (limits.familyMicros >= TINY_BUDGET_MICROS && reserve > limits.familyMicros * SINGLE_CALL_SHARE) throw new AiError('budget', c('ai.errBudgetShare'));
-      const booked = await reserveOperator(tree, reserve, limits, c, new Date(), overageModel(adapter.provider, adapter.model));
+      const booked = await reserveOperator(tree, reserve, limits, c, overageModel(adapter.provider, adapter.model), new Date());
       let actual = booked.amount;
       try {
         const reply = await adapter.complete(req);

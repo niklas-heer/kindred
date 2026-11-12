@@ -238,7 +238,8 @@ export interface ErasureResult { counts: Record<string, number>; files: number }
 export function scrubbed(text: string, who: { id: string; names: string[] }): string {
   const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   let out = text.replace(new RegExp(`(?<![${ID_CHAR}])${esc(who.id)}(?![${ID_CHAR}])`, 'g'), REDACTED);
-  for (const n of who.names) out = out.split(n).join(REDACTED);
+  // Longest first, so a full name is replaced before a shorter name inside it.
+  for (const n of [...who.names].sort((a, b) => b.length - a.length)) out = out.split(n).join(REDACTED);
   return out;
 }
 
