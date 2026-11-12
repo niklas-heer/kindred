@@ -7,7 +7,73 @@ moving to before you upgrade ([docs/self-host.md](docs/self-host.md), "Upgrading
 
 ## [Unreleased]
 
-Changes on `main` since 2.2.0. They are not in a release yet.
+Changes on `main` since 2.3.0. They are not in a release yet.
+
+## [2.3.0] - 2026-11-12
+
+Values in the feed, a Campaign on an invented continent, and one server for many families: an operator role and console,
+families kept in Durable Objects on Cloudflare (created on demand, optionally in the EU), a Deploy to Cloudflare button,
+public request forms, data requests, storage caps and legal pages. Seven migrations are new since 2.2.0; read the
+[release notes](docs/releases/v2.3.0.md) before upgrading.
+
+Database changes. In `migrations/tree`:
+
+- `0035_campaign_ruleset.sql` gives each reign and week's field its ruleset (1: the map from the family's places, 2: the
+  invented continent), so scores are only compared under the same rules.
+- `0036_campaign_counted.sql` fixes a member's counted reign of the day when it begins (`counts_for`, one a day by a
+  unique index) and keeps a reign's moves as it is played (`progress`). Earlier days keep their old result.
+
+In `migrations/accounts`:
+
+- `0033_family_store.sql`: the families made as Durable Objects.
+- `0034_operator.sql`: `user.operator` (the earliest account becomes the operator), instance settings, the operator's
+  audit log, each family's administration (status, storage cap, who made it) and counted media.
+- `0035_requests.sql`: the waiting list and data requests.
+- `0036_family_import.sql`: imports into a Durable Object, operator-made invitations, uploads on their way.
+- `0037_operator_forms.sql`: closed families, forwarded data requests, accepted terms, operators' push, the family limit.
+
+All of them add tables or columns. On Node they are applied when the server starts, after a copy of each database; on
+Cloudflare `mise run deploy` applies them before the new Worker goes live. The Campaign's new code reads `counts_for`, so
+apply 0036 before the new Worker serves.
+
+New settings: `KINDRED_JURISDICTION` (`eu` keeps Durable Object families in the EU; chosen once, before the first family),
+`KINDRED_TURNSTILE_SITE_KEY` and `KINDRED_TURNSTILE_SECRET` (Cloudflare Turnstile on the public forms).
+
+### Added
+- **Values in the feed.** An update now says what the new value is: a phone number or email you can tap, an address that
+  opens the map, "born 3 May 1950 in Graz", the start of a biography, "Phone number removed". Each reader sees only the
+  values they could see on the person's page now (`maySee`), View as included; old values never, and medical, allergy and
+  faith notes are named by kind only. A field keeps the value it was added with in its history. Pushes carry no values.
+- **The Campaign on an invented continent.** Each week's field is a continent drawn from the week's seed alone: provinces
+  with invented, checked names, plains, forests, highlands, marshes, rivers, mountain ridges, sea lanes, towns and castles.
+  The family's houses are the rivals; no family place is on the board. A parchment map with animated marches, battles and
+  conquests, a turn banner, a chronicle and a title at the end of each reign, a sticky turn strip on phones.
+- **One counted reign a day.** The first reign a member begins on a (UTC) day counts for the weekly table; it is kept on
+  the server as it is played and can be continued on any device. Further reigns are practice with a personal best. Scores
+  show the renown and quiz advantages beside them; house totals are labelled participation totals; ties share a place.
+- **Hosting many families.** An operator (an instance role, not a family's) runs the server from `/operator`: families
+  (size, storage, stewards, status; never their records), making a family for someone with a one-time steward invitation,
+  the waiting list from the public `/request` form, data requests from `/privacy-request` (forwarded to the family's
+  stewards), instance settings, other operators and an audit log. `family_creation` decides who may make families
+  (operators, any steward, or anyone by request; `stewards`, as before, on existing installs), with a per-account family
+  limit (5 on new installs). Families can be made read-only or closed. Per-family storage caps count every upload. An
+  Impressum, privacy policy, terms and a report-content contact appear at `/legal` once filled in; terms are accepted
+  when making a family or becoming its steward. Operators can be told of new requests by push. See
+  [docs/hosting-many-families.md](docs/hosting-many-families.md).
+- **Families in Durable Objects on Cloudflare.** A family made on a Worker with the `FAMILIES` Durable Object namespace
+  gets its own SQLite-backed object at once: no D1 binding, no redeploy. The accounts can live in one too. Existing D1
+  bindings keep working and win. `KINDRED_JURISDICTION=eu` keeps them in the EU.
+- **Deploy to Cloudflare** button and a first-run guide ([docs/deploy-cloudflare.md](docs/deploy-cloudflare.md#one-click-deploy)).
+- **Moving and backing up a family in a Durable Object:** `scripts/import-to-do.ts` brings a family in from D1, a Node
+  file or a backup (as data, into a staged copy published only when complete); `scripts/backup-do.ts` lets a steward
+  download one.
+
+### Changed
+- `store.treeIds()` and `store.ensureTree()` are async.
+- The rules sheet, tour and Today texts describe the invented continent and the counted reign.
+
+### Fixed
+- A family refused over the account's limit is cleaned up only while nobody else has made it theirs.
 
 ## [2.2.0] - 2026-11-11
 
@@ -352,7 +418,8 @@ on Node 26 with SQLite or on Cloudflare Workers with D1 and R2.
 Read the [release notes](docs/releases/v2.0.0.md) for the full list and for moving from v1 (also
 [docs/migration-plan.md](docs/migration-plan.md)). Cloudflare Access installs must set `KINDRED_AUTH=cloudflare-access` before deploying.
 
-[Unreleased]: https://github.com/niklas-heer/kindred/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/niklas-heer/kindred/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/niklas-heer/kindred/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/niklas-heer/kindred/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/niklas-heer/kindred/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/niklas-heer/kindred/releases/tag/v2.0.0

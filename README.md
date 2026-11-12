@@ -236,7 +236,7 @@ Exports leave some things out, so back up the databases and pictures as well.
 - [Reactions and comments](docs/responses.md): answering messages, memories and photographs
 - [GEDCOM and the Markdown archive](docs/exchange.md)
 - [The data model](docs/data-model.md)
-- [Changelog](CHANGELOG.md), [release notes for 2.0.0](docs/releases/v2.0.0.md) and [moving from v1](docs/migration-plan.md)
+- [Changelog](CHANGELOG.md), [release notes for 2.0.0](docs/releases/v2.0.0.md) and [for 2.3.0](docs/releases/v2.3.0.md) and [moving from v1](docs/migration-plan.md)
 - [The model evaluations](docs/evals/README.md) behind the AI recommendations
 
 Version 2 is a web app that replaces the earlier Rust CLI and its Markdown archive. It is a migration, not an upgrade.
