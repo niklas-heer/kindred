@@ -177,7 +177,7 @@ test('the cap is a share of the monthly budget, rounded down; the settings accep
   assert.equal(capMicros(1_000_001, 0.5), 500_000);
   assert.equal(saveSchema.safeParse({ ...input(), capShare: 0.01 }).success, false, 'below 5% is refused');
   assert.equal(saveSchema.safeParse({ ...input(), capShare: 1.5 }).success, false);
-  assert.equal(saveSchema.safeParse({ ...input(), languages: ['fr'] as never }).success, false, 'an unknown language is refused');
+  assert.equal(saveSchema.safeParse({ ...input(), languages: ['xx'] as never }).success, false, 'an unknown language is refused');
   assert.equal(saveSchema.safeParse(input({ capShare: 0.2 })).success, true);
 });
 
