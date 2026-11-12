@@ -30,17 +30,24 @@ export const DAILY_JOBS: readonly DailyJob[] = [
   updateCheckJob,
 ];
 
+/** How a job's run ended, for the operator's Health tab (src/lib/operator/health.server.ts). */
+export interface JobRun { job: string; startedAt: number; finishedAt: number; error: string | null }
+
 /**
  * Runs each job with the context, its log lines marked with the job's name. A job that throws is logged and skipped:
- * the rest still run.
+ * the rest still run. `record`, when given, hears how each one ended; it must not throw (runJobs passes one that stores it).
  */
-export async function runDailyJobs(ctx: JobContext, jobs: readonly DailyJob[] = DAILY_JOBS): Promise<void> {
+export async function runDailyJobs(ctx: JobContext, jobs: readonly DailyJob[] = DAILY_JOBS, record?: (run: JobRun) => Promise<void>): Promise<void> {
   for (const job of jobs) {
     const log = (message: string) => ctx.log(`${job.name}: ${message}`);
+    const startedAt = Date.now();
+    let error: string | null = null;
     try {
       await job.run({ ...ctx, log });
     } catch (e) {
-      log(`failed: ${e instanceof Error ? e.message : String(e)}`);
+      error = e instanceof Error ? e.message : String(e);
+      log(`failed: ${error}`);
     }
+    await record?.({ job: job.name, startedAt, finishedAt: Date.now(), error });
   }
 }

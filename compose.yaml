@@ -57,6 +57,8 @@ services:
       # The operator console's update check (docs/hosting-many-families.md): `off` turns it off; a fork names its repository.
       KINDRED_UPDATE_CHECK: ${KINDRED_UPDATE_CHECK:-}
       KINDRED_UPDATE_REPO: ${KINDRED_UPDATE_REPO:-}
+      # How the console says to update this server: the image (docker) unless .env says otherwise.
+      KINDRED_UPDATE_VIA: ${KINDRED_UPDATE_VIA:-docker}
     ports:
       # Only this machine can reach the app directly. With the https profile, Caddy is the way in.
       # For plain-HTTP use on a home network, change this to "4901:4901" and read docs/self-host.md first.

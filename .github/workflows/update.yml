@@ -1,0 +1,102 @@
+name: Update Kindred
+
+# For a copy of Kindred made by the Deploy to Cloudflare button (docs/deploy-cloudflare.md, "One-click deploy"). The operator
+# console's Update button runs it (docs/hosting-many-families.md, "Updates"); "Run workflow" here does the same by hand.
+#
+# The button copies the repository as a fresh one, with no history in common with Kindred's, so this is not a merge: it puts
+# the release's files in place as one commit on top of the copy's branch, keeping the files the install owns, and pushes.
+# Workers Builds sees the push and deploys. Kept as they are in the copy:
+#   wrangler.jsonc     the copy's bindings, ids, names, vars and jurisdiction
+#   .github/           the copy's workflows (this file too; a token from Actions may not change workflows anyway)
+#   .kindred-keep      more paths to keep, one per line (for example a changed public/favicon.svg); # starts a comment
+#   .kindred-release   the release this copy has now, written here
+# When the release changes Kindred's own wrangler.jsonc since the copy's last release, the run says so (a warning and the
+# difference in its summary), because the copy keeps its own: compare and carry over by hand. A release that needs that is
+# marked "manual", and the console's button refuses it.
+#
+# Runs only in a copy, never in Kindred's own repository. Nothing here needs a secret: the job's own token pushes.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The release to update to (for example v2.4.0)"
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: kindred-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Update to the release
+    if: github.repository != 'niklas-heer/kindred' && github.ref_type == 'branch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      # Read through the environment, never pasted into a script.
+      TAG: ${{ inputs.tag }}
+      # A fork of Kindred to follow instead: the repository variable KINDRED_UPSTREAM (a https://github.com/owner/name address).
+      UPSTREAM: ${{ vars.KINDRED_UPSTREAM || 'https://github.com/niklas-heer/kindred' }}
+      BRANCH: ${{ github.ref_name }}
+    steps:
+      - name: Check the tag and the upstream address
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::not a release tag: $TAG"; exit 1; }
+          [[ "$UPSTREAM" =~ ^https://github\.com/[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}$ ]] || { echo "::error::KINDRED_UPSTREAM must be https://github.com/owner/name"; exit 1; }
+      # The job's token stays in the checkout's settings for the push at the end, and nothing else uses it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 1
+      - name: Fetch the release
+        run: |
+          git fetch --no-tags --depth=1 "$UPSTREAM" "refs/tags/$TAG"
+          echo "RELEASE=$(git rev-parse 'FETCH_HEAD^{commit}')" >> "$GITHUB_ENV"
+      - name: Compare Kindred's wrangler.jsonc with the copy's last release
+        run: |
+          prev=""
+          [[ -f .kindred-release ]] && prev=$(tr -d '[:space:]' < .kindred-release)
+          if [[ "$prev" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ && "$prev" != "$TAG" ]] && git fetch --no-tags --depth=1 "$UPSTREAM" "refs/tags/$prev"; then
+            if ! git diff --quiet FETCH_HEAD "$RELEASE" -- wrangler.jsonc; then
+              echo "::warning::Kindred's wrangler.jsonc changed between $prev and $TAG. Your copy keeps its own: compare them and carry the change over by hand."
+              { echo "### wrangler.jsonc changed in Kindred between $prev and $TAG"; echo; echo '```diff'; git diff FETCH_HEAD "$RELEASE" -- wrangler.jsonc; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            fi
+          elif [[ "$prev" != "$TAG" ]]; then
+            echo "The copy's last release is not known; its own wrangler.jsonc is kept as it is."
+          fi
+      - name: Put the release in place, keeping the install's own files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          keep=(wrangler.jsonc .github .kindred-keep)
+          if [[ -f .kindred-keep ]]; then
+            while IFS= read -r line; do
+              line="${line%%#*}"
+              line="${line#"${line%%[![:space:]]*}"}"
+              line="${line%"${line##*[![:space:]]}"}"
+              [[ -z "$line" || "$line" == /* || "$line" == *..* ]] && continue
+              keep+=("$line")
+            done < .kindred-keep
+          fi
+          # A separate index: start from the release's files, then put back each kept path as the copy has it.
+          export GIT_INDEX_FILE="$RUNNER_TEMP/kindred-index"
+          git read-tree "$RELEASE"
+          for path in "${keep[@]}"; do
+            git rm -r -q -f --cached --ignore-unmatch -- "$path"
+            git ls-tree -r HEAD -- "$path" | git update-index --index-info
+          done
+          blob=$(printf '%s\n' "$TAG" | git hash-object -w --stdin)
+          git update-index --add --cacheinfo "100644,$blob,.kindred-release"
+          tree=$(git write-tree)
+          if [[ "$tree" == "$(git rev-parse 'HEAD^{tree}')" ]]; then
+            echo "Already at $TAG: nothing to push." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          commit=$(git commit-tree "$tree" -p HEAD -m "chore: update Kindred to $TAG" -m "The files of $UPSTREAM at $TAG ($RELEASE), keeping: ${keep[*]}.")
+          git push origin "$commit:refs/heads/$BRANCH"
+          echo "Updated $BRANCH to Kindred $TAG ($commit). Workers Builds deploys it now." | tee -a "$GITHUB_STEP_SUMMARY"

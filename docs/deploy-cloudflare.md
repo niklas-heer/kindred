@@ -37,7 +37,7 @@ Then, the first run:
 5. More families: Manage families in the account menu. Each is made at once, in its own Durable Object.
 
 **Keeping the families in the EU.** Durable Objects can be kept in the EU jurisdiction. Before you set the site up, add
-`"vars": { "KINDRED_JURISDICTION": "eu" }` to `wrangler.jsonc` in your copy of the repository and push: Workers Builds deploys
+`"KINDRED_JURISDICTION": "eu"` to the `vars` in `wrangler.jsonc` in your copy of the repository and push: Workers Builds deploys
 again. The setting decides where the families and the accounts are made, so it cannot be changed once there is something to
 keep: Kindred records it in the bucket (`.kindred/store.json`) when the first account is made (setup) or the first family, and
 from then on refuses to start with another value, rather than show empty families and an open `/setup`. Visits before setup
@@ -51,8 +51,14 @@ push, and delete the button's empty bucket. Deploying with wrangler yourself, a 
 binding's `jurisdiction` (wrangler 4.158 passes it when it provisions the bucket), so setting both before the first
 `wrangler deploy` is enough there.
 
-Updating later: pull this repository's new release into your copy and push; Workers Builds deploys it, and every Durable
-Object brings its schema up to date the first time it is used.
+**Updating later.** Your copy carries `.github/workflows/update.yml`, and `wrangler.jsonc` sets `KINDRED_UPDATE_VIA` to
+`github-actions`, so the operator console's Updates tab offers an **Update** button once you give it a fine-grained GitHub token
+for your copy (Actions: Read and write, that repository only). The button runs the workflow with the release's tag: it puts the
+release's files into your copy as one commit, keeping your own `wrangler.jsonc`, `.github/` and the paths listed in
+`.kindred-keep`, and pushes; Workers Builds deploys it, and every Durable Object brings its schema up to date the first time it is
+used. Without the console, run the workflow yourself (Actions, "Update Kindred", Run workflow, with the tag). A release that needs
+a step by hand (a change to `wrangler.jsonc`, a new setting) is marked so, and the button refuses it: follow its notes. Going
+back is reverting that commit. The details: [hosting-many-families.md](hosting-many-families.md#updating-this-server).
 
 The rest of this guide is the same deployment by hand, with wrangler, and the older setup with D1.
 
@@ -204,6 +210,7 @@ invites the others.
 | `KINDRED_TURNSTILE_SECRET` | secret | Turnstile's secret key: the Worker asks Cloudflare whether a form's token is good. Without both, the forms rely on a hidden field and a limit per network. |
 | `KINDRED_UPDATE_CHECK` | variable | `off` turns the operator console's update check off for good. Otherwise the Worker asks GitHub once a day, only after an operator agreed. See [hosting-many-families.md](hosting-many-families.md#updates). |
 | `KINDRED_UPDATE_REPO` | variable | The repository (`owner/name`) whose releases the update check reads, for a fork. Default `niklas-heer/kindred`. |
+| `KINDRED_UPDATE_VIA` | variable | How the console's Updates tab says to update this Worker. `wrangler.jsonc` sets `github-actions`, for a copy made by the Deploy button (Workers Builds deploys each push, so the console's Update button works). Deploying by hand with wrangler, set it to `cloudflare` (or remove it) in your `wrangler.jsonc`: the console then shows the steps. See [hosting-many-families.md](hosting-many-families.md#updates). |
 
 ```sh
 npx wrangler secret put KINDRED_SECRET
@@ -603,6 +610,11 @@ has the steps. Going back from Cloudflare to Docker has no tool; that section sa
 4. `mise run deploy`: it builds, applies the new migrations to the deployed databases and then deploys (step 7).
 5. Open the site and check you can sign in. If the Worker is wrong but the data is fine, check out the previous tag and
    run `mise run deploy` again; migrations only go forward, so a migration that shipped stays (step 7 says how to undo one).
+   Each release's migrations only add, so the previous release runs on the newer schema ([data-model.md](data-model.md#rules-every-change-follows)).
+
+The operator console's Updates tab shows these steps when `KINDRED_UPDATE_VIA` is `cloudflare`. The repository's `wrangler.jsonc`
+sets it to `github-actions`, for copies made by the Deploy button (see [One-click deploy](#one-click-deploy)); deploying by hand,
+set it to `cloudflare` in yours.
 
 ## Troubleshooting
 

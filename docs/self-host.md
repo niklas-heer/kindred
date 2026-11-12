@@ -195,6 +195,7 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 | `KINDRED_TURNSTILE_SITE_KEY`, `KINDRED_TURNSTILE_SECRET` | empty | Cloudflare Turnstile on the public request forms (`/request`, `/privacy-request`), against bots. Both or neither: the site key goes to the browser, the secret stays on the server, which asks Cloudflare whether each form's token is good. Without them the forms rely on a hidden field and a limit per network. Only for a server that hosts families for others; see [hosting-many-families.md](hosting-many-families.md). |
 | `KINDRED_UPDATE_CHECK` | empty | `off` turns the operator console's update check off for good. Otherwise it asks GitHub's releases API once a day, and only after an operator agreed in the console. See [hosting-many-families.md](hosting-many-families.md#updates). |
 | `KINDRED_UPDATE_REPO` | `niklas-heer/kindred` | The repository (`owner/name`) whose releases the update check reads, for a fork. |
+| `KINDRED_UPDATE_VIA` | `docker` in the image, else `node` | How the console's Updates tab says to update this server: `docker` (pull the new image), `node` (check out and build), `cloudflare` (deploy by hand) or `github-actions` (a copy made by the Deploy to Cloudflare button: the Update button). See [hosting-many-families.md](hosting-many-families.md#updates). |
 | `KINDRED_DEMO` | empty | `1` makes the server a public, read-only demo of invented families. Leave it empty for your family. See [A public demo](#a-public-demo). |
 | `KINDRED_DEMO_ORIGIN` | `http://localhost:4902` | Compose's demo profile only: the `KINDRED_ORIGIN` of its demo service. |
 | `PORT` | `4901` | The port the server listens on. Docker: the image uses 4901, and Compose maps it. |
@@ -584,6 +585,12 @@ Upgrade to a release, not to whatever `main` holds today. Releases are tags (`v2
 
 From the next release, a prebuilt image is published for each tag. With it, step 3 is to set the new tag in your compose file
 (see "Quick start with Docker") and run `docker compose pull && docker compose up -d`. Until you do, the image you run does not change.
+
+The operator console's Updates tab says this too: with the update check on, it names the newer release, the image tag to set
+(`ghcr.io/niklas-heer/kindred:<version>`) and the commands, for the published image and for one built from a checkout. The image
+sets `KINDRED_UPDATE_VIA=docker` for that; Node without Docker shows the checkout's steps. Nothing is updated by itself: a
+container cannot replace its own image. A release's migrations only add tables and columns, so going back to the previous
+image after an upgrade works on the newer files; the copies in `backups/` (below) are for a migration that went wrong.
 
 Schema changes are migrations in `migrations/`, and they run when a file is opened. The app opens a family's file, and
 `accounts.db`, on first use after the upgrade. Before the first pending migration, it copies the file to `backups/`

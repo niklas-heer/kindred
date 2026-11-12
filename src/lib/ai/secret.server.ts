@@ -1,5 +1,6 @@
-// Sealing a family's AI keys. AES-GCM with WebCrypto, under a key derived (HKDF-SHA-256) from the server secret, the family's
-// id and the provider, so one sealed key cannot be moved to another family, nor opened as another provider's key.
+// Sealing a family's AI keys, and the server's own secrets (sealSecret: the operator's GitHub token for updates). AES-GCM with
+// WebCrypto, under a key derived (HKDF-SHA-256) from the server secret, the family's id and the provider, so one sealed key
+// cannot be moved to another family, nor opened as another provider's key.
 //   The secret comes from the store driver (store.secret()): KINDRED_SECRET on Workers (a Worker secret), and
 //   on Node KINDRED_SECRET from the environment, else data/secret, made on first use with mode 600.
 // Changing the secret makes saved keys unreadable; the settings page then asks for the key again.
@@ -48,6 +49,28 @@ export async function openKey(tree: string, provider: Provider, sealed: string):
   const info = v === 'v2' ? providerInfo(tree, provider) : familyInfo(tree);
   try {
     return new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(iv) }, await sealingKey(info), unb64(ct)));
+  } catch (e) {
+    if (e instanceof AiError) throw e;
+    throw new AiError('key-unreadable', 'ai.err_key_unreadable');
+  }
+}
+
+/** The key that seals one of the server's own secrets (`purpose`, such as `github-update`), bound to nothing else. */
+const instanceInfo = (purpose: string) => `instance:${purpose}`;
+
+/** `s1.<iv>.<ciphertext>`: a secret of the server itself (the operator's GitHub token for updates), sealed like a family's key. */
+export async function sealSecret(purpose: string, secret: string): Promise<string> {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await sealingKey(instanceInfo(purpose)), enc.encode(secret)));
+  return `s1.${b64(iv)}.${b64(ct)}`;
+}
+
+/** Opens a secret sealed by sealSecret for the same purpose. Throws key-unreadable when the secret changed. */
+export async function openSecret(purpose: string, sealed: string): Promise<string> {
+  const [v, iv, ct] = sealed.split('.');
+  if (v !== 's1' || !iv || !ct) throw new AiError('key-unreadable', 'ai.err_key_format');
+  try {
+    return new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(iv) }, await sealingKey(instanceInfo(purpose)), unb64(ct)));
   } catch (e) {
     if (e instanceof AiError) throw e;
     throw new AiError('key-unreadable', 'ai.err_key_unreadable');

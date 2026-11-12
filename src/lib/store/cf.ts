@@ -12,6 +12,7 @@
 import { env, waitUntil } from 'cloudflare:workers';
 import { checkMediaKey, checkReads, checkStatement, emptyDatabase, NOT_TREES, q, TREE_ID, type Db, type Driver, type ImportTarget, type Param, type Query, type Result } from './db.ts';
 import { NOT_MADE, type StoreKind, type StoreState } from './durable.ts';
+import { migrationError, reportSchema } from './schema-report.ts';
 
 const isD1 = (v: unknown): v is D1Database => !!v && typeof (v as D1Database).prepare === 'function' && typeof (v as D1Database).batch === 'function';
 
@@ -160,9 +161,18 @@ function durableDb(tree: string | null): Db {
       accountsMade = true;
     }
     try {
-      return await work(s);
+      const result = await work(s);
+      // The first answer in this isolate: tell the Health tab which schema the family holds now (./schema-report.ts).
+      if (tree !== null && !reportedHere.has(tree)) {
+        reportedHere.add(tree);
+        const held = await s.state().then((st) => st.migrations.at(-1) ?? null, () => null);
+        if (held) await reportSchema(() => driver.accounts(), tree, held, null);
+      }
+      return result;
     } catch (e) {
       if (e instanceof Error && e.message.includes(NOT_MADE)) throw new Error(`no tree ${tree}; make it first (store.ensureTree)`);
+      const error = tree === null ? null : migrationError(e);
+      if (error) await reportSchema(() => driver.accounts(), tree!, null, error);
       throw e;
     }
   };
@@ -174,6 +184,9 @@ function durableDb(tree: string | null): Db {
     readBatch: (queries: Query[]) => call((s) => s.readBatch(queries.map((x) => ({ sql: x.sql, params: x.params })))),
   };
 }
+
+/** The families whose schema this isolate has reported (once each). */
+const reportedHere = new Set<string>();
 
 /** One `Db` per object name for this isolate, so the store's guard (./index.ts) wraps each once. */
 const durables = new Map<string, Db>();

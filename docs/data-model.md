@@ -181,6 +181,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0040_password.sql` | A username and password as a second way in: `user.username`, `password`, `totp`, `recovery_code`, `auth_attempt` (the database-backed limit on guessing), and `session.method` / `session.proved_via`. |
 | `0041_signin_step.sql` | `signin_step` (a right password waiting for its two-step code) and `password_reset` (an operator's one-hour reset link). |
 | `0042_policies.sql` | The operator's policies ([hosting-many-families.md](hosting-many-families.md), "Policies"): `instance_policy`, `family_policy`, operator-funded AI (`operator_ai_provider`, `ai_operator_spend`, `ai_operator_month`, `ai_operator_booking`, `ai_settings.funding`) and `announcement`. Every policy starts as `families` (today's behaviour) and `ai.source` as `byo`. |
+| `0047_updates_health.sql` | The console's Update button and Health tab ([hosting-many-families.md](hosting-many-families.md), "Updates" and "Health"): `update_github` (the install's repository and sealed GitHub token, and the last update's run), `job_run` (each daily job's last run) and `family_schema` (the schema each family last reported). |
 
 ### Tables
 
@@ -339,6 +340,14 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   one row per operator-funded call, its reservation until it is settled once (`settled_at`); settled rows go after two days.
 - **`announcement`** (0042): a banner from the operator: `title`, `body` (plain text), `audience` (`stewards`, `everyone`),
   `starts_at`, `ends_at` (null: until ended), `created_at`, `created_by`.
+- **`update_github`** (0047): one row (`id` 1) for a copy made by the Deploy to Cloudflare button: its `repo` (`owner/name`) and
+  default `branch`, the operator's GitHub `token` sealed under `KINDRED_SECRET` (never returned to a page), `token_tail`, `set_at`,
+  `set_by`, and the last update the console started: `run_tag`, `run_started_at`, GitHub's `run_id`, `run_url`, `run_status`,
+  `run_conclusion` and `run_polled_at`.
+- **`job_run`** (0047): one row per daily job (`job`): `started_at`, `finished_at`, `ok` (0 when it failed), `error` (a short
+  reason) and `last_ok_at`. Written by the job runner.
+- **`family_schema`** (0047): per family (`tree`), the newest family migration it reported having (`migration`), the `error` of a
+  failed one, and `reported_at`; written by the storage drivers when they open a family. Deleted with the family.
 - **`membership`**: a user's role in a family (`viewer`, `contributor`, `editor`, `steward`), and who they are in that
   family (a person id, or `-` for "just browsing"). `person_confirmed` (0014) is 1 once a steward has confirmed the link.
 - **`challenge`**: a passkey ceremony in progress (for setup, an invitation, adding a passkey, signing in, or confirming
@@ -437,6 +446,12 @@ These rules keep the data consistent without interactive transactions, which D1 
   Durable Object loses all its storage. A D1 family database is emptied rather than removed (`emptyDatabase` in `src/lib/store/db.ts`): every table but
   `d1_migrations` and the tables a migration seeds with a starting row (`SEEDED_TABLES`, today `ancestry_rev`). A new
   migration that seeds a table with a row the app needs adds it there.
+- **A release's migrations are additive; clean-ups come one release later.** A migration in a release adds tables, columns
+  (with defaults), indexes and rows; it never drops, renames or narrows what the release before still reads. On Workers the old
+  and new code run side by side for a while (Workers Builds rolls out gradually, and each Durable Object migrates itself on first
+  use after a deploy), and an operator may go back one release (reverting the update's commit, or the previous image) on a
+  schema that has already moved on. Dropping a column or a table the previous release used is a migration of the next release
+  but one, once no supported release reads it, and its release notes say so.
 - **A demo writes nothing.** With `KINDRED_DEMO=1` (`src/lib/demo.ts`) the storage layer hands out read-only databases and
   a media store that refuses to store or delete, and `once` refuses before its plan runs. A write made while a page is only
   read (bookkeeping such as "last seen") must tolerate that refusal, or skip itself when `isDemo()`.

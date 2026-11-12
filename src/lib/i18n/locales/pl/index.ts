@@ -49,6 +49,7 @@ import today from "./today.ts";
 import todayQuestions from "./today-questions.ts";
 import tour from "./tour.ts";
 import tree from "./tree.ts";
+import update from "./update.ts";
 import viewas from "./viewas.ts";
 import whois from "./whois.ts";
 
@@ -103,6 +104,7 @@ export default {
   ...todayQuestions,
   ...tour,
   ...tree,
+  ...update,
   ...viewas,
   ...whois,
 };

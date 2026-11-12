@@ -53,6 +53,7 @@ import * as sourcesArea from "./areas/sources.ts";
 import * as statisticsArea from "./areas/statistics.ts";
 import * as tourArea from "./areas/tour.ts";
 import * as treeArea from "./areas/tree.ts";
+import * as updateArea from "./areas/update.ts";
 import * as viewasArea from "./areas/viewas.ts";
 import * as whoisArea from "./areas/whois.ts";
 import af from "./locales/af/index.ts";
@@ -115,6 +116,7 @@ export const AREAS = [
   operatorArea,
   opsArea,
   policyArea,
+  updateArea,
   historyArea,
   responsesArea,
   feedArea,

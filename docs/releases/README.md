@@ -21,6 +21,10 @@ Each release has two kinds of notes:
    a language is missing one.
 5. Mark the release `security: true` when it fixes a security problem, and `manual: true` when updating needs a step by hand (a
    setting, a command); the console shows both to operators.
+   A server running an older Kindred does not have this file's word on a newer release, so say it in the GitHub release's notes
+   too, with a line of its own: `<!-- kindred:security -->` or `<!-- kindred:manual -->` (hidden on GitHub's page). The console's
+   update check reads them, and its Update button refuses to pass a `manual` release. Mark a release `manual` whenever a
+   Deploy-button copy must change something itself, such as Kindred's own `wrangler.jsonc` (the update workflow keeps the copy's).
 
 A release with no highlights is skipped: no card, no section. The test `src/lib/operator/insight.test.ts` checks that each
 release has between 3 and 8.

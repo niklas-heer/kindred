@@ -30,3 +30,5 @@
 .ops-notes { overflow-wrap: anywhere; line-height: 1.5; font-size: var(--fs-3, 0.875rem); }
 .ops-notes :is(h1, h2, h3, h4) { font-size: var(--fs-4, 1rem); margin: 10px 0 4px; }
 .ops-notes pre { overflow-x: auto; }
+.ops-code { margin: 0; padding: 10px 12px; overflow-x: auto; border-radius: var(--radius, 8px); background: var(--surface, var(--bg)); border: 1px solid var(--border); font-size: 0.875rem; white-space: pre; }
+.ops-list { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }

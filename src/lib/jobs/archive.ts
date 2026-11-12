@@ -279,10 +279,14 @@ export async function archiveTrees(trees: string[], ctx: Pick<JobContext, 'env' 
   return results;
 }
 
-/** The daily job: every family the deployment serves, archived in turn. */
+/**
+ * The daily job: every family the deployment serves, archived in turn. Once all have run, a failure for any of them fails the
+ * job, so the operator's Health tab shows it (the reasons are in the log, not here).
+ */
 export const archiveJob: DailyJob = {
   name: 'archive',
   run: async (ctx) => {
-    await archiveTrees(ctx.trees, ctx);
+    const failed = (await archiveTrees(ctx.trees, ctx)).filter((r) => r.status === 'failed').map((r) => r.tree);
+    if (failed.length) throw new Error(`no archive for ${failed.join(', ')}`);
   },
 };

@@ -17,7 +17,7 @@
 //   npx wrangler secret put KINDRED_SECRET      → a long random key that seals the families' AI keys
 //   npx wrangler secret put KINDRED_SETUP_CODE  → a long code for /setup (or use KINDRED_AUTH=cloudflare-access)
 //   mise run deploy
-// Keep families in the EU: add "vars": { "KINDRED_JURISDICTION": "eu" } before the first deploy. It cannot be changed later.
+// Keep families in the EU: add "KINDRED_JURISDICTION": "eu" to "vars" below before the first deploy. It cannot be changed later.
 // An install with D1 databases keeps its d1_databases list: a bound family is served from D1, a new one becomes a Durable Object.
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
@@ -41,6 +41,9 @@
 	//   { "binding": "GAZETTEER", "database_name": "kindred-gazetteer", "database_id": "REPLACE-WITH-D1-ID", "migrations_dir": "migrations/gazetteer" }
 	// ],
 	"r2_buckets": [{ "binding": "MEDIA", "bucket_name": "kindred-media" }],
+	// A copy made by the Deploy to Cloudflare button is deployed by Workers Builds on each push, so the operator console's
+	// Update button can update it (docs/hosting-many-families.md, "Updates"). Deploying by hand, set "cloudflare" instead.
+	"vars": { "KINDRED_UPDATE_VIA": "github-actions" },
 	// Optional vars: KINDRED_ORIGIN (the public origin, if not the request's), KINDRED_DEFAULT_TREE, KINDRED_JURISDICTION (eu),
 	// KINDRED_AUTH (kindred, the default, or cloudflare-access) with CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD. Locally in .dev.vars.
 

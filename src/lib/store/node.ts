@@ -5,6 +5,7 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { checkMediaKey, checkReads, checkStatement, NOT_TREES, TREE_ID, type Db, type Driver, type MediaStore, type Param, type Query, type Result } from './db.ts';
+import { migrationError, reportSchema } from './schema-report.ts';
 
 const DATA_DEFAULT = resolve(process.cwd(), 'data');
 const DATA = process.env.KINDRED_DATA_DIR ? resolve(process.env.KINDRED_DATA_DIR) : DATA_DEFAULT;
@@ -251,7 +252,16 @@ const driver: Driver = {
     if (!db) {
       const path = join(dataDir(), `${id}.db`);
       if (!existsSync(path)) throw new Error(`no tree ${id}; run mise run seed`);
-      const d = openSqlite(path, 'tree');
+      let d: DatabaseSync;
+      try {
+        d = openSqlite(path, 'tree');
+      } catch (e) {
+        // A failed migration is told to the operator's Health tab (./schema-report.ts), then thrown as before.
+        const error = migrationError(e);
+        if (error) void reportSchema(() => driver.accounts(), id, null, error);
+        throw e;
+      }
+      void reportSchema(() => driver.accounts(), id, migrationFiles('tree').at(-1) ?? null, null);
       (d as unknown as { [k: symbol]: unknown })[DB_ID] = id;
       open.add(d);
       movePhotosOut(d, id);

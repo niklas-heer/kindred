@@ -10,7 +10,8 @@ export async function runJobs(now: Date, env: (name: string) => string | undefin
   // A demo has nobody to remind and may change nothing, so its daily run has nothing to do.
   if (isDemo()) return log('demo: no daily jobs');
   const trees = (await families()).map((family) => family.id);
-  await runDailyJobs({ trees, now, env, log });
+  const { recordJobRun } = await import('../operator/health.server.ts');
+  await runDailyJobs({ trees, now, env, log }, undefined, recordJobRun);
 }
 
 /**

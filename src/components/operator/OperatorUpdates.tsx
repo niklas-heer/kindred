@@ -10,7 +10,8 @@ import { formatDate, useT } from '~/lib/i18n';
 import { renderMarkdown } from '~/lib/markdown';
 import { operatorSetUpdateCheck, updateStatusQuery } from '~/lib/operator/insight.functions';
 import type { ReleaseInfo, UpdateStatus } from '~/lib/operator/updates-shared';
-import { RELEASES } from '~/lib/releases';
+import { releaseFlags, stripFlagMarkers } from '~/lib/operator/self-update-shared';
+import { SelfUpdateSection } from './OperatorSelfUpdate';
 import './operator.css';
 import './ops.css';
 
@@ -37,6 +38,7 @@ export function UpdatesTab() {
         <h2 id="ops-check" className="rule">{t('ops.check')}</h2>
         <Check data={data} />
       </section>
+      <SelfUpdateSection status={data} />
     </div>
   );
 }
@@ -90,25 +92,26 @@ function Check({ data }: { data: UpdateStatus }) {
 
 function ReleaseNotes({ release: r }: { release: ReleaseInfo }) {
   const t = useT();
-  // Kindred's own word on a release it knows: a security fix, or a step by hand.
-  const known = RELEASES.find((x) => x.version === r.version);
+  // Kindred's own word on a release it knows, or the release notes' markers: a security fix, or a step by hand.
+  const known = releaseFlags(r);
+  const notes = stripFlagMarkers(r.notes);
   return (
     <li className="ui-card families-card ops-release">
       <h3>
         <a href={r.url} target="_blank" rel="noopener noreferrer nofollow">{r.name}</a>{' '}
         {r.date && <span className="muted">{formatDate(Date.parse(r.date), t.locale, { dateStyle: 'long' })}</span>}
       </h3>
-      {(known?.security || known?.manual) && (
+      {(known.security || known.manual) && (
         <p className="operator-inline">
           {known.security && <span className="chip operator-chip"><ShieldAlert size={13} aria-hidden /> {t('ops.flag_security')}</span>}
           {known.manual && <span className="chip"><Wrench size={13} aria-hidden /> {t('ops.flag_manual')}</span>}
         </p>
       )}
-      {r.notes.trim() && (
+      {notes.trim() && (
         <details>
           <summary>{t('ops.release_notes')}</summary>
           {/* GitHub's text is untrusted: renderMarkdown shows raw HTML as text, allows only http(s) and mailto links, loads no image. */}
-          <div className="ops-notes" dangerouslySetInnerHTML={{ __html: renderMarkdown(r.notes, { images: 'text' }) }} />
+          <div className="ops-notes" dangerouslySetInnerHTML={{ __html: renderMarkdown(notes, { images: 'text' }) }} />
         </details>
       )}
     </li>

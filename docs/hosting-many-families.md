@@ -271,8 +271,63 @@ The running version and commit, and whether a newer Kindred release exists.
 - **The dot.** When a newer release is known, the console's link in the account menu and the Updates tab carry a dot. Only
   operators see it.
 
-Updating itself is up to you: read the release notes, then update as your install does ([self-host.md](self-host.md),
-[deploy-cloudflare.md](deploy-cloudflare.md)).
+#### Updating this server
+
+Below the check, the tab says how to update this install, from `KINDRED_UPDATE_VIA` (else guessed from where it runs). Nothing
+is ever updated by itself.
+
+- **Docker** (`docker`, set by the image): the new image tag, `docker compose pull && docker compose up -d`, and the commands for
+  an image built from a checkout. See [self-host.md](self-host.md#upgrades).
+- **Node** (`node`) and **Cloudflare deployed by hand** (`cloudflare`, with D1 or Durable Objects): the release to check out and
+  the commands that build and deploy it ([self-host.md](self-host.md#upgrades), [deploy-cloudflare.md](deploy-cloudflare.md#upgrading)).
+- **A copy made by the Deploy to Cloudflare button** (`github-actions`, which the repository's `wrangler.jsonc` sets): the
+  **Update button**. Workers Builds deploys every push to the copy, so updating means putting the release's files into the copy.
+  The copy carries a workflow for that, `.github/workflows/update.yml`, and the button runs it:
+  1. **The token.** On GitHub, make a fine-grained personal access token for **only your copy's repository**, with the one
+     permission **Actions: Read and write** (Metadata: read comes with it). Enter the repository (`owner/name`) and the token in
+     the tab. Kindred asks GitHub whether the token reaches the repository and its update workflow, notes the repository's
+     default branch, seals the token with `KINDRED_SECRET` (as the families' AI keys are) and never shows it again: the tab
+     shows only its last four characters. Saving and removing it are logged, without the token. When `KINDRED_SECRET` changes,
+     save it again. The token can start workflows in that one repository and nothing else; when it expires, make a new one.
+  2. **The update.** When the check knows a newer release, the tab lists the releases on the way with their **security** and
+     **manual** flags and offers **Update to vX**. It asks for a fresh passkey proof (under Kindred's own sign-in), then asks
+     GitHub to run the workflow with the tag on the default branch, and logs it. It is refused while another update runs, for a
+     release the check does not know or that is not newer, in a demo and in "View as", and **whenever a release on the way needs
+     a step by hand** (`manual`): read its notes and update by hand.
+  3. **The run.** The tab follows the run (asking GitHub at most every ten seconds while the tab is open) and links to it. When
+     it is done, Workers Builds deploys within a few minutes; each family's Durable Object brings its schema up to date the first
+     time it is used (the Health tab shows which have).
+- **What the workflow keeps.** The Deploy button copied Kindred as a new repository with no history in common, so the workflow
+  does not merge: it takes the release's files and keeps the files your install owns, as one commit on top of your branch
+  (`chore: update Kindred to vX`). Kept as they are: `wrangler.jsonc` (your bindings, ids, names, vars and `KINDRED_JURISDICTION`),
+  `.github/` (your workflows; a token from Actions may not change them anyway), `.kindred-keep` and any path it lists (one per
+  line, `#` for comments, for example a changed `public/favicon.svg`), and `.kindred-release`, where the workflow writes the
+  release your copy now has. Everything else is the release's: a file you changed elsewhere is replaced, and a file the release
+  removed is removed. When Kindred's own `wrangler.jsonc` changed between your copy's last release and the new one, the run warns
+  and shows the difference in its summary; such a release is marked `manual`, so the button refuses it, and you carry the change
+  over by hand. A fork to follow instead of Kindred: the repository variable `KINDRED_UPSTREAM` (`https://github.com/owner/name`).
+  A protected default branch refuses the workflow's push: allow GitHub Actions to push to it, or update by hand.
+- **Going back.** Revert the update's commit in your copy (`git revert <commit>` and push, or GitHub's "Revert" on the commit):
+  Workers Builds deploys the previous release. A release's migrations only add (see
+  [data-model.md](data-model.md#rules-every-change-follows)), so the previous code runs on the newer schema; the added tables and
+  columns stay and are used again when you update once more. Never delete a Durable Object to go back.
+
+### Health
+
+How the server is doing, read from the accounts database only (no family is opened):
+
+- **Running:** the version and the commit.
+- **Daily jobs:** when the daily run last started, and each job's last run: when it finished, whether it failed and why (the
+  details are in the server's log), and when it last ran without failing. The runner records each job in `job_run`. A job that
+  works per family (the nightly archive) fails when any family failed, after all have run.
+- **Families' databases:** a family brings its schema up to date when it is opened (on Node when the process first opens its file,
+  in a Durable Object the first time it is used after a deploy) and then reports the newest migration it has (`family_schema`).
+  The tab names the families whose migration **failed**, with the reason, and those **behind** the newest schema any family
+  reported: they have not been used since the update and catch up the next time they are. A family that never reported is
+  counted. A D1-bound family is migrated by `wrangler d1 migrations apply` and does not report.
+- **Backup:** when the nightly archive is set up (`KINDRED_ARCHIVE_<ID>_REPO`), the time it last finished without failing;
+  otherwise "No automatic backup on this install", with a link to the backup guide for your install.
+- **Update check:** the last answer, or that it is off.
 
 ### New in Kindred
 

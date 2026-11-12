@@ -36,6 +36,7 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=4901 \
     KINDRED_DATA_DIR=/data \
+    KINDRED_UPDATE_VIA=docker \
     KINDRED_GAZETTEER=/app/gazetteer/gazetteer.db
 WORKDIR /app
 COPY package.json package-lock.json ./
