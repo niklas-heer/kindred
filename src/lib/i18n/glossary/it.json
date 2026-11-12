@@ -55,10 +55,10 @@
       ]
     },
     "editor": {
-      "use": "Modifica (il ruolo), chi può modificare",
+      "use": "Redattore (il ruolo), chi può modificare",
       "accept": [
-        "modific",
-        "editor"
+        "redattor",
+        "modific"
       ]
     },
     "steward": {
@@ -242,7 +242,9 @@
       ]
     }
   },
-  "sameAsEnglish": [],
+  "sameAsEnglish": [
+    "feedback.key_mod"
+  ],
   "ownWords": [
     "a",
     "base",

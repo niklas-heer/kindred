@@ -19,6 +19,20 @@ export const TITLE_WORDS: Record<string, Partial<Record<Exclude<Locale, "en">, s
   Access: { de: "Zugang", af: "Toegang", es: "Acceso", "pt-BR": "Acesso", ja: "アクセス", "zh-Hans": "访问权限" },
   Statistics: { de: "Statistik", af: "Statistiek", es: "Estadísticas", "pt-BR": "Estatísticas", ja: "統計", "zh-Hans": "统计" },
   Tree: { de: "Stammbaum", af: "Stamboom", es: "Árbol genealógico", "pt-BR": "Árvore genealógica", ja: "家系図", "zh-Hans": "家谱" },
+  "Sign in": { de: "Anmelden", af: "Meld aan", fr: "Connexion", it: "Accedi" },
+  "Set up": { de: "Einrichten", af: "Stel op", fr: "Installation", it: "Configurazione" },
+  Invitation: { de: "Einladung", af: "Uitnodiging", fr: "Invitation", it: "Invito" },
+  Almanac: { de: "Kalender", af: "Almanak", fr: "Almanach", it: "Almanacco" },
+  Contacts: { de: "Kontakte", af: "Kontakte", fr: "Contacts", it: "Contatti" },
+  Register: { de: "Verzeichnis", af: "Register", fr: "Registre", it: "Registro" },
+  Houses: { de: "Häuser", af: "Huise", fr: "Maisons", it: "Casate" },
+  Needed: { de: "Fehlende Angaben", af: "Inligting nodig", fr: "Infos manquantes", it: "Dati mancanti" },
+  "Information needed": { de: "Fehlende Angaben", af: "Inligting nodig", fr: "Infos manquantes", it: "Dati mancanti" },
+  Chronicle: { de: "Chronik", af: "Kroniek", fr: "Chronique", it: "Cronaca" },
+  Gallery: { de: "Galerie", af: "Galery", fr: "Galerie", it: "Galleria" },
+  Access: { de: "Zugang", af: "Toegang", fr: "Accès", it: "Accesso" },
+  Statistics: { de: "Statistik", af: "Statistiek", fr: "Statistiques", it: "Statistiche" },
+  Tree: { de: "Stammbaum", af: "Stamboom", fr: "Arbre", it: "Albero" },
 };
 
 /** The English word a title part stands for, whichever language it is written in. */
