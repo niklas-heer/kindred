@@ -158,4 +158,6 @@ export const en = {
   "ops.r200.access_text": "Invite relatives as viewers, contributors, editors or stewards, or share a read-only link.",
   "ops.r200.ai_title": "An optional assistant.",
   "ops.r200.ai_text": "Choose a provider and a monthly budget; nothing changes without approval.",
+  "ops.signins_password": "Password sign-ins (30 days)",
+  "ops.signins_oidc": "Single sign-on sign-ins (30 days)",
 } as const;

@@ -97,6 +97,8 @@ await acc().batch([
   ...[2, 3, 4].map((n) => q('INSERT INTO family_visit (user, tree, since, last_seen) VALUES (?, ?, ?, ?)', uid(n), 'ashgrove', NOW - 30 * DAY, NOW - n * DAY)),
   q('INSERT INTO family_visit (user, tree, since, last_seen) VALUES (?, ?, ?, ?)', uid(3), 'brindle', NOW - 30 * DAY, NOW - DAY),
   q("INSERT INTO session (hash, user, created, expires, refreshed, credential) VALUES ('s1', ?, ?, ?, ?, 'cred-1')", uid(2), NOW - 20 * 3600_000, NOW + DAY, NOW),
+  // The day's sign-ins by way in (accounts migration 0048): counted as they happen, as a session row is gone by the next sign-in.
+  q("INSERT INTO signin_daily (day, method, count) VALUES ('2026-11-11', 'passkey', 3), ('2026-11-11', 'password', 2), ('2026-11-11', 'oidc', 1), ('2026-11-10', 'passkey', 9)"),
 ]);
 const TREES = ['ashgrove', 'brindle', 'corrow'];
 
@@ -118,7 +120,7 @@ test('the first snapshot writes yesterday from live counts and reconstructs the 
   assert.equal(y.membersMax, 3);
   assert.equal(y.familiesSuspended, 1);
   assert.equal(y.familiesClosed, 0);
-  assert.deepEqual(y.signIns, { passkey: 1 });
+  assert.deepEqual(y.signIns, { passkey: 3, password: 2, oidc: 1 }, 'each way in on its own, and every sign-in of the day');
 
   // Reconstructed back to the first account (Orla, 40 days ago); who was active cannot be known for those days.
   assert.equal(r.backfilled, 39);

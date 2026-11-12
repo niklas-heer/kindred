@@ -124,6 +124,8 @@ export async function createSession(user: string, credential: string | null = nu
     q('DELETE FROM session WHERE expires < ?', t),
     q('INSERT INTO session (hash, user, created, expires, refreshed, credential, proved, method, proved_via, provider) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       await hashToken('session', token), user, t, expires, t, credential, proved ? t : null, method, proved ? method : null, provider),
+    // The operator's statistics count sign-ins by way in (accounts migration 0048): aggregates only, kept as they happen.
+    q('INSERT INTO signin_daily (day, method, count) VALUES (?, ?, 1) ON CONFLICT (day, method) DO UPDATE SET count = count + 1', new Date(t).toISOString().slice(0, 10), method),
   ]);
   return { token, expires };
 }

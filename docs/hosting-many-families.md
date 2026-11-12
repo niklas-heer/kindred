@@ -260,7 +260,8 @@ no family's Durable Object wakes for it) and never reads a record. A daily job (
   of the last twelve weeks and how many used Kindred in the last 7 days.
 - **Storage and caps:** what all families use, how many have a cap, their use against their caps, and how many are at 80% or more.
 - **Activity:** accounts active in the last day and week, members per family (median, largest), suspended and closed families,
-  open requests, and sign-ins in the last 30 days by method.
+  open requests, and sign-ins in the last 30 days by way in (passkey, password, single sign-on: counted as each sign-in happens,
+  a number per day and way in, naming nobody).
 - **AI spending** per month, from the families' AI budgets.
 - **Families by storage:** each family by its id, with its members, storage and cap, when it was last visited and its page views
   in 30 days.

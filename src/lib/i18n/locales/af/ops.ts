@@ -160,4 +160,6 @@ export default {
   "ops.r200.access_text": "Nooi familielede as kykers, bydraers, redigeerders of rentmeesters, of deel ’n skakel net om te lees.",
   "ops.r200.ai_title": "’n Assistent as jy wil.",
   "ops.r200.ai_text": "Kies ’n verskaffer en ’n maandelikse begroting; niks verander sonder goedkeuring nie.",
+  "ops.signins_password": "Aanmeldings met wagwoord (30 dae)",
+  "ops.signins_oidc": "Aanmeldings met enkelaanmelding (30 dae)",
 } satisfies Strings<typeof en, "af">;

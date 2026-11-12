@@ -160,4 +160,6 @@ export default {
   "ops.r200.access_text": "Lade Verwandte zum Lesen, Mitwirken, Bearbeiten oder Verwalten ein, oder teile einen Link nur zum Lesen.",
   "ops.r200.ai_title": "Ein Assistent, wenn du willst.",
   "ops.r200.ai_text": "Wähle einen Anbieter und ein Monatsbudget; nichts ändert sich ohne Zustimmung.",
+  "ops.signins_password": "Anmeldungen mit Passwort (30 Tage)",
+  "ops.signins_oidc": "Anmeldungen per Single Sign-on (30 Tage)",
 } satisfies Strings<typeof en, "de">;

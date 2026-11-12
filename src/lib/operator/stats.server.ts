@@ -61,14 +61,14 @@ function reconstructable(day: string, f: Facts): Reconstructable {
 /** The whole of a day's row: the reconstructable part for `day`, and the rest as it is at `now`. */
 export async function liveDay(day: string, trees: string[], now: number, f?: Facts): Promise<InstanceDay> {
   const base = reconstructable(day, f ?? await facts(trees));
-  const start = Date.parse(`${day}T00:00:00Z`), end = dayEnd(day);
   const [members, status, active, storage, visits, signIns, reqs] = (await accounts().readBatch([
     q('SELECT tree, count(*) AS n FROM membership GROUP BY tree'),
     q("SELECT tree, closed FROM family_admin WHERE status = 'suspended'"),
     q('SELECT sum(last_seen >= ?) AS d, sum(last_seen >= ?) AS w, sum(last_seen >= ?) AS m FROM user WHERE last_seen IS NOT NULL', now - DAY, now - 7 * DAY, now - 30 * DAY),
     q('SELECT tree, sum(bytes) AS n FROM media_usage GROUP BY tree'),
     q('SELECT tree, max(last_seen) AS at FROM family_visit GROUP BY tree'),
-    q("SELECT CASE WHEN credential IS NULL THEN 'other' ELSE 'passkey' END AS method, count(*) AS n FROM session WHERE created BETWEEN ? AND ? GROUP BY method", start, end),
+    // Counted as each session starts (accounts migration 0048): a session row is gone once its account signs in again.
+    q('SELECT method, count AS n FROM signin_daily WHERE day = ?', day),
     q("SELECT (SELECT count(*) FROM family_request WHERE status = 'open') AS family, (SELECT count(*) FROM data_request WHERE status != 'done') AS data"),
   ])) as unknown as [
     { tree: string; n: number }[], { tree: string; closed: number }[], [{ d: number | null; w: number | null; m: number | null }],

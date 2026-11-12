@@ -203,6 +203,11 @@ function Storage({ data }: { data: OperatorStatistics }) {
   );
 }
 
+/** Each way in's line; days stored before sign-ins were counted by way in say only "other". */
+const SIGNIN_LABEL: Record<string, 'ops.signins_passkey' | 'ops.signins_password' | 'ops.signins_oidc'> = {
+  passkey: 'ops.signins_passkey', password: 'ops.signins_password', oidc: 'ops.signins_oidc',
+};
+
 function Activity({ data }: { data: OperatorStatistics }) {
   const t = useT();
   const n = data.now;
@@ -219,7 +224,7 @@ function Activity({ data }: { data: OperatorStatistics }) {
         <div className="operator-fact"><dt>{t('ops.suspended_closed')}</dt><dd>{n.familiesSuspended ?? 0} / {n.familiesClosed ?? 0}</dd></div>
         <div className="operator-fact"><dt>{t('ops.requests_open')}</dt><dd>{n.requestsOpen ?? 0} / {n.dataRequestsOpen ?? 0}</dd></div>
         {methods.map(([k, v]) => (
-          <div key={k} className="operator-fact"><dt>{t(k === 'passkey' ? 'ops.signins_passkey' : 'ops.signins_other')}</dt><dd><Small n={v} /></dd></div>
+          <div key={k} className="operator-fact"><dt>{t(SIGNIN_LABEL[k] ?? 'ops.signins_other')}</dt><dd><Small n={v} /></dd></div>
         ))}
       </dl>
       {data.statsOff > 0 && <p className="families-hint">{t('ops.stats_off_count', { count: data.statsOff })}</p>}

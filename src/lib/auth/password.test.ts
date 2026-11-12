@@ -29,7 +29,7 @@ const ip = '203.0.113.7';
 const at = { ip };
 const code = (e: unknown) => (e as Error).message;
 
-const TABLES = ['session', 'credential', 'password', 'totp', 'recovery_code', 'auth_attempt', 'signin_step', 'password_reset', 'membership', 'instance_setting', 'user'];
+const TABLES = ['session', 'credential', 'password', 'totp', 'recovery_code', 'auth_attempt', 'signin_step', 'password_reset', 'membership', 'instance_setting', 'signin_daily', 'user'];
 beforeEach(async () => {
   await store.accounts().batch(TABLES.map((t) => store.q(`DELETE FROM ${t}`)));
   await store.accounts().run("INSERT INTO instance_setting (key, value, updated_at) VALUES ('auth_methods', '[\"passkey\",\"password\"]', 0)");
@@ -439,4 +439,14 @@ test('a used reset link leaves a lasting notice for the holder’s next sign-in 
   assert.ok(await pw.resetNoticeOf(ada.id, 'passkey'), 'still there until dismissed');
   await pw.dismissResetNotice(ada.id, 'passkey');
   assert.equal(await pw.resetNoticeOf(ada.id, 'oidc'), null);
+});
+
+test('every new session counts one sign-in of its way in for the day, though the next sign-in deletes the session', async () => {
+  const ada = await account('Ada Example', 'ada');
+  const first = await startSession(req(), ada.id, null, true, 'password');
+  await startSession(req(`kindred_session=${tokenOf(first)}`), ada.id, null, true, 'password');
+  await startSession(req(), ada.id, 'k-ada', true, 'passkey');
+  const day = new Date().toISOString().slice(0, 10);
+  const rows = await store.accounts().all<{ method: string; count: number }>('SELECT method, count FROM signin_daily WHERE day = ? ORDER BY method', day);
+  assert.deepEqual(rows.map((r) => [r.method, r.count]), [['passkey', 1], ['password', 2]]);
 });
