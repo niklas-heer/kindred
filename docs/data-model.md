@@ -245,9 +245,10 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   account is one only when it is the server's first (`newUser`). The last operator cannot step down.
 - **`instance_setting`** (0034): the server's own settings, one row per `key` (`family_creation`, `instance_name`,
   `contact_email`, `impressum`, `privacy`, `terms`, `report_contact`, `default_cap_bytes`, `families_per_account` from 0037,
-  `update_check` from 0038: `on` once an operator agreed to the daily update check, `off` when they declined or turned it off) with
+  `update_check` from 0038: `on` once an operator agreed to the daily update check, `off` when they declined or turned it off),
+  `languages`: the offered languages as `en,de,af`, English always among them, no migration needed) with
   its text `value`, and when and by whom it last changed. A missing row is the default (`family_creation` is then `stewards`; no
-  storage cap; no limit of families per account). Migration 0037 writes `families_per_account` = 5 only on an install with no
+  storage cap; no limit of families per account; every complete language offered). Migration 0037 writes `families_per_account` = 5 only on an install with no
   accounts yet.
 - **`operator_audit`** (0034): one row per thing an operator did: `at`, `account` and `name` (no foreign key, so the row outlives
   the account), `action` (`family.create`, `family.suspend`, `family.close`, `family.resume`, `family.cap`, `family.delete`, `request.approve`, `settings`,

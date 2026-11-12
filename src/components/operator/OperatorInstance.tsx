@@ -9,6 +9,7 @@ import { errorText } from '~/lib/errortext';
 import { formatDate, useT, type Key } from '~/lib/i18n';
 import { auditQuery, operatorAdd, operatorRemove, operatorSaveSettings } from '~/lib/operator/operator.functions';
 import { bytesToMb, FAMILIES_PER_ACCOUNT_MAX, FAMILY_CREATION, mbToBytes, OPEN_REQUESTS_MAX, SETTING_MAX, type InstanceSettings, type OperatorAccount, type OperatorFamily } from '~/lib/operator/shared';
+import { LanguagesFieldset } from './OperatorLanguages';
 import { OperatorPushSwitch } from './OperatorPush';
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: (id: string, hintId?: string) => ReactNode }) {
@@ -72,6 +73,7 @@ export function SettingsTab({ settings, turnstile, pushKey }: { settings: Instan
           {(id, hint) => <input id={id} aria-describedby={hint} className="input" type="number" min={0} step={1} inputMode="numeric" value={cap} placeholder={t('operator.cap_none')} onChange={(e) => { setStatus(null); setCap(e.target.value); }} />}
         </Field>
       </div>
+      <LanguagesFieldset value={draft.languages} onChange={(languages) => { setStatus(null); setDraft({ ...draft, languages }); }} />
       <h2 className="rule">{t('operator.legal_title')}</h2>
       <p className="families-hint">{t('operator.legal_hint')}</p>
       <Field label={t('legal.impressum')}>{(id) => <textarea id={id} className="input operator-text" rows={6} {...text('impressum')} />}</Field>

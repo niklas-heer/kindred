@@ -126,6 +126,10 @@ console**, and in the dot on your name.
   families** in MB. The default cap applies to families made after you set it; set existing families' caps on the Families tab.
 - **Legal texts**: the Impressum, the privacy policy, the terms of use and where to report content. The privacy policy and the
   terms may each be the text itself or the web address of a page that has it; "report content" may be an email or a web address.
+- **Languages** (`languages`): which languages readers may choose. *Every finished language* (the default) offers each
+  language Kindred is completely translated into, including one a later update finishes. *Only these* offers the ones you
+  tick; English is always offered. A language still being translated is listed but cannot be offered. See
+  [Languages](#languages).
 - **This device**: whether this browser is told about new requests (see above).
 
 ### Terms of use, accepted
@@ -217,6 +221,22 @@ in a demo or in "View as". How to write a release's highlights: [releases/README
 anchor (`/legal#impressum`, `#privacy`, `#terms`, `#report`). A quiet footer links to the sections you filled in, under the sign-in,
 setup, invitation, share-link and request pages, with "Data about you" (`/privacy-request`); the account menu has **Legal**. When
 you fill in none, no link shows anywhere.
+
+## Languages
+
+Kindred ships English, German and Afrikaans, and is being translated into Spanish, French, Italian, Dutch, Polish, Brazilian
+Portuguese, Japanese and Simplified Chinese. A language is offered once its translation is complete (`complete` in
+`src/lib/i18n/languages.ts`; `node scripts/i18n-check.ts` shows how far each one is).
+
+- The language picker (the flag in the top bar, the sign-in card, the home page, the phone's More sheet and ⌘K's "Change
+  language") lists only the languages the server offers. With English alone, there is no picker.
+- A reader's language is, in order: the one saved on their account, the one this browser chose, the first their browser asks
+  for that the server offers (`Accept-Language`, so `pt-PT` finds Brazilian Portuguese and `zh-CN` Simplified Chinese, but
+  `zh-TW` does not), then English. Share pages, the sign-in page and invitations follow the same order.
+- Turning a language off never deletes anyone's choice: a member whose saved language is off sees the next language in that
+  order, and their own again if you turn it back on. Only a language the server offers can be saved on an account.
+- A language you turn off still exists in everything already written in it (a reminder's text is written when it is sent, in
+  the device's language). Nothing is translated twice or lost.
 
 ## Storage caps
 

@@ -1,5 +1,6 @@
 // What the operator console, the public request forms and the legal page share with the server: the settings of an
 // instance, the shapes the console reads, and small rules with no server imports (docs/hosting-many-families.md).
+import type { Locale } from '../i18n/languages.ts';
 
 /**
  * Who may make a family on this server.
@@ -29,6 +30,11 @@ export interface InstanceSettings {
    * install starts at 5 (accounts migration 0037); one that had accounts before keeps no limit until its operator sets one.
    */
   familiesPerAccount: number | null;
+  /**
+   * The languages the instance offers, English always among them; null offers every complete language, including one a later
+   * version completes (docs/hosting-many-families.md, "Languages"). A language that is not complete is never offered.
+   */
+  languages: Locale[] | null;
 }
 
 /** The most families per account the console accepts as a limit. */

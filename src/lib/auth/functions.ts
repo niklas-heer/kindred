@@ -328,6 +328,9 @@ export const setMyLocale = createServerFn({ method: 'POST' })
     // The steward's own language, also while they view a family as someone else: it is no family's, and the next page is
     // rendered in it, so a refusal would switch the language back.
     allowPreviewChange();
+    // Only a language the instance offers (the operator's choice, complete ones): the picker lists no other.
+    const { offeredLanguages } = await import('../operator/settings.server');
+    if (!(await offeredLanguages()).includes(data.locale)) throw new Error('This language is not offered on this server.');
     await s.setUserLocale(user.id, data.locale);
   });
 

@@ -499,7 +499,7 @@ reminders on once here, but it needs no new keys to do so.
   The browser's push service (Apple, Google, Mozilla or Microsoft) carries the encrypted message. It sees that a message
   reached the device, and when, but it cannot read it.
 - The server sends only to those four push services. It cannot be used to send messages anywhere else.
-- A reminder names people and gives dates from the family's record, in the device's language (English, German or Afrikaans).
+- A reminder names people and gives dates from the family's record, in the device's language (one the server offers).
   It never includes private fields, notes or stories. Every member can read the same names and dates in the app
   ([roles-and-privacy.md](roles-and-privacy.md)).
 - The subscriptions are rows in the accounts database (`push_subscription`): the device's push address, its two keys, the
@@ -605,6 +605,15 @@ such as Caddy's `encode`, leaves an answer that is already compressed alone.
 Bun is not supported. Kindred's storage uses Node's `node:sqlite`, and Bun does not provide it. The production build starts under
 Bun 1.3.14 and serves the health check and the static files, but any page that reads the database fails. `/setup` returns 500,
 with `No such built-in module: node:sqlite` in the log. Kindred does not have a Bun SQLite driver: run it on Node 26.
+
+## Languages
+
+Readers choose between the languages the server offers: every completely translated one by default (English, German and
+Afrikaans today; Spanish, French, Italian, Dutch, Polish, Brazilian Portuguese, Japanese and Simplified Chinese as their
+translations are finished). An operator can offer fewer in the operator console's Settings (see
+[hosting many families](hosting-many-families.md#languages)); there is no environment setting for it. A reader's browser
+language picks the first offered match, and English is always there. Japanese and Chinese pages use the device's own fonts
+for their scripts; nothing extra is downloaded.
 
 ## More than one family
 

@@ -149,7 +149,7 @@ export async function deleteFamilyAsOperator(op: UserRow, tree: string, confirm:
 
 export async function updateSettings(op: UserRow, next: InstanceSettings): Promise<void> {
   const before = await instanceSettings();
-  const changed = (Object.keys(next) as (keyof InstanceSettings)[]).filter((k) => next[k] !== before[k]);
+  const changed = (Object.keys(next) as (keyof InstanceSettings)[]).filter((k) => JSON.stringify(next[k]) !== JSON.stringify(before[k]));
   if (!changed.length) return;
   await accounts().batch([...saveSettings(next, op.id), audit(actor(op), 'settings', null, { changed })]);
 }

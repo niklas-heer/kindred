@@ -65,3 +65,6 @@
 .operator-narrow { max-width: 12ch; }
 .operator-push { display: grid; gap: 4px; }
 .operator-more { justify-self: start; }
+.operator-languages { display: flex; flex-wrap: wrap; gap: 6px 18px; padding-left: 26px; }
+.operator-check { display: inline-flex; gap: 8px; align-items: center; cursor: pointer; }
+.operator-check input:disabled + span { color: var(--subtle); }

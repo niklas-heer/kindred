@@ -1,6 +1,7 @@
 // The instance's own settings (accounts table `instance_setting`, migration 0034) and the operator's audit log
 // (`operator_audit`). A missing setting is its default, so an install that never opened the console behaves as before:
 // any steward may make a family, and no legal page is shown.
+import { LOCALES, isLocale, offeredLocales, type Locale } from '../i18n/languages.ts';
 import { q, store, type Query } from '../store/index.ts';
 import {
   DEFAULT_FAMILY_CREATION, FAMILY_CREATION, OPEN_REQUESTS_MAX, TEXT_SETTINGS, type AuditEntry, type FamilyCreation, type InstanceSettings, type LegalTexts, type PublicInstance,
@@ -8,11 +9,22 @@ import {
 
 const accounts = () => store.accounts();
 
-type Key = (typeof TEXT_SETTINGS)[number] | 'defaultCapBytes' | 'familyCreation' | 'familiesPerAccount';
+type Key = (typeof TEXT_SETTINGS)[number] | 'defaultCapBytes' | 'familyCreation' | 'familiesPerAccount' | 'languages';
 const COLUMN: Record<Key, string> = {
   instanceName: 'instance_name', contactEmail: 'contact_email', impressum: 'impressum', privacy: 'privacy', terms: 'terms',
   reportContact: 'report_contact', defaultCapBytes: 'default_cap_bytes', familyCreation: 'family_creation', familiesPerAccount: 'families_per_account',
+  languages: 'languages',
 };
+
+/** The stored list of languages ("en,de,af"), or null for every complete one. Unknown tags are dropped; English is always in. */
+const languagesOf = (v: string | undefined): Locale[] | null =>
+  v === undefined ? null : LOCALES.filter((l) => l === 'en' || v.split(',').filter(isLocale).includes(l));
+
+/** The languages this instance offers to readers: enabled by its operator, and complete. English is always one. */
+export async function offeredLanguages(): Promise<Locale[]> {
+  const row = await accounts().get<{ value: string }>("SELECT value FROM instance_setting WHERE key = 'languages'");
+  return offeredLocales(row?.value ?? null);
+}
 
 /** A stored whole number of at least 0, or null when the row is missing or holds anything else. */
 const count = (v: string | undefined) => {
@@ -32,6 +44,7 @@ export async function instanceSettings(): Promise<InstanceSettings> {
     defaultCapBytes: count(v.get(COLUMN.defaultCapBytes)),
     familyCreation: (FAMILY_CREATION as readonly string[]).includes(creation ?? '') ? (creation as FamilyCreation) : DEFAULT_FAMILY_CREATION,
     familiesPerAccount: count(v.get(COLUMN.familiesPerAccount)),
+    languages: languagesOf(v.get(COLUMN.languages)),
   };
 }
 
@@ -43,6 +56,8 @@ export function saveSettings(next: InstanceSettings, by: string, at = Date.now()
     if (k === 'defaultCapBytes') return next.defaultCapBytes === null ? null : String(next.defaultCapBytes);
     if (k === 'familiesPerAccount') return next.familiesPerAccount === null ? null : String(next.familiesPerAccount);
     if (k === 'familyCreation') return next.familyCreation === DEFAULT_FAMILY_CREATION ? null : next.familyCreation;
+    // Never empty: "en" alone is a choice (English only), and a deleted row means every complete language.
+    if (k === 'languages') return next.languages === null ? null : LOCALES.filter((l) => l === 'en' || next.languages!.includes(l)).join(',');
     return next[k].trim() || null;
   };
   return (Object.keys(COLUMN) as Key[]).map((k) => {
