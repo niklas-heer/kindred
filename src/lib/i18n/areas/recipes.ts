@@ -146,4 +146,5 @@ export const en = {
   "recipes.err.gone": "That recipe is no longer there.",
   "recipes.err.invalid": "The recipe did not arrive whole. Please try again.",
   "recipes.err.too_many_pictures": "A recipe’s steps can have six pictures at most.",
+  "recipes.unitWords": "g, gr, gram, grams, kg, kilo, mg, ml, cl, dl, l, liter, litre, liters, litres, oz, ounce, ounces, lb, lbs, pound, pounds, tsp, tsps, teaspoon, teaspoons, tbsp, tbsps, tbs, tablespoon, tablespoons, cup, cups, pinch, pinches, dash, piece, pieces, clove, cloves, slice, slices, can, cans, tin, tins, bunch, bunches, sprig, sprigs, stick, sticks, pkg, packet, packets, handful, handfuls, drop, drops, leaf, leaves, head, cube, cubes, jar, jars, bottle, bottles, bag, bags",
 };

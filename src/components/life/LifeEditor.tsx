@@ -13,7 +13,7 @@ import { errorText } from '~/lib/errortext';
 import { AFTER_DEATH, EVENT_LABEL, EVENT_TYPES, QUALITIES, QUALITY_LABEL, factKey, type Citation, type EventType, type Fact, type LifeEvent, type Quality } from '~/lib/events';
 import { personEventsQuery, removeLifeEvent, reorderLifeEvents, saveLifeEvent } from '~/lib/events.functions';
 import { displayName, fmtDate, type Family } from '~/lib/graph';
-import { locales, useT, type Translator } from '~/lib/i18n';
+import { useT, type Locale, type Translator } from '~/lib/i18n';
 import { useCan } from '~/lib/session';
 import { personCitationsQuery, removeCitation, saveCitation, sourcesQuery } from '~/lib/sources.functions';
 import type { GPerson } from '~/lib/types';
@@ -29,7 +29,7 @@ function useRefresh(tree: string) {
 }
 
 /** "1940–1945", "1912", or nothing. */
-export function spanText(e: Pick<LifeEvent, 'date' | 'endDate'>, locale: string): string {
+export function spanText(e: Pick<LifeEvent, 'date' | 'endDate'>, locale: Locale): string {
   const a = e.date ? fmtDate(e.date, locale) : undefined;
   const b = e.endDate ? fmtDate(e.endDate, locale) : undefined;
   return a && b ? `${a} – ${b}` : a ?? (b ? `– ${b}` : '');
@@ -112,7 +112,7 @@ function EventsSection({ tree, p }: { tree: string; p: GPerson }) {
                 <Icon size={15} aria-hidden className="life-row-icon" />
                 <span className="life-row-main">
                   <span><b>{title}</b>{e.type !== 'custom' && e.label ? `: ${e.label}` : ''}</span>
-                  <small className="subtle">{[spanText(e, locales[t.locale]), e.place].filter(Boolean).join(' · ') || t('events.no_date')}</small>
+                  <small className="subtle">{[spanText(e, t.locale), e.place].filter(Boolean).join(' · ') || t('events.no_date')}</small>
                 </span>
                 <span className="life-row-actions">
                   {sameAsPrev && <button type="button" className="btn icon ghost" disabled={busy} onClick={() => void move(i, -1)} aria-label={t('events.move_up', { what: title })} title={t('events.move_up', { what: title })}><ArrowUp size={14} /></button>}
@@ -224,7 +224,7 @@ interface FactRow { key: string; fact: Fact; label: ReactNode; what: string }
 function factsOf(p: GPerson, f: Family, events: LifeEvent[], t: Translator): FactRow[] {
   const out: FactRow[] = [];
   const add = (fact: Fact, what: string, detail?: string) => out.push({ key: factKey(fact), fact, what, label: <>{what}{detail ? <small className="subtle"> · {detail}</small> : null}</> });
-  const locale = locales[t.locale];
+  const locale = t.locale;
   add({ fact: 'name', person: p.id }, t('sources.fact.name'), [p.given, p.surname].filter(Boolean).join(' '));
   add({ fact: 'birth', person: p.id }, t('sources.fact.birth'), [fmtDate(p.born, locale), p.bornPlace].filter(Boolean).join(', '));
   if (!p.living) add({ fact: 'death', person: p.id }, t('sources.fact.death'), [fmtDate(p.died, locale), p.diedPlace].filter(Boolean).join(', '));

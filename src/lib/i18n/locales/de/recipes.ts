@@ -145,4 +145,5 @@ export default {
   "recipes.err.gone": "Dieses Rezept gibt es nicht mehr.",
   "recipes.err.invalid": "Das Rezept ist nicht vollständig angekommen. Bitte versuche es noch einmal.",
   "recipes.err.too_many_pictures": "Die Schritte eines Rezepts können höchstens sechs Bilder haben.",
+  "recipes.unitWords": "gramm, pfund, el, tl, essl, teel, esslöffel, teelöffel, tasse, tassen, becher, glas, gläser, prise, prisen, msp, messerspitze, stück, stk, zehe, zehen, scheibe, scheiben, dose, dosen, bund, zweig, zweige, stange, stangen, pck, päckchen, packung, handvoll, tropfen, blatt, blätter, kopf, würfel, flasche, flaschen, beutel",
 } satisfies Strings<typeof en, "de">;

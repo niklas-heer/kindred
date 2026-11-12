@@ -1,6 +1,6 @@
 // The assistant's instructions to the model. Server-only: only the server sends these to a provider, and
 // they are English on purpose. The reply language is named in them, so the model answers in the reader's language.
-import { ASSISTANT_LANGUAGE } from '../i18n/languages';
+import { AI_ADDRESS_LANGUAGE } from '../i18n/languages';
 import type { AiLocale } from './types';
 import { can, type Role } from '../roles';
 
@@ -32,12 +32,7 @@ const SOURCES = [
   'Cite only a source the reader named or showed, or one the tree already records for that fact. Never invent a source, a title, an author, a page, a call number or a transcription, and never cite a source for a fact it was not named for. When the reader names no source, propose the change without one.',
 ].join(' ');
 
-const LANGUAGE_NAME: Record<AiLocale, string> = {
-  ...ASSISTANT_LANGUAGE,
-  en: 'English',
-  de: 'German (use “du”, never “Sie”)',
-  af: 'Afrikaans (use “jy”, never “u”)',
-};
+const LANGUAGE_NAME: Record<AiLocale, string> = AI_ADDRESS_LANGUAGE;
 
 export function systemPrompt(o: {
   locale: AiLocale;

@@ -47,10 +47,10 @@ const I18N = fileURLToPath(new URL("./", import.meta.url));
 
 /**
  * The keys of the vocabularies (docs/translating.md, "Vocabularies"): names of faiths, occupations, colours, favourites and
- * heraldic charges. They are single names and short words, many the same in two languages, so a translator is held to
+ * heraldic charges, and the unit words a pasted recipe is read with. They are single names and short words, many the same in two languages, so a translator is held to
  * giving every one (missing, extra) but not to the prose checks (still English, leftover words, address, glossary, length).
  */
-export const VOCABULARY_KEY = /^(?:faith\.(?:name|tradition)|occupation|colour|favourite|heraldry\.library)\./;
+export const VOCABULARY_KEY = /^(?:(?:faith\.(?:name|tradition)|occupation|colour|favourite|heraldry\.library)\.|recipes\.unitWords$)/;
 
 /** Kindred's terms (glossary/en.json): each with its meaning for translators and the pattern that finds it in English. */
 export interface EnglishGlossary {

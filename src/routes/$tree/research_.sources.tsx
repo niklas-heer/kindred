@@ -13,7 +13,7 @@ import { errorText } from '~/lib/errortext';
 import { isWebAddress, QUALITY_LABEL, type Citation, type Source } from '~/lib/events';
 import { useFamily, useTreeId } from '~/lib/family';
 import { displayName, fmtDate } from '~/lib/graph';
-import { compareText, locales, translate, useT, type Locale } from '~/lib/i18n';
+import { compareText, translate, useT, type Locale } from '~/lib/i18n';
 import { useCan, useMember } from '~/lib/session';
 import { removeSource, sourceCitationsQuery, sourcesQuery } from '~/lib/sources.functions';
 import { treeTitle } from '~/lib/title';
@@ -79,7 +79,7 @@ function SourceCard({ tree, s, canEdit, onEdit }: { tree: string; s: Source; can
   const [error, setError] = useState<string | null>(null);
   const refresh = useSourcesRefresh(tree);
   const keys = useRef(opKeys());
-  const meta = [s.author, s.publication, s.date ? fmtDate(s.date, locales[t.locale]) : null].filter(Boolean).join(' · ');
+  const meta = [s.author, s.publication, s.date ? fmtDate(s.date, t.locale) : null].filter(Boolean).join(' · ');
   const remove = async () => {
     setBusy(true);
     setError(null);

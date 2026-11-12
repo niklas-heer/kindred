@@ -18,7 +18,7 @@ import { tr, type Tr } from './labels';
 import { aiPolicyOn, budgeted, estimateMicros, failureMicros, monthNow, readSettings, replyMicros, resetsOn, routeAdapter, spentThisMonth, type Settings } from './settings.server';
 import { resolveRoute } from './providers.server';
 import type { Price } from './prices';
-import type { Locale } from '../i18n/types';
+import { isLocale, type Locale } from '../i18n/types';
 import { TASK_ROUTE } from './types';
 import {
   BATCH, CALLS_PER_DAILY_RUN, CALLS_PER_NAME, TASK_FEATURE, TASKS, capMicros, defaultSettings, isDue, lastLooked,
@@ -32,13 +32,12 @@ interface BgRow { tree: string; cap_share: number; languages: string; locale: st
 interface TaskRow { tree: string; task: string; enabled: number; schedule: string; last_started: number | null; last_checked: number | null }
 
 const isTask = (t: string): t is Task => (TASKS as readonly string[]).includes(t);
-const LOCALES_OK: readonly Locale[] = ['en', 'de', 'af'];
-const localeOf = (s: string): Locale => (LOCALES_OK as readonly string[]).includes(s) ? (s as Locale) : 'en';
+const localeOf = (s: string): Locale => (isLocale(s) ? s : 'en');
 
 function parseLanguages(s: string): Locale[] {
   try {
     const list = JSON.parse(s) as unknown;
-    return Array.isArray(list) ? [...new Set(list.filter((l): l is Locale => (LOCALES_OK as readonly string[]).includes(l as string)))] : [];
+    return Array.isArray(list) ? [...new Set(list.filter((l): l is Locale => isLocale(l)))] : [];
   } catch {
     return [];
   }

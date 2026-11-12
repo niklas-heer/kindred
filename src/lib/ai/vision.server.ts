@@ -9,7 +9,7 @@ import { tr } from './labels';
 import { adapterForFeature } from './settings.server';
 import { SKIN_LABELS, SKIN_NEUTRAL, HAIR_LABELS, EYE_LABELS, PHOTO_LOOK_FIELDS, sanitizeLook } from '../portrait-look';
 import { translate } from '../i18n/dictionary';
-import { ASSISTANT_LANGUAGE, type Locale } from '../i18n/languages';
+import { AI_LANGUAGE } from '../i18n/languages';
 import type { Look } from '../types';
 
 const MIME: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
@@ -47,7 +47,7 @@ async function photoOrThrow(tree: string, key: string, locale: AiLocale) {
   return img;
 }
 
-const LANG: Record<Locale, string> = { ...ASSISTANT_LANGUAGE, en: 'English', de: 'German (du)', af: 'Afrikaans (jy)' };
+const LANG = AI_LANGUAGE;
 
 // ---------- faces ----------
 

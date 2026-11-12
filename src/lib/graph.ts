@@ -2,7 +2,7 @@
 import { useSyncExternalStore } from 'react';
 import type { GPerson, GUnion, Graph, House } from './types';
 import { allGiven } from './further-given.ts';
-import { translate, type Locale } from './i18n/dictionary.ts';
+import { locales, translate, type Locale } from './i18n/dictionary.ts';
 
 export interface Family {
   graph: Graph;
@@ -192,16 +192,17 @@ export function age(p: GPerson, today?: Date): number | undefined {
   return isNaN(b) || isNaN(d) ? undefined : d - b;
 }
 
-export const fmtDate = (d?: string, locale = 'en-GB') => {
+export const fmtDate = (d?: string, locale: Locale = 'en') => {
   if (!d) return undefined;
   const a = approx(d);
+  const intl = locales[locale];
   const [y, m, day] = d.replace(/^~/, '').split('-').map(Number);
   const s = day
-    ? new Date(Date.UTC(y, m - 1, day)).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+    ? new Date(Date.UTC(y, m - 1, day)).toLocaleDateString(intl, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
     : m
-      ? new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' })
+      ? new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(intl, { month: 'long', year: 'numeric', timeZone: 'UTC' })
       : String(y);
-  return a ? `${locale.startsWith('de') ? 'ca.' : locale.startsWith('af') ? 'ong.' : 'c.'} ${s}` : s;
+  return a ? translate(locale, 'date.circa', { date: s }) : s;
 };
 
 // ---------- generations ----------

@@ -1,5 +1,6 @@
 // Addresses as text and as parts. Pure, so the browser, the server and the tests share it: reading what someone typed
 // into street, postcode, town and country, and reading an OpenStreetMap result into the same parts.
+import { LANGUAGES, LOCALES } from './i18n/languages.ts';
 
 export interface AddressParts { street: string; postcode: string; city: string; country: string }
 
@@ -19,14 +20,14 @@ let countries: Map<string, string> | undefined;
 const RETIRED = new Set(['AN', 'BU', 'CS', 'DD', 'DY', 'EU', 'EZ', 'FX', 'NT', 'QU', 'SU', 'TP', 'UK', 'YU', 'ZR']);
 
 /**
- * Folded country names (English, German and Afrikaans) and codes → ISO 3166 alpha-2, from the platform's own region
+ * Folded country names (in every language the app has) and codes → ISO 3166 alpha-2, from the platform's own region
  * names. A name two regions share is left out, so it can never pick the wrong one.
  */
 function countryTable(): Map<string, string> {
   if (countries) return countries;
   const table = new Map<string, string>();
   const clash = new Set<string>();
-  const namers = ['en', 'de', 'af'].map((l) => new Intl.DisplayNames([l], { type: 'region' }));
+  const namers = LOCALES.map((l) => new Intl.DisplayNames([LANGUAGES[l].intl], { type: 'region' }));
   for (let a = 65; a <= 90; a++) {
     for (let b = 65; b <= 90; b++) {
       const code = String.fromCharCode(a, b);
@@ -45,7 +46,7 @@ function countryTable(): Map<string, string> {
   return (countries = table);
 }
 
-/** The ISO code of a country written as its name (any of the three languages) or as its code; null when unknown. */
+/** The ISO code of a country written as its name (in any language the app has) or as its code; null when unknown. */
 export function countryCodeOf(name: string): string | null {
   return countryTable().get(foldText(name.trim())) ?? null;
 }

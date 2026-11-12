@@ -2,6 +2,7 @@
 // already uses first, then the common choices; typing searches everything, in English, German and Afrikaans alike, so
 // "Ger" finds Deutsch for a German reader. Free text is always allowed: these are only suggestions.
 import { countryCodes, foldText } from './address.ts';
+import { LANGUAGES, LOCALES } from './i18n/languages.ts';
 
 export interface Suggestion {
   value: string;
@@ -55,11 +56,10 @@ const MORE_LANGUAGES = [
   'ko', 'ku', 'la', 'lb', 'lt', 'lv', 'mk', 'ms', 'mt', 'nb', 'nds', 'ne', 'pa', 'ro', 'sk', 'sl', 'sq', 'sr', 'st', 'sv', 'sw', 'ta', 'te', 'th', 'tl', 'tn', 'ts',
   'uk', 'ur', 'uz', 've', 'vi', 'xh', 'yi', 'zu',
 ];
-const THREE = ['en', 'de', 'af'];
 
 function named(type: 'language' | 'region', codes: readonly string[], locale: string, common: ReadonlySet<string>): Item[] {
   const reader = new Intl.DisplayNames([locale], { type, fallback: 'none' });
-  const others = THREE.map((l) => new Intl.DisplayNames([l], { type, fallback: 'none' }));
+  const others = LOCALES.map((l) => new Intl.DisplayNames([LANGUAGES[l].intl], { type, fallback: 'none' }));
   const english = others[0];
   const out: Item[] = [];
   for (const code of codes) {

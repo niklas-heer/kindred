@@ -2,6 +2,8 @@
 // how a pasted list of lines becomes rows, how amounts are scaled for more or fewer servings, and the recipe written out
 // as Markdown. Pure, with no storage and no React, so the browser, the server and the test runner all load it.
 
+import { namesInEveryLanguage, tablesVersion } from '../i18n/dictionary.ts';
+
 // ---------- the shape ----------
 
 /** One line of the list: "1 1/2 cups flour (sifted)". `amount` is kept as the writer typed it. */
@@ -238,25 +240,21 @@ export const factorFor = (base: number | null, wanted: number | null) => (base &
 
 // ---------- a pasted list ----------
 
-// Units as people write them in English, German and Afrikaans. Matched as a whole word after the amount, any case
-// ("EL" and "el"), with an optional full stop ("Msp.", "tbsp.").
-const UNITS = [
-  // metric and imperial
-  'g', 'gr', 'gram', 'grams', 'gramm', 'kg', 'kilo', 'mg', 'ml', 'cl', 'dl', 'l', 'liter', 'litre', 'liters', 'litres', 'oz', 'ounce', 'ounces', 'lb', 'lbs', 'pound', 'pounds', 'pfund',
-  // spoons and cups
-  'tsp', 'tsps', 'teaspoon', 'teaspoons', 'tbsp', 'tbsps', 'tbs', 'tablespoon', 'tablespoons', 'cup', 'cups', 'el', 'tl', 'essl', 'teel', 'esslöffel', 'teelöffel', 'tasse', 'tassen', 'becher', 'glas', 'gläser',
-  'eetlepel', 'eetlepels', 'teelepel', 'teelepels', 'koppie', 'koppies', 'e', 't', 'k',
-  // counts and small measures
-  'pinch', 'pinches', 'dash', 'prise', 'prisen', 'msp', 'messerspitze', 'knippie', 'knippies', 'knypie', 'stück', 'stk', 'piece', 'pieces', 'stuk', 'stukke', 'clove', 'cloves', 'zehe', 'zehen',
-  'huisie', 'huisies', 'slice', 'slices', 'scheibe', 'scheiben', 'sny', 'snye', 'can', 'cans', 'tin', 'tins', 'dose', 'dosen', 'blik', 'blikke', 'bunch', 'bunches', 'bund', 'bos', 'bossie',
-  'sprig', 'sprigs', 'zweig', 'zweige', 'takkie', 'takkies', 'stick', 'sticks', 'stange', 'stangen', 'pkg', 'pck', 'pkt', 'päckchen', 'packung', 'packet', 'packets', 'pakkie', 'pakkies',
-  'handful', 'handfuls', 'handvoll', 'handvol', 'drop', 'drops', 'tropfen', 'druppel', 'druppels', 'blatt', 'blätter', 'leaf', 'leaves', 'blaar', 'blare', 'head', 'kopf', 'kop', 'würfel', 'cube', 'cubes',
-  'jar', 'jars', 'bottle', 'bottles', 'flasche', 'flaschen', 'bottel', 'bottels', 'beutel', 'bag', 'bags', 'sakkie', 'sakkies',
-];
-// Longest first, so "tbsp" is not read as "t" and "eetlepels" not as "e".
-const UNIT_WORD = [...UNITS].sort((a, b) => b.length - a.length).map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-// A unit is a whole word: "2 t sugar" has one, "2 tomatoes" has none.
-const LINE = new RegExp(String.raw`^(${AMOUNT})?\s*(?:(${UNIT_WORD})\.?(?=\s|$))?\s*(.*)$`, 'iu');
+// Units as people write them, in the languages the app has (the dictionary's recipes.unitWords: a list of words per
+// language). Matched as a whole word after the amount, any case ("EL" and "el"), with an optional full stop ("Msp.", "tbsp.").
+// The pattern covers the languages this page has, and is rebuilt when another arrives.
+let lineFor: { version: number; line: RegExp } | undefined;
+function lineRegExp(): RegExp {
+  const version = tablesVersion();
+  if (lineFor?.version === version) return lineFor.line;
+  const units = namesInEveryLanguage('recipes.unitWords').flatMap((list) => list.split(',')).map((u) => u.trim()).filter(Boolean);
+  // Longest first, so "tbsp" is not read as "t" and "eetlepels" not as "e".
+  const unitWord = [...new Set(units)].sort((x, y) => y.length - x.length).map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  // A unit is a whole word: "2 t sugar" has one, "2 tomatoes" has none.
+  const line = new RegExp(String.raw`^(${AMOUNT})?\s*(?:(${unitWord})\.?(?=\s|$))?\s*(.*)$`, 'iu');
+  lineFor = { version, line };
+  return line;
+}
 
 /** A line that names a part of the list rather than something in it: "For the dough:", "## Sauce", "SAUCE". */
 function headingOf(line: string): string | null {
@@ -272,7 +270,7 @@ function headingOf(line: string): string | null {
 export function parseIngredient(raw: string): Ingredient {
   // A list mark is not part of the line: "- ", "* ", "• ", "[ ] ", and "1. " or "1) " when something follows.
   const line = raw.replace(/\s+/g, ' ').trim().replace(/^(?:[-*•·▪◦‣–]|\[[ xX]?\])\s+/, '').replace(/^\d{1,2}[.)]\s+(?=\S)/, '');
-  const m = LINE.exec(line);
+  const m = lineRegExp().exec(line);
   let amount = (m?.[1] ?? '').trim();
   let unit = m?.[2] ?? '';
   let rest = (m?.[3] ?? line).trim();

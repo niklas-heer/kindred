@@ -437,13 +437,13 @@ function OverviewTab({ f, tree, p, me, details, role, gaps, onSelect, onPath, on
       <div className="pp-facts pp-keyfacts">
         {(p.born || bornPlace) && (
           <Fact icon={<Cake size={15} />} label={c('fact.born')}>
-            {fmtDate(p.born, locales[c.locale]) ?? c('panel.dateUnknown')}{bornPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={bornPlace} /></>}
+            {fmtDate(p.born, c.locale) ?? c('panel.dateUnknown')}{bornPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={bornPlace} /></>}
             <SourcedMark count={cites({ fact: 'birth', person: p.id })} />
           </Fact>
         )}
         {!p.living && (p.died || diedPlace) && (
           <Fact icon={<span aria-hidden>✝</span>} label={c('fact.died')}>
-            {fmtDate(p.died, locales[c.locale]) ?? c('panel.dateUnknown')}{diedPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={diedPlace} /></>}
+            {fmtDate(p.died, c.locale) ?? c('panel.dateUnknown')}{diedPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={diedPlace} /></>}
             <SourcedMark count={cites({ fact: 'death', person: p.id })} />
           </Fact>
         )}
@@ -671,7 +671,7 @@ function upcomingDates(f: Family, p: GPerson, today: Date, c: Translator): { day
         <Heart size={20} />
         <div>
           <b>{c('fact.anniversaryWith', { name: other.given, when: inDays(daysUntil(next, today), c) })}</b>
-          <div className="muted">{c('fact.years', { count: next.getFullYear() - yearOf(u.start) })} · {c('fact.marriedOn', { date: fmtDate(u.start, locales[c.locale]) ?? '' })}</div>
+          <div className="muted">{c('fact.years', { count: next.getFullYear() - yearOf(u.start) })} · {c('fact.marriedOn', { date: fmtDate(u.start, c.locale) ?? '' })}</div>
         </div>
       </div>
     ) });
@@ -1277,15 +1277,15 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
         {/* The whole life, moment by moment. The Overview shows the same facts in short, so they are not repeated here. */}
         <LifeTimeline full f={f} tree={tree} p={p} onSelect={onSelect} />
         <div className="pp-facts">
-          {!timeline && <Fact icon={<Cake size={15} />} label={c('fact.born')}>{fmtDate(p.born, locales[c.locale]) ?? c('fact.unknown')}{detail?.bornPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={detail.bornPlace} /></>}</Fact>}
-          {!timeline && <Fact icon={<span>✝</span>} label={c('fact.died')}>{fmtDate(p.died, locales[c.locale]) ?? c('fact.unknown')}{detail?.diedPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={detail.diedPlace} /></>}{age(p) !== undefined && <span className="muted"> · {c('fact.agedN', { n: age(p)! })}</span>}</Fact>}
+          {!timeline && <Fact icon={<Cake size={15} />} label={c('fact.born')}>{fmtDate(p.born, c.locale) ?? c('fact.unknown')}{detail?.bornPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={detail.bornPlace} /></>}</Fact>}
+          {!timeline && <Fact icon={<span>✝</span>} label={c('fact.died')}>{fmtDate(p.died, c.locale) ?? c('fact.unknown')}{detail?.diedPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={detail.diedPlace} /></>}{age(p) !== undefined && <span className="muted"> · {c('fact.agedN', { n: age(p)! })}</span>}</Fact>}
           {died && today && daysUntil(died, today) < 60 && <Fact icon={<Heart size={15} />} label={c('fact.remembrance')}>{inDays(daysUntil(died, today), c)}</Fact>}
           {p.furtherGiven?.length ? <Fact icon={<UserRound size={15} />} label={c('fact.fullName')}>{fullName(p)}</Fact> : null}
           {p.nickname && <Fact icon={<UserRound size={15} />} label={c('fact.called')}>{p.nickname}</Fact>}
           <OccupationFact tree={tree} p={p} icon={<Pencil size={15} />} label={c('fact.occupation')} />
           {!timeline && (f.unionsOf.get(p.id) ?? []).map((u) => {
             const o = f.byId.get(u.a === p.id ? u.b : u.a);
-            return o ? <Fact key={u.id} icon={<Heart size={15} />} label={u.kind === 'marriage' ? c('fact.married') : c('fact.partner')}>{displayName(o, f)}{u.start && <> · {fmtDate(u.start, locales[c.locale])}</>}{u.place && <> · {u.place}</>}{u.endReason && u.endReason !== 'death' && <span className="muted"> ({u.endReason})</span>}</Fact> : null;
+            return o ? <Fact key={u.id} icon={<Heart size={15} />} label={u.kind === 'marriage' ? c('fact.married') : c('fact.partner')}>{displayName(o, f)}{u.start && <> · {fmtDate(u.start, c.locale)}</>}{u.place && <> · {u.place}</>}{u.endReason && u.endReason !== 'death' && <span className="muted"> ({u.endReason})</span>}</Fact> : null;
           })}
         </div>
         {fieldsBlock}
@@ -1305,14 +1305,14 @@ function EverydayTab({ f, tree, p, details, canEdit, onSelect }: { f: Family; tr
             </div>
           </div>
         ) : (
-          <Fact icon={<Cake size={15} />} label={c('fact.born')}>{fmtDate(p.born, locales[c.locale]) ?? (canEdit ? c('fact.unknownAdd') : c('fact.unknown'))}</Fact>
+          <Fact icon={<Cake size={15} />} label={c('fact.born')}>{fmtDate(p.born, c.locale) ?? (canEdit ? c('fact.unknownAdd') : c('fact.unknown'))}</Fact>
         )}
         {today && anniversaries.map(({ u, next, other }) => (
           <div className="pp-countdown ui-card" key={u.id}>
             <Heart size={20} />
             <div>
               <b>{c('fact.anniversaryWith', { name: other!.given, when: inDays(daysUntil(next!, today), c) })}</b>
-              <div className="muted">{c('fact.years', { count: next!.getFullYear() - yearOf(u.start) })} · {c('fact.marriedOn', { date: fmtDate(u.start, locales[c.locale]) ?? '' })}</div>
+              <div className="muted">{c('fact.years', { count: next!.getFullYear() - yearOf(u.start) })} · {c('fact.marriedOn', { date: fmtDate(u.start, c.locale) ?? '' })}</div>
             </div>
           </div>
         ))}

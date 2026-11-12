@@ -145,4 +145,5 @@ export default {
   "recipes.err.gone": "Daardie resep is nie meer daar nie.",
   "recipes.err.invalid": "Die resep het nie heel aangekom nie. Probeer asseblief weer.",
   "recipes.err.too_many_pictures": "’n Resep se stappe kan hoogstens ses prente hê.",
+  "recipes.unitWords": "eetlepel, eetlepels, teelepel, teelepels, koppie, koppies, e, t, k, knippie, knippies, knypie, stuk, stukke, huisie, huisies, sny, snye, blik, blikke, bos, bossie, takkie, takkies, pkt, pakkie, pakkies, handvol, druppel, druppels, blaar, blare, kop, bottel, bottels, sakkie, sakkies",
 } satisfies Strings<typeof en, "af">;

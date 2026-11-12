@@ -31,6 +31,8 @@ export interface Language {
   address: string;
   /** How an instruction to the assistant names the language it answers in. */
   assistant: string;
+  /** The formal pronoun the app never uses for the reader where the language has one ("Sie", "u", "vous"); a prompt names it. */
+  formal?: string;
   /** The language tag the browser's speech recognition listens in (dictating to the assistant). */
   speech: string;
   /**
@@ -73,6 +75,7 @@ export const LANGUAGES = {
     address: "du",
     assistant: "German, in the informal \"du\" form",
     speech: "de-DE",
+    formal: "Sie",
     jobForms: "Bäcker/Bäckerin",
     accepts: ["de"],
     shortMonths: ["Jan.", "Feb.", "März", "Apr.", "Mai", "Juni", "Juli", "Aug.", "Sept.", "Okt.", "Nov.", "Dez."],
@@ -87,6 +90,7 @@ export const LANGUAGES = {
     address: "jy",
     assistant: "Afrikaans, in the informal \"jy\" form",
     speech: "af-ZA",
+    formal: "u",
     accepts: ["af"],
     shortMonths: ["Jan.", "Feb.", "Mrt.", "Apr.", "Mei", "Jun.", "Jul.", "Aug.", "Sep.", "Okt.", "Nov.", "Des."],
     complete: true,
@@ -100,6 +104,7 @@ export const LANGUAGES = {
     address: "tú",
     assistant: "Spanish, addressing the reader with \"tú\"",
     speech: "es-ES",
+    formal: "usted",
     jobForms: "panadero/panadera",
     accepts: ["es"],
     shortMonths: ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"],
@@ -114,6 +119,7 @@ export const LANGUAGES = {
     address: "tu",
     assistant: "French, addressing the reader with \"tu\"",
     speech: "fr-FR",
+    formal: "vous",
     jobForms: "boulanger/boulangère",
     accepts: ["fr"],
     shortMonths: ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."],
@@ -128,6 +134,7 @@ export const LANGUAGES = {
     address: "tu",
     assistant: "Italian, addressing the reader with \"tu\"",
     speech: "it-IT",
+    formal: "Lei",
     jobForms: "fornaio/fornaia",
     accepts: ["it"],
     shortMonths: ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"],
@@ -142,6 +149,7 @@ export const LANGUAGES = {
     address: "je/jij",
     assistant: "Dutch, addressing the reader with \"je\" and \"jij\"",
     speech: "nl-NL",
+    formal: "u",
     accepts: ["nl"],
     shortMonths: ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"],
     complete: false,
@@ -206,6 +214,15 @@ export const LANGUAGES = {
   },
 } as const satisfies Record<Locale, Language>;
 
+/** How the shorter prompts name a language and the address: "English", "German (du)", "Afrikaans (jy)". */
+export const AI_LANGUAGE = Object.fromEntries(LOCALES.map((l) => [l, l === "en" ? "English" : `${LANGUAGES[l].english} (${LANGUAGES[l].address})`])) as Record<Locale, string>;
+/** How the assistant's main prompt names it: "German (use “du”, never “Sie”)" where the language has a formal pronoun to avoid. */
+export const AI_ADDRESS_LANGUAGE = Object.fromEntries(
+  LOCALES.map((l) => {
+    const { formal } = LANGUAGES[l] as Language;
+    return [l, l === "en" ? "English" : formal ? `${LANGUAGES[l].english} (use “${LANGUAGES[l].address}”, never “${formal}”)` : LANGUAGES[l].assistant];
+  }),
+) as Record<Locale, string>;
 /** How an instruction to the assistant names each language: "German, in the informal \"du\" form". */
 export const ASSISTANT_LANGUAGE = Object.fromEntries(LOCALES.map((l) => [l, LANGUAGES[l].assistant])) as Record<Locale, string>;
 
