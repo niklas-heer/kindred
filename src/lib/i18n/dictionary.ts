@@ -251,8 +251,9 @@ export function formatDate(
     const [y, m, d] = value.replace(/^~/, "").split("-").map(Number);
     const date = new Date(0);
     date.setUTCFullYear(y, (m || 1) - 1, d || 1);
+    // A year alone in the language's own form ("1890", "1890年"): Intl writes a bare year the same in every engine.
     const text = !m
-      ? String(y)
+      ? dateText(date, locale, { year: "numeric", timeZone: "UTC" })
       : dateText(date, locale, {
           year: "numeric",
           month: "long",

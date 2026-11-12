@@ -44,3 +44,11 @@ test('no other file abbreviates a month by itself', () => {
   walk('src');
   assert.deepEqual(offenders, [], 'use dateText (src/lib/i18n/dictionary.ts) for a date with an abbreviated month');
 });
+
+test('a year alone takes the language’s own form', () => {
+  assert.equal(formatDate('1890', 'en'), '1890');
+  assert.equal(formatDate('1890', 'de'), '1890');
+  assert.equal(formatDate('1890', 'ja'), '1890年');
+  assert.equal(formatDate('1890', 'zh-Hans'), '1890年');
+  assert.equal(formatDate('~1890', 'ja'), '約1890年');
+});

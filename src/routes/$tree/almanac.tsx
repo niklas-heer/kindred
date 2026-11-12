@@ -560,8 +560,7 @@ function HistRow({ h, f, tree, thisYear, away, showDay }: { h: Hist; f: Family; 
     <li className="alm-hrow" data-type={h.type} data-day={showDay || undefined}>
       {showDay && <span className="alm-hday">{h.day ?? '·'}</span>}
       <span className="alm-hyear display">
-        {h.approx ? 'c. ' : ''}
-        {h.year}
+        {h.approx ? t('date.circa', { date: String(h.year) }) : h.year}
       </span>
       <Portrait person={ps[0]} tree={tree} size={32} frame={false} />
       <span className="alm-htext">
