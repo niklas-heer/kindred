@@ -336,6 +336,11 @@ const OPEN = new Set([
   // The hosting landing page and sign-up's state (src/lib/signup/): the server's name, contact, limits and whether sign-up is
   // open; no family, no count, no account (signup.test.ts). The sign-up form's waiting-list step is a public form like
   // sendFamilyRequest: it adds a request to the waiting list and reads no family.
+  // Whether the server sends email (src/lib/email/): one boolean, so the sign-in page can offer "Forgot your password?"; it
+  // reads no family.
+  'fetchMailOn',
+  // What a verification link is for (src/lib/email/verify.server.ts): the link's token is the secret; nothing about a family.
+  'fetchVerification',
   'fetchPublicHosting', 'signupWaitlist',
 ]);
 /** Everything a handler might read before its guard, so a failure can only be the guard's. */

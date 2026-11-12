@@ -42,7 +42,7 @@ export const FAMILY_ID_MAX = 40;
 export const RESERVED_IDS: ReadonlySet<string> = new Set([
   'api', 'setup', 'signin', 'signout', 'share', 'invite', 'join', 'ui', 'families', 'family-new', 'new', 'settings', 'admin',
   'assets', 'static', 'media', 'backups', 'seed', 'demo', 'help', 'about', 'login', 'logout', 'account', 'accounts', 'gazetteer',
-  'cdn-cgi', 'favicon', 'manifest', 'robots', 'sw', 'health', 'operator', 'request', 'signup', 'privacy-request', 'legal', 'processing-agreement', 'privacy', 'impressum', 'terms', 'whats-new', 'reset',
+  'cdn-cgi', 'favicon', 'manifest', 'robots', 'sw', 'health', 'operator', 'request', 'signup', 'privacy-request', 'legal', 'processing-agreement', 'privacy', 'impressum', 'terms', 'whats-new', 'reset', 'unsubscribe', 'verify-email',
   ...NOT_TREES,
 ]);
 

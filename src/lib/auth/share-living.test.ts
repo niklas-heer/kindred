@@ -237,6 +237,11 @@ const ANSWERS_A_GUEST = new Set([
   'fetchMyAnnouncements',
   // The hosting landing page and sign-up's state (src/lib/signup/): the server's name, contact, limits and whether sign-up is
   // open; no family, no count, no account (signup.test.ts).
+  // Whether the server sends email (src/lib/email/): one boolean, so the sign-in page can offer "Forgot your password?"; it
+  // reads no family.
+  'fetchMailOn',
+  // What a verification link is for (src/lib/email/verify.server.ts): the link's token is the secret; nothing about a family.
+  'fetchVerification',
   'fetchPublicHosting',
 ]);
 
