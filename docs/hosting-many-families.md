@@ -52,7 +52,10 @@ Actions:
     account, a complaint you are looking into, or a family that asked for a pause.
   - *Closed*: nobody opens it. Its members see a page that says you closed it and how to reach you instead of the family; every
     read and change is refused; its share link opens nothing and guests inside are sent out at once. Use it when even reading must
-    stop (content you were told is illegal, a family that has to be taken down). Nothing is deleted.
+    stop (content you were told is illegal, a family that has to be taken down). Nothing is deleted. Its stewards cannot download
+    its backup or export it either, so a closed family's page tells them to ask you for a copy: when you agree, make it
+    *Read-only* for a while; its stewards export it (Import & export) or download the backup, then you close it again or delete it.
+    A read-only family's stewards also still see the data requests you forwarded to them.
   - *In use* lets it be used again.
 - **Storage cap** in MB (empty for none), and **Recount** (see [Storage caps](#storage-caps)).
 - **Delete**, with the family's address typed and your passkey, as its stewards delete it. You cannot export a family you are not

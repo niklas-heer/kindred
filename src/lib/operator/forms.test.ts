@@ -66,6 +66,7 @@ const share = await load<typeof import('../auth/share.server.ts')>('/src/lib/aut
 const shareFns = await load<typeof import('../auth/share.functions.ts')>('/src/lib/auth/share.functions.ts');
 const guard = await load<typeof import('../auth/guard.server.ts')>('/src/lib/auth/guard.server.ts');
 const reminders = await load<typeof import('../reminders.server.ts')>('/src/lib/reminders.server.ts');
+const { Route: backupRoute } = await load<typeof import('../../routes/api/backup.$tree.ts')>('/src/routes/api/backup.$tree.ts');
 const webpush = await load<typeof import('../webpush.ts')>('/src/lib/webpush.ts');
 const { resetThrottle } = await load<typeof import('../auth/throttle.server.ts')>('/src/lib/auth/throttle.server.ts');
 const { closeDatabases } = await load<typeof import('../store/node.ts')>('/src/lib/store/node.ts');
@@ -183,6 +184,16 @@ test('a data request reaches the stewards only while forwarded; open again takes
   asUser(OP);
   await fns.operatorDataRequestStatus({ data: { id: dana.id, status: 'forwarded' } });
   assert.deepEqual(await forStewards(), ['Dana Dell']);
+  // A read-only family's stewards still see it (they answer by mail), cannot mark it answered there, and a viewer never sees it.
+  asUser(OP);
+  await fns.operatorSetStatus({ data: { tree: 'alderby', status: 'suspended' } });
+  assert.deepEqual(await forStewards(), ['Dana Dell'], 'read-only: still listed');
+  asUser(STEWARD);
+  await assert.rejects(fns.stewardDataRequestDone({ data: { tree: 'alderby', id: dana.id } }), (e: Error) => status(e) === 403 && /suspended/.test(e.message));
+  asUser(VIEWER);
+  await assert.rejects(fns.fetchFamilyDataRequests({ data: { tree: 'alderby' } }), (e: Error) => status(e) === 403);
+  asUser(OP);
+  await fns.operatorSetStatus({ data: { tree: 'alderby', status: 'active' } });
   asUser(OP);
   await fns.operatorDataRequestStatus({ data: { id: dana.id, status: 'open' } });
   assert.deepEqual(await forStewards(), [], 'taken back');
@@ -219,6 +230,12 @@ test('closed: members are refused with the reason, guests and the share link too
   assert.equal(await share.guestVisitByToken(before.token), undefined, 'the guest inside is out');
   assert.equal(await share.startGuestVisit(row), undefined, 'and no new visit starts');
   assert.deepEqual(await shareFns.fetchShareEntry({ data: { token: link.token } }), { status: 'closed' });
+  // Nor may its stewards download the backup: the operator makes it read-only for that (docs/hosting-many-families.md).
+  asUser(STEWARD);
+  const { GET } = backupRoute.options.server!.handlers as unknown as { GET: (ctx: { params: { tree: string } }) => Promise<Response> };
+  const refused = await GET({ params: { tree: 'alderby' } });
+  assert.equal(refused.status, 403);
+  assert.match(await refused.text(), /closed by the server’s operator/);
   // A family closed for one member's family leaves their other families alone.
   asUser(OP);
   await fns.operatorSetStatus({ data: { tree: 'alderby', status: 'active' } });

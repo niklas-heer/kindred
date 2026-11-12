@@ -187,9 +187,16 @@ export async function requireReader(tree: string): Promise<Reader> {
   throw fail(user ? notMember() : signedOut());
 }
 
-/** Like `requireMember`, and the reader's role must allow `action` (403 otherwise). */
-export async function requireCan(tree: string, action: Action): Promise<Member> {
+/**
+ * Like `requireMember`, and the reader's role must allow `action` (403 otherwise). With `{ read: true }` the request only reads
+ * what that role may see (a steward's list of data requests): it passes in a suspended family and in a demo, and counts as no change.
+ */
+export async function requireCan(tree: string, action: Action, { read = false }: { read?: boolean } = {}): Promise<Member> {
   const m = await requireMember(tree);
+  if (read) {
+    if (!can(m.role, action)) throw fail(forbidden(action, needs(action)));
+    return m;
+  }
   // A demo's visitor is a viewer, so this only says it sooner and in the demo's words: anything beyond reading would be a change,
   // and the store refuses every change anyway (src/lib/store/index.ts).
   if (isDemo() && action !== 'view') throw fail(demoRefused());

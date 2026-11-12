@@ -1,8 +1,9 @@
 // What the members of a family the server's operator suspended or closed see (docs/hosting-many-families.md). Suspended: a bar
 // over the family, which they can read and not change until the operator lets it be used again. Closed: a page instead of the
 // family. Both say how to reach the operator (the instance's contact address, when set): to ask why, or, for a suspended
-// family, to have it deleted, which its stewards cannot do themselves while it is suspended. The server refuses every change
-// (and a closed family's every read); this only says so.
+// family, to have it deleted, which its stewards cannot do themselves while it is suspended. A closed family's page also says how
+// to get a copy: the operator makes it read-only for a while, and its stewards download it. The server refuses every change
+// (and a closed family's every read, its backup included); this only says so.
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { DoorClosed, PauseCircle } from 'lucide-react';
@@ -36,7 +37,7 @@ export function ClosedFamilyPage() {
   return (
     <Main className="page ui-notfound-page">
       <NotFound icon={<DoorClosed size={28} />} title={t('operator.closed_title')}
-        text={<>{t('operator.closed_text')} <Contact withAddress="operator.closed_contact" without="operator.closed_no_contact" /></>}>
+        text={<>{t('operator.closed_text')} <Contact withAddress="operator.closed_contact" without="operator.closed_no_contact" /> {t('operator.closed_export')}</>}>
         <div className="ui-state-actions">
           <Link to="/" search={{ families: 'all' }} className="btn">{t('noaccess.your_families')}</Link>
         </div>

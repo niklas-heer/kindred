@@ -318,7 +318,8 @@ export const fetchFamilyDataRequests = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }): Promise<DataRequest[]> => {
     const { requireCan } = await guard();
-    await requireCan(data.tree, 'manage-access');
+    // Only a read: a suspended family's stewards still see what they are asked to answer (by mail, while it is read-only).
+    await requireCan(data.tree, 'manage-access', { read: true });
     return (await reqs()).familyDataRequests(data.tree);
   });
 export const familyDataRequestsQuery = (t: string) => queryOptions({ queryKey: ['data-requests', t], queryFn: () => fetchFamilyDataRequests({ data: { tree: t } }) });
