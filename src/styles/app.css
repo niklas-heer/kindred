@@ -6,17 +6,36 @@
    Text colours: --text for body, --muted for secondary text, --subtle for tertiary text (all three
    reach 4.5:1 on --bg, --panel and --panel-2). --faint is decoration only: rules, rods, icons. */
 
+/* Japanese and Chinese: the theme faces have no CJK glyphs, so each stack ends in the reader's script's own faces before the
+   generic family (system ones only: nothing is downloaded). Set on <html lang>, so a Japanese page draws its kanji in
+   Japanese forms and a Chinese page in Simplified Chinese ones; every other language keeps the plain generic family. */
+:root {
+  --cjk-serif: serif;
+  --cjk-sans: sans-serif;
+}
+:root:lang(ja) {
+  --cjk-serif: 'Hiragino Mincho ProN', 'Yu Mincho', YuMincho, 'Noto Serif JP', 'Noto Serif CJK JP', 'Source Han Serif JP', serif;
+  --cjk-sans: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', YuGothic, Meiryo, 'Noto Sans JP', 'Noto Sans CJK JP', sans-serif;
+}
+:root:lang(zh-Hans) {
+  --cjk-serif: 'Songti SC', 'STSong', SimSun, 'Noto Serif SC', 'Noto Serif CJK SC', 'Source Han Serif SC', serif;
+  --cjk-sans: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', 'Noto Sans CJK SC', sans-serif;
+}
+/* Neither script has italics: an emphasis is not slanted (a browser would fake it). */
+:root:lang(ja) :is(em, i),
+:root:lang(zh-Hans) :is(em, i) { font-style: normal; }
+
 :root,
 [data-theme='codex'] {
-  --font-display: 'Cinzel Variable', 'Trajan Pro', serif;
-  --font-body: 'EB Garamond Variable', Garamond, serif;
-  --font-ui: 'EB Garamond Variable', Garamond, serif;
-  --font-hand: 'IM Fell English', 'EB Garamond Variable', serif;
+  --font-display: 'Cinzel Variable', 'Trajan Pro', var(--cjk-serif);
+  --font-body: 'EB Garamond Variable', Garamond, var(--cjk-serif);
+  --font-ui: 'EB Garamond Variable', Garamond, var(--cjk-serif);
+  --font-hand: 'IM Fell English', 'EB Garamond Variable', var(--cjk-serif);
   /* One face for people's names in every theme: the body serif at 500 (epithets italic at 400).
      --font-title is for dialog, page and section titles; Cinzel here, never for names. */
-  --font-name: 'EB Garamond Variable', Garamond, Georgia, serif;
+  --font-name: 'EB Garamond Variable', Garamond, Georgia, var(--cjk-serif);
   --name-weight: 500;
-  --font-title: 'Cinzel Variable', 'Trajan Pro', serif;
+  --font-title: 'Cinzel Variable', 'Trajan Pro', var(--cjk-serif);
 
   /* Type scale. Garamond and Cinzel small caps sit lower than Inter, so Codex runs about two sizes up.
      1 badges, key caps · 2 captions · 3 controls, labels · 4 body, rows · 5 names, card titles ·
@@ -86,14 +105,14 @@
 }
 
 [data-theme='modern'] {
-  --font-display: 'Inter Variable', system-ui, sans-serif;
-  --font-body: 'Inter Variable', system-ui, sans-serif;
-  --font-ui: 'Inter Variable', system-ui, sans-serif;
-  --font-hand: 'EB Garamond Variable', Georgia, serif;
-  --font-name: 'EB Garamond Variable', Garamond, Georgia, serif;
+  --font-display: 'Inter Variable', system-ui, var(--cjk-sans);
+  --font-body: 'Inter Variable', system-ui, var(--cjk-sans);
+  --font-ui: 'Inter Variable', system-ui, var(--cjk-sans);
+  --font-hand: 'EB Garamond Variable', Georgia, var(--cjk-serif);
+  --font-name: 'EB Garamond Variable', Garamond, Georgia, var(--cjk-serif);
   --name-weight: 500;
   /* Titles in ink: page, dialog and section titles share the names' serif; body and controls stay Inter. */
-  --font-title: 'EB Garamond Variable', Garamond, Georgia, serif;
+  --font-title: 'EB Garamond Variable', Garamond, Georgia, var(--cjk-serif);
   --fs-1: 0.75rem; --fs-2: 0.8125rem; --fs-3: 0.875rem; --fs-4: 1rem; --fs-5: 1.125rem; --fs-6: 1.375rem; --fs-7: 1.625rem; --fs-8: 1.875rem;
 
   --bg: #f4f2ee;
@@ -145,13 +164,13 @@
 }
 
 [data-theme='night'] {
-  --font-display: 'EB Garamond Variable', Garamond, Georgia, serif;
-  --font-body: 'Inter Variable', system-ui, sans-serif;
-  --font-ui: 'Inter Variable', system-ui, sans-serif;
-  --font-hand: 'EB Garamond Variable', Georgia, serif;
-  --font-name: 'EB Garamond Variable', Garamond, Georgia, serif;
+  --font-display: 'EB Garamond Variable', Garamond, Georgia, var(--cjk-serif);
+  --font-body: 'Inter Variable', system-ui, var(--cjk-sans);
+  --font-ui: 'Inter Variable', system-ui, var(--cjk-sans);
+  --font-hand: 'EB Garamond Variable', Georgia, var(--cjk-serif);
+  --font-name: 'EB Garamond Variable', Garamond, Georgia, var(--cjk-serif);
   --name-weight: 500;
-  --font-title: 'EB Garamond Variable', Garamond, Georgia, serif;
+  --font-title: 'EB Garamond Variable', Garamond, Georgia, var(--cjk-serif);
   --fs-1: 0.75rem; --fs-2: 0.8125rem; --fs-3: 0.875rem; --fs-4: 1rem; --fs-5: 1.25rem; --fs-6: 1.5rem; --fs-7: 1.75rem; --fs-8: 2rem;
 
   --bg: #13161d;
