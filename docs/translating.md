@@ -16,7 +16,7 @@ families](hosting-many-families.md#languages)).
 | --- | --- |
 | English, the source and the list of keys | `src/lib/i18n/areas/<area>.ts` (`export const en`) |
 | Your language, one file per area | `src/lib/i18n/locales/<locale>/<area>.ts` (`export default { … }`) |
-| The language's facts: native name, Intl locale, plural categories, address, short months | `src/lib/i18n/languages.ts` |
+| The language's facts: native name, Intl locale, plural categories, address, short months, date order, speech tag | `src/lib/i18n/languages.ts` |
 | Kindred's terms with their meaning | `src/lib/i18n/glossary/en.json` |
 | How your language renders them | `src/lib/i18n/glossary/<locale>.json` |
 | Kinship words ("your great-aunt") | `src/lib/i18n/kinship/<locale>.ts`, answers in `kinship/cases.ts` |
@@ -136,13 +136,45 @@ complete. `kinship/cases.ts` holds the cases every module answers, as `[label, y
   every browser: check yours against your language's usual abbreviations in a date ("15 sept. 2020"). "About 1900" and
   "never" are keys (`date.circa`, `time.never`).
 - Ordinals: `ORDINAL_FORMS` gives a form per ordinal category (`Intl.PluralRules` with `type: "ordinal"`), `{n}` the number.
-- The date picker writes day, month and year as numbers, day first in every language, with the separator in `SEPARATOR`
-  (`src/components/ui/DatePicker.tsx`). Japanese and Chinese write the year first; the picker does not yet.
-- Some vocabularies are written inline for English, German and Afrikaans and fall back to English for other languages until
-  someone extends them: faiths (`src/lib/faiths.ts`), colours and favourites (`src/lib/favourites.ts`), the heraldry
-  library's charge names (`ChargeNames`), occupations (`src/lib/occupations.ts`). They are suggestion lists; a reader can
-  always type their own words. They are not part of the check.
+- The date picker writes day, month and year as numbers in the order and with the separator the language says in
+  `languages.ts` (`dateOrder`: `dmy`, or `ymd` for Japanese and Chinese; `dateSeparator`). A test compares them with
+  `Intl`. A date typed or pasted is read in that order too (`8.8.1953`, `1953/8/8`, `1953年8月8日`), and the words that
+  mean "about" before a date (`c.`, `ca.`, `um`) are the dictionary list `date.aboutWords`.
+- Vocabularies are dictionary areas like any other, so your file lists what is missing and `tsc` fails on a gap once the
+  language is complete: faiths (`faiths.ts`: `faith.tradition.*`, `faith.name.*`), colours and the usual favourites
+  (`favourites.ts`), occupations (`occupations.ts`), the heraldry library's charges (`charge-library.ts`) and the first
+  charges and tinctures (`heraldry.ts`). They are suggestion lists, so a reader can always type their own words, and the
+  check holds them to "every key given" only, not to the prose checks (a name equal to the English is often right).
+  Their search words (aliases and keywords, in `src/lib/faiths.ts`, `favourites.ts`, `occupations.ts` and
+  `scripts/charge-library.tsv`) are language-neutral; add a spelling there only when your readers type one the names
+  do not cover.
+  - An occupation with a masculine and a feminine form (French, Spanish, Italian, Portuguese, Polish, German) is written
+    `"masculine|feminine"` (`"Bäcker|Bäckerin"`); one without writes a single form. The reader sees the form for the
+    person's sex, and the pair "masculine/feminine" (German: "Bäcker:in") when it is not known.
+  - `favourites.ts` also holds the words that label a favourite colour (`favourite.colourLabels`, "colour, favourite
+    colour") and the words that join colours (`favourite.joiners`, "and, or"), comma-separated: a family's own "blue and
+    green" or "Farbe" gets swatches. `recipes.ts` holds `recipes.unitWords`, the units people write after an amount in
+    a pasted ingredient list ("tbsp, cup, pinch"), comma-separated, in lower case.
 - The assistant answers in `assistant` from `languages.ts` ("French, addressing the reader with \"tu\"").
+
+## The files a language fills
+
+Everything a new language needs, so none is forgotten. `node scripts/i18n-check.ts <locale>` lists the missing keys and
+which file of yours each belongs in; `node scripts/i18n-scaffold.ts` writes an empty file for any area you lack.
+
+1. `src/lib/i18n/glossary/<locale>.json`: how your language renders Kindred's terms (do this first).
+2. `src/lib/i18n/locales/<locale>/<area>.ts`, one file per area of `src/lib/i18n/areas/` (57 of them), including the
+   vocabularies: `faiths.ts`, `occupations.ts`, `favourites.ts`, `charge-library.ts`, the charge, tincture and shield
+   names in `heraldry.ts`, the weekly questions in `today-questions.ts`, the recipe units in `recipes.ts`, and the
+   words of dates and times in `common.ts`. Never `locales/<locale>/index.ts`: the scaffold writes it.
+3. `src/lib/i18n/kinship/<locale>.ts` (replace the stub) and your answer in every case of `kinship/cases.ts`.
+4. `TITLE_WORDS` in `src/lib/i18n/titles.ts` (your language on every word) and your line in `ORDINAL_FORMS` in
+   `src/lib/i18n/dictionary.ts`.
+5. Your entry in `src/lib/i18n/languages.ts`: check `shortMonths`, `dateOrder` and `dateSeparator`, `speech` (the tag
+   the browser listens in), `formal` (the formal pronoun the app avoids, which the assistant is told), `jobForms`
+   (a gendered job, "masculine/feminine", if the language has one), then `complete: true` when the check is clean.
+6. Nothing for the emoji names (generated), the search words of the vocabularies (language-neutral), or the campaign's
+   invented names (never translated).
 
 ## Adding a language that is not listed
 

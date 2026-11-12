@@ -308,11 +308,3 @@ export function countCategories(locale: Locale): PluralCategory[] {
   for (let n = 0; n <= 1000; n++) found.add(rules.select(n) as PluralCategory);
   return PLURAL_CATEGORIES.filter((c) => found.has(c));
 }
-
-/** The languages the app's inline vocabularies are written in (faiths, colours, charges, occupations, AI instructions). */
-export type VocabularyLocale = "en" | "de" | "af";
-/**
- * The language a vocabulary written inline for English, German and Afrikaans uses for a reader: theirs, else English. A
- * translation lane extends those vocabularies (docs/translating.md, "Outside the dictionary").
- */
-export const vocabularyLocale = (locale: Locale): VocabularyLocale => (locale === "de" || locale === "af" ? locale : "en");

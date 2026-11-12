@@ -7,7 +7,7 @@ import { LANGUAGES, LOCALES, type Locale, type PluralCategory } from "./language
 import type { Message, Vars } from "./types.ts";
 
 export { LOCALES, isLocale, type Locale, type Message, type Plural, type Vars } from "./types.ts";
-export { COMPLETE_LOCALES, LANGUAGES, negotiateLocale, offeredLocales, vocabularyLocale, type VocabularyLocale } from "./languages.ts";
+export { COMPLETE_LOCALES, LANGUAGES, negotiateLocale, offeredLocales } from "./languages.ts";
 export { kinshipLabel, yourKinship, yourKinshipParts, type KinshipView } from "./kinship.ts";
 export { localizeTitle } from "./titles.ts";
 

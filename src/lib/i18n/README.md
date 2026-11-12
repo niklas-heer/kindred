@@ -16,6 +16,7 @@ and other family-written text are never translated. Translators start at [docs/t
 | `dictionary.ts` | Merges English with each language's table, types `Key`, and holds `translate`, `formatDate`, `relativeTime`, `ordinal`, `translateMessage`, `missingKeys`, `pluralCategory`. No React, so the test runner loads it. |
 | `catalog.ts` | The list of area modules (`AREAS`) and every other language's table, for the server and the test runner. Adding an area means adding it here. |
 | `catalog.client.ts`, `browser-tables.ts` | The browser's catalog. `vite.config.ts` puts it in place of `catalog.ts` in the client build: English ships with the app, and each other language is one generated chunk that `loadLocale` fetches before hydration (`src/router.tsx`) and before the picker switches. |
+| `vocabularies` | Faiths, colours, favourite words, occupations and the heraldry library's charges are dictionary areas (`faiths`, `favourites`, `occupations`, `charge-library`): `faith.name.<id>`, `colour.<id>`, `occupation.<id>`, `heraldry.library.<id>`. Their ids and search words are in `src/lib/faiths.ts`, `favourites.ts`, `occupations.ts` and `scripts/charge-library.tsv`. Code that matches what a reader typed uses `namesInEveryLanguage(key)` (the languages the page has) and rebuilds on `tablesVersion()`; `check.ts` holds these keys (`VOCABULARY_KEY`) to missing and extra only. |
 | `check.ts`, `glossary/` | The translation checks (`node scripts/i18n-check.ts`, and the tests for every complete language) and the glossary of Kindred's terms (`en.json`) with each language's rendering. |
 | `index.tsx` | React: `I18nProvider` and `useT()`. It re-exports `dictionary.ts`. |
 | `../../components/LanguagePicker.tsx` | The language picker (a flag and a list of native names) and `LanguageChoices`, the phone's row. |
@@ -68,7 +69,7 @@ Stamboom (the phone tab says „Boom“).
 | `ai` | The assistant, AI settings, proposals, portrait and arms suggestions (`ai.*`) |
 | `exchange` | Import and export: GEDCOM and the Markdown archive (`exchange.*`) |
 | `houses` | Houses, succession, arms and their chronicle |
-| `heraldry` | Coats of arms and the heraldry designer |
+| `heraldry`, `charge-library` | Coats of arms and the heraldry designer; the names of the library's 590 charges |
 | `portrait` | The character editor and drawn portraits |
 | `access` | Sign-in, passkeys, invitations, roles, the account menu, not-found and no-access states |
 | `setup` | First-time setup of a server |
@@ -80,6 +81,7 @@ Stamboom (the phone tab says „Boom“).
 | `history` | The change history: the History page, a person's history, "What's new" and the weekly push (`history.*`) |
 | `feed` | The family's feed on Today: messages, the composer, the stream's lines, the strip of cards on a phone, the push about a new message (`feed.*`) |
 | `recipes` | Recipes: the Cookbook, a recipe's page, cooking mode and the recipe form (`recipes.*`) |
+| `faiths`, `favourites`, `occupations` | The vocabularies: faiths (`faith.tradition.*`, `faith.name.*`), colours and favourite words (`colour.*`, `favourite.*`), occupations (`occupation.*`) |
 | `atlas`, `almanac`, `chronicle`, `contacts`, `needed` | Empty until the translation sweep moves those pages' text here |
 
 ## Language choice
@@ -103,12 +105,15 @@ one more chunk when the page was rendered in it or the reader picks it. The serv
 
 ## Occupations (`src/lib/occupations.ts`)
 
-Each occupation has a stable `id`, an English label, German masculine and feminine forms (`de.m`, `de.f`), an
-Afrikaans label and search keywords. A person keeps the text the family typed in `person.occupation` and, when it
-names a vocabulary entry, the entry's id in `person.occupation_code` (tree migration `0006_occupation`).
+Each occupation has a stable `id`, search keywords, and a label per language in the dictionary (`occupation.<id>` in
+`areas/occupations.ts` and each language's `occupations.ts`). A language with a masculine and a feminine form writes
+`"masculine|feminine"` ("Bäcker|Bäckerin"); one without writes a single form. A person keeps the text the family typed in
+`person.occupation` and, when it names a vocabulary entry, the entry's id in `person.occupation_code` (tree migration
+`0006_occupation`).
 
-- With a code, every reader sees the entry in their language. German uses the form for the person's sex: "Bäcker"
-  for `m`, "Bäckerin" for `f`, and "Bäcker:in" for `x` or unknown.
+- With a code, every reader sees the entry in their language. A language with two forms gives the one for the person's
+  sex: "Bäcker" for `m`, "Bäckerin" for `f`, and for `x` or unknown the pair (German "Bäcker:in", another language
+  "masculine/feminine").
 - Without a code, the text is shown exactly as written. The editor suggests entries as you type, in any language.
 - `scripts/map-occupations.ts` gives codes to existing text, once, after the migration. It is a one-off script rather
   than migration-on-open, because the matching needs the vocabulary's labels and the migrations are SQL that runs on
