@@ -16,7 +16,8 @@ export const Route = createFileRoute('/api/export/$tree')({
 
         const [{ requireCan }, { AuthError }] = await Promise.all([import('~/lib/auth/guard.server'), import('~/lib/auth/errors')]);
         try {
-          await requireCan(params.tree, 'edit-person');
+          // Only a read: a read-only family's stewards download it too (before its deletion, src/lib/lifecycle/).
+          await requireCan(params.tree, 'edit-person', { read: true });
         } catch (e) {
           if (e instanceof AuthError) return text(e.message, e.status);
           throw e;
