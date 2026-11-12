@@ -151,6 +151,7 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 | `KINDRED_JOBS` | empty | `off` stops the daily run at 06:00 UTC for reminders, archives and enabled background AI tasks. Any other value keeps it on. |
 | `KINDRED_TRUSTED_PROXIES` | empty (0) | How many reverse proxies stand in front of the server: `1` for Caddy alone, as in [HTTPS with Caddy](#https-with-caddy). The limits on signing in, share links and invitations then count the visitor's address that the proxy passes on (X-Forwarded-For, counted from the right, so a visitor cannot write their own). Empty or `0`: the header is never believed. Set it only when every request reaches the server through that many proxies. Not used on Cloudflare. |
 | `KINDRED_JURISDICTION` | empty | Cloudflare Workers only: `eu` keeps the families' Durable Objects in the EU, chosen once before the first family ([deploy-cloudflare.md](deploy-cloudflare.md#one-click-deploy)). Node and Docker ignore it: their data is where the server is. |
+| `KINDRED_TURNSTILE_SITE_KEY`, `KINDRED_TURNSTILE_SECRET` | empty | Cloudflare Turnstile on the public request forms (`/request`, `/privacy-request`), against bots. Both or neither: the site key goes to the browser, the secret stays on the server, which asks Cloudflare whether each form's token is good. Without them the forms rely on a hidden field and a limit per network. Only for a server that hosts families for others; see [hosting-many-families.md](hosting-many-families.md). |
 | `KINDRED_DEMO` | empty | `1` makes the server a public, read-only demo of invented families. Leave it empty for your family. See [A public demo](#a-public-demo). |
 | `KINDRED_DEMO_ORIGIN` | `http://localhost:4902` | Compose's demo profile only: the `KINDRED_ORIGIN` of its demo service. |
 | `PORT` | `4901` | The port the server listens on. Docker: the image uses 4901, and Compose maps it. |
@@ -606,8 +607,8 @@ with `No such built-in module: node:sqlite` in the log. Kindred does not have a 
 ## More than one family
 
 One server can hold several families, each with its own members, pictures and settings. A steward of any family on the server
-(or the server's first account) opens **Manage families** in the account menu, or the link under the family cards on the home
-page, and makes another one: its name, its address (`/<id>`), an optional tagline and the theme it opens in. The maker becomes
+(or an operator: the server's first account is one) opens **Manage families** in the account menu, or the link under the family
+cards on the home page, and makes another one: its name, its address (`/<id>`), an optional tagline and the theme it opens in. The maker becomes
 its steward and is asked to add themselves first, as after setup; nobody else sees the new family until they are invited.
 
 - The address is lower-case letters, digits and single dashes, 2 to 40 characters, starting with a letter. Words the app uses
@@ -625,6 +626,11 @@ its steward and is asked to add themselves first, as after setup; nobody else se
   visits, the AI settings, chats and spending, statistics, reminder subscriptions, join requests (and the pending accounts of those
   who asked) and feedback. The accounts of its members stay, for their other families. The server's last family, and the family
   `KINDRED_DEFAULT_TREE` names, cannot be deleted. **It cannot be undone**: only a backup brings it back.
+
+Who may make a family is a setting of the server: stewards and operators (the default, as above), operators only, or anyone
+may ask and an operator approves. It is in the **Operator console**, with the rest of what you need to host families for
+other people (storage caps, a waiting list, data requests, legal pages): see [hosting-many-families.md](hosting-many-families.md).
+A server run for one family needs none of it.
 
 If the server stops in the middle of making or deleting a family, do it again: a family that was left with its details but
 no people and no members is finished by making it again, and a deletion that stopped is finished by deleting again (or forgotten

@@ -43,7 +43,8 @@ both what the browser shows and what the server allows.
 | Turn the Campaign on or off | Steward |
 | Change the family's name, tagline and theme | Steward |
 | Delete the family (with its address typed and a passkey confirmation) | Steward |
-| Make another family on the server | Steward of any family there, or the server's first account |
+| Make another family on the server | By the server's `family_creation`: a steward of any family there or an operator (the default), operators only, or an operator approving someone's request ([the operator](#the-operator)) |
+| See data requests that name the family, and mark one answered | Steward |
 | Open Today, read the week's answers, take the daily quiz | Viewer |
 | Answer the question of the week (an answer is a memory) | Contributor |
 | Change or skip this week's question; switch the daily quiz off | Steward |
@@ -53,9 +54,12 @@ both what the browser shows and what the server allows.
 Hiding a button is never the only protection. Every server function and server route calls `requireMember` or
 `requireCan` before it reads or writes, and answers 401 when signed out and 403 when the role is too low.
 
+A family the server's operator **suspended** is read-only for every member, whatever their role: they read everything under a
+banner, and every change is refused (403) until the operator lets it be used again. Its stewards cannot delete it meanwhile.
+
 ### How people get a role
 
-- **The first account** is steward of every family that exists at setup.
+- **The first account** is steward of every family that exists at setup, and the server's [operator](#the-operator).
 - **An invitation** names the family, the role and, optionally, an email address, and it expires. The invited person
   makes a passkey (or, on a Cloudflare Access installation, signs in there) and joins with that role. An invitation can be revoked before it is used.
 - **Access** (the family's Access page) shows the members and their roles. Stewards can change a role or remove a
@@ -66,6 +70,30 @@ Hiding a button is never the only protection. Every server function and server r
   unlinks them, and changing the link asks again). Editors and stewards can do both for anyone, so their own links need no
   confirmation. Nobody else can save a drawn portrait: the editor still opens for a member, to try a look on, and says
   that it will not be kept.
+
+## The operator
+
+The operator runs the server, for families that may not be theirs ([hosting-many-families.md](hosting-many-families.md)). It is a
+role of the server, stored on the account, and has nothing to do with any family's roles:
+
+- **Who.** The server's first account (on an install that already had accounts, the earliest one, by migration 0034). An
+  operator can make another account an operator (by its email) and step down, but the last operator cannot.
+- **What it gives.** The **Operator console** (`/operator`, in the account menu): every family's name, address, when it was made,
+  how many members it has, its stewards' names and emails (for support), the storage it uses against its cap, when a member last
+  opened it, and whether it is suspended; the waiting list of people asking for a family; data requests; the server's settings
+  and legal texts; the operators; and the log of what operators did.
+- **What it does not give.** No family's records: not its people, stories, photos, research or history. Being an operator passes
+  no family check (`requireMember`, `requireReader`, `requireCan`): a family's pages and server functions answer an operator who is
+  not a member exactly as anyone else who is not (403). A family the operator makes for someone has no members until the person
+  invited as its steward joins; the operator is not added to it. To see a family's tree, an operator must be invited like anyone.
+- **What it can do to a family.** Make one with a one-time invitation for its first steward, make a new link while nobody has
+  joined, suspend it (read-only for its members) and let it be used again, set its storage cap, recount its storage, and delete it
+  (its address typed and a passkey confirmation, as for its stewards; the operator cannot export it first, so they ask its stewards
+  to). Every one of these, and every change to the settings and the operators, is written to the log: who, what, when, which
+  family. A demo has no operator, and the console writes nothing during a steward's "View as" preview.
+- **Requests.** Anyone may send a data request (`/privacy-request`): access to, correction or deletion of data about them. It reaches
+  the operator, and the stewards of the family it names, on their Access page. Kindred sends no email: the operator and the stewards
+  answer by their own mail and mark it answered.
 
 ## Guests (a family share link)
 

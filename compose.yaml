@@ -48,6 +48,10 @@ services:
       # 1 with the https profile: Caddy is the one proxy in front, and the rate limits then count each visitor's own
       # address rather than Caddy's. Leave it empty without Caddy.
       KINDRED_TRUSTED_PROXIES: ${KINDRED_TRUSTED_PROXIES:-}
+      # Cloudflare Turnstile on the public request forms of a server that hosts families for others (both or neither;
+      # docs/hosting-many-families.md). Empty: the forms rely on a hidden field and a limit per network.
+      KINDRED_TURNSTILE_SITE_KEY: ${KINDRED_TURNSTILE_SITE_KEY:-}
+      KINDRED_TURNSTILE_SECRET: ${KINDRED_TURNSTILE_SECRET:-}
     ports:
       # Only this machine can reach the app directly. With the https profile, Caddy is the way in.
       # For plain-HTTP use on a home network, change this to "4901:4901" and read docs/self-host.md first.

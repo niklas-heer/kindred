@@ -189,6 +189,8 @@ invites the others.
 | `KINDRED_DEMO` | variable | `1` makes the Worker a public, read-only demo of invented families. Leave it unset for your family. See [A public demo](#a-public-demo). |
 | `KINDRED_ADDRESS_LOOKUP` | variable | The address box suggests whole addresses as an editor types, from OpenStreetMap through Photon, asked by the Worker. On by default; `off` keeps the offline town suggestions only. |
 | `KINDRED_HISTORY_YEARS` | variable | How many years of each family's change history the daily run keeps. Default `3`; `0` keeps it for ever. |
+| `KINDRED_TURNSTILE_SITE_KEY` | variable | Cloudflare Turnstile's site key, for the public request forms (`/request`, `/privacy-request`) of a server that hosts families for others. Make a widget in the Cloudflare dashboard (Turnstile, free) for your Worker's host name. Needs the secret too. See [hosting-many-families.md](hosting-many-families.md). |
+| `KINDRED_TURNSTILE_SECRET` | secret | Turnstile's secret key: the Worker asks Cloudflare whether a form's token is good. Without both, the forms rely on a hidden field and a limit per network. |
 
 ```sh
 npx wrangler secret put KINDRED_SECRET
