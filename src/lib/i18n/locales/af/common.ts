@@ -15,6 +15,7 @@ export default {
   "date.mm": "MM",
   "date.yyyy": "JJJJ",
   "date.circa": "ong. {date}",
+  "date.aboutWords": "ong., ongeveer",
   "time.never": "nooit",
   "date.openCalendar": "Maak die kalender oop",
   "date.chooseDate": "Kies ’n datum",

@@ -14,6 +14,7 @@ export default {
   "date.mm": "MM",
   "date.yyyy": "JJJJ",
   "date.circa": "ca. {date}",
+  "date.aboutWords": "ca., circa, ungef., um",
   "time.never": "nie",
   "date.openCalendar": "Kalender öffnen",
   "date.chooseDate": "Datum wählen",

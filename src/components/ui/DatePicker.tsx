@@ -6,8 +6,9 @@
 //   <DatePicker label="From" value={from} onChange={setFrom} precisions={['year']} />
 //
 // - Precision: "Exact day", "Month" or "Year only" (`precisions` limits the choice), and an "About" switch for `~`.
-// - Segments: day, month and year in the reader's order, day first everywhere. English names the month in a list;
-//   German and Afrikaans type it as a number, as the app writes dates. Digits move the focus on; a separator does too;
+// - Segments: day, month and year in the reader's order (`dateOrder` of the language: day first, but year first in
+//   Japanese and Chinese). English names the month in a list; every other language types it as a number, as the app writes
+//   dates, with the language's separator. Digits move the focus on; a separator does too;
 //   a whole date pasted or typed into any segment ("8.8.1953", "8. August 1953", "1953-08-08") fills them all. ↑/↓ change
 //   a segment, Shift+↑/↓ or PageUp/PageDown move the year by ten.
 // - Calendar: opens under the field, and as a bottom sheet on a phone. Month is a list, the year a grid of twelve that
@@ -19,11 +20,12 @@
 //   form refuses to save it, while the picker keeps what is typed on screen.
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import {
-  useEffect, useId, useLayoutEffect, useRef, useState, type ClipboardEvent, type CSSProperties, type KeyboardEvent,
+  Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type ClipboardEvent, type CSSProperties, type KeyboardEvent,
   type ReactNode, type Ref,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { useT, type Locale } from '~/lib/i18n';
+import { LANGUAGES, useT, type Locale } from '~/lib/i18n';
+import type { Language } from '~/lib/i18n/languages';
 import {
   birthdayInfo, composeParts, daysIn, displayDate, emptyParts, isoOfDate, monthNames, parseTyped, partsForValue,
   partsIssue, partsOfDay, periodOf, storedIssue, weekdayNames, withPrecision, type DateIssue, type DateParts, type Precision,
@@ -73,8 +75,7 @@ export interface DatePickerProps {
 type Seg = 'day' | 'month' | 'year';
 const ALL: readonly Precision[] = ['day', 'month', 'year'];
 const pad2 = (n: number) => String(n).padStart(2, '0');
-/** The separator written between the numeric segments; English writes the month as a name, so none. */
-const SEPARATOR: Record<Locale, string> = { en: '', de: '.', af: '/', es: '/', fr: '/', it: '/', nl: '-', pl: '.', 'pt-BR': '/', ja: '/', 'zh-Hans': '/' };
+const SEGMENT: Record<string, Seg> = { d: 'day', m: 'month', y: 'year' };
 /** Phone width: the calendar becomes a bottom sheet. Matches the stylesheet. */
 const PHONE = '(max-width: 600px)';
 
@@ -147,7 +148,9 @@ export function DatePicker({
     day: parts.precision === 'day',
     month: parts.precision !== 'year',
   };
-  const order: Seg[] = [...(shows.day ? (['day'] as Seg[]) : []), ...(shows.month ? (['month'] as Seg[]) : []), 'year'];
+  // The language's order (day-month-year, or year-month-day), without the segments the precision hides.
+  const lang: Language = LANGUAGES[locale];
+  const order: Seg[] = [...lang.dateOrder].map((c) => SEGMENT[c]).filter((name) => name === 'year' || shows[name]);
   const root = useRef<HTMLDivElement>(null);
   const segments = useRef<HTMLDivElement>(null);
   const focusSeg = (name: Seg) => requestAnimationFrame(() => {
@@ -160,8 +163,11 @@ export function DatePicker({
     const digits = raw.replace(/\D/g, '').slice(0, name === 'year' ? 4 : 2);
     emit({ ...parts, [name]: digits } as DateParts);
     const separated = raw.length > digits.length && digits.length > 0;
-    if (name === 'day' && (digits.length === 2 || (digits.length === 1 && Number(digits) > 3) || separated)) focusSeg(shows.month ? 'month' : 'year');
-    if (name === 'month' && (digits.length === 2 || (digits.length === 1 && Number(digits) > 1) || separated)) focusSeg('year');
+    const next = order[order.indexOf(name) + 1];
+    if (!next) return;
+    if (name === 'day' && (digits.length === 2 || (digits.length === 1 && Number(digits) > 3) || separated)) focusSeg(next);
+    if (name === 'month' && (digits.length === 2 || (digits.length === 1 && Number(digits) > 1) || separated)) focusSeg(next);
+    if (name === 'year' && digits.length === 4) focusSeg(next);
   };
   const padSegment = (name: 'day' | 'month') => {
     if (parts[name].length === 1) emit({ ...parts, [name]: pad2(Number(parts[name])) });
@@ -476,7 +482,6 @@ export function DatePicker({
     </>
   ) : null;
 
-  const sep = SEPARATOR[locale];
   return (
     <div ref={root} className={`field dp ${className}${issue || error ? ' invalid' : ''}${disabled ? ' disabled' : ''}`} data-precision={parts.precision}>
       <span id={labelId}>{label}{required && <span className="dp-req" aria-hidden> *</span>}</span>
@@ -500,82 +505,50 @@ export function DatePicker({
           onFocus={() => setFocused(true)}
           onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}
         >
-          {shows.day && (
-            <>
-              <input
-                ref={inputRef}
-                data-seg="day"
-                className="input dp-seg dp-d"
-                inputMode="numeric"
-                autoComplete="off"
-                autoFocus={autoFocus}
-                disabled={disabled}
-                maxLength={3}
-                placeholder={t('date.dd')}
-                aria-label={t('date.day')}
-                aria-invalid={issue ? true : undefined}
-                value={parts.day}
-                onChange={(e) => typeSegment('day', e.target.value)}
-                onBlur={() => padSegment('day')}
-                onKeyDown={onSegKey('day')}
-                onPaste={onPaste}
-                onFocus={(e) => e.currentTarget.select()}
-              />
-              <span className="dp-sep" aria-hidden>{sep}</span>
-            </>
-          )}
-          {shows.month && (locale === 'en' ? (
-            <span className="dp-month-wrap" data-seg="month">
-              <Select
-                size="sm"
-                aria-label={t('date.month')}
-                value={isMonthNumber(parts.month) ? pad2(Number(parts.month)) : ''}
-                placeholder={t('date.month')}
-                disabled={disabled}
-                options={monthOptions}
-                onChange={(v) => { emit({ ...parts, month: v }); focusSeg('year'); }}
-                className="dp-month-select"
-              />
-            </span>
-          ) : (
-            <>
-              <input
-                data-seg="month"
-                className="input dp-seg dp-m"
-                inputMode="numeric"
-                autoComplete="off"
-                disabled={disabled}
-                maxLength={3}
-                placeholder={t('date.mm')}
-                aria-label={t('date.month')}
-                aria-invalid={issue ? true : undefined}
-                value={parts.month}
-                onChange={(e) => typeSegment('month', e.target.value)}
-                onBlur={() => padSegment('month')}
-                onKeyDown={onSegKey('month')}
-                onPaste={onPaste}
-                onFocus={(e) => e.currentTarget.select()}
-              />
-              <span className="dp-sep" aria-hidden>{sep}</span>
-            </>
-          ))}
-          <input
-            data-seg="year"
-            ref={shows.day ? undefined : inputRef}
-            className="input dp-seg dp-y"
-            inputMode="numeric"
-            autoComplete="off"
-            disabled={disabled}
-            maxLength={4}
-            placeholder={yearHint ?? t('date.yyyy')}
-            aria-label={t('date.year')}
-            aria-invalid={issue ? true : undefined}
-            value={parts.year}
-            onChange={(e) => typeSegment('year', e.target.value)}
-            onKeyDown={onSegKey('year')}
-            onPaste={onPaste}
-            onFocus={(e) => e.currentTarget.select()}
-          />
+          {order.map((name, i) => {
+            const first = i === 0;
+            const sep = i < order.length - 1 ? <span className="dp-sep" aria-hidden>{lang.dateSeparator}</span> : null;
+            if (name === 'month' && lang.monthList) {
+              return (
+                <span key={name} className="dp-month-wrap" data-seg="month">
+                  <Select
+                    size="sm"
+                    aria-label={t('date.month')}
+                    value={isMonthNumber(parts.month) ? pad2(Number(parts.month)) : ''}
+                    placeholder={t('date.month')}
+                    disabled={disabled}
+                    options={monthOptions}
+                    onChange={(v) => { emit({ ...parts, month: v }); focusSeg(order[i + 1] ?? 'year'); }}
+                    className="dp-month-select"
+                  />
+                </span>
+              );
+            }
+            return (
+              <Fragment key={name}>
+                <input
+                  ref={first ? inputRef : undefined}
+                  data-seg={name}
+                  className={`input dp-seg dp-${name[0]}`}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  autoFocus={first && autoFocus}
+                  disabled={disabled}
+                  maxLength={name === 'year' ? 4 : 3}
+                  placeholder={name === 'year' ? (yearHint ?? t('date.yyyy')) : t(name === 'day' ? 'date.dd' : 'date.mm')}
+                  aria-label={t(name === 'day' ? 'date.day' : name === 'month' ? 'date.month' : 'date.year')}
+                  aria-invalid={issue ? true : undefined}
+                  value={parts[name]}
+                  onChange={(e) => typeSegment(name, e.target.value)}
+                  onBlur={name === 'year' ? undefined : () => padSegment(name)}
+                  onKeyDown={onSegKey(name)}
+                  onPaste={onPaste}
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+                {sep}
+              </Fragment>
+            );
+          })}
         </div>
         <button
           ref={trigger}

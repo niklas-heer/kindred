@@ -33,6 +33,15 @@ export interface Language {
   assistant: string;
   /** The formal pronoun the app never uses for the reader where the language has one ("Sie", "u", "vous"); a prompt names it. */
   formal?: string;
+  /**
+   * How the app writes a numeric date in the date picker: the order of day (d), month (m) and year (y), and the separator
+   * between the segments. Japanese and Chinese write the year first. A test compares them with `Intl` (Afrikaans is the
+   * app's own choice: day first, where `Intl` says year first).
+   */
+  dateOrder: "dmy" | "ymd" | "mdy";
+  dateSeparator: string;
+  /** English names the month in a list; every other language types it as a number, as the app writes dates. */
+  monthList?: boolean;
   /** The language tag the browser's speech recognition listens in (dictating to the assistant). */
   speech: string;
   /**
@@ -62,6 +71,9 @@ export const LANGUAGES = {
     address: "you",
     assistant: "English",
     speech: "en-US",
+    dateOrder: "dmy",
+    dateSeparator: "",
+    monthList: true,
     accepts: ["en"],
     shortMonths: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
     complete: true,
@@ -75,6 +87,8 @@ export const LANGUAGES = {
     address: "du",
     assistant: "German, in the informal \"du\" form",
     speech: "de-DE",
+    dateOrder: "dmy",
+    dateSeparator: ".",
     formal: "Sie",
     jobForms: "Bäcker/Bäckerin",
     accepts: ["de"],
@@ -90,6 +104,8 @@ export const LANGUAGES = {
     address: "jy",
     assistant: "Afrikaans, in the informal \"jy\" form",
     speech: "af-ZA",
+    dateOrder: "dmy",
+    dateSeparator: "/",
     formal: "u",
     accepts: ["af"],
     shortMonths: ["Jan.", "Feb.", "Mrt.", "Apr.", "Mei", "Jun.", "Jul.", "Aug.", "Sep.", "Okt.", "Nov.", "Des."],
@@ -104,6 +120,8 @@ export const LANGUAGES = {
     address: "tú",
     assistant: "Spanish, addressing the reader with \"tú\"",
     speech: "es-ES",
+    dateOrder: "dmy",
+    dateSeparator: "/",
     formal: "usted",
     jobForms: "panadero/panadera",
     accepts: ["es"],
@@ -119,6 +137,8 @@ export const LANGUAGES = {
     address: "tu",
     assistant: "French, addressing the reader with \"tu\"",
     speech: "fr-FR",
+    dateOrder: "dmy",
+    dateSeparator: "/",
     formal: "vous",
     jobForms: "boulanger/boulangère",
     accepts: ["fr"],
@@ -134,6 +154,8 @@ export const LANGUAGES = {
     address: "tu",
     assistant: "Italian, addressing the reader with \"tu\"",
     speech: "it-IT",
+    dateOrder: "dmy",
+    dateSeparator: "/",
     formal: "Lei",
     jobForms: "fornaio/fornaia",
     accepts: ["it"],
@@ -149,6 +171,8 @@ export const LANGUAGES = {
     address: "je/jij",
     assistant: "Dutch, addressing the reader with \"je\" and \"jij\"",
     speech: "nl-NL",
+    dateOrder: "dmy",
+    dateSeparator: "-",
     formal: "u",
     accepts: ["nl"],
     shortMonths: ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"],
@@ -163,6 +187,8 @@ export const LANGUAGES = {
     address: "ty",
     assistant: "Polish, addressing the reader with \"ty\"",
     speech: "pl-PL",
+    dateOrder: "dmy",
+    dateSeparator: ".",
     jobForms: "piekarz/piekarka",
     accepts: ["pl"],
     shortMonths: ["sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wrz", "paź", "lis", "gru"],
@@ -177,6 +203,8 @@ export const LANGUAGES = {
     address: "você",
     assistant: "Brazilian Portuguese, addressing the reader with \"você\"",
     speech: "pt-BR",
+    dateOrder: "dmy",
+    dateSeparator: "/",
     jobForms: "padeiro/padeira",
     // The only Portuguese Kindred has, so a reader in Portugal gets it too rather than English.
     accepts: ["pt"],
@@ -192,6 +220,8 @@ export const LANGUAGES = {
     address: "です/ます",
     assistant: "Japanese, in the polite です/ます form",
     speech: "ja-JP",
+    dateOrder: "ymd",
+    dateSeparator: "/",
     accepts: ["ja"],
     // A Japanese date writes its month as a number ("9月"), so these are never put into one; kept for completeness.
     shortMonths: ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"],
@@ -206,6 +236,8 @@ export const LANGUAGES = {
     address: "你",
     assistant: "Simplified Chinese, addressing the reader with 你",
     speech: "zh-CN",
+    dateOrder: "ymd",
+    dateSeparator: "/",
     // Simplified Chinese: mainland China, Singapore, Malaysia, and a bare "zh". Taiwan, Hong Kong and Macau read Traditional.
     accepts: ["zh"],
     not: ["zh-tw", "zh-hk", "zh-mo", "zh-hant"],

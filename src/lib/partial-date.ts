@@ -3,7 +3,8 @@
 // (day, month, year, a precision and the about flag) and turns them into the stored string; the reverse
 // reads a stored string back into parts. Free text ("8. August 1953", "08.08.1953", "c. 1200") is read in
 // the reader's language too. No React here, so the test runner loads it.
-import { formatDate, locales, type Locale } from './i18n/dictionary.ts';
+import { formatDate, locales, namesInEveryLanguage, tablesVersion, type Locale } from './i18n/dictionary.ts';
+import { LANGUAGES, type Language } from './i18n/languages.ts';
 import { validDate } from './dates.ts';
 
 /** How much of the date is known: a day, a month of a year, or the year alone. */
@@ -154,7 +155,17 @@ export function birthdayInfo(stored: string, today: string): { age: number; turn
 
 /** Accents and dots folded, so typed month names match whatever the reader wrote. */
 const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').replace(/[.,]/g, '').trim().toLowerCase();
-const ABOUT = /^(~|c\.|ca\.|circa|ong\.|ongeveer|ungef\.|um|about)\s*/i;
+
+/** The words that mean "about" before a typed date, in every language this page has (date.aboutWords), and "~". */
+let about: { version: number; re: RegExp } | undefined;
+function aboutWords(): RegExp {
+  const version = tablesVersion();
+  if (about?.version === version) return about.re;
+  const words = ['~', ...namesInEveryLanguage('date.aboutWords').flatMap((list) => list.split(','))].map((w) => w.trim()).filter(Boolean);
+  const re = new RegExp(`^(${[...new Set(words)].sort((a, b) => b.length - a.length).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\s*`, 'iu');
+  about = { version, re };
+  return re;
+}
 
 /** Month number for a typed name: the locale's own names first, then English, from three letters on. */
 function monthNumber(word: string, locale: Locale): number | null {
@@ -171,14 +182,15 @@ function monthNumber(word: string, locale: Locale): number | null {
 
 /**
  * Reads a date typed as text into the stored form, or null when it is not a real date. Accepted: "1953", "~1953",
- * "c. 1953", "1953-08", "1953-08-08", "08.1953", "8.8.1953" and "08/08/1953" (day first in every language), and a month
- * name in the reader's language or English: "8. August 1953", "8 Augustus 1953", "August 1953".
+ * "c. 1953", "1953-08", "1953-08-08", "1953/8/8", "1953年8月8日", "08.1953", "8.8.1953" and "08/08/1953" (day first
+ * unless the language writes month first), and a month name in the reader's language or English: "8. August 1953",
+ * "8 Augustus 1953", "August 1953".
  */
 export function parseTyped(text: string, locale: Locale = 'en'): string | null {
   let s = (text ?? '').trim().replace(/\s+/g, ' ');
   if (!s) return null;
   let about = false;
-  const lead = ABOUT.exec(s);
+  const lead = aboutWords().exec(s);
   if (lead) {
     about = true;
     s = s.slice(lead[0].length);
@@ -191,7 +203,11 @@ export function parseTyped(text: string, locale: Locale = 'en'): string | null {
   let hit: RegExpExecArray | null;
   if ((hit = /^(\d{3,4})$/.exec(s))) return done(hit[1], null, null);
   if ((hit = /^(\d{3,4})-(\d{1,2})(?:-(\d{1,2}))?$/.exec(s))) return done(hit[1], hit[2], hit[3] ?? null);
-  if ((hit = /^(\d{1,2})[./\- ](\d{1,2})[./\- ](\d{3,4})$/.exec(s))) return done(hit[3], hit[2], hit[1]);
+  // Year first, as Japanese and Chinese write it: "1953/8/8", "1953.8.8", "1953年8月8日", "1953年8月".
+  if ((hit = /^(\d{4})[./](\d{1,2})(?:[./](\d{1,2}))?$/.exec(s))) return done(hit[1], hit[2], hit[3] ?? null);
+  if ((hit = /^(\d{3,4})年\s*(\d{1,2})月(?:\s*(\d{1,2})日?)?$/u.exec(s))) return done(hit[1], hit[2], hit[3] ?? null);
+  // Numbers in the language's order: "8.8.1953" (day first), "8/9/1953" (month first in a language that writes it so).
+  if ((hit = /^(\d{1,2})[./\- ](\d{1,2})[./\- ](\d{3,4})$/.exec(s))) return (LANGUAGES[locale] as Language).dateOrder === 'mdy' ? done(hit[3], hit[1], hit[2]) : done(hit[3], hit[2], hit[1]);
   if ((hit = /^(\d{1,2})[./-](\d{3,4})$/.exec(s))) return done(hit[2], hit[1], null);
   if ((hit = /^(\d{1,2})\.? ([\p{L}.]+),? (\d{3,4})$/u.exec(s))) {
     const m = monthNumber(hit[2], locale);

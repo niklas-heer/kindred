@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
 import type { Kinship } from '../graph.ts';
 import { plan } from '../../../scripts/i18n-scaffold.ts';
+import type { Language } from './languages.ts';
 import {
   DUPLICATE_KEYS,
   KEYS,
@@ -40,6 +41,25 @@ test('the registry agrees with Intl: plural categories, and each locale is one I
     assert.equal(Intl.getCanonicalLocales(locale)[0], locale, `${locale} is a canonical BCP 47 tag`);
     assert.equal(LANGUAGES[locale].shortMonths.length, 12);
   }
+});
+
+test('the registry writes a numeric date in the order and with the separator Intl uses (Afrikaans is the app\'s own: day first)', () => {
+  for (const locale of LOCALES) {
+    const lang = LANGUAGES[locale] as Language;
+    const parts = new Intl.DateTimeFormat(lang.intl, { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'UTC' }).formatToParts(new Date(Date.UTC(2000, 2, 4)));
+    const order = parts.filter((p) => p.type !== 'literal').map((p) => p.type[0]).join('');
+    const separator = parts.find((p) => p.type === 'literal')?.value;
+    if (locale === 'af') {
+      assert.equal(lang.dateOrder, 'dmy');
+      assert.equal(lang.dateSeparator, '/');
+      continue;
+    }
+    assert.equal(lang.dateOrder, order, locale);
+    // English names the month in a list, so it has no separator of its own.
+    if (!lang.monthList) assert.equal(lang.dateSeparator, separator, locale);
+    else assert.equal(lang.dateSeparator, '');
+  }
+  assert.deepEqual(LOCALES.filter((l) => (LANGUAGES[l] as Language).dateOrder === 'ymd'), ['ja', 'zh-Hans']);
 });
 
 test('German imperatives are the full du-forms (“versuche”, “prüfe”, “speichere”), not the clipped ones', async () => {

@@ -13,6 +13,7 @@ export const en = {
   "date.mm": "MM",
   "date.yyyy": "YYYY",
   "date.circa": "c. {date}",
+  "date.aboutWords": "c., circa, about",
   "time.never": "never",
   "date.openCalendar": "Open the calendar",
   "date.chooseDate": "Choose a date",

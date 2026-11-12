@@ -138,6 +138,22 @@ test('parseTyped reads every partial form in day-first order, with about', () =>
   }
 });
 
+test('parseTyped reads a year-first date as Japanese and Chinese write it, and numbers in the language\'s order', () => {
+  for (const locale of ['ja', 'zh-Hans'] as const) {
+    assert.equal(parseTyped('1953/8/8', locale), '1953-08-08', `slashed in ${locale}`);
+    assert.equal(parseTyped('1953.08.08', locale), '1953-08-08', `dotted in ${locale}`);
+    assert.equal(parseTyped('1953年8月8日', locale), '1953-08-08', `with 年月日 in ${locale}`);
+    assert.equal(parseTyped('1953年8月', locale), '1953-08', 'month and year');
+    assert.equal(parseTyped('1953/8', locale), '1953-08');
+    assert.equal(parseTyped('8.8.1953', locale), '1953-08-08', 'day first still reads');
+  }
+  assert.equal(parseTyped('1953年2月30日', 'ja'), null, 'not a real day');
+});
+
+test('typing "about" before a date uses the words of every language the page has', () => {
+  for (const word of ['c.', 'ca.', 'circa', 'ong.', 'ongeveer', 'ungef.', 'um', 'about', '~']) assert.equal(parseTyped(`${word} 1900`, 'en'), '~1900', word);
+});
+
 test('parseTyped reads month names in the reader\'s language, and in English', () => {
   assert.equal(parseTyped('8. August 1953', 'de'), '1953-08-08');
   assert.equal(parseTyped('8 Augustus 1953', 'af'), '1953-08-08');
