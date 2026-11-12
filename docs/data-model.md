@@ -178,6 +178,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0036_family_import.sql` | `family_import` (an import into a family's Durable Object, bound to the account that began it), `invite.by_operator` (an operator's first-steward invitation) and `media_usage.pending_at` (an upload on its way). |
 | `0037_operator_forms.sql` | `family_admin.closed` (a closed family), `data_request.forwarded_at` (stewards see a request only once forwarded), `terms_acceptance`, `operator_push`, and the `families_per_account` setting (5 on a new install only). |
 | `0038_operator_insight.sql` | The operator's statistics and update check, and "New in Kindred": `instance_daily`, `update_check`, `release_seen` and `release_running`. |
+| `0042_policies.sql` | The operator's policies ([hosting-many-families.md](hosting-many-families.md), "Policies"): `instance_policy`, `family_policy`, operator-funded AI (`operator_ai_provider`, `ai_operator_spend`, `ai_operator_month`, `ai_operator_booking`, `ai_settings.funding`) and `announcement`. Every policy starts as `families` (today's behaviour) and `ai.source` as `byo`. |
 
 ### Tables
 
@@ -299,11 +300,25 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   with the account), `endpoint` (unique), `p256dh`, `auth`, `locale`, `created` and `sent_at`, the claim that keeps it to one push
   in ten minutes. Sent only while the account is an operator; deleted when the device turns it off or signs out, or the push
   service reports it gone.
+- **`instance_policy`** (0042): one row per policy key the operator has set (`feature.campaign`, `feature.assistant`,
+  `feature.portraits`, `feature.address_lookup`, `feature.push`, `ai.source`): `scope` (`off`, `families`, `selected`), `value`
+  (JSON; for `ai.source` the source, the operator's provider and model, and the family and server-wide monthly budgets in
+  micro-dollars), `updated_at`, `updated_by`. A key with no row is `families` with its default value.
+- **`family_policy`** (0042): the operator's word for one family on one key: `tree`, `key`, `granted` (1 under `selected`, 0 for
+  a family withheld under `families`), `value` (JSON, unused so far). Deleted with the family.
+- **`operator_ai_provider`** (0042): the operator's own key per provider, sealed like a family's (`ai_provider`) under the
+  reserved id `*operator`, with its last four characters.
+- **`ai_operator_spend`** (0042): micro-dollars of operator-funded AI per family (`tree`) per UTC month. **`ai_operator_month`**:
+  the same for all families together (no `tree`: it outlives a deleted family, so the ceiling holds). **`ai_operator_booking`**:
+  one row per operator-funded call, its reservation until it is settled once (`settled_at`); settled rows go after two days.
+- **`announcement`** (0042): a banner from the operator: `title`, `body` (plain text), `audience` (`stewards`, `everyone`),
+  `starts_at`, `ends_at` (null: until ended), `created_at`, `created_by`.
 - **`membership`**: a user's role in a family (`viewer`, `contributor`, `editor`, `steward`), and who they are in that
   family (a person id, or `-` for "just browsing"). `person_confirmed` (0014) is 1 once a steward has confirmed the link.
 - **`challenge`**: a passkey ceremony in progress (for setup, an invitation, adding a passkey, signing in, or confirming
   it is you on a session, 0025), with its expiry.
-- **`ai_settings`**: one row per family: feature switches, web search, the monthly budget in micro-dollars and custom prices.
+- **`ai_settings`**: one row per family: feature switches, web search, the monthly budget in micro-dollars and custom prices,
+  and `funding` (0042): `own` (the default) or `operator`, the steward's opt-in to the server's AI.
   Legacy provider/model and daily token-budget columns remain for compatibility; provider connections and routes are authoritative.
 - **`ai_provider`** (0010): one connection per family and provider (`anthropic`, `openai`, `openrouter`), with a sealed key,
   its last four characters, and who last updated it.

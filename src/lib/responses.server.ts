@@ -289,7 +289,7 @@ interface Owner { author: string | null; person?: string; given?: string; surnam
 export async function notifyAuthor(tree: string, r: Response, options: { now?: Date; vapid?: VapidConfig | null; fetchImpl?: typeof fetch } = {}): Promise<number> {
   const at = options.now ?? new Date();
   const vapid = options.vapid === undefined ? vapidFrom(envSetting) : options.vapid;
-  if (!vapid) return 0;
+  if (!vapid || !(await (await import('./operator/policy.server.ts')).familyAllows(tree, 'feature.push'))) return 0;
   let sent = 0;
   try {
     const d = db(tree);

@@ -11,6 +11,7 @@ import { q } from '../store/index.ts';
 import { tr, type Tr } from './labels';
 import { isDemo } from '../demo.ts';
 import { refuseReadOnly } from '../read-only.ts';
+import type { FamilyAi } from '../operator/policy.ts';
 import { DEFAULT_MODEL, FEATURES, type AiFeatures, type AiLocale, type AiStatus, type CustomPrice, type Feature, type Provider, type Route } from './types';
 
 export const OFF: AiFeatures = { assistant: false, faces: false, avatar: false, arms: false };
@@ -260,7 +261,16 @@ export async function routeAdapter(tree: string, route: Route, locale: AiLocale,
   if (isDemo()) throw new AiError('not-configured', c('ai.errOff'));
   // A steward's preview ("View as") sends nothing either: no conversation, no picture, no suggestion, at no cost.
   refuseReadOnly();
+  // The operator's policies come first (docs/hosting-many-families.md, "Policies"): a feature the operator turned off for
+  // this family, or a server with no AI for it, sends nothing, whatever the family's own settings say.
+  const ai = await policyGate(tree, route, c);
   const settings = await readSettings(tree);
+  if (ai.source === 'operator') {
+    // The operator's provider, model and key, booked against the operator's limits; a steward's model choice does not apply.
+    const o = await (await import('./operator-funding.server')).operatorAdapter(tree, ai, locale);
+    const effective = { provider: o.provider, model: o.model };
+    return { inner: o.inner, price: o.price, settings, resolved: { route, provider: o.provider, model: o.model, effective, connected: true, needsModel: false } };
+  }
   // A steward's choice for one chat, already checked: it goes to that provider's own key, like any route.
   const resolved: ResolvedRoute = override ? { route, provider: override.provider, model: override.model, effective: override, connected: true, needsModel: false } : await resolveRoute(tree, route);
   const block = routeBlock(resolved);
@@ -274,6 +284,19 @@ export async function routeAdapter(tree: string, route: Route, locale: AiLocale,
   const { price } = resolvePrice(provider, model, settings.customPrices, listed?.price);
   const inner = fakeOn() ? fakeAdapter(model) : makeAdapter(provider, key, model, { reasoning: listed?.reasoning });
   return { inner, price, settings, resolved };
+}
+
+/**
+ * The operator's word on one AI route for this family: the feature's policy (`feature.portraits` for painting, else
+ * `feature.assistant`) and where its key comes from (`ai.source`). Throws not-configured, in the reader's language, when
+ * either says no; returns the family's AI source otherwise.
+ */
+export async function policyGate(tree: string, route: Route, c: Tr): Promise<FamilyAi> {
+  const { effective } = await import('../operator/policy.server.ts');
+  const [feature, ai] = await Promise.all([effective(tree, route === 'portrait' ? 'feature.portraits' : 'feature.assistant'), effective(tree, 'ai.source')]);
+  if (!feature.allowed) throw new AiError('not-configured', c('policy.err.off'));
+  if (!ai.allowed) throw new AiError('not-configured', c('policy.err.ai_off'));
+  return ai.value;
 }
 
 /**
@@ -298,16 +321,24 @@ export async function statusFor(tree: string): Promise<AiStatus> {
     q('SELECT * FROM ai_settings WHERE tree = ?', tree), routesQuery(tree), connectionsQuery(tree),
   ])) as unknown as [Row[], RouteDbRow[], ConnRow[]];
   const s = settingsOf(settingsRows[0]);
-  const routes = await resolveRoutes(tree, { routes: routeRows, connections: connectionRows });
+  const [routes, policy] = await Promise.all([resolveRoutes(tree, { routes: routeRows, connections: connectionRows }), aiPolicyOn(tree)]);
   const assistant = routes.assistant;
-  const configured = assistant.connected && !isDemo();
+  // A feature the operator turned off is hidden, as one with no provider is.
+  const configured = assistant.connected && !isDemo() && policy;
   const fake = fakeOn() && configured;
-  const on = s.monthlyMicros > 0 && !isDemo();
+  const on = s.monthlyMicros > 0 && !isDemo() && policy;
   return {
     configured,
     provider: fake ? 'fake' : configured ? assistant.effective!.provider : null,
     features: Object.fromEntries(FEATURES.map((f) => [f, on && s.features[f] && routes[f as Route].connected])) as AiFeatures,
   };
+}
+
+/** Whether the operator lets this family use the AI at all (`feature.assistant` and `ai.source`). Reads only. */
+export async function aiPolicyOn(tree: string): Promise<boolean> {
+  const { effective } = await import('../operator/policy.server.ts');
+  const [feature, ai] = await Promise.all([effective(tree, 'feature.assistant'), effective(tree, 'ai.source')]);
+  return feature.allowed && ai.allowed;
 }
 
 /**

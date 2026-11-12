@@ -26,6 +26,8 @@
 //   by going back to an earlier copy of the reign.
 import { db, guard, NOT_A_RECORD, once, q, store, type Db, type Query } from '../db.server.ts';
 import { readOnly } from '../read-only.ts';
+import { allowed, effective, policyOff } from '../operator/policy.server.ts';
+import { lockOf, type PolicyLock } from '../operator/policy.ts';
 import { dayOf, weekOf, weekStart } from '../today/week.ts';
 import type { House } from '../types.ts';
 import { chronicleOf, isTitle, type Title } from './chronicle.ts';
@@ -46,6 +48,8 @@ interface RunRow { id: string; account: string; name_then: string; side: string;
 interface StoredField extends FieldView { renown: number; grant: number }
 
 const campaignRow = (d: Db) => d.get<CampaignRow>('SELECT enabled, season FROM campaign WHERE id = 1');
+/** Whether the operator lets this family play (policy `feature.campaign`): the stewards' switch counts only when it does. */
+const policyOn = (tree: string) => allowed(tree, 'feature.campaign');
 const sameCampaign = (c: CampaignRow | undefined): Query =>
   c ? guard('EXISTS (SELECT 1 FROM campaign WHERE id = 1 AND enabled = ? AND season = ?)', c.enabled, c.season) : guard('NOT EXISTS (SELECT 1 FROM campaign WHERE id = 1)');
 
@@ -435,12 +439,16 @@ async function hallOfFame(d: Db): Promise<{ fame: FameEntry[]; laurels: Map<stri
 
 // ---------- the steward's switch ----------
 
-export async function campaignSettings(tree: string): Promise<{ enabled: boolean }> {
-  return { enabled: !!(await campaignRow(db(tree)))?.enabled };
+export async function campaignSettings(tree: string): Promise<{ enabled: boolean; lock: PolicyLock }> {
+  const [row, policy] = await Promise.all([campaignRow(db(tree)), effective(tree, 'feature.campaign')]);
+  // The stewards' switch as they set it, and whether the operator has locked it (then the game is off whatever it says).
+  return { enabled: !!row?.enabled, lock: lockOf(policy) };
 }
 
 /** Turns the game on or off. Nothing is lost either way: the tables and the seasons of old stay. */
 export async function setCampaignEnabled(tree: string, on: boolean, by: string, now: Date = new Date()): Promise<void> {
+  // Turning it on is refused while the operator has it off; turning it off is always allowed.
+  if (on && !(await policyOn(tree))) throw policyOff();
   await once(tree, undefined, 'campaignSwitch', async (d) => {
     const c = await campaignRow(d);
     return {
@@ -458,14 +466,14 @@ export async function setCampaignEnabled(tree: string, on: boolean, by: string, 
 
 /** Whether a right answer in the daily quiz earns something here now: the game must be on. */
 export async function quizRewardOn(tree: string): Promise<boolean> {
-  return !!(await campaignRow(db(tree)))?.enabled;
+  return !!(await campaignRow(db(tree)))?.enabled && (await policyOn(tree));
 }
 
 // ---------- reigns ----------
 
 /** Begins a reign of this week's challenge for a member: the field, the seed, and what their levy has, fixed now. */
 export async function startRun(tree: string, who: Who, asked: string | null, now: Date = new Date()): Promise<RunStart> {
-  if (!(await campaignRow(db(tree)))?.enabled) throw new Error('campaign.err.off');
+  if (!(await campaignRow(db(tree)))?.enabled || !(await policyOn(tree))) throw new Error('campaign.err.off');
   const week = weekOf(now);
   const id = crypto.randomUUID();
   // The reign's own dice; refused before anything is written when the server has no secret.
@@ -533,6 +541,7 @@ async function openRun(d: Db, who: Who, id: string): Promise<{ row: RunRow; fiel
  * again before it is kept. An older list arriving late changes nothing. Answers how many moves are kept.
  */
 export async function keepRun(tree: string, who: Who, id: string, moves: Move[]): Promise<{ kept: number }> {
+  if (!(await policyOn(tree))) throw new Error('campaign.err.off');
   return once(tree, undefined, 'campaignKeepRun', async (d) => {
     if (!(await campaignRow(d))?.enabled) throw new Error('campaign.err.off');
     const { row, field } = await openRun(d, who, id);
@@ -570,6 +579,7 @@ export async function keepRun(tree: string, who: Who, id: string, moves: Move[])
  * counts for the day and the week it began).
  */
 export async function finishRun(tree: string, who: Who, id: string, moves: Move[], op: { key: string } | undefined, now: Date = new Date()): Promise<FinishResult> {
+  if (!(await policyOn(tree))) throw new Error('campaign.err.off');
   const done = await once(tree, op && { key: op.key, user: who.account, payload: { id, moves } }, 'campaignFinishRun', async (d) => {
     const c = await campaignRow(d);
     if (!c?.enabled) throw new Error('campaign.err.off');
@@ -633,6 +643,7 @@ export async function campaignView(tree: string, who: Who, now: Date = new Date(
   const [renown, { fame }] = await Promise.all([renownOfSides(tree, sides), hallOfFame(d)]);
   const kit = { sides: await sideViews(d, sides, renown) };
   const mySide = (await sideFor(d, who, sides)).side;
+  if (!(await policyOn(tree))) return { enabled: false, locked: true, kit, mySide, fame };
   if (!c?.enabled) return { enabled: false, kit, mySide, fame };
 
   const week = weekOf(now);
@@ -668,6 +679,7 @@ export async function campaignView(tree: string, who: Who, now: Date = new Date(
 /** The few facts the Today page's card and the navigation need. Reads only. */
 export async function campaignStatus(tree: string, who: Who, now: Date = new Date()): Promise<CampaignStatus> {
   const d = db(tree);
+  if (!(await policyOn(tree))) return { enabled: false, locked: true };
   if (!(await campaignRow(d))?.enabled) return { enabled: false };
   const week = weekOf(now);
   const { me } = await leaderboard(d, week, who.account, [], now);

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Gamepad2, KeyRound, Swords } from 'lucide-react';
 import { GameIcon } from '~/components/GameIcon';
+import { PolicyLockNote } from '~/components/operator/PolicyLock';
 import '~/components/campaign/campaign.css';
 import { EmptyState, ErrorState, PageHeader, Skeleton, Switch } from '~/components/ui';
 import { campaignQuery, campaignSettingsQuery, campaignStatusQuery, setCampaignOn } from '~/lib/campaign/campaign.functions';
@@ -51,13 +52,15 @@ function GamesPage() {
                 <h2 className="cg-h" id="cg-games-h"><Swords size={18} aria-hidden /> {t('campaign.title')}</h2>
                 <p>{t('campaign.games.what', { turns: RULES.TURNS })}</p>
                 <p className="muted">{t('campaign.games.promise')}</p>
-                <Switch checked={on} onChange={(next) => toggle.mutate(next)} disabled={toggle.isPending}>{t('campaign.games.switch')}</Switch>
+                {/* Locked by the server's operator: the switch stays in view, off, with one sentence and their contact. */}
+                <Switch checked={on && !settings.data.lock.locked} onChange={(next) => toggle.mutate(next)} disabled={toggle.isPending || settings.data.lock.locked}>{t('campaign.games.switch')}</Switch>
+                {settings.data.lock.locked && <PolicyLockNote reason={settings.data.lock.reason} />}
                 {toggle.isError && <p role="alert">{errorText(toggle.error, t.locale)}</p>}
                 <div className="cg-games-row">
-                  {settings.data.enabled && <Link className="btn primary" to="/$tree/campaign" params={{ tree }}>{t('campaign.card.open')}</Link>}
+                  {settings.data.enabled && !settings.data.lock.locked && <Link className="btn primary" to="/$tree/campaign" params={{ tree }}>{t('campaign.card.open')}</Link>}
                   <Link className="btn" to="/$tree/campaign" params={{ tree }} search={{ practice: true }}>{t('campaign.practice.try')}</Link>
                 </div>
-                {settings.data.enabled && <p className="subtle">{t('campaign.games.on')}</p>}
+                {settings.data.enabled && !settings.data.lock.locked && <p className="subtle">{t('campaign.games.on')}</p>}
               </section>
               <section className="ui-card" aria-labelledby="cg-games-quiz">
                 <h2 className="cg-h" id="cg-games-quiz"><GameIcon name="laurel-crown" size={18} /> {t('today.games.title')}</h2>

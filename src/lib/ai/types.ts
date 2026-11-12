@@ -8,6 +8,7 @@ import { FIELD_TYPES } from '~/lib/fields/model';
 import { VISIBILITIES } from '../visibility';
 import type { ArmsV2 } from '~/lib/seed-format';
 import type { ChatBlock } from './blocks';
+import type { FamilyPolicies } from '../operator/policy';
 import { EVENT_TYPES, QUALITIES } from '../events';
 import {
   BACKDROPS, BEARD_PRESETS, BEARD_SHAPES, BROWS, CLOTH, CLOTHING, EARRINGS, EXPRESSIONS, EXTRAS, EYES, EYE_SHAPES, FACE_SHAPES, FRAMES, GLASSES, HAIR, HAIR_STYLES,
@@ -96,6 +97,8 @@ export interface AiSettingsData {
   /** The family's own prices, by model id. */
   customPrices: Record<string, CustomPrice>;
   updated: number;
+  /** The operator's policies for this family (docs/hosting-many-families.md, "Policies"): what is locked, and where the AI comes from. */
+  policy: FamilyPolicies;
 }
 
 /** A model a provider offers, with what Kindred knows about it. Null means unknown, never "no". */

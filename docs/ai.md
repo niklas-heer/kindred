@@ -76,6 +76,45 @@ Spend is stored in `ai_spend` (micro-dollars, one row per family per UTC month).
 in `ai_settings` (migration `migrations/accounts/0007_ai_money.sql`). The older `ai_usage` table (tokens per day) is no
 longer written.
 
+## Operator-funded AI
+
+On a server that hosts many families, the operator decides where the AI's key comes from (`ai.source`, in the operator
+console's Policies; [hosting-many-families.md](hosting-many-families.md#policies)): each family's own key (the default, and
+everything above), only the operator's key, either, or no AI. The operator can also turn the assistant and its helpers, or
+painted portraits, off for some or all families (`feature.assistant`, `feature.portraits`). These are checked in
+`routeAdapter` (`policyGate` in `settings.server.ts`) before any key is opened, so every job, foreground or background, is
+refused on the server when the operator says no; the page hides what is off, and the background tasks are skipped with
+"turned off by the operator". Nothing a family set up is deleted: its keys, routes and switches come back as they were.
+
+**Never on by itself.** When the operator offers their AI, a steward opts in under **This server's AI** at the top of the AI
+settings (`ai_settings.funding = 'operator'`). Until then nothing changes: under *either* the family keeps its own key, under
+*only the operator's key* it has no AI. Opting in means the operator's provider handles the family's requests on the
+operator's behalf, so the page says so before the switch. Opting out goes back to the family's own keys at once.
+
+**What changes for an opted-in family.** Every job except painting goes to the operator's provider and model, with the
+operator's key (`operator-funding.server.ts`, `operatorAdapter`); the family's own routes and keys are kept for later and the
+settings page saves no route changes meanwhile. A steward's per-chat model choice does not apply. Painted portraits are never on
+the operator's money: they wait until the family is back on its own key. The page shows "Provided by this server: $1.20 of
+$2.00 this month".
+
+**The operator's money is booked like the family's budget, twice over:**
+
+- **Two limits.** Each family's monthly budget from the operator, and a server-wide monthly ceiling for all families together
+  (UTC months). Changing a budget never resets what was spent.
+- **Reserved before the call, atomically.** One batch of statements adds the call's estimate (the same estimate as above: input,
+  the reply's cap, searches, every round) to the family's operator spend (`ai_operator_spend`) and the month's total
+  (`ai_operator_month`) behind two guards, one per limit, and writes a booking row (`ai_operator_booking`). Two calls racing for
+  the last of either limit cannot both get it. One call may not take more than a fifth of the family's operator budget.
+- **Settled once.** After the call the booking is replaced by what it cost (the provider's reported cost, or its usage at the
+  model's price; a failure as described above). The settlement is guarded on the booking not being settled yet, so settling it
+  twice changes nothing. A booking that is never settled (the server stopped mid-call) keeps its reservation.
+- **Only known prices.** The operator's model must have a price in Kindred's table or OpenRouter's list: a model without one is
+  refused when the operator saves it and again when a call is made. A family's own prices never count for the operator's money.
+- **The family's own budget still applies** on top, as the family's own cap: a call needs room in both.
+
+`src/lib/operator/policy.test.ts` checks the racing reservations against both limits, the idempotent settlement, a model with no
+price, the opt-in, and a call end to end on the fake provider.
+
 ## Web search
 
 **Web search is off by default.** A steward turns it on in step 4. When it is on, the assistant may look up a general fact on
@@ -298,7 +337,8 @@ provider fails instead.
 ## Where the code is
 - `src/lib/ai/providers.server.ts`: the connected providers and their keys (`keyFor` is the only opener), the routes (which provider and model each job uses), and the route checks.
 - `src/lib/ai/page.server.ts`: what the settings page shows and what one save changes, in order; each switch is checked against its route before anything is written.
-- `src/lib/ai/settings.server.ts`: the feature switches, the monthly budget (reserve and settle), web search, each route's adapter (`routeAdapter`, `adapterForFeature`), and the status.
+- `src/lib/ai/settings.server.ts`: the feature switches, the monthly budget (reserve and settle), web search, each route's adapter (`routeAdapter`, `adapterForFeature`), the operator's policies for the AI (`policyGate`, `aiPolicyOn`), and the status.
+- `src/lib/ai/operator-funding.server.ts`: operator-funded AI: the operator's keys, the reservation against the family's operator budget and the server's ceiling, the idempotent settlement, the steward's opt-in.
 - `src/lib/ai/testing.server.ts`: one call that connects a provider and sets the assistant, for the tests and the browser harness.
 - `src/lib/ai/prices.ts`: model prices, their sources and the cost calculation. Pure, so the browser can read it too.
 - `src/lib/ai/recommended.ts`: the recommended models, per provider.

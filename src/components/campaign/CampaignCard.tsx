@@ -32,7 +32,7 @@ export function useCampaignCard(tree: string): 'on' | 'hint' | null {
   const dismissed = usePref(HINT_PREF(tree)) !== null;
   // The note depends on what this browser remembers, so it is drawn only once the page runs here.
   const client = useIsClient();
-  if (guest || !data) return null;
+  if (guest || !data || data.locked) return null;
   if (data.enabled) return 'on';
   // A demo and a preview can turn nothing on: no note there.
   return steward && client && !dismissed && !session?.demo && !session?.viewAs ? 'hint' : null;

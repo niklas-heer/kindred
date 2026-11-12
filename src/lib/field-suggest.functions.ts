@@ -48,13 +48,15 @@ export const familyAddressesQuery = (t: string, person: string) =>
 
 /**
  * Whether the address box may suggest whole addresses from OpenStreetMap (address-lookup.server.ts): on unless the
- * self-hoster switched it off, and never in a demo. Asked once per page; a guest or a viewer is refused, as for the lookup.
+ * self-hoster switched it off or the operator's policy has it off for this family, and never in a demo. Asked once per page; a guest or a viewer is refused, as for the lookup.
  */
 export const getAddressLookup = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
     await (await guard()).requireCan(data.tree, 'edit-contact');
-    return { on: (await import('./address-lookup.server')).addressLookupOn() };
+    // The operator's policy (`feature.address_lookup`) decides with the server's setting: off for this family, the box
+    // suggests towns from the offline gazetteer only.
+    return { on: await (await import('./operator/policy.server')).allowed(data.tree, 'feature.address_lookup') };
   });
 export const addressLookupQuery = (t: string) =>
   queryOptions({ queryKey: ['address-lookup', t], queryFn: () => getAddressLookup({ data: { tree: t } }), staleTime: Infinity, retry: false });
@@ -68,5 +70,7 @@ export const suggestAddressesOnline = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, text: z.string().trim().min(3).max(200), locale: z.enum(LOCALES) }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireCan(data.tree, 'edit-contact');
+    // Refused on the server when the operator has it off for this family, whatever the browser asks.
+    if (!(await (await import('./operator/policy.server')).allowed(data.tree, 'feature.address_lookup'))) return { ok: false as const, reason: 'off' as const };
     return (await import('./address-lookup.server')).suggestAddresses(data.tree, data.text, data.locale, m.user.id);
   });

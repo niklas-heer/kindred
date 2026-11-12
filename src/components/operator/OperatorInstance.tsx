@@ -157,6 +157,11 @@ const ACTIONS: Record<string, Key> = {
   'operator.step_down': 'operator.audit_step_down',
   'updates.on': 'ops.audit_updates_on',
   'updates.off': 'ops.audit_updates_off',
+  policy: 'policy.audit_policy',
+  'ai.operator_key': 'policy.audit_key',
+  'ai.operator_key_removed': 'policy.audit_key_removed',
+  'announcement.create': 'policy.audit_ann_create',
+  'announcement.end': 'policy.audit_ann_end',
 };
 
 export function AuditTab({ families }: { families: OperatorFamily[] }) {

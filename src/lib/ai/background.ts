@@ -94,7 +94,7 @@ export const RUN_STATUSES = ['done', 'idle', 'stopped', 'failed', 'skipped'] as 
 export type RunStatus = (typeof RUN_STATUSES)[number];
 
 /** Why a task may or may not run now: the steward's switch, then the family's AI, then the task's own feature switch. */
-export type Readiness = 'ready' | 'off' | 'no-key' | 'budget-off' | 'feature-off';
+export type Readiness = 'ready' | 'off' | 'policy-off' | 'no-key' | 'budget-off' | 'feature-off';
 
 /** One task as the settings and activity pages show it. `waiting` counts the items still to do (houses, texts, translations). */
 export interface ActivityTask {

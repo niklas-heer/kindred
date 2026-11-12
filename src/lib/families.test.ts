@@ -270,7 +270,7 @@ test('deleting a family removes its database, its files and every accounts row t
   assert.ok(await st.store.media.get(B, 'photo/b.jpg'));
   for (const t of tables) {
     const n = (await acc.accounts().get<{ n: number }>(`SELECT count(*) AS n FROM "${t}" WHERE tree = ?`, B))?.n ?? 0;
-    assert.ok(n > 0 || ['ai_background', 'ai_background_spend', 'ai_background_task', 'ai_conversation', 'ai_chat_image', 'ai_portrait', 'ai_provider', 'ai_route', 'ai_spend', 'ai_task_giveup', 'ai_task_run', 'ai_usage', 'family_store', 'join_request', 'stats_member', 'stats_once', 'stats_setting'].includes(t), `${t} keeps ${B}'s rows`);
+    assert.ok(n > 0 || ['ai_background', 'ai_background_spend', 'ai_background_task', 'ai_conversation', 'ai_chat_image', 'ai_portrait', 'ai_provider', 'ai_route', 'ai_spend', 'ai_task_giveup', 'ai_task_run', 'ai_usage', 'ai_operator_spend', 'ai_operator_booking', 'family_policy', 'family_store', 'join_request', 'stats_member', 'stats_once', 'stats_setting'].includes(t), `${t} keeps ${B}'s rows`);
   }
   assert.equal((await acc.accounts().get<{ n: number }>("SELECT count(*) AS n FROM share_session WHERE link = 'oakhaven-link'"))?.n, 1);
 });

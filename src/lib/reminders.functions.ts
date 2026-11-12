@@ -49,8 +49,10 @@ export const reminderStatus = createServerFn({ method: 'POST' })
     const vapid = r.vapidFrom(r.envSetting);
     const row = data.endpoint ? await r.subscriptionOf(user.id, data.tree, data.endpoint) : undefined;
     const choices = row ? r.choicesOf(row) : null;
+    // The operator's policy (`feature.push`) hides it for this family as missing keys do: members see nothing.
+    const allowed = vapid !== null && (await (await import('./operator/policy.server.ts')).familyAllows(data.tree, 'feature.push'));
     return {
-      available: vapid !== null,
+      available: allowed,
       publicKey: vapid?.publicKey ?? null,
       subscribed: !!row,
       offsets: choices?.offsets ?? [],

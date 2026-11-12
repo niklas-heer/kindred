@@ -15,7 +15,7 @@ import { needsAttention } from '../house-meaning.ts';
 import { AiError, callRounds, outputCap, type AiAdapter, type AiReply, type AiRequest } from './adapters';
 import { itemKey, pending, perform, recordFailure, type Pending } from './background-tasks.server';
 import { tr, type Tr } from './labels';
-import { budgeted, estimateMicros, failureMicros, monthNow, readSettings, replyMicros, resetsOn, routeAdapter, spentThisMonth, type Settings } from './settings.server';
+import { aiPolicyOn, budgeted, estimateMicros, failureMicros, monthNow, readSettings, replyMicros, resetsOn, routeAdapter, spentThisMonth, type Settings } from './settings.server';
 import { resolveRoute } from './providers.server';
 import type { Price } from './prices';
 import type { Locale } from '../i18n/types';
@@ -106,6 +106,8 @@ export async function readiness(tree: string, task: Task, bg?: BackgroundSetting
   const settings = await readSettings(tree);
   const current = bg ?? (await readBackground(tree));
   if (!current.tasks[task].enabled) return { state: 'off', settings };
+  // The operator's policies: a family whose AI the operator turned off does no background work, and keeps its switches.
+  if (!(await aiPolicyOn(tree))) return { state: 'policy-off', settings };
   if (!(await resolveRoute(tree, TASK_ROUTE[task])).connected) return { state: 'no-key', settings };
   if (settings.monthlyMicros <= 0) return { state: 'budget-off', settings };
   if (!settings.features[TASK_FEATURE[task]]) return { state: 'feature-off', settings };

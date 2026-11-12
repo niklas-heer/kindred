@@ -90,7 +90,7 @@ test('the game is off until a steward turns it on: the practice has its kit, and
   assert.deepEqual(await game.campaignStatus('off', ada, T0), { enabled: false });
   await assert.rejects(game.startRun('off', ada, null, T0), /campaign\.err\.off/);
   assert.equal(await count('off', 'campaign_run'), 0);
-  assert.deepEqual(await game.campaignSettings('off'), { enabled: false });
+  assert.deepEqual(await game.campaignSettings('off'), { enabled: false, lock: { locked: false, reason: null } });
 });
 
 test('the week’s challenge: four sides, the reader’s own house, a seed from the server’s secret that changes with the week and the family', async () => {

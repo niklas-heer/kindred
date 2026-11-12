@@ -115,6 +115,8 @@ export interface FameEntry {
 
 export interface CampaignView {
   enabled: boolean;
+  /** The server's operator has the game off for this family: the stewards' switch is locked (docs/hosting-many-families.md). */
+  locked?: boolean;
   /** What a practice reign is made from (a fresh continent each time): the sides, also while the game is off. */
   kit: { sides: SideView[] };
   /** The side of the reader's own house among the kit's sides, or null when they stand for nobody in one. */
@@ -128,6 +130,8 @@ export interface CampaignView {
 /** The small summary the Today page's card and the navigation use. */
 export interface CampaignStatus {
   enabled: boolean;
+  /** The server's operator has the game off for this family: nothing offers to turn it on. */
+  locked?: boolean;
   week?: string;
   /** The reader's best this week, their reigns, and their place among the members who played. */
   best?: number | null;

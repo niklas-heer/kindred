@@ -3,6 +3,7 @@
 // privacy notes (which provider each feature sends to), then the background tasks' schedules and the painting notes. Stewards
 // only; the server checks the same (manage-access) on every call. A key is sent to the server to save or check, and never kept
 // by the page: the page only ever shows a provider's last four characters.
+import { AiPolicy } from './AiPolicy';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -495,6 +496,8 @@ function SettingsForm({ tree, data }: { tree: string; data: AiSettingsData }) {
 
   return (
     <div className="ai-settings">
+      {/* The operator's word first: a locked feature, or the server's own AI to opt in to. */}
+      <AiPolicy tree={tree} policy={data.policy} />
       {/* 1 · Providers */}
       <section className="ai-step" aria-labelledby="ai-step-providers">
         <h2 id="ai-step-providers" className="rule ai-step-title">{t('ai.stepProviders')}</h2>

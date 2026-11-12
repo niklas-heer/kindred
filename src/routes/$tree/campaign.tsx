@@ -21,6 +21,7 @@ import '~/components/campaign/campaign.css';
 import { Arms } from '~/components/Heraldry';
 import { ConfirmDialog, EmptyState, ErrorState, PageHeader, Select, Skeleton, useIsClient } from '~/components/ui';
 import { newOpKey } from '~/lib/api';
+import { PolicyLockNote } from '~/components/operator/PolicyLock';
 import { campaignQuery, campaignSettingsQuery, campaignStatusQuery, finishCampaignRun, keepCampaignRun, setCampaignOn, startCampaignRun } from '~/lib/campaign/campaign.functions';
 import { RULES, setupField, type Move, type Reign, type State } from '~/lib/campaign/engine';
 import { goesOnFrom, settled, turnOf } from '~/lib/campaign/progress';
@@ -145,13 +146,13 @@ function Off({ view, tree, help, startPractice }: { view: CampaignView; tree: st
       <PageHeader title={t('campaign.title')} subtitle={t('campaign.subtitle')} icon={<Swords size={26} />} actions={help} />
       <section className="ui-card cg-banner">
         <h2>{t('campaign.off.title')}</h2>
-        <p>{steward ? t('campaign.off.steward') : t('campaign.off.member')}</p>
+        <p>{steward && !view.locked ? t('campaign.off.steward') : t('campaign.off.member')}</p>
         <div className="cg-banner-actions">
           <button type="button" className="btn primary" data-tour="campaign-practice" onClick={startPractice}><Swords size={16} /> {t('campaign.practice.try')}</button>
-          {steward && <button type="button" className="btn" disabled={turnOn.isPending} onClick={() => turnOn.mutate()}>{t('campaign.turn_on')}</button>}
+          {steward && !view.locked && <button type="button" className="btn" disabled={turnOn.isPending} onClick={() => turnOn.mutate()}>{t('campaign.turn_on')}</button>}
           {steward && <Link className="btn ghost" to="/$tree/settings/games" params={{ tree }}>{t('campaign.off.settings')}</Link>}
         </div>
-        {steward && <p className="subtle">{t('campaign.turn_on_text')}</p>}
+        {steward && (view.locked ? <PolicyLockNote reason="operator" /> : <p className="subtle">{t('campaign.turn_on_text')}</p>)}
         {turnOn.isError && <p role="alert">{errorText(turnOn.error, t.locale)}</p>}
       </section>
       <SeasonsOfOld fame={view.fame} />

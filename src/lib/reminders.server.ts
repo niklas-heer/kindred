@@ -111,6 +111,7 @@ export interface Registration {
  * so a racing registration cannot break it. The caller has checked the membership and the endpoint and keys.
  */
 export async function saveRegistration({ user, tree, subscription, choices, locale, weekly = false, posts = false }: Registration): Promise<void> {
+  if (!(await (await import('./operator/policy.server.ts')).familyAllows(tree, 'feature.push'))) throw (await import('./operator/policy.server.ts')).policyOff();
   const { endpoint, keys } = subscription;
   const a = accounts();
   await commit(async () => {
@@ -179,6 +180,7 @@ export async function sendTest(
   vapid: VapidConfig,
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ status: 'sent' } | { status: 'expired' } | { status: 'failed'; code: number }> {
+  if (!(await (await import('./operator/policy.server.ts')).familyAllows(tree, 'feature.push'))) throw (await import('./operator/policy.server.ts')).policyOff();
   const row = await subscriptionOf(user, tree, endpoint);
   if (!row) throw new AuthError('invalid', translate('en', 'reminders.testNeedsOn'));
   const response = await sendPush(subscriptionFrom(row), testMessage(tree, row.locale), vapid, fetchImpl);
@@ -236,6 +238,8 @@ export async function sendDailyReminders({
   const today = dayKey(utc(0));
   for (const tree of trees) {
     try {
+      // The operator's policy: a family whose push is off gets no reminders, and its devices stay registered.
+      if (!(await (await import('./operator/policy.server.ts')).familyAllows(tree, 'feature.push'))) continue;
       const graph = await loadGraph(tree);
       const occasions = new Map(OFFSETS.map((offset) => [offset as Offset, occasionsOn(graph, utc(offset))]));
       const names = new Map(graph.people.map((p) => [p.id, displayNameOf(p)]));

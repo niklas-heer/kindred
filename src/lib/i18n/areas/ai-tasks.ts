@@ -38,6 +38,7 @@ export const en = {
   'aitasks.skip.no-key': 'AI is not set up yet: save a key first.',
   'aitasks.skip.budget-off': 'The monthly budget is 0, so AI is off.',
   'aitasks.skip.feature-off': 'The feature this task needs is switched off.',
+  'aitasks.skip.policy-off': 'This server’s operator turned the AI off for this family, so background work waits.',
   'aitasks.skip.busy': 'This task is already running.',
   'aitasks.errCap': 'Background work has used its share of this month’s budget, so it stops. It starts again on the 1st, UTC.',
   'aitasks.errSearch': 'This background task may not search the web.',

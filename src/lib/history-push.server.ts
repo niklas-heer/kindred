@@ -59,6 +59,8 @@ export async function sendWeeklyNews({ trees, now, vapid, fetchImpl = fetch, log
   const weekAgo = dayKey(new Date(now.getTime() - WEEK_MS + DAY_MS / 2));
   for (const tree of trees) {
     try {
+      // The operator's policy: a family whose push is off gets none, and its devices stay registered.
+      if (!(await (await import('./operator/policy.server.ts')).familyAllows(tree, 'feature.push'))) continue;
       const rows = await accounts().all<PushRow & { weekly_sent_day: string | null }>('SELECT * FROM push_subscription WHERE tree = ? AND weekly = 1', tree);
       if (!rows.length) continue;
       const family = (await db(tree).get<{ value: string }>("SELECT value FROM meta WHERE key = 'name'"))?.value ?? tree;

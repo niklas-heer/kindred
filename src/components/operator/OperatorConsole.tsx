@@ -15,6 +15,7 @@ import {
 } from '~/lib/operator/operator.functions';
 import { bytesToMb, formatBytes, mbToBytes, type FamilyStatus, type OperatorFamily } from '~/lib/operator/shared';
 import { AuditTab, OperatorsTab, SettingsTab } from './OperatorInstance';
+import { AnnouncementsTab, PoliciesTab } from './OperatorPolicies';
 import { DataRequestsTab, FamilyRequestsTab } from './OperatorRequests';
 import { StatisticsTab } from './OperatorStatistics';
 import { UpdatesTab } from './OperatorUpdates';
@@ -22,7 +23,7 @@ import { updateDotQuery } from '~/lib/operator/insight.functions';
 import '~/components/families/families.css';
 import './operator.css';
 
-export const OPERATOR_TABS = ['families', 'statistics', 'requests', 'data', 'settings', 'updates', 'operators', 'audit'] as const;
+export const OPERATOR_TABS = ['families', 'statistics', 'requests', 'data', 'settings', 'policies', 'announcements', 'updates', 'operators', 'audit'] as const;
 export type OperatorTab = (typeof OPERATOR_TABS)[number];
 
 /** As the server suggests an id (suggestId in families.server.ts), so the field fills in while the name is typed. */
@@ -55,6 +56,8 @@ export function OperatorConsole({ tab, onTab }: { tab: OperatorTab; onTab: (tab:
               <Tab value="data" badge={open || undefined}>{t('operator.tab_data')}</Tab>
               <Tab value="settings">{t('operator.tab_settings')}</Tab>
               <Tab value="updates" badge={update ? <><span aria-hidden>•</span><span className="sr-only">{t('ops.update_dot')}</span></> : undefined}>{t('ops.tab_updates')}</Tab>
+              <Tab value="policies">{t('policy.tab')}</Tab>
+              <Tab value="announcements">{t('policy.tab_announcements')}</Tab>
               <Tab value="operators">{t('operator.tab_operators')}</Tab>
               <Tab value="audit">{t('operator.tab_audit')}</Tab>
             </TabList>
@@ -64,6 +67,8 @@ export function OperatorConsole({ tab, onTab }: { tab: OperatorTab; onTab: (tab:
             <TabPanel value="statistics"><StatisticsTab /></TabPanel>
             <TabPanel value="updates"><UpdatesTab /></TabPanel>
             <TabPanel value="settings"><SettingsTab settings={data.settings} turnstile={data.turnstile} pushKey={data.pushKey} /></TabPanel>
+            <TabPanel value="policies"><PoliciesTab families={data.families} /></TabPanel>
+            <TabPanel value="announcements"><AnnouncementsTab /></TabPanel>
             <TabPanel value="operators"><OperatorsTab operators={data.operators} /></TabPanel>
             <TabPanel value="audit"><AuditTab families={data.families} /></TabPanel>
           </Tabs>

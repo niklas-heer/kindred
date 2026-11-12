@@ -3,7 +3,8 @@
 // switches). This file puts them in order, and checks every switch that is turned on against the route it will use before
 // anything is written, so a refused save changes nothing.
 import { AiError } from './adapters';
-import { projectedConnected, providerStates, resolveRoutes, type RouteInput } from './providers.server';
+import { operatorFunded, projectedConnected, providerStates, resolveRoutes, type RouteInput } from './providers.server';
+import { familyPolicies } from '../operator/policy.server.ts';
 import { readSettings, saveSettings, spentThisMonth, resetsOn } from './settings.server';
 import { readBackground, setTaskEnabled } from './background.server';
 import { checkPaintModel, readPortraitSettings, setPortraitEnabled } from './portrait.server';
@@ -22,12 +23,13 @@ export interface PageSave {
 
 /** The settings page's data. Never a key: each provider shows only its state and last four characters. */
 export async function settingsPage(tree: string): Promise<AiSettingsData> {
-  const [s, providers, routes, bg, portrait] = await Promise.all([
+  const [s, providers, routes, bg, portrait, policy] = await Promise.all([
     readSettings(tree),
     providerStates(tree),
     resolveRoutes(tree),
     readBackground(tree),
     readPortraitSettings(tree),
+    familyPolicies(tree),
   ]);
   const tasks = { arms: bg.tasks.arms.enabled, occupations: bg.tasks.occupations.enabled, chronicle: bg.tasks.chronicle.enabled, names: bg.tasks.names.enabled };
   const switched: Record<Route, boolean> = {
@@ -58,6 +60,7 @@ export async function settingsPage(tree: string): Promise<AiSettingsData> {
     resetsOn: resetsOn(),
     customPrices: s.customPrices,
     updated: s.updated,
+    policy,
   };
 }
 
@@ -66,7 +69,9 @@ export async function settingsPage(tree: string): Promise<AiSettingsData> {
  * must be one the painter lists. All of that is checked first, then the routes and the family's settings, then the portrait
  * and task switches.
  */
-export async function saveSettingsPage(tree: string, by: string, input: PageSave): Promise<void> {
+export async function saveSettingsPage(tree: string, by: string, given: PageSave): Promise<void> {
+  // On the operator's AI the jobs run on the operator's provider and model: the family's own routes are kept as they were.
+  const input = (await operatorFunded(tree)) ? { ...given, routes: [] } : given;
   const [bg, portrait, routes] = await Promise.all([readBackground(tree), readPortraitSettings(tree), resolveRoutes(tree)]);
   const portraitInput = input.routes.find((r) => r.route === 'portrait');
   if (portraitInput) await checkPaintModel(portraitInput.model);

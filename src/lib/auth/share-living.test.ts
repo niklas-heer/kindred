@@ -230,6 +230,8 @@ const ANSWERS_A_GUEST = new Set([
   // "New in Kindred" (src/lib/releases/): who reads the highlights ('everyone' for a guest) and the card, which a guest never
   // gets; the console's update dot, false for anyone but an operator. None reads a family (operator/insight.test.ts).
   'fetchReleaseReader', 'fetchReleaseCard', 'fetchUpdateDot',
+  // The operator's announcements: an empty list for anyone without an account (policy.test.ts); they read no family.
+  'fetchMyAnnouncements',
 ]);
 
 /** Asks every server function as a guest, once about the child and once about her research, and returns what answered. */

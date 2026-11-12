@@ -68,3 +68,21 @@
 .operator-languages { display: flex; flex-wrap: wrap; gap: 6px 18px; padding-left: 26px; }
 .operator-check { display: inline-flex; gap: 8px; align-items: center; cursor: pointer; }
 .operator-check input:disabled + span { color: var(--subtle); }
+
+/* The Policies tab (OperatorPolicies.tsx), the one sentence beside a locked control (PolicyLock.tsx) and the operator's
+   announcement banner (AnnouncementBanner.tsx). */
+.policy-card { display: grid; gap: 10px; }
+.policy-card h3 { margin: 0; }
+.policy-families { display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); max-height: 260px; overflow-y: auto; }
+.policy-family { display: flex; gap: 8px; align-items: baseline; cursor: pointer; min-width: 0; overflow-wrap: anywhere; }
+.policy-impact { padding: 8px 12px; border-left: 3px solid var(--accent); display: grid; gap: 4px; }
+.policy-impact p { margin: 0; }
+.policy-lock { display: flex; gap: 6px; align-items: baseline; margin: 4px 0 0; color: var(--subtle); font-size: var(--fs-2, 0.8125rem); }
+.policy-lock svg { flex: none; position: relative; top: 2px; }
+.policy-lock a { overflow-wrap: anywhere; }
+.announcements { position: fixed; z-index: 60; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(560px, calc(100vw - 32px)); display: grid; gap: 8px; }
+.announcement { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; background: var(--surface, var(--bg)); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: var(--radius, 8px); box-shadow: 0 6px 24px rgb(0 0 0 / 0.18); }
+.announcement > div { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.announcement b { overflow-wrap: anywhere; }
+.announcement p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-2, 0.8125rem); }
+@media print { .announcements { display: none; } }

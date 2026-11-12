@@ -386,7 +386,7 @@ interface PushTarget { id: string; endpoint: string; p256dh: string; auth: strin
  * that names anyone. Devices the push service reports gone are removed, as the daily reminders remove them.
  */
 export async function notifyStewards(tree: string, name: string, vapid: VapidConfig | null, fetchImpl: typeof fetch = fetch): Promise<number> {
-  if (!vapid) return 0;
+  if (!vapid || !(await (await import('../operator/policy.server.ts')).familyAllows(tree, 'feature.push'))) return 0;
   let sent = 0;
   try {
     const rows = await accounts().all<PushTarget>(

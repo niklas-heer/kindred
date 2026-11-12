@@ -40,6 +40,7 @@ export default {
   'aitasks.skip.no-key': 'Die KI ist noch nicht eingerichtet: Speichere zuerst einen Schlüssel.',
   'aitasks.skip.budget-off': 'Das Monatsbudget ist 0, deshalb ist die KI aus.',
   'aitasks.skip.feature-off': 'Die Funktion, die diese Aufgabe braucht, ist ausgeschaltet.',
+  'aitasks.skip.policy-off': 'Der Betrieb dieses Servers hat die KI für diese Familie ausgeschaltet, deshalb wartet die Hintergrundarbeit.',
   'aitasks.skip.busy': 'Diese Aufgabe läuft bereits.',
   'aitasks.errCap': 'Die Hintergrundarbeit hat ihren Anteil am Monatsbudget aufgebraucht und hält deshalb an. Sie beginnt am 1. des Monats neu (UTC).',
   'aitasks.errSearch': 'Diese Hintergrundaufgabe darf nicht im Web suchen.',

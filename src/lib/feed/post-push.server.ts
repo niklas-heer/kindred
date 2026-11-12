@@ -24,7 +24,7 @@ export async function notifyPost(tree: string, by: { id: string; name: string },
   if (readOnly()) return 0;
   const at = (options.now ?? new Date()).getTime();
   const vapid = options.vapid === undefined ? vapidFrom(envSetting) : options.vapid;
-  if (!vapid) return 0;
+  if (!vapid || !(await (await import('../operator/policy.server.ts')).familyAllows(tree, 'feature.push'))) return 0;
   let sent = 0;
   try {
     // Members' devices only: a row whose owner has left is not sent to (and is removed with the membership anyway).

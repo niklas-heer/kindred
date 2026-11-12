@@ -20,7 +20,7 @@ The operator runs the server. It is a role of the server, not of a family, and i
 ## The operator console
 
 **Operator console** in the account menu, at `/operator`. Only operators see the item, and the server checks the role on every
-call. It has eight tabs: Families, Statistics, Requests, Data requests, Settings, Updates, Operators and Log.
+call. It has ten tabs: Families, Statistics, Requests, Data requests, Settings, Policies, Announcements, Updates, Operators and Log.
 
 ### Families
 
@@ -142,11 +142,62 @@ characters of the SHA-256 of the terms' text, so changing the text makes a new v
 contributors or editors: the stewards are the ones who answer for a family. A family you make for someone in the console asks
 them when they take its steward invitation.
 
+### Policies
+
+What the families on this server may use, one card per feature, decided by the operator (`src/lib/operator/policy.server.ts`).
+Each card has a **scope**:
+
+- *Every family, as its stewards choose* (`families`, the default, and what every existing install has): today's behaviour. Tick
+  families to **withhold** it from them.
+- *Only the families I choose* (`selected`): tick the families that get it; the rest do not.
+- *Off for every family* (`off`).
+
+The features: **the Campaign**, **the AI assistant and helpers** (the assistant, faces, avatars, arms and the background
+tasks), **painted portraits**, **address lookup** (Photon), **push notifications**, and **where the AI comes from** (below).
+Storage is not a feature here: it keeps its default cap and each family's cap.
+
+**Show what changes** counts, before anything is saved, how many families lose or gain the feature and how many accounts are
+in them, and names up to twenty of those families. **Save** is offered only once the impact of exactly what is about to be
+saved has been shown. Every save is in the log.
+
+One rule decides what a family may use, `effective(tree, key)`, and the server asks it everywhere: the guard's callers, the
+server functions, the daily jobs and the AI adapters, never only the browser. Its order, where a "no" at any level wins:
+
+1. **The server**: what this deployment can do at all. Without VAPID keys there is no push; with `KINDRED_ADDRESS_LOOKUP=off`
+   no address lookup. The card says so.
+2. **The family's status**: a suspended or closed family uses none of these features.
+3. **The operator's scope**, then 4. **the operator's grant** to the family.
+5. **The steward's switch**, where the feature has one (the Campaign, the AI's switches, painting, the background tasks).
+6. **The member's own choice**, where there is one (push on their device).
+
+**Turning a feature off deletes nothing.** The Campaign's games and settings, a family's AI keys, routes, conversations and
+switches, push subscriptions: all stay, and come back as they were when the feature is on again. Background work for a
+feature that is off is skipped (the AI's background tasks report "turned off by the operator"; the daily reminders and the
+weekly news skip the family). A steward sees the control in its place, locked and off, with one sentence ("Turned off by this
+server's operator.") and your **contact email** from Settings; members see nothing, the feature is simply not there.
+
+**Where the AI comes from** (`ai.source`): *each family's own key* (the default), *only this server's key*, *the family's own key
+or this server's*, or *no AI*. Under *Only the families I choose*, the families not ticked keep their own key. Offering your own
+AI needs a provider, a model whose price Kindred knows (its price table or OpenRouter's list; one without a price is refused),
+**each family's monthly budget** and a **monthly ceiling for all families together**, and your key for that provider (**This
+server's AI keys**, sealed like a family's). It is never on by itself: a family's steward opts in on its AI settings, because
+the provider then processes that family's requests on your behalf (it becomes your subprocessor). Their AI settings then show
+"Provided by this server: $1.20 of $2.00 this month". Painted portraits always use the family's own key. How the budget is
+booked is in [ai.md](ai.md#operator-funded-ai).
+
+### Announcements
+
+A banner from you to **the stewards of every family** (and other operators) or to **everyone signed in**, with a start and an
+optional end: for maintenance, a change of provider, or a security notice. It shows at the foot of every page until the reader
+dismisses it on that device. **Plain text only**: what you type is shown as text, never as HTML, Markdown or links. **End now**
+stops one early; ended ones stay in the list. Nobody signed out, no share-link guest and no demo sees one, and during a
+steward's "View as" preview only what the previewed reader would see shows.
+
 ### Operators and Log
 
 The operators, with **Make an operator** by email and **Step down**. The **Log** lists everything any operator did, newest first:
 when, who, what, and which family (making, suspending, closing, capping, recounting and deleting families, new invitation links,
-approving and declining requests, moving data requests on, changing settings and operators). It never holds a family's records.
+approving and declining requests, moving data requests on, changing settings, policies, the server's AI keys, announcements and operators). It never holds a family's records.
 The log is kept when a family is deleted. Turning the update check on or off is logged too.
 
 ### Statistics
@@ -309,7 +360,9 @@ This is a list of what operators commonly need, not legal advice. Check what app
 - **A data processing agreement with each family.** The families decide what goes in their trees; you process it for them
   (Art. 28 GDPR). Put it in your terms or a separate agreement.
 - **Your own processors.** On Cloudflare, accept its Data Processing Addendum in the dashboard; on a hosting provider, theirs.
-  Any AI provider a family connects with its own key is that family's choice and contract.
+  Any AI provider a family connects with its own key is that family's choice and contract. If you offer your own AI (Policies,
+  "Where the AI comes from"), its provider is yours: list it, and tell the families before they opt in. An announcement is a
+  simple way to tell stewards about a new provider.
 - **EU storage.** Keep the data in the EU if you promise it: a server in the EU, or on Cloudflare a jurisdiction for the data
   ([deploy-cloudflare.md](deploy-cloudflare.md)).
 - **Records of processing.** Keep a short record of what you process and why (Art. 30 GDPR); the console's log helps show what

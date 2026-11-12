@@ -1,4 +1,5 @@
 import { I18nProvider, loadLocale, translate, type Locale } from '~/lib/i18n';
+import { AnnouncementBanner } from '~/components/operator/AnnouncementBanner';
 import { requestLocale } from '~/lib/i18n/request';
 import { sessionQuery, setMyLocale } from '~/lib/auth/functions';
 import '@fontsource-variable/cinzel';
@@ -45,8 +46,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     scripts: [{ children: zodConfigScript }, { children: themeScript }],
   }),
   shellComponent: Shell,
-  component: Outlet,
+  component: Root,
 });
+
+/** Every page, and the operator's announcements over it for a signed-in reader. */
+function Root() {
+  return <><Outlet /><AnnouncementBanner /></>;
+}
 
 function Shell({ children }: { children: ReactNode }) {
   const {locale, offered, localeAccount, demo} = Route.useRouteContext();

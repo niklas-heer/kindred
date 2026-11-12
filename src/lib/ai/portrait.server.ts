@@ -159,7 +159,9 @@ export async function checkPaintModel(model: string): Promise<void> {
 
 /** Turns painting on or off. On needs a route that runs: a painting provider connected, and a model picked. */
 export async function setPortraitEnabled(tree: string, by: string, enabled: boolean): Promise<void> {
-  if (enabled) {
+  // Only turning it on is checked: a switch left on while its route or the operator's policy waits stays as the steward set it.
+  if (enabled && (await row(tree))?.enabled !== 1) {
+    if (!(await paintingAllowed(tree))) throw new AiError('not-configured', 'policy.err.off');
     const route = await resolveRoute(tree, 'portrait');
     if (!route.effective || !route.connected || !(PAINT_PROVIDERS as readonly string[]).includes(route.effective.provider)) throw new AiError('not-configured', 'paint.err_no_key');
     if (!route.effective.model) throw new AiError('bad-input', 'paint.err_model_needed');
@@ -182,10 +184,22 @@ export async function setPortraitStyle(tree: string, by: string, text: string): 
 }
 
 /**
+ * Whether the operator lets this family paint (`feature.portraits`) with its own key (`ai.source` is `byo` for it): painting
+ * is never funded by the operator. Reads only.
+ */
+export async function paintingAllowed(tree: string): Promise<boolean> {
+  const { effective } = await import('../operator/policy.server.ts');
+  const [feature, ai] = await Promise.all([effective(tree, 'feature.portraits'), effective(tree, 'ai.source')]);
+  return feature.allowed && ai.value.source === 'byo';
+}
+
+/**
  * The key a painting uses: the portrait route's provider's own key, and only a provider that paints. Throws paint.err_no_key
  * when the route has none, and paint.err_key_unreadable when the key cannot be opened.
  */
 async function paintingKey(tree: string): Promise<string> {
+  // The operator's word first: painting off for this family, or AI that is not the family's own key, paints nothing.
+  if (!(await paintingAllowed(tree))) throw new AiError('not-configured', 'policy.err.off');
   const route = await resolveRoute(tree, 'portrait');
   if (!route.effective || !route.connected || !(PAINT_PROVIDERS as readonly string[]).includes(route.effective.provider)) throw new AiError('not-configured', 'paint.err_no_key');
   try {
@@ -505,11 +519,12 @@ export async function portraitRow(tree: string, personId: string, key: string) {
 
 /** What the page shows about the portrait feature to someone who may see the person: on, configured, and the model. */
 export async function portraitStatus(tree: string): Promise<{ enabled: boolean; configured: boolean; model: string; labName: string; usd: number | null; provider: Provider | null }> {
-  const s = await readPortraitSettings(tree);
+  const [s, allowed] = await Promise.all([readPortraitSettings(tree), paintingAllowed(tree)]);
   const listed = s.model ? (await imageModelList().catch(() => [] as ImageModel[])).find((m) => m.id === s.model) : undefined;
   return {
-    enabled: s.enabled,
-    configured: s.connected,
+    // Painting the operator turned off is hidden, as painting with no provider is.
+    enabled: s.enabled && allowed,
+    configured: s.connected && allowed,
     model: s.model,
     labName: listed?.labName ?? '',
     usd: RECOMMENDED_PORTRAIT.find((r) => r.model === s.model)?.usd ?? listed?.priceUsd ?? (s.model ? UNPRICED_USD : null),

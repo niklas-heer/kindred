@@ -105,8 +105,15 @@ async function storedRoutes(tree: string, given?: RouteDbRow[]): Promise<Map<Rou
 
 /** Where every route goes now. Reads only. `rows` are the two reads already made (`routesQuery`, `connectionsQuery`), if they were. */
 export async function resolveRoutes(tree: string, rows?: { routes: RouteDbRow[]; connections: ConnRow[] }): Promise<Record<Route, ResolvedRoute>> {
-  const [stored, connected] = await Promise.all([storedRoutes(tree, rows?.routes), connectedProviders(tree, rows?.connections)]);
+  const [stored, connected, funded] = await Promise.all([storedRoutes(tree, rows?.routes), connectedProviders(tree, rows?.connections), operatorFunded(tree)]);
   const own = (r: Route) => stored.get(r) ?? { provider: null, model: '' };
+  // A family on the operator's AI (policy `ai.source`): every job but painting goes to the operator's provider and model, with
+  // the operator's key; painting is not funded by the operator and waits. The family's own routes stay as they were saved.
+  if (funded) {
+    return Object.fromEntries(ROUTES.map((route) => [route, route === 'portrait'
+      ? { route, provider: null, model: '', effective: null, connected: false, needsModel: false }
+      : { route, provider: funded.provider, model: funded.model, effective: funded, connected: true, needsModel: false }])) as Record<Route, ResolvedRoute>;
+  }
   const a = own('assistant');
   const assistant = a.provider ? { provider: a.provider, model: a.model || DEFAULT_MODEL[a.provider] } : null;
   const out = {} as Record<Route, ResolvedRoute>;
@@ -126,6 +133,12 @@ export async function resolveRoutes(tree: string, rows?: { routes: RouteDbRow[];
     };
   }
   return out;
+}
+
+/** The operator's provider and model when this family's AI is the operator's (policy `ai.source`), else null. */
+export async function operatorFunded(tree: string): Promise<{ provider: Provider; model: string } | null> {
+  const ai = await (await import('../operator/policy.server.ts')).effective(tree, 'ai.source');
+  return ai.value.source === 'operator' && ai.value.provider && ai.value.model ? { provider: ai.value.provider, model: ai.value.model } : null;
 }
 
 /** One route, resolved. */
@@ -150,6 +163,8 @@ export interface RouteInput {
  * against this before anything is written. Reads only.
  */
 export async function projectedConnected(tree: string, route: Route, inputs: RouteInput[]): Promise<boolean> {
+  // On the operator's AI every job but painting has its provider.
+  if (await operatorFunded(tree)) return route !== 'portrait';
   const stored = await storedRoutes(tree);
   const connected = await connectedProviders(tree);
   const pick = (r: Route): { provider: Provider | null } => {

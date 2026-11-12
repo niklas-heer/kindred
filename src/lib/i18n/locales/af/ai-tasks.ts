@@ -40,6 +40,7 @@ export default {
   'aitasks.skip.no-key': 'KI is nog nie opgestel nie: stoor eers ’n sleutel.',
   'aitasks.skip.budget-off': 'Die maandelikse begroting is 0, so KI is af.',
   'aitasks.skip.feature-off': 'Die funksie wat hierdie taak nodig het, is afgeskakel.',
+  'aitasks.skip.policy-off': 'Hierdie bediener se operateur het KI vir hierdie familie afgeskakel, so agtergrondwerk wag.',
   'aitasks.skip.busy': 'Hierdie taak loop reeds.',
   'aitasks.errCap': 'Agtergrondwerk het sy deel van hierdie maand se begroting gebruik, so dit stop. Dit begin op die 1ste (UTC) weer.',
   'aitasks.errSearch': 'Hierdie agtergrondtaak mag nie die web deursoek nie.',
