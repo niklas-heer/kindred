@@ -181,6 +181,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0040_password.sql` | A username and password as a second way in: `user.username`, `password`, `totp`, `recovery_code`, `auth_attempt` (the database-backed limit on guessing), and `session.method` / `session.proved_via`. |
 | `0041_signin_step.sql` | `signin_step` (a right password waiting for its two-step code) and `password_reset` (an operator's one-hour reset link). |
 | `0042_policies.sql` | The operator's policies ([hosting-many-families.md](hosting-many-families.md), "Policies"): `instance_policy`, `family_policy`, operator-funded AI (`operator_ai_provider`, `ai_operator_spend`, `ai_operator_month`, `ai_operator_booking`, `ai_settings.funding`) and `announcement`. Every policy starts as `families` (today's behaviour) and `ai.source` as `byo`. |
+| `0043_signup.sql` | Hosting and sign-up ([hosting-many-families.md](hosting-many-families.md#hosting-and-sign-up)): `signup`, `signup_code`, `family_admin.self_signed`, and `challenge` made again with the purpose `signup`. |
 | `0047_updates_health.sql` | The console's Update button and Health tab ([hosting-many-families.md](hosting-many-families.md), "Updates" and "Health"): `update_github` (the install's repository and sealed GitHub token, and the last update's run), `job_run` (each daily job's last run) and `family_schema` (the schema each family last reported). |
 
 ### Tables
@@ -272,7 +273,10 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 - **`instance_setting`** (0034): the server's own settings, one row per `key` (`family_creation`, `instance_name`,
   `contact_email`, `impressum`, `privacy`, `terms`, `report_contact`, `default_cap_bytes`, `families_per_account` from 0037,
   `update_check` from 0038: `on` once an operator agreed to the daily update check, `off` when they declined or turned it off;
-  `languages`: the offered languages as `en,de,af`, English always among them, no migration needed;
+  `languages`: the offered languages as `en,de,af`, English always among them, no migration needed; from 0043, also without a
+  migration: `instance_mode` (`single` or `hosting`), `signup_per_account`, `signup_per_day`, `signup_total` (a number, or `none`),
+  `signup_unverified` (`open` or `waitlist`), `landing_text`, `demo_url` and `backups_confirmed`; `family_creation` may then be
+  `signup`;
   `auth_methods` from 0040: a JSON list of the ways in the operator offers, `["passkey","password"]`; missing means
   passkeys only, or what `KINDRED_AUTH` lists, src/lib/auth/methods.server.ts) with
   its text `value`, and when and by whom it last changed. A missing row is the default (`family_creation` is then `stewards`; no
@@ -285,8 +289,16 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 - **`family_admin`** (0034): one row per family with administration: `status` (`active` or `suspended`, read with every
   membership so the guard knows without another round trip) and `closed` (0037: 1 for a suspended family the operator closed
   outright; its members are refused and its guests' visits end; the share link checks it too), `cap_bytes` (NULL for none), `created_at` and `created_by`,
-  `invited_name` (whom the operator invited as its first steward) and `counted_at` (its storage's last recount). Deleted with the
-  family (`tree` column).
+  `invited_name` (whom the operator invited as its first steward), `counted_at` (its storage's last recount) and `self_signed`
+  (0043: 1 for a family made by sign-up; the server's ceiling of signed-up families counts these). Deleted with the family
+  (`tree` column).
+- **`signup`** (0043): one row per sign-up that made a family: `user` (foreign key, deleted with the account, since the row holds
+  their `name` and contact `email`), `family` (an id, deliberately not a `tree` column, so the day's count outlives the family),
+  `verified` (whether a sign-in provider verified the email; 0 for every passkey sign-up), `age_confirmed` ("I am 16 or older"),
+  `code` (the `signup_code` used), `network` (a 4-character hash, never the address) and `created`. The limits per day and per
+  network count these rows inside the batch that adds one.
+- **`signup_code`** (0043): a code an operator made that opens sign-up: `hash` (the code's SHA-256; the code is shown once),
+  `label`, `uses_max`, `uses`, `expires` (NULL: never), `created`, `created_by` and `revoked_at`.
 - **`media_usage`** (0034): one row per file in a family's media storage, `tree`, `key`, `bytes`, `at`. Every upload reserves its
   row in a batch whose guard refuses it over the family's cap, before the file is written; a deletion removes it. A family's usage
   is the sum. `pending_at` (0036) is when the reservation was made, until the file is written (then NULL). The daily run recounts

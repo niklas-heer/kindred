@@ -192,7 +192,8 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 | `KINDRED_JOBS` | empty | `off` stops the daily run at 06:00 UTC for reminders, archives and enabled background AI tasks. Any other value keeps it on. |
 | `KINDRED_TRUSTED_PROXIES` | empty (0) | How many reverse proxies stand in front of the server: `1` for Caddy alone, as in [HTTPS with Caddy](#https-with-caddy). The limits on signing in, share links and invitations then count the visitor's address that the proxy passes on (X-Forwarded-For, counted from the right, so a visitor cannot write their own). Empty or `0`: the header is never believed. Set it only when every request reaches the server through that many proxies. Not used on Cloudflare. |
 | `KINDRED_JURISDICTION` | empty | Cloudflare Workers only: `eu` keeps the families' Durable Objects in the EU, chosen once before setup ([deploy-cloudflare.md](deploy-cloudflare.md#one-click-deploy)). Node and Docker ignore it: their data is where the server is. |
-| `KINDRED_TURNSTILE_SITE_KEY`, `KINDRED_TURNSTILE_SECRET` | empty | Cloudflare Turnstile on the public request forms (`/request`, `/privacy-request`), against bots. Both or neither: the site key goes to the browser, the secret stays on the server, which asks Cloudflare whether each form's token is good. Without them the forms rely on a hidden field and a limit per network. Only for a server that hosts families for others; see [hosting-many-families.md](hosting-many-families.md). |
+| `KINDRED_TURNSTILE_SITE_KEY`, `KINDRED_TURNSTILE_SECRET` | empty | Cloudflare Turnstile on the public forms (`/request`, `/privacy-request`, and `/signup`, which needs it), against bots. Both or neither: the site key goes to the browser, the secret stays on the server, which asks Cloudflare whether each form's token is good. Without them the forms rely on a hidden field and a limit per network. Only for a server that hosts families for others; see [hosting-many-families.md](hosting-many-families.md). |
+| `KINDRED_TURNSTILE_FAKE` | empty | For the browser journeys only, never a real server: `1` gives sign-up (`/signup`) a local stand-in for Turnstile (a tick box the server accepts), so no test reaches Cloudflare. The request forms are left as they are. |
 | `KINDRED_UPDATE_CHECK` | empty | `off` turns the operator console's update check off for good. Otherwise it asks GitHub's releases API once a day, and only after an operator agreed in the console. See [hosting-many-families.md](hosting-many-families.md#updates). |
 | `KINDRED_UPDATE_REPO` | `niklas-heer/kindred` | The repository (`owner/name`) whose releases the update check reads, for a fork. |
 | `KINDRED_UPDATE_VIA` | `docker` in the image, else `node` | How the console's Updates tab says to update this server: `docker` (pull the new image), `node` (check out and build), `cloudflare` (deploy by hand) or `github-actions` (a copy made by the Deploy to Cloudflare button: the Update button). See [hosting-many-families.md](hosting-many-families.md#updates). |
@@ -686,10 +687,12 @@ its steward and is asked to add themselves first, as after setup; nobody else se
   who asked) and feedback. The accounts of its members stay, for their other families. The server's last family, and the family
   `KINDRED_DEFAULT_TREE` names, cannot be deleted. **It cannot be undone**: only a backup brings it back.
 
-Who may make a family is a setting of the server: stewards and operators (the default, as above), operators only, or anyone
-may ask and an operator approves. It is in the **Operator console**, with the rest of what you need to host families for
-other people (storage caps, a waiting list, data requests, legal pages): see [hosting-many-families.md](hosting-many-families.md).
-A server run for one family needs none of it.
+Who may make a family is a setting of the server: stewards and operators (the default, as above), operators only, anyone
+may ask and an operator approves, or anyone may start one themselves by signing up. It is in the **Operator console**, with the
+rest of what you need to host families for other people (the hosting mode and its landing page, sign-up and its limits and
+codes, a readiness checklist, storage caps, a waiting list, data requests, legal pages): see
+[hosting-many-families.md](hosting-many-families.md#hosting-and-sign-up). A server run for one family needs none of it: it stays
+in the mode **For one family**, where `/` shows the sign-in page to someone signed out, exactly as before.
 
 If the server stops in the middle of making or deleting a family, do it again: a family that was left with its details but
 no people and no members is finished by making it again, and a deletion that stopped is finished by deleting again (or forgotten

@@ -20,7 +20,8 @@ The operator runs the server. It is a role of the server, not of a family, and i
 ## The operator console
 
 **Operator console** in the account menu, at `/operator`. Only operators see the item, and the server checks the role on every
-call. It has eleven tabs: Families, Statistics, Requests, Data requests, Settings, Sign-in, Updates, Policies, Announcements, Operators and Log.
+call. It has thirteen tabs: Families, Statistics, Requests, Data requests, Settings, Hosting, Sign-in, Policies, Announcements,
+Updates, Health, Operators and Log.
 
 ### Families
 
@@ -121,7 +122,10 @@ console**, and in the dot on your name.
     made; the Families page shows "You have made 2 of the 5 …" and refuses the next. A new install starts at 5; a server that
     already had accounts when it was upgraded (migration 0037) has no limit until you set one. Leave it empty for none.
   - *Only operators*: nobody else, and no request form.
-  - *Anyone may ask*: the request form is open; only operators make families, by approving requests or directly.
+  - *Anyone may ask*: the request form is open; only operators make families, by approving requests or directly. A
+    [sign-up code](#sign-up-codes) still lets the person who has it start a family themselves.
+  - *Anyone may start a family* (`signup`): sign-up at `/signup`, within the limits on the Hosting tab; the request form stays
+    open for when sign-up is full. Refused until the server is ready for it ([Hosting and sign-up](#hosting-and-sign-up)).
 - **This server**: its name (shown above the public forms), a contact email (on the legal page) and the **storage cap for new
   families** in MB. The default cap applies to families made after you set it; set existing families' caps on the Families tab.
 - **Legal texts**: the Impressum, the privacy policy, the terms of use and where to report content. The privacy policy and the
@@ -339,6 +343,73 @@ someone signed out see only what is meant for everyone. After an upgrade, a sign
 card once per minor version, only if their account is older than this server's first run of that version, never during a tour,
 in a demo or in "View as". How to write a release's highlights: [releases/README.md](releases/README.md).
 
+## Hosting and sign-up
+
+The console's **Hosting** tab says how the server is used, and lets people start families themselves.
+
+### How this server is used (`instance_mode`)
+
+- **For one family** (`single`, the default, and what every install that never opens this tab is): someone signed out at `/`
+  goes to the sign-in page, as always.
+- **Hosting families** (`hosting`): someone signed out at `/` sees a **landing page**: the server's name, your paragraph (plain
+  text, line breaks kept; set on this tab), what a family gets (the storage cap of new families; AI with the family's own key),
+  where the data is kept (this server, or Cloudflare, "inside the European Union" with `KINDRED_JURISDICTION=eu`), who runs it
+  (your contact email and the legal page), **Start a family** (while sign-up is open) or **Ask for a family** (while the request
+  form is), **Sign in**, an optional link to a demo, the language picker and the legal footer. It names no family and counts
+  nothing: no directory, no number of families or accounts. Someone signed in goes to their family, the picker of their families,
+  or, in no family yet, to Families (`/families`), which points at sign-up or the request form. A demo is unchanged.
+- Changing the mode never hides or deletes a family, and changes nothing else. While sign-up is on, the mode cannot leave hosting.
+
+### Who may sign up
+
+**Who may make a family** on the Settings tab gains **Anyone may start a family**. Turning it on is refused, with what is
+missing, unless the server is ready (the first seven items of the checklist below): hosting mode, Kindred's own sign-in (behind
+Cloudflare Access, Access decides who has an account), [Turnstile](#cloudflare-turnstile), the Impressum, a privacy policy, terms
+of use and a storage cap for new families. If one of them goes missing later, sign-up pauses ("finishing setting it up") instead
+of running without it.
+
+The sign-up form asks for the person's name, the family's name and address (filled in from the name), a contact email, **I
+accept this server's terms of use and its agreement to process our family's data for us** and **I am 16 or older** (Kindred's
+policy for whoever starts a family), and passes Turnstile; the server checks Turnstile once, before the passkey is made. Then the
+device makes a **passkey** and one step makes the account, the family and its first steward (a password, once that sign-in
+method is on, is the other way to make the account). They land on "add yourself", as after setup. Someone already signed in
+starts the family with their own account, with no new passkey.
+
+Kindred records the terms' acceptance (`terms_acceptance`, as for any family made), the processing agreement (a second row with
+`kind = 'dpa'` once the server's `terms_acceptance` has that column; until then the terms' row is the record, and the agreement's
+version is the terms' version), and the sign-up itself (`signup`: name, contact email, whether it was verified, the age answer,
+the code, a 4-character network hash, when). The contact email is **not verified** (Kindred sends no email) and so never becomes
+the account's own email: it is only how you reach them, listed under **Latest sign-ups** on the Hosting tab. **Sign-ups whose
+email nobody checked** (every passkey sign-up) can **start their family** (the default) or **go to the waiting list**: the form
+then becomes a [request](#waiting-list), no account is made, and you approve it as any other.
+
+### Limits
+
+- **Families per account** (default 1): how many families one account (not an operator) may start by sign-up, counting the
+  families it made that are still here.
+- **Sign-ups a day** (default 20) and **families from sign-up, at most** (default 200; empty for no ceiling).
+- **Three sign-ups a day from one network** (a 4-character hash, never the address), and Turnstile.
+- New families get the default storage cap; AI uses the family's own key, as everywhere.
+
+The limits are checked in the same database batch that writes the account, the family's administration and the sign-up, so two
+sign-ups at once cannot both take the last place; the family database a refused sign-up made is removed again. When the day's
+limit or the ceiling is reached, the landing page and `/signup` say so and offer the request form instead.
+
+### Sign-up codes
+
+**Make a code** (a label, how many sign-ups it allows, how many days it lasts, or none) gives a code such as `ABCD-EFGH-JKMN` and
+the link `/signup?code=…`, shown once (Kindred keeps only its hash): send it yourself. A code opens sign-up while **Who may make a
+family** is **Anyone may ask** or **Anyone may start a family**, and passes the day's limit, the ceiling and the waiting list (you
+chose to let that person in); the per-network and per-account limits still hold. Each use is counted in the sign-up's batch, so a
+one-use code makes one family however many tabs race. **Withdraw** ends one. Making and withdrawing codes is logged.
+
+### Ready to host?
+
+The checklist on the Hosting tab, each item done or missing with how to fix it: hosting mode, Kindred's own sign-in, Turnstile,
+the Impressum, the privacy policy, the terms, a storage cap (these seven are needed for sign-up), a contact email, where to report
+content, a way back in for operators (a second operator, or a second passkey for each), and backups (Kindred cannot see them: tick
+"I keep backups" once you do).
+
 ## Legal pages
 
 `/legal` shows the Impressum, the privacy policy, the terms and where to report content, from the settings, each with its own
@@ -381,8 +452,8 @@ in the accounts database, before the file is written:
 
 ## Cloudflare Turnstile
 
-Set `KINDRED_TURNSTILE_SITE_KEY` and `KINDRED_TURNSTILE_SECRET` (both, or neither) to show Turnstile's check on `/request` and
-`/privacy-request`. Make a widget in the Cloudflare dashboard (Turnstile is free) for your server's host name. The browser loads
+Set `KINDRED_TURNSTILE_SITE_KEY` and `KINDRED_TURNSTILE_SECRET` (both, or neither) to show Turnstile's check on `/request`,
+`/privacy-request` and `/signup` (sign-up needs it). Make a widget in the Cloudflare dashboard (Turnstile is free) for your server's host name. The browser loads
 Cloudflare's script only on those forms and only then (the page's Content-Security-Policy allows `challenges.cloudflare.com` only
 while the keys are set); the server asks Cloudflare whether each form's token is good and refuses it otherwise. Settings:
 [self-host.md](self-host.md#settings), [deploy-cloudflare.md](deploy-cloudflare.md).
