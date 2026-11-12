@@ -526,7 +526,9 @@ the last **4 weeks** and of each month of the last **12 months**; the tab's *How
 nothing is kept longer than the months set, however long ago a family's backups stopped, with one exception: the **newest backup
 of a living family is always kept**, so a family whose backups failed for a year still has its last one. The backup made just
 before a restore over a family or a rollback is kept for **7 days** whatever the numbers say. When a family is deleted its backups stay for a **grace period**
-(30 days by default, set on the same tab, 0 to 365), and the daily run deletes them after it. Until then they are listed under
+(30 days by default, set on the same tab, 0 to 365), and the daily run deletes them after it, a backup kept for those 7 days
+included: the family is gone, so the grace period alone says how long anything of it lingers. When a family is made at an
+address a deleted family held, that family's backups left there are marked as a deleted family's too. Until then they are listed under
 *Deleted families* and one can be restored into a new family. Backups are where a deleted family's data, and an erased person,
 lingers ([gdpr.md](gdpr.md#backups-and-the-nightly-archive)): say how long in your privacy policy.
 
@@ -545,11 +547,17 @@ served. A failed drill fails the `backup-drill` job, so the Health tab shows it.
   not you. When none of them is left, the restore is refused and says why; Kindred never hands you a link into a family's records
   instead. The address is claimed before anything is written, so a family made there at the same moment, or a second restore,
   is refused, and the restore never writes over a family. The original stays as it is. While the backup's family still holds
-  its address, its pictures and documents are copied to the new family, up to 200 at a time; *Copy more pictures* continues,
-  only from that family into this one. A deleted family's pictures went with it, and another family's are never copied.
+  its address **and every one of those stewards still stewards it**, its pictures and documents are copied to the new family,
+  up to 200 at a time; *Copy more pictures* continues, only from that family into this one, and only while every steward of the
+  new family stewards the original. The pictures are the family's as they are now, not as they were then: a steward removed
+  since would receive what was added after their removal, so then the records are restored without pictures, and the result
+  and the log (`mediaWithheld`) say so. A deleted family's pictures went with it, and another family's are never copied. A
+  restore holds its address while it writes; one that stopped is listed under *Restores that stopped* and lets the address go
+  after an hour, or at once with *Free the address* (logged, `backup.clear_claim`).
 - **Over the family**: the family is replaced by the backup, and everything written since is gone from it. It needs the family's
   address typed and a fresh proof (as deleting does), and a fresh backup of the family is made first (kept for at least 7 days),
-  so the restore itself can be undone by restoring that one. A deleted family can only be restored into a new one.
+  so the restore itself can be undone by restoring that one. A deleted family can only be restored into a new one, and so can a
+  backup of an earlier family that held the address (one made before the family there now).
 
 Before either replaces anything, the backup is checked as the drill checks it (Node: `integrity_check`, rows and schema against
 the manifest; Workers: the drill in a scratch object, then the rows and schema again in the family's object before it is

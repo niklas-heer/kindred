@@ -94,4 +94,11 @@ export default {
   "backup.err.no_point": "Tego punktu przywracania już nie ma.",
   "backup.err.no_stewards": "Ta kopia nie zapisuje żadnego opiekuna, który wciąż ma tu konto, więc nikt nie mógłby dostać przywróconej rodziny. Nie przywrócono jej.",
   "backup.err.no_media": "Nie ma już obrazów do skopiowania w ramach tego przywrócenia.",
+  "backup.media_withheld": "Nie skopiowano żadnych obrazów: ktoś zapisany w kopii jako opiekun nie jest już opiekunem pierwotnej rodziny, a jej obrazy obejmują teraz także te dodane później. Dane przywrócono bez nich.",
+  "backup.stopped_title": "Przerwane przywracania",
+  "backup.stopped_hint": "Przywracanie zajmuje swój adres, dopóki zapisuje. Przerwane zwalnia go po godzinie; możesz zwolnić go teraz.",
+  "backup.stopped_line": "{id}, z {from}, rozpoczęte {date}; wolny od {lapses}",
+  "backup.stopped_clear": "Zwolnij adres",
+  "backup.err.other_family": "Ta kopia pochodzi z wcześniejszej rodziny pod tym adresem, nie z rodziny, która jest tam teraz: przywróć ją jako nową rodzinę.",
+  "backup.err.no_claim": "Żadne przywracanie nie zajmuje już tego adresu.",
 } satisfies Strings<typeof en, "pl">;

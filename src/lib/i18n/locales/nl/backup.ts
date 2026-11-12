@@ -94,4 +94,11 @@ export default {
   "backup.err.no_point": "Dat herstelpunt is er niet meer.",
   "backup.err.no_stewards": "Deze back-up legt geen beheerder vast die hier nog een account heeft, dus niemand zou de teruggezette familie kunnen krijgen. Ze is niet teruggezet.",
   "backup.err.no_media": "Er zijn voor deze terugzetting geen afbeeldingen meer om te kopiëren.",
+  "backup.media_withheld": "Er zijn geen afbeeldingen gekopieerd: iemand die de back-up als beheerder vastlegt, beheert de oorspronkelijke familie niet meer, en haar afbeeldingen omvatten nu ook latere. De gegevens zijn zonder ze teruggezet.",
+  "backup.stopped_title": "Gestopte terugzettingen",
+  "backup.stopped_hint": "Een terugzetting houdt haar adres vast zolang ze schrijft. Een gestopte laat het adres na een uur los; je kunt het nu vrijgeven.",
+  "backup.stopped_line": "{id}, uit {from}, begonnen op {date}; vrij vanaf {lapses}",
+  "backup.stopped_clear": "Adres vrijgeven",
+  "backup.err.other_family": "Deze back-up is van een eerdere familie op dit adres, niet van de familie die er nu is: zet hem terug als nieuwe familie.",
+  "backup.err.no_claim": "Geen terugzetting houdt dat adres nog vast.",
 } satisfies Strings<typeof en, "nl">;

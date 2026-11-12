@@ -94,4 +94,11 @@ export default {
   "backup.err.no_point": "Quel punto di ripristino non c’è più.",
   "backup.err.no_stewards": "Questo backup non registra nessun custode che abbia ancora un account qui, quindi nessuno potrebbe ricevere la famiglia ripristinata. Non è stata ripristinata.",
   "backup.err.no_media": "Non ci sono più immagini da copiare per questo ripristino.",
+  "backup.media_withheld": "Non è stata copiata nessuna immagine: una persona che il backup registra come custode non è più custode della famiglia originale, e le sue immagini ora includono anche quelle aggiunte dopo. I dati sono stati ripristinati senza di esse.",
+  "backup.stopped_title": "Ripristini interrotti",
+  "backup.stopped_hint": "Un ripristino tiene occupato il suo indirizzo mentre scrive. Uno interrotto lo libera dopo un’ora; puoi liberarlo subito.",
+  "backup.stopped_line": "{id}, da {from}, iniziato il {date}; libero dal {lapses}",
+  "backup.stopped_clear": "Libera l’indirizzo",
+  "backup.err.other_family": "Questo backup è di una famiglia precedente a questo indirizzo, non di quella che c’è ora: ripristinalo come nuova famiglia.",
+  "backup.err.no_claim": "Nessun ripristino tiene più occupato quell’indirizzo.",
 } satisfies Strings<typeof en, "it">;

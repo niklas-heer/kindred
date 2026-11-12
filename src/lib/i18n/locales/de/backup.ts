@@ -94,4 +94,11 @@ export default {
   "backup.err.no_point": "Dieser Wiederherstellungspunkt ist nicht mehr da.",
   "backup.err.no_stewards": "Laut dieser Sicherung hat niemand, der die Familie verwaltet hat, hier noch ein Konto. Niemand könnte die wiederhergestellte Familie bekommen, deshalb wurde sie nicht wiederhergestellt.",
   "backup.err.no_media": "Für diese Wiederherstellung gibt es keine Bilder mehr zu kopieren.",
+  "backup.media_withheld": "Es wurden keine Bilder kopiert: Jemand, der die Familie laut Sicherung verwaltet hat, verwaltet die ursprüngliche Familie nicht mehr, und zu ihren Bildern gehören inzwischen auch spätere. Die Einträge wurden ohne sie wiederhergestellt.",
+  "backup.stopped_title": "Abgebrochene Wiederherstellungen",
+  "backup.stopped_hint": "Eine Wiederherstellung hält ihre Adresse, solange sie schreibt. Eine abgebrochene gibt die Adresse nach einer Stunde frei; du kannst sie auch jetzt freigeben.",
+  "backup.stopped_line": "{id}, aus {from}, begonnen {date}; frei ab {lapses}",
+  "backup.stopped_clear": "Adresse freigeben",
+  "backup.err.other_family": "Diese Sicherung stammt von einer früheren Familie unter dieser Adresse, nicht von der Familie, die jetzt dort ist: Stelle sie als neue Familie wieder her.",
+  "backup.err.no_claim": "Keine Wiederherstellung hält diese Adresse mehr.",
 } satisfies Strings<typeof en, "de">;

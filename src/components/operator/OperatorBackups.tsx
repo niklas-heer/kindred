@@ -10,7 +10,7 @@ import { withFreshProof } from '~/lib/auth/client';
 import { errorText } from '~/lib/errortext';
 import { formatDate, useT } from '~/lib/i18n';
 import {
-  backupsQuery, operatorBackUpNow, operatorBackupSettings, operatorCopyMedia, operatorDrillNow, operatorRestoreBackup, operatorRollback,
+  backupsQuery, operatorBackUpNow, operatorBackupSettings, operatorClearRestoreClaim, operatorCopyMedia, operatorDrillNow, operatorRestoreBackup, operatorRollback,
 } from '~/lib/backup/backup.functions';
 import { GRACE_MAX_DAYS, KEEP_MAX } from '~/lib/backup/retention';
 import type { BackupFamily, BackupOverview, BackupRow, RestoreResult } from '~/lib/backup/shared';
@@ -46,6 +46,7 @@ export function BackupsTab() {
           ))}
         </ul>
       </section>
+      {data.stopped.length > 0 && <StoppedRestores data={data} />}
       {data.gone.length > 0 && (
         <section aria-labelledby="backup-gone" className="ops-section">
           <h2 id="backup-gone" className="rule">{t('backup.gone_title')}</h2>
@@ -58,6 +59,34 @@ export function BackupsTab() {
         </section>
       )}
     </div>
+  );
+}
+
+/** Restores still writing, or that stopped: each holds its address until it lapses, or the operator clears it. */
+function StoppedRestores({ data }: { data: BackupOverview }) {
+  const t = useT();
+  const qc = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+  const when = (ms: number) => formatDate(ms, t.locale, { dateStyle: 'long', timeStyle: 'short' });
+  const clear = useMutation({
+    mutationFn: (into: string) => operatorClearRestoreClaim({ data: { into } }),
+    onSuccess: async () => { setError(null); await qc.invalidateQueries({ queryKey: ['operator'] }); },
+    onError: (e) => setError(errorText(e, t.locale)),
+  });
+  return (
+    <section aria-labelledby="backup-stopped" className="ops-section">
+      <h2 id="backup-stopped" className="rule">{t('backup.stopped_title')}</h2>
+      <p className="families-hint">{t('backup.stopped_hint')}</p>
+      <ul className="ops-list">
+        {data.stopped.map((c) => (
+          <li key={c.into} className="families-row">
+            <span>{t('backup.stopped_line', { id: c.into, from: c.from ?? '?', date: when(c.at), lapses: when(c.lapsesAt) })}</span>
+            <button type="button" className="btn" disabled={clear.isPending} onClick={() => clear.mutate(c.into)}>{t('backup.stopped_clear')}</button>
+          </li>
+        ))}
+      </ul>
+      {error && <p role="alert" className="families-error">{error}</p>}
+    </section>
   );
 }
 
@@ -243,6 +272,7 @@ function RestoreDialog({ family: f, backup: b, onClose }: { family: BackupFamily
         <div className="families-form">
           <p role="status">{done.fresh ? t('backup.restored_over', { name: done.fresh }) : t('backup.restored_new', { id: done.into })}</p>
           {done.stewards !== null && <p>{t('backup.restored_stewards')}</p>}
+          {done.mediaWithheld && <p>{t('backup.media_withheld')}</p>}
           {done.media && done.media.left > 0 && (
             <div className="families-row">
               <span>{t('backup.media_left', { copied: done.media.copied, left: done.media.left })}</span>

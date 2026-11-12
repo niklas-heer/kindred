@@ -92,4 +92,11 @@ export const en = {
   "backup.err.no_point": "That recovery point is not there any more.",
   "backup.err.no_stewards": "This backup records no steward who still has an account here, so nobody could be given the restored family. It was not restored.",
   "backup.err.no_media": "There are no more pictures to copy for this restore.",
+  "backup.media_withheld": "No pictures were copied: someone the backup records as a steward no longer stewards the original family, and its pictures now include ones added since. The records were restored without them.",
+  "backup.stopped_title": "Restores that stopped",
+  "backup.stopped_hint": "A restore holds its address while it writes. One that stopped lets the address go after an hour; you can free it now.",
+  "backup.stopped_line": "{id}, from {from}, started {date}; free by {lapses}",
+  "backup.stopped_clear": "Free the address",
+  "backup.err.other_family": "This backup is of an earlier family at this address, not of the family there now: restore it into a new family.",
+  "backup.err.no_claim": "No restore is holding that address any more.",
 } as const;

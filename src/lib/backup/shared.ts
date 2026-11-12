@@ -41,6 +41,8 @@ export interface BackupOverview {
   gone: BackupFamily[];
   /** Whether families can be rolled back to a recovery point (Durable Objects). */
   pitr: boolean;
+  /** Restores still writing, or that stopped: each holds its address until `lapsesAt`, or until the operator clears it. */
+  stopped: { into: string; from: string | null; at: number; lapsesAt: number }[];
   now: number;
 }
 
@@ -80,4 +82,6 @@ export interface RestoreResult {
   stewards: number | null;
   /** A restore into a new id of a family that still holds its id: the pictures copied from it, and how many are left to copy. */
   media: { copied: number; left: number } | null;
+  /** A restore into a new id of a family that still holds its id, whose pictures were not copied: a steward the backup recorded no longer stewards it. */
+  mediaWithheld: boolean;
 }

@@ -213,11 +213,15 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   whatever the retention says.
 - **`family_claim`** (0055): one row per family id being made or restored into: `tree`, `what` (`create` while `createFamily`
   runs, deleted when it is done; `restore`), `at` and `by`. Making a family and restoring into a new id each claim the address in
-  one batch with their checks that it is free, so they never both write there (a `create` claim older than ten minutes was left by
-  a request that stopped and no longer holds it). A restore's row stays as its record: `source` (the family backed up), `backup`
+  one batch with their checks that it is free, so they never both write there (a `create` claim older than ten minutes, or a
+  restore's still `restoring` after an hour, was left by a request that stopped and no longer holds it; the console lists the
+  latter and the operator can clear one sooner). A restore's row stays as its record: `source` (the family backed up), `backup`
   (its name), `source_created` (the source's `family_created`), `state` (`restoring`, then `restored`) and `media` (1 while
   pictures are left to copy from that source, which *Copy more pictures* copies only into this family and only while the source
-  is still the same family). Deleted with the family (`tree`).
+  is still the same family and every steward of this family stewards it; a restore whose recorded stewards no longer all
+  steward the source leaves it 0 and copies nothing). Deleted with the family (`tree`). Making a family also marks the backups a
+  deleted family left under its id as gone (`family_backup.gone_at`), and a restore over a family requires the backup's
+  `family_created` to match the family there now.
 - **`backup_status`** (0051): one row per scope (`family`, as above): `tried_at`, `ok_at` (the last good backup), `error` (the
   last failure, sanitised as a job's failure is), and the last restore drill: `drill_at`, `drill_backup`, `drill_ok`,
   `drill_problem`. Deleted with the last backup of a deleted family.

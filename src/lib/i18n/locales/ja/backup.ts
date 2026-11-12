@@ -94,4 +94,11 @@ export default {
   "backup.err.no_point": "その復旧ポイントはもうありません。",
   "backup.err.no_stewards": "このバックアップには、今もここにアカウントがある世話役が記録されていません。復元した家族を渡せる人がいないため、復元しませんでした。",
   "backup.err.no_media": "この復元でコピーする写真はもうありません。",
+  "backup.media_withheld": "写真はコピーしていません。バックアップに世話役として記録されている人が、元の家族の世話役ではなくなっており、元の家族の写真にはその後に追加されたものも含まれているためです。記録は写真なしで復元しました。",
+  "backup.stopped_title": "中断した復元",
+  "backup.stopped_hint": "復元は書き込みのあいだアドレスを確保します。中断した復元は1時間後にアドレスを手放します。今すぐ解放することもできます。",
+  "backup.stopped_line": "{id}（{from}から）、{date}に開始。{lapses}に解放",
+  "backup.stopped_clear": "アドレスを解放",
+  "backup.err.other_family": "このバックアップは、このアドレスにいた以前の家族のもので、今いる家族のものではありません。新しい家族として復元してください。",
+  "backup.err.no_claim": "そのアドレスを確保している復元はもうありません。",
 } satisfies Strings<typeof en, "ja">;

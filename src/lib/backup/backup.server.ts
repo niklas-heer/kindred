@@ -31,6 +31,13 @@ export const MEDIA_STEP = 200;
 export const PIN_MS = 7 * DAY;
 /** A family being made holds its address this long (`family_claim`); a claim older than that was left by a request that stopped. */
 export const CLAIM_MS = 10 * 60_000;
+/**
+ * A restore holds its address this long while it writes (`family_claim.state` `restoring`); a claim older than that was left by a
+ * restore that stopped, and lapses. The console lists such claims, and the operator can clear one sooner.
+ */
+export const RESTORE_CLAIM_MS = 60 * 60_000;
+/** The SQL condition, on `family_claim`, of a claim that still holds its address at `?` (now): bind `now`, then `now` again. */
+export const CLAIM_HOLDS = `(CASE WHEN what = 'restore' THEN state <> 'restoring' OR at > ? - ${RESTORE_CLAIM_MS} ELSE at > ? - ${CLAIM_MS} END)`;
 
 const invalid = (key: string) => new AuthError('invalid', key);
 
@@ -128,7 +135,11 @@ export async function prune(scope: string, keep: Keep, now = Date.now()): Promis
 /** Marks the backups of a deleted family: they are deleted once the grace period has passed. */
 export const markGone = (tree: string, at = Date.now()): Query => q('UPDATE family_backup SET gone_at = ? WHERE family = ? AND gone_at IS NULL', at, tree);
 
-/** Deletes the backups of families deleted longer ago than the grace period. Returns how many went. */
+/**
+ * Deletes the backups of families deleted longer ago than the grace period. Returns how many went. A pin (`pinned_until`, the
+ * backup made before a restore over the family or a rollback) does not keep them: it protects a living family's backup from the
+ * retention, and once the family is deleted the grace period alone says how long anything of it is kept.
+ */
 async function expire(now: number, graceDays: number): Promise<number> {
   const rows = await accounts().all<{ family: string; name: string }>('SELECT family, name FROM family_backup WHERE gone_at IS NOT NULL AND gone_at <= ?', now - graceDays * DAY);
   for (const r of rows) {
@@ -237,7 +248,7 @@ const rowOf = (r: { family: string; name: string; created_at: number; bytes: num
 
 /** The Backups tab: every family's backups (newest first) and status, the accounts', deleted families' waiting ones, the settings. */
 export async function backupOverview(now = Date.now()): Promise<BackupOverview> {
-  const [all, settings, key, rows, status, points] = await Promise.all([
+  const [all, settings, key, rows, status, points, claims] = await Promise.all([
     families(),
     backupSettings(),
     keyStatus(),
@@ -247,6 +258,7 @@ export async function backupOverview(now = Date.now()): Promise<BackupOverview> 
       'SELECT family, ok_at, error, drill_at, drill_backup, drill_ok, drill_problem FROM backup_status'),
     accounts().all<{ id: number; tree: string; bookmark: string; at: number; reason: string; before_migration: string | null; held_migration: string | null }>(
       'SELECT id, tree, bookmark, at, reason, before_migration, held_migration FROM recovery_point WHERE at > ? ORDER BY at DESC', now - 30 * DAY),
+    accounts().all<{ tree: string; at: number; source: string | null }>("SELECT tree, at, source FROM family_claim WHERE what = 'restore' AND state = 'restoring' ORDER BY tree"),
   ]);
   const st = new Map(status.map((s) => [s.family, s]));
   const drillOf = new Map(status.map((s) => [s.family, { name: s.drill_backup, ok: s.drill_ok, problem: s.drill_problem }]));
@@ -278,6 +290,7 @@ export async function backupOverview(now = Date.now()): Promise<BackupOverview> 
     families: all.map((f) => familyOf(f.id, f.name)),
     gone,
     pitr: !!store.backups.recovery,
+    stopped: claims.map((c) => ({ into: c.tree, from: c.source, at: c.at, lapsesAt: c.at + RESTORE_CLAIM_MS })),
     now,
   };
 }
@@ -334,7 +347,8 @@ async function madeAt(tree: string): Promise<number | null | undefined> {
  * Restores a backup. `new` (the default): into a new family id that is free, claimed for the restore first (`family_claim`, which
  * making a family respects too), whose stewards are the stewards the backup recorded who still have an account, and nobody else:
  * with none left the restore is refused, and nobody (the operator least of all) is handed a link instead. The pictures are copied
- * only while the backup's family still holds its id: not of a deleted family, nor of another family made at its address since.
+ * only while the backup's family still holds its id (not of a deleted family, nor of another family made at its address since)
+ * and every one of those stewards still stewards it; otherwise the records are restored without them (`mediaWithheld`).
  * `over`: over the family itself, after a fresh backup of it (kept for a week), with its id typed as `confirm`; the server
  * function asked for a fresh proof. Logged before and after. The accounts database is restored by hand (docs).
  */
@@ -349,6 +363,8 @@ export async function restoreBackup(
   if (mode === 'over') {
     if (row.gone_at !== null) throw invalid('backup.err.gone');
     await knownScope(scope);
+    // The family at the address is the one backed up, not another made there since (whether or not its backups were marked).
+    if ((await madeAt(scope)) !== (row.family_created ?? null)) throw invalid('backup.err.other_family');
     if ((input.confirm ?? '').trim() !== scope) throw invalid('backup.err.confirm');
     if (store.backups.covers(scope) !== 'backup') throw invalid('backup.err.d1');
     let fresh: Manifest;
@@ -362,7 +378,7 @@ export async function restoreBackup(
       audit(op, 'backup.restore_over', scope, { name, created: row.created_at, schema: row.schema, fresh: fresh.name }),
     ]);
     await store.backups.restore(scope, name, scope, { over: true });
-    return { into: scope, fresh: fresh.name, stewards: null, media: null };
+    return { into: scope, fresh: fresh.name, stewards: null, media: null, mediaWithheld: false };
   }
 
   const into = (input.into ?? '').trim();
@@ -375,13 +391,17 @@ export async function restoreBackup(
   // The same family still holds the id: not deleted (its pictures went with it), and not made again by someone else since.
   const current = await madeAt(scope);
   const same = row.gone_at === null && current !== undefined && current === (row.family_created ?? null);
+  // The family's pictures are as they are now, not as they were then: a steward removed since the backup would receive what
+  // was added after their removal. So they are copied only while every steward the restore hands the family still stewards it.
+  const mediaWithheld = same && !(await stewardsStill(scope, stewards));
+  const withMedia = same && !mediaWithheld;
 
   // The address, claimed in one batch with the checks that it is free: a parallel restore or a family made there meanwhile loses.
   const free = `NOT EXISTS (SELECT 1 FROM membership WHERE tree = ?) AND NOT EXISTS (SELECT 1 FROM family_admin WHERE tree = ?)
     AND NOT EXISTS (SELECT 1 FROM invite WHERE tree = ? AND used_at IS NULL AND revoked_at IS NULL)`;
   try {
     await accounts().batch([
-      guard("NOT EXISTS (SELECT 1 FROM family_claim WHERE tree = ? AND (what = 'restore' OR at > ?))", into, now - CLAIM_MS),
+      guard(`NOT EXISTS (SELECT 1 FROM family_claim WHERE tree = ? AND ${CLAIM_HOLDS})`, into, now, now),
       guard(free, into, into, into),
       q(`INSERT INTO family_claim (tree, what, at, by, source, backup, source_created, state, media) VALUES (?, 'restore', ?, ?, ?, ?, ?, 'restoring', 0)
          ON CONFLICT(tree) DO UPDATE SET what = excluded.what, at = excluded.at, by = excluded.by, source = excluded.source, backup = excluded.backup,
@@ -391,7 +411,8 @@ export async function restoreBackup(
     if (isGuardError(e)) throw invalid('backup.err.taken');
     throw e;
   }
-  const release = () => accounts().run("DELETE FROM family_claim WHERE tree = ? AND what = 'restore' AND state = 'restoring'", into).catch(() => {});
+  // Only this restore's claim: one that lapsed may have been taken by another restore since.
+  const release = () => accounts().run("DELETE FROM family_claim WHERE tree = ? AND what = 'restore' AND state = 'restoring' AND at = ? AND by = ?", into, now, op.id).catch(() => {});
   if ((await store.treeIds()).includes(into)) {
     await release();
     throw invalid('backup.err.taken');
@@ -415,15 +436,21 @@ export async function restoreBackup(
     ...(register ? [register] : []),
     q('INSERT INTO family_admin (tree, cap_bytes, created_at, created_by) VALUES (?, ?, ?, ?) ON CONFLICT(tree) DO NOTHING', into, cap, now, op.id),
     ...stewards.map((id) => upsertMembership(id, into, 'steward')),
-    q("UPDATE family_claim SET state = 'restored', media = ? WHERE tree = ? AND what = 'restore'", same ? 1 : 0, into),
+    q("UPDATE family_claim SET state = 'restored', media = ? WHERE tree = ? AND what = 'restore'", withMedia ? 1 : 0, into),
   ]);
   let media: RestoreResult['media'] = null;
-  if (same) {
+  if (withMedia) {
     media = await copyMedia(scope, into, mediaStep);
     if (!media.left) await accounts().run("UPDATE family_claim SET media = 0 WHERE tree = ? AND what = 'restore'", into);
   }
-  await accounts().batch([audit(op, 'backup.restore_new', into, { from: scope, name, stewards: stewards.length, media })]);
-  return { into, fresh: null, stewards: stewards.length, media };
+  await accounts().batch([audit(op, 'backup.restore_new', into, { from: scope, name, stewards: stewards.length, media, mediaWithheld })]);
+  return { into, fresh: null, stewards: stewards.length, media, mediaWithheld };
+}
+
+/** Whether every one of `users` stewards `tree` now. */
+async function stewardsStill(tree: string, users: readonly string[]): Promise<boolean> {
+  const now = new Set((await accounts().all<{ user: string }>("SELECT user FROM membership WHERE tree = ? AND role = 'steward'", tree)).map((r) => r.user));
+  return users.every((u) => now.has(u));
 }
 
 /**
@@ -450,13 +477,16 @@ async function copyMedia(from: string, into: string, limit = MEDIA_STEP): Promis
 /**
  * The console's "copy the rest of the pictures" after a restore into a new id: only from the source that restore recorded into
  * the family it made, while that family is still the one the restore left (its claim goes with it), the source is still the same
- * family, and pictures are left to copy. Logged.
+ * family, every steward of the restored family still stewards the source, and pictures are left to copy. Logged.
  */
 export async function copyMediaNow(op: AuditActor, into: string, limit = MEDIA_STEP): Promise<{ copied: number; left: number }> {
   const c = await accounts().get<{ source: string | null; source_created: number | null; state: string; media: number }>(
     "SELECT source, source_created, state, media FROM family_claim WHERE tree = ? AND what = 'restore'", into);
   if (!c?.source || c.state !== 'restored' || c.media !== 1 || !(await families()).some((f) => f.id === into)) throw invalid('backup.err.no_media');
-  if ((await madeAt(c.source)) !== (c.source_created ?? null)) {
+  // The same family still holds the source's id, and every steward of the restored family stewards it: no picture reaches someone
+  // removed from the source since, nor a steward added to the restored family who has no part in the source.
+  const stewards = (await accounts().all<{ user: string }>("SELECT user FROM membership WHERE tree = ? AND role = 'steward'", into)).map((r) => r.user);
+  if ((await madeAt(c.source)) !== (c.source_created ?? null) || !(await stewardsStill(c.source, stewards))) {
     await accounts().run("UPDATE family_claim SET media = 0 WHERE tree = ? AND what = 'restore'", into);
     throw invalid('backup.err.no_media');
   }
@@ -496,6 +526,17 @@ export async function rollbackFamily(op: AuditActor, tree: string, point: number
   }
   await accounts().run('INSERT INTO recovery_point (tree, bookmark, at, reason) VALUES (?, ?, ?, ?) ON CONFLICT(tree, bookmark) DO NOTHING', tree, undo, now, 'rollback');
   return { fresh: fresh.name };
+}
+
+/** The operator clears the claim of a restore that stopped (still `restoring`), so its address is free again. Logged. */
+export async function clearRestoreClaim(op: AuditActor, into: string): Promise<void> {
+  const c = await accounts().get<{ at: number; source: string | null; backup: string | null }>(
+    "SELECT at, source, backup FROM family_claim WHERE tree = ? AND what = 'restore' AND state = 'restoring'", into);
+  if (!c) throw invalid('backup.err.no_claim');
+  await accounts().batch([
+    q("DELETE FROM family_claim WHERE tree = ? AND what = 'restore' AND state = 'restoring' AND at = ?", into, c.at),
+    audit(op, 'backup.clear_claim', into, { from: c.source, name: c.backup, at: c.at }),
+  ]);
 }
 
 // ---------- health ----------

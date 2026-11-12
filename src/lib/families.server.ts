@@ -265,12 +265,16 @@ export async function createFamily(
 
   // 1. The address, claimed for this request (`family_claim`, accounts migration 0055) in one batch with the check that no restore
   // holds it, so a restore into the same id (src/lib/backup/backup.server.ts) and this never both write there. And forget what a
-  // deletion that stopped part-way left under this id, so nobody inherits a membership or a file.
+  // deletion that stopped part-way left under this id, so nobody inherits a membership or a file; a deleted family's backups
+  // left under it are marked as that family's (`markGone`), so none of them is restored over this one.
+  const { markGone, CLAIM_HOLDS } = await import('./backup/backup.server.ts');
+  const at = Date.now();
   try {
     await accounts().batch([
-      guard("NOT EXISTS (SELECT 1 FROM family_claim WHERE tree = ? AND what = 'restore')", id),
-      ...(resume ? [] : await forgetInAccounts(id)),
-      q("INSERT INTO family_claim (tree, what, at) VALUES (?, 'create', ?) ON CONFLICT(tree) DO UPDATE SET at = excluded.at", id, Date.now()),
+      // A restore's claim, until it lapses (a restore that stopped); another request's 'create' claim is this one's to take over.
+      guard(`NOT EXISTS (SELECT 1 FROM family_claim WHERE tree = ? AND what = 'restore' AND ${CLAIM_HOLDS})`, id, at, at),
+      ...(resume ? [] : [...(await forgetInAccounts(id)), markGone(id)]),
+      q("INSERT INTO family_claim (tree, what, at) VALUES (?, 'create', ?) ON CONFLICT(tree) DO UPDATE SET what = excluded.what, at = excluded.at, state = 'restoring', source = NULL, backup = NULL, source_created = NULL, media = 0, by = NULL", id, at),
     ]);
   } catch (e) {
     if (isGuardError(e)) throw invalid('families.err_exists', { id });

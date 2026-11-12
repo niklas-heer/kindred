@@ -94,4 +94,11 @@ export default {
   "backup.err.no_point": "Ce point de restauration n’est plus là.",
   "backup.err.no_stewards": "Cette sauvegarde n’indique aucun gardien qui ait encore un compte ici : personne ne pourrait recevoir la famille restaurée. Elle n’a pas été restaurée.",
   "backup.err.no_media": "Il ne reste plus d’images à copier pour cette restauration.",
+  "backup.media_withheld": "Aucune image n’a été copiée : une personne que la sauvegarde indique comme gardien ne l’est plus de la famille d’origine, et ses images comprennent désormais des ajouts ultérieurs. Les données ont été restaurées sans elles.",
+  "backup.stopped_title": "Restaurations interrompues",
+  "backup.stopped_hint": "Une restauration réserve son adresse pendant qu’elle écrit. Une restauration interrompue la libère au bout d’une heure ; tu peux la libérer maintenant.",
+  "backup.stopped_line": "{id}, depuis {from}, commencée le {date} ; libre à partir du {lapses}",
+  "backup.stopped_clear": "Libérer l’adresse",
+  "backup.err.other_family": "Cette sauvegarde vient d’une famille précédente à cette adresse, pas de celle qui s’y trouve maintenant : restaure-la comme nouvelle famille.",
+  "backup.err.no_claim": "Aucune restauration ne réserve plus cette adresse.",
 } satisfies Strings<typeof en, "fr">;

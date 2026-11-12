@@ -81,6 +81,14 @@ export const operatorCopyMedia = createServerFn({ method: 'POST' })
   .validator(z.object({ into: tree }))
   .handler(async ({ data }) => change(async (op) => (await work()).copyMediaNow(op, data.into)));
 
+/** Clears the claim of a restore that stopped, so its address is free again. */
+export const operatorClearRestoreClaim = createServerFn({ method: 'POST' })
+  .validator(z.object({ into: tree }))
+  .handler(async ({ data }) => {
+    await change(async (op) => (await work()).clearRestoreClaim(op, data.into));
+    return { ok: true as const };
+  });
+
 export const operatorRollback = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, point: z.number().int().positive(), confirm: z.string().max(80) }))
   .handler(async ({ data }) => change(async (op) => (await work()).rollbackFamily(op, data.tree, data.point, data.confirm), true));

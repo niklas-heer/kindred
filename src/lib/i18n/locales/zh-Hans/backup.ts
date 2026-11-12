@@ -94,4 +94,11 @@ export default {
   "backup.err.no_point": "那个恢复点已经不在了。",
   "backup.err.no_stewards": "这份备份记录的负责人在这里都已经没有账户，恢复后的家族无人可以接手，所以没有恢复。",
   "backup.err.no_media": "这次恢复已经没有要复制的图片了。",
+  "backup.media_withheld": "没有复制任何图片：备份中记录的某位负责人已不再是原家族的负责人，而原家族的图片如今也包括之后添加的。记录已在不含图片的情况下恢复。",
+  "backup.stopped_title": "中断的恢复",
+  "backup.stopped_hint": "恢复在写入期间会占用它的地址。中断的恢复会在一小时后释放地址；你也可以现在就释放。",
+  "backup.stopped_line": "{id}，来自 {from}，开始于{date}；{lapses}起空出",
+  "backup.stopped_clear": "释放地址",
+  "backup.err.other_family": "这个备份属于此地址上以前的一个家族，而不是现在这个家族：请把它恢复为新家族。",
+  "backup.err.no_claim": "已经没有恢复在占用这个地址了。",
 } satisfies Strings<typeof en, "zh-Hans">;

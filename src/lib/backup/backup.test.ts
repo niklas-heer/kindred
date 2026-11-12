@@ -138,7 +138,7 @@ test('a backup restored into a new id keeps every row and BLOB, names its own id
   assert.equal(logged.length, 2, 'logged before and after');
   assert.deepEqual(JSON.parse(logged[0]!.detail), { from: 'alderby', name, schema: JSON.parse(logged[0]!.detail).schema, gone: false });
   assert.match(JSON.parse(logged[0]!.detail).schema, /^\d{4}_/);
-  assert.deepEqual(JSON.parse(logged[1]!.detail), { from: 'alderby', name, stewards: 1, media: { copied: 0, left: 0 } });
+  assert.deepEqual(JSON.parse(logged[1]!.detail), { from: 'alderby', name, stewards: 1, media: { copied: 0, left: 0 }, mediaWithheld: false });
   // Not into a family that exists.
   await assert.rejects(b.restoreBackup(actor, { scope: 'alderby', name: name!, mode: 'new', into: 'brackwell' }), /backup\.err\.taken/);
 });
@@ -290,6 +290,9 @@ test('a deleted family\'s backups stay for the grace period, can be restored int
   const trees = await store.treeIds();
   await b.runBackups({ trees, now: new Date(), log: () => {} });
   assert.equal((await backupsOf('dunmore')).length, 1);
+  // A pin (the backup made before a restore over the family) protects a living family's backup; the grace period of a deleted
+  // family wins over it.
+  await store.accounts().run('UPDATE family_backup SET pinned_until = ? WHERE family = ?', Date.now() + 365 * 86_400_000, 'dunmore');
   await b.runBackups({ trees, now: new Date(Date.now() + 31 * 86_400_000), log: () => {} });
   assert.equal((await backupsOf('dunmore')).length, 0);
   assert.ok(!existsSync(join(dir, 'backups', 'dunmore', `${m.name}.kbak`)));
@@ -379,6 +382,8 @@ test('a deleted family\'s id made again by someone else: its old backup gives it
   await store.media.put('fenwick', 'photo/old.jpg', Uint8Array.from([1]), 'image/jpeg');
   const m = await b.backUp('fenwick', new Date(T - 2 * DAY));
   await fam.deleteFamily('fenwick', 'fenwick');
+  // As if the deletion stopped before it marked the backups.
+  await store.accounts().run('UPDATE family_backup SET gone_at = NULL WHERE family = ?', 'fenwick');
   // Someone else makes a family at the same address, with pictures of their own.
   await fam.createFamily(OTHER, { id: 'fenwick', name: 'The Other Fenwicks', tagline: '', theme: THEME });
   await store.media.put('fenwick', 'photo/new.jpg', Uint8Array.from([2]), 'image/jpeg');
@@ -395,6 +400,14 @@ test('a deleted family\'s id made again by someone else: its old backup gives it
   asUser(OP);
   await assert.rejects(fns.operatorCopyMedia({ data: { into: 'corriston' } }), (e) => status(e) === 400);
   assert.deepEqual(await store.media.list('corriston'), []);
+  // Nor is it restored over the family now at that address: making it marked the old backups as a deleted family's, and a backup
+  // whose family is not the one there now is refused even if that mark is missing (a deletion that stopped part-way).
+  assert.ok((await backupsOf('fenwick')).every((x) => x.gone_at !== null), 'made again: the old backups are a deleted family\'s');
+  await assert.rejects(b.restoreBackup(actor, { scope: 'fenwick', name: m.name, mode: 'over', confirm: 'fenwick' }), /backup\.err\.gone/);
+  await store.accounts().run('UPDATE family_backup SET gone_at = NULL WHERE family = ? AND name = ?', 'fenwick', m.name);
+  await assert.rejects(b.restoreBackup(actor, { scope: 'fenwick', name: m.name, mode: 'over', confirm: 'fenwick' }), /backup\.err\.other_family/);
+  assert.equal((await store.tree('fenwick').get<{ value: string }>("SELECT value FROM meta WHERE key = 'name'"))?.value, 'The Other Fenwicks');
+  await store.accounts().run('UPDATE family_backup SET gone_at = ? WHERE family = ? AND name = ?', Date.now(), 'fenwick', m.name);
 });
 
 test('a restore copies pictures only from its own source into its own family, and only until none are left', async () => {
@@ -410,6 +423,32 @@ test('a restore copies pictures only from its own source into its own family, an
   await store.media.put('galloway', 'photo/later.jpg', Uint8Array.from([9]), 'image/jpeg');
   await assert.rejects(b.copyMediaNow(actor, 'galloway-two'), /backup\.err\.no_media/);
   assert.equal((await store.media.list('galloway-two')).length, 3);
+});
+
+test('a steward removed since the backup gets none of the family\'s pictures: the records are restored without them, and the result and the log say so', async () => {
+  await fam.createFamily(STEWARD, { id: 'harrowby', name: 'The Harrowbys', tagline: '', theme: THEME });
+  await store.accounts().batch([acc.upsertMembership(OTHER.id, 'harrowby', 'steward')]);
+  await store.media.put('harrowby', 'photo/then.jpg', Uint8Array.from([1]), 'image/jpeg');
+  const m = await b.backUp('harrowby', new Date(T - DAY));
+  // OTHER is removed as a steward; the family goes on and adds a picture after that.
+  await store.accounts().run("DELETE FROM membership WHERE tree = 'harrowby' AND user = ?", OTHER.id);
+  await store.media.put('harrowby', 'photo/after.jpg', Uint8Array.from([2]), 'image/jpeg');
+  const r = await b.restoreBackup(actor, { scope: 'harrowby', name: m.name, mode: 'new', into: 'harrowby-two' });
+  assert.equal(r.stewards, 2);
+  assert.equal(r.media, null);
+  assert.equal(r.mediaWithheld, true);
+  assert.deepEqual(await store.media.list('harrowby-two'), [], 'no picture reaches a steward removed since');
+  await assert.rejects(b.copyMediaNow(actor, 'harrowby-two'), /backup\.err\.no_media/);
+  const logged = await store.accounts().all<{ detail: string }>("SELECT detail FROM operator_audit WHERE action = 'backup.restore_new' AND family = 'harrowby-two' ORDER BY id");
+  assert.equal(JSON.parse(logged.at(-1)!.detail).mediaWithheld, true);
+  // With every recorded steward still a steward, the pictures are copied, and a steward added to the restored family later
+  // who does not steward the source stops further copying.
+  const r2 = await b.restoreBackup(actor, { scope: 'galloway', name: (await backupsOf('galloway'))[0]!.name, mode: 'new', into: 'galloway-three' }, Date.now(), 1);
+  assert.equal(r2.mediaWithheld, false);
+  assert.equal(r2.media?.copied, 1);
+  await store.accounts().batch([acc.upsertMembership(OTHER.id, 'galloway-three', 'steward')]);
+  await assert.rejects(b.copyMediaNow(actor, 'galloway-three'), /backup\.err\.no_media/);
+  assert.equal((await store.media.list('galloway-three')).length, 1);
 });
 
 test('a backup whose stewards have no account any more is not restored into a new family, and the operator gets no way in', async () => {
@@ -466,6 +505,16 @@ test('two restores into one address, or a restore and a new family there, never 
   // A claim left by a family that was never finished does not hold the address for ever.
   await store.accounts().run("UPDATE family_claim SET at = ? WHERE tree = 'kestrel'", Date.now() - DAY);
   assert.equal((await b.restoreBackup(actor, { scope: 'alderby', name: name!, mode: 'new', into: 'kestrel' })).into, 'kestrel');
+  // Nor does a restore that stopped: its claim lapses after a while, and the console lists it and lets the operator clear it.
+  await store.accounts().run("INSERT INTO family_claim (tree, what, at, by, source, state) VALUES ('larkspur', 'restore', ?, ?, 'alderby', 'restoring')", Date.now(), OP.id);
+  assert.deepEqual((await b.backupOverview()).stopped.map((x) => x.into), ['juniper', 'larkspur']);
+  await assert.rejects(b.restoreBackup(actor, { scope: 'alderby', name: name!, mode: 'new', into: 'larkspur' }), /backup\.err\.taken/);
+  await b.clearRestoreClaim(actor, 'larkspur');
+  assert.equal((await b.restoreBackup(actor, { scope: 'alderby', name: name!, mode: 'new', into: 'larkspur' })).into, 'larkspur');
+  await assert.rejects(b.clearRestoreClaim(actor, 'larkspur'), /backup\.err\.no_claim/, 'a finished restore is not cleared');
+  assert.equal((await store.accounts().get<{ n: number }>("SELECT count(*) AS n FROM operator_audit WHERE action = 'backup.clear_claim' AND family = 'larkspur'"))?.n, 1);
+  await store.accounts().run("UPDATE family_claim SET at = ? WHERE tree = 'juniper'", Date.now() - b.RESTORE_CLAIM_MS - 1000);
+  assert.equal(await fam.createFamily(OTHER, { id: 'juniper', name: 'The Junipers', tagline: '', theme: THEME }), 'juniper');
 
   // The driver itself does not write over a family unless asked to restore over it.
   await assert.rejects(store.backups.restore('alderby', name!, 'brackwell'), /holds a family/);

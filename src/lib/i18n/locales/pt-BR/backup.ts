@@ -94,4 +94,11 @@ export default {
   "backup.err.no_point": "Esse ponto de recuperação não existe mais.",
   "backup.err.no_stewards": "Este backup não registra nenhum responsável que ainda tenha uma conta aqui, então ninguém poderia receber a família restaurada. Ela não foi restaurada.",
   "backup.err.no_media": "Não há mais imagens para copiar nesta restauração.",
+  "backup.media_withheld": "Nenhuma imagem foi copiada: alguém que o backup registra como responsável não é mais responsável pela família original, e as imagens dela agora incluem outras adicionadas depois. Os dados foram restaurados sem elas.",
+  "backup.stopped_title": "Restaurações interrompidas",
+  "backup.stopped_hint": "Uma restauração reserva o endereço enquanto grava. Uma interrompida libera o endereço depois de uma hora; você pode liberá-lo agora.",
+  "backup.stopped_line": "{id}, de {from}, iniciada em {date}; livre a partir de {lapses}",
+  "backup.stopped_clear": "Liberar o endereço",
+  "backup.err.other_family": "Este backup é de uma família anterior neste endereço, não da família que está lá agora: restaure-o como uma família nova.",
+  "backup.err.no_claim": "Nenhuma restauração reserva mais esse endereço.",
 } satisfies Strings<typeof en, "pt-BR">;

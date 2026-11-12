@@ -94,4 +94,11 @@ export default {
   "backup.err.no_point": "Daardie herstelpunt is nie meer daar nie.",
   "backup.err.no_stewards": "Hierdie rugsteun teken geen rentmeester aan wat nog 'n rekening hier het nie, so niemand kan die teruggesitte familie kry nie. Dit is nie teruggesit nie.",
   "backup.err.no_media": "Daar is nie meer foto's om vir hierdie terugsit te kopieer nie.",
+  "backup.media_withheld": "Geen foto’s is gekopieer nie: iemand wat die rugsteun as rentmeester aanteken, is nie meer ’n rentmeester van die oorspronklike familie nie, en sy foto’s sluit nou ook later byvoegings in. Die rekords is sonder hulle teruggesit.",
+  "backup.stopped_title": "Terugsettings wat gestop het",
+  "backup.stopped_hint": "’n Terugsetting hou sy adres terwyl dit skryf. Een wat gestop het, laat die adres ná ’n uur los; jy kan dit nou vrystel.",
+  "backup.stopped_line": "{id}, uit {from}, begin {date}; vry teen {lapses}",
+  "backup.stopped_clear": "Stel die adres vry",
+  "backup.err.other_family": "Hierdie rugsteun is van ’n vroeër familie by hierdie adres, nie van die familie wat nou daar is nie: sit dit as ’n nuwe familie terug.",
+  "backup.err.no_claim": "Geen terugsetting hou daardie adres meer nie.",
 } satisfies Strings<typeof en, "af">;
