@@ -27,7 +27,7 @@ interface R2Bucket {
   put(key: string, value: ArrayBuffer | ArrayBufferView | ReadableStream | string, options?: { httpMetadata?: { contentType?: string } }): Promise<unknown>;
   get(key: string): Promise<R2ObjectBody | null>;
   delete(key: string | string[]): Promise<void>;
-  list(options?: { prefix?: string; cursor?: string; limit?: number }): Promise<{ objects: { key: string }[]; truncated: boolean; cursor?: string }>;
+  list(options?: { prefix?: string; cursor?: string; limit?: number }): Promise<{ objects: { key: string; size: number }[]; truncated: boolean; cursor?: string }>;
 }
 
 // Durable Objects with SQLite storage (./durable.ts).
@@ -41,6 +41,7 @@ declare module 'cloudflare:workers' {
 interface SqlStorageCursor<T> {
   toArray(): T[];
   one(): T;
+  readonly columnNames: string[];
 }
 interface SqlStorage {
   exec<T = Record<string, unknown>>(query: string, ...bindings: unknown[]): SqlStorageCursor<T>;
@@ -49,6 +50,8 @@ interface DurableObjectStorage {
   sql: SqlStorage;
   get<T>(key: string): Promise<T | undefined>;
   put(key: string, value: unknown): Promise<void>;
+  put(entries: Record<string, unknown>): Promise<void>;
+  delete(key: string): Promise<boolean>;
   deleteAll(): Promise<void>;
   transactionSync<T>(work: () => T): T;
 }

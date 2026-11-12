@@ -9,6 +9,7 @@ import {
   accounts, commit, inviteById, inviteUsed, newUser, noUsersYet, openInvite, upsertMembership, usable, useInvite, userByEmail, userCount,
 } from './store.server.ts';
 import type { Locale } from '../i18n/dictionary.ts';
+import { store } from '../store/index.ts';
 
 /** The first account when a setup code protects this server. Same result as passkey setup, minus the passkey. */
 export async function claimFirstSteward(email: string, code: string, rawName: unknown, rawFamily: unknown, locale: Locale | null): Promise<{ user: string; tree: string | null }> {
@@ -27,6 +28,8 @@ export async function claimFirstSteward(email: string, code: string, rawName: un
     if ((await userCount()) > 0) throw alreadySetUp();
     throw e;
   }
+  // On Cloudflare: the site is set up, so where its Durable Objects are kept is recorded now (src/lib/store/cf.ts).
+  await store.markPlace?.();
   return { user: user.id, tree: made };
 }
 

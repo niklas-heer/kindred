@@ -1,8 +1,8 @@
 // The Node driver: node:sqlite, one file per family (data/<id>.db) and data/accounts.db, media in
 // data/media/<tree>/. Files are brought up to date with migrations/ when they are opened. Never bundled
 // for Workers: package.json maps `#store/driver` here by default and to ./cf.ts under `workerd`.
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync, type Dirent } from 'node:fs';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { checkMediaKey, checkReads, checkStatement, NOT_TREES, TREE_ID, type Db, type Driver, type MediaStore, type Param, type Query, type Result } from './db.ts';
 
@@ -198,6 +198,17 @@ const media: MediaStore = {
   async deleteTree(tree) {
     if (!TREE_ID.test(tree) || NOT_TREES.has(tree)) throw new Error(`bad tree id ${tree}`);
     rmSync(join(dataDir(), 'media', tree), { recursive: true, force: true });
+  },
+  async list(tree) {
+    if (!TREE_ID.test(tree) || NOT_TREES.has(tree)) throw new Error(`bad tree id ${tree}`);
+    const root = join(dataDir(), 'media', tree);
+    if (!existsSync(root)) return [];
+    return (readdirSync(root, { recursive: true, withFileTypes: true }) as Dirent[])
+      .filter((e) => e.isFile())
+      .map((e) => {
+        const file = join(e.parentPath, e.name);
+        return { key: relative(root, file).split(sep).join('/'), size: statSync(file).size };
+      });
   },
 };
 

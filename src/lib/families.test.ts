@@ -234,6 +234,7 @@ test('deleting a family removes its database, its files and every accounts row t
       st.q("INSERT INTO view_as (hash, user, tree, kind, role, created, last_used) VALUES (?, ?, ?, 'role', 'viewer', ?, ?)", `${s}view-as`, STEWARD.id, tree, T, T),
       st.q('INSERT INTO family_admin (tree, cap_bytes) VALUES (?, 1000) ON CONFLICT(tree) DO UPDATE SET cap_bytes = excluded.cap_bytes', tree),
       st.q('INSERT INTO media_usage (tree, key, bytes, at) VALUES (?, ?, 1, ?)', tree, `photo/${s}counted.jpg`, T),
+      st.q("INSERT INTO family_import (tree, id, user, mode, schema, expected, started_at) VALUES (?, ?, ?, 'new', '0001_x.sql', '{}', ?)", tree, `00000000-0000-4000-8000-${s.padEnd(12, '0').slice(0, 12)}`, STEWARD.id, T),
     ]);
   }
   // Someone who asked to join A and is not yet approved: their pending account goes with the request.

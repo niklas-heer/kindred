@@ -70,17 +70,26 @@ export async function makeFamilyFor(
   const stewardName = input.stewardName.replace(/\s+/g, ' ').trim().slice(0, 120);
   if (!stewardName) throw invalid('operator.err_steward_name');
   const id = await createFamily(op, { id: input.id, name: input.name, tagline: input.tagline ?? '', theme: input.theme ?? 'codex' }, { member: false, invitedName: stewardName });
-  const { invite, token } = await createInvite({ tree: id, role: 'steward', email: input.stewardEmail, createdBy: op.id });
+  const { invite, token } = await createInvite({ tree: id, role: 'steward', email: input.stewardEmail, createdBy: op.id, byOperator: true });
   await accounts().batch([audit(actor(op), logAs, id, { name: input.name, steward: stewardName, email: input.stewardEmail, ...extra })]);
   return { id, token, expires: invite.expires };
 }
 
-/** A fresh link for a family's waiting steward invitation (the old one stops working). */
+/**
+ * A fresh link for a family's waiting first-steward invitation (the old one stops working). Only an invitation an operator
+ * made with the family (`by_operator`), and only while the family has no members: an invitation a steward made (a co-steward)
+ * is theirs, and a link to a family with members would let whoever holds it in, since an invitation link is all it takes
+ * (docs/hosting-many-families.md, "Invitations"). The renewal is refused, with nothing changed, as soon as either holds.
+ */
 export async function renewStewardLink(op: UserRow, tree: string): Promise<{ token: string; expires: number }> {
-  const open = await accounts().get<{ id: string }>(
-    "SELECT id FROM invite WHERE tree = ? AND role = 'steward' AND used_at IS NULL AND revoked_at IS NULL ORDER BY created DESC LIMIT 1", tree);
+  const [[open], [members]] = (await accounts().readBatch([
+    q("SELECT id FROM invite WHERE tree = ? AND role = 'steward' AND by_operator = 1 AND used_at IS NULL AND revoked_at IS NULL ORDER BY created DESC LIMIT 1", tree),
+    q('SELECT count(*) AS n FROM membership WHERE tree = ?', tree),
+  ])) as unknown as [[{ id: string } | undefined], [{ n: number }]];
+  if (members!.n > 0) throw invalid('operator.err_has_members');
   if (!open) throw invalid('operator.err_no_invite');
-  const token = await renewInvite(open.id);
+  const token = await renewInvite(open.id, undefined, tree);
+  if (!token) throw invalid('operator.err_has_members');
   const renewed = await inviteById(open.id);
   await accounts().batch([audit(actor(op), 'family.invite_renewed', tree)]);
   return { token, expires: renewed?.expires ?? Date.now() };

@@ -413,6 +413,25 @@ test('an export is refused to a guest', async () => {
   assert.equal((await GET({ params: { tree: TREE }, request: new Request('http://localhost/?format=gedcom') })).status, 401);
 });
 
+test('a backup is refused to a guest and to nobody, and a steward’s holds no personal item', async () => {
+  asGuest(guestOfTree);
+  assert.equal((await get('backup.$tree', { tree: TREE })).status, 401);
+  asNobody();
+  assert.equal((await get('backup.$tree', { tree: TREE })).status, 401);
+  await dbs.db(TREE).run(`INSERT INTO person_field (id, person, type, label, value, visibility, owner) VALUES ('fp', 'ada', 'notes', '', '{"text":"MY-OWN-NOTE"}', 'personal', ?)`, STEWARD);
+  asSteward();
+  const res = await get('backup.$tree', { tree: TREE });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('cache-control'), 'no-store');
+  const text = await res.text();
+  const backup = JSON.parse(text) as { tree: string; schema: string; tables: { table: string }[] };
+  assert.equal(backup.tree, TREE);
+  assert.match(backup.schema, /^\d{4}_/);
+  assert.ok(backup.tables.some((t) => t.table === 'person'));
+  assert.ok(!text.includes('MY-OWN-NOTE'), 'personal items stay out, as in a move to another install');
+  await dbs.db(TREE).run("DELETE FROM person_field WHERE id = 'fp'");
+});
+
 test('private research stays hidden from a guest, file included', async () => {
   const d = dbs.db(TREE);
   await d.run("INSERT INTO research_project (id, title, created_by, created_at, updated_at) VALUES ('p9', 'Open project', 'x', '2026-01-01', '2026-01-01')");
@@ -469,7 +488,7 @@ test('the guest host answers only what a guest needs', () => {
   for (const ok of ['/', '/share/abc', '/_serverFn/xyz', '/assets/app.js', '/api/health', '/api/photo/fam/p1', '/api/portrait/fam/p1', '/api/media/fam/a.jpg', '/api/research/fam/a.pdf', '/fam', '/fam/atlas', '/fam/chronicle', '/fam/house/h1', '/fam/person/p1', '/fam/PERSON/p1', '/favicon.svg']) {
     assert.equal(guestHost.guestHostAllows(ok), true, ok);
   }
-  for (const no of ['/signin', '/setup', '/invite/abc', '/ui', '/api/auth/signout', '/api/export/fam', '/api/paint/fam/a.png', '/fam/access', '/fam/new-section', '/fam/new-section/x', '/fam/persons/p1', '/fam/settings/ai', '/fam/settings/import', '/_not', '/api/other', '/Invite/abc', '/API/auth/signout', '/API/export/fam', '/fam/ACCESS', '/MODERN/Settings/Feedback', '/%69nvite/abc', '/fam/%41ccess', '/%E0%A4%A']) {
+  for (const no of ['/signin', '/setup', '/invite/abc', '/ui', '/api/auth/signout', '/api/export/fam', '/api/backup/fam', '/api/move/fam', '/api/paint/fam/a.png', '/fam/access', '/fam/new-section', '/fam/new-section/x', '/fam/persons/p1', '/fam/settings/ai', '/fam/settings/import', '/_not', '/api/other', '/Invite/abc', '/API/auth/signout', '/API/export/fam', '/fam/ACCESS', '/MODERN/Settings/Feedback', '/%69nvite/abc', '/fam/%41ccess', '/%E0%A4%A']) {
     assert.equal(guestHost.guestHostAllows(no), false, no);
   }
 });

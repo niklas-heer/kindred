@@ -153,7 +153,7 @@ export async function familyLimit(user: Pick<UserRow, 'id' | 'operator'>): Promi
 export interface NewFamily { id: string; name: string; tagline: string; theme: FamilyTheme }
 
 /** The statements that forget every accounts row naming `tree` (see deleteFamily). Built from the schema, so a table added later is included. */
-async function forgetInAccounts(tree: string): Promise<Query[]> {
+export async function forgetInAccounts(tree: string): Promise<Query[]> {
   const tables = await accounts().all<{ name: string; sql: string | null }>("SELECT name, sql FROM sqlite_master WHERE type = 'table'");
   const has = (name: string) => tables.some((t) => t.name === name);
   // Every table with a `tree` column: memberships, invitations, the share link, AI settings, chats and spending, statistics,

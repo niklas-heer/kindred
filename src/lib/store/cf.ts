@@ -10,8 +10,8 @@
 //   GAZETTEER      D1, optional: the GeoNames towns for assisted place entry, read-only (migrations/gazetteer,
 //                  loaded by `mise run cf:gazetteer`). Without it the place picker offers the family's own places.
 import { env, waitUntil } from 'cloudflare:workers';
-import { checkMediaKey, checkReads, checkStatement, emptyDatabase, NOT_TREES, q, TREE_ID, type Db, type Driver, type Param, type Query, type Result } from './db.ts';
-import { NOT_MADE, type StoreKind } from './durable.ts';
+import { checkMediaKey, checkReads, checkStatement, emptyDatabase, NOT_TREES, q, TREE_ID, type Db, type Driver, type ImportTarget, type Param, type Query, type Result } from './db.ts';
+import { NOT_MADE, type StoreKind, type StoreState } from './durable.ts';
 
 const isD1 = (v: unknown): v is D1Database => !!v && typeof (v as D1Database).prepare === 'function' && typeof (v as D1Database).batch === 'function';
 
@@ -75,6 +75,12 @@ interface StoreStub {
   run(sql: string, params: Param[]): Promise<Result>;
   batch(queries: Query[]): Promise<Result[]>;
   readBatch(queries: Query[]): Promise<Row[][]>;
+  state(): Promise<StoreState>;
+  stage(): Promise<string[]>;
+  stagedSchema(): Promise<[string, string[]][]>;
+  stagedRows(table: string, columns: string[], rows: unknown[][]): Promise<number>;
+  stagedCounts(tables: string[]): Promise<{ counts: Record<string, number>; id: string | null }>;
+  publish(): Promise<void>;
 }
 
 /** The driver a family made here is recorded under in `family_store` (accounts migration 0033). */
@@ -113,24 +119,31 @@ let accountsMade = false;
  * Where the Durable Objects were first made, kept in the MEDIA bucket (`.kindred/store.json`, never a family's key: those
  * start with a tree id). The same name in another jurisdiction is another, empty object, so a changed KINDRED_JURISDICTION
  * would hide every family and the accounts, and open /setup to whoever comes first. It is refused instead, before any object
- * is reached. Checked once per isolate.
+ * is reached. Checked once per isolate once the marker is there.
+ *
+ * The marker is written only when something worth keeping is made (`mark`): the first account (setup, `markPlace`), a
+ * family's object (`ensureTree`) or an import (`importTarget().stage`). A visit to a fresh site (a scanner on workers.dev)
+ * writes nothing, so the jurisdiction can still be set until the site is set up.
  */
 const PLACE_KEY = '.kindred/store.json';
 let placeChecked = false;
-async function checkPlace() {
+async function checkPlace(mark = false) {
   if (placeChecked) return;
   const b = env.MEDIA as R2Bucket | undefined;
-  if (b) {
-    const here = String((env as Record<string, unknown>).KINDRED_JURISDICTION ?? '').trim().toLowerCase() || 'default';
-    const held = await b.get(PLACE_KEY);
-    if (held) {
-      const was = (JSON.parse(await new Response(held.body).text()) as { jurisdiction?: string }).jurisdiction ?? 'default';
-      if (was !== here) throw new Error(`The families were made with KINDRED_JURISDICTION=${was === 'default' ? '(empty)' : was}, and this Worker has ${here === 'default' ? '(empty)' : here}. A jurisdiction cannot be changed: set it back.`);
-    } else {
-      await b.put(PLACE_KEY, JSON.stringify({ jurisdiction: here, since: new Date().toISOString() }), { httpMetadata: { contentType: 'application/json' } });
-    }
+  if (!b) {
+    placeChecked = true;
+    return;
   }
-  placeChecked = true;
+  const here = String((env as Record<string, unknown>).KINDRED_JURISDICTION ?? '').trim().toLowerCase() || 'default';
+  const held = await b.get(PLACE_KEY);
+  if (held) {
+    const was = (JSON.parse(await new Response(held.body).text()) as { jurisdiction?: string }).jurisdiction ?? 'default';
+    if (was !== here) throw new Error(`The families were made with KINDRED_JURISDICTION=${was === 'default' ? '(empty)' : was}, and this Worker has ${here === 'default' ? '(empty)' : here}. A jurisdiction cannot be changed: set it back.`);
+    placeChecked = true;
+  } else if (mark) {
+    await b.put(PLACE_KEY, JSON.stringify({ jurisdiction: here, since: new Date().toISOString() }), { httpMetadata: { contentType: 'application/json' } });
+    placeChecked = true;
+  }
 }
 
 /**
@@ -212,34 +225,54 @@ const driver: Driver = {
   async ensureTree(id) {
     checkId(id);
     if (isD1(env[treeBinding(id)]) || !namespace()) return driver.tree(id);
-    await checkPlace();
+    await checkPlace(true);
     await stub(objectName(id)).create('tree');
     await driver.accounts().run('INSERT INTO family_store (tree, driver, created_at) VALUES (?, ?, ?) ON CONFLICT(tree) DO NOTHING', id, DURABLE, new Date().toISOString());
     return durable(id);
   },
 
-  // The move into a Durable Object (src/lib/store/move.server.ts) writes here while a D1 binding may still serve the family.
-  async durableTree(id) {
+  // An import into the family's Durable Object (src/lib/store/move.server.ts): staged, so it serves nothing until published,
+  // whether or not a D1 binding serves the family now. Nothing is made until `stage`.
+  importTarget(id) {
     checkId(id);
     if (!namespace()) throw new Error('No FAMILIES Durable Object namespace is bound; see wrangler.jsonc');
-    await checkPlace();
-    await stub(objectName(id)).create('tree');
-    await driver.accounts().run('INSERT INTO family_store (tree, driver, created_at) VALUES (?, ?, ?) ON CONFLICT(tree) DO NOTHING', id, DURABLE, new Date().toISOString());
-    return { db: durable(id), serving: !isD1(env[treeBinding(id)]) };
+    const call = async <T>(work: (s: StoreStub) => Promise<T>, mark = false): Promise<T> => {
+      await checkPlace(mark);
+      return work(stub(objectName(id)));
+    };
+    const target: ImportTarget = {
+      serving: !isD1(env[treeBinding(id)]),
+      state: () => call((s) => s.state()),
+      stage: () => call((s) => s.stage(), true),
+      schema: () => call((s) => s.stagedSchema()),
+      rows: (table, columns, rows) => call((s) => s.stagedRows(table, columns, rows)),
+      counts: (tables) => call((s) => s.stagedCounts(tables)),
+      publish: () => call((s) => s.publish()),
+      register: q('INSERT INTO family_store (tree, driver, created_at) VALUES (?, ?, ?) ON CONFLICT(tree) DO NOTHING', id, DURABLE, new Date().toISOString()),
+    };
+    return target;
+  },
+
+  async markPlace() {
+    if (namespace()) await checkPlace(true);
   },
 
   // A bound D1 database cannot be removed from inside the Worker: it is emptied, and stays bound for a family to come. A
   // Durable Object deletes everything it stores, and the family leaves the registry.
-  // A copy a move into a Durable Object left beside a bound D1 database goes too, or the family would still be listed.
+  // A copy a move into a Durable Object left beside a bound D1 database goes too (published or still staged), or the family
+  // would still be listed, or its rows kept.
   async dropTree(id) {
     checkId(id);
     if (isD1(env[treeBinding(id)]) || !namespace()) {
       await emptyDatabase(driver.tree(id));
-      if (!namespace() || !(await driver.accounts().get('SELECT 1 FROM family_store WHERE tree = ?', id).catch(() => undefined))) return;
+      if (!namespace()) return;
     }
     await checkPlace();
     await stub(objectName(id)).drop();
-    await driver.accounts().batch([q('DELETE FROM family_store WHERE tree = ?', id)]);
+    await driver.accounts().batch([q('DELETE FROM family_store WHERE tree = ?', id)]).catch((e: unknown) => {
+      // Accounts in D1 from before migration 0033 list no Durable Object families.
+      if (!/no such table: family_store/i.test(e instanceof Error ? e.message : String(e))) throw e;
+    });
   },
 
   // The bound D1 families and the families made as Durable Objects. Before accounts migration 0033 there is no registry yet.
@@ -299,7 +332,18 @@ const driver: Driver = {
       checkMediaKey(tree, key);
       await bucket().delete(`${tree}/${key}`);
     },
-    // R2 lists at most 1000 keys at a time and deletes as many in one call.
+    // R2 lists at most 1000 keys at a time, with each object's size, and deletes as many in one call.
+    async list(tree) {
+      if (!TREE_ID.test(tree) || NOT_TREES.has(tree)) throw new Error(`bad tree id ${tree}`);
+      const found: { key: string; size: number }[] = [];
+      for (let cursor: string | undefined, more = true; more; ) {
+        const page = await bucket().list({ prefix: `${tree}/`, cursor, limit: 1000 });
+        for (const o of page.objects) found.push({ key: o.key.slice(tree.length + 1), size: o.size });
+        more = page.truncated;
+        cursor = page.truncated ? page.cursor : undefined;
+      }
+      return found;
+    },
     async deleteTree(tree) {
       if (!TREE_ID.test(tree) || NOT_TREES.has(tree)) throw new Error(`bad tree id ${tree}`);
       for (let cursor: string | undefined, more = true; more; ) {

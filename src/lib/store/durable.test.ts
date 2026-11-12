@@ -73,7 +73,7 @@ test('after an upgrade only the new migration file is applied, before anything i
 
 test('a dropped family is gone, unlisted, and can be made again empty', { timeout: 60_000 }, () => phase('a dropped family is gone and can be made again empty', treeFiles));
 
-test('a family still served by D1 is copied into its Durable Object step by step', { timeout: 60_000 }, () => phase('a family moves into its Durable Object step by step', treeFiles));
+test('an import is staged, bound to its account, values only, and published only when complete', { timeout: 60_000 }, () => phase('a family is imported step by step, staged until it is complete', treeFiles));
 
 test('a demo refuses to make, change or drop a Durable Object family', { timeout: 60_000 }, () => phase('a demo refuses to make, change or drop a family', treeFiles, { vars: { KINDRED_DEMO: '1' } }));
 

@@ -55,15 +55,21 @@ if (!patched.has(driver)) {
     check();
     return guardedOf(await ensureTree.call(driver, id));
   };
-  if (driver.durableTree) {
-    const durableTree = driver.durableTree;
-    driver.durableTree = async (id) => {
-      check();
-      const made = await durableTree.call(driver, id);
-      return { ...made, db: guardedOf(made.db) };
+  // An import writes: staging, rows and publishing are refused like every other write.
+  if (driver.importTarget) {
+    const importTarget = driver.importTarget;
+    driver.importTarget = (id) => {
+      const t = importTarget.call(driver, id);
+      const checked = <A extends unknown[], R>(f: (...a: A) => Promise<R>) => async (...a: A) => { check(); return f(...a); };
+      return { ...t, stage: checked(t.stage), rows: checked(t.rows), publish: checked(t.publish) };
     };
   }
   driver.accounts = () => guardedOf(accounts.call(driver));
+  // Recording where the Durable Objects are kept is skipped, never refused, while nothing may be written.
+  if (driver.markPlace) {
+    const markPlace = driver.markPlace;
+    driver.markPlace = () => (readOnlyRefusal() ? Promise.resolve() : markPlace.call(driver));
+  }
   driver.media.put = (...args) => refused() ?? put.apply(driver.media, args);
   driver.media.delete = (...args) => refused() ?? remove.apply(driver.media, args);
   driver.media.deleteTree = (...args) => refused() ?? deleteTree.apply(driver.media, args);

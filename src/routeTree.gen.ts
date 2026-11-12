@@ -56,6 +56,7 @@ import { Route as TreeSettingsGamesRouteImport } from './routes/$tree/settings.g
 import { Route as TreeSettingsImportRouteImport } from './routes/$tree/settings.import'
 import { Route as ApiAiChatTreeRouteImport } from './routes/api/ai-chat.$tree'
 import { Route as ApiAuthActionRouteImport } from './routes/api/auth/$action'
+import { Route as ApiBackupTreeRouteImport } from './routes/api/backup.$tree'
 import { Route as ApiExportTreeRouteImport } from './routes/api/export.$tree'
 import { Route as ApiMoveTreeRouteImport } from './routes/api/move.$tree'
 import { Route as ApiFeedbackTreeKeyRouteImport } from './routes/api/feedback.$tree.$key'
@@ -302,6 +303,11 @@ const ApiAuthActionRoute = ApiAuthActionRouteImport.update({
   path: '/api/auth/$action',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiBackupTreeRoute = ApiBackupTreeRouteImport.update({
+  id: '/api/backup/$tree',
+  path: '/api/backup/$tree',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiExportTreeRoute = ApiExportTreeRouteImport.update({
   id: '/api/export/$tree',
   path: '/api/export/$tree',
@@ -401,6 +407,7 @@ export interface FileRoutesByFullPath {
   '/$tree/settings/import': typeof TreeSettingsImportRoute
   '/api/ai-chat/$tree': typeof ApiAiChatTreeRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
+  '/api/backup/$tree': typeof ApiBackupTreeRoute
   '/api/export/$tree': typeof ApiExportTreeRoute
   '/api/move/$tree': typeof ApiMoveTreeRoute
   '/api/feedback/$tree/$key': typeof ApiFeedbackTreeKeyRoute
@@ -459,6 +466,7 @@ export interface FileRoutesByTo {
   '/$tree/settings/import': typeof TreeSettingsImportRoute
   '/api/ai-chat/$tree': typeof ApiAiChatTreeRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
+  '/api/backup/$tree': typeof ApiBackupTreeRoute
   '/api/export/$tree': typeof ApiExportTreeRoute
   '/api/move/$tree': typeof ApiMoveTreeRoute
   '/api/feedback/$tree/$key': typeof ApiFeedbackTreeKeyRoute
@@ -519,6 +527,7 @@ export interface FileRoutesById {
   '/$tree/settings/import': typeof TreeSettingsImportRoute
   '/api/ai-chat/$tree': typeof ApiAiChatTreeRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
+  '/api/backup/$tree': typeof ApiBackupTreeRoute
   '/api/export/$tree': typeof ApiExportTreeRoute
   '/api/move/$tree': typeof ApiMoveTreeRoute
   '/api/feedback/$tree/$key': typeof ApiFeedbackTreeKeyRoute
@@ -580,6 +589,7 @@ export interface FileRouteTypes {
     | '/$tree/settings/import'
     | '/api/ai-chat/$tree'
     | '/api/auth/$action'
+    | '/api/backup/$tree'
     | '/api/export/$tree'
     | '/api/move/$tree'
     | '/api/feedback/$tree/$key'
@@ -638,6 +648,7 @@ export interface FileRouteTypes {
     | '/$tree/settings/import'
     | '/api/ai-chat/$tree'
     | '/api/auth/$action'
+    | '/api/backup/$tree'
     | '/api/export/$tree'
     | '/api/move/$tree'
     | '/api/feedback/$tree/$key'
@@ -697,6 +708,7 @@ export interface FileRouteTypes {
     | '/$tree/settings/import'
     | '/api/ai-chat/$tree'
     | '/api/auth/$action'
+    | '/api/backup/$tree'
     | '/api/export/$tree'
     | '/api/move/$tree'
     | '/api/feedback/$tree/$key'
@@ -729,6 +741,7 @@ export interface RootRouteChildren {
   UiCharacterRoute: typeof UiCharacterRoute
   ApiAiChatTreeRoute: typeof ApiAiChatTreeRoute
   ApiAuthActionRoute: typeof ApiAuthActionRoute
+  ApiBackupTreeRoute: typeof ApiBackupTreeRoute
   ApiExportTreeRoute: typeof ApiExportTreeRoute
   ApiMoveTreeRoute: typeof ApiMoveTreeRoute
   ApiFeedbackTreeKeyRoute: typeof ApiFeedbackTreeKeyRoute
@@ -1072,6 +1085,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthActionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/backup/$tree': {
+      id: '/api/backup/$tree'
+      path: '/api/backup/$tree'
+      fullPath: '/api/backup/$tree'
+      preLoaderRoute: typeof ApiBackupTreeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/export/$tree': {
       id: '/api/export/$tree'
       path: '/api/export/$tree'
@@ -1229,6 +1249,7 @@ const rootRouteChildren: RootRouteChildren = {
   UiCharacterRoute: UiCharacterRoute,
   ApiAiChatTreeRoute: ApiAiChatTreeRoute,
   ApiAuthActionRoute: ApiAuthActionRoute,
+  ApiBackupTreeRoute: ApiBackupTreeRoute,
   ApiExportTreeRoute: ApiExportTreeRoute,
   ApiMoveTreeRoute: ApiMoveTreeRoute,
   ApiFeedbackTreeKeyRoute: ApiFeedbackTreeKeyRoute,

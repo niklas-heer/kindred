@@ -95,6 +95,31 @@ export interface MediaStore {
   delete(tree: string, key: string): Promise<void>;
   /** Deletes every file of a family (deleting the family, src/lib/families.server.ts). */
   deleteTree(tree: string): Promise<void>;
+  /** Every file stored under a family, with its size: what its storage holds, whether a record names it or not. */
+  list(tree: string): Promise<{ key: string; size: number }[]>;
+}
+
+/**
+ * A family's Durable Object as an import writes it. `stage` empties it and makes it a family database that serves nothing;
+ * rows go in as values only (./transfer.ts); `publish` lets it serve. See ./durable.ts.
+ */
+export interface ImportTarget {
+  /** Whether the object serves the family once published: no TREE_<ID> D1 binding does. */
+  serving: boolean;
+  /** What the object holds now: whether it is staged, whether it has a family's details or people, its migrations. */
+  state(): Promise<{ kind: 'tree' | 'accounts' | null; staged: boolean; holds: boolean; migrations: string[] }>;
+  /** Empties the object and stages it, migrated to this deploy's schema. Returns the migrations it holds. */
+  stage(): Promise<string[]>;
+  /** The staged database's tables and their columns. */
+  schema(): Promise<[string, string[]][]>;
+  /** Writes rows of one table into the staged database, all or none. */
+  rows(table: string, columns: string[], rows: unknown[][]): Promise<number>;
+  /** The rows each named table of the staged database holds, and the family id in its details. */
+  counts(tables: string[]): Promise<{ counts: Record<string, number>; id: string | null }>;
+  /** Ends the staging. */
+  publish(): Promise<void>;
+  /** The accounts statement that lists the family in `family_store`, for the batch that publishes it. */
+  register: Query;
 }
 
 /** What a driver provides. */
@@ -128,11 +153,12 @@ export interface Driver {
    */
   dropTree(id: string): Promise<void>;
   /**
-   * Workers with FAMILIES only: the family's Durable Object, made if needed, whether or not a TREE_<ID> D1 binding serves the
-   * family now, and whether it is the one that serves it (`serving`: no binding). Moving a family from D1 or a Node file into
-   * a Durable Object writes here (src/lib/store/move.server.ts); every other code path uses `tree` and `ensureTree`.
+   * Workers with FAMILIES only: the family's Durable Object as the target of an import (src/lib/store/move.server.ts), whether
+   * or not a TREE_<ID> D1 binding serves the family now. Every other code path uses `tree` and `ensureTree`.
    */
-  durableTree?(id: string): Promise<{ db: Db; serving: boolean }>;
+  importTarget?(id: string): ImportTarget;
+  /** Workers with FAMILIES only: records where the Durable Objects are kept, once the first account is made (setup). */
+  markPlace?(): Promise<void>;
   /** The accounts database: people, passkeys, sessions, invitations, memberships. */
   accounts(): Db;
   /** The offline place gazetteer (data/gazetteer.db), only on Node and only once built. */

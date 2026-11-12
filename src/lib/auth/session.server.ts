@@ -241,6 +241,8 @@ async function accessSession(request: Request, verifiedEmail: (r: Request) => Pr
     return { writes, result: u };
   });
   if (!user) return { user: null, via: null, uninvitedEmail: email };
+  // On Cloudflare: an account exists, so where the Durable Objects are kept is recorded (once per isolate; src/lib/store/cf.ts).
+  await store.markPlace?.();
   await touchUser(user.id, user.last_seen);
   return { user, via: 'access' };
 }

@@ -7,6 +7,8 @@
 // file written, and its row taken back if writing fails. Deleting a file deletes its row. The family's usage is the sum of
 // its rows, so no running number can drift from them; what can drift is the rows against the storage itself (files from
 // before migration 0034, a deletion that stopped half-way), and `recount` rebuilds a family's rows from its storage.
+// A reservation stays `pending` (its time in `pending_at`, accounts migration 0036) until its file is written, so a recount
+// that runs while an upload is on its way keeps that upload's row.
 import { translate } from '../i18n/dictionary.ts';
 import { AuthError } from '../auth/errors.ts';
 import { guard, isGuardError, q, store, type MediaStore, type Query } from '../store/index.ts';
@@ -32,7 +34,8 @@ export const storageFull = (use: StorageUse) =>
 export const reserve = (tree: string, key: string, bytes: number, at = Date.now()): Query[] => [
   guard(`(SELECT cap_bytes FROM family_admin WHERE tree = ?) IS NULL
     OR (SELECT coalesce(sum(bytes), 0) FROM media_usage WHERE tree = ? AND key <> ?) + ? <= (SELECT cap_bytes FROM family_admin WHERE tree = ?)`, tree, tree, key, bytes, tree),
-  q('INSERT INTO media_usage (tree, key, bytes, at) VALUES (?, ?, ?, ?) ON CONFLICT(tree, key) DO UPDATE SET bytes = excluded.bytes, at = excluded.at', tree, key, bytes, at),
+  q(`INSERT INTO media_usage (tree, key, bytes, at, pending_at) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(tree, key) DO UPDATE SET bytes = excluded.bytes, at = excluded.at, pending_at = excluded.pending_at`, tree, key, bytes, at, at),
 ];
 
 /**
@@ -54,6 +57,7 @@ export function countedMedia(raw: MediaStore): MediaStore {
         await accounts().run('DELETE FROM media_usage WHERE tree = ? AND key = ?', tree, key).catch(() => {});
         throw e;
       }
+      await accounts().run('UPDATE media_usage SET pending_at = NULL WHERE tree = ? AND key = ?', tree, key);
     },
     get: (tree, key) => raw.get(tree, key),
     async delete(tree, key) {
@@ -64,53 +68,28 @@ export function countedMedia(raw: MediaStore): MediaStore {
       await raw.deleteTree(tree);
       await accounts().run('DELETE FROM media_usage WHERE tree = ?', tree);
     },
+    list: (tree) => raw.list(tree),
   };
 }
 
-/** Every media key a family's records point at: the files that are its storage. */
-async function keysOf(tree: string): Promise<string[]> {
-  const reads = [
-    'SELECT key AS k FROM photo WHERE key IS NOT NULL',
-    'SELECT key AS k FROM media',
-    'SELECT thumb AS k FROM media WHERE thumb IS NOT NULL',
-    'SELECT key AS k FROM portrait',
-    'SELECT key AS k FROM research_document',
-    'SELECT key AS k FROM recipe_image',
-    'SELECT thumb AS k FROM recipe_image WHERE thumb IS NOT NULL',
-  ];
-  const d = store.tree(tree);
-  const keys = new Set<string>();
-  for (const sql of reads) {
-    try {
-      for (const r of await d.all<{ k: string }>(sql)) if (r.k) keys.add(r.k);
-    } catch (e) {
-      // A family database from before that table: nothing of that kind to count.
-      if (!/no such table/i.test(e instanceof Error ? e.message : String(e))) throw e;
-    }
-  }
-  for (const r of await accounts().all<{ k: string }>('SELECT picture AS k FROM feedback WHERE tree = ? AND picture IS NOT NULL', tree)) keys.add(r.k);
-  return [...keys];
-}
+/** How long an upload may be on its way: a reservation still pending after this is one whose upload never finished. */
+export const PENDING_MS = 3600_000;
 
 /**
- * Rebuilds a family's `media_usage` from its storage: each file its records point at, with its size as stored. Rows written
- * while the recount runs (an upload meanwhile) are kept; rows for files that are gone are dropped. Returns the new total.
+ * Rebuilds a family's `media_usage` from its storage: every file stored under the family, with its size as the storage lists
+ * it (one listing, no file is opened), whether a record names it or not, since a file nobody points at still costs. Nothing
+ * of the family's records is read. Rows written since the recount began (an upload meanwhile) are kept, and so are pending
+ * reservations younger than PENDING_MS, whose file is still being written; rows for files that are gone are dropped. Returns
+ * the new total.
  */
-export async function recount(tree: string, raw: MediaStore = store.media): Promise<number> {
-  const started = Date.now();
-  const found: [string, number][] = [];
-  for (const key of await keysOf(tree)) {
-    const got = await raw.get(tree, key);
-    if (!got) continue;
-    // R2 hands out a stream; only the size is wanted.
-    if (got.body instanceof ReadableStream) await got.body.cancel().catch(() => {});
-    found.push([key, got.size]);
-  }
-  const writes = found.map(([key, bytes]) =>
-    q('INSERT INTO media_usage (tree, key, bytes, at) VALUES (?, ?, ?, ?) ON CONFLICT(tree, key) DO UPDATE SET bytes = excluded.bytes, at = excluded.at', tree, key, bytes, started));
+export async function recount(tree: string, raw: MediaStore = store.media, started = Date.now()): Promise<number> {
+  const found = await raw.list(tree);
+  const writes = found.map(({ key, size }) =>
+    q(`INSERT INTO media_usage (tree, key, bytes, at, pending_at) VALUES (?, ?, ?, ?, NULL)
+       ON CONFLICT(tree, key) DO UPDATE SET bytes = excluded.bytes, at = excluded.at, pending_at = NULL`, tree, key, size, started));
   for (let i = 0; i < writes.length; i += 50) await accounts().batch(writes.slice(i, i + 50));
   await accounts().batch([
-    q('DELETE FROM media_usage WHERE tree = ? AND at < ?', tree, started),
+    q('DELETE FROM media_usage WHERE tree = ? AND at < ? AND (pending_at IS NULL OR pending_at < ?)', tree, started, started - PENDING_MS),
     q('INSERT INTO family_admin (tree, counted_at) VALUES (?, ?) ON CONFLICT(tree) DO UPDATE SET counted_at = excluded.counted_at', tree, Date.now()),
   ]);
   return (await storageOf(tree)).usedBytes;

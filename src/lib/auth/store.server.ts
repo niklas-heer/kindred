@@ -245,24 +245,35 @@ export const changeRole = (user: string, tree: string, role: Role) =>
 export interface InviteRow {
   id: string; hash: string; tree: string; role: Role; email: string | null; expires: number; created: number;
   created_by: string | null; used_by: string | null; used_at: number | null; revoked_at: number | null;
+  /** 1 for an operator's invitation of a family's first steward (accounts migration 0036). */
+  by_operator?: number;
 }
 
-export async function createInvite(i: { tree: string; role: Role; email: string | null; createdBy: string; days?: number }): Promise<{ invite: InviteRow; token: string }> {
+export async function createInvite(i: { tree: string; role: Role; email: string | null; createdBy: string; days?: number; byOperator?: boolean }): Promise<{ invite: InviteRow; token: string }> {
   const token = randomToken(32);
   const t = now();
   const invite: InviteRow = {
     id: crypto.randomUUID(), hash: await hashToken('invite', token), tree: i.tree, role: i.role, email: i.email, expires: t + (i.days ?? INVITE_DAYS) * DAY,
-    created: t, created_by: i.createdBy, used_by: null, used_at: null, revoked_at: null,
+    created: t, created_by: i.createdBy, used_by: null, used_at: null, revoked_at: null, by_operator: i.byOperator ? 1 : 0,
   };
-  await accounts().run('INSERT INTO invite (id, hash, tree, role, email, expires, created, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    invite.id, invite.hash, invite.tree, invite.role, invite.email, invite.expires, invite.created, invite.created_by);
+  await accounts().run('INSERT INTO invite (id, hash, tree, role, email, expires, created, created_by, by_operator) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    invite.id, invite.hash, invite.tree, invite.role, invite.email, invite.expires, invite.created, invite.created_by, invite.by_operator!);
   return { invite, token };
 }
 
-/** A fresh link for a pending invite; the old link stops working. */
-export async function renewInvite(id: string, days = INVITE_DAYS): Promise<string> {
+/**
+ * A fresh link for a pending invite; the old link stops working. With `memberless` (a family's id), only while that family has
+ * no members: the batch's guard says so at the moment of the write, and '' is returned, with nothing changed, when it has.
+ */
+export async function renewInvite(id: string, days = INVITE_DAYS, memberless?: string): Promise<string> {
   const token = randomToken(32);
-  await accounts().run('UPDATE invite SET hash = ?, expires = ? WHERE id = ? AND used_at IS NULL AND revoked_at IS NULL', await hashToken('invite', token), now() + days * DAY, id);
+  const update = q('UPDATE invite SET hash = ?, expires = ? WHERE id = ? AND used_at IS NULL AND revoked_at IS NULL', await hashToken('invite', token), now() + days * DAY, id);
+  try {
+    await accounts().batch([...(memberless ? [guard('NOT EXISTS (SELECT 1 FROM membership WHERE tree = ?)', memberless)] : []), update]);
+  } catch (e) {
+    if (memberless && isGuardError(e)) return '';
+    throw e;
+  }
   return token;
 }
 

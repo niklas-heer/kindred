@@ -198,6 +198,30 @@ test('a family made for someone: no member, not the operator, and a one-time ste
   assert.ok(await acc.openInvite(renewed.token));
 });
 
+test('the operator renews only their own first-steward invitation, and only while the family has no members', async () => {
+  // A steward's invitation of a co-steward, in a family with members: the operator cannot renew it and take the link.
+  const co = await acc.createInvite({ tree: 'alderby', role: 'steward', email: 'co@example.org', createdBy: STEWARD.id });
+  asUser(OP);
+  await assert.rejects(fns.operatorRenewLink({ data: { tree: 'alderby' } }), /has members now/);
+  assert.ok(await acc.openInvite(co.token), 'the steward’s link still works');
+  // A family without members whose only waiting invitation an operator did not make (a steward who has since left).
+  await dbs.provisionFamily('dunholm', 'The Dunholms');
+  const left = await acc.createInvite({ tree: 'dunholm', role: 'steward', email: null, createdBy: STEWARD.id });
+  asUser(OP);
+  await assert.rejects(fns.operatorRenewLink({ data: { tree: 'dunholm' } }), /no invitation waiting/);
+  assert.ok(await acc.openInvite(left.token));
+  // The operator's own invitation, once someone has joined: refused, and the guard holds even if the count was read before.
+  asUser(OP);
+  const made = await fns.operatorCreateFamily({ data: { id: 'elmstead', name: 'The Elmsteads', theme: 'codex', stewardName: 'Eda Elm' } });
+  assert.equal((await one<{ by_operator: number }>("SELECT by_operator FROM invite WHERE tree = 'elmstead'"))!.by_operator, 1);
+  await acc.accounts().batch([acc.upsertMembership(OTHER.id, 'elmstead', 'viewer')]);
+  asUser(OP);
+  await assert.rejects(fns.operatorRenewLink({ data: { tree: 'elmstead' } }), /has members now/);
+  assert.ok(await acc.openInvite(made.token));
+  assert.equal(await acc.renewInvite((await acc.openInvite(made.token))!.id, undefined, 'elmstead'), '', 'the batch guard refuses too');
+  assert.ok(await acc.openInvite(made.token), 'and changes nothing');
+});
+
 test('the waiting list: closed unless the server takes requests; the hidden field; a limit per network; approve and decline', async () => {
   const ask = (over: Partial<Parameters<typeof reqs.submitFamilyRequest>[0]> = {}, ip = '198.51.100.7', honeypot?: string, at = Date.now()) =>
     reqs.submitFamilyRequest({ name: 'Rhea Rowan', email: 'Rhea@Example.org', familyName: 'The Rowans', message: 'Hello', ...over }, { ip, honeypot }, at);
@@ -326,7 +350,19 @@ test('storage caps: every upload counts, one over the cap is refused with what i
   assert.ok((await one<{ counted_at: number }>('SELECT counted_at FROM family_admin WHERE tree = ?', 'alderby'))!.counted_at > 0);
   assert.deepEqual(await storage.dueForRecount(['alderby', 'brackwell']), ['brackwell']);
   asUser(OP);
-  await fns.operatorSetCap({ data: { tree: 'alderby', capBytes: null } });
+  await fns.operatorSetCap({ data: { tree: 'alderby', capBytes: null } });  // The recount lists the storage (no file is opened, no record read): a file no record names still counts, and an upload
+  // whose bytes are reserved but not yet stored keeps its row while it is fresh; a stale one goes.
+  await dbs.media.put('alderby', 'gallery/loose.jpg', bytes(50), 'image/jpeg');
+  await sql('INSERT INTO media_usage (tree, key, bytes, at, pending_at) VALUES (?, ?, ?, ?, ?)', 'alderby', 'gallery/coming.jpg', 70, Date.now() - 1000, Date.now() - 1000);
+  await sql('INSERT INTO media_usage (tree, key, bytes, at, pending_at) VALUES (?, ?, ?, ?, ?)', 'alderby', 'gallery/abandoned.jpg', 90, 1, 1);
+  const opened: string[] = [];
+  const watched = { ...dbs.media, get: async (t: string, k: string) => { opened.push(k); return dbs.media.get(t, k); } };
+  assert.equal(await storage.recount('alderby', watched), 1000 + 50 + 70);
+  assert.deepEqual(opened, []);
+  assert.equal((await one<{ pending_at: number | null }>("SELECT pending_at FROM media_usage WHERE key = 'gallery/loose.jpg'"))!.pending_at, null, 'a stored upload is no longer pending');
+  assert.equal(await one("SELECT 1 FROM media_usage WHERE key = 'gallery/abandoned.jpg'"), undefined);
+  await sql("DELETE FROM media_usage WHERE key = 'gallery/coming.jpg'");
+  await dbs.media.delete('alderby', 'gallery/loose.jpg');
 });
 
 test('a suspended family is read-only for its members, with the reason; resuming opens it again', async () => {

@@ -34,8 +34,11 @@ Both Cloudflare ways can be mixed: a family with a `TREE_<ID>` binding is served
 and the list is both together. A Durable Object holds up to 10 GB, in the EU when `KINDRED_JURISDICTION=eu` is set before the
 first family (it cannot be changed afterwards). Deleting a family deletes its Durable Object's storage and its `family_store`
 row; a D1 database is emptied instead, since a Worker cannot remove it. On Node nothing is recorded in `family_store`: the
-file is the record. `scripts/import-to-do.ts` moves a family from a Node file or a D1 database into a Durable Object
-([deploy-cloudflare.md](deploy-cloudflare.md#moving-a-family-into-a-durable-object)).
+file is the record. `scripts/import-to-do.ts` moves a family from a Node file, a D1 database or a steward's backup into a
+Durable Object ([deploy-cloudflare.md](deploy-cloudflare.md#moving-a-family-into-a-durable-object)). The import writes into a
+**staged** object, which answers every ordinary query as if it did not exist; only a finished import whose counts match is
+published (listed in `family_store`, and then served), so nothing serves a family half-imported (`src/lib/store/durable.ts`,
+`src/lib/store/move.server.ts`).
 
 ## The family database (`migrations/tree`)
 
@@ -171,6 +174,7 @@ file is the record. `scripts/import-to-do.ts` moves a family from a Node file or
 | `0033_family_store.sql` | `family_store`: the families made as Durable Objects on Cloudflare ([Where a family lives](#where-a-family-lives)). |
 | `0034_operator.sql` | The operator ([hosting-many-families.md](hosting-many-families.md)): `user.operator` (the earliest account becomes one), `instance_setting`, `operator_audit`, `family_admin` and `media_usage`. |
 | `0035_requests.sql` | `family_request` (the waiting list) and `data_request` (access, correction, deletion). |
+| `0036_family_import.sql` | `family_import` (an import into a family's Durable Object, bound to the account that began it), `invite.by_operator` (an operator's first-steward invitation) and `media_usage.pending_at` (an upload on its way). |
 | `0037_operator_forms.sql` | `family_admin.closed` (a closed family), `data_request.forwarded_at` (stewards see a request only once forwarded), `terms_acceptance`, `operator_push`, and the `families_per_account` setting (5 on a new install only). |
 
 ### Tables
@@ -178,8 +182,15 @@ file is the record. `scripts/import-to-do.ts` moves a family from a Node file or
 - **`family_store`** (0033): one row per family the Worker made in the `FAMILIES` Durable Object namespace (`tree`, the
   family's id; `driver`, `durable-object`; `created_at`, ISO 8601 in UTC), written by `store.ensureTree` and deleted by
   `store.dropTree`. A Worker cannot list Durable Objects, so this is how `store.treeIds()` finds them. Families in D1 or in a
-  Node file have no row. Only the store reads and writes it (`src/lib/store/cf.ts`); deleting a family also finds it by its
-  `tree` column.
+  Node file have no row. Only the store reads and writes it (`src/lib/store/cf.ts`, and the batch that publishes an import);
+  deleting a family also finds it by its `tree` column. A staged import has no row until it is published.
+- **`family_import`** (0036): one row per family an import into its Durable Object has begun (POST `/api/move/<tree>`,
+  `src/lib/store/move.server.ts`): `id` (random; every later step names it), `user` (who began it: only they may continue it),
+  `mode` (`new`: a family this server does not have, whose importer becomes its steward when it is published; `copy`: a family a
+  `TREE_<ID>` D1 binding serves, copied by one of its stewards), `schema` (the last tree migration the rows were read under),
+  `expected` (JSON: the rows of each table announced at the start), `started_at` and `finished_at` (ms). An import is over after
+  a day. The finish publishes only when every count matches, the schema is the same and the rows name this family. Replaced by
+  the next import of the family; deleted with the family (`tree` column).
 - **`view_as`** (0028): one "View as" preview, behind a random token in its own HttpOnly cookie; `hash` is the token's SHA-256, as for a session. `user` is the steward who started it and `session` the hash of the passkey session it belongs to (NULL under Cloudflare Access, which has no session row). `tree` is the family previewed; `kind` is `role` (with `role`: `viewer`, `contributor` or `editor`), `member` (with `member`, the account previewed) or `guest` (with `link`, the family's share link, or NULL for a plain guest with living people protected). `created` and `last_used` are milliseconds: a preview unused for an hour, or older than a day, is over. Deleted on Stop, on sign-out and with its session, when the steward is no longer a steward, the member leaves or the link goes, with the account (`ON DELETE CASCADE`) and with the family (its `tree` column).
 - **`family_visit`** (0026): one row per member and family: `last_seen` (when they last opened the family, milliseconds), `shown` (when "What's new" or the History page last showed them the news) and `since` (where "What's new" counts from). `visits` (0027) counts the visits, 1 during the first (0 for members who visited before it was counted). A visit ends after two hours without opening the family; when the next begins, `since` moves up to `shown` and never further, so news that came after they last looked is not skipped, and during a visit it stays put, so the page shows the same news however often it is opened. Goes with the account and when the member leaves the family.
 - **`presence`** (0032): one row per member's open browser tab in a family (`tree`, `account`, `tab`, a random id the tab
@@ -207,7 +218,8 @@ file is the record. `scripts/import-to-do.ts` moves a family from a Node file or
   that passkey deletes the session. `proved` (0025) is when the session last confirmed with one of its user's passkeys, the
   reader verified, or signed in that way; NULL means never.
 - **`invite`**: an invitation to a family with a `role`, an optional `email`, an `expires`, who created it and who used
-  it, and `revoked_at`. Only a hash of the link's token is stored.
+  it, and `revoked_at`. Only a hash of the link's token is stored. `by_operator` (0036) is 1 for the first-steward invitation an
+  operator made with a family: only that one may an operator renew, and only while the family has no members.
 - **`share_link`** (0015): a family's share link, at most one per family: a hash of its token, a PBKDF2 hash of its password (or none),
   a `generation` that goes up when it is replaced, an optional `expires`, and `protect_living` (0023: 1 when its guests get the living
   without dates, places or details; see docs/roles-and-privacy.md). A guest is not a user.
@@ -245,8 +257,11 @@ file is the record. `scripts/import-to-do.ts` moves a family from a Node file or
   family (`tree` column).
 - **`media_usage`** (0034): one row per file in a family's media storage, `tree`, `key`, `bytes`, `at`. Every upload reserves its
   row in a batch whose guard refuses it over the family's cap, before the file is written; a deletion removes it. A family's usage
-  is the sum. The daily run recounts a few families a day that were never counted or not for a month (`recount` in
-  `src/lib/operator/storage.server.ts`), which also counts files from before 0034. Deleted with the family.
+  is the sum. `pending_at` (0036) is when the reservation was made, until the file is written (then NULL). The daily run recounts
+  a few families a day that were never counted or not for a month (`recount` in `src/lib/operator/storage.server.ts`): it lists
+  the family's storage (every file under it, with the size the storage reports, whether a record names it or not) and rebuilds
+  the rows from that, keeping rows written since it began and pending reservations younger than an hour. It reads none of the
+  family's records. Deleted with the family.
 - **`family_request`** (0035): someone asking for a family while `family_creation` is `requests`: `name`, `email`, `family_name`,
   `message`, `locale`, `created`; `status` (`open`, `approved`, `declined`) with `decided_at`, `decided_by` and, once approved,
   `family` (the id made; not a `tree` column, so the operator's record outlives the family). `network` is a 4-character hash of the

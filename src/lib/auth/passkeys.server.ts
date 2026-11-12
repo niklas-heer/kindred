@@ -14,6 +14,7 @@ import { guestChoice, siteOrigin } from './session.server.ts';
 import { checkSetupCode } from './setup.server.ts';
 import { checkCanMakeFamily, cleanFamilyName, makeFirstFamily } from './trees.server.ts';
 import { inviteAcceptance, inviteNeedsTerms, termsRefused } from '../operator/terms.server.ts';
+import { store } from '../store/index.ts';
 import {
   accounts, commit, credentialById, credentialsOf, credentialUsed, insertCredential, removeCredential, inviteById, inviteUsed, newUser, noUsersYet, openInvite, saveChallenge, takeChallenge,
   upsertMembership, usable, useInvite, userByEmail, userById, userCount, type UserRow,
@@ -150,6 +151,8 @@ export async function finishSetup(
     if ((await userCount()) > 0) throw done;
     throw e;
   }
+  // On Cloudflare: the site is set up, so where its Durable Objects are kept is recorded now (src/lib/store/cf.ts).
+  await store.markPlace?.();
   return { user: user.id, tree: made, credential: cred.id };
 }
 

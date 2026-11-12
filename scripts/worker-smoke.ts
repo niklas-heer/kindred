@@ -18,6 +18,9 @@
 //   /<family>          200 HTML with the demo's bar, the same Content-Security-Policy and no-store, and no cookie set
 //   POST /api/auth/signin-options              refused with the demo's 403 (the store refuses the write it needs)
 //   POST /api/ai-chat/<family>                 no reply, even with a steward's session and the AI set up
+// Then the first Worker again, on the same state, for scripts/import-to-do.ts end to end: an invented family from a file, sent
+// as that steward into a new Durable Object family, is published at the end and served, with them its steward; a second import
+// of the same id is refused.
 // Then the same build once more with no D1 database at all, as a new install (and the Deploy button) has it: the families
 // and the accounts in Durable Objects (src/lib/store/durable.ts), on an empty state folder:
 //   /api/health        200
@@ -147,6 +150,9 @@ async function stop(child: ChildProcess | undefined, port: number) {
   throw new Error(`the Worker is still answering on port ${port} after it was stopped`);
 }
 
+/** The steward's session the checks above wrote, for the import check after the demo. */
+let stewardCookie = '';
+
 async function main(): Promise<boolean> {
   // 1. Build the Worker (the Cloudflare plugin's output: dist/server/index.js, its wrangler.json, dist/client).
   const build = spawnSync(process.execPath, [viteBin, 'build', '--outDir', built], { cwd: root, env: { ...childEnv(), CLOUDFLARE_ENV: 'local' }, encoding: 'utf8' });
@@ -265,6 +271,8 @@ async function main(): Promise<boolean> {
     }
     check(freed, 'a stopped reply frees its chat for the next message');
 
+    stewardCookie = cookie;
+
   } finally {
     await stop(child, port).catch((e: Error) => {
       failures.push(e.message);
@@ -273,6 +281,8 @@ async function main(): Promise<boolean> {
     if (failures.length || process.env.WORKER_SMOKE_LOG) console.error(`\nthe Worker's log (last part):\n${log.join('').slice(-3000)}`);
   }
   await demoChecks(config, 'modern');
+  // After the demo, which expects the one family: the import adds another.
+  if (stewardCookie) await importChecks(config, stewardCookie);
   await durableChecks(config);
   return failures.length === 0;
 }
@@ -286,6 +296,51 @@ async function waitUp(child: ChildProcess, port: number, log: string[], what: st
     await sleep(500);
   }
   throw new Error(`${what} did not answer on port ${port}:\n${log.join('').slice(-3000)}`);
+}
+
+/** scripts/import-to-do.ts end to end, on the state the checks above left, as their steward (a new family in a Durable Object). */
+async function importChecks(config: string, cookie: string) {
+  const port = await freePort();
+  const log: string[] = [];
+  const child = spawn(process.execPath, [wranglerBin, 'dev', '-c', config, '--local', '--persist-to', state, '--ip', '127.0.0.1', '--port', String(port), '--log-level', 'info', '--var', 'KINDRED_AI_FAKE:1', '--var', `KINDRED_SECRET:${SMOKE_SECRET}`], {
+    cwd: work, env: childEnv(), detached: true, stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const collect = (chunk: Buffer) => log.push(chunk.toString());
+  child.stdout?.on('data', collect);
+  child.stderr?.on('data', collect);
+  const base = `http://127.0.0.1:${port}`;
+  const failedBefore = failures.length;
+  try {
+    await waitUp(child, port, log, 'the Worker for the import');
+    // scripts/import-to-do.ts, end to end: an invented family from a file into a new Durable Object family, as the steward.
+    const importId = 'smoke-import';
+    const source = join(work, 'import-source', `${importId}.db`);
+    const { openSqlite } = await import('../src/lib/store/node.ts');
+    const src = openSqlite(source, 'tree', { create: true });
+    src.exec(`INSERT INTO meta (key, value) VALUES ('id', '${importId}'), ('name', 'The Importers'), ('tagline', ''), ('theme', 'codex'), ('focus', 'i1');
+      INSERT INTO person (id, given, surname) VALUES ('i1', 'Ida', 'Importer'), ('i2', 'Ivo', 'Importer');
+      INSERT INTO parent (child, parent) VALUES ('i2', 'i1');`);
+    src.close();
+    const importRun = (extra: string[] = []) => spawnSync(process.execPath, [join(root, 'scripts/import-to-do.ts'), importId, '--from', source, '--url', `${base}`, '--env', 'local', ...extra], {
+      cwd: root, env: { ...childEnv(), KINDRED_SESSION: cookie.split('=')[1]!, NO_PROXY: '127.0.0.1', no_proxy: '127.0.0.1' }, encoding: 'utf8',
+    });
+    const imported = importRun();
+    check(imported.status === 0 && /the import is published/.test(imported.stdout), `scripts/import-to-do.ts imports a family from a file (exit ${imported.status}: ${(imported.stdout + imported.stderr).trim().split('\n').slice(-2).join(' / ').slice(0, 300)})`);
+    const page = await fetch(`${base}/${importId}`, { redirect: 'manual', headers: { Cookie: cookie } });
+    const pageHtml = await page.text();
+    check(page.status === 200 && pageHtml.includes('The Importers'), `the imported family is served to its new steward (got ${page.status})`);
+    const again = importRun();
+    check(again.status !== 0 && /a family on this server already/.test(again.stderr), `a second import of a family that is served is refused (exit ${again.status})`);
+  } catch (e) {
+    failures.push(e instanceof Error ? e.message : String(e));
+    console.error(e);
+  } finally {
+    await stop(child, port).catch((e: Error) => {
+      failures.push(e.message);
+      console.error(e.message);
+    });
+    if (failures.length > failedBefore || process.env.WORKER_SMOKE_LOG) console.error(`\nthe import Worker's log (last part):\n${log.join('').slice(-3000)}`);
+  }
 }
 
 /** The same build with no D1 at all: the families and the accounts in Durable Objects, on empty state (a new install). */
