@@ -93,8 +93,10 @@ export const fetchFamilyLifecycle = createServerFn({ method: 'GET' })
 export const familyLifecycleQuery = (t: string) => queryOptions({ queryKey: ['family-lifecycle', t], queryFn: () => fetchFamilyLifecycle({ data: { tree: t } }), staleTime: 10 * 60_000 });
 
 async function stewardForChange(t: string) {
+  const [{ fail, requireUser }, errors] = await Promise.all([guard(), import('../auth/errors')]);
+  // Signed out, or a guest (who has no account): refused as signed out, as every change a member makes.
+  await requireUser();
   const m = await memberOf(t);
-  const [{ fail }, errors] = await Promise.all([guard(), import('../auth/errors')]);
   if (!m) throw fail(errors.notMember());
   if (m.role !== 'steward') throw fail(errors.forbidden('manage-access', 'steward'));
   try {
