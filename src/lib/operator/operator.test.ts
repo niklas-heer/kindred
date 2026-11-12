@@ -133,7 +133,7 @@ test('the operator guard: 401 signed out, 403 for a steward or anyone else, the 
     asUser(u);
     await assert.rejects(fns.fetchOperatorConsole(), (e) => status(e) === 403);
     asUser(u);
-    await assert.rejects(fns.operatorSetStatus({ data: { tree: 'alderby', status: 'suspended' } }), (e) => status(e) === 403);
+    await assert.rejects(fns.operatorSetStatus({ data: { tree: 'alderby', status: 'suspended', reason: 'Testing the bar.', ground: 'other' } }), (e) => status(e) === 403);
     asUser(u);
     await assert.rejects(fns.fetchAudit({ data: {} }), (e) => status(e) === 403);
   }
@@ -398,7 +398,7 @@ test('a recount never loses an upload that runs beside it', async () => {
 
 test('a suspended family is read-only for its members, with the reason; resuming opens it again', async () => {
   asUser(OP);
-  await fns.operatorSetStatus({ data: { tree: 'alderby', status: 'suspended' } });
+  await fns.operatorSetStatus({ data: { tree: 'alderby', status: 'suspended', reason: 'Testing the bar.', ground: 'other' } });
   asUser(STEWARD);
   assert.equal((await guard.requireMember('alderby')).role, 'steward', 'reading goes on');
   await assert.rejects(dbs.db('alderby').run("INSERT INTO meta (key, value) VALUES ('x', 'y')"), /suspended/);
@@ -449,12 +449,12 @@ test('a demo has no operator, and the console writes nothing in one', async () =
 });
 
 test('instance settings: the legal links show only for what is filled in', async () => {
-  assert.deepEqual((await settings.publicInstance()).legal, { impressum: false, privacy: false, terms: false, report: false });
+  assert.deepEqual((await settings.publicInstance()).legal, { impressum: false, privacy: false, terms: false, report: false, processingAgreement: false });
   asUser(OP);
   const s = await settings.instanceSettings();
   await fns.operatorSaveSettings({ data: { ...s, impressum: 'Orla Example\nSample Street 1', privacy: 'https://example.org/privacy', defaultCapBytes: 2_000_000 } });
   const pub = await settings.publicInstance();
-  assert.deepEqual(pub.legal, { impressum: true, privacy: true, terms: false, report: false });
+  assert.deepEqual(pub.legal, { impressum: true, privacy: true, terms: false, report: false, processingAgreement: false });
   assert.equal((await settings.legalTexts()).impressum, 'Orla Example\nSample Street 1');
   // A family made from now on gets the default cap.
   asUser(OP);

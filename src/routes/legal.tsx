@@ -9,6 +9,7 @@ import { translate, useT, type Key } from '~/lib/i18n';
 import { legalQuery } from '~/lib/operator/operator.functions';
 import { isEmail, isUrl } from '~/lib/operator/shared';
 import '~/components/operator/operator.css';
+import { SubprocessorList } from '~/components/gdpr/Subprocessors';
 
 export const Route = createFileRoute('/legal')({
   loader: ({ context }) => context.queryClient.ensureQueryData(legalQuery),
@@ -32,7 +33,7 @@ function Section({ id, title, value }: { id: string; title: Key; value: string }
 function Legal() {
   const t = useT();
   const { data } = useQuery(legalQuery);
-  const empty = data && ![data.impressum, data.privacy, data.terms, data.reportContact].some((v) => v.trim());
+  const empty = data && ![data.impressum, data.privacy, data.terms, data.reportContact, data.processingAgreement].some((v) => v.trim());
   return (
     <AuthCard crest={<Scale size={44} />} kicker={data?.instanceName || 'Kindred'} title={t('legal.title')} wide footer={false}>
       {!data ? <Skeleton lines={5} /> : empty ? <p>{t('legal.none')}</p> : (
@@ -41,8 +42,17 @@ function Legal() {
           <Section id="privacy" title="legal.privacy" value={data.privacy} />
           <Section id="terms" title="legal.terms" value={data.terms} />
           <Section id="report" title="legal.report" value={data.reportContact} />
+          <Section id="processing-agreement" title="gdpr.processing_agreement" value={data.processingAgreement} />
           {data.contactEmail && <p className="muted">{t('legal.contact', { email: data.contactEmail })}</p>}
         </div>
+      )}
+      {/* Who this server passes data to, from its configuration (src/lib/gdpr/subprocessors.ts): always, even when it is nobody. */}
+      {data && (
+        <section id="subprocessors" className="legal legal-section" aria-labelledby="subprocessors-h">
+          <h2 id="subprocessors-h">{t('gdpr.subs_title')}</h2>
+          <p className="muted">{t('gdpr.subs_public_hint')}</p>
+          <SubprocessorList list={data.subprocessors} />
+        </section>
       )}
       <p className="auth-alt"><Link to="/privacy-request">{t('legal.data_request_long')}</Link></p>
     </AuthCard>

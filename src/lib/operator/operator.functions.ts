@@ -5,7 +5,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
-import { DATA_REQUEST_KINDS, DATA_REQUEST_STATUSES, FAMILIES_PER_ACCOUNT_MAX, FAMILY_CREATION, FAMILY_STATUSES, SETTING_MAX, type AuditEntry, type DataRequest, type FamilyRequest, type InstanceSettings, type LegalTexts, type OperatorAccount, type OperatorFamily, type PublicInstance } from './shared';
+import { DATA_REQUEST_KINDS, DATA_REQUEST_OUTCOMES, DATA_REQUEST_STATUSES, FAMILIES_PER_ACCOUNT_MAX, FAMILY_CREATION, FAMILY_STATUSES, SETTING_MAX, STATUS_GROUNDS, STATUS_REASON_MAX, type AuditEntry, type DataRequest, type FamilyRequest, type InstanceSettings, type LegalTexts, type OperatorAccount, type OperatorFamily, type PublicInstance } from './shared';
 import { LOCALES } from '../i18n/languages';
 
 const tree = z.string().regex(/^[a-z0-9-]{1,64}$/);
@@ -184,12 +184,13 @@ export const operatorRenewLink = createServerFn({ method: 'POST' })
     }
   });
 
+/** Suspending or closing needs a statement of reasons (EU DSA Art. 17), which the family's members read; resuming clears it. */
 export const operatorSetStatus = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, status: z.enum(FAMILY_STATUSES) }))
+  .validator(z.object({ tree, status: z.enum(FAMILY_STATUSES), reason: z.string().max(STATUS_REASON_MAX).optional(), ground: z.enum(STATUS_GROUNDS).optional() }))
   .handler(async ({ data }) => {
     const op = await operatorForChange();
     try {
-      await (await ops()).setFamilyStatus(op, data.tree, data.status);
+      await (await ops()).setFamilyStatus(op, data.tree, data.status, data.ground ? { reason: data.reason ?? '', ground: data.ground } : undefined);
     } catch (e) {
       throw await failed(e);
     }
@@ -239,6 +240,7 @@ export const operatorSaveSettings = createServerFn({ method: 'POST' })
   .validator(z.object({
     instanceName: text(SETTING_MAX.instanceName), contactEmail: text(SETTING_MAX.contactEmail), impressum: text(SETTING_MAX.impressum),
     privacy: text(SETTING_MAX.privacy), terms: text(SETTING_MAX.terms), reportContact: text(SETTING_MAX.reportContact),
+    processingAgreement: text(SETTING_MAX.processingAgreement).default(''),
     defaultCapBytes: capBytes, familyCreation: z.enum(FAMILY_CREATION),
     familiesPerAccount: z.number().int().min(0).max(FAMILIES_PER_ACCOUNT_MAX).nullable(),
     languages: z.array(z.enum(LOCALES)).max(LOCALES.length).nullable(),
@@ -302,16 +304,41 @@ export const operatorDeclineRequest = createServerFn({ method: 'POST' })
   });
 
 export const operatorDataRequestStatus = createServerFn({ method: 'POST' })
-  .validator(z.object({ id: z.string().uuid(), status: z.enum(DATA_REQUEST_STATUSES) }))
+  .validator(z.object({ id: z.string().uuid(), status: z.enum(DATA_REQUEST_STATUSES), outcome: z.enum(DATA_REQUEST_OUTCOMES).optional() }))
   .handler(async ({ data }) => {
     const op = await operatorForChange();
     try {
-      await (await reqs()).setDataRequestStatus(op, data.id, data.status);
+      await (await reqs()).setDataRequestStatus(op, data.id, data.status, data.outcome ?? null);
     } catch (e) {
       throw await failed(e);
     }
     return { ok: true as const };
   });
+
+/** The operator has told the requester the answer takes up to two more months, and why (GDPR Art. 12(3)). */
+export const operatorExtendDataRequest = createServerFn({ method: 'POST' })
+  .validator(z.object({ id: z.string().uuid(), reason: z.string().max(2000) }))
+  .handler(async ({ data }) => {
+    const op = await operatorForChange();
+    try {
+      await (await reqs()).extendDataRequest(op, data.id, data.reason);
+    } catch (e) {
+      throw await failed(e);
+    }
+    return { ok: true as const };
+  });
+
+/** Why this family is suspended or closed, for its members (the bar and the closed page): its statement of reasons. */
+export const fetchFamilyStatement = createServerFn({ method: 'GET' })
+  .validator(z.object({ tree }))
+  .handler(async ({ data }) => {
+    const [{ requireUser }, { membership }] = await Promise.all([guard(), import('../auth/store.server')]);
+    const user = await requireUser();
+    // A member only, and a closed family's members too (the guard turns them away from everything else).
+    if (!(await membership(user.id, data.tree))) return null;
+    return (await ops()).statusStatement(data.tree);
+  });
+export const familyStatementQuery = (t: string) => queryOptions({ queryKey: ['family-statement', t], queryFn: () => fetchFamilyStatement({ data: { tree: t } }) });
 
 // ---------- the family's stewards ----------
 
@@ -327,13 +354,13 @@ export const fetchFamilyDataRequests = createServerFn({ method: 'GET' })
 export const familyDataRequestsQuery = (t: string) => queryOptions({ queryKey: ['data-requests', t], queryFn: () => fetchFamilyDataRequests({ data: { tree: t } }) });
 
 export const stewardDataRequestDone = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, id: z.string().uuid() }))
+  .validator(z.object({ tree, id: z.string().uuid(), outcome: z.enum(DATA_REQUEST_OUTCOMES).optional() }))
   .handler(async ({ data }) => {
     const [{ requireCan }, { refuseReadOnly }] = await Promise.all([guard(), import('../read-only')]);
     const m = await requireCan(data.tree, 'manage-access');
     try {
       refuseReadOnly();
-      await (await reqs()).stewardMarksDone(data.tree, m.user.id, data.id);
+      await (await reqs()).stewardMarksDone(data.tree, m.user.id, data.id, data.outcome);
     } catch (e) {
       throw await failed(e);
     }

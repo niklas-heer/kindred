@@ -182,6 +182,8 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0041_signin_step.sql` | `signin_step` (a right password waiting for its two-step code) and `password_reset` (an operator's one-hour reset link). |
 | `0042_policies.sql` | The operator's policies ([hosting-many-families.md](hosting-many-families.md), "Policies"): `instance_policy`, `family_policy`, operator-funded AI (`operator_ai_provider`, `ai_operator_spend`, `ai_operator_month`, `ai_operator_booking`, `ai_settings.funding`) and `announcement`. Every policy starts as `families` (today's behaviour) and `ai.source` as `byo`. |
 | `0043_signup.sql` | Hosting and sign-up ([hosting-many-families.md](hosting-many-families.md#hosting-and-sign-up)): `signup`, `signup_code`, `family_admin.self_signed`, and `challenge` made again with the purpose `signup`. |
+| `0044_gdpr.sql` | Data protection ([gdpr.md](gdpr.md)): `terms_acceptance.kind` (`terms` or `dpa`), `data_request.extended_at`, `extension_reason`, `person` and `outcome`, the statement of reasons on `family_admin` (`status_reason`, `status_ground`, `status_at`), `subject_restriction` and `subject_action`. |
+| `0045_breach.sql` | The operator's breach register: `breach` and `breach_family`. |
 | `0047_updates_health.sql` | The console's Update button and Health tab ([hosting-many-families.md](hosting-many-families.md), "Updates" and "Health"): `update_github` (the install's repository and sealed GitHub token, and the last update's run), `job_run` (each daily job's last run) and `family_schema` (the schema each family last reported). |
 
 ### Tables
@@ -278,7 +280,8 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   `signup_unverified` (`open` or `waitlist`), `landing_text`, `demo_url` and `backups_confirmed`; `family_creation` may then be
   `signup`;
   `auth_methods` from 0040: a JSON list of the ways in the operator offers, `["passkey","password"]`; missing means
-  passkeys only, or what `KINDRED_AUTH` lists, src/lib/auth/methods.server.ts) with
+  passkeys only, or what `KINDRED_AUTH` lists, src/lib/auth/methods.server.ts;
+  `processing_agreement`, and the retention job's `retention_mode` and `retention_report` from 0044) with
   its text `value`, and when and by whom it last changed. A missing row is the default (`family_creation` is then `stewards`; no
   storage cap; no limit of families per account; every complete language offered). Migration 0037 writes `families_per_account` = 5 only on an install with no
   accounts yet.
@@ -291,7 +294,9 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   outright; its members are refused and its guests' visits end; the share link checks it too), `cap_bytes` (NULL for none), `created_at` and `created_by`,
   `invited_name` (whom the operator invited as its first steward), `counted_at` (its storage's last recount) and `self_signed`
   (0043: 1 for a family made by sign-up; the server's ceiling of signed-up families counts these). Deleted with the family
-  (`tree` column).
+  (`tree` column). From 0044 the statement of reasons for a suspension or closure (EU DSA Art. 17): `status_reason` (the
+  operator's text, which the family's members read), `status_ground` (`terms`, `law` or `other`) and `status_at`; resuming clears
+  them.
 - **`signup`** (0043): one row per sign-up that made a family: `user` (foreign key, deleted with the account, since the row holds
   their `name` and contact `email`), `family` (an id, deliberately not a `tree` column, so the day's count outlives the family),
   `verified` (whether a sign-in provider verified the email; 0 for every passkey sign-up), `age_confirmed` ("I am 16 or older"),
@@ -299,6 +304,16 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   network count these rows inside the batch that adds one.
 - **`signup_code`** (0043): a code an operator made that opens sign-up: `hash` (the code's SHA-256; the code is shown once),
   `label`, `uses_max`, `uses`, `expires` (NULL: never), `created`, `created_by` and `revoked_at`.
+- **`subject_restriction`** (0044): a person in a family whose processing is restricted on a request (GDPR Art. 18): `tree`,
+  `person`, `since`, `restricted_by`, `request`. While it exists the person's edits are refused. Deleted with the family, or when
+  the person is erased.
+- **`subject_action`** (0044): one row per erasure, restriction or lifting a steward did: `tree`, `kind`, `at`, `done_by`,
+  `request`, and `counts` (JSON: rows removed or rewritten per place). Never a name. Deleted with the family.
+- **`breach`** and **`breach_family`** (0045): the operator's breach register ([gdpr.md](gdpr.md#when-something-goes-wrong)):
+  what happened, when the operator became aware (`aware_at`, the start of the 72-hour clock), the risk, when the authority and
+  the people were told, the reasons for a late notification, a `notice` for the affected families' stewards until
+  `notice_until` or `closed_at`, and the families affected (`breach_family.family`, an id, not a `tree` column: the register
+  outlives a family; none means every family). Kept while the server runs.
 - **`media_usage`** (0034): one row per file in a family's media storage, `tree`, `key`, `bytes`, `at`. Every upload reserves its
   row in a batch whose guard refuses it over the family's cap, before the file is written; a deletion removes it. A family's usage
   is the sum. `pending_at` (0036) is when the reservation was made, until the file is written (then NULL). The daily run recounts
@@ -331,10 +346,17 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   `created`; `status` (`open`, `forwarded`, `done`) with `updated_at` and `updated_by`; `network` as above; `forwarded_at` (0037),
   when the operator handed it to the family's stewards, cleared when it is moved back to `open`: the stewards' Access page lists
   only `forwarded` ones. Both forms store a request in one batch whose guards hold the per-network limits (three an hour, five a
-  day) and the server-wide ceiling of 200 open requests of that kind.
+  day) and the server-wide ceiling of 200 open requests of that kind. From 0044: `extended_at` and `extension_reason` (the
+  operator told the requester the answer takes up to two more months; the deadline is then three calendar months after
+  `created` instead of one, `dueAt` in `src/lib/operator/shared.ts`), `person` (the person the stewards found it is about, while
+  restricted) and `outcome` (`answered`, `erased`, `restricted` or `refused`, once done). The retention job deletes a request
+  three years after it was answered.
 - **`terms_acceptance`** (0037): one row per time someone accepted the server's terms of use: `user` (no foreign key, so the
   record stays), `version` (16 hex characters of the SHA-256 of the terms' text), `at`, `action` (`family.create` or
   `invite.steward`) and `family` (an id, not a `tree` column: it outlives the family). Written in the same batch as the step.
+  `kind` (0044) says what was accepted: `terms`, or `dpa` for the processing agreement (the `processing_agreement` setting), one
+  row each when the server has both. Kept when the account is deleted; the retention job removes a row three years after its
+  account is gone.
 - **`operator_push`** (0037): an operator's device that asked to be told about new requests: `user` (foreign key, so it goes
   with the account), `endpoint` (unique), `p256dh`, `auth`, `locale`, `created` and `sent_at`, the claim that keeps it to one push
   in ten minutes. Sent only while the account is an operator; deleted when the device turns it off or signs out, or the push
@@ -423,6 +445,32 @@ anything while the second step runs; if it fails, removing them again finishes i
 - Left pointing at the account: `story.author_account`, `comment.account`, `post.account`, `campaign_log.account`, `history.account`, `tag_proposal.account` (confirmed) and `decided_by`,
   `updated_by` columns of the Campaign and Today settings, invitations (`created_by`, `used_by`) and join requests. None is
   read as a live membership; each is either shown by the name kept beside it or ignored.
+
+## When an account is deleted
+
+"Delete my account" and the retention job (`src/lib/gdpr/account.server.ts`, [gdpr.md](gdpr.md)) read both databases' schemas
+instead of a list, so a table added later is covered. Refused while the account is a family's last steward or the server's last
+operator (guards in the batch restate both).
+
+- Accounts database: every row with a `user` or `account` column naming the account goes (passkeys, sessions, memberships,
+  chats, push devices, visits, presence, feedback, join requests, and the sign-in tables of any later method); a `*_by` column
+  naming it is emptied and its row stays; `ai_turn` rows found through its chats and `challenge` rows naming it go first. Kept as
+  the operator's records: `operator_audit` and `terms_acceptance`. Then the `user` row.
+- Each family whose accounts rows named it: through one `once` plan with no history row. Rows keyed by the account (reactions,
+  quiz answers, push opt-ins …), rows only it could read (`owner`: personal fields and their history) and its retry keys (`op`)
+  go. Every other column naming the account (`account`, `author_account`, `*_by`) becomes `former-<uuid>` (one per deletion),
+  and the name beside it (`name`, `author_name`, `author`, `created_by_name`) "A former member"; a plain-text name column in a
+  table that records authorship is replaced too when no other member of the family has that name.
+
+## Erasing a person
+
+A steward erases a living person who is not a member (`erasePerson` in `src/lib/gdpr/subject.server.ts`), also generic over both
+schemas: the person as removing them does (their links, fields, events, stories, photo, portraits, tags, citations, research
+links cascade), the gallery pictures only they are tagged in (and their files), every `history` row about them, then in every
+text column of the family's tables (and of the accounts tables with a `tree` column, for that family) their id becomes `[—]` and
+each full name `[—]` (a key column holding the id deletes its row). In the accounts database, every assistant conversation in
+the family that names them goes whole, `guest_visitor.people` loses their key, a join request's `person` is cleared. The
+`subject_action` row keeps counts only.
 
 ## Rules every change follows
 

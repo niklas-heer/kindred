@@ -81,6 +81,8 @@ export function SettingsTab({ settings, turnstile, pushKey }: { settings: Instan
       <Field label={t('legal.privacy')} hint={t('operator.text_or_url')}>{(id, hint) => <textarea id={id} aria-describedby={hint} className="input operator-text" rows={6} {...text('privacy')} />}</Field>
       <Field label={t('legal.terms')} hint={t('operator.text_or_url')}>{(id, hint) => <textarea id={id} aria-describedby={hint} className="input operator-text" rows={4} {...text('terms')} />}</Field>
       <Field label={t('legal.report')} hint={t('operator.report_hint')}>{(id, hint) => <input id={id} aria-describedby={hint} className="input" {...text('reportContact')} />}</Field>
+      <Field label={t('gdpr.processing_agreement')} hint={t('gdpr.processing_agreement_hint')}>{(id, hint) => <textarea id={id} aria-describedby={hint} className="input operator-text" rows={4} {...text('processingAgreement')} />}</Field>
+      <p className="families-hint"><a href="/processing-agreement" target="_blank" rel="noopener">{t('gdpr.template_link')}</a></p>
       <div className="families-row">
         <button type="submit" className="btn primary" disabled={!dirty || save.isPending}>{save.isPending ? t('families.saving') : t('families.save')}</button>
         {status && <span role={status.ok ? 'status' : 'alert'} className={status.ok ? 'muted' : 'families-error'}>{status.text}</span>}

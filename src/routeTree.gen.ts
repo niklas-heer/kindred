@@ -15,6 +15,7 @@ import { Route as FamiliesRouteImport } from './routes/families'
 import { Route as LegalRouteImport } from './routes/legal'
 import { Route as OperatorRouteImport } from './routes/operator'
 import { Route as PrivacyRequestRouteImport } from './routes/privacy-request'
+import { Route as ProcessingAgreementRouteImport } from './routes/processing-agreement'
 import { Route as RequestRouteImport } from './routes/request'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SigninRouteImport } from './routes/signin'
@@ -99,6 +100,11 @@ const OperatorRoute = OperatorRouteImport.update({
 const PrivacyRequestRoute = PrivacyRequestRouteImport.update({
   id: '/privacy-request',
   path: '/privacy-request',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProcessingAgreementRoute = ProcessingAgreementRouteImport.update({
+  id: '/processing-agreement',
+  path: '/processing-agreement',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RequestRoute = RequestRouteImport.update({
@@ -384,6 +390,7 @@ export interface FileRoutesByFullPath {
   '/legal': typeof LegalRoute
   '/operator': typeof OperatorRoute
   '/privacy-request': typeof PrivacyRequestRoute
+  '/processing-agreement': typeof ProcessingAgreementRoute
   '/request': typeof RequestRoute
   '/setup': typeof SetupRoute
   '/signin': typeof SigninRoute
@@ -446,6 +453,7 @@ export interface FileRoutesByTo {
   '/legal': typeof LegalRoute
   '/operator': typeof OperatorRoute
   '/privacy-request': typeof PrivacyRequestRoute
+  '/processing-agreement': typeof ProcessingAgreementRoute
   '/request': typeof RequestRoute
   '/setup': typeof SetupRoute
   '/signin': typeof SigninRoute
@@ -510,6 +518,7 @@ export interface FileRoutesById {
   '/legal': typeof LegalRoute
   '/operator': typeof OperatorRoute
   '/privacy-request': typeof PrivacyRequestRoute
+  '/processing-agreement': typeof ProcessingAgreementRoute
   '/request': typeof RequestRoute
   '/setup': typeof SetupRoute
   '/signin': typeof SigninRoute
@@ -575,6 +584,7 @@ export interface FileRouteTypes {
     | '/legal'
     | '/operator'
     | '/privacy-request'
+    | '/processing-agreement'
     | '/request'
     | '/setup'
     | '/signin'
@@ -637,6 +647,7 @@ export interface FileRouteTypes {
     | '/legal'
     | '/operator'
     | '/privacy-request'
+    | '/processing-agreement'
     | '/request'
     | '/setup'
     | '/signin'
@@ -700,6 +711,7 @@ export interface FileRouteTypes {
     | '/legal'
     | '/operator'
     | '/privacy-request'
+    | '/processing-agreement'
     | '/request'
     | '/setup'
     | '/signin'
@@ -764,6 +776,7 @@ export interface RootRouteChildren {
   LegalRoute: typeof LegalRoute
   OperatorRoute: typeof OperatorRoute
   PrivacyRequestRoute: typeof PrivacyRequestRoute
+  ProcessingAgreementRoute: typeof ProcessingAgreementRoute
   RequestRoute: typeof RequestRoute
   SetupRoute: typeof SetupRoute
   SigninRoute: typeof SigninRoute
@@ -835,6 +848,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy-request'
       fullPath: '/privacy-request'
       preLoaderRoute: typeof PrivacyRequestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/processing-agreement': {
+      id: '/processing-agreement'
+      path: '/processing-agreement'
+      fullPath: '/processing-agreement'
+      preLoaderRoute: typeof ProcessingAgreementRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/request': {
@@ -1296,6 +1316,7 @@ const rootRouteChildren: RootRouteChildren = {
   LegalRoute: LegalRoute,
   OperatorRoute: OperatorRoute,
   PrivacyRequestRoute: PrivacyRequestRoute,
+  ProcessingAgreementRoute: ProcessingAgreementRoute,
   RequestRoute: RequestRoute,
   SetupRoute: SetupRoute,
   SigninRoute: SigninRoute,

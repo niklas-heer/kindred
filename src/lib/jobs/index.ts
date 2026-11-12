@@ -8,6 +8,7 @@ import { historyJob } from './history.ts';
 import { instanceStatsJob } from './instance-stats.ts';
 import { recipesJob } from './recipes.ts';
 import { remindersJob } from './reminders.ts';
+import { retentionJob } from './retention.ts';
 import { statsJob } from './stats.ts';
 import { storageJob } from './storage.ts';
 import { updateCheckJob } from './update-check.ts';
@@ -28,6 +29,7 @@ export const DAILY_JOBS: readonly DailyJob[] = [
   storageJob,
   instanceStatsJob,
   updateCheckJob,
+  retentionJob,
 ];
 
 /** How a job's run ended, for the operator's Health tab (src/lib/operator/health.server.ts). */

@@ -5,7 +5,8 @@
 // to get a copy: the operator makes it read-only for a while, and its stewards download it. The server refuses every change
 // (and a closed family's every read, its backup included); this only says so.
 import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { Link, useParams } from '@tanstack/react-router';
+import { StatementOfReasons } from '~/components/gdpr/StatusReason';
 import { DoorClosed, PauseCircle } from 'lucide-react';
 import { useT } from '~/lib/i18n';
 import { publicInstanceQuery } from '~/lib/operator/operator.functions';
@@ -22,22 +23,27 @@ function Contact({ withAddress, without }: { withAddress: 'operator.suspended_co
   return <>{before}<a href={`mailto:${email}`}>{email}</a>{after}</>;
 }
 
-export function SuspendedBar() {
+export function SuspendedBar({ tree }: { tree?: string }) {
   const t = useT();
   return (
     <div className="suspended-bar" role="status">
       <PauseCircle size={15} aria-hidden />
-      <p>{t('operator.suspended_banner')} <Contact withAddress="operator.suspended_contact" without="operator.suspended_no_contact" /></p>
+      <div>
+        <p>{t('operator.suspended_banner')} <Contact withAddress="operator.suspended_contact" without="operator.suspended_no_contact" /></p>
+        {tree && <StatementOfReasons tree={tree} />}
+      </div>
     </div>
   );
 }
 
 export function ClosedFamilyPage() {
   const t = useT();
+  const tree = useParams({ strict: false }).tree as string | undefined;
   return (
     <Main className="page ui-notfound-page">
       <NotFound icon={<DoorClosed size={28} />} title={t('operator.closed_title')}
         text={<>{t('operator.closed_text')} <Contact withAddress="operator.closed_contact" without="operator.closed_no_contact" /> {t('operator.closed_export')}</>}>
+        {tree && <StatementOfReasons tree={tree} />}
         <div className="ui-state-actions">
           <Link to="/" search={{ families: 'all' }} className="btn">{t('noaccess.your_families')}</Link>
         </div>

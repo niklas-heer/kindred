@@ -22,11 +22,13 @@ import { StatisticsTab } from './OperatorStatistics';
 import { UpdatesTab } from './OperatorUpdates';
 import { HostingTab } from '~/components/signup/OperatorHosting';
 import { HealthTab } from './OperatorHealth';
+import { PrivacyTab } from '~/components/gdpr/OperatorPrivacy';
+import { StatusReasonDialog } from '~/components/gdpr/StatusReason';
 import { updateDotQuery } from '~/lib/operator/insight.functions';
 import '~/components/families/families.css';
 import './operator.css';
 
-export const OPERATOR_TABS = ['families', 'statistics', 'requests', 'data', 'settings', 'hosting', 'signin', 'policies', 'announcements', 'updates', 'health', 'operators', 'audit'] as const;
+export const OPERATOR_TABS = ['families', 'statistics', 'requests', 'data', 'privacy', 'settings', 'hosting', 'signin', 'policies', 'announcements', 'updates', 'health', 'operators', 'audit'] as const;
 export type OperatorTab = (typeof OPERATOR_TABS)[number];
 
 /** As the server suggests an id (suggestId in families.server.ts), so the field fills in while the name is typed. */
@@ -57,6 +59,7 @@ export function OperatorConsole({ tab, onTab }: { tab: OperatorTab; onTab: (tab:
               <Tab value="statistics">{t('ops.tab_statistics')}</Tab>
               <Tab value="requests" badge={waiting || undefined}>{t('operator.tab_requests')}</Tab>
               <Tab value="data" badge={open || undefined}>{t('operator.tab_data')}</Tab>
+              <Tab value="privacy">{t('gdpr.tab_privacy')}</Tab>
               <Tab value="settings">{t('operator.tab_settings')}</Tab>
               <Tab value="hosting">{t('signup.tab')}</Tab>
               <Tab value="signin">{t('pw.tab')}</Tab>
@@ -73,6 +76,7 @@ export function OperatorConsole({ tab, onTab }: { tab: OperatorTab; onTab: (tab:
             <TabPanel value="statistics"><StatisticsTab /></TabPanel>
             <TabPanel value="updates"><UpdatesTab /></TabPanel>
             <TabPanel value="health"><HealthTab onWorkers={data.workers} /></TabPanel>
+            <TabPanel value="privacy"><PrivacyTab families={data.families} /></TabPanel>
             <TabPanel value="settings"><SettingsTab settings={data.settings} turnstile={data.turnstile} pushKey={data.pushKey} /></TabPanel>
             <TabPanel value="policies"><PoliciesTab families={data.families} /></TabPanel>
             <TabPanel value="announcements"><AnnouncementsTab /></TabPanel>
@@ -218,6 +222,8 @@ function FamilyRow({ family: f, now, total }: { family: OperatorFamily; now: num
   const refresh = () => qc.invalidateQueries({ queryKey: ['operator'] });
   const onError = (e: unknown) => setError(errorText(e, t.locale));
   const status = useMutation({ mutationFn: (next: FamilyStatus) => operatorSetStatus({ data: { tree: f.id, status: next } }), onSuccess: refresh, onError });
+  // Suspending or closing asks for a statement of reasons first (EU DSA Art. 17); resuming does not.
+  const [asking, setAsking] = useState<Exclude<FamilyStatus, 'active'> | null>(null);
   const saveCap = useMutation({ mutationFn: () => operatorSetCap({ data: { tree: f.id, capBytes: mbToBytes(cap.trim() === '' ? null : Number(cap)) } }), onSuccess: refresh, onError });
   const recount = useMutation({ mutationFn: () => operatorRecount({ data: { tree: f.id } }), onSuccess: refresh, onError });
   const renew = useMutation({ mutationFn: () => operatorRenewLink({ data: { tree: f.id } }), onSuccess: (r) => setLink({ url: inviteUrl(r.token), expires: r.expires }), onError });
@@ -262,7 +268,7 @@ function FamilyRow({ family: f, now, total }: { family: OperatorFamily; now: num
       </form>
       <div className="families-danger families-row">
         <span id={`${ids}-level`} className="muted">{t('operator.level')}</span>
-        <Segmented aria-labelledby={`${ids}-level`} value={f.status} onChange={(next) => { if (next !== f.status && !status.isPending) status.mutate(next); }}
+        <Segmented aria-labelledby={`${ids}-level`} value={f.status} onChange={(next) => { if (next === f.status || status.isPending) return; if (next === 'active') status.mutate(next); else setAsking(next); }}
           options={[{ value: 'active', label: t('operator.level_active') }, { value: 'suspended', label: t('operator.level_suspended') }, { value: 'closed', label: t('operator.level_closed') }]} />
         {total < 2 ? <span className="muted">{t('families.delete_last')}</span>
           : <button type="button" className="btn danger" onClick={() => setDeleting(true)}><Trash2 size={15} aria-hidden /> {t('families.delete')}</button>}
@@ -270,6 +276,7 @@ function FamilyRow({ family: f, now, total }: { family: OperatorFamily; now: num
       {f.status !== 'active' && <p className="families-hint">{t(f.status === 'closed' ? 'operator.closed_hint' : 'operator.suspended_hint')}</p>}
       {error && <p role="alert" className="families-error">{error}</p>}
       {deleting && <DeleteAsOperator family={f} onClose={() => setDeleting(false)} />}
+      {asking && <StatusReasonDialog tree={f.id} name={f.name} status={asking} onClose={() => setAsking(null)} onDone={() => { setAsking(null); void refresh(); }} />}
     </li>
   );
 }

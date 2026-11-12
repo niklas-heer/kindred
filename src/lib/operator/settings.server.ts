@@ -12,7 +12,7 @@ const accounts = () => store.accounts();
 type Key = (typeof TEXT_SETTINGS)[number] | 'defaultCapBytes' | 'familyCreation' | 'familiesPerAccount' | 'languages';
 const COLUMN: Record<Key, string> = {
   instanceName: 'instance_name', contactEmail: 'contact_email', impressum: 'impressum', privacy: 'privacy', terms: 'terms',
-  reportContact: 'report_contact', defaultCapBytes: 'default_cap_bytes', familyCreation: 'family_creation', familiesPerAccount: 'families_per_account',
+  reportContact: 'report_contact', processingAgreement: 'processing_agreement', defaultCapBytes: 'default_cap_bytes', familyCreation: 'family_creation', familiesPerAccount: 'families_per_account',
   languages: 'languages',
 };
 
@@ -40,7 +40,7 @@ export async function instanceSettings(): Promise<InstanceSettings> {
   const creation = v.get(COLUMN.familyCreation);
   return {
     instanceName: text('instanceName'), contactEmail: text('contactEmail'), impressum: text('impressum'), privacy: text('privacy'),
-    terms: text('terms'), reportContact: text('reportContact'),
+    terms: text('terms'), reportContact: text('reportContact'), processingAgreement: text('processingAgreement'),
     defaultCapBytes: count(v.get(COLUMN.defaultCapBytes)),
     familyCreation: (FAMILY_CREATION as readonly string[]).includes(creation ?? '') ? (creation as FamilyCreation) : DEFAULT_FAMILY_CREATION,
     familiesPerAccount: count(v.get(COLUMN.familiesPerAccount)),
@@ -89,7 +89,7 @@ export async function publicInstance(): Promise<PublicInstance> {
   return {
     instanceName: s.instanceName,
     familyCreation: s.familyCreation,
-    legal: { impressum: !!s.impressum.trim(), privacy: !!s.privacy.trim(), terms: !!s.terms.trim(), report: !!s.reportContact.trim() },
+    legal: { impressum: !!s.impressum.trim(), privacy: !!s.privacy.trim(), terms: !!s.terms.trim(), report: !!s.reportContact.trim(), processingAgreement: !!s.processingAgreement.trim() },
     ...(site ? { turnstileSiteKey: site } : {}),
     ...(contact ? { contactEmail: contact } : {}),
     full,
@@ -97,8 +97,9 @@ export async function publicInstance(): Promise<PublicInstance> {
 }
 
 export async function legalTexts(): Promise<LegalTexts> {
-  const { instanceName, contactEmail, impressum, privacy, terms, reportContact } = await instanceSettings();
-  return { instanceName, contactEmail, impressum, privacy, terms, reportContact };
+  const { instanceName, contactEmail, impressum, privacy, terms, reportContact, processingAgreement } = await instanceSettings();
+  const { subprocessors } = await import('../gdpr/subprocessors.ts');
+  return { instanceName, contactEmail, impressum, privacy, terms, reportContact, processingAgreement, subprocessors: await subprocessors() };
 }
 
 // ---------- the audit log ----------

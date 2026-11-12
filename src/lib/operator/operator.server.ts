@@ -12,7 +12,7 @@ import { translate } from '../i18n/dictionary.ts';
 import { guard, isGuardError, q, store } from '../store/index.ts';
 import { audit, instanceSettings, saveSettings } from './settings.server.ts';
 import { recount } from './storage.server.ts';
-import type { FamilyStatus, InstanceSettings, OperatorAccount, OperatorFamily } from './shared.ts';
+import { STATUS_REASON_MAX, type FamilyStatus, type InstanceSettings, type OperatorAccount, type OperatorFamily, type StatusGround, type StatusStatement } from './shared.ts';
 
 const accounts = () => store.accounts();
 const invalid = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => new AuthError('invalid', translate('en', key, vars));
@@ -105,16 +105,31 @@ const STATUS_ACTION: Record<FamilyStatus, string> = { active: 'family.resume', s
  * Sets how a family may be used: `suspended` (read-only for its members, with a bar; its guests keep reading), `closed`
  * (nobody opens it: its members see a page, its share links and guests are refused) or `active` again. Logged.
  */
-export async function setFamilyStatus(op: UserRow, tree: string, status: FamilyStatus): Promise<void> {
+export async function setFamilyStatus(op: UserRow, tree: string, status: FamilyStatus, statement?: StatusStatement, now = Date.now()): Promise<void> {
   await known(tree);
   const stored = status === 'active' ? 'active' : 'suspended';
   const closed = status === 'closed' ? 1 : 0;
+  // Suspending or closing restricts a family's use of the service: its stewards get a statement of reasons (EU DSA Art. 17),
+  // the facts and what it rests on, which they read on the bar or the closed page. Letting it be used again clears it.
+  const reason = statement ? statement.reason.replace(/\r\n?/g, '\n').trim().slice(0, STATUS_REASON_MAX) : '';
+  if (status !== 'active' && (!reason || !statement?.ground)) throw invalid('gdpr.err.reason_needed');
+  const kept = status === 'active' ? { reason: null, ground: null } : { reason, ground: statement!.ground };
   await accounts().batch([
-    q('INSERT INTO family_admin (tree, status, closed) VALUES (?, ?, ?) ON CONFLICT(tree) DO UPDATE SET status = excluded.status, closed = excluded.closed', tree, stored, closed),
+    q(`INSERT INTO family_admin (tree, status, closed, status_reason, status_ground, status_at) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(tree) DO UPDATE SET status = excluded.status, closed = excluded.closed, status_reason = excluded.status_reason,
+       status_ground = excluded.status_ground, status_at = excluded.status_at`, tree, stored, closed, kept.reason, kept.ground, now),
     // A closed family's guests leave now, not when their visit would have ended.
     ...(closed ? [q('DELETE FROM share_session WHERE link IN (SELECT id FROM share_link WHERE tree = ?)', tree)] : []),
-    audit(actor(op), STATUS_ACTION[status], tree),
+    audit(actor(op), STATUS_ACTION[status], tree, kept.ground ? { ground: kept.ground, reason: kept.reason } : undefined),
   ]);
+}
+
+/** Why a family is suspended or closed, as its members may read it: none while it is active. */
+export async function statusStatement(tree: string): Promise<{ status: FamilyStatus; reason: string; ground: StatusGround; at: number | null } | null> {
+  const row = await accounts().get<{ status: 'active' | 'suspended'; closed: number; status_reason: string | null; status_ground: StatusGround | null; status_at: number | null }>(
+    'SELECT status, closed, status_reason, status_ground, status_at FROM family_admin WHERE tree = ?', tree);
+  if (!row || row.status !== 'suspended' || !row.status_reason) return null;
+  return { status: statusOf(row), reason: row.status_reason, ground: row.status_ground ?? 'other', at: row.status_at };
 }
 
 /** Sets a family's storage cap in bytes (null: none). Files already stored stay; new ones are refused while it is over. */

@@ -6,8 +6,9 @@ import { useId, useState } from 'react';
 import { ConfirmDialog, Dialog, EmptyState, Segmented } from '~/components/ui';
 import { errorText } from '~/lib/errortext';
 import { formatDate, useT } from '~/lib/i18n';
+import { ExtendRequest } from '~/components/gdpr/ExtendRequest';
 import { fetchOlderRequests, operatorApproveRequest, operatorDataRequestStatus, operatorDeclineRequest, type OperatorConsole, type RequestPage } from '~/lib/operator/operator.functions';
-import { daysLeft, OPEN_REQUESTS_MAX, REQUEST_PAGE, type DataRequest, type DataRequestStatus, type FamilyRequest } from '~/lib/operator/shared';
+import { dueAt, daysLeft, mayExtend, OPEN_REQUESTS_MAX, REQUEST_PAGE, type DataRequest, type DataRequestStatus, type FamilyRequest } from '~/lib/operator/shared';
 
 /**
  * The decided (or answered) requests: the console's first page, then older ones a page at a time on "Show older". Pages are
@@ -188,7 +189,7 @@ export function DataRequestCard({ request: r, familyName, now, operator, onDone 
     onSuccess: () => qc.invalidateQueries({ queryKey: ['operator'] }),
     onError: (e) => setError(errorText(e, t.locale)),
   });
-  const left = daysLeft(r.created, now);
+  const left = daysLeft(r, now);
   return (
     <li className="ui-card families-card operator-data" aria-labelledby={`${ids}-h`}>
       <h3 id={`${ids}-h`}>{t(`operator.kind_${r.kind}`)} · {r.name}</h3>
@@ -201,8 +202,12 @@ export function DataRequestCard({ request: r, familyName, now, operator, onDone 
       {r.status !== 'done' && (
         <p className={left < 0 ? 'families-error' : left <= 7 ? 'operator-soon' : 'muted'}>
           {left < 0 ? t('operator.overdue', { count: -left }) : t('operator.days_left', { count: left })}
+          {' · '}{t('gdpr.due_on', { date: formatDate(dueAt(r), t.locale) })}
         </p>
       )}
+      {r.extendedAt && <p className="muted">{t('gdpr.extended_on', { date: formatDate(r.extendedAt, t.locale) })}{r.extensionReason && <> · {r.extensionReason}</>}</p>}
+      {r.outcome && <p className="muted">{t(`gdpr.outcome_${r.outcome}`)}</p>}
+      {operator && mayExtend(r, now) && <ExtendRequest id={r.id} />}
       {operator ? (
         <div className="families-row">
           <span id={`${ids}-status`} className="muted">{t('operator.status')}</span>

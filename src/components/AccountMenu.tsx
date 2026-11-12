@@ -5,7 +5,7 @@ import { translateMessage, formatDate, relativeTime, useT, type Locale } from '~
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { graphQuery } from '~/lib/api';
-import { Activity, ArrowLeftRight, BarChart3, Bell, Check, Compass, Eye, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus, Gamepad2, Landmark, History, Printer, Scale, ServerCog } from 'lucide-react';
+import { Activity, ArrowLeftRight, BarChart3, Bell, Check, Compass, Eye, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus, Gamepad2, Landmark, History, Printer, Scale, ServerCog, FileDown } from 'lucide-react';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import { publicInstanceQuery } from '~/lib/operator/operator.functions';
 import { updateDotQuery } from '~/lib/operator/insight.functions';
@@ -29,6 +29,7 @@ import { openTours } from './tour/store';
 import { dropThisDevice, ReminderRefresh, RemindersDialog } from './Reminders';
 import { useMember, useMembership, useSession } from '~/lib/session';
 import { AboutDialog } from './AboutDialog';
+import { YourDataDialog } from './gdpr/YourData';
 import { openViewAs, stopPreview } from './viewas/ViewAs';
 import { Dialog } from './ui/Dialog';
 import { isTopOverlay, useOverlayLayer } from './ui/overlay';
@@ -87,6 +88,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
   const [open, setOpen] = useState(false);
   const [passkeys, setPasskeys] = useState(false);
   const [about, setAbout] = useState(false);
+  const [yourData, setYourData] = useState(false);
   const [reminders, setReminders] = useState(false);
   // Reminders are offered only when this server has its VAPID keys (docs/self-host.md, "Reminders").
   const remindersOn = useQuery({ queryKey: ['reminders', 'available'], queryFn: () => fetchRemindersAvailable(), staleTime: 5 * 60_000 });
@@ -232,6 +234,11 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
               <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setPasskeys(true); }}>
                 <KeyRound size={17} /> {session?.auth === 'cloudflare-access' ? t('auth.your_name') : t("accountmenu.your_name_passkeys")} </button>
               )}
+              {/* Download or delete the account (docs/gdpr.md): the reader's own, never during a preview. */}
+              {!demo && !preview && (
+              <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setYourData(true); }}>
+                <FileDown size={17} /> {t('gdpr.your_data')} </button>
+              )}
               {tree && m && (
                 <Link role="menuitem" className="acct-item" to="/$tree/history" params={{ tree }} onClick={() => setOpen(false)} aria-label={unseen ? t('history.menu_new', { count: unseen }) : undefined}>
                   <History size={17} /> {t('history.menu')} {unseen ? <span className="hist-dot" aria-hidden /> : null} </Link>
@@ -318,6 +325,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
         </div>
       )}
       <AboutDialog open={about} onClose={() => setAbout(false)} />
+      {!demo && <YourDataDialog open={yourData} onClose={() => setYourData(false)} />}
       <PasskeysDialog open={passkeys} onClose={() => setPasskeys(false)} />
       {/* Reminders are the steward's own devices: a preview neither refreshes nor shows them. */}
       {!demo && !preview && tree && m && <ReminderRefresh tree={tree} />}

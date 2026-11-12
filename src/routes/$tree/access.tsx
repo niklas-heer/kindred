@@ -8,6 +8,7 @@ import { ShareLinkCard } from '~/components/ShareLinkCard';
 import { openViewAs, startPreview } from '~/components/viewas/ViewAs';
 import { JoinRequests } from '~/components/join/JoinRequests';
 import { FamilyDataRequests } from '~/components/operator/FamilyDataRequests';
+import { SubjectRequests } from '~/components/gdpr/SubjectRequests';
 import { ROLE_ICON } from '~/components/RoleIcon';
 import { Dialog, EmptyState, ErrorState, Notice, PageHeader, Select, Skeleton } from '~/components/ui';
 import { accessQuery, answerPersonLink, createInvite, removeMember, renewInvite, revokeInvite, setMemberRole, type AccessInvite, type AccessMember } from '~/lib/auth/functions';
@@ -116,6 +117,8 @@ function AccessPage() {
         <JoinRequests tree={tree} />
         {/* Data requests about this family (access, correction, deletion), sent through the server's operator. */}
         <FamilyDataRequests tree={tree} />
+        {/* Answering a request about someone in the records: find them, give them a copy, restrict or erase them (docs/gdpr.md). */}
+        <SubjectRequests tree={tree} />
 
         {access.isPending ? (
           <div className="ui-card" aria-busy="true" aria-label={t('acc.loadingMembers')}><Skeleton lines={4} /></div>

@@ -24,6 +24,12 @@ export interface InstanceSettings {
   terms: string;
   /** Where to report content (EU DSA): an email address or a web address. */
   reportContact: string;
+  /**
+   * The processing agreement (GDPR Art. 28) between the operator and each family that keeps its tree here: its text, or the
+   * address of a page that has it. While set, whoever makes a family accepts it with the terms (src/lib/gdpr/dpa.server.ts).
+   * docs/processing-agreement.md is a template to start from.
+   */
+  processingAgreement: string;
   /** The storage cap a family made from now on gets, in bytes; null for none. */
   defaultCapBytes: number | null;
   familyCreation: FamilyCreation;
@@ -50,9 +56,9 @@ export const OPEN_REQUESTS_MAX = 200;
 /** Decided requests (and answered data requests) the console shows at a time; "Show older" pages through the rest. */
 export const REQUEST_PAGE = 50;
 
-export const TEXT_SETTINGS = ['instanceName', 'contactEmail', 'impressum', 'privacy', 'terms', 'reportContact'] as const;
+export const TEXT_SETTINGS = ['instanceName', 'contactEmail', 'impressum', 'privacy', 'terms', 'reportContact', 'processingAgreement'] as const;
 export const SETTING_MAX: Record<(typeof TEXT_SETTINGS)[number], number> = {
-  instanceName: 80, contactEmail: 200, impressum: 4000, privacy: 20000, terms: 20000, reportContact: 400,
+  instanceName: 80, contactEmail: 200, impressum: 4000, privacy: 20000, terms: 20000, reportContact: 400, processingAgreement: 40000,
 };
 
 /** What anyone may know of the instance: the forms and the legal page read this, signed in or not. */
@@ -60,7 +66,7 @@ export interface PublicInstance {
   instanceName: string;
   familyCreation: FamilyCreation;
   /** Which legal sections have something to show; the footer links only to those, and shows nothing when none has. */
-  legal: { impressum: boolean; privacy: boolean; terms: boolean; report: boolean };
+  legal: { impressum: boolean; privacy: boolean; terms: boolean; report: boolean; processingAgreement?: boolean };
   /** Cloudflare Turnstile's site key, when the server has one and its secret (KINDRED_TURNSTILE_*). */
   turnstileSiteKey?: string;
   /** The operator's contact address, when set: the closed family's page, the suspended family's bar and a full form name it. */
@@ -77,6 +83,22 @@ export interface LegalTexts {
   privacy: string;
   terms: string;
   reportContact: string;
+  processingAgreement: string;
+  /** Who this server passes data to, derived from its configuration (src/lib/gdpr/subprocessors.ts). */
+  subprocessors: Subprocessor[];
+}
+
+/** One recipient of personal data the server uses, as the legal page lists it. */
+export interface Subprocessor {
+  /** A stable id: 'cloudflare', 'anthropic', 'photon' … */
+  id: string;
+  name: string;
+  /** What it does here (a translation key's last part: `gdpr.sub_<purpose>`). */
+  purpose: 'hosting' | 'storage' | 'ai' | 'address' | 'archive' | 'push' | 'turnstile';
+  /** Where it processes, as its own documentation says (a country or region code). */
+  where: string;
+  /** Its own privacy or data processing page. */
+  url: string;
 }
 
 /** The token the stand-in for Turnstile hands its form (KINDRED_TURNSTILE_FAKE=1, the browser journeys). */
@@ -88,7 +110,7 @@ export const isUrl = (value: string) => /^https?:\/\/\S+$/i.test(value.trim());
 /** A setting that is a single email address is shown as a link that writes to it. */
 export const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
-export const anyLegal = (l: PublicInstance['legal']) => l.impressum || l.privacy || l.terms || l.report;
+export const anyLegal = (l: PublicInstance['legal']) => l.impressum || l.privacy || l.terms || l.report || !!l.processingAgreement;
 
 // ---------- the console ----------
 
@@ -99,6 +121,15 @@ export const anyLegal = (l: PublicInstance['legal']) => l.impressum || l.privacy
  */
 export const FAMILY_STATUSES = ['active', 'suspended', 'closed'] as const;
 export type FamilyStatus = (typeof FAMILY_STATUSES)[number];
+
+/**
+ * What a suspension or closure rests on, for its statement of reasons (EU DSA Art. 17): the server's terms, the law (illegal
+ * content, a court or authority), or something else (unpaid, abandoned, the family asked).
+ */
+export const STATUS_GROUNDS = ['terms', 'law', 'other'] as const;
+export type StatusGround = (typeof STATUS_GROUNDS)[number];
+export interface StatusStatement { reason: string; ground: StatusGround }
+export const STATUS_REASON_MAX = 2000;
 
 /** One family as the operator sees it: its administration, never its records. */
 export interface OperatorFamily {
@@ -132,16 +163,43 @@ export const DATA_REQUEST_KINDS = ['access', 'correction', 'deletion', 'other'] 
 export type DataRequestKind = (typeof DATA_REQUEST_KINDS)[number];
 export const DATA_REQUEST_STATUSES = ['open', 'forwarded', 'done'] as const;
 export type DataRequestStatus = (typeof DATA_REQUEST_STATUSES)[number];
+export const DATA_REQUEST_OUTCOMES = ['answered', 'erased', 'restricted', 'refused'] as const;
+export type DataRequestOutcome = (typeof DATA_REQUEST_OUTCOMES)[number];
 export interface DataRequest {
   id: string; name: string; email: string; familyText: string; family: string | null; kind: DataRequestKind; message: string;
   created: number; status: DataRequestStatus; updatedAt: number | null;
+  /** When the requester was told the answer takes up to two more months (Art. 12(3)), and why. */
+  extendedAt: number | null; extensionReason: string | null;
+  /** How it was answered, once done. */
+  outcome: DataRequestOutcome | null;
 }
 
-/** GDPR gives a month to answer (Art. 12(3)); Kindred counts 30 days from the request. */
-export const DATA_REQUEST_DAYS = 30;
 const DAY = 86_400_000;
-/** Whole days left to answer a request made at `created`, as of `now`: negative once the month is over. */
-export const daysLeft = (created: number, now: number) => Math.ceil((created + DATA_REQUEST_DAYS * DAY - now) / DAY);
+
+/**
+ * `months` calendar months after `ms`, at the end of that day (UTC): the same date in that month, or its last day when it has
+ * no such date (31 January + 1 month = 28 or 29 February). How the EU counts a period in months (Regulation 1182/71, Art. 3).
+ */
+export function addMonths(ms: number, months: number): number {
+  const d = new Date(ms);
+  const y = d.getUTCFullYear(), m = d.getUTCMonth() + months;
+  const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  return Date.UTC(y, m, Math.min(d.getUTCDate(), last), 23, 59, 59, 999);
+}
+
+/** The month GDPR gives to answer (Art. 12(3)), and the two more it allows when the requester is told so within the first. */
+export const ANSWER_MONTHS = 1;
+export const EXTENSION_MONTHS = 2;
+
+/** When a request must be answered by: a calendar month after it arrived, or three once it was extended. */
+export const dueAt = (r: { created: number; extendedAt?: number | null }) => addMonths(r.created, ANSWER_MONTHS + (r.extendedAt ? EXTENSION_MONTHS : 0));
+
+/** Whether the deadline may still be extended: not yet extended, and still within the first month (the notice must come by then). */
+export const mayExtend = (r: { created: number; extendedAt?: number | null; status: DataRequestStatus }, now: number) =>
+  r.status !== 'done' && !r.extendedAt && now <= addMonths(r.created, ANSWER_MONTHS);
+
+/** Whole days left to answer a request, as of `now`: negative once its deadline has passed. */
+export const daysLeft = (r: { created: number; extendedAt?: number | null }, now: number) => Math.ceil((dueAt(r) - now) / DAY);
 
 /** A size in bytes for a person: "0 B", "512 KB", "1.5 GB" (decimal units, as storage is sold). */
 export function formatBytes(bytes: number, locale = 'en'): string {

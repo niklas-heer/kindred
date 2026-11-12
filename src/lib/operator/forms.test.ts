@@ -186,7 +186,7 @@ test('a data request reaches the stewards only while forwarded; open again takes
   assert.deepEqual(await forStewards(), ['Dana Dell']);
   // A read-only family's stewards still see it (they answer by mail), cannot mark it answered there, and a viewer never sees it.
   asUser(OP);
-  await fns.operatorSetStatus({ data: { tree: 'alderby', status: 'suspended' } });
+  await fns.operatorSetStatus({ data: { tree: 'alderby', status: 'suspended', reason: 'Testing the bar.', ground: 'other' } });
   assert.deepEqual(await forStewards(), ['Dana Dell'], 'read-only: still listed');
   asUser(STEWARD);
   await assert.rejects(fns.stewardDataRequestDone({ data: { tree: 'alderby', id: dana.id } }), (e: Error) => status(e) === 403 && /suspended/.test(e.message));
@@ -211,13 +211,13 @@ test('closed: members are refused with the reason, guests and the share link too
   const before = (await share.startGuestVisit(row))!;
   // Read-only: guests keep reading, members read.
   asUser(OP);
-  await fns.operatorSetStatus({ data: { tree: 'alderby', status: 'suspended' } });
+  await fns.operatorSetStatus({ data: { tree: 'alderby', status: 'suspended', reason: 'Testing the bar.', ground: 'other' } });
   assert.ok(await share.guestVisitByToken(before.token), 'a guest keeps reading a read-only family');
   asUser(STEWARD);
   await guard.requireMember('alderby');
   // Closed.
   asUser(OP);
-  await fns.operatorSetStatus({ data: { tree: 'alderby', status: 'closed' } });
+  await fns.operatorSetStatus({ data: { tree: 'alderby', status: 'closed', reason: 'Testing the closed page.', ground: 'other' } });
   asUser(OP);
   assert.equal((await fns.fetchOperatorConsole()).families.find((f) => f.id === 'alderby')?.status, 'closed');
   for (const u of [STEWARD, VIEWER]) {

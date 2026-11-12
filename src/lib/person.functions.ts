@@ -65,6 +65,16 @@ const details = z.object({
   bio: z.string().max(20_000).nullable(),
 });
 
+/** A person whose processing is restricted on a data request (GDPR Art. 18, src/lib/gdpr/subject.server.ts) is not changed. */
+async function notRestricted(t: string, person: string) {
+  const [{ refuseRestricted }, g, { AuthError }] = await Promise.all([import('./gdpr/subject.server'), guard(), import('./auth/errors')]);
+  try {
+    await refuseRestricted(t, person);
+  } catch (e) {
+    throw e instanceof AuthError ? g.fail(e) : e;
+  }
+}
+
 /**
  * Saves the Edit tab: the details and the whole list of fields, in one change. Editing contact details
  * needs `edit-contact` as well as `edit-person`; both are the editor's role, so the editor may do both.
@@ -74,6 +84,7 @@ export const savePersonEdit = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const m = await (await guard()).requireCan(data.tree, 'edit-person');
     if (data.fields.some((f) => isContactType(f.type))) await (await guard()).requireCan(data.tree, 'edit-contact');
+    await notRestricted(data.tree, data.id);
     return (await import('./person.server')).savePersonEdit(data.tree, data.id, data.details, data.fields, data.revision, opOf(m.user, data), m.user.name, audienceOf(m));
   });
 
@@ -91,6 +102,7 @@ export const addPersonField = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const m = await (await guard()).requireCan(data.tree, 'edit-person');
     if (isContactType(data.field.type)) await (await guard()).requireCan(data.tree, 'edit-contact');
+    await notRestricted(data.tree, data.person);
     return (await import('./person.server')).addPersonField(data.tree, data.person, data.field, opOf(m.user, data), m.user.name, audienceOf(m));
   });
 
@@ -134,6 +146,7 @@ export const setLook = createServerFn({ method: 'POST' })
     const m = await requireLookEditor(data.tree, data.id);
     const clean = sanitizeLook(data.look);
     if (!clean) throw new Error('That look has no parts a portrait can show.');
+    await notRestricted(data.tree, data.id);
     return (await import('./person.server')).setPersonLook(data.tree, data.id, clean, opOf(m.user, data));
   });
 
@@ -142,5 +155,6 @@ export const setDiedPlace = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, id: personId, place: z.string().trim().max(200).nullable(), opKey }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireCan(data.tree, 'edit-person');
+    await notRestricted(data.tree, data.id);
     return (await import('./person.server')).setPersonDiedPlace(data.tree, data.id, data.place, opOf(m.user, data));
   });

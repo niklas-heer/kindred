@@ -23,7 +23,7 @@ import { audit, familyCreation } from './settings.server.ts';
 import { passesTurnstile } from './turnstile.server.ts';
 import { makeFamilyFor, type MadeFamily } from './operator.server.ts';
 import { notifyOperators } from './operator-push.server.ts';
-import { OPEN_REQUESTS_MAX, REQUEST_PAGE, type DataRequest, type DataRequestKind, type DataRequestStatus, type FamilyRequest, type RequestStatus } from './shared.ts';
+import { mayExtend, OPEN_REQUESTS_MAX, REQUEST_PAGE, type DataRequest, type DataRequestKind, type DataRequestOutcome, type DataRequestStatus, type FamilyRequest, type RequestStatus } from './shared.ts';
 import type { FamilyTheme } from '../families.server.ts';
 
 const accounts = () => store.accounts();
@@ -192,9 +192,13 @@ export async function submitDataRequest(input: NewDataRequest, g: FormGuards, no
   return { email };
 }
 
-type DataRequestRow = { id: string; name: string; email: string; family_text: string; family: string | null; kind: DataRequestKind; message: string; created: number; status: DataRequestStatus; updated_at: number | null };
+type DataRequestRow = {
+  id: string; name: string; email: string; family_text: string; family: string | null; kind: DataRequestKind; message: string; created: number; status: DataRequestStatus;
+  updated_at: number | null; extended_at: number | null; extension_reason: string | null; outcome: DataRequestOutcome | null;
+};
 const dataRequest = (r: DataRequestRow): DataRequest => ({
   id: r.id, name: r.name, email: r.email, familyText: r.family_text, family: r.family, kind: r.kind, message: r.message, created: r.created, status: r.status, updatedAt: r.updated_at,
+  extendedAt: r.extended_at ?? null, extensionReason: r.extension_reason ?? null, outcome: r.outcome ?? null,
 });
 
 /** Data requests the stewards may show at most at once (those handed to them and not answered). */
@@ -225,15 +229,35 @@ export async function familyDataRequests(tree: string): Promise<DataRequest[]> {
  * The operator moves a data request on: forwarded (to the family's stewards, who see it from then on), done, or open again
  * (which takes it back from them). Logged.
  */
-export async function setDataRequestStatus(op: UserRow, id: string, status: DataRequestStatus): Promise<void> {
+export async function setDataRequestStatus(op: UserRow, id: string, status: DataRequestStatus, outcome: DataRequestOutcome | null = null): Promise<void> {
   const r = await accounts().get<{ family: string | null }>('SELECT family FROM data_request WHERE id = ?', id);
   if (!r) throw invalid('operator.err_request_gone');
   const t = Date.now();
   // Forwarded keeps the first time it was; open clears it; done leaves it as it was (answered with or without the stewards).
   const forwarded = status === 'forwarded' ? q('COALESCE(forwarded_at, ?)', t) : status === 'open' ? q('NULL') : q('forwarded_at');
+  // Done keeps how it was answered (an outcome a steward recorded stays unless the operator names another); anything else clears it.
+  const kept = status === 'done' ? q('COALESCE(?, outcome)', outcome) : q('NULL');
   await accounts().batch([
-    q(`UPDATE data_request SET status = ?, updated_at = ?, updated_by = ?, forwarded_at = ${forwarded.sql} WHERE id = ?`, status, t, op.id, ...forwarded.params, id),
-    audit(actor(op), 'data_request.status', r.family, { request: id, status }),
+    q(`UPDATE data_request SET status = ?, updated_at = ?, updated_by = ?, forwarded_at = ${forwarded.sql}, outcome = ${kept.sql} WHERE id = ?`, status, t, op.id, ...forwarded.params, ...kept.params, id),
+    audit(actor(op), 'data_request.status', r.family, { request: id, status, ...(outcome ? { outcome } : {}) }),
+  ]);
+}
+
+/**
+ * The operator tells the requester the answer takes up to two more months (GDPR Art. 12(3)) and why: allowed once, and only
+ * within the first month, as the notice must reach them by then. Kindred sends no email: the operator writes, then records it
+ * here, which moves the deadline the console and the stewards see. Logged.
+ */
+export async function extendDataRequest(op: UserRow, id: string, reason: string, now = Date.now()): Promise<void> {
+  const r = await accounts().get<DataRequestRow>('SELECT * FROM data_request WHERE id = ?', id);
+  if (!r) throw invalid('operator.err_request_gone');
+  const why = text(reason, 1000);
+  if (!why) throw invalid('gdpr.err.extension_reason');
+  if (!mayExtend({ created: r.created, extendedAt: r.extended_at, status: r.status }, now)) throw invalid('gdpr.err.extension_late');
+  await accounts().batch([
+    guard('EXISTS (SELECT 1 FROM data_request WHERE id = ? AND extended_at IS NULL)', id),
+    q('UPDATE data_request SET extended_at = ?, extension_reason = ?, updated_at = ?, updated_by = ? WHERE id = ?', now, why, now, op.id, id),
+    audit(actor(op), 'data_request.extend', r.family, { request: id }),
   ]);
 }
 
@@ -241,10 +265,10 @@ export async function setDataRequestStatus(op: UserRow, id: string, status: Data
  * A steward of the family the request names marks it done (they answered it): only one the operator handed to them. Not the
  * operator's action, so not in their log.
  */
-export async function stewardMarksDone(tree: string, user: string, id: string): Promise<void> {
+export async function stewardMarksDone(tree: string, user: string, id: string, outcome: DataRequestOutcome = 'answered'): Promise<void> {
   const r = await accounts().get<{ id: string }>("SELECT id FROM data_request WHERE id = ? AND family = ? AND status = 'forwarded'", id, tree);
   if (!r) throw invalid('operator.err_request_gone');
-  await accounts().run("UPDATE data_request SET status = 'done', updated_at = ?, updated_by = ? WHERE id = ? AND status = 'forwarded'", Date.now(), user, id);
+  await accounts().run("UPDATE data_request SET status = 'done', outcome = ?, updated_at = ?, updated_by = ? WHERE id = ? AND status = 'forwarded'", outcome, Date.now(), user, id);
 }
 
 /** What waits for the operators: open family requests and data requests nobody has looked at. The account menu's badge. */

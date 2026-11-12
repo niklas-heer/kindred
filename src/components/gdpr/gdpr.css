@@ -1,0 +1,32 @@
+/* Data protection (docs/gdpr.md): "Your data" in the account menu, the steward's request tools on Access, the operator's
+   Privacy tab, the statement of reasons, the breach notice and the processing agreement template. Built on the Families and
+   operator classes (families.css, operator.css). */
+.gdpr-dialog { display: grid; gap: 10px; }
+.gdpr-dialog .btn { justify-self: start; }
+.gdpr-blocked { margin: 0; padding: 8px 12px; border-left: 3px solid var(--accent); }
+.gdpr-confirm { display: grid; gap: 8px; }
+.gdpr-confirm label { font-weight: 600; }
+.gdpr-subject { display: grid; gap: 10px; }
+.gdpr-search { width: min(280px, 60vw); }
+.gdpr-hits { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.gdpr-chosen { outline: 2px solid var(--accent); }
+.gdpr-panel { display: grid; gap: 10px; }
+.gdpr-panel h3, .gdpr-panel p { margin: 0; }
+.gdpr-section { display: grid; gap: 10px; }
+.gdpr-subs { margin: 0; padding-left: 18px; display: grid; gap: 4px; overflow-wrap: anywhere; }
+.gdpr-breach h3 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.gdpr-breach p { margin: 0; }
+.gdpr-breach-form { display: grid; gap: 10px; }
+.gdpr-families { display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.gdpr-statement { margin-top: 4px; font-weight: 400; text-align: left; max-width: 70ch; }
+.gdpr-statement p { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.gdpr-notice {
+  position: fixed; z-index: 40; left: 12px; right: 12px; bottom: 12px; margin: 0 auto; max-width: 640px;
+  display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius, 8px);
+  background: var(--panel, var(--bg)); color: var(--text); border: 1px solid var(--danger); box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
+}
+.gdpr-notice > svg { color: var(--danger); flex: none; margin-top: 2px; }
+.gdpr-notice > div { flex: 1; min-width: 0; }
+.gdpr-notice p { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.gdpr-template { white-space: normal; }
+.gdpr-template blockquote { margin: 0 0 12px; padding: 8px 12px; border-left: 3px solid var(--accent); }
