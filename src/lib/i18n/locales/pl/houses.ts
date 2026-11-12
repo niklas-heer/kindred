@@ -3,7 +3,6 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/houses.ts";
 
 export default {
-  "houses.about": "ok.",
   "houses.allHouses": "Wszystkie rody",
   "houses.armsOf": "Herb: {name}",
   "houses.automatic": "Automatycznie: {name}",
@@ -133,7 +132,6 @@ export default {
   "houses.notFoundText": "W tej rodzinie nie ma takiego rodu. Mógł zostać przemianowany albo usunięty.",
   "houses.notSet": "Nie ustawiono",
   "houses.notable": "Znani członkowie",
-  "houses.of": "z",
   "houses.onlySteward": "Herb i następstwo może zmienić tylko opiekun",
   "houses.openTree": "Otwórz drzewo",
   "houses.perGeneration": "Członkowie w pokoleniu",

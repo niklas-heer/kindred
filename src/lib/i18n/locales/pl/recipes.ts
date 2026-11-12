@@ -102,7 +102,6 @@ export default {
   "recipes.form.picture_failed": "Nie udało się odczytać pliku „{name}” jako obrazu (JPEG, PNG lub WebP).",
   "recipes.form.ingredients_hint": "Po jednym wierszu. Wpisz całą linię w pierwsze pole („800 g wołowiny, w kostkę”), a ułoży się sama, albo wklej swoją listę.",
   "recipes.form.paste": "Wklej listę",
-  "recipes.form.paste_ph": "800 g wołowiny, w kostkę\n3 cebule\n2 łyżki papryki\n\nNa kluski:\n250 g mąki",
   "recipes.form.paste_add": "Zrób z tego wiersze",
   "recipes.form.group_ph": "Na… (sos, ciasto, polewę)",
   "recipes.form.group_n": "Nazwa części {n} listy",

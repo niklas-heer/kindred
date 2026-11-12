@@ -3,7 +3,6 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/houses.ts";
 
 export default {
-  "houses.about": "ca.",
   "houses.allHouses": "Alle huizen",
   "houses.armsOf": "Wapen van {name}",
   "houses.automatic": "Automatisch: {name}",
@@ -125,7 +124,6 @@ export default {
   "houses.notFoundText": "Deze familie heeft zo’n huis niet. Het is misschien hernoemd of verwijderd.",
   "houses.notSet": "Niet ingesteld",
   "houses.notable": "Opmerkelijke leden",
-  "houses.of": "van",
   "houses.onlySteward": "Alleen een beheerder kan het wapen en de opvolging wijzigen",
   "houses.openTree": "Open de stamboom",
   "houses.perGeneration": "Leden per generatie",

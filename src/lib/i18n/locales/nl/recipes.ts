@@ -97,7 +97,6 @@ export default {
   "recipes.form.picture_failed": "{name} kon niet als afbeelding worden gelezen (JPEG, PNG of WebP).",
   "recipes.form.ingredients_hint": "Eén rij per ingrediënt. Typ een hele regel in het eerste vak (“800 g rundvlees, in blokjes”) en het sorteert zichzelf, of plak je lijst.",
   "recipes.form.paste": "Een lijst plakken",
-  "recipes.form.paste_ph": "800 g rundvlees, in blokjes\n3 uien\n2 el paprikapoeder\n\nVoor de knoedels:\n250 g bloem",
   "recipes.form.paste_add": "Er rijen van maken",
   "recipes.form.group_ph": "Voor de… (saus, deeg, topping)",
   "recipes.form.group_n": "Naam van deel {n} van de lijst",

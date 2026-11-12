@@ -55,7 +55,6 @@ export default {
   "events.err.too_many": "Een persoon kan maximaal 200 gebeurtenissen hebben.",
   "events.err.changed": "De gebeurtenissen zijn veranderd terwijl je ze sorteerde. De pagina toont ze zoals ze nu zijn.",
   "events.atlas.mode": "Gebeurtenissen",
-  "events.atlas.kind": { one: "gebeurtenis", other: "gebeurtenissen" },
   "events.atlas.what": "levensgebeurtenissen",
   "events.atlas.kindword": "gebeurtenissen",
   "events.atlas.here": "Gebeurtenissen hier",

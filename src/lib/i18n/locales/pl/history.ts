@@ -49,18 +49,6 @@ export default {
   "history.the_family": "Rodzina",
   "history.see_all": "Zobacz całą historię",
   "history.more_changes": { one: "i jeszcze {count} zmiana", few: "i jeszcze {count} zmiany", many: "i jeszcze {count} zmian", other: "i jeszcze {count} zmiany" },
-  "history.reply.comment_story": {
-    one: "{author}: komentarz do Twojego wspomnienia",
-    few: "{count} nowe komentarze do Twojego wspomnienia",
-    many: "{count} nowych komentarzy do Twojego wspomnienia",
-    other: "{count} nowego komentarza do Twojego wspomnienia",
-  },
-  "history.reply.comment_media": {
-    one: "{author}: komentarz do Twojego zdjęcia",
-    few: "{count} nowe komentarze do Twojego zdjęcia",
-    many: "{count} nowych komentarzy do Twojego zdjęcia",
-    other: "{count} nowego komentarza do Twojego zdjęcia",
-  },
   "history.reply.reaction_story": {
     one: "Reakcja na Twoje wspomnienie",
     few: "{count} reakcje na Twoje wspomnienie",
@@ -72,12 +60,6 @@ export default {
     few: "{count} reakcje na Twoje zdjęcie",
     many: "{count} reakcji na Twoje zdjęcie",
     other: "{count} reakcji na Twoje zdjęcie",
-  },
-  "history.reply.comment_post": {
-    one: "{author}: komentarz do Twojej wiadomości",
-    few: "{count} nowe komentarze do Twojej wiadomości",
-    many: "{count} nowych komentarzy do Twojej wiadomości",
-    other: "{count} nowego komentarza do Twojej wiadomości",
   },
   "history.reply.reaction_post": {
     one: "Reakcja na Twoją wiadomość",
