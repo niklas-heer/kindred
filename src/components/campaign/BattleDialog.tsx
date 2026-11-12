@@ -110,10 +110,10 @@ export function BattleDialog({ battle, map, sides, mySide, onClose }: { battle: 
           {fought.map((r, i) => (
             <li key={i} className="cb-round">
               <span className="cb-round-n">{t('campaign.battle.round', { n: i + 1 })}</span>
-              <span className="cb-dice" aria-label={t('campaign.battle.rolled', { who: attacker?.name ?? '', dice: r.a.join(', ') })}>
+              <span className="cb-dice" role="img" aria-label={t('campaign.battle.rolled', { who: attacker?.name ?? '', dice: r.a.join(', ') })}>
                 {r.a.map((v, j) => <Die key={j} value={v} lost={j < r.d.length && v <= r.d[j]} delay={j * 70} />)}
               </span>
-              <span className="cb-dice" aria-label={t('campaign.battle.rolled', { who: defender?.name ?? t('campaign.free'), dice: r.d.join(', ') })}>
+              <span className="cb-dice" role="img" aria-label={t('campaign.battle.rolled', { who: defender?.name ?? t('campaign.free'), dice: r.d.join(', ') })}>
                 {r.d.map((v, j) => <Die key={j} value={v} defender lost={j < r.a.length && r.a[j] > v} delay={200 + j * 70} />)}
               </span>
               <span className="cb-loss">{t('campaign.battle.losses', { a: r.aLost, d: r.dLost })}</span>
