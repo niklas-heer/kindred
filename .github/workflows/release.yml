@@ -6,7 +6,7 @@ name: Release
 #
 # Each architecture is built on a runner of its own kind (arm64 on GitHub's arm runner, not under QEMU: emulated, the
 # arm64 build outgrew the hour from 2.2.0 on) and pushed by digest; a last job joins the two digests under the tags.
-# "Run workflow" with a tag publishes an existing release again, from that tag's commit.
+# "Run workflow" with a tag publishes an existing release again, from that tag's commit, without moving `latest`.
 on:
   push:
     tags: ["v*"]
@@ -131,6 +131,8 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
           tags: type=semver,pattern={{version}},value=${{ env.RELEASE_TAG }}
+          # Only a pushed tag moves `latest`: publishing an older release again must not take it back.
+          flavor: latest=${{ github.event_name == 'push' }}
       - name: Join the two architectures under the tags
         env:
           AMD64: ${{ needs.amd64.outputs.digest }}
