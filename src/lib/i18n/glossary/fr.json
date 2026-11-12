@@ -256,6 +256,8 @@
     "fields.cancelAdd",
     "invite.invitation",
     "look.beard.vandyke",
+    "look.glasses.pince_nez",
+    "look.hair.box_braids",
     "oidc.kind_authentik",
     "oidc.kind_entra",
     "oidc.kind_google",
