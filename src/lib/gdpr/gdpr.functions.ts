@@ -112,9 +112,12 @@ export const eraseSubject = createServerFn({ method: 'POST' })
     const m = await steward(data.tree);
     const s = await import('./subject.server');
     try {
-      const report = await s.subjectReport(data.tree, data.person);
-      if (data.confirm.trim().toLowerCase() !== report.person.name.trim().toLowerCase()) {
-        throw new (await import('../auth/errors')).AuthError('invalid', 'gdpr.err.confirm_person');
+      // An erasure that stopped after the family's records went is finished without the name, which is no longer known.
+      if (!(await s.pendingErasure(data.tree, data.person))) {
+        const report = await s.subjectReport(data.tree, data.person);
+        if (data.confirm.trim().toLowerCase() !== report.person.name.trim().toLowerCase()) {
+          throw new (await import('../auth/errors')).AuthError('invalid', 'gdpr.err.confirm_person');
+        }
       }
       await irreversible(m.user);
       return await s.erasePerson(data.tree, data.person, m.user.id, data.request ?? null);

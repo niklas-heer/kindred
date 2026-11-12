@@ -376,8 +376,10 @@ test('an erasure that failed between the two databases is finished by trying aga
   }
   assert.ok(failed, 'the failure was injected');
   assert.equal(await d.get('SELECT 1 FROM person WHERE id = ?', P), undefined, 'the family was done');
-  // The steward tries again: it finishes.
+  // The steward tries again: it finishes. The name is no longer known, so the retry needs none.
+  assert.equal(await subject.pendingErasure(tree, P), true);
   await subject.erasePerson(tree, P, ROSA.id, request);
+  assert.equal(await subject.pendingErasure(tree, P), false);
   assert.deepEqual({ ...(await one<object>('SELECT status, outcome FROM data_request WHERE id = ?', request)) }, { status: 'done', outcome: 'erased' });
   assert.equal(await one("SELECT 1 FROM feedback WHERE id = 'fb-p' AND instr(body, 'Pia Quell') > 0"), undefined, 'the accounts database is clean');
   assert.equal((await one<{ n: number }>("SELECT count(*) AS n FROM subject_action WHERE tree = ? AND kind = 'erase' AND request = ?", tree, request))!.n, 1, 'recorded once');
