@@ -28,6 +28,7 @@ import needed from "./needed.ts";
 import operator from "./operator.ts";
 import ops from "./ops.ts";
 import panel from "./panel.ts";
+import password from "./password.ts";
 import photos from "./photos.ts";
 import policy from "./policy.ts";
 import portrait from "./portrait.ts";
@@ -81,6 +82,7 @@ export default {
   ...operator,
   ...ops,
   ...panel,
+  ...password,
   ...photos,
   ...policy,
   ...portrait,
